@@ -18,6 +18,7 @@ arrow-schema.workspace = true
 arrow-select.workspace = true
 ceres-core.workspace = true
 ceres-io.workspace = true
+coda.workspace = true
 drillholes.workspace = true
 estimation.workspace = true
 numpy.workspace = true
