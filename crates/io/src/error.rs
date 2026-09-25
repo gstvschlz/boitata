@@ -6,6 +6,12 @@ pub enum Error {
     Arrow(#[from] arrow_schema::ArrowError),
     #[error(transparent)]
     Regex(#[from] regex::Error),
+    #[error(transparent)]
+    Parquet(#[from] parquet::errors::ParquetError),
+    #[error(transparent)]
+    Container(#[from] ceres_core::Error),
+    #[error("invalid ceres metadata: {0}")]
+    Metadata(String),
     #[error("column `{0}` is not numeric")]
     NotNumeric(String),
     #[error("line {line}: {message}")]

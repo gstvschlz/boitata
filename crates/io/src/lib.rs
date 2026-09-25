@@ -4,10 +4,12 @@
 mod csv;
 mod error;
 mod gslib;
+mod parquet;
 
 pub use csv::{CsvOptions, read_csv, write_csv};
 pub use error::{Error, Result};
 pub use gslib::{read_gslib, write_gslib};
+pub use parquet::{Stored, read_parquet, write_block_model, write_parquet, write_points};
 
 /// Values read as null unless the caller overrides them (case-insensitive).
 pub const NODATA: &[&str] = &[
