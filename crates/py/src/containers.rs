@@ -215,13 +215,74 @@ impl PyBlockModel {
         self.0.crs.clone()
     }
 
-    /// Parent cell index of each row, or `None` for a regular model.
+    /// Parent cell index of each row (masked or sub-blocked), or `None` when regular.
     #[getter]
     fn index<'py>(&self, py: Python<'py>) -> Option<Bound<'py, PyArray1<u64>>> {
         match self.0.layout() {
             Layout::Regular => None,
             Layout::Masked(i) => Some(PyArray1::from_slice(py, i)),
+            Layout::SubBlocked { parent, .. } => Some(PyArray1::from_slice(py, parent)),
         }
+    }
+
+    /// `(n, 6)` sub-block extents as fractions of the parent cell
+    /// `[u0, v0, w0, u1, v1, w1]`, or `None` when not sub-blocked.
+    #[getter]
+    fn extents<'py>(&self, py: Python<'py>) -> Option<Bound<'py, PyAny>> {
+        match self.0.layout() {
+            Layout::SubBlocked { extent, .. } => {
+                let rows: Vec<Vec<f64>> = extent.iter().map(|e| e.to_vec()).collect();
+                Some(crate::args::array2(py, &rows).into_any())
+            }
+            _ => None,
+        }
+    }
+
+    /// Volume of each row (area with unit height in 2D).
+    #[getter]
+    fn volumes<'py>(&self, py: Python<'py>) -> Bound<'py, PyAny> {
+        crate::args::array1(py, self.0.volumes()).into_any()
+    }
+
+    /// Sub-blocked model: `parent` cell of each sub-block (sorted) and its
+    /// `(n, 6)` extent as fractions of that cell; `subgrid` (e.g. `(4, 4, 8)`)
+    /// requires corners on that subdivision.
+    #[staticmethod]
+    #[pyo3(signature = (origin, size, count, parent, extents, rotation=(0.0, 0.0, 0.0), subgrid=None, attributes=None, crs=None))]
+    #[allow(clippy::too_many_arguments)]
+    fn subblocked(
+        origin: Vec<f64>,
+        size: Vec<f64>,
+        count: Vec<usize>,
+        parent: PyReadonlyArray1<u64>,
+        extents: &Bound<PyAny>,
+        rotation: (f64, f64, f64),
+        subgrid: Option<[u32; 3]>,
+        attributes: Option<&Bound<PyAny>>,
+        crs: Option<String>,
+    ) -> PyResult<Self> {
+        let geometry = Geometry {
+            origin: triple(origin, 0.0, "origin")?,
+            size: triple(size, 1.0, "size")?,
+            count: triple(count, 1, "count")?,
+            rotation: [rotation.0, rotation.1, rotation.2],
+        };
+        let parent = parent.as_array().to_vec();
+        let extent = crate::args::rows(extents, "extents")?
+            .into_iter()
+            .map(|r| {
+                <[f64; 6]>::try_from(r.as_slice())
+                    .map_err(|_| invalid("extents must have shape (n, 6)"))
+            })
+            .collect::<PyResult<Vec<_>>>()?;
+        let attributes = match attributes {
+            Some(a) => to_batch(a)?,
+            None => empty(parent.len()),
+        };
+        let mut model = BlockModel::subblocked(geometry, parent, extent, subgrid, attributes)
+            .map_err(core_error)?;
+        model.crs = crs;
+        Ok(Self(model))
     }
 
     /// `(n, 3)` cell centres in world coordinates.
@@ -272,11 +333,16 @@ impl PyBlockModel {
         let layout = match self.0.layout() {
             Layout::Regular => "regular",
             Layout::Masked(_) => "masked",
+            Layout::SubBlocked { .. } => "sub-blocked",
+        };
+        let rows = match self.0.layout() {
+            Layout::SubBlocked { .. } => {
+                format!("{} sub-blocks in {} cells", self.0.len(), g.cells())
+            }
+            _ => format!("{} of {} cells", self.0.len(), g.cells()),
         };
         format!(
-            "BlockModel({layout}, {} of {} cells, count {:?}, size {:?}, rotation {:?}){}",
-            self.0.len(),
-            g.cells(),
+            "BlockModel({layout}, {rows}, count {:?}, size {:?}, rotation {:?}){}",
             g.count,
             g.size,
             g.rotation,

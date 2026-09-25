@@ -106,3 +106,20 @@ def test_parquet_is_readable_by_other_tools(tmp_path):
     )
     assert pl.read_parquet(tmp_path / "b.parquet")["g"].to_list() == [1, 2, 3, 4]
     assert isinstance(cs.read_parquet(tmp_path / "b.parquet"), cs.BlockModel)
+
+
+def test_subblocked_model(tmp_path):
+    parent = np.array([0, 0, 3], dtype=np.uint64)
+    extents = [[0, 0, 0, 0.5, 1, 1], [0.5, 0, 0, 1, 1, 1], [0, 0, 0, 1, 1, 1]]
+    model = cs.BlockModel.subblocked(
+        (0, 0), (10, 10), (2, 2), parent, extents, subgrid=(2, 1, 1), attributes={"g": [1.0, 3.0, 5.0]}
+    )
+    np.testing.assert_allclose(model.volumes, [50, 50, 100])
+    np.testing.assert_allclose(model.centroids[1], [7.5, 5, 0.5])
+    regular = model.to_regular()
+    np.testing.assert_allclose(regular["g"][[0, 3]], [2.0, 5.0])
+    cs.write_parquet(tmp_path / "s.parquet", model)
+    back = cs.read_parquet(tmp_path / "s.parquet")
+    np.testing.assert_allclose(back.extents, model.extents)
+    with pytest.raises(cs.InvalidInput):
+        cs.BlockModel.subblocked((0, 0), (10, 10), (2, 2), parent, extents, subgrid=(3, 1, 1))
