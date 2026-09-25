@@ -1,20 +1,34 @@
+# %% [markdown]
+# # 5. Sequential Gaussian simulation
+#
+# Kriging gives one smooth map. Simulation draws many maps that each honour the samples, the declustered histogram and
+# the variogram; together they measure uncertainty.
+
+# %% [hidden]
 import sys
 from pathlib import Path
 
+HERE = Path(__file__).parent
+sys.path.insert(0, str(HERE.parent))
+
+# %%
 import ceres as cs
 import matplotlib.pyplot as plt
 import numpy as np
-from matplotlib.colors import PowerNorm
-
-HERE = Path(__file__).parent
-sys.path.insert(0, str(HERE.parent))
 from common import ACCENT, GREY, HIGHLIGHT, INK, LIGHT, fetch, map_axes, save
+from matplotlib.colors import PowerNorm
 
 samples = cs.PointSet.from_table(cs.read_csv(fetch("walker-lake/sample.csv")))
 truth = cs.read_csv(fetch("walker-lake/exhaustive.csv"))["V"].reshape(300, 260)
 xy, v = samples.coords, samples["V"]
 azimuth = cs.Variogram.from_json((HERE.parent / "03-variography" / "model.json").read_text()).rotation[0]
 
+
+# %% [markdown]
+# Normal scores with declustering weights, tails bounded to 0 and the largest sample, and their variogram along
+# N170° and N260° scaled to a unit sill:
+
+# %%
 weights = cs.cell_declustering(xy, v, sizes=np.arange(2.5, 102.5, 2.5)).weights
 y = cs.NormalScore(tails=(0.0, v.max())).fit_transform(v, weights=weights)
 
@@ -32,6 +46,12 @@ gaussian = cs.Variogram(
 )
 print(gaussian)
 
+
+# %% [markdown]
+# SGS normal-scores the data itself, simulates along a random path and back-transforms. 50 realizations, the same on
+# any number of threads:
+
+# %%
 grid = cs.BlockModel(origin=(0.5, 0.5), size=(5, 5), count=(52, 60))
 sgs = cs.SGS(gaussian, cs.Search(radius=100, max_samples=24)).fit(xy, v, weights=weights)
 reals = sgs.simulate(grid, n=50, seed=42)
@@ -45,6 +65,11 @@ print(
 )
 print(f"realization variance {reals.var(axis=1).mean():.0f}, true {true_at_nodes.var():.0f}")
 
+
+# %% [markdown]
+# Each realization looks like the truth; their mean is smooth like kriging and their spread measures uncertainty.
+
+# %%
 shape = (60, 52)
 extent = (0.5, 260.5, 0.5, 300.5)
 norm = PowerNorm(0.5, vmin=0, vmax=1500)
@@ -73,8 +98,13 @@ axes[1, 2].contour(
     linewidths=0.8,
 )
 fig.colorbar(prob, ax=axes[1, 2], shrink=0.8, label="probability; true V > 500 outlined")
-save(fig, HERE, "maps")
+save(fig, "maps")
 
+
+# %% [markdown]
+# Each realization reproduces the declustered histogram and the model variogram:
+
+# %%
 fig, (a, b) = plt.subplots(1, 2, figsize=(10, 3.8), layout="constrained")
 grid_v = np.sort(true_at_nodes)
 for r in reals:
@@ -107,4 +137,4 @@ b.axhline(1.0, color=GREY, lw=0.8, ls="--")
 b.set(xlim=(0, max_lag), ylim=(0, 1.4), xlabel="Lag distance (m)", ylabel="γ(h) of normal scores")
 b.set_title(f"Variogram reproduction, N{azimuth:.0f}°")
 b.legend(loc="lower right")
-save(fig, HERE, "reproduction")
+save(fig, "reproduction")

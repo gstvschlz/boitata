@@ -1,24 +1,35 @@
+# %% [markdown]
+# # 1. Data and declustering
+#
+# Walker Lake: 470 samples of `V` (ppm) over a 260 × 300 m area whose exhaustive values are known.
+# `fetch` downloads a file from the datasets repository once; `save` writes a figure next to this page;
+# colours and fonts come from [`common.py`](../common.py).
+
+# %% [hidden]
 import sys
 from pathlib import Path
 
+HERE = Path(__file__).parent
+sys.path.insert(0, str(HERE.parent))
+
+# %%
 import ceres as cs
 import matplotlib.pyplot as plt
 import numpy as np
-from matplotlib.colors import PowerNorm
-
-HERE = Path(__file__).parent
-sys.path.insert(0, str(HERE.parent))
 from common import ACCENT, GREY, HIGHLIGHT, INK, fetch, map_axes, save
+from matplotlib.colors import PowerNorm
 
 samples = cs.PointSet.from_table(cs.read_csv(fetch("walker-lake/sample.csv")))
 exhaustive = cs.read_csv(fetch("walker-lake/exhaustive.csv"))
 v = samples["V"]
 truth = exhaustive["V"].reshape(300, 260)
-
-d = cs.cell_declustering(samples.coords, v, sizes=np.arange(2.5, 102.5, 2.5))
 print(samples)
-print(f"naive {v.mean():.1f}  declustered {d.mean:.1f} (cell {d.cell_size} m)  true {truth.mean():.1f}")
+print(f"sample mean {v.mean():.1f} ppm, true mean {truth.mean():.1f} ppm")
 
+# %% [markdown]
+# Samples are denser where `V` is high, so their plain mean overstates the true mean.
+
+# %%
 norm = PowerNorm(0.5, vmin=0, vmax=1500)
 fig, (a, b) = plt.subplots(1, 2, figsize=(9, 4.2), layout="constrained")
 image = a.imshow(truth, origin="lower", extent=(0.5, 260.5, 0.5, 300.5), norm=norm)
@@ -29,7 +40,16 @@ b.set_xlim(a.get_xlim())
 b.set_ylim(a.get_ylim())
 map_axes(b, "470 samples, clustered in high-V areas")
 fig.colorbar(image, ax=(a, b), shrink=0.8, label="V (ppm)")
-save(fig, HERE, "maps")
+save(fig, "maps")
+
+# %% [markdown]
+# Cell declustering weights each sample by the inverse of the number of samples in its cell.
+# Scanning cell sizes, each averaged over 25 grid offsets, and keeping the size with the lowest mean
+# corrects for sampling that favours high values.
+
+# %%
+d = cs.cell_declustering(samples.coords, v, sizes=np.arange(2.5, 102.5, 2.5))
+print(d)
 
 fig, ax = plt.subplots(figsize=(6, 3.4))
 ax.plot(d.sizes, d.means, color=ACCENT, lw=1.6)
@@ -49,8 +69,12 @@ ax.text(d.sizes[-1], truth.mean(), f"true mean {truth.mean():.0f}", va="top", ha
 ax.set_title("Cell declustering: mean against cell size")
 ax.set_xlabel("Cell size (m)")
 ax.set_ylabel("Declustered mean of V (ppm)")
-save(fig, HERE, "declustering")
+save(fig, "declustering")
 
+# %% [markdown]
+# With the weights, the sample histogram moves toward the exhaustive one.
+
+# %%
 fig, ax = plt.subplots(figsize=(6, 3.4))
 bins = np.linspace(0, 1600, 33)
 flat = truth.ravel()
@@ -77,4 +101,4 @@ ax.set_title("Declustering moves the sample histogram toward the truth")
 ax.set_xlabel("V (ppm)")
 ax.set_ylabel("Proportion")
 ax.legend()
-save(fig, HERE, "histograms")
+save(fig, "histograms")

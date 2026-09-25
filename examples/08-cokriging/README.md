@@ -1,27 +1,149 @@
 # 8. Cokriging and indicator kriging
 
 Jura: 259 soil samples of heavy metals (mg/kg, coordinates in km) and 100 validation samples withheld from estimation.
-Cd correlates with Zn (r = 0.67), and Zn is also known at the validation points, which suits collocated cokriging.
+Cd correlates with Zn, and Zn is also known at the validation points, which suits collocated cokriging.
 
-The coregionalization uses the intrinsic model: both variables share Cd's spherical structure (range 0.59 km, 44 % nugget), scaled by their covariance matrix.
+<details><summary>Python</summary>
+
+```python
+import ceres as cs
+import matplotlib.pyplot as plt
+import numpy as np
+from common import ACCENT, GREY, HIGHLIGHT, INK, fetch, save
+
+train = cs.PointSet.from_table(cs.read_csv(fetch("jura/prediction.csv")))
+test = cs.PointSet.from_table(cs.read_csv(fetch("jura/validation.csv")))
+grid = cs.PointSet.from_table(cs.read_csv(fetch("jura/grid.csv")))
+xy = train.coords
+cd, zn = train["Cd"], train["Zn"]
+rho = np.corrcoef(cd, zn)[0, 1]
+lag, max_lag = 0.1, 1.5
+```
+
+</details>
+
+The coregionalization uses the intrinsic model: Cd and Zn share Cd's spherical structure and nugget share,
+scaled by their covariance matrix.
+
+<details><summary>Python</summary>
+
+```python
+cd_model = cs.experimental_variogram(xy, cd, lag, max_lag).fit("spherical")
+nugget_share = cd_model.nugget / cd_model.sill
+a = cd_model.structures[0].range
+print(f"Cd: nugget share {nugget_share:.2f}, range {a:.2f} km, corr(Cd, Zn) {rho:.2f}")
+
+cov = np.cov(cd, zn)
+lmc = cs.Coregionalization(
+    (nugget_share * cov).tolist(),
+    [("spherical", a, ((1 - nugget_share) * cov).tolist())],
+)
+search = cs.Search(radius=1.5, max_samples=24, min_samples=4)
+ok = cs.OrdinaryKriging(cd_model, search).fit(xy, cd)
+ck = cs.Cokriging(lmc, search, means=[cd.mean(), zn.mean()])
+ck.fit(np.vstack([xy, xy]), np.r_[cd, zn], [0] * len(cd) + [1] * len(zn))
+```
+
+</details>
+
+```text
+Cd: nugget share 0.44, range 0.59 km, corr(Cd, Zn) 0.67
+```
+
+Both estimators at the validation points:
+
+<details><summary>Python</summary>
+
+```python
+truth = test["Cd"]
+by_ok = ok.predict(test)
+by_ck = ck.predict(test, collocated={1: test["Zn"]})
+
+
+def rmse(e):
+    return float(np.sqrt(np.mean((e - truth) ** 2)))
+
+
+print(f"validation RMSE: ordinary kriging {rmse(by_ok):.3f}, collocated cokriging {rmse(by_ck):.3f} mg/kg")
+```
+
+</details>
+
+```text
+validation RMSE: ordinary kriging 0.777, collocated cokriging 0.691 mg/kg
+```
+
+Indicator kriging estimates the probability that Cd exceeds 0.8 mg/kg, the Swiss guide value, from the indicator
+variogram. IK estimates P(Cd ≤ threshold), so the exceedance is its complement.
+
+<details><summary>Python</summary>
+
+```python
+limit = 0.8
+indicator_model = cs.experimental_variogram(xy, (cd > limit).astype(float), lag, max_lag).fit("spherical")
+ik = cs.IndicatorKriging(indicator_model, search, threshold=limit).fit(xy, cd)
+p_exceed = 1 - ik.predict(grid)
+p_test = 1 - ik.predict(test)
+exceeds = truth > limit
+print(
+    f"validation: mean P(Cd > {limit}) {p_test[exceeds].mean():.2f} where true exceedance, {p_test[~exceeds].mean():.2f} elsewhere"
+)
+```
+
+</details>
+
+```text
+validation: mean P(Cd > 0.8) 0.75 where true exceedance, 0.62 elsewhere
+```
+
+Using Zn at the target lowers the error and removes the smoothing that flattens ordinary kriging:
+
+<details><summary>Python</summary>
+
+```python
+fig, axes = plt.subplots(1, 2, figsize=(9, 4.2), layout="constrained", sharey=True)
+for ax, estimate, title in (
+    (axes[0], by_ok, "Ordinary kriging of Cd"),
+    (axes[1], by_ck, "Collocated cokriging with Zn"),
+):
+    ax.scatter(truth, estimate, s=12, color=ACCENT, alpha=0.7, linewidths=0)
+    ax.plot([0, 5], [0, 5], color=GREY, ls="--", lw=1)
+    ax.set(xlim=(0, 5), ylim=(0, 5), xlabel="True Cd at validation points (mg/kg)", title=title)
+    ax.set_aspect("equal")
+    ax.text(0.2, 4.6, f"RMSE {rmse(estimate):.2f} mg/kg", color=INK)
+axes[0].set_ylabel("Estimated Cd (mg/kg)")
+save(fig, "validation")
+```
+
+</details>
 
 ![validation](validation.png)
 
-Using Zn at the target lowers the validation RMSE from 0.78 to 0.69 mg/kg and removes the smoothing that flattens ordinary kriging.
+Most of the area exceeds 0.8 mg/kg, so the map separates clean zones rather than hot spots:
 
-Indicator kriging estimates the probability that Cd exceeds 0.8 mg/kg, the Swiss guide value, from the indicator variogram.
-Validation points above the limit average a probability of 0.75, those below 0.62: most of the area exceeds, so the map separates clean zones rather than hot spots.
+<details><summary>Python</summary>
+
+```python
+fig, ax = plt.subplots(figsize=(6.2, 5), layout="constrained")
+image = ax.scatter(*grid.coords[:, :2].T, c=p_exceed, s=7, marker="s", vmin=0, vmax=1, linewidths=0)
+ax.scatter(
+    *test.coords[exceeds, :2].T,
+    s=14,
+    facecolors="none",
+    edgecolors=HIGHLIGHT,
+    linewidths=0.9,
+    label=f"validation point with Cd > {limit}",
+)
+ax.scatter(*test.coords[~exceeds, :2].T, s=6, color=GREY, label="validation point below")
+ax.set_aspect("equal")
+ax.set(title=f"Indicator kriging: P(Cd > {limit} mg/kg)", xlabel="X (km)", ylabel="Y (km)")
+ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.12), ncol=2, fontsize=8)
+fig.colorbar(image, ax=ax, shrink=0.8, label="probability")
+save(fig, "probability")
+```
+
+</details>
 
 ![probability](probability.png)
 
-```python
-lmc = cs.Coregionalization((0.44 * cov).tolist(), [("spherical", 0.59, (0.56 * cov).tolist())])
-ck = cs.Cokriging(lmc, search, means=[cd.mean(), zn.mean()])
-ck.fit(np.vstack([xy, xy]), np.r_[cd, zn], [0] * n + [1] * n)
-estimate = ck.predict(targets, collocated={1: zn_at_targets})
-
-ik = cs.IndicatorKriging(indicator_model, search, threshold=0.8).fit(xy, cd)
-p_exceed = 1 - ik.predict(targets)  # IK estimates P(Cd <= threshold)
-```
-
-[`example.py`](example.py)
+Full script: [`example.py`](example.py)

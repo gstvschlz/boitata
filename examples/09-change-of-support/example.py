@@ -1,12 +1,20 @@
+# %% [markdown]
+# # 9. Change of support and disjunctive kriging
+#
+# Mining selects blocks, not points. Block grades vary less than point grades, so a point histogram misstates the
+# tonnage above cutoffs. The exhaustive Walker Lake grid gives true point and block curves to check against.
+
+# %% [hidden]
 import sys
 from pathlib import Path
 
+HERE = Path(__file__).parent
+sys.path.insert(0, str(HERE.parent))
+
+# %%
 import ceres as cs
 import matplotlib.pyplot as plt
 import numpy as np
-
-HERE = Path(__file__).parent
-sys.path.insert(0, str(HERE.parent))
 from common import ACCENT, GREY, HIGHLIGHT, INK, fetch, save
 
 samples = cs.PointSet.from_table(cs.read_csv(fetch("walker-lake/sample.csv")))
@@ -15,6 +23,12 @@ xy, v = samples.coords, samples["V"]
 azimuth = cs.Variogram.from_json((HERE.parent / "03-variography" / "model.json").read_text()).rotation[0]
 weights = cs.cell_declustering(xy, v, sizes=np.arange(2.5, 102.5, 2.5)).weights
 
+
+# %% [markdown]
+# A Hermite anamorphosis models the declustered point distribution; the variogram of its Gaussian scores is fitted
+# along and across N170° and scaled to a unit sill.
+
+# %%
 anam = cs.HermiteAnamorphosis(degree=40).fit(v, weights=weights)
 y = anam.transform(v)
 major = cs.experimental_variogram(xy, y, 10, 120, azimuth=azimuth).fit("spherical")
@@ -27,6 +41,11 @@ gaussian = cs.Variogram(
     ratios=(min(minor.structures[0].range / major.structures[0].range, 1.0), 1.0),
 )
 
+
+# %% [markdown]
+# The discrete Gaussian model shrinks the point anamorphosis to 10 × 10 m blocks with a change-of-support coefficient r:
+
+# %%
 size = 10
 r, block = cs.change_of_support(anam, gaussian, size=(size, size), discretization=(5, 5, 1))
 blocks_true = truth.reshape(30, size, 26, size).mean(axis=(1, 3)).ravel()
@@ -34,6 +53,11 @@ print(
     f"r = {r:.3f}; point variance {anam.variance_:.0f}, block {block.variance_:.0f}, true block {blocks_true.var():.0f}"
 )
 
+
+# %% [markdown]
+# Grade-tonnage curves, model against truth:
+
+# %%
 cutoffs = np.linspace(0, 1000, 41)
 model_point = anam.grade_tonnage(cutoffs)
 model_block = block.grade_tonnage(cutoffs)
@@ -67,8 +91,14 @@ for curves, model, color, label in (
 a.set(title="Proportion above cutoff", xlabel="Cutoff V (ppm)", ylabel="Proportion of area")
 a.legend(fontsize=8)
 b.set(title="Mean grade above cutoff", xlabel="Cutoff V (ppm)", ylabel="Mean V above cutoff (ppm)")
-save(fig, HERE, "grade-tonnage")
+save(fig, "grade-tonnage")
 
+
+# %% [markdown]
+# Disjunctive kriging estimates, at each node, the probability of exceeding a cutoff from the kriged Hermite factors.
+# Binned against the truth, a calibrated estimate would sit on the diagonal:
+
+# %%
 grid = cs.BlockModel(origin=(0.5, 0.5), size=(5, 5), count=(52, 60))
 dk = cs.DisjunctiveKriging(anam, gaussian, cs.Search(radius=100, max_samples=24), order=20).fit(xy, v)
 cutoff = 500.0
@@ -109,4 +139,4 @@ b.set(
 )
 b.set_aspect("equal")
 b.text(0.03, 0.92, "marker area ∝ nodes per bin", color=INK, fontsize=8)
-save(fig, HERE, "disjunctive")
+save(fig, "disjunctive")

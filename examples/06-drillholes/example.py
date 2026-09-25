@@ -1,16 +1,29 @@
+# %% [markdown]
+# # 6. Drillholes
+#
+# 5 277 holes with collar, survey (dip positive down, azimuth clockwise from north), assay and geology tables.
+
+# %% [hidden]
 import sys
 from pathlib import Path
 
+HERE = Path(__file__).parent
+sys.path.insert(0, str(HERE.parent))
+
+# %%
 import ceres as cs
 import matplotlib.pyplot as plt
 import numpy as np
+from common import ACCENT, GREY, INK, LIGHT, fetch, save
 from matplotlib.collections import LineCollection
 from matplotlib.colors import LogNorm
 
-HERE = Path(__file__).parent
-sys.path.insert(0, str(HERE.parent))
-from common import ACCENT, GREY, INK, LIGHT, fetch, save
+# %% [markdown]
+# Assays and lithology come in separate interval tables. `merge_intervals` splits both at every boundary so each piece
+# carries its grades and its lithology. `Drillholes` desurveys every hole by minimum curvature; compositing to 2 m by
+# `LITH` never averages across a contact, does not read unsampled core as zero and drops composites without assays.
 
+# %%
 assay = cs.read_csv(fetch("drillholes/assay.csv"))
 geology = cs.read_csv(fetch("drillholes/geology.csv"))
 intervals = cs.merge_intervals(assay, geology)
@@ -27,6 +40,11 @@ print(
     f"{assay.num_rows} assays + {geology.num_rows} geology intervals -> {intervals.num_rows} merged -> {len(composites)} composites"
 )
 
+
+# %% [markdown]
+# Traces in plan and a 50 m thick section with the Zn composites:
+
+# %%
 hole = np.array(paths["hole"])
 xyz = np.c_[paths["x"], paths["y"], paths["z"]]
 breaks = np.flatnonzero(hole[1:] != hole[:-1]) + 1
@@ -64,8 +82,13 @@ b.set(
     ylabel="Elevation (m)",
 )
 fig.colorbar(points, ax=b, shrink=0.7, label="Zn (%)")
-save(fig, HERE, "holes")
+save(fig, "holes")
 
+
+# %% [markdown]
+# Compositing regularizes support: most assays are 1 m, some much longer.
+
+# %%
 raw_len = assay["TO"] - assay["FROM"]
 comp_len = composites["to"] - composites["from"]
 fig, (a, b) = plt.subplots(1, 2, figsize=(10, 3.6), layout="constrained")
@@ -100,8 +123,13 @@ b.set_xscale("log")
 b.set(title="Compositing narrows the Zn distribution", xlabel="Zn (%)", ylabel="Proportion")
 b.legend(loc="upper left")
 b.tick_params(axis="y", colors=INK)
-save(fig, HERE, "compositing")
+save(fig, "compositing")
 
+
+# %% [markdown]
+# Zn by lithology:
+
+# %%
 lith = np.array(composites.attributes["LITH"])
 names, counts = np.unique(lith[lith != ""], return_counts=True)
 top = names[np.argsort(counts)[::-1][:8]]
@@ -116,4 +144,4 @@ ax.set_yticks(range(len(top)), top)
 ax.invert_yaxis()
 ax.set_xscale("log")
 ax.set(title="Zn of 2 m composites by lithology (median and interquartile range)", xlabel="Zn (%)")
-save(fig, HERE, "domains")
+save(fig, "domains")

@@ -1,16 +1,28 @@
+# %% [markdown]
+# # 7. Solids and block models
+#
+# A wireframe bounds a domain. Here an ellipsoid is fitted to the Zn > 5 % composites of the cluster seen in
+# [chapter 6](../06-drillholes/README.md).
+
+# %% [hidden]
 import sys
 from pathlib import Path
 
+HERE = Path(__file__).parent
+sys.path.insert(0, str(HERE.parent))
+
+# %%
 import ceres as cs
 import matplotlib.pyplot as plt
 import numpy as np
+from common import ACCENT, GREY, HIGHLIGHT, LIGHT, fetch, save
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 
-HERE = Path(__file__).parent
-sys.path.insert(0, str(HERE.parent))
-from common import ACCENT, GREY, HIGHLIGHT, LIGHT, fetch, save
+# %% [markdown]
+# A small helper builds a closed triangle mesh of an ellipsoid:
 
 
+# %%
 def ellipsoid(center, axes, rotation, rings=24, segments=48):
     """Closed triangle mesh of an ellipsoid with semi-axes `axes` along the columns of `rotation`."""
     theta = np.linspace(0, np.pi, rings + 1)[1:-1]
@@ -30,6 +42,10 @@ def ellipsoid(center, axes, rotation, rings=24, segments=48):
     return vertices, np.array(tris)
 
 
+# %% [markdown]
+# The ellipsoid's axes come from the covariance of the high-grade composites (two standard deviations):
+
+# %%
 dh = cs.Drillholes(
     cs.read_csv(fetch("drillholes/collar.csv")),
     cs.read_csv(fetch("drillholes/survey.csv")),
@@ -46,6 +62,12 @@ solid = cs.Mesh(vertices, triangles)
 lo, hi = solid.bounds
 print(solid, "semi-axes", np.round(2 * np.sqrt(eigen), 1))
 
+
+# %% [markdown]
+# `Mesh.proportion` samples 4 × 4 × 4 points in each block; `Mesh.contains` tests points by generalized winding
+# number. Block proportions should add up to the ellipsoid's volume.
+
+# %%
 size = 10.0
 count = np.ceil((np.array(hi) - lo) / size).astype(int)
 blocks = cs.BlockModel(origin=lo, size=(size, size, size), count=count)
@@ -60,6 +82,12 @@ print(
     f"composites inside: {inside.sum()}, mean Zn {np.nanmean(zn[local][inside]):.2f}% vs outside {np.nanmean(zn[local][~inside]):.2f}%"
 )
 
+
+# %% [markdown]
+# One bench of block proportions, and the blocks more than half inside as a masked `BlockModel` drawn from its
+# visible faces with `block_shell`:
+
+# %%
 k = count[2] // 2
 level = lo[2] + (k + 0.5) * size
 layer = blocks.centroids[:, 2] == level
@@ -100,4 +128,4 @@ b.set_xlabel("Easting")
 b.set_ylabel("Northing")
 b.set_zlabel("Elevation")
 b.tick_params(labelsize=6)
-save(fig, HERE, "solid")
+save(fig, "solid")

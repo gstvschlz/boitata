@@ -1,12 +1,20 @@
+# %% [markdown]
+# # 2. Normal-score transform
+#
+# Gaussian methods need a standard normal variable. The normal-score transform maps each value to the Gaussian score
+# with the same cumulative probability, weighting samples by the declustering weights of [chapter 1](../01-data/README.md).
+
+# %% [hidden]
 import sys
 from pathlib import Path
 
+HERE = Path(__file__).parent
+sys.path.insert(0, str(HERE.parent))
+
+# %%
 import ceres as cs
 import matplotlib.pyplot as plt
 import numpy as np
-
-HERE = Path(__file__).parent
-sys.path.insert(0, str(HERE.parent))
 from common import ACCENT, GREY, HIGHLIGHT, INK, LIGHT, fetch, save
 
 samples = cs.PointSet.from_table(cs.read_csv(fetch("walker-lake/sample.csv")))
@@ -20,6 +28,11 @@ sd = np.sqrt(np.average((y - mean) ** 2, weights=w))
 print(f"scores: weighted mean {mean:.3f}, sd {sd:.3f}")
 print(f"back-transform max error {np.abs(ns.inverse_transform(y) - v).max():.1e}")
 
+
+# %% [markdown]
+# Each value takes the score with the same cumulative probability:
+
+# %%
 order = np.argsort(v)
 cdf = np.cumsum(w[order]) / w.sum()
 z = np.linspace(-3.5, 3.5, 400)
@@ -47,8 +60,13 @@ fig.suptitle(
     fontsize=9,
     color=GREY,
 )
-save(fig, HERE, "quantile-mapping")
+save(fig, "quantile-mapping")
 
+
+# %% [markdown]
+# The skewed histogram of `V` becomes a standard Gaussian:
+
+# %%
 fig, (a, b) = plt.subplots(1, 2, figsize=(9, 3.4), layout="constrained")
 a.hist(v, np.linspace(0, 1600, 33), weights=w / w.sum(), color=LIGHT, edgecolor=GREY, lw=0.5)
 a.set_title("V: positively skewed")
@@ -69,4 +87,7 @@ b.set_title("Normal scores: standard Gaussian")
 b.set_xlabel("Normal score")
 b.set_ylabel("Density (declustered)")
 b.legend()
-save(fig, HERE, "histograms")
+save(fig, "histograms")
+
+# %% [markdown]
+# The weighted scores have mean 0 and standard deviation 1, and the back-transform returns every sample exactly.
