@@ -7,7 +7,7 @@
 //! geostatistics is valid, plus the Aitchison distance.
 //!
 //! References: Aitchison (1986); Egozcue et al. (2003), "Isometric logratio
-//! transformations for compositional data analysis" (mirrors `CoDa.jl`).
+//! transformations for compositional data analysis".
 
 pub mod error;
 
