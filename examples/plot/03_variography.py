@@ -1,6 +1,5 @@
 import matplotlib.pyplot as plt
 import numpy as np
-
 from style import ACCENT, GREY, HIGHLIGHT, INK, OUT, save, table
 
 plane = table(OUT / "03_plane.csv")
@@ -36,8 +35,13 @@ b = fig.add_subplot(1, 2, 2)
 for name, color, azimuth in (("major", ACCENT, m["azimuth"]), ("minor", GREY, m["azimuth"] + 90)):
     d = table(OUT / f"03_{name}.csv")
     keep = d["count"] > 0
-    b.scatter(d["lag"][keep], d["gamma"][keep], s=np.sqrt(d["count"][keep]) * 2, color=color,
-              label=f"N{azimuth % 360:.0f}° experimental")
+    b.scatter(
+        d["lag"][keep],
+        d["gamma"][keep],
+        s=np.sqrt(d["count"][keep]) * 2,
+        color=color,
+        label=f"N{azimuth % 360:.0f}° experimental",
+    )
     h = np.linspace(0, d["lag"].max(), 200)
     rng = m[name]
     shape = np.where(h < rng, 1.5 * h / rng - 0.5 * (h / rng) ** 3, 1.0)
