@@ -33,22 +33,32 @@ fn recoveries<'py>(py: Python<'py>, r: &[Recovery]) -> PyResult<Bound<'py, PyDic
     Ok(d)
 }
 
-/// Normal-score transform through the (weighted) empirical CDF.
+/// Normal-score transform through the (weighted) empirical CDF. Beyond the
+/// data, values interpolate in probability toward `tails` (lower, upper),
+/// which default to the data range.
 #[pyclass(module = "ceres", name = "NormalScore")]
-#[derive(Default)]
-pub struct NormalScore(Option<Nscore>);
+pub struct NormalScore {
+    tails: Option<(f64, f64)>,
+    fitted: Option<Nscore>,
+}
 
 impl NormalScore {
     fn fitted(&self) -> PyResult<&Nscore> {
-        self.0.as_ref().ok_or_else(|| not_fitted("NormalScore"))
+        self.fitted
+            .as_ref()
+            .ok_or_else(|| not_fitted("NormalScore"))
     }
 }
 
 #[pymethods]
 impl NormalScore {
     #[new]
-    fn new() -> Self {
-        Self::default()
+    #[pyo3(signature = (tails=None))]
+    fn new(tails: Option<(f64, f64)>) -> Self {
+        Self {
+            tails,
+            fitted: None,
+        }
     }
 
     #[pyo3(signature = (values, weights=None))]
@@ -62,7 +72,11 @@ impl NormalScore {
         if let Some(w) = &weights {
             same_length(values.len(), w.len(), "weights")?;
         }
-        slf.0 = Some(transforms::nscore_transform(&values, weights.as_deref()).map_err(err)?);
+        let mut ns = transforms::nscore_transform(&values, weights.as_deref()).map_err(err)?;
+        if let Some((lower, upper)) = slf.tails {
+            ns.table = ns.table.with_tails(lower, upper);
+        }
+        slf.fitted = Some(ns);
         Ok(slf)
     }
 

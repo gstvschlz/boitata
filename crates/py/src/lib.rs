@@ -5,6 +5,7 @@ mod args;
 mod containers;
 mod estimation;
 mod io;
+mod simulation;
 mod table;
 mod transforms;
 mod variogram;
@@ -37,5 +38,6 @@ fn _ceres(m: &Bound<PyModule>) -> PyResult<()> {
     transforms::register(m)?;
     variogram::register(m)?;
     estimation::register(m)?;
+    simulation::register(m)?;
     Ok(())
 }

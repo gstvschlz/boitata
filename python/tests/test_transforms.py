@@ -91,3 +91,12 @@ def test_uniform_conditioning_recovers_all_at_zero_cutoff(skewed):
     uc = cs.UniformConditioning(anam, 0.8, 0.6)
     rec = uc.panel_recovery(float(skewed.mean()), [0.0])
     assert rec["tonnage"][0] == pytest.approx(1.0, abs=1e-6)
+
+
+def test_normal_score_tails_bound_the_back_transform(skewed):
+    ns = cs.NormalScore().fit(skewed)
+    back = ns.inverse_transform([-9.0, 9.0])
+    assert back[0] == pytest.approx(skewed.min()) and back[1] == pytest.approx(skewed.max())
+    wide = cs.NormalScore(tails=(0.0, 100.0)).fit(skewed)
+    low, high = wide.inverse_transform([-4.0, 4.0])
+    assert 0.0 < low < skewed.min() and skewed.max() < high < 100.0
