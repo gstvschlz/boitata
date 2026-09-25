@@ -6,7 +6,7 @@ use pyo3::prelude::*;
 use rayon::prelude::*;
 use variogram::{Anisotropy, Coregionalization as CoreCoreg, Variogram as CoreVariogram};
 
-use crate::args::{Point, array1, finite, points, same_length};
+use crate::args::{self, Point, array1, distinct, finite, pick, points, same_length};
 use crate::estimation::{Search, outputs, targets};
 use crate::invalid;
 use crate::transforms::Anamorphosis;
@@ -58,12 +58,15 @@ impl Cokriging {
         })
     }
 
-    /// `variables` gives each sample's variable index.
+    /// `variables` gives each sample's variable index. Samples of one variable
+    /// sharing a location keep the first, with a warning naming their `holes`.
+    #[pyo3(signature = (coords, values, variables, holes=None))]
     fn fit<'py>(
         mut slf: PyRefMut<'py, Self>,
         coords: &Bound<PyAny>,
         values: &Bound<PyAny>,
         variables: Vec<usize>,
+        holes: Option<&Bound<PyAny>>,
     ) -> PyResult<PyRefMut<'py, Self>> {
         let (locs, values) = (points(coords)?, finite(values, "values")?);
         same_length(locs.len(), values.len(), "values")?;
@@ -71,6 +74,20 @@ impl Cokriging {
         if variables.iter().any(|&v| v >= slf.model.nvar) {
             return Err(invalid("variable index out of range"));
         }
+        let holes = args::holes(holes, locs.len())?.map(|h| h.0);
+        let mut keep = Vec::new();
+        for k in 0..slf.model.nvar {
+            let rows: Vec<usize> = (0..locs.len()).filter(|&i| variables[i] == k).collect();
+            let labels = holes.as_ref().map(|h| pick(h, &rows));
+            let kept = distinct(slf.py(), &pick(&locs, &rows), labels.as_deref())?;
+            keep.extend(kept.into_iter().map(|j| rows[j]));
+        }
+        keep.sort_unstable();
+        let (locs, values, variables) = (
+            pick(&locs, &keep),
+            pick(&values, &keep),
+            pick(&variables, &keep),
+        );
         let plain = locs
             .iter()
             .zip(&values)
@@ -211,6 +228,8 @@ impl Disjunctive {
     ) -> PyResult<PyRefMut<'py, Self>> {
         let (locs, values) = (points(coords)?, finite(values, "values")?);
         same_length(locs.len(), values.len(), "values")?;
+        let keep = distinct(slf.py(), &locs, None)?;
+        let (locs, values) = (pick(&locs, &keep), pick(&values, &keep));
         let anam = slf.engine.anamorphosis().clone();
         let plain = locs
             .iter()

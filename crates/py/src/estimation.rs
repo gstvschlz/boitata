@@ -7,7 +7,7 @@ use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyTuple};
 use variogram::Variogram as CoreVariogram;
 
-use crate::args::{Point, array1, finite, points, same_length, triple};
+use crate::args::{self, Point, array1, distinct, finite, points, same_length, triple};
 use crate::containers::{PyBlockModel, PyPointSet};
 use crate::invalid;
 use crate::variogram::Variogram;
@@ -281,20 +281,17 @@ impl Estimator {
         mut slf: PyRefMut<'py, Self>,
         coords: &Bound<PyAny>,
         values: &Bound<PyAny>,
-        holes: Option<Vec<u32>>,
+        holes: Option<&Bound<PyAny>>,
     ) -> PyResult<PyRefMut<'py, Self>> {
         let (locs, values) = (points(coords)?, finite(values, "values")?);
         same_length(locs.len(), values.len(), "values")?;
-        if let Some(h) = &holes {
-            same_length(locs.len(), h.len(), "holes")?;
-        }
-        let samples = locs
+        let holes = args::holes(holes, locs.len())?;
+        let keep = distinct(slf.py(), &locs, holes.as_ref().map(|h| &h.0[..]))?;
+        let samples = keep
             .into_iter()
-            .zip(values)
-            .enumerate()
-            .map(|(i, (loc, v))| match &holes {
-                Some(h) => Sample::with_hole(loc, v, h[i]),
-                None => Sample::new(loc, v),
+            .map(|i| match &holes {
+                Some((_, ids)) => Sample::with_hole(locs[i], values[i], ids[i]),
+                None => Sample::new(locs[i], values[i]),
             })
             .collect();
         slf.samples = Some(samples);
@@ -347,6 +344,16 @@ impl Estimator {
         outputs(py, &results, return_variance)
     }
 
+    /// Values of the fitted samples, after dropping shared locations.
+    #[getter]
+    fn values<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let samples = self
+            .samples
+            .as_ref()
+            .ok_or_else(|| invalid("estimator is not fitted; call fit first"))?;
+        Ok(array1(py, samples.iter().map(|s| s.value).collect()).into_any())
+    }
+
     /// Leave-one-out estimates and variances at the fitted samples.
     fn cross_validate<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         let samples = self
@@ -388,10 +395,10 @@ impl Dual {
     ) -> PyResult<PyRefMut<'py, Self>> {
         let (locs, values) = (points(coords)?, finite(values, "values")?);
         same_length(locs.len(), values.len(), "values")?;
+        let keep = distinct(slf.py(), &locs, None)?;
         slf.samples = Some(
-            locs.into_iter()
-                .zip(values)
-                .map(|(l, v)| Sample::new(l, v))
+            keep.into_iter()
+                .map(|i| Sample::new(locs[i], values[i]))
                 .collect(),
         );
         Ok(slf)
