@@ -151,4 +151,83 @@ save(fig, "solid")
 
 ![solid](solid.png)
 
+Whole blocks misstate the volume near the wireframe. Sub-blocking keeps whole blocks inside the solid and splits
+the partial ones on a 4 × 4 × 4 sub-grid, keeping the sub-cells whose centres are inside. Each sub-block stores its
+parent cell and its extent as fractions of that cell.
+
+<details><summary>Python</summary>
+
+```python
+n = 4
+partial = np.flatnonzero((proportion > 0) & (proportion < 1))
+full = np.flatnonzero(proportion >= 1)
+steps = (np.arange(n) + 0.5) / n
+local = np.stack(np.meshgrid(steps, steps, steps, indexing="ij"), axis=-1).reshape(-1, 3)
+centres = (blocks.centroids[partial, None, :] - size / 2) + local[None, :, :] * size
+inside_sub = solid.contains(centres.reshape(-1, 3)).reshape(len(partial), -1)
+
+parent = np.concatenate([full, np.repeat(partial, inside_sub.sum(axis=1))])
+full_extent = np.tile([0.0, 0.0, 0.0, 1.0, 1.0, 1.0], (len(full), 1))
+low = np.concatenate([local[mask] - 0.5 / n for mask in inside_sub])
+sub_extent = np.hstack([low, low + 1 / n])
+extents = np.vstack([full_extent, sub_extent])
+order = np.argsort(parent, kind="stable")
+subblocked = cs.BlockModel.subblocked(
+    origin=lo,
+    size=(size, size, size),
+    count=count,
+    parent=parent[order].astype(np.uint64),
+    extents=extents[order],
+    subgrid=(n, n, n),
+)
+exact = 4 / 3 * np.pi * np.prod(2 * np.sqrt(eigen))
+for name, volume in (
+    ("blocks more than half inside", len(ore) * size**3),
+    ("sub-blocked model", subblocked.volumes.sum()),
+    ("exact ellipsoid", exact),
+):
+    print(f"{name:>28}: {volume:,.0f} m3 ({volume / exact - 1:+.1%})")
+print(subblocked)
+```
+
+</details>
+
+```text
+blocks more than half inside: 6,739,000 m3 (-1.3%)
+           sub-blocked model: 6,780,906 m3 (-0.7%)
+             exact ellipsoid: 6,828,328 m3 (+0.0%)
+BlockModel(sub-blocked, 106630 sub-blocks in 40936 cells, count [43, 28, 34], size [10.0, 10.0, 10.0], rotation [0.0, 0.0, 0.0])
+```
+
+<details><summary>Python</summary>
+
+```python
+cut = subblocked.centroids[:, 2]
+level_rows = np.abs(cut - level) < size / 2
+fig, ax = plt.subplots(figsize=(6.4, 5), layout="constrained")
+for (x0, y0), e in zip(
+    (
+        subblocked.centroids[level_rows, :2]
+        - size / 2 * (subblocked.extents[level_rows, 3:5] - subblocked.extents[level_rows, :2])
+    ),
+    subblocked.extents[level_rows],
+):
+    w, h = (e[3] - e[0]) * size, (e[4] - e[1]) * size
+    ax.add_patch(
+        plt.Rectangle((x0, y0), w, h, facecolor=ACCENT if w == size else HIGHLIGHT, edgecolor="white", lw=0.3)
+    )
+ax.autoscale()
+ax.set_aspect("equal")
+ax.set(
+    title=f"Sub-blocked bench {level:.0f} m: whole blocks and sub-blocks",
+    xlabel="Easting (m)",
+    ylabel="Northing (m)",
+)
+save(fig, "subblocks")
+```
+
+</details>
+
+![subblocks](subblocks.png)
+
 Full script: [`example.py`](example.py)
