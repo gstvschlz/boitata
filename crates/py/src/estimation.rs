@@ -302,13 +302,15 @@ impl Estimator {
     }
 
     /// Estimates (NaN where too few neighbours); with `return_variance`, also
-    /// the kriging variance.
-    #[pyo3(signature = (targets, return_variance=false))]
+    /// the kriging variance. `anisotropy` (a LocalAnisotropy) gives each target
+    /// its own variogram and search orientation, taken from the nearest location.
+    #[pyo3(signature = (targets, return_variance=false, anisotropy=None))]
     fn predict<'py>(
         &self,
         py: Python<'py>,
         targets: &Bound<PyAny>,
         return_variance: bool,
+        anisotropy: Option<PyRef<crate::lva::LocalAnisotropy>>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let samples = self
             .samples
@@ -316,11 +318,32 @@ impl Estimator {
             .ok_or_else(|| invalid("estimator is not fitted; call fit first"))?;
         let targets = self::targets(targets)?;
         let vg = self.variogram.as_ref();
-        let results = py.detach(|| {
-            estimate_many(&targets, samples, &self.search, vg, |t, s| {
-                self.method.run(t, s, vg)
-            })
-        });
+        let results = match anisotropy {
+            None => py.detach(|| {
+                estimate_many(&targets, samples, &self.search, vg, |t, s| {
+                    self.method.run(t, s, vg)
+                })
+            }),
+            Some(field) => {
+                let local = field.at_targets(&targets);
+                let base = self.variogram.clone().unwrap_or(CoreVariogram {
+                    nugget: 0.0,
+                    structures: vec![],
+                    anisotropy: None,
+                });
+                py.detach(|| {
+                    estimation::lva::estimate_many_local(
+                        &targets,
+                        &local,
+                        samples,
+                        &self.search,
+                        &base,
+                        |t, s, v| self.method.run(t, s, Some(v)),
+                    )
+                })
+                .map_err(invalid)?
+            }
+        };
         outputs(py, &results, return_variance)
     }
 

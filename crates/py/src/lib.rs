@@ -9,6 +9,7 @@ mod containers;
 mod drillholes;
 mod estimation;
 mod io;
+mod lva;
 mod simulation;
 mod table;
 mod transforms;
@@ -46,6 +47,7 @@ fn _ceres(m: &Bound<PyModule>) -> PyResult<()> {
     drillholes::register(m)?;
     coda::register(m)?;
     blocks::register(m)?;
+    lva::register(m)?;
     simulation::register(m)?;
     Ok(())
 }

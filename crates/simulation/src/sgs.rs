@@ -11,6 +11,7 @@
 use crate::error::{Result, SimError};
 use estimation::Sample;
 use estimation::krige::{Kind, krige};
+use estimation::lva::LocalAnisotropy;
 use estimation::search::{Search, SearchTree};
 use rand::SeedableRng;
 use rand::rngs::StdRng;
@@ -46,6 +47,7 @@ pub fn sgs(
     grid: &[(f64, f64, f64)],
     vg_nscore: &Variogram,
     params: &SgsParams,
+    local: Option<&LocalAnisotropy>,
 ) -> Result<Realization> {
     if data_locs.len() != data_vals.len() {
         return Err(SimError::InvalidParameters("data length mismatch".into()));
@@ -71,7 +73,22 @@ pub fn sgs(
             hole: None,
         })
         .collect();
-    let mut tree = SearchTree::new(&cond, &params.search, Some(vg_nscore));
+    if local.is_some_and(|l| l.len() != grid.len()) {
+        return Err(SimError::InvalidParameters(
+            "one local anisotropy per grid node".into(),
+        ));
+    }
+    let mut tree = match local {
+        Some(_) => SearchTree::new(
+            &cond,
+            &Search {
+                anisotropy: None,
+                ..params.search.clone()
+            },
+            None,
+        ),
+        None => SearchTree::new(&cond, &params.search, Some(vg_nscore)),
+    };
 
     // 2. Random path over grid nodes.
     let mut rng = StdRng::seed_from_u64(params.seed);
@@ -85,7 +102,16 @@ pub fn sgs(
         let target = grid[node];
 
         // 3. Kriging from neighbors (simple kriging, mean 0 in Gaussian space).
-        let found = tree.neighbors(&target);
+        let aniso = local.map(|l| l.anisotropy(node));
+        let found = match &aniso {
+            Some(a) => tree.neighbors_within(&target, a),
+            None => tree.neighbors(&target),
+        };
+        let vg_node = aniso.map(|a| Variogram {
+            anisotropy: Some(a),
+            ..vg_nscore.clone()
+        });
+        let vg = vg_node.as_ref().unwrap_or(vg_nscore);
         if let Some(&k) = found.iter().flatten().find(|&&k| cond[k].loc == target) {
             // A node on a datum takes its value and is not added again.
             sim_scores[node] = cond[k].value;
@@ -94,7 +120,7 @@ pub fn sgs(
         let score = match found {
             Ok(idx) if !idx.is_empty() => {
                 let selected: Vec<Sample> = idx.iter().map(|&k| cond[k].clone()).collect();
-                let est = krige(Kind::Simple { mean: 0.0 }, &target, &selected, vg_nscore)
+                let est = krige(Kind::Simple { mean: 0.0 }, &target, &selected, vg)
                     .map_err(|e| SimError::Estimation(e.to_string()))?;
                 let sd = est.variance.max(0.0).sqrt();
                 est.value + sd * normal.sample(&mut rng)
@@ -128,6 +154,7 @@ pub fn sgs_ensemble(
     grid: &[(f64, f64, f64)],
     vg_nscore: &Variogram,
     params: &SgsParams,
+    local: Option<&LocalAnisotropy>,
     n: usize,
 ) -> Result<Vec<Realization>> {
     (0..n)
@@ -137,7 +164,15 @@ pub fn sgs_ensemble(
                 search: params.search.clone(),
                 seed: params.seed.wrapping_add(k as u64),
             };
-            sgs(data_locs, data_vals, data_weights, grid, vg_nscore, &p)
+            sgs(
+                data_locs,
+                data_vals,
+                data_weights,
+                grid,
+                vg_nscore,
+                &p,
+                local,
+            )
         })
         .collect()
 }
@@ -171,7 +206,7 @@ mod tests {
             },
             seed: 42,
         };
-        let real = sgs(&data_locs, &data_vals, None, &grid, &vg, &params).unwrap();
+        let real = sgs(&data_locs, &data_vals, None, &grid, &vg, &params, None).unwrap();
         assert_eq!(real.values.len(), 2);
         assert!(
             (real.values[0] - 1.0).abs() < 0.5,
@@ -197,8 +232,8 @@ mod tests {
             },
             seed: 7,
         };
-        let a = sgs(&data_locs, &data_vals, None, &grid, &vg, &params).unwrap();
-        let b = sgs(&data_locs, &data_vals, None, &grid, &vg, &params).unwrap();
+        let a = sgs(&data_locs, &data_vals, None, &grid, &vg, &params, None).unwrap();
+        let b = sgs(&data_locs, &data_vals, None, &grid, &vg, &params, None).unwrap();
         assert_eq!(a.values, b.values);
     }
 
@@ -219,9 +254,68 @@ mod tests {
             },
             seed,
         };
-        let a = sgs(&data_locs, &data_vals, None, &grid, &vg, &mk(1)).unwrap();
-        let b = sgs(&data_locs, &data_vals, None, &grid, &vg, &mk(2)).unwrap();
+        let a = sgs(&data_locs, &data_vals, None, &grid, &vg, &mk(1), None).unwrap();
+        let b = sgs(&data_locs, &data_vals, None, &grid, &vg, &mk(2), None).unwrap();
         assert_ne!(a.values, b.values);
+    }
+
+    #[test]
+    fn uniform_local_anisotropy_is_global_anisotropy() {
+        let data_locs: Vec<_> = (0..40)
+            .map(|i| {
+                let jitter = (i as f64 * 0.618).fract();
+                (
+                    (i * 7 % 50) as f64 + jitter,
+                    (i * 11 % 50) as f64 + jitter * 0.37,
+                    0.0,
+                )
+            })
+            .collect();
+        let data_vals: Vec<f64> = (0..40).map(|i| (i as f64).sqrt()).collect();
+        let grid: Vec<_> = (0..100)
+            .map(|i| {
+                let jitter = (i as f64 * 0.414).fract();
+                (
+                    (i % 10) as f64 * 5.0 + jitter,
+                    (i / 10) as f64 * 5.0 + jitter * 0.71,
+                    0.0,
+                )
+            })
+            .collect();
+        let local = LocalAnisotropy::new(
+            grid.clone(),
+            vec![[30.0, 0.0, 0.0]; 100],
+            vec![[0.4, 1.0]; 100],
+        )
+        .unwrap();
+        let base = Variogram::single(Model::Spherical, 1.0, 20.0);
+        let global = Variogram {
+            anisotropy: Some(local.anisotropy(0)),
+            ..base.clone()
+        };
+        let params = SgsParams {
+            search: Search {
+                min_samples: 1,
+                max_samples: 200,
+                radius: 12.0,
+                ..Default::default()
+            },
+            seed: 3,
+        };
+        let a = sgs(
+            &data_locs,
+            &data_vals,
+            None,
+            &grid,
+            &base,
+            &params,
+            Some(&local),
+        )
+        .unwrap();
+        let b = sgs(&data_locs, &data_vals, None, &grid, &global, &params, None).unwrap();
+        for (x, y) in a.values.iter().zip(&b.values) {
+            assert!((x - y).abs() < 1e-9, "{x} vs {y}");
+        }
     }
 
     #[test]
@@ -241,7 +335,7 @@ mod tests {
             },
             seed: 4,
         };
-        let r = sgs(&data_locs, &data_vals, None, &grid, &vg, &params).unwrap();
+        let r = sgs(&data_locs, &data_vals, None, &grid, &vg, &params, None).unwrap();
         assert!((r.values[0] - 5.0).abs() < 1e-9);
     }
 
@@ -272,7 +366,8 @@ mod tests {
                 .build()
                 .unwrap()
                 .install(|| {
-                    sgs_ensemble(&data_locs, &data_vals, None, &grid, &vg, &params, 6).unwrap()
+                    sgs_ensemble(&data_locs, &data_vals, None, &grid, &vg, &params, None, 6)
+                        .unwrap()
                 })
         };
         let (one, many) = (run(1), run(6));
@@ -304,7 +399,8 @@ mod tests {
             },
             seed: 100,
         };
-        let ens = sgs_ensemble(&data_locs, &data_vals, None, &grid, &vg, &params, 50).unwrap();
+        let ens =
+            sgs_ensemble(&data_locs, &data_vals, None, &grid, &vg, &params, None, 50).unwrap();
         let mean = ens.iter().map(|r| r.values[0]).sum::<f64>() / ens.len() as f64;
         assert!((mean - 2.0).abs() < 0.2, "ensemble mean {mean}");
     }

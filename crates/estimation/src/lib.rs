@@ -17,6 +17,7 @@ pub mod error;
 pub mod idw;
 pub mod krige;
 pub mod kriging_algebra;
+pub mod lva;
 pub mod neighborhood;
 pub mod search;
 pub mod simple_interp;

@@ -28,6 +28,12 @@ pub struct Mesh {
     tester: SolidTester,
 }
 
+impl Mesh {
+    pub fn parts(&self) -> (&[Point], &[(usize, usize, usize)]) {
+        (&self.mesh.vertices, &self.mesh.triangles)
+    }
+}
+
 #[pymethods]
 impl Mesh {
     /// `vertices` is `(n, 3)`, `triangles` `(m, 3)` vertex indices.

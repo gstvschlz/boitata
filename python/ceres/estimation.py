@@ -65,9 +65,12 @@ class _Base:
         self._values = np.asarray(values, dtype=float)
         return self
 
-    def predict(self, targets, return_variance: bool = False):
-        """Estimates at targets; NaN where the search found too few samples."""
-        return self._engine.predict(targets, return_variance)
+    def predict(self, targets, return_variance: bool = False, anisotropy=None):
+        """Estimates at targets; NaN where the search found too few samples.
+
+        `anisotropy` (a LocalAnisotropy) orients each target's variogram and search.
+        """
+        return self._engine.predict(targets, return_variance, anisotropy)
 
     def cross_validate(self) -> CrossValidation:
         """Re-estimates every sample with itself left out."""

@@ -15,5 +15,6 @@ Walker Lake has an exhaustive grid, so every result is checked against the truth
 | 8 | [Cokriging and indicator kriging](08-cokriging/README.md) | Jura | `Coregionalization`, `Cokriging` collocated, `IndicatorKriging` |
 | 9 | [Change of support](09-change-of-support/README.md) | Walker Lake | `HermiteAnamorphosis`, `change_of_support`, `DisjunctiveKriging` |
 | 10 | [Compositional data](10-compositional/README.md) | Geomet porphyry 1 | `closure`, `ilr`, `PPMT` |
+| 11 | [Locally varying anisotropy](11-local-anisotropy/README.md) | Walker Lake | `LocalAnisotropy.from_grid`, `smooth`, `predict(anisotropy=)`, `SGS` |
 
 Each page alternates text, collapsed Python and its results. `mise run examples` reruns every `example.py` and rewrites the pages; data is downloaded to `examples/data` on first use.
