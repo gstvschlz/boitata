@@ -21,7 +21,7 @@ transforms.workspace = true
 criterion.workspace = true
 
 [[bench]]
-name = "search"
+name = "estimation"
 harness = false
 
 [lints]
