@@ -12,6 +12,7 @@ serde.workspace = true
 nalgebra.workspace = true
 thiserror.workspace = true
 variogram.workspace = true
+libm.workspace = true
 
 [lints]
 workspace = true
