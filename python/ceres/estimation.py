@@ -57,12 +57,13 @@ class CrossValidation:
 class _Base:
     def __init__(self, method: str, search: Search, variogram: Variogram | None = None, **options):
         self._engine = _Estimator(method, search, variogram, **options)
-        self._values = None
 
     def fit(self, coords, values, holes=None):
-        """Stores the samples; `holes` tags them by drill hole for `max_per_hole`."""
+        """Stores the samples; `holes` (ids or names) tags them by drill hole for `max_per_hole`.
+
+        Samples sharing a location keep the first one, with a warning naming their holes.
+        """
         self._engine.fit(coords, values, holes)
-        self._values = np.asarray(values, dtype=float)
         return self
 
     def predict(self, targets, return_variance: bool = False, anisotropy=None):
@@ -75,7 +76,7 @@ class _Base:
     def cross_validate(self) -> CrossValidation:
         """Re-estimates every sample with itself left out."""
         estimate, variance = self._engine.cross_validate()
-        return CrossValidation(self._values, estimate, variance)
+        return CrossValidation(self._engine.values, estimate, variance)
 
 
 class OrdinaryKriging(_Base):

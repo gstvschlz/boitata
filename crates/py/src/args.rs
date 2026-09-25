@@ -88,3 +88,75 @@ pub fn triple(values: Vec<f64>, fill: f64, what: &str) -> PyResult<Point> {
         _ => Err(invalid(format!("{what} needs 2 or 3 values"))),
     }
 }
+
+/// Hole labels as text plus integer codes for `Sample::hole`; ints or strings.
+pub fn holes(obj: Option<&Bound<PyAny>>, n: usize) -> PyResult<Option<(Vec<String>, Vec<u32>)>> {
+    let Some(obj) = obj else { return Ok(None) };
+    let np = obj.py().import("numpy")?;
+    let labels: Vec<String> = np
+        .call_method1("asarray", (obj,))?
+        .call_method1("astype", ("str",))?
+        .call_method0("tolist")?
+        .extract()
+        .map_err(|_| invalid("holes must be a 1-D sequence of ids"))?;
+    same_length(n, labels.len(), "holes")?;
+    let mut codes = std::collections::HashMap::new();
+    let ids = labels
+        .iter()
+        .map(|l| {
+            let next = codes.len() as u32;
+            *codes.entry(l.clone()).or_insert(next)
+        })
+        .collect();
+    Ok(Some((labels, ids)))
+}
+
+/// Rows to keep so that no two samples share a location: the first of each
+/// group. Dropped groups are reported in a `UserWarning` naming their holes
+/// (or rows when `holes` is `None`).
+pub fn distinct(py: Python, locs: &[Point], holes: Option<&[String]>) -> PyResult<Vec<usize>> {
+    let groups = estimation::duplicates(locs);
+    if groups.is_empty() {
+        return Ok((0..locs.len()).collect());
+    }
+    let mut dropped = vec![false; locs.len()];
+    let mut lines = Vec::new();
+    for g in &groups {
+        g[1..].iter().for_each(|&i| dropped[i] = true);
+        let who = match holes {
+            Some(h) => format!(
+                "holes {}",
+                g.iter()
+                    .map(|&i| h[i].as_str())
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ),
+            None => format!(
+                "rows {}",
+                g.iter()
+                    .map(|i| i.to_string())
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ),
+        };
+        let (x, y, z) = locs[g[0]];
+        lines.push(format!("{who} at ({x}, {y}, {z})"));
+    }
+    let more = lines.len().saturating_sub(20);
+    lines.truncate(20);
+    if more > 0 {
+        lines.push(format!("and {more} more"));
+    }
+    let message = format!(
+        "{} locations hold several samples; kept the first of each: {}",
+        groups.len(),
+        lines.join("; ")
+    );
+    let category = py.get_type::<pyo3::exceptions::PyUserWarning>();
+    PyErr::warn(py, &category, &std::ffi::CString::new(message)?, 1)?;
+    Ok((0..locs.len()).filter(|&i| !dropped[i]).collect())
+}
+
+pub fn pick<T: Clone>(items: &[T], rows: &[usize]) -> Vec<T> {
+    rows.iter().map(|&i| items[i].clone()).collect()
+}

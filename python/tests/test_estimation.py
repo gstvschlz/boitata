@@ -118,3 +118,17 @@ def test_disjunctive_kriging_tonnage_is_a_proportion():
     t = dk.predict_tonnage(targets, cutoff=float(np.median(grades)))
     assert np.all((t > -0.05) & (t < 1.05))
     assert np.all(np.isfinite(dk.predict(targets)))
+
+
+def test_shared_locations_keep_the_first_and_name_their_holes():
+    xy = np.array([[0.0, 0.0], [10.0, 0.0], [0.0, 0.0], [0.0, 10.0]])
+    v = np.array([1.0, 2.0, 5.0, 3.0])
+    holes = ["DH1", "DH2", "DH3", "DH4"]
+    search = cs.Search(radius=50, max_samples=8)
+    with pytest.warns(UserWarning, match="holes DH1, DH3 at"):
+        ok = cs.OrdinaryKriging(cs.Variogram([("spherical", 1.0, 30.0)]), search).fit(xy, v, holes)
+    np.testing.assert_array_equal(ok.cross_validate().actual, [1.0, 2.0, 3.0])
+    assert np.isfinite(ok.predict([[2.0, 2.0]])).all()
+    with pytest.warns(UserWarning, match="rows 0, 2"):
+        sgs = cs.SGS(cs.Variogram([("spherical", 1.0, 30.0)]), search).fit(xy, v)
+    assert np.isfinite(sgs.simulate([[2.0, 2.0], [5.0, 5.0]], n=2, seed=1)).all()

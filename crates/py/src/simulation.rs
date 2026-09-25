@@ -6,7 +6,9 @@ use simulation::{
 };
 use variogram::Variogram as CoreVariogram;
 
-use crate::args::{Point, array1, array2, finite, optional_finite, points, rows, same_length};
+use crate::args::{
+    self, Point, array1, array2, distinct, finite, optional_finite, pick, points, rows, same_length,
+};
 use crate::estimation::{Search, targets};
 use crate::invalid;
 use crate::variogram::Variogram;
@@ -31,21 +33,37 @@ struct Data {
     weights: Option<Vec<f64>>,
 }
 
+/// Coordinates keeping the first sample of each shared location, and the
+/// kept rows; the others are reported by `holes` in a warning.
+fn located(
+    coords: &Bound<PyAny>,
+    n: usize,
+    what: &str,
+    holes: Option<&Bound<PyAny>>,
+) -> PyResult<(Vec<Point>, Vec<usize>)> {
+    let locs = points(coords)?;
+    same_length(locs.len(), n, what)?;
+    let holes = args::holes(holes, locs.len())?;
+    let keep = distinct(coords.py(), &locs, holes.as_ref().map(|h| &h.0[..]))?;
+    Ok((pick(&locs, &keep), keep))
+}
+
 fn data(
     coords: &Bound<PyAny>,
     values: &Bound<PyAny>,
     weights: Option<&Bound<PyAny>>,
+    holes: Option<&Bound<PyAny>>,
 ) -> PyResult<Data> {
-    let (locs, values) = (points(coords)?, finite(values, "values")?);
-    same_length(locs.len(), values.len(), "values")?;
+    let values = finite(values, "values")?;
     let weights = optional_finite(weights, "weights")?;
     if let Some(w) = &weights {
-        same_length(locs.len(), w.len(), "weights")?;
+        same_length(values.len(), w.len(), "weights")?;
     }
+    let (locs, keep) = located(coords, values.len(), "values", holes)?;
     Ok(Data {
         locs,
-        values,
-        weights,
+        values: pick(&values, &keep),
+        weights: weights.map(|w| pick(&w, &keep)),
     })
 }
 
@@ -70,14 +88,17 @@ impl Sgs {
         }
     }
 
-    #[pyo3(signature = (coords, values, weights=None))]
+    /// Samples sharing a location keep the first, with a warning naming their
+    /// `holes`.
+    #[pyo3(signature = (coords, values, weights=None, holes=None))]
     fn fit<'py>(
         mut slf: PyRefMut<'py, Self>,
         coords: &Bound<PyAny>,
         values: &Bound<PyAny>,
         weights: Option<&Bound<PyAny>>,
+        holes: Option<&Bound<PyAny>>,
     ) -> PyResult<PyRefMut<'py, Self>> {
-        slf.data = Some(data(coords, values, weights)?);
+        slf.data = Some(data(coords, values, weights, holes)?);
         Ok(slf)
     }
 
@@ -141,14 +162,17 @@ impl TurningBands {
         }
     }
 
-    #[pyo3(signature = (coords, values, weights=None))]
+    /// Samples sharing a location keep the first, with a warning naming their
+    /// `holes`.
+    #[pyo3(signature = (coords, values, weights=None, holes=None))]
     fn fit<'py>(
         mut slf: PyRefMut<'py, Self>,
         coords: &Bound<PyAny>,
         values: &Bound<PyAny>,
         weights: Option<&Bound<PyAny>>,
+        holes: Option<&Bound<PyAny>>,
     ) -> PyResult<PyRefMut<'py, Self>> {
-        slf.data = Some(data(coords, values, weights)?);
+        slf.data = Some(data(coords, values, weights, holes)?);
         Ok(slf)
     }
 
@@ -214,14 +238,16 @@ impl Sis {
         }
     }
 
+    #[pyo3(signature = (coords, categories, holes=None))]
     fn fit<'py>(
         mut slf: PyRefMut<'py, Self>,
         coords: &Bound<PyAny>,
         categories: &Bound<PyAny>,
+        holes: Option<&Bound<PyAny>>,
     ) -> PyResult<PyRefMut<'py, Self>> {
-        let locs = points(coords)?;
         let cats = self::categories(categories)?;
-        same_length(locs.len(), cats.len(), "categories")?;
+        let (locs, keep) = located(coords, cats.len(), "categories", holes)?;
+        let cats = pick(&cats, &keep);
         if cats.iter().any(|&c| c >= slf.variograms.len()) {
             return Err(invalid("every category needs a variogram"));
         }
@@ -306,14 +332,16 @@ impl Plurigaussian {
         })
     }
 
+    #[pyo3(signature = (coords, facies, holes=None))]
     fn fit<'py>(
         mut slf: PyRefMut<'py, Self>,
         coords: &Bound<PyAny>,
         facies: &Bound<PyAny>,
+        holes: Option<&Bound<PyAny>>,
     ) -> PyResult<PyRefMut<'py, Self>> {
-        let locs = points(coords)?;
         let facies = categories(facies)?;
-        same_length(locs.len(), facies.len(), "facies")?;
+        let (locs, keep) = located(coords, facies.len(), "facies", holes)?;
+        let facies = pick(&facies, &keep);
         slf.data = Some((locs, facies));
         Ok(slf)
     }
