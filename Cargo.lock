@@ -134,6 +134,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "modeling"
+version = "0.1.0"
+dependencies = [
+ "estimation",
+ "nalgebra",
+ "rand",
+ "thiserror",
+ "variogram",
+]
+
+[[package]]
 name = "nalgebra"
 version = "0.33.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
