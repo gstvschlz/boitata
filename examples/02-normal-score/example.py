@@ -1,28 +1,37 @@
-import math
+import sys
+from pathlib import Path
 
+import ceres as cs
 import matplotlib.pyplot as plt
 import numpy as np
-from style import ACCENT, GREY, HIGHLIGHT, INK, LIGHT, OUT, save, table
 
-d = table(OUT / "02_scores.csv")
-order = np.argsort(d["v"])
-v, w, y = d["v"][order], d["w"][order], d["score"][order]
-cdf = np.cumsum(w) / w.sum()
+HERE = Path(__file__).parent
+sys.path.insert(0, str(HERE.parent))
+from common import ACCENT, GREY, HIGHLIGHT, INK, LIGHT, fetch, save
 
-grid = np.linspace(-3.5, 3.5, 400)
-normal_cdf = 0.5 * (1 + np.vectorize(math.erf)(grid / math.sqrt(2)))
-normal_pdf = np.exp(-(grid**2) / 2) / math.sqrt(2 * math.pi)
+samples = cs.PointSet.from_table(cs.read_csv(fetch("walker-lake/sample.csv")))
+v = samples["V"]
+w = cs.cell_declustering(samples.coords, v, sizes=np.arange(2.5, 102.5, 2.5)).weights
 
+ns = cs.NormalScore()
+y = ns.fit_transform(v, weights=w)
+mean = np.average(y, weights=w)
+sd = np.sqrt(np.average((y - mean) ** 2, weights=w))
+print(f"scores: weighted mean {mean:.3f}, sd {sd:.3f}")
+print(f"back-transform max error {np.abs(ns.inverse_transform(y) - v).max():.1e}")
+
+order = np.argsort(v)
+cdf = np.cumsum(w[order]) / w.sum()
+z = np.linspace(-3.5, 3.5, 400)
 p = 0.75
-vp = v[np.searchsorted(cdf, p)]
-yp = y[np.searchsorted(cdf, p)]
+vp, yp = v[order][np.searchsorted(cdf, p)], y[order][np.searchsorted(cdf, p)]
 
 fig, (a, b) = plt.subplots(1, 2, figsize=(9, 3.6), sharey=True, layout="constrained")
-a.step(v, cdf, where="post", color=ACCENT, lw=1.4)
+a.step(v[order], cdf, where="post", color=ACCENT, lw=1.4)
 a.set_title("Declustered CDF of V")
 a.set_xlabel("V (ppm)")
 a.set_ylabel("Cumulative probability")
-b.plot(grid, normal_cdf, color=INK, lw=1.4)
+b.plot(z, cs.normal_cdf(z), color=INK, lw=1.4)
 b.set_title("Standard normal CDF")
 b.set_xlabel("Normal score")
 for ax, x in ((a, vp), (b, yp)):
@@ -38,7 +47,7 @@ fig.suptitle(
     fontsize=9,
     color=GREY,
 )
-save(fig, "02-normal-score", "quantile-mapping")
+save(fig, HERE, "quantile-mapping")
 
 fig, (a, b) = plt.subplots(1, 2, figsize=(9, 3.4), layout="constrained")
 a.hist(v, np.linspace(0, 1600, 33), weights=w / w.sum(), color=LIGHT, edgecolor=GREY, lw=0.5)
@@ -55,9 +64,9 @@ b.hist(
     lw=0.5,
     label="normal scores",
 )
-b.plot(grid, normal_pdf, color=ACCENT, lw=1.6, label="N(0, 1)")
+b.plot(z, np.exp(-(z**2) / 2) / np.sqrt(2 * np.pi), color=ACCENT, lw=1.6, label="N(0, 1)")
 b.set_title("Normal scores: standard Gaussian")
 b.set_xlabel("Normal score")
 b.set_ylabel("Density (declustered)")
 b.legend()
-save(fig, "02-normal-score", "histograms")
+save(fig, HERE, "histograms")

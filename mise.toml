@@ -13,8 +13,8 @@ depends = ["py:sync"]
 run = [
   "cargo fmt --all --check",
   "cargo clippy --workspace --all-targets -- -D warnings",
-  "uv run --no-sync ruff check python examples/plot",
-  "uv run --no-sync ruff format --check python examples/plot",
+  "uv run --no-sync ruff check python examples",
+  "uv run --no-sync ruff format --check python examples",
 ]
 
 [tasks."py:sync"]
@@ -31,19 +31,11 @@ depends = ["lint", "test"]
 python = "3.13"
 uv = "0.12"
 
-[tasks."examples:data"]
-run = [
-  "curl -sfL --create-dirs -o examples/data/walker_sample.csv https://raw.githubusercontent.com/gstvschlz/datasets/560bd39c9ec79dcd6565dc763009aa83cac68fb8/walker-lake/sample.csv",
-  "curl -sfL --create-dirs -o examples/data/walker_exhaustive.csv https://raw.githubusercontent.com/gstvschlz/datasets/560bd39c9ec79dcd6565dc763009aa83cac68fb8/walker-lake/exhaustive.csv",
-]
-
 [tasks.examples]
-depends = ["examples:data"]
+depends = ["py:build"]
 run = [
-  "cargo run -q --release -p ceres-examples --bin 01_data",
-  "uv run -q --no-project --with-requirements examples/requirements.txt examples/plot/01_data.py",
-  "cargo run -q --release -p ceres-examples --bin 02_normal_score",
-  "uv run -q --no-project --with-requirements examples/requirements.txt examples/plot/02_normal_score.py",
-  "cargo run -q --release -p ceres-examples --bin 03_variography",
-  "uv run -q --no-project --with-requirements examples/requirements.txt examples/plot/03_variography.py",
+  "uv run --no-sync python examples/01-data/example.py",
+  "uv run --no-sync python examples/02-normal-score/example.py",
+  "uv run --no-sync python examples/03-variography/example.py",
+  "uv run --no-sync python examples/04-kriging/example.py",
 ]
