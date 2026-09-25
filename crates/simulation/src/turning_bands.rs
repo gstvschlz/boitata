@@ -262,28 +262,6 @@ pub fn turning_bands(
     Ok(Realization { values })
 }
 
-/// `n` independent realizations (seeds `seed, seed+1, …`).
-pub fn turning_bands_ensemble(
-    data_locs: &[(f64, f64, f64)],
-    data_vals: &[f64],
-    data_weights: Option<&[f64]>,
-    grid: &[(f64, f64, f64)],
-    vg_nscore: &Variogram,
-    params: &TurningBandsParams,
-    n: usize,
-) -> Result<Vec<Realization>> {
-    (0..n)
-        .into_par_iter()
-        .map(|k| {
-            let p = TurningBandsParams {
-                seed: params.seed.wrapping_add(k as u64),
-                ..params.clone()
-            };
-            turning_bands(data_locs, data_vals, data_weights, grid, vg_nscore, &p)
-        })
-        .collect()
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

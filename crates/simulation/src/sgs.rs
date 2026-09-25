@@ -17,7 +17,6 @@ use rand::SeedableRng;
 use rand::rngs::StdRng;
 use rand::seq::SliceRandom;
 use rand_distr::{Distribution, Normal};
-use rayon::prelude::*;
 use transforms::normal_score;
 use variogram::Variogram;
 
@@ -143,39 +142,6 @@ pub fn sgs(
     // 5. Back-transform to data space.
     let values: Vec<f64> = sim_scores.iter().map(|&s| ns.table.back(s)).collect();
     Ok(Realization { values })
-}
-
-/// Run `n` independent realizations (seeds `seed, seed+1, …`) in parallel; the
-/// result does not depend on the number of threads.
-#[allow(clippy::too_many_arguments)]
-pub fn sgs_ensemble(
-    data_locs: &[(f64, f64, f64)],
-    data_vals: &[f64],
-    data_weights: Option<&[f64]>,
-    grid: &[(f64, f64, f64)],
-    vg_nscore: &Variogram,
-    params: &SgsParams,
-    local: Option<&LocalAnisotropy>,
-    n: usize,
-) -> Result<Vec<Realization>> {
-    (0..n)
-        .into_par_iter()
-        .map(|k| {
-            let p = SgsParams {
-                search: params.search.clone(),
-                seed: params.seed.wrapping_add(k as u64),
-            };
-            sgs(
-                data_locs,
-                data_vals,
-                data_weights,
-                grid,
-                vg_nscore,
-                &p,
-                local,
-            )
-        })
-        .collect()
 }
 
 #[cfg(test)]
@@ -340,69 +306,56 @@ mod tests {
         assert!((r.values[0] - 5.0).abs() < 1e-9);
     }
 
-    #[test]
-    fn ensemble_does_not_depend_on_thread_count() {
-        let data_locs: Vec<_> = (0..30)
-            .map(|i| ((i * 7 % 50) as f64, (i * 11 % 50) as f64, 0.0))
-            .collect();
-        let data_vals: Vec<f64> = (0..30).map(|i| (i as f64).sqrt()).collect();
-        let grid: Vec<_> = (0..100)
-            .map(|i| ((i % 10) as f64 * 5.0, (i / 10) as f64 * 5.0, 0.0))
-            .collect();
-        let vg = Variogram::single(Model::Spherical, 1.0, 20.0);
-        let params = SgsParams {
-            search: Search {
-                min_samples: 1,
-                max_samples: 12,
-                radius: 30.0,
-                max_per_hole: None,
-                octant: false,
-                anisotropy: None,
-            },
-            seed: 9,
+    fn summary(
+        data_locs: &[(f64, f64, f64)],
+        data_vals: &[f64],
+        grid: &[(f64, f64, f64)],
+        vg: &Variogram,
+        n: usize,
+    ) -> crate::ContinuousSummary {
+        let search = Search {
+            min_samples: 1,
+            max_samples: 8,
+            radius: f64::INFINITY,
+            ..Default::default()
         };
-        let run = |threads| {
-            rayon::ThreadPoolBuilder::new()
-                .num_threads(threads)
-                .build()
-                .unwrap()
-                .install(|| {
-                    sgs_ensemble(&data_locs, &data_vals, None, &grid, &vg, &params, None, 6)
-                        .unwrap()
-                })
-        };
-        let (one, many) = (run(1), run(6));
-        for (a, b) in one.iter().zip(&many) {
-            assert_eq!(a.values, b.values);
-        }
+        crate::continuous(n, &Default::default(), |k| {
+            let params = SgsParams {
+                search: search.clone(),
+                seed: 100 + k as u64,
+            };
+            sgs(data_locs, data_vals, None, grid, vg, &params, None).map(|r| r.values)
+        })
+        .unwrap()
     }
 
     #[test]
     fn ensemble_mean_approximates_kriging() {
-        // The average of many SGS realizations should approach the kriging estimate.
         let data_locs = vec![
             (0.0, 0.0, 0.0),
             (100.0, 0.0, 0.0),
             (0.0, 100.0, 0.0),
             (100.0, 100.0, 0.0),
         ];
-        let data_vals = vec![2.0, 2.0, 2.0, 2.0]; // constant field → mean should be ~2
-        let grid = vec![(50.0, 50.0, 0.0)];
+        let data_vals = vec![2.0, 2.0, 2.0, 2.0];
         let vg = Variogram::single(Model::Spherical, 1.0, 200.0);
-        let params = SgsParams {
-            search: Search {
-                min_samples: 1,
-                max_samples: 8,
-                radius: f64::INFINITY,
-                max_per_hole: None,
-                octant: false,
-                anisotropy: None,
-            },
-            seed: 100,
-        };
-        let ens =
-            sgs_ensemble(&data_locs, &data_vals, None, &grid, &vg, &params, None, 50).unwrap();
-        let mean = ens.iter().map(|r| r.values[0]).sum::<f64>() / ens.len() as f64;
-        assert!((mean - 2.0).abs() < 0.2, "ensemble mean {mean}");
+        let s = summary(&data_locs, &data_vals, &[(50.0, 50.0, 0.0)], &vg, 50);
+        assert!((s.mean[0] - 2.0).abs() < 0.2, "ensemble mean {}", s.mean[0]);
+    }
+
+    #[test]
+    fn far_from_data_the_ensemble_reproduces_the_histogram() {
+        let data_locs: Vec<_> = (0..20)
+            .map(|i| ((i * 7 % 20) as f64, (i * 3 % 20) as f64, 0.0))
+            .collect();
+        let data_vals: Vec<f64> = (1..=20).map(f64::from).collect();
+        let vg = Variogram::single(Model::Spherical, 1.0, 10.0);
+        let s = summary(&data_locs, &data_vals, &[(1e4, 1e4, 0.0)], &vg, 400);
+        assert!((s.mean[0] - 10.5).abs() < 0.8, "mean {}", s.mean[0]);
+        assert!(
+            (s.variance[0] / 33.25 - 1.0).abs() < 0.25,
+            "variance {}",
+            s.variance[0]
+        );
     }
 }

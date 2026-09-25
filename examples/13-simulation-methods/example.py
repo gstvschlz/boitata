@@ -34,10 +34,10 @@ grid = cs.BlockModel(origin=(0.5, 0.5), size=(5, 5), count=(52, 60))
 sgs = cs.SGS(gaussian, cs.Search(radius=100, max_samples=24)).fit(xy, v, weights=weights)
 tb = cs.TurningBands(gaussian, bands=500).fit(xy, v, weights=weights)
 start = time.perf_counter()
-by_sgs = sgs.simulate(grid, n=20, seed=5)
+by_sgs = sgs.simulate(grid, n=20, seed=5, realizations=True).realizations
 sgs_seconds = time.perf_counter() - start
 start = time.perf_counter()
-by_tb = tb.simulate(grid, n=20, seed=5)
+by_tb = tb.simulate(grid, n=20, seed=5, realizations=True).realizations
 tb_seconds = time.perf_counter() - start
 for name, reals, seconds in (("SGS", by_sgs, sgs_seconds), ("turning bands", by_tb, tb_seconds)):
     print(
@@ -85,11 +85,12 @@ for k in range(5):
     indicator_models.append(fitted)
 
 sis = cs.SIS(indicator_models, cs.Search(radius=1.5, max_samples=16)).fit(train.coords, rock)
-by_sis = sis.simulate(jura_grid, n=10, seed=3)
+sis_summary = sis.simulate(jura_grid, n=10, seed=3, realizations=True)
+by_sis = sis_summary.realizations
 pgs = cs.Plurigaussian(cs.Variogram([("spherical", 1.0, 0.8)]), proportions=proportions).fit(
     train.coords, rock
 )
-by_pgs = pgs.simulate(jura_grid, seed=3)
+by_pgs = pgs.simulate(jura_grid, n=1, seed=3, realizations=True).realizations[0]
 
 print(f"{'':>13}" + "".join(f"{n[:5]:>8}" for n in names))
 for label, cats in (("samples", rock), ("true grid", true_rock), ("SIS", by_sis[0]), ("PGS", by_pgs)):
@@ -97,6 +98,10 @@ for label, cats in (("samples", rock), ("true grid", true_rock), ("SIS", by_sis[
     print(f"{label:>13}" + "".join(f"{s:8.2f}" for s in shares))
 for label, cats in (("SIS", by_sis[0]), ("PGS", by_pgs)):
     print(f"{label}: {np.mean(cats == true_rock):.0%} of nodes match the true rock type")
+matches = np.mean(sis_summary.most_likely == true_rock)
+print(
+    f"SIS most likely type over 10 realizations: {matches:.0%} match, mean entropy {sis_summary.entropy.mean():.2f}"
+)
 
 # %%
 colors = ListedColormap(["#1f4e79", "#6f9fc9", "#c9d9ea", "#c05a28", "#8c8c8c"])

@@ -131,4 +131,4 @@ def test_shared_locations_keep_the_first_and_name_their_holes():
     assert np.isfinite(ok.predict([[2.0, 2.0]])).all()
     with pytest.warns(UserWarning, match="rows 0, 2"):
         sgs = cs.SGS(cs.Variogram([("spherical", 1.0, 30.0)]), search).fit(xy, v)
-    assert np.isfinite(sgs.simulate([[2.0, 2.0], [5.0, 5.0]], n=2, seed=1)).all()
+    assert np.isfinite(sgs.simulate([[2.0, 2.0], [5.0, 5.0]], n=2, seed=1).mean).all()

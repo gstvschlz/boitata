@@ -1,13 +1,14 @@
+use numpy::ndarray::Array2;
+use numpy::{IntoPyArray, PyArray1, PyArray2};
 use pyo3::prelude::*;
-use pyo3::types::PyDict;
 use simulation::{
-    GibbsParams, PgsParams, Realization, Region, SgsParams, SisParams, TruncationRule,
-    TurningBandsParams,
+    CategoricalSummary as CoreCategorical, ContinuousOptions, ContinuousSummary, GibbsParams,
+    PgsParams, Region, SgsParams, SisParams, TruncationRule, TurningBandsParams,
 };
 use variogram::Variogram as CoreVariogram;
 
 use crate::args::{
-    self, Point, array1, array2, distinct, finite, optional_finite, pick, points, rows, same_length,
+    self, Point, array1, distinct, finite, optional_finite, pick, points, rows, same_length,
 };
 use crate::estimation::{Search, targets};
 use crate::invalid;
@@ -21,10 +22,167 @@ fn not_fitted() -> PyErr {
     invalid("simulator is not fitted; call fit first")
 }
 
-/// Realizations as an `(n, targets)` array.
-fn stack<'py>(py: Python<'py>, reals: Vec<Realization>) -> Bound<'py, PyAny> {
-    let rows: Vec<Vec<f64>> = reals.into_iter().map(|r| r.values).collect();
-    array2(py, &rows).into_any()
+/// `rows` as a `(rows, cols)` array, also when there are no rows.
+fn matrix<'py, T: numpy::Element + Copy>(
+    py: Python<'py>,
+    rows: &[Vec<T>],
+    cols: usize,
+) -> Bound<'py, PyArray2<T>> {
+    Array2::from_shape_vec((rows.len(), cols), rows.concat())
+        .expect("rectangular rows")
+        .into_pyarray(py)
+}
+
+fn int_rows(rows: &[Vec<usize>]) -> Vec<Vec<i64>> {
+    rows.iter()
+        .map(|r| r.iter().map(|&c| c as i64).collect())
+        .collect()
+}
+
+/// Uncertainty at every target from `n` realizations of a continuous
+/// variable. Per-cutoff and per-quantile arrays have one row per cutoff or
+/// quantile.
+#[pyclass(module = "ceres", name = "SimulationSummary", frozen)]
+pub struct SimulationSummary(ContinuousSummary);
+
+#[pymethods]
+impl SimulationSummary {
+    #[getter]
+    fn n(&self) -> usize {
+        self.0.n
+    }
+
+    /// Mean of the realizations (E-type estimate).
+    #[getter]
+    fn mean<'py>(&self, py: Python<'py>) -> Bound<'py, PyArray1<f64>> {
+        array1(py, self.0.mean.clone())
+    }
+
+    /// Variance across realizations.
+    #[getter]
+    fn variance<'py>(&self, py: Python<'py>) -> Bound<'py, PyArray1<f64>> {
+        array1(py, self.0.variance.clone())
+    }
+
+    #[getter]
+    fn std<'py>(&self, py: Python<'py>) -> Bound<'py, PyArray1<f64>> {
+        array1(py, self.0.variance.iter().map(|v| v.sqrt()).collect())
+    }
+
+    #[getter]
+    fn cutoffs(&self) -> Vec<f64> {
+        self.0.cutoffs.clone()
+    }
+
+    /// `(cutoffs, targets)` fraction of realizations above each cutoff.
+    #[getter]
+    fn probability_above<'py>(&self, py: Python<'py>) -> Bound<'py, PyArray2<f64>> {
+        matrix(py, &self.0.probability_above, self.0.mean.len())
+    }
+
+    /// `(cutoffs, targets)` mean of the values above each cutoff; NaN where
+    /// no realization is above it.
+    #[getter]
+    fn mean_above<'py>(&self, py: Python<'py>) -> Bound<'py, PyArray2<f64>> {
+        matrix(py, &self.0.mean_above, self.0.mean.len())
+    }
+
+    #[getter]
+    fn quantiles(&self) -> Vec<f64> {
+        self.0.quantiles.clone()
+    }
+
+    /// `(quantiles, targets)` values at each requested quantile.
+    #[getter]
+    fn quantile_values<'py>(&self, py: Python<'py>) -> Bound<'py, PyArray2<f64>> {
+        matrix(py, &self.0.quantile_values, self.0.mean.len())
+    }
+
+    /// Mean of each realization over all targets, `(n,)`.
+    #[getter]
+    fn realization_mean<'py>(&self, py: Python<'py>) -> Bound<'py, PyArray1<f64>> {
+        array1(py, self.0.realization_mean.clone())
+    }
+
+    /// `(cutoffs, n)` fraction of targets above each cutoff in each realization.
+    #[getter]
+    fn realization_above<'py>(&self, py: Python<'py>) -> Bound<'py, PyArray2<f64>> {
+        matrix(py, &self.0.realization_above, self.0.n)
+    }
+
+    /// `(n, targets)` realizations when simulated with `realizations=True`.
+    #[getter]
+    fn realizations<'py>(&self, py: Python<'py>) -> Option<Bound<'py, PyArray2<f64>>> {
+        self.0
+            .realizations
+            .as_ref()
+            .map(|r| matrix(py, r, self.0.mean.len()))
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "SimulationSummary(n={}, targets={}, cutoffs={:?}, quantiles={:?})",
+            self.0.n,
+            self.0.mean.len(),
+            self.0.cutoffs,
+            self.0.quantiles
+        )
+    }
+}
+
+/// Uncertainty at every target from `n` realizations of categories.
+#[pyclass(module = "ceres", name = "CategoricalSummary", frozen)]
+pub struct CategoricalSummary(CoreCategorical);
+
+#[pymethods]
+impl CategoricalSummary {
+    #[getter]
+    fn n(&self) -> usize {
+        self.0.n
+    }
+
+    /// `(categories, targets)` fraction of realizations in each category.
+    #[getter]
+    fn probabilities<'py>(&self, py: Python<'py>) -> Bound<'py, PyArray2<f64>> {
+        matrix(py, &self.0.probabilities, self.0.most_likely.len())
+    }
+
+    /// Most probable category per target; ties go to the lowest.
+    #[getter]
+    fn most_likely<'py>(&self, py: Python<'py>) -> Bound<'py, PyArray1<i64>> {
+        PyArray1::from_vec(py, self.0.most_likely.iter().map(|&c| c as i64).collect())
+    }
+
+    /// Entropy of the probabilities scaled to [0, 1]: 0 where every
+    /// realization agrees, 1 where all categories are equally likely.
+    #[getter]
+    fn entropy<'py>(&self, py: Python<'py>) -> Bound<'py, PyArray1<f64>> {
+        array1(py, self.0.entropy.clone())
+    }
+
+    /// `(n, categories)` share of targets in each category per realization.
+    #[getter]
+    fn proportions<'py>(&self, py: Python<'py>) -> Bound<'py, PyArray2<f64>> {
+        matrix(py, &self.0.proportions, self.0.probabilities.len())
+    }
+
+    /// `(n, targets)` realizations when simulated with `realizations=True`.
+    #[getter]
+    fn realizations<'py>(&self, py: Python<'py>) -> Option<Bound<'py, PyArray2<i64>>> {
+        self.0
+            .realizations
+            .as_ref()
+            .map(|r| matrix(py, &int_rows(r), self.0.most_likely.len()))
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "CategoricalSummary(n={}, targets={}, categories={})",
+            self.0.n,
+            self.0.most_likely.len(),
+            self.0.probabilities.len()
+        )
+    }
 }
 
 struct Data {
@@ -102,27 +260,38 @@ impl Sgs {
         Ok(slf)
     }
 
-    /// `n` realizations at `targets`, seeds `seed, seed + 1, …`; `(n, targets)`.
+    /// Summary of `n` realizations at `targets`, seeds `seed, seed + 1, …`,
+    /// with the probability and mean above each of `cutoffs` and the values at
+    /// `quantiles`; the realizations themselves only when `realizations`.
     /// `anisotropy` (a LocalAnisotropy) orients each node's variogram and search.
-    #[pyo3(signature = (targets, n=1, seed=0, anisotropy=None))]
-    fn simulate<'py>(
+    #[pyo3(signature = (targets, n=100, seed=0, cutoffs=vec![], quantiles=vec![], realizations=false, anisotropy=None))]
+    #[allow(clippy::too_many_arguments)]
+    fn simulate(
         &self,
-        py: Python<'py>,
+        py: Python,
         targets: &Bound<PyAny>,
         n: usize,
         seed: u64,
+        cutoffs: Vec<f64>,
+        quantiles: Vec<f64>,
+        realizations: bool,
         anisotropy: Option<PyRef<crate::lva::LocalAnisotropy>>,
-    ) -> PyResult<Bound<'py, PyAny>> {
+    ) -> PyResult<SimulationSummary> {
         let d = self.data.as_ref().ok_or_else(not_fitted)?;
         let grid = self::targets(targets)?;
         let local = anisotropy.map(|a| a.at_targets(&grid));
-        let params = SgsParams {
-            search: self.search.clone(),
-            seed,
+        let options = ContinuousOptions {
+            cutoffs,
+            quantiles,
+            keep: realizations,
         };
-        let reals = py
-            .detach(|| {
-                simulation::sgs_ensemble(
+        py.detach(|| {
+            simulation::continuous(n, &options, |k| {
+                let params = SgsParams {
+                    search: self.search.clone(),
+                    seed: seed.wrapping_add(k as u64),
+                };
+                simulation::sgs(
                     &d.locs,
                     &d.values,
                     d.weights.as_deref(),
@@ -130,11 +299,12 @@ impl Sgs {
                     &self.variogram,
                     &params,
                     local.as_ref(),
-                    n,
                 )
+                .map(|r| r.values)
             })
-            .map_err(err)?;
-        Ok(stack(py, reals))
+        })
+        .map(SimulationSummary)
+        .map_err(err)
     }
 }
 
@@ -176,36 +346,47 @@ impl TurningBands {
         Ok(slf)
     }
 
-    #[pyo3(signature = (targets, n=1, seed=0))]
-    fn simulate<'py>(
+    /// Summary of `n` realizations; same options as `SGS.simulate`.
+    #[allow(clippy::too_many_arguments)]
+    #[pyo3(signature = (targets, n=100, seed=0, cutoffs=vec![], quantiles=vec![], realizations=false))]
+    fn simulate(
         &self,
-        py: Python<'py>,
+        py: Python,
         targets: &Bound<PyAny>,
         n: usize,
         seed: u64,
-    ) -> PyResult<Bound<'py, PyAny>> {
+        cutoffs: Vec<f64>,
+        quantiles: Vec<f64>,
+        realizations: bool,
+    ) -> PyResult<SimulationSummary> {
         let d = self.data.as_ref().ok_or_else(not_fitted)?;
         let grid = self::targets(targets)?;
-        let params = TurningBandsParams {
-            n_bands: self.bands,
-            step: self.step,
-            seed,
-            ..Default::default()
+        let options = ContinuousOptions {
+            cutoffs,
+            quantiles,
+            keep: realizations,
         };
-        let reals = py
-            .detach(|| {
-                simulation::turning_bands_ensemble(
+        py.detach(|| {
+            simulation::continuous(n, &options, |k| {
+                let params = TurningBandsParams {
+                    n_bands: self.bands,
+                    step: self.step,
+                    seed: seed.wrapping_add(k as u64),
+                    ..Default::default()
+                };
+                simulation::turning_bands(
                     &d.locs,
                     &d.values,
                     d.weights.as_deref(),
                     &grid,
                     &self.variogram,
                     &params,
-                    n,
                 )
+                .map(|r| r.values)
             })
-            .map_err(err)?;
-        Ok(stack(py, reals))
+        })
+        .map(SimulationSummary)
+        .map_err(err)
     }
 }
 
@@ -255,36 +436,32 @@ impl Sis {
         Ok(slf)
     }
 
-    /// `(n, targets)` integer array of categories.
-    #[pyo3(signature = (targets, n=1, seed=0))]
-    fn simulate<'py>(
+    /// Summary of `n` realizations, seeds `seed, seed + 1, …`; the
+    /// realizations themselves only when `realizations`.
+    #[pyo3(signature = (targets, n=100, seed=0, realizations=false))]
+    fn simulate(
         &self,
-        py: Python<'py>,
+        py: Python,
         targets: &Bound<PyAny>,
         n: usize,
         seed: u64,
-    ) -> PyResult<Bound<'py, PyAny>> {
+        realizations: bool,
+    ) -> PyResult<CategoricalSummary> {
         let (locs, cats) = self.data.as_ref().ok_or_else(not_fitted)?;
         let grid = self::targets(targets)?;
         let k = self.variograms.len();
-        let reals: Vec<Vec<usize>> = py
-            .detach(|| {
-                use rayon::prelude::*;
-                (0..n)
-                    .into_par_iter()
-                    .map(|i| {
-                        let params = SisParams {
-                            search: self.search.clone(),
-                            seed: seed.wrapping_add(i as u64),
-                        };
-                        simulation::sis(locs, cats, &grid, k, &self.variograms, &params)
-                            .map(|r| r.categories)
-                    })
-                    .collect::<Result<_, _>>()
+        py.detach(|| {
+            simulation::categorical(n, k, realizations, |i| {
+                let params = SisParams {
+                    search: self.search.clone(),
+                    seed: seed.wrapping_add(i as u64),
+                };
+                simulation::sis(locs, cats, &grid, k, &self.variograms, &params)
+                    .map(|r| r.categories)
             })
-            .map_err(err)?;
-        let np = py.import("numpy")?;
-        np.call_method1("asarray", (reals, "int64"))
+        })
+        .map(CategoricalSummary)
+        .map_err(err)
     }
 }
 
@@ -346,22 +523,32 @@ impl Plurigaussian {
         Ok(slf)
     }
 
-    #[pyo3(signature = (targets, seed=0))]
-    fn simulate<'py>(
+    /// Summary of `n` realizations; same options as `SIS.simulate`.
+    #[pyo3(signature = (targets, n=100, seed=0, realizations=false))]
+    fn simulate(
         &self,
-        py: Python<'py>,
+        py: Python,
         targets: &Bound<PyAny>,
+        n: usize,
         seed: u64,
-    ) -> PyResult<Bound<'py, PyAny>> {
+        realizations: bool,
+    ) -> PyResult<CategoricalSummary> {
         let (locs, facies) = self.data.as_ref().ok_or_else(not_fitted)?;
         let grid = self::targets(targets)?;
-        let params = PgsParams {
-            seed,
-            two_fields: self.two_fields,
-            ..Default::default()
-        };
-        let out = py
-            .detach(|| {
+        let k = self
+            .rule
+            .regions
+            .iter()
+            .map(|r| r.facies + 1)
+            .max()
+            .unwrap_or(1);
+        py.detach(|| {
+            simulation::categorical(n, k, realizations, |i| {
+                let params = PgsParams {
+                    seed: seed.wrapping_add(i as u64),
+                    two_fields: self.two_fields,
+                    ..Default::default()
+                };
                 simulation::plurigaussian(
                     locs,
                     facies,
@@ -372,8 +559,9 @@ impl Plurigaussian {
                     &params,
                 )
             })
-            .map_err(err)?;
-        py.import("numpy")?.call_method1("asarray", (out, "int64"))
+        })
+        .map(CategoricalSummary)
+        .map_err(err)
     }
 }
 
@@ -407,52 +595,13 @@ fn gibbs<'py>(
     Ok(array1(py, out).into_any())
 }
 
-fn realizations(obj: &Bound<PyAny>) -> PyResult<Vec<Realization>> {
-    Ok(rows(obj, "realizations")?
-        .into_iter()
-        .map(|values| Realization { values })
-        .collect())
-}
-
-/// Per-target mean, standard deviation and quantiles of `(n, targets)` realizations.
-#[pyfunction]
-#[pyo3(signature = (realizations, quantiles=vec![0.1, 0.5, 0.9]))]
-fn summarize_realizations<'py>(
-    py: Python<'py>,
-    realizations: &Bound<PyAny>,
-    quantiles: Vec<f64>,
-) -> PyResult<Bound<'py, PyDict>> {
-    let stats = simulation::node_stats(&self::realizations(realizations)?, &quantiles);
-    let d = PyDict::new(py);
-    d.set_item("mean", array1(py, stats.iter().map(|s| s.mean).collect()))?;
-    d.set_item("std", array1(py, stats.iter().map(|s| s.std_dev).collect()))?;
-    for (i, q) in quantiles.iter().enumerate() {
-        d.set_item(
-            format!("q{q}"),
-            array1(py, stats.iter().map(|s| s.quantiles[i]).collect()),
-        )?;
-    }
-    Ok(d)
-}
-
-/// Per-target fraction of realizations above `cutoff`.
-#[pyfunction]
-fn probability_above<'py>(
-    py: Python<'py>,
-    realizations: &Bound<PyAny>,
-    cutoff: f64,
-) -> PyResult<Bound<'py, PyAny>> {
-    let p = simulation::probability_above(&self::realizations(realizations)?, cutoff);
-    Ok(array1(py, p).into_any())
-}
-
 pub fn register(m: &Bound<PyModule>) -> PyResult<()> {
     m.add_class::<Sgs>()?;
     m.add_class::<TurningBands>()?;
     m.add_class::<Sis>()?;
     m.add_class::<Plurigaussian>()?;
     m.add_function(wrap_pyfunction!(gibbs, m)?)?;
-    m.add_function(wrap_pyfunction!(summarize_realizations, m)?)?;
-    m.add_function(wrap_pyfunction!(probability_above, m)?)?;
+    m.add_class::<SimulationSummary>()?;
+    m.add_class::<CategoricalSummary>()?;
     Ok(())
 }
