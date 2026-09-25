@@ -6,6 +6,7 @@ mod containers;
 mod io;
 mod table;
 mod transforms;
+mod variogram;
 
 /// Raises `ceres.errors.<kind>`, a subclass of both `CeresError` and a builtin.
 pub(crate) fn error(kind: &str, message: impl ToString) -> PyErr {
@@ -33,5 +34,6 @@ fn _ceres(m: &Bound<PyModule>) -> PyResult<()> {
     m.add_class::<containers::PyBlockModel>()?;
     io::register(m)?;
     transforms::register(m)?;
+    variogram::register(m)?;
     Ok(())
 }

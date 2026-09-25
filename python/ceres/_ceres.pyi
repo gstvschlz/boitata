@@ -184,3 +184,123 @@ def downscale(
 ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]: ...
 def normal_cdf(x: ArrayLike) -> npt.NDArray[np.float64]: ...
 def normal_ppf(p: ArrayLike) -> npt.NDArray[np.float64]: ...
+
+class Structure:
+    def __init__(
+        self, model: str, sill: float, range: float, order: float | None = None, exponent: float | None = None
+    ) -> None: ...
+    @property
+    def model(self) -> str: ...
+    @property
+    def sill(self) -> float: ...
+    @property
+    def range(self) -> float: ...
+
+class Variogram:
+    def __init__(
+        self,
+        structures: Sequence[Structure | tuple[str, float, float]],
+        nugget: float = 0.0,
+        rotation: tuple[float, float, float] = (0.0, 0.0, 0.0),
+        ratios: tuple[float, float] = (1.0, 1.0),
+    ) -> None: ...
+    @staticmethod
+    def fit(
+        experimental: ExperimentalVariogram, model: str = "spherical", weighting: str = "count"
+    ) -> Variogram: ...
+    def with_anisotropy(
+        self, rotation: tuple[float, float, float], ratios: tuple[float, float]
+    ) -> Variogram: ...
+    @property
+    def nugget(self) -> float: ...
+    @property
+    def structures(self) -> list[Structure]: ...
+    @property
+    def rotation(self) -> tuple[float, float, float]: ...
+    @property
+    def ratios(self) -> tuple[float, float]: ...
+    @property
+    def sill(self) -> float: ...
+    def gamma(self, h: ArrayLike) -> npt.NDArray[np.float64]: ...
+    def covariance(self, h: ArrayLike) -> npt.NDArray[np.float64]: ...
+    def gamma_between(self, a: ArrayLike, b: ArrayLike) -> npt.NDArray[np.float64]: ...
+    def to_json(self) -> str: ...
+    @staticmethod
+    def from_json(text: str) -> Variogram: ...
+
+class ExperimentalVariogram:
+    @property
+    def lags(self) -> npt.NDArray[np.float64]: ...
+    @property
+    def gammas(self) -> npt.NDArray[np.float64]: ...
+    @property
+    def counts(self) -> npt.NDArray[np.float64]: ...
+    def fit(self, model: str = "spherical", weighting: str = "count") -> Variogram: ...
+
+class VariogramMap:
+    lags: npt.NDArray[np.float64]
+    angles: npt.NDArray[np.float64]
+    gammas: npt.NDArray[np.float64]
+    counts: npt.NDArray[np.float64]
+    ranges: npt.NDArray[np.float64]
+
+class Coregionalization:
+    def __init__(
+        self,
+        nugget: Sequence[Sequence[float]],
+        structures: Sequence[tuple[str, float, Sequence[Sequence[float]]]],
+        rotation: tuple[float, float, float] = (0.0, 0.0, 0.0),
+        ratios: tuple[float, float] = (1.0, 1.0),
+    ) -> None: ...
+    @property
+    def nvar(self) -> int: ...
+    def cross_covariance(self, i: int, j: int, a: ArrayLike, b: ArrayLike) -> npt.NDArray[np.float64]: ...
+
+class Transiogram:
+    def __init__(self, proportions: Sequence[float], range: float) -> None: ...
+    def matrix(self, h: float) -> npt.NDArray[np.float64]: ...
+
+def experimental_variogram(
+    coords: ArrayLike,
+    values: ArrayLike,
+    lag: float,
+    max_lag: float,
+    azimuth: float | None = None,
+    dip: float = 0.0,
+    tolerance: float = 22.5,
+    bandwidth: float | None = None,
+    estimator: str = "matheron",
+) -> ExperimentalVariogram: ...
+def variogram_map(
+    coords: ArrayLike,
+    values: ArrayLike,
+    lag: float,
+    max_lag: float,
+    u: Sequence[float] = (1.0, 0.0, 0.0),
+    v: Sequence[float] = (0.0, 1.0, 0.0),
+    tolerance: float = 22.5,
+    steps: int = 36,
+    model: str = "spherical",
+) -> VariogramMap: ...
+def variogram_surface_ranges(
+    coords: ArrayLike,
+    values: ArrayLike,
+    lag: float,
+    max_lag: float,
+    azimuth_steps: int = 24,
+    dip_steps: int = 6,
+    tolerance: float = 22.5,
+    model: str = "spherical",
+) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64], npt.NDArray[np.float64]]: ...
+def experimental_transiogram(
+    coords: ArrayLike, categories: Sequence[int], lag: float, max_lag: float
+) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64], npt.NDArray[np.float64]]: ...
+def change_of_support(
+    anamorphosis: HermiteAnamorphosis,
+    variogram: Variogram,
+    size: Sequence[float],
+    discretization: tuple[int, int, int] = (4, 4, 1),
+) -> tuple[float, HermiteAnamorphosis]: ...
+def block_correlation(
+    variogram: Variogram, size: Sequence[float], discretization: tuple[int, int, int] = (4, 4, 1)
+) -> float: ...

@@ -21,7 +21,9 @@ ceres-io.workspace = true
 numpy.workspace = true
 pyo3.workspace = true
 pyo3-arrow.workspace = true
+serde_json.workspace = true
 transforms.workspace = true
+variogram.workspace = true
 
 [lints]
 workspace = true
