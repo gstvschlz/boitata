@@ -42,7 +42,7 @@ print(f"round trip max error {np.abs(back - composition).max():.2e} %")
 </details>
 
 ```text
-round trip max error 1.25e-12 %
+round trip max error 1.88e-12 %
 ```
 
 Correlations at each stage:

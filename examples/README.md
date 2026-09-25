@@ -19,6 +19,7 @@ Walker Lake has an exhaustive grid, so every result is checked against the truth
 | 12 | [Estimation methods and search](12-estimation-methods/README.md) | Walker Lake | `NearestNeighbor`, `InverseDistance`, `UniversalKriging`, `BlockKriging`, `Search` ellipsoid |
 | 13 | [Simulation methods](13-simulation-methods/README.md) | Walker Lake, Jura | `TurningBands`, `SIS`, `Plurigaussian` |
 | 14 | [Storing containers in Parquet](14-parquet/README.md) | Walker Lake | `write_parquet`, `read_parquet`, polars |
+| 17 | [Multivariate transforms](17-multivariate/README.md) | Geomet porphyry 1 | `PCA`, `MAF`, `StepwiseConditional`, `PPMT` |
 | 18 | [Validation and classification](18-validation/README.md) | Walker Lake | `predict(diagnostics=True)`, `global_bias`, `classify`, `smooth_classes` |
 
 Each page alternates text, collapsed Python and its results. `mise run examples` reruns every `example.py` and rewrites the pages; `cs.datasets` downloads the data once and caches it.
