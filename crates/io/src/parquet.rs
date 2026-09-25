@@ -8,9 +8,9 @@ use std::path::Path;
 use std::sync::Arc;
 
 use arrow_array::cast::AsArray;
-use arrow_array::types::UInt64Type;
-use arrow_array::{ArrayRef, RecordBatch, RecordBatchOptions, UInt64Array};
-use arrow_schema::Schema;
+use arrow_array::types::{Float64Type, UInt64Type};
+use arrow_array::{ArrayRef, Float64Array, RecordBatch, RecordBatchOptions, UInt64Array};
+use arrow_schema::{Field, Schema};
 use arrow_select::concat::concat_batches;
 use ceres_core::{BlockModel, Geometry, Layout, PointSet};
 use parquet::arrow::ArrowWriter;
@@ -23,6 +23,14 @@ use crate::{Error, Result};
 
 const KEY: &str = "ceres";
 const INDEX: &str = "__ceres_index";
+const EXTENT: [&str; 6] = [
+    "__ceres_u0",
+    "__ceres_v0",
+    "__ceres_w0",
+    "__ceres_u1",
+    "__ceres_v1",
+    "__ceres_w1",
+];
 const ROW_GROUP: usize = 1 << 20;
 
 /// What a Parquet file holds.
@@ -68,7 +76,8 @@ pub fn write_points(path: impl AsRef<Path>, points: &PointSet) -> Result<()> {
     write(path.as_ref(), &points.to_table()?, Some(meta))
 }
 
-/// Writes a block model's attributes, with its cell index when masked.
+/// Writes a block model's attributes, with its cell index when masked and its
+/// parent index and extents when sub-blocked.
 pub fn write_block_model(path: impl AsRef<Path>, model: &BlockModel) -> Result<()> {
     let g = model.geometry();
     let mut meta = json!({
@@ -80,27 +89,46 @@ pub fn write_block_model(path: impl AsRef<Path>, model: &BlockModel) -> Result<(
         "rotation": g.rotation,
         "layout": "regular",
     });
-    let mut table = model.attributes().clone();
-    if let Layout::Masked(index) = model.layout() {
-        meta["layout"] = json!("masked");
-        let column: ArrayRef = Arc::new(UInt64Array::from(index.clone()));
-        let mut fields: Vec<_> = table.schema().fields().iter().cloned().collect();
-        fields.push(Arc::new(arrow_schema::Field::new(
-            INDEX,
-            arrow_schema::DataType::UInt64,
+    let mut extra: Vec<(String, ArrayRef)> = vec![];
+    match model.layout() {
+        Layout::Regular => {}
+        Layout::Masked(index) => {
+            meta["layout"] = json!("masked");
+            extra.push((INDEX.into(), Arc::new(UInt64Array::from(index.clone()))));
+        }
+        Layout::SubBlocked {
+            parent,
+            extent,
+            grid,
+        } => {
+            meta["layout"] = json!("subblocked");
+            meta["grid"] = json!(grid);
+            extra.push((INDEX.into(), Arc::new(UInt64Array::from(parent.clone()))));
+            for (i, name) in EXTENT.iter().enumerate() {
+                let column = Float64Array::from_iter_values(extent.iter().map(|e| e[i]));
+                extra.push((name.to_string(), Arc::new(column)));
+            }
+        }
+    }
+    let table = model.attributes();
+    let mut fields: Vec<_> = table.schema().fields().iter().cloned().collect();
+    let mut columns = table.columns().to_vec();
+    for (name, column) in extra {
+        fields.push(Arc::new(Field::new(
+            name,
+            column.data_type().clone(),
             false,
         )));
-        let mut columns = table.columns().to_vec();
         columns.push(column);
-        table = RecordBatch::try_new_with_options(
-            Arc::new(Schema::new_with_metadata(
-                fields,
-                table.schema().metadata().clone(),
-            )),
-            columns,
-            &RecordBatchOptions::new().with_row_count(Some(table.num_rows())),
-        )?;
     }
+    let table = RecordBatch::try_new_with_options(
+        Arc::new(Schema::new_with_metadata(
+            fields,
+            table.schema().metadata().clone(),
+        )),
+        columns,
+        &RecordBatchOptions::new().with_row_count(Some(table.num_rows())),
+    )?;
     write(path.as_ref(), &table, Some(meta))
 }
 
@@ -151,21 +179,50 @@ pub fn read_parquet(path: impl AsRef<Path>) -> Result<Stored> {
                 count: triple(&meta, "count")?,
                 rotation: triple(&meta, "rotation")?,
             };
-            let mut model = match meta["layout"].as_str() {
-                Some("masked") => {
-                    let position = table
-                        .schema()
-                        .index_of(INDEX)
-                        .map_err(|_| bad("masked model without its index column"))?;
-                    let index = table
-                        .column(position)
-                        .as_primitive::<UInt64Type>()
-                        .values()
-                        .to_vec();
-                    let keep: Vec<usize> = (0..table.num_columns())
-                        .filter(|&i| i != position)
+            let column = |name: &str| {
+                table
+                    .schema()
+                    .index_of(name)
+                    .map_err(|_| bad(format!("missing column {name}")))
+            };
+            let layout = meta["layout"].as_str();
+            let hidden: Vec<usize> = match layout {
+                Some("masked") => vec![column(INDEX)?],
+                Some("subblocked") => std::iter::once(INDEX)
+                    .chain(EXTENT)
+                    .map(column)
+                    .collect::<Result<_>>()?,
+                _ => vec![],
+            };
+            let keep: Vec<usize> = (0..table.num_columns())
+                .filter(|i| !hidden.contains(i))
+                .collect();
+            let attributes = table.project(&keep)?;
+            let index = |t: &RecordBatch| -> Result<Vec<u64>> {
+                Ok(t.column(column(INDEX)?)
+                    .as_primitive::<UInt64Type>()
+                    .values()
+                    .to_vec())
+            };
+            let mut model = match layout {
+                Some("masked") => BlockModel::masked(geometry, index(&table)?, attributes)?,
+                Some("subblocked") => {
+                    let parts = EXTENT
+                        .iter()
+                        .map(|n| {
+                            Ok(table
+                                .column(column(n)?)
+                                .as_primitive::<Float64Type>()
+                                .values()
+                                .to_vec())
+                        })
+                        .collect::<Result<Vec<_>>>()?;
+                    let extent = (0..table.num_rows())
+                        .map(|r| std::array::from_fn(|i| parts[i][r]))
                         .collect();
-                    BlockModel::masked(geometry, index, table.project(&keep)?)?
+                    let grid: Option<[u32; 3]> = serde_json::from_value(meta["grid"].clone())
+                        .map_err(|_| bad("sub-grid must hold 3 counts"))?;
+                    BlockModel::subblocked(geometry, index(&table)?, extent, grid, attributes)?
                 }
                 _ => BlockModel::regular(geometry, table)?,
             };
@@ -179,7 +236,7 @@ pub fn read_parquet(path: impl AsRef<Path>) -> Result<Stored> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use arrow_array::{Float64Array, StringArray};
+    use arrow_array::StringArray;
 
     fn temp(name: &str) -> std::path::PathBuf {
         std::env::temp_dir().join(format!("ceres-pq-{}-{name}", std::process::id()))
@@ -234,6 +291,35 @@ mod tests {
             panic!("expected a block model")
         };
         assert_eq!(back.geometry(), model.geometry());
+        assert_eq!(back.layout(), model.layout());
+        assert_eq!(back.attributes(), model.attributes());
+    }
+
+    #[test]
+    fn subblocked_model_round_trips() {
+        let geometry = Geometry {
+            origin: [0.0; 3],
+            size: [10.0, 10.0, 5.0],
+            count: [2, 2, 1],
+            rotation: [0.0; 3],
+        };
+        let extent = vec![
+            [0.0, 0.0, 0.0, 0.5, 1.0, 1.0],
+            [0.5, 0.0, 0.0, 1.0, 1.0, 1.0],
+            [0.0, 0.0, 0.0, 1.0, 1.0, 1.0],
+        ];
+        let model = BlockModel::subblocked(
+            geometry,
+            vec![0, 0, 3],
+            extent,
+            Some([2, 1, 1]),
+            attributes(3),
+        )
+        .unwrap();
+        write_block_model(temp("s.parquet"), &model).unwrap();
+        let Stored::Blocks(back) = read_parquet(temp("s.parquet")).unwrap() else {
+            panic!("expected a block model")
+        };
         assert_eq!(back.layout(), model.layout());
         assert_eq!(back.attributes(), model.attributes());
     }
