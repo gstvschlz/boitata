@@ -10,10 +10,10 @@ estimating parts independently can break the total.
 import ceres as cs
 import matplotlib.pyplot as plt
 import numpy as np
-from common import ACCENT, GREY, HIGHLIGHT, INK, fetch, save
+from common import ACCENT, GREY, HIGHLIGHT, INK, save
 from matplotlib.colors import LinearSegmentedColormap
 
-data = cs.read_csv(fetch("geomet/porphyry_01/synthetic_drillholes.csv"))
+data = cs.datasets.geomet()
 minerals = ["arcilla", "calcosina", "bornita", "calcopirita", "tenantita", "molibdenita", "pirita"]
 names = ["clay", "chalcocite", "bornite", "chalcopyrite", "tennantite", "molybdenite", "pyrite", "rest"]
 parts = np.column_stack([data[m] for m in minerals])
@@ -42,7 +42,7 @@ print(f"round trip max error {np.abs(back - composition).max():.2e} %")
 </details>
 
 ```text
-round trip max error 1.25e-12 %
+round trip max error 1.88e-12 %
 ```
 
 Correlations at each stage:

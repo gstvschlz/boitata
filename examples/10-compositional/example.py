@@ -16,10 +16,10 @@ sys.path.insert(0, str(HERE.parent))
 import ceres as cs
 import matplotlib.pyplot as plt
 import numpy as np
-from common import ACCENT, GREY, HIGHLIGHT, INK, fetch, save
+from common import ACCENT, GREY, HIGHLIGHT, INK, save
 from matplotlib.colors import LinearSegmentedColormap
 
-data = cs.read_csv(fetch("geomet/porphyry_01/synthetic_drillholes.csv"))
+data = cs.datasets.geomet()
 minerals = ["arcilla", "calcosina", "bornita", "calcopirita", "tenantita", "molibdenita", "pirita"]
 names = ["clay", "chalcocite", "bornite", "chalcopyrite", "tennantite", "molybdenite", "pyrite", "rest"]
 parts = np.column_stack([data[m] for m in minerals])

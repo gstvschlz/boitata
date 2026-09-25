@@ -16,10 +16,10 @@ sys.path.insert(0, str(HERE.parent))
 import ceres as cs
 import matplotlib.pyplot as plt
 import numpy as np
-from common import fetch, map_axes, save
+from common import map_axes, save
 from matplotlib.colors import ListedColormap, PowerNorm
 
-samples = cs.PointSet.from_table(cs.read_csv(fetch("walker-lake/sample.csv")))
+samples = cs.datasets.walker_lake()
 xy, v = samples.coords, samples["V"]
 weights = cs.cell_declustering(xy, v, sizes=np.arange(2.5, 102.5, 2.5)).weights
 gaussian = cs.Variogram([("spherical", 0.68, 82.0)], nugget=0.32, rotation=(170, 0, 0), ratios=(0.43, 1.0))
@@ -67,8 +67,8 @@ save(fig, "continuous")
 # a Gaussian field at thresholds set by the proportions, which orders the types.
 
 # %%
-train = cs.PointSet.from_table(cs.read_csv(fetch("jura/prediction.csv")))
-jura_grid = cs.PointSet.from_table(cs.read_csv(fetch("jura/grid.csv")))
+train = cs.datasets.jura()["prediction"]
+jura_grid = cs.datasets.jura()["grid"]
 names = ["Argovian", "Kimmeridgian", "Sequanian", "Portlandian", "Quaternary"]
 code = {name: i for i, name in enumerate(names)}
 rock = np.array([code[r] for r in train["Rock"]])

@@ -9,11 +9,11 @@ Cd correlates with Zn, and Zn is also known at the validation points, which suit
 import ceres as cs
 import matplotlib.pyplot as plt
 import numpy as np
-from common import ACCENT, GREY, HIGHLIGHT, INK, fetch, save
+from common import ACCENT, GREY, HIGHLIGHT, INK, save
 
-train = cs.PointSet.from_table(cs.read_csv(fetch("jura/prediction.csv")))
-test = cs.PointSet.from_table(cs.read_csv(fetch("jura/validation.csv")))
-grid = cs.PointSet.from_table(cs.read_csv(fetch("jura/grid.csv")))
+train = cs.datasets.jura()["prediction"]
+test = cs.datasets.jura()["validation"]
+grid = cs.datasets.jura()["grid"]
 xy = train.coords
 cd, zn = train["Cd"], train["Zn"]
 rho = np.corrcoef(cd, zn)[0, 1]

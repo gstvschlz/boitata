@@ -9,11 +9,11 @@ the exhaustive values and by cross-validation.
 import ceres as cs
 import matplotlib.pyplot as plt
 import numpy as np
-from common import ACCENT, GREY, HIGHLIGHT, INK, fetch, map_axes, save
+from common import ACCENT, HIGHLIGHT, INK, map_axes, save
 from matplotlib.colors import PowerNorm
 
-samples = cs.PointSet.from_table(cs.read_csv(fetch("walker-lake/sample.csv")))
-truth = cs.read_csv(fetch("walker-lake/exhaustive.csv"))["V"].reshape(300, 260)
+samples = cs.datasets.walker_lake()
+truth = cs.datasets.walker_lake_exhaustive()["V"].reshape(300, 260)
 model = cs.Variogram.from_json((HERE.parent / "03-variography" / "model.json").read_text())
 ```
 
@@ -101,16 +101,7 @@ for ax, x, y, title in (
     (a, true_at_nodes, estimate, "Estimates against the truth (3 120 nodes)"),
     (b, cv.actual, cv.estimate, "Cross-validation (470 samples)"),
 ):
-    ax.scatter(x, y, s=4, color=ACCENT, alpha=0.4, linewidths=0)
-    ax.plot([0, 1600], [0, 1600], color=GREY, lw=1, ls="--", label="1:1")
-    slope, intercept = np.polyfit(x, y, 1)
-    ax.plot(
-        [0, 1600],
-        [intercept, intercept + 1600 * slope],
-        color=HIGHLIGHT,
-        lw=1.4,
-        label=f"regression, slope {slope:.2f}",
-    )
+    cs.plot.scatter(x, y, ax=ax, s=4, color=ACCENT, alpha=0.4)
     ax.set(xlim=(0, 1600), ylim=(0, 1600), xlabel="True V (ppm)", ylabel="Estimated V (ppm)")
     ax.set_aspect("equal")
     ax.set_title(title)

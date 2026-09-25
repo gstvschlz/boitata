@@ -8,7 +8,7 @@
 import ceres as cs
 import matplotlib.pyplot as plt
 import numpy as np
-from common import ACCENT, GREY, INK, LIGHT, fetch, save
+from common import ACCENT, GREY, INK, LIGHT, save
 from matplotlib.collections import LineCollection
 from matplotlib.colors import LogNorm
 ```
@@ -22,14 +22,10 @@ carries its grades and its lithology. `Drillholes` desurveys every hole by minim
 <details><summary>Python</summary>
 
 ```python
-assay = cs.read_csv(fetch("drillholes/assay.csv"))
-geology = cs.read_csv(fetch("drillholes/geology.csv"))
+tables = cs.datasets.drillhole_tables()
+assay, geology = tables["assay"], tables["geology"]
 intervals = cs.merge_intervals(assay, geology)
-dh = cs.Drillholes(
-    cs.read_csv(fetch("drillholes/collar.csv")),
-    cs.read_csv(fetch("drillholes/survey.csv")),
-    intervals,
-)
+dh = cs.Drillholes(tables["collar"], tables["survey"], intervals)
 
 composites = dh.composite(2.0, ["ZN", "PB", "CU", "AG", "AU"], domain="LITH")
 paths = dh.paths()

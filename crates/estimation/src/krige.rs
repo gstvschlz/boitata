@@ -29,6 +29,27 @@ pub struct Estimate {
     pub variance: f64,
     pub n_used: usize,
     pub weights: Vec<f64>,
+    /// Lagrange multipliers times their drift terms at the target: μ for
+    /// ordinary kriging, 0 for simple kriging; NaN where it does not apply.
+    pub lagrange: f64,
+    /// Variance of the estimated support C(v, v): the sill for points, the
+    /// mean covariance within the block for blocks; NaN where it does not apply.
+    pub support_variance: f64,
+}
+
+impl Estimate {
+    /// Kriging efficiency (C(v, v) − σ²) / C(v, v): 1 when the estimate is
+    /// exact, 0 or less when it is no better than the mean.
+    pub fn efficiency(&self) -> f64 {
+        (self.support_variance - self.variance) / self.support_variance
+    }
+
+    /// Slope of the regression of true on estimated values, Cov(Z, Z*) /
+    /// Var(Z*); below 1 the estimate is conditionally biased.
+    pub fn slope(&self) -> f64 {
+        let covariance = self.support_variance - self.variance - self.lagrange;
+        covariance / (covariance - self.lagrange)
+    }
 }
 
 /// Krige `target` from `samples` using `vg`.
@@ -97,18 +118,16 @@ pub fn krige(
     };
 
     let sum_wc: f64 = (0..n).map(|i| weights[i] * b[i]).sum();
-    let variance = if ordinary {
-        let mu = x[n];
-        (c0 - sum_wc - mu).max(0.0)
-    } else {
-        (c0 - sum_wc).max(0.0)
-    };
+    let mu = if ordinary { x[n] } else { 0.0 };
+    let variance = (c0 - sum_wc - mu).max(0.0);
 
     Ok(Estimate {
         value,
         variance,
         n_used: n,
         weights,
+        lagrange: mu,
+        support_variance: c0,
     })
 }
 
@@ -167,6 +186,36 @@ mod tests {
         .unwrap();
         assert!((est.value - 3.0).abs() < 1e-6);
         assert!((est.variance - vg.total_sill()).abs() < 1e-6);
+    }
+
+    #[test]
+    fn efficiency_and_slope() {
+        let vg = Variogram::single(Model::Spherical, 1.0, 100.0);
+        let samples = vec![
+            samp(0.0, 0.0, 5.0),
+            samp(50.0, 0.0, 2.0),
+            samp(0.0, 50.0, 3.0),
+            samp(60.0, 70.0, 1.0),
+        ];
+        let at_datum = krige(Kind::Ordinary, &(0.0, 0.0, 0.0), &samples, &vg).unwrap();
+        assert!((at_datum.efficiency() - 1.0).abs() < 1e-9);
+        assert!((at_datum.slope() - 1.0).abs() < 1e-9);
+
+        let target = (90.0, 20.0, 0.0);
+        let simple = krige(Kind::Simple { mean: 2.0 }, &target, &samples, &vg).unwrap();
+        assert!((simple.slope() - 1.0).abs() < 1e-9);
+
+        let ok = krige(Kind::Ordinary, &target, &samples, &vg).unwrap();
+        let w = &ok.weights;
+        let cov: f64 = (0..4)
+            .map(|i| w[i] * vg.cov_points(&samples[i].loc, &target))
+            .sum();
+        let var: f64 = (0..4)
+            .flat_map(|i| (0..4).map(move |j| (i, j)))
+            .map(|(i, j)| w[i] * w[j] * vg.cov_points(&samples[i].loc, &samples[j].loc))
+            .sum();
+        assert!((ok.slope() - cov / var).abs() < 1e-9);
+        assert!(ok.slope() < 1.0 && ok.efficiency() < 1.0);
     }
 
     #[test]

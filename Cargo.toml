@@ -40,6 +40,7 @@ transforms = { path = "crates/transforms" }
 estimation = { path = "crates/estimation" }
 simulation = { path = "crates/simulation" }
 modeling = { path = "crates/modeling" }
+eda = { path = "crates/eda" }
 
 [workspace.lints.clippy]
 needless_range_loop = "allow"

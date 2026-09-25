@@ -195,6 +195,8 @@ pub fn krige_universal(
             variance: (c0 - sum_wc).max(0.0),
             n_used: n,
             weights,
+            lagrange: 0.0,
+            support_variance: c0,
         });
     }
 
@@ -229,6 +231,8 @@ pub fn krige_universal(
         variance,
         n_used: n,
         weights,
+        lagrange: sum_mu,
+        support_variance: c0,
     })
 }
 
@@ -392,6 +396,8 @@ pub fn krige_bayesian(
         variance,
         n_used: n,
         weights: lambda.as_slice().to_vec(),
+        lagrange: f64::NAN,
+        support_variance: f64::NAN,
     })
 }
 
@@ -444,6 +450,8 @@ pub fn krige_factorial(
         variance,
         n_used: n,
         weights,
+        lagrange: f64::NAN,
+        support_variance: f64::NAN,
     })
 }
 

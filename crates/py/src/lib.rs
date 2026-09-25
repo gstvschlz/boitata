@@ -7,6 +7,7 @@ mod coda;
 mod cokriging;
 mod containers;
 mod drillholes;
+mod eda;
 mod estimation;
 mod io;
 mod lva;
@@ -51,5 +52,6 @@ fn _ceres(m: &Bound<PyModule>) -> PyResult<()> {
     lva::register(m)?;
     modeling::register(m)?;
     simulation::register(m)?;
+    eda::register(m)?;
     Ok(())
 }

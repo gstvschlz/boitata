@@ -9,9 +9,9 @@ experimental variograms along and across it are fitted.
 import ceres as cs
 import matplotlib.pyplot as plt
 import numpy as np
-from common import ACCENT, GREY, HIGHLIGHT, INK, fetch, save
+from common import ACCENT, GREY, HIGHLIGHT, INK, save
 
-samples = cs.PointSet.from_table(cs.read_csv(fetch("walker-lake/sample.csv")))
+samples = cs.datasets.walker_lake()
 xy, v = samples.coords, samples["V"]
 lag, max_lag = 10.0, 120.0
 ```
@@ -85,20 +85,9 @@ a.set_title("Variogram map (γ / variance)")
 fig.colorbar(mesh, ax=a, shrink=0.7, label="γ / sample variance")
 
 b = fig.add_subplot(1, 2, 2)
-h = np.linspace(0, max_lag, 200)
 for exp, color, az, rng in ((major, ACCENT, azimuth, a_major), (minor, GREY, azimuth + 90, a_minor)):
-    keep = exp.counts > 0
-    b.scatter(
-        exp.lags[keep],
-        exp.gammas[keep],
-        s=np.sqrt(exp.counts[keep]) * 2,
-        color=color,
-        label=f"N{az % 360:.0f}° experimental",
-    )
-    b.plot(
-        h,
-        model.nugget + model.structures[0].sill * cs.Variogram([("spherical", 1, rng)]).gamma(h),
-        color=color,
+    cs.plot.variogram(
+        exp, model, direction=(az, 0), ax=b, color=color, label=f"N{az % 360:.0f}° experimental"
     )
     b.axvline(rng, color=color, lw=0.8, ls=":")
 b.axhline(variance, color=INK, lw=0.8, ls="--")
