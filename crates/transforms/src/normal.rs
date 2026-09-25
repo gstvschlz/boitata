@@ -1,24 +1,17 @@
 //! Standard-normal helpers: CDF (`Φ`) and inverse CDF / quantile (`Φ⁻¹`).
 //!
 //! Used by the normal-score transform and by sequential simulation. `probit` uses
-//! Acklam's rational approximation (abs error ≈ 1e-9); `phi` uses the Abramowitz &
-//! Stegun 7.1.26 erf approximation (abs error ≈ 1.5e-7).
+//! Acklam's rational approximation (abs error ≈ 1e-9); `phi` is exact to double
+//! precision through `libm::erfc`.
 
 /// Standard-normal CDF `Φ(x) = P(Z ≤ x)`.
 pub fn phi(x: f64) -> f64 {
     0.5 * erfc(-x / std::f64::consts::SQRT_2)
 }
 
-/// Complementary error function via Abramowitz & Stegun 7.1.26.
+/// Complementary error function.
 pub fn erfc(x: f64) -> f64 {
-    let z = x.abs();
-    let t = 1.0 / (1.0 + 0.3275911 * z);
-    let y = 1.0
-        - (((((1.061405429 * t - 1.453152027) * t) + 1.421413741) * t - 0.284496736) * t
-            + 0.254829592)
-            * t
-            * (-z * z).exp();
-    if x >= 0.0 { 1.0 - y } else { 1.0 + y }
+    libm::erfc(x)
 }
 
 /// Inverse standard-normal CDF (quantile function), Acklam's algorithm.
@@ -78,6 +71,12 @@ pub fn probit(p: f64) -> f64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn phi_is_accurate_in_the_tails() {
+        assert!((phi(-3.0) / 1.349_898_031_630_096e-3 - 1.0).abs() < 1e-12);
+        assert!((phi(-6.0) / 9.865_876_450_377_016e-10 - 1.0).abs() < 1e-12);
+    }
 
     #[test]
     fn phi_known_values() {
