@@ -139,6 +139,37 @@ fn desurvey_segment(
     }])
 }
 
+/// Splits two interval tables of one hole at the union of their boundaries.
+///
+/// Each output piece is `(from, to, a, b)` with the index of the `a` and `b`
+/// interval covering it, `None` where that table has no interval. Pieces
+/// covered by neither are dropped. Intervals within a table must not overlap.
+pub fn merge_intervals(
+    a: &[(f64, f64)],
+    b: &[(f64, f64)],
+) -> Vec<(f64, f64, Option<usize>, Option<usize>)> {
+    let sorted = |t: &[(f64, f64)]| {
+        let mut idx: Vec<usize> = (0..t.len()).collect();
+        idx.sort_by(|&i, &j| t[i].0.total_cmp(&t[j].0));
+        idx
+    };
+    let (ia, ib) = (sorted(a), sorted(b));
+    let covering = |t: &[(f64, f64)], idx: &[usize], x: f64| {
+        let k = idx.partition_point(|&i| t[i].0 <= x);
+        (k > 0 && t[idx[k - 1]].1 > x).then(|| idx[k - 1])
+    };
+    let mut cuts: Vec<f64> = a.iter().chain(b).flat_map(|&(f, t)| [f, t]).collect();
+    cuts.sort_by(f64::total_cmp);
+    cuts.dedup();
+    cuts.windows(2)
+        .filter_map(|w| {
+            let mid = (w[0] + w[1]) / 2.0;
+            let (x, y) = (covering(a, &ia, mid), covering(b, &ib, mid));
+            (x.is_some() || y.is_some()).then_some((w[0], w[1], x, y))
+        })
+        .collect()
+}
+
 /// Location at measured `depth` along a desurveyed `path`, interpolated
 /// linearly between stations and extended along the last segment.
 pub fn position_at(path: &[WellborePoint], depth: f64) -> (f64, f64, f64) {
@@ -399,6 +430,21 @@ mod tests {
             })
             .collect();
         desurvey_wellbore(&collar, &stations, DesurveyMethod::MinimumCurvature).unwrap()
+    }
+
+    #[test]
+    fn merge_splits_at_every_boundary() {
+        let assay = [(0.0, 2.0), (2.0, 5.0), (7.0, 8.0)];
+        let geology = [(0.0, 3.0), (3.0, 8.0)];
+        let merged = merge_intervals(&assay, &geology);
+        let expect = vec![
+            (0.0, 2.0, Some(0), Some(0)),
+            (2.0, 3.0, Some(1), Some(0)),
+            (3.0, 5.0, Some(1), Some(1)),
+            (5.0, 7.0, None, Some(1)),
+            (7.0, 8.0, Some(2), Some(1)),
+        ];
+        assert_eq!(merged, expect);
     }
 
     #[test]

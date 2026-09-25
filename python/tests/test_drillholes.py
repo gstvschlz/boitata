@@ -43,3 +43,20 @@ def test_compositing_conserves_metal():
 def test_intervals_are_required_for_samples():
     with pytest.raises(cs.InvalidInput):
         cs.Drillholes(collar, survey).samples()
+
+
+def test_merge_then_composite_by_domain():
+    geology = {
+        "HOLEID": np.array([1.0, 1.0, 2.0]),
+        "FROM": np.array([0.0, 3.0, 0.0]),
+        "TO": np.array([3.0, 6.0, 8.0]),
+        "LITH": np.array([1.0, 2.0, 1.0]),
+    }
+    merged = cs.merge_intervals(intervals, geology)
+    assert merged.column_names == ["HOLEID", "FROM", "TO", "AU", "LITH"]
+    np.testing.assert_array_equal(merged["TO"][:4], [2, 3, 5, 6])
+    comps = cs.Drillholes(collar, survey, merged).composite(2.0, ["AU"], domain="LITH")
+    first = np.array(comps.attributes["hole"]) == "1.0"
+    assert set(np.array(comps.attributes["LITH"])[first]) == {"1.0", "2.0"}
+    crosses = (comps["from"][first] < 3.0 - 1e-9) & (comps["to"][first] > 3.0 + 1e-9)
+    assert not crosses.any()
