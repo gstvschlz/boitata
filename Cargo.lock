@@ -262,6 +262,7 @@ dependencies = [
  "arrow-select",
  "ceres-core",
  "ceres-io",
+ "coda",
  "drillholes",
  "estimation",
  "numpy",

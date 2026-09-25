@@ -2,6 +2,7 @@ use pyo3::prelude::*;
 use pyo3::types::PyType;
 
 mod args;
+mod coda;
 mod cokriging;
 mod containers;
 mod drillholes;
@@ -42,6 +43,7 @@ fn _ceres(m: &Bound<PyModule>) -> PyResult<()> {
     estimation::register(m)?;
     cokriging::register(m)?;
     drillholes::register(m)?;
+    coda::register(m)?;
     simulation::register(m)?;
     Ok(())
 }
