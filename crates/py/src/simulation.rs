@@ -82,16 +82,19 @@ impl Sgs {
     }
 
     /// `n` realizations at `targets`, seeds `seed, seed + 1, …`; `(n, targets)`.
-    #[pyo3(signature = (targets, n=1, seed=0))]
+    /// `anisotropy` (a LocalAnisotropy) orients each node's variogram and search.
+    #[pyo3(signature = (targets, n=1, seed=0, anisotropy=None))]
     fn simulate<'py>(
         &self,
         py: Python<'py>,
         targets: &Bound<PyAny>,
         n: usize,
         seed: u64,
+        anisotropy: Option<PyRef<crate::lva::LocalAnisotropy>>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let d = self.data.as_ref().ok_or_else(not_fitted)?;
         let grid = self::targets(targets)?;
+        let local = anisotropy.map(|a| a.at_targets(&grid));
         let params = SgsParams {
             search: self.search.clone(),
             seed,
@@ -105,6 +108,7 @@ impl Sgs {
                     &grid,
                     &self.variogram,
                     &params,
+                    local.as_ref(),
                     n,
                 )
             })

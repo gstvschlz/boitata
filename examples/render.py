@@ -65,5 +65,5 @@ if __name__ == "__main__":
     chapters = sys.argv[1:] or sorted(p.name for p in ROOT.iterdir() if (p / "example.py").exists())
     for chapter in chapters:
         script = ROOT / chapter / "example.py"
-        (script.parent / "README.md").write_text(render(script), encoding="utf-8")
+        (script.parent / "README.md").write_text(render(script), encoding="utf-8", newline="\n")
         print(f"rendered {chapter}")

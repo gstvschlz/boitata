@@ -224,6 +224,15 @@ fn nearest<const K: usize>(
     k: usize,
     radius2: f64,
 ) -> Vec<(f64, usize)> {
+    if k >= tree.size() {
+        return tree
+            .query(&query)
+            .within::<SquaredEuclidean<f64>>(radius2)
+            .execute()
+            .iter()
+            .map(|r| (r.distance, r.item as usize))
+            .collect();
+    }
     let found = tree
         .query(&query)
         .nearest_n::<SquaredEuclidean<f64>>(NonZero::new(k).expect("k > 0"))
@@ -340,6 +349,30 @@ impl SearchTree {
             Index::Three(tree) => nearest(tree, *query, k, radius2),
             _ => vec![],
         }
+    }
+
+    /// Selection by a per-query ellipsoid `local` (major = 1, other ratios ≤ 1)
+    /// for a tree built without anisotropy: every sample in the sphere of
+    /// `radius` is re-ranked by its local distance.
+    pub fn neighbors_within(&self, target: &Point, local: &Anisotropy) -> Result<Vec<usize>> {
+        let params = &self.params;
+        let query = self.project(target);
+        let radius2 = params.radius * params.radius;
+        let mut found: Vec<(f64, usize)> = self
+            .candidates(&query, self.len(), radius2)
+            .into_iter()
+            .map(|(_, i)| (local.lag(target, &self.locs[i]), i))
+            .filter(|(d, _)| *d <= params.radius)
+            .collect();
+        found.sort_by(|a, b| a.0.total_cmp(&b.0).then(a.1.cmp(&b.1)));
+        let chosen = select(
+            target,
+            found.into_iter().map(|f| f.1),
+            |i| self.locs[i],
+            |i| self.holes[i],
+            params,
+        );
+        enough(chosen, params)
     }
 
     /// Same selection as [`neighbors`] over the indexed samples.

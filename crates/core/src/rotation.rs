@@ -15,6 +15,24 @@ pub fn rotation_matrix(azimuth: f64, dip: f64, rake: f64) -> Matrix3<f64> {
     r3 * r2 * r1
 }
 
+/// Azimuth, dip and rake of orthonormal `major` and `semi` axes (the minor axis
+/// completes a right-handed frame); the inverse of [`rotation_matrix`].
+pub fn angles_from_axes(major: [f64; 3], semi: [f64; 3]) -> [f64; 3] {
+    let dip = (-major[2]).clamp(-1.0, 1.0).asin();
+    let azimuth = major[0].atan2(major[1]);
+    let (sa, ca) = azimuth.sin_cos();
+    let (sd, cd) = dip.sin_cos();
+    let across = [-ca, sa, 0.0];
+    let below = [sd * sa, sd * ca, cd];
+    let dot = |a: [f64; 3], b: [f64; 3]| a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+    let rake = dot(semi, below).atan2(dot(semi, across));
+    [
+        azimuth.to_degrees().rem_euclid(360.0),
+        dip.to_degrees(),
+        rake.to_degrees().rem_euclid(360.0),
+    ]
+}
+
 /// World to block-model axes (x, y, z) for `[azimuth, dip, rake]`.
 ///
 /// Same angles as [`rotation_matrix`], applied to the y axis: identity at
@@ -49,6 +67,22 @@ mod tests {
     fn dip_is_positive_down() {
         let major = rotation_matrix(0.0, 30.0, 0.0).row(0).transpose();
         assert!(close(major, [0.0, 30f64.to_radians().cos(), -0.5]));
+    }
+
+    #[test]
+    fn angles_from_axes_inverts_the_rotation() {
+        for (a, d, r) in [
+            (0.0, 0.0, 0.0),
+            (37.0, -12.0, 81.0),
+            (300.0, 60.0, 15.0),
+            (120.0, 5.0, 350.0),
+        ] {
+            let m = rotation_matrix(a, d, r);
+            let row = |i: usize| [m[(i, 0)], m[(i, 1)], m[(i, 2)]];
+            let back = angles_from_axes(row(0), row(1));
+            let m2 = rotation_matrix(back[0], back[1], back[2]);
+            assert!((m - m2).norm() < 1e-9, "{a} {d} {r} -> {back:?}");
+        }
     }
 
     #[test]
