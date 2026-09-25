@@ -81,6 +81,14 @@ impl PointSet {
     pub fn attributes(&self) -> &RecordBatch {
         &self.attributes
     }
+
+    /// Adds or replaces the attribute `name`.
+    pub fn with_column(&self, name: &str, column: ArrayRef) -> Result<Self> {
+        Ok(Self {
+            attributes: crate::set_column(&self.attributes, name, column)?,
+            ..self.clone()
+        })
+    }
 }
 
 fn coordinate(table: &RecordBatch, name: &str) -> Result<Float64Array> {
@@ -126,6 +134,21 @@ mod tests {
             .collect();
         assert_eq!(names, ["au", "rock"]);
         assert_eq!(p.to_table().unwrap().num_columns(), 5);
+    }
+
+    #[test]
+    fn with_column_adds_and_replaces() {
+        let p = PointSet::from_table(&table(), "east", "north", None).unwrap();
+        let v: ArrayRef = Arc::new(Float64Array::from(vec![7.0, 8.0]));
+        let p = p
+            .with_column("est", v.clone())
+            .unwrap()
+            .with_column("au", v)
+            .unwrap();
+        assert_eq!(p.attributes().num_columns(), 3);
+        assert_eq!(p.attributes().column(0).len(), 2);
+        let short: ArrayRef = Arc::new(Float64Array::from(vec![1.0]));
+        assert!(p.with_column("bad", short).is_err());
     }
 
     #[test]
