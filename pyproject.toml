@@ -1,0 +1,32 @@
+[build-system]
+requires = ["maturin>=1.9,<2"]
+build-backend = "maturin"
+
+[project]
+name = "ceres"
+description = "Geostatistics in Rust with a Python interface"
+requires-python = ">=3.11"
+license = "MIT"
+dependencies = ["numpy>=1.26"]
+dynamic = ["version"]
+
+[project.optional-dependencies]
+plot = ["matplotlib>=3.8"]
+all = ["matplotlib>=3.8", "pandas>=2", "polars>=1", "pyarrow>=16"]
+
+[dependency-groups]
+dev = ["maturin>=1.9,<2", "pytest>=8", "ruff>=0.6", "polars>=1", "pyarrow>=16", "pandas>=2", "matplotlib>=3.8"]
+
+[tool.maturin]
+manifest-path = "crates/py/Cargo.toml"
+module-name = "ceres._ceres"
+python-source = "python"
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+testpaths = ["python/tests"]
+
+[tool.ruff]
+line-length = 110

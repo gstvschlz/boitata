@@ -1,0 +1,181 @@
+use std::sync::Arc;
+
+use arrow_array::cast::AsArray;
+use arrow_array::types::Float64Type;
+use arrow_array::{ArrayRef, Float64Array, RecordBatch, RecordBatchOptions, StructArray};
+use arrow_schema::{DataType, Field, Schema};
+use numpy::{PyArray1, PyReadonlyArray1};
+use pyo3::prelude::*;
+use pyo3::types::{PyCapsule, PyDict, PyList, PyTuple};
+use pyo3_arrow::error::PyArrowResult;
+use pyo3_arrow::ffi::{
+    ArrayIterator, to_array_pycapsules, to_schema_pycapsule, to_stream_pycapsule,
+};
+use pyo3_arrow::input::AnyRecordBatch;
+
+use crate::invalid;
+
+/// Columnar attribute table; exchanges data with pyarrow, polars and pandas
+/// through the Arrow PyCapsule interface.
+#[pyclass(module = "ceres", name = "Table", frozen)]
+pub struct Table(pub RecordBatch);
+
+pub fn empty(rows: usize) -> RecordBatch {
+    RecordBatch::try_new_with_options(
+        Arc::new(Schema::empty()),
+        vec![],
+        &RecordBatchOptions::new().with_row_count(Some(rows)),
+    )
+    .expect("empty batch")
+}
+
+/// Any Arrow-compatible object or a dict of 1-D numeric arrays (NaN is null).
+pub fn to_batch(data: &Bound<PyAny>) -> PyResult<RecordBatch> {
+    if let Ok(dict) = data.cast::<PyDict>() {
+        let np = data.py().import("numpy")?;
+        let mut columns = Vec::with_capacity(dict.len());
+        for (name, values) in dict.iter() {
+            let values: PyReadonlyArray1<f64> = np
+                .call_method1("asarray", (values, "float64"))
+                .and_then(|v| Ok(v.extract()?))
+                .map_err(|_| invalid(format!("column {name} is not a 1-D numeric array")))?;
+            let array: Float64Array = values
+                .as_array()
+                .iter()
+                .map(|v| (!v.is_nan()).then_some(*v))
+                .collect();
+            columns.push((name.extract::<String>()?, Arc::new(array) as ArrayRef));
+        }
+        return RecordBatch::try_from_iter(columns).map_err(invalid);
+    }
+    let table = data
+        .extract::<AnyRecordBatch>()
+        .map_err(|_| invalid("expected an Arrow-compatible table or a dict of arrays"))?
+        .into_table()?;
+    let (batches, schema) = table.into_inner();
+    arrow_select::concat::concat_batches(&schema, &batches).map_err(invalid)
+}
+
+/// Numeric columns as float64 arrays (null as NaN), others as lists.
+pub fn column<'py>(
+    py: Python<'py>,
+    batch: &RecordBatch,
+    name: &str,
+) -> PyResult<Bound<'py, PyAny>> {
+    let array = batch
+        .column_by_name(name)
+        .ok_or_else(|| pyo3::exceptions::PyKeyError::new_err(name.to_string()))?;
+    if array.data_type().is_numeric() {
+        let values = arrow_cast::cast(array, &DataType::Float64).map_err(invalid)?;
+        let values: Vec<f64> = values
+            .as_primitive::<Float64Type>()
+            .iter()
+            .map(|v| v.unwrap_or(f64::NAN))
+            .collect();
+        return Ok(PyArray1::from_vec(py, values).into_any());
+    }
+    let text = arrow_cast::cast(array, &DataType::Utf8).map_err(invalid)?;
+    let items: Vec<Option<&str>> = text.as_string::<i32>().iter().collect();
+    Ok(PyList::new(py, items)?.into_any())
+}
+
+fn struct_field(batch: &RecordBatch) -> Arc<Field> {
+    let schema = batch.schema();
+    Arc::new(
+        Field::new_struct("", schema.fields().clone(), false)
+            .with_metadata(schema.metadata().clone()),
+    )
+}
+
+pub fn arrow_c_stream<'py>(
+    py: Python<'py>,
+    batch: &RecordBatch,
+    requested_schema: Option<Bound<'py, PyCapsule>>,
+) -> PyArrowResult<Bound<'py, PyCapsule>> {
+    let array: ArrayRef = Arc::new(StructArray::from(batch.clone()));
+    let reader = ArrayIterator::new(vec![Ok(array)], struct_field(batch));
+    to_stream_pycapsule(py, Box::new(reader), requested_schema)
+}
+
+pub fn describe(batch: &RecordBatch) -> String {
+    batch
+        .schema()
+        .fields()
+        .iter()
+        .map(|f| format!("\n  {}: {}", f.name(), f.data_type()))
+        .collect()
+}
+
+#[pymethods]
+impl Table {
+    #[new]
+    fn new(data: &Bound<PyAny>) -> PyResult<Self> {
+        Ok(Self(to_batch(data)?))
+    }
+
+    #[getter]
+    fn num_rows(&self) -> usize {
+        self.0.num_rows()
+    }
+
+    #[getter]
+    fn column_names(&self) -> Vec<String> {
+        self.0
+            .schema()
+            .fields()
+            .iter()
+            .map(|f| f.name().clone())
+            .collect()
+    }
+
+    fn column<'py>(&self, py: Python<'py>, name: &str) -> PyResult<Bound<'py, PyAny>> {
+        column(py, &self.0, name)
+    }
+
+    fn __getitem__<'py>(&self, py: Python<'py>, name: &str) -> PyResult<Bound<'py, PyAny>> {
+        column(py, &self.0, name)
+    }
+
+    fn __len__(&self) -> usize {
+        self.0.num_rows()
+    }
+
+    fn __repr__(&self) -> String {
+        format!("Table({} rows){}", self.0.num_rows(), describe(&self.0))
+    }
+
+    fn to_polars<'py>(slf: &Bound<'py, Self>) -> PyResult<Bound<'py, PyAny>> {
+        slf.py().import("polars")?.call_method1("DataFrame", (slf,))
+    }
+
+    fn to_pyarrow<'py>(slf: &Bound<'py, Self>) -> PyResult<Bound<'py, PyAny>> {
+        slf.py().import("pyarrow")?.call_method1("table", (slf,))
+    }
+
+    fn to_pandas<'py>(slf: &Bound<'py, Self>) -> PyResult<Bound<'py, PyAny>> {
+        Self::to_pyarrow(slf)?.call_method0("to_pandas")
+    }
+
+    fn __arrow_c_schema__<'py>(&self, py: Python<'py>) -> PyArrowResult<Bound<'py, PyCapsule>> {
+        to_schema_pycapsule(py, self.0.schema().as_ref())
+    }
+
+    #[pyo3(signature = (requested_schema=None))]
+    fn __arrow_c_array__<'py>(
+        &self,
+        py: Python<'py>,
+        requested_schema: Option<Bound<'py, PyCapsule>>,
+    ) -> PyArrowResult<Bound<'py, PyTuple>> {
+        let array = StructArray::from(self.0.clone());
+        to_array_pycapsules(py, struct_field(&self.0), &array, requested_schema)
+    }
+
+    #[pyo3(signature = (requested_schema=None))]
+    fn __arrow_c_stream__<'py>(
+        &self,
+        py: Python<'py>,
+        requested_schema: Option<Bound<'py, PyCapsule>>,
+    ) -> PyArrowResult<Bound<'py, PyCapsule>> {
+        arrow_c_stream(py, &self.0, requested_schema)
+    }
+}

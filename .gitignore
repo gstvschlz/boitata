@@ -1,2 +1,5 @@
 /target
 __pycache__/
+/.venv
+*.pyd
+*.so

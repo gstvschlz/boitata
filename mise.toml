@@ -5,10 +5,24 @@ _.path = ["~/.cargo/bin"]
 run = "cargo build --workspace"
 
 [tasks.test]
-run = "cargo test --workspace"
+depends = ["py:build"]
+run = ["cargo test --workspace --exclude ceres-py", "uv run --no-sync pytest -q"]
 
 [tasks.lint]
-run = ["cargo fmt --all --check", "cargo clippy --workspace --all-targets -- -D warnings"]
+depends = ["py:sync"]
+run = [
+  "cargo fmt --all --check",
+  "cargo clippy --workspace --all-targets -- -D warnings",
+  "uv run --no-sync ruff check python examples/plot",
+  "uv run --no-sync ruff format --check python examples/plot",
+]
+
+[tasks."py:sync"]
+run = "uv sync -q --inexact"
+
+[tasks."py:build"]
+depends = ["py:sync"]
+run = "uv run --no-sync maturin develop -q --uv --release"
 
 [tasks.verify]
 depends = ["lint", "test"]
