@@ -28,4 +28,8 @@ depends = ["examples:data"]
 run = [
   "cargo run -q --release -p ceres-examples --bin 01_data",
   "uv run -q --no-project --with-requirements examples/requirements.txt examples/plot/01_data.py",
+  "cargo run -q --release -p ceres-examples --bin 02_normal_score",
+  "uv run -q --no-project --with-requirements examples/requirements.txt examples/plot/02_normal_score.py",
+  "cargo run -q --release -p ceres-examples --bin 03_variography",
+  "uv run -q --no-project --with-requirements examples/requirements.txt examples/plot/03_variography.py",
 ]
