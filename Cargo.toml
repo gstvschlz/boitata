@@ -10,6 +10,7 @@ license = "MIT"
 publish = false
 
 [workspace.dependencies]
+parquet = { version = "59", default-features = false, features = ["arrow", "zstd"] }
 criterion = "0.8"
 kiddo = "6"
 numpy = "0.29"
