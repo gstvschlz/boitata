@@ -24,6 +24,7 @@ use nalgebra::DMatrix;
 use rand::SeedableRng;
 use rand::rngs::StdRng;
 use rand_distr::{Distribution, Normal};
+use rayon::prelude::*;
 use transforms::nscore;
 use variogram::Variogram;
 
@@ -199,6 +200,7 @@ pub fn conditional_gaussian_field(
 pub fn turning_bands(
     data_locs: &[(f64, f64, f64)],
     data_vals: &[f64],
+    data_weights: Option<&[f64]>,
     grid: &[(f64, f64, f64)],
     vg_nscore: &Variogram,
     params: &TurningBandsParams,
@@ -214,7 +216,8 @@ pub fn turning_bands(
     }
 
     // Normal-score transform → condition in Gaussian space → back-transform.
-    let ns = nscore::transform(data_vals, None).map_err(|e| SimError::Transform(e.to_string()))?;
+    let ns = nscore::transform(data_vals, data_weights)
+        .map_err(|e| SimError::Transform(e.to_string()))?;
     let mut rng = StdRng::seed_from_u64(params.seed);
     let scores =
         conditional_gaussian_field(data_locs, &ns.scores, grid, vg_nscore, params, &mut rng)?;
@@ -226,18 +229,20 @@ pub fn turning_bands(
 pub fn turning_bands_ensemble(
     data_locs: &[(f64, f64, f64)],
     data_vals: &[f64],
+    data_weights: Option<&[f64]>,
     grid: &[(f64, f64, f64)],
     vg_nscore: &Variogram,
     params: &TurningBandsParams,
     n: usize,
 ) -> Result<Vec<Realization>> {
     (0..n)
+        .into_par_iter()
         .map(|k| {
             let p = TurningBandsParams {
                 seed: params.seed.wrapping_add(k as u64),
                 ..params.clone()
             };
-            turning_bands(data_locs, data_vals, grid, vg_nscore, &p)
+            turning_bands(data_locs, data_vals, data_weights, grid, vg_nscore, &p)
         })
         .collect()
 }
@@ -263,7 +268,7 @@ mod tests {
             step: 5.0,
             seed: 42,
         };
-        let r = turning_bands(&data_locs, &data_vals, &grid, &vg, &params).unwrap();
+        let r = turning_bands(&data_locs, &data_vals, None, &grid, &vg, &params).unwrap();
         assert_eq!(r.values.len(), 2);
         // Grid node 0 coincides with a datum → simulated value ≈ that datum.
         assert!(
@@ -284,8 +289,8 @@ mod tests {
             step: 5.0,
             seed: 7,
         };
-        let a = turning_bands(&data_locs, &data_vals, &grid, &vg, &params).unwrap();
-        let b = turning_bands(&data_locs, &data_vals, &grid, &vg, &params).unwrap();
+        let a = turning_bands(&data_locs, &data_vals, None, &grid, &vg, &params).unwrap();
+        let b = turning_bands(&data_locs, &data_vals, None, &grid, &vg, &params).unwrap();
         assert_eq!(a.values, b.values);
     }
 

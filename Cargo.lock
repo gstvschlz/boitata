@@ -266,7 +266,9 @@ dependencies = [
  "numpy",
  "pyo3",
  "pyo3-arrow",
+ "rayon",
  "serde_json",
+ "simulation",
  "transforms",
  "variogram",
 ]
@@ -1134,6 +1136,7 @@ dependencies = [
  "nalgebra",
  "rand",
  "rand_distr",
+ "rayon",
  "thiserror",
  "transforms",
  "variogram",
