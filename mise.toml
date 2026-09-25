@@ -12,3 +12,20 @@ run = ["cargo fmt --all --check", "cargo clippy --workspace --all-targets -- -D 
 
 [tasks.verify]
 depends = ["lint", "test"]
+
+[tools]
+python = "3.13"
+uv = "0.12"
+
+[tasks."examples:data"]
+run = [
+  "curl -sfL --create-dirs -o examples/data/walker_sample.csv https://raw.githubusercontent.com/gstvschlz/datasets/560bd39c9ec79dcd6565dc763009aa83cac68fb8/walker-lake/sample.csv",
+  "curl -sfL --create-dirs -o examples/data/walker_exhaustive.csv https://raw.githubusercontent.com/gstvschlz/datasets/560bd39c9ec79dcd6565dc763009aa83cac68fb8/walker-lake/exhaustive.csv",
+]
+
+[tasks.examples]
+depends = ["examples:data"]
+run = [
+  "cargo run -q --release -p ceres-examples --bin 01_data",
+  "uv run -q --no-project --with-requirements examples/requirements.txt examples/plot/01_data.py",
+]

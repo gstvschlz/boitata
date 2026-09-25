@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/*"]
+members = ["crates/*", "examples"]
 resolver = "3"
 
 [workspace.package]
@@ -27,6 +27,7 @@ ceres-io = { path = "crates/io" }
 variogram = { path = "crates/variogram" }
 transforms = { path = "crates/transforms" }
 estimation = { path = "crates/estimation" }
+simulation = { path = "crates/simulation" }
 
 [workspace.lints.clippy]
 needless_range_loop = "allow"

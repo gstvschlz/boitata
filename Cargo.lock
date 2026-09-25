@@ -241,6 +241,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "ceres-examples"
+version = "0.1.0"
+dependencies = [
+ "arrow-array",
+ "ceres-core",
+ "ceres-io",
+ "estimation",
+ "simulation",
+ "transforms",
+ "variogram",
+]
+
+[[package]]
 name = "ceres-io"
 version = "0.1.0"
 dependencies = [
