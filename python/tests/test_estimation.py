@@ -132,3 +132,28 @@ def test_shared_locations_keep_the_first_and_name_their_holes():
     with pytest.warns(UserWarning, match="rows 0, 2"):
         sgs = cs.SGS(cs.Variogram([("spherical", 1.0, 30.0)]), search).fit(xy, v)
     assert np.isfinite(sgs.simulate([[2.0, 2.0], [5.0, 5.0]], n=2, seed=1).mean).all()
+
+
+def test_diagnostics_classification_and_smoothing():
+    xy = rng.uniform(0, 100, (80, 2))
+    v = np.sin(xy[:, 0] / 20) + rng.normal(0, 0.1, 80)
+    grid = cs.BlockModel(origin=(0, 0), size=(10, 10), count=(10, 10))
+    ok = cs.OrdinaryKriging(cs.Variogram([("spherical", 1.0, 40.0)]), cs.Search(radius=60, max_samples=12))
+    d = ok.fit(xy, v).predict(grid, diagnostics=True)
+    assert set(d) == {"value", "variance", "efficiency", "slope", "n_samples"}
+    assert np.all(d["slope"] > 0) and np.all(d["efficiency"] <= 1 + 1e-9)
+    at_data = ok.predict(xy[:3], diagnostics=True)
+    np.testing.assert_allclose(at_data["slope"], 1.0)
+    np.testing.assert_allclose(at_data["efficiency"], 1.0)
+
+    labels = cs.classify(
+        d, [("measured", {"slope": (">=", 0.9)}), ("indicated", {"slope": (">=", 0.6)})], default="inferred"
+    )
+    assert set(labels) <= {"measured", "indicated", "inferred"}
+    assert np.all(labels[d["slope"] >= 0.9] == "measured")
+    spotted = np.where(np.arange(100) == 55, "inferred", "measured")
+    np.testing.assert_array_equal(cs.smooth_classes(grid, spotted), np.full(100, "measured"))
+
+    bias = cs.global_bias(d["value"], v)
+    assert bias["relative"] == pytest.approx(d["value"].mean() / v.mean() - 1)
+    assert ok.cross_validate().slope > 0

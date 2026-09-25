@@ -3,11 +3,13 @@
 //! Domain assignment with multiple strategies,
 //! and point-in-solid testing using generalized winding number for robust mesh handling.
 
+mod classes;
 mod distance;
 mod error;
 mod select;
 mod shell;
 mod solid;
+pub use classes::smooth_classes;
 pub use distance::{point_in_polygon, polygon_distance, polygon_signed_distance};
 pub use error::{BlockModelError, Result};
 pub use select::{PolygonSelector, ring_is_closed};

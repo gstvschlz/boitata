@@ -350,7 +350,11 @@ class _Estimator:
     @property
     def values(self) -> npt.NDArray[np.float64]: ...
     def predict(
-        self, targets: Any, return_variance: bool = False, anisotropy: LocalAnisotropy | None = None
+        self,
+        targets: Any,
+        return_variance: bool = False,
+        anisotropy: LocalAnisotropy | None = None,
+        diagnostics: bool = False,
     ) -> Any: ...
     def cross_validate(self) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]: ...
 
@@ -366,6 +370,7 @@ def neighborhood_stats(
     k: int = 8,
     radius: float = ...,
     variogram: Variogram | None = None,
+    holes: Holes | None = None,
 ) -> dict[str, npt.NDArray[np.float64]]: ...
 
 class SGS:
@@ -601,3 +606,6 @@ class LocalAnisotropy:
 
 def write_parquet(path: Path, data: PointSet | BlockModel | TableLike) -> None: ...
 def read_parquet(path: Path) -> PointSet | BlockModel | Table: ...
+def smooth_classes(
+    model: BlockModel, classes: ArrayLike, window: tuple[int, int, int] = (3, 3, 1), iterations: int = 1
+) -> npt.NDArray[Any]: ...

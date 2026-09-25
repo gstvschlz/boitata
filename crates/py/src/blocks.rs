@@ -5,7 +5,7 @@ use blocks::{
 use numpy::ndarray::Array2;
 use numpy::{IntoPyArray, PyArray1, PyReadonlyArray2};
 use pyo3::prelude::*;
-use pyo3::types::PyTuple;
+use pyo3::types::{IntoPyDict, PyTuple};
 use rayon::prelude::*;
 
 use crate::args::{Point, array1, finite, points, points_array, rows, same_length};
@@ -362,7 +362,44 @@ fn block_shell<'py>(
     PyTuple::new(py, [vertices, triangles, values])
 }
 
+/// Majority filter of block `classes` over a `window` of cells, repeated
+/// `iterations` times; ties keep a block's class and absent cells do not vote.
+/// Classes may be any labels; the result has the same labels.
+#[pyfunction]
+#[pyo3(signature = (model, classes, window=(3, 3, 1), iterations=1))]
+fn smooth_classes<'py>(
+    py: Python<'py>,
+    model: PyRef<PyBlockModel>,
+    classes: &Bound<'py, PyAny>,
+    window: (usize, usize, usize),
+    iterations: usize,
+) -> PyResult<Bound<'py, PyAny>> {
+    let np = py.import("numpy")?;
+    let unique = np.call_method(
+        "unique",
+        (classes,),
+        Some(&[("return_inverse", true)].into_py_dict(py)?),
+    )?;
+    let (labels, codes): (Bound<PyAny>, Vec<u32>) = (
+        unique.get_item(0)?,
+        unique
+            .get_item(1)?
+            .call_method1("astype", ("uint32",))?
+            .call_method0("ravel")?
+            .call_method0("tolist")?
+            .extract()?,
+    );
+    let model = &model.0;
+    let smoothed = py
+        .detach(|| {
+            blocks::smooth_classes(model, &codes, [window.0, window.1, window.2], iterations)
+        })
+        .map_err(err)?;
+    labels.get_item(np.call_method1("asarray", (smoothed,))?)
+}
+
 pub fn register(m: &Bound<PyModule>) -> PyResult<()> {
+    m.add_function(wrap_pyfunction!(smooth_classes, m)?)?;
     m.add_class::<Mesh>()?;
     m.add_class::<PolygonSelector>()?;
     m.add_function(wrap_pyfunction!(point_in_polygon, m)?)?;
