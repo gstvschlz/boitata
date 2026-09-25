@@ -219,8 +219,9 @@ mod tests {
         let params = PgsParams {
             bands: TurningBandsParams {
                 n_bands: 200,
-                step: 5.0,
+                step: Some(5.0),
                 seed: 3,
+                ..Default::default()
             },
             gibbs: GibbsParams {
                 iterations: 200,

@@ -122,16 +122,17 @@ impl Sgs {
 pub struct TurningBands {
     variogram: CoreVariogram,
     bands: usize,
-    step: f64,
+    step: Option<f64>,
     data: Option<Data>,
 }
 
 #[pymethods]
 impl TurningBands {
-    /// `bands` lines, each discretized every `step` metres.
+    /// `bands` lines, each discretized every `step` metres along the major axis
+    /// (default: a fiftieth of the shortest range).
     #[new]
-    #[pyo3(signature = (variogram, bands=300, step=1.0))]
-    fn new(variogram: Variogram, bands: usize, step: f64) -> Self {
+    #[pyo3(signature = (variogram, bands=300, step=None))]
+    fn new(variogram: Variogram, bands: usize, step: Option<f64>) -> Self {
         Self {
             variogram: variogram.0,
             bands,
@@ -165,6 +166,7 @@ impl TurningBands {
             n_bands: self.bands,
             step: self.step,
             seed,
+            ..Default::default()
         };
         let reals = py
             .detach(|| {
