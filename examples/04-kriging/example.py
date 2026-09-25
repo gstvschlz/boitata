@@ -1,25 +1,44 @@
+# %% [markdown]
+# # 4. Ordinary kriging
+#
+# Ordinary kriging of `V` on a 5 m grid with the model from [chapter 3](../03-variography/README.md), checked against
+# the exhaustive values and by cross-validation.
+
+# %% [hidden]
 import sys
 from pathlib import Path
 
+HERE = Path(__file__).parent
+sys.path.insert(0, str(HERE.parent))
+
+# %%
 import ceres as cs
 import matplotlib.pyplot as plt
 import numpy as np
-from matplotlib.colors import PowerNorm
-
-HERE = Path(__file__).parent
-sys.path.insert(0, str(HERE.parent))
 from common import ACCENT, GREY, HIGHLIGHT, INK, fetch, map_axes, save
+from matplotlib.colors import PowerNorm
 
 samples = cs.PointSet.from_table(cs.read_csv(fetch("walker-lake/sample.csv")))
 truth = cs.read_csv(fetch("walker-lake/exhaustive.csv"))["V"].reshape(300, 260)
 model = cs.Variogram.from_json((HERE.parent / "03-variography" / "model.json").read_text())
 
+
+# %% [markdown]
+# Up to 24 samples within 100 m along the major axis. `predict` accepts a `BlockModel`, a `PointSet` or an array of
+# coordinates; `with_column` stores the results on the model.
+
+# %%
 grid = cs.BlockModel(origin=(0.5, 0.5), size=(5, 5), count=(52, 60))
 search = cs.Search(radius=100, max_samples=24, min_samples=4)
 ok = cs.OrdinaryKriging(model, search).fit(samples.coords, samples["V"])
 estimate, variance = ok.predict(grid, return_variance=True)
 grid = grid.with_column("estimate", estimate).with_column("variance", variance)
 
+
+# %% [markdown]
+# Compare with the true values at the grid nodes, and re-estimate every sample with itself left out:
+
+# %%
 nodes = grid.centroids.astype(int)
 true_at_nodes = truth[nodes[:, 1] - 1, nodes[:, 0] - 1]
 cv = ok.cross_validate()
@@ -31,6 +50,11 @@ print(
     f"SSE {cv.standardized_squared_error:.2f}"
 )
 
+
+# %% [markdown]
+# The kriging standard deviation depends only on the data layout and the model: low near samples, high in gaps.
+
+# %%
 shape = (60, 52)
 extent = (0.5, 260.5, 0.5, 300.5)
 norm = PowerNorm(0.5, vmin=0, vmax=1500)
@@ -47,8 +71,14 @@ sd = axes[2].imshow(np.sqrt(variance).reshape(shape), origin="lower", extent=ext
 map_axes(axes[2], "Kriging standard deviation")
 axes[2].scatter(samples.coords[:, 0], samples.coords[:, 1], s=2, color=HIGHLIGHT, linewidths=0)
 fig.colorbar(sd, ax=axes[2], shrink=0.8, label="ppm")
-save(fig, HERE, "maps")
+save(fig, "maps")
 
+
+# %% [markdown]
+# Kriging is smooth: estimates vary less than the truth, so the regression of estimates on true values has a slope
+# below 1. A mean error² / variance of 0.65 means the model's variance is somewhat pessimistic here.
+
+# %%
 fig, (a, b) = plt.subplots(1, 2, figsize=(9, 4), layout="constrained")
 for ax, x, y, title in (
     (a, true_at_nodes, estimate, "Estimates against the truth (3 120 nodes)"),
@@ -68,4 +98,4 @@ for ax, x, y, title in (
     ax.set_aspect("equal")
     ax.set_title(title)
     ax.legend(loc="upper left")
-save(fig, HERE, "validation")
+save(fig, "validation")

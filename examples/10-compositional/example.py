@@ -1,14 +1,23 @@
+# %% [markdown]
+# # 10. Compositional data
+#
+# Porphyry 1 geometallurgical samples: seven minerals in % plus the remainder, a composition summing to 100.
+# Raising one part lowers the others, so raw correlations mix geology with the constant-sum constraint, and
+# estimating parts independently can break the total.
+
+# %% [hidden]
 import sys
 from pathlib import Path
 
+HERE = Path(__file__).parent
+sys.path.insert(0, str(HERE.parent))
+
+# %%
 import ceres as cs
 import matplotlib.pyplot as plt
 import numpy as np
-from matplotlib.colors import LinearSegmentedColormap
-
-HERE = Path(__file__).parent
-sys.path.insert(0, str(HERE.parent))
 from common import ACCENT, GREY, HIGHLIGHT, INK, fetch, save
+from matplotlib.colors import LinearSegmentedColormap
 
 data = cs.read_csv(fetch("geomet/porphyry_01/synthetic_drillholes.csv"))
 minerals = ["arcilla", "calcosina", "bornita", "calcopirita", "tenantita", "molibdenita", "pirita"]
@@ -19,12 +28,24 @@ parts = np.column_stack([parts, 100 - parts.sum(axis=1)])
 assert (parts > 0).all(), "log-ratios need positive parts"
 composition = cs.closure(parts, total=100)
 
+
+# %% [markdown]
+# The isometric log-ratio (ILR) maps each composition to 7 unconstrained coordinates; the projection-pursuit
+# multivariate transform (PPMT) turns those into independent standard Gaussians, ready for independent simulation.
+# The way back must return every composition.
+
+# %%
 coords = cs.ilr(composition)
 ppmt = cs.PPMT(iterations=40, seed=7).fit(coords)
 gauss = ppmt.transform(coords)
 back = cs.ilr_inverse(ppmt.inverse_transform(gauss)) * 100
 print(f"round trip max error {np.abs(back - composition).max():.2e} %")
 
+
+# %% [markdown]
+# Correlations at each stage:
+
+# %%
 cmap = LinearSegmentedColormap.from_list("diverging", [HIGHLIGHT, "#f7f7f7", ACCENT])
 fig, axes = plt.subplots(1, 3, figsize=(13, 4.4), layout="constrained")
 panels = [
@@ -40,8 +61,13 @@ for ax, (corr, labels, title) in zip(axes, panels):
     off = np.abs(corr[~np.eye(len(corr), dtype=bool)])
     ax.set_xlabel(f"mean |r| off the diagonal {off.mean():.2f}", color=GREY)
 fig.colorbar(image, ax=axes, shrink=0.8, label="correlation")
-save(fig, HERE, "correlations")
+save(fig, "correlations")
 
+
+# %% [markdown]
+# Two parts before, two Gaussian coordinates after:
+
+# %%
 fig, (a, b) = plt.subplots(1, 2, figsize=(9, 4), layout="constrained")
 a.scatter(composition[:, 3], composition[:, 6], s=3, color=ACCENT, alpha=0.3, linewidths=0)
 a.set(xlabel="Chalcopyrite (%)", ylabel="Pyrite (%)", title="Two parts of the composition")
@@ -52,4 +78,4 @@ for radius in (1, 2, 3):
 b.set_aspect("equal")
 b.set(xlabel="g1", ylabel="g2", title="PPMT output: standard bivariate normal")
 b.text(2.2, -3.3, "circles: 1, 2, 3 σ", color=INK, fontsize=8)
-save(fig, HERE, "scatter")
+save(fig, "scatter")

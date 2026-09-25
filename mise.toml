@@ -33,15 +33,4 @@ uv = "0.12"
 
 [tasks.examples]
 depends = ["py:build"]
-run = [
-  "uv run --no-sync python examples/01-data/example.py",
-  "uv run --no-sync python examples/02-normal-score/example.py",
-  "uv run --no-sync python examples/03-variography/example.py",
-  "uv run --no-sync python examples/04-kriging/example.py",
-  "uv run --no-sync python examples/05-simulation/example.py",
-  "uv run --no-sync python examples/06-drillholes/example.py",
-  "uv run --no-sync python examples/07-solids/example.py",
-  "uv run --no-sync python examples/08-cokriging/example.py",
-  "uv run --no-sync python examples/09-change-of-support/example.py",
-  "uv run --no-sync python examples/10-compositional/example.py",
-]
+run = "uv run --no-sync python examples/render.py"

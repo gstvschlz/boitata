@@ -1,5 +1,6 @@
 """Dataset download and figure style shared by the examples."""
 
+import inspect
 import urllib.request
 from pathlib import Path
 
@@ -56,6 +57,13 @@ def map_axes(ax, title):
     ax.set_ylabel("Northing (m)")
 
 
-def save(fig, folder: Path, name: str):
-    fig.savefig(folder / f"{name}.png")
+SAVED: list[Path] = []
+
+
+def save(fig, name: str):
+    """Writes `name`.png next to the calling script."""
+    caller = inspect.currentframe().f_back.f_globals["__file__"]
+    path = Path(caller).parent / f"{name}.png"
+    fig.savefig(path)
     plt.close(fig)
+    SAVED.append(path)

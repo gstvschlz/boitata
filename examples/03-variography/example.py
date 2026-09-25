@@ -1,22 +1,42 @@
+# %% [markdown]
+# # 3. Variography
+#
+# Anisotropic spherical model of `V`: the variogram map finds the direction of greatest continuity, then directional
+# experimental variograms along and across it are fitted.
+
+# %% [hidden]
 import sys
 from pathlib import Path
 
+HERE = Path(__file__).parent
+sys.path.insert(0, str(HERE.parent))
+
+# %%
 import ceres as cs
 import matplotlib.pyplot as plt
 import numpy as np
-
-HERE = Path(__file__).parent
-sys.path.insert(0, str(HERE.parent))
 from common import ACCENT, GREY, HIGHLIGHT, INK, fetch, save
 
 samples = cs.PointSet.from_table(cs.read_csv(fetch("walker-lake/sample.csv")))
 xy, v = samples.coords, samples["V"]
 lag, max_lag = 10.0, 120.0
 
+
+# %% [markdown]
+# The variogram map gives γ in every horizontal direction; the direction whose fitted range is longest is the major axis.
+
+# %%
 vmap = cs.variogram_map(xy, v, lag, max_lag)
 angle = vmap.angles[np.nanargmax(vmap.ranges)]
 azimuth = (90 - np.degrees(angle)) % 180
 
+
+# %% [markdown]
+# Fit a spherical structure along and across the major axis. The major direction sets nugget, sill and major range;
+# the minor direction contributes only its range. `rotation` is azimuth, dip, rake in degrees; `ratios` are semi-major/major
+# and minor/major ranges. The model is saved for later chapters.
+
+# %%
 major = cs.experimental_variogram(xy, v, lag, max_lag, azimuth=azimuth)
 minor = cs.experimental_variogram(xy, v, lag, max_lag, azimuth=azimuth + 90)
 along, across = major.fit("spherical"), minor.fit("spherical")
@@ -31,6 +51,11 @@ model = cs.Variogram(
 (HERE / "model.json").write_text(model.to_json())
 print(model)
 
+
+# %% [markdown]
+# The ellipse on the map is the model range in each direction:
+
+# %%
 variance = v.var()
 fig = plt.figure(figsize=(9.2, 4.2), layout="constrained")
 a = fig.add_subplot(1, 2, 1, projection="polar")
@@ -77,4 +102,4 @@ b.set_title("Directional variograms and fitted model")
 b.set_xlabel("Lag distance (m)")
 b.set_ylabel("γ(h) (ppm²)")
 b.legend(loc="lower right", title="marker area ∝ pairs", title_fontsize=8)
-save(fig, HERE, "variogram")
+save(fig, "variogram")
