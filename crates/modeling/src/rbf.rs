@@ -719,7 +719,7 @@ mod tests {
         let angles = Angles {
             azimuth: 30.0,
             dip: 15.0,
-            pitch: 40.0,
+            rake: 40.0,
             major: 100.0,
             semi: 40.0,
             minor: 10.0,
@@ -916,7 +916,7 @@ mod tests {
         let angles = Angles {
             azimuth: 55.0,
             dip: 20.0,
-            pitch: 10.0,
+            rake: 10.0,
             major: 120.0,
             semi: 60.0,
             minor: 20.0,

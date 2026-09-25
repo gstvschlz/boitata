@@ -26,7 +26,7 @@ use rand::SeedableRng;
 use rand::rngs::StdRng;
 use rand_distr::{Distribution, Normal};
 use rayon::prelude::*;
-use transforms::nscore;
+use transforms::normal_score;
 use variogram::Variogram;
 
 /// Turning-bands parameters.
@@ -253,7 +253,7 @@ pub fn turning_bands(
     }
 
     // Normal-score transform → condition in Gaussian space → back-transform.
-    let ns = nscore::transform(data_vals, data_weights)
+    let ns = normal_score::transform(data_vals, data_weights)
         .map_err(|e| SimError::Transform(e.to_string()))?;
     let mut rng = StdRng::seed_from_u64(params.seed);
     let scores =
@@ -295,7 +295,7 @@ mod tests {
         let aniso = Anisotropy::new(Angles {
             azimuth: 45.0,
             dip: 0.0,
-            pitch: 0.0,
+            rake: 0.0,
             major: 1.0,
             semi: 0.25,
             minor: 1.0,

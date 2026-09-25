@@ -18,7 +18,7 @@ use rand::rngs::StdRng;
 use rand::seq::SliceRandom;
 use rand_distr::{Distribution, Normal};
 use rayon::prelude::*;
-use transforms::nscore;
+use transforms::normal_score;
 use variogram::Variogram;
 
 /// SGS parameters.
@@ -60,7 +60,7 @@ pub fn sgs(
     }
 
     // 1. Normal-score transform.
-    let ns = nscore::transform(data_vals, data_weights)
+    let ns = normal_score::transform(data_vals, data_weights)
         .map_err(|e| SimError::Transform(e.to_string()))?;
 
     // Conditioning set (grows as nodes are simulated).

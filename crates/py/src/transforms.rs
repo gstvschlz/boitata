@@ -1,8 +1,8 @@
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 use transforms::{
-    HermiteAnamorphosis, Nscore, Ppmt as CorePpmt, PpmtParams, Recovery, Trend as CoreTrend,
-    UniformConditioning as CoreUc, Weights,
+    HermiteAnamorphosis, NormalScore as CoreNormalScore, Ppmt as CorePpmt, PpmtParams, Recovery,
+    Trend as CoreTrend, UniformConditioning as CoreUc, Weights,
 };
 
 use crate::args::{
@@ -39,11 +39,11 @@ fn recoveries<'py>(py: Python<'py>, r: &[Recovery]) -> PyResult<Bound<'py, PyDic
 #[pyclass(module = "ceres", name = "NormalScore")]
 pub struct NormalScore {
     tails: Option<(f64, f64)>,
-    fitted: Option<Nscore>,
+    fitted: Option<CoreNormalScore>,
 }
 
 impl NormalScore {
-    fn fitted(&self) -> PyResult<&Nscore> {
+    fn fitted(&self) -> PyResult<&CoreNormalScore> {
         self.fitted
             .as_ref()
             .ok_or_else(|| not_fitted("NormalScore"))
@@ -72,7 +72,7 @@ impl NormalScore {
         if let Some(w) = &weights {
             same_length(values.len(), w.len(), "weights")?;
         }
-        let mut ns = transforms::nscore_transform(&values, weights.as_deref()).map_err(err)?;
+        let mut ns = transforms::normal_score(&values, weights.as_deref()).map_err(err)?;
         if let Some((lower, upper)) = slf.tails {
             ns.table = ns.table.with_tails(lower, upper);
         }

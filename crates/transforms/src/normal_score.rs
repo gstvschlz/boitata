@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 
 /// A monotone data↔score mapping table (sorted by data value).
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct NscoreTable {
+pub struct NormalScoreTable {
     /// Sorted original data values.
     pub values: Vec<f64>,
     /// Corresponding normal scores (increasing).
@@ -23,16 +23,16 @@ pub struct NscoreTable {
 
 /// Result of a forward transform: scores aligned with the input, plus the table.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Nscore {
+pub struct NormalScore {
     pub scores: Vec<f64>,
-    pub table: NscoreTable,
+    pub table: NormalScoreTable,
 }
 
 /// Forward normal-score transform.
 ///
 /// `weights` (optional) are declustering weights used to build the empirical CDF;
 /// when omitted, samples are weighted equally.
-pub fn transform(values: &[f64], weights: Option<&[f64]>) -> Result<Nscore> {
+pub fn transform(values: &[f64], weights: Option<&[f64]>) -> Result<NormalScore> {
     let n = values.len();
     if n == 0 {
         return Err(TransformError::InsufficientData("no values".into()));
@@ -74,9 +74,9 @@ pub fn transform(values: &[f64], weights: Option<&[f64]>) -> Result<Nscore> {
         table_scores.push(z);
     }
 
-    Ok(Nscore {
+    Ok(NormalScore {
         scores,
-        table: NscoreTable {
+        table: NormalScoreTable {
             tails: (table_vals[0], table_vals[n - 1]),
             values: table_vals,
             scores: table_scores,
@@ -84,7 +84,7 @@ pub fn transform(values: &[f64], weights: Option<&[f64]>) -> Result<Nscore> {
     })
 }
 
-impl NscoreTable {
+impl NormalScoreTable {
     /// Widens the tails to `lower` and `upper`, e.g. a lower bound of 0 for grades.
     pub fn with_tails(mut self, lower: f64, upper: f64) -> Self {
         let n = self.values.len();
@@ -107,7 +107,7 @@ impl NscoreTable {
         lookup(&self.scores, &self.values, score)
     }
 
-    /// Normal score of a value; the inverse of [`NscoreTable::back`]. A value
+    /// Normal score of a value; the inverse of [`NormalScoreTable::back`]. A value
     /// tied in the table gets the mean score of its ties.
     pub fn forward(&self, value: f64) -> f64 {
         let first = self.values.partition_point(|v| *v < value);

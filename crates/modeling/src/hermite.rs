@@ -563,7 +563,7 @@ mod tests {
             Anisotropy::new(Angles {
                 azimuth: 40.0,
                 dip: 10.0,
-                pitch: 25.0,
+                rake: 25.0,
                 major: 80.0,
                 semi: 40.0,
                 minor: 15.0,

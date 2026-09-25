@@ -91,7 +91,7 @@ pub fn anisotropy(rotation: (f64, f64, f64), ratios: (f64, f64)) -> PyResult<Opt
     let angles = Angles {
         azimuth: rotation.0,
         dip: rotation.1,
-        pitch: rotation.2,
+        rake: rotation.2,
         major: 1.0,
         semi: ratios.0,
         minor: ratios.1,
@@ -222,7 +222,7 @@ impl Variogram {
     #[getter]
     fn rotation(&self) -> (f64, f64, f64) {
         self.0.anisotropy.as_ref().map_or((0.0, 0.0, 0.0), |a| {
-            (a.angles.azimuth, a.angles.dip, a.angles.pitch)
+            (a.angles.azimuth, a.angles.dip, a.angles.rake)
         })
     }
 
