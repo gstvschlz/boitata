@@ -10,6 +10,10 @@ license = "MIT"
 publish = false
 
 [workspace.dependencies]
+arrow-array = "60"
+arrow-cast = "60"
+arrow-schema = "60"
+arrow-select = "60"
 serde = { version = "1", features = ["derive"] }
 nalgebra = { version = "0.33", features = ["serde-serialize"] }
 thiserror = "1"

@@ -1,10 +1,19 @@
 [package]
 name = "ceres-core"
+description = "Spatial containers, rotations and shared geometry"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 publish.workspace = true
+
+[dependencies]
+arrow-array.workspace = true
+arrow-cast.workspace = true
+arrow-schema.workspace = true
+arrow-select.workspace = true
+nalgebra.workspace = true
+thiserror.workspace = true
 
 [lints]
 workspace = true

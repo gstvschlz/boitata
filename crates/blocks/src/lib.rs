@@ -67,9 +67,9 @@ impl BlockGrid {
     pub fn new(params: BlockGridParams) -> Result<Self> {
         params.validate()?;
 
-        let rotation_matrix = params.rotation.map(|(az, dip, pitch)| {
-            compute_rotation_matrix(az.to_radians(), dip.to_radians(), pitch.to_radians())
-        });
+        let rotation_matrix = params
+            .rotation
+            .map(|(az, dip, pitch)| ceres_core::block_frame([az, dip, pitch]).transpose());
 
         Ok(BlockGrid {
             params,
@@ -88,15 +88,20 @@ impl BlockGrid {
             ));
         }
 
-        let mut center = Vector3::new(
-            self.params.origin.0 + (ix as f64 + 0.5) * self.params.block_size.0,
-            self.params.origin.1 + (iy as f64 + 0.5) * self.params.block_size.1,
-            self.params.origin.2 + (iz as f64 + 0.5) * self.params.block_size.2,
+        let mut offset = Vector3::new(
+            (ix as f64 + 0.5) * self.params.block_size.0,
+            (iy as f64 + 0.5) * self.params.block_size.1,
+            (iz as f64 + 0.5) * self.params.block_size.2,
         );
-
         if let Some(rot) = &self.rotation_matrix {
-            center = rot * center;
+            offset = rot * offset;
         }
+        let center = offset
+            + Vector3::new(
+                self.params.origin.0,
+                self.params.origin.1,
+                self.params.origin.2,
+            );
 
         Ok((center.x, center.y, center.z))
     }
@@ -146,22 +151,6 @@ impl BlockGrid {
 }
 
 /// Compute rotation matrix from Euler angles (same as variography).
-fn compute_rotation_matrix(azimuth: f64, dip: f64, pitch: f64) -> Matrix3<f64> {
-    let ca = azimuth.cos();
-    let sa = azimuth.sin();
-    let r1 = Matrix3::new(ca, sa, 0.0, -sa, ca, 0.0, 0.0, 0.0, 1.0);
-
-    let cd = dip.cos();
-    let sd = dip.sin();
-    let r2 = Matrix3::new(cd, 0.0, -sd, 0.0, 1.0, 0.0, sd, 0.0, cd);
-
-    let cp = pitch.cos();
-    let sp = pitch.sin();
-    let r3 = Matrix3::new(1.0, 0.0, 0.0, 0.0, cp, sp, 0.0, -sp, cp);
-
-    r3 * r2 * r1
-}
-
 /// Domain assignment method.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum DomainMethod {

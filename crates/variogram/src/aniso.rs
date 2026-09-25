@@ -4,6 +4,8 @@ use crate::error::{Result, VarioError};
 use nalgebra::{Matrix3, Vector3};
 use serde::{Deserialize, Serialize};
 
+pub use ceres_core::rotation_matrix;
+
 /// Azimuth/dip/rake angles and anisotropic ranges.
 ///
 /// Angles (degrees):
@@ -93,34 +95,9 @@ pub fn euclidean(p: &(f64, f64, f64), q: &(f64, f64, f64)) -> f64 {
     (dx * dx + dy * dy + dz * dz).sqrt()
 }
 
-/// Rotation matrix from Euler angles (degrees): geographic (E,N,U) → (major, semi, minor).
-pub fn rotation_matrix(azimuth: f64, dip: f64, pitch: f64) -> Matrix3<f64> {
-    let (az, di, pi) = (azimuth.to_radians(), dip.to_radians(), pitch.to_radians());
-
-    let (ca, sa) = (az.cos(), az.sin());
-    let r1 = Matrix3::new(ca, sa, 0.0, -sa, ca, 0.0, 0.0, 0.0, 1.0);
-
-    let (cd, sd) = (di.cos(), di.sin());
-    let r2 = Matrix3::new(cd, 0.0, -sd, 0.0, 1.0, 0.0, sd, 0.0, cd);
-
-    let (cp, sp) = (pi.cos(), pi.sin());
-    let r3 = Matrix3::new(1.0, 0.0, 0.0, 0.0, cp, sp, 0.0, -sp, cp);
-
-    r3 * r2 * r1
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn identity_rotation() {
-        let r = rotation_matrix(0.0, 0.0, 0.0);
-        assert!((r.m11 - 1.0).abs() < 1e-12);
-        assert!((r.m22 - 1.0).abs() < 1e-12);
-        assert!((r.m33 - 1.0).abs() < 1e-12);
-        assert!(r.m12.abs() < 1e-12);
-    }
 
     #[test]
     fn isotropic_lag_equals_euclidean_scaled() {
@@ -153,6 +130,15 @@ mod tests {
         .unwrap();
         let along = a.lag(&(0.0, 0.0, 0.0), &(0.0, 0.0, 20.0)); // vertical
         assert!(along > 1.0); // 20 / 10 = 2 reduced units
+    }
+
+    #[test]
+    fn major_axis_matches_experimental_direction() {
+        for (az, dip) in [(0.0, 0.0), (90.0, 0.0), (135.0, 30.0), (300.0, -45.0)] {
+            let major = rotation_matrix(az, dip, 17.0).row(0).transpose();
+            let (x, y, z) = crate::surface::unit_vector(az, dip);
+            assert!((major - Vector3::new(x, y, z)).norm() < 1e-12);
+        }
     }
 
     #[test]
