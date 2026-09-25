@@ -27,6 +27,8 @@ package = false
 
 [tool.pytest.ini_options]
 testpaths = ["python/tests"]
+addopts = "-m 'not slow'"
+markers = ["slow: downloads datasets"]
 
 [tool.ruff]
 line-length = 110

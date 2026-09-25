@@ -1,15 +1,14 @@
-"""Dataset download and figure style shared by the examples."""
+"""Figure style shared by the examples."""
 
 import inspect
-import urllib.request
 from pathlib import Path
 
 import matplotlib as mpl
 import matplotlib.pyplot as plt
+from ceres.datasets import fetch  # noqa: F401
 from matplotlib.colors import LinearSegmentedColormap
 
 ROOT = Path(__file__).resolve().parent
-DATASETS = "https://raw.githubusercontent.com/gstvschlz/datasets/560bd39c9ec79dcd6565dc763009aa83cac68fb8"
 
 INK = "#222222"
 GREY = "#8c8c8c"
@@ -39,15 +38,6 @@ mpl.rcParams.update(
         "image.cmap": "ceres",
     }
 )
-
-
-def fetch(name: str) -> Path:
-    """Local copy of `name` from the datasets repository, downloaded once."""
-    path = ROOT / "data" / name
-    if not path.exists():
-        path.parent.mkdir(parents=True, exist_ok=True)
-        urllib.request.urlretrieve(f"{DATASETS}/{name}", path)
-    return path
 
 
 def map_axes(ax, title):

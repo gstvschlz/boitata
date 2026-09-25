@@ -15,9 +15,9 @@ sys.path.insert(0, str(HERE.parent))
 import ceres as cs
 import matplotlib.pyplot as plt
 import numpy as np
-from common import ACCENT, GREY, HIGHLIGHT, INK, LIGHT, fetch, save
+from common import ACCENT, GREY, HIGHLIGHT, INK, LIGHT, save
 
-samples = cs.PointSet.from_table(cs.read_csv(fetch("walker-lake/sample.csv")))
+samples = cs.datasets.walker_lake()
 v = samples["V"]
 w = cs.cell_declustering(samples.coords, v, sizes=np.arange(2.5, 102.5, 2.5)).weights
 

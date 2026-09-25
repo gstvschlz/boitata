@@ -2,7 +2,7 @@
 # # 1. Data and declustering
 #
 # Walker Lake: 470 samples of `V` (ppm) over a 260 × 300 m area whose exhaustive values are known.
-# `fetch` downloads a file from the datasets repository once; `save` writes a figure next to this page;
+# `cs.datasets` downloads it once and checks its SHA-256; `save` writes a figure next to this page;
 # colours and fonts come from [`common.py`](../common.py).
 
 # %% [hidden]
@@ -16,11 +16,11 @@ sys.path.insert(0, str(HERE.parent))
 import ceres as cs
 import matplotlib.pyplot as plt
 import numpy as np
-from common import ACCENT, GREY, HIGHLIGHT, INK, fetch, map_axes, save
+from common import ACCENT, GREY, HIGHLIGHT, INK, map_axes, save
 from matplotlib.colors import PowerNorm
 
-samples = cs.PointSet.from_table(cs.read_csv(fetch("walker-lake/sample.csv")))
-exhaustive = cs.read_csv(fetch("walker-lake/exhaustive.csv"))
+samples = cs.datasets.walker_lake()
+exhaustive = cs.datasets.walker_lake_exhaustive()
 v = samples["V"]
 truth = exhaustive["V"].reshape(300, 260)
 print(samples)

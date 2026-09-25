@@ -15,9 +15,9 @@ sys.path.insert(0, str(HERE.parent))
 import ceres as cs
 import matplotlib.pyplot as plt
 import numpy as np
-from common import ACCENT, GREY, HIGHLIGHT, INK, fetch, save
+from common import ACCENT, GREY, HIGHLIGHT, INK, save
 
-samples = cs.PointSet.from_table(cs.read_csv(fetch("walker-lake/sample.csv")))
+samples = cs.datasets.walker_lake()
 xy, v = samples.coords, samples["V"]
 lag, max_lag = 10.0, 120.0
 
