@@ -35,7 +35,7 @@ pub struct Estimate {
 ///
 /// `samples` are assumed already selected (see [`crate::search`]). For `Indicator`,
 /// each sample value is mapped to `1.0` if `value ≤ threshold` else `0.0`, and the
-/// result is a probability in `[0, 1]`.
+/// result is clipped to `[0, 1]` (negative weights can push it outside).
 pub fn krige(
     kind: Kind,
     target: &(f64, f64, f64),
@@ -89,6 +89,10 @@ pub fn krige(
 
     let value = match kind {
         Kind::Simple { mean } => mean + (0..n).map(|i| weights[i] * (z[i] - mean)).sum::<f64>(),
+        Kind::Indicator { .. } => (0..n)
+            .map(|i| weights[i] * z[i])
+            .sum::<f64>()
+            .clamp(0.0, 1.0),
         _ => (0..n).map(|i| weights[i] * z[i]).sum::<f64>(),
     };
 
