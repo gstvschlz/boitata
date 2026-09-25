@@ -2,6 +2,7 @@ use pyo3::prelude::*;
 use pyo3::types::PyType;
 
 mod args;
+mod cokriging;
 mod containers;
 mod estimation;
 mod io;
@@ -38,6 +39,7 @@ fn _ceres(m: &Bound<PyModule>) -> PyResult<()> {
     transforms::register(m)?;
     variogram::register(m)?;
     estimation::register(m)?;
+    cokriging::register(m)?;
     simulation::register(m)?;
     Ok(())
 }
