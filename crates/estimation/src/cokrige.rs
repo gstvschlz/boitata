@@ -107,7 +107,17 @@ pub fn cokrige(
             })
         }
         CoKind::Ordinary => {
-            let nv = model.nvar;
+            // One unbiasedness constraint per variable present in the neighbourhood.
+            let mut present: Vec<usize> = samples.iter().map(|s| s.var).collect();
+            present.sort_unstable();
+            present.dedup();
+            if !present.contains(&target_var) {
+                return Err(EstimError::InsufficientData(
+                    "no sample of the target variable".into(),
+                ));
+            }
+            let slot = |var: usize| present.binary_search(&var).expect("present");
+            let nv = present.len();
             let dim = n + nv;
             let mut a = DMatrix::<f64>::zeros(dim, dim);
             let mut b = DVector::<f64>::zeros(dim);
@@ -115,15 +125,12 @@ pub fn cokrige(
                 for j in 0..n {
                     a[(i, j)] = cov_dd(i, j);
                 }
-                // One unbiasedness column per variable.
-                let v = samples[i].var;
+                let v = slot(samples[i].var);
                 a[(i, n + v)] = 1.0;
                 a[(n + v, i)] = 1.0;
                 b[i] = cov_dt(i);
             }
-            for v in 0..nv {
-                b[n + v] = if v == target_var { 1.0 } else { 0.0 };
-            }
+            b[n + slot(target_var)] = 1.0;
             let x = a
                 .lu()
                 .solve(&b)
@@ -162,6 +169,43 @@ pub fn collocated_cokrige(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn ordinary_cokriging_without_secondary_data_is_ordinary_kriging() {
+        use variogram::{CoregStructure, Model, Variogram};
+        let model = Coregionalization::new(
+            vec![vec![0.0, 0.0], vec![0.0, 0.0]],
+            vec![CoregStructure {
+                model: Model::Spherical,
+                range: 30.0,
+                sills: vec![vec![1.0, 0.6], vec![0.6, 1.0]],
+            }],
+        );
+        let locs = [
+            (0.0, 0.0, 0.0),
+            (10.0, 5.0, 0.0),
+            (3.0, 12.0, 0.0),
+            (15.0, 15.0, 0.0),
+        ];
+        let vals = [1.0, 2.5, 0.5, 3.0];
+        let co: Vec<CoSample> = locs
+            .iter()
+            .zip(vals)
+            .map(|(&l, v)| CoSample::new(l, 0, v))
+            .collect();
+        let plain: Vec<crate::Sample> = locs
+            .iter()
+            .zip(vals)
+            .map(|(&l, v)| crate::Sample::new(l, v))
+            .collect();
+        let target = (7.0, 7.0, 0.0);
+        let ck = cokrige(&target, 0, &co, &model, &CoKind::Ordinary).unwrap();
+        let vg = Variogram::single(Model::Spherical, 1.0, 30.0);
+        let ok = crate::krige(crate::Kind::Ordinary, &target, &plain, &vg).unwrap();
+        assert!((ck.value - ok.value).abs() < 1e-10);
+        assert!((ck.variance - ok.variance).abs() < 1e-10);
+        assert!(cokrige(&target, 1, &co, &model, &CoKind::Ordinary).is_err());
+    }
     use variogram::model::Model;
     use variogram::{CoregStructure, Variogram};
 
