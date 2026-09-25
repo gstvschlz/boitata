@@ -477,3 +477,6 @@ def assign_domain(
 def block_shell(
     model: BlockModel, column: str | None = None
 ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.int64], npt.NDArray[np.float64] | None]: ...
+def merge_intervals(
+    left: TableLike, right: TableLike, hole: str = "HOLEID", from_: str = "FROM", to: str = "TO"
+) -> Table: ...

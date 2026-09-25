@@ -221,7 +221,8 @@ impl Drillholes {
     }
 
     /// Length-weighted composites of `grades` at `length` metres, never
-    /// crossing a change of `domain`; located at their midpoints.
+    /// crossing a change of `domain`; located at their midpoints. Composites
+    /// with none of the grades sampled are dropped.
     #[pyo3(signature = (length, grades, domain=None))]
     fn composite(
         &self,
@@ -267,7 +268,12 @@ impl Drillholes {
                 .map(|(id, rows)| composite_intervals(id, rows, &params))
                 .collect::<Result<Vec<_>, _>>()
         });
-        let composites: Vec<_> = composites.map_err(invalid)?.into_iter().flatten().collect();
+        let composites: Vec<_> = composites
+            .map_err(invalid)?
+            .into_iter()
+            .flatten()
+            .filter(|c| !c.attributes.is_empty())
+            .collect();
 
         let coords = composites
             .iter()
@@ -328,7 +334,96 @@ impl Drillholes {
     }
 }
 
+/// Splits two interval tables (e.g. assays and geology) at the union of
+/// their boundaries, hole by hole. The result has the hole, from and to
+/// columns followed by every other column of both tables, null where a table
+/// has no interval; `right` columns that clash get a `_right` suffix.
+#[pyfunction]
+#[pyo3(signature = (left, right, hole="HOLEID", from_="FROM", to="TO"))]
+fn merge_intervals(
+    left: &Bound<PyAny>,
+    right: &Bound<PyAny>,
+    hole: &str,
+    from_: &str,
+    to: &str,
+) -> PyResult<Table> {
+    let (left, right) = (to_batch(left)?, to_batch(right)?);
+    let rows_by_hole = |batch: &RecordBatch| -> PyResult<BTreeMap<String, Vec<usize>>> {
+        let mut out: BTreeMap<String, Vec<usize>> = BTreeMap::new();
+        for (i, id) in text(batch, hole)?.into_iter().enumerate() {
+            if let Some(id) = id {
+                out.entry(id).or_default().push(i);
+            }
+        }
+        Ok(out)
+    };
+    let spans = |batch: &RecordBatch| -> PyResult<Vec<(f64, f64)>> {
+        Ok(number(batch, from_)?
+            .into_iter()
+            .zip(number(batch, to)?)
+            .map(|(f, t)| (f.unwrap_or(f64::NAN), t.unwrap_or(f64::NAN)))
+            .collect())
+    };
+    let (lh, rh) = (rows_by_hole(&left)?, rows_by_hole(&right)?);
+    let (ls, rs) = (spans(&left)?, spans(&right)?);
+    let holes: std::collections::BTreeSet<&String> = lh.keys().chain(rh.keys()).collect();
+
+    let (mut ids, mut from, mut upto, mut li, mut ri) = (vec![], vec![], vec![], vec![], vec![]);
+    for id in holes {
+        let pick = |rows: Option<&Vec<usize>>, s: &[(f64, f64)]| {
+            let rows: Vec<usize> = rows
+                .into_iter()
+                .flatten()
+                .copied()
+                .filter(|&i| s[i].0.is_finite() && s[i].1 > s[i].0)
+                .collect();
+            let spans: Vec<(f64, f64)> = rows.iter().map(|&i| s[i]).collect();
+            (rows, spans)
+        };
+        let (lrows, lspans) = pick(lh.get(id), &ls);
+        let (rrows, rspans) = pick(rh.get(id), &rs);
+        for (f, t, a, b) in drillholes::merge_intervals(&lspans, &rspans) {
+            ids.push(id.clone());
+            from.push(f);
+            upto.push(t);
+            li.push(a.map(|k| lrows[k] as u64));
+            ri.push(b.map(|k| rrows[k] as u64));
+        }
+    }
+
+    let take = |batch: &RecordBatch, idx: &[Option<u64>]| -> PyResult<Vec<(String, ArrayRef)>> {
+        let idx = arrow_array::UInt64Array::from(idx.to_vec());
+        let schema = batch.schema();
+        schema
+            .fields()
+            .iter()
+            .zip(batch.columns())
+            .filter(|(f, _)| ![hole, from_, to].contains(&f.name().as_str()))
+            .map(|(f, c)| {
+                let taken = arrow_select::take::take(c, &idx, None).map_err(invalid)?;
+                Ok((f.name().clone(), taken))
+            })
+            .collect()
+    };
+    let mut columns: Vec<(String, ArrayRef)> = vec![
+        (hole.into(), Arc::new(StringArray::from(ids))),
+        (from_.into(), Arc::new(Float64Array::from(from))),
+        (to.into(), Arc::new(Float64Array::from(upto))),
+    ];
+    columns.extend(take(&left, &li)?);
+    for (name, column) in take(&right, &ri)? {
+        let name = if columns.iter().any(|(n, _)| *n == name) {
+            format!("{name}_right")
+        } else {
+            name
+        };
+        columns.push((name, column));
+    }
+    Ok(Table(RecordBatch::try_from_iter(columns).map_err(invalid)?))
+}
+
 pub fn register(m: &Bound<PyModule>) -> PyResult<()> {
     m.add_class::<Drillholes>()?;
+    m.add_function(wrap_pyfunction!(merge_intervals, m)?)?;
     Ok(())
 }
