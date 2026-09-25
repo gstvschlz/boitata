@@ -108,10 +108,12 @@ pub fn write_gslib(path: impl AsRef<Path>, table: &RecordBatch, missing: f64) ->
         let values: Vec<String> = columns
             .iter()
             .map(|c| {
-                c.is_valid(row)
-                    .then(|| c.value(row))
-                    .unwrap_or(missing)
-                    .to_string()
+                if c.is_valid(row) {
+                    c.value(row)
+                } else {
+                    missing
+                }
+                .to_string()
             })
             .collect();
         writeln!(out, "{}", values.join(" "))?;
