@@ -20,6 +20,8 @@ __all__ = [
     "OrdinaryKriging",
     "SimpleKriging",
     "UniversalKriging",
+    "classify",
+    "global_bias",
 ]
 
 
@@ -49,6 +51,12 @@ class CrossValidation:
         return float(np.corrcoef(self.actual[ok], self.estimate[ok])[0, 1])
 
     @property
+    def slope(self) -> float:
+        """Slope of the regression of actual on estimated values; below 1 means conditional bias."""
+        ok = ~np.isnan(self.estimate)
+        return float(np.polyfit(self.estimate[ok], self.actual[ok], 1)[0])
+
+    @property
     def standardized_squared_error(self) -> float:
         """Mean of error² / variance; near 1 when the kriging variance is calibrated."""
         return float(np.nanmean(self.error**2 / self.variance))
@@ -66,12 +74,14 @@ class _Base:
         self._engine.fit(coords, values, holes)
         return self
 
-    def predict(self, targets, return_variance: bool = False, anisotropy=None):
+    def predict(self, targets, return_variance: bool = False, anisotropy=None, diagnostics: bool = False):
         """Estimates at targets; NaN where the search found too few samples.
 
-        `anisotropy` (a LocalAnisotropy) orients each target's variogram and search.
+        `anisotropy` (a LocalAnisotropy) orients each target's variogram and search. With
+        `diagnostics`, returns a dict of ``value``, ``variance``, ``efficiency`` (kriging
+        efficiency), ``slope`` (slope of regression) and ``n_samples``.
         """
-        return self._engine.predict(targets, return_variance, anisotropy)
+        return self._engine.predict(targets, return_variance, anisotropy, diagnostics)
 
     def cross_validate(self) -> CrossValidation:
         """Re-estimates every sample with itself left out."""
@@ -162,3 +172,50 @@ class LocalLeastSquares(_Base):
 
     def __init__(self, search: Search, degree: int = 1, variogram: Variogram | None = None):
         super().__init__("local_least_squares", search, variogram, degree=degree)
+
+
+def global_bias(estimate, data, weights=None, data_weights=None) -> dict[str, float]:
+    """Means of an estimate and of the data it came from, weighted by e.g. block volumes and
+    declustering weights, and the relative difference ``estimate / data - 1``.
+    """
+    estimate, data = np.asarray(estimate, dtype=float), np.asarray(data, dtype=float)
+    ok, okd = np.isfinite(estimate), np.isfinite(data)
+    m = np.average(estimate[ok], weights=None if weights is None else np.asarray(weights)[ok])
+    d = np.average(data[okd], weights=None if data_weights is None else np.asarray(data_weights)[okd])
+    return {"estimate_mean": float(m), "data_mean": float(d), "relative": float(m / d - 1)}
+
+
+_OPS = {"<": np.less, "<=": np.less_equal, ">": np.greater, ">=": np.greater_equal}
+
+
+def classify(criteria, rules, default="unclassified") -> np.ndarray:
+    """Labels each block with the first rule whose conditions all hold.
+
+    Parameters
+    ----------
+    criteria : dict of str to array_like
+        Per-block metrics, e.g. ``slope``, ``efficiency`` from ``predict(..., diagnostics=True)``
+        and ``nearest_dist``, ``n_holes`` from `neighborhood_stats`.
+    rules : sequence of (str, dict)
+        ``(label, {metric: (op, threshold)})`` in priority order; `op` is one of
+        ``<``, ``<=``, ``>``, ``>=``. NaN never satisfies a condition.
+    default : str
+        Label where no rule holds.
+
+    Examples
+    --------
+    >>> classify(d, [("measured", {"slope": (">=", 0.8), "n_holes": (">=", 3)}),
+    ...              ("indicated", {"slope": (">=", 0.5)})], default="inferred")
+    """
+    n = len(next(iter(criteria.values())))
+    out = np.full(n, default, dtype=object)
+    free = np.ones(n, dtype=bool)
+    for label, conditions in rules:
+        hit = free.copy()
+        for name, (op, threshold) in conditions.items():
+            if op not in _OPS:
+                raise ValueError(f"unknown operator {op!r}; use one of {', '.join(_OPS)}")
+            hit &= _OPS[op](np.asarray(criteria[name], dtype=float), threshold)
+        out[hit] = label
+        free &= ~hit
+    return out.astype(str)

@@ -9,11 +9,11 @@ the variogram; together they measure uncertainty.
 import ceres as cs
 import matplotlib.pyplot as plt
 import numpy as np
-from common import ACCENT, GREY, HIGHLIGHT, INK, LIGHT, fetch, map_axes, save
+from common import ACCENT, GREY, HIGHLIGHT, INK, LIGHT, map_axes, save
 from matplotlib.colors import PowerNorm
 
-samples = cs.PointSet.from_table(cs.read_csv(fetch("walker-lake/sample.csv")))
-truth = cs.read_csv(fetch("walker-lake/exhaustive.csv"))["V"].reshape(300, 260)
+samples = cs.datasets.walker_lake()
+truth = cs.datasets.walker_lake_exhaustive()["V"].reshape(300, 260)
 xy, v = samples.coords, samples["V"]
 azimuth = cs.Variogram.from_json((HERE.parent / "03-variography" / "model.json").read_text()).rotation[0]
 ```

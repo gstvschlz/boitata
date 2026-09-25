@@ -9,9 +9,9 @@ with the same cumulative probability, weighting samples by the declustering weig
 import ceres as cs
 import matplotlib.pyplot as plt
 import numpy as np
-from common import ACCENT, GREY, HIGHLIGHT, INK, LIGHT, fetch, save
+from common import ACCENT, GREY, HIGHLIGHT, INK, LIGHT, save
 
-samples = cs.PointSet.from_table(cs.read_csv(fetch("walker-lake/sample.csv")))
+samples = cs.datasets.walker_lake()
 v = samples["V"]
 w = cs.cell_declustering(samples.coords, v, sizes=np.arange(2.5, 102.5, 2.5)).weights
 
@@ -100,6 +100,24 @@ save(fig, "histograms")
 </details>
 
 ![histograms](histograms.png)
+
+On a probability scale, where a Gaussian is a straight line, `cs.plot.probability` shows V is not lognormal either
+while its scores are Gaussian by construction:
+
+<details><summary>Python</summary>
+
+```python
+fig, (a, b) = plt.subplots(1, 2, figsize=(9, 3.4), layout="constrained")
+cs.plot.probability(v[v > 0], w[v > 0], log=True, ax=a, color=ACCENT, ms=3)
+a.set(title="V (log scale)", xlabel="V (ppm)")
+cs.plot.probability(y, w, ax=b, color=ACCENT, ms=3)
+b.set(title="Normal scores", xlabel="Normal score")
+save(fig, "probability")
+```
+
+</details>
+
+![probability](probability.png)
 
 The weighted scores have mean 0 and standard deviation 1, and the back-transform returns every sample exactly.
 

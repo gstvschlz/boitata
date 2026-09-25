@@ -18,9 +18,8 @@ import tempfile
 import ceres as cs
 import numpy as np
 import polars as pl
-from common import fetch
 
-samples = cs.PointSet.from_table(cs.read_csv(fetch("walker-lake/sample.csv")), crs="local grid")
+samples = cs.PointSet.from_table(cs.read_csv(cs.datasets.fetch("walker-lake/sample.csv")), crs="local grid")
 model = cs.Variogram.from_json((HERE.parent / "03-variography" / "model.json").read_text())
 grid = cs.BlockModel(origin=(0, 0), size=(1, 1), count=(260, 300), rotation=(0, 0, 0), crs="local grid")
 estimate, variance = (

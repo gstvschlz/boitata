@@ -121,6 +121,8 @@ pub fn block_krige(
         variance,
         n_used: n,
         weights,
+        lagrange: mu,
+        support_variance: cbb,
     })
 }
 

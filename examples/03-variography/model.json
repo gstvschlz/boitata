@@ -1,1 +1,1 @@
-{"nugget":32974.91362140061,"structures":[{"model":"Spherical","sill":60404.48424557247,"range":75.41661873855779}],"anisotropy":{"azimuth":170.0,"dip":0.0,"pitch":0.0,"major":1.0,"semi":0.3216494539612399,"minor":1.0}}
+{"nugget":32974.91362140061,"structures":[{"model":"Spherical","sill":60404.48424557247,"range":75.41661873855779}],"anisotropy":{"azimuth":170.0,"dip":0.0,"rake":0.0,"major":1.0,"semi":0.3216494539612399,"minor":1.0}}
