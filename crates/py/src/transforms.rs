@@ -1,8 +1,9 @@
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 use transforms::{
-    HermiteAnamorphosis, NormalScore as CoreNormalScore, Ppmt as CorePpmt, PpmtParams, Recovery,
-    Trend as CoreTrend, UniformConditioning as CoreUc, Weights,
+    HermiteAnamorphosis, Maf as CoreMaf, NormalScore as CoreNormalScore, Pca as CorePca,
+    Ppmt as CorePpmt, PpmtParams, Recovery, StepwiseConditional as CoreSct, Trend as CoreTrend,
+    UniformConditioning as CoreUc, Weights,
 };
 
 use crate::args::{
@@ -300,31 +301,37 @@ impl Ppmt {
 
 #[pymethods]
 impl Ppmt {
+    /// `marginal` normal-scores each variable before the projections.
     #[new]
-    #[pyo3(signature = (iterations=30, candidates=60, seed=1))]
-    fn new(iterations: usize, candidates: usize, seed: u64) -> Self {
+    #[pyo3(signature = (iterations=30, candidates=60, seed=1, marginal=true))]
+    fn new(iterations: usize, candidates: usize, seed: u64, marginal: bool) -> Self {
         Self {
             params: PpmtParams {
                 iterations,
                 candidates,
                 seed,
+                marginal,
             },
             fitted: None,
         }
     }
 
-    /// `data` is `(n, d)`.
+    /// `data` is `(n, d)`; `weights` (e.g. declustering) shape the marginal scores.
+    #[pyo3(signature = (data, weights=None))]
     fn fit<'py>(
         mut slf: PyRefMut<'py, Self>,
         data: &Bound<PyAny>,
+        weights: Option<&Bound<PyAny>>,
     ) -> PyResult<PyRefMut<'py, Self>> {
         let data = rows(data, "data")?;
-        slf.fitted = Some(CorePpmt::fit(&data, &slf.params).map_err(err)?);
+        let weights = optional_finite(weights, "weights")?;
+        slf.fitted = Some(CorePpmt::fit(&data, weights.as_deref(), &slf.params).map_err(err)?);
         Ok(slf)
     }
 
     fn transform<'py>(&self, py: Python<'py>, data: &Bound<PyAny>) -> PyResult<Bound<'py, PyAny>> {
-        Ok(array2(py, &self.fitted()?.forward(&rows(data, "data")?)).into_any())
+        let fitted = self.fitted()?;
+        Ok(array2(py, &fitted.forward(&table(data, fitted.dim())?)).into_any())
     }
 
     fn inverse_transform<'py>(
@@ -332,7 +339,210 @@ impl Ppmt {
         py: Python<'py>,
         data: &Bound<PyAny>,
     ) -> PyResult<Bound<'py, PyAny>> {
-        Ok(array2(py, &self.fitted()?.back(&rows(data, "data")?)).into_any())
+        let fitted = self.fitted()?;
+        Ok(array2(py, &fitted.back(&table(data, fitted.dim())?)).into_any())
+    }
+}
+
+/// Finite `(n, dim)` rows.
+fn table(data: &Bound<PyAny>, dim: usize) -> PyResult<Vec<Vec<f64>>> {
+    let data = rows(data, "data")?;
+    if data.iter().any(|r| r.len() != dim) {
+        return Err(invalid(format!("data must have {dim} columns")));
+    }
+    if data.iter().flatten().any(|v| !v.is_finite()) {
+        return Err(invalid("data must be finite"));
+    }
+    Ok(data)
+}
+
+/// Principal components of the covariance (`standardize=True`: correlation)
+/// matrix, by decreasing variance.
+#[pyclass(module = "ceres", name = "PCA")]
+pub struct Pca {
+    standardize: bool,
+    fitted: Option<(CorePca, usize)>,
+}
+
+impl Pca {
+    fn fitted(&self) -> PyResult<&(CorePca, usize)> {
+        self.fitted.as_ref().ok_or_else(|| not_fitted("PCA"))
+    }
+}
+
+#[pymethods]
+impl Pca {
+    #[new]
+    #[pyo3(signature = (standardize=false))]
+    fn new(standardize: bool) -> Self {
+        Self {
+            standardize,
+            fitted: None,
+        }
+    }
+
+    /// `data` is `(n, d)`; optional `weights`, e.g. declustering.
+    #[pyo3(signature = (data, weights=None))]
+    fn fit<'py>(
+        mut slf: PyRefMut<'py, Self>,
+        data: &Bound<PyAny>,
+        weights: Option<&Bound<PyAny>>,
+    ) -> PyResult<PyRefMut<'py, Self>> {
+        let data = rows(data, "data")?;
+        let weights = optional_finite(weights, "weights")?;
+        let pca = CorePca::fit(&data, weights.as_deref(), slf.standardize).map_err(err)?;
+        slf.fitted = Some((pca, data[0].len()));
+        Ok(slf)
+    }
+
+    fn transform<'py>(&self, py: Python<'py>, data: &Bound<PyAny>) -> PyResult<Bound<'py, PyAny>> {
+        let (pca, dim) = self.fitted()?;
+        Ok(array2(py, &pca.forward(&table(data, *dim)?)).into_any())
+    }
+
+    fn inverse_transform<'py>(
+        &self,
+        py: Python<'py>,
+        data: &Bound<PyAny>,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let (pca, dim) = self.fitted()?;
+        Ok(array2(py, &pca.back(&table(data, *dim)?)).into_any())
+    }
+
+    /// Unit eigenvectors as rows.
+    #[getter]
+    fn components_<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let (pca, _) = self.fitted()?;
+        Ok(array2(py, &pca.components()).into_any())
+    }
+
+    /// Variance of each component (eigenvalues).
+    #[getter]
+    fn explained_variance_<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let (pca, _) = self.fitted()?;
+        Ok(array1(py, pca.eigenvalues().to_vec()).into_any())
+    }
+
+    #[getter]
+    fn explained_variance_ratio_<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let (pca, _) = self.fitted()?;
+        let total: f64 = pca.eigenvalues().iter().sum();
+        Ok(map(py, pca.eigenvalues().to_vec(), |l| l / total))
+    }
+}
+
+/// Min/max autocorrelation factors: uncorrelated at lag 0 and at `lag`, from
+/// most to least continuous. Pairs within `lag ± tolerance` (default `lag / 2`).
+#[pyclass(module = "ceres", name = "MAF")]
+pub struct Maf {
+    lag: f64,
+    tolerance: Option<f64>,
+    fitted: Option<(CoreMaf, usize)>,
+}
+
+impl Maf {
+    fn fitted(&self) -> PyResult<&(CoreMaf, usize)> {
+        self.fitted.as_ref().ok_or_else(|| not_fitted("MAF"))
+    }
+}
+
+#[pymethods]
+impl Maf {
+    #[new]
+    #[pyo3(signature = (lag, tolerance=None))]
+    fn new(lag: f64, tolerance: Option<f64>) -> Self {
+        Self {
+            lag,
+            tolerance,
+            fitted: None,
+        }
+    }
+
+    /// `data` is `(n, d)` at `coords` `(n, 2 | 3)`.
+    fn fit<'py>(
+        mut slf: PyRefMut<'py, Self>,
+        data: &Bound<PyAny>,
+        coords: &Bound<PyAny>,
+    ) -> PyResult<PyRefMut<'py, Self>> {
+        let (data, locs) = (rows(data, "data")?, points(coords)?);
+        same_length(data.len(), locs.len(), "coords")?;
+        let tolerance = slf.tolerance.unwrap_or(slf.lag / 2.0);
+        let maf = CoreMaf::fit(&data, &locs, slf.lag, tolerance).map_err(err)?;
+        slf.fitted = Some((maf, data[0].len()));
+        Ok(slf)
+    }
+
+    fn transform<'py>(&self, py: Python<'py>, data: &Bound<PyAny>) -> PyResult<Bound<'py, PyAny>> {
+        let (maf, dim) = self.fitted()?;
+        Ok(array2(py, &maf.forward(&table(data, *dim)?)).into_any())
+    }
+
+    fn inverse_transform<'py>(
+        &self,
+        py: Python<'py>,
+        data: &Bound<PyAny>,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let (maf, dim) = self.fitted()?;
+        Ok(array2(py, &maf.back(&table(data, *dim)?)).into_any())
+    }
+
+    /// Semivariogram of each factor at `lag`, increasing.
+    #[getter]
+    fn gammas_<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let (maf, _) = self.fitted()?;
+        Ok(array1(py, maf.gammas().to_vec()).into_any())
+    }
+}
+
+/// Stepwise conditional transform: each variable normal-scored within the
+/// `classes` equal-probability classes of the variables before it.
+#[pyclass(module = "ceres", name = "StepwiseConditional")]
+pub struct StepwiseConditional {
+    classes: usize,
+    fitted: Option<CoreSct>,
+}
+
+impl StepwiseConditional {
+    fn fitted(&self) -> PyResult<&CoreSct> {
+        self.fitted
+            .as_ref()
+            .ok_or_else(|| not_fitted("StepwiseConditional"))
+    }
+}
+
+#[pymethods]
+impl StepwiseConditional {
+    #[new]
+    #[pyo3(signature = (classes=10))]
+    fn new(classes: usize) -> Self {
+        Self {
+            classes,
+            fitted: None,
+        }
+    }
+
+    /// `data` is `(n, d)`; column order sets the conditioning order.
+    fn fit<'py>(
+        mut slf: PyRefMut<'py, Self>,
+        data: &Bound<PyAny>,
+    ) -> PyResult<PyRefMut<'py, Self>> {
+        let data = rows(data, "data")?;
+        slf.fitted = Some(CoreSct::fit(&data, slf.classes).map_err(err)?);
+        Ok(slf)
+    }
+
+    fn transform<'py>(&self, py: Python<'py>, data: &Bound<PyAny>) -> PyResult<Bound<'py, PyAny>> {
+        let fitted = self.fitted()?;
+        Ok(array2(py, &fitted.forward(&table(data, fitted.dim())?)).into_any())
+    }
+
+    fn inverse_transform<'py>(
+        &self,
+        py: Python<'py>,
+        data: &Bound<PyAny>,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let fitted = self.fitted()?;
+        Ok(array2(py, &fitted.back(&table(data, fitted.dim())?)).into_any())
     }
 }
 
@@ -614,6 +824,9 @@ pub fn register(m: &Bound<PyModule>) -> PyResult<()> {
     m.add_class::<Anamorphosis>()?;
     m.add_class::<BoxCox>()?;
     m.add_class::<Ppmt>()?;
+    m.add_class::<Pca>()?;
+    m.add_class::<Maf>()?;
+    m.add_class::<StepwiseConditional>()?;
     m.add_class::<UniformConditioning>()?;
     m.add_class::<Trend>()?;
     m.add_class::<Declustering>()?;

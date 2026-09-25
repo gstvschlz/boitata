@@ -7,6 +7,7 @@
 //! are justified.
 //!
 //! Algorithm (Barnett, Manchuk & Deutsch, 2014):
+//! 0. optionally normal-score each variable (weighted),
 //! 1. center and sphere (whiten) the data via the covariance eigendecomposition,
 //! 2. repeatedly find the most non-Gaussian 1-D projection and Gaussianize it
 //!    (normal-score along that direction),
@@ -18,6 +19,8 @@
 
 use crate::error::{Result, TransformError};
 use crate::normal::probit;
+use crate::normal_score::{NormalScoreTable, transform as normal_score_table};
+use crate::pca::check_rows;
 use nalgebra::{DMatrix, DVector};
 use serde::{Deserialize, Serialize};
 
@@ -35,6 +38,8 @@ struct Step {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Ppmt {
     dim: usize,
+    #[serde(default)]
+    marginals: Vec<NormalScoreTable>,
     mean: DVector<f64>,
     /// Whitening matrix `W`: `z = W·(x − mean)`.
     whiten: DMatrix<f64>,
@@ -52,6 +57,8 @@ pub struct PpmtParams {
     pub candidates: usize,
     /// RNG seed for the (deterministic) direction search.
     pub seed: u64,
+    /// Normal-score each variable before whitening.
+    pub marginal: bool,
 }
 
 impl Default for PpmtParams {
@@ -60,25 +67,31 @@ impl Default for PpmtParams {
             iterations: 30,
             candidates: 60,
             seed: 1,
+            marginal: true,
         }
     }
 }
 
 impl Ppmt {
-    /// Fit a PPMT to `data` (`n` rows of `dim` columns).
-    pub fn fit(data: &[Vec<f64>], params: &PpmtParams) -> Result<Self> {
-        let n = data.len();
-        if n < 2 {
-            return Err(TransformError::InsufficientData("need ≥ 2 rows".into()));
-        }
-        let dim = data[0].len();
-        if dim == 0 || data.iter().any(|r| r.len() != dim) {
+    /// Fit a PPMT to `data` (`n` rows of `dim` columns); `weights` (e.g.
+    /// declustering) shape the marginal normal scores.
+    pub fn fit(data: &[Vec<f64>], weights: Option<&[f64]>, params: &PpmtParams) -> Result<Self> {
+        let (n, dim) = (data.len(), check_rows(data, weights)?);
+        if weights.is_some() && !params.marginal {
             return Err(TransformError::InvalidParameters(
-                "ragged/empty rows".into(),
+                "weights need the marginal step".into(),
             ));
         }
-
-        let x = DMatrix::from_row_iterator(n, dim, data.iter().flat_map(|r| r.iter().copied()));
+        let mut x = DMatrix::from_row_iterator(n, dim, data.iter().flat_map(|r| r.iter().copied()));
+        let mut marginals = Vec::new();
+        if params.marginal {
+            for k in 0..dim {
+                let column: Vec<f64> = x.column(k).iter().copied().collect();
+                let ns = normal_score_table(&column, weights)?;
+                x.set_column(k, &DVector::from_vec(ns.scores));
+                marginals.push(ns.table);
+            }
+        }
         let mean: DVector<f64> = x.row_mean().transpose();
 
         // Covariance (population) of centered data.
@@ -140,6 +153,7 @@ impl Ppmt {
 
         Ok(Self {
             dim,
+            marginals,
             mean,
             whiten,
             dewhiten,
@@ -157,9 +171,11 @@ impl Ppmt {
         if n == 0 {
             return vec![];
         }
-        let x =
+        let mut centered =
             DMatrix::from_row_iterator(n, self.dim, data.iter().flat_map(|r| r.iter().copied()));
-        let mut centered = x;
+        for (k, table) in self.marginals.iter().enumerate() {
+            centered.column_mut(k).apply(|v| *v = table.forward(*v));
+        }
         for mut row in centered.row_iter_mut() {
             row -= self.mean.transpose();
         }
@@ -202,6 +218,9 @@ impl Ppmt {
         let mut out = x;
         for mut row in out.row_iter_mut() {
             row += self.mean.transpose();
+        }
+        for (k, table) in self.marginals.iter().enumerate() {
+            out.column_mut(k).apply(|v| *v = table.back(*v));
         }
         rows(&out)
     }
@@ -334,7 +353,7 @@ mod tests {
     #[test]
     fn forward_marginals_are_standard_normal() {
         let data = dataset();
-        let ppmt = Ppmt::fit(&data, &PpmtParams::default()).unwrap();
+        let ppmt = Ppmt::fit(&data, None, &PpmtParams::default()).unwrap();
         let g = ppmt.forward(&data);
         for k in 0..2 {
             let col: Vec<f64> = g.iter().map(|r| r[k]).collect();
@@ -353,7 +372,7 @@ mod tests {
     #[test]
     fn round_trips_training_data() {
         let data = dataset();
-        let ppmt = Ppmt::fit(&data, &PpmtParams::default()).unwrap();
+        let ppmt = Ppmt::fit(&data, None, &PpmtParams::default()).unwrap();
         let g = ppmt.forward(&data);
         let back = ppmt.back(&g);
         let mut max_err = 0.0f64;
@@ -368,7 +387,7 @@ mod tests {
     #[test]
     fn decorrelates() {
         let data = dataset();
-        let ppmt = Ppmt::fit(&data, &PpmtParams::default()).unwrap();
+        let ppmt = Ppmt::fit(&data, None, &PpmtParams::default()).unwrap();
         let g = ppmt.forward(&data);
         let n = g.len() as f64;
         let m0 = g.iter().map(|r| r[0]).sum::<f64>() / n;
