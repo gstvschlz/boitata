@@ -16,6 +16,7 @@ arrow-array.workspace = true
 arrow-cast.workspace = true
 arrow-schema.workspace = true
 arrow-select.workspace = true
+blocks.workspace = true
 ceres-core.workspace = true
 ceres-io.workspace = true
 coda.workspace = true

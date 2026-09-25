@@ -30,6 +30,7 @@ rand_distr = "0.4"
 ceres-core = { path = "crates/core" }
 ceres-io = { path = "crates/io" }
 variogram = { path = "crates/variogram" }
+blocks = { path = "crates/blocks" }
 coda = { path = "crates/coda" }
 drillholes = { path = "crates/drillholes" }
 transforms = { path = "crates/transforms" }
