@@ -334,6 +334,7 @@ dependencies = [
  "coda",
  "drillholes",
  "estimation",
+ "modeling",
  "numpy",
  "pyo3",
  "pyo3-arrow",

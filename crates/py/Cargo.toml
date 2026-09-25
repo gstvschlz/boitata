@@ -22,6 +22,7 @@ ceres-io.workspace = true
 coda.workspace = true
 drillholes.workspace = true
 estimation.workspace = true
+modeling.workspace = true
 numpy.workspace = true
 pyo3.workspace = true
 pyo3-arrow.workspace = true

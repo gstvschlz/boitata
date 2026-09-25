@@ -599,5 +599,29 @@ class LocalAnisotropy:
     def ratios(self) -> npt.NDArray[np.float64]: ...
     def __len__(self) -> int: ...
 
+class ImplicitModel:
+    def __init__(
+        self,
+        engine: str = "rbf",
+        kernel: str = "biharmonic",
+        variogram: Variogram | None = None,
+        drift_degree: int = 1,
+        smoothing: float = 0.0,
+    ) -> None: ...
+    def fit(
+        self,
+        coords: ArrayLike | None = None,
+        values: ArrayLike | None = None,
+        boundaries: ArrayLike | None = None,
+        planes: ArrayLike | None = None,
+        lineations: ArrayLike | None = None,
+    ) -> ImplicitModel: ...
+    def evaluate(self, targets: Any, gradient: bool = False) -> Any: ...
+    def isosurface(
+        self, block_model: BlockModel, isovalue: float = 0.0, closed: bool = False
+    ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.int64]]: ...
+    @property
+    def report(self) -> dict[str, Any] | None: ...
+
 def write_parquet(path: Path, data: PointSet | BlockModel | TableLike) -> None: ...
 def read_parquet(path: Path) -> PointSet | BlockModel | Table: ...
