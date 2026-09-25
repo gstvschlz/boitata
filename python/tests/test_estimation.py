@@ -87,3 +87,34 @@ def test_neighborhood_stats_columns():
     stats = cs.neighborhood_stats(coords[:4], coords, values, k=5)
     assert set(stats) >= {"nearest_dist", "value_mean", "n_within"}
     np.testing.assert_allclose(stats["nearest_dist"], 0.0)
+
+
+def test_cokriging_with_only_primary_data_is_ordinary_kriging():
+    lmc = cs.Coregionalization([[0.0, 0.0], [0.0, 0.0]], [("spherical", 40.0, [[1.0, 0.7], [0.7, 1.0]])])
+    ck = cs.Cokriging(lmc, search).fit(coords, values, [0] * len(values))
+    targets = rng.uniform(0, 100, (25, 2))
+    np.testing.assert_allclose(
+        ck.predict(targets), cs.OrdinaryKriging(model, search).fit(coords, values).predict(targets)
+    )
+
+
+def test_collocated_cokriging_uses_the_secondary():
+    lmc = cs.Coregionalization([[0.0, 0.0], [0.0, 0.0]], [("spherical", 40.0, [[1.0, 0.9], [0.9, 1.0]])])
+    secondary = values + rng.normal(0, 0.1, len(values))
+    xy = np.vstack([coords, coords])
+    ck = cs.Cokriging(lmc, search, means=[values.mean(), secondary.mean()])
+    ck.fit(xy, np.r_[values, secondary], [0] * len(values) + [1] * len(values))
+    targets = rng.uniform(0, 100, (10, 2))
+    plain = ck.predict(targets)
+    with_secondary = ck.predict(targets, collocated={1: np.full(10, 5.0)})
+    assert np.all(with_secondary > plain)
+
+
+def test_disjunctive_kriging_tonnage_is_a_proportion():
+    grades = rng.lognormal(0, 0.5, len(coords))
+    anam = cs.HermiteAnamorphosis().fit(grades)
+    dk = cs.DisjunctiveKriging(anam, model, search, order=15).fit(coords, grades)
+    targets = rng.uniform(0, 100, (20, 2))
+    t = dk.predict_tonnage(targets, cutoff=float(np.median(grades)))
+    assert np.all((t > -0.05) & (t < 1.05))
+    assert np.all(np.isfinite(dk.predict(targets)))

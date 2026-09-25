@@ -150,7 +150,7 @@ pub fn targets(obj: &Bound<PyAny>) -> PyResult<Vec<Point>> {
     Ok(rows.into_iter().map(|[x, y, z]| (x, y, z)).collect())
 }
 
-fn outputs<'py>(
+pub fn outputs<'py>(
     py: Python<'py>,
     results: &[Option<Estimate>],
     return_variance: bool,
