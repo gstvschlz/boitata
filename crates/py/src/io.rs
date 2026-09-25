@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use ceres_io::{CsvOptions, NODATA};
 use pyo3::prelude::*;
 
+use crate::containers::{PyBlockModel, PyPointSet};
 use crate::table::{Table, to_batch};
 use crate::{error, invalid};
 
@@ -50,7 +51,32 @@ fn write_gslib(path: PathBuf, table: &Bound<PyAny>, missing: f64) -> PyResult<()
     ceres_io::write_gslib(path, &to_batch(table)?, missing).map_err(io_error)
 }
 
+/// Writes a PointSet, a BlockModel or any table to Parquet; containers keep
+/// their geometry, layout and CRS in the file metadata.
+#[pyfunction]
+fn write_parquet(path: PathBuf, data: &Bound<PyAny>) -> PyResult<()> {
+    if let Ok(points) = data.cast::<PyPointSet>() {
+        return ceres_io::write_points(path, &points.get().0).map_err(io_error);
+    }
+    if let Ok(model) = data.cast::<PyBlockModel>() {
+        return ceres_io::write_block_model(path, &model.get().0).map_err(io_error);
+    }
+    ceres_io::write_parquet(path, &to_batch(data)?).map_err(io_error)
+}
+
+/// Reads Parquet as the PointSet or BlockModel it was written from, or a Table.
+#[pyfunction]
+fn read_parquet(py: Python, path: PathBuf) -> PyResult<Py<PyAny>> {
+    Ok(match ceres_io::read_parquet(path).map_err(io_error)? {
+        ceres_io::Stored::Points(p) => PyPointSet(p).into_pyobject(py)?.into_any().unbind(),
+        ceres_io::Stored::Blocks(b) => PyBlockModel(b).into_pyobject(py)?.into_any().unbind(),
+        ceres_io::Stored::Table(t) => Table(t).into_pyobject(py)?.into_any().unbind(),
+    })
+}
+
 pub fn register(m: &Bound<PyModule>) -> PyResult<()> {
+    m.add_function(wrap_pyfunction!(write_parquet, m)?)?;
+    m.add_function(wrap_pyfunction!(read_parquet, m)?)?;
     m.add_function(wrap_pyfunction!(read_csv, m)?)?;
     m.add_function(wrap_pyfunction!(write_csv, m)?)?;
     m.add_function(wrap_pyfunction!(read_gslib, m)?)?;

@@ -77,3 +77,32 @@ def test_arrow_interop():
     back = cs.Table(pa.table({"a": [1.5, None]}))
     assert back.num_rows == 2 and math.isnan(back["a"][1])
     assert points.attributes.to_pandas()["v"].tolist() == [1.0, 2.0]
+
+
+def test_parquet_round_trips_containers(tmp_path):
+    points = cs.PointSet([[0, 0, 1], [1, 2, 3]], {"v": [1.0, np.nan]}, crs="EPSG:32611")
+    cs.write_parquet(tmp_path / "p.parquet", points)
+    back = cs.read_parquet(tmp_path / "p.parquet")
+    assert isinstance(back, cs.PointSet) and back.crs == "EPSG:32611"
+    np.testing.assert_array_equal(back.coords, points.coords)
+    assert math.isnan(back["v"][1])
+
+    model = cs.BlockModel(
+        origin=(0, 0), size=(10, 10), count=(4, 3), rotation=(30, 0, 0), attributes={"g": np.arange(12.0)}
+    )
+    masked = model.mask(np.arange(12) % 5 == 0)
+    cs.write_parquet(tmp_path / "b.parquet", masked)
+    back = cs.read_parquet(tmp_path / "b.parquet")
+    assert isinstance(back, cs.BlockModel) and back.rotation == [30.0, 0.0, 0.0]
+    np.testing.assert_array_equal(back.index, masked.index)
+    np.testing.assert_array_equal(back["g"], masked["g"])
+
+
+def test_parquet_is_readable_by_other_tools(tmp_path):
+    pl = pytest.importorskip("polars")
+    cs.write_parquet(
+        tmp_path / "b.parquet",
+        cs.BlockModel(origin=(0, 0), size=(1, 1), count=(2, 2), attributes={"g": [1.0, 2, 3, 4]}),
+    )
+    assert pl.read_parquet(tmp_path / "b.parquet")["g"].to_list() == [1, 2, 3, 4]
+    assert isinstance(cs.read_parquet(tmp_path / "b.parquet"), cs.BlockModel)
