@@ -518,7 +518,7 @@ mod tests {
         for (i, a) in smooth.angles.iter().enumerate() {
             assert!(a[1].abs() < 1e-6, "dip {}", a[1]);
             assert!(
-                close(a[0], 20.0 + i as f64) || i < 3 || i > 26,
+                close(a[0], 20.0 + i as f64) || !(3..=26).contains(&i),
                 "azimuth {} at {i}",
                 a[0]
             );

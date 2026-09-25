@@ -147,6 +147,7 @@ pub fn sgs(
 
 /// Run `n` independent realizations (seeds `seed, seed+1, …`) in parallel; the
 /// result does not depend on the number of threads.
+#[allow(clippy::too_many_arguments)]
 pub fn sgs_ensemble(
     data_locs: &[(f64, f64, f64)],
     data_vals: &[f64],
