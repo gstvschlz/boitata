@@ -8,3 +8,19 @@ edition = "2024"
 rust-version = "1.97"
 license = "MIT"
 publish = false
+
+[workspace.dependencies]
+serde = { version = "1", features = ["derive"] }
+nalgebra = { version = "0.33", features = ["serde-serialize"] }
+thiserror = "1"
+rayon = "1.10"
+rand = "0.8"
+rand_distr = "0.4"
+ceres-core = { path = "crates/core" }
+variogram = { path = "crates/variogram" }
+transforms = { path = "crates/transforms" }
+estimation = { path = "crates/estimation" }
+
+[workspace.lints.clippy]
+needless_range_loop = "allow"
+type_complexity = "allow"

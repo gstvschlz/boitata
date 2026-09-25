@@ -1,0 +1,18 @@
+[package]
+name = "modeling"
+description = "Implicit geological modeling: RBF / dual-kriging scalar fields and isosurface extraction"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+nalgebra.workspace = true
+thiserror.workspace = true
+rand.workspace = true
+variogram.workspace = true
+estimation.workspace = true
+
+[lints]
+workspace = true

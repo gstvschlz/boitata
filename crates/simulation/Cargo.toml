@@ -1,0 +1,20 @@
+[package]
+name = "simulation"
+description = "Geostatistical simulation: sequential Gaussian (SGS) and indicator (SIS) simulation"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+nalgebra.workspace = true
+thiserror.workspace = true
+rand.workspace = true
+rand_distr.workspace = true
+variogram.workspace = true
+transforms.workspace = true
+estimation.workspace = true
+
+[lints]
+workspace = true

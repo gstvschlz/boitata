@@ -1,0 +1,18 @@
+[package]
+name = "estimation"
+description = "Estimation: kriging (OK/SK/IK), IDW, nearest-neighbor, search, block support, and cross-validation"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+serde.workspace = true
+nalgebra.workspace = true
+thiserror.workspace = true
+variogram.workspace = true
+transforms.workspace = true
+
+[lints]
+workspace = true
