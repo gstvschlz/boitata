@@ -47,5 +47,34 @@ fn bench(c: &mut Criterion) {
     group.finish();
 }
 
-criterion_group!(benches, bench);
+fn kriging(c: &mut Criterion) {
+    let samples: Vec<Sample> = cloud(5_000, 3)
+        .into_iter()
+        .map(|p| Sample::new(p, (p.0 / 100.0).sin() + p.2 / 400.0))
+        .collect();
+    let targets = cloud(10_000, 4);
+    let search = Search {
+        min_samples: 4,
+        max_samples: 24,
+        radius: 300.0,
+        ..Default::default()
+    };
+    let vg = variogram::Variogram::single(variogram::Model::Spherical, 1.0, 300.0);
+    c.bench_function(
+        "ordinary kriging of 10 000 targets from 5 000 samples",
+        |b| {
+            b.iter(|| {
+                black_box(estimation::estimate_many(
+                    &targets,
+                    &samples,
+                    &search,
+                    Some(&vg),
+                    |t, s| estimation::krige(estimation::Kind::Ordinary, t, s, &vg),
+                ))
+            })
+        },
+    );
+}
+
+criterion_group!(benches, bench, kriging);
 criterion_main!(benches);

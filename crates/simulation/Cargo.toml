@@ -17,5 +17,12 @@ variogram.workspace = true
 transforms.workspace = true
 estimation.workspace = true
 
+[dev-dependencies]
+criterion.workspace = true
+
+[[bench]]
+name = "simulation"
+harness = false
+
 [lints]
 workspace = true
