@@ -1,0 +1,39 @@
+//! Geospatial transforms.
+//!
+//! Modules:
+//! - [`decluster`] — cell declustering (weights, optimal cell size)
+//! - [`nscore`]   — normal-score transform and back-transform
+//! - [`detrend`]  — polynomial trend fitting/removal
+//! - [`scale`]    — up/downscaling between supports
+//! - [`normal`]   — standard-normal CDF/quantile helpers (shared)
+
+pub mod anamorphosis;
+pub mod boxcox;
+pub mod decluster;
+pub mod detrend;
+pub mod dgm;
+pub mod error;
+pub mod hermite;
+pub mod normal;
+pub mod nscore;
+pub mod ppmt;
+pub mod scale;
+pub mod selectivity;
+pub mod support;
+pub mod uc;
+
+pub use anamorphosis::HermiteAnamorphosis;
+pub use boxcox::{box_cox, box_cox_inverse, optimal_lambda, skewness_at};
+pub use decluster::{
+    Weights, cell_weights, decluster_mean_over_offsets, optimal_cell_size, polygon_weights,
+};
+pub use detrend::{Trend, detrend};
+pub use dgm::{BlockDiscretization, change_of_support};
+pub use error::{Result, TransformError};
+pub use normal::{phi, probit};
+pub use nscore::{Nscore, NscoreTable, transform as nscore_transform};
+pub use ppmt::{Ppmt, PpmtParams};
+pub use scale::{CoarseBlock, downscale, upscale};
+pub use selectivity::{Recovery, grade_tonnage, recovery};
+pub use support::{affine_correction, indirect_lognormal_correction, weighted_mean_variance};
+pub use uc::UniformConditioning;
