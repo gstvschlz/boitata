@@ -1,8 +1,8 @@
 # %% [markdown]
 # # 18. Validation and classification
 #
-# Block kriging of Walker Lake `V` on 10 × 10 m blocks, then the checks a resource estimate needs: global bias
-# against the declustered data, kriging efficiency and slope of regression per block, a classification from them
+# Block kriging of Walker Lake `V` on 10 × 10 m blocks, then the checks a resource estimate needs: global and local
+# bias against the declustered data, kriging efficiency and slope of regression per block, a classification from them
 # and the sample spacing, and a majority filter that removes isolated blocks. The exhaustive grid confirms what the
 # slope of regression predicts.
 
@@ -37,6 +37,27 @@ print(
     f"blocks {bias['estimate_mean']:.0f} ppm, declustered data {bias['data_mean']:.0f} ppm ({bias['relative']:+.1%})"
 )
 print(f"true mean {true_blocks.mean():.0f} ppm")
+
+# %% [markdown]
+# Local bias shows in swaths: mean grade in 20 m slices along easting and northing, for the blocks, the declustered
+# samples and the truth. Blocks track the truth slice by slice and are smoother than the samples, whose slice means
+# scatter where few samples fall.
+
+# %%
+fig, axes = plt.subplots(1, 2, figsize=(10, 3.6), layout="constrained")
+centroids = blocks.centroids
+for ax, axis, name in ((axes[0], "x", "Easting (m)"), (axes[1], "y", "Northing (m)")):
+    series = [
+        cs.swath(xy, v, 20.0, axis=axis, weights=weights),
+        cs.swath(centroids, d["value"], 20.0, axis=axis),
+        cs.swath(centroids, true_blocks, 20.0, axis=axis),
+    ]
+    cs.plot.swath(series, labels=["declustered samples", "blocks", "truth"], ax=ax)
+    for line, color in zip(ax.lines, (GREY, ACCENT, "black"), strict=True):
+        line.set_color(color)
+    ax.legend()
+    ax.set(xlabel=name, ylabel="V (ppm)")
+save(fig, "swaths")
 
 # %% [markdown]
 # Kriging efficiency compares the block variance with the kriging variance: 1 for a perfectly known block, 0 or less
