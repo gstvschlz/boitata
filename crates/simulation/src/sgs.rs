@@ -11,7 +11,7 @@
 use crate::error::{Result, SimError};
 use estimation::Sample;
 use estimation::krige::{Kind, krige};
-use estimation::search::{Search, neighbors};
+use estimation::search::{Search, SearchTree};
 use rand::SeedableRng;
 use rand::rngs::StdRng;
 use rand::seq::SliceRandom;
@@ -71,6 +71,7 @@ pub fn sgs(
             hole: None,
         })
         .collect();
+    let mut tree = SearchTree::new(&cond, &params.search, Some(vg_nscore));
 
     // 2. Random path over grid nodes.
     let mut rng = StdRng::seed_from_u64(params.seed);
@@ -84,7 +85,7 @@ pub fn sgs(
         let target = grid[node];
 
         // 3. Kriging from neighbors (simple kriging, mean 0 in Gaussian space).
-        let found = neighbors(&target, &cond, &params.search, Some(vg_nscore));
+        let found = tree.neighbors(&target);
         if let Some(&k) = found.iter().flatten().find(|&&k| cond[k].loc == target) {
             // A node on a datum takes its value and is not added again.
             sim_scores[node] = cond[k].value;
@@ -104,11 +105,13 @@ pub fn sgs(
 
         sim_scores[node] = score;
         // 4. Add simulated node to the conditioning set.
-        cond.push(Sample {
+        let sample = Sample {
             loc: target,
             value: score,
             hole: None,
-        });
+        };
+        tree.add(&sample);
+        cond.push(sample);
     }
 
     // 5. Back-transform to data space.
@@ -164,6 +167,7 @@ mod tests {
                 radius: f64::INFINITY,
                 max_per_hole: None,
                 octant: false,
+                anisotropy: None,
             },
             seed: 42,
         };
@@ -189,6 +193,7 @@ mod tests {
                 radius: f64::INFINITY,
                 max_per_hole: None,
                 octant: false,
+                anisotropy: None,
             },
             seed: 7,
         };
@@ -210,6 +215,7 @@ mod tests {
                 radius: f64::INFINITY,
                 max_per_hole: None,
                 octant: false,
+                anisotropy: None,
             },
             seed,
         };
@@ -231,6 +237,7 @@ mod tests {
                 radius: 50.0,
                 max_per_hole: None,
                 octant: false,
+                anisotropy: None,
             },
             seed: 4,
         };
@@ -255,6 +262,7 @@ mod tests {
                 radius: 30.0,
                 max_per_hole: None,
                 octant: false,
+                anisotropy: None,
             },
             seed: 9,
         };
@@ -292,6 +300,7 @@ mod tests {
                 radius: f64::INFINITY,
                 max_per_hole: None,
                 octant: false,
+                anisotropy: None,
             },
             seed: 100,
         };

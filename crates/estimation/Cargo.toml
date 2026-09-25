@@ -10,10 +10,18 @@ publish.workspace = true
 [dependencies]
 serde.workspace = true
 nalgebra.workspace = true
+kiddo.workspace = true
 rayon.workspace = true
 thiserror.workspace = true
 variogram.workspace = true
 transforms.workspace = true
+
+[dev-dependencies]
+criterion.workspace = true
+
+[[bench]]
+name = "search"
+harness = false
 
 [lints]
 workspace = true

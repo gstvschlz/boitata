@@ -84,7 +84,7 @@ fn bins(lag: f64, max_lag: f64) -> PyResult<LagBins> {
     })
 }
 
-fn anisotropy(rotation: (f64, f64, f64), ratios: (f64, f64)) -> PyResult<Option<Anisotropy>> {
+pub fn anisotropy(rotation: (f64, f64, f64), ratios: (f64, f64)) -> PyResult<Option<Anisotropy>> {
     if rotation == (0.0, 0.0, 0.0) && ratios == (1.0, 1.0) {
         return Ok(None);
     }

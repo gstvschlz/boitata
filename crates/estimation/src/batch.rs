@@ -4,7 +4,7 @@ use rayon::prelude::*;
 use variogram::Variogram;
 
 use crate::krige::Estimate;
-use crate::search::{Search, neighbors};
+use crate::search::{Search, SearchTree};
 use crate::{Result, Sample};
 
 /// Selects the neighbours of every target and applies `estimator` to them, in
@@ -21,10 +21,11 @@ pub fn estimate_many<F>(
 where
     F: Fn(&(f64, f64, f64), &[Sample]) -> Result<Estimate> + Sync,
 {
+    let tree = SearchTree::new(samples, search, vg);
     targets
         .par_iter()
         .map(|target| {
-            let chosen = neighbors(target, samples, search, vg).ok()?;
+            let chosen = tree.neighbors(target).ok()?;
             let selected: Vec<Sample> = chosen.iter().map(|&i| samples[i].clone()).collect();
             estimator(target, &selected).ok()
         })
@@ -45,11 +46,12 @@ where
         max_samples: search.max_samples + 1,
         ..search.clone()
     };
+    let tree = SearchTree::new(samples, &wider, vg);
     (0..samples.len())
         .into_par_iter()
         .map(|i| {
             let target = &samples[i].loc;
-            let mut chosen = neighbors(target, samples, &wider, vg).unwrap_or_default();
+            let mut chosen = tree.neighbors(target).unwrap_or_default();
             chosen.retain(|&j| j != i);
             chosen.truncate(search.max_samples);
             if chosen.len() < search.min_samples.max(1) {
@@ -85,6 +87,7 @@ mod tests {
             radius: 30.0,
             max_per_hole: None,
             octant: false,
+            anisotropy: None,
         };
         let targets: Vec<_> = (0..400)
             .map(|i| ((i % 20) as f64 * 5.0, (i / 20) as f64 * 5.0, 0.0))
@@ -122,6 +125,7 @@ mod tests {
             radius: 30.0,
             max_per_hole: None,
             octant: false,
+            anisotropy: None,
         };
         let ours = leave_one_out_many(&samples, &search, Some(&vg), |t, s| {
             krige(Kind::Ordinary, t, s, &vg)
@@ -144,6 +148,7 @@ mod tests {
             radius: 30.0,
             max_per_hole: None,
             octant: false,
+            anisotropy: None,
         };
         let targets: Vec<_> = samples.iter().map(|s| s.loc).collect();
         let out = estimate_many(&targets, &samples, &search, Some(&vg), |t, s| {
