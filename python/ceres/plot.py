@@ -7,7 +7,7 @@ import numpy as np
 
 from ceres._ceres import normal_ppf
 
-__all__ = ["histogram", "probability", "scatter", "section", "variogram"]
+__all__ = ["histogram", "probability", "scatter", "section", "swath", "variogram"]
 
 
 def _axes(ax):
@@ -192,4 +192,37 @@ def section(block_model, values, axis="z", index=None, colorbar=True, ax=None, *
     ax.set_aspect("equal")
     if colorbar:
         fig.colorbar(im, ax=ax, shrink=0.8, label=None if name == "_values" else name)
+    return fig, ax
+
+
+def swath(swaths, labels=None, ax=None, **kwargs):
+    """Mean per slice of one or several `swath` results, with the first one's counts as light bars.
+
+    Parameters
+    ----------
+    swaths : dict or list of dict
+        Results of ``ceres.swath``, e.g. composites and blocks with the same width.
+    labels : list of str, optional
+        Legend entries.
+    **kwargs
+        Passed to every ``ax.plot``.
+    """
+    fig, ax = _axes(ax)
+    swaths = [swaths] if isinstance(swaths, dict) else list(swaths)
+    labels = labels or [None] * len(swaths)
+    first = swaths[0]
+    bars = ax.twinx()
+    width = np.diff(first["centres"]).min() if len(first["centres"]) > 1 else 1.0
+    bars.bar(first["centres"], first["count"], width=width, color="0.9", zorder=0)
+    bars.set_ylabel("Count", color="0.5")
+    bars.tick_params(axis="y", colors="0.5")
+    ax.set_zorder(bars.get_zorder() + 1)
+    ax.patch.set_visible(False)
+    kwargs.setdefault("marker", ".")
+    for s, label in zip(swaths, labels, strict=True):
+        ax.plot(s["centres"], s["mean"], label=label, **kwargs)
+    if any(labels):
+        ax.legend()
+    ax.set_xlabel("Distance along swath")
+    ax.set_ylabel("Mean")
     return fig, ax

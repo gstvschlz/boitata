@@ -601,3 +601,42 @@ class LocalAnisotropy:
 
 def write_parquet(path: Path, data: PointSet | BlockModel | TableLike) -> None: ...
 def read_parquet(path: Path) -> PointSet | BlockModel | Table: ...
+def describe(
+    values: ArrayLike,
+    weights: ArrayLike | None = None,
+    quantiles: Sequence[float] = (0.1, 0.25, 0.5, 0.75, 0.9),
+) -> dict[str, Any]: ...
+def swath(
+    coords: ArrayLike,
+    values: ArrayLike,
+    width: float,
+    azimuth: float | None = None,
+    axis: str | None = None,
+    weights: ArrayLike | None = None,
+) -> dict[str, npt.NDArray[np.float64] | list[int]]: ...
+def contact(
+    coords: ArrayLike,
+    values: ArrayLike,
+    domains: Holes,
+    holes: Holes,
+    inside: int | str,
+    outside: int | str,
+    max_distance: float,
+    bin: float,
+) -> dict[str, npt.NDArray[np.float64] | list[int]]: ...
+def capping(
+    values: ArrayLike, weights: ArrayLike | None = None, caps: ArrayLike | None = None
+) -> dict[str, npt.NDArray[np.float64]]: ...
+def h_scatter(
+    coords: ArrayLike,
+    values: ArrayLike,
+    lag: float,
+    tolerance: float,
+    azimuth: float | None = None,
+    dip: float = 0.0,
+    angle_tolerance: float = 22.5,
+    other: ArrayLike | None = None,
+) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64], float]: ...
+def correlation(
+    data: ArrayLike, weights: ArrayLike | None = None, method: str = "pearson"
+) -> npt.NDArray[np.float64]: ...

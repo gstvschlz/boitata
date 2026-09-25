@@ -49,3 +49,10 @@ def test_section_slices_a_masked_model():
     assert ax.images[0].get_extent() == [0, 8, 0, 6]
     _, ax = cs.plot.section(bm, np.ones(23), axis="x")
     assert ax.images[0].get_array().shape == (2, 3)
+
+
+def test_swath_draws_each_result():
+    xy = rng.uniform(0, 100, (300, 2))
+    s = cs.swath(xy, xy[:, 0], 10.0, axis="x")
+    _, ax = cs.plot.swath([s, s], labels=["a", "b"])
+    assert len(ax.lines) == 2
