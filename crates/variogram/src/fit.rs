@@ -13,7 +13,7 @@ pub enum Weighting {
     Uniform,
     /// Weight by pair count `N(h)` (more pairs ⇒ more reliable lag).
     ByCount,
-    /// GeoStats-style `N(h) / γ_model(h)²` (emphasizes short lags).
+    /// `N(h) / γ_model(h)²` (emphasizes short lags).
     ByCountOverGamma,
 }
 

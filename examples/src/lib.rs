@@ -8,6 +8,11 @@ use arrow_array::types::Float64Type;
 use arrow_array::{ArrayRef, Float64Array, RecordBatch};
 use ceres_core::PointSet;
 use ceres_io::{CsvOptions, read_csv, write_csv};
+use variogram::surface::{PlaneMap, PlaneMapParams, plane_map};
+use variogram::{
+    Angles, Anisotropy, Direction, Estimator, Experimental, LagBins, Model, Structure, Variogram,
+    Weighting, experimental, fit,
+};
 
 pub type Point = (f64, f64, f64);
 
@@ -55,4 +60,78 @@ pub fn write(file: &str, columns: &[(&str, &[f64])]) {
 
 pub fn mean(values: &[f64]) -> f64 {
     values.iter().sum::<f64>() / values.len() as f64
+}
+
+pub struct Fitted {
+    pub model: Variogram,
+    pub azimuth: f64,
+    pub major: Experimental,
+    pub minor: Experimental,
+    pub plane: PlaneMap,
+}
+
+/// Picks the major azimuth from a variogram map, fits a spherical model along
+/// it and across it, and combines them: nugget, sill and major range from the
+/// major direction, the range ratio from the minor one.
+pub fn fit_anisotropic(locs: &[Point], values: &[f64], bins: &LagBins) -> Fitted {
+    let params = PlaneMapParams {
+        bins: bins.clone(),
+        ..Default::default()
+    };
+    let plane = plane_map(locs, values, (1.0, 0.0, 0.0), (0.0, 1.0, 0.0), &params).unwrap();
+    let (angle, _) = plane
+        .angles
+        .iter()
+        .zip(&plane.ranges)
+        .filter_map(|(a, r)| r.map(|r| (*a, r)))
+        .fold(
+            (0.0, f64::MIN),
+            |best, c| if c.1 > best.1 { c } else { best },
+        );
+    let azimuth = (90.0 - angle.to_degrees()).rem_euclid(180.0);
+
+    let directional = |azimuth: f64| {
+        let direction = Direction {
+            azimuth,
+            dip: 0.0,
+            tolerance: 22.5,
+            bandwidth: None,
+        };
+        experimental(locs, values, bins, Estimator::Matheron, Some(&direction)).unwrap()
+    };
+    let (major, minor) = (directional(azimuth), directional(azimuth + 90.0));
+    let along = fit(&major, Model::Spherical, Weighting::ByCount)
+        .unwrap()
+        .variogram;
+    let across = fit(&minor, Model::Spherical, Weighting::ByCount)
+        .unwrap()
+        .variogram;
+    let (range, ratio) = (
+        along.structures[0].range,
+        (across.structures[0].range / along.structures[0].range).min(1.0),
+    );
+    let angles = Angles {
+        azimuth,
+        dip: 0.0,
+        pitch: 0.0,
+        major: 1.0,
+        semi: ratio,
+        minor: 1.0,
+    };
+    let model = Variogram {
+        nugget: along.nugget,
+        structures: vec![Structure::new(
+            Model::Spherical,
+            along.structures[0].sill,
+            range,
+        )],
+        anisotropy: Some(Anisotropy::new(angles).unwrap()),
+    };
+    Fitted {
+        model,
+        azimuth,
+        major,
+        minor,
+        plane,
+    }
 }
