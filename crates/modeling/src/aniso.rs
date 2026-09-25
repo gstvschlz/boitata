@@ -25,7 +25,7 @@ impl AnisoTransform {
             .validate()
             .map_err(|e| ModelError::InvalidParameter(e.to_string()))?;
         Ok(Self {
-            rotation: rotation_matrix(angles.azimuth, angles.dip, angles.pitch),
+            rotation: rotation_matrix(angles.azimuth, angles.dip, angles.rake),
             ranges: [angles.major, angles.semi, angles.minor],
         })
     }
@@ -73,7 +73,7 @@ mod tests {
         Angles {
             azimuth: 35.0,
             dip: 20.0,
-            pitch: 10.0,
+            rake: 10.0,
             major: 120.0,
             semi: 60.0,
             minor: 15.0,

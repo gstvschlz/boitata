@@ -11,14 +11,15 @@ pub use ceres_core::rotation_matrix;
 /// Angles (degrees):
 /// - `azimuth`: direction of the major axis (0–360°, from North, clockwise)
 /// - `dip`: inclination of the major axis (−90°…+90°, positive plunging down)
-/// - `pitch`: rotation about the major axis (0–360°)
+/// - `rake`: rotation about the major axis (0–360°)
 ///
 /// Ranges (meters): `major` ≥ `semi` ≥ `minor` (not enforced, but conventional).
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Angles {
     pub azimuth: f64,
     pub dip: f64,
-    pub pitch: f64,
+    #[serde(alias = "pitch")]
+    pub rake: f64,
     pub major: f64,
     pub semi: f64,
     pub minor: f64,
@@ -62,7 +63,7 @@ impl Anisotropy {
     /// Build from angles/ranges.
     pub fn new(angles: Angles) -> Result<Self> {
         angles.validate()?;
-        let rotation = rotation_matrix(angles.azimuth, angles.dip, angles.pitch);
+        let rotation = rotation_matrix(angles.azimuth, angles.dip, angles.rake);
         Ok(Self { angles, rotation })
     }
 
@@ -115,7 +116,7 @@ mod tests {
         let a = Anisotropy::new(Angles {
             azimuth: 0.0,
             dip: 0.0,
-            pitch: 0.0,
+            rake: 0.0,
             major: 100.0,
             semi: 100.0,
             minor: 100.0,
@@ -133,7 +134,7 @@ mod tests {
         let a = Anisotropy::new(Angles {
             azimuth: 90.0,
             dip: 0.0,
-            pitch: 0.0,
+            rake: 0.0,
             major: 100.0,
             semi: 100.0,
             minor: 10.0,
@@ -157,7 +158,7 @@ mod tests {
         let a = Anisotropy::new(Angles {
             azimuth: 30.0,
             dip: 10.0,
-            pitch: 5.0,
+            rake: 5.0,
             major: 1.0,
             semi: 0.5,
             minor: 0.2,
@@ -169,11 +170,20 @@ mod tests {
     }
 
     #[test]
+    fn reads_the_old_pitch_name() {
+        let a: Angles = serde_json::from_str(
+            r#"{"azimuth":10,"dip":5,"pitch":20,"major":1,"semi":0.5,"minor":0.5}"#,
+        )
+        .unwrap();
+        assert_eq!(a.rake, 20.0);
+    }
+
+    #[test]
     fn rejects_nonpositive_range() {
         let bad = Angles {
             azimuth: 0.0,
             dip: 0.0,
-            pitch: 0.0,
+            rake: 0.0,
             major: 0.0,
             semi: 100.0,
             minor: 100.0,

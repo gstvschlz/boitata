@@ -82,12 +82,12 @@ impl LocalAnisotropy {
 
     /// Anisotropy at location `i`, with ranges as ratios of the major range.
     pub fn anisotropy(&self, i: usize) -> Anisotropy {
-        let [azimuth, dip, pitch] = self.angles[i];
+        let [azimuth, dip, rake] = self.angles[i];
         let [semi, minor] = self.ratios[i];
         Anisotropy::new(Angles {
             azimuth,
             dip,
-            pitch,
+            rake,
             major: 1.0,
             semi,
             minor,

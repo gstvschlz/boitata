@@ -495,7 +495,7 @@ mod tests {
         let aniso = Anisotropy::new(Angles {
             azimuth: 35.0,
             dip: 10.0,
-            pitch: 0.0,
+            rake: 0.0,
             major: 1.0,
             semi: 0.4,
             minor: 0.2,

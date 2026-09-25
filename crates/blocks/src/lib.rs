@@ -1,6 +1,6 @@
-//! Block model management: grids, domain assignment, and point-in-solid testing.
+//! Domain assignment, point-in-solid testing, polygon selection and block shells.
 //!
-//! Handles regular rotated block grids, domain assignment with multiple strategies,
+//! Domain assignment with multiple strategies,
 //! and point-in-solid testing using generalized winding number for robust mesh handling.
 
 mod distance;
@@ -17,140 +17,10 @@ pub use shell::{
 };
 pub use solid::{Aabb, BlockDomainRule, BlockSolid, SolidTester};
 
-use nalgebra::{Matrix3, Vector3};
+use nalgebra::Vector3;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-/// Block grid parameters.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct BlockGridParams {
-    /// Origin (east, north, elev)
-    pub origin: (f64, f64, f64),
-    /// Block dimensions (m)
-    pub block_size: (f64, f64, f64),
-    /// Grid extent (nx, ny, nz blocks)
-    pub grid_extent: (usize, usize, usize),
-    /// Rotation angles in degrees (azimuth, dip, pitch)
-    pub rotation: Option<(f64, f64, f64)>,
-}
-
-impl BlockGridParams {
-    pub fn validate(&self) -> Result<()> {
-        if self.block_size.0 <= 0.0 || self.block_size.1 <= 0.0 || self.block_size.2 <= 0.0 {
-            return Err(BlockModelError::InvalidGridParams(
-                "Block dimensions must be positive".to_string(),
-            ));
-        }
-
-        if self.grid_extent.0 == 0 || self.grid_extent.1 == 0 || self.grid_extent.2 == 0 {
-            return Err(BlockModelError::InvalidGridParams(
-                "Grid extent must be positive".to_string(),
-            ));
-        }
-
-        Ok(())
-    }
-
-    pub fn total_blocks(&self) -> usize {
-        self.grid_extent.0 * self.grid_extent.1 * self.grid_extent.2
-    }
-}
-
-/// Regular block model grid.
-pub struct BlockGrid {
-    pub params: BlockGridParams,
-    rotation_matrix: Option<Matrix3<f64>>,
-}
-
-impl BlockGrid {
-    /// Create a new block grid.
-    pub fn new(params: BlockGridParams) -> Result<Self> {
-        params.validate()?;
-
-        let rotation_matrix = params
-            .rotation
-            .map(|(az, dip, pitch)| ceres_core::block_frame([az, dip, pitch]).transpose());
-
-        Ok(BlockGrid {
-            params,
-            rotation_matrix,
-        })
-    }
-
-    /// Get block center location (east, north, elev).
-    pub fn block_center(&self, ix: usize, iy: usize, iz: usize) -> Result<(f64, f64, f64)> {
-        if ix >= self.params.grid_extent.0
-            || iy >= self.params.grid_extent.1
-            || iz >= self.params.grid_extent.2
-        {
-            return Err(BlockModelError::InvalidGridParams(
-                "Block indices out of bounds".to_string(),
-            ));
-        }
-
-        let mut offset = Vector3::new(
-            (ix as f64 + 0.5) * self.params.block_size.0,
-            (iy as f64 + 0.5) * self.params.block_size.1,
-            (iz as f64 + 0.5) * self.params.block_size.2,
-        );
-        if let Some(rot) = &self.rotation_matrix {
-            offset = rot * offset;
-        }
-        let center = offset
-            + Vector3::new(
-                self.params.origin.0,
-                self.params.origin.1,
-                self.params.origin.2,
-            );
-
-        Ok((center.x, center.y, center.z))
-    }
-
-    /// Get all block centers.
-    pub fn all_block_centers(&self) -> Result<Vec<(f64, f64, f64)>> {
-        let mut centers = vec![];
-
-        for ix in 0..self.params.grid_extent.0 {
-            for iy in 0..self.params.grid_extent.1 {
-                for iz in 0..self.params.grid_extent.2 {
-                    centers.push(self.block_center(ix, iy, iz)?);
-                }
-            }
-        }
-
-        Ok(centers)
-    }
-
-    /// Get block corners (min and max for axis-aligned, or 8 corners).
-    pub fn block_bounds(
-        &self,
-        ix: usize,
-        iy: usize,
-        iz: usize,
-    ) -> Result<((f64, f64, f64), (f64, f64, f64))> {
-        let center = self.block_center(ix, iy, iz)?;
-        let half_size = (
-            self.params.block_size.0 / 2.0,
-            self.params.block_size.1 / 2.0,
-            self.params.block_size.2 / 2.0,
-        );
-
-        Ok((
-            (
-                center.0 - half_size.0,
-                center.1 - half_size.1,
-                center.2 - half_size.2,
-            ),
-            (
-                center.0 + half_size.0,
-                center.1 + half_size.1,
-                center.2 + half_size.2,
-            ),
-        ))
-    }
-}
-
-/// Compute rotation matrix from Euler angles (same as variography).
 /// Domain assignment method.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum DomainMethod {
@@ -387,36 +257,6 @@ fn is_inside_winding(winding: f64) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn test_block_grid_creation() {
-        let params = BlockGridParams {
-            origin: (0.0, 0.0, 0.0),
-            block_size: (10.0, 10.0, 10.0),
-            grid_extent: (5, 5, 5),
-            rotation: None,
-        };
-
-        let grid = BlockGrid::new(params).unwrap();
-        assert_eq!(grid.params.total_blocks(), 125);
-    }
-
-    #[test]
-    fn test_block_center() {
-        let params = BlockGridParams {
-            origin: (0.0, 0.0, 0.0),
-            block_size: (10.0, 10.0, 10.0),
-            grid_extent: (3, 3, 3),
-            rotation: None,
-        };
-
-        let grid = BlockGrid::new(params).unwrap();
-        let center = grid.block_center(0, 0, 0).unwrap();
-
-        assert!((center.0 - 5.0).abs() < 0.01);
-        assert!((center.1 - 5.0).abs() < 0.01);
-        assert!((center.2 - 5.0).abs() < 0.01);
-    }
 
     #[test]
     fn test_nearest_domain_assignment() {

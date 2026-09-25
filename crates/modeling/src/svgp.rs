@@ -238,7 +238,7 @@ pub struct SvgpSpec {
     /// Number of inducing values `m`. Cost is `O(nm²)` to fit and `O(m²)` per
     /// evaluated node, so this is the one knob that buys accuracy with time.
     pub inducing: usize,
-    /// Rotation (azimuth, dip, pitch) of the ARD frame. The three
+    /// Rotation (azimuth, dip, rake) of the ARD frame. The three
     /// lengthscales along those axes are learned; the rotation is not — a
     /// structural frame is something the geologist knows and the bound is poor
     /// at recovering.
@@ -1134,7 +1134,7 @@ fn transform(rotation: [f64; 3], lengthscales: [f64; 3]) -> Result<AnisoTransfor
     AnisoTransform::new(&Angles {
         azimuth: rotation[0],
         dip: rotation[1],
-        pitch: rotation[2],
+        rake: rotation[2],
         major: lengthscales[0],
         semi: lengthscales[1],
         minor: lengthscales[2],
