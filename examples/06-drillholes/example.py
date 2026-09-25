@@ -11,16 +11,21 @@ HERE = Path(__file__).parent
 sys.path.insert(0, str(HERE.parent))
 from common import ACCENT, GREY, INK, LIGHT, fetch, save
 
+assay = cs.read_csv(fetch("drillholes/assay.csv"))
+geology = cs.read_csv(fetch("drillholes/geology.csv"))
+intervals = cs.merge_intervals(assay, geology)
 dh = cs.Drillholes(
     cs.read_csv(fetch("drillholes/collar.csv")),
     cs.read_csv(fetch("drillholes/survey.csv")),
-    cs.read_csv(fetch("drillholes/assay.csv")),
+    intervals,
 )
-samples = dh.samples()
-composites = dh.composite(2.0, ["ZN", "PB", "CU", "AG", "AU"])
+
+composites = dh.composite(2.0, ["ZN", "PB", "CU", "AG", "AU"], domain="LITH")
 paths = dh.paths()
 print(dh)
-print(f"{len(samples)} samples -> {len(composites)} composites of 2 m")
+print(
+    f"{assay.num_rows} assays + {geology.num_rows} geology intervals -> {intervals.num_rows} merged -> {len(composites)} composites"
+)
 
 hole = np.array(paths["hole"])
 xyz = np.c_[paths["x"], paths["y"], paths["z"]]
@@ -61,16 +66,16 @@ b.set(
 fig.colorbar(points, ax=b, shrink=0.7, label="Zn (%)")
 save(fig, HERE, "holes")
 
-raw_len = samples["TO"] - samples["FROM"]
+raw_len = assay["TO"] - assay["FROM"]
 comp_len = composites["to"] - composites["from"]
 fig, (a, b) = plt.subplots(1, 2, figsize=(10, 3.6), layout="constrained")
 bins = np.arange(0, 6.25, 0.25)
-a.hist(np.clip(raw_len, 0, 6), bins, color=LIGHT, edgecolor=GREY, lw=0.5, label="samples")
+a.hist(np.clip(raw_len, 0, 6), bins, color=LIGHT, edgecolor=GREY, lw=0.5, label="assays")
 a.hist(comp_len, bins, histtype="step", color=ACCENT, lw=1.6, label="composites")
 a.set(title="Interval lengths", xlabel="Length (m)", ylabel="Count")
 a.legend()
 logbins = np.logspace(-2, 1.7, 40)
-raw_zn = samples["ZN"]
+raw_zn = assay["ZN"]
 a_zn = raw_zn[raw_zn > 0]
 c_zn = zn[zn > 0]
 b.hist(
@@ -80,7 +85,7 @@ b.hist(
     color=LIGHT,
     edgecolor=GREY,
     lw=0.5,
-    label=f"samples, CV {a_zn.std() / a_zn.mean():.2f}",
+    label=f"assays, CV {a_zn.std() / a_zn.mean():.2f}",
 )
 b.hist(
     c_zn,
@@ -96,3 +101,19 @@ b.set(title="Compositing narrows the Zn distribution", xlabel="Zn (%)", ylabel="
 b.legend(loc="upper left")
 b.tick_params(axis="y", colors=INK)
 save(fig, HERE, "compositing")
+
+lith = np.array(composites.attributes["LITH"])
+names, counts = np.unique(lith[lith != ""], return_counts=True)
+top = names[np.argsort(counts)[::-1][:8]]
+fig, ax = plt.subplots(figsize=(7, 3.6), layout="constrained")
+for i, name in enumerate(top):
+    values = zn[(lith == name) & ~np.isnan(zn)]
+    q1, med, q3 = np.percentile(values, [25, 50, 75])
+    ax.plot([q1, q3], [i, i], color=ACCENT, lw=5, alpha=0.35, solid_capstyle="butt")
+    ax.plot(med, i, "|", color=ACCENT, ms=14, mew=2)
+    ax.text(q3, i, f"  n = {len(values):,}", va="center", color=GREY, fontsize=8)
+ax.set_yticks(range(len(top)), top)
+ax.invert_yaxis()
+ax.set_xscale("log")
+ax.set(title="Zn of 2 m composites by lithology (median and interquartile range)", xlabel="Zn (%)")
+save(fig, HERE, "domains")
