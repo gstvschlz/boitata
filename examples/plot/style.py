@@ -18,24 +18,26 @@ ACCENT = "#1f4e79"
 HIGHLIGHT = "#c05a28"
 CMAP = LinearSegmentedColormap.from_list("ceres", ["#f7f7f7", "#9ebad6", ACCENT, "#0b1f33"])
 
-mpl.rcParams.update({
-    "figure.dpi": 110,
-    "savefig.dpi": 160,
-    "savefig.bbox": "tight",
-    "font.size": 9,
-    "axes.titlesize": 10,
-    "axes.titleweight": "bold",
-    "axes.titlelocation": "left",
-    "axes.labelcolor": INK,
-    "axes.edgecolor": GREY,
-    "axes.spines.top": False,
-    "axes.spines.right": False,
-    "axes.prop_cycle": mpl.cycler(color=[ACCENT, GREY, HIGHLIGHT]),
-    "xtick.color": INK,
-    "ytick.color": INK,
-    "legend.frameon": False,
-    "image.cmap": "ceres",
-})
+mpl.rcParams.update(
+    {
+        "figure.dpi": 110,
+        "savefig.dpi": 160,
+        "savefig.bbox": "tight",
+        "font.size": 9,
+        "axes.titlesize": 10,
+        "axes.titleweight": "bold",
+        "axes.titlelocation": "left",
+        "axes.labelcolor": INK,
+        "axes.edgecolor": GREY,
+        "axes.spines.top": False,
+        "axes.spines.right": False,
+        "axes.prop_cycle": mpl.cycler(color=[ACCENT, GREY, HIGHLIGHT]),
+        "xtick.color": INK,
+        "ytick.color": INK,
+        "legend.frameon": False,
+        "image.cmap": "ceres",
+    }
+)
 mpl.colormaps.register(CMAP, force=True)
 
 
