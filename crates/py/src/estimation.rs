@@ -105,6 +105,8 @@ fn interp(e: estimation::Result<InterpEstimate>) -> estimation::Result<Estimate>
         variance: e.stdev.map_or(f64::NAN, |s| s * s),
         n_used: e.n_used,
         weights: vec![],
+        lagrange: f64::NAN,
+        support_variance: f64::NAN,
     })
 }
 
@@ -183,6 +185,25 @@ pub fn outputs<'py>(
             .collect(),
     );
     Ok(PyTuple::new(py, [value, variance])?.into_any())
+}
+
+fn diagnostics<'py>(py: Python<'py>, results: &[Option<Estimate>]) -> PyResult<Bound<'py, PyDict>> {
+    let column = |f: fn(&Estimate) -> f64| {
+        array1(
+            py,
+            results
+                .iter()
+                .map(|e| e.as_ref().map_or(f64::NAN, f))
+                .collect(),
+        )
+    };
+    let d = PyDict::new(py);
+    d.set_item("value", column(|e| e.value))?;
+    d.set_item("variance", column(|e| e.variance))?;
+    d.set_item("efficiency", column(Estimate::efficiency))?;
+    d.set_item("slope", column(Estimate::slope))?;
+    d.set_item("n_samples", column(|e| e.n_used as f64))?;
+    Ok(d)
 }
 
 /// Shared engine behind the estimator classes in `ceres.estimation`.
@@ -299,15 +320,18 @@ impl Estimator {
     }
 
     /// Estimates (NaN where too few neighbours); with `return_variance`, also
-    /// the kriging variance. `anisotropy` (a LocalAnisotropy) gives each target
-    /// its own variogram and search orientation, taken from the nearest location.
-    #[pyo3(signature = (targets, return_variance=false, anisotropy=None))]
+    /// the kriging variance, and with `diagnostics` a dict adding kriging
+    /// efficiency, slope of regression and samples used. `anisotropy` (a
+    /// LocalAnisotropy) gives each target its own variogram and search
+    /// orientation, taken from the nearest location.
+    #[pyo3(signature = (targets, return_variance=false, anisotropy=None, diagnostics=false))]
     fn predict<'py>(
         &self,
         py: Python<'py>,
         targets: &Bound<PyAny>,
         return_variance: bool,
         anisotropy: Option<PyRef<crate::lva::LocalAnisotropy>>,
+        diagnostics: bool,
     ) -> PyResult<Bound<'py, PyAny>> {
         let samples = self
             .samples
@@ -341,6 +365,9 @@ impl Estimator {
                 .map_err(invalid)?
             }
         };
+        if diagnostics {
+            return Ok(self::diagnostics(py, &results)?.into_any());
+        }
         outputs(py, &results, return_variance)
     }
 
@@ -418,9 +445,11 @@ impl Dual {
     }
 }
 
-/// Distances and value statistics of the `k` nearest samples around targets.
+/// Distances and value statistics of the `k` nearest samples around targets;
+/// `n_holes` counts distinct `holes` within `radius`.
 #[pyfunction]
-#[pyo3(signature = (targets, coords, values, k=8, radius=f64::INFINITY, variogram=None))]
+#[pyo3(signature = (targets, coords, values, k=8, radius=f64::INFINITY, variogram=None, holes=None))]
+#[allow(clippy::too_many_arguments)]
 fn neighborhood_stats<'py>(
     py: Python<'py>,
     targets: &Bound<PyAny>,
@@ -429,13 +458,16 @@ fn neighborhood_stats<'py>(
     k: usize,
     radius: f64,
     variogram: Option<Variogram>,
+    holes: Option<&Bound<PyAny>>,
 ) -> PyResult<Bound<'py, PyDict>> {
     let (locs, values) = (points(coords)?, finite(values, "values")?);
     same_length(locs.len(), values.len(), "values")?;
-    let samples: Vec<Sample> = locs
-        .into_iter()
-        .zip(values)
-        .map(|(l, v)| Sample::new(l, v))
+    let holes = args::holes(holes, locs.len())?;
+    let samples: Vec<Sample> = (0..locs.len())
+        .map(|i| match &holes {
+            Some((_, ids)) => Sample::with_hole(locs[i], values[i], ids[i]),
+            None => Sample::new(locs[i], values[i]),
+        })
         .collect();
     let aniso = variogram.and_then(|v| v.0.anisotropy);
     let stats: Vec<_> = self::targets(targets)?

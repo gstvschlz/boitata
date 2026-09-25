@@ -104,6 +104,8 @@ pub fn cokrige(
                 variance: (c_tt - sum_wc).max(0.0),
                 n_used: n,
                 weights: w,
+                lagrange: f64::NAN,
+                support_variance: f64::NAN,
             })
         }
         CoKind::Ordinary => {
@@ -144,6 +146,8 @@ pub fn cokrige(
                 variance: (c_tt - sum_wc - sum_mu).max(0.0),
                 n_used: n,
                 weights: w,
+                lagrange: f64::NAN,
+                support_variance: f64::NAN,
             })
         }
     }
