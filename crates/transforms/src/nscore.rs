@@ -85,41 +85,31 @@ impl NscoreTable {
     /// Scores beyond the tabulated range are linearly extrapolated from the two
     /// nearest table entries (clamped so the result stays finite).
     pub fn back(&self, score: f64) -> f64 {
-        let n = self.scores.len();
-        if n == 0 {
-            return f64::NAN;
-        }
-        if n == 1 {
-            return self.values[0];
-        }
-        if score <= self.scores[0] {
-            let (s0, s1) = (self.scores[0], self.scores[1]);
-            let (v0, v1) = (self.values[0], self.values[1]);
-            return interp(score, s0, s1, v0, v1);
-        }
-        if score >= self.scores[n - 1] {
-            let (s0, s1) = (self.scores[n - 2], self.scores[n - 1]);
-            let (v0, v1) = (self.values[n - 2], self.values[n - 1]);
-            return interp(score, s0, s1, v0, v1);
-        }
-        let mut lo = 0;
-        let mut hi = n - 1;
-        while hi - lo > 1 {
-            let mid = (lo + hi) / 2;
-            if self.scores[mid] <= score {
-                lo = mid;
-            } else {
-                hi = mid;
-            }
-        }
-        interp(
-            score,
-            self.scores[lo],
-            self.scores[hi],
-            self.values[lo],
-            self.values[hi],
-        )
+        lookup(&self.scores, &self.values, score)
     }
+
+    /// Normal score of a value; the inverse of [`NscoreTable::back`]. A value
+    /// tied in the table gets the mean score of its ties.
+    pub fn forward(&self, value: f64) -> f64 {
+        let first = self.values.partition_point(|v| *v < value);
+        let last = self.values.partition_point(|v| *v <= value);
+        if last > first {
+            return self.scores[first..last].iter().sum::<f64>() / (last - first) as f64;
+        }
+        lookup(&self.values, &self.scores, value)
+    }
+}
+
+fn lookup(xs: &[f64], ys: &[f64], x: f64) -> f64 {
+    let n = xs.len();
+    if n == 0 {
+        return f64::NAN;
+    }
+    if n == 1 {
+        return ys[0];
+    }
+    let hi = xs.partition_point(|v| *v <= x).clamp(1, n - 1);
+    interp(x, xs[hi - 1], xs[hi], ys[hi - 1], ys[hi])
 }
 
 fn interp(x: f64, x0: f64, x1: f64, y0: f64, y1: f64) -> f64 {
@@ -143,6 +133,16 @@ mod tests {
         let mn = ns.scores.iter().cloned().fold(f64::MAX, f64::min);
         let mx = ns.scores.iter().cloned().fold(f64::MIN, f64::max);
         assert!((mn + mx).abs() < 1e-6);
+    }
+
+    #[test]
+    fn forward_inverts_back_and_averages_ties() {
+        let ns = transform(&[0.0, 0.0, 1.0, 3.0, 7.0], None).unwrap();
+        for y in [-0.3, 0.1, 0.6] {
+            assert!((ns.table.forward(ns.table.back(y)) - y).abs() < 1e-12);
+        }
+        let tied = ns.table.forward(0.0);
+        assert!((tied - (ns.scores[0] + ns.scores[1]) / 2.0).abs() < 1e-12);
     }
 
     #[test]
