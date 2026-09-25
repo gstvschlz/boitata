@@ -1,0 +1,170 @@
+//! Anisotropy: 3D rotation and anisotropic lag distance.
+
+use crate::error::{Result, VarioError};
+use nalgebra::{Matrix3, Vector3};
+use serde::{Deserialize, Serialize};
+
+/// Azimuth/dip/rake angles and anisotropic ranges.
+///
+/// Angles (degrees):
+/// - `azimuth`: direction of the major axis (0–360°, from North, clockwise)
+/// - `dip`: inclination of the major axis (−90°…+90°, positive plunging down)
+/// - `pitch`: rotation about the major axis (0–360°)
+///
+/// Ranges (meters): `major` ≥ `semi` ≥ `minor` (not enforced, but conventional).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct Angles {
+    pub azimuth: f64,
+    pub dip: f64,
+    pub pitch: f64,
+    pub major: f64,
+    pub semi: f64,
+    pub minor: f64,
+}
+
+impl Angles {
+    pub fn validate(&self) -> Result<()> {
+        if self.major <= 0.0 || self.semi <= 0.0 || self.minor <= 0.0 {
+            return Err(VarioError::InvalidAnisotropy(
+                "all ranges must be positive".into(),
+            ));
+        }
+        Ok(())
+    }
+}
+
+/// Anisotropy transform: rotation matrix plus range scaling.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Anisotropy {
+    pub angles: Angles,
+    #[serde(skip, default = "identity3")]
+    rotation: Matrix3<f64>,
+}
+
+fn identity3() -> Matrix3<f64> {
+    Matrix3::identity()
+}
+
+impl Anisotropy {
+    /// Build from angles/ranges.
+    pub fn new(angles: Angles) -> Result<Self> {
+        angles.validate()?;
+        let rotation = rotation_matrix(angles.azimuth, angles.dip, angles.pitch);
+        Ok(Self { angles, rotation })
+    }
+
+    /// The linear map from world coordinates to variogram space: rotation
+    /// followed by range scaling, so `lag(p, q) == (matrix() * (q − p)).norm()`.
+    ///
+    /// [`Anisotropy::lag`] is all an estimator needs, but a *derivative*
+    /// observation has to be carried through the same map — a dip measured in
+    /// world coordinates is a different direction once the axes are squeezed —
+    /// and that needs the matrix itself, not the distance it induces.
+    pub fn matrix(&self) -> Matrix3<f64> {
+        Matrix3::from_diagonal(&Vector3::new(
+            1.0 / self.angles.major,
+            1.0 / self.angles.semi,
+            1.0 / self.angles.minor,
+        )) * self.rotation
+    }
+
+    /// Anisotropic (reduced) lag distance between two points.
+    ///
+    /// Rotates the separation vector into variogram space and scales each axis by
+    /// its range, so an isotropic model applied to this distance yields the desired
+    /// ellipsoidal anisotropy.
+    pub fn lag(&self, p: &(f64, f64, f64), q: &(f64, f64, f64)) -> f64 {
+        let v = Vector3::new(q.0 - p.0, q.1 - p.1, q.2 - p.2);
+        let r = self.rotation * v;
+        let s = Vector3::new(
+            r.x / self.angles.major,
+            r.y / self.angles.semi,
+            r.z / self.angles.minor,
+        );
+        s.norm()
+    }
+}
+
+/// Plain Euclidean distance (isotropic).
+pub fn euclidean(p: &(f64, f64, f64), q: &(f64, f64, f64)) -> f64 {
+    let dx = q.0 - p.0;
+    let dy = q.1 - p.1;
+    let dz = q.2 - p.2;
+    (dx * dx + dy * dy + dz * dz).sqrt()
+}
+
+/// Rotation matrix from Euler angles (degrees): geographic (E,N,U) → (major, semi, minor).
+pub fn rotation_matrix(azimuth: f64, dip: f64, pitch: f64) -> Matrix3<f64> {
+    let (az, di, pi) = (azimuth.to_radians(), dip.to_radians(), pitch.to_radians());
+
+    let (ca, sa) = (az.cos(), az.sin());
+    let r1 = Matrix3::new(ca, sa, 0.0, -sa, ca, 0.0, 0.0, 0.0, 1.0);
+
+    let (cd, sd) = (di.cos(), di.sin());
+    let r2 = Matrix3::new(cd, 0.0, -sd, 0.0, 1.0, 0.0, sd, 0.0, cd);
+
+    let (cp, sp) = (pi.cos(), pi.sin());
+    let r3 = Matrix3::new(1.0, 0.0, 0.0, 0.0, cp, sp, 0.0, -sp, cp);
+
+    r3 * r2 * r1
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn identity_rotation() {
+        let r = rotation_matrix(0.0, 0.0, 0.0);
+        assert!((r.m11 - 1.0).abs() < 1e-12);
+        assert!((r.m22 - 1.0).abs() < 1e-12);
+        assert!((r.m33 - 1.0).abs() < 1e-12);
+        assert!(r.m12.abs() < 1e-12);
+    }
+
+    #[test]
+    fn isotropic_lag_equals_euclidean_scaled() {
+        let a = Anisotropy::new(Angles {
+            azimuth: 0.0,
+            dip: 0.0,
+            pitch: 0.0,
+            major: 100.0,
+            semi: 100.0,
+            minor: 100.0,
+        })
+        .unwrap();
+        let p = (0.0, 0.0, 0.0);
+        let q = (30.0, 40.0, 0.0);
+        // Euclidean 50, scaled by 100 → 0.5
+        assert!((a.lag(&p, &q) - 0.5).abs() < 1e-12);
+    }
+
+    #[test]
+    fn anisotropy_shortens_minor_axis() {
+        // Major along East (azimuth 90°); minor range small → vertical separation looks large.
+        let a = Anisotropy::new(Angles {
+            azimuth: 90.0,
+            dip: 0.0,
+            pitch: 0.0,
+            major: 100.0,
+            semi: 100.0,
+            minor: 10.0,
+        })
+        .unwrap();
+        let along = a.lag(&(0.0, 0.0, 0.0), &(0.0, 0.0, 20.0)); // vertical
+        assert!(along > 1.0); // 20 / 10 = 2 reduced units
+    }
+
+    #[test]
+    fn rejects_nonpositive_range() {
+        let bad = Angles {
+            azimuth: 0.0,
+            dip: 0.0,
+            pitch: 0.0,
+            major: 0.0,
+            semi: 100.0,
+            minor: 100.0,
+        };
+        assert!(Anisotropy::new(bad).is_err());
+    }
+}
