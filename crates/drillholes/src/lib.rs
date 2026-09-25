@@ -82,7 +82,7 @@ pub fn desurvey_wellbore(
             hole_id: collar.hole_id.clone(),
             depth: 0.0,
             azimuth: s1.azimuth,
-            inclination: 90.0, // Vertical at collar
+            inclination: s1.inclination,
         };
 
         let segment = desurvey_segment(collar, &points[points.len() - 1], &from_survey, s1)?;
@@ -117,38 +117,19 @@ fn desurvey_segment(
         return Ok(vec![]);
     }
 
-    let az1 = from.azimuth.to_radians();
-    let inc1 = from.inclination.to_radians();
-    let az2 = to.azimuth.to_radians();
-    let inc2 = to.inclination.to_radians();
-
-    // Dogleg angle (angle between direction vectors in 3D)
-    let dogleg = minimum_curvature_angle(inc1, az1, inc2, az2);
-    let dogleg_rad = dogleg.to_radians();
-
-    let (delta_e, delta_n, delta_v) = if dogleg_rad.abs() < 1e-10 {
-        // Straight segment
-        let tan_inc1 = inc1.tan();
-        (
-            delta_md * tan_inc1 * az1.sin(),
-            delta_md * tan_inc1 * az1.cos(),
-            -delta_md * inc1.cos(),
-        )
+    let (a1, i1) = (from.azimuth.to_radians(), from.inclination.to_radians());
+    let (a2, i2) = (to.azimuth.to_radians(), to.inclination.to_radians());
+    let cos_dogleg = (i2 - i1).cos() - i1.sin() * i2.sin() * (1.0 - (a2 - a1).cos());
+    let dogleg = cos_dogleg.clamp(-1.0, 1.0).acos();
+    let ratio = if dogleg < 1e-9 {
+        1.0
     } else {
-        // Curved segment (circular arc)
-        let ratio = (dogleg_rad / 2.0).tan() / dogleg_rad;
-
-        let sin_inc_avg = ((inc1.sin() + inc2.sin()) / 2.0).max(1e-10);
-        let cos_inc_avg = (inc1.cos() + inc2.cos()) / 2.0;
-        let az_avg = (az1 + az2) / 2.0;
-
-        let md_factor = delta_md * ratio;
-        (
-            md_factor * sin_inc_avg * az_avg.sin(),
-            md_factor * sin_inc_avg * az_avg.cos(),
-            -md_factor * 2.0 * cos_inc_avg / (dogleg_rad.max(1e-10)),
-        )
+        2.0 / dogleg * (dogleg / 2.0).tan()
     };
+    let half = delta_md / 2.0 * ratio;
+    let delta_e = half * (i1.sin() * a1.sin() + i2.sin() * a2.sin());
+    let delta_n = half * (i1.sin() * a1.cos() + i2.sin() * a2.cos());
+    let delta_v = -half * (i1.cos() + i2.cos());
 
     Ok(vec![WellborePoint {
         measured_depth: md_to,
@@ -158,11 +139,26 @@ fn desurvey_segment(
     }])
 }
 
-/// Compute dogleg angle between two survey stations (in degrees).
-#[allow(clippy::manual_clamp)]
-fn minimum_curvature_angle(inc1: f64, az1: f64, inc2: f64, az2: f64) -> f64 {
-    let cos_angle = inc1.cos() * inc2.cos() * (az1 - az2).cos() + inc1.sin() * inc2.sin();
-    cos_angle.max(-1.0).min(1.0).acos().to_degrees()
+/// Location at measured `depth` along a desurveyed `path`, interpolated
+/// linearly between stations and extended along the last segment.
+pub fn position_at(path: &[WellborePoint], depth: f64) -> (f64, f64, f64) {
+    let at = |p: &WellborePoint| (p.east, p.north, p.elev);
+    match path {
+        [] => (f64::NAN, f64::NAN, f64::NAN),
+        [only] => at(only),
+        _ => {
+            let i = path
+                .partition_point(|p| p.measured_depth <= depth)
+                .clamp(1, path.len() - 1);
+            let (a, b) = (&path[i - 1], &path[i]);
+            let t = (depth - a.measured_depth) / (b.measured_depth - a.measured_depth);
+            (
+                a.east + t * (b.east - a.east),
+                a.north + t * (b.north - a.north),
+                a.elev + t * (b.elev - a.elev),
+            )
+        }
+    }
 }
 
 /// Wellbore point (3D location at measured depth).
@@ -385,6 +381,63 @@ impl<'a> CompositeBuilder<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn hole(stations: &[(f64, f64, f64)]) -> Vec<WellborePoint> {
+        let collar = Collar {
+            hole_id: "H".into(),
+            east: 0.0,
+            north: 0.0,
+            collar_elev: 0.0,
+        };
+        let stations: Vec<SurveyStation> = stations
+            .iter()
+            .map(|&(depth, azimuth, inclination)| SurveyStation {
+                hole_id: "H".into(),
+                depth,
+                azimuth,
+                inclination,
+            })
+            .collect();
+        desurvey_wellbore(&collar, &stations, DesurveyMethod::MinimumCurvature).unwrap()
+    }
+
+    #[test]
+    fn straight_inclined_hole() {
+        let path = hole(&[(0.0, 90.0, 45.0), (100.0, 90.0, 45.0)]);
+        let end = path.last().unwrap();
+        let d = 100.0 / 2f64.sqrt();
+        assert!(
+            (end.east - d).abs() < 1e-9 && end.north.abs() < 1e-9 && (end.elev + d).abs() < 1e-9
+        );
+    }
+
+    #[test]
+    fn quarter_circle_arc() {
+        let r = 100.0;
+        let path = hole(&[
+            (0.0, 90.0, 0.0),
+            (r * std::f64::consts::FRAC_PI_2, 90.0, 90.0),
+        ]);
+        let end = path.last().unwrap();
+        assert!((end.east - r).abs() < 1e-9 && (end.elev + r).abs() < 1e-9);
+    }
+
+    #[test]
+    fn collar_segment_follows_the_first_survey() {
+        let path = hole(&[(50.0, 0.0, 30.0)]);
+        let end = path.last().unwrap();
+        assert!(
+            (end.north - 25.0).abs() < 1e-9
+                && (end.elev + 50.0 * 30f64.to_radians().cos()).abs() < 1e-9
+        );
+    }
+
+    #[test]
+    fn position_between_and_beyond_stations() {
+        let path = hole(&[(0.0, 0.0, 0.0), (100.0, 0.0, 0.0)]);
+        assert_eq!(position_at(&path, 25.0), (0.0, 0.0, -25.0));
+        assert_eq!(position_at(&path, 120.0), (0.0, 0.0, -120.0));
+    }
 
     #[test]
     fn test_vertical_well_desurvey() {

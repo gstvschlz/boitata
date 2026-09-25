@@ -4,6 +4,7 @@ use pyo3::types::PyType;
 mod args;
 mod cokriging;
 mod containers;
+mod drillholes;
 mod estimation;
 mod io;
 mod simulation;
@@ -40,6 +41,7 @@ fn _ceres(m: &Bound<PyModule>) -> PyResult<()> {
     variogram::register(m)?;
     estimation::register(m)?;
     cokriging::register(m)?;
+    drillholes::register(m)?;
     simulation::register(m)?;
     Ok(())
 }
