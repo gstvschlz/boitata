@@ -5,7 +5,7 @@
 //! back-transformation of simulated/estimated scores, with linear tail extrapolation.
 
 use crate::error::{Result, TransformError};
-use crate::normal::probit;
+use crate::normal::{phi, probit};
 use serde::{Deserialize, Serialize};
 
 /// A monotone data↔score mapping table (sorted by data value).
@@ -15,6 +15,10 @@ pub struct NscoreTable {
     pub values: Vec<f64>,
     /// Corresponding normal scores (increasing).
     pub scores: Vec<f64>,
+    /// Values at cumulative probability 0 and 1; beyond the table, values
+    /// interpolate linearly in probability toward them. Defaults to the data
+    /// range, so back-transforms never leave it.
+    pub tails: (f64, f64),
 }
 
 /// Result of a forward transform: scores aligned with the input, plus the table.
@@ -73,6 +77,7 @@ pub fn transform(values: &[f64], weights: Option<&[f64]>) -> Result<Nscore> {
     Ok(Nscore {
         scores,
         table: NscoreTable {
+            tails: (table_vals[0], table_vals[n - 1]),
             values: table_vals,
             scores: table_scores,
         },
@@ -80,11 +85,25 @@ pub fn transform(values: &[f64], weights: Option<&[f64]>) -> Result<Nscore> {
 }
 
 impl NscoreTable {
+    /// Widens the tails to `lower` and `upper`, e.g. a lower bound of 0 for grades.
+    pub fn with_tails(mut self, lower: f64, upper: f64) -> Self {
+        let n = self.values.len();
+        self.tails = (lower.min(self.values[0]), upper.max(self.values[n - 1]));
+        self
+    }
+
     /// Back-transform a normal score to data space (monotone interpolation).
-    ///
-    /// Scores beyond the tabulated range are linearly extrapolated from the two
-    /// nearest table entries (clamped so the result stays finite).
     pub fn back(&self, score: f64) -> f64 {
+        let (n, (lo, hi)) = (self.values.len(), self.tails);
+        if n > 1 && score < self.scores[0] {
+            let fraction = phi(score) / phi(self.scores[0]);
+            return lo + (self.values[0] - lo) * fraction;
+        }
+        if n > 1 && score > self.scores[n - 1] {
+            let edge = phi(self.scores[n - 1]);
+            let fraction = (phi(score) - edge) / (1.0 - edge);
+            return self.values[n - 1] + (hi - self.values[n - 1]) * fraction;
+        }
         lookup(&self.scores, &self.values, score)
     }
 
@@ -95,6 +114,17 @@ impl NscoreTable {
         let last = self.values.partition_point(|v| *v <= value);
         if last > first {
             return self.scores[first..last].iter().sum::<f64>() / (last - first) as f64;
+        }
+        let (n, (lo, hi)) = (self.values.len(), self.tails);
+        if n > 1 && value < self.values[0] {
+            let fraction = ((value - lo) / (self.values[0] - lo)).clamp(0.0, 1.0);
+            return probit(fraction * phi(self.scores[0]));
+        }
+        if n > 1 && value > self.values[n - 1] {
+            let edge = phi(self.scores[n - 1]);
+            let fraction =
+                ((value - self.values[n - 1]) / (hi - self.values[n - 1])).clamp(0.0, 1.0);
+            return probit(edge + fraction * (1.0 - edge));
         }
         lookup(&self.values, &self.scores, value)
     }
@@ -163,6 +193,20 @@ mod tests {
         let b = ns.table.back(0.0);
         let c = ns.table.back(3.0);
         assert!(a < b && b < c);
+    }
+
+    #[test]
+    fn tails_stay_within_bounds() {
+        let ns = transform(&[1.0, 2.0, 3.0, 4.0, 5.0], None).unwrap();
+        assert_eq!(ns.table.back(-8.0), 1.0);
+        assert_eq!(ns.table.back(8.0), 5.0);
+        let wide = ns.table.clone().with_tails(0.0, 10.0);
+        let low = wide.back(-2.0);
+        assert!(low > 0.0 && low < 1.0);
+        assert!((wide.forward(low) + 2.0).abs() < 1e-6);
+        let high = wide.back(2.5);
+        assert!(high > 5.0 && high < 10.0);
+        assert!((wide.forward(high) - 2.5).abs() < 1e-6);
     }
 
     #[test]

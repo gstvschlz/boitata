@@ -9,6 +9,7 @@ publish.workspace = true
 
 [dependencies]
 nalgebra.workspace = true
+rayon.workspace = true
 thiserror.workspace = true
 rand.workspace = true
 rand_distr.workspace = true

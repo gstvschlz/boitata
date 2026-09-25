@@ -16,6 +16,7 @@ use rand::SeedableRng;
 use rand::rngs::StdRng;
 use rand::seq::SliceRandom;
 use rand_distr::{Distribution, Normal};
+use rayon::prelude::*;
 use transforms::nscore;
 use variogram::Variogram;
 
@@ -36,10 +37,12 @@ pub struct Realization {
 
 /// Run a single SGS realization.
 ///
-/// `vg_nscore` is the variogram of the *normal scores* (unit-sill Gaussian variogram).
+/// `vg_nscore` is the variogram of the *normal scores* (unit-sill Gaussian variogram);
+/// `data_weights` are declustering weights for the normal-score transform.
 pub fn sgs(
     data_locs: &[(f64, f64, f64)],
     data_vals: &[f64],
+    data_weights: Option<&[f64]>,
     grid: &[(f64, f64, f64)],
     vg_nscore: &Variogram,
     params: &SgsParams,
@@ -55,7 +58,8 @@ pub fn sgs(
     }
 
     // 1. Normal-score transform.
-    let ns = nscore::transform(data_vals, None).map_err(|e| SimError::Transform(e.to_string()))?;
+    let ns = nscore::transform(data_vals, data_weights)
+        .map_err(|e| SimError::Transform(e.to_string()))?;
 
     // Conditioning set (grows as nodes are simulated).
     let mut cond: Vec<Sample> = data_locs
@@ -80,7 +84,13 @@ pub fn sgs(
         let target = grid[node];
 
         // 3. Kriging from neighbors (simple kriging, mean 0 in Gaussian space).
-        let score = match neighbors(&target, &cond, &params.search, Some(vg_nscore)) {
+        let found = neighbors(&target, &cond, &params.search, Some(vg_nscore));
+        if let Some(&k) = found.iter().flatten().find(|&&k| cond[k].loc == target) {
+            // A node on a datum takes its value and is not added again.
+            sim_scores[node] = cond[k].value;
+            continue;
+        }
+        let score = match found {
             Ok(idx) if !idx.is_empty() => {
                 let selected: Vec<Sample> = idx.iter().map(|&k| cond[k].clone()).collect();
                 let est = krige(Kind::Simple { mean: 0.0 }, &target, &selected, vg_nscore)
@@ -106,22 +116,25 @@ pub fn sgs(
     Ok(Realization { values })
 }
 
-/// Run `n` independent realizations (seeds `seed, seed+1, …`).
+/// Run `n` independent realizations (seeds `seed, seed+1, …`) in parallel; the
+/// result does not depend on the number of threads.
 pub fn sgs_ensemble(
     data_locs: &[(f64, f64, f64)],
     data_vals: &[f64],
+    data_weights: Option<&[f64]>,
     grid: &[(f64, f64, f64)],
     vg_nscore: &Variogram,
     params: &SgsParams,
     n: usize,
 ) -> Result<Vec<Realization>> {
     (0..n)
+        .into_par_iter()
         .map(|k| {
             let p = SgsParams {
                 search: params.search.clone(),
                 seed: params.seed.wrapping_add(k as u64),
             };
-            sgs(data_locs, data_vals, grid, vg_nscore, &p)
+            sgs(data_locs, data_vals, data_weights, grid, vg_nscore, &p)
         })
         .collect()
 }
@@ -154,7 +167,7 @@ mod tests {
             },
             seed: 42,
         };
-        let real = sgs(&data_locs, &data_vals, &grid, &vg, &params).unwrap();
+        let real = sgs(&data_locs, &data_vals, None, &grid, &vg, &params).unwrap();
         assert_eq!(real.values.len(), 2);
         assert!(
             (real.values[0] - 1.0).abs() < 0.5,
@@ -179,8 +192,8 @@ mod tests {
             },
             seed: 7,
         };
-        let a = sgs(&data_locs, &data_vals, &grid, &vg, &params).unwrap();
-        let b = sgs(&data_locs, &data_vals, &grid, &vg, &params).unwrap();
+        let a = sgs(&data_locs, &data_vals, None, &grid, &vg, &params).unwrap();
+        let b = sgs(&data_locs, &data_vals, None, &grid, &vg, &params).unwrap();
         assert_eq!(a.values, b.values);
     }
 
@@ -200,9 +213,64 @@ mod tests {
             },
             seed,
         };
-        let a = sgs(&data_locs, &data_vals, &grid, &vg, &mk(1)).unwrap();
-        let b = sgs(&data_locs, &data_vals, &grid, &vg, &mk(2)).unwrap();
+        let a = sgs(&data_locs, &data_vals, None, &grid, &vg, &mk(1)).unwrap();
+        let b = sgs(&data_locs, &data_vals, None, &grid, &vg, &mk(2)).unwrap();
         assert_ne!(a.values, b.values);
+    }
+
+    #[test]
+    fn nodes_on_data_take_the_data_value() {
+        let data_locs = vec![(0.0, 0.0, 0.0), (10.0, 0.0, 0.0), (20.0, 0.0, 0.0)];
+        let data_vals = vec![1.0, 5.0, 3.0];
+        let grid = vec![(10.0, 0.0, 0.0), (5.0, 0.0, 0.0), (15.0, 0.0, 0.0)];
+        let vg = Variogram::single(Model::Spherical, 1.0, 30.0);
+        let params = SgsParams {
+            search: Search {
+                min_samples: 1,
+                max_samples: 8,
+                radius: 50.0,
+                max_per_hole: None,
+                octant: false,
+            },
+            seed: 4,
+        };
+        let r = sgs(&data_locs, &data_vals, None, &grid, &vg, &params).unwrap();
+        assert!((r.values[0] - 5.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn ensemble_does_not_depend_on_thread_count() {
+        let data_locs: Vec<_> = (0..30)
+            .map(|i| ((i * 7 % 50) as f64, (i * 11 % 50) as f64, 0.0))
+            .collect();
+        let data_vals: Vec<f64> = (0..30).map(|i| (i as f64).sqrt()).collect();
+        let grid: Vec<_> = (0..100)
+            .map(|i| ((i % 10) as f64 * 5.0, (i / 10) as f64 * 5.0, 0.0))
+            .collect();
+        let vg = Variogram::single(Model::Spherical, 1.0, 20.0);
+        let params = SgsParams {
+            search: Search {
+                min_samples: 1,
+                max_samples: 12,
+                radius: 30.0,
+                max_per_hole: None,
+                octant: false,
+            },
+            seed: 9,
+        };
+        let run = |threads| {
+            rayon::ThreadPoolBuilder::new()
+                .num_threads(threads)
+                .build()
+                .unwrap()
+                .install(|| {
+                    sgs_ensemble(&data_locs, &data_vals, None, &grid, &vg, &params, 6).unwrap()
+                })
+        };
+        let (one, many) = (run(1), run(6));
+        for (a, b) in one.iter().zip(&many) {
+            assert_eq!(a.values, b.values);
+        }
     }
 
     #[test]
@@ -227,7 +295,7 @@ mod tests {
             },
             seed: 100,
         };
-        let ens = sgs_ensemble(&data_locs, &data_vals, &grid, &vg, &params, 50).unwrap();
+        let ens = sgs_ensemble(&data_locs, &data_vals, None, &grid, &vg, &params, 50).unwrap();
         let mean = ens.iter().map(|r| r.values[0]).sum::<f64>() / ens.len() as f64;
         assert!((mean - 2.0).abs() < 0.2, "ensemble mean {mean}");
     }

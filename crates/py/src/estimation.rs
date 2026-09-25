@@ -139,7 +139,7 @@ impl Method {
 }
 
 /// Targets from a PointSet, a BlockModel (centroids) or an `(n, 2|3)` array.
-fn targets(obj: &Bound<PyAny>) -> PyResult<Vec<Point>> {
+pub fn targets(obj: &Bound<PyAny>) -> PyResult<Vec<Point>> {
     let rows = if let Ok(p) = obj.cast::<PyPointSet>() {
         p.get().0.coords().to_vec()
     } else if let Ok(b) = obj.cast::<PyBlockModel>() {
