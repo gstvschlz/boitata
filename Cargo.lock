@@ -275,6 +275,7 @@ dependencies = [
  "arrow-select",
  "ceres-core",
  "ceres-io",
+ "estimation",
  "numpy",
  "pyo3",
  "pyo3-arrow",
@@ -432,6 +433,7 @@ name = "estimation"
 version = "0.1.0"
 dependencies = [
  "nalgebra",
+ "rayon",
  "serde",
  "thiserror",
  "transforms",

@@ -107,6 +107,12 @@ impl PyPointSet {
         self.0.crs.clone()
     }
 
+    /// New point set with the attribute `name` added or replaced (NaN is null).
+    fn with_column(&self, name: &str, values: &Bound<PyAny>) -> PyResult<Self> {
+        let column = float_column(values, self.0.len())?;
+        Ok(Self(self.0.with_column(name, column).map_err(core_error)?))
+    }
+
     /// Attributes preceded by `x`, `y`, `z`.
     fn to_table(&self) -> PyResult<Table> {
         Ok(Table(self.0.to_table().map_err(core_error)?))
@@ -235,6 +241,12 @@ impl PyBlockModel {
         Ok(Self(self.0.mask(&keep).map_err(core_error)?))
     }
 
+    /// New model with the attribute `name` added or replaced (NaN is null).
+    fn with_column(&self, name: &str, values: &Bound<PyAny>) -> PyResult<Self> {
+        let column = float_column(values, self.0.len())?;
+        Ok(Self(self.0.with_column(name, column).map_err(core_error)?))
+    }
+
     /// Every parent cell, absent cells null.
     fn to_regular(&self) -> PyResult<Self> {
         Ok(Self(self.0.to_regular().map_err(core_error)?))
@@ -280,4 +292,14 @@ impl PyBlockModel {
     ) -> PyArrowResult<Bound<'py, PyCapsule>> {
         arrow_c_stream(py, &self.to_table()?.0, requested_schema)
     }
+}
+
+fn float_column(values: &Bound<PyAny>, rows: usize) -> PyResult<arrow_array::ArrayRef> {
+    let values = crate::args::floats(values, "values")?;
+    crate::args::same_length(rows, values.len(), "values")?;
+    let array: arrow_array::Float64Array = values
+        .into_iter()
+        .map(|v| (!v.is_nan()).then_some(v))
+        .collect();
+    Ok(std::sync::Arc::new(array))
 }

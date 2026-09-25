@@ -3,6 +3,7 @@ use pyo3::types::PyType;
 
 mod args;
 mod containers;
+mod estimation;
 mod io;
 mod table;
 mod transforms;
@@ -35,5 +36,6 @@ fn _ceres(m: &Bound<PyModule>) -> PyResult<()> {
     io::register(m)?;
     transforms::register(m)?;
     variogram::register(m)?;
+    estimation::register(m)?;
     Ok(())
 }

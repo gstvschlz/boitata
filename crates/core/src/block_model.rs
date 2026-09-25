@@ -124,6 +124,14 @@ impl BlockModel {
         &self.attributes
     }
 
+    /// Adds or replaces the attribute `name`.
+    pub fn with_column(&self, name: &str, column: arrow_array::ArrayRef) -> Result<Self> {
+        Ok(Self {
+            attributes: crate::set_column(&self.attributes, name, column)?,
+            ..self.clone()
+        })
+    }
+
     pub fn len(&self) -> usize {
         self.attributes.num_rows()
     }

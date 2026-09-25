@@ -21,3 +21,38 @@ fn check_rows(expected: usize, table: &RecordBatch) -> Result<()> {
         })
     }
 }
+
+fn set_column(
+    table: &RecordBatch,
+    name: &str,
+    column: arrow_array::ArrayRef,
+) -> Result<RecordBatch> {
+    check_rows(column.len(), table)?;
+    let schema = table.schema();
+    let mut fields: Vec<_> = schema.fields().iter().cloned().collect();
+    let mut columns = table.columns().to_vec();
+    let field = std::sync::Arc::new(arrow_schema::Field::new(
+        name,
+        column.data_type().clone(),
+        true,
+    ));
+    match schema.index_of(name) {
+        Ok(i) => {
+            fields[i] = field;
+            columns[i] = column;
+        }
+        Err(_) => {
+            fields.push(field);
+            columns.push(column);
+        }
+    }
+    let options = arrow_array::RecordBatchOptions::new().with_row_count(Some(table.num_rows()));
+    Ok(RecordBatch::try_new_with_options(
+        std::sync::Arc::new(arrow_schema::Schema::new_with_metadata(
+            fields,
+            schema.metadata().clone(),
+        )),
+        columns,
+        &options,
+    )?)
+}

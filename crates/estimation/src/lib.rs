@@ -9,6 +9,7 @@
 //!
 //! All estimators operate on [`Sample`]s and (for kriging) a [`variogram::Variogram`].
 
+pub mod batch;
 pub mod block;
 pub mod cokrige;
 pub mod disjunctive;
@@ -21,6 +22,7 @@ pub mod search;
 pub mod simple_interp;
 pub mod validate;
 
+pub use batch::{estimate_many, leave_one_out_many};
 pub use block::{Discretization, block_krige};
 pub use cokrige::{CoKind, CoSample, cokrige, collocated_cokrige};
 pub use disjunctive::{DisjunctiveKriging, GaussianSample};
