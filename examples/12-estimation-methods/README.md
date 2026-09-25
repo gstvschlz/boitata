@@ -10,11 +10,11 @@ of 10 × 10 m block averages.
 import ceres as cs
 import matplotlib.pyplot as plt
 import numpy as np
-from common import ACCENT, GREY, HIGHLIGHT, fetch, map_axes, save
+from common import ACCENT, GREY, HIGHLIGHT, map_axes, save
 from matplotlib.colors import PowerNorm
 
-samples = cs.PointSet.from_table(cs.read_csv(fetch("walker-lake/sample.csv")))
-truth = cs.read_csv(fetch("walker-lake/exhaustive.csv"))["V"].reshape(300, 260)
+samples = cs.datasets.walker_lake()
+truth = cs.datasets.walker_lake_exhaustive()["V"].reshape(300, 260)
 xy, v = samples.coords, samples["V"]
 model = cs.Variogram.from_json((HERE.parent / "03-variography" / "model.json").read_text())
 grid = cs.BlockModel(origin=(0.5, 0.5), size=(5, 5), count=(52, 60))
@@ -136,7 +136,7 @@ print(
 </details>
 
 ```text
-78,000 nodes in 0.03 s; RMSE against all exhaustive values 156.2 ppm
+78,000 nodes in 0.02 s; RMSE against all exhaustive values 156.2 ppm
 ```
 
 Full script: [`example.py`](example.py)
