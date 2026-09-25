@@ -1,0 +1,19 @@
+[package]
+name = "ceres-examples"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+arrow-array.workspace = true
+ceres-core.workspace = true
+ceres-io.workspace = true
+estimation.workspace = true
+simulation.workspace = true
+transforms.workspace = true
+variogram.workspace = true
+
+[lints]
+workspace = true
