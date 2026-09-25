@@ -35,16 +35,27 @@ impl Angles {
     }
 }
 
-/// Anisotropy transform: rotation matrix plus range scaling.
+/// Anisotropy transform: rotation matrix plus range scaling. Serialized as its
+/// [`Angles`]; the rotation is rebuilt on load.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(try_from = "Angles", into = "Angles")]
 pub struct Anisotropy {
     pub angles: Angles,
-    #[serde(skip, default = "identity3")]
     rotation: Matrix3<f64>,
 }
 
-fn identity3() -> Matrix3<f64> {
-    Matrix3::identity()
+impl TryFrom<Angles> for Anisotropy {
+    type Error = VarioError;
+
+    fn try_from(angles: Angles) -> Result<Self> {
+        Self::new(angles)
+    }
+}
+
+impl From<Anisotropy> for Angles {
+    fn from(a: Anisotropy) -> Self {
+        a.angles
+    }
 }
 
 impl Anisotropy {
@@ -139,6 +150,22 @@ mod tests {
             let (x, y, z) = crate::surface::unit_vector(az, dip);
             assert!((major - Vector3::new(x, y, z)).norm() < 1e-12);
         }
+    }
+
+    #[test]
+    fn json_round_trip_keeps_the_rotation() {
+        let a = Anisotropy::new(Angles {
+            azimuth: 30.0,
+            dip: 10.0,
+            pitch: 5.0,
+            major: 1.0,
+            semi: 0.5,
+            minor: 0.2,
+        })
+        .unwrap();
+        let b: Anisotropy = serde_json::from_str(&serde_json::to_string(&a).unwrap()).unwrap();
+        let (p, q) = ((0.0, 0.0, 0.0), (3.0, 4.0, 1.0));
+        assert!((a.lag(&p, &q) - b.lag(&p, &q)).abs() < 1e-12);
     }
 
     #[test]
