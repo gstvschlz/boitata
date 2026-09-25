@@ -13,7 +13,8 @@ use crate::invalid;
 use crate::variogram::Variogram;
 
 /// Neighbourhood: `radius` is in metres along the major axis of the
-/// variogram's anisotropy (plain metres without a variogram).
+/// search ellipsoid (`rotation` azimuth, dip, rake and `ratios` semi/major,
+/// minor/major), or of the variogram's anisotropy when no ellipsoid is given.
 #[pyclass(module = "ceres", name = "Search", frozen, from_py_object)]
 #[derive(Clone)]
 pub struct Search(pub CoreSearch);
@@ -21,13 +22,15 @@ pub struct Search(pub CoreSearch);
 #[pymethods]
 impl Search {
     #[new]
-    #[pyo3(signature = (radius, max_samples=16, min_samples=1, octant=false, max_per_hole=None))]
+    #[pyo3(signature = (radius, max_samples=16, min_samples=1, octant=false, max_per_hole=None, rotation=None, ratios=None))]
     fn new(
         radius: f64,
         max_samples: usize,
         min_samples: usize,
         octant: bool,
         max_per_hole: Option<usize>,
+        rotation: Option<(f64, f64, f64)>,
+        ratios: Option<(f64, f64)>,
     ) -> PyResult<Self> {
         if radius.is_nan() || radius <= 0.0 || max_samples == 0 || min_samples > max_samples {
             return Err(invalid(
@@ -40,6 +43,13 @@ impl Search {
             radius,
             max_per_hole,
             octant,
+            anisotropy: match (rotation, ratios) {
+                (None, None) => None,
+                (rotation, ratios) => crate::variogram::anisotropy(
+                    rotation.unwrap_or((0.0, 0.0, 0.0)),
+                    ratios.unwrap_or((1.0, 1.0)),
+                )?,
+            },
         }))
     }
 

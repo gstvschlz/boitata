@@ -8,7 +8,7 @@
 use crate::error::{Result, SimError};
 use estimation::Sample;
 use estimation::krige::{Kind, krige};
-use estimation::search::{Search, neighbors};
+use estimation::search::{Search, SearchTree};
 use rand::Rng;
 use rand::SeedableRng;
 use rand::rngs::StdRng;
@@ -72,8 +72,16 @@ pub fn sis(
     }
 
     // Conditioning categories (grow as nodes are simulated).
-    let mut cond_locs: Vec<(f64, f64, f64)> = data_locs.to_vec();
-    let mut cond_cats: Vec<usize> = data_cats.to_vec();
+    let mut all: Vec<Sample> = data_locs
+        .iter()
+        .zip(data_cats)
+        .map(|(&loc, &c)| Sample {
+            loc,
+            value: c as f64,
+            hole: None,
+        })
+        .collect();
+    let mut tree = SearchTree::new(&all, &params.search, Some(&variograms[0]));
 
     let mut rng = StdRng::seed_from_u64(params.seed);
     let mut path: Vec<usize> = (0..grid.len()).collect();
@@ -84,17 +92,13 @@ pub fn sis(
     for &node in &path {
         let target = grid[node];
 
-        let all: Vec<Sample> = cond_locs
-            .iter()
-            .zip(&cond_cats)
-            .map(|(&loc, &c)| Sample {
-                loc,
-                value: c as f64,
-                hole: None,
-            })
-            .collect();
-
-        let probs = match neighbors(&target, &all, &params.search, Some(&variograms[0])) {
+        let found = tree.neighbors(&target);
+        if let Some(&k) = found.iter().flatten().find(|&&k| all[k].loc == target) {
+            // A node on a datum takes its category and is not added again.
+            out[node] = all[k].value as usize;
+            continue;
+        }
+        let probs = match found {
             Ok(idx) if !idx.is_empty() => {
                 let mut p = vec![0.0f64; n_categories];
                 for c in 0..n_categories {
@@ -125,9 +129,13 @@ pub fn sis(
         let cat = draw_category(&probs, &mut rng);
         out[node] = cat;
 
-        // Add as hard data.
-        cond_locs.push(target);
-        cond_cats.push(cat);
+        let sample = Sample {
+            loc: target,
+            value: cat as f64,
+            hole: None,
+        };
+        tree.add(&sample);
+        all.push(sample);
     }
 
     Ok(CategoricalRealization { categories: out })
@@ -181,6 +189,7 @@ mod tests {
                 radius: f64::INFINITY,
                 max_per_hole: None,
                 octant: false,
+                anisotropy: None,
             },
             seed: 1,
         };
@@ -201,6 +210,7 @@ mod tests {
                 radius: f64::INFINITY,
                 max_per_hole: None,
                 octant: false,
+                anisotropy: None,
             },
             seed: 5,
         };

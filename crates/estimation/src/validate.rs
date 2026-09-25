@@ -222,6 +222,7 @@ mod tests {
             radius: f64::INFINITY,
             max_per_hole: None,
             octant: false,
+            anisotropy: None,
         };
         let cv = leave_one_out(&grid_samples(), &vg, &search).unwrap();
         assert!(cv.n > 0);
@@ -238,6 +239,7 @@ mod tests {
             radius: f64::INFINITY,
             max_per_hole: None,
             octant: false,
+            anisotropy: None,
         };
         let cv = k_fold(&grid_samples(), &vg, &search, 5).unwrap();
         assert!(cv.n > 0);

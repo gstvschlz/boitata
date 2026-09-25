@@ -10,6 +10,8 @@ license = "MIT"
 publish = false
 
 [workspace.dependencies]
+criterion = "0.8"
+kiddo = "6"
 numpy = "0.29"
 pyo3 = { version = "0.29", features = ["abi3-py311"] }
 pyo3-arrow = "0.19"

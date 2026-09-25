@@ -315,6 +315,8 @@ class Search:
         min_samples: int = 1,
         octant: bool = False,
         max_per_hole: int | None = None,
+        rotation: tuple[float, float, float] | None = None,
+        ratios: tuple[float, float] | None = None,
     ) -> None: ...
     @property
     def radius(self) -> float: ...

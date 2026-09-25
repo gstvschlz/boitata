@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use estimation::search::SearchTree;
 use estimation::{CoKind, CoSample, Estimate, GaussianSample, Sample, Search as CoreSearch};
 use pyo3::prelude::*;
 use rayon::prelude::*;
@@ -19,14 +20,8 @@ fn metric(anisotropy: Option<Anisotropy>) -> CoreVariogram {
     }
 }
 
-fn nearby<T: Clone>(
-    target: &Point,
-    locs: &[Sample],
-    items: &[T],
-    search: &CoreSearch,
-    metric: &CoreVariogram,
-) -> Option<Vec<T>> {
-    let chosen = estimation::neighbors(target, locs, search, Some(metric)).ok()?;
+fn nearby<T: Clone>(target: &Point, tree: &SearchTree, items: &[T]) -> Option<Vec<T>> {
+    let chosen = tree.neighbors(target).ok()?;
     Some(chosen.iter().map(|&i| items[i].clone()).collect())
 }
 
@@ -120,12 +115,13 @@ impl Cokriging {
             })
             .collect::<PyResult<_>>()?;
         let metric = metric(self.model.anisotropy.clone());
+        let tree = SearchTree::new(plain, &self.search, Some(&metric));
         let results: Vec<Option<Estimate>> = py.detach(|| {
             targets
                 .par_iter()
                 .enumerate()
                 .map(|(i, t)| {
-                    let near = nearby(t, plain, co, &self.search, &metric)?;
+                    let near = nearby(t, &tree, co)?;
                     if collocated.is_empty() {
                         return estimation::cokrige(t, variable, &near, &self.model, &self.kind)
                             .ok();
@@ -171,11 +167,12 @@ impl Disjunctive {
             .ok_or_else(|| invalid("DisjunctiveKriging is not fitted; call fit first"))?;
         let targets = targets_of(targets)?;
         let metric = metric(self.variogram.anisotropy.clone());
+        let tree = SearchTree::new(plain, &self.search, Some(&metric));
         Ok(py.detach(|| {
             targets
                 .par_iter()
                 .map(|t| {
-                    let near = nearby(t, plain, gauss, &self.search, &metric)?;
+                    let near = nearby(t, &tree, gauss)?;
                     self.engine
                         .factors(t, &near, &self.variogram, self.order)
                         .ok()
