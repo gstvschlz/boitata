@@ -1,0 +1,14 @@
+[env]
+_.path = ["~/.cargo/bin"]
+
+[tasks.build]
+run = "cargo build --workspace"
+
+[tasks.test]
+run = "cargo test --workspace"
+
+[tasks.lint]
+run = ["cargo fmt --all --check", "cargo clippy --workspace --all-targets -- -D warnings"]
+
+[tasks.verify]
+depends = ["lint", "test"]
