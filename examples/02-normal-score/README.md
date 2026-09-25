@@ -1,17 +1,18 @@
 # 2. Normal-score transform
 
-Gaussian methods (simple kriging of scores, SGS) need a standard normal variable.
-The normal-score transform matches each value to the Gaussian score with the same cumulative probability, using the declustering weights from [chapter 1](../01-data/README.md).
+Gaussian methods need a standard normal variable.
+The normal-score transform maps each value to the Gaussian score with the same cumulative probability, using the declustering weights from [chapter 1](../01-data/README.md).
 
 ![quantile mapping](quantile-mapping.png)
 
 ![histograms](histograms.png)
 
-Checks: weighted mean of the scores 0.001, standard deviation 0.998, and the back-transform returns every sample exactly.
+Checks: weighted mean of the scores 0.000, standard deviation 0.999; the back-transform returns every sample exactly.
 
-```rust
-let ns = nscore_transform(&v, Some(&weights))?;
-let value = ns.table.back(score);
+```python
+ns = cs.NormalScore()
+y = ns.fit_transform(v, weights=d.weights)
+v_back = ns.inverse_transform(y)
 ```
 
-Source: [`02_normal_score.rs`](../src/bin/02_normal_score.rs), [`02_normal_score.py`](../plot/02_normal_score.py).
+[`example.py`](example.py)
