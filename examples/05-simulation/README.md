@@ -51,23 +51,27 @@ Variogram(nugget=0.32126839519606537, structures=[Structure("spherical", sill=0.
 ```
 
 SGS normal-scores the data itself, simulates along a random path and back-transforms. 50 realizations, the same on
-any number of threads:
+any number of threads. `simulate` returns a summary accumulated while it runs: the mean, variance and quantiles at
+every node, the probability and mean above each cutoff, and each realization's global mean and share above the
+cutoffs. Realizations are kept only when asked for, here to check them.
 
 <details><summary>Python</summary>
 
 ```python
 grid = cs.BlockModel(origin=(0.5, 0.5), size=(5, 5), count=(52, 60))
 sgs = cs.SGS(gaussian, cs.Search(radius=100, max_samples=24)).fit(xy, v, weights=weights)
-reals = sgs.simulate(grid, n=50, seed=42)
-etype = reals.mean(axis=0)
-p500 = cs.probability_above(reals, 500.0)
+summary = sgs.simulate(grid, n=50, seed=42, cutoffs=[500.0], quantiles=[0.1, 0.9], realizations=True)
+reals = summary.realizations
+etype = summary.mean
+p500 = summary.probability_above[0]
 
 nodes = grid.centroids.astype(int)
 true_at_nodes = truth[nodes[:, 1] - 1, nodes[:, 0] - 1]
-print(
-    f"realization means {reals.mean(axis=1).min():.0f}-{reals.mean(axis=1).max():.0f}, true {true_at_nodes.mean():.0f}"
-)
+means = summary.realization_mean
+print(f"realization means {means.min():.0f}-{means.max():.0f}, true {true_at_nodes.mean():.0f}")
 print(f"realization variance {reals.var(axis=1).mean():.0f}, true {true_at_nodes.var():.0f}")
+low, high = np.quantile(summary.realization_above[0], [0.1, 0.9])
+print(f"area above 500 ppm: P10 {low:.1%}, P90 {high:.1%}, true {np.mean(true_at_nodes > 500):.1%}")
 ```
 
 </details>
@@ -75,6 +79,7 @@ print(f"realization variance {reals.var(axis=1).mean():.0f}, true {true_at_nodes
 ```text
 realization means 282-320, true 276
 realization variance 72667, true 62312
+area above 500 ppm: P10 21.8%, P90 25.1%, true 18.9%
 ```
 
 Each realization looks like the truth; their mean is smooth like kriging and their spread measures uncertainty.
@@ -96,7 +101,7 @@ for ax, image, title in (
     map_axes(ax, title)
 fig.colorbar(im, ax=axes[0, :], shrink=0.8, label="V (ppm)")
 fig.colorbar(im, ax=axes[1, 0], shrink=0.8, label="V (ppm)")
-spread = axes[1, 1].imshow(reals.std(axis=0).reshape(shape), origin="lower", extent=extent, cmap="Greys")
+spread = axes[1, 1].imshow(summary.std.reshape(shape), origin="lower", extent=extent, cmap="Greys")
 map_axes(axes[1, 1], "Spread across realizations")
 fig.colorbar(spread, ax=axes[1, 1], shrink=0.8, label="standard deviation (ppm)")
 prob = axes[1, 2].imshow(p500.reshape(shape), origin="lower", extent=extent, vmin=0, vmax=1)

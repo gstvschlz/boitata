@@ -48,7 +48,7 @@ def test_sgs_with_local_anisotropy():
     sgs = cs.SGS(cs.Variogram([("spherical", 1.0, 15.0)]), cs.Search(radius=15, max_samples=12)).fit(
         coords, values
     )
-    reals = sgs.simulate(grid, n=2, seed=1, anisotropy=lva)
+    reals = sgs.simulate(grid, n=2, seed=1, realizations=True, anisotropy=lva).realizations
     assert reals.shape == (2, 1600) and np.all(np.isfinite(reals))
 
 

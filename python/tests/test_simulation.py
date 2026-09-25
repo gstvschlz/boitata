@@ -11,37 +11,50 @@ grid = cs.BlockModel(origin=(0, 0), size=(5, 5), count=(20, 20))
 
 def test_sgs_is_reproducible_and_honours_data():
     sgs = cs.SGS(gaussian, cs.Search(radius=40, max_samples=12)).fit(coords, values)
-    a = sgs.simulate(grid, n=3, seed=7)
+    a = sgs.simulate(grid, n=3, seed=7, realizations=True).realizations
     assert a.shape == (3, 400)
-    np.testing.assert_array_equal(a, sgs.simulate(grid, n=3, seed=7))
+    np.testing.assert_array_equal(a, sgs.simulate(grid, n=3, seed=7, realizations=True).realizations)
     assert not np.array_equal(a[0], a[1])
-    np.testing.assert_allclose(sgs.simulate(coords[:5], seed=1)[0], values[:5])
+    at_data = sgs.simulate(coords[:5], n=4, seed=1)
+    np.testing.assert_allclose(at_data.mean, values[:5])
+    np.testing.assert_allclose(at_data.variance, 0, atol=1e-12)
 
 
-def test_sgs_reproduces_the_histogram():
+def test_sgs_summary_matches_its_realizations():
     sgs = cs.SGS(gaussian, cs.Search(radius=40, max_samples=12)).fit(coords, values)
-    reals = sgs.simulate(grid, n=20, seed=3)
+    cut = float(np.median(values))
+    s = sgs.simulate(grid, n=20, seed=3, cutoffs=[cut], quantiles=[0.1, 0.5, 0.9], realizations=True)
+    reals = s.realizations
+    np.testing.assert_allclose(s.mean, reals.mean(axis=0))
+    np.testing.assert_allclose(s.variance, reals.var(axis=0), atol=1e-9)
+    np.testing.assert_allclose(s.probability_above[0], (reals > cut).mean(axis=0))
+    np.testing.assert_allclose(s.quantile_values[1], np.median(reals, axis=0), rtol=1e-6)
+    np.testing.assert_allclose(s.realization_above[0], (reals > cut).mean(axis=1))
     assert np.median(reals) == pytest.approx(np.median(values), rel=0.25)
-    assert reals.min() >= values.min() - 1e-6
+    assert sgs.simulate(grid, n=2, seed=3).realizations is None
 
 
-def test_turning_bands_shapes():
+def test_turning_bands_summary():
     tb = cs.TurningBands(gaussian, bands=100, step=1.0).fit(coords, values)
-    assert tb.simulate(grid, n=2, seed=1).shape == (2, 400)
+    s = tb.simulate(grid, n=2, seed=1, cutoffs=[1.0, 2.0])
+    assert s.mean.shape == (400,) and s.probability_above.shape == (2, 400)
 
 
-def test_sis_returns_known_categories():
+def test_sis_probabilities():
     cats = (values > np.median(values)).astype(int)
     sis = cs.SIS([gaussian, gaussian], cs.Search(radius=40, max_samples=12)).fit(coords, cats)
-    out = sis.simulate(grid, n=2, seed=4)
-    assert out.shape == (2, 400) and set(np.unique(out)) <= {0, 1}
+    s = sis.simulate(grid, n=4, seed=4, realizations=True)
+    assert s.probabilities.shape == (2, 400) and s.proportions.shape == (4, 2)
+    np.testing.assert_allclose(s.probabilities.sum(axis=0), 1.0)
+    assert set(np.unique(s.realizations)) <= {0, 1}
+    assert ((s.entropy >= 0) & (s.entropy <= 1)).all()
 
 
 def test_plurigaussian_proportions():
     facies = rng.choice(3, 60, p=[0.2, 0.3, 0.5])
     pgs = cs.Plurigaussian(gaussian, proportions=[0.2, 0.3, 0.5]).fit(coords, facies)
-    out = pgs.simulate(grid, seed=2)
-    assert out.shape == (400,) and set(np.unique(out)) <= {0, 1, 2}
+    s = pgs.simulate(grid, n=2, seed=2)
+    assert s.probabilities.shape == (3, 400) and set(np.unique(s.most_likely)) <= {0, 1, 2}
 
 
 def test_gibbs_respects_bounds():
@@ -49,10 +62,3 @@ def test_gibbs_respects_bounds():
     bounds = np.column_stack([np.zeros(20), np.full(20, np.inf)])
     draw = cs.gibbs(pts, bounds, gaussian, seed=3)
     assert np.all(draw >= 0)
-
-
-def test_postprocessing():
-    reals = rng.normal(size=(200, 5))
-    stats = cs.summarize_realizations(reals, quantiles=[0.5])
-    np.testing.assert_allclose(stats["mean"], reals.mean(axis=0))
-    assert cs.probability_above(reals, 0.0) == pytest.approx((reals > 0).mean(axis=0))

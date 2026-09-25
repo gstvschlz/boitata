@@ -104,10 +104,9 @@ save(fig, "kriging")
 weights = cs.cell_declustering(xy, v, sizes=np.arange(2.5, 102.5, 2.5)).weights
 gaussian = cs.Variogram([("spherical", 0.68, 82.0)], nugget=0.32)
 sgs = cs.SGS(gaussian, cs.Search(radius=100, max_samples=24)).fit(xy, v, weights=weights)
-global_real = sgs.simulate(
-    grid, seed=11, anisotropy=cs.LocalAnisotropy(np.zeros((1, 3)), [[170.0, 0, 0]], [[0.43, 1.0]])
-)[0]
-local_real = sgs.simulate(grid, seed=11, anisotropy=lva)[0]
+uniform = cs.LocalAnisotropy(np.zeros((1, 3)), [[170.0, 0, 0]], [[0.43, 1.0]])
+global_real = sgs.simulate(grid, n=1, seed=11, realizations=True, anisotropy=uniform).realizations[0]
+local_real = sgs.simulate(grid, n=1, seed=11, realizations=True, anisotropy=lva).realizations[0]
 
 fig, axes = plt.subplots(1, 2, figsize=(8.6, 4.6), layout="constrained")
 for ax, image, title in (
