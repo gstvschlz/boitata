@@ -38,4 +38,5 @@ run = [
   "uv run --no-sync python examples/02-normal-score/example.py",
   "uv run --no-sync python examples/03-variography/example.py",
   "uv run --no-sync python examples/04-kriging/example.py",
+  "uv run --no-sync python examples/05-simulation/example.py",
 ]
