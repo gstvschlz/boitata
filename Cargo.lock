@@ -336,6 +336,7 @@ dependencies = [
  "drillholes",
  "eda",
  "estimation",
+ "modeling",
  "numpy",
  "pyo3",
  "pyo3-arrow",

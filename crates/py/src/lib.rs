@@ -11,6 +11,7 @@ mod eda;
 mod estimation;
 mod io;
 mod lva;
+mod modeling;
 mod simulation;
 mod table;
 mod transforms;
@@ -49,6 +50,7 @@ fn _ceres(m: &Bound<PyModule>) -> PyResult<()> {
     coda::register(m)?;
     blocks::register(m)?;
     lva::register(m)?;
+    modeling::register(m)?;
     simulation::register(m)?;
     eda::register(m)?;
     Ok(())
