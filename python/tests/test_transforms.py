@@ -48,6 +48,52 @@ def test_ppmt_decorrelates_and_inverts():
     np.testing.assert_allclose(ppmt.inverse_transform(g), x, atol=1e-6)
 
 
+def test_ppmt_marginal_step_with_weights_round_trips(skewed):
+    x = np.column_stack([skewed, skewed * rng.lognormal(0, 0.3, len(skewed))])
+    ppmt = cs.PPMT(seed=3).fit(x, weights=rng.uniform(0.5, 1.5, len(x)))
+    np.testing.assert_allclose(ppmt.inverse_transform(ppmt.transform(x)), x, atol=1e-6)
+    with pytest.raises(cs.InvalidInput):
+        cs.PPMT(marginal=False).fit(x, weights=np.ones(len(x)))
+
+
+def test_pca_scores_are_uncorrelated_by_decreasing_variance():
+    x = rng.normal(size=(500, 3)) @ np.array([[2.0, 0.5, 0.0], [0.0, 1.0, 0.3], [0.0, 0.0, 0.2]])
+    pca = cs.PCA().fit(x)
+    scores = pca.transform(x)
+    np.testing.assert_allclose(np.cov(scores.T, bias=True), np.diag(pca.explained_variance_), atol=1e-10)
+    assert np.all(np.diff(pca.explained_variance_) <= 0)
+    assert pca.explained_variance_ratio_.sum() == pytest.approx(1.0)
+    np.testing.assert_allclose(pca.inverse_transform(scores), x, atol=1e-10)
+    assert cs.PCA(standardize=True).fit(x).explained_variance_.sum() == pytest.approx(3.0)
+
+
+def test_maf_factors_are_uncorrelated_at_lag():
+    grid = np.array([(i, j) for j in range(30) for i in range(30)], float)
+    smooth = np.sin(grid[:, 0] / 5) + np.cos(grid[:, 1] / 6)
+    x = np.column_stack([smooth + 0.3 * rng.normal(size=900), smooth - rng.normal(size=900)])
+    maf = cs.MAF(lag=1.0, tolerance=0.01).fit(x, grid)
+    f = maf.transform(x)
+    np.testing.assert_allclose(np.cov(f.T, bias=True), np.eye(2), atol=1e-10)
+    right = np.flatnonzero(grid[:, 0] < 29)
+    d = np.vstack([f[right] - f[right + 1], f[:-30] - f[30:]])
+    np.testing.assert_allclose((d.T @ d / (2 * len(d)))[0, 1], 0.0, atol=1e-10)
+    assert maf.gammas_[0] < maf.gammas_[1]
+    np.testing.assert_allclose(maf.inverse_transform(f), x, atol=1e-10)
+
+
+def test_stepwise_conditional_removes_nonlinear_dependence():
+    u = rng.normal(size=3000)
+    x = np.column_stack([u, u**2 + 0.3 * rng.normal(size=3000)])
+    sct = cs.StepwiseConditional(classes=30).fit(x)
+    g = sct.transform(x)
+    assert abs(np.corrcoef(g[:, 0], g[:, 1])[0, 1]) < 0.1
+    assert abs(np.corrcoef(g[:, 0] ** 2, g[:, 1])[0, 1]) < 0.1
+    assert abs(g.mean()) < 0.05 and abs(g.std() - 1) < 0.05
+    np.testing.assert_allclose(sct.inverse_transform(g), x, atol=1e-10)
+    with pytest.raises(cs.InvalidInput):
+        sct.transform(x[:, :1])
+
+
 def test_cell_declustering_downweights_clusters():
     grid = np.array([(x, y) for x in range(0, 100, 10) for y in range(0, 100, 10)], float)
     cluster = rng.uniform(0, 10, size=(50, 2))
