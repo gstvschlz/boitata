@@ -30,7 +30,7 @@ pub struct Direction {
 }
 
 impl Direction {
-    fn unit(&self) -> (f64, f64, f64) {
+    pub fn unit(&self) -> (f64, f64, f64) {
         let az = self.azimuth.to_radians();
         let dip = self.dip.to_radians();
         // East, North, Up. Dip is positive downward.

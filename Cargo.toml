@@ -39,6 +39,7 @@ drillholes = { path = "crates/drillholes" }
 transforms = { path = "crates/transforms" }
 estimation = { path = "crates/estimation" }
 simulation = { path = "crates/simulation" }
+eda = { path = "crates/eda" }
 
 [workspace.lints.clippy]
 needless_range_loop = "allow"
