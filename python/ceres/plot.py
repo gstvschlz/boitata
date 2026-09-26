@@ -836,8 +836,34 @@ def _palette(k):
     return mpl.colormaps[mpl.rcParams["image.cmap"]](np.linspace(0.05, 0.85, k))
 
 
+def _classes(categories, scheme):
+    """Names, colours (None without a scheme), per-sample index and mask of samples with a category."""
+    if scheme is None:
+        names, index = np.unique(np.asarray(categories), return_inverse=True)
+        return [str(n) for n in names], None, index, np.ones(index.size, bool)
+    codes = np.asarray(categories, dtype=float)
+    keep = ~np.isnan(codes)
+    index = codes[keep].astype(int)
+    if np.any((index != codes[keep]) | (index < 0) | (index >= len(scheme))):
+        raise ValueError(f"categories must be codes of the scheme, 0 to {len(scheme) - 1}, or NaN")
+    colors = scheme.colors
+    if colors is None:
+        grey = ["0.6"] if scheme.other is not None else []
+        colors = [*_palette(len(scheme) - len(grey)), *grey]
+    return scheme.names, colors, index, keep
+
+
 def category_swath(
-    coords, categories, width, azimuth=None, axis=None, weights=None, colors=None, ax=None, **kwargs
+    coords,
+    categories,
+    width,
+    azimuth=None,
+    axis=None,
+    weights=None,
+    colors=None,
+    scheme=None,
+    ax=None,
+    **kwargs,
 ):
     """Proportion of each category per slice along a direction, as stacked bars.
 
@@ -846,25 +872,29 @@ def category_swath(
     coords : array_like
         ``(n, 2)`` or ``(n, 3)`` coordinates.
     categories : array_like
-        Category (e.g. lithology) of each sample.
+        Category (e.g. lithology) of each sample; its code, NaN for none, when `scheme` is given.
     width, azimuth, axis
         Slices as in ``ceres.swath``: `width` along `azimuth` (degrees from north) or `axis` ("x", "y", "z").
     weights : array_like, optional
         Declustering weights or lengths.
     colors : sequence, optional
-        One colour per category, sorted; default spread over matplotlib's ``image.cmap``.
+        One colour per category, sorted; default the scheme's, else spread over matplotlib's ``image.cmap``
+        with ``other`` in grey.
+    scheme : Categories, optional
+        Order, names and colours of the categories.
     **kwargs
         Passed to every ``ax.bar``.
     """
     fig, ax = _axes(ax)
-    categories = np.asarray(categories)
-    names = np.unique(categories)
-    colors = _palette(len(names)) if colors is None else colors
+    names, default, index, keep = _classes(categories, scheme)
+    coords = np.asarray(coords, dtype=float)[keep]
+    weights = None if weights is None else np.asarray(weights, dtype=float)[keep]
+    colors = colors if colors is not None else default if default is not None else _palette(len(names))
     kwargs.setdefault("edgecolor", "white")
     kwargs.setdefault("linewidth", 0.3)
     bottom = 0.0
-    for name, color in zip(names, colors, strict=True):
-        indicator = (categories == name).astype(float)
+    for code, (name, color) in enumerate(zip(names, colors, strict=True)):
+        indicator = (index == code).astype(float)
         s = _swath(coords, indicator, width, azimuth=azimuth, axis=axis, weights=weights)
         ax.bar(s["centres"], s["mean"], width=width, bottom=bottom, color=color, label=str(name), **kwargs)
         bottom = bottom + s["mean"]
@@ -876,24 +906,26 @@ def category_swath(
     return fig, ax
 
 
-def proportions(categories, weights=None, ax=None, **kwargs):
+def proportions(categories, weights=None, scheme=None, ax=None, **kwargs):
     """Proportion of each category as horizontal bars, weighted, with the unweighted proportions as ticks.
 
     Parameters
     ----------
     categories : array_like
-        Category of each sample.
+        Category of each sample; its code, NaN for none, when `scheme` is given.
     weights : array_like, optional
         Declustering weights or lengths; the bars are then weighted and a dark tick marks each unweighted share.
+    scheme : Categories, optional
+        Order, names and colours of the categories.
     **kwargs
         Passed to ``ax.barh``.
     """
     fig, ax = _axes(ax)
-    names, index = np.unique(np.asarray(categories), return_inverse=True)
-    w = np.ones(index.size) if weights is None else np.asarray(weights, dtype=float)
+    names, colors, index, keep = _classes(categories, scheme)
+    w = np.ones(index.size) if weights is None else np.asarray(weights, dtype=float)[keep]
     share = np.bincount(index, w, len(names)) / w.sum()
     rows = np.arange(len(names))
-    kwargs.setdefault("color", _accent())
+    kwargs.setdefault("color", _accent() if colors is None else colors)
     kwargs.setdefault("alpha", 0.6)
     ax.barh(rows, share, **kwargs)
     right = share
@@ -907,7 +939,7 @@ def proportions(categories, weights=None, ax=None, **kwargs):
             f"{100 * p:.1f} %", (x, row), xytext=(6, 0), textcoords="offset points", va="center", fontsize=7
         )
     ax.set_xlim(0, 1.25 * right.max())
-    ax.set_yticks(rows, [str(n) for n in names])
+    ax.set_yticks(rows, names)
     ax.invert_yaxis()
     ax.set_xlabel("Proportion")
     return fig, ax

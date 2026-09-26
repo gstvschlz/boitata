@@ -41,27 +41,14 @@ pub struct Search {
     soft: Option<Soft<Label>>,
 }
 
-/// A domain label: a string, number or boolean.
-pub type Label = serde_json::Value;
+pub use crate::args::Label;
 
-/// `obj` as a label; integral floats become integers, as `1.0 == 1` in Python.
 fn label(obj: &Bound<PyAny>) -> PyResult<Label> {
-    if let Ok(s) = obj.cast::<PyString>() {
-        return Ok(Label::String(s.to_str()?.into()));
-    }
-    if let Ok(b) = obj.extract::<bool>() {
-        return Ok(Label::Bool(b));
-    }
-    if let Ok(i) = obj.extract::<i64>() {
-        return Ok(Label::from(i));
-    }
-    match obj.extract::<f64>() {
-        Ok(f) if f.fract() == 0.0 && f.abs() < 9e15 => Ok(Label::from(f as i64)),
-        Ok(f) if f.is_finite() => Ok(Label::from(f)),
-        _ => Err(invalid(format!(
+    args::label(obj)?.ok_or_else(|| {
+        invalid(format!(
             "domain labels must be strings, finite numbers or booleans, not {obj}"
-        ))),
-    }
+        ))
+    })
 }
 
 fn key(label: &Label) -> String {

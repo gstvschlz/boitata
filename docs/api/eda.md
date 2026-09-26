@@ -1,5 +1,7 @@
 # EDA and validation
 
+::: ceres.Categories
+
 ::: ceres.describe
 
 ::: ceres.describe_by

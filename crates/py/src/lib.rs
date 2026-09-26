@@ -3,6 +3,7 @@ use pyo3::types::PyType;
 
 mod args;
 mod blocks;
+mod categories;
 mod coda;
 mod cokriging;
 mod containers;
@@ -57,5 +58,6 @@ fn _ceres(m: &Bound<PyModule>) -> PyResult<()> {
     modeling::register(m)?;
     simulation::register(m)?;
     eda::register(m)?;
+    categories::register(m)?;
     Ok(())
 }

@@ -298,8 +298,9 @@ save(fig, "swath")
 # %% [markdown]
 # ## Categories
 #
-# How much of each lithology do the composites hold? The five domains are kept and the many minor lithology codes
-# lumped into "other". `plot.proportions` draws the shares weighted by cell
+# How much of each lithology do the composites hold? A `Categories` scheme keeps the five domains and lumps the many
+# minor lithology codes into "other", its last code; `Categories.from_values(lith, weights=w, min_share=0.02)` would
+# instead keep every lithology above 2 % of the weight. Given the scheme, `plot.proportions` draws the shares weighted by cell
 # declustering over all composites (50 m cells), with the unweighted shares as ticks; `plot.category_swath` stacks
 # the declustered shares per 100 m slice of easting, to see where each lithology sits along strike. Drilling targets
 # the sulphides, so declustering lowers the share of MS and SM and nearly doubles that of the RH host rock.
@@ -307,11 +308,12 @@ save(fig, "swath")
 # %%
 assayed = ~np.isnan(zn)
 cell_weights = cs.cell_declustering(xyz[assayed], zn[assayed], cell_size=50.0).weights
-rock = np.where(np.isin(lith, domains), lith, "other")[assayed]
+lithology = cs.Categories(domains, other="other")
+rock = lithology.encode(lith[assayed])
 fig, (a, b) = plt.subplots(1, 2, figsize=(10, 3.4), layout="constrained", width_ratios=[1, 2])
-cs.plot.proportions(rock, cell_weights, ax=a)
+cs.plot.proportions(rock, cell_weights, scheme=lithology, ax=a)
 a.set_title("Lithologies, declustered")
-cs.plot.category_swath(xyz[assayed], rock, 100.0, axis="x", weights=cell_weights, ax=b)
+cs.plot.category_swath(xyz[assayed], rock, 100.0, axis="x", weights=cell_weights, scheme=lithology, ax=b)
 b.set(title="Lithologies along easting, declustered", xlabel="Easting (m)")
 save(fig, "categories")
 

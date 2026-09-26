@@ -1,11 +1,63 @@
 use numpy::ndarray::Array2;
 use numpy::{IntoPyArray, PyArray1, PyArray2, PyReadonlyArray1, PyReadonlyArray2};
 use pyo3::prelude::*;
+use pyo3::types::PyString;
 
 use crate::containers::coords_arg;
 use crate::invalid;
 
 pub type Point = (f64, f64, f64);
+
+/// A label: a string, number or boolean.
+pub type Label = serde_json::Value;
+
+/// `obj` as a label; integral floats become integers, as `1.0 == 1` in
+/// Python. None for None and NaN.
+pub fn label(obj: &Bound<PyAny>) -> PyResult<Option<Label>> {
+    if obj.is_none() {
+        return Ok(None);
+    }
+    if let Ok(s) = obj.cast::<PyString>() {
+        return Ok(Some(Label::String(s.to_str()?.into())));
+    }
+    if let Ok(b) = obj.extract::<bool>() {
+        return Ok(Some(Label::Bool(b)));
+    }
+    if let Ok(i) = obj.extract::<i64>() {
+        return Ok(Some(Label::from(i)));
+    }
+    match obj.extract::<f64>() {
+        Ok(f) if f.fract() == 0.0 && f.abs() < 9e15 => Ok(Some(Label::from(f as i64))),
+        Ok(f) if f.is_finite() => Ok(Some(Label::from(f))),
+        Ok(f) if f.is_nan() => Ok(None),
+        _ => Err(invalid(format!(
+            "labels must be strings, finite numbers or booleans, not {obj}"
+        ))),
+    }
+}
+
+/// `label` as text: integers without a decimal point.
+pub fn text(obj: &Bound<PyAny>) -> PyResult<Option<String>> {
+    Ok(label(obj)?.map(|l| match l {
+        Label::String(s) => s,
+        l => l.to_string(),
+    }))
+}
+
+/// Labels of a 1-D sequence as text; nulls, including Arrow's, are None.
+pub fn texts(obj: &Bound<PyAny>, what: &str) -> PyResult<Vec<Option<String>>> {
+    let obj = match obj.hasattr("to_pylist")? {
+        true => obj.call_method0("to_pylist")?,
+        false => obj.clone(),
+    };
+    if obj.is_instance_of::<PyString>() {
+        return Err(invalid(format!("{what} must be a sequence of labels")));
+    }
+    obj.try_iter()
+        .map_err(|_| invalid(format!("{what} must be a sequence of labels")))?
+        .map(|item| text(&item?))
+        .collect()
+}
 
 fn asarray<'py>(obj: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyAny>> {
     obj.py()

@@ -17,6 +17,7 @@ kiddo = "6"
 numpy = "0.29"
 pyo3 = { version = "0.29", features = ["abi3-py311"] }
 pyo3-arrow = "0.19"
+proptest = "1"
 arrow-array = "59"
 arrow-cast = "59"
 arrow-csv = "59"
