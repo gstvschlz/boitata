@@ -1,6 +1,6 @@
 from collections.abc import Callable, Iterator, Mapping, Sequence
 from os import PathLike
-from typing import Any, TypeAlias
+from typing import Any, Literal, TypeAlias
 
 import numpy as np
 import numpy.typing as npt
@@ -560,13 +560,23 @@ class Drillholes:
         inclination: str | None = None,
         from_: str = "FROM",
         to: str = "TO",
+        method: Literal["minimum_curvature", "tangential", "balanced_tangential"] = "minimum_curvature",
     ) -> None: ...
     @property
     def holes(self) -> list[str]: ...
     def paths(self) -> Table: ...
     def at(self, holes: Sequence[str], depths: ArrayLike) -> npt.NDArray[np.float64]: ...
     def samples(self) -> PointSet: ...
-    def composite(self, length: float, grades: Sequence[str], domain: str | None = None) -> PointSet: ...
+    def composite(
+        self,
+        length: float | None,
+        grades: Sequence[str],
+        domain: str | None = None,
+        intervals: TableLike | None = None,
+        residual: Literal["keep", "drop", "merge"] = "keep",
+        min_fraction: float = 0.5,
+        categories: Sequence[str] = (),
+    ) -> PointSet: ...
     def __len__(self) -> int: ...
 
 def closure(parts: ArrayLike, total: float = 1.0) -> npt.NDArray[np.float64]: ...

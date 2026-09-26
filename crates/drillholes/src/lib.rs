@@ -1,7 +1,8 @@
 //! Drillhole data processing: desurvey and compositing.
 //!
-//! Handles wellbore survey-to-coordinates conversion (minimum curvature) and
-//! domain-aware sample compositing with length-weighted averaging.
+//! Handles wellbore survey-to-coordinates conversion (minimum curvature,
+//! tangential, balanced tangential) and domain-aware sample compositing with
+//! length-weighted averaging.
 
 mod error;
 pub use error::{DrillholeError, Result};
@@ -27,21 +28,27 @@ pub struct SurveyStation {
     pub inclination: f64, // degrees, 0 = vertical
 }
 
-/// Desurvey method.
+/// Desurvey method: how the hole runs between two survey stations.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum DesurveyMethod {
+    /// Circular arc tangent to both stations.
     #[default]
     MinimumCurvature,
+    /// Straight line along the upper station's direction.
+    Tangential,
+    /// Half the segment along each station's direction.
+    BalancedTangential,
 }
 
-/// Desurvey wellbore using minimum curvature method.
+/// Desurvey wellbore by `method`.
 ///
 /// # Algorithm
-/// Minimum curvature interpolates smooth curves between survey stations.
-/// For each segment between stations i and i+1:
-/// 1. Compute dogleg angle (angle between stations in 3D)
-/// 2. Compute vertical section (E-W, N-S, vertical components)
-/// 3. Interpolate using circular arc formula
+/// Each segment between stations i and i+1 is displaced by
+/// `w₁·t₁ + w₂·t₂`, `t` the unit direction at each station and `Δmd` the
+/// segment length: tangential takes `(Δmd, 0)`, balanced tangential
+/// `(Δmd/2, Δmd/2)`, and minimum curvature scales the balanced weights by
+/// `2/β · tan(β/2)` of the dogleg `β`, which puts the segment on a circular
+/// arc.
 ///
 /// # References
 /// - Marschall, F. (1988). "Calculation of Hole Trajectories"
@@ -49,7 +56,7 @@ pub enum DesurveyMethod {
 pub fn desurvey_wellbore(
     collar: &Collar,
     stations: &[SurveyStation],
-    _method: DesurveyMethod,
+    method: DesurveyMethod,
 ) -> Result<Vec<WellborePoint>> {
     if stations.is_empty() {
         return Err(DrillholeError::InvalidSurveyStation(
@@ -85,15 +92,15 @@ pub fn desurvey_wellbore(
             inclination: s1.inclination,
         };
 
-        let segment = desurvey_segment(collar, &points[points.len() - 1], &from_survey, s1)?;
+        let segment = desurvey_segment(&points[points.len() - 1], &from_survey, s1, method)?;
         points.extend(segment);
 
         for i in 1..sorted.len() {
             let segment = desurvey_segment(
-                collar,
                 &points[points.len() - 1],
                 &sorted[i - 1],
                 &sorted[i],
+                method,
             )?;
             points.extend(segment);
         }
@@ -102,12 +109,11 @@ pub fn desurvey_wellbore(
     Ok(points)
 }
 
-/// Desurvey single segment using minimum curvature.
 fn desurvey_segment(
-    _collar: &Collar,
     prev_point: &WellborePoint,
     from: &SurveyStation,
     to: &SurveyStation,
+    method: DesurveyMethod,
 ) -> Result<Vec<WellborePoint>> {
     let md_from = from.depth;
     let md_to = to.depth;
@@ -119,17 +125,23 @@ fn desurvey_segment(
 
     let (a1, i1) = (from.azimuth.to_radians(), from.inclination.to_radians());
     let (a2, i2) = (to.azimuth.to_radians(), to.inclination.to_radians());
-    let cos_dogleg = (i2 - i1).cos() - i1.sin() * i2.sin() * (1.0 - (a2 - a1).cos());
-    let dogleg = cos_dogleg.clamp(-1.0, 1.0).acos();
-    let ratio = if dogleg < 1e-9 {
-        1.0
-    } else {
-        2.0 / dogleg * (dogleg / 2.0).tan()
+    let (w1, w2) = match method {
+        DesurveyMethod::Tangential => (delta_md, 0.0),
+        DesurveyMethod::BalancedTangential => (delta_md / 2.0, delta_md / 2.0),
+        DesurveyMethod::MinimumCurvature => {
+            let cos_dogleg = (i2 - i1).cos() - i1.sin() * i2.sin() * (1.0 - (a2 - a1).cos());
+            let dogleg = cos_dogleg.clamp(-1.0, 1.0).acos();
+            let ratio = if dogleg < 1e-9 {
+                1.0
+            } else {
+                2.0 / dogleg * (dogleg / 2.0).tan()
+            };
+            (delta_md / 2.0 * ratio, delta_md / 2.0 * ratio)
+        }
     };
-    let half = delta_md / 2.0 * ratio;
-    let delta_e = half * (i1.sin() * a1.sin() + i2.sin() * a2.sin());
-    let delta_n = half * (i1.sin() * a1.cos() + i2.sin() * a2.cos());
-    let delta_v = -half * (i1.cos() + i2.cos());
+    let delta_e = w1 * i1.sin() * a1.sin() + w2 * i2.sin() * a2.sin();
+    let delta_n = w1 * i1.sin() * a1.cos() + w2 * i2.sin() * a2.cos();
+    let delta_v = -(w1 * i1.cos() + w2 * i2.cos());
 
     Ok(vec![WellborePoint {
         measured_depth: md_to,
@@ -213,19 +225,39 @@ pub struct Composite {
     pub domain: String,
     /// Length-weighted mean per grade column. A column is **absent** when no
     /// sampled length in this composite carried a value for it — an unsampled
-    /// interval must not be read as a zero grade.
+    /// interval must not be read as a zero grade. Categorical columns hold the
+    /// code covering the most length.
     pub attributes: HashMap<String, f64>,
+}
+
+/// What happens to the short tail of a run in length compositing.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum Residual {
+    #[default]
+    Keep,
+    Drop,
+    /// Absorbed into the previous composite of the run, if there is one.
+    Merge,
 }
 
 /// Compositing parameters.
 #[derive(Debug, Clone)]
 pub struct CompositeParams {
-    /// Target composite length (meters)
+    /// Target composite length (meters); `f64::INFINITY` gives one composite
+    /// per run of a domain.
     pub composite_length: f64,
     /// Domain column name in assay data
     pub domain_column: String,
     /// Grade/numeric columns to composite (length-weighted average)
     pub grade_columns: Vec<String>,
+    /// Columns of category codes, composited to their length-weighted majority.
+    pub categorical_columns: Vec<String>,
+    /// Non-overlapping `(from, to)` intervals to composite to instead of
+    /// `composite_length`, e.g. benches; ground outside them is left out.
+    pub intervals: Option<Vec<(f64, f64)>>,
+    /// Rule for a run's tail shorter than `min_fraction × composite_length`.
+    pub residual: Residual,
+    pub min_fraction: f64,
 }
 
 impl Default for CompositeParams {
@@ -234,6 +266,10 @@ impl Default for CompositeParams {
             composite_length: 2.0,
             domain_column: "domain".to_string(),
             grade_columns: vec!["grade".to_string()],
+            categorical_columns: vec![],
+            intervals: None,
+            residual: Residual::Keep,
+            min_fraction: 0.5,
         }
     }
 }
@@ -256,7 +292,11 @@ const LENGTH_EPS: f64 = 1e-9;
 ///    rather than at whatever length the assay intervals happen to sum to.
 /// 4. Length-weight each grade column over the length that actually carried a
 ///    value for it, so unsampled core dilutes nothing.
-/// 5. Emit the tail of each run at its true (short) length.
+/// 5. Emit the tail of each run at its true (short) length, or drop or merge
+///    it by `residual` when shorter than `min_fraction × composite_length`.
+///
+/// With `intervals`, step 3 cuts at their boundaries instead and each piece of
+/// an interval within one run becomes a composite.
 ///
 /// Unsampled gaps inside a run are skipped, not bridged: `length` counts only
 /// sampled ground, so a composite spanning a gap reports a `length` shorter
@@ -269,11 +309,28 @@ pub fn composite_intervals(
     if assays.is_empty() {
         return Ok(vec![]);
     }
-    if !(params.composite_length.is_finite() && params.composite_length > 0.0) {
+    if params.composite_length.is_nan() || params.composite_length <= 0.0 {
         return Err(DrillholeError::CompositeError(format!(
             "composite length must be a positive number, got {}",
             params.composite_length
         )));
+    }
+    if !(params.min_fraction.is_finite() && params.min_fraction >= 0.0) {
+        return Err(DrillholeError::CompositeError(format!(
+            "minimum fraction must be a non-negative number, got {}",
+            params.min_fraction
+        )));
+    }
+    let mut targets = params.intervals.clone().unwrap_or_default();
+    targets.sort_by(|a, b| a.0.total_cmp(&b.0));
+    if targets
+        .iter()
+        .any(|(f, t)| !(f.is_finite() && t > f && t.is_finite()))
+        || targets.windows(2).any(|w| w[1].0 < w[0].1 - LENGTH_EPS)
+    {
+        return Err(DrillholeError::CompositeError(
+            "target intervals must be finite, non-empty and non-overlapping".to_string(),
+        ));
     }
     for (from, to, _, _) in assays {
         if !from.is_finite() || !to.is_finite() {
@@ -300,38 +357,81 @@ pub fn composite_intervals(
     for (index, (from, to, domain, attrs)) in sorted.iter().enumerate() {
         let starts_new_domain = index > 0 && domain != &sorted[index - 1].2;
         if starts_new_domain {
-            builder.flush(&mut composites);
+            builder.end_run(&mut composites);
         }
-        builder.set_domain(domain);
+        builder.domain.clone_from(domain);
 
         // Walk the interval, cutting it wherever a composite boundary falls.
         let mut cursor = *from;
         while cursor < *to - LENGTH_EPS {
-            let take = (params.composite_length - builder.length).min(*to - cursor);
-            builder.accumulate(cursor, take, attrs);
-            cursor += take;
-            if builder.length >= params.composite_length - LENGTH_EPS {
-                builder.flush(&mut composites);
-                builder.set_domain(domain);
+            if params.intervals.is_none() {
+                let take = (params.composite_length - builder.length()).min(*to - cursor);
+                builder.accumulate(cursor, take, attrs);
+                cursor += take;
+                if builder.length() >= params.composite_length - LENGTH_EPS {
+                    builder.flush();
+                }
+                continue;
+            }
+            let k = targets.partition_point(|t| t.0 <= cursor + LENGTH_EPS);
+            if k > 0 && targets[k - 1].1 > cursor + LENGTH_EPS {
+                if builder.target != Some(k - 1) {
+                    builder.flush();
+                    builder.target = Some(k - 1);
+                }
+                let end = targets[k - 1].1.min(*to);
+                builder.accumulate(cursor, end - cursor, attrs);
+                cursor = end;
+            } else {
+                cursor = targets.get(k).map_or(*to, |t| t.0.min(*to));
             }
         }
     }
-    builder.flush(&mut composites);
+    builder.end_run(&mut composites);
 
     Ok(composites)
 }
 
-/// Accumulator for one in-progress composite.
+/// One composite's accumulated ground.
+#[derive(Default)]
+struct Part {
+    from: f64,
+    to: f64,
+    /// Sampled length.
+    length: f64,
+    /// Per grade column: (Σ value × length, length that carried a value).
+    sums: HashMap<String, (f64, f64)>,
+    /// Per categorical column: length carried by each code (as bits).
+    votes: HashMap<String, HashMap<u64, f64>>,
+}
+
+impl Part {
+    fn absorb(&mut self, other: Part) {
+        self.to = other.to;
+        self.length += other.length;
+        for (col, (sum, len)) in other.sums {
+            let entry = self.sums.entry(col).or_default();
+            entry.0 += sum;
+            entry.1 += len;
+        }
+        for (col, votes) in other.votes {
+            let entry = self.votes.entry(col).or_default();
+            for (code, len) in votes {
+                *entry.entry(code).or_default() += len;
+            }
+        }
+    }
+}
+
+/// Accumulates the composites of one run of a domain.
 struct CompositeBuilder<'a> {
     hole_id: &'a str,
     params: &'a CompositeParams,
     domain: String,
-    from_depth: Option<f64>,
-    to_depth: f64,
-    /// Sampled length accumulated so far.
-    length: f64,
-    /// Per column: (Σ value × length, length that carried a value).
-    sums: HashMap<String, (f64, f64)>,
+    /// Target interval the current part belongs to.
+    target: Option<usize>,
+    part: Option<Part>,
+    run: Vec<Part>,
 }
 
 impl<'a> CompositeBuilder<'a> {
@@ -340,17 +440,14 @@ impl<'a> CompositeBuilder<'a> {
             hole_id,
             params,
             domain: String::new(),
-            from_depth: None,
-            to_depth: 0.0,
-            length: 0.0,
-            sums: HashMap::new(),
+            target: None,
+            part: None,
+            run: Vec::new(),
         }
     }
 
-    fn set_domain(&mut self, domain: &str) {
-        if self.domain != domain {
-            self.domain = domain.to_string();
-        }
+    fn length(&self) -> f64 {
+        self.part.as_ref().map_or(0.0, |p| p.length)
     }
 
     /// Adds `take` metres of an interval starting at `at`.
@@ -358,54 +455,94 @@ impl<'a> CompositeBuilder<'a> {
         if take <= 0.0 {
             return;
         }
-        // Set lazily so a composite starts where its first sampled metre is,
-        // not at the boundary of a gap that preceded it.
-        if self.from_depth.is_none() {
-            self.from_depth = Some(at);
-        }
-        self.to_depth = at + take;
-        self.length += take;
+        // Started lazily so a composite starts where its first sampled metre
+        // is, not at the boundary of a gap that preceded it.
+        let part = self.part.get_or_insert_with(|| Part {
+            from: at,
+            ..Part::default()
+        });
+        part.to = at + take;
+        part.length += take;
         for col in &self.params.grade_columns {
             if let Some(&value) = attrs.get(col)
                 && value.is_finite()
             {
-                let entry = self.sums.entry(col.clone()).or_insert((0.0, 0.0));
+                let entry = part.sums.entry(col.clone()).or_default();
                 entry.0 += value * take;
                 entry.1 += take;
             }
         }
-    }
-
-    /// Emits the in-progress composite (if any) and resets.
-    fn flush(&mut self, out: &mut Vec<Composite>) {
-        let Some(from_depth) = self.from_depth else {
-            return;
-        };
-        if self.length <= 0.0 {
-            self.reset();
-            return;
+        for col in &self.params.categorical_columns {
+            if let Some(&code) = attrs.get(col)
+                && code.is_finite()
+            {
+                *part
+                    .votes
+                    .entry(col.clone())
+                    .or_default()
+                    .entry(code.to_bits())
+                    .or_default() += take;
+            }
         }
-        let attributes = self
-            .sums
-            .iter()
-            .filter(|(_, (_, len))| *len > 0.0)
-            .map(|(col, (sum, len))| (col.clone(), sum / len))
-            .collect();
-        out.push(Composite {
-            hole_id: self.hole_id.to_string(),
-            from_depth,
-            to_depth: self.to_depth,
-            length: self.length,
-            domain: self.domain.clone(),
-            attributes,
-        });
-        self.reset();
     }
 
-    fn reset(&mut self) {
-        self.from_depth = None;
-        self.length = 0.0;
-        self.sums.clear();
+    /// Closes the in-progress composite.
+    fn flush(&mut self) {
+        if let Some(part) = self.part.take() {
+            self.run.push(part);
+        }
+    }
+
+    /// Closes the run, applies the residual rule and emits its composites.
+    fn end_run(&mut self, out: &mut Vec<Composite>) {
+        self.flush();
+        self.target = None;
+        let p = self.params;
+        let short = |part: &Part| part.length < p.min_fraction * p.composite_length - LENGTH_EPS;
+        if p.intervals.is_none()
+            && p.composite_length.is_finite()
+            && self.run.last().is_some_and(short)
+        {
+            match p.residual {
+                Residual::Keep => {}
+                Residual::Drop => {
+                    self.run.pop();
+                }
+                Residual::Merge => {
+                    if self.run.len() > 1
+                        && let Some(last) = self.run.pop()
+                        && let Some(prev) = self.run.last_mut()
+                    {
+                        prev.absorb(last);
+                    }
+                }
+            }
+        }
+        out.extend(self.run.drain(..).map(|part| {
+            let mut attributes: HashMap<String, f64> = part
+                .sums
+                .into_iter()
+                .filter(|(_, (_, len))| *len > 0.0)
+                .map(|(col, (sum, len))| (col, sum / len))
+                .collect();
+            for (col, votes) in part.votes {
+                let majority = votes
+                    .into_iter()
+                    .map(|(code, len)| (f64::from_bits(code), len))
+                    .max_by(|a, b| a.1.total_cmp(&b.1).then(b.0.total_cmp(&a.0)));
+                if let Some((code, _)) = majority {
+                    attributes.insert(col, code);
+                }
+            }
+            Composite {
+                hole_id: self.hole_id.to_string(),
+                from_depth: part.from,
+                to_depth: part.to,
+                length: part.length,
+                domain: self.domain.clone(),
+                attributes,
+            }
+        }));
     }
 }
 
@@ -414,6 +551,10 @@ mod tests {
     use super::*;
 
     fn hole(stations: &[(f64, f64, f64)]) -> Vec<WellborePoint> {
+        hole_by(stations, DesurveyMethod::MinimumCurvature)
+    }
+
+    fn hole_by(stations: &[(f64, f64, f64)], method: DesurveyMethod) -> Vec<WellborePoint> {
         let collar = Collar {
             hole_id: "H".into(),
             east: 0.0,
@@ -429,7 +570,57 @@ mod tests {
                 inclination,
             })
             .collect();
-        desurvey_wellbore(&collar, &stations, DesurveyMethod::MinimumCurvature).unwrap()
+        desurvey_wellbore(&collar, &stations, method).unwrap()
+    }
+
+    const METHODS: [DesurveyMethod; 3] = [
+        DesurveyMethod::MinimumCurvature,
+        DesurveyMethod::Tangential,
+        DesurveyMethod::BalancedTangential,
+    ];
+
+    #[test]
+    fn straight_holes_agree_for_every_method() {
+        for stations in [
+            [(0.0, 0.0, 0.0), (40.0, 0.0, 0.0), (100.0, 0.0, 0.0)],
+            [
+                (0.0, 135.0, 60.0),
+                (40.0, 135.0, 60.0),
+                (100.0, 135.0, 60.0),
+            ],
+        ] {
+            let reference = hole(&stations);
+            for method in METHODS {
+                for (a, b) in reference.iter().zip(hole_by(&stations, method)) {
+                    assert!(
+                        (a.east - b.east).abs() < 1e-9
+                            && (a.north - b.north).abs() < 1e-9
+                            && (a.elev - b.elev).abs() < 1e-9,
+                        "{method:?}"
+                    );
+                }
+            }
+        }
+    }
+
+    /// On a true circular arc minimum curvature is exact; balanced tangential
+    /// sits between it and tangential in departure and in error.
+    #[test]
+    fn balanced_tangential_lies_between_on_a_curve() {
+        let r = 100.0;
+        let stations: Vec<(f64, f64, f64)> = (0..=9)
+            .map(|k| (r * (k as f64 * 10.0).to_radians(), 90.0, k as f64 * 10.0))
+            .collect();
+        let end = |m| hole_by(&stations, m).last().cloned().unwrap();
+        let (mc, t, bt) = (
+            end(DesurveyMethod::MinimumCurvature),
+            end(DesurveyMethod::Tangential),
+            end(DesurveyMethod::BalancedTangential),
+        );
+        assert!((mc.east - r).abs() < 1e-9 && (mc.elev + r).abs() < 1e-9);
+        assert!(t.east < bt.east && bt.east < mc.east);
+        let error = |p: &WellborePoint| ((p.east - r).powi(2) + (p.elev + r).powi(2)).sqrt();
+        assert!(error(&t) > error(&bt) && error(&bt) > 1e-3);
     }
 
     #[test]
@@ -535,9 +726,115 @@ mod tests {
     fn params(composite_length: f64) -> CompositeParams {
         CompositeParams {
             composite_length,
-            domain_column: "domain".to_string(),
-            grade_columns: vec!["grade".to_string()],
+            ..CompositeParams::default()
         }
+    }
+
+    fn metal(composites: &[Composite]) -> f64 {
+        composites
+            .iter()
+            .map(|c| c.attributes["grade"] * c.length)
+            .sum()
+    }
+
+    /// Two domains, 7.3 m of "a" then 2.7 m of "b", irregular sampling.
+    fn two_domains() -> (Vec<(f64, f64, String, HashMap<String, f64>)>, f64) {
+        let rows = [
+            (0.0, 1.3, "a", 1.0),
+            (1.3, 2.9, "a", 4.0),
+            (2.9, 5.0, "a", 2.0),
+            (5.0, 7.3, "a", 0.5),
+            (7.3, 8.0, "b", 3.0),
+            (8.0, 10.0, "b", 6.0),
+        ];
+        let metal = rows.iter().map(|r| (r.1 - r.0) * r.3).sum();
+        (
+            rows.iter()
+                .map(|r| assay(r.0, r.1, r.2, Some(r.3)))
+                .collect(),
+            metal,
+        )
+    }
+
+    #[test]
+    fn whole_runs_give_one_composite_per_domain_and_conserve_metal() {
+        let (assays, expected) = two_domains();
+        let c = composite_intervals("H", &assays, &params(f64::INFINITY)).unwrap();
+        let spans: Vec<_> = c.iter().map(|c| (c.from_depth, c.to_depth)).collect();
+        assert_eq!(spans, vec![(0.0, 7.3), (7.3, 10.0)]);
+        assert!((metal(&c) - expected).abs() < 1e-9);
+    }
+
+    #[test]
+    fn composites_to_given_intervals_split_at_contacts_and_conserve_metal() {
+        let (assays, expected) = two_domains();
+        let p = CompositeParams {
+            intervals: Some(vec![(5.0, 10.0), (0.0, 5.0)]),
+            ..params(2.0)
+        };
+        let c = composite_intervals("H", &assays, &p).unwrap();
+        let spans: Vec<_> = c.iter().map(|c| (c.from_depth, c.to_depth)).collect();
+        assert_eq!(spans, vec![(0.0, 5.0), (5.0, 7.3), (7.3, 10.0)]);
+        assert!((metal(&c) - expected).abs() < 1e-9);
+
+        let p = CompositeParams {
+            intervals: Some(vec![(1.0, 3.0), (6.0, 9.0)]),
+            ..params(2.0)
+        };
+        let c = composite_intervals("H", &assays, &p).unwrap();
+        let inside = 0.3 * 1.0 + 1.6 * 4.0 + 0.1 * 2.0 + 1.3 * 0.5 + 0.7 * 3.0 + 1.0 * 6.0;
+        assert!((metal(&c) - inside).abs() < 1e-9);
+
+        let p = CompositeParams {
+            intervals: Some(vec![(0.0, 5.0), (4.0, 6.0)]),
+            ..params(2.0)
+        };
+        assert!(composite_intervals("H", &assays, &p).is_err());
+    }
+
+    #[test]
+    fn residual_rules_conserve_metal() {
+        let (assays, expected) = two_domains();
+        let rule = |residual| CompositeParams {
+            residual,
+            min_fraction: 0.5,
+            ..params(3.0)
+        };
+        // Runs of 7.3 m and 2.7 m at 3 m: tails of 1.3 m (short) and 2.7 m.
+        let keep = composite_intervals("H", &assays, &rule(Residual::Keep)).unwrap();
+        assert_eq!(keep.len(), 4);
+        assert!((metal(&keep) - expected).abs() < 1e-9);
+
+        let merge = composite_intervals("H", &assays, &rule(Residual::Merge)).unwrap();
+        assert_eq!(merge.len(), 3);
+        assert!((merge[1].length - 4.3).abs() < 1e-9);
+        assert!((metal(&merge) - expected).abs() < 1e-9);
+
+        let drop = composite_intervals("H", &assays, &rule(Residual::Drop)).unwrap();
+        assert_eq!(drop.len(), 3);
+        let tail = 0.5 * 1.3;
+        assert!((metal(&drop) + tail - expected).abs() < 1e-9);
+    }
+
+    #[test]
+    fn categories_take_the_length_weighted_majority() {
+        let with = |from, to, code: f64| {
+            let mut row = assay(from, to, "g", Some(1.0));
+            row.3.insert("lith".into(), code);
+            row
+        };
+        let assays = vec![
+            with(0.0, 0.8, 1.0),
+            with(0.8, 1.5, 2.0),
+            with(1.5, 2.0, 1.0),
+        ];
+        let p = CompositeParams {
+            categorical_columns: vec!["lith".into()],
+            ..params(2.0)
+        };
+        let c = composite_intervals("H", &assays, &p).unwrap();
+        assert_eq!(c[0].attributes["lith"], 1.0);
+        assert!((metal(&c) - 2.0).abs() < 1e-9);
     }
 
     #[test]

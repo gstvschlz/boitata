@@ -60,3 +60,49 @@ def test_merge_then_composite_by_domain():
     assert set(np.array(comps.attributes["LITH"])[first]) == {"1.0", "2.0"}
     crosses = (comps["from"][first] < 3.0 - 1e-9) & (comps["to"][first] > 3.0 + 1e-9)
     assert not crosses.any()
+
+
+METHODS = ["minimum_curvature", "tangential", "balanced_tangential"]
+
+
+def test_desurvey_methods_agree_on_straight_holes_and_differ_on_curves():
+    straight = [cs.Drillholes(collar, survey, intervals, method=m).samples().coords for m in METHODS]
+    for coords in straight[1:]:
+        np.testing.assert_allclose(coords, straight[0], atol=1e-9)
+    bend = {"HOLEID": [1.0, 1.0], "DEPTH": [0.0, 50.0], "AZIMUTH": [90.0, 90.0], "DIP": [90.0, 30.0]}
+    east = [cs.Drillholes(collar, bend, method=m).at(["1.0"], [50.0])[0, 0] for m in METHODS]
+    assert east[1] < east[2] < east[0]
+    with pytest.raises(cs.InvalidInput):
+        cs.Drillholes(collar, survey, method="spline")
+
+
+full = dict(intervals, AU=np.array([1.0, 2.0, 4.0, 3.0, 5.0]))
+total = 1 * 2 + 2 * 3 + 4 * 1 + 3 * 4 + 5 * 4
+
+
+def metal(comps):
+    return np.dot(comps["length"], comps["AU"])
+
+
+def test_compositing_modes_conserve_metal():
+    dh = cs.Drillholes(collar, survey, full)
+    runs = dh.composite(None, ["AU"])
+    assert len(runs) == 2 and metal(runs) == pytest.approx(total)
+    benches = {"HOLEID": [1.0, 2.0, 2.0], "FROM": [0.0, 0.0, 5.0], "TO": [6.0, 5.0, 8.0]}
+    to_benches = dh.composite(None, ["AU"], intervals=benches)
+    np.testing.assert_allclose(to_benches["to"], [6, 5, 8])
+    assert metal(to_benches) == pytest.approx(total)
+    merged = dh.composite(3.0, ["AU"], residual="merge", min_fraction=0.9)
+    np.testing.assert_allclose(merged["length"], [3, 3, 3, 5])
+    assert metal(merged) == pytest.approx(total)
+    dropped = dh.composite(3.0, ["AU"], residual="drop", min_fraction=0.9)
+    np.testing.assert_allclose(dropped["length"], [3, 3, 3, 3])
+    assert metal(dropped) == pytest.approx(total - 5 * 2)
+    with pytest.raises(cs.InvalidInput):
+        dh.composite(3.0, ["AU"], residual="split")
+
+
+def test_categories_take_the_length_weighted_majority():
+    rock = dict(full, ROCK=np.array(["ox", "fresh", "fresh", "ox", "ox"]))
+    comps = cs.Drillholes(collar, survey, rock).composite(None, ["AU"], categories=["ROCK"])
+    assert list(np.array(comps.attributes["ROCK"])) == ["fresh", "ox"]
