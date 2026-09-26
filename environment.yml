@@ -1,0 +1,16 @@
+name: ceres
+channels:
+  - conda-forge
+dependencies:
+  - python>=3.11
+  - numpy>=1.26
+  - rust>=1.97
+  - c-compiler
+  - maturin>=1.10,<2
+  - pip
+  - pytest>=8
+  - matplotlib>=3.8
+  - pandas>=2.2
+  - polars>=1.4
+  - pyarrow>=16
+  - pyvista>=0.45
