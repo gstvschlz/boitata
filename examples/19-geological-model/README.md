@@ -107,7 +107,7 @@ across the lens:
 
 ```python
 north = np.median(xyz[ms, 1])
-near = np.abs(xyz[:, 1] - north) < 10
+plane = ((0, north, 0), 90, 90)
 east, elevation = np.meshgrid(np.linspace(5300, 5500, 201), np.linspace(650, 950, 301))
 section = np.c_[east.ravel(), np.full(east.size, north), elevation.ravel()]
 extent = (5300, 5500, 650, 950)
@@ -125,15 +125,24 @@ sd = axes[2].imshow(
 axes[2].set_title("GP standard deviation")
 fig.colorbar(sd, ax=axes[2], shrink=0.8)
 for ax in axes:
-    ax.scatter(xyz[near & ~ms, 0], xyz[near & ~ms, 2], s=3, color=GREY, linewidths=0, label="other rock")
-    ax.scatter(xyz[near & ms, 0], xyz[near & ms, 2], s=5, color=HIGHLIGHT, linewidths=0, label="MS")
-    close = np.abs(contacts[:, 1] - north) < 10
-    ax.scatter(
-        contacts[close, 0], contacts[close, 2], s=12, marker="x", color=INK, linewidths=0.8, label="contact"
+    cs.plot.slab(
+        xyz[~ms], plane=plane, thickness=20, s=3, color=GREY, linewidths=0, label="other rock", ax=ax
     )
-    ax.set(xlim=extent[:2], ylim=extent[2:], xlabel="Easting (m)")
-    ax.set_aspect("equal")
-axes[0].set_ylabel("Elevation (m)")
+    cs.plot.slab(xyz[ms], plane=plane, thickness=20, s=5, color=HIGHLIGHT, linewidths=0, label="MS", ax=ax)
+    cs.plot.slab(
+        contacts,
+        plane=plane,
+        thickness=20,
+        s=12,
+        marker="x",
+        color=INK,
+        linewidths=0.8,
+        label="contact",
+        ax=ax,
+    )
+    ax.set(xlim=extent[:2], ylim=extent[2:])
+for ax in axes[1:]:
+    ax.set_ylabel("")
 axes[0].legend(loc="lower left", markerscale=2)
 save(fig, "section")
 ```
