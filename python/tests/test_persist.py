@@ -39,6 +39,10 @@ def fitted():
             lambda o: (o.panel_recovery(1.2, [0.5, 1.0])["metal"], o.localized_grades(1.2, 8)),
         ),
         (cs.detrend(coords, values, degree=2)[0], lambda o: (o.predict(coords),)),
+        (
+            cs.detrend(coords, values, bandwidth=[5.0, 20.0], rotation=(30.0, 0.0, 0.0), ratios=(0.5, 1))[0],
+            lambda o: (o.predict(coords), o.scores),
+        ),
         (cs.cell_declustering(coords, values), lambda o: (o.weights, o.sizes, o.means, o.mean)),
         (
             cs.Variogram(

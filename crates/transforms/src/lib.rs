@@ -3,7 +3,7 @@
 //! Modules:
 //! - [`decluster`] — cell declustering (weights, optimal cell size)
 //! - [`nscore`]   — normal-score transform and back-transform
-//! - [`detrend`]  — polynomial trend fitting/removal
+//! - [`detrend`]  — polynomial and kernel trends
 //! - [`scale`]    — up/downscaling between supports
 //! - [`normal`]   — standard-normal CDF/quantile helpers (shared)
 
@@ -31,7 +31,7 @@ pub use boxcox::{box_cox, box_cox_inverse, optimal_lambda, skewness_at};
 pub use decluster::{
     Weights, cell_weights, decluster_mean_over_offsets, optimal_cell_size, polygon_weights,
 };
-pub use detrend::{Trend, detrend};
+pub use detrend::{KernelTrend, Trend, detrend};
 pub use dgm::{BlockDiscretization, change_of_support};
 pub use error::{Result, TransformError};
 pub use impute::GaussianImputer;
