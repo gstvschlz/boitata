@@ -104,6 +104,14 @@ mod tests {
     }
 
     #[test]
+    fn exponent_sentinels_are_null() {
+        let path = temp("e.csv", "v\n1e21\n1E+21\n2\n");
+        let t = read_csv(&path, &CsvOptions::default()).unwrap();
+        let v = t.column_by_name("v").unwrap().as_primitive::<Float64Type>();
+        assert_eq!(v.iter().collect::<Vec<_>>(), [None, None, Some(2.0)]);
+    }
+
+    #[test]
     fn custom_nodata_replaces_defaults() {
         let path = temp("b.csv", "v\n-999\n-1\n");
         let options = CsvOptions {

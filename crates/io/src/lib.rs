@@ -18,7 +18,8 @@ pub use parquet::{
 
 /// Values read as null unless the caller overrides them (case-insensitive).
 pub const NODATA: &[&str] = &[
-    "-99", "-999", "NA", "N/A", "N.A.", "ND", "N/D", "NULL", "NONE", "NAN", "#N/A", "-", "--",
+    "-99", "-999", "1e21", "1e+21", "NA", "N/A", "N.A.", "ND", "N/D", "NULL", "NONE", "NAN",
+    "#N/A", "-", "--",
 ];
 
 fn is_nodata(token: &str, nodata: &[String]) -> bool {

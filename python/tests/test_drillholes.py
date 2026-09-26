@@ -133,6 +133,120 @@ def test_sampled_length_balances_metal_in_every_mode():
 @pytest.mark.slow
 def test_sampled_length_balances_metal_on_the_dataset():
     t = cs.datasets.drillhole_tables()
+    flags, _ = cs.check_drillholes(t["collar"], intervals={"assay": t["assay"]})
+    assay = t["assay"].filter(~flags["assay"]["overlap"])
+    merged = cs.merge_intervals(assay, t["geology"])
+    comps = cs.Drillholes(t["collar"], t["survey"], merged).composite(
+        2.0, ["ZN"], domain="LITH", residual="merge"
+    )
+    metal = np.nansum(merged["ZN"] * (merged["TO"] - merged["FROM"]))
+    assert np.nansum(comps["ZN"] * comps["ZN_length"]) == pytest.approx(metal, rel=1e-9)
+
+
+def _flagged(flags):
+    return {
+        (name, check, i)
+        for name, t in flags.items()
+        for check in t.column_names
+        for i in np.flatnonzero(t[check])
+    }
+
+
+checked_collar = {
+    "HOLEID": np.array(["A", "B", "B", None, "D"], dtype=object),
+    "X": np.array([0.0, 1.0, 1.0, 2.0, -999.0]),
+    "Y": np.zeros(5),
+    "Z": np.array([9.0, 9.0, 9.0, 9.0, np.nan]),
+    "LENGTH": np.array([20.0, 30.0, 30.0, 10.0, 10.0]),
+}
+checked_survey = {
+    "HOLEID": np.array(["A", "A", "A", "A", "A", "B", "E"]),
+    "DEPTH": np.array([0.0, 10.0, 10.0, 15.0, 25.0, 0.0, 0.0]),
+    "AZIMUTH": np.array([90.0, 90.0, 90.0, 400.0, 90.0, 0.0, 0.0]),
+    "DIP": np.array([60.0, -60.0, 60.0, 60.0, 60.0, 90.0, 90.0]),
+}
+checked_assay = {
+    "HOLEID": np.array(["A", "A", "A", "A", "A", "B", "E"]),
+    "FROM": np.array([0.0, 1.0, 0.5, 4.0, 6.0, 0.0, 0.0]),
+    "TO": np.array([1.0, 3.0, 2.0, 4.0, 22.0, 5.0, 1.0]),
+    "AU": np.array([1.0, 2.0, 3.0, 4.0, 5.0, -99.0, 1.0]),
+}
+
+
+def test_each_defect_is_flagged_once():
+    flags, summary = cs.check_drillholes(
+        checked_collar, checked_survey, {"assay": checked_assay}, max_depth="LENGTH"
+    )
+    assert _flagged(flags) == {
+        ("collar", "duplicate", 2),
+        ("collar", "missing", 3),
+        ("collar", "missing", 4),
+        ("collar", "sentinel", 4),
+        ("collar", "no_survey", 4),
+        ("collar", "no_assay", 4),
+        ("survey", "deviation", 1),
+        ("survey", "deviation", 4),
+        ("survey", "duplicate", 2),
+        ("survey", "out_of_range", 3),
+        ("survey", "past_depth", 4),
+        ("survey", "no_collar", 6),
+        ("assay", "overlap", 2),
+        ("assay", "inverted", 3),
+        ("assay", "gap", 4),
+        ("assay", "past_depth", 4),
+        ("assay", "sentinel", 5),
+        ("assay", "no_collar", 6),
+    }
+    assert summary.num_rows == sum(len(t.column_names) for t in flags.values())
+    rows = dict(zip(zip(summary["table"], summary["check"]), summary["rows"]))
+    assert rows[("assay", "overlap")] == 1 and rows[("collar", "out_of_range")] == 0
+
+
+def test_clean_tables_give_no_flags():
+    flags, summary = cs.check_drillholes(collar, survey, intervals, inclination=None)
+    assert list(flags) == ["collar", "survey", "intervals"]
+    assert not _flagged(flags)
+    assert (summary["rows"] == 0).all()
+
+
+def test_inclination_is_checked_as_dip():
+    upward = {**survey, "INC": np.array([0.0, 170.0])}
+    flags, _ = cs.check_drillholes(collar, upward, inclination="INC")
+    assert not flags["survey"]["out_of_range"].any()
+    flags, _ = cs.check_drillholes(collar, {**upward, "INC": np.array([0.0, 190.0])}, inclination="INC")
+    assert list(flags["survey"]["out_of_range"]) == [False, True]
+
+
+def test_fix_applies_one_rule_per_check():
+    tables = {"collar": checked_collar, "survey": checked_survey, "assay": checked_assay}
+    flags, _ = cs.check_drillholes(
+        checked_collar, checked_survey, {"assay": checked_assay}, max_depth="LENGTH"
+    )
+    clean, log = cs.fix_drillholes(flags, tables)
+    assert list(clean["collar"]["HOLEID"]) == ["A", "B"]
+    assert list(clean["survey"]["DEPTH"]) == [0.0, 0.0]
+    assert list(clean["assay"]["FROM"]) == [0.0, 1.0, 6.0, 0.0]
+    assert np.isnan(clean["assay"]["AU"][-1])
+    actions = dict(zip(zip(log["table"], log["check"]), log["action"]))
+    assert actions[("assay", "overlap")] == "keep_first" and actions[("assay", "sentinel")] == "null"
+    assert ("assay", "past_depth") not in actions and ("assay", "gap") not in actions
+    kept, _ = cs.fix_drillholes(flags, tables, deviation="keep", sentinels="drop", past_depth="drop")
+    assert list(kept["survey"]["DEPTH"]) == [0.0, 10.0, 0.0]
+    assert list(kept["assay"]["FROM"]) == [0.0, 1.0]
+    with pytest.raises(ValueError, match="overlaps must be one of keep_first, keep"):
+        cs.fix_drillholes(flags, tables, overlaps="drop")
+
+
+def test_filter_keeps_masked_rows():
+    t = cs.Table(intervals)
+    assert list(t.filter(t["FROM"] > 1)["TO"]) == [5.0, 6.0, 8.0]
+    with pytest.raises(ValueError, match="mask has 1 values"):
+        t.filter(np.array([True]))
+
+
+@pytest.mark.slow
+def test_overlap_flags_keep_the_first_interval_on_the_dataset():
+    t = cs.datasets.drillhole_tables()
     assay = t["assay"]
     hole, start, end = np.array(assay["HOLEID"]), assay["FROM"], assay["TO"]
     keep, reach = np.ones(assay.num_rows, bool), {}
@@ -140,10 +254,5 @@ def test_sampled_length_balances_metal_on_the_dataset():
         keep[i] = start[i] >= reach.get(hole[i], -np.inf)
         if keep[i]:
             reach[hole[i]] = end[i]
-    assay = cs.Table({c: np.asarray(assay[c])[keep] for c in assay.column_names})
-    merged = cs.merge_intervals(assay, t["geology"])
-    comps = cs.Drillholes(t["collar"], t["survey"], merged).composite(
-        2.0, ["ZN"], domain="LITH", residual="merge"
-    )
-    metal = np.nansum(merged["ZN"] * (merged["TO"] - merged["FROM"]))
-    assert np.nansum(comps["ZN"] * comps["ZN_length"]) == pytest.approx(metal, rel=1e-9)
+    flags, _ = cs.check_drillholes(t["collar"], t["survey"], {"assay": assay}, max_depth="DEPTH")
+    assert (flags["assay"]["overlap"] == ~keep).all()

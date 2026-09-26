@@ -68,7 +68,8 @@ pub fn to_batch(data: &Bound<PyAny>) -> PyResult<RecordBatch> {
     arrow_select::concat::concat_batches(&schema, &batches).map_err(invalid)
 }
 
-/// Numeric columns as float64 arrays (null as NaN), others as lists.
+/// Numeric columns as float64 arrays (null as NaN), boolean ones as bool
+/// arrays (null as false), others as lists.
 pub fn column<'py>(
     py: Python<'py>,
     batch: &RecordBatch,
@@ -77,6 +78,10 @@ pub fn column<'py>(
     let array = batch
         .column_by_name(name)
         .ok_or_else(|| pyo3::exceptions::PyKeyError::new_err(name.to_string()))?;
+    if let Some(flags) = array.as_boolean_opt() {
+        let values: Vec<bool> = flags.iter().map(|v| v.unwrap_or(false)).collect();
+        return Ok(PyArray1::from_vec(py, values).into_any());
+    }
     if array.data_type().is_numeric() {
         let values = arrow_cast::cast(array, &DataType::Float64).map_err(invalid)?;
         let values: Vec<f64> = values
@@ -146,6 +151,22 @@ impl Table {
 
     fn __getitem__<'py>(&self, py: Python<'py>, name: &str) -> PyResult<Bound<'py, PyAny>> {
         column(py, &self.0, name)
+    }
+
+    /// Rows where `mask` is true.
+    fn filter(&self, mask: numpy::PyReadonlyArray1<bool>) -> PyResult<Self> {
+        let mask = mask.as_array();
+        if mask.len() != self.0.num_rows() {
+            return Err(invalid(format!(
+                "mask has {} values, the table {} rows",
+                mask.len(),
+                self.0.num_rows()
+            )));
+        }
+        let mask = arrow_array::BooleanArray::from(mask.to_vec());
+        Ok(Self(
+            arrow_select::filter::filter_record_batch(&self.0, &mask).map_err(invalid)?,
+        ))
     }
 
     fn __len__(&self) -> usize {

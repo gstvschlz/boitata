@@ -4,6 +4,10 @@
 
 ::: ceres.merge_intervals
 
+::: ceres.check_drillholes
+
+::: ceres.fix_drillholes
+
 ::: ceres.PolygonSelector
 
 ::: ceres.point_in_polygon

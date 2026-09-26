@@ -133,12 +133,16 @@ mod tests {
     #[test]
     fn reads_header_nulls_and_ignores_extra_tokens() {
         let path = temp("a.dat");
-        std::fs::write(&path, "walker\n3\nx\ny\nv\n1 2 3.5\n\n4 5 -999 99\n").unwrap();
+        std::fs::write(
+            &path,
+            "walker\n3\nx\ny\nv\n1 2 3.5\n\n4 5 -999 99\n6 7 1e21\n",
+        )
+        .unwrap();
         let t = read_gslib(&path, &default_nodata()).unwrap();
-        assert_eq!(t.num_rows(), 2);
+        assert_eq!(t.num_rows(), 3);
         assert_eq!(t.schema().metadata()["title"], "walker");
         let v = t.column(2).as_primitive::<Float64Type>();
-        assert_eq!(v.iter().collect::<Vec<_>>(), [Some(3.5), None]);
+        assert_eq!(v.iter().collect::<Vec<_>>(), [Some(3.5), None, None]);
     }
 
     #[test]
