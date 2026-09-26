@@ -130,6 +130,61 @@ fn write_shapefile(path: PathBuf, points: PyRef<PyPointSet>) -> PyResult<()> {
     ceres_io::write_shapefile(path, &points.0).map_err(io_error)
 }
 
+/// Reads a GeoTIFF raster as a 2D BlockModel.
+///
+/// Parameters
+/// ----------
+/// path : str or Path
+///     A stripped or tiled GeoTIFF, uncompressed or compressed with deflate,
+///     LZW or PackBits, with integer or float samples.
+/// nodata : float, optional
+///     Pixel value read as null, replacing the file's `GDAL_NODATA`. NaN
+///     pixels are always null.
+///
+/// Returns
+/// -------
+/// BlockModel
+///     A regular grid with nz = 1 and one column per band, named from the band
+///     descriptions or `band_1`, `band_2`, ... float32 bands stay float32, the
+///     rest become float64. The geometry comes from the pixel scale and tie
+///     point or from the model transformation, rotation included; cell
+///     centres fall on the tie points of pixel-is-point rasters. An EPSG code
+///     in the GeoKeys becomes the CRS `"EPSG:<code>"`, otherwise the citation.
+#[pyfunction]
+#[pyo3(signature = (path, nodata=None))]
+fn read_geotiff(path: PathBuf, nodata: Option<f64>) -> PyResult<PyBlockModel> {
+    Ok(PyBlockModel(
+        ceres_io::read_geotiff(path, nodata).map_err(io_error)?,
+    ))
+}
+
+/// Writes a 2D BlockModel as a deflate-compressed GeoTIFF.
+///
+/// Parameters
+/// ----------
+/// path : str or Path
+///     The `.tif` file.
+/// model : BlockModel
+///     A regular or masked grid with nz = 1, rotated by azimuth only. Each
+///     numeric column becomes a band named after it: float32 when every column
+///     is float32, float64 otherwise. Absent cells of a masked model are
+///     nodata. An `"EPSG:<code>"` CRS is written as GeoKeys, any other as the
+///     citation.
+/// nodata : float, default -9999.0
+///     Value written for nulls and stored in `GDAL_NODATA`; a column holding
+///     it raises `InvalidInput`.
+///
+/// Raises
+/// ------
+/// InvalidInput
+///     For sub-blocked or 3D (nz > 1) models, dip or rake rotations and text
+///     columns.
+#[pyfunction]
+#[pyo3(signature = (path, model, nodata=-9999.0))]
+fn write_geotiff(path: PathBuf, model: PyRef<PyBlockModel>, nodata: f64) -> PyResult<()> {
+    ceres_io::write_geotiff(path, &model.0, nodata).map_err(io_error)
+}
+
 /// A block model file read in chunks, for models larger than memory.
 #[pyclass(module = "ceres", name = "BlockModelFile", frozen)]
 pub struct BlockModelFile(ceres_io::BlockModelReader);
@@ -273,5 +328,7 @@ pub fn register(m: &Bound<PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(write_mesh, m)?)?;
     m.add_function(wrap_pyfunction!(read_shapefile, m)?)?;
     m.add_function(wrap_pyfunction!(write_shapefile, m)?)?;
+    m.add_function(wrap_pyfunction!(read_geotiff, m)?)?;
+    m.add_function(wrap_pyfunction!(write_geotiff, m)?)?;
     Ok(())
 }

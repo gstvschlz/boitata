@@ -3,6 +3,7 @@
 
 mod csv;
 mod error;
+mod geotiff;
 mod gslib;
 mod mesh;
 mod parquet;
@@ -10,6 +11,7 @@ mod shapefile;
 
 pub use csv::{CsvOptions, read_csv, write_csv};
 pub use error::{Error, Result};
+pub use geotiff::{read_geotiff, write_geotiff};
 pub use gslib::{read_gslib, write_gslib};
 pub use mesh::{read_mesh, write_mesh};
 pub use parquet::{

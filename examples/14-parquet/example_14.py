@@ -84,3 +84,17 @@ cs.write_shapefile(folder / "samples.shp", samples)
 print(sorted(p.name for p in folder.glob("samples.*")))
 again = cs.read_shapefile(folder / "samples.shp")
 print("same points:", np.array_equal(again.coords, samples.coords), "| crs:", again.crs)
+
+# %% [markdown]
+# Rasters travel as GeoTIFF. `write_geotiff` writes each column of a 2D grid as a band, nulls as the `nodata` value
+# and the CRS in the GeoKeys, so GIS software opens it as a georeferenced raster; `read_geotiff` returns the same
+# grid. Rotated grids are supported, and a masked model is written with nodata in its absent cells.
+
+# %%
+cs.write_geotiff(folder / "grid.tif", grid)
+raster = cs.read_geotiff(folder / "grid.tif")
+print(raster)
+print(f"{(folder / 'grid.tif').stat().st_size / 1e6:.2f} MB")
+print(
+    "same grid:", raster.origin == grid.origin, np.array_equal(raster["estimate"], estimate, equal_nan=True)
+)
