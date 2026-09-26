@@ -7,8 +7,8 @@ use variogram::{
     Angles, Anisotropy, AnisotropySpec, Bounds, CoregStructure, Coregionalization as CoreCoreg,
     Direction, Estimator, Experimental, LagBins, Model, NestedSpec, Structure as CoreStructure,
     StructureSpec, Transiogram as CoreTransiogram, Variogram as CoreVariogram, Weighting,
-    cross_experimental, empirical_transiogram, experimental, fit_coregionalization,
-    fit_directional, fit_nested,
+    cross_experimental, downhole, empirical_transiogram, experimental, extrapolated_nugget,
+    fit_coregionalization, fit_directional, fit_nested,
 };
 
 use crate::args::{Point, array1, array2, finite, floats, points, same_length, triple};
@@ -512,6 +512,26 @@ impl ExperimentalVariogram {
         Variogram::fit(self, model, weighting, nugget, sills, ranges)
     }
 
+    /// Nugget extrapolated to zero lag from the first `lags` lags.
+    ///
+    /// Intercept of a pair-count-weighted straight line through them, with
+    /// intercept and slope kept non-negative. Meant for a downhole variogram
+    /// (``holes=`` in `experimental_variogram`), whose shortest lags are the
+    /// closest pairs available.
+    ///
+    /// Parameters
+    /// ----------
+    /// lags : int
+    ///     Number of shortest lags, at least 2.
+    ///
+    /// Returns
+    /// -------
+    /// float
+    #[pyo3(signature = (lags=3))]
+    fn nugget(&self, lags: usize) -> PyResult<f64> {
+        extrapolated_nugget(&self.0, lags).map_err(err)
+    }
+
     fn __repr__(&self) -> String {
         format!("ExperimentalVariogram({} lags)", self.0.lags.len())
     }
@@ -556,12 +576,17 @@ fn samples(coords: &Bound<PyAny>, values: &Bound<PyAny>) -> PyResult<(Vec<Point>
 ///     Where ``other`` is sampled when not at ``coords``. Only the
 ///     cross-covariance is defined then, with C₁₂(0) estimated from the pairs
 ///     closer than half a lag.
+/// holes : array_like, shape (n,), optional
+///     Hole id of each sample, for a downhole variogram: only pairs in the
+///     same hole count, lag ``k`` gathers the pairs within ``lag / 2`` of
+///     ``k * lag`` and reports their mean distance. Not with ``azimuth`` or
+///     ``other``.
 ///
 /// Returns
 /// -------
 /// ExperimentalVariogram
 #[pyfunction]
-#[pyo3(signature = (coords, values, lag, max_lag, azimuth=None, dip=0.0, tolerance=22.5, bandwidth=None, estimator="matheron", standardize=false, other=None, other_coords=None))]
+#[pyo3(signature = (coords, values, lag, max_lag, azimuth=None, dip=0.0, tolerance=22.5, bandwidth=None, estimator="matheron", standardize=false, other=None, other_coords=None, holes=None))]
 #[allow(clippy::too_many_arguments)]
 fn experimental_variogram(
     coords: &Bound<PyAny>,
@@ -576,15 +601,23 @@ fn experimental_variogram(
     standardize: bool,
     other: Option<&Bound<PyAny>>,
     other_coords: Option<&Bound<PyAny>>,
+    holes: Option<&Bound<PyAny>>,
 ) -> PyResult<ExperimentalVariogram> {
     let (locs, values) = samples(coords, values)?;
+    let (bins, estimator) = (bins(lag, max_lag)?, self::estimator(estimator)?);
+    if let Some((_, holes)) = crate::args::holes(holes, locs.len())? {
+        if azimuth.is_some() || other.is_some() {
+            return Err(invalid("holes takes neither azimuth nor other"));
+        }
+        let exp = downhole(&locs, &values, &holes, &bins, estimator, standardize).map_err(err)?;
+        return Ok(ExperimentalVariogram(exp));
+    }
     let direction = azimuth.map(|azimuth| Direction {
         azimuth,
         dip,
         tolerance,
         bandwidth,
     });
-    let (bins, estimator) = (bins(lag, max_lag)?, self::estimator(estimator)?);
     let (at, other) = match (other_coords, other) {
         (Some(at), Some(other)) => {
             let (at, other) = samples(at, other)?;

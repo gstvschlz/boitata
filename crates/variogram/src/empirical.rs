@@ -4,6 +4,7 @@
 //! omnidirectional or directional (azimuth/dip cone with tolerance), all
 //! reported in variogram form so any of them can be fitted.
 
+use crate::aniso::euclidean;
 use crate::error::{Result, VarioError};
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -195,6 +196,55 @@ pub fn cross_experimental(
         divisor: divisor(variance(values), variance(other))?,
     };
     Ok(collect(bins, &sums, &counts, estimator, scale))
+}
+
+/// Downhole experimental variogram: only pairs of samples in the same hole
+/// (equal `holes` ids) are counted. Lag `k` gathers the pairs within half a
+/// lag width of `k · lag_width`, so with the width set to the composite length
+/// neighbours fall in the first lag, and each lag is the mean distance of its
+/// pairs. `O(Σ nₕ²)` over the holes.
+pub fn downhole(
+    locations: &[(f64, f64, f64)],
+    values: &[f64],
+    holes: &[u32],
+    bins: &LagBins,
+    estimator: Estimator,
+    standardize: bool,
+) -> Result<Experimental> {
+    check(locations, values, bins)?;
+    if holes.len() != values.len() {
+        return Err(VarioError::InsufficientData(
+            "holes must have one id per location".into(),
+        ));
+    }
+    let scale = scale(values, estimator, standardize)?;
+    let n_bins = ((bins.max_lag / bins.lag_width).ceil() as usize).max(1);
+    let mut sums = vec![[0.0f64; 8]; n_bins];
+    let mut counts = vec![0usize; n_bins];
+    let mut distances = vec![0.0; n_bins];
+    let mut order: Vec<usize> = (0..values.len()).collect();
+    order.sort_by_key(|&i| holes[i]);
+    for hole in order.chunk_by(|&a, &b| holes[a] == holes[b]) {
+        for (k, &i) in hole.iter().enumerate() {
+            for &j in &hole[k + 1..] {
+                let dist = euclidean(&locations[i], &locations[j]);
+                let k = (dist / bins.lag_width).round() as usize;
+                if k == 0 || dist > bins.max_lag {
+                    continue;
+                }
+                let idx = (k - 1).min(n_bins - 1);
+                add(&mut sums[idx], &moments(values[i], values[j]));
+                counts[idx] += 1;
+                distances[idx] += dist;
+            }
+        }
+    }
+    let mut exp = collect(bins, &sums, &counts, estimator, scale);
+    for lag in &mut exp.lags {
+        let b = (*lag / bins.lag_width) as usize;
+        *lag = distances[b] / counts[b] as f64;
+    }
+    Ok(exp)
 }
 
 fn check(locations: &[(f64, f64, f64)], values: &[f64], bins: &LagBins) -> Result<()> {

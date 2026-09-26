@@ -192,6 +192,23 @@ fn weight(weighting: Weighting, count: usize, h: f64, model_g: f64) -> f64 {
     }
 }
 
+/// Nugget extrapolated from the first `lags` lags: the intercept of a
+/// pair-count-weighted straight line through them, with intercept and slope
+/// both non-negative. Meant for a [`downhole`](crate::empirical::downhole)
+/// variogram, whose shortest lags are the closest pairs available.
+pub fn extrapolated_nugget(exp: &Experimental, lags: usize) -> Result<f64> {
+    let n = lags.min(exp.lags.len());
+    if lags < 2 || n < 2 {
+        return Err(VarioError::FittingFailed(
+            "the nugget needs at least two lags".into(),
+        ));
+    }
+    let rows: Vec<Vec<f64>> = exp.lags[..n].iter().map(|&h| vec![1.0, h]).collect();
+    let w: Vec<f64> = exp.counts[..n].iter().map(|&c| c as f64).collect();
+    let bounds = [(0.0, f64::INFINITY); 2];
+    Ok(bounded_lsq(&rows, &exp.gammas[..n], &w, &bounds)[0])
+}
+
 /// Fit a nugget plus one to three nested structures by WLS, each parameter free,
 /// bounded or fixed.
 ///
@@ -1242,7 +1259,38 @@ fn psd(m: DMatrix<f64>) -> DMatrix<f64> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::empirical::{Estimator, LagBins, experimental};
+    use crate::empirical::{Estimator, LagBins, downhole, experimental};
+
+    #[test]
+    fn downhole_pairs_recover_the_nugget() {
+        // Vertical holes 0.3 m apart, each an independent exponential process
+        // (sill 1, range 20 m) plus a 0.3 nugget, sampled every metre: pairs
+        // across holes would read the full sill at the shortest lags.
+        use rand::{SeedableRng, rngs::StdRng};
+        use rand_distr::{Distribution, StandardNormal};
+        let mut rng = StdRng::seed_from_u64(7);
+        let (nugget, phi) = (0.3_f64, (-1.0_f64 / 20.0).exp());
+        let (mut locs, mut values, mut holes) = (Vec::new(), Vec::new(), Vec::new());
+        for hole in 0..400u32 {
+            let mut z: f64 = StandardNormal.sample(&mut rng);
+            for k in 0..60 {
+                let e: f64 = StandardNormal.sample(&mut rng);
+                z = phi * z + (1.0 - phi * phi).sqrt() * e;
+                let noise: f64 = StandardNormal.sample(&mut rng);
+                locs.push((0.3 * hole as f64, 0.0, -(k as f64)));
+                values.push(z + nugget.sqrt() * noise);
+                holes.push(hole * 7 % 400);
+            }
+        }
+        let bins = LagBins {
+            max_lag: 10.0,
+            lag_width: 1.0,
+        };
+        let exp = downhole(&locs, &values, &holes, &bins, Estimator::Matheron, false).unwrap();
+        assert!((exp.lags[0] - 1.0).abs() < 1e-9);
+        let c0 = extrapolated_nugget(&exp, 3).unwrap();
+        assert!((c0 - nugget).abs() < 0.03, "{c0}");
+    }
 
     #[test]
     fn recovers_spherical_parameters() {

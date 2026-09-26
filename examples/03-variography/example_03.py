@@ -2,7 +2,8 @@
 # 3. Variography
 
 Anisotropic nested spherical model of `V`: the variogram map finds the direction of greatest continuity, then
-directional experimental variograms along and across it are fitted.
+directional experimental variograms along and across it are fitted. Last, the nugget of drill-hole Zn from pairs down
+the same hole.
 """
 
 # %% [hidden]
@@ -168,3 +169,60 @@ ax.set_xlabel("Lag distance (m)")
 ax.set_ylabel("standardized γ(h)")
 ax.legend(loc="lower right")
 save(fig, "estimators")
+
+
+# %% [markdown]
+# ## Nugget from downhole pairs
+#
+# Along a hole samples sit a composite length apart, far closer than any two holes, so the downhole variogram shows
+# the nugget best. `holes=` keeps only pairs down the same hole; lag `k` gathers pairs about `k` composite lengths
+# apart. `nugget()` extrapolates a line through the first three lags to zero. Here Zn of the drill holes of
+# [chapter 6](../06-drillholes/README.md), composited within each lithology at three lengths.
+
+# %%
+tables = cs.datasets.drillhole_tables()
+flags, _ = cs.check_drillholes(
+    tables["collar"], tables["survey"], {"assay": tables["assay"], "geology": tables["geology"]}
+)
+tables, _ = cs.fix_drillholes(flags, tables)
+intervals = cs.merge_intervals(tables["assay"], tables["geology"])
+drillholes = cs.Drillholes(tables["collar"], tables["survey"], intervals)
+domains, lengths = ["MS", "SM", "QE", "RH"], [1.0, 2.0, 4.0]
+nuggets, downhole = {}, {}
+for length in lengths:
+    composites = drillholes.composite(length, ["ZN"], domain="LITH", residual="merge")
+    lith, zn, hole = np.array(composites["LITH"]), composites["ZN"], np.array(composites["hole"])
+    for domain in domains:
+        keep = (lith == domain) & ~np.isnan(zn)
+        exp = cs.experimental_variogram(
+            composites.coords[keep], zn[keep], length, 10 * length, standardize=True, holes=hole[keep]
+        )
+        nuggets[domain, length], downhole[domain, length] = exp.nugget(), exp
+print("nugget / variance")
+print("       " + "".join(f"{d:>7}" for d in domains))
+for length in lengths:
+    print(f"{length:4.0f} m " + "".join(f"{nuggets[d, length]:7.2f}" for d in domains))
+
+
+# %% [markdown]
+# At 1 m the massive sulphide `MS` carries a fifth of its variance in the nugget, the other domains about an eighth.
+# The nugget belongs to the support: 2 m composites average part of it away in `SM`, `QE` and `RH`. At 4 m the first
+# three lags span 12 m, the line reaches zero across the bend of the variogram and the nugget comes out larger in
+# every domain. The shortest composites give the nugget to carry into the directional fits.
+
+# %%
+fig, (a, b) = plt.subplots(1, 2, figsize=(9.2, 3.4), layout="constrained")
+for domain, color in (("MS", ACCENT), ("RH", GREY)):
+    exp = downhole[domain, 1.0]
+    a.plot(exp.lags, exp.gammas, "o-", color=color, ms=3, label=domain)
+    a.plot([0, exp.lags[0]], [exp.nugget(), exp.gammas[0]], ":", color=color)
+    a.plot(0, exp.nugget(), "s", color=HIGHLIGHT, ms=5, clip_on=False)
+a.set(xlim=(0, 10), ylim=(0, None), xlabel="Downhole lag (m)", ylabel="standardized γ(h)")
+a.set_title("Downhole variograms, 1 m composites")
+a.legend(loc="lower right")
+for domain, color in zip(domains, (ACCENT, HIGHLIGHT, INK, GREY)):
+    b.plot(lengths, [nuggets[domain, length] for length in lengths], "o-", color=color, ms=4, label=domain)
+b.set(xticks=lengths, ylim=(0, None), xlabel="Composite length (m)", ylabel="nugget / variance")
+b.set_title("Extrapolated nugget by domain")
+b.legend(loc="lower right", ncol=2)
+save(fig, "downhole")
