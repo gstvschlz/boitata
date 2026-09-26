@@ -50,6 +50,14 @@ impl Estimate {
         let covariance = self.support_variance - self.variance - self.lagrange;
         covariance / (covariance - self.lagrange)
     }
+
+    /// Sum of the negative weights (≤ 0); NaN for estimators without weights.
+    pub fn negative_weight_sum(&self) -> f64 {
+        if self.weights.is_empty() {
+            return f64::NAN;
+        }
+        self.weights.iter().filter(|w| **w < 0.0).sum()
+    }
 }
 
 /// Krige `target` from `samples` using `vg`.
@@ -89,6 +97,7 @@ pub fn krige(
         for j in 0..n {
             a[(i, j)] = vg.cov_points(&samples[i].loc, &samples[j].loc);
         }
+        a[(i, i)] += samples[i].error_variance;
         b[i] = vg.cov_points(&samples[i].loc, target);
     }
 
@@ -141,6 +150,7 @@ mod tests {
             loc: (x, y, 0.0),
             value: v,
             hole: None,
+            error_variance: 0.0,
         }
     }
 
@@ -216,6 +226,53 @@ mod tests {
             .sum();
         assert!((ok.slope() - cov / var).abs() < 1e-9);
         assert!(ok.slope() < 1.0 && ok.efficiency() < 1.0);
+    }
+
+    #[test]
+    fn measurement_error_blends_the_datum_with_its_neighbours() {
+        let vg = Variogram::single(Model::Spherical, 1.0, 100.0);
+        let others = vec![
+            samp(50.0, 0.0, 2.0),
+            samp(0.0, 50.0, 3.0),
+            samp(60.0, 70.0, 1.0),
+        ];
+        let target = (0.0, 0.0, 0.0);
+        for kind in [Kind::Ordinary, Kind::Simple { mean: 2.0 }] {
+            let loo = krige(kind, &target, &others, &vg).unwrap();
+            let with = |error_variance| {
+                let datum = Sample {
+                    error_variance,
+                    ..samp(0.0, 0.0, 5.0)
+                };
+                let all: Vec<Sample> = std::iter::once(datum).chain(others.clone()).collect();
+                krige(kind, &target, &all, &vg).unwrap()
+            };
+            assert!((with(0.0).value - 5.0).abs() < 1e-9);
+            for e in [0.1, 0.5, 2.0] {
+                let est = with(e);
+                let k = loo.variance / (loo.variance + e);
+                assert!((est.value - (loo.value + k * (5.0 - loo.value))).abs() < 1e-9);
+                assert!((est.variance - loo.variance * (1.0 - k)).abs() < 1e-9);
+                assert!(est.value > loo.value && est.value < 5.0);
+            }
+        }
+    }
+
+    #[test]
+    fn negative_weight_sum_adds_the_negative_weights() {
+        let vg = Variogram::single(Model::Gaussian, 1.0, 60.0);
+        let samples = vec![
+            samp(10.0, 0.0, 1.0),
+            samp(20.0, 0.0, 2.0),
+            samp(0.0, 15.0, 3.0),
+            samp(-30.0, -5.0, 4.0),
+        ];
+        let est = krige(Kind::Ordinary, &(0.0, 0.0, 0.0), &samples, &vg).unwrap();
+        let negative: f64 = est.weights.iter().filter(|w| **w < 0.0).sum();
+        assert!(negative < 0.0, "{:?}", est.weights);
+        assert_eq!(est.negative_weight_sum(), negative);
+        let positive = krige(Kind::Ordinary, &(10.0, 1.0, 0.0), &samples[..1], &vg).unwrap();
+        assert_eq!(positive.negative_weight_sum(), 0.0);
     }
 
     #[test]

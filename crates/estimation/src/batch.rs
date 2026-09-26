@@ -3,6 +3,7 @@
 use rayon::prelude::*;
 use variogram::Variogram;
 
+use crate::error::EstimError;
 use crate::krige::Estimate;
 use crate::search::{Search, SearchTree};
 use crate::{Result, Sample};
@@ -11,15 +12,16 @@ use crate::{Result, Sample};
 /// parallel. A target with too few neighbours, or whose system fails, gives
 /// `None`. The output follows `targets` and does not depend on the number of
 /// threads.
-pub fn estimate_many<F>(
+pub fn estimate_many<F, T>(
     targets: &[(f64, f64, f64)],
     samples: &[Sample],
     search: &Search,
     vg: Option<&Variogram>,
     estimator: F,
-) -> Vec<Option<Estimate>>
+) -> Vec<Option<T>>
 where
-    F: Fn(&(f64, f64, f64), &[Sample]) -> Result<Estimate> + Sync,
+    F: Fn(&(f64, f64, f64), &[Sample]) -> Result<T> + Sync,
+    T: Send,
 {
     let tree = SearchTree::new(samples, search, vg);
     targets
@@ -36,15 +38,11 @@ where
 /// the `n` targets that earlier passes left unestimated; `pass` returns one
 /// estimate per remaining index. Each estimate comes with the index of the
 /// pass that made it.
-pub fn by_pass<F>(
-    n: usize,
-    searches: &[Search],
-    mut pass: F,
-) -> Result<Vec<Option<(usize, Estimate)>>>
+pub fn by_pass<F, T>(n: usize, searches: &[Search], mut pass: F) -> Result<Vec<Option<(usize, T)>>>
 where
-    F: FnMut(&Search, &[usize]) -> Result<Vec<Option<Estimate>>>,
+    F: FnMut(&Search, &[usize]) -> Result<Vec<Option<T>>>,
 {
-    let mut out = vec![None; n];
+    let mut out: Vec<_> = (0..n).map(|_| None).collect();
     for (p, search) in searches.iter().enumerate() {
         let remaining: Vec<usize> = (0..n).filter(|&i| out[i].is_none()).collect();
         if remaining.is_empty() {
@@ -101,6 +99,58 @@ where
             estimator(target, &selected).ok()
         })
         .collect()
+}
+
+/// K-fold cross-validation: estimates the samples at indices `which` from
+/// the samples outside their fold. Holes stay whole: the `j`-th of the
+/// sorted hole ids goes to fold `j % k`, and an untagged sample `i` to fold
+/// `i % k`. Without holes and with `k` equal to the number of samples this
+/// is leave-one-out.
+pub fn k_fold_at<F>(
+    k: usize,
+    which: &[usize],
+    samples: &[Sample],
+    search: &Search,
+    vg: Option<&Variogram>,
+    estimator: F,
+) -> Result<Vec<Option<Estimate>>>
+where
+    F: Fn(&(f64, f64, f64), &[Sample]) -> Result<Estimate> + Sync,
+{
+    if k < 2 {
+        return Err(EstimError::InvalidParameters("k must be ≥ 2".into()));
+    }
+    let mut holes: Vec<u32> = samples.iter().filter_map(|s| s.hole).collect();
+    holes.sort_unstable();
+    holes.dedup();
+    let of: Vec<usize> = samples
+        .iter()
+        .enumerate()
+        .map(|(i, s)| s.hole.map_or(i, |h| holes.partition_point(|&x| x < h)) % k)
+        .collect();
+    let mut out = vec![None; which.len()];
+    for fold in 0..k {
+        let (test, at): (Vec<usize>, Vec<_>) = which
+            .iter()
+            .enumerate()
+            .filter(|(_, i)| of[**i] == fold)
+            .map(|(p, &i)| (p, samples[i].loc))
+            .unzip();
+        if test.is_empty() {
+            continue;
+        }
+        let train: Vec<Sample> = (0..samples.len())
+            .filter(|&i| of[i] != fold)
+            .map(|i| samples[i].clone())
+            .collect();
+        for (p, e) in test
+            .into_iter()
+            .zip(estimate_many(&at, &train, search, vg, &estimator))
+        {
+            out[p] = e;
+        }
+    }
+    Ok(out)
 }
 
 #[cfg(test)]
@@ -181,6 +231,89 @@ mod tests {
         assert_eq!(ours.len(), reference.records.len());
         for (a, b) in ours.iter().zip(&reference.records) {
             assert!((a - b.estimate).abs() < 1e-9);
+        }
+    }
+
+    #[test]
+    fn k_fold_with_one_sample_per_fold_is_leave_one_out() {
+        let samples = samples();
+        let vg = Variogram::single(Model::Spherical, 1.0, 40.0);
+        let (search, all) = (search(4, 30.0), (0..samples.len()).collect::<Vec<_>>());
+        let loo = leave_one_out_many(&samples, &search, Some(&vg), krige_with(&vg));
+        let folds = k_fold_at(
+            samples.len(),
+            &all,
+            &samples,
+            &search,
+            Some(&vg),
+            krige_with(&vg),
+        );
+        let folds = folds.unwrap();
+        assert!(loo.iter().filter(|e| e.is_some()).count() > 150);
+        for (a, b) in loo.iter().zip(&folds) {
+            assert_eq!(bits(a), bits(b));
+        }
+        let reference = crate::validate::leave_one_out(&samples, &vg, &search).unwrap();
+        let k_fold = crate::validate::k_fold(&samples, &vg, &search, samples.len()).unwrap();
+        for (a, b) in reference.records.iter().zip(&k_fold.records) {
+            assert_eq!(a.estimate.to_bits(), b.estimate.to_bits());
+        }
+        assert!(k_fold_at(1, &all, &samples, &search, Some(&vg), krige_with(&vg)).is_err());
+    }
+
+    #[test]
+    fn k_fold_never_splits_a_hole() {
+        let samples: Vec<Sample> = samples()
+            .into_iter()
+            .enumerate()
+            .map(|(i, s)| match i % 7 {
+                0 => s,
+                _ => Sample::with_hole(s.loc, s.value, 1000 - (i / 5) as u32),
+            })
+            .collect();
+        let vg = Variogram::single(Model::Spherical, 1.0, 40.0);
+        let (search, all) = (search(2, 60.0), (0..samples.len()).collect::<Vec<_>>());
+        let hole_at = |t: &Point| samples.iter().find(|s| s.loc == *t).unwrap().hole;
+        let used = AtomicUsize::new(0);
+        let check = |t: &Point, s: &[Sample]| {
+            if let Some(h) = hole_at(t) {
+                assert!(s.iter().all(|x| x.hole != Some(h)));
+                used.fetch_add(1, Ordering::Relaxed);
+            }
+            krige(Kind::Ordinary, t, s, &vg)
+        };
+        for k in [2, 5, samples.len()] {
+            let out = k_fold_at(k, &all, &samples, &search, Some(&vg), check).unwrap();
+            assert!(out.iter().all(Option::is_some));
+        }
+        assert!(used.into_inner() > 0);
+    }
+
+    #[test]
+    fn k_fold_with_measurement_error_does_not_depend_on_thread_count() {
+        let samples: Vec<Sample> = samples()
+            .into_iter()
+            .enumerate()
+            .map(|(i, s)| Sample {
+                error_variance: (i % 3) as f64 * 0.1,
+                ..s
+            })
+            .collect();
+        let vg = Variogram::single(Model::Spherical, 1.0, 40.0);
+        let (search, all) = (search(4, 30.0), (0..samples.len()).collect::<Vec<_>>());
+        let run = |threads| {
+            rayon::ThreadPoolBuilder::new()
+                .num_threads(threads)
+                .build()
+                .unwrap()
+                .install(|| {
+                    k_fold_at(5, &all, &samples, &search, Some(&vg), krige_with(&vg)).unwrap()
+                })
+        };
+        let (one, many) = (run(1), run(8));
+        assert!(one.iter().all(Option::is_some));
+        for (a, b) in one.iter().zip(&many) {
+            assert_eq!(bits(a), bits(b));
         }
     }
 

@@ -23,7 +23,7 @@ pub mod search;
 pub mod simple_interp;
 pub mod validate;
 
-pub use batch::{by_pass, estimate_many, leave_one_out_at, leave_one_out_many};
+pub use batch::{by_pass, estimate_many, k_fold_at, leave_one_out_at, leave_one_out_many};
 pub use block::{Discretization, block_krige};
 pub use cokrige::{CoKind, CoSample, cokrige, collocated_cokrige};
 pub use disjunctive::{DisjunctiveKriging, GaussianSample};
@@ -49,6 +49,10 @@ pub struct Sample {
     pub loc: (f64, f64, f64),
     pub value: f64,
     pub hole: Option<u32>,
+    /// Variance of the measurement error, added to this sample's diagonal
+    /// entry in kriging systems: the estimate no longer honours the value.
+    #[serde(default)]
+    pub error_variance: f64,
 }
 
 /// Groups of rows that share exactly the same location, each in row order and
@@ -75,6 +79,7 @@ impl Sample {
             loc,
             value,
             hole: None,
+            error_variance: 0.0,
         }
     }
 
@@ -83,6 +88,7 @@ impl Sample {
             loc,
             value,
             hole: Some(hole),
+            error_variance: 0.0,
         }
     }
 }

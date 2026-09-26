@@ -1,9 +1,9 @@
 # 18. Validation and classification
 
 Block kriging of Walker Lake `V` on 10 × 10 m blocks, then the checks a resource estimate needs: global and local
-bias against the declustered data, kriging efficiency and slope of regression per block, a classification from them
-and the sample spacing, and a majority filter that removes isolated blocks. The exhaustive grid confirms what the
-slope of regression predicts.
+bias against the declustered data, leave-one-out and k-fold cross-validation, kriging efficiency, slope of regression
+and the neighbourhood diagnostics per block, a classification from them and the sample spacing, and a majority filter
+that removes isolated blocks. The exhaustive grid confirms what the slope of regression predicts.
 
 <details><summary>Python</summary>
 
@@ -67,6 +67,35 @@ save(fig, "swaths")
 
 ![swaths](swaths.png)
 
+Cross-validation re-estimates every sample from the others with the same variogram and search. Leave-one-out
+removes one sample at a time; k-fold removes a whole fold, sample `i` going to fold `i % k`, so each estimate sees
+data a fraction `1/k` sparser. Errors grow as folds get fewer: leave-one-out judges the model at the sample
+spacing, which in the clustered areas is finer than most blocks see. A slope above 1 and a standardized squared
+error below 1 hold at every k: high estimates slightly understate the samples, and the kriging variance is too
+large.
+
+<details><summary>Python</summary>
+
+```python
+point_kriging = cs.OrdinaryKriging(model, search).fit(xy, v)
+for folds in (None, 10, 5, 2):
+    cv = point_kriging.cross_validate(folds=folds)
+    print(
+        f"{'leave-one-out' if folds is None else f'{folds}-fold':>13}: RMSE {cv.rmse:5.1f} ppm, "
+        f"correlation {cv.correlation:.2f}, slope {cv.slope:.2f}, "
+        f"standardized squared error {cv.standardized_squared_error:.2f}"
+    )
+```
+
+</details>
+
+```text
+leave-one-out: RMSE 189.1 ppm, correlation 0.78, slope 1.08, standardized squared error 0.65
+      10-fold: RMSE 192.8 ppm, correlation 0.77, slope 1.07, standardized squared error 0.67
+       5-fold: RMSE 196.9 ppm, correlation 0.76, slope 1.06, standardized squared error 0.69
+       2-fold: RMSE 205.5 ppm, correlation 0.73, slope 1.06, standardized squared error 0.69
+```
+
 Kriging efficiency compares the block variance with the kriging variance: 1 for a perfectly known block, 0 or less
 for one no better known than the global mean. The slope of regression of true on estimated grades is 1 when
 estimates are conditionally unbiased; below 1, high estimates overstate and low ones understate the truth. Both
@@ -118,6 +147,67 @@ efficiency < 0.5: 152 blocks, RMSE 109.4 ppm, correlation with truth 0.70
       0.5 to 0.7: 378 blocks, RMSE 116.1 ppm, correlation with truth 0.66
           >= 0.7: 250 blocks, RMSE  91.5 ppm, correlation with truth 0.92
 ```
+
+The other diagnostics say why a block is weak. `mean_distance` is the mean distance to the samples used, and
+`max_samples_reached` flags searches that stopped at 24 samples before the ellipse ran out: those blocks sit in
+denser data and have the higher slope. `negative_weight_sum` adds the weights below zero, which samples screened
+by closer ones receive. They are strongest on the sparse regular pattern between the clusters, and blocks with
+strongly negative sums carry the largest errors, overstate the truth, and give the only negative grades. `lagrange`
+(the Lagrange multiplier) and `n_holes` (distinct drill holes used; each Walker Lake sample is its own) complete
+the set.
+
+<details><summary>Python</summary>
+
+```python
+full = d["max_samples_reached"] == 1
+for label, k in (("full search", full), ("ellipse ran out", ~full)):
+    print(
+        f"{label:>15}: {k.mean():4.0%} of blocks, mean distance {d['mean_distance'][k].mean():4.1f} m, "
+        f"mean slope {d['slope'][k].mean():.2f}"
+    )
+groups = np.digitize(d["negative_weight_sum"], [-0.08, -0.04])
+for g, label in enumerate(("below -0.08", "-0.08 to -0.04", "above -0.04")):
+    k = groups == g
+    error = np.sqrt(np.mean((d["value"][k] - true_blocks[k]) ** 2))
+    print(
+        f"negative weights {label:>14}: {k.sum():3d} blocks, RMSE {error:5.1f} ppm, "
+        f"mean {d['value'][k].mean():3.0f} ppm against {true_blocks[k].mean():3.0f} true"
+    )
+negative = d["value"] < 0
+print(
+    f"{negative.sum()} negative estimates, negative weights {d['negative_weight_sum'][negative].max():.2f} or below"
+)
+```
+
+</details>
+
+```text
+    full search:  89% of blocks, mean distance 28.2 m, mean slope 0.95
+ellipse ran out:  11% of blocks, mean distance 40.5 m, mean slope 0.86
+negative weights    below -0.08: 119 blocks, RMSE 135.9 ppm, mean 245 ppm against 202 true
+negative weights -0.08 to -0.04: 358 blocks, RMSE 113.4 ppm, mean 247 ppm against 229 true
+negative weights    above -0.04: 303 blocks, RMSE  85.2 ppm, mean 373 ppm against 366 true
+6 negative estimates, negative weights -0.05 or below
+```
+
+<details><summary>Python</summary>
+
+```python
+fig, axes = plt.subplots(1, 2, figsize=(9, 4.6), layout="constrained")
+for ax, key, title, cmap in (
+    (axes[0], "mean_distance", "Mean distance to samples used (m)", "ceres"),
+    (axes[1], "negative_weight_sum", "Sum of negative weights", plt.get_cmap("ceres").reversed()),
+):
+    im = ax.imshow(d[key].reshape(shape), origin="lower", extent=extent, cmap=cmap)
+    ax.scatter(xy[:, 0], xy[:, 1], s=2, color=GREY, linewidths=0)
+    map_axes(ax, title)
+    fig.colorbar(im, ax=ax, shrink=0.8)
+save(fig, "neighbourhood")
+```
+
+</details>
+
+![neighbourhood](neighbourhood.png)
 
 Classification combines slope and efficiency with the distance to the nearest sample, from `neighborhood_stats`.
 Rules apply in order and the first that holds wins; a 3 × 3 majority filter then absorbs isolated blocks into

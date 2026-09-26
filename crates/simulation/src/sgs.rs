@@ -71,6 +71,7 @@ pub fn sgs(
             loc,
             value: score,
             hole: None,
+            error_variance: 0.0,
         })
         .collect();
     if local.is_some_and(|l| l.len() != grid.len()) {
@@ -135,6 +136,7 @@ pub fn sgs(
             loc: target,
             value: score,
             hole: None,
+            error_variance: 0.0,
         };
         tree.add(&sample);
         cond.push(sample);

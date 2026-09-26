@@ -139,6 +139,7 @@ mod tests {
             loc: (x, y, 0.0),
             value: v,
             hole: None,
+            error_variance: 0.0,
         }
     }
 
@@ -170,6 +171,7 @@ mod tests {
             loc: (x, 0.0, 0.0),
             value: v,
             hole: Some(hole),
+            error_variance: 0.0,
         };
         // Two samples of hole 1 and one of hole 2 within radius; hole 3 outside.
         let samples = vec![

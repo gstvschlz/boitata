@@ -175,7 +175,7 @@ def test_diagnostics_classification_and_smoothing():
     grid = cs.BlockModel(origin=(0, 0), size=(10, 10), count=(10, 10))
     ok = cs.OrdinaryKriging(cs.Variogram([("spherical", 1.0, 40.0)]), cs.Search(radius=60, max_samples=12))
     d = ok.fit(xy, v).predict(grid, diagnostics=True)
-    assert set(d) == {"value", "variance", "efficiency", "slope", "n_samples", "pass"}
+    assert {"value", "variance", "efficiency", "slope", "n_samples", "pass"} <= set(d)
     assert np.all(d["slope"] > 0) and np.all(d["efficiency"] <= 1 + 1e-9)
     at_data = ok.predict(xy[:3], diagnostics=True)
     np.testing.assert_allclose(at_data["slope"], 1.0)
@@ -192,3 +192,55 @@ def test_diagnostics_classification_and_smoothing():
     bias = cs.global_bias(d["value"], v)
     assert bias["relative"] == pytest.approx(d["value"].mean() / v.mean() - 1)
     assert ok.cross_validate().slope > 0
+
+
+def test_measurement_error_blends_a_datum_with_its_neighbours():
+    xy, v = coords[:20], values[:20]
+    wide = cs.Search(radius=500, max_samples=50)
+    plain = cs.OrdinaryKriging(model, wide).fit(xy, v)
+    zero = cs.OrdinaryKriging(model, wide).fit(xy, v, error_variance=np.zeros(20))
+    grid = rng.uniform(0, 100, (50, 2))
+    np.testing.assert_array_equal(plain.predict(grid), zero.predict(grid))
+    loo = plain.cross_validate()
+    error = np.where(np.arange(20) == 0, 0.2, 0.0)
+    noisy = cs.OrdinaryKriging(model, wide).fit(xy, v, error_variance=error)
+    k = loo.variance[0] / (loo.variance[0] + 0.2)
+    assert noisy.predict(xy[:1])[0] == pytest.approx(loo.estimate[0] + k * (v[0] - loo.estimate[0]), abs=1e-9)
+    with pytest.raises(ValueError):
+        cs.OrdinaryKriging(model, wide).fit(xy, v, error_variance=-error)
+    with pytest.raises(ValueError):
+        cs.InverseDistance(wide).fit(xy, v, error_variance=error)
+
+
+def test_k_fold_cross_validation():
+    ok = cs.OrdinaryKriging(model, search).fit(coords, values)
+    np.testing.assert_array_equal(ok.cross_validate(folds=len(values)).estimate, ok.cross_validate().estimate)
+    five = ok.cross_validate(folds=5)
+    assert np.isfinite(five.estimate).all() and five.rmse > ok.cross_validate().rmse
+    with pytest.raises(ValueError):
+        ok.cross_validate(folds=1)
+
+
+def test_k_fold_keeps_holes_whole():
+    holes = np.arange(len(values)) // 5
+    cv = cs.OrdinaryKriging(model, search).fit(coords, values, holes=holes).cross_validate(folds=4)
+    expected = np.empty(len(values))
+    for fold in range(4):
+        test = holes % 4 == fold
+        train = cs.OrdinaryKriging(model, search).fit(coords[~test], values[~test])
+        expected[test] = train.predict(coords[test])
+    np.testing.assert_array_equal(cv.estimate, expected)
+
+
+def test_neighbourhood_diagnostics():
+    holes = np.arange(len(values)) // 3
+    ok = cs.OrdinaryKriging(model, cs.Search(radius=30, max_samples=8)).fit(coords, values, holes=holes)
+    d = ok.predict(rng.uniform(0, 100, (200, 2)), diagnostics=True)
+    assert {"n_holes", "mean_distance", "negative_weight_sum", "lagrange", "max_samples_reached"} <= set(d)
+    assert np.all((d["n_holes"] >= 1) & (d["n_holes"] <= d["n_samples"]))
+    assert np.all((d["mean_distance"] > 0) & (d["mean_distance"] <= 30))
+    assert np.all(d["negative_weight_sum"] <= 0) and np.any(d["negative_weight_sum"] < 0)
+    assert np.isfinite(d["lagrange"]).all()
+    np.testing.assert_array_equal(d["max_samples_reached"], d["n_samples"] == 8)
+    idw = cs.InverseDistance(search).fit(coords, values).predict(coords[:3], diagnostics=True)
+    assert np.isnan(idw["negative_weight_sum"]).all() and np.isnan(idw["lagrange"]).all()

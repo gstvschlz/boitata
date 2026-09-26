@@ -246,6 +246,7 @@ mod tests {
                 loc: s.loc,
                 value: s.value,
                 hole: None,
+                error_variance: 0.0,
             })
             .collect();
         let ok = crate::krige_ordinary(&t, &prim, &vg).unwrap();

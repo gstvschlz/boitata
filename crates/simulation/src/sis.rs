@@ -79,6 +79,7 @@ pub fn sis(
             loc,
             value: c as f64,
             hole: None,
+            error_variance: 0.0,
         })
         .collect();
     let mut tree = SearchTree::new(&all, &params.search, Some(&variograms[0]));
@@ -113,6 +114,7 @@ pub fn sis(
                                 0.0
                             },
                             hole: None,
+                            error_variance: 0.0,
                         })
                         .collect();
                     let est = krige(Kind::Ordinary, &target, &ind, &variograms[c])
@@ -133,6 +135,7 @@ pub fn sis(
             loc: target,
             value: cat as f64,
             hole: None,
+            error_variance: 0.0,
         };
         tree.add(&sample);
         all.push(sample);

@@ -1,7 +1,7 @@
 use estimation::{
     Discretization, DriftSpec, DualKriging, Estimate, HighGrade, InterpEstimate, InterpOptions,
-    Kind, Sample, Search as CoreSearch, block_krige, by_pass, estimate_many, krige, krige_bayesian,
-    krige_factorial, krige_universal, leave_one_out_at,
+    Kind, NeighborhoodStats, Sample, Search as CoreSearch, block_krige, by_pass, estimate_many,
+    k_fold_at, krige, krige_bayesian, krige_factorial, krige_universal, leave_one_out_at,
 };
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyTuple};
@@ -125,6 +125,17 @@ fn interp(e: estimation::Result<InterpEstimate>) -> estimation::Result<Estimate>
 }
 
 impl Method {
+    fn kriging(&self) -> bool {
+        !matches!(
+            self,
+            Method::InverseDistance(_)
+                | Method::Nearest
+                | Method::MovingAverage
+                | Method::MovingMedian
+                | Method::LocalLeastSquares(_)
+        )
+    }
+
     fn run(
         &self,
         t: &Point,
@@ -201,38 +212,53 @@ pub fn outputs<'py>(
     Ok(PyTuple::new(py, [value, variance])?.into_any())
 }
 
+type Used = (Estimate, NeighborhoodStats);
+
+fn used(t: &Point, s: &[Sample], e: estimation::Result<Estimate>) -> estimation::Result<Used> {
+    e.map(|e| {
+        let near = estimation::neighborhood_stats(t, s, s.len(), f64::INFINITY, None);
+        (e, near)
+    })
+}
+
 fn diagnostics<'py>(
     py: Python<'py>,
-    results: &[Option<Estimate>],
-    passes: &[Option<usize>],
+    results: &[Option<(usize, Used)>],
+    searches: &[CoreSearch],
 ) -> PyResult<Bound<'py, PyDict>> {
-    let column = |f: fn(&Estimate) -> f64| {
+    let column = |f: &dyn Fn(usize, &Estimate, &NeighborhoodStats) -> f64| {
         array1(
             py,
             results
                 .iter()
-                .map(|e| e.as_ref().map_or(f64::NAN, f))
+                .map(|r| r.as_ref().map_or(f64::NAN, |(p, (e, s))| f(*p, e, s)))
                 .collect(),
         )
     };
     let d = PyDict::new(py);
-    d.set_item("value", column(|e| e.value))?;
-    d.set_item("variance", column(|e| e.variance))?;
-    d.set_item("efficiency", column(Estimate::efficiency))?;
-    d.set_item("slope", column(Estimate::slope))?;
-    d.set_item("n_samples", column(|e| e.n_used as f64))?;
-    let pass = passes
-        .iter()
-        .map(|p| p.map_or(f64::NAN, |p| (p + 1) as f64));
-    d.set_item("pass", array1(py, pass.collect()))?;
+    d.set_item("value", column(&|_, e, _| e.value))?;
+    d.set_item("variance", column(&|_, e, _| e.variance))?;
+    d.set_item("efficiency", column(&|_, e, _| e.efficiency()))?;
+    d.set_item("slope", column(&|_, e, _| e.slope()))?;
+    d.set_item("n_samples", column(&|_, e, _| e.n_used as f64))?;
+    d.set_item("pass", column(&|p, _, _| (p + 1) as f64))?;
+    d.set_item("n_holes", column(&|_, _, s| s.n_holes as f64))?;
+    d.set_item("mean_distance", column(&|_, _, s| s.mean_dist_knn))?;
+    d.set_item(
+        "negative_weight_sum",
+        column(&|_, e, _| e.negative_weight_sum()),
+    )?;
+    d.set_item("lagrange", column(&|_, e, _| e.lagrange))?;
+    let full = |p: usize, s: &NeighborhoodStats| s.n_within >= searches[p].max_samples;
+    d.set_item(
+        "max_samples_reached",
+        column(&|p, _, s| full(p, s) as u8 as f64),
+    )?;
     Ok(d)
 }
 
-fn split(passes: Vec<Option<(usize, Estimate)>>) -> (Vec<Option<usize>>, Vec<Option<Estimate>>) {
-    passes
-        .into_iter()
-        .map(|r| r.map_or((None, None), |(p, e)| (Some(p), Some(e))))
-        .unzip()
+fn split<T>(passes: Vec<Option<(usize, T)>>) -> Vec<Option<T>> {
+    passes.into_iter().map(|r| r.map(|(_, e)| e)).collect()
 }
 
 /// Shared engine behind the estimator classes in `ceres.estimation`.
@@ -315,15 +341,7 @@ impl Estimator {
             "local_least_squares" => Method::LocalLeastSquares(int("degree", 1)?),
             other => return Err(invalid(format!("unknown method {other:?}"))),
         };
-        let needs_variogram = matches!(
-            method,
-            Method::Kriging(_)
-                | Method::Universal(_)
-                | Method::Factorial { .. }
-                | Method::Block { .. }
-                | Method::Bayesian { .. }
-        );
-        if needs_variogram && variogram.is_none() {
+        if method.kriging() && variogram.is_none() {
             return Err(invalid("kriging needs a variogram"));
         }
         Ok(Self {
@@ -334,23 +352,38 @@ impl Estimator {
         })
     }
 
-    /// `holes` (optional) tags samples by drill hole for `max_per_hole`.
-    #[pyo3(signature = (coords, values, holes=None))]
+    /// `holes` (optional) tags samples by drill hole for `max_per_hole`;
+    /// `error_variance` (optional) is each sample's measurement-error variance.
+    #[pyo3(signature = (coords, values, holes=None, error_variance=None))]
     fn fit<'py>(
         mut slf: PyRefMut<'py, Self>,
         coords: &Bound<PyAny>,
         values: &Bound<PyAny>,
         holes: Option<&Bound<PyAny>>,
+        error_variance: Option<&Bound<PyAny>>,
     ) -> PyResult<PyRefMut<'py, Self>> {
         let (locs, values) = (points(coords)?, finite(values, "values")?);
         same_length(locs.len(), values.len(), "values")?;
         let holes = args::holes(holes, locs.len())?;
+        let error = args::optional_finite(error_variance, "error_variance")?;
+        if let Some(e) = &error {
+            same_length(locs.len(), e.len(), "error_variance")?;
+            if e.iter().any(|v| *v < 0.0) {
+                return Err(invalid("error_variance must be >= 0"));
+            }
+            if !slf.method.kriging() {
+                return Err(invalid("error_variance needs a kriging method"));
+            }
+        }
         let keep = distinct(slf.py(), &locs, holes.as_ref().map(|h| &h.0[..]))?;
         let samples = keep
             .into_iter()
-            .map(|i| match &holes {
-                Some((_, ids)) => Sample::with_hole(locs[i], values[i], ids[i]),
-                None => Sample::new(locs[i], values[i]),
+            .map(|i| Sample {
+                error_variance: error.as_ref().map_or(0.0, |e| e[i]),
+                ..match &holes {
+                    Some((_, ids)) => Sample::with_hole(locs[i], values[i], ids[i]),
+                    None => Sample::new(locs[i], values[i]),
+                }
             })
             .collect();
         slf.samples = Some(samples);
@@ -359,8 +392,10 @@ impl Estimator {
 
     /// Estimates (NaN where too few neighbours); with `return_variance`, also
     /// the kriging variance, and with `diagnostics` a dict adding kriging
-    /// efficiency, slope of regression, samples used and the search pass
-    /// (1-based) that filled each target. `anisotropy` (a
+    /// efficiency, slope of regression, samples used, the search pass
+    /// (1-based) that filled each target, holes used, mean distance to the
+    /// samples used, sum of negative weights, Lagrange multiplier and whether
+    /// the search hit `max_samples`. `anisotropy` (a
     /// LocalAnisotropy) gives each target its own variogram and search
     /// orientation, taken from the nearest location.
     #[pyo3(signature = (targets, return_variance=false, anisotropy=None, diagnostics=false))]
@@ -390,7 +425,7 @@ impl Estimator {
                     let at = pick(&targets, remaining);
                     match &local {
                         None => Ok(estimate_many(&at, samples, search, vg, |t, s| {
-                            self.method.run(t, s, vg)
+                            used(t, s, self.method.run(t, s, vg))
                         })),
                         Some(local) => estimation::lva::estimate_many_local(
                             &at,
@@ -398,16 +433,16 @@ impl Estimator {
                             samples,
                             search,
                             &base,
-                            |t, s, v| self.method.run(t, s, Some(v)),
+                            |t, s, v| used(t, s, self.method.run(t, s, Some(v))),
                         ),
                     }
                 })
             })
             .map_err(invalid)?;
-        let (passes, results) = split(passes);
         if diagnostics {
-            return Ok(self::diagnostics(py, &results, &passes)?.into_any());
+            return Ok(self::diagnostics(py, &passes, &self.search)?.into_any());
         }
+        let results: Vec<_> = split(passes).into_iter().map(|r| r.map(|r| r.0)).collect();
         outputs(py, &results, return_variance)
     }
 
@@ -421,23 +456,33 @@ impl Estimator {
         Ok(array1(py, samples.iter().map(|s| s.value).collect()).into_any())
     }
 
-    /// Leave-one-out estimates and variances at the fitted samples.
-    fn cross_validate<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+    /// Leave-one-out, or with `folds` k-fold, estimates and variances at the
+    /// fitted samples; folds keep holes whole (see `k_fold_at`).
+    #[pyo3(signature = (folds=None))]
+    fn cross_validate<'py>(
+        &self,
+        py: Python<'py>,
+        folds: Option<usize>,
+    ) -> PyResult<Bound<'py, PyAny>> {
         let samples = self
             .samples
             .as_ref()
             .ok_or_else(|| invalid("estimator is not fitted; call fit first"))?;
         let vg = self.variogram.as_ref();
+        let run = |t: &Point, s: &[Sample]| self.method.run(t, s, vg);
         let passes = py
             .detach(|| {
-                by_pass(samples.len(), &self.search, |search, remaining| {
-                    Ok(leave_one_out_at(remaining, samples, search, vg, |t, s| {
-                        self.method.run(t, s, vg)
-                    }))
-                })
+                by_pass(
+                    samples.len(),
+                    &self.search,
+                    |search, remaining| match folds {
+                        None => Ok(leave_one_out_at(remaining, samples, search, vg, run)),
+                        Some(k) => k_fold_at(k, remaining, samples, search, vg, run),
+                    },
+                )
             })
             .map_err(invalid)?;
-        outputs(py, &split(passes).1, true)
+        outputs(py, &split(passes), true)
     }
 }
 

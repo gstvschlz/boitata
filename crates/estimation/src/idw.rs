@@ -52,6 +52,7 @@ mod tests {
             loc: (x, 0.0, 0.0),
             value: v,
             hole: None,
+            error_variance: 0.0,
         }
     }
 

@@ -100,6 +100,7 @@ pub fn block_krige(
         for j in 0..n {
             a[(i, j)] = vg.cov_points(&samples[i].loc, &samples[j].loc);
         }
+        a[(i, i)] += samples[i].error_variance;
         a[(i, n)] = 1.0;
         a[(n, i)] = 1.0;
     }
@@ -150,16 +151,19 @@ mod tests {
                 loc: (0.0, 0.0, 0.0),
                 value: 1.0,
                 hole: None,
+                error_variance: 0.0,
             },
             Sample {
                 loc: (60.0, 0.0, 0.0),
                 value: 2.0,
                 hole: None,
+                error_variance: 0.0,
             },
             Sample {
                 loc: (0.0, 60.0, 0.0),
                 value: 3.0,
                 hole: None,
+                error_variance: 0.0,
             },
         ];
         let center = (30.0, 30.0, 0.0);

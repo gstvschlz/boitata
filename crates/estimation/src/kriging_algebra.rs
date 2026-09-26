@@ -178,6 +178,7 @@ pub fn krige_universal(
             for j in 0..n {
                 a[(i, j)] = vg.cov_points(&samples[i].loc, &samples[j].loc);
             }
+            a[(i, i)] += samples[i].error_variance;
             b[i] = vg.cov_points(&samples[i].loc, target);
         }
         let x = a
@@ -207,6 +208,7 @@ pub fn krige_universal(
         for j in 0..n {
             a[(i, j)] = vg.cov_points(&samples[i].loc, &samples[j].loc);
         }
+        a[(i, i)] += samples[i].error_variance;
         for l in 0..p {
             a[(i, n + l)] = drift.data[i][l];
             a[(n + l, i)] = drift.data[i][l];
@@ -283,6 +285,7 @@ impl<'a> DualKriging<'a> {
             for j in 0..n {
                 a[(i, j)] = vg.cov_points(&samples[i].loc, &samples[j].loc);
             }
+            a[(i, i)] += samples[i].error_variance;
             for l in 0..p {
                 a[(i, n + l)] = fdata[i][l];
                 a[(n + l, i)] = fdata[i][l];
@@ -351,6 +354,7 @@ pub fn krige_bayesian(
         for j in 0..n {
             c[(i, j)] = vg.cov_points(&samples[i].loc, &samples[j].loc);
         }
+        c[(i, i)] += samples[i].error_variance;
         cvec[i] = vg.cov_points(&samples[i].loc, target);
     }
     let f0 = DVector::from_row_slice(&drift.target);
@@ -429,6 +433,7 @@ pub fn krige_factorial(
         for j in 0..n {
             a[(i, j)] = vg.cov_points(&samples[i].loc, &samples[j].loc);
         }
+        a[(i, i)] += samples[i].error_variance;
         a[(i, n)] = 1.0;
         a[(n, i)] = 1.0;
         // Filtered RHS: covariance of only the kept structures.
@@ -498,6 +503,7 @@ mod tests {
             loc: (x, y, 0.0),
             value: v,
             hole: None,
+            error_variance: 0.0,
         }
     }
 

@@ -448,6 +448,7 @@ mod tests {
             loc: (x, y, z),
             value: v,
             hole,
+            error_variance: 0.0,
         }
     }
 
@@ -518,6 +519,7 @@ mod tests {
                     loc,
                     value: (i % 10) as f64,
                     hole: Some((i / 20) as u32),
+                    error_variance: 0.0,
                 }
             })
             .collect();
