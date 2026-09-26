@@ -1,11 +1,13 @@
 use estimation::lva::{LocalAnisotropy as Core, MeshMajor};
 use pyo3::prelude::*;
+use serde::{Deserialize, Serialize};
 
 use crate::args::{Point, array2, points, points_array, rows};
 use crate::blocks::Mesh;
 use crate::containers::PyBlockModel;
 use crate::estimation::targets;
 use crate::invalid;
+use crate::persist::{self, Columns, Found, Tabular};
 
 fn err(e: estimation::EstimError) -> PyErr {
     invalid(e)
@@ -20,6 +22,55 @@ impl LocalAnisotropy {
     /// This field transferred to `targets` by nearest neighbour.
     pub fn at_targets(&self, targets: &[Point]) -> Core {
         self.0.at(targets)
+    }
+}
+
+/// No parameters: everything is in the columns.
+#[derive(Serialize, Deserialize)]
+struct Empty {}
+
+impl Serialize for LocalAnisotropy {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        Empty {}.serialize(s)
+    }
+}
+
+impl<'de> Deserialize<'de> for LocalAnisotropy {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        Empty::deserialize(d)?;
+        Ok(Self(Core {
+            coords: Vec::new(),
+            angles: Vec::new(),
+            ratios: Vec::new(),
+        }))
+    }
+}
+
+impl Tabular for LocalAnisotropy {
+    /// `x`, `y`, `z`, `azimuth`, `dip`, `rake`, `semi_ratio`, `minor_ratio`.
+    fn columns(&self) -> Option<Columns> {
+        let mut columns = persist::point_columns(self.0.coords.iter().copied());
+        for (i, name) in ["azimuth", "dip", "rake"].into_iter().enumerate() {
+            columns.push(persist::column(name, self.0.angles.iter().map(|a| a[i])));
+        }
+        for (i, name) in ["semi_ratio", "minor_ratio"].into_iter().enumerate() {
+            columns.push(persist::column(name, self.0.ratios.iter().map(|r| r[i])));
+        }
+        Some(columns)
+    }
+
+    fn restore(&mut self, columns: Found) -> PyResult<()> {
+        let [azimuth, dip, rake, semi, minor] =
+            ["azimuth", "dip", "rake", "semi_ratio", "minor_ratio"].map(|n| columns.values(n));
+        let (azimuth, dip, rake, semi, minor) = (azimuth?, dip?, rake?, semi?, minor?);
+        let rows = 0..azimuth.len();
+        let angles = rows
+            .clone()
+            .map(|i| [azimuth[i], dip[i], rake[i]])
+            .collect();
+        let ratios = rows.map(|i| [semi[i], minor[i]]).collect();
+        self.0 = Core::new(columns.points()?, angles, ratios).map_err(err)?;
+        Ok(())
     }
 }
 
@@ -135,6 +186,28 @@ impl LocalAnisotropy {
     /// The anisotropy of the nearest location, at `targets`.
     fn at(&self, targets: &Bound<PyAny>) -> PyResult<Self> {
         Ok(Self(self.0.at(&self::targets(targets)?)))
+    }
+
+    /// Writes locations, angles and ratios as Parquet columns; `from_parquet`
+    /// reads them back.
+    fn to_parquet(&self, path: std::path::PathBuf) -> PyResult<()> {
+        persist::to_parquet(<Self as pyo3::PyClass>::NAME, self, &path)
+    }
+
+    /// Reads `to_parquet` output; raises InvalidInput on another class's file
+    /// or a newer format.
+    #[staticmethod]
+    fn from_parquet(path: std::path::PathBuf) -> PyResult<Self> {
+        persist::from_parquet(<Self as pyo3::PyClass>::NAME, &path)
+    }
+
+    fn _state(&self) -> PyResult<(String, Option<Columns>)> {
+        persist::state(<Self as pyo3::PyClass>::NAME, self)
+    }
+
+    #[staticmethod]
+    fn _from_state(meta: &str, columns: Option<Columns>) -> PyResult<Self> {
+        persist::from_state(<Self as pyo3::PyClass>::NAME, meta, columns)
     }
 
     #[getter]
