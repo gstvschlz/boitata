@@ -252,4 +252,4 @@ print(
 Mesh(1106 vertices, 2208 triangles, closed) volume 6,779,719 m3 (written 6,779,720 m3), largest shift 0.24 mm
 ```
 
-Full script: [`example.py`](example.py)
+Full script: [`example_07.py`](example_07.py)

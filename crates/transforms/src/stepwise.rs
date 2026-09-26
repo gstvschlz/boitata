@@ -18,7 +18,8 @@ pub const MIN_SAMPLES: usize = 10;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct Variable {
     marginal: NormalScoreTable,
-    conditional: BTreeMap<u64, NormalScoreTable>,
+    /// Tables by joint class, sorted by key.
+    conditional: Vec<(Vec<u16>, NormalScoreTable)>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -30,10 +31,11 @@ pub struct StepwiseConditional {
 impl StepwiseConditional {
     pub fn fit(data: &[Vec<f64>], classes: usize) -> Result<Self> {
         let dim = check_rows(data, None)?;
-        if classes < 1 {
-            return Err(TransformError::InvalidParameters(
-                "classes must be ≥ 1".into(),
-            ));
+        if !(1..=u16::MAX as usize).contains(&classes) {
+            return Err(TransformError::InvalidParameters(format!(
+                "classes must be in 1..={}",
+                u16::MAX
+            )));
         }
         let mut sct = Self {
             classes,
@@ -43,13 +45,13 @@ impl StepwiseConditional {
         for k in 0..dim {
             let column: Vec<f64> = data.iter().map(|r| r[k]).collect();
             let marginal = normal_score(&column, None)?;
-            let mut groups: BTreeMap<u64, Vec<usize>> = BTreeMap::new();
+            let mut groups: BTreeMap<Vec<u16>, Vec<usize>> = BTreeMap::new();
             for (i, g) in gauss.iter().enumerate() {
                 groups.entry(sct.key(g)).or_default().push(i);
             }
             let mut variable = Variable {
                 marginal: marginal.table,
-                conditional: BTreeMap::new(),
+                conditional: Vec::new(),
             };
             for (key, members) in groups {
                 if k == 0 || members.len() < MIN_SAMPLES {
@@ -63,7 +65,7 @@ impl StepwiseConditional {
                 for (&i, &s) in members.iter().zip(&local.scores) {
                     gauss[i].push(s);
                 }
-                variable.conditional.insert(key, local.table);
+                variable.conditional.push((key, local.table));
             }
             sct.variables.push(variable);
         }
@@ -71,19 +73,19 @@ impl StepwiseConditional {
     }
 
     /// Joint class of the Gaussian values `previous`.
-    fn key(&self, previous: &[f64]) -> u64 {
-        previous.iter().fold(0u64, |key, &y| {
-            let class = ((phi(y) * self.classes as f64) as usize).min(self.classes - 1);
-            key.wrapping_mul(self.classes as u64)
-                .wrapping_add(class as u64)
-        })
+    fn key(&self, previous: &[f64]) -> Vec<u16> {
+        previous
+            .iter()
+            .map(|&y| ((phi(y) * self.classes as f64) as usize).min(self.classes - 1) as u16)
+            .collect()
     }
 
     fn table(&self, k: usize, previous: &[f64]) -> &NormalScoreTable {
         let v = &self.variables[k];
+        let key = self.key(previous);
         v.conditional
-            .get(&self.key(previous))
-            .unwrap_or(&v.marginal)
+            .binary_search_by(|(k, _)| k.cmp(&key))
+            .map_or(&v.marginal, |i| &v.conditional[i].1)
     }
 
     pub fn dim(&self) -> usize {
@@ -154,5 +156,42 @@ mod tests {
         let back = sct.back(&g);
         let err = back.iter().flatten().zip(banana.iter().flatten());
         assert!(err.map(|(a, b)| (a - b).abs()).fold(0.0, f64::max) < 1e-9);
+    }
+
+    #[test]
+    fn many_variables_round_trip() {
+        let u = uniforms(5, 16 * 4000);
+        let data: Vec<Vec<f64>> = u
+            .chunks(16)
+            .map(|c| {
+                let common = probit(c[0]);
+                c.iter().map(|&v| (common + probit(v)).exp()).collect()
+            })
+            .collect();
+        let sct = StepwiseConditional::fit(&data, 30).unwrap();
+        let json = serde_json::to_string(&sct).unwrap();
+        let sct: StepwiseConditional = serde_json::from_str(&json).unwrap();
+        let back = sct.back(&sct.forward(&data));
+        let err = back.iter().flatten().zip(data.iter().flatten());
+        assert!(err.map(|(a, b)| (a - b).abs() / b).fold(0.0, f64::max) < 1e-9);
+        assert!(StepwiseConditional::fit(&data, 1 << 16).is_err());
+    }
+
+    #[test]
+    fn joint_classes_that_overflowed_u64_differ() {
+        let sct = StepwiseConditional {
+            classes: 256,
+            variables: Vec::new(),
+        };
+        let (low, next) = (-9.0, probit(1.5 / 256.0));
+        let mut a = vec![low; 9];
+        a[0] = next;
+        let wrapped = |g: &[f64]| {
+            sct.key(g)
+                .iter()
+                .fold(0u64, |k, &c| k.wrapping_mul(256).wrapping_add(c as u64))
+        };
+        assert_eq!(wrapped(&a), wrapped(&[low; 9]));
+        assert_ne!(sct.key(&a), sct.key(&[low; 9]));
     }
 }

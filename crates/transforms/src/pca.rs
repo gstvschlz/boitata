@@ -7,6 +7,7 @@
 //! uncorrelated at lag 0 and at lag h, ordered from most to least continuous.
 
 use crate::error::{Result, TransformError};
+use kiddo::{ImmutableKdTree, SquaredEuclidean};
 use nalgebra::{DMatrix, DVector, SymmetricEigen};
 use serde::{Deserialize, Serialize};
 
@@ -179,6 +180,14 @@ impl Maf {
                 "coords length mismatch".into(),
             ));
         }
+        if coords
+            .iter()
+            .any(|p| !(p.0.is_finite() && p.1.is_finite() && p.2.is_finite()))
+        {
+            return Err(TransformError::InvalidParameters(
+                "coords must be finite".into(),
+            ));
+        }
         if !(lag > 0.0 && tolerance > 0.0 && lag.is_finite() && tolerance.is_finite()) {
             return Err(TransformError::InvalidParameters(
                 "lag and tolerance must be > 0".into(),
@@ -196,19 +205,12 @@ impl Maf {
             .map(|r| &sphere * (DVector::from_row_slice(r) - &mean))
             .collect();
         let mut gamma = DMatrix::zeros(dim, dim);
-        let mut pairs = 0usize;
-        for i in 0..coords.len() {
-            let (a, b) = (coords[i], &y[i]);
-            for j in i + 1..coords.len() {
-                let c = coords[j];
-                let h = ((a.0 - c.0).powi(2) + (a.1 - c.1).powi(2) + (a.2 - c.2).powi(2)).sqrt();
-                if (h - lag).abs() <= tolerance {
-                    let d = b - &y[j];
-                    gamma += &d * d.transpose();
-                    pairs += 1;
-                }
-            }
+        let pairs = lag_pairs(coords, lag, tolerance)?;
+        for &(i, j) in &pairs {
+            let d = &y[i] - &y[j];
+            gamma += &d * d.transpose();
         }
+        let pairs = pairs.len();
         if pairs == 0 {
             return Err(TransformError::InsufficientData(
                 "no pairs at this lag".into(),
@@ -241,6 +243,32 @@ impl Maf {
     pub fn back(&self, factors: &[Vec<f64>]) -> Vec<Vec<f64>> {
         self.map.back(factors)
     }
+}
+
+/// Pairs `i < j` separated by `lag ± tolerance`, sorted by `(i, j)`.
+fn lag_pairs(coords: &[(f64, f64, f64)], lag: f64, tolerance: f64) -> Result<Vec<(usize, usize)>> {
+    let points: Vec<[f64; 3]> = coords.iter().map(|&(x, y, z)| [x, y, z]).collect();
+    let tree = ImmutableKdTree::<f64, 3>::new_from_slice(&points)
+        .map_err(|e| TransformError::InvalidParameters(format!("{e:?}")))?;
+    let radius2 = ((lag + tolerance) * (1.0 + 1e-9)).powi(2);
+    let mut pairs = Vec::new();
+    for (i, a) in coords.iter().enumerate() {
+        let mut near: Vec<usize> = tree
+            .query(&points[i])
+            .within::<SquaredEuclidean<f64>>(radius2)
+            .execute()
+            .iter()
+            .map(|r| r.item as usize)
+            .filter(|&j| j > i)
+            .collect();
+        near.sort_unstable();
+        pairs.extend(near.into_iter().filter_map(|j| {
+            let c = coords[j];
+            let h = ((a.0 - c.0).powi(2) + (a.1 - c.1).powi(2) + (a.2 - c.2).powi(2)).sqrt();
+            ((h - lag).abs() <= tolerance).then_some((i, j))
+        }));
+    }
+    Ok(pairs)
 }
 
 fn rows(m: &DMatrix<f64>) -> Vec<Vec<f64>> {
@@ -333,5 +361,34 @@ pub(crate) mod tests {
         assert!((gamma[(0, 0)] - maf.gammas()[0]).abs() < 1e-9);
         assert!(maf.gammas()[0] < maf.gammas()[1]);
         assert!(max_error(&maf.back(&f), &data) < 1e-9);
+    }
+
+    #[test]
+    fn lag_pairs_match_brute_force() {
+        let u = uniforms(11, 1800);
+        let scattered: Vec<_> = u
+            .chunks(3)
+            .map(|c| (c[0] * 20.0, c[1] * 20.0, c[2] * 5.0))
+            .collect();
+        let flat: Vec<_> = scattered.iter().map(|p| (p.0, p.1, 0.0)).collect();
+        let grid: Vec<_> = (0..600)
+            .map(|i| ((i % 10) as f64, (i / 10 % 10) as f64, 0.0))
+            .collect();
+        for (coords, lag, tolerance) in
+            [(scattered, 3.0, 0.5), (flat, 2.0, 0.25), (grid, 1.0, 0.01)]
+        {
+            let mut brute = Vec::new();
+            for (i, a) in coords.iter().enumerate() {
+                for (j, c) in coords.iter().enumerate().skip(i + 1) {
+                    let h =
+                        ((a.0 - c.0).powi(2) + (a.1 - c.1).powi(2) + (a.2 - c.2).powi(2)).sqrt();
+                    if (h - lag).abs() <= tolerance {
+                        brute.push((i, j));
+                    }
+                }
+            }
+            assert!(!brute.is_empty());
+            assert_eq!(lag_pairs(&coords, lag, tolerance).unwrap(), brute);
+        }
     }
 }

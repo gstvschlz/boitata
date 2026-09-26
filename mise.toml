@@ -34,3 +34,15 @@ uv = "0.12"
 [tasks.examples]
 depends = ["py:build"]
 run = "uv run --no-sync python examples/render.py"
+
+[tasks.docs]
+depends = ["py:build"]
+run = "uv run --no-sync mkdocs serve"
+
+[tasks.docs-build]
+depends = ["py:build"]
+run = ["uv run --no-sync python -c \"import shutil; [shutil.rmtree(p, True) for p in ('docs/examples', 'site')]\"", "uv run --no-sync mkdocs build --strict"]
+
+[tasks.docs-deploy]
+depends = ["py:build"]
+run = ["uv run --no-sync python -c \"import shutil; [shutil.rmtree(p, True) for p in ('docs/examples', 'site')]\"", "uv run --no-sync mkdocs gh-deploy --force"]

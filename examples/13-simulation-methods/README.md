@@ -45,8 +45,8 @@ for name, reals, seconds in (("SGS", by_sgs, sgs_seconds), ("turning bands", by_
 </details>
 
 ```text
-          SGS: 20 realizations in 0.43 s, mean 299 ppm, variance 72174 ppm²
-turning bands: 20 realizations in 0.09 s, mean 289 ppm, variance 62047 ppm²
+          SGS: 20 realizations in 0.54 s, mean 299 ppm, variance 72174 ppm²
+turning bands: 20 realizations in 0.14 s, mean 289 ppm, variance 62047 ppm²
 ```
 
 <details><summary>Python</summary>
@@ -157,4 +157,4 @@ proportions closely, but its ordered rule only allows contacts between neighbour
 as specks along every Sequanian-Quaternary contact: suited to sequences like stratigraphy, not these rocks. Neither
 recovers Portlandian's 5 % of the area from 3 of 259 samples.
 
-Full script: [`example.py`](example.py)
+Full script: [`example_13.py`](example_13.py)
