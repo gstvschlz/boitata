@@ -210,12 +210,17 @@ fn grade_tonnage<'py>(
 /// or `axis` ("x", "y", "z"); slices start at 0 so swaths of samples and blocks
 /// line up.
 ///
+/// Each value stands for ``weights × density`` tonnes, as in `grade_tonnage`,
+/// so slice tonnages and metals add up to the totals at cutoff ``-inf``.
+///
 /// Returns
 /// -------
 /// dict
-///     ``centres``, ``mean`` and ``count`` of the non-empty slices.
+///     ``centres``, ``mean`` (weighted by `weights`), ``count``, ``tonnage``
+///     and ``metal`` of the non-empty slices.
 #[pyfunction]
-#[pyo3(signature = (coords, values, width, azimuth=None, axis=None, weights=None))]
+#[pyo3(signature = (coords, values, width, azimuth=None, axis=None, weights=None, density=None))]
+#[allow(clippy::too_many_arguments)]
 fn swath<'py>(
     py: Python<'py>,
     coords: &Bound<PyAny>,
@@ -224,6 +229,7 @@ fn swath<'py>(
     azimuth: Option<f64>,
     axis: Option<&str>,
     weights: Option<&Bound<PyAny>>,
+    density: Option<&Bound<PyAny>>,
 ) -> PyResult<Bound<'py, PyDict>> {
     let along = match (azimuth, axis) {
         (Some(a), None) => Along::Azimuth(a),
@@ -235,16 +241,144 @@ fn swath<'py>(
         ),
         _ => return Err(invalid("give one of azimuth or axis")),
     };
+    let values = floats(values, "values")?;
     let w = optional_floats(weights, "weights")?;
+    let density = density
+        .map(|d| per_value(d, values.len(), "density"))
+        .transpose()?;
     let p = eda::swath(
         &coords_arg(coords)?,
-        &floats(values, "values")?,
+        &values,
         w.as_deref(),
+        density.as_deref(),
         width,
         along,
     )
     .map_err(invalid)?;
-    profile(py, p, "centres")
+    let (tonnage, metal) = (p.tonnage.clone(), p.metal.clone());
+    let d = profile(py, p, "centres")?;
+    d.set_item("tonnage", array1(py, tonnage))?;
+    d.set_item("metal", array1(py, metal))?;
+    Ok(d)
+}
+
+/// A constant or one value each.
+fn per_value(obj: &Bound<PyAny>, n: usize, what: &str) -> PyResult<Vec<f64>> {
+    match obj.extract::<f64>() {
+        Ok(x) => Ok(vec![x; n]),
+        Err(_) => floats(obj, what),
+    }
+}
+
+/// Statistics of a block model against the data it was estimated from, per
+/// domain and over all.
+///
+/// Parameters
+/// ----------
+/// model : array_like
+///     Block grades; NaN is skipped.
+/// data : array_like
+///     Sample (composite) grades; NaN is skipped.
+/// weights : array_like, optional
+///     Declustering weights of `data`; adds a ``declustered`` row that the
+///     model is compared with.
+/// domains : tuple of array_like, optional
+///     Domain labels of the blocks and of the data.
+/// volume, density : float or array_like, optional
+///     Block volumes and densities; blocks are weighted by their tonnage,
+///     ``volume × density`` (1 each by default).
+/// reference : array_like, optional
+///     Other grades on the same blocks, e.g. the truth or a previous model.
+///
+/// Returns
+/// -------
+/// Table
+///     One row per domain (sorted, then ``"all"``) and source (``naive`` and
+///     ``declustered`` data, ``model``, ``reference``): ``n``, ``tonnage``
+///     (null for data), ``mean``, ``variance``, ``cv``, ``P10``, ``P50``,
+///     ``P90``, ``mean_diff`` (``mean / data mean - 1``) and ``variance_ratio``
+///     (``variance / data variance``), against the declustered data when
+///     `weights` are given.
+#[pyfunction]
+#[pyo3(signature = (model, data, weights=None, domains=None, volume=None, density=None, reference=None))]
+fn validate_model(
+    model: &Bound<PyAny>,
+    data: &Bound<PyAny>,
+    weights: Option<&Bound<PyAny>>,
+    domains: Option<&Bound<PyAny>>,
+    volume: Option<&Bound<PyAny>>,
+    density: Option<&Bound<PyAny>>,
+    reference: Option<&Bound<PyAny>>,
+) -> PyResult<Table> {
+    let (model, data) = (floats(model, "model")?, floats(data, "data")?);
+    let w = optional_floats(weights, "weights")?;
+    let reference = optional_floats(reference, "reference")?;
+    let n = model.len();
+    let tonnes = match (volume, density) {
+        (None, None) => None,
+        _ => {
+            let one = |o: Option<&Bound<PyAny>>, what| {
+                o.map_or(Ok(vec![1.0; n]), |o| per_value(o, n, what))
+            };
+            let (v, d) = (one(volume, "volume")?, one(density, "density")?);
+            Some(v.iter().zip(&d).map(|(v, d)| v * d).collect::<Vec<f64>>())
+        }
+    };
+    let (names, codes) = match domains {
+        None => (vec![], None),
+        Some(obj) => {
+            let (om, od) = two(obj, "domains")?;
+            let (lm, _) = holes(Some(&om), n)?.expect("given");
+            let (ld, _) = holes(Some(&od), data.len())?.expect("given");
+            let mut names: Vec<String> = lm.iter().chain(&ld).cloned().collect();
+            names.sort();
+            names.dedup();
+            let code = |l: &String| names.binary_search(l).expect("listed") as u32;
+            let codes: (Vec<u32>, Vec<u32>) =
+                (lm.iter().map(code).collect(), ld.iter().map(code).collect());
+            (names, Some(codes))
+        }
+    };
+    let rows = eda::validate_model(
+        &model,
+        &data,
+        w.as_deref(),
+        codes.as_ref().map(|(m, d)| (&m[..], &d[..])),
+        tonnes.as_deref(),
+        reference.as_deref(),
+        &[0.1, 0.5, 0.9],
+    )
+    .map_err(invalid)?;
+    let source = rows.iter().map(|r| match r.source {
+        eda::Source::Naive => "naive",
+        eda::Source::Declustered => "declustered",
+        eda::Source::Model => "model",
+        eda::Source::Reference => "reference",
+    });
+    let col = |f: &dyn Fn(&eda::Validation) -> f64| nullable(rows.iter().map(f));
+    let mut columns: Vec<(String, ArrayRef)> = vec![
+        (
+            "source".into(),
+            Arc::new(StringArray::from_iter_values(source)),
+        ),
+        (
+            "n".into(),
+            Arc::new(UInt64Array::from_iter_values(
+                rows.iter().map(|r| r.summary.n as u64),
+            )),
+        ),
+        ("tonnage".into(), col(&|r| r.tonnage)),
+        ("mean".into(), col(&|r| r.summary.mean)),
+        ("variance".into(), col(&|r| r.summary.variance)),
+        ("cv".into(), col(&|r| r.summary.cv)),
+    ];
+    for (j, name) in ["P10", "P50", "P90"].into_iter().enumerate() {
+        columns.push((name.into(), col(&|r| r.summary.quantiles[j])));
+    }
+    columns.push(("mean_diff".into(), col(&|r| r.mean_diff)));
+    columns.push(("variance_ratio".into(), col(&|r| r.variance_ratio)));
+    let keyed: Vec<(Option<u32>, ())> = rows.iter().map(|r| (r.domain, ())).collect();
+    table("domain", &names, &keyed, columns)
 }
 
 /// Mean of `values` against signed distance to the `inside`/`outside` contact
@@ -749,6 +883,7 @@ fn paired_bias(pairs: &Bound<PyAny>, bins: &Bound<PyAny>) -> PyResult<Table> {
 pub fn register(m: &Bound<PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(pairs, m)?)?;
     m.add_function(wrap_pyfunction!(paired_bias, m)?)?;
+    m.add_function(wrap_pyfunction!(validate_model, m)?)?;
     m.add_function(wrap_pyfunction!(duplicates, m)?)?;
     m.add_function(wrap_pyfunction!(describe, m)?)?;
     m.add_function(wrap_pyfunction!(describe_by, m)?)?;

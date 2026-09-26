@@ -26,6 +26,8 @@
 
 ::: ceres.global_bias
 
+::: ceres.validate_model
+
 ::: ceres.hole_distance
 
 ::: ceres.classify

@@ -586,8 +586,8 @@ def _slice(ax, block_model, columns, axis, index):
     return images, extent
 
 
-def swath(swaths, labels=None, ax=None, **kwargs):
-    """Mean per slice of one or several `swath` results, with the first one's counts as light bars.
+def swath(swaths, labels=None, y="mean", ax=None, **kwargs):
+    """Mean, tonnage or metal per slice of one or several `swath` results, with the first one's counts as light bars.
 
     Parameters
     ----------
@@ -595,6 +595,8 @@ def swath(swaths, labels=None, ax=None, **kwargs):
         Results of ``ceres.swath``, e.g. composites and blocks with the same width.
     labels : list of str, optional
         Legend entries.
+    y : {"mean", "tonnage", "metal"}
+        What to draw per slice.
     **kwargs
         Passed to every ``ax.plot``.
     """
@@ -611,11 +613,11 @@ def swath(swaths, labels=None, ax=None, **kwargs):
     ax.patch.set_visible(False)
     kwargs.setdefault("marker", ".")
     for s, label in zip(swaths, labels, strict=True):
-        ax.plot(s["centres"], s["mean"], label=label, **kwargs)
+        ax.plot(s["centres"], s[y], label=label, **kwargs)
     if any(labels):
         ax.legend()
     ax.set_xlabel("Distance along swath")
-    ax.set_ylabel("Mean")
+    ax.set_ylabel(y.capitalize())
     return fig, ax
 
 

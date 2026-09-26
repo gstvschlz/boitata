@@ -28,6 +28,30 @@ def test_swath_along_azimuth_and_axis():
         cs.swath(xy, xy[:, 0], 10.0)
 
 
+def test_swath_tonnage_and_metal_balance_grade_tonnage():
+    xy, v, w = rng.uniform(0, 100, (300, 2)), rng.lognormal(0, 1, 300), rng.uniform(1, 2, 300)
+    s = cs.swath(xy, v, 10.0, axis="y", weights=w, density=2.7)
+    gt = cs.grade_tonnage(v, [-np.inf], weights=w, density=np.full(300, 2.7))
+    assert s["tonnage"].sum() == pytest.approx(gt["tonnage"][0])
+    assert s["metal"].sum() == pytest.approx(gt["metal"][0])
+
+
+def test_validate_model_equal_to_data():
+    v, w = rng.lognormal(0, 1, 200), rng.uniform(0.5, 2, 200)
+    d = np.where(np.arange(200) < 80, "ox", "fr")
+    t = cs.validate_model(v, v, weights=w, domains=(d, d), volume=w, reference=v)
+    assert list(t["domain"])[::4] == ["fr", "ox", "all"]
+    assert list(t["source"])[:4] == ["naive", "declustered", "model", "reference"]
+    model = np.asarray(t["source"]) != "naive"
+    np.testing.assert_allclose(np.asarray(t["mean_diff"])[model], 0, atol=1e-12)
+    np.testing.assert_allclose(np.asarray(t["variance_ratio"])[model], 1)
+    assert t["tonnage"][-2] == pytest.approx(w.sum())
+    plain = cs.validate_model(v * 1.1, v, density=2.0)
+    assert list(plain["source"]) == ["naive", "model"]
+    assert plain["mean_diff"][1] == pytest.approx(0.1)
+    assert plain["tonnage"][1] == pytest.approx(400)
+
+
 def test_contact_signs_distance_by_side():
     z = np.tile(np.arange(20.0), 2)
     coords = np.c_[np.zeros(40), np.zeros(40), z]
