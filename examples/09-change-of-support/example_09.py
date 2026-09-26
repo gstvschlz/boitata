@@ -237,6 +237,52 @@ save(fig, "localized")
 
 
 # %% [markdown]
+# Multiple indicator kriging reaches the panels without a Gaussian model. Kriged at each panel centroid from indicator
+# variograms at the deciles, its conditional distribution describes point grades. An affine correction shrinks it
+# about its mean to block support by a variance factor f, the variance of 10 m blocks within a panel over that of
+# points within it, here from the grade variogram; the same ranked blocks then share its bands:
+
+# %%
+deciles = np.quantile(v, np.linspace(0.1, 0.9, 9))
+indicators = [
+    cs.experimental_variogram(xy, (v <= t).astype(float), 10, 120).fit("spherical") for t in deciles
+]
+mik = cs.MultipleIndicatorKriging(indicators, search, deciles, tails=(0.0, v.max()))
+mik.fit(xy, v, weights=weights)
+local = mik.localize(panels, smus, "kriged", variance_factor=raw, name="mik")
+by_mik = local["mik"]
+for label, values in (("uniform conditioning", localized), ("indicator kriging", by_mik)):
+    print(
+        f"{label}: variance {values.var():.0f}, correlation with truth {np.corrcoef(values, true_smu.ravel())[0, 1]:.2f}"
+    )
+mik_curve, uc_curve = empirical(by_mik), empirical(localized)
+
+fig, (a, b) = plt.subplots(1, 2, figsize=(10, 3.8), layout="constrained")
+for (tonnage, grade), color, style, label in (
+    (true_curve, INK, {"lw": 3, "alpha": 0.35}, "true blocks"),
+    (uc_curve, HIGHLIGHT, {"lw": 1.6}, "localized uniform conditioning"),
+    (mik_curve, ACCENT, {"lw": 1.4, "ls": "--"}, "localized indicator kriging"),
+):
+    a.plot(cutoffs, tonnage, color=color, label=label, **style)
+    b.plot(cutoffs, grade, color=color, **style)
+a.set(
+    title=f"Proportion of {size} × {size} m blocks above cutoff",
+    xlabel="Cutoff V (ppm)",
+    ylabel="Proportion of blocks",
+)
+a.legend(fontsize=8)
+b.set(title="Mean grade above cutoff", xlabel="Cutoff V (ppm)", ylabel="Mean V above cutoff (ppm)")
+save(fig, "localized-mik")
+
+
+# %% [markdown]
+# Ranked alike, the indicator blocks follow the truth a little more closely than the uniform-conditioning ones, and
+# they spread wider than the true blocks: from 400 to 700 ppm they put a few per cent too many blocks above cutoff.
+# The affine correction keeps the shape of each point distribution, so its long upper tail survives the shrinking,
+# where the discrete Gaussian model pulls it in.
+
+
+# %% [markdown]
 # Disjunctive kriging estimates, at each node, the probability of exceeding a cutoff from the kriged Hermite factors.
 # Binned against the truth, a calibrated estimate would sit on the diagonal:
 
