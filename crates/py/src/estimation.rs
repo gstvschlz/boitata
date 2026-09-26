@@ -103,7 +103,7 @@ impl Search {
     pub fn plain(self, what: &str) -> PyResult<CoreSearch> {
         match self.soft {
             Some(_) => Err(invalid(format!(
-                "{what} does not take domains; Search.soft works with SGS and the kriging, \
+                "{what} does not take domains; Search.soft works with SGS, TurningBands and the kriging, \
                  inverse-distance, nearest-neighbour and interpolation estimators"
             ))),
             None => Ok(self.core),

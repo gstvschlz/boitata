@@ -80,10 +80,12 @@ fn phases(c: &mut Criterion) {
     group.bench_function("evaluate field", |b| {
         b.iter(|| black_box(bands.field(&grid)))
     });
-    let ensemble =
-        TurningBandsEnsemble::new(&data, &values, None, None, lo, hi, &vg, &params, 1).unwrap();
+    let ensemble = TurningBandsEnsemble::new(
+        &data, &values, None, None, None, None, lo, hi, &vg, &params, 1,
+    )
+    .unwrap();
     group.bench_function("field and conditioning", |b| {
-        b.iter(|| black_box(ensemble.realization(0, &grid).unwrap()))
+        b.iter(|| black_box(ensemble.realization(0, &grid, None, None).unwrap()))
     });
     group.finish();
 }

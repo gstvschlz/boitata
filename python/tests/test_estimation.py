@@ -502,7 +502,6 @@ def test_domain_errors():
     for make in (
         lambda: cs.MultivariateSimulation(cs.PCA(), [cs.SGS(model, soft)]),
         lambda: cs.SIS([model], soft),
-        lambda: cs.TurningBands(model, search=soft),
         lambda: cs.Cokriging(lmc, soft),
         lambda: cs.MultipleIndicatorKriging(model, soft, [1.0]),
         lambda: cs.DisjunctiveKriging(cs.HermiteAnamorphosis().fit(values + 2), model, soft),

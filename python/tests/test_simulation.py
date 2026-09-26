@@ -468,3 +468,74 @@ def test_sgs_domains_with_a_trend():
     soft = run(softened(passes, 10.0), everything, zone, domains=labels)
     hard = run(softened(passes, None), everything, zone, domains=labels)
     assert np.isfinite(soft).all() and not np.array_equal(soft, hard)
+
+
+def banded(search=None):
+    return cs.TurningBands(gaussian, bands=60, step=1.0, search=search, classes=3)
+
+
+def test_turning_bands_domains_are_hard_unless_soft():
+    xyz, grades, holes, weights, zone, targets, _ = zoned_holes()
+    # Corners holding every datum: the bands cover one box whatever the data.
+    targets = np.vstack([targets, [[0.0, 0.0, 0.0], [100.0, 100.0, 4.0]]])
+    trend, at = xyz[:, 1] / 100, targets[:, 1] / 100
+    ms, everything = zone == "MS", np.ones(len(zone), bool)
+    hard = cs.Search(40.0, max_samples=12, max_per_hole=3, high_grade=(4.0, 6.0))
+
+    def run(search, rows, labels=None, trended=False, **on):
+        tb = banded(search).fit(
+            xyz[rows],
+            grades[rows],
+            weights=weights[rows],
+            holes=holes[rows],
+            trend=trend[rows] if trended else None,
+            domains=labels,
+        )
+        on |= {"trend": at} if trended else {}
+        return tb.simulate(targets, n=3, seed=2, realizations=True, **on).realizations
+
+    for trended in (False, True):
+        alone = run(hard, ms, trended=trended)
+        np.testing.assert_array_equal(run(hard, everything, zone, trended, domains="MS"), alone)
+        np.testing.assert_array_equal(run(hard, ms, "MS", trended, domains="MS"), alone)
+    labels = np.where(targets[:, 0] < 40, "MS", "SM")
+    soft = run(cs.Search(40.0, max_samples=12, soft=20.0), everything, zone, True, domains=labels)
+    hard = run(cs.Search(40.0, max_samples=12), everything, zone, True, domains=labels)
+    assert np.isfinite(soft).all() and not np.array_equal(soft, hard)
+
+
+def test_each_turning_bands_domain_keeps_its_own_declustered_mean():
+    xyz, grades, _, weights, zone, _, _ = zoned_holes()
+    far = np.column_stack([25.0 * np.arange(40), np.full(40, 150.0), np.zeros(40)])
+    labels = np.repeat(["MS", "SM"], 20)
+    tb = banded(cs.Search(40.0, max_samples=8)).fit(xyz, grades, weights=weights, domains=zone)
+    mean = tb.simulate(far, n=200, seed=3, domains=labels).mean
+    for name in ("MS", "SM"):
+        want = np.average(grades[zone == name], weights=weights[zone == name])
+        assert mean[labels == name].mean() == pytest.approx(want, rel=0.1)
+
+
+def test_turning_bands_domains_errors_and_persistence(tmp_path):
+    xyz, grades, holes, weights, zone, targets, _ = zoned_holes()
+    soft = cs.Search(30.0, max_samples=12, soft={("MS", "SM"): 8.0})
+    tb = banded(soft).fit(xyz, grades, weights=weights, holes=holes, domains=zone)
+    labels = np.where(targets[:, 0] < 40, "MS", "SM")
+
+    def run(model):
+        return model.simulate(targets, n=2, seed=5, realizations=True, domains=labels).realizations
+
+    tb.to_parquet(tmp_path / "tb.parquet")
+    for again in (cs.TurningBands.from_parquet(tmp_path / "tb.parquet"), pickle.loads(pickle.dumps(tb))):
+        np.testing.assert_array_equal(run(again), run(tb))
+    with pytest.raises(cs.InvalidInput, match="simulate needs domains"):
+        tb.simulate(targets, n=1)
+    with pytest.raises(cs.InvalidInput, match="has no samples"):
+        tb.simulate(targets, n=1, domains="QE")
+    with pytest.raises(cs.InvalidInput, match="takes none"):
+        banded().fit(xyz, grades).simulate(targets, n=1, domains="MS")
+    with pytest.raises(cs.InvalidInput, match="needs domains at fit"):
+        banded(soft).fit(xyz, grades)
+    with pytest.raises(cs.InvalidInput, match="has no samples"):
+        banded(soft).fit(xyz, grades, domains="MS")
+    with pytest.raises(cs.InvalidInput, match="does not take domains"):
+        cs.MultivariateSimulation(cs.PCA(), [banded(soft)])
