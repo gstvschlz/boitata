@@ -24,8 +24,8 @@ use crate::variogram::Variogram;
 /// `high_grade` `(threshold, radius)` lets samples above `threshold` inform
 /// only targets within `radius`, measured in the same ellipsoid, in
 /// estimation and cross-validation alike. The threshold is always in data
-/// units: simulators working on normal scores convert it through their
-/// fitted transform, so it picks the same samples as in estimation. Estimators also take a sequence
+/// units: simulators compare it with the data values and the simulated
+/// values of nodes, so it picks the same samples as in estimation. Estimators also take a sequence
 /// of searches as passes: targets one leaves unestimated go to the next.
 /// `soft` lets samples of another domain inform a target strictly within a
 /// distance in the same ellipsoid: one distance for every pair of domains,
@@ -69,7 +69,7 @@ fn key(label: &Label) -> String {
 }
 
 /// `label` as the Python value it was given as.
-fn py_label<'py>(py: Python<'py>, label: &Label) -> PyResult<Bound<'py, PyAny>> {
+pub fn py_label<'py>(py: Python<'py>, label: &Label) -> PyResult<Bound<'py, PyAny>> {
     match label {
         Label::String(s) => s.into_bound_py_any(py),
         Label::Bool(b) => b.into_bound_py_any(py),
@@ -82,7 +82,7 @@ fn py_label<'py>(py: Python<'py>, label: &Label) -> PyResult<Bound<'py, PyAny>> 
 }
 
 /// Labels of a sequence, or of a single label repeated `n` times.
-fn labels(obj: &Bound<PyAny>, n: Option<usize>) -> PyResult<Vec<Label>> {
+pub fn labels(obj: &Bound<PyAny>, n: Option<usize>) -> PyResult<Vec<Label>> {
     let single = obj.is_instance_of::<PyString>() || obj.try_iter().is_err();
     if single && let Some(n) = n {
         return Ok(vec![label(obj)?; n]);
@@ -103,8 +103,8 @@ impl Search {
     pub fn plain(self, what: &str) -> PyResult<CoreSearch> {
         match self.soft {
             Some(_) => Err(invalid(format!(
-                "{what} does not take domains; Search.soft works with the kriging, inverse-distance, \
-                 nearest-neighbour and interpolation estimators"
+                "{what} does not take domains; Search.soft works with SGS and the kriging, \
+                 inverse-distance, nearest-neighbour and interpolation estimators"
             ))),
             None => Ok(self.core),
         }
@@ -112,7 +112,7 @@ impl Search {
 
     /// The core search with `soft` by domain code: the index of its labels
     /// in `domains`, the fitted ones.
-    fn resolve(&self, domains: Option<&[Label]>) -> PyResult<CoreSearch> {
+    pub fn resolve(&self, domains: Option<&[Label]>) -> PyResult<CoreSearch> {
         let soft = match (&self.soft, domains) {
             (None, _) => None,
             (Some(_), None) => return Err(invalid("Search.soft needs domains at fit")),
@@ -599,24 +599,50 @@ impl Estimator {
         let domains = self.domains.as_deref();
         self.search.iter().map(|s| s.resolve(domains)).collect()
     }
+}
 
-    /// Codes of target labels; None for a domain without samples.
-    fn codes(&self, obj: Option<&Bound<PyAny>>, n: usize) -> PyResult<Option<Vec<Option<u32>>>> {
-        match (&self.domains, obj) {
-            (None, None) => Ok(None),
-            (Some(_), None) => Err(invalid("fitted with domains; predict needs domains too")),
-            (None, Some(_)) => Err(invalid("fitted without domains; predict takes none")),
-            (Some(fitted), Some(obj)) => {
-                let code: std::collections::HashMap<String, u32> = fitted
-                    .iter()
-                    .enumerate()
-                    .map(|(c, l)| (key(l), c as u32))
-                    .collect();
-                let labels = labels(obj, Some(n))?;
-                Ok(Some(
-                    labels.iter().map(|l| code.get(&key(l)).copied()).collect(),
-                ))
-            }
+/// The distinct labels of `obj`, one label or one per sample, and each
+/// sample's code: the index of its label.
+pub fn fit_codes(obj: &Bound<PyAny>, n: usize) -> PyResult<(Vec<Label>, Vec<u32>)> {
+    let (mut fitted, mut code) = (vec![], std::collections::HashMap::new());
+    let codes = labels(obj, Some(n))?
+        .into_iter()
+        .map(|l| {
+            *code.entry(key(&l)).or_insert_with(|| {
+                fitted.push(l);
+                fitted.len() as u32 - 1
+            })
+        })
+        .collect();
+    Ok((fitted, codes))
+}
+
+/// Codes of `n` target labels in the `fitted` ones, for `method`; None for
+/// a domain without samples.
+pub fn codes(
+    fitted: Option<&[Label]>,
+    obj: Option<&Bound<PyAny>>,
+    n: usize,
+    method: &str,
+) -> PyResult<Option<Vec<Option<u32>>>> {
+    match (fitted, obj) {
+        (None, None) => Ok(None),
+        (Some(_), None) => Err(invalid(format!(
+            "fitted with domains; {method} needs domains too"
+        ))),
+        (None, Some(_)) => Err(invalid(format!(
+            "fitted without domains; {method} takes none"
+        ))),
+        (Some(fitted), Some(obj)) => {
+            let code: std::collections::HashMap<String, u32> = fitted
+                .iter()
+                .enumerate()
+                .map(|(c, l)| (key(l), c as u32))
+                .collect();
+            let labels = labels(obj, Some(n))?;
+            Ok(Some(
+                labels.iter().map(|l| code.get(&key(l)).copied()).collect(),
+            ))
         }
     }
 }
@@ -724,16 +750,7 @@ impl Estimator {
         let (fitted, codes) = match domains {
             None => (None, None),
             Some(obj) => {
-                let (mut fitted, mut code) = (vec![], std::collections::HashMap::new());
-                let codes: Vec<u32> = labels(obj, Some(locs.len()))?
-                    .into_iter()
-                    .map(|l| {
-                        *code.entry(key(&l)).or_insert_with(|| {
-                            fitted.push(l);
-                            fitted.len() as u32 - 1
-                        })
-                    })
-                    .collect();
+                let (fitted, codes) = fit_codes(obj, locs.len())?;
                 (Some(fitted), Some(codes))
             }
         };
@@ -782,7 +799,7 @@ impl Estimator {
     ) -> PyResult<Bound<'py, PyAny>> {
         let samples = self.fitted()?;
         let targets = self::targets(targets)?;
-        let codes = self.codes(domains, targets.len())?;
+        let codes = codes(self.domains.as_deref(), domains, targets.len(), "predict")?;
         let known: Vec<usize> = (0..targets.len())
             .filter(|&i| codes.as_ref().is_none_or(|c| c[i].is_some()))
             .collect();

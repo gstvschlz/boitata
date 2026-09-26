@@ -456,7 +456,7 @@ def test_domain_errors():
         cs.Search(radius=50, soft={("MS", "SM"): -1.0})
     lmc = cs.Coregionalization([[0.1, 0.0], [0.0, 0.1]], [("spherical", 40.0, [[1.0, 0.6], [0.6, 1.0]])])
     for make in (
-        lambda: cs.SGS(model, soft),
+        lambda: cs.MultivariateSimulation(cs.PCA(), [cs.SGS(model, soft)]),
         lambda: cs.SIS([model], soft),
         lambda: cs.TurningBands(model, search=soft),
         lambda: cs.Cokriging(lmc, soft),

@@ -599,8 +599,14 @@ class SGS:
         weights: ArrayLike | None = None,
         holes: Holes | None = None,
         trend: ArrayLike | None = None,
+        domains: Label | Sequence[Label] | ArrayLike | None = None,
     ) -> SGS: ...
-    def passes(self, targets: Any, anisotropy: LocalAnisotropy | None = None) -> npt.NDArray[np.float64]: ...
+    def passes(
+        self,
+        targets: Any,
+        anisotropy: LocalAnisotropy | None = None,
+        domains: Label | Sequence[Label] | ArrayLike | None = None,
+    ) -> npt.NDArray[np.float64]: ...
     def simulate(
         self,
         targets: Any,
@@ -612,6 +618,7 @@ class SGS:
         anisotropy: LocalAnisotropy | None = None,
         blocks: BlockModel | None = None,
         trend: ArrayLike | str | None = None,
+        domains: Label | Sequence[Label] | ArrayLike | None = None,
     ) -> SimulationSummary: ...
 
 class TurningBands:
