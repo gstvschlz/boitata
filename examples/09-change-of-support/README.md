@@ -329,6 +329,69 @@ they spread wider than the true blocks: from 400 to 700 ppm they put a few per c
 The affine correction keeps the shape of each point distribution, so its long upper tail survives the shrinking,
 where the discrete Gaussian model pulls it in.
 
+Simulation localises without a change-of-support model. Thirty realisations averaged to the same 10 m blocks are
+pooled panel by panel: 25 blocks × 30 realisations give 750 values, sorted and cut into 25 chunks of 30, and the
+block ranked i by the same kriging receives the mean of chunk i. Each panel keeps the mean of its realisations,
+and its blocks the spread the simulation gives them:
+
+<details><summary>Python</summary>
+
+```python
+west = cs.BlockModel(origin=(0.5, 0.5), size=(2.5, 2.5), count=(100, 120))
+ensemble = sgs.simulate(west, n=30, seed=11, blocks=smus, realizations=True)
+simulated = cs.localize(smus, "kriged", ensemble.realizations, panels)["localized"]
+print(
+    f"localized simulation: variance {simulated.var():.0f}, "
+    f"correlation with truth {np.corrcoef(simulated, true_smu.ravel())[0, 1]:.2f}"
+)
+sim_curve = empirical(simulated)
+for c in (300, 500, 800):
+    k = np.searchsorted(cutoffs, c)
+    print(
+        f"above {c} ppm: uniform conditioning {uc_curve[0][k]:.1%}, indicator kriging {mik_curve[0][k]:.1%}, "
+        f"simulation {sim_curve[0][k]:.1%}, true {true_curve[0][k]:.1%}"
+    )
+
+fig, (a, b) = plt.subplots(1, 2, figsize=(10, 4.4), layout="constrained", width_ratios=(1, 1.3))
+image = a.imshow(np.reshape(simulated, (30, 25)), origin="lower", extent=extent, vmin=0, vmax=1000)
+a.vlines(np.arange(50.5, 250, 50), 0.5, 300.5, color="white", lw=0.6, alpha=0.7)
+a.hlines(np.arange(50.5, 300, 50), 0.5, 250.5, color="white", lw=0.6, alpha=0.7)
+a.set_aspect("equal")
+a.set(title="Localized simulation", xlabel="Easting (m)", ylabel="Northing (m)")
+fig.colorbar(image, ax=a, shrink=0.8, label="V (ppm)")
+for (tonnage, _), color, style, label in (
+    (true_curve, INK, {"lw": 3, "alpha": 0.35}, "true blocks"),
+    (uc_curve, HIGHLIGHT, {"lw": 1.6}, "localized uniform conditioning"),
+    (mik_curve, ACCENT, {"lw": 1.4, "ls": "--"}, "localized indicator kriging"),
+    (sim_curve, INK, {"lw": 1.2, "ls": ":"}, "localized simulation"),
+):
+    b.plot(cutoffs, tonnage, color=color, label=label, **style)
+b.set(
+    title=f"Proportion of {size} × {size} m blocks above cutoff",
+    xlabel="Cutoff V (ppm)",
+    ylabel="Proportion of blocks",
+)
+b.legend(fontsize=8)
+save(fig, "localized-simulation")
+```
+
+</details>
+
+```text
+localized simulation: variance 43472, correlation with truth 0.85
+above 300 ppm: uniform conditioning 45.3%, indicator kriging 44.8%, simulation 45.5%, true 40.9%
+above 500 ppm: uniform conditioning 16.5%, indicator kriging 23.5%, simulation 16.9%, true 16.8%
+above 800 ppm: uniform conditioning 1.1%, indicator kriging 2.8%, simulation 2.4%, true 2.1%
+```
+
+![localized-simulation](localized-simulation.png)
+
+Ranked alike, the simulated and uniform-conditioning blocks share their tonnages up to 500 ppm. Above it the
+simulated blocks keep the rich tail that uniform conditioning thins out, and their variance, 43 000, lies between
+the anamorphosis's 35 000 and the true 47 000; the indicator blocks overshoot from 400 to 700 ppm. Uniform
+conditioning and indicator kriging need a panel estimate and a change-of-support model; the simulation needs
+neither, only its realisations, and what it pools is only as good as they are.
+
 Disjunctive kriging estimates, at each node, the probability of exceeding a cutoff from the kriged Hermite factors.
 Binned against the truth, a calibrated estimate would sit on the diagonal:
 
