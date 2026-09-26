@@ -1,12 +1,14 @@
 import pickle
 
 import ceres as cs
-import matplotlib
 import numpy as np
-import pyarrow as pa
 import pytest
 
-matplotlib.use("Agg")
+
+@pytest.fixture
+def mpl():
+    pytest.importorskip("matplotlib").use("Agg")
+
 
 rng = np.random.default_rng(11)
 POOL = np.array(["a", "b", "c", "d", "e", "7", "12", "100"])
@@ -41,6 +43,7 @@ def test_from_values_ignores_row_order():
 def test_integers_sort_numerically_and_integral_floats_are_integers():
     c = cs.Categories.from_values([10.0, 9, "100", np.nan, None, 9.0])
     assert c.names == ["9", "10", "100"] and c.other is None
+    pa = pytest.importorskip("pyarrow")
     np.testing.assert_array_equal(c.encode(pa.array([9, None, 100])), [0, np.nan, 2])
 
 
@@ -107,6 +110,7 @@ def test_errors():
             bad()
 
 
+@pytest.mark.usefixtures("mpl")
 def test_plots_follow_the_scheme():
     c = cs.Categories(["b", "a"], other="other")
     codes = c.encode(["a", "b", "b", "z", None])
@@ -120,9 +124,12 @@ def test_plots_follow_the_scheme():
 
 
 def rgba(color):
-    return pytest.approx(matplotlib.colors.to_rgba(color))
+    from matplotlib.colors import to_rgba
+
+    return pytest.approx(to_rgba(color))
 
 
+@pytest.mark.usefixtures("mpl")
 def test_category_colors_map_code_i_to_color_i():
     colors = ["#112233", "#445566", "#778899"]
     cmap, norm = cs.plot.category_colors(cs.Categories(["a", "b", "c"], colors=colors))
@@ -134,6 +141,7 @@ def test_category_colors_map_code_i_to_color_i():
     assert cmap.N == 3 and cmap(2) == rgba("0.6")
 
 
+@pytest.mark.usefixtures("mpl")
 def test_category_legend_names_patches_in_code_order():
     import matplotlib.pyplot as plt
 
@@ -145,6 +153,7 @@ def test_category_legend_names_patches_in_code_order():
         assert legend.legend_handles[1].get_facecolor() == rgba("blue")
 
 
+@pytest.mark.usefixtures("mpl")
 def test_section_slab_and_boxplot_take_a_scheme():
     c = cs.Categories(["a", "b"], colors=["red", "blue"])
     bm = cs.BlockModel(origin=(0, 0, 0), size=(1, 1, 1), count=(2, 2, 1)).with_column("k", [0.0, 1, 1, 0])

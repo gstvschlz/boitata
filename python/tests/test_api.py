@@ -223,9 +223,7 @@ def test_returned_columns_are_american():
 
 @pytest.mark.parametrize("name", ["correlation", "scatter_matrix", "completeness"])
 def test_matrix_plots_draw_the_named_columns(name):
-    import matplotlib
-
-    matplotlib.use("Agg")
+    pytest.importorskip("matplotlib").use("Agg")
     import matplotlib.pyplot as plt
 
     w = rng.uniform(0.5, 2.0, 60)

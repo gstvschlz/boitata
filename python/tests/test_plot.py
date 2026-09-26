@@ -1,9 +1,8 @@
 import ceres as cs
-import matplotlib
 import numpy as np
 import pytest
 
-matplotlib.use("Agg")
+pytest.importorskip("matplotlib").use("Agg")
 import matplotlib.pyplot as plt
 
 rng = np.random.default_rng(3)
