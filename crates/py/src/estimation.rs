@@ -918,7 +918,7 @@ impl Estimator {
     /// Leave-one-out, or with `folds` k-fold, estimates and variances at the
     /// fitted samples, each in its own domain; folds keep holes whole (see
     /// `k_fold_at`).
-    #[pyo3(signature = (folds=None))]
+    #[pyo3(signature = (*, folds=None))]
     fn cross_validate<'py>(
         &self,
         py: Python<'py>,
@@ -973,7 +973,7 @@ pub struct Dual {
 #[pymethods]
 impl Dual {
     #[new]
-    #[pyo3(signature = (variogram, degree=0))]
+    #[pyo3(signature = (variogram, *, degree=0))]
     fn new(variogram: Variogram, degree: usize) -> Self {
         Self {
             variogram: variogram.0,

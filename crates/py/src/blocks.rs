@@ -104,7 +104,7 @@ pub fn attribute(values: &Bound<PyAny>, rows: usize) -> PyResult<ArrayRef> {
 impl Mesh {
     /// `vertices` is `(n, 3)`, `triangles` `(m, 3)` vertex indices.
     #[new]
-    #[pyo3(signature = (vertices, triangles, crs=None))]
+    #[pyo3(signature = (vertices, triangles, *, crs=None))]
     fn new(
         vertices: &Bound<PyAny>,
         triangles: &Bound<PyAny>,
@@ -241,7 +241,7 @@ impl Mesh {
     }
 
     /// Distance to the surface; `signed` makes inside points negative.
-    #[pyo3(signature = (points, signed=false))]
+    #[pyo3(signature = (points, *, signed=false))]
     fn distance<'py>(
         &self,
         py: Python<'py>,
@@ -305,7 +305,7 @@ impl Mesh {
     ///     A new mesh without unused vertices, each connected piece wound one
     ///     way and outward where it is closed. Kept vertices and triangles
     ///     keep their order and attributes. Repairing it again changes nothing.
-    #[pyo3(signature = (tolerance=0.0))]
+    #[pyo3(signature = (*, tolerance=0.0))]
     fn repair(&self, py: Python, tolerance: f64) -> PyResult<Self> {
         let mesh = py
             .detach(|| self.mesh.repair(tolerance))
@@ -376,7 +376,7 @@ pub struct PolygonSelector(CoreSelector);
 #[pymethods]
 impl PolygonSelector {
     #[new]
-    #[pyo3(signature = (rings, closed=false, z_min=None, z_max=None))]
+    #[pyo3(signature = (rings, *, closed=false, z_min=None, z_max=None))]
     fn new(
         rings: Vec<Bound<PyAny>>,
         closed: bool,
@@ -430,7 +430,7 @@ fn point_in_polygon<'py>(
 /// Plan distance from each point to the polygon boundary; `signed` makes
 /// inside points negative.
 #[pyfunction]
-#[pyo3(signature = (points, polygon, signed=false))]
+#[pyo3(signature = (points, polygon, *, signed=false))]
 fn polygon_distance<'py>(
     py: Python<'py>,
     points: &Bound<PyAny>,
@@ -543,7 +543,7 @@ fn grid_surface(py: Python, model: PyRef<PyBlockModel>, column: &str) -> PyResul
 
 /// Visible skin of a block model; `column` becomes the face column `value`.
 #[pyfunction]
-#[pyo3(signature = (model, column=None))]
+#[pyo3(signature = (model, *, column=None))]
 fn block_shell<'py>(
     py: Python<'py>,
     model: PyRef<PyBlockModel>,

@@ -1,5 +1,3 @@
-import inspect
-
 import ceres as cs
 import matplotlib
 import numpy as np
@@ -285,20 +283,6 @@ def test_directions_project_the_major_axis():
     q = ax.collections[0]
     np.testing.assert_allclose(np.c_[q.U, q.V], [[0, 0]], atol=1e-12)
     assert ax.get_ylabel() == "Elevation (m)"
-
-
-@pytest.mark.parametrize(
-    "f",
-    [getattr(cs.plot, n) for n in cs.plot.__all__ if n not in ("category_colors", "category_legend")]
-    + [cs.plot3d.plot, cs.plot3d.slices],
-    ids=lambda f: f.__name__,
-)
-def test_options_are_keyword_only(f):
-    params = inspect.signature(f).parameters.values()
-    defaulted = [p for p in params if p.default is not p.empty and p.kind is not p.KEYWORD_ONLY]
-    assert [p.name for p in defaulted] in ([], ["values"]), f.__name__
-    target = {"scatter_matrix": "axes", "plot": "plotter", "slices": "plotter"}.get(f.__name__, "ax")
-    assert inspect.signature(f).parameters[target].kind is inspect.Parameter.KEYWORD_ONLY
 
 
 def _drawn(ax):

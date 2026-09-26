@@ -125,7 +125,7 @@ impl LocalAnisotropy {
 
     /// From a point cloud: principal axes of each point's `k` nearest points.
     #[staticmethod]
-    #[pyo3(signature = (coords, k=20, ratios=None))]
+    #[pyo3(signature = (coords, *, k=20, ratios=None))]
     fn from_points(coords: &Bound<PyAny>, k: usize, ratios: Option<[f64; 2]>) -> PyResult<Self> {
         Ok(Self(
             Core::from_points(&points(coords)?, k, ratios).map_err(err)?,
@@ -135,7 +135,7 @@ impl LocalAnisotropy {
     /// At `targets`, from the nearest triangle of `mesh`: the normal is the
     /// minor axis and `major` is `"dip"` or `"strike"`.
     #[staticmethod]
-    #[pyo3(signature = (mesh, targets, major="dip", ratios=(1.0, 0.2)))]
+    #[pyo3(signature = (mesh, targets, *, major="dip", ratios=(1.0, 0.2)))]
     fn from_mesh(
         mesh: PyRef<Mesh>,
         targets: &Bound<PyAny>,

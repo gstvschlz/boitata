@@ -30,9 +30,9 @@ def test_round_trip_keeps_listed_labels_lumps_the_rest_and_nulls():
 def test_from_values_ignores_row_order():
     for raw, w in draws():
         min_share = rng.uniform(0, 0.3)
-        a = cs.Categories.from_values(raw, w, min_share)
+        a = cs.Categories.from_values(raw, weights=w, min_share=min_share)
         order = rng.permutation(raw.size)
-        b = cs.Categories.from_values(raw[order], w[order], min_share)
+        b = cs.Categories.from_values(raw[order], weights=w[order], min_share=min_share)
         assert a == b and a.to_json() == b.to_json()
         if a.other is not None:
             assert a.names[-1] == a.other
@@ -46,11 +46,11 @@ def test_integers_sort_numerically_and_integral_floats_are_integers():
 
 def test_shares_sum_to_one_and_other_holds_the_lumped():
     for raw, w in draws():
-        full = cs.Categories.from_values(raw, w)
-        full_shares = full.shares(full.encode(raw), w)
+        full = cs.Categories.from_values(raw, weights=w)
+        full_shares = full.shares(full.encode(raw), weights=w)
         min_share = rng.uniform(0, 0.3)
-        c = cs.Categories.from_values(raw, w, min_share)
-        shares = c.shares(c.encode(raw), w)
+        c = cs.Categories.from_values(raw, weights=w, min_share=min_share)
+        shares = c.shares(c.encode(raw), weights=w)
         assert shares.sum() == pytest.approx(1.0)
         lumped = [n for n in full.names if n not in c.names]
         assert all(c.mapping[n] == "other" for n in lumped)
@@ -97,7 +97,7 @@ def test_errors():
         lambda: cs.Categories(["a"], mapping={"x": "b"}),
         lambda: c.decode([2]),
         lambda: c.decode([0.5]),
-        lambda: c.shares([0], [-1.0]),
+        lambda: c.shares([0], weights=[-1.0]),
         lambda: c.lump(["z"]),
         lambda: cs.Categories.from_values([None]),
         lambda: cs.Categories.from_values(["a"], min_share=2.0),

@@ -82,7 +82,7 @@ pub struct MultipleIndicatorKriging {
 #[pymethods]
 impl MultipleIndicatorKriging {
     #[new]
-    #[pyo3(signature = (variogram, search, thresholds, simple=false, tails=None, interpolation="global", upper_tail=None))]
+    #[pyo3(signature = (variogram, search, thresholds, *, simple=false, tails=None, interpolation="global", upper_tail=None))]
     fn new(
         variogram: &Bound<PyAny>,
         search: &Bound<PyAny>,
@@ -259,7 +259,7 @@ impl MultipleIndicatorKriging {
     /// Returns
     /// -------
     /// IndicatorCrossValidation
-    #[pyo3(signature = (folds=None))]
+    #[pyo3(signature = (*, folds=None))]
     fn cross_validate<'py>(
         &self,
         py: Python<'py>,

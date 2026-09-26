@@ -85,7 +85,7 @@ def test_assign_domain_nearest_and_solid():
 
 def test_block_shell_of_a_single_block():
     model = cs.BlockModel(origin=(0, 0, 0), size=(1, 1, 1), count=(1, 1, 1), attributes={"v": [2.0]})
-    shell = cs.block_shell(model, "v")
+    shell = cs.block_shell(model, column="v")
     assert shell.triangles.shape == (12, 3) and np.all(shell.face_attributes["value"] == 2.0)
     assert shell.area == pytest.approx(6)
 
