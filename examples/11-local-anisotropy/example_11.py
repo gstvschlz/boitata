@@ -54,19 +54,7 @@ ax.imshow(
     norm=PowerNorm(0.5, vmin=0, vmax=1200),
 )
 every = (nodes[:, 0] % 15 == 3) & (nodes[:, 1] % 15 == 3)
-azimuth = np.radians(lva.angles[every, 0])
-ax.quiver(
-    *grid.centroids[every, :2].T,
-    np.sin(azimuth),
-    np.cos(azimuth),
-    pivot="middle",
-    headwidth=0,
-    headlength=0,
-    headaxislength=0,
-    scale=35,
-    width=0.004,
-    color=ACCENT,
-)
+cs.plot.directions(lva.at(grid.centroids[every]), ax=ax, scale=35, width=0.004, color=ACCENT)
 map_axes(ax, "Local major direction over the guide estimate")
 save(fig, "field")
 

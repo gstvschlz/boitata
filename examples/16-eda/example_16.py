@@ -296,6 +296,51 @@ ax.set(title="Zn swath along easting", xlabel="Easting (m)", ylabel="Zn (%)")
 save(fig, "swath")
 
 # %% [markdown]
+# ## Categories
+#
+# How much of each lithology do the composites hold? The five domains are kept and the many minor lithology codes
+# lumped into "other". `plot.proportions` draws the shares weighted by cell
+# declustering over all composites (50 m cells), with the unweighted shares as ticks; `plot.category_swath` stacks
+# the declustered shares per 100 m slice of easting, to see where each lithology sits along strike. Drilling targets
+# the sulphides, so declustering lowers the share of MS and SM and nearly doubles that of the RH host rock.
+
+# %%
+assayed = ~np.isnan(zn)
+cell_weights = cs.cell_declustering(xyz[assayed], zn[assayed], cell_size=50.0).weights
+rock = np.where(np.isin(lith, domains), lith, "other")[assayed]
+fig, (a, b) = plt.subplots(1, 2, figsize=(10, 3.4), layout="constrained", width_ratios=[1, 2])
+cs.plot.proportions(rock, cell_weights, ax=a)
+a.set_title("Lithologies, declustered")
+cs.plot.category_swath(xyz[assayed], rock, 100.0, axis="x", weights=cell_weights, ax=b)
+b.set(title="Lithologies along easting, declustered", xlabel="Easting (m)")
+save(fig, "categories")
+
+# %% [markdown]
+# ## Data spacing
+#
+# The spacing of the drilling is read between holes, not along them: each hole's MS intercept stands at the mean
+# location of its MS composites, and `data_spacing(..., horizontal=True)` measures, in plan, the distance from each
+# intercept to its nearest neighbour. The same call with `targets=` a block model gives the spacing at every block,
+# a common basis for resource classification.
+
+# %%
+in_ms = lith == "MS"
+names, which = np.unique(hole[in_ms], return_inverse=True)
+intercepts = np.column_stack([np.bincount(which, xyz[in_ms, k]) / np.bincount(which) for k in range(3)])
+spacing = cs.data_spacing(intercepts, horizontal=True)
+print(f"{len(names)} MS intercepts, nearest neighbour in plan: median {np.median(spacing):.0f} m, ", end="")
+print(f"P90 {np.percentile(spacing, 90):.0f} m")
+fig, (a, b) = plt.subplots(1, 2, figsize=(10, 4), layout="constrained", width_ratios=[1.4, 1])
+drawn = a.scatter(*intercepts[:, :2].T, c=spacing, s=8, cmap="cividis_r", vmax=np.percentile(spacing, 95))
+fig.colorbar(drawn, ax=a, shrink=0.8, label="Spacing (m)")
+map_axes(a, "Distance to the nearest MS intercept")
+cs.plot.histogram(
+    spacing, bins=np.arange(0, np.percentile(spacing, 99) + 5, 5), stats=True, ax=b, color=ACCENT
+)
+b.set(title="Spacing of MS intercepts", xlabel="Spacing (m)")
+save(fig, "spacing")
+
+# %% [markdown]
 # ## h-scatterplots
 #
 # Pairs of composites a lag apart: tail value against head value. Correlation drops as the lag grows, the mirror image

@@ -1216,6 +1216,12 @@ def pairs(
     holes: tuple[Holes, Holes] | None = None,
 ) -> Table: ...
 def paired_bias(pairs: Table, bins: int | ArrayLike) -> Table: ...
+def data_spacing(
+    coords: PointSet | ArrayLike,
+    n: int = 1,
+    targets: Any | None = None,
+    horizontal: bool = False,
+) -> npt.NDArray[np.float64]: ...
 def validate_model(
     model: ArrayLike,
     data: ArrayLike,

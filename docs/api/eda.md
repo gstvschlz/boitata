@@ -20,6 +20,8 @@
 
 ::: ceres.duplicates
 
+::: ceres.data_spacing
+
 ::: ceres.pairs
 
 ::: ceres.paired_bias

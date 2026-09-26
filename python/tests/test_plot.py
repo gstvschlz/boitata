@@ -251,3 +251,33 @@ def test_scatter_matrix_annotates_correlations_and_weights_histograms():
     _, grid = plt.subplots(2, 2)
     _, axes = cs.plot.scatter_matrix(columns[:, :2], labels=["a", "b"], axes=grid)
     assert axes[0, 1] is grid[0, 1] and axes[1, 1].get_xlabel() == "b"
+
+
+def test_category_swath_stacks_to_one_and_follows_a_trend():
+    xy = np.c_[np.arange(0.5, 100), np.zeros(100)]
+    rock = np.where(xy[:, 0] < 30, "a", np.where(xy[:, 0] < 60, "b", "c"))
+    _, ax = cs.plot.category_swath(xy, rock, 10.0, axis="x")
+    heights = np.array([p.get_height() for p in ax.patches]).reshape(3, 10)
+    np.testing.assert_allclose(heights.sum(axis=0), 1.0)
+    np.testing.assert_allclose(heights[0], [1, 1, 1] + [0] * 7)
+    assert [t.get_text() for t in ax.get_legend().get_texts()] == ["c", "b", "a"]
+
+
+def test_proportions_are_weighted_shares():
+    rock = np.array(["a", "b", "b", "c"])
+    w = np.array([2.0, 1.0, 1.0, 4.0])
+    _, ax = cs.plot.proportions(rock, w)
+    np.testing.assert_allclose([p.get_width() for p in ax.patches], [0.25, 0.25, 0.5])
+    np.testing.assert_allclose(ax.lines[0].get_xdata(), [0.25, 0.5, 0.25])
+
+
+def test_directions_project_the_major_axis():
+    angles = [[90.0, 0.0, 0.0], [0.0, 60.0, 0.0]]
+    la = cs.LocalAnisotropy([[0.0, 0.0, 0.0], [5.0, 0.0, 0.0]], angles, [[1.0, 1.0]] * 2)
+    _, ax = cs.plot.directions(la)
+    q = ax.collections[0]
+    np.testing.assert_allclose(np.c_[q.U, q.V], [[1, 0], [0, 0.5]], atol=1e-12)
+    _, ax = cs.plot.directions(la, plane=((0, 0, 0), 0.0, 90.0), thickness=1.0)
+    q = ax.collections[0]
+    np.testing.assert_allclose(np.c_[q.U, q.V], [[0, 0]], atol=1e-12)
+    assert ax.get_ylabel() == "Elevation (m)"

@@ -966,6 +966,49 @@ fn pairs(
     Ok(Table(RecordBatch::try_from_iter(columns).map_err(invalid)?))
 }
 
+/// Data spacing: the distance to the `n`th nearest sample.
+///
+/// Parameters
+/// ----------
+/// coords : PointSet or array_like
+///     Samples, or their ``(n, 2)`` or ``(n, 3)`` coordinates.
+/// n : int
+///     Rank of the neighbour; on a square grid of spacing ``s`` seen in plan,
+///     ``n=4`` gives ``s``.
+/// targets : array_like, PointSet or BlockModel, optional
+///     Locations to measure from, e.g. block centroids; default each sample,
+///     not counting itself.
+/// horizontal : bool
+///     Measure in plan, ignoring elevation.
+///
+/// Returns
+/// -------
+/// ndarray
+///     One distance per target, ``inf`` when there are fewer than `n` samples.
+#[pyfunction]
+#[pyo3(signature = (coords, n=1, targets=None, horizontal=false))]
+fn data_spacing<'py>(
+    py: Python<'py>,
+    coords: &Bound<PyAny>,
+    n: usize,
+    targets: Option<&Bound<PyAny>>,
+    horizontal: bool,
+) -> PyResult<Bound<'py, PyAny>> {
+    let coords = set_coords(coords)?;
+    let targets = targets
+        .map(|t| -> PyResult<Vec<[f64; 3]>> {
+            Ok(crate::estimation::targets(t)?
+                .into_iter()
+                .map(|(x, y, z)| [x, y, z])
+                .collect())
+        })
+        .transpose()?;
+    let d = py
+        .detach(|| eda::spacing(&coords, targets.as_deref(), n, horizontal))
+        .map_err(invalid)?;
+    Ok(array1(py, d).into_any())
+}
+
 /// Mean of paired values and their relative bias per bin of pairing distance.
 ///
 /// Parameters
@@ -1021,6 +1064,7 @@ fn paired_bias(pairs: &Bound<PyAny>, bins: &Bound<PyAny>) -> PyResult<Table> {
 
 pub fn register(m: &Bound<PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(pairs, m)?)?;
+    m.add_function(wrap_pyfunction!(data_spacing, m)?)?;
     m.add_function(wrap_pyfunction!(paired_bias, m)?)?;
     m.add_function(wrap_pyfunction!(validate_model, m)?)?;
     m.add_function(wrap_pyfunction!(duplicates, m)?)?;
