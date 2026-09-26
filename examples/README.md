@@ -21,7 +21,7 @@ Walker Lake has an exhaustive grid, so every result is checked against the truth
 | 14 | [Storing containers in Parquet](14-parquet/README.md) | Walker Lake | `write_parquet`, `read_parquet`, polars |
 | 15 | [Implicit modelling](15-implicit/README.md) | Drillholes | `ImplicitModel` RBF and GP, `isosurface(closed=True)` |
 | 16 | [Exploratory data analysis](16-eda/README.md) | Drillholes | `describe`, `plot.boxplot`, `plot.cdf`, `plot.qq`, `capping`, `contact`, `swath`, `h_scatter`, `correlation` |
-| 17 | [Multivariate transforms](17-multivariate/README.md) | Geomet porphyry 1 | `PCA`, `MAF`, `StepwiseConditional`, `PPMT` |
+| 17 | [Multivariate transforms](17-multivariate/README.md) | Geomet porphyry 1 | `PCA`, `MAF`, `StepwiseConditional`, `PPMT`, `MultivariateSimulation` |
 | 18 | [Validation and classification](18-validation/README.md) | Walker Lake | `predict(diagnostics=True)`, `cross_validate(folds=)`, `global_bias`, `classify`, `smooth_classes` |
 | 19 | [Geological modelling](19-geological-model/README.md) | Drillholes, synthetic fold | `Drillholes.at` contacts, `ImplicitModel` kriging/RBF/GP, planes, lineations, gradients, GP variance |
 | 20 | [From drill holes to a classified model](20-workflow/README.md) | Drillholes | the whole chain: composites, EDA, declustering, variograms, kriging checks, SGS risk, classification, Parquet |

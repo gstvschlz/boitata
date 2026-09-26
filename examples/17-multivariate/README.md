@@ -85,4 +85,130 @@ save(fig, "factors")
 
 ![factors](factors.png)
 
+## Simulating the factors
+
+`MultivariateSimulation` puts the pieces together: it fits the transform, simulates each factor on its own with its
+own variogram and seed, and back-transforms every realization at the nodes, before any averaging to blocks. Each
+factor gets the omnidirectional variogram of its scores; turning bands simulate 20 realizations on 25 m nodes.
+Statistics of the data are declustered with 50 m cells.
+
+<details><summary>Python</summary>
+
+```python
+weights = cs.cell_declustering(coords, pair[:, 0], cell_size=50.0).weights
+lo, hi = coords.min(axis=0), coords.max(axis=0)
+count = np.ceil((hi - lo) / (100, 100, 50)).astype(int)
+blocks = cs.BlockModel(origin=tuple(lo), size=(100, 100, 50), count=tuple(count))
+nodes = cs.BlockModel(origin=tuple(lo), size=(25, 25, 25), count=tuple(count * (4, 4, 2)))
+search = cs.Search(radius=250, max_samples=16)
+
+runs = {}
+for name, transform in {"PPMT": cs.PPMT(seed=7), "PCA": cs.PCA(standardize=True)}.items():
+    f = transform.fit(pair, weights=weights).transform(pair)
+    variograms = [cs.experimental_variogram(coords, f[:, j], 25.0, 300.0).fit("spherical") for j in range(2)]
+    simulation = cs.MultivariateSimulation(transform, [cs.TurningBands(v, search=search) for v in variograms])
+    runs[name] = simulation.fit(coords, pair, weights=weights)
+reals = {
+    name: [s.realizations for s in sim.simulate(nodes, n=20, seed=1, realizations=True)]
+    for name, sim in runs.items()
+}
+print(f"{len(nodes.centroids)} nodes, 20 realizations")
+```
+
+</details>
+
+```text
+36608 nodes, 20 realizations
+```
+
+Both keep the correlation, which is all a linear rotation promises. Only PPMT keeps the histograms and the
+joint high grades: PCA factors are not Gaussian, so simulating them as if they were blurs the two mineral
+associations into each other.
+
+<details><summary>Python</summary>
+
+```python
+def weighted_quantiles(values, weights, qs):
+    order = np.argsort(values)
+    cum = np.cumsum(weights[order]) / weights.sum()
+    return values[order][np.searchsorted(cum, qs)]
+
+
+qs = [0.1, 0.5, 0.9]
+high = np.quantile(pair, 0.8, axis=0)
+cov = np.cov(pair.T, aweights=weights)
+rows = [
+    (
+        "data",
+        cov[0, 1] / np.sqrt(cov[0, 0] * cov[1, 1]),
+        *weighted_quantiles(pair[:, 0], weights, qs),
+        *weighted_quantiles(pair[:, 1], weights, qs),
+        np.average((pair > high).all(axis=1), weights=weights),
+    )
+]
+for name, (a, b) in reals.items():
+    r = np.mean([np.corrcoef(x, y)[0, 1] for x, y in zip(a, b)])
+    rows.append((name, r, *np.quantile(a, qs), *np.quantile(b, qs), np.mean((a > high[0]) & (b > high[1]))))
+print(f"{'':6}{'r':>6}{'chalcocite q10, q50, q90':>27}{'tennantite q10, q50, q90':>27}{'both > q80':>12}")
+for name, r, *q, both in rows:
+    cc, tn = (", ".join(f"{v:.2f}" for v in part) for part in (q[:3], q[3:]))
+    print(f"{name:6}{r:6.2f}{cc:>27}{tn:>27}{both:12.3f}")
+
+at_data = runs["PPMT"].simulate(coords[:500], n=5, seed=2)
+error = max(np.abs(s.mean - pair[:500, j]).max() + s.std.max() for j, s in enumerate(at_data))
+print(f"PPMT at 500 composites: largest departure from the data {error:.1e}")
+```
+
+</details>
+
+```text
+           r   chalcocite q10, q50, q90   tennantite q10, q50, q90  both > q80
+data    0.23        -7.61, -5.68, -2.35        -7.62, -6.06, -3.80       0.038
+PPMT    0.21        -7.61, -5.70, -2.54        -7.62, -6.15, -3.96       0.025
+PCA     0.25        -7.69, -5.50, -3.03        -7.62, -5.86, -3.97       0.062
+PPMT at 500 composites: largest departure from the data 2.3e-11
+```
+
+One realization of each, with the data behind it: PPMT rebuilds the L-shaped cloud, PCA fills its corner.
+
+<details><summary>Python</summary>
+
+```python
+pick = np.random.default_rng(0).choice(len(nodes.centroids), 3000, replace=False)
+fig, axes = plt.subplots(1, 3, figsize=(11, 3.6), layout="constrained", sharex=True, sharey=True)
+panels = [(pair[:, 0], pair[:, 1], "Data")] + [
+    (a[0][pick], b[0][pick], name) for name, (a, b) in reals.items()
+]
+for ax, (x, y, title) in zip(axes, panels):
+    ax.scatter(x, y, s=2, color=ACCENT, alpha=0.3, linewidths=0)
+    ax.set(xlabel=names[0], title=title)
+axes[0].set_ylabel(names[1])
+save(fig, "simulated")
+```
+
+</details>
+
+![simulated](simulated.png)
+
+At block support, `blocks=` averages each realization after the back-transform; averaging the factors instead would
+give other values, since the transform is not linear. Here 100 × 100 × 50 m blocks.
+
+<details><summary>Python</summary>
+
+```python
+by_block = runs["PPMT"].simulate(nodes, n=20, seed=1, realizations=True, blocks=blocks)
+for j, s in enumerate(by_block):
+    print(
+        f"{names[j]}: variance {reals['PPMT'][j].var(axis=1).mean():.2f} at nodes, "
+        f"{s.realizations.var(axis=1).mean():.2f} in {s.realizations.shape[1]} blocks"
+    )
+```
+
+</details>
+
+```text
+log chalcocite (%): variance 3.52 at nodes, 1.52 in 1144 blocks
+log tennantite (%): variance 1.87 at nodes, 0.85 in 1144 blocks
+```
+
 Full script: [`example_17.py`](example_17.py)

@@ -2,7 +2,8 @@
 # 13. Simulation methods
 
 Sequential Gaussian simulation (SGS) and turning bands simulate a continuous variable; sequential indicator
-simulation (SIS) and plurigaussian simulation (PGS) simulate categories.
+simulation (SIS) and plurigaussian simulation (PGS) simulate categories. Several correlated grades are simulated
+through independent factors in [chapter 17](../17-multivariate/README.md).
 """
 
 # %% [hidden]

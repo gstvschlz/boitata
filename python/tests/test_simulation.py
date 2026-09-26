@@ -82,3 +82,43 @@ def test_gibbs_respects_bounds():
     bounds = np.column_stack([np.zeros(20), np.full(20, np.inf)])
     draw = cs.gibbs(pts, bounds, gaussian, seed=3)
     assert np.all(draw >= 0)
+
+
+def test_multivariate_simulation_reproduces_correlation_and_honours_data():
+    g = rng.standard_normal((60, 2))
+    data = np.exp(np.column_stack([g[:, 0], 0.8 * g[:, 0] + 0.6 * g[:, 1]]))
+    search = cs.Search(radius=40, max_samples=12)
+    mv = cs.MultivariateSimulation(
+        cs.PPMT(seed=3), [cs.SGS(gaussian, search), cs.TurningBands(gaussian, bands=100, step=1.0)]
+    ).fit(coords, data)
+    a, b = mv.simulate(grid, n=10, seed=4, realizations=True)
+    assert a.realizations.shape == b.realizations.shape == (10, 400)
+    r = np.mean([np.corrcoef(np.log(x), np.log(y))[0, 1] for x, y in zip(a.realizations, b.realizations)])
+    assert r == pytest.approx(np.corrcoef(np.log(data.T))[0, 1], abs=0.15)
+    np.testing.assert_array_equal(
+        a.realizations, mv.simulate(grid, n=10, seed=4, realizations=True)[0].realizations
+    )
+
+    at_data = mv.simulate(coords[:5], n=3, seed=1)
+    for v, s in enumerate(at_data):
+        np.testing.assert_allclose(s.mean, data[:5, v], rtol=1e-6)
+
+    blocks = cs.BlockModel(origin=(0, 0), size=(20, 20), count=(5, 5))
+    xy = grid.centroids[:, :2] // 20
+    rows = (xy[:, 0] + 5 * xy[:, 1]).astype(int)
+    by_block = mv.simulate(grid, n=10, seed=4, realizations=True, blocks=blocks)
+    for s, nodes in zip(by_block, (a, b)):
+        expected = np.stack([np.bincount(rows, x) / np.bincount(rows) for x in nodes.realizations])
+        np.testing.assert_allclose(s.realizations, expected)
+
+
+def test_multivariate_simulation_drops_incomplete_samples_and_checks_inputs():
+    data = np.column_stack([values, values**0.5])
+    data[:4, 1] = np.nan
+    sgs = cs.SGS(gaussian, cs.Search(radius=40, max_samples=12))
+    with pytest.warns(UserWarning, match="4 samples miss a variable"):
+        cs.MultivariateSimulation(cs.StepwiseConditional(), [sgs, sgs]).fit(coords, data)
+    with pytest.raises(ValueError, match="transform must be"):
+        cs.MultivariateSimulation(cs.NormalScore(), [sgs])
+    with pytest.raises(ValueError, match="2 columns"):
+        cs.MultivariateSimulation(cs.PCA(), [sgs, sgs]).fit(coords, data[:, :1])

@@ -1122,7 +1122,231 @@ impl Tabular for CategoricalSummary {
     }
 }
 
+enum Factor {
+    Sgs(CoreVariogram, estimation::Search),
+    Bands(CoreVariogram, TurningBandsParams),
+}
+
+struct Factors {
+    transform: simulation::Decorrelation,
+    locs: Vec<Point>,
+    columns: Vec<Vec<f64>>,
+    weights: Option<Vec<f64>>,
+}
+
+/// Several correlated variables simulated through independent factors.
+///
+/// Every realization simulates each factor with its own seed, back-transforms
+/// the factors together at the nodes, and only then averages to blocks.
+///
+/// Parameters
+/// ----------
+/// transform : PCA, MAF, StepwiseConditional or PPMT
+///     Template, fitted afresh by `fit`, that turns the variables into
+///     factors. PPMT, which also makes them Gaussian and takes declustering
+///     weights, is the usual choice.
+/// simulators : sequence of SGS or TurningBands
+///     One per factor, in factor order, each with the normal-score variogram
+///     of its factor.
+#[pyclass(module = "ceres", name = "MultivariateSimulation")]
+pub struct MultivariateSimulation {
+    transform: Py<PyAny>,
+    factors: Vec<Factor>,
+    fitted: Option<Factors>,
+}
+
+#[pymethods]
+impl MultivariateSimulation {
+    #[new]
+    fn new(transform: &Bound<PyAny>, simulators: Vec<Bound<PyAny>>) -> PyResult<Self> {
+        if !crate::transforms::is_decorrelation(transform) {
+            return Err(invalid(crate::transforms::NOT_DECORRELATION));
+        }
+        if simulators.is_empty() {
+            return Err(invalid("need one simulator per factor"));
+        }
+        let factors = simulators
+            .iter()
+            .map(|s| {
+                if let Ok(s) = s.cast::<Sgs>() {
+                    let s = s.borrow();
+                    Ok(Factor::Sgs(s.variogram.clone(), s.search.clone()))
+                } else if let Ok(s) = s.cast::<TurningBands>() {
+                    let s = s.borrow();
+                    Ok(Factor::Bands(s.variogram.clone(), s.params(0)))
+                } else {
+                    Err(invalid("simulators must be SGS or TurningBands"))
+                }
+            })
+            .collect::<PyResult<_>>()?;
+        Ok(Self {
+            transform: transform.clone().unbind(),
+            factors,
+            fitted: None,
+        })
+    }
+
+    /// Fits the transform to the data, then each simulator to its factor.
+    /// Samples missing a variable are dropped with a warning; of samples
+    /// sharing a location, the first is kept, with a warning naming their
+    /// holes.
+    ///
+    /// Parameters
+    /// ----------
+    /// coords : array_like, shape (n, 2) or (n, 3)
+    /// data : array_like, shape (n, variables)
+    ///     One column per simulator; NaN marks a missing variable.
+    /// weights : array_like, optional
+    ///     Declustering weights, for the transform when it takes them (PCA,
+    ///     PPMT) and for each factor's normal scores.
+    /// holes : array_like, optional
+    ///     Drill-hole ids or names, for `max_per_hole`.
+    #[pyo3(signature = (coords, data, weights=None, holes=None))]
+    fn fit<'py>(
+        mut slf: PyRefMut<'py, Self>,
+        coords: &Bound<PyAny>,
+        data: &Bound<PyAny>,
+        weights: Option<&Bound<PyAny>>,
+        holes: Option<&Bound<PyAny>>,
+    ) -> PyResult<PyRefMut<'py, Self>> {
+        let py = coords.py();
+        let data = rows(data, "data")?;
+        let p = slf.factors.len();
+        if data.iter().any(|r| r.len() != p) {
+            return Err(invalid(format!(
+                "data must have {p} columns, one per simulator"
+            )));
+        }
+        let locs = points(coords)?;
+        same_length(locs.len(), data.len(), "data")?;
+        let weights = optional_finite(weights, "weights")?;
+        if let Some(w) = &weights {
+            same_length(data.len(), w.len(), "weights")?;
+        }
+        let holes = args::holes(holes, data.len())?.map(|h| h.0);
+        let complete: Vec<usize> = (0..data.len())
+            .filter(|&i| data[i].iter().all(|v| v.is_finite()))
+            .collect();
+        let missing = data.len() - complete.len();
+        if missing > 0 {
+            let category = py.get_type::<pyo3::exceptions::PyUserWarning>();
+            let message = format!("{missing} samples miss a variable; dropped them");
+            PyErr::warn(py, &category, &std::ffi::CString::new(message)?, 1)?;
+        }
+        let (data, locs) = (pick(&data, &complete), pick(&locs, &complete));
+        let weights = weights.map(|w| pick(&w, &complete));
+        let holes = holes.map(|h| pick(&h, &complete));
+        let transform = crate::transforms::decorrelation(
+            slf.transform.bind(py),
+            &data,
+            weights.as_deref(),
+            &locs,
+        )?;
+        let factors = transform.forward(&data);
+        let keep = distinct(py, &locs, holes.as_deref())?;
+        let factors = pick(&factors, &keep);
+        slf.fitted = Some(Factors {
+            transform,
+            locs: pick(&locs, &keep),
+            columns: (0..p)
+                .map(|j| factors.iter().map(|r| r[j]).collect())
+                .collect(),
+            weights: weights.map(|w| pick(&w, &keep)),
+        });
+        Ok(slf)
+    }
+
+    /// Summaries of `n` realizations of every variable.
+    ///
+    /// Parameters are those of `SGS.simulate`; `anisotropy` needs SGS for
+    /// every factor. Factor `j` of realization `k` is simulated with a seed
+    /// mixed from `seed + k` and `j`, so no two factors share random numbers.
+    ///
+    /// Returns
+    /// -------
+    /// list of SimulationSummary
+    ///     One per variable, in column order.
+    #[pyo3(signature = (targets, n=100, seed=0, cutoffs=vec![], quantiles=vec![], realizations=false, anisotropy=None, blocks=None))]
+    #[allow(clippy::too_many_arguments)]
+    fn simulate(
+        &self,
+        py: Python,
+        targets: &Bound<PyAny>,
+        n: usize,
+        seed: u64,
+        cutoffs: Vec<f64>,
+        quantiles: Vec<f64>,
+        realizations: bool,
+        anisotropy: Option<PyRef<crate::lva::LocalAnisotropy>>,
+        blocks: Option<PyRef<PyBlockModel>>,
+    ) -> PyResult<Vec<SimulationSummary>> {
+        let f = self.fitted.as_ref().ok_or_else(not_fitted)?;
+        let grid = self::targets(targets)?;
+        let support = support(targets, &grid, blocks)?;
+        if anisotropy.is_some() && self.factors.iter().any(|f| matches!(f, Factor::Bands(..))) {
+            return Err(invalid("anisotropy needs SGS for every factor"));
+        }
+        let local = anisotropy.map(|a| a.at_targets(&grid));
+        let options = ContinuousOptions {
+            cutoffs,
+            quantiles,
+            keep: realizations,
+        };
+        py.detach(|| {
+            simulation::multivariate(
+                n,
+                seed,
+                self.factors.len(),
+                &f.transform,
+                &options,
+                support.as_ref(),
+                |j, seed| {
+                    let (locs, values, weights) = (&f.locs, &f.columns[j], f.weights.as_deref());
+                    Ok(match &self.factors[j] {
+                        Factor::Sgs(variogram, search) => {
+                            let params = SgsParams {
+                                search: search.clone(),
+                                seed,
+                            };
+                            simulation::sgs(
+                                locs,
+                                values,
+                                weights,
+                                &grid,
+                                variogram,
+                                &params,
+                                local.as_ref(),
+                            )?
+                        }
+                        Factor::Bands(variogram, params) => {
+                            let params = TurningBandsParams {
+                                seed,
+                                ..params.clone()
+                            };
+                            simulation::turning_bands(
+                                locs, values, weights, &grid, variogram, &params,
+                            )?
+                        }
+                    }
+                    .values)
+                },
+            )
+        })
+        .map(|s| s.into_iter().map(SimulationSummary).collect())
+        .map_err(err)
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "MultivariateSimulation(factors={}, fitted={})",
+            self.factors.len(),
+            self.fitted.is_some()
+        )
+    }
+}
+
 pub fn register(m: &Bound<PyModule>) -> PyResult<()> {
+    m.add_class::<MultivariateSimulation>()?;
     m.add_class::<Sgs>()?;
     m.add_class::<TurningBands>()?;
     m.add_class::<Sis>()?;

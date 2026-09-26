@@ -579,6 +579,31 @@ class TurningBands:
         rows: int = 1_000_000,
     ) -> dict[str, npt.NDArray[np.float64]]: ...
 
+class MultivariateSimulation:
+    def __init__(
+        self,
+        transform: PCA | MAF | StepwiseConditional | PPMT,
+        simulators: Sequence[SGS | TurningBands],
+    ) -> None: ...
+    def fit(
+        self,
+        coords: ArrayLike,
+        data: ArrayLike,
+        weights: ArrayLike | None = None,
+        holes: Holes | None = None,
+    ) -> MultivariateSimulation: ...
+    def simulate(
+        self,
+        targets: Any,
+        n: int = 100,
+        seed: int = 0,
+        cutoffs: Sequence[float] = (),
+        quantiles: Sequence[float] = (),
+        realizations: bool = False,
+        anisotropy: LocalAnisotropy | None = None,
+        blocks: BlockModel | None = None,
+    ) -> list[SimulationSummary]: ...
+
 class SIS:
     def to_parquet(self, path: Path) -> None: ...
     @staticmethod
