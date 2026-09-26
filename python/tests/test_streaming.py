@@ -90,6 +90,29 @@ def test_turning_bands_streamed_with_domains_equals_in_memory(model, tmp_path):
         tb.simulate_to_parquet(source, out, domains=labels[1:])
 
 
+def test_turning_bands_streamed_blocks_average_their_nodes(model, tmp_path):
+    xyz = rng.uniform(0, 100, (60, 3)) * [1, 0.75, 0.2]
+    values = rng.lognormal(0, 0.5, 60)
+    tb = cs.TurningBands(cs.Variogram([("spherical", 1.0, 30.0)]), bands=80, classes=3)
+    tb.fit(xyz, values, trend=xyz[:, 0] / 100)
+    model = model.with_column("drift", model.centroids[:, 0] / 100)
+    nodes = model.discretize((2, 2, 1))
+    drift = model["drift"][nodes["block"].astype(int)]
+    whole = tb.simulate(nodes, n=4, seed=3, cutoffs=[1.5], blocks=model, trend=drift)
+    source, out = tmp_path / "in.parquet", tmp_path / "out.parquet"
+    cs.write_parquet(source, model)
+    tb.simulate_to_parquet(
+        source, out, n=4, seed=3, cutoffs=[1.5], rows=333, trend="drift", discretization=(2, 2, 1)
+    )
+    back = cs.read_parquet(out)
+    np.testing.assert_array_equal(back["mean"], whole.mean)
+    np.testing.assert_array_equal(back["p_above_1.5"], whole.probability_above[0])
+    with pytest.raises(cs.InvalidInput, match="positive"):
+        tb.simulate_to_parquet(source, out, trend="drift", discretization=(2, 0, 1))
+    with pytest.raises(cs.InvalidInput, match="no trend column"):
+        tb.simulate_to_parquet(source, out, trend="missing")
+
+
 def test_turning_bands_search_defaults_to_the_nearest_32(model):
     xyz = rng.uniform(0, 100, (50, 3)) * [1, 0.75, 0.2]
     values = rng.lognormal(0, 0.5, 50)
