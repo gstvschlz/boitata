@@ -28,20 +28,25 @@ lag, max_lag = 0.1, 1.5
 
 
 # %% [markdown]
-# The coregionalization uses the intrinsic model: Cd and Zn share Cd's spherical structure and nugget share,
-# scaled by their covariance matrix.
+# The linear model of coregionalization is fitted to the Cd and Zn variograms and their cross-variogram, the half mean
+# product of the Cd and Zn increments between co-located samples, all together. The variables share the structures, a
+# nugget and two spherical ranges, and each structure's sill matrix stays positive semi-definite: its smallest
+# eigenvalue is never negative. The short structure takes the place of the nugget, which fits to zero.
 
 # %%
-cd_model = cs.experimental_variogram(xy, cd, lag, max_lag).fit("spherical")
-nugget_share = cd_model.nugget / cd_model.sill
-a = cd_model.structures[0].range
-print(f"Cd: nugget share {nugget_share:.2f}, range {a:.2f} km, corr(Cd, Zn) {rho:.2f}")
+experimentals = [
+    [
+        cs.experimental_variogram(xy, cd, lag, max_lag),
+        cs.experimental_variogram(xy, cd, lag, max_lag, other=zn),
+    ],
+    [None, cs.experimental_variogram(xy, zn, lag, max_lag)],
+]
+lmc = cs.Coregionalization.fit(experimentals, ["spherical", "spherical"])
+print(f"corr(Cd, Zn) {rho:.2f}")
+for name, matrix in [("nugget", lmc.nugget)] + [(f"{m} {a:.2f} km", s) for m, a, s in lmc.structures]:
+    print(f"{name}: {np.round(matrix, 3).tolist()}, smallest eigenvalue {np.linalg.eigvalsh(matrix)[0]:.3g}")
 
-cov = np.cov(cd, zn)
-lmc = cs.Coregionalization(
-    (nugget_share * cov).tolist(),
-    [("spherical", a, ((1 - nugget_share) * cov).tolist())],
-)
+cd_model = experimentals[0][0].fit("spherical")
 search = cs.Search(radius=1.5, max_samples=24, min_samples=4)
 ok = cs.OrdinaryKriging(cd_model, search).fit(xy, cd)
 ck = cs.Cokriging(lmc, search, means=[cd.mean(), zn.mean()])
@@ -49,18 +54,17 @@ ck.fit(np.vstack([xy, xy]), np.r_[cd, zn], [0] * len(cd) + [1] * len(zn))
 
 
 # %% [markdown]
-# The intrinsic model is only fitted to Cd, so check it against Zn and the cross-variogram, the half mean product of
-# the Cd and Zn increments between co-located samples. Each curve is the LMC's C(0) − C(h), and all three
-# experimental variograms scatter about the one shared shape:
+# Each curve is the fitted LMC's C(0) − C(h), and the three experimental variograms follow the shared short and long
+# structures in their own proportions:
 
 # %%
 h = np.linspace(0, max_lag, 101)[1:]
 origin = np.zeros((h.size, 3))
 away = np.c_[h, np.zeros((h.size, 2))]
 panels = (
-    (0, 0, "Cd", cs.experimental_variogram(xy, cd, lag, max_lag)),
-    (1, 1, "Zn", cs.experimental_variogram(xy, zn, lag, max_lag)),
-    (0, 1, "Cd × Zn", cs.experimental_variogram(xy, cd, lag, max_lag, other=zn)),
+    (0, 0, "Cd", experimentals[0][0]),
+    (1, 1, "Zn", experimentals[1][1]),
+    (0, 1, "Cd × Zn", experimentals[0][1]),
 )
 fig, axes = plt.subplots(1, 3, figsize=(10, 3.2), layout="constrained")
 for ax, (i, j, name, experimental) in zip(axes, panels):
