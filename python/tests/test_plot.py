@@ -91,6 +91,43 @@ def test_section_slices_a_masked_model():
     assert ax.images[0].get_array().shape == (2, 3)
 
 
+def test_row_at_finds_rotated_and_masked_blocks():
+    bm = cs.BlockModel(origin=(10, 20, 0), size=(2, 2, 1), count=(4, 3, 2), rotation=(30, 0, 0))
+    bm = bm.mask(np.arange(24) != 5)
+    rows = bm.row_at(np.vstack([bm.centroids, [[0, 0, 0]]]))
+    assert rows.dtype == np.int64 and (rows == [*range(23), -1]).all()
+
+
+def test_section_on_a_plane_matches_the_axis_slice():
+    bm = cs.BlockModel(origin=(0, 0, 0), size=(2, 2, 1), count=(4, 3, 2))
+    bm = bm.with_column("g", np.arange(24.0)).mask(np.arange(24) != 5)
+    _, ax = cs.plot.section(bm, "g", plane=((4, 3, 0.5), 90, 0), resolution=0.5)
+    np.testing.assert_allclose(ax.images[0].get_extent(), [0, 8, 0, 6], atol=1e-9)
+    assert ax.get_xlabel() == "Easting (m)" and ax.get_ylabel() == "Northing (m)"
+    _, axis = cs.plot.section(bm, "g", axis="z", index=0)
+    image = np.ma.filled(ax.images[0].get_array(), np.nan)
+    np.testing.assert_array_equal(image[::4, ::4], np.ma.filled(axis.images[0].get_array(), np.nan))
+    _, ax = cs.plot.uncertain("g", np.zeros(23), block_model=bm, plane=((4, 3, 0.5), 45, 90))
+    assert ax.get_xlabel() == "Along strike (m)" and ax.get_ylabel() == "Elevation (m)"
+
+
+def test_slab_keeps_points_traces_and_clipped_lines():
+    points = cs.PointSet(np.array([[0.0, 4, 0], [5, -4, 1], [9, 1, -2], [2, 0.5, 3]]), {"g": [1.0, 2, 3, 4]})
+    cube = cs.convex_hull(
+        np.array([[x, y, z] for x in (-1, 1) for y in (-1, 1) for z in (-1, 1)], dtype=float)
+    )
+    line = np.array([[3.0, -10, 5], [3, 10, 5], [3, 10, 6]])
+    _, ax = cs.plot.slab(
+        points, "g", plane=((0, 0, 0), 90, 90), thickness=2, meshes=cube, lines=[line], labels=list("aaba")
+    )
+    np.testing.assert_allclose(ax.collections[-1].get_offsets(), [[9, -2], [2, 3]])
+    trace = np.concatenate(ax.collections[0].get_segments())
+    np.testing.assert_allclose(np.abs(trace).max(axis=1), 1)
+    np.testing.assert_allclose(ax.collections[1].get_segments()[0], [[3, 5], [3, 5]])
+    assert [t.get_text() for t in ax.texts] == ["b", "a"]
+    assert ax.get_xlabel() == "Easting (m)" and ax.get_ylabel() == "Elevation (m)"
+
+
 def test_swath_draws_each_result():
     xy = rng.uniform(0, 100, (300, 2))
     s = cs.swath(xy, xy[:, 0], 10.0, axis="x")

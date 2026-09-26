@@ -15,6 +15,7 @@ __all__ = [
     "qq",
     "scatter",
     "section",
+    "slab",
     "swath",
     "uncertain",
     "variogram",
@@ -270,7 +271,6 @@ def scatter(x, y, line=True, ax=None, **kwargs):
     x, y = x[ok], y[ok]
     kwargs.setdefault("s", 6)
     kwargs.setdefault("alpha", 0.5)
-    kwargs.setdefault("linewidths", 0)
     ax.scatter(x, y, **kwargs)
     lo, hi = min(x.min(), y.min()), max(x.max(), y.max())
     ax.plot([lo, hi], [lo, hi], color="0.5", lw=0.8, ls="--", label="1:1")
@@ -286,30 +286,193 @@ def scatter(x, y, line=True, ax=None, **kwargs):
     return fig, ax
 
 
-def section(block_model, values, axis="z", index=None, colorbar=True, ax=None, **kwargs):
-    """Slice of a block model across `axis` at cell `index` (default: the middle), in model coordinates.
+def section(
+    block_model, values, axis="z", index=None, plane=None, resolution=None, colorbar=True, ax=None, **kwargs
+):
+    """Slice of a block model across `axis` at cell `index` (default: the middle), or on any `plane`.
 
     Parameters
     ----------
     block_model : BlockModel
-        Regular or masked; missing blocks are left blank. Rotation is ignored.
+        Missing blocks are left blank. Sliced along `axis`: regular or masked, in model coordinates, rotation
+        ignored. On a `plane`: any layout and rotation.
     values : str or array_like
         Column name, or one value per block.
     axis : {"x", "y", "z"}
         Axis normal to the slice.
     index : int, optional
         Cell index along `axis`.
+    plane : tuple, optional
+        ``(centre, azimuth, dip)`` as in `slab`; replaces `axis` and `index`. The model is sampled on a raster in
+        section coordinates.
+    resolution : float, optional
+        Raster step on `plane`; default half the smallest block edge.
     colorbar : bool
         Add a colour bar labelled with the column name.
     **kwargs
         Passed to ``ax.imshow`` (e.g. ``cmap``, ``norm``, ``vmin``).
     """
     fig, ax = _axes(ax)
-    (image,), extent = _slice(ax, block_model, [values], axis, index)
+    (image,), extent = _image(ax, block_model, [values], axis, index, plane, resolution)
     im = ax.imshow(image, origin="lower", extent=extent, **kwargs)
     if colorbar:
         fig.colorbar(im, ax=ax, shrink=0.8, label=values if isinstance(values, str) else None)
     return fig, ax
+
+
+def _image(ax, block_model, columns, axis, index, plane, resolution):
+    if plane is None:
+        return _slice(ax, block_model, columns, axis, index)
+    centre, u, v, n = _frame(plane)
+    size = np.asarray(block_model.size, dtype=float)
+    step = resolution or size.min() / 2
+    reach = np.linalg.norm(size) / 2
+    centroids = block_model.centroids
+    near = centroids[np.abs((centroids - centre) @ n) <= reach] @ np.c_[u, v]
+    if not len(near):
+        raise ValueError("the plane misses the block model")
+    lo = near.min(0) - reach
+    counts = np.ceil((near.max(0) + reach - lo) / step).astype(int)
+    gu, gv = np.meshgrid(*(lo[a] + (np.arange(counts[a]) + 0.5) * step for a in (0, 1)))
+    offset = centre - (centre @ u) * u - (centre @ v) * v
+    rows = block_model.row_at(offset + gu.reshape(-1, 1) * u + gv.reshape(-1, 1) * v).reshape(gu.shape)
+    if not (rows >= 0).any():
+        raise ValueError("the plane misses the block model")
+    (j0, j1), (i0, i1) = (np.flatnonzero((rows >= 0).any(axis=a))[[0, -1]] for a in (0, 1))
+    rows = rows[i0 : i1 + 1, j0 : j1 + 1]
+    images = []
+    for column in columns:
+        values = np.asarray(block_model[column] if isinstance(column, str) else column, dtype=float)
+        images.append(np.where(rows >= 0, values[rows], np.nan))
+    _label(ax, u, v)
+    (u0, v0), (u1, v1) = lo + step * np.array([j0, i0]), lo + step * np.array([j1 + 1, i1 + 1])
+    return images, (u0, u1, v0, v1)
+
+
+def _frame(plane):
+    centre, azimuth, dip = plane
+    centre = np.asarray(centre, dtype=float)
+    if centre.shape != (3,):
+        raise ValueError("plane centre must be (x, y, z)")
+    az, dip = np.radians(azimuth), np.radians(dip)
+    u = np.array([np.sin(az), np.cos(az), 0.0])
+    v = np.cos(dip) * np.array([-np.cos(az), np.sin(az), 0.0]) + np.array([0.0, 0.0, np.sin(dip)])
+    return centre, u, v, np.cross(u, v)
+
+
+def _label(ax, u, v):
+    names = ("Easting (m)", "Northing (m)", "Elevation (m)")
+    for axis, w, default in ((ax.xaxis, u, "Along strike (m)"), (ax.yaxis, v, "Up dip (m)")):
+        aligned = np.isclose(w, 1.0, atol=1e-9)
+        axis.set_label_text(names[aligned.argmax()] if aligned.any() else default)
+    ax.set_aspect("equal")
+
+
+def slab(
+    points,
+    values=None,
+    *,
+    plane,
+    thickness,
+    meshes=None,
+    lines=None,
+    labels=None,
+    colorbar=True,
+    ax=None,
+    **kwargs,
+):
+    """Points within a slab around a plane, in section coordinates, with mesh traces, clipped lines and labels.
+
+    Section coordinates are world coordinates along the strike and up the dip of the plane, so a vertical
+    east-west section reads easting and elevation, and a horizontal plane easting and northing.
+
+    Parameters
+    ----------
+    points : PointSet or array_like
+        ``(n, 3)`` coordinates.
+    values : str or array_like, optional
+        Column of `points`, or one value per point, colouring them; default one colour.
+    plane : tuple
+        ``(centre, azimuth, dip)``: a point on the plane, the bearing of the section line and the dip of the plane
+        (90 is vertical, 0 a plan), in degrees.
+    thickness : float
+        Full width of the slab.
+    meshes : Mesh or list of Mesh, optional
+        Drawn as their intersection with the plane.
+    lines : list of array_like, optional
+        ``(m, 3)`` polylines, e.g. drill-hole traces, clipped to the slab.
+    labels : sequence of str, optional
+        One per point; each distinct label is written once, above its highest point in the slab.
+    colorbar : bool
+        With `values`, add a colour bar labelled with the column name.
+    **kwargs
+        Passed to ``ax.scatter`` (e.g. ``s``, ``cmap``, ``norm``, ``color``).
+    """
+    from matplotlib.collections import LineCollection
+
+    fig, ax = _axes(ax)
+    centre, u, v, n = _frame(plane)
+    half = thickness / 2
+    uv = np.c_[u, v]
+    coords = np.asarray(getattr(points, "coords", points), dtype=float)
+    near = np.abs((coords - centre) @ n) <= half
+    xy = coords[near] @ uv
+
+    if meshes is not None:
+        for mesh in [meshes] if hasattr(meshes, "triangles") else meshes:
+            ax.add_collection(LineCollection(_trace(mesh, centre, n) @ uv, colors="0.2", linewidths=1))
+    if lines is not None:
+        segments = _clip([np.asarray(line, dtype=float) for line in lines], centre, n, half)
+        ax.add_collection(LineCollection(segments @ uv, colors="0.75", linewidths=0.8))
+
+    if values is not None:
+        kwargs["c"] = np.asarray(points[values] if isinstance(values, str) else values, dtype=float)[near]
+    kwargs.setdefault("s", 6)
+    drawn = ax.scatter(xy[:, 0], xy[:, 1], **kwargs)
+    if values is not None and colorbar:
+        fig.colorbar(drawn, ax=ax, shrink=0.8, label=values if isinstance(values, str) else None)
+
+    if labels is not None:
+        names = np.asarray(labels, dtype=object)[near]
+        for name in dict.fromkeys(names):
+            top = xy[names == name][:, 1].argmax()
+            ax.annotate(
+                name,
+                xy[names == name][top],
+                xytext=(0, 3),
+                textcoords="offset points",
+                ha="center",
+                fontsize=7,
+            )
+    ax.autoscale()
+    _label(ax, u, v)
+    return fig, ax
+
+
+def _trace(mesh, centre, normal):
+    corners = mesh.vertices[mesh.triangles]
+    d = (corners - centre) @ normal
+    a, b = [0, 1, 2], [1, 2, 0]
+    crossing = (d[:, a] > 0) != (d[:, b] > 0)
+    t = d[:, a] / np.where(crossing, d[:, a] - d[:, b], 1.0)
+    cuts = corners[:, a] + t[..., None] * (corners[:, b] - corners[:, a])
+    return cuts[crossing].reshape(-1, 2, 3)
+
+
+def _clip(lines, centre, normal, half):
+    segments = np.concatenate(
+        [np.empty((0, 2, 3))] + [np.stack([line[:-1], line[1:]], axis=1) for line in lines]
+    )
+    d = (segments - centre) @ normal
+    step = d[:, 1] - d[:, 0]
+    flat = step == 0
+    with np.errstate(divide="ignore", invalid="ignore"):
+        ta, tb = (-half - d[:, 0]) / step, (half - d[:, 0]) / step
+    start = np.where(flat, np.where(np.abs(d[:, 0]) <= half, 0.0, 1.0), np.maximum(0, np.minimum(ta, tb)))
+    end = np.where(flat, 1.0, np.minimum(1, np.maximum(ta, tb)))
+    keep = start < end
+    s, t = segments[keep], np.c_[start, end][keep]
+    return s[:, :1] + t[..., None] * (s[:, 1:] - s[:, :1])
 
 
 def _slice(ax, block_model, columns, axis, index):
@@ -384,6 +547,8 @@ def uncertain(
     block_model=None,
     axis="z",
     index=None,
+    plane=None,
+    resolution=None,
     extent=None,
     cmap=None,
     norm=None,
@@ -410,6 +575,10 @@ def uncertain(
         With `block_model`, axis normal to the slice.
     index : int, optional
         With `block_model`, cell index along `axis` (default: the middle).
+    plane : tuple, optional
+        With `block_model`, ``(centre, azimuth, dip)`` as in `slab`, replacing `axis` and `index`.
+    resolution : float, optional
+        Raster step on `plane`; default half the smallest block edge.
     extent : tuple of float, optional
         Passed to ``ax.imshow``; set from `block_model` when given.
     cmap : str or Colormap, optional
@@ -425,7 +594,9 @@ def uncertain(
 
     fig, ax = _axes(ax)
     if block_model is not None:
-        (values, uncertainty), extent = _slice(ax, block_model, [values, uncertainty], axis, index)
+        (values, uncertainty), extent = _image(
+            ax, block_model, [values, uncertainty], axis, index, plane, resolution
+        )
     values = np.asarray(values, dtype=float)
     cmap = mpl.colormaps[cmap or mpl.rcParams["image.cmap"]] if not callable(cmap) else cmap
     norm = norm or mpl.colors.Normalize(np.nanmin(values), np.nanmax(values))
