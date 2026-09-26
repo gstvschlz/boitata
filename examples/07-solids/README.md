@@ -124,7 +124,7 @@ cs.plot.slab(
     ax=a,
 )
 a.set_title(f"Block proportion inside the solid and its outline, bench {level:.0f} m")
-a.legend(loc="lower right")
+a.legend(loc="lower right", frameon=True, framealpha=0.9)
 fig.colorbar(a.images[0], ax=a, shrink=0.8, label="proportion of block inside")
 
 b = fig.add_subplot(1, 2, 2, projection="3d")
