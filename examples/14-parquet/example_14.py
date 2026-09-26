@@ -17,8 +17,10 @@ sys.path.insert(0, str(HERE.parent))
 import tempfile
 
 import ceres as cs
+import matplotlib.pyplot as plt
 import numpy as np
 import polars as pl
+from common import ACCENT, HIGHLIGHT, LIGHT, map_axes, save
 
 samples = cs.PointSet.from_table(cs.read_csv(cs.datasets.fetch("walker-lake/sample.csv")), crs="local grid")
 model = cs.Variogram.from_json((HERE.parent / "03-variography" / "model.json").read_text())
@@ -84,6 +86,32 @@ cs.write_shapefile(folder / "samples.shp", samples)
 print(sorted(p.name for p in folder.glob("samples.*")))
 again = cs.read_shapefile(folder / "samples.shp")
 print("same points:", np.array_equal(again.coords, samples.coords), "| crs:", again.crs)
+
+# %% [markdown]
+# Lines and polygons are `Polylines`: one attribute row per feature, each feature made of parts. A closed part is a
+# ring whose last vertex joins the first; a ring inside another ring of the same feature is a hole. A pit outline with
+# an unmined core and a section line go to separate files, polygons and lines, and come back the same.
+
+# %%
+pit = [[60, 80], [60, 240], [200, 240], [200, 80]]
+core = [[110, 140], [150, 140], [150, 190], [110, 190]]
+pits = cs.Polylines([pit, core], closed=True, features=[0, 0], attributes={"name": ["pit"]}, crs="local grid")
+lines = cs.Polylines([[[20, 160], [240, 160]]], attributes={"name": ["A-A'"]}, crs="local grid")
+cs.write_shapefile(folder / "pit.shp", pits)
+cs.write_shapefile(folder / "section.shp", lines)
+pits, lines = cs.read_shapefile(folder / "pit.shp"), cs.read_shapefile(folder / "section.shp")
+print(pits)
+print(lines)
+
+fig, ax = plt.subplots(figsize=(5, 5.2), layout="constrained")
+ax.scatter(*samples.coords[:, :2].T, s=6, color=LIGHT)
+for part, closed in zip(pits.parts, pits.closed):
+    ring = np.vstack([part, part[:1]]) if closed else part
+    ax.plot(ring[:, 0], ring[:, 1], color=ACCENT, lw=1.6)
+for part in lines.parts:
+    ax.plot(part[:, 0], part[:, 1], color=HIGHLIGHT, lw=1.6, ls="--")
+map_axes(ax, "Pit outline with its core, and section A-A'")
+save(fig, "polylines")
 
 # %% [markdown]
 # Rasters travel as GeoTIFF. `write_geotiff` writes each column of a 2D grid as a band, nulls as the `nodata` value

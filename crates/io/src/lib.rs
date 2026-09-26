@@ -18,7 +18,7 @@ pub use parquet::{
     BlockChunks, BlockModelReader, BlockModelWriter, FileLayout, Stored, read_model, read_parquet,
     stream_map, write_block_model, write_model, write_parquet, write_points,
 };
-pub use shapefile::{read_shapefile, write_shapefile};
+pub use shapefile::{Shapes, read_shapefile, write_polylines_shapefile, write_shapefile};
 
 /// Values read as null unless the caller overrides them (case-insensitive).
 pub const NODATA: &[&str] = &[
