@@ -121,9 +121,9 @@ print(f"{len(nodes.centroids)} nodes, 20 realizations")
 36608 nodes, 20 realizations
 ```
 
-Both keep the correlation, which is all a linear rotation promises. Only PPMT keeps the histograms and the
-joint high grades: PCA factors are not Gaussian, so simulating them as if they were blurs the two mineral
-associations into each other.
+Both keep the correlation, the only dependence a linear rotation carries. PPMT also keeps the declustered
+histograms and honours the composites; PCA factors are not Gaussian, so simulating them as if they were shortens
+the upper tails and sends high chalcocite and high tennantite together too often.
 
 <details><summary>Python</summary>
 
@@ -169,7 +169,8 @@ PCA     0.25        -7.69, -5.50, -3.03        -7.62, -5.86, -3.97       0.062
 PPMT at 500 composites: largest departure from the data 2.3e-11
 ```
 
-One realization of each, with the data behind it: PPMT rebuilds the L-shaped cloud, PCA fills its corner.
+One realization of each: PPMT rebuilds the L-shaped cloud of the data; PCA spreads a rotated square over it,
+reaching below the lowest assays and into the corner the data leave empty.
 
 <details><summary>Python</summary>
 
