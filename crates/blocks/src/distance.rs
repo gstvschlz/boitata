@@ -11,10 +11,13 @@
 //! - Signed distance is negative inside the solid (via the winding number).
 //! - Polygon distance is the planar distance to the closed ring, signed
 //!   negative inside (even-odd rule).
+//! - Vertical distance to an open surface (topography) looks triangles up on a
+//!   plan-view grid and interpolates the surface elevation under each point.
 
 use crate::{BlockModelError, Result};
 use ceres_core::Mesh;
 use nalgebra::Vector3;
+use rayon::prelude::*;
 
 fn v(p: &(f64, f64, f64)) -> Vector3<f64> {
     Vector3::new(p.0, p.1, p.2)
@@ -87,6 +90,63 @@ pub fn signed_distance_to(mesh: &Mesh, point: &(f64, f64, f64)) -> Result<f64> {
     } else {
         d
     })
+}
+
+/// Signed vertical distance from each point to a surface such as topography:
+/// the point's z minus the surface elevation at its (x, y), positive above.
+/// NaN where no triangle covers the point in plan. Where the surface overlaps
+/// itself in plan, the highest elevation counts.
+pub fn vertical_distance(mesh: &Mesh, points: &[(f64, f64, f64)]) -> Result<Vec<f64>> {
+    let (lo, hi) = mesh
+        .bounds()
+        .filter(|_| !mesh.triangles().is_empty())
+        .ok_or_else(|| BlockModelError::InvalidMesh("mesh has no triangles".into()))?;
+    let triangles: Vec<[[f64; 3]; 3]> = (0..mesh.triangles().len())
+        .map(|t| mesh.corners(t))
+        .filter(|[a, b, c]| (b[0] - a[0]) * (c[1] - a[1]) != (c[0] - a[0]) * (b[1] - a[1]))
+        .collect();
+    let side = ((triangles.len() as f64).sqrt().ceil() as usize).clamp(1, 2048);
+    let step = [(hi[0] - lo[0]) / side as f64, (hi[1] - lo[1]) / side as f64];
+    let cell = |v: f64, axis: usize| {
+        if step[axis] > 0.0 {
+            (((v - lo[axis]) / step[axis]) as usize).min(side - 1)
+        } else {
+            0
+        }
+    };
+    let mut grid = vec![Vec::<u32>::new(); side * side];
+    for (t, corners) in triangles.iter().enumerate() {
+        let span = |axis: usize| {
+            let values = corners.map(|p| p[axis]);
+            cell(values.into_iter().fold(f64::INFINITY, f64::min), axis)
+                ..=cell(values.into_iter().fold(f64::NEG_INFINITY, f64::max), axis)
+        };
+        for j in span(1) {
+            for i in span(0) {
+                grid[j * side + i].push(t as u32);
+            }
+        }
+    }
+    Ok(points
+        .par_iter()
+        .map(|&(x, y, z)| {
+            if !(x >= lo[0] && x <= hi[0] && y >= lo[1] && y <= hi[1]) {
+                return f64::NAN;
+            }
+            grid[cell(y, 1) * side + cell(x, 0)]
+                .iter()
+                .filter_map(|&t| {
+                    let [a, b, c] = triangles[t as usize];
+                    let d = (b[1] - c[1]) * (a[0] - c[0]) + (c[0] - b[0]) * (a[1] - c[1]);
+                    let u = ((b[1] - c[1]) * (x - c[0]) + (c[0] - b[0]) * (y - c[1])) / d;
+                    let v = ((c[1] - a[1]) * (x - c[0]) + (a[0] - c[0]) * (y - c[1])) / d;
+                    let w = 1.0 - u - v;
+                    (u.min(v).min(w) >= -1e-12).then(|| u * a[2] + v * b[2] + w * c[2])
+                })
+                .reduce(f64::max)
+                .map_or(f64::NAN, |surface| z - surface)
+        })
+        .collect())
 }
 
 /// Distance from a 2-D point to a segment `[a, b]`.
@@ -194,6 +254,49 @@ mod tests {
         assert!(sd < 0.0, "signed distance {sd} should be negative inside");
         let outside = signed_distance_to(&m, &(2.0, 2.0, 2.0)).unwrap();
         assert!(outside > 0.0);
+    }
+
+    /// Theory check: on a triangulated plane z = a x + b y + c the vertical
+    /// distance is z_p - (a x_p + b y_p + c); off the footprint it is NaN.
+    #[test]
+    fn vertical_distance_to_a_tilted_plane() {
+        let (a, b, c) = (0.3, -0.2, 100.0);
+        let n = 20;
+        let mut vertices = vec![];
+        for j in 0..=n {
+            for i in 0..=n {
+                let (x, y) = (i as f64 * 5.0, j as f64 * 5.0);
+                vertices.push([x, y, a * x + b * y + c]);
+            }
+        }
+        let at = |i: u32, j: u32| j * (n + 1) + i;
+        let mut triangles = vec![];
+        for j in 0..n {
+            for i in 0..n {
+                triangles.push([at(i, j), at(i + 1, j), at(i + 1, j + 1)]);
+                triangles.push([at(i, j), at(i + 1, j + 1), at(i, j + 1)]);
+            }
+        }
+        let mesh = Mesh::new(vertices, triangles).unwrap();
+        let points: Vec<_> = (0..500)
+            .map(|k| {
+                let k = k as f64;
+                (
+                    (k * 7.31) % 100.0,
+                    (k * 3.17) % 100.0,
+                    80.0 + (k * 1.93) % 60.0,
+                )
+            })
+            .collect();
+        let d = vertical_distance(&mesh, &points).unwrap();
+        for (&(x, y, z), d) in points.iter().zip(&d) {
+            assert!(
+                (d - (z - (a * x + b * y + c))).abs() < 1e-9,
+                "{d} at {x}, {y}, {z}"
+            );
+        }
+        let outside = vertical_distance(&mesh, &[(-1.0, 50.0, 0.0), (50.0, 100.5, 0.0)]).unwrap();
+        assert!(outside.iter().all(|d| d.is_nan()));
     }
 
     #[test]

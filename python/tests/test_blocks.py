@@ -20,6 +20,23 @@ def test_mesh_inside_and_distance():
     assert d[0] == pytest.approx(-5) and d[1] == pytest.approx(5)
 
 
+def test_vertical_distance_to_a_tilted_plane():
+    x, y = np.meshgrid(np.arange(11.0), np.arange(11.0))
+    plane = lambda x, y: 0.5 * x - 0.25 * y + 3
+    i = np.arange(10)[None, :] + 11 * np.arange(10)[:, None]
+    tris = np.vstack(
+        [np.c_[i.ravel(), i.ravel() + 1, i.ravel() + 12], np.c_[i.ravel(), i.ravel() + 12, i.ravel() + 11]]
+    )
+    surface = cs.Mesh(np.c_[x.ravel(), y.ravel(), plane(x, y).ravel()], tris)
+    pts = np.random.default_rng(0).uniform([0, 0, -5], [10, 10, 10], (1000, 3))
+    np.testing.assert_allclose(
+        surface.vertical_distance(pts), pts[:, 2] - plane(pts[:, 0], pts[:, 1]), atol=1e-9
+    )
+    assert np.isnan(surface.vertical_distance([[11, 5, 0]])).all()
+    grid = cs.BlockModel(origin=(0, 0, 0), size=(5, 5, 5), count=(2, 2, 2))
+    assert surface.vertical_distance(grid).shape == (8,)
+
+
 def test_block_proportions():
     grid = cs.BlockModel(origin=(-5, 0, 0), size=(10, 10, 10), count=(2, 1, 1))
     np.testing.assert_allclose(cube.proportion(grid), [0.5, 0.5], atol=0.13)
