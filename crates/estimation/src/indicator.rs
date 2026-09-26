@@ -21,6 +21,7 @@ use variogram::Variogram;
 
 use crate::Sample;
 use crate::batch::{by_pass, estimate_many, k_fold_at, leave_one_out_at};
+use crate::block::{Discretization, block_krige_points};
 use crate::error::{EstimError, Result};
 use crate::krige::{Kind, krige};
 use crate::lva::{LocalAnisotropy, estimate_many_local};
@@ -320,13 +321,16 @@ impl MultipleIndicator {
     }
 
     /// Kriged `P(Z ≤ t)` at each threshold, before correction. `oriented`
-    /// replaces every variogram's anisotropy.
+    /// replaces every variogram's anisotropy. `block`, discretization points
+    /// relative to `target`, krige the share of the block below each
+    /// threshold instead of the point.
     pub fn kriged(
         &self,
         target: &Point,
         samples: &[Sample],
         global: &Global,
         oriented: Option<&Variogram>,
+        block: Option<&[Point]>,
     ) -> Result<Vec<f64>> {
         let kind = if self.simple {
             Kind::Simple { mean: 0.0 }
@@ -348,7 +352,15 @@ impl MultipleIndicator {
                     }
                     None => vg,
                 };
-                krige(kind, target, samples, vg).map(|e| e.weights)
+                match block {
+                    None => krige(kind, target, samples, vg),
+                    Some(b) => {
+                        let at = |o: &Point| (target.0 + o.0, target.1 + o.1, target.2 + o.2);
+                        let pts: Vec<Point> = b.iter().map(at).collect();
+                        block_krige_points(kind, &pts, samples, vg)
+                    }
+                }
+                .map(|e| e.weights)
             })
             .collect::<Result<Vec<_>>>()?;
         Ok(self
@@ -459,14 +471,17 @@ impl MultipleIndicator {
 
     /// Conditional distributions at `targets`, each search pass filling the
     /// targets the previous left unestimated. `local` (one entry per target)
-    /// orients every variogram and the search. Identical for any number of
-    /// threads.
+    /// orients every variogram and the search. `block`, discretization points
+    /// relative to a target (see [`Discretization::offsets`]), gives each
+    /// target the distribution of the points within its block. Identical for
+    /// any number of threads.
     #[allow(clippy::too_many_arguments)]
     pub fn predict(
         &self,
         samples: &[Sample],
         weights: Option<&[f64]>,
         targets: &[Point],
+        block: Option<&[Point]>,
         searches: &[Search],
         local: Option<&LocalAnisotropy>,
         cutoffs: &[f64],
@@ -480,11 +495,18 @@ impl MultipleIndicator {
             return Err(invalid("quantiles must be in [0, 1]"));
         }
         let global = self.global(samples, weights)?;
-        let results =
-            self.at_targets(samples, &global, targets, searches, local, |t, s, raw| {
+        let results = self.at_targets(
+            samples,
+            &global,
+            targets,
+            block,
+            searches,
+            local,
+            |t, s, raw| {
                 let near = neighborhood_stats(t, s, s.len(), f64::INFINITY, None);
                 (self.conditional(&global, &raw, cutoffs, quantiles), near)
-            })?;
+            },
+        )?;
         let column = |f: &dyn Fn(usize, &Conditional, &NeighborhoodStats) -> f64| {
             let at = |r: &Option<(usize, (Conditional, NeighborhoodStats))>| {
                 r.as_ref().map_or(f64::NAN, |(p, (c, s))| f(*p, c, s))
@@ -523,7 +545,7 @@ impl MultipleIndicator {
         self.validate()?;
         let global = self.global(samples, weights)?;
         let vg = Some(self.search_variogram());
-        let kriged = |t: &Point, s: &[Sample]| self.kriged(t, s, &global, None);
+        let kriged = |t: &Point, s: &[Sample]| self.kriged(t, s, &global, None, None);
         let raw = by_pass(samples.len(), searches, |search, remaining| match folds {
             None => Ok(leave_one_out_at(remaining, samples, search, vg, kriged)),
             Some(k) => k_fold_at(k, remaining, samples, search, vg, kriged),
@@ -556,18 +578,20 @@ impl MultipleIndicator {
 
     /// `finish` applied to every target, the samples found and the kriged
     /// `P(Z ≤ t)`, with the index of the pass that filled the target.
+    #[allow(clippy::too_many_arguments)]
     fn at_targets<T: Send>(
         &self,
         samples: &[Sample],
         global: &Global,
         targets: &[Point],
+        block: Option<&[Point]>,
         searches: &[Search],
         local: Option<&LocalAnisotropy>,
         finish: impl Fn(&Point, &[Sample], Vec<f64>) -> T + Sync,
     ) -> Result<Vec<Option<(usize, T)>>> {
         let vg = self.search_variogram();
         let at_target = |t: &Point, s: &[Sample], o: Option<&Variogram>| {
-            Ok(finish(t, s, self.kriged(t, s, global, o)?))
+            Ok(finish(t, s, self.kriged(t, s, global, o, block)?))
         };
         by_pass(targets.len(), searches, |search, remaining| {
             let at: Vec<Point> = remaining.iter().map(|&i| targets[i]).collect();
@@ -617,7 +641,8 @@ impl MultipleIndicator {
     /// Localised grades of the selective blocks `smus` nested in `panels`.
     ///
     /// Each panel's point-support conditional distribution, kriged at its
-    /// centroid, takes an affine change of support to the blocks,
+    /// centroid or, with `discretization`, over the panel, takes an affine
+    /// change of support to the blocks,
     /// `m + √f·(z − m)`; its `n` blocks, ordered by `ranking`, get the means of
     /// its `n` equal-probability bands. `variance_factor` is `f`, in [0, 1];
     /// [`variance_factor`] of the median threshold's variogram when `None`.
@@ -633,6 +658,7 @@ impl MultipleIndicator {
         smus: &BlockModel,
         ranking: &[Option<f64>],
         variance_factor: Option<f64>,
+        discretization: Option<Discretization>,
     ) -> Result<Vec<Option<f64>>> {
         self.validate()?;
         let f = match variance_factor {
@@ -648,7 +674,16 @@ impl MultipleIndicator {
             .into_iter()
             .map(|c| (c[0], c[1], c[2]))
             .collect();
-        let raw = self.at_targets(samples, &global, &centroids, searches, None, |_, _, r| r)?;
+        let block = discretization.map(|d| d.offsets(panels.geometry()));
+        let raw = self.at_targets(
+            samples,
+            &global,
+            &centroids,
+            block.as_deref(),
+            searches,
+            None,
+            |_, _, r| r,
+        )?;
         transforms::localize::localize(panels, smus, ranking, |p, n| {
             Ok(raw[p].as_ref().map(|(_, raw)| {
                 let means = self.band_means(&global, raw, n);
@@ -836,6 +871,7 @@ mod tests {
                     &samples,
                     None,
                     &grid(),
+                    None,
                     &[search(40.0)],
                     None,
                     &[1.0],
@@ -862,12 +898,68 @@ mod tests {
     }
 
     #[test]
+    fn block_indicators_average_the_point_indicators() {
+        let samples = data(60, 11);
+        let variograms = [20.0, 40.0, 15.0]
+            .map(|r| Variogram::single(Model::Spherical, 0.25, r))
+            .to_vec();
+        let geometry = ceres_core::Geometry {
+            origin: [0.0; 3],
+            size: [10.0, 6.0, 1.0],
+            count: [1, 1, 1],
+            rotation: [30.0, 0.0, 0.0],
+        };
+        let disc = |n| {
+            Discretization {
+                nx: n,
+                ny: n,
+                nz: 1,
+            }
+            .offsets(&geometry)
+        };
+        let (one, four) = (disc(1), disc(4));
+        for simple in [false, true] {
+            let m = MultipleIndicator {
+                simple,
+                ..model(vec![0.5, 1.0, 2.0], variograms.clone())
+            };
+            let global = m.global(&samples, None).unwrap();
+            let kriged = |t: &Point, b| m.kriged(t, &samples, &global, None, b).unwrap();
+            for t in grid().iter().step_by(37) {
+                let point = kriged(t, None);
+                assert_eq!(kriged(t, Some(&one)), point);
+                let at = |o: &Point| (t.0 + o.0, t.1 + o.1, t.2 + o.2);
+                let points: Vec<Vec<f64>> = four.iter().map(|o| kriged(&at(o), None)).collect();
+                for (k, b) in kriged(t, Some(&four)).iter().enumerate() {
+                    let mean = points.iter().map(|p| p[k]).sum::<f64>() / points.len() as f64;
+                    assert!((b - mean).abs() < 1e-9, "{b} {mean}");
+                }
+            }
+            let predict = |b| {
+                m.predict(&samples, None, &grid(), b, &[search(30.0)], None, &[], &[])
+                    .unwrap()
+                    .mean
+            };
+            assert_eq!(predict(Some(&one)), predict(None));
+        }
+    }
+
+    #[test]
     fn one_threshold_equals_indicator_kriging() {
         let samples = data(80, 3);
         let vg = Variogram::single(Model::Spherical, 0.25, 30.0);
         let m = model(vec![1.0], vec![vg.clone()]);
         let s = m
-            .predict(&samples, None, &grid(), &[search(25.0)], None, &[], &[])
+            .predict(
+                &samples,
+                None,
+                &grid(),
+                None,
+                &[search(25.0)],
+                None,
+                &[],
+                &[],
+            )
             .unwrap();
         let ik = estimate_many(&grid(), None, &samples, &search(25.0), Some(&vg), |t, n| {
             krige(Kind::Indicator { threshold: 1.0 }, t, n, &vg)
@@ -923,7 +1015,7 @@ mod tests {
         let m = model(vec![0.2, 0.5, 0.8, 1.2, 1.8, 2.6], variograms);
         let searches = [search(6.0), search(40.0)];
         let s = m
-            .predict(&samples, None, &grid(), &searches, None, &[], &[])
+            .predict(&samples, None, &grid(), None, &searches, None, &[], &[])
             .unwrap();
         let d = s.diagnostics.unwrap();
         for i in 0..grid().len() {
@@ -959,6 +1051,7 @@ mod tests {
                 &samples,
                 Some(&weights),
                 &far,
+                None,
                 &[search(1e6)],
                 None,
                 &[],
@@ -985,6 +1078,7 @@ mod tests {
                         &samples,
                         None,
                         &grid(),
+                        None,
                         &[search(20.0), search(80.0)],
                         None,
                         &[1.0],
@@ -1046,7 +1140,16 @@ mod tests {
             .map(|c| Some((c[0] * 0.37).sin() + c[1] * 0.01))
             .collect();
         let grades = m
-            .localize(samples, None, &[search(60.0)], &panels, &smus, &ranking, f)
+            .localize(
+                samples,
+                None,
+                &[search(60.0)],
+                &panels,
+                &smus,
+                &ranking,
+                f,
+                None,
+            )
             .unwrap()
             .into_iter()
             .map(Option::unwrap)
@@ -1093,6 +1196,7 @@ mod tests {
                 samples,
                 &global,
                 &centroids(),
+                None,
                 &[search(60.0)],
                 None,
                 |_, _, r| r,
@@ -1138,6 +1242,7 @@ mod tests {
                     &samples,
                     None,
                     &centroids(),
+                    None,
                     &[search(60.0)],
                     None,
                     &[],

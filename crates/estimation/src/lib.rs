@@ -26,7 +26,7 @@ pub mod simple_interp;
 pub mod validate;
 
 pub use batch::{by_pass, estimate_many, k_fold_at, leave_one_out_at, leave_one_out_many};
-pub use block::{Discretization, block_krige};
+pub use block::{Discretization, block_krige, block_krige_points};
 pub use cokrige::{CoKind, CoSample, cokrige, collocated_cokrige};
 pub use disjunctive::{DisjunctiveKriging, GaussianSample};
 pub use error::{EstimError, Result};

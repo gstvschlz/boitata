@@ -6,8 +6,9 @@
 
 use crate::Sample;
 use crate::error::{EstimError, Result};
-use crate::krige::Estimate;
-use nalgebra::{DMatrix, DVector};
+use crate::krige::{Estimate, Kind};
+use ceres_core::{Geometry, block_frame};
+use nalgebra::{DMatrix, DVector, Vector3};
 use serde::{Deserialize, Serialize};
 use variogram::Variogram;
 
@@ -52,12 +53,23 @@ impl Discretization {
         }
         pts
     }
+
+    /// Discretization points of a cell of `geometry` relative to its
+    /// centroid, in the grid's rotated frame.
+    pub fn offsets(&self, geometry: &Geometry) -> Vec<(f64, f64, f64)> {
+        let [x, y, z] = geometry.size;
+        let frame = block_frame(geometry.rotation).transpose();
+        self.points(&(0.0, 0.0, 0.0), &(x, y, z))
+            .into_iter()
+            .map(|(x, y, z)| {
+                let p = frame * Vector3::new(x, y, z);
+                (p[0], p[1], p[2])
+            })
+            .collect()
+    }
 }
 
 /// Ordinary block kriging over a discretized block.
-///
-/// Only the ordinary form is provided (the common case for resource blocks); simple
-/// block kriging follows the same pattern with the constraint row removed.
 pub fn block_krige(
     center: &(f64, f64, f64),
     size: &(f64, f64, f64),
@@ -65,16 +77,28 @@ pub fn block_krige(
     disc: &Discretization,
     vg: &Variogram,
 ) -> Result<Estimate> {
+    block_krige_points(Kind::Ordinary, &disc.points(center, size), samples, vg)
+}
+
+/// Kriging of the mean over the block discretized by `pts`, in the form of
+/// `kind` as [`crate::krige`] applies it to points.
+pub fn block_krige_points(
+    kind: Kind,
+    pts: &[(f64, f64, f64)],
+    samples: &[Sample],
+    vg: &Variogram,
+) -> Result<Estimate> {
     let n = samples.len();
     if n == 0 {
         return Err(EstimError::InsufficientData("no samples".into()));
     }
-    let pts = disc.points(center, size);
+    let ordinary = !matches!(kind, Kind::Simple { .. });
+    let dim = if ordinary { n + 1 } else { n };
     let np = pts.len() as f64;
 
     // Point-to-block average covariance for each sample (RHS) and block-to-block
     // average covariance (for the variance term).
-    let mut b = DVector::<f64>::zeros(n + 1);
+    let mut b = DVector::<f64>::zeros(dim);
     for i in 0..n {
         let avg: f64 = pts
             .iter()
@@ -83,26 +107,29 @@ pub fn block_krige(
             / np;
         b[i] = avg;
     }
-    b[n] = 1.0;
 
     // Average block-to-block covariance C(B,B).
     let mut cbb = 0.0;
-    for p in &pts {
-        for q in &pts {
+    for p in pts {
+        for q in pts {
             cbb += vg.block_cov_points(p, q);
         }
     }
     cbb /= np * np;
 
-    // Sample-to-sample covariance with the OK constraint.
-    let mut a = DMatrix::<f64>::zeros(n + 1, n + 1);
+    let mut a = DMatrix::<f64>::zeros(dim, dim);
     for i in 0..n {
         for j in 0..n {
             a[(i, j)] = vg.cov_points(&samples[i].loc, &samples[j].loc);
         }
         a[(i, i)] += samples[i].error_variance;
-        a[(i, n)] = 1.0;
-        a[(n, i)] = 1.0;
+        if ordinary {
+            a[(i, n)] = 1.0;
+            a[(n, i)] = 1.0;
+        }
+    }
+    if ordinary {
+        b[n] = 1.0;
     }
 
     let x = a
@@ -111,8 +138,19 @@ pub fn block_krige(
         .ok_or_else(|| EstimError::Singular("block kriging matrix not invertible".into()))?;
 
     let weights: Vec<f64> = x.as_slice()[..n].to_vec();
-    let value: f64 = (0..n).map(|i| weights[i] * samples[i].value).sum();
-    let mu = x[n];
+    let sum = |f: &dyn Fn(f64) -> f64| {
+        (0..n)
+            .map(|i| weights[i] * f(samples[i].value))
+            .sum::<f64>()
+    };
+    let value: f64 = match kind {
+        Kind::Simple { mean } => mean + sum(&|z| z - mean),
+        Kind::Indicator { threshold } => {
+            sum(&|z| f64::from(u8::from(z <= threshold))).clamp(0.0, 1.0)
+        }
+        Kind::Ordinary => sum(&|z| z),
+    };
+    let mu = if ordinary { x[n] } else { 0.0 };
     let sum_wc: f64 = (0..n).map(|i| weights[i] * b[i]).sum();
     // Block kriging variance: C(B,B) − Σλ C(xᵢ,B) − μ.
     let variance = (cbb - sum_wc - mu).max(0.0);
@@ -130,7 +168,6 @@ pub fn block_krige(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::krige::Kind;
     use variogram::model::Model;
 
     #[test]

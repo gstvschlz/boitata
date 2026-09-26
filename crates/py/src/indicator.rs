@@ -2,8 +2,8 @@ use std::sync::Arc;
 
 use arrow_array::{ArrayRef, Float64Array, RecordBatch};
 use estimation::{
-    IndicatorDiagnostics, IndicatorSummary as CoreSummary, Interpolation, MultipleIndicator,
-    Sample, Search as CoreSearch, UpperTail,
+    Discretization, IndicatorDiagnostics, IndicatorSummary as CoreSummary, Interpolation,
+    MultipleIndicator, Sample, Search as CoreSearch, UpperTail,
 };
 use numpy::ndarray::Array2;
 use numpy::{IntoPyArray, PyArray1, PyArray2};
@@ -183,12 +183,17 @@ impl MultipleIndicatorKriging {
     ///     Orients every threshold's variogram and the search at each target.
     /// diagnostics : bool
     ///     Fill ``IndicatorSummary.diagnostics``.
+    /// discretization : tuple of int, optional
+    ///     Points per axis of each block of a BlockModel `targets`: the
+    ///     indicators are kriged over the block, giving the distribution of
+    ///     the point values within it rather than at its centroid.
     ///
     /// Returns
     /// -------
     /// IndicatorSummary
     ///     NaN where the search found too few samples.
-    #[pyo3(signature = (targets, cutoffs=vec![], quantiles=vec![], anisotropy=None, diagnostics=false))]
+    #[pyo3(signature = (targets, cutoffs=vec![], quantiles=vec![], anisotropy=None, diagnostics=false, discretization=None))]
+    #[allow(clippy::too_many_arguments)]
     fn predict(
         &self,
         py: Python,
@@ -197,8 +202,18 @@ impl MultipleIndicatorKriging {
         quantiles: Vec<f64>,
         anisotropy: Option<PyRef<crate::lva::LocalAnisotropy>>,
         diagnostics: bool,
+        discretization: Option<(usize, usize, usize)>,
     ) -> PyResult<IndicatorSummary> {
         let (samples, weights) = self.fitted()?;
+        let block = match discretization {
+            None => None,
+            Some(d) => {
+                let model = targets
+                    .cast::<PyBlockModel>()
+                    .map_err(|_| invalid("discretization needs BlockModel targets"))?;
+                Some(offsets(&model.get().0, d)?)
+            }
+        };
         let targets = self::targets(targets)?;
         let local = anisotropy.map(|a| a.at_targets(&targets));
         py.detach(|| {
@@ -206,6 +221,7 @@ impl MultipleIndicatorKriging {
                 samples,
                 weights.as_deref(),
                 &targets,
+                block.as_deref(),
                 &self.search,
                 local.as_ref(),
                 &cutoffs,
@@ -264,7 +280,7 @@ impl MultipleIndicatorKriging {
     /// Localised grades of the selective blocks nested in the panels.
     ///
     /// Each panel's point-support conditional distribution, kriged at its
-    /// centroid, takes an affine change of support to the selective blocks,
+    /// centroid or over the panel, takes an affine change of support to the selective blocks,
     /// ``m + sqrt(f) * (z - m)`` about its mean ``m``. A panel holding ``n``
     /// blocks splits that distribution into ``n`` equal-probability bands, and
     /// its block ranked ``i`` gets the mean of band ``i``: the blocks average
@@ -288,6 +304,9 @@ impl MultipleIndicatorKriging {
     ///     of the block averages. The median threshold's variogram by default.
     /// name : str, optional
     ///     Name of the new column; ``"localized"`` by default.
+    /// discretization : tuple of int, optional
+    ///     Points per axis of each panel to krige the indicators over; at the
+    ///     centroid by default.
     ///
     /// Returns
     /// -------
@@ -300,7 +319,8 @@ impl MultipleIndicatorKriging {
     /// InvalidInput
     ///     If the blocks do not nest, or a block of an estimated panel has a
     ///     null rank.
-    #[pyo3(signature = (panels, smus, ranking, variance_factor=None, name=None))]
+    #[pyo3(signature = (panels, smus, ranking, variance_factor=None, name=None, discretization=None))]
+    #[allow(clippy::too_many_arguments)]
     fn localize(
         &self,
         py: Python,
@@ -309,8 +329,12 @@ impl MultipleIndicatorKriging {
         ranking: &str,
         variance_factor: Option<&Bound<PyAny>>,
         name: Option<&str>,
+        discretization: Option<(usize, usize, usize)>,
     ) -> PyResult<PyBlockModel> {
         let (samples, weights) = self.fitted()?;
+        let discretization = discretization
+            .map(|d| offsets(&panels.0, d).map(|_| disc(d)))
+            .transpose()?;
         let rank = nullable(&smus, ranking)?;
         let (panel_model, smu_model) = (&panels.0, &smus.0);
         let f = match variance_factor {
@@ -334,6 +358,7 @@ impl MultipleIndicatorKriging {
                     smu_model,
                     &rank,
                     f,
+                    discretization,
                 )
             })
             .map_err(invalid)?;
@@ -371,6 +396,26 @@ impl MultipleIndicatorKriging {
     fn thresholds(&self) -> Vec<f64> {
         self.model.thresholds.clone()
     }
+}
+
+fn disc((nx, ny, nz): (usize, usize, usize)) -> Discretization {
+    Discretization { nx, ny, nz }
+}
+
+/// Discretization points of a block of `model` about its centroid.
+fn offsets(
+    model: &ceres_core::BlockModel,
+    d: (usize, usize, usize),
+) -> PyResult<Vec<(f64, f64, f64)>> {
+    if d.0 == 0 || d.1 == 0 || d.2 == 0 {
+        return Err(invalid("discretization must be positive"));
+    }
+    if matches!(model.layout(), ceres_core::Layout::SubBlocked { .. }) {
+        return Err(invalid(
+            "discretization needs a regular or masked BlockModel",
+        ));
+    }
+    Ok(disc(d).offsets(model.geometry()))
 }
 
 impl MultipleIndicatorKriging {
