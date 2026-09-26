@@ -1,7 +1,7 @@
 """
 # 16. Exploratory data analysis
 
-Duplicates, statistics and distributions per domain, top cuts, grade-tonnage, contacts, swaths, h-scatterplots and
+Duplicates, paired data of two drilling types, statistics and distributions per domain, top cuts, grade-tonnage, contacts, swaths, h-scatterplots and
 correlations on the 2 m composites of the drillhole dataset. Every function skips missing values, so raw columns go in as they are.
 """
 
@@ -16,7 +16,7 @@ sys.path.insert(0, str(HERE.parent))
 import ceres as cs
 import matplotlib.pyplot as plt
 import numpy as np
-from common import ACCENT, GREY, INK, save
+from common import ACCENT, GREY, HIGHLIGHT, INK, map_axes, save
 
 # %% [markdown]
 # The tables are checked and fixed with the default rules first, as in [chapter 6](../06-drillholes/README.md):
@@ -70,6 +70,70 @@ xyz = composites.coords
 zn = composites["ZN"]
 lith = np.array(composites.attributes["LITH"])
 hole = np.array(composites.attributes["hole"])
+
+# %% [markdown]
+# ## Paired data
+#
+# Most holes are diamond drill holes (DD); many others are sludge holes, and some percussion (PC). Are their grades
+# alike? `pairs` finds, for each DD composite, the nearest composite of the other type within 10 m, each composite in
+# at most one pair, the closest pairs first. `paired_bias` compares the paired means per bin of pairing distance: the
+# bias read at short distances is the sampling bias, not a change of grade over space.
+
+# %%
+collar = tables["collar"]
+kind = dict(zip(collar["HOLEID"], collar["TYPE"], strict=True))
+drilling = np.array([kind[h] for h in hole])
+dd = drilling == "DD"
+edges = np.arange(0.0, 11.0, 2.0)
+paired, bias = {}, {}
+for name in ["SLUDGE", "PC"]:
+    other = drilling == name
+    paired[name] = cs.pairs(xyz[dd], xyz[other], 10.0, values=(zn[dd], zn[other]))
+    bias[name] = cs.paired_bias(paired[name], edges)
+    p = paired[name]
+    print(f"DD-{name}: {len(p)} pairs, Zn {np.mean(p['value_a']):.2f} vs {np.mean(p['value_b']):.2f} %")
+
+# %% [markdown]
+# Sludge composites average about 5 % less Zn than their DD pairs, but the bins swing between -10 and +10 %: no
+# consistent bias. Percussion composites read two to four times the DD grade in pairs closer than 4 m, and still
+# more than 1.5 times at 10 m. A bias that is largest where the pairs are closest is a sampling problem, not a change
+# of grade over space, and a reason to leave PC out of the estimate.
+
+# %%
+fig, axes = plt.subplots(1, 2, figsize=(9, 3.4), layout="constrained")
+for ax, name in zip(axes, ["SLUDGE", "PC"], strict=True):
+    cs.plot.paired_bias(bias[name], ax=ax, color=ACCENT)
+    ax.set(title=f"{name} against DD", xlabel="Pairing distance (m)", ylabel=f"Bias of {name} over DD (%)")
+save(fig, "paired_bias")
+
+# %% [markdown]
+# The Q-Q plot and the scatter plot of the DD-PC pairs, and the pairs on a plan with the five largest differences
+# listed and marked. The Q-Q plot sits above the 1:1 line at every quantile.
+
+# %%
+p = paired["PC"]
+a, b = p["a"].astype(int), p["b"].astype(int)
+pc_rows, dd_rows = np.flatnonzero(drilling == "PC")[b], np.flatnonzero(dd)[a]
+worst = np.argsort(-np.abs(p["value_b"] - p["value_a"]))[:5]
+print(f"{'DD hole':<9}{'PC hole':<9}{'distance':>9}{'DD Zn':>7}{'PC Zn':>7}")
+for k in worst:
+    print(
+        f"{hole[dd_rows[k]]:<9}{hole[pc_rows[k]]:<9}{p['distance'][k]:>9.1f}"
+        f"{p['value_a'][k]:>7.2f}{p['value_b'][k]:>7.2f}"
+    )
+fig, (q, s, m) = plt.subplots(1, 3, figsize=(11, 3.6), layout="constrained")
+cs.plot.qq(p["value_a"], p["value_b"], ax=q, color=ACCENT)
+q.set(title="Q-Q, DD-PC pairs", xlabel="DD Zn (%)", ylabel="PC Zn (%)")
+cs.plot.scatter(p["value_a"], p["value_b"], ax=s, color=ACCENT)
+s.set(title="Scatter, DD-PC pairs", xlabel="DD Zn (%)", ylabel="PC Zn (%)")
+s.legend(loc="upper left")
+m.scatter(*xyz[dd_rows, :2].T, s=4, color=GREY, label="paired DD composites")
+m.scatter(
+    *xyz[dd_rows[worst], :2].T, s=30, facecolors="none", edgecolors=HIGHLIGHT, label="5 largest differences"
+)
+map_axes(m, "DD-PC pairs")
+m.legend(loc="lower left")
+save(fig, "paired")
 
 # %% [markdown]
 # ## Declustered statistics

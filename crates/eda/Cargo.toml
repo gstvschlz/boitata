@@ -1,6 +1,6 @@
 [package]
 name = "eda"
-description = "Exploratory data analysis: declustered statistics, swaths, contacts, capping, h-scatter, correlation"
+description = "Exploratory data analysis: declustered statistics, swaths, contacts, capping, h-scatter, correlation, paired data"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -8,10 +8,14 @@ license.workspace = true
 publish.workspace = true
 
 [dependencies]
+kiddo.workspace = true
 rayon.workspace = true
 thiserror.workspace = true
 transforms.workspace = true
 variogram.workspace = true
+
+[dev-dependencies]
+rand.workspace = true
 
 [lints]
 workspace = true

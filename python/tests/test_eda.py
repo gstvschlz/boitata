@@ -120,6 +120,23 @@ def test_capping_report_by_domain():
         cs.capping_report(v, d, {4: 1.0})
 
 
+def test_pairs_recover_twins_and_their_bias():
+    a = np.c_[np.arange(0.0, 500.0, 25.0), np.zeros(20)]
+    order = rng.permutation(20)
+    b = cs.PointSet(a[order] + rng.uniform(-1, 1, (20, 2)))
+    za = rng.uniform(1, 5, 20)
+    zb = 1.1 * za[order]
+    p = cs.pairs(a, b, 3.0, values=(za, zb))
+    np.testing.assert_array_equal(order[p["b"].astype(int)], p["a"])
+    np.testing.assert_allclose(p["value_b"], 1.1 * p["value_a"])
+    bias = cs.paired_bias(p, bins=[0, 1, 2])
+    assert bias["n"].sum() == 20
+    np.testing.assert_allclose(bias["bias"], 0.1)
+    assert len(cs.pairs(a, b, 3.0, holes=(np.arange(20), order))) == 0
+    with pytest.raises(cs.InvalidInput):
+        cs.pairs(a, b, 3.0, values=za)
+
+
 def test_duplicates_report_group_ids_and_merge():
     coords = np.array([[0, 0, 0], [5, 0, 0], [0, 0, 0], [0.4, 0.3, 0], [9, 9, 9]], dtype=float)
     report, group = cs.duplicates(coords)

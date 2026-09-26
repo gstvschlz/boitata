@@ -20,6 +20,10 @@
 
 ::: ceres.duplicates
 
+::: ceres.pairs
+
+::: ceres.paired_bias
+
 ::: ceres.global_bias
 
 ::: ceres.hole_distance
