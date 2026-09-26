@@ -36,6 +36,7 @@ run = "python ci/compat.py {{usage.mode}}"
 
 [tools]
 pixi = "0.81"
+git-cliff = "2.13"
 python = "3.13"
 uv = "0.12"
 micromamba = "2.9"
@@ -58,3 +59,5 @@ run = ["uv run --no-sync python -c \"import shutil; [shutil.rmtree(p, True) for 
 
 [tasks."conda:recipe"]
 run = "pixi exec rattler-build build -r packaging/conda-forge -m packaging/conda-forge/local-variants.yaml --output-dir .compat/conda-bld"
+[tasks.changelog]
+run = "git-cliff -o CHANGELOG.md"
