@@ -603,3 +603,26 @@ def test_calibration_errors():
         cs.calibrate_search(idw, [search], blocks, cutoffs=[1.0], anamorphosis=anamorphosis)
     with pytest.raises(ValueError, match="no target"):
         cs.calibrate_search(kriging, [cs.Search(radius=1, min_samples=3)], [[500.0, 500.0]])
+
+
+def test_calibration_by_domain_matches_the_domain_alone():
+    weights = cs.cell_declustering(coords, values, cell_size=20.0).weights
+    scenarios = [
+        cs.Search(radius=30, max_samples=8),
+        [cs.Search(radius=30, max_samples=16), cs.Search(radius=80)],
+    ]
+    at, inside = grid[grid_zone == "MS"], zone == "MS"
+    kriging = zoned()
+    by_domain = cs.calibrate_search(kriging, scenarios, at, weights=weights, domains="MS")
+    alone = cs.OrdinaryKriging(model, search).fit(coords[inside], values[inside])
+    reference = cs.calibrate_search(alone, scenarios, at, weights=weights[inside])
+    assert by_domain.column_names == reference.column_names
+    for name in by_domain.column_names:
+        np.testing.assert_allclose(by_domain[name], reference[name], rtol=1e-12, atol=1e-15, err_msg=name)
+
+    hard, soft = cs.Search(radius=30, max_samples=16), cs.Search(radius=30, max_samples=16, soft=10.0)
+    table = cs.calibrate_search(kriging, [hard, soft], grid, domains=grid_zone)
+    assert np.all(table["estimated"] == 1.0)
+    assert table["slope_mean"][0] != table["slope_mean"][1]
+    with pytest.raises(cs.InvalidInput, match="predict needs domains"):
+        cs.calibrate_search(kriging, [hard], grid)

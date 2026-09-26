@@ -68,6 +68,19 @@ fn key(label: &Label) -> String {
     label.to_string()
 }
 
+/// `label` as the Python value it was given as.
+fn py_label<'py>(py: Python<'py>, label: &Label) -> PyResult<Bound<'py, PyAny>> {
+    match label {
+        Label::String(s) => s.into_bound_py_any(py),
+        Label::Bool(b) => b.into_bound_py_any(py),
+        Label::Number(n) => match n.as_i64() {
+            Some(i) => i.into_bound_py_any(py),
+            None => n.as_f64().into_bound_py_any(py),
+        },
+        other => Err(invalid(format!("unexpected domain label {other}"))),
+    }
+}
+
 /// Labels of a sequence, or of a single label repeated `n` times.
 fn labels(obj: &Bound<PyAny>, n: Option<usize>) -> PyResult<Vec<Label>> {
     let single = obj.is_instance_of::<PyString>() || obj.try_iter().is_err();
@@ -266,15 +279,7 @@ impl Search {
     /// when domain boundaries are hard.
     #[getter]
     fn soft<'py>(&self, py: Python<'py>) -> PyResult<Option<Bound<'py, PyAny>>> {
-        let label = |l: &Label| match l {
-            Label::String(s) => s.into_bound_py_any(py),
-            Label::Bool(b) => b.into_bound_py_any(py),
-            Label::Number(n) => match n.as_i64() {
-                Some(i) => i.into_bound_py_any(py),
-                None => n.as_f64().into_bound_py_any(py),
-            },
-            other => Err(invalid(format!("unexpected domain label {other}"))),
-        };
+        let label = |l: &Label| py_label(py, l);
         let Some(soft) = &self.soft else {
             return Ok(None);
         };
@@ -856,6 +861,20 @@ impl Estimator {
     #[getter]
     fn variogram(&self) -> Option<Variogram> {
         self.variogram.clone().map(Variogram)
+    }
+
+    /// Domain label of each fitted sample, after dropping shared locations;
+    /// None when fitted without domains.
+    #[getter]
+    fn _sample_domains<'py>(&self, py: Python<'py>) -> PyResult<Option<Vec<Bound<'py, PyAny>>>> {
+        let Some(labels) = &self.domains else {
+            return Ok(None);
+        };
+        self.fitted()?
+            .iter()
+            .map(|s| py_label(py, &labels[s.domain.expect("fitted with domains") as usize]))
+            .collect::<PyResult<_>>()
+            .map(Some)
     }
 
     /// Values of the fitted samples, after dropping shared locations.

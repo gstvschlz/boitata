@@ -282,6 +282,7 @@ def calibrate_search(
     cutoffs=None,
     anamorphosis=None,
     cross_validation: bool = True,
+    domains=None,
 ) -> Table:
     """Scores candidate searches for a fitted estimator, one row per scenario, to compare side by side.
 
@@ -310,6 +311,9 @@ def calibrate_search(
     cross_validation : bool
         Adds the cross-validation scores. It runs at point support with the same variogram and passes, so block
         kriging is cross-validated as ordinary kriging.
+    domains : array_like or label, optional
+        Domain label of each target, or one label for all of them, as in `predict`; required when the estimator
+        was fitted with domains. Cross-validation and the global bias then cover the samples of those domains only.
 
     Returns
     -------
@@ -343,19 +347,25 @@ def calibrate_search(
             raise ValueError(
                 f"{len(weights)} weights for {len(values)} fitted samples (samples sharing a location keep one)"
             )
+    keep = np.ones(len(values), dtype=bool)
+    if domains is not None and engine._sample_domains is not None:
+        scalar = isinstance(domains, str) or np.ndim(domains) == 0
+        wanted = {domains} if scalar else set(np.asarray(domains).tolist())
+        keep = np.array([label in wanted for label in engine._sample_domains], dtype=bool)
+    kept_weights = None if weights is None else weights[keep]
     cutoffs = [] if cutoffs is None else [float(c) for c in cutoffs]
     columns: dict[str, list[float]] = {}
     for i, scenario in enumerate(searches):
         candidate = engine.with_search(scenario)
-        d = candidate.predict(targets, diagnostics=True)
+        d = candidate.predict(targets, diagnostics=True, domains=domains)
         with np.errstate(divide="ignore", invalid="ignore"):
-            row = {"scenario": i, **_scores(d, values, weights)}
+            row = {"scenario": i, **_scores(d, values[keep], kept_weights)}
         if cutoffs:
             estimate = d["value"][np.isfinite(d["value"])]
             row |= _recoveries(estimate, row["block_variance"], engine.variogram, anamorphosis, cutoffs)
         if cross_validation:
             estimate, _ = candidate._point_support().cross_validate(folds)
-            row |= _cross_validation(values, estimate, weights)
+            row |= _cross_validation(values[keep], estimate[keep], kept_weights)
         for key, value in row.items():
             columns.setdefault(key, []).append(value)
     return Table({key: np.asarray(column, dtype=float) for key, column in columns.items()})
