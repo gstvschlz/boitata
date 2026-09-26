@@ -164,18 +164,10 @@ save(fig, "compositing")
 # %%
 lith = np.array(composites.attributes["LITH"])
 names, counts = np.unique(lith[lith != ""], return_counts=True)
-top = names[np.argsort(counts)[::-1][:8]]
-fig, ax = plt.subplots(figsize=(7, 3.6), layout="constrained")
-for i, name in enumerate(top):
-    values = zn[(lith == name) & ~np.isnan(zn)]
-    q1, med, q3 = np.percentile(values, [25, 50, 75])
-    ax.plot([q1, q3], [i, i], color=ACCENT, lw=5, alpha=0.35, solid_capstyle="butt")
-    ax.plot(med, i, "|", color=ACCENT, ms=14, mew=2)
-    ax.text(q3, i, f"  n = {len(values):,}", va="center", color=GREY, fontsize=8)
-ax.set_yticks(range(len(top)), top)
-ax.invert_yaxis()
-ax.set_xscale("log")
-ax.set(title="Zn of 2 m composites by lithology (median and interquartile range)", xlabel="Zn (%)")
+top = np.isin(lith, names[np.argsort(counts)[::-1][:8]])
+fig, ax = plt.subplots(figsize=(8, 3.6), layout="constrained")
+cs.plot.boxplot(zn[top], lith[top], sort=True, log=True, ax=ax)
+ax.set(title="Zn of 2 m composites by lithology (P10, P25, median, P75, P90 and mean)", ylabel="Zn (%)")
 save(fig, "domains")
 
 

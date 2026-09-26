@@ -1,7 +1,7 @@
 """
 # 16. Exploratory data analysis
 
-Statistics per domain, top cuts, contacts, swaths, h-scatterplots and correlations on the 2 m composites of the
+Statistics and distributions per domain, top cuts, contacts, swaths, h-scatterplots and correlations on the 2 m composites of the
 drillhole dataset. Every function skips missing values, so raw columns go in as they are.
 """
 
@@ -52,13 +52,46 @@ print(f"{len(composites)} composites")
 # of the number of composites in its cell; `describe` gives weighted moments and quantiles.
 
 # %%
+domains = ["MS", "SM", "QE", "EX", "RH"]
+weights = np.zeros(len(zn))
 print(f"{'LITH':<6}{'n':>7}{'mean':>8}{'declust.':>10}{'CV':>6}{'P50':>7}{'P90':>7}")
-for name in ["MS", "SM", "QE", "EX", "RH"]:
+for name in domains:
     keep = (lith == name) & ~np.isnan(zn)
-    w = cs.cell_declustering(xyz[keep], zn[keep], cell_size=50.0).weights
+    weights[keep] = w = cs.cell_declustering(xyz[keep], zn[keep], cell_size=50.0).weights
     naive, s = cs.describe(zn[keep]), cs.describe(zn[keep], w, quantiles=[0.5, 0.9])
     p50, p90 = s["quantiles"]
     print(f"{name:<6}{s['n']:>7}{naive['mean']:>8.2f}{s['mean']:>10.2f}{s['cv']:>6.2f}{p50:>7.2f}{p90:>7.2f}")
+
+# %% [markdown]
+# The same declustered quantiles as box plots, sorted by median: the box spans P25 to P75, the whiskers P10 to P90,
+# the dot is the declustered mean.
+
+# %%
+five = np.isin(lith, domains)
+fig, ax = plt.subplots(figsize=(7, 3.4), layout="constrained")
+cs.plot.boxplot(zn[five], lith[five], weights=weights[five], sort=True, log=True, ax=ax)
+ax.set(title="Declustered Zn by lithology", ylabel="Zn (%)")
+save(fig, "boxplot")
+
+# %% [markdown]
+# Cumulative distributions show that declustering shifts MS only slightly towards low grades. The Q-Q plot compares
+# MS with SM quantile by quantile: above about 1 % Zn they follow the 1:1 line, below it MS is richer, so the two
+# domains differ in their low tail rather than in their high grades.
+
+# %%
+ms, sm = lith == "MS", lith == "SM"
+fig, (a, b) = plt.subplots(1, 2, figsize=(9, 3.6), layout="constrained")
+cs.plot.cdf(
+    [zn[ms], zn[ms], zn[sm]],
+    weights=[None, weights[ms], weights[sm]],
+    labels=["MS naive", "MS declustered", "SM declustered"],
+    log=True,
+    ax=a,
+)
+a.set(title="Cumulative distribution of Zn", xlabel="Zn (%)")
+cs.plot.qq(zn[sm], zn[ms], weights[sm], weights[ms], log=True, ax=b)
+b.set(title="Q-Q, declustered: P1 to P99", xlabel="SM Zn (%)", ylabel="MS Zn (%)")
+save(fig, "distributions")
 
 # %% [markdown]
 # ## Top cuts
