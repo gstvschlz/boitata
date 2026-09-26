@@ -163,4 +163,4 @@ save(fig, "domains")
 
 ![domains](domains.png)
 
-Full script: [`example.py`](example.py)
+Full script: [`example_06.py`](example_06.py)

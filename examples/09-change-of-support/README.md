@@ -162,4 +162,4 @@ DK: mean predicted P(V > 500) 0.233, true proportion 0.189
 
 ![disjunctive](disjunctive.png)
 
-Full script: [`example.py`](example.py)
+Full script: [`example_09.py`](example_09.py)

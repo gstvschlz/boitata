@@ -136,7 +136,7 @@ print(
 </details>
 
 ```text
-78,000 nodes in 0.02 s; RMSE against all exhaustive values 156.2 ppm
+78,000 nodes in 0.03 s; RMSE against all exhaustive values 156.2 ppm
 ```
 
-Full script: [`example.py`](example.py)
+Full script: [`example_12.py`](example_12.py)

@@ -1678,9 +1678,11 @@ dependencies = [
 name = "transforms"
 version = "0.1.0"
 dependencies = [
+ "kiddo",
  "libm",
  "nalgebra",
  "serde",
+ "serde_json",
  "thiserror",
  "variogram",
 ]

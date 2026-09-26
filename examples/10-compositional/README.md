@@ -94,4 +94,4 @@ save(fig, "scatter")
 
 ![scatter](scatter.png)
 
-Full script: [`example.py`](example.py)
+Full script: [`example_10.py`](example_10.py)
