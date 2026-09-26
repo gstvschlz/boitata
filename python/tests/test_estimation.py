@@ -1,3 +1,5 @@
+import pickle
+
 import ceres as cs
 import numpy as np
 import pytest
@@ -767,9 +769,14 @@ def test_column_names_match_arrays():
     names = ok.fit(samples, "grade", holes="hole", domain_column="zone").predict(blocks, domain_column="zone")
     np.testing.assert_array_equal(names, arrays)
     w = np.linspace(1, 2, len(values))
-    fitted = cs.OrdinaryKriging(model, search).fit(samples.with_column("w", w), "grade")
-    by_name, by_array = (cs.calibrate_search(fitted, [search], grid, weights=x) for x in ("w", w))
+    weighted = samples.with_column("w", w)
+    fitted = cs.OrdinaryKriging(model, search).fit(weighted, "grade")
+    by_name = cs.calibrate_search(fitted, [search], grid, weights="w", data=weighted)
+    by_array = cs.calibrate_search(fitted, [search], grid, weights=w)
     assert by_name["cv_rmse"][0] == by_array["cv_rmse"][0] != fitted.cross_validate().rmse
+    with pytest.raises(cs.InvalidInput, match="data="):
+        cs.calibrate_search(fitted, [search], grid, weights="w")
+    assert b"PointSet" not in pickle.dumps(fitted) + pickle.dumps(fitted.with_search(search))
     a = cs.neighborhood_stats(grid, coords, values, k=5, holes=holes)
     b = cs.neighborhood_stats(grid, samples, "grade", k=5, holes="hole")
     for c in a.column_names:
