@@ -248,16 +248,11 @@ blocks = (
     .with_column("p_above_10", summary.probability_above[0])
     .with_column("class", np.select([classes == n for n in names], range(3)).astype(float))
 )
-row = int(np.bincount(blocks.index // count[0] % count[1]).argmax())
-regular = blocks.to_regular()
-on_row = {
-    name: regular[name].reshape(count[2], count[1], count[0])[:, row] for name in ("mean", "uncertainty")
-}
-extent = (origin[0], origin[0] + 5 * count[0], origin[2], origin[2] + 5 * count[2])
-k, i = np.nonzero(~np.isnan(on_row["mean"]))
-xlim = origin[0] + 5 * np.array([i.min() - 2, i.max() + 3])
-ylim = origin[2] + 5 * np.array([k.min() - 2, k.max() + 3])
-north = origin[1] + (row + 0.5) * 5
+rows = blocks.index // count[0] % count[1]
+row = int(np.bincount(rows).argmax())
+on_row = blocks.centroids[rows == row]
+xlim, ylim = ((on_row[:, j].min() - 12.5, on_row[:, j].max() + 12.5) for j in (0, 2))
+north = on_row[0, 1]
 on_section = np.abs(xyz[:, 1] - north) < 5
 
 fig = plt.figure(figsize=(11, 6.4), layout="constrained")
@@ -265,9 +260,11 @@ axes = fig.subplots(2, 4, height_ratios=[4, 1])
 grade = plt.Normalize(0, 25)
 cs.plot.section(blocks, "zn", axis="y", index=row, ax=axes[0, 0], colorbar=False, cmap="viridis", norm=grade)
 cs.plot.uncertain(
-    on_row["mean"],
-    on_row["uncertainty"],
-    extent=extent,
+    "mean",
+    "uncertainty",
+    block_model=blocks,
+    axis="y",
+    index=row,
     norm=grade,
     label="Zn (%)",
     legend_ax=axes[1, 1],

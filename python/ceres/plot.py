@@ -169,30 +169,36 @@ def section(block_model, values, axis="z", index=None, colorbar=True, ax=None, *
         Passed to ``ax.imshow`` (e.g. ``cmap``, ``norm``, ``vmin``).
     """
     fig, ax = _axes(ax)
-    name = values if isinstance(values, str) else None
-    if name is None:
-        block_model = block_model.with_column("_values", values)
-        name = "_values"
+    (image,), extent = _slice(ax, block_model, [values], axis, index)
+    im = ax.imshow(image, origin="lower", extent=extent, **kwargs)
+    if colorbar:
+        fig.colorbar(im, ax=ax, shrink=0.8, label=values if isinstance(values, str) else None)
+    return fig, ax
+
+
+def _slice(ax, block_model, columns, axis, index):
+    names = []
+    for i, column in enumerate(columns):
+        if not isinstance(column, str):
+            block_model = block_model.with_column(f"_{i}", column)
+            column = f"_{i}"
+        names.append(column)
     grid = block_model.to_regular()
     nx, ny, nz = grid.count
-    cube = np.asarray(grid[name], dtype=float).reshape(nz, ny, nx)
     (x0, y0, z0), (sx, sy, sz) = grid.origin, grid.size
     x, y, z = (x0, x0 + nx * sx), (y0, y0 + ny * sy), (z0, z0 + nz * sz)
     k = {"x": 2, "y": 1, "z": 0}[axis]
-    index = cube.shape[k] // 2 if index is None else index
-    image = np.take(cube, index, axis=k)
+    index = (nz, ny, nx)[k] // 2 if index is None else index
+    images = [np.take(np.asarray(grid[n], dtype=float).reshape(nz, ny, nx), index, axis=k) for n in names]
     extent, labels = {
         "z": ((*x, *y), ("X", "Y")),
         "y": ((*x, *z), ("X", "Z")),
         "x": ((*y, *z), ("Y", "Z")),
     }[axis]
-    im = ax.imshow(image, origin="lower", extent=extent, **kwargs)
     ax.set_xlabel(labels[0])
     ax.set_ylabel(labels[1])
     ax.set_aspect("equal")
-    if colorbar:
-        fig.colorbar(im, ax=ax, shrink=0.8, label=None if name == "_values" else name)
-    return fig, ax
+    return images, extent
 
 
 def swath(swaths, labels=None, ax=None, **kwargs):
@@ -237,22 +243,39 @@ def _fade(values, uncertainty, cmap, norm):
 
 
 def uncertain(
-    values, uncertainty, extent=None, cmap="viridis", norm=None, label=None, legend_ax=None, ax=None
+    values,
+    uncertainty,
+    block_model=None,
+    axis="z",
+    index=None,
+    extent=None,
+    cmap="viridis",
+    norm=None,
+    label=None,
+    legend_ax=None,
+    ax=None,
 ):
     """Image whose colour gives a value and whose fading towards white gives how uncertain it is.
 
     The legend is a fan: the value runs across its angle, certainty along its radius, from white at the centre
-    (nothing known) to the full colour on the arc.
+    (uncertain) to the full colour on the arc (certain).
 
     Parameters
     ----------
-    values : array_like
-        2D image, e.g. the mean of the realizations on a section; NaN is left blank.
-    uncertainty : array_like
-        Same shape, from 0 (certain) to 1 (no information), e.g. the realizations' standard deviation over the
-        global one. Clipped to [0, 1].
+    values : str or array_like
+        2D image, e.g. the mean of the realizations on a section; NaN is left blank. With `block_model`, a column
+        name or one value per block.
+    uncertainty : str or array_like
+        Same shape as `values`, from 0 (certain) to 1 (no information), e.g. the realizations' standard deviation
+        over the global one. Clipped to [0, 1].
+    block_model : BlockModel, optional
+        Slice it as `section` does; missing blocks are left blank.
+    axis : {"x", "y", "z"}
+        With `block_model`, axis normal to the slice.
+    index : int, optional
+        With `block_model`, cell index along `axis` (default: the middle).
     extent : tuple of float, optional
-        Passed to ``ax.imshow``.
+        Passed to ``ax.imshow``; set from `block_model` when given.
     cmap : str or Colormap
     norm : Normalize, optional
         Maps values to [0, 1]; default spans their range.
@@ -264,6 +287,8 @@ def uncertain(
     import matplotlib as mpl
 
     fig, ax = _axes(ax)
+    if block_model is not None:
+        (values, uncertainty), extent = _slice(ax, block_model, [values, uncertainty], axis, index)
     values = np.asarray(values, dtype=float)
     cmap = mpl.colormaps[cmap] if isinstance(cmap, str) else cmap
     norm = norm or mpl.colors.Normalize(np.nanmin(values), np.nanmax(values))
@@ -282,9 +307,12 @@ def uncertain(
         fan.text(
             1.05 * np.cos(theta), 1.05 * np.sin(theta), f"{value:.3g}", ha=align, va="bottom", fontsize=8
         )
-    fan.text(-0.45, 0.27, "← certain", rotation=-45, ha="center", va="center", fontsize=7, color="0.4")
+    edge = np.array([[-0.1, -0.1], [-0.8, 0.6]])
+    fan.plot(*edge.T, color="0.4", lw=0.8, marker="o", ms=2)
+    for (x, y), text in zip(edge, ("uncertain", "certain"), strict=True):
+        fan.text(x - 0.06, y, text, ha="right", va="center", fontsize=7, color="0.4")
     if label:
-        fan.text(0, -0.05, label, ha="center", va="top", fontsize=9)
-    fan.set(xlim=(-1.2, 1.2), ylim=(-0.25, 1.2), aspect="equal")
+        fan.text(0, -0.2, label, ha="center", va="top", fontsize=9)
+    fan.set(xlim=(-1.5, 1.5), ylim=(-0.4, 1.2), aspect="equal")
     fan.axis("off")
     return fig, ax

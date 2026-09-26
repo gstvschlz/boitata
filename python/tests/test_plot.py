@@ -65,3 +65,14 @@ def test_uncertain_fades_to_white():
     rgba = ax.images[0].get_array()
     np.testing.assert_allclose(rgba[0, 1, :3], 1.0)
     assert rgba[0, 0, :3].max() < 1 and rgba[1, 1, 3] == 0
+
+
+def test_uncertain_slices_a_masked_model():
+    bm = cs.BlockModel(origin=(0, 0, 0), size=(2, 2, 1), count=(4, 3, 2))
+    bm = bm.with_column("g", np.arange(24.0)).mask(np.arange(24) != 5)
+    uncertainty = np.where(bm.index == 6, 1.0, 0.0)
+    _, ax = cs.plot.uncertain("g", uncertainty, block_model=bm, axis="z", index=0)
+    rgba = ax.images[0].get_array()
+    assert rgba.shape == (3, 4, 4) and ax.images[0].get_extent() == [0, 8, 0, 6]
+    np.testing.assert_allclose(rgba[1, 2, :3], 1.0)
+    assert rgba[1, 1, 3] == 0 and rgba[1, 3, :3].max() < 1
