@@ -193,6 +193,8 @@ pub fn sgs(
 /// back-transformed through its domain's at its trend; `vg_nscore` is then
 /// the variogram of the scores. The search's soft boundaries apply to data
 /// and simulated nodes alike. A node whose domain has no data is an error.
+/// With simulated domains, give each realization the node domains of its
+/// own domain realization.
 #[allow(clippy::too_many_arguments)]
 pub fn sgs_in(
     data_locs: &[(f64, f64, f64)],
@@ -1100,6 +1102,62 @@ pub(crate) mod tests {
         assert!(other_domain_used(Some(8.0), 2, false) > 0);
         assert!(other_domain_used(Some(20.0), 3, false) > 0);
         assert!(other_domain_used(Some(8.0), 4, true) > 0);
+    }
+
+    #[test]
+    fn each_realization_keeps_within_its_simulated_domains() {
+        let z = zoned();
+        let rows: Vec<usize> = (0..z.locs.len() - 10).collect();
+        let (locs, codes) = (pick(&z.locs, &rows), pick(&z.codes, &rows));
+        let grid = zoned_grid().0[..625].to_vec();
+        let cats: Vec<usize> = codes.iter().map(|&c| c as usize).collect();
+        let search = Search {
+            max_samples: 12,
+            radius: 30.0,
+            ..Default::default()
+        };
+        let facies = |seed| {
+            let params = crate::SisParams {
+                search: search.clone(),
+                seed,
+            };
+            crate::sis(&locs, &cats, None, &grid, 2, &[vg(), vg()], &params)
+                .unwrap()
+                .categories
+                .into_iter()
+                .map(|c| c as u32)
+                .collect::<Vec<_>>()
+        };
+        let maps: Vec<Vec<u32>> = (0..3).map(facies).collect();
+        assert!(maps[0] != maps[1] && maps[1] != maps[2]);
+        for (k, nodes) in maps.iter().enumerate() {
+            assert!(nodes.contains(&0) && nodes.contains(&1));
+            let params = SgsParams {
+                search: zoned_search(None),
+                seed: k as u64,
+            };
+            let mut used = 0;
+            simulate(
+                &locs,
+                &pick(&z.vals, &rows),
+                None,
+                Some(&pick(&z.holes, &rows)),
+                Some((&codes, nodes)),
+                None,
+                &grid,
+                &vg(),
+                &params,
+                None,
+                |node, idx, samples, _| {
+                    for &i in idx {
+                        assert_eq!(samples[i].domain, Some(nodes[node]));
+                        used += 1;
+                    }
+                },
+            )
+            .unwrap();
+            assert!(used > 0);
+        }
     }
 
     fn run(

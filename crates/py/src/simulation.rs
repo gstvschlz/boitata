@@ -416,6 +416,42 @@ fn node_domains(
         .transpose()
 }
 
+/// Domain codes of `nodes` nodes for each of `n` realizations, for `method`:
+/// one row shared by all from labels as in [`node_domains`], or one row per
+/// realization from an `(n, nodes)` array of simulated domains.
+fn realization_domains(
+    fitted: Option<&[Label]>,
+    obj: Option<&Bound<PyAny>>,
+    nodes: usize,
+    n: usize,
+    method: &str,
+) -> PyResult<Option<Vec<Vec<u32>>>> {
+    let np = obj.map(|o| o.py().import("numpy")).transpose()?;
+    let simulated = match (obj, &np) {
+        (Some(o), Some(np)) => np.call_method1("ndim", (o,))?.extract::<usize>()? == 2,
+        _ => false,
+    };
+    if !simulated {
+        return Ok(node_domains(fitted, obj, nodes, method)?.map(|c| vec![c]));
+    }
+    let array = np.expect("given").call_method1("asarray", (obj,))?;
+    let rows = array.try_iter()?.collect::<PyResult<Vec<_>>>()?;
+    if rows.len() != n {
+        return Err(invalid(format!(
+            "domains: expected {n} realizations of domains, got {}",
+            rows.len()
+        )));
+    }
+    rows.iter()
+        .map(|row| node_domains(fitted, Some(row), nodes, method))
+        .collect()
+}
+
+/// Domain codes of realization `k`'s nodes among [`realization_domains`].
+fn of_realization(rows: &Option<Vec<Vec<u32>>>, k: usize) -> Option<&[u32]> {
+    rows.as_ref().map(|r| &r[k % r.len()][..])
+}
+
 /// Sequential Gaussian simulation. `variogram` is the normal-score variogram
 /// (unit sill); data are normal-scored internally, with optional declustering
 /// weights, and realizations are back-transformed.
@@ -438,7 +474,9 @@ fn node_domains(
 /// distance, each as its grade (and trend) transformed through the node's
 /// domain; boundaries are hard without it. `high_grade` compares grades, of
 /// data and of simulated nodes, with its threshold. One random path visits
-/// the nodes of every domain.
+/// the nodes of every domain. Simulated domains at `simulate`, one
+/// realization of the domains per realization of the grades, carry the
+/// uncertainty of the domains into the grades.
 #[derive(Serialize, Deserialize)]
 #[pyclass(module = "ceres", name = "SGS")]
 pub struct Sgs {
@@ -605,7 +643,9 @@ impl Sgs {
     /// node is back-transformed within its trend class before any averaging.
     /// `domains`, needed when fitted with them, labels the targets, or is one
     /// label for all; a target in a domain without samples raises
-    /// InvalidInput.
+    /// InvalidInput. Simulated domains, an ``(n, targets)`` array such as
+    /// the `realizations` of SIS or Plurigaussian, give each realization its
+    /// own: realization ``k`` of the grades is simulated within row ``k``.
     #[pyo3(signature = (targets, n=100, seed=0, cutoffs=vec![], quantiles=vec![], realizations=false, anisotropy=None, blocks=None, trend=None, domains=None))]
     #[allow(clippy::too_many_arguments)]
     fn simulate(
@@ -624,8 +664,9 @@ impl Sgs {
     ) -> PyResult<SimulationSummary> {
         let d = self.data.as_ref().ok_or_else(not_fitted)?;
         let grid = self::targets(targets)?;
-        let nodes = node_domains(self.domains.as_deref(), domains, grid.len(), "simulate")?;
-        let search = resolved(&self.search, self.domains.as_deref())?;
+        let fitted = self.domains.as_deref();
+        let nodes = realization_domains(fitted, domains, grid.len(), n, "simulate")?;
+        let search = resolved(&self.search, fitted)?;
         let at_nodes = trend_at(d, targets, grid.len(), trend)?;
         let trend = d
             .trend
@@ -654,7 +695,7 @@ impl Sgs {
                     &d.values,
                     d.weights.as_deref(),
                     d.holes.as_deref(),
-                    zoned(d, &nodes),
+                    d.domains.as_deref().zip(of_realization(&nodes, k)),
                     trend,
                     &grid,
                     &self.variogram,
@@ -816,7 +857,8 @@ impl TurningBands {
     /// Summary of `n` realizations; same options as `SGS.simulate`.
     /// `domains`, needed when fitted with them, labels the targets, or is one
     /// label for all; a target in a domain without samples raises
-    /// InvalidInput.
+    /// InvalidInput. Simulated domains, an ``(n, targets)`` array, give
+    /// realization ``k`` of the grades the domains of row ``k``.
     #[allow(clippy::too_many_arguments)]
     #[pyo3(signature = (targets, n=100, seed=0, cutoffs=vec![], quantiles=vec![], realizations=false, blocks=None, trend=None, domains=None))]
     fn simulate(
@@ -834,7 +876,8 @@ impl TurningBands {
     ) -> PyResult<SimulationSummary> {
         let d = self.data.as_ref().ok_or_else(not_fitted)?;
         let grid = self::targets(targets)?;
-        let nodes = node_domains(self.domains.as_deref(), domains, grid.len(), "simulate")?;
+        let fitted = self.domains.as_deref();
+        let nodes = realization_domains(fitted, domains, grid.len(), n, "simulate")?;
         let at_nodes = trend_at(d, targets, grid.len(), trend)?;
         let params = self.params(seed, self.resolved()?);
         let support = support(targets, &grid, blocks)?;
@@ -859,7 +902,8 @@ impl TurningBands {
                 n,
             )?;
             simulation::continuous(n, &options, |k| {
-                let r = ensemble.realization(k, &grid, nodes.as_deref(), at_nodes.as_deref());
+                let nodes = of_realization(&nodes, k);
+                let r = ensemble.realization(k, &grid, nodes, at_nodes.as_deref());
                 averaged(&support, r?)
             })
         })

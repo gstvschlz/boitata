@@ -180,3 +180,53 @@ save(fig, "categories")
 # proportions closely, but its ordered rule only allows contacts between neighbours in the order, so Portlandian appears
 # as specks along every Sequanian-Quaternary contact: suited to sequences like stratigraphy, not these rocks. Neither
 # recovers Portlandian's 5 % of the area from 3 of 259 samples.
+
+# %% [markdown]
+# ## Grades within simulated rock types
+#
+# Simulated rock types can host the grade simulation. Fitted with `domains`, SGS normal-scores Co within each rock
+# type, Argovian holding about half the Co of the others. Given the `(n, targets)` array of SIS realizations as
+# `domains`, realization k of Co is simulated within realization k of the rock types, so the grades carry the
+# uncertainty of the contacts; one row of labels, here the true rock types, holds the domains fixed.
+
+# %%
+co = train["Co"]
+co_scores = np.empty(len(co))
+for k in range(5):
+    co_scores[rock == k] = cs.NormalScore().fit_transform(co[rock == k])
+co_variogram = cs.experimental_variogram(train.coords, co_scores, 0.1, 1.5).fit("spherical")
+cobalt = cs.SGS(co_variogram, cs.Search(radius=1.5, max_samples=16)).fit(train.coords, co, domains=rock)
+within_true = cobalt.simulate(jura_grid, n=10, seed=3, realizations=True, domains=true_rock).realizations
+within_sis = cobalt.simulate(jura_grid, n=10, seed=3, realizations=True, domains=by_sis).realizations
+
+argovian = (by_sis == 0).mean(axis=0)
+unsure = (argovian > 0) & (argovian < 1)
+print(f"{'Co (ppm)':<42}{'true rock types':>16}{'SIS rock types':>16}")
+rows = [
+    ("mean", lambda r: r.mean()),
+    ("mean on true Argovian", lambda r: r[:, true_rock == 0].mean()),
+    ("std where SIS is unsure of Argovian", lambda r: r.std(axis=0)[unsure].mean()),
+    ("std elsewhere", lambda r: r.std(axis=0)[~unsure].mean()),
+]
+for label, stat in rows:
+    print(f"{label:<42}{stat(within_true):16.2f}{stat(within_sis):16.2f}")
+print(f"SIS is unsure whether {unsure.mean():.0%} of the nodes are Argovian")
+
+# %%
+fig, axes = plt.subplots(1, 3, figsize=(13, 4.6), layout="constrained")
+panels = [
+    (within_true[0], "Co within true rock types", "Co (ppm)", 18),
+    (within_sis[0], "Co within SIS realization 1", "Co (ppm)", 18),
+    (within_sis.std(axis=0), "Co across SIS realizations", "standard deviation (ppm)", 5),
+]
+for ax, (image, title, label, top) in zip(axes, panels):
+    im = ax.scatter(*jura_grid.coords[:, :2].T, c=image, s=7, marker="s", linewidths=0, vmin=0, vmax=top)
+    ax.set_aspect("equal")
+    ax.set(title=title, xlabel="X (km)", ylabel="Y (km)")
+    fig.colorbar(im, ax=ax, shrink=0.8, orientation="horizontal", label=label)
+save(fig, "grades-in-rock-types")
+
+# %% [markdown]
+# Within the true rock types Co drops sharply at every Argovian contact. Within SIS's rock types the contacts move
+# from one realization to the next, so the lean Argovian Co spreads over its uncertain margin: where SIS is unsure
+# of Argovian, the spread of Co across realizations grows by about 40 %.

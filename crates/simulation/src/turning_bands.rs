@@ -447,7 +447,8 @@ impl TurningBandsEnsemble {
     }
 
     /// Realization `k` at `targets`, of codes `domains` and trend `trend`
-    /// when the data have them, back-transformed to data values.
+    /// when the data have them, back-transformed to data values. Each
+    /// realization may take its own `domains`, as simulated domains do.
     pub fn realization(
         &self,
         k: usize,
