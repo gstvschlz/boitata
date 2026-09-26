@@ -1,10 +1,10 @@
 use std::path::PathBuf;
 
-use ceres_io::{CsvOptions, NODATA};
+use ceres_io::{CsvOptions, NODATA, Shapes};
 use pyo3::prelude::*;
 
 use crate::blocks::Mesh;
-use crate::containers::{PyBlockModel, PyPointSet};
+use crate::containers::{PyBlockModel, PyPointSet, PyPolylines};
 use crate::table::{Table, to_batch};
 use crate::{error, invalid};
 
@@ -90,7 +90,7 @@ fn write_mesh(path: PathBuf, mesh: PyRef<Mesh>, ascii: bool) -> PyResult<()> {
     ceres_io::write_mesh(path, &mesh.mesh, ascii).map_err(io_error)
 }
 
-/// Reads a point shapefile as a PointSet.
+/// Reads a shapefile as a PointSet or Polylines.
 ///
 /// Parameters
 /// ----------
@@ -102,32 +102,47 @@ fn write_mesh(path: PathBuf, mesh: PyRef<Mesh>, ascii: bool) -> PyResult<()> {
 ///
 /// Returns
 /// -------
-/// PointSet
-///     One point per shape, and one per member of a multipoint, which repeats
-///     its row. 2D shapes get z = 0. Numeric fields are float64, logical fields
-///     bool, the rest text. The `.prj` text is the CRS.
+/// PointSet or Polylines
+///     Point files give one point per shape, and one per member of a
+///     multipoint, which repeats its row. Line files give open parts, polygon
+///     files closed parts without the repeated closing vertex; a null shape is
+///     a feature without parts. 2D shapes get z = 0, M values are dropped.
+///     Numeric fields are float64, logical fields bool, the rest text. The
+///     `.prj` text is the CRS.
 #[pyfunction]
 #[pyo3(signature = (path, nodata=None))]
-fn read_shapefile(path: PathBuf, nodata: Option<Vec<String>>) -> PyResult<PyPointSet> {
-    Ok(PyPointSet(
-        ceres_io::read_shapefile(path, &self::nodata(nodata)).map_err(io_error)?,
-    ))
+fn read_shapefile(py: Python, path: PathBuf, nodata: Option<Vec<String>>) -> PyResult<Py<PyAny>> {
+    Ok(
+        match ceres_io::read_shapefile(path, &self::nodata(nodata)).map_err(io_error)? {
+            Shapes::Points(p) => Py::new(py, PyPointSet(p))?.into_any(),
+            Shapes::Polylines(l) => Py::new(py, PyPolylines(l))?.into_any(),
+        },
+    )
 }
 
-/// Writes a PointSet as a 3D point shapefile.
+/// Writes a PointSet or Polylines as a 3D shapefile.
 ///
 /// Parameters
 /// ----------
 /// path : str or Path
 ///     The `.shp` file; `.shx`, `.dbf`, `.cpg` and, with a CRS, `.prj` are
 ///     written beside it.
-/// points : PointSet
+/// data : PointSet or Polylines
+///     Points are written as PointZ. Polylines with all parts open are written
+///     as PolyLineZ, with all parts closed as PolygonZ, rings wound outer
+///     clockwise and holes counter-clockwise; split mixed ones by ``closed``.
 ///     Attribute names must be ASCII of at most 10 characters; numeric, bool
 ///     and text columns are written, nulls as blanks. The CRS is written
 ///     verbatim to the `.prj`, which GIS software expects as WKT.
 #[pyfunction]
-fn write_shapefile(path: PathBuf, points: PyRef<PyPointSet>) -> PyResult<()> {
-    ceres_io::write_shapefile(path, &points.0).map_err(io_error)
+fn write_shapefile(path: PathBuf, data: &Bound<PyAny>) -> PyResult<()> {
+    if let Ok(lines) = data.cast::<PyPolylines>() {
+        return ceres_io::write_polylines_shapefile(path, &lines.get().0).map_err(io_error);
+    }
+    let points = data
+        .cast::<PyPointSet>()
+        .map_err(|_| invalid("data must be a PointSet or Polylines"))?;
+    ceres_io::write_shapefile(path, &points.get().0).map_err(io_error)
 }
 
 /// Reads a GeoTIFF raster as a 2D BlockModel.

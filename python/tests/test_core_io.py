@@ -236,3 +236,18 @@ def test_geotiff_round_trip(tmp_path):
         )
     with pytest.raises(cs.InvalidInput):
         cs.write_geotiff(tmp_path / "clash.tif", turned, nodata=5.0)
+
+
+def test_polylines_shapefile_round_trip(tmp_path):
+    pit = [[0, 0, 1], [0, 10, 1], [10, 10, 1], [10, 0, 1]]
+    hole = [[4, 4, 2], [6, 4, 2], [6, 6, 2], [4, 6, 2]]
+    pits = cs.Polylines(
+        [pit, hole], closed=True, features=[0, 0], attributes={"name": ["pit"]}, crs="EPSG:31982"
+    )
+    cs.write_shapefile(tmp_path / "pit.shp", pits)
+    back = cs.read_shapefile(tmp_path / "pit.shp")
+    assert isinstance(back, cs.Polylines) and back.crs == pits.crs and back["name"] == ["pit"]
+    np.testing.assert_array_equal(back.vertices, pits.vertices)
+    assert back.closed.tolist() == [True, True] and back.feature.tolist() == [0, 0]
+    with pytest.raises(cs.InvalidInput):
+        cs.write_shapefile(tmp_path / "mixed.shp", cs.Polylines([pit, hole[:2]], closed=[True, False]))
