@@ -417,8 +417,8 @@ class Coregionalization:
         nugget: bool = True,
         ranges: Sequence[_Limit | None] | None = None,
         directions: Sequence[tuple[float, float]] | None = None,
-        rotation: tuple[float, float, float] | None = None,
-        ratios: tuple[float, float] | None = None,
+        rotation: Sequence[_Limit | None] | None = None,
+        ratios: Sequence[_Limit | None] | None = None,
     ) -> Coregionalization: ...
     @property
     def nvar(self) -> int: ...

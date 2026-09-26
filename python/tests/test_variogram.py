@@ -217,6 +217,32 @@ def test_coregionalization_fit_with_fixed_anisotropy():
         cs.Coregionalization.fit(exp, directions=directions[:1])
 
 
+def test_coregionalization_fit_finds_the_anisotropy():
+    xy = np.stack(np.meshgrid(np.arange(0, 80, 2.0), np.arange(0, 80, 2.0)), -1).reshape(-1, 2)
+    t = np.radians(30)
+    major, minor = np.array([np.sin(t), np.cos(t)]), np.array([np.cos(t), -np.sin(t)])
+    freq = rng.normal(size=(400, 1)) * major / 15 + rng.normal(size=(400, 1)) * minor / 5
+    a = np.cos(xy @ freq.T + rng.uniform(0, 2 * np.pi, 400)).sum(1) / np.sqrt(200)
+    b = 10 * (a + 0.5 * rng.normal(size=len(a)))
+    azimuths = np.arange(0, 180, 22.5)
+
+    def cell(u, v):
+        return [cs.experimental_variogram(xy, u, 2, 40, azimuth=d, other=v) for d in azimuths]
+
+    exp = [[cell(a, None), cell(a, b)], [None, cell(b, None)]]
+    directions = [(d, 0) for d in azimuths]
+    lmc = cs.Coregionalization.fit(exp, ["spherical", "spherical"], directions=directions)
+    alone = cs.Variogram.fit_directional(exp[0][0], directions, ["spherical", "spherical"])
+    assert lmc.rotation[0] == pytest.approx(alone.rotation[0], abs=5) and lmc.rotation[1:] == (0, 0)
+    assert lmc.ratios[0] == pytest.approx(alone.ratios[0], abs=0.05) and lmc.ratios[1] == 1
+    for m in [lmc.nugget, *(s[2] for s in lmc.structures)]:
+        assert np.linalg.eigvalsh(m).min() >= -1e-9 * np.abs(m).max()
+    bounded = cs.Coregionalization.fit(
+        exp, directions=directions, rotation=[45.0, None, None], ratios=[(0.2, 0.5), None]
+    )
+    assert bounded.rotation[0] == 45 and 0.2 <= bounded.ratios[0] <= 0.5
+
+
 def test_transiogram_is_a_markov_matrix():
     t = cs.Transiogram([0.2, 0.3, 0.5], 10.0)
     np.testing.assert_allclose(t.matrix(0.0), np.eye(3), atol=1e-12)
