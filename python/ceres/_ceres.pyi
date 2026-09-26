@@ -1138,7 +1138,16 @@ def grade_tonnage(
     cutoffs: ArrayLike,
     weights: ArrayLike | None = None,
     density: ArrayLike | None = None,
-) -> dict[str, npt.NDArray[np.float64]]: ...
+    categories: Holes | None = None,
+) -> Table: ...
+def compare_models(
+    models: Mapping[str, ArrayLike],
+    cutoffs: ArrayLike,
+    categories: Holes | None = None,
+    reference: str | None = None,
+    volume: float | ArrayLike | None = None,
+    density: float | ArrayLike | None = None,
+) -> Table: ...
 def capping_report(
     values: ArrayLike,
     domains: Holes,

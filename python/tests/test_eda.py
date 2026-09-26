@@ -124,6 +124,34 @@ def test_grade_tonnage_from_data():
     assert cs.grade_tonnage(v, [2.0])["tonnage"][0] == (v >= 2).sum()
 
 
+def test_compare_models_reference_scaling_and_metal_balance():
+    v = rng.lognormal(0, 1, 300)
+    classes = np.repeat(["measured", "indicated", "inferred"], 100)
+    cutoffs = [-np.inf, 1.0, 3.0]
+    t = cs.compare_models(
+        {"kriged": v, "scaled": 1.25 * v, "same": v}, cutoffs, categories=classes, volume=125.0, density=3.0
+    )
+    assert t.column_names[:3] == ["category", "cutoff", "model"]
+    assert t.num_rows == 4 * 3 * 3
+    assert t["category"][::9] == ["indicated", "inferred", "measured", "all"]
+    model = np.asarray(t["model"])
+    for name in ("kriged", "same"):
+        for diff in ("tonnage_diff", "grade_diff", "metal_diff"):
+            np.testing.assert_allclose(np.asarray(t[diff])[model == name], 0, atol=1e-12)
+    first = (model == "scaled") & (np.asarray(t["cutoff"]) == -np.inf)
+    np.testing.assert_allclose(np.asarray(t["metal_diff"])[first], 0.25)
+    kriged = t.filter(model == "kriged")
+    gt = cs.grade_tonnage(v, cutoffs, np.full(300, 125.0), np.full(300, 3.0), categories=classes)
+    np.testing.assert_allclose(kriged["metal"], gt["metal"])
+    metal = np.asarray(gt["metal"]).reshape(4, 3)
+    np.testing.assert_allclose(metal[:3].sum(axis=0), metal[3])
+    assert cs.compare_models({"a": v, "b": v}, [0.0], reference="b")["model"] == ["a", "b"]
+    with pytest.raises(cs.InvalidInput):
+        cs.compare_models({"a": v}, [0.0], reference="b")
+    with pytest.raises(cs.InvalidInput):
+        cs.compare_models({"a": v, "b": v[1:]}, [0.0])
+
+
 def test_capping_report_by_domain():
     v = rng.lognormal(0, 1, 300)
     d = np.repeat([1, 2, 3], 100)

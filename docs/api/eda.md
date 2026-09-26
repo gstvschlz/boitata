@@ -28,6 +28,8 @@
 
 ::: ceres.validate_model
 
+::: ceres.compare_models
+
 ::: ceres.hole_distance
 
 ::: ceres.classify

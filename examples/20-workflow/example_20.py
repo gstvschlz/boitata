@@ -176,11 +176,12 @@ def passes(high_grade=None):
 ok = cs.OrdinaryKriging(grades, passes(high_grade=(30.0, 15.0))).fit(xyz, zn, holes=holes)
 kriged = ok.predict(blocks, diagnostics=True)
 free = cs.OrdinaryKriging(grades, passes()).fit(xyz, zn, holes=holes).predict(blocks)
-bias = cs.global_bias(kriged["value"], zn, data_weights=weights)
+check = cs.validate_model(kriged["value"], zn, weights=weights)
+mean = dict(zip(check["source"], check["mean"], strict=True))
 print(f"pass 1: {np.mean(kriged['pass'] == 1):.0%} of blocks, pass 2: {np.mean(kriged['pass'] == 2):.0%}")
 print(
-    f"mean {bias['estimate_mean']:.2f} % Zn against {bias['data_mean']:.2f} % declustered; "
-    f"{np.mean(free):.2f} % without the high-grade restriction"
+    f"mean {mean['model']:.2f} % Zn against {mean['declustered']:.2f} % declustered "
+    f"({check['mean_diff'][-1]:+.1%}); {np.mean(free):.2f} % without the high-grade restriction"
 )
 
 # %% [markdown]
@@ -435,6 +436,32 @@ axes[1, 3].axis("off")
 handles = [plt.Line2D([], [], marker="s", ls="", color=colors(i), label=n) for i, n in enumerate(names)]
 axes[1, 3].legend(handles=handles, loc="upper center", fontsize=8)
 save(fig, "section")
+
+# %% [markdown]
+# ## Comparing models
+#
+# `compare_models` sets several models of the same blocks side by side: tonnage, mean grade and metal at or above
+# each cutoff, per class and over all, with each model's difference from the first. Here the kriged blocks, the soft
+# boundary with `SM` and the mean of the simulations, at a 10 % Zn cutoff, with 125 m³ blocks and an assumed
+# density of 3.5 t/m³.
+
+# %%
+models = {"kriged": kriged["value"], "soft SM": by_rule["soft"]["value"], "simulated": summary.mean}
+table = cs.compare_models(models, [10.0], categories=classes, volume=125.0, density=3.5)
+print(f"{'':21}{'kt':>7}{'Zn %':>7}{'kt Zn':>7}{'tonnes':>9}{'metal':>8}")
+columns = ["category", "model", "tonnage", "mean_grade", "metal", "tonnage_diff", "metal_diff"]
+for category, model, tonnage, grade, metal, tonnage_diff, metal_diff in zip(
+    *(table[c] for c in columns), strict=True
+):
+    print(
+        f"{category:10}{model:11}{tonnage / 1e3:7.1f}{grade:7.2f}{metal / 1e5:7.2f}"
+        f"{tonnage_diff:+9.1%}{metal_diff:+8.1%}"
+    )
+
+# %% [markdown]
+# The soft boundary takes 2.7 % of the metal above cutoff, most of it from measured blocks. The mean of the
+# simulations puts 18 % more tonnes above 10 % Zn, at a lower grade, and 13 % more metal, mostly in indicated and
+# inferred blocks, where kriging, far from the composites, smooths grades towards the mean and below the cutoff.
 
 # %% [markdown]
 # ## Saving

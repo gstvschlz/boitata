@@ -158,6 +158,68 @@ pub struct Tonnage {
     pub metal: f64,
 }
 
+/// Tonnage and metal at or above each cutoff, per category (ascending, every
+/// code present) then over all (`None`); NaN values are skipped.
+fn curves(
+    values: &[f64],
+    categories: Option<&[u32]>,
+    tonnes: Option<&[f64]>,
+    cutoffs: &[f64],
+) -> Vec<(Option<u32>, Vec<Tonnage>)> {
+    let zero = || vec![(0.0, 0.0); cutoffs.len()];
+    let (mut by, mut all) = (BTreeMap::new(), zero());
+    for (i, &v) in values.iter().enumerate() {
+        let mut group = categories.map(|c| by.entry(c[i]).or_insert_with(zero));
+        let t = tonnes.map_or(1.0, |t| t[i]);
+        for (k, _) in cutoffs.iter().enumerate().filter(|(_, c)| v >= **c) {
+            all[k] = (all[k].0 + t, all[k].1 + t * v);
+            if let Some(g) = &mut group {
+                g[k] = (g[k].0 + t, g[k].1 + t * v);
+            }
+        }
+    }
+    let finish = |sums: Vec<(f64, f64)>| {
+        cutoffs
+            .iter()
+            .zip(sums)
+            .map(|(&cutoff, (tonnage, metal))| Tonnage {
+                cutoff,
+                tonnage,
+                mean_grade: if tonnage > 0.0 {
+                    metal / tonnage
+                } else {
+                    f64::NAN
+                },
+                metal,
+            })
+            .collect()
+    };
+    by.into_iter()
+        .map(|(c, s)| (Some(c), finish(s)))
+        .chain([(None, finish(all))])
+        .collect()
+}
+
+/// Checked `weights × density`, either alone, or `None`.
+fn tonnes(
+    values: &[f64],
+    weights: Option<&[f64]>,
+    density: Option<&[f64]>,
+    cutoffs: &[f64],
+) -> Result<Option<Vec<f64>>> {
+    check(values.len(), values, weights)?;
+    check(values.len(), values, density)?;
+    if cutoffs.iter().any(|c| c.is_nan()) {
+        return invalid("cutoffs must not be NaN");
+    }
+    let t = match (weights, density) {
+        (Some(w), Some(d)) => Some(w.iter().zip(d).map(|(w, d)| w * d).collect()),
+        (w, d) => w.or(d).map(<[f64]>::to_vec),
+    };
+    valid(values, t.as_deref())?;
+    Ok(t)
+}
+
 /// Grade–tonnage curve of the data: each value stands for weight (e.g. volume)
 /// × density tonnes, 1 by default.
 pub fn grade_tonnage(
@@ -166,39 +228,84 @@ pub fn grade_tonnage(
     density: Option<&[f64]>,
     cutoffs: &[f64],
 ) -> Result<Vec<Tonnage>> {
-    check(values.len(), values, density)?;
-    if cutoffs.iter().any(|c| c.is_nan()) {
-        return invalid("cutoffs must not be NaN");
+    let t = tonnes(values, weights, density, cutoffs)?;
+    let mut rows = curves(values, None, t.as_deref(), cutoffs);
+    Ok(rows.pop().expect("all").1)
+}
+
+/// [`grade_tonnage`] per category, ascending, then over all values (`None`).
+pub fn grade_tonnage_by(
+    values: &[f64],
+    categories: &[u32],
+    weights: Option<&[f64]>,
+    density: Option<&[f64]>,
+    cutoffs: &[f64],
+) -> Result<Vec<(Option<u32>, Vec<Tonnage>)>> {
+    check(categories.len(), values, None)?;
+    let t = tonnes(values, weights, density, cutoffs)?;
+    Ok(curves(values, Some(categories), t.as_deref(), cutoffs))
+}
+
+/// One row of [`compare_models`].
+#[derive(Debug, Clone)]
+pub struct Comparison {
+    /// Index into the models.
+    pub model: usize,
+    pub category: Option<u32>,
+    pub tonnage: Tonnage,
+    /// `tonnage / reference tonnage - 1`.
+    pub tonnage_diff: f64,
+    /// As `tonnage_diff`, for the mean grade.
+    pub grade_diff: f64,
+    /// As `tonnage_diff`, for the metal.
+    pub metal_diff: f64,
+}
+
+/// Grade–tonnage of several models on the same blocks, each block `tonnes`
+/// (1 by default), per category then over all as in [`grade_tonnage_by`],
+/// against `models[reference]`; rows by category, cutoff, then model.
+pub fn compare_models(
+    models: &[&[f64]],
+    categories: Option<&[u32]>,
+    tonnes: Option<&[f64]>,
+    cutoffs: &[f64],
+    reference: usize,
+) -> Result<Vec<Comparison>> {
+    if reference >= models.len() {
+        return invalid("reference must be one of the models");
     }
-    let tonnes: Option<Vec<f64>> = match (weights, density) {
-        (Some(w), Some(d)) => {
-            check(values.len(), values, Some(w))?;
-            Some(w.iter().zip(d).map(|(w, d)| w * d).collect())
-        }
-        (w, d) => w.or(d).map(<[f64]>::to_vec),
-    };
-    let (v, t) = valid(values, tonnes.as_deref())?;
-    Ok(cutoffs
+    let n = models[0].len();
+    if models.iter().any(|m| m.len() != n) {
+        return invalid("models must have the same number of blocks");
+    }
+    if categories.is_some_and(|c| c.len() != n) {
+        return invalid(format!("expected {n} categories"));
+    }
+    let tables = models
         .iter()
-        .map(|&cutoff| {
-            let (tonnage, metal) = v
-                .iter()
-                .zip(&t)
-                .filter(|(v, _)| **v >= cutoff)
-                .fold((0.0, 0.0), |(s, m), (v, t)| (s + t, m + t * v));
-            let mean_grade = if tonnage > 0.0 {
-                metal / tonnage
-            } else {
-                f64::NAN
-            };
-            Tonnage {
-                cutoff,
-                tonnage,
-                mean_grade,
-                metal,
-            }
+        .map(|m| {
+            self::tonnes(m, tonnes, None, cutoffs)?;
+            Ok(curves(m, categories, tonnes, cutoffs))
         })
-        .collect())
+        .collect::<Result<Vec<_>>>()?;
+    let diff = |a: f64, b: f64| a / b - 1.0;
+    let mut out = Vec::new();
+    for (row, (category, reference)) in tables[reference].iter().enumerate() {
+        for (k, r) in reference.iter().enumerate() {
+            for (model, table) in tables.iter().enumerate() {
+                let t = table[row].1[k].clone();
+                out.push(Comparison {
+                    model,
+                    category: *category,
+                    tonnage_diff: diff(t.tonnage, r.tonnage),
+                    grade_diff: diff(t.mean_grade, r.mean_grade),
+                    metal_diff: diff(t.metal, r.metal),
+                    tonnage: t,
+                });
+            }
+        }
+    }
+    Ok(out)
 }
 
 /// Mean and count per bin; `centres` ascending, empty bins omitted.
@@ -1011,6 +1118,38 @@ mod tests {
         assert!(gt.windows(2).all(|p| p[1].tonnage <= p[0].tonnage));
         assert!(gt.last().unwrap().mean_grade.is_nan());
         assert!(grade_tonnage(&v, None, None, &[f64::NAN]).is_err());
+    }
+
+    #[test]
+    fn compare_models_balances_metal() {
+        let (v, c, w) = skewed();
+        let scaled: Vec<f64> = v.iter().map(|x| 1.2 * x).collect();
+        let cutoffs = [f64::NEG_INFINITY, 2.0, 10.0];
+        let rows = compare_models(&[&v, &scaled], Some(&c), Some(&w), &cutoffs, 0).unwrap();
+        assert_eq!(rows.len(), 4 * 3 * 2);
+        let by = grade_tonnage_by(&v, &c, Some(&w), None, &cutoffs).unwrap();
+        for (i, r) in rows.iter().enumerate() {
+            let (row, k) = (i / 6, i / 2 % 3);
+            assert_eq!((r.model, r.category), (i % 2, by[row].0));
+            if r.model == 0 {
+                assert_eq!(r.tonnage.metal, by[row].1[k].metal);
+                assert_eq!(
+                    (r.tonnage_diff, r.grade_diff, r.metal_diff),
+                    (0.0, 0.0, 0.0)
+                );
+            } else if k == 0 {
+                assert!(close(r.tonnage_diff, 0.0) && close(r.metal_diff, 0.2));
+            }
+        }
+        for k in 0..3 {
+            let sum = |f: fn(&Tonnage) -> f64| by[..3].iter().map(|r| f(&r.1[k])).sum::<f64>();
+            assert!(close(sum(|t| t.tonnage), by[3].1[k].tonnage));
+            assert!(close(sum(|t| t.metal), by[3].1[k].metal));
+        }
+        let all = grade_tonnage(&v, Some(&w), None, &cutoffs).unwrap();
+        assert!(close(all[1].metal, by[3].1[1].metal));
+        assert!(compare_models(&[&v, &v[1..]], None, None, &cutoffs, 0).is_err());
+        assert!(compare_models(&[&v], None, None, &cutoffs, 1).is_err());
     }
 
     #[test]
