@@ -1,7 +1,7 @@
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/logo-dark.svg">
-    <img src="docs/assets/logo.svg" alt="ceres" width="120">
+    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/gstvschlz/ceres/main/docs/assets/logo-dark.svg">
+    <img src="https://raw.githubusercontent.com/gstvschlz/ceres/main/docs/assets/logo.svg" alt="ceres" width="120">
   </picture>
 </p>
 
@@ -21,11 +21,16 @@ The core is Rust, parallel and reproducible for any thread count; everything is 
 
 ## Install
 
-From source, with [mise](https://mise.jdx.dev):
-
 ```sh
-mise run py:build
+pip install ceres            # numpy only
+pip install "ceres[all]"     # + matplotlib, pyvista, polars, pandas, pyarrow
+uv add "ceres[all]"
 ```
+
+Extras: `plot` (matplotlib), `3d` (pyvista), `all`.
+In a conda or pixi environment, install the dependencies from conda-forge and ceres with pip until the conda-forge package exists.
+
+From source (Rust ≥ 1.97), with [mise](https://mise.jdx.dev): `mise run py:build`.
 
 ## Use
 
@@ -39,7 +44,7 @@ grid = cs.BlockModel(origin=(0, 0), size=(5, 5), count=(100, 100))
 estimate = ok.predict(grid)
 ```
 
-See [examples](examples/README.md).
+See [examples](https://github.com/gstvschlz/ceres/blob/main/examples/README.md).
 
 ## License
 
