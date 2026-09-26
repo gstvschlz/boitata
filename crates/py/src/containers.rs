@@ -360,7 +360,7 @@ impl PyBlockModel {
     }
 }
 
-fn float_column(values: &Bound<PyAny>, rows: usize) -> PyResult<arrow_array::ArrayRef> {
+pub fn float_column(values: &Bound<PyAny>, rows: usize) -> PyResult<arrow_array::ArrayRef> {
     let values = crate::args::floats(values, "values")?;
     crate::args::same_length(rows, values.len(), "values")?;
     let array: arrow_array::Float64Array = values

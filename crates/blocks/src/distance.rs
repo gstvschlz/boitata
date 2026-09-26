@@ -1,7 +1,7 @@
 //! Distance from points (e.g. drillhole composites) to a triangle mesh or a 2-D
 //! polygon.
 //!
-//! Complements the point-in-solid test ([`Mesh::is_inside`]) with metric
+//! Complements the point-in-solid test ([`is_inside`](crate::is_inside)) with metric
 //! proximity: how far a sample or block centre is from a wireframe surface /
 //! solid, or from a domain outline. Useful for domain-margin flags, halo
 //! selection, and distance-to-vein attributes.
@@ -12,7 +12,8 @@
 //! - Polygon distance is the planar distance to the closed ring, signed
 //!   negative inside (even-odd rule).
 
-use crate::{BlockModelError, Mesh, Result};
+use crate::{BlockModelError, Result};
+use ceres_core::Mesh;
 use nalgebra::Vector3;
 
 fn v(p: &(f64, f64, f64)) -> Vector3<f64> {
@@ -63,63 +64,29 @@ fn point_triangle_dist2(p: Vector3<f64>, a: Vector3<f64>, b: Vector3<f64>, c: Ve
     (p - (a + ab * bw + ac * cw)).norm_squared()
 }
 
-impl Mesh {
-    /// Unsigned Euclidean distance from `point` to the nearest point on the mesh
-    /// surface.
-    pub fn distance_to(&self, point: &(f64, f64, f64)) -> Result<f64> {
-        self.validate()?;
-        let p = v(point);
-        let mut best = f64::INFINITY;
-        for &(i0, i1, i2) in &self.triangles {
-            let d2 = point_triangle_dist2(
-                p,
-                v(&self.vertices[i0]),
-                v(&self.vertices[i1]),
-                v(&self.vertices[i2]),
-            );
-            if d2 < best {
-                best = d2;
-            }
-        }
-        Ok(best.sqrt())
+/// Unsigned distance from `point` to the nearest point on the mesh surface.
+pub fn distance_to(mesh: &Mesh, point: &(f64, f64, f64)) -> Result<f64> {
+    if mesh.triangles().is_empty() {
+        return Err(BlockModelError::InvalidMesh("mesh has no triangles".into()));
     }
-
-    /// Signed distance to the mesh surface: negative when `point` is inside the
-    /// solid (generalized winding number), positive outside.
-    pub fn signed_distance_to(&self, point: &(f64, f64, f64)) -> Result<f64> {
-        let d = self.distance_to(point)?;
-        if inside_winding(self, point) {
-            Ok(-d)
-        } else {
-            Ok(d)
-        }
-    }
-
-    /// Distances from many points to the mesh surface (unsigned).
-    pub fn distances(&self, points: &[(f64, f64, f64)]) -> Result<Vec<f64>> {
-        self.validate()?;
-        points.iter().map(|p| self.distance_to(p)).collect()
-    }
+    let p = v(point);
+    Ok((0..mesh.triangles().len())
+        .map(|t| {
+            let [a, b, c] = mesh.corners(t).map(Vector3::from);
+            point_triangle_dist2(p, a, b, c)
+        })
+        .fold(f64::INFINITY, f64::min)
+        .sqrt())
 }
 
-/// Generalized winding number inside-test using the *signed* solid angle
-/// (Van Oosterom & Strackee with `atan2`), robust to triangle orientation and
-/// non-watertight meshes. `> 0.5` ⇒ inside.
-fn inside_winding(mesh: &Mesh, point: &(f64, f64, f64)) -> bool {
-    let p = v(point);
-    let mut winding = 0.0;
-    for &(i0, i1, i2) in &mesh.triangles {
-        let a = v(&mesh.vertices[i0]) - p;
-        let b = v(&mesh.vertices[i1]) - p;
-        let c = v(&mesh.vertices[i2]) - p;
-        let num = a.dot(&b.cross(&c)); // signed triple product
-        let denom = a.norm() * b.norm() * c.norm()
-            + a.dot(&b) * c.norm()
-            + b.dot(&c) * a.norm()
-            + c.dot(&a) * b.norm();
-        winding += 2.0 * num.atan2(denom);
-    }
-    (winding / (4.0 * std::f64::consts::PI)).abs() > 0.5
+/// Signed distance to a closed mesh: negative inside, positive outside.
+pub fn signed_distance_to(mesh: &Mesh, point: &(f64, f64, f64)) -> Result<f64> {
+    let d = distance_to(mesh, point)?;
+    Ok(if crate::is_inside(mesh, point)? {
+        -d
+    } else {
+        d
+    })
 }
 
 /// Distance from a 2-D point to a segment `[a, b]`.
@@ -191,22 +158,23 @@ mod tests {
 
     /// A unit tetrahedron mesh (closed solid).
     fn tetra() -> Mesh {
-        Mesh {
-            vertices: vec![
-                (0.0, 0.0, 0.0),
-                (1.0, 0.0, 0.0),
-                (0.0, 1.0, 0.0),
-                (0.0, 0.0, 1.0),
+        Mesh::new(
+            vec![
+                [0.0, 0.0, 0.0],
+                [1.0, 0.0, 0.0],
+                [0.0, 1.0, 0.0],
+                [0.0, 0.0, 1.0],
             ],
-            triangles: vec![(0, 2, 1), (0, 1, 3), (0, 3, 2), (1, 2, 3)],
-        }
+            vec![[0, 2, 1], [0, 1, 3], [0, 3, 2], [1, 2, 3]],
+        )
+        .unwrap()
     }
 
     #[test]
     fn distance_to_triangle_face() {
         let m = tetra();
         // Point straight below the base (z = -2) → distance 2 to the z=0 face.
-        let d = m.distance_to(&(0.2, 0.2, -2.0)).unwrap();
+        let d = distance_to(&m, &(0.2, 0.2, -2.0)).unwrap();
         assert!((d - 2.0).abs() < 1e-9, "distance {d}");
     }
 
@@ -214,7 +182,7 @@ mod tests {
     fn distance_to_vertex() {
         let m = tetra();
         // Far along +x from vertex (1,0,0).
-        let d = m.distance_to(&(4.0, 0.0, 0.0)).unwrap();
+        let d = distance_to(&m, &(4.0, 0.0, 0.0)).unwrap();
         assert!((d - 3.0).abs() < 1e-9, "distance {d}");
     }
 
@@ -222,9 +190,9 @@ mod tests {
     fn signed_distance_inside_negative() {
         let m = tetra();
         let inside = (0.1, 0.1, 0.1);
-        let sd = m.signed_distance_to(&inside).unwrap();
+        let sd = signed_distance_to(&m, &inside).unwrap();
         assert!(sd < 0.0, "signed distance {sd} should be negative inside");
-        let outside = m.signed_distance_to(&(2.0, 2.0, 2.0)).unwrap();
+        let outside = signed_distance_to(&m, &(2.0, 2.0, 2.0)).unwrap();
         assert!(outside > 0.0);
     }
 

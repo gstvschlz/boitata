@@ -2,12 +2,14 @@
 
 mod block_model;
 mod error;
+mod mesh;
 mod points;
 mod rotation;
 
 pub use arrow_array::RecordBatch;
 pub use block_model::{BlockModel, Geometry, Layout};
 pub use error::{Error, Result};
+pub use mesh::{Mesh, MeshAnalysis};
 pub use points::PointSet;
 pub use rotation::{angles_from_axes, block_frame, rotation_matrix};
 

@@ -1,17 +1,22 @@
+use std::sync::Arc;
+
+use arrow_array::{ArrayRef, Float64Array, StringArray};
 use blocks::{
-    DomainMethod, Mesh as CoreMesh, Orientation, PolygonSelector as CoreSelector, ShellBlock,
-    ShellFilter, ShellLimits, SolidTester, extract_shell,
+    DomainMethod, Orientation, PolygonSelector as CoreSelector, ShellBlock, ShellFilter,
+    ShellLimits, SolidTester, extract_shell,
 };
+use ceres_core::Mesh as CoreMesh;
 use numpy::ndarray::Array2;
 use numpy::{IntoPyArray, PyArray1, PyReadonlyArray2};
 use pyo3::prelude::*;
-use pyo3::types::{IntoPyDict, PyTuple};
+use pyo3::types::{IntoPyDict, PyDict, PyTuple};
 use rayon::prelude::*;
 
-use crate::args::{Point, array1, finite, points, points_array, rows, same_length};
-use crate::containers::PyBlockModel;
+use crate::args::{Point, array1, finite, points, rows, same_length};
+use crate::containers::{PyBlockModel, coords_arg, coords_array, float_column};
 use crate::estimation::targets;
 use crate::invalid;
+use crate::table::Table;
 
 fn err(e: blocks::BlockModelError) -> PyErr {
     invalid(e)
@@ -21,16 +26,56 @@ fn bools<'py>(py: Python<'py>, values: Vec<bool>) -> Bound<'py, PyAny> {
     PyArray1::from_vec(py, values).into_any()
 }
 
-/// Closed triangle mesh (a solid or wireframe).
+fn core_error(e: ceres_core::Error) -> PyErr {
+    invalid(e)
+}
+
+/// Triangulated surface or solid with per-vertex and per-face attributes.
 #[pyclass(module = "ceres", name = "Mesh", frozen)]
 pub struct Mesh {
-    mesh: CoreMesh,
-    tester: SolidTester,
+    pub mesh: CoreMesh,
+    tester: Option<SolidTester>,
 }
 
 impl Mesh {
-    pub fn parts(&self) -> (&[Point], &[(usize, usize, usize)]) {
-        (&self.mesh.vertices, &self.mesh.triangles)
+    pub fn from_core(mesh: CoreMesh) -> Self {
+        let tester = SolidTester::new(&mesh).ok();
+        Self { mesh, tester }
+    }
+
+    /// Flat `(n, 3)` corners and triangles as `(k, 3)` index rows.
+    pub fn build(vertices: &[f64], triangles: &[u32]) -> PyResult<CoreMesh> {
+        CoreMesh::new(
+            vertices
+                .chunks_exact(3)
+                .map(|v| [v[0], v[1], v[2]])
+                .collect(),
+            triangles
+                .chunks_exact(3)
+                .map(|t| [t[0], t[1], t[2]])
+                .collect(),
+        )
+        .map_err(core_error)
+    }
+
+    fn solid(&self) -> PyResult<&SolidTester> {
+        self.tester
+            .as_ref()
+            .ok_or_else(|| invalid("mesh is not closed; this needs a solid"))
+    }
+
+    fn with(&self, mesh: ceres_core::Result<CoreMesh>) -> PyResult<Self> {
+        Ok(Self {
+            mesh: mesh.map_err(core_error)?,
+            tester: self.tester.clone(),
+        })
+    }
+}
+
+fn attribute(values: &Bound<PyAny>, rows: usize) -> PyResult<ArrayRef> {
+    match values.extract::<Vec<Option<String>>>() {
+        Ok(text) => Ok(Arc::new(StringArray::from(text))),
+        Err(_) => float_column(values, rows),
     }
 }
 
@@ -38,8 +83,13 @@ impl Mesh {
 impl Mesh {
     /// `vertices` is `(n, 3)`, `triangles` `(m, 3)` vertex indices.
     #[new]
-    fn new(vertices: &Bound<PyAny>, triangles: &Bound<PyAny>) -> PyResult<Self> {
-        let vertices = points(vertices)?;
+    #[pyo3(signature = (vertices, triangles, crs=None))]
+    fn new(
+        vertices: &Bound<PyAny>,
+        triangles: &Bound<PyAny>,
+        crs: Option<String>,
+    ) -> PyResult<Self> {
+        let vertices = coords_arg(vertices)?;
         let triangles: PyReadonlyArray2<i64> = triangles
             .py()
             .import("numpy")?
@@ -50,54 +100,106 @@ impl Mesh {
             .as_array()
             .rows()
             .into_iter()
-            .map(|r| match r.as_slice() {
-                Some(&[a, b, c]) if a >= 0 && b >= 0 && c >= 0 => {
-                    Ok((a as usize, b as usize, c as usize))
-                }
-                _ => Err(invalid("triangles must be (m, 3) non-negative indices")),
+            .map(|r| {
+                let t: Vec<u32> = r.iter().filter_map(|&i| u32::try_from(i).ok()).collect();
+                <[u32; 3]>::try_from(t)
+                    .map_err(|_| invalid("triangles must be (m, 3) non-negative indices"))
             })
             .collect::<PyResult<Vec<_>>>()?;
-        let mesh = CoreMesh {
-            vertices,
-            triangles,
-        };
-        mesh.validate().map_err(err)?;
-        let tester = SolidTester::new(&mesh).map_err(err)?;
-        Ok(Self { mesh, tester })
+        let mut mesh = CoreMesh::new(vertices, triangles).map_err(core_error)?;
+        mesh.crs = crs;
+        Ok(Self::from_core(mesh))
     }
 
     #[getter]
     fn vertices<'py>(&self, py: Python<'py>) -> Bound<'py, PyAny> {
-        points_array(py, &self.mesh.vertices).into_any()
+        coords_array(py, self.mesh.vertices()).into_any()
     }
 
     #[getter]
     fn triangles<'py>(&self, py: Python<'py>) -> Bound<'py, PyAny> {
         let flat: Vec<i64> = self
             .mesh
-            .triangles
+            .triangles()
             .iter()
-            .flat_map(|t| [t.0 as i64, t.1 as i64, t.2 as i64])
+            .flatten()
+            .map(|&i| i as i64)
             .collect();
-        Array2::from_shape_vec((self.mesh.triangles.len(), 3), flat)
+        Array2::from_shape_vec((self.mesh.triangles().len(), 3), flat)
             .expect("m x 3")
             .into_pyarray(py)
             .into_any()
     }
 
-    /// `(min, max)` corners of the bounding box.
+    /// `(min, max)` corners of the bounding box, `None` when empty.
     #[getter]
-    fn bounds(&self) -> ([f64; 3], [f64; 3]) {
-        let b = self.tester.bounds();
-        (b.min, b.max)
+    fn bounds(&self) -> Option<([f64; 3], [f64; 3])> {
+        self.mesh.bounds()
+    }
+
+    #[getter]
+    fn crs(&self) -> Option<String> {
+        self.mesh.crs.clone()
+    }
+
+    /// Every edge shared by exactly two non-degenerate triangles.
+    #[getter]
+    fn is_closed(&self) -> bool {
+        self.mesh.is_closed()
+    }
+
+    /// Degenerate triangles, boundary and non-manifold edges, and closure.
+    #[getter]
+    fn analysis<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
+        let a = self.mesh.analysis();
+        let d = PyDict::new(py);
+        d.set_item("degenerate_triangles", a.degenerate_triangles)?;
+        d.set_item("boundary_edges", a.boundary_edges)?;
+        d.set_item("non_manifold_edges", a.non_manifold_edges)?;
+        d.set_item("is_closed", a.is_closed)?;
+        Ok(d)
+    }
+
+    #[getter]
+    fn area(&self) -> f64 {
+        self.mesh.area()
+    }
+
+    /// Enclosed volume of a closed mesh, positive when wound outward.
+    #[getter]
+    fn volume(&self) -> PyResult<f64> {
+        self.mesh.volume().map_err(core_error)
+    }
+
+    #[getter]
+    fn vertex_attributes(&self) -> Table {
+        Table(self.mesh.vertex_attributes().clone())
+    }
+
+    #[getter]
+    fn face_attributes(&self) -> Table {
+        Table(self.mesh.face_attributes().clone())
+    }
+
+    /// New mesh with the per-vertex attribute `name` added or replaced.
+    fn with_vertex_column(&self, name: &str, values: &Bound<PyAny>) -> PyResult<Self> {
+        let column = attribute(values, self.mesh.vertices().len())?;
+        self.with(self.mesh.with_vertex_column(name, column))
+    }
+
+    /// New mesh with the per-triangle attribute `name` added or replaced.
+    fn with_face_column(&self, name: &str, values: &Bound<PyAny>) -> PyResult<Self> {
+        let column = attribute(values, self.mesh.triangles().len())?;
+        self.with(self.mesh.with_face_column(name, column))
     }
 
     /// Whether each point is inside, by generalized winding number.
     fn contains<'py>(&self, py: Python<'py>, points: &Bound<PyAny>) -> PyResult<Bound<'py, PyAny>> {
         let pts = self::points(points)?;
+        let solid = self.solid()?;
         let inside = py.detach(|| {
             pts.par_iter()
-                .map(|p| self.tester.contains([p.0, p.1, p.2]))
+                .map(|p| solid.contains([p.0, p.1, p.2]))
                 .collect()
         });
         Ok(bools(py, inside))
@@ -111,7 +213,7 @@ impl Mesh {
         let pts = self::points(points)?;
         let w = py.detach(|| {
             pts.par_iter()
-                .map(|p| self.tester.winding_number([p.0, p.1, p.2]))
+                .map(|p| blocks::winding_number(&self.mesh, p))
                 .collect()
         });
         Ok(array1(py, w).into_any())
@@ -131,9 +233,9 @@ impl Mesh {
                 pts.par_iter()
                     .map(|p| {
                         if signed {
-                            self.mesh.signed_distance_to(p)
+                            blocks::signed_distance_to(&self.mesh, p)
                         } else {
-                            self.mesh.distance_to(p)
+                            blocks::distance_to(&self.mesh, p)
                         }
                     })
                     .collect::<Result<Vec<_>, _>>()
@@ -158,11 +260,12 @@ impl Mesh {
             (None, Err(_)) => return Err(invalid("give size for plain centroids")),
         };
         let centers = targets(blocks)?;
+        let solid = self.solid()?;
         let p = py.detach(|| {
             centers
                 .par_iter()
                 .map(|c| {
-                    self.tester
+                    solid
                         .evaluate_block([c.0, c.1, c.2], size, discretization)
                         .proportion
                 })
@@ -173,9 +276,14 @@ impl Mesh {
 
     fn __repr__(&self) -> String {
         format!(
-            "Mesh({} vertices, {} triangles)",
-            self.mesh.vertices.len(),
-            self.mesh.triangles.len()
+            "Mesh({} vertices, {} triangles, {})",
+            self.mesh.vertices().len(),
+            self.mesh.triangles().len(),
+            if self.mesh.is_closed() {
+                "closed"
+            } else {
+                "open"
+            }
         )
     }
 }
@@ -306,15 +414,14 @@ fn assign_domain<'py>(
     )
 }
 
-/// Visible skin of a block model: `(vertices (n, 3), triangles (m, 3),
-/// values per vertex or None)`; `column` colours faces by an attribute.
+/// Visible skin of a block model; `column` becomes the face column `value`.
 #[pyfunction]
 #[pyo3(signature = (model, column=None))]
 fn block_shell<'py>(
     py: Python<'py>,
     model: PyRef<PyBlockModel>,
     column: Option<&str>,
-) -> PyResult<Bound<'py, PyTuple>> {
+) -> PyResult<Mesh> {
     let m = &model.0;
     let size = m.geometry().size;
     let centroids = m.centroids();
@@ -345,21 +452,18 @@ fn block_shell<'py>(
         &orientation,
     )
     .map_err(err)?;
-    let vertices = Array2::from_shape_vec((shell.vertices.len() / 3, 3), shell.vertices)
-        .expect("xyz")
-        .into_pyarray(py)
-        .into_any();
-    let triangles: Vec<i64> = shell.triangles.iter().map(|&t| t as i64).collect();
-    let triangles = Array2::from_shape_vec((triangles.len() / 3, 3), triangles)
-        .expect("ijk")
-        .into_pyarray(py)
-        .into_any();
-    let values = if shell.values.is_empty() {
-        py.None().into_bound(py)
-    } else {
-        array1(py, shell.values).into_any()
-    };
-    PyTuple::new(py, [vertices, triangles, values])
+    let mut mesh = Mesh::build(&shell.vertices, &shell.triangles)?;
+    if !shell.values.is_empty() {
+        let values: Float64Array = mesh
+            .triangles()
+            .iter()
+            .map(|t| shell.values[t[0] as usize])
+            .collect();
+        mesh = mesh
+            .with_face_column("value", Arc::new(values))
+            .map_err(core_error)?;
+    }
+    Ok(Mesh::from_core(mesh))
 }
 
 /// Majority filter of block `classes` over a `window` of cells, repeated

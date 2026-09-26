@@ -2,14 +2,13 @@ use modeling::{
     ConstraintSet, HermiteKriging, HermiteSpec, Kernel, Lineation, Plane, PlaneEncoding, Rbf,
     RbfSpec, ScalarGrid, Svgp, SvgpSpec, marching_tetrahedra,
 };
-use numpy::IntoPyArray;
-use numpy::ndarray::Array2;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 use rayon::prelude::*;
 use variogram::Angles;
 
 use crate::args::{array1, array2, distinct, finite, pick, points, rows, same_length};
+use crate::blocks::Mesh;
 use crate::containers::PyBlockModel;
 use crate::estimation::targets;
 use crate::invalid;
@@ -292,9 +291,9 @@ impl ImplicitModel {
             .into_any())
     }
 
-    /// `(vertices, triangles)` of the `isovalue` surface, the field sampled at
-    /// the block centroids of `block_model`. `closed` caps the solid where the
-    /// field exceeds `isovalue` on the block model's outer faces.
+    /// Mesh of the `isovalue` surface, the field sampled at the block
+    /// centroids of `block_model`. `closed` caps the solid where the field
+    /// exceeds `isovalue` on the block model's outer faces.
     #[pyo3(signature = (block_model, isovalue=0.0, closed=false))]
     fn isosurface<'py>(
         &self,
@@ -302,7 +301,7 @@ impl ImplicitModel {
         block_model: PyRef<PyBlockModel>,
         isovalue: f64,
         closed: bool,
-    ) -> PyResult<Bound<'py, PyAny>> {
+    ) -> PyResult<Mesh> {
         let fitted = self.fitted()?;
         let g = *block_model.0.geometry();
         let pad = closed as usize;
@@ -330,24 +329,16 @@ impl ImplicitModel {
         let grid = ScalarGrid::new(origin, g.size, counts, values).map_err(invalid)?;
         let mesh = py.detach(|| marching_tetrahedra(&grid, isovalue));
         let frame = ceres_core::block_frame(g.rotation);
-        let vertices: Vec<Vec<f64>> = mesh
+        let vertices: Vec<f64> = mesh
             .vertices
             .iter()
-            .map(|v| {
-                (0..3)
-                    .map(|a| g.origin[a] + (0..3).map(|b| frame[(b, a)] * v[b]).sum::<f64>())
-                    .collect()
+            .flat_map(|v| {
+                (0..3).map(move |a| g.origin[a] + (0..3).map(|b| frame[(b, a)] * v[b]).sum::<f64>())
             })
             .collect();
-        let triangles = Array2::from_shape_vec(
-            (mesh.triangle_count(), 3),
-            mesh.triangles.iter().map(|&t| t as i64).collect(),
-        )
-        .expect("m x 3")
-        .into_pyarray(py);
-        Ok((array2(py, &vertices), triangles)
-            .into_pyobject(py)?
-            .into_any())
+        let mut mesh = Mesh::build(&vertices, &mesh.triangles)?;
+        mesh.crs = block_model.0.crs.clone();
+        Ok(Mesh::from_core(mesh))
     }
 
     /// Fit diagnostics of `engine="gp"`, else `None`.
