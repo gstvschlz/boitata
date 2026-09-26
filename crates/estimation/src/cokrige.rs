@@ -185,7 +185,8 @@ mod tests {
                 range: 30.0,
                 sills: vec![vec![1.0, 0.6], vec![0.6, 1.0]],
             }],
-        );
+        )
+        .unwrap();
         let locs = [
             (0.0, 0.0, 0.0),
             (10.0, 5.0, 0.0),
@@ -223,6 +224,7 @@ mod tests {
                 sills: vec![vec![1.0, cross], vec![cross, 1.0]],
             }],
         )
+        .unwrap()
     }
 
     #[test]

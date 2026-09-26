@@ -690,7 +690,8 @@ fn variogram_map(
 }
 
 /// Linear model of coregionalization: `nugget` and each structure's `sills`
-/// are symmetric `nvar × nvar` matrices.
+/// are symmetric positive semi-definite `nvar × nvar` matrices, else
+/// InvalidInput is raised.
 #[derive(Serialize, Deserialize)]
 #[pyclass(module = "ceres", name = "Coregionalization", frozen)]
 pub struct Coregionalization(pub CoreCoreg);
@@ -717,11 +718,6 @@ impl Coregionalization {
         rotation: (f64, f64, f64),
         ratios: (f64, f64),
     ) -> PyResult<Self> {
-        let n = nugget.len();
-        let square = |m: &Vec<Vec<f64>>| m.len() == n && m.iter().all(|r| r.len() == n);
-        if !square(&nugget) || structures.iter().any(|s| !square(&s.2)) {
-            return Err(invalid("nugget and sills must all be nvar x nvar"));
-        }
         let structures = structures
             .into_iter()
             .map(|(name, range, sills)| {
@@ -732,7 +728,7 @@ impl Coregionalization {
                 })
             })
             .collect::<PyResult<_>>()?;
-        let mut c = CoreCoreg::new(nugget, structures);
+        let mut c = CoreCoreg::new(nugget, structures).map_err(err)?;
         c.anisotropy = anisotropy(rotation, ratios)?;
         Ok(Self(c))
     }
