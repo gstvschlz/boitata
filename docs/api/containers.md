@@ -20,6 +20,10 @@
 
 ::: ceres.write_parquet
 
+::: ceres.BlockModelFile
+
+::: ceres.map_blocks
+
 ::: ceres.read_mesh
 
 ::: ceres.write_mesh

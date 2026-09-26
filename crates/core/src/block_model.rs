@@ -207,6 +207,15 @@ impl BlockModel {
         })
     }
 
+    /// The same blocks with other attributes, one row per block.
+    pub fn with_attributes(&self, attributes: RecordBatch) -> Result<Self> {
+        check_rows(self.len(), &attributes)?;
+        Ok(Self {
+            attributes,
+            ..self.clone()
+        })
+    }
+
     pub fn len(&self) -> usize {
         self.attributes.num_rows()
     }
