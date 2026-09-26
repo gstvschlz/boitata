@@ -188,7 +188,7 @@ indicator_models = [
     cs.experimental_variogram(xy, (cd <= t).astype(float), lag, max_lag).fit("spherical") for t in deciles
 ]
 median_model = indicator_models[4]
-summaries = dict(cutoffs=[limit], quantiles=[0.1, 0.5, 0.9])
+summaries = {"cutoffs": [limit], "quantiles": [0.1, 0.5, 0.9]}
 mik = cs.MultipleIndicatorKriging(indicator_models, search, deciles, tails=(0.0, cd.max()))
 by_mik = mik.fit(xy, cd, weights=weights).predict(test, **summaries)
 median = cs.MultipleIndicatorKriging(median_model, search, deciles, tails=(0.0, cd.max()))
@@ -211,8 +211,9 @@ median indicator: E-type RMSE 0.757 mg/kg, mean P(Cd > 0.8) 0.77 where true exce
 validation points inside their 10-90% interval: 75%
 ```
 
-The E-type estimate is close to ordinary kriging; what the indicators add is the distribution itself. The conditional
-distributions at the lowest and highest validation estimates bracket the declustered global one:
+The E-type estimate, the mean of each distribution, has a lower error than ordinary kriging, and the median-indicator
+shortcut gives most of that gain back. The distributions also carry the uncertainty: those at the lowest and highest
+validation estimates sit on either side of the declustered global one:
 
 <details><summary>Python</summary>
 
