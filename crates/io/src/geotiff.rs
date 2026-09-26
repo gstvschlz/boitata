@@ -37,7 +37,7 @@ fn tiff_error(e: TiffError) -> Error {
 /// bands stay `Float32`, the rest become `Float64`. Pixels equal to `nodata`
 /// (the file's `GDAL_NODATA` by default) and NaN are null. Georeferencing comes
 /// from ModelPixelScale + ModelTiepoint or from ModelTransformation, rotation
-/// included, with pixel-is-point rasters shifted so cell centres fall on the
+/// included, with pixel-is-point rasters shifted so cell centers fall on the
 /// tie points. An EPSG code in the GeoKeys becomes `EPSG:<code>`, otherwise the
 /// citation is the CRS. Band names come from GDAL's band descriptions.
 pub fn read_geotiff(path: impl AsRef<Path>, nodata: Option<f64>) -> Result<BlockModel> {

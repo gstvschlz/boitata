@@ -21,7 +21,7 @@ fn optional_floats(obj: Option<&Bound<PyAny>>, what: &str) -> PyResult<Option<Ve
 
 fn profile<'py>(py: Python<'py>, p: Profile, key: &str) -> PyResult<Bound<'py, PyDict>> {
     let d = PyDict::new(py);
-    d.set_item(key, array1(py, p.centres))?;
+    d.set_item(key, array1(py, p.centers))?;
     d.set_item("mean", array1(py, p.mean))?;
     d.set_item("count", p.count)?;
     Ok(d)

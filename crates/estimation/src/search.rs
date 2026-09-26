@@ -25,7 +25,7 @@ type Point = (f64, f64, f64);
 pub struct Search {
     pub min_samples: usize,
     pub max_samples: usize,
-    /// Search radius in the metric of the ellipsoid: metres along the major
+    /// Search radius in the metric of the ellipsoid: meters along the major
     /// axis when the anisotropy ranges are ratios (major = 1).
     #[serde(with = "ceres_core::nonfinite")]
     pub radius: f64,
@@ -285,7 +285,7 @@ pub fn neighbors_in(
     enough(chosen, params)
 }
 
-/// Samples indexed in k-d trees for repeated neighbourhood queries. Points
+/// Samples indexed in k-d trees for repeated neighborhood queries. Points
 /// are stored in the search ellipsoid's frame, so Euclidean distance in the
 /// tree is the anisotropic distance. Axes on which every point shares one
 /// value (2D data, a single level) are left out of the tree and added back

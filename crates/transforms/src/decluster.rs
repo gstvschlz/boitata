@@ -2,7 +2,7 @@
 //!
 //! Clustered samples (e.g. infill drilling in high-grade zones) bias global statistics.
 //! Cell declustering overlays a regular grid and weights each sample inversely to the
-//! number of samples sharing its cell; polygon (nearest-neighbour) declustering weights
+//! number of samples sharing its cell; polygon (nearest-neighbor) declustering weights
 //! each sample by its discrete area/volume of influence. Either de-emphasizes
 //! densely-sampled areas.
 
@@ -127,7 +127,7 @@ pub fn optimal_cell_size(
     Ok((best_size, best_mean))
 }
 
-/// Polygon (nearest-neighbour / area-of-influence) declustering weights.
+/// Polygon (nearest-neighbor / area-of-influence) declustering weights.
 ///
 /// Discretizes the sample bounding box into ~`target_nodes` cells, assigns each
 /// cell to its nearest sample, and weights each sample by how many cells it owns

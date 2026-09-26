@@ -6,7 +6,7 @@
 //! - [`multivariate`] — several correlated variables through independent factors
 //! - [`trend`] — a continuous variable whose distribution follows a trend
 //! - [`post`] — uncertainty summaries streamed over realizations, at node or
-//!   block support, and localisation of block realizations within panels
+//!   block support, and localization of block realizations within panels
 //!
 //! Realizations are conditional and reproducible given a seed.
 

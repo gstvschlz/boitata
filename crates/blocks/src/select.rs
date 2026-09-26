@@ -251,7 +251,7 @@ mod tests {
             [0.0, 0.5, 0.0],
         ];
         assert!(ring_is_closed(&ring));
-        // The same half-metre gap on a 10 m ring is genuinely open.
+        // The same half-meter gap on a 10 m ring is genuinely open.
         let small: Vec<[f64; 3]> = vec![
             [0.0, 0.0, 0.0],
             [10.0, 0.0, 0.0],

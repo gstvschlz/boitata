@@ -230,7 +230,7 @@ impl LocalAnisotropy {
     }
 
     /// Orientations of a point cloud: principal axes of each point's `k`
-    /// nearest neighbours (largest spread is the major axis).
+    /// nearest neighbors (largest spread is the major axis).
     pub fn from_points(coords: &[Point], k: usize, ratios: Option<[f64; 2]>) -> Result<Self> {
         if coords.len() < 3 || k < 3 {
             return Err(invalid("need at least 3 points and k >= 3"));
@@ -284,18 +284,18 @@ impl LocalAnisotropy {
         }
         let v = |i: usize| Vector3::new(vertices[i].0, vertices[i].1, vertices[i].2);
         let mut normals = Vec::with_capacity(triangles.len());
-        let mut centres = Vec::with_capacity(triangles.len());
+        let mut centers = Vec::with_capacity(triangles.len());
         for &(a, b, c) in triangles {
             if a.max(b).max(c) >= vertices.len() {
                 return Err(invalid("triangle index outside the vertices"));
             }
             let n = (v(b) - v(a)).cross(&(v(c) - v(a)));
-            let centre = (v(a) + v(b) + v(c)) / 3.0;
+            let center = (v(a) + v(b) + v(c)) / 3.0;
             normals.push(if n.z < 0.0 { -n } else { n });
-            centres.push(Sample::new((centre.x, centre.y, centre.z), 0.0));
+            centers.push(Sample::new((center.x, center.y, center.z), 0.0));
         }
         let tree = SearchTree::new(
-            &centres,
+            &centers,
             &Search {
                 min_samples: 1,
                 max_samples: 1,

@@ -241,7 +241,7 @@ mod tests {
     }
 
     #[test]
-    fn measurement_error_blends_the_datum_with_its_neighbours() {
+    fn measurement_error_blends_the_datum_with_its_neighbors() {
         let vg = Variogram::single(Model::Spherical, 1.0, 100.0);
         let others = vec![
             samp(50.0, 0.0, 2.0),

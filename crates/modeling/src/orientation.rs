@@ -39,7 +39,7 @@ impl Plane {
     /// A horizontal bed gives `(0, 0, 1)`; a vertical plane striking N–S and
     /// "dipping" 90° toward 090° gives `(1, 0, 0)`. The sign convention (up
     /// rather than down) is arbitrary but must be consistent, because it is
-    /// what decides which side of the modelled contact the field increases on.
+    /// what decides which side of the modeled contact the field increases on.
     pub fn normal(&self) -> Result<[f64; 3]> {
         if !(0.0..=90.0).contains(&self.dip) || !self.dip.is_finite() {
             return Err(ModelError::InvalidParameter(format!(

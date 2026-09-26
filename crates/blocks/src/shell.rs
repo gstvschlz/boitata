@@ -9,7 +9,7 @@
 //!
 //! A face is emitted when the cell across it is not rendered — outside the
 //! model, absent from a sparse (ore-only) export, filtered out by the active
-//! slab, or null in the attribute being coloured by. That last part is what
+//! slab, or null in the attribute being colored by. That last part is what
 //! makes a section cheap *and* correct: extracting the shell of the blocks
 //! inside a slab produces the cut faces, where clipping a hollow shell on the
 //! GPU would show it hollow.
@@ -171,7 +171,7 @@ impl Orientation {
 }
 
 /// Which blocks take part in the shell. Everything filtered out here counts as
-/// empty space, so its neighbours grow a face — that is how a slab produces
+/// empty space, so its neighbors grow a face — that is how a slab produces
 /// cut faces and a null-valued region produces a hole.
 #[derive(Debug, Clone, Default)]
 pub struct ShellFilter {
@@ -180,8 +180,8 @@ pub struct ShellFilter {
     /// viewport draws — rather than intersecting down to where they cross. An
     /// empty list keeps every block.
     pub slabs: Vec<Slab>,
-    /// Drop blocks whose colour-by value is NaN (a null grade), so they render
-    /// as absent rather than as a hole-coloured cube.
+    /// Drop blocks whose color-by value is NaN (a null grade), so they render
+    /// as absent rather than as a hole-colored cube.
     pub drop_nan_values: bool,
     /// A live selection filter (#349): only these block rows are kept, ANDed
     /// with the cuts above. `None` keeps every block.
@@ -414,7 +414,7 @@ fn face_is_buried(
     axis: usize,
     positive: bool,
 ) -> bool {
-    let neighbour = if positive {
+    let neighbor = if positive {
         if span.hi[axis] >= lattice.counts[axis] {
             return false; // model boundary
         }
@@ -427,7 +427,7 @@ fn face_is_buried(
     };
 
     // Sweep the other two axes across the whole face — a sub-blocked parent
-    // touches several neighbours, and one gap is enough to expose it.
+    // touches several neighbors, and one gap is enough to expose it.
     let (a, b) = match axis {
         0 => (1, 2),
         1 => (0, 2),
@@ -436,7 +436,7 @@ fn face_is_buried(
     for x in span.lo[a]..span.hi[a] {
         for y in span.lo[b]..span.hi[b] {
             let mut cell = [0usize; 3];
-            cell[axis] = neighbour;
+            cell[axis] = neighbor;
             cell[a] = x;
             cell[b] = y;
             if !occupancy.get(lattice.index(cell[0], cell[1], cell[2])) {
@@ -597,7 +597,7 @@ where
     };
 
     // Face emission is the expensive pass — per block it localizes, spans, and
-    // tests six faces against the occupancy bitmap. It parallelises because
+    // tests six faces against the occupancy bitmap. It parallelizes because
     // `push_face` never dedups against earlier vertices: every face appends
     // four fresh ones and indexes them from the running base. So a chunk can
     // build a mesh from base 0 and be folded in afterwards by offsetting its
@@ -823,9 +823,9 @@ where
     // Refine inside the winning coarse bucket, twice, for ~0.0001 degrees.
     let mut window = quarter / COARSE_STEPS as f64;
     for _ in 0..2 {
-        let (centre, _) = best;
+        let (center, _) = best;
         for step in -10..=10 {
-            let radians = centre + window * step as f64 / 10.0;
+            let radians = center + window * step as f64 / 10.0;
             let score = azimuth_score(&sample, cell, radians);
             if score > best.1 {
                 best = (radians, score);
@@ -977,13 +977,13 @@ mod tests {
 
     // A hole in the middle of a solid model exposes the six faces around it.
     #[test]
-    fn a_missing_block_exposes_its_neighbours() {
+    fn a_missing_block_exposes_its_neighbors() {
         let mut blocks = cube_grid(3, 3, 3, 1.0);
-        let centre = blocks
+        let center = blocks
             .iter()
             .position(|b| b.centroid == [1.5, 1.5, 1.5])
-            .expect("centre block");
-        blocks.remove(centre);
+            .expect("center block");
+        blocks.remove(center);
         let mesh = shell_of(&blocks);
         assert_eq!(mesh.face_count(), 6 * 9 + 6);
     }
@@ -1328,12 +1328,12 @@ mod tests {
         )
         .expect("single rotated block should shell");
 
-        let centre = blocks[0].centroid;
+        let center = blocks[0].centroid;
         for vertex in mesh.vertices.chunks_exact(3) {
             for axis in 0..3 {
                 assert!(
-                    (vertex[axis] - centre[axis]).abs() <= 5.0 + 1e-6,
-                    "vertex {vertex:?} is not on the block at {centre:?}"
+                    (vertex[axis] - center[axis]).abs() <= 5.0 + 1e-6,
+                    "vertex {vertex:?} is not on the block at {center:?}"
                 );
             }
         }
@@ -1509,7 +1509,7 @@ mod tests {
     #[test]
     fn faces_wind_outward() {
         let mesh = shell_of(&cube_grid(1, 1, 1, 2.0));
-        let centre = [1.0, 1.0, 1.0];
+        let center = [1.0, 1.0, 1.0];
         for face in 0..mesh.face_count() {
             let v = |n: usize| {
                 let idx = mesh.triangles[face * 6 + n] as usize;
@@ -1527,7 +1527,7 @@ mod tests {
                 e1[2] * e2[0] - e1[0] * e2[2],
                 e1[0] * e2[1] - e1[1] * e2[0],
             ];
-            let outward = [a[0] - centre[0], a[1] - centre[1], a[2] - centre[2]];
+            let outward = [a[0] - center[0], a[1] - center[1], a[2] - center[2]];
             let dot = normal[0] * outward[0] + normal[1] * outward[1] + normal[2] * outward[2];
             assert!(dot > 0.0, "face {face} winds inward (dot {dot})");
         }

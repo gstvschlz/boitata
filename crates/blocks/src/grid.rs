@@ -2,8 +2,8 @@ use ceres_core::{BlockModel, Layout, Mesh};
 
 use crate::{BlockModelError, Result};
 
-/// Surface through the cell centres of a 2D block model, each lifted to its
-/// `elevation` (one per row). Four neighbouring centres make two triangles,
+/// Surface through the cell centers of a 2D block model, each lifted to its
+/// `elevation` (one per row). Four neighboring centers make two triangles,
 /// three make one; rows without an elevation leave holes. Triangles wind
 /// counter-clockwise in the grid's axes, so they face up in an unrotated grid.
 pub fn grid_surface(model: &BlockModel, elevation: &[Option<f64>]) -> Result<Mesh> {
@@ -71,7 +71,7 @@ mod tests {
     }
 
     /// Theory check: a tilted plane on a full grid is exact everywhere under
-    /// the centres, and its area is the plan area between them over cos(slope).
+    /// the centers, and its area is the plan area between them over cos(slope).
     #[test]
     fn planar_grid_gives_the_plane() {
         let model = grid([8, 6, 1], None);

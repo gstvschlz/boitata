@@ -4,7 +4,7 @@ use rayon::prelude::*;
 use crate::error::{BlockModelError, Result};
 
 /// Majority filter of `classes` (one per row of a regular or masked `model`)
-/// over a `window` of cells centred on each block, applied `iterations` times.
+/// over a `window` of cells centered on each block, applied `iterations` times.
 /// Blocks keep their class on a tie, and absent cells do not vote, so isolated
 /// blocks take the class around them while contacts stay put. With `domains`
 /// (one per row), only blocks of the same domain vote.
@@ -116,7 +116,7 @@ mod tests {
     }
 
     #[test]
-    fn an_isolated_block_joins_its_neighbours_and_contacts_stay() {
+    fn an_isolated_block_joins_its_neighbors_and_contacts_stay() {
         let m = model([5, 5, 1]);
         let mut classes: Vec<u32> = (0..25).map(|i| u32::from(i % 5 >= 3)).collect();
         classes[6] = 1;

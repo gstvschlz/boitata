@@ -287,7 +287,7 @@ impl Default for CompositeParams {
     }
 }
 
-/// Length tolerance for closing a composite, in metres. Splitting produces
+/// Length tolerance for closing a composite, in meters. Splitting produces
 /// exact arithmetic in principle, but repeated subtraction leaves crumbs; this
 /// keeps a 2 m target from emitting a 2 m composite plus a 1e-16 m sliver.
 const LENGTH_EPS: f64 = 1e-9;
@@ -299,7 +299,7 @@ const LENGTH_EPS: f64 = 1e-9;
 /// 1. Reject non-finite or inverted intervals, then sort by depth.
 /// 2. Split the hole into runs of constant domain — a composite never spans a
 ///    contact, because averaging grade across one destroys the very boundary
-///    domained estimation exists to honour.
+///    domained estimation exists to honor.
 /// 3. Within a run, walk the sampled length and **cut intervals** at every
 ///    `composite_length` boundary, so composites come out at the target length
 ///    rather than at whatever length the assay intervals happen to sum to.
@@ -464,12 +464,12 @@ impl<'a> CompositeBuilder<'a> {
         self.part.as_ref().map_or(0.0, |p| p.length)
     }
 
-    /// Adds `take` metres of an interval starting at `at`.
+    /// Adds `take` meters of an interval starting at `at`.
     fn accumulate(&mut self, at: f64, take: f64, attrs: &HashMap<String, f64>) {
         if take <= 0.0 {
             return;
         }
-        // Started lazily so a composite starts where its first sampled metre
+        // Started lazily so a composite starts where its first sampled meter
         // is, not at the boundary of a gap that preceded it.
         let part = self.part.get_or_insert_with(|| Part {
             from: at,
@@ -1041,7 +1041,7 @@ mod tests {
     }
 
     #[test]
-    fn test_length_weighting_favours_the_longer_interval() {
+    fn test_length_weighting_favors_the_longer_interval() {
         let assays = vec![
             assay(0.0, 3.0, "g", Some(1.0)),
             assay(3.0, 4.0, "g", Some(5.0)),

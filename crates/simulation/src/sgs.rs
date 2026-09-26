@@ -16,7 +16,7 @@
 //! the realization is the sequential one for any number of threads.
 //!
 //! The search compares grades, of data and of simulated nodes, with a
-//! high-grade threshold. Kriging uses scores: a neighbour of the node's
+//! high-grade threshold. Kriging uses scores: a neighbor of the node's
 //! domain its own, one of another domain (through a soft boundary) its grade
 //! transformed as the node's domain transforms grades.
 
@@ -227,7 +227,7 @@ pub fn sgs_in(
     )
 }
 
-/// SGS calling `used(node, neighbours, samples, kriged)` for each kriged
+/// SGS calling `used(node, neighbors, samples, kriged)` for each kriged
 /// node: the indices into `samples` (data, then simulated nodes, valued in
 /// grades) it was simulated from, and those samples as kriged, in scores;
 /// `batch` fixes the size of the batches.
@@ -322,7 +322,7 @@ fn simulate(
         let found = find(tree, &target, domain, aniso.as_ref());
         if let Some(earlier) = earlier {
             // Stale when a node simulated since `known` would join the
-            // search: within the farthest neighbour of a full search, or
+            // search: within the farthest neighbor of a full search, or
             // within the radius of one that is not.
             let search = &params.search[passes[node]];
             let d = |p: &(f64, f64, f64)| match &aniso {
@@ -459,7 +459,7 @@ struct Known {
 }
 
 /// A node's draw: a datum's value, or the kriged mean and standard
-/// deviation of its score from neighbours `idx`, kriged as `selected`.
+/// deviation of its score from neighbors `idx`, kriged as `selected`.
 enum Step {
     Datum(f64),
     Kriged {
@@ -1147,7 +1147,7 @@ pub(crate) mod tests {
         move |g, t| table.forward(c.as_ref().map_or(g, |c| c.forward_one(t, g)))
     }
 
-    /// Neighbours of the other domain used; asserts every neighbour obeys the
+    /// Neighbors of the other domain used; asserts every neighbor obeys the
     /// high-grade rule in grades and is in the node's domain or strictly
     /// within `soft`, where it is kriged as its grade transformed through
     /// the node's domain.

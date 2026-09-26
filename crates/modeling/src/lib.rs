@@ -17,7 +17,7 @@
 //!   it, and the posterior variance comes out of the model
 //! - [`isosurface`] — marching tetrahedra over a sampled field
 //! - [`grid`]       — the sampling lattice and the triangle mesh it produces
-//! - [`constraint`] — what a fit is asked to honour: samples, boundary picks
+//! - [`constraint`] — what a fit is asked to honor: samples, boundary picks
 //!   on the contact, and structural readings as derivative rows
 //! - [`orientation`] — dip/dip-direction and plunge/trend as unit vectors
 //! - [`aniso`]      — anisotropy as a coordinate transform

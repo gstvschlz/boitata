@@ -224,7 +224,7 @@ mod tests {
     }
 
     #[test]
-    fn honours_data_and_ignores_thread_count() {
+    fn honors_data_and_ignores_thread_count() {
         let (locs, data, weights) = samples();
         let targets = locs[..20].to_vec();
         let run = |threads| {
