@@ -174,4 +174,73 @@ save(fig, "probability")
 
 ![probability](probability.png)
 
+Multiple indicator kriging repeats this at the deciles of Cd and assembles the conditional distribution at each
+target: kriged probabilities are corrected to rise from 0 to 1, and between thresholds the distribution follows the
+declustered data. One indicator variogram per threshold lets low and high values have their own continuity; a single
+variogram at the median solves one system per target instead.
+
+<details><summary>Python</summary>
+
+```python
+weights = cs.cell_declustering(xy, cd).weights
+deciles = np.quantile(cd, np.linspace(0.1, 0.9, 9))
+indicator_models = [
+    cs.experimental_variogram(xy, (cd <= t).astype(float), lag, max_lag).fit("spherical") for t in deciles
+]
+median_model = indicator_models[4]
+summaries = dict(cutoffs=[limit], quantiles=[0.1, 0.5, 0.9])
+mik = cs.MultipleIndicatorKriging(indicator_models, search, deciles, tails=(0.0, cd.max()))
+by_mik = mik.fit(xy, cd, weights=weights).predict(test, **summaries)
+median = cs.MultipleIndicatorKriging(median_model, search, deciles, tails=(0.0, cd.max()))
+by_median = median.fit(xy, cd, weights=weights).predict(test, **summaries)
+for name, s in (("per-threshold variograms", by_mik), ("median indicator", by_median)):
+    p = s.probability_above[0]
+    print(
+        f"{name}: E-type RMSE {rmse(s.mean):.3f} mg/kg, mean P(Cd > {limit}) {p[exceeds].mean():.2f} where true"
+        f" exceedance, {p[~exceeds].mean():.2f} elsewhere, mean correction {s.correction.mean():.3f}"
+    )
+inside = np.mean((truth >= by_mik.quantile_values[0]) & (truth <= by_mik.quantile_values[2]))
+print(f"validation points inside their 10-90% interval: {inside:.0%}")
+```
+
+</details>
+
+```text
+per-threshold variograms: E-type RMSE 0.717 mg/kg, mean P(Cd > 0.8) 0.76 where true exceedance, 0.62 elsewhere, mean correction 0.060
+median indicator: E-type RMSE 0.757 mg/kg, mean P(Cd > 0.8) 0.77 where true exceedance, 0.62 elsewhere, mean correction 0.005
+validation points inside their 10-90% interval: 75%
+```
+
+The E-type estimate is close to ordinary kriging; what the indicators add is the distribution itself. The conditional
+distributions at the lowest and highest validation estimates bracket the declustered global one:
+
+<details><summary>Python</summary>
+
+```python
+order = np.argsort(by_mik.mean)
+fig, axes = plt.subplots(1, 2, figsize=(9, 3.8), layout="constrained")
+sorted_cd = np.sort(cd)
+cumulative = np.cumsum(weights[np.argsort(cd)]) / weights.sum()
+axes[0].step(sorted_cd, cumulative, where="post", color=GREY, lw=1, label="declustered global")
+for i, color, label in ((order[0], ACCENT, "lowest E-type"), (order[-1], HIGHLIGHT, "highest E-type")):
+    axes[0].plot(
+        deciles, by_mik.cdf[:, i], "o-", color=color, ms=3, lw=1, label=f"{label}, true {truth[i]:.2f}"
+    )
+axes[0].axvline(limit, color=INK, lw=0.6, ls=":")
+axes[0].set(xlabel="Cd (mg/kg)", ylabel="P(Cd ≤ z)", title="Conditional distributions", xlim=(0, 4))
+axes[0].legend(fontsize=8, loc="lower right")
+axes[1].scatter(truth, by_mik.mean, s=12, color=ACCENT, alpha=0.7, linewidths=0)
+axes[1].plot([0, 5], [0, 5], color=GREY, ls="--", lw=1)
+axes[1].set(
+    xlim=(0, 5), ylim=(0, 5), xlabel="True Cd (mg/kg)", ylabel="E-type Cd (mg/kg)", title="E-type estimate"
+)
+axes[1].set_aspect("equal")
+axes[1].text(0.2, 4.6, f"RMSE {rmse(by_mik.mean):.2f} mg/kg", color=INK)
+save(fig, "distributions")
+```
+
+</details>
+
+![distributions](distributions.png)
+
 Full script: [`example_08.py`](example_08.py)

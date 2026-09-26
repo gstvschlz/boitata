@@ -332,6 +332,20 @@ impl Tabular for Dual {
     }
 }
 
+/// A Search, or a sequence of them as passes.
+pub fn searches(obj: &Bound<PyAny>) -> PyResult<Vec<CoreSearch>> {
+    let search: Vec<Search> = match obj.extract::<Search>() {
+        Ok(s) => vec![s],
+        Err(_) => obj
+            .extract()
+            .map_err(|_| invalid("search must be a Search or a sequence of Search"))?,
+    };
+    if search.is_empty() {
+        return Err(invalid("search needs at least one Search"));
+    }
+    Ok(search.into_iter().map(|s| s.0).collect())
+}
+
 /// Shared engine behind the estimator classes in `ceres.estimation`.
 #[derive(Serialize, Deserialize)]
 #[pyclass(module = "ceres", name = "_Estimator")]
@@ -353,15 +367,7 @@ impl Estimator {
         variogram: Option<Variogram>,
         options: Option<&Bound<PyDict>>,
     ) -> PyResult<Self> {
-        let search: Vec<Search> = match search.extract::<Search>() {
-            Ok(s) => vec![s],
-            Err(_) => search
-                .extract()
-                .map_err(|_| invalid("search must be a Search or a sequence of Search"))?,
-        };
-        if search.is_empty() {
-            return Err(invalid("search needs at least one Search"));
-        }
+        let search = searches(search)?;
         let get = |key: &str| -> PyResult<Option<Bound<PyAny>>> {
             Ok(match options {
                 Some(o) => o.get_item(key)?,
@@ -420,7 +426,7 @@ impl Estimator {
         Ok(Self {
             method,
             variogram: variogram.map(|v| v.0),
-            search: search.into_iter().map(|s| s.0).collect(),
+            search,
             samples: None,
         })
     }
