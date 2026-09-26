@@ -320,4 +320,33 @@ validation targets with order-relation violations: 91%
 
 ![accuracy](accuracy.png)
 
+At a panel centroid the distribution describes Cd at that one point. Kriging the indicators over the panel instead,
+`discretization=(4, 4, 1)`, gives the distribution of the point values within it, and `localize` takes the same
+argument. Each panel probability averages those of the points inside, so panels differ a little less and the order
+relations need less correction. Within 1 km the indicator variograms rise mostly at the nugget, which kriging at a
+centroid already filters, so here the two stay close:
+
+<details><summary>Python</summary>
+
+```python
+panels = cs.BlockModel(origin=(0.25, 0.0), size=(1.0, 1.0), count=(5, 6))
+by_centroid = mik.predict(panels, cutoffs=[limit])
+by_panel = mik.predict(panels, cutoffs=[limit], discretization=(4, 4, 1))
+for name, s in (("centroids", by_centroid), ("1 km panels", by_panel)):
+    print(
+        f"{name}: std of P(Cd > {limit}) across panels {np.nanstd(s.probability_above[0]):.3f},"
+        f" mean correction {np.nanmean(s.correction):.4f}"
+    )
+shift = np.nanmean(np.abs(by_panel.probability_above[0] - by_centroid.probability_above[0]))
+print(f"mean |panel - centroid| probability {shift:.3f}")
+```
+
+</details>
+
+```text
+centroids: std of P(Cd > 0.8) across panels 0.188, mean correction 0.0218
+1 km panels: std of P(Cd > 0.8) across panels 0.184, mean correction 0.0147
+mean |panel - centroid| probability 0.016
+```
+
 Full script: [`example_08.py`](example_08.py)

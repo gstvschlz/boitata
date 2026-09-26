@@ -856,6 +856,7 @@ class MultipleIndicatorKriging:
         quantiles: Sequence[float] = (),
         anisotropy: LocalAnisotropy | None = None,
         diagnostics: bool = False,
+        discretization: tuple[int, int, int] | None = None,
     ) -> IndicatorSummary: ...
     def cross_validate(self, folds: int | None = None) -> IndicatorCrossValidation: ...
     def localize(
@@ -865,6 +866,7 @@ class MultipleIndicatorKriging:
         ranking: str,
         variance_factor: float | Variogram | None = None,
         name: str | None = None,
+        discretization: tuple[int, int, int] | None = None,
     ) -> BlockModel: ...
 
 class IndicatorSummary:

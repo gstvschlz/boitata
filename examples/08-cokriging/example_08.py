@@ -252,3 +252,23 @@ ax.set(xlabel="Probability interval p", ylabel="Share of samples inside", title=
 ax.set_aspect("equal")
 ax.legend(fontsize=8, loc="upper left")
 save(fig, "accuracy")
+
+
+# %% [markdown]
+# At a panel centroid the distribution describes Cd at that one point. Kriging the indicators over the panel instead,
+# `discretization=(4, 4, 1)`, gives the distribution of the point values within it, and `localize` takes the same
+# argument. Each panel probability averages those of the points inside, so panels differ a little less and the order
+# relations need less correction. Within 1 km the indicator variograms rise mostly at the nugget, which kriging at a
+# centroid already filters, so here the two stay close:
+
+# %%
+panels = cs.BlockModel(origin=(0.25, 0.0), size=(1.0, 1.0), count=(5, 6))
+by_centroid = mik.predict(panels, cutoffs=[limit])
+by_panel = mik.predict(panels, cutoffs=[limit], discretization=(4, 4, 1))
+for name, s in (("centroids", by_centroid), ("1 km panels", by_panel)):
+    print(
+        f"{name}: std of P(Cd > {limit}) across panels {np.nanstd(s.probability_above[0]):.3f},"
+        f" mean correction {np.nanmean(s.correction):.4f}"
+    )
+shift = np.nanmean(np.abs(by_panel.probability_above[0] - by_centroid.probability_above[0]))
+print(f"mean |panel - centroid| probability {shift:.3f}")

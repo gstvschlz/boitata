@@ -707,3 +707,22 @@ def test_multiple_indicator_localization():
     with pytest.raises(cs.InvalidInput):
         shifted = cs.BlockModel(origin=(3, 0), size=(5, 5), count=(4, 4)).with_column("rank", np.zeros(16))
         mik.localize(panels, shifted, "rank")
+
+
+def test_block_multiple_indicator_kriging():
+    thresholds = np.quantile(values, [0.25, 0.5, 0.75])
+    wide = cs.Search(radius=1e4)
+    panels = cs.BlockModel(origin=(0, 0), size=(25, 25), count=(4, 4))
+    for simple in (False, True):
+        mik = cs.MultipleIndicatorKriging(model, wide, thresholds, simple=simple).fit(coords, values)
+        point = mik.predict(panels)
+        np.testing.assert_array_equal(mik.predict(panels, discretization=(1, 1, 1)).cdf, point.cdf)
+        block = mik.predict(panels, discretization=(4, 4, 1), diagnostics=True)
+        assert block.cdf[1].var() < point.cdf[1].var() and block.diagnostics is not None
+    smus = panels.discretize(5).with_column("rank", rng.normal(size=400))
+    local = mik.localize(panels, smus, "rank", discretization=(4, 4, 1))["localized"]
+    owner = smus["block"].astype(int)
+    for p, m in enumerate(block.mean):
+        assert local[owner == p].mean() == pytest.approx(m, abs=1e-9)
+    with pytest.raises(cs.InvalidInput, match="BlockModel"):
+        mik.predict(coords[:3], discretization=(2, 2, 1))
