@@ -1,6 +1,9 @@
+use std::sync::Arc;
+
+use arrow_array::{ArrayRef, Float64Array, RecordBatch};
 use estimation::{
-    IndicatorSummary as CoreSummary, Interpolation, MultipleIndicator, Sample,
-    Search as CoreSearch, UpperTail,
+    IndicatorDiagnostics, IndicatorSummary as CoreSummary, Interpolation, MultipleIndicator,
+    Sample, Search as CoreSearch, UpperTail,
 };
 use numpy::ndarray::Array2;
 use numpy::{IntoPyArray, PyArray1, PyArray2};
@@ -12,6 +15,7 @@ use crate::containers::PyBlockModel;
 use crate::estimation::{sample_columns, samples_from, searches, targets};
 use crate::invalid;
 use crate::persist::{self, Columns, Found, Tabular};
+use crate::table::Table;
 use crate::transforms::nullable;
 use crate::variogram::Variogram;
 
@@ -19,6 +23,21 @@ fn matrix<'py>(py: Python<'py>, rows: &[Vec<f64>], cols: usize) -> Bound<'py, Py
     Array2::from_shape_vec((rows.len(), cols), rows.concat())
         .expect("rectangular rows")
         .into_pyarray(py)
+}
+
+/// The diagnostics columns, `correction` among them, when predicted with them.
+fn diagnostic_columns(s: &CoreSummary) -> Option<Vec<(&'static str, &Vec<f64>)>> {
+    s.diagnostics.as_ref().map(|d| {
+        vec![
+            ("n_samples", &d.n_samples),
+            ("pass", &d.pass),
+            ("n_holes", &d.n_holes),
+            ("mean_distance", &d.mean_distance),
+            ("max_samples_reached", &d.max_samples_reached),
+            ("correction", &s.correction),
+            ("n_order_violations", &d.n_order_violations),
+        ]
+    })
 }
 
 /// Multiple indicator kriging: `P(value <= t)` kriged at every threshold,
@@ -162,12 +181,14 @@ impl MultipleIndicatorKriging {
     ///     Probabilities in [0, 1], for ``quantile_values``.
     /// anisotropy : LocalAnisotropy, optional
     ///     Orients every threshold's variogram and the search at each target.
+    /// diagnostics : bool
+    ///     Fill ``IndicatorSummary.diagnostics``.
     ///
     /// Returns
     /// -------
     /// IndicatorSummary
     ///     NaN where the search found too few samples.
-    #[pyo3(signature = (targets, cutoffs=vec![], quantiles=vec![], anisotropy=None))]
+    #[pyo3(signature = (targets, cutoffs=vec![], quantiles=vec![], anisotropy=None, diagnostics=false))]
     fn predict(
         &self,
         py: Python,
@@ -175,6 +196,7 @@ impl MultipleIndicatorKriging {
         cutoffs: Vec<f64>,
         quantiles: Vec<f64>,
         anisotropy: Option<PyRef<crate::lva::LocalAnisotropy>>,
+        diagnostics: bool,
     ) -> PyResult<IndicatorSummary> {
         let (samples, weights) = self.fitted()?;
         let targets = self::targets(targets)?;
@@ -190,8 +212,53 @@ impl MultipleIndicatorKriging {
                 &quantiles,
             )
         })
-        .map(IndicatorSummary)
+        .map(|s| {
+            IndicatorSummary(CoreSummary {
+                diagnostics: s.diagnostics.filter(|_| diagnostics),
+                ..s
+            })
+        })
         .map_err(invalid)
+    }
+
+    /// Re-estimates each sample's distribution from the others, through the
+    /// same search passes, against the global distribution of all samples.
+    ///
+    /// Parameters
+    /// ----------
+    /// folds : int, optional
+    ///     Leave-one-out when None; otherwise k-fold, each sample estimated
+    ///     without the samples of its fold. Samples fitted with `holes` keep
+    ///     their holes whole: the ``j``-th of the sorted hole ids goes to fold
+    ///     ``j % folds``, an untagged sample ``i`` to fold ``i % folds``.
+    ///
+    /// Returns
+    /// -------
+    /// IndicatorCrossValidation
+    #[pyo3(signature = (folds=None))]
+    fn cross_validate<'py>(
+        &self,
+        py: Python<'py>,
+        folds: Option<usize>,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let (samples, weights) = self.fitted()?;
+        let (s, pit) = py
+            .detach(|| {
+                self.model
+                    .cross_validate(samples, weights.as_deref(), &self.search, folds)
+            })
+            .map_err(invalid)?;
+        let actual = samples.iter().map(|s| s.value).collect();
+        py.import("ceres.estimation")?
+            .getattr("IndicatorCrossValidation")?
+            .call1((
+                array1(py, actual),
+                array1(py, s.mean.clone()),
+                array1(py, s.variance.clone()),
+                s.thresholds.clone(),
+                matrix(py, &s.cdf, samples.len()),
+                array1(py, pit),
+            ))
     }
 
     /// Localised grades of the selective blocks nested in the panels.
@@ -424,6 +491,29 @@ impl IndicatorSummary {
         matrix(py, &self.0.quantile_values, self.0.mean.len())
     }
 
+    /// Per-target Table when predicted with ``diagnostics=True``, else None:
+    /// ``n_samples``, ``pass`` (the search, from 1, that filled the target),
+    /// ``n_holes`` (distinct holes among the samples used; untagged samples
+    /// count one each), ``mean_distance`` (to the samples used),
+    /// ``max_samples_reached`` (1 where the search returned `max_samples`),
+    /// ``correction`` and ``n_order_violations`` (thresholds whose kriged
+    /// probability the order-relation correction changed). Null where
+    /// unestimated.
+    #[getter]
+    fn diagnostics(&self) -> PyResult<Option<Table>> {
+        diagnostic_columns(&self.0)
+            .map(|columns| {
+                RecordBatch::try_from_iter(columns.into_iter().map(|(name, values)| {
+                    let column: Float64Array =
+                        values.iter().map(|v| (!v.is_nan()).then_some(*v)).collect();
+                    (name, Arc::new(column) as ArrayRef)
+                }))
+                .map(Table)
+                .map_err(invalid)
+            })
+            .transpose()
+    }
+
     fn __repr__(&self) -> String {
         format!(
             "IndicatorSummary(targets={}, thresholds={:?}, cutoffs={:?}, quantiles={:?})",
@@ -484,6 +574,11 @@ impl Tabular for IndicatorSummary {
         for (q, values) in c.quantiles.iter().zip(&c.quantile_values) {
             out.push(column(format!("q{q}"), values));
         }
+        for (name, values) in diagnostic_columns(c).unwrap_or_default() {
+            if name != "correction" {
+                out.push(column(name.into(), values));
+            }
+        }
         Some(out)
     }
 
@@ -504,6 +599,16 @@ impl Tabular for IndicatorSummary {
                 .collect(),
         )?;
         c.quantile_values = each(c.quantiles.iter().map(|q| format!("q{q}")).collect())?;
+        if let Ok(n_samples) = found.values("n_samples") {
+            c.diagnostics = Some(IndicatorDiagnostics {
+                n_samples,
+                pass: found.values("pass")?,
+                n_holes: found.values("n_holes")?,
+                mean_distance: found.values("mean_distance")?,
+                max_samples_reached: found.values("max_samples_reached")?,
+                n_order_violations: found.values("n_order_violations")?,
+            });
+        }
         Ok(())
     }
 }

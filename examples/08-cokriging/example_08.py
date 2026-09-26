@@ -225,3 +225,30 @@ axes[1].set(
 axes[1].set_aspect("equal")
 axes[1].text(0.2, 4.6, f"RMSE {rmse(by_mik.mean):.2f} mg/kg", color=INK)
 save(fig, "distributions")
+
+
+# %% [markdown]
+# Cross-validation re-estimates each sample's distribution from the others. Besides the error of the E-type mean, it
+# scores the distributions: the Brier score of each threshold's probability, and the accuracy plot, the share of
+# samples inside their own symmetric p-probability interval. Points on or above the diagonal are accurate, and the
+# goodness statistic falls from 1 as the curve strays from it, twice as fast below. The diagnostics of `predict` count
+# the thresholds whose kriged probabilities broke the order relations at each target:
+
+# %%
+p = np.linspace(0, 1, 51)
+fig, ax = plt.subplots(figsize=(4.4, 4), layout="constrained")
+ax.plot([0, 1], [0, 1], color=GREY, ls="--", lw=1)
+for name, estimator, color in (("per-threshold", mik, ACCENT), ("median indicator", median, INK)):
+    cv = estimator.cross_validate()
+    print(
+        f"{name}: E-type RMSE {cv.rmse:.3f} mg/kg, slope {cv.slope:.2f}, goodness {cv.goodness:.3f},"
+        f" Brier {cv.brier.mean():.3f}"
+    )
+    ax.plot(p, cv.accuracy(p), color=color, lw=1.2, label=name)
+diagnostics = mik.predict(test, diagnostics=True).diagnostics
+violated = diagnostics["n_order_violations"] > 0
+print(f"validation targets with order-relation violations: {violated.mean():.0%}")
+ax.set(xlabel="Probability interval p", ylabel="Share of samples inside", title="Accuracy plot")
+ax.set_aspect("equal")
+ax.legend(fontsize=8, loc="upper left")
+save(fig, "accuracy")

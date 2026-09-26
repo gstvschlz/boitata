@@ -247,11 +247,14 @@ def test_simulator_round_trip_simulates_bit_identically(simulator, data, options
 def test_indicator_summary_round_trip(tmp_path):
     path = tmp_path / "summary.parquet"
     mik = cs.MultipleIndicatorKriging(model, cs.Search(15.0), [0.8, 1.5]).fit(coords, values)
-    summary = mik.predict(targets, cutoffs=[1.0, 2.0], quantiles=[0.1, 0.9])
+    summary = mik.predict(targets, cutoffs=[1.0, 2.0], quantiles=[0.1, 0.9], diagnostics=True)
     assert np.isnan(summary.mean).any()
     summary.to_parquet(path)
     for back in (cs.IndicatorSummary.from_parquet(path), pickle.loads(pickle.dumps(summary))):
         same(indicator_arrays(back), indicator_arrays(summary))
+        names = summary.diagnostics.column_names
+        assert back.diagnostics.column_names == names
+        same([back.diagnostics[n] for n in names], [summary.diagnostics[n] for n in names])
 
 
 xy = rng.uniform(0, 100, (20, 2))

@@ -32,8 +32,8 @@ pub use disjunctive::{DisjunctiveKriging, GaussianSample};
 pub use error::{EstimError, Result};
 pub use idw::{idw, nearest};
 pub use indicator::{
-    Conditional, Global, IndicatorSummary, Interpolation, MultipleIndicator, UpperTail,
-    correct_order_relations, variance_factor,
+    Conditional, Global, IndicatorDiagnostics, IndicatorSummary, Interpolation, MultipleIndicator,
+    UpperTail, correct_order_relations, variance_factor,
 };
 pub use krige::{Estimate, Kind, krige};
 pub use kriging_algebra::{

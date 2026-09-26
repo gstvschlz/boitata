@@ -336,6 +336,50 @@ def test_multiple_indicator_simple_form_far_away_gives_the_declustered_mean():
         cs.MultipleIndicatorKriging([model, model], search, [0.0, 1.0, 2.0])
 
 
+def test_multiple_indicator_cross_validation_and_diagnostics():
+    thresholds = np.quantile(values, [0.25, 0.5, 0.75])
+    passes = [cs.Search(radius=6.0, max_samples=8), search]
+    mik = cs.MultipleIndicatorKriging(model, passes, thresholds).fit(coords, values)
+    cv = mik.cross_validate()
+    assert isinstance(cv, cs.IndicatorCrossValidation) and cv.cdf.shape == (3, len(values))
+    assert np.all((cv.pit >= 0) & (cv.pit <= 1)) and cv.rmse < values.std()
+    assert cv.brier.shape == (3,) and np.all(cv.brier < 0.25)
+    assert cv.accuracy(1.0) == 1.0 and cv.accuracy([0.2, 0.8]).shape == (2,)
+    assert 0.5 < cv.goodness <= 1.0
+
+    one = (
+        cs.MultipleIndicatorKriging(model, search, [thresholds[1]])
+        .fit(coords, values)
+        .cross_validate(folds=5)
+    )
+    ik = (
+        cs.IndicatorKriging(model, search, threshold=thresholds[1])
+        .fit(coords, values)
+        .cross_validate(folds=5)
+    )
+    np.testing.assert_array_equal(one.cdf[0], np.clip(ik.estimate, 0, 1))
+
+    targets = rng.uniform(0, 100, (80, 2))
+    assert mik.predict(targets).diagnostics is None
+    s = mik.predict(targets, diagnostics=True)
+    d = s.diagnostics
+    assert d.column_names == [
+        "n_samples",
+        "pass",
+        "n_holes",
+        "mean_distance",
+        "max_samples_reached",
+        "correction",
+        "n_order_violations",
+    ]
+    np.testing.assert_array_equal(d["correction"], s.correction)
+    np.testing.assert_array_equal(d["n_order_violations"] > 0, s.correction > 0)
+    np.testing.assert_array_equal(
+        d["max_samples_reached"], np.where(d["pass"] == 1, d["n_samples"] == 8, d["n_samples"] == 16)
+    )
+    assert set(d["pass"]) == {1.0, 2.0}
+
+
 def test_block_kriging_with_a_pure_nugget_has_no_block_variance():
     nugget = cs.Variogram([], nugget=1.0)
     d = (
