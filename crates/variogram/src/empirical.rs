@@ -89,6 +89,115 @@ pub fn experimental(
     direction: Option<&Direction>,
     standardize: bool,
 ) -> Result<Experimental> {
+    check(locations, values, bins)?;
+    let scale = scale(values, estimator, standardize)?;
+    let (sums, counts) = sweep(locations, None, bins, direction, false, |i, j, _| {
+        moments(values[i], values[j])
+    });
+    Ok(collect(bins, &sums, &counts, estimator, scale))
+}
+
+/// Estimate an experimental cross-variogram of `values` and `other`.
+///
+/// With `other_locations` `None` the variables are co-located (isotopic) and
+/// both estimators apply: [`Estimator::Matheron`] gives
+/// `γ₁₂(h) = 1/(2N) Σ (z₁ᵢ − z₁ⱼ)(z₂ᵢ − z₂ⱼ)` and [`Estimator::Covariance`]
+/// gives `C₁₂(0) − C₁₂(h)`, `C₁₂(0)` being the sample covariance. Otherwise
+/// `other` sits at its own locations (heterotopic): only the cross-covariance
+/// is defined, and `C₁₂(0)` is estimated from the pairs closer than half a lag.
+/// `C₁₂(h)` pairs `values` at the tail with `other` at the head `h` away;
+/// directional cones are one-sided, so reversing the direction estimates
+/// `C₁₂(−h) = C₂₁(h)`, and the omnidirectional estimate averages both.
+/// `standardize` divides by `σ₁σ₂`.
+#[allow(clippy::too_many_arguments)]
+pub fn cross_experimental(
+    locations: &[(f64, f64, f64)],
+    values: &[f64],
+    other_locations: Option<&[(f64, f64, f64)]>,
+    other: &[f64],
+    bins: &LagBins,
+    estimator: Estimator,
+    direction: Option<&Direction>,
+    standardize: bool,
+) -> Result<Experimental> {
+    check(locations, values, bins)?;
+    if !matches!(estimator, Estimator::Matheron | Estimator::Covariance) {
+        return Err(VarioError::InvalidParameters(
+            "cross-variograms take the matheron or covariance estimator".into(),
+        ));
+    }
+    let divisor = |v1: f64, v2: f64| {
+        if !standardize {
+            Ok(1.0)
+        } else if v1 == 0.0 || v2 == 0.0 {
+            Err(VarioError::InsufficientData("values are constant".into()))
+        } else {
+            Ok((v1 * v2).sqrt())
+        }
+    };
+    let Some(heads) = other_locations else {
+        if other.len() != values.len() {
+            return Err(VarioError::InsufficientData(
+                "other must have one value per location".into(),
+            ));
+        }
+        let (m1, m2) = (mean(values), mean(other));
+        let covariance = values
+            .iter()
+            .zip(other)
+            .map(|(a, b)| (a - m1) * (b - m2))
+            .sum::<f64>()
+            / values.len() as f64;
+        let scale = Scale {
+            variance: covariance,
+            divisor: divisor(variance(values), variance(other))?,
+        };
+        let pair = |t: usize, h: usize| {
+            let (d1, d2) = (values[t] - values[h], other[t] - other[h]);
+            let (t1, h2) = (values[t], other[h]);
+            [d1 * d2, 0.0, t1, h2, t1 * h2, t1 * t1, h2 * h2, 0.0]
+        };
+        let (sums, counts) = sweep(locations, None, bins, direction, false, |i, j, side| {
+            if side > 0.0 {
+                pair(i, j)
+            } else if side < 0.0 {
+                pair(j, i)
+            } else {
+                let mut m = pair(i, j);
+                add(&mut m, &pair(j, i));
+                m.map(|x| x * 0.5)
+            }
+        });
+        return Ok(collect(bins, &sums, &counts, estimator, scale));
+    };
+    check(heads, other, bins)?;
+    if estimator == Estimator::Matheron {
+        return Err(VarioError::InvalidParameters(
+            "the cross-variogram needs co-located values; use the covariance estimator".into(),
+        ));
+    }
+    let (mut sums, mut counts) = sweep(locations, Some(heads), bins, direction, true, |i, j, _| {
+        let (t1, h2) = (values[i], other[j]);
+        [0.0, 0.0, t1, h2, t1 * h2, t1 * t1, h2 * h2, 0.0]
+    });
+    let (near, n_near) = (sums.pop().unwrap_or_default(), counts.pop().unwrap_or(0));
+    let unit = Scale {
+        variance: 0.0,
+        divisor: 1.0,
+    };
+    let Some((_, c0)) = finalise(&near, n_near, Estimator::Covariance, unit) else {
+        return Err(VarioError::InsufficientData(
+            "no pairs closer than half a lag to estimate the zero-lag cross-covariance".into(),
+        ));
+    };
+    let scale = Scale {
+        variance: c0,
+        divisor: divisor(variance(values), variance(other))?,
+    };
+    Ok(collect(bins, &sums, &counts, estimator, scale))
+}
+
+fn check(locations: &[(f64, f64, f64)], values: &[f64], bins: &LagBins) -> Result<()> {
     if locations.len() != values.len() {
         return Err(VarioError::InsufficientData(
             "locations and values length mismatch".into(),
@@ -104,15 +213,30 @@ pub fn experimental(
             "lag_width and max_lag must be positive".into(),
         ));
     }
-    let scale = scale(values, estimator, standardize)?;
+    Ok(())
+}
 
-    let n_bins = (bins.max_lag / bins.lag_width).ceil() as usize;
-    let n_bins = n_bins.max(1);
-
-    let dir = direction.map(|d| (d, d.unit()));
-    let cos_tol = direction.map(|d| d.tolerance.to_radians().cos());
-
-    let n = locations.len();
+/// Moment sums and pair counts per lag bin over the pairs of `tails` with
+/// `heads`, or with the later `tails` when `heads` is `None`, within `max_lag`
+/// and the direction cone. `terms(i, j, side)` gives a pair's moments, `side`
+/// being `+1`/`−1` as `h = head − tail` points along or against the direction
+/// (`0` when omnidirectional). Distinct `heads` keep the forward side only, and
+/// with `near` one extra bin gathers every pair closer than half a lag.
+fn sweep<F>(
+    tails: &[(f64, f64, f64)],
+    heads: Option<&[(f64, f64, f64)]>,
+    bins: &LagBins,
+    direction: Option<&Direction>,
+    near: bool,
+    terms: F,
+) -> (Vec<Moments>, Vec<usize>)
+where
+    F: Fn(usize, usize, f64) -> Moments + Sync,
+{
+    let n_bins = ((bins.max_lag / bins.lag_width).ceil() as usize).max(1);
+    let slots = n_bins + near as usize;
+    let dir = direction.map(|d| (d, d.unit(), d.tolerance.to_radians().cos()));
+    let n = tails.len();
 
     // The O(n²) pair sweep runs over a *fixed* number of chunks, never one sized
     // by the machine's core count: floating-point addition is not associative, so
@@ -127,29 +251,32 @@ pub fn experimental(
     // count so the pool stays fed even where the balance is imperfect.
     const N_CHUNKS: usize = 64;
 
-    // Per-chunk moment sums per bin. All are accumulated, so the estimator
-    // choice stays in the finalisation loop.
     let partials: Vec<(Vec<Moments>, Vec<usize>)> = (0..N_CHUNKS)
         .into_par_iter()
         .map(|chunk| {
-            let mut sums = vec![[0.0f64; 8]; n_bins];
-            let mut counts = vec![0usize; n_bins];
+            let mut sums = vec![[0.0f64; 8]; slots];
+            let mut counts = vec![0usize; slots];
             for i in (chunk..n).step_by(N_CHUNKS) {
-                for j in (i + 1)..n {
-                    let pi = locations[i];
-                    let pj = locations[j];
+                let pi = tails[i];
+                let (others, first) = heads.map_or((tails, i + 1), |h| (h, 0));
+                for (j, pj) in others.iter().enumerate().skip(first) {
                     let dx = pj.0 - pi.0;
                     let dy = pj.1 - pi.1;
                     let dz = pj.2 - pi.2;
                     let dist = (dx * dx + dy * dy + dz * dz).sqrt();
+                    if near && dist <= 0.5 * bins.lag_width {
+                        add(&mut sums[n_bins], &terms(i, j, 0.0));
+                        counts[n_bins] += 1;
+                    }
                     if dist == 0.0 || dist > bins.max_lag {
                         continue;
                     }
 
-                    if let (Some((d, u)), Some(ct)) = (&dir, cos_tol) {
+                    let mut side = 0.0;
+                    if let Some((d, u, ct)) = &dir {
                         let inv = 1.0 / dist;
                         let proj = (dx * u.0 + dy * u.1 + dz * u.2) * inv; // cos(angle)
-                        if proj.abs() < ct {
+                        if proj.abs() < *ct || (heads.is_some() && proj < 0.0) {
                             continue;
                         }
                         if let Some(bw) = d.bandwidth {
@@ -160,10 +287,11 @@ pub fn experimental(
                                 continue;
                             }
                         }
+                        side = proj.signum();
                     }
 
                     let idx = ((dist / bins.lag_width).floor() as usize).min(n_bins - 1);
-                    add(&mut sums[idx], &moments(values[i], values[j]));
+                    add(&mut sums[idx], &terms(i, j, side));
                     counts[idx] += 1;
                 }
             }
@@ -172,15 +300,24 @@ pub fn experimental(
         .collect();
 
     // Sequential merge in chunk-index order — the deterministic fold.
-    let mut sums = vec![[0.0f64; 8]; n_bins];
-    let mut counts = vec![0usize; n_bins];
+    let mut sums = vec![[0.0f64; 8]; slots];
+    let mut counts = vec![0usize; slots];
     for (chunk_sums, chunk_counts) in &partials {
-        for b in 0..n_bins {
+        for b in 0..slots {
             add(&mut sums[b], &chunk_sums[b]);
             counts[b] += chunk_counts[b];
         }
     }
+    (sums, counts)
+}
 
+fn collect(
+    bins: &LagBins,
+    sums: &[Moments],
+    counts: &[usize],
+    estimator: Estimator,
+    scale: Scale,
+) -> Experimental {
     let mut exp = Experimental {
         lags: Vec::new(),
         gammas: Vec::new(),
@@ -188,18 +325,27 @@ pub fn experimental(
         covariances: None,
     };
     let mut covariances = Vec::new();
-    for b in 0..n_bins {
-        if let Some((gamma, covariance)) = finalise(&sums[b], counts[b], estimator, scale) {
+    for (b, (s, &c)) in sums.iter().zip(counts).enumerate() {
+        if let Some((gamma, covariance)) = finalise(s, c, estimator, scale) {
             exp.lags.push((b as f64 + 0.5) * bins.lag_width);
             exp.gammas.push(gamma);
-            exp.counts.push(counts[b]);
+            exp.counts.push(c);
             covariances.push(covariance);
         }
     }
     if matches!(estimator, Estimator::Covariance | Estimator::Correlogram) {
         exp.covariances = Some(covariances);
     }
-    Ok(exp)
+    exp
+}
+
+fn mean(values: &[f64]) -> f64 {
+    values.iter().sum::<f64>() / values.len() as f64
+}
+
+fn variance(values: &[f64]) -> f64 {
+    let m = mean(values);
+    values.iter().map(|v| (v - m).powi(2)).sum::<f64>() / values.len() as f64
 }
 
 /// Per-pair terms summed in each lag bin: squared and root differences, head,
@@ -246,8 +392,7 @@ pub(crate) fn scale(values: &[f64], estimator: Estimator, standardize: bool) -> 
             "pairwise-relative needs non-negative values".into(),
         ));
     }
-    let mean = values.iter().sum::<f64>() / values.len() as f64;
-    let variance = values.iter().map(|v| (v - mean).powi(2)).sum::<f64>() / values.len() as f64;
+    let variance = variance(values);
     let divide = standardize
         && !matches!(
             estimator,
@@ -459,11 +604,6 @@ mod tests {
             .gammas
     }
 
-    fn variance(v: &[f64]) -> f64 {
-        let m = v.iter().sum::<f64>() / v.len() as f64;
-        v.iter().map(|x| (x - m).powi(2)).sum::<f64>() / v.len() as f64
-    }
-
     #[test]
     fn covariance_at_zero_lag_is_the_variance() {
         let (locs, vals) = field(4000, 40);
@@ -529,5 +669,148 @@ mod tests {
         for e in &ALL[3..] {
             assert_eq!(run(&locs, &vals, *e, true), run(&locs, &vals, *e, false));
         }
+    }
+
+    fn scattered(n: usize) -> (Vec<(f64, f64, f64)>, Vec<f64>) {
+        let locs = (0..n)
+            .map(|i| {
+                let t = i as f64;
+                ((t * 7.3) % 97.0, (t * 3.1) % 83.0, (t * 1.7) % 13.0)
+            })
+            .collect();
+        let vals = (0..n)
+            .map(|i| (i as f64 * 0.37).sin() * 10.0 + (i as f64 * 0.11).cos() * 3.0 + 20.0)
+            .collect();
+        (locs, vals)
+    }
+
+    fn cone(azimuth: f64) -> Direction {
+        Direction {
+            azimuth,
+            dip: 0.0,
+            tolerance: 20.0,
+            bandwidth: None,
+        }
+    }
+
+    #[test]
+    fn cross_variogram_with_itself_is_the_direct_variogram() {
+        let (locs, vals) = scattered(300);
+        let bins = LagBins {
+            max_lag: 80.0,
+            lag_width: 5.0,
+        };
+        let dir = cone(45.0);
+        for direction in [None, Some(&dir)] {
+            let m = Estimator::Matheron;
+            let direct = experimental(&locs, &vals, &bins, m, direction, false).unwrap();
+            let cross =
+                cross_experimental(&locs, &vals, None, &vals, &bins, m, direction, false).unwrap();
+            assert_eq!(cross.gammas, direct.gammas);
+            assert_eq!(cross.counts, direct.counts);
+            assert_eq!(cross.lags, direct.lags);
+        }
+    }
+
+    #[test]
+    fn cross_variogram_of_an_affine_image_is_scaled() {
+        let (locs, vals) = scattered(300);
+        let other: Vec<f64> = vals.iter().map(|v| -2.5 * v + 3.0).collect();
+        let bins = LagBins {
+            max_lag: 80.0,
+            lag_width: 5.0,
+        };
+        let m = Estimator::Matheron;
+        let direct = experimental(&locs, &vals, &bins, m, None, false).unwrap();
+        let cross = cross_experimental(&locs, &vals, None, &other, &bins, m, None, false).unwrap();
+        for (c, g) in cross.gammas.iter().zip(&direct.gammas) {
+            assert!((c + 2.5 * g).abs() <= 1e-9 * g.abs(), "{c} vs −2.5·{g}");
+        }
+    }
+
+    #[test]
+    fn cross_covariance_swaps_with_lag_reversal() {
+        let (locs, vals) = field(600, 12);
+        let other: Vec<f64> = vals[3..].to_vec();
+        let (locs, vals) = (&locs[..other.len()], &vals[..other.len()]);
+        let bins = LagBins {
+            max_lag: 10.0,
+            lag_width: 2.0,
+        };
+        let (forward, back) = (cone(90.0), cone(270.0));
+        let tails: Vec<_> = locs.iter().step_by(2).copied().collect();
+        let heads: Vec<_> = locs.iter().skip(1).step_by(2).copied().collect();
+        let even: Vec<f64> = vals.iter().step_by(2).copied().collect();
+        let odd: Vec<f64> = other.iter().skip(1).step_by(2).copied().collect();
+        let cases = [
+            (locs, vals, None, &other[..]),
+            (&tails[..], &even[..], Some(&heads[..]), &odd[..]),
+        ];
+        let run = |a: &[(f64, f64, f64)], x: &[f64], b, y: &[f64], d: &Direction| {
+            let c = Estimator::Covariance;
+            cross_experimental(a, x, b, y, &bins, c, Some(d), false).unwrap()
+        };
+        for (l1, v1, l2, v2) in cases {
+            let c12 = run(l1, v1, l2, v2, &forward);
+            let c21 = match l2 {
+                None => run(l1, v2, None, v1, &back),
+                Some(l2) => run(l2, v2, Some(l1), v1, &back),
+            };
+            let reversed = run(l1, v1, l2, v2, &back).covariances.unwrap();
+            assert_eq!(c12.counts, c21.counts);
+            let (a, b) = (c12.covariances.unwrap(), c21.covariances.unwrap());
+            for ((a, b), r) in a.iter().zip(&b).zip(&reversed) {
+                assert!((a - b).abs() < 1e-12, "C12(h) = {a}, C21(−h) = {b}");
+                assert!((a - r).abs() > 1e-2, "C12(h) = {a} vs C12(−h) = {r}");
+            }
+        }
+    }
+
+    #[test]
+    fn cross_estimates_are_deterministic_across_thread_counts() {
+        let (locs, vals) = scattered(300);
+        let other: Vec<f64> = vals.iter().map(|v| (v * 0.3).cos()).collect();
+        let bins = LagBins {
+            max_lag: 80.0,
+            lag_width: 5.0,
+        };
+        let dir = cone(45.0);
+        let swapped: Vec<_> = locs.iter().map(|p| (p.1, p.0, p.2)).collect();
+        let run = |l2, e, d| cross_experimental(&locs, &vals, l2, &other, &bins, e, d, false);
+        for (l2, e) in [
+            (None, Estimator::Matheron),
+            (None, Estimator::Covariance),
+            (Some(&swapped[..]), Estimator::Covariance),
+        ] {
+            for d in [None, Some(&dir)] {
+                let reference = run(l2, e, d).unwrap();
+                for k in [1usize, 2, 3, 7] {
+                    let pool = rayon::ThreadPoolBuilder::new()
+                        .num_threads(k)
+                        .build()
+                        .unwrap();
+                    let got = pool.install(|| run(l2, e, d)).unwrap();
+                    assert_eq!(got.gammas, reference.gammas, "gammas differ at {k} threads");
+                    assert_eq!(got.counts, reference.counts, "counts differ at {k} threads");
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn cross_rejects_what_it_cannot_estimate() {
+        let (locs, vals) = field(50, 5);
+        let bins = LagBins {
+            max_lag: 10.0,
+            lag_width: 1.0,
+        };
+        let near: Vec<_> = locs.iter().map(|p| (p.0, 0.5, 0.0)).collect();
+        let far: Vec<_> = locs.iter().map(|p| (p.0, 0.6, 0.0)).collect();
+        let run = |l2, e| cross_experimental(&locs, &vals, l2, &vals, &bins, e, None, false);
+        assert!(run(None, Estimator::CressieHawkins).is_err());
+        assert!(run(Some(&near[..]), Estimator::Matheron).is_err());
+        assert!(run(Some(&near[..]), Estimator::Covariance).is_ok());
+        assert!(run(Some(&far[..]), Estimator::Covariance).is_err());
+        assert!(run(Some(&far[..10]), Estimator::Covariance).is_err());
     }
 }

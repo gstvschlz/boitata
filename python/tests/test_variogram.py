@@ -64,6 +64,31 @@ def test_estimators_and_standardize():
     assert m.gammas.shape == (6, len(m.lags))
 
 
+def test_cross_variograms():
+    coords = rng.uniform(0, 100, (300, 2))
+    values = rng.normal(size=300)
+    args = (coords, values, 5, 50)
+    direct = cs.experimental_variogram(*args, azimuth=30)
+    cross = cs.experimental_variogram(*args, azimuth=30, other=values)
+    np.testing.assert_array_equal(cross.gammas, direct.gammas)
+    affine = cs.experimental_variogram(*args, other=3 - 2 * values)
+    np.testing.assert_allclose(affine.gammas, -2 * cs.experimental_variogram(*args).gammas)
+    other = values + rng.normal(size=300)
+    c12 = cs.experimental_variogram(*args, azimuth=30, estimator="covariance", other=other)
+    c21 = cs.experimental_variogram(coords, other, 5, 50, azimuth=210, estimator="covariance", other=values)
+    np.testing.assert_allclose(c12.covariances, c21.covariances, atol=1e-12)
+    np.testing.assert_allclose(c12.gammas + c12.covariances, np.cov(values, other, bias=True)[0, 1])
+    elsewhere = coords + 1
+    hetero = cs.experimental_variogram(*args, estimator="covariance", other=other, other_coords=elsewhere)
+    assert len(hetero.covariances) == len(hetero.gammas)
+    with pytest.raises(ValueError):
+        cs.experimental_variogram(*args, other=other, other_coords=elsewhere)
+    with pytest.raises(ValueError):
+        cs.experimental_variogram(*args, other_coords=elsewhere)
+    with pytest.raises(ValueError):
+        cs.experimental_variogram(*args, other=other[:10])
+
+
 def test_directional_and_map_shapes():
     coords = rng.uniform(0, 100, (300, 2))
     values = coords[:, 1] / 10 + rng.normal(size=300)
