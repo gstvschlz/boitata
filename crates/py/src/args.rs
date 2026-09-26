@@ -59,6 +59,91 @@ pub fn texts(obj: &Bound<PyAny>, what: &str) -> PyResult<Vec<Option<String>>> {
         .collect()
 }
 
+/// The column `name` of `data`: a container, a Table or a mapping.
+pub fn named<'py>(
+    data: Option<&Bound<'py, PyAny>>,
+    name: &str,
+    what: &str,
+) -> PyResult<Bound<'py, PyAny>> {
+    let unnamed = || {
+        invalid(format!(
+            "{what} names column {name:?}; that needs a container"
+        ))
+    };
+    let data = data.ok_or_else(unnamed)?;
+    data.get_item(name).map_err(|e| {
+        if !e.is_instance_of::<pyo3::exceptions::PyKeyError>(data.py()) {
+            return unnamed();
+        }
+        let table = data.getattr("attributes").unwrap_or_else(|_| data.clone());
+        let columns = table
+            .getattr("column_names")
+            .or_else(|_| table.call_method0("keys"))
+            .and_then(|c| c.try_iter()?.map(|n| n?.extract()).collect())
+            .unwrap_or_default();
+        crate::table::missing(name, columns)
+    })
+}
+
+/// `arg`, or the column of `data` it names.
+pub fn column<'py>(
+    data: Option<&Bound<'py, PyAny>>,
+    arg: &Bound<'py, PyAny>,
+    what: &str,
+) -> PyResult<Bound<'py, PyAny>> {
+    match arg.cast::<PyString>() {
+        Ok(name) => named(data, name.to_str()?, what),
+        Err(_) => Ok(arg.clone()),
+    }
+}
+
+/// `n` floats: a constant, one per row, or the column of `data` holding them.
+pub fn per_row(
+    data: Option<&Bound<PyAny>>,
+    arg: &Bound<PyAny>,
+    n: usize,
+    what: &str,
+) -> PyResult<Vec<f64>> {
+    if let Ok(x) = arg.extract::<f64>() {
+        return Ok(vec![x; n]);
+    }
+    let values = floats(&column(data, arg, what)?, what)?;
+    same_length(n, values.len(), what)?;
+    Ok(values)
+}
+
+/// The distinct domain labels and each row's code, from `domains` (labels or
+/// one label) or the `domain_column` of `data`; exactly one of the two.
+pub fn domain_codes(
+    data: Option<&Bound<PyAny>>,
+    domains: Option<&Bound<PyAny>>,
+    domain_column: Option<&str>,
+    n: usize,
+) -> PyResult<(Vec<Label>, Vec<u32>)> {
+    match (domains, domain_column) {
+        (Some(d), None) => crate::estimation::fit_codes(d, n),
+        (None, Some(c)) => crate::estimation::fit_codes(&named(data, c, "domain_column")?, n),
+        _ => Err(invalid("give one of domains or domain_column")),
+    }
+}
+
+/// One argument per container: a name looked up in both, or a 2-tuple of
+/// names or arrays.
+pub fn pair<'py>(
+    a: &Bound<'py, PyAny>,
+    b: &Bound<'py, PyAny>,
+    arg: &Bound<'py, PyAny>,
+    what: &str,
+) -> PyResult<(Bound<'py, PyAny>, Bound<'py, PyAny>)> {
+    let (x, y) = match arg.is_instance_of::<PyString>() {
+        true => (arg.clone(), arg.clone()),
+        false => arg
+            .extract()
+            .map_err(|_| invalid(format!("{what} must be a column name or a pair")))?,
+    };
+    Ok((column(Some(a), &x, what)?, column(Some(b), &y, what)?))
+}
+
 fn asarray<'py>(obj: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyAny>> {
     obj.py()
         .import("numpy")?

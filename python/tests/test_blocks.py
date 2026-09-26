@@ -81,7 +81,7 @@ def test_mesh_topology():
             call()
     assert square.distance([[0.5, 0.5, 2]])[0] == pytest.approx(2)
     labeled = square.with_face_column("layer", ["a", "b"]).with_vertex_column("z", [1, 2, 3, 4])
-    assert labeled.face_attributes["layer"] == ["a", "b"] and labeled.vertex_attributes.num_rows == 4
+    assert list(labeled.face_attributes["layer"]) == ["a", "b"] and labeled.vertex_attributes.num_rows == 4
     with pytest.raises(cs.errors.InvalidInput):
         square.with_face_column("bad", [1.0])
 

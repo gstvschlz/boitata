@@ -47,7 +47,7 @@ reports each group with its first sample and its spread.
 <details><summary>Python</summary>
 
 ```python
-hole = np.array(composites.attributes["hole"])
+hole = composites["hole"]
 
 
 def holes_per_group(tolerance):
@@ -83,8 +83,7 @@ composites = cs.duplicates(composites, merge="first")
 print(f"{len(composites)} composites, {int((composites['n'] > 1).sum())} of them merged pairs")
 xyz = composites.coords
 zn = composites["ZN"]
-lith = np.array(composites.attributes["LITH"])
-hole = np.array(composites.attributes["hole"])
+lith, hole = composites["LITH"], composites["hole"]
 ```
 
 </details>

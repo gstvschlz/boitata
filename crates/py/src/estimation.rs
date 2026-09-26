@@ -737,7 +737,8 @@ impl Estimator {
         let (fitted, codes) = match domains {
             None => (None, None),
             Some(obj) => {
-                let (fitted, codes) = fit_codes(obj, locs.len())?;
+                let (fitted, codes) =
+                    args::domain_codes(Some(coords), Some(obj), None, locs.len())?;
                 (Some(fitted), Some(codes))
             }
         };

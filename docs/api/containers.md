@@ -43,3 +43,5 @@
 ::: ceres.InvalidInput
 
 ::: ceres.FileError
+
+::: ceres.MissingColumn

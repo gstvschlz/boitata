@@ -3,7 +3,7 @@ import copyreg as _copyreg
 from ceres import _ceres, datasets, plot, plot3d  # noqa: F401
 from ceres._ceres import *
 from ceres._ceres import __version__  # noqa: F401
-from ceres.errors import CeresError, FileError, InvalidInput  # noqa: F401
+from ceres.errors import CeresError, FileError, InvalidInput, MissingColumn  # noqa: F401
 from ceres.estimation import *
 
 __all__ = [

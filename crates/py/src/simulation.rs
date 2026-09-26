@@ -316,14 +316,7 @@ fn trend_at(
         (Some(_), None) => return Err(invalid("fitted with a trend; give trend at the targets")),
         (None, Some(_)) => return Err(invalid("trend at the targets needs trend at fit")),
     };
-    let at_nodes = if trend.is_instance_of::<pyo3::types::PyString>() {
-        let model = targets
-            .cast::<PyBlockModel>()
-            .map_err(|_| invalid("a trend column name needs BlockModel targets"))?;
-        finite(&model.get_item(trend)?, "trend")?
-    } else {
-        finite(trend, "trend")?
-    };
+    let at_nodes = finite(&args::column(Some(targets), trend, "trend")?, "trend")?;
     same_length(nodes, at_nodes.len(), "trend")?;
     Ok(Some(at_nodes))
 }
@@ -640,7 +633,7 @@ impl Sgs {
     /// its blocks, weighted by node volume, and summarized at block support;
     /// nodes outside every block are ignored and a block holding no node is
     /// an error. `trend`, needed when fitted with one, is the trend at the
-    /// targets: an array, or the name of a column of BlockModel targets; each
+    /// targets: an array, or the name of a column of PointSet or BlockModel targets; each
     /// node is back-transformed within its trend class before any averaging.
     /// `domains`, needed when fitted with them, labels the targets, or is one
     /// label for all; a target in a domain without samples raises
