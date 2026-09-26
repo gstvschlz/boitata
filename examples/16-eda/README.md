@@ -10,9 +10,29 @@ import ceres as cs
 import matplotlib.pyplot as plt
 import numpy as np
 from common import ACCENT, GREY, INK, save
+```
 
+</details>
+
+`merge_intervals` rejects overlapping assays, so each overlap keeps the assay that starts first, as in
+[chapter 6](../06-drillholes/README.md).
+
+<details><summary>Python</summary>
+
+```python
 tables = cs.datasets.drillhole_tables()
-intervals = cs.merge_intervals(tables["assay"], tables["geology"])
+assay = tables["assay"]
+hole_id = np.array(assay["HOLEID"])
+start, end = assay["FROM"], assay["TO"]
+keep = np.ones(assay.num_rows, bool)
+reach = {}
+for i in np.lexsort((start, hole_id)):
+    if start[i] < reach.get(hole_id[i], -np.inf):
+        keep[i] = False
+    else:
+        reach[hole_id[i]] = end[i]
+assay = cs.Table({c: np.asarray(assay[c])[keep] for c in assay.column_names})
+intervals = cs.merge_intervals(assay, tables["geology"])
 dh = cs.Drillholes(tables["collar"], tables["survey"], intervals)
 grades = ["ZN", "PB", "CU", "AG", "AU"]
 composites = dh.composite(2.0, grades, domain="LITH")
@@ -52,7 +72,7 @@ for name in ["MS", "SM", "QE", "EX", "RH"]:
 LITH        n    mean  declust.    CV    P50    P90
 MS       2662    9.35      9.28  1.00   6.11  23.56
 SM       1845    8.49      8.63  1.06   5.14  22.13
-QE       4312    3.58      3.44  1.60   0.95  10.90
+QE       4311    3.58      3.44  1.60   0.95  10.90
 EX       2190    3.45      3.75  1.54   1.16  11.85
 RH      11129    1.60      1.66  2.24   0.21   4.87
 ```

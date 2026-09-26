@@ -7,8 +7,8 @@ use arrow_array::{ArrayRef, Float64Array, RecordBatch, StringArray};
 use arrow_schema::DataType;
 use ceres_core::PointSet;
 use drillholes::{
-    Collar, CompositeParams, DesurveyMethod, Residual, SurveyStation, WellborePoint,
-    composite_intervals, desurvey_wellbore, position_at,
+    Collar, CompositeParams, DesurveyMethod, DrillholeError, Residual, SurveyStation,
+    WellborePoint, composite_intervals, desurvey_wellbore, position_at,
 };
 use pyo3::prelude::*;
 use rayon::prelude::*;
@@ -474,6 +474,8 @@ impl Drillholes {
 /// their boundaries, hole by hole. The result has the hole, from and to
 /// columns followed by every other column of both tables, null where a table
 /// has no interval; `right` columns that clash get a `_right` suffix.
+/// Overlapping intervals within a table raise `ValueError` naming the
+/// first few holes; resolve them before merging.
 #[pyfunction]
 #[pyo3(signature = (left, right, hole="HOLEID", from_="FROM", to="TO"))]
 fn merge_intervals(
@@ -505,6 +507,7 @@ fn merge_intervals(
     let holes: std::collections::BTreeSet<&String> = lh.keys().chain(rh.keys()).collect();
 
     let (mut ids, mut from, mut upto, mut li, mut ri) = (vec![], vec![], vec![], vec![], vec![]);
+    let mut overlaps = vec![];
     for id in holes {
         let pick = |rows: Option<&Vec<usize>>, s: &[(f64, f64)]| {
             let rows: Vec<usize> = rows
@@ -518,13 +521,38 @@ fn merge_intervals(
         };
         let (lrows, lspans) = pick(lh.get(id), &ls);
         let (rrows, rspans) = pick(rh.get(id), &rs);
-        for (f, t, a, b) in drillholes::merge_intervals(&lspans, &rspans) {
-            ids.push(id.clone());
-            from.push(f);
-            upto.push(t);
-            li.push(a.map(|k| lrows[k] as u64));
-            ri.push(b.map(|k| rrows[k] as u64));
+        match drillholes::merge_intervals(&lspans, &rspans) {
+            Ok(pieces) => {
+                for (f, t, a, b) in pieces {
+                    ids.push(id.clone());
+                    from.push(f);
+                    upto.push(t);
+                    li.push(a.map(|k| lrows[k] as u64));
+                    ri.push(b.map(|k| rrows[k] as u64));
+                }
+            }
+            Err(DrillholeError::OverlappingIntervals {
+                table,
+                first,
+                second,
+            }) => {
+                let (side, s) = if table == 'a' {
+                    ("left", &lspans)
+                } else {
+                    ("right", &rspans)
+                };
+                let [(f1, t1), (f2, t2)] = [s[first], s[second]];
+                overlaps.push(format!("{side} {id}: {f1}-{t1} and {f2}-{t2}"));
+            }
+            Err(e) => return Err(invalid(e)),
         }
+    }
+    if !overlaps.is_empty() {
+        return Err(invalid(format!(
+            "overlapping intervals in {} holes, resolve them before merging: {}",
+            overlaps.len(),
+            overlaps[..overlaps.len().min(5)].join("; ")
+        )));
     }
 
     let take = |batch: &RecordBatch, idx: &[Option<u64>]| -> PyResult<Vec<(String, ArrayRef)>> {

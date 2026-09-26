@@ -62,6 +62,13 @@ def test_merge_then_composite_by_domain():
     assert not crosses.any()
 
 
+def test_merge_rejects_overlapping_intervals():
+    geology = {"HOLEID": np.array([2.0]), "FROM": np.array([0.0]), "TO": np.array([8.0])}
+    overlapping = {**intervals, "FROM": np.array([0.0, 2.0, 5.0, 0.0, 3.0])}
+    with pytest.raises(ValueError, match=r"1 holes.*left 2.0: 0-4 and 3-8"):
+        cs.merge_intervals(overlapping, geology)
+
+
 METHODS = ["minimum_curvature", "tangential", "balanced_tangential"]
 
 
@@ -126,7 +133,15 @@ def test_sampled_length_balances_metal_in_every_mode():
 @pytest.mark.slow
 def test_sampled_length_balances_metal_on_the_dataset():
     t = cs.datasets.drillhole_tables()
-    merged = cs.merge_intervals(t["assay"], t["geology"])
+    assay = t["assay"]
+    hole, start, end = np.array(assay["HOLEID"]), assay["FROM"], assay["TO"]
+    keep, reach = np.ones(assay.num_rows, bool), {}
+    for i in np.lexsort((start, hole)):
+        keep[i] = start[i] >= reach.get(hole[i], -np.inf)
+        if keep[i]:
+            reach[hole[i]] = end[i]
+    assay = cs.Table({c: np.asarray(assay[c])[keep] for c in assay.column_names})
+    merged = cs.merge_intervals(assay, t["geology"])
     comps = cs.Drillholes(t["collar"], t["survey"], merged).composite(
         2.0, ["ZN"], domain="LITH", residual="merge"
     )

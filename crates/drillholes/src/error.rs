@@ -16,6 +16,13 @@ pub enum DrillholeError {
 
     #[error("Missing data: {0}")]
     MissingData(String),
+
+    #[error("Intervals {first} and {second} of table {table} overlap")]
+    OverlappingIntervals {
+        table: char,
+        first: usize,
+        second: usize,
+    },
 }
 
 pub type Result<T> = std::result::Result<T, DrillholeError>;
