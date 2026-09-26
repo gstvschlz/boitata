@@ -14,6 +14,8 @@
 
 ::: ceres.StepwiseConditional
 
+::: ceres.GaussianImputer
+
 ::: ceres.UniformConditioning
 
 ::: ceres.Trend
