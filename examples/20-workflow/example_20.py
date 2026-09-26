@@ -34,12 +34,17 @@ from common import ACCENT, GRAY, HIGHLIGHT, LIGHT, save
 # %%
 tables = cs.datasets.drillhole_tables()
 flags, _ = cs.check_drillholes(
-    tables["collar"], tables["survey"], {"assay": tables["assay"], "geology": tables["geology"]}
+    tables["collar"],
+    tables["survey"],
+    {"assay": tables["assay"], "geology": tables["geology"]},
+    hole="HOLEID",
 )
 tables, _ = cs.fix_drillholes(flags, tables)
-intervals = cs.merge_intervals(tables["assay"], tables["geology"])
-drillholes = cs.Drillholes(tables["collar"], tables["survey"], intervals, method="minimum_curvature")
-tangential = cs.Drillholes(tables["collar"], tables["survey"], intervals, method="tangential")
+intervals = cs.merge_intervals(tables["assay"], tables["geology"], hole="HOLEID")
+drillholes = cs.Drillholes(
+    tables["collar"], tables["survey"], intervals, method="minimum_curvature", hole="HOLEID"
+)
+tangential = cs.Drillholes(tables["collar"], tables["survey"], intervals, method="tangential", hole="HOLEID")
 
 
 def in_window(points):

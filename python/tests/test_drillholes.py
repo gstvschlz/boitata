@@ -3,19 +3,19 @@ import numpy as np
 import pytest
 
 collar = {
-    "HOLEID": np.array([1.0, 2.0]),
+    "HOLE_ID": np.array([1.0, 2.0]),
     "X": np.array([0.0, 100.0]),
     "Y": np.zeros(2),
     "Z": np.full(2, 500.0),
 }
 survey = {
-    "HOLEID": np.array([1.0, 2.0]),
+    "HOLE_ID": np.array([1.0, 2.0]),
     "DEPTH": np.zeros(2),
     "AZIMUTH": np.array([0.0, 90.0]),
     "DIP": np.array([90.0, 45.0]),
 }
 intervals = {
-    "HOLEID": np.array([1.0, 1.0, 1.0, 2.0, 2.0]),
+    "HOLE_ID": np.array([1.0, 1.0, 1.0, 2.0, 2.0]),
     "FROM": np.array([0.0, 2.0, 5.0, 0.0, 4.0]),
     "TO": np.array([2.0, 5.0, 6.0, 4.0, 8.0]),
     "AU": np.array([1.0, 2.0, np.nan, 3.0, 5.0]),
@@ -47,13 +47,13 @@ def test_intervals_are_required_for_samples():
 
 def test_merge_then_composite_by_domain():
     geology = {
-        "HOLEID": np.array([1.0, 1.0, 2.0]),
+        "HOLE_ID": np.array([1.0, 1.0, 2.0]),
         "FROM": np.array([0.0, 3.0, 0.0]),
         "TO": np.array([3.0, 6.0, 8.0]),
         "LITH": np.array([1.0, 2.0, 1.0]),
     }
     merged = cs.merge_intervals(intervals, geology)
-    assert merged.column_names == ["HOLEID", "FROM", "TO", "AU", "LITH"]
+    assert merged.column_names == ["HOLE_ID", "FROM", "TO", "AU", "LITH"]
     np.testing.assert_array_equal(merged["TO"][:4], [2, 3, 5, 6])
     comps = cs.Drillholes(collar, survey, merged).composite(2.0, ["AU"], domain="LITH")
     first = np.array(comps.attributes["hole"]) == "1.0"
@@ -63,7 +63,7 @@ def test_merge_then_composite_by_domain():
 
 
 def test_merge_rejects_overlapping_intervals():
-    geology = {"HOLEID": np.array([2.0]), "FROM": np.array([0.0]), "TO": np.array([8.0])}
+    geology = {"HOLE_ID": np.array([2.0]), "FROM": np.array([0.0]), "TO": np.array([8.0])}
     overlapping = {**intervals, "FROM": np.array([0.0, 2.0, 5.0, 0.0, 3.0])}
     with pytest.raises(ValueError, match=r"1 holes.*left 2.0: 0-4 and 3-8"):
         cs.merge_intervals(overlapping, geology)
@@ -76,7 +76,7 @@ def test_desurvey_methods_agree_on_straight_holes_and_differ_on_curves():
     straight = [cs.Drillholes(collar, survey, intervals, method=m).samples().coords for m in METHODS]
     for coords in straight[1:]:
         np.testing.assert_allclose(coords, straight[0], atol=1e-9)
-    bend = {"HOLEID": [1.0, 1.0], "DEPTH": [0.0, 50.0], "AZIMUTH": [90.0, 90.0], "DIP": [90.0, 30.0]}
+    bend = {"HOLE_ID": [1.0, 1.0], "DEPTH": [0.0, 50.0], "AZIMUTH": [90.0, 90.0], "DIP": [90.0, 30.0]}
     east = [cs.Drillholes(collar, bend, method=m).at(["1.0"], [50.0])[0, 0] for m in METHODS]
     assert east[1] < east[2] < east[0]
     with pytest.raises(cs.InvalidInput):
@@ -95,7 +95,7 @@ def test_compositing_modes_conserve_metal():
     dh = cs.Drillholes(collar, survey, full)
     runs = dh.composite(None, ["AU"])
     assert len(runs) == 2 and metal(runs) == pytest.approx(total)
-    benches = {"HOLEID": [1.0, 2.0, 2.0], "FROM": [0.0, 0.0, 5.0], "TO": [6.0, 5.0, 8.0]}
+    benches = {"HOLE_ID": [1.0, 2.0, 2.0], "FROM": [0.0, 0.0, 5.0], "TO": [6.0, 5.0, 8.0]}
     to_benches = dh.composite(None, ["AU"], intervals=benches)
     np.testing.assert_allclose(to_benches["to"], [6, 5, 8])
     assert metal(to_benches) == pytest.approx(total)
@@ -118,7 +118,7 @@ def test_categories_take_the_length_weighted_majority():
 def test_sampled_length_balances_metal_in_every_mode():
     dh = cs.Drillholes(collar, survey, intervals)
     total = 1 * 2 + 2 * 3 + 3 * 4 + 5 * 4
-    benches = {"HOLEID": [1.0, 1.0, 2.0], "FROM": [0.0, 4.0, 0.0], "TO": [4.0, 6.0, 8.0]}
+    benches = {"HOLE_ID": [1.0, 1.0, 2.0], "FROM": [0.0, 4.0, 0.0], "TO": [4.0, 6.0, 8.0]}
     for kwargs in [
         {"length": 4.0},
         {"length": None},
@@ -133,10 +133,10 @@ def test_sampled_length_balances_metal_in_every_mode():
 @pytest.mark.slow
 def test_sampled_length_balances_metal_on_the_dataset():
     t = cs.datasets.drillhole_tables()
-    flags, _ = cs.check_drillholes(t["collar"], intervals={"assay": t["assay"]})
+    flags, _ = cs.check_drillholes(t["collar"], intervals={"assay": t["assay"]}, hole="HOLEID")
     assay = t["assay"].filter(~flags["assay"]["overlap"])
-    merged = cs.merge_intervals(assay, t["geology"])
-    comps = cs.Drillholes(t["collar"], t["survey"], merged).composite(
+    merged = cs.merge_intervals(assay, t["geology"], hole="HOLEID")
+    comps = cs.Drillholes(t["collar"], t["survey"], merged, hole="HOLEID").composite(
         2.0, ["ZN"], domain="LITH", residual="merge"
     )
     metal = np.nansum(merged["ZN"] * (merged["TO"] - merged["FROM"]))
@@ -153,20 +153,20 @@ def _flagged(flags):
 
 
 checked_collar = {
-    "HOLEID": np.array(["A", "B", "B", None, "D"], dtype=object),
+    "HOLE_ID": np.array(["A", "B", "B", None, "D"], dtype=object),
     "X": np.array([0.0, 1.0, 1.0, 2.0, -999.0]),
     "Y": np.zeros(5),
     "Z": np.array([9.0, 9.0, 9.0, 9.0, np.nan]),
     "LENGTH": np.array([20.0, 30.0, 30.0, 10.0, 10.0]),
 }
 checked_survey = {
-    "HOLEID": np.array(["A", "A", "A", "A", "A", "B", "E"]),
+    "HOLE_ID": np.array(["A", "A", "A", "A", "A", "B", "E"]),
     "DEPTH": np.array([0.0, 10.0, 10.0, 15.0, 25.0, 0.0, 0.0]),
     "AZIMUTH": np.array([90.0, 90.0, 90.0, 400.0, 90.0, 0.0, 0.0]),
     "DIP": np.array([60.0, -60.0, 60.0, 60.0, 60.0, 90.0, 90.0]),
 }
 checked_assay = {
-    "HOLEID": np.array(["A", "A", "A", "A", "A", "B", "E"]),
+    "HOLE_ID": np.array(["A", "A", "A", "A", "A", "B", "E"]),
     "FROM": np.array([0.0, 1.0, 0.5, 4.0, 6.0, 0.0, 0.0]),
     "TO": np.array([1.0, 3.0, 2.0, 4.0, 22.0, 5.0, 1.0]),
     "AU": np.array([1.0, 2.0, 3.0, 4.0, 5.0, -99.0, 1.0]),
@@ -225,7 +225,7 @@ def test_fix_applies_one_rule_per_check():
         checked_collar, checked_survey, {"assay": checked_assay}, max_depth="LENGTH"
     )
     clean, log = cs.fix_drillholes(flags, tables)
-    assert list(clean["collar"]["HOLEID"]) == ["A", "B"]
+    assert list(clean["collar"]["HOLE_ID"]) == ["A", "B"]
     assert list(clean["survey"]["DEPTH"]) == [0.0, 0.0]
     assert list(clean["assay"]["FROM"]) == [0.0, 1.0, 6.0, 0.0]
     assert np.isnan(clean["assay"]["AU"][-1])
@@ -256,5 +256,7 @@ def test_overlap_flags_keep_the_first_interval_on_the_dataset():
         keep[i] = start[i] >= reach.get(hole[i], -np.inf)
         if keep[i]:
             reach[hole[i]] = end[i]
-    flags, _ = cs.check_drillholes(t["collar"], t["survey"], {"assay": assay}, max_depth="DEPTH")
+    flags, _ = cs.check_drillholes(
+        t["collar"], t["survey"], {"assay": assay}, hole="HOLEID", max_depth="DEPTH"
+    )
     assert (flags["assay"]["overlap"] == ~keep).all()

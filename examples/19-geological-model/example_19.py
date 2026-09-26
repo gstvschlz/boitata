@@ -30,7 +30,7 @@ from common import ACCENT, GRAY, HIGHLIGHT, INK, LIGHT, save
 
 # %%
 tables = cs.datasets.drillhole_tables()
-dh = cs.Drillholes(tables["collar"], tables["survey"], tables["geology"])
+dh = cs.Drillholes(tables["collar"], tables["survey"], tables["geology"], hole="HOLEID")
 logged = dh.samples()
 xyz = logged.coords
 hole = np.array(logged["HOLEID"], dtype=object)

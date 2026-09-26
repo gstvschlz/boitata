@@ -22,11 +22,14 @@ overlapping assays keep the one that starts first and abruptly deviating survey 
 ```python
 tables = cs.datasets.drillhole_tables()
 flags, _ = cs.check_drillholes(
-    tables["collar"], tables["survey"], {"assay": tables["assay"], "geology": tables["geology"]}
+    tables["collar"],
+    tables["survey"],
+    {"assay": tables["assay"], "geology": tables["geology"]},
+    hole="HOLEID",
 )
 tables, _ = cs.fix_drillholes(flags, tables)
-intervals = cs.merge_intervals(tables["assay"], tables["geology"])
-dh = cs.Drillholes(tables["collar"], tables["survey"], intervals)
+intervals = cs.merge_intervals(tables["assay"], tables["geology"], hole="HOLEID")
+dh = cs.Drillholes(tables["collar"], tables["survey"], intervals, hole="HOLEID")
 grades = ["ZN", "PB", "CU", "AG", "AU"]
 composites = dh.composite(2.0, grades, domain="LITH")
 print(f"{len(composites)} composites")

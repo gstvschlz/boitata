@@ -91,12 +91,17 @@ def test_anisotropy_variance_and_contact_positions():
     with pytest.raises(cs.InvalidInput, match="only"):
         flat.predict(xyz, variance=True)
 
-    collar = {"HOLEID": np.array([1.0]), "X": np.array([10.0]), "Y": np.array([20.0]), "Z": np.array([100.0])}
+    collar = {
+        "HOLE_ID": np.array([1.0]),
+        "X": np.array([10.0]),
+        "Y": np.array([20.0]),
+        "Z": np.array([100.0]),
+    }
     survey = {
-        k: np.array(v) for k, v in {"HOLEID": [1.0], "DEPTH": [0.0], "AZIMUTH": [0.0], "DIP": [90.0]}.items()
+        k: np.array(v) for k, v in {"HOLE_ID": [1.0], "DEPTH": [0.0], "AZIMUTH": [0.0], "DIP": [90.0]}.items()
     }
     dh = cs.Drillholes(
-        collar, survey, {"HOLEID": np.array([1.0]), "FROM": np.array([0.0]), "TO": np.array([100.0])}
+        collar, survey, {"HOLE_ID": np.array([1.0]), "FROM": np.array([0.0]), "TO": np.array([100.0])}
     )
     np.testing.assert_allclose(dh.at(["1.0"], [30.0]), [[10.0, 20.0, 70.0]], atol=1e-9)
     with pytest.raises(cs.InvalidInput):
