@@ -104,7 +104,7 @@ impl LocalAnisotropy {
     /// over `window` cells each side; the least-change direction is the major
     /// axis. Without `ratios`, ratios follow the tensor's eigenvalues.
     #[staticmethod]
-    #[pyo3(signature = (model, column, window=2, ratios=None))]
+    #[pyo3(signature = (model, column, *, window=2, ratios=None))]
     fn from_grid(
         model: PyRef<PyBlockModel>,
         column: &str,

@@ -136,8 +136,9 @@ class BlockModel:
     def regularize(self, target: BlockModel, min_fraction: float = 0.0) -> BlockModel: ...
     def subblock(
         self,
-        domains: Sequence[tuple[Mesh, Literal["inside", "below", "above"], str]],
+        meshes: Sequence[tuple[Mesh, Literal["inside", "below", "above"], str]],
         subgrid: int | Sequence[int],
+        *,
         column: str = "domain",
         fill: str | None = None,
     ) -> BlockModel: ...
@@ -146,8 +147,9 @@ class BlockModel:
         origin: Sequence[float],
         size: Sequence[float],
         count: Sequence[int],
-        domains: Sequence[tuple[Mesh, Literal["inside", "below", "above"], str]],
+        meshes: Sequence[tuple[Mesh, Literal["inside", "below", "above"], str]],
         subgrid: int | Sequence[int],
+        *,
         rotation: tuple[float, float, float] = (0.0, 0.0, 0.0),
         column: str = "domain",
         fill: str | None = None,
@@ -385,6 +387,7 @@ class Variogram:
     def __init__(
         self,
         structures: Sequence[Structure | tuple[str, float, float]],
+        *,
         nugget: float = 0.0,
         rotation: tuple[float, float, float] = (0.0, 0.0, 0.0),
         ratios: tuple[float, float] = (1.0, 1.0),
@@ -463,6 +466,7 @@ class Coregionalization:
     def __init__(
         self,
         nugget: Sequence[Sequence[float]],
+        *,
         structures: Sequence[tuple[str, float, Sequence[Sequence[float]]]],
         rotation: tuple[float, float, float] = (0.0, 0.0, 0.0),
         ratios: tuple[float, float] = (1.0, 1.0),
@@ -495,25 +499,27 @@ class Transiogram:
     def matrix(self, h: float) -> npt.NDArray[np.float64]: ...
 
 def experimental_variogram(
-    coords: ArrayLike,
-    values: ArrayLike,
+    coords: ArrayLike | PointSet | BlockModel,
+    values: ArrayLike | Column,
     lag: float,
     max_lag: float,
+    *,
     azimuth: float | None = None,
     dip: float = 0.0,
     tolerance: float = 22.5,
     bandwidth: float | None = None,
     estimator: str = "matheron",
     standardize: bool = False,
-    other: ArrayLike | None = None,
-    other_coords: ArrayLike | None = None,
-    holes: ArrayLike | None = None,
+    other: ArrayLike | Column | None = None,
+    other_coords: ArrayLike | PointSet | BlockModel | None = None,
+    holes: Holes | Column | None = None,
 ) -> ExperimentalVariogram: ...
 def variogram_map(
-    coords: ArrayLike,
-    values: ArrayLike,
+    coords: ArrayLike | PointSet | BlockModel,
+    values: ArrayLike | Column,
     lag: float,
     max_lag: float,
+    *,
     u: Sequence[float] = (1.0, 0.0, 0.0),
     v: Sequence[float] = (0.0, 1.0, 0.0),
     tolerance: float = 22.5,
@@ -522,7 +528,10 @@ def variogram_map(
     estimator: str = "matheron",
 ) -> VariogramMap: ...
 def experimental_transiogram(
-    coords: ArrayLike, categories: Sequence[int], lag: float, max_lag: float
+    coords: ArrayLike | PointSet | BlockModel,
+    categories: Sequence[int] | ArrayLike | Column,
+    lag: float,
+    max_lag: float,
 ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64], npt.NDArray[np.float64]]: ...
 def change_of_support(
     anamorphosis: HermiteAnamorphosis,
@@ -541,6 +550,7 @@ class Search:
     def __init__(
         self,
         radius: float,
+        *,
         max_samples: int = 16,
         min_samples: int = 1,
         octant: bool = False,
@@ -1063,7 +1073,11 @@ class Mesh:
     def vertical_distance(self, points: Any) -> npt.NDArray[np.float64]: ...
     def repair(self, tolerance: float = 0.0) -> Mesh: ...
     def proportion(
-        self, blocks: Any, size: Sequence[float] | None = None, discretization: int = 4
+        self,
+        targets: Any,
+        *,
+        size: Sequence[float] | None = None,
+        discretization: int | tuple[int, int, int] = 4,
     ) -> npt.NDArray[np.float64]: ...
 
 class PolygonSelector:
@@ -1082,8 +1096,10 @@ def polygon_distance(
 ) -> npt.NDArray[np.float64]: ...
 def assign_domain(
     targets: Any,
-    coords: ArrayLike | None = None,
-    domains: Sequence[str] | None = None,
+    *,
+    coords: ArrayLike | PointSet | BlockModel | None = None,
+    domains: Labels | None = None,
+    domain_column: Column | None = None,
     method: str = "nearest",
     mesh: Mesh | None = None,
 ) -> tuple[list[str], npt.NDArray[np.float64]]: ...
@@ -1130,7 +1146,7 @@ class LocalAnisotropy:
     def __init__(self, coords: ArrayLike, angles: ArrayLike, ratios: ArrayLike) -> None: ...
     @staticmethod
     def from_grid(
-        model: BlockModel, column: str, window: int = 2, ratios: tuple[float, float] | None = None
+        model: BlockModel, column: str, *, window: int = 2, ratios: tuple[float, float] | None = None
     ) -> LocalAnisotropy: ...
     @staticmethod
     def from_points(
@@ -1159,7 +1175,7 @@ class ImplicitModel:
         engine: str = "rbf",
         kernel: str = "biharmonic",
         variogram: Variogram | None = None,
-        drift_degree: int = 1,
+        degree: int = 1,
         smoothing: float = 0.0,
         rotation: tuple[float, float, float] | None = None,
         ratios: tuple[float, float] | None = None,
@@ -1176,8 +1192,8 @@ class ImplicitModel:
         planes: ArrayLike | None = None,
         lineations: ArrayLike | None = None,
     ) -> ImplicitModel: ...
-    def evaluate(self, targets: Any, gradient: bool = False, variance: bool = False) -> Any: ...
-    def isosurface(self, block_model: BlockModel, isovalue: float = 0.0, closed: bool = False) -> Mesh: ...
+    def predict(self, targets: Any, *, gradient: bool = False, variance: bool = False) -> Any: ...
+    def isosurface(self, model: BlockModel, *, isovalue: float = 0.0, closed: bool = False) -> Mesh: ...
     @property
     def report(self) -> dict[str, Any] | None: ...
 
@@ -1360,8 +1376,10 @@ def validate_model(
 ) -> Table: ...
 def smooth_classes(
     model: BlockModel,
-    classes: ArrayLike,
+    classes: ArrayLike | Column,
+    *,
     window: tuple[int, int, int] = (3, 3, 1),
     iterations: int = 1,
-    domains: ArrayLike | None = None,
+    domains: Labels | None = None,
+    domain_column: Column | None = None,
 ) -> npt.NDArray[Any]: ...

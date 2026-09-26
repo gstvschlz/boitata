@@ -186,7 +186,7 @@ impl Search {
     }
 
     #[new]
-    #[pyo3(signature = (radius, max_samples=16, min_samples=1, octant=false, max_per_hole=None, rotation=None, ratios=None, high_grade=None, soft=None))]
+    #[pyo3(signature = (radius, *, max_samples=16, min_samples=1, octant=false, max_per_hole=None, rotation=None, ratios=None, high_grade=None, soft=None))]
     #[allow(clippy::too_many_arguments)]
     fn new(
         radius: f64,

@@ -44,7 +44,7 @@ impl Fitted {
 ///     RBF kernel; planes and lineations need triharmonic.
 /// variogram : Variogram, optional
 ///     Required by ``engine="kriging"``.
-/// drift_degree : int
+/// degree : int
 ///     0 constant, 1 linear drift.
 /// smoothing : float
 ///     RBF ridge relative to the value scale; 0 interpolates exactly.
@@ -60,7 +60,7 @@ pub struct ImplicitModel {
     engine: String,
     kernel: String,
     variogram: Option<Variogram>,
-    drift_degree: usize,
+    degree: usize,
     smoothing: f64,
     rotation: Option<(f64, f64, f64)>,
     ratios: Option<(f64, f64)>,
@@ -152,7 +152,7 @@ impl ImplicitModel {
             }
         }
         set.validate().map_err(err)?;
-        let degree = self.drift_degree;
+        let degree = self.degree;
         let fitted = match self.engine.as_str() {
             "rbf" => {
                 let anisotropy = (self.rotation.is_some() || self.ratios.is_some()).then(|| {
@@ -284,12 +284,12 @@ fn readings(obj: Option<&Bound<PyAny>>, what: &str) -> PyResult<Vec<[f64; 5]>> {
 #[pymethods]
 impl ImplicitModel {
     #[new]
-    #[pyo3(signature = (engine="rbf", kernel="biharmonic", variogram=None, drift_degree=1, smoothing=0.0, rotation=None, ratios=None))]
+    #[pyo3(signature = (engine="rbf", kernel="biharmonic", variogram=None, degree=1, smoothing=0.0, rotation=None, ratios=None))]
     fn new(
         engine: &str,
         kernel: &str,
         variogram: Option<Variogram>,
-        drift_degree: usize,
+        degree: usize,
         smoothing: f64,
         rotation: Option<(f64, f64, f64)>,
         ratios: Option<(f64, f64)>,
@@ -298,7 +298,7 @@ impl ImplicitModel {
             engine: engine.to_string(),
             kernel: kernel.to_string(),
             variogram,
-            drift_degree,
+            degree,
             smoothing,
             rotation,
             ratios,
@@ -394,8 +394,8 @@ impl ImplicitModel {
 
     /// Field values at `targets`, with `(n, 3)` gradients when `gradient`, or
     /// the predictive variance of ``engine="gp"`` when `variance`.
-    #[pyo3(signature = (targets, gradient=false, variance=false))]
-    fn evaluate<'py>(
+    #[pyo3(signature = (targets, *, gradient=false, variance=false))]
+    fn predict<'py>(
         &self,
         py: Python<'py>,
         targets: &Bound<PyAny>,
@@ -438,18 +438,18 @@ impl ImplicitModel {
     }
 
     /// Mesh of the `isovalue` surface, the field sampled at the block
-    /// centroids of `block_model`. `closed` caps the solid where the field
+    /// centroids of `model`. `closed` caps the solid where the field
     /// exceeds `isovalue` on the block model's outer faces.
-    #[pyo3(signature = (block_model, isovalue=0.0, closed=false))]
+    #[pyo3(signature = (model, *, isovalue=0.0, closed=false))]
     fn isosurface<'py>(
         &self,
         py: Python<'py>,
-        block_model: PyRef<PyBlockModel>,
+        model: PyRef<PyBlockModel>,
         isovalue: f64,
         closed: bool,
     ) -> PyResult<Mesh> {
         let fitted = self.fitted()?;
-        let g = *block_model.0.geometry();
+        let g = *model.0.geometry();
         let pad = closed as usize;
         let counts = g.count.map(|n| n + 2 * pad);
         let values = py.detach(|| {
@@ -483,7 +483,7 @@ impl ImplicitModel {
             })
             .collect();
         let mut mesh = Mesh::build(&vertices, &mesh.triangles)?;
-        mesh.crs = block_model.0.crs.clone();
+        mesh.crs = model.0.crs.clone();
         Ok(Mesh::from_core(mesh))
     }
 

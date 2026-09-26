@@ -142,7 +142,9 @@ def test_directional_and_map_shapes():
 
 
 def test_coregionalization_at_zero_lag():
-    lmc = cs.Coregionalization([[0.1, 0.0], [0.0, 0.2]], [("spherical", 20.0, [[1.0, 0.6], [0.6, 1.0]])])
+    lmc = cs.Coregionalization(
+        [[0.1, 0.0], [0.0, 0.2]], structures=[("spherical", 20.0, [[1.0, 0.6], [0.6, 1.0]])]
+    )
     p = np.zeros((1, 3))
     assert lmc.cross_covariance(0, 1, p, p)[0] == pytest.approx(0.6)
     assert lmc.cross_covariance(1, 1, p, p)[0] == pytest.approx(1.2)
@@ -150,16 +152,16 @@ def test_coregionalization_at_zero_lag():
 
 def test_coregionalization_must_be_positive_semidefinite():
     zero = [[0.0, 0.0], [0.0, 0.0]]
-    cs.Coregionalization(zero, [("spherical", 20.0, [[1.0, 1.0 + 1e-14], [1.0, 1.0]])])
+    cs.Coregionalization(zero, structures=[("spherical", 20.0, [[1.0, 1.0 + 1e-14], [1.0, 1.0]])])
     with pytest.raises(
         ValueError, match=r"structure 0 sills .* smallest eigenvalue -2\.000e-1.*Coregionalization\.fit"
     ):
-        cs.Coregionalization(zero, [("spherical", 20.0, [[1.0, 1.2], [1.2, 1.0]])])
+        cs.Coregionalization(zero, structures=[("spherical", 20.0, [[1.0, 1.2], [1.2, 1.0]])])
     with pytest.raises(cs.CeresError, match="nugget is not symmetric"):
-        cs.Coregionalization([[0.1, 0.05], [0.0, 0.1]], [])
+        cs.Coregionalization([[0.1, 0.05], [0.0, 0.1]], structures=[])
     with pytest.raises(ValueError, match="structure 0 sills is not 2 x 2"):
-        cs.Coregionalization(zero, [("spherical", 20.0, [[1.0]])])
-    good = cs.Coregionalization(zero, [("spherical", 20.0, [[1.0, 0.6], [0.6, 1.0]])]).to_json()
+        cs.Coregionalization(zero, structures=[("spherical", 20.0, [[1.0]])])
+    good = cs.Coregionalization(zero, structures=[("spherical", 20.0, [[1.0, 0.6], [0.6, 1.0]])]).to_json()
     with pytest.raises(ValueError, match="positive semi-definite"):
         cs.Coregionalization.from_json(good.replace("0.6", "1.6"))
 
@@ -281,3 +283,42 @@ def test_downhole_nugget():
     assert exp.nugget() == pytest.approx(0.3, abs=0.05)
     with pytest.raises(ValueError):
         cs.experimental_variogram(coords.reshape(-1, 3), values, 1.0, 10.0, azimuth=0, holes=holes)
+
+
+def test_names_resolve_against_the_container():
+    xyz, v, w = rng.uniform(0, 100, (200, 3)), rng.normal(size=200), rng.normal(size=200)
+    columns = {"v": v, "w": w, "hole": np.repeat(np.arange(20), 10), "c": np.arange(200) % 3}
+    points = cs.PointSet(xyz, columns)
+    pairs = [
+        (
+            cs.experimental_variogram(points, "v", 10.0, 50.0, other="w"),
+            cs.experimental_variogram(xyz, v, 10.0, 50.0, other=w),
+        ),
+        (
+            cs.experimental_variogram(points, "v", 10.0, 50.0, holes="hole"),
+            cs.experimental_variogram(xyz, v, 10.0, 50.0, holes=columns["hole"]),
+        ),
+        (cs.variogram_map(points, "v", 10.0, 50.0), cs.variogram_map(xyz, v, 10.0, 50.0)),
+    ]
+    for named, arrays in pairs:
+        np.testing.assert_array_equal(named.gammas, arrays.gammas)
+    named, arrays = (
+        cs.experimental_transiogram(points, "c", 10.0, 50.0),
+        cs.experimental_transiogram(xyz, columns["c"], 10.0, 50.0),
+    )
+    np.testing.assert_array_equal(named[1], arrays[1])
+    with pytest.raises(cs.MissingColumn):
+        cs.experimental_variogram(points, "x", 10.0, 50.0)
+
+
+def test_options_are_keyword_only():
+    xyz, v = rng.uniform(0, 100, (50, 3)), rng.normal(size=50)
+    for call in (
+        lambda: cs.experimental_variogram(xyz, v, 10.0, 50.0, 0.0),
+        lambda: cs.variogram_map(xyz, v, 10.0, 50.0, (1, 0, 0)),
+        lambda: cs.Variogram([("spherical", 1.0, 30.0)], 0.1),
+        lambda: cs.Search(50.0, 8),
+        lambda: cs.Coregionalization([[0.0]], [("spherical", 20.0, [[1.0]])]),
+    ):
+        with pytest.raises(TypeError):
+            call()

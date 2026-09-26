@@ -31,13 +31,13 @@ xyz, zn = composites.coords, composites["ZN"]
 window = (xyz[:, 0] > 4550) & (xyz[:, 0] < 4950) & (xyz[:, 1] > 7400) & (xyz[:, 1] < 7700) & ~np.isnan(zn)
 xyz, zn = xyz[window], zn[window]
 models = {
-    "RBF": cs.ImplicitModel("rbf", drift_degree=0).fit(xyz, zn, cutoff=5),
-    "GP": cs.ImplicitModel("gp", drift_degree=0).fit(xyz, zn, cutoff=5),
+    "RBF": cs.ImplicitModel("rbf", degree=0).fit(xyz, zn, cutoff=5),
+    "GP": cs.ImplicitModel("gp", degree=0).fit(xyz, zn, cutoff=5),
 }
 indicator = np.where(zn >= 5, 1.0, -1.0)
 print(f"{len(xyz)} composites, {(indicator > 0).sum()} above 5 % Zn")
 for name, model in models.items():
-    agree = np.mean(np.sign(model.evaluate(xyz)) == indicator)
+    agree = np.mean(np.sign(model.predict(xyz)) == indicator)
     print(f"{name}: {agree:.1%} of composites on their side of the shell")
 report = models["GP"].report
 print(
@@ -68,7 +68,7 @@ blocks = cs.BlockModel(origin=lo, size=(size, size, size), count=count)
 fields, shells = {}, {}
 for name, model in models.items():
     shell = shells[name] = model.isosurface(blocks, closed=True)
-    fields[name] = model.evaluate(blocks).reshape(count[::-1])
+    fields[name] = model.predict(blocks).reshape(count[::-1])
     count_volume = (fields[name] > 0).sum() * size**3
     print(
         f"{name}: shell of {len(shell.triangles):,} triangles, {shell.volume:,.0f} m3; blocks inside {count_volume:,.0f} m3"

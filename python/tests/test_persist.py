@@ -52,7 +52,9 @@ def fitted():
 def plain():
     return [
         cs.Structure("exponential", 1.0, 30.0),
-        cs.Coregionalization([[0.1, 0.0], [0.0, 0.2]], [("spherical", 40.0, [[1.0, 0.7], [0.7, 1.0]])]),
+        cs.Coregionalization(
+            [[0.1, 0.0], [0.0, 0.2]], structures=[("spherical", 40.0, [[1.0, 0.7], [0.7, 1.0]])]
+        ),
         cs.Search(np.inf, high_grade=(np.inf, 5.0), rotation=(10.0, 0.0, 0.0), ratios=(0.5, 0.5)),
         cs.Search(30.0, soft={("MS", "SM"): 5.0, (1, True): np.inf}),
         cs.Search(30.0, soft=np.inf),
@@ -109,7 +111,9 @@ holes = np.repeat(np.arange(30), 10)
 def estimators():
     passes = [cs.Search(20.0, max_samples=8, max_per_hole=2), cs.Search(np.inf)]
     anam = cs.HermiteAnamorphosis(degree=20).fit(values)
-    lmc = cs.Coregionalization([[0.1, 0.0], [0.0, 0.1]], [("spherical", 40.0, [[1.0, 0.6], [0.6, 1.0]])])
+    lmc = cs.Coregionalization(
+        [[0.1, 0.0], [0.0, 0.1]], structures=[("spherical", 40.0, [[1.0, 0.6], [0.6, 1.0]])]
+    )
     return [
         (cs.OrdinaryKriging(model, passes), {"holes": holes, "error_variance": np.full(300, 0.01)}),
         (cs.SimpleKriging(model, search, mean=1.2), {}),
@@ -290,7 +294,7 @@ def implicit_models():
         ),
         (cs.ImplicitModel(kernel="triharmonic"), structure),
         (
-            cs.ImplicitModel(engine="kriging", variogram=gaussian, drift_degree=0),
+            cs.ImplicitModel(engine="kriging", variogram=gaussian, degree=0),
             {"coords": coords[:50], "values": shell[:50]},
         ),
         (cs.ImplicitModel(engine="gp", rotation=(10.0, 0.0, 0.0)), {"coords": coords, "values": shell}),
@@ -299,8 +303,8 @@ def implicit_models():
 
 def field(implicit):
     if implicit.report is not None:
-        return (*implicit.evaluate(targets, variance=True), *implicit.report.values())
-    return implicit.evaluate(targets, gradient=True)
+        return (*implicit.predict(targets, variance=True), *implicit.report.values())
+    return implicit.predict(targets, gradient=True)
 
 
 @pytest.mark.parametrize("implicit, inputs", implicit_models(), ids=["rbf", "structure", "kriging", "gp"])
@@ -309,7 +313,7 @@ def test_implicit_model_round_trip_evaluates_bit_identically(implicit, inputs, t
     implicit.to_parquet(path)
     unfitted = pickle.loads(pickle.dumps(cs.ImplicitModel.from_parquet(path)))
     with pytest.raises(cs.InvalidInput, match="not fitted"):
-        unfitted.evaluate(targets)
+        unfitted.predict(targets)
     implicit.fit(**inputs)
     same(field(unfitted.fit(**inputs)), field(implicit))
     implicit.to_parquet(path)

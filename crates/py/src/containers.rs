@@ -640,7 +640,7 @@ impl PyBlockModel {
     ///
     /// Parameters
     /// ----------
-    /// domains : sequence of (Mesh, str, str)
+    /// meshes : sequence of (Mesh, str, str)
     ///     ``(mesh, rule, label)`` in priority order, the first match
     ///     winning. ``rule`` is ``"inside"`` a closed mesh, or ``"below"`` or
     ///     ``"above"`` a surface such as topography, along world z; off the
@@ -659,11 +659,11 @@ impl PyBlockModel {
     /// BlockModel
     ///     Sub-blocked model on ``subgrid`` with the label column and the
     ///     columns of each sub-block's parent block.
-    #[pyo3(signature = (domains, subgrid, column="domain", fill=None))]
+    #[pyo3(signature = (meshes, subgrid, *, column="domain", fill=None))]
     fn subblock(
         &self,
         py: Python,
-        domains: Vec<(PyRef<crate::blocks::Mesh>, String, String)>,
+        meshes: Vec<(PyRef<crate::blocks::Mesh>, String, String)>,
         subgrid: &Bound<PyAny>,
         column: &str,
         fill: Option<&str>,
@@ -671,7 +671,7 @@ impl PyBlockModel {
         let subgrid = self
             .per_axis(subgrid)?
             .map(|n| u32::try_from(n).unwrap_or(u32::MAX));
-        let domains = domains
+        let domains = meshes
             .into_iter()
             .map(|(mesh, rule, label)| mesh.domain(&rule, label))
             .collect::<PyResult<Vec<_>>>()?;
@@ -684,14 +684,14 @@ impl PyBlockModel {
     /// Sub-blocked model of the grid ``origin``, ``size``, ``count`` and
     /// ``rotation`` from prioritized meshes; see `subblock`.
     #[staticmethod]
-    #[pyo3(signature = (origin, size, count, domains, subgrid, rotation=(0.0, 0.0, 0.0), column="domain", fill=None, crs=None))]
+    #[pyo3(signature = (origin, size, count, meshes, subgrid, *, rotation=(0.0, 0.0, 0.0), column="domain", fill=None, crs=None))]
     #[allow(clippy::too_many_arguments)]
     fn from_meshes(
         py: Python,
         origin: Vec<f64>,
         size: Vec<f64>,
         count: Vec<usize>,
-        domains: Vec<(PyRef<crate::blocks::Mesh>, String, String)>,
+        meshes: Vec<(PyRef<crate::blocks::Mesh>, String, String)>,
         subgrid: &Bound<PyAny>,
         rotation: (f64, f64, f64),
         column: &str,
@@ -699,7 +699,7 @@ impl PyBlockModel {
         crs: Option<String>,
     ) -> PyResult<Self> {
         let grid = Self::new(origin, size, count, rotation, None, None, crs)?;
-        grid.subblock(py, domains, subgrid, column, fill)
+        grid.subblock(py, meshes, subgrid, column, fill)
     }
 
     /// Attributes preceded by centroid `x`, `y`, `z`.
