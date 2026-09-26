@@ -82,6 +82,26 @@ class BlockModel:
     def attributes(self) -> Table: ...
     def mask(self, keep: npt.NDArray[np.bool_]) -> BlockModel: ...
     def to_regular(self) -> BlockModel: ...
+    def regularize(self, target: BlockModel, min_fraction: float = 0.0) -> BlockModel: ...
+    def subblock(
+        self,
+        domains: Sequence[tuple[Mesh, Literal["inside", "below", "above"], str]],
+        subgrid: int | Sequence[int],
+        column: str = "domain",
+        fill: str | None = None,
+    ) -> BlockModel: ...
+    @staticmethod
+    def from_meshes(
+        origin: Sequence[float],
+        size: Sequence[float],
+        count: Sequence[int],
+        domains: Sequence[tuple[Mesh, Literal["inside", "below", "above"], str]],
+        subgrid: int | Sequence[int],
+        rotation: tuple[float, float, float] = (0.0, 0.0, 0.0),
+        column: str = "domain",
+        fill: str | None = None,
+        crs: str | None = None,
+    ) -> BlockModel: ...
     def discretize(self, n: int | Sequence[int]) -> BlockModel: ...
     def with_column(self, name: str, values: ArrayLike) -> BlockModel: ...
     @property

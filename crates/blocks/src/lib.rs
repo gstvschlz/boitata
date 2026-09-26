@@ -10,10 +10,11 @@ mod hull;
 mod select;
 mod shell;
 mod solid;
+mod subblock;
 pub use classes::smooth_classes;
 pub use distance::{
-    distance_to, point_in_polygon, polygon_distance, polygon_signed_distance, signed_distance_to,
-    vertical_distance,
+    Surface, distance_to, point_in_polygon, polygon_distance, polygon_signed_distance,
+    signed_distance_to, vertical_distance,
 };
 pub use error::{BlockModelError, Result};
 pub use hull::convex_hull;
@@ -23,6 +24,7 @@ pub use shell::{
     estimate_shell_faces, extract_shell, infer_orientation,
 };
 pub use solid::{Aabb, BlockDomainRule, BlockSolid, SolidTester};
+pub use subblock::{Domain, Region, proportions, subblock};
 
 use ceres_core::Mesh;
 use nalgebra::Vector3;

@@ -323,17 +323,118 @@ impl PyBlockModel {
     ///     sub-block split into ``n`` per axis. Its one column, ``block``, is
     ///     the row in this model of each node.
     fn discretize(&self, n: &Bound<PyAny>) -> PyResult<Self> {
-        let n = match n.extract::<usize>() {
-            Ok(n) if self.0.geometry().count[2] == 1 => [n, n, 1],
-            Ok(n) => [n; 3],
-            Err(_) => triple(n.extract()?, 1, "n")?,
-        };
+        let n = self.per_axis(n)?;
         Ok(Self(self.0.discretize(n).map_err(core_error)?))
     }
 
-    /// Every parent cell, absent cells null.
+    /// Every parent cell, absent cells null. Sub-blocks merge into their
+    /// parent as in `regularize`, without the ``fraction`` column: floats as
+    /// volume-weighted means, other columns by volume majority.
     fn to_regular(&self) -> PyResult<Self> {
         Ok(Self(self.0.to_regular().map_err(core_error)?))
+    }
+
+    /// Columns of this model averaged onto the blocks of ``target``.
+    ///
+    /// Each row of this model counts in a target block by the volume they
+    /// share, from exact box overlaps, so it works both ways between regular,
+    /// masked and sub-blocked models: to a coarser grid, sub-blocks to their
+    /// parents, or a regular estimate onto sub-blocks.
+    ///
+    /// Parameters
+    /// ----------
+    /// target : BlockModel
+    ///     Blocks to average onto, with the same rotation (the origin and
+    ///     sizes may differ). Its own columns are kept.
+    /// min_fraction : float, default 0.0
+    ///     Blocks less covered than this are null.
+    ///
+    /// Returns
+    /// -------
+    /// BlockModel
+    ///     ``target`` with every column of this model: floats as
+    ///     volume-weighted means of the non-null rows, other columns (text,
+    ///     integers) as the value filling the most volume, ties to the
+    ///     smallest, nulls not voting. ``fraction`` is the share of each block
+    ///     covered by this model, so ``volumes * fraction * grade`` sums to
+    ///     this model's ``volumes * grade``.
+    #[pyo3(signature = (target, min_fraction=0.0))]
+    fn regularize(&self, py: Python, target: PyRef<Self>, min_fraction: f64) -> PyResult<Self> {
+        let (source, target) = (&self.0, &target.0);
+        let model = py
+            .detach(|| source.regularize(target, min_fraction))
+            .map_err(core_error)?;
+        Ok(Self(model))
+    }
+
+    /// Sub-blocks every block by prioritised meshes.
+    ///
+    /// Each block is split on a regular ``subgrid``; each sub-cell takes the
+    /// label of the first domain holding its centre. Blocks of one label stay
+    /// whole, others keep runs of sub-cells merged along x, then y.
+    ///
+    /// Parameters
+    /// ----------
+    /// domains : sequence of (Mesh, str, str)
+    ///     ``(mesh, rule, label)`` in priority order, the first match
+    ///     winning. ``rule`` is ``"inside"`` a closed mesh, or ``"below"`` or
+    ///     ``"above"`` a surface such as topography, along world z; off the
+    ///     surface's footprint neither matches.
+    /// subgrid : int or sequence of int
+    ///     Sub-cells per axis, which sets the smallest sub-block; an int
+    ///     applies to x, y and z, or to x and y only in a 2D model.
+    /// column : str, default "domain"
+    ///     Name of the label column.
+    /// fill : str, optional
+    ///     Label of the sub-cells no domain holds; without it they are
+    ///     dropped.
+    ///
+    /// Returns
+    /// -------
+    /// BlockModel
+    ///     Sub-blocked model on ``subgrid`` with the label column and the
+    ///     columns of each sub-block's parent block.
+    #[pyo3(signature = (domains, subgrid, column="domain", fill=None))]
+    fn subblock(
+        &self,
+        py: Python,
+        domains: Vec<(PyRef<crate::blocks::Mesh>, String, String)>,
+        subgrid: &Bound<PyAny>,
+        column: &str,
+        fill: Option<&str>,
+    ) -> PyResult<Self> {
+        let subgrid = self
+            .per_axis(subgrid)?
+            .map(|n| u32::try_from(n).unwrap_or(u32::MAX));
+        let domains = domains
+            .into_iter()
+            .map(|(mesh, rule, label)| mesh.domain(&rule, label))
+            .collect::<PyResult<Vec<_>>>()?;
+        let model = py
+            .detach(|| blocks::subblock(&self.0, &domains, subgrid, column, fill))
+            .map_err(crate::invalid)?;
+        Ok(Self(model))
+    }
+
+    /// Sub-blocked model of the grid ``origin``, ``size``, ``count`` and
+    /// ``rotation`` from prioritised meshes; see `subblock`.
+    #[staticmethod]
+    #[pyo3(signature = (origin, size, count, domains, subgrid, rotation=(0.0, 0.0, 0.0), column="domain", fill=None, crs=None))]
+    #[allow(clippy::too_many_arguments)]
+    fn from_meshes(
+        py: Python,
+        origin: Vec<f64>,
+        size: Vec<f64>,
+        count: Vec<usize>,
+        domains: Vec<(PyRef<crate::blocks::Mesh>, String, String)>,
+        subgrid: &Bound<PyAny>,
+        rotation: (f64, f64, f64),
+        column: &str,
+        fill: Option<&str>,
+        crs: Option<String>,
+    ) -> PyResult<Self> {
+        let grid = Self::new(origin, size, count, rotation, None, None, crs)?;
+        grid.subblock(py, domains, subgrid, column, fill)
     }
 
     /// Attributes preceded by centroid `x`, `y`, `z`.
@@ -380,6 +481,17 @@ impl PyBlockModel {
         requested_schema: Option<Bound<'py, PyCapsule>>,
     ) -> PyArrowResult<Bound<'py, PyCapsule>> {
         arrow_c_stream(py, &self.to_table()?.0, requested_schema)
+    }
+}
+
+impl PyBlockModel {
+    /// An int for every axis (x and y only in 2D), or 2 or 3 values.
+    fn per_axis(&self, n: &Bound<PyAny>) -> PyResult<[usize; 3]> {
+        match n.extract::<usize>() {
+            Ok(n) if self.0.geometry().count[2] == 1 => Ok([n, n, 1]),
+            Ok(n) => Ok([n; 3]),
+            Err(_) => triple(n.extract()?, 1, "n"),
+        }
     }
 }
 

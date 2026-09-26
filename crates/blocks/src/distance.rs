@@ -97,56 +97,94 @@ pub fn signed_distance_to(mesh: &Mesh, point: &(f64, f64, f64)) -> Result<f64> {
 /// NaN where no triangle covers the point in plan. Where the surface overlaps
 /// itself in plan, the highest elevation counts.
 pub fn vertical_distance(mesh: &Mesh, points: &[(f64, f64, f64)]) -> Result<Vec<f64>> {
-    let (lo, hi) = mesh
-        .bounds()
-        .filter(|_| !mesh.triangles().is_empty())
-        .ok_or_else(|| BlockModelError::InvalidMesh("mesh has no triangles".into()))?;
-    let triangles: Vec<[[f64; 3]; 3]> = (0..mesh.triangles().len())
-        .map(|t| mesh.corners(t))
-        .filter(|[a, b, c]| (b[0] - a[0]) * (c[1] - a[1]) != (c[0] - a[0]) * (b[1] - a[1]))
-        .collect();
-    let side = ((triangles.len() as f64).sqrt().ceil() as usize).clamp(1, 2048);
-    let step = [(hi[0] - lo[0]) / side as f64, (hi[1] - lo[1]) / side as f64];
-    let cell = |v: f64, axis: usize| {
-        if step[axis] > 0.0 {
-            (((v - lo[axis]) / step[axis]) as usize).min(side - 1)
+    let surface = Surface::new(mesh)?;
+    Ok(points
+        .par_iter()
+        .map(|&(x, y, z)| surface.elevation(x, y).map_or(f64::NAN, |e| z - e))
+        .collect())
+}
+
+/// A surface such as topography, its triangles binned in plan for elevation
+/// lookups.
+#[derive(Clone)]
+pub struct Surface {
+    triangles: Vec<[[f64; 3]; 3]>,
+    grid: Vec<Vec<u32>>,
+    side: usize,
+    lo: [f64; 3],
+    hi: [f64; 3],
+    step: [f64; 2],
+}
+
+impl Surface {
+    pub fn new(mesh: &Mesh) -> Result<Self> {
+        let (lo, hi) = mesh
+            .bounds()
+            .filter(|_| !mesh.triangles().is_empty())
+            .ok_or_else(|| BlockModelError::InvalidMesh("mesh has no triangles".into()))?;
+        let triangles: Vec<[[f64; 3]; 3]> = (0..mesh.triangles().len())
+            .map(|t| mesh.corners(t))
+            .filter(|[a, b, c]| (b[0] - a[0]) * (c[1] - a[1]) != (c[0] - a[0]) * (b[1] - a[1]))
+            .collect();
+        let side = ((triangles.len() as f64).sqrt().ceil() as usize).clamp(1, 2048);
+        let step = [(hi[0] - lo[0]) / side as f64, (hi[1] - lo[1]) / side as f64];
+        let mut surface = Self {
+            triangles,
+            grid: vec![vec![]; side * side],
+            side,
+            lo,
+            hi,
+            step,
+        };
+        for t in 0..surface.triangles.len() {
+            let corners = surface.triangles[t];
+            let span = |axis: usize| {
+                let values = corners.map(|p| p[axis]);
+                surface.cell(values.into_iter().fold(f64::INFINITY, f64::min), axis)
+                    ..=surface.cell(values.into_iter().fold(f64::NEG_INFINITY, f64::max), axis)
+            };
+            let (rows, columns) = (span(1), span(0));
+            for j in rows {
+                for i in columns.clone() {
+                    surface.grid[j * side + i].push(t as u32);
+                }
+            }
+        }
+        Ok(surface)
+    }
+
+    fn cell(&self, v: f64, axis: usize) -> usize {
+        if self.step[axis] > 0.0 {
+            (((v - self.lo[axis]) / self.step[axis]) as usize).min(self.side - 1)
         } else {
             0
         }
-    };
-    let mut grid = vec![Vec::<u32>::new(); side * side];
-    for (t, corners) in triangles.iter().enumerate() {
-        let span = |axis: usize| {
-            let values = corners.map(|p| p[axis]);
-            cell(values.into_iter().fold(f64::INFINITY, f64::min), axis)
-                ..=cell(values.into_iter().fold(f64::NEG_INFINITY, f64::max), axis)
-        };
-        for j in span(1) {
-            for i in span(0) {
-                grid[j * side + i].push(t as u32);
-            }
-        }
     }
-    Ok(points
-        .par_iter()
-        .map(|&(x, y, z)| {
-            if !(x >= lo[0] && x <= hi[0] && y >= lo[1] && y <= hi[1]) {
-                return f64::NAN;
-            }
-            grid[cell(y, 1) * side + cell(x, 0)]
-                .iter()
-                .filter_map(|&t| {
-                    let [a, b, c] = triangles[t as usize];
-                    let d = (b[1] - c[1]) * (a[0] - c[0]) + (c[0] - b[0]) * (a[1] - c[1]);
-                    let u = ((b[1] - c[1]) * (x - c[0]) + (c[0] - b[0]) * (y - c[1])) / d;
-                    let v = ((c[1] - a[1]) * (x - c[0]) + (a[0] - c[0]) * (y - c[1])) / d;
-                    let w = 1.0 - u - v;
-                    (u.min(v).min(w) >= -1e-12).then(|| u * a[2] + v * b[2] + w * c[2])
-                })
-                .reduce(f64::max)
-                .map_or(f64::NAN, |surface| z - surface)
-        })
-        .collect())
+
+    /// Lowest and highest corners of the surface.
+    pub fn bounds(&self) -> ([f64; 3], [f64; 3]) {
+        (self.lo, self.hi)
+    }
+
+    /// Surface elevation at `(x, y)`, the highest where it overlaps itself;
+    /// `None` where no triangle covers the point.
+    pub fn elevation(&self, x: f64, y: f64) -> Option<f64> {
+        let (lo, hi) = (self.lo, self.hi);
+        if !(x >= lo[0] && x <= hi[0] && y >= lo[1] && y <= hi[1]) {
+            return None;
+        }
+        self.grid[self.cell(y, 1) * self.side + self.cell(x, 0)]
+            .iter()
+            .filter_map(|&t| {
+                let [a, b, c] = self.triangles[t as usize];
+                let d = (b[1] - c[1]) * (a[0] - c[0]) + (c[0] - b[0]) * (a[1] - c[1]);
+                let u = ((b[1] - c[1]) * (x - c[0]) + (c[0] - b[0]) * (y - c[1])) / d;
+                let v = ((c[1] - a[1]) * (x - c[0]) + (a[0] - c[0]) * (y - c[1])) / d;
+                let w = 1.0 - u - v;
+                (u.min(v).min(w) >= -1e-12).then(|| u * a[2] + v * b[2] + w * c[2])
+            })
+            .reduce(f64::max)
+    }
 }
 
 /// Distance from a 2-D point to a segment `[a, b]`.

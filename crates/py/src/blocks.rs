@@ -64,6 +64,21 @@ impl Mesh {
             .ok_or_else(|| invalid("mesh is not closed; this needs a solid"))
     }
 
+    /// Domain `label` inside this solid, or below or above this surface.
+    pub fn domain(&self, rule: &str, label: String) -> PyResult<blocks::Domain> {
+        let region = match rule {
+            "inside" => blocks::Region::Inside(self.solid()?.clone()),
+            "below" => blocks::Region::Below(blocks::Surface::new(&self.mesh).map_err(err)?),
+            "above" => blocks::Region::Above(blocks::Surface::new(&self.mesh).map_err(err)?),
+            _ => {
+                return Err(invalid(format!(
+                    "rule must be 'inside', 'below' or 'above', got {rule:?}"
+                )));
+            }
+        };
+        Ok(blocks::Domain { region, label })
+    }
+
     fn with(&self, mesh: ceres_core::Result<CoreMesh>) -> PyResult<Self> {
         Ok(Self {
             mesh: mesh.map_err(core_error)?,
@@ -270,7 +285,9 @@ impl Mesh {
     }
 
     /// Proportion of each block inside, from `discretization`³ points per
-    /// block; `blocks` is a BlockModel or centroids with a shared `size`.
+    /// block where the surface may cut it. `blocks` is a BlockModel, whose
+    /// rotation and sub-block extents count, or axis-aligned centroids with a
+    /// shared `size`.
     #[pyo3(signature = (blocks, size=None, discretization=4))]
     fn proportion<'py>(
         &self,
@@ -279,13 +296,17 @@ impl Mesh {
         size: Option<[f64; 3]>,
         discretization: usize,
     ) -> PyResult<Bound<'py, PyAny>> {
+        let solid = self.solid()?;
         let size = match (size, blocks.cast::<PyBlockModel>()) {
             (Some(s), _) => s,
-            (None, Ok(b)) => b.get().0.geometry().size,
+            (None, Ok(b)) => {
+                let model = &b.get().0;
+                let p = py.detach(|| blocks::proportions(solid, model, discretization));
+                return Ok(array1(py, p).into_any());
+            }
             (None, Err(_)) => return Err(invalid("give size for plain centroids")),
         };
         let centers = targets(blocks)?;
-        let solid = self.solid()?;
         let p = py.detach(|| {
             centers
                 .par_iter()

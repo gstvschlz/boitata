@@ -30,7 +30,7 @@ pub struct Aabb {
 }
 
 impl Aabb {
-    fn of_points(points: impl Iterator<Item = [f64; 3]>) -> Option<Self> {
+    pub(crate) fn of_points(points: impl Iterator<Item = [f64; 3]>) -> Option<Self> {
         let mut min = [f64::INFINITY; 3];
         let mut max = [f64::NEG_INFINITY; 3];
         let mut any = false;
@@ -45,7 +45,7 @@ impl Aabb {
     }
 
     /// True when the two boxes share any volume (touching faces count).
-    fn overlaps(&self, other: &Aabb) -> bool {
+    pub fn overlaps(&self, other: &Aabb) -> bool {
         (0..3).all(|axis| self.min[axis] <= other.max[axis] && other.min[axis] <= self.max[axis])
     }
 }
@@ -159,7 +159,7 @@ impl SolidTester {
     /// True when at least one triangle's bounds reach into the box — i.e. the
     /// surface may pass through it. Conservative: a false positive only costs
     /// the slower sampling path, never a wrong answer.
-    fn surface_may_cut(&self, box_bounds: &Aabb) -> bool {
+    pub fn surface_may_cut(&self, box_bounds: &Aabb) -> bool {
         self.triangle_bounds.iter().any(|t| t.overlaps(box_bounds))
     }
 
