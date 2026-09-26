@@ -1,6 +1,6 @@
 [package]
 name = "ceres-io"
-description = "CSV and GSLIB readers and writers"
+description = "Table and mesh readers and writers"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -14,6 +14,7 @@ arrow-csv.workspace = true
 arrow-schema.workspace = true
 arrow-select.workspace = true
 ceres-core.workspace = true
+dxf.workspace = true
 parquet.workspace = true
 regex.workspace = true
 serde.workspace = true
