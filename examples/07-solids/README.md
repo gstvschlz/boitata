@@ -6,6 +6,8 @@ A wireframe bounds a domain. Here an ellipsoid is fitted to the Zn > 5 % composi
 <details><summary>Python</summary>
 
 ```python
+import tempfile
+
 import ceres as cs
 import matplotlib.pyplot as plt
 import numpy as np
@@ -227,5 +229,27 @@ save(fig, "subblocks")
 </details>
 
 ![subblocks](subblocks.png)
+
+Meshes read and write OBJ, STL and DXF, chosen by extension. STL stores single precision, so vertices move by
+less than a millimetre at these coordinates:
+
+<details><summary>Python</summary>
+
+```python
+with tempfile.TemporaryDirectory() as folder:
+    cs.write_mesh(Path(folder) / "ellipsoid.stl", solid)
+    back = cs.read_mesh(Path(folder) / "ellipsoid.stl")
+shift = np.abs(back.vertices[back.triangles] - solid.vertices[solid.triangles]).max()
+print(
+    back,
+    f"volume {back.volume:,.0f} m3 (written {solid.volume:,.0f} m3), largest shift {shift * 1000:.2f} mm",
+)
+```
+
+</details>
+
+```text
+Mesh(1106 vertices, 2208 triangles, closed) volume 6,779,719 m3 (written 6,779,720 m3), largest shift 0.24 mm
+```
 
 Full script: [`example.py`](example.py)

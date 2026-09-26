@@ -14,6 +14,8 @@ pub enum Error {
     Metadata(String),
     #[error("column `{0}` is not numeric")]
     NotNumeric(String),
+    #[error("invalid mesh file: {0}")]
+    Mesh(String),
     #[error("line {line}: {message}")]
     Format { line: usize, message: String },
 }

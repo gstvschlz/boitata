@@ -123,3 +123,24 @@ def test_subblocked_model(tmp_path):
     np.testing.assert_allclose(back.extents, model.extents)
     with pytest.raises(cs.InvalidInput):
         cs.BlockModel.subblocked((0, 0), (10, 10), (2, 2), parent, extents, subgrid=(3, 1, 1))
+
+
+def test_mesh_files_round_trip(tmp_path):
+    vertices = [[0, 0, 0], [1.5, 0, 0], [0, 1, 0], [0, 0, 1]]
+    tetra = cs.Mesh(vertices, [[0, 2, 1], [0, 1, 3], [0, 3, 2], [1, 2, 3]])
+    tetra = tetra.with_face_column("layer", ["a", "a", "b", "b"])
+    for name in ("m.obj", "m.stl", "m.dxf"):
+        cs.write_mesh(tmp_path / name, tetra)
+        back = cs.read_mesh(tmp_path / name)
+        np.testing.assert_array_equal(back.vertices[back.triangles], tetra.vertices[tetra.triangles])
+        assert back.is_closed and back.volume == pytest.approx(tetra.volume)
+    assert back.face_attributes["layer"] == ["a", "a", "b", "b"]
+    cs.write_mesh(tmp_path / "a.stl", tetra, ascii=True)
+    assert (tmp_path / "a.stl").read_text().startswith("solid")
+    np.testing.assert_array_equal(
+        cs.read_mesh(tmp_path / "a.stl").vertices, cs.read_mesh(tmp_path / "m.stl").vertices
+    )
+    with pytest.raises(cs.InvalidInput):
+        cs.write_mesh(tmp_path / "m.ply", tetra)
+    with pytest.raises(cs.FileError):
+        cs.read_mesh(tmp_path / "missing.obj")

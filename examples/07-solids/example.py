@@ -12,6 +12,8 @@ HERE = Path(__file__).parent
 sys.path.insert(0, str(HERE.parent))
 
 # %%
+import tempfile
+
 import ceres as cs
 import matplotlib.pyplot as plt
 import numpy as np
@@ -188,3 +190,17 @@ ax.set(
     ylabel="Northing (m)",
 )
 save(fig, "subblocks")
+
+# %% [markdown]
+# Meshes read and write OBJ, STL and DXF, chosen by extension. STL stores single precision, so vertices move by
+# less than a millimetre at these coordinates:
+
+# %%
+with tempfile.TemporaryDirectory() as folder:
+    cs.write_mesh(Path(folder) / "ellipsoid.stl", solid)
+    back = cs.read_mesh(Path(folder) / "ellipsoid.stl")
+shift = np.abs(back.vertices[back.triangles] - solid.vertices[solid.triangles]).max()
+print(
+    back,
+    f"volume {back.volume:,.0f} m3 (written {solid.volume:,.0f} m3), largest shift {shift * 1000:.2f} mm",
+)

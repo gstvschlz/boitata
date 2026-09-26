@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use ceres_io::{CsvOptions, NODATA};
 use pyo3::prelude::*;
 
+use crate::blocks::Mesh;
 use crate::containers::{PyBlockModel, PyPointSet};
 use crate::table::{Table, to_batch};
 use crate::{error, invalid};
@@ -74,6 +75,21 @@ fn read_parquet(py: Python, path: PathBuf) -> PyResult<Py<PyAny>> {
     })
 }
 
+/// Reads a `.obj`, `.stl` or `.dxf` mesh; DXF faces carry a `layer` column.
+#[pyfunction]
+fn read_mesh(path: PathBuf) -> PyResult<Mesh> {
+    Ok(Mesh::from_core(
+        ceres_io::read_mesh(path).map_err(io_error)?,
+    ))
+}
+
+/// Writes a `.obj`, `.stl` (binary unless `ascii`) or `.dxf` mesh.
+#[pyfunction]
+#[pyo3(signature = (path, mesh, ascii=false))]
+fn write_mesh(path: PathBuf, mesh: PyRef<Mesh>, ascii: bool) -> PyResult<()> {
+    ceres_io::write_mesh(path, &mesh.mesh, ascii).map_err(io_error)
+}
+
 pub fn register(m: &Bound<PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(write_parquet, m)?)?;
     m.add_function(wrap_pyfunction!(read_parquet, m)?)?;
@@ -81,5 +97,7 @@ pub fn register(m: &Bound<PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(write_csv, m)?)?;
     m.add_function(wrap_pyfunction!(read_gslib, m)?)?;
     m.add_function(wrap_pyfunction!(write_gslib, m)?)?;
+    m.add_function(wrap_pyfunction!(read_mesh, m)?)?;
+    m.add_function(wrap_pyfunction!(write_mesh, m)?)?;
     Ok(())
 }
