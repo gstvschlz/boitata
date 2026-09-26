@@ -22,6 +22,7 @@ use serde_json::{Value, json};
 use crate::{Error, Result};
 
 const KEY: &str = "ceres";
+const HIDDEN: &str = "__ceres_";
 const INDEX: &str = "__ceres_index";
 const EXTENT: [&str; 6] = [
     "__ceres_u0",
@@ -100,14 +101,6 @@ impl FileLayout {
     }
 }
 
-fn hidden(layout: FileLayout) -> Vec<&'static str> {
-    match layout {
-        FileLayout::Regular => vec![],
-        FileLayout::Masked => vec![INDEX],
-        FileLayout::SubBlocked { .. } => std::iter::once(INDEX).chain(EXTENT).collect(),
-    }
-}
-
 /// Writes a block model file chunk by chunk; `write_block_model` is one chunk.
 pub struct BlockModelWriter {
     file: Option<File>,
@@ -167,6 +160,11 @@ impl BlockModelWriter {
                     || matches!(chunk.layout(), Layout::SubBlocked { .. })
                 {
                     return Err(bad("a regular file takes every cell once, in index order"));
+                }
+                if chunk.attributes().num_columns() == 0 {
+                    let index =
+                        UInt64Array::from_iter_values((0..n).map(|r| chunk.parent_index(r)));
+                    extra.push((INDEX.into(), Arc::new(index)));
                 }
             }
             FileLayout::Masked => {
@@ -292,10 +290,9 @@ fn decode(
             .index_of(name)
             .map_err(|_| bad(format!("missing column {name}")))
     };
-    let hidden = hidden(layout)
-        .into_iter()
-        .map(column)
-        .collect::<Result<Vec<_>>>()?;
+    let hidden: Vec<usize> = (0..table.num_columns())
+        .filter(|&i| table.schema().field(i).name().starts_with(HIDDEN))
+        .collect();
     let keep: Vec<usize> = (0..table.num_columns())
         .filter(|i| !hidden.contains(i))
         .collect();
@@ -412,7 +409,6 @@ impl BlockModelReader {
             .filter(|m: &Value| m["kind"] == "block_model")
             .ok_or_else(|| bad("not a block model file"))?;
         let layout = file_layout(&meta)?;
-        let hidden = hidden(layout);
         Ok(Self {
             geometry: geometry(&meta)?,
             layout,
@@ -423,7 +419,7 @@ impl BlockModelReader {
                 .fields()
                 .iter()
                 .map(|f| f.name().clone())
-                .filter(|n| !hidden.contains(&n.as_str()))
+                .filter(|n| !n.starts_with(HIDDEN))
                 .collect(),
             path,
         })
@@ -468,7 +464,13 @@ impl BlockModelReader {
         let roots = names
             .iter()
             .copied()
-            .chain(hidden(self.layout))
+            .chain(
+                schema
+                    .fields()
+                    .iter()
+                    .map(|f| f.name().as_str())
+                    .filter(|n| n.starts_with(HIDDEN)),
+            )
             .map(|n| {
                 schema
                     .index_of(n)
@@ -637,6 +639,23 @@ mod tests {
         };
         assert_eq!(back.layout(), model.layout());
         assert_eq!(back.attributes(), model.attributes());
+    }
+
+    #[test]
+    fn regular_models_without_columns_keep_their_cells() {
+        let geometry = Geometry {
+            origin: [0.0; 3],
+            size: [1.0; 3],
+            count: [3, 2, 1],
+            rotation: [0.0; 3],
+        };
+        let model = BlockModel::regular(geometry, attributes(6).project(&[]).unwrap()).unwrap();
+        write_block_model(temp("e.parquet"), &model).unwrap();
+        let Stored::Blocks(back) = read_parquet(temp("e.parquet")).unwrap() else {
+            panic!("expected a block model")
+        };
+        assert_eq!((back.len(), back.attributes().num_columns()), (6, 0));
+        assert_eq!(back.layout(), &Layout::Regular);
     }
 
     #[test]

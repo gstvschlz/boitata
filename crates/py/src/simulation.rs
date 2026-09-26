@@ -15,7 +15,10 @@ use crate::invalid;
 use crate::variogram::Variogram;
 
 fn err(e: simulation::SimError) -> PyErr {
-    invalid(e)
+    match e {
+        simulation::SimError::Io(ceres_io::Error::Io(e)) => crate::error("FileError", e),
+        e => invalid(e),
+    }
 }
 
 fn not_fitted() -> PyErr {
@@ -366,27 +369,83 @@ impl TurningBands {
             quantiles,
             keep: realizations,
         };
+        let (lo, hi) = simulation::bounds(&grid);
         py.detach(|| {
-            simulation::continuous(n, &options, |k| {
-                let params = TurningBandsParams {
-                    n_bands: self.bands,
-                    step: self.step,
-                    seed: seed.wrapping_add(k as u64),
-                    ..Default::default()
-                };
-                simulation::turning_bands(
-                    &d.locs,
-                    &d.values,
-                    d.weights.as_deref(),
-                    &grid,
-                    &self.variogram,
-                    &params,
-                )
-                .map(|r| r.values)
-            })
+            simulation::TurningBandsEnsemble::new(
+                &d.locs,
+                &d.values,
+                d.weights.as_deref(),
+                lo,
+                hi,
+                &self.variogram,
+                &self.params(seed),
+                n,
+            )?
+            .summary(&grid, &options)
         })
         .map(SimulationSummary)
         .map_err(err)
+    }
+
+    /// Summary of `n` realizations over the block model file `path`, written
+    /// to `out` chunk by chunk with the input columns: `mean`, `variance`,
+    /// `p_above_<c>` and `mean_above_<c>` per cutoff, `q<p>` per quantile.
+    /// The same values as `simulate` on the whole model, in memory bounded by
+    /// `rows` blocks plus the bands. Returns each realization's global
+    /// `realization_mean` and `realization_above` (one row per cutoff).
+    #[allow(clippy::too_many_arguments)]
+    #[pyo3(signature = (path, out, n=100, seed=0, cutoffs=vec![], quantiles=vec![], rows=1_000_000))]
+    fn simulate_to_parquet<'py>(
+        &self,
+        py: Python<'py>,
+        path: std::path::PathBuf,
+        out: std::path::PathBuf,
+        n: usize,
+        seed: u64,
+        cutoffs: Vec<f64>,
+        quantiles: Vec<f64>,
+        rows: usize,
+    ) -> PyResult<Bound<'py, pyo3::types::PyDict>> {
+        let d = self.data.as_ref().ok_or_else(not_fitted)?;
+        let options = ContinuousOptions {
+            cutoffs,
+            quantiles,
+            keep: false,
+        };
+        let global = py
+            .detach(|| {
+                simulation::turning_bands_to_parquet(
+                    path,
+                    out,
+                    &d.locs,
+                    &d.values,
+                    d.weights.as_deref(),
+                    &self.variogram,
+                    &self.params(seed),
+                    n,
+                    &options,
+                    rows,
+                )
+            })
+            .map_err(err)?;
+        let result = pyo3::types::PyDict::new(py);
+        result.set_item("realization_mean", array1(py, global.realization_mean))?;
+        result.set_item(
+            "realization_above",
+            matrix(py, &global.realization_above, n),
+        )?;
+        Ok(result)
+    }
+}
+
+impl TurningBands {
+    fn params(&self, seed: u64) -> TurningBandsParams {
+        TurningBandsParams {
+            n_bands: self.bands,
+            step: self.step,
+            seed,
+            ..Default::default()
+        }
     }
 }
 

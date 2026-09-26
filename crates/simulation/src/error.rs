@@ -13,6 +13,9 @@ pub enum SimError {
 
     #[error("transform error: {0}")]
     Transform(String),
+
+    #[error(transparent)]
+    Io(#[from] ceres_io::Error),
 }
 
 pub type Result<T> = std::result::Result<T, SimError>;

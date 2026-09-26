@@ -25,5 +25,6 @@ Walker Lake has an exhaustive grid, so every result is checked against the truth
 | 18 | [Validation and classification](18-validation/README.md) | Walker Lake | `predict(diagnostics=True)`, `global_bias`, `classify`, `smooth_classes` |
 | 19 | [Geological modelling](19-geological-model/README.md) | Drillholes, synthetic fold | `Drillholes.at` contacts, `ImplicitModel` kriging/RBF/GP, planes, lineations, gradients, GP variance |
 | 20 | [From drill holes to a classified model](20-workflow/README.md) | Drillholes | the whole chain: composites, EDA, declustering, variograms, kriging checks, SGS risk, classification, Parquet |
+| 21 | [Models larger than memory](21-large-models/README.md) | Walker Lake | `BlockModelFile`, `map_blocks`, `TurningBands.simulate_to_parquet` |
 
 Each page alternates text, collapsed Python and its results. `mise run examples` reruns every `example_NN.py` and rewrites the pages; `cs.datasets` downloads the data once and caches it.

@@ -24,4 +24,7 @@ pub use post::{
 };
 pub use sgs::{Realization, SgsParams, sgs};
 pub use sis::{CategoricalRealization, SisParams, sis};
-pub use turning_bands::{TurningBandsParams, conditional_gaussian_field, turning_bands};
+pub use turning_bands::{
+    Bands, GlobalSummary, TurningBandsEnsemble, TurningBandsParams, bounds,
+    conditional_gaussian_field, turning_bands, turning_bands_to_parquet,
+};
