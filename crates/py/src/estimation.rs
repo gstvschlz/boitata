@@ -5,6 +5,9 @@ use estimation::{
     leave_one_out_at,
 };
 use std::path::PathBuf;
+use std::sync::Arc;
+
+use arrow_array::{ArrayRef, Float64Array, RecordBatch};
 
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyString, PyTuple};
@@ -12,10 +15,13 @@ use pyo3::{IntoPyObjectExt, PyClass};
 use serde::{Deserialize, Serialize};
 use variogram::Variogram as CoreVariogram;
 
-use crate::args::{self, Point, array1, distinct, finite, pick, points, same_length, triple};
+use crate::args::{
+    self, Point, array1, column, distinct, finite, pick, points, same_length, triple,
+};
 use crate::containers::{PyBlockModel, PyPointSet};
 use crate::invalid;
 use crate::persist::{self, Columns, Found, Tabular};
+use crate::table::Table;
 use crate::variogram::Variogram;
 
 /// Neighborhood: `radius` is in meters along the major axis of the
@@ -430,15 +436,14 @@ fn used(t: &Point, s: &[Sample], e: estimation::Result<Estimate>) -> estimation:
     })
 }
 
-fn diagnostics<'py>(
-    py: Python<'py>,
+fn diagnostics(
     results: &[Option<(usize, Used)>],
     searches: &[CoreSearch],
     domains: Option<&[Option<u32>]>,
-) -> PyResult<Bound<'py, PyDict>> {
+) -> PyResult<Table> {
+    let floats = |values: Vec<f64>| -> ArrayRef { Arc::new(Float64Array::from(values)) };
     let column = |f: &dyn Fn(usize, &Estimate, &NeighborhoodStats) -> f64| {
-        array1(
-            py,
+        floats(
             results
                 .iter()
                 .map(|r| r.as_ref().map_or(f64::NAN, |(p, (e, s, _))| f(*p, e, s)))
@@ -455,32 +460,33 @@ fn diagnostics<'py>(
             })
         })
         .collect();
-    let d = PyDict::new(py);
-    d.set_item("value", column(&|_, e, _| e.value))?;
-    d.set_item("variance", column(&|_, e, _| e.variance))?;
-    d.set_item("efficiency", column(&|_, e, _| e.efficiency()))?;
-    d.set_item("slope", column(&|_, e, _| e.slope()))?;
-    d.set_item("n_samples", column(&|_, e, _| e.n_used as f64))?;
-    d.set_item("pass", column(&|p, _, _| (p + 1) as f64))?;
-    d.set_item("n_holes", column(&|_, _, s| s.n_holes as f64))?;
-    d.set_item("n_other_domain", array1(py, other))?;
-    d.set_item("mean_distance", column(&|_, _, s| s.mean_dist_knn))?;
-    d.set_item(
-        "negative_weight_sum",
-        column(&|_, e, _| e.negative_weight_sum()),
-    )?;
-    d.set_item("lagrange", column(&|_, e, _| e.lagrange))?;
-    d.set_item("support_variance", column(&|_, e, _| e.support_variance))?;
-    d.set_item(
-        "estimate_variance",
-        column(&|_, e, _| e.estimate_variance()),
-    )?;
     let full = |p: usize, s: &NeighborhoodStats| s.n_within >= searches[p].max_samples;
-    d.set_item(
-        "max_samples_reached",
-        column(&|p, _, s| full(p, s) as u8 as f64),
-    )?;
-    Ok(d)
+    let columns = [
+        ("value", column(&|_, e, _| e.value)),
+        ("variance", column(&|_, e, _| e.variance)),
+        ("efficiency", column(&|_, e, _| e.efficiency())),
+        ("slope", column(&|_, e, _| e.slope())),
+        ("n_samples", column(&|_, e, _| e.n_used as f64)),
+        ("pass", column(&|p, _, _| (p + 1) as f64)),
+        ("n_holes", column(&|_, _, s| s.n_holes as f64)),
+        ("n_other_domain", floats(other)),
+        ("mean_distance", column(&|_, _, s| s.mean_dist_knn)),
+        (
+            "negative_weight_sum",
+            column(&|_, e, _| e.negative_weight_sum()),
+        ),
+        ("lagrange", column(&|_, e, _| e.lagrange)),
+        ("support_variance", column(&|_, e, _| e.support_variance)),
+        (
+            "estimate_variance",
+            column(&|_, e, _| e.estimate_variance()),
+        ),
+        (
+            "max_samples_reached",
+            column(&|p, _, s| full(p, s) as u8 as f64),
+        ),
+    ];
+    Ok(Table(RecordBatch::try_from_iter(columns).map_err(invalid)?))
 }
 
 fn split<T>(passes: Vec<Option<(usize, T)>>) -> Vec<Option<T>> {
@@ -712,7 +718,8 @@ impl Estimator {
     /// `holes` (optional) tags samples by drill hole for `max_per_hole`;
     /// `error_variance` (optional) is each sample's measurement-error variance;
     /// `domains` (optional) labels each sample's domain.
-    #[pyo3(signature = (coords, values, holes=None, error_variance=None, domains=None))]
+    #[pyo3(signature = (coords, values, *, holes=None, error_variance=None, domains=None, domain_column=None))]
+    #[allow(clippy::too_many_arguments)]
     fn fit<'py>(
         mut slf: PyRefMut<'py, Self>,
         coords: &Bound<PyAny>,
@@ -720,11 +727,18 @@ impl Estimator {
         holes: Option<&Bound<PyAny>>,
         error_variance: Option<&Bound<PyAny>>,
         domains: Option<&Bound<PyAny>>,
+        domain_column: Option<&str>,
     ) -> PyResult<PyRefMut<'py, Self>> {
-        let (locs, values) = (points(coords)?, finite(values, "values")?);
+        let data = Some(coords);
+        let locs = points(coords)?;
+        let values = finite(&column(data, values, "values")?, "values")?;
         same_length(locs.len(), values.len(), "values")?;
-        let holes = args::holes(holes, locs.len())?;
-        let error = args::optional_finite(error_variance, "error_variance")?;
+        let holes = holes.map(|h| column(data, h, "holes")).transpose()?;
+        let holes = args::holes(holes.as_ref(), locs.len())?;
+        let error = error_variance
+            .map(|e| column(data, e, "error_variance"))
+            .transpose()?;
+        let error = args::optional_finite(error.as_ref(), "error_variance")?;
         if let Some(e) = &error {
             same_length(locs.len(), e.len(), "error_variance")?;
             if e.iter().any(|v| *v < 0.0) {
@@ -734,11 +748,10 @@ impl Estimator {
                 return Err(invalid("error_variance needs a kriging method"));
             }
         }
-        let (fitted, codes) = match domains {
-            None => (None, None),
-            Some(obj) => {
-                let (fitted, codes) =
-                    args::domain_codes(Some(coords), Some(obj), None, locs.len())?;
+        let (fitted, codes) = match (domains, domain_column) {
+            (None, None) => (None, None),
+            _ => {
+                let (fitted, codes) = args::domain_codes(data, domains, domain_column, locs.len())?;
                 (Some(fitted), Some(codes))
             }
         };
@@ -764,7 +777,7 @@ impl Estimator {
     }
 
     /// Estimates (NaN where too few neighbors); with `return_variance`, also
-    /// the kriging variance, and with `diagnostics` a dict adding kriging
+    /// the kriging variance, and with `diagnostics` a Table adding kriging
     /// efficiency, slope of regression, samples used, the search pass
     /// (1-based) that filled each target, holes used, mean distance to the
     /// samples used, sum of negative weights, Lagrange multiplier and whether
@@ -772,9 +785,10 @@ impl Estimator {
     /// variance C(v, v) and the estimator variance Var(Z*).
     /// `anisotropy` (a LocalAnisotropy) gives each target its own variogram
     /// and search orientation, taken from the nearest location. `domains`
-    /// labels the targets, or is one label for all; a domain without samples
-    /// is left unestimated.
-    #[pyo3(signature = (targets, return_variance=false, anisotropy=None, diagnostics=false, domains=None))]
+    /// labels the targets, or is one label for all, and `domain_column` names
+    /// a column of the targets holding them; a domain without samples is left
+    /// unestimated.
+    #[pyo3(signature = (targets, *, return_variance=false, anisotropy=None, diagnostics=false, domains=None, domain_column=None))]
     #[allow(clippy::too_many_arguments)]
     fn predict<'py>(
         &self,
@@ -783,11 +797,22 @@ impl Estimator {
         return_variance: bool,
         anisotropy: Option<PyRef<crate::lva::LocalAnisotropy>>,
         diagnostics: bool,
-        domains: Option<&Bound<PyAny>>,
+        domains: Option<Bound<'py, PyAny>>,
+        domain_column: Option<&str>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let samples = self.fitted()?;
+        let domains = match (domains, domain_column) {
+            (d, None) => d,
+            (None, Some(c)) => Some(args::named(Some(targets), c, "domain_column")?),
+            _ => return Err(invalid("give one of domains or domain_column")),
+        };
         let targets = self::targets(targets)?;
-        let codes = codes(self.domains.as_deref(), domains, targets.len(), "predict")?;
+        let codes = codes(
+            self.domains.as_deref(),
+            domains.as_ref(),
+            targets.len(),
+            "predict",
+        )?;
         let known: Vec<usize> = (0..targets.len())
             .filter(|&i| codes.as_ref().is_none_or(|c| c[i].is_some()))
             .collect();
@@ -830,7 +855,8 @@ impl Estimator {
             passes[i] = r;
         }
         if diagnostics {
-            return Ok(self::diagnostics(py, &passes, &search, codes.as_deref())?.into_any());
+            let table = self::diagnostics(&passes, &search, codes.as_deref())?;
+            return table.into_bound_py_any(py);
         }
         let results: Vec<_> = split(passes).into_iter().map(|r| r.map(|r| r.0)).collect();
         outputs(py, &results, return_variance)
@@ -961,7 +987,8 @@ impl Dual {
         coords: &Bound<PyAny>,
         values: &Bound<PyAny>,
     ) -> PyResult<PyRefMut<'py, Self>> {
-        let (locs, values) = (points(coords)?, finite(values, "values")?);
+        let locs = points(coords)?;
+        let values = finite(&column(Some(coords), values, "values")?, "values")?;
         same_length(locs.len(), values.len(), "values")?;
         let keep = distinct(slf.py(), &locs, None)?;
         slf.samples = Some(
@@ -1009,12 +1036,11 @@ impl Dual {
 }
 
 /// Distances and value statistics of the `k` nearest samples around targets;
-/// `n_holes` counts distinct `holes` within `radius`.
+/// `n_holes` counts distinct `holes` within `radius`; `values` and `holes`
+/// may name columns of `coords`.
 #[pyfunction]
-#[pyo3(signature = (targets, coords, values, k=8, radius=f64::INFINITY, variogram=None, holes=None))]
-#[allow(clippy::too_many_arguments)]
-fn neighborhood_stats<'py>(
-    py: Python<'py>,
+#[pyo3(signature = (targets, coords, values, *, k=8, radius=f64::INFINITY, variogram=None, holes=None))]
+fn neighborhood_stats(
     targets: &Bound<PyAny>,
     coords: &Bound<PyAny>,
     values: &Bound<PyAny>,
@@ -1022,10 +1048,13 @@ fn neighborhood_stats<'py>(
     radius: f64,
     variogram: Option<Variogram>,
     holes: Option<&Bound<PyAny>>,
-) -> PyResult<Bound<'py, PyDict>> {
-    let (locs, values) = (points(coords)?, finite(values, "values")?);
+) -> PyResult<Table> {
+    let data = Some(coords);
+    let locs = points(coords)?;
+    let values = finite(&column(data, values, "values")?, "values")?;
     same_length(locs.len(), values.len(), "values")?;
-    let holes = args::holes(holes, locs.len())?;
+    let holes = holes.map(|h| column(data, h, "holes")).transpose()?;
+    let holes = args::holes(holes.as_ref(), locs.len())?;
     let samples: Vec<Sample> = (0..locs.len())
         .map(|i| match &holes {
             Some((_, ids)) => Sample::with_hole(locs[i], values[i], ids[i]),
@@ -1037,10 +1066,11 @@ fn neighborhood_stats<'py>(
         .iter()
         .map(|t| estimation::neighborhood_stats(t, &samples, k, radius, aniso.as_ref()))
         .collect();
-    let d = PyDict::new(py);
+    let mut columns: Vec<(&str, ArrayRef)> = vec![];
     macro_rules! column {
         ($($f:ident),*) => {$(
-            d.set_item(stringify!($f), array1(py, stats.iter().map(|s| s.$f as f64).collect()))?;
+            let values = stats.iter().map(|s| s.$f as f64);
+            columns.push((stringify!($f), Arc::new(Float64Array::from_iter_values(values))));
         )*};
     }
     column!(
@@ -1055,7 +1085,7 @@ fn neighborhood_stats<'py>(
         value_max,
         value_idw
     );
-    Ok(d)
+    Ok(Table(RecordBatch::try_from_iter(columns).map_err(invalid)?))
 }
 
 /// Mean distance from each target to its `n` nearest drill holes, each hole
@@ -1067,8 +1097,9 @@ fn neighborhood_stats<'py>(
 ///     Locations to measure from.
 /// coords : array_like
 ///     Sample coordinates, (n, 2) or (n, 3).
-/// holes : array_like
-///     Hole id of each sample; samples of one hole count once.
+/// holes : array_like or str
+///     Hole id of each sample, or the column of `coords` holding them;
+///     samples of one hole count once.
 /// n : int or sequence of int
 ///     Number of holes averaged; one per class.
 /// search : Search, optional
@@ -1078,25 +1109,36 @@ fn neighborhood_stats<'py>(
 /// domains : tuple of array_like, optional
 ///     ``(target_domains, sample_domains)``: each target only sees samples of
 ///     its own domain.
+/// domain_column : str or tuple of str, optional
+///     The column of `targets` and `coords` holding their domains, or one
+///     name for each; instead of `domains`.
 ///
 /// Returns
 /// -------
-/// ndarray or dict of int to ndarray
-///     Distances, ``inf`` where fewer than `n` holes are in reach; a dict
-///     keyed by `n` when `n` is a sequence.
+/// ndarray
+///     Distances, ``inf`` where fewer than `n` holes are in reach; shape
+///     ``(targets, len(n))`` when `n` is a sequence.
 #[pyfunction]
-#[pyo3(signature = (targets, coords, holes, n, search=None, domains=None))]
+#[pyo3(signature = (targets, coords, holes, n, *, search=None, domains=None, domain_column=None))]
+#[allow(clippy::too_many_arguments)]
 fn hole_distance<'py>(
     py: Python<'py>,
-    targets: &Bound<PyAny>,
-    coords: &Bound<PyAny>,
-    holes: &Bound<PyAny>,
+    targets: &Bound<'py, PyAny>,
+    coords: &Bound<'py, PyAny>,
+    holes: &Bound<'py, PyAny>,
     n: &Bound<PyAny>,
     search: Option<Search>,
-    domains: Option<(Bound<PyAny>, Bound<PyAny>)>,
+    domains: Option<(Bound<'py, PyAny>, Bound<'py, PyAny>)>,
+    domain_column: Option<&Bound<'py, PyAny>>,
 ) -> PyResult<Bound<'py, PyAny>> {
+    let domains = match (domains, domain_column) {
+        (d, None) => d,
+        (None, Some(c)) => Some(args::pair(targets, coords, c, "domain_column")?),
+        _ => return Err(invalid("give one of domains or domain_column")),
+    };
     let locs = points(coords)?;
-    let (_, hole_ids) = args::holes(Some(holes), locs.len())?.expect("given");
+    let holes = column(Some(coords), holes, "holes")?;
+    let (_, hole_ids) = args::holes(Some(&holes), locs.len())?.expect("given");
     let single = n.extract::<usize>().ok();
     let ns = match single {
         Some(k) => vec![k],
@@ -1149,11 +1191,10 @@ fn hole_distance<'py>(
     if single.is_some() {
         return Ok(array1(py, columns.remove(0)).into_any());
     }
-    let d = PyDict::new(py);
-    for (k, column) in ns.iter().zip(columns) {
-        d.set_item(k, array1(py, column))?;
-    }
-    Ok(d.into_any())
+    let rows: Vec<Vec<f64>> = (0..targets.len())
+        .map(|i| columns.iter().map(|c| c[i]).collect())
+        .collect();
+    Ok(args::array2(py, &rows).into_any())
 }
 
 pub fn register(m: &Bound<PyModule>) -> PyResult<()> {

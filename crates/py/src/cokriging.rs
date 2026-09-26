@@ -7,7 +7,7 @@ use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 use variogram::{Anisotropy, Coregionalization as CoreCoreg, Variogram as CoreVariogram};
 
-use crate::args::{self, Point, array1, distinct, finite, pick, points, same_length};
+use crate::args::{self, Point, array1, column, distinct, finite, pick, points, same_length};
 use crate::estimation::{Search, outputs, sample_columns, samples_from, targets};
 use crate::invalid;
 use crate::persist::{self, Columns, Found, Tabular};
@@ -86,21 +86,30 @@ impl Cokriging {
 
     /// `variables` gives each sample's variable index. Samples of one variable
     /// sharing a location keep the first, with a warning naming their `holes`.
-    #[pyo3(signature = (coords, values, variables, holes=None))]
+    /// `values`, `variables` and `holes` may name columns of `coords`.
+    #[pyo3(signature = (coords, values, variables, *, holes=None))]
     fn fit<'py>(
         mut slf: PyRefMut<'py, Self>,
         coords: &Bound<PyAny>,
         values: &Bound<PyAny>,
-        variables: Vec<usize>,
+        variables: &Bound<PyAny>,
         holes: Option<&Bound<PyAny>>,
     ) -> PyResult<PyRefMut<'py, Self>> {
-        let (locs, values) = (points(coords)?, finite(values, "values")?);
+        let data = Some(coords);
+        let locs = points(coords)?;
+        let values = finite(&column(data, values, "values")?, "values")?;
         same_length(locs.len(), values.len(), "values")?;
+        let variables = finite(&column(data, variables, "variables")?, "variables")?;
+        if variables.iter().any(|v| v.fract() != 0.0 || *v < 0.0) {
+            return Err(invalid("variables must be variable indices"));
+        }
+        let variables: Vec<usize> = variables.into_iter().map(|v| v as usize).collect();
         same_length(locs.len(), variables.len(), "variables")?;
         if variables.iter().any(|&v| v >= slf.model.nvar) {
             return Err(invalid("variable index out of range"));
         }
-        let holes = args::holes(holes, locs.len())?.map(|h| h.0);
+        let holes = holes.map(|h| column(data, h, "holes")).transpose()?;
+        let holes = args::holes(holes.as_ref(), locs.len())?.map(|h| h.0);
         let mut keep = Vec::new();
         for k in 0..slf.model.nvar {
             let rows: Vec<usize> = (0..locs.len()).filter(|&i| variables[i] == k).collect();
@@ -131,7 +140,7 @@ impl Cokriging {
 
     /// Estimates of `variable`; `collocated` maps a variable index to its
     /// values at every target for collocated cokriging.
-    #[pyo3(signature = (targets, variable=0, return_variance=false, collocated=None))]
+    #[pyo3(signature = (targets, *, variable=0, return_variance=false, collocated=None))]
     fn predict<'py>(
         &self,
         py: Python<'py>,
@@ -270,13 +279,16 @@ impl Disjunctive {
         })
     }
 
-    /// Raw values; they are Gaussian-transformed with the anamorphosis.
+    /// Raw values, or the column of `coords` holding them; they are
+    /// Gaussian-transformed with the anamorphosis.
     fn fit<'py>(
         mut slf: PyRefMut<'py, Self>,
         coords: &Bound<PyAny>,
         values: &Bound<PyAny>,
     ) -> PyResult<PyRefMut<'py, Self>> {
-        let (locs, values) = (points(coords)?, finite(values, "values")?);
+        let locs = points(coords)?;
+        let values = finite(&column(Some(coords), values, "values")?, "values")?;
+
         same_length(locs.len(), values.len(), "values")?;
         let keep = distinct(slf.py(), &locs, None)?;
         let (locs, values) = (pick(&locs, &keep), pick(&values, &keep));

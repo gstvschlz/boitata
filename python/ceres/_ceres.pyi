@@ -582,21 +582,25 @@ class _Estimator:
     ) -> None: ...
     def fit(
         self,
-        coords: ArrayLike,
-        values: ArrayLike,
-        holes: Holes | None = None,
-        error_variance: ArrayLike | None = None,
-        domains: Sequence[Label] | ArrayLike | None = None,
+        coords: ArrayLike | PointSet | BlockModel,
+        values: ArrayLike | Column,
+        *,
+        holes: Holes | Column | None = None,
+        error_variance: ArrayLike | Column | None = None,
+        domains: Labels | None = None,
+        domain_column: Column | None = None,
     ) -> _Estimator: ...
     @property
     def values(self) -> npt.NDArray[np.float64]: ...
     def predict(
         self,
         targets: Any,
+        *,
         return_variance: bool = False,
         anisotropy: LocalAnisotropy | None = None,
         diagnostics: bool = False,
-        domains: Label | Sequence[Label] | ArrayLike | None = None,
+        domains: Label | Labels | None = None,
+        domain_column: Column | None = None,
     ) -> Any: ...
     def cross_validate(
         self, folds: int | None = None
@@ -613,36 +617,29 @@ class DualKriging:
     @staticmethod
     def from_parquet(path: Path) -> DualKriging: ...
     def __init__(self, variogram: Variogram, degree: int = 0) -> None: ...
-    def fit(self, coords: ArrayLike, values: ArrayLike) -> DualKriging: ...
+    def fit(self, coords: ArrayLike | PointSet | BlockModel, values: ArrayLike | Column) -> DualKriging: ...
     def predict(self, targets: Any) -> npt.NDArray[np.float64]: ...
 
 def neighborhood_stats(
     targets: Any,
-    coords: ArrayLike,
-    values: ArrayLike,
+    coords: ArrayLike | PointSet | BlockModel,
+    values: ArrayLike | Column,
+    *,
     k: int = 8,
     radius: float = ...,
     variogram: Variogram | None = None,
-    holes: Holes | None = None,
-) -> dict[str, npt.NDArray[np.float64]]: ...
-@overload
+    holes: Holes | Column | None = None,
+) -> Table: ...
 def hole_distance(
     targets: Any,
-    coords: ArrayLike,
-    holes: Holes,
-    n: int,
+    coords: ArrayLike | PointSet | BlockModel,
+    holes: Holes | Column,
+    n: int | Sequence[int],
+    *,
     search: Search | None = None,
-    domains: tuple[ArrayLike, ArrayLike] | None = None,
+    domains: tuple[Labels, Labels] | None = None,
+    domain_column: Column | tuple[Column, Column] | None = None,
 ) -> npt.NDArray[np.float64]: ...
-@overload
-def hole_distance(
-    targets: Any,
-    coords: ArrayLike,
-    holes: Holes,
-    n: Sequence[int],
-    search: Search | None = None,
-    domains: tuple[ArrayLike, ArrayLike] | None = None,
-) -> dict[int, npt.NDArray[np.float64]]: ...
 
 class SGS:
     def to_parquet(self, path: Path) -> None: ...
@@ -889,11 +886,17 @@ class Cokriging:
         self, coregionalization: Coregionalization, search: Search, means: Sequence[float] | None = None
     ) -> None: ...
     def fit(
-        self, coords: ArrayLike, values: ArrayLike, variables: Sequence[int], holes: Holes | None = None
+        self,
+        coords: ArrayLike | PointSet | BlockModel,
+        values: ArrayLike | Column,
+        variables: Sequence[int] | ArrayLike | Column,
+        *,
+        holes: Holes | Column | None = None,
     ) -> Cokriging: ...
     def predict(
         self,
         targets: Any,
+        *,
         variable: int = 0,
         return_variance: bool = False,
         collocated: Mapping[int, ArrayLike] | None = None,
@@ -906,7 +909,9 @@ class DisjunctiveKriging:
     def __init__(
         self, anamorphosis: HermiteAnamorphosis, variogram: Variogram, search: Search, order: int = 20
     ) -> None: ...
-    def fit(self, coords: ArrayLike, values: ArrayLike) -> DisjunctiveKriging: ...
+    def fit(
+        self, coords: ArrayLike | PointSet | BlockModel, values: ArrayLike | Column
+    ) -> DisjunctiveKriging: ...
     def predict(self, targets: Any) -> npt.NDArray[np.float64]: ...
     def predict_tonnage(self, targets: Any, cutoff: float) -> npt.NDArray[np.float64]: ...
 
@@ -928,14 +933,16 @@ class MultipleIndicatorKriging:
     def thresholds(self) -> list[float]: ...
     def fit(
         self,
-        coords: ArrayLike,
-        values: ArrayLike,
-        weights: ArrayLike | None = None,
-        holes: Holes | None = None,
+        coords: ArrayLike | PointSet | BlockModel,
+        values: ArrayLike | Column,
+        *,
+        weights: ArrayLike | Column | None = None,
+        holes: Holes | Column | None = None,
     ) -> MultipleIndicatorKriging: ...
     def predict(
         self,
         targets: Any,
+        *,
         cutoffs: Sequence[float] = (),
         quantiles: Sequence[float] = (),
         anisotropy: LocalAnisotropy | None = None,

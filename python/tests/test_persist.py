@@ -184,10 +184,8 @@ def test_estimator_with_domains_round_trips(tmp_path):
     ok.to_parquet(path)
     back = cs.OrdinaryKriging.from_parquet(path)
     at = ["MS" if x < 50 else 7 for x in targets[:, 0]]
-    same(
-        back.predict(targets, domains=at, diagnostics=True).values(),
-        ok.predict(targets, domains=at, diagnostics=True).values(),
-    )
+    a, b = (e.predict(targets, domains=at, diagnostics=True) for e in (back, ok))
+    same([a[c] for c in a.column_names], [b[c] for c in b.column_names])
     same((back.cross_validate().estimate,), (ok.cross_validate().estimate,))
     assert cs.read_parquet(path)["domain"].max() == 1
 

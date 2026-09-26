@@ -6,6 +6,8 @@ from dataclasses import dataclass
 import numpy as np
 
 from ceres._ceres import Search, Table, Variogram, _Estimator
+from ceres._columns import column
+from ceres.errors import InvalidInput
 
 __all__ = [
     "BayesianKriging",
@@ -108,16 +110,18 @@ class _Base:
     def __init__(self, method: str, search: Searches, variogram: Variogram | None = None, **options):
         self._engine = _Estimator(method, search, variogram, **options)
 
-    def fit(self, coords, values, holes=None, error_variance=None, domains=None):
+    def fit(self, coords, values, *, holes=None, error_variance=None, domains=None, domain_column=None):
         """Stores the samples. Samples sharing a location keep the first one, with a warning naming their holes.
 
         Parameters
         ----------
-        coords : array_like, shape (n, 2) or (n, 3)
-        values : array_like, shape (n,)
-        holes : array_like, optional
+        coords : array_like, PointSet or BlockModel
+            Sample locations, ``(n, 2)`` or ``(n, 3)``, or a container whose columns `values`, `holes`,
+            `error_variance` and `domain_column` may name.
+        values : array_like or str
+        holes : array_like or str, optional
             Drill-hole ids or names, for `max_per_hole` and the ``n_holes`` diagnostic.
-        error_variance : array_like, optional
+        error_variance : array_like or str, optional
             Variance of each sample's measurement error, for data of different quality (kriging only).
             It is added to the sample's diagonal entry in the kriging system, so the estimate no longer
             honors a noisy value and leans towards its neighbors. Cokriging, disjunctive kriging and the
@@ -128,12 +132,29 @@ class _Base:
             sharing a location are dropped within a domain only; where a search reaches several at one
             location, it uses the one of the target's domain, or else the first. `predict` then needs
             domains too.
+        domain_column : str, optional
+            The column of `coords` holding the domains; instead of `domains`.
         """
-        self._engine.fit(coords, values, holes, error_variance, domains)
+        self._engine.fit(
+            coords,
+            values,
+            holes=holes,
+            error_variance=error_variance,
+            domains=domains,
+            domain_column=domain_column,
+        )
+        self._samples = coords
         return self
 
     def predict(
-        self, targets, return_variance: bool = False, anisotropy=None, diagnostics: bool = False, domains=None
+        self,
+        targets,
+        *,
+        return_variance: bool = False,
+        anisotropy=None,
+        diagnostics: bool = False,
+        domains=None,
+        domain_column=None,
     ):
         """Estimates at targets; NaN where the search found too few samples.
 
@@ -145,7 +166,7 @@ class _Base:
         anisotropy : LocalAnisotropy, optional
             Orients each target's variogram and search.
         diagnostics : bool
-            Return a dict of arrays instead: ``value``, ``variance``, ``efficiency`` (kriging efficiency),
+            Return a Table instead: ``value``, ``variance``, ``efficiency`` (kriging efficiency),
             ``slope`` (slope of regression), ``n_samples``, ``pass`` (the search, from 1, that filled each
             target), ``n_holes`` (distinct holes among the samples used; untagged samples count one each),
             ``mean_distance`` (to the samples used), ``negative_weight_sum``, ``lagrange`` (the Lagrange
@@ -158,8 +179,17 @@ class _Base:
         domains : array_like or label, optional
             Domain label of each target, or one label for all of them; required when fitted with domains.
             Targets of a domain without samples stay NaN.
+        domain_column : str, optional
+            The column of `targets` holding their domains; instead of `domains`.
         """
-        return self._engine.predict(targets, return_variance, anisotropy, diagnostics, domains)
+        return self._engine.predict(
+            targets,
+            return_variance=return_variance,
+            anisotropy=anisotropy,
+            diagnostics=diagnostics,
+            domains=domains,
+            domain_column=domain_column,
+        )
 
     def cross_validate(self, folds: int | None = None) -> CrossValidation:
         """Re-estimates every sample from the others, through the same search passes.
@@ -186,6 +216,7 @@ class _Base:
         """
         estimator = type(self).__new__(type(self))
         estimator._engine = self._engine.with_search(search)
+        estimator._samples = getattr(self, "_samples", None)
         return estimator
 
     def to_parquet(self, path) -> None:
@@ -300,7 +331,7 @@ class LocalLeastSquares(_Base):
         super().__init__("local_least_squares", search, variogram, degree=degree)
 
 
-def global_bias(estimate, data, weights=None, data_weights=None) -> dict[str, float]:
+def global_bias(estimate, data, *, weights=None, data_weights=None) -> dict[str, float]:
     """Means of an estimate and of the data it came from, weighted by e.g. block volumes and
     declustering weights, and the relative difference ``estimate / data - 1``.
     """
@@ -315,12 +346,14 @@ def calibrate_search(
     estimator,
     searches,
     targets,
+    *,
     folds=None,
     weights=None,
     cutoffs=None,
     anamorphosis=None,
     cross_validation: bool = True,
     domains=None,
+    domain_column=None,
 ) -> Table:
     """Scores candidate searches for a fitted estimator, one row per scenario, to compare side by side.
 
@@ -338,8 +371,9 @@ def calibrate_search(
         Where to estimate, usually the blocks.
     folds : int, optional
         Cross-validation folds; leave-one-out when None.
-    weights : array_like, optional
-        Declustering weights of the fitted samples, for the cross-validation scores and the global bias.
+    weights : array_like or str, optional
+        Declustering weights of the fitted samples, for the cross-validation scores and the global bias, or the
+        column of the container they were fitted from.
     cutoffs : sequence of float, optional
         Cutoffs for tonnage and metal ratios against the discrete Gaussian block-support reference.
     anamorphosis : HermiteAnamorphosis, optional
@@ -352,6 +386,8 @@ def calibrate_search(
     domains : array_like or label, optional
         Domain label of each target, or one label for all of them, as in `predict`; required when the estimator
         was fitted with domains. Cross-validation and the global bias then cover the samples of those domains only.
+    domain_column : str, optional
+        The column of `targets` holding their domains; instead of `domains`.
 
     Returns
     -------
@@ -369,20 +405,24 @@ def calibrate_search(
 
     Raises
     ------
-    ValueError
+    InvalidInput
         If `cutoffs` come without an anamorphosis or a variogram, `weights` do not match the fitted samples, or a
         scenario estimates no target.
     """
     if isinstance(searches, Search) or not len(searches):
-        raise ValueError("searches must be a non-empty sequence of scenarios, each a Search or passes")
+        raise InvalidInput("searches must be a non-empty sequence of scenarios, each a Search or passes")
     if cutoffs is not None and anamorphosis is None:
-        raise ValueError("cutoffs need a fitted HermiteAnamorphosis")
+        raise InvalidInput("cutoffs need a fitted HermiteAnamorphosis")
+    if domain_column is not None:
+        if domains is not None:
+            raise InvalidInput("give one of domains or domain_column")
+        domains = column(targets, domain_column, "domain_column")
     engine = estimator._engine
     values = engine.values
     if weights is not None:
-        weights = np.asarray(weights, dtype=float)
+        weights = np.asarray(column(getattr(estimator, "_samples", None), weights, "weights"), dtype=float)
         if weights.shape != values.shape:
-            raise ValueError(
+            raise InvalidInput(
                 f"{len(weights)} weights for {len(values)} fitted samples (samples sharing a location keep one)"
             )
     keep = np.ones(len(values), dtype=bool)
@@ -412,7 +452,7 @@ def calibrate_search(
 def _scores(d, values, weights) -> dict[str, float]:
     ok = np.isfinite(d["value"])
     if not ok.any():
-        raise ValueError("a scenario estimated no target; widen its search")
+        raise InvalidInput("a scenario estimated no target; widen its search")
     estimate = d["value"][ok]
     block, spread = np.mean(d["support_variance"][ok]), np.var(estimate)
     return {
@@ -433,7 +473,7 @@ def _scores(d, values, weights) -> dict[str, float]:
 
 def _recoveries(estimate, block_variance, variogram, anamorphosis, cutoffs) -> dict[str, float]:
     if variogram is None or not np.isfinite(block_variance):
-        raise ValueError("cutoffs need a kriging estimator with a variogram")
+        raise InvalidInput("cutoffs need a kriging estimator with a variogram")
     target = min(block_variance / variogram.sill, 1.0) * anamorphosis.variance_
     low, high = 0.0, 1.0
     for _ in range(60):
@@ -465,12 +505,12 @@ def _cross_validation(actual, estimate, weights) -> dict[str, float]:
 _OPS = {"<": np.less, "<=": np.less_equal, ">": np.greater, ">=": np.greater_equal}
 
 
-def classify(criteria, rules, default="unclassified", domains=None) -> np.ndarray:
+def classify(criteria, rules, *, default="unclassified", domains=None, domain_column=None) -> np.ndarray:
     """Labels each block with the first rule whose conditions all hold.
 
     Parameters
     ----------
-    criteria : dict of str to array_like
+    criteria : Table or dict of str to array_like
         Per-block metrics, e.g. ``slope``, ``efficiency`` from ``predict(..., diagnostics=True)``,
         ``nearest_dist``, ``n_holes`` from `neighborhood_stats` and distances from `hole_distance`.
     rules : sequence of (str, dict), or dict of domain to such a sequence
@@ -482,21 +522,27 @@ def classify(criteria, rules, default="unclassified", domains=None) -> np.ndarra
         Label where no rule holds.
     domains : array_like, optional
         Domain of each block, the keys of `rules`.
+    domain_column : str, optional
+        The column of `criteria` holding the domains; instead of `domains`.
 
     Examples
     --------
     >>> classify(d, [("measured", {"slope": (">=", 0.8), "n_holes": (">=", 3)}),
     ...              ("indicated", {"slope": (">=", 0.5)})], default="inferred")
     """
-    n = len(next(iter(criteria.values())))
+    n = criteria.num_rows if hasattr(criteria, "num_rows") else len(next(iter(criteria.values())))
+    if domain_column is not None:
+        if domains is not None:
+            raise InvalidInput("give one of domains or domain_column")
+        domains = column(criteria, domain_column, "domain_column")
     if domains is None:
         if isinstance(rules, dict):
-            raise ValueError("rules by domain need domains")
+            raise InvalidInput("rules by domain need domains")
         groups = [(np.ones(n, dtype=bool), rules)]
     else:
         domains = np.asarray(domains)
         if len(domains) != n:
-            raise ValueError("one domain per block")
+            raise InvalidInput("one domain per block")
         if not isinstance(rules, dict):
             rules = {None: rules}
         rest = np.ones(n, dtype=bool)
@@ -515,8 +561,9 @@ def classify(criteria, rules, default="unclassified", domains=None) -> np.ndarra
             hit = free.copy()
             for name, (op, threshold) in conditions.items():
                 if op not in _OPS:
-                    raise ValueError(f"unknown operator {op!r}; use one of {', '.join(_OPS)}")
-                hit &= _OPS[op](np.asarray(criteria[name], dtype=float), threshold)
+                    raise InvalidInput(f"unknown operator {op!r}; use one of {', '.join(_OPS)}")
+                hit &= _OPS[op](np.asarray(column(criteria, name, "criteria"), dtype=float), threshold)
+
             out[hit] = label
             free &= ~hit
     return out.astype(str)

@@ -355,7 +355,7 @@ each hole once ([chapter 20](../20-workflow/README.md)). Rules apply in order an
 
 ```python
 near = cs.neighborhood_stats(blocks, xy, v, k=8, radius=80)
-criteria = {**d, "distance": near["nearest_dist"]}
+criteria = {"slope": d["slope"], "efficiency": d["efficiency"], "distance": near["nearest_dist"]}
 rules = [
     ("measured", {"slope": (">=", 0.95), "efficiency": (">=", 0.7), "distance": ("<=", 7)}),
     ("indicated", {"slope": (">=", 0.9), "efficiency": (">=", 0.5)}),

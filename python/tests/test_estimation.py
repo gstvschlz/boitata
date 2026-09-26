@@ -120,7 +120,7 @@ def test_dual_kriging_interpolates():
 
 def test_neighborhood_stats_columns():
     stats = cs.neighborhood_stats(coords[:4], coords, values, k=5)
-    assert set(stats) >= {"nearest_dist", "value_mean", "n_within"}
+    assert set(stats.column_names) >= {"nearest_dist", "value_mean", "n_within"}
     np.testing.assert_allclose(stats["nearest_dist"], 0.0)
 
 
@@ -161,7 +161,7 @@ def test_shared_locations_keep_the_first_and_name_their_holes():
     holes = ["DH1", "DH2", "DH3", "DH4"]
     search = cs.Search(radius=50, max_samples=8)
     with pytest.warns(UserWarning, match="holes DH1, DH3 at"):
-        ok = cs.OrdinaryKriging(cs.Variogram([("spherical", 1.0, 30.0)]), search).fit(xy, v, holes)
+        ok = cs.OrdinaryKriging(cs.Variogram([("spherical", 1.0, 30.0)]), search).fit(xy, v, holes=holes)
     np.testing.assert_array_equal(ok.cross_validate().actual, [1.0, 2.0, 3.0])
     assert np.isfinite(ok.predict([[2.0, 2.0]])).all()
     with pytest.warns(UserWarning, match="rows 0, 2"):
@@ -175,7 +175,22 @@ def test_diagnostics_classification_and_smoothing():
     grid = cs.BlockModel(origin=(0, 0), size=(10, 10), count=(10, 10))
     ok = cs.OrdinaryKriging(cs.Variogram([("spherical", 1.0, 40.0)]), cs.Search(radius=60, max_samples=12))
     d = ok.fit(xy, v).predict(grid, diagnostics=True)
-    assert {"value", "variance", "efficiency", "slope", "n_samples", "pass"} <= set(d)
+    assert d.column_names == [
+        "value",
+        "variance",
+        "efficiency",
+        "slope",
+        "n_samples",
+        "pass",
+        "n_holes",
+        "n_other_domain",
+        "mean_distance",
+        "negative_weight_sum",
+        "lagrange",
+        "support_variance",
+        "estimate_variance",
+        "max_samples_reached",
+    ]
     assert np.all(d["slope"] > 0) and np.all(d["efficiency"] <= 1 + 1e-9)
     at_data = ok.predict(xy[:3], diagnostics=True)
     np.testing.assert_allclose(at_data["slope"], 1.0)
@@ -200,8 +215,9 @@ def test_hole_distance_classification():
     xyz[:, 2] = np.tile(np.arange(4.0), 30)
     holes = np.repeat([f"H{i}" for i in range(30)], 4)
     grid = cs.BlockModel(origin=(0, 0), size=(5, 5), count=(20, 20))
-    d = cs.hole_distance(grid, xyz, holes, n=[1, 3])
-    assert set(d) == {1, 3} and np.all(d[1] <= d[3])
+    both = cs.hole_distance(grid, xyz, holes, n=[1, 3])
+    assert both.shape == (400, 2) and np.all(both[:, 0] <= both[:, 1])
+    d = {3: both[:, 1]}
     np.testing.assert_array_equal(cs.hole_distance(grid, xyz, holes, 3), d[3])
     np.testing.assert_array_equal(cs.hole_distance(grid, xyz[::4], holes[::4], 3), d[3])
 
@@ -228,6 +244,11 @@ def test_hole_distance_classification():
     own = cs.hole_distance(grid.centroids[east], xyz[sample_east], holes[sample_east], 3)
     np.testing.assert_array_equal(split[east], own)
     assert np.all(split >= d[3])
+    blocks = grid.with_column("zone", east * 1.0)
+    samples = cs.PointSet(xyz, {"hole": holes, "zone": sample_east * 1.0})
+    np.testing.assert_array_equal(cs.hole_distance(blocks, samples, "hole", 3, domain_column="zone"), split)
+    with pytest.raises(cs.CeresError):
+        cs.hole_distance(blocks, samples, "hole", 3, domains=(east, sample_east), domain_column="zone")
 
     zone = np.where(east, "E", "W")
     by_zone = cs.classify(
@@ -292,7 +313,9 @@ def test_neighborhood_diagnostics():
     holes = np.arange(len(values)) // 3
     ok = cs.OrdinaryKriging(model, cs.Search(radius=30, max_samples=8)).fit(coords, values, holes=holes)
     d = ok.predict(rng.uniform(0, 100, (200, 2)), diagnostics=True)
-    assert {"n_holes", "mean_distance", "negative_weight_sum", "lagrange", "max_samples_reached"} <= set(d)
+    assert {"n_holes", "mean_distance", "negative_weight_sum", "lagrange", "max_samples_reached"} <= set(
+        d.column_names
+    )
     assert np.all((d["n_holes"] >= 1) & (d["n_holes"] <= d["n_samples"]))
     assert np.all((d["mean_distance"] > 0) & (d["mean_distance"] <= 30))
     assert np.all(d["negative_weight_sum"] <= 0) and np.any(d["negative_weight_sum"] < 0)
@@ -725,3 +748,68 @@ def test_block_multiple_indicator_kriging():
         assert local[owner == p].mean() == pytest.approx(m, abs=1e-9)
     with pytest.raises(cs.InvalidInput, match="BlockModel"):
         mik.predict(coords[:3], discretization=(2, 2, 1))
+
+
+def test_column_names_match_arrays():
+    holes = np.arange(len(values)) // 3
+    zone = np.where(coords[:, 0] < 50, 1, 2)
+    samples = cs.PointSet(coords, {"grade": values, "hole": holes, "zone": zone})
+    grid = cs.BlockModel(origin=(0, 0), size=(10, 10), count=(10, 10))
+    blocks = grid.with_column("zone", np.where(grid.centroids[:, 0] < 50, 1, 2))
+    ok = cs.OrdinaryKriging(model, search)
+    arrays = ok.fit(coords, values, holes=holes, domains=zone).predict(grid, domains=blocks["zone"])
+    names = ok.fit(samples, "grade", holes="hole", domain_column="zone").predict(blocks, domain_column="zone")
+    np.testing.assert_array_equal(names, arrays)
+    w = np.linspace(1, 2, len(values))
+    fitted = cs.OrdinaryKriging(model, search).fit(samples.with_column("w", w), "grade")
+    by_name, by_array = (cs.calibrate_search(fitted, [search], grid, weights=x) for x in ("w", w))
+    assert by_name["cv_rmse"][0] == by_array["cv_rmse"][0] != fitted.cross_validate().rmse
+    a = cs.neighborhood_stats(grid, coords, values, k=5, holes=holes)
+    b = cs.neighborhood_stats(grid, samples, "grade", k=5, holes="hole")
+    for c in a.column_names:
+        np.testing.assert_array_equal(a[c], b[c])
+    mik = cs.MultipleIndicatorKriging(model, search, np.quantile(values, [0.3, 0.7]))
+    first = mik.fit(coords, values, holes=holes).predict(grid).mean
+    np.testing.assert_array_equal(mik.fit(samples, "grade", holes="hole").predict(grid).mean, first)
+    criteria = cs.Table({"slope": np.linspace(0, 1, 100), "zone": blocks["zone"]})
+    rules = {2: [("measured", {"slope": (">=", 0.5)})]}
+    np.testing.assert_array_equal(
+        cs.classify(criteria, rules, domain_column="zone"),
+        cs.classify(criteria, rules, domains=blocks["zone"]),
+    )
+
+
+def test_domains_and_domain_column_are_exclusive():
+    zone = np.where(coords[:, 0] < 50, "W", "E")
+    samples = cs.PointSet(coords, {"grade": values, "zone": zone})
+    ok = cs.OrdinaryKriging(model, search)
+    with pytest.raises(cs.InvalidInput, match="one of domains or domain_column"):
+        ok.fit(samples, "grade", domains=zone, domain_column="zone")
+    ok.fit(samples, "grade", domain_column="zone")
+    with pytest.raises(cs.InvalidInput, match="one of domains or domain_column"):
+        ok.predict(samples, domains=zone, domain_column="zone")
+    with pytest.raises(cs.MissingColumn):
+        ok.predict(samples, domain_column="rock")
+    with pytest.raises(cs.InvalidInput, match="one of domains or domain_column"):
+        cs.classify({"zone": zone}, [], domains=zone, domain_column="zone")
+    with pytest.raises(cs.InvalidInput, match="one of domains or domain_column"):
+        cs.calibrate_search(ok, [search], samples, domains="W", domain_column="zone", cross_validation=False)
+
+
+def test_defaulted_arguments_are_keyword_only():
+    ok = cs.OrdinaryKriging(model, search).fit(coords, values)
+    lmc = cs.Coregionalization([[0.0]], [("spherical", 40.0, [[1.0]])])
+    calls = [
+        lambda: ok.fit(coords, values, None),
+        lambda: ok.predict(coords, True),
+        lambda: cs.neighborhood_stats(coords, coords, values, 5),
+        lambda: cs.hole_distance(coords, coords, np.arange(len(coords)), 1, None),
+        lambda: cs.global_bias(values, values, None),
+        lambda: cs.classify({"a": values}, [], "x"),
+        lambda: cs.calibrate_search(ok, [search], coords, 5),
+        lambda: cs.MultipleIndicatorKriging(model, search, [1.0]).fit(coords, values, None),
+        lambda: cs.Cokriging(lmc, search).fit(coords, values, np.zeros(len(values))).predict(coords, 0),
+    ]
+    for call in calls:
+        with pytest.raises(TypeError):
+            call()

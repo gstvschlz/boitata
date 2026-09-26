@@ -10,7 +10,9 @@ use numpy::{IntoPyArray, PyArray1, PyArray2};
 use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
 
-use crate::args::{self, array1, distinct, finite, optional_finite, pick, points, same_length};
+use crate::args::{
+    self, array1, column, distinct, finite, optional_finite, pick, points, same_length,
+};
 use crate::containers::PyBlockModel;
 use crate::estimation::{sample_columns, samples_from, searches, targets};
 use crate::invalid;
@@ -133,14 +135,16 @@ impl MultipleIndicatorKriging {
     ///
     /// Parameters
     /// ----------
-    /// coords : array_like, shape (n, 2) or (n, 3)
-    /// values : array_like, shape (n,)
-    /// weights : array_like, optional
+    /// coords : array_like, PointSet or BlockModel
+    /// values : array_like or str
+    ///     A value per sample, or the column of `coords` holding them; so for
+    ///     `weights` and `holes`.
+    /// weights : array_like or str, optional
     ///     Declustering weights for the global distribution: the simple
     ///     kriging means, the class contents and the tails.
-    /// holes : array_like, optional
+    /// holes : array_like or str, optional
     ///     Drill-hole ids or names, for `max_per_hole`.
-    #[pyo3(signature = (coords, values, weights=None, holes=None))]
+    #[pyo3(signature = (coords, values, *, weights=None, holes=None))]
     fn fit<'py>(
         mut slf: PyRefMut<'py, Self>,
         coords: &Bound<PyAny>,
@@ -148,16 +152,20 @@ impl MultipleIndicatorKriging {
         weights: Option<&Bound<PyAny>>,
         holes: Option<&Bound<PyAny>>,
     ) -> PyResult<PyRefMut<'py, Self>> {
-        let (locs, values) = (points(coords)?, finite(values, "values")?);
+        let data = Some(coords);
+        let locs = points(coords)?;
+        let values = finite(&column(data, values, "values")?, "values")?;
         same_length(locs.len(), values.len(), "values")?;
-        let weights = optional_finite(weights, "weights")?;
+        let weights = weights.map(|w| column(data, w, "weights")).transpose()?;
+        let weights = optional_finite(weights.as_ref(), "weights")?;
         if let Some(w) = &weights {
             same_length(locs.len(), w.len(), "weights")?;
             if w.iter().any(|v| *v < 0.0) || w.iter().sum::<f64>() <= 0.0 {
                 return Err(invalid("weights must be >= 0 and not all 0"));
             }
         }
-        let holes = args::holes(holes, locs.len())?;
+        let holes = holes.map(|h| column(data, h, "holes")).transpose()?;
+        let holes = args::holes(holes.as_ref(), locs.len())?;
         let keep = distinct(slf.py(), &locs, holes.as_ref().map(|h| &h.0[..]))?;
         let samples = keep
             .iter()
@@ -192,7 +200,7 @@ impl MultipleIndicatorKriging {
     /// -------
     /// IndicatorSummary
     ///     NaN where the search found too few samples.
-    #[pyo3(signature = (targets, cutoffs=vec![], quantiles=vec![], anisotropy=None, diagnostics=false, discretization=None))]
+    #[pyo3(signature = (targets, *, cutoffs=vec![], quantiles=vec![], anisotropy=None, diagnostics=false, discretization=None))]
     #[allow(clippy::too_many_arguments)]
     fn predict(
         &self,
