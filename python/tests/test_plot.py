@@ -25,6 +25,46 @@ def test_histogram_and_probability():
     assert np.corrcoef(x, y)[0, 1] > 0.98
 
 
+def test_cdf_is_monotone_to_one_and_follows_weights():
+    v = rng.lognormal(0, 1, 300)
+    w = np.where(v > np.median(v), 3.0, 1.0)
+    _, ax = cs.plot.cdf([v, v], weights=[None, w], labels=["naive", "declustered"], log=True)
+    (x, naive), (_, weighted) = (line.get_data() for line in ax.lines)
+    assert np.all(np.diff(x) >= 0) and np.all(np.diff(naive) >= 0)
+    assert naive[-1] == pytest.approx(1.0) and weighted[-1] == pytest.approx(1.0)
+    assert np.all(weighted <= naive + 1e-12) and weighted[150] < naive[150]
+    _, ax = cs.plot.cdf(np.append(v, np.nan), weights=np.append(w, 1.0))
+    assert len(ax.lines) == 1
+
+
+def test_qq_of_a_sample_against_itself_is_on_the_diagonal():
+    v = rng.lognormal(0, 1, 300)
+    _, ax = cs.plot.qq(v, v)
+    x, y = ax.lines[0].get_data()
+    np.testing.assert_allclose(x, y)
+    w = np.where(v > np.median(v), 3.0, 1.0)
+    _, ax = cs.plot.qq(v, v, y_weights=w, quantiles=[0.25, 0.5, 0.75])
+    x, y = ax.lines[0].get_data()
+    np.testing.assert_allclose(y, cs.describe(v, w, quantiles=[0.25, 0.5, 0.75])["quantiles"])
+    assert np.all(y > x)
+
+
+def test_boxplot_quartiles_are_describe_quantiles():
+    v = rng.lognormal(0, 1, 300)
+    domain = np.where(np.arange(300) < 100, "b", "a")
+    w = rng.uniform(0.5, 2.0, 300)
+    _, ax = cs.plot.boxplot(v, domain, weights=w, sort=True)
+    stats = [cs.describe(v[domain == d], w[domain == d]) for d in ("a", "b")]
+    order = np.argsort([s["quantiles"][2] for s in stats])
+    for box, i in zip(ax.patches, order, strict=True):
+        y = box.get_path().vertices[:, 1]
+        assert (y.min(), y.max()) == pytest.approx(tuple(stats[i]["quantiles"][[1, 3]]))
+    labels = [t.get_text() for t in ax.get_xticklabels()]
+    assert labels[order.tolist().index(0)] == "a\nn = 200"
+    _, ax = cs.plot.boxplot(v, domain)
+    assert ax.patches[0].get_path().vertices[:, 1].max() != pytest.approx(stats[0]["quantiles"][3])
+
+
 def test_variogram_with_anisotropic_model():
     xy = rng.uniform(0, 100, (200, 2))
     exp = cs.experimental_variogram(xy, rng.normal(size=200), 10.0, 60.0, azimuth=30)

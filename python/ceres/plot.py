@@ -5,9 +5,20 @@ Every function draws on `ax` when given, else on a new figure, and returns ``(fi
 
 import numpy as np
 
-from ceres._ceres import normal_ppf
+from ceres._ceres import describe, normal_ppf
 
-__all__ = ["histogram", "probability", "scatter", "section", "swath", "uncertain", "variogram"]
+__all__ = [
+    "boxplot",
+    "cdf",
+    "histogram",
+    "probability",
+    "qq",
+    "scatter",
+    "section",
+    "swath",
+    "uncertain",
+    "variogram",
+]
 
 
 def _axes(ax):
@@ -85,6 +96,127 @@ def probability(values, weights=None, log=False, ax=None, **kwargs):
     ax.set_ylabel("Cumulative probability (%)")
     if log:
         ax.set_xscale("log")
+    return fig, ax
+
+
+def cdf(values, weights=None, labels=None, log=False, ax=None, **kwargs):
+    """Cumulative distribution of one or several series overlaid, e.g. domains, or clustered and declustered.
+
+    Parameters
+    ----------
+    values : array_like or list of array_like
+        One series, or several; NaN is ignored.
+    weights : array_like or list, optional
+        Declustering weights: an array for one series; for several, one array or None each.
+    labels : list of str, optional
+        Legend entries.
+    log : bool
+        Log x axis.
+    **kwargs
+        Passed to every ``ax.step``.
+    """
+    fig, ax = _axes(ax)
+    if np.ndim(values[0]) == 0:
+        values, weights = [values], [weights]
+    weights = [None] * len(values) if weights is None else weights
+    labels = labels or [None] * len(values)
+    for v, w, label in zip(values, weights, labels, strict=True):
+        v, w = _finite(v, w)
+        order = np.argsort(v)
+        ax.step(v[order], np.cumsum(w[order]), where="post", label=label, **kwargs)
+    if any(labels):
+        ax.legend()
+    ax.set_ylim(0, 1)
+    ax.set_ylabel("Cumulative probability")
+    if log:
+        ax.set_xscale("log")
+    return fig, ax
+
+
+def qq(x, y, x_weights=None, y_weights=None, quantiles=None, log=False, ax=None, **kwargs):
+    """Quantiles of `y` against the same quantiles of `x`, with the 1:1 line on which equal distributions lie.
+
+    Parameters
+    ----------
+    x, y : array_like
+        Two samples, e.g. one domain and another, or composites and blocks; NaN is ignored.
+    x_weights, y_weights : array_like, optional
+        Declustering weights of each.
+    quantiles : array_like, optional
+        Probabilities; default 0.01 to 0.99 in steps of 0.01.
+    log : bool
+        Log axes.
+    **kwargs
+        Passed to ``ax.plot``.
+    """
+    fig, ax = _axes(ax)
+    p = np.linspace(0.01, 0.99, 99) if quantiles is None else quantiles
+    qx = describe(x, x_weights, quantiles=p)["quantiles"]
+    qy = describe(y, y_weights, quantiles=p)["quantiles"]
+    kwargs.setdefault("marker", ".")
+    kwargs.setdefault("linestyle", "none")
+    ax.plot(qx, qy, **kwargs)
+    lo, hi = min(qx.min(), qy.min()), max(qx.max(), qy.max())
+    ax.plot([lo, hi], [lo, hi], color="0.5", lw=0.8, ls="--", label="1:1")
+    if log:
+        ax.set_xscale("log")
+        ax.set_yscale("log")
+    return fig, ax
+
+
+def boxplot(values, categories, weights=None, sort=False, log=False, ax=None, **kwargs):
+    """One box per category: P25 to P75, median, P10 to P90 whiskers and the mean, all weighted.
+
+    Parameters
+    ----------
+    values : array_like
+        Values; NaN is ignored.
+    categories : array_like
+        Category (e.g. domain) of each value; each box is labelled with its count.
+    weights : array_like, optional
+        Declustering weights.
+    sort : bool
+        Order boxes by median, else by category.
+    log : bool
+        Log value axis.
+    **kwargs
+        Passed to ``ax.bxp``.
+    """
+    import matplotlib as mpl
+
+    fig, ax = _axes(ax)
+    values, categories = np.asarray(values, dtype=float), np.asarray(categories)
+    weights = None if weights is None else np.asarray(weights, dtype=float)
+    stats = []
+    for c in np.unique(categories[~np.isnan(values)]):
+        keep = categories == c
+        s = describe(values[keep], None if weights is None else weights[keep])
+        p10, q1, med, q3, p90 = s["quantiles"]
+        stats.append(
+            {
+                "label": f"{c}\nn = {s['n']:,}",
+                "whislo": p10,
+                "q1": q1,
+                "med": med,
+                "q3": q3,
+                "whishi": p90,
+                "mean": s["mean"],
+                "fliers": [],
+            }
+        )
+    if sort:
+        stats.sort(key=lambda s: s["med"])
+    color = mpl.rcParams["axes.prop_cycle"].by_key()["color"][0]
+    kwargs.setdefault("patch_artist", True)
+    kwargs.setdefault("showmeans", True)
+    kwargs.setdefault("boxprops", {"facecolor": mpl.colors.to_rgba(color, 0.25), "edgecolor": color})
+    kwargs.setdefault("medianprops", {"color": color, "lw": 2})
+    kwargs.setdefault("whiskerprops", {"color": color})
+    kwargs.setdefault("capprops", {"color": color})
+    kwargs.setdefault("meanprops", {"marker": "o", "ms": 4, "mfc": "white", "mec": color})
+    ax.bxp(stats, **kwargs)
+    if log:
+        ax.set_yscale("log")
     return fig, ax
 
 
