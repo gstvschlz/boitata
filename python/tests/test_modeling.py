@@ -10,8 +10,8 @@ distance = np.linalg.norm(coords - center, axis=1) - radius
 
 def test_rbf_is_exact_at_data():
     model = cs.ImplicitModel().fit(coords, distance)
-    np.testing.assert_allclose(model.evaluate(coords), distance, atol=1e-6)
-    _, gradients = model.evaluate(coords[:5], gradient=True)
+    np.testing.assert_allclose(model.predict(coords), distance, atol=1e-6)
+    _, gradients = model.predict(coords[:5], gradient=True)
     assert gradients.shape == (5, 3)
     assert model.report is None
 
@@ -20,7 +20,7 @@ def test_cutoff_codes_grades():
     grade = 5 - distance
     coded = cs.ImplicitModel().fit(coords, np.where(grade >= 5, 1.0, -1.0))
     raw = cs.ImplicitModel().fit(coords, grade, cutoff=5)
-    np.testing.assert_array_equal(raw.evaluate(coords[:20]), coded.evaluate(coords[:20]))
+    np.testing.assert_array_equal(raw.predict(coords[:20]), coded.predict(coords[:20]))
     with pytest.raises(cs.InvalidInput, match="cutoff"):
         cs.ImplicitModel().fit(coords, grade, cutoff=float("nan"))
 
@@ -53,7 +53,7 @@ def test_planes_with_boundaries():
         [[50, 50, 60]], [1.0], boundaries=on_plane, planes=planes
     )
     probe = np.array([[30, 70, 15], [30, 70, 25], [30, 70, 5]], float)
-    value = model.evaluate(probe)
+    value = model.predict(probe)
     assert abs(value[0]) < 0.05 * value[1] and value[1] > 0 > value[2]
     with pytest.raises(cs.InvalidInput):
         cs.ImplicitModel().fit(planes=planes)
@@ -63,30 +63,33 @@ def test_engines():
     with pytest.raises(cs.InvalidInput):
         cs.ImplicitModel(engine="kriging")
     variogram = cs.Variogram([("gaussian", 1.0, 60.0)])
-    model = cs.ImplicitModel(engine="kriging", variogram=variogram, drift_degree=0).fit(
-        coords[:50], distance[:50]
-    )
-    np.testing.assert_allclose(model.evaluate(coords[:50]), distance[:50], atol=1e-3)
+    model = cs.ImplicitModel(engine="kriging", variogram=variogram, degree=0).fit(coords[:50], distance[:50])
+    np.testing.assert_allclose(model.predict(coords[:50]), distance[:50], atol=1e-3)
     gp = cs.ImplicitModel(engine="gp").fit(coords, distance)
-    assert gp.report["status"] and np.isfinite(gp.evaluate(coords)).all()
+    assert gp.report["status"] and np.isfinite(gp.predict(coords)).all()
     with pytest.raises(cs.InvalidInput):
-        cs.ImplicitModel().evaluate(coords)
+        cs.ImplicitModel().predict(coords)
+    assert not hasattr(model, "evaluate")
+    grid = cs.BlockModel((0, 0, 0), (10, 10, 10), (2, 2, 2))
+    for call in (lambda: model.predict(coords, True), lambda: model.isosurface(grid, 0.0)):
+        with pytest.raises(TypeError):
+            call()
 
 
 def test_anisotropy_variance_and_contact_positions():
     xyz = rng.uniform(0, 100, (60, 3))
     values = np.where(xyz[:, 2] > 50, 1.0, -1.0)
-    flat = cs.ImplicitModel(drift_degree=0, rotation=(0, 0, 0), ratios=(1.0, 0.1)).fit(xyz, values)
-    np.testing.assert_allclose(flat.evaluate(xyz), values, atol=1e-6)
+    flat = cs.ImplicitModel(degree=0, rotation=(0, 0, 0), ratios=(1.0, 0.1)).fit(xyz, values)
+    np.testing.assert_allclose(flat.predict(xyz), values, atol=1e-6)
     with pytest.raises(cs.InvalidInput, match="variogram"):
         cs.ImplicitModel("kriging", variogram=cs.Variogram([("spherical", 1.0, 50.0)]), rotation=(0, 0, 0))
     with pytest.raises(cs.InvalidInput, match="learns"):
         cs.ImplicitModel("gp", ratios=(1.0, 0.5))
     gp = cs.ImplicitModel("gp").fit(xyz, values)
-    _, variance = gp.evaluate([[50, 50, 50], [500, 500, 500]], variance=True)
+    _, variance = gp.predict([[50, 50, 50], [500, 500, 500]], variance=True)
     assert variance[1] > variance[0] >= 0
     with pytest.raises(cs.InvalidInput, match="only"):
-        flat.evaluate(xyz, variance=True)
+        flat.predict(xyz, variance=True)
 
     collar = {"HOLEID": np.array([1.0]), "X": np.array([10.0]), "Y": np.array([20.0]), "Z": np.array([100.0])}
     survey = {

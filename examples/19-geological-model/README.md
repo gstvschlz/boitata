@@ -67,20 +67,20 @@ rotation, ratios = (16, 26, 90), (0.45, 0.22)
 
 def potential(covariance):
     variogram = cs.Variogram([(covariance, 1.0, 150.0)], rotation=rotation, ratios=ratios)
-    return cs.ImplicitModel("kriging", variogram=variogram, drift_degree=0)
+    return cs.ImplicitModel("kriging", variogram=variogram, degree=0)
 
 
 models = {
     "kriging, cubic": potential("cubic"),
     "kriging": potential("spherical"),
-    "RBF": cs.ImplicitModel("rbf", drift_degree=0, rotation=rotation, ratios=ratios),
-    "GP": cs.ImplicitModel("gp", drift_degree=0, rotation=rotation),
+    "RBF": cs.ImplicitModel("rbf", degree=0, rotation=rotation, ratios=ratios),
+    "GP": cs.ImplicitModel("gp", degree=0, rotation=rotation),
 }
 volume = np.random.default_rng(0).uniform([5300, 8100, 650], [5500, 8400, 950], (20_000, 3))
 for name, model in models.items():
     model.fit(points, code, boundaries=contacts)
-    right = np.mean(np.sign(model.evaluate(points)) == code)
-    share = np.mean(model.evaluate(volume) > 0)
+    right = np.mean(np.sign(model.predict(points)) == code)
+    share = np.mean(model.predict(volume) > 0)
     print(f"{name:>14}: {right:6.1%} of coded points on their side, {share:5.1%} of the window is MS")
 report = models["GP"].report
 print(f"GP noise variance {report['noise_variance']:.2f}, signal variance {report['signal_variance']:.2f}")
@@ -114,11 +114,11 @@ extent = (5300, 5500, 650, 950)
 
 fig, axes = plt.subplots(1, 3, figsize=(14, 4.8), sharey=True, layout="constrained")
 for ax, name, covariance in zip(axes[:2], ("kriging, cubic", "kriging"), ("cubic", "spherical"), strict=True):
-    field = models[name].evaluate(section).reshape(east.shape)
+    field = models[name].predict(section).reshape(east.shape)
     ax.contourf(east, elevation, field, levels=[0, np.inf], colors=[LIGHT])
     ax.contour(east, elevation, field, levels=[0], colors=ACCENT, linewidths=1.2)
     ax.set_title(f"Kriging, {covariance} covariance, northing {north:.0f} m")
-_, variance = models["GP"].evaluate(section, variance=True)
+_, variance = models["GP"].predict(section, variance=True)
 sd = axes[2].imshow(
     np.sqrt(variance).reshape(east.shape), origin="lower", extent=extent, cmap="cividis", aspect="auto"
 )
@@ -200,9 +200,9 @@ volume = cs.BlockModel(origin=(-5, -5, 0), size=(5, 5, 5), count=(122, 62, 40))
 folds, depths = {}, {}
 for name, readings in fits.items():
     folds[name] = cs.ImplicitModel(kernel="triharmonic").fit(above, [1.0], boundaries=picks, **readings)
-    field = folds[name].evaluate(np.c_[X.ravel(), np.full(X.size, 150.0), Z.ravel()]).reshape(X.shape)
+    field = folds[name].predict(np.c_[X.ravel(), np.full(X.size, 150.0), Z.ravel()]).reshape(X.shape)
     depths[name] = z[np.argmin(np.abs(field), axis=0)]
-    _, gradient = folds[name].evaluate(on_surface(probe), gradient=True)
+    _, gradient = folds[name].predict(on_surface(probe), gradient=True)
     dip = np.degrees(np.arccos(np.abs(gradient[:, 2]) / np.linalg.norm(gradient, axis=1)))
     error = np.abs(folds[name].isosurface(volume).vertical_distance(on_surface(probe)))
     print(
@@ -248,7 +248,7 @@ dip direction anywhere, here against the truth at the 400 probe points of the tw
 <details><summary>Python</summary>
 
 ```python
-_, gradient = folds["5 holes, 12 planes"].evaluate(on_surface(probe), gradient=True)
+_, gradient = folds["5 holes, 12 planes"].predict(on_surface(probe), gradient=True)
 dip = np.degrees(np.arccos(np.abs(gradient[:, 2]) / np.linalg.norm(gradient, axis=1)))
 direction = np.degrees(np.arctan2(gradient[:, 0], gradient[:, 1])) % 360
 truth_dip, truth_direction = true_dip(probe)

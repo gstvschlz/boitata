@@ -40,6 +40,30 @@ def test_vertical_distance_to_a_tilted_plane():
 def test_block_proportions():
     grid = cs.BlockModel(origin=(-5, 0, 0), size=(10, 10, 10), count=(2, 1, 1))
     np.testing.assert_allclose(cube.proportion(grid), [0.5, 0.5], atol=0.13)
+    np.testing.assert_allclose(cube.proportion(grid, discretization=(8, 1, 1)), [0.5, 0.5])
+    centroids = grid.centroids
+    np.testing.assert_allclose(
+        cube.proportion(centroids, size=(10, 10, 10), discretization=(8, 1, 1)), [0.5, 0.5]
+    )
+    with pytest.raises(TypeError):
+        cube.proportion(centroids, (10, 10, 10))
+
+
+def test_domains_and_classes_by_name():
+    grid = cs.BlockModel(
+        (0, 0, 0), (1, 1, 1), (4, 1, 1), attributes={"c": ["a", "b", "a", "a"], "d": [1, 1, 2, 2]}
+    )
+    by_name = cs.smooth_classes(grid, "c", window=(3, 1, 1), domain_column="d")
+    np.testing.assert_array_equal(
+        by_name, cs.smooth_classes(grid, grid["c"], window=(3, 1, 1), domains=[1, 1, 2, 2])
+    )
+    samples = cs.PointSet([[0, 0, 0], [9, 9, 0]], {"rock": ["ox", "fr"]})
+    labels, _ = cs.assign_domain([[1, 1, 0]], coords=samples, domain_column="rock")
+    assert labels == ["ox"]
+    with pytest.raises(cs.InvalidInput):
+        cs.assign_domain([[1, 1, 0]], coords=samples, domains=["ox", "fr"], domain_column="rock")
+    with pytest.raises(TypeError):
+        cs.smooth_classes(grid, "c", (3, 1, 1))
 
 
 def test_polygons():
@@ -52,7 +76,7 @@ def test_polygons():
 
 
 def test_assign_domain_nearest_and_solid():
-    labels, confidence = cs.assign_domain([[1, 1, 0]], [[0, 0, 0], [9, 9, 0]], ["ox", "fr"])
+    labels, confidence = cs.assign_domain([[1, 1, 0]], coords=[[0, 0, 0], [9, 9, 0]], domains=["ox", "fr"])
     assert 0 <= confidence[0] <= 1
     assert labels == ["ox"]
     labels, _ = cs.assign_domain([[5, 5, 5], [20, 5, 5]], method="solid", mesh=cube)
@@ -132,16 +156,16 @@ def test_repair_rebuilds_a_broken_cube():
 
 def test_subblocks_from_meshes_and_regularize():
     topo = cs.Mesh([[-10, -10, 7], [30, -10, 7], [30, 30, 7], [-10, 30, 7]], [[0, 1, 2], [0, 2, 3]])
-    domains = [(cube, "inside", "ore"), (topo, "below", "rock")]
+    meshes = [(cube, "inside", "ore"), (topo, "below", "rock")]
     grid = cs.BlockModel((-4, -4, -4), (4, 4, 4), (5, 5, 4))
-    sub = grid.subblock(domains, 4, fill="air")
-    same = cs.BlockModel.from_meshes((-4, -4, -4), (4, 4, 4), (5, 5, 4), domains, (4, 4, 4), fill="air")
+    sub = grid.subblock(meshes, 4, fill="air")
+    same = cs.BlockModel.from_meshes((-4, -4, -4), (4, 4, 4), (5, 5, 4), meshes, (4, 4, 4), fill="air")
     np.testing.assert_array_equal(sub.extents, same.extents)
     domain = np.array(sub["domain"])
     volume = lambda label: sub.volumes[domain == label].sum()
     assert volume("ore") == pytest.approx(1000) and volume("rock") == pytest.approx(20 * 20 * 11 - 700)
     assert sub.volumes.sum() == pytest.approx(20 * 20 * 16)
-    assert len(grid.subblock(domains, 4)) < len(sub)
+    assert len(grid.subblock(meshes, 4)) < len(sub)
     with pytest.raises(cs.InvalidInput):
         grid.subblock([(cube, "beside", "ore")], 4)
 

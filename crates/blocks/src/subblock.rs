@@ -209,11 +209,16 @@ fn pieces(
     out
 }
 
-/// Share of each row of `model` inside `solid`, from `discretization`³
-/// points in each row where the surface may cut it; exact elsewhere.
-pub fn proportions(solid: &SolidTester, model: &BlockModel, discretization: usize) -> Vec<f64> {
+/// Share of each row of `model` inside `solid`, from `discretization` points
+/// per axis in each row where the surface may cut it; exact elsewhere.
+pub fn proportions(
+    solid: &SolidTester,
+    model: &BlockModel,
+    discretization: [usize; 3],
+) -> Vec<f64> {
     let g = model.geometry();
-    let d = discretization.max(1);
+    let d = discretization.map(|n| n.max(1));
+    let n = d.iter().product::<usize>();
     (0..model.len())
         .into_par_iter()
         .map(|row| {
@@ -226,13 +231,17 @@ pub fn proportions(solid: &SolidTester, model: &BlockModel, discretization: usiz
             } else if !solid.surface_may_cut(&bounds) {
                 f64::from(u8::from(solid.contains(point([0.5; 3]))))
             } else {
-                let step = |i: usize| (i as f64 + 0.5) / d as f64;
-                let inside = (0..d * d * d)
+                let step = |i: usize, a: usize| (i as f64 + 0.5) / d[a] as f64;
+                let inside = (0..n)
                     .filter(|s| {
-                        solid.contains(point([step(s % d), step(s / d % d), step(s / (d * d))]))
+                        solid.contains(point([
+                            step(s % d[0], 0),
+                            step(s / d[0] % d[1], 1),
+                            step(s / (d[0] * d[1]), 2),
+                        ]))
                     })
                     .count();
-                inside as f64 / (d * d * d) as f64
+                inside as f64 / n as f64
             }
         })
         .collect()
@@ -412,7 +421,7 @@ mod tests {
         )
         .unwrap();
         for m in [&model, &sub] {
-            let v: f64 = proportions(&solid, m, 4)
+            let v: f64 = proportions(&solid, m, [4; 3])
                 .iter()
                 .zip(m.volumes())
                 .map(|(p, v)| p * v)

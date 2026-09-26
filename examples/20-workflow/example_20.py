@@ -90,7 +90,7 @@ change = (hole[1:] == hole[:-1]) & (ms[1:] != ms[:-1]) & np.isclose(bottom[:-1],
 contacts = drillholes.at(list(hole[:-1][change]), bottom[:-1][change])
 coded = ms | np.r_[change, False] | np.r_[False, change] | (np.random.default_rng(1).random(len(ms)) < 0.1)
 field = cs.Variogram([("spherical", 1.0, 150.0)], rotation=(16, 26, 90), ratios=(0.45, 0.22))
-lens = cs.ImplicitModel("kriging", variogram=field, drift_degree=0).fit(
+lens = cs.ImplicitModel("kriging", variogram=field, degree=0).fit(
     xyz[coded], np.where(ms[coded], 1.0, -1.0), boundaries=contacts
 )
 
@@ -103,7 +103,7 @@ lo, hi = hull.bounds
 origin = np.floor(np.array(lo) / 5) * 5
 count = tuple(int(c) for c in np.ceil((np.array(hi) - origin) / 5))
 grid = cs.BlockModel(origin=tuple(origin), size=(5, 5, 5), count=count)
-in_lens = lens.evaluate(grid.centroids) > 0
+in_lens = lens.predict(grid.centroids) > 0
 in_hull = hull.contains(grid.centroids)
 blocks = grid.mask(in_lens & in_hull)
 print(

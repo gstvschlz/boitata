@@ -125,7 +125,9 @@ def test_neighborhood_stats_columns():
 
 
 def test_cokriging_with_only_primary_data_is_ordinary_kriging():
-    lmc = cs.Coregionalization([[0.0, 0.0], [0.0, 0.0]], [("spherical", 40.0, [[1.0, 0.7], [0.7, 1.0]])])
+    lmc = cs.Coregionalization(
+        [[0.0, 0.0], [0.0, 0.0]], structures=[("spherical", 40.0, [[1.0, 0.7], [0.7, 1.0]])]
+    )
     ck = cs.Cokriging(lmc, search).fit(coords, values, [0] * len(values))
     targets = rng.uniform(0, 100, (25, 2))
     np.testing.assert_allclose(
@@ -134,7 +136,9 @@ def test_cokriging_with_only_primary_data_is_ordinary_kriging():
 
 
 def test_collocated_cokriging_uses_the_secondary():
-    lmc = cs.Coregionalization([[0.0, 0.0], [0.0, 0.0]], [("spherical", 40.0, [[1.0, 0.9], [0.9, 1.0]])])
+    lmc = cs.Coregionalization(
+        [[0.0, 0.0], [0.0, 0.0]], structures=[("spherical", 40.0, [[1.0, 0.9], [0.9, 1.0]])]
+    )
     secondary = values + rng.normal(0, 0.1, len(values))
     xy = np.vstack([coords, coords])
     ck = cs.Cokriging(lmc, search, means=[values.mean(), secondary.mean()])
@@ -521,7 +525,9 @@ def test_domain_errors():
         cs.OrdinaryKriging(model, search).fit(coords, values, domains=zone[:10])
     with pytest.raises(cs.InvalidInput, match=">= 0"):
         cs.Search(radius=50, soft={("MS", "SM"): -1.0})
-    lmc = cs.Coregionalization([[0.1, 0.0], [0.0, 0.1]], [("spherical", 40.0, [[1.0, 0.6], [0.6, 1.0]])])
+    lmc = cs.Coregionalization(
+        [[0.1, 0.0], [0.0, 0.1]], structures=[("spherical", 40.0, [[1.0, 0.6], [0.6, 1.0]])]
+    )
     for make in (
         lambda: cs.MultivariateSimulation(cs.PCA(), [cs.SGS(model, soft)]),
         lambda: cs.SIS([model], soft),
@@ -798,7 +804,7 @@ def test_domains_and_domain_column_are_exclusive():
 
 def test_defaulted_arguments_are_keyword_only():
     ok = cs.OrdinaryKriging(model, search).fit(coords, values)
-    lmc = cs.Coregionalization([[0.0]], [("spherical", 40.0, [[1.0]])])
+    lmc = cs.Coregionalization([[0.0]], structures=[("spherical", 40.0, [[1.0]])])
     calls = [
         lambda: ok.fit(coords, values, None),
         lambda: ok.predict(coords, True),

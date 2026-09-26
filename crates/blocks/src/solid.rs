@@ -165,15 +165,15 @@ impl SolidTester {
 
     /// Measures one axis-aligned block against the solid.
     ///
-    /// `discretization` is the sub-cell count per axis used where the surface
-    /// cuts the block: `d` means `d³` sample points at sub-cell centers, so the
+    /// `discretization` is the sub-cell count along each axis used where the
+    /// surface cuts the block, with sample points at sub-cell centers, so the
     /// proportion is a midpoint-rule estimate converging as O(1/d). Blocks the
     /// surface misses entirely are resolved exactly, without sampling.
     pub fn evaluate_block(
         &self,
         center: [f64; 3],
         size: [f64; 3],
-        discretization: usize,
+        discretization: [usize; 3],
     ) -> BlockSolid {
         let half = [
             size[0].abs() / 2.0,
@@ -210,12 +210,12 @@ impl SolidTester {
             };
         }
 
-        let d = discretization.max(1);
-        let step = [size[0] / d as f64, size[1] / d as f64, size[2] / d as f64];
+        let d = discretization.map(|n| n.max(1));
+        let step = [0, 1, 2].map(|a| size[a] / d[a] as f64);
         let mut inside_count = 0usize;
-        for i in 0..d {
-            for j in 0..d {
-                for k in 0..d {
+        for i in 0..d[0] {
+            for j in 0..d[1] {
+                for k in 0..d[2] {
                     let sample = [
                         block_bounds.min[0] + (i as f64 + 0.5) * step[0],
                         block_bounds.min[1] + (j as f64 + 0.5) * step[1],
@@ -229,7 +229,7 @@ impl SolidTester {
         }
 
         BlockSolid {
-            proportion: inside_count as f64 / (d * d * d) as f64,
+            proportion: inside_count as f64 / d.iter().product::<usize>() as f64,
             centroid_inside: self.contains(center),
         }
     }
@@ -331,7 +331,7 @@ pub(crate) mod tests {
     #[test]
     fn block_fully_inside_is_exactly_one() {
         let solid = SolidTester::new(&cube(0.0, 100.0)).expect("valid mesh");
-        let block = solid.evaluate_block([50.0, 50.0, 50.0], [10.0, 10.0, 10.0], 4);
+        let block = solid.evaluate_block([50.0, 50.0, 50.0], [10.0, 10.0, 10.0], [4; 3]);
         assert_eq!(block.proportion, 1.0);
         assert!(block.centroid_inside);
     }
@@ -339,7 +339,7 @@ pub(crate) mod tests {
     #[test]
     fn block_clear_of_the_solid_is_exactly_zero() {
         let solid = SolidTester::new(&cube(0.0, 100.0)).expect("valid mesh");
-        let block = solid.evaluate_block([500.0, 500.0, 500.0], [10.0, 10.0, 10.0], 4);
+        let block = solid.evaluate_block([500.0, 500.0, 500.0], [10.0, 10.0, 10.0], [4; 3]);
         assert_eq!(block.proportion, 0.0);
         assert!(!block.centroid_inside);
     }
@@ -350,7 +350,7 @@ pub(crate) mod tests {
     fn block_straddling_a_face_is_half() {
         let solid = SolidTester::new(&cube(0.0, 100.0)).expect("valid mesh");
         // Block centered on the z = 100 face: exactly half its volume is inside.
-        let block = solid.evaluate_block([50.0, 50.0, 100.0], [10.0, 10.0, 10.0], 4);
+        let block = solid.evaluate_block([50.0, 50.0, 100.0], [10.0, 10.0, 10.0], [4; 3]);
         assert!(
             (block.proportion - 0.5).abs() < 1e-9,
             "expected 0.5, got {}",
@@ -362,7 +362,7 @@ pub(crate) mod tests {
     fn block_over_a_corner_is_an_eighth() {
         let solid = SolidTester::new(&cube(0.0, 100.0)).expect("valid mesh");
         // Centered on the (100, 100, 100) corner: one octant of the block is in.
-        let block = solid.evaluate_block([100.0, 100.0, 100.0], [10.0, 10.0, 10.0], 4);
+        let block = solid.evaluate_block([100.0, 100.0, 100.0], [10.0, 10.0, 10.0], [4; 3]);
         assert!(
             (block.proportion - 0.125).abs() < 1e-9,
             "expected 0.125, got {}",
@@ -375,7 +375,7 @@ pub(crate) mod tests {
     fn partial_coverage_tracks_the_cut_position() {
         let solid = SolidTester::new(&cube(0.0, 100.0)).expect("valid mesh");
         // Block from z = 97.5 to 107.5 — 2.5 of its 10 units are inside.
-        let block = solid.evaluate_block([50.0, 50.0, 102.5], [10.0, 10.0, 10.0], 8);
+        let block = solid.evaluate_block([50.0, 50.0, 102.5], [10.0, 10.0, 10.0], [8; 3]);
         assert!(
             (block.proportion - 0.25).abs() < 1e-9,
             "expected 0.25, got {}",
@@ -389,7 +389,7 @@ pub(crate) mod tests {
     #[test]
     fn solid_entirely_within_one_block_is_not_missed() {
         let solid = SolidTester::new(&cube(45.0, 55.0)).expect("valid mesh");
-        let block = solid.evaluate_block([50.0, 50.0, 50.0], [100.0, 100.0, 100.0], 50);
+        let block = solid.evaluate_block([50.0, 50.0, 50.0], [100.0, 100.0, 100.0], [50; 3]);
         assert!(block.centroid_inside);
         // 10³ inside a 100³ block = 0.1%. Midpoint sampling lands near it once
         // the sub-cells (2 units here) are small enough to resolve the solid.
@@ -409,11 +409,11 @@ pub(crate) mod tests {
     #[test]
     fn sub_cell_sampling_cannot_resolve_a_solid_finer_than_one_sub_cell() {
         let solid = SolidTester::new(&cube(45.0, 55.0)).expect("valid mesh");
-        let coarse = solid.evaluate_block([50.0, 50.0, 50.0], [100.0, 100.0, 100.0], 10);
+        let coarse = solid.evaluate_block([50.0, 50.0, 50.0], [100.0, 100.0, 100.0], [10; 3]);
         assert_eq!(coarse.proportion, 0.0);
         assert!(coarse.centroid_inside, "the centroid test still sees it");
 
-        let fine = solid.evaluate_block([50.0, 50.0, 50.0], [100.0, 100.0, 100.0], 50);
+        let fine = solid.evaluate_block([50.0, 50.0, 50.0], [100.0, 100.0, 100.0], [50; 3]);
         assert!(fine.proportion > 0.0, "finer sampling recovers the solid");
     }
 
@@ -445,7 +445,7 @@ pub(crate) mod tests {
     #[test]
     fn discretization_of_zero_is_treated_as_one() {
         let solid = SolidTester::new(&cube(0.0, 100.0)).expect("valid mesh");
-        let block = solid.evaluate_block([50.0, 50.0, 100.0], [10.0, 10.0, 10.0], 0);
+        let block = solid.evaluate_block([50.0, 50.0, 100.0], [10.0, 10.0, 10.0], [0; 3]);
         // A single sample at the block center, which sits on the face.
         assert!(block.proportion == 0.0 || block.proportion == 1.0);
     }

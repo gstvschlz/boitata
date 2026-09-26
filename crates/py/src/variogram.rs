@@ -11,7 +11,7 @@ use variogram::{
     fit_coregionalization, fit_directional, fit_nested,
 };
 
-use crate::args::{Point, array1, array2, finite, floats, points, same_length, triple};
+use crate::args::{Point, array1, array2, column, finite, floats, points, same_length, triple};
 use crate::invalid;
 use crate::transforms::Anamorphosis;
 
@@ -244,9 +244,10 @@ fn structure(obj: &Bound<PyAny>) -> PyResult<CoreStructure> {
     Ok(Structure::new(&name, sill, range, None, None)?.0)
 }
 
-/// Nugget plus nested structures sharing one anisotropy. `rotation` is
-/// azimuth, dip, rake in degrees; `ratios` are semi-major/major and
-/// minor/major range ratios.
+/// Nugget plus nested structures sharing one anisotropy. `rotation` is one
+/// azimuth, dip, rake triple in degrees for the whole model, where `angles`
+/// (as in `LocalAnisotropy`) holds one per location; `ratios` are
+/// semi-major/major and minor/major range ratios.
 #[derive(Serialize, Deserialize)]
 #[pyclass(module = "ceres", name = "Variogram", frozen, from_py_object)]
 #[derive(Clone)]
@@ -255,7 +256,7 @@ pub struct Variogram(pub CoreVariogram);
 #[pymethods]
 impl Variogram {
     #[new]
-    #[pyo3(signature = (structures, nugget=0.0, rotation=(0.0, 0.0, 0.0), ratios=(1.0, 1.0)))]
+    #[pyo3(signature = (structures, *, nugget=0.0,rotation=(0.0, 0.0, 0.0), ratios=(1.0, 1.0)))]
     fn new(
         structures: Vec<Bound<PyAny>>,
         nugget: f64,
@@ -537,9 +538,14 @@ impl ExperimentalVariogram {
     }
 }
 
-fn samples(coords: &Bound<PyAny>, values: &Bound<PyAny>) -> PyResult<(Vec<Point>, Vec<f64>)> {
-    let (locs, values) = (points(coords)?, finite(values, "values")?);
-    same_length(locs.len(), values.len(), "values")?;
+fn samples(
+    coords: &Bound<PyAny>,
+    values: &Bound<PyAny>,
+    what: &str,
+) -> PyResult<(Vec<Point>, Vec<f64>)> {
+    let values = finite(&column(Some(coords), values, what)?, what)?;
+    let locs = points(coords)?;
+    same_length(locs.len(), values.len(), what)?;
     Ok((locs, values))
 }
 
@@ -550,8 +556,10 @@ fn samples(coords: &Bound<PyAny>, values: &Bound<PyAny>) -> PyResult<(Vec<Point>
 ///
 /// Parameters
 /// ----------
-/// coords : array_like, shape (n, 2) or (n, 3)
-/// values : array_like, shape (n,)
+/// coords : array_like, shape (n, 2) or (n, 3), PointSet or BlockModel
+/// values : array_like, shape (n,), or str
+///     Values, or the column of ``coords`` holding them; so are ``other``
+///     (of ``other_coords`` when given) and ``holes``.
 /// lag, max_lag : float
 ///     Lag-bin width and largest pair distance.
 /// azimuth, dip, tolerance : float
@@ -586,7 +594,7 @@ fn samples(coords: &Bound<PyAny>, values: &Bound<PyAny>) -> PyResult<(Vec<Point>
 /// -------
 /// ExperimentalVariogram
 #[pyfunction]
-#[pyo3(signature = (coords, values, lag, max_lag, azimuth=None, dip=0.0, tolerance=22.5, bandwidth=None, estimator="matheron", standardize=false, other=None, other_coords=None, holes=None))]
+#[pyo3(signature = (coords, values, lag, max_lag, *, azimuth=None, dip=0.0, tolerance=22.5, bandwidth=None, estimator="matheron", standardize=false, other=None, other_coords=None, holes=None))]
 #[allow(clippy::too_many_arguments)]
 fn experimental_variogram(
     coords: &Bound<PyAny>,
@@ -603,9 +611,12 @@ fn experimental_variogram(
     other_coords: Option<&Bound<PyAny>>,
     holes: Option<&Bound<PyAny>>,
 ) -> PyResult<ExperimentalVariogram> {
-    let (locs, values) = samples(coords, values)?;
+    let (locs, values) = samples(coords, values, "values")?;
     let (bins, estimator) = (bins(lag, max_lag)?, self::estimator(estimator)?);
-    if let Some((_, holes)) = crate::args::holes(holes, locs.len())? {
+    let holes = holes
+        .map(|h| column(Some(coords), h, "holes"))
+        .transpose()?;
+    if let Some((_, holes)) = crate::args::holes(holes.as_ref(), locs.len())? {
         if azimuth.is_some() || other.is_some() {
             return Err(invalid("holes takes neither azimuth nor other"));
         }
@@ -620,11 +631,11 @@ fn experimental_variogram(
     });
     let (at, other) = match (other_coords, other) {
         (Some(at), Some(other)) => {
-            let (at, other) = samples(at, other)?;
+            let (at, other) = samples(at, other, "other")?;
             (Some(at), Some(other))
         }
         (None, Some(other)) => {
-            let other = finite(other, "other")?;
+            let other = finite(&column(Some(coords), other, "other")?, "other")?;
             same_length(locs.len(), other.len(), "other")?;
             (None, Some(other))
         }
@@ -672,8 +683,9 @@ fn grid(values: Vec<f64>, rows: usize) -> Vec<Vec<f64>> {
 /// Variogram map on the plane spanned by `u` and `v` (default: horizontal,
 /// angles counter-clockwise from east). `estimator` takes the names
 /// `experimental_variogram` does; γ is NaN where the correlogram is undefined.
+/// `coords` and `values` are as in `experimental_variogram`.
 #[pyfunction]
-#[pyo3(signature = (coords, values, lag, max_lag, u=vec![1.0, 0.0, 0.0], v=vec![0.0, 1.0, 0.0], tolerance=22.5, steps=36, model="spherical", estimator="matheron"))]
+#[pyo3(signature = (coords, values, lag, max_lag, *, u=vec![1.0, 0.0, 0.0], v=vec![0.0, 1.0, 0.0], tolerance=22.5, steps=36, model="spherical", estimator="matheron"))]
 #[allow(clippy::too_many_arguments)]
 fn variogram_map(
     py: Python,
@@ -688,7 +700,7 @@ fn variogram_map(
     model: &str,
     estimator: &str,
 ) -> PyResult<VariogramMap> {
-    let (locs, values) = samples(coords, values)?;
+    let (locs, values) = samples(coords, values, "values")?;
     let params = PlaneMapParams {
         bins: bins(lag, max_lag)?,
         tolerance,
@@ -724,7 +736,7 @@ fn variogram_map(
 
 /// Linear model of coregionalization: `nugget` and each structure's `sills`
 /// are symmetric positive semi-definite `nvar × nvar` matrices, else
-/// InvalidInput is raised.
+/// InvalidInput is raised. `rotation` and `ratios` are as in `Variogram`.
 #[derive(Serialize, Deserialize)]
 #[pyclass(module = "ceres", name = "Coregionalization", frozen)]
 pub struct Coregionalization(pub CoreCoreg);
@@ -744,7 +756,7 @@ impl Coregionalization {
     }
 
     #[new]
-    #[pyo3(signature = (nugget, structures, rotation=(0.0, 0.0, 0.0), ratios=(1.0, 1.0)))]
+    #[pyo3(signature = (nugget, *, structures, rotation=(0.0, 0.0, 0.0), ratios=(1.0, 1.0)))]
     fn new(
         nugget: Vec<Vec<f64>>,
         structures: Vec<(String, f64, Vec<Vec<f64>>)>,
@@ -952,14 +964,26 @@ impl Transiogram {
 }
 
 /// Empirical transition probabilities: `(lags, probs[lag, i, j], counts)`.
+/// `categories` are integer codes from 0, or the column of `coords` holding
+/// them.
 #[pyfunction]
 fn experimental_transiogram<'py>(
     py: Python<'py>,
     coords: &Bound<PyAny>,
-    categories: Vec<usize>,
+    categories: &Bound<PyAny>,
     lag: f64,
     max_lag: f64,
 ) -> PyResult<Bound<'py, PyTuple>> {
+    let categories = floats(
+        &column(Some(coords), categories, "categories")?,
+        "categories",
+    )?
+    .into_iter()
+    .map(|c| match c >= 0.0 && c.fract() == 0.0 {
+        true => Ok(c as usize),
+        false => Err(invalid("categories must be non-negative integer codes")),
+    })
+    .collect::<PyResult<Vec<usize>>>()?;
     let locs = points(coords)?;
     same_length(locs.len(), categories.len(), "categories")?;
     let n = categories.iter().max().map_or(0, |m| m + 1);

@@ -12,7 +12,7 @@ use pyo3::prelude::*;
 use pyo3::types::{IntoPyDict, PyDict, PyTuple};
 use rayon::prelude::*;
 
-use crate::args::{Point, array1, finite, floats, points, rows, same_length};
+use crate::args::{Point, array1, column, finite, floats, named, points, rows, same_length, texts};
 use crate::containers::{PyBlockModel, coords_arg, coords_array, float_column};
 use crate::estimation::targets;
 use crate::invalid;
@@ -20,6 +20,12 @@ use crate::table::Table;
 
 fn err(e: blocks::BlockModelError) -> PyErr {
     invalid(e)
+}
+
+#[derive(FromPyObject)]
+enum Discretization {
+    All(usize),
+    Axes([usize; 3]),
 }
 
 fn bools<'py>(py: Python<'py>, values: Vec<bool>) -> Bound<'py, PyAny> {
@@ -307,20 +313,24 @@ impl Mesh {
         Ok(Self::from_core(mesh))
     }
 
-    /// Proportion of each block inside, from `discretization`³ points per
-    /// block where the surface may cut it. `blocks` is a BlockModel, whose
-    /// rotation and sub-block extents count, or axis-aligned centroids with a
-    /// shared `size`.
-    #[pyo3(signature = (blocks, size=None, discretization=4))]
+    /// Proportion of each block inside, from a grid of points per block
+    /// where the surface may cut it: `discretization` per axis, or one count
+    /// for all three. `targets` is a BlockModel, whose rotation and sub-block
+    /// extents count, or axis-aligned centroids with a shared `size`.
+    #[pyo3(signature = (targets, *, size=None, discretization=Discretization::All(4)))]
     fn proportion<'py>(
         &self,
         py: Python<'py>,
-        blocks: &Bound<PyAny>,
+        targets: &Bound<PyAny>,
         size: Option<[f64; 3]>,
-        discretization: usize,
+        discretization: Discretization,
     ) -> PyResult<Bound<'py, PyAny>> {
         let solid = self.solid()?;
-        let size = match (size, blocks.cast::<PyBlockModel>()) {
+        let discretization = match discretization {
+            Discretization::All(n) => [n; 3],
+            Discretization::Axes(n) => n,
+        };
+        let size = match (size, targets.cast::<PyBlockModel>()) {
             (Some(s), _) => s,
             (None, Ok(b)) => {
                 let model = &b.get().0;
@@ -329,7 +339,7 @@ impl Mesh {
             }
             (None, Err(_)) => return Err(invalid("give size for plain centroids")),
         };
-        let centers = targets(blocks)?;
+        let centers = crate::estimation::targets(targets)?;
         let p = py.detach(|| {
             centers
                 .par_iter()
@@ -443,14 +453,17 @@ fn polygon_distance<'py>(
 }
 
 /// Domain of each target from labeled samples (`nearest` or `majority`), or
-/// inside/outside a `mesh` (`solid`). Returns labels and confidences.
+/// inside/outside a `mesh` (`solid`). Sample labels are `domains` or the
+/// `domain_column` of `coords`. Returns labels and confidences.
 #[pyfunction]
-#[pyo3(signature = (targets, coords=None, domains=None, method="nearest", mesh=None))]
+#[pyo3(signature = (targets, *, coords=None, domains=None, domain_column=None, method="nearest", mesh=None))]
+#[allow(clippy::too_many_arguments)]
 fn assign_domain<'py>(
     py: Python<'py>,
     targets: &Bound<PyAny>,
     coords: Option<&Bound<PyAny>>,
-    domains: Option<Vec<String>>,
+    domains: Option<&Bound<PyAny>>,
+    domain_column: Option<&str>,
     method: &str,
     mesh: Option<PyRef<Mesh>>,
 ) -> PyResult<Bound<'py, PyTuple>> {
@@ -460,6 +473,19 @@ fn assign_domain<'py>(
         "solid" => DomainMethod::PointInSolid,
         other => return Err(invalid(format!("unknown method {other:?}"))),
     };
+    let domains = match (domains, domain_column) {
+        (Some(_), Some(_)) => return Err(invalid("give one of domains or domain_column")),
+        (None, Some(c)) => Some(named(coords, c, "domain_column")?),
+        (d, None) => d.cloned(),
+    };
+    let domains = domains
+        .map(|d| {
+            texts(&d, "domains")?
+                .into_iter()
+                .map(|t| t.ok_or_else(|| invalid("domains must not be null")))
+                .collect::<PyResult<Vec<String>>>()
+        })
+        .transpose()?;
     let samples: Vec<(Point, String)> = match (coords, domains) {
         (Some(c), Some(d)) => {
             let c = points(c)?;
@@ -569,18 +595,26 @@ fn block_shell<'py>(
 
 /// Majority filter of block `classes` over a `window` of cells, repeated
 /// `iterations` times; ties keep a block's class and absent cells do not vote.
-/// Classes may be any labels; the result has the same labels. With `domains`
-/// (one label per block), only blocks of the same domain vote.
+/// Classes may be any labels, or the column of `model` holding them; the
+/// result has the same labels. With `domains` (one label per block) or the
+/// `domain_column` of `model`, only blocks of the same domain vote.
 #[pyfunction]
-#[pyo3(signature = (model, classes, window=(3, 3, 1), iterations=1, domains=None))]
+#[pyo3(signature = (model, classes, *, window=(3, 3, 1), iterations=1, domains=None, domain_column=None))]
 fn smooth_classes<'py>(
     py: Python<'py>,
-    model: PyRef<PyBlockModel>,
+    model: &Bound<'py, PyBlockModel>,
     classes: &Bound<'py, PyAny>,
     window: (usize, usize, usize),
     iterations: usize,
     domains: Option<&Bound<'py, PyAny>>,
+    domain_column: Option<&str>,
 ) -> PyResult<Bound<'py, PyAny>> {
+    let classes = &column(Some(model.as_any()), classes, "classes")?;
+    let domains = match (domains, domain_column) {
+        (Some(_), Some(_)) => return Err(invalid("give one of domains or domain_column")),
+        (None, Some(c)) => Some(named(Some(model.as_any()), c, "domain_column")?),
+        (d, None) => d.cloned(),
+    };
     let np = py.import("numpy")?;
     let encode = |values: &Bound<'py, PyAny>| -> PyResult<(Bound<'py, PyAny>, Vec<u32>)> {
         let unique = np.call_method(
@@ -599,8 +633,8 @@ fn smooth_classes<'py>(
         ))
     };
     let (labels, codes) = encode(classes)?;
-    let domains = domains.map(|d| encode(d).map(|e| e.1)).transpose()?;
-    let model = &model.0;
+    let domains = domains.map(|d| encode(&d).map(|e| e.1)).transpose()?;
+    let model = &model.get().0;
     let smoothed = py
         .detach(|| {
             blocks::smooth_classes(
