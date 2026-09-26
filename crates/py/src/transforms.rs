@@ -34,7 +34,11 @@ fn map<'py>(py: Python<'py>, values: Vec<f64>, f: impl Fn(f64) -> f64) -> Bound<
 
 fn recoveries(r: &[Recovery]) -> PyResult<Table> {
     let col = |f: fn(&Recovery) -> f64| -> ArrayRef {
-        Arc::new(Float64Array::from_iter_values(r.iter().map(f)))
+        Arc::new(
+            r.iter()
+                .map(|r| Some(f(r)).filter(|v| v.is_finite()))
+                .collect::<Float64Array>(),
+        )
     };
     let columns = [
         ("cutoff", col(|r| r.cutoff)),
@@ -80,7 +84,7 @@ impl NormalScore {
     }
 
     #[new]
-    #[pyo3(signature = (tails=None))]
+    #[pyo3(signature = (*, tails=None))]
     fn new(tails: Option<(f64, f64)>) -> Self {
         Self {
             tails,
@@ -88,7 +92,7 @@ impl NormalScore {
         }
     }
 
-    #[pyo3(signature = (values, weights=None))]
+    #[pyo3(signature = (values, *, weights=None))]
     fn fit<'py>(
         mut slf: PyRefMut<'py, Self>,
         values: &Bound<PyAny>,
@@ -108,7 +112,7 @@ impl NormalScore {
     }
 
     /// Scores of the fitted values, exact per rank.
-    #[pyo3(signature = (values, weights=None))]
+    #[pyo3(signature = (values, *, weights=None))]
     fn fit_transform<'py>(
         slf: PyRefMut<'py, Self>,
         values: &Bound<PyAny>,
@@ -190,7 +194,7 @@ impl Anamorphosis {
     }
 
     #[new]
-    #[pyo3(signature = (degree=30))]
+    #[pyo3(signature = (*, degree=30))]
     fn new(degree: usize) -> Self {
         Self {
             degree,
@@ -198,7 +202,7 @@ impl Anamorphosis {
         }
     }
 
-    #[pyo3(signature = (values, weights=None))]
+    #[pyo3(signature = (values, *, weights=None))]
     fn fit<'py>(
         mut slf: PyRefMut<'py, Self>,
         values: &Bound<PyAny>,
@@ -211,7 +215,7 @@ impl Anamorphosis {
         Ok(slf)
     }
 
-    #[pyo3(signature = (values, weights=None))]
+    #[pyo3(signature = (values, *, weights=None))]
     fn fit_transform<'py>(
         slf: PyRefMut<'py, Self>,
         values: &Bound<'py, PyAny>,
@@ -270,7 +274,7 @@ impl Anamorphosis {
     /// -------
     /// Table
     ///     ``cutoff``; ``tonnage``, the proportion above cutoff; ``mean_grade``
-    ///     above cutoff; ``metal``, ``tonnage × mean_grade``; and ``benefit``,
+    ///     above cutoff, null when nothing is above; ``metal``, ``tonnage × mean_grade``; and ``benefit``,
     ///     ``metal - cutoff × tonnage``.
     fn grade_tonnage(&self, cutoffs: &Bound<PyAny>) -> PyResult<Table> {
         let cutoffs = finite(cutoffs, "cutoffs")?;
@@ -301,7 +305,7 @@ impl BoxCox {
     }
 
     #[new]
-    #[pyo3(signature = (lambda_=None))]
+    #[pyo3(signature = (*, lambda_=None))]
     fn new(lambda_: Option<f64>) -> Self {
         Self {
             requested: lambda_,
@@ -389,7 +393,7 @@ impl Ppmt {
 
     /// `marginal` normal-scores each variable before the projections.
     #[new]
-    #[pyo3(signature = (iterations=30, candidates=60, seed=0, marginal=true))]
+    #[pyo3(signature = (*, iterations=30, candidates=60, seed=0, marginal=true))]
     fn new(iterations: usize, candidates: usize, seed: u64, marginal: bool) -> Self {
         Self {
             params: PpmtParams {
@@ -403,7 +407,7 @@ impl Ppmt {
     }
 
     /// `data` is `(n, d)`; `weights` (e.g. declustering) shape the marginal scores.
-    #[pyo3(signature = (data, weights=None))]
+    #[pyo3(signature = (data, *, weights=None))]
     fn fit<'py>(
         mut slf: PyRefMut<'py, Self>,
         data: &Bound<PyAny>,
@@ -415,7 +419,7 @@ impl Ppmt {
         Ok(slf)
     }
 
-    #[pyo3(signature = (data, weights=None))]
+    #[pyo3(signature = (data, *, weights=None))]
     fn fit_transform<'py>(
         slf: PyRefMut<'py, Self>,
         data: &Bound<'py, PyAny>,
@@ -482,7 +486,7 @@ impl GaussianImputer {
     }
 
     #[new]
-    #[pyo3(signature = (seed=0))]
+    #[pyo3(signature = (*, seed=0))]
     fn new(seed: u64) -> Self {
         Self { seed, fitted: None }
     }
@@ -495,7 +499,7 @@ impl GaussianImputer {
     ///     NaN marks a missing variable; each variable needs two values.
     /// weights : array_like, optional
     ///     Declustering weights, for the scores and the covariance.
-    #[pyo3(signature = (data, weights=None))]
+    #[pyo3(signature = (data, *, weights=None))]
     fn fit<'py>(
         mut slf: PyRefMut<'py, Self>,
         data: &Bound<PyAny>,
@@ -508,7 +512,7 @@ impl GaussianImputer {
         Ok(slf)
     }
 
-    #[pyo3(signature = (data, weights=None))]
+    #[pyo3(signature = (data, *, weights=None))]
     fn fit_transform<'py>(
         slf: PyRefMut<'py, Self>,
         data: &Bound<'py, PyAny>,
@@ -579,7 +583,7 @@ impl Pca {
     }
 
     #[new]
-    #[pyo3(signature = (standardize=false))]
+    #[pyo3(signature = (*, standardize=false))]
     fn new(standardize: bool) -> Self {
         Self {
             standardize,
@@ -588,7 +592,7 @@ impl Pca {
     }
 
     /// `data` is `(n, d)`; optional `weights`, e.g. declustering.
-    #[pyo3(signature = (data, weights=None))]
+    #[pyo3(signature = (data, *, weights=None))]
     fn fit<'py>(
         mut slf: PyRefMut<'py, Self>,
         data: &Bound<PyAny>,
@@ -601,7 +605,7 @@ impl Pca {
         Ok(slf)
     }
 
-    #[pyo3(signature = (data, weights=None))]
+    #[pyo3(signature = (data, *, weights=None))]
     fn fit_transform<'py>(
         slf: PyRefMut<'py, Self>,
         data: &Bound<'py, PyAny>,
@@ -678,7 +682,7 @@ impl Maf {
     }
 
     #[new]
-    #[pyo3(signature = (lag, tolerance=None))]
+    #[pyo3(signature = (lag, *, tolerance=None))]
     fn new(lag: f64, tolerance: Option<f64>) -> Self {
         Self {
             lag,
@@ -764,7 +768,7 @@ impl StepwiseConditional {
     }
 
     #[new]
-    #[pyo3(signature = (classes=10))]
+    #[pyo3(signature = (*, classes=10))]
     fn new(classes: usize) -> Self {
         Self {
             classes,
@@ -780,7 +784,7 @@ impl StepwiseConditional {
     ///     Column order sets the conditioning order.
     /// weights : array_like, optional
     ///     Declustering weights, for every normal score.
-    #[pyo3(signature = (data, weights=None))]
+    #[pyo3(signature = (data, *, weights=None))]
     fn fit<'py>(
         mut slf: PyRefMut<'py, Self>,
         data: &Bound<PyAny>,
@@ -792,7 +796,7 @@ impl StepwiseConditional {
         Ok(slf)
     }
 
-    #[pyo3(signature = (data, weights=None))]
+    #[pyo3(signature = (data, *, weights=None))]
     fn fit_transform<'py>(
         slf: PyRefMut<'py, Self>,
         data: &Bound<'py, PyAny>,
@@ -854,7 +858,7 @@ impl UniformConditioning {
     }
 
     #[new]
-    #[pyo3(signature = (anamorphosis, r_smu, r_panel=None))]
+    #[pyo3(signature = (anamorphosis, r_smu, *, r_panel=None))]
     fn new(anamorphosis: PyRef<Anamorphosis>, r_smu: f64, r_panel: Option<f64>) -> PyResult<Self> {
         let point = anamorphosis.inner()?;
         Ok(Self(
@@ -881,7 +885,7 @@ impl UniformConditioning {
     /// -------
     /// Table
     ///     As `HermiteAnamorphosis.grade_tonnage`, in proportions of the panel.
-    #[pyo3(signature = (panel_grade, cutoffs, estimate_variance=None))]
+    #[pyo3(signature = (panel_grade, cutoffs, *, estimate_variance=None))]
     fn panel_recovery(
         &self,
         panel_grade: f64,
@@ -912,7 +916,7 @@ impl UniformConditioning {
     ///     The means of `n_smu` equal-probability bands of the panel's
     ///     selective-block distribution. They average to the panel grade, and
     ///     the top ``k`` recover the panel's metal at tonnage ``k / n_smu``.
-    #[pyo3(signature = (panel_grade, n_smu, estimate_variance=None))]
+    #[pyo3(signature = (panel_grade, n_smu, *, estimate_variance=None))]
     fn localized_grades<'py>(
         &self,
         py: Python<'py>,
@@ -945,7 +949,8 @@ impl UniformConditioning {
     /// -------
     /// Table
     ///     ``cutoff``, ``tonnage`` (volume × density above cutoff, summed over
-    ///     the panels), ``mean_grade``, ``metal`` (``tonnage × mean_grade``)
+    ///     the panels), ``mean_grade`` (null when nothing is above),
+    ///     ``metal`` (``tonnage × mean_grade``)
     ///     and ``benefit``.
     #[pyo3(signature = (panels, grade, cutoffs, *, estimate_variance=None, density=None))]
     fn grade_tonnage(
@@ -1259,7 +1264,7 @@ fn polygon_declustering(
 /// Point-to-block support correction keeping the mean: `f` is the variance
 /// reduction factor `Var(Z_v) / Var(Z)`.
 #[pyfunction]
-#[pyo3(signature = (values, f, weights=None))]
+#[pyo3(signature = (values, f, *, weights=None))]
 fn affine_correction<'py>(
     py: Python<'py>,
     values: &Bound<PyAny>,
@@ -1273,7 +1278,7 @@ fn affine_correction<'py>(
 }
 
 #[pyfunction]
-#[pyo3(signature = (values, f, weights=None))]
+#[pyo3(signature = (values, f, *, weights=None))]
 fn indirect_lognormal_correction<'py>(
     py: Python<'py>,
     values: &Bound<PyAny>,

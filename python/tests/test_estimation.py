@@ -631,7 +631,7 @@ def test_calibration_scores_are_deterministic():
     z = np.exp(z)
     weights = cs.cell_declustering(at, z, cell_size=20.0).weights
     kriging = cs.BlockKriging(field, search, size=(10, 10)).fit(at, z)
-    anamorphosis = cs.HermiteAnamorphosis().fit(z, weights)
+    anamorphosis = cs.HermiteAnamorphosis().fit(z, weights=weights)
     passes = [cs.Search(radius=12, max_samples=8, min_samples=4), cs.Search(radius=1e4, max_samples=8)]
 
     def run():

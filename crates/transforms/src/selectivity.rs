@@ -23,7 +23,7 @@ pub struct Recovery {
     /// Recovered metal `Q(z_c)` (mean of `Z` over the whole domain, restricted
     /// to `Z ≥ z_c`).
     pub metal: f64,
-    /// Mean grade of the recovered ore `m(z_c) = Q/T` (`NaN`-safe: `0` when `T=0`).
+    /// Mean grade of the recovered ore `m(z_c) = Q/T`; `NaN` when `T = 0`.
     pub mean_grade: f64,
     /// Conventional benefit `B(z_c) = Q − z_c·T`.
     pub benefit: f64,
@@ -50,7 +50,7 @@ pub fn recovery(anam: &HermiteAnamorphosis, cutoff: f64) -> Recovery {
     let mean_grade = if tonnage > 1e-12 {
         metal / tonnage
     } else {
-        0.0
+        f64::NAN
     };
     let benefit = metal - cutoff * tonnage;
     Recovery {
