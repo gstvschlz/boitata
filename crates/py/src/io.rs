@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use ceres_io::{CsvOptions, NODATA, Shapes};
+use ceres_io::{CsvOptions, Nodata, Shapes};
 use pyo3::prelude::*;
 
 use crate::blocks::Mesh;
@@ -15,20 +15,44 @@ pub(crate) fn io_error(e: ceres_io::Error) -> PyErr {
     }
 }
 
-fn nodata(values: Option<Vec<String>>) -> Vec<String> {
-    values.unwrap_or_else(|| NODATA.iter().map(|s| s.to_string()).collect())
+fn nodata(values: Option<Vec<Bound<PyAny>>>) -> PyResult<Vec<Nodata>> {
+    let Some(values) = values else {
+        return Ok(ceres_io::default_nodata());
+    };
+    values
+        .iter()
+        .map(|v| match v.extract::<String>() {
+            Ok(s) => Ok(Nodata::Text(s)),
+            Err(_) => v
+                .extract::<f64>()
+                .map(Nodata::Number)
+                .map_err(|_| invalid("nodata must hold numbers or strings")),
+        })
+        .collect()
 }
 
-/// Reads a headed CSV; numbers become float64, `nodata` tokens become null.
+/// Reads a headed CSV; numbers become float64, `nodata` values become null.
+///
+/// Parameters
+/// ----------
+/// path : str or Path
+///     The file.
+/// nodata : sequence of float or str, optional
+///     Values read as null. Numbers match numerically (-999 matches
+///     ``-999.0``), strings match tokens case-insensitively. Default -99,
+///     -999, 1e21 and text such as ``NA``, ``N/A`` or ``NULL``. Empty cells
+///     are always null.
+/// delimiter : str, default ","
+///     Single-byte field separator.
 #[pyfunction]
-#[pyo3(signature = (path, nodata=None, delimiter=","))]
-fn read_csv(path: PathBuf, nodata: Option<Vec<String>>, delimiter: &str) -> PyResult<Table> {
+#[pyo3(signature = (path, *, nodata=None, delimiter=","))]
+fn read_csv(path: PathBuf, nodata: Option<Vec<Bound<PyAny>>>, delimiter: &str) -> PyResult<Table> {
     let &[delimiter] = delimiter.as_bytes() else {
         return Err(invalid("delimiter must be a single byte"));
     };
     let options = CsvOptions {
         delimiter,
-        nodata: self::nodata(nodata),
+        nodata: self::nodata(nodata)?,
     };
     Ok(Table(ceres_io::read_csv(path, &options).map_err(io_error)?))
 }
@@ -38,18 +62,20 @@ fn write_csv(path: PathBuf, table: &Bound<PyAny>) -> PyResult<()> {
     ceres_io::write_csv(path, &to_batch(table)?).map_err(io_error)
 }
 
-/// Reads a GSLIB file; the title is kept in the schema metadata.
+/// Reads a GSLIB file; the title is kept in the schema metadata and
+/// `nodata` values, as in `read_csv`, become null.
 #[pyfunction]
-#[pyo3(signature = (path, nodata=None))]
-fn read_gslib(path: PathBuf, nodata: Option<Vec<String>>) -> PyResult<Table> {
-    let batch = ceres_io::read_gslib(path, &self::nodata(nodata)).map_err(io_error)?;
+#[pyo3(signature = (path, *, nodata=None))]
+fn read_gslib(path: PathBuf, nodata: Option<Vec<Bound<PyAny>>>) -> PyResult<Table> {
+    let batch = ceres_io::read_gslib(path, &self::nodata(nodata)?).map_err(io_error)?;
     Ok(Table(batch))
 }
 
+/// Writes numeric columns as GSLIB; nulls are written as `nodata`.
 #[pyfunction]
-#[pyo3(signature = (path, table, missing=-999.0))]
-fn write_gslib(path: PathBuf, table: &Bound<PyAny>, missing: f64) -> PyResult<()> {
-    ceres_io::write_gslib(path, &to_batch(table)?, missing).map_err(io_error)
+#[pyo3(signature = (path, table, *, nodata=-999.0))]
+fn write_gslib(path: PathBuf, table: &Bound<PyAny>, nodata: f64) -> PyResult<()> {
+    ceres_io::write_gslib(path, &to_batch(table)?, nodata).map_err(io_error)
 }
 
 /// Writes a PointSet, a BlockModel, Polylines or any table to Parquet;
@@ -91,7 +117,7 @@ fn read_mesh(path: PathBuf) -> PyResult<Mesh> {
 
 /// Writes a `.obj`, `.stl` (binary unless `ascii`) or `.dxf` mesh.
 #[pyfunction]
-#[pyo3(signature = (path, mesh, ascii=false))]
+#[pyo3(signature = (path, mesh, *, ascii=false))]
 fn write_mesh(path: PathBuf, mesh: PyRef<Mesh>, ascii: bool) -> PyResult<()> {
     ceres_io::write_mesh(path, &mesh.mesh, ascii).map_err(io_error)
 }
@@ -103,8 +129,8 @@ fn write_mesh(path: PathBuf, mesh: PyRef<Mesh>, ascii: bool) -> PyResult<()> {
 /// path : str or Path
 ///     The `.shp` file; the `.dbf` beside it holds the attributes and an
 ///     optional `.prj` the CRS.
-/// nodata : list of str, optional
-///     Values read as null, case-insensitive; blank fields are always null.
+/// nodata : sequence of float or str, optional
+///     Values read as null, as in `read_csv`; blank fields are always null.
 ///
 /// Returns
 /// -------
@@ -116,10 +142,14 @@ fn write_mesh(path: PathBuf, mesh: PyRef<Mesh>, ascii: bool) -> PyResult<()> {
 ///     Numeric fields are float64, logical fields bool, the rest text. The
 ///     `.prj` text is the CRS.
 #[pyfunction]
-#[pyo3(signature = (path, nodata=None))]
-fn read_shapefile(py: Python, path: PathBuf, nodata: Option<Vec<String>>) -> PyResult<Py<PyAny>> {
+#[pyo3(signature = (path, *, nodata=None))]
+fn read_shapefile(
+    py: Python,
+    path: PathBuf,
+    nodata: Option<Vec<Bound<PyAny>>>,
+) -> PyResult<Py<PyAny>> {
     Ok(
-        match ceres_io::read_shapefile(path, &self::nodata(nodata)).map_err(io_error)? {
+        match ceres_io::read_shapefile(path, &self::nodata(nodata)?).map_err(io_error)? {
             Shapes::Points(p) => Py::new(py, PyPointSet(p))?.into_any(),
             Shapes::Polylines(l) => Py::new(py, PyPolylines(l))?.into_any(),
         },
@@ -172,7 +202,7 @@ fn write_shapefile(path: PathBuf, data: &Bound<PyAny>) -> PyResult<()> {
 ///     centers fall on the tie points of pixel-is-point rasters. An EPSG code
 ///     in the GeoKeys becomes the CRS `"EPSG:<code>"`, otherwise the citation.
 #[pyfunction]
-#[pyo3(signature = (path, nodata=None))]
+#[pyo3(signature = (path, *, nodata=None))]
 fn read_geotiff(path: PathBuf, nodata: Option<f64>) -> PyResult<PyBlockModel> {
     Ok(PyBlockModel(
         ceres_io::read_geotiff(path, nodata).map_err(io_error)?,
@@ -201,7 +231,7 @@ fn read_geotiff(path: PathBuf, nodata: Option<f64>) -> PyResult<PyBlockModel> {
 ///     For sub-blocked or 3D (nz > 1) models, dip or rake rotations and text
 ///     columns.
 #[pyfunction]
-#[pyo3(signature = (path, model, nodata=-9999.0))]
+#[pyo3(signature = (path, model, *, nodata=-9999.0))]
 fn write_geotiff(path: PathBuf, model: PyRef<PyBlockModel>, nodata: f64) -> PyResult<()> {
     ceres_io::write_geotiff(path, &model.0, nodata).map_err(io_error)
 }
@@ -251,7 +281,7 @@ impl BlockModelFile {
 
     /// BlockModel pieces of at most `rows` blocks with the chosen `columns`
     /// (all by default); pieces of a regular model are masked to their cells.
-    #[pyo3(signature = (rows=1_000_000, columns=None))]
+    #[pyo3(signature = (*, rows=1_000_000, columns=None))]
     fn chunks(&self, rows: usize, columns: Option<Vec<String>>) -> PyResult<BlockChunkIterator> {
         let names: Option<Vec<&str>> = columns
             .as_ref()
@@ -305,7 +335,7 @@ impl From<ceres_io::Error> for StreamError {
 /// `func(chunk)` returns a dict of new columns, written with the chunk's
 /// layout and, when `keep`, its columns. Memory stays bounded by `rows`.
 #[pyfunction]
-#[pyo3(signature = (path, out, func, rows=1_000_000, keep=true))]
+#[pyo3(signature = (path, out, func, *, rows=1_000_000, keep=true))]
 fn map_blocks(
     path: PathBuf,
     out: PathBuf,

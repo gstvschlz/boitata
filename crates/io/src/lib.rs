@@ -20,16 +20,31 @@ pub use parquet::{
 };
 pub use shapefile::{Shapes, read_shapefile, write_polylines_shapefile, write_shapefile};
 
-/// Values read as null unless the caller overrides them (case-insensitive).
-pub const NODATA: &[&str] = &[
-    "-99", "-999", "1e21", "1e+21", "NA", "N/A", "N.A.", "ND", "N/D", "NULL", "NONE", "NAN",
-    "#N/A", "-", "--",
-];
-
-fn is_nodata(token: &str, nodata: &[String]) -> bool {
-    token.is_empty() || nodata.iter().any(|s| s.eq_ignore_ascii_case(token))
+/// A value read as null. A number matches every token that parses to it, so
+/// `-999` matches `-999.0`; text matches the token case-insensitively.
+#[derive(Debug, Clone, PartialEq)]
+pub enum Nodata {
+    Number(f64),
+    Text(String),
 }
 
-fn default_nodata() -> Vec<String> {
-    NODATA.iter().map(|s| s.to_string()).collect()
+/// Values read as null unless the caller overrides them.
+pub fn default_nodata() -> Vec<Nodata> {
+    let text = [
+        "NA", "N/A", "N.A.", "ND", "N/D", "NULL", "NONE", "NAN", "#N/A", "-", "--",
+    ];
+    [-99.0, -999.0, 1e21]
+        .map(Nodata::Number)
+        .into_iter()
+        .chain(text.map(|s| Nodata::Text(s.into())))
+        .collect()
+}
+
+fn is_nodata(token: &str, nodata: &[Nodata]) -> bool {
+    let number = token.parse::<f64>().ok();
+    token.is_empty()
+        || nodata.iter().any(|n| match n {
+            Nodata::Number(v) => number == Some(*v),
+            Nodata::Text(s) => s.eq_ignore_ascii_case(token),
+        })
 }

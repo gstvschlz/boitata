@@ -656,7 +656,7 @@ fn flags_table(flags: Named, sentinels: &[f64]) -> PyResult<RecordBatch> {
 ///     from vertical, is used instead when given.
 /// max_depth : str, optional
 ///     Collar column with the hole length; enables the ``past_depth`` check.
-/// sentinels : sequence of float
+/// nodata : sequence of float
 ///     Values that stand for missing data, searched in every numeric column.
 /// max_deviation : float
 ///     Largest angle, in degrees, between the directions of consecutive
@@ -676,7 +676,7 @@ fn flags_table(flags: Named, sentinels: &[f64]) -> PyResult<RecordBatch> {
 ///     - ``missing``: null or non-finite required value.
 ///     - ``out_of_range``: negative depth, length or from; azimuth outside
 ///       [0, 360]; dip outside [-90, 90].
-///     - ``sentinel``: a numeric column holds one of `sentinels`.
+///     - ``sentinel``: a numeric column holds one of `nodata`.
 ///     - ``no_survey``, ``no_<name>``: collar without survey or intervals.
 ///     - ``no_collar``: survey or interval of a hole without collar.
 ///     - ``deviation``: survey station more than `max_deviation` from the
@@ -693,7 +693,7 @@ fn flags_table(flags: Named, sentinels: &[f64]) -> PyResult<RecordBatch> {
 #[pyo3(signature = (
     collar, survey=None, intervals=None, hole="HOLEID", x="X", y="Y", z="Z", at="DEPTH",
     azimuth="AZIMUTH", dip=Some("DIP"), inclination=None, from_="FROM", to="TO",
-    max_depth=None, sentinels=vec![-99.0, -999.0, -9999.0, 1e21], max_deviation=20.0,
+    max_depth=None, nodata=vec![-99.0, -999.0, -9999.0, 1e21], max_deviation=20.0,
     tolerance=1e-6
 ))]
 #[allow(clippy::too_many_arguments)]
@@ -713,11 +713,11 @@ fn check_drillholes<'py>(
     from_: &str,
     to: &str,
     max_depth: Option<&str>,
-    sentinels: Vec<f64>,
+    nodata: Vec<f64>,
     max_deviation: f64,
     tolerance: f64,
 ) -> PyResult<(Bound<'py, PyDict>, Table)> {
-    let s = &sentinels;
+    let s = &nodata;
     let collar = to_batch(collar)?;
     let collar_ids = text(&collar, hole)?;
     let lengths = max_depth.map(|d| number(&collar, d)).transpose()?;

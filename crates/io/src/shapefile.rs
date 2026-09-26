@@ -12,7 +12,7 @@ use arrow_schema::{DataType, Field, Schema};
 use arrow_select::take::take_record_batch;
 use ceres_core::{PointSet, Polylines};
 
-use crate::{Error, Result, is_nodata};
+use crate::{Error, Nodata, Result, is_nodata};
 
 fn bad(message: impl Into<String>) -> Error {
     Error::Shapefile(message.into())
@@ -88,9 +88,9 @@ pub enum Shapes {
 /// Line files give Polylines with open parts, polygon files closed parts
 /// without the repeated closing vertex; a null shape is a feature without
 /// parts. 2D shapes get z = 0, M values are dropped. Numeric fields are
-/// `Float64`, logical `Boolean`, the rest text; blanks and `nodata` tokens are
+/// `Float64`, logical `Boolean`, the rest text; blanks and `nodata` values are
 /// null. The `.prj` text is the CRS.
-pub fn read_shapefile(path: impl AsRef<Path>, nodata: &[String]) -> Result<Shapes> {
+pub fn read_shapefile(path: impl AsRef<Path>, nodata: &[Nodata]) -> Result<Shapes> {
     let path = path.as_ref();
     let shp = std::fs::read(path.with_extension("shp"))?;
     if be_i32(&shp, 0)? != 9994 {
@@ -157,7 +157,7 @@ pub fn read_shapefile(path: impl AsRef<Path>, nodata: &[String]) -> Result<Shape
     Ok(Shapes::Points(points))
 }
 
-fn read_dbf(b: &[u8], nodata: &[String]) -> Result<RecordBatch> {
+fn read_dbf(b: &[u8], nodata: &[Nodata]) -> Result<RecordBatch> {
     let records = u32::from_le_bytes(bytes(b, 4)?) as usize;
     let header = u16::from_le_bytes(bytes(b, 8)?) as usize;
     let width = u16::from_le_bytes(bytes(b, 10)?) as usize;
