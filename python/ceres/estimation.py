@@ -143,7 +143,6 @@ class _Base:
             domains=domains,
             domain_column=domain_column,
         )
-        self._samples = coords
         return self
 
     def predict(
@@ -216,7 +215,6 @@ class _Base:
         """
         estimator = type(self).__new__(type(self))
         estimator._engine = self._engine.with_search(search)
-        estimator._samples = getattr(self, "_samples", None)
         return estimator
 
     def to_parquet(self, path) -> None:
@@ -354,6 +352,7 @@ def calibrate_search(
     cross_validation: bool = True,
     domains=None,
     domain_column=None,
+    data=None,
 ) -> Table:
     """Scores candidate searches for a fitted estimator, one row per scenario, to compare side by side.
 
@@ -373,7 +372,7 @@ def calibrate_search(
         Cross-validation folds; leave-one-out when None.
     weights : array_like or str, optional
         Declustering weights of the fitted samples, for the cross-validation scores and the global bias, or the
-        column of the container they were fitted from.
+        column of `data` holding them.
     cutoffs : sequence of float, optional
         Cutoffs for tonnage and metal ratios against the discrete Gaussian block-support reference.
     anamorphosis : HermiteAnamorphosis, optional
@@ -388,6 +387,8 @@ def calibrate_search(
         was fitted with domains. Cross-validation and the global bias then cover the samples of those domains only.
     domain_column : str, optional
         The column of `targets` holding their domains; instead of `domains`.
+    data : PointSet or Table, optional
+        The fitted samples, when `weights` is a column name.
 
     Returns
     -------
@@ -419,8 +420,10 @@ def calibrate_search(
         domains = column(targets, domain_column, "domain_column")
     engine = estimator._engine
     values = engine.values
+    if isinstance(weights, str) and data is None:
+        raise InvalidInput(f'weights names column "{weights}"; pass the fitted samples as data=')
     if weights is not None:
-        weights = np.asarray(column(getattr(estimator, "_samples", None), weights, "weights"), dtype=float)
+        weights = np.asarray(column(data, weights, "weights"), dtype=float)
         if weights.shape != values.shape:
             raise InvalidInput(
                 f"{len(weights)} weights for {len(values)} fitted samples (samples sharing a location keep one)"
