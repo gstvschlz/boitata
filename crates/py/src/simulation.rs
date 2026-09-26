@@ -2,14 +2,15 @@ use numpy::ndarray::Array2;
 use numpy::{IntoPyArray, PyArray1, PyArray2};
 use pyo3::prelude::*;
 use simulation::{
-    CategoricalSummary as CoreCategorical, ContinuousOptions, ContinuousSummary, GibbsParams,
-    PgsParams, Region, SgsParams, SisParams, TruncationRule, TurningBandsParams,
+    BlockSupport, CategoricalSummary as CoreCategorical, ContinuousOptions, ContinuousSummary,
+    GibbsParams, PgsParams, Region, SgsParams, SisParams, TruncationRule, TurningBandsParams,
 };
 use variogram::Variogram as CoreVariogram;
 
 use crate::args::{
     self, Point, array1, distinct, finite, optional_finite, pick, points, rows, same_length,
 };
+use crate::containers::PyBlockModel;
 use crate::estimation::{Search, targets};
 use crate::invalid;
 use crate::variogram::Variogram;
@@ -188,6 +189,43 @@ impl CategoricalSummary {
     }
 }
 
+/// Averages realizations at `grid` to the rows of `blocks`, each node weighted
+/// by its volume when `targets` is a block model.
+fn support(
+    targets: &Bound<PyAny>,
+    grid: &[Point],
+    blocks: Option<PyRef<PyBlockModel>>,
+) -> PyResult<Option<BlockSupport>> {
+    let Some(blocks) = blocks else {
+        return Ok(None);
+    };
+    let volumes = targets
+        .cast::<PyBlockModel>()
+        .ok()
+        .map(|m| m.get().0.volumes());
+    BlockSupport::new(grid, volumes.as_deref(), &blocks.0)
+        .map(Some)
+        .map_err(err)
+}
+
+fn averaged(support: &Option<BlockSupport>, values: Vec<f64>) -> simulation::Result<Vec<f64>> {
+    match support {
+        Some(s) => s.mean(&values),
+        None => Ok(values),
+    }
+}
+
+fn majority(
+    support: &Option<BlockSupport>,
+    categories: Vec<usize>,
+    k: usize,
+) -> simulation::Result<Vec<usize>> {
+    match support {
+        Some(s) => s.majority(&categories, k),
+        None => Ok(categories),
+    }
+}
+
 struct Data {
     locs: Vec<Point>,
     values: Vec<f64>,
@@ -267,7 +305,11 @@ impl Sgs {
     /// with the probability and mean above each of `cutoffs` and the values at
     /// `quantiles`; the realizations themselves only when `realizations`.
     /// `anisotropy` (a LocalAnisotropy) orients each node's variogram and search.
-    #[pyo3(signature = (targets, n=100, seed=0, cutoffs=vec![], quantiles=vec![], realizations=false, anisotropy=None))]
+    /// With `blocks` (a coarser BlockModel), each realization is averaged to
+    /// its blocks, weighted by node volume, and summarized at block support;
+    /// nodes outside every block are ignored and a block holding no node is
+    /// an error.
+    #[pyo3(signature = (targets, n=100, seed=0, cutoffs=vec![], quantiles=vec![], realizations=false, anisotropy=None, blocks=None))]
     #[allow(clippy::too_many_arguments)]
     fn simulate(
         &self,
@@ -279,9 +321,11 @@ impl Sgs {
         quantiles: Vec<f64>,
         realizations: bool,
         anisotropy: Option<PyRef<crate::lva::LocalAnisotropy>>,
+        blocks: Option<PyRef<PyBlockModel>>,
     ) -> PyResult<SimulationSummary> {
         let d = self.data.as_ref().ok_or_else(not_fitted)?;
         let grid = self::targets(targets)?;
+        let support = support(targets, &grid, blocks)?;
         let local = anisotropy.map(|a| a.at_targets(&grid));
         let options = ContinuousOptions {
             cutoffs,
@@ -303,7 +347,7 @@ impl Sgs {
                     &params,
                     local.as_ref(),
                 )
-                .map(|r| r.values)
+                .and_then(|r| averaged(&support, r.values))
             })
         })
         .map(SimulationSummary)
@@ -356,7 +400,7 @@ impl TurningBands {
 
     /// Summary of `n` realizations; same options as `SGS.simulate`.
     #[allow(clippy::too_many_arguments)]
-    #[pyo3(signature = (targets, n=100, seed=0, cutoffs=vec![], quantiles=vec![], realizations=false))]
+    #[pyo3(signature = (targets, n=100, seed=0, cutoffs=vec![], quantiles=vec![], realizations=false, blocks=None))]
     fn simulate(
         &self,
         py: Python,
@@ -366,9 +410,11 @@ impl TurningBands {
         cutoffs: Vec<f64>,
         quantiles: Vec<f64>,
         realizations: bool,
+        blocks: Option<PyRef<PyBlockModel>>,
     ) -> PyResult<SimulationSummary> {
         let d = self.data.as_ref().ok_or_else(not_fitted)?;
         let grid = self::targets(targets)?;
+        let support = support(targets, &grid, blocks)?;
         let options = ContinuousOptions {
             cutoffs,
             quantiles,
@@ -376,7 +422,7 @@ impl TurningBands {
         };
         let (lo, hi) = simulation::bounds(&grid);
         py.detach(|| {
-            simulation::TurningBandsEnsemble::new(
+            let ensemble = simulation::TurningBandsEnsemble::new(
                 &d.locs,
                 &d.values,
                 d.weights.as_deref(),
@@ -385,8 +431,10 @@ impl TurningBands {
                 &self.variogram,
                 &self.params(seed),
                 n,
-            )?
-            .summary(&grid, &options)
+            )?;
+            simulation::continuous(n, &options, |k| {
+                averaged(&support, ensemble.realization(k, &grid)?)
+            })
         })
         .map(SimulationSummary)
         .map_err(err)
@@ -502,8 +550,10 @@ impl Sis {
     }
 
     /// Summary of `n` realizations, seeds `seed, seed + 1, …`; the
-    /// realizations themselves only when `realizations`.
-    #[pyo3(signature = (targets, n=100, seed=0, realizations=false))]
+    /// realizations themselves only when `realizations`. With `blocks` (a
+    /// coarser BlockModel), each block takes the category filling most of its
+    /// node volume, ties to the lowest; blocks as in `SGS.simulate`.
+    #[pyo3(signature = (targets, n=100, seed=0, realizations=false, blocks=None))]
     fn simulate(
         &self,
         py: Python,
@@ -511,9 +561,11 @@ impl Sis {
         n: usize,
         seed: u64,
         realizations: bool,
+        blocks: Option<PyRef<PyBlockModel>>,
     ) -> PyResult<CategoricalSummary> {
         let (locs, cats) = self.data.as_ref().ok_or_else(not_fitted)?;
         let grid = self::targets(targets)?;
+        let support = support(targets, &grid, blocks)?;
         let k = self.variograms.len();
         py.detach(|| {
             simulation::categorical(n, k, realizations, |i| {
@@ -522,7 +574,7 @@ impl Sis {
                     seed: seed.wrapping_add(i as u64),
                 };
                 simulation::sis(locs, cats, &grid, k, &self.variograms, &params)
-                    .map(|r| r.categories)
+                    .and_then(|r| majority(&support, r.categories, k))
             })
         })
         .map(CategoricalSummary)
@@ -589,7 +641,7 @@ impl Plurigaussian {
     }
 
     /// Summary of `n` realizations; same options as `SIS.simulate`.
-    #[pyo3(signature = (targets, n=100, seed=0, realizations=false))]
+    #[pyo3(signature = (targets, n=100, seed=0, realizations=false, blocks=None))]
     fn simulate(
         &self,
         py: Python,
@@ -597,9 +649,11 @@ impl Plurigaussian {
         n: usize,
         seed: u64,
         realizations: bool,
+        blocks: Option<PyRef<PyBlockModel>>,
     ) -> PyResult<CategoricalSummary> {
         let (locs, facies) = self.data.as_ref().ok_or_else(not_fitted)?;
         let grid = self::targets(targets)?;
+        let support = support(targets, &grid, blocks)?;
         let k = self
             .rule
             .regions
@@ -623,6 +677,7 @@ impl Plurigaussian {
                     &self.rule,
                     &params,
                 )
+                .and_then(|f| majority(&support, f, k))
             })
         })
         .map(CategoricalSummary)

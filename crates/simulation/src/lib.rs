@@ -3,7 +3,8 @@
 //! Modules:
 //! - [`sgs`]  — Sequential Gaussian Simulation (continuous variables)
 //! - [`sis`]  — Sequential Indicator Simulation (categorical facies)
-//! - [`post`] — uncertainty summaries streamed over realizations
+//! - [`post`] — uncertainty summaries streamed over realizations, at node or
+//!   block support
 //!
 //! Realizations are conditional and reproducible given a seed.
 
@@ -19,8 +20,8 @@ pub use error::{Result, SimError};
 pub use gibbs::{GibbsParams, gibbs};
 pub use pgs::{PgsParams, Region, TruncationRule, plurigaussian};
 pub use post::{
-    CategoricalSummary, ContinuousOptions, ContinuousSummary, categorical, continuous,
-    quantile_sorted,
+    BlockSupport, CategoricalSummary, ContinuousOptions, ContinuousSummary, categorical,
+    continuous, quantile_sorted,
 };
 pub use sgs::{Realization, SgsParams, sgs};
 pub use sis::{CategoricalRealization, SisParams, sis};

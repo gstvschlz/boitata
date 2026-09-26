@@ -166,4 +166,44 @@ save(fig, "reproduction")
 
 ![reproduction](reproduction.png)
 
+Mining selects blocks, not points. `blocks=` averages each realization over the nodes in every 20 m block before
+summarizing, so the probability is that of the block grade, and the spread shrinks with the larger support.
+
+<details><summary>Python</summary>
+
+```python
+blocks = cs.BlockModel(origin=(0.5, 0.5), size=(20, 20), count=(13, 15))
+at_blocks = sgs.simulate(grid, n=50, seed=42, cutoffs=[500.0], blocks=blocks)
+true_blocks = truth.reshape(15, 20, 13, 20).mean(axis=(1, 3))
+print(
+    f"mean variance across realizations: nodes {summary.variance.mean():.0f}, blocks {at_blocks.variance.mean():.0f}"
+)
+
+fig, axes = plt.subplots(1, 2, figsize=(8, 4.6), layout="constrained")
+for ax, p, true, title in (
+    (axes[0], p500.reshape(shape), true_at_nodes.reshape(shape), "5 m nodes"),
+    (axes[1], at_blocks.probability_above[0].reshape(15, 13), true_blocks, "20 m blocks"),
+):
+    im = ax.imshow(p, origin="lower", extent=extent, vmin=0, vmax=1)
+    ax.contour(
+        (true > 500).astype(float),
+        levels=[0.5],
+        origin="lower",
+        extent=extent,
+        colors=HIGHLIGHT,
+        linewidths=0.8,
+    )
+    map_axes(ax, f"P(V > 500 ppm), {title}")
+fig.colorbar(im, ax=axes, shrink=0.8, label="probability; true V > 500 outlined")
+save(fig, "blocks")
+```
+
+</details>
+
+```text
+mean variance across realizations: nodes 37803, blocks 6913
+```
+
+![blocks](blocks.png)
+
 Full script: [`example_05.py`](example_05.py)
