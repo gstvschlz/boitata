@@ -28,6 +28,7 @@ run = "uv run --no-sync maturin develop -q --uv --release"
 depends = ["lint", "test"]
 
 [tools]
+git-cliff = "2.13"
 python = "3.13"
 uv = "0.12"
 
@@ -46,3 +47,6 @@ run = ["uv run --no-sync python -c \"import shutil; [shutil.rmtree(p, True) for 
 [tasks.docs-deploy]
 depends = ["py:build"]
 run = ["uv run --no-sync python -c \"import shutil; [shutil.rmtree(p, True) for p in ('docs/examples', 'site')]\"", "uv run --no-sync mkdocs gh-deploy --force"]
+
+[tasks.changelog]
+run = "git-cliff -o CHANGELOG.md"
