@@ -1,5 +1,5 @@
 use arrow_array::BooleanArray;
-use ceres_core::{BlockModel, Geometry, Layout, PointSet};
+use ceres_core::{BlockModel, Geometry, Layout, PointSet, Polylines};
 use numpy::ndarray::Array2;
 use numpy::{IntoPyArray, PyArray1, PyArray2, PyReadonlyArray1, PyReadonlyArray2};
 use pyo3::prelude::*;
@@ -143,6 +143,145 @@ impl PyPointSet {
     ) -> PyArrowResult<Bound<'py, PyCapsule>> {
         let table = self.0.to_table().map_err(core_error)?;
         arrow_c_stream(py, &table, requested_schema)
+    }
+}
+
+#[derive(FromPyObject)]
+enum Closed {
+    All(bool),
+    Each(Vec<bool>),
+}
+
+/// Lines and polygons with one attribute row per feature.
+///
+/// Parameters
+/// ----------
+/// parts : sequence of array_like
+///     ``(m, 2)`` or ``(m, 3)`` vertices per part; 2D gets z = 0.
+/// closed : bool or sequence of bool, default False
+///     Whether each part is a ring. Rings do not repeat their first vertex
+///     and need 3 vertices; open parts need 2.
+/// features : sequence of int, optional
+///     Feature of each part, non-decreasing from 0. A feature with several
+///     parts is multipart; its rings bound an area by even-odd counting in
+///     plan, so a ring inside another is a hole. Defaults to one feature per
+///     part.
+/// attributes : table-like or dict of arrays, optional
+///     One row per feature.
+/// crs : str, optional
+#[pyclass(module = "ceres", name = "Polylines", frozen)]
+pub struct PyPolylines(pub Polylines);
+
+#[pymethods]
+impl PyPolylines {
+    #[new]
+    #[pyo3(signature = (parts, closed=Closed::All(false), features=None, attributes=None, crs=None))]
+    fn new(
+        parts: Vec<Bound<PyAny>>,
+        closed: Closed,
+        features: Option<Vec<i64>>,
+        attributes: Option<&Bound<PyAny>>,
+        crs: Option<String>,
+    ) -> PyResult<Self> {
+        let mut vertices = vec![];
+        let mut offsets = vec![0u32];
+        for part in &parts {
+            vertices.extend(coords_arg(part)?);
+            offsets.push(u32::try_from(vertices.len()).map_err(|_| invalid("too many vertices"))?);
+        }
+        let closed = match closed {
+            Closed::All(c) => vec![c; parts.len()],
+            Closed::Each(c) => c,
+        };
+        let features = features.unwrap_or_else(|| (0..parts.len() as i64).collect());
+        crate::args::same_length(parts.len(), features.len(), "features")?;
+        if features.first().is_some_and(|&f| f != 0) || features.windows(2).any(|w| w[1] < w[0]) {
+            return Err(invalid("features must be non-decreasing from 0"));
+        }
+        let attributes = match attributes {
+            Some(a) => to_batch(a)?,
+            None => empty(features.last().map_or(0, |&f| f as usize + 1)),
+        };
+        let count = attributes.num_rows() as i64;
+        if features.last().is_some_and(|&f| f >= count) {
+            return Err(invalid(format!(
+                "features must be below {count}, the attribute rows"
+            )));
+        }
+        let features = (0..=count)
+            .map(|f| features.partition_point(|&x| x < f) as u32)
+            .collect();
+        let mut lines =
+            Polylines::new(vertices, offsets, features, closed, attributes).map_err(core_error)?;
+        lines.crs = crs;
+        Ok(Self(lines))
+    }
+
+    /// ``(n, 3)`` vertices of all parts, one part after the other.
+    #[getter]
+    fn vertices<'py>(&self, py: Python<'py>) -> Bound<'py, PyArray2<f64>> {
+        coords_array(py, self.0.vertices())
+    }
+
+    /// ``(m, 3)`` vertices per part.
+    #[getter]
+    fn parts<'py>(&self, py: Python<'py>) -> Vec<Bound<'py, PyArray2<f64>>> {
+        (0..self.0.num_parts())
+            .map(|i| coords_array(py, self.0.part(i)))
+            .collect()
+    }
+
+    /// Whether each part is a ring.
+    #[getter]
+    fn closed<'py>(&self, py: Python<'py>) -> Bound<'py, PyArray1<bool>> {
+        PyArray1::from_slice(py, self.0.closed())
+    }
+
+    /// Feature of each part.
+    #[getter]
+    fn feature<'py>(&self, py: Python<'py>) -> Bound<'py, PyArray1<i64>> {
+        let ids = (0..self.0.len()).flat_map(|f| self.0.feature_parts(f).map(move |_| f as i64));
+        PyArray1::from_iter(py, ids)
+    }
+
+    #[getter]
+    fn attributes(&self) -> Table {
+        Table(self.0.attributes().clone())
+    }
+
+    #[getter]
+    fn crs(&self) -> Option<String> {
+        self.0.crs.clone()
+    }
+
+    /// New polylines with the per-feature attribute `name` added or replaced.
+    fn with_column(&self, name: &str, values: &Bound<PyAny>) -> PyResult<Self> {
+        let column = crate::blocks::attribute(values, self.0.len())?;
+        Ok(Self(self.0.with_column(name, column).map_err(core_error)?))
+    }
+
+    /// One point per vertex with ``feature`` and ``part`` indices and the
+    /// feature's attributes.
+    fn to_points(&self) -> PyResult<PyPointSet> {
+        Ok(PyPointSet(self.0.to_points().map_err(core_error)?))
+    }
+
+    fn __getitem__<'py>(&self, py: Python<'py>, name: &str) -> PyResult<Bound<'py, PyAny>> {
+        column(py, self.0.attributes(), name)
+    }
+
+    fn __len__(&self) -> usize {
+        self.0.len()
+    }
+
+    fn __repr__(&self) -> String {
+        let crs = self.0.crs.as_deref().unwrap_or("none");
+        format!(
+            "Polylines({} features, {} parts, crs: {crs}){}",
+            self.0.len(),
+            self.0.num_parts(),
+            describe(self.0.attributes())
+        )
     }
 }
 

@@ -75,7 +75,7 @@ fn volume6(vertices: &[[f64; 3]], o: [f64; 3], triangles: impl Iterator<Item = [
         .sum()
 }
 
-fn take_rows(batch: &RecordBatch, keep: Vec<u32>) -> Result<RecordBatch> {
+pub(crate) fn take_rows(batch: &RecordBatch, keep: Vec<u32>) -> Result<RecordBatch> {
     if batch.num_columns() == 0 {
         return Ok(empty(keep.len()));
     }

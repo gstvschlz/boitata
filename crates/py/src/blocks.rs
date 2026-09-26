@@ -87,7 +87,7 @@ impl Mesh {
     }
 }
 
-fn attribute(values: &Bound<PyAny>, rows: usize) -> PyResult<ArrayRef> {
+pub fn attribute(values: &Bound<PyAny>, rows: usize) -> PyResult<ArrayRef> {
     match values.extract::<Vec<Option<String>>>() {
         Ok(text) => Ok(Arc::new(StringArray::from(text))),
         Err(_) => float_column(values, rows),
