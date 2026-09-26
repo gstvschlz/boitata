@@ -1,6 +1,10 @@
 use criterion::{Criterion, criterion_group, criterion_main};
 use estimation::Search;
-use simulation::{SgsParams, TurningBandsParams, sgs, turning_bands};
+use rand::SeedableRng;
+use rand::rngs::StdRng;
+use simulation::{
+    Bands, SgsParams, TurningBandsEnsemble, TurningBandsParams, bounds, sgs, turning_bands,
+};
 use std::hint::black_box;
 use variogram::{Model, Variogram};
 
@@ -48,5 +52,39 @@ fn bench(c: &mut Criterion) {
     group.finish();
 }
 
-criterion_group!(benches, bench);
+/// Turning bands on a million nodes, split into its phases.
+fn phases(c: &mut Criterion) {
+    let (data, values, _) = inputs();
+    let grid: Vec<_> = (0..1_000_000)
+        .map(|i| ((i % 1000) as f64 * 0.2, (i / 1000) as f64 * 0.2, 0.0))
+        .collect();
+    let vg = Variogram::single(Model::Spherical, 1.0, 40.0);
+    let params = TurningBandsParams::default();
+    let (lo, hi) = bounds(&grid);
+    let mut group = c.benchmark_group("turning bands, 1 000 000 nodes");
+    group.sample_size(10);
+    group.bench_function("simulate bands", |b| {
+        b.iter(|| {
+            black_box(Bands::new(
+                lo,
+                hi,
+                &vg,
+                &params,
+                &mut StdRng::seed_from_u64(1),
+            ))
+        })
+    });
+    let bands = Bands::new(lo, hi, &vg, &params, &mut StdRng::seed_from_u64(1));
+    group.bench_function("evaluate field", |b| {
+        b.iter(|| black_box(bands.field(&grid)))
+    });
+    let ensemble =
+        TurningBandsEnsemble::new(&data, &values, None, lo, hi, &vg, &params, 1).unwrap();
+    group.bench_function("field and conditioning", |b| {
+        b.iter(|| black_box(ensemble.realization(0, &grid).unwrap()))
+    });
+    group.finish();
+}
+
+criterion_group!(benches, bench, phases);
 criterion_main!(benches);
