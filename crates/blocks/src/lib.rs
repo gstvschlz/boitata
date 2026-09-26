@@ -6,6 +6,7 @@
 mod classes;
 mod distance;
 mod error;
+mod hull;
 mod select;
 mod shell;
 mod solid;
@@ -14,6 +15,7 @@ pub use distance::{
     distance_to, point_in_polygon, polygon_distance, polygon_signed_distance, signed_distance_to,
 };
 pub use error::{BlockModelError, Result};
+pub use hull::convex_hull;
 pub use select::{PolygonSelector, ring_is_closed};
 pub use shell::{
     BlockSubset, Orientation, ShellBlock, ShellFilter, ShellLimits, ShellMesh, Slab,

@@ -67,3 +67,12 @@ def test_mesh_topology():
     assert labelled.face_attributes["layer"] == ["a", "b"] and labelled.vertex_attributes.num_rows == 4
     with pytest.raises(cs.errors.InvalidInput):
         square.with_face_column("bad", [1.0])
+
+
+def test_convex_hull():
+    points = np.random.default_rng(0).normal(size=(300, 3))
+    hull = cs.convex_hull(points)
+    assert hull.is_closed and hull.contains(points * 0.999).all()
+    assert not hull.contains([[10, 0, 0]])[0]
+    with pytest.raises(ValueError):
+        cs.convex_hull([[0, 0, 0], [1, 0, 0], [0, 1, 0], [1, 1, 0]])
