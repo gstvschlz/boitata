@@ -23,10 +23,11 @@ from common import ACCENT, GREY, HIGHLIGHT, LIGHT, save
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 
 # %% [markdown]
-# Each composite is coded +1 above the cutoff and −1 below, so the shell is the zero level of the field. Two engines
-# fit it: a radial basis function (RBF) interpolates the codes exactly by solving one dense system, whose cost grows
-# with the cube of the sample count, so 10 m composites keep it to about 3,000 samples; a sparse Gaussian process
-# (GP) smooths through them, learns anisotropic ranges and returns to the mean code away from the data.
+# With `cutoff=5` each composite is coded +1 at or above the cutoff and −1 below, so the shell is the zero level of
+# the field. Two engines fit it: a radial basis function (RBF) interpolates the codes exactly by solving one dense
+# system, whose cost grows with the cube of the sample count, so 10 m composites keep it to about 3,000 samples; a
+# sparse Gaussian process (GP) smooths through them, learns anisotropic ranges and returns to the mean code away from
+# the data.
 
 # %%
 dh = cs.datasets.drillholes()
@@ -34,11 +35,11 @@ composites = dh.composite(10.0, ["ZN"])
 xyz, zn = composites.coords, composites["ZN"]
 window = (xyz[:, 0] > 4550) & (xyz[:, 0] < 4950) & (xyz[:, 1] > 7400) & (xyz[:, 1] < 7700) & ~np.isnan(zn)
 xyz, zn = xyz[window], zn[window]
-indicator = np.where(zn > 5, 1.0, -1.0)
 models = {
-    "RBF": cs.ImplicitModel("rbf", drift_degree=0).fit(xyz, indicator),
-    "GP": cs.ImplicitModel("gp", drift_degree=0).fit(xyz, indicator),
+    "RBF": cs.ImplicitModel("rbf", drift_degree=0).fit(xyz, zn, cutoff=5),
+    "GP": cs.ImplicitModel("gp", drift_degree=0).fit(xyz, zn, cutoff=5),
 }
+indicator = np.where(zn >= 5, 1.0, -1.0)
 print(f"{len(xyz)} composites, {(indicator > 0).sum()} above 5 % Zn")
 for name, model in models.items():
     agree = np.mean(np.sign(model.evaluate(xyz)) == indicator)
@@ -60,13 +61,11 @@ count = np.ceil((hi - lo) / size).astype(int)
 blocks = cs.BlockModel(origin=lo, size=(size, size, size), count=count)
 fields, shells = {}, {}
 for name, model in models.items():
-    vertices, triangles = shells[name] = model.isosurface(blocks, closed=True)
-    a, b, c = (vertices[triangles[:, i]] for i in range(3))
-    shell_volume = np.einsum("ij,ij->i", a, np.cross(b, c)).sum() / 6
+    shell = shells[name] = model.isosurface(blocks, closed=True)
     fields[name] = model.evaluate(blocks).reshape(count[::-1])
     count_volume = (fields[name] > 0).sum() * size**3
     print(
-        f"{name}: shell of {len(triangles):,} triangles, {shell_volume:,.0f} m3; blocks inside {count_volume:,.0f} m3"
+        f"{name}: shell of {len(shell.triangles):,} triangles, {shell.volume:,.0f} m3; blocks inside {count_volume:,.0f} m3"
     )
 
 # %% [markdown]
@@ -96,10 +95,12 @@ save(fig, "section")
 # The GP shell:
 
 # %%
-vertices, triangles = shells["GP"]
+shell = shells["GP"]
 fig = plt.figure(figsize=(7, 5.5), layout="constrained")
 ax = fig.add_subplot(projection="3d")
-ax.add_collection3d(Poly3DCollection(vertices[triangles], facecolor=ACCENT, edgecolor="none", alpha=0.25))
+ax.add_collection3d(
+    Poly3DCollection(shell.vertices[shell.triangles], facecolor=ACCENT, edgecolor="none", alpha=0.25)
+)
 ax.scatter(*xyz[indicator > 0].T, s=2, color=HIGHLIGHT, depthshade=False)
 ax.set(xlim=(lo[0], hi[0]), ylim=(lo[1], hi[1]), zlim=(lo[2], hi[2]))
 ax.set_box_aspect(hi - lo)

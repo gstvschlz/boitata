@@ -345,6 +345,8 @@
       
         
       
+        
+      
     
     
     
@@ -2130,6 +2132,95 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_22" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_22" id="__nav_2_22_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    20. From drill holes to a classified model
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_22_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_22">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    20. From drill holes to a classified model
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../20-workflow/example_20/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    20. From drill holes to a classified model
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -2527,18 +2618,20 @@ to download the full example code</p>
 <span class="n">HERE</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="vm">__file__</span><span class="p">)</span><span class="o">.</span><span class="n">parent</span> <span class="k">if</span> <span class="s2">"__file__"</span> <span class="ow">in</span> <span class="nb">globals</span><span class="p">()</span> <span class="k">else</span> <span class="n">Path</span><span class="o">.</span><span class="n">cwd</span><span class="p">()</span>
 <span class="n">sys</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="n">HERE</span><span class="o">.</span><span class="n">parent</span><span class="p">))</span>
 </code></pre></div>
-<!-- GENERATED FROM PYTHON SOURCE LINES 16-22 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 16-24 -->
 
-<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">ceres</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">cs</span>
+<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">tempfile</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">ceres</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">cs</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">matplotlib.pyplot</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">plt</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">common</span><span class="w"> </span><span class="kn">import</span> <span class="n">ACCENT</span><span class="p">,</span> <span class="n">GREY</span><span class="p">,</span> <span class="n">HIGHLIGHT</span><span class="p">,</span> <span class="n">LIGHT</span><span class="p">,</span> <span class="n">save</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">mpl_toolkits.mplot3d.art3d</span><span class="w"> </span><span class="kn">import</span> <span class="n">Poly3DCollection</span>
 </code></pre></div>
-<!-- GENERATED FROM PYTHON SOURCE LINES 23-24 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 25-26 -->
 
 <p>A small helper builds a closed triangle mesh of an ellipsoid:</p>
-<!-- GENERATED FROM PYTHON SOURCE LINES 27-46 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 29-48 -->
 
 <div class="highlight"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">ellipsoid</span><span class="p">(</span><span class="n">center</span><span class="p">,</span> <span class="n">axes</span><span class="p">,</span> <span class="n">rotation</span><span class="p">,</span> <span class="n">rings</span><span class="o">=</span><span class="mi">24</span><span class="p">,</span> <span class="n">segments</span><span class="o">=</span><span class="mi">48</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">"""Closed triangle mesh of an ellipsoid with semi-axes `axes` along the columns of `rotation`."""</span>
@@ -2558,10 +2651,10 @@ to download the full example code</p>
     <span class="n">tris</span> <span class="o">+=</span> <span class="p">[[</span><span class="n">last</span><span class="p">,</span> <span class="o">*</span><span class="n">e</span><span class="p">[::</span><span class="o">-</span><span class="mi">1</span><span class="p">]]</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">ring</span><span class="p">(</span><span class="n">rings</span> <span class="o">-</span> <span class="mi">2</span><span class="p">),</span> <span class="n">np</span><span class="o">.</span><span class="n">roll</span><span class="p">(</span><span class="n">ring</span><span class="p">(</span><span class="n">rings</span> <span class="o">-</span> <span class="mi">2</span><span class="p">),</span> <span class="o">-</span><span class="mi">1</span><span class="p">))]</span>
     <span class="k">return</span> <span class="n">vertices</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">tris</span><span class="p">)</span>
 </code></pre></div>
-<!-- GENERATED FROM PYTHON SOURCE LINES 47-48 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 49-50 -->
 
 <p>The ellipsoid's axes come from the covariance of the high-grade composites (two standard deviations):</p>
-<!-- GENERATED FROM PYTHON SOURCE LINES 50-63 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 52-65 -->
 
 <div class="highlight"><pre><span></span><code><span class="n">dh</span> <span class="o">=</span> <span class="n">cs</span><span class="o">.</span><span class="n">datasets</span><span class="o">.</span><span class="n">drillholes</span><span class="p">()</span>
 <span class="n">composites</span> <span class="o">=</span> <span class="n">dh</span><span class="o">.</span><span class="n">composite</span><span class="p">(</span><span class="mf">2.0</span><span class="p">,</span> <span class="p">[</span><span class="s2">"ZN"</span><span class="p">])</span>
@@ -2576,13 +2669,13 @@ to download the full example code</p>
 <span class="nb">print</span><span class="p">(</span><span class="n">solid</span><span class="p">,</span> <span class="s2">"semi-axes"</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">round</span><span class="p">(</span><span class="mi">2</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">eigen</span><span class="p">),</span> <span class="mi">1</span><span class="p">))</span>
 </code></pre></div>
 <p class="mkd-glr-script-out">Out:</p>
-<div class="mkd-glr-script-out-disp highlight"><pre><span></span><code>Mesh<span class="o">(</span><span class="m">1106</span><span class="w"> </span>vertices,<span class="w"> </span><span class="m">2208</span><span class="w"> </span>triangles<span class="o">)</span><span class="w"> </span>semi-axes<span class="w"> </span><span class="o">[</span><span class="w"> </span><span class="m">39</span>.9<span class="w"> </span><span class="m">160</span>.<span class="w">  </span><span class="m">255</span>.5<span class="o">]</span>
+<div class="mkd-glr-script-out-disp highlight"><pre><span></span><code>Mesh<span class="o">(</span><span class="m">1106</span><span class="w"> </span>vertices,<span class="w"> </span><span class="m">2208</span><span class="w"> </span>triangles,<span class="w"> </span>closed<span class="o">)</span><span class="w"> </span>semi-axes<span class="w"> </span><span class="o">[</span><span class="w"> </span><span class="m">39</span>.9<span class="w"> </span><span class="m">160</span>.<span class="w">  </span><span class="m">255</span>.5<span class="o">]</span>
 </code></pre></div>
-<!-- GENERATED FROM PYTHON SOURCE LINES 64-66 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 66-68 -->
 
 <p><code>Mesh.proportion</code> samples 4 × 4 × 4 points in each block; <code>Mesh.contains</code> tests points by generalized winding
 number. Block proportions should add up to the ellipsoid's volume.</p>
-<!-- GENERATED FROM PYTHON SOURCE LINES 68-83 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 70-87 -->
 
 <div class="highlight"><pre><span></span><code><span class="n">size</span> <span class="o">=</span> <span class="mf">10.0</span>
 <span class="n">count</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ceil</span><span class="p">((</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">hi</span><span class="p">)</span> <span class="o">-</span> <span class="n">lo</span><span class="p">)</span> <span class="o">/</span> <span class="n">size</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">int</span><span class="p">)</span>
@@ -2593,21 +2686,23 @@ number. Block proportions should add up to the ellipsoid's volume.</p>
 <span class="n">local</span> <span class="o">=</span> <span class="n">window</span> <span class="o">&amp;</span> <span class="o">~</span><span class="n">np</span><span class="o">.</span><span class="n">isnan</span><span class="p">(</span><span class="n">zn</span><span class="p">)</span>
 <span class="n">inside</span> <span class="o">=</span> <span class="n">solid</span><span class="o">.</span><span class="n">contains</span><span class="p">(</span><span class="n">xyz</span><span class="p">[</span><span class="n">local</span><span class="p">])</span>
 <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">blocks</span><span class="p">)</span><span class="si">}</span><span class="s2"> blocks, </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">ore</span><span class="p">)</span><span class="si">}</span><span class="s2"> more than half inside; volume </span><span class="si">{</span><span class="n">proportion</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="n">size</span><span class="o">**</span><span class="mi">3</span><span class="si">:</span><span class="s2">,.0f</span><span class="si">}</span><span class="s2"> m3"</span><span class="p">)</span>
-<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"exact ellipsoid volume </span><span class="si">{</span><span class="mi">4</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="mi">3</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="n">np</span><span class="o">.</span><span class="n">pi</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="n">np</span><span class="o">.</span><span class="n">prod</span><span class="p">(</span><span class="mi">2</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">eigen</span><span class="p">))</span><span class="si">:</span><span class="s2">,.0f</span><span class="si">}</span><span class="s2"> m3"</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span>
+    <span class="sa">f</span><span class="s2">"mesh volume </span><span class="si">{</span><span class="n">solid</span><span class="o">.</span><span class="n">volume</span><span class="si">:</span><span class="s2">,.0f</span><span class="si">}</span><span class="s2"> m3, exact ellipsoid </span><span class="si">{</span><span class="mi">4</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="mi">3</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="n">np</span><span class="o">.</span><span class="n">pi</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="n">np</span><span class="o">.</span><span class="n">prod</span><span class="p">(</span><span class="mi">2</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">eigen</span><span class="p">))</span><span class="si">:</span><span class="s2">,.0f</span><span class="si">}</span><span class="s2"> m3"</span>
+<span class="p">)</span>
 <span class="nb">print</span><span class="p">(</span>
     <span class="sa">f</span><span class="s2">"composites inside: </span><span class="si">{</span><span class="n">inside</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span><span class="si">}</span><span class="s2">, mean Zn </span><span class="si">{</span><span class="n">np</span><span class="o">.</span><span class="n">nanmean</span><span class="p">(</span><span class="n">zn</span><span class="p">[</span><span class="n">local</span><span class="p">][</span><span class="n">inside</span><span class="p">])</span><span class="si">:</span><span class="s2">.2f</span><span class="si">}</span><span class="s2">% vs outside </span><span class="si">{</span><span class="n">np</span><span class="o">.</span><span class="n">nanmean</span><span class="p">(</span><span class="n">zn</span><span class="p">[</span><span class="n">local</span><span class="p">][</span><span class="o">~</span><span class="n">inside</span><span class="p">])</span><span class="si">:</span><span class="s2">.2f</span><span class="si">}</span><span class="s2">%"</span>
 <span class="p">)</span>
 </code></pre></div>
 <p class="mkd-glr-script-out">Out:</p>
 <div class="mkd-glr-script-out-disp highlight"><pre><span></span><code><span class="m">40936</span><span class="w"> </span>blocks,<span class="w"> </span><span class="m">6739</span><span class="w"> </span>more<span class="w"> </span>than<span class="w"> </span>half<span class="w"> </span>inside<span class="p">;</span><span class="w"> </span>volume<span class="w"> </span><span class="m">6</span>,780,906<span class="w"> </span>m3
-exact<span class="w"> </span>ellipsoid<span class="w"> </span>volume<span class="w"> </span><span class="m">6</span>,828,328<span class="w"> </span>m3
+mesh<span class="w"> </span>volume<span class="w"> </span><span class="m">6</span>,779,720<span class="w"> </span>m3,<span class="w"> </span>exact<span class="w"> </span>ellipsoid<span class="w"> </span><span class="m">6</span>,828,328<span class="w"> </span>m3
 composites<span class="w"> </span>inside:<span class="w"> </span><span class="m">9045</span>,<span class="w"> </span>mean<span class="w"> </span>Zn<span class="w"> </span><span class="m">3</span>.83%<span class="w"> </span>vs<span class="w"> </span>outside<span class="w"> </span><span class="m">2</span>.91%
 </code></pre></div>
-<!-- GENERATED FROM PYTHON SOURCE LINES 84-86 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 88-90 -->
 
 <p>One bench of block proportions, and the blocks more than half inside as a masked <code>BlockModel</code> drawn from its
 visible faces with <code>block_shell</code>:</p>
-<!-- GENERATED FROM PYTHON SOURCE LINES 88-130 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 92-134 -->
 
 <div class="highlight"><pre><span></span><code><span class="n">k</span> <span class="o">=</span> <span class="n">count</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="o">//</span> <span class="mi">2</span>
 <span class="n">level</span> <span class="o">=</span> <span class="n">lo</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="o">+</span> <span class="p">(</span><span class="n">k</span> <span class="o">+</span> <span class="mf">0.5</span><span class="p">)</span> <span class="o">*</span> <span class="n">size</span>
@@ -2637,9 +2732,9 @@ visible faces with <code>block_shell</code>:</p>
 <span class="n">fig</span><span class="o">.</span><span class="n">colorbar</span><span class="p">(</span><span class="n">image</span><span class="p">,</span> <span class="n">ax</span><span class="o">=</span><span class="n">a</span><span class="p">,</span> <span class="n">shrink</span><span class="o">=</span><span class="mf">0.8</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s2">"proportion of block inside"</span><span class="p">)</span>
 
 <span class="n">b</span> <span class="o">=</span> <span class="n">fig</span><span class="o">.</span><span class="n">add_subplot</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="n">projection</span><span class="o">=</span><span class="s2">"3d"</span><span class="p">)</span>
-<span class="n">shell_vertices</span><span class="p">,</span> <span class="n">shell_triangles</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">cs</span><span class="o">.</span><span class="n">block_shell</span><span class="p">(</span><span class="n">ore</span><span class="p">)</span>
+<span class="n">shell</span> <span class="o">=</span> <span class="n">cs</span><span class="o">.</span><span class="n">block_shell</span><span class="p">(</span><span class="n">ore</span><span class="p">)</span>
 <span class="n">b</span><span class="o">.</span><span class="n">add_collection3d</span><span class="p">(</span>
-    <span class="n">Poly3DCollection</span><span class="p">(</span><span class="n">shell_vertices</span><span class="p">[</span><span class="n">shell_triangles</span><span class="p">],</span> <span class="n">facecolor</span><span class="o">=</span><span class="n">ACCENT</span><span class="p">,</span> <span class="n">edgecolor</span><span class="o">=</span><span class="s2">"none"</span><span class="p">,</span> <span class="n">alpha</span><span class="o">=</span><span class="mf">0.35</span><span class="p">)</span>
+    <span class="n">Poly3DCollection</span><span class="p">(</span><span class="n">shell</span><span class="o">.</span><span class="n">vertices</span><span class="p">[</span><span class="n">shell</span><span class="o">.</span><span class="n">triangles</span><span class="p">],</span> <span class="n">facecolor</span><span class="o">=</span><span class="n">ACCENT</span><span class="p">,</span> <span class="n">edgecolor</span><span class="o">=</span><span class="s2">"none"</span><span class="p">,</span> <span class="n">alpha</span><span class="o">=</span><span class="mf">0.35</span><span class="p">)</span>
 <span class="p">)</span>
 <span class="n">b</span><span class="o">.</span><span class="n">plot_trisurf</span><span class="p">(</span><span class="o">*</span><span class="n">vertices</span><span class="o">.</span><span class="n">T</span><span class="p">,</span> <span class="n">triangles</span><span class="o">=</span><span class="n">triangles</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="n">LIGHT</span><span class="p">,</span> <span class="n">edgecolor</span><span class="o">=</span><span class="n">GREY</span><span class="p">,</span> <span class="n">linewidth</span><span class="o">=</span><span class="mf">0.1</span><span class="p">,</span> <span class="n">alpha</span><span class="o">=</span><span class="mf">0.15</span><span class="p">)</span>
 <span class="n">b</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="n">xlim</span><span class="o">=</span><span class="p">(</span><span class="n">lo</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">hi</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span> <span class="n">ylim</span><span class="o">=</span><span class="p">(</span><span class="n">lo</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">hi</span><span class="p">[</span><span class="mi">1</span><span class="p">]),</span> <span class="n">zlim</span><span class="o">=</span><span class="p">(</span><span class="n">lo</span><span class="p">[</span><span class="mi">2</span><span class="p">],</span> <span class="n">hi</span><span class="p">[</span><span class="mi">2</span><span class="p">]))</span>
@@ -2652,12 +2747,12 @@ visible faces with <code>block_shell</code>:</p>
 <span class="n">save</span><span class="p">(</span><span class="n">fig</span><span class="p">,</span> <span class="s2">"solid"</span><span class="p">)</span>
 </code></pre></div>
 <p><img alt="Block proportion inside the solid, bench 774 m, 6739 blocks more than half inside (shell)" class="mkd-glr-single-img" src="../images/mkd_glr_example_07_001.png" srcset="../images/mkd_glr_example_07_001.png" /></p>
-<!-- GENERATED FROM PYTHON SOURCE LINES 131-134 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 135-138 -->
 
 <p>Whole blocks misstate the volume near the wireframe. Sub-blocking keeps whole blocks inside the solid and splits
 the partial ones on a 4 × 4 × 4 sub-grid, keeping the sub-cells whose centres are inside. Each sub-block stores its
 parent cell and its extent as fractions of that cell.</p>
-<!-- GENERATED FROM PYTHON SOURCE LINES 136-167 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 140-171 -->
 
 <div class="highlight"><pre><span></span><code><span class="n">n</span> <span class="o">=</span> <span class="mi">4</span>
 <span class="n">partial</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">flatnonzero</span><span class="p">((</span><span class="n">proportion</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">)</span> <span class="o">&amp;</span> <span class="p">(</span><span class="n">proportion</span> <span class="o">&lt;</span> <span class="mi">1</span><span class="p">))</span>
@@ -2696,7 +2791,7 @@ parent cell and its extent as fractions of that cell.</p>
 <span class="w">             </span>exact<span class="w"> </span>ellipsoid:<span class="w"> </span><span class="m">6</span>,828,328<span class="w"> </span>m3<span class="w"> </span><span class="o">(</span>+0.0%<span class="o">)</span>
 BlockModel<span class="o">(</span>sub-blocked,<span class="w"> </span><span class="m">106630</span><span class="w"> </span>sub-blocks<span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="m">40936</span><span class="w"> </span>cells,<span class="w"> </span>count<span class="w"> </span><span class="o">[</span><span class="m">43</span>,<span class="w"> </span><span class="m">28</span>,<span class="w"> </span><span class="m">34</span><span class="o">]</span>,<span class="w"> </span>size<span class="w"> </span><span class="o">[</span><span class="m">10</span>.0,<span class="w"> </span><span class="m">10</span>.0,<span class="w"> </span><span class="m">10</span>.0<span class="o">]</span>,<span class="w"> </span>rotation<span class="w"> </span><span class="o">[</span><span class="m">0</span>.0,<span class="w"> </span><span class="m">0</span>.0,<span class="w"> </span><span class="m">0</span>.0<span class="o">])</span>
 </code></pre></div>
-<!-- GENERATED FROM PYTHON SOURCE LINES 168-190 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 172-195 -->
 
 <div class="highlight"><pre><span></span><code><span class="n">cut</span> <span class="o">=</span> <span class="n">subblocked</span><span class="o">.</span><span class="n">centroids</span><span class="p">[:,</span> <span class="mi">2</span><span class="p">]</span>
 <span class="n">level_rows</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">cut</span> <span class="o">-</span> <span class="n">level</span><span class="p">)</span> <span class="o">&lt;</span> <span class="n">size</span> <span class="o">/</span> <span class="mi">2</span>
@@ -2722,7 +2817,25 @@ BlockModel<span class="o">(</span>sub-blocked,<span class="w"> </span><span clas
 <span class="n">save</span><span class="p">(</span><span class="n">fig</span><span class="p">,</span> <span class="s2">"subblocks"</span><span class="p">)</span>
 </code></pre></div>
 <p><img alt="Sub-blocked bench 774 m: whole blocks and sub-blocks" class="mkd-glr-single-img" src="../images/mkd_glr_example_07_002.png" srcset="../images/mkd_glr_example_07_002.png" /></p>
-<p><strong>Total running time of the script:</strong> ( 0 minutes  2.501 seconds)</p>
+<!-- GENERATED FROM PYTHON SOURCE LINES 196-198 -->
+
+<p>Meshes read and write OBJ, STL and DXF, chosen by extension. STL stores single precision, so vertices move by
+less than a millimetre at these coordinates:</p>
+<!-- GENERATED FROM PYTHON SOURCE LINES 200-208 -->
+
+<div class="highlight"><pre><span></span><code><span class="k">with</span> <span class="n">tempfile</span><span class="o">.</span><span class="n">TemporaryDirectory</span><span class="p">()</span> <span class="k">as</span> <span class="n">folder</span><span class="p">:</span>
+    <span class="n">cs</span><span class="o">.</span><span class="n">write_mesh</span><span class="p">(</span><span class="n">Path</span><span class="p">(</span><span class="n">folder</span><span class="p">)</span> <span class="o">/</span> <span class="s2">"ellipsoid.stl"</span><span class="p">,</span> <span class="n">solid</span><span class="p">)</span>
+    <span class="n">back</span> <span class="o">=</span> <span class="n">cs</span><span class="o">.</span><span class="n">read_mesh</span><span class="p">(</span><span class="n">Path</span><span class="p">(</span><span class="n">folder</span><span class="p">)</span> <span class="o">/</span> <span class="s2">"ellipsoid.stl"</span><span class="p">)</span>
+<span class="n">shift</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">back</span><span class="o">.</span><span class="n">vertices</span><span class="p">[</span><span class="n">back</span><span class="o">.</span><span class="n">triangles</span><span class="p">]</span> <span class="o">-</span> <span class="n">solid</span><span class="o">.</span><span class="n">vertices</span><span class="p">[</span><span class="n">solid</span><span class="o">.</span><span class="n">triangles</span><span class="p">])</span><span class="o">.</span><span class="n">max</span><span class="p">()</span>
+<span class="nb">print</span><span class="p">(</span>
+    <span class="n">back</span><span class="p">,</span>
+    <span class="sa">f</span><span class="s2">"volume </span><span class="si">{</span><span class="n">back</span><span class="o">.</span><span class="n">volume</span><span class="si">:</span><span class="s2">,.0f</span><span class="si">}</span><span class="s2"> m3 (written </span><span class="si">{</span><span class="n">solid</span><span class="o">.</span><span class="n">volume</span><span class="si">:</span><span class="s2">,.0f</span><span class="si">}</span><span class="s2"> m3), largest shift </span><span class="si">{</span><span class="n">shift</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="mi">1000</span><span class="si">:</span><span class="s2">.2f</span><span class="si">}</span><span class="s2"> mm"</span><span class="p">,</span>
+<span class="p">)</span>
+</code></pre></div>
+<p class="mkd-glr-script-out">Out:</p>
+<div class="mkd-glr-script-out-disp highlight"><pre><span></span><code>Mesh<span class="o">(</span><span class="m">1106</span><span class="w"> </span>vertices,<span class="w"> </span><span class="m">2208</span><span class="w"> </span>triangles,<span class="w"> </span>closed<span class="o">)</span><span class="w"> </span>volume<span class="w"> </span><span class="m">6</span>,779,719<span class="w"> </span>m3<span class="w"> </span><span class="o">(</span>written<span class="w"> </span><span class="m">6</span>,779,720<span class="w"> </span>m3<span class="o">)</span>,<span class="w"> </span>largest<span class="w"> </span><span class="nb">shift</span><span class="w"> </span><span class="m">0</span>.24<span class="w"> </span>mm
+</code></pre></div>
+<p><strong>Total running time of the script:</strong> ( 0 minutes  2.545 seconds)</p>
 <div id="download_links"></div>
 
 <p><a class="md-button center" href="../example_07.py"><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M256 32c0-17.7-14.3-32-32-32s-32 14.3-32 32v210.7l-41.4-41.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3l96 96c12.5 12.5 32.8 12.5 45.3 0l96-96c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L256 242.7zM64 320c-35.3 0-64 28.7-64 64v32c0 35.3 28.7 64 64 64h320c35.3 0 64-28.7 64-64v-32c0-35.3-28.7-64-64-64h-46.9l-56.6 56.6c-31.2 31.2-81.9 31.2-113.1 0L110.9 320zm304 56a24 24 0 1 1 0 48 24 24 0 1 1 0-48"/></svg></span> Download Python source code: example_07.py</a></p>

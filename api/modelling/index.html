@@ -343,6 +343,8 @@
       
         
       
+        
+      
     
     
     
@@ -2116,6 +2118,95 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_22" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_22" id="__nav_2_22_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    20. From drill holes to a classified model
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_22_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_22">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    20. From drill holes to a classified model
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/20-workflow/example_20/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    20. From drill holes to a classified model
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -3081,7 +3172,7 @@ the predictive variance of <code>engine="gp"</code> when <code>variance</code>.<
 
 
 <h4 id="ceres.ImplicitModel.fit" class="doc doc-heading">
-            <code class="highlight language-python"><span class="n">fit</span><span class="p">(</span><span class="n">coords</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">values</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">boundaries</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">planes</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">lineations</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></code>
+            <code class="highlight language-python"><span class="n">fit</span><span class="p">(</span><span class="n">coords</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">values</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">cutoff</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">boundaries</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">planes</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">lineations</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></code>
 
   <span class="doc doc-labels">
       <small class="doc doc-label doc-label-method descriptor"><code>method descriptor</code></small>
@@ -3131,6 +3222,23 @@ the predictive variance of <code>engine="gp"</code> when <code>variance</code>.<
             <td>
               <div class="doc-md-description">
                 <p>Samples and their field values, e.g. +1 inside, -1 outside.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>cutoff</code>
+            </td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Take <code>values</code> as grades coded +1 at or above <code>cutoff</code> and -1 below,
+so the shell is the zero level.</p>
               </div>
             </td>
             <td>
@@ -3210,9 +3318,9 @@ each line.</p>
 
     <div class="doc doc-contents ">
 
-        <p><code>(vertices, triangles)</code> of the <code>isovalue</code> surface, the field sampled at
-the block centroids of <code>block_model</code>. <code>closed</code> caps the solid where the
-field exceeds <code>isovalue</code> on the block model's outer faces.</p>
+        <p>Mesh of the <code>isovalue</code> surface, the field sampled at the block
+centroids of <code>block_model</code>. <code>closed</code> caps the solid where the field
+exceeds <code>isovalue</code> on the block model's outer faces.</p>
 
 
     </div>
