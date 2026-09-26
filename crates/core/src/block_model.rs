@@ -6,7 +6,8 @@ use arrow_array::{
     Array, ArrayRef, BooleanArray, Float64Array, RecordBatch, RecordBatchOptions, UInt64Array,
 };
 use arrow_cast::cast;
-use arrow_schema::{DataType, Field, Schema};
+use arrow_ord::ord::make_comparator;
+use arrow_schema::{DataType, Field, Schema, SortOptions};
 use arrow_select::filter::filter_record_batch;
 use arrow_select::take::take;
 use nalgebra::Vector3;
@@ -400,13 +401,27 @@ impl BlockModel {
     }
 
     /// Every parent cell, one row each: absent cells are null; sub-blocks
-    /// merge into their parent, numeric columns as volume-weighted means and
-    /// others taking the value of the largest sub-block.
+    /// merge into their parent as in [`BlockModel::regularize`], without the
+    /// `fraction` column.
     pub fn to_regular(&self) -> Result<Self> {
         let index = match &self.layout {
             Layout::Regular => return Ok(self.clone()),
             Layout::Masked(index) => index,
-            Layout::SubBlocked { .. } => return self.merge_subblocks(),
+            Layout::SubBlocked { .. } => {
+                let cells = rows(self.geometry.cells())?;
+                let schema = Schema::new_with_metadata(
+                    Vec::<Field>::new(),
+                    self.attributes.schema().metadata().clone(),
+                );
+                let empty = RecordBatch::try_new_with_options(
+                    Arc::new(schema),
+                    vec![],
+                    &RecordBatchOptions::new().with_row_count(Some(cells)),
+                )?;
+                let target = Self::regular(self.geometry, empty)?;
+                let (columns, _) = self.transfer(&target, 0.0)?;
+                return target.with_columns(columns);
+            }
         };
         let mut rows = index.iter().enumerate().peekable();
         let positions: UInt64Array = (0..self.geometry.cells())
@@ -438,62 +453,178 @@ impl BlockModel {
             ..self.clone()
         })
     }
-}
 
-impl BlockModel {
-    fn merge_subblocks(&self) -> Result<Self> {
-        let cells = rows(self.geometry.cells())?;
-        let volumes = self.volumes();
-        let mut groups: Vec<Vec<usize>> = vec![vec![]; cells];
-        for row in 0..self.len() {
-            groups[self.parent_index(row) as usize].push(row);
+    /// The rows of `target` carrying every column of `self`, weighted by the
+    /// volume each row of `self` shares with them: floating-point columns as
+    /// weighted means of the non-null rows, other columns as the value filling
+    /// the most volume (ties to the smallest; nulls do not vote). Works both
+    /// ways between regular, masked and sub-blocked models of the same
+    /// rotation; the overlaps are exact boxes. `fraction` is the share of each
+    /// target row covered by `self`; rows below `min_fraction` are null.
+    pub fn regularize(&self, target: &BlockModel, min_fraction: f64) -> Result<Self> {
+        if !(0.0..=1.0).contains(&min_fraction) {
+            return Err(Error::Geometry("min_fraction must be in [0, 1]".into()));
         }
-        let largest: UInt64Array = groups
-            .iter()
-            .map(|g| {
-                g.iter()
-                    .copied()
-                    .max_by(|&a, &b| volumes[a].total_cmp(&volumes[b]))
-                    .map(|r| r as u64)
+        let (mut columns, fraction) = self.transfer(target, min_fraction)?;
+        columns.push(("fraction".into(), Arc::new(Float64Array::from(fraction))));
+        target.with_columns(columns)
+    }
+
+    fn with_columns(&self, columns: Vec<(String, ArrayRef)>) -> Result<Self> {
+        let mut attributes = self.attributes.clone();
+        for (name, column) in columns {
+            attributes = crate::set_column(&attributes, &name, column)?;
+        }
+        self.with_attributes(attributes)
+    }
+
+    /// Box of each row in the local frame, `[x0, y0, z0, x1, y1, z1]`.
+    fn boxes(&self) -> Vec<[f64; 6]> {
+        let g = &self.geometry;
+        (0..self.len())
+            .map(|row| {
+                let ijk = g.ijk(self.parent_index(row));
+                let e = match &self.layout {
+                    Layout::SubBlocked { extent, .. } => extent[row],
+                    _ => [0.0, 0.0, 0.0, 1.0, 1.0, 1.0],
+                };
+                std::array::from_fn(|i| (ijk[i % 3] as f64 + e[i]) * g.size[i % 3])
             })
-            .collect();
-        let schema = self.attributes.schema();
-        let mut fields = Vec::with_capacity(schema.fields().len());
-        let mut columns: Vec<ArrayRef> = Vec::with_capacity(fields.capacity());
-        for (field, column) in schema.fields().iter().zip(self.attributes.columns()) {
-            if field.data_type().is_numeric() {
-                let values = cast(column, &DataType::Float64)?;
-                let values = values.as_primitive::<Float64Type>();
-                let merged: Float64Array = groups
-                    .iter()
-                    .map(|g| {
-                        let (sum, weight) = g
-                            .iter()
-                            .filter(|&&r| values.is_valid(r))
-                            .fold((0.0, 0.0), |(s, w), &r| {
-                                (s + values.value(r) * volumes[r], w + volumes[r])
-                            });
-                        (weight > 0.0).then(|| sum / weight)
-                    })
-                    .collect();
-                fields.push(Field::new(field.name(), DataType::Float64, true));
-                columns.push(Arc::new(merged));
-            } else {
-                fields.push(field.as_ref().clone().with_nullable(true));
-                columns.push(take(column, &largest, None)?);
+            .collect()
+    }
+
+    fn rows_in(&self, cell: u64) -> std::ops::Range<usize> {
+        match &self.layout {
+            Layout::Regular => cell as usize..cell as usize + 1,
+            Layout::Masked(index) => match index.binary_search(&cell) {
+                Ok(r) => r..r + 1,
+                Err(r) => r..r,
+            },
+            Layout::SubBlocked { parent, .. } => {
+                parent.partition_point(|&c| c < cell)..parent.partition_point(|&c| c <= cell)
             }
         }
-        let attributes = RecordBatch::try_new_with_options(
-            Arc::new(Schema::new_with_metadata(fields, schema.metadata().clone())),
-            columns,
-            &RecordBatchOptions::new().with_row_count(Some(cells)),
-        )?;
-        Ok(Self {
-            layout: Layout::Regular,
-            attributes,
-            ..self.clone()
-        })
     }
+
+    /// Rows of `self` sharing volume with each row of `target`.
+    fn overlaps(&self, target: &BlockModel) -> Result<Vec<Vec<(usize, f64)>>> {
+        let (s, t) = (&self.geometry, &target.geometry);
+        if s.rotation != t.rotation {
+            return Err(Error::Geometry("models must share the rotation".into()));
+        }
+        if let (Some(a), Some(b)) = (&self.crs, &target.crs)
+            && a != b
+        {
+            return Err(Error::Geometry("models must share the CRS".into()));
+        }
+        let shift = block_frame(s.rotation) * Vector3::from_fn(|a, _| t.origin[a] - s.origin[a]);
+        let source = self.boxes();
+        Ok(target
+            .boxes()
+            .into_iter()
+            .map(|b| {
+                let b: [f64; 6] = std::array::from_fn(|i| b[i] + shift[i % 3]);
+                let cells = |a: usize| {
+                    let lo = (b[a] / s.size[a]).floor().max(0.0) as usize;
+                    lo..((b[a + 3] / s.size[a]).ceil().max(0.0) as usize).min(s.count[a])
+                };
+                let tiny = 1e-9 * (0..3).map(|a| b[a + 3] - b[a]).product::<f64>();
+                let mut found = vec![];
+                for k in cells(2) {
+                    for j in cells(1) {
+                        for i in cells(0) {
+                            for r in self.rows_in(s.index([i, j, k])) {
+                                let o = &source[r];
+                                let v = (0..3)
+                                    .map(|a| (b[a + 3].min(o[a + 3]) - b[a].max(o[a])).max(0.0))
+                                    .product::<f64>();
+                                if v > tiny {
+                                    found.push((r, v));
+                                }
+                            }
+                        }
+                    }
+                }
+                found
+            })
+            .collect())
+    }
+
+    /// Columns of `self` on the rows of `target`, and the covered fraction.
+    fn transfer(
+        &self,
+        target: &BlockModel,
+        min_fraction: f64,
+    ) -> Result<(Vec<(String, ArrayRef)>, Vec<f64>)> {
+        let overlaps = self.overlaps(target)?;
+        let fraction: Vec<f64> = overlaps
+            .iter()
+            .zip(target.volumes())
+            .map(|(o, v)| (o.iter().map(|x| x.1).sum::<f64>() / v).min(1.0))
+            .collect();
+        let kept = |t: usize| fraction[t] > 0.0 && fraction[t] >= min_fraction;
+        let schema = self.attributes.schema();
+        let mut columns = Vec::with_capacity(schema.fields().len());
+        for (field, column) in schema.fields().iter().zip(self.attributes.columns()) {
+            let merged: ArrayRef = if field.data_type().is_floating() {
+                let values = cast(column, &DataType::Float64)?;
+                let values = values.as_primitive::<Float64Type>();
+                let means: Float64Array = overlaps
+                    .iter()
+                    .enumerate()
+                    .map(|(t, o)| {
+                        let (sum, weight) = o
+                            .iter()
+                            .filter(|(r, _)| values.is_valid(*r))
+                            .fold((0.0, 0.0), |(s, w), &(r, v)| {
+                                (s + values.value(r) * v, w + v)
+                            });
+                        (kept(t) && weight > 0.0).then(|| sum / weight)
+                    })
+                    .collect();
+                Arc::new(means)
+            } else {
+                let (rank, first) = ranks(column)?;
+                let winner: UInt64Array = overlaps
+                    .iter()
+                    .enumerate()
+                    .map(|(t, o)| {
+                        let mut share: Vec<(usize, f64)> = vec![];
+                        for &(r, v) in o {
+                            let Some(k) = rank[r] else { continue };
+                            match share.iter_mut().find(|s| s.0 == k) {
+                                Some(s) => s.1 += v,
+                                None => share.push((k, v)),
+                            }
+                        }
+                        share
+                            .iter()
+                            .max_by(|a, b| a.1.total_cmp(&b.1).then(b.0.cmp(&a.0)))
+                            .filter(|_| kept(t))
+                            .map(|s| first[s.0] as u64)
+                    })
+                    .collect();
+                take(column, &winner, None)?
+            };
+            columns.push((field.name().clone(), merged));
+        }
+        Ok((columns, fraction))
+    }
+}
+
+/// Dense rank of each non-null value in sort order, and the first row of each.
+fn ranks(column: &ArrayRef) -> Result<(Vec<Option<usize>>, Vec<usize>)> {
+    let compare = make_comparator(column.as_ref(), column.as_ref(), SortOptions::default())?;
+    let mut order: Vec<usize> = (0..column.len()).filter(|&r| column.is_valid(r)).collect();
+    order.sort_by(|&a, &b| compare(a, b).then(a.cmp(&b)));
+    let (mut rank, mut first) = (vec![None; column.len()], vec![]);
+    for (n, &r) in order.iter().enumerate() {
+        if n == 0 || compare(order[n - 1], r).is_ne() {
+            first.push(r);
+        }
+        rank[r] = Some(first.len() - 1);
+    }
+    Ok((rank, first))
 }
 
 fn rows(cells: u64) -> Result<usize> {
@@ -689,6 +820,137 @@ mod tests {
         let nodes = m.discretize([1, 1, 1]).unwrap();
         assert_eq!(nodes.centroids(), m.centroids());
         assert_eq!(nodes.geometry(), m.geometry());
+    }
+
+    fn column(model: &BlockModel, name: &str) -> Vec<Option<f64>> {
+        let c = model.attributes().column_by_name(name).unwrap();
+        c.as_primitive::<Float64Type>().iter().collect()
+    }
+
+    /// Volume × grade is conserved from sub-blocks to a coarser, shifted,
+    /// rotated grid, and every sub-block's volume lands somewhere.
+    #[test]
+    fn regularizing_conserves_volume_and_metal() {
+        let rotation = [30.0, 20.0, 10.0];
+        let fine = Geometry {
+            origin: [0.0; 3],
+            size: [4.0, 4.0, 2.0],
+            count: [5, 5, 5],
+            rotation,
+        };
+        let extent: Vec<[f64; 6]> = (0..fine.cells())
+            .flat_map(|_| {
+                [
+                    [0.0, 0.0, 0.0, 0.5, 1.0, 1.0],
+                    [0.5, 0.0, 0.0, 1.0, 1.0, 0.25],
+                ]
+            })
+            .collect();
+        let parent: Vec<u64> = (0..fine.cells()).flat_map(|c| [c, c]).collect();
+        let grade: Vec<f64> = (0..parent.len())
+            .map(|r| (r as f64 * 0.37).sin() + 2.0)
+            .collect();
+        let source =
+            BlockModel::subblocked(fine, parent, extent, Some([2, 1, 4]), grades(grade.clone()))
+                .unwrap();
+        let frame = block_frame(rotation).transpose();
+        let shift = frame * Vector3::new(-3.0, -5.0, -1.0);
+        let coarse = Geometry {
+            origin: [shift.x, shift.y, shift.z],
+            size: [10.0, 10.0, 5.0],
+            count: [3, 3, 3],
+            rotation,
+        };
+        let empty = RecordBatch::try_new_with_options(
+            Arc::new(Schema::empty()),
+            vec![],
+            &RecordBatchOptions::new().with_row_count(Some(27)),
+        )
+        .unwrap();
+        let target = BlockModel::regular(coarse, empty).unwrap();
+        let out = source.regularize(&target, 0.0).unwrap();
+        let (au, fraction) = (column(&out, "au"), column(&out, "fraction"));
+        let volume: f64 = source.volumes().iter().sum();
+        let metal: f64 = source
+            .volumes()
+            .iter()
+            .zip(&grade)
+            .map(|(v, g)| v * g)
+            .sum();
+        let mut covered = (0.0, 0.0);
+        for ((a, f), v) in au.iter().zip(&fraction).zip(out.volumes()) {
+            let f = f.unwrap();
+            covered.0 += v * f;
+            covered.1 += v * f * a.unwrap_or(0.0);
+        }
+        assert!((covered.0 - volume).abs() < 1e-9 * volume);
+        assert!((covered.1 - metal).abs() < 1e-9 * metal);
+
+        let strict = source.regularize(&target, 0.5).unwrap();
+        for (a, f) in column(&strict, "au").iter().zip(&fraction) {
+            assert_eq!(a.is_some(), f.unwrap() >= 0.5);
+        }
+        let turned = BlockModel::regular(
+            Geometry {
+                rotation: [0.0; 3],
+                ..coarse
+            },
+            target.attributes().clone(),
+        )
+        .unwrap();
+        assert!(source.regularize(&turned, 0.0).is_err());
+        assert!(source.regularize(&target, 1.5).is_err());
+    }
+
+    /// Other columns take the value filling the most volume; ties go to the
+    /// smallest and nulls do not vote. A regular grid spreads onto sub-blocks.
+    #[test]
+    fn categories_take_the_volume_majority() {
+        let g = geometry([0.0; 3]);
+        let extent = vec![
+            [0.0, 0.0, 0.0, 0.25, 1.0, 1.0],
+            [0.25, 0.0, 0.0, 0.5, 1.0, 1.0],
+            [0.5, 0.0, 0.0, 1.0, 1.0, 1.0],
+            [0.0, 0.0, 0.0, 0.5, 1.0, 1.0],
+            [0.5, 0.0, 0.0, 1.0, 1.0, 1.0],
+            [0.0, 0.0, 0.0, 0.5, 1.0, 1.0],
+            [0.5, 0.0, 0.0, 1.0, 1.0, 1.0],
+        ];
+        let rock = arrow_array::StringArray::from(vec![
+            Some("b"),
+            Some("b"),
+            Some("a"),
+            Some("z"),
+            Some("c"),
+            None,
+            Some("d"),
+        ]);
+        let code = arrow_array::Int32Array::from(vec![7, 7, 3, 1, 1, 2, 2]);
+        let attributes = RecordBatch::try_from_iter([
+            ("rock", Arc::new(rock) as ArrayRef),
+            ("code", Arc::new(code) as ArrayRef),
+        ])
+        .unwrap();
+        let model =
+            BlockModel::subblocked(g, vec![0, 0, 0, 1, 1, 2, 2], extent, None, attributes).unwrap();
+        let regular = model.to_regular().unwrap();
+        let rock = regular.attributes().column(0).as_string::<i32>();
+        let rock: Vec<_> = rock.iter().take(3).collect();
+        assert_eq!(rock, [Some("a"), Some("c"), Some("d")]);
+        let code = regular
+            .attributes()
+            .column(1)
+            .as_primitive::<arrow_array::types::Int32Type>();
+        assert_eq!(code.values()[..3], [3, 1, 2]);
+        assert_eq!(regular.attributes().num_columns(), 2);
+
+        let whole = BlockModel::regular(g, grades((0..6).map(f64::from).collect())).unwrap();
+        let spread = whole.regularize(&model, 0.0).unwrap();
+        assert_eq!(
+            column(&spread, "au"),
+            [0.0, 0.0, 0.0, 1.0, 1.0, 2.0, 2.0].map(Some)
+        );
+        assert!(column(&spread, "fraction").iter().all(|f| *f == Some(1.0)));
     }
 
     #[test]

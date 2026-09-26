@@ -249,6 +249,7 @@ name = "blocks"
 version = "0.1.0"
 dependencies = [
  "arrow-array",
+ "arrow-select",
  "ceres-core",
  "nalgebra",
  "rayon",
@@ -310,6 +311,7 @@ version = "0.1.0"
 dependencies = [
  "arrow-array",
  "arrow-cast",
+ "arrow-ord",
  "arrow-schema",
  "arrow-select",
  "nalgebra",

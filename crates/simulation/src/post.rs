@@ -326,7 +326,7 @@ impl BlockSupport {
     }
 
     /// Category `0..k` filling the most volume of each block; ties go to the
-    /// lowest.
+    /// smallest, as in `BlockModel::regularize`.
     pub fn majority(&self, categories: &[usize], k: usize) -> Result<Vec<usize>> {
         self.check(categories.len())?;
         let mut share = vec![0.0; self.blocks * k];

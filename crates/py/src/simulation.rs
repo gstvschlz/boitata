@@ -670,7 +670,8 @@ impl Sis {
     /// Summary of `n` realizations, seeds `seed, seed + 1, …`; the
     /// realizations themselves only when `realizations`. With `blocks` (a
     /// coarser BlockModel), each block takes the category filling most of its
-    /// node volume, ties to the lowest; blocks as in `SGS.simulate`.
+    /// node volume, ties to the smallest, as in `BlockModel.regularize`; blocks as in
+    /// `SGS.simulate`.
     #[pyo3(signature = (targets, n=100, seed=0, realizations=false, blocks=None))]
     fn simulate(
         &self,

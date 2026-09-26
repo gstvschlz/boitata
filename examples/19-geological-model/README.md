@@ -3,7 +3,8 @@
 [Chapter 15](../15-implicit/README.md) modelled a grade shell. A geological unit is modelled from where the drill
 holes cross its contacts, and from structural readings where the rock is measured. Here the massive sulphide
 (`MS`) of the drillhole dataset is modelled from its logged contacts with three engines, then a synthetic fold
-shows what plane and lineation readings add and how the field's gradient returns the dip.
+shows what plane and lineation readings add and how the field's gradient returns the dip. Last, both become
+sub-blocked domain models.
 
 <details><summary>Python</summary>
 
@@ -258,5 +259,74 @@ save(fig, "dip")
 </details>
 
 ![dip](dip.png)
+
+## A domain block model
+
+`BlockModel.from_meshes` turns meshes into a sub-blocked model: `(mesh, rule, label)` domains in priority order,
+each sub-cell labelled by the first that holds its centre, `"inside"` a solid or `"below"` or `"above"` a surface
+such as topography. On 10 m blocks with 1 m sub-cells in elevation, the volume below the true fold and below the
+twelve-plane model, each triangulated:
+
+<details><summary>Python</summary>
+
+```python
+gx, gy = np.meshgrid(np.linspace(-5, 605, 123), np.linspace(-5, 305, 63))
+i = (np.arange(122)[None, :] + 123 * np.arange(62)[:, None]).ravel()
+grid_triangles = np.r_[np.c_[i, i + 1, i + 124], np.c_[i, i + 124, i + 123]]
+surfaces = {
+    "true fold": cs.Mesh(np.c_[gx.ravel(), gy.ravel(), surface(gx.ravel())], grid_triangles),
+    "12-plane model": folds["5 holes, 12 planes"].isosurface(volume),
+}
+xs = np.linspace(-5, 605, 6101)
+exact = 310 * np.trapezoid(surface(xs), xs)
+for name, mesh in surfaces.items():
+    fold = cs.BlockModel.from_meshes(
+        (-5, -5, 0),
+        (10, 10, 10),
+        (61, 31, 20),
+        [(mesh, "below", "footwall")],
+        subgrid=(1, 1, 10),
+        fill="hanging wall",
+    )
+    below = fold.volumes[np.array(fold["domain"]) == "footwall"].sum()
+    print(
+        f"{name:>15}: {len(fold)} sub-blocks, footwall {below / 1e6:.3f} Mm3 ({below / exact - 1:+.2%} of the truth)"
+    )
+```
+
+</details>
+
+```text
+      true fold: 51212 sub-blocks, footwall 20.100 Mm3 (+0.05% of the truth)
+ 12-plane model: 53336 sub-blocks, footwall 19.781 Mm3 (-1.54% of the truth)
+```
+
+Sub-blocks follow the true fold to within 0.1 %; the rest of the model's shortfall is the surface's own error.
+The `MS` lens of the spherical kriging model, closed at the edges of its window, is a solid. `regularize` averages
+the units to 20 m blocks, each taking the unit that fills most of it. A lens about 30 m thick fills few 20 m
+blocks by more than half, so the label keeps a fraction of its volume; an `MS` indicator column averages to a
+proportion per block instead and keeps all of it.
+
+<details><summary>Python</summary>
+
+```python
+window = cs.BlockModel(origin=(5300, 8100, 650), size=(10, 10, 10), count=(20, 30, 30))
+lens = models["kriging"].isosurface(window, closed=True)
+units = window.subblock([(lens, "inside", "MS")], 4, fill="other")
+is_ms = np.array(units["domain"]) == "MS"
+units = units.with_column("ms", is_ms.astype(float))
+coarse = units.regularize(cs.BlockModel(origin=(5300, 8100, 650), size=(20, 20, 20), count=(10, 15, 15)))
+print(f"MS volume: mesh {lens.volume / 1e6:.3f} Mm3, sub-blocks {units.volumes[is_ms].sum() / 1e6:.3f} Mm3")
+labelled = coarse.volumes[np.array(coarse["domain"]) == "MS"].sum()
+proportion = (coarse.volumes * coarse["fraction"] * coarse["ms"]).sum()
+print(f"20 m blocks: labelled MS {labelled / 1e6:.3f} Mm3, MS proportion {proportion / 1e6:.3f} Mm3")
+```
+
+</details>
+
+```text
+MS volume: mesh 0.119 Mm3, sub-blocks 0.118 Mm3
+20 m blocks: labelled MS 0.032 Mm3, MS proportion 0.118 Mm3
+```
 
 Full script: [`example_19.py`](example_19.py)

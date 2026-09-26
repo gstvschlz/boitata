@@ -93,3 +93,38 @@ def test_convex_hull():
     assert not hull.contains([[10, 0, 0]])[0]
     with pytest.raises(ValueError):
         cs.convex_hull([[0, 0, 0], [1, 0, 0], [0, 1, 0], [1, 1, 0]])
+
+
+def test_subblocks_from_meshes_and_regularize():
+    topo = cs.Mesh([[-10, -10, 7], [30, -10, 7], [30, 30, 7], [-10, 30, 7]], [[0, 1, 2], [0, 2, 3]])
+    domains = [(cube, "inside", "ore"), (topo, "below", "rock")]
+    grid = cs.BlockModel((-4, -4, -4), (4, 4, 4), (5, 5, 4))
+    sub = grid.subblock(domains, 4, fill="air")
+    same = cs.BlockModel.from_meshes((-4, -4, -4), (4, 4, 4), (5, 5, 4), domains, (4, 4, 4), fill="air")
+    np.testing.assert_array_equal(sub.extents, same.extents)
+    domain = np.array(sub["domain"])
+    volume = lambda label: sub.volumes[domain == label].sum()
+    assert volume("ore") == pytest.approx(1000) and volume("rock") == pytest.approx(20 * 20 * 11 - 700)
+    assert sub.volumes.sum() == pytest.approx(20 * 20 * 16)
+    assert len(grid.subblock(domains, 4)) < len(sub)
+    with pytest.raises(cs.InvalidInput):
+        grid.subblock([(cube, "beside", "ore")], 4)
+
+    grade = sub.with_column("au", np.where(domain == "ore", 2.0, 0.5))
+    coarse = cs.BlockModel((-4, -4, -4), (10, 10, 8), (2, 2, 2))
+    out = grade.regularize(coarse, min_fraction=0.0)
+    metal = (out.volumes * out["fraction"] * out["au"]).sum()
+    assert metal == pytest.approx((grade.volumes * grade["au"]).sum())
+    assert out["domain"][0] == "rock"
+    back = grade.to_regular()
+    assert "fraction" not in back.attributes.column_names
+    with pytest.raises(cs.InvalidInput):
+        grade.regularize(cs.BlockModel((0, 0, 0), (10, 10, 8), (2, 2, 2), rotation=(10, 0, 0)))
+
+
+def test_rotated_proportions():
+    grid = cs.BlockModel(origin=(0, 0, 0), size=(10, 10, 10), count=(2, 2, 1), rotation=(45, 0, 0))
+    nodes = grid.discretize(20)
+    expected = cube.contains(nodes.centroids).mean() * grid.volumes.sum()
+    inside = (cube.proportion(grid, discretization=20) * grid.volumes).sum()
+    assert inside == pytest.approx(expected, rel=0.01) and 0 < inside < 1000

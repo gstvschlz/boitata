@@ -20,6 +20,7 @@ pyo3-arrow = "0.19"
 arrow-array = "59"
 arrow-cast = "59"
 arrow-csv = "59"
+arrow-ord = "59"
 arrow-schema = "59"
 arrow-select = "59"
 serde = { version = "1", features = ["derive"] }

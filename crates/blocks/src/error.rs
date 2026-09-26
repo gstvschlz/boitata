@@ -13,6 +13,9 @@ pub enum BlockModelError {
 
     #[error("Domain assignment failed: {0}")]
     DomainAssignmentFailed(String),
+
+    #[error(transparent)]
+    Core(#[from] ceres_core::Error),
 }
 
 pub type Result<T> = std::result::Result<T, BlockModelError>;
