@@ -59,12 +59,12 @@ print(f"{len(exact)} groups at exactly the same location, from {len(set(groups))
 
 # %% [markdown]
 # The groups inside one hole are short intervals on both sides of a contact, in different lithologies: they stay.
-# The exact duplicates are the top composites of pairs of holes collared at the same point and surveyed alike before
-# they part. Each pair is merged into one composite at its location, the length-weighted mean of the two; the `n`
-# column counts the composites behind each row.
+# The exact duplicates are the top composites of pairs of holes collared at the same point. One pair puts an MS
+# composite on one of unknown lithology (UNK), which a length-weighted `merge="mean"` would blend, so each pair keeps the composite
+# of its first hole instead; the `n` column counts the composites behind each row.
 
 # %%
-composites = cs.duplicates(composites, merge="mean", weights=composites["length"])
+composites = cs.duplicates(composites, merge="first")
 print(f"{len(composites)} composites, {int((composites['n'] > 1).sum())} of them merged pairs")
 xyz = composites.coords
 zn = composites["ZN"]
@@ -264,7 +264,7 @@ fig, ax = plt.subplots(figsize=(4.4, 3.8), layout="constrained")
 im = ax.imshow(r, vmin=0, vmax=1)
 for i in range(len(grades)):
     for j in range(len(grades)):
-        ax.text(j, i, f"{r[i, j]:.2f}", ha="center", va="center", color="white" if r[i, j] > 0.6 else INK)
+        ax.text(j, i, f"{r[i, j]:.2f}", ha="center", va="center", color=INK if r[i, j] > 0.4 else "white")
 ax.set_xticks(range(len(grades)), grades)
 ax.set_yticks(range(len(grades)), grades)
 ax.spines[:].set_visible(False)
