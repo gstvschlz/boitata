@@ -1,7 +1,7 @@
 """
 # 16. Exploratory data analysis
 
-Statistics and distributions per domain, top cuts, contacts, swaths, h-scatterplots and correlations on the 2 m composites of the
+Statistics and distributions per domain, top cuts, grade-tonnage, contacts, swaths, h-scatterplots and correlations on the 2 m composites of the
 drillhole dataset. Every function skips missing values, so raw columns go in as they are.
 """
 
@@ -49,25 +49,32 @@ print(f"{len(composites)} composites")
 # ## Declustered statistics
 #
 # Drilling concentrates where grades are high. Cell declustering (50 m cells) weights each composite by the inverse
-# of the number of composites in its cell; `describe` gives weighted moments and quantiles.
+# of the number of composites in its cell, domain by domain. `describe_by` gives weighted moments and quantiles per
+# lithology and, on the last row, over all five together.
 
 # %%
 domains = ["MS", "SM", "QE", "EX", "RH"]
 weights = np.zeros(len(zn))
-print(f"{'LITH':<6}{'n':>7}{'mean':>8}{'declust.':>10}{'CV':>6}{'P50':>7}{'P90':>7}")
 for name in domains:
     keep = (lith == name) & ~np.isnan(zn)
-    weights[keep] = w = cs.cell_declustering(xyz[keep], zn[keep], cell_size=50.0).weights
-    naive, s = cs.describe(zn[keep]), cs.describe(zn[keep], w, quantiles=[0.5, 0.9])
-    p50, p90 = s["quantiles"]
-    print(f"{name:<6}{s['n']:>7}{naive['mean']:>8.2f}{s['mean']:>10.2f}{s['cv']:>6.2f}{p50:>7.2f}{p90:>7.2f}")
+    weights[keep] = cs.cell_declustering(xyz[keep], zn[keep], cell_size=50.0).weights
+five = np.isin(lith, domains)
+naive = cs.describe_by(zn[five], lith[five])
+stats = cs.describe_by(zn[five], lith[five], weights[five], quantiles=[0.5, 0.9, 0.995])
+print(f"{'LITH':<6}{'n':>7}{'mean':>8}{'declust.':>10}{'CV':>6}{'P50':>7}{'P90':>7}")
+for name, n, raw, mean, cv, p50, p90 in zip(
+    *(stats[c] for c in ["category", "n"]),
+    naive["mean"],
+    *(stats[c] for c in ["mean", "cv", "P50", "P90"]),
+    strict=True,
+):
+    print(f"{name:<6}{n:>7.0f}{raw:>8.2f}{mean:>10.2f}{cv:>6.2f}{p50:>7.2f}{p90:>7.2f}")
 
 # %% [markdown]
 # The same declustered quantiles as box plots, sorted by median: the box spans P25 to P75, the whiskers P10 to P90,
 # the dot is the declustered mean.
 
 # %%
-five = np.isin(lith, domains)
 fig, ax = plt.subplots(figsize=(7, 3.4), layout="constrained")
 cs.plot.boxplot(zn[five], lith[five], weights=weights[five], sort=True, log=True, ax=ax)
 ax.set(title="Declustered Zn by lithology", ylabel="Zn (%)")
@@ -101,10 +108,61 @@ save(fig, "distributions")
 
 # %%
 ms = (lith == "MS") & ~np.isnan(zn)
-caps = cs.capping(zn[ms])
+caps = cs.capping(zn[ms], weights[ms])
 print(f"{'cap':>7}{'cut (%)':>9}{'metal (%)':>11}{'mean':>7}{'CV':>6}")
 for cap, frac, metal, mean, cv in zip(*caps.values(), strict=True):
     print(f"{cap:>7.2f}{100 * frac:>9.1f}{100 * metal:>11.2f}{mean:>7.2f}{cv:>6.2f}")
+
+# %% [markdown]
+# Zn is bounded by the zinc content of sphalerite: on a log-probability plot the upper tails bend towards a ceiling
+# near 40 % instead of trailing off into isolated outliers. A cap at the declustered P99.5 of each domain, dashed,
+# only trims the last half percent of that tail.
+
+# %%
+cap = dict(zip(stats["category"], stats["P99.5"], strict=True))
+fig, axes = plt.subplots(1, 2, figsize=(9, 3.6), layout="constrained", sharey=True)
+for ax, name in zip(axes, ["MS", "RH"], strict=True):
+    keep = (lith == name) & (zn > 0)
+    cs.plot.probability(zn[keep], weights[keep], log=True, cap=cap[name], ax=ax, color=ACCENT, ms=2)
+    ax.set(title=f"{name}, declustered", xlabel="Zn (%)")
+    ax.legend(loc="lower right")
+axes[1].set_ylabel("")
+save(fig, "probability")
+
+# %% [markdown]
+# `capping_report` applies one cap per domain and compares the declustered statistics before and after, with the
+# metal removed; the last row pools the domains. Only RH, the low-grade host rock, loses more than a fraction of a
+# percent of its metal.
+
+# %%
+report = cs.capping_report(zn[five], lith[five], {k: cap[k] for k in domains}, weights[five])
+columns = ["domain", "cap", "n_capped", "mean", "mean_capped", "cv", "cv_capped"]
+print(f"{'LITH':<6}{'cap':>7}{'cut':>5}{'mean':>7}{'capped':>8}{'CV':>6}{'capped':>8}{'metal (%)':>11}")
+for name, c, n, mean, capped, cv, cv_capped in zip(*(report[k] for k in columns), strict=True):
+    print(
+        f"{name:<6}{'' if np.isnan(c) else f'{c:.2f}':>7}{n:>5.0f}{mean:>7.2f}{capped:>8.2f}{cv:>6.2f}"
+        f"{cv_capped:>8.2f}{100 * (1 - capped / mean):>11.2f}"
+    )
+
+# %% [markdown]
+# ## Grade-tonnage of the data
+#
+# `grade_tonnage` sums the weight of the composites at or above each cutoff and their mean grade: a first look at
+# selectivity on composite support, here as a proportion of the total. Declustering moves the MS curves only a
+# little, as it did the mean: slightly less material above low cutoffs, slightly richer above most of them. Blocks are
+# less selective than composites; [chapter 9](../09-change-of-support/README.md) models that change of support.
+
+# %%
+cutoffs = np.linspace(0, 30, 61)
+fig, (a, b) = plt.subplots(1, 2, figsize=(9, 3.6), layout="constrained")
+for w, color, label in ((None, GREY, "naive"), (weights[ms], ACCENT, "declustered")):
+    gt = cs.grade_tonnage(zn[ms], cutoffs, w)
+    a.plot(cutoffs, gt["tonnage"] / gt["tonnage"][0], color=color, label=label)
+    b.plot(cutoffs, gt["mean_grade"], color=color)
+a.set(title="MS proportion above cutoff", xlabel="Cutoff Zn (%)", ylabel="Proportion of weight")
+a.legend()
+b.set(title="MS mean grade above cutoff", xlabel="Cutoff Zn (%)", ylabel="Mean Zn above cutoff (%)")
+save(fig, "grade_tonnage")
 
 # %% [markdown]
 # ## Contact analysis
