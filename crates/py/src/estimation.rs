@@ -1,13 +1,13 @@
 use estimation::{
-    Discretization, DriftSpec, DualKriging, Estimate, InterpEstimate, InterpOptions, Kind, Sample,
-    Search as CoreSearch, block_krige, estimate_many, krige, krige_bayesian, krige_factorial,
-    krige_universal, leave_one_out_many,
+    Discretization, DriftSpec, DualKriging, Estimate, HighGrade, InterpEstimate, InterpOptions,
+    Kind, Sample, Search as CoreSearch, block_krige, by_pass, estimate_many, krige, krige_bayesian,
+    krige_factorial, krige_universal, leave_one_out_at,
 };
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyTuple};
 use variogram::Variogram as CoreVariogram;
 
-use crate::args::{self, Point, array1, distinct, finite, points, same_length, triple};
+use crate::args::{self, Point, array1, distinct, finite, pick, points, same_length, triple};
 use crate::containers::{PyBlockModel, PyPointSet};
 use crate::invalid;
 use crate::variogram::Variogram;
@@ -15,6 +15,10 @@ use crate::variogram::Variogram;
 /// Neighbourhood: `radius` is in metres along the major axis of the
 /// search ellipsoid (`rotation` azimuth, dip, rake and `ratios` semi/major,
 /// minor/major), or of the variogram's anisotropy when no ellipsoid is given.
+/// `high_grade` `(threshold, radius)` lets samples above `threshold` inform
+/// only targets within `radius`, measured in the same ellipsoid, in
+/// estimation and cross-validation alike. Estimators also take a sequence
+/// of searches as passes: targets one leaves unestimated go to the next.
 #[pyclass(module = "ceres", name = "Search", frozen, from_py_object)]
 #[derive(Clone)]
 pub struct Search(pub CoreSearch);
@@ -22,7 +26,8 @@ pub struct Search(pub CoreSearch);
 #[pymethods]
 impl Search {
     #[new]
-    #[pyo3(signature = (radius, max_samples=16, min_samples=1, octant=false, max_per_hole=None, rotation=None, ratios=None))]
+    #[pyo3(signature = (radius, max_samples=16, min_samples=1, octant=false, max_per_hole=None, rotation=None, ratios=None, high_grade=None))]
+    #[allow(clippy::too_many_arguments)]
     fn new(
         radius: f64,
         max_samples: usize,
@@ -31,11 +36,17 @@ impl Search {
         max_per_hole: Option<usize>,
         rotation: Option<(f64, f64, f64)>,
         ratios: Option<(f64, f64)>,
+        high_grade: Option<(f64, f64)>,
     ) -> PyResult<Self> {
         if radius.is_nan() || radius <= 0.0 || max_samples == 0 || min_samples > max_samples {
             return Err(invalid(
                 "need radius > 0 and 1 <= min_samples <= max_samples",
             ));
+        }
+        if let Some((threshold, radius)) = high_grade
+            && (threshold.is_nan() || radius.is_nan() || radius < 0.0)
+        {
+            return Err(invalid("high_grade needs a threshold and a radius >= 0"));
         }
         Ok(Self(CoreSearch {
             min_samples,
@@ -50,6 +61,7 @@ impl Search {
                     ratios.unwrap_or((1.0, 1.0)),
                 )?,
             },
+            high_grade: high_grade.map(|(threshold, radius)| HighGrade { threshold, radius }),
         }))
     }
 
@@ -187,7 +199,11 @@ pub fn outputs<'py>(
     Ok(PyTuple::new(py, [value, variance])?.into_any())
 }
 
-fn diagnostics<'py>(py: Python<'py>, results: &[Option<Estimate>]) -> PyResult<Bound<'py, PyDict>> {
+fn diagnostics<'py>(
+    py: Python<'py>,
+    results: &[Option<Estimate>],
+    passes: &[Option<usize>],
+) -> PyResult<Bound<'py, PyDict>> {
     let column = |f: fn(&Estimate) -> f64| {
         array1(
             py,
@@ -203,7 +219,18 @@ fn diagnostics<'py>(py: Python<'py>, results: &[Option<Estimate>]) -> PyResult<B
     d.set_item("efficiency", column(Estimate::efficiency))?;
     d.set_item("slope", column(Estimate::slope))?;
     d.set_item("n_samples", column(|e| e.n_used as f64))?;
+    let pass = passes
+        .iter()
+        .map(|p| p.map_or(f64::NAN, |p| (p + 1) as f64));
+    d.set_item("pass", array1(py, pass.collect()))?;
     Ok(d)
+}
+
+fn split(passes: Vec<Option<(usize, Estimate)>>) -> (Vec<Option<usize>>, Vec<Option<Estimate>>) {
+    passes
+        .into_iter()
+        .map(|r| r.map_or((None, None), |(p, e)| (Some(p), Some(e))))
+        .unzip()
 }
 
 /// Shared engine behind the estimator classes in `ceres.estimation`.
@@ -211,7 +238,7 @@ fn diagnostics<'py>(py: Python<'py>, results: &[Option<Estimate>]) -> PyResult<B
 pub struct Estimator {
     method: Method,
     variogram: Option<CoreVariogram>,
-    search: CoreSearch,
+    search: Vec<CoreSearch>,
     samples: Option<Vec<Sample>>,
 }
 
@@ -221,10 +248,19 @@ impl Estimator {
     #[pyo3(signature = (method, search, variogram=None, **options))]
     fn new(
         method: &str,
-        search: Search,
+        search: &Bound<PyAny>,
         variogram: Option<Variogram>,
         options: Option<&Bound<PyDict>>,
     ) -> PyResult<Self> {
+        let search: Vec<Search> = match search.extract::<Search>() {
+            Ok(s) => vec![s],
+            Err(_) => search
+                .extract()
+                .map_err(|_| invalid("search must be a Search or a sequence of Search"))?,
+        };
+        if search.is_empty() {
+            return Err(invalid("search needs at least one Search"));
+        }
         let get = |key: &str| -> PyResult<Option<Bound<PyAny>>> {
             Ok(match options {
                 Some(o) => o.get_item(key)?,
@@ -291,7 +327,7 @@ impl Estimator {
         Ok(Self {
             method,
             variogram: variogram.map(|v| v.0),
-            search: search.0,
+            search: search.into_iter().map(|s| s.0).collect(),
             samples: None,
         })
     }
@@ -321,7 +357,8 @@ impl Estimator {
 
     /// Estimates (NaN where too few neighbours); with `return_variance`, also
     /// the kriging variance, and with `diagnostics` a dict adding kriging
-    /// efficiency, slope of regression and samples used. `anisotropy` (a
+    /// efficiency, slope of regression, samples used and the search pass
+    /// (1-based) that filled each target. `anisotropy` (a
     /// LocalAnisotropy) gives each target its own variogram and search
     /// orientation, taken from the nearest location.
     #[pyo3(signature = (targets, return_variance=false, anisotropy=None, diagnostics=false))]
@@ -339,34 +376,35 @@ impl Estimator {
             .ok_or_else(|| invalid("estimator is not fitted; call fit first"))?;
         let targets = self::targets(targets)?;
         let vg = self.variogram.as_ref();
-        let results = match anisotropy {
-            None => py.detach(|| {
-                estimate_many(&targets, samples, &self.search, vg, |t, s| {
-                    self.method.run(t, s, vg)
+        let local = anisotropy.map(|field| field.at_targets(&targets));
+        let base = self.variogram.clone().unwrap_or(CoreVariogram {
+            nugget: 0.0,
+            structures: vec![],
+            anisotropy: None,
+        });
+        let passes = py
+            .detach(|| {
+                by_pass(targets.len(), &self.search, |search, remaining| {
+                    let at = pick(&targets, remaining);
+                    match &local {
+                        None => Ok(estimate_many(&at, samples, search, vg, |t, s| {
+                            self.method.run(t, s, vg)
+                        })),
+                        Some(local) => estimation::lva::estimate_many_local(
+                            &at,
+                            &local.at(&at),
+                            samples,
+                            search,
+                            &base,
+                            |t, s, v| self.method.run(t, s, Some(v)),
+                        ),
+                    }
                 })
-            }),
-            Some(field) => {
-                let local = field.at_targets(&targets);
-                let base = self.variogram.clone().unwrap_or(CoreVariogram {
-                    nugget: 0.0,
-                    structures: vec![],
-                    anisotropy: None,
-                });
-                py.detach(|| {
-                    estimation::lva::estimate_many_local(
-                        &targets,
-                        &local,
-                        samples,
-                        &self.search,
-                        &base,
-                        |t, s, v| self.method.run(t, s, Some(v)),
-                    )
-                })
-                .map_err(invalid)?
-            }
-        };
+            })
+            .map_err(invalid)?;
+        let (passes, results) = split(passes);
         if diagnostics {
-            return Ok(self::diagnostics(py, &results)?.into_any());
+            return Ok(self::diagnostics(py, &results, &passes)?.into_any());
         }
         outputs(py, &results, return_variance)
     }
@@ -388,10 +426,16 @@ impl Estimator {
             .as_ref()
             .ok_or_else(|| invalid("estimator is not fitted; call fit first"))?;
         let vg = self.variogram.as_ref();
-        let results = py.detach(|| {
-            leave_one_out_many(samples, &self.search, vg, |t, s| self.method.run(t, s, vg))
-        });
-        outputs(py, &results, true)
+        let passes = py
+            .detach(|| {
+                by_pass(samples.len(), &self.search, |search, remaining| {
+                    Ok(leave_one_out_at(remaining, samples, search, vg, |t, s| {
+                        self.method.run(t, s, vg)
+                    }))
+                })
+            })
+            .map_err(invalid)?;
+        outputs(py, &split(passes).1, true)
     }
 }
 

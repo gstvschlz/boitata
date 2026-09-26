@@ -91,3 +91,20 @@ for ax, x, y, title in (
     ax.set_title(title)
     ax.legend(loc="upper left")
 save(fig, "validation")
+
+
+# %% [markdown]
+# A list of searches runs as passes: blocks a tight first search leaves empty go to the next, and `diagnostics`
+# reports the pass behind each block. `high_grade` keeps samples above 1 000 ppm from informing blocks more than
+# 25 m away, in cross-validation too.
+
+# %%
+passes = [cs.Search(radius=30, max_samples=24, min_samples=8), search]
+d = cs.OrdinaryKriging(model, passes).fit(samples.coords, samples["V"]).predict(grid, diagnostics=True)
+print(f"blocks from pass 1: {(d['pass'] == 1).sum()}, pass 2: {(d['pass'] == 2).sum()}")
+capped = cs.Search(radius=100, max_samples=24, min_samples=4, high_grade=(1000, 25))
+ok_capped = cs.OrdinaryKriging(model, capped).fit(samples.coords, samples["V"])
+print(
+    f"mean estimate {ok_capped.predict(grid).mean():.1f} with the restriction, {estimate.mean():.1f} without"
+)
+print(f"cross-validation ME {ok_capped.cross_validate().mean_error:.1f} with, {cv.mean_error:.1f} without")

@@ -23,7 +23,7 @@ pub mod search;
 pub mod simple_interp;
 pub mod validate;
 
-pub use batch::{estimate_many, leave_one_out_many};
+pub use batch::{by_pass, estimate_many, leave_one_out_at, leave_one_out_many};
 pub use block::{Discretization, block_krige};
 pub use cokrige::{CoKind, CoSample, cokrige, collocated_cokrige};
 pub use disjunctive::{DisjunctiveKriging, GaussianSample};
@@ -34,7 +34,7 @@ pub use kriging_algebra::{
     DriftSpec, DualKriging, krige_bayesian, krige_factorial, krige_ordinary, krige_universal,
 };
 pub use neighborhood::{NeighborhoodStats, neighborhood_stats};
-pub use search::{Search, neighbors};
+pub use search::{HighGrade, Search, neighbors};
 pub use simple_interp::{
     InterpEstimate, InterpOptions, inverse_distance, local_least_squares, moving_average,
     moving_median,

@@ -170,6 +170,7 @@ mod tests {
                 max_per_hole: None,
                 octant: false,
                 anisotropy: None,
+                high_grade: None,
             },
             seed: 42,
         };
@@ -196,6 +197,7 @@ mod tests {
                 max_per_hole: None,
                 octant: false,
                 anisotropy: None,
+                high_grade: None,
             },
             seed: 7,
         };
@@ -218,6 +220,7 @@ mod tests {
                 max_per_hole: None,
                 octant: false,
                 anisotropy: None,
+                high_grade: None,
             },
             seed,
         };
@@ -299,6 +302,7 @@ mod tests {
                 max_per_hole: None,
                 octant: false,
                 anisotropy: None,
+                high_grade: None,
             },
             seed: 4,
         };

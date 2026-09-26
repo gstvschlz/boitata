@@ -1,5 +1,6 @@
 """Estimators: `fit` on samples, `predict` at targets (arrays, PointSet or BlockModel)."""
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 
 import numpy as np
@@ -23,6 +24,8 @@ __all__ = [
     "classify",
     "global_bias",
 ]
+
+Searches = Search | Sequence[Search]
 
 
 @dataclass(frozen=True)
@@ -63,7 +66,7 @@ class CrossValidation:
 
 
 class _Base:
-    def __init__(self, method: str, search: Search, variogram: Variogram | None = None, **options):
+    def __init__(self, method: str, search: Searches, variogram: Variogram | None = None, **options):
         self._engine = _Estimator(method, search, variogram, **options)
 
     def fit(self, coords, values, holes=None):
@@ -79,12 +82,13 @@ class _Base:
 
         `anisotropy` (a LocalAnisotropy) orients each target's variogram and search. With
         `diagnostics`, returns a dict of ``value``, ``variance``, ``efficiency`` (kriging
-        efficiency), ``slope`` (slope of regression) and ``n_samples``.
+        efficiency), ``slope`` (slope of regression), ``n_samples`` and ``pass`` (the search,
+        from 1, that filled each target).
         """
         return self._engine.predict(targets, return_variance, anisotropy, diagnostics)
 
     def cross_validate(self) -> CrossValidation:
-        """Re-estimates every sample with itself left out."""
+        """Re-estimates every sample with itself left out, through the same search passes."""
         estimate, variance = self._engine.cross_validate()
         return CrossValidation(self._engine.values, estimate, variance)
 
@@ -92,49 +96,49 @@ class _Base:
 class OrdinaryKriging(_Base):
     """Kriging with an unknown, locally constant mean (weights sum to 1)."""
 
-    def __init__(self, variogram: Variogram, search: Search):
+    def __init__(self, variogram: Variogram, search: Searches):
         super().__init__("ordinary", search, variogram)
 
 
 class SimpleKriging(_Base):
     """Kriging with a known global `mean`."""
 
-    def __init__(self, variogram: Variogram, search: Search, mean: float = 0.0):
+    def __init__(self, variogram: Variogram, search: Searches, mean: float = 0.0):
         super().__init__("simple", search, variogram, mean=mean)
 
 
 class IndicatorKriging(_Base):
     """Ordinary kriging of the indicator `value <= threshold`; estimates are probabilities."""
 
-    def __init__(self, variogram: Variogram, search: Search, threshold: float):
+    def __init__(self, variogram: Variogram, search: Searches, threshold: float):
         super().__init__("indicator", search, variogram, threshold=threshold)
 
 
 class UniversalKriging(_Base):
     """Kriging with a polynomial drift of `degree` in the coordinates."""
 
-    def __init__(self, variogram: Variogram, search: Search, degree: int = 1):
+    def __init__(self, variogram: Variogram, search: Searches, degree: int = 1):
         super().__init__("universal", search, variogram, degree=degree)
 
 
 class FactorialKriging(_Base):
     """Estimates only the selected components: `structures` by index, plus the nugget if asked."""
 
-    def __init__(self, variogram: Variogram, search: Search, structures, nugget: bool = False):
+    def __init__(self, variogram: Variogram, search: Searches, structures, nugget: bool = False):
         super().__init__("factorial", search, variogram, structures=list(structures), nugget=nugget)
 
 
 class BlockKriging(_Base):
     """Ordinary kriging of block averages; targets are block centres of `size`."""
 
-    def __init__(self, variogram: Variogram, search: Search, size, discretization=(4, 4, 1)):
+    def __init__(self, variogram: Variogram, search: Searches, size, discretization=(4, 4, 1)):
         super().__init__("block", search, variogram, size=list(size), discretization=tuple(discretization))
 
 
 class BayesianKriging(_Base):
     """Kriging with a Gaussian prior on the drift coefficients."""
 
-    def __init__(self, variogram: Variogram, search: Search, prior_mean, prior_variance, degree: int = 0):
+    def __init__(self, variogram: Variogram, search: Searches, prior_mean, prior_variance, degree: int = 0):
         super().__init__(
             "bayesian",
             search,
@@ -148,29 +152,29 @@ class BayesianKriging(_Base):
 class InverseDistance(_Base):
     """Inverse-distance weighting; a `variogram` supplies anisotropic distances."""
 
-    def __init__(self, search: Search, power: float = 2.0, variogram: Variogram | None = None):
+    def __init__(self, search: Searches, power: float = 2.0, variogram: Variogram | None = None):
         super().__init__("inverse_distance", search, variogram, power=power)
 
 
 class NearestNeighbor(_Base):
-    def __init__(self, search: Search, variogram: Variogram | None = None):
+    def __init__(self, search: Searches, variogram: Variogram | None = None):
         super().__init__("nearest", search, variogram)
 
 
 class MovingAverage(_Base):
-    def __init__(self, search: Search, variogram: Variogram | None = None):
+    def __init__(self, search: Searches, variogram: Variogram | None = None):
         super().__init__("moving_average", search, variogram)
 
 
 class MovingMedian(_Base):
-    def __init__(self, search: Search, variogram: Variogram | None = None):
+    def __init__(self, search: Searches, variogram: Variogram | None = None):
         super().__init__("moving_median", search, variogram)
 
 
 class LocalLeastSquares(_Base):
     """Local polynomial of `degree` fitted to the neighbours."""
 
-    def __init__(self, search: Search, degree: int = 1, variogram: Variogram | None = None):
+    def __init__(self, search: Searches, degree: int = 1, variogram: Variogram | None = None):
         super().__init__("local_least_squares", search, variogram, degree=degree)
 
 
