@@ -128,7 +128,9 @@ save(fig, "section")
 # A synthetic fold, `z = 100 + 30 sin(2πx / 400)` with its axis north–south, is known exactly. Five holes pierce it,
 # twelve outcrops spread along it give its dip and dip direction, and fold-axis lineations (plunge 0, trend 0) are measured at six
 # other places. Planes and lineations need the triharmonic kernel; one point above the surface sets which side is
-# positive.
+# positive. `isosurface` extracts each modelled surface as a mesh, and `Mesh.vertical_distance` gives how far
+# above it 400 points on the true surface lie: the elevation error over the whole fold. The same call flags blocks
+# above or below topography.
 
 # %%
 rng = np.random.default_rng(4)
@@ -163,6 +165,7 @@ x = np.linspace(0, 600, 241)
 z = np.linspace(0, 200, 801)
 X, Z = np.meshgrid(x, z)
 probe = rng.uniform([0, 0], [600, 300], (400, 2))
+volume = cs.BlockModel(origin=(-5, -5, 0), size=(5, 5, 5), count=(122, 62, 40))
 folds, depths = {}, {}
 for name, readings in fits.items():
     folds[name] = cs.ImplicitModel(kernel="triharmonic").fit(above, [1.0], boundaries=picks, **readings)
@@ -170,14 +173,14 @@ for name, readings in fits.items():
     depths[name] = z[np.argmin(np.abs(field), axis=0)]
     _, gradient = folds[name].evaluate(on_surface(probe), gradient=True)
     dip = np.degrees(np.arccos(np.abs(gradient[:, 2]) / np.linalg.norm(gradient, axis=1)))
-    error = np.abs(depths[name] - surface(x))
+    error = np.abs(folds[name].isosurface(volume).vertical_distance(on_surface(probe)))
     print(
         f"{name:>31}: surface within {np.median(error):4.1f} m (median), {error.max():4.1f} m (max); "
         f"dip within {np.median(np.abs(dip - true_dip(probe)[0])):3.1f}°"
     )
 
 # %% [markdown]
-# Twelve planes bring the surface from 13 m to 1.5 m of the truth (median) and the dip from 7° to under 2°. With
+# Twelve planes bring the surface from 14 m to 2 m of the truth (median) and the dip from 7° to under 2°. With
 # only four planes, the lineations add the direction of the fold axis and improve both.
 
 # %%

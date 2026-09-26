@@ -2,7 +2,7 @@
 
 Five estimators of Walker Lake `V` from the same 470 samples and the same neighbourhood, checked against the
 exhaustive values: nearest neighbour, inverse distance, ordinary and universal kriging at points, and block kriging
-of 10 × 10 m block averages.
+of 10 × 10 m block averages. Search passes and a high-grade restriction refine the neighbourhood.
 
 <details><summary>Python</summary>
 
@@ -10,8 +10,8 @@ of 10 × 10 m block averages.
 import ceres as cs
 import matplotlib.pyplot as plt
 import numpy as np
-from common import ACCENT, GREY, HIGHLIGHT, map_axes, save
-from matplotlib.colors import PowerNorm
+from common import ACCENT, GREY, HIGHLIGHT, INK, LIGHT, map_axes, save
+from matplotlib.colors import LinearSegmentedColormap, ListedColormap, PowerNorm
 
 samples = cs.datasets.walker_lake()
 truth = cs.datasets.walker_lake_exhaustive()["V"].reshape(300, 260)
@@ -30,9 +30,8 @@ ratio, and octants keep samples from piling up on one side.
 <details><summary>Python</summary>
 
 ```python
-search = cs.Search(
-    radius=80, max_samples=24, min_samples=4, octant=True, rotation=(170, 0, 0), ratios=(0.5, 1.0)
-)
+ellipse = {"max_samples": 24, "octant": True, "rotation": (170, 0, 0), "ratios": (0.5, 1.0)}
+search = cs.Search(radius=80, min_samples=4, **ellipse)
 methods = {
     "nearest neighbour": cs.NearestNeighbor(search),
     "inverse distance²": cs.InverseDistance(search, power=2),
@@ -81,6 +80,87 @@ save(fig, "methods")
 </details>
 
 ![methods](methods.png)
+
+A list of searches runs as passes: nodes the first leaves unestimated go to the next, and `diagnostics` reports
+the pass behind each. A first pass wanting eight samples within 30 m hardly changes the estimates; it labels the
+nodes by how well they are informed, which classification uses. Pass-1 nodes have the higher slope of regression
+but also the larger errors: Walker Lake was sampled densely where `V` is high and variable.
+
+`high_grade` keeps samples above 800 ppm, the top 12 %, from informing nodes more than 20 m away. It lowers the
+nodes around isolated rich samples, where kriging overestimates most.
+
+<details><summary>Python</summary>
+
+```python
+passes = [cs.Search(radius=30, min_samples=8, **ellipse), search]
+d = cs.OrdinaryKriging(model, passes).fit(xy, v).predict(grid, diagnostics=True)
+for p in (1, 2):
+    s = d["pass"] == p
+    rmse = np.sqrt(np.mean((d["value"][s] - true_at_nodes[s]) ** 2))
+    print(f"pass {p}: {s.mean():4.0%} of nodes, mean slope {np.mean(d['slope'][s]):.2f}, RMSE {rmse:.0f} ppm")
+
+capped = cs.Search(radius=80, min_samples=4, high_grade=(800, 20), **ellipse)
+restricted = cs.OrdinaryKriging(model, capped).fit(xy, v)
+free = estimates["ordinary kriging"]
+difference = restricted.predict(grid) - free
+changed = np.abs(difference) > 5
+error = free[changed] - true_at_nodes[changed]
+print(
+    f"{changed.sum()} nodes move by over 5 ppm; their mean error goes from {error.mean():+.0f} ppm to "
+    f"{(error + difference[changed]).mean():+.0f} ppm"
+)
+before, after = methods["ordinary kriging"].cross_validate(), restricted.cross_validate()
+print(
+    f"cross-validation mean error {before.mean_error:+.1f} ppm without the restriction, {after.mean_error:+.1f} with"
+)
+
+fig, (a, b) = plt.subplots(1, 2, figsize=(8.4, 4.4), layout="constrained")
+a.imshow(
+    d["pass"].reshape(shape),
+    origin="lower",
+    extent=extent,
+    cmap=ListedColormap([ACCENT, LIGHT]),
+    vmin=0.5,
+    vmax=2.5,
+)
+a.scatter(*xy[:, :2].T, s=2, color=INK, linewidths=0)
+map_axes(a, "Search pass")
+a.legend(
+    handles=[
+        plt.Line2D([], [], marker="s", ls="", color=c, label=f"pass {p}")
+        for p, c in ((1, ACCENT), (2, LIGHT))
+    ],
+    loc="upper right",
+    framealpha=0.9,
+    frameon=True,
+)
+im = b.imshow(
+    -difference.reshape(shape),
+    origin="lower",
+    extent=extent,
+    cmap=LinearSegmentedColormap.from_list("lowered", ["white", HIGHLIGHT]),
+    vmin=0,
+    vmax=100,
+)
+rich = v > 800
+b.scatter(*xy[~rich, :2].T, s=2, color=GREY, linewidths=0)
+b.scatter(*xy[rich, :2].T, s=8, color=INK, linewidths=0, label="V > 800 ppm")
+map_axes(b, "Lowered by the high-grade restriction")
+b.legend(loc="upper right", framealpha=0.9, frameon=True)
+fig.colorbar(im, ax=b, shrink=0.8, label="ppm")
+save(fig, "search")
+```
+
+</details>
+
+```text
+pass 1:  32% of nodes, mean slope 0.98, RMSE 178 ppm
+pass 2:  68% of nodes, mean slope 0.90, RMSE 147 ppm
+197 nodes move by over 5 ppm; their mean error goes from +44 ppm to +27 ppm
+cross-validation mean error +5.5 ppm without the restriction, +2.7 with
+```
+
+![search](search.png)
 
 Block kriging estimates the average over each 10 × 10 m block directly, from 5 × 5 points per block. Its targets are
 block centres; the truth is the average of the 100 exhaustive values in each block.

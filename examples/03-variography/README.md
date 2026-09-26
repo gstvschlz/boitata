@@ -105,9 +105,10 @@ save(fig, "variogram")
 
 ![variogram](variogram.png)
 
-Other estimators along the major axis, with `standardize=True` so the classical and covariance curves share a unit
-sill with the correlogram. Covariance and correlogram use each lag's own head and tail means; the pairwise-relative
-variogram scales every squared difference by the pair mean, so it ignores the grade level.
+Other estimators along the major axis. `standardize=True` divides the classical and covariance estimates by the
+sample variance, the correlogram's scale. Covariance and correlogram use each lag's own head and tail means and
+level off below 1 here. The pairwise-relative variogram scales every
+squared difference by the pair mean: it ignores the grade level and keeps its own scale.
 
 <details><summary>Python</summary>
 
@@ -122,7 +123,7 @@ ax.set_xlim(0, max_lag)
 ax.set_ylim(bottom=0)
 ax.set_title("Standardized estimators, major axis")
 ax.set_xlabel("Lag distance (m)")
-ax.set_ylabel("γ(h) / sill")
+ax.set_ylabel("standardized γ(h)")
 ax.legend(loc="lower right")
 save(fig, "estimators")
 ```

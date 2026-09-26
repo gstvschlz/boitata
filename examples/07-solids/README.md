@@ -252,27 +252,4 @@ print(
 Mesh(1106 vertices, 2208 triangles, closed) volume 6,779,719 m3 (written 6,779,720 m3), largest shift 0.24 mm
 ```
 
-An open surface such as topography or a weathering front splits blocks by elevation instead.
-`Mesh.vertical_distance` gives each centroid's height above the surface (negative below, NaN outside its plan
-footprint). Here a gently undulating surface through the ellipsoid's centre:
-
-<details><summary>Python</summary>
-
-```python
-gx, gy = np.meshgrid(np.linspace(lo[0], hi[0], 21), np.linspace(lo[1], hi[1], 21))
-gz = center[2] + 10 * np.sin((gx - lo[0]) / 40) + 0.05 * (gy - lo[1])
-i = (np.arange(20)[None, :] + 21 * np.arange(20)[:, None]).ravel()
-surface = cs.Mesh(
-    np.c_[gx.ravel(), gy.ravel(), gz.ravel()], np.r_[np.c_[i, i + 1, i + 22], np.c_[i, i + 22, i + 21]]
-)
-height = surface.vertical_distance(ore)
-print(f"{surface}: of {len(ore)} ore blocks, {(height > 0).sum()} above and {(height < 0).sum()} below")
-```
-
-</details>
-
-```text
-Mesh(441 vertices, 800 triangles, open): of 6739 ore blocks, 3120 above and 3619 below
-```
-
 Full script: [`example_07.py`](example_07.py)

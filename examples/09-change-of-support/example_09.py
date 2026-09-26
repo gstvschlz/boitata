@@ -96,6 +96,42 @@ save(fig, "grade-tonnage")
 
 
 # %% [markdown]
+# Simulation reaches block support by averaging instead. Thirty sequential Gaussian simulations on 2.5 m nodes, with
+# `blocks=` averaging each realization over the 16 nodes of every 10 × 10 m block before summarizing, give one
+# block tonnage curve per realization, so the model's curve comes with its uncertainty:
+
+# %%
+nodes = cs.BlockModel(origin=(0.5, 0.5), size=(2.5, 2.5), count=(104, 120))
+blocks = cs.BlockModel(origin=(0.5, 0.5), size=(size, size), count=(26, 30))
+sgs = cs.SGS(gaussian, cs.Search(radius=100, max_samples=24)).fit(xy, v, weights=weights)
+summary = sgs.simulate(nodes, n=30, seed=7, cutoffs=list(cutoffs), blocks=blocks)
+low, high = np.quantile(summary.realization_above, [0.1, 0.9], axis=1)
+for c in (300, 500, 800):
+    k = np.searchsorted(cutoffs, c)
+    print(
+        f"above {c} ppm: simulated P10 {low[k]:.1%}, P90 {high[k]:.1%}; "
+        f"discrete Gaussian {model_block['tonnage'][k]:.1%}; true {true_block[0][k]:.1%}"
+    )
+
+fig, ax = plt.subplots(figsize=(5.4, 3.6), layout="constrained")
+ax.fill_between(cutoffs, low, high, color=ACCENT, alpha=0.25, lw=0, label="30 simulations, P10–P90")
+ax.plot(cutoffs, model_block["tonnage"], color=ACCENT, lw=1.4, ls="--", label="discrete Gaussian model")
+ax.plot(cutoffs, true_block[0], color=INK, lw=1.2, label="true block averages")
+ax.set(
+    title=f"Proportion of {size} × {size} m blocks above cutoff",
+    xlabel="Cutoff V (ppm)",
+    ylabel="Proportion of blocks",
+)
+ax.legend()
+save(fig, "simulated-blocks")
+
+
+# %% [markdown]
+# Above about 400 ppm the band holds the true curve; below it, both models put a few per cent more blocks above
+# cutoff than the truth has.
+
+
+# %% [markdown]
 # Disjunctive kriging estimates, at each node, the probability of exceeding a cutoff from the kriged Hermite factors.
 # Binned against the truth, a calibrated estimate would sit on the diagonal:
 

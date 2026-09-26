@@ -113,30 +113,6 @@ save(fig, "validation")
 
 ![validation](validation.png)
 
-A list of searches runs as passes: blocks a tight first search leaves empty go to the next, and `diagnostics`
-reports the pass behind each block. `high_grade` keeps samples above 1 000 ppm from informing blocks more than
-25 m away, in cross-validation too.
-
-<details><summary>Python</summary>
-
-```python
-passes = [cs.Search(radius=30, max_samples=24, min_samples=8), search]
-d = cs.OrdinaryKriging(model, passes).fit(samples.coords, samples["V"]).predict(grid, diagnostics=True)
-print(f"blocks from pass 1: {(d['pass'] == 1).sum()}, pass 2: {(d['pass'] == 2).sum()}")
-capped = cs.Search(radius=100, max_samples=24, min_samples=4, high_grade=(1000, 25))
-ok_capped = cs.OrdinaryKriging(model, capped).fit(samples.coords, samples["V"])
-print(
-    f"mean estimate {ok_capped.predict(grid).mean():.1f} with the restriction, {estimate.mean():.1f} without"
-)
-print(f"cross-validation ME {ok_capped.cross_validate().mean_error:.1f} with, {cv.mean_error:.1f} without")
-```
-
-</details>
-
-```text
-blocks from pass 1: 802, pass 2: 2318
-mean estimate 294.4 with the restriction, 294.3 without
-cross-validation ME 5.4 with, 5.6 without
-```
+[Chapter 12](../12-estimation-methods/README.md) compares other estimators and refines the search.
 
 Full script: [`example_04.py`](example_04.py)
