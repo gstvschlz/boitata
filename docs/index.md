@@ -11,7 +11,7 @@ hide: [navigation, toc]
 Geostatistics in Rust with a Python interface. Parallel, and the same result on any number of threads.
 
 [Get started](#install){ .md-button .md-button--primary }
-[Examples](examples/index.md){ .md-button }
+[Examples](examples/tutorials/index.md){ .md-button }
 [API reference](api/containers.md){ .md-button }
 </div>
 </div>
@@ -82,5 +82,5 @@ summary = cs.SGS(gaussian, cs.Search(radius=80)).fit(xy, v).simulate(grid, n=50,
 risk = summary.probability_above[0]
 ```
 
-The [examples](examples/index.md) work through every topic on open datasets; the API pages list every class and
-function.
+The [examples](examples/tutorials/index.md) work through every topic on open datasets; the API pages list every
+class and function.

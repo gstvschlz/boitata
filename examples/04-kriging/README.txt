@@ -1,1 +1,0 @@
-## 4. Ordinary kriging
