@@ -9,7 +9,6 @@ use variogram::{Angles, Anisotropy, Variogram};
 
 use crate::Sample;
 use crate::error::{EstimError, Result};
-use crate::krige::Estimate;
 use crate::search::{Search, SearchTree};
 
 type Point = (f64, f64, f64);
@@ -393,16 +392,17 @@ impl LocalAnisotropy {
 
 /// As [`crate::estimate_many`], with target `i` using `local[i]` for its
 /// variogram and its search ellipsoid (`search.radius` along the major axis).
-pub fn estimate_many_local<F>(
+pub fn estimate_many_local<F, T>(
     targets: &[Point],
     local: &LocalAnisotropy,
     samples: &[Sample],
     search: &Search,
     vg: &Variogram,
     estimator: F,
-) -> Result<Vec<Option<Estimate>>>
+) -> Result<Vec<Option<T>>>
 where
-    F: Fn(&Point, &[Sample], &Variogram) -> Result<Estimate> + Sync,
+    F: Fn(&Point, &[Sample], &Variogram) -> Result<T> + Sync,
+    T: Send,
 {
     if local.len() != targets.len() {
         return Err(invalid("one local anisotropy per target"));

@@ -30,7 +30,7 @@ Searches = Search | Sequence[Search]
 
 @dataclass(frozen=True)
 class CrossValidation:
-    """Leave-one-out results; NaN where a sample had too few neighbours."""
+    """Cross-validation results; NaN where a sample had too few neighbours."""
 
     actual: np.ndarray
     estimate: np.ndarray
@@ -69,27 +69,54 @@ class _Base:
     def __init__(self, method: str, search: Searches, variogram: Variogram | None = None, **options):
         self._engine = _Estimator(method, search, variogram, **options)
 
-    def fit(self, coords, values, holes=None):
-        """Stores the samples; `holes` (ids or names) tags them by drill hole for `max_per_hole`.
+    def fit(self, coords, values, holes=None, error_variance=None):
+        """Stores the samples. Samples sharing a location keep the first one, with a warning naming their holes.
 
-        Samples sharing a location keep the first one, with a warning naming their holes.
+        Parameters
+        ----------
+        coords : array_like, shape (n, 2) or (n, 3)
+        values : array_like, shape (n,)
+        holes : array_like, optional
+            Drill-hole ids or names, for `max_per_hole` and the ``n_holes`` diagnostic.
+        error_variance : array_like, optional
+            Variance of each sample's measurement error, for data of different quality (kriging only).
+            It is added to the sample's diagonal entry in the kriging system, so the estimate no longer
+            honours a noisy value and leans towards its neighbours.
         """
-        self._engine.fit(coords, values, holes)
+        self._engine.fit(coords, values, holes, error_variance)
         return self
 
     def predict(self, targets, return_variance: bool = False, anisotropy=None, diagnostics: bool = False):
         """Estimates at targets; NaN where the search found too few samples.
 
-        `anisotropy` (a LocalAnisotropy) orients each target's variogram and search. With
-        `diagnostics`, returns a dict of ``value``, ``variance``, ``efficiency`` (kriging
-        efficiency), ``slope`` (slope of regression), ``n_samples`` and ``pass`` (the search,
-        from 1, that filled each target).
+        Parameters
+        ----------
+        targets : array_like, PointSet or BlockModel
+        return_variance : bool
+            Also return the kriging variance.
+        anisotropy : LocalAnisotropy, optional
+            Orients each target's variogram and search.
+        diagnostics : bool
+            Return a dict of arrays instead: ``value``, ``variance``, ``efficiency`` (kriging efficiency),
+            ``slope`` (slope of regression), ``n_samples``, ``pass`` (the search, from 1, that filled each
+            target), ``n_holes`` (distinct holes among the samples used; untagged samples count one each),
+            ``mean_distance`` (to the samples used), ``negative_weight_sum``, ``lagrange`` (the Lagrange
+            multiplier; 0 for simple kriging, NaN where undefined) and ``max_samples_reached`` (1 where the
+            search returned `max_samples`). NaN where unestimated.
         """
         return self._engine.predict(targets, return_variance, anisotropy, diagnostics)
 
-    def cross_validate(self) -> CrossValidation:
-        """Re-estimates every sample with itself left out, through the same search passes."""
-        estimate, variance = self._engine.cross_validate()
+    def cross_validate(self, folds: int | None = None) -> CrossValidation:
+        """Re-estimates every sample from the others, through the same search passes.
+
+        Parameters
+        ----------
+        folds : int, optional
+            Leave-one-out when None; otherwise k-fold, each sample estimated without the samples of its
+            fold, sample ``i`` being in fold ``i % folds``. With `folds` equal to the number of samples
+            this is leave-one-out.
+        """
+        estimate, variance = self._engine.cross_validate(folds)
         return CrossValidation(self._engine.values, estimate, variance)
 
 

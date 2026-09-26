@@ -290,6 +290,7 @@ fn residuals(data_locs: &[(f64, f64, f64)], gaussian_data: &[f64], at_data: &[f6
             loc,
             value: z - u,
             hole: None,
+            error_variance: 0.0,
         })
         .collect()
 }

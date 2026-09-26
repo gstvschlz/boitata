@@ -207,6 +207,7 @@ mod tests {
                     loc: (i as f64 * 20.0, j as f64 * 20.0, 0.0),
                     value: i as f64 + j as f64,
                     hole: None,
+                    error_variance: 0.0,
                 });
             }
         }
