@@ -202,6 +202,10 @@ def test_simulation_with_a_trend_follows_it_and_honors_data():
     np.testing.assert_array_equal(
         sgs.simulate(model, n=3, seed=4, realizations=True, trend="drift").realizations, by_array
     )
+    points = cs.PointSet(model.centroids, {"drift": node_trend})
+    np.testing.assert_array_equal(
+        sgs.simulate(points, n=3, seed=4, realizations=True, trend="drift").realizations, by_array
+    )
     blocks = cs.BlockModel(origin=(0, 0), size=(20, 20), count=(5, 5))
     by_block = sgs.simulate(
         grid, n=3, seed=4, realizations=True, blocks=blocks, trend=node_trend
@@ -220,8 +224,10 @@ def test_simulation_with_a_trend_follows_it_and_honors_data():
         sgs.simulate(grid, n=1)
     with pytest.raises(cs.InvalidInput, match="needs trend at fit"):
         plain.simulate(grid, n=1, trend=node_trend)
-    with pytest.raises(cs.InvalidInput, match="BlockModel"):
+    with pytest.raises(cs.InvalidInput, match="needs a container"):
         sgs.simulate(grid.centroids, n=1, trend="drift")
+    with pytest.raises(cs.MissingColumn, match="drift"):
+        sgs.simulate(grid, n=1, trend="drift")
     with pytest.raises(ValueError):
         sgs.simulate(grid, n=1, trend=node_trend[1:])
     with pytest.raises(ValueError):

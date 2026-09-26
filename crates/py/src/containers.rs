@@ -9,8 +9,15 @@ use pyo3_arrow::error::PyArrowResult;
 use crate::invalid;
 use crate::table::{Table, arrow_c_stream, column, describe, empty, to_batch};
 
-/// `(n, 2)` or `(n, 3)` array-like to xyz rows; 2D gets z = 0.
+/// `(n, 2)` or `(n, 3)` array-like to xyz rows, 2D with z = 0; the coords
+/// of a PointSet or the centroids of a BlockModel.
 pub fn coords_arg(coords: &Bound<PyAny>) -> PyResult<Vec<[f64; 3]>> {
+    if let Ok(points) = coords.cast::<PyPointSet>() {
+        return Ok(points.get().0.coords().to_vec());
+    }
+    if let Ok(model) = coords.cast::<PyBlockModel>() {
+        return Ok(model.get().0.centroids());
+    }
     let array = coords
         .py()
         .import("numpy")?
@@ -111,6 +118,31 @@ impl PyPointSet {
     fn with_column(&self, name: &str, values: &Bound<PyAny>) -> PyResult<Self> {
         let column = float_column(values, self.0.len())?;
         Ok(Self(self.0.with_column(name, column).map_err(core_error)?))
+    }
+
+    /// New point set with the columns of `data`, a dict or table, added or replaced.
+    fn with_columns(&self, data: &Bound<PyAny>) -> PyResult<Self> {
+        Ok(Self(with_columns(
+            self.0.clone(),
+            data,
+            PointSet::with_column,
+        )?))
+    }
+
+    /// Points where `mask` is true.
+    fn filter(&self, mask: PyReadonlyArray1<bool>) -> PyResult<Self> {
+        let mask = mask.as_array().to_vec();
+        crate::args::same_length(self.0.len(), mask.len(), "mask")?;
+        let coords = crate::args::pick(
+            self.0.coords(),
+            &(0..mask.len()).filter(|&i| mask[i]).collect::<Vec<_>>(),
+        );
+        let attributes =
+            arrow_select::filter::filter_record_batch(self.0.attributes(), &mask.into())
+                .map_err(invalid)?;
+        let mut points = PointSet::new(coords, attributes).map_err(core_error)?;
+        points.crs = self.0.crs.clone();
+        Ok(Self(points))
     }
 
     /// Attributes preceded by `x`, `y`, `z`.
@@ -532,6 +564,15 @@ impl PyBlockModel {
         Ok(Self(self.0.with_column(name, column).map_err(core_error)?))
     }
 
+    /// New model with the columns of `data`, a dict or table, added or replaced.
+    fn with_columns(&self, data: &Bound<PyAny>) -> PyResult<Self> {
+        Ok(Self(with_columns(
+            self.0.clone(),
+            data,
+            BlockModel::with_column,
+        )?))
+    }
+
     /// Nodes discretizing every block, e.g. targets for ``simulate(blocks=)``.
     ///
     /// Parameters
@@ -717,6 +758,18 @@ impl PyBlockModel {
             Err(_) => triple(n.extract()?, 1, "n"),
         }
     }
+}
+
+fn with_columns<T>(
+    mut target: T,
+    data: &Bound<PyAny>,
+    set: fn(&T, &str, arrow_array::ArrayRef) -> ceres_core::Result<T>,
+) -> PyResult<T> {
+    let batch = to_batch(data)?;
+    for (field, column) in batch.schema().fields().iter().zip(batch.columns()) {
+        target = set(&target, field.name(), column.clone()).map_err(core_error)?;
+    }
+    Ok(target)
 }
 
 pub fn float_column(values: &Bound<PyAny>, rows: usize) -> PyResult<arrow_array::ArrayRef> {

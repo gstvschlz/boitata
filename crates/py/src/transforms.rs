@@ -970,11 +970,10 @@ impl UniformConditioning {
 
 /// A float column of `model`, null as None.
 pub(crate) fn nullable(model: &PyBlockModel, name: &str) -> PyResult<Vec<Option<f64>>> {
-    let column = model
-        .0
-        .attributes()
-        .column_by_name(name)
-        .ok_or_else(|| pyo3::exceptions::PyKeyError::new_err(name.to_string()))?;
+    let column =
+        model.0.attributes().column_by_name(name).ok_or_else(|| {
+            crate::table::missing(name, crate::table::names(model.0.attributes()))
+        })?;
     let values = arrow_cast::cast(column, &arrow_schema::DataType::Float64).map_err(invalid)?;
     Ok(values.as_primitive::<Float64Type>().iter().collect())
 }

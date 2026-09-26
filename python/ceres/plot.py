@@ -9,6 +9,8 @@ import numpy as np
 from ceres._ceres import correlation as _correlation
 from ceres._ceres import describe, normal_ppf
 from ceres._ceres import swath as _swath
+from ceres._columns import column as _column
+from ceres._columns import stack as _stack
 
 __all__ = [
     "boxplot",
@@ -357,16 +359,6 @@ def scatter(x, y, line=True, ax=None, **kwargs):
     return fig, ax
 
 
-def _columns(data, labels):
-    if hasattr(data, "column_names") or hasattr(data, "keys"):
-        names = list(data.column_names) if hasattr(data, "column_names") else list(data.keys())
-        labels = names if labels is None else labels
-        data = np.column_stack([np.asarray(data[k], dtype=float) for k in names])
-    data = np.array(data, dtype=float)
-    labels = [str(j) for j in range(data.shape[1])] if labels is None else list(labels)
-    return data, labels
-
-
 def correlation(data, labels=None, weights=None, method="pearson", colorbar=True, ax=None, **kwargs):
     """Correlation, rank correlation or covariance matrix as a heatmap, each cell written out.
 
@@ -387,7 +379,7 @@ def correlation(data, labels=None, weights=None, method="pearson", colorbar=True
         Passed to ``ax.imshow`` (e.g. ``cmap``).
     """
     fig, ax = _axes(ax)
-    data, labels = _columns(data, labels)
+    data, labels = _stack(data, labels)
     r = _correlation(data, weights, method=method)
     top = np.nanmax(np.abs(r)) if method == "covariance" else 1.0
     kwargs.setdefault("cmap", "RdBu_r")
@@ -500,7 +492,7 @@ def completeness(data, ax=None, **kwargs):
         Passed to ``ax.bar``.
     """
     fig, ax = _axes(ax)
-    data, _ = _columns(data, None)
+    data, _ = _stack(data)
     d = data.shape[1]
     counts = np.bincount(np.isfinite(data).sum(axis=1), minlength=d + 1)
     kwargs.setdefault("color", ["0.8"] * d + [_accent()])
@@ -541,7 +533,7 @@ def scatter_matrix(data, labels=None, weights=None, log=False, bins=30, axes=Non
     axes : ndarray of Axes
         ``(d, d)``; ``axes[i, j]`` has column ``j`` across and column ``i`` up.
     """
-    data, labels = _columns(data, labels)
+    data, labels = _stack(data, labels)
     d = data.shape[1]
     log = np.broadcast_to(log, d)
     for j in np.flatnonzero(log):
@@ -673,7 +665,7 @@ def _image(ax, block_model, columns, axis, index, plane, resolution):
     rows = rows[i0 : i1 + 1, j0 : j1 + 1]
     images = []
     for column in columns:
-        values = np.asarray(block_model[column] if isinstance(column, str) else column, dtype=float)
+        values = np.asarray(_column(block_model, column), dtype=float)
         images.append(np.where(rows >= 0, values[rows], np.nan))
     _label(ax, u, v)
     (u0, v0), (u1, v1) = lo + step * np.array([j0, i0]), lo + step * np.array([j1 + 1, i1 + 1])
@@ -760,7 +752,7 @@ def slab(
         ax.add_collection(LineCollection(segments @ uv, colors="0.75", linewidths=0.8))
 
     if values is not None:
-        kwargs["c"] = np.asarray(points[values] if isinstance(values, str) else values, dtype=float)[near]
+        kwargs["c"] = np.asarray(_column(points, values), dtype=float)[near]
         _scheme_colors(scheme, kwargs)
     kwargs.setdefault("s", 6)
     drawn = ax.scatter(xy[:, 0], xy[:, 1], **kwargs)

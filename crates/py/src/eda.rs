@@ -10,7 +10,7 @@ use pyo3::IntoPyObjectExt;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 
-use crate::args::{array1, array2, floats, holes, rows};
+use crate::args::{array1, array2, floats, holes, pair, per_row, rows};
 use crate::containers::{PyPointSet, coords_arg};
 use crate::invalid;
 use crate::table::Table;
@@ -329,7 +329,7 @@ fn block_tonnes(
         return Ok(None);
     }
     let one =
-        |o: Option<&Bound<PyAny>>, what| o.map_or(Ok(vec![1.0; n]), |o| per_value(o, n, what));
+        |o: Option<&Bound<PyAny>>, what| o.map_or(Ok(vec![1.0; n]), |o| per_row(None, o, n, what));
     let (v, d) = (one(volume, "volume")?, one(density, "density")?);
     Ok(Some(v.iter().zip(&d).map(|(v, d)| v * d).collect()))
 }
@@ -372,7 +372,7 @@ fn swath<'py>(
     let values = floats(values, "values")?;
     let w = optional_floats(weights, "weights")?;
     let density = density
-        .map(|d| per_value(d, values.len(), "density"))
+        .map(|d| per_row(Some(coords), d, values.len(), "density"))
         .transpose()?;
     let p = eda::swath(
         &coords_arg(coords)?,
@@ -388,14 +388,6 @@ fn swath<'py>(
     d.set_item("tonnage", array1(py, tonnage))?;
     d.set_item("metal", array1(py, metal))?;
     Ok(d)
-}
-
-/// A constant or one value each.
-fn per_value(obj: &Bound<PyAny>, n: usize, what: &str) -> PyResult<Vec<f64>> {
-    match obj.extract::<f64>() {
-        Ok(x) => Ok(vec![x; n]),
-        Err(_) => floats(obj, what),
-    }
 }
 
 /// Statistics of a block model against the data it was estimated from, per
@@ -876,13 +868,6 @@ fn two<'py>(
         .map_err(|_| invalid(format!("{what} must be a pair: one for a, one for b")))
 }
 
-fn set_coords(obj: &Bound<PyAny>) -> PyResult<Vec<[f64; 3]>> {
-    match obj.cast::<PyPointSet>() {
-        Ok(p) => Ok(p.get().0.coords().to_vec()),
-        Err(_) => coords_arg(obj),
-    }
-}
-
 /// Nearest pairs between two sets of samples within `max_distance`, e.g. twin
 /// holes or two drilling types.
 ///
@@ -915,16 +900,17 @@ fn pairs(
     unique: bool,
     holes: Option<&Bound<PyAny>>,
 ) -> PyResult<Table> {
-    let (a, b) = (set_coords(a)?, set_coords(b)?);
+    let (sa, sb) = (a, b);
+    let (a, b) = (coords_arg(a)?, coords_arg(b)?);
     let values = values
         .map(|v| -> PyResult<_> {
-            let (va, vb) = two(v, "values")?;
+            let (va, vb) = pair(sa, sb, v, "values")?;
             Ok((floats(&va, "values")?, floats(&vb, "values")?))
         })
         .transpose()?;
     let codes = holes
         .map(|h| -> PyResult<_> {
-            let (ha, hb) = two(h, "holes")?;
+            let (ha, hb) = pair(sa, sb, h, "holes")?;
             let (la, _) = self::holes(Some(&ha), a.len())?.expect("given");
             let (lb, _) = self::holes(Some(&hb), b.len())?.expect("given");
             let mut ids = std::collections::HashMap::new();
@@ -994,7 +980,7 @@ fn data_spacing<'py>(
     targets: Option<&Bound<PyAny>>,
     horizontal: bool,
 ) -> PyResult<Bound<'py, PyAny>> {
-    let coords = set_coords(coords)?;
+    let coords = coords_arg(coords)?;
     let targets = targets
         .map(|t| -> PyResult<Vec<[f64; 3]>> {
             Ok(crate::estimation::targets(t)?

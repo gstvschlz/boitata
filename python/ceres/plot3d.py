@@ -37,8 +37,8 @@ def _axes(rotation):
 def _columns(table):
     for name in table.column_names:
         values = table[name]
-        if isinstance(values, list):
-            values = np.array(["" if v is None else v for v in values])
+        if values.dtype == object:
+            values = np.where(values == None, "", values).astype(str)
         yield name, values
 
 

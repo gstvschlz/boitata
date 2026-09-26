@@ -8,3 +8,9 @@ class InvalidInput(CeresError, ValueError):
 
 class FileError(CeresError, OSError):
     pass
+
+
+class MissingColumn(CeresError, KeyError):
+    """A column name that the table or container does not have; the message lists those it has."""
+
+    __str__ = Exception.__str__

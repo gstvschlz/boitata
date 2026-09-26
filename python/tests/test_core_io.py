@@ -17,7 +17,7 @@ def test_read_csv_maps_nodata_to_null(samples):
     assert table.column_names == ["X", "Y", "au", "rock"]
     au = table["au"]
     assert au[0] == 0.5 and math.isnan(au[1])
-    assert table["rock"] == ["ox", "fr"]
+    assert list(table["rock"]) == ["ox", "fr"]
 
 
 def test_pointset_from_table_and_back(samples):
@@ -94,7 +94,7 @@ def test_nodata_numbers_match_numerically_and_strings_as_tokens(tmp_path):
     path = tmp_path / "v.csv"
     path.write_text("v,rock\n-999.0,ox\n-999,none\n1,fr\n")
     numeric = cs.read_csv(path, nodata=[-999, "none"])
-    assert np.isnan(numeric["v"][:2]).all() and numeric["rock"] == ["ox", None, "fr"]
+    assert np.isnan(numeric["v"][:2]).all() and list(numeric["rock"]) == ["ox", None, "fr"]
     assert np.isnan(cs.read_csv(path, nodata=["-999"])["v"]).tolist() == [False, True, False]
     with pytest.raises(TypeError):
         cs.read_csv(path, [-999])
@@ -168,7 +168,7 @@ def test_mesh_files_round_trip(tmp_path):
         back = cs.read_mesh(tmp_path / name)
         np.testing.assert_array_equal(back.vertices[back.triangles], tetra.vertices[tetra.triangles])
         assert back.is_closed and back.volume == pytest.approx(tetra.volume)
-    assert back.face_attributes["layer"] == ["a", "a", "b", "b"]
+    assert list(back.face_attributes["layer"]) == ["a", "a", "b", "b"]
     cs.write_mesh(tmp_path / "a.stl", tetra, ascii=True)
     assert (tmp_path / "a.stl").read_text().startswith("solid")
     np.testing.assert_array_equal(
@@ -190,7 +190,7 @@ def test_shapefile_round_trip(tmp_path):
     back = cs.read_shapefile(tmp_path / "collars.shp")
     np.testing.assert_array_equal(back.coords, points.coords)
     np.testing.assert_array_equal(back["au"], points["au"])
-    assert back["rock"] == points["rock"] and back.crs == points.crs
+    assert list(back["rock"]) == list(points["rock"]) and back.crs == points.crs
     with pytest.raises(cs.InvalidInput):
         cs.write_shapefile(tmp_path / "long.shp", points.with_column("a_long_column", [1, 2]))
 
@@ -209,7 +209,7 @@ def test_polylines_parts_features_and_points():
     assert lines.closed.tolist() == [True, True, False] and lines.vertices.shape == (11, 3)
     np.testing.assert_array_equal(lines.parts[2], section)
     points = lines.to_points()
-    assert points["name"] == ["pit"] * 8 + ["s1"] * 3
+    assert list(points["name"]) == ["pit"] * 8 + ["s1"] * 3
     assert points["part"].tolist() == [0] * 4 + [1] * 4 + [2] * 3
     assert lines.with_column("id", [1, 2])["id"].tolist() == [1, 2]
     with pytest.raises(cs.InvalidInput):
@@ -259,7 +259,7 @@ def test_polylines_shapefile_round_trip(tmp_path):
     )
     cs.write_shapefile(tmp_path / "pit.shp", pits)
     back = cs.read_shapefile(tmp_path / "pit.shp")
-    assert isinstance(back, cs.Polylines) and back.crs == pits.crs and back["name"] == ["pit"]
+    assert isinstance(back, cs.Polylines) and back.crs == pits.crs and list(back["name"]) == ["pit"]
     np.testing.assert_array_equal(back.vertices, pits.vertices)
     assert back.closed.tolist() == [True, True] and back.feature.tolist() == [0, 0]
     with pytest.raises(cs.InvalidInput):

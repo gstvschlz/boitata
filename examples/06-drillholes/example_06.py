@@ -181,7 +181,7 @@ save(fig, "compositing")
 # Zn by lithology:
 
 # %%
-lith = np.array(composites.attributes["LITH"])
+lith = composites["LITH"]
 names, counts = np.unique(lith[lith != ""], return_counts=True)
 top = np.isin(lith, names[np.argsort(counts)[::-1][:8]])
 fig, ax = plt.subplots(figsize=(8, 3.6), layout="constrained")

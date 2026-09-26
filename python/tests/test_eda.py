@@ -107,7 +107,7 @@ def test_describe_by_ends_with_the_all_data_row():
     w = rng.uniform(0.5, 2, 91)
     t = cs.describe_by(v, c, w, quantiles=[0.5, 0.975])
     assert t.column_names == ["category", "n", "mean", "variance", "std", "cv", "min", "max", "P50", "P97.5"]
-    assert t["category"] == ["a", "b", "c", "all"]
+    assert list(t["category"]) == ["a", "b", "c", "all"]
     whole = cs.describe(v, w, quantiles=[0.5, 0.975])
     assert t["n"][-1] == whole["n"] == t["n"][:3].sum()
     assert t["mean"][-1] == pytest.approx(whole["mean"])
@@ -138,7 +138,7 @@ def test_compare_models_reference_scaling_and_metal_balance():
     )
     assert t.column_names[:3] == ["category", "cutoff", "model"]
     assert t.num_rows == 4 * 3 * 3
-    assert t["category"][::9] == ["indicated", "inferred", "measured", "all"]
+    assert list(t["category"][::9]) == ["indicated", "inferred", "measured", "all"]
     model = np.asarray(t["model"])
     for name in ("kriged", "same"):
         for diff in ("tonnage_diff", "grade_diff", "metal_diff"):
@@ -150,7 +150,7 @@ def test_compare_models_reference_scaling_and_metal_balance():
     np.testing.assert_allclose(kriged["metal"], gt["metal"])
     metal = np.asarray(gt["metal"]).reshape(4, 3)
     np.testing.assert_allclose(metal[:3].sum(axis=0), metal[3])
-    assert cs.compare_models({"a": v, "b": v}, [0.0], reference="b")["model"] == ["a", "b"]
+    assert list(cs.compare_models({"a": v, "b": v}, [0.0], reference="b")["model"]) == ["a", "b"]
     with pytest.raises(cs.InvalidInput):
         cs.compare_models({"a": v}, [0.0], reference="b")
     with pytest.raises(cs.InvalidInput):
@@ -163,7 +163,7 @@ def test_capping_report_by_domain():
     w = rng.uniform(0.5, 2, 300)
     caps = {1: 3.0, 3: 5.0}
     t = cs.capping_report(v, d, caps, weights=w)
-    assert t["domain"] == ["1", "2", "3", "all"]
+    assert list(t["domain"]) == ["1", "2", "3", "all"]
     cap = np.select([d == 1, d == 3], [3.0, 5.0], np.inf)
     removed = np.maximum(v - cap, 0) * w
     np.testing.assert_allclose(
@@ -210,7 +210,7 @@ def test_duplicates_report_group_ids_and_merge():
     merged = cs.duplicates(points, 0.5, merge="mean", weights=[1, 1, 3, 1, 1])
     np.testing.assert_allclose(merged.coords, coords[[0, 1, 4]])
     np.testing.assert_allclose(merged["zn"], [2.5, 2.0, 5.0])
-    assert merged["rock"] == ["a", "b", "e"] and merged["n"].tolist() == [3, 1, 1]
+    assert list(merged["rock"]) == ["a", "b", "e"] and merged["n"].tolist() == [3, 1, 1]
     assert merged.crs == "EPSG:32718"
     counted = cs.duplicates(points, 0.5, merge="mean")
     assert np.average(counted["cu"], weights=counted["n"]) == pytest.approx(cu.mean())

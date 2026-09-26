@@ -68,8 +68,25 @@ pub fn to_batch(data: &Bound<PyAny>) -> PyResult<RecordBatch> {
     arrow_select::concat::concat_batches(&schema, &batches).map_err(invalid)
 }
 
+/// `MissingColumn` for `name`, listing the `columns` there are.
+pub fn missing(name: &str, columns: Vec<String>) -> PyErr {
+    crate::error(
+        "MissingColumn",
+        format!("no column {name:?}; columns: {}", columns.join(", ")),
+    )
+}
+
+pub fn names(batch: &RecordBatch) -> Vec<String> {
+    batch
+        .schema()
+        .fields()
+        .iter()
+        .map(|f| f.name().clone())
+        .collect()
+}
+
 /// Numeric columns as float64 arrays (null as NaN), boolean ones as bool
-/// arrays (null as false), others as lists.
+/// arrays (null as false), others as object arrays of str (null as None).
 pub fn column<'py>(
     py: Python<'py>,
     batch: &RecordBatch,
@@ -77,7 +94,7 @@ pub fn column<'py>(
 ) -> PyResult<Bound<'py, PyAny>> {
     let array = batch
         .column_by_name(name)
-        .ok_or_else(|| pyo3::exceptions::PyKeyError::new_err(name.to_string()))?;
+        .ok_or_else(|| missing(name, names(batch)))?;
     if let Some(flags) = array.as_boolean_opt() {
         let values: Vec<bool> = flags.iter().map(|v| v.unwrap_or(false)).collect();
         return Ok(PyArray1::from_vec(py, values).into_any());
@@ -93,7 +110,8 @@ pub fn column<'py>(
     }
     let text = arrow_cast::cast(array, &DataType::Utf8).map_err(invalid)?;
     let items: Vec<Option<&str>> = text.as_string::<i32>().iter().collect();
-    Ok(PyList::new(py, items)?.into_any())
+    py.import("numpy")?
+        .call_method1("array", (PyList::new(py, items)?, "object"))
 }
 
 fn struct_field(batch: &RecordBatch) -> Arc<Field> {
@@ -137,12 +155,7 @@ impl Table {
 
     #[getter]
     fn column_names(&self) -> Vec<String> {
-        self.0
-            .schema()
-            .fields()
-            .iter()
-            .map(|f| f.name().clone())
-            .collect()
+        names(&self.0)
     }
 
     fn column<'py>(&self, py: Python<'py>, name: &str) -> PyResult<Bound<'py, PyAny>> {
