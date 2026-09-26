@@ -10,7 +10,7 @@ use simulation::{
 use variogram::Variogram as CoreVariogram;
 
 use crate::args::{
-    self, Point, array1, distinct, finite, optional_finite, pick, points, rows, same_length,
+    self, Point, array1, distinct, finite, floats, optional_finite, pick, points, rows, same_length,
 };
 use crate::containers::PyBlockModel;
 use crate::estimation::{Label, Search, codes, fit_codes, labels, searches, targets};
@@ -340,8 +340,51 @@ fn located(
     Ok((pick(&locs, &keep), keep, codes))
 }
 
-/// The data of `fit` and the labels of their `domains`, which every soft
-/// boundary of `search` must name.
+/// `domains`, or the `domain_column` of `data`; not both.
+fn domain_arg<'py>(
+    data: &Bound<'py, PyAny>,
+    domains: Option<&Bound<'py, PyAny>>,
+    domain_column: Option<&str>,
+) -> PyResult<Option<Bound<'py, PyAny>>> {
+    match (domains, domain_column) {
+        (Some(_), Some(_)) => Err(invalid("give one of domains or domain_column")),
+        (None, Some(c)) => args::named(Some(data), c, "domain_column").map(Some),
+        (d, None) => Ok(d.cloned()),
+    }
+}
+
+/// `arg`, or the column of `coords` it names.
+fn resolve<'py>(
+    coords: &Bound<'py, PyAny>,
+    arg: Option<&Bound<'py, PyAny>>,
+    what: &str,
+) -> PyResult<Option<Bound<'py, PyAny>>> {
+    arg.map(|a| args::column(Some(coords), a, what)).transpose()
+}
+
+/// The column `name` of the block model file `path`, read `rows` blocks at a
+/// time.
+fn file_column<'py>(
+    py: Python<'py>,
+    path: &std::path::Path,
+    name: &str,
+    rows: usize,
+) -> PyResult<Bound<'py, PyAny>> {
+    let io = |e| err(simulation::SimError::Io(e));
+    let reader = ceres_io::BlockModelReader::open(path).map_err(io)?;
+    if !reader.column_names().iter().any(|c| c == name) {
+        return Err(crate::table::missing(name, reader.column_names().to_vec()));
+    }
+    let parts = reader
+        .chunks(rows, Some(&[name]))
+        .map_err(io)?
+        .map(|chunk| Bound::new(py, PyBlockModel(chunk.map_err(io)?))?.get_item(name))
+        .collect::<PyResult<Vec<_>>>()?;
+    py.import("numpy")?.call_method1("concatenate", (parts,))
+}
+
+/// The data of `fit`, each argument an array or a column of `coords`, and the
+/// labels of their domains, which every soft boundary of `search` must name.
 #[allow(clippy::too_many_arguments)]
 fn data(
     coords: &Bound<PyAny>,
@@ -350,25 +393,28 @@ fn data(
     holes: Option<&Bound<PyAny>>,
     trend: Option<&Bound<PyAny>>,
     domains: Option<&Bound<PyAny>>,
+    domain_column: Option<&str>,
     classes: usize,
     search: &[Search],
 ) -> PyResult<(Data, Option<Vec<Label>>)> {
-    let (fitted, codes) = match domains {
+    let values = finite(&args::column(Some(coords), values, "values")?, "values")?;
+    let (fitted, codes) = match domain_arg(coords, domains, domain_column)? {
         None => (None, None),
         Some(obj) => {
-            let (fitted, codes) = fit_codes(obj, values.len()?)?;
+            let (fitted, codes) = fit_codes(&obj, values.len())?;
             (Some(fitted), Some(codes))
         }
     };
     for s in search {
         s.resolve(fitted.as_deref())?;
     }
-    let values = finite(values, "values")?;
-    let weights = optional_finite(weights, "weights")?;
+    let weights = optional_finite(resolve(coords, weights, "weights")?.as_ref(), "weights")?;
     if let Some(w) = &weights {
         same_length(values.len(), w.len(), "weights")?;
     }
-    let trend = optional_finite(trend, "trend")?;
+    let holes = resolve(coords, holes, "holes")?;
+    let holes = holes.as_ref();
+    let trend = optional_finite(resolve(coords, trend, "trend")?.as_ref(), "trend")?;
     if let Some(t) = &trend {
         same_length(values.len(), t.len(), "trend")?;
     }
@@ -536,23 +582,32 @@ impl Sgs {
     ///     As in `simulate`.
     /// domains : array_like or label, optional
     ///     As in `simulate`.
+    /// domain_column : str, optional
+    ///     As in `simulate`.
     ///
     /// Returns
     /// -------
     /// ndarray
     ///     The pass, 1-based; NaN where no search finds enough data, and
     ///     `simulate` uses the last.
-    #[pyo3(signature = (targets, anisotropy=None, domains=None))]
+    #[pyo3(signature = (targets, *, anisotropy=None, domains=None, domain_column=None))]
     fn passes<'py>(
         &self,
         py: Python<'py>,
         targets: &Bound<PyAny>,
         anisotropy: Option<PyRef<crate::lva::LocalAnisotropy>>,
         domains: Option<&Bound<PyAny>>,
+        domain_column: Option<&str>,
     ) -> PyResult<Bound<'py, PyArray1<f64>>> {
         let d = self.data.as_ref().ok_or_else(not_fitted)?;
         let grid = self::targets(targets)?;
-        let nodes = node_domains(self.domains.as_deref(), domains, grid.len(), "passes")?;
+        let domains = domain_arg(targets, domains, domain_column)?;
+        let nodes = node_domains(
+            self.domains.as_deref(),
+            domains.as_ref(),
+            grid.len(),
+            "passes",
+        )?;
         let search = resolved(&self.search, self.domains.as_deref())?;
         let local = anisotropy.map(|a| a.at_targets(&grid));
         let passes = py
@@ -580,26 +635,31 @@ impl Sgs {
     ///
     /// Parameters
     /// ----------
-    /// coords : array_like, shape (n, 2) or (n, 3)
-    /// values : array_like, shape (n,)
-    /// weights : array_like, optional
+    /// coords : array_like, shape (n, 2) or (n, 3), PointSet or BlockModel
+    /// values : array_like, shape (n,), or str
+    ///     Values, or the column of `coords` holding them; so for `weights`,
+    ///     `holes` and `trend`.
+    /// weights : array_like or str, optional
     ///     Declustering weights, for every normal score.
-    /// holes : array_like, optional
+    /// holes : array_like or str, optional
     ///     Drill-hole ids or names, for `max_per_hole`.
-    /// trend : array_like, optional
+    /// trend : array_like or str, optional
     ///     Trend at the data, from any model or estimator; `simulate` then
     ///     needs the trend at the targets.
     /// domains : array_like or label, optional
     ///     Domain label of each sample, or one label for all: strings,
     ///     numbers or booleans. Samples sharing a location in different
     ///     domains are all kept.
+    /// domain_column : str, optional
+    ///     The column of `coords` holding the domains, instead of `domains`.
     ///
     /// Raises
     /// ------
     /// InvalidInput
     ///     If a Search.soft names a domain without samples, or has no
-    ///     `domains` to work on.
-    #[pyo3(signature = (coords, values, weights=None, holes=None, trend=None, domains=None))]
+    ///     `domains` to work on, or both `domains` and `domain_column` are
+    ///     given.
+    #[pyo3(signature = (coords, values, *, weights=None, holes=None, trend=None, domains=None, domain_column=None))]
     #[allow(clippy::too_many_arguments)]
     fn fit<'py>(
         mut slf: PyRefMut<'py, Self>,
@@ -609,6 +669,7 @@ impl Sgs {
         holes: Option<&Bound<PyAny>>,
         trend: Option<&Bound<PyAny>>,
         domains: Option<&Bound<PyAny>>,
+        domain_column: Option<&str>,
     ) -> PyResult<PyRefMut<'py, Self>> {
         let (d, fitted) = data(
             coords,
@@ -617,6 +678,7 @@ impl Sgs {
             holes,
             trend,
             domains,
+            domain_column,
             slf.classes,
             &slf.search,
         )?;
@@ -640,7 +702,9 @@ impl Sgs {
     /// InvalidInput. Simulated domains, an ``(n, targets)`` array such as
     /// the `realizations` of SIS or Plurigaussian, give each realization its
     /// own: realization ``k`` of the grades is simulated within row ``k``.
-    #[pyo3(signature = (targets, n=100, seed=0, cutoffs=vec![], quantiles=vec![], realizations=false, anisotropy=None, blocks=None, trend=None, domains=None))]
+    /// `domain_column`, instead of `domains`, names the column of PointSet or
+    /// BlockModel targets holding them.
+    #[pyo3(signature = (targets, *, n=100, seed=0, cutoffs=vec![], quantiles=vec![], realizations=false, anisotropy=None, blocks=None, trend=None, domains=None, domain_column=None))]
     #[allow(clippy::too_many_arguments)]
     fn simulate(
         &self,
@@ -655,11 +719,13 @@ impl Sgs {
         blocks: Option<PyRef<PyBlockModel>>,
         trend: Option<&Bound<PyAny>>,
         domains: Option<&Bound<PyAny>>,
+        domain_column: Option<&str>,
     ) -> PyResult<SimulationSummary> {
         let d = self.data.as_ref().ok_or_else(not_fitted)?;
         let grid = self::targets(targets)?;
         let fitted = self.domains.as_deref();
-        let nodes = realization_domains(fitted, domains, grid.len(), n, "simulate")?;
+        let domains = domain_arg(targets, domains, domain_column)?;
+        let nodes = realization_domains(fitted, domains.as_ref(), grid.len(), n, "simulate")?;
         let search = resolved(&self.search, fitted)?;
         let at_nodes = trend_at(d, targets, grid.len(), trend)?;
         let trend = d
@@ -803,26 +869,31 @@ impl TurningBands {
     ///
     /// Parameters
     /// ----------
-    /// coords : array_like, shape (n, 2) or (n, 3)
-    /// values : array_like, shape (n,)
-    /// weights : array_like, optional
+    /// coords : array_like, shape (n, 2) or (n, 3), PointSet or BlockModel
+    /// values : array_like, shape (n,), or str
+    ///     Values, or the column of `coords` holding them; so for `weights`,
+    ///     `holes` and `trend`.
+    /// weights : array_like or str, optional
     ///     Declustering weights, for every normal score.
-    /// holes : array_like, optional
+    /// holes : array_like or str, optional
     ///     Drill-hole ids or names, for `max_per_hole`.
-    /// trend : array_like, optional
+    /// trend : array_like or str, optional
     ///     Trend at the data, from any model or estimator; `simulate` then
     ///     needs the trend at the targets.
     /// domains : array_like or label, optional
     ///     Domain label of each sample, or one label for all: strings,
     ///     numbers or booleans. Samples sharing a location in different
     ///     domains are all kept.
+    /// domain_column : str, optional
+    ///     The column of `coords` holding the domains, instead of `domains`.
     ///
     /// Raises
     /// ------
     /// InvalidInput
     ///     If a Search.soft names a domain without samples, or has no
-    ///     `domains` to work on.
-    #[pyo3(signature = (coords, values, weights=None, holes=None, trend=None, domains=None))]
+    ///     `domains` to work on, or both `domains` and `domain_column` are
+    ///     given.
+    #[pyo3(signature = (coords, values, *, weights=None, holes=None, trend=None, domains=None, domain_column=None))]
     #[allow(clippy::too_many_arguments)]
     fn fit<'py>(
         mut slf: PyRefMut<'py, Self>,
@@ -832,6 +903,7 @@ impl TurningBands {
         holes: Option<&Bound<PyAny>>,
         trend: Option<&Bound<PyAny>>,
         domains: Option<&Bound<PyAny>>,
+        domain_column: Option<&str>,
     ) -> PyResult<PyRefMut<'py, Self>> {
         let (d, fitted) = data(
             coords,
@@ -840,6 +912,7 @@ impl TurningBands {
             holes,
             trend,
             domains,
+            domain_column,
             slf.classes,
             slf.search.as_slice(),
         )?;
@@ -852,9 +925,10 @@ impl TurningBands {
     /// `domains`, needed when fitted with them, labels the targets, or is one
     /// label for all; a target in a domain without samples raises
     /// InvalidInput. Simulated domains, an ``(n, targets)`` array, give
-    /// realization ``k`` of the grades the domains of row ``k``.
+    /// realization ``k`` of the grades the domains of row ``k``;
+    /// `domain_column` as in `SGS.simulate`.
     #[allow(clippy::too_many_arguments)]
-    #[pyo3(signature = (targets, n=100, seed=0, cutoffs=vec![], quantiles=vec![], realizations=false, blocks=None, trend=None, domains=None))]
+    #[pyo3(signature = (targets, *, n=100, seed=0, cutoffs=vec![], quantiles=vec![], realizations=false, blocks=None, trend=None, domains=None, domain_column=None))]
     fn simulate(
         &self,
         py: Python,
@@ -867,11 +941,13 @@ impl TurningBands {
         blocks: Option<PyRef<PyBlockModel>>,
         trend: Option<&Bound<PyAny>>,
         domains: Option<&Bound<PyAny>>,
+        domain_column: Option<&str>,
     ) -> PyResult<SimulationSummary> {
         let d = self.data.as_ref().ok_or_else(not_fitted)?;
         let grid = self::targets(targets)?;
         let fitted = self.domains.as_deref();
-        let nodes = realization_domains(fitted, domains, grid.len(), n, "simulate")?;
+        let domains = domain_arg(targets, domains, domain_column)?;
+        let nodes = realization_domains(fitted, domains.as_ref(), grid.len(), n, "simulate")?;
         let at_nodes = trend_at(d, targets, grid.len(), trend)?;
         let params = self.params(seed, self.resolved()?);
         let support = support(targets, &grid, blocks)?;
@@ -917,6 +993,8 @@ impl TurningBands {
     /// domains : array_like or label, optional
     ///     Needed when fitted with them: labels of the blocks in file order,
     ///     or one label for all.
+    /// domain_column : str, optional
+    ///     Instead of `domains`, the column of `path` holding them.
     /// trend : str, optional
     ///     Needed when fitted with a trend: the column of `path` holding it.
     /// discretization : tuple of int, optional
@@ -924,7 +1002,7 @@ impl TurningBands {
     ///     ``simulate(model.discretize(discretization), blocks=model)``;
     ///     default the centroid. A node takes its block's domain and trend.
     #[allow(clippy::too_many_arguments)]
-    #[pyo3(signature = (path, out, n=100, seed=0, cutoffs=vec![], quantiles=vec![], rows=1_000_000, domains=None, trend=None, discretization=None))]
+    #[pyo3(signature = (path, out, *, n=100, seed=0, cutoffs=vec![], quantiles=vec![], rows=1_000_000, domains=None, domain_column=None, trend=None, discretization=None))]
     fn simulate_to_parquet<'py>(
         &self,
         py: Python<'py>,
@@ -936,9 +1014,16 @@ impl TurningBands {
         quantiles: Vec<f64>,
         rows: usize,
         domains: Option<&Bound<PyAny>>,
+        domain_column: Option<&str>,
         trend: Option<String>,
         discretization: Option<(usize, usize, usize)>,
     ) -> PyResult<Bound<'py, pyo3::types::PyDict>> {
+        let domains = match (domains, domain_column) {
+            (Some(_), Some(_)) => return Err(invalid("give one of domains or domain_column")),
+            (None, Some(c)) => Some(file_column(py, &path, c, rows)?),
+            (d, None) => d.cloned(),
+        };
+        let domains = domains.as_ref();
         let d = self.data.as_ref().ok_or_else(not_fitted)?;
         let method = "simulate_to_parquet";
         match (&d.trend, &trend) {
@@ -1014,7 +1099,9 @@ impl TurningBands {
     }
 }
 
-fn categories(obj: &Bound<PyAny>) -> PyResult<Vec<usize>> {
+/// Categories `obj`, or the column of `coords` it names.
+fn categories(coords: &Bound<PyAny>, obj: &Bound<PyAny>) -> PyResult<Vec<usize>> {
+    let obj = args::column(Some(coords), obj, "categories")?;
     obj.py()
         .import("numpy")?
         .call_method1("asarray", (obj, "int64"))?
@@ -1070,17 +1157,19 @@ impl Sis {
         })
     }
 
-    /// `holes` tag the samples for `max_per_hole`; samples sharing a location
-    /// keep the first, with a warning naming their holes.
-    #[pyo3(signature = (coords, categories, holes=None))]
+    /// Takes the categories ``0..k`` at `coords`. `holes` tag the samples for
+    /// `max_per_hole`; samples sharing a location keep the first, with a
+    /// warning naming their holes. Both may name columns of `coords`.
+    #[pyo3(signature = (coords, categories, *, holes=None))]
     fn fit<'py>(
         mut slf: PyRefMut<'py, Self>,
         coords: &Bound<PyAny>,
         categories: &Bound<PyAny>,
         holes: Option<&Bound<PyAny>>,
     ) -> PyResult<PyRefMut<'py, Self>> {
-        let cats = self::categories(categories)?;
-        let (locs, keep, holes) = located(coords, cats.len(), "categories", holes, None)?;
+        let cats = self::categories(coords, categories)?;
+        let holes = resolve(coords, holes, "holes")?;
+        let (locs, keep, holes) = located(coords, cats.len(), "categories", holes.as_ref(), None)?;
         let cats = pick(&cats, &keep);
         if cats.iter().any(|&c| c >= slf.variograms.len()) {
             return Err(invalid("every category needs a variogram"));
@@ -1095,7 +1184,7 @@ impl Sis {
     /// coarser BlockModel), each block takes the category filling most of its
     /// node volume, ties to the smallest, as in `BlockModel.regularize`; blocks as in
     /// `SGS.simulate`.
-    #[pyo3(signature = (targets, n=100, seed=0, realizations=false, blocks=None))]
+    #[pyo3(signature = (targets, *, n=100, seed=0, realizations=false, blocks=None))]
     fn simulate(
         &self,
         py: Python,
@@ -1378,27 +1467,29 @@ impl Plurigaussian {
     ///
     /// Parameters
     /// ----------
-    /// coords : array_like, shape (n, 2) or (n, 3)
-    /// facies : array_like, shape (n,)
-    ///     Facies ``0..k`` of each sample.
-    /// holes : array_like, optional
+    /// coords : array_like, shape (n, 2) or (n, 3), PointSet or BlockModel
+    /// categories : array_like, shape (n,), or str
+    ///     Facies ``0..k`` of each sample, or the column of `coords` holding
+    ///     them.
+    /// holes : array_like or str, optional
     ///     Drill-hole ids or names; samples sharing a location keep the first.
     /// proportions : array_like, shape (n, k), optional
     ///     Local facies proportions at the samples, for a rule built from
     ///     proportions; `simulate` then needs them at the targets.
-    #[pyo3(signature = (coords, facies, holes=None, proportions=None))]
+    #[pyo3(signature = (coords, categories, *, holes=None, proportions=None))]
     fn fit<'py>(
         mut slf: PyRefMut<'py, Self>,
         coords: &Bound<PyAny>,
-        facies: &Bound<PyAny>,
+        categories: &Bound<PyAny>,
         holes: Option<&Bound<PyAny>>,
         proportions: Option<&Bound<PyAny>>,
     ) -> PyResult<PyRefMut<'py, Self>> {
-        let facies = categories(facies)?;
+        let facies = self::categories(coords, categories)?;
         let local = proportions
             .map(|p| slf.local_rows(p, facies.len()))
             .transpose()?;
-        let (locs, keep, _) = located(coords, facies.len(), "facies", holes, None)?;
+        let holes = resolve(coords, holes, "holes")?;
+        let (locs, keep, _) = located(coords, facies.len(), "categories", holes.as_ref(), None)?;
         slf.local = local.map(|l| pick(&l, &keep));
         slf.data = Some((locs, pick(&facies, &keep)));
         Ok(slf)
@@ -1407,7 +1498,7 @@ impl Plurigaussian {
     /// Summary of `n` realizations; same options as `SIS.simulate`, and
     /// `proportions` of shape ``(targets, k)``, the local facies proportions
     /// at the targets, when `fit` had them at the samples.
-    #[pyo3(signature = (targets, n=100, seed=0, realizations=false, blocks=None, proportions=None))]
+    #[pyo3(signature = (targets, *, n=100, seed=0, realizations=false, blocks=None, proportions=None))]
     #[allow(clippy::too_many_arguments)]
     fn simulate(
         &self,
@@ -1455,7 +1546,7 @@ impl Plurigaussian {
 
 /// One Gaussian draw at `coords` honoring `bounds` (`(n, 2)` lower/upper).
 #[pyfunction]
-#[pyo3(signature = (coords, bounds, variogram, iterations=200, burn_in=50, seed=1))]
+#[pyo3(signature = (coords, bounds, variogram, iterations=200, burn_in=50, seed=0))]
 fn gibbs<'py>(
     py: Python<'py>,
     coords: &Bound<PyAny>,
@@ -1977,13 +2068,14 @@ impl MultivariateSimulation {
     ///
     /// Parameters
     /// ----------
-    /// coords : array_like, shape (n, 2) or (n, 3)
-    /// data : array_like, shape (n, variables)
-    ///     One column per simulator; NaN marks a missing variable.
-    /// weights : array_like, optional
+    /// coords : array_like, shape (n, 2) or (n, 3), PointSet or BlockModel
+    /// data : array_like, shape (n, variables), or list of str
+    ///     One column per simulator, or the columns of `coords` holding them;
+    ///     NaN or null marks a missing variable.
+    /// weights : array_like or str, optional
     ///     Declustering weights, for the transform when it takes them (PCA,
     ///     StepwiseConditional, PPMT) and for each factor's normal scores.
-    /// holes : array_like, optional
+    /// holes : array_like or str, optional
     ///     Drill-hole ids or names, for `max_per_hole` and the warning on
     ///     samples sharing a location.
     /// impute : bool, default False
@@ -1991,7 +2083,7 @@ impl MultivariateSimulation {
     ///     the data fills them afresh in every realization, so the imputation
     ///     uncertainty reaches the realizations. The transform is fitted to
     ///     the complete samples. Samples missing every variable are dropped.
-    #[pyo3(signature = (coords, data, weights=None, holes=None, impute=false))]
+    #[pyo3(signature = (coords, data, *, weights=None, holes=None, impute=false))]
     fn fit<'py>(
         mut slf: PyRefMut<'py, Self>,
         coords: &Bound<PyAny>,
@@ -2001,20 +2093,32 @@ impl MultivariateSimulation {
         impute: bool,
     ) -> PyResult<PyRefMut<'py, Self>> {
         let py = coords.py();
-        let data = rows(data, "data")?;
+        let data = match data.extract::<Vec<String>>() {
+            Ok(names) => {
+                let columns = names
+                    .iter()
+                    .map(|n| floats(&args::named(Some(coords), n, "data")?, "data"))
+                    .collect::<PyResult<Vec<_>>>()?;
+                let n = columns.first().map_or(0, Vec::len);
+                (0..n)
+                    .map(|i| columns.iter().map(|c| c[i]).collect())
+                    .collect()
+            }
+            Err(_) => rows(data, "data")?,
+        };
         let p = slf.factors.len();
-        if data.iter().any(|r| r.len() != p) {
+        if data.iter().any(|r: &Vec<f64>| r.len() != p) {
             return Err(invalid(format!(
                 "data must have {p} columns, one per simulator"
             )));
         }
         let locs = points(coords)?;
         same_length(locs.len(), data.len(), "data")?;
-        let weights = optional_finite(weights, "weights")?;
+        let weights = optional_finite(resolve(coords, weights, "weights")?.as_ref(), "weights")?;
         if let Some(w) = &weights {
             same_length(data.len(), w.len(), "weights")?;
         }
-        let holes = args::holes(holes, data.len())?;
+        let holes = args::holes(resolve(coords, holes, "holes")?.as_ref(), data.len())?;
         let complete = |data: &[Vec<f64>]| -> Vec<usize> {
             (0..data.len())
                 .filter(|&i| data[i].iter().all(|v| v.is_finite()))
@@ -2079,7 +2183,7 @@ impl MultivariateSimulation {
     /// -------
     /// list of SimulationSummary
     ///     One per variable, in column order.
-    #[pyo3(signature = (targets, n=100, seed=0, cutoffs=vec![], quantiles=vec![], realizations=false, anisotropy=None, blocks=None))]
+    #[pyo3(signature = (targets, *, n=100, seed=0, cutoffs=vec![], quantiles=vec![], realizations=false, anisotropy=None, blocks=None))]
     #[allow(clippy::too_many_arguments)]
     fn simulate(
         &self,

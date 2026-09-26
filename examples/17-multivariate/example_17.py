@@ -75,7 +75,8 @@ save(fig, "factors")
 # `MultivariateSimulation` puts the pieces together: it fits the transform, simulates each factor on its own with its
 # own variogram and seed, and back-transforms every realization at the nodes, before any averaging to blocks. Each
 # factor gets the omnidirectional variogram of its scores; turning bands simulate 20 realizations on 25 m nodes.
-# Statistics of the data are declustered with 50 m cells.
+# Statistics of the data are declustered with 50 m cells. `fit` takes the variables as an array or, as here, as names
+# of columns of a PointSet.
 
 # %%
 weights = cs.cell_declustering(coords, pair[:, 0], cell_size=50.0).weights
@@ -84,13 +85,14 @@ count = np.ceil((hi - lo) / (100, 100, 50)).astype(int)
 blocks = cs.BlockModel(origin=tuple(lo), size=(100, 100, 50), count=tuple(count))
 nodes = cs.BlockModel(origin=tuple(lo), size=(25, 25, 25), count=tuple(count * (4, 4, 2)))
 search = cs.Search(radius=250, max_samples=16)
+logs = cs.PointSet(coords, {"chalcocite": pair[:, 0], "tennantite": pair[:, 1]})
 
 runs = {}
 for name, transform in {"PPMT": cs.PPMT(seed=7), "PCA": cs.PCA(standardize=True)}.items():
     f = transform.fit(pair, weights=weights).transform(pair)
     variograms = [cs.experimental_variogram(coords, f[:, j], 25.0, 300.0).fit("spherical") for j in range(2)]
     simulation = cs.MultivariateSimulation(transform, [cs.TurningBands(v, search=search) for v in variograms])
-    runs[name] = simulation.fit(coords, pair, weights=weights)
+    runs[name] = simulation.fit(logs, ["chalcocite", "tennantite"], weights=weights)
 reals = {
     name: [s.realizations for s in sim.simulate(nodes, n=20, seed=1, realizations=True)]
     for name, sim in runs.items()

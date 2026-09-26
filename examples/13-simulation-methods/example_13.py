@@ -33,8 +33,8 @@ grid = cs.BlockModel(origin=(0.5, 0.5), size=(5, 5), count=(52, 60))
 # random lines into an unconditional Gaussian field, then conditions it to the data by kriging the residuals.
 
 # %%
-sgs = cs.SGS(gaussian, cs.Search(radius=100, max_samples=24)).fit(xy, v, weights=weights)
-tb = cs.TurningBands(gaussian, bands=500).fit(xy, v, weights=weights)
+sgs = cs.SGS(gaussian, cs.Search(radius=100, max_samples=24)).fit(samples, "V", weights=weights)
+tb = cs.TurningBands(gaussian, bands=500).fit(samples, "V", weights=weights)
 start = time.perf_counter()
 by_sgs = sgs.simulate(grid, n=20, seed=5, realizations=True).realizations
 sgs_seconds = time.perf_counter() - start
@@ -146,15 +146,15 @@ for k in range(5):
         fitted = cs.Variogram([("spherical", indicator.var(), 0.5)])
     indicator_models.append(fitted)
 
-sis = cs.SIS(indicator_models, cs.Search(radius=1.5, max_samples=16)).fit(train.coords, rock)
+sis = cs.SIS(indicator_models, cs.Search(radius=1.5, max_samples=16)).fit(train, rock)
 sis_summary = sis.simulate(jura_grid, n=10, seed=3, realizations=True)
 by_sis = sis_summary.realizations
 latent = cs.Variogram([("spherical", 1.0, 0.8)])
-pgs = cs.Plurigaussian(latent, proportions=proportions).fit(train.coords, rock)
+pgs = cs.Plurigaussian(latent, proportions=proportions).fit(train, rock)
 by_pgs = pgs.simulate(jura_grid, n=1, seed=3, realizations=True).realizations[0]
 stages = (1, [names.index(n) for n in ("Argovian", "Sequanian", "Kimmeridgian", "Portlandian")])
 rule = (0, [stages, names.index("Quaternary")])
-hierarchy = cs.Plurigaussian([latent, latent], proportions=proportions, rule=rule).fit(train.coords, rock)
+hierarchy = cs.Plurigaussian([latent, latent], proportions=proportions, rule=rule).fit(train, rock)
 by_rule = hierarchy.simulate(jura_grid, n=1, seed=3, realizations=True).realizations[0]
 
 simulated = (("SIS", by_sis[0]), ("PGS ordered", by_pgs), ("PGS rule", by_rule))
@@ -283,7 +283,7 @@ co_scores = np.empty(len(co))
 for k in range(5):
     co_scores[rock == k] = cs.NormalScore().fit_transform(co[rock == k])
 co_variogram = cs.experimental_variogram(train.coords, co_scores, 0.1, 1.5).fit("spherical")
-cobalt = cs.SGS(co_variogram, cs.Search(radius=1.5, max_samples=16)).fit(train.coords, co, domains=rock)
+cobalt = cs.SGS(co_variogram, cs.Search(radius=1.5, max_samples=16)).fit(train, "Co", domains=rock)
 within_true = cobalt.simulate(jura_grid, n=10, seed=3, realizations=True, domains=true_rock).realizations
 within_sis = cobalt.simulate(jura_grid, n=10, seed=3, realizations=True, domains=by_sis).realizations
 
