@@ -439,6 +439,16 @@ class TurningBands:
         quantiles: Sequence[float] = (),
         realizations: bool = False,
     ) -> SimulationSummary: ...
+    def simulate_to_parquet(
+        self,
+        path: Path,
+        out: Path,
+        n: int = 100,
+        seed: int = 0,
+        cutoffs: Sequence[float] = (),
+        quantiles: Sequence[float] = (),
+        rows: int = 1_000_000,
+    ) -> dict[str, npt.NDArray[np.float64]]: ...
 
 class SIS:
     def __init__(self, variograms: Sequence[Variogram], search: Search) -> None: ...

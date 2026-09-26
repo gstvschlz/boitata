@@ -45,8 +45,8 @@ for name, reals, seconds in (("SGS", by_sgs, sgs_seconds), ("turning bands", by_
 </details>
 
 ```text
-          SGS: 20 realizations in 0.54 s, mean 299 ppm, variance 72174 ppm²
-turning bands: 20 realizations in 0.14 s, mean 289 ppm, variance 62047 ppm²
+          SGS: 20 realizations in 0.42 s, mean 299 ppm, variance 72174 ppm²
+turning bands: 20 realizations in 0.10 s, mean 289 ppm, variance 61368 ppm²
 ```
 
 <details><summary>Python</summary>
@@ -124,9 +124,9 @@ print(
       samples    0.20    0.33    0.24    0.01    0.21
     true grid    0.20    0.34    0.27    0.05    0.13
           SIS    0.12    0.43    0.29    0.01    0.15
-          PGS    0.18    0.37    0.27    0.01    0.17
+          PGS    0.18    0.36    0.29    0.01    0.16
 SIS: 51% of nodes match the true rock type
-PGS: 40% of nodes match the true rock type
+PGS: 43% of nodes match the true rock type
 SIS most likely type over 10 realizations: 64% match, mean entropy 0.36
 ```
 

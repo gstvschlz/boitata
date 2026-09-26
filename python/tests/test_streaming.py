@@ -50,3 +50,22 @@ def test_map_blocks_rejects_wrong_lengths(model, tmp_path):
     cs.write_parquet(path, model)
     with pytest.raises(cs.InvalidInput, match="rows"):
         cs.map_blocks(path, tmp_path / "out.parquet", lambda chunk: {"x": np.zeros(3)}, rows=100)
+
+
+def test_turning_bands_streamed_equals_in_memory(model, tmp_path):
+    xyz = rng.uniform(0, 100, (60, 3)) * [1, 0.75, 0.2]
+    values = rng.lognormal(0, 0.5, 60)
+    tb = cs.TurningBands(cs.Variogram([("spherical", 1.0, 30.0)]), bands=80).fit(xyz, values)
+    whole = tb.simulate(model, n=8, seed=3, cutoffs=[1.5], quantiles=[0.1, 0.9])
+    source, out = tmp_path / "in.parquet", tmp_path / "out.parquet"
+    cs.write_parquet(source, model)
+    result = tb.simulate_to_parquet(source, out, n=8, seed=3, cutoffs=[1.5], quantiles=[0.1, 0.9], rows=333)
+    back = cs.read_parquet(out)
+    np.testing.assert_array_equal(back["mean"], whole.mean)
+    np.testing.assert_array_equal(back["p_above_1.5"], whole.probability_above[0])
+    np.testing.assert_array_equal(back["q0.9"], whole.quantile_values[1])
+    np.testing.assert_array_equal(back["grade"], model["grade"])
+    np.testing.assert_allclose(result["realization_mean"], whole.realization_mean)
+    np.testing.assert_allclose(result["realization_above"], whole.realization_above)
+    with pytest.raises(cs.FileError):
+        tb.simulate_to_parquet(tmp_path / "missing.parquet", out)
