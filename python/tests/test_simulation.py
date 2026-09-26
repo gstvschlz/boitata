@@ -343,3 +343,95 @@ def test_sgs_with_passes_is_reproducible_and_one_pass_is_the_search(tmp_path):
     assert len(two) == 2 and np.isfinite(two[0].mean).all()
     with pytest.raises(ValueError, match="at least one"):
         cs.SGS(gaussian, [])
+
+
+def zoned_holes():
+    xyz, grades, holes, passes = holes_in_clusters()
+    zone = np.where(xyz[:, 0] < 40, "MS", "SM")
+    grades = np.where(zone == "SM", grades * 3, grades)
+    weights = np.where(xyz[:, 0] < 25, 0.5, 2.0)
+    x, y = np.meshgrid(np.arange(0, 100, 5.0), np.arange(0, 100, 5.0))
+    targets = np.column_stack([x.ravel(), y.ravel(), np.full(x.size, 2.0)])
+    return xyz, grades, holes, weights, zone, targets, passes
+
+
+def softened(passes, soft):
+    return [cs.Search(s.radius, max_samples=12, min_samples=s.min_samples, soft=soft) for s in passes]
+
+
+def test_sgs_with_one_domain_is_sgs_without():
+    xyz, grades, holes, weights, _, targets, passes = zoned_holes()
+    plain = cs.SGS(gaussian, passes).fit(xyz, grades, weights=weights, holes=holes)
+    one = cs.SGS(gaussian, passes).fit(xyz, grades, weights=weights, holes=holes, domains="MS")
+    want = plain.simulate(targets, n=3, seed=4, realizations=True).realizations
+    got = one.simulate(targets, n=3, seed=4, realizations=True, domains="MS").realizations
+    np.testing.assert_array_equal(got, want)
+    np.testing.assert_array_equal(one.passes(targets, domains="MS"), plain.passes(targets))
+
+
+def test_hard_sgs_domains_ignore_the_other_domain():
+    xyz, grades, holes, weights, zone, targets, passes = zoned_holes()
+    ms = zone == "MS"
+
+    def run(search, domains=None):
+        data = (
+            (xyz, grades, weights, holes)
+            if domains is not None
+            else (xyz[ms], grades[ms], weights[ms], holes[ms])
+        )
+        sgs = cs.SGS(gaussian, search).fit(data[0], data[1], weights=data[2], holes=data[3], domains=domains)
+        on = {"domains": "MS"} if domains is not None else {}
+        return sgs.simulate(targets, n=3, seed=1, realizations=True, **on).realizations
+
+    np.testing.assert_array_equal(run(passes, zone), run(passes))
+    alone = run(softened(passes, None))
+    np.testing.assert_array_equal(run(softened(passes, 0.0), zone), alone)
+    assert not np.array_equal(run(softened(passes, 10.0), zone), alone)
+
+
+def test_each_sgs_domain_keeps_its_own_declustered_mean():
+    xyz, grades, _, weights, zone, _, _ = zoned_holes()
+    far = np.column_stack([1e4 + 100.0 * np.arange(40), np.full(40, 1e4), np.zeros(40)])
+    labels = np.repeat(["MS", "SM"], 20)
+    sgs = cs.SGS(gaussian, cs.Search(np.inf, max_samples=8)).fit(xyz, grades, weights=weights, domains=zone)
+    mean = sgs.simulate(far, n=200, seed=3, domains=labels).mean
+    for name in ("MS", "SM"):
+        want = np.average(grades[zone == name], weights=weights[zone == name])
+        assert mean[labels == name].mean() == pytest.approx(want, rel=0.1)
+
+
+def test_a_contact_node_takes_its_own_domain_datum():
+    xy = np.array([[0.0, 0.0], [0.0, 0.0], [10.0, 0.0], [-10.0, 0.0]])
+    sgs = cs.SGS(gaussian, cs.Search(50.0, soft=np.inf)).fit(
+        xy, [1.0, 9.0, 2.0, 8.0], domains=["A", "B", "A", "B"]
+    )
+    at = sgs.simulate([[0.0, 0.0], [0.0, 0.0]], n=4, seed=1, realizations=True, domains=["A", "B"])
+    np.testing.assert_array_equal(at.realizations, [[1.0, 9.0]] * 4)
+
+
+def test_sgs_domains_errors_and_persistence(tmp_path):
+    xyz, grades, holes, weights, zone, targets, passes = zoned_holes()
+    soft = cs.Search(30.0, max_samples=12, soft={("MS", "SM"): 8.0})
+    sgs = cs.SGS(gaussian, soft).fit(xyz, grades, weights=weights, holes=holes, domains=zone)
+    labels = np.where(targets[:, 0] < 40, "MS", "SM")
+
+    def run(model):
+        return model.simulate(targets, n=2, seed=5, realizations=True, domains=labels).realizations
+
+    sgs.to_parquet(tmp_path / "sgs.parquet")
+    for again in (cs.SGS.from_parquet(tmp_path / "sgs.parquet"), pickle.loads(pickle.dumps(sgs))):
+        np.testing.assert_array_equal(run(again), run(sgs))
+    with pytest.raises(cs.InvalidInput, match="simulate needs domains"):
+        sgs.simulate(targets, n=1)
+    with pytest.raises(cs.InvalidInput, match="passes needs domains"):
+        sgs.passes(targets)
+    with pytest.raises(cs.InvalidInput, match="has no samples"):
+        sgs.simulate(targets, n=1, domains="QE")
+    with pytest.raises(cs.InvalidInput, match="takes none"):
+        cs.SGS(gaussian, passes).fit(xyz, grades).simulate(targets, n=1, domains="MS")
+    with pytest.raises(cs.InvalidInput, match="needs domains at fit"):
+        cs.SGS(gaussian, soft).fit(xyz, grades)
+    with pytest.raises(cs.InvalidInput, match="has no samples"):
+        cs.SGS(gaussian, soft).fit(xyz, grades, domains="MS")
+    with pytest.raises(cs.InvalidInput, match="not both"):
+        cs.SGS(gaussian, passes).fit(xyz, grades, trend=xyz[:, 0], domains=zone)

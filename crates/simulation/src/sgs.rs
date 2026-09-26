@@ -1,14 +1,18 @@
 //! Sequential Gaussian Simulation (SGS).
 //!
 //! Produces conditional realizations of a continuous variable:
-//! 1. normal-score transform the conditioning data,
+//! 1. normal-score transform the conditioning data, within each domain,
 //! 2. visit grid nodes along a random path,
 //! 3. at each node, simple-krige (mean 0) from nearby data + previously simulated
 //!    nodes to get a conditional mean/variance, then draw from that Gaussian;
 //!    with several searches, a node uses the first that finds enough data,
 //!    as a kriging pass would,
-//! 4. add the drawn value to the conditioning set and continue,
-//! 5. back-transform all simulated scores to data space.
+//! 4. back-transform the draw through the node's domain and add the node to
+//!    the conditioning set,
+//! 5. continue until every node is simulated.
+//!
+//! The search compares data values and the back-transformed values of
+//! simulated nodes with a high-grade threshold, and kriging uses their scores.
 
 use crate::error::{Result, SimError};
 use estimation::Sample;
@@ -40,6 +44,9 @@ pub struct Realization {
     pub values: Vec<f64>,
 }
 
+/// Domain codes of the data and of the grid nodes.
+pub type Domains<'a> = (&'a [u32], &'a [u32]);
+
 /// Run a single SGS realization.
 ///
 /// `vg_nscore` is the variogram of the *normal scores* (unit-sill Gaussian variogram);
@@ -57,6 +64,65 @@ pub fn sgs(
     params: &SgsParams,
     local: Option<&LocalAnisotropy>,
 ) -> Result<Realization> {
+    sgs_in(
+        data_locs,
+        data_vals,
+        data_weights,
+        data_holes,
+        None,
+        grid,
+        vg_nscore,
+        params,
+        local,
+    )
+}
+
+/// As [`sgs`] with `domains`: each domain has its own declustered
+/// normal-score table, a node is back-transformed through its domain's, and
+/// the search's soft boundaries apply to data and simulated nodes alike. A
+/// node whose domain has no data is an error.
+#[allow(clippy::too_many_arguments)]
+pub fn sgs_in(
+    data_locs: &[(f64, f64, f64)],
+    data_vals: &[f64],
+    data_weights: Option<&[f64]>,
+    data_holes: Option<&[u32]>,
+    domains: Option<Domains>,
+    grid: &[(f64, f64, f64)],
+    vg_nscore: &Variogram,
+    params: &SgsParams,
+    local: Option<&LocalAnisotropy>,
+) -> Result<Realization> {
+    simulate(
+        data_locs,
+        data_vals,
+        data_weights,
+        data_holes,
+        domains,
+        grid,
+        vg_nscore,
+        params,
+        local,
+        |_, _, _| {},
+    )
+}
+
+/// SGS calling `used(node, neighbours, samples)` with the indices into
+/// `samples` (data, then simulated nodes, valued in data units) each
+/// kriged node was simulated from.
+#[allow(clippy::too_many_arguments)]
+fn simulate(
+    data_locs: &[(f64, f64, f64)],
+    data_vals: &[f64],
+    data_weights: Option<&[f64]>,
+    data_holes: Option<&[u32]>,
+    domains: Option<Domains>,
+    grid: &[(f64, f64, f64)],
+    vg_nscore: &Variogram,
+    params: &SgsParams,
+    local: Option<&LocalAnisotropy>,
+    mut used: impl FnMut(usize, &[usize], &[Sample]),
+) -> Result<Realization> {
     if data_locs.len() != data_vals.len() {
         return Err(SimError::InvalidParameters("data length mismatch".into()));
     }
@@ -69,41 +135,32 @@ pub fn sgs(
         ));
     }
     let holes = crate::holes(data_holes, data_locs.len())?;
-    if grid.is_empty() {
-        return Ok(Realization { values: vec![] });
-    }
-
-    // 1. Normal-score transform.
-    let ns = normal_score::transform(data_vals, data_weights)
-        .map_err(|e| SimError::Transform(e.to_string()))?;
-
-    // Conditioning set (grows as nodes are simulated).
-    let mut cond: Vec<Sample> = data_locs
-        .iter()
-        .zip(&ns.scores)
-        .zip(holes)
-        .map(|((&loc, &score), hole)| Sample {
-            loc,
-            value: score,
-            hole,
-            error_variance: 0.0,
-            domain: None,
-        })
-        .collect();
+    check(domains, data_locs.len(), grid.len())?;
     if local.is_some_and(|l| l.len() != grid.len()) {
         return Err(SimError::InvalidParameters(
             "one local anisotropy per grid node".into(),
         ));
     }
+    if grid.is_empty() {
+        return Ok(Realization { values: vec![] });
+    }
+
+    // 1. Normal-score transform within each domain.
+    let (mut scores, tables) = normal_scores(data_vals, data_weights, domains.map(|d| d.0))?;
+    let node_domain = |node: usize| domains.map(|d| d.1[node]);
+
+    // Conditioning set in data units (grows as nodes are simulated), with
+    // the scores kriging uses alongside.
+    let mut samples = data(data_locs, data_vals, holes, domains.map(|d| d.0));
     let mut trees: Vec<SearchTree> = params
         .search
         .iter()
-        .map(|s| tree(&cond, &in_scores(s, &ns.table), vg_nscore, local))
+        .map(|s| tree(&samples, s, vg_nscore, local))
         .collect();
     let last = trees.len() - 1;
     let passes: Vec<usize> = match last {
         0 => vec![0; grid.len()],
-        _ => first_pass(&trees, grid, local)
+        _ => first_pass(&trees, grid, domains.map(|d| d.1), local)
             .into_iter()
             .map(|p| p.unwrap_or(last))
             .collect(),
@@ -115,27 +172,35 @@ pub fn sgs(
     path.shuffle(&mut rng);
 
     let normal = Normal::new(0.0, 1.0).unwrap();
-    let mut sim_scores = vec![f64::NAN; grid.len()];
+    let mut values = vec![f64::NAN; grid.len()];
 
     for &node in &path {
         let target = grid[node];
+        let domain = node_domain(node);
 
         // 3. Kriging from neighbors (simple kriging, mean 0 in Gaussian space).
         let aniso = local.map(|l| l.anisotropy(node));
-        let found = find(&trees[passes[node]], &target, aniso.as_ref());
+        let found = find(&trees[passes[node]], &target, domain, aniso.as_ref());
         let vg_node = aniso.map(|a| Variogram {
             anisotropy: Some(a),
             ..vg_nscore.clone()
         });
         let vg = vg_node.as_ref().unwrap_or(vg_nscore);
-        if let Some(&k) = found.iter().flatten().find(|&&k| cond[k].loc == target) {
+        if let Some(&k) = found.iter().flatten().find(|&&k| samples[k].loc == target) {
             // A node on a datum takes its value and is not added again.
-            sim_scores[node] = cond[k].value;
+            values[node] = samples[k].value;
             continue;
         }
         let score = match found {
             Ok(idx) if !idx.is_empty() => {
-                let selected: Vec<Sample> = idx.iter().map(|&k| cond[k].clone()).collect();
+                used(node, &idx, &samples);
+                let selected: Vec<Sample> = idx
+                    .iter()
+                    .map(|&k| Sample {
+                        value: scores[k],
+                        ..samples[k].clone()
+                    })
+                    .collect();
                 let est = krige(Kind::Simple { mean: 0.0 }, &target, &selected, vg)
                     .map_err(|e| SimError::Estimation(e.to_string()))?;
                 let sd = est.variance.max(0.0).sqrt();
@@ -145,34 +210,114 @@ pub fn sgs(
             _ => normal.sample(&mut rng),
         };
 
-        sim_scores[node] = score;
-        // 4. Add simulated node to the conditioning set.
+        // 4. Back-transform and add the node to the conditioning set.
+        let value = tables[domain.unwrap_or(0) as usize]
+            .as_ref()
+            .expect("checked")
+            .back(score);
+        values[node] = value;
         let sample = Sample {
             loc: target,
-            value: score,
+            value,
             hole: None,
             error_variance: 0.0,
-            domain: None,
+            domain,
         };
         for tree in &mut trees {
             tree.add(&sample);
         }
-        cond.push(sample);
+        samples.push(sample);
+        scores.push(score);
     }
-
-    // 5. Back-transform to data space.
-    let values: Vec<f64> = sim_scores.iter().map(|&s| ns.table.back(s)).collect();
     Ok(Realization { values })
+}
+
+/// Lengths of `domains` and a datum in the domain of every node.
+fn check(domains: Option<Domains>, data: usize, nodes: usize) -> Result<()> {
+    let Some((of_data, of_nodes)) = domains else {
+        return Ok(());
+    };
+    if of_data.len() != data {
+        return Err(SimError::InvalidParameters("one domain per datum".into()));
+    }
+    if of_nodes.len() != nodes {
+        return Err(SimError::InvalidParameters("one domain per node".into()));
+    }
+    let known: std::collections::HashSet<u32> = of_data.iter().copied().collect();
+    match of_nodes.iter().find(|d| !known.contains(d)) {
+        Some(d) => Err(SimError::InvalidParameters(format!(
+            "domain {d} has no samples"
+        ))),
+        None => Ok(()),
+    }
+}
+
+/// Normal scores of the data and the table of each domain code, one table
+/// for all without `domains`.
+fn normal_scores(
+    values: &[f64],
+    weights: Option<&[f64]>,
+    domains: Option<&[u32]>,
+) -> Result<(Vec<f64>, Vec<Option<NormalScoreTable>>)> {
+    let transform = |rows: &[usize]| {
+        let pick = |v: &[f64]| rows.iter().map(|&i| v[i]).collect::<Vec<_>>();
+        normal_score::transform(&pick(values), weights.map(pick).as_deref())
+            .map_err(|e| SimError::Transform(e.to_string()))
+    };
+    let Some(codes) = domains else {
+        let ns = normal_score::transform(values, weights)
+            .map_err(|e| SimError::Transform(e.to_string()))?;
+        return Ok((ns.scores, vec![Some(ns.table)]));
+    };
+    let k = codes.iter().max().map_or(0, |&m| m as usize + 1);
+    let mut rows = vec![vec![]; k];
+    for (i, &c) in codes.iter().enumerate() {
+        rows[c as usize].push(i);
+    }
+    let mut scores = vec![0.0; values.len()];
+    let mut tables = Vec::with_capacity(k);
+    for rows in &rows {
+        if rows.is_empty() {
+            tables.push(None);
+            continue;
+        }
+        let ns = transform(rows)?;
+        for (&i, s) in rows.iter().zip(ns.scores) {
+            scores[i] = s;
+        }
+        tables.push(Some(ns.table));
+    }
+    Ok((scores, tables))
+}
+
+fn data(
+    locs: &[(f64, f64, f64)],
+    values: &[f64],
+    holes: Vec<Option<u32>>,
+    domains: Option<&[u32]>,
+) -> Vec<Sample> {
+    locs.iter()
+        .zip(values)
+        .zip(holes)
+        .enumerate()
+        .map(|(i, ((&loc, &value), hole))| Sample {
+            hole,
+            domain: domains.map(|d| d[i]),
+            ..Sample::new(loc, value)
+        })
+        .collect()
 }
 
 /// The pass of every grid node: the first of `search` that finds
 /// `min_samples` among the data, as in a kriging by passes; `None` where none
 /// does, and SGS then uses the last. Simulated nodes play no part, so the map
 /// is the same in every realization.
+#[allow(clippy::too_many_arguments)]
 pub fn sgs_passes(
     data_locs: &[(f64, f64, f64)],
     data_vals: &[f64],
     data_holes: Option<&[u32]>,
+    domains: Option<Domains>,
     grid: &[(f64, f64, f64)],
     vg_nscore: &Variogram,
     search: &[Search],
@@ -186,20 +331,14 @@ pub fn sgs_passes(
             "one local anisotropy per grid node".into(),
         ));
     }
-    let data: Vec<Sample> = data_locs
-        .iter()
-        .zip(data_vals)
-        .zip(crate::holes(data_holes, data_locs.len())?)
-        .map(|((&loc, &value), hole)| Sample {
-            hole,
-            ..Sample::new(loc, value)
-        })
-        .collect();
+    check(domains, data_locs.len(), grid.len())?;
+    let holes = crate::holes(data_holes, data_locs.len())?;
+    let data = data(data_locs, data_vals, holes, domains.map(|d| d.0));
     let trees: Vec<SearchTree> = search
         .iter()
         .map(|s| tree(&data, s, vg_nscore, local))
         .collect();
-    Ok(first_pass(&trees, grid, local))
+    Ok(first_pass(&trees, grid, domains.map(|d| d.1), local))
 }
 
 fn tree(
@@ -224,43 +363,31 @@ fn tree(
 fn find(
     tree: &SearchTree,
     target: &(f64, f64, f64),
+    domain: Option<u32>,
     local: Option<&Anisotropy>,
 ) -> estimation::Result<Vec<usize>> {
     match local {
-        Some(a) => tree.neighbors_within(target, None, a),
-        None => tree.neighbors(target),
+        Some(a) => tree.neighbors_within(target, domain, a),
+        None => tree.neighbors_in(target, domain),
     }
 }
 
 fn first_pass(
     trees: &[SearchTree],
     grid: &[(f64, f64, f64)],
+    domains: Option<&[u32]>,
     local: Option<&LocalAnisotropy>,
 ) -> Vec<Option<usize>> {
     grid.par_iter()
         .enumerate()
         .map(|(i, target)| {
             let aniso = local.map(|l| l.anisotropy(i));
+            let domain = domains.map(|d| d[i]);
             trees
                 .iter()
-                .position(|t| find(t, target, aniso.as_ref()).is_ok_and(|f| !f.is_empty()))
+                .position(|t| find(t, target, domain, aniso.as_ref()).is_ok_and(|f| !f.is_empty()))
         })
         .collect()
-}
-
-/// `search` with its high-grade threshold moved from data values to normal
-/// scores: a score is above it exactly when its data value is above the
-/// threshold, ties included.
-fn in_scores(search: &Search, table: &NormalScoreTable) -> Search {
-    let mut search = search.clone();
-    if let Some(h) = &mut search.high_grade {
-        let last = table.values.partition_point(|v| *v <= h.threshold);
-        h.threshold = match last.checked_sub(1) {
-            Some(i) if table.values[i] == h.threshold => table.scores[i],
-            _ => table.forward(h.threshold),
-        };
-    }
-    search
 }
 
 #[cfg(test)]
@@ -501,51 +628,6 @@ mod tests {
     }
 
     #[test]
-    fn a_grade_threshold_selects_the_same_samples_as_in_estimation() {
-        let locs: Vec<_> = (0..300)
-            .map(|i| ((i * 37 % 101) as f64, (i * 53 % 97) as f64, (i % 7) as f64))
-            .collect();
-        let vals: Vec<f64> = (0..300).map(|i| ((i * 29 % 23) as f64).powf(1.5)).collect();
-        let weights: Vec<f64> = (0..300).map(|i| 1.0 + (i % 5) as f64).collect();
-        let ns = normal_score::transform(&vals, Some(&weights)).unwrap();
-        let vg = Variogram::single(Model::Spherical, 1.0, 40.0);
-        let grades: Vec<Sample> = locs
-            .iter()
-            .zip(&vals)
-            .map(|(&l, &v)| Sample::new(l, v))
-            .collect();
-        let scores: Vec<Sample> = locs
-            .iter()
-            .zip(&ns.scores)
-            .map(|(&l, &v)| Sample::new(l, v))
-            .collect();
-        let mut thresholds = vec![-1.0, 20.0, 50.0, 1e3];
-        thresholds.extend(vals.iter().step_by(7));
-        for threshold in thresholds {
-            let search = Search {
-                min_samples: 1,
-                max_samples: 12,
-                radius: 30.0,
-                high_grade: Some(estimation::HighGrade {
-                    threshold,
-                    radius: 8.0,
-                }),
-                ..Default::default()
-            };
-            let scored = in_scores(&search, &ns.table);
-            let cut = scored.high_grade.unwrap().threshold;
-            for (v, z) in vals.iter().zip(&ns.scores) {
-                assert_eq!(*v > threshold, *z > cut);
-            }
-            let by_grade = SearchTree::new(&grades, &search, Some(&vg));
-            let by_score = SearchTree::new(&scores, &scored, Some(&vg));
-            for t in (0..200).map(|i| ((i * 13 % 100) as f64, (i * 31 % 100) as f64, 3.0)) {
-                assert_eq!(by_grade.neighbors(&t).ok(), by_score.neighbors(&t).ok());
-            }
-        }
-    }
-
-    #[test]
     fn ensemble_mean_approximates_kriging() {
         let data_locs = vec![
             (0.0, 0.0, 0.0),
@@ -672,7 +754,7 @@ mod tests {
         .unwrap();
         let want: Vec<_> = kriged.iter().map(|k| k.as_ref().map(|k| k.0)).collect();
         let holes: Vec<u32> = (0..150).map(|i| i / 5).collect();
-        let got = sgs_passes(&locs, &vals, Some(&holes), &grid, &vg, &search, None).unwrap();
+        let got = sgs_passes(&locs, &vals, Some(&holes), None, &grid, &vg, &search, None).unwrap();
         assert_eq!(got, want);
         for p in [Some(0), Some(1), Some(2), None] {
             assert!(got.contains(&p), "no node in pass {p:?}");
@@ -729,5 +811,355 @@ mod tests {
         assert_eq!(a, run(4, 3));
         assert_eq!(a, run(1, 3));
         assert_ne!(a, run(4, 4));
+    }
+
+    type Point = (f64, f64, f64);
+
+    struct Zoned {
+        locs: Vec<Point>,
+        vals: Vec<f64>,
+        weights: Vec<f64>,
+        holes: Vec<u32>,
+        codes: Vec<u32>,
+    }
+
+    /// Domain 0 west of x = 50, domain 1 east and richer, both richer to the
+    /// north where the weights are higher; holes of 3 samples down z, and
+    /// holes on the contact logging both domains at every sample.
+    fn zoned() -> Zoned {
+        use rand::Rng;
+        let mut rng = StdRng::seed_from_u64(8);
+        let mut z = Zoned {
+            locs: vec![],
+            vals: vec![],
+            weights: vec![],
+            holes: vec![],
+            codes: vec![],
+        };
+        for h in 0..60 {
+            let x = if h < 40 { 0.0 } else { 50.0 } + rng.r#gen::<f64>() * 49.0;
+            let y: f64 = rng.r#gen::<f64>() * 100.0;
+            let code = u32::from(x >= 50.0);
+            for k in 0..3 {
+                let g: f64 = rng.sample(rand_distr::StandardNormal);
+                z.locs.push((x, y, k as f64));
+                z.vals
+                    .push((1.5 * f64::from(code) + y / 50.0 + 0.5 * g).exp());
+                z.weights.push(if y > 50.0 { 3.0 } else { 1.0 });
+                z.holes.push(h);
+                z.codes.push(code);
+            }
+        }
+        for h in 0..5 {
+            for code in 0..2 {
+                z.locs.push((50.0, 10.0 + 20.0 * h as f64, 1.0));
+                z.vals.push(if code == 0 { 0.5 } else { 20.0 });
+                z.weights.push(1.0);
+                z.holes.push(100 + h);
+                z.codes.push(code);
+            }
+        }
+        z
+    }
+
+    /// Nodes on a 4 m grid at z = 1 and on the contact holes, each in both
+    /// domains.
+    fn zoned_grid() -> (Vec<Point>, Vec<u32>) {
+        let mut grid: Vec<Point> = (0..25 * 25)
+            .map(|i| {
+                (
+                    (i % 25) as f64 * 4.0 + 2.0,
+                    (i / 25) as f64 * 4.0 + 2.0,
+                    1.0,
+                )
+            })
+            .collect();
+        let mut codes: Vec<u32> = grid.iter().map(|p| u32::from(p.0 >= 50.0)).collect();
+        for h in 0..5 {
+            for code in 0..2 {
+                grid.push((50.0, 10.0 + 20.0 * h as f64, 1.0));
+                codes.push(code);
+            }
+        }
+        (grid, codes)
+    }
+
+    fn zoned_search(soft: Option<estimation::Soft>) -> Vec<Search> {
+        let pass = |radius, min_samples| Search {
+            min_samples,
+            max_samples: 12,
+            radius,
+            max_per_hole: Some(2),
+            high_grade: Some(estimation::HighGrade {
+                threshold: 12.0,
+                radius: 6.0,
+            }),
+            soft: soft.clone(),
+            ..Default::default()
+        };
+        vec![pass(12.0, 6), pass(40.0, 2)]
+    }
+
+    fn distance(a: &Point, b: &Point) -> f64 {
+        ((a.0 - b.0).powi(2) + (a.1 - b.1).powi(2) + (a.2 - b.2).powi(2)).sqrt()
+    }
+
+    /// Neighbours of the other domain used; asserts every neighbour obeys the
+    /// high-grade rule in data units and is in the node's domain or within
+    /// `soft`.
+    fn other_domain_used(soft: Option<f64>, seed: u64) -> usize {
+        let z = zoned();
+        let (grid, nodes) = zoned_grid();
+        let search = zoned_search(soft.map(estimation::Soft::All));
+        let vg = Variogram::single(Model::Spherical, 1.0, 25.0);
+        let params = SgsParams { search, seed };
+        let (mut other, mut high, mut simulated) = (0, 0, 0);
+        simulate(
+            &z.locs,
+            &z.vals,
+            Some(&z.weights),
+            Some(&z.holes),
+            Some((&z.codes, &nodes)),
+            &grid,
+            &vg,
+            &params,
+            None,
+            |node, idx, samples| {
+                for &k in idx {
+                    let (s, d) = (&samples[k], distance(&grid[node], &samples[k].loc));
+                    if s.value > 12.0 {
+                        assert!(d <= 6.0, "high grade {} at {d}", s.value);
+                        high += 1;
+                    }
+                    if s.domain != Some(nodes[node]) {
+                        assert!(d < soft.unwrap_or(0.0), "other domain at {d}");
+                        other += 1;
+                    }
+                    simulated += usize::from(k >= z.locs.len());
+                }
+            },
+        )
+        .unwrap();
+        assert!(high > 0 && simulated > 0);
+        other
+    }
+
+    #[test]
+    fn hard_boundaries_use_only_the_node_domain() {
+        assert_eq!(other_domain_used(None, 1), 0);
+    }
+
+    #[test]
+    fn soft_boundaries_reach_strictly_within_the_distance() {
+        assert!(other_domain_used(Some(8.0), 2) > 0);
+        assert!(other_domain_used(Some(20.0), 3) > 0);
+    }
+
+    #[test]
+    fn one_label_everywhere_is_no_domains() {
+        let z = zoned();
+        let (grid, _) = zoned_grid();
+        let vg = Variogram::single(Model::Spherical, 1.0, 25.0);
+        let search = zoned_search(Some(estimation::Soft::All(5.0)));
+        // Without the contact holes, which put two samples at one location.
+        let n = z.locs.len() - 10;
+        let (one, all) = (vec![0; n], vec![0; grid.len()]);
+        let domains = Some((&one[..], &all[..]));
+        for seed in 0..3 {
+            let params = SgsParams {
+                search: search.clone(),
+                seed,
+            };
+            let run = |domains| {
+                sgs_in(
+                    &z.locs[..n],
+                    &z.vals[..n],
+                    Some(&z.weights[..n]),
+                    Some(&z.holes[..n]),
+                    domains,
+                    &grid,
+                    &vg,
+                    &params,
+                    None,
+                )
+                .unwrap()
+                .values
+            };
+            assert_eq!(run(None), run(domains));
+        }
+        let passes = |domains| {
+            sgs_passes(
+                &z.locs[..n],
+                &z.vals[..n],
+                Some(&z.holes[..n]),
+                domains,
+                &grid,
+                &vg,
+                &search,
+                None,
+            )
+            .unwrap()
+        };
+        assert_eq!(passes(None), passes(domains));
+    }
+
+    #[test]
+    fn each_domain_reproduces_its_declustered_histogram() {
+        let z = zoned();
+        let per = 30;
+        let grid: Vec<Point> = (0..2 * per)
+            .map(|i| (1e4 * (1 + i / per) as f64 + 100.0 * i as f64, 1e4, 0.0))
+            .collect();
+        let nodes: Vec<u32> = (0..2 * per).map(|i| (i / per) as u32).collect();
+        let vg = Variogram::single(Model::Spherical, 1.0, 25.0);
+        let reals: Vec<Vec<f64>> = (0..100)
+            .map(|seed| {
+                let params = SgsParams {
+                    search: zoned_search(None),
+                    seed,
+                };
+                sgs_in(
+                    &z.locs,
+                    &z.vals,
+                    Some(&z.weights),
+                    None,
+                    Some((&z.codes, &nodes)),
+                    &grid,
+                    &vg,
+                    &params,
+                    None,
+                )
+                .unwrap()
+                .values
+            })
+            .collect();
+        let mean = |v: &[f64], w: &[f64]| {
+            v.iter().zip(w).map(|(v, w)| v * w).sum::<f64>() / w.iter().sum::<f64>()
+        };
+        for code in 0..2 {
+            let rows: Vec<usize> = (0..z.vals.len()).filter(|&i| z.codes[i] == code).collect();
+            let data: Vec<f64> = rows.iter().map(|&i| z.vals[i]).collect();
+            let w: Vec<f64> = rows.iter().map(|&i| z.weights[i]).collect();
+            let range = code as usize * per..(code as usize + 1) * per;
+            let mut pooled: Vec<f64> = reals
+                .iter()
+                .flat_map(|r| r[range.clone()].to_vec())
+                .collect();
+            let (want, naive) = (mean(&data, &w), mean(&data, &vec![1.0; data.len()]));
+            let got = mean(&pooled, &vec![1.0; pooled.len()]);
+            assert!((want / naive - 1.0).abs() > 0.1, "weights change nothing");
+            assert!(
+                (got / want - 1.0).abs() < 0.05,
+                "domain {code}: {got} vs {want}"
+            );
+            pooled.sort_by(f64::total_cmp);
+            let table = normal_score::transform(&data, Some(&w)).unwrap().table;
+            for (q, z) in [
+                (0.1, -1.281_551_565_545),
+                (0.5, 0.0),
+                (0.9, 1.281_551_565_545),
+            ] {
+                let (got, want) = (pooled[(q * pooled.len() as f64) as usize], table.back(z));
+                assert!(
+                    (got / want).ln().abs() < 0.1,
+                    "domain {code} q{q}: {got} vs {want}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn on_the_contact_a_node_takes_its_own_domain_datum() {
+        let z = zoned();
+        let (grid, nodes) = zoned_grid();
+        let vg = Variogram::single(Model::Spherical, 1.0, 25.0);
+        for soft in [None, Some(estimation::Soft::All(f64::INFINITY))] {
+            let params = SgsParams {
+                search: zoned_search(soft),
+                seed: 5,
+            };
+            let r = sgs_in(
+                &z.locs,
+                &z.vals,
+                Some(&z.weights),
+                Some(&z.holes),
+                Some((&z.codes, &nodes)),
+                &grid,
+                &vg,
+                &params,
+                None,
+            )
+            .unwrap();
+            for (i, &code) in nodes.iter().enumerate().skip(625) {
+                assert_eq!(r.values[i], if code == 0 { 0.5 } else { 20.0 });
+            }
+        }
+    }
+
+    #[test]
+    fn domains_follow_the_seed_not_the_thread_count() {
+        let z = zoned();
+        let (grid, nodes) = zoned_grid();
+        let vg = Variogram::single(Model::Spherical, 1.0, 25.0);
+        let run = |threads, seed| {
+            rayon::ThreadPoolBuilder::new()
+                .num_threads(threads)
+                .build()
+                .unwrap()
+                .install(|| {
+                    let params = SgsParams {
+                        search: zoned_search(Some(estimation::Soft::All(8.0))),
+                        seed,
+                    };
+                    sgs_in(
+                        &z.locs,
+                        &z.vals,
+                        Some(&z.weights),
+                        Some(&z.holes),
+                        Some((&z.codes, &nodes)),
+                        &grid,
+                        &vg,
+                        &params,
+                        None,
+                    )
+                    .unwrap()
+                    .values
+                })
+        };
+        let a = run(1, 3);
+        assert_eq!(a, run(4, 3));
+        assert_ne!(a, run(4, 4));
+    }
+
+    #[test]
+    fn a_node_domain_without_data_is_an_error() {
+        let z = zoned();
+        let grid = vec![(1.0, 1.0, 1.0), (2.0, 2.0, 1.0)];
+        let vg = Variogram::single(Model::Spherical, 1.0, 25.0);
+        let search = zoned_search(None);
+        let params = SgsParams {
+            search: search.clone(),
+            seed: 1,
+        };
+        let run = |nodes: &[u32], codes: &[u32]| {
+            sgs_in(
+                &z.locs,
+                &z.vals,
+                None,
+                None,
+                Some((codes, nodes)),
+                &grid,
+                &vg,
+                &params,
+                None,
+            )
+        };
+        assert!(run(&[0, 1], &z.codes).is_ok());
+        assert!(run(&[0, 2], &z.codes).is_err());
+        assert!(run(&[0], &z.codes).is_err());
+        assert!(run(&[0, 1], &z.codes[1..]).is_err());
+        let domains = Some((&z.codes[..], &[0, 2][..]));
+        let passes = sgs_passes(&z.locs, &z.vals, None, domains, &grid, &vg, &search, None);
+        assert!(passes.is_err());
     }
 }

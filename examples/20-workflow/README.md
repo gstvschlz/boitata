@@ -3,7 +3,7 @@
 One pass through a resource workflow on the massive sulphide (`MS`) lens of [chapter 19](../19-geological-model/README.md):
 composites from the drill-hole CSVs, the lens modelled from its contacts and kept within the drilling, exploratory
 statistics, declustering, the normal-score variogram, ordinary kriging in search passes and across a soft boundary,
-block-support simulation for risk, classification, and the model saved to Parquet.
+block-support simulation for risk, across the same boundary, classification, and the model saved to Parquet.
 
 <details><summary>Python</summary>
 
@@ -356,6 +356,49 @@ blocks above 10 % Zn: P10 37.7%, P90 46.5% of the lens; kriged 38.2%
 
 By elevation the kriged blocks and the mean of the simulations agree, and follow the composites more smoothly, as
 they should, damping the rich level at 860–880 m.
+
+The soft boundary with `SM` carries over to simulation. Fitted with `domains`, each domain is normal-scored on its
+own, with its own declustering weights, and every node is back-transformed through the table of its domain; one
+normal-score variogram serves both. Here every node is `MS`, so the hard boundary again gives the simulation above,
+bit for bit. With `soft=10.0`, `SM` composites within 10 m of a node inform it, as in kriging, and so would `SM`
+nodes already simulated had any been asked for.
+
+<details><summary>Python</summary>
+
+```python
+sm_weights = cs.cell_declustering(sm_xyz, sm_zn, sizes=np.arange(5, 80, 5)).weights
+sm_weights /= sm_weights.mean()
+simulated = {}
+for name, soft in (("hard", None), ("soft", 10.0)):
+    searches = [
+        cs.Search(radius=r, max_samples=16, min_samples=m, max_per_hole=4, high_grade=(30.0, 15.0), soft=soft)
+        for r, m in ((30, 8), (60, 4))
+    ]
+    zoned = cs.SGS(gaussian, searches).fit(
+        *both, weights=np.r_[weights, sm_weights], holes=np.r_[holes, sm_holes], domains=labels
+    )
+    simulated[name] = zoned.simulate(nodes, n=30, seed=1, cutoffs=[10.0], blocks=blocks, domains="MS")
+print(f"hard boundary equals MS only: {np.array_equal(simulated['hard'].mean, summary.mean)}")
+for name, s in simulated.items():
+    print(
+        f"{name}: mean {s.mean.mean():.2f} % Zn, {s.mean[near].mean():.2f} % within 10 m of SM, "
+        f"P(block > 10 %) there {s.probability_above[0][near].mean():.1%}"
+    )
+```
+
+</details>
+
+```text
+hard boundary equals MS only: True
+hard: mean 9.65 % Zn, 9.33 % within 10 m of SM, P(block > 10 %) there 41.3%
+soft: mean 9.72 % Zn, 9.53 % within 10 m of SM, P(block > 10 %) there 42.9%
+```
+
+Near `SM` the soft boundary raises the simulated grade a little, where it lowered the kriged one. Simulation kriges
+normal scores, so an `SM` composite brings its rank within `SM`, not its grade. The `SM` composites along the lens
+sit at the middle of their distribution, slightly above where the `MS` composites next to them sit in theirs, and
+pull the nodes up toward the `MS` median. Which reading suits a contact is a geological call: grades that carry on
+across it favor kriging's, ranks that carry on favor simulation's.
 
 ## Classification
 
