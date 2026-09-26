@@ -52,12 +52,16 @@ fn write_gslib(path: PathBuf, table: &Bound<PyAny>, missing: f64) -> PyResult<()
     ceres_io::write_gslib(path, &to_batch(table)?, missing).map_err(io_error)
 }
 
-/// Writes a PointSet, a BlockModel or any table to Parquet; containers keep
-/// their geometry, layout and CRS in the file metadata.
+/// Writes a PointSet, a BlockModel, Polylines or any table to Parquet;
+/// containers keep their geometry, layout and CRS in the file metadata.
+/// Polylines are stored one row per feature, as ``Polylines.to_table``.
 #[pyfunction]
 fn write_parquet(path: PathBuf, data: &Bound<PyAny>) -> PyResult<()> {
     if let Ok(points) = data.cast::<PyPointSet>() {
         return ceres_io::write_points(path, &points.get().0).map_err(io_error);
+    }
+    if let Ok(lines) = data.cast::<PyPolylines>() {
+        return ceres_io::write_polylines(path, &lines.get().0).map_err(io_error);
     }
     if let Ok(model) = data.cast::<PyBlockModel>() {
         return ceres_io::write_block_model(path, &model.get().0).map_err(io_error);
@@ -65,10 +69,12 @@ fn write_parquet(path: PathBuf, data: &Bound<PyAny>) -> PyResult<()> {
     ceres_io::write_parquet(path, &to_batch(data)?).map_err(io_error)
 }
 
-/// Reads Parquet as the PointSet or BlockModel it was written from, or a Table.
+/// Reads Parquet as the PointSet, BlockModel or Polylines it was written
+/// from, or a Table.
 #[pyfunction]
 fn read_parquet(py: Python, path: PathBuf) -> PyResult<Py<PyAny>> {
     Ok(match ceres_io::read_parquet(path).map_err(io_error)? {
+        ceres_io::Stored::Polylines(l) => Py::new(py, PyPolylines(l))?.into_any(),
         ceres_io::Stored::Points(p) => PyPointSet(p).into_pyobject(py)?.into_any().unbind(),
         ceres_io::Stored::Blocks(b) => PyBlockModel(b).into_pyobject(py)?.into_any().unbind(),
         ceres_io::Stored::Table(t) => Table(t).into_pyobject(py)?.into_any().unbind(),

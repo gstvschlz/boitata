@@ -1,6 +1,6 @@
 # 14. Storing containers in Parquet
 
-`write_parquet` saves a `PointSet` or `BlockModel` with its geometry, layout and CRS in the file metadata;
+`write_parquet` saves a `PointSet`, `BlockModel` or `Polylines` with its geometry, layout and CRS in the file metadata;
 `read_parquet` returns the same container. The file is ordinary Parquet, so polars, pandas or DuckDB read it as a
 table.
 
@@ -155,7 +155,9 @@ same points: True | crs: local grid
 
 Lines and polygons are `Polylines`: one attribute row per feature, each feature made of parts. A closed part is a
 ring whose last vertex joins the first; a ring inside another ring of the same feature is a hole. A pit outline with
-an unmined core and a section line go to separate files, polygons and lines, and come back the same.
+an unmined core and a section line go to separate files, polygons and lines, and come back the same. In Parquet a
+feature is one row whose `geometry` lists its parts, each a list of vertices; `Polylines.from_table` builds features
+from a long table with one row per vertex.
 
 <details><summary>Python</summary>
 
@@ -169,6 +171,11 @@ cs.write_shapefile(folder / "section.shp", lines)
 pits, lines = cs.read_shapefile(folder / "pit.shp"), cs.read_shapefile(folder / "section.shp")
 print(pits)
 print(lines)
+
+cs.write_parquet(folder / "pit.parquet", pits)
+print(pl.read_parquet(folder / "pit.parquet"))
+vertices = pl.DataFrame({"ID": ["A-A'", "A-A'"], "X": [20.0, 240.0], "Y": [160.0, 160.0]})
+print("same section:", np.array_equal(cs.Polylines.from_table(vertices).vertices, lines.vertices))
 
 fig, ax = plt.subplots(figsize=(5, 5.2), layout="constrained")
 ax.scatter(*samples.coords[:, :2].T, s=6, color=LIGHT)
@@ -188,6 +195,15 @@ Polylines(1 features, 2 parts, crs: local grid)
   name: Utf8
 Polylines(1 features, 1 parts, crs: local grid)
   name: Utf8
+shape: (1, 3)
+┌──────┬─────────────────────────────────┬──────────────┐
+│ name ┆ geometry                        ┆ closed       │
+│ ---  ┆ ---                             ┆ ---          │
+│ str  ┆ list[list[struct[3]]]           ┆ list[bool]   │
+╞══════╪═════════════════════════════════╪══════════════╡
+│ pit  ┆ [[{60.0,80.0,0.0}, {60.0,240.0… ┆ [true, true] │
+└──────┴─────────────────────────────────┴──────────────┘
+same section: True
 ```
 
 ![polylines](polylines.png)
