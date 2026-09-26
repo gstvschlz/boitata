@@ -11,7 +11,7 @@ and the projection-pursuit multivariate transform (PPMT) are nonlinear and Gauss
 import ceres as cs
 import matplotlib.pyplot as plt
 import numpy as np
-from common import ACCENT, GREY, fetch, save
+from common import ACCENT, GREY, LIGHT, fetch, save
 
 data = cs.read_csv(fetch("geomet/porphyry_01/synthetic_drillholes.csv"))
 coords = np.column_stack([data["midx"], data["midy"], data["midz"]])
@@ -210,6 +210,78 @@ for j, s in enumerate(by_block):
 ```text
 log chalcocite (%): variance 3.52 at nodes, 1.52 in 1144 blocks
 log tennantite (%): variance 1.87 at nodes, 0.85 in 1144 blocks
+```
+
+## Missing variables
+
+Minor minerals are often logged in some holes only. Hiding tennantite in every other hole leaves half of the
+composites incomplete, and `MultivariateSimulation` would drop them. `GaussianImputer` fills them instead: it
+normal-scores each variable on its own values, fits the correlation of the scores to all composites, and draws each
+missing score given the scores present in its row. Drawn values keep the histogram and the correlation of the
+scores, which predicted values would shrink.
+
+<details><summary>Python</summary>
+
+```python
+hidden = np.asarray(data["DHID"]) % 2 == 0
+holed = pair.copy()
+holed[hidden, 1] = np.nan
+imputer = cs.GaussianImputer(seed=3).fit(holed)
+filled = imputer.transform(holed)
+
+full = cs.GaussianImputer().fit(pair).correlation_[0, 1]
+print(f"{hidden.sum()} of {len(pair)} composites miss tennantite")
+print(f"score correlation {imputer.correlation_[0, 1]:.3f} fitted to them, {full:.3f} to the full data")
+for name, x in {"hidden": pair[hidden], "imputed": filled[hidden]}.items():
+    print(f"{name:8} tennantite q10, q50, q90: " + ", ".join(f"{v:.2f}" for v in np.quantile(x[:, 1], qs)))
+
+fig, axes = plt.subplots(1, 2, figsize=(7.5, 3.6), layout="constrained", sharex=True, sharey=True)
+for ax, (x, title) in zip(axes, [(pair, "Hidden values"), (filled, "Imputed")]):
+    ax.scatter(pair[~hidden, 0], pair[~hidden, 1], s=2, color=LIGHT, linewidths=0)
+    ax.scatter(x[hidden, 0], x[hidden, 1], s=2, color=ACCENT, alpha=0.3, linewidths=0)
+    ax.set(xlabel=names[0], title=title)
+axes[0].set_ylabel(names[1])
+save(fig, "imputed")
+```
+
+</details>
+
+```text
+3334 of 6817 composites miss tennantite
+score correlation 0.275 fitted to them, 0.273 to the full data
+hidden   tennantite q10, q50, q90: -7.59, -5.82, -3.94
+imputed  tennantite q10, q50, q90: -7.61, -6.10, -3.59
+```
+
+![imputed](imputed.png)
+
+The correlation holds, the L shape does not: a Gaussian dependence cannot tell the two mineral associations apart,
+so imputed tennantite spreads along chalcocite into the corner the data leave empty.
+
+`fit(..., impute=True)` does this inside the simulation, with a fresh imputation in every realization, so the
+uncertainty of the missing values reaches the realizations. The transform and the factor variograms come from the
+complete composites.
+
+<details><summary>Python</summary>
+
+```python
+f = cs.PPMT(seed=7).fit(pair[~hidden], weights=weights[~hidden]).transform(pair[~hidden])
+variograms = [
+    cs.experimental_variogram(coords[~hidden], f[:, j], 25.0, 300.0).fit("spherical") for j in range(2)
+]
+simulation = cs.MultivariateSimulation(
+    cs.PPMT(seed=7), [cs.TurningBands(v, search=search) for v in variograms]
+)
+simulation.fit(coords, holed, weights=weights, impute=True)
+a, b = (s.realizations for s in simulation.simulate(nodes, n=20, seed=1, realizations=True))
+r = np.mean([np.corrcoef(x, y)[0, 1] for x, y in zip(a, b)])
+print(f"r {r:.2f}, tennantite q10, q50, q90: " + ", ".join(f"{v:.2f}" for v in np.quantile(b, qs)))
+```
+
+</details>
+
+```text
+r 0.23, tennantite q10, q50, q90: -7.62, -6.18, -3.92
 ```
 
 Full script: [`example_17.py`](example_17.py)
