@@ -203,3 +203,36 @@ def test_polylines_parts_features_and_points():
         cs.Polylines([pit[:2]], closed=True)
     with pytest.raises(cs.InvalidInput):
         cs.Polylines([pit, hole], features=[1, 1])
+
+
+def test_geotiff_round_trip(tmp_path):
+    au = [0.1, float("nan"), 3.0, 4.0, 5.0, 6.0]
+    cu = np.arange(6, dtype=np.float32)
+    grid = cs.BlockModel(
+        origin=(500000.0, 7000000.0),
+        size=(2.5, 4.0),
+        count=(3, 2),
+        attributes={"au": au, "cu": cu},
+        crs="EPSG:31982",
+    )
+    cs.write_geotiff(tmp_path / "grid.tif", grid)
+    back = cs.read_geotiff(tmp_path / "grid.tif")
+    assert (back.origin, back.size, back.count, back.crs) == (grid.origin, grid.size, grid.count, grid.crs)
+    np.testing.assert_array_equal(back["au"], grid["au"])
+    np.testing.assert_array_equal(back["cu"], grid["cu"])
+
+    turned = cs.BlockModel(
+        origin=(10, 20), size=(1, 2), count=(4, 3), rotation=(30, 0, 0), attributes={"v": np.arange(12.0)}
+    )
+    cs.write_geotiff(tmp_path / "turned.tif", turned)
+    back = cs.read_geotiff(tmp_path / "turned.tif")
+    np.testing.assert_allclose(back.centroids, turned.centroids)
+    np.testing.assert_array_equal(back["v"], turned["v"])
+    assert np.isnan(cs.read_geotiff(tmp_path / "turned.tif", nodata=0)["v"][0])
+
+    with pytest.raises(cs.InvalidInput):
+        cs.write_geotiff(
+            tmp_path / "deep.tif", cs.BlockModel(origin=(0, 0, 0), size=(1, 1, 1), count=(2, 2, 2))
+        )
+    with pytest.raises(cs.InvalidInput):
+        cs.write_geotiff(tmp_path / "clash.tif", turned, nodata=5.0)

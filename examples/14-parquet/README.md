@@ -151,4 +151,30 @@ print("same points:", np.array_equal(again.coords, samples.coords), "| crs:", ag
 same points: True | crs: local grid
 ```
 
+Rasters travel as GeoTIFF. `write_geotiff` writes each column of a 2D grid as a band, nulls as the `nodata` value
+and the CRS in the GeoKeys, so GIS software opens it as a georeferenced raster; `read_geotiff` returns the same
+grid. Rotated grids are supported, and a masked model is written with nodata in its absent cells.
+
+<details><summary>Python</summary>
+
+```python
+cs.write_geotiff(folder / "grid.tif", grid)
+raster = cs.read_geotiff(folder / "grid.tif")
+print(raster)
+print(f"{(folder / 'grid.tif').stat().st_size / 1e6:.2f} MB")
+print(
+    "same grid:", raster.origin == grid.origin, np.array_equal(raster["estimate"], estimate, equal_nan=True)
+)
+```
+
+</details>
+
+```text
+BlockModel(regular, 78000 of 78000 cells, count [260, 300, 1], size [1.0, 1.0, 1.0], rotation [0.0, 0.0, 0.0])
+  estimate: Float64
+  variance: Float64
+1.18 MB
+same grid: True True
+```
+
 Full script: [`example_14.py`](example_14.py)

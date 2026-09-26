@@ -34,6 +34,10 @@
 
 ::: ceres.write_shapefile
 
+::: ceres.read_geotiff
+
+::: ceres.write_geotiff
+
 ::: ceres.CeresError
 
 ::: ceres.InvalidInput
