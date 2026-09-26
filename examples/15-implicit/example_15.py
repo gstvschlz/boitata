@@ -77,16 +77,15 @@ j = int((np.median(xyz[indicator > 0, 1]) - lo[1]) // size)
 northing = lo[1] + (j + 0.5) * size
 x = lo[0] + (np.arange(count[0]) + 0.5) * size
 z = lo[2] + (np.arange(count[2]) + 0.5) * size
-near = np.abs(xyz[:, 1] - northing) < 10
+plane = ((0, northing, 0), 90, 90)
 fig, axes = plt.subplots(1, 2, figsize=(12, 5), layout="constrained", sharey=True)
 for ax, (name, field) in zip(axes, fields.items()):
     ax.contourf(x, z, field[:, j, :], levels=[0, np.inf], colors=[LIGHT])
     ax.contour(x, z, field[:, j, :], levels=[0], colors=[ACCENT], linewidths=1.2)
     for mask, color, label in ((indicator < 0, GREY, "Zn ≤ 5 %"), (indicator > 0, HIGHLIGHT, "Zn > 5 %")):
-        ax.scatter(xyz[near & mask, 0], xyz[near & mask, 2], s=8, color=color, label=label)
-    ax.set_aspect("equal")
-    ax.set(title=f"{name}, northing {northing:.0f} m", xlabel="Easting (m)")
-axes[0].set_ylabel("Elevation (m)")
+        cs.plot.slab(xyz[mask], plane=plane, thickness=20, s=8, color=color, label=label, ax=ax)
+    ax.set_title(f"{name}, northing {northing:.0f} m")
+axes[1].set_ylabel("")
 axes[0].set_ylim(np.percentile(xyz[:, 2], 1) - 50, hi[2])
 axes[0].legend(loc="lower right", title="composites within 10 m")
 save(fig, "section")
