@@ -626,3 +626,40 @@ def test_calibration_by_domain_matches_the_domain_alone():
     assert table["slope_mean"][0] != table["slope_mean"][1]
     with pytest.raises(cs.InvalidInput, match="predict needs domains"):
         cs.calibrate_search(kriging, [hard], grid)
+
+
+def test_multiple_indicator_localization():
+    thresholds = np.quantile(values, [0.2, 0.4, 0.6, 0.8])
+    mik = cs.MultipleIndicatorKriging(model, search, thresholds, interpolation="linear").fit(coords, values)
+    panels = cs.BlockModel(origin=(0, 0), size=(25, 25), count=(8, 4))
+    smus = panels.discretize(5)
+    smus = smus.with_column("rank", rng.normal(size=len(smus)))
+    owner, rank = smus["block"].astype(int), smus["rank"]
+    n, f = 25, 0.4
+    k = np.arange(1, n)
+    s = mik.predict(panels, quantiles=list(1 - k / n))
+    out = mik.localize(panels, smus, "rank", variance_factor=f)["localized"]
+    for p, m in enumerate(s.mean):
+        mine = owner == p
+        if np.isnan(m):
+            assert np.isnan(out[mine]).all()
+            continue
+        by_rank = out[mine][np.argsort(rank[mine], kind="stable")]
+        assert by_rank.mean() == pytest.approx(m, abs=1e-9)
+        assert (np.diff(by_rank) >= -1e-12).all()
+        point = mik.predict(panels.centroids[p : p + 1], cutoffs=list(s.quantile_values[:, p]))
+        top = np.cumsum(by_rank[::-1])[:-1] / k
+        np.testing.assert_allclose(top, m + np.sqrt(f) * (point.mean_above[:, 0] - m), atol=1e-9)
+    assert np.isnan(s.mean).any() and not np.isnan(s.mean).all()
+
+    point = mik.localize(panels, smus, "rank", variance_factor=1.0)["localized"]
+    derived = mik.localize(panels, smus, "rank", variance_factor=model)["localized"]
+    default = mik.localize(panels, smus, "rank", name="g")["g"]
+    np.testing.assert_array_equal(derived, default)
+    ok = ~np.isnan(point)
+    assert 0 < np.var((derived - s.mean[owner])[ok]) < np.var((point - s.mean[owner])[ok])
+    with pytest.raises(cs.InvalidInput):
+        mik.localize(panels, smus, "rank", variance_factor=1.5)
+    with pytest.raises(cs.InvalidInput):
+        shifted = cs.BlockModel(origin=(3, 0), size=(5, 5), count=(4, 4)).with_column("rank", np.zeros(16))
+        mik.localize(panels, shifted, "rank")
