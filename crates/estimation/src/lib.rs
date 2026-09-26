@@ -5,6 +5,7 @@
 //! - [`block`]   — block kriging via discretization
 //! - [`idw`]     — inverse-distance weighting and nearest-neighbor
 //! - [`indicator`] — multiple indicator kriging of conditional distributions
+//! - [`categorical`] — indicator kriging of category probabilities
 //! - [`search`]  — search-neighborhood selection (anisotropic, octant, per-hole caps)
 //! - [`validate`] — leave-one-out and k-fold cross-validation with diagnostics
 //!
@@ -12,6 +13,7 @@
 
 pub mod batch;
 pub mod block;
+pub mod categorical;
 pub mod cokrige;
 pub mod disjunctive;
 pub mod error;
@@ -27,6 +29,7 @@ pub mod validate;
 
 pub use batch::{by_pass, estimate_many, k_fold_at, leave_one_out_at, leave_one_out_many};
 pub use block::{Discretization, block_krige, block_krige_points};
+pub use categorical::{CategoricalIndicator, CategoricalIndicatorSummary, correct_probabilities};
 pub use cokrige::{CoKind, CoSample, cokrige, collocated_cokrige};
 pub use disjunctive::{DisjunctiveKriging, GaussianSample};
 pub use error::{EstimError, Result};

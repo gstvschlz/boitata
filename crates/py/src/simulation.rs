@@ -1100,7 +1100,7 @@ impl TurningBands {
 }
 
 /// Categories `obj`, or the column of `coords` it names.
-fn categories(coords: &Bound<PyAny>, obj: &Bound<PyAny>) -> PyResult<Vec<usize>> {
+pub(crate) fn categories(coords: &Bound<PyAny>, obj: &Bound<PyAny>) -> PyResult<Vec<usize>> {
     let obj = args::column(Some(coords), obj, "categories")?;
     obj.py()
         .import("numpy")?

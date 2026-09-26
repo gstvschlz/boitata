@@ -332,56 +332,16 @@ impl MultipleIndicator {
         oriented: Option<&Variogram>,
         block: Option<&[Point]>,
     ) -> Result<Vec<f64>> {
-        let kind = if self.simple {
-            Kind::Simple { mean: 0.0 }
-        } else {
-            Kind::Ordinary
-        };
-        let weights = self
-            .variograms
-            .iter()
-            .map(|vg| {
-                let local;
-                let vg = match oriented {
-                    Some(o) => {
-                        local = Variogram {
-                            anisotropy: o.anisotropy.clone(),
-                            ..vg.clone()
-                        };
-                        &local
-                    }
-                    None => vg,
-                };
-                match block {
-                    None => krige(kind, target, samples, vg),
-                    Some(b) => {
-                        let at = |o: &Point| (target.0 + o.0, target.1 + o.1, target.2 + o.2);
-                        let pts: Vec<Point> = b.iter().map(at).collect();
-                        block_krige_points(kind, &pts, samples, vg)
-                    }
-                }
-                .map(|e| e.weights)
-            })
-            .collect::<Result<Vec<_>>>()?;
-        Ok(self
-            .thresholds
-            .iter()
-            .enumerate()
-            .map(|(k, &t)| {
-                let w = &weights[k.min(weights.len() - 1)];
-                let f = global.proportions[k];
-                let indicator = |s: &Sample| if s.value <= t { 1.0 } else { 0.0 };
-                if self.simple {
-                    f + (0..samples.len())
-                        .map(|i| w[i] * (indicator(&samples[i]) - f))
-                        .sum::<f64>()
-                } else {
-                    (0..samples.len())
-                        .map(|i| w[i] * indicator(&samples[i]))
-                        .sum::<f64>()
-                }
-            })
-            .collect())
+        krige_indicators(
+            &self.variograms,
+            self.simple,
+            target,
+            samples,
+            oriented,
+            block,
+            &global.proportions,
+            |k, s| s.value <= self.thresholds[k],
+        )
     }
 
     fn classes(&self, global: &Global, cdf: &[f64]) -> Vec<(f64, f64, f64, Shape)> {
@@ -507,22 +467,7 @@ impl MultipleIndicator {
                 (self.conditional(&global, &raw, cutoffs, quantiles), near)
             },
         )?;
-        let column = |f: &dyn Fn(usize, &Conditional, &NeighborhoodStats) -> f64| {
-            let at = |r: &Option<(usize, (Conditional, NeighborhoodStats))>| {
-                r.as_ref().map_or(f64::NAN, |(p, (c, s))| f(*p, c, s))
-            };
-            results.iter().map(at).collect()
-        };
-        let diagnostics = IndicatorDiagnostics {
-            n_samples: column(&|_, _, s| s.n_within as f64),
-            pass: column(&|p, _, _| (p + 1) as f64),
-            n_holes: column(&|_, _, s| s.n_holes as f64),
-            mean_distance: column(&|_, _, s| s.mean_dist_knn),
-            max_samples_reached: column(&|p, _, s| {
-                f64::from(u8::from(s.n_within >= searches[p].max_samples))
-            }),
-            n_order_violations: column(&|_, c, _| c.violations as f64),
-        };
+        let diagnostics = diagnostics(&results, searches, |c: &Conditional| c.violations);
         let conditionals = results.into_iter().map(|r| r.map(|(_, (c, _))| c));
         Ok(IndicatorSummary {
             diagnostics: Some(diagnostics),
@@ -589,28 +534,15 @@ impl MultipleIndicator {
         local: Option<&LocalAnisotropy>,
         finish: impl Fn(&Point, &[Sample], Vec<f64>) -> T + Sync,
     ) -> Result<Vec<Option<(usize, T)>>> {
-        let vg = self.search_variogram();
-        let at_target = |t: &Point, s: &[Sample], o: Option<&Variogram>| {
-            Ok(finish(t, s, self.kriged(t, s, global, o, block)?))
-        };
-        by_pass(targets.len(), searches, |search, remaining| {
-            let at: Vec<Point> = remaining.iter().map(|&i| targets[i]).collect();
-            match local {
-                None => Ok(estimate_many(
-                    &at,
-                    None,
-                    samples,
-                    search,
-                    Some(vg),
-                    |t, s| at_target(t, s, None),
-                )),
-                Some(l) => {
-                    estimate_many_local(&at, None, &l.at(&at), samples, search, vg, |t, s, v| {
-                        at_target(t, s, Some(v))
-                    })
-                }
-            }
-        })
+        indicator_targets(
+            targets,
+            None,
+            samples,
+            searches,
+            local,
+            self.search_variogram(),
+            |t, s, o| Ok(finish(t, s, self.kriged(t, s, global, o, block)?)),
+        )
     }
 
     /// Means of `n` equal-probability bands of the conditional distribution
@@ -731,6 +663,139 @@ impl MultipleIndicator {
             push(&mut out.quantile_values, r.map(|r| &r.quantile_values));
         }
         out
+    }
+}
+
+/// Kriged indicators at `target`, one per entry of `means`: entry `k` krigs
+/// `indicator(k, sample)` with variogram `k`, or the one shared, by simple
+/// kriging about `means[k]` when `simple`, else ordinary kriging. `oriented`
+/// replaces every variogram's anisotropy; `block`, discretization points
+/// relative to `target`, krigs the block average instead of the point.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn krige_indicators(
+    variograms: &[Variogram],
+    simple: bool,
+    target: &Point,
+    samples: &[Sample],
+    oriented: Option<&Variogram>,
+    block: Option<&[Point]>,
+    means: &[f64],
+    indicator: impl Fn(usize, &Sample) -> bool,
+) -> Result<Vec<f64>> {
+    let kind = if simple {
+        Kind::Simple { mean: 0.0 }
+    } else {
+        Kind::Ordinary
+    };
+    let weights = variograms
+        .iter()
+        .map(|vg| {
+            let local;
+            let vg = match oriented {
+                Some(o) => {
+                    local = Variogram {
+                        anisotropy: o.anisotropy.clone(),
+                        ..vg.clone()
+                    };
+                    &local
+                }
+                None => vg,
+            };
+            match block {
+                None => krige(kind, target, samples, vg),
+                Some(b) => {
+                    let at = |o: &Point| (target.0 + o.0, target.1 + o.1, target.2 + o.2);
+                    let pts: Vec<Point> = b.iter().map(at).collect();
+                    block_krige_points(kind, &pts, samples, vg)
+                }
+            }
+            .map(|e| e.weights)
+        })
+        .collect::<Result<Vec<_>>>()?;
+    Ok(means
+        .iter()
+        .enumerate()
+        .map(|(k, &f)| {
+            let w = &weights[k.min(weights.len() - 1)];
+            let i = |s: &Sample| if indicator(k, s) { 1.0 } else { 0.0 };
+            if simple {
+                f + (0..samples.len())
+                    .map(|j| w[j] * (i(&samples[j]) - f))
+                    .sum::<f64>()
+            } else {
+                (0..samples.len())
+                    .map(|j| w[j] * i(&samples[j]))
+                    .sum::<f64>()
+            }
+        })
+        .collect())
+}
+
+/// `at_target` applied, with the samples found and the local variogram, at
+/// every target whose domain is known, each search pass filling the targets
+/// the previous left unestimated; with the index of the pass.
+pub(crate) fn indicator_targets<T: Send>(
+    targets: &[Point],
+    domains: Option<&[Option<u32>]>,
+    samples: &[Sample],
+    searches: &[Search],
+    local: Option<&LocalAnisotropy>,
+    vg: &Variogram,
+    at_target: impl Fn(&Point, &[Sample], Option<&Variogram>) -> Result<T> + Sync,
+) -> Result<Vec<Option<(usize, T)>>> {
+    let known: Vec<usize> = (0..targets.len())
+        .filter(|&i| domains.is_none_or(|d| d[i].is_some()))
+        .collect();
+    let found = by_pass(known.len(), searches, |search, remaining| {
+        let rows: Vec<usize> = remaining.iter().map(|&i| known[i]).collect();
+        let at: Vec<Point> = rows.iter().map(|&i| targets[i]).collect();
+        let codes: Option<Vec<u32>> = domains.map(|d| rows.iter().filter_map(|&i| d[i]).collect());
+        let codes = codes.as_deref();
+        match local {
+            None => Ok(estimate_many(
+                &at,
+                codes,
+                samples,
+                search,
+                Some(vg),
+                |t, s| at_target(t, s, None),
+            )),
+            Some(l) => {
+                estimate_many_local(&at, codes, &l.at(&at), samples, search, vg, |t, s, v| {
+                    at_target(t, s, Some(v))
+                })
+            }
+        }
+    })?;
+    let mut out: Vec<_> = (0..targets.len()).map(|_| None).collect();
+    for (i, r) in known.into_iter().zip(found) {
+        out[i] = r;
+    }
+    Ok(out)
+}
+
+/// Search diagnostics per target, NaN where unestimated; `violations`
+/// counts the entries the correction changed.
+pub(crate) fn diagnostics<T>(
+    results: &[Option<(usize, (T, NeighborhoodStats))>],
+    searches: &[Search],
+    violations: impl Fn(&T) -> usize,
+) -> IndicatorDiagnostics {
+    let column = |f: &dyn Fn(usize, &T, &NeighborhoodStats) -> f64| {
+        let at = |r: &Option<(usize, (T, NeighborhoodStats))>| {
+            r.as_ref().map_or(f64::NAN, |(p, (c, s))| f(*p, c, s))
+        };
+        results.iter().map(at).collect()
+    };
+    IndicatorDiagnostics {
+        n_samples: column(&|_, _, s| s.n_within as f64),
+        pass: column(&|p, _, _| (p + 1) as f64),
+        n_holes: column(&|_, _, s| s.n_holes as f64),
+        mean_distance: column(&|_, _, s| s.mean_dist_knn),
+        max_samples_reached: column(&|p, _, s| {
+            f64::from(u8::from(s.n_within >= searches[p].max_samples))
+        }),
+        n_order_violations: column(&|_, c, _| violations(c) as f64),
     }
 }
 

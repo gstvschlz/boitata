@@ -12,6 +12,7 @@ from ceres.errors import InvalidInput
 __all__ = [
     "BayesianKriging",
     "BlockKriging",
+    "CategoricalCrossValidation",
     "CrossValidation",
     "FactorialKriging",
     "IndicatorCrossValidation",
@@ -104,6 +105,29 @@ class IndicatorCrossValidation(CrossValidation):
         p = (np.arange(100) + 0.5) / 100
         excess = self.accuracy(p) - p
         return float(1 - np.mean(np.where(excess >= 0, 1, -2) * excess))
+
+
+@dataclass(frozen=True)
+class CategoricalCrossValidation:
+    """Cross-validation of categorical indicator kriging: `actual` holds the category codes, `probabilities` the
+    ``(samples, categories)`` corrected probabilities and `names` the categories; NaN where a sample had too few
+    neighbors."""
+
+    actual: np.ndarray
+    probabilities: np.ndarray
+    names: list[str]
+
+    @property
+    def most_likely(self) -> np.ndarray:
+        """Code of the most probable category, ties to the lowest; NaN where unestimated."""
+        ok = ~np.isnan(self.probabilities).any(axis=1)
+        return np.where(ok, np.argmax(np.nan_to_num(self.probabilities, nan=-1.0), axis=1), np.nan)
+
+    @property
+    def brier(self) -> np.ndarray:
+        """Mean squared difference between each category's probability and indicator; 0 is perfect."""
+        indicator = self.actual[:, None] == np.arange(len(self.names))
+        return np.nanmean((self.probabilities - indicator) ** 2, axis=0)
 
 
 class _Base:

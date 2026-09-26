@@ -24,7 +24,7 @@ use crate::invalid;
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 #[serde(transparent)]
 #[pyclass(module = "ceres", name = "Categories", frozen, eq, from_py_object)]
-pub struct Categories(Core);
+pub struct Categories(pub Core);
 
 fn name(obj: Bound<PyAny>) -> PyResult<String> {
     text(&obj)?.ok_or_else(|| invalid("names and mapping entries must not be null"))
@@ -36,11 +36,11 @@ fn mapping(obj: Option<&Bound<PyDict>>) -> PyResult<BTreeMap<String, String>> {
     })
 }
 
-fn labels(obj: &Bound<PyAny>) -> PyResult<Vec<Option<String>>> {
+pub(crate) fn labels(obj: &Bound<PyAny>) -> PyResult<Vec<Option<String>>> {
     texts(obj, "values")
 }
 
-fn refs(labels: &[Option<String>]) -> Vec<Option<&str>> {
+pub(crate) fn refs(labels: &[Option<String>]) -> Vec<Option<&str>> {
     labels.iter().map(Option::as_deref).collect()
 }
 
