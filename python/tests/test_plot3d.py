@@ -111,8 +111,8 @@ def test_drillholes_become_one_polyline_per_hole(pv):
 
 def test_plots_render_off_screen(pv):
     model = cs.BlockModel(**GRID, attributes={"v": np.arange(24.0)})
-    plotter = cs.plot3d.slices(model, scalars="v")
-    cs.plot3d.plot(cs.PointSet(model.centroids, {"v": model["v"]}), scalars="v", plotter=plotter)
+    plotter = cs.plot3d.slices(model, values="v")
+    cs.plot3d.plot(cs.PointSet(model.centroids, {"v": model["v"]}), values="v", plotter=plotter)
     assert sum(isinstance(a, pv.Actor) for a in plotter.renderer.actors.values()) == 2
     image = plotter.screenshot(return_img=True)
     plotter.close()

@@ -1,3 +1,5 @@
+import inspect
+
 import ceres as cs
 import matplotlib
 import numpy as np
@@ -70,7 +72,7 @@ def test_variogram_with_anisotropic_model():
     xy = rng.uniform(0, 100, (200, 2))
     exp = cs.experimental_variogram(xy, rng.normal(size=200), 10.0, 60.0, azimuth=30)
     model = cs.Variogram([("spherical", 1.0, 40.0)], rotation=(30, 0, 0), ratios=(0.5, 1.0))
-    _, ax = cs.plot.variogram(exp, model, direction=(120, 0))
+    _, ax = cs.plot.variogram(exp, variogram=model, direction=(120, 0))
     h, g = ax.lines[0].get_data()
     assert g[np.searchsorted(h, 20.0)] == pytest.approx(1.0, abs=1e-9)
 
@@ -108,7 +110,7 @@ def test_section_on_a_plane_matches_the_axis_slice():
     _, axis = cs.plot.section(bm, "g", axis="z", index=0)
     image = np.ma.filled(ax.images[0].get_array(), np.nan)
     np.testing.assert_array_equal(image[::4, ::4], np.ma.filled(axis.images[0].get_array(), np.nan))
-    _, ax = cs.plot.uncertain("g", np.zeros(23), block_model=bm, plane=((4, 3, 0.5), 45, 90))
+    _, ax = cs.plot.uncertain("g", np.zeros(23), model=bm, plane=((4, 3, 0.5), 45, 90))
     assert ax.get_xlabel() == "Along strike (m)" and ax.get_ylabel() == "Elevation (m)"
 
 
@@ -158,7 +160,7 @@ def test_uncertain_slices_a_masked_model():
     bm = cs.BlockModel(origin=(0, 0, 0), size=(2, 2, 1), count=(4, 3, 2))
     bm = bm.with_column("g", np.arange(24.0)).mask(np.arange(24) != 5)
     uncertainty = np.where(bm.index == 6, 1.0, 0.0)
-    _, ax = cs.plot.uncertain("g", uncertainty, block_model=bm, axis="z", index=0)
+    _, ax = cs.plot.uncertain("g", uncertainty, model=bm, axis="z", index=0)
     rgba = ax.images[0].get_array()
     assert rgba.shape == (3, 4, 4) and ax.images[0].get_extent() == [0, 8, 0, 6]
     np.testing.assert_allclose(rgba[1, 2, :3], 1.0)
@@ -187,7 +189,7 @@ def test_stats_box_writes_describe():
     v = rng.lognormal(0, 1, 300)
     w = rng.uniform(0.5, 2.0, 300)
     s = cs.describe(v, weights=w)
-    _, ax = cs.plot.histogram(v, w, stats=True)
+    _, ax = cs.plot.histogram(v, weights=w, stats=True)
     assert f"mean {s['mean']:.3g}" in " ".join(ax.texts[0].get_text().split())
     _, ax = cs.plot.cdf([v, v], weights=[None, w], labels=["naive", "declustered"], stats=True)
     header, n, mean = ax.texts[0].get_text().splitlines()[:3]
@@ -213,7 +215,7 @@ def test_declustering_marks_the_chosen_size():
     _, ax = cs.plot.declustering(d, naive=v.mean())
     np.testing.assert_allclose(ax.lines[0].get_ydata(), d.means)
     assert ax.lines[-1].get_xdata()[0] == d.cell_size and d.mean < v.mean()
-    with pytest.raises(ValueError, match="scan"):
+    with pytest.raises(cs.InvalidInput, match="scan"):
         cs.plot.declustering(cs.cell_declustering(xy, v, cell_size=10.0))
 
 
@@ -268,7 +270,7 @@ def test_category_swath_stacks_to_one_and_follows_a_trend():
 def test_proportions_are_weighted_shares():
     rock = np.array(["a", "b", "b", "c"])
     w = np.array([2.0, 1.0, 1.0, 4.0])
-    _, ax = cs.plot.proportions(rock, w)
+    _, ax = cs.plot.proportions(rock, weights=w)
     np.testing.assert_allclose([p.get_width() for p in ax.patches], [0.25, 0.25, 0.5])
     np.testing.assert_allclose(ax.lines[0].get_xdata(), [0.25, 0.5, 0.25])
 
@@ -283,3 +285,75 @@ def test_directions_project_the_major_axis():
     q = ax.collections[0]
     np.testing.assert_allclose(np.c_[q.U, q.V], [[0, 0]], atol=1e-12)
     assert ax.get_ylabel() == "Elevation (m)"
+
+
+@pytest.mark.parametrize(
+    "f",
+    [getattr(cs.plot, n) for n in cs.plot.__all__ if n not in ("category_colors", "category_legend")]
+    + [cs.plot3d.plot, cs.plot3d.slices],
+    ids=lambda f: f.__name__,
+)
+def test_options_are_keyword_only(f):
+    params = inspect.signature(f).parameters.values()
+    defaulted = [p for p in params if p.default is not p.empty and p.kind is not p.KEYWORD_ONLY]
+    assert [p.name for p in defaulted] in ([], ["values"]), f.__name__
+    target = {"scatter_matrix": "axes", "plot": "plotter", "slices": "plotter"}.get(f.__name__, "ax")
+    assert inspect.signature(f).parameters[target].kind is inspect.Parameter.KEYWORD_ONLY
+
+
+def _drawn(ax):
+    parts = [line.get_xydata().ravel() for line in ax.lines]
+    parts += [np.ravel(p.get_extents().bounds) for p in ax.patches]
+    return np.concatenate(parts)
+
+
+def test_names_resolve_against_data_like_arrays():
+    v, w = rng.lognormal(0, 1, 100), rng.uniform(0.5, 2.0, 100)
+    rock = np.where(np.arange(100) < 40, "a", "b")
+    points = cs.PointSet(rng.uniform(0, 100, (100, 3)), {"v": v, "w": w, "rock": rock})
+    for f, args, names in [
+        (cs.plot.histogram, (v,), ("v",)),
+        (cs.plot.probability, (v,), ("v",)),
+        (cs.plot.cdf, (v,), ("v",)),
+        (cs.plot.boxplot, (v, rock), ("v", "rock")),
+        (cs.plot.proportions, (rock,), ("rock",)),
+        (cs.plot.conditional, (v, w), ("v", "w")),
+    ]:
+        _, a = f(*args, weights=w)
+        _, b = f(*names, weights="w", data=points)
+        np.testing.assert_allclose(_drawn(a), _drawn(b), err_msg=f.__name__)
+    _, a = cs.plot.qq(v, v**2, x_weights=w, y_weights=w)
+    _, b = cs.plot.qq("v", v**2, x_weights="w", y_weights="w", data=points)
+    np.testing.assert_allclose(a.lines[0].get_ydata(), b.lines[0].get_ydata())
+    _, a = cs.plot.category_swath(points, "rock", 20.0, axis="x", weights="w")
+    _, b = cs.plot.category_swath(points.coords, rock, 20.0, axis="x", weights=w)
+    np.testing.assert_allclose(_drawn(a), _drawn(b))
+
+
+def test_block_model_data_weights_by_volume():
+    bm = cs.BlockModel.subblocked(
+        origin=(0, 0, 0),
+        size=(1, 1, 1),
+        count=(2, 1, 1),
+        parent=np.array([0, 1], dtype=np.uint64),
+        extents=np.array([[0, 0, 0, 1, 1, 1], [0, 0, 0, 0.25, 1, 1.0]]),
+        attributes={"g": [1.0, 2.0]},
+    )
+    _, ax = cs.plot.histogram("g", bins=[0.5, 1.5, 2.5], data=bm)
+    np.testing.assert_allclose([p.get_height() for p in ax.patches], [0.8, 0.2])
+
+
+def test_user_input_errors_are_invalid_input():
+    with pytest.raises(cs.InvalidInput, match="container"):
+        cs.plot.histogram("v")
+    with pytest.raises(cs.MissingColumn, match="columns: v"):
+        cs.plot.histogram("x", data={"v": np.ones(3)})
+    with pytest.raises(cs.InvalidInput, match="codes"):
+        cs.plot.proportions([0.0, 5.0], scheme=cs.Categories(["a", "b"]))
+    bm = cs.BlockModel(origin=(0, 0, 0), size=(1, 1, 1), count=(2, 2, 2), attributes={"g": np.ones(8)})
+    with pytest.raises(cs.InvalidInput, match="misses"):
+        cs.plot.section(bm, "g", plane=((0, 0, 50), 90, 0))
+    with pytest.raises(cs.InvalidInput, match="center"):
+        cs.plot.slab(np.zeros((1, 3)), plane=((0, 0), 90, 90), thickness=1)
+    with pytest.raises(TypeError):
+        cs.plot.histogram(np.ones(3), np.ones(3))

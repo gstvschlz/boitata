@@ -96,7 +96,7 @@ fig.colorbar(mesh, ax=a, shrink=0.7, label="γ / sample variance")
 b = fig.add_subplot(1, 2, 2)
 for exp, color, az, rng in ((major, ACCENT, azimuth, a_major), (minor, GRAY, azimuth + 90, a_minor)):
     cs.plot.variogram(
-        exp, model, direction=(az, 0), ax=b, color=color, label=f"N{az % 360:.0f}° experimental"
+        exp, variogram=model, direction=(az, 0), ax=b, color=color, label=f"N{az % 360:.0f}° experimental"
     )
     b.axvline(rng, color=color, lw=0.8, ls=":")
 h = np.linspace(0, max_lag, 200)
@@ -137,7 +137,12 @@ fig, ax = plt.subplots(figsize=(6, 3.4), layout="constrained")
 origin = np.zeros((h.size, 3))
 for exp, color, az in ((major, ACCENT, azimuth), (minor, GRAY, azimuth + 90)):
     cs.plot.variogram(
-        exp, model, direction=(az, 0), ax=ax, color=color, label=f"N{az % 360:.0f}° (solid: major/minor fit)"
+        exp,
+        variogram=model,
+        direction=(az, 0),
+        ax=ax,
+        color=color,
+        label=f"N{az % 360:.0f}° (solid: major/minor fit)",
     )
     unit = np.array([np.sin(np.radians(az)), np.cos(np.radians(az)), 0])
     ax.plot(h, joint.gamma_between(origin, h[:, None] * unit), color=color, lw=1, ls="--", label="joint fit")

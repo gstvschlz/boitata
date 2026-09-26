@@ -59,7 +59,7 @@ for row in zip(
 
 # %%
 fig, axes = plt.subplots(1, 2, figsize=(10, 3.6), layout="constrained")
-cs.plot.cdf([v, d["value"], true_blocks], [weights, None, None], ax=axes[0])
+cs.plot.cdf([v, d["value"], true_blocks], weights=[weights, None, None], ax=axes[0])
 metal = [cs.swath(kriged, g, 20.0, axis="x") for g in ("value", "truth")]
 cs.plot.swath(metal, labels=["blocks", "truth"], y="metal", ax=axes[1])
 for ax, colors in ((axes[0], (GRAY, ACCENT, "black")), (axes[1], (ACCENT, "black"))):

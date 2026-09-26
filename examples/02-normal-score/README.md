@@ -108,9 +108,9 @@ while its scores are Gaussian by construction:
 
 ```python
 fig, (a, b) = plt.subplots(1, 2, figsize=(9, 3.4), layout="constrained")
-cs.plot.probability(v[v > 0], w[v > 0], log=True, ax=a, color=ACCENT, ms=3)
+cs.plot.probability(v[v > 0], weights=w[v > 0], log=True, ax=a, color=ACCENT, ms=3)
 a.set(title="V (log scale)", xlabel="V (ppm)")
-cs.plot.probability(y, w, ax=b, color=ACCENT, ms=3)
+cs.plot.probability(y, weights=w, ax=b, color=ACCENT, ms=3)
 b.set(title="Normal scores", xlabel="Normal score")
 save(fig, "probability")
 ```
