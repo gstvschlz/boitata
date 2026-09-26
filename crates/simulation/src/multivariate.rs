@@ -135,10 +135,10 @@ mod tests {
         multivariate(n, 3, 2, &transform, &options, None, |j, seed| {
             let column: Vec<f64> = factors.iter().map(|r| r[j]).collect();
             let params = SgsParams {
-                search: Search {
+                search: vec![Search {
                     max_samples: 12,
                     ..Default::default()
-                },
+                }],
                 seed,
             };
             Ok(sgs(locs, &column, Some(weights), None, grid, &vg, &params, None)?.values)

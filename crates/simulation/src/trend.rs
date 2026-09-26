@@ -106,11 +106,11 @@ mod tests {
 
     fn params(seed: u64) -> SgsParams {
         SgsParams {
-            search: Search {
+            search: vec![Search {
                 max_samples: 12,
                 radius: 30.0,
                 ..Default::default()
-            },
+            }],
             seed,
         }
     }

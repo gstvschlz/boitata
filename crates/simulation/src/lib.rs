@@ -28,7 +28,7 @@ pub use post::{
     BlockSupport, CategoricalSummary, ContinuousOptions, ContinuousSummary, categorical,
     continuous, continuous_many, localize, quantile_sorted,
 };
-pub use sgs::{Realization, SgsParams, sgs};
+pub use sgs::{Realization, SgsParams, sgs, sgs_passes};
 pub use sis::{CategoricalRealization, SisParams, sis};
 pub use trend::TrendConditioning;
 pub use turning_bands::{

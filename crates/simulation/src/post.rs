@@ -607,12 +607,12 @@ mod tests {
         let vg = variogram::Variogram::single(variogram::model::Model::Spherical, 1.0, 5.0);
         let realization = |k: usize| {
             let params = SgsParams {
-                search: estimation::search::Search {
+                search: vec![estimation::search::Search {
                     min_samples: 1,
                     max_samples: 16,
                     radius: f64::INFINITY,
                     ..Default::default()
-                },
+                }],
                 seed: 7 + k as u64,
             };
             sgs(&data, &values, None, None, &fine, &vg, &params, None).map(|r| r.values)

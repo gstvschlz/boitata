@@ -13,7 +13,7 @@ use crate::args::{
     self, Point, array1, distinct, finite, optional_finite, pick, points, rows, same_length,
 };
 use crate::containers::PyBlockModel;
-use crate::estimation::{Search, targets};
+use crate::estimation::{Search, searches, targets};
 use crate::invalid;
 use crate::persist::{self, Columns, Found, Tabular};
 use crate::variogram::Variogram;
@@ -397,11 +397,17 @@ fn data(
 /// equal-probability classes of the trend (a stepwise conditional transform
 /// of ``[trend, values]``); `variogram` is then the variogram of those
 /// scores, and each node is back-transformed within the class of its trend.
+///
+/// `search` is a Search, or a sequence of them as passes: each node takes
+/// the first that finds `min_samples` among the data, as kriging by passes
+/// does, or the last when none does, and is simulated from that pass's
+/// neighbours among the data and the nodes already simulated.
 #[derive(Serialize, Deserialize)]
 #[pyclass(module = "ceres", name = "SGS")]
 pub struct Sgs {
     variogram: CoreVariogram,
-    search: estimation::Search,
+    #[serde(deserialize_with = "one_or_more")]
+    search: Vec<estimation::Search>,
     #[serde(default = "classes")]
     classes: usize,
     #[serde(skip)]
@@ -434,13 +440,63 @@ impl Sgs {
 
     #[new]
     #[pyo3(signature = (variogram, search, classes=10))]
-    fn new(variogram: Variogram, search: Search, classes: usize) -> PyResult<Self> {
+    fn new(variogram: Variogram, search: &Bound<PyAny>, classes: usize) -> PyResult<Self> {
         Ok(Self {
             variogram: variogram.0,
-            search: search.plain("SGS")?,
+            search: searches(search)?
+                .into_iter()
+                .map(|s| s.plain("SGS"))
+                .collect::<PyResult<_>>()?,
             classes,
             data: None,
         })
+    }
+
+    /// The search pass of every target.
+    ///
+    /// A target takes the first search that finds `min_samples` among the
+    /// data, whatever the realization; with the same searches, data, holes
+    /// and variogram anisotropy this is the ``"pass"`` of kriging's
+    /// ``predict(diagnostics=True)``.
+    ///
+    /// Parameters
+    /// ----------
+    /// targets : array_like or BlockModel
+    /// anisotropy : LocalAnisotropy, optional
+    ///     As in `simulate`.
+    ///
+    /// Returns
+    /// -------
+    /// ndarray
+    ///     The pass, 1-based; NaN where no search finds enough data, and
+    ///     `simulate` uses the last.
+    #[pyo3(signature = (targets, anisotropy=None))]
+    fn passes<'py>(
+        &self,
+        py: Python<'py>,
+        targets: &Bound<PyAny>,
+        anisotropy: Option<PyRef<crate::lva::LocalAnisotropy>>,
+    ) -> PyResult<Bound<'py, PyArray1<f64>>> {
+        let d = self.data.as_ref().ok_or_else(not_fitted)?;
+        let grid = self::targets(targets)?;
+        let local = anisotropy.map(|a| a.at_targets(&grid));
+        let passes = py
+            .detach(|| {
+                simulation::sgs_passes(
+                    &d.locs,
+                    &d.values,
+                    d.holes.as_deref(),
+                    &grid,
+                    &self.variogram,
+                    &self.search,
+                    local.as_ref(),
+                )
+            })
+            .map_err(err)?;
+        let passes = passes
+            .into_iter()
+            .map(|p| p.map_or(f64::NAN, |p| (p + 1) as f64));
+        Ok(array1(py, passes.collect()))
     }
 
     /// Takes the conditioning data. Samples sharing a location keep the
@@ -529,6 +585,22 @@ impl Sgs {
         .map(SimulationSummary)
         .map_err(err)
     }
+}
+
+/// A Search, or a list of them from files written before SGS took passes.
+fn one_or_more<'de, D: serde::Deserializer<'de>>(
+    d: D,
+) -> Result<Vec<estimation::Search>, D::Error> {
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum Form {
+        One(estimation::Search),
+        More(Vec<estimation::Search>),
+    }
+    Ok(match Form::deserialize(d)? {
+        Form::One(s) => vec![s],
+        Form::More(s) => s,
+    })
 }
 
 /// Turning-bands simulation conditioned by kriging; same conventions as SGS,
@@ -1356,8 +1428,8 @@ impl Tabular for CategoricalSummary {
 }
 
 enum Factor {
-    Sgs(CoreVariogram, estimation::Search),
-    Bands(CoreVariogram, TurningBandsParams),
+    Sgs(CoreVariogram, Vec<estimation::Search>),
+    Bands(CoreVariogram, Box<TurningBandsParams>),
 }
 
 struct Factors {
@@ -1407,7 +1479,7 @@ impl MultivariateSimulation {
                     Ok(Factor::Sgs(s.variogram.clone(), s.search.clone()))
                 } else if let Ok(s) = s.cast::<TurningBands>() {
                     let s = s.borrow();
-                    Ok(Factor::Bands(s.variogram.clone(), s.params(0)))
+                    Ok(Factor::Bands(s.variogram.clone(), Box::new(s.params(0))))
                 } else {
                     Err(invalid("simulators must be SGS or TurningBands"))
                 }
@@ -1559,7 +1631,7 @@ impl MultivariateSimulation {
                         Factor::Bands(variogram, params) => {
                             let params = TurningBandsParams {
                                 seed,
-                                ..params.clone()
+                                ..params.as_ref().clone()
                             };
                             simulation::turning_bands(
                                 locs, values, weights, holes, &grid, variogram, &params,
