@@ -387,7 +387,19 @@ impl Flat {
     }
 }
 
+#[cfg(test)]
+thread_local! {
+    /// Points indexed or scanned on this thread.
+    static WORK: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+fn work(_n: usize) {
+    #[cfg(test)]
+    WORK.set(WORK.get() + _n);
+}
+
 fn build<const K: usize>(points: &[[f64; 3]], flat: &Flat) -> Option<ImmutableKdTree<f64, K>> {
+    work(points.len());
     let kept: Vec<[f64; K]> = points.iter().map(|p| flat.keep(p)).collect();
     ImmutableKdTree::new_from_slice(&kept).ok()
 }
@@ -524,6 +536,7 @@ impl Index {
             found.extend(near.into_iter().map(|(d, i)| (d, i + b.start)));
         }
         let scanned = self.scanned();
+        work(points.len() - scanned);
         if self.blocks.len() > 1 || points.len() > scanned {
             found.extend(
                 points[scanned..]
@@ -901,5 +914,27 @@ mod tests {
         let mut tree = SearchTree::new(&[s(5.0, 0.0, 0.0, 1.0, None)], &p, None);
         tree.add(&s(1.0, 0.0, 0.0, 2.0, None));
         assert_eq!(tree.neighbors(&(0.0, 0.0, 0.0)).unwrap(), vec![1, 0]);
+    }
+
+    /// Nodes of one level among 3D data used to rebuild the whole index on
+    /// every addition and scan it, quadratic in the number of nodes.
+    #[test]
+    fn a_level_grown_among_3d_data_is_indexed_in_n_log_n() {
+        let data: Vec<Sample> = (0..300)
+            .map(|i| {
+                let (x, y, z) = (i * 37 % 101, i * 53 % 97, i % 7);
+                s(x as f64, y as f64, z as f64, 0.0, None)
+            })
+            .collect();
+        let n = 10_000;
+        WORK.set(0);
+        let mut tree = SearchTree::new(&data, &params(1, 16, 40.0), None);
+        for i in 0..n {
+            let loc = ((i % 100) as f64, (i / 100) as f64, 3.5);
+            tree.neighbors(&loc).unwrap();
+            tree.add(&s(loc.0, loc.1, loc.2, 0.0, None));
+        }
+        let work = WORK.get();
+        assert!(work < 100 * n, "{work} points indexed or scanned");
     }
 }
