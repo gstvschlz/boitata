@@ -198,6 +198,8 @@ def test_each_defect_is_flagged_once():
         ("assay", "no_collar", 6),
     }
     assert summary.num_rows == sum(len(t.column_names) for t in flags.values())
+    flags, _ = cs.check_drillholes(checked_collar, checked_survey, {"assay": checked_assay}, nodata=[])
+    assert not any(t["sentinel"].any() for t in flags.values())
     rows = dict(zip(zip(summary["table"], summary["check"]), summary["rows"]))
     assert rows[("assay", "overlap")] == 1 and rows[("collar", "out_of_range")] == 0
 

@@ -3,20 +3,22 @@ use std::io::{BufReader, BufWriter, Seek};
 use std::path::Path;
 use std::sync::Arc;
 
-use arrow_array::RecordBatch;
+use arrow_array::cast::AsArray;
+use arrow_array::types::Float64Type;
+use arrow_array::{ArrayRef, Float64Array, RecordBatch, StringArray};
 use arrow_csv::reader::Format;
 use arrow_csv::{ReaderBuilder, WriterBuilder};
 use arrow_schema::{DataType, Field, Schema};
 use arrow_select::concat::concat_batches;
 use regex::Regex;
 
-use crate::{Result, default_nodata};
+use crate::{Nodata, Result, default_nodata, is_nodata};
 
 #[derive(Debug, Clone)]
 pub struct CsvOptions {
     pub delimiter: u8,
-    /// Tokens read as null, case-insensitive; empty cells are always null.
-    pub nodata: Vec<String>,
+    /// Values read as null; empty cells are always null.
+    pub nodata: Vec<Nodata>,
 }
 
 impl Default for CsvOptions {
@@ -51,7 +53,27 @@ pub fn read_csv(path: impl AsRef<Path>, options: &CsvOptions) -> Result<RecordBa
         .with_format(format)
         .build(file)?
         .collect::<std::result::Result<Vec<_>, _>>()?;
-    Ok(concat_batches(&schema, &batches)?)
+    let table = concat_batches(&schema, &batches)?;
+    let columns = table
+        .columns()
+        .iter()
+        .map(|c| -> ArrayRef {
+            match c.data_type() {
+                DataType::Float64 => Arc::new(Float64Array::from_iter(
+                    c.as_primitive::<Float64Type>()
+                        .iter()
+                        .map(|v| v.filter(|v| !options.nodata.contains(&Nodata::Number(*v)))),
+                )),
+                DataType::Utf8 => Arc::new(StringArray::from_iter(
+                    c.as_string::<i32>()
+                        .iter()
+                        .map(|s| s.filter(|s| !is_nodata(s, &options.nodata))),
+                )),
+                _ => c.clone(),
+            }
+        })
+        .collect();
+    Ok(RecordBatch::try_new(schema, columns)?)
 }
 
 /// Writes a headed CSV; nulls are written as empty cells.
@@ -63,8 +85,14 @@ pub fn write_csv(path: impl AsRef<Path>, table: &RecordBatch) -> Result<()> {
     Ok(())
 }
 
-fn nodata_regex(nodata: &[String]) -> Result<Regex> {
-    let tokens: Vec<String> = nodata.iter().map(|s| regex::escape(s)).collect();
+fn nodata_regex(nodata: &[Nodata]) -> Result<Regex> {
+    let tokens: Vec<String> = nodata
+        .iter()
+        .filter_map(|n| match n {
+            Nodata::Text(s) => Some(regex::escape(s)),
+            Nodata::Number(_) => None,
+        })
+        .collect();
     Ok(Regex::new(&format!("^(?i:{}|)$", tokens.join("|")))?)
 }
 
@@ -72,8 +100,6 @@ fn nodata_regex(nodata: &[String]) -> Result<Regex> {
 mod tests {
     use super::*;
     use arrow_array::Array;
-    use arrow_array::cast::AsArray;
-    use arrow_array::types::Float64Type;
 
     fn temp(name: &str, contents: &str) -> std::path::PathBuf {
         let path = std::env::temp_dir().join(format!("ceres-io-{}-{name}", std::process::id()));
@@ -115,12 +141,27 @@ mod tests {
     fn custom_nodata_replaces_defaults() {
         let path = temp("b.csv", "v\n-999\n-1\n");
         let options = CsvOptions {
-            nodata: vec!["-1".into()],
+            nodata: vec![Nodata::Number(-1.0)],
             ..Default::default()
         };
         let t = read_csv(&path, &options).unwrap();
         let v = t.column(0).as_primitive::<Float64Type>();
         assert_eq!(v.iter().collect::<Vec<_>>(), [Some(-999.0), None]);
+    }
+
+    #[test]
+    fn numbers_match_numerically_and_text_as_tokens() {
+        let path = temp("n.csv", "v,rock\n-999.0,-999.0\n-999,ox\n");
+        let read = |n: Nodata| {
+            let options = CsvOptions {
+                nodata: vec![n],
+                ..Default::default()
+            };
+            let t = read_csv(&path, &options).unwrap();
+            (t.column(0).null_count(), t.column(1).null_count())
+        };
+        assert_eq!(read(Nodata::Number(-999.0)), (2, 1));
+        assert_eq!(read(Nodata::Text("-999".into())), (1, 0));
     }
 
     #[test]

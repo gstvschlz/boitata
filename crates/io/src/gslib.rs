@@ -10,12 +10,12 @@ use arrow_array::{Array, ArrayRef, Float64Array, RecordBatch, RecordBatchOptions
 use arrow_cast::cast;
 use arrow_schema::{DataType, Field, Schema};
 
-use crate::{Error, Result, is_nodata};
+use crate::{Error, Nodata, Result, is_nodata};
 
 /// Reads a GSLIB file: title, column count, one name per line, then
 /// whitespace-separated rows. Extra tokens on a row are ignored. The title is
 /// kept in the schema metadata under `title`.
-pub fn read_gslib(path: impl AsRef<Path>, nodata: &[String]) -> Result<RecordBatch> {
+pub fn read_gslib(path: impl AsRef<Path>, nodata: &[Nodata]) -> Result<RecordBatch> {
     let text = std::fs::read_to_string(path)?;
     let mut lines = text
         .lines()
@@ -79,8 +79,8 @@ pub fn read_gslib(path: impl AsRef<Path>, nodata: &[String]) -> Result<RecordBat
     )?)
 }
 
-/// Writes numeric columns as GSLIB; nulls are written as `missing`.
-pub fn write_gslib(path: impl AsRef<Path>, table: &RecordBatch, missing: f64) -> Result<()> {
+/// Writes numeric columns as GSLIB; nulls are written as `nodata`.
+pub fn write_gslib(path: impl AsRef<Path>, table: &RecordBatch, nodata: f64) -> Result<()> {
     let schema = table.schema();
     if let Some(f) = schema.fields().iter().find(|f| !f.data_type().is_numeric()) {
         return Err(Error::NotNumeric(f.name().clone()));
@@ -111,7 +111,7 @@ pub fn write_gslib(path: impl AsRef<Path>, table: &RecordBatch, missing: f64) ->
                 if c.is_valid(row) {
                     c.value(row)
                 } else {
-                    missing
+                    nodata
                 }
                 .to_string()
             })

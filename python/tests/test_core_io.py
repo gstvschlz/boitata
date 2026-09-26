@@ -84,9 +84,22 @@ def test_gslib_round_trip(tmp_path):
     source = tmp_path / "grid.dat"
     source.write_text("grid\n2\nau\ncu\n1 -999\n0.25 3\n")
     table = cs.read_gslib(source)
-    cs.write_gslib(tmp_path / "out.dat", table)
-    back = cs.read_gslib(tmp_path / "out.dat")
-    np.testing.assert_array_equal(back["au"], table["au"])
+    cs.write_gslib(tmp_path / "out.dat", table, nodata=-1.0)
+    assert "-1" in (tmp_path / "out.dat").read_text().split()
+    back = cs.read_gslib(tmp_path / "out.dat", nodata=[-1])
+    np.testing.assert_array_equal(back["cu"], table["cu"])
+
+
+def test_nodata_numbers_match_numerically_and_strings_as_tokens(tmp_path):
+    path = tmp_path / "v.csv"
+    path.write_text("v,rock\n-999.0,ox\n-999,none\n1,fr\n")
+    numeric = cs.read_csv(path, nodata=[-999, "none"])
+    assert np.isnan(numeric["v"][:2]).all() and numeric["rock"] == ["ox", None, "fr"]
+    assert np.isnan(cs.read_csv(path, nodata=["-999"])["v"]).tolist() == [False, True, False]
+    with pytest.raises(TypeError):
+        cs.read_csv(path, [-999])
+    with pytest.raises(TypeError):
+        cs.write_gslib(path, cs.read_csv(path), -1.0)
 
 
 def test_arrow_interop():
