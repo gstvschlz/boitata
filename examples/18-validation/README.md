@@ -143,9 +143,9 @@ for g, label in enumerate(("efficiency < 0.5", "0.5 to 0.7", ">= 0.7")):
 
 ```text
 slope of regression: predicted mean 0.94, observed 1.03
-efficiency < 0.5: 234 blocks, RMSE 110.2 ppm, correlation with truth 0.68
-      0.5 to 0.7: 324 blocks, RMSE 112.2 ppm, correlation with truth 0.70
-          >= 0.7: 222 blocks, RMSE  83.5 ppm, correlation with truth 0.93
+efficiency < 0.5: 224 blocks, RMSE 109.9 ppm, correlation with truth 0.69
+      0.5 to 0.7: 328 blocks, RMSE 113.0 ppm, correlation with truth 0.69
+          >= 0.7: 228 blocks, RMSE  83.2 ppm, correlation with truth 0.93
 ```
 
 The other diagnostics say why a block is weak. `mean_distance` is the mean distance to the samples used, and
@@ -235,9 +235,9 @@ for name in names:
 </details>
 
 ```text
- measured: 27.7% of blocks, 27.1% after smoothing
-indicated: 39.5% of blocks, 42.1% after smoothing
- inferred: 32.8% of blocks, 30.9% after smoothing
+ measured: 28.3% of blocks, 27.9% after smoothing
+indicated: 40.0% of blocks, 43.6% after smoothing
+ inferred: 31.7% of blocks, 28.5% after smoothing
 ```
 
 <details><summary>Python</summary>

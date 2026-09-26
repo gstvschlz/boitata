@@ -74,7 +74,7 @@ pub fn block_average_correlation(
     let mut acc = 0.0;
     for p in &pts {
         for q in &pts {
-            acc += vg_y.cov_points(p, q);
+            acc += vg_y.block_cov_points(p, q);
         }
     }
     (acc / (np * np) / sill).clamp(0.0, 1.0)
@@ -200,5 +200,34 @@ mod tests {
             &BlockDiscretization::default(),
         );
         assert!(b > 0.0 && b <= 1.0, "b {b}");
+    }
+
+    #[test]
+    fn nugget_averages_out_of_the_block() {
+        let pure = Variogram {
+            nugget: 1.0,
+            structures: vec![],
+            anisotropy: None,
+        };
+        let size = (20.0, 20.0, 5.0);
+        let disc = BlockDiscretization::default();
+        assert_eq!(
+            block_average_correlation(&pure, (0.0, 0.0, 0.0), size, &disc),
+            0.0
+        );
+
+        let (c0, c, a, l) = (0.3, 0.7, 100.0, 80.0);
+        let vg = Variogram {
+            nugget: c0,
+            ..Variogram::single(Model::Spherical, c, a)
+        };
+        let disc = BlockDiscretization {
+            nx: 400,
+            ny: 1,
+            nz: 1,
+        };
+        let b = block_average_correlation(&vg, (0.0, 0.0, 0.0), (l, 0.0, 0.0), &disc);
+        let gamma_bar = c * (l / (2.0 * a) - l.powi(3) / (20.0 * a.powi(3)));
+        assert!((b - (c - gamma_bar) / (c0 + c)).abs() < 1e-4, "b {b}");
     }
 }

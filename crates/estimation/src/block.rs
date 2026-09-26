@@ -78,7 +78,7 @@ pub fn block_krige(
     for i in 0..n {
         let avg: f64 = pts
             .iter()
-            .map(|p| vg.cov_points(&samples[i].loc, p))
+            .map(|p| vg.block_cov_points(&samples[i].loc, p))
             .sum::<f64>()
             / np;
         b[i] = avg;
@@ -89,7 +89,7 @@ pub fn block_krige(
     let mut cbb = 0.0;
     for p in &pts {
         for q in &pts {
-            cbb += vg.cov_points(p, q);
+            cbb += vg.block_cov_points(p, q);
         }
     }
     cbb /= np * np;
@@ -172,5 +172,78 @@ mod tests {
         let point = crate::krige::krige(Kind::Ordinary, &center, &samples, &vg).unwrap();
         assert!(block.variance <= point.variance + 1e-9);
         assert!((block.weights.iter().sum::<f64>() - 1.0).abs() < 1e-9);
+    }
+
+    fn sample(loc: (f64, f64, f64), value: f64) -> Sample {
+        Sample {
+            loc,
+            value,
+            hole: None,
+            error_variance: 0.0,
+        }
+    }
+
+    fn with_nugget(nugget: f64) -> Variogram {
+        Variogram {
+            nugget,
+            ..Variogram::single(Model::Spherical, 1.0, 100.0)
+        }
+    }
+
+    #[test]
+    fn nugget_averages_out_of_the_block() {
+        let (c0, c, a, l) = (0.4, 1.0, 100.0, 60.0);
+        let disc = Discretization {
+            nx: 400,
+            ny: 1,
+            nz: 1,
+        };
+        let samples = [
+            sample((-50.0, 0.0, 0.0), 1.0),
+            sample((70.0, 0.0, 0.0), 2.0),
+        ];
+        let vg = Variogram {
+            nugget: c0,
+            ..Variogram::single(Model::Spherical, c, a)
+        };
+        let e = block_krige(&(0.0, 0.0, 0.0), &(l, 0.0, 0.0), &samples, &disc, &vg).unwrap();
+        let gamma_bar = c * (l / (2.0 * a) - l.powi(3) / (20.0 * a.powi(3)));
+        assert!((e.support_variance - (c - gamma_bar)).abs() < 1e-4);
+
+        let pure = Variogram {
+            nugget: 1.0,
+            structures: vec![],
+            anisotropy: None,
+        };
+        let e = block_krige(&(0.0, 0.0, 0.0), &(l, 1.0, 1.0), &samples, &disc, &pure).unwrap();
+        assert_eq!(e.support_variance, 0.0);
+        assert!((e.variance - 0.5).abs() < 1e-12);
+    }
+
+    #[test]
+    fn sample_on_a_node_sees_no_nugget() {
+        let disc = Discretization::default();
+        let vg = with_nugget(0.5);
+        let block = |x: f64| {
+            let s = [sample((x, 0.0, 0.0), 1.0), sample((40.0, 25.0, 0.0), 3.0)];
+            block_krige(&(0.0, 0.0, 0.0), &(30.0, 30.0, 30.0), &s, &disc, &vg).unwrap()
+        };
+        let (on, off) = (block(0.0), block(1e-9));
+        assert!((on.weights[0] - off.weights[0]).abs() < 1e-9);
+        assert!((on.variance - off.variance).abs() < 1e-9);
+    }
+
+    #[test]
+    fn no_nugget_is_unchanged() {
+        let vg = with_nugget(0.0);
+        let pts = Discretization::default().points(&(0.0, 0.0, 0.0), &(30.0, 30.0, 30.0));
+        for p in &pts {
+            for q in &pts {
+                assert_eq!(
+                    vg.block_cov_points(p, q).to_bits(),
+                    vg.cov_points(p, q).to_bits()
+                );
+            }
+        }
     }
 }

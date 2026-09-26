@@ -57,7 +57,7 @@ print(
 </details>
 
 ```text
-r = 0.747; point variance 67110, block 35846, true block 46694
+r = 0.738; point variance 67110, block 34919, true block 46694
 ```
 
 Grade-tonnage curves, model against truth:
@@ -141,8 +141,8 @@ save(fig, "simulated-blocks")
 
 ```text
 above 300 ppm: simulated P10 41.7%, P90 48.9%; discrete Gaussian 43.2%; true 40.1%
-above 500 ppm: simulated P10 14.2%, P90 18.1%; discrete Gaussian 14.7%; true 16.2%
-above 800 ppm: simulated P10 1.8%, P90 2.8%; discrete Gaussian 1.2%; true 2.1%
+above 500 ppm: simulated P10 14.2%, P90 18.1%; discrete Gaussian 14.4%; true 16.2%
+above 800 ppm: simulated P10 1.8%, P90 2.8%; discrete Gaussian 1.1%; true 2.1%
 ```
 
 ![simulated-blocks](simulated-blocks.png)

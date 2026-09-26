@@ -79,6 +79,18 @@ impl Variogram {
         self.cov(self.lag(p, q))
     }
 
+    /// Covariance between discretization points of a block: the nugget has zero
+    /// range, so it averages out over a volume and is left out even where the
+    /// points coincide.
+    pub fn block_cov_points(&self, p: &(f64, f64, f64), q: &(f64, f64, f64)) -> f64 {
+        let h = self.lag(p, q);
+        if h <= 0.0 {
+            self.total_sill() - self.nugget
+        } else {
+            self.cov(h)
+        }
+    }
+
     /// `dγ/dh` at scalar lag `h`, summed over the structures.
     ///
     /// The nugget is deliberately absent. It is a discontinuity at the origin,
