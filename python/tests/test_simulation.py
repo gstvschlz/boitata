@@ -106,6 +106,27 @@ def test_plurigaussian_proportions():
     assert s.probabilities.shape == (3, 400) and set(np.unique(s.most_likely)) <= {0, 1, 2}
 
 
+def test_plurigaussian_hierarchy_honours_data_on_three_fields():
+    facies = rng.choice(4, 60, p=[0.4, 0.3, 0.2, 0.1])
+    rule = (0, [0, (1, [1, (2, [2, 3])])])
+    pgs = cs.Plurigaussian([gaussian] * 3, proportions=[0.4, 0.3, 0.2, 0.1], rule=rule).fit(coords, facies)
+    s = pgs.simulate(coords, n=2, seed=4, realizations=True)
+    np.testing.assert_array_equal(s.realizations, [facies, facies])
+    with pytest.raises(ValueError, match="splits field 2"):
+        cs.Plurigaussian([gaussian] * 2, proportions=[0.4, 0.3, 0.2, 0.1], rule=rule)
+    with pytest.raises(ValueError, match="every facies"):
+        cs.Plurigaussian(gaussian, proportions=[0.5, 0.5], rule=(0, [0]))
+    regions = [
+        ([(-np.inf, 0.0)], 0),
+        ([(0.0, np.inf), (-np.inf, 0.0)], 1),
+        ([(0.0, np.inf), (0.0, np.inf)], 2),
+    ]
+    with pytest.raises(ValueError, match="thresholds 2 fields"):
+        cs.Plurigaussian(gaussian, regions=regions)
+    two = cs.Plurigaussian([gaussian] * 2, regions=regions).fit(coords, facies % 3)
+    assert set(np.unique(two.simulate(grid, n=1, seed=1).most_likely)) <= {0, 1, 2}
+
+
 def test_gibbs_respects_bounds():
     pts = rng.uniform(0, 50, (20, 2))
     bounds = np.column_stack([np.zeros(20), np.full(20, np.inf)])
