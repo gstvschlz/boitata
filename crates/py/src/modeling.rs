@@ -7,6 +7,7 @@ use numpy::ndarray::Array2;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 use rayon::prelude::*;
+use variogram::Angles;
 
 use crate::args::{array1, array2, distinct, finite, pick, points, rows, same_length};
 use crate::containers::PyBlockModel;
@@ -46,6 +47,12 @@ impl Fitted {
 ///     0 constant, 1 linear drift.
 /// smoothing : float
 ///     RBF ridge relative to the value scale; 0 interpolates exactly.
+/// rotation : tuple of float, optional
+///     Azimuth, dip, rake of the anisotropy axes. With ``engine="gp"`` the
+///     ranges along them are learned; ``engine="kriging"`` takes its
+///     anisotropy from the variogram.
+/// ratios : tuple of float, optional
+///     Semi-major/major and minor/major range ratios for ``engine="rbf"``.
 #[pyclass(module = "ceres", name = "ImplicitModel")]
 pub struct ImplicitModel {
     engine: String,
@@ -53,6 +60,8 @@ pub struct ImplicitModel {
     variogram: Option<Variogram>,
     drift_degree: usize,
     smoothing: f64,
+    rotation: Option<(f64, f64, f64)>,
+    ratios: Option<(f64, f64)>,
     fitted: Option<Fitted>,
 }
 
@@ -80,13 +89,15 @@ fn readings(obj: Option<&Bound<PyAny>>, what: &str) -> PyResult<Vec<[f64; 5]>> {
 #[pymethods]
 impl ImplicitModel {
     #[new]
-    #[pyo3(signature = (engine="rbf", kernel="biharmonic", variogram=None, drift_degree=1, smoothing=0.0))]
+    #[pyo3(signature = (engine="rbf", kernel="biharmonic", variogram=None, drift_degree=1, smoothing=0.0, rotation=None, ratios=None))]
     fn new(
         engine: &str,
         kernel: &str,
         variogram: Option<Variogram>,
         drift_degree: usize,
         smoothing: f64,
+        rotation: Option<(f64, f64, f64)>,
+        ratios: Option<(f64, f64)>,
     ) -> PyResult<Self> {
         let kernel = [Kernel::Biharmonic, Kernel::Triharmonic, Kernel::ThinPlate]
             .into_iter()
@@ -109,12 +120,30 @@ impl ImplicitModel {
         if !(smoothing.is_finite() && smoothing >= 0.0) {
             return Err(invalid("smoothing must be >= 0"));
         }
+        match engine {
+            "kriging" if rotation.is_some() || ratios.is_some() => {
+                return Err(invalid(
+                    "engine=\"kriging\" takes its anisotropy from the variogram",
+                ));
+            }
+            "gp" if ratios.is_some() => {
+                return Err(invalid(
+                    "engine=\"gp\" learns its ranges; give rotation only",
+                ));
+            }
+            _ => {}
+        }
+        if ratios.is_some_and(|(a, b)| !(a > 0.0 && b > 0.0 && a.is_finite() && b.is_finite())) {
+            return Err(invalid("ratios must be > 0"));
+        }
         Ok(Self {
             engine: engine.to_string(),
             kernel,
             variogram,
             drift_degree,
             smoothing,
+            rotation,
+            ratios,
             fitted: None,
         })
     }
@@ -170,10 +199,23 @@ impl ImplicitModel {
         let degree = slf.drift_degree;
         let fitted = match slf.engine.as_str() {
             "rbf" => {
+                let anisotropy = (slf.rotation.is_some() || slf.ratios.is_some()).then(|| {
+                    let (azimuth, dip, rake) = slf.rotation.unwrap_or_default();
+                    let (semi, minor) = slf.ratios.unwrap_or((1.0, 1.0));
+                    Angles {
+                        azimuth,
+                        dip,
+                        rake,
+                        major: 1.0,
+                        semi,
+                        minor,
+                    }
+                });
                 let spec = RbfSpec {
                     kernel: slf.kernel,
                     drift_degree: degree,
                     smoothing: slf.smoothing,
+                    anisotropy,
                     ..RbfSpec::default()
                 };
                 slf.py()
@@ -191,8 +233,10 @@ impl ImplicitModel {
                     .map(Fitted::Kriging)
             }
             _ => {
+                let (azimuth, dip, rake) = slf.rotation.unwrap_or_default();
                 let spec = SvgpSpec {
                     drift_degree: degree,
+                    rotation: [azimuth, dip, rake],
                     ..SvgpSpec::default()
                 };
                 slf.py().detach(|| Svgp::fit(&set, &spec)).map(Fitted::Gp)
@@ -203,13 +247,15 @@ impl ImplicitModel {
         Ok(slf)
     }
 
-    /// Field values at `targets`, and `(n, 3)` gradients when `gradient`.
-    #[pyo3(signature = (targets, gradient=false))]
+    /// Field values at `targets`, with `(n, 3)` gradients when `gradient`, or
+    /// the predictive variance of ``engine="gp"`` when `variance`.
+    #[pyo3(signature = (targets, gradient=false, variance=false))]
     fn evaluate<'py>(
         &self,
         py: Python<'py>,
         targets: &Bound<PyAny>,
         gradient: bool,
+        variance: bool,
     ) -> PyResult<Bound<'py, PyAny>> {
         let fitted = self.fitted()?;
         let pts: Vec<[f64; 3]> = self::targets(targets)?
@@ -217,6 +263,18 @@ impl ImplicitModel {
             .map(|(x, y, z)| [x, y, z])
             .collect();
         let values = py.detach(|| pts.par_iter().map(|p| fitted.value(p)).collect());
+        if variance {
+            let Fitted::Gp(gp) = fitted else {
+                return Err(invalid("only engine=\"gp\" has a variance"));
+            };
+            if gradient {
+                return Err(invalid("engine=\"gp\" has no gradient"));
+            }
+            let var = py.detach(|| pts.par_iter().map(|p| gp.variance(p)).collect());
+            return Ok((array1(py, values), array1(py, var))
+                .into_pyobject(py)?
+                .into_any());
+        }
         if !gradient {
             return Ok(array1(py, values).into_any());
         }

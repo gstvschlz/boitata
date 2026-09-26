@@ -196,6 +196,29 @@ impl Drillholes {
         Ok(Table(batch))
     }
 
+    /// `(n, 3)` positions at measured `depths` down `holes`, e.g. contacts.
+    fn at<'py>(
+        &self,
+        py: Python<'py>,
+        holes: Vec<String>,
+        depths: &Bound<PyAny>,
+    ) -> PyResult<Bound<'py, numpy::PyArray2<f64>>> {
+        let depths = crate::args::finite(depths, "depths")?;
+        crate::args::same_length(holes.len(), depths.len(), "depths")?;
+        let points = holes
+            .iter()
+            .zip(depths)
+            .map(|(h, d)| {
+                let path = self
+                    .paths
+                    .get(h)
+                    .ok_or_else(|| invalid(format!("unknown hole {h:?}")))?;
+                Ok(position_at(path, d))
+            })
+            .collect::<PyResult<Vec<_>>>()?;
+        Ok(crate::args::points_array(py, &points))
+    }
+
     /// Interval midpoints with every interval column; intervals of holes
     /// without a collar are dropped.
     fn samples(&self) -> PyResult<PyPointSet> {

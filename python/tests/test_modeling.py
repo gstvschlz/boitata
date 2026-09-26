@@ -73,3 +73,30 @@ def test_engines():
     assert gp.report["status"] and np.isfinite(gp.evaluate(coords)).all()
     with pytest.raises(cs.InvalidInput):
         cs.ImplicitModel().evaluate(coords)
+
+
+def test_anisotropy_variance_and_contact_positions():
+    xyz = rng.uniform(0, 100, (60, 3))
+    values = np.where(xyz[:, 2] > 50, 1.0, -1.0)
+    flat = cs.ImplicitModel(drift_degree=0, rotation=(0, 0, 0), ratios=(1.0, 0.1)).fit(xyz, values)
+    np.testing.assert_allclose(flat.evaluate(xyz), values, atol=1e-6)
+    with pytest.raises(cs.InvalidInput, match="variogram"):
+        cs.ImplicitModel("kriging", variogram=cs.Variogram([("spherical", 1.0, 50.0)]), rotation=(0, 0, 0))
+    with pytest.raises(cs.InvalidInput, match="learns"):
+        cs.ImplicitModel("gp", ratios=(1.0, 0.5))
+    gp = cs.ImplicitModel("gp").fit(xyz, values)
+    _, variance = gp.evaluate([[50, 50, 50], [500, 500, 500]], variance=True)
+    assert variance[1] > variance[0] >= 0
+    with pytest.raises(cs.InvalidInput, match="only"):
+        flat.evaluate(xyz, variance=True)
+
+    collar = {"HOLEID": np.array([1.0]), "X": np.array([10.0]), "Y": np.array([20.0]), "Z": np.array([100.0])}
+    survey = {
+        k: np.array(v) for k, v in {"HOLEID": [1.0], "DEPTH": [0.0], "AZIMUTH": [0.0], "DIP": [90.0]}.items()
+    }
+    dh = cs.Drillholes(
+        collar, survey, {"HOLEID": np.array([1.0]), "FROM": np.array([0.0]), "TO": np.array([100.0])}
+    )
+    np.testing.assert_allclose(dh.at(["1.0"], [30.0]), [[10.0, 20.0, 70.0]], atol=1e-9)
+    with pytest.raises(cs.InvalidInput):
+        dh.at(["2.0"], [1.0])

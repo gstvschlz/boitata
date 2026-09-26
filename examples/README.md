@@ -23,5 +23,6 @@ Walker Lake has an exhaustive grid, so every result is checked against the truth
 | 16 | [Exploratory data analysis](16-eda/README.md) | Drillholes | `describe`, `capping`, `contact`, `swath`, `h_scatter`, `correlation` |
 | 17 | [Multivariate transforms](17-multivariate/README.md) | Geomet porphyry 1 | `PCA`, `MAF`, `StepwiseConditional`, `PPMT` |
 | 18 | [Validation and classification](18-validation/README.md) | Walker Lake | `predict(diagnostics=True)`, `global_bias`, `classify`, `smooth_classes` |
+| 19 | [Geological modelling](19-geological-model/README.md) | Drillholes, synthetic fold | `Drillholes.at` contacts, `ImplicitModel` kriging/RBF/GP, planes, lineations, gradients, GP variance |
 
 Each page alternates text, collapsed Python and its results. `mise run examples` reruns every `example.py` and rewrites the pages; `cs.datasets` downloads the data once and caches it.
