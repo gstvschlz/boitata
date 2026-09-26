@@ -18,6 +18,8 @@ variogram.workspace = true
 transforms.workspace = true
 
 [dev-dependencies]
+arrow-array.workspace = true
+arrow-schema.workspace = true
 criterion.workspace = true
 
 [[bench]]

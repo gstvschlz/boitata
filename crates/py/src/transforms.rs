@@ -872,7 +872,7 @@ impl UniformConditioning {
 }
 
 /// A float column of `model`, null as None.
-fn nullable(model: &PyBlockModel, name: &str) -> PyResult<Vec<Option<f64>>> {
+pub(crate) fn nullable(model: &PyBlockModel, name: &str) -> PyResult<Vec<Option<f64>>> {
     let column = model
         .0
         .attributes()

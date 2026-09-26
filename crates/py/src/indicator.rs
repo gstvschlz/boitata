@@ -8,9 +8,11 @@ use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
 
 use crate::args::{self, array1, distinct, finite, optional_finite, pick, points, same_length};
+use crate::containers::PyBlockModel;
 use crate::estimation::{sample_columns, samples_from, searches, targets};
 use crate::invalid;
 use crate::persist::{self, Columns, Found, Tabular};
+use crate::transforms::nullable;
 use crate::variogram::Variogram;
 
 fn matrix<'py>(py: Python<'py>, rows: &[Vec<f64>], cols: usize) -> Bound<'py, PyArray2<f64>> {
@@ -174,10 +176,7 @@ impl MultipleIndicatorKriging {
         quantiles: Vec<f64>,
         anisotropy: Option<PyRef<crate::lva::LocalAnisotropy>>,
     ) -> PyResult<IndicatorSummary> {
-        let (samples, weights) = self
-            .samples
-            .as_ref()
-            .ok_or_else(|| invalid("MultipleIndicatorKriging is not fitted; call fit first"))?;
+        let (samples, weights) = self.fitted()?;
         let targets = self::targets(targets)?;
         let local = anisotropy.map(|a| a.at_targets(&targets));
         py.detach(|| {
@@ -193,6 +192,90 @@ impl MultipleIndicatorKriging {
         })
         .map(IndicatorSummary)
         .map_err(invalid)
+    }
+
+    /// Localised grades of the selective blocks nested in the panels.
+    ///
+    /// Each panel's point-support conditional distribution, kriged at its
+    /// centroid, takes an affine change of support to the selective blocks,
+    /// ``m + sqrt(f) * (z - m)`` about its mean ``m``. A panel holding ``n``
+    /// blocks splits that distribution into ``n`` equal-probability bands, and
+    /// its block ranked ``i`` gets the mean of band ``i``: the blocks average
+    /// to the panel's E-type estimate and reproduce its selective-block
+    /// grade-tonnage curve at tonnages ``k / n``. Partial panels localise over
+    /// the blocks present.
+    ///
+    /// Parameters
+    /// ----------
+    /// panels : BlockModel
+    /// smus : BlockModel
+    ///     Selective blocks nesting in the panels: same rotation, sizes
+    ///     dividing the panel sizes, grids aligned; not sub-blocked.
+    /// ranking : str
+    ///     Column of `smus` ordering the blocks within a panel, such as a
+    ///     direct kriging of the blocks; ties follow row order.
+    /// variance_factor : float or Variogram, optional
+    ///     ``f``, the variance of the blocks within a panel over that of the
+    ///     points within it, in [0, 1]; or a variogram to compute it from,
+    ///     ``(C(v, v) - C(V, V)) / (C(0) - C(V, V))`` with the nugget left out
+    ///     of the block averages. The median threshold's variogram by default.
+    /// name : str, optional
+    ///     Name of the new column; ``"localized"`` by default.
+    ///
+    /// Returns
+    /// -------
+    /// BlockModel
+    ///     `smus` with the localised grades; null in panels the search leaves
+    ///     unestimated and outside every panel.
+    ///
+    /// Raises
+    /// ------
+    /// InvalidInput
+    ///     If the blocks do not nest, or a block of an estimated panel has a
+    ///     null rank.
+    #[pyo3(signature = (panels, smus, ranking, variance_factor=None, name=None))]
+    fn localize(
+        &self,
+        py: Python,
+        panels: PyRef<PyBlockModel>,
+        smus: PyRef<PyBlockModel>,
+        ranking: &str,
+        variance_factor: Option<&Bound<PyAny>>,
+        name: Option<&str>,
+    ) -> PyResult<PyBlockModel> {
+        let (samples, weights) = self.fitted()?;
+        let rank = nullable(&smus, ranking)?;
+        let (panel_model, smu_model) = (&panels.0, &smus.0);
+        let f = match variance_factor {
+            None => None,
+            Some(v) => Some(match v.extract::<PyRef<Variogram>>() {
+                Ok(vg) => {
+                    estimation::variance_factor(&vg.0, panel_model, smu_model).map_err(invalid)?
+                }
+                Err(_) => v
+                    .extract::<f64>()
+                    .map_err(|_| invalid("variance_factor must be a float or a Variogram"))?,
+            }),
+        };
+        let out = py
+            .detach(|| {
+                self.model.localize(
+                    samples,
+                    weights.as_deref(),
+                    &self.search,
+                    panel_model,
+                    smu_model,
+                    &rank,
+                    f,
+                )
+            })
+            .map_err(invalid)?;
+        let column: arrow_array::Float64Array = out.into_iter().collect();
+        Ok(PyBlockModel(
+            smus.0
+                .with_column(name.unwrap_or("localized"), std::sync::Arc::new(column))
+                .map_err(invalid)?,
+        ))
     }
 
     /// Writes samples and weights as Parquet columns and parameters as JSON in
@@ -220,6 +303,14 @@ impl MultipleIndicatorKriging {
     #[getter]
     fn thresholds(&self) -> Vec<f64> {
         self.model.thresholds.clone()
+    }
+}
+
+impl MultipleIndicatorKriging {
+    fn fitted(&self) -> PyResult<&(Vec<Sample>, Option<Vec<f64>>)> {
+        self.samples
+            .as_ref()
+            .ok_or_else(|| invalid("MultipleIndicatorKriging is not fitted; call fit first"))
     }
 }
 

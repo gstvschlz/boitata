@@ -6,8 +6,16 @@
 //! tail bound. Within a class the distribution follows the declustered data
 //! falling in it (`Interpolation::Global`) or is uniform (`Linear`); the last
 //! class may take a power or hyperbolic model instead.
+//!
+//! Localisation gives each panel's selective blocks the band means
+//! ([`transforms::localize`]) of the panel's distribution after an affine
+//! change of support, `m + √f·(z − m)`, with `f` the variance of the blocks
+//! within the panel over that of the points within it.
 
+use ceres_core::{BlockModel, block_frame};
+use nalgebra::{Matrix3, Vector3};
 use serde::{Deserialize, Serialize};
+use transforms::TransformError;
 use variogram::Variogram;
 
 use crate::Sample;
@@ -222,6 +230,24 @@ impl Shape {
         }
     }
 
+    /// `∫_w^1 Q(v) dv` over the class quantile function `Q`.
+    fn upper_integral(self, global: &Global, a: f64, b: f64, w: f64) -> f64 {
+        match self {
+            Shape::Data(s, e) => {
+                let weight = global.weight((s, e));
+                let target = global.sums[0][s] + w * weight;
+                let i = s + global.sums[0][s + 1..=e].partition_point(|&c| c <= target);
+                if i >= e {
+                    return 0.0;
+                }
+                let partial = (global.sums[0][i + 1] - target) * global.values[i];
+                (partial + global.sums[1][e] - global.sums[1][i + 1]) / weight
+            }
+            _ if b <= a => a * (1.0 - w),
+            _ => self.above(global, a, b, self.quantile(global, a, b, w), 1),
+        }
+    }
+
     /// Value at probability `u` within the class.
     fn quantile(self, global: &Global, a: f64, b: f64, u: f64) -> f64 {
         match self {
@@ -431,12 +457,31 @@ impl MultipleIndicator {
         if quantiles.iter().any(|q| !(0.0..=1.0).contains(q)) {
             return Err(invalid("quantiles must be in [0, 1]"));
         }
+        let global = self.global(samples, weights)?;
+        let results = self.at_targets(samples, &global, targets, searches, local, |raw| {
+            self.conditional(&global, &raw, cutoffs, quantiles)
+        })?;
+        Ok(self.summary(targets.len(), results.into_iter(), cutoffs, quantiles))
+    }
+
+    fn global(&self, samples: &[Sample], weights: Option<&[f64]>) -> Result<Global> {
         let values: Vec<f64> = samples.iter().map(|s| s.value).collect();
-        let global = Global::new(&values, weights, &self.thresholds, self.tails)?;
+        Global::new(&values, weights, &self.thresholds, self.tails)
+    }
+
+    /// `finish` applied to the kriged `P(Z ≤ t)` at every target, by pass.
+    fn at_targets<T: Send>(
+        &self,
+        samples: &[Sample],
+        global: &Global,
+        targets: &[Point],
+        searches: &[Search],
+        local: Option<&LocalAnisotropy>,
+        finish: impl Fn(Vec<f64>) -> T + Sync,
+    ) -> Result<Vec<Option<T>>> {
         let vg = self.search_variogram();
         let at_target = |t: &Point, s: &[Sample], o: Option<&Variogram>| {
-            let raw = self.kriged(t, s, &global, o)?;
-            Ok(self.conditional(&global, &raw, cutoffs, quantiles))
+            Ok(finish(self.kriged(t, s, global, o)?))
         };
         let passes = by_pass(targets.len(), searches, |search, remaining| {
             let at: Vec<Point> = remaining.iter().map(|&i| targets[i]).collect();
@@ -456,12 +501,80 @@ impl MultipleIndicator {
                 }
             }
         })?;
-        Ok(self.summary(
-            targets.len(),
-            passes.into_iter().map(|p| p.map(|p| p.1)),
-            cutoffs,
-            quantiles,
-        ))
+        Ok(passes.into_iter().map(|p| p.map(|p| p.1)).collect())
+    }
+
+    /// Means of `n` equal-probability bands of the conditional distribution
+    /// completed from the kriged `raw`, ascending; they average to its mean.
+    pub fn band_means(&self, global: &Global, raw: &[f64], n: usize) -> Vec<f64> {
+        let (cdf, _) = correct_order_relations(raw);
+        let classes = self.classes(global, &cdf);
+        let tail = |u: f64| -> f64 {
+            let mut below = 0.0;
+            let mut sum = 0.0;
+            for &(a, b, q, shape) in &classes {
+                if q > 0.0 && u < below + q {
+                    let w = ((u - below) / q).max(0.0);
+                    sum += q * shape.upper_integral(global, a, b, w);
+                }
+                below += q;
+            }
+            sum
+        };
+        let mut integrals: Vec<f64> = (0..n).map(|i| tail(i as f64 / n as f64)).collect();
+        integrals.push(0.0);
+        integrals
+            .windows(2)
+            .map(|w| n as f64 * (w[0] - w[1]))
+            .collect()
+    }
+
+    /// Localised grades of the selective blocks `smus` nested in `panels`.
+    ///
+    /// Each panel's point-support conditional distribution, kriged at its
+    /// centroid, takes an affine change of support to the blocks,
+    /// `m + √f·(z − m)`; its `n` blocks, ordered by `ranking`, get the means of
+    /// its `n` equal-probability bands. `variance_factor` is `f`, in [0, 1];
+    /// [`variance_factor`] of the median threshold's variogram when `None`.
+    /// Null where a panel is unestimated or outside every panel. Identical for
+    /// any number of threads.
+    #[allow(clippy::too_many_arguments)]
+    pub fn localize(
+        &self,
+        samples: &[Sample],
+        weights: Option<&[f64]>,
+        searches: &[Search],
+        panels: &BlockModel,
+        smus: &BlockModel,
+        ranking: &[Option<f64>],
+        variance_factor: Option<f64>,
+    ) -> Result<Vec<Option<f64>>> {
+        self.validate()?;
+        let f = match variance_factor {
+            Some(f) if !(0.0..=1.0).contains(&f) => {
+                return Err(invalid("the variance factor must be in [0, 1]"));
+            }
+            Some(f) => f,
+            None => self::variance_factor(self.search_variogram(), panels, smus)?,
+        };
+        let global = self.global(samples, weights)?;
+        let centroids: Vec<Point> = panels
+            .centroids()
+            .into_iter()
+            .map(|c| (c[0], c[1], c[2]))
+            .collect();
+        let raw = self.at_targets(samples, &global, &centroids, searches, None, |raw| raw)?;
+        transforms::localize::localize(panels, smus, ranking, |p, n| {
+            Ok(raw[p].as_ref().map(|raw| {
+                let means = self.band_means(&global, raw, n);
+                let m = means.iter().sum::<f64>() / n as f64;
+                means.iter().map(|z| m + f.sqrt() * (z - m)).collect()
+            }))
+        })
+        .map_err(|e| match e {
+            TransformError::InvalidParameters(m) => EstimError::InvalidParameters(m),
+            other => EstimError::InvalidParameters(other.to_string()),
+        })
     }
 
     fn summary(
@@ -499,6 +612,60 @@ impl MultipleIndicator {
         }
         out
     }
+}
+
+/// Mean covariance, nugget excluded, within a box of `size` discretised by
+/// `n` points per axis, in the frame `frame`.
+fn mean_covariance(vg: &Variogram, frame: &Matrix3<f64>, size: [f64; 3], n: [usize; 3]) -> f64 {
+    let mut points = vec![];
+    for i in 0..n[0] {
+        for j in 0..n[1] {
+            for k in 0..n[2] {
+                let at = |a: usize, i: usize| size[a] * ((i as f64 + 0.5) / n[a] as f64 - 0.5);
+                let p = frame.transpose() * Vector3::new(at(0, i), at(1, j), at(2, k));
+                points.push((p[0], p[1], p[2]));
+            }
+        }
+    }
+    let total: f64 = points
+        .iter()
+        .map(|p| {
+            points
+                .iter()
+                .map(|q| vg.block_cov_points(p, q))
+                .sum::<f64>()
+        })
+        .sum();
+    total / (points.len() * points.len()) as f64
+}
+
+/// Variance of the selective blocks within a panel over that of the points
+/// within it, `(C̄(v, v) − C̄(V, V)) / (C(0) − C̄(V, V))`, the nugget left
+/// out of the block averages. Blocks are discretised by 4 points per axis,
+/// panels by 4 per block up to 12 per axis; one point vertically in a grid
+/// one panel high.
+pub fn variance_factor(vg: &Variogram, panels: &BlockModel, smus: &BlockModel) -> Result<f64> {
+    let (p, b) = (panels.geometry(), smus.geometry());
+    let frame = block_frame(p.rotation);
+    let flat = p.count[2] == 1;
+    let per_axis = |a: usize, n: usize| if flat && a == 2 { 1 } else { n };
+    let smu = mean_covariance(vg, &frame, b.size, [0, 1, 2].map(|a| per_axis(a, 4)));
+    let panel = mean_covariance(
+        vg,
+        &frame,
+        p.size,
+        [0, 1, 2].map(|a| {
+            per_axis(
+                a,
+                (4.0 * (p.size[a] / b.size[a]).round()).clamp(4.0, 12.0) as usize,
+            )
+        }),
+    );
+    let point = vg.total_sill() - panel;
+    if point <= 0.0 {
+        return Err(invalid("the variogram has no variance within a panel"));
+    }
+    Ok(((smu - panel) / point).clamp(0.0, 1.0))
 }
 
 #[cfg(test)]
@@ -707,6 +874,173 @@ mod tests {
             let median = shape.quantile(&global, a, b, 0.5);
             assert!((shape.above(&global, a, b, median, 0) - 0.5).abs() < 1e-12);
         }
+    }
+
+    fn panels(rotation: f64) -> BlockModel {
+        let g = ceres_core::Geometry {
+            origin: [0.0; 3],
+            size: [20.0, 20.0, 1.0],
+            count: [5, 5, 1],
+            rotation: [rotation, 0.0, 0.0],
+        };
+        let batch = arrow_array::RecordBatch::try_new_with_options(
+            std::sync::Arc::new(arrow_schema::Schema::empty()),
+            vec![],
+            &arrow_array::RecordBatchOptions::new().with_row_count(Some(g.cells() as usize)),
+        )
+        .unwrap();
+        BlockModel::regular(g, batch).unwrap()
+    }
+
+    struct Localised {
+        panel: Vec<usize>,
+        ranking: Vec<Option<f64>>,
+        grades: Vec<f64>,
+    }
+
+    fn localised(m: &MultipleIndicator, samples: &[Sample], f: Option<f64>) -> Localised {
+        let (panels, smus) = (panels(0.0), panels(0.0).discretize([4, 4, 1]).unwrap());
+        let ranking: Vec<Option<f64>> = smus
+            .centroids()
+            .iter()
+            .map(|c| Some((c[0] * 0.37).sin() + c[1] * 0.01))
+            .collect();
+        let grades = m
+            .localize(samples, None, &[search(60.0)], &panels, &smus, &ranking, f)
+            .unwrap()
+            .into_iter()
+            .map(Option::unwrap)
+            .collect();
+        let panel = transforms::localize::nest(&panels, &smus)
+            .unwrap()
+            .into_iter()
+            .map(Option::unwrap)
+            .collect();
+        Localised {
+            panel,
+            ranking,
+            grades,
+        }
+    }
+
+    impl Localised {
+        /// Each panel's grades in ascending rank.
+        fn ranked(&self, panel: usize) -> Vec<f64> {
+            let mut rows: Vec<usize> = (0..self.panel.len())
+                .filter(|&r| self.panel[r] == panel)
+                .collect();
+            rows.sort_by(|&i, &j| {
+                self.ranking[i]
+                    .unwrap()
+                    .total_cmp(&self.ranking[j].unwrap())
+            });
+            rows.iter().map(|&r| self.grades[r]).collect()
+        }
+    }
+
+    fn centroids() -> Vec<Point> {
+        panels(0.0)
+            .centroids()
+            .iter()
+            .map(|c| (c[0], c[1], c[2]))
+            .collect()
+    }
+
+    fn kriged_panels(m: &MultipleIndicator, samples: &[Sample]) -> (Global, Vec<Vec<f64>>) {
+        let global = m.global(samples, None).unwrap();
+        let raw = m
+            .at_targets(samples, &global, &centroids(), &[search(60.0)], None, |r| r)
+            .unwrap();
+        (global, raw.into_iter().map(Option::unwrap).collect())
+    }
+
+    #[test]
+    fn localisation_without_change_of_support_gives_point_band_means() {
+        let samples = data(150, 13);
+        let m = model(
+            vec![0.3, 0.7, 1.2, 2.0],
+            vec![Variogram::single(Model::Spherical, 1.0, 40.0)],
+        );
+        let out = localised(&m, &samples, Some(1.0));
+        let (global, raw) = kriged_panels(&m, &samples);
+        for (p, raw) in raw.iter().enumerate() {
+            let expected = m.band_means(&global, raw, 16);
+            for (g, e) in out.ranked(p).iter().zip(&expected) {
+                assert!((g - e).abs() < 1e-12, "{g} vs {e}");
+            }
+        }
+    }
+
+    #[test]
+    fn localised_panels_keep_their_mean_rank_order_and_curve() {
+        let samples = data(200, 17);
+        let f = 0.45;
+        for interpolation in [Interpolation::Global, Interpolation::Linear] {
+            let m = MultipleIndicator {
+                interpolation,
+                upper_tail: Some(UpperTail::Hyperbolic(2.0)),
+                ..model(
+                    vec![0.3, 0.7, 1.2, 2.0],
+                    vec![Variogram::single(Model::Spherical, 1.0, 40.0)],
+                )
+            };
+            let out = localised(&m, &samples, Some(f));
+            let tonnages: Vec<f64> = (1..16).map(|k| 1.0 - k as f64 / 16.0).collect();
+            let s = m
+                .predict(
+                    &samples,
+                    None,
+                    &centroids(),
+                    &[search(60.0)],
+                    None,
+                    &[],
+                    &tonnages,
+                )
+                .unwrap();
+            for p in 0..25 {
+                let g = out.ranked(p);
+                let mean = s.mean[p];
+                assert!((g.iter().sum::<f64>() / 16.0 - mean).abs() < 1e-9);
+                assert!(g.windows(2).all(|w| w[0] <= w[1] + 1e-12), "{g:?}");
+                if interpolation == Interpolation::Linear {
+                    let cutoffs: Vec<f64> = s.quantile_values.iter().map(|q| q[p]).collect();
+                    let (global, raw) = kriged_panels(&m, &samples);
+                    let point = m.conditional(&global, &raw[p], &cutoffs, &[]);
+                    for k in 1..16 {
+                        let top = g[16 - k..].iter().sum::<f64>() / k as f64;
+                        let curve = mean + f.sqrt() * (point.mean_above[k - 1] - mean);
+                        assert!((top - curve).abs() < 1e-9, "{top} vs {curve} at {k}/16");
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn localisation_does_not_depend_on_thread_count() {
+        let samples = data(200, 19);
+        let m = model(
+            vec![0.5, 1.0, 2.0],
+            vec![Variogram::single(Model::Exponential, 1.0, 30.0)],
+        );
+        let run = |threads| {
+            rayon::ThreadPoolBuilder::new()
+                .num_threads(threads)
+                .build()
+                .unwrap()
+                .install(|| localised(&m, &samples, None).grades)
+        };
+        assert_eq!(run(1), run(8));
+    }
+
+    #[test]
+    fn variance_factor_falls_with_block_size_and_is_zero_for_whole_panels() {
+        let vg = Variogram::single(Model::Spherical, 1.0, 50.0);
+        let p = panels(30.0);
+        let f = |n: usize| variance_factor(&vg, &p, &p.discretize([n, n, 1]).unwrap()).unwrap();
+        assert_eq!(f(1), 0.0);
+        let (two, four) = (f(2), f(4));
+        assert!(0.0 < two && two < four && four < 1.0, "{two} {four}");
     }
 
     #[test]

@@ -819,6 +819,14 @@ class MultipleIndicatorKriging:
         quantiles: Sequence[float] = (),
         anisotropy: LocalAnisotropy | None = None,
     ) -> IndicatorSummary: ...
+    def localize(
+        self,
+        panels: BlockModel,
+        smus: BlockModel,
+        ranking: str,
+        variance_factor: float | Variogram | None = None,
+        name: str | None = None,
+    ) -> BlockModel: ...
 
 class IndicatorSummary:
     def to_parquet(self, path: Path) -> None: ...
