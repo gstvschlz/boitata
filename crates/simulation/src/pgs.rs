@@ -22,7 +22,7 @@ use crate::turning_bands::{TurningBandsParams, conditional_gaussian_field};
 use rand::SeedableRng;
 use rand::rngs::StdRng;
 use serde::{Deserialize, Serialize};
-use transforms::normal::probit;
+use transforms::normal::{phi, probit};
 use variogram::Variogram;
 
 const ANY: (f64, f64) = (f64::NEG_INFINITY, f64::INFINITY);
@@ -188,32 +188,57 @@ impl Hierarchy {
                 facies: *f,
             }),
             Self::Split { field, children } => {
-                let (a, b) = cell[*field];
-                let masses: Vec<f64> = children.iter().map(|c| c.mass(proportions)).collect();
-                let total: f64 = masses.iter().sum();
-                let mut cum = 0.0;
-                for (i, (child, m)) in children.iter().zip(&masses).enumerate() {
-                    let share = |c: f64| {
-                        if total > 0.0 {
-                            c / total
-                        } else {
-                            c / children.len() as f64
-                        }
-                    };
-                    let lo = a + (b - a) * share(cum);
-                    cum += if total > 0.0 { *m } else { 1.0 };
-                    let hi = if i + 1 == children.len() {
-                        b
-                    } else {
-                        a + (b - a) * share(cum)
-                    };
-                    cell[*field] = (lo, hi);
+                let whole = cell[*field];
+                for (child, slice) in children.iter().zip(slices(children, proportions, whole)) {
+                    cell[*field] = slice;
                     child.boxes(proportions, cell, out);
                 }
-                cell[*field] = (a, b);
+                cell[*field] = whole;
             }
         }
     }
+
+    /// Facies at a point `y` of the Gaussian space under `proportions`; the
+    /// same as `self.rule(proportions).classify(y)` without building the rule.
+    pub fn classify(&self, y: &[f64], proportions: &[f64]) -> usize {
+        let mut cell = vec![(0.0, 1.0); y.len()];
+        let mut node = self;
+        loop {
+            match node {
+                Self::Facies(f) => return *f,
+                Self::Split { field, children } => {
+                    let u = phi(y[*field]);
+                    let parts = slices(children, proportions, cell[*field]);
+                    let last = children.len() - 1;
+                    let i = parts.iter().position(|s| u <= s.1).unwrap_or(last);
+                    cell[*field] = parts[i];
+                    node = &children[i];
+                }
+            }
+        }
+    }
+}
+
+/// The probability interval `(a, b)` of a split field cut into one slice per
+/// child, sized by the child's mass (equal slices when all are empty).
+fn slices(children: &[Hierarchy], proportions: &[f64], (a, b): (f64, f64)) -> Vec<(f64, f64)> {
+    let masses: Vec<f64> = children.iter().map(|c| c.mass(proportions)).collect();
+    let total: f64 = masses.iter().sum();
+    let n = children.len();
+    let mut cum = 0.0;
+    let mut out = Vec::with_capacity(n);
+    for (i, m) in masses.iter().enumerate() {
+        let share = |c: f64| if total > 0.0 { c / total } else { c / n as f64 };
+        let lo = a + (b - a) * share(cum);
+        cum += if total > 0.0 { *m } else { 1.0 };
+        let hi = if i + 1 == n {
+            b
+        } else {
+            a + (b - a) * share(cum)
+        };
+        out.push((lo, hi));
+    }
+    out
 }
 
 fn quantile(p: f64) -> f64 {
@@ -259,29 +284,83 @@ pub fn plurigaussian(
     rule: &TruncationRule,
     params: &PgsParams,
 ) -> Result<Vec<usize>> {
+    check(data_locs, data_facies, variograms, rule.fields())?;
+    let fields = variograms.len();
+    let intervals: Vec<Vec<(f64, f64)>> = data_facies
+        .iter()
+        .map(|&f| rule.facies_intervals(f, fields))
+        .collect();
+    let values = latent(data_locs, &intervals, grid, variograms, params)?;
+    Ok(values.iter().map(|y| rule.classify(y)).collect())
+}
+
+/// Plurigaussian simulation with locally varying proportions: the thresholds
+/// of `hierarchy` follow `data_proportions` at each datum and
+/// `grid_proportions` at each node, one row of facies proportions each.
+#[allow(clippy::too_many_arguments)]
+pub fn plurigaussian_local(
+    data_locs: &[(f64, f64, f64)],
+    data_facies: &[usize],
+    grid: &[(f64, f64, f64)],
+    variograms: &[Variogram],
+    hierarchy: &Hierarchy,
+    data_proportions: &[Vec<f64>],
+    grid_proportions: &[Vec<f64>],
+    params: &PgsParams,
+) -> Result<Vec<usize>> {
+    check(data_locs, data_facies, variograms, hierarchy.fields())?;
+    if data_proportions.len() != data_locs.len() || grid_proportions.len() != grid.len() {
+        return Err(invalid("one row of proportions per datum and per node"));
+    }
+    let fields = variograms.len();
+    let intervals: Vec<Vec<(f64, f64)>> = data_facies
+        .iter()
+        .zip(data_proportions)
+        .map(|(&f, p)| hierarchy.rule(p).facies_intervals(f, fields))
+        .collect();
+    let values = latent(data_locs, &intervals, grid, variograms, params)?;
+    Ok(values
+        .iter()
+        .zip(grid_proportions)
+        .map(|(y, p)| hierarchy.classify(y, p))
+        .collect())
+}
+
+fn check(
+    data_locs: &[(f64, f64, f64)],
+    data_facies: &[usize],
+    variograms: &[Variogram],
+    fields: usize,
+) -> Result<()> {
     if data_locs.len() != data_facies.len() {
         return Err(invalid("data length mismatch"));
     }
     if data_locs.is_empty() {
         return Err(SimError::InsufficientData("no conditioning data".into()));
     }
-    let fields = variograms.len();
-    if fields == 0 || rule.fields() > fields {
+    if variograms.is_empty() || fields > variograms.len() {
         return Err(invalid(format!(
-            "the rule thresholds {} fields but {fields} variograms were given",
-            rule.fields()
+            "the rule thresholds {fields} fields but {} variograms were given",
+            variograms.len()
         )));
     }
+    Ok(())
+}
+
+/// Latent Gaussian values at every node, one per field, conditioned by Gibbs
+/// draws at the data within their facies `intervals`.
+fn latent(
+    data_locs: &[(f64, f64, f64)],
+    intervals: &[Vec<(f64, f64)>],
+    grid: &[(f64, f64, f64)],
+    variograms: &[Variogram],
+    params: &PgsParams,
+) -> Result<Vec<Vec<f64>>> {
     if grid.is_empty() {
         return Ok(vec![]);
     }
-
-    let intervals: Vec<Vec<(f64, f64)>> = data_facies
-        .iter()
-        .map(|&f| rule.facies_intervals(f, fields))
-        .collect();
     let mut rng = StdRng::seed_from_u64(params.seed);
-    let mut values = vec![Vec::with_capacity(fields); grid.len()];
+    let mut values = vec![Vec::with_capacity(variograms.len()); grid.len()];
     for (k, vg) in variograms.iter().enumerate() {
         let k = k as u64;
         let bounds: Vec<(f64, f64)> = intervals.iter().map(|b| b[k as usize]).collect();
@@ -299,7 +378,7 @@ pub fn plurigaussian(
             v.push(y);
         }
     }
-    Ok(values.iter().map(|y| rule.classify(y)).collect())
+    Ok(values)
 }
 
 #[cfg(test)]
@@ -411,6 +490,79 @@ mod tests {
         for (s, q) in share.iter().zip(p) {
             assert!((s - q).abs() < 0.03, "shares {share:?} vs {p:?}");
         }
+    }
+
+    #[test]
+    fn walking_the_tree_matches_its_boxes() {
+        let tree = split(0, vec![leaf(2), split(1, vec![leaf(0), leaf(3)]), leaf(1)]);
+        let p = [0.1, 0.4, 0.2, 0.3];
+        let rule = tree.rule(&p);
+        for i in 0..400 {
+            let y = [(i % 20) as f64 / 5.0 - 2.0, (i / 20) as f64 / 5.0 - 2.0];
+            assert_eq!(tree.classify(&y, &p), rule.classify(&y), "at {y:?}");
+        }
+    }
+
+    #[test]
+    fn local_proportions_follow_their_trend() {
+        // Facies 0 falls from 80 % in the west to 20 % in the east.
+        let tree = split(0, vec![leaf(0), split(1, vec![leaf(1), leaf(2)])]);
+        let n = 80;
+        let grid = plane(n);
+        let at = |x: f64| {
+            let p0 = 0.8 - 0.6 * x / (n - 1) as f64;
+            vec![p0, (1.0 - p0) / 2.0, (1.0 - p0) / 2.0]
+        };
+        let props: Vec<Vec<f64>> = grid.iter().map(|g| at(g.0)).collect();
+        let data = vec![(40.0, 40.0, 0.0)];
+        let vgs = vec![Variogram::single(Model::Spherical, 1.0, 15.0); 2];
+        let (mut west, mut east) = (0.0, 0.0);
+        let reals = 10;
+        for seed in 0..reals {
+            let f = plurigaussian_local(
+                &data,
+                &[1],
+                &grid,
+                &vgs,
+                &tree,
+                &[at(40.0)],
+                &props,
+                &quiet_params(seed),
+            )
+            .unwrap();
+            for (g, &c) in grid.iter().zip(&f) {
+                let share = (c == 0) as u8 as f64 / (reals as f64 * (n * n / 4) as f64);
+                if g.0 < 20.0 {
+                    west += share;
+                } else if g.0 >= 60.0 {
+                    east += share;
+                }
+            }
+        }
+        let expect = |x0: usize| (x0..x0 + 20).map(|x| at(x as f64)[0]).sum::<f64>() / 20.0;
+        assert!(
+            (west - expect(0)).abs() < 0.05,
+            "west {west} vs {}",
+            expect(0)
+        );
+        assert!(
+            (east - expect(60)).abs() < 0.05,
+            "east {east} vs {}",
+            expect(60)
+        );
+        assert!(
+            plurigaussian_local(
+                &data,
+                &[1],
+                &grid,
+                &vgs,
+                &tree,
+                &[],
+                &props,
+                &quiet_params(0)
+            )
+            .is_err()
+        );
     }
 
     #[test]

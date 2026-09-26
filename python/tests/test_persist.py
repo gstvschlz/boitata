@@ -220,7 +220,17 @@ def simulators():
         (cs.TurningBands(gaussian, bands=50, step=2.0), (values,), {"cutoffs": [1.0]}),
         (cs.SIS([gaussian] * 3, near), (facies,), {"realizations": True}),
         (cs.Plurigaussian(gaussian, proportions=[0.4, 0.4, 0.2]), (facies,), {}),
+        (
+            cs.Plurigaussian([gaussian] * 2, proportions=[0.4, 0.4, 0.2], rule=(0, [0, (1, [1, 2])])),
+            (facies, None, west_to_east(coords)),
+            {"proportions": west_to_east(nodes)},
+        ),
     ]
+
+
+def west_to_east(xyz):
+    p0 = 0.2 + 0.6 * xyz[:, 0] / 100
+    return np.column_stack([p0, (1 - p0) / 2, (1 - p0) / 2])
 
 
 def summary_arrays(summary):

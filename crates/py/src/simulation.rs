@@ -1158,8 +1158,53 @@ impl Sis {
 pub struct Plurigaussian {
     variograms: Vec<CoreVariogram>,
     rule: TruncationRule,
+    hierarchy: Option<Hierarchy>,
     #[serde(skip)]
     data: Option<(Vec<Point>, Vec<usize>)>,
+    /// Local proportions at the data.
+    #[serde(skip)]
+    local: Option<Vec<Vec<f64>>>,
+}
+
+impl Plurigaussian {
+    fn facies(&self) -> usize {
+        self.rule
+            .regions
+            .iter()
+            .map(|r| r.facies + 1)
+            .max()
+            .unwrap_or(1)
+    }
+
+    /// Local proportions of `n` sites, one row each, for a rule built from
+    /// proportions.
+    fn local_rows(&self, obj: &Bound<PyAny>, n: usize) -> PyResult<Vec<Vec<f64>>> {
+        if self.hierarchy.is_none() {
+            return Err(invalid(
+                "local proportions need a rule built from proportions",
+            ));
+        }
+        let rows = rows(obj, "proportions")?;
+        same_length(n, rows.len(), "proportions")?;
+        let k = self.facies();
+        for row in &rows {
+            if row.len() != k {
+                return Err(invalid(format!("proportions must have shape (n, {k})")));
+            }
+            proportion_row(row)?;
+        }
+        Ok(rows)
+    }
+}
+
+fn proportion_row(p: &[f64]) -> PyResult<()> {
+    if p.is_empty() || p.iter().any(|&q| !q.is_finite() || q < 0.0) {
+        return Err(invalid("proportions must be finite and non-negative"));
+    }
+    if p.iter().sum::<f64>() <= 0.0 {
+        return Err(invalid("proportions must not all be zero"));
+    }
+    Ok(())
 }
 
 fn hierarchy(obj: &Bound<PyAny>) -> PyResult<Hierarchy> {
@@ -1219,23 +1264,19 @@ impl Plurigaussian {
             return Err(invalid("give at least one variogram"));
         }
         let fields = variograms.len();
+        let mut tree = None;
         let rule = match (proportions, rule, regions) {
             (Some(p), rule, None) => {
-                if p.is_empty() || p.iter().any(|&q| !q.is_finite() || q < 0.0) {
-                    return Err(invalid("proportions must be finite and non-negative"));
-                }
-                if p.iter().sum::<f64>() <= 0.0 {
-                    return Err(invalid("proportions must not all be zero"));
-                }
-                let tree = match rule {
+                proportion_row(&p)?;
+                let hierarchy = match rule {
                     Some(r) => hierarchy(r)?,
                     None => Hierarchy::Split {
                         field: 0,
                         children: (0..p.len()).map(Hierarchy::Facies).collect(),
                     },
                 };
-                tree.validate(p.len(), fields).map_err(err)?;
-                tree.rule(&p)
+                hierarchy.validate(p.len(), fields).map_err(err)?;
+                tree.insert(hierarchy).rule(&p)
             }
             (None, None, Some(r)) => TruncationRule {
                 regions: r
@@ -1261,26 +1302,47 @@ impl Plurigaussian {
         Ok(Self {
             variograms,
             rule,
+            hierarchy: tree,
             data: None,
+            local: None,
         })
     }
 
-    #[pyo3(signature = (coords, facies, holes=None))]
+    /// Takes the conditioning data.
+    ///
+    /// Parameters
+    /// ----------
+    /// coords : array_like, shape (n, 2) or (n, 3)
+    /// facies : array_like, shape (n,)
+    ///     Facies ``0..k`` of each sample.
+    /// holes : array_like, optional
+    ///     Drill-hole ids or names; samples sharing a location keep the first.
+    /// proportions : array_like, shape (n, k), optional
+    ///     Local facies proportions at the samples, for a rule built from
+    ///     proportions; `simulate` then needs them at the targets.
+    #[pyo3(signature = (coords, facies, holes=None, proportions=None))]
     fn fit<'py>(
         mut slf: PyRefMut<'py, Self>,
         coords: &Bound<PyAny>,
         facies: &Bound<PyAny>,
         holes: Option<&Bound<PyAny>>,
+        proportions: Option<&Bound<PyAny>>,
     ) -> PyResult<PyRefMut<'py, Self>> {
         let facies = categories(facies)?;
+        let local = proportions
+            .map(|p| slf.local_rows(p, facies.len()))
+            .transpose()?;
         let (locs, keep, _) = located(coords, facies.len(), "facies", holes, None)?;
-        let facies = pick(&facies, &keep);
-        slf.data = Some((locs, facies));
+        slf.local = local.map(|l| pick(&l, &keep));
+        slf.data = Some((locs, pick(&facies, &keep)));
         Ok(slf)
     }
 
-    /// Summary of `n` realizations; same options as `SIS.simulate`.
-    #[pyo3(signature = (targets, n=100, seed=0, realizations=false, blocks=None))]
+    /// Summary of `n` realizations; same options as `SIS.simulate`, and
+    /// `proportions` of shape ``(targets, k)``, the local facies proportions
+    /// at the targets, when `fit` had them at the samples.
+    #[pyo3(signature = (targets, n=100, seed=0, realizations=false, blocks=None, proportions=None))]
+    #[allow(clippy::too_many_arguments)]
     fn simulate(
         &self,
         py: Python,
@@ -1289,31 +1351,34 @@ impl Plurigaussian {
         seed: u64,
         realizations: bool,
         blocks: Option<PyRef<PyBlockModel>>,
+        proportions: Option<&Bound<PyAny>>,
     ) -> PyResult<CategoricalSummary> {
         let (locs, facies) = self.data.as_ref().ok_or_else(not_fitted)?;
         let grid = self::targets(targets)?;
+        let local = match (&self.local, proportions) {
+            (Some(at_data), Some(p)) => Some((at_data, self.local_rows(p, grid.len())?)),
+            (None, None) => None,
+            _ => {
+                return Err(invalid(
+                    "give local proportions at both fit and simulate, or at neither",
+                ));
+            }
+        };
         let support = support(targets, &grid, blocks)?;
-        let k = self
-            .rule
-            .regions
-            .iter()
-            .map(|r| r.facies + 1)
-            .max()
-            .unwrap_or(1);
+        let k = self.facies();
         py.detach(|| {
             simulation::categorical(n, k, realizations, |i| {
                 let params = PgsParams {
                     seed: seed.wrapping_add(i as u64),
                     ..Default::default()
                 };
-                simulation::plurigaussian(
-                    locs,
-                    facies,
-                    &grid,
-                    &self.variograms,
-                    &self.rule,
-                    &params,
-                )
+                let (vgs, rule) = (&self.variograms, &self.rule);
+                match (&local, &self.hierarchy) {
+                    (Some((at_data, at_grid)), Some(tree)) => simulation::plurigaussian_local(
+                        locs, facies, &grid, vgs, tree, at_data, at_grid, &params,
+                    ),
+                    _ => simulation::plurigaussian(locs, facies, &grid, vgs, rule, &params),
+                }
                 .and_then(|f| majority(&support, f, k))
             })
         })
@@ -1551,11 +1616,35 @@ impl Tabular for Sis {
 
 impl Tabular for Plurigaussian {
     fn columns(&self) -> Option<Columns> {
-        self.data.as_ref().map(category_columns)
+        self.data.as_ref().map(|d| {
+            let mut columns = category_columns(d);
+            if let Some(local) = &self.local {
+                for j in 0..self.facies() {
+                    let name = format!("proportion_{j}");
+                    columns.push(persist::column(&name, local.iter().map(|row| row[j])));
+                }
+            }
+            columns
+        })
     }
 
     fn restore(&mut self, columns: Found) -> PyResult<()> {
-        self.data = Some(categories_from(&columns, usize::MAX)?);
+        let data = categories_from(&columns, self.facies())?;
+        if columns.values("proportion_0").is_ok() {
+            let k = self.facies();
+            let cols = (0..k)
+                .map(|j| columns.values(&format!("proportion_{j}")))
+                .collect::<PyResult<Vec<_>>>()?;
+            for c in &cols {
+                same_length(data.0.len(), c.len(), "proportions")?;
+            }
+            self.local = Some(
+                (0..data.0.len())
+                    .map(|i| cols.iter().map(|c| c[i]).collect())
+                    .collect(),
+            );
+        }
+        self.data = Some(data);
         Ok(())
     }
 }

@@ -127,6 +127,27 @@ def test_plurigaussian_hierarchy_honours_data_on_three_fields():
     assert set(np.unique(two.simulate(grid, n=1, seed=1).most_likely)) <= {0, 1, 2}
 
 
+def test_plurigaussian_follows_local_proportions():
+    def west_to_east(xy):
+        p0 = 0.9 - 0.8 * xy[:, 0] / 100
+        return np.column_stack([p0, (1 - p0) / 2, (1 - p0) / 2])
+
+    xy = np.array([[50.0, 50.0]])
+    rule = (0, [0, (1, [1, 2])])
+    pgs = cs.Plurigaussian([gaussian] * 2, proportions=[0.5, 0.25, 0.25], rule=rule)
+    pgs.fit(xy, [1], proportions=west_to_east(xy))
+    nodes = grid.centroids[:, :2]
+    s = pgs.simulate(grid, n=10, seed=1, proportions=west_to_east(nodes))
+    west, east = nodes[:, 0] < 30, nodes[:, 0] > 70
+    assert s.probabilities[0, west].mean() > 0.6 and s.probabilities[0, east].mean() < 0.4
+    with pytest.raises(ValueError, match="at both fit and simulate"):
+        pgs.simulate(grid, n=1)
+    with pytest.raises(ValueError, match="shape"):
+        pgs.simulate(grid, n=1, proportions=np.ones((400, 2)))
+    with pytest.raises(ValueError, match="built from proportions"):
+        cs.Plurigaussian(gaussian, regions=[([(-np.inf, np.inf)], 0)]).fit(xy, [0], proportions=[[1.0]])
+
+
 def test_gibbs_respects_bounds():
     pts = rng.uniform(0, 50, (20, 2))
     bounds = np.column_stack([np.zeros(20), np.full(20, np.inf)])
