@@ -5,6 +5,7 @@ use arrow_array::types::Float64Type;
 use arrow_array::{ArrayRef, Float64Array, RecordBatch, RecordBatchOptions, StructArray};
 use arrow_schema::{DataType, Field, Schema};
 use numpy::{PyArray1, PyReadonlyArray1};
+use pyo3::exceptions::PyImportError;
 use pyo3::prelude::*;
 use pyo3::types::{PyCapsule, PyDict, PyList, PyTuple};
 use pyo3_arrow::error::PyArrowResult;
@@ -27,6 +28,21 @@ pub fn empty(rows: usize) -> RecordBatch {
         &RecordBatchOptions::new().with_row_count(Some(rows)),
     )
     .expect("empty batch")
+}
+
+fn require<'py>(
+    py: Python<'py>,
+    method: &str,
+    module: &str,
+    packages: &str,
+) -> PyResult<Bound<'py, PyModule>> {
+    py.import(module).map_err(|e| {
+        let err = PyImportError::new_err(format!(
+            "Table.{method} needs {packages}: pip install {packages} or conda install -c conda-forge {packages}"
+        ));
+        err.set_cause(py, Some(e));
+        err
+    })
 }
 
 /// Any Arrow-compatible object or a dict of 1-D numeric (NaN is null) or text arrays.
@@ -191,15 +207,19 @@ impl Table {
     }
 
     fn to_polars<'py>(slf: &Bound<'py, Self>) -> PyResult<Bound<'py, PyAny>> {
-        slf.py().import("polars")?.call_method1("DataFrame", (slf,))
+        require(slf.py(), "to_polars", "polars", "polars")?.call_method1("DataFrame", (slf,))
     }
 
     fn to_pyarrow<'py>(slf: &Bound<'py, Self>) -> PyResult<Bound<'py, PyAny>> {
-        slf.py().import("pyarrow")?.call_method1("table", (slf,))
+        require(slf.py(), "to_pyarrow", "pyarrow", "pyarrow")?.call_method1("table", (slf,))
     }
 
     fn to_pandas<'py>(slf: &Bound<'py, Self>) -> PyResult<Bound<'py, PyAny>> {
-        Self::to_pyarrow(slf)?.call_method0("to_pandas")
+        let py = slf.py();
+        require(py, "to_pandas", "pandas", "pandas pyarrow")?;
+        require(py, "to_pandas", "pyarrow", "pandas pyarrow")?
+            .call_method1("table", (slf,))?
+            .call_method0("to_pandas")
     }
 
     fn __arrow_c_schema__<'py>(&self, py: Python<'py>) -> PyArrowResult<Bound<'py, PyCapsule>> {

@@ -45,7 +45,9 @@ def _axes(ax):
     try:
         import matplotlib.pyplot as plt
     except ImportError as e:
-        raise ImportError("ceres.plot needs matplotlib: pip install ceres[plot]") from e
+        raise ImportError(
+            "ceres.plot needs matplotlib: pip install 'ceres[plot]' or conda install -c conda-forge matplotlib"
+        ) from e
     return plt.subplots()
 
 
