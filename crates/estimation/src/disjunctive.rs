@@ -19,6 +19,7 @@
 
 use crate::error::{EstimError, Result};
 use nalgebra::{DMatrix, DVector};
+use serde::{Deserialize, Serialize};
 use transforms::HermiteAnamorphosis;
 use transforms::hermite::{polynomials, upper_tail_integral};
 use variogram::Variogram;
@@ -31,6 +32,7 @@ pub struct GaussianSample {
 }
 
 /// Disjunctive kriging over a fixed point anamorphosis.
+#[derive(Serialize, Deserialize)]
 pub struct DisjunctiveKriging {
     anam: HermiteAnamorphosis,
 }

@@ -3,6 +3,9 @@ use estimation::{
     Kind, NeighborhoodStats, Sample, Search as CoreSearch, block_krige, by_pass, estimate_many,
     k_fold_at, krige, krige_bayesian, krige_factorial, krige_universal, leave_one_out_at,
 };
+use std::path::PathBuf;
+
+use pyo3::PyClass;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyTuple};
 use serde::{Deserialize, Serialize};
@@ -11,6 +14,7 @@ use variogram::Variogram as CoreVariogram;
 use crate::args::{self, Point, array1, distinct, finite, pick, points, same_length, triple};
 use crate::containers::{PyBlockModel, PyPointSet};
 use crate::invalid;
+use crate::persist::{self, Columns, Found, Tabular};
 use crate::variogram::Variogram;
 
 /// Neighbourhood: `radius` is in metres along the major axis of the
@@ -104,6 +108,7 @@ impl Search {
     }
 }
 
+#[derive(Serialize, Deserialize)]
 enum Method {
     Kriging(Kind),
     Universal(usize),
@@ -275,12 +280,66 @@ fn split<T>(passes: Vec<Option<(usize, T)>>) -> Vec<Option<T>> {
     passes.into_iter().map(|r| r.map(|(_, e)| e)).collect()
 }
 
+/// `x`, `y`, `z`, `value`, `hole` (null when untagged) and `error_variance`.
+pub fn sample_columns(samples: &[Sample]) -> Columns {
+    let mut columns = persist::point_columns(samples.iter().map(|s| s.loc));
+    columns.push(persist::column("value", samples.iter().map(|s| s.value)));
+    let holes = samples.iter().map(|s| s.hole.map(f64::from)).collect();
+    columns.push(("hole".into(), holes));
+    let error = samples.iter().map(|s| s.error_variance);
+    columns.push(persist::column("error_variance", error));
+    columns
+}
+
+pub fn samples_from(found: &mut Found) -> PyResult<Vec<Sample>> {
+    let (locs, values) = (found.points()?, found.values("value")?);
+    let (holes, error) = (found.optional("hole")?, found.values("error_variance")?);
+    same_length(locs.len(), values.len(), "value")?;
+    same_length(locs.len(), holes.len(), "hole")?;
+    same_length(locs.len(), error.len(), "error_variance")?;
+    (0..locs.len())
+        .map(|i| {
+            let hole = holes[i].map(persist::index).transpose()?;
+            Ok(Sample {
+                loc: locs[i],
+                value: values[i],
+                hole: hole.map(|h| h as u32),
+                error_variance: error[i],
+            })
+        })
+        .collect()
+}
+
+impl Tabular for Estimator {
+    fn columns(&self) -> Option<Columns> {
+        self.samples.as_deref().map(sample_columns)
+    }
+
+    fn restore(&mut self, mut columns: Found) -> PyResult<()> {
+        self.samples = Some(samples_from(&mut columns)?);
+        Ok(())
+    }
+}
+
+impl Tabular for Dual {
+    fn columns(&self) -> Option<Columns> {
+        self.samples.as_deref().map(sample_columns)
+    }
+
+    fn restore(&mut self, mut columns: Found) -> PyResult<()> {
+        self.samples = Some(samples_from(&mut columns)?);
+        Ok(())
+    }
+}
+
 /// Shared engine behind the estimator classes in `ceres.estimation`.
+#[derive(Serialize, Deserialize)]
 #[pyclass(module = "ceres", name = "_Estimator")]
 pub struct Estimator {
     method: Method,
     variogram: Option<CoreVariogram>,
     search: Vec<CoreSearch>,
+    #[serde(skip)]
     samples: Option<Vec<Sample>>,
 }
 
@@ -498,13 +557,35 @@ impl Estimator {
             .map_err(invalid)?;
         outputs(py, &split(passes), true)
     }
+
+    /// Writes the estimator as class `name`: samples as columns, parameters
+    /// as JSON in the file metadata.
+    fn to_parquet(&self, path: PathBuf, name: &str) -> PyResult<()> {
+        persist::to_parquet(name, self, &path)
+    }
+
+    #[staticmethod]
+    fn from_parquet(path: PathBuf, name: &str) -> PyResult<Self> {
+        persist::from_parquet(name, &path)
+    }
+
+    fn _state(&self) -> PyResult<(String, Option<Columns>)> {
+        persist::state("_Estimator", self)
+    }
+
+    #[staticmethod]
+    fn _from_state(meta: &str, columns: Option<Columns>) -> PyResult<Self> {
+        persist::from_state("_Estimator", meta, columns)
+    }
 }
 
 /// Global dual kriging with a polynomial drift of `degree` (no search).
+#[derive(Serialize, Deserialize)]
 #[pyclass(module = "ceres", name = "DualKriging")]
 pub struct Dual {
     variogram: CoreVariogram,
     degree: usize,
+    #[serde(skip)]
     samples: Option<Vec<Sample>>,
 }
 
@@ -547,6 +628,28 @@ impl Dual {
             .map(|t| dual.estimate(t))
             .collect();
         Ok(array1(py, values).into_any())
+    }
+
+    /// Writes samples as Parquet columns and parameters as JSON in the file
+    /// metadata; `from_parquet` reads it back.
+    fn to_parquet(&self, path: PathBuf) -> PyResult<()> {
+        persist::to_parquet(<Self as PyClass>::NAME, self, &path)
+    }
+
+    /// Reads `to_parquet` output; raises InvalidInput on another class's file
+    /// or a newer format.
+    #[staticmethod]
+    fn from_parquet(path: PathBuf) -> PyResult<Self> {
+        persist::from_parquet(<Self as PyClass>::NAME, &path)
+    }
+
+    fn _state(&self) -> PyResult<(String, Option<Columns>)> {
+        persist::state(<Self as PyClass>::NAME, self)
+    }
+
+    #[staticmethod]
+    fn _from_state(meta: &str, columns: Option<Columns>) -> PyResult<Self> {
+        persist::from_state(<Self as PyClass>::NAME, meta, columns)
     }
 }
 

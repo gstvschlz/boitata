@@ -121,6 +121,32 @@ class _Base:
         estimate, variance = self._engine.cross_validate(folds)
         return CrossValidation(self._engine.values, estimate, variance)
 
+    def to_parquet(self, path) -> None:
+        """Writes the samples as Parquet columns and the parameters as JSON in the file metadata.
+
+        Parameters
+        ----------
+        path : str or PathLike
+        """
+        self._engine.to_parquet(path, type(self).__name__)
+
+    @classmethod
+    def from_parquet(cls, path):
+        """Reads `to_parquet` output; predictions match the saved estimator's bit for bit.
+
+        Parameters
+        ----------
+        path : str or PathLike
+
+        Raises
+        ------
+        InvalidInput
+            If the file holds another class or a newer format.
+        """
+        estimator = cls.__new__(cls)
+        estimator._engine = _Estimator.from_parquet(path, cls.__name__)
+        return estimator
+
 
 class OrdinaryKriging(_Base):
     """Kriging with an unknown, locally constant mean (weights sum to 1)."""
