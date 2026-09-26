@@ -385,7 +385,7 @@ fn check(domains: Option<Domains>, data: usize, nodes: usize) -> Result<()> {
     }
 }
 
-fn data(
+pub(crate) fn data(
     locs: &[(f64, f64, f64)],
     values: &[f64],
     holes: Vec<Option<u32>>,
@@ -486,7 +486,7 @@ fn first_pass(
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use variogram::model::Model;
 
@@ -908,26 +908,26 @@ mod tests {
         assert_ne!(a, run(4, 4));
     }
 
-    type Point = (f64, f64, f64);
+    pub(crate) type Point = (f64, f64, f64);
 
-    struct Zoned {
-        locs: Vec<Point>,
-        vals: Vec<f64>,
-        weights: Vec<f64>,
-        holes: Vec<u32>,
-        codes: Vec<u32>,
-        trend: Vec<f64>,
+    pub(crate) struct Zoned {
+        pub(crate) locs: Vec<Point>,
+        pub(crate) vals: Vec<f64>,
+        pub(crate) weights: Vec<f64>,
+        pub(crate) holes: Vec<u32>,
+        pub(crate) codes: Vec<u32>,
+        pub(crate) trend: Vec<f64>,
     }
 
     impl Zoned {
-        fn of(&self, code: u32) -> Vec<usize> {
+        pub(crate) fn of(&self, code: u32) -> Vec<usize> {
             (0..self.vals.len())
                 .filter(|&i| self.codes[i] == code)
                 .collect()
         }
     }
 
-    fn pick<T: Copy>(v: &[T], rows: &[usize]) -> Vec<T> {
+    pub(crate) fn pick<T: Copy>(v: &[T], rows: &[usize]) -> Vec<T> {
         rows.iter().map(|&i| v[i]).collect()
     }
 
@@ -935,7 +935,7 @@ mod tests {
     /// north where the weights are higher and the trend `y / 100` too; holes
     /// of 3 samples down z, and holes on the contact logging both domains at
     /// every sample.
-    fn zoned() -> Zoned {
+    pub(crate) fn zoned() -> Zoned {
         use rand::Rng;
         let mut rng = StdRng::seed_from_u64(8);
         let mut z = Zoned {
@@ -977,7 +977,7 @@ mod tests {
 
     /// Nodes on a 4 m grid at z = 1 and on the contact holes, each in both
     /// domains, with their trend.
-    fn zoned_grid() -> (Vec<Point>, Vec<u32>, Vec<f64>) {
+    pub(crate) fn zoned_grid() -> (Vec<Point>, Vec<u32>, Vec<f64>) {
         let mut grid: Vec<Point> = (0..25 * 25)
             .map(|i| {
                 (
@@ -998,7 +998,7 @@ mod tests {
         (grid, codes, trend)
     }
 
-    fn zoned_search(soft: Option<estimation::Soft>) -> Vec<Search> {
+    pub(crate) fn zoned_search(soft: Option<estimation::Soft>) -> Vec<Search> {
         let pass = |radius, min_samples| Search {
             min_samples,
             max_samples: 12,
@@ -1014,7 +1014,7 @@ mod tests {
         vec![pass(12.0, 6), pass(40.0, 2)]
     }
 
-    fn vg() -> Variogram {
+    pub(crate) fn vg() -> Variogram {
         Variogram::single(Model::Spherical, 1.0, 25.0)
     }
 
@@ -1023,7 +1023,7 @@ mod tests {
     }
 
     /// Grade to score in domain `code`, fitted apart from SGS.
-    fn forward(z: &Zoned, code: u32, trended: bool) -> impl Fn(f64, f64) -> f64 {
+    pub(crate) fn forward(z: &Zoned, code: u32, trended: bool) -> impl Fn(f64, f64) -> f64 {
         let rows = z.of(code);
         let (vals, w, t) = (
             pick(&z.vals, &rows),
@@ -1183,7 +1183,7 @@ mod tests {
         }
     }
 
-    fn mean(v: &[f64], w: &[f64]) -> f64 {
+    pub(crate) fn mean(v: &[f64], w: &[f64]) -> f64 {
         v.iter().zip(w).map(|(v, w)| v * w).sum::<f64>() / w.iter().sum::<f64>()
     }
 
@@ -1264,14 +1264,14 @@ mod tests {
 
     /// Nodes far apart and far from the data, `per` in each domain, at trend
     /// `trend(code)`.
-    fn far(per: usize) -> (Vec<Point>, Vec<u32>) {
+    pub(crate) fn far(per: usize) -> (Vec<Point>, Vec<u32>) {
         let grid = (0..2 * per)
             .map(|i| (1e4 * (1 + i / per) as f64 + 100.0 * i as f64, 1e4, 0.0))
             .collect();
         (grid, (0..2 * per).map(|i| (i / per) as u32).collect())
     }
 
-    fn pooled(reals: &[Vec<f64>], range: std::ops::Range<usize>) -> Vec<f64> {
+    pub(crate) fn pooled(reals: &[Vec<f64>], range: std::ops::Range<usize>) -> Vec<f64> {
         let mut v: Vec<f64> = reals
             .iter()
             .flat_map(|r| r[range.clone()].to_vec())

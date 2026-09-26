@@ -71,6 +71,25 @@ def test_turning_bands_streamed_equals_in_memory(model, tmp_path):
         tb.simulate_to_parquet(tmp_path / "missing.parquet", out)
 
 
+def test_turning_bands_streamed_with_domains_equals_in_memory(model, tmp_path):
+    xyz = rng.uniform(0, 100, (60, 3)) * [1, 0.75, 0.2]
+    values = rng.lognormal(0, 0.5, 60)
+    zone = np.where(xyz[:, 0] < 50, "west", "east")
+    search = cs.Search(40.0, max_samples=12, soft=10.0)
+    tb = cs.TurningBands(cs.Variogram([("spherical", 1.0, 30.0)]), bands=80, search=search)
+    tb.fit(xyz, values, domains=zone)
+    labels = np.where(model.centroids[:, 0] < 50, "west", "east")
+    whole = tb.simulate(model, n=4, seed=3, domains=labels)
+    source, out = tmp_path / "in.parquet", tmp_path / "out.parquet"
+    cs.write_parquet(source, model)
+    tb.simulate_to_parquet(source, out, n=4, seed=3, rows=333, domains=labels)
+    np.testing.assert_array_equal(cs.read_parquet(out)["mean"], whole.mean)
+    with pytest.raises(cs.InvalidInput, match="simulate_to_parquet needs domains"):
+        tb.simulate_to_parquet(source, out)
+    with pytest.raises(ValueError):
+        tb.simulate_to_parquet(source, out, domains=labels[1:])
+
+
 def test_turning_bands_search_defaults_to_the_nearest_32(model):
     xyz = rng.uniform(0, 100, (50, 3)) * [1, 0.75, 0.2]
     values = rng.lognormal(0, 0.5, 50)

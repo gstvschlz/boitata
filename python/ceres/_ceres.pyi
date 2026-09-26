@@ -654,6 +654,7 @@ class TurningBands:
         weights: ArrayLike | None = None,
         holes: Holes | None = None,
         trend: ArrayLike | None = None,
+        domains: Label | Sequence[Label] | ArrayLike | None = None,
     ) -> TurningBands: ...
     def simulate(
         self,
@@ -665,6 +666,7 @@ class TurningBands:
         realizations: bool = False,
         blocks: BlockModel | None = None,
         trend: ArrayLike | str | None = None,
+        domains: Label | Sequence[Label] | ArrayLike | None = None,
     ) -> SimulationSummary: ...
     def simulate_to_parquet(
         self,
@@ -675,6 +677,7 @@ class TurningBands:
         cutoffs: Sequence[float] = (),
         quantiles: Sequence[float] = (),
         rows: int = 1_000_000,
+        domains: Label | Sequence[Label] | ArrayLike | None = None,
     ) -> dict[str, npt.NDArray[np.float64]]: ...
 
 class MultivariateSimulation:

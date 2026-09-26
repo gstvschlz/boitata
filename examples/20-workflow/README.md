@@ -400,6 +400,38 @@ from 9.1 to 8.7 %: the leaner `SM` grades score low in the `MS` table and pull t
 chance that a block there exceeds 10 % Zn drops by three points. Unlike kriging, the rest of the lens moves too, by
 0.13 %: nodes simulated near `SM` condition the nodes after them, so the leaner contact reaches beyond 10 m.
 
+Turning bands takes the same `domains` and soft boundary, with one search. Both domains share the bands of a
+realization; each node kriges the residuals of the composites of its domain, and of the `SM` composites within
+10 m read through the `MS` table, and is back-transformed through the table of its own domain.
+
+<details><summary>Python</summary>
+
+```python
+banded = {}
+for name, soft in (("hard", None), ("soft", 10.0)):
+    search = cs.Search(radius=60, max_samples=16, max_per_hole=4, high_grade=(30.0, 15.0), soft=soft)
+    bands = cs.TurningBands(gaussian, search=search).fit(
+        *both, weights=np.r_[weights, sm_weights], holes=np.r_[holes, sm_holes], domains=labels
+    )
+    banded[name] = bands.simulate(nodes, n=30, seed=1, cutoffs=[10.0], blocks=blocks, domains="MS")
+for name, s in banded.items():
+    print(
+        f"turning bands, {name}: mean {s.mean.mean():.2f} % Zn, {s.mean[near].mean():.2f} % within 10 m of SM, "
+        f"{s.mean[~near].mean():.2f} % elsewhere"
+    )
+```
+
+</details>
+
+```text
+turning bands, hard: mean 9.60 % Zn, 9.35 % within 10 m of SM, 9.71 % elsewhere
+turning bands, soft: mean 9.39 % Zn, 8.72 % within 10 m of SM, 9.68 % elsewhere
+```
+
+Near `SM` the soft boundary lowers the block grade from 9.35 to 8.72 % Zn, close to what it does in SGS. Farther in
+the lens barely moves, 9.71 against 9.68 %: turning bands conditions on composites only, as kriging does, so only
+the nodes within 10 m of an `SM` composite see it, and a few of them sit in blocks whose centre lies farther away.
+
 ## Classification
 
 Measured blocks come from the first pass with a slope of regression of at least 0.8; indicated, from either pass

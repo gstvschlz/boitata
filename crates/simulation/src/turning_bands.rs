@@ -15,10 +15,14 @@
 //!
 //! Anisotropy is handled by running the bands in the space where the variogram
 //! is isotropic.
+//!
+//! The data are transformed as in SGS, within each domain and trend class;
+//! every domain shares the bands, and a node's residuals are kriged, and its
+//! score back-transformed, within its own domain.
 
-use crate::Realization;
 use crate::error::{Result, SimError};
 use crate::post::{ContinuousOptions, ContinuousSummary, continuous};
+use crate::sgs::{Domains, Realization, Transform, Transforms, Trend, data};
 use estimation::Sample;
 use estimation::krige::{Kind, krige};
 use estimation::search::{Search, SearchTree};
@@ -27,7 +31,6 @@ use rand::SeedableRng;
 use rand::rngs::StdRng;
 use rand_distr::{Distribution, Normal};
 use rayon::prelude::*;
-use transforms::normal_score;
 use variogram::Variogram;
 
 /// Turning-bands parameters.
@@ -247,55 +250,32 @@ fn unconditional(
     Bands::new(lo, hi, vg, params, rng).field(points)
 }
 
-/// Simple kriging of `residuals` at every target added to `field`.
+/// Simple kriging of residuals at every target, of domain `domains[i]`,
+/// added to `field`: `residual(k, domain)` is the residual of neighbour `k`
+/// for a target of `domain`.
 fn condition(
     targets: &[(f64, f64, f64)],
+    domains: Option<&[u32]>,
     field: Vec<f64>,
-    residuals: &[Sample],
     tree: &SearchTree,
     vg: &Variogram,
+    residual: impl Fn(usize, Option<u32>) -> Sample + Sync,
 ) -> Result<Vec<f64>> {
     targets
         .par_iter()
         .zip(field)
-        .map(|(g, u)| {
-            let chosen = tree.neighbors(g).unwrap_or_default();
+        .enumerate()
+        .map(|(i, (g, u))| {
+            let domain = domains.map(|d| d[i]);
+            let chosen = tree.neighbors_in(g, domain).unwrap_or_default();
             if chosen.is_empty() {
                 return Ok(u);
             }
-            let near: Vec<Sample> = chosen.iter().map(|&i| residuals[i].clone()).collect();
+            let near: Vec<Sample> = chosen.iter().map(|&k| residual(k, domain)).collect();
             let rk = krige(Kind::Simple { mean: 0.0 }, g, &near, vg)
                 .map_err(|e| SimError::Estimation(e.to_string()))?
                 .value;
             Ok(u + rk)
-        })
-        .collect()
-}
-
-/// The data as search samples: neighbours are chosen, and high-grade
-/// thresholds compared, on the data values rather than the residuals.
-fn data(locs: &[(f64, f64, f64)], values: &[f64], holes: Vec<Option<u32>>) -> Vec<Sample> {
-    locs.iter()
-        .zip(values)
-        .zip(holes)
-        .map(|((&loc, &v), hole)| Sample {
-            hole,
-            ..Sample::new(loc, v)
-        })
-        .collect()
-}
-
-fn residuals(data_locs: &[(f64, f64, f64)], gaussian_data: &[f64], at_data: &[f64]) -> Vec<Sample> {
-    data_locs
-        .iter()
-        .zip(gaussian_data)
-        .zip(at_data)
-        .map(|((&loc, &z), &u)| Sample {
-            loc,
-            value: z - u,
-            hole: None,
-            error_variance: 0.0,
-            domain: None,
         })
         .collect()
 }
@@ -326,34 +306,48 @@ pub fn conditional_gaussian_field(
     }
     let (lo, hi) = bounds(&[data_locs, grid].concat());
     let bands = Bands::new(lo, hi, vg, params, rng);
-    let residuals = residuals(data_locs, gaussian_data, &bands.field(data_locs));
-    let data = data(data_locs, gaussian_data, vec![None; data_locs.len()]);
+    let at_data = bands.field(data_locs);
+    let data = data(data_locs, gaussian_data, vec![None; data_locs.len()], None);
     let tree = SearchTree::new(&data, &params.search, Some(vg));
-    condition(grid, bands.field(grid), &residuals, &tree, vg)
+    condition(grid, None, bands.field(grid), &tree, vg, |k, _| {
+        Sample::new(data[k].loc, data[k].value - at_data[k])
+    })
 }
 
 /// `n` conditional turning-bands realizations (seeds `seed, seed + 1, …`)
 /// prepared over a box, so they can be evaluated at any targets inside it —
 /// all at once or chunk by chunk, with the same values.
+///
+/// With domains, each has its own transform (see [`Transforms`]), a target
+/// is conditioned by the data of its domain, and of others within the
+/// search's soft boundaries, and back-transformed through its domain's; the
+/// bands are shared. A datum of another domain enters the kriging as its
+/// grade (and trend) transformed through the target's domain.
 pub struct TurningBandsEnsemble {
-    table: transforms::NormalScoreTable,
+    transforms: Transforms,
+    data: Vec<Sample>,
+    trend: Option<Vec<f64>>,
     bands: Vec<Bands>,
-    residuals: Vec<Vec<Sample>>,
+    at_data: Vec<Vec<f64>>,
     tree: SearchTree,
     vg: Variogram,
 }
 
 impl TurningBandsEnsemble {
-    /// Normal-scores the data and simulates the bands of every realization
+    /// Transforms the data and simulates the bands of every realization
     /// over the box `lo..hi`, which must hold every target; the data are
     /// added to it. `vg_nscore` is the variogram of the normal scores;
-    /// `data_holes` tag the data by drill hole for `max_per_hole`.
+    /// `data_holes` tag the data by drill hole for `max_per_hole`;
+    /// `data_domains` are the domain codes of the data and `data_trend` the
+    /// trend at the data with its number of classes.
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         data_locs: &[(f64, f64, f64)],
         data_vals: &[f64],
         data_weights: Option<&[f64]>,
         data_holes: Option<&[u32]>,
+        data_domains: Option<&[u32]>,
+        data_trend: Option<(&[f64], usize)>,
         lo: [f64; 3],
         hi: [f64; 3],
         vg_nscore: &Variogram,
@@ -367,26 +361,27 @@ impl TurningBandsEnsemble {
             return Err(SimError::InsufficientData("no conditioning data".into()));
         }
         let holes = crate::holes(data_holes, data_locs.len())?;
-        let ns = normal_score::transform(data_vals, data_weights)
-            .map_err(|e| SimError::Transform(e.to_string()))?;
+        let transforms = Transforms::fit(data_vals, data_weights, data_domains, data_trend)?;
         let (dlo, dhi) = bounds(data_locs);
         let lo = std::array::from_fn(|i| lo[i].min(dlo[i]));
         let hi = std::array::from_fn(|i| hi[i].max(dhi[i]));
-        let (bands, residuals): (Vec<Bands>, Vec<Vec<Sample>>) = (0..n)
+        let (bands, at_data): (Vec<Bands>, Vec<Vec<f64>>) = (0..n)
             .into_par_iter()
             .map(|k| {
                 let mut rng = StdRng::seed_from_u64(params.seed.wrapping_add(k as u64));
                 let bands = Bands::new(lo, hi, vg_nscore, params, &mut rng);
-                let residuals = residuals(data_locs, &ns.scores, &bands.field(data_locs));
-                (bands, residuals)
+                let at_data = bands.field(data_locs);
+                (bands, at_data)
             })
             .unzip();
-        let data = data(data_locs, data_vals, holes);
+        let data = data(data_locs, data_vals, holes, data_domains);
         let tree = SearchTree::new(&data, &params.search, Some(vg_nscore));
         Ok(Self {
-            table: ns.table,
+            transforms,
+            data,
+            trend: data_trend.map(|t| t.0.to_vec()),
             bands,
-            residuals,
+            at_data,
             tree,
             vg: vg_nscore.clone(),
         })
@@ -400,29 +395,100 @@ impl TurningBandsEnsemble {
         self.bands.is_empty()
     }
 
-    /// Realization `k` at `targets`, back-transformed to data values.
-    pub fn realization(&self, k: usize, targets: &[(f64, f64, f64)]) -> Result<Vec<f64>> {
+    /// The transform of each target, by its code in `domains`, checked
+    /// against the data's domains and trend.
+    fn transforms(
+        &self,
+        targets: usize,
+        domains: Option<&[u32]>,
+        trend: Option<&[f64]>,
+    ) -> Result<Vec<&Transform>> {
+        let invalid = |m: &str| Err(SimError::InvalidParameters(m.into()));
+        let domained = self.data.first().is_some_and(|s| s.domain.is_some());
+        match (domained, domains) {
+            (true, None) => return invalid("the data have domains; give the targets' domains"),
+            (false, Some(_)) => return invalid("target domains need data domains"),
+            (_, Some(d)) if d.len() != targets => return invalid("one domain per node"),
+            _ => {}
+        }
+        match (&self.trend, trend) {
+            (Some(_), None) => return invalid("the data have a trend; give it at the targets"),
+            (None, Some(_)) => return invalid("a trend at the targets needs one at the data"),
+            (_, Some(t)) if t.len() != targets => return invalid("one trend value per node"),
+            _ => {}
+        }
+        (0..targets)
+            .map(|i| {
+                let code = domains.map_or(0, |d| d[i]);
+                self.transforms
+                    .domains
+                    .get(code as usize)
+                    .and_then(Option::as_ref)
+                    .ok_or_else(|| {
+                        SimError::InvalidParameters(format!("domain {code} has no samples"))
+                    })
+            })
+            .collect()
+    }
+
+    /// Score of datum `j` for a target of `domain`: its own in its domain,
+    /// its grade (and trend) transformed through `domain` in another.
+    fn score(&self, j: usize, domain: Option<u32>) -> f64 {
+        let s = &self.data[j];
+        if s.domain == domain {
+            return self.transforms.scores[j];
+        }
+        let code = domain.expect("another domain") as usize;
+        let t = self.trend.as_ref().map_or(0.0, |t| t[j]);
+        self.transforms.domains[code]
+            .as_ref()
+            .expect("checked")
+            .forward(s.value, t)
+    }
+
+    /// Realization `k` at `targets`, of codes `domains` and trend `trend`
+    /// when the data have them, back-transformed to data values.
+    pub fn realization(
+        &self,
+        k: usize,
+        targets: &[(f64, f64, f64)],
+        domains: Option<&[u32]>,
+        trend: Option<&[f64]>,
+    ) -> Result<Vec<f64>> {
         let bands = self
             .bands
             .get(k)
             .ok_or_else(|| SimError::InvalidParameters(format!("no realization {k}")))?;
+        let transforms = self.transforms(targets.len(), domains, trend)?;
+        let at_data = &self.at_data[k];
         let scores = condition(
             targets,
+            domains,
             bands.field(targets),
-            &self.residuals[k],
             &self.tree,
             &self.vg,
+            |j, domain| Sample::new(self.data[j].loc, self.score(j, domain) - at_data[j]),
         )?;
-        Ok(scores.iter().map(|&s| self.table.back(s)).collect())
+        Ok(scores
+            .iter()
+            .zip(transforms)
+            .enumerate()
+            .map(|(i, (&s, t))| t.back(s, trend.map_or(0.0, |t| t[i])))
+            .collect())
     }
 
-    /// Summary of every realization at `targets`.
+    /// Summary of every realization at `targets`, of codes `domains` and
+    /// trend `trend` when the data have them.
     pub fn summary(
         &self,
         targets: &[(f64, f64, f64)],
+        domains: Option<&[u32]>,
+        trend: Option<&[f64]>,
         options: &ContinuousOptions,
     ) -> Result<ContinuousSummary> {
-        continuous(self.len(), options, |k| self.realization(k, targets))
+        continuous(self.len(), options, |k| {
+            self.realization(k, targets, domains, trend)
+        })
     }
 }
 
@@ -439,6 +505,33 @@ pub fn turning_bands(
     vg_nscore: &Variogram,
     params: &TurningBandsParams,
 ) -> Result<Realization> {
+    turning_bands_in(
+        data_locs,
+        data_vals,
+        data_weights,
+        data_holes,
+        None,
+        None,
+        grid,
+        vg_nscore,
+        params,
+    )
+}
+
+/// As [`turning_bands`] with `domains` and a `trend`, as in
+/// [`crate::sgs_in`]; the bands cover `grid` and the data.
+#[allow(clippy::too_many_arguments)]
+pub fn turning_bands_in(
+    data_locs: &[(f64, f64, f64)],
+    data_vals: &[f64],
+    data_weights: Option<&[f64]>,
+    data_holes: Option<&[u32]>,
+    domains: Option<Domains>,
+    trend: Option<Trend>,
+    grid: &[(f64, f64, f64)],
+    vg_nscore: &Variogram,
+    params: &TurningBandsParams,
+) -> Result<Realization> {
     if grid.is_empty() {
         return Ok(Realization { values: vec![] });
     }
@@ -448,6 +541,8 @@ pub fn turning_bands(
         data_vals,
         data_weights,
         data_holes,
+        domains.map(|d| d.0),
+        trend.map(|t| (t.data, t.classes)),
         lo,
         hi,
         vg_nscore,
@@ -455,7 +550,7 @@ pub fn turning_bands(
         1,
     )?;
     Ok(Realization {
-        values: ensemble.realization(0, grid)?,
+        values: ensemble.realization(0, grid, domains.map(|d| d.1), trend.map(|t| t.nodes))?,
     })
 }
 
@@ -464,6 +559,7 @@ pub fn turning_bands(
 /// kept): `mean`, `variance`, `p_above_<c>` and `mean_above_<c>` per cutoff,
 /// `q<p>` per quantile. Memory is bounded by `rows` blocks plus the bands.
 /// Returns the global mean and share above each cutoff of every realization.
+/// `domains` are the codes of the data and of every block, in file order.
 #[allow(clippy::too_many_arguments)]
 pub fn turning_bands_to_parquet(
     input: impl AsRef<std::path::Path>,
@@ -472,6 +568,7 @@ pub fn turning_bands_to_parquet(
     data_vals: &[f64],
     data_weights: Option<&[f64]>,
     data_holes: Option<&[u32]>,
+    domains: Option<Domains>,
     vg_nscore: &Variogram,
     params: &TurningBandsParams,
     n: usize,
@@ -479,6 +576,9 @@ pub fn turning_bands_to_parquet(
     rows: usize,
 ) -> Result<GlobalSummary> {
     let reader = ceres_io::BlockModelReader::open(&input)?;
+    if domains.is_some_and(|d| d.1.len() != reader.len()) {
+        return Err(SimError::InvalidParameters("one domain per block".into()));
+    }
     let (mut lo, mut hi) = ([f64::INFINITY; 3], [f64::NEG_INFINITY; 3]);
     for chunk in reader.chunks(rows, Some(&[]))? {
         let (clo, chi) = bounds(&points(&chunk?));
@@ -490,6 +590,8 @@ pub fn turning_bands_to_parquet(
         data_vals,
         data_weights,
         data_holes,
+        domains.map(|d| d.0),
+        None,
         lo,
         hi,
         vg_nscore,
@@ -513,7 +615,9 @@ pub fn turning_bands_to_parquet(
     let mut total = 0.0;
     for chunk in reader.chunks(rows, None)? {
         let chunk = chunk?;
-        let s = ensemble.summary(&points(&chunk), &options)?;
+        let at = total as usize..total as usize + chunk.len();
+        let codes = domains.map(|d| &d.1[at]);
+        let s = ensemble.summary(&points(&chunk), codes, None, &options)?;
         let m = chunk.len() as f64;
         total += m;
         for k in 0..n {
@@ -723,37 +827,60 @@ mod tests {
         };
         let grid = points(&model);
         let (lo, hi) = bounds(&grid);
-        let whole =
-            TurningBandsEnsemble::new(&data_locs, &data_vals, None, None, lo, hi, &vg, &params, 6)
-                .unwrap()
-                .summary(&grid, &options)
-                .unwrap();
-        for rows in [7, 160] {
-            let output = input.with_extension(format!("{rows}.parquet"));
-            let global = turning_bands_to_parquet(
-                &input, &output, &data_locs, &data_vals, None, None, &vg, &params, 6, &options,
-                rows,
+        let codes: Vec<u32> = (0..40).map(|i| i % 2).collect();
+        let nodes: Vec<u32> = grid.iter().map(|p| u32::from(p.0 > 20.0)).collect();
+        for domains in [None, Some((&codes[..], &nodes[..]))] {
+            let whole = TurningBandsEnsemble::new(
+                &data_locs,
+                &data_vals,
+                None,
+                None,
+                domains.map(|d| d.0),
+                None,
+                lo,
+                hi,
+                &vg,
+                &params,
+                6,
             )
+            .unwrap()
+            .summary(&grid, domains.map(|d| d.1), None, &options)
             .unwrap();
-            let ceres_io::Stored::Blocks(back) = ceres_io::read_parquet(&output).unwrap() else {
-                panic!("expected a block model")
-            };
-            let column = |name: &str| {
-                use arrow_array::cast::AsArray;
-                back.attributes()
-                    .column_by_name(name)
-                    .unwrap()
-                    .as_primitive::<arrow_array::types::Float64Type>()
-                    .values()
-                    .to_vec()
-            };
-            assert_eq!(column("mean"), whole.mean);
-            assert_eq!(column("p_above_3"), whole.probability_above[0]);
-            assert_eq!(column("q0.5"), whole.quantile_values[0]);
-            for (a, b) in global.realization_mean.iter().zip(&whole.realization_mean) {
-                assert!((a - b).abs() < 1e-12);
+            for rows in [7, 160] {
+                let output = input.with_extension(format!("{rows}.parquet"));
+                let global = turning_bands_to_parquet(
+                    &input, &output, &data_locs, &data_vals, None, None, domains, &vg, &params, 6,
+                    &options, rows,
+                )
+                .unwrap();
+                let ceres_io::Stored::Blocks(back) = ceres_io::read_parquet(&output).unwrap()
+                else {
+                    panic!("expected a block model")
+                };
+                let column = |name: &str| {
+                    use arrow_array::cast::AsArray;
+                    back.attributes()
+                        .column_by_name(name)
+                        .unwrap()
+                        .as_primitive::<arrow_array::types::Float64Type>()
+                        .values()
+                        .to_vec()
+                };
+                assert_eq!(column("mean"), whole.mean);
+                assert_eq!(column("p_above_3"), whole.probability_above[0]);
+                assert_eq!(column("q0.5"), whole.quantile_values[0]);
+                for (a, b) in global.realization_mean.iter().zip(&whole.realization_mean) {
+                    assert!((a - b).abs() < 1e-12);
+                }
             }
         }
+        let short = Some((&codes[..], &nodes[1..]));
+        let output = input.with_extension("short.parquet");
+        let r = turning_bands_to_parquet(
+            &input, &output, &data_locs, &data_vals, None, None, short, &vg, &params, 6, &options,
+            7,
+        );
+        assert!(r.is_err());
     }
 
     #[test]
@@ -783,5 +910,232 @@ mod tests {
         assert_eq!(capped, run(None, 1, None));
         assert_ne!(capped, run(None, 8, None));
         assert_eq!(run(Some(&holes), 8, None), run(None, 8, None));
+    }
+
+    use crate::sgs::tests::{Zoned, forward, mean, pick, pooled, zoned, zoned_grid, zoned_search};
+    use transforms::normal_score;
+
+    const LO: [f64; 3] = [-1.0, -1.0, -1.0];
+    const HI: [f64; 3] = [101.0, 101.0, 3.0];
+
+    fn zoned_params(soft: Option<estimation::Soft>, seed: u64) -> TurningBandsParams {
+        TurningBandsParams {
+            n_bands: 100,
+            search: zoned_search(soft).swap_remove(1),
+            seed,
+            ..Default::default()
+        }
+    }
+
+    /// The ensemble of `rows` of `z` over the box of the zoned data, with
+    /// domain codes `codes` and the trend at the data when `trended`.
+    fn ensemble(
+        z: &Zoned,
+        rows: &[usize],
+        codes: Option<&[u32]>,
+        trended: bool,
+        params: &TurningBandsParams,
+        n: usize,
+    ) -> TurningBandsEnsemble {
+        let trend = pick(&z.trend, rows);
+        TurningBandsEnsemble::new(
+            &pick(&z.locs, rows),
+            &pick(&z.vals, rows),
+            Some(&pick(&z.weights, rows)),
+            Some(&pick(&z.holes, rows)),
+            codes,
+            trended.then_some((&trend[..], 3)),
+            LO,
+            HI,
+            &crate::sgs::tests::vg(),
+            params,
+            n,
+        )
+        .unwrap()
+    }
+
+    fn reals(
+        e: &TurningBandsEnsemble,
+        grid: &[(f64, f64, f64)],
+        nodes: Option<&[u32]>,
+        trend: Option<&[f64]>,
+    ) -> Vec<Vec<f64>> {
+        (0..e.len())
+            .map(|k| e.realization(k, grid, nodes, trend).unwrap())
+            .collect()
+    }
+
+    #[test]
+    fn one_label_everywhere_is_no_domains() {
+        let z = zoned();
+        let (grid, _, node_trend) = zoned_grid();
+        let params = zoned_params(Some(estimation::Soft::All(5.0)), 1);
+        // Without the contact holes, which put two samples at one location.
+        let rows: Vec<usize> = (0..z.locs.len() - 10).collect();
+        let (one, all) = (vec![0; rows.len()], vec![0; grid.len()]);
+        for trended in [false, true] {
+            let trend = trended.then_some(&node_trend[..]);
+            let none = ensemble(&z, &rows, None, trended, &params, 3);
+            let labelled = ensemble(&z, &rows, Some(&one), trended, &params, 3);
+            assert_eq!(
+                reals(&none, &grid, None, trend),
+                reals(&labelled, &grid, Some(&all), trend)
+            );
+        }
+    }
+
+    #[test]
+    fn a_hard_domain_is_simulated_as_if_alone() {
+        let z = zoned();
+        let (grid, _, node_trend) = zoned_grid();
+        let all: Vec<usize> = (0..z.locs.len()).collect();
+        let nodes = vec![0; grid.len()];
+        let params = zoned_params(None, 6);
+        for trended in [false, true] {
+            let trend = trended.then_some(&node_trend[..]);
+            let both = ensemble(&z, &all, Some(&z.codes), trended, &params, 2);
+            let alone = ensemble(&z, &z.of(0), None, trended, &params, 2);
+            assert_eq!(
+                reals(&both, &grid, Some(&nodes), trend),
+                reals(&alone, &grid, None, trend)
+            );
+        }
+    }
+
+    #[test]
+    fn soft_data_enter_as_grades_through_the_node_domain() {
+        let z = zoned();
+        let (grid, nodes, node_trend) = zoned_grid();
+        let all: Vec<usize> = (0..z.locs.len()).collect();
+        for trended in [false, true] {
+            let e = ensemble(&z, &all, Some(&z.codes), trended, &zoned_params(None, 1), 1);
+            let into = [forward(&z, 0, trended), forward(&z, 1, trended)];
+            for j in all.iter().copied() {
+                for code in 0..2 {
+                    let want = match z.codes[j] == code {
+                        true => e.transforms.scores[j],
+                        false => into[code as usize](z.vals[j], z.trend[j]),
+                    };
+                    assert!((e.score(j, Some(code)) - want).abs() < 1e-12);
+                }
+            }
+        }
+        // Soft moves only the nodes within its distance of another domain.
+        let soft = 8.0;
+        let run = |soft| {
+            let e = ensemble(&z, &all, Some(&z.codes), true, &zoned_params(soft, 4), 1);
+            e.realization(0, &grid, Some(&nodes), Some(&node_trend))
+                .unwrap()
+        };
+        let (hard, softened) = (run(None), run(Some(estimation::Soft::All(soft))));
+        let near = |i: usize| {
+            (0..z.locs.len()).any(|j| {
+                let (a, b) = (grid[i], z.locs[j]);
+                let d = ((a.0 - b.0).powi(2) + (a.1 - b.1).powi(2) + (a.2 - b.2).powi(2)).sqrt();
+                z.codes[j] != nodes[i] && d < soft + 1e-9
+            })
+        };
+        let moved: Vec<bool> = (0..grid.len()).map(|i| hard[i] != softened[i]).collect();
+        assert!(moved.iter().any(|&m| m));
+        assert!((0..grid.len()).all(|i| !moved[i] || near(i)));
+    }
+
+    #[test]
+    fn each_domain_reproduces_its_declustered_histogram() {
+        let z = zoned();
+        let per = 30;
+        // Nodes 30 m apart, beyond the search radius of the data.
+        let grid: Vec<(f64, f64, f64)> = (0..2 * per)
+            .map(|i| (30.0 * (i % 10) as f64, 150.0 + 30.0 * (i / 10) as f64, 1.0))
+            .collect();
+        let nodes: Vec<u32> = (0..2 * per).map(|i| (i / per) as u32).collect();
+        let params = TurningBandsParams {
+            step: Some(1.0),
+            ..zoned_params(None, 0)
+        };
+        let (lo, hi) = bounds(&grid);
+        let e = TurningBandsEnsemble::new(
+            &z.locs,
+            &z.vals,
+            Some(&z.weights),
+            Some(&z.holes),
+            Some(&z.codes),
+            None,
+            lo,
+            hi,
+            &crate::sgs::tests::vg(),
+            &params,
+            200,
+        )
+        .unwrap();
+        let reals = reals(&e, &grid, Some(&nodes), None);
+        for code in 0..2 {
+            let rows = z.of(code);
+            let (data, w) = (pick(&z.vals, &rows), pick(&z.weights, &rows));
+            let pooled = pooled(&reals, code as usize * per..(code as usize + 1) * per);
+            let (want, got) = (mean(&data, &w), mean(&pooled, &vec![1.0; pooled.len()]));
+            assert!(
+                (got / want - 1.0).abs() < 0.05,
+                "domain {code}: {got} vs {want}"
+            );
+            // Quantiles of the scores through the domain's own table.
+            let table = normal_score::transform(&data, Some(&w)).unwrap().table;
+            for (q, want) in [
+                (0.1, -1.281_551_565_545),
+                (0.5, 0.0),
+                (0.9, 1.281_551_565_545),
+            ] {
+                let got = table.forward(pooled[(q * pooled.len() as f64) as usize]);
+                assert!((got - want).abs() < 0.1, "domain {code} q{q}: {got}");
+            }
+        }
+    }
+
+    #[test]
+    fn domains_follow_the_seed_not_the_thread_count() {
+        let z = zoned();
+        let (grid, nodes, node_trend) = zoned_grid();
+        let all: Vec<usize> = (0..z.locs.len()).collect();
+        let run = |threads, seed| {
+            rayon::ThreadPoolBuilder::new()
+                .num_threads(threads)
+                .build()
+                .unwrap()
+                .install(|| {
+                    let params = zoned_params(Some(estimation::Soft::All(8.0)), seed);
+                    let e = ensemble(&z, &all, Some(&z.codes), true, &params, 2);
+                    reals(&e, &grid, Some(&nodes), Some(&node_trend))
+                })
+        };
+        let a = run(1, 3);
+        assert_eq!(a, run(4, 3));
+        assert_ne!(a, run(4, 4));
+    }
+
+    #[test]
+    fn bad_target_domains_and_trends_are_errors() {
+        let z = zoned();
+        let all: Vec<usize> = (0..z.locs.len()).collect();
+        let grid = vec![(1.0, 1.0, 1.0), (2.0, 2.0, 1.0)];
+        let params = zoned_params(None, 1);
+        let zoned = ensemble(&z, &all, Some(&z.codes), true, &params, 1);
+        let plain = ensemble(&z, &all, None, false, &params, 1);
+        let t = [0.1, 0.2];
+        assert!(zoned.realization(0, &grid, Some(&[0, 1]), Some(&t)).is_ok());
+        assert!(
+            zoned
+                .realization(0, &grid, Some(&[0, 2]), Some(&t))
+                .is_err()
+        );
+        assert!(zoned.realization(0, &grid, Some(&[0]), Some(&t)).is_err());
+        assert!(zoned.realization(0, &grid, None, Some(&t)).is_err());
+        assert!(zoned.realization(0, &grid, Some(&[0, 1]), None).is_err());
+        assert!(
+            zoned
+                .realization(0, &grid, Some(&[0, 1]), Some(&t[1..]))
+                .is_err()
+        );
+        assert!(plain.realization(0, &grid, Some(&[0, 0]), None).is_err());
+        assert!(plain.realization(0, &grid, None, Some(&t)).is_err());
     }
 }

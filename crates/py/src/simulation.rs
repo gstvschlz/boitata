@@ -4,8 +4,7 @@ use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
 use simulation::{
     BlockSupport, CategoricalSummary as CoreCategorical, ContinuousOptions, ContinuousSummary,
-    GibbsParams, PgsParams, Region, SgsParams, SisParams, TrendConditioning, TruncationRule,
-    TurningBandsParams,
+    GibbsParams, PgsParams, Region, SgsParams, SisParams, TruncationRule, TurningBandsParams,
 };
 use variogram::Variogram as CoreVariogram;
 
@@ -278,45 +277,28 @@ struct Data {
     values: Vec<f64>,
     weights: Option<Vec<f64>>,
     holes: Option<Vec<u32>>,
-    trend: Option<(Vec<f64>, TrendConditioning)>,
+    trend: Option<Vec<f64>>,
     domains: Option<Vec<u32>>,
+}
+
+impl Data {
+    /// Fails where the data cannot be transformed within each domain and
+    /// `classes` trend classes.
+    fn check(&self, classes: usize) -> PyResult<()> {
+        let trend = self.trend.as_deref().map(|t| (t, classes));
+        simulation::Transforms::fit(
+            &self.values,
+            self.weights.as_deref(),
+            self.domains.as_deref(),
+            trend,
+        )
+        .map(|_| ())
+        .map_err(err)
+    }
 }
 
 fn classes() -> usize {
     10
-}
-
-fn trended(
-    values: &[f64],
-    trend: Option<Vec<f64>>,
-    weights: Option<&[f64]>,
-    classes: usize,
-) -> PyResult<Option<(Vec<f64>, TrendConditioning)>> {
-    trend
-        .map(|t| {
-            TrendConditioning::fit(values, &t, weights, classes)
-                .map(|c| (t, c))
-                .map_err(err)
-        })
-        .transpose()
-}
-
-/// With a trend, its conditioning and its values at the nodes.
-type NodeTrend<'a> = Option<(&'a TrendConditioning, Vec<f64>)>;
-
-/// The values to simulate, the trend-independent scores when fitted with a
-/// trend, and the trend at the nodes, given or read from the `targets` column
-/// it names.
-fn to_simulate<'a>(
-    d: &'a Data,
-    targets: &Bound<PyAny>,
-    nodes: usize,
-    trend: Option<&Bound<PyAny>>,
-) -> PyResult<(&'a [f64], NodeTrend<'a>)> {
-    Ok(match (&d.trend, trend_at(d, targets, nodes, trend)?) {
-        (Some((_, c)), Some(at_nodes)) => (c.scores(), Some((c, at_nodes))),
-        _ => (&d.values, None),
-    })
 }
 
 /// The trend at the `nodes` targets, given or read from the `targets` column
@@ -345,13 +327,6 @@ fn trend_at(
     Ok(Some(at_nodes))
 }
 
-fn back(trend: &NodeTrend, values: Vec<f64>) -> simulation::Result<Vec<f64>> {
-    match trend {
-        Some((c, at_nodes)) => c.back(at_nodes, &values),
-        None => Ok(values),
-    }
-}
-
 /// Coordinates keeping the first sample of each location shared within a
 /// domain of `domains`, the kept rows and their hole codes; the others are
 /// reported by `holes` in a warning.
@@ -371,15 +346,29 @@ fn located(
     Ok((pick(&locs, &keep), keep, codes))
 }
 
+/// The data of `fit` and the labels of their `domains`, which every soft
+/// boundary of `search` must name.
+#[allow(clippy::too_many_arguments)]
 fn data(
     coords: &Bound<PyAny>,
     values: &Bound<PyAny>,
     weights: Option<&Bound<PyAny>>,
     holes: Option<&Bound<PyAny>>,
     trend: Option<&Bound<PyAny>>,
+    domains: Option<&Bound<PyAny>>,
     classes: usize,
-    domains: Option<&[u32]>,
-) -> PyResult<Data> {
+    search: &[Search],
+) -> PyResult<(Data, Option<Vec<Label>>)> {
+    let (fitted, codes) = match domains {
+        None => (None, None),
+        Some(obj) => {
+            let (fitted, codes) = fit_codes(obj, values.len()?)?;
+            (Some(fitted), Some(codes))
+        }
+    };
+    for s in search {
+        s.resolve(fitted.as_deref())?;
+    }
     let values = finite(values, "values")?;
     let weights = optional_finite(weights, "weights")?;
     if let Some(w) = &weights {
@@ -389,23 +378,42 @@ fn data(
     if let Some(t) = &trend {
         same_length(values.len(), t.len(), "trend")?;
     }
-    let (locs, keep, holes) = located(coords, values.len(), "values", holes, domains)?;
-    let values = pick(&values, &keep);
-    let weights = weights.map(|w| pick(&w, &keep));
-    let trend = trended(
-        &values,
-        trend.map(|t| pick(&t, &keep)),
-        weights.as_deref(),
-        classes,
-    )?;
-    Ok(Data {
+    let codes = codes.as_deref();
+    let (locs, keep, holes) = located(coords, values.len(), "values", holes, codes)?;
+    let data = Data {
         locs,
-        values,
-        weights,
+        values: pick(&values, &keep),
+        weights: weights.map(|w| pick(&w, &keep)),
         holes,
-        trend,
-        domains: domains.map(|d| pick(d, &keep)),
-    })
+        trend: trend.map(|t| pick(&t, &keep)),
+        domains: codes.map(|d| pick(d, &keep)),
+    };
+    data.check(classes)?;
+    Ok((data, fitted))
+}
+
+/// The searches with soft boundaries by the code of the `fitted` domains.
+fn resolved(search: &[Search], fitted: Option<&[Label]>) -> PyResult<Vec<estimation::Search>> {
+    search.iter().map(|s| s.resolve(fitted)).collect()
+}
+
+/// Domain codes of `n` nodes labelled by `obj` in the `fitted` domains, for
+/// `method`.
+fn node_domains(
+    fitted: Option<&[Label]>,
+    obj: Option<&Bound<PyAny>>,
+    n: usize,
+    method: &str,
+) -> PyResult<Option<Vec<u32>>> {
+    codes(fitted, obj, n, method)?
+        .map(|codes| {
+            codes
+                .into_iter()
+                .zip(labels(obj.expect("given with codes"), Some(n))?)
+                .map(|(c, l)| c.ok_or_else(|| invalid(format!("domain {l} has no samples"))))
+                .collect()
+        })
+        .transpose()
 }
 
 /// Sequential Gaussian simulation. `variogram` is the normal-score variogram
@@ -512,8 +520,8 @@ impl Sgs {
     ) -> PyResult<Bound<'py, PyArray1<f64>>> {
         let d = self.data.as_ref().ok_or_else(not_fitted)?;
         let grid = self::targets(targets)?;
-        let nodes = self.node_domains(domains, grid.len(), "passes")?;
-        let search = self.resolved()?;
+        let nodes = node_domains(self.domains.as_deref(), domains, grid.len(), "passes")?;
+        let search = resolved(&self.search, self.domains.as_deref())?;
         let local = anisotropy.map(|a| a.at_targets(&grid));
         let passes = py
             .detach(|| {
@@ -570,30 +578,17 @@ impl Sgs {
         trend: Option<&Bound<PyAny>>,
         domains: Option<&Bound<PyAny>>,
     ) -> PyResult<PyRefMut<'py, Self>> {
-        let (fitted, codes) = match domains {
-            None => (None, None),
-            Some(obj) => {
-                let (fitted, codes) = fit_codes(obj, values.len()?)?;
-                (Some(fitted), Some(codes))
-            }
-        };
-        for s in &slf.search {
-            s.resolve(fitted.as_deref())?;
-        }
-        let classes = slf.classes;
-        slf.data = Some(data(
+        let (d, fitted) = data(
             coords,
             values,
             weights,
             holes,
             trend,
-            classes,
-            codes.as_deref(),
-        )?);
-        let d = slf.data.as_ref().expect("fitted");
-        let trend = d.trend.as_ref().map(|(t, _)| (&t[..], classes));
-        simulation::Transforms::fit(&d.values, d.weights.as_deref(), d.domains.as_deref(), trend)
-            .map_err(err)?;
+            domains,
+            slf.classes,
+            &slf.search,
+        )?;
+        slf.data = Some(d);
         slf.domains = fitted;
         Ok(slf)
     }
@@ -629,14 +624,14 @@ impl Sgs {
     ) -> PyResult<SimulationSummary> {
         let d = self.data.as_ref().ok_or_else(not_fitted)?;
         let grid = self::targets(targets)?;
-        let nodes = self.node_domains(domains, grid.len(), "simulate")?;
-        let search = self.resolved()?;
+        let nodes = node_domains(self.domains.as_deref(), domains, grid.len(), "simulate")?;
+        let search = resolved(&self.search, self.domains.as_deref())?;
         let at_nodes = trend_at(d, targets, grid.len(), trend)?;
         let trend = d
             .trend
-            .as_ref()
+            .as_deref()
             .zip(at_nodes.as_deref())
-            .map(|((data, _), nodes)| simulation::Trend {
+            .map(|(data, nodes)| simulation::Trend {
                 data,
                 nodes,
                 classes: self.classes,
@@ -674,32 +669,6 @@ impl Sgs {
     }
 }
 
-impl Sgs {
-    /// The searches with soft boundaries by domain code.
-    fn resolved(&self) -> PyResult<Vec<estimation::Search>> {
-        let domains = self.domains.as_deref();
-        self.search.iter().map(|s| s.resolve(domains)).collect()
-    }
-
-    /// Domain codes of `n` nodes labelled by `obj`, for `method`.
-    fn node_domains(
-        &self,
-        obj: Option<&Bound<PyAny>>,
-        n: usize,
-        method: &str,
-    ) -> PyResult<Option<Vec<u32>>> {
-        codes(self.domains.as_deref(), obj, n, method)?
-            .map(|codes| {
-                codes
-                    .into_iter()
-                    .zip(labels(obj.expect("given with codes"), Some(n))?)
-                    .map(|(c, l)| c.ok_or_else(|| invalid(format!("domain {l} has no samples"))))
-                    .collect()
-            })
-            .transpose()
-    }
-}
-
 /// The domains of the data and of `nodes`, when fitted with them.
 fn zoned<'a>(d: &'a Data, nodes: &'a Option<Vec<u32>>) -> Option<simulation::Domains<'a>> {
     d.domains.as_deref().zip(nodes.as_deref())
@@ -720,16 +689,26 @@ fn one_or_more<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Vec<Search>, D:
 }
 
 /// Turning-bands simulation conditioned by kriging; same conventions as SGS,
-/// trend included.
+/// trend and domains included.
+///
+/// With `domains` at `fit`, each domain is transformed on its own, as in
+/// SGS, and every domain shares the bands of a realization. A node is
+/// conditioned by kriging the residuals of the data of its domain, and of
+/// other domains within Search.soft, each of those as its grade (and trend)
+/// transformed through the node's domain; the node is back-transformed
+/// through its domain's transform.
 #[derive(Serialize, Deserialize)]
 #[pyclass(module = "ceres", name = "TurningBands")]
 pub struct TurningBands {
     variogram: CoreVariogram,
     bands: usize,
     step: Option<f64>,
-    search: Option<estimation::Search>,
+    search: Option<Search>,
     #[serde(default = "classes")]
     classes: usize,
+    /// Labels of the fitted domains, indexed by code.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    domains: Option<Vec<Label>>,
     #[serde(skip)]
     data: Option<Data>,
 }
@@ -777,14 +756,39 @@ impl TurningBands {
             variogram: variogram.0,
             bands,
             step,
-            search: search.map(|s| s.plain("TurningBands")).transpose()?,
+            search,
             classes,
+            domains: None,
             data: None,
         })
     }
 
-    /// Takes the conditioning data; parameters as in `SGS.fit`.
-    #[pyo3(signature = (coords, values, weights=None, holes=None, trend=None))]
+    /// Takes the conditioning data. Samples sharing a location keep the
+    /// first, with a warning naming their `holes`.
+    ///
+    /// Parameters
+    /// ----------
+    /// coords : array_like, shape (n, 2) or (n, 3)
+    /// values : array_like, shape (n,)
+    /// weights : array_like, optional
+    ///     Declustering weights, for every normal score.
+    /// holes : array_like, optional
+    ///     Drill-hole ids or names, for `max_per_hole`.
+    /// trend : array_like, optional
+    ///     Trend at the data, from any model or estimator; `simulate` then
+    ///     needs the trend at the targets.
+    /// domains : array_like or label, optional
+    ///     Domain label of each sample, or one label for all: strings,
+    ///     numbers or booleans. Samples sharing a location in different
+    ///     domains are all kept.
+    ///
+    /// Raises
+    /// ------
+    /// InvalidInput
+    ///     If a Search.soft names a domain without samples, or has no
+    ///     `domains` to work on.
+    #[pyo3(signature = (coords, values, weights=None, holes=None, trend=None, domains=None))]
+    #[allow(clippy::too_many_arguments)]
     fn fit<'py>(
         mut slf: PyRefMut<'py, Self>,
         coords: &Bound<PyAny>,
@@ -792,15 +796,29 @@ impl TurningBands {
         weights: Option<&Bound<PyAny>>,
         holes: Option<&Bound<PyAny>>,
         trend: Option<&Bound<PyAny>>,
+        domains: Option<&Bound<PyAny>>,
     ) -> PyResult<PyRefMut<'py, Self>> {
-        let classes = slf.classes;
-        slf.data = Some(data(coords, values, weights, holes, trend, classes, None)?);
+        let (d, fitted) = data(
+            coords,
+            values,
+            weights,
+            holes,
+            trend,
+            domains,
+            slf.classes,
+            slf.search.as_slice(),
+        )?;
+        slf.data = Some(d);
+        slf.domains = fitted;
         Ok(slf)
     }
 
     /// Summary of `n` realizations; same options as `SGS.simulate`.
+    /// `domains`, needed when fitted with them, labels the targets, or is one
+    /// label for all; a target in a domain without samples raises
+    /// InvalidInput.
     #[allow(clippy::too_many_arguments)]
-    #[pyo3(signature = (targets, n=100, seed=0, cutoffs=vec![], quantiles=vec![], realizations=false, blocks=None, trend=None))]
+    #[pyo3(signature = (targets, n=100, seed=0, cutoffs=vec![], quantiles=vec![], realizations=false, blocks=None, trend=None, domains=None))]
     fn simulate(
         &self,
         py: Python,
@@ -812,10 +830,13 @@ impl TurningBands {
         realizations: bool,
         blocks: Option<PyRef<PyBlockModel>>,
         trend: Option<&Bound<PyAny>>,
+        domains: Option<&Bound<PyAny>>,
     ) -> PyResult<SimulationSummary> {
         let d = self.data.as_ref().ok_or_else(not_fitted)?;
         let grid = self::targets(targets)?;
-        let (values, trend) = to_simulate(d, targets, grid.len(), trend)?;
+        let nodes = node_domains(self.domains.as_deref(), domains, grid.len(), "simulate")?;
+        let at_nodes = trend_at(d, targets, grid.len(), trend)?;
+        let params = self.params(seed, self.resolved()?);
         let support = support(targets, &grid, blocks)?;
         let options = ContinuousOptions {
             cutoffs,
@@ -826,17 +847,20 @@ impl TurningBands {
         py.detach(|| {
             let ensemble = simulation::TurningBandsEnsemble::new(
                 &d.locs,
-                values,
+                &d.values,
                 d.weights.as_deref(),
                 d.holes.as_deref(),
+                d.domains.as_deref(),
+                d.trend.as_deref().map(|t| (t, self.classes)),
                 lo,
                 hi,
                 &self.variogram,
-                &self.params(seed),
+                &params,
                 n,
             )?;
             simulation::continuous(n, &options, |k| {
-                averaged(&support, back(&trend, ensemble.realization(k, &grid)?)?)
+                let r = ensemble.realization(k, &grid, nodes.as_deref(), at_nodes.as_deref());
+                averaged(&support, r?)
             })
         })
         .map(SimulationSummary)
@@ -849,8 +873,10 @@ impl TurningBands {
     /// The same values as `simulate` on the whole model, in memory bounded by
     /// `rows` blocks plus the bands. Returns each realization's global
     /// `realization_mean` and `realization_above` (one row per cutoff).
+    /// `domains`, needed when fitted with them, labels the blocks in file
+    /// order, or is one label for all.
     #[allow(clippy::too_many_arguments)]
-    #[pyo3(signature = (path, out, n=100, seed=0, cutoffs=vec![], quantiles=vec![], rows=1_000_000))]
+    #[pyo3(signature = (path, out, n=100, seed=0, cutoffs=vec![], quantiles=vec![], rows=1_000_000, domains=None))]
     fn simulate_to_parquet<'py>(
         &self,
         py: Python<'py>,
@@ -861,6 +887,7 @@ impl TurningBands {
         cutoffs: Vec<f64>,
         quantiles: Vec<f64>,
         rows: usize,
+        domains: Option<&Bound<PyAny>>,
     ) -> PyResult<Bound<'py, pyo3::types::PyDict>> {
         let d = self.data.as_ref().ok_or_else(not_fitted)?;
         if d.trend.is_some() {
@@ -868,6 +895,15 @@ impl TurningBands {
                 "simulate_to_parquet does not take a trend; use simulate",
             ));
         }
+        let blocks = match domains {
+            Some(_) => ceres_io::BlockModelReader::open(&path)
+                .map_err(|e| err(simulation::SimError::Io(e)))?
+                .len(),
+            None => 0,
+        };
+        let method = "simulate_to_parquet";
+        let nodes = node_domains(self.domains.as_deref(), domains, blocks, method)?;
+        let params = self.params(seed, self.resolved()?);
         let options = ContinuousOptions {
             cutoffs,
             quantiles,
@@ -882,8 +918,9 @@ impl TurningBands {
                     &d.values,
                     d.weights.as_deref(),
                     d.holes.as_deref(),
+                    zoned(d, &nodes),
                     &self.variogram,
-                    &self.params(seed),
+                    &params,
                     n,
                     &options,
                     rows,
@@ -901,14 +938,20 @@ impl TurningBands {
 }
 
 impl TurningBands {
-    fn params(&self, seed: u64) -> TurningBandsParams {
-        let defaults = TurningBandsParams::default();
+    /// The parameters with `search`, or the default search.
+    fn params(&self, seed: u64, search: Option<estimation::Search>) -> TurningBandsParams {
         TurningBandsParams {
             n_bands: self.bands,
             step: self.step,
             seed,
-            search: self.search.clone().unwrap_or(defaults.search),
+            search: search.unwrap_or(TurningBandsParams::default().search),
         }
+    }
+
+    /// The search with soft boundaries by domain code.
+    fn resolved(&self) -> PyResult<Option<estimation::Search>> {
+        let domains = self.domains.as_deref();
+        self.search.as_ref().map(|s| s.resolve(domains)).transpose()
     }
 }
 
@@ -1246,7 +1289,7 @@ fn data_columns(d: &Data) -> Columns {
         .collect();
     columns.push(("weight".into(), weights));
     columns.push(hole_column(d.holes.as_deref(), d.values.len()));
-    if let Some((trend, _)) = &d.trend {
+    if let Some(trend) = &d.trend {
         columns.push(persist::column("trend", trend.iter().copied()));
     }
     if let Some(domains) = &d.domains {
@@ -1280,7 +1323,8 @@ fn holes_from(found: &Found, n: usize) -> PyResult<Option<Vec<u32>>> {
         .transpose()
 }
 
-fn data_from(found: &Found, classes: usize) -> PyResult<Data> {
+/// The data of `found`, whose domain codes must index the `fitted` labels.
+fn data_from(found: &Found, classes: usize, fitted: Option<&[Label]>) -> PyResult<Data> {
     let (locs, values, weights) = (
         found.points()?,
         found.values("value")?,
@@ -1293,7 +1337,6 @@ fn data_from(found: &Found, classes: usize) -> PyResult<Data> {
         .ok()
         .map(|_| found.values("trend"))
         .transpose()?;
-    let trend = trended(&values, trend, weights.as_deref(), classes)?;
     let domains = found
         .optional("domain")
         .ok()
@@ -1302,14 +1345,24 @@ fn data_from(found: &Found, classes: usize) -> PyResult<Data> {
     if let Some(d) = &domains {
         same_length(locs.len(), d.len(), "domain")?;
     }
-    Ok(Data {
+    let known = fitted.map_or(0, <[Label]>::len);
+    match &domains {
+        Some(d) if d.iter().any(|&c| c >= known) => {
+            return Err(invalid("domain codes need their labels"));
+        }
+        None if known > 0 => return Err(invalid("domain labels need a domain column")),
+        _ => {}
+    }
+    let data = Data {
         holes: holes_from(found, locs.len())?,
         locs,
         values,
         weights,
         trend,
         domains: domains.map(|d| d.into_iter().map(|c| c as u32).collect()),
-    })
+    };
+    data.check(classes)?;
+    Ok(data)
 }
 
 fn category_columns((locs, categories): &(Vec<Point>, Vec<usize>)) -> Columns {
@@ -1334,16 +1387,7 @@ impl Tabular for Sgs {
     }
 
     fn restore(&mut self, columns: Found) -> PyResult<()> {
-        let data = data_from(&columns, self.classes)?;
-        let known = self.domains.as_ref().map_or(0, Vec::len);
-        match &data.domains {
-            Some(d) if d.iter().any(|&c| c as usize >= known) => {
-                return Err(invalid("domain codes need their labels"));
-            }
-            None if known > 0 => return Err(invalid("domain labels need a domain column")),
-            _ => {}
-        }
-        self.data = Some(data);
+        self.data = Some(data_from(&columns, self.classes, self.domains.as_deref())?);
         Ok(())
     }
 }
@@ -1354,7 +1398,7 @@ impl Tabular for TurningBands {
     }
 
     fn restore(&mut self, columns: Found) -> PyResult<()> {
-        self.data = Some(data_from(&columns, self.classes)?);
+        self.data = Some(data_from(&columns, self.classes, self.domains.as_deref())?);
         Ok(())
     }
 }
@@ -1627,7 +1671,9 @@ impl MultivariateSimulation {
                     ))
                 } else if let Ok(s) = s.cast::<TurningBands>() {
                     let s = s.borrow();
-                    Ok(Factor::Bands(s.variogram.clone(), Box::new(s.params(0))))
+                    let search = s.search.clone().map(|x| x.plain("MultivariateSimulation"));
+                    let params = s.params(0, search.transpose()?);
+                    Ok(Factor::Bands(s.variogram.clone(), Box::new(params)))
                 } else {
                     Err(invalid("simulators must be SGS or TurningBands"))
                 }

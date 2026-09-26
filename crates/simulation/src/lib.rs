@@ -35,7 +35,7 @@ pub use sis::{CategoricalRealization, SisParams, sis};
 pub use trend::TrendConditioning;
 pub use turning_bands::{
     Bands, GlobalSummary, TurningBandsEnsemble, TurningBandsParams, bounds,
-    conditional_gaussian_field, turning_bands, turning_bands_to_parquet,
+    conditional_gaussian_field, turning_bands, turning_bands_in, turning_bands_to_parquet,
 };
 
 /// Hole of each of `n` data, for `Search::max_per_hole`; all `None` without
