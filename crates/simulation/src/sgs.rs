@@ -328,6 +328,31 @@ mod tests {
         assert!((r.values[0] - 5.0).abs() < 1e-9);
     }
 
+    #[test]
+    fn a_planar_grid_among_3d_data_simulates_quickly() {
+        let data_locs: Vec<_> = (0..300)
+            .map(|i| ((i * 37 % 101) as f64, (i * 53 % 97) as f64, (i % 7) as f64))
+            .collect();
+        let data_vals: Vec<f64> = (0..300).map(|i| (i * 29 % 23) as f64).collect();
+        let grid: Vec<_> = (0..10_000)
+            .map(|i| ((i % 100) as f64, (i / 100) as f64, 3.5))
+            .collect();
+        let vg = Variogram::single(Model::Spherical, 1.0, 30.0);
+        let params = SgsParams {
+            search: Search {
+                min_samples: 1,
+                max_samples: 16,
+                radius: 40.0,
+                ..Default::default()
+            },
+            seed: 5,
+        };
+        let start = std::time::Instant::now();
+        sgs(&data_locs, &data_vals, None, &grid, &vg, &params, None).unwrap();
+        let elapsed = start.elapsed().as_secs_f64();
+        assert!(elapsed < 10.0, "{elapsed} s");
+    }
+
     fn summary(
         data_locs: &[(f64, f64, f64)],
         data_vals: &[f64],
