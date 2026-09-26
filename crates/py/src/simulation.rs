@@ -863,6 +863,64 @@ fn gibbs<'py>(
     Ok(array1(py, out).into_any())
 }
 
+/// Localised grades of selective blocks from their simulated realizations.
+///
+/// Each panel pools the ``n`` realizations of the blocks it holds, sorts the
+/// pooled values, and gives its block ranked ``i`` the mean of the ``i``-th
+/// chunk of ``n`` sorted values. The blocks average to the pooled mean and
+/// reproduce the pooled grade-tonnage curve at tonnages ``k / blocks``,
+/// without a change-of-support model. Partial panels localise over the blocks
+/// present.
+///
+/// Parameters
+/// ----------
+/// smus : BlockModel
+///     Selective blocks nesting in the panels: same rotation, sizes dividing
+///     the panel sizes, grids aligned; not sub-blocked.
+/// ranking : str
+///     Column of `smus` ordering the blocks within a panel, such as a direct
+///     kriging or the E-type mean of the realizations; ties follow row order.
+/// realizations : array_like
+///     ``(n, len(smus))`` realizations at selective-block support, as from
+///     ``simulate(..., blocks=smus, realizations=True).realizations``.
+/// panels : BlockModel
+/// name : str, optional
+///     Name of the new column; ``"localized"`` by default.
+///
+/// Returns
+/// -------
+/// BlockModel
+///     `smus` with the localised grades; null outside every panel.
+///
+/// Raises
+/// ------
+/// InvalidInput
+///     If the blocks do not nest, a block inside a panel has a null rank, or
+///     the realizations are not finite.
+#[pyfunction]
+#[pyo3(signature = (smus, ranking, realizations, panels, name=None))]
+fn localize(
+    py: Python,
+    smus: PyRef<PyBlockModel>,
+    ranking: &str,
+    realizations: &Bound<PyAny>,
+    panels: PyRef<PyBlockModel>,
+    name: Option<&str>,
+) -> PyResult<PyBlockModel> {
+    let rank = crate::transforms::nullable(&smus, ranking)?;
+    let reals = rows(realizations, "realizations")?;
+    let (panel_model, smu_model) = (&panels.0, &smus.0);
+    let out = py
+        .detach(|| simulation::localize(panel_model, smu_model, &rank, &reals))
+        .map_err(err)?;
+    let column: arrow_array::Float64Array = out.into_iter().collect();
+    Ok(PyBlockModel(
+        smus.0
+            .with_column(name.unwrap_or("localized"), std::sync::Arc::new(column))
+            .map_err(invalid)?,
+    ))
+}
+
 fn data_columns(d: &Data) -> Columns {
     let mut columns = persist::point_columns(d.locs.iter().copied());
     columns.push(persist::column("value", d.values.iter().copied()));
@@ -1357,6 +1415,7 @@ pub fn register(m: &Bound<PyModule>) -> PyResult<()> {
     m.add_class::<Sis>()?;
     m.add_class::<Plurigaussian>()?;
     m.add_function(wrap_pyfunction!(gibbs, m)?)?;
+    m.add_function(wrap_pyfunction!(localize, m)?)?;
     m.add_class::<SimulationSummary>()?;
     m.add_class::<CategoricalSummary>()?;
     Ok(())

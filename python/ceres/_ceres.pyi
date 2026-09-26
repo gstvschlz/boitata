@@ -759,6 +759,9 @@ def gibbs(
     burn_in: int = 50,
     seed: int = 1,
 ) -> npt.NDArray[np.float64]: ...
+def localize(
+    smus: BlockModel, ranking: str, realizations: ArrayLike, panels: BlockModel, name: str | None = None
+) -> BlockModel: ...
 
 class Cokriging:
     def to_parquet(self, path: Path) -> None: ...

@@ -5,7 +5,7 @@
 //! - [`sis`]  — Sequential Indicator Simulation (categorical facies)
 //! - [`multivariate`] — several correlated variables through independent factors
 //! - [`post`] — uncertainty summaries streamed over realizations, at node or
-//!   block support
+//!   block support, and localisation of block realizations within panels
 //!
 //! Realizations are conditional and reproducible given a seed.
 
@@ -24,7 +24,7 @@ pub use multivariate::{Decorrelation, factor_seed, multivariate};
 pub use pgs::{PgsParams, Region, TruncationRule, plurigaussian};
 pub use post::{
     BlockSupport, CategoricalSummary, ContinuousOptions, ContinuousSummary, categorical,
-    continuous, continuous_many, quantile_sorted,
+    continuous, continuous_many, localize, quantile_sorted,
 };
 pub use sgs::{Realization, SgsParams, sgs};
 pub use sis::{CategoricalRealization, SisParams, sis};

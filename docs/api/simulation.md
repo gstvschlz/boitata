@@ -15,3 +15,5 @@
 ::: ceres.CategoricalSummary
 
 ::: ceres.gibbs
+
+::: ceres.localize
