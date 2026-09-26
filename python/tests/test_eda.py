@@ -118,3 +118,35 @@ def test_capping_report_by_domain():
     assert t["mean_capped"][-1] == pytest.approx(np.average(np.minimum(v, cap), weights=w))
     with pytest.raises(cs.InvalidInput):
         cs.capping_report(v, d, {4: 1.0})
+
+
+def test_duplicates_report_group_ids_and_merge():
+    coords = np.array([[0, 0, 0], [5, 0, 0], [0, 0, 0], [0.4, 0.3, 0], [9, 9, 9]], dtype=float)
+    report, group = cs.duplicates(coords)
+    np.testing.assert_array_equal(group, [0, -1, 0, -1, -1])
+    assert report["n"].tolist() == [2] and report["spread"].tolist() == [0.0]
+    report, group = cs.duplicates(coords, tolerance=0.5)
+    np.testing.assert_array_equal(group, [0, -1, 0, 0, -1])
+    assert report["spread"][0] == pytest.approx(0.5)
+
+    zn = np.array([1.0, 2.0, 3.0, np.nan, 5.0])
+    cu = np.arange(1.0, 6.0)
+    rock = ["a", "b", "c", "d", "e"]
+    points = cs.PointSet(coords, {"zn": zn, "cu": cu, "rock": rock}, crs="EPSG:32718")
+    merged = cs.duplicates(points, 0.5, merge="mean", weights=[1, 1, 3, 1, 1])
+    np.testing.assert_allclose(merged.coords, coords[[0, 1, 4]])
+    np.testing.assert_allclose(merged["zn"], [2.5, 2.0, 5.0])
+    assert merged["rock"] == ["a", "b", "e"] and merged["n"].tolist() == [3, 1, 1]
+    assert merged.crs == "EPSG:32718"
+    counted = cs.duplicates(points, 0.5, merge="mean")
+    assert np.average(counted["cu"], weights=counted["n"]) == pytest.approx(cu.mean())
+    assert cs.duplicates(points, 0.5, merge="max")["zn"][0] == 3.0
+    assert cs.duplicates(points, 0.5, merge="first")["zn"][0] == 1.0
+    for bad in (
+        lambda: cs.duplicates(coords, merge="mean"),
+        lambda: cs.duplicates(points, merge="median"),
+        lambda: cs.duplicates(points, merge="max", weights=np.ones(5)),
+        lambda: cs.duplicates(coords, tolerance=-1.0),
+    ):
+        with pytest.raises(cs.InvalidInput):
+            bad()

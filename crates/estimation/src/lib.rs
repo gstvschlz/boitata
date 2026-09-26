@@ -61,24 +61,6 @@ pub struct Sample {
     pub error_variance: f64,
 }
 
-/// Groups of rows that share exactly the same location, each in row order and
-/// ordered by first row. Such samples make a kriging system singular.
-pub fn duplicates(locs: &[(f64, f64, f64)]) -> Vec<Vec<usize>> {
-    let key = |i: usize| {
-        let (x, y, z) = locs[i];
-        [x + 0.0, y + 0.0, z + 0.0].map(f64::to_bits)
-    };
-    let mut order: Vec<usize> = (0..locs.len()).collect();
-    order.sort_by_key(|&i| (key(i), i));
-    let mut groups: Vec<Vec<usize>> = order
-        .chunk_by(|&a, &b| key(a) == key(b))
-        .filter(|g| g.len() > 1)
-        .map(<[usize]>::to_vec)
-        .collect();
-    groups.sort_by_key(|g| g[0]);
-    groups
-}
-
 impl Sample {
     pub fn new(loc: (f64, f64, f64), value: f64) -> Self {
         Self {
@@ -105,7 +87,7 @@ mod tests {
     use variogram::{Model, Variogram};
 
     #[test]
-    fn twins_are_grouped_and_dropping_them_restores_kriging() {
+    fn dropping_twins_restores_kriging() {
         let locs = [
             (0.0, 0.0, 0.0),
             (10.0, 0.0, 0.0),
@@ -113,9 +95,6 @@ mod tests {
             (5.0, 5.0, -0.0),
             (5.0, 5.0, 0.0),
         ];
-        let groups = duplicates(&locs);
-        assert_eq!(groups, vec![vec![0, 2], vec![3, 4]]);
-
         let vg = Variogram::single(Model::Spherical, 1.0, 50.0);
         let samples: Vec<Sample> = locs.iter().map(|&l| Sample::new(l, 1.0)).collect();
         let target = (2.0, 2.0, 0.0);

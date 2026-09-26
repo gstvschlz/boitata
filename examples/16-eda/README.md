@@ -1,7 +1,7 @@
 # 16. Exploratory data analysis
 
-Statistics and distributions per domain, top cuts, grade-tonnage, contacts, swaths, h-scatterplots and correlations on the 2 m composites of the
-drillhole dataset. Every function skips missing values, so raw columns go in as they are.
+Duplicates, statistics and distributions per domain, top cuts, grade-tonnage, contacts, swaths, h-scatterplots and
+correlations on the 2 m composites of the drillhole dataset. Every function skips missing values, so raw columns go in as they are.
 
 <details><summary>Python</summary>
 
@@ -29,10 +29,6 @@ intervals = cs.merge_intervals(tables["assay"], tables["geology"])
 dh = cs.Drillholes(tables["collar"], tables["survey"], intervals)
 grades = ["ZN", "PB", "CU", "AG", "AU"]
 composites = dh.composite(2.0, grades, domain="LITH")
-xyz = composites.coords
-zn = composites["ZN"]
-lith = np.array(composites.attributes["LITH"])
-hole = np.array(composites.attributes["hole"])
 print(f"{len(composites)} composites")
 ```
 
@@ -40,6 +36,61 @@ print(f"{len(composites)} composites")
 
 ```text
 62506 composites
+```
+
+## Duplicates
+
+Twin holes, re-entries and collars entered twice put several composites at one place, and kriging cannot weight
+two samples at the same location. `duplicates` groups the composites closer than a tolerance, transitively, and
+reports each group with its first sample and its spread.
+
+<details><summary>Python</summary>
+
+```python
+hole = np.array(composites.attributes["hole"])
+
+
+def holes_per_group(tolerance):
+    report, group = cs.duplicates(composites, tolerance)
+    return report, [tuple(sorted(set(hole[group == k]))) for k in report["group"]]
+
+
+report, groups = holes_per_group(0.1)
+across = [h for h in groups if len(h) > 1]
+print(f"{len(report)} groups within 0.1 m, at most {report['spread'].max():.2f} m from their first composite")
+print(f"{len(across)} across {len(set(across))} sets of holes, {len(groups) - len(across)} inside one hole")
+exact, groups = holes_per_group(0.0)
+print(f"{len(exact)} groups at exactly the same location, from {len(set(groups))} pairs of holes")
+```
+
+</details>
+
+```text
+160 groups within 0.1 m, at most 0.10 m from their first composite
+147 across 27 sets of holes, 13 inside one hole
+43 groups at exactly the same location, from 9 pairs of holes
+```
+
+The groups inside one hole are short intervals on both sides of a contact, in different lithologies: they stay.
+The exact duplicates are the top composites of pairs of holes collared at the same point. One pair puts an MS
+composite on one of unknown lithology (UNK), which a length-weighted `merge="mean"` would blend, so each pair keeps the composite
+of its first hole instead; the `n` column counts the composites behind each row.
+
+<details><summary>Python</summary>
+
+```python
+composites = cs.duplicates(composites, merge="first")
+print(f"{len(composites)} composites, {int((composites['n'] > 1).sum())} of them merged pairs")
+xyz = composites.coords
+zn = composites["ZN"]
+lith = np.array(composites.attributes["LITH"])
+hole = np.array(composites.attributes["hole"])
+```
+
+</details>
+
+```text
+62463 composites, 43 of them merged pairs
 ```
 
 ## Declustered statistics
@@ -285,7 +336,7 @@ log_zn = np.log10(np.where(zn > 0, zn, np.nan))
 fig, axes = plt.subplots(1, 3, figsize=(10, 3.4), layout="constrained", sharey=True)
 for ax, lag in zip(axes, [2.0, 10.0, 50.0], strict=True):
     head, tail, r = cs.h_scatter(xyz, log_zn, lag, 0.1 * lag)
-    ax.hexbin(tail, head, gridsize=40, bins="log", cmap="cividis", linewidths=0)
+    ax.hexbin(tail, head, gridsize=40, bins="log", linewidths=0)
     ax.set(title=f"h = {lag:g} m, ρ = {r:.2f}", xlabel="log₁₀ Zn at x", aspect="equal")
 axes[0].set_ylabel("log₁₀ Zn at x + h")
 save(fig, "h_scatter")
@@ -295,19 +346,38 @@ save(fig, "h_scatter")
 
 ![h_scatter](h_scatter.png)
 
-## Correlation matrix
+## Correlations
 
-Spearman correlation of the grades, each pair over the composites where both are assayed.
+The scatter-plot matrix of the MS grades on log axes, with declustered histograms on the diagonal and, in each
+panel, the declustered Pearson (r) and rank correlation of the pair. Pearson's r, on the raw grades, falls well
+below the rank correlation wherever a few high values dominate a pair; on skewed grades the rank correlation is the
+one to read. Zn, Pb and Ag move together most closely. The rows of points at Ag 1 g/t and Au 0.01 g/t are
+detection limits.
+
+<details><summary>Python</summary>
+
+```python
+ms = lith == "MS"
+fig, axes = cs.plot.scatter_matrix({g: composites[g][ms] for g in grades}, weights=weights[ms], log=True)
+fig.suptitle("MS grades, declustered", x=0.02, ha="left", fontweight="bold", fontsize=10)
+save(fig, "scatter_matrix")
+```
+
+</details>
+
+![scatter_matrix](scatter_matrix.png)
+
+Spearman correlation of the grades over all composites, each pair over the composites where both are assayed.
 
 <details><summary>Python</summary>
 
 ```python
 r = cs.correlation(np.column_stack([composites[g] for g in grades]), method="spearman")
 fig, ax = plt.subplots(figsize=(4.4, 3.8), layout="constrained")
-im = ax.imshow(r, cmap="cividis", vmin=0, vmax=1)
+im = ax.imshow(r, vmin=0, vmax=1)
 for i in range(len(grades)):
     for j in range(len(grades)):
-        ax.text(j, i, f"{r[i, j]:.2f}", ha="center", va="center", color="white" if r[i, j] > 0.6 else INK)
+        ax.text(j, i, f"{r[i, j]:.2f}", ha="center", va="center", color=INK if r[i, j] > 0.4 else "white")
 ax.set_xticks(range(len(grades)), grades)
 ax.set_yticks(range(len(grades)), grades)
 ax.spines[:].set_visible(False)

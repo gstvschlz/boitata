@@ -1,11 +1,12 @@
 """Plots on matplotlib (``pip install ceres[plot]``).
 
-Every function draws on `ax` when given, else on a new figure, and returns ``(fig, ax)``.
+Every function draws on `ax` when given, else on a new figure, and returns ``(fig, ax)``; `scatter_matrix` takes
+and returns a grid of `axes` instead.
 """
 
 import numpy as np
 
-from ceres._ceres import describe, normal_ppf
+from ceres._ceres import correlation, describe, normal_ppf
 
 __all__ = [
     "boxplot",
@@ -14,6 +15,7 @@ __all__ = [
     "probability",
     "qq",
     "scatter",
+    "scatter_matrix",
     "section",
     "slab",
     "swath",
@@ -284,6 +286,89 @@ def scatter(x, y, line=True, ax=None, **kwargs):
             label=f"slope {slope:.2f}",
         )
     return fig, ax
+
+
+def scatter_matrix(data, labels=None, weights=None, log=False, bins=30, axes=None, **kwargs):
+    """Pairwise scatters of the columns of `data`, with their histograms on the diagonal.
+
+    Each scatter is annotated with the Pearson (``r``) and rank correlation of its pair, weighted by `weights` and
+    over the rows where both values are present, as ``ceres.correlation`` computes them.
+
+    Parameters
+    ----------
+    data : array_like, mapping or Table
+        ``(n, d)`` values, or ``d`` named columns; NaN is ignored pair by pair.
+    labels : list of str, optional
+        Column names; default the mapping keys or the column indices.
+    weights : array_like, optional
+        Declustering weights, used by the histograms and the correlations.
+    log : bool or sequence of bool
+        Log axes and bins, for every column or per column; non-positive values are then ignored.
+    bins : int
+        Number of histogram bins.
+    axes : array of Axes, optional
+        ``(d, d)`` axes to draw on; default a new figure.
+    **kwargs
+        Passed to every ``ax.scatter``.
+
+    Returns
+    -------
+    fig : Figure
+    axes : ndarray of Axes
+        ``(d, d)``; ``axes[i, j]`` has column ``j`` across and column ``i`` up.
+    """
+    if hasattr(data, "column_names") or hasattr(data, "keys"):
+        names = list(data.column_names) if hasattr(data, "column_names") else list(data.keys())
+        labels = names if labels is None else labels
+        data = np.column_stack([np.asarray(data[k], dtype=float) for k in names])
+    data = np.array(data, dtype=float)
+    d = data.shape[1]
+    labels = [str(j) for j in range(d)] if labels is None else list(labels)
+    log = np.broadcast_to(log, d)
+    for j in np.flatnonzero(log):
+        data[data[:, j] <= 0, j] = np.nan
+    pearson = correlation(data, weights)
+    rank = correlation(data, weights, method="spearman")
+    if axes is None:
+        fig, _ = _axes(None)
+        fig.clear()
+        fig.set_size_inches(1.7 * d + 0.5, 1.7 * d + 0.3)
+        fig.set_layout_engine("constrained")
+        axes = fig.subplots(d, d, squeeze=False)
+    axes = np.asarray(axes)
+    fig = axes.flat[0].figure
+    limits = []
+    for j in range(d):
+        v = data[:, j][np.isfinite(data[:, j])]
+        lo, hi = (np.log10(v.min()), np.log10(v.max())) if log[j] else (v.min(), v.max())
+        pad = 0.04 * (hi - lo) or 0.5
+        limits.append(10.0 ** np.array([lo - pad, hi + pad]) if log[j] else np.array([lo - pad, hi + pad]))
+    kwargs.setdefault("s", 4)
+    kwargs.setdefault("alpha", 0.4)
+    kwargs.setdefault("linewidths", 0)
+    for i in range(d):
+        for j in range(d):
+            ax = axes[i, j]
+            ax.set_xscale("log" if log[j] else "linear")
+            ax.set_yscale("log" if log[i] else "linear")
+            if i == j:
+                edges = np.geomspace(*limits[j], bins + 1) if log[j] else np.linspace(*limits[j], bins + 1)
+                bars = ax.twinx()
+                histogram(data[:, j], weights, bins=edges, log=log[j], ax=bars)
+                bars.set_ylim(bottom=0)
+                bars.yaxis.set_visible(False)
+                bars.spines[:].set_visible(False)
+            else:
+                ax.scatter(data[:, j], data[:, i], **kwargs)
+                text = f"r {pearson[i, j]:.2f}\nrank {rank[i, j]:.2f}"
+                box = {"facecolor": "white", "alpha": 0.8, "edgecolor": "none", "pad": 1}
+                ax.text(0.04, 0.96, text, transform=ax.transAxes, ha="left", va="top", fontsize=7, bbox=box)
+            ax.set_xlim(limits[j])
+            ax.set_ylim(limits[i])
+            ax.tick_params(labelbottom=i == d - 1, labelleft=j == 0)
+        axes[-1, i].set_xlabel(labels[i])
+        axes[i, 0].set_ylabel(labels[i])
+    return fig, axes
 
 
 def section(

@@ -1,12 +1,17 @@
 use std::sync::Arc;
 
+use arrow_array::cast::AsArray;
+use arrow_array::types::Float64Type;
 use arrow_array::{ArrayRef, Float64Array, RecordBatch, StringArray, UInt64Array};
-use eda::{Along, Direction, Method, Profile};
+use arrow_schema::DataType;
+use ceres_core::PointSet;
+use eda::{Along, Direction, Merge, Method, Profile};
+use pyo3::IntoPyObjectExt;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 
 use crate::args::{array1, array2, floats, holes, rows};
-use crate::containers::coords_arg;
+use crate::containers::{PyPointSet, coords_arg};
 use crate::invalid;
 use crate::table::Table;
 
@@ -446,7 +451,152 @@ fn correlation<'py>(
     Ok(array2(py, &r).into_any())
 }
 
+/// Samples at most `tolerance` apart, grouped, and optionally merged.
+///
+/// Grouping is transitive: samples further apart share a group when a chain of
+/// close samples links them. Groups are numbered by their first row.
+///
+/// Parameters
+/// ----------
+/// points : PointSet or array_like
+///     Samples, or their ``(n, 2)`` or ``(n, 3)`` coordinates.
+/// tolerance : float
+///     Largest distance between duplicates; 0 groups samples at exactly the
+///     same location.
+/// merge : {"mean", "first", "max"}, optional
+///     Merge each group into one sample at its first sample's location; needs
+///     a PointSet. Numeric columns become float: ``mean`` is weighted by
+///     `weights` (by count without), ``max`` is each column's own maximum,
+///     both skipping nulls; ``first`` is the first sample's value. Other
+///     columns take the first sample's value.
+/// weights : array_like, optional
+///     Weights of ``merge="mean"``, e.g. composite lengths.
+///
+/// Returns
+/// -------
+/// report : Table
+///     Without `merge`: one row per group, ``group``, ``n`` samples, ``x``,
+///     ``y``, ``z`` of the first sample and ``spread``, the largest distance
+///     from it.
+/// group : ndarray of int64
+///     Without `merge`: the group of each sample, -1 for samples alone.
+/// merged : PointSet
+///     With `merge`, instead: the samples alone and one per group, in row
+///     order, with an ``n`` column counting the samples merged into each.
+#[pyfunction]
+#[pyo3(signature = (points, tolerance=0.0, merge=None, weights=None))]
+fn duplicates<'py>(
+    py: Python<'py>,
+    points: &Bound<'py, PyAny>,
+    tolerance: f64,
+    merge: Option<&str>,
+    weights: Option<&Bound<PyAny>>,
+) -> PyResult<Bound<'py, PyAny>> {
+    let set = points.cast::<PyPointSet>().ok().map(|p| p.get().0.clone());
+    let coords = match &set {
+        Some(p) => p.coords().to_vec(),
+        None => coords_arg(points)?,
+    };
+    let n = coords.len();
+    let groups = eda::duplicates(&coords, tolerance).map_err(invalid)?;
+    let Some(merge) = merge else {
+        if weights.is_some() {
+            return Err(invalid("weights are only used with merge='mean'"));
+        }
+        let mut group = vec![-1i64; n];
+        for (k, g) in groups.iter().enumerate() {
+            g.iter().for_each(|&i| group[i] = k as i64);
+        }
+        let first = |c: usize| -> ArrayRef {
+            Arc::new(Float64Array::from_iter_values(
+                groups.iter().map(|g| coords[g[0]][c]),
+            ))
+        };
+        let spread = groups.iter().map(|g| {
+            g.iter()
+                .map(|&i| {
+                    (0..3)
+                        .map(|c| (coords[i][c] - coords[g[0]][c]).powi(2))
+                        .sum::<f64>()
+                })
+                .fold(0.0, f64::max)
+                .sqrt()
+        });
+        let report = RecordBatch::try_from_iter([
+            (
+                "group",
+                Arc::new(UInt64Array::from_iter_values(0..groups.len() as u64)) as ArrayRef,
+            ),
+            (
+                "n",
+                Arc::new(UInt64Array::from_iter_values(
+                    groups.iter().map(|g| g.len() as u64),
+                )),
+            ),
+            ("x", first(0)),
+            ("y", first(1)),
+            ("z", first(2)),
+            ("spread", Arc::new(Float64Array::from_iter_values(spread))),
+        ])
+        .map_err(invalid)?;
+        let group = numpy::PyArray1::from_vec(py, group);
+        return (Table(report), group).into_bound_py_any(py);
+    };
+    let rule = match merge {
+        "mean" => Merge::Mean,
+        "first" => Merge::First,
+        "max" => Merge::Max,
+        _ => return Err(invalid("merge must be 'mean', 'first' or 'max'")),
+    };
+    let set = set.ok_or_else(|| invalid("merge needs a PointSet"))?;
+    let w = optional_floats(weights, "weights")?;
+    if w.is_some() && rule != Merge::Mean {
+        return Err(invalid("weights are only used with merge='mean'"));
+    }
+    let batch = set.attributes();
+    if batch.column_by_name("n").is_some() {
+        return Err(invalid("points already have a column 'n'"));
+    }
+    let mut dropped = vec![false; n];
+    let mut count = vec![1u64; n];
+    for g in &groups {
+        g[1..].iter().for_each(|&i| dropped[i] = true);
+        count[g[0]] = g.len() as u64;
+    }
+    let keep: Vec<u64> = (0..n as u64).filter(|&i| !dropped[i as usize]).collect();
+    let take = UInt64Array::from(keep.clone());
+    let mut columns: Vec<(String, ArrayRef)> = Vec::new();
+    for (field, column) in batch.schema().fields().iter().zip(batch.columns()) {
+        let merged: ArrayRef = if field.data_type().is_numeric() {
+            let column = arrow_cast::cast(column, &DataType::Float64).map_err(invalid)?;
+            let values: Vec<f64> = column
+                .as_primitive::<Float64Type>()
+                .iter()
+                .map(|v| v.unwrap_or(f64::NAN))
+                .collect();
+            let merged = eda::merge_duplicates(&values, &groups, rule, w.as_deref())
+                .map_err(|e| invalid(format!("column {}: {e}", field.name())))?;
+            nullable(merged)
+        } else {
+            arrow_select::take::take(column, &take, None).map_err(invalid)?
+        };
+        columns.push((field.name().clone(), merged));
+    }
+    columns.push((
+        "n".into(),
+        Arc::new(UInt64Array::from_iter_values(
+            keep.iter().map(|&i| count[i as usize]),
+        )),
+    ));
+    let attributes = RecordBatch::try_from_iter(columns).map_err(invalid)?;
+    let coords = keep.iter().map(|&i| coords[i as usize]).collect();
+    let mut merged = PointSet::new(coords, attributes).map_err(invalid)?;
+    merged.crs = set.crs.clone();
+    PyPointSet(merged).into_bound_py_any(py)
+}
+
 pub fn register(m: &Bound<PyModule>) -> PyResult<()> {
+    m.add_function(wrap_pyfunction!(duplicates, m)?)?;
     m.add_function(wrap_pyfunction!(describe, m)?)?;
     m.add_function(wrap_pyfunction!(describe_by, m)?)?;
     m.add_function(wrap_pyfunction!(grade_tonnage, m)?)?;

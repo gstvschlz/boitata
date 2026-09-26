@@ -1083,6 +1083,18 @@ def h_scatter(
 def correlation(
     data: ArrayLike, weights: ArrayLike | None = None, method: str = "pearson"
 ) -> npt.NDArray[np.float64]: ...
+@overload
+def duplicates(
+    points: PointSet | ArrayLike, tolerance: float = 0.0, merge: None = None, weights: None = None
+) -> tuple[Table, npt.NDArray[np.int64]]: ...
+@overload
+def duplicates(
+    points: PointSet,
+    tolerance: float = 0.0,
+    *,
+    merge: Literal["mean", "first", "max"],
+    weights: ArrayLike | None = None,
+) -> PointSet: ...
 def smooth_classes(
     model: BlockModel,
     classes: ArrayLike,
