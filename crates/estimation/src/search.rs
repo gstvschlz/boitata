@@ -34,6 +34,18 @@ pub struct Search {
     /// Search ellipsoid; without it the variogram's anisotropy is used.
     #[serde(default)]
     pub anisotropy: Option<Anisotropy>,
+    /// Samples above a threshold only inform targets within a smaller radius.
+    #[serde(default)]
+    pub high_grade: Option<HighGrade>,
+}
+
+/// Samples valued above `threshold` are used only within `radius`, measured in
+/// the same ellipsoid as [`Search::radius`]. `threshold` is in data units;
+/// simulators working on normal scores convert it through their transform.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct HighGrade {
+    pub threshold: f64,
+    pub radius: f64,
 }
 
 impl Default for Search {
@@ -45,7 +57,15 @@ impl Default for Search {
             max_per_hole: None,
             octant: false,
             anisotropy: None,
+            high_grade: None,
         }
+    }
+}
+
+impl Search {
+    fn excludes(&self, value: f64, distance: f64) -> bool {
+        self.high_grade
+            .is_some_and(|h| value > h.threshold && distance > h.radius)
     }
 }
 
@@ -134,7 +154,7 @@ pub fn neighbors(
             };
             (i, d)
         })
-        .filter(|(_, d)| *d <= params.radius)
+        .filter(|&(i, d)| d <= params.radius && !params.excludes(samples[i].value, d))
         .collect();
     cand.sort_by(|a, b| a.1.total_cmp(&b.1));
     let chosen = select(
@@ -158,6 +178,7 @@ pub struct SearchTree {
     points: Vec<[f64; 3]>,
     locs: Vec<Point>,
     holes: Vec<Option<u32>>,
+    values: Vec<f64>,
     params: Search,
 }
 
@@ -291,6 +312,7 @@ impl SearchTree {
             points: vec![],
             locs: samples.iter().map(|s| s.loc).collect(),
             holes: samples.iter().map(|s| s.hole).collect(),
+            values: samples.iter().map(|s| s.value).collect(),
             params: params.clone(),
         };
         tree.points = tree.locs.iter().map(|p| tree.project(p)).collect();
@@ -310,6 +332,7 @@ impl SearchTree {
         self.points.push(point);
         self.locs.push(sample.loc);
         self.holes.push(sample.hole);
+        self.values.push(sample.value);
         if !self.index.add(&point, item) {
             self.index = Index::build(&self.points);
         }
@@ -362,7 +385,7 @@ impl SearchTree {
             .candidates(&query, self.len(), radius2)
             .into_iter()
             .map(|(_, i)| (local.lag(target, &self.locs[i]), i))
-            .filter(|(d, _)| *d <= params.radius)
+            .filter(|&(d, i)| d <= params.radius && !params.excludes(self.values[i], d))
             .collect();
         found.sort_by(|a, b| a.0.total_cmp(&b.0).then(a.1.cmp(&b.1)));
         let chosen = select(
@@ -381,7 +404,7 @@ impl SearchTree {
         if self.is_empty() || params.max_samples == 0 {
             return enough(vec![], params);
         }
-        let capped = params.octant || params.max_per_hole.is_some();
+        let capped = params.octant || params.max_per_hole.is_some() || params.high_grade.is_some();
         let query = self.project(target);
         let radius2 = params.radius * params.radius;
         let mut k = if capped {
@@ -396,7 +419,13 @@ impl SearchTree {
             let exhausted = found.len() < k || k == self.len();
             let chosen = select(
                 target,
-                found.into_iter().map(|f| f.1),
+                found
+                    .into_iter()
+                    .filter(|&(_, i)| {
+                        let d2: f64 = (0..3).map(|d| (self.points[i][d] - query[d]).powi(2)).sum();
+                        !params.excludes(self.values[i], d2.sqrt())
+                    })
+                    .map(|f| f.1),
                 |i| self.locs[i],
                 |i| self.holes[i],
                 params,
@@ -487,7 +516,7 @@ mod tests {
                 let loc = (next() * 1000.0, next() * 1000.0, next() * 100.0);
                 Sample {
                     loc,
-                    value: 0.0,
+                    value: (i % 10) as f64,
                     hole: Some((i / 20) as u32),
                 }
             })
@@ -509,6 +538,10 @@ mod tests {
             },
             Search {
                 max_per_hole: Some(3),
+                high_grade: Some(HighGrade {
+                    threshold: 7.0,
+                    radius: 40.0,
+                }),
                 anisotropy: Some(aniso),
                 ..params(1, 12, 150.0)
             },

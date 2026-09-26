@@ -356,6 +356,7 @@ class Search:
         max_per_hole: int | None = None,
         rotation: tuple[float, float, float] | None = None,
         ratios: tuple[float, float] | None = None,
+        high_grade: tuple[float, float] | None = None,
     ) -> None: ...
     @property
     def radius(self) -> float: ...
@@ -366,7 +367,11 @@ class Search:
 
 class _Estimator:
     def __init__(
-        self, method: str, search: Search, variogram: Variogram | None = None, **options: Any
+        self,
+        method: str,
+        search: Search | Sequence[Search],
+        variogram: Variogram | None = None,
+        **options: Any,
     ) -> None: ...
     def fit(self, coords: ArrayLike, values: ArrayLike, holes: Holes | None = None) -> _Estimator: ...
     @property

@@ -67,6 +67,41 @@ def test_cross_validation_summary():
     assert np.isfinite(cv.standardized_squared_error)
 
 
+def test_search_passes_fill_what_earlier_passes_left():
+    grid = np.column_stack([np.repeat(np.arange(0, 150, 5.0), 30), np.tile(np.arange(0, 150, 5.0), 30)])
+    tight, wide = cs.Search(radius=10, min_samples=4), cs.Search(radius=80, min_samples=2)
+    first = cs.OrdinaryKriging(model, tight).fit(coords, values).predict(grid)
+    second = cs.OrdinaryKriging(model, wide).fit(coords, values).predict(grid)
+    ok = cs.OrdinaryKriging(model, [tight, wide]).fit(coords, values)
+    d = ok.predict(grid, diagnostics=True)
+    np.testing.assert_array_equal(
+        d["pass"], np.where(np.isfinite(first), 1.0, np.where(np.isfinite(second), 2.0, np.nan))
+    )
+    np.testing.assert_array_equal(d["value"], np.where(np.isfinite(first), first, second))
+    assert {1.0, 2.0} <= set(d["pass"][np.isfinite(d["pass"])])
+    assert np.isfinite(ok.cross_validate().estimate).all()
+    with pytest.raises(ValueError):
+        cs.OrdinaryKriging(model, [])
+
+
+def test_high_grade_restriction():
+    grid = rng.uniform(0, 100, (300, 2))
+    plain = cs.OrdinaryKriging(model, search).fit(coords, values)
+    wide = cs.OrdinaryKriging(model, cs.Search(radius=50, high_grade=(1.0, 50))).fit(coords, values)
+    np.testing.assert_array_equal(plain.predict(grid), wide.predict(grid))
+    np.testing.assert_array_equal(plain.cross_validate().estimate, wide.cross_validate().estimate)
+    capped = cs.OrdinaryKriging(model, cs.Search(radius=50, high_grade=(1.0, 5))).fit(coords, values)
+    assert not np.array_equal(plain.predict(grid), capped.predict(grid))
+    assert not np.array_equal(plain.cross_validate().estimate, capped.cross_validate().estimate)
+    far = np.array([[500.0, 500.0]])
+    lone = cs.NearestNeighbor(cs.Search(radius=1000, max_samples=1, high_grade=(1.0, 5))).fit(
+        [[1, 1], [0, 0]], [2.0, 0.5]
+    )
+    assert lone.predict(far)[0] == 0.5
+    with pytest.raises(ValueError):
+        cs.Search(radius=50, high_grade=(1.0, -1))
+
+
 def test_targets_from_containers():
     ok = cs.OrdinaryKriging(model, search).fit(coords, values)
     grid = cs.BlockModel(origin=(0, 0), size=(10, 10), count=(10, 10))
@@ -140,7 +175,7 @@ def test_diagnostics_classification_and_smoothing():
     grid = cs.BlockModel(origin=(0, 0), size=(10, 10), count=(10, 10))
     ok = cs.OrdinaryKriging(cs.Variogram([("spherical", 1.0, 40.0)]), cs.Search(radius=60, max_samples=12))
     d = ok.fit(xy, v).predict(grid, diagnostics=True)
-    assert set(d) == {"value", "variance", "efficiency", "slope", "n_samples"}
+    assert set(d) == {"value", "variance", "efficiency", "slope", "n_samples", "pass"}
     assert np.all(d["slope"] > 0) and np.all(d["efficiency"] <= 1 + 1e-9)
     at_data = ok.predict(xy[:3], diagnostics=True)
     np.testing.assert_allclose(at_data["slope"], 1.0)

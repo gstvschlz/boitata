@@ -17,7 +17,7 @@ use rand::SeedableRng;
 use rand::rngs::StdRng;
 use rand::seq::SliceRandom;
 use rand_distr::{Distribution, Normal};
-use transforms::normal_score;
+use transforms::{NormalScoreTable, normal_score};
 use variogram::Variogram;
 
 /// SGS parameters.
@@ -61,6 +61,7 @@ pub fn sgs(
     // 1. Normal-score transform.
     let ns = normal_score::transform(data_vals, data_weights)
         .map_err(|e| SimError::Transform(e.to_string()))?;
+    let search = &in_scores(&params.search, &ns.table);
 
     // Conditioning set (grows as nodes are simulated).
     let mut cond: Vec<Sample> = data_locs
@@ -82,11 +83,11 @@ pub fn sgs(
             &cond,
             &Search {
                 anisotropy: None,
-                ..params.search.clone()
+                ..search.clone()
             },
             None,
         ),
-        None => SearchTree::new(&cond, &params.search, Some(vg_nscore)),
+        None => SearchTree::new(&cond, search, Some(vg_nscore)),
     };
 
     // 2. Random path over grid nodes.
@@ -144,6 +145,21 @@ pub fn sgs(
     Ok(Realization { values })
 }
 
+/// `search` with its high-grade threshold moved from data values to normal
+/// scores: a score is above it exactly when its data value is above the
+/// threshold, ties included.
+fn in_scores(search: &Search, table: &NormalScoreTable) -> Search {
+    let mut search = search.clone();
+    if let Some(h) = &mut search.high_grade {
+        let last = table.values.partition_point(|v| *v <= h.threshold);
+        h.threshold = match last.checked_sub(1) {
+            Some(i) if table.values[i] == h.threshold => table.scores[i],
+            _ => table.forward(h.threshold),
+        };
+    }
+    search
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -170,6 +186,7 @@ mod tests {
                 max_per_hole: None,
                 octant: false,
                 anisotropy: None,
+                high_grade: None,
             },
             seed: 42,
         };
@@ -196,6 +213,7 @@ mod tests {
                 max_per_hole: None,
                 octant: false,
                 anisotropy: None,
+                high_grade: None,
             },
             seed: 7,
         };
@@ -218,6 +236,7 @@ mod tests {
                 max_per_hole: None,
                 octant: false,
                 anisotropy: None,
+                high_grade: None,
             },
             seed,
         };
@@ -299,6 +318,7 @@ mod tests {
                 max_per_hole: None,
                 octant: false,
                 anisotropy: None,
+                high_grade: None,
             },
             seed: 4,
         };
@@ -327,6 +347,51 @@ mod tests {
             sgs(data_locs, data_vals, None, grid, vg, &params, None).map(|r| r.values)
         })
         .unwrap()
+    }
+
+    #[test]
+    fn a_grade_threshold_selects_the_same_samples_as_in_estimation() {
+        let locs: Vec<_> = (0..300)
+            .map(|i| ((i * 37 % 101) as f64, (i * 53 % 97) as f64, (i % 7) as f64))
+            .collect();
+        let vals: Vec<f64> = (0..300).map(|i| ((i * 29 % 23) as f64).powf(1.5)).collect();
+        let weights: Vec<f64> = (0..300).map(|i| 1.0 + (i % 5) as f64).collect();
+        let ns = normal_score::transform(&vals, Some(&weights)).unwrap();
+        let vg = Variogram::single(Model::Spherical, 1.0, 40.0);
+        let grades: Vec<Sample> = locs
+            .iter()
+            .zip(&vals)
+            .map(|(&l, &v)| Sample::new(l, v))
+            .collect();
+        let scores: Vec<Sample> = locs
+            .iter()
+            .zip(&ns.scores)
+            .map(|(&l, &v)| Sample::new(l, v))
+            .collect();
+        let mut thresholds = vec![-1.0, 20.0, 50.0, 1e3];
+        thresholds.extend(vals.iter().step_by(7));
+        for threshold in thresholds {
+            let search = Search {
+                min_samples: 1,
+                max_samples: 12,
+                radius: 30.0,
+                high_grade: Some(estimation::HighGrade {
+                    threshold,
+                    radius: 8.0,
+                }),
+                ..Default::default()
+            };
+            let scored = in_scores(&search, &ns.table);
+            let cut = scored.high_grade.unwrap().threshold;
+            for (v, z) in vals.iter().zip(&ns.scores) {
+                assert_eq!(*v > threshold, *z > cut);
+            }
+            let by_grade = SearchTree::new(&grades, &search, Some(&vg));
+            let by_score = SearchTree::new(&scores, &scored, Some(&vg));
+            for t in (0..200).map(|i| ((i * 13 % 100) as f64, (i * 31 % 100) as f64, 3.0)) {
+                assert_eq!(by_grade.neighbors(&t).ok(), by_score.neighbors(&t).ok());
+            }
+        }
     }
 
     #[test]

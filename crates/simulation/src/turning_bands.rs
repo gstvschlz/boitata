@@ -272,6 +272,15 @@ fn condition(
         .collect()
 }
 
+/// The data as search samples: neighbours are chosen, and high-grade
+/// thresholds compared, on the data values rather than the residuals.
+fn data(locs: &[(f64, f64, f64)], values: &[f64]) -> Vec<Sample> {
+    locs.iter()
+        .zip(values)
+        .map(|(&loc, &v)| Sample::new(loc, v))
+        .collect()
+}
+
 fn residuals(data_locs: &[(f64, f64, f64)], gaussian_data: &[f64], at_data: &[f64]) -> Vec<Sample> {
     data_locs
         .iter()
@@ -312,7 +321,7 @@ pub fn conditional_gaussian_field(
     let (lo, hi) = bounds(&[data_locs, grid].concat());
     let bands = Bands::new(lo, hi, vg, params, rng);
     let residuals = residuals(data_locs, gaussian_data, &bands.field(data_locs));
-    let tree = SearchTree::new(&residuals, &params.search, Some(vg));
+    let tree = SearchTree::new(&data(data_locs, gaussian_data), &params.search, Some(vg));
     condition(grid, bands.field(grid), &residuals, &tree, vg)
 }
 
@@ -362,11 +371,7 @@ impl TurningBandsEnsemble {
                 (bands, residuals)
             })
             .unzip();
-        let tree = SearchTree::new(
-            &residuals.first().cloned().unwrap_or_default(),
-            &params.search,
-            Some(vg_nscore),
-        );
+        let tree = SearchTree::new(&data(data_locs, data_vals), &params.search, Some(vg_nscore));
         Ok(Self {
             table: ns.table,
             bands,
