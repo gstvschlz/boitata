@@ -45,7 +45,8 @@ def test_qq_of_a_sample_against_itself_is_on_the_diagonal():
     w = np.where(v > np.median(v), 3.0, 1.0)
     _, ax = cs.plot.qq(v, v, y_weights=w, quantiles=[0.25, 0.5, 0.75])
     x, y = ax.lines[0].get_data()
-    np.testing.assert_allclose(y, cs.describe(v, w, quantiles=[0.25, 0.5, 0.75])["quantiles"])
+    s = cs.describe(v, weights=w, quantiles=[0.25, 0.5, 0.75])
+    np.testing.assert_allclose(y, [s["P25"], s["P50"], s["P75"]])
     assert np.all(y > x)
 
 
@@ -54,15 +55,15 @@ def test_boxplot_quartiles_are_describe_quantiles():
     domain = np.where(np.arange(300) < 100, "b", "a")
     w = rng.uniform(0.5, 2.0, 300)
     _, ax = cs.plot.boxplot(v, domain, weights=w, sort=True)
-    stats = [cs.describe(v[domain == d], w[domain == d]) for d in ("a", "b")]
-    order = np.argsort([s["quantiles"][2] for s in stats])
+    stats = [cs.describe(v[domain == d], weights=w[domain == d]) for d in ("a", "b")]
+    order = np.argsort([s["P50"] for s in stats])
     for box, i in zip(ax.patches, order, strict=True):
         y = box.get_path().vertices[:, 1]
-        assert (y.min(), y.max()) == pytest.approx(tuple(stats[i]["quantiles"][[1, 3]]))
+        assert (y.min(), y.max()) == pytest.approx((stats[i]["P25"], stats[i]["P75"]))
     labels = [t.get_text() for t in ax.get_xticklabels()]
     assert labels[order.tolist().index(0)] == "a\nn = 200"
     _, ax = cs.plot.boxplot(v, domain)
-    assert ax.patches[0].get_path().vertices[:, 1].max() != pytest.approx(stats[0]["quantiles"][3])
+    assert ax.patches[0].get_path().vertices[:, 1].max() != pytest.approx(stats[0]["P75"])
 
 
 def test_variogram_with_anisotropic_model():
@@ -173,7 +174,8 @@ def test_probability_draws_the_cap():
 def test_probability_fences_are_tukeys():
     v = rng.normal(10, 1, 2000)
     _, ax = cs.plot.probability(v, fences=1.5)
-    q1, q3 = cs.describe(v, quantiles=[0.25, 0.75])["quantiles"]
+    s = cs.describe(v, quantiles=[0.25, 0.75])
+    q1, q3 = s["P25"], s["P75"]
     low, high = (line.get_xdata()[0] for line in ax.lines[1:])
     assert (low, high) == pytest.approx((q1 - 1.5 * (q3 - q1), q3 + 1.5 * (q3 - q1)))
     assert ax.lines[2].get_label() == f"fence {high:.3g}, {np.sum(v > high)} beyond"
@@ -184,7 +186,7 @@ def test_probability_fences_are_tukeys():
 def test_stats_box_writes_describe():
     v = rng.lognormal(0, 1, 300)
     w = rng.uniform(0.5, 2.0, 300)
-    s = cs.describe(v, w)
+    s = cs.describe(v, weights=w)
     _, ax = cs.plot.histogram(v, w, stats=True)
     assert f"mean {s['mean']:.3g}" in " ".join(ax.texts[0].get_text().split())
     _, ax = cs.plot.cdf([v, v], weights=[None, w], labels=["naive", "declustered"], stats=True)
@@ -243,8 +245,8 @@ def test_scatter_matrix_annotates_correlations_and_weights_histograms():
     assert axes[1, 0].get_xscale() == "log" and axes[1, 0].get_yscale() == "log"
     assert axes[2, 2].get_xscale() == "linear"
     columns = np.column_stack([x, y, z])
-    r = cs.correlation(columns, w)
-    rank = cs.correlation(columns, w, method="spearman")
+    r = cs.correlation(columns, weights=w)
+    rank = cs.correlation(columns, weights=w, method="spearman")
     assert axes[1, 0].texts[0].get_text() == f"r {r[1, 0]:.2f}\nrank {rank[1, 0]:.2f}"
     bars = [a for a in fig.axes if not any(a is b for b in axes.flat)]
     np.testing.assert_allclose([sum(p.get_height() for p in b.patches) for b in bars], [1.0] * 3)

@@ -75,14 +75,17 @@ pub fn named<'py>(
         if !e.is_instance_of::<pyo3::exceptions::PyKeyError>(data.py()) {
             return unnamed();
         }
-        let table = data.getattr("attributes").unwrap_or_else(|_| data.clone());
-        let columns = table
-            .getattr("column_names")
-            .or_else(|_| table.call_method0("keys"))
-            .and_then(|c| c.try_iter()?.map(|n| n?.extract()).collect())
-            .unwrap_or_default();
-        crate::table::missing(name, columns)
+        crate::table::missing(name, column_names(data).unwrap_or_default())
     })
+}
+
+/// The column names of a container, a Table or a mapping.
+pub fn column_names(data: &Bound<PyAny>) -> PyResult<Vec<String>> {
+    let table = data.getattr("attributes").unwrap_or_else(|_| data.clone());
+    table
+        .getattr("column_names")
+        .or_else(|_| table.call_method0("keys"))
+        .and_then(|c| c.try_iter()?.map(|n| n?.extract()).collect())
 }
 
 /// `arg`, or the column of `data` it names.

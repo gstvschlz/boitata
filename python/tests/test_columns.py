@@ -82,3 +82,58 @@ def test_filter_and_with_columns_round_trip():
     assert graded.attributes.column_names == ["d", "g"]
     with pytest.raises(cs.InvalidInput):
         model.with_columns({"g": [1.0]})
+
+
+rock = np.array(["ox", "na", "fr"] * 10)
+labeled = points.with_columns({"rock": rock, "w": np.linspace(1, 2, 30)})
+
+
+def test_statistics_take_names_of_data():
+    v, w = points["v"], labeled["w"]
+    assert cs.describe("v", weights="w", data=labeled) == cs.describe(v, weights=w)
+    by_name = cs.describe_by("v", "rock", weights="w", data=labeled)
+    by_array = cs.describe_by(v, rock, weights=w)
+    assert all(np.array_equal(by_name[c], by_array[c]) for c in ("n", "mean", "P50"))
+    assert np.array_equal(cs.capping("v", data=points)["mean"], cs.capping(v)["mean"])
+    assert cs.describe("d", data=model)["n"] == 6
+    by_name = cs.correlation(labeled, columns=["v", "w"], weights="w")
+    assert np.array_equal(by_name, cs.correlation(np.c_[v, w], weights=w))
+    assert cs.correlation({"a": v, "b": 2 * v}).shape == (2, 2)
+    assert np.array_equal(cs.h_scatter(points, "v", 20.0, 10.0)[0], cs.h_scatter(xyz, v, 20.0, 10.0)[0])
+    with pytest.raises(cs.MissingColumn):
+        cs.describe("x", data=points)
+
+
+def test_domains_or_domain_column():
+    caps = {"ox": 1.5}
+    by_name = cs.capping_report("v", caps, domain_column="rock", data=labeled)
+    by_array = cs.capping_report(points["v"], caps, domains=rock)
+    assert np.array_equal(by_name["mean_capped"], by_array["mean_capped"])
+    down = np.c_[np.zeros(30), np.zeros(30), np.tile(np.arange(10.0), 3)]
+    side = np.where(np.arange(30) % 10 < 5, "a", "b")
+    hole = np.repeat(np.arange(3), 10)
+    holes = cs.PointSet(down, {"v": points["v"], "side": side, "hole": hole})
+    kw = {"inside": "a", "outside": "b", "max_distance": 20.0, "bin": 2.0}
+    c = cs.contact(holes, "v", domain_column="side", holes="hole", **kw)
+    assert np.array_equal(c["mean"], cs.contact(down, points["v"], domains=side, holes=hole, **kw)["mean"])
+    for bad in ({}, {"domains": rock, "domain_column": "rock"}):
+        with pytest.raises(cs.InvalidInput, match="one of domains or domain_column"):
+            cs.capping_report("v", caps, data=labeled, **bad)
+
+
+def test_defaulted_options_are_keyword_only():
+    v = points["v"]
+    for call in (
+        lambda: cs.describe(v, None),
+        lambda: cs.describe_by(v, rock, None),
+        lambda: cs.capping(v, None),
+        lambda: cs.capping_report(v, {}, rock),
+        lambda: cs.h_scatter(xyz, v, 1.0, 0.5, 90.0),
+        lambda: cs.correlation(xyz, None),
+        lambda: cs.duplicates(xyz, 0.5),
+        lambda: cs.data_spacing(xyz, 2),
+        lambda: cs.pairs(xyz, xyz, 1.0, "v"),
+        lambda: cs.contact(xyz, v, rock, rock, "ox", "fr", 1.0, 1.0),
+    ):
+        with pytest.raises(TypeError):
+            call()
