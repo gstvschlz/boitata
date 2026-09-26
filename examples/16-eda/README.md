@@ -9,7 +9,7 @@ correlations on the 2 m composites of the drillhole dataset. Every function skip
 import ceres as cs
 import matplotlib.pyplot as plt
 import numpy as np
-from common import ACCENT, GREY, HIGHLIGHT, INK, map_axes, save
+from common import ACCENT, GRAY, HIGHLIGHT, INK, map_axes, save
 ```
 
 </details>
@@ -165,7 +165,7 @@ q.set(title="Q-Q, DD-PC pairs", xlabel="DD Zn (%)", ylabel="PC Zn (%)")
 cs.plot.scatter(p["value_a"], p["value_b"], ax=s, color=ACCENT)
 s.set(title="Scatter, DD-PC pairs", xlabel="DD Zn (%)", ylabel="PC Zn (%)")
 s.legend(loc="upper left")
-m.scatter(*xyz[dd_rows, :2].T, s=4, color=GREY, label="paired DD composites")
+m.scatter(*xyz[dd_rows, :2].T, s=4, color=GRAY, label="paired DD composites")
 m.scatter(
     *xyz[dd_rows[worst], :2].T, s=30, facecolors="none", edgecolors=HIGHLIGHT, label="5 largest differences"
 )
@@ -364,7 +364,7 @@ less selective than composites; [chapter 9](../09-change-of-support/README.md) m
 ```python
 cutoffs = np.linspace(0, 30, 61)
 fig, (a, b) = plt.subplots(1, 2, figsize=(9, 3.6), layout="constrained")
-for w, color, label in ((None, GREY, "naive"), (weights[ms], ACCENT, "declustered")):
+for w, color, label in ((None, GRAY, "naive"), (weights[ms], ACCENT, "declustered")):
     gt = cs.grade_tonnage(zn[ms], cutoffs, w)
     a.plot(cutoffs, gt["tonnage"] / gt["tonnage"][0], color=color, label=label)
     b.plot(cutoffs, gt["mean_grade"], color=color)
@@ -392,7 +392,7 @@ the case for a soft boundary ([chapter 20](../20-workflow/README.md)).
 fig, axes = plt.subplots(1, 2, figsize=(9, 3.4), layout="constrained", sharey=True)
 for ax, other in zip(axes, ["RH", "SM"], strict=True):
     c = cs.contact(xyz, zn, lith, hole, "MS", other, max_distance=30.0, bin=2.0)
-    ax.axvline(0, color=GREY, lw=0.8, ls="--")
+    ax.axvline(0, color=GRAY, lw=0.8, ls="--")
     ax.plot(c["distance"], c["mean"], color=ACCENT, lw=1)
     ax.scatter(c["distance"], c["mean"], s=np.sqrt(c["count"]), color=ACCENT)
     ax.text(-15, 13, "inside MS", color=INK, ha="center")
@@ -457,7 +457,7 @@ save(fig, "categories")
 
 The spacing of the drilling is read between holes, not along them: each hole's MS intercept stands at the mean
 location of its MS composites, and `data_spacing(..., horizontal=True)` measures, in plan, the distance from each
-intercept to its nearest neighbour. The same call with `targets=` a block model gives the spacing at every block,
+intercept to its nearest neighbor. The same call with `targets=` a block model gives the spacing at every block,
 a common basis for resource classification.
 
 <details><summary>Python</summary>
@@ -467,7 +467,7 @@ in_ms = lith == "MS"
 names, which = np.unique(hole[in_ms], return_inverse=True)
 intercepts = np.column_stack([np.bincount(which, xyz[in_ms, k]) / np.bincount(which) for k in range(3)])
 spacing = cs.data_spacing(intercepts, horizontal=True)
-print(f"{len(names)} MS intercepts, nearest neighbour in plan: median {np.median(spacing):.0f} m, ", end="")
+print(f"{len(names)} MS intercepts, nearest neighbor in plan: median {np.median(spacing):.0f} m, ", end="")
 print(f"P90 {np.percentile(spacing, 90):.0f} m")
 fig, (a, b) = plt.subplots(1, 2, figsize=(10, 4), layout="constrained", width_ratios=[1.4, 1])
 drawn = a.scatter(*intercepts[:, :2].T, c=spacing, s=8, cmap="cividis_r", vmax=np.percentile(spacing, 95))
@@ -483,7 +483,7 @@ save(fig, "spacing")
 </details>
 
 ```text
-772 MS intercepts, nearest neighbour in plan: median 4 m, P90 16 m
+772 MS intercepts, nearest neighbor in plan: median 4 m, P90 16 m
 ```
 
 ![spacing](spacing.png)
@@ -532,7 +532,7 @@ save(fig, "scatter_matrix")
 ![scatter_matrix](scatter_matrix.png)
 
 Not every composite is assayed for every grade, and each correlation only uses the composites where both grades
-are. `plot.completeness` counts the composites by the number of grades present, the complete ones in colour: Au is
+are. `plot.completeness` counts the composites by the number of grades present, the complete ones in color: Au is
 assayed in only half of them, so the correlations with Au rest on half the data.
 
 <details><summary>Python</summary>

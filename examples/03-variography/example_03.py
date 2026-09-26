@@ -17,7 +17,7 @@ sys.path.insert(0, str(HERE.parent))
 import ceres as cs
 import matplotlib.pyplot as plt
 import numpy as np
-from common import ACCENT, GREY, HIGHLIGHT, INK, save
+from common import ACCENT, GRAY, HIGHLIGHT, INK, save
 
 samples = cs.datasets.walker_lake()
 xy, v = samples.coords, samples["V"]
@@ -94,7 +94,7 @@ a.set_title("Variogram map (γ / variance)")
 fig.colorbar(mesh, ax=a, shrink=0.7, label="γ / sample variance")
 
 b = fig.add_subplot(1, 2, 2)
-for exp, color, az, rng in ((major, ACCENT, azimuth, a_major), (minor, GREY, azimuth + 90, a_minor)):
+for exp, color, az, rng in ((major, ACCENT, azimuth, a_major), (minor, GRAY, azimuth + 90, a_minor)):
     cs.plot.variogram(
         exp, model, direction=(az, 0), ax=b, color=color, label=f"N{az % 360:.0f}° experimental"
     )
@@ -135,7 +135,7 @@ print(joint)
 # %%
 fig, ax = plt.subplots(figsize=(6, 3.4), layout="constrained")
 origin = np.zeros((h.size, 3))
-for exp, color, az in ((major, ACCENT, azimuth), (minor, GREY, azimuth + 90)):
+for exp, color, az in ((major, ACCENT, azimuth), (minor, GRAY, azimuth + 90)):
     cs.plot.variogram(
         exp, model, direction=(az, 0), ax=ax, color=color, label=f"N{az % 360:.0f}° (solid: major/minor fit)"
     )
@@ -161,7 +161,7 @@ styles = {"matheron": "-", "covariance": "--", "correlogram": "-.", "pairwise-re
 for name, style in styles.items():
     exp = cs.experimental_variogram(xy, v, lag, max_lag, azimuth=azimuth, estimator=name, standardize=True)
     ax.plot(exp.lags, exp.gammas, style, color=ACCENT if name == "matheron" else INK, label=name)
-ax.axhline(1, color=GREY, lw=0.8)
+ax.axhline(1, color=GRAY, lw=0.8)
 ax.set_xlim(0, max_lag)
 ax.set_ylim(bottom=0)
 ax.set_title("Standardized estimators, major axis")
@@ -212,7 +212,7 @@ for length in lengths:
 
 # %%
 fig, (a, b) = plt.subplots(1, 2, figsize=(9.2, 3.4), layout="constrained")
-for domain, color in (("MS", ACCENT), ("RH", GREY)):
+for domain, color in (("MS", ACCENT), ("RH", GRAY)):
     exp = downhole[domain, 1.0]
     a.plot(exp.lags, exp.gammas, "o-", color=color, ms=3, label=domain)
     a.plot([0, exp.lags[0]], [exp.nugget(), exp.gammas[0]], ":", color=color)
@@ -220,7 +220,7 @@ for domain, color in (("MS", ACCENT), ("RH", GREY)):
 a.set(xlim=(0, 10), ylim=(0, None), xlabel="Downhole lag (m)", ylabel="standardized γ(h)")
 a.set_title("Downhole variograms, 1 m composites")
 a.legend(loc="lower right")
-for domain, color in zip(domains, (ACCENT, HIGHLIGHT, INK, GREY)):
+for domain, color in zip(domains, (ACCENT, HIGHLIGHT, INK, GRAY)):
     b.plot(lengths, [nuggets[domain, length] for length in lengths], "o-", color=color, ms=4, label=domain)
 b.set(xticks=lengths, ylim=(0, None), xlabel="Composite length (m)", ylabel="nugget / variance")
 b.set_title("Extrapolated nugget by domain")

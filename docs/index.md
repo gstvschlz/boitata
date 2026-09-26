@@ -49,11 +49,11 @@ Geostatistics in Rust with a Python interface. Parallel, and the same result on 
 
     SGS, SIS and turning bands, with reproducible realizations from a single seed.
 
--   :material-layers-triple-outline: **Modelling and validation**
+-   :material-layers-triple-outline: **Modeling and validation**
 
     ---
 
-    Desurveying, compositing, domaining, implicit modelling and checks of estimates against the data.
+    Desurveying, compositing, domaining, implicit modeling and checks of estimates against the data.
 
 </div>
 

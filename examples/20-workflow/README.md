@@ -1,7 +1,7 @@
 # 20. From drill holes to a classified model
 
 One pass through a resource workflow on the massive sulphide (`MS`) lens of [chapter 19](../19-geological-model/README.md):
-composites from the drill-hole CSVs, the lens modelled from its contacts and kept within the drilling, exploratory
+composites from the drill-hole CSVs, the lens modeled from its contacts and kept within the drilling, exploratory
 statistics, declustering, the normal-score variogram, ordinary kriging in search passes and across a soft boundary,
 block-support simulation for risk, across the same boundary, classification, and the model saved to Parquet.
 
@@ -13,7 +13,7 @@ import tempfile
 import ceres as cs
 import matplotlib.pyplot as plt
 import numpy as np
-from common import ACCENT, GREY, HIGHLIGHT, LIGHT, save
+from common import ACCENT, GRAY, HIGHLIGHT, LIGHT, save
 ```
 
 </details>
@@ -147,7 +147,7 @@ for cap, fraction, removed in zip(caps["cap"], caps["fraction"], caps["metal_rem
     print(f"cap {cap:5.1f} % Zn: {fraction:5.1%} of composites cut, {removed:5.1%} of the metal removed")
 
 fig, (a, b) = plt.subplots(1, 2, figsize=(9, 3.4), layout="constrained")
-cs.plot.histogram(zn, weights, bins=np.arange(0, 44, 2), ax=a, color=LIGHT, edgecolor=GREY)
+cs.plot.histogram(zn, weights, bins=np.arange(0, 44, 2), ax=a, color=LIGHT, edgecolor=GRAY)
 a.set(xlabel="Zn (%)", title="Declustered histogram")
 cs.plot.probability(zn[zn > 0], weights[zn > 0], log=True, ax=b, color=ACCENT, ms=3)
 b.set(xlabel="Zn (%)", title="Probability plot")
@@ -280,7 +280,7 @@ def binned(d, v):
 fig, ax = plt.subplots(figsize=(6, 3.4), layout="constrained")
 ax.axvspan(0, 10, color=LIGHT, lw=0)
 mean, n = binned(contact_ms, zn)
-ax.scatter(middle, mean, s=n, color=GREY, label="MS composites, sized by count")
+ax.scatter(middle, mean, s=n, color=GRAY, label="MS composites, sized by count")
 for name, color, label in (("hard", ACCENT, "hard boundary"), ("soft", HIGHLIGHT, "soft within 10 m")):
     ax.plot(middle, binned(distance, by_rule[name]["value"])[0], color=color, label=f"blocks, {label}")
 ax.set(xlabel="Distance to the nearest SM composite (m)", ylabel="Mean Zn (%)", title="MS grade near SM")
@@ -362,7 +362,7 @@ own, with its own declustering weights, and every node is back-transformed throu
 normal-score variogram serves both. Here every node is `MS`, so the hard boundary again gives the simulation above,
 bit for bit. With `soft=10.0`, `SM` composites within 10 m of a node inform it, as in kriging, and so would `SM`
 nodes already simulated had any been asked for. They enter by their grade, normal-scored through the `MS` table:
-the node is `MS`, so its neighbours are read as `MS` grades.
+the node is `MS`, so its neighbors are read as `MS` grades.
 
 <details><summary>Python</summary>
 
@@ -430,7 +430,7 @@ turning bands, soft: mean 9.39 % Zn, 8.72 % within 10 m of SM, 9.68 % elsewhere
 
 Near `SM` the soft boundary lowers the block grade from 9.35 to 8.72 % Zn, close to what it does in SGS. Farther in
 the lens barely moves, 9.71 against 9.68 %: turning bands conditions on composites only, as kriging does, so only
-the nodes within 10 m of an `SM` composite see it, and a few of them sit in blocks whose centre lies farther away.
+the nodes within 10 m of an `SM` composite see it, and a few of them sit in blocks whose center lies farther away.
 
 ## Classification
 
@@ -498,8 +498,8 @@ Most intercepts give a hole one composite in the lens, so a block near two holes
 slope sees that and the distance does not. Rules can combine both, as in chapter 18.
 
 On the east–west section through the middle of the lens, the simulated block grade is drawn with
-`plot.uncertain`: the mean of the realizations sets the colour and their standard deviation, over the spread of
-all simulated blocks, fades it to white. Blocks along the holes keep their colour; the western ones, informed
+`plot.uncertain`: the mean of the realizations sets the color and their standard deviation, over the spread of
+all simulated blocks, fades it to white. Blocks along the holes keep their color; the western ones, informed
 only by composites off the section, fade almost to white, and are the inferred ones.
 
 <details><summary>Python</summary>

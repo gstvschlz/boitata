@@ -2,7 +2,7 @@
 # 21. Models larger than memory
 
 A block model can stay in a Parquet file and be processed a chunk at a time, so its size is limited by the disk, not
-by memory. Here the zinc of the drill-hole dataset is modelled on 2 m blocks inside the convex hull of the composites
+by memory. Here the zinc of the drill-hole dataset is modeled on 2 m blocks inside the convex hull of the composites
 — ten million blocks — kriged and simulated without ever holding more than a million of them.
 """
 
@@ -83,8 +83,8 @@ fitted = cs.experimental_variogram(xyz, scores, 10.0, 150.0).fit("spherical")
 sill = fitted.nugget + fitted.structures[0].sill
 reach = fitted.structures[0].range
 gaussian = cs.Variogram([("spherical", fitted.structures[0].sill / sill, reach)], nugget=fitted.nugget / sill)
-neighbourhood = cs.Search(radius=reach, max_samples=16)
-scoring = cs.SimpleKriging(gaussian, neighbourhood).fit(xyz, scores, holes=holes)
+neighborhood = cs.Search(radius=reach, max_samples=16)
+scoring = cs.SimpleKriging(gaussian, neighborhood).fit(xyz, scores, holes=holes)
 
 
 def estimate(chunk):
@@ -102,7 +102,7 @@ print(f"kriged in {time.perf_counter() - start:.1f} s")
 # plus each realization's global statistics.
 
 # %%
-bands = cs.TurningBands(gaussian, bands=100, search=neighbourhood)
+bands = cs.TurningBands(gaussian, bands=100, search=neighborhood)
 bands.fit(xyz, zn, weights=weights, holes=holes)
 start = time.perf_counter()
 result = bands.simulate_to_parquet(
@@ -144,9 +144,9 @@ print(
 # The output is too big to want in memory, so the east–west section with the most composites is collected from the
 # chunks, reading only the columns it needs. Near the holes the simulations follow the data; beyond the variogram
 # range kriging leaves blocks unestimated while each realization draws from the declustered histogram. `plot.uncertain`
-# shows both at once: the mean of the realizations sets the colour and the normal-score kriging variance fades it
+# shows both at once: the mean of the realizations sets the color and the normal-score kriging variance fades it
 # to white, so beyond the range of every composite the section is blank. The fan is its legend — the value across,
-# certainty from the centre out.
+# certainty from the center out.
 
 # %%
 row = int(np.bincount(((xyz[:, 1] - origin[1]) // 2).astype(int), minlength=ny).argmax())

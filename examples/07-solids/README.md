@@ -11,7 +11,7 @@ import tempfile
 import ceres as cs
 import matplotlib.pyplot as plt
 import numpy as np
-from common import ACCENT, GREY, HIGHLIGHT, LIGHT, save
+from common import ACCENT, GRAY, HIGHLIGHT, LIGHT, save
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 ```
 
@@ -111,7 +111,7 @@ fig = plt.figure(figsize=(12, 5), layout="constrained")
 a = fig.add_subplot(1, 2, 1)
 cs.plot.section(blocks, "inside", axis="z", index=k, colorbar=False, vmin=0, vmax=1, ax=a)
 cs.plot.slab(
-    xyz[local][~inside], plane=bench, thickness=size, s=6, color=GREY, label="composite outside", ax=a
+    xyz[local][~inside], plane=bench, thickness=size, s=6, color=GRAY, label="composite outside", ax=a
 )
 cs.plot.slab(
     xyz[local][inside],
@@ -132,7 +132,7 @@ shell = cs.block_shell(ore)
 b.add_collection3d(
     Poly3DCollection(shell.vertices[shell.triangles], facecolor=ACCENT, edgecolor="none", alpha=0.35)
 )
-b.plot_trisurf(*vertices.T, triangles=triangles, color=LIGHT, edgecolor=GREY, linewidth=0.1, alpha=0.15)
+b.plot_trisurf(*vertices.T, triangles=triangles, color=LIGHT, edgecolor=GRAY, linewidth=0.1, alpha=0.15)
 b.set(xlim=(lo[0], hi[0]), ylim=(lo[1], hi[1]), zlim=(lo[2], hi[2]))
 b.set_box_aspect(np.array(hi) - lo)
 b.set_title(f"{len(ore)} blocks more than half inside (shell)")
@@ -149,8 +149,8 @@ save(fig, "solid")
 
 Whole blocks misstate the volume near the wireframe. `subblock` takes `(mesh, rule, label)` domains in priority
 order and splits the blocks a mesh cuts on a regular sub-grid: each sub-cell takes the label of the first domain
-holding its centre, and the sub-cells of a block merge along x, then y. Blocks the mesh does not cut stay whole.
-Each sub-block stores its parent cell and its extent as fractions of that cell. Counting centres gets the total
+holding its center, and the sub-cells of a block merge along x, then y. Blocks the mesh does not cut stay whole.
+Each sub-block stores its parent cell and its extent as fractions of that cell. Counting centers gets the total
 volume nearly right at any sub-grid, as errors on either side cancel; what a finer sub-grid shrinks is the volume
 in the wrong place, sub-blocks outside the mesh plus mesh outside the sub-blocks, measured with `Mesh.proportion`:
 
@@ -252,7 +252,7 @@ min_fraction 0.5: 840 blocks, 6,085,438 m3 at 3.61% Zn
 ```
 
 Meshes read and write OBJ, STL and DXF, chosen by extension. STL stores single precision, so vertices move by
-less than a millimetre at these coordinates:
+less than a millimeter at these coordinates:
 
 <details><summary>Python</summary>
 

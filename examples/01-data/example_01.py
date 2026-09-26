@@ -3,7 +3,7 @@
 
 Walker Lake: 470 samples of `V` (ppm) over a 260 × 300 m area whose exhaustive values are known.
 `cs.datasets` downloads it once and checks its SHA-256; `save` writes a figure next to this page;
-colours and fonts come from [`common.py`](../common.py).
+colors and fonts come from [`common.py`](../common.py).
 """
 
 # %% [hidden]
@@ -17,7 +17,7 @@ sys.path.insert(0, str(HERE.parent))
 import ceres as cs
 import matplotlib.pyplot as plt
 import numpy as np
-from common import ACCENT, GREY, INK, map_axes, save
+from common import ACCENT, GRAY, INK, map_axes, save
 from matplotlib.colors import PowerNorm
 
 samples = cs.datasets.walker_lake()
@@ -46,7 +46,7 @@ save(fig, "maps")
 # %% [markdown]
 # Cell declustering weights each sample by the inverse of the number of samples in its cell.
 # Scanning cell sizes, each averaged over 25 grid offsets, and keeping the size with the lowest mean
-# corrects for sampling that favours high values.
+# corrects for sampling that favors high values.
 
 # %%
 d = cs.cell_declustering(samples.coords, v, sizes=np.arange(2.5, 102.5, 2.5))
@@ -74,7 +74,7 @@ ax.hist(
     bins,
     weights=np.full(v.size, 1 / v.size),
     histtype="step",
-    color=GREY,
+    color=GRAY,
     lw=1.4,
     label="samples, equal weights",
 )

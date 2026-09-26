@@ -1,8 +1,8 @@
-# 19. Geological modelling
+# 19. Geological modeling
 
-[Chapter 15](../15-implicit/README.md) modelled a grade shell. A geological unit is modelled from where the drill
+[Chapter 15](../15-implicit/README.md) modeled a grade shell. A geological unit is modeled from where the drill
 holes cross its contacts, and from structural readings where the rock is measured. Here the massive sulphide
-(`MS`) of the drillhole dataset is modelled from its logged contacts with three engines, then a synthetic fold
+(`MS`) of the drillhole dataset is modeled from its logged contacts with three engines, then a synthetic fold
 shows what plane and lineation readings add and how the field's gradient returns the dip. Last, both become
 sub-blocked domain models.
 
@@ -12,7 +12,7 @@ sub-blocked domain models.
 import ceres as cs
 import matplotlib.pyplot as plt
 import numpy as np
-from common import ACCENT, GREY, HIGHLIGHT, INK, LIGHT, save
+from common import ACCENT, GRAY, HIGHLIGHT, INK, LIGHT, save
 ```
 
 </details>
@@ -96,8 +96,8 @@ kriging, cubic:  99.9% of coded points on their side, 12.6% of the window is MS
 GP noise variance 0.77, signal variance 0.31
 ```
 
-Kriging and the RBF honour every contact and all but a few coded points, yet with a cubic covariance kriging
-calls about ten times more of the window `MS`: the smooth cubic overshoots between codes a metre apart and grows bodies
+Kriging and the RBF honor every contact and all but a few coded points, yet with a cubic covariance kriging
+calls about ten times more of the window `MS`: the smooth cubic overshoots between codes a meter apart and grows bodies
 away from the holes. The spherical covariance, rougher at the origin, does not, and agrees with the RBF. The GP
 explains most of the codes as noise, so its field is a smooth trend that misses more than a quarter of them; its
 standard deviation still shows where the model rests on data and where it does not. On an east–west section
@@ -126,7 +126,7 @@ axes[2].set_title("GP standard deviation")
 fig.colorbar(sd, ax=axes[2], shrink=0.8)
 for ax in axes:
     cs.plot.slab(
-        xyz[~ms], plane=plane, thickness=20, s=3, color=GREY, linewidths=0, label="other rock", ax=ax
+        xyz[~ms], plane=plane, thickness=20, s=3, color=GRAY, linewidths=0, label="other rock", ax=ax
     )
     cs.plot.slab(xyz[ms], plane=plane, thickness=20, s=5, color=HIGHLIGHT, linewidths=0, label="MS", ax=ax)
     cs.plot.slab(
@@ -157,7 +157,7 @@ Drill holes give contacts at a few places; mapping and oriented core give the di
 A synthetic fold, `z = 100 + 30 sin(2πx / 400)` with its axis north–south, is known exactly. Five holes pierce it,
 twelve outcrops spread along it give its dip and dip direction, and fold-axis lineations (plunge 0, trend 0) are measured at six
 other places. Planes and lineations need the triharmonic kernel; one point above the surface sets which side is
-positive. `isosurface` extracts each modelled surface as a mesh, and `Mesh.vertical_distance` gives how far
+positive. `isosurface` extracts each modeled surface as a mesh, and `Mesh.vertical_distance` gives how far
 above it 400 points on the true surface lie: the elevation error over the whole fold. The same call flags blocks
 above or below topography.
 
@@ -229,7 +229,7 @@ only four planes, the lineations add the direction of the fold axis and improve 
 fig, ax = plt.subplots(figsize=(10, 3.6), layout="constrained")
 ax.plot(x, surface(x), color=INK, lw=2.2, label="true surface")
 for (name, depth), color, style in zip(
-    depths.items(), (GREY, ACCENT, HIGHLIGHT, HIGHLIGHT), ("--", "-", ":", "-"), strict=True
+    depths.items(), (GRAY, ACCENT, HIGHLIGHT, HIGHLIGHT), ("--", "-", ":", "-"), strict=True
 ):
     ax.plot(x, depth, color=color, ls=style, lw=1.2, label=name)
 ax.scatter(picks[:, 0], picks[:, 2], color=INK, zorder=3, s=18, label="hole pierce points (all northings)")
@@ -242,7 +242,7 @@ save(fig, "fold")
 
 ![fold](fold.png)
 
-The gradient of the field is normal to the surface, so `evaluate(..., gradient=True)` returns the modelled dip and
+The gradient of the field is normal to the surface, so `evaluate(..., gradient=True)` returns the modeled dip and
 dip direction anywhere, here against the truth at the 400 probe points of the twelve-plane model:
 
 <details><summary>Python</summary>
@@ -254,12 +254,12 @@ direction = np.degrees(np.arctan2(gradient[:, 0], gradient[:, 1])) % 360
 truth_dip, truth_direction = true_dip(probe)
 fig, (a, b) = plt.subplots(1, 2, figsize=(9, 3.8), layout="constrained")
 cs.plot.scatter(truth_dip, dip, line=False, ax=a, color=ACCENT)
-a.set(xlabel="True dip (°)", ylabel="Modelled dip (°)", title="Dip from the gradient")
+a.set(xlabel="True dip (°)", ylabel="Modeled dip (°)", title="Dip from the gradient")
 b.hist(
     np.abs((direction - truth_direction + 180) % 360 - 180),
     bins=np.arange(0, 32, 2),
     color=LIGHT,
-    edgecolor=GREY,
+    edgecolor=GRAY,
 )
 b.set(xlabel="Dip direction error (°)", ylabel="Probe points", title="Dip direction")
 save(fig, "dip")
@@ -272,10 +272,10 @@ save(fig, "dip")
 ## A domain block model
 
 `BlockModel.from_meshes` turns meshes into a sub-blocked model: `(mesh, rule, label)` domains in priority order,
-each sub-cell labelled by the first that holds its centre, `"inside"` a solid or `"below"` or `"above"` a surface
+each sub-cell labeled by the first that holds its center, `"inside"` a solid or `"below"` or `"above"` a surface
 such as topography. On 10 m blocks with 1 m sub-cells in elevation, the volume below the true fold and below the
 twelve-plane model. A surface given as a grid of elevations, the usual form of topography, is a 2D `BlockModel`
-with an elevation column; `grid_surface` triangulates it through the block centres, leaving holes where the
+with an elevation column; `grid_surface` triangulates it through the block centers, leaving holes where the
 elevation is missing. The true fold is such a grid at 5 m:
 
 <details><summary>Python</summary>
@@ -327,16 +327,16 @@ is_ms = np.array(units["domain"]) == "MS"
 units = units.with_column("ms", is_ms.astype(float))
 coarse = units.regularize(cs.BlockModel(origin=(5300, 8100, 650), size=(20, 20, 20), count=(10, 15, 15)))
 print(f"MS volume: mesh {lens.volume / 1e6:.3f} Mm3, sub-blocks {units.volumes[is_ms].sum() / 1e6:.3f} Mm3")
-labelled = coarse.volumes[np.array(coarse["domain"]) == "MS"].sum()
+labeled = coarse.volumes[np.array(coarse["domain"]) == "MS"].sum()
 proportion = (coarse.volumes * coarse["fraction"] * coarse["ms"]).sum()
-print(f"20 m blocks: labelled MS {labelled / 1e6:.3f} Mm3, MS proportion {proportion / 1e6:.3f} Mm3")
+print(f"20 m blocks: labeled MS {labeled / 1e6:.3f} Mm3, MS proportion {proportion / 1e6:.3f} Mm3")
 ```
 
 </details>
 
 ```text
 MS volume: mesh 0.119 Mm3, sub-blocks 0.118 Mm3
-20 m blocks: labelled MS 0.032 Mm3, MS proportion 0.118 Mm3
+20 m blocks: labeled MS 0.032 Mm3, MS proportion 0.118 Mm3
 ```
 
 Full script: [`example_19.py`](example_19.py)

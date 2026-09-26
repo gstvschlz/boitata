@@ -12,7 +12,7 @@ gaussian = cs.Variogram([("spherical", 1.0, 30.0)])
 grid = cs.BlockModel(origin=(0, 0), size=(5, 5), count=(20, 20))
 
 
-def test_sgs_is_reproducible_and_honours_data():
+def test_sgs_is_reproducible_and_honors_data():
     sgs = cs.SGS(gaussian, cs.Search(radius=40, max_samples=12)).fit(coords, values)
     a = sgs.simulate(grid, n=3, seed=7, realizations=True).realizations
     assert a.shape == (3, 400)
@@ -106,7 +106,7 @@ def test_plurigaussian_proportions():
     assert s.probabilities.shape == (3, 400) and set(np.unique(s.most_likely)) <= {0, 1, 2}
 
 
-def test_plurigaussian_hierarchy_honours_data_on_three_fields():
+def test_plurigaussian_hierarchy_honors_data_on_three_fields():
     facies = rng.choice(4, 60, p=[0.4, 0.3, 0.2, 0.1])
     rule = (0, [0, (1, [1, (2, [2, 3])])])
     pgs = cs.Plurigaussian([gaussian] * 3, proportions=[0.4, 0.3, 0.2, 0.1], rule=rule).fit(coords, facies)
@@ -181,7 +181,7 @@ def trended_samples():
     return xy, np.exp(1.5 * trend + 0.5 * r.normal(size=400)), trend
 
 
-def test_simulation_with_a_trend_follows_it_and_honours_data():
+def test_simulation_with_a_trend_follows_it_and_honors_data():
     xy, z, trend = trended_samples()
     search = cs.Search(radius=30, max_samples=12)
     node_trend = grid.centroids[:, 0] / 100
@@ -246,7 +246,7 @@ def test_simulators_with_a_trend_save_and_load_it(tmp_path):
             np.testing.assert_array_equal(got, want)
 
 
-def test_multivariate_simulation_reproduces_correlation_and_honours_data():
+def test_multivariate_simulation_reproduces_correlation_and_honors_data():
     g = rng.standard_normal((60, 2))
     data = np.exp(np.column_stack([g[:, 0], 0.8 * g[:, 0] + 0.6 * g[:, 1]]))
     search = cs.Search(radius=40, max_samples=12)

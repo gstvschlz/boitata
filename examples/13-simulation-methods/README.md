@@ -46,8 +46,8 @@ for name, reals, seconds in (("SGS", by_sgs, sgs_seconds), ("turning bands", by_
 </details>
 
 ```text
-          SGS: 20 realizations in 0.05 s, mean 299 ppm, variance 72174 ppm²
-turning bands: 20 realizations in 0.10 s, mean 289 ppm, variance 61368 ppm²
+          SGS: 20 realizations in 0.08 s, mean 299 ppm, variance 72174 ppm²
+turning bands: 20 realizations in 0.13 s, mean 289 ppm, variance 61368 ppm²
 ```
 
 <details><summary>Python</summary>
@@ -153,9 +153,9 @@ real geology. SIS krigs, at each node, the probability of every rock type from i
 a Gaussian field at thresholds set by the proportions, which orders the types. A hierarchical `rule` truncates
 several fields in turn: here the first sets Quaternary cover apart from the Jurassic, and the second orders the
 Jurassic stages from Argovian to Portlandian, so the cover may touch every stage but each stage touches only the
-next. A `Categories` scheme names the rock types and gives each a colour: `encode` turns labels into the codes 0
+next. A `Categories` scheme names the rock types and gives each a color: `encode` turns labels into the codes 0
 to 4 that the simulations take, `shares` gives their proportions, and `plot.category_colors` and
-`plot.category_legend` draw the codes in the scheme's colours.
+`plot.category_legend` draw the codes in the scheme's colors.
 
 <details><summary>Python</summary>
 
@@ -239,7 +239,7 @@ save(fig, "categories")
 ![categories](categories.png)
 
 SIS gives each type its own indicator variogram and matches the true type at half the nodes. Ordered PGS reproduces
-the proportions closely, but its rule only allows contacts between neighbours in the order, so Portlandian appears
+the proportions closely, but its rule only allows contacts between neighbors in the order, so Portlandian appears
 as specks along every Sequanian-Quaternary contact. The hierarchical rule puts Portlandian next to Kimmeridgian and
 under the cover, as in the true map, and matches about as many nodes as SIS. None recovers Portlandian's 5 % of the
 area from 3 of 259 samples.
@@ -303,7 +303,7 @@ ones; Portlandian, with 3 samples, is left out.
 <details><summary>Python</summary>
 
 ```python
-from common import ACCENT, GREY
+from common import ACCENT, GRAY
 
 experimental = [
     cs.experimental_variogram(train.coords, (rock == k).astype(float), 0.1, 1.5)
@@ -335,8 +335,8 @@ PGS rule, local proportions, fitted: 59% of nodes match the true rock type
 h = np.linspace(0, 1.5, 61)
 fig, axes = plt.subplots(1, 4, figsize=(13, 3.4), layout="constrained", sharey=True)
 for ax, k in zip(axes, [k for k in range(5) if experimental[k] is not None]):
-    ax.plot(experimental[k].lags, experimental[k].gammas, "o", color=GREY, ms=4, label="experimental")
-    ax.plot(h, guessed.indicator_variograms(h)[k], "--", color=GREY, label="guessed ranges")
+    ax.plot(experimental[k].lags, experimental[k].gammas, "o", color=GRAY, ms=4, label="experimental")
+    ax.plot(h, guessed.indicator_variograms(h)[k], "--", color=GRAY, label="guessed ranges")
     ax.plot(h, fitted.indicator_variograms(h)[k], color=ACCENT, label="fitted ranges")
     ax.set(title=names[k], xlabel="lag (km)")
 axes[0].set_ylabel("indicator semivariance")

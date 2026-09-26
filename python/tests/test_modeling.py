@@ -3,9 +3,9 @@ import numpy as np
 import pytest
 
 rng = np.random.default_rng(7)
-centre, radius = np.array([50.0, 50.0, 50.0]), 20.0
+center, radius = np.array([50.0, 50.0, 50.0]), 20.0
 coords = rng.uniform(10, 90, (300, 3))
-distance = np.linalg.norm(coords - centre, axis=1) - radius
+distance = np.linalg.norm(coords - center, axis=1) - radius
 
 
 def test_rbf_is_exact_at_data():
@@ -32,7 +32,7 @@ def test_sphere_isosurface_area():
     assert sphere.triangles.dtype == np.int64 and sphere.is_closed
     assert sphere.area == pytest.approx(4 * np.pi * radius**2, rel=0.02)
     assert abs(sphere.volume) == pytest.approx(4 / 3 * np.pi * radius**3, rel=0.03)
-    np.testing.assert_allclose(np.linalg.norm(sphere.vertices - centre, axis=1), radius, atol=0.5)
+    np.testing.assert_allclose(np.linalg.norm(sphere.vertices - center, axis=1), radius, atol=0.5)
 
     half = cs.BlockModel(origin=(0, 0, 50), size=(2, 2, 2), count=(50, 50, 25))
     assert model.isosurface(half).analysis["boundary_edges"] > 0

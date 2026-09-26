@@ -430,7 +430,7 @@ impl Variogram {
         Ok(array1(py, c).into_any())
     }
 
-    /// γ between paired rows of `a` and `b`, honouring anisotropy.
+    /// γ between paired rows of `a` and `b`, honoring anisotropy.
     fn gamma_between<'py>(
         &self,
         py: Python<'py>,
@@ -471,7 +471,7 @@ impl Variogram {
     }
 }
 
-/// Lag centres, semivariances and pair counts; ``covariances`` holds C(h)
+/// Lag centers, semivariances and pair counts; ``covariances`` holds C(h)
 /// for the covariance estimator, ρ(h) for the correlogram, and is None
 /// otherwise.
 #[pyclass(module = "ceres", name = "ExperimentalVariogram", frozen)]

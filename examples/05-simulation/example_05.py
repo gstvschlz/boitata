@@ -1,7 +1,7 @@
 """
 # 5. Sequential Gaussian simulation
 
-Kriging gives one smooth map. Simulation draws many maps that each honour the samples, the declustered histogram and
+Kriging gives one smooth map. Simulation draws many maps that each honor the samples, the declustered histogram and
 the variogram; together they measure uncertainty.
 """
 
@@ -16,7 +16,7 @@ sys.path.insert(0, str(HERE.parent))
 import ceres as cs
 import matplotlib.pyplot as plt
 import numpy as np
-from common import ACCENT, GREY, HIGHLIGHT, INK, LIGHT, map_axes, save
+from common import ACCENT, GRAY, HIGHLIGHT, INK, LIGHT, map_axes, save
 from matplotlib.colors import PowerNorm
 
 samples = cs.datasets.walker_lake()
@@ -138,7 +138,7 @@ b.plot(data_exp.lags, data_exp.gammas, "o", color=ACCENT, ms=4, label="normal sc
 h = np.linspace(0, max_lag, 200)
 b.plot(h, gaussian.gamma(h), color=HIGHLIGHT, lw=1.4, label="model")
 b.plot([], [], color=LIGHT, label="20 realizations")
-b.axhline(1.0, color=GREY, lw=0.8, ls="--")
+b.axhline(1.0, color=GRAY, lw=0.8, ls="--")
 b.set(xlim=(0, max_lag), ylim=(0, 1.4), xlabel="Lag distance (m)", ylabel="γ(h) of normal scores")
 b.set_title(f"Variogram reproduction, N{azimuth:.0f}°")
 b.legend(loc="lower right")

@@ -18,7 +18,7 @@ sys.path.insert(0, str(HERE.parent))
 import ceres as cs
 import matplotlib.pyplot as plt
 import numpy as np
-from common import ACCENT, GREY, LIGHT, fetch, save
+from common import ACCENT, GRAY, LIGHT, fetch, save
 
 data = cs.read_csv(fetch("geomet/porphyry_01/synthetic_drillholes.csv"))
 coords = np.column_stack([data["midx"], data["midy"], data["midz"]])
@@ -64,7 +64,7 @@ t = np.linspace(0, 2 * np.pi, 200)
 for ax, (name, f) in zip(axes[1:], factors.items()):
     ax.scatter(f[:, 0], f[:, 1], s=2, color=ACCENT, alpha=0.3, linewidths=0)
     for radius in (1, 2, 3):
-        ax.plot(radius * np.cos(t), radius * np.sin(t), color=GREY, lw=0.6)
+        ax.plot(radius * np.cos(t), radius * np.sin(t), color=GRAY, lw=0.6)
     ax.set(xlim=(-4.5, 4.5), ylim=(-4.5, 4.5), xlabel="f1", ylabel="f2", title=name, aspect="equal")
 save(fig, "factors")
 
@@ -100,7 +100,7 @@ print(f"{len(nodes.centroids)} nodes, 20 realizations")
 
 # %% [markdown]
 # Both keep the correlation, the only dependence a linear rotation carries. PPMT also keeps the declustered
-# histograms and honours the composites; PCA factors are not Gaussian, so simulating them as if they were shortens
+# histograms and honors the composites; PCA factors are not Gaussian, so simulating them as if they were shortens
 # the upper tails and sends high chalcocite and high tennantite together too often.
 
 

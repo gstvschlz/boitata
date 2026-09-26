@@ -1,1 +1,1 @@
-## 19. Geological modelling
+## 19. Geological modeling

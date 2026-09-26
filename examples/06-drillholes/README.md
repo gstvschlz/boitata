@@ -8,7 +8,7 @@
 import ceres as cs
 import matplotlib.pyplot as plt
 import numpy as np
-from common import ACCENT, GREY, INK, LIGHT, save
+from common import ACCENT, GRAY, INK, LIGHT, save
 from matplotlib.collections import LineCollection
 from matplotlib.colors import LogNorm
 ```
@@ -17,7 +17,7 @@ from matplotlib.colors import LogNorm
 
 The tables are checked before anything else. `check_drillholes` flags every record of the collar, survey and interval
 tables (duplicate ids, missing or sentinel values, from >= to, gaps, overlaps, angles out of range, depths past the
-hole length, holes missing from a table, abrupt survey deviation) and summarises each check. `fix_drillholes` then
+hole length, holes missing from a table, abrupt survey deviation) and summarizes each check. `fix_drillholes` then
 resolves them with one named rule per check; the log says what each rule changed. Overlapping assays keep the one
 that starts first. Gaps are unsampled core and stay.
 
@@ -202,7 +202,7 @@ raw_len = assay["TO"] - assay["FROM"]
 comp_len = composites["to"] - composites["from"]
 fig, (a, b) = plt.subplots(1, 2, figsize=(10, 3.6), layout="constrained")
 bins = np.arange(0, 6.25, 0.25)
-a.hist(np.clip(raw_len, 0, 6), bins, color=LIGHT, edgecolor=GREY, lw=0.5, label="assays")
+a.hist(np.clip(raw_len, 0, 6), bins, color=LIGHT, edgecolor=GRAY, lw=0.5, label="assays")
 a.hist(comp_len, bins, histtype="step", color=ACCENT, lw=1.6, label="composites")
 a.set(title="Interval lengths", xlabel="Length (m)", ylabel="Count")
 a.legend()
@@ -216,7 +216,7 @@ b.hist(
     logbins,
     weights=np.full(a_zn.size, 1 / a_zn.size),
     color=LIGHT,
-    edgecolor=GREY,
+    edgecolor=GRAY,
     lw=0.5,
     label=f"assays, CV {a_zn.std() / a_zn.mean():.2f}",
 )

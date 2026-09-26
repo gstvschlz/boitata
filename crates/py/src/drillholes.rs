@@ -266,7 +266,7 @@ impl Drillholes {
     /// Parameters
     /// ----------
     /// length : float or None
-    ///     Composite length in metres; None gives one composite per run of
+    ///     Composite length in meters; None gives one composite per run of
     ///     `domain`.
     /// grades : sequence of str
     ///     Numeric columns, averaged over the length that carries a value.

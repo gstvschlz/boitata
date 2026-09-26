@@ -18,7 +18,7 @@ use crate::invalid;
 use crate::persist::{self, Columns, Found, Tabular};
 use crate::variogram::Variogram;
 
-/// Neighbourhood: `radius` is in metres along the major axis of the
+/// Neighborhood: `radius` is in meters along the major axis of the
 /// search ellipsoid (`rotation` azimuth, dip, rake and `ratios` semi/major,
 /// minor/major), or of the variogram's anisotropy when no ellipsoid is given.
 /// `high_grade` `(threshold, radius)` lets samples above `threshold` inform
@@ -91,7 +91,7 @@ impl Search {
         match self.soft {
             Some(_) => Err(invalid(format!(
                 "{what} does not take domains; Search.soft works with SGS, TurningBands and the kriging, \
-                 inverse-distance, nearest-neighbour and interpolation estimators"
+                 inverse-distance, nearest-neighbor and interpolation estimators"
             ))),
             None => Ok(self.core),
         }
@@ -762,7 +762,7 @@ impl Estimator {
         Ok(slf)
     }
 
-    /// Estimates (NaN where too few neighbours); with `return_variance`, also
+    /// Estimates (NaN where too few neighbors); with `return_variance`, also
     /// the kriging variance, and with `diagnostics` a dict adding kriging
     /// efficiency, slope of regression, samples used, the search pass
     /// (1-based) that filled each target, holes used, mean distance to the
@@ -1071,7 +1071,7 @@ fn neighborhood_stats<'py>(
 /// n : int or sequence of int
 ///     Number of holes averaged; one per class.
 /// search : Search, optional
-///     Its ellipsoid sets the distance (metres along the major axis), and
+///     Its ellipsoid sets the distance (meters along the major axis), and
 ///     samples beyond its radius are ignored. Isotropic and unbounded if
 ///     omitted.
 /// domains : tuple of array_like, optional

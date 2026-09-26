@@ -398,7 +398,7 @@ fn resolved(search: &[Search], fitted: Option<&[Label]>) -> PyResult<Vec<estimat
     search.iter().map(|s| s.resolve(fitted)).collect()
 }
 
-/// Domain codes of `n` nodes labelled by `obj` in the `fitted` domains, for
+/// Domain codes of `n` nodes labeled by `obj` in the `fitted` domains, for
 /// `method`.
 fn node_domains(
     fitted: Option<&[Label]>,
@@ -465,7 +465,7 @@ fn of_realization(rows: &Option<Vec<Vec<u32>>>, k: usize) -> Option<&[u32]> {
 /// `search` is a Search, or a sequence of them as passes: each node takes
 /// the first that finds `min_samples` among the data, as kriging by passes
 /// does, or the last when none does, and is simulated from that pass's
-/// neighbours among the data and the nodes already simulated.
+/// neighbors among the data and the nodes already simulated.
 ///
 /// With `domains` at `fit`, each domain is transformed on its own, with the
 /// declustering weights and within its own trend classes, and its nodes are
@@ -779,9 +779,9 @@ impl TurningBands {
         crate::persist::from_state(<Self as pyo3::PyClass>::NAME, meta, columns)
     }
 
-    /// `bands` lines, each discretized every `step` metres along the major axis
+    /// `bands` lines, each discretized every `step` meters along the major axis
     /// (default: a fiftieth of the shortest range). `search` is the
-    /// neighbourhood of the conditioning kriging (default: the 32 nearest
+    /// neighborhood of the conditioning kriging (default: the 32 nearest
     /// data at any distance); a radius near the range skips nodes far from
     /// the data, where conditioning changes nothing. `classes` are the trend
     /// classes, as in SGS.
@@ -1141,7 +1141,7 @@ impl Sis {
 ///     Unit-sill variogram of each latent field, in field order.
 /// proportions : sequence of float, optional
 ///     Facies proportions. Alone, facies ``0..k`` are ordered along the first
-///     field, so each touches only its neighbours in that order.
+///     field, so each touches only its neighbors in that order.
 /// rule : int or tuple, optional
 ///     Hierarchical rule, with `proportions`: a facies, or ``(field,
 ///     [child, ...])``, which cuts `field` into one slice per child, in
@@ -1460,7 +1460,7 @@ impl Plurigaussian {
     }
 }
 
-/// One Gaussian draw at `coords` honouring `bounds` (`(n, 2)` lower/upper).
+/// One Gaussian draw at `coords` honoring `bounds` (`(n, 2)` lower/upper).
 #[pyfunction]
 #[pyo3(signature = (coords, bounds, variogram, iterations=200, burn_in=50, seed=1))]
 fn gibbs<'py>(
@@ -1490,13 +1490,13 @@ fn gibbs<'py>(
     Ok(array1(py, out).into_any())
 }
 
-/// Localised grades of selective blocks from their simulated realizations.
+/// Localized grades of selective blocks from their simulated realizations.
 ///
 /// Each panel pools the ``n`` realizations of the blocks it holds, sorts the
 /// pooled values, and gives its block ranked ``i`` the mean of the ``i``-th
 /// chunk of ``n`` sorted values. The blocks average to the pooled mean and
 /// reproduce the pooled grade-tonnage curve at tonnages ``k / blocks``,
-/// without a change-of-support model. Partial panels localise over the blocks
+/// without a change-of-support model. Partial panels localize over the blocks
 /// present.
 ///
 /// Parameters
@@ -1517,7 +1517,7 @@ fn gibbs<'py>(
 /// Returns
 /// -------
 /// BlockModel
-///     `smus` with the localised grades; null outside every panel.
+///     `smus` with the localized grades; null outside every panel.
 ///
 /// Raises
 /// ------

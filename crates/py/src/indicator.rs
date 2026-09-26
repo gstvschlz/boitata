@@ -50,7 +50,7 @@ fn diagnostic_columns(s: &CoreSummary) -> Option<Vec<(&'static str, &Vec<f64>)>>
 ///     One indicator variogram per threshold, or a single one shared by all
 ///     (median indicator kriging: one kriging system per target).
 /// search : Search or sequence of Search
-///     Neighbourhood shared by all thresholds; a sequence is searched in
+///     Neighborhood shared by all thresholds; a sequence is searched in
 ///     passes, each filling the targets the previous left unestimated. With
 ///     no ellipsoid, the median threshold's variogram orients it.
 /// thresholds : sequence of float
@@ -277,7 +277,7 @@ impl MultipleIndicatorKriging {
             ))
     }
 
-    /// Localised grades of the selective blocks nested in the panels.
+    /// Localized grades of the selective blocks nested in the panels.
     ///
     /// Each panel's point-support conditional distribution, kriged at its
     /// centroid or over the panel, takes an affine change of support to the selective blocks,
@@ -285,7 +285,7 @@ impl MultipleIndicatorKriging {
     /// blocks splits that distribution into ``n`` equal-probability bands, and
     /// its block ranked ``i`` gets the mean of band ``i``: the blocks average
     /// to the panel's E-type estimate and reproduce its selective-block
-    /// grade-tonnage curve at tonnages ``k / n``. Partial panels localise over
+    /// grade-tonnage curve at tonnages ``k / n``. Partial panels localize over
     /// the blocks present.
     ///
     /// Parameters
@@ -311,7 +311,7 @@ impl MultipleIndicatorKriging {
     /// Returns
     /// -------
     /// BlockModel
-    ///     `smus` with the localised grades; null in panels the search leaves
+    ///     `smus` with the localized grades; null in panels the search leaves
     ///     unestimated and outside every panel.
     ///
     /// Raises

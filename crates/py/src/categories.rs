@@ -15,7 +15,7 @@ use crate::invalid;
 /// names : sequence of str
 ///     Category names in code order.
 /// colors : sequence of str, optional
-///     One matplotlib colour per name; None picks them at plot time.
+///     One matplotlib color per name; None picks them at plot time.
 /// mapping : dict, optional
 ///     Raw label to name, many to one.
 /// other : str, optional

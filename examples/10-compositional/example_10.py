@@ -17,7 +17,7 @@ sys.path.insert(0, str(HERE.parent))
 import ceres as cs
 import matplotlib.pyplot as plt
 import numpy as np
-from common import ACCENT, GREY, INK, save
+from common import ACCENT, GRAY, INK, save
 
 data = cs.datasets.geomet()
 minerals = ["arcilla", "calcosina", "bornita", "calcopirita", "tenantita", "molibdenita", "pirita"]
@@ -59,7 +59,7 @@ for ax, (corr, labels, title) in zip(axes, panels):
     ax.set_yticks(range(len(labels)), labels, fontsize=7)
     ax.set_title(title)
     off = np.abs(corr[~np.eye(len(corr), dtype=bool)])
-    ax.set_xlabel(f"mean |r| off the diagonal {off.mean():.2f}", color=GREY)
+    ax.set_xlabel(f"mean |r| off the diagonal {off.mean():.2f}", color=GRAY)
 fig.colorbar(image, ax=axes, shrink=0.8, label="correlation")
 save(fig, "correlations")
 
@@ -74,7 +74,7 @@ a.set(xlabel="Chalcopyrite (%)", ylabel="Pyrite (%)", title="Two parts of the co
 b.scatter(gauss[:, 0], gauss[:, 1], s=3, color=ACCENT, alpha=0.3, linewidths=0)
 t = np.linspace(0, 2 * np.pi, 200)
 for radius in (1, 2, 3):
-    b.plot(radius * np.cos(t), radius * np.sin(t), color=GREY, lw=0.6)
+    b.plot(radius * np.cos(t), radius * np.sin(t), color=GRAY, lw=0.6)
 b.set_aspect("equal")
 b.set(xlabel="g1", ylabel="g2", title="PPMT output: standard bivariate normal")
 b.text(2.2, -3.3, "circles: 1, 2, 3 σ", color=INK, fontsize=8)

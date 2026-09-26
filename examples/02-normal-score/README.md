@@ -9,7 +9,7 @@ with the same cumulative probability, weighting samples by the declustering weig
 import ceres as cs
 import matplotlib.pyplot as plt
 import numpy as np
-from common import ACCENT, GREY, HIGHLIGHT, INK, LIGHT, save
+from common import ACCENT, GRAY, HIGHLIGHT, INK, LIGHT, save
 
 samples = cs.datasets.walker_lake()
 v = samples["V"]
@@ -60,7 +60,7 @@ fig.suptitle(
     x=0.01,
     ha="left",
     fontsize=9,
-    color=GREY,
+    color=GRAY,
 )
 save(fig, "quantile-mapping")
 ```
@@ -75,7 +75,7 @@ The skewed histogram of `V` becomes a standard Gaussian:
 
 ```python
 fig, (a, b) = plt.subplots(1, 2, figsize=(9, 3.4), layout="constrained")
-a.hist(v, np.linspace(0, 1600, 33), weights=w / w.sum(), color=LIGHT, edgecolor=GREY, lw=0.5)
+a.hist(v, np.linspace(0, 1600, 33), weights=w / w.sum(), color=LIGHT, edgecolor=GRAY, lw=0.5)
 a.set_title("V: positively skewed")
 a.set_xlabel("V (ppm)")
 a.set_ylabel("Proportion (declustered)")
@@ -85,7 +85,7 @@ b.hist(
     bins,
     weights=w / w.sum() / np.diff(bins)[0],
     color=LIGHT,
-    edgecolor=GREY,
+    edgecolor=GRAY,
     lw=0.5,
     label="normal scores",
 )

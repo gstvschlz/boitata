@@ -1,8 +1,8 @@
 """
-# 15. Implicit modelling
+# 15. Implicit modeling
 
 An implicit model fits a scalar field to the data and takes a surface as one of its level sets, instead of
-digitising outlines section by section. Here a Zn > 5 % shell is modelled from the composites of the cluster seen
+digitizing outlines section by section. Here a Zn > 5 % shell is modeled from the composites of the cluster seen
 in [chapter 7](../07-solids/README.md).
 """
 
@@ -19,7 +19,7 @@ warnings.filterwarnings("ignore", ".*locations hold several samples")
 import ceres as cs
 import matplotlib.pyplot as plt
 import numpy as np
-from common import ACCENT, GREY, HIGHLIGHT, LIGHT, save
+from common import ACCENT, GRAY, HIGHLIGHT, LIGHT, save
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 
 # %% [markdown]
@@ -69,7 +69,7 @@ for name, model in models.items():
     )
 
 # %% [markdown]
-# An east–west section through the high-grade composites. The RBF honours every code but bulges into undrilled
+# An east–west section through the high-grade composites. The RBF honors every code but bulges into undrilled
 # ground; the GP draws flat lenses along its learned ranges and leaves some isolated codes outside.
 
 # %%
@@ -82,7 +82,7 @@ fig, axes = plt.subplots(1, 2, figsize=(12, 5), layout="constrained", sharey=Tru
 for ax, (name, field) in zip(axes, fields.items()):
     ax.contourf(x, z, field[:, j, :], levels=[0, np.inf], colors=[LIGHT])
     ax.contour(x, z, field[:, j, :], levels=[0], colors=[ACCENT], linewidths=1.2)
-    for mask, color, label in ((indicator < 0, GREY, "Zn ≤ 5 %"), (indicator > 0, HIGHLIGHT, "Zn > 5 %")):
+    for mask, color, label in ((indicator < 0, GRAY, "Zn ≤ 5 %"), (indicator > 0, HIGHLIGHT, "Zn > 5 %")):
         cs.plot.slab(xyz[mask], plane=plane, thickness=20, s=8, color=color, label=label, ax=ax)
     ax.set_title(f"{name}, northing {northing:.0f} m")
 axes[1].set_ylabel("")

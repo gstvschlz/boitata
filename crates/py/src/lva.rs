@@ -19,7 +19,7 @@ fn err(e: estimation::EstimError) -> PyErr {
 pub struct LocalAnisotropy(pub Core);
 
 impl LocalAnisotropy {
-    /// This field transferred to `targets` by nearest neighbour.
+    /// This field transferred to `targets` by nearest neighbor.
     pub fn at_targets(&self, targets: &[Point]) -> Core {
         self.0.at(targets)
     }

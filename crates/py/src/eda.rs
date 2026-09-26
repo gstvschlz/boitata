@@ -344,7 +344,7 @@ fn block_tonnes(
 /// Returns
 /// -------
 /// dict
-///     ``centres``, ``mean`` (weighted by `weights`), ``count``, ``tonnage``
+///     ``center``, ``mean`` (weighted by `weights`), ``count``, ``tonnage``
 ///     and ``metal`` of the non-empty slices.
 #[pyfunction]
 #[pyo3(signature = (coords, values, width, azimuth=None, axis=None, weights=None, density=None))]
@@ -384,7 +384,7 @@ fn swath<'py>(
     )
     .map_err(invalid)?;
     let (tonnage, metal) = (p.tonnage.clone(), p.metal.clone());
-    let d = profile(py, p, "centres")?;
+    let d = profile(py, p, "center")?;
     d.set_item("tonnage", array1(py, tonnage))?;
     d.set_item("metal", array1(py, metal))?;
     Ok(d)
@@ -506,7 +506,7 @@ fn validate_model(
 /// Returns
 /// -------
 /// dict
-///     ``distance`` (bin centres), ``mean`` and ``count``.
+///     ``distance`` (bin centers), ``mean`` and ``count``.
 #[pyfunction]
 #[allow(clippy::too_many_arguments)]
 fn contact<'py>(
@@ -973,7 +973,7 @@ fn pairs(
 /// coords : PointSet or array_like
 ///     Samples, or their ``(n, 2)`` or ``(n, 3)`` coordinates.
 /// n : int
-///     Rank of the neighbour; on a square grid of spacing ``s`` seen in plan,
+///     Rank of the neighbor; on a square grid of spacing ``s`` seen in plan,
 ///     ``n=4`` gives ``s``.
 /// targets : array_like, PointSet or BlockModel, optional
 ///     Locations to measure from, e.g. block centroids; default each sample,

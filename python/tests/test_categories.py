@@ -123,7 +123,7 @@ def rgba(color):
     return pytest.approx(matplotlib.colors.to_rgba(color))
 
 
-def test_category_colors_map_code_i_to_colour_i():
+def test_category_colors_map_code_i_to_color_i():
     colors = ["#112233", "#445566", "#778899"]
     cmap, norm = cs.plot.category_colors(cs.Categories(["a", "b", "c"], colors=colors))
     np.testing.assert_allclose(norm.boundaries, [-0.5, 0.5, 1.5, 2.5])

@@ -32,7 +32,7 @@ Searches = Search | Sequence[Search]
 
 @dataclass(frozen=True)
 class CrossValidation:
-    """Cross-validation results; NaN where a sample had too few neighbours."""
+    """Cross-validation results; NaN where a sample had too few neighbors."""
 
     actual: np.ndarray
     estimate: np.ndarray
@@ -71,7 +71,7 @@ class CrossValidation:
 class IndicatorCrossValidation(CrossValidation):
     """Cross-validation of multiple indicator kriging: `estimate` is the E-type mean, `variance` the conditional
     variance, `cdf` the ``(thresholds, samples)`` corrected probabilities and `pit` ``F*(actual)``, the probability of
-    the sample's own distribution not exceeding its value; NaN where a sample had too few neighbours."""
+    the sample's own distribution not exceeding its value; NaN where a sample had too few neighbors."""
 
     thresholds: list[float]
     cdf: np.ndarray
@@ -120,7 +120,7 @@ class _Base:
         error_variance : array_like, optional
             Variance of each sample's measurement error, for data of different quality (kriging only).
             It is added to the sample's diagonal entry in the kriging system, so the estimate no longer
-            honours a noisy value and leans towards its neighbours. Cokriging, disjunctive kriging and the
+            honors a noisy value and leans towards its neighbors. Cokriging, disjunctive kriging and the
             simulators do not take it.
         domains : array_like, optional
             Domain label of each sample: strings, numbers or booleans. A target is then estimated from the
@@ -251,7 +251,7 @@ class FactorialKriging(_Base):
 
 
 class BlockKriging(_Base):
-    """Ordinary kriging of block averages; targets are block centres of `size`."""
+    """Ordinary kriging of block averages; targets are block centers of `size`."""
 
     def __init__(self, variogram: Variogram, search: Searches, size, discretization=(4, 4, 1)):
         super().__init__("block", search, variogram, size=list(size), discretization=tuple(discretization))
@@ -294,7 +294,7 @@ class MovingMedian(_Base):
 
 
 class LocalLeastSquares(_Base):
-    """Local polynomial of `degree` fitted to the neighbours."""
+    """Local polynomial of `degree` fitted to the neighbors."""
 
     def __init__(self, search: Searches, degree: int = 1, variogram: Variogram | None = None):
         super().__init__("local_least_squares", search, variogram, degree=degree)
