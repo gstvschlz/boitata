@@ -166,4 +166,4 @@ save(fig, "reproduction")
 
 ![reproduction](reproduction.png)
 
-Full script: [`example.py`](example.py)
+Full script: [`example_05.py`](example_05.py)

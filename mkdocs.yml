@@ -1,0 +1,73 @@
+site_name: ceres
+site_description: Geostatistics in Rust with a Python interface
+site_url: https://gstvschlz.github.io/ceres/
+repo_url: https://github.com/gstvschlz/ceres
+repo_name: gstvschlz/ceres
+edit_uri: ""
+
+theme:
+  name: material
+  features:
+    - navigation.sections
+    - navigation.top
+    - content.code.copy
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: blue grey
+      toggle: {icon: material/weather-night, name: Dark mode}
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: blue grey
+      toggle: {icon: material/weather-sunny, name: Light mode}
+
+hooks:
+  - docs/hooks.py
+exclude_docs: |
+  hooks.py
+  __pycache__/
+
+plugins:
+  - search
+  - gallery:
+      examples_dirs: examples
+      gallery_dirs: docs/examples
+      filename_pattern: example_\d+\.py$
+      ignore_pattern: (render|common)\.py$
+      within_subsection_order: FileNameSortKey
+      show_memory: false
+  - mkdocstrings:
+      handlers:
+        python:
+          options:
+            force_inspection: true
+            docstring_style: numpy
+            docstring_options:
+              warn_unknown_params: false
+            show_source: false
+            show_root_heading: true
+            show_root_full_path: false
+            members_order: source
+            heading_level: 3
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - pymdownx.highlight
+  - pymdownx.superfences
+  - pymdownx.details
+  - toc: {permalink: true}
+
+nav:
+  - Home: index.md
+  - Examples: examples
+  - API:
+      - Containers and I/O: api/containers.md
+      - Datasets and plots: api/datasets.md
+      - Transforms: api/transforms.md
+      - Variography: api/variography.md
+      - Estimation: api/estimation.md
+      - Simulation: api/simulation.md
+      - Drillholes and blocks: api/drillholes.md
+      - Modelling: api/modelling.md
+      - EDA and validation: api/eda.md

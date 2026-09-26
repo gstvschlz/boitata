@@ -226,4 +226,4 @@ save(fig, "subblocks")
 
 ![subblocks](subblocks.png)
 
-Full script: [`example.py`](example.py)
+Full script: [`example_07.py`](example_07.py)
