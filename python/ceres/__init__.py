@@ -1,6 +1,6 @@
 import copyreg as _copyreg
 
-from ceres import _ceres, datasets, plot  # noqa: F401
+from ceres import _ceres, datasets, plot, plot3d  # noqa: F401
 from ceres._ceres import *
 from ceres._ceres import __version__  # noqa: F401
 from ceres.errors import CeresError, FileError, InvalidInput  # noqa: F401
@@ -9,7 +9,7 @@ from ceres.estimation import *
 __all__ = [
     name
     for name in dir()
-    if not name.startswith("_") and name not in ("errors", "estimation", "datasets", "plot")
+    if not name.startswith("_") and name not in ("errors", "estimation", "datasets", "plot", "plot3d")
 ]
 
 
