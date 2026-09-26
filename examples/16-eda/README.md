@@ -261,7 +261,7 @@ cs.plot.cdf(
     ax=a,
 )
 a.set(title="Cumulative distribution of Zn", xlabel="Zn (%)")
-cs.plot.qq(zn[sm], zn[ms], weights[sm], weights[ms], log=True, ax=b)
+cs.plot.qq(zn[sm], zn[ms], x_weights=weights[sm], y_weights=weights[ms], log=True, ax=b)
 b.set(title="Q-Q, declustered: P1 to P99", xlabel="SM Zn (%)", ylabel="MS Zn (%)")
 save(fig, "distributions")
 ```
@@ -311,7 +311,7 @@ fig, axes = plt.subplots(1, 2, figsize=(9, 3.6), layout="constrained", sharey=Tr
 for ax, name in zip(axes, ["MS", "RH"], strict=True):
     keep = (lith == name) & (zn > 0)
     cs.plot.probability(
-        zn[keep], weights[keep], log=True, cap=cap[name], fences=1.5, ax=ax, color=ACCENT, ms=2
+        zn[keep], weights=weights[keep], log=True, cap=cap[name], fences=1.5, ax=ax, color=ACCENT, ms=2
     )
     ax.set(title=f"{name}, declustered", xlabel="Zn (%)")
     ax.legend(loc="lower right")
@@ -452,7 +452,7 @@ cell_weights = cs.cell_declustering(xyz[assayed], zn[assayed], cell_size=50.0).w
 lithology = cs.Categories(domains, other="other")
 rock = lithology.encode(lith[assayed])
 fig, (a, b) = plt.subplots(1, 2, figsize=(10, 3.4), layout="constrained", width_ratios=[1, 2])
-cs.plot.proportions(rock, cell_weights, scheme=lithology, ax=a)
+cs.plot.proportions(rock, weights=cell_weights, scheme=lithology, ax=a)
 a.set_title("Lithologies, declustered")
 cs.plot.category_swath(xyz[assayed], rock, 100.0, axis="x", weights=cell_weights, scheme=lithology, ax=b)
 b.set(title="Lithologies along easting, declustered", xlabel="Easting (m)")

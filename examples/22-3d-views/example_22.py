@@ -55,7 +55,7 @@ traces = cs.plot3d.to_pyvista(dh).clip_box([4550, 4950, 7400, 7700, -1e4, 1e4], 
 plotter = pv.Plotter(window_size=(1400, 900))
 cs.plot3d.plot(traces, plotter=plotter, color=GRAY, line_width=1)
 cs.plot3d.plot(
-    local, scalars="ZN", plotter=plotter, cmap="cividis", clim=(0, 15), point_size=5, scalar_bar_args=BAR
+    local, values="ZN", plotter=plotter, cmap="cividis", clim=(0, 15), point_size=5, scalar_bar_args=BAR
 )
 cs.plot3d.plot(hull, plotter=plotter, color=LIGHT, opacity=0.35)
 save(show(plotter, "Drill holes, Zn composites and the hull of Zn > 5 %"), "holes")
@@ -78,7 +78,7 @@ print(f"{len(blocks)} sub-blocks, {blocks.volumes.sum():,.0f} m3")
 grid = cs.plot3d.to_pyvista(blocks)
 STYLE = {"cmap": "cividis", "clim": (0, 15), "scalar_bar_args": BAR}
 plotter = pv.Plotter(window_size=(1400, 900))
-cs.plot3d.plot(grid.clip("y", origin=grid.center), scalars="zn", plotter=plotter, **STYLE)
+cs.plot3d.plot(grid.clip("y", origin=grid.center), values="zn", plotter=plotter, **STYLE)
 cs.plot3d.plot(traces, plotter=plotter, color=GRAY, line_width=1)
 save(show(plotter, "Sub-blocks inside the hull, cut at its center, colored by Zn"), "subblocks")
 
@@ -99,6 +99,6 @@ rotated = cs.BlockModel(origin=origin, size=(size,) * 3, count=(n, n, count[2]),
 rotated = rotated.with_column(
     "zn", cs.InverseDistance(search, power=2).fit(local.coords, local["ZN"]).predict(rotated)
 )
-plotter = cs.plot3d.slices(rotated, scalars="zn", nan_opacity=0, **STYLE)
+plotter = cs.plot3d.slices(rotated, values="zn", nan_opacity=0, **STYLE)
 cs.plot3d.plot(hull, plotter=plotter, style="wireframe", color=GRAY, opacity=0.3)
 save(show(plotter, "Orthogonal slices of a grid rotated 30° in azimuth"), "slices")

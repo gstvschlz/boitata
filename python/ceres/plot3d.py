@@ -106,14 +106,14 @@ def _plotter(plotter):
     return _pyvista().Plotter() if plotter is None else plotter
 
 
-def plot(data, scalars=None, plotter=None, **kwargs):
+def plot(data, values=None, *, plotter=None, **kwargs):
     """Adds a container to a 3D scene.
 
     Parameters
     ----------
     data : PointSet, Drillholes, BlockModel, Mesh or pyvista.DataObject
         What to draw; containers go through `to_pyvista`.
-    scalars : str, optional
+    values : str, optional
         Attribute that colors it.
     plotter : pyvista.Plotter, optional
         Scene to add to; a new one by default.
@@ -129,18 +129,18 @@ def plot(data, scalars=None, plotter=None, **kwargs):
     if isinstance(data, PointSet):
         kwargs.setdefault("render_points_as_spheres", True)
         kwargs.setdefault("point_size", 6)
-    plotter.add_mesh(mesh, scalars=scalars, **kwargs)
+    plotter.add_mesh(mesh, scalars=values, **kwargs)
     return plotter
 
 
-def slices(model, scalars=None, x=None, y=None, z=None, plotter=None, **kwargs):
+def slices(model, values=None, *, x=None, y=None, z=None, plotter=None, **kwargs):
     """Three orthogonal slices through a block model.
 
     Parameters
     ----------
     model : BlockModel
         Block model to cut.
-    scalars : str, optional
+    values : str, optional
         Attribute that colors the slices.
     x, y, z : float, optional
         World coordinates the slices pass through; the model's center by default.
@@ -156,4 +156,4 @@ def slices(model, scalars=None, x=None, y=None, z=None, plotter=None, **kwargs):
     mesh = to_pyvista(model)
     center = mesh.center
     at = [center[a] if v is None else v for a, v in enumerate((x, y, z))]
-    return plot(mesh.slice_orthogonal(x=at[0], y=at[1], z=at[2]), scalars=scalars, plotter=plotter, **kwargs)
+    return plot(mesh.slice_orthogonal(x=at[0], y=at[1], z=at[2]), values=values, plotter=plotter, **kwargs)

@@ -147,9 +147,9 @@ for cap, fraction, removed in zip(caps["cap"], caps["fraction"], caps["metal_rem
     print(f"cap {cap:5.1f} % Zn: {fraction:5.1%} of composites cut, {removed:5.1%} of the metal removed")
 
 fig, (a, b) = plt.subplots(1, 2, figsize=(9, 3.4), layout="constrained")
-cs.plot.histogram(zn, weights, bins=np.arange(0, 44, 2), ax=a, color=LIGHT, edgecolor=GRAY)
+cs.plot.histogram(zn, weights=weights, bins=np.arange(0, 44, 2), ax=a, color=LIGHT, edgecolor=GRAY)
 a.set(xlabel="Zn (%)", title="Declustered histogram")
-cs.plot.probability(zn[zn > 0], weights[zn > 0], log=True, ax=b, color=ACCENT, ms=3)
+cs.plot.probability(zn[zn > 0], weights=weights[zn > 0], log=True, ax=b, color=ACCENT, ms=3)
 b.set(xlabel="Zn (%)", title="Probability plot")
 save(fig, "statistics")
 ```
@@ -187,7 +187,7 @@ gaussian = cs.Variogram(
 grades = cs.experimental_variogram(xyz, zn, 10.0, 120.0).fit("spherical")
 print(gaussian)
 
-fig, ax = cs.plot.variogram(experimental, fitted, color=ACCENT)
+fig, ax = cs.plot.variogram(experimental, variogram=fitted, color=ACCENT)
 ax.set(xlabel="Lag distance (m)", ylabel="γ(h) of normal scores", title="Normal-score variogram")
 save(fig, "variogram")
 ```
@@ -528,7 +528,7 @@ cs.plot.section(blocks, "zn", axis="y", index=row, ax=axes[0, 0], colorbar=False
 cs.plot.uncertain(
     "mean",
     "uncertainty",
-    block_model=blocks,
+    model=blocks,
     axis="y",
     index=row,
     norm=grade,

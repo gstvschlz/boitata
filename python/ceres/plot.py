@@ -11,6 +11,7 @@ from ceres._ceres import describe, normal_ppf
 from ceres._ceres import swath as _swath
 from ceres._columns import column as _column
 from ceres._columns import stack as _stack
+from ceres.errors import InvalidInput
 
 __all__ = [
     "boxplot",
@@ -61,6 +62,12 @@ def _finite(values, weights):
     return values[ok], weights[ok] / weights[ok].sum()
 
 
+def _weights(data, weights):
+    if weights is None and hasattr(data, "volumes"):
+        return data.volumes
+    return _column(data, weights, "weights")
+
+
 def _quantiles(values, weights, p):
     s = describe(values, weights=weights, quantiles=p)
     return np.array([v for k, v in s.items() if k.startswith("P")])
@@ -88,14 +95,14 @@ def _stats(ax, series, labels, corner):
     ax.text(x, y, text, transform=ax.transAxes, ha=ha, va=va, family="monospace", fontsize=7, bbox=box)
 
 
-def histogram(values, weights=None, bins=40, log=False, stats=False, ax=None, **kwargs):
+def histogram(values, *, weights=None, bins=40, log=False, stats=False, data=None, ax=None, **kwargs):
     """Histogram of relative frequencies, declustered by `weights`; `log` bins on a log axis.
 
     Parameters
     ----------
-    values : array_like
+    values : str or array_like
         Values; NaN is ignored.
-    weights : array_like, optional
+    weights : str or array_like, optional
         Declustering weights.
     bins : int or array_like
         Number of bins or their edges.
@@ -103,10 +110,13 @@ def histogram(values, weights=None, bins=40, log=False, stats=False, ax=None, **
         Log-spaced bins over the positive values and a log x axis.
     stats : bool
         Write the count, weighted mean, CV and P10, P50, P90 in the upper right corner.
+    data : PointSet, BlockModel, Table or mapping, optional
+        Container whose columns `values` and `weights` may name; a block model's volumes are the default weights.
     **kwargs
         Passed to ``ax.hist``.
     """
     fig, ax = _axes(ax)
+    values, weights = _column(data, values), _weights(data, weights)
     if stats:
         _stats(ax, [(values, weights)], [None], "upper right")
     v, w = _finite(values, weights)
@@ -122,14 +132,14 @@ def histogram(values, weights=None, bins=40, log=False, stats=False, ax=None, **
     return fig, ax
 
 
-def probability(values, weights=None, log=False, cap=None, fences=None, ax=None, **kwargs):
+def probability(values, *, weights=None, log=False, cap=None, fences=None, data=None, ax=None, **kwargs):
     """Cumulative probability on a normal scale: a Gaussian (or, with `log`, lognormal) distribution is a line.
 
     Parameters
     ----------
-    values : array_like
+    values : str or array_like
         Values; NaN is ignored.
-    weights : array_like, optional
+    weights : str or array_like, optional
         Declustering weights.
     log : bool
         Log x axis.
@@ -139,11 +149,13 @@ def probability(values, weights=None, log=False, cap=None, fences=None, ax=None,
         Outlier fences ``P25 - fences × IQR`` and ``P75 + fences × IQR`` (1.5 is customary, 3 for far outliers),
         from weighted quartiles of the values, or of their logarithm with `log`; drawn as dotted vertical lines
         labeled with the count of values beyond each.
+    data : PointSet, BlockModel, Table or mapping, optional
+        As in `histogram`.
     **kwargs
         Passed to ``ax.plot``.
     """
     fig, ax = _axes(ax)
-    v, w = _finite(values, weights)
+    v, w = _finite(_column(data, values), _weights(data, weights))
     order = np.argsort(v)
     v, w = v[order], w[order]
     p = np.cumsum(w) - w / 2
@@ -170,12 +182,12 @@ def probability(values, weights=None, log=False, cap=None, fences=None, ax=None,
     return fig, ax
 
 
-def cdf(values, weights=None, labels=None, log=False, stats=False, ax=None, **kwargs):
+def cdf(values, *, weights=None, labels=None, log=False, stats=False, data=None, ax=None, **kwargs):
     """Cumulative distribution of one or several series overlaid, e.g. domains, or clustered and declustered.
 
     Parameters
     ----------
-    values : array_like or list of array_like
+    values : str, array_like or list of them
         One series, or several; NaN is ignored.
     weights : array_like or list, optional
         Declustering weights: an array for one series; for several, one array or None each.
@@ -186,13 +198,16 @@ def cdf(values, weights=None, labels=None, log=False, stats=False, ax=None, **kw
     stats : bool
         Write the count, weighted mean, CV and P10, P50, P90 of each series in the upper left corner, which a
         cumulative distribution leaves empty.
+    data : PointSet, BlockModel, Table or mapping, optional
+        Container whose columns `values` and `weights` may name; a block model's volumes are the default weights.
     **kwargs
         Passed to every ``ax.step``.
     """
     fig, ax = _axes(ax)
-    if np.ndim(values[0]) == 0:
-        values, weights = [values], [weights]
-    weights = [None] * len(values) if weights is None else weights
+    if isinstance(values, str) or np.ndim(values[0]) == 0:
+        values, weights = [values], [_weights(data, weights)]
+    values = [_column(data, v) for v in values]
+    weights = [_weights(data, None)] * len(values) if weights is None else [_column(data, w) for w in weights]
     labels = labels or [None] * len(values)
     if stats:
         _stats(ax, list(zip(values, weights, strict=True)), labels, "upper left")
@@ -209,26 +224,28 @@ def cdf(values, weights=None, labels=None, log=False, stats=False, ax=None, **kw
     return fig, ax
 
 
-def qq(x, y, x_weights=None, y_weights=None, quantiles=None, log=False, ax=None, **kwargs):
+def qq(x, y, *, x_weights=None, y_weights=None, quantiles=None, log=False, data=None, ax=None, **kwargs):
     """Quantiles of `y` against the same quantiles of `x`, with the 1:1 line on which equal distributions lie.
 
     Parameters
     ----------
-    x, y : array_like
+    x, y : str or array_like
         Two samples, e.g. one domain and another, or composites and blocks; NaN is ignored.
-    x_weights, y_weights : array_like, optional
+    x_weights, y_weights : str or array_like, optional
         Declustering weights of each.
     quantiles : array_like, optional
         Probabilities; default 0.01 to 0.99 in steps of 0.01.
     log : bool
         Log axes.
+    data : PointSet, BlockModel, Table or mapping, optional
+        As in `histogram`, for both samples.
     **kwargs
         Passed to ``ax.plot``.
     """
     fig, ax = _axes(ax)
     p = np.linspace(0.01, 0.99, 99) if quantiles is None else quantiles
-    qx = _quantiles(x, x_weights, p)
-    qy = _quantiles(y, y_weights, p)
+    qx = _quantiles(_column(data, x, "x"), _weights(data, x_weights), p)
+    qy = _quantiles(_column(data, y, "y"), _weights(data, y_weights), p)
     kwargs.setdefault("marker", ".")
     kwargs.setdefault("linestyle", "none")
     ax.plot(qx, qy, **kwargs)
@@ -240,16 +257,18 @@ def qq(x, y, x_weights=None, y_weights=None, quantiles=None, log=False, ax=None,
     return fig, ax
 
 
-def boxplot(values, categories, weights=None, sort=False, log=False, scheme=None, ax=None, **kwargs):
+def boxplot(
+    values, categories, *, weights=None, sort=False, log=False, scheme=None, data=None, ax=None, **kwargs
+):
     """One box per category: P25 to P75, median, P10 to P90 whiskers and the mean, all weighted.
 
     Parameters
     ----------
-    values : array_like
+    values : str or array_like
         Values; NaN is ignored.
     categories : array_like
         Category (e.g. domain) of each value, its code when `scheme` is given; each box is labeled with its count.
-    weights : array_like, optional
+    weights : str or array_like, optional
         Declustering weights.
     sort : bool
         Order boxes by median, else by category.
@@ -257,14 +276,18 @@ def boxplot(values, categories, weights=None, sort=False, log=False, scheme=None
         Log value axis.
     scheme : Categories, optional
         Names and colors of the categories.
+    data : PointSet, BlockModel, Table or mapping, optional
+        Container whose columns `values`, `categories` and `weights` may name; a block model's volumes are the
+        default weights.
     **kwargs
         Passed to ``ax.bxp``.
     """
     import matplotlib as mpl
 
     fig, ax = _axes(ax)
-    names, colors, index, keep = _classes(categories, scheme)
-    values = np.asarray(values, dtype=float)[keep]
+    names, colors, index, keep = _classes(_column(data, categories, "categories"), scheme)
+    values = np.asarray(_column(data, values), dtype=float)[keep]
+    weights = _weights(data, weights)
     weights = None if weights is None else np.asarray(weights, dtype=float)[keep]
     stats, codes = [], []
     for c in np.unique(index[~np.isnan(values)]):
@@ -303,15 +326,15 @@ def boxplot(values, categories, weights=None, sort=False, log=False, scheme=None
     return fig, ax
 
 
-def variogram(experimental, model=None, direction=None, ax=None, **kwargs):
-    """Experimental variogram, points sized by pair count, with `model` and its sill.
+def variogram(experimental, *, variogram=None, direction=None, ax=None, **kwargs):
+    """Experimental variogram, points sized by pair count, with `variogram` and its sill.
 
     Parameters
     ----------
     experimental : ExperimentalVariogram
-    model : Variogram, optional
+    variogram : Variogram, optional
     direction : tuple of float, optional
-        ``(azimuth, dip)`` in degrees along which an anisotropic `model` is drawn;
+        ``(azimuth, dip)`` in degrees along which an anisotropic `variogram` is drawn;
         without it, lags are taken as distances in the model's isotropic space.
     **kwargs
         Passed to ``ax.scatter`` and, for its color, to the model line.
@@ -321,16 +344,16 @@ def variogram(experimental, model=None, direction=None, ax=None, **kwargs):
     lags, gammas = experimental.lags[keep], experimental.gammas[keep]
     kwargs.setdefault("s", np.sqrt(experimental.counts[keep]) * 2)
     points = ax.scatter(lags, gammas, **kwargs)
-    if model is not None:
+    if variogram is not None:
         h = np.linspace(0, lags.max() * 1.05, 201)[1:]
         if direction is None:
-            gamma = model.gamma(h)
+            gamma = variogram.gamma(h)
         else:
             az, dip = np.radians(direction[0]), np.radians(direction[1])
             unit = np.array([np.cos(dip) * np.sin(az), np.cos(dip) * np.cos(az), -np.sin(dip)])
-            gamma = model.gamma_between(np.zeros((h.size, 3)), h[:, None] * unit)
+            gamma = variogram.gamma_between(np.zeros((h.size, 3)), h[:, None] * unit)
         ax.plot(h, gamma, color=points.get_facecolor()[0])
-        ax.axhline(model.sill, color="0.5", lw=0.8, ls="--")
+        ax.axhline(variogram.sill, color="0.5", lw=0.8, ls="--")
     ax.set_xlim(left=0)
     ax.set_ylim(bottom=0)
     ax.set_xlabel("Lag distance")
@@ -338,13 +361,14 @@ def variogram(experimental, model=None, direction=None, ax=None, **kwargs):
     return fig, ax
 
 
-def scatter(x, y, line=True, ax=None, **kwargs):
+def scatter(x, y, *, line=True, data=None, ax=None, **kwargs):
     """`y` against `x` with the 1:1 line and, if `line`, the least-squares regression of `y` on `x`.
 
-    The regression slope of true on estimated values below 1 flags conditional bias.
+    The regression slope of true on estimated values below 1 flags conditional bias. `x` and `y` may name columns
+    of `data`.
     """
     fig, ax = _axes(ax)
-    x, y = np.asarray(x, dtype=float), np.asarray(y, dtype=float)
+    x, y = np.asarray(_column(data, x, "x"), dtype=float), np.asarray(_column(data, y, "y"), dtype=float)
     ok = np.isfinite(x) & np.isfinite(y)
     x, y = x[ok], y[ok]
     kwargs.setdefault("s", 6)
@@ -364,7 +388,7 @@ def scatter(x, y, line=True, ax=None, **kwargs):
     return fig, ax
 
 
-def correlation(data, labels=None, weights=None, method="pearson", colorbar=True, ax=None, **kwargs):
+def correlation(data, *, labels=None, weights=None, method="pearson", colorbar=True, ax=None, **kwargs):
     """Correlation, rank correlation or covariance matrix as a heatmap, each cell written out.
 
     Parameters
@@ -404,7 +428,7 @@ def correlation(data, labels=None, weights=None, method="pearson", colorbar=True
     return fig, ax
 
 
-def declustering(result, naive=None, ax=None, **kwargs):
+def declustering(result, *, naive=None, ax=None, **kwargs):
     """Declustered mean against cell size, the chosen size marked, and the naive mean for reference.
 
     Parameters
@@ -418,7 +442,7 @@ def declustering(result, naive=None, ax=None, **kwargs):
     """
     fig, ax = _axes(ax)
     if not len(result.sizes):
-        raise ValueError("result has no cell size scan: give cell_declustering sizes, not cell_size")
+        raise InvalidInput("result has no cell size scan: give cell_declustering sizes, not cell_size")
     line = ax.plot(result.sizes, result.means, **kwargs)[0]
     if naive is not None:
         ax.axhline(naive, color="0.5", ls=":", lw=1)
@@ -438,24 +462,27 @@ def declustering(result, naive=None, ax=None, **kwargs):
     return fig, ax
 
 
-def conditional(x, y, bins=10, weights=None, log=False, ax=None, **kwargs):
+def conditional(x, y, *, bins=10, weights=None, log=False, data=None, ax=None, **kwargs):
     """Scatter of `y` against `x` with the mean and P10 to P90 of `y` in bins of `x`, drawn at each bin's median.
 
     Parameters
     ----------
-    x, y : array_like
+    x, y : str or array_like
         Pairs of values; pairs with NaN are ignored.
     bins : int or array_like
         Number of bins holding about as many pairs each, or bin edges of `x`.
-    weights : array_like, optional
+    weights : str or array_like, optional
         Declustering weights.
     log : bool
         Log axes; non-positive values are then ignored.
+    data : PointSet, BlockModel, Table or mapping, optional
+        Container whose columns `x`, `y` and `weights` may name; a block model's volumes are the default weights.
     **kwargs
         Passed to ``ax.scatter``.
     """
     fig, ax = _axes(ax)
-    x, y = np.asarray(x, dtype=float), np.asarray(y, dtype=float)
+    x, y = np.asarray(_column(data, x, "x"), dtype=float), np.asarray(_column(data, y, "y"), dtype=float)
+    weights = _weights(data, weights)
     w = np.ones_like(x) if weights is None else np.asarray(weights, dtype=float)
     ok = np.isfinite(x) & np.isfinite(y) & ((x > 0) & (y > 0) if log else True)
     x, y, w = x[ok], y[ok], w[ok]
@@ -484,7 +511,7 @@ def conditional(x, y, bins=10, weights=None, log=False, ax=None, **kwargs):
     return fig, ax
 
 
-def completeness(data, ax=None, **kwargs):
+def completeness(data, *, ax=None, **kwargs):
     """Rows by number of variables present, the complete rows in the accent color, each bar labeled.
 
     Parameters
@@ -507,7 +534,7 @@ def completeness(data, ax=None, **kwargs):
     return fig, ax
 
 
-def scatter_matrix(data, labels=None, weights=None, log=False, bins=30, axes=None, **kwargs):
+def scatter_matrix(data, *, labels=None, weights=None, log=False, bins=30, axes=None, **kwargs):
     """Pairwise scatters of the columns of `data`, with their histograms on the diagonal.
 
     Each scatter is annotated with the Pearson (``r``) and rank correlation of its pair, weighted by `weights` and
@@ -568,7 +595,7 @@ def scatter_matrix(data, labels=None, weights=None, log=False, bins=30, axes=Non
             if i == j:
                 edges = np.geomspace(*limits[j], bins + 1) if log[j] else np.linspace(*limits[j], bins + 1)
                 bars = ax.twinx()
-                histogram(data[:, j], weights, bins=edges, log=log[j], ax=bars)
+                histogram(data[:, j], weights=weights, bins=edges, log=log[j], ax=bars)
                 bars.set_ylim(bottom=0)
                 bars.yaxis.set_visible(False)
                 bars.spines[:].set_visible(False)
@@ -586,8 +613,9 @@ def scatter_matrix(data, labels=None, weights=None, log=False, bins=30, axes=Non
 
 
 def section(
-    block_model,
+    model,
     values,
+    *,
     axis="z",
     index=None,
     plane=None,
@@ -601,7 +629,7 @@ def section(
 
     Parameters
     ----------
-    block_model : BlockModel
+    model : BlockModel
         Missing blocks are left blank. Sliced along `axis`: regular or masked, in model coordinates, rotation
         ignored. On a `plane`: any layout and rotation.
     values : str or array_like
@@ -623,7 +651,7 @@ def section(
         Passed to ``ax.imshow`` (e.g. ``cmap``, ``norm``, ``vmin``).
     """
     fig, ax = _axes(ax)
-    (image,), extent = _image(ax, block_model, [values], axis, index, plane, resolution)
+    (image,), extent = _image(ax, model, [values], axis, index, plane, resolution)
     _scheme_colors(scheme, kwargs)
     im = ax.imshow(image, origin="lower", extent=extent, **kwargs)
     _key(fig, ax, im, values, colorbar, scheme)
@@ -646,29 +674,29 @@ def _key(fig, ax, mappable, values, colorbar, scheme):
         category_legend(scheme, ax, loc="upper left", bbox_to_anchor=(1.01, 1))
 
 
-def _image(ax, block_model, columns, axis, index, plane, resolution):
+def _image(ax, model, columns, axis, index, plane, resolution):
     if plane is None:
-        return _slice(ax, block_model, columns, axis, index)
+        return _slice(ax, model, columns, axis, index)
     center, u, v, n = _frame(plane)
-    size = np.asarray(block_model.size, dtype=float)
+    size = np.asarray(model.size, dtype=float)
     step = resolution or size.min() / 2
     reach = np.linalg.norm(size) / 2
-    centroids = block_model.centroids
+    centroids = model.centroids
     near = centroids[np.abs((centroids - center) @ n) <= reach] @ np.c_[u, v]
     if not len(near):
-        raise ValueError("the plane misses the block model")
+        raise InvalidInput("the plane misses the block model")
     lo = near.min(0) - reach
     counts = np.ceil((near.max(0) + reach - lo) / step).astype(int)
     gu, gv = np.meshgrid(*(lo[a] + (np.arange(counts[a]) + 0.5) * step for a in (0, 1)))
     offset = center - (center @ u) * u - (center @ v) * v
-    rows = block_model.row_at(offset + gu.reshape(-1, 1) * u + gv.reshape(-1, 1) * v).reshape(gu.shape)
+    rows = model.row_at(offset + gu.reshape(-1, 1) * u + gv.reshape(-1, 1) * v).reshape(gu.shape)
     if not (rows >= 0).any():
-        raise ValueError("the plane misses the block model")
+        raise InvalidInput("the plane misses the block model")
     (j0, j1), (i0, i1) = (np.flatnonzero((rows >= 0).any(axis=a))[[0, -1]] for a in (0, 1))
     rows = rows[i0 : i1 + 1, j0 : j1 + 1]
     images = []
     for column in columns:
-        values = np.asarray(_column(block_model, column), dtype=float)
+        values = np.asarray(_column(model, column), dtype=float)
         images.append(np.where(rows >= 0, values[rows], np.nan))
     _label(ax, u, v)
     (u0, v0), (u1, v1) = lo + step * np.array([j0, i0]), lo + step * np.array([j1 + 1, i1 + 1])
@@ -679,7 +707,7 @@ def _frame(plane):
     center, azimuth, dip = plane
     center = np.asarray(center, dtype=float)
     if center.shape != (3,):
-        raise ValueError("plane center must be (x, y, z)")
+        raise InvalidInput("plane center must be (x, y, z)")
     az, dip = np.radians(azimuth), np.radians(dip)
     u = np.array([np.sin(az), np.cos(az), 0.0])
     v = np.cos(dip) * np.array([-np.cos(az), np.sin(az), 0.0]) + np.array([0.0, 0.0, np.sin(dip)])
@@ -695,7 +723,7 @@ def _label(ax, u, v):
 
 
 def slab(
-    points,
+    coords,
     values=None,
     *,
     plane,
@@ -715,10 +743,10 @@ def slab(
 
     Parameters
     ----------
-    points : PointSet or array_like
+    coords : PointSet or array_like
         ``(n, 3)`` coordinates.
     values : str or array_like, optional
-        Column of `points`, or one value per point, coloring them; default one color.
+        Column of `coords`, or one value per point, coloring them; default one color.
     plane : tuple
         ``(center, azimuth, dip)``: a point on the plane, the bearing of the section line and the dip of the plane
         (90 is vertical, 0 a plan), in degrees.
@@ -743,6 +771,7 @@ def slab(
     center, u, v, n = _frame(plane)
     half = thickness / 2
     uv = np.c_[u, v]
+    points = coords
     coords = np.asarray(getattr(points, "coords", points), dtype=float)
     near = np.abs((coords - center) @ n) <= half
     xy = coords[near] @ uv
@@ -805,14 +834,14 @@ def _clip(lines, center, normal, half):
     return s[:, :1] + t[..., None] * (s[:, 1:] - s[:, :1])
 
 
-def _slice(ax, block_model, columns, axis, index):
+def _slice(ax, model, columns, axis, index):
     names = []
     for i, column in enumerate(columns):
         if not isinstance(column, str):
-            block_model = block_model.with_column(f"_{i}", column)
+            model = model.with_column(f"_{i}", column)
             column = f"_{i}"
         names.append(column)
-    grid = block_model.to_regular()
+    grid = model.to_regular()
     nx, ny, nz = grid.count
     (x0, y0, z0), (sx, sy, sz) = grid.origin, grid.size
     x, y, z = (x0, x0 + nx * sx), (y0, y0 + ny * sy), (z0, z0 + nz * sz)
@@ -830,7 +859,7 @@ def _slice(ax, block_model, columns, axis, index):
     return images, extent
 
 
-def swath(swaths, labels=None, y="mean", ax=None, **kwargs):
+def swath(swaths, *, labels=None, y="mean", ax=None, **kwargs):
     """Mean, tonnage or metal per slice of one or several `swath` results, with the first one's counts as light bars.
 
     Parameters
@@ -880,7 +909,7 @@ def _classes(categories, scheme):
     keep = ~np.isnan(codes)
     index = codes[keep].astype(int)
     if np.any((index != codes[keep]) | (index < 0) | (index >= len(scheme))):
-        raise ValueError(f"categories must be codes of the scheme, 0 to {len(scheme) - 1}, or NaN")
+        raise InvalidInput(f"categories must be codes of the scheme, 0 to {len(scheme) - 1}, or NaN")
     return scheme.names, _colors(scheme), index, keep
 
 
@@ -937,6 +966,7 @@ def category_swath(
     coords,
     categories,
     width,
+    *,
     azimuth=None,
     axis=None,
     weights=None,
@@ -949,13 +979,13 @@ def category_swath(
 
     Parameters
     ----------
-    coords : array_like
-        ``(n, 2)`` or ``(n, 3)`` coordinates.
-    categories : array_like
+    coords : PointSet, BlockModel or array_like
+        ``(n, 2)`` or ``(n, 3)`` coordinates; a container's columns may be named by `categories` and `weights`.
+    categories : str or array_like
         Category (e.g. lithology) of each sample; its code, NaN for none, when `scheme` is given.
     width, azimuth, axis
         Slices as in ``ceres.swath``: `width` along `azimuth` (degrees from north) or `axis` ("x", "y", "z").
-    weights : array_like, optional
+    weights : str or array_like, optional
         Declustering weights or lengths.
     colors : sequence, optional
         One color per category, sorted; default the scheme's, else spread over matplotlib's ``image.cmap``
@@ -966,9 +996,10 @@ def category_swath(
         Passed to every ``ax.bar``.
     """
     fig, ax = _axes(ax)
-    names, default, index, keep = _classes(categories, scheme)
-    coords = np.asarray(coords, dtype=float)[keep]
+    names, default, index, keep = _classes(_column(coords, categories, "categories"), scheme)
+    weights = _weights(coords, weights)
     weights = None if weights is None else np.asarray(weights, dtype=float)[keep]
+    coords = np.asarray(getattr(coords, "coords", getattr(coords, "centroids", coords)), dtype=float)[keep]
     colors = colors if colors is not None else default if default is not None else _palette(len(names))
     kwargs.setdefault("edgecolor", "white")
     kwargs.setdefault("linewidth", 0.3)
@@ -986,22 +1017,26 @@ def category_swath(
     return fig, ax
 
 
-def proportions(categories, weights=None, scheme=None, ax=None, **kwargs):
+def proportions(categories, *, weights=None, scheme=None, data=None, ax=None, **kwargs):
     """Proportion of each category as horizontal bars, weighted, with the unweighted proportions as ticks.
 
     Parameters
     ----------
     categories : array_like
         Category of each sample; its code, NaN for none, when `scheme` is given.
-    weights : array_like, optional
+    weights : str or array_like, optional
         Declustering weights or lengths; the bars are then weighted and a dark tick marks each unweighted share.
     scheme : Categories, optional
         Order, names and colors of the categories.
+    data : PointSet, BlockModel, Table or mapping, optional
+        Container whose columns `categories` and `weights` may name; a block model's volumes are the default
+        weights.
     **kwargs
         Passed to ``ax.barh``.
     """
     fig, ax = _axes(ax)
-    names, colors, index, keep = _classes(categories, scheme)
+    names, colors, index, keep = _classes(_column(data, categories, "categories"), scheme)
+    weights = _weights(data, weights)
     w = np.ones(index.size) if weights is None else np.asarray(weights, dtype=float)[keep]
     share = np.bincount(index, w, len(names)) / w.sum()
     rows = np.arange(len(names))
@@ -1025,7 +1060,7 @@ def proportions(categories, weights=None, scheme=None, ax=None, **kwargs):
     return fig, ax
 
 
-def directions(anisotropy, plane=None, thickness=None, ax=None, **kwargs):
+def directions(anisotropy, *, plane=None, thickness=None, ax=None, **kwargs):
     """Major axis of each local anisotropy as a line through its location, on a plan or a section.
 
     Each line is the major axis projected on the view, so an axis plunging out of it draws short.
@@ -1065,7 +1100,7 @@ def directions(anisotropy, plane=None, thickness=None, ax=None, **kwargs):
     return fig, ax
 
 
-def paired_bias(bias, ax=None, **kwargs):
+def paired_bias(bias, *, ax=None, **kwargs):
     """Relative bias of `b` over `a` per bin of pairing distance, with the pair counts as light bars.
 
     Parameters
@@ -1103,7 +1138,8 @@ def _fade(values, uncertainty, cmap, norm):
 def uncertain(
     values,
     uncertainty,
-    block_model=None,
+    *,
+    model=None,
     axis="z",
     index=None,
     plane=None,
@@ -1123,23 +1159,23 @@ def uncertain(
     Parameters
     ----------
     values : str or array_like
-        2D image, e.g. the mean of the realizations on a section; NaN is left blank. With `block_model`, a column
+        2D image, e.g. the mean of the realizations on a section; NaN is left blank. With `model`, a column
         name or one value per block.
     uncertainty : str or array_like
         Same shape as `values`, from 0 (certain) to 1 (no information), e.g. the realizations' standard deviation
         over the global one. Clipped to [0, 1].
-    block_model : BlockModel, optional
+    model : BlockModel, optional
         Slice it as `section` does; missing blocks are left blank.
     axis : {"x", "y", "z"}
-        With `block_model`, axis normal to the slice.
+        With `model`, axis normal to the slice.
     index : int, optional
-        With `block_model`, cell index along `axis` (default: the middle).
+        With `model`, cell index along `axis` (default: the middle).
     plane : tuple, optional
-        With `block_model`, ``(center, azimuth, dip)`` as in `slab`, replacing `axis` and `index`.
+        With `model`, ``(center, azimuth, dip)`` as in `slab`, replacing `axis` and `index`.
     resolution : float, optional
         Raster step on `plane`; default half the smallest block edge.
     extent : tuple of float, optional
-        Passed to ``ax.imshow``; set from `block_model` when given.
+        Passed to ``ax.imshow``; set from `model` when given.
     cmap : str or Colormap, optional
         Default: matplotlib's ``image.cmap``.
     norm : Normalize, optional
@@ -1152,9 +1188,9 @@ def uncertain(
     import matplotlib as mpl
 
     fig, ax = _axes(ax)
-    if block_model is not None:
+    if model is not None:
         (values, uncertainty), extent = _image(
-            ax, block_model, [values, uncertainty], axis, index, plane, resolution
+            ax, model, [values, uncertainty], axis, index, plane, resolution
         )
     values = np.asarray(values, dtype=float)
     cmap = mpl.colormaps[cmap or mpl.rcParams["image.cmap"]] if not callable(cmap) else cmap
