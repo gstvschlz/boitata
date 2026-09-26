@@ -14,6 +14,7 @@ pub mod detrend;
 pub mod dgm;
 pub mod error;
 pub mod hermite;
+pub mod impute;
 pub mod localize;
 pub mod normal;
 pub mod normal_score;
@@ -33,6 +34,7 @@ pub use decluster::{
 pub use detrend::{Trend, detrend};
 pub use dgm::{BlockDiscretization, change_of_support};
 pub use error::{Result, TransformError};
+pub use impute::GaussianImputer;
 pub use normal::{phi, probit};
 pub use normal_score::{NormalScore, NormalScoreTable, transform as normal_score};
 pub use pca::{Maf, Pca};

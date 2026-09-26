@@ -24,6 +24,10 @@ def fitted():
             cs.PPMT(iterations=5, seed=4).fit(table),
             lambda o: (o.transform(table), o.inverse_transform(table)),
         ),
+        (
+            cs.GaussianImputer(seed=2).fit(np.where(table > 1.5, np.nan, table)),
+            lambda o: (o.transform(np.where(table > 1.5, np.nan, table)), o.correlation_),
+        ),
         (cs.PCA(standardize=True).fit(table), lambda o: (o.transform(table), o.inverse_transform(table))),
         (
             cs.MAF(lag=1.0, tolerance=0.01).fit(rng.normal(size=(100, 2)), grid),
@@ -56,6 +60,7 @@ def plain():
         cs.HermiteAnamorphosis(),
         cs.BoxCox(lambda_=0.3),
         cs.PPMT(),
+        cs.GaussianImputer(),
         cs.PCA(),
         cs.MAF(lag=2.0),
         cs.StepwiseConditional(),

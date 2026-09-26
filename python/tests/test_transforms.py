@@ -10,6 +10,25 @@ def skewed():
     return rng.lognormal(0.0, 0.8, 500)
 
 
+def test_gaussian_imputer_keeps_data_and_reproduces_correlation():
+    g = rng.standard_normal((2000, 2))
+    full = np.exp(np.column_stack([g[:, 0], 0.8 * g[:, 0] + 0.6 * g[:, 1]]))
+    data = full.copy()
+    data[::3, 1] = np.nan
+    data[1::7, 0] = np.nan
+    imputer = cs.GaussianImputer(seed=1).fit(data)
+    assert imputer.correlation_[0, 1] == pytest.approx(0.8, abs=0.04)
+    out = imputer.transform(data)
+    seen = ~np.isnan(data)
+    np.testing.assert_array_equal(out[seen], data[seen])
+    assert np.isfinite(out).all()
+    np.testing.assert_array_equal(out, imputer.transform(data))
+    holed = ~seen.all(axis=1)
+    assert np.corrcoef(np.log(out[holed]).T)[0, 1] == pytest.approx(0.8, abs=0.06)
+    with pytest.raises(ValueError, match="< 2 values"):
+        cs.GaussianImputer().fit(np.column_stack([full[:, 0], np.full(2000, np.nan)]))
+
+
 def test_normal_score_is_standard_and_invertible(skewed):
     ns = cs.NormalScore()
     y = ns.fit_transform(skewed)

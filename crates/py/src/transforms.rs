@@ -402,6 +402,93 @@ impl Ppmt {
     }
 }
 
+/// Imputes missing variables from the variables present in the same sample.
+///
+/// Each variable is normal-scored on its observed values; the mean and
+/// covariance of the scores are fitted by expectation-maximization, missing
+/// entries included. Each missing score is drawn from its Gaussian
+/// distribution given the scores present in its row and back-transformed, so
+/// the imputed values keep the histograms and correlations of the data.
+///
+/// Parameters
+/// ----------
+/// seed : int, default 0
+///     Seed of the draws; the same seed imputes the same values.
+#[derive(Serialize, Deserialize)]
+#[pyclass(module = "ceres", name = "GaussianImputer")]
+pub struct GaussianImputer {
+    seed: u64,
+    fitted: Option<transforms::GaussianImputer>,
+}
+
+impl GaussianImputer {
+    fn fitted(&self) -> PyResult<&transforms::GaussianImputer> {
+        self.fitted
+            .as_ref()
+            .ok_or_else(|| not_fitted("GaussianImputer"))
+    }
+}
+
+#[pymethods]
+impl GaussianImputer {
+    /// JSON of the parameters and, once fitted, the fitted state.
+    fn to_json(&self) -> PyResult<String> {
+        crate::persist::to_json(self)
+    }
+
+    /// Reads `to_json` output; raises InvalidInput on another class's JSON
+    /// or a newer format.
+    #[staticmethod]
+    fn from_json(text: &str) -> PyResult<Self> {
+        crate::persist::from_json(text)
+    }
+
+    #[new]
+    #[pyo3(signature = (seed=0))]
+    fn new(seed: u64) -> Self {
+        Self { seed, fitted: None }
+    }
+
+    /// Fits the normal scores and their covariance.
+    ///
+    /// Parameters
+    /// ----------
+    /// data : array_like, shape (n, variables)
+    ///     NaN marks a missing variable; each variable needs two values.
+    /// weights : array_like, optional
+    ///     Declustering weights, for the scores and the covariance.
+    #[pyo3(signature = (data, weights=None))]
+    fn fit<'py>(
+        mut slf: PyRefMut<'py, Self>,
+        data: &Bound<PyAny>,
+        weights: Option<&Bound<PyAny>>,
+    ) -> PyResult<PyRefMut<'py, Self>> {
+        let data = rows(data, "data")?;
+        let weights = optional_finite(weights, "weights")?;
+        slf.fitted =
+            Some(transforms::GaussianImputer::fit(&data, weights.as_deref()).map_err(err)?);
+        Ok(slf)
+    }
+
+    /// `data` with every NaN replaced by an imputed value; the other values
+    /// are returned unchanged.
+    fn transform<'py>(&self, py: Python<'py>, data: &Bound<PyAny>) -> PyResult<Bound<'py, PyAny>> {
+        let out = self
+            .fitted()?
+            .impute(&rows(data, "data")?, self.seed)
+            .map_err(err)?;
+        Ok(array2(py, &out).into_any())
+    }
+
+    /// Correlation matrix of the normal scores.
+    #[getter]
+    fn correlation_<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let c = self.fitted()?.correlation();
+        let rows: Vec<Vec<f64>> = c.row_iter().map(|r| r.iter().copied().collect()).collect();
+        Ok(array2(py, &rows).into_any())
+    }
+}
+
 /// Finite `(n, dim)` rows.
 fn table(data: &Bound<PyAny>, dim: usize) -> PyResult<Vec<Vec<f64>>> {
     let data = rows(data, "data")?;
@@ -1175,6 +1262,7 @@ pub fn register(m: &Bound<PyModule>) -> PyResult<()> {
     m.add_class::<Anamorphosis>()?;
     m.add_class::<BoxCox>()?;
     m.add_class::<Ppmt>()?;
+    m.add_class::<GaussianImputer>()?;
     m.add_class::<Pca>()?;
     m.add_class::<Maf>()?;
     m.add_class::<StepwiseConditional>()?;

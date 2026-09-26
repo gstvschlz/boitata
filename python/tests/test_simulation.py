@@ -219,6 +219,15 @@ def test_multivariate_simulation_drops_incomplete_samples_and_checks_inputs():
     sgs = cs.SGS(gaussian, cs.Search(radius=40, max_samples=12))
     with pytest.warns(UserWarning, match="4 samples miss a variable"):
         cs.MultivariateSimulation(cs.StepwiseConditional(), [sgs, sgs]).fit(coords, data)
+    data[:, 1] *= rng.lognormal(0, 0.5, 60)
+    data[4] = np.nan
+    mv = cs.MultivariateSimulation(cs.PPMT(seed=3), [sgs, sgs])
+    with pytest.warns(UserWarning, match="1 samples miss every variable"):
+        mv.fit(coords, data, impute=True)
+    at_data = mv.simulate(coords[:4], n=6, seed=2, realizations=True)
+    np.testing.assert_allclose(at_data[0].realizations, np.tile(values[:4], (6, 1)), rtol=1e-6)
+    imputed = at_data[1].realizations
+    assert np.isfinite(imputed).all() and np.ptp(imputed, axis=0).min() > 0
     with pytest.raises(ValueError, match="transform must be"):
         cs.MultivariateSimulation(cs.NormalScore(), [sgs])
     with pytest.raises(ValueError, match="2 columns"):
