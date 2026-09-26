@@ -20,6 +20,10 @@
 
 ::: ceres.write_parquet
 
+::: ceres.read_mesh
+
+::: ceres.write_mesh
+
 ::: ceres.CeresError
 
 ::: ceres.InvalidInput
