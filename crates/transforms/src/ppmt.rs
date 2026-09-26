@@ -49,7 +49,7 @@ pub struct Ppmt {
 }
 
 /// PPMT fitting parameters.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct PpmtParams {
     /// Number of projection-pursuit iterations.
     pub iterations: usize,

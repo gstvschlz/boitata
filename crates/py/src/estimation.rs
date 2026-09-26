@@ -5,6 +5,7 @@ use estimation::{
 };
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyTuple};
+use serde::{Deserialize, Serialize};
 use variogram::Variogram as CoreVariogram;
 
 use crate::args::{self, Point, array1, distinct, finite, pick, points, same_length, triple};
@@ -21,12 +22,25 @@ use crate::variogram::Variogram;
 /// units: simulators working on normal scores convert it through their
 /// fitted transform, so it picks the same samples as in estimation. Estimators also take a sequence
 /// of searches as passes: targets one leaves unestimated go to the next.
+#[derive(Serialize, Deserialize)]
 #[pyclass(module = "ceres", name = "Search", frozen, from_py_object)]
 #[derive(Clone)]
 pub struct Search(pub CoreSearch);
 
 #[pymethods]
 impl Search {
+    /// JSON of the parameters and, once fitted, the fitted state.
+    fn to_json(&self) -> PyResult<String> {
+        crate::persist::to_json(self)
+    }
+
+    /// Reads `to_json` output; raises InvalidInput on another class's JSON
+    /// or a newer format.
+    #[staticmethod]
+    fn from_json(text: &str) -> PyResult<Self> {
+        crate::persist::from_json(text)
+    }
+
     #[new]
     #[pyo3(signature = (radius, max_samples=16, min_samples=1, octant=false, max_per_hole=None, rotation=None, ratios=None, high_grade=None))]
     #[allow(clippy::too_many_arguments)]

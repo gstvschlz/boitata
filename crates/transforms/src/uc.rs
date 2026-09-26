@@ -32,10 +32,11 @@ use crate::error::{Result, TransformError};
 use crate::hermite::upper_tail_integral;
 use crate::normal::probit;
 use crate::selectivity::Recovery;
+use serde::{Deserialize, Serialize};
 
 /// A UC configuration: a point anamorphosis plus SMU and panel change-of-support
 /// coefficients.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UniformConditioning {
     point: HermiteAnamorphosis,
     smu: HermiteAnamorphosis,

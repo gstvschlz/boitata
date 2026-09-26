@@ -26,6 +26,7 @@ pub struct Search {
     pub max_samples: usize,
     /// Search radius in the metric of the ellipsoid: metres along the major
     /// axis when the anisotropy ranges are ratios (major = 1).
+    #[serde(with = "ceres_core::nonfinite")]
     pub radius: f64,
     /// Maximum samples taken from any single drill hole (requires `Sample::hole`).
     pub max_per_hole: Option<usize>,
@@ -44,7 +45,9 @@ pub struct Search {
 /// simulators working on normal scores convert it through their transform.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct HighGrade {
+    #[serde(with = "ceres_core::nonfinite")]
     pub threshold: f64,
+    #[serde(with = "ceres_core::nonfinite")]
     pub radius: f64,
 }
 

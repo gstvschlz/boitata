@@ -1,5 +1,6 @@
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
+use serde::{Deserialize, Serialize};
 use transforms::{
     HermiteAnamorphosis, Maf as CoreMaf, NormalScore as CoreNormalScore, Pca as CorePca,
     Ppmt as CorePpmt, PpmtParams, Recovery, StepwiseConditional as CoreSct, Trend as CoreTrend,
@@ -37,8 +38,10 @@ fn recoveries<'py>(py: Python<'py>, r: &[Recovery]) -> PyResult<Bound<'py, PyDic
 /// Normal-score transform through the (weighted) empirical CDF. Beyond the
 /// data, values interpolate in probability toward `tails` (lower, upper),
 /// which default to the data range.
+#[derive(Serialize, Deserialize)]
 #[pyclass(module = "ceres", name = "NormalScore")]
 pub struct NormalScore {
+    #[serde(with = "ceres_core::nonfinite")]
     tails: Option<(f64, f64)>,
     fitted: Option<CoreNormalScore>,
 }
@@ -53,6 +56,18 @@ impl NormalScore {
 
 #[pymethods]
 impl NormalScore {
+    /// JSON of the parameters and, once fitted, the fitted state.
+    fn to_json(&self) -> PyResult<String> {
+        crate::persist::to_json(self)
+    }
+
+    /// Reads `to_json` output; raises InvalidInput on another class's JSON
+    /// or a newer format.
+    #[staticmethod]
+    fn from_json(text: &str) -> PyResult<Self> {
+        crate::persist::from_json(text)
+    }
+
     #[new]
     #[pyo3(signature = (tails=None))]
     fn new(tails: Option<(f64, f64)>) -> Self {
@@ -123,6 +138,7 @@ impl NormalScore {
 }
 
 /// Gaussian anamorphosis expanded in Hermite polynomials.
+#[derive(Serialize, Deserialize)]
 #[pyclass(module = "ceres", name = "HermiteAnamorphosis")]
 pub struct Anamorphosis {
     degree: usize,
@@ -150,6 +166,18 @@ impl Anamorphosis {
 
 #[pymethods]
 impl Anamorphosis {
+    /// JSON of the parameters and, once fitted, the fitted state.
+    fn to_json(&self) -> PyResult<String> {
+        crate::persist::to_json(self)
+    }
+
+    /// Reads `to_json` output; raises InvalidInput on another class's JSON
+    /// or a newer format.
+    #[staticmethod]
+    fn from_json(text: &str) -> PyResult<Self> {
+        crate::persist::from_json(text)
+    }
+
     #[new]
     #[pyo3(signature = (degree=30))]
     fn new(degree: usize) -> Self {
@@ -227,6 +255,7 @@ impl Anamorphosis {
 }
 
 /// Box-Cox power transform; `lambda_=None` picks the least-skewed lambda.
+#[derive(Serialize, Deserialize)]
 #[pyclass(module = "ceres", name = "BoxCox")]
 pub struct BoxCox {
     requested: Option<f64>,
@@ -235,6 +264,18 @@ pub struct BoxCox {
 
 #[pymethods]
 impl BoxCox {
+    /// JSON of the parameters and, once fitted, the fitted state.
+    fn to_json(&self) -> PyResult<String> {
+        crate::persist::to_json(self)
+    }
+
+    /// Reads `to_json` output; raises InvalidInput on another class's JSON
+    /// or a newer format.
+    #[staticmethod]
+    fn from_json(text: &str) -> PyResult<Self> {
+        crate::persist::from_json(text)
+    }
+
     #[new]
     #[pyo3(signature = (lambda_=None))]
     fn new(lambda_: Option<f64>) -> Self {
@@ -287,6 +328,7 @@ impl BoxCox {
 }
 
 /// Projection-pursuit multivariate transform to independent Gaussians.
+#[derive(Serialize, Deserialize)]
 #[pyclass(module = "ceres", name = "PPMT")]
 pub struct Ppmt {
     params: PpmtParams,
@@ -301,6 +343,18 @@ impl Ppmt {
 
 #[pymethods]
 impl Ppmt {
+    /// JSON of the parameters and, once fitted, the fitted state.
+    fn to_json(&self) -> PyResult<String> {
+        crate::persist::to_json(self)
+    }
+
+    /// Reads `to_json` output; raises InvalidInput on another class's JSON
+    /// or a newer format.
+    #[staticmethod]
+    fn from_json(text: &str) -> PyResult<Self> {
+        crate::persist::from_json(text)
+    }
+
     /// `marginal` normal-scores each variable before the projections.
     #[new]
     #[pyo3(signature = (iterations=30, candidates=60, seed=1, marginal=true))]
@@ -358,6 +412,7 @@ fn table(data: &Bound<PyAny>, dim: usize) -> PyResult<Vec<Vec<f64>>> {
 
 /// Principal components of the covariance (`standardize=True`: correlation)
 /// matrix, by decreasing variance.
+#[derive(Serialize, Deserialize)]
 #[pyclass(module = "ceres", name = "PCA")]
 pub struct Pca {
     standardize: bool,
@@ -372,6 +427,18 @@ impl Pca {
 
 #[pymethods]
 impl Pca {
+    /// JSON of the parameters and, once fitted, the fitted state.
+    fn to_json(&self) -> PyResult<String> {
+        crate::persist::to_json(self)
+    }
+
+    /// Reads `to_json` output; raises InvalidInput on another class's JSON
+    /// or a newer format.
+    #[staticmethod]
+    fn from_json(text: &str) -> PyResult<Self> {
+        crate::persist::from_json(text)
+    }
+
     #[new]
     #[pyo3(signature = (standardize=false))]
     fn new(standardize: bool) -> Self {
@@ -433,6 +500,7 @@ impl Pca {
 
 /// Min/max autocorrelation factors: uncorrelated at lag 0 and at `lag`, from
 /// most to least continuous. Pairs within `lag ± tolerance` (default `lag / 2`).
+#[derive(Serialize, Deserialize)]
 #[pyclass(module = "ceres", name = "MAF")]
 pub struct Maf {
     lag: f64,
@@ -448,6 +516,18 @@ impl Maf {
 
 #[pymethods]
 impl Maf {
+    /// JSON of the parameters and, once fitted, the fitted state.
+    fn to_json(&self) -> PyResult<String> {
+        crate::persist::to_json(self)
+    }
+
+    /// Reads `to_json` output; raises InvalidInput on another class's JSON
+    /// or a newer format.
+    #[staticmethod]
+    fn from_json(text: &str) -> PyResult<Self> {
+        crate::persist::from_json(text)
+    }
+
     #[new]
     #[pyo3(signature = (lag, tolerance=None))]
     fn new(lag: f64, tolerance: Option<f64>) -> Self {
@@ -496,6 +576,7 @@ impl Maf {
 
 /// Stepwise conditional transform: each variable normal-scored within the
 /// `classes` equal-probability classes of the variables before it.
+#[derive(Serialize, Deserialize)]
 #[pyclass(module = "ceres", name = "StepwiseConditional")]
 pub struct StepwiseConditional {
     classes: usize,
@@ -512,6 +593,18 @@ impl StepwiseConditional {
 
 #[pymethods]
 impl StepwiseConditional {
+    /// JSON of the parameters and, once fitted, the fitted state.
+    fn to_json(&self) -> PyResult<String> {
+        crate::persist::to_json(self)
+    }
+
+    /// Reads `to_json` output; raises InvalidInput on another class's JSON
+    /// or a newer format.
+    #[staticmethod]
+    fn from_json(text: &str) -> PyResult<Self> {
+        crate::persist::from_json(text)
+    }
+
     #[new]
     #[pyo3(signature = (classes=10))]
     fn new(classes: usize) -> Self {
@@ -547,11 +640,24 @@ impl StepwiseConditional {
 }
 
 /// Uniform conditioning of panel estimates to SMU recoveries.
+#[derive(Serialize, Deserialize)]
 #[pyclass(module = "ceres", name = "UniformConditioning", frozen)]
 pub struct UniformConditioning(CoreUc);
 
 #[pymethods]
 impl UniformConditioning {
+    /// JSON of the parameters and, once fitted, the fitted state.
+    fn to_json(&self) -> PyResult<String> {
+        crate::persist::to_json(self)
+    }
+
+    /// Reads `to_json` output; raises InvalidInput on another class's JSON
+    /// or a newer format.
+    #[staticmethod]
+    fn from_json(text: &str) -> PyResult<Self> {
+        crate::persist::from_json(text)
+    }
+
     /// `anamorphosis` is the fitted point anamorphosis; `r_smu`, `r_panel` the
     /// change-of-support coefficients of the SMU and the panel.
     #[new]
@@ -582,11 +688,24 @@ impl UniformConditioning {
 }
 
 /// Polynomial trend in the coordinates.
+#[derive(Serialize, Deserialize)]
 #[pyclass(module = "ceres", name = "Trend", frozen)]
 pub struct Trend(CoreTrend);
 
 #[pymethods]
 impl Trend {
+    /// JSON of the parameters and, once fitted, the fitted state.
+    fn to_json(&self) -> PyResult<String> {
+        crate::persist::to_json(self)
+    }
+
+    /// Reads `to_json` output; raises InvalidInput on another class's JSON
+    /// or a newer format.
+    #[staticmethod]
+    fn from_json(text: &str) -> PyResult<Self> {
+        crate::persist::from_json(text)
+    }
+
     #[getter]
     fn degree(&self) -> usize {
         self.0.degree
@@ -619,6 +738,7 @@ fn detrend<'py>(
 }
 
 /// Declustering weights (normalised to sum to n) and the declustered mean.
+#[derive(Serialize, Deserialize)]
 #[pyclass(module = "ceres", name = "Declustering", frozen)]
 pub struct Declustering {
     #[pyo3(get)]
@@ -632,6 +752,18 @@ pub struct Declustering {
 
 #[pymethods]
 impl Declustering {
+    /// JSON of the parameters and, once fitted, the fitted state.
+    fn to_json(&self) -> PyResult<String> {
+        crate::persist::to_json(self)
+    }
+
+    /// Reads `to_json` output; raises InvalidInput on another class's JSON
+    /// or a newer format.
+    #[staticmethod]
+    fn from_json(text: &str) -> PyResult<Self> {
+        crate::persist::from_json(text)
+    }
+
     #[getter]
     fn weights<'py>(&self, py: Python<'py>) -> Bound<'py, PyAny> {
         array1(py, self.weights.clone()).into_any()
