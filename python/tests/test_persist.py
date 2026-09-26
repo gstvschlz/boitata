@@ -158,3 +158,48 @@ def test_estimator_file_is_a_table_of_samples(tmp_path):
         cs.SimpleKriging.from_parquet(path)
     with pytest.raises(cs.FileError):
         cs.OrdinaryKriging.from_parquet(tmp_path / "missing.parquet")
+
+
+gaussian = cs.Variogram([("spherical", 1.0, 30.0)])
+nodes = rng.uniform(0, 100, (40, 3))
+facies = (values > 0.8).astype(int) + (values > 1.5)
+
+
+def simulators():
+    near = cs.Search(40.0, max_samples=8)
+    return [
+        (
+            cs.SGS(gaussian, near),
+            (values,),
+            {"cutoffs": [1.0, 2.0], "quantiles": [0.1, 0.9], "realizations": True},
+        ),
+        (cs.TurningBands(gaussian, bands=50, step=2.0), (values,), {"cutoffs": [1.0]}),
+        (cs.SIS([gaussian] * 3, near), (facies,), {"realizations": True}),
+        (cs.Plurigaussian(gaussian, proportions=[0.4, 0.4, 0.2]), (facies,), {}),
+    ]
+
+
+def summary_arrays(summary):
+    if isinstance(summary, cs.CategoricalSummary):
+        names = ("n", "probabilities", "most_likely", "entropy", "proportions", "realizations")
+    else:
+        names = ("n", "mean", "variance", "cutoffs", "probability_above", "mean_above", "quantiles")
+        names += ("quantile_values", "realization_mean", "realization_above", "realizations")
+    return [getattr(summary, name) for name in names]
+
+
+@pytest.mark.parametrize("simulator, data, options", simulators(), ids=lambda o: type(o).__name__)
+def test_simulator_round_trip_simulates_bit_identically(simulator, data, options, tmp_path):
+    path = tmp_path / "simulator.parquet"
+    simulator.to_parquet(path)
+    unfitted = type(simulator).from_parquet(path).fit(coords, *data)
+    simulator.fit(coords, *data)
+    summary = simulator.simulate(nodes, n=4, seed=9, **options)
+    same(summary_arrays(unfitted.simulate(nodes, n=4, seed=9, **options)), summary_arrays(summary))
+    simulator.to_parquet(path)
+    for back in (type(simulator).from_parquet(path), pickle.loads(pickle.dumps(simulator))):
+        same(summary_arrays(back.simulate(nodes, n=4, seed=9, **options)), summary_arrays(summary))
+    summary.to_parquet(path)
+    for back in (type(summary).from_parquet(path), pickle.loads(pickle.dumps(summary))):
+        assert type(back) is type(summary)
+        same(summary_arrays(back), summary_arrays(summary))

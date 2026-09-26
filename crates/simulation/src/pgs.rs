@@ -22,18 +22,21 @@ use crate::gibbs::{GibbsParams, gibbs};
 use crate::turning_bands::{TurningBandsParams, conditional_gaussian_field};
 use rand::SeedableRng;
 use rand::rngs::StdRng;
+use serde::{Deserialize, Serialize};
 use variogram::Variogram;
 
 /// A rectangular region of the (`Y₁`, `Y₂`) plane mapped to a facies.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct Region {
+    #[serde(with = "ceres_core::nonfinite")]
     pub y1: (f64, f64),
+    #[serde(with = "ceres_core::nonfinite")]
     pub y2: (f64, f64),
     pub facies: usize,
 }
 
 /// A truncation rule: regions that partition the Gaussian plane.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TruncationRule {
     pub regions: Vec<Region>,
 }
