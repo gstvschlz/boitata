@@ -1552,6 +1552,7 @@ struct Factors {
     columns: Vec<Vec<f64>>,
     weights: Option<Vec<f64>>,
     holes: Option<Vec<u32>>,
+    imputed: Option<(transforms::GaussianImputer, Vec<Vec<f64>>)>,
 }
 
 /// Several correlated variables simulated through independent factors.
@@ -1614,9 +1615,9 @@ impl MultivariateSimulation {
     }
 
     /// Fits the transform to the data, then each simulator to its factor.
-    /// Samples missing a variable are dropped with a warning; of samples
-    /// sharing a location, the first is kept, with a warning naming their
-    /// holes.
+    /// Samples missing a variable are dropped with a warning, unless
+    /// `impute`; of samples sharing a location, the first is kept, with a
+    /// warning naming their holes.
     ///
     /// Parameters
     /// ----------
@@ -1629,13 +1630,19 @@ impl MultivariateSimulation {
     /// holes : array_like, optional
     ///     Drill-hole ids or names, for `max_per_hole` and the warning on
     ///     samples sharing a location.
-    #[pyo3(signature = (coords, data, weights=None, holes=None))]
+    /// impute : bool, default False
+    ///     Keep samples missing some variables: a `GaussianImputer` fitted to
+    ///     the data fills them afresh in every realization, so the imputation
+    ///     uncertainty reaches the realizations. The transform is fitted to
+    ///     the complete samples. Samples missing every variable are dropped.
+    #[pyo3(signature = (coords, data, weights=None, holes=None, impute=false))]
     fn fit<'py>(
         mut slf: PyRefMut<'py, Self>,
         coords: &Bound<PyAny>,
         data: &Bound<PyAny>,
         weights: Option<&Bound<PyAny>>,
         holes: Option<&Bound<PyAny>>,
+        impute: bool,
     ) -> PyResult<PyRefMut<'py, Self>> {
         let py = coords.py();
         let data = rows(data, "data")?;
@@ -1652,27 +1659,47 @@ impl MultivariateSimulation {
             same_length(data.len(), w.len(), "weights")?;
         }
         let holes = args::holes(holes, data.len())?;
-        let complete: Vec<usize> = (0..data.len())
-            .filter(|&i| data[i].iter().all(|v| v.is_finite()))
-            .collect();
-        let missing = data.len() - complete.len();
+        let complete = |data: &[Vec<f64>]| -> Vec<usize> {
+            (0..data.len())
+                .filter(|&i| data[i].iter().all(|v| v.is_finite()))
+                .collect()
+        };
+        let usable: Vec<usize> = if impute {
+            (0..data.len())
+                .filter(|&i| data[i].iter().any(|v| v.is_finite()))
+                .collect()
+        } else {
+            complete(&data)
+        };
+        let missing = data.len() - usable.len();
         if missing > 0 {
             let category = py.get_type::<pyo3::exceptions::PyUserWarning>();
-            let message = format!("{missing} samples miss a variable; dropped them");
+            let what = if impute { "every" } else { "a" };
+            let message = format!("{missing} samples miss {what} variable; dropped them");
             PyErr::warn(py, &category, &std::ffi::CString::new(message)?, 1)?;
         }
-        let (data, locs) = (pick(&data, &complete), pick(&locs, &complete));
-        let weights = weights.map(|w| pick(&w, &complete));
-        let holes = holes.map(|(names, ids)| (pick(&names, &complete), pick(&ids, &complete)));
+        let (data, locs) = (pick(&data, &usable), pick(&locs, &usable));
+        let weights = weights.map(|w| pick(&w, &usable));
+        let holes = holes.map(|(names, ids)| (pick(&names, &usable), pick(&ids, &usable)));
+        let full = complete(&data);
         let transform = crate::transforms::decorrelation(
             slf.transform.bind(py),
-            &data,
-            weights.as_deref(),
-            &locs,
+            &pick(&data, &full),
+            weights.as_ref().map(|w| pick(w, &full)).as_deref(),
+            &pick(&locs, &full),
         )?;
-        let factors = transform.forward(&data);
         let keep = distinct(py, &locs, holes.as_ref().map(|h| &h.0[..]))?;
-        let factors = pick(&factors, &keep);
+        let imputed = if impute {
+            let imputer =
+                transforms::GaussianImputer::fit(&data, weights.as_deref()).map_err(invalid)?;
+            Some((imputer, pick(&data, &keep)))
+        } else {
+            None
+        };
+        let factors = match imputed {
+            Some(_) => vec![],
+            None => transform.forward(&pick(&data, &keep)),
+        };
         slf.fitted = Some(Factors {
             transform,
             locs: pick(&locs, &keep),
@@ -1681,6 +1708,7 @@ impl MultivariateSimulation {
                 .collect(),
             weights: weights.map(|w| pick(&w, &keep)),
             holes: holes.map(|h| pick(&h.1, &keep)),
+            imputed,
         });
         Ok(slf)
     }
@@ -1729,8 +1757,20 @@ impl MultivariateSimulation {
                 &f.transform,
                 &options,
                 support.as_ref(),
-                |j, seed| {
-                    let (locs, values) = (&f.locs, &f.columns[j]);
+                |k, j, factor| {
+                    let drawn: Vec<f64>;
+                    let values = match &f.imputed {
+                        None => &f.columns[j],
+                        Some((imputer, data)) => {
+                            let p = self.factors.len();
+                            let rows = imputer
+                                .impute(data, simulation::factor_seed(seed, k, p))
+                                .map_err(|e| simulation::SimError::Transform(e.to_string()))?;
+                            drawn = f.transform.forward(&rows).iter().map(|r| r[j]).collect();
+                            &drawn
+                        }
+                    };
+                    let (seed, locs) = (factor, &f.locs);
                     let (weights, holes) = (f.weights.as_deref(), f.holes.as_deref());
                     Ok(match &self.factors[j] {
                         Factor::Sgs(variogram, search) => {

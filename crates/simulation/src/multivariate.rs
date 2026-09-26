@@ -51,9 +51,10 @@ pub fn factor_seed(seed: u64, k: usize, j: usize) -> u64 {
     splitmix(seed.wrapping_add(k as u64) ^ splitmix(j as u64))
 }
 
-/// Summaries of `n` realizations of every variable. `simulate(j, seed)`
-/// returns factor `j` at the nodes, simulated with `seed`; the factors of a
-/// realization are back-transformed together, then averaged to `support`.
+/// Summaries of `n` realizations of every variable. `simulate(k, j, seed)`
+/// returns factor `j` of realization `k` at the nodes, simulated with `seed`;
+/// the factors of a realization are back-transformed together, then averaged
+/// to `support`.
 pub fn multivariate(
     n: usize,
     seed: u64,
@@ -61,11 +62,11 @@ pub fn multivariate(
     transform: &Decorrelation,
     options: &ContinuousOptions,
     support: Option<&BlockSupport>,
-    simulate: impl Fn(usize, u64) -> Result<Vec<f64>> + Sync,
+    simulate: impl Fn(usize, usize, u64) -> Result<Vec<f64>> + Sync,
 ) -> Result<Vec<ContinuousSummary>> {
     continuous_many(n, factors, options, |k| {
         let columns = (0..factors)
-            .map(|j| simulate(j, factor_seed(seed, k, j)))
+            .map(|j| simulate(k, j, factor_seed(seed, k, j)))
             .collect::<Result<Vec<_>>>()?;
         let nodes = columns.first().map_or(0, Vec::len);
         let rows: Vec<Vec<f64>> = (0..nodes)
@@ -132,7 +133,7 @@ mod tests {
             keep: true,
             ..Default::default()
         };
-        multivariate(n, 3, 2, &transform, &options, None, |j, seed| {
+        multivariate(n, 3, 2, &transform, &options, None, |_, j, seed| {
             let column: Vec<f64> = factors.iter().map(|r| r[j]).collect();
             let params = SgsParams {
                 search: vec![Search {

@@ -16,6 +16,8 @@ variogram.workspace = true
 libm.workspace = true
 kiddo.workspace = true
 rayon.workspace = true
+rand.workspace = true
+rand_distr.workspace = true
 
 [dev-dependencies]
 arrow-array.workspace = true
