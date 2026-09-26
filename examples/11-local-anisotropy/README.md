@@ -54,7 +54,11 @@ shape = (60, 52)
 extent = (0.5, 260.5, 0.5, 300.5)
 fig, ax = plt.subplots(figsize=(6.4, 6), layout="constrained")
 ax.imshow(
-    guide.reshape(shape), origin="lower", extent=extent, cmap="Greys", norm=PowerNorm(0.5, vmin=0, vmax=1200)
+    guide.reshape(shape),
+    origin="lower",
+    extent=extent,
+    cmap="cividis",
+    norm=PowerNorm(0.5, vmin=0, vmax=1200),
 )
 every = (nodes[:, 0] % 15 == 3) & (nodes[:, 1] % 15 == 3)
 azimuth = np.radians(lva.angles[every, 0])

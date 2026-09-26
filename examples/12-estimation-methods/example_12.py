@@ -19,7 +19,7 @@ import ceres as cs
 import matplotlib.pyplot as plt
 import numpy as np
 from common import ACCENT, GREY, HIGHLIGHT, INK, LIGHT, map_axes, save
-from matplotlib.colors import LinearSegmentedColormap, ListedColormap, PowerNorm
+from matplotlib.colors import ListedColormap, PowerNorm
 
 samples = cs.datasets.walker_lake()
 truth = cs.datasets.walker_lake_exhaustive()["V"].reshape(300, 260)
@@ -124,7 +124,7 @@ im = b.imshow(
     -difference.reshape(shape),
     origin="lower",
     extent=extent,
-    cmap=LinearSegmentedColormap.from_list("lowered", ["white", HIGHLIGHT]),
+    cmap="cividis",
     vmin=0,
     vmax=100,
 )

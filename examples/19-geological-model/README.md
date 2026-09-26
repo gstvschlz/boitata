@@ -120,7 +120,7 @@ for ax, name, covariance in zip(axes[:2], ("kriging, cubic", "kriging"), ("cubic
     ax.set_title(f"Kriging, {covariance} covariance, northing {north:.0f} m")
 _, variance = models["GP"].evaluate(section, variance=True)
 sd = axes[2].imshow(
-    np.sqrt(variance).reshape(east.shape), origin="lower", extent=extent, cmap="Greys", aspect="auto"
+    np.sqrt(variance).reshape(east.shape), origin="lower", extent=extent, cmap="cividis", aspect="auto"
 )
 axes[2].set_title("GP standard deviation")
 fig.colorbar(sd, ax=axes[2], shrink=0.8)

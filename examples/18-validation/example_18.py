@@ -145,8 +145,8 @@ print(
 # %%
 fig, axes = plt.subplots(1, 2, figsize=(9, 4.6), layout="constrained")
 for ax, key, title, cmap in (
-    (axes[0], "mean_distance", "Mean distance to samples used (m)", "ceres"),
-    (axes[1], "negative_weight_sum", "Sum of negative weights", plt.get_cmap("ceres").reversed()),
+    (axes[0], "mean_distance", "Mean distance to samples used (m)", "cividis"),
+    (axes[1], "negative_weight_sum", "Sum of negative weights", "cividis_r"),
 ):
     im = ax.imshow(d[key].reshape(shape), origin="lower", extent=extent, cmap=cmap)
     ax.scatter(xy[:, 0], xy[:, 1], s=2, color=GREY, linewidths=0)

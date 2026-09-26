@@ -10,8 +10,7 @@ estimating parts independently can break the total.
 import ceres as cs
 import matplotlib.pyplot as plt
 import numpy as np
-from common import ACCENT, GREY, HIGHLIGHT, INK, save
-from matplotlib.colors import LinearSegmentedColormap
+from common import ACCENT, GREY, INK, save
 
 data = cs.datasets.geomet()
 minerals = ["arcilla", "calcosina", "bornita", "calcopirita", "tenantita", "molibdenita", "pirita"]
@@ -50,7 +49,7 @@ Correlations at each stage:
 <details><summary>Python</summary>
 
 ```python
-cmap = LinearSegmentedColormap.from_list("diverging", [HIGHLIGHT, "#f7f7f7", ACCENT])
+cmap = "cividis"
 fig, axes = plt.subplots(1, 3, figsize=(13, 4.4), layout="constrained")
 panels = [
     (np.corrcoef(composition.T), names, "Raw percentages"),

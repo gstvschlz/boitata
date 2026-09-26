@@ -79,7 +79,7 @@ for ax, image, title in (
     map_axes(ax, title)
 axes[1].scatter(samples.coords[:, 0], samples.coords[:, 1], s=2, color=INK, linewidths=0)
 fig.colorbar(im, ax=axes[:2], shrink=0.8, label="V (ppm)")
-sd = axes[2].imshow(np.sqrt(variance).reshape(shape), origin="lower", extent=extent, cmap="Greys")
+sd = axes[2].imshow(np.sqrt(variance).reshape(shape), origin="lower", extent=extent, cmap="cividis")
 map_axes(axes[2], "Kriging standard deviation")
 axes[2].scatter(samples.coords[:, 0], samples.coords[:, 1], s=2, color=HIGHLIGHT, linewidths=0)
 fig.colorbar(sd, ax=axes[2], shrink=0.8, label="ppm")

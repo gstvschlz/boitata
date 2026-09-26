@@ -89,7 +89,7 @@ for ax, image, title in (
     map_axes(ax, title)
 fig.colorbar(im, ax=axes[0, :], shrink=0.8, label="V (ppm)")
 fig.colorbar(im, ax=axes[1, 0], shrink=0.8, label="V (ppm)")
-spread = axes[1, 1].imshow(summary.std.reshape(shape), origin="lower", extent=extent, cmap="Greys")
+spread = axes[1, 1].imshow(summary.std.reshape(shape), origin="lower", extent=extent, cmap="cividis")
 map_axes(axes[1, 1], "Spread across realizations")
 fig.colorbar(spread, ax=axes[1, 1], shrink=0.8, label="standard deviation (ppm)")
 prob = axes[1, 2].imshow(p500.reshape(shape), origin="lower", extent=extent, vmin=0, vmax=1)

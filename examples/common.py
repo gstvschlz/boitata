@@ -7,7 +7,6 @@ from pathlib import Path
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 from ceres.datasets import fetch  # noqa: F401
-from matplotlib.colors import LinearSegmentedColormap
 
 ROOT = Path(__file__).resolve().parent
 
@@ -16,8 +15,6 @@ GREY = "#8c8c8c"
 LIGHT = "#d9d9d9"
 ACCENT = "#1f4e79"
 HIGHLIGHT = "#c05a28"
-CMAP = LinearSegmentedColormap.from_list("ceres", ["#f7f7f7", "#9ebad6", ACCENT, "#0b1f33"])
-mpl.colormaps.register(CMAP, force=True)
 
 mpl.rcParams.update(
     {
@@ -36,7 +33,7 @@ mpl.rcParams.update(
         "xtick.color": INK,
         "ytick.color": INK,
         "legend.frameon": False,
-        "image.cmap": "ceres",
+        "image.cmap": "cividis",
     }
 )
 

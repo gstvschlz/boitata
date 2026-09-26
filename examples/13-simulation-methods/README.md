@@ -46,8 +46,8 @@ for name, reals, seconds in (("SGS", by_sgs, sgs_seconds), ("turning bands", by_
 </details>
 
 ```text
-          SGS: 20 realizations in 0.38 s, mean 299 ppm, variance 72174 ppm²
-turning bands: 20 realizations in 0.10 s, mean 289 ppm, variance 61368 ppm²
+          SGS: 20 realizations in 1.77 s, mean 299 ppm, variance 72174 ppm²
+turning bands: 20 realizations in 0.21 s, mean 289 ppm, variance 61368 ppm²
 ```
 
 <details><summary>Python</summary>
