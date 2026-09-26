@@ -19,7 +19,7 @@ import ceres as cs
 import matplotlib.pyplot as plt
 import numpy as np
 from common import map_axes, save
-from matplotlib.colors import ListedColormap, PowerNorm
+from matplotlib.colors import PowerNorm
 
 samples = cs.datasets.walker_lake()
 xy, v = samples.coords, samples["V"]
@@ -124,16 +124,18 @@ save(fig, "trend")
 # a Gaussian field at thresholds set by the proportions, which orders the types. A hierarchical `rule` truncates
 # several fields in turn: here the first sets Quaternary cover apart from the Jurassic, and the second orders the
 # Jurassic stages from Argovian to Portlandian, so the cover may touch every stage but each stage touches only the
-# next.
+# next. A `Categories` scheme names the rock types and gives each a colour: `encode` turns labels into the codes 0
+# to 4 that the simulations take, `shares` gives their proportions, and `plot.category_colors` and
+# `plot.category_legend` draw the codes in the scheme's colours.
 
 # %%
 train = cs.datasets.jura()["prediction"]
 jura_grid = cs.datasets.jura()["grid"]
 names = ["Argovian", "Kimmeridgian", "Sequanian", "Portlandian", "Quaternary"]
-code = {name: i for i, name in enumerate(names)}
-rock = np.array([code[r] for r in train["Rock"]])
-true_rock = np.array([code[r] for r in jura_grid["Rock"]])
-proportions = np.bincount(rock, minlength=5) / len(rock)
+rock_types = cs.Categories(names, colors=["#1f4e79", "#6f9fc9", "#c9d9ea", "#c05a28", "#8c8c8c"])
+rock = rock_types.encode(train["Rock"]).astype(int)
+true_rock = rock_types.encode(jura_grid["Rock"]).astype(int)
+proportions = rock_types.shares(rock)
 
 indicator_models = []
 for k in range(5):
@@ -150,16 +152,15 @@ by_sis = sis_summary.realizations
 latent = cs.Variogram([("spherical", 1.0, 0.8)])
 pgs = cs.Plurigaussian(latent, proportions=proportions).fit(train.coords, rock)
 by_pgs = pgs.simulate(jura_grid, n=1, seed=3, realizations=True).realizations[0]
-stages = (1, [code["Argovian"], code["Sequanian"], code["Kimmeridgian"], code["Portlandian"]])
-rule = (0, [stages, code["Quaternary"]])
+stages = (1, [names.index(n) for n in ("Argovian", "Sequanian", "Kimmeridgian", "Portlandian")])
+rule = (0, [stages, names.index("Quaternary")])
 hierarchy = cs.Plurigaussian([latent, latent], proportions=proportions, rule=rule).fit(train.coords, rock)
 by_rule = hierarchy.simulate(jura_grid, n=1, seed=3, realizations=True).realizations[0]
 
 simulated = (("SIS", by_sis[0]), ("PGS ordered", by_pgs), ("PGS rule", by_rule))
 print(f"{'':>13}" + "".join(f"{n[:5]:>8}" for n in names))
 for label, cats in (("samples", rock), ("true grid", true_rock), *simulated):
-    shares = np.bincount(cats, minlength=5) / len(cats)
-    print(f"{label:>13}" + "".join(f"{s:8.2f}" for s in shares))
+    print(f"{label:>13}" + "".join(f"{s:8.2f}" for s in rock_types.shares(cats)))
 for label, cats in simulated:
     print(f"{label}: {np.mean(cats == true_rock):.0%} of nodes match the true rock type")
 matches = np.mean(sis_summary.most_likely == true_rock)
@@ -168,7 +169,7 @@ print(
 )
 
 # %%
-colors = ListedColormap(["#1f4e79", "#6f9fc9", "#c9d9ea", "#c05a28", "#8c8c8c"])
+cmap, norm = cs.plot.category_colors(rock_types)
 fig, axes = plt.subplots(2, 2, figsize=(8.5, 10), layout="constrained")
 panels = [
     (true_rock, "True rock types"),
@@ -177,13 +178,10 @@ panels = [
     (by_rule, "PGS realization, hierarchical rule"),
 ]
 for ax, (cats, title) in zip(axes.flat, panels):
-    ax.scatter(
-        *jura_grid.coords[:, :2].T, c=cats, cmap=colors, vmin=-0.5, vmax=4.5, s=7, marker="s", linewidths=0
-    )
+    ax.scatter(*jura_grid.coords[:, :2].T, c=cats, cmap=cmap, norm=norm, s=7, marker="s", linewidths=0)
     ax.set_aspect("equal")
     ax.set(title=title, xlabel="X (km)", ylabel="Y (km)")
-handles = [plt.Line2D([], [], marker="s", ls="", color=colors(i), label=n) for i, n in enumerate(names)]
-fig.legend(handles=handles, loc="outside lower center", ncol=5, frameon=False)
+cs.plot.category_legend(rock_types, fig, loc="outside lower center", ncol=5)
 save(fig, "categories")
 
 # %% [markdown]
@@ -217,16 +215,14 @@ print(f"PGS rule, local proportions: {np.mean(by_local == true_rock):.0%} of nod
 # %%
 fig, axes = plt.subplots(1, 2, figsize=(9, 5.2), layout="constrained")
 im = axes[0].scatter(
-    *jura_grid.coords[:, :2].T, c=at_nodes[:, code["Argovian"]], s=7, marker="s", linewidths=0
+    *jura_grid.coords[:, :2].T, c=at_nodes[:, names.index("Argovian")], s=7, marker="s", linewidths=0
 )
 fig.colorbar(im, ax=axes[0], shrink=0.8, orientation="horizontal", label="local Argovian proportion")
-axes[1].scatter(
-    *jura_grid.coords[:, :2].T, c=by_local, cmap=colors, vmin=-0.5, vmax=4.5, s=7, marker="s", linewidths=0
-)
+axes[1].scatter(*jura_grid.coords[:, :2].T, c=by_local, cmap=cmap, norm=norm, s=7, marker="s", linewidths=0)
 for ax, title in zip(axes, ("Local proportion of Argovian", "PGS realization, local proportions")):
     ax.set_aspect("equal")
     ax.set(title=title, xlabel="X (km)", ylabel="Y (km)")
-fig.legend(handles=handles, loc="outside lower center", ncol=5, frameon=False)
+cs.plot.category_legend(rock_types, fig, loc="outside lower center", ncol=5)
 save(fig, "local-proportions")
 
 # %% [markdown]
@@ -242,7 +238,7 @@ from common import ACCENT, GREY
 
 experimental = [
     cs.experimental_variogram(train.coords, (rock == k).astype(float), 0.1, 1.5)
-    if k != code["Portlandian"]
+    if names[k] != "Portlandian"
     else None
     for k in range(5)
 ]

@@ -117,3 +117,45 @@ def test_plots_follow_the_scheme():
     xy = np.c_[np.arange(5.0), np.zeros(5)]
     _, ax = cs.plot.category_swath(xy, codes, 10.0, axis="x", scheme=c)
     assert [t.get_text() for t in ax.get_legend().get_texts()] == ["other", "a", "b"]
+
+
+def rgba(color):
+    return pytest.approx(matplotlib.colors.to_rgba(color))
+
+
+def test_category_colors_map_code_i_to_colour_i():
+    colors = ["#112233", "#445566", "#778899"]
+    cmap, norm = cs.plot.category_colors(cs.Categories(["a", "b", "c"], colors=colors))
+    np.testing.assert_allclose(norm.boundaries, [-0.5, 0.5, 1.5, 2.5])
+    for i, color in enumerate(colors):
+        for code in (i - 0.49, i, i + 0.49):
+            assert cmap(norm(code)) == rgba(color)
+    cmap, _ = cs.plot.category_colors(cs.Categories(["a", "b"], other="rest"))
+    assert cmap.N == 3 and cmap(2) == rgba("0.6")
+
+
+def test_category_legend_names_patches_in_code_order():
+    import matplotlib.pyplot as plt
+
+    c = cs.Categories(["z", "a"], colors=["red", "blue", "0.3"], other="other")
+    fig, ax = plt.subplots()
+    for target in (ax, fig):
+        legend = cs.plot.category_legend(c, target, ncol=3)
+        assert [t.get_text() for t in legend.get_texts()] == ["z", "a", "other"]
+        assert legend.legend_handles[1].get_facecolor() == rgba("blue")
+
+
+def test_section_slab_and_boxplot_take_a_scheme():
+    c = cs.Categories(["a", "b"], colors=["red", "blue"])
+    bm = cs.BlockModel(origin=(0, 0, 0), size=(1, 1, 1), count=(2, 2, 1)).with_column("k", [0.0, 1, 1, 0])
+    _, ax = cs.plot.section(bm, "k", scheme=c)
+    assert ax.images[0].cmap(ax.images[0].norm(1)) == rgba("blue")
+    assert [t.get_text() for t in ax.get_legend().get_texts()] == ["a", "b"] and len(ax.figure.axes) == 1
+    points = np.c_[np.arange(4.0), np.zeros(4), np.zeros(4)]
+    _, ax = cs.plot.slab(points, [1.0, 0, 1, 0], plane=((0, 0, 0), 90, 90), thickness=1, scheme=c)
+    faces = ax.collections[-1].to_rgba(ax.collections[-1].get_array())
+    assert faces[0] == rgba("blue") and faces[1] == rgba("red")
+    assert ax.get_legend() is not None and len(ax.figure.axes) == 1
+    _, ax = cs.plot.boxplot([1.0, 2, 3, 4], [1.0, 1, 0, np.nan], sort=True, scheme=c)
+    assert [t.get_text().split("\n")[0] for t in ax.get_xticklabels()] == ["b", "a"]
+    assert ax.patches[0].get_facecolor() == rgba((0, 0, 1, 0.6))
