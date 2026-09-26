@@ -40,4 +40,6 @@
 
 ::: ceres.CrossValidation
 
+::: ceres.calibrate_search
+
 ::: ceres.neighborhood_stats

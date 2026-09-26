@@ -2,8 +2,9 @@
 
 Block kriging of Walker Lake `V` on 10 × 10 m blocks, then the checks a resource estimate needs: global and local
 bias against the declustered data, leave-one-out and k-fold cross-validation, kriging efficiency, slope of regression
-and the neighbourhood diagnostics per block, a classification from them and the sample spacing, and a majority filter
-that removes isolated blocks. The exhaustive grid confirms what the slope of regression predicts.
+and the neighbourhood diagnostics per block, scores for candidate searches, a classification from the diagnostics and
+the sample spacing, and a majority filter that removes isolated blocks. The exhaustive grid checks what the slope of
+regression and the search scores predict.
 
 <details><summary>Python</summary>
 
@@ -194,11 +195,11 @@ negative weights    above -0.03: 433 blocks, RMSE  95.7 ppm, mean 359 ppm agains
 
 ```python
 fig, axes = plt.subplots(1, 2, figsize=(9, 4.6), layout="constrained")
-for ax, key, title, cmap in (
-    (axes[0], "mean_distance", "Mean distance to samples used (m)", "cividis"),
-    (axes[1], "negative_weight_sum", "Sum of negative weights", "cividis_r"),
+for ax, key, title in (
+    (axes[0], "mean_distance", "Mean distance to samples used (m)"),
+    (axes[1], "negative_weight_sum", "Sum of negative weights"),
 ):
-    im = ax.imshow(d[key].reshape(shape), origin="lower", extent=extent, cmap=cmap)
+    im = ax.imshow(d[key].reshape(shape), origin="lower", extent=extent)
     ax.scatter(xy[:, 0], xy[:, 1], s=2, color=GREY, linewidths=0)
     map_axes(ax, title)
     fig.colorbar(im, ax=ax, shrink=0.8)
@@ -208,6 +209,97 @@ save(fig, "neighbourhood")
 </details>
 
 ![neighbourhood](neighbourhood.png)
+
+The search is a choice too. `calibrate_search` re-estimates the blocks with each candidate search, keeping the
+variogram and samples, and scores it: the variance of the estimates against the block variance (sill minus the
+mean variogram within a block, nugget excluded), slope and efficiency (mean and 10th percentile), negative weights,
+the share of blocks each pass fills, declustered cross-validation at the samples, and the global bias. With cutoffs
+and a Hermite anamorphosis it adds tonnage and metal above each cutoff over those of the discrete Gaussian model's
+block distribution. It picks no winner. Here the candidates differ only in `max_samples`, and the exhaustive grid
+checks every score.
+
+<details><summary>Python</summary>
+
+```python
+counts = (4, 8, 12, 16, 24, 32, 48)
+candidates = [
+    cs.Search(radius=80, max_samples=n, min_samples=4, rotation=(170, 0, 0), ratios=(0.5, 1.0))
+    for n in counts
+]
+anamorphosis = cs.HermiteAnamorphosis().fit(v, weights)
+scores = cs.calibrate_search(
+    kriging, candidates, blocks, weights=weights, cutoffs=[500], anamorphosis=anamorphosis
+)
+true_scores = {"slope": [], "variance": [], "tonnage": []}
+for candidate in candidates:
+    estimate = kriging.with_search(candidate).predict(blocks)
+    true_scores["slope"].append(np.polyfit(estimate, true_blocks, 1)[0])
+    true_scores["variance"].append(estimate.var() / true_blocks.var())
+    true_scores["tonnage"].append(np.mean(estimate >= 500) / np.mean(true_blocks >= 500))
+print(f"{'':7} {'slope of regression':^20} {'variance ratio':^13} {'tonnage >= 500':^13} {'negative':>8}")
+print(
+    f"{'samples':>7}"
+    + "".join(f"{h:>7}" for h in ("mean", "CV", "true", "scores", "true", "scores", "true"))
+    + "  weights"
+)
+for i, n in enumerate(counts):
+    row = (scores["slope_mean"][i], scores["cv_slope"][i], true_scores["slope"][i])
+    row += (scores["variance_ratio"][i], true_scores["variance"][i])
+    row += (scores["tonnage_ratio_500"][i], true_scores["tonnage"][i])
+    print(f"{n:7d}" + "".join(f"{x:7.2f}" for x in row) + f"{scores['negative_weight_sum'][i]:9.3f}")
+```
+
+</details>
+
+```text
+        slope of regression  variance ratio tonnage >= 500 negative
+samples   mean     CV   true scores   true scores   true  weights
+      4   0.80   0.89   0.94   0.80   0.88   0.99   0.91    0.000
+      8   0.89   0.98   0.99   0.72   0.80   0.95   0.88   -0.000
+     12   0.92   1.01   1.02   0.69   0.75   0.91   0.84   -0.003
+     16   0.94   1.02   1.02   0.67   0.74   0.89   0.83   -0.010
+     24   0.94   1.04   1.03   0.66   0.73   0.88   0.82   -0.028
+     32   0.95   1.04   1.03   0.66   0.73   0.87   0.81   -0.046
+     48   0.95   1.05   1.04   0.65   0.72   0.85   0.79   -0.067
+```
+
+Every score moves with the truth. More samples raise the slope, and the cross-validation slope follows the true
+one closely; the mean predicted slope sits lower, as above. Estimates grow smoother, so the variance ratio falls
+and fewer blocks clear 500 ppm. The true variance ratio sits higher because the blocks of this 260 × 300 m area
+vary less than the sill implies, and the discrete Gaussian reference puts slightly fewer blocks above 500 ppm than
+the truth. Past 16 to 24 samples the slope barely rises while the negative weights keep growing, and that trade-off
+is the user's to settle.
+
+<details><summary>Python</summary>
+
+```python
+fig, axes = plt.subplots(1, 3, figsize=(11, 3.4), layout="constrained")
+panels = (
+    (
+        "Slope of regression",
+        [(scores["slope_mean"], "mean predicted"), (scores["cv_slope"], "cross-validation")],
+        "slope",
+    ),
+    (
+        "Variance of the estimates / block variance",
+        [(scores["variance_ratio"], "calibrate_search")],
+        "variance",
+    ),
+    ("Tonnage above 500 ppm / reference", [(scores["tonnage_ratio_500"], "discrete Gaussian")], "tonnage"),
+)
+for ax, (title, lines, key) in zip(axes, panels, strict=True):
+    for (series, label), color in zip(lines, (ACCENT, GREY), strict=False):
+        ax.plot(counts, series, "o-", color=color, label=label, ms=3)
+    ax.plot(counts, true_scores[key], "o-", color="black", label="truth", ms=3)
+    ax.set(title=title, xlabel="max_samples", xscale="log", xticks=counts, xticklabels=counts)
+    ax.minorticks_off()
+    ax.legend()
+save(fig, "calibration")
+```
+
+</details>
+
+![calibration](calibration.png)
 
 Classification combines slope and efficiency with the distance to the nearest sample, from `neighborhood_stats`.
 These points carry no hole ids; with drill holes, `hole_distance` measures spacing between holes instead, counting

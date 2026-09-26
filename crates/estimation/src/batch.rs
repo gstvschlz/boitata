@@ -430,6 +430,73 @@ mod tests {
     }
 
     #[test]
+    fn more_samples_raise_the_slope_and_smooth_the_blocks() {
+        let mut state = 7u64;
+        let mut next = || {
+            state = state
+                .wrapping_mul(6364136223846793005)
+                .wrapping_add(1442695040888963407);
+            (state >> 11) as f64 / (1u64 << 53) as f64
+        };
+        let vg = Variogram {
+            nugget: 0.2,
+            ..Variogram::single(Model::Spherical, 0.8, 60.0)
+        };
+        let locs: Vec<Point> = (0..400)
+            .map(|_| (next() * 200.0, next() * 200.0, 0.0))
+            .collect();
+        let cov = nalgebra::DMatrix::from_fn(400, 400, |i, j| vg.cov_points(&locs[i], &locs[j]));
+        let normals = nalgebra::DVector::from_fn(400, |_, _| {
+            let (u, v) = (next().max(1e-300), next());
+            (-2.0 * u.ln()).sqrt() * (std::f64::consts::TAU * v).cos()
+        });
+        let field = cov.cholesky().unwrap().l() * normals;
+        let samples: Vec<Sample> = locs
+            .iter()
+            .zip(&field)
+            .map(|(&l, &z)| Sample::new(l, z))
+            .collect();
+        let blocks: Vec<Point> = (0..400)
+            .map(|i| {
+                (
+                    5.0 + (i % 20) as f64 * 10.0,
+                    5.0 + (i / 20) as f64 * 10.0,
+                    0.0,
+                )
+            })
+            .collect();
+        let disc = crate::Discretization {
+            nx: 3,
+            ny: 3,
+            nz: 1,
+        };
+        let scores = |max_samples| {
+            let search = Search {
+                min_samples: 1,
+                max_samples,
+                ..Default::default()
+            };
+            let out: Vec<Estimate> =
+                estimate_many(&blocks, None, &samples, &search, Some(&vg), |t, s| {
+                    crate::block_krige(t, &(10.0, 10.0, 0.0), s, &disc, &vg)
+                })
+                .into_iter()
+                .map(Option::unwrap)
+                .collect();
+            let n = out.len() as f64;
+            let slope = out.iter().map(Estimate::slope).sum::<f64>() / n;
+            let mean = out.iter().map(|e| e.value).sum::<f64>() / n;
+            let spread = out.iter().map(|e| (e.value - mean).powi(2)).sum::<f64>() / n;
+            (slope, spread / out[0].support_variance)
+        };
+        let runs: Vec<(f64, f64)> = [2, 4, 8, 16].into_iter().map(scores).collect();
+        for pair in runs.windows(2) {
+            assert!(pair[1].0 > pair[0].0, "{runs:?}");
+            assert!(pair[1].1 < pair[0].1, "{runs:?}");
+        }
+    }
+
+    #[test]
     fn a_high_grade_radius_beyond_the_search_changes_nothing() {
         let (samples, targets, plain) = (samples(), grid(), search(4, 30.0));
         let vg = Variogram::single(Model::Spherical, 1.0, 40.0);

@@ -5,7 +5,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from ceres._ceres import Search, Variogram, _Estimator
+from ceres._ceres import Search, Table, Variogram, _Estimator
 
 __all__ = [
     "BayesianKriging",
@@ -21,6 +21,7 @@ __all__ = [
     "OrdinaryKriging",
     "SimpleKriging",
     "UniversalKriging",
+    "calibrate_search",
     "classify",
     "global_bias",
 ]
@@ -111,8 +112,11 @@ class _Base:
             target), ``n_holes`` (distinct holes among the samples used; untagged samples count one each),
             ``mean_distance`` (to the samples used), ``negative_weight_sum``, ``lagrange`` (the Lagrange
             multiplier; 0 for simple kriging, NaN where undefined), ``max_samples_reached`` (1 where the
-            search returned `max_samples`) and ``n_other_domain`` (samples used from domains other than the
-            target's). NaN where unestimated.
+            search returned `max_samples`), ``n_other_domain`` (samples used from domains other than the
+            target's), ``support_variance`` (the variance of the target's support, the sill for points and
+            sill minus the mean variogram within the block for blocks, nugget excluded) and
+            ``estimate_variance`` (the variance of the estimator; the further below ``support_variance``,
+            the smoother the estimates). NaN where unestimated.
         domains : array_like or label, optional
             Domain label of each target, or one label for all of them; required when fitted with domains.
             Targets of a domain without samples stay NaN.
@@ -133,6 +137,18 @@ class _Base:
         """
         estimate, variance = self._engine.cross_validate(folds)
         return CrossValidation(self._engine.values, estimate, variance)
+
+    def with_search(self, search: Searches):
+        """A copy of the estimator, fitted samples included, with `search` in place of its searches.
+
+        Parameters
+        ----------
+        search : Search or sequence of Search
+            One search, or passes: targets one leaves unestimated go to the next.
+        """
+        estimator = type(self).__new__(type(self))
+        estimator._engine = self._engine.with_search(search)
+        return estimator
 
     def to_parquet(self, path) -> None:
         """Writes the samples as Parquet columns and the parameters as JSON in the file metadata.
@@ -255,6 +271,157 @@ def global_bias(estimate, data, weights=None, data_weights=None) -> dict[str, fl
     m = np.average(estimate[ok], weights=None if weights is None else np.asarray(weights)[ok])
     d = np.average(data[okd], weights=None if data_weights is None else np.asarray(data_weights)[okd])
     return {"estimate_mean": float(m), "data_mean": float(d), "relative": float(m / d - 1)}
+
+
+def calibrate_search(
+    estimator,
+    searches,
+    targets,
+    folds=None,
+    weights=None,
+    cutoffs=None,
+    anamorphosis=None,
+    cross_validation: bool = True,
+    domains=None,
+) -> Table:
+    """Scores candidate searches for a fitted estimator, one row per scenario, to compare side by side.
+
+    Each scenario re-estimates `targets` through `estimator.with_search`, so method, variogram and samples stay
+    fixed. Scenarios run one after the other, each in parallel over the targets. No scenario is picked: the
+    scores trade smoothing against conditional bias, and the choice is the user's.
+
+    Parameters
+    ----------
+    estimator : kriging estimator
+        Fitted, e.g. `BlockKriging` for blocks.
+    searches : sequence
+        The scenarios: each a `Search`, or a sequence of them as passes.
+    targets : array_like, PointSet or BlockModel
+        Where to estimate, usually the blocks.
+    folds : int, optional
+        Cross-validation folds; leave-one-out when None.
+    weights : array_like, optional
+        Declustering weights of the fitted samples, for the cross-validation scores and the global bias.
+    cutoffs : sequence of float, optional
+        Cutoffs for tonnage and metal ratios against the discrete Gaussian block-support reference.
+    anamorphosis : HermiteAnamorphosis, optional
+        Fitted on the samples (declustered if they are clustered); required with `cutoffs`. Its change-of-support
+        coefficient is solved so that the block variance relative to the point variance matches the variogram's,
+        ``block_variance / sill``.
+    cross_validation : bool
+        Adds the cross-validation scores. It runs at point support with the same variogram and passes, so block
+        kriging is cross-validated as ordinary kriging.
+    domains : array_like or label, optional
+        Domain label of each target, or one label for all of them, as in `predict`; required when the estimator
+        was fitted with domains. Cross-validation and the global bias then cover the samples of those domains only.
+
+    Returns
+    -------
+    Table
+        ``scenario`` (index in `searches`); ``estimate_variance`` (variance of the estimates),
+        ``block_variance`` (sill minus the mean variogram within a target, nugget excluded; the sill for point
+        estimators), ``variance_ratio`` (their ratio), ``model_variance_ratio`` (mean Var(Z*) of the targets over
+        the block variance, the ratio the model predicts); ``slope_mean``, ``slope_p10``, ``efficiency_mean``,
+        ``efficiency_p10`` (slope of regression and kriging efficiency, mean and 10th percentile);
+        ``negative_weight_sum`` (mean); ``estimated`` and ``first_pass`` (fractions of the targets estimated and
+        filled by the first pass); ``cv_rmse``, ``cv_mean_error`` (estimate minus actual) and ``cv_slope`` (of
+        actual on estimate), declustered with `weights`; ``global_bias`` (mean estimate over the declustered data
+        mean, minus 1); with `cutoffs`, ``tonnage_ratio_<cutoff>`` and ``metal_ratio_<cutoff>`` (estimated over
+        reference proportion above the cutoff, and metal above it).
+
+    Raises
+    ------
+    ValueError
+        If `cutoffs` come without an anamorphosis or a variogram, `weights` do not match the fitted samples, or a
+        scenario estimates no target.
+    """
+    if isinstance(searches, Search) or not len(searches):
+        raise ValueError("searches must be a non-empty sequence of scenarios, each a Search or passes")
+    if cutoffs is not None and anamorphosis is None:
+        raise ValueError("cutoffs need a fitted HermiteAnamorphosis")
+    engine = estimator._engine
+    values = engine.values
+    if weights is not None:
+        weights = np.asarray(weights, dtype=float)
+        if weights.shape != values.shape:
+            raise ValueError(
+                f"{len(weights)} weights for {len(values)} fitted samples (samples sharing a location keep one)"
+            )
+    keep = np.ones(len(values), dtype=bool)
+    if domains is not None and engine._sample_domains is not None:
+        scalar = isinstance(domains, str) or np.ndim(domains) == 0
+        wanted = {domains} if scalar else set(np.asarray(domains).tolist())
+        keep = np.array([label in wanted for label in engine._sample_domains], dtype=bool)
+    kept_weights = None if weights is None else weights[keep]
+    cutoffs = [] if cutoffs is None else [float(c) for c in cutoffs]
+    columns: dict[str, list[float]] = {}
+    for i, scenario in enumerate(searches):
+        candidate = engine.with_search(scenario)
+        d = candidate.predict(targets, diagnostics=True, domains=domains)
+        with np.errstate(divide="ignore", invalid="ignore"):
+            row = {"scenario": i, **_scores(d, values[keep], kept_weights)}
+        if cutoffs:
+            estimate = d["value"][np.isfinite(d["value"])]
+            row |= _recoveries(estimate, row["block_variance"], engine.variogram, anamorphosis, cutoffs)
+        if cross_validation:
+            estimate, _ = candidate._point_support().cross_validate(folds)
+            row |= _cross_validation(values[keep], estimate[keep], kept_weights)
+        for key, value in row.items():
+            columns.setdefault(key, []).append(value)
+    return Table({key: np.asarray(column, dtype=float) for key, column in columns.items()})
+
+
+def _scores(d, values, weights) -> dict[str, float]:
+    ok = np.isfinite(d["value"])
+    if not ok.any():
+        raise ValueError("a scenario estimated no target; widen its search")
+    estimate = d["value"][ok]
+    block, spread = np.mean(d["support_variance"][ok]), np.var(estimate)
+    return {
+        "estimate_variance": float(spread),
+        "block_variance": float(block),
+        "variance_ratio": float(spread / block),
+        "model_variance_ratio": float(np.mean(d["estimate_variance"][ok]) / block),
+        "slope_mean": float(np.mean(d["slope"][ok])),
+        "slope_p10": float(np.percentile(d["slope"][ok], 10)),
+        "efficiency_mean": float(np.mean(d["efficiency"][ok])),
+        "efficiency_p10": float(np.percentile(d["efficiency"][ok], 10)),
+        "negative_weight_sum": float(np.mean(d["negative_weight_sum"][ok])),
+        "estimated": float(ok.mean()),
+        "first_pass": float(np.mean(d["pass"] == 1)),
+        "global_bias": global_bias(estimate, values, data_weights=weights)["relative"],
+    }
+
+
+def _recoveries(estimate, block_variance, variogram, anamorphosis, cutoffs) -> dict[str, float]:
+    if variogram is None or not np.isfinite(block_variance):
+        raise ValueError("cutoffs need a kriging estimator with a variogram")
+    target = min(block_variance / variogram.sill, 1.0) * anamorphosis.variance_
+    low, high = 0.0, 1.0
+    for _ in range(60):
+        r = (low + high) / 2
+        low, high = (r, high) if anamorphosis.block(r).variance_ < target else (low, r)
+    reference = anamorphosis.block(high).grade_tonnage(cutoffs)
+    row = {}
+    for c, tonnage, metal in zip(cutoffs, reference["tonnage"], reference["metal"], strict=True):
+        above = estimate >= c
+        row[f"tonnage_ratio_{c:g}"] = float(np.mean(above)) / tonnage
+        row[f"metal_ratio_{c:g}"] = float(np.mean(np.where(above, estimate, 0.0))) / metal
+    return row
+
+
+def _cross_validation(actual, estimate, weights) -> dict[str, float]:
+    ok = np.isfinite(estimate)
+    if not ok.any():
+        return dict.fromkeys(("cv_rmse", "cv_mean_error", "cv_slope"), np.nan)
+    a, e = actual[ok], estimate[ok]
+    w = None if weights is None else weights[ok]
+    da, de = a - np.average(a, weights=w), e - np.average(e, weights=w)
+    return {
+        "cv_rmse": float(np.sqrt(np.average((e - a) ** 2, weights=w))),
+        "cv_mean_error": float(np.average(e - a, weights=w)),
+        "cv_slope": float(np.average(da * de, weights=w) / np.average(de**2, weights=w)),
+    }
 
 
 _OPS = {"<": np.less, "<=": np.less_equal, ">": np.greater, ">=": np.greater_equal}

@@ -6,9 +6,9 @@ use estimation::{
 };
 use std::path::PathBuf;
 
-use pyo3::PyClass;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyString, PyTuple};
+use pyo3::{IntoPyObjectExt, PyClass};
 use serde::{Deserialize, Serialize};
 use variogram::Variogram as CoreVariogram;
 
@@ -66,6 +66,19 @@ fn label(obj: &Bound<PyAny>) -> PyResult<Label> {
 
 fn key(label: &Label) -> String {
     label.to_string()
+}
+
+/// `label` as the Python value it was given as.
+fn py_label<'py>(py: Python<'py>, label: &Label) -> PyResult<Bound<'py, PyAny>> {
+    match label {
+        Label::String(s) => s.into_bound_py_any(py),
+        Label::Bool(b) => b.into_bound_py_any(py),
+        Label::Number(n) => match n.as_i64() {
+            Some(i) => i.into_bound_py_any(py),
+            None => n.as_f64().into_bound_py_any(py),
+        },
+        other => Err(invalid(format!("unexpected domain label {other}"))),
+    }
 }
 
 /// Labels of a sequence, or of a single label repeated `n` times.
@@ -239,6 +252,56 @@ impl Search {
         self.core.min_samples
     }
 
+    #[getter]
+    fn octant(&self) -> bool {
+        self.core.octant
+    }
+
+    #[getter]
+    fn max_per_hole(&self) -> Option<usize> {
+        self.core.max_per_hole
+    }
+
+    #[getter]
+    fn high_grade(&self) -> Option<(f64, f64)> {
+        self.core.high_grade.map(|h| (h.threshold, h.radius))
+    }
+
+    /// Azimuth, dip and rake of the search ellipsoid; None when the search
+    /// follows the variogram's anisotropy.
+    #[getter]
+    fn rotation(&self) -> Option<(f64, f64, f64)> {
+        let a = &self.core.anisotropy.as_ref()?.angles;
+        Some((a.azimuth, a.dip, a.rake))
+    }
+
+    /// The soft distance, or the dict of distances by domain pair; None
+    /// when domain boundaries are hard.
+    #[getter]
+    fn soft<'py>(&self, py: Python<'py>) -> PyResult<Option<Bound<'py, PyAny>>> {
+        let label = |l: &Label| py_label(py, l);
+        let Some(soft) = &self.soft else {
+            return Ok(None);
+        };
+        Ok(Some(match soft {
+            Soft::All(d) => d.into_bound_py_any(py)?,
+            Soft::Pairs(pairs) => {
+                let d = PyDict::new(py);
+                for p in pairs {
+                    d.set_item((label(&p.target)?, label(&p.sample)?), p.distance)?;
+                }
+                d.into_any()
+            }
+        }))
+    }
+
+    /// Semi-major/major and minor/major ratios; None as for `rotation`.
+    #[getter]
+    fn ratios(&self) -> Option<(f64, f64)> {
+        let a = &self.core.anisotropy.as_ref()?.angles;
+        Some((a.semi, a.minor))
+    }
+
     fn __repr__(&self) -> String {
         format!(
             "Search(radius={}, max_samples={}, min_samples={}, octant={})",
@@ -247,7 +310,7 @@ impl Search {
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 enum Method {
     Kriging(Kind),
     Universal(usize),
@@ -420,6 +483,11 @@ fn diagnostics<'py>(
         column(&|_, e, _| e.negative_weight_sum()),
     )?;
     d.set_item("lagrange", column(&|_, e, _| e.lagrange))?;
+    d.set_item("support_variance", column(&|_, e, _| e.support_variance))?;
+    d.set_item(
+        "estimate_variance",
+        column(&|_, e, _| e.estimate_variance()),
+    )?;
     let full = |p: usize, s: &NeighborhoodStats| s.n_within >= searches[p].max_samples;
     d.set_item(
         "max_samples_reached",
@@ -506,8 +574,8 @@ pub fn searches(obj: &Bound<PyAny>) -> PyResult<Vec<Search>> {
 }
 
 /// Shared engine behind the estimator classes in `ceres.estimation`.
-#[derive(Serialize, Deserialize)]
-#[pyclass(module = "ceres", name = "_Estimator")]
+#[derive(Clone, Serialize, Deserialize)]
+#[pyclass(module = "ceres", name = "_Estimator", skip_from_py_object)]
 pub struct Estimator {
     method: Method,
     variogram: Option<CoreVariogram>,
@@ -695,7 +763,8 @@ impl Estimator {
     /// efficiency, slope of regression, samples used, the search pass
     /// (1-based) that filled each target, holes used, mean distance to the
     /// samples used, sum of negative weights, Lagrange multiplier and whether
-    /// the search hit `max_samples`, and other-domain samples used.
+    /// the search hit `max_samples`, other-domain samples used, the support
+    /// variance C(v, v) and the estimator variance Var(Z*).
     /// `anisotropy` (a LocalAnisotropy) gives each target its own variogram
     /// and search orientation, taken from the nearest location. `domains`
     /// labels the targets, or is one label for all; a domain without samples
@@ -760,6 +829,52 @@ impl Estimator {
         }
         let results: Vec<_> = split(passes).into_iter().map(|r| r.map(|r| r.0)).collect();
         outputs(py, &results, return_variance)
+    }
+
+    /// A copy with `search` (a Search or passes) in place of the searches,
+    /// keeping the method, variogram, fitted samples and domains.
+    fn with_search(&self, search: &Bound<PyAny>) -> PyResult<Self> {
+        let search = searches(search)?;
+        if self.samples.is_some() {
+            for s in &search {
+                s.resolve(self.domains.as_deref())?;
+            }
+        }
+        Ok(Self {
+            search,
+            ..self.clone()
+        })
+    }
+
+    /// A copy that estimates points: block kriging becomes ordinary kriging.
+    fn _point_support(&self) -> Self {
+        let method = match self.method {
+            Method::Block { .. } => Method::Kriging(Kind::Ordinary),
+            _ => self.method.clone(),
+        };
+        Self {
+            method,
+            ..self.clone()
+        }
+    }
+
+    #[getter]
+    fn variogram(&self) -> Option<Variogram> {
+        self.variogram.clone().map(Variogram)
+    }
+
+    /// Domain label of each fitted sample, after dropping shared locations;
+    /// None when fitted without domains.
+    #[getter]
+    fn _sample_domains<'py>(&self, py: Python<'py>) -> PyResult<Option<Vec<Bound<'py, PyAny>>>> {
+        let Some(labels) = &self.domains else {
+            return Ok(None);
+        };
+        self.fitted()?
+            .iter()
+            .map(|s| py_label(py, &labels[s.domain.expect("fitted with domains") as usize]))
+            .collect::<PyResult<_>>()
+            .map(Some)
     }
 
     /// Values of the fitted samples, after dropping shared locations.

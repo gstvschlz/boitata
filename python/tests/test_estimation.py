@@ -298,6 +298,9 @@ def test_neighbourhood_diagnostics():
     assert np.all(d["negative_weight_sum"] <= 0) and np.any(d["negative_weight_sum"] < 0)
     assert np.isfinite(d["lagrange"]).all()
     np.testing.assert_array_equal(d["max_samples_reached"], d["n_samples"] == 8)
+    np.testing.assert_array_equal(d["support_variance"], model.sill)
+    covariance = d["support_variance"] - d["variance"] - d["lagrange"]
+    np.testing.assert_allclose(covariance / d["estimate_variance"], d["slope"], rtol=1e-12)
     idw = cs.InverseDistance(search).fit(coords, values).predict(coords[:3], diagnostics=True)
     assert np.isnan(idw["negative_weight_sum"]).all() and np.isnan(idw["lagrange"]).all()
 
@@ -462,3 +465,164 @@ def test_domain_errors():
     ):
         with pytest.raises(cs.InvalidInput, match="does not take domains"):
             make()
+
+
+def test_search_getters():
+    s = cs.Search(
+        radius=50,
+        octant=True,
+        max_per_hole=3,
+        rotation=(30, 10, 5),
+        ratios=(0.5, 0.2),
+        high_grade=(2.0, 10.0),
+    )
+    assert (s.octant, s.max_per_hole, s.high_grade) == (True, 3, (2.0, 10.0))
+    assert (s.rotation, s.ratios) == ((30, 10, 5), (0.5, 0.2))
+    plain = cs.Search(radius=50)
+    assert not plain.octant
+    assert plain.max_per_hole is plain.high_grade is plain.rotation is plain.ratios is plain.soft is None
+    assert cs.Search(radius=50, soft=5.0).soft == 5.0
+    pairs = {("MS", "SM"): 5.0, (1, True): 2.0}
+    assert cs.Search(radius=50, soft=pairs).soft == pairs
+
+
+def test_with_search_keeps_samples_and_domains():
+    passes = [search, cs.Search(radius=200, max_samples=4)]
+    ok = cs.OrdinaryKriging(model, passes).fit(coords, values)
+    targets = rng.uniform(-50, 150, (300, 2))
+    same = ok.with_search(passes)
+    assert type(same) is cs.OrdinaryKriging
+    np.testing.assert_array_equal(same.predict(targets), ok.predict(targets))
+    np.testing.assert_array_equal(same.cross_validate(folds=5).estimate, ok.cross_validate(folds=5).estimate)
+    other = ok.with_search(cs.Search(radius=50, max_samples=4)).predict(targets)
+    assert not np.array_equal(other, ok.predict(targets), equal_nan=True)
+
+    soft = zoned(soft=10.0)
+    again = soft.with_search([cs.Search(radius=r, max_samples=n, soft=10.0) for r, n in ((30, 16), (80, 8))])
+    np.testing.assert_array_equal(
+        again.predict(grid, domains=grid_zone), soft.predict(grid, domains=grid_zone)
+    )
+    with pytest.raises(cs.InvalidInput, match="no samples"):
+        soft.with_search(cs.Search(radius=30, soft={("MS", "XX"): 5.0}))
+
+
+def gaussian_field(n=300, seed=11):
+    g = np.random.default_rng(seed)
+    at = g.uniform(0, 200, (n, 2))
+    field = cs.Variogram([("spherical", 0.8, 60.0)], nugget=0.2)
+    h = np.linalg.norm(at[:, None] - at[None], axis=-1)
+    cov = field.sill - field.gamma(h.ravel()).reshape(n, n) + np.where(h == 0, field.nugget, 0.0)
+    return field, at, np.linalg.cholesky(cov) @ g.standard_normal(n)
+
+
+blocks = cs.BlockModel(origin=(5.0, 5.0), size=(10, 10), count=(20, 20))
+
+
+def test_calibration_block_variance_excludes_the_nugget():
+    one = cs.Search(radius=1e4, max_samples=4)
+    nugget = cs.BlockKriging(cs.Variogram([], nugget=1.0), one, size=(10, 10)).fit(coords, values)
+    assert cs.calibrate_search(nugget, [one], blocks, cross_validation=False)["block_variance"][0] == 0.0
+
+    c0, c, a, length = 0.4, 1.0, 100.0, 60.0
+    segment = cs.Variogram([("spherical", c, a)], nugget=c0)
+    kriging = cs.BlockKriging(segment, one, size=(length, 1.0), discretization=(400, 1, 1)).fit(
+        coords, values
+    )
+    gamma_bar = c * (length / (2 * a) - length**3 / (20 * a**3))
+    table = cs.calibrate_search(kriging, [one], [[50.0, 50.0]], cross_validation=False)
+    assert table["block_variance"][0] == pytest.approx(c - gamma_bar, abs=1e-4)
+
+
+def test_simple_kriging_with_a_unique_neighbourhood_has_slope_one():
+    unique = cs.Search(radius=1e6, max_samples=len(values))
+    sk = cs.SimpleKriging(model, unique, mean=float(values.mean())).fit(coords, values)
+    inside = cs.BlockModel(origin=(5.0, 5.0), size=(10, 10), count=(10, 10))
+    table = cs.calibrate_search(sk, [unique], inside, cross_validation=False)
+    assert table["slope_mean"][0] == 1.0 and table["slope_p10"][0] == 1.0
+
+
+def test_more_samples_raise_the_slope_and_smooth_the_estimates():
+    field, at, z = gaussian_field()
+    kriging = cs.BlockKriging(field, search, size=(10, 10), discretization=(3, 3, 1)).fit(at, z)
+    scenarios = [cs.Search(radius=1e4, max_samples=n) for n in (2, 4, 8, 16)]
+    table = cs.calibrate_search(kriging, scenarios, blocks)
+    assert np.all(np.diff(table["slope_mean"]) > 0), table["slope_mean"]
+    assert np.all(np.diff(table["variance_ratio"]) < 0), table["variance_ratio"]
+    assert np.all(np.diff(table["model_variance_ratio"]) < 0), table["model_variance_ratio"]
+    np.testing.assert_array_equal(table["scenario"], np.arange(4))
+
+
+def test_calibration_scores_are_deterministic():
+    field, at, z = gaussian_field()
+    z = np.exp(z)
+    weights = cs.cell_declustering(at, z, cell_size=20.0).weights
+    kriging = cs.BlockKriging(field, search, size=(10, 10)).fit(at, z)
+    anamorphosis = cs.HermiteAnamorphosis().fit(z, weights)
+    passes = [cs.Search(radius=12, max_samples=8, min_samples=4), cs.Search(radius=1e4, max_samples=8)]
+
+    def run():
+        return cs.calibrate_search(
+            kriging,
+            [search, passes],
+            blocks,
+            folds=5,
+            weights=weights,
+            cutoffs=[1.0, 2.0],
+            anamorphosis=anamorphosis,
+        )
+
+    first, second = run(), run()
+    assert first.column_names == second.column_names
+    for name in first.column_names:
+        np.testing.assert_array_equal(first[name], second[name])
+    assert {"tonnage_ratio_1", "metal_ratio_2", "cv_rmse", "global_bias"} <= set(first.column_names)
+    assert first["first_pass"][1] < 1.0 and first["estimated"][1] == 1.0
+    assert all(np.isfinite(first[name]).all() for name in first.column_names)
+
+
+def test_calibration_cross_validates_block_kriging_at_points():
+    kriging = cs.BlockKriging(model, search, size=(10, 10)).fit(coords, values)
+    table = cs.calibrate_search(kriging, [search], blocks)
+    cv = cs.OrdinaryKriging(model, search).fit(coords, values).cross_validate()
+    assert table["cv_rmse"][0] == pytest.approx(cv.rmse, rel=1e-12)
+    assert table["cv_slope"][0] == pytest.approx(cv.slope, rel=1e-9)
+    assert table["cv_mean_error"][0] == pytest.approx(cv.mean_error, rel=1e-9)
+
+
+def test_calibration_errors():
+    kriging = cs.BlockKriging(model, search, size=(10, 10)).fit(coords, values)
+    with pytest.raises(ValueError, match="sequence of scenarios"):
+        cs.calibrate_search(kriging, search, blocks)
+    with pytest.raises(ValueError, match="HermiteAnamorphosis"):
+        cs.calibrate_search(kriging, [search], blocks, cutoffs=[1.0])
+    with pytest.raises(ValueError, match="weights for"):
+        cs.calibrate_search(kriging, [search], blocks, weights=np.ones(3))
+    idw = cs.InverseDistance(search).fit(coords, values)
+    anamorphosis = cs.HermiteAnamorphosis().fit(values + 2)
+    with pytest.raises(ValueError, match="variogram"):
+        cs.calibrate_search(idw, [search], blocks, cutoffs=[1.0], anamorphosis=anamorphosis)
+    with pytest.raises(ValueError, match="no target"):
+        cs.calibrate_search(kriging, [cs.Search(radius=1, min_samples=3)], [[500.0, 500.0]])
+
+
+def test_calibration_by_domain_matches_the_domain_alone():
+    weights = cs.cell_declustering(coords, values, cell_size=20.0).weights
+    scenarios = [
+        cs.Search(radius=30, max_samples=8),
+        [cs.Search(radius=30, max_samples=16), cs.Search(radius=80)],
+    ]
+    at, inside = grid[grid_zone == "MS"], zone == "MS"
+    kriging = zoned()
+    by_domain = cs.calibrate_search(kriging, scenarios, at, weights=weights, domains="MS")
+    alone = cs.OrdinaryKriging(model, search).fit(coords[inside], values[inside])
+    reference = cs.calibrate_search(alone, scenarios, at, weights=weights[inside])
+    assert by_domain.column_names == reference.column_names
+    for name in by_domain.column_names:
+        np.testing.assert_allclose(by_domain[name], reference[name], rtol=1e-12, atol=1e-15, err_msg=name)
+
+    hard, soft = cs.Search(radius=30, max_samples=16), cs.Search(radius=30, max_samples=16, soft=10.0)
+    table = cs.calibrate_search(kriging, [hard, soft], grid, domains=grid_zone)
+    assert np.all(table["estimated"] == 1.0)
+    assert table["slope_mean"][0] != table["slope_mean"][1]
+    with pytest.raises(cs.InvalidInput, match="predict needs domains"):
+        cs.calibrate_search(kriging, [hard], grid)
