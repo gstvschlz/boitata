@@ -1,9 +1,10 @@
-//! Drillhole data processing: desurvey and compositing.
+//! Drillhole data processing: table checks, desurvey and compositing.
 //!
 //! Handles wellbore survey-to-coordinates conversion (minimum curvature,
 //! tangential, balanced tangential) and domain-aware sample compositing with
 //! length-weighted averaging.
 
+pub mod checks;
 mod error;
 pub use error::{DrillholeError, Result};
 

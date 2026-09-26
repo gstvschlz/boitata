@@ -20,8 +20,11 @@ class Table:
     def num_rows(self) -> int: ...
     @property
     def column_names(self) -> list[str]: ...
-    def column(self, name: str) -> npt.NDArray[np.float64] | list[str | None]: ...
-    def __getitem__(self, name: str) -> npt.NDArray[np.float64] | list[str | None]: ...
+    def column(self, name: str) -> npt.NDArray[np.float64] | npt.NDArray[np.bool_] | list[str | None]: ...
+    def __getitem__(
+        self, name: str
+    ) -> npt.NDArray[np.float64] | npt.NDArray[np.bool_] | list[str | None]: ...
+    def filter(self, mask: npt.NDArray[np.bool_]) -> Table: ...
     def __len__(self) -> int: ...
     def to_polars(self) -> Any: ...
     def to_pyarrow(self) -> Any: ...
@@ -886,6 +889,38 @@ def grid_surface(model: BlockModel, column: str) -> Mesh: ...
 def merge_intervals(
     left: TableLike, right: TableLike, hole: str = "HOLEID", from_: str = "FROM", to: str = "TO"
 ) -> Table: ...
+def check_drillholes(
+    collar: TableLike,
+    survey: TableLike | None = None,
+    intervals: TableLike | Mapping[str, TableLike] | None = None,
+    hole: str = "HOLEID",
+    x: str = "X",
+    y: str = "Y",
+    z: str = "Z",
+    at: str = "DEPTH",
+    azimuth: str = "AZIMUTH",
+    dip: str | None = "DIP",
+    inclination: str | None = None,
+    from_: str = "FROM",
+    to: str = "TO",
+    max_depth: str | None = None,
+    sentinels: Sequence[float] = (-99.0, -999.0, -9999.0, 1e21),
+    max_deviation: float = 20.0,
+    tolerance: float = 1e-6,
+) -> tuple[dict[str, Table], Table]: ...
+def fix_drillholes(
+    flags: Mapping[str, Table],
+    tables: Mapping[str, TableLike],
+    missing: Literal["drop", "keep"] = "drop",
+    duplicates: Literal["drop", "keep"] = "drop",
+    inverted: Literal["drop", "keep"] = "drop",
+    out_of_range: Literal["drop", "keep"] = "drop",
+    overlaps: Literal["keep_first", "keep"] = "keep_first",
+    sentinels: Literal["null", "drop", "keep"] = "null",
+    deviation: Literal["drop", "keep"] = "drop",
+    no_collar: Literal["drop", "keep"] = "drop",
+    past_depth: Literal["drop", "keep"] = "keep",
+) -> tuple[dict[str, Table], Table]: ...
 
 class LocalAnisotropy:
     def __init__(self, coords: ArrayLike, angles: ArrayLike, ratios: ArrayLike) -> None: ...

@@ -20,27 +20,51 @@ from matplotlib.collections import LineCollection
 from matplotlib.colors import LogNorm
 
 # %% [markdown]
-# Assays and lithology come in separate interval tables. Within a table intervals must not overlap, so the few
-# overlapping assays are resolved first, here by keeping the one that starts first. `merge_intervals` then splits both
-# tables at every boundary so each piece carries its grades and its lithology.
+# The tables are checked before anything else. `check_drillholes` flags every record of the collar, survey and interval
+# tables (duplicate ids, missing or sentinel values, from >= to, gaps, overlaps, angles out of range, depths past the
+# hole length, holes missing from a table, abrupt survey deviation) and summarises each check. `fix_drillholes` then
+# resolves them with one named rule per check; the log says what each rule changed. Overlapping assays keep the one
+# that starts first. Gaps are unsampled core and stay.
 
 # %%
 tables = cs.datasets.drillhole_tables()
+checked = {"assay": tables["assay"], "geology": tables["geology"]}
+flags, summary = cs.check_drillholes(tables["collar"], tables["survey"], checked, max_depth="DEPTH")
+fixed, log = cs.fix_drillholes(flags, tables, overlaps="keep_first", deviation="drop", past_depth="keep")
+
+for table, check, rows, holes in zip(summary["table"], summary["check"], summary["rows"], summary["holes"]):
+    if rows:
+        print(f"{table:>8} {check:<11} {rows:6.0f} rows in {holes:4.0f} holes")
+for table, check, action, rows in zip(log["table"], log["check"], log["action"], log["rows"]):
+    if rows:
+        print(f"{action:>10} {rows:3.0f} {table} rows flagged {check}")
+
+# %% [markdown]
+# A survey station is flagged when its direction turns more than 20° from the station above, so one wrong station is
+# flagged together with the station below it, as the dip of DH1432 flipping sign at 116 m. Here every flagged station
+# is dropped; each is shown against the station above it.
+
+# %%
+survey = tables["survey"]
+hole_id, depth, dip, azimuth = np.array(survey["HOLEID"]), survey["DEPTH"], survey["DIP"], survey["AZIMUTH"]
+order = np.lexsort((depth, hole_id))
+above = dict(zip(order[1:], order[:-1]))
+for i in np.flatnonzero(flags["survey"]["deviation"]):
+    j = above[i]
+    print(
+        f"{hole_id[i]} {depth[j]:5.1f} -> {depth[i]:5.1f} m: dip {dip[j]:5.1f} -> {dip[i]:5.1f},"
+        f" azimuth {azimuth[j]:5.1f} -> {azimuth[i]:5.1f}"
+    )
+
+# %% [markdown]
+# Assays and lithology come in separate interval tables. `merge_intervals` splits both at every boundary so each piece
+# carries its grades and its lithology.
+
+# %%
+tables = fixed
 assay, geology = tables["assay"], tables["geology"]
 GRADES = ["ZN", "PB", "CU", "AG", "AU"]
-
-hole_id = np.array(assay["HOLEID"])
-start, end = assay["FROM"], assay["TO"]
-keep = np.ones(assay.num_rows, bool)
-reach = {}
-for i in np.lexsort((start, hole_id)):
-    if start[i] < reach.get(hole_id[i], -np.inf):
-        keep[i] = False
-    else:
-        reach[hole_id[i]] = end[i]
-assay = cs.Table({c: np.asarray(assay[c])[keep] for c in assay.column_names})
 intervals = cs.merge_intervals(assay, geology)
-print(f"{(~keep).sum()} overlapping assays dropped")
 print(f"{assay.num_rows} assays + {geology.num_rows} geology intervals -> {intervals.num_rows} merged")
 
 

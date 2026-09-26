@@ -14,25 +14,18 @@ from common import ACCENT, GREY, INK, save
 
 </details>
 
-`merge_intervals` rejects overlapping assays, so each overlap keeps the assay that starts first, as in
-[chapter 6](../06-drillholes/README.md).
+The tables are checked and fixed with the default rules first, as in [chapter 6](../06-drillholes/README.md):
+overlapping assays keep the one that starts first and abruptly deviating survey stations are dropped.
 
 <details><summary>Python</summary>
 
 ```python
 tables = cs.datasets.drillhole_tables()
-assay = tables["assay"]
-hole_id = np.array(assay["HOLEID"])
-start, end = assay["FROM"], assay["TO"]
-keep = np.ones(assay.num_rows, bool)
-reach = {}
-for i in np.lexsort((start, hole_id)):
-    if start[i] < reach.get(hole_id[i], -np.inf):
-        keep[i] = False
-    else:
-        reach[hole_id[i]] = end[i]
-assay = cs.Table({c: np.asarray(assay[c])[keep] for c in assay.column_names})
-intervals = cs.merge_intervals(assay, tables["geology"])
+flags, _ = cs.check_drillholes(
+    tables["collar"], tables["survey"], {"assay": tables["assay"], "geology": tables["geology"]}
+)
+tables, _ = cs.fix_drillholes(flags, tables)
+intervals = cs.merge_intervals(tables["assay"], tables["geology"])
 dh = cs.Drillholes(tables["collar"], tables["survey"], intervals)
 grades = ["ZN", "PB", "CU", "AG", "AU"]
 composites = dh.composite(2.0, grades, domain="LITH")
@@ -80,12 +73,12 @@ for name, n, raw, mean, cv, p50, p90 in zip(
 
 ```text
 LITH        n    mean  declust.    CV    P50    P90
-EX       2190    3.45      3.75  1.54   1.16  11.85
-MS       2662    9.35      9.28  1.00   6.11  23.56
-QE       4311    3.58      3.44  1.60   0.95  10.90
+EX       2190    3.45      3.74  1.54   1.14  11.83
+MS       2662    9.35      9.27  1.00   6.10  23.52
+QE       4311    3.58      3.43  1.60   0.94  10.79
 RH      11129    1.60      1.66  2.24   0.21   4.87
 SM       1845    8.49      8.63  1.06   5.14  22.13
-all     22137    3.68      3.71  1.73   0.70  12.47
+all     22137    3.68      3.70  1.73   0.70  12.43
 ```
 
 The same declustered quantiles as box plots, sorted by median: the box spans P25 to P75, the whiskers P10 to P90,
@@ -149,12 +142,12 @@ for cap, frac, metal, mean, cv in zip(*caps.values(), strict=True):
 
 ```text
     cap  cut (%)  metal (%)   mean    CV
-  23.56     10.0       6.18   8.71  0.92
-  28.89      5.0       1.98   9.09  0.97
-  32.10      2.5       0.63   9.22  0.98
-  34.55      1.1       0.21   9.26  0.99
-  35.92      0.5       0.11   9.27  0.99
-  39.44      0.1       0.01   9.28  1.00
+  23.52      9.9       6.21   8.69  0.92
+  28.86      5.0       1.99   9.08  0.97
+  32.10      2.5       0.63   9.21  0.99
+  34.55      1.1       0.21   9.25  0.99
+  35.92      0.5       0.11   9.26  0.99
+  39.43      0.1       0.01   9.27  1.00
 ```
 
 Zn is bounded by the zinc content of sphalerite: on a log-probability plot the upper tails bend towards a ceiling
@@ -200,12 +193,12 @@ for name, c, n, mean, capped, cv, cv_capped in zip(*(report[k] for k in columns)
 
 ```text
 LITH      cap  cut   mean  capped    CV  capped  metal (%)
-EX      29.33    8   3.75    3.74  1.54    1.53       0.20
-MS      35.92   13   9.28    9.27  1.00    0.99       0.11
-QE      30.07   10   3.44    3.43  1.60    1.59       0.31
-RH      23.29   54   1.66    1.64  2.24    2.18       1.25
+EX      29.31    8   3.74    3.73  1.54    1.54       0.20
+MS      35.92   13   9.27    9.26  1.00    0.99       0.11
+QE      30.06   10   3.43    3.42  1.60    1.59       0.31
+RH      23.28   54   1.66    1.64  2.24    2.18       1.25
 SM      37.32    6   8.63    8.63  1.06    1.06       0.08
-all             91   3.71    3.70  1.73    1.72       0.41
+all             91   3.70    3.69  1.73    1.73       0.41
 ```
 
 ## Grade-tonnage of the data

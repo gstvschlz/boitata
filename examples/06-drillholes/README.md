@@ -15,36 +15,93 @@ from matplotlib.colors import LogNorm
 
 </details>
 
-Assays and lithology come in separate interval tables. Within a table intervals must not overlap, so the few
-overlapping assays are resolved first, here by keeping the one that starts first. `merge_intervals` then splits both
-tables at every boundary so each piece carries its grades and its lithology.
+The tables are checked before anything else. `check_drillholes` flags every record of the collar, survey and interval
+tables (duplicate ids, missing or sentinel values, from >= to, gaps, overlaps, angles out of range, depths past the
+hole length, holes missing from a table, abrupt survey deviation) and summarises each check. `fix_drillholes` then
+resolves them with one named rule per check; the log says what each rule changed. Overlapping assays keep the one
+that starts first. Gaps are unsampled core and stay.
 
 <details><summary>Python</summary>
 
 ```python
 tables = cs.datasets.drillhole_tables()
+checked = {"assay": tables["assay"], "geology": tables["geology"]}
+flags, summary = cs.check_drillholes(tables["collar"], tables["survey"], checked, max_depth="DEPTH")
+fixed, log = cs.fix_drillholes(flags, tables, overlaps="keep_first", deviation="drop", past_depth="keep")
+
+for table, check, rows, holes in zip(summary["table"], summary["check"], summary["rows"], summary["holes"]):
+    if rows:
+        print(f"{table:>8} {check:<11} {rows:6.0f} rows in {holes:4.0f} holes")
+for table, check, action, rows in zip(log["table"], log["check"], log["action"], log["rows"]):
+    if rows:
+        print(f"{action:>10} {rows:3.0f} {table} rows flagged {check}")
+```
+
+</details>
+
+```text
+  collar no_survey        2 rows in    2 holes
+  collar no_assay       266 rows in  266 holes
+  collar no_geology    3415 rows in 3415 holes
+  survey deviation       12 rows in    8 holes
+   assay gap           4903 rows in  802 holes
+   assay overlap         22 rows in    4 holes
+      drop  12 survey rows flagged deviation
+keep_first  22 assay rows flagged overlap
+```
+
+A survey station is flagged when its direction turns more than 20° from the station above, so one wrong station is
+flagged together with the station below it, as the dip of DH1432 flipping sign at 116 m. Here every flagged station
+is dropped; each is shown against the station above it.
+
+<details><summary>Python</summary>
+
+```python
+survey = tables["survey"]
+hole_id, depth, dip, azimuth = np.array(survey["HOLEID"]), survey["DEPTH"], survey["DIP"], survey["AZIMUTH"]
+order = np.lexsort((depth, hole_id))
+above = dict(zip(order[1:], order[:-1]))
+for i in np.flatnonzero(flags["survey"]["deviation"]):
+    j = above[i]
+    print(
+        f"{hole_id[i]} {depth[j]:5.1f} -> {depth[i]:5.1f} m: dip {dip[j]:5.1f} -> {dip[i]:5.1f},"
+        f" azimuth {azimuth[j]:5.1f} -> {azimuth[i]:5.1f}"
+    )
+```
+
+</details>
+
+```text
+DH0480  28.0 ->  50.0 m: dip  14.6 ->  14.9, azimuth 355.1 ->  19.8
+DH0646   0.0 ->   6.0 m: dip  36.0 -> -35.5, azimuth 337.6 -> 345.1
+DH0963   0.0 ->  19.8 m: dip -20.0 -> -15.0, azimuth 157.6 -> 299.2
+DH1432 104.0 -> 116.0 m: dip  41.8 -> -38.9, azimuth 304.0 -> 303.6
+DH1432 116.0 -> 128.0 m: dip -38.9 ->  41.8, azimuth 303.6 -> 303.5
+DH2797  90.0 -> 130.0 m: dip  11.0 ->  10.0, azimuth 337.6 -> 300.2
+DH3167  30.0 ->  56.0 m: dip  49.0 ->  18.7, azimuth 293.6 -> 289.6
+DH3167  56.0 ->  60.0 m: dip  18.7 ->  48.0, azimuth 289.6 -> 293.6
+DH3382   6.0 ->  28.0 m: dip  46.0 ->  -1.2, azimuth 157.1 -> 270.6
+DH3382  28.0 ->  30.0 m: dip  -1.2 ->  46.0, azimuth 270.6 -> 157.6
+DH3382  30.0 ->  58.0 m: dip  46.0 ->  -1.0, azimuth 157.6 -> 270.6
+DH3807 437.0 -> 485.0 m: dip  48.5 ->  27.5, azimuth 282.6 -> 288.1
+```
+
+Assays and lithology come in separate interval tables. `merge_intervals` splits both at every boundary so each piece
+carries its grades and its lithology.
+
+<details><summary>Python</summary>
+
+```python
+tables = fixed
 assay, geology = tables["assay"], tables["geology"]
 GRADES = ["ZN", "PB", "CU", "AG", "AU"]
-
-hole_id = np.array(assay["HOLEID"])
-start, end = assay["FROM"], assay["TO"]
-keep = np.ones(assay.num_rows, bool)
-reach = {}
-for i in np.lexsort((start, hole_id)):
-    if start[i] < reach.get(hole_id[i], -np.inf):
-        keep[i] = False
-    else:
-        reach[hole_id[i]] = end[i]
-assay = cs.Table({c: np.asarray(assay[c])[keep] for c in assay.column_names})
 intervals = cs.merge_intervals(assay, geology)
-print(f"{(~keep).sum()} overlapping assays dropped")
 print(f"{assay.num_rows} assays + {geology.num_rows} geology intervals -> {intervals.num_rows} merged")
 ```
 
 </details>
 
 ```text
-22 overlapping assays dropped
 81634 assays + 64431 geology intervals -> 137014 merged
 ```
 
@@ -70,7 +127,7 @@ for m in methods[1:]:
 ```text
 Drillholes(5277 holes, 137014 intervals)
          tangential vs minimum curvature: median 0.31 m, max 43.0 m
-balanced_tangential vs minimum curvature: median 0.00 m, max 13.5 m
+balanced_tangential vs minimum curvature: median 0.00 m, max 3.8 m
 ```
 
 Compositing to 2 m by `LITH` cuts intervals at every 2 m mark and never averages across a contact. A grade is the
@@ -245,7 +302,7 @@ for name, c in modes.items():
 ```text
                2 m:  62506 composites, median length 2.0 m
               runs:  15761 composites, median length 5.5 m
-      10 m benches:  24438 composites, median length 5.1 m
+      10 m benches:  24439 composites, median length 5.1 m
   2 m, merge < 1 m:  60149 composites, median length 2.0 m
    2 m, drop < 1 m:  57780 composites, median length 2.0 m
 2 m, majority LITH:  56842 composites, median length 2.0 m

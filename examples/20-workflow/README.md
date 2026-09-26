@@ -22,25 +22,18 @@ from matplotlib.colors import ListedColormap
 ## Composites
 
 Assays and logged lithology are merged and desurveyed by minimum curvature, with tangential desurvey kept for
-comparison. Whole runs (`length=None`) show how thick the `MS` intercepts are. Overlapping assays are resolved first
-by keeping the one that starts first, as in [chapter 6](../06-drillholes/README.md).
+comparison. Whole runs (`length=None`) show how thick the `MS` intercepts are. The tables are checked and fixed first
+with the default rules, as in [chapter 6](../06-drillholes/README.md).
 
 <details><summary>Python</summary>
 
 ```python
 tables = cs.datasets.drillhole_tables()
-assay = tables["assay"]
-hole_id = np.array(assay["HOLEID"])
-start, end = assay["FROM"], assay["TO"]
-keep = np.ones(assay.num_rows, bool)
-reach = {}
-for i in np.lexsort((start, hole_id)):
-    if start[i] < reach.get(hole_id[i], -np.inf):
-        keep[i] = False
-    else:
-        reach[hole_id[i]] = end[i]
-assay = cs.Table({c: np.asarray(assay[c])[keep] for c in assay.column_names})
-intervals = cs.merge_intervals(assay, tables["geology"])
+flags, _ = cs.check_drillholes(
+    tables["collar"], tables["survey"], {"assay": tables["assay"], "geology": tables["geology"]}
+)
+tables, _ = cs.fix_drillholes(flags, tables)
+intervals = cs.merge_intervals(tables["assay"], tables["geology"])
 drillholes = cs.Drillholes(tables["collar"], tables["survey"], intervals, method="minimum_curvature")
 tangential = cs.Drillholes(tables["collar"], tables["survey"], intervals, method="tangential")
 
@@ -132,7 +125,7 @@ print(
 </details>
 
 ```text
-582 contacts; 2736 blocks in the lens, 2068 of them inside the hull (258 thousand m3)
+582 contacts; 2733 blocks in the lens, 2069 of them inside the hull (259 thousand m3)
 ```
 
 ## Statistics and declustering
@@ -278,8 +271,8 @@ save(fig, "swath")
 </details>
 
 ```text
-16544 nodes in 2068 blocks
-blocks above 10 % Zn: P10 38.1%, P90 45.8% of the lens; kriged 38.2%
+16552 nodes in 2069 blocks
+blocks above 10 % Zn: P10 37.7%, P90 46.4% of the lens; kriged 38.2%
 ```
 
 ![swath](swath.png)
@@ -311,7 +304,7 @@ for name in names:
 
 ```text
  measured: 50.7% of blocks, mean  9.61 % Zn
-indicated: 13.7% of blocks, mean  8.95 % Zn
+indicated: 13.8% of blocks, mean  8.94 % Zn
  inferred: 35.6% of blocks, mean  8.97 % Zn
 ```
 
@@ -341,8 +334,8 @@ print(f"same class for {np.mean(classes == by_distance):.0%} of blocks")
 
 ```text
              measured indicated  inferred   (rows: pass and slope, columns: distance)
- measured:      50.3%      0.4%      0.0%
-indicated:       9.1%      4.5%      0.0%
+ measured:      50.2%      0.4%      0.0%
+indicated:       9.2%      4.5%      0.0%
  inferred:       1.8%     29.0%      4.8%
 same class for 60% of blocks
 ```
@@ -434,7 +427,7 @@ print(
 </details>
 
 ```text
-2068 blocks, columns ['zn', 'mean', 'uncertainty', 'p_above_10', 'class'], same Zn: True
+2069 blocks, columns ['zn', 'mean', 'uncertainty', 'p_above_10', 'class'], same Zn: True
 ```
 
 Full script: [`example_20.py`](example_20.py)
