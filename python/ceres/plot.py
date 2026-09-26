@@ -1,7 +1,7 @@
 """Plots on matplotlib (``pip install ceres[plot]``).
 
 Every function draws on `ax` when given, else on a new figure, and returns ``(fig, ax)``; `scatter_matrix` takes
-and returns a grid of `axes` instead.
+and returns a grid of `axes` instead, and `category_colors` and `category_legend` return what they make.
 """
 
 import numpy as np
@@ -12,6 +12,8 @@ from ceres._ceres import swath as _swath
 
 __all__ = [
     "boxplot",
+    "category_colors",
+    "category_legend",
     "category_swath",
     "cdf",
     "completeness",
@@ -231,7 +233,7 @@ def qq(x, y, x_weights=None, y_weights=None, quantiles=None, log=False, ax=None,
     return fig, ax
 
 
-def boxplot(values, categories, weights=None, sort=False, log=False, ax=None, **kwargs):
+def boxplot(values, categories, weights=None, sort=False, log=False, scheme=None, ax=None, **kwargs):
     """One box per category: P25 to P75, median, P10 to P90 whiskers and the mean, all weighted.
 
     Parameters
@@ -239,29 +241,31 @@ def boxplot(values, categories, weights=None, sort=False, log=False, ax=None, **
     values : array_like
         Values; NaN is ignored.
     categories : array_like
-        Category (e.g. domain) of each value; each box is labelled with its count.
+        Category (e.g. domain) of each value, its code when `scheme` is given; each box is labelled with its count.
     weights : array_like, optional
         Declustering weights.
     sort : bool
         Order boxes by median, else by category.
     log : bool
         Log value axis.
+    scheme : Categories, optional
+        Names and colours of the categories.
     **kwargs
         Passed to ``ax.bxp``.
     """
     import matplotlib as mpl
 
     fig, ax = _axes(ax)
-    values, categories = np.asarray(values, dtype=float), np.asarray(categories)
-    weights = None if weights is None else np.asarray(weights, dtype=float)
-    stats = []
-    for c in np.unique(categories[~np.isnan(values)]):
-        keep = categories == c
-        s = describe(values[keep], None if weights is None else weights[keep])
+    names, colors, index, keep = _classes(categories, scheme)
+    values = np.asarray(values, dtype=float)[keep]
+    weights = None if weights is None else np.asarray(weights, dtype=float)[keep]
+    stats, codes = [], []
+    for c in np.unique(index[~np.isnan(values)]):
+        s = describe(values[index == c], None if weights is None else weights[index == c])
         p10, q1, med, q3, p90 = s["quantiles"]
         stats.append(
             {
-                "label": f"{c}\nn = {s['n']:,}",
+                "label": f"{names[c]}\nn = {s['n']:,}",
                 "whislo": p10,
                 "q1": q1,
                 "med": med,
@@ -271,8 +275,10 @@ def boxplot(values, categories, weights=None, sort=False, log=False, ax=None, **
                 "fliers": [],
             }
         )
+        codes.append(c)
     if sort:
-        stats.sort(key=lambda s: s["med"])
+        order = np.argsort([s["med"] for s in stats], kind="stable")
+        stats, codes = [stats[i] for i in order], [codes[i] for i in order]
     color = mpl.rcParams["axes.prop_cycle"].by_key()["color"][0]
     kwargs.setdefault("patch_artist", True)
     kwargs.setdefault("showmeans", True)
@@ -281,7 +287,10 @@ def boxplot(values, categories, weights=None, sort=False, log=False, ax=None, **
     kwargs.setdefault("whiskerprops", {"color": color})
     kwargs.setdefault("capprops", {"color": color})
     kwargs.setdefault("meanprops", {"marker": "o", "ms": 4, "mfc": "white", "mec": color})
-    ax.bxp(stats, **kwargs)
+    boxes = ax.bxp(stats, **kwargs)["boxes"]
+    if colors is not None:
+        for box, c in zip(boxes, codes, strict=True):
+            box.set_facecolor(mpl.colors.to_rgba(colors[c], 0.6))
     if log:
         ax.set_yscale("log")
     return fig, ax
@@ -582,7 +591,16 @@ def scatter_matrix(data, labels=None, weights=None, log=False, bins=30, axes=Non
 
 
 def section(
-    block_model, values, axis="z", index=None, plane=None, resolution=None, colorbar=True, ax=None, **kwargs
+    block_model,
+    values,
+    axis="z",
+    index=None,
+    plane=None,
+    resolution=None,
+    colorbar=True,
+    scheme=None,
+    ax=None,
+    **kwargs,
 ):
     """Slice of a block model across `axis` at cell `index` (default: the middle), or on any `plane`.
 
@@ -603,16 +621,34 @@ def section(
     resolution : float, optional
         Raster step on `plane`; default half the smallest block edge.
     colorbar : bool
-        Add a colour bar labelled with the column name.
+        Add a colour bar labelled with the column name, or a legend with `scheme`.
+    scheme : Categories, optional
+        `values` are codes of these categories, drawn in their colours.
     **kwargs
         Passed to ``ax.imshow`` (e.g. ``cmap``, ``norm``, ``vmin``).
     """
     fig, ax = _axes(ax)
     (image,), extent = _image(ax, block_model, [values], axis, index, plane, resolution)
+    _scheme_colors(scheme, kwargs)
     im = ax.imshow(image, origin="lower", extent=extent, **kwargs)
-    if colorbar:
-        fig.colorbar(im, ax=ax, shrink=0.8, label=values if isinstance(values, str) else None)
+    _key(fig, ax, im, values, colorbar, scheme)
     return fig, ax
+
+
+def _scheme_colors(scheme, kwargs):
+    if scheme is not None:
+        cmap, norm = category_colors(scheme)
+        kwargs.setdefault("cmap", cmap)
+        kwargs.setdefault("norm", norm)
+
+
+def _key(fig, ax, mappable, values, colorbar, scheme):
+    if not colorbar:
+        return
+    if scheme is None:
+        fig.colorbar(mappable, ax=ax, shrink=0.8, label=values if isinstance(values, str) else None)
+    else:
+        category_legend(scheme, ax, loc="upper left", bbox_to_anchor=(1.01, 1))
 
 
 def _image(ax, block_model, columns, axis, index, plane, resolution):
@@ -673,6 +709,7 @@ def slab(
     lines=None,
     labels=None,
     colorbar=True,
+    scheme=None,
     ax=None,
     **kwargs,
 ):
@@ -699,7 +736,9 @@ def slab(
     labels : sequence of str, optional
         One per point; each distinct label is written once, above its highest point in the slab.
     colorbar : bool
-        With `values`, add a colour bar labelled with the column name.
+        With `values`, add a colour bar labelled with the column name, or a legend with `scheme`.
+    scheme : Categories, optional
+        `values` are codes of these categories, drawn in their colours.
     **kwargs
         Passed to ``ax.scatter`` (e.g. ``s``, ``cmap``, ``norm``, ``color``).
     """
@@ -722,10 +761,11 @@ def slab(
 
     if values is not None:
         kwargs["c"] = np.asarray(points[values] if isinstance(values, str) else values, dtype=float)[near]
+        _scheme_colors(scheme, kwargs)
     kwargs.setdefault("s", 6)
     drawn = ax.scatter(xy[:, 0], xy[:, 1], **kwargs)
-    if values is not None and colorbar:
-        fig.colorbar(drawn, ax=ax, shrink=0.8, label=values if isinstance(values, str) else None)
+    if values is not None:
+        _key(fig, ax, drawn, values, colorbar, scheme)
 
     if labels is not None:
         names = np.asarray(labels, dtype=object)[near]
@@ -846,11 +886,56 @@ def _classes(categories, scheme):
     index = codes[keep].astype(int)
     if np.any((index != codes[keep]) | (index < 0) | (index >= len(scheme))):
         raise ValueError(f"categories must be codes of the scheme, 0 to {len(scheme) - 1}, or NaN")
-    colors = scheme.colors
-    if colors is None:
-        grey = ["0.6"] if scheme.other is not None else []
-        colors = [*_palette(len(scheme) - len(grey)), *grey]
-    return scheme.names, colors, index, keep
+    return scheme.names, _colors(scheme), index, keep
+
+
+def _colors(scheme):
+    if scheme.colors is not None:
+        return scheme.colors
+    grey = ["0.6"] if scheme.other is not None else []
+    return [*_palette(len(scheme) - len(grey)), *grey]
+
+
+def category_colors(scheme):
+    """Colour map and norm drawing code i of `scheme` in its colour i.
+
+    Parameters
+    ----------
+    scheme : Categories
+        Colours of the categories; when it has none, spread over matplotlib's ``image.cmap`` with ``other`` in
+        grey.
+
+    Returns
+    -------
+    cmap : matplotlib.colors.ListedColormap
+    norm : matplotlib.colors.BoundaryNorm
+        Boundaries at every code ± 0.5; pass both as ``cmap=`` and ``norm=`` to ``imshow`` or ``scatter``.
+    """
+    from matplotlib.colors import BoundaryNorm, ListedColormap
+
+    k = len(scheme)
+    return ListedColormap(_colors(scheme)), BoundaryNorm(np.arange(k + 1) - 0.5, k)
+
+
+def category_legend(scheme, ax, **kwargs):
+    """Legend of `scheme`: one patch per category, in code order, in the colours of `category_colors`.
+
+    Parameters
+    ----------
+    scheme : Categories
+    ax : matplotlib.axes.Axes or matplotlib.figure.Figure
+        Where the legend goes.
+    **kwargs
+        Passed to ``ax.legend`` (e.g. ``loc``, ``ncol``).
+
+    Returns
+    -------
+    matplotlib.legend.Legend
+    """
+    from matplotlib.patches import Patch
+
+    handles = [Patch(color=c, label=n) for n, c in zip(scheme.names, _colors(scheme), strict=True)]
+    return ax.legend(handles=handles, **kwargs)
 
 
 def category_swath(

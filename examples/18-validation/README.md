@@ -13,7 +13,6 @@ import ceres as cs
 import matplotlib.pyplot as plt
 import numpy as np
 from common import ACCENT, GREY, LIGHT, map_axes, save
-from matplotlib.colors import ListedColormap
 
 samples = cs.datasets.walker_lake()
 truth = cs.datasets.walker_lake_exhaustive()["V"].reshape(300, 260)
@@ -381,15 +380,14 @@ indicated: 40.0% of blocks, 43.6% after smoothing
 <details><summary>Python</summary>
 
 ```python
-colors = ListedColormap([ACCENT, "#9ebad6", LIGHT])
+resource_classes = cs.Categories(names, colors=[ACCENT, "#9ebad6", LIGHT])
+cmap, norm = cs.plot.category_colors(resource_classes)
 fig, axes = plt.subplots(1, 2, figsize=(9, 4.6), layout="constrained")
 for ax, c, title in ((axes[0], classes, "Rules"), (axes[1], smoothed, "After a 3 × 3 majority filter")):
-    code = np.select([c == n for n in names], range(3))
-    ax.imshow(code.reshape(shape), origin="lower", extent=extent, cmap=colors, vmin=-0.5, vmax=2.5)
+    ax.imshow(resource_classes.encode(c).reshape(shape), origin="lower", extent=extent, cmap=cmap, norm=norm)
     ax.scatter(xy[:, 0], xy[:, 1], s=2, color=GREY, linewidths=0)
     map_axes(ax, title)
-handles = [plt.Line2D([], [], marker="s", ls="", color=colors(i), label=n) for i, n in enumerate(names)]
-fig.legend(handles=handles, loc="outside lower center", ncol=3)
+cs.plot.category_legend(resource_classes, fig, loc="outside lower center", ncol=3)
 save(fig, "classes")
 ```
 

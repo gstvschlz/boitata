@@ -14,7 +14,6 @@ import ceres as cs
 import matplotlib.pyplot as plt
 import numpy as np
 from common import ACCENT, GREY, HIGHLIGHT, LIGHT, save
-from matplotlib.colors import ListedColormap
 ```
 
 </details>
@@ -507,12 +506,13 @@ only by composites off the section, fade almost to white, and are the inferred o
 
 ```python
 std_all = np.sqrt(summary.variance.mean() + summary.mean.var())
+resource_classes = cs.Categories(names, colors=[ACCENT, "#9ebad6", LIGHT])
 blocks = (
     blocks.with_column("zn", kriged["value"])
     .with_column("mean", summary.mean)
     .with_column("uncertainty", summary.std / std_all)
     .with_column("p_above_10", summary.probability_above[0])
-    .with_column("class", np.select([classes == n for n in names], range(3)).astype(float))
+    .with_column("class", resource_classes.encode(classes))
 )
 rows = blocks.index // count[0] % count[1]
 row = int(np.bincount(rows).argmax())
@@ -536,10 +536,7 @@ cs.plot.uncertain(
     ax=axes[0, 1],
 )
 cs.plot.section(blocks, "p_above_10", axis="y", index=row, ax=axes[0, 2], colorbar=False, vmin=0, vmax=1)
-colors = ListedColormap([ACCENT, "#9ebad6", LIGHT])
-cs.plot.section(
-    blocks, "class", axis="y", index=row, ax=axes[0, 3], colorbar=False, cmap=colors, vmin=-0.5, vmax=2.5
-)
+cs.plot.section(blocks, "class", axis="y", index=row, ax=axes[0, 3], colorbar=False, scheme=resource_classes)
 titles = ("Kriged Zn", "Simulated block Zn", "P(block Zn > 10 %)", "Class")
 for ax, title in zip(axes[0], titles, strict=True):
     cs.plot.slab(xyz, plane=((0, north, 0), 90, 90), thickness=10, s=4, color=HIGHLIGHT, linewidths=0, ax=ax)
@@ -551,8 +548,7 @@ for ax, image, label in (
     ax.axis("off")
     fig.colorbar(image, cax=ax.inset_axes([0.1, 0.6, 0.8, 0.15]), orientation="horizontal", label=label)
 axes[1, 3].axis("off")
-handles = [plt.Line2D([], [], marker="s", ls="", color=colors(i), label=n) for i, n in enumerate(names)]
-axes[1, 3].legend(handles=handles, loc="upper center", fontsize=8)
+cs.plot.category_legend(resource_classes, axes[1, 3], loc="upper center", fontsize=8)
 save(fig, "section")
 ```
 
