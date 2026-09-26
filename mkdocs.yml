@@ -45,8 +45,8 @@ exclude_docs: |
 plugins:
   - search
   - gallery:
-      examples_dirs: examples
-      gallery_dirs: docs/examples
+      examples_dirs: [examples/tutorials, examples/topics]
+      gallery_dirs: [docs/examples/tutorials, docs/examples/topics]
       filename_pattern: example_\d+\.py$
       ignore_pattern: (render|common)\.py$
       within_subsection_order: FileNameSortKey
@@ -79,7 +79,9 @@ markdown_extensions:
 
 nav:
   - Home: index.md
-  - Examples: examples
+  - Examples:
+      - Tutorials: examples/tutorials
+      - Topics: examples/topics
   - API:
       - Containers and I/O: api/containers.md
       - Datasets and plots: api/datasets.md
