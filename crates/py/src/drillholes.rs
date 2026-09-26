@@ -258,7 +258,9 @@ impl Drillholes {
 
     /// Length-weighted composites, never crossing a change of `domain` and
     /// located at their midpoints. Composites with none of the grades sampled
-    /// are dropped.
+    /// are dropped. Each grade comes with its sampled length,
+    /// `<grade>_length`, so the sum of grade × `<grade>_length` equals the
+    /// input metal; `length` also counts unsampled ground.
     ///
     /// Parameters
     /// ----------
@@ -431,6 +433,10 @@ impl Drillholes {
         }
         for g in &grades {
             columns.push((g.clone(), floats(&|c| c.attributes.get(g).copied())));
+            columns.push((
+                format!("{g}_length"),
+                floats(&|c| c.sampled.get(g).copied()),
+            ));
         }
         for (name, labels) in categories.iter().zip(&labels) {
             let values = composites
