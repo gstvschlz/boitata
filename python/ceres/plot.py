@@ -7,7 +7,7 @@ import numpy as np
 
 from ceres._ceres import normal_ppf
 
-__all__ = ["histogram", "probability", "scatter", "section", "swath", "variogram"]
+__all__ = ["histogram", "probability", "scatter", "section", "swath", "uncertain", "variogram"]
 
 
 def _axes(ax):
@@ -225,4 +225,66 @@ def swath(swaths, labels=None, ax=None, **kwargs):
         ax.legend()
     ax.set_xlabel("Distance along swath")
     ax.set_ylabel("Mean")
+    return fig, ax
+
+
+def _fade(values, uncertainty, cmap, norm):
+    rgba = cmap(norm(np.ma.masked_invalid(values)))
+    certainty = 1 - np.clip(np.nan_to_num(uncertainty, nan=1.0), 0, 1)
+    rgba[..., :3] = 1 - (1 - rgba[..., :3]) * certainty[..., None]
+    rgba[..., 3] = np.isfinite(values)
+    return rgba
+
+
+def uncertain(
+    values, uncertainty, extent=None, cmap="viridis", norm=None, label=None, legend_ax=None, ax=None
+):
+    """Image whose colour gives a value and whose fading towards white gives how uncertain it is.
+
+    The legend is a fan: the value runs across its angle, certainty along its radius, from white at the centre
+    (nothing known) to the full colour on the arc.
+
+    Parameters
+    ----------
+    values : array_like
+        2D image, e.g. the mean of the realizations on a section; NaN is left blank.
+    uncertainty : array_like
+        Same shape, from 0 (certain) to 1 (no information), e.g. the realizations' standard deviation over the
+        global one. Clipped to [0, 1].
+    extent : tuple of float, optional
+        Passed to ``ax.imshow``.
+    cmap : str or Colormap
+    norm : Normalize, optional
+        Maps values to [0, 1]; default spans their range.
+    label : str, optional
+        Value name written under the legend.
+    legend_ax : Axes, optional
+        Where to draw the legend; default below `ax`.
+    """
+    import matplotlib as mpl
+
+    fig, ax = _axes(ax)
+    values = np.asarray(values, dtype=float)
+    cmap = mpl.colormaps[cmap] if isinstance(cmap, str) else cmap
+    norm = norm or mpl.colors.Normalize(np.nanmin(values), np.nanmax(values))
+    ax.imshow(_fade(values, np.asarray(uncertainty, dtype=float), cmap, norm), origin="lower", extent=extent)
+
+    fan = legend_ax or ax.inset_axes([0.2, -0.6, 0.6, 0.4])
+    x, y = np.meshgrid(np.linspace(-1, 1, 201), np.linspace(0, 1, 101))
+    radius, angle = np.hypot(x, y), np.degrees(np.arctan2(y, x))
+    share = (135 - angle) / 90
+    inside = (radius <= 1) & (share >= 0) & (share <= 1)
+    fraction = np.where(inside, share, np.nan)
+    fan.imshow(_fade(norm.inverse(fraction), 1 - radius, cmap, norm), origin="lower", extent=(-1, 1, 0, 1))
+    for share, align in ((0, "right"), (0.5, "center"), (1, "left")):
+        theta = np.radians(135 - 90 * share)
+        value = float(norm.inverse(share))
+        fan.text(
+            1.05 * np.cos(theta), 1.05 * np.sin(theta), f"{value:.3g}", ha=align, va="bottom", fontsize=8
+        )
+    fan.text(-0.45, 0.27, "← certain", rotation=-45, ha="center", va="center", fontsize=7, color="0.4")
+    if label:
+        fan.text(0, -0.05, label, ha="center", va="top", fontsize=9)
+    fan.set(xlim=(-1.2, 1.2), ylim=(-0.25, 1.2), aspect="equal")
+    fan.axis("off")
     return fig, ax

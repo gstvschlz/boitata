@@ -56,3 +56,12 @@ def test_swath_draws_each_result():
     s = cs.swath(xy, xy[:, 0], 10.0, axis="x")
     _, ax = cs.plot.swath([s, s], labels=["a", "b"])
     assert len(ax.lines) == 2
+
+
+def test_uncertain_fades_to_white():
+    values = np.array([[0.0, 1.0], [1.0, np.nan]])
+    uncertainty = np.array([[0.0, 1.0], [0.5, 0.0]])
+    _, ax = cs.plot.uncertain(values, uncertainty)
+    rgba = ax.images[0].get_array()
+    np.testing.assert_allclose(rgba[0, 1, :3], 1.0)
+    assert rgba[0, 0, :3].max() < 1 and rgba[1, 1, 3] == 0

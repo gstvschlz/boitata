@@ -13,3 +13,5 @@
 ::: ceres.assign_domain
 
 ::: ceres.block_shell
+
+::: ceres.convex_hull

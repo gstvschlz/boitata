@@ -414,6 +414,13 @@ fn assign_domain<'py>(
     )
 }
 
+/// Convex hull of `(n, 3)` points as a closed mesh.
+#[pyfunction]
+fn convex_hull(points: &Bound<PyAny>) -> PyResult<Mesh> {
+    let pts = coords_arg(points)?;
+    blocks::convex_hull(&pts).map(Mesh::from_core).map_err(err)
+}
+
 /// Visible skin of a block model; `column` becomes the face column `value`.
 #[pyfunction]
 #[pyo3(signature = (model, column=None))]
@@ -510,5 +517,6 @@ pub fn register(m: &Bound<PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(polygon_distance, m)?)?;
     m.add_function(wrap_pyfunction!(assign_domain, m)?)?;
     m.add_function(wrap_pyfunction!(block_shell, m)?)?;
+    m.add_function(wrap_pyfunction!(convex_hull, m)?)?;
     Ok(())
 }
