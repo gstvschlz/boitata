@@ -20,9 +20,11 @@ def test_importing_ceres_does_not_import_pyvista():
     subprocess.run([sys.executable, "-c", code], check=True)
 
 
-def test_missing_pyvista_names_the_extra(monkeypatch):
+def test_missing_pyvista_names_pip_and_conda(monkeypatch):
     monkeypatch.setitem(sys.modules, "pyvista", None)
-    with pytest.raises(ImportError, match=r"ceres\[3d\]"):
+    with pytest.raises(
+        ImportError, match=r"pip install 'ceres\[3d\]' or conda install -c conda-forge pyvista"
+    ):
         cs.plot3d.to_pyvista(cs.PointSet(np.zeros((1, 3))))
 
 

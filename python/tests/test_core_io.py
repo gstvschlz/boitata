@@ -1,4 +1,5 @@
 import math
+import sys
 
 import ceres as cs
 import numpy as np
@@ -285,3 +286,22 @@ def test_polylines_arrow_long_table_and_parquet(tmp_path):
     back = cs.read_parquet(tmp_path / "pits.parquet")
     assert isinstance(back, cs.Polylines) and back.crs == pits.crs
     assert pl.DataFrame(back).equals(frame)
+
+
+@pytest.mark.parametrize(
+    "method, missing, packages",
+    [
+        ("to_polars", "polars", "polars"),
+        ("to_pyarrow", "pyarrow", "pyarrow"),
+        ("to_pandas", "pandas", "pandas pyarrow"),
+        ("to_pandas", "pyarrow", "pandas pyarrow"),
+    ],
+)
+def test_table_conversion_without_the_package_names_pip_and_conda(monkeypatch, method, missing, packages):
+    monkeypatch.setitem(sys.modules, missing, None)
+    table = cs.PointSet(np.zeros((1, 3)), {"v": [1.0]}).attributes
+    hint = (
+        f"Table.{method} needs {packages}: pip install {packages} or conda install -c conda-forge {packages}"
+    )
+    with pytest.raises(ImportError, match=f"^{hint}$"):
+        getattr(table, method)()

@@ -19,7 +19,9 @@ def _pyvista():
     try:
         import pyvista
     except ImportError as e:
-        raise ImportError("ceres.plot3d needs pyvista: pip install ceres[3d]") from e
+        raise ImportError(
+            "ceres.plot3d needs pyvista: pip install 'ceres[3d]' or conda install -c conda-forge pyvista"
+        ) from e
     return pyvista
 
 
