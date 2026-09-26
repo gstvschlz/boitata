@@ -402,6 +402,7 @@ class ExperimentalVariogram:
         sills: Sequence[_Limit | None] | None = None,
         ranges: Sequence[_Limit | None] | None = None,
     ) -> Variogram: ...
+    def nugget(self, lags: int = 3) -> float: ...
 
 class VariogramMap:
     lags: npt.NDArray[np.float64]
@@ -461,6 +462,7 @@ def experimental_variogram(
     standardize: bool = False,
     other: ArrayLike | None = None,
     other_coords: ArrayLike | None = None,
+    holes: ArrayLike | None = None,
 ) -> ExperimentalVariogram: ...
 def variogram_map(
     coords: ArrayLike,

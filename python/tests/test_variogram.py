@@ -264,3 +264,20 @@ def test_nugget_averages_out_of_the_block():
     structured = cs.block_correlation(cs.Variogram([("spherical", 1.0, 50.0)]), size=(10, 10))
     nugget = cs.block_correlation(cs.Variogram([("spherical", 1.0, 50.0)], nugget=0.5), size=(10, 10))
     assert nugget == pytest.approx(structured / 1.5)
+
+
+def test_downhole_nugget():
+    n_holes, depth = 200, 40
+    phi = np.exp(-1 / 20)
+    signal = np.empty((n_holes, depth))
+    signal[:, 0] = rng.normal(size=n_holes)
+    for k in range(1, depth):
+        signal[:, k] = phi * signal[:, k - 1] + np.sqrt(1 - phi**2) * rng.normal(size=n_holes)
+    values = (signal + np.sqrt(0.3) * rng.normal(size=signal.shape)).ravel()
+    coords = np.stack(np.meshgrid(0.3 * np.arange(n_holes), 0.0, -np.arange(depth), indexing="ij"), -1)
+    holes = np.repeat([f"DH{i}" for i in range(n_holes)], depth)
+    exp = cs.experimental_variogram(coords.reshape(-1, 3), values, 1.0, 10.0, holes=holes)
+    assert exp.lags[0] == pytest.approx(1.0)
+    assert exp.nugget() == pytest.approx(0.3, abs=0.05)
+    with pytest.raises(ValueError):
+        cs.experimental_variogram(coords.reshape(-1, 3), values, 1.0, 10.0, azimuth=0, holes=holes)
