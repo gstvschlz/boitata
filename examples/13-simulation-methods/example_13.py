@@ -232,6 +232,46 @@ save(fig, "local-proportions")
 # %% [markdown]
 # With local proportions, Argovian keeps to the north-west and the south where its samples are, and the realization
 # matches the true rock type at 56 % of the nodes, against 49 % with global proportions.
+#
+# The latent variograms so far were guesses. Each rock type's indicator variogram follows from the rule and the latent
+# variograms, so `fit_variograms` rescales the latent ranges until those implied variograms match the experimental
+# ones; Portlandian, with 3 samples, is left out.
+
+# %%
+from common import ACCENT, GREY
+
+experimental = [
+    cs.experimental_variogram(train.coords, (rock == k).astype(float), 0.1, 1.5)
+    if k != code["Portlandian"]
+    else None
+    for k in range(5)
+]
+guessed = cs.Plurigaussian([latent, latent], proportions=proportions, rule=rule)
+fitted = cs.Plurigaussian([latent, latent], proportions=proportions, rule=rule).fit_variograms(experimental)
+cover, stage = (v.structures[0].range for v in fitted.variograms)
+print(f"fitted latent ranges: {cover:.2f} km for the cover field, {stage:.2f} km for the stages field")
+fitted.fit(train.coords, rock, proportions=local_proportions(train.coords))
+by_fitted = fitted.simulate(jura_grid, n=1, seed=3, realizations=True, proportions=at_nodes).realizations[0]
+print(
+    f"PGS rule, local proportions, fitted: {np.mean(by_fitted == true_rock):.0%} of nodes match the true rock type"
+)
+
+# %%
+h = np.linspace(0, 1.5, 61)
+fig, axes = plt.subplots(1, 4, figsize=(13, 3.4), layout="constrained", sharey=True)
+for ax, k in zip(axes, [k for k in range(5) if experimental[k] is not None]):
+    ax.plot(experimental[k].lags, experimental[k].gammas, "o", color=GREY, ms=4, label="experimental")
+    ax.plot(h, guessed.indicator_variograms(h)[k], "--", color=GREY, label="guessed ranges")
+    ax.plot(h, fitted.indicator_variograms(h)[k], color=ACCENT, label="fitted ranges")
+    ax.set(title=names[k], xlabel="lag (km)")
+axes[0].set_ylabel("indicator semivariance")
+axes[0].legend(frameon=False, loc="lower right")
+save(fig, "latent-variograms")
+
+# %% [markdown]
+# The fitted cover field is short and the stages field long, so the stages form broad bands that the cover patches
+# over; with 0.8 km on both, the stages varied too fast. The fitted variograms follow the experimental points of
+# every rock type and bring the match to 59 %.
 
 # %% [markdown]
 # ## Grades within simulated rock types

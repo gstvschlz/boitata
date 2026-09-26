@@ -127,6 +127,25 @@ def test_plurigaussian_hierarchy_honours_data_on_three_fields():
     assert set(np.unique(two.simulate(grid, n=1, seed=1).most_likely)) <= {0, 1, 2}
 
 
+def test_plurigaussian_fitted_variograms_recover_the_latent_ranges():
+    rule = (0, [0, (1, [1, 2])])
+    truth = [cs.Variogram([("spherical", 1.0, 16.0)]), cs.Variogram([("exponential", 1.0, 8.0)])]
+    fine = cs.BlockModel(origin=(0, 0), size=(2, 2), count=(60, 60))
+    xy = fine.centroids[:, :2]
+    pgs = cs.Plurigaussian(truth, proportions=[0.3, 0.4, 0.3], rule=rule).fit([[60.0, 60.0]], [1])
+    facies = pgs.simulate(fine, n=1, seed=2, realizations=True).realizations[0]
+    experimental = [cs.experimental_variogram(xy, (facies == f).astype(float), 2.0, 24.0) for f in range(3)]
+    start = [cs.Variogram([("spherical", 1.0, 5.0)]), cs.Variogram([("exponential", 1.0, 80.0)])]
+    fitted = cs.Plurigaussian(start, proportions=[0.3, 0.4, 0.3], rule=rule).fit_variograms(experimental)
+    ranges = [v.structures[0].range for v in fitted.variograms]
+    assert ranges == pytest.approx([16.0, 8.0], rel=0.25)
+    implied = fitted.indicator_variograms([0.0, 1e6])
+    assert implied.shape == (3, 2)
+    np.testing.assert_allclose(implied[:, 1], [0.21, 0.24, 0.21], atol=1e-6)
+    with pytest.raises(ValueError, match="per facies"):
+        fitted.fit_variograms(experimental[:2])
+
+
 def test_plurigaussian_follows_local_proportions():
     def west_to_east(xy):
         p0 = 0.9 - 0.8 * xy[:, 0] / 100
