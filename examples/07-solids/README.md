@@ -151,70 +151,63 @@ save(fig, "solid")
 
 ![solid](solid.png)
 
-Whole blocks misstate the volume near the wireframe. Sub-blocking keeps whole blocks inside the solid and splits
-the partial ones on a 4 × 4 × 4 sub-grid, keeping the sub-cells whose centres are inside. Each sub-block stores its
-parent cell and its extent as fractions of that cell.
+Whole blocks misstate the volume near the wireframe. `subblock` takes `(mesh, rule, label)` domains in priority
+order and splits the blocks a mesh cuts on a regular sub-grid: each sub-cell takes the label of the first domain
+holding its centre, and the sub-cells of a block merge along x, then y. Blocks the mesh does not cut stay whole.
+Each sub-block stores its parent cell and its extent as fractions of that cell. Counting centres gets the total
+volume nearly right at any sub-grid, as errors on either side cancel; what a finer sub-grid shrinks is the volume
+in the wrong place, sub-blocks outside the mesh plus mesh outside the sub-blocks, measured with `Mesh.proportion`:
 
 <details><summary>Python</summary>
 
 ```python
-n = 4
-partial = np.flatnonzero((proportion > 0) & (proportion < 1))
-full = np.flatnonzero(proportion >= 1)
-steps = (np.arange(n) + 0.5) / n
-local = np.stack(np.meshgrid(steps, steps, steps, indexing="ij"), axis=-1).reshape(-1, 3)
-centres = (blocks.centroids[partial, None, :] - size / 2) + local[None, :, :] * size
-inside_sub = solid.contains(centres.reshape(-1, 3)).reshape(len(partial), -1)
+def misplaced(model):
+    p = solid.proportion(model, discretization=4)
+    return ((1 - p) * model.volumes).sum() + solid.volume - (p * model.volumes).sum()
 
-parent = np.concatenate([full, np.repeat(partial, inside_sub.sum(axis=1))])
-full_extent = np.tile([0.0, 0.0, 0.0, 1.0, 1.0, 1.0], (len(full), 1))
-low = np.concatenate([local[mask] - 0.5 / n for mask in inside_sub])
-sub_extent = np.hstack([low, low + 1 / n])
-extents = np.vstack([full_extent, sub_extent])
-order = np.argsort(parent, kind="stable")
-subblocked = cs.BlockModel.subblocked(
-    origin=lo,
-    size=(size, size, size),
-    count=count,
-    parent=parent[order].astype(np.uint64),
-    extents=extents[order],
-    subgrid=(n, n, n),
-)
-exact = 4 / 3 * np.pi * np.prod(2 * np.sqrt(eigen))
-for name, volume in (
-    ("blocks more than half inside", len(ore) * size**3),
-    ("sub-blocked model", subblocked.volumes.sum()),
-    ("exact ellipsoid", exact),
-):
-    print(f"{name:>28}: {volume:,.0f} m3 ({volume / exact - 1:+.1%})")
+
+print(f"blocks more than half inside: {len(ore) * size**3:,.0f} m3, {misplaced(ore):,.0f} m3 misplaced")
+for n in (1, 2, 4, 8):
+    sub = blocks.subblock([(solid, "inside", "ore")], n)
+    print(
+        f"sub-grid {n}: {len(sub):>6} sub-blocks, {sub.volumes.sum():,.0f} m3, {misplaced(sub):,.0f} m3 misplaced"
+    )
+subblocked = blocks.subblock([(solid, "inside", "ore")], 4)
 print(subblocked)
 ```
 
 </details>
 
 ```text
-blocks more than half inside: 6,739,000 m3 (-1.3%)
-           sub-blocked model: 6,780,906 m3 (-0.7%)
-             exact ellipsoid: 6,828,328 m3 (+0.0%)
-BlockModel(sub-blocked, 106630 sub-blocks in 40936 cells, count [43, 28, 34], size [10.0, 10.0, 10.0], rotation [0.0, 0.0, 0.0])
+blocks more than half inside: 6,739,000 m3, 651,970 m3 misplaced
+sub-grid 1:   6781 sub-blocks, 6,781,000 m3, 652,907 m3 misplaced
+sub-grid 2:  10508 sub-blocks, 6,780,250 m3, 315,626 m3 misplaced
+sub-grid 4:  25526 sub-blocks, 6,780,906 m3, 145,319 m3 misplaced
+sub-grid 8:  80769 sub-blocks, 6,780,105 m3, 63,095 m3 misplaced
+BlockModel(sub-blocked, 25526 sub-blocks in 40936 cells, count [43, 28, 34], size [10.0, 10.0, 10.0], rotation [0.0, 0.0, 0.0])
+  inside: Float64
+  domain: Utf8
 ```
 
 <details><summary>Python</summary>
 
 ```python
-cut = subblocked.centroids[:, 2]
-level_rows = np.abs(cut - level) < size / 2
+z = subblocked.centroids[:, 2]
+thick = size * (subblocked.extents[:, 5] - subblocked.extents[:, 2])
+cut = (z - thick / 2 < level + 0.1) & (z + thick / 2 > level + 0.1)
+whole = (subblocked.extents == [0, 0, 0, 1, 1, 1]).all(axis=1)
 fig, ax = plt.subplots(figsize=(6.4, 5), layout="constrained")
-for (x0, y0), e in zip(
-    (
-        subblocked.centroids[level_rows, :2]
-        - size / 2 * (subblocked.extents[level_rows, 3:5] - subblocked.extents[level_rows, :2])
-    ),
-    subblocked.extents[level_rows],
-):
-    w, h = (e[3] - e[0]) * size, (e[4] - e[1]) * size
+for c, e, w in zip(subblocked.centroids[cut], subblocked.extents[cut], whole[cut]):
+    dx, dy = (e[3] - e[0]) * size, (e[4] - e[1]) * size
     ax.add_patch(
-        plt.Rectangle((x0, y0), w, h, facecolor=ACCENT if w == size else HIGHLIGHT, edgecolor="white", lw=0.3)
+        plt.Rectangle(
+            (c[0] - dx / 2, c[1] - dy / 2),
+            dx,
+            dy,
+            facecolor=ACCENT if w else HIGHLIGHT,
+            edgecolor="white",
+            lw=0.3,
+        )
     )
 ax.autoscale()
 ax.set_aspect("equal")
@@ -229,6 +222,38 @@ save(fig, "subblocks")
 </details>
 
 ![subblocks](subblocks.png)
+
+`regularize` moves columns between any two models of the same rotation by the volume each pair of blocks shares:
+floats as volume-weighted means, labels by the value filling the most volume. Here the sub-blocks take an
+inverse-distance Zn grade from the composites inside, then go to 20 m blocks. `fraction` is how much of each
+20 m block the sub-blocks fill, so volume × fraction × grade keeps the metal; `min_fraction` drops thin edges.
+
+<details><summary>Python</summary>
+
+```python
+search = cs.Search(radius=200, min_samples=1, max_samples=12)
+grade = cs.InverseDistance(search, power=2).fit(xyz[local][inside], zn[local][inside]).predict(subblocked)
+subblocked = subblocked.with_column("zn", grade)
+coarse = cs.BlockModel(origin=lo, size=(20, 20, 20), count=np.ceil(count / 2).astype(int))
+for minimum in (0.0, 0.5):
+    out = subblocked.regularize(coarse, min_fraction=minimum)
+    kept = ~np.isnan(out["zn"])
+    tonnes = out.volumes[kept] * out["fraction"][kept]
+    print(
+        f"min_fraction {minimum}: {kept.sum()} blocks, {tonnes.sum():,.0f} m3 at {np.average(out['zn'][kept], weights=tonnes):.2f}% Zn"
+    )
+print(
+    f"      sub-blocks: {subblocked.volumes.sum():,.0f} m3 at {np.average(grade, weights=subblocked.volumes):.2f}% Zn"
+)
+```
+
+</details>
+
+```text
+min_fraction 0.0: 1341 blocks, 6,780,906 m3 at 3.60% Zn
+min_fraction 0.5: 840 blocks, 6,085,438 m3 at 3.61% Zn
+      sub-blocks: 6,780,906 m3 at 3.60% Zn
+```
 
 Meshes read and write OBJ, STL and DXF, chosen by extension. STL stores single precision, so vertices move by
 less than a millimetre at these coordinates:
