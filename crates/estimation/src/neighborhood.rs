@@ -7,8 +7,13 @@
 //! for confidence/classification passes, data-spacing maps, and QA — no
 //! variogram required.
 
-use crate::Sample;
+use rayon::prelude::*;
 use variogram::aniso::{Anisotropy, euclidean};
+
+use crate::Sample;
+use crate::error::{EstimError, Result};
+
+type Point = (f64, f64, f64);
 
 /// Local statistics around a query location.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -130,9 +135,167 @@ pub fn neighborhood_stats(
     }
 }
 
+/// Mean distance from each target to its nearest drill holes, one column per
+/// entry of `n`: each hole is at the distance of its nearest sample, and the
+/// `n` nearest holes are averaged. Samples beyond `radius` are ignored, and a
+/// target with fewer than `n` holes in reach gets `INF`. Distances follow
+/// `anisotropy` when given.
+pub fn hole_distance(
+    targets: &[Point],
+    locs: &[Point],
+    holes: &[u32],
+    n: &[usize],
+    radius: f64,
+    anisotropy: Option<&Anisotropy>,
+) -> Result<Vec<Vec<f64>>> {
+    let invalid = |m: &str| Err(EstimError::InvalidParameters(m.into()));
+    if locs.len() != holes.len() {
+        return invalid("one hole per sample");
+    }
+    if n.contains(&0) {
+        return invalid("n must be at least 1");
+    }
+    if radius.is_nan() || radius <= 0.0 {
+        return invalid("radius must be positive");
+    }
+    let mut ids = holes.to_vec();
+    ids.sort_unstable();
+    ids.dedup();
+    let dense: Vec<usize> = holes
+        .iter()
+        .map(|h| ids.binary_search(h).unwrap_or_default())
+        .collect();
+    let most = n.iter().copied().max().unwrap_or(0);
+    let rows: Vec<Vec<f64>> = targets
+        .par_iter()
+        .map(|t| {
+            let mut nearest = vec![f64::INFINITY; ids.len()];
+            for (loc, &h) in locs.iter().zip(&dense) {
+                let d = match anisotropy {
+                    Some(a) => a.lag(t, loc),
+                    None => euclidean(t, loc),
+                };
+                if d <= radius && d < nearest[h] {
+                    nearest[h] = d;
+                }
+            }
+            nearest.retain(|d| d.is_finite());
+            if nearest.len() > most {
+                nearest.select_nth_unstable_by(most, f64::total_cmp);
+                nearest.truncate(most);
+            }
+            nearest.sort_unstable_by(f64::total_cmp);
+            n.iter()
+                .map(|&k| match nearest.get(..k) {
+                    Some(d) => d.iter().sum::<f64>() / k as f64,
+                    None => f64::INFINITY,
+                })
+                .collect()
+        })
+        .collect();
+    Ok((0..n.len())
+        .map(|j| rows.iter().map(|r| r[j]).collect())
+        .collect())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use variogram::aniso::Angles;
+
+    fn hd(
+        targets: &[Point],
+        locs: &[Point],
+        holes: &[u32],
+        n: &[usize],
+        radius: f64,
+    ) -> Vec<Vec<f64>> {
+        hole_distance(targets, locs, holes, n, radius, None).unwrap()
+    }
+
+    const O: Point = (0.0, 0.0, 0.0);
+
+    #[test]
+    fn a_target_on_samples_from_n_holes_is_at_distance_zero() {
+        let locs = [O, O, O, (9.0, 0.0, 0.0)];
+        let d = hd(&[O], &locs, &[1, 2, 3, 4], &[3, 4], f64::INFINITY);
+        assert_eq!(d[0][0], 0.0);
+        assert!((d[1][0] - 2.25).abs() < 1e-12);
+    }
+
+    #[test]
+    fn a_hole_counts_once_at_its_nearest_sample() {
+        let locs = [
+            (1.0, 0.0, 0.0),
+            (2.0, 0.0, 0.0),
+            (3.0, 0.0, 0.0),
+            (5.0, 0.0, 0.0),
+        ];
+        let d = hd(&[O], &locs, &[7, 7, 7, 8], &[2, 3], f64::INFINITY);
+        assert!((d[0][0] - 3.0).abs() < 1e-12);
+        assert!(d[1][0].is_infinite());
+        let split = hd(&[O], &locs, &[7, 7, 8, 8], &[2], f64::INFINITY);
+        assert!((split[0][0] - 2.0).abs() < 1e-12);
+    }
+
+    #[test]
+    fn radius_drops_far_holes_and_distance_grows_with_n() {
+        let locs = [
+            (1.0, 0.0, 0.0),
+            (0.0, 2.0, 0.0),
+            (0.0, 0.0, 4.0),
+            (30.0, 0.0, 0.0),
+        ];
+        let d = hd(&[O], &locs, &[1, 2, 3, 4], &[1, 2, 3, 4], 10.0);
+        assert!(d[0][0] <= d[1][0] && d[1][0] <= d[2][0]);
+        assert!(d[3][0].is_infinite());
+    }
+
+    #[test]
+    fn anisotropy_shortens_distance_along_the_major_axis() {
+        let a = Anisotropy::new(Angles {
+            azimuth: 0.0,
+            dip: 0.0,
+            rake: 0.0,
+            major: 1.0,
+            semi: 0.5,
+            minor: 0.5,
+        })
+        .unwrap();
+        let locs = [(0.0, 10.0, 0.0), (10.0, 0.0, 0.0)];
+        let d = hole_distance(&[O], &locs, &[1, 2], &[1, 2], 100.0, Some(&a)).unwrap();
+        assert!((d[0][0] - 10.0).abs() < 1e-9);
+        assert!((d[1][0] - 15.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn hole_distance_is_the_same_for_any_thread_count() {
+        let locs: Vec<Point> = (0..300)
+            .map(|i| ((i * 37 % 101) as f64, (i * 53 % 97) as f64, (i % 7) as f64))
+            .collect();
+        let holes: Vec<u32> = (0..300).map(|i| i / 5).collect();
+        let targets: Vec<Point> = (0..200)
+            .map(|i| ((i % 20) as f64 * 5.0, (i / 20) as f64 * 10.0, 3.0))
+            .collect();
+        let run = |threads| {
+            rayon::ThreadPoolBuilder::new()
+                .num_threads(threads)
+                .build()
+                .unwrap()
+                .install(|| hd(&targets, &locs, &holes, &[1, 3, 5], 60.0))
+        };
+        let one = run(1);
+        assert_eq!(one, run(4));
+        assert!(one.iter().flatten().any(|d| d.is_finite()));
+    }
+
+    #[test]
+    fn hole_distance_rejects_bad_input() {
+        let locs = [O];
+        assert!(hole_distance(&[], &locs, &[], &[1], 1.0, None).is_err());
+        assert!(hole_distance(&[], &locs, &[1], &[0], 1.0, None).is_err());
+        assert!(hole_distance(&[], &locs, &[1], &[1], f64::NAN, None).is_err());
+    }
 
     fn s(x: f64, y: f64, v: f64) -> Sample {
         Sample {

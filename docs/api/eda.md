@@ -14,6 +14,8 @@
 
 ::: ceres.global_bias
 
+::: ceres.hole_distance
+
 ::: ceres.classify
 
 ::: ceres.smooth_classes

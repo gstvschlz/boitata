@@ -586,7 +586,104 @@ fn neighborhood_stats<'py>(
     Ok(d)
 }
 
+/// Mean distance from each target to its `n` nearest drill holes, each hole
+/// at its nearest sample, for classification by drill spacing.
+///
+/// Parameters
+/// ----------
+/// targets : array_like, PointSet or BlockModel
+///     Locations to measure from.
+/// coords : array_like
+///     Sample coordinates, (n, 2) or (n, 3).
+/// holes : array_like
+///     Hole id of each sample; samples of one hole count once.
+/// n : int or sequence of int
+///     Number of holes averaged; one per class.
+/// search : Search, optional
+///     Its ellipsoid sets the distance (metres along the major axis), and
+///     samples beyond its radius are ignored. Isotropic and unbounded if
+///     omitted.
+/// domains : tuple of array_like, optional
+///     ``(target_domains, sample_domains)``: each target only sees samples of
+///     its own domain.
+///
+/// Returns
+/// -------
+/// ndarray or dict of int to ndarray
+///     Distances, ``inf`` where fewer than `n` holes are in reach; a dict
+///     keyed by `n` when `n` is a sequence.
+#[pyfunction]
+#[pyo3(signature = (targets, coords, holes, n, search=None, domains=None))]
+fn hole_distance<'py>(
+    py: Python<'py>,
+    targets: &Bound<PyAny>,
+    coords: &Bound<PyAny>,
+    holes: &Bound<PyAny>,
+    n: &Bound<PyAny>,
+    search: Option<Search>,
+    domains: Option<(Bound<PyAny>, Bound<PyAny>)>,
+) -> PyResult<Bound<'py, PyAny>> {
+    let locs = points(coords)?;
+    let (_, hole_ids) = args::holes(Some(holes), locs.len())?.expect("given");
+    let single = n.extract::<usize>().ok();
+    let ns = match single {
+        Some(k) => vec![k],
+        None => n
+            .extract::<Vec<usize>>()
+            .map_err(|_| invalid("n must be a positive integer or a sequence of them"))?,
+    };
+    let targets = self::targets(targets)?;
+    let labels = |obj: &Bound<PyAny>, len: usize| {
+        args::holes(Some(obj), len)
+            .map_err(|_| invalid("domains must be two 1-D sequences of labels"))
+            .map(|l| l.expect("given").0)
+    };
+    let groups: Vec<(Vec<usize>, Vec<usize>)> = match &domains {
+        None => vec![((0..targets.len()).collect(), (0..locs.len()).collect())],
+        Some((at, of)) => {
+            let (at, of) = (labels(at, targets.len())?, labels(of, locs.len())?);
+            let mut by: std::collections::BTreeMap<&str, (Vec<usize>, Vec<usize>)> =
+                Default::default();
+            for (i, d) in at.iter().enumerate() {
+                by.entry(d).or_default().0.push(i);
+            }
+            for (i, d) in of.iter().enumerate() {
+                if let Some(g) = by.get_mut(d.as_str()) {
+                    g.1.push(i);
+                }
+            }
+            by.into_values().collect()
+        }
+    };
+    let (radius, aniso) = search.map_or((f64::INFINITY, None), |s| (s.0.radius, s.0.anisotropy));
+    let columns = py.detach(|| {
+        let mut columns = vec![vec![f64::INFINITY; targets.len()]; ns.len()];
+        for (at, of) in &groups {
+            let t: Vec<Point> = at.iter().map(|&i| targets[i]).collect();
+            let l: Vec<Point> = of.iter().map(|&i| locs[i]).collect();
+            let h: Vec<u32> = of.iter().map(|&i| hole_ids[i]).collect();
+            let d = estimation::hole_distance(&t, &l, &h, &ns, radius, aniso.as_ref())?;
+            for (column, d) in columns.iter_mut().zip(d) {
+                for (&i, d) in at.iter().zip(d) {
+                    column[i] = d;
+                }
+            }
+        }
+        Ok::<_, estimation::EstimError>(columns)
+    });
+    let mut columns = columns.map_err(invalid)?;
+    if single.is_some() {
+        return Ok(array1(py, columns.remove(0)).into_any());
+    }
+    let d = PyDict::new(py);
+    for (k, column) in ns.iter().zip(columns) {
+        d.set_item(k, array1(py, column))?;
+    }
+    Ok(d.into_any())
+}
+
 pub fn register(m: &Bound<PyModule>) -> PyResult<()> {
+    m.add_function(wrap_pyfunction!(hole_distance, m)?)?;
     m.add_class::<Search>()?;
     m.add_class::<Estimator>()?;
     m.add_class::<Dual>()?;

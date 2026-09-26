@@ -318,6 +318,43 @@ indicated: 13.7% of blocks, mean  8.95 % Zn
  inferred: 35.6% of blocks, mean  8.97 % Zn
 ```
 
+Drill spacing gives a second opinion that does not depend on the variogram fit. `hole_distance` takes, for each
+block, the nearest composite of every hole, and averages the distances to the `n` nearest holes, so a hole with
+many composites near a block still counts once. Measured blocks are on average within half the variogram range
+(15 m) of three holes; indicated, within the range (30 m) of two; holes beyond the 60 m of the second pass do not
+count.
+
+<details><summary>Python</summary>
+
+```python
+spacing = cs.hole_distance(blocks, xyz, holes, n=[2, 3], search=cs.Search(radius=60))
+rules = [
+    ("measured", {"three": ("<=", 15)}),
+    ("indicated", {"two": ("<=", 30)}),
+]
+by_distance = cs.classify({"two": spacing[2], "three": spacing[3]}, rules, default="inferred")
+by_distance = cs.smooth_classes(blocks, by_distance, window=(3, 3, 3))
+print(f"{'':>9}  " + "".join(f"{n:>10}" for n in names) + "   (rows: pass and slope, columns: distance)")
+for name in names:
+    print(f"{name:>9}: " + "".join(f"{np.mean((classes == name) & (by_distance == m)):10.1%}" for m in names))
+print(f"same class for {np.mean(classes == by_distance):.0%} of blocks")
+```
+
+</details>
+
+```text
+             measured indicated  inferred   (rows: pass and slope, columns: distance)
+ measured:      50.3%      0.4%      0.0%
+indicated:       9.1%      4.5%      0.0%
+ inferred:       1.8%     29.0%      4.8%
+same class for 60% of blocks
+```
+
+Where the slope is high, spacing agrees: almost every block measured by slope is measured by distance too. Spacing
+is the more generous of the two elsewhere, placing most blocks the slope leaves inferred within 30 m of two holes.
+Most intercepts give a hole one composite in the lens, so a block near two holes may still rest on few data; the
+slope sees that and the distance does not. Rules can combine both, as in chapter 18.
+
 On the east–west section through the middle of the lens, the simulated block grade is drawn with
 `plot.uncertain`: the mean of the realizations sets the colour and their standard deviation, over the spread of
 all simulated blocks, fades it to white. Blocks along the holes keep their colour; the western ones, informed
