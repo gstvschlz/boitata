@@ -1,5 +1,6 @@
 use pyo3::prelude::*;
 use pyo3::types::PyTuple;
+use serde::{Deserialize, Serialize};
 use transforms::dgm::{BlockDiscretization, block_average_correlation};
 use variogram::surface::{PlaneMapParams, plane_map};
 use variogram::{
@@ -137,12 +138,25 @@ pub fn anisotropy(rotation: (f64, f64, f64), ratios: (f64, f64)) -> PyResult<Opt
 
 /// One nested structure: `sill` is the partial sill, `range` the range along
 /// the major axis.
+#[derive(Serialize, Deserialize)]
 #[pyclass(module = "ceres", name = "Structure", frozen, from_py_object)]
 #[derive(Clone)]
 pub struct Structure(pub CoreStructure);
 
 #[pymethods]
 impl Structure {
+    /// JSON of the parameters and, once fitted, the fitted state.
+    fn to_json(&self) -> PyResult<String> {
+        crate::persist::to_json(self)
+    }
+
+    /// Reads `to_json` output; raises InvalidInput on another class's JSON
+    /// or a newer format.
+    #[staticmethod]
+    fn from_json(text: &str) -> PyResult<Self> {
+        crate::persist::from_json(text)
+    }
+
     #[new]
     #[pyo3(signature = (model, sill, range, order=None, exponent=None))]
     fn new(
@@ -200,6 +214,7 @@ fn structure(obj: &Bound<PyAny>) -> PyResult<CoreStructure> {
 /// Nugget plus nested structures sharing one anisotropy. `rotation` is
 /// azimuth, dip, rake in degrees; `ratios` are semi-major/major and
 /// minor/major range ratios.
+#[derive(Serialize, Deserialize)]
 #[pyclass(module = "ceres", name = "Variogram", frozen, from_py_object)]
 #[derive(Clone)]
 pub struct Variogram(pub CoreVariogram);
@@ -356,13 +371,16 @@ impl Variogram {
         Ok(array1(py, g).into_any())
     }
 
-    fn to_json(&self) -> String {
-        serde_json::to_string(&self.0).expect("variogram serializes")
+    /// JSON of the model.
+    fn to_json(&self) -> PyResult<String> {
+        crate::persist::to_json(self)
     }
 
+    /// Reads `to_json` output; raises InvalidInput on another class's JSON
+    /// or a newer format.
     #[staticmethod]
     fn from_json(text: &str) -> PyResult<Self> {
-        Ok(Self(serde_json::from_str(text).map_err(invalid)?))
+        crate::persist::from_json(text)
     }
 
     fn __repr__(&self) -> String {
@@ -597,11 +615,24 @@ fn variogram_map(
 
 /// Linear model of coregionalization: `nugget` and each structure's `sills`
 /// are symmetric `nvar × nvar` matrices.
+#[derive(Serialize, Deserialize)]
 #[pyclass(module = "ceres", name = "Coregionalization", frozen)]
 pub struct Coregionalization(pub CoreCoreg);
 
 #[pymethods]
 impl Coregionalization {
+    /// JSON of the parameters and, once fitted, the fitted state.
+    fn to_json(&self) -> PyResult<String> {
+        crate::persist::to_json(self)
+    }
+
+    /// Reads `to_json` output; raises InvalidInput on another class's JSON
+    /// or a newer format.
+    #[staticmethod]
+    fn from_json(text: &str) -> PyResult<Self> {
+        crate::persist::from_json(text)
+    }
+
     #[new]
     #[pyo3(signature = (nugget, structures, rotation=(0.0, 0.0, 0.0), ratios=(1.0, 1.0)))]
     fn new(

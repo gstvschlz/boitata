@@ -12,6 +12,7 @@ mod estimation;
 mod io;
 mod lva;
 mod modeling;
+mod persist;
 mod simulation;
 mod table;
 mod transforms;

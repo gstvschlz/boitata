@@ -1,4 +1,6 @@
-from ceres import datasets, plot  # noqa: F401
+import copyreg as _copyreg
+
+from ceres import _ceres, datasets, plot  # noqa: F401
 from ceres._ceres import *
 from ceres._ceres import __version__  # noqa: F401
 from ceres.errors import CeresError, FileError, InvalidInput  # noqa: F401
@@ -9,3 +11,16 @@ __all__ = [
     for name in dir()
     if not name.startswith("_") and name not in ("errors", "estimation", "datasets", "plot")
 ]
+
+
+def _from_json(cls, text):
+    return cls.from_json(text)
+
+
+def _reduce_json(obj):
+    return _from_json, (type(obj), obj.to_json())
+
+
+for _cls in vars(_ceres).values():
+    if isinstance(_cls, type) and hasattr(_cls, "from_json"):
+        _copyreg.pickle(_cls, _reduce_json)

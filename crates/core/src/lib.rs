@@ -3,6 +3,7 @@
 mod block_model;
 mod error;
 mod mesh;
+pub mod nonfinite;
 mod points;
 mod rotation;
 

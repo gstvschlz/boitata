@@ -18,6 +18,7 @@ pub struct NormalScoreTable {
     /// Values at cumulative probability 0 and 1; beyond the table, values
     /// interpolate linearly in probability toward them. Defaults to the data
     /// range, so back-transforms never leave it.
+    #[serde(with = "ceres_core::nonfinite")]
     pub tails: (f64, f64),
 }
 

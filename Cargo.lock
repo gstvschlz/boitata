@@ -313,6 +313,8 @@ dependencies = [
  "arrow-schema",
  "arrow-select",
  "nalgebra",
+ "serde",
+ "serde_json",
  "thiserror",
 ]
 
@@ -354,6 +356,7 @@ dependencies = [
  "pyo3",
  "pyo3-arrow",
  "rayon",
+ "serde",
  "serde_json",
  "simulation",
  "transforms",
@@ -1830,6 +1833,7 @@ dependencies = [
 name = "transforms"
 version = "0.1.0"
 dependencies = [
+ "ceres-core",
  "kiddo",
  "libm",
  "nalgebra",
