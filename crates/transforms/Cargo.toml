@@ -13,6 +13,7 @@ nalgebra.workspace = true
 thiserror.workspace = true
 variogram.workspace = true
 libm.workspace = true
+kiddo.workspace = true
 
 [dev-dependencies]
 serde_json.workspace = true
