@@ -121,4 +121,4 @@ save(fig, "probability")
 
 The weighted scores have mean 0 and standard deviation 1, and the back-transform returns every sample exactly.
 
-Full script: [`example.py`](example.py)
+Full script: [`example_02.py`](example_02.py)

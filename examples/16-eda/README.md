@@ -177,4 +177,4 @@ save(fig, "correlation")
 
 ![correlation](correlation.png)
 
-Full script: [`example.py`](example.py)
+Full script: [`example_16.py`](example_16.py)

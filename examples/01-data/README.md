@@ -131,4 +131,4 @@ save(fig, "histograms")
 
 ![histograms](histograms.png)
 
-Full script: [`example.py`](example.py)
+Full script: [`example_01.py`](example_01.py)

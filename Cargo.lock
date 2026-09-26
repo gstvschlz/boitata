@@ -1681,6 +1681,7 @@ dependencies = [
  "libm",
  "nalgebra",
  "serde",
+ "serde_json",
  "thiserror",
  "variogram",
 ]
