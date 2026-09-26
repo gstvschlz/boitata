@@ -141,7 +141,7 @@ mod tests {
                 },
                 seed,
             };
-            Ok(sgs(locs, &column, Some(weights), grid, &vg, &params, None)?.values)
+            Ok(sgs(locs, &column, Some(weights), None, grid, &vg, &params, None)?.values)
         })
         .unwrap()
     }

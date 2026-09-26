@@ -615,7 +615,7 @@ mod tests {
                 },
                 seed: 7 + k as u64,
             };
-            sgs(&data, &values, None, &fine, &vg, &params, None).map(|r| r.values)
+            sgs(&data, &values, None, None, &fine, &vg, &params, None).map(|r| r.values)
         };
         let options = ContinuousOptions::default();
         let node = continuous(40, &options, realization).unwrap();

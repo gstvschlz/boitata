@@ -38,11 +38,15 @@ pub struct Realization {
 /// Run a single SGS realization.
 ///
 /// `vg_nscore` is the variogram of the *normal scores* (unit-sill Gaussian variogram);
-/// `data_weights` are declustering weights for the normal-score transform.
+/// `data_weights` are declustering weights for the normal-score transform;
+/// `data_holes` tag the data by drill hole for `max_per_hole`, simulated
+/// nodes belonging to none.
+#[allow(clippy::too_many_arguments)]
 pub fn sgs(
     data_locs: &[(f64, f64, f64)],
     data_vals: &[f64],
     data_weights: Option<&[f64]>,
+    data_holes: Option<&[u32]>,
     grid: &[(f64, f64, f64)],
     vg_nscore: &Variogram,
     params: &SgsParams,
@@ -54,6 +58,7 @@ pub fn sgs(
     if data_locs.is_empty() {
         return Err(SimError::InsufficientData("no conditioning data".into()));
     }
+    let holes = crate::holes(data_holes, data_locs.len())?;
     if grid.is_empty() {
         return Ok(Realization { values: vec![] });
     }
@@ -67,10 +72,11 @@ pub fn sgs(
     let mut cond: Vec<Sample> = data_locs
         .iter()
         .zip(&ns.scores)
-        .map(|(&loc, &score)| Sample {
+        .zip(holes)
+        .map(|((&loc, &score), hole)| Sample {
             loc,
             value: score,
-            hole: None,
+            hole,
             error_variance: 0.0,
             domain: None,
         })
@@ -195,7 +201,10 @@ mod tests {
             },
             seed: 42,
         };
-        let real = sgs(&data_locs, &data_vals, None, &grid, &vg, &params, None).unwrap();
+        let real = sgs(
+            &data_locs, &data_vals, None, None, &grid, &vg, &params, None,
+        )
+        .unwrap();
         assert_eq!(real.values.len(), 2);
         assert!(
             (real.values[0] - 1.0).abs() < 0.5,
@@ -223,8 +232,14 @@ mod tests {
             },
             seed: 7,
         };
-        let a = sgs(&data_locs, &data_vals, None, &grid, &vg, &params, None).unwrap();
-        let b = sgs(&data_locs, &data_vals, None, &grid, &vg, &params, None).unwrap();
+        let a = sgs(
+            &data_locs, &data_vals, None, None, &grid, &vg, &params, None,
+        )
+        .unwrap();
+        let b = sgs(
+            &data_locs, &data_vals, None, None, &grid, &vg, &params, None,
+        )
+        .unwrap();
         assert_eq!(a.values, b.values);
     }
 
@@ -247,8 +262,8 @@ mod tests {
             },
             seed,
         };
-        let a = sgs(&data_locs, &data_vals, None, &grid, &vg, &mk(1), None).unwrap();
-        let b = sgs(&data_locs, &data_vals, None, &grid, &vg, &mk(2), None).unwrap();
+        let a = sgs(&data_locs, &data_vals, None, None, &grid, &vg, &mk(1), None).unwrap();
+        let b = sgs(&data_locs, &data_vals, None, None, &grid, &vg, &mk(2), None).unwrap();
         assert_ne!(a.values, b.values);
     }
 
@@ -299,13 +314,17 @@ mod tests {
             &data_locs,
             &data_vals,
             None,
+            None,
             &grid,
             &base,
             &params,
             Some(&local),
         )
         .unwrap();
-        let b = sgs(&data_locs, &data_vals, None, &grid, &global, &params, None).unwrap();
+        let b = sgs(
+            &data_locs, &data_vals, None, None, &grid, &global, &params, None,
+        )
+        .unwrap();
         for (x, y) in a.values.iter().zip(&b.values) {
             assert!((x - y).abs() < 1e-9, "{x} vs {y}");
         }
@@ -330,7 +349,10 @@ mod tests {
             },
             seed: 4,
         };
-        let r = sgs(&data_locs, &data_vals, None, &grid, &vg, &params, None).unwrap();
+        let r = sgs(
+            &data_locs, &data_vals, None, None, &grid, &vg, &params, None,
+        )
+        .unwrap();
         assert!((r.values[0] - 5.0).abs() < 1e-9);
     }
 
@@ -354,7 +376,10 @@ mod tests {
             seed: 5,
         };
         let start = std::time::Instant::now();
-        sgs(&data_locs, &data_vals, None, &grid, &vg, &params, None).unwrap();
+        sgs(
+            &data_locs, &data_vals, None, None, &grid, &vg, &params, None,
+        )
+        .unwrap();
         let elapsed = start.elapsed().as_secs_f64();
         assert!(elapsed < 10.0, "{elapsed} s");
     }
@@ -377,7 +402,7 @@ mod tests {
                 search: search.clone(),
                 seed: 100 + k as u64,
             };
-            sgs(data_locs, data_vals, None, grid, vg, &params, None).map(|r| r.values)
+            sgs(data_locs, data_vals, None, None, grid, vg, &params, None).map(|r| r.values)
         })
         .unwrap()
     }
@@ -455,5 +480,31 @@ mod tests {
             "variance {}",
             s.variance[0]
         );
+    }
+
+    #[test]
+    fn max_per_hole_caps_the_data_of_one_hole() {
+        let locs: Vec<_> = (0..10).map(|i| (0.0, 0.0, i as f64)).collect();
+        let vals: Vec<f64> = (0..10).map(|i| (i * 7 % 10) as f64).collect();
+        let holes = vec![0; 10];
+        let grid = vec![(3.0, 0.0, 4.4)];
+        let vg = Variogram::single(Model::Spherical, 1.0, 20.0);
+        let run = |holes: Option<&[u32]>, max_samples, max_per_hole| {
+            let search = Search {
+                min_samples: 1,
+                max_samples,
+                radius: f64::INFINITY,
+                max_per_hole,
+                ..Default::default()
+            };
+            let params = SgsParams { search, seed: 2 };
+            sgs(&locs, &vals, None, holes, &grid, &vg, &params, None)
+                .unwrap()
+                .values
+        };
+        let capped = run(Some(&holes), 8, Some(1));
+        assert_eq!(capped, run(None, 1, None));
+        assert_ne!(capped, run(None, 8, None));
+        assert_eq!(run(Some(&holes), 8, None), run(None, 8, None));
     }
 }

@@ -277,6 +277,7 @@ struct Data {
     locs: Vec<Point>,
     values: Vec<f64>,
     weights: Option<Vec<f64>>,
+    holes: Option<Vec<u32>>,
     trend: Option<(Vec<f64>, TrendConditioning)>,
 }
 
@@ -336,19 +337,21 @@ fn back(trend: &NodeTrend, values: Vec<f64>) -> simulation::Result<Vec<f64>> {
     }
 }
 
-/// Coordinates keeping the first sample of each shared location, and the
-/// kept rows; the others are reported by `holes` in a warning.
+/// Coordinates keeping the first sample of each shared location, the kept
+/// rows and their hole codes; the others are reported by `holes` in a
+/// warning.
 fn located(
     coords: &Bound<PyAny>,
     n: usize,
     what: &str,
     holes: Option<&Bound<PyAny>>,
-) -> PyResult<(Vec<Point>, Vec<usize>)> {
+) -> PyResult<(Vec<Point>, Vec<usize>, Option<Vec<u32>>)> {
     let locs = points(coords)?;
     same_length(locs.len(), n, what)?;
     let holes = args::holes(holes, locs.len())?;
     let keep = distinct(coords.py(), &locs, holes.as_ref().map(|h| &h.0[..]))?;
-    Ok((pick(&locs, &keep), keep))
+    let codes = holes.map(|h| pick(&h.1, &keep));
+    Ok((pick(&locs, &keep), keep, codes))
 }
 
 fn data(
@@ -368,7 +371,7 @@ fn data(
     if let Some(t) = &trend {
         same_length(values.len(), t.len(), "trend")?;
     }
-    let (locs, keep) = located(coords, values.len(), "values", holes)?;
+    let (locs, keep, holes) = located(coords, values.len(), "values", holes)?;
     let values = pick(&values, &keep);
     let weights = weights.map(|w| pick(&w, &keep));
     let trend = trended(
@@ -381,6 +384,7 @@ fn data(
         locs,
         values,
         weights,
+        holes,
         trend,
     })
 }
@@ -449,7 +453,7 @@ impl Sgs {
     /// weights : array_like, optional
     ///     Declustering weights, for every normal score.
     /// holes : array_like, optional
-    ///     Drill-hole ids or names.
+    ///     Drill-hole ids or names, for `max_per_hole`.
     /// trend : array_like, optional
     ///     Trend at the data, from any model or estimator; `simulate` then
     ///     needs the trend at the targets.
@@ -512,6 +516,7 @@ impl Sgs {
                     &d.locs,
                     values,
                     d.weights.as_deref(),
+                    d.holes.as_deref(),
                     &grid,
                     &self.variogram,
                     &params,
@@ -635,6 +640,7 @@ impl TurningBands {
                 &d.locs,
                 values,
                 d.weights.as_deref(),
+                d.holes.as_deref(),
                 lo,
                 hi,
                 &self.variogram,
@@ -687,6 +693,7 @@ impl TurningBands {
                     &d.locs,
                     &d.values,
                     d.weights.as_deref(),
+                    d.holes.as_deref(),
                     &self.variogram,
                     &self.params(seed),
                     n,
@@ -735,6 +742,8 @@ pub struct Sis {
     search: estimation::Search,
     #[serde(skip)]
     data: Option<(Vec<Point>, Vec<usize>)>,
+    #[serde(skip)]
+    holes: Option<Vec<u32>>,
 }
 
 #[pymethods]
@@ -767,9 +776,12 @@ impl Sis {
             variograms: variograms.into_iter().map(|v| v.0).collect(),
             search: search.plain("SIS")?,
             data: None,
+            holes: None,
         })
     }
 
+    /// `holes` tag the samples for `max_per_hole`; samples sharing a location
+    /// keep the first, with a warning naming their holes.
     #[pyo3(signature = (coords, categories, holes=None))]
     fn fit<'py>(
         mut slf: PyRefMut<'py, Self>,
@@ -778,12 +790,13 @@ impl Sis {
         holes: Option<&Bound<PyAny>>,
     ) -> PyResult<PyRefMut<'py, Self>> {
         let cats = self::categories(categories)?;
-        let (locs, keep) = located(coords, cats.len(), "categories", holes)?;
+        let (locs, keep, holes) = located(coords, cats.len(), "categories", holes)?;
         let cats = pick(&cats, &keep);
         if cats.iter().any(|&c| c >= slf.variograms.len()) {
             return Err(invalid("every category needs a variogram"));
         }
         slf.data = Some((locs, cats));
+        slf.holes = holes;
         Ok(slf)
     }
 
@@ -812,7 +825,8 @@ impl Sis {
                     search: self.search.clone(),
                     seed: seed.wrapping_add(i as u64),
                 };
-                simulation::sis(locs, cats, &grid, k, &self.variograms, &params)
+                let holes = self.holes.as_deref();
+                simulation::sis(locs, cats, holes, &grid, k, &self.variograms, &params)
                     .and_then(|r| majority(&support, r.categories, k))
             })
         })
@@ -897,7 +911,7 @@ impl Plurigaussian {
         holes: Option<&Bound<PyAny>>,
     ) -> PyResult<PyRefMut<'py, Self>> {
         let facies = categories(facies)?;
-        let (locs, keep) = located(coords, facies.len(), "facies", holes)?;
+        let (locs, keep, _) = located(coords, facies.len(), "facies", holes)?;
         let facies = pick(&facies, &keep);
         slf.data = Some((locs, facies));
         Ok(slf)
@@ -1043,10 +1057,33 @@ fn data_columns(d: &Data) -> Columns {
         .map(|i| d.weights.as_ref().map(|w| w[i]))
         .collect();
     columns.push(("weight".into(), weights));
+    columns.push(hole_column(d.holes.as_deref(), d.values.len()));
     if let Some((trend, _)) = &d.trend {
         columns.push(persist::column("trend", trend.iter().copied()));
     }
     columns
+}
+
+fn hole_column(holes: Option<&[u32]>, n: usize) -> (String, Vec<Option<f64>>) {
+    let holes = (0..n).map(|i| holes.map(|h| f64::from(h[i]))).collect();
+    ("hole".into(), holes)
+}
+
+/// Hole codes, or `None` when the column is missing (files written before
+/// holes were kept) or null.
+fn holes_from(found: &Found, n: usize) -> PyResult<Option<Vec<u32>>> {
+    let Ok(holes) = found.optional("hole") else {
+        return Ok(None);
+    };
+    same_length(n, holes.len(), "hole")?;
+    let holes: Option<Vec<f64>> = holes.into_iter().collect();
+    holes
+        .map(|h| {
+            h.into_iter()
+                .map(|v| Ok(persist::index(v)? as u32))
+                .collect()
+        })
+        .transpose()
 }
 
 fn data_from(found: &Found, classes: usize) -> PyResult<Data> {
@@ -1064,6 +1101,7 @@ fn data_from(found: &Found, classes: usize) -> PyResult<Data> {
         .transpose()?;
     let trend = trended(&values, trend, weights.as_deref(), classes)?;
     Ok(Data {
+        holes: holes_from(found, locs.len())?,
         locs,
         values,
         weights,
@@ -1111,11 +1149,17 @@ impl Tabular for TurningBands {
 
 impl Tabular for Sis {
     fn columns(&self) -> Option<Columns> {
-        self.data.as_ref().map(category_columns)
+        self.data.as_ref().map(|d| {
+            let mut columns = category_columns(d);
+            columns.push(hole_column(self.holes.as_deref(), d.0.len()));
+            columns
+        })
     }
 
     fn restore(&mut self, columns: Found) -> PyResult<()> {
-        self.data = Some(categories_from(&columns, self.variograms.len())?);
+        let data = categories_from(&columns, self.variograms.len())?;
+        self.holes = holes_from(&columns, data.0.len())?;
+        self.data = Some(data);
         Ok(())
     }
 }
@@ -1321,6 +1365,7 @@ struct Factors {
     locs: Vec<Point>,
     columns: Vec<Vec<f64>>,
     weights: Option<Vec<f64>>,
+    holes: Option<Vec<u32>>,
 }
 
 /// Several correlated variables simulated through independent factors.
@@ -1389,7 +1434,8 @@ impl MultivariateSimulation {
     ///     Declustering weights, for the transform when it takes them (PCA,
     ///     StepwiseConditional, PPMT) and for each factor's normal scores.
     /// holes : array_like, optional
-    ///     Drill-hole ids or names, for `max_per_hole`.
+    ///     Drill-hole ids or names, for `max_per_hole` and the warning on
+    ///     samples sharing a location.
     #[pyo3(signature = (coords, data, weights=None, holes=None))]
     fn fit<'py>(
         mut slf: PyRefMut<'py, Self>,
@@ -1412,7 +1458,7 @@ impl MultivariateSimulation {
         if let Some(w) = &weights {
             same_length(data.len(), w.len(), "weights")?;
         }
-        let holes = args::holes(holes, data.len())?.map(|h| h.0);
+        let holes = args::holes(holes, data.len())?;
         let complete: Vec<usize> = (0..data.len())
             .filter(|&i| data[i].iter().all(|v| v.is_finite()))
             .collect();
@@ -1424,7 +1470,7 @@ impl MultivariateSimulation {
         }
         let (data, locs) = (pick(&data, &complete), pick(&locs, &complete));
         let weights = weights.map(|w| pick(&w, &complete));
-        let holes = holes.map(|h| pick(&h, &complete));
+        let holes = holes.map(|(names, ids)| (pick(&names, &complete), pick(&ids, &complete)));
         let transform = crate::transforms::decorrelation(
             slf.transform.bind(py),
             &data,
@@ -1432,7 +1478,7 @@ impl MultivariateSimulation {
             &locs,
         )?;
         let factors = transform.forward(&data);
-        let keep = distinct(py, &locs, holes.as_deref())?;
+        let keep = distinct(py, &locs, holes.as_ref().map(|h| &h.0[..]))?;
         let factors = pick(&factors, &keep);
         slf.fitted = Some(Factors {
             transform,
@@ -1441,6 +1487,7 @@ impl MultivariateSimulation {
                 .map(|j| factors.iter().map(|r| r[j]).collect())
                 .collect(),
             weights: weights.map(|w| pick(&w, &keep)),
+            holes: holes.map(|h| pick(&h.1, &keep)),
         });
         Ok(slf)
     }
@@ -1490,7 +1537,8 @@ impl MultivariateSimulation {
                 &options,
                 support.as_ref(),
                 |j, seed| {
-                    let (locs, values, weights) = (&f.locs, &f.columns[j], f.weights.as_deref());
+                    let (locs, values) = (&f.locs, &f.columns[j]);
+                    let (weights, holes) = (f.weights.as_deref(), f.holes.as_deref());
                     Ok(match &self.factors[j] {
                         Factor::Sgs(variogram, search) => {
                             let params = SgsParams {
@@ -1501,6 +1549,7 @@ impl MultivariateSimulation {
                                 locs,
                                 values,
                                 weights,
+                                holes,
                                 &grid,
                                 variogram,
                                 &params,
@@ -1513,7 +1562,7 @@ impl MultivariateSimulation {
                                 ..params.clone()
                             };
                             simulation::turning_bands(
-                                locs, values, weights, &grid, variogram, &params,
+                                locs, values, weights, holes, &grid, variogram, &params,
                             )?
                         }
                     }

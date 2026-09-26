@@ -31,10 +31,12 @@ pub struct CategoricalRealization {
 /// Run a single SIS realization over `n_categories` facies.
 ///
 /// `data_cats[k]` is the category (0-based) at `data_locs[k]`. `variograms[c]` is the
-/// indicator variogram for category `c`.
+/// indicator variogram for category `c`. `data_holes` tag the data by drill
+/// hole for `max_per_hole`, simulated nodes belonging to none.
 pub fn sis(
     data_locs: &[(f64, f64, f64)],
     data_cats: &[usize],
+    data_holes: Option<&[u32]>,
     grid: &[(f64, f64, f64)],
     n_categories: usize,
     variograms: &[Variogram],
@@ -58,6 +60,7 @@ pub fn sis(
             )));
         }
     }
+    let holes = crate::holes(data_holes, data_locs.len())?;
     if grid.is_empty() {
         return Ok(CategoricalRealization { categories: vec![] });
     }
@@ -75,10 +78,11 @@ pub fn sis(
     let mut all: Vec<Sample> = data_locs
         .iter()
         .zip(data_cats)
-        .map(|(&loc, &c)| Sample {
+        .zip(holes)
+        .map(|((&loc, &c), hole)| Sample {
             loc,
             value: c as f64,
-            hole: None,
+            hole,
             error_variance: 0.0,
             domain: None,
         })
@@ -201,7 +205,7 @@ mod tests {
             },
             seed: 1,
         };
-        let real = sis(&data_locs, &data_cats, &grid, 2, &vgs, &params).unwrap();
+        let real = sis(&data_locs, &data_cats, None, &grid, 2, &vgs, &params).unwrap();
         assert_eq!(real.categories[0], 0);
     }
 
@@ -224,9 +228,33 @@ mod tests {
             },
             seed: 5,
         };
-        let a = sis(&data_locs, &data_cats, &grid, 3, &vgs, &params).unwrap();
-        let b = sis(&data_locs, &data_cats, &grid, 3, &vgs, &params).unwrap();
+        let a = sis(&data_locs, &data_cats, None, &grid, 3, &vgs, &params).unwrap();
+        let b = sis(&data_locs, &data_cats, None, &grid, 3, &vgs, &params).unwrap();
         assert_eq!(a.categories, b.categories);
         assert!(a.categories.iter().all(|&c| c < 3));
+    }
+
+    #[test]
+    fn max_per_hole_caps_the_data_of_one_hole() {
+        let locs: Vec<_> = (0..10).map(|i| (0.0, 0.0, i as f64)).collect();
+        let cats: Vec<usize> = (0..10).map(|i| i % 2).collect();
+        let holes = vec![0; 10];
+        let grid = vec![(3.0, 0.0, 4.4)];
+        let vgs = vec![ind_vg(), ind_vg()];
+        let run = |holes: Option<&[u32]>, max_samples, max_per_hole| {
+            let search = Search {
+                min_samples: 1,
+                max_samples,
+                radius: f64::INFINITY,
+                max_per_hole,
+                ..Default::default()
+            };
+            let params = SisParams { search, seed: 2 };
+            sis(&locs, &cats, holes, &grid, 2, &vgs, &params)
+                .unwrap()
+                .categories
+        };
+        assert_eq!(run(Some(&holes), 8, Some(1)), run(None, 1, None));
+        assert_eq!(run(Some(&holes), 8, None), run(None, 8, None));
     }
 }

@@ -274,10 +274,14 @@ fn condition(
 
 /// The data as search samples: neighbours are chosen, and high-grade
 /// thresholds compared, on the data values rather than the residuals.
-fn data(locs: &[(f64, f64, f64)], values: &[f64]) -> Vec<Sample> {
+fn data(locs: &[(f64, f64, f64)], values: &[f64], holes: Vec<Option<u32>>) -> Vec<Sample> {
     locs.iter()
         .zip(values)
-        .map(|(&loc, &v)| Sample::new(loc, v))
+        .zip(holes)
+        .map(|((&loc, &v), hole)| Sample {
+            hole,
+            ..Sample::new(loc, v)
+        })
         .collect()
 }
 
@@ -323,7 +327,8 @@ pub fn conditional_gaussian_field(
     let (lo, hi) = bounds(&[data_locs, grid].concat());
     let bands = Bands::new(lo, hi, vg, params, rng);
     let residuals = residuals(data_locs, gaussian_data, &bands.field(data_locs));
-    let tree = SearchTree::new(&data(data_locs, gaussian_data), &params.search, Some(vg));
+    let data = data(data_locs, gaussian_data, vec![None; data_locs.len()]);
+    let tree = SearchTree::new(&data, &params.search, Some(vg));
     condition(grid, bands.field(grid), &residuals, &tree, vg)
 }
 
@@ -341,12 +346,14 @@ pub struct TurningBandsEnsemble {
 impl TurningBandsEnsemble {
     /// Normal-scores the data and simulates the bands of every realization
     /// over the box `lo..hi`, which must hold every target; the data are
-    /// added to it. `vg_nscore` is the variogram of the normal scores.
+    /// added to it. `vg_nscore` is the variogram of the normal scores;
+    /// `data_holes` tag the data by drill hole for `max_per_hole`.
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         data_locs: &[(f64, f64, f64)],
         data_vals: &[f64],
         data_weights: Option<&[f64]>,
+        data_holes: Option<&[u32]>,
         lo: [f64; 3],
         hi: [f64; 3],
         vg_nscore: &Variogram,
@@ -359,6 +366,7 @@ impl TurningBandsEnsemble {
         if data_locs.is_empty() {
             return Err(SimError::InsufficientData("no conditioning data".into()));
         }
+        let holes = crate::holes(data_holes, data_locs.len())?;
         let ns = normal_score::transform(data_vals, data_weights)
             .map_err(|e| SimError::Transform(e.to_string()))?;
         let (dlo, dhi) = bounds(data_locs);
@@ -373,7 +381,8 @@ impl TurningBandsEnsemble {
                 (bands, residuals)
             })
             .unzip();
-        let tree = SearchTree::new(&data(data_locs, data_vals), &params.search, Some(vg_nscore));
+        let data = data(data_locs, data_vals, holes);
+        let tree = SearchTree::new(&data, &params.search, Some(vg_nscore));
         Ok(Self {
             table: ns.table,
             bands,
@@ -419,11 +428,13 @@ impl TurningBandsEnsemble {
 
 /// A single conditional turning-bands realization over `grid`.
 ///
-/// `vg_nscore` is the variogram of the normal scores (unit-sill Gaussian).
+/// `vg_nscore` is the variogram of the normal scores (unit-sill Gaussian);
+/// `data_holes` tag the data by drill hole for `max_per_hole`.
 pub fn turning_bands(
     data_locs: &[(f64, f64, f64)],
     data_vals: &[f64],
     data_weights: Option<&[f64]>,
+    data_holes: Option<&[u32]>,
     grid: &[(f64, f64, f64)],
     vg_nscore: &Variogram,
     params: &TurningBandsParams,
@@ -436,6 +447,7 @@ pub fn turning_bands(
         data_locs,
         data_vals,
         data_weights,
+        data_holes,
         lo,
         hi,
         vg_nscore,
@@ -459,6 +471,7 @@ pub fn turning_bands_to_parquet(
     data_locs: &[(f64, f64, f64)],
     data_vals: &[f64],
     data_weights: Option<&[f64]>,
+    data_holes: Option<&[u32]>,
     vg_nscore: &Variogram,
     params: &TurningBandsParams,
     n: usize,
@@ -476,6 +489,7 @@ pub fn turning_bands_to_parquet(
         data_locs,
         data_vals,
         data_weights,
+        data_holes,
         lo,
         hi,
         vg_nscore,
@@ -620,7 +634,7 @@ mod tests {
             seed: 42,
             ..Default::default()
         };
-        let r = turning_bands(&data_locs, &data_vals, None, &grid, &vg, &params).unwrap();
+        let r = turning_bands(&data_locs, &data_vals, None, None, &grid, &vg, &params).unwrap();
         assert_eq!(r.values.len(), 2);
         // Grid node 0 coincides with a datum → simulated value ≈ that datum.
         assert!(
@@ -642,8 +656,8 @@ mod tests {
             seed: 7,
             ..Default::default()
         };
-        let a = turning_bands(&data_locs, &data_vals, None, &grid, &vg, &params).unwrap();
-        let b = turning_bands(&data_locs, &data_vals, None, &grid, &vg, &params).unwrap();
+        let a = turning_bands(&data_locs, &data_vals, None, None, &grid, &vg, &params).unwrap();
+        let b = turning_bands(&data_locs, &data_vals, None, None, &grid, &vg, &params).unwrap();
         assert_eq!(a.values, b.values);
     }
 
@@ -710,14 +724,15 @@ mod tests {
         let grid = points(&model);
         let (lo, hi) = bounds(&grid);
         let whole =
-            TurningBandsEnsemble::new(&data_locs, &data_vals, None, lo, hi, &vg, &params, 6)
+            TurningBandsEnsemble::new(&data_locs, &data_vals, None, None, lo, hi, &vg, &params, 6)
                 .unwrap()
                 .summary(&grid, &options)
                 .unwrap();
         for rows in [7, 160] {
             let output = input.with_extension(format!("{rows}.parquet"));
             let global = turning_bands_to_parquet(
-                &input, &output, &data_locs, &data_vals, None, &vg, &params, 6, &options, rows,
+                &input, &output, &data_locs, &data_vals, None, None, &vg, &params, 6, &options,
+                rows,
             )
             .unwrap();
             let ceres_io::Stored::Blocks(back) = ceres_io::read_parquet(&output).unwrap() else {
@@ -739,5 +754,34 @@ mod tests {
                 assert!((a - b).abs() < 1e-12);
             }
         }
+    }
+
+    #[test]
+    fn max_per_hole_caps_the_data_of_one_hole() {
+        let locs: Vec<_> = (0..10).map(|i| (0.0, 0.0, i as f64)).collect();
+        let vals: Vec<f64> = (0..10).map(|i| (i * 7 % 10) as f64).collect();
+        let holes = vec![0; 10];
+        let grid: Vec<_> = (0..20).map(|i| (1.0 + i as f64, 0.0, 4.4)).collect();
+        let vg = Variogram::single(Model::Spherical, 1.0, 20.0);
+        let run = |holes: Option<&[u32]>, max_samples, max_per_hole| {
+            let params = TurningBandsParams {
+                search: Search {
+                    min_samples: 1,
+                    max_samples,
+                    radius: f64::INFINITY,
+                    max_per_hole,
+                    ..Default::default()
+                },
+                seed: 2,
+                ..Default::default()
+            };
+            turning_bands(&locs, &vals, None, holes, &grid, &vg, &params)
+                .unwrap()
+                .values
+        };
+        let capped = run(Some(&holes), 8, Some(1));
+        assert_eq!(capped, run(None, 1, None));
+        assert_ne!(capped, run(None, 8, None));
+        assert_eq!(run(Some(&holes), 8, None), run(None, 8, None));
     }
 }
