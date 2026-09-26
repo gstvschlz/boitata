@@ -12,8 +12,6 @@
 
 ::: ceres.variogram_map
 
-::: ceres.variogram_surface_ranges
-
 ::: ceres.Coregionalization
 
 ::: ceres.Transiogram

@@ -282,6 +282,8 @@ class ExperimentalVariogram:
     def gammas(self) -> npt.NDArray[np.float64]: ...
     @property
     def counts(self) -> npt.NDArray[np.float64]: ...
+    @property
+    def covariances(self) -> npt.NDArray[np.float64] | None: ...
     def fit(self, model: str = "spherical", weighting: str = "count") -> Variogram: ...
 
 class VariogramMap:
@@ -317,6 +319,7 @@ def experimental_variogram(
     tolerance: float = 22.5,
     bandwidth: float | None = None,
     estimator: str = "matheron",
+    standardize: bool = False,
 ) -> ExperimentalVariogram: ...
 def variogram_map(
     coords: ArrayLike,
@@ -328,17 +331,8 @@ def variogram_map(
     tolerance: float = 22.5,
     steps: int = 36,
     model: str = "spherical",
+    estimator: str = "matheron",
 ) -> VariogramMap: ...
-def variogram_surface_ranges(
-    coords: ArrayLike,
-    values: ArrayLike,
-    lag: float,
-    max_lag: float,
-    azimuth_steps: int = 24,
-    dip_steps: int = 6,
-    tolerance: float = 22.5,
-    model: str = "spherical",
-) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64], npt.NDArray[np.float64]]: ...
 def experimental_transiogram(
     coords: ArrayLike, categories: Sequence[int], lag: float, max_lag: float
 ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64], npt.NDArray[np.float64]]: ...

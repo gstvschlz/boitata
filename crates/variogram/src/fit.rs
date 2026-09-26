@@ -164,6 +164,7 @@ mod tests {
             lags,
             gammas,
             counts,
+            covariances: None,
         };
 
         let fit = fit(&exp, Model::Spherical, Weighting::ByCount).unwrap();
@@ -185,7 +186,7 @@ mod tests {
             max_lag: 100.0,
             lag_width: 10.0,
         };
-        let exp = experimental(&locs, &vals, &bins, Estimator::Matheron, None).unwrap();
+        let exp = experimental(&locs, &vals, &bins, Estimator::Matheron, None, false).unwrap();
         let fit = fit(&exp, Model::Exponential, Weighting::ByCountOverGamma).unwrap();
         assert!(fit.wsse.is_finite());
         assert!(fit.variogram.total_sill() > 0.0);
