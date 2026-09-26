@@ -68,7 +68,7 @@ def histogram(values, weights=None, bins=40, log=False, ax=None, **kwargs):
     return fig, ax
 
 
-def probability(values, weights=None, log=False, ax=None, **kwargs):
+def probability(values, weights=None, log=False, cap=None, ax=None, **kwargs):
     """Cumulative probability on a normal scale: a Gaussian (or, with `log`, lognormal) distribution is a line.
 
     Parameters
@@ -79,6 +79,8 @@ def probability(values, weights=None, log=False, ax=None, **kwargs):
         Declustering weights.
     log : bool
         Log x axis.
+    cap : float, optional
+        Top cut, drawn as a dashed vertical line.
     **kwargs
         Passed to ``ax.plot``.
     """
@@ -94,6 +96,8 @@ def probability(values, weights=None, log=False, ax=None, **kwargs):
     ticks = ticks[(ticks >= p[0]) & (ticks <= p[-1])]
     ax.set_yticks(normal_ppf(ticks), [f"{100 * t:g}" for t in ticks])
     ax.set_ylabel("Cumulative probability (%)")
+    if cap is not None:
+        ax.axvline(cap, color="0.5", lw=0.8, ls="--", label=f"cap {cap:.3g}")
     if log:
         ax.set_xscale("log")
     return fig, ax

@@ -70,3 +70,51 @@ def test_correlation_pairwise():
     assert cs.correlation(data, method="spearman")[0, 2] == pytest.approx(1.0)
     with pytest.raises(cs.InvalidInput):
         cs.correlation(data, method="kendall")
+
+
+def test_describe_by_ends_with_the_all_data_row():
+    v = np.r_[rng.lognormal(0, 1, 90), np.nan]
+    c = np.repeat(["b", "a", "c"], 31)[:91]
+    w = rng.uniform(0.5, 2, 91)
+    t = cs.describe_by(v, c, w, quantiles=[0.5, 0.975])
+    assert t.column_names == ["category", "n", "mean", "variance", "std", "cv", "min", "max", "P50", "P97.5"]
+    assert t["category"] == ["a", "b", "c", "all"]
+    whole = cs.describe(v, w, quantiles=[0.5, 0.975])
+    assert t["n"][-1] == whole["n"] == t["n"][:3].sum()
+    assert t["mean"][-1] == pytest.approx(whole["mean"])
+    np.testing.assert_allclose([t["P50"][-1], t["P97.5"][-1]], whole["quantiles"])
+    a = c == "a"
+    assert t["mean"][0] == pytest.approx(np.average(v[a], weights=w[a]))
+
+
+def test_grade_tonnage_from_data():
+    v = rng.lognormal(0, 1, 200)
+    volume, density = rng.uniform(1, 2, 200), rng.uniform(2.5, 3, 200)
+    gt = cs.grade_tonnage(v, [-np.inf, 0.5, 1, 2, 5, 1e9], volume, density)
+    tonnes = volume * density
+    assert gt["tonnage"][0] == pytest.approx(tonnes.sum())
+    assert gt["mean_grade"][0] == pytest.approx(np.average(v, weights=tonnes))
+    assert np.all(np.diff(gt["tonnage"]) <= 0)
+    np.testing.assert_allclose(gt["metal"][:-1], gt["tonnage"][:-1] * gt["mean_grade"][:-1])
+    assert gt["tonnage"][-1] == 0 and np.isnan(gt["mean_grade"][-1])
+    assert cs.grade_tonnage(v, [2.0])["tonnage"][0] == (v >= 2).sum()
+
+
+def test_capping_report_by_domain():
+    v = rng.lognormal(0, 1, 300)
+    d = np.repeat([1, 2, 3], 100)
+    w = rng.uniform(0.5, 2, 300)
+    caps = {1: 3.0, 3: 5.0}
+    t = cs.capping_report(v, d, caps, weights=w)
+    assert t["domain"] == ["1", "2", "3", "all"]
+    cap = np.select([d == 1, d == 3], [3.0, 5.0], np.inf)
+    removed = np.maximum(v - cap, 0) * w
+    np.testing.assert_allclose(
+        t["metal_removed"], [removed[d == k].sum() for k in (1, 2, 3)] + [removed.sum()]
+    )
+    np.testing.assert_allclose(t["cap"], [3.0, np.nan, 5.0, np.nan])
+    assert t["n_capped"][-1] == (v > cap).sum()
+    assert t["max_capped"][0] == 3.0 and t["max_capped"][1] == t["max"][1]
+    assert t["mean_capped"][-1] == pytest.approx(np.average(np.minimum(v, cap), weights=w))
+    with pytest.raises(cs.InvalidInput):
+        cs.capping_report(v, d, {4: 1.0})

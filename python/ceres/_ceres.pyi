@@ -865,6 +865,24 @@ def describe(
     weights: ArrayLike | None = None,
     quantiles: Sequence[float] = (0.1, 0.25, 0.5, 0.75, 0.9),
 ) -> dict[str, Any]: ...
+def describe_by(
+    values: ArrayLike,
+    categories: Holes,
+    weights: ArrayLike | None = None,
+    quantiles: Sequence[float] = (0.1, 0.25, 0.5, 0.75, 0.9),
+) -> Table: ...
+def grade_tonnage(
+    values: ArrayLike,
+    cutoffs: ArrayLike,
+    weights: ArrayLike | None = None,
+    density: ArrayLike | None = None,
+) -> dict[str, npt.NDArray[np.float64]]: ...
+def capping_report(
+    values: ArrayLike,
+    domains: Holes,
+    caps: Mapping[int | str, float],
+    weights: ArrayLike | None = None,
+) -> Table: ...
 def swath(
     coords: ArrayLike,
     values: ArrayLike,

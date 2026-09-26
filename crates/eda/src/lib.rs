@@ -117,6 +117,86 @@ pub fn describe(values: &[f64], weights: Option<&[f64]>, probabilities: &[f64]) 
     })
 }
 
+/// [`describe`] per category, ascending, then over all values (`None`);
+/// categories without valid values are left out.
+pub fn describe_by(
+    values: &[f64],
+    categories: &[u32],
+    weights: Option<&[f64]>,
+    probabilities: &[f64],
+) -> Result<Vec<(Option<u32>, Summary)>> {
+    check(categories.len(), values, weights)?;
+    let mut groups: BTreeMap<u32, (Vec<f64>, Vec<f64>)> = BTreeMap::new();
+    for (i, (&v, &c)) in values.iter().zip(categories).enumerate() {
+        if !v.is_nan() {
+            let g = groups.entry(c).or_default();
+            g.0.push(v);
+            g.1.push(weights.map_or(1.0, |w| w[i]));
+        }
+    }
+    let mut rows = groups
+        .into_iter()
+        .map(|(c, (v, w))| Ok((Some(c), describe(&v, Some(&w), probabilities)?)))
+        .collect::<Result<Vec<_>>>()?;
+    rows.push((None, describe(values, weights, probabilities)?));
+    Ok(rows)
+}
+
+/// Totals above one cutoff.
+#[derive(Debug, Clone)]
+pub struct Tonnage {
+    pub cutoff: f64,
+    /// Sum of weight × density of values at or above `cutoff`.
+    pub tonnage: f64,
+    /// Weighted mean of those values; NaN when `tonnage` is 0.
+    pub mean_grade: f64,
+    /// `tonnage × mean_grade`.
+    pub metal: f64,
+}
+
+/// Grade–tonnage curve of the data: each value stands for weight (e.g. volume)
+/// × density tonnes, 1 by default.
+pub fn grade_tonnage(
+    values: &[f64],
+    weights: Option<&[f64]>,
+    density: Option<&[f64]>,
+    cutoffs: &[f64],
+) -> Result<Vec<Tonnage>> {
+    check(values.len(), values, density)?;
+    if cutoffs.iter().any(|c| c.is_nan()) {
+        return invalid("cutoffs must not be NaN");
+    }
+    let tonnes: Option<Vec<f64>> = match (weights, density) {
+        (Some(w), Some(d)) => {
+            check(values.len(), values, Some(w))?;
+            Some(w.iter().zip(d).map(|(w, d)| w * d).collect())
+        }
+        (w, d) => w.or(d).map(<[f64]>::to_vec),
+    };
+    let (v, t) = valid(values, tonnes.as_deref())?;
+    Ok(cutoffs
+        .iter()
+        .map(|&cutoff| {
+            let (tonnage, metal) = v
+                .iter()
+                .zip(&t)
+                .filter(|(v, _)| **v >= cutoff)
+                .fold((0.0, 0.0), |(s, m), (v, t)| (s + t, m + t * v));
+            let mean_grade = if tonnage > 0.0 {
+                metal / tonnage
+            } else {
+                f64::NAN
+            };
+            Tonnage {
+                cutoff,
+                tonnage,
+                mean_grade,
+                metal,
+            }
+        })
+        .collect())
+}
+
 /// Mean and count per bin; `centres` ascending, empty bins omitted.
 #[derive(Debug, Clone, Default)]
 pub struct Profile {
@@ -275,6 +355,75 @@ pub fn capping(values: &[f64], weights: Option<&[f64]>, caps: Option<&[f64]>) ->
             })
         })
         .collect()
+}
+
+#[derive(Debug, Clone)]
+pub struct CapReport {
+    /// Infinite when the category is not capped, NaN on the all-data row.
+    pub cap: f64,
+    pub before: Summary,
+    pub after: Summary,
+    /// Number of values above the cap.
+    pub capped: usize,
+    /// Sum of `(value - cap) × weight` above the cap.
+    pub metal_removed: f64,
+}
+
+/// Statistics before and after capping each category at `caps[category]`
+/// (infinite: not capped), rows as in [`describe_by`].
+pub fn capping_report(
+    values: &[f64],
+    categories: &[u32],
+    weights: Option<&[f64]>,
+    caps: &[f64],
+) -> Result<Vec<(Option<u32>, CapReport)>> {
+    check(categories.len(), values, weights)?;
+    if caps.iter().any(|c| c.is_nan()) {
+        return invalid("caps must not be NaN");
+    }
+    if categories.iter().any(|&c| c as usize >= caps.len()) {
+        return invalid(format!(
+            "expected a cap for each of {} categories",
+            caps.len()
+        ));
+    }
+    let capped: Vec<f64> = values
+        .iter()
+        .zip(categories)
+        .map(|(&v, &c)| {
+            if v > caps[c as usize] {
+                caps[c as usize]
+            } else {
+                v
+            }
+        })
+        .collect();
+    let before = describe_by(values, categories, weights, &[])?;
+    let after = describe_by(&capped, categories, weights, &[])?;
+    Ok(before
+        .into_iter()
+        .zip(after)
+        .map(|((c, before), (_, after))| {
+            let (mut n, mut metal) = (0, 0.0);
+            for (i, (v, x)) in values.iter().zip(&capped).enumerate() {
+                if v > x && c.is_none_or(|c| categories[i] == c) {
+                    n += 1;
+                    metal += (v - x) * weights.map_or(1.0, |w| w[i]);
+                }
+            }
+            let cap = c.map_or(f64::NAN, |c| caps[c as usize]);
+            (
+                c,
+                CapReport {
+                    cap,
+                    before,
+                    after,
+                    capped: n,
+                    metal_removed: metal,
+                },
+            )
+        })
+        .collect())
 }
 
 fn pearson(x: &[f64], y: &[f64], w: &[f64]) -> f64 {
@@ -475,6 +624,87 @@ mod tests {
             capping(&v, None, None).unwrap().len(),
             CAP_PROBABILITIES.len()
         );
+    }
+
+    fn skewed() -> (Vec<f64>, Vec<u32>, Vec<f64>) {
+        let v: Vec<f64> = (0..60)
+            .map(|i| {
+                if i == 7 {
+                    f64::NAN
+                } else {
+                    ((i * 37 % 60) as f64 / 12.0).exp()
+                }
+            })
+            .collect();
+        let c: Vec<u32> = (0..60).map(|i| (i % 3) as u32).collect();
+        let w: Vec<f64> = (0..60).map(|i| 0.5 + (i % 5) as f64).collect();
+        (v, c, w)
+    }
+
+    #[test]
+    fn describe_by_ends_with_all_data() {
+        let (v, c, w) = skewed();
+        let p = [0.1, 0.5, 0.9];
+        let rows = describe_by(&v, &c, Some(&w), &p).unwrap();
+        assert_eq!(
+            rows.iter().map(|r| r.0).collect::<Vec<_>>(),
+            [Some(0), Some(1), Some(2), None]
+        );
+        let (all, whole) = (&rows[3].1, describe(&v, Some(&w), &p).unwrap());
+        assert_eq!(all.n, whole.n);
+        assert_eq!(
+            (all.mean, all.variance, &all.quantiles),
+            (whole.mean, whole.variance, &whole.quantiles)
+        );
+        assert_eq!(rows[..3].iter().map(|r| r.1.n).sum::<usize>(), whole.n);
+    }
+
+    #[test]
+    fn grade_tonnage_from_data() {
+        let (v, _, w) = skewed();
+        let d = vec![2.5; v.len()];
+        let mut cutoffs = vec![f64::NEG_INFINITY];
+        cutoffs.extend((0..20).map(|i| i as f64 * 8.0));
+        let gt = grade_tonnage(&v, Some(&w), Some(&d), &cutoffs).unwrap();
+        let s = describe(&v, Some(&w), &[]).unwrap();
+        let total: f64 = v
+            .iter()
+            .zip(&w)
+            .filter(|(v, _)| !v.is_nan())
+            .map(|(_, w)| 2.5 * w)
+            .sum();
+        assert!(close(gt[0].tonnage, total) && close(gt[0].mean_grade, s.mean));
+        for r in &gt {
+            assert!(r.tonnage == 0.0 || close(r.metal, r.tonnage * r.mean_grade));
+        }
+        assert!(gt.windows(2).all(|p| p[1].tonnage <= p[0].tonnage));
+        assert!(gt.last().unwrap().mean_grade.is_nan());
+        assert!(grade_tonnage(&v, None, None, &[f64::NAN]).is_err());
+    }
+
+    #[test]
+    fn capping_report_metal_removed() {
+        let (v, c, w) = skewed();
+        let caps = [20.0, f64::INFINITY, 5.0];
+        let rows = capping_report(&v, &c, Some(&w), &caps).unwrap();
+        let mut total = 0.0;
+        for (k, r) in rows[..3].iter().enumerate() {
+            let removed: f64 = (0..v.len())
+                .filter(|&i| c[i] == k as u32 && v[i] > caps[k])
+                .map(|i| (v[i] - caps[k]) * w[i])
+                .sum();
+            assert!(close(r.1.metal_removed, removed));
+            let sw: f64 = (0..v.len())
+                .filter(|&i| c[i] == k as u32 && !v[i].is_nan())
+                .map(|i| w[i])
+                .sum();
+            assert!(close(r.1.before.mean - r.1.after.mean, removed / sw));
+            total += removed;
+        }
+        assert!(close(rows[3].1.metal_removed, total) && rows[3].1.cap.is_nan());
+        assert_eq!(rows[1].1.capped, 0);
+        assert_eq!(rows[2].1.after.max, 5.0);
+        assert!(capping_report(&v, &c, None, &caps[..2]).is_err());
     }
 
     #[test]

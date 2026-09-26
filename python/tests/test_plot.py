@@ -116,3 +116,9 @@ def test_uncertain_slices_a_masked_model():
     assert rgba.shape == (3, 4, 4) and ax.images[0].get_extent() == [0, 8, 0, 6]
     np.testing.assert_allclose(rgba[1, 2, :3], 1.0)
     assert rgba[1, 1, 3] == 0 and rgba[1, 3, :3].max() < 1
+
+
+def test_probability_draws_the_cap():
+    v = rng.lognormal(0, 1, 300)
+    _, ax = cs.plot.probability(v, log=True, cap=5.0)
+    assert ax.lines[-1].get_xdata()[0] == 5.0

@@ -1,3 +1,6 @@
+use std::sync::Arc;
+
+use arrow_array::{ArrayRef, Float64Array, RecordBatch, StringArray, UInt64Array};
 use eda::{Along, Direction, Method, Profile};
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
@@ -5,6 +8,7 @@ use pyo3::types::PyDict;
 use crate::args::{array1, array2, floats, holes, rows};
 use crate::containers::coords_arg;
 use crate::invalid;
+use crate::table::Table;
 
 fn optional_floats(obj: Option<&Bound<PyAny>>, what: &str) -> PyResult<Option<Vec<f64>>> {
     obj.map(|o| floats(o, what)).transpose()
@@ -48,6 +52,152 @@ fn describe<'py>(
         d.set_item(k, v)?;
     }
     d.set_item("quantiles", array1(py, s.quantiles))?;
+    Ok(d)
+}
+
+/// Sorted category labels and each value's index into them.
+fn categories(obj: &Bound<PyAny>, n: usize) -> PyResult<(Vec<String>, Vec<u32>)> {
+    let (labels, _) = holes(Some(obj), n)
+        .map_err(|_| invalid("categories must be a 1-D sequence of labels"))?
+        .expect("given");
+    let mut names = labels.clone();
+    names.sort();
+    names.dedup();
+    let codes = labels
+        .iter()
+        .map(|l| names.binary_search(l).expect("listed") as u32)
+        .collect();
+    Ok((names, codes))
+}
+
+fn nullable(values: impl IntoIterator<Item = f64>) -> ArrayRef {
+    Arc::new(
+        values
+            .into_iter()
+            .map(|v| v.is_finite().then_some(v))
+            .collect::<Float64Array>(),
+    )
+}
+
+/// First column the category labels, "all" for the all-data row.
+fn table<T>(
+    label: &str,
+    names: &[String],
+    rows: &[(Option<u32>, T)],
+    columns: Vec<(String, ArrayRef)>,
+) -> PyResult<Table> {
+    let labels: Vec<&str> = rows
+        .iter()
+        .map(|(c, _)| c.map_or("all", |c| names[c as usize].as_str()))
+        .collect();
+    let mut all: Vec<(String, ArrayRef)> =
+        vec![(label.into(), Arc::new(StringArray::from(labels)))];
+    all.extend(columns);
+    Ok(Table(RecordBatch::try_from_iter(all).map_err(invalid)?))
+}
+
+/// Weighted statistics per category, as `describe`, then over all values.
+///
+/// Parameters
+/// ----------
+/// values : array_like
+///     Values; NaN is skipped.
+/// categories : array_like
+///     Category (e.g. domain) of each value, int or str.
+/// weights : array_like, optional
+///     Declustering weights.
+/// quantiles : sequence of float
+///     Probabilities of the quantile columns.
+///
+/// Returns
+/// -------
+/// Table
+///     ``category`` (sorted, then ``"all"``), ``n``, ``mean``, ``variance``,
+///     ``std``, ``cv``, ``min``, ``max`` and one column per quantile named
+///     ``P10``, ``P97.5``, ...
+#[pyfunction]
+#[pyo3(signature = (values, categories, weights=None, quantiles=vec![0.1, 0.25, 0.5, 0.75, 0.9]))]
+fn describe_by(
+    values: &Bound<PyAny>,
+    categories: &Bound<PyAny>,
+    weights: Option<&Bound<PyAny>>,
+    quantiles: Vec<f64>,
+) -> PyResult<Table> {
+    let values = floats(values, "values")?;
+    let (names, codes) = self::categories(categories, values.len())?;
+    let w = optional_floats(weights, "weights")?;
+    let rows = eda::describe_by(&values, &codes, w.as_deref(), &quantiles).map_err(invalid)?;
+    let col = |f: &dyn Fn(&eda::Summary) -> f64| nullable(rows.iter().map(|(_, s)| f(s)));
+    let mut columns: Vec<(String, ArrayRef)> = vec![(
+        "n".into(),
+        Arc::new(UInt64Array::from_iter_values(
+            rows.iter().map(|(_, s)| s.n as u64),
+        )),
+    )];
+    for (k, f) in [
+        ("mean", (|s| s.mean) as fn(&eda::Summary) -> f64),
+        ("variance", |s| s.variance),
+        ("std", |s| s.std),
+        ("cv", |s| s.cv),
+        ("min", |s| s.min),
+        ("max", |s| s.max),
+    ] {
+        columns.push((k.into(), col(&f)));
+    }
+    for (j, p) in quantiles.iter().enumerate() {
+        let name = format!("{:.4}", 100.0 * p);
+        let name = name.trim_end_matches('0').trim_end_matches('.');
+        columns.push((format!("P{name}"), col(&|s| s.quantiles[j])));
+    }
+    table("category", &names, &rows, columns)
+}
+
+/// Grade-tonnage curve straight from the data: tonnage, mean grade and metal at
+/// or above each cutoff.
+///
+/// Each value stands for ``weights × density`` tonnes (1 when both are
+/// omitted), e.g. block volumes and densities, or composite lengths.
+///
+/// Parameters
+/// ----------
+/// values : array_like
+///     Grades; NaN is skipped.
+/// cutoffs : array_like
+///     Cutoff grades; ``-inf`` keeps everything.
+/// weights : array_like, optional
+///     Volume or declustering weight of each value.
+/// density : array_like, optional
+///     Density of each value.
+///
+/// Returns
+/// -------
+/// dict
+///     ``cutoff``, ``tonnage``, ``mean_grade`` (NaN when nothing is above) and
+///     ``metal`` (tonnage × mean grade).
+#[pyfunction]
+#[pyo3(signature = (values, cutoffs, weights=None, density=None))]
+fn grade_tonnage<'py>(
+    py: Python<'py>,
+    values: &Bound<PyAny>,
+    cutoffs: &Bound<PyAny>,
+    weights: Option<&Bound<PyAny>>,
+    density: Option<&Bound<PyAny>>,
+) -> PyResult<Bound<'py, PyDict>> {
+    let w = optional_floats(weights, "weights")?;
+    let density = optional_floats(density, "density")?;
+    let r = eda::grade_tonnage(
+        &floats(values, "values")?,
+        w.as_deref(),
+        density.as_deref(),
+        &floats(cutoffs, "cutoffs")?,
+    )
+    .map_err(invalid)?;
+    let d = PyDict::new(py);
+    let col = |f: fn(&eda::Tonnage) -> f64| array1(py, r.iter().map(f).collect());
+    d.set_item("cutoff", col(|t| t.cutoff))?;
+    d.set_item("tonnage", col(|t| t.tonnage))?;
+    d.set_item("mean_grade", col(|t| t.mean_grade))?;
+    d.set_item("metal", col(|t| t.metal))?;
     Ok(d)
 }
 
@@ -170,6 +320,71 @@ fn capping<'py>(
     Ok(d)
 }
 
+/// Weighted statistics per domain before and after capping, and the metal removed.
+///
+/// Parameters
+/// ----------
+/// values : array_like
+///     Values; NaN is skipped.
+/// domains : array_like
+///     Domain of each value, int or str.
+/// caps : dict
+///     Cap per domain; domains left out are not capped.
+/// weights : array_like, optional
+///     Declustering weights.
+///
+/// Returns
+/// -------
+/// Table
+///     ``domain`` (sorted, then ``"all"``), ``cap`` (null when not capped),
+///     ``n``, ``n_capped`` (values above the cap), ``mean``, ``std``, ``cv``,
+///     ``max``, the same after capping as ``mean_capped``, ``std_capped``,
+///     ``cv_capped``, ``max_capped``, and ``metal_removed``, the sum of
+///     ``(value - cap) × weight`` above the cap; ``1 - mean_capped / mean`` is
+///     the fraction removed.
+#[pyfunction]
+#[pyo3(signature = (values, domains, caps, weights=None))]
+fn capping_report(
+    values: &Bound<PyAny>,
+    domains: &Bound<PyAny>,
+    caps: &Bound<PyDict>,
+    weights: Option<&Bound<PyAny>>,
+) -> PyResult<Table> {
+    let values = floats(values, "values")?;
+    let (names, codes) = categories(domains, values.len())?;
+    let mut by_domain = vec![f64::INFINITY; names.len()];
+    for (k, cap) in caps.iter() {
+        let k = k.str()?.to_string();
+        let i = names
+            .binary_search(&k)
+            .map_err(|_| invalid(format!("no value in domain {k}")))?;
+        by_domain[i] = cap.extract()?;
+    }
+    let w = optional_floats(weights, "weights")?;
+    let rows = eda::capping_report(&values, &codes, w.as_deref(), &by_domain).map_err(invalid)?;
+    let count = |f: fn(&eda::CapReport) -> usize| -> ArrayRef {
+        Arc::new(UInt64Array::from_iter_values(
+            rows.iter().map(|(_, r)| f(r) as u64),
+        ))
+    };
+    let col = |f: fn(&eda::CapReport) -> f64| nullable(rows.iter().map(|(_, r)| f(r)));
+    let columns: Vec<(String, ArrayRef)> = vec![
+        ("cap".into(), col(|r| r.cap)),
+        ("n".into(), count(|r| r.before.n)),
+        ("n_capped".into(), count(|r| r.capped)),
+        ("mean".into(), col(|r| r.before.mean)),
+        ("std".into(), col(|r| r.before.std)),
+        ("cv".into(), col(|r| r.before.cv)),
+        ("max".into(), col(|r| r.before.max)),
+        ("mean_capped".into(), col(|r| r.after.mean)),
+        ("std_capped".into(), col(|r| r.after.std)),
+        ("cv_capped".into(), col(|r| r.after.cv)),
+        ("max_capped".into(), col(|r| r.after.max)),
+        ("metal_removed".into(), col(|r| r.metal_removed)),
+    ];
+    table("domain", &names, &rows, columns)
+}
+
 /// Head and tail values of pairs `lag ± tolerance` apart, and their correlation.
 ///
 /// With `azimuth`, pairs are oriented within `angle_tolerance` of (`azimuth`,
@@ -233,6 +448,9 @@ fn correlation<'py>(
 
 pub fn register(m: &Bound<PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(describe, m)?)?;
+    m.add_function(wrap_pyfunction!(describe_by, m)?)?;
+    m.add_function(wrap_pyfunction!(grade_tonnage, m)?)?;
+    m.add_function(wrap_pyfunction!(capping_report, m)?)?;
     m.add_function(wrap_pyfunction!(swath, m)?)?;
     m.add_function(wrap_pyfunction!(contact, m)?)?;
     m.add_function(wrap_pyfunction!(capping, m)?)?;
