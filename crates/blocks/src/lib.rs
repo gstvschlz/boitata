@@ -6,6 +6,7 @@
 mod classes;
 mod distance;
 mod error;
+mod grid;
 mod hull;
 mod select;
 mod shell;
@@ -17,6 +18,7 @@ pub use distance::{
     signed_distance_to, vertical_distance,
 };
 pub use error::{BlockModelError, Result};
+pub use grid::grid_surface;
 pub use hull::convex_hull;
 pub use select::{PolygonSelector, ring_is_closed};
 pub use shell::{
