@@ -18,6 +18,8 @@
 
 ::: ceres.correlation
 
+::: ceres.duplicates
+
 ::: ceres.global_bias
 
 ::: ceres.hole_distance

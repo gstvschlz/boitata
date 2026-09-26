@@ -1,7 +1,7 @@
 //! Exploratory data analysis on raw columns: NaN values are skipped, weights are
 //! declustering weights.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 
 use rayon::prelude::*;
 use thiserror::Error;
@@ -555,6 +555,106 @@ pub fn correlation(
     Ok(out)
 }
 
+/// Groups of samples at most `tolerance` apart, each in row order and ordered
+/// by first row; samples alone are left out. Grouping is transitive: samples
+/// further apart share a group when a chain of close samples links them. A
+/// tolerance of 0 groups samples at exactly the same location.
+pub fn duplicates(coords: &[[f64; 3]], tolerance: f64) -> Result<Vec<Vec<usize>>> {
+    if tolerance.is_nan() || tolerance < 0.0 {
+        return invalid("tolerance must be >= 0");
+    }
+    let cell = |p: &[f64; 3]| {
+        p.map(|v| {
+            if tolerance == 0.0 {
+                (v + 0.0).to_bits() as i64
+            } else {
+                (v / tolerance).floor() as i64
+            }
+        })
+    };
+    let mut cells: HashMap<[i64; 3], Vec<usize>> = HashMap::new();
+    for (i, p) in coords.iter().enumerate() {
+        cells.entry(cell(p)).or_default().push(i);
+    }
+    let reach = if tolerance == 0.0 { 0 } else { 1 };
+    let mut parent: Vec<usize> = (0..coords.len()).collect();
+    fn root(parent: &mut [usize], mut i: usize) -> usize {
+        while parent[i] != i {
+            parent[i] = parent[parent[i]];
+            i = parent[i];
+        }
+        i
+    }
+    for (i, p) in coords.iter().enumerate() {
+        let c = cell(p);
+        for dx in -reach..=reach {
+            for dy in -reach..=reach {
+                for dz in -reach..=reach {
+                    let near = [
+                        c[0].saturating_add(dx),
+                        c[1].saturating_add(dy),
+                        c[2].saturating_add(dz),
+                    ];
+                    for &j in cells.get(&near).into_iter().flatten().filter(|&&j| j < i) {
+                        let d2: f64 = (0..3).map(|k| (p[k] - coords[j][k]).powi(2)).sum();
+                        if d2 <= tolerance * tolerance {
+                            let (a, b) = (root(&mut parent, i), root(&mut parent, j));
+                            parent[a.max(b)] = a.min(b);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    let mut groups: BTreeMap<usize, Vec<usize>> = BTreeMap::new();
+    for i in 0..coords.len() {
+        groups.entry(root(&mut parent, i)).or_default().push(i);
+    }
+    Ok(groups.into_values().filter(|g| g.len() > 1).collect())
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Merge {
+    /// Weighted mean of the group's values.
+    Mean,
+    /// The first row's value.
+    First,
+    /// The group's largest value.
+    Max,
+}
+
+/// Values left after merging each of `groups` (as from [`duplicates`]) into
+/// its first row, in row order. Mean and max skip NaN; mean is weighted by
+/// `weights`, by count without.
+pub fn merge_duplicates(
+    values: &[f64],
+    groups: &[Vec<usize>],
+    merge: Merge,
+    weights: Option<&[f64]>,
+) -> Result<Vec<f64>> {
+    let n = values.len();
+    check(n, values, weights)?;
+    let weight = |i: usize| weights.map_or(1.0, |w| w[i]);
+    let mut out = values.to_vec();
+    let mut dropped = vec![false; n];
+    for g in groups {
+        if g.is_empty() || g.iter().any(|&i| i >= n || dropped[i]) {
+            return invalid("groups must be disjoint, non-empty and within the rows");
+        }
+        let valid = || g.iter().copied().filter(|&i| !values[i].is_nan());
+        out[g[0]] = match merge {
+            Merge::First => values[g[0]],
+            Merge::Max => valid().map(|i| values[i]).fold(f64::NAN, f64::max),
+            Merge::Mean => {
+                valid().map(|i| weight(i) * values[i]).sum::<f64>()
+                    / valid().map(weight).sum::<f64>()
+            }
+        };
+        g[1..].iter().for_each(|&i| dropped[i] = true);
+    }
+    Ok((0..n).filter(|&i| !dropped[i]).map(|i| out[i]).collect())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -749,5 +849,128 @@ mod tests {
         let s = correlation(&cols, None, Method::Spearman).unwrap();
         assert!(p[0][1] < 0.95 && close(s[0][1], 1.0) && close(p[1][1], 1.0));
         assert!(correlation(&cols, Some(&[1.0]), Method::Pearson).is_err());
+    }
+
+    #[test]
+    fn zero_tolerance_groups_exact_duplicates_only() {
+        let coords = [
+            [0.0, 0.0, 0.0],
+            [10.0, 0.0, 0.0],
+            [0.0, 0.0, 0.0],
+            [5.0, 5.0, -0.0],
+            [5.0, 5.0, 0.0],
+            [5.0, 5.0, 1e-12],
+        ];
+        assert_eq!(
+            duplicates(&coords, 0.0).unwrap(),
+            vec![vec![0, 2], vec![3, 4]]
+        );
+        assert_eq!(
+            duplicates(&coords, 1e-9).unwrap(),
+            vec![vec![0, 2], vec![3, 4, 5]]
+        );
+        assert!(duplicates(&coords, -1.0).is_err());
+    }
+
+    #[test]
+    fn groups_are_transitive_and_independent_of_row_order() {
+        let chain = [
+            [0.0, 0.0, 0.0],
+            [0.9, 0.0, 0.0],
+            [1.8, 0.0, 0.0],
+            [3.0, 0.0, 0.0],
+        ];
+        assert_eq!(duplicates(&chain, 1.0).unwrap(), vec![vec![0, 1, 2]]);
+
+        let mut seed = 7u64;
+        let mut next = || {
+            seed = seed
+                .wrapping_mul(6364136223846793005)
+                .wrapping_add(1442695040888963407);
+            (seed >> 11) as f64 / (1u64 << 53) as f64 * 20.0
+        };
+        let coords: Vec<[f64; 3]> = (0..400).map(|_| [next(), next(), next()]).collect();
+        let tol = 1.0;
+        let groups = duplicates(&coords, tol).unwrap();
+        let mut label: Vec<usize> = (0..coords.len()).collect();
+        loop {
+            let mut changed = false;
+            for i in 0..coords.len() {
+                for j in 0..coords.len() {
+                    let d2: f64 = (0..3).map(|k| (coords[i][k] - coords[j][k]).powi(2)).sum();
+                    if d2 <= tol * tol && label[j] < label[i] {
+                        label[i] = label[j];
+                        changed = true;
+                    }
+                }
+            }
+            if !changed {
+                break;
+            }
+        }
+        let mut brute: BTreeMap<usize, Vec<usize>> = BTreeMap::new();
+        (0..coords.len()).for_each(|i| brute.entry(label[i]).or_default().push(i));
+        let brute: Vec<Vec<usize>> = brute.into_values().filter(|g| g.len() > 1).collect();
+        assert!(!brute.is_empty());
+        assert_eq!(groups, brute);
+
+        let reversed: Vec<[f64; 3]> = coords.iter().rev().copied().collect();
+        let n = coords.len();
+        let mut back: Vec<Vec<usize>> = duplicates(&reversed, tol)
+            .unwrap()
+            .into_iter()
+            .map(|g| {
+                let mut g: Vec<usize> = g.into_iter().map(|i| n - 1 - i).collect();
+                g.sort();
+                g
+            })
+            .collect();
+        back.sort();
+        assert_eq!(back, groups);
+    }
+
+    #[test]
+    fn merged_mean_weighted_by_count_keeps_the_mean() {
+        let values: Vec<f64> = (0..12).map(|i| f64::from(i * i % 7) + 0.5).collect();
+        let groups = vec![vec![1, 4, 9], vec![2, 3], vec![6, 7, 8, 11]];
+        let merged = merge_duplicates(&values, &groups, Merge::Mean, None).unwrap();
+        assert_eq!(merged.len(), 12 - 2 - 1 - 3);
+        let kept = [0, 1, 2, 5, 6, 10];
+        let count = |i: &usize| {
+            groups
+                .iter()
+                .find(|g| g[0] == *i)
+                .map_or(1.0, |g| g.len() as f64)
+        };
+        let pooled: f64 = kept
+            .iter()
+            .zip(&merged)
+            .map(|(i, v)| count(i) * v)
+            .sum::<f64>()
+            / 12.0;
+        assert!(close(pooled, values.iter().sum::<f64>() / 12.0));
+
+        let w = [1.0, 3.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0];
+        let weighted = merge_duplicates(&values, &groups, Merge::Mean, Some(&w)).unwrap();
+        assert!(close(
+            weighted[1],
+            (3.0 * values[1] + values[4] + values[9]) / 5.0
+        ));
+
+        let mut with_nan = values.clone();
+        with_nan[2] = f64::NAN;
+        let first = merge_duplicates(&with_nan, &groups, Merge::First, None).unwrap();
+        let max = merge_duplicates(&with_nan, &groups, Merge::Max, None).unwrap();
+        let mean = merge_duplicates(&with_nan, &groups, Merge::Mean, None).unwrap();
+        assert!(first[2].is_nan() && max[2] == values[3] && mean[2] == values[3]);
+        assert_eq!(max[3], values[5]);
+        assert_eq!(
+            max[4],
+            [6, 7, 8, 11]
+                .map(|i| values[i])
+                .into_iter()
+                .fold(0.0, f64::max)
+        );
+        assert!(merge_duplicates(&values, &[vec![1, 2], vec![2, 3]], Merge::Mean, None).is_err());
     }
 }

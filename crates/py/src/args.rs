@@ -115,7 +115,8 @@ pub fn holes(obj: Option<&Bound<PyAny>>, n: usize) -> PyResult<Option<(Vec<Strin
 /// group. Dropped groups are reported in a `UserWarning` naming their holes
 /// (or rows when `holes` is `None`).
 pub fn distinct(py: Python, locs: &[Point], holes: Option<&[String]>) -> PyResult<Vec<usize>> {
-    let groups = estimation::duplicates(locs);
+    let coords: Vec<[f64; 3]> = locs.iter().map(|&(x, y, z)| [x, y, z]).collect();
+    let groups = eda::duplicates(&coords, 0.0).map_err(invalid)?;
     if groups.is_empty() {
         return Ok((0..locs.len()).collect());
     }
