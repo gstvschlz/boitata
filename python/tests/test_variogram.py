@@ -63,6 +63,30 @@ def test_nested_fit_with_fixed_and_bounded_parameters():
         exp.fit(nugget=(0.3, 0.1))
 
 
+def test_directional_fit_finds_the_anisotropy():
+    xy = np.stack(np.meshgrid(np.arange(0, 80, 2.0), np.arange(0, 80, 2.0)), -1).reshape(-1, 2)
+    t = np.radians(30)
+    major, minor = np.array([np.sin(t), np.cos(t)]), np.array([np.cos(t), -np.sin(t)])
+    freq = rng.normal(size=(400, 1)) * major / 15 + rng.normal(size=(400, 1)) * minor / 5
+    values = np.cos(xy @ freq.T + rng.uniform(0, 2 * np.pi, 400)).sum(1) / np.sqrt(200)
+    azimuths = np.arange(0, 180, 22.5)
+    exps = [cs.experimental_variogram(xy, values, 2, 40, azimuth=a) for a in azimuths]
+    directions = [(a, 0) for a in azimuths]
+    model = cs.Variogram.fit_directional(exps, directions, ["spherical", "spherical"])
+    assert model.rotation[0] == pytest.approx(30, abs=10) and model.rotation[1:] == (0, 0)
+    assert model.ratios[0] < 0.6 and model.ratios[1] == 1
+    assert model.structures[-1].range <= max(e.lags.max() for e in exps)
+    assert repr(cs.Variogram.fit_directional(exps, directions, ["spherical", "spherical"])) == repr(model)
+    fixed = cs.Variogram.fit_directional(
+        exps, directions, rotation=[45.0, None, None], ratios=[(0.2, 0.5), None]
+    )
+    assert fixed.rotation[0] == 45 and 0.2 <= fixed.ratios[0] <= 0.5
+    with pytest.raises(ValueError):
+        cs.Variogram.fit_directional(exps, directions[1:])
+    with pytest.raises(ValueError):
+        cs.Variogram.fit_directional(exps, directions, rotation=[None, None])
+
+
 def test_estimators_and_standardize():
     coords = rng.uniform(0, 100, (400, 2))
     values = np.exp(rng.normal(size=400))

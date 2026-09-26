@@ -7,7 +7,7 @@ Walker Lake has an exhaustive grid, so every result is checked against the truth
 |---|---|---|---|
 | 1 | [Data and declustering](01-data/README.md) | Walker Lake | `read_csv`, `PointSet`, `cell_declustering` |
 | 2 | [Normal-score transform](02-normal-score/README.md) | Walker Lake | `NormalScore`, `normal_cdf` |
-| 3 | [Variography](03-variography/README.md) | Walker Lake | `variogram_map`, `experimental_variogram`, `Variogram` |
+| 3 | [Variography](03-variography/README.md) | Walker Lake | `variogram_map`, `experimental_variogram`, `Variogram.fit_directional` |
 | 4 | [Ordinary kriging](04-kriging/README.md) | Walker Lake | `BlockModel`, `Search`, `OrdinaryKriging`, cross-validation |
 | 5 | [Sequential Gaussian simulation](05-simulation/README.md) | Walker Lake | `SGS`, `NormalScore` tails, `SimulationSummary` |
 | 6 | [Drillholes](06-drillholes/README.md) | Drillholes | `Drillholes`, `merge_intervals`, compositing by domain |

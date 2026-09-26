@@ -34,7 +34,7 @@ true_at_nodes = truth[nodes[:, 1] - 1, nodes[:, 0] - 1]
 # ratio, and octants keep samples from piling up on one side.
 
 # %%
-ellipse = {"max_samples": 24, "octant": True, "rotation": (170, 0, 0), "ratios": (0.5, 1.0)}
+ellipse = {"max_samples": 24, "octant": True, "rotation": model.rotation, "ratios": (0.5, 1.0)}
 search = cs.Search(radius=80, min_samples=4, **ellipse)
 methods = {
     "nearest neighbour": cs.NearestNeighbor(search),

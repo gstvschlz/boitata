@@ -4,10 +4,10 @@ use serde::{Deserialize, Serialize};
 use transforms::dgm::{BlockDiscretization, block_average_correlation};
 use variogram::surface::{PlaneMapParams, plane_map};
 use variogram::{
-    Angles, Anisotropy, Bounds, CoregStructure, Coregionalization as CoreCoreg, Direction,
-    Estimator, Experimental, LagBins, Model, NestedSpec, Structure as CoreStructure, StructureSpec,
-    Transiogram as CoreTransiogram, Variogram as CoreVariogram, Weighting, cross_experimental,
-    empirical_transiogram, experimental, fit_nested,
+    Angles, Anisotropy, AnisotropySpec, Bounds, CoregStructure, Coregionalization as CoreCoreg,
+    Direction, Estimator, Experimental, LagBins, Model, NestedSpec, Structure as CoreStructure,
+    StructureSpec, Transiogram as CoreTransiogram, Variogram as CoreVariogram, Weighting,
+    cross_experimental, empirical_transiogram, experimental, fit_directional, fit_nested,
 };
 
 use crate::args::{Point, array1, array2, finite, floats, points, same_length, triple};
@@ -109,6 +109,38 @@ fn per_structure(given: Limits, n: usize, what: &str) -> PyResult<Vec<Option<Bou
     };
     same_length(n, given.len(), what)?;
     Ok(given.into_iter().map(|l| l.map(Limit::bounds)).collect())
+}
+
+fn nested(
+    model: Models,
+    nugget: Option<Limit>,
+    sills: Limits,
+    ranges: Limits,
+) -> PyResult<NestedSpec> {
+    let names = match model {
+        Models::One(name) => vec![name],
+        Models::Many(names) => names,
+    };
+    let n = names.len();
+    let (sills, ranges) = (
+        per_structure(sills, n, "sills")?,
+        per_structure(ranges, n, "ranges")?,
+    );
+    let structures = names
+        .iter()
+        .zip(sills.into_iter().zip(ranges))
+        .map(|(name, (sill, range))| {
+            Ok(StructureSpec {
+                model: self::model(name, None, None)?,
+                sill,
+                range,
+            })
+        })
+        .collect::<PyResult<_>>()?;
+    Ok(NestedSpec {
+        nugget: nugget.map(Limit::bounds),
+        structures,
+    })
 }
 
 fn bins(lag: f64, max_lag: f64) -> PyResult<LagBins> {
@@ -272,32 +304,75 @@ impl Variogram {
         sills: Limits,
         ranges: Limits,
     ) -> PyResult<Self> {
-        let names = match model {
-            Models::One(name) => vec![name],
-            Models::Many(names) => names,
-        };
-        let n = names.len();
-        let (sills, ranges) = (
-            per_structure(sills, n, "sills")?,
-            per_structure(ranges, n, "ranges")?,
-        );
-        let structures = names
-            .iter()
-            .zip(sills.into_iter().zip(ranges))
-            .map(|(name, (sill, range))| {
-                Ok(StructureSpec {
-                    model: self::model(name, None, None)?,
-                    sill,
-                    range,
-                })
-            })
-            .collect::<PyResult<_>>()?;
-        let spec = NestedSpec {
-            nugget: nugget.map(Limit::bounds),
-            structures,
-        };
+        let spec = nested(model, nugget, sills, ranges)?;
         let fitted =
             fit_nested(&experimental.0, &spec, self::weighting(weighting)?).map_err(err)?;
+        Ok(Self(fitted.variogram))
+    }
+
+    /// One anisotropic model fitted jointly to experimental variograms in
+    /// several directions.
+    ///
+    /// The structures share the anisotropy; their ranges are major-axis
+    /// ranges. Nugget, sills and ranges are free, fixed or bounded as in
+    /// `Variogram.fit`, and so is each angle and range ratio. Free ranges stay
+    /// within the largest lag; bound them, e.g. ``ranges=[None, (50, 300)]``,
+    /// to go further. The search is deterministic.
+    ///
+    /// Parameters
+    /// ----------
+    /// experimentals : sequence of ExperimentalVariogram
+    /// directions : sequence of (float, float)
+    ///     Azimuth and dip in degrees of each experimental variogram.
+    /// model, weighting, nugget, sills, ranges
+    ///     As in `Variogram.fit`.
+    /// rotation : sequence of (None, float or (float, float)), optional
+    ///     Azimuth, dip and rake in degrees; free angles are returned with
+    ///     azimuth and rake in [0, 180).
+    /// ratios : sequence of (None, float or (float, float)), optional
+    ///     Semi-major/major and minor/major range ratios, in (0, 1] when free.
+    ///     When every direction is horizontal, dip and rake default to 0 and
+    ///     the minor ratio to 1: the fit is two-dimensional.
+    ///
+    /// Returns
+    /// -------
+    /// Variogram
+    #[staticmethod]
+    #[pyo3(signature = (experimentals, directions, model=Models::One("spherical".into()), weighting="count", nugget=None, sills=None, ranges=None, rotation=None, ratios=None))]
+    #[allow(clippy::too_many_arguments)]
+    fn fit_directional(
+        experimentals: Vec<PyRef<ExperimentalVariogram>>,
+        directions: Vec<(f64, f64)>,
+        model: Models,
+        weighting: &str,
+        nugget: Option<Limit>,
+        sills: Limits,
+        ranges: Limits,
+        rotation: Limits,
+        ratios: Limits,
+    ) -> PyResult<Self> {
+        same_length(experimentals.len(), directions.len(), "directions")?;
+        let spec = nested(model, nugget, sills, ranges)?;
+        let (rotation, ratios) = (
+            per_structure(rotation, 3, "rotation")?,
+            per_structure(ratios, 2, "ratios")?,
+        );
+        let aniso = AnisotropySpec {
+            azimuth: rotation[0],
+            dip: rotation[1],
+            rake: rotation[2],
+            semi: ratios[0],
+            minor: ratios[1],
+        };
+        let exps: Vec<Experimental> = experimentals.iter().map(|e| e.0.clone()).collect();
+        let fitted = fit_directional(
+            &exps,
+            &directions,
+            &spec,
+            &aniso,
+            self::weighting(weighting)?,
+        )
+        .map_err(err)?;
         Ok(Self(fitted.variogram))
     }
 
