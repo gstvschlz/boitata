@@ -44,6 +44,26 @@ def test_white_noise_variogram_is_flat_at_the_variance():
     assert fitted.sill == pytest.approx(values.var(), rel=0.2)
 
 
+def test_estimators_and_standardize():
+    coords = rng.uniform(0, 100, (400, 2))
+    values = np.exp(rng.normal(size=400))
+    args = (coords, values, 5, 50)
+    cov = cs.experimental_variogram(*args, estimator="covariance")
+    np.testing.assert_allclose(cov.gammas + cov.covariances, values.var())
+    rho = cs.experimental_variogram(*args, estimator="correlogram", standardize=True)
+    np.testing.assert_allclose(rho.gammas, 1 - rho.covariances)
+    assert cs.experimental_variogram(*args).covariances is None
+    std = cs.experimental_variogram(*args, standardize=True)
+    np.testing.assert_allclose(std.gammas, cs.experimental_variogram(*args).gammas / values.var())
+    pr = cs.experimental_variogram(*args, estimator="pairwise_relative")
+    scaled = cs.experimental_variogram(coords, 7 * values, 5, 50, estimator="pairwise-relative")
+    np.testing.assert_allclose(pr.gammas, scaled.gammas)
+    with pytest.raises(ValueError):
+        cs.experimental_variogram(coords, values - 5, 5, 50, estimator="pairwise-relative")
+    m = cs.variogram_map(coords, values, lag=10, max_lag=60, steps=6, estimator="correlogram")
+    assert m.gammas.shape == (6, len(m.lags))
+
+
 def test_directional_and_map_shapes():
     coords = rng.uniform(0, 100, (300, 2))
     values = coords[:, 1] / 10 + rng.normal(size=300)

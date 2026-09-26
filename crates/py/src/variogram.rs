@@ -1,7 +1,7 @@
 use pyo3::prelude::*;
 use pyo3::types::PyTuple;
 use transforms::dgm::{BlockDiscretization, block_average_correlation};
-use variogram::surface::{PlaneMapParams, SurfaceParams, plane_map, variogram_surface};
+use variogram::surface::{PlaneMapParams, plane_map};
 use variogram::{
     Angles, Anisotropy, CoregStructure, Coregionalization as CoreCoreg, Direction, Estimator,
     Experimental, LagBins, Model, Structure as CoreStructure, Transiogram as CoreTransiogram,
@@ -59,6 +59,9 @@ fn estimator(name: &str) -> PyResult<Estimator> {
     match name {
         "matheron" => Ok(Estimator::Matheron),
         "cressie-hawkins" | "cressie_hawkins" => Ok(Estimator::CressieHawkins),
+        "covariance" => Ok(Estimator::Covariance),
+        "correlogram" => Ok(Estimator::Correlogram),
+        "pairwise-relative" | "pairwise_relative" => Ok(Estimator::PairwiseRelative),
         _ => Err(invalid(format!("unknown estimator {name:?}"))),
     }
 }
@@ -292,7 +295,9 @@ impl Variogram {
     }
 }
 
-/// Lag centres, semivariances and pair counts.
+/// Lag centres, semivariances and pair counts; ``covariances`` holds C(h)
+/// for the covariance estimator, ρ(h) for the correlogram, and is None
+/// otherwise.
 #[pyclass(module = "ceres", name = "ExperimentalVariogram", frozen)]
 pub struct ExperimentalVariogram(pub Experimental);
 
@@ -313,6 +318,11 @@ impl ExperimentalVariogram {
         array1(py, self.0.counts.iter().map(|&c| c as f64).collect()).into_any()
     }
 
+    #[getter]
+    fn covariances<'py>(&self, py: Python<'py>) -> Option<Bound<'py, PyAny>> {
+        self.0.covariances.clone().map(|c| array1(py, c).into_any())
+    }
+
     #[pyo3(signature = (model="spherical", weighting="count"))]
     fn fit(&self, model: &str, weighting: &str) -> PyResult<Variogram> {
         Variogram::fit(self, model, weighting)
@@ -330,8 +340,32 @@ fn samples(coords: &Bound<PyAny>, values: &Bound<PyAny>) -> PyResult<(Vec<Point>
 }
 
 /// Experimental variogram, omnidirectional unless `azimuth` is given.
+///
+/// Every estimator is returned in variogram form, so any of them can be fitted.
+///
+/// Parameters
+/// ----------
+/// coords : array_like, shape (n, 2) or (n, 3)
+/// values : array_like, shape (n,)
+/// lag, max_lag : float
+///     Lag-bin width and largest pair distance.
+/// azimuth, dip, tolerance : float
+///     Direction and cone half-angle in degrees; omnidirectional when
+///     ``azimuth`` is None.
+/// bandwidth : float, optional
+///     Largest offset of a pair from the direction line.
+/// estimator : {"matheron", "cressie-hawkins", "covariance", "correlogram", "pairwise-relative"}
+///     Classical, robust, σ² − C(h), 1 − ρ(h), or the pairwise-relative
+///     variogram (non-negative values only).
+/// standardize : bool
+///     Divide by the sample variance so the sill is 1. The correlogram and
+///     pairwise-relative estimates are dimensionless and left unchanged.
+///
+/// Returns
+/// -------
+/// ExperimentalVariogram
 #[pyfunction]
-#[pyo3(signature = (coords, values, lag, max_lag, azimuth=None, dip=0.0, tolerance=22.5, bandwidth=None, estimator="matheron"))]
+#[pyo3(signature = (coords, values, lag, max_lag, azimuth=None, dip=0.0, tolerance=22.5, bandwidth=None, estimator="matheron", standardize=false))]
 #[allow(clippy::too_many_arguments)]
 fn experimental_variogram(
     coords: &Bound<PyAny>,
@@ -343,6 +377,7 @@ fn experimental_variogram(
     tolerance: f64,
     bandwidth: Option<f64>,
     estimator: &str,
+    standardize: bool,
 ) -> PyResult<ExperimentalVariogram> {
     let (locs, values) = samples(coords, values)?;
     let direction = azimuth.map(|azimuth| Direction {
@@ -357,6 +392,7 @@ fn experimental_variogram(
         &bins(lag, max_lag)?,
         self::estimator(estimator)?,
         direction.as_ref(),
+        standardize,
     )
     .map_err(err)?;
     Ok(ExperimentalVariogram(exp))
@@ -383,9 +419,10 @@ fn grid(values: Vec<f64>, rows: usize) -> Vec<Vec<f64>> {
 }
 
 /// Variogram map on the plane spanned by `u` and `v` (default: horizontal,
-/// angles counter-clockwise from east).
+/// angles counter-clockwise from east). `estimator` takes the names
+/// `experimental_variogram` does; γ is NaN where the correlogram is undefined.
 #[pyfunction]
-#[pyo3(signature = (coords, values, lag, max_lag, u=vec![1.0, 0.0, 0.0], v=vec![0.0, 1.0, 0.0], tolerance=22.5, steps=36, model="spherical"))]
+#[pyo3(signature = (coords, values, lag, max_lag, u=vec![1.0, 0.0, 0.0], v=vec![0.0, 1.0, 0.0], tolerance=22.5, steps=36, model="spherical", estimator="matheron"))]
 #[allow(clippy::too_many_arguments)]
 fn variogram_map(
     py: Python,
@@ -398,6 +435,7 @@ fn variogram_map(
     tolerance: f64,
     steps: usize,
     model: &str,
+    estimator: &str,
 ) -> PyResult<VariogramMap> {
     let (locs, values) = samples(coords, values)?;
     let params = PlaneMapParams {
@@ -405,6 +443,7 @@ fn variogram_map(
         tolerance,
         angle_steps: steps,
         model: self::model(model, None, None)?,
+        estimator: self::estimator(estimator)?,
         ..Default::default()
     };
     let m = plane_map(
@@ -430,45 +469,6 @@ fn variogram_map(
             .into_any()
             .unbind(),
     })
-}
-
-/// Fitted range per direction over a hemisphere: returns `(azimuths, dips,
-/// ranges)` arrays, NaN where too few pairs.
-#[pyfunction]
-#[pyo3(signature = (coords, values, lag, max_lag, azimuth_steps=24, dip_steps=6, tolerance=22.5, model="spherical"))]
-#[allow(clippy::too_many_arguments)]
-fn variogram_surface_ranges<'py>(
-    py: Python<'py>,
-    coords: &Bound<PyAny>,
-    values: &Bound<PyAny>,
-    lag: f64,
-    max_lag: f64,
-    azimuth_steps: usize,
-    dip_steps: usize,
-    tolerance: f64,
-    model: &str,
-) -> PyResult<Bound<'py, PyTuple>> {
-    let (locs, values) = samples(coords, values)?;
-    let params = SurfaceParams {
-        bins: bins(lag, max_lag)?,
-        tolerance,
-        azimuth_steps,
-        dip_steps,
-        model: self::model(model, None, None)?,
-        ..Default::default()
-    };
-    let s = variogram_surface(&locs, &values, &params).map_err(err)?;
-    let col = |f: fn(&variogram::surface::SurfaceDirection) -> f64| {
-        array1(py, s.directions.iter().map(f).collect())
-    };
-    PyTuple::new(
-        py,
-        [
-            col(|d| d.azimuth),
-            col(|d| d.dip),
-            col(|d| d.range.unwrap_or(f64::NAN)),
-        ],
-    )
 }
 
 /// Linear model of coregionalization: `nugget` and each structure's `sills`
@@ -633,7 +633,6 @@ pub fn register(m: &Bound<PyModule>) -> PyResult<()> {
     m.add_class::<Transiogram>()?;
     m.add_function(wrap_pyfunction!(experimental_variogram, m)?)?;
     m.add_function(wrap_pyfunction!(variogram_map, m)?)?;
-    m.add_function(wrap_pyfunction!(variogram_surface_ranges, m)?)?;
     m.add_function(wrap_pyfunction!(experimental_transiogram, m)?)?;
     m.add_function(wrap_pyfunction!(change_of_support, m)?)?;
     m.add_function(wrap_pyfunction!(block_correlation, m)?)?;

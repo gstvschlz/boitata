@@ -1,7 +1,8 @@
 //! Empirical (experimental) variogram estimation.
 //!
-//! Supports the Matheron classical estimator and the Cressie–Hawkins robust
-//! estimator, omnidirectional or directional (azimuth/dip cone with tolerance).
+//! Classical, robust, covariance, correlogram and pairwise-relative estimators,
+//! omnidirectional or directional (azimuth/dip cone with tolerance), all
+//! reported in variogram form so any of them can be fitted.
 
 use crate::error::{Result, VarioError};
 use rayon::prelude::*;
@@ -14,6 +15,13 @@ pub enum Estimator {
     Matheron,
     /// Cressie–Hawkins robust estimator (down-weights outliers).
     CressieHawkins,
+    /// `σ² − C(h)`, with `C(h)` the covariance of head and tail values about
+    /// their own lag means and `σ²` the sample variance.
+    Covariance,
+    /// `1 − ρ(h)`, with `ρ(h)` the head/tail correlation at each lag.
+    Correlogram,
+    /// `1/(2N) Σ (zᵢ − zⱼ)² / ((zᵢ + zⱼ)/2)²`; needs non-negative values.
+    PairwiseRelative,
 }
 
 /// Optional directional constraint (a cone about a unit direction).
@@ -61,9 +69,16 @@ pub struct Experimental {
     pub lags: Vec<f64>,
     pub gammas: Vec<f64>,
     pub counts: Vec<usize>,
+    /// C(h) for [`Estimator::Covariance`], ρ(h) for [`Estimator::Correlogram`],
+    /// `None` for the other estimators.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub covariances: Option<Vec<f64>>,
 }
 
-/// Estimate an experimental variogram.
+/// Estimate an experimental variogram. `standardize` divides the classical,
+/// robust and covariance estimates (and C(h)) by the sample variance so the
+/// sill is 1; the correlogram and pairwise-relative estimates are
+/// dimensionless already and are left as they are.
 ///
 /// `O(n²)` over sample pairs; for large `n` this is the dominant cost.
 pub fn experimental(
@@ -72,6 +87,7 @@ pub fn experimental(
     bins: &LagBins,
     estimator: Estimator,
     direction: Option<&Direction>,
+    standardize: bool,
 ) -> Result<Experimental> {
     if locations.len() != values.len() {
         return Err(VarioError::InsufficientData(
@@ -88,6 +104,7 @@ pub fn experimental(
             "lag_width and max_lag must be positive".into(),
         ));
     }
+    let scale = scale(values, estimator, standardize)?;
 
     let n_bins = (bins.max_lag / bins.lag_width).ceil() as usize;
     let n_bins = n_bins.max(1);
@@ -110,14 +127,12 @@ pub fn experimental(
     // count so the pool stays fed even where the balance is imperfect.
     const N_CHUNKS: usize = 64;
 
-    // Per-chunk (sum_sq, sum_root, counts): Matheron sum of squared diffs and
-    // Cressie sum of |diff|^0.5 — both accumulated, so the estimator choice
-    // stays in the finalisation loop.
-    let partials: Vec<(Vec<f64>, Vec<f64>, Vec<usize>)> = (0..N_CHUNKS)
+    // Per-chunk moment sums per bin. All are accumulated, so the estimator
+    // choice stays in the finalisation loop.
+    let partials: Vec<(Vec<Moments>, Vec<usize>)> = (0..N_CHUNKS)
         .into_par_iter()
         .map(|chunk| {
-            let mut sum_sq = vec![0.0f64; n_bins];
-            let mut sum_root = vec![0.0f64; n_bins];
+            let mut sums = vec![[0.0f64; 8]; n_bins];
             let mut counts = vec![0usize; n_bins];
             for i in (chunk..n).step_by(N_CHUNKS) {
                 for j in (i + 1)..n {
@@ -148,59 +163,136 @@ pub fn experimental(
                     }
 
                     let idx = ((dist / bins.lag_width).floor() as usize).min(n_bins - 1);
-                    let diff = (values[i] - values[j]).abs();
-                    sum_sq[idx] += diff * diff;
-                    sum_root[idx] += diff.sqrt();
+                    add(&mut sums[idx], &moments(values[i], values[j]));
                     counts[idx] += 1;
                 }
             }
-            (sum_sq, sum_root, counts)
+            (sums, counts)
         })
         .collect();
 
     // Sequential merge in chunk-index order — the deterministic fold.
-    let mut sum_sq = vec![0.0f64; n_bins];
-    let mut sum_root = vec![0.0f64; n_bins];
+    let mut sums = vec![[0.0f64; 8]; n_bins];
     let mut counts = vec![0usize; n_bins];
-    for (chunk_sq, chunk_root, chunk_counts) in &partials {
+    for (chunk_sums, chunk_counts) in &partials {
         for b in 0..n_bins {
-            sum_sq[b] += chunk_sq[b];
-            sum_root[b] += chunk_root[b];
+            add(&mut sums[b], &chunk_sums[b]);
             counts[b] += chunk_counts[b];
         }
     }
 
-    let mut lags = Vec::new();
-    let mut gammas = Vec::new();
-    let mut out_counts = Vec::new();
-
+    let mut exp = Experimental {
+        lags: Vec::new(),
+        gammas: Vec::new(),
+        counts: Vec::new(),
+        covariances: None,
+    };
+    let mut covariances = Vec::new();
     for b in 0..n_bins {
-        let c = counts[b];
-        if c == 0 {
-            continue;
+        if let Some((gamma, covariance)) = finalise(&sums[b], counts[b], estimator, scale) {
+            exp.lags.push((b as f64 + 0.5) * bins.lag_width);
+            exp.gammas.push(gamma);
+            exp.counts.push(counts[b]);
+            covariances.push(covariance);
         }
-        let center = (b as f64 + 0.5) * bins.lag_width;
-        let gamma = match estimator {
-            Estimator::Matheron => sum_sq[b] / (2.0 * c as f64),
-            Estimator::CressieHawkins => {
-                // γ(h) = 0.5 · (1/N Σ |Δz|^0.5)^4 / (0.457 + 0.494/N + 0.045/N²)
-                let nf = c as f64;
-                let mean_root = sum_root[b] / nf;
-                let numer = mean_root.powi(4);
-                let denom = 0.457 + 0.494 / nf + 0.045 / (nf * nf);
-                0.5 * numer / denom
-            }
-        };
-        lags.push(center);
-        gammas.push(gamma);
-        out_counts.push(c);
     }
+    if matches!(estimator, Estimator::Covariance | Estimator::Correlogram) {
+        exp.covariances = Some(covariances);
+    }
+    Ok(exp)
+}
 
-    Ok(Experimental {
-        lags,
-        gammas,
-        counts: out_counts,
-    })
+/// Per-pair terms summed in each lag bin: squared and root differences, head,
+/// tail, head·tail, head², tail² and the relative squared difference.
+pub(crate) type Moments = [f64; 8];
+
+pub(crate) fn moments(head: f64, tail: f64) -> Moments {
+    let diff = (head - tail).abs();
+    let pair = head + tail;
+    let relative = if pair > 0.0 {
+        4.0 * diff * diff / (pair * pair)
+    } else {
+        0.0
+    };
+    [
+        diff * diff,
+        diff.sqrt(),
+        head,
+        tail,
+        head * tail,
+        head * head,
+        tail * tail,
+        relative,
+    ]
+}
+
+pub(crate) fn add(sums: &mut Moments, terms: &Moments) {
+    for (s, t) in sums.iter_mut().zip(terms) {
+        *s += t;
+    }
+}
+
+/// Sample variance and the divisor applied to γ and C(h), after checking the
+/// values suit the estimator.
+#[derive(Clone, Copy)]
+pub(crate) struct Scale {
+    variance: f64,
+    divisor: f64,
+}
+
+pub(crate) fn scale(values: &[f64], estimator: Estimator, standardize: bool) -> Result<Scale> {
+    if estimator == Estimator::PairwiseRelative && values.iter().any(|&v| v < 0.0) {
+        return Err(VarioError::InvalidParameters(
+            "pairwise-relative needs non-negative values".into(),
+        ));
+    }
+    let mean = values.iter().sum::<f64>() / values.len() as f64;
+    let variance = values.iter().map(|v| (v - mean).powi(2)).sum::<f64>() / values.len() as f64;
+    let divide = standardize
+        && !matches!(
+            estimator,
+            Estimator::Correlogram | Estimator::PairwiseRelative
+        );
+    if (divide || estimator == Estimator::Covariance) && variance == 0.0 {
+        return Err(VarioError::InsufficientData("values are constant".into()));
+    }
+    let divisor = if divide { variance } else { 1.0 };
+    Ok(Scale { variance, divisor })
+}
+
+/// γ of one lag bin and, for the covariance and correlogram estimators, C(h)
+/// or ρ(h) (NaN otherwise). `None` for an empty bin or an undefined ρ(h).
+pub(crate) fn finalise(
+    sums: &Moments,
+    count: usize,
+    estimator: Estimator,
+    scale: Scale,
+) -> Option<(f64, f64)> {
+    if count == 0 {
+        return None;
+    }
+    let nf = count as f64;
+    let [sq, root, head, tail, prod, head2, tail2, relative] = sums.map(|s| s / nf);
+    let covariance = prod - head * tail;
+    let (gamma, raw) = match estimator {
+        Estimator::Matheron => (sq / 2.0, f64::NAN),
+        Estimator::CressieHawkins => {
+            // γ(h) = 0.5 · (1/N Σ |Δz|^0.5)^4 / (0.457 + 0.494/N + 0.045/N²)
+            let denom = 0.457 + 0.494 / nf + 0.045 / (nf * nf);
+            (0.5 * root.powi(4) / denom, f64::NAN)
+        }
+        Estimator::Covariance => (scale.variance - covariance, covariance),
+        Estimator::Correlogram => {
+            let spread = ((head2 - head * head) * (tail2 - tail * tail)).sqrt();
+            if spread.is_nan() || spread <= 0.0 {
+                return None;
+            }
+            let rho = covariance / spread;
+            (1.0 - rho, rho)
+        }
+        Estimator::PairwiseRelative => (relative / 2.0, f64::NAN),
+    };
+    Some((gamma / scale.divisor, raw / scale.divisor))
 }
 
 #[cfg(test)]
@@ -216,7 +308,7 @@ mod tests {
             max_lag: 100.0,
             lag_width: 10.0,
         };
-        let e = experimental(&locs, &vals, &bins, Estimator::Matheron, None).unwrap();
+        let e = experimental(&locs, &vals, &bins, Estimator::Matheron, None, false).unwrap();
         assert!(!e.lags.is_empty());
         assert_eq!(e.lags.len(), e.gammas.len());
         // Monotone increasing for a linear field.
@@ -233,7 +325,7 @@ mod tests {
             max_lag: 8.0,
             lag_width: 1.0,
         };
-        let e = experimental(&locs, &vals, &bins, Estimator::CressieHawkins, None).unwrap();
+        let e = experimental(&locs, &vals, &bins, Estimator::CressieHawkins, None, false).unwrap();
         assert!(!e.gammas.is_empty());
         assert!(e.gammas.iter().all(|g| g.is_finite() && *g >= 0.0));
     }
@@ -258,7 +350,7 @@ mod tests {
             tolerance: 10.0,
             bandwidth: None,
         };
-        let e = experimental(&locs, &vals, &bins, Estimator::Matheron, Some(&dir)).unwrap();
+        let e = experimental(&locs, &vals, &bins, Estimator::Matheron, Some(&dir), false).unwrap();
         // Only the East-West pair (0,0,0)-(10,0,0) qualifies.
         let total: usize = e.counts.iter().sum();
         assert_eq!(total, 1);
@@ -275,7 +367,7 @@ mod tests {
             max_lag: 100.0,
             lag_width: 10.0,
         };
-        let e = experimental(&locs, &vals, &bins, Estimator::Matheron, None).unwrap();
+        let e = experimental(&locs, &vals, &bins, Estimator::Matheron, None, false).unwrap();
         assert_eq!(e.counts, vec![9, 8, 7, 6, 5, 4, 3, 2, 1]);
         assert_eq!(
             e.lags,
@@ -287,7 +379,7 @@ mod tests {
     fn deterministic_across_thread_counts() {
         // The audited property: bit-identical output on any thread count. Run the
         // same estimation inside pools of several sizes and require exact equality
-        // for both estimators, omnidirectional and directional.
+        // for every estimator, omnidirectional and directional.
         let n = 300;
         let locs: Vec<(f64, f64, f64)> = (0..n)
             .map(|i| {
@@ -296,7 +388,7 @@ mod tests {
             })
             .collect();
         let vals: Vec<f64> = (0..n)
-            .map(|i| (i as f64 * 0.37).sin() * 10.0 + (i as f64 * 0.11).cos() * 3.0)
+            .map(|i| (i as f64 * 0.37).sin() * 10.0 + (i as f64 * 0.11).cos() * 3.0 + 20.0)
             .collect();
         let bins = LagBins {
             max_lag: 80.0,
@@ -309,22 +401,133 @@ mod tests {
             bandwidth: Some(30.0),
         };
 
-        for estimator in [Estimator::Matheron, Estimator::CressieHawkins] {
+        for estimator in ALL {
             for direction in [None, Some(&dir)] {
-                let reference = experimental(&locs, &vals, &bins, estimator, direction).unwrap();
+                let reference =
+                    experimental(&locs, &vals, &bins, estimator, direction, false).unwrap();
                 for k in [1usize, 2, 3, 7] {
                     let pool = rayon::ThreadPoolBuilder::new()
                         .num_threads(k)
                         .build()
                         .unwrap();
                     let e = pool
-                        .install(|| experimental(&locs, &vals, &bins, estimator, direction))
+                        .install(|| experimental(&locs, &vals, &bins, estimator, direction, false))
                         .unwrap();
                     assert_eq!(e.lags, reference.lags, "lags differ at {k} threads");
                     assert_eq!(e.gammas, reference.gammas, "gammas differ at {k} threads");
                     assert_eq!(e.counts, reference.counts, "counts differ at {k} threads");
                 }
             }
+        }
+    }
+
+    const ALL: [Estimator; 5] = [
+        Estimator::Matheron,
+        Estimator::CressieHawkins,
+        Estimator::Covariance,
+        Estimator::Correlogram,
+        Estimator::PairwiseRelative,
+    ];
+
+    /// Moving sum of seeded white noise on a unit-spaced line: stationary,
+    /// continuous at short lags, correlated up to the window width.
+    fn field(n: usize, window: usize) -> (Vec<(f64, f64, f64)>, Vec<f64>) {
+        let mut state = 42u64;
+        let noise: Vec<f64> = (0..n + window)
+            .map(|_| {
+                state = state
+                    .wrapping_mul(6364136223846793005)
+                    .wrapping_add(1442695040888963407);
+                (state >> 11) as f64 / (1u64 << 53) as f64 - 0.5
+            })
+            .collect();
+        let values = noise
+            .windows(window)
+            .take(n)
+            .map(|w| w.iter().sum())
+            .collect();
+        ((0..n).map(|i| (i as f64, 0.0, 0.0)).collect(), values)
+    }
+
+    fn run(locs: &[(f64, f64, f64)], vals: &[f64], e: Estimator, std: bool) -> Vec<f64> {
+        let bins = LagBins {
+            max_lag: 60.0,
+            lag_width: 1.0,
+        };
+        experimental(locs, vals, &bins, e, None, std)
+            .unwrap()
+            .gammas
+    }
+
+    fn variance(v: &[f64]) -> f64 {
+        let m = v.iter().sum::<f64>() / v.len() as f64;
+        v.iter().map(|x| (x - m).powi(2)).sum::<f64>() / v.len() as f64
+    }
+
+    #[test]
+    fn covariance_at_zero_lag_is_the_variance() {
+        let (locs, vals) = field(4000, 40);
+        let var = variance(&vals);
+        let bins = LagBins {
+            max_lag: 60.0,
+            lag_width: 1.0,
+        };
+        let e = experimental(&locs, &vals, &bins, Estimator::Covariance, None, false).unwrap();
+        let c = e.covariances.unwrap();
+        assert!(
+            (c[0] / var - 1.0).abs() < 0.05,
+            "C(0+) = {}, σ² = {var}",
+            c[0]
+        );
+        for (g, c) in e.gammas.iter().zip(&c) {
+            assert!((g + c - var).abs() < 1e-9);
+        }
+    }
+
+    #[test]
+    fn correlogram_is_one_minus_standardized_variogram() {
+        let (locs, vals) = field(4000, 20);
+        let rho = run(&locs, &vals, Estimator::Correlogram, false);
+        let gamma = run(&locs, &vals, Estimator::Matheron, true);
+        for (r, g) in rho.iter().zip(&gamma) {
+            assert!((r - g).abs() < 0.1, "1 − ρ = {r}, γ/σ² = {g}");
+        }
+        let affine: Vec<f64> = vals.iter().map(|v| 3.0 * v - 7.0).collect();
+        let shifted = run(&locs, &affine, Estimator::Correlogram, false);
+        for (a, r) in shifted.iter().zip(&rho) {
+            assert!((a - r).abs() < 1e-9);
+        }
+    }
+
+    #[test]
+    fn pairwise_relative_is_scale_invariant() {
+        let (locs, vals) = field(500, 10);
+        let vals: Vec<f64> = vals.iter().map(|v| v + 10.0).collect();
+        let scaled: Vec<f64> = vals.iter().map(|v| 250.0 * v).collect();
+        let a = run(&locs, &vals, Estimator::PairwiseRelative, false);
+        let b = run(&locs, &scaled, Estimator::PairwiseRelative, false);
+        for (a, b) in a.iter().zip(&b) {
+            assert!((a - b).abs() <= 1e-12 * a.abs());
+        }
+        let negative = vec![-1.0; vals.len()];
+        let bins = LagBins::default();
+        let e = Estimator::PairwiseRelative;
+        assert!(experimental(&locs, &negative, &bins, e, None, false).is_err());
+    }
+
+    #[test]
+    fn standardize_divides_by_the_variance() {
+        let (locs, vals) = field(500, 10);
+        let var = variance(&vals);
+        for e in &ALL[..3] {
+            let raw = run(&locs, &vals, *e, false);
+            for (s, r) in run(&locs, &vals, *e, true).iter().zip(&raw) {
+                assert!((s - r / var).abs() < 1e-12);
+            }
+        }
+        let vals: Vec<f64> = vals.iter().map(|v| v + 10.0).collect();
+        for e in &ALL[3..] {
+            assert_eq!(run(&locs, &vals, *e, true), run(&locs, &vals, *e, false));
         }
     }
 }

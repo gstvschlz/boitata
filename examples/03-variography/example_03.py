@@ -93,3 +93,24 @@ b.set_xlabel("Lag distance (m)")
 b.set_ylabel("γ(h) (ppm²)")
 b.legend(loc="lower right", title="marker area ∝ pairs", title_fontsize=8)
 save(fig, "variogram")
+
+
+# %% [markdown]
+# Other estimators along the major axis, with `standardize=True` so the classical and covariance curves share a unit
+# sill with the correlogram. Covariance and correlogram use each lag's own head and tail means; the pairwise-relative
+# variogram scales every squared difference by the pair mean, so it ignores the grade level.
+
+# %%
+fig, ax = plt.subplots(figsize=(6, 3.4), layout="constrained")
+styles = {"matheron": "-", "covariance": "--", "correlogram": "-.", "pairwise-relative": ":"}
+for name, style in styles.items():
+    exp = cs.experimental_variogram(xy, v, lag, max_lag, azimuth=azimuth, estimator=name, standardize=True)
+    ax.plot(exp.lags, exp.gammas, style, color=ACCENT if name == "matheron" else INK, label=name)
+ax.axhline(1, color=GREY, lw=0.8)
+ax.set_xlim(0, max_lag)
+ax.set_ylim(bottom=0)
+ax.set_title("Standardized estimators, major axis")
+ax.set_xlabel("Lag distance (m)")
+ax.set_ylabel("γ(h) / sill")
+ax.legend(loc="lower right")
+save(fig, "estimators")

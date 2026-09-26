@@ -5,9 +5,10 @@
 //!   cubic, pentaspherical, circular, sine-hole, Matérn, power)
 //! - [`composite`] — nugget + nested structures with optional anisotropy ([`Variogram`])
 //! - [`aniso`]  — anisotropy (rotation + range scaling)
-//! - [`empirical`] — experimental variograms (Matheron / Cressie–Hawkins, directional)
+//! - [`empirical`] — experimental variograms (classical, robust, covariance, correlogram,
+//!   pairwise relative; directional)
 //! - [`fit`]    — automatic model fitting by weighted least squares
-//! - [`surface`] — γ over a hemisphere of directions, and γ on a cut plane
+//! - [`surface`] — γ on a cut plane (variogram maps)
 //! - [`transio`] — transiograms for categorical / facies variables
 
 pub mod aniso;
@@ -27,8 +28,5 @@ pub use empirical::{Direction, Estimator, Experimental, LagBins, experimental};
 pub use error::{Result, VarioError};
 pub use fit::{FitResult, Weighting, fit};
 pub use model::{Model, Structure, is_differentiable, shape, shape_d1, shape_d2};
-pub use surface::{
-    PlaneMap, PlaneMapParams, SurfaceDirection, SurfaceParams, VariogramSurface, azimuth_dip,
-    plane_map, unit_vector, variogram_surface,
-};
+pub use surface::{PlaneMap, PlaneMapParams, azimuth_dip, plane_map, unit_vector};
 pub use transio::{EmpiricalTransiogram, Transiogram, empirical_transiogram};
