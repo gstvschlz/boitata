@@ -1,6 +1,7 @@
 //! Spatial containers, rotations and geometry shared across ceres.
 
 mod block_model;
+mod categories;
 mod error;
 mod mesh;
 pub mod nonfinite;
@@ -10,6 +11,7 @@ mod rotation;
 
 pub use arrow_array::RecordBatch;
 pub use block_model::{BlockModel, Geometry, Layout};
+pub use categories::Categories;
 pub use error::{Error, Result};
 pub use mesh::{Mesh, MeshAnalysis};
 pub use points::PointSet;

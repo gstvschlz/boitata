@@ -8,6 +8,10 @@ pub enum Error {
     InvalidCoordinates(String),
     #[error("invalid geometry: {0}")]
     Geometry(String),
+    #[error("invalid categories: {0}")]
+    Categories(String),
+    #[error("{count} labels are not categories: {labels}")]
+    UnknownLabels { count: usize, labels: String },
     #[error(transparent)]
     Arrow(#[from] arrow_schema::ArrowError),
 }
