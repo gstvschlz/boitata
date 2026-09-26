@@ -106,6 +106,7 @@ def test_nodata_numbers_match_numerically_and_strings_as_tokens(tmp_path):
 def test_arrow_interop():
     pa = pytest.importorskip("pyarrow")
     pl = pytest.importorskip("polars")
+    pytest.importorskip("pandas")
     points = cs.PointSet([[0, 0], [1, 2]], {"v": [1.0, 2.0]})
     assert pa.table(points).column_names == ["x", "y", "z", "v"]
     assert pl.DataFrame(points)["v"].to_list() == [1.0, 2.0]
