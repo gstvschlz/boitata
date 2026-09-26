@@ -1308,6 +1308,79 @@ impl Plurigaussian {
         })
     }
 
+    /// The latent fields' variograms.
+    #[getter]
+    fn variograms(&self) -> Vec<Variogram> {
+        self.variograms.iter().cloned().map(Variogram).collect()
+    }
+
+    /// Rescales the ranges of each latent variogram, keeping its structures
+    /// and anisotropy, so the indicator semivariograms the rule implies match
+    /// the experimental ones.
+    ///
+    /// Parameters
+    /// ----------
+    /// experimental : sequence of ExperimentalVariogram or None
+    ///     Omnidirectional semivariogram of each facies' indicator, in facies
+    ///     order, not standardized; None skips a facies. Lags are weighted by
+    ///     their pair counts.
+    ///
+    /// Returns
+    /// -------
+    /// Plurigaussian
+    ///     This simulator, with the fitted variograms.
+    fn fit_variograms<'py>(
+        mut slf: PyRefMut<'py, Self>,
+        experimental: Vec<Option<PyRef<crate::variogram::ExperimentalVariogram>>>,
+    ) -> PyResult<PyRefMut<'py, Self>> {
+        if experimental.len() != slf.facies() {
+            return Err(invalid(format!(
+                "give one experimental variogram per facies ({})",
+                slf.facies()
+            )));
+        }
+        let refs: Vec<Option<&variogram::Experimental>> = experimental
+            .iter()
+            .map(|e| e.as_ref().map(|e| &e.0))
+            .collect();
+        slf.variograms = simulation::fit_latent(&slf.rule, &slf.variograms, &refs).map_err(err)?;
+        Ok(slf)
+    }
+
+    /// Indicator semivariogram of each facies the rule and the latent
+    /// variograms imply, along the variograms' major axes.
+    ///
+    /// Parameters
+    /// ----------
+    /// lags : array_like, shape (m,)
+    ///
+    /// Returns
+    /// -------
+    /// ndarray, shape (k, m)
+    fn indicator_variograms<'py>(
+        &self,
+        py: Python<'py>,
+        lags: &Bound<PyAny>,
+    ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        let lags = finite(lags, "lags")?;
+        let k = self.facies();
+        let columns: Vec<Vec<f64>> = lags
+            .iter()
+            .map(|&h| {
+                let rho: Vec<f64> = self
+                    .variograms
+                    .iter()
+                    .map(|v| v.cov(h.abs()) / v.total_sill())
+                    .collect();
+                self.rule.indicator_gammas(&rho, k)
+            })
+            .collect();
+        let rows: Vec<Vec<f64>> = (0..k)
+            .map(|f| columns.iter().map(|c| c[f]).collect())
+            .collect();
+        Ok(matrix(py, &rows, lags.len()))
+    }
+
     /// Takes the conditioning data.
     ///
     /// Parameters

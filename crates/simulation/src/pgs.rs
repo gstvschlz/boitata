@@ -253,6 +253,164 @@ fn invalid(msg: impl Into<String>) -> SimError {
     SimError::InvalidParameters(msg.into())
 }
 
+/// `P(Y ≤ x, Y' ≤ y)` for standard normals of correlation `rho`, from
+/// `Φ(x)Φ(y) + (1/2π)∫₀^asin ρ exp(−(x² − 2xy·sin θ + y²) / (2cos²θ)) dθ`.
+fn cdf2(x: f64, y: f64, rho: f64) -> f64 {
+    let base = phi(x) * phi(y);
+    if !x.is_finite() || !y.is_finite() || rho == 0.0 {
+        return base;
+    }
+    let top = rho.clamp(-1.0 + 1e-12, 1.0).asin();
+    // x² − 2xy·s + y² = (x − y)² + 2xy(1 − s), and 1 − s = cos²θ / (1 + s).
+    let f = |t: f64| {
+        let (s, c) = t.sin_cos();
+        let gap = (x - y).powi(2);
+        let apart = if gap == 0.0 { 0.0 } else { gap / (2.0 * c * c) };
+        (-(apart + x * y / (1.0 + s))).exp()
+    };
+    const N: usize = 64;
+    let h = top / N as f64;
+    let simpson: f64 = (0..=N)
+        .map(|i| {
+            let w = if i == 0 || i == N {
+                1.0
+            } else if i % 2 == 1 {
+                4.0
+            } else {
+                2.0
+            };
+            w * f(i as f64 * h)
+        })
+        .sum();
+    base + simpson * h / 3.0 / (2.0 * std::f64::consts::PI)
+}
+
+/// `P(Y ∈ (a, b], Y' ∈ (c, d])` for standard normals of correlation `rho`.
+fn bivariate((a, b): (f64, f64), (c, d): (f64, f64), rho: f64) -> f64 {
+    (cdf2(b, d, rho) - cdf2(a, d, rho) - cdf2(b, c, rho) + cdf2(a, c, rho)).max(0.0)
+}
+
+impl TruncationRule {
+    /// Indicator semivariogram `pᶠ − P(facies f at x and at x + h)` of each
+    /// facies `0..k`, when latent field `j` correlates by `rho[j]` over `h`.
+    pub fn indicator_gammas(&self, rho: &[f64], k: usize) -> Vec<f64> {
+        let mut out = vec![0.0; k];
+        for r in &self.regions {
+            if r.facies >= k {
+                continue;
+            }
+            let mass: f64 = (0..rho.len())
+                .map(|j| {
+                    let (lo, hi) = r.bound(j);
+                    phi(hi) - phi(lo)
+                })
+                .product();
+            out[r.facies] += mass;
+            for s in self.regions.iter().filter(|s| s.facies == r.facies) {
+                let both: f64 = rho
+                    .iter()
+                    .enumerate()
+                    .map(|(j, &c)| bivariate(r.bound(j), s.bound(j), c))
+                    .product();
+                out[r.facies] -= both;
+            }
+        }
+        out
+    }
+}
+
+/// Latent variograms whose ranges are rescaled, one factor per field, so the
+/// indicator semivariograms the `rule` implies match `experimental`, one
+/// omnidirectional indicator semivariogram per facies (`None` to skip one),
+/// weighted by pair counts.
+pub fn fit_latent(
+    rule: &TruncationRule,
+    variograms: &[Variogram],
+    experimental: &[Option<&variogram::Experimental>],
+) -> Result<Vec<Variogram>> {
+    if variograms.is_empty() || rule.fields() > variograms.len() {
+        return Err(invalid("one variogram per latent field"));
+    }
+    // Points grouped by lag, as every facies' indicators share their pairs.
+    let mut lags: Vec<(f64, Vec<(usize, f64, f64)>)> = vec![];
+    for (f, e) in experimental.iter().enumerate() {
+        let Some(e) = e else { continue };
+        for i in 0..e.lags.len().min(e.gammas.len()).min(e.counts.len()) {
+            let (h, g, w) = (e.lags[i], e.gammas[i], e.counts[i] as f64);
+            if w <= 0.0 || !g.is_finite() || !h.is_finite() {
+                continue;
+            }
+            match lags.iter_mut().find(|l| l.0 == h) {
+                Some(l) => l.1.push((f, g, w)),
+                None => lags.push((h, vec![(f, g, w)])),
+            }
+        }
+    }
+    if lags.is_empty() {
+        return Err(SimError::InsufficientData(
+            "no experimental indicator semivariogram to fit".into(),
+        ));
+    }
+    let k = experimental.len();
+    let scaled = |vg: &Variogram, s: f64| {
+        let mut v = vg.clone();
+        v.structures.iter_mut().for_each(|st| st.range *= s);
+        v
+    };
+    let misfit = |scales: &[f64]| -> f64 {
+        let fitted: Vec<Variogram> = variograms
+            .iter()
+            .zip(scales)
+            .map(|(v, &s)| scaled(v, s))
+            .collect();
+        lags.iter()
+            .map(|(h, points)| {
+                let rho: Vec<f64> = fitted.iter().map(|v| v.cov(*h) / v.total_sill()).collect();
+                let model = rule.indicator_gammas(&rho, k);
+                points
+                    .iter()
+                    .map(|&(f, g, w)| w * (model[f] - g).powi(2))
+                    .sum::<f64>()
+            })
+            .sum()
+    };
+    // Coordinate descent on log-scales: a coarse scan, then golden section.
+    const SCAN: usize = 24;
+    let (lo, hi) = (0.02f64.ln(), 50f64.ln());
+    let mut logs = vec![0.0; variograms.len()];
+    for _ in 0..3 {
+        for j in 0..logs.len() {
+            let mut at = |t: f64| {
+                logs[j] = t;
+                misfit(&logs.iter().map(|l| l.exp()).collect::<Vec<_>>())
+            };
+            let grid: Vec<f64> = (0..=SCAN)
+                .map(|i| lo + (hi - lo) * i as f64 / SCAN as f64)
+                .collect();
+            let values: Vec<f64> = grid.iter().map(|&t| at(t)).collect();
+            let best = (0..=SCAN)
+                .min_by(|&a, &b| values[a].total_cmp(&values[b]))
+                .unwrap_or(0);
+            let (mut a, mut b) = (grid[best.saturating_sub(1)], grid[(best + 1).min(SCAN)]);
+            let r = (5f64.sqrt() - 1.0) / 2.0;
+            for _ in 0..30 {
+                let (c, d) = (b - r * (b - a), a + r * (b - a));
+                if at(c) < at(d) {
+                    b = d;
+                } else {
+                    a = c;
+                }
+            }
+            logs[j] = (a + b) / 2.0;
+        }
+    }
+    Ok(variograms
+        .iter()
+        .zip(&logs)
+        .map(|(v, l)| scaled(v, l.exp()))
+        .collect())
+}
+
 /// PGS parameters.
 #[derive(Debug, Clone)]
 pub struct PgsParams {
@@ -490,6 +648,65 @@ mod tests {
         for (s, q) in share.iter().zip(p) {
             assert!((s - q).abs() < 0.03, "shares {share:?} vs {p:?}");
         }
+    }
+
+    #[test]
+    fn bivariate_normal_matches_closed_forms() {
+        let pos = (0.0, f64::INFINITY);
+        for rho in [-0.9f64, -0.3, 0.0, 0.5, 0.95] {
+            let orthant = 0.25 + rho.asin() / (2.0 * std::f64::consts::PI);
+            assert!(
+                (bivariate(pos, pos, rho) - orthant).abs() < 1e-9,
+                "rho {rho}"
+            );
+        }
+        let i = (-0.4, 1.1);
+        let p = phi(1.1) - phi(-0.4);
+        assert!((bivariate(i, i, 0.0) - p * p).abs() < 1e-12);
+        assert!(
+            (bivariate(i, i, 1.0) - p).abs() < 1e-6,
+            "{} vs {p}",
+            bivariate(i, i, 1.0)
+        );
+    }
+
+    #[test]
+    fn fitted_latent_ranges_reproduce_indicator_variograms() {
+        let tree = split(0, vec![leaf(0), split(1, vec![leaf(1), leaf(2)])]);
+        let rule = tree.rule(&[0.3, 0.45, 0.25]);
+        let truth = [
+            Variogram::single(Model::Spherical, 1.0, 40.0),
+            Variogram::single(Model::Exponential, 1.0, 15.0),
+        ];
+        let lags: Vec<f64> = (1..=20).map(|i| i as f64 * 3.0).collect();
+        let exps: Vec<variogram::Experimental> = (0..3)
+            .map(|f| variogram::Experimental {
+                gammas: lags
+                    .iter()
+                    .map(|&h| {
+                        let rho: Vec<f64> = truth.iter().map(|v| v.cov(h)).collect();
+                        rule.indicator_gammas(&rho, 3)[f]
+                    })
+                    .collect(),
+                lags: lags.clone(),
+                counts: vec![100; lags.len()],
+                covariances: None,
+            })
+            .collect();
+        // Facies 0's semivariogram reaches p(1 − p) at the sill.
+        let sill = exps[0].gammas.last().unwrap();
+        assert!((sill - 0.3 * 0.7).abs() < 1e-6, "sill {sill}");
+        let start = [
+            Variogram::single(Model::Spherical, 1.0, 10.0),
+            Variogram::single(Model::Exponential, 1.0, 60.0),
+        ];
+        let refs: Vec<Option<&variogram::Experimental>> = exps.iter().map(Some).collect();
+        let fitted = fit_latent(&rule, &start, &refs).unwrap();
+        for (f, t) in fitted.iter().zip(&truth) {
+            let (a, b) = (f.structures[0].range, t.structures[0].range);
+            assert!((a / b - 1.0).abs() < 0.01, "range {a} vs {b}");
+        }
+        assert!(fit_latent(&rule, &start, &[None, None, None]).is_err());
     }
 
     #[test]
