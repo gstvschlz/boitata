@@ -7,7 +7,7 @@ and returns a grid of `axes` instead, and `category_colors` and `category_legend
 import numpy as np
 
 from ceres._ceres import correlation as _correlation
-from ceres._ceres import describe, normal_ppf
+from ceres._ceres import describe, normal_cdf, normal_ppf
 from ceres._ceres import swath as _swath
 from ceres._columns import column as _column
 from ceres._columns import stack as _stack
@@ -21,9 +21,12 @@ __all__ = [
     "cdf",
     "completeness",
     "conditional",
+    "contact",
     "correlation",
+    "cross_validation",
     "declustering",
     "directions",
+    "grade_tonnage",
     "histogram",
     "paired_bias",
     "probability",
@@ -1135,6 +1138,204 @@ def paired_bias(bias, *, ax=None, **kwargs):
     ax.set_xlim(lo[0], hi[-1])
     ax.set_xlabel("Pairing distance")
     ax.set_ylabel("Bias of b over a (%)")
+    return fig, ax
+
+
+def _curves(table, name):
+    """Rows of each curve in a grade-tonnage Table, split by its ``model`` and ``category`` columns."""
+    keys = [np.asarray(table[k]).astype(str) for k in ("model", "category") if k in table.column_names]
+    keys = [k for k in keys if len(np.unique(k)) > 1]
+    labels = (
+        np.array([" ".join(parts) for parts in zip(*keys, strict=True)]) if keys else np.full(len(table), "")
+    )
+    out = []
+    for label in dict.fromkeys(labels):
+        text = " ".join(filter(None, (name, label)))
+        out.append((text or None, np.flatnonzero(labels == label)))
+    return out
+
+
+def grade_tonnage(table, *, relative=False, ax=None, **kwargs):
+    """Tonnage (solid) and mean grade (dashed, right axis) above cutoff, for one curve or several in one color each.
+
+    Parameters
+    ----------
+    table : Table or dict of str to Table
+        Result of ``ceres.grade_tonnage``, ``HermiteAnamorphosis.grade_tonnage``,
+        ``UniformConditioning.grade_tonnage`` or ``ceres.compare_models``; rows are split into curves by their
+        ``model`` and ``category`` columns. A dict names several such tables.
+    relative : bool
+        Tonnage as a fraction of each curve's tonnage at its lowest cutoff, to compare samples with blocks.
+    **kwargs
+        Passed to every ``ax.plot``.
+    """
+    import matplotlib as mpl
+    from matplotlib.lines import Line2D
+
+    fig, ax = _axes(ax)
+    tables = table.items() if isinstance(table, dict) else [(None, table)]
+    curves = [(label, t, rows) for name, t in tables for label, rows in _curves(t, name)]
+    grade = ax.twinx()
+    colors = mpl.rcParams["axes.prop_cycle"].by_key()["color"]
+    handles = [
+        Line2D([], [], color="0.3", label="Tonnage"),
+        Line2D([], [], color="0.3", ls="--", label="Mean grade"),
+    ]
+    for i, (label, t, rows) in enumerate(curves):
+        cutoff = np.asarray(t["cutoff"], dtype=float)[rows]
+        order = np.argsort(cutoff, kind="stable")
+        rows, cutoff = rows[order], cutoff[order]
+        tonnage = np.asarray(t["tonnage"], dtype=float)[rows]
+        if relative:
+            tonnage = tonnage / tonnage[0]
+        color = colors[i % len(colors)]
+        ax.plot(cutoff, tonnage, color=color, **kwargs)
+        grade.plot(cutoff, np.asarray(t["mean_grade"], dtype=float)[rows], color=color, ls="--", **kwargs)
+        if label is not None:
+            handles.append(Line2D([], [], color=color, lw=6, label=label))
+    ax.set_xlabel("Cutoff")
+    ax.set_ylabel("Tonnage fraction" if relative else "Tonnage")
+    ax.set_ylim(bottom=0)
+    grade.set_ylabel("Mean grade above cutoff")
+    grade.legend(handles=handles, loc="center right", frameon=False)
+    return fig, ax
+
+
+def _accuracy_curve(cv):
+    from ceres.estimation import IndicatorCrossValidation
+
+    if isinstance(cv, IndicatorCrossValidation):
+        return cv
+    with np.errstate(divide="ignore", invalid="ignore"):
+        z = (cv.actual - cv.estimate) / np.sqrt(cv.variance)
+    pit = np.full(z.size, np.nan)
+    ok = np.isfinite(z)
+    pit[ok] = normal_cdf(z[ok])
+    return IndicatorCrossValidation(cv.actual, cv.estimate, cv.variance, [], np.empty((0, z.size)), pit)
+
+
+def cross_validation(cv, *, kind="scatter", coords=None, ax=None, **kwargs):
+    """Cross-validation as actual against estimate, as an accuracy plot, or as its errors.
+
+    Parameters
+    ----------
+    cv : CrossValidation or IndicatorCrossValidation
+        Result of ``cross_validate``.
+    kind : {"scatter", "accuracy", "errors"}
+        ``"scatter"``: actual against estimate with the 1:1 line, the regression of actual on estimate (a slope
+        below 1 is conditional bias) and the statistics. ``"accuracy"``: fraction of samples inside their
+        symmetric p-probability interval against p, with the goodness statistic; on or above the diagonal is
+        accurate. Kriging takes the Gaussian interval of its estimate and variance, indicator kriging its
+        corrected distribution. ``"errors"``: estimate minus actual mapped at `coords`, or without them a
+        histogram.
+    coords : PointSet or array_like, optional
+        Sample locations for the error map, in the order given to ``fit``.
+    **kwargs
+        Passed to ``ax.scatter`` (scatter, error map), ``ax.plot`` (accuracy) or ``ax.hist`` (histogram).
+    """
+    if kind not in ("scatter", "accuracy", "errors"):
+        raise InvalidInput(f"kind must be 'scatter', 'accuracy' or 'errors', not {kind!r}")
+    fig, ax = _axes(ax)
+    ok = np.isfinite(cv.estimate) & np.isfinite(cv.actual)
+    if kind == "scatter":
+        estimate, actual = cv.estimate[ok], cv.actual[ok]
+        kwargs.setdefault("s", 6)
+        kwargs.setdefault("alpha", 0.5)
+        ax.scatter(estimate, actual, **kwargs)
+        lo, hi = min(estimate.min(), actual.min()), max(estimate.max(), actual.max())
+        ax.plot([lo, hi], [lo, hi], color="0.5", lw=0.8, ls="--", label="1:1")
+        slope, intercept = np.polyfit(estimate, actual, 1)
+        ax.plot(
+            [lo, hi],
+            [intercept + slope * lo, intercept + slope * hi],
+            color="0.2",
+            lw=1.2,
+            label="regression",
+        )
+        rows = [
+            ("n", f"{ok.sum():,}"),
+            ("mean error", f"{cv.mean_error:.3g}"),
+            ("RMSE", f"{cv.rmse:.3g}"),
+            ("correlation", f"{cv.correlation:.2f}"),
+            ("slope", f"{slope:.2f}"),
+        ]
+        if np.isfinite(cv.variance[ok]).any():
+            rows.append(("error²/variance", f"{cv.standardized_squared_error:.2f}"))
+        width = max(len(k) for k, _ in rows)
+        text = "\n".join(f"{k.ljust(width)} {v}" for k, v in rows)
+        box = {"facecolor": "white", "alpha": 0.8, "edgecolor": "none", "pad": 2}
+        ax.text(0.03, 0.97, text, transform=ax.transAxes, va="top", family="monospace", fontsize=7, bbox=box)
+        ax.legend(loc="lower right", frameon=False)
+        ax.set_xlabel("Estimate")
+        ax.set_ylabel("Actual")
+        ax.set_aspect("equal", adjustable="datalim")
+    elif kind == "accuracy":
+        curve = _accuracy_curve(cv)
+        p = np.linspace(0, 1, 21)
+        ax.plot([0, 1], [0, 1], color="0.5", lw=0.8, ls="--")
+        kwargs.setdefault("marker", ".")
+        ax.plot(p, curve.accuracy(p), **kwargs)
+        ax.text(0.97, 0.03, f"goodness {curve.goodness:.2f}", transform=ax.transAxes, ha="right", va="bottom")
+        ax.set(xlim=(0, 1), ylim=(0, 1), aspect="equal")
+        ax.set_xlabel("Probability interval p")
+        ax.set_ylabel("Fraction of samples inside")
+    elif coords is None:
+        error = cv.error[ok]
+        kwargs.setdefault("bins", 40)
+        kwargs.setdefault("edgecolor", "white")
+        kwargs.setdefault("linewidth", 0.5)
+        ax.hist(error, weights=np.full(error.size, 1 / error.size), **kwargs)
+        ax.axvline(0, color="0.5", lw=0.8, ls="--")
+        ax.axvline(error.mean(), color="0.2", lw=1.2, label=f"mean {error.mean():.3g}")
+        ax.legend(frameon=False)
+        ax.set_xlabel("Error (estimate − actual)")
+        ax.set_ylabel("Frequency")
+    else:
+        xy = np.asarray(getattr(coords, "coords", coords), dtype=float)
+        if xy.ndim != 2 or len(xy) != len(cv.actual):
+            raise InvalidInput(f"coords must be one location per sample, {len(cv.actual)} rows")
+        error = cv.error[ok]
+        top = np.abs(error).max()
+        kwargs.setdefault("cmap", "RdBu_r")
+        kwargs.setdefault("s", 12)
+        points = ax.scatter(xy[ok, 0], xy[ok, 1], c=error, vmin=-top, vmax=top, **kwargs)
+        fig.colorbar(points, ax=ax, shrink=0.8, label="Error (estimate − actual)")
+        ax.set(xlabel="X", ylabel="Y", aspect="equal")
+    return fig, ax
+
+
+def contact(table, *, labels=("inside", "outside"), ax=None, **kwargs):
+    """Mean grade against signed distance to a contact, the sample counts as light bars; a jump at zero is a hard
+    contact, a gradual change a soft one.
+
+    Parameters
+    ----------
+    table : Table
+        Result of ``ceres.contact``; negative distances are inside.
+    labels : tuple of str
+        Names of the inside and outside domains, written on either side.
+    **kwargs
+        Passed to ``ax.plot``.
+    """
+    fig, ax = _axes(ax)
+    distance, mean = np.asarray(table["distance"], dtype=float), np.asarray(table["mean"], dtype=float)
+    n = np.asarray(table["n"], dtype=float)
+    width = np.diff(distance).min() if distance.size > 1 else 1.0
+    bars = ax.twinx()
+    bars.bar(distance, n, width=width, color="0.9", edgecolor="white", zorder=0)
+    bars.set_ylabel("Samples", color="0.5")
+    bars.tick_params(axis="y", colors="0.5")
+    ax.set_zorder(bars.get_zorder() + 1)
+    ax.patch.set_visible(False)
+    kwargs.setdefault("marker", "o")
+    kwargs.setdefault("color", _accent())
+    for side in (distance < 0, distance > 0):
+        ax.plot(distance[side], mean[side], **kwargs)
+    ax.axvline(0, color="0.3", lw=1)
+    for x, text in ((distance.min() / 2, labels[0]), (distance.max() / 2, labels[1])):
+        ax.text(x, 0.97, text, transform=ax.get_xaxis_transform(), ha="center", va="top", color="0.3")
+    ax.set_xlabel("Distance to contact")
+    ax.set_ylabel("Mean grade")
     return fig, ax
 
 
