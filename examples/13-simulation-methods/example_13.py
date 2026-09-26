@@ -194,6 +194,46 @@ save(fig, "categories")
 # area from 3 of 259 samples.
 
 # %% [markdown]
+# Proportions need not be global. Given local proportions at the samples at `fit` and at the nodes at `simulate`,
+# the rule's thresholds follow them, so each rock type is likelier where its samples cluster. Here they are the rock
+# types of the samples averaged with Gaussian weights of 300 m, shrunk towards the global proportions where samples
+# are sparse.
+
+# %%
+onehot = np.eye(5)[rock]
+
+
+def local_proportions(xy, bandwidth=0.3):
+    d2 = ((xy[:, None, :2] - train.coords[None, :, :2]) ** 2).sum(-1)
+    w = np.exp(-0.5 * d2 / bandwidth**2)
+    return (w @ onehot + proportions) / (w.sum(axis=1, keepdims=True) + 1)
+
+
+at_nodes = local_proportions(jura_grid.coords)
+hierarchy.fit(train.coords, rock, proportions=local_proportions(train.coords))
+by_local = hierarchy.simulate(jura_grid, n=1, seed=3, realizations=True, proportions=at_nodes).realizations[0]
+print(f"PGS rule, local proportions: {np.mean(by_local == true_rock):.0%} of nodes match the true rock type")
+
+# %%
+fig, axes = plt.subplots(1, 2, figsize=(9, 5.2), layout="constrained")
+im = axes[0].scatter(
+    *jura_grid.coords[:, :2].T, c=at_nodes[:, code["Argovian"]], s=7, marker="s", linewidths=0
+)
+fig.colorbar(im, ax=axes[0], shrink=0.8, orientation="horizontal", label="local Argovian proportion")
+axes[1].scatter(
+    *jura_grid.coords[:, :2].T, c=by_local, cmap=colors, vmin=-0.5, vmax=4.5, s=7, marker="s", linewidths=0
+)
+for ax, title in zip(axes, ("Local proportion of Argovian", "PGS realization, local proportions")):
+    ax.set_aspect("equal")
+    ax.set(title=title, xlabel="X (km)", ylabel="Y (km)")
+fig.legend(handles=handles, loc="outside lower center", ncol=5, frameon=False)
+save(fig, "local-proportions")
+
+# %% [markdown]
+# With local proportions, Argovian keeps to the north-west and the south where its samples are, and the realization
+# matches the true rock type at 56 % of the nodes, against 49 % with global proportions.
+
+# %% [markdown]
 # ## Grades within simulated rock types
 #
 # Simulated rock types can host the grade simulation. Fitted with `domains`, SGS normal-scores Co within each rock

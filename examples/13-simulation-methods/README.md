@@ -46,8 +46,8 @@ for name, reals, seconds in (("SGS", by_sgs, sgs_seconds), ("turning bands", by_
 </details>
 
 ```text
-          SGS: 20 realizations in 0.16 s, mean 299 ppm, variance 72174 ppm²
-turning bands: 20 realizations in 0.66 s, mean 289 ppm, variance 61368 ppm²
+          SGS: 20 realizations in 0.07 s, mean 299 ppm, variance 72174 ppm²
+turning bands: 20 realizations in 0.20 s, mean 289 ppm, variance 61368 ppm²
 ```
 
 <details><summary>Python</summary>
@@ -245,6 +245,60 @@ the proportions closely, but its rule only allows contacts between neighbours in
 as specks along every Sequanian-Quaternary contact. The hierarchical rule puts Portlandian next to Kimmeridgian and
 under the cover, as in the true map, and matches about as many nodes as SIS. None recovers Portlandian's 5 % of the
 area from 3 of 259 samples.
+
+Proportions need not be global. Given local proportions at the samples at `fit` and at the nodes at `simulate`,
+the rule's thresholds follow them, so each rock type is likelier where its samples cluster. Here they are the rock
+types of the samples averaged with Gaussian weights of 300 m, shrunk towards the global proportions where samples
+are sparse.
+
+<details><summary>Python</summary>
+
+```python
+onehot = np.eye(5)[rock]
+
+
+def local_proportions(xy, bandwidth=0.3):
+    d2 = ((xy[:, None, :2] - train.coords[None, :, :2]) ** 2).sum(-1)
+    w = np.exp(-0.5 * d2 / bandwidth**2)
+    return (w @ onehot + proportions) / (w.sum(axis=1, keepdims=True) + 1)
+
+
+at_nodes = local_proportions(jura_grid.coords)
+hierarchy.fit(train.coords, rock, proportions=local_proportions(train.coords))
+by_local = hierarchy.simulate(jura_grid, n=1, seed=3, realizations=True, proportions=at_nodes).realizations[0]
+print(f"PGS rule, local proportions: {np.mean(by_local == true_rock):.0%} of nodes match the true rock type")
+```
+
+</details>
+
+```text
+PGS rule, local proportions: 56% of nodes match the true rock type
+```
+
+<details><summary>Python</summary>
+
+```python
+fig, axes = plt.subplots(1, 2, figsize=(9, 5.2), layout="constrained")
+im = axes[0].scatter(
+    *jura_grid.coords[:, :2].T, c=at_nodes[:, code["Argovian"]], s=7, marker="s", linewidths=0
+)
+fig.colorbar(im, ax=axes[0], shrink=0.8, orientation="horizontal", label="local Argovian proportion")
+axes[1].scatter(
+    *jura_grid.coords[:, :2].T, c=by_local, cmap=colors, vmin=-0.5, vmax=4.5, s=7, marker="s", linewidths=0
+)
+for ax, title in zip(axes, ("Local proportion of Argovian", "PGS realization, local proportions")):
+    ax.set_aspect("equal")
+    ax.set(title=title, xlabel="X (km)", ylabel="Y (km)")
+fig.legend(handles=handles, loc="outside lower center", ncol=5, frameon=False)
+save(fig, "local-proportions")
+```
+
+</details>
+
+![local-proportions](local-proportions.png)
+
+With local proportions, Argovian keeps to the north-west and the south where its samples are, and the realization
+matches the true rock type at 56 % of the nodes, against 49 % with global proportions.
 
 ## Grades within simulated rock types
 

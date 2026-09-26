@@ -761,7 +761,13 @@ class Plurigaussian:
         rule: PlurigaussianRule | None = None,
         regions: Sequence[tuple[Sequence[tuple[float, float]], int]] | None = None,
     ) -> None: ...
-    def fit(self, coords: ArrayLike, facies: ArrayLike, holes: Holes | None = None) -> Plurigaussian: ...
+    def fit(
+        self,
+        coords: ArrayLike,
+        facies: ArrayLike,
+        holes: Holes | None = None,
+        proportions: ArrayLike | None = None,
+    ) -> Plurigaussian: ...
     def simulate(
         self,
         targets: Any,
@@ -769,6 +775,7 @@ class Plurigaussian:
         seed: int = 0,
         realizations: bool = False,
         blocks: BlockModel | None = None,
+        proportions: ArrayLike | None = None,
     ) -> CategoricalSummary: ...
 
 class SimulationSummary:
