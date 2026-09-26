@@ -251,3 +251,24 @@ def test_polylines_shapefile_round_trip(tmp_path):
     assert back.closed.tolist() == [True, True] and back.feature.tolist() == [0, 0]
     with pytest.raises(cs.InvalidInput):
         cs.write_shapefile(tmp_path / "mixed.shp", cs.Polylines([pit, hole[:2]], closed=[True, False]))
+
+
+def test_polylines_arrow_long_table_and_parquet(tmp_path):
+    pl = pytest.importorskip("polars")
+    pit = [[0, 0, 1], [10, 0, 1], [10, 10, 1], [0, 10, 1]]
+    hole = [[4, 4, 1], [6, 4, 1], [6, 6, 1], [4, 6, 1]]
+    pits = cs.Polylines(
+        [pit, hole, pit[:3]], closed=True, features=[0, 0, 1], attributes={"ID": ["a", "b"]}, crs="EPSG:31982"
+    )
+    frame = pl.DataFrame(pits)
+    assert frame.height == 2 and frame["closed"].to_list() == [[True, True], [True]]
+    assert frame["geometry"][0][1][0] == {"x": 4.0, "y": 4.0, "z": 1.0}
+
+    long = pl.DataFrame(pits.to_points()).drop("feature").rename({"x": "X", "y": "Y"})
+    back = cs.Polylines.from_table(long, z="z", part="part", closed=True, crs=pits.crs)
+    assert pl.DataFrame(back).equals(frame) and back.crs == pits.crs
+
+    cs.write_parquet(tmp_path / "pits.parquet", pits)
+    back = cs.read_parquet(tmp_path / "pits.parquet")
+    assert isinstance(back, cs.Polylines) and back.crs == pits.crs
+    assert pl.DataFrame(back).equals(frame)

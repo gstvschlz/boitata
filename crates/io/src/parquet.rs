@@ -12,7 +12,7 @@ use arrow_array::types::{Float64Type, UInt64Type};
 use arrow_array::{ArrayRef, Float64Array, RecordBatch, RecordBatchOptions, UInt64Array};
 use arrow_schema::{Field, Schema};
 use arrow_select::concat::concat_batches;
-use ceres_core::{BlockModel, Geometry, Layout, PointSet};
+use ceres_core::{BlockModel, Geometry, Layout, PointSet, Polylines};
 use parquet::arrow::arrow_reader::{ParquetRecordBatchReader, ParquetRecordBatchReaderBuilder};
 use parquet::arrow::{ArrowWriter, ProjectionMask};
 use parquet::basic::{Compression, ZstdLevel};
@@ -40,6 +40,7 @@ pub enum Stored {
     Table(RecordBatch),
     Points(PointSet),
     Blocks(BlockModel),
+    Polylines(Polylines),
 }
 
 fn properties() -> WriterProperties {
@@ -78,6 +79,12 @@ pub fn write_parquet(path: impl AsRef<Path>, table: &RecordBatch) -> Result<()> 
 pub fn write_points(path: impl AsRef<Path>, points: &PointSet) -> Result<()> {
     let meta = json!({ "kind": "points", "crs": points.crs });
     write(path.as_ref(), &points.to_table()?, Some(meta.to_string()))
+}
+
+/// Writes polylines one row per feature, as [`Polylines::to_table`].
+pub fn write_polylines(path: impl AsRef<Path>, lines: &Polylines) -> Result<()> {
+    let meta = json!({ "kind": "polylines", "crs": lines.crs });
+    write(path.as_ref(), &lines.to_table()?, Some(meta.to_string()))
 }
 
 /// How a block model file stores its rows; the same for every chunk.
@@ -375,21 +382,28 @@ pub fn read_parquet(path: impl AsRef<Path>) -> Result<Stored> {
     };
     let meta: Value = serde_json::from_str(meta).map_err(|e| bad(e.to_string()))?;
     let crs = meta["crs"].as_str().map(str::to_string);
+    let mut metadata: HashMap<String, String> = schema.metadata().clone();
+    metadata.remove(KEY);
+    let plain = || {
+        RecordBatch::try_new_with_options(
+            Arc::new(Schema::new_with_metadata(
+                table.schema().fields().clone(),
+                metadata.clone(),
+            )),
+            table.columns().to_vec(),
+            &RecordBatchOptions::new().with_row_count(Some(table.num_rows())),
+        )
+    };
     match meta["kind"].as_str() {
         Some("points") => {
-            let mut metadata: HashMap<String, String> = schema.metadata().clone();
-            metadata.remove(KEY);
-            let table = RecordBatch::try_new_with_options(
-                Arc::new(Schema::new_with_metadata(
-                    table.schema().fields().clone(),
-                    metadata,
-                )),
-                table.columns().to_vec(),
-                &RecordBatchOptions::new().with_row_count(Some(table.num_rows())),
-            )?;
-            let mut points = PointSet::from_table(&table, "x", "y", Some("z"))?;
+            let mut points = PointSet::from_table(&plain()?, "x", "y", Some("z"))?;
             points.crs = crs;
             Ok(Stored::Points(points))
+        }
+        Some("polylines") => {
+            let mut lines = Polylines::from_nested(&plain()?)?;
+            lines.crs = crs;
+            Ok(Stored::Polylines(lines))
         }
         Some("block_model") => Ok(Stored::Blocks(decode(
             geometry(&meta)?,
@@ -623,6 +637,36 @@ mod tests {
         assert_eq!(back.coords(), points.coords());
         assert_eq!(back.attributes(), points.attributes());
         assert_eq!(back.crs, points.crs);
+    }
+
+    #[test]
+    fn polylines_round_trip() {
+        let square = |o: f64, s: f64| {
+            [
+                [o, o, 1.],
+                [o + s, o, 1.],
+                [o + s, o + s, 1.],
+                [o, o + s, 1.],
+            ]
+        };
+        let mut v = [square(0., 10.), square(4., 2.)].concat();
+        v.extend([[20., 0., 5.], [30., 0., 5.], [40., 5., 5.], [50., 5., 5.]]);
+        let mut lines = Polylines::new(
+            v,
+            vec![0, 4, 8, 10, 12],
+            vec![0, 2, 2, 4],
+            vec![true, true, false, false],
+            attributes(3),
+        )
+        .unwrap();
+        lines.crs = Some("EPSG:31982".into());
+        write_polylines(temp("l.parquet"), &lines).unwrap();
+        let Stored::Polylines(back) = read_parquet(temp("l.parquet")).unwrap() else {
+            panic!("expected polylines")
+        };
+        assert_eq!(back.to_table().unwrap(), lines.to_table().unwrap());
+        assert_eq!(back.crs, lines.crs);
+        assert!(back.feature_parts(1).is_empty());
     }
 
     #[test]

@@ -283,6 +283,68 @@ impl PyPolylines {
             describe(self.0.attributes())
         )
     }
+
+    /// Builds polylines from a long table with one row per vertex.
+    ///
+    /// Parameters
+    /// ----------
+    /// table : table-like
+    ///     Any Arrow-compatible table (polars, pandas, pyarrow).
+    /// feature : str, default "ID"
+    ///     Column identifying the feature of each vertex. Features are ordered
+    ///     by first appearance; a feature without rows cannot be expressed.
+    /// x, y : str, default "X", "Y"
+    ///     Coordinate columns.
+    /// z : str, optional
+    ///     Elevation column; z = 0 without it.
+    /// part : str, optional
+    ///     Column identifying the part within a feature, ordered by first
+    ///     appearance; without it each feature is one part.
+    /// closed : bool, default False
+    ///     Whether every part is a ring.
+    /// crs : str, optional
+    ///
+    /// Returns
+    /// -------
+    /// Polylines
+    ///     Vertices keep their row order within a part. Attributes, the
+    ///     ``feature`` column included, come from each feature's first row;
+    ///     the coordinate and ``part`` columns are dropped.
+    #[staticmethod]
+    #[pyo3(signature = (table, feature="ID", x="X", y="Y", z=None, part=None, closed=false, crs=None))]
+    #[allow(clippy::too_many_arguments)]
+    fn from_table(
+        table: &Bound<PyAny>,
+        feature: &str,
+        x: &str,
+        y: &str,
+        z: Option<&str>,
+        part: Option<&str>,
+        closed: bool,
+        crs: Option<String>,
+    ) -> PyResult<Self> {
+        let table = to_batch(table)?;
+        let mut lines =
+            Polylines::from_table(&table, feature, x, y, z, part, closed).map_err(core_error)?;
+        lines.crs = crs;
+        Ok(Self(lines))
+    }
+
+    /// One row per feature: the attributes, ``geometry`` as a list of parts,
+    /// each a list of ``{x, y, z}`` structs, and ``closed`` as a list of flags.
+    fn to_table(&self) -> PyResult<Table> {
+        Ok(Table(self.0.to_table().map_err(core_error)?))
+    }
+
+    #[pyo3(signature = (requested_schema=None))]
+    fn __arrow_c_stream__<'py>(
+        &self,
+        py: Python<'py>,
+        requested_schema: Option<Bound<'py, PyCapsule>>,
+    ) -> PyArrowResult<Bound<'py, PyCapsule>> {
+        let table = self.0.to_table().map_err(core_error)?;
+        arrow_c_stream(py, &table, requested_schema)
+    }
 }
 
 /// Regular or masked grid of blocks, 2D or 3D, optionally rotated.
