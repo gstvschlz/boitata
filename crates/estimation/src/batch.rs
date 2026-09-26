@@ -7,8 +7,8 @@ use crate::error::EstimError;
 use crate::search::{Search, SearchTree};
 use crate::{Result, Sample};
 
-/// Selects the neighbours of every target and applies `estimator` to them, in
-/// parallel. A target with too few neighbours, or whose system fails, gives
+/// Selects the neighbors of every target and applies `estimator` to them, in
+/// parallel. A target with too few neighbors, or whose system fails, gives
 /// `None`. The output follows `targets` and does not depend on the number of
 /// threads. `domains`, one code per target, confines each target to the
 /// samples of its domain, and of others within [`Search::soft`].
@@ -57,7 +57,7 @@ where
     Ok(out)
 }
 
-/// Estimates every sample from its neighbours with the sample itself left out.
+/// Estimates every sample from its neighbors with the sample itself left out.
 pub fn leave_one_out_many<F, T>(
     samples: &[Sample],
     search: &Search,
@@ -327,7 +327,7 @@ mod tests {
     }
 
     #[test]
-    fn kriging_honours_the_data() {
+    fn kriging_honors_the_data() {
         let samples = samples();
         let vg = Variogram::single(Model::Spherical, 1.0, 40.0);
         let search = Search {

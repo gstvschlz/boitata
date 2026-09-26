@@ -185,8 +185,8 @@ pub struct RbfSpec {
     pub smoothing: f64,
     /// Ridge on boundary picks specifically, relative to the value scale.
     ///
-    /// A contact pick is a human judgement about where a boundary runs, and two
-    /// picks a metre apart on opposite sides of the truth are a contradiction
+    /// A contact pick is a human judgment about where a boundary runs, and two
+    /// picks a meter apart on opposite sides of the truth are a contradiction
     /// the exact interpolant has to spike to satisfy. A little slack here keeps
     /// a slightly inconsistent set of picks from making the system singular.
     pub boundary_tolerance: f64,
@@ -196,7 +196,7 @@ pub struct RbfSpec {
     /// block has a zero diagonal; that is not fatal on its own but leaves the
     /// system leaning entirely on the value rows for its pivots. A small
     /// positive value here also absorbs genuinely conflicting readings — two
-    /// dips a few centimetres apart that disagree.
+    /// dips a few centimeters apart that disagree.
     pub gradient_nugget: f64,
     pub anisotropy: Option<Angles>,
 }
@@ -296,7 +296,7 @@ impl Rbf {
         Self::fit_constraints(&set, spec)
     }
 
-    /// Fit a field honouring values, boundary picks and derivative rows at once.
+    /// Fit a field honoring values, boundary picks and derivative rows at once.
     pub fn fit_constraints(set: &ConstraintSet, spec: &RbfSpec) -> Result<Self> {
         set.validate()?;
         if spec.smoothing < 0.0 || spec.boundary_tolerance < 0.0 || spec.gradient_nugget < 0.0 {
@@ -376,7 +376,7 @@ impl Rbf {
             .collect();
 
         // Ridge on the value scale, so the tolerances read the same whatever
-        // the units of the modelled variable are.
+        // the units of the modeled variable are.
         let value_scale = value_scale(&set.values.iter().map(|v| v.value).collect::<Vec<_>>());
         let lambda = spec.smoothing * value_scale;
         let boundary_lambda = spec.boundary_tolerance * value_scale;
@@ -517,10 +517,10 @@ impl Rbf {
         sum
     }
 
-    /// Field gradient at a world-space point, in field units per metre.
+    /// Field gradient at a world-space point, in field units per meter.
     ///
     /// Analytic, not differenced — and the thing a structural constraint is
-    /// posed against, so `gradient_honours_a_structural_reading` uses it to
+    /// posed against, so `gradient_honors_a_structural_reading` uses it to
     /// check the fit did what it was told.
     pub fn gradient(&self, p: &[f64; 3]) -> [f64; 3] {
         let q = self.to_normalized(p);
@@ -979,7 +979,7 @@ mod tests {
     }
 
     /// The tolerance exists so contradictory picks relax instead of making the
-    /// system spike; with it, the fit no longer honours them exactly.
+    /// system spike; with it, the fit no longer honors them exactly.
     #[test]
     fn the_boundary_tolerance_relaxes_conflicting_picks() {
         let mut set = ConstraintSet::new();
@@ -1016,7 +1016,7 @@ mod tests {
     /// The point of the whole file: a structural reading must actually steer
     /// the field's gradient at the place it was taken.
     #[test]
-    fn gradient_honours_a_structural_reading() {
+    fn gradient_honors_a_structural_reading() {
         let plane = Plane {
             dip: 40.0,
             dip_direction: 90.0,
@@ -1125,7 +1125,7 @@ mod tests {
         // The dips break that symmetry from 50 m away. They do not rotate the
         // field all the way to the reading's own 45° (which would be ~0.707):
         // the eight value rows still pull towards flat, and a fit that ignored
-        // them to honour two orientations would be the worse answer. Moving
+        // them to honor two orientations would be the worse answer. Moving
         // from nothing to a third of the way is the constraint doing its job.
         assert!(
             easting_share(&tilted) > 0.25,

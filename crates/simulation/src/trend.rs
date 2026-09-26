@@ -308,7 +308,7 @@ mod tests {
     }
 
     #[test]
-    fn honours_data_and_ignores_thread_count() {
+    fn honors_data_and_ignores_thread_count() {
         let (locs, values, trend, weights) = samples();
         let conditioning = TrendConditioning::fit(&values, &trend, Some(&weights), 10).unwrap();
         let nodes = [&locs[..30], &grid()[..100]].concat();

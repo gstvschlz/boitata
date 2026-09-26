@@ -2,7 +2,7 @@
 //! polygon.
 //!
 //! Complements the point-in-solid test ([`is_inside`](crate::is_inside)) with metric
-//! proximity: how far a sample or block centre is from a wireframe surface /
+//! proximity: how far a sample or block center is from a wireframe surface /
 //! solid, or from a domain outline. Useful for domain-margin flags, halo
 //! selection, and distance-to-vein attributes.
 //!

@@ -7,7 +7,7 @@
 //! falling in it (`Interpolation::Global`) or is uniform (`Linear`); the last
 //! class may take a power or hyperbolic model instead.
 //!
-//! Localisation gives each panel's selective blocks the band means
+//! Localization gives each panel's selective blocks the band means
 //! ([`transforms::localize`]) of the panel's distribution after an affine
 //! change of support, `m + √f·(z − m)`, with `f` the variance of the blocks
 //! within the panel over that of the points within it.
@@ -638,7 +638,7 @@ impl MultipleIndicator {
             .collect()
     }
 
-    /// Localised grades of the selective blocks `smus` nested in `panels`.
+    /// Localized grades of the selective blocks `smus` nested in `panels`.
     ///
     /// Each panel's point-support conditional distribution, kriged at its
     /// centroid or, with `discretization`, over the panel, takes an affine
@@ -734,7 +734,7 @@ impl MultipleIndicator {
     }
 }
 
-/// Mean covariance, nugget excluded, within a box of `size` discretised by
+/// Mean covariance, nugget excluded, within a box of `size` discretized by
 /// `n` points per axis, in the frame `frame`.
 fn mean_covariance(vg: &Variogram, frame: &Matrix3<f64>, size: [f64; 3], n: [usize; 3]) -> f64 {
     let mut points = vec![];
@@ -761,7 +761,7 @@ fn mean_covariance(vg: &Variogram, frame: &Matrix3<f64>, size: [f64; 3], n: [usi
 
 /// Variance of the selective blocks within a panel over that of the points
 /// within it, `(C̄(v, v) − C̄(V, V)) / (C(0) − C̄(V, V))`, the nugget left
-/// out of the block averages. Blocks are discretised by 4 points per axis,
+/// out of the block averages. Blocks are discretized by 4 points per axis,
 /// panels by 4 per block up to 12 per axis; one point vertically in a grid
 /// one panel high.
 pub fn variance_factor(vg: &Variogram, panels: &BlockModel, smus: &BlockModel) -> Result<f64> {
@@ -1126,13 +1126,13 @@ mod tests {
         BlockModel::regular(g, batch).unwrap()
     }
 
-    struct Localised {
+    struct Localized {
         panel: Vec<usize>,
         ranking: Vec<Option<f64>>,
         grades: Vec<f64>,
     }
 
-    fn localised(m: &MultipleIndicator, samples: &[Sample], f: Option<f64>) -> Localised {
+    fn localized(m: &MultipleIndicator, samples: &[Sample], f: Option<f64>) -> Localized {
         let (panels, smus) = (panels(0.0), panels(0.0).discretize([4, 4, 1]).unwrap());
         let ranking: Vec<Option<f64>> = smus
             .centroids()
@@ -1159,14 +1159,14 @@ mod tests {
             .into_iter()
             .map(Option::unwrap)
             .collect();
-        Localised {
+        Localized {
             panel,
             ranking,
             grades,
         }
     }
 
-    impl Localised {
+    impl Localized {
         /// Each panel's grades in ascending rank.
         fn ranked(&self, panel: usize) -> Vec<f64> {
             let mut rows: Vec<usize> = (0..self.panel.len())
@@ -1206,13 +1206,13 @@ mod tests {
     }
 
     #[test]
-    fn localisation_without_change_of_support_gives_point_band_means() {
+    fn localization_without_change_of_support_gives_point_band_means() {
         let samples = data(150, 13);
         let m = model(
             vec![0.3, 0.7, 1.2, 2.0],
             vec![Variogram::single(Model::Spherical, 1.0, 40.0)],
         );
-        let out = localised(&m, &samples, Some(1.0));
+        let out = localized(&m, &samples, Some(1.0));
         let (global, raw) = kriged_panels(&m, &samples);
         for (p, raw) in raw.iter().enumerate() {
             let expected = m.band_means(&global, raw, 16);
@@ -1223,7 +1223,7 @@ mod tests {
     }
 
     #[test]
-    fn localised_panels_keep_their_mean_rank_order_and_curve() {
+    fn localized_panels_keep_their_mean_rank_order_and_curve() {
         let samples = data(200, 17);
         let f = 0.45;
         for interpolation in [Interpolation::Global, Interpolation::Linear] {
@@ -1235,7 +1235,7 @@ mod tests {
                     vec![Variogram::single(Model::Spherical, 1.0, 40.0)],
                 )
             };
-            let out = localised(&m, &samples, Some(f));
+            let out = localized(&m, &samples, Some(f));
             let tonnages: Vec<f64> = (1..16).map(|k| 1.0 - k as f64 / 16.0).collect();
             let s = m
                 .predict(
@@ -1269,7 +1269,7 @@ mod tests {
     }
 
     #[test]
-    fn localisation_does_not_depend_on_thread_count() {
+    fn localization_does_not_depend_on_thread_count() {
         let samples = data(200, 19);
         let m = model(
             vec![0.5, 1.0, 2.0],
@@ -1280,7 +1280,7 @@ mod tests {
                 .num_threads(threads)
                 .build()
                 .unwrap()
-                .install(|| localised(&m, &samples, None).grades)
+                .install(|| localized(&m, &samples, None).grades)
         };
         assert_eq!(run(1), run(8));
     }

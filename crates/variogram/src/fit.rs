@@ -329,7 +329,7 @@ pub struct AnisotropySpec {
 /// ranges the nugget and sills are solved exactly as in [`fit_nested`]. The
 /// start rescales the pooled isotropic fit per direction: the inverse squared
 /// scale is a quadratic form in the direction, fitted by least squares and
-/// diagonalised for the axes. Angles, ratios and ranges are then refined by
+/// diagonalized for the axes. Angles, ratios and ranges are then refined by
 /// coordinate descent, deterministically. Ranges without bounds stay within
 /// the largest lag. When every direction is horizontal, dip, rake and
 /// the minor ratio default to 0, 0 and 1. Free angles come back
@@ -867,7 +867,7 @@ struct Pair {
 /// otherwise the matrices are updated in turn, each by a weighted
 /// least-squares step projected on the positive semi-definite cone by clipping
 /// negative eigenvalues. With the same lags and counts for every pair each step
-/// is the exact minimiser, and one variable gives [`fit_nested`]. The ranges,
+/// is the exact minimizer, and one variable gives [`fit_nested`]. The ranges,
 /// and with `geometry` the angles and ratios, start from [`fit_nested`] or
 /// [`fit_directional`] on the sill-scaled direct variograms and are refined
 /// by coordinate descent, deterministically. `spec` takes one to three structures with optional range
@@ -1066,7 +1066,7 @@ pub fn fit_coregionalization(
     })
 }
 
-/// The nugget and structure matrices (sill-scaled) minimising the weighted SSE
+/// The nugget and structure matrices (sill-scaled) minimizing the weighted SSE
 /// for fixed ranges, exactly per pair or by block-wise projected steps; weights
 /// depending on the
 /// model are iterated as in [`fit_nested`].
@@ -1264,7 +1264,7 @@ mod tests {
     #[test]
     fn downhole_pairs_recover_the_nugget() {
         // Vertical holes 0.3 m apart, each an independent exponential process
-        // (sill 1, range 20 m) plus a 0.3 nugget, sampled every metre: pairs
+        // (sill 1, range 20 m) plus a 0.3 nugget, sampled every meter: pairs
         // across holes would read the full sill at the shortest lags.
         use rand::{SeedableRng, rngs::StdRng};
         use rand_distr::{Distribution, StandardNormal};
@@ -1425,7 +1425,7 @@ mod tests {
     }
 
     #[test]
-    fn nested_bounds_are_honoured() {
+    fn nested_bounds_are_honored() {
         let exp = exact(&two_structures());
         let mut spec = free(&[Model::Spherical; 2]);
         spec.nugget = Some((0.0, 0.05));
@@ -1628,7 +1628,7 @@ mod tests {
     }
 
     #[test]
-    fn joint_fit_honours_fixed_angles_and_rejects_bad_input() {
+    fn joint_fit_honors_fixed_angles_and_rejects_bad_input() {
         let truth = rotated(35.0, 20.0, 50.0, 0.6, 0.25);
         let (dirs, spec) = (sphere(), free(&[Model::Spherical; 2]));
         let exps = along(&truth, &dirs);

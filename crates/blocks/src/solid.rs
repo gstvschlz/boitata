@@ -54,7 +54,7 @@ impl Aabb {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum BlockDomainRule {
-    /// Inside when the block's centre point is inside. The cheapest rule and
+    /// Inside when the block's center point is inside. The cheapest rule and
     /// the one most packages default to; ignores how much of the block is in.
     Centroid,
     /// Inside when more than half the block's volume is inside.
@@ -80,7 +80,7 @@ impl BlockDomainRule {
 pub struct BlockSolid {
     /// Fraction of the block's volume inside the solid, in `[0, 1]`.
     pub proportion: f64,
-    /// Whether the block's centre point itself is inside.
+    /// Whether the block's center point itself is inside.
     pub centroid_inside: bool,
 }
 
@@ -166,7 +166,7 @@ impl SolidTester {
     /// Measures one axis-aligned block against the solid.
     ///
     /// `discretization` is the sub-cell count per axis used where the surface
-    /// cuts the block: `d` means `d³` sample points at sub-cell centres, so the
+    /// cuts the block: `d` means `d³` sample points at sub-cell centers, so the
     /// proportion is a midpoint-rule estimate converging as O(1/d). Blocks the
     /// surface misses entirely are resolved exactly, without sampling.
     pub fn evaluate_block(
@@ -287,7 +287,7 @@ pub(crate) mod tests {
     fn contains_separates_inside_from_outside() {
         let solid = SolidTester::new(&cube(0.0, 10.0)).expect("valid mesh");
 
-        assert!(solid.contains([5.0, 5.0, 5.0]), "centre");
+        assert!(solid.contains([5.0, 5.0, 5.0]), "center");
         assert!(solid.contains([0.5, 0.5, 0.5]), "inside near a corner");
         assert!(solid.contains([5.0, 5.0, 9.5]), "inside just under a face");
 
@@ -349,7 +349,7 @@ pub(crate) mod tests {
     #[test]
     fn block_straddling_a_face_is_half() {
         let solid = SolidTester::new(&cube(0.0, 100.0)).expect("valid mesh");
-        // Block centred on the z = 100 face: exactly half its volume is inside.
+        // Block centered on the z = 100 face: exactly half its volume is inside.
         let block = solid.evaluate_block([50.0, 50.0, 100.0], [10.0, 10.0, 10.0], 4);
         assert!(
             (block.proportion - 0.5).abs() < 1e-9,
@@ -361,7 +361,7 @@ pub(crate) mod tests {
     #[test]
     fn block_over_a_corner_is_an_eighth() {
         let solid = SolidTester::new(&cube(0.0, 100.0)).expect("valid mesh");
-        // Centred on the (100, 100, 100) corner: one octant of the block is in.
+        // Centered on the (100, 100, 100) corner: one octant of the block is in.
         let block = solid.evaluate_block([100.0, 100.0, 100.0], [10.0, 10.0, 10.0], 4);
         assert!(
             (block.proportion - 0.125).abs() < 1e-9,
@@ -446,7 +446,7 @@ pub(crate) mod tests {
     fn discretization_of_zero_is_treated_as_one() {
         let solid = SolidTester::new(&cube(0.0, 100.0)).expect("valid mesh");
         let block = solid.evaluate_block([50.0, 50.0, 100.0], [10.0, 10.0, 10.0], 0);
-        // A single sample at the block centre, which sits on the face.
+        // A single sample at the block center, which sits on the face.
         assert!(block.proportion == 0.0 || block.proportion == 1.0);
     }
 }

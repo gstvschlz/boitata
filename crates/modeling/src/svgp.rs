@@ -45,7 +45,7 @@
 //!   factorize at all is exactly the case where f32 is not enough.
 //!
 //! The collapsed bound is what makes this tractable: `q(u)`'s mean and
-//! covariance are closed-form, so the optimiser only ever sees five scalars —
+//! covariance are closed-form, so the optimizer only ever sees five scalars —
 //! the signal variance, three lengthscales and the noise.
 //!
 //! # Covariance
@@ -58,7 +58,7 @@
 //! `variogram::is_differentiable` stays the single authority on which kernels
 //! can take a structural reading. Hensman, Fusi & Lawrence (2013) is the
 //! stochastic route to the same bound; it is not used here, because a
-//! deterministic optimiser over five parameters is both reproducible and
+//! deterministic optimizer over five parameters is both reproducible and
 //! enough.
 
 use std::collections::VecDeque;
@@ -88,7 +88,7 @@ const CHUNK: usize = 1024;
 const BOUNDARY_WEIGHT_FLOOR: f64 = 0.01;
 
 /// Points the inducing placement clusters over. `k`-means on 10⁶ composites
-/// would cost more than the fit it initialises, and the placement does not need
+/// would cost more than the fit it initializes, and the placement does not need
 /// every point to find the shape of the data.
 const PLACEMENT_SAMPLE: usize = 20_000;
 
@@ -213,7 +213,7 @@ pub struct FitReport {
     /// Evidence lower bound at the returned hyperparameters, over the full
     /// observation set.
     pub elbo: f64,
-    /// Infinity norm of the bound's gradient when the optimiser stopped.
+    /// Infinity norm of the bound's gradient when the optimizer stopped.
     pub gradient_norm: f64,
     pub inducing: usize,
     /// Observation rows the final fit conditioned on — values, boundary picks
@@ -223,7 +223,7 @@ pub struct FitReport {
     pub hyper_observations: usize,
     pub signal_variance: f64,
     pub noise_variance: f64,
-    /// Learned practical ranges along the ARD axes, in metres.
+    /// Learned practical ranges along the ARD axes, in meters.
     pub lengthscales: [f64; 3],
     /// Relative jitter the Cholesky of `Kuu` needed.
     pub jitter: f64,
@@ -252,7 +252,7 @@ pub struct SvgpSpec {
     /// Extra slack on structural rows, as a multiple of a sample's noise. 0
     /// trusts a dip exactly as far as an assay.
     pub gradient_nugget: f64,
-    /// Maximise the bound over the hyperparameters. Off keeps the starting
+    /// Maximize the bound over the hyperparameters. Off keeps the starting
     /// values, which makes this a plain sparse GP at a fixed covariance.
     pub learn_hyperparameters: bool,
     pub max_iterations: usize,
@@ -266,7 +266,7 @@ pub struct SvgpSpec {
     /// fewer rows than the posterior needs, and every search step costs
     /// `O(nm²)`.
     pub hyper_sample: usize,
-    /// Starting lengthscales in metres. `None` derives them from the extent and
+    /// Starting lengthscales in meters. `None` derives them from the extent and
     /// the inducing count (see [`default_lengthscales`]).
     pub initial_lengthscales: Option<[f64; 3]>,
     /// Starting noise as a fraction of the signal variance. A tenth: generous
@@ -540,7 +540,7 @@ impl Svgp {
             if spec.learn_hyperparameters {
                 let search = subsample(&observations, spec.hyper_sample);
                 let seen = search.len();
-                let (theta, status, iterations, gnorm) = fitter.maximise(&search, &theta0, spec)?;
+                let (theta, status, iterations, gnorm) = fitter.maximize(&search, &theta0, spec)?;
                 (theta, status, iterations, gnorm, seen)
             } else {
                 (theta0, Convergence::NotAttempted, 0, f64::NAN, 0)
@@ -956,13 +956,13 @@ impl Fitter<'_> {
         Ok((alpha, var_form))
     }
 
-    /// Maximise the bound by L-BFGS with an Armijo backtracking line search.
+    /// Maximize the bound by L-BFGS with an Armijo backtracking line search.
     ///
     /// Projected: every parameter is clamped to a band around where it started,
     /// which is what keeps a poorly conditioned dataset from walking the
     /// lengthscale off to infinity instead of reporting that it could not do
     /// better.
-    fn maximise(
+    fn maximize(
         &self,
         obs: &Observations,
         theta0: &[f64; 5],
@@ -971,7 +971,7 @@ impl Fitter<'_> {
         let bounds = parameter_bounds(theta0);
         let mut theta = clamp(*theta0, &bounds);
         let (elbo0, grad0, _) = self.elbo_and_gradient(obs, &theta, true)?;
-        // The optimiser minimises, so it carries −L throughout.
+        // The optimizer minimizes, so it carries −L throughout.
         let mut f = -elbo0;
         let mut grad = grad0;
         let mut g: Vec<f64> = grad0.iter().map(|v| -v).collect();
@@ -1164,12 +1164,12 @@ fn extent_of(set: &ConstraintSet) -> [f64; 3] {
 
 /// Starting ranges tied to the resolution the inducing set can actually carry.
 ///
-/// This is the initialisation #320 asks to be got right, and the one place the
+/// This is the initialization #320 asks to be got right, and the one place the
 /// engine is genuinely easy to break. `m` inducing points spread over the data
 /// sit about `extent/∛m` apart on each axis; a range shorter than that
 /// describes structure the sparse approximation cannot represent, so the trace
 /// correction `−½tr(Σ⁻¹(Kff − Qff))` — which charges the fit for exactly that
-/// unexplained variance — dominates the bound from the first step. The optimiser
+/// unexplained variance — dominates the bound from the first step. The optimizer
 /// then buys its improvement the cheap way, by shrinking the signal variance
 /// until the data is all noise, and reports a perfectly converged fit to an
 /// empty field.
@@ -1201,7 +1201,7 @@ fn default_lengthscales(extent: &[f64; 3], inducing: usize) -> [f64; 3] {
 /// genuinely spans orders of magnitude and the starting guess is only a
 /// heuristic. The noise gets the least room *upwards*: `σ²` starts at a tenth of
 /// the data's variance and may reach it but not exceed it, because a noise
-/// larger than the whole signal is not a fit, it is the optimiser declining to
+/// larger than the whole signal is not a fit, it is the optimizer declining to
 /// fit — the degenerate optimum [`default_lengthscales`] describes, reached from
 /// the other side.
 fn parameter_bounds(theta0: &[f64; 5]) -> [(f64, f64); 5] {
@@ -1233,7 +1233,7 @@ fn clamp(mut theta: [f64; 5], bounds: &[(f64, f64); 5]) -> [f64; 5] {
 /// Turn the constraint set into rows the bound can walk: detrended, and with
 /// the noise weight each kind of observation earns.
 ///
-/// A derivative residual carries units of field per metre, so it cannot share a
+/// A derivative residual carries units of field per meter, so it cannot share a
 /// variance with a value residual as it stands. The row's own prior variance is
 /// the conversion — dividing by it puts a structural row on the same footing as
 /// a sample, after which `gradient_nugget` reads as "how much slacker than an
@@ -1520,7 +1520,7 @@ mod tests {
 
     /// The load-bearing test of this module. Every gradient in
     /// [`Fitter::elbo_and_gradient`] is hand-derived, and a sign error in any
-    /// of them produces an optimiser that quietly walks the wrong way rather
+    /// of them produces an optimizer that quietly walks the wrong way rather
     /// than anything that looks like a failure. Central differences on the
     /// bound itself are the only honest check.
     ///
@@ -1600,7 +1600,7 @@ mod tests {
         }
     }
 
-    /// The optimiser has to actually raise the bound it is handed, and say so.
+    /// The optimizer has to actually raise the bound it is handed, and say so.
     #[test]
     fn the_fit_raises_the_bound_and_reports_how_it_ended() {
         let set = shell_set(10.0);
@@ -1628,7 +1628,7 @@ mod tests {
         );
     }
 
-    /// Radius of the ball with the same volume as the modelled shell.
+    /// Radius of the ball with the same volume as the modeled shell.
     fn effective_radius(set: &ConstraintSet, spec: &SvgpSpec) -> f64 {
         let grid = GridSpec {
             origin: [-20.0; 3],
@@ -2070,10 +2070,10 @@ mod tests {
         // Every sample informed the fit — that is the whole point.
         assert_eq!(report.observations, 100_000);
         assert!(report.hyper_observations <= 5_000);
-        // And it modelled the ball rather than giving up on it.
+        // And it modeled the ball rather than giving up on it.
         assert!(
             gp.value(&[100.0, 100.0, 25.0]) > 0.0,
-            "centre reads outside"
+            "center reads outside"
         );
         assert!(gp.value(&[0.0, 0.0, 0.0]) < 0.0, "corner reads inside");
         assert!(

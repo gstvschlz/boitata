@@ -1,4 +1,4 @@
-//! Sub-blocked models from prioritised meshes, and block proportions inside a
+//! Sub-blocked models from prioritized meshes, and block proportions inside a
 //! solid for rotated and sub-blocked models.
 
 use std::sync::Arc;
@@ -41,7 +41,7 @@ fn world_box(g: &Geometry, cell: u64, e: [f64; 6]) -> Aabb {
 }
 
 /// Sub-blocks every row of a regular or masked `model` on a `subgrid` per
-/// cell. Each sub-cell takes the label of the first domain holding its centre;
+/// cell. Each sub-cell takes the label of the first domain holding its center;
 /// sub-cells no domain holds take `fill`, or are dropped without it. Cells of
 /// one label stay whole; the others merge runs of sub-cells along x, then y.
 /// The labels are the string column `column`; other columns are the parent's.
@@ -116,7 +116,7 @@ fn pieces(
     fill: Option<usize>,
 ) -> Vec<([f64; 6], usize)> {
     let at = |s: usize| [s % n[0], s / n[0] % n[1], s / (n[0] * n[1])];
-    let centre = |s: usize| {
+    let center = |s: usize| {
         let ijk = at(s);
         g.point(cell, [0, 1, 2].map(|a| (ijk[a] as f64 + 0.5) / n[a] as f64))
     };
@@ -139,7 +139,7 @@ fn pieces(
                     continue;
                 }
                 for s in 0..label.len() {
-                    if label[s].is_none() && solid.contains(centre(s)) {
+                    if label[s].is_none() && solid.contains(center(s)) {
                         label[s] = Some(id);
                     }
                 }
@@ -155,7 +155,7 @@ fn pieces(
                     if label[s].is_some() {
                         continue;
                     }
-                    let p = centre(s);
+                    let p = center(s);
                     let lookup = || surface.elevation(p[0], p[1]);
                     let elevation = if flat {
                         *column[s % (n[0] * n[1])].get_or_insert_with(lookup)
@@ -247,7 +247,7 @@ mod tests {
     use arrow_array::{ArrayRef, Float64Array};
     use ceres_core::Mesh;
 
-    /// `count` cells a side of `size`, centred on the origin.
+    /// `count` cells a side of `size`, centered on the origin.
     fn grid(size: f64, count: usize, rotation: [f64; 3]) -> BlockModel {
         let half = ceres_core::block_frame(rotation).transpose()
             * nalgebra::Vector3::repeat(size * count as f64 / 2.0);

@@ -56,7 +56,7 @@ pub struct Sample {
     pub value: f64,
     pub hole: Option<u32>,
     /// Variance of the measurement error, added to this sample's diagonal
-    /// entry in kriging systems: the estimate no longer honours the value.
+    /// entry in kriging systems: the estimate no longer honors the value.
     #[serde(default)]
     pub error_variance: f64,
     /// Domain code: a target of another domain only sees this sample

@@ -52,7 +52,7 @@ pub struct HermiteKriging {
     drift: Vec<f64>,
     drift_degree: usize,
     /// The drift basis alone is evaluated on centered, unit-scaled coordinates:
-    /// the covariance needs world metres (its ranges are in them), but a raw
+    /// the covariance needs world meters (its ranges are in them), but a raw
     /// mine-grid easting in the drift block costs most of the mantissa.
     drift_origin: [f64; 3],
     drift_scale: f64,
@@ -101,7 +101,7 @@ fn basis_len(degree: usize) -> usize {
 }
 
 impl HermiteKriging {
-    /// Fit a field honouring values, boundary picks and derivative rows.
+    /// Fit a field honoring values, boundary picks and derivative rows.
     ///
     /// With no derivative rows this is numerically `estimation::DualKriging`,
     /// which `matches_plain_dual_kriging_without_derivatives` pins.
@@ -270,7 +270,7 @@ impl HermiteKriging {
         sum
     }
 
-    /// Field gradient at a world-space point, in field units per metre.
+    /// Field gradient at a world-space point, in field units per meter.
     pub fn gradient(&self, p: &[f64; 3]) -> [f64; 3] {
         let mut g = Vector3::zeros();
         for (x, d) in self.value_locs.iter().zip(&self.d) {
@@ -471,7 +471,7 @@ mod tests {
         assert!(HermiteKriging::new(&set, &smooth_vg(), &HermiteSpec::default()).is_ok());
     }
 
-    /// Value rows with no nugget are honoured exactly.
+    /// Value rows with no nugget are honored exactly.
     #[test]
     fn interpolates_its_samples() {
         let pts = cube(20.0);

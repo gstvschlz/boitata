@@ -110,7 +110,7 @@ pub fn cokrige(
             })
         }
         CoKind::Ordinary => {
-            // One unbiasedness constraint per variable present in the neighbourhood.
+            // One unbiasedness constraint per variable present in the neighborhood.
             let mut present: Vec<usize> = samples.iter().map(|s| s.var).collect();
             present.sort_unstable();
             present.dedup();

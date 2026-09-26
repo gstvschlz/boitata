@@ -38,11 +38,11 @@ use variogram::Variogram;
 pub struct TurningBandsParams {
     /// Number of bands (lines). More bands → less striping; 300–1000 typical.
     pub n_bands: usize,
-    /// Band discretization in the variogram's isotropic space (metres along
+    /// Band discretization in the variogram's isotropic space (meters along
     /// the major axis); `None` is a fiftieth of the shortest range. The step
     /// widens if a band would need more than 4000 nodes.
     pub step: Option<f64>,
-    /// Neighbourhood for conditioning by kriging.
+    /// Neighborhood for conditioning by kriging.
     pub search: Search,
     /// RNG seed.
     pub seed: u64,
@@ -251,7 +251,7 @@ fn unconditional(
 }
 
 /// Simple kriging of residuals at every target, of domain `domains[i]`,
-/// added to `field`: `residual(k, domain)` is the residual of neighbour `k`
+/// added to `field`: `residual(k, domain)` is the residual of neighbor `k`
 /// for a target of `domain`.
 fn condition(
     targets: &[(f64, f64, f64)],
@@ -284,7 +284,7 @@ fn condition(
 /// (no normal-score / back-transform). Returns conditioned Gaussian scores.
 ///
 /// Unconditional turning-bands field plus simple kriging of the data
-/// residuals, `Zc = Zu + Zk(z − Zu@data)`, from the neighbours chosen by
+/// residuals, `Zc = Zu + Zk(z − Zu@data)`, from the neighbors chosen by
 /// `params.search`. Takes a caller-owned RNG so several fields can be driven
 /// from one seed stream.
 pub fn conditional_gaussian_field(
@@ -1200,10 +1200,10 @@ mod tests {
         for trended in [false, true] {
             let trend = trended.then_some(&node_trend[..]);
             let none = ensemble(&z, &rows, None, trended, &params, 3);
-            let labelled = ensemble(&z, &rows, Some(&one), trended, &params, 3);
+            let labeled = ensemble(&z, &rows, Some(&one), trended, &params, 3);
             assert_eq!(
                 reals(&none, &grid, None, trend),
-                reals(&labelled, &grid, Some(&all), trend)
+                reals(&labeled, &grid, Some(&all), trend)
             );
         }
     }

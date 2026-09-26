@@ -9,7 +9,7 @@
 //! - [`Engine::DualKriging`] — the dual form of kriging ([`crate::hermite`]),
 //!   driven by a fitted variogram. Same global-solve shape as the RBF (one
 //!   factorization, then a cheap evaluation per node), which is what makes it
-//!   usable over a dense grid where the neighbourhood-search estimators are
+//!   usable over a dense grid where the neighborhood-search estimators are
 //!   not. With no derivative data it is exactly `estimation::DualKriging`.
 //! - [`Engine::SparseGp`] — a sparse variational Gaussian process
 //!   ([`crate::svgp`]). Not a global solve: `m` inducing values stand in for
@@ -34,14 +34,14 @@ use crate::hermite::{HermiteKriging, HermiteSpec};
 use crate::rbf::{Rbf, RbfSpec};
 use crate::svgp::{FitReport, Svgp, SvgpSpec};
 
-/// What the modelled field means, and so what its isosurface is.
+/// What the modeled field means, and so what its isosurface is.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Driver {
     /// The field *is* the sample value — the isosurface is a grade shell at
     /// the cutoff.
     Value,
     /// The field is a signed indicator of `value >= threshold` — the
-    /// isosurface at 0 is the domain boundary. Modelling ±1 rather than 1/0
+    /// isosurface at 0 is the domain boundary. Modeling ±1 rather than 1/0
     /// puts the boundary in the middle of the interpolated range instead of at
     /// its edge, so a smooth interpolant crosses it cleanly.
     Indicator { threshold: f64 },
@@ -174,7 +174,7 @@ fn node_counts(extent: &[f64; 3], spacing: f64) -> [usize; 3] {
     counts
 }
 
-/// A modelled surface plus what it took to get there.
+/// A modeled surface plus what it took to get there.
 #[derive(Debug, Clone)]
 pub struct ImplicitSurface {
     pub mesh: TriMesh,
@@ -216,7 +216,7 @@ pub fn build_surface(
     )
 }
 
-/// Fit the field honouring every constraint in `set` and extract the `isovalue`
+/// Fit the field honoring every constraint in `set` and extract the `isovalue`
 /// surface.
 pub fn build_surface_constrained(
     set: &ConstraintSet,
@@ -306,7 +306,7 @@ mod tests {
     }
 
     /// A lattice covering the sampled extent with a little padding, so the
-    /// modelled shell closes inside it.
+    /// modeled shell closes inside it.
     fn grid() -> GridSpec {
         GridSpec {
             origin: [-20.0; 3],
@@ -315,14 +315,14 @@ mod tests {
         }
     }
 
-    /// Radius of the ball with the same volume as the modelled shell.
+    /// Radius of the ball with the same volume as the modeled shell.
     fn effective_radius(surface: &ImplicitSurface) -> f64 {
         (surface.mesh.enclosed_volume() * 3.0 / (4.0 * std::f64::consts::PI)).cbrt()
     }
 
     /// `shell_samples(10.0)` leaves the contact unsampled between r = 8 (the
     /// outermost +1) and r ≈ 11.3 (the innermost −1). Any boundary inside that
-    /// gap honours the data; the true radius is 10 and a 4 m sample spacing
+    /// gap honors the data; the true radius is 10 and a 4 m sample spacing
     /// makes half a spacing the accuracy worth asking for.
     fn assert_recovers_the_shell(surface: &ImplicitSurface, engine: &str) {
         let r = effective_radius(surface);
@@ -434,7 +434,7 @@ mod tests {
     }
 
     #[test]
-    fn covering_pads_the_bounds_and_honours_the_node_budget() {
+    fn covering_pads_the_bounds_and_honors_the_node_budget() {
         let bounds = ([0.0, 0.0, 0.0], [100.0, 50.0, 20.0]);
         let (spec, coarsened) = GridSpec::covering(bounds, 10.0, 5.0, 1_000_000).unwrap();
         assert!(!coarsened);

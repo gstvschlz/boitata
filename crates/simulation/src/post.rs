@@ -417,7 +417,7 @@ impl BlockSupport {
     }
 }
 
-/// Localised grade of every block nested in `panels`, from realizations at
+/// Localized grade of every block nested in `panels`, from realizations at
 /// block support, `realizations[realization][block]`.
 ///
 /// Each panel pools its blocks' values over the `n` realizations, sorts them,

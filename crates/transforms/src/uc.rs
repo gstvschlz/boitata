@@ -31,7 +31,7 @@
 //! from its kriging, solving `Σ ψₙ² r^{2n} = Var(Z_V*)` with
 //! `Var(Z_V*) = C(V, V) − σ²_K − 2μ` (the information effect).
 //!
-//! Localisation ([`crate::localize`]) gives the panel's block ranked `i` of `n`
+//! Localization ([`crate::localize`]) gives the panel's block ranked `i` of `n`
 //! the mean of the `i`-th equal-probability band of `u`.
 
 use std::borrow::Cow;
@@ -298,7 +298,7 @@ impl UniformConditioning {
             .collect())
     }
 
-    /// Localised SMU grades of `blocks`, nested in `panels`
+    /// Localized SMU grades of `blocks`, nested in `panels`
     /// ([`crate::localize::localize`]): `grade` (and `estimate_variance` for
     /// [`Self::per_panel`]) per panel row, `ranking` per block.
     pub fn localize(

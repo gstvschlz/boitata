@@ -9,7 +9,7 @@
 //! 2× a classic marching-cubes surface at the same resolution):
 //!
 //! - **No ambiguous faces.** The classic 256-entry table has complementary
-//!   cases whose face triangulations disagree between neighbouring cells,
+//!   cases whose face triangulations disagree between neighboring cells,
 //!   which tears holes in the surface unless a disambiguation scheme is
 //!   bolted on. A tetrahedron's cases have no such ambiguity.
 //! - **Watertight by construction.** Freudenthal subdivision induces the same
@@ -34,7 +34,7 @@ use crate::grid::{ScalarGrid, TriMesh, cross, dot, norm, sub};
 /// The 6 tetrahedra of the Freudenthal subdivision, as cell-corner indices
 /// (`corner = i + 2j + 4k` over the unit cube). Every tetrahedron runs from
 /// corner 0 to corner 7 along one of the 6 monotone lattice paths, which is
-/// what makes the induced face diagonals agree between neighbouring cells.
+/// what makes the induced face diagonals agree between neighboring cells.
 const TETS: [[usize; 4]; 6] = [
     [0, 1, 3, 7],
     [0, 1, 5, 7],
@@ -110,7 +110,7 @@ struct Builder<'a> {
     isovalue: f64,
     mesh: TriMesh,
     /// Interpolated vertex per cut grid edge, keyed by its node pair (ordered),
-    /// so neighbouring tetrahedra share the vertex instead of duplicating it.
+    /// so neighboring tetrahedra share the vertex instead of duplicating it.
     edges: HashMap<(usize, usize), u32>,
 }
 

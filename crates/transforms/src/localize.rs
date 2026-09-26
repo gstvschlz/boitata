@@ -1,10 +1,10 @@
-//! Localisation of panel recoveries onto the selective blocks they hold.
+//! Localization of panel recoveries onto the selective blocks they hold.
 //!
 //! A panel with `n` selective blocks splits its block-grade distribution into
 //! `n` equal-probability bands; the block ranked `i` (ascending) gets the mean
 //! of band `i`. The blocks then average to the panel grade, and the top `k`
 //! reproduce the panel's recovery at tonnage `k/n`. Each source (uniform
-//! conditioning, indicator kriging, realisations) supplies the band means.
+//! conditioning, indicator kriging, realizations) supplies the band means.
 
 use ceres_core::{BlockModel, Layout, block_frame};
 use nalgebra::Vector3;
@@ -49,7 +49,7 @@ pub fn nest(panels: &BlockModel, blocks: &BlockModel) -> Result<Vec<Option<usize
         .collect())
 }
 
-/// Localised grade of every block.
+/// Localized grade of every block.
 ///
 /// `ranking` orders the blocks inside each panel, ties by row order.
 /// `bands(panel, n)` gives the `n` ascending band means of a panel, or `None`

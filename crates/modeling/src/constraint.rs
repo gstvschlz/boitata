@@ -1,4 +1,4 @@
-//! What the implicit field is asked to honour.
+//! What the implicit field is asked to honor.
 //!
 //! [`crate::rbf`] and [`crate::hermite`] both fit one field, and both take the
 //! same three kinds of observation:
@@ -66,7 +66,7 @@ pub enum PlaneEncoding {
     Both,
 }
 
-/// Everything one fit is asked to honour.
+/// Everything one fit is asked to honor.
 #[derive(Debug, Clone, Default)]
 pub struct ConstraintSet {
     pub values: Vec<ValueConstraint>,
@@ -130,7 +130,7 @@ impl ConstraintSet {
     /// A planar structural reading, encoded as [`PlaneEncoding`] asks.
     ///
     /// `magnitude` is the rate the field changes across the structure, in field
-    /// units per metre. It is ignored by [`PlaneEncoding::Tangents`].
+    /// units per meter. It is ignored by [`PlaneEncoding::Tangents`].
     pub fn push_plane(
         &mut self,
         at: [f64; 3],
@@ -190,7 +190,7 @@ impl ConstraintSet {
     /// alone is therefore determined only up to that freedom — fine when all
     /// that is wanted is "a surface parallel to the foliation", since any level
     /// gives one, but meaningless the moment a *particular* isovalue is asked
-    /// for. That is the difference between a potential field and a modelled
+    /// for. That is the difference between a potential field and a modeled
     /// contact, and it is worth failing loudly over rather than returning a
     /// surface at an arbitrary level.
     pub fn validate(&self) -> Result<()> {

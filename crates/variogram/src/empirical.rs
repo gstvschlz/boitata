@@ -186,7 +186,7 @@ pub fn cross_experimental(
         variance: 0.0,
         divisor: 1.0,
     };
-    let Some((_, c0)) = finalise(&near, n_near, Estimator::Covariance, unit) else {
+    let Some((_, c0)) = finalize(&near, n_near, Estimator::Covariance, unit) else {
         return Err(VarioError::InsufficientData(
             "no pairs closer than half a lag to estimate the zero-lag cross-covariance".into(),
         ));
@@ -201,7 +201,7 @@ pub fn cross_experimental(
 /// Downhole experimental variogram: only pairs of samples in the same hole
 /// (equal `holes` ids) are counted. Lag `k` gathers the pairs within half a
 /// lag width of `k · lag_width`, so with the width set to the composite length
-/// neighbours fall in the first lag, and each lag is the mean distance of its
+/// neighbors fall in the first lag, and each lag is the mean distance of its
 /// pairs. `O(Σ nₕ²)` over the holes.
 pub fn downhole(
     locations: &[(f64, f64, f64)],
@@ -376,7 +376,7 @@ fn collect(
     };
     let mut covariances = Vec::new();
     for (b, (s, &c)) in sums.iter().zip(counts).enumerate() {
-        if let Some((gamma, covariance)) = finalise(s, c, estimator, scale) {
+        if let Some((gamma, covariance)) = finalize(s, c, estimator, scale) {
             exp.lags.push((b as f64 + 0.5) * bins.lag_width);
             exp.gammas.push(gamma);
             exp.counts.push(c);
@@ -457,7 +457,7 @@ pub(crate) fn scale(values: &[f64], estimator: Estimator, standardize: bool) -> 
 
 /// γ of one lag bin and, for the covariance and correlogram estimators, C(h)
 /// or ρ(h) (NaN otherwise). `None` for an empty bin or an undefined ρ(h).
-pub(crate) fn finalise(
+pub(crate) fn finalize(
     sums: &Moments,
     count: usize,
     estimator: Estimator,

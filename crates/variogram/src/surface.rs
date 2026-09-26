@@ -9,14 +9,14 @@
 //!
 //! Two consequences of aggregating first. The cone test is bidirectional, as in
 //! [`crate::experimental`], so a lattice over the lower hemisphere covers every
-//! direction. And `bandwidth` has no analogue here: a pair's perpendicular
+//! direction. And `bandwidth` has no analog here: a pair's perpendicular
 //! offset from a direction line is not recoverable once the pair is binned, so
 //! maps take a cone angle only.
 
 use rayon::prelude::*;
 
 use crate::empirical::{
-    Estimator, Experimental, LagBins, Moments, Scale, add, finalise, moments, scale,
+    Estimator, Experimental, LagBins, Moments, Scale, add, finalize, moments, scale,
 };
 use crate::error::{Result, VarioError};
 use crate::fit::{Weighting, fit};
@@ -69,7 +69,7 @@ impl Default for PlaneMapParams {
 /// γ on a plane through the origin, as a polar (angle × lag) grid.
 #[derive(Debug, Clone)]
 pub struct PlaneMap {
-    /// Lag-bin centres, shared by every angle.
+    /// Lag-bin centers, shared by every angle.
     pub lags: Vec<f64>,
     /// In-plane angles in radians, measured from `u` toward `v`, spanning
     /// `[0, π)`. γ is symmetric under a half-turn, so a caller drawing the full
@@ -120,7 +120,7 @@ struct PairHistogram {
     lag_width: f64,
     sums: Vec<Moments>,
     counts: Vec<usize>,
-    /// Unit vector at each direction cell's centre, in (East, North, Up).
+    /// Unit vector at each direction cell's center, in (East, North, Up).
     units: Vec<(f64, f64, f64)>,
 }
 
@@ -216,8 +216,8 @@ impl PairHistogram {
         })
     }
 
-    /// Sum every cell whose centre lies within the cone about `axis`, then
-    /// finalise the result into (γ, count) per lag bin. `cos_tol` is the cosine
+    /// Sum every cell whose center lies within the cone about `axis`, then
+    /// finalize the result into (γ, count) per lag bin. `cos_tol` is the cosine
     /// of the cone's half-angle; the test is bidirectional, so a cell and its
     /// antipode are equally admitted.
     fn cone(
@@ -241,7 +241,7 @@ impl PairHistogram {
             }
         }
         let gammas = (0..self.n_bins)
-            .map(|b| match finalise(&sums[b], counts[b], estimator, scale) {
+            .map(|b| match finalize(&sums[b], counts[b], estimator, scale) {
                 Some((gamma, _)) => gamma,
                 None if counts[b] == 0 => 0.0,
                 None => f64::NAN,
@@ -250,7 +250,7 @@ impl PairHistogram {
         ConeCurve { gammas, counts }
     }
 
-    fn lag_centres(&self) -> Vec<f64> {
+    fn lag_centers(&self) -> Vec<f64> {
         (0..self.n_bins)
             .map(|b| (b as f64 + 0.5) * self.lag_width)
             .collect()
@@ -303,7 +303,7 @@ fn check_tolerance(tolerance: f64) -> Result<f64> {
 
 /// Sample γ on the plane spanned by `u` and `v`, as a polar (angle × lag) grid.
 ///
-/// The basis is orthonormalised, so callers may pass any two independent vectors
+/// The basis is orthonormalized, so callers may pass any two independent vectors
 /// lying in the plane.
 pub fn plane_map(
     locations: &[(f64, f64, f64)],
@@ -318,11 +318,11 @@ pub fn plane_map(
         ));
     }
     let cos_tol = check_tolerance(params.tolerance)?;
-    let (u, v) = orthonormalise(u, v)?;
+    let (u, v) = orthonormalize(u, v)?;
     let scale = scale(values, params.estimator, false)?;
 
     let hist = PairHistogram::build(locations, values, &params.bins)?;
-    let lags = hist.lag_centres();
+    let lags = hist.lag_centers();
 
     let angles: Vec<f64> = (0..params.angle_steps)
         .map(|i| std::f64::consts::PI * i as f64 / params.angle_steps as f64)
@@ -360,8 +360,8 @@ pub fn plane_map(
 /// Two perpendicular unit vectors spanning a cut plane, in (East, North, Up).
 type PlaneBasis = ((f64, f64, f64), (f64, f64, f64));
 
-/// Orthonormalise a plane basis, rejecting degenerate or parallel inputs.
-fn orthonormalise(u: (f64, f64, f64), v: (f64, f64, f64)) -> Result<PlaneBasis> {
+/// Orthonormalize a plane basis, rejecting degenerate or parallel inputs.
+fn orthonormalize(u: (f64, f64, f64), v: (f64, f64, f64)) -> Result<PlaneBasis> {
     let un = norm(u);
     if un < 1e-12 {
         return Err(VarioError::InvalidParameters(
@@ -438,29 +438,29 @@ mod tests {
             let curve = hist.cone((0.0, 0.0, -1.0), -1.0, estimator, scale);
             let reference =
                 experimental(&locations, &values, &bins, estimator, None, false).unwrap();
-            assert!(agree(&hist.lag_centres(), &curve, &reference) >= 5);
+            assert!(agree(&hist.lag_centers(), &curve, &reference) >= 5);
         }
     }
 
-    fn agree(centres: &[f64], curve: &ConeCurve, reference: &Experimental) -> usize {
+    fn agree(centers: &[f64], curve: &ConeCurve, reference: &Experimental) -> usize {
         let mut compared = 0;
-        for (b, centre) in centres.iter().enumerate() {
+        for (b, center) in centers.iter().enumerate() {
             if curve.counts[b] == 0 {
                 continue;
             }
             let k = reference
                 .lags
                 .iter()
-                .position(|l| (l - centre).abs() < 1e-9)
+                .position(|l| (l - center).abs() < 1e-9)
                 .expect("every populated bin appears in the reference");
             assert_eq!(
                 curve.counts[b], reference.counts[k],
-                "pair count at {centre}"
+                "pair count at {center}"
             );
             let tol = 1e-9 * reference.gammas[k].abs().max(1.0);
             assert!(
                 (curve.gammas[b] - reference.gammas[k]).abs() < tol,
-                "γ at {centre}: {} vs {}",
+                "γ at {center}: {} vs {}",
                 curve.gammas[b],
                 reference.gammas[k]
             );

@@ -308,10 +308,10 @@ pub fn compare_models(
     Ok(out)
 }
 
-/// Mean and count per bin; `centres` ascending, empty bins omitted.
+/// Mean and count per bin; `centers` ascending, empty bins omitted.
 #[derive(Debug, Clone, Default)]
 pub struct Profile {
-    pub centres: Vec<f64>,
+    pub centers: Vec<f64>,
     pub mean: Vec<f64>,
     pub count: Vec<usize>,
     /// Swaths only: sum of weight × density per bin.
@@ -323,7 +323,7 @@ pub struct Profile {
 fn profile(bins: BTreeMap<i64, (f64, f64, usize)>, width: f64) -> Profile {
     let mut p = Profile::default();
     for (k, (sw, swz, n)) in bins {
-        p.centres.push((k as f64 + 0.5) * width);
+        p.centers.push((k as f64 + 0.5) * width);
         p.mean.push(swz / sw);
         p.count.push(n);
     }
@@ -1084,11 +1084,11 @@ mod tests {
         let values: Vec<f64> = coords.iter().map(|c| c[0]).collect();
         let s = swath(&coords, &values, None, None, 10.0, Along::Azimuth(90.0)).unwrap();
         assert_eq!(s.count, vec![10; 10]);
-        for (c, m) in s.centres.iter().zip(&s.mean) {
+        for (c, m) in s.centers.iter().zip(&s.mean) {
             assert!(close(*c, *m));
         }
         let y = swath(&coords, &values, None, None, 10.0, Along::Axis(1)).unwrap();
-        assert_eq!((y.centres, y.count), (vec![5.0], vec![100]));
+        assert_eq!((y.centers, y.count), (vec![5.0], vec![100]));
     }
 
     #[test]
@@ -1100,11 +1100,11 @@ mod tests {
         let holes: Vec<u32> = (0..40).map(|i| i / 20).collect();
         let values: Vec<f64> = domains.iter().map(|&d| 1.0 + 4.0 * f64::from(d)).collect();
         let c = contact(&coords, &values, &domains, &holes, 0, 1, 100.0, 2.0).unwrap();
-        for (d, m) in c.centres.iter().zip(&c.mean) {
+        for (d, m) in c.centers.iter().zip(&c.mean) {
             assert_eq!(*m, if *d < 0.0 { 1.0 } else { 5.0 });
         }
         assert_eq!(c.count.iter().sum::<usize>(), 20);
-        assert_eq!(c.centres.first(), Some(&-11.0));
+        assert_eq!(c.centers.first(), Some(&-11.0));
     }
 
     #[test]
@@ -1490,8 +1490,8 @@ mod tests {
         }
         let full = spacing(&coords, None, 1, false).unwrap();
         assert!(full.iter().zip(plan(1)).all(|(d, h)| *d >= h - 1e-9));
-        let centre = [[45.0, 45.0, 1e6]];
-        let d = spacing(&coords, Some(&centre), 4, true).unwrap();
+        let center = [[45.0, 45.0, 1e6]];
+        let d = spacing(&coords, Some(&center), 4, true).unwrap();
         assert!(close(d[0], 50f64.sqrt()));
         assert_eq!(
             spacing(&coords[..3], None, 3, false).unwrap(),
