@@ -44,7 +44,7 @@ for name, matrix in [("nugget", lmc.nugget)] + [(f"{m} {a:.2f} km", s) for m, a,
 
 cd_model = experimentals[0][0].fit("spherical")
 search = cs.Search(radius=1.5, max_samples=24, min_samples=4)
-ok = cs.OrdinaryKriging(cd_model, search).fit(xy, cd)
+ok = cs.OrdinaryKriging(cd_model, search).fit(train, "Cd")
 ck = cs.Cokriging(lmc, search, means=[cd.mean(), zn.mean()])
 ck.fit(np.vstack([xy, xy]), np.r_[cd, zn], [0] * len(cd) + [1] * len(zn))
 ```

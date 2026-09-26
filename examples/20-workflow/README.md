@@ -474,7 +474,7 @@ rules = [
     ("measured", {"three": ("<=", 15)}),
     ("indicated", {"two": ("<=", 30)}),
 ]
-by_distance = cs.classify({"two": spacing[2], "three": spacing[3]}, rules, default="inferred")
+by_distance = cs.classify({"two": spacing[:, 0], "three": spacing[:, 1]}, rules, default="inferred")
 by_distance = cs.smooth_classes(blocks, by_distance, window=(3, 3, 3))
 print(f"{'':>9}  " + "".join(f"{n:>10}" for n in names) + "   (rows: pass and slope, columns: distance)")
 for name in names:

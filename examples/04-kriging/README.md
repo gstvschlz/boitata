@@ -27,7 +27,7 @@ coordinates; `with_column` stores the results on the model.
 ```python
 grid = cs.BlockModel(origin=(0.5, 0.5), size=(5, 5), count=(52, 60))
 search = cs.Search(radius=100, max_samples=24, min_samples=4)
-ok = cs.OrdinaryKriging(model, search).fit(samples.coords, samples["V"])
+ok = cs.OrdinaryKriging(model, search).fit(samples, "V")
 estimate, variance = ok.predict(grid, return_variance=True)
 grid = grid.with_column("estimate", estimate).with_column("variance", variance)
 ```
