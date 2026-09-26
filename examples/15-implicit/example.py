@@ -18,7 +18,7 @@ warnings.filterwarnings("ignore", ".*locations hold several samples")
 import ceres as cs
 import matplotlib.pyplot as plt
 import numpy as np
-from common import ACCENT, GREY, HIGHLIGHT, LIGHT, fetch, save
+from common import ACCENT, GREY, HIGHLIGHT, LIGHT, save
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 
 # %% [markdown]
@@ -28,11 +28,7 @@ from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 # (GP) smooths through them, learns anisotropic ranges and returns to the mean code away from the data.
 
 # %%
-dh = cs.Drillholes(
-    cs.read_csv(fetch("drillholes/collar.csv")),
-    cs.read_csv(fetch("drillholes/survey.csv")),
-    cs.read_csv(fetch("drillholes/assay.csv")),
-)
+dh = cs.datasets.drillholes()
 composites = dh.composite(10.0, ["ZN"])
 xyz, zn = composites.coords, composites["ZN"]
 window = (xyz[:, 0] > 4550) & (xyz[:, 0] < 4950) & (xyz[:, 1] > 7400) & (xyz[:, 1] < 7700) & ~np.isnan(zn)
