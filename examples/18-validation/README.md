@@ -90,10 +90,10 @@ for folds in (None, 10, 5, 2):
 </details>
 
 ```text
-leave-one-out: RMSE 189.1 ppm, correlation 0.78, slope 1.08, standardized squared error 0.65
-      10-fold: RMSE 192.8 ppm, correlation 0.77, slope 1.07, standardized squared error 0.67
-       5-fold: RMSE 196.9 ppm, correlation 0.76, slope 1.06, standardized squared error 0.69
-       2-fold: RMSE 205.5 ppm, correlation 0.73, slope 1.06, standardized squared error 0.69
+leave-one-out: RMSE 187.2 ppm, correlation 0.78, slope 1.08, standardized squared error 0.64
+      10-fold: RMSE 191.3 ppm, correlation 0.77, slope 1.07, standardized squared error 0.66
+       5-fold: RMSE 195.4 ppm, correlation 0.76, slope 1.07, standardized squared error 0.68
+       2-fold: RMSE 204.1 ppm, correlation 0.73, slope 1.08, standardized squared error 0.67
 ```
 
 Kriging efficiency compares the block variance with the kriging variance: 1 for a perfectly known block, 0 or less
@@ -165,8 +165,8 @@ for label, k in (("full search", full), ("ellipse ran out", ~full)):
         f"{label:>15}: {k.mean():4.0%} of blocks, mean distance {d['mean_distance'][k].mean():4.1f} m, "
         f"mean slope {d['slope'][k].mean():.2f}"
     )
-groups = np.digitize(d["negative_weight_sum"], [-0.08, -0.04])
-for g, label in enumerate(("below -0.08", "-0.08 to -0.04", "above -0.04")):
+groups = np.digitize(d["negative_weight_sum"], [-0.05, -0.03])
+for g, label in enumerate(("below -0.05", "-0.05 to -0.03", "above -0.03")):
     k = groups == g
     error = np.sqrt(np.mean((d["value"][k] - true_blocks[k]) ** 2))
     print(
@@ -184,10 +184,10 @@ print(
 ```text
     full search:  89% of blocks, mean distance 28.2 m, mean slope 0.95
 ellipse ran out:  11% of blocks, mean distance 40.5 m, mean slope 0.86
-negative weights    below -0.08: 119 blocks, RMSE 135.9 ppm, mean 245 ppm against 202 true
-negative weights -0.08 to -0.04: 358 blocks, RMSE 113.4 ppm, mean 247 ppm against 229 true
-negative weights    above -0.04: 303 blocks, RMSE  85.2 ppm, mean 373 ppm against 366 true
-6 negative estimates, negative weights -0.05 or below
+negative weights    below -0.05: 116 blocks, RMSE 126.8 ppm, mean 212 ppm against 190 true
+negative weights -0.05 to -0.03: 231 blocks, RMSE 106.8 ppm, mean 218 ppm against 194 true
+negative weights    above -0.03: 433 blocks, RMSE  95.7 ppm, mean 359 ppm against 347 true
+4 negative estimates, negative weights -0.04 or below
 ```
 
 <details><summary>Python</summary>

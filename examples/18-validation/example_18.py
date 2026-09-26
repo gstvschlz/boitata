@@ -129,8 +129,8 @@ for label, k in (("full search", full), ("ellipse ran out", ~full)):
         f"{label:>15}: {k.mean():4.0%} of blocks, mean distance {d['mean_distance'][k].mean():4.1f} m, "
         f"mean slope {d['slope'][k].mean():.2f}"
     )
-groups = np.digitize(d["negative_weight_sum"], [-0.08, -0.04])
-for g, label in enumerate(("below -0.08", "-0.08 to -0.04", "above -0.04")):
+groups = np.digitize(d["negative_weight_sum"], [-0.05, -0.03])
+for g, label in enumerate(("below -0.05", "-0.05 to -0.03", "above -0.03")):
     k = groups == g
     error = np.sqrt(np.mean((d["value"][k] - true_blocks[k]) ** 2))
     print(
