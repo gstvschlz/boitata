@@ -92,6 +92,11 @@ def test_correlation_pairwise():
     np.testing.assert_allclose(r[0, 1], 1.0)
     np.testing.assert_allclose(r, r.T)
     assert cs.correlation(data, method="spearman")[0, 2] == pytest.approx(1.0)
+    w = rng.uniform(0.5, 2.0, 100)
+    c = cs.correlation(data[:, :2], w, method="covariance")
+    assert c[0, 0] == pytest.approx(cs.describe(a, w)["variance"])
+    ok = ~np.isnan(data[:, 1])
+    assert c[1, 1] == pytest.approx(4 * cs.describe(a[ok], w[ok])["variance"])
     with pytest.raises(cs.InvalidInput):
         cs.correlation(data, method="kendall")
 

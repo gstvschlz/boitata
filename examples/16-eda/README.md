@@ -242,7 +242,8 @@ save(fig, "boxplot")
 
 ![boxplot](boxplot.png)
 
-Cumulative distributions show that declustering shifts MS only slightly towards low grades. The Q-Q plot compares
+Cumulative distributions show that declustering shifts MS only slightly towards low grades; `stats=True` lists the
+count, weighted mean, CV and deciles of each curve in the corner. The Q-Q plot compares
 MS with SM quantile by quantile: above about 1 % Zn they follow the 1:1 line, below it MS is richer, so the two
 domains differ in their low tail rather than in their high grades.
 
@@ -256,6 +257,7 @@ cs.plot.cdf(
     weights=[None, weights[ms], weights[sm]],
     labels=["MS naive", "MS declustered", "SM declustered"],
     log=True,
+    stats=True,
     ax=a,
 )
 a.set(title="Cumulative distribution of Zn", xlabel="Zn (%)")
@@ -297,7 +299,9 @@ for cap, frac, metal, mean, cv in zip(*caps.values(), strict=True):
 
 Zn is bounded by the zinc content of sphalerite: on a log-probability plot the upper tails bend towards a ceiling
 near 40 % instead of trailing off into isolated outliers. A cap at the declustered P99.5 of each domain, dashed,
-only trims the last half percent of that tail.
+only trims the last half percent of that tail. The dotted Tukey fences, 1.5 interquartile ranges beyond the
+quartiles of log Zn, agree: no upper fence falls inside the data. The only fence drawn is a lower one in MS: its
+outliers are the few composites below 0.05 % Zn, a low tail that a cap does not touch.
 
 <details><summary>Python</summary>
 
@@ -306,7 +310,9 @@ cap = dict(zip(stats["category"], stats["P99.5"], strict=True))
 fig, axes = plt.subplots(1, 2, figsize=(9, 3.6), layout="constrained", sharey=True)
 for ax, name in zip(axes, ["MS", "RH"], strict=True):
     keep = (lith == name) & (zn > 0)
-    cs.plot.probability(zn[keep], weights[keep], log=True, cap=cap[name], ax=ax, color=ACCENT, ms=2)
+    cs.plot.probability(
+        zn[keep], weights[keep], log=True, cap=cap[name], fences=1.5, ax=ax, color=ACCENT, ms=2
+    )
     ax.set(title=f"{name}, declustered", xlabel="Zn (%)")
     ax.legend(loc="lower right")
 axes[1].set_ylabel("")
@@ -462,27 +468,47 @@ save(fig, "scatter_matrix")
 
 ![scatter_matrix](scatter_matrix.png)
 
-Spearman correlation of the grades over all composites, each pair over the composites where both are assayed.
+Not every composite is assayed for every grade, and each correlation only uses the composites where both grades
+are. `plot.completeness` counts the composites by the number of grades present, the complete ones in colour: Au is
+assayed in only half of them, so the correlations with Au rest on half the data.
 
 <details><summary>Python</summary>
 
 ```python
-r = cs.correlation(np.column_stack([composites[g] for g in grades]), method="spearman")
-fig, ax = plt.subplots(figsize=(4.4, 3.8), layout="constrained")
-im = ax.imshow(r, vmin=0, vmax=1)
-for i in range(len(grades)):
-    for j in range(len(grades)):
-        ax.text(j, i, f"{r[i, j]:.2f}", ha="center", va="center", color=INK if r[i, j] > 0.4 else "white")
-ax.set_xticks(range(len(grades)), grades)
-ax.set_yticks(range(len(grades)), grades)
-ax.spines[:].set_visible(False)
-ax.set_title("Spearman correlation")
-fig.colorbar(im, ax=ax, shrink=0.8)
+assays = {g: composites[g] for g in grades}
+print("  ".join(f"{g} {np.mean(~np.isnan(v)):.0%}" for g, v in assays.items()), "assayed")
+fig, (a, b) = plt.subplots(1, 2, figsize=(9, 3.6), layout="constrained", width_ratios=[1, 1.2])
+cs.plot.completeness(assays, ax=a)
+a.set_title("Composites by grades assayed")
+cs.plot.correlation(assays, method="spearman", ax=b)
+b.set_title("Spearman correlation, all composites")
 save(fig, "correlation")
 ```
 
 </details>
 
+```text
+ZN 100%  PB 99%  CU 100%  AG 96%  AU 52% assayed
+```
+
 ![correlation](correlation.png)
+
+A scatter plot hides how many points sit on top of one another. The mean of Pb and its P10 to P90 in ten bins of
+Zn, each holding a tenth of the MS composites, show the relation itself: Pb rises steadily with Zn, and its spread
+narrows from two orders of magnitude in the lowest bins to less than one in the richest.
+
+<details><summary>Python</summary>
+
+```python
+fig, ax = plt.subplots(figsize=(5, 3.6), layout="constrained")
+cs.plot.conditional(composites["ZN"][ms], composites["PB"][ms], weights=weights[ms], log=True, ax=ax)
+ax.set(title="Pb given Zn, MS, declustered", xlabel="Zn (%)", ylabel="Pb (%)")
+ax.legend(loc="lower right")
+save(fig, "conditional")
+```
+
+</details>
+
+![conditional](conditional.png)
 
 Full script: [`example_16.py`](example_16.py)

@@ -1189,7 +1189,9 @@ def h_scatter(
     other: ArrayLike | None = None,
 ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64], float]: ...
 def correlation(
-    data: ArrayLike, weights: ArrayLike | None = None, method: str = "pearson"
+    data: ArrayLike,
+    weights: ArrayLike | None = None,
+    method: Literal["pearson", "spearman", "covariance"] = "pearson",
 ) -> npt.NDArray[np.float64]: ...
 @overload
 def duplicates(

@@ -681,6 +681,21 @@ fn h_scatter<'py>(
 }
 
 /// Correlation matrix of the columns of `data`, each pair over rows without NaN.
+///
+/// Parameters
+/// ----------
+/// data : array_like
+///     ``(n, d)`` values.
+/// weights : array_like, optional
+///     Declustering weights.
+/// method : {"pearson", "spearman", "covariance"}
+///     Pearson correlation, rank correlation, or the covariance (over the sum
+///     of weights, as the variance of `describe`), variances on the diagonal.
+///
+/// Returns
+/// -------
+/// ndarray
+///     ``(d, d)`` symmetric matrix.
 #[pyfunction]
 #[pyo3(signature = (data, weights=None, method="pearson"))]
 fn correlation<'py>(
@@ -692,7 +707,12 @@ fn correlation<'py>(
     let method = match method {
         "pearson" => Method::Pearson,
         "spearman" => Method::Spearman,
-        _ => return Err(invalid("method must be 'pearson' or 'spearman'")),
+        "covariance" => Method::Covariance,
+        _ => {
+            return Err(invalid(
+                "method must be 'pearson', 'spearman' or 'covariance'",
+            ));
+        }
     };
     let rows = rows(data, "data")?;
     let d = rows.first().map_or(0, Vec::len);

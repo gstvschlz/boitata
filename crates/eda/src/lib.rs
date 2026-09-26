@@ -633,10 +633,12 @@ pub fn validate_model(
     Ok(out)
 }
 
-fn pearson(x: &[f64], y: &[f64], w: &[f64]) -> f64 {
+/// Weighted covariance, over the sum of weights as [`describe`]'s variance,
+/// and correlation of `x` and `y`.
+fn moments(x: &[f64], y: &[f64], w: &[f64]) -> (f64, f64) {
     let sw: f64 = w.iter().sum();
-    if x.len() < 2 || sw <= 0.0 {
-        return f64::NAN;
+    if x.is_empty() || sw <= 0.0 {
+        return (f64::NAN, f64::NAN);
     }
     let mx = x.iter().zip(w).map(|(x, w)| x * w).sum::<f64>() / sw;
     let my = y.iter().zip(w).map(|(y, w)| y * w).sum::<f64>() / sw;
@@ -646,7 +648,16 @@ fn pearson(x: &[f64], y: &[f64], w: &[f64]) -> f64 {
         cxx += w * (x - mx) * (x - mx);
         cyy += w * (y - my) * (y - my);
     }
-    cxy / (cxx * cyy).sqrt()
+    let r = if x.len() < 2 {
+        f64::NAN
+    } else {
+        cxy / (cxx * cyy).sqrt()
+    };
+    (cxy / sw, r)
+}
+
+fn pearson(x: &[f64], y: &[f64], w: &[f64]) -> f64 {
+    moments(x, y, w).1
 }
 
 /// Head (`values` at `x + h`), tail (`other`, else `values`, at `x`) and their
@@ -708,6 +719,8 @@ pub enum Method {
     Pearson,
     /// Pearson on mid-point cumulative weights, ties averaged.
     Spearman,
+    /// Weighted covariance, the variances on the diagonal.
+    Covariance,
 }
 
 fn ranks(x: &[f64], w: &[f64]) -> Vec<f64> {
@@ -727,8 +740,8 @@ fn ranks(x: &[f64], w: &[f64]) -> Vec<f64> {
     out
 }
 
-/// Weighted correlation matrix of `columns`, each pair over rows where both are
-/// not NaN.
+/// Weighted correlation (or covariance) matrix of `columns`, each pair over
+/// rows where both are not NaN.
 pub fn correlation(
     columns: &[Vec<f64>],
     weights: Option<&[f64]>,
@@ -755,7 +768,12 @@ pub fn correlation(
                 x = ranks(&x, &w);
                 y = ranks(&y, &w);
             }
-            out[a][b] = pearson(&x, &y, &w);
+            let (cov, r) = moments(&x, &y, &w);
+            out[a][b] = if let Method::Covariance = method {
+                cov
+            } else {
+                r
+            };
             out[b][a] = out[a][b];
         }
     }
@@ -1249,6 +1267,17 @@ mod tests {
         let s = correlation(&cols, None, Method::Spearman).unwrap();
         assert!(p[0][1] < 0.95 && close(s[0][1], 1.0) && close(p[1][1], 1.0));
         assert!(correlation(&cols, Some(&[1.0]), Method::Pearson).is_err());
+    }
+
+    #[test]
+    fn covariance_diagonal_is_the_variance() {
+        let (v, _, w) = skewed();
+        let other: Vec<f64> = v.iter().map(|x| 3.0 - 2.0 * x).collect();
+        let c = correlation(&[v.clone(), other], Some(&w), Method::Covariance).unwrap();
+        let s = describe(&v, Some(&w), &[]).unwrap();
+        let close = |a: f64, b: f64| (a - b).abs() < 1e-9 * b.abs();
+        assert!(close(c[0][0], s.variance) && close(c[1][1], 4.0 * s.variance));
+        assert!(close(c[0][1], -2.0 * s.variance) && c[0][1] == c[1][0]);
     }
 
     #[test]
