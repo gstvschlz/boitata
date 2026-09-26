@@ -107,7 +107,7 @@ print(f"kriged in {time.perf_counter() - start:.1f} s")
 </details>
 
 ```text
-kriged in 3.5 s
+kriged in 10.1 s
 ```
 
 Turning bands simulates every realization's bands once over the model's extent, then evaluates and conditions
@@ -133,7 +133,7 @@ print(f"output {(folder / 'simulated.parquet').stat().st_size / 1e6:.0f} MB")
 </details>
 
 ```text
-10 realizations in 15 s; blocks above 10 % Zn: P10 7.92%, P90 9.20% of the model
+10 realizations in 29 s; blocks above 10 % Zn: P10 7.92%, P90 9.20% of the model
 output 262 MB
 ```
 
@@ -169,7 +169,7 @@ cs.plot.uncertain(
     section["mean"],
     section["score_variance"],
     extent=extent,
-    cmap="viridis",
+    cmap="cividis",
     norm=grade,
     label="Zn (%)",
     legend_ax=axes[1, 1],

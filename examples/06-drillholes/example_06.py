@@ -105,7 +105,7 @@ a.autoscale()
 a.set_aspect("equal")
 a.set(title=f"Plan: {len(dh)} desurveyed holes", xlabel="Easting (m)", ylabel="Northing (m)")
 b.add_collection(LineCollection(inside, colors=LIGHT, linewidths=0.8))
-points = b.scatter(comps[near, 0], comps[near, 2], c=zn[near], s=5, norm=LogNorm(0.05, 30), cmap="ceres")
+points = b.scatter(comps[near, 0], comps[near, 2], c=zn[near], s=5, norm=LogNorm(0.05, 30), cmap="cividis")
 b.autoscale()
 b.set_aspect("equal")
 b.set(

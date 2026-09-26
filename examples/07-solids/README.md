@@ -113,7 +113,7 @@ image = a.imshow(
     proportion[layer].reshape(count[1], count[0]),
     origin="lower",
     extent=(lo[0], lo[0] + count[0] * size, lo[1], lo[1] + count[1] * size),
-    cmap="Greys",
+    cmap="cividis",
     vmin=0,
     vmax=1,
 )

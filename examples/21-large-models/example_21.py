@@ -144,7 +144,7 @@ cs.plot.uncertain(
     section["mean"],
     section["score_variance"],
     extent=extent,
-    cmap="viridis",
+    cmap="cividis",
     norm=grade,
     label="Zn (%)",
     legend_ax=axes[1, 1],

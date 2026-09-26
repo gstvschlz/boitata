@@ -292,7 +292,7 @@ on_section = np.abs(xyz[:, 1] - north) < 5
 fig = plt.figure(figsize=(11, 6.4), layout="constrained")
 axes = fig.subplots(2, 4, height_ratios=[4, 1])
 grade = plt.Normalize(0, 25)
-cs.plot.section(blocks, "zn", axis="y", index=row, ax=axes[0, 0], colorbar=False, cmap="viridis", norm=grade)
+cs.plot.section(blocks, "zn", axis="y", index=row, ax=axes[0, 0], colorbar=False, cmap="cividis", norm=grade)
 cs.plot.uncertain(
     "mean",
     "uncertainty",

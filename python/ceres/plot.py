@@ -385,7 +385,7 @@ def uncertain(
     axis="z",
     index=None,
     extent=None,
-    cmap="viridis",
+    cmap=None,
     norm=None,
     label=None,
     legend_ax=None,
@@ -412,7 +412,8 @@ def uncertain(
         With `block_model`, cell index along `axis` (default: the middle).
     extent : tuple of float, optional
         Passed to ``ax.imshow``; set from `block_model` when given.
-    cmap : str or Colormap
+    cmap : str or Colormap, optional
+        Default: matplotlib's ``image.cmap``.
     norm : Normalize, optional
         Maps values to [0, 1]; default spans their range.
     label : str, optional
@@ -426,7 +427,7 @@ def uncertain(
     if block_model is not None:
         (values, uncertainty), extent = _slice(ax, block_model, [values, uncertainty], axis, index)
     values = np.asarray(values, dtype=float)
-    cmap = mpl.colormaps[cmap] if isinstance(cmap, str) else cmap
+    cmap = mpl.colormaps[cmap or mpl.rcParams["image.cmap"]] if not callable(cmap) else cmap
     norm = norm or mpl.colors.Normalize(np.nanmin(values), np.nanmax(values))
     ax.imshow(_fade(values, np.asarray(uncertainty, dtype=float), cmap, norm), origin="lower", extent=extent)
 

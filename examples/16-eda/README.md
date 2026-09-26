@@ -292,7 +292,7 @@ log_zn = np.log10(np.where(zn > 0, zn, np.nan))
 fig, axes = plt.subplots(1, 3, figsize=(10, 3.4), layout="constrained", sharey=True)
 for ax, lag in zip(axes, [2.0, 10.0, 50.0], strict=True):
     head, tail, r = cs.h_scatter(xyz, log_zn, lag, 0.1 * lag)
-    ax.hexbin(tail, head, gridsize=40, bins="log", cmap="ceres", linewidths=0)
+    ax.hexbin(tail, head, gridsize=40, bins="log", cmap="cividis", linewidths=0)
     ax.set(title=f"h = {lag:g} m, ρ = {r:.2f}", xlabel="log₁₀ Zn at x", aspect="equal")
 axes[0].set_ylabel("log₁₀ Zn at x + h")
 save(fig, "h_scatter")
@@ -311,7 +311,7 @@ Spearman correlation of the grades, each pair over the composites where both are
 ```python
 r = cs.correlation(np.column_stack([composites[g] for g in grades]), method="spearman")
 fig, ax = plt.subplots(figsize=(4.4, 3.8), layout="constrained")
-im = ax.imshow(r, cmap="ceres", vmin=0, vmax=1)
+im = ax.imshow(r, cmap="cividis", vmin=0, vmax=1)
 for i in range(len(grades)):
     for j in range(len(grades)):
         ax.text(j, i, f"{r[i, j]:.2f}", ha="center", va="center", color="white" if r[i, j] > 0.6 else INK)
