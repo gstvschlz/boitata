@@ -14,6 +14,7 @@ pub mod detrend;
 pub mod dgm;
 pub mod error;
 pub mod hermite;
+pub mod localize;
 pub mod normal;
 pub mod normal_score;
 pub mod pca;

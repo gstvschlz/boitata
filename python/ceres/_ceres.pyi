@@ -227,11 +227,31 @@ class UniformConditioning:
     def to_json(self) -> str: ...
     @staticmethod
     def from_json(text: str) -> UniformConditioning: ...
-    def __init__(self, anamorphosis: HermiteAnamorphosis, r_smu: float, r_panel: float) -> None: ...
+    def __init__(
+        self, anamorphosis: HermiteAnamorphosis, r_smu: float, r_panel: float | None = None
+    ) -> None: ...
     def panel_recovery(
-        self, panel_grade: float, cutoffs: ArrayLike
+        self, panel_grade: float, cutoffs: ArrayLike, estimate_variance: float | None = None
     ) -> dict[str, npt.NDArray[np.float64]]: ...
-    def localized_grades(self, panel_grade: float, n_smu: int) -> npt.NDArray[np.float64]: ...
+    def localized_grades(
+        self, panel_grade: float, n_smu: int, estimate_variance: float | None = None
+    ) -> npt.NDArray[np.float64]: ...
+    def grade_tonnage(
+        self,
+        panels: BlockModel,
+        grade: str,
+        cutoffs: ArrayLike,
+        estimate_variance: str | None = None,
+    ) -> dict[str, npt.NDArray[np.float64]]: ...
+    def localize(
+        self,
+        panels: BlockModel,
+        grade: str,
+        smus: BlockModel,
+        ranking: str,
+        estimate_variance: str | None = None,
+        name: str | None = None,
+    ) -> BlockModel: ...
 
 class Trend:
     def to_json(self) -> str: ...

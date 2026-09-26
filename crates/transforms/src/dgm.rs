@@ -87,10 +87,16 @@ pub fn block_average_correlation(
 pub fn coefficient_from_correlation(anam: &HermiteAnamorphosis, b: f64) -> f64 {
     let psi = &anam.coefficients;
     let b = b.clamp(0.0, 1.0);
-    // Target block variance in Hermite space.
     let target: f64 = (1..psi.len())
         .map(|n| psi[n] * psi[n] * b.powi(n as i32))
         .sum();
+    coefficient_from_variance(anam, target)
+}
+
+/// The coefficient `r ∈ [0, 1]` whose block anamorphosis has variance
+/// `target`: solves `Σ_{n≥1} ψₙ² r^{2n} = target` by bisection.
+pub fn coefficient_from_variance(anam: &HermiteAnamorphosis, target: f64) -> f64 {
+    let psi = &anam.coefficients;
     let point_var: f64 = (1..psi.len()).map(|n| psi[n] * psi[n]).sum();
     if point_var <= 0.0 {
         return 1.0;

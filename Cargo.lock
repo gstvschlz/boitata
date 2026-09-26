@@ -1836,10 +1836,13 @@ dependencies = [
 name = "transforms"
 version = "0.1.0"
 dependencies = [
+ "arrow-array",
+ "arrow-schema",
  "ceres-core",
  "kiddo",
  "libm",
  "nalgebra",
+ "rayon",
  "serde",
  "serde_json",
  "thiserror",

@@ -187,7 +187,7 @@ pub fn eval(psi: &[f64], y: f64) -> f64 {
 }
 
 /// Derivative `φ'(y) = Σₙ ψₙ Hₙ'(y)`, with `Hₙ'(y) = −√n H_{n-1}(y)`.
-fn eval_deriv(psi: &[f64], y: f64) -> f64 {
+pub(crate) fn eval_deriv(psi: &[f64], y: f64) -> f64 {
     let deg = psi.len() - 1;
     if deg == 0 {
         return 0.0;

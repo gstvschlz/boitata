@@ -139,6 +139,81 @@ def test_uniform_conditioning_recovers_all_at_zero_cutoff(skewed):
     assert rec["tonnage"][0] == pytest.approx(1.0, abs=1e-6)
 
 
+def test_uniform_conditioning_with_r_panel_keeps_its_recoveries():
+    values = np.random.default_rng(3).lognormal(0.0, 0.8, 400)
+    uc = cs.UniformConditioning(cs.HermiteAnamorphosis(degree=30).fit(values), 0.8, 0.6)
+    rec = uc.panel_recovery(1.5, [0.5, 1.0, 2.0, 3.0])
+    np.testing.assert_allclose(
+        rec["tonnage"],
+        [0.9919641556480453, 0.7709675766005867, 0.18412255756967455, 0.03426193506810016],
+        rtol=1e-9,
+    )
+    np.testing.assert_allclose(
+        rec["metal"],
+        [1.4964939621944264, 1.3166196037377833, 0.47908736272868696, 0.12471125298512278],
+        rtol=1e-9,
+    )
+
+
+def uc_panels(skewed):
+    anam = cs.HermiteAnamorphosis(degree=30).fit(skewed)
+    panels = cs.BlockModel(origin=(0, 0), size=(50, 50), count=(4, 3))
+    grade = skewed.mean() * np.linspace(0.5, 1.8, 12)
+    grade[5] = np.nan
+    panels = panels.with_column("grade", grade).with_column("ev", anam.variance_ * np.linspace(0.2, 0.5, 12))
+    smus = panels.discretize(5)
+    return anam, panels, smus.with_column("rank", rng.normal(size=len(smus)))
+
+
+def test_uniform_conditioning_localizes_band_means(skewed):
+    anam, panels, smus = uc_panels(skewed)
+    uc = cs.UniformConditioning(anam, 0.8, 0.5)
+    out = uc.localize(panels, "grade", smus, "rank", name="uc")
+    owner, rank, local = smus["block"].astype(int), out["rank"], out["uc"]
+    for p, g in enumerate(panels["grade"]):
+        mine = owner == p
+        if np.isnan(g):
+            assert np.isnan(local[mine]).all()
+            continue
+        assert local[mine].mean() == pytest.approx(g, rel=1e-9)
+        by_rank = local[mine][np.argsort(rank[mine])]
+        np.testing.assert_allclose(by_rank, uc.localized_grades(g, 25), rtol=1e-12)
+        assert (np.diff(by_rank) >= 0).all()
+
+    tied = uc.localize(panels, "grade", smus.with_column("rank", np.zeros(len(smus))), "rank")
+    assert (np.diff(tied["grade"][owner == 0]) >= 0).all()
+
+
+def test_uniform_conditioning_per_panel_coefficient(skewed):
+    anam, panels, smus = uc_panels(skewed)
+    uc = cs.UniformConditioning(anam, 0.8)
+    cutoffs = [0.5, 1.0, 2.0]
+    curves = uc.grade_tonnage(panels, "grade", cutoffs, estimate_variance="ev")
+    assert curves["tonnage"].shape == (12, 3) and np.isnan(curves["metal"][5]).all()
+    one = uc.panel_recovery(panels["grade"][0], cutoffs, estimate_variance=panels["ev"][0])
+    np.testing.assert_allclose(curves["metal"][0], one["metal"], rtol=1e-12)
+    out = uc.localize(panels, "grade", smus, "rank", estimate_variance="ev")
+    assert out["grade"][smus["block"] == 0].mean() == pytest.approx(panels["grade"][0], rel=1e-9)
+    with pytest.raises(cs.InvalidInput):
+        uc.localize(panels, "grade", smus, "rank")
+    with pytest.raises(cs.InvalidInput):
+        cs.UniformConditioning(anam, 0.8, 0.5).grade_tonnage(panels, "grade", cutoffs, estimate_variance="ev")
+    with pytest.raises(KeyError):
+        uc.localize(panels, "grade", smus, "missing", estimate_variance="ev")
+
+
+def test_uniform_conditioning_needs_nested_ranked_blocks(skewed):
+    anam, panels, smus = uc_panels(skewed)
+    uc = cs.UniformConditioning(anam, 0.8, 0.5)
+    shifted = cs.BlockModel(origin=(5, 0), size=(10, 10), count=(20, 15)).with_column("rank", np.zeros(300))
+    with pytest.raises(cs.InvalidInput):
+        uc.localize(panels, "grade", shifted, "rank")
+    rank = smus["rank"]
+    rank[np.flatnonzero(smus["block"] == 0)[0]] = np.nan
+    with pytest.raises(cs.InvalidInput):
+        uc.localize(panels, "grade", smus.with_column("rank", rank), "rank")
+
+
 def test_normal_score_tails_bound_the_back_transform(skewed):
     ns = cs.NormalScore().fit(skewed)
     back = ns.inverse_transform([-9.0, 9.0])
@@ -146,3 +221,21 @@ def test_normal_score_tails_bound_the_back_transform(skewed):
     wide = cs.NormalScore(tails=(0.0, 100.0)).fit(skewed)
     low, high = wide.inverse_transform([-4.0, 4.0])
     assert 0.0 < low < skewed.min() and skewed.max() < high < 100.0
+
+
+def test_block_kriging_estimate_variance_feeds_uniform_conditioning(skewed):
+    anam = cs.HermiteAnamorphosis(degree=30).fit(skewed)
+    xy = rng.uniform(0, 200, (skewed.size, 2))
+    variogram = cs.Variogram([("spherical", anam.variance_, 80.0)])
+    panels = cs.BlockModel(origin=(0, 0), size=(50, 50), count=(4, 4))
+    kriging = cs.BlockKriging(variogram, cs.Search(radius=120, max_samples=16), size=(50, 50)).fit(xy, skewed)
+    d = kriging.predict(panels, diagnostics=True)
+    np.testing.assert_allclose(
+        d["estimate_variance"], d["support_variance"] - d["variance"] - 2 * d["lagrange"], rtol=1e-12
+    )
+    panels = panels.with_column("V", d["value"]).with_column("ev", d["estimate_variance"])
+    smus = panels.discretize(5)
+    smus = smus.with_column("rank", rng.normal(size=len(smus)))
+    out = cs.UniformConditioning(anam, 0.9).localize(panels, "V", smus, "rank", estimate_variance="ev")
+    means = np.bincount(smus["block"].astype(int), weights=out["V"]) / 25
+    np.testing.assert_allclose(means, d["value"], rtol=1e-9)
