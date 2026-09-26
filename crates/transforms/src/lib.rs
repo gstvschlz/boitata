@@ -10,6 +10,7 @@
 pub mod anamorphosis;
 pub mod boxcox;
 pub mod decluster;
+pub mod despike;
 pub mod detrend;
 pub mod dgm;
 pub mod error;
@@ -31,6 +32,7 @@ pub use boxcox::{box_cox, box_cox_inverse, optimal_lambda, skewness_at};
 pub use decluster::{
     Weights, cell_weights, decluster_mean_over_offsets, optimal_cell_size, polygon_weights,
 };
+pub use despike::{default_radii, despike};
 pub use detrend::{KernelTrend, Trend, detrend};
 pub use dgm::{BlockDiscretization, change_of_support};
 pub use error::{Result, TransformError};

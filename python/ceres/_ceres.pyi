@@ -393,6 +393,22 @@ def cell_declustering(
 def polygon_declustering(
     coords: ArrayLike | PointSet | BlockModel, values: ArrayLike | Column, *, nodes: int = 10_000
 ) -> Declustering: ...
+@overload
+def despike(
+    coords: ArrayLike | PointSet | BlockModel,
+    values: Sequence[Column],
+    *,
+    radii: Sequence[float] | None = None,
+    seed: int = 0,
+) -> Table: ...
+@overload
+def despike(
+    coords: ArrayLike | PointSet | BlockModel,
+    values: ArrayLike | Column,
+    *,
+    radii: Sequence[float] | None = None,
+    seed: int = 0,
+) -> npt.NDArray[np.float64]: ...
 def affine_correction(
     values: ArrayLike, f: float, *, weights: ArrayLike | None = None
 ) -> npt.NDArray[np.float64]: ...

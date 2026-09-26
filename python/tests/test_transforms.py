@@ -354,3 +354,26 @@ def test_block_kriging_estimate_variance_feeds_uniform_conditioning(skewed):
     out = cs.UniformConditioning(anam, 0.9).localize(smus, "rank", panels, "V", estimate_variance="ev")
     means = np.bincount(smus["block"].astype(int), weights=out["localized"]) / 25
     np.testing.assert_allclose(means, d["value"], rtol=1e-9)
+
+
+def test_despike_breaks_ties_consistently():
+    x = np.arange(200.0)
+    coords = np.column_stack([x, np.zeros(200)])
+    values = np.where(x % 5 == 0, 0.1, np.where(x < 100, 0.5, 3.0) + rng.uniform(0, 0.4, 200))
+    out = cs.despike(coords, values, radii=[3.0, 10.0], seed=2)
+    assert len(np.unique(out)) == 200
+    untied = np.subtract.outer(values, values) != 0
+    order = np.sign(np.subtract.outer(out, out)) == np.sign(np.subtract.outer(values, values))
+    assert order[untied].all()
+    assert np.abs(out - values).max() < 1e-4
+    tied = values == 0.1
+    assert out[tied & (x < 100)].max() < out[tied & (x >= 100)].min()
+    np.testing.assert_array_equal(out, cs.despike(coords, values, radii=[3.0, 10.0], seed=2))
+    both = cs.despike(coords, np.column_stack([values, 2 * values]), radii=[3.0])
+    np.testing.assert_array_equal(np.argsort(both[:, 0]), np.argsort(both[:, 1]))
+    points = cs.PointSet(coords, {"a": values, "b": 2 * values})
+    table = cs.despike(points, ["a", "b"], radii=[3.0])
+    np.testing.assert_array_equal(np.asarray(table["a"]), both[:, 0])
+    np.testing.assert_array_equal(cs.despike(points, "a"), cs.despike(coords, values))
+    with pytest.raises(ValueError):
+        cs.despike(coords, values[:10])
