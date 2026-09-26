@@ -539,3 +539,30 @@ def test_turning_bands_domains_errors_and_persistence(tmp_path):
         banded(soft).fit(xyz, grades, domains="MS")
     with pytest.raises(cs.InvalidInput, match="does not take domains"):
         cs.MultivariateSimulation(cs.PCA(), [banded(soft)])
+
+
+@pytest.mark.parametrize(
+    "model",
+    [
+        cs.SGS(gaussian, cs.Search(radius=40, max_samples=12)),
+        cs.TurningBands(gaussian, bands=60, search=cs.Search(radius=40, max_samples=12)),
+    ],
+)
+def test_grades_follow_each_realization_of_simulated_domains(model):
+    zone = np.where(coords[:, 0] < 50, "lean", "rich")
+    grades = np.where(zone == "lean", values, 100 * values)
+    model.fit(coords, grades, domains=zone)
+    nodes = grid.centroids
+    fixed = np.where(nodes[:, 0] < 50, "lean", "rich")
+
+    def run(domains):
+        return model.simulate(grid, n=3, seed=4, realizations=True, domains=domains).realizations
+
+    np.testing.assert_array_equal(run(np.tile(fixed, (3, 1))), run(fixed))
+    simulated = np.array([np.where(nodes[:, 0] < edge, "lean", "rich") for edge in (20, 50, 80)])
+    reals = run(simulated)
+    split = (values.max() + 100 * values.min()) / 2
+    for real, domains in zip(reals, simulated):
+        assert (real[domains == "lean"] < split).all() and (real[domains == "rich"] > split).all()
+    with pytest.raises(cs.InvalidInput, match="expected 3 realizations of domains, got 2"):
+        run(simulated[:2])
