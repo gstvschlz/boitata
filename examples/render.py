@@ -1,10 +1,11 @@
-"""Runs each example.py cell by cell and writes its README.md.
+"""Runs each chapter's example_NN.py cell by cell and writes its README.md.
 
-Cells start with `# %%` (code), `# %% [markdown]` (text written as `# `
+The module docstring is the opening text. Cells start with `# %%` (code), `# %% [markdown]` (text written as `# `
 comments) or `# %% [hidden]` (run, not shown). Each code cell is shown collapsed, followed by what it printed and
 the figures it saved.
 """
 
+import ast
 import contextlib
 import io
 import sys
@@ -35,7 +36,7 @@ def cells(source: str):
 
 def render(script: Path) -> str:
     namespace = {"__file__": str(script), "__name__": "__main__"}
-    parts = []
+    parts = [ast.get_docstring(ast.parse(script.read_text(encoding="utf-8")))]
     for kind, body in cells(script.read_text(encoding="utf-8")):
         if kind == "markdown":
             parts.append(
@@ -62,8 +63,8 @@ def render(script: Path) -> str:
 
 
 if __name__ == "__main__":
-    chapters = sys.argv[1:] or sorted(p.name for p in ROOT.iterdir() if (p / "example.py").exists())
+    chapters = sys.argv[1:] or sorted(p.name for p in ROOT.iterdir() if any(p.glob("example_*.py")))
     for chapter in chapters:
-        script = ROOT / chapter / "example.py"
+        (script,) = (ROOT / chapter).glob("example_*.py")
         (script.parent / "README.md").write_text(render(script), encoding="utf-8", newline="\n")
         print(f"rendered {chapter}")

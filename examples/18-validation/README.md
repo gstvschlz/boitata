@@ -168,4 +168,4 @@ save(fig, "classes")
 
 ![classes](classes.png)
 
-Full script: [`example.py`](example.py)
+Full script: [`example_18.py`](example_18.py)

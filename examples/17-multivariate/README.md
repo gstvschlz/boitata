@@ -85,4 +85,4 @@ save(fig, "factors")
 
 ![factors](factors.png)
 
-Full script: [`example.py`](example.py)
+Full script: [`example_17.py`](example_17.py)
