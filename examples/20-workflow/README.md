@@ -219,7 +219,8 @@ def passes(high_grade=None):
 ok = cs.OrdinaryKriging(grades, passes(high_grade=(30.0, 15.0))).fit(xyz, zn, holes=holes)
 kriged = ok.predict(blocks, diagnostics=True)
 free = cs.OrdinaryKriging(grades, passes()).fit(xyz, zn, holes=holes).predict(blocks)
-check = cs.validate_model(kriged["value"], zn, weights=weights)
+samples = cs.PointSet(xyz, {"ZN": zn, "weight": weights})
+check = cs.validate_model(blocks, kriged["value"], samples, "ZN", weights="weight")
 mean = dict(zip(check["source"], check["mean"], strict=True))
 print(f"pass 1: {np.mean(kriged['pass'] == 1):.0%} of blocks, pass 2: {np.mean(kriged['pass'] == 2):.0%}")
 print(
@@ -333,9 +334,9 @@ print(
 fig, ax = plt.subplots(figsize=(6, 3.4), layout="constrained")
 cs.plot.swath(
     [
-        cs.swath(xyz, zn, 20.0, axis="z", weights=weights),
-        cs.swath(blocks.centroids, kriged["value"], 20.0, axis="z"),
-        cs.swath(blocks.centroids, summary.mean, 20.0, axis="z"),
+        cs.swath(samples, "ZN", 20.0, axis="z", weights="weight"),
+        cs.swath(blocks, kriged["value"], 20.0, axis="z"),
+        cs.swath(blocks, summary.mean, 20.0, axis="z"),
     ],
     labels=["declustered composites", "kriged blocks", "mean of 30 simulations"],
     ax=ax,
@@ -566,8 +567,8 @@ density of 3.5 t/m³.
 <details><summary>Python</summary>
 
 ```python
-models = {"kriged": kriged["value"], "soft SM": by_rule["soft"]["value"], "simulated": summary.mean}
-table = cs.compare_models(models, [10.0], categories=classes, volume=125.0, density=3.5)
+models = {"kriged": "zn", "soft SM": by_rule["soft"]["value"], "simulated": "mean"}
+table = cs.compare_models(blocks, models, [10.0], categories=classes, density=3.5)
 print(f"{'':21}{'kt':>7}{'Zn %':>7}{'kt Zn':>7}{'tonnes':>9}{'metal':>8}")
 columns = ["category", "model", "tonnage", "mean_grade", "metal", "tonnage_diff", "metal_diff"]
 for category, model, tonnage, grade, metal, tonnage_diff, metal_diff in zip(

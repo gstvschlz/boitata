@@ -1298,19 +1298,22 @@ def describe_by(
     quantiles: Sequence[float] = (0.1, 0.25, 0.5, 0.75, 0.9),
 ) -> Table: ...
 def grade_tonnage(
-    values: ArrayLike,
+    values: ArrayLike | Column,
     cutoffs: ArrayLike,
-    weights: ArrayLike | None = None,
-    density: ArrayLike | None = None,
-    categories: Labels | None = None,
+    *,
+    weights: ArrayLike | Column | None = None,
+    density: float | ArrayLike | Column = 1.0,
+    categories: Labels | Column | None = None,
+    data: Data | None = None,
 ) -> Table: ...
 def compare_models(
-    models: Mapping[str, ArrayLike],
+    model: BlockModel,
+    columns: Sequence[Column] | Mapping[str, ArrayLike | Column],
     cutoffs: ArrayLike,
-    categories: Labels | None = None,
+    *,
+    categories: Labels | Column | None = None,
     reference: str | None = None,
-    volume: float | ArrayLike | None = None,
-    density: float | ArrayLike | None = None,
+    density: float | ArrayLike | Column = 1.0,
 ) -> Table: ...
 def capping_report(
     values: ArrayLike,
@@ -1319,14 +1322,15 @@ def capping_report(
     weights: ArrayLike | None = None,
 ) -> Table: ...
 def swath(
-    coords: Data | ArrayLike,
-    values: ArrayLike,
+    coords: PointSet | BlockModel | ArrayLike,
+    values: ArrayLike | Column,
     width: float,
+    *,
     azimuth: float | None = None,
     axis: str | None = None,
-    weights: ArrayLike | None = None,
-    density: float | ArrayLike | Column | None = None,
-) -> dict[str, npt.NDArray[np.float64] | list[int]]: ...
+    weights: ArrayLike | Column | None = None,
+    density: float | ArrayLike | Column = 1.0,
+) -> Table: ...
 def contact(
     coords: ArrayLike,
     values: ArrayLike,
@@ -1383,13 +1387,15 @@ def data_spacing(
     horizontal: bool = False,
 ) -> npt.NDArray[np.float64]: ...
 def validate_model(
-    model: ArrayLike,
-    data: ArrayLike,
-    weights: ArrayLike | None = None,
-    domains: tuple[Holes, Holes] | None = None,
-    volume: float | ArrayLike | None = None,
-    density: float | ArrayLike | None = None,
-    reference: ArrayLike | None = None,
+    model: BlockModel,
+    grade: Column | ArrayLike,
+    data: Data,
+    values: Column | ArrayLike,
+    *,
+    weights: ArrayLike | Column | None = None,
+    domain_column: Column | tuple[Column, Column] | None = None,
+    density: float | ArrayLike | Column = 1.0,
+    reference: Column | ArrayLike | None = None,
 ) -> Table: ...
 def smooth_classes(
     model: BlockModel,

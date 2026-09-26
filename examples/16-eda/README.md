@@ -364,7 +364,7 @@ less selective than composites; [chapter 9](../09-change-of-support/README.md) m
 cutoffs = np.linspace(0, 30, 61)
 fig, (a, b) = plt.subplots(1, 2, figsize=(9, 3.6), layout="constrained")
 for w, color, label in ((None, GRAY, "naive"), (weights[ms], ACCENT, "declustered")):
-    gt = cs.grade_tonnage(zn[ms], cutoffs, w)
+    gt = cs.grade_tonnage("ZN", cutoffs, weights=w, data=composites.filter(ms))
     a.plot(cutoffs, gt["tonnage"] / gt["tonnage"][0], color=color, label=label)
     b.plot(cutoffs, gt["mean_grade"], color=color)
 a.set(title="MS proportion above cutoff", xlabel="Cutoff Zn (%)", ylabel="Proportion of weight")
@@ -407,13 +407,13 @@ save(fig, "contact")
 
 ## Swath
 
-Mean Zn in 100 m slices along easting, with the counts of the first swath as bars. The same call on block
-centroids and estimates gives the model swath to check for local bias.
+Mean Zn in 100 m slices along easting, with the counts of the first swath as bars. The same call on a block model
+and its column of estimates gives the model swath, weighted by block volume, to check for local bias.
 
 <details><summary>Python</summary>
 
 ```python
-swaths = [cs.swath(xyz[lith == name], zn[lith == name], 100.0, axis="x") for name in ["MS", "SM"]]
+swaths = [cs.swath(composites.filter(lith == name), "ZN", 100.0, axis="x") for name in ["MS", "SM"]]
 fig, ax = plt.subplots(figsize=(8, 3.4), layout="constrained")
 cs.plot.swath(swaths, labels=["MS", "SM"], ax=ax)
 ax.set(title="Zn swath along easting", xlabel="Easting (m)", ylabel="Zn (%)")

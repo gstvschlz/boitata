@@ -21,11 +21,14 @@ def test_describe_skips_nan_and_matches_hazen_quantiles():
 def test_swath_along_azimuth_and_axis():
     xy = rng.uniform(0, 100, (500, 2))
     s = cs.swath(xy, xy[:, 0], 10.0, azimuth=90)
+    assert s.column_names == ["center", "n", "mean", "tonnage", "metal"]
     np.testing.assert_allclose(s["mean"], s["center"], atol=1.5)
-    assert sum(s["count"]) == 500
-    assert cs.swath(xy, xy[:, 0], 10.0, axis="x")["count"] == s["count"]
+    assert s["n"].sum() == 500
+    np.testing.assert_array_equal(cs.swath(xy, xy[:, 0], 10.0, axis="x")["n"], s["n"])
     with pytest.raises(cs.InvalidInput):
         cs.swath(xy, xy[:, 0], 10.0)
+    with pytest.raises(TypeError):
+        cs.swath(xy, xy[:, 0], 10.0, 90)
 
 
 def test_swath_tonnage_and_metal_balance_grade_tonnage():
@@ -34,22 +37,41 @@ def test_swath_tonnage_and_metal_balance_grade_tonnage():
     gt = cs.grade_tonnage(v, [-np.inf], weights=w, density=np.full(300, 2.7))
     assert s["tonnage"].sum() == pytest.approx(gt["tonnage"][0])
     assert s["metal"].sum() == pytest.approx(gt["metal"][0])
+    blocks = cs.BlockModel((0, 0, 0), (5, 5, 5), (20, 15, 1), attributes={"v": v})
+    s = cs.swath(blocks, "v", 10.0, axis="x", density=2.7)
+    gt = cs.grade_tonnage("v", [-np.inf], density=2.7, data=blocks)
+    assert s["tonnage"].sum() == pytest.approx(gt["tonnage"][0]) == pytest.approx(300 * 125 * 2.7)
+    assert s["metal"].sum() == pytest.approx(gt["metal"][0])
+    by_array = cs.swath(blocks.centroids, v, 10.0, axis="x", weights=np.full(300, 125.0), density=2.7)
+    for c in s.column_names:
+        np.testing.assert_allclose(s[c], by_array[c])
 
 
 def test_validate_model_equal_to_data():
-    v, w = rng.lognormal(0, 1, 200), rng.uniform(0.5, 2, 200)
+    v = rng.lognormal(0, 1, 200)
     d = np.where(np.arange(200) < 80, "ox", "fr")
-    t = cs.validate_model(v, v, weights=w, domains=(d, d), volume=w, reference=v)
+    blocks = cs.BlockModel((0, 0, 0), (10, 10, 10), (200, 1, 1), attributes={"g": v, "rock": d})
+    samples = cs.PointSet(blocks.centroids, {"v": v, "w": np.ones(200), "rock": d})
+    t = cs.validate_model(blocks, "g", samples, "v", weights="w", domain_column="rock", reference="g")
     assert list(t["domain"])[::4] == ["fr", "ox", "all"]
     assert list(t["source"])[:4] == ["naive", "declustered", "model", "reference"]
     model = np.asarray(t["source"]) != "naive"
     np.testing.assert_allclose(np.asarray(t["mean_diff"])[model], 0, atol=1e-12)
     np.testing.assert_allclose(np.asarray(t["variance_ratio"])[model], 1)
-    assert t["tonnage"][-2] == pytest.approx(w.sum())
-    plain = cs.validate_model(v * 1.1, v, density=2.0)
+    assert t["tonnage"][-2] == pytest.approx(200 * 1000)
+    arrays = cs.validate_model(
+        blocks, v, samples, v, weights=np.ones(200), domain_column=("rock", "rock"), reference=v
+    )
+    for c in t.column_names[2:]:
+        np.testing.assert_array_equal(arrays[c], t[c])
+    plain = cs.validate_model(blocks, v * 1.1, samples, "v", density=2.0)
     assert list(plain["source"]) == ["naive", "model"]
     assert plain["mean_diff"][1] == pytest.approx(0.1)
-    assert plain["tonnage"][1] == pytest.approx(400)
+    assert plain["tonnage"][1] == pytest.approx(200 * 1000 * 2)
+    with pytest.raises(TypeError):
+        cs.validate_model(blocks, "g", samples, "v", "w")
+    with pytest.raises(cs.InvalidInput, match="BlockModel"):
+        cs.validate_model(samples, "v", samples, "v")
 
 
 def test_contact_signs_distance_by_side():
@@ -119,7 +141,8 @@ def test_describe_by_ends_with_the_all_data_row():
 def test_grade_tonnage_from_data():
     v = rng.lognormal(0, 1, 200)
     volume, density = rng.uniform(1, 2, 200), rng.uniform(2.5, 3, 200)
-    gt = cs.grade_tonnage(v, [-np.inf, 0.5, 1, 2, 5, 1e9], volume, density)
+    cutoffs = [-np.inf, 0.5, 1, 2, 5, 1e9]
+    gt = cs.grade_tonnage(v, cutoffs, weights=volume, density=density)
     tonnes = volume * density
     assert gt["tonnage"][0] == pytest.approx(tonnes.sum())
     assert gt["mean_grade"][0] == pytest.approx(np.average(v, weights=tonnes))
@@ -127,15 +150,20 @@ def test_grade_tonnage_from_data():
     np.testing.assert_allclose(gt["metal"][:-1], gt["tonnage"][:-1] * gt["mean_grade"][:-1])
     assert gt["tonnage"][-1] == 0 and np.isnan(gt["mean_grade"][-1])
     assert cs.grade_tonnage(v, [2.0])["tonnage"][0] == (v >= 2).sum()
+    points = cs.PointSet(rng.uniform(0, 1, (200, 3)), {"v": v, "w": volume, "d": density})
+    named = cs.grade_tonnage("v", cutoffs, weights="w", density="d", data=points)
+    np.testing.assert_array_equal(named["metal"], gt["metal"])
+    with pytest.raises(TypeError):
+        cs.grade_tonnage(v, [2.0], volume)
 
 
 def test_compare_models_reference_scaling_and_metal_balance():
     v = rng.lognormal(0, 1, 300)
     classes = np.repeat(["measured", "indicated", "inferred"], 100)
     cutoffs = [-np.inf, 1.0, 3.0]
-    t = cs.compare_models(
-        {"kriged": v, "scaled": 1.25 * v, "same": v}, cutoffs, categories=classes, volume=125.0, density=3.0
-    )
+    columns = {"kriged": v, "scaled": 1.25 * v, "same": v, "class": classes}
+    blocks = cs.BlockModel((0, 0, 0), (5, 5, 5), (300, 1, 1), attributes=columns)
+    t = cs.compare_models(blocks, ["kriged", "scaled", "same"], cutoffs, categories="class", density=3.0)
     assert t.column_names[:3] == ["category", "cutoff", "model"]
     assert t.num_rows == 4 * 3 * 3
     assert list(t["category"][::9]) == ["indicated", "inferred", "measured", "all"]
@@ -146,15 +174,23 @@ def test_compare_models_reference_scaling_and_metal_balance():
     first = (model == "scaled") & (np.asarray(t["cutoff"]) == -np.inf)
     np.testing.assert_allclose(np.asarray(t["metal_diff"])[first], 0.25)
     kriged = t.filter(model == "kriged")
-    gt = cs.grade_tonnage(v, cutoffs, np.full(300, 125.0), np.full(300, 3.0), categories=classes)
+    gt = cs.grade_tonnage(v, cutoffs, weights=np.full(300, 125.0), density=3.0, categories=classes)
     np.testing.assert_allclose(kriged["metal"], gt["metal"])
+    by_name = cs.grade_tonnage("kriged", cutoffs, density=3.0, categories="class", data=blocks)
+    np.testing.assert_array_equal(by_name["metal"], gt["metal"])
     metal = np.asarray(gt["metal"]).reshape(4, 3)
     np.testing.assert_allclose(metal[:3].sum(axis=0), metal[3])
-    assert list(cs.compare_models({"a": v, "b": v}, [0.0], reference="b")["model"]) == ["a", "b"]
+    arrays = cs.compare_models(
+        blocks, {"kriged": v, "scaled": "scaled", "same": v}, cutoffs, categories=classes
+    )
+    np.testing.assert_allclose(arrays["metal"], t["metal"] / 3.0)
+    assert list(cs.compare_models(blocks, {"a": v, "b": "same"}, [0.0], reference="b")["model"]) == ["a", "b"]
     with pytest.raises(cs.InvalidInput):
-        cs.compare_models({"a": v}, [0.0], reference="b")
+        cs.compare_models(blocks, {"a": v}, [0.0], reference="b")
     with pytest.raises(cs.InvalidInput):
-        cs.compare_models({"a": v, "b": v[1:]}, [0.0])
+        cs.compare_models(blocks, {"a": v, "b": v[1:]}, [0.0])
+    with pytest.raises(TypeError):
+        cs.compare_models(blocks, ["kriged"], [0.0], classes)
 
 
 def test_capping_report_by_domain():

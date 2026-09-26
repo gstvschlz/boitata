@@ -37,7 +37,8 @@ block alone already removes part of the sample variance.
 <details><summary>Python</summary>
 
 ```python
-table = cs.validate_model(d["value"], v, weights=weights, volume=100.0, reference=true_blocks)
+kriged = blocks.with_columns({"value": d["value"], "truth": true_blocks})
+table = cs.validate_model(kriged, "value", samples, "V", weights=weights, reference="truth")
 print(f"{'':12}{'n':>6}{'mean':>7}{'CV':>6}{'P10':>6}{'P50':>6}{'P90':>7}{'mean diff':>11}{'var. ratio':>11}")
 for row in zip(
     *(table[c] for c in ["source", "n", "mean", "cv", "P10", "P50", "P90", "mean_diff", "variance_ratio"])
@@ -67,10 +68,7 @@ estimate puts the metal; they add up to the metal of the whole model.
 ```python
 fig, axes = plt.subplots(1, 2, figsize=(10, 3.6), layout="constrained")
 cs.plot.cdf([v, d["value"], true_blocks], [weights, None, None], ax=axes[0])
-metal = [
-    cs.swath(blocks.centroids, g, 20.0, axis="x", weights=np.full(g.size, 100.0))
-    for g in (d["value"], true_blocks)
-]
+metal = [cs.swath(kriged, g, 20.0, axis="x") for g in ("value", "truth")]
 cs.plot.swath(metal, labels=["blocks", "truth"], y="metal", ax=axes[1])
 for ax, colors in ((axes[0], (GRAY, ACCENT, "black")), (axes[1], (ACCENT, "black"))):
     for line, color in zip(ax.lines, colors, strict=True):
@@ -94,12 +92,11 @@ scatter where few samples fall.
 
 ```python
 fig, axes = plt.subplots(1, 2, figsize=(10, 3.6), layout="constrained")
-centroids = blocks.centroids
 for ax, axis, name in ((axes[0], "x", "Easting (m)"), (axes[1], "y", "Northing (m)")):
     series = [
-        cs.swath(xy, v, 20.0, axis=axis, weights=weights),
-        cs.swath(centroids, d["value"], 20.0, axis=axis),
-        cs.swath(centroids, true_blocks, 20.0, axis=axis),
+        cs.swath(samples, "V", 20.0, axis=axis, weights=weights),
+        cs.swath(kriged, "value", 20.0, axis=axis),
+        cs.swath(kriged, "truth", 20.0, axis=axis),
     ]
     cs.plot.swath(series, labels=["declustered samples", "blocks", "truth"], ax=ax)
     for line, color in zip(ax.lines, (GRAY, ACCENT, "black"), strict=True):
