@@ -14,5 +14,8 @@ thiserror.workspace = true
 variogram.workspace = true
 libm.workspace = true
 
+[dev-dependencies]
+serde_json.workspace = true
+
 [lints]
 workspace = true
