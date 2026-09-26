@@ -1,7 +1,7 @@
 # 3. Variography
 
-Anisotropic spherical model of `V`: the variogram map finds the direction of greatest continuity, then directional
-experimental variograms along and across it are fitted.
+Anisotropic nested spherical model of `V`: the variogram map finds the direction of greatest continuity, then
+directional experimental variograms along and across it are fitted.
 
 <details><summary>Python</summary>
 
@@ -30,32 +30,56 @@ azimuth = (90 - np.degrees(angle)) % 180
 
 </details>
 
-Fit a spherical structure along and across the major axis. The major direction sets nugget, sill and major range;
-the minor direction contributes only its range. `rotation` is azimuth, dip, rake in degrees; `ratios` are semi-major/major
-and minor/major ranges. The model is saved for later chapters.
+Fit along and across the major axis. Weighting each lag by N(h)/γ(h)² lets the few short-lag pairs steer the fit
+near the origin, where the nugget and the short ranges are decided.
 
 <details><summary>Python</summary>
 
 ```python
 major = cs.experimental_variogram(xy, v, lag, max_lag, azimuth=azimuth)
 minor = cs.experimental_variogram(xy, v, lag, max_lag, azimuth=azimuth + 90)
-along, across = major.fit("spherical"), minor.fit("spherical")
-a_major = along.structures[0].range
-ratio = min(across.structures[0].range / a_major, 1.0)
-model = cs.Variogram(
-    [("spherical", along.structures[0].sill, a_major)],
-    nugget=along.nugget,
-    rotation=(azimuth, 0, 0),
-    ratios=(ratio, 1.0),
-)
+weighting = "count/gamma"
+single = major.fit("spherical", weighting=weighting)
+along = major.fit(["spherical", "spherical"], weighting=weighting)
+print(single, along, minor.fit(["spherical", "spherical"], weighting=weighting), sep="\n")
+```
+
+</details>
+
+```text
+Variogram(nugget=31621.585548875744, structures=[Structure("spherical", sill=61718.46041352483, range=72.70834074501036)], rotation=(0.0, 0.0, 0.0), ratios=(1.0, 1.0))
+Variogram(nugget=14993.35122178715, structures=[Structure("spherical", sill=25261.581155025888, range=19.578360959734756), Structure("spherical", sill=53364.6905008533, range=80.65434681410247)], rotation=(0.0, 0.0, 0.0), ratios=(1.0, 1.0))
+Variogram(nugget=23378.007796960097, structures=[Structure("spherical", sill=0, range=2.5), Structure("spherical", sill=68505.76265942639, range=23.87806723833898)], rotation=(0.0, 0.0, 0.0), ratios=(1.0, 1.0))
+```
+
+Along the major axis γ climbs to two thirds of the sill within 25 m, then keeps rising slowly to about 80 m: two
+scales of continuity. One structure (dashed below) splits the difference, overshoots the first lags and puts a third
+of the sill in the nugget. Two nested spherical structures follow both scales and halve the nugget. Across the axis
+the short structure takes no sill: γ reaches the sill by 25 m, and one structure is all those data support.
+
+The structures share one anisotropy. Fitting the minor direction with the nugget and sills fixed at their major-axis
+values moves only its ranges; the long structure, with two thirds of the sill, sets the minor/major ratio.
+`rotation` is azimuth, dip, rake in degrees; `ratios` are semi-major/major and minor/major ranges. The model is saved
+for later chapters.
+
+<details><summary>Python</summary>
+
+```python
+sills = [s.sill for s in along.structures]
+across = minor.fit(["spherical", "spherical"], weighting=weighting, nugget=along.nugget, sills=sills)
+a_major = along.structures[-1].range
+ratio = min(across.structures[-1].range / a_major, 1.0)
+model = along.with_anisotropy(rotation=(azimuth, 0, 0), ratios=(ratio, 1.0))
 (HERE / "model.json").write_text(model.to_json())
+print(across)
 print(model)
 ```
 
 </details>
 
 ```text
-Variogram(nugget=32974.91362140061, structures=[Structure("spherical", sill=60404.48424557247, range=75.41661873855779)], rotation=(170.0, 0.0, 0.0), ratios=(0.3216494539612399, 1.0))
+Variogram(nugget=14993.35122178715, structures=[Structure("spherical", sill=25261.581155025888, range=12.181126916520325), Structure("spherical", sill=53364.6905008533, range=26.669590607377888)], rotation=(0.0, 0.0, 0.0), ratios=(1.0, 1.0))
+Variogram(nugget=14993.35122178715, structures=[Structure("spherical", sill=25261.581155025888, range=19.578360959734756), Structure("spherical", sill=53364.6905008533, range=80.65434681410247)], rotation=(170.0, 0.0, 0.0), ratios=(0.33066526059466755, 1.0))
 ```
 
 The ellipse on the map is the model range in each direction:
@@ -90,6 +114,8 @@ for exp, color, az, rng in ((major, ACCENT, azimuth, a_major), (minor, GREY, azi
         exp, model, direction=(az, 0), ax=b, color=color, label=f"N{az % 360:.0f}° experimental"
     )
     b.axvline(rng, color=color, lw=0.8, ls=":")
+h = np.linspace(0, max_lag, 200)
+b.plot(h, single.gamma(h), color=HIGHLIGHT, lw=1, ls="--", label="one structure, major axis")
 b.axhline(variance, color=INK, lw=0.8, ls="--")
 b.text(max_lag, variance, "sample variance", va="top", ha="right", color=INK, fontsize=8)
 b.set_xlim(0, max_lag)

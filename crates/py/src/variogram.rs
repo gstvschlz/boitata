@@ -3,9 +3,10 @@ use pyo3::types::PyTuple;
 use transforms::dgm::{BlockDiscretization, block_average_correlation};
 use variogram::surface::{PlaneMapParams, plane_map};
 use variogram::{
-    Angles, Anisotropy, CoregStructure, Coregionalization as CoreCoreg, Direction, Estimator,
-    Experimental, LagBins, Model, Structure as CoreStructure, Transiogram as CoreTransiogram,
-    Variogram as CoreVariogram, Weighting, cross_experimental, empirical_transiogram, experimental,
+    Angles, Anisotropy, Bounds, CoregStructure, Coregionalization as CoreCoreg, Direction,
+    Estimator, Experimental, LagBins, Model, NestedSpec, Structure as CoreStructure, StructureSpec,
+    Transiogram as CoreTransiogram, Variogram as CoreVariogram, Weighting, cross_experimental,
+    empirical_transiogram, experimental, fit_nested,
 };
 
 use crate::args::{Point, array1, array2, finite, floats, points, same_length, triple};
@@ -71,10 +72,42 @@ fn weighting(name: &str) -> PyResult<Weighting> {
         "uniform" => Ok(Weighting::Uniform),
         "count" => Ok(Weighting::ByCount),
         "count/gamma" => Ok(Weighting::ByCountOverGamma),
+        "count/distance" => Ok(Weighting::ByCountOverDistance),
         _ => Err(invalid(format!(
-            "unknown weighting {name:?}; use uniform, count or count/gamma"
+            "unknown weighting {name:?}; use uniform, count, count/gamma or count/distance"
         ))),
     }
+}
+
+#[derive(FromPyObject)]
+enum Models {
+    One(String),
+    Many(Vec<String>),
+}
+
+#[derive(FromPyObject, Clone, Copy)]
+enum Limit {
+    Fixed(f64),
+    Between(f64, f64),
+}
+
+impl Limit {
+    fn bounds(self) -> Bounds {
+        match self {
+            Limit::Fixed(x) => (x, x),
+            Limit::Between(lo, hi) => (lo, hi),
+        }
+    }
+}
+
+type Limits = Option<Vec<Option<Limit>>>;
+
+fn per_structure(given: Limits, n: usize, what: &str) -> PyResult<Vec<Option<Bounds>>> {
+    let Some(given) = given else {
+        return Ok(vec![None; n]);
+    };
+    same_length(n, given.len(), what)?;
+    Ok(given.into_iter().map(|l| l.map(Limit::bounds)).collect())
 }
 
 fn bins(lag: f64, max_lag: f64) -> PyResult<LagBins> {
@@ -191,16 +224,65 @@ impl Variogram {
         }))
     }
 
-    /// Weighted least-squares fit of one structure plus nugget.
+    /// Weighted least-squares fit of a nugget plus one to three nested structures.
+    ///
+    /// Every parameter is free (None), fixed (a float) or bounded (a
+    /// ``(low, high)`` pair). For given ranges the nugget and sills are solved
+    /// exactly; the ranges are searched on a grid and refined, deterministically.
+    ///
+    /// Parameters
+    /// ----------
+    /// experimental : ExperimentalVariogram
+    /// model : str or sequence of str
+    ///     One shape per structure, shortest range first: fitted ranges
+    ///     increase in this order.
+    /// weighting : {"count", "uniform", "count/gamma", "count/distance"}
+    ///     Least-squares weight per lag: N(h), 1, N(h)/γ(h)² or N(h)/h².
+    /// nugget : float or (float, float), optional
+    /// sills, ranges : sequence of (None, float or (float, float)), optional
+    ///     Partial sill and range of each structure, one entry per model.
+    ///
+    /// Returns
+    /// -------
+    /// Variogram
+    ///     Isotropic; one free structure with a free nugget reproduces the
+    ///     single-structure fit.
     #[staticmethod]
-    #[pyo3(signature = (experimental, model="spherical", weighting="count"))]
-    fn fit(experimental: &ExperimentalVariogram, model: &str, weighting: &str) -> PyResult<Self> {
-        let fitted = variogram::fit(
-            &experimental.0,
-            self::model(model, None, None)?,
-            self::weighting(weighting)?,
-        )
-        .map_err(err)?;
+    #[pyo3(signature = (experimental, model=Models::One("spherical".into()), weighting="count", nugget=None, sills=None, ranges=None))]
+    fn fit(
+        experimental: &ExperimentalVariogram,
+        model: Models,
+        weighting: &str,
+        nugget: Option<Limit>,
+        sills: Limits,
+        ranges: Limits,
+    ) -> PyResult<Self> {
+        let names = match model {
+            Models::One(name) => vec![name],
+            Models::Many(names) => names,
+        };
+        let n = names.len();
+        let (sills, ranges) = (
+            per_structure(sills, n, "sills")?,
+            per_structure(ranges, n, "ranges")?,
+        );
+        let structures = names
+            .iter()
+            .zip(sills.into_iter().zip(ranges))
+            .map(|(name, (sill, range))| {
+                Ok(StructureSpec {
+                    model: self::model(name, None, None)?,
+                    sill,
+                    range,
+                })
+            })
+            .collect::<PyResult<_>>()?;
+        let spec = NestedSpec {
+            nugget: nugget.map(Limit::bounds),
+            structures,
+        };
+        let fitted =
+            fit_nested(&experimental.0, &spec, self::weighting(weighting)?).map_err(err)?;
         Ok(Self(fitted.variogram))
     }
 
@@ -323,9 +405,17 @@ impl ExperimentalVariogram {
         self.0.covariances.clone().map(|c| array1(py, c).into_any())
     }
 
-    #[pyo3(signature = (model="spherical", weighting="count"))]
-    fn fit(&self, model: &str, weighting: &str) -> PyResult<Variogram> {
-        Variogram::fit(self, model, weighting)
+    /// Weighted least-squares fit; see `Variogram.fit`.
+    #[pyo3(signature = (model=Models::One("spherical".into()), weighting="count", nugget=None, sills=None, ranges=None))]
+    fn fit(
+        &self,
+        model: Models,
+        weighting: &str,
+        nugget: Option<Limit>,
+        sills: Limits,
+        ranges: Limits,
+    ) -> PyResult<Variogram> {
+        Variogram::fit(self, model, weighting, nugget, sills, ranges)
     }
 
     fn __repr__(&self) -> String {

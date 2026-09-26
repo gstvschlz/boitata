@@ -33,7 +33,7 @@ print(rich)
 BlockModel(regular, 78000 of 78000 cells, count [260, 300, 1], size [1.0, 1.0, 1.0], rotation [0.0, 0.0, 0.0])
   estimate: Float64
   variance: Float64
-BlockModel(masked, 10275 of 78000 cells, count [260, 300, 1], size [1.0, 1.0, 1.0], rotation [0.0, 0.0, 0.0])
+BlockModel(masked, 10400 of 78000 cells, count [260, 300, 1], size [1.0, 1.0, 1.0], rotation [0.0, 0.0, 0.0])
   estimate: Float64
   variance: Float64
 ```
@@ -61,7 +61,7 @@ print("same cells:", np.array_equal(back.index, rich.index), "| crs:", back.crs)
  grid.parquet: 1.47 MB
  rich.parquet: 0.22 MB
      grid.csv: 4.03 MB
-BlockModel(masked, 10275 of 78000 cells, count [260, 300, 1], size [1.0, 1.0, 1.0], rotation [0.0, 0.0, 0.0])
+BlockModel(masked, 10400 of 78000 cells, count [260, 300, 1], size [1.0, 1.0, 1.0], rotation [0.0, 0.0, 0.0])
   estimate: Float64
   variance: Float64
 same cells: True | crs: local grid
@@ -95,12 +95,12 @@ shape: (6, 3)
 │ ---           ┆ ---    ┆ ---         │
 │ i64           ┆ f64    ┆ f64         │
 ╞═══════════════╪════════╪═════════════╡
-│ 0             ┆ 319.0  ┆ 0.09        │
-│ 50            ┆ 367.0  ┆ 0.178       │
-│ 100           ┆ 346.0  ┆ 0.186       │
-│ 150           ┆ 303.0  ┆ 0.167       │
-│ 200           ┆ 263.0  ┆ 0.11        │
-│ 250           ┆ 169.0  ┆ 0.059       │
+│ 0             ┆ 319.0  ┆ 0.1         │
+│ 50            ┆ 366.0  ┆ 0.171       │
+│ 100           ┆ 345.0  ┆ 0.184       │
+│ 150           ┆ 307.0  ┆ 0.168       │
+│ 200           ┆ 263.0  ┆ 0.119       │
+│ 250           ┆ 171.0  ┆ 0.058       │
 └───────────────┴────────┴─────────────┘
 ```
 

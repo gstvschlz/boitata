@@ -57,9 +57,9 @@ print(
 BlockModel(regular, 3120 of 3120 cells, count [52, 60, 1], size [5.0, 5.0, 1.0], rotation [0.0, 0.0, 0.0])
   estimate: Float64
   variance: Float64
-grid: mean estimate 294.3, true 276.2
-variance of estimates 35595 vs true 62312
-cross-validation: ME 5.6  RMSE 189.6  r 0.78  SSE 0.65
+grid: mean estimate 294.8, true 276.2
+variance of estimates 37251 vs true 62312
+cross-validation: ME 8.4  RMSE 187.6  r 0.78  SSE 0.64
 ```
 
 The kriging standard deviation depends only on the data layout and the model: low near samples, high in gaps.
@@ -91,7 +91,7 @@ save(fig, "maps")
 ![maps](maps.png)
 
 Kriging is smooth: estimates vary less than the truth, so the regression of estimates on true values has a slope
-below 1. A mean error² / variance of 0.65 means the model's variance is somewhat pessimistic here.
+below 1. A mean error² / variance of 0.64 means the model's variance is somewhat pessimistic here.
 
 <details><summary>Python</summary>
 

@@ -44,7 +44,7 @@ print("azimuth percentiles (10, 50, 90):", np.percentile(lva.angles[:, 0] % 180,
 
 ```text
 LocalAnisotropy(3120 locations)
-azimuth percentiles (10, 50, 90): [ 13. 109. 171.]
+azimuth percentiles (10, 50, 90): [ 17. 113. 172.]
 ```
 
 <details><summary>Python</summary>
@@ -97,8 +97,8 @@ for name, estimate in (("global N170°", global_estimate), ("local", local_estim
 </details>
 
 ```text
- global N170°: RMSE 160.1 ppm, correlation 0.771
-        local: RMSE 148.8 ppm, correlation 0.804
+ global N170°: RMSE 157.3 ppm, correlation 0.780
+        local: RMSE 148.3 ppm, correlation 0.805
 ```
 
 <details><summary>Python</summary>

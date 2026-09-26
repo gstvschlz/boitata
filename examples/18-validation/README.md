@@ -36,7 +36,7 @@ print(f"true mean {true_blocks.mean():.0f} ppm")
 </details>
 
 ```text
-blocks 295 ppm, declustered data 293 ppm (+0.8%)
+blocks 296 ppm, declustered data 293 ppm (+0.8%)
 true mean 278 ppm
 ```
 
@@ -114,9 +114,9 @@ for g, label in enumerate(("efficiency < 0.5", "0.5 to 0.7", ">= 0.7")):
 
 ```text
 slope of regression: predicted mean 0.94, observed 1.03
-efficiency < 0.5: 152 blocks, RMSE 109.4 ppm, correlation with truth 0.70
-      0.5 to 0.7: 378 blocks, RMSE 116.1 ppm, correlation with truth 0.66
-          >= 0.7: 250 blocks, RMSE  91.5 ppm, correlation with truth 0.92
+efficiency < 0.5: 234 blocks, RMSE 110.2 ppm, correlation with truth 0.68
+      0.5 to 0.7: 324 blocks, RMSE 112.2 ppm, correlation with truth 0.70
+          >= 0.7: 222 blocks, RMSE  83.5 ppm, correlation with truth 0.93
 ```
 
 Classification combines slope and efficiency with the distance to the nearest sample, from `neighborhood_stats`.
@@ -144,9 +144,9 @@ for name in names:
 </details>
 
 ```text
- measured: 29.5% of blocks, 29.0% after smoothing
-indicated: 46.8% of blocks, 49.6% after smoothing
- inferred: 23.7% of blocks, 21.4% after smoothing
+ measured: 27.7% of blocks, 27.1% after smoothing
+indicated: 39.5% of blocks, 42.1% after smoothing
+ inferred: 32.8% of blocks, 30.9% after smoothing
 ```
 
 <details><summary>Python</summary>
