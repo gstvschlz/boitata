@@ -15,7 +15,18 @@ plot = ["matplotlib>=3.8"]
 all = ["matplotlib>=3.8", "pandas>=2", "polars>=1", "pyarrow>=16"]
 
 [dependency-groups]
-dev = ["maturin>=1.9,<2", "pytest>=8", "ruff>=0.6", "polars>=1", "pyarrow>=16", "pandas>=2", "matplotlib>=3.8"]
+dev = [
+    "maturin>=1.9,<2",
+    "pytest>=8",
+    "ruff>=0.6",
+    "polars>=1",
+    "pyarrow>=16",
+    "pandas>=2",
+    "matplotlib>=3.8",
+    "mkdocs-material>=9.7.7",
+    "mkdocstrings[python]>=1.0.6",
+    "mkdocs-gallery>=0.10.4",
+]
 
 [tool.maturin]
 manifest-path = "crates/py/Cargo.toml"

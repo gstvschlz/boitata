@@ -25,4 +25,4 @@ Walker Lake has an exhaustive grid, so every result is checked against the truth
 | 18 | [Validation and classification](18-validation/README.md) | Walker Lake | `predict(diagnostics=True)`, `global_bias`, `classify`, `smooth_classes` |
 | 19 | [Geological modelling](19-geological-model/README.md) | Drillholes, synthetic fold | `Drillholes.at` contacts, `ImplicitModel` kriging/RBF/GP, planes, lineations, gradients, GP variance |
 
-Each page alternates text, collapsed Python and its results. `mise run examples` reruns every `example.py` and rewrites the pages; `cs.datasets` downloads the data once and caches it.
+Each page alternates text, collapsed Python and its results. `mise run examples` reruns every `example_NN.py` and rewrites the pages; `cs.datasets` downloads the data once and caches it.
