@@ -345,6 +345,8 @@
       
         
       
+        
+      
     
     
     
@@ -2207,6 +2209,95 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_23" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_23" id="__nav_2_23_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    21. Models larger than memory
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_23_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_23">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    21. Models larger than memory
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/21-large-models/example_21/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    21. Models larger than memory
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -2627,6 +2718,17 @@
     <span class="md-ellipsis">
       
         simulate
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ceres.TurningBands.simulate_to_parquet" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        simulate_to_parquet
       
     </span>
   </a>
@@ -3273,6 +3375,17 @@
     <span class="md-ellipsis">
       
         simulate
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ceres.TurningBands.simulate_to_parquet" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        simulate_to_parquet
       
     </span>
   </a>
@@ -4017,6 +4130,33 @@ errors defaults to 'strict'.</p>
     <div class="doc doc-contents ">
 
         <p>Summary of <code>n</code> realizations; same options as <code>SGS.simulate</code>.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="ceres.TurningBands.simulate_to_parquet" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">simulate_to_parquet</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="n">out</span><span class="p">,</span> <span class="n">n</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span> <span class="n">seed</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">cutoffs</span><span class="o">=</span><span class="bp">Ellipsis</span><span class="p">,</span> <span class="n">quantiles</span><span class="o">=</span><span class="bp">Ellipsis</span><span class="p">,</span> <span class="n">rows</span><span class="o">=</span><span class="mi">1000000</span><span class="p">)</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-method descriptor"><code>method descriptor</code></small>
+  </span>
+
+<a href="#ceres.TurningBands.simulate_to_parquet" class="headerlink" title="Permanent link">&para;</a></h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Summary of <code>n</code> realizations over the block model file <code>path</code>, written
+to <code>out</code> chunk by chunk with the input columns: <code>mean</code>, <code>variance</code>,
+<code>p_above_&lt;c&gt;</code> and <code>mean_above_&lt;c&gt;</code> per cutoff, <code>q&lt;p&gt;</code> per quantile.
+The same values as <code>simulate</code> on the whole model, in memory bounded by
+<code>rows</code> blocks plus the bands. Returns each realization's global
+<code>realization_mean</code> and <code>realization_above</code> (one row per cutoff).</p>
 
 
     </div>

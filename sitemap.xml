@@ -204,4 +204,12 @@
          <loc>https://gstvschlz.github.io/ceres/examples/20-workflow/mg_execution_times/</loc>
          <lastmod>2026-09-26</lastmod>
     </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/21-large-models/example_21/</loc>
+         <lastmod>2026-09-26</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/21-large-models/mg_execution_times/</loc>
+         <lastmod>2026-09-26</lastmod>
+    </url>
 </urlset>
