@@ -31,6 +31,7 @@ SECTIONS = {
     44: "Validation",
     49: "Modeling",
     57: "I/O and scale",
+    61: "More methods",
 }
 DATASETS = {
     "walker_lake": "Walker Lake",
