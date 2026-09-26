@@ -170,6 +170,68 @@ def test_probability_draws_the_cap():
     assert ax.lines[-1].get_xdata()[0] == 5.0
 
 
+def test_probability_fences_are_tukeys():
+    v = rng.normal(10, 1, 2000)
+    _, ax = cs.plot.probability(v, fences=1.5)
+    q1, q3 = cs.describe(v, quantiles=[0.25, 0.75])["quantiles"]
+    low, high = (line.get_xdata()[0] for line in ax.lines[1:])
+    assert (low, high) == pytest.approx((q1 - 1.5 * (q3 - q1), q3 + 1.5 * (q3 - q1)))
+    assert ax.lines[2].get_label() == f"fence {high:.3g}, {np.sum(v > high)} beyond"
+    _, ax = cs.plot.probability(np.exp(v / 4), log=True, fences=3.0)
+    assert len(ax.lines) == 1
+
+
+def test_stats_box_writes_describe():
+    v = rng.lognormal(0, 1, 300)
+    w = rng.uniform(0.5, 2.0, 300)
+    s = cs.describe(v, w)
+    _, ax = cs.plot.histogram(v, w, stats=True)
+    assert f"mean {s['mean']:.3g}" in " ".join(ax.texts[0].get_text().split())
+    _, ax = cs.plot.cdf([v, v], weights=[None, w], labels=["naive", "declustered"], stats=True)
+    header, n, mean = ax.texts[0].get_text().splitlines()[:3]
+    assert header.split() == ["naive", "declustered"] and n.split() == ["n", "300", "300"]
+    assert mean.split()[2] == f"{s['mean']:.3g}"
+
+
+def test_correlation_heatmap_and_covariance():
+    a = rng.normal(size=200)
+    data = {"a": a, "b": 3 * a, "c": rng.normal(size=200)}
+    _, ax = cs.plot.correlation(data, method="covariance")
+    c = ax.images[0].get_array()
+    assert c[1, 1] == pytest.approx(9 * cs.describe(a)["variance"]) and ax.images[0].norm.vmax == c[1, 1]
+    assert [t.get_text() for t in ax.get_xticklabels()] == ["a", "b", "c"]
+    _, ax = cs.plot.correlation(data, method="spearman", colorbar=False)
+    assert ax.texts[1].get_text() == "1.00" and ax.images[0].norm.vmin == -1
+
+
+def test_declustering_marks_the_chosen_size():
+    xy = np.r_[rng.uniform(0, 100, (100, 2)), rng.uniform(0, 10, (100, 2))]
+    v = np.r_[np.ones(100), np.full(100, 3.0)]
+    d = cs.cell_declustering(xy, v, sizes=np.arange(5.0, 55.0, 5.0))
+    _, ax = cs.plot.declustering(d, naive=v.mean())
+    np.testing.assert_allclose(ax.lines[0].get_ydata(), d.means)
+    assert ax.lines[-1].get_xdata()[0] == d.cell_size and d.mean < v.mean()
+    with pytest.raises(ValueError, match="scan"):
+        cs.plot.declustering(cs.cell_declustering(xy, v, cell_size=10.0))
+
+
+def test_conditional_mean_follows_a_linear_relation():
+    x = rng.uniform(0, 10, 5000)
+    y = 2 * x + rng.normal(0, 1, 5000)
+    _, ax = cs.plot.conditional(x, y, bins=8)
+    cx, mean = ax.lines[0].get_data()
+    assert len(cx) == 8
+    np.testing.assert_allclose(mean, 2 * cx, atol=0.1)
+
+
+def test_completeness_counts_rows_by_variables_present():
+    data = rng.normal(size=(50, 3))
+    data[:5, 0] = np.nan
+    data[:2, 1] = np.nan
+    _, ax = cs.plot.completeness(data)
+    assert [p.get_height() for p in ax.patches] == [0, 2, 3, 45]
+
+
 def test_scatter_matrix_annotates_correlations_and_weights_histograms():
     x = rng.lognormal(0, 1, 300)
     y = x * rng.lognormal(0, 0.3, 300)

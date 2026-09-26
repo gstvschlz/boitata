@@ -10,7 +10,7 @@ colours and fonts come from [`common.py`](../common.py).
 import ceres as cs
 import matplotlib.pyplot as plt
 import numpy as np
-from common import ACCENT, GREY, HIGHLIGHT, INK, map_axes, save
+from common import ACCENT, GREY, INK, map_axes, save
 from matplotlib.colors import PowerNorm
 
 samples = cs.datasets.walker_lake()
@@ -65,19 +65,8 @@ d = cs.cell_declustering(samples.coords, v, sizes=np.arange(2.5, 102.5, 2.5))
 print(d)
 
 fig, ax = plt.subplots(figsize=(6, 3.4))
-ax.plot(d.sizes, d.means, color=ACCENT, lw=1.6)
-ax.axhline(v.mean(), color=GREY, ls=":", lw=1)
+cs.plot.declustering(d, naive=v.mean(), ax=ax, color=ACCENT, lw=1.6)
 ax.axhline(truth.mean(), color=INK, ls="--", lw=1)
-ax.plot(d.cell_size, d.mean, "o", color=HIGHLIGHT, ms=6)
-ax.annotate(
-    f"minimum: {d.mean:.0f} ppm at {d.cell_size:.1f} m cells",
-    (d.cell_size, d.mean),
-    xytext=(10, 0),
-    textcoords="offset points",
-    va="center",
-    color=HIGHLIGHT,
-)
-ax.text(d.sizes[-1], v.mean(), f"naive mean {v.mean():.0f}", va="bottom", ha="right", color=GREY)
 ax.text(d.sizes[-1], truth.mean(), f"true mean {truth.mean():.0f}", va="top", ha="right", color=INK)
 ax.set_title("Cell declustering: mean against cell size")
 ax.set_xlabel("Cell size (m)")

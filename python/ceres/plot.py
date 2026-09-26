@@ -6,11 +6,16 @@ and returns a grid of `axes` instead.
 
 import numpy as np
 
-from ceres._ceres import correlation, describe, normal_ppf
+from ceres._ceres import correlation as _correlation
+from ceres._ceres import describe, normal_ppf
 
 __all__ = [
     "boxplot",
     "cdf",
+    "completeness",
+    "conditional",
+    "correlation",
+    "declustering",
     "histogram",
     "paired_bias",
     "probability",
@@ -35,6 +40,12 @@ def _axes(ax):
     return plt.subplots()
 
 
+def _accent():
+    import matplotlib as mpl
+
+    return mpl.rcParams["axes.prop_cycle"].by_key()["color"][0]
+
+
 def _finite(values, weights):
     values = np.asarray(values, dtype=float)
     weights = np.ones_like(values) if weights is None else np.asarray(weights, dtype=float)
@@ -42,7 +53,29 @@ def _finite(values, weights):
     return values[ok], weights[ok] / weights[ok].sum()
 
 
-def histogram(values, weights=None, bins=40, log=False, ax=None, **kwargs):
+def _stats(ax, series, labels, corner):
+    rows = [("n", "{:,}"), ("mean", "{:.3g}"), ("CV", "{:.2f}"), ("P10", "{:.3g}"), ("P50", "{:.3g}")]
+    rows.append(("P90", "{:.3g}"))
+    columns = []
+    for values, weights in series:
+        s = describe(values, weights, quantiles=[0.1, 0.5, 0.9])
+        numbers = [s["n"], s["mean"], s["cv"], *s["quantiles"]]
+        columns.append([f.format(x) for (_, f), x in zip(rows, numbers, strict=True)])
+    table = [[name] + [c[i] for c in columns] for i, (name, _) in enumerate(rows)]
+    if len(series) > 1:
+        table.insert(0, [""] + [str(label or k) for k, label in enumerate(labels)])
+    widths = [max(len(r[j]) for r in table) for j in range(len(table[0]))]
+    text = "\n".join(
+        " ".join(cell.ljust(w) if j == 0 else cell.rjust(w) for j, (cell, w) in enumerate(zip(r, widths)))
+        for r in table
+    )
+    x, ha = (0.97, "right") if "right" in corner else (0.03, "left")
+    y, va = (0.97, "top") if "upper" in corner else (0.03, "bottom")
+    box = {"facecolor": "white", "alpha": 0.8, "edgecolor": "none", "pad": 2}
+    ax.text(x, y, text, transform=ax.transAxes, ha=ha, va=va, family="monospace", fontsize=7, bbox=box)
+
+
+def histogram(values, weights=None, bins=40, log=False, stats=False, ax=None, **kwargs):
     """Histogram of relative frequencies, declustered by `weights`; `log` bins on a log axis.
 
     Parameters
@@ -55,10 +88,14 @@ def histogram(values, weights=None, bins=40, log=False, ax=None, **kwargs):
         Number of bins or their edges.
     log : bool
         Log-spaced bins over the positive values and a log x axis.
+    stats : bool
+        Write the count, weighted mean, CV and P10, P50, P90 in the upper right corner.
     **kwargs
         Passed to ``ax.hist``.
     """
     fig, ax = _axes(ax)
+    if stats:
+        _stats(ax, [(values, weights)], [None], "upper right")
     v, w = _finite(values, weights)
     if log:
         v, w = v[v > 0], w[v > 0]
@@ -72,7 +109,7 @@ def histogram(values, weights=None, bins=40, log=False, ax=None, **kwargs):
     return fig, ax
 
 
-def probability(values, weights=None, log=False, cap=None, ax=None, **kwargs):
+def probability(values, weights=None, log=False, cap=None, fences=None, ax=None, **kwargs):
     """Cumulative probability on a normal scale: a Gaussian (or, with `log`, lognormal) distribution is a line.
 
     Parameters
@@ -85,6 +122,10 @@ def probability(values, weights=None, log=False, cap=None, ax=None, **kwargs):
         Log x axis.
     cap : float, optional
         Top cut, drawn as a dashed vertical line.
+    fences : float, optional
+        Outlier fences ``P25 - fences × IQR`` and ``P75 + fences × IQR`` (1.5 is customary, 3 for far outliers),
+        from weighted quartiles of the values, or of their logarithm with `log`; drawn as dotted vertical lines
+        labelled with the count of values beyond each.
     **kwargs
         Passed to ``ax.plot``.
     """
@@ -102,12 +143,21 @@ def probability(values, weights=None, log=False, cap=None, ax=None, **kwargs):
     ax.set_ylabel("Cumulative probability (%)")
     if cap is not None:
         ax.axvline(cap, color="0.5", lw=0.8, ls="--", label=f"cap {cap:.3g}")
+    if fences is not None:
+        keep = v > 0 if log else np.full(v.size, True)
+        x = np.log10(v[keep]) if log else v
+        q1, q3 = describe(x, w[keep], quantiles=[0.25, 0.75])["quantiles"]
+        spread = fences * (q3 - q1)
+        for fence, n in ((q1 - spread, np.sum(x < q1 - spread)), (q3 + spread, np.sum(x > q3 + spread))):
+            fence = 10.0**fence if log else fence
+            if v[0] <= fence <= v[-1]:
+                ax.axvline(fence, color="0.3", lw=0.8, ls=":", label=f"fence {fence:.3g}, {n} beyond")
     if log:
         ax.set_xscale("log")
     return fig, ax
 
 
-def cdf(values, weights=None, labels=None, log=False, ax=None, **kwargs):
+def cdf(values, weights=None, labels=None, log=False, stats=False, ax=None, **kwargs):
     """Cumulative distribution of one or several series overlaid, e.g. domains, or clustered and declustered.
 
     Parameters
@@ -120,6 +170,9 @@ def cdf(values, weights=None, labels=None, log=False, ax=None, **kwargs):
         Legend entries.
     log : bool
         Log x axis.
+    stats : bool
+        Write the count, weighted mean, CV and P10, P50, P90 of each series in the upper left corner, which a
+        cumulative distribution leaves empty.
     **kwargs
         Passed to every ``ax.step``.
     """
@@ -128,12 +181,14 @@ def cdf(values, weights=None, labels=None, log=False, ax=None, **kwargs):
         values, weights = [values], [weights]
     weights = [None] * len(values) if weights is None else weights
     labels = labels or [None] * len(values)
+    if stats:
+        _stats(ax, list(zip(values, weights, strict=True)), labels, "upper left")
     for v, w, label in zip(values, weights, labels, strict=True):
         v, w = _finite(v, w)
         order = np.argsort(v)
         ax.step(v[order], np.cumsum(w[order]), where="post", label=label, **kwargs)
     if any(labels):
-        ax.legend()
+        ax.legend(loc="lower right" if stats else "best")
     ax.set_ylim(0, 1)
     ax.set_ylabel("Cumulative probability")
     if log:
@@ -289,6 +344,161 @@ def scatter(x, y, line=True, ax=None, **kwargs):
     return fig, ax
 
 
+def _columns(data, labels):
+    if hasattr(data, "column_names") or hasattr(data, "keys"):
+        names = list(data.column_names) if hasattr(data, "column_names") else list(data.keys())
+        labels = names if labels is None else labels
+        data = np.column_stack([np.asarray(data[k], dtype=float) for k in names])
+    data = np.array(data, dtype=float)
+    labels = [str(j) for j in range(data.shape[1])] if labels is None else list(labels)
+    return data, labels
+
+
+def correlation(data, labels=None, weights=None, method="pearson", colorbar=True, ax=None, **kwargs):
+    """Correlation, rank correlation or covariance matrix as a heatmap, each cell written out.
+
+    Parameters
+    ----------
+    data : array_like, mapping or Table
+        ``(n, d)`` values, or ``d`` named columns; each pair uses the rows where both are present, as
+        ``ceres.correlation`` does.
+    labels : list of str, optional
+        Column names; default the mapping keys or the column indices.
+    weights : array_like, optional
+        Declustering weights.
+    method : {"pearson", "spearman", "covariance"}
+        What to show; correlations span -1 to 1, covariances ± their largest magnitude.
+    colorbar : bool
+        Add a colour bar.
+    **kwargs
+        Passed to ``ax.imshow`` (e.g. ``cmap``).
+    """
+    fig, ax = _axes(ax)
+    data, labels = _columns(data, labels)
+    r = _correlation(data, weights, method=method)
+    top = np.nanmax(np.abs(r)) if method == "covariance" else 1.0
+    kwargs.setdefault("cmap", "RdBu_r")
+    im = ax.imshow(r, vmin=-top, vmax=top, **kwargs)
+    for (i, j), x in np.ndenumerate(r):
+        text = f"{x:.2f}" if method != "covariance" else f"{x:.3g}"
+        ax.text(
+            j, i, text, ha="center", va="center", fontsize=8, color="white" if abs(x) > 0.6 * top else "0.1"
+        )
+    ax.set_xticks(range(len(labels)), labels)
+    ax.set_yticks(range(len(labels)), labels)
+    ax.tick_params(length=0)
+    ax.spines[:].set_visible(False)
+    if colorbar:
+        name = {"pearson": "Correlation", "spearman": "Rank correlation", "covariance": "Covariance"}[method]
+        fig.colorbar(im, ax=ax, shrink=0.8, label=name)
+    return fig, ax
+
+
+def declustering(result, naive=None, ax=None, **kwargs):
+    """Declustered mean against cell size, the chosen size marked, and the naive mean for reference.
+
+    Parameters
+    ----------
+    result : Declustering
+        Result of ``ceres.cell_declustering`` scanning cell sizes.
+    naive : float, optional
+        Mean of the values without weights, drawn as a dotted line.
+    **kwargs
+        Passed to ``ax.plot``.
+    """
+    fig, ax = _axes(ax)
+    if not len(result.sizes):
+        raise ValueError("result has no cell size scan: give cell_declustering sizes, not cell_size")
+    line = ax.plot(result.sizes, result.means, **kwargs)[0]
+    if naive is not None:
+        ax.axhline(naive, color="0.5", ls=":", lw=1)
+        ax.annotate(
+            f"naive mean {naive:.3g}", (1, naive), xycoords=("axes fraction", "data"), ha="right", va="bottom"
+        )
+    ax.plot(result.cell_size, result.mean, "o", color=line.get_color())
+    ax.annotate(
+        f"{result.mean:.3g} at {result.cell_size:.3g}",
+        (result.cell_size, result.mean),
+        xytext=(8, 0),
+        textcoords="offset points",
+        va="center",
+    )
+    ax.set_xlabel("Cell size")
+    ax.set_ylabel("Declustered mean")
+    return fig, ax
+
+
+def conditional(x, y, bins=10, weights=None, log=False, ax=None, **kwargs):
+    """Scatter of `y` against `x` with the mean and P10 to P90 of `y` in bins of `x`, drawn at each bin's median.
+
+    Parameters
+    ----------
+    x, y : array_like
+        Pairs of values; pairs with NaN are ignored.
+    bins : int or array_like
+        Number of bins holding about as many pairs each, or bin edges of `x`.
+    weights : array_like, optional
+        Declustering weights.
+    log : bool
+        Log axes; non-positive values are then ignored.
+    **kwargs
+        Passed to ``ax.scatter``.
+    """
+    fig, ax = _axes(ax)
+    x, y = np.asarray(x, dtype=float), np.asarray(y, dtype=float)
+    w = np.ones_like(x) if weights is None else np.asarray(weights, dtype=float)
+    ok = np.isfinite(x) & np.isfinite(y) & ((x > 0) & (y > 0) if log else True)
+    x, y, w = x[ok], y[ok], w[ok]
+    edges = (
+        np.quantile(x, np.linspace(0, 1, bins + 1)) if np.ndim(bins) == 0 else np.asarray(bins, dtype=float)
+    )
+    k = np.clip(np.searchsorted(edges, x, side="right") - 1, 0, len(edges) - 2)
+    inside = (x >= edges[0]) & (x <= edges[-1])
+    rows = []
+    for b in range(len(edges) - 1):
+        keep = inside & (k == b)
+        if keep.any():
+            s = describe(y[keep], w[keep], quantiles=[0.1, 0.9])
+            rows.append(
+                (describe(x[keep], w[keep], quantiles=[0.5])["quantiles"][0], s["mean"], *s["quantiles"])
+            )
+    cx, mean, p10, p90 = np.array(rows).T
+    kwargs.setdefault("s", 4)
+    kwargs.setdefault("color", "0.75")
+    kwargs.setdefault("linewidths", 0)
+    ax.scatter(x, y, **kwargs)
+    color = _accent()
+    ax.fill_between(cx, p10, p90, color=color, alpha=0.2, lw=0, label="P10 to P90")
+    ax.plot(cx, mean, marker="o", ms=4, color=color, label="mean")
+    if log:
+        ax.set_xscale("log")
+        ax.set_yscale("log")
+    return fig, ax
+
+
+def completeness(data, ax=None, **kwargs):
+    """Rows by number of variables present, the complete rows in the accent colour, each bar labelled.
+
+    Parameters
+    ----------
+    data : array_like, mapping or Table
+        ``(n, d)`` values, or ``d`` named columns; NaN is missing.
+    **kwargs
+        Passed to ``ax.bar``.
+    """
+    fig, ax = _axes(ax)
+    data, _ = _columns(data, None)
+    d = data.shape[1]
+    counts = np.bincount(np.isfinite(data).sum(axis=1), minlength=d + 1)
+    kwargs.setdefault("color", ["0.8"] * d + [_accent()])
+    bars = ax.bar(np.arange(d + 1), counts, **kwargs)
+    ax.bar_label(bars, [f"{c:,}" for c in counts], fontsize=7)
+    ax.set_xticks(np.arange(d + 1))
+    ax.set_xlabel(f"Variables present, of {d}")
+    ax.set_ylabel("Rows")
+    return fig, ax
+
+
 def scatter_matrix(data, labels=None, weights=None, log=False, bins=30, axes=None, **kwargs):
     """Pairwise scatters of the columns of `data`, with their histograms on the diagonal.
 
@@ -318,18 +528,13 @@ def scatter_matrix(data, labels=None, weights=None, log=False, bins=30, axes=Non
     axes : ndarray of Axes
         ``(d, d)``; ``axes[i, j]`` has column ``j`` across and column ``i`` up.
     """
-    if hasattr(data, "column_names") or hasattr(data, "keys"):
-        names = list(data.column_names) if hasattr(data, "column_names") else list(data.keys())
-        labels = names if labels is None else labels
-        data = np.column_stack([np.asarray(data[k], dtype=float) for k in names])
-    data = np.array(data, dtype=float)
+    data, labels = _columns(data, labels)
     d = data.shape[1]
-    labels = [str(j) for j in range(d)] if labels is None else list(labels)
     log = np.broadcast_to(log, d)
     for j in np.flatnonzero(log):
         data[data[:, j] <= 0, j] = np.nan
-    pearson = correlation(data, weights)
-    rank = correlation(data, weights, method="spearman")
+    pearson = _correlation(data, weights)
+    rank = _correlation(data, weights, method="spearman")
     if axes is None:
         fig, _ = _axes(None)
         fig.clear()
