@@ -4,6 +4,7 @@
 //! - [`krige`]   — ordinary/simple/indicator kriging (point support)
 //! - [`block`]   — block kriging via discretization
 //! - [`idw`]     — inverse-distance weighting and nearest-neighbor
+//! - [`indicator`] — multiple indicator kriging of conditional distributions
 //! - [`search`]  — search-neighborhood selection (anisotropic, octant, per-hole caps)
 //! - [`validate`] — leave-one-out and k-fold cross-validation with diagnostics
 //!
@@ -15,6 +16,7 @@ pub mod cokrige;
 pub mod disjunctive;
 pub mod error;
 pub mod idw;
+pub mod indicator;
 pub mod krige;
 pub mod kriging_algebra;
 pub mod lva;
@@ -29,6 +31,10 @@ pub use cokrige::{CoKind, CoSample, cokrige, collocated_cokrige};
 pub use disjunctive::{DisjunctiveKriging, GaussianSample};
 pub use error::{EstimError, Result};
 pub use idw::{idw, nearest};
+pub use indicator::{
+    Conditional, Global, IndicatorSummary, Interpolation, MultipleIndicator, UpperTail,
+    correct_order_relations,
+};
 pub use krige::{Estimate, Kind, krige};
 pub use kriging_algebra::{
     DriftSpec, DualKriging, krige_bayesian, krige_factorial, krige_ordinary, krige_universal,

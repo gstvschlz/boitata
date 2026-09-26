@@ -300,3 +300,34 @@ def test_neighbourhood_diagnostics():
     np.testing.assert_array_equal(d["max_samples_reached"], d["n_samples"] == 8)
     idw = cs.InverseDistance(search).fit(coords, values).predict(coords[:3], diagnostics=True)
     assert np.isnan(idw["negative_weight_sum"]).all() and np.isnan(idw["lagrange"]).all()
+
+
+def test_multiple_indicator_kriging_distributions():
+    thresholds = np.quantile(values, [0.2, 0.4, 0.6, 0.8])
+    variograms = [cs.Variogram([("spherical", 1.0, r)]) for r in (15.0, 40.0, 25.0, 60.0)]
+    targets = rng.uniform(0, 100, (60, 2))
+    mik = cs.MultipleIndicatorKriging(variograms, search, thresholds, upper_tail=("hyperbolic", 2.0))
+    s = mik.fit(coords, values - values.min() + 0.1).predict(
+        targets, cutoffs=[1.0], quantiles=[0.1, 0.5, 0.9]
+    )
+    assert s.cdf.shape == (4, 60) and s.quantile_values.shape == (3, 60)
+    assert np.all((s.cdf >= 0) & (s.cdf <= 1)) and np.all(np.diff(s.cdf, axis=0) >= 0)
+    assert np.all(np.diff(s.quantile_values, axis=0) >= 0) and np.all(s.std >= 0)
+    assert np.all((s.probability_above >= 0) & (s.probability_above <= 1))
+
+    one = cs.MultipleIndicatorKriging(model, search, [thresholds[1]]).fit(coords, values).predict(targets)
+    ik = cs.IndicatorKriging(model, search, threshold=thresholds[1]).fit(coords, values)
+    np.testing.assert_array_equal(one.cdf[0], ik.predict(targets))
+
+
+def test_multiple_indicator_simple_form_far_away_gives_the_declustered_mean():
+    weights = cs.cell_declustering(coords, values, cell_size=20.0).weights
+    mik = cs.MultipleIndicatorKriging(
+        model, cs.Search(radius=1e4), np.quantile(values, [0.25, 0.5, 0.75]), simple=True
+    )
+    s = mik.fit(coords, values, weights=weights).predict([[5000.0, 5000.0], [500.0, 900.0]])
+    assert s.mean == pytest.approx(np.average(values, weights=weights), abs=1e-10)
+    with pytest.raises(cs.InvalidInput, match="strictly increasing"):
+        cs.MultipleIndicatorKriging(model, search, [1.0, 1.0])
+    with pytest.raises(cs.InvalidInput, match="one per threshold"):
+        cs.MultipleIndicatorKriging([model, model], search, [0.0, 1.0, 2.0])

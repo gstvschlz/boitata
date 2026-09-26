@@ -9,6 +9,7 @@ mod containers;
 mod drillholes;
 mod eda;
 mod estimation;
+mod indicator;
 mod io;
 mod lva;
 mod modeling;
@@ -47,6 +48,7 @@ fn _ceres(m: &Bound<PyModule>) -> PyResult<()> {
     variogram::register(m)?;
     estimation::register(m)?;
     cokriging::register(m)?;
+    indicator::register(m)?;
     drillholes::register(m)?;
     coda::register(m)?;
     blocks::register(m)?;

@@ -119,12 +119,34 @@ def estimators():
         (cs.DualKriging(model, degree=1), {}),
         (cs.Cokriging(lmc, search), {"variables": np.arange(300) % 2}),
         (cs.DisjunctiveKriging(anam, model, search, order=10), {}),
+        (
+            cs.MultipleIndicatorKriging(
+                [model, model], passes, [0.8, 1.5], tails=(0.0, 20.0), upper_tail=("power", 0.5)
+            ),
+            {"weights": np.linspace(1.0, 2.0, 300), "holes": holes},
+        ),
     ]
+
+
+def indicator_arrays(s):
+    names = (
+        "mean",
+        "variance",
+        "thresholds",
+        "cdf",
+        "correction",
+        "cutoffs",
+        "probability_above",
+        "mean_above",
+    )
+    return [getattr(s, name) for name in (*names, "quantiles", "quantile_values")]
 
 
 def prediction(estimator):
     if isinstance(estimator, cs.DisjunctiveKriging):
         return estimator.predict(targets), estimator.predict_tonnage(targets, 1.0)
+    if isinstance(estimator, cs.MultipleIndicatorKriging):
+        return indicator_arrays(estimator.predict(targets, cutoffs=[1.0], quantiles=[0.5]))
     if isinstance(estimator, cs.DualKriging):
         return (estimator.predict(targets),)
     if isinstance(estimator, cs.Cokriging):
@@ -203,3 +225,13 @@ def test_simulator_round_trip_simulates_bit_identically(simulator, data, options
     for back in (type(summary).from_parquet(path), pickle.loads(pickle.dumps(summary))):
         assert type(back) is type(summary)
         same(summary_arrays(back), summary_arrays(summary))
+
+
+def test_indicator_summary_round_trip(tmp_path):
+    path = tmp_path / "summary.parquet"
+    mik = cs.MultipleIndicatorKriging(model, cs.Search(15.0), [0.8, 1.5]).fit(coords, values)
+    summary = mik.predict(targets, cutoffs=[1.0, 2.0], quantiles=[0.1, 0.9])
+    assert np.isnan(summary.mean).any()
+    summary.to_parquet(path)
+    for back in (cs.IndicatorSummary.from_parquet(path), pickle.loads(pickle.dumps(summary))):
+        same(indicator_arrays(back), indicator_arrays(summary))

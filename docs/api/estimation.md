@@ -22,6 +22,10 @@
 
 ::: ceres.DisjunctiveKriging
 
+::: ceres.MultipleIndicatorKriging
+
+::: ceres.IndicatorSummary
+
 ::: ceres.InverseDistance
 
 ::: ceres.NearestNeighbor
