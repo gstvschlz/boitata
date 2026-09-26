@@ -200,7 +200,7 @@ candidates = [
     cs.Search(radius=80, max_samples=n, min_samples=4, rotation=(170, 0, 0), ratios=(0.5, 1.0))
     for n in counts
 ]
-anamorphosis = cs.HermiteAnamorphosis().fit(v, weights)
+anamorphosis = cs.HermiteAnamorphosis().fit(v, weights=weights)
 scores = cs.calibrate_search(
     kriging, candidates, blocks, weights=weights, cutoffs=[500], anamorphosis=anamorphosis
 )

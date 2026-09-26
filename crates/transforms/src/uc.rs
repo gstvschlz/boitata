@@ -232,7 +232,7 @@ impl UniformConditioning {
                     mean_grade: if tonnage > 1e-12 {
                         metal / tonnage
                     } else {
-                        0.0
+                        f64::NAN
                     },
                     benefit: metal - z_c * tonnage,
                 }

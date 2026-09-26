@@ -35,7 +35,7 @@ def fitted():
         ),
         (cs.StepwiseConditional(classes=5).fit(table[:, :2]), lambda o: (o.transform(table[:, :2]),)),
         (
-            cs.UniformConditioning(anam, 0.8, 0.6),
+            cs.UniformConditioning(anam, 0.8, r_panel=0.6),
             lambda o: (o.panel_recovery(1.2, [0.5, 1.0])["metal"], o.localized_grades(1.2, 8)),
         ),
         (cs.detrend(coords, values, degree=2)[0], lambda o: (o.predict(coords),)),

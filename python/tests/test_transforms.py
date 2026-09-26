@@ -71,7 +71,7 @@ def test_hermite_anamorphosis_moments_and_support(skewed):
 
 
 def test_box_cox_zero_is_log(skewed):
-    bc = cs.BoxCox(0.0).fit(skewed)
+    bc = cs.BoxCox(lambda_=0.0).fit(skewed)
     np.testing.assert_allclose(bc.transform(skewed), np.log(skewed))
     np.testing.assert_allclose(bc.inverse_transform(bc.transform(skewed)), skewed)
     assert abs(cs.BoxCox().fit(skewed).lambda_) < 0.3
@@ -186,14 +186,14 @@ def test_affine_correction_scales_variance(skewed):
 
 def test_uniform_conditioning_recovers_all_at_zero_cutoff(skewed):
     anam = cs.HermiteAnamorphosis().fit(skewed)
-    uc = cs.UniformConditioning(anam, 0.8, 0.6)
+    uc = cs.UniformConditioning(anam, 0.8, r_panel=0.6)
     rec = uc.panel_recovery(float(skewed.mean()), [0.0])
     assert rec["tonnage"][0] == pytest.approx(1.0, abs=1e-6)
 
 
 def test_uniform_conditioning_with_r_panel_keeps_its_recoveries():
     values = np.random.default_rng(3).lognormal(0.0, 0.8, 400)
-    uc = cs.UniformConditioning(cs.HermiteAnamorphosis(degree=30).fit(values), 0.8, 0.6)
+    uc = cs.UniformConditioning(cs.HermiteAnamorphosis(degree=30).fit(values), 0.8, r_panel=0.6)
     rec = uc.panel_recovery(1.5, [0.5, 1.0, 2.0, 3.0])
     np.testing.assert_allclose(
         rec["tonnage"],
@@ -219,7 +219,7 @@ def uc_panels(skewed):
 
 def test_uniform_conditioning_localizes_band_means(skewed):
     anam, panels, smus = uc_panels(skewed)
-    uc = cs.UniformConditioning(anam, 0.8, 0.5)
+    uc = cs.UniformConditioning(anam, 0.8, r_panel=0.5)
     out = uc.localize(smus, "rank", panels, "grade", name="uc")
     owner, rank, local = smus["block"].astype(int), out["rank"], out["uc"]
     for p, g in enumerate(panels["grade"]):
@@ -260,14 +260,40 @@ def test_uniform_conditioning_per_panel_coefficient(skewed):
     with pytest.raises(cs.InvalidInput):
         uc.localize(smus, "rank", panels, "grade")
     with pytest.raises(cs.InvalidInput):
-        cs.UniformConditioning(anam, 0.8, 0.5).grade_tonnage(panels, "grade", cutoffs, estimate_variance="ev")
+        cs.UniformConditioning(anam, 0.8, r_panel=0.5).grade_tonnage(
+            panels, "grade", cutoffs, estimate_variance="ev"
+        )
     with pytest.raises(KeyError):
         uc.localize(smus, "missing", panels, "grade", estimate_variance="ev")
 
 
+def test_mean_grade_is_nan_above_an_empty_cutoff(skewed):
+    anam, panels, _ = uc_panels(skewed)
+    uc = cs.UniformConditioning(anam, 0.8)
+    top = [0.5, 1e6]
+    curves = [
+        anam.grade_tonnage(top),
+        uc.panel_recovery(1.0, top, estimate_variance=0.1),
+        uc.grade_tonnage(panels, "grade", top, estimate_variance="ev"),
+        cs.grade_tonnage(skewed, top),
+    ]
+    for gt in curves:
+        assert gt["tonnage"][1] == 0 and np.isnan(gt["mean_grade"][1])
+        assert gt["tonnage"][0] > 0 and np.isfinite(gt["mean_grade"][0])
+
+
+def test_defaulted_transform_options_are_keyword_only(skewed):
+    with pytest.raises(TypeError):
+        cs.NormalScore().fit(skewed, np.ones_like(skewed))
+    with pytest.raises(TypeError):
+        cs.HermiteAnamorphosis(30)
+    with pytest.raises(TypeError):
+        cs.PCA().fit_transform(np.column_stack([skewed, skewed]), np.ones_like(skewed))
+
+
 def test_uniform_conditioning_needs_nested_ranked_blocks(skewed):
     anam, panels, smus = uc_panels(skewed)
-    uc = cs.UniformConditioning(anam, 0.8, 0.5)
+    uc = cs.UniformConditioning(anam, 0.8, r_panel=0.5)
     shifted = cs.BlockModel(origin=(5, 0), size=(10, 10), count=(20, 15)).with_column("rank", np.zeros(300))
     with pytest.raises(cs.InvalidInput):
         uc.localize(shifted, "rank", panels, "grade")
