@@ -1708,6 +1708,7 @@ dependencies = [
  "rand",
  "rand_distr",
  "rayon",
+ "serde",
  "thiserror",
  "transforms",
  "variogram",

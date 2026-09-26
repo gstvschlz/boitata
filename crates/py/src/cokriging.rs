@@ -335,8 +335,8 @@ impl Tabular for Cokriging {
         Some(columns)
     }
 
-    fn restore(&mut self, mut columns: Found) -> PyResult<()> {
-        let plain = samples_from(&mut columns)?;
+    fn restore(&mut self, columns: Found) -> PyResult<()> {
+        let plain = samples_from(&columns)?;
         let variables = columns.indices("variable")?;
         same_length(plain.len(), variables.len(), "variable")?;
         if variables.iter().any(|&v| v >= self.model.nvar) {
@@ -357,8 +357,8 @@ impl Tabular for Disjunctive {
         Some(sample_columns(&self.samples.as_ref()?.0))
     }
 
-    fn restore(&mut self, mut columns: Found) -> PyResult<()> {
-        let plain = samples_from(&mut columns)?;
+    fn restore(&mut self, columns: Found) -> PyResult<()> {
+        let plain = samples_from(&columns)?;
         let anam = self.engine.anamorphosis();
         let gauss = plain
             .iter()

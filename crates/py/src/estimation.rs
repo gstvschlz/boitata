@@ -291,7 +291,7 @@ pub fn sample_columns(samples: &[Sample]) -> Columns {
     columns
 }
 
-pub fn samples_from(found: &mut Found) -> PyResult<Vec<Sample>> {
+pub fn samples_from(found: &Found) -> PyResult<Vec<Sample>> {
     let (locs, values) = (found.points()?, found.values("value")?);
     let (holes, error) = (found.optional("hole")?, found.values("error_variance")?);
     same_length(locs.len(), values.len(), "value")?;
@@ -315,8 +315,8 @@ impl Tabular for Estimator {
         self.samples.as_deref().map(sample_columns)
     }
 
-    fn restore(&mut self, mut columns: Found) -> PyResult<()> {
-        self.samples = Some(samples_from(&mut columns)?);
+    fn restore(&mut self, columns: Found) -> PyResult<()> {
+        self.samples = Some(samples_from(&columns)?);
         Ok(())
     }
 }
@@ -326,8 +326,8 @@ impl Tabular for Dual {
         self.samples.as_deref().map(sample_columns)
     }
 
-    fn restore(&mut self, mut columns: Found) -> PyResult<()> {
-        self.samples = Some(samples_from(&mut columns)?);
+    fn restore(&mut self, columns: Found) -> PyResult<()> {
+        self.samples = Some(samples_from(&columns)?);
         Ok(())
     }
 }

@@ -79,6 +79,11 @@ pub fn state<T: Tabular>(name: &str, value: &T) -> PyResult<(String, Option<Colu
 }
 
 pub fn from_state<T: Tabular>(name: &str, meta: &str, columns: Option<Columns>) -> PyResult<T> {
+    if let Some(c) = &columns
+        && c.iter().any(|(_, v)| v.len() != c[0].1.len())
+    {
+        return Err(invalid("columns differ in length"));
+    }
     let mut map = open(name, meta)?;
     let fitted = map.remove("fitted").and_then(|f| f.as_bool()) == Some(true);
     let mut value: T = parse(map)?;
@@ -131,24 +136,25 @@ pub fn from_parquet<T: Tabular>(name: &str, path: &Path) -> PyResult<T> {
 pub struct Found(HashMap<String, Vec<Option<f64>>>);
 
 impl Found {
-    pub fn optional(&mut self, name: &str) -> PyResult<Vec<Option<f64>>> {
+    pub fn optional(&self, name: &str) -> PyResult<Vec<Option<f64>>> {
         self.0
-            .remove(name)
+            .get(name)
+            .cloned()
             .ok_or_else(|| invalid(format!("missing column {name}")))
     }
 
-    pub fn values(&mut self, name: &str) -> PyResult<Vec<f64>> {
+    pub fn values(&self, name: &str) -> PyResult<Vec<f64>> {
         self.optional(name)?
             .into_iter()
             .map(|v| v.ok_or_else(|| invalid(format!("null in column {name}"))))
             .collect()
     }
 
-    pub fn indices(&mut self, name: &str) -> PyResult<Vec<usize>> {
+    pub fn indices(&self, name: &str) -> PyResult<Vec<usize>> {
         self.values(name)?.into_iter().map(index).collect()
     }
 
-    pub fn points(&mut self) -> PyResult<Vec<Point>> {
+    pub fn points(&self) -> PyResult<Vec<Point>> {
         let (x, y, z) = (self.values("x")?, self.values("y")?, self.values("z")?);
         if x.len() != y.len() || x.len() != z.len() {
             return Err(invalid("x, y and z differ in length"));
