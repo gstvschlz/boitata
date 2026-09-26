@@ -42,6 +42,7 @@ fn _ceres(m: &Bound<PyModule>) -> PyResult<()> {
     m.add("__version__", env!("CARGO_PKG_VERSION"))?;
     m.add_class::<table::Table>()?;
     m.add_class::<containers::PyPointSet>()?;
+    m.add_class::<containers::PyPolylines>()?;
     m.add_class::<containers::PyBlockModel>()?;
     io::register(m)?;
     transforms::register(m)?;

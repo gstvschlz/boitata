@@ -180,3 +180,26 @@ def test_shapefile_round_trip(tmp_path):
     assert back["rock"] == points["rock"] and back.crs == points.crs
     with pytest.raises(cs.InvalidInput):
         cs.write_shapefile(tmp_path / "long.shp", points.with_column("a_long_column", [1, 2]))
+
+
+def test_polylines_parts_features_and_points():
+    pit = [[0, 0], [10, 0], [10, 10], [0, 10]]
+    hole = [[4, 4], [6, 4], [6, 6], [4, 6]]
+    section = [[20, 0, 5], [30, 0, 5], [40, 5, 5]]
+    lines = cs.Polylines(
+        [pit, hole, section],
+        closed=[True, True, False],
+        features=[0, 0, 1],
+        attributes={"name": ["pit", "s1"]},
+    )
+    assert len(lines) == 2 and lines.feature.tolist() == [0, 0, 1]
+    assert lines.closed.tolist() == [True, True, False] and lines.vertices.shape == (11, 3)
+    np.testing.assert_array_equal(lines.parts[2], section)
+    points = lines.to_points()
+    assert points["name"] == ["pit"] * 8 + ["s1"] * 3
+    assert points["part"].tolist() == [0] * 4 + [1] * 4 + [2] * 3
+    assert lines.with_column("id", [1, 2])["id"].tolist() == [1, 2]
+    with pytest.raises(cs.InvalidInput):
+        cs.Polylines([pit[:2]], closed=True)
+    with pytest.raises(cs.InvalidInput):
+        cs.Polylines([pit, hole], features=[1, 1])

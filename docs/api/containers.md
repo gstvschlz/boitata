@@ -8,6 +8,8 @@
 
 ::: ceres.Mesh
 
+::: ceres.Polylines
+
 ::: ceres.read_csv
 
 ::: ceres.write_csv
