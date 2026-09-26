@@ -235,3 +235,72 @@ def test_indicator_summary_round_trip(tmp_path):
     summary.to_parquet(path)
     for back in (cs.IndicatorSummary.from_parquet(path), pickle.loads(pickle.dumps(summary))):
         same(indicator_arrays(back), indicator_arrays(summary))
+
+
+xy = rng.uniform(0, 100, (20, 2))
+on_plane = np.c_[xy, 0.5 * xy[:, 0]]
+structure = {
+    "coords": [[50, 50, 60]],
+    "values": [1.0],
+    "boundaries": on_plane,
+    "planes": np.c_[on_plane, np.full(20, 26.6), np.full(20, 270.0)],
+    "lineations": np.c_[on_plane[:3], np.zeros(3), np.zeros(3)],
+}
+shell = np.linalg.norm(coords - 50.0, axis=1) - 20.0
+
+
+def implicit_models():
+    return [
+        (
+            cs.ImplicitModel(rotation=(20.0, 0.0, 0.0), ratios=(1.0, 0.5)),
+            {"coords": coords, "values": values, "cutoff": 1.0},
+        ),
+        (cs.ImplicitModel(kernel="triharmonic"), structure),
+        (
+            cs.ImplicitModel(engine="kriging", variogram=gaussian, drift_degree=0),
+            {"coords": coords[:50], "values": shell[:50]},
+        ),
+        (cs.ImplicitModel(engine="gp", rotation=(10.0, 0.0, 0.0)), {"coords": coords, "values": shell}),
+    ]
+
+
+def field(implicit):
+    if implicit.report is not None:
+        return (*implicit.evaluate(targets, variance=True), *implicit.report.values())
+    return implicit.evaluate(targets, gradient=True)
+
+
+@pytest.mark.parametrize("implicit, inputs", implicit_models(), ids=["rbf", "structure", "kriging", "gp"])
+def test_implicit_model_round_trip_evaluates_bit_identically(implicit, inputs, tmp_path):
+    path = tmp_path / "implicit.parquet"
+    implicit.to_parquet(path)
+    unfitted = pickle.loads(pickle.dumps(cs.ImplicitModel.from_parquet(path)))
+    with pytest.raises(cs.InvalidInput, match="not fitted"):
+        unfitted.evaluate(targets)
+    implicit.fit(**inputs)
+    same(field(unfitted.fit(**inputs)), field(implicit))
+    implicit.to_parquet(path)
+    for back in (cs.ImplicitModel.from_parquet(path), pickle.loads(pickle.dumps(implicit))):
+        same(field(back), field(implicit))
+
+
+def test_implicit_model_file_is_a_table_of_constraints(tmp_path):
+    path = tmp_path / "implicit.parquet"
+    cs.ImplicitModel(kernel="triharmonic").fit(**structure).to_parquet(path)
+    table = cs.read_parquet(path)
+    assert table.column_names == ["x", "y", "z", "value", "dip", "dip_direction", "plunge", "trend"]
+    assert table.num_rows == 1 + 20 + 20 + 3
+    with pytest.raises(cs.InvalidInput, match="expected a LocalAnisotropy"):
+        cs.LocalAnisotropy.from_parquet(path)
+
+
+def test_local_anisotropy_round_trip(tmp_path):
+    path = tmp_path / "lva.parquet"
+    lva = cs.LocalAnisotropy.from_points(coords, k=15)
+    lva.to_parquet(path)
+    assert cs.read_parquet(path).column_names[3:] == ["azimuth", "dip", "rake", "semi_ratio", "minor_ratio"]
+    estimator = cs.OrdinaryKriging(model, search).fit(coords, values)
+    expected = estimator.predict(targets, return_variance=True, anisotropy=lva)
+    for back in (cs.LocalAnisotropy.from_parquet(path), pickle.loads(pickle.dumps(lva))):
+        same((back.coords, back.angles, back.ratios), (lva.coords, lva.angles, lva.ratios))
+        same(estimator.predict(targets, return_variance=True, anisotropy=back), expected)

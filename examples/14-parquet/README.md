@@ -104,7 +104,8 @@ shape: (6, 3)
 ```
 
 A fitted estimator is saved the same way: its samples become columns and its variogram, search and options JSON
-in the file metadata. The estimator read back predicts exactly the same values.
+in the file metadata. The estimator read back predicts exactly the same values. `ImplicitModel` and
+`LocalAnisotropy` save the same way.
 
 <details><summary>Python</summary>
 
