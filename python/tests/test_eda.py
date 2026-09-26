@@ -224,3 +224,17 @@ def test_duplicates_report_group_ids_and_merge():
     ):
         with pytest.raises(cs.InvalidInput):
             bad()
+
+
+def test_data_spacing_on_a_square_grid():
+    g = np.arange(0.0, 100.0, 10.0)
+    xy = np.array([(x, y) for x in g for y in g])
+    xyz = np.c_[xy, rng.uniform(0, 30, len(xy))]
+    interior = np.all((xy > 5) & (xy < 85), axis=1)
+    np.testing.assert_allclose(cs.data_spacing(xyz, n=4, horizontal=True)[interior], 10.0)
+    assert np.all(cs.data_spacing(xyz) >= cs.data_spacing(xyz, horizontal=True))
+    bm = cs.BlockModel(origin=(40.0, 40.0), size=(10.0, 10.0), count=(1, 1))
+    assert cs.data_spacing(xy, n=4, targets=bm, horizontal=True)[0] == pytest.approx(np.sqrt(50))
+    assert np.isinf(cs.data_spacing(xy[:2], n=2)).all()
+    with pytest.raises(cs.InvalidInput):
+        cs.data_spacing(xy, n=0)

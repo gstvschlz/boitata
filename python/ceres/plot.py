@@ -8,17 +8,21 @@ import numpy as np
 
 from ceres._ceres import correlation as _correlation
 from ceres._ceres import describe, normal_ppf
+from ceres._ceres import swath as _swath
 
 __all__ = [
     "boxplot",
+    "category_swath",
     "cdf",
     "completeness",
     "conditional",
     "correlation",
     "declustering",
+    "directions",
     "histogram",
     "paired_bias",
     "probability",
+    "proportions",
     "qq",
     "scatter",
     "scatter_matrix",
@@ -823,6 +827,129 @@ def swath(swaths, labels=None, y="mean", ax=None, **kwargs):
         ax.legend()
     ax.set_xlabel("Distance along swath")
     ax.set_ylabel(y.capitalize())
+    return fig, ax
+
+
+def _palette(k):
+    import matplotlib as mpl
+
+    return mpl.colormaps[mpl.rcParams["image.cmap"]](np.linspace(0.05, 0.85, k))
+
+
+def category_swath(
+    coords, categories, width, azimuth=None, axis=None, weights=None, colors=None, ax=None, **kwargs
+):
+    """Proportion of each category per slice along a direction, as stacked bars.
+
+    Parameters
+    ----------
+    coords : array_like
+        ``(n, 2)`` or ``(n, 3)`` coordinates.
+    categories : array_like
+        Category (e.g. lithology) of each sample.
+    width, azimuth, axis
+        Slices as in ``ceres.swath``: `width` along `azimuth` (degrees from north) or `axis` ("x", "y", "z").
+    weights : array_like, optional
+        Declustering weights or lengths.
+    colors : sequence, optional
+        One colour per category, sorted; default spread over matplotlib's ``image.cmap``.
+    **kwargs
+        Passed to every ``ax.bar``.
+    """
+    fig, ax = _axes(ax)
+    categories = np.asarray(categories)
+    names = np.unique(categories)
+    colors = _palette(len(names)) if colors is None else colors
+    kwargs.setdefault("edgecolor", "white")
+    kwargs.setdefault("linewidth", 0.3)
+    bottom = 0.0
+    for name, color in zip(names, colors, strict=True):
+        indicator = (categories == name).astype(float)
+        s = _swath(coords, indicator, width, azimuth=azimuth, axis=axis, weights=weights)
+        ax.bar(s["centres"], s["mean"], width=width, bottom=bottom, color=color, label=str(name), **kwargs)
+        bottom = bottom + s["mean"]
+    handles, labels = ax.get_legend_handles_labels()
+    ax.legend(handles[::-1], labels[::-1], loc="upper left", bbox_to_anchor=(1.01, 1))
+    ax.set_ylim(0, 1)
+    ax.set_xlabel("Distance along swath")
+    ax.set_ylabel("Proportion")
+    return fig, ax
+
+
+def proportions(categories, weights=None, ax=None, **kwargs):
+    """Proportion of each category as horizontal bars, weighted, with the unweighted proportions as ticks.
+
+    Parameters
+    ----------
+    categories : array_like
+        Category of each sample.
+    weights : array_like, optional
+        Declustering weights or lengths; the bars are then weighted and a dark tick marks each unweighted share.
+    **kwargs
+        Passed to ``ax.barh``.
+    """
+    fig, ax = _axes(ax)
+    names, index = np.unique(np.asarray(categories), return_inverse=True)
+    w = np.ones(index.size) if weights is None else np.asarray(weights, dtype=float)
+    share = np.bincount(index, w, len(names)) / w.sum()
+    rows = np.arange(len(names))
+    kwargs.setdefault("color", _accent())
+    kwargs.setdefault("alpha", 0.6)
+    ax.barh(rows, share, **kwargs)
+    right = share
+    if weights is not None:
+        naive = np.bincount(index, minlength=len(names)) / index.size
+        ax.plot(naive, rows, "|", color="0.2", ms=11, mew=1.5, label="unweighted")
+        ax.legend(loc="upper right", bbox_to_anchor=(1, 1.02))
+        right = np.maximum(share, naive)
+    for row, x, p in zip(rows, right, share, strict=True):
+        ax.annotate(
+            f"{100 * p:.1f} %", (x, row), xytext=(6, 0), textcoords="offset points", va="center", fontsize=7
+        )
+    ax.set_xlim(0, 1.25 * right.max())
+    ax.set_yticks(rows, [str(n) for n in names])
+    ax.invert_yaxis()
+    ax.set_xlabel("Proportion")
+    return fig, ax
+
+
+def directions(anisotropy, plane=None, thickness=None, ax=None, **kwargs):
+    """Major axis of each local anisotropy as a line through its location, on a plan or a section.
+
+    Each line is the major axis projected on the view, so an axis plunging out of it draws short.
+
+    Parameters
+    ----------
+    anisotropy : LocalAnisotropy
+        Locations and angles (azimuth, dip, rake).
+    plane : tuple, optional
+        ``(centre, azimuth, dip)`` of a section as in `slab`; default a plan.
+    thickness : float, optional
+        With `plane`, full width of the slab of locations drawn; default all.
+    **kwargs
+        Passed to ``ax.quiver`` (e.g. ``scale``, ``width``, ``color``).
+    """
+    fig, ax = _axes(ax)
+    coords = np.asarray(anisotropy.coords, dtype=float)
+    az, dip = np.radians(np.asarray(anisotropy.angles, dtype=float)[:, :2].T)
+    major = np.c_[np.sin(az) * np.cos(dip), np.cos(az) * np.cos(dip), -np.sin(dip)]
+    if plane is None:
+        centre, u, v, n = np.zeros(3), np.eye(3)[0], np.eye(3)[1], np.eye(3)[2]
+    else:
+        centre, u, v, n = _frame(plane)
+    keep = np.abs((coords - centre) @ n) <= (np.inf if thickness is None else thickness / 2)
+    uv = np.c_[u, v]
+    xy, d = coords[keep] @ uv, major[keep] @ uv
+    for k, x in {
+        "pivot": "middle",
+        "headwidth": 0,
+        "headlength": 0,
+        "headaxislength": 0,
+        "angles": "xy",
+    }.items():
+        kwargs.setdefault(k, x)
+    ax.quiver(xy[:, 0], xy[:, 1], d[:, 0], d[:, 1], **kwargs)
+    _label(ax, u, v)
     return fig, ax
 
 

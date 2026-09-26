@@ -959,6 +959,43 @@ pub fn pairs(
     Ok(out.into_iter().map(|(d, i, j)| (i, j, d)).collect())
 }
 
+/// Distance from each of `targets` (default: each sample, itself left out) to
+/// its `n`th nearest sample, in plan with `horizontal`; infinite when there
+/// are fewer samples.
+pub fn spacing(
+    coords: &[[f64; 3]],
+    targets: Option<&[[f64; 3]]>,
+    n: usize,
+    horizontal: bool,
+) -> Result<Vec<f64>> {
+    if n == 0 {
+        return invalid("n must be at least 1");
+    }
+    let at = targets.unwrap_or(coords);
+    if coords.iter().chain(at).flatten().any(|v| !v.is_finite()) {
+        return invalid("coordinates must be finite");
+    }
+    let flat = |p: &[f64; 3]| if horizontal { [p[0], p[1], 0.0] } else { *p };
+    let k = n + usize::from(targets.is_none());
+    if coords.len() < k {
+        return Ok(vec![f64::INFINITY; at.len()]);
+    }
+    let points: Vec<[f64; 3]> = coords.iter().map(flat).collect();
+    let tree = ImmutableKdTree::<f64, 3>::new_from_slice(&points)
+        .map_err(|e| EdaError::InvalidInput(format!("{e:?}")))?;
+    let k = std::num::NonZero::new(k).expect("n >= 1");
+    Ok(at
+        .par_iter()
+        .map(|p| {
+            let found = tree
+                .query(&flat(p))
+                .nearest_n::<SquaredEuclidean<f64>>(k)
+                .execute();
+            found.last().map_or(f64::INFINITY, |r| r.distance.sqrt())
+        })
+        .collect())
+}
+
 /// Paired values in one bin `[from, to)` of pairing distance, the last bin
 /// closed; means and bias are NaN when the bin is empty.
 #[derive(Debug, Clone)]
@@ -1428,6 +1465,39 @@ mod tests {
         let bias = paired_bias(&d, &va, &vbs, &[0.0, 1.0, 2.0]).unwrap();
         assert_eq!(bias.iter().map(|b| b.n).sum::<usize>(), a.len());
         assert!(bias.iter().all(|b| close(b.bias, 0.2)));
+    }
+
+    #[test]
+    fn spacing_on_a_square_grid() {
+        use rand::{Rng, SeedableRng};
+        let mut rng = rand::rngs::StdRng::seed_from_u64(3);
+        let coords: Vec<[f64; 3]> = (0..100)
+            .map(|k| {
+                [
+                    10.0 * (k % 10) as f64,
+                    10.0 * (k / 10) as f64,
+                    rng.gen_range(0.0..30.0),
+                ]
+            })
+            .collect();
+        let interior: Vec<usize> = (0..100)
+            .filter(|k| (1..9).contains(&(k % 10)) && (1..9).contains(&(k / 10)))
+            .collect();
+        let plan = |n| spacing(&coords, None, n, true).unwrap();
+        let (four, five) = (plan(4), plan(5));
+        for &i in &interior {
+            assert!(close(four[i], 10.0) && close(five[i], 200f64.sqrt()));
+        }
+        let full = spacing(&coords, None, 1, false).unwrap();
+        assert!(full.iter().zip(plan(1)).all(|(d, h)| *d >= h - 1e-9));
+        let centre = [[45.0, 45.0, 1e6]];
+        let d = spacing(&coords, Some(&centre), 4, true).unwrap();
+        assert!(close(d[0], 50f64.sqrt()));
+        assert_eq!(
+            spacing(&coords[..3], None, 3, false).unwrap(),
+            [f64::INFINITY; 3]
+        );
+        assert!(spacing(&coords, None, 0, false).is_err());
     }
 
     #[test]
