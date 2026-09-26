@@ -340,3 +340,99 @@ def test_user_input_errors_are_invalid_input():
         cs.plot.slab(np.zeros((1, 3)), plane=((0, 0), 90, 90), thickness=1)
     with pytest.raises(TypeError):
         cs.plot.histogram(np.ones(3), np.ones(3))
+
+
+def _twin(ax):
+    return next(a for a in ax.figure.axes if a is not ax)
+
+
+def test_grade_tonnage_draws_every_table_kind():
+    v = rng.lognormal(0, 1, 400)
+    cutoffs = np.linspace(0, 3, 7)
+    gt = cs.grade_tonnage(v, cutoffs)
+    _, ax = cs.plot.grade_tonnage(gt)
+    np.testing.assert_allclose(ax.lines[0].get_ydata(), gt["tonnage"])
+    np.testing.assert_allclose(_twin(ax).lines[0].get_ydata(), gt["mean_grade"])
+
+    _, ax = cs.plot.grade_tonnage(cs.grade_tonnage(v, cutoffs, categories=np.arange(400) % 2))
+    assert len(ax.lines) == 3 and len(_twin(ax).get_legend().get_texts()) == 5
+
+    anamorphosis = cs.HermiteAnamorphosis().fit(v)
+    bm = cs.BlockModel((0, 0, 0), (10, 10, 10), (5, 5, 1))
+    g = rng.lognormal(0, 0.5, 25)
+    bm = bm.with_columns({"a": g, "b": 1.1 * g})
+    uc = cs.UniformConditioning(anamorphosis, 0.7, r_panel=0.5)
+    curves = {
+        "samples": gt,
+        "point": anamorphosis.grade_tonnage(cutoffs),
+        "UC": uc.grade_tonnage(bm, "a", cutoffs),
+    }
+    _, ax = cs.plot.grade_tonnage(curves, relative=True)
+    assert len(ax.lines) == 3 and all(line.get_ydata()[0] == 1.0 for line in ax.lines)
+
+    compared = cs.compare_models(bm, ["a", "b"], cutoffs, categories=np.arange(25) % 2)
+    _, ax = cs.plot.grade_tonnage(compared)
+    labels = [t.get_text() for t in _twin(ax).get_legend().get_texts()]
+    assert labels[2:] == ["a 0", "b 0", "a 1", "b 1", "a all", "b all"]
+    b1 = (compared["model"] == "b") & (compared["category"] == "1")
+    np.testing.assert_allclose(ax.lines[3].get_ydata(), compared["tonnage"][b1])
+
+
+def _cv(n=2000, spread=1.0):
+    estimate = rng.normal(0, 1, n)
+    variance = np.full(n, 0.25)
+    actual = estimate + rng.normal(0, 0.5 * spread, n)
+    estimate[0] = np.nan
+    return cs.CrossValidation(actual, estimate, variance)
+
+
+def test_cross_validation_scatter_and_errors():
+    cv = _cv()
+    _, ax = cs.plot.cross_validation(cv)
+    x, y = ax.lines[1].get_data()
+    assert (y[1] - y[0]) / (x[1] - x[0]) == pytest.approx(cv.slope)
+    assert "RMSE" in ax.texts[0].get_text()
+    _, ax = cs.plot.cross_validation(cv, kind="errors")
+    assert sum(p.get_height() for p in ax.patches) == pytest.approx(1.0)
+    coords = rng.uniform(0, 100, (2000, 2))
+    _, ax = cs.plot.cross_validation(cv, kind="errors", coords=cs.PointSet(coords))
+    assert len(ax.collections[0].get_offsets()) == 1999
+    with pytest.raises(cs.InvalidInput, match="kind"):
+        cs.plot.cross_validation(cv, kind="map")
+    with pytest.raises(cs.InvalidInput, match="coords"):
+        cs.plot.cross_validation(cv, kind="errors", coords=coords[:10])
+
+
+def test_accuracy_is_diagonal_when_the_variance_is_calibrated():
+    _, ax = cs.plot.cross_validation(_cv(), kind="accuracy")
+    p, accuracy = ax.lines[1].get_data()
+    np.testing.assert_allclose(accuracy, p, atol=0.03)
+    _, ax = cs.plot.cross_validation(_cv(spread=2.0), kind="accuracy")
+    p, accuracy = ax.lines[1].get_data()
+    assert np.all(accuracy[1:-1] < p[1:-1])
+
+    pit = rng.uniform(0, 1, 500)
+    cv = cs.IndicatorCrossValidation(np.ones(500), np.ones(500), np.ones(500), [1.0], np.ones((1, 500)), pit)
+    _, ax = cs.plot.cross_validation(cv, kind="accuracy")
+    p, accuracy = ax.lines[1].get_data()
+    np.testing.assert_allclose(accuracy, cv.accuracy(p))
+    assert f"{cv.goodness:.2f}" in ax.texts[0].get_text()
+
+
+def test_contact_draws_each_side_apart():
+    z = np.tile(np.arange(20.0), 2)
+    table = cs.contact(
+        np.c_[np.zeros(40), np.zeros(40), z],
+        np.where(z < 10, 3.0, 1.0) + rng.normal(0, 0.1, 40),
+        domains=np.where(z < 10, "ore", "waste"),
+        holes=np.repeat(["A", "B"], 20),
+        inside="ore",
+        outside="waste",
+        max_distance=50.0,
+        bin=2.0,
+    )
+    _, ax = cs.plot.contact(table, labels=("ore", "waste"))
+    inside, outside = (line.get_xdata() for line in ax.lines[:2])
+    assert np.all(inside < 0) and np.all(outside > 0)
+    assert sum(p.get_height() for p in _twin(ax).patches) == 40
+    assert [t.get_text() for t in ax.texts] == ["ore", "waste"]
