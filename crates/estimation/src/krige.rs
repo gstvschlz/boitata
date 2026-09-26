@@ -47,8 +47,18 @@ impl Estimate {
     /// Slope of the regression of true on estimated values, Cov(Z, Z*) /
     /// Var(Z*); below 1 the estimate is conditionally biased.
     pub fn slope(&self) -> f64 {
-        let covariance = self.support_variance - self.variance - self.lagrange;
-        covariance / (covariance - self.lagrange)
+        self.covariance() / self.estimate_variance()
+    }
+
+    /// Cov(Z, Z*) = C(v, v) − σ² − μ.
+    fn covariance(&self) -> f64 {
+        self.support_variance - self.variance - self.lagrange
+    }
+
+    /// Variance of the estimator, Var(Z*) = C(v, v) − σ² − 2μ; the further
+    /// below C(v, v), the smoother the estimates.
+    pub fn estimate_variance(&self) -> f64 {
+        self.covariance() - self.lagrange
     }
 
     /// Sum of the negative weights (≤ 0); NaN for estimators without weights.
@@ -214,7 +224,7 @@ mod tests {
 
         let target = (90.0, 20.0, 0.0);
         let simple = krige(Kind::Simple { mean: 2.0 }, &target, &samples, &vg).unwrap();
-        assert!((simple.slope() - 1.0).abs() < 1e-9);
+        assert_eq!(simple.slope(), 1.0);
 
         let ok = krige(Kind::Ordinary, &target, &samples, &vg).unwrap();
         let w = &ok.weights;
@@ -226,6 +236,7 @@ mod tests {
             .map(|(i, j)| w[i] * w[j] * vg.cov_points(&samples[i].loc, &samples[j].loc))
             .sum();
         assert!((ok.slope() - cov / var).abs() < 1e-9);
+        assert!((ok.estimate_variance() - var).abs() < 1e-9);
         assert!(ok.slope() < 1.0 && ok.efficiency() < 1.0);
     }
 
