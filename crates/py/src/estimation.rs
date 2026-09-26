@@ -17,7 +17,9 @@ use crate::variogram::Variogram;
 /// minor/major), or of the variogram's anisotropy when no ellipsoid is given.
 /// `high_grade` `(threshold, radius)` lets samples above `threshold` inform
 /// only targets within `radius`, measured in the same ellipsoid, in
-/// estimation and cross-validation alike. Estimators also take a sequence
+/// estimation and cross-validation alike. The threshold is always in data
+/// units: simulators working on normal scores convert it through their
+/// fitted transform, so it picks the same samples as in estimation. Estimators also take a sequence
 /// of searches as passes: targets one leaves unestimated go to the next.
 #[pyclass(module = "ceres", name = "Search", frozen, from_py_object)]
 #[derive(Clone)]

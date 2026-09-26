@@ -40,7 +40,8 @@ pub struct Search {
 }
 
 /// Samples valued above `threshold` are used only within `radius`, measured in
-/// the same ellipsoid as [`Search::radius`].
+/// the same ellipsoid as [`Search::radius`]. `threshold` is in data units;
+/// simulators working on normal scores convert it through their transform.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct HighGrade {
     pub threshold: f64,
