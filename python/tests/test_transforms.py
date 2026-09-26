@@ -92,6 +92,11 @@ def test_stepwise_conditional_removes_nonlinear_dependence():
     np.testing.assert_allclose(sct.inverse_transform(g), x, atol=1e-10)
     with pytest.raises(cs.InvalidInput):
         sct.transform(x[:, :1])
+    weights = np.where(x[:, 1] > 1, 3.0, 1.0)
+    g = cs.StepwiseConditional(classes=30).fit(x, weights=weights).transform(x)
+    assert abs(np.average(g[:, 1], weights=weights)) < 0.05 and g[:, 1].mean() < -0.05
+    with pytest.raises(cs.InvalidInput):
+        cs.StepwiseConditional().fit(x, weights=weights[1:])
 
 
 def test_cell_declustering_downweights_clusters():

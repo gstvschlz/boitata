@@ -3,8 +3,9 @@
 //! Variable 1 is normal-scored; variable k is normal-scored separately within
 //! each joint class of the already transformed variables 1..k−1, each cut into
 //! `classes` equal-probability Gaussian classes. Classes with fewer than
-//! [`MIN_SAMPLES`] samples use the marginal table of variable k. The outputs
-//! are independent standard normals up to the class resolution.
+//! [`MIN_SAMPLES`] samples use the marginal table of variable k. Tied values
+//! share a class. Optional declustering weights enter every normal score. The
+//! outputs are independent standard normals up to the class resolution.
 
 use crate::error::{Result, TransformError};
 use crate::normal::phi;
@@ -29,8 +30,8 @@ pub struct StepwiseConditional {
 }
 
 impl StepwiseConditional {
-    pub fn fit(data: &[Vec<f64>], classes: usize) -> Result<Self> {
-        let dim = check_rows(data, None)?;
+    pub fn fit(data: &[Vec<f64>], weights: Option<&[f64]>, classes: usize) -> Result<Self> {
+        let dim = check_rows(data, weights)?;
         if !(1..=u16::MAX as usize).contains(&classes) {
             return Err(TransformError::InvalidParameters(format!(
                 "classes must be in 1..={}",
@@ -44,7 +45,7 @@ impl StepwiseConditional {
         let mut gauss = vec![Vec::with_capacity(dim); data.len()];
         for k in 0..dim {
             let column: Vec<f64> = data.iter().map(|r| r[k]).collect();
-            let marginal = normal_score(&column, None)?;
+            let marginal = normal_score(&column, weights)?;
             let mut groups: BTreeMap<Vec<u16>, Vec<usize>> = BTreeMap::new();
             for (i, g) in gauss.iter().enumerate() {
                 groups.entry(sct.key(g)).or_default().push(i);
@@ -54,18 +55,23 @@ impl StepwiseConditional {
                 conditional: Vec::new(),
             };
             for (key, members) in groups {
-                if k == 0 || members.len() < MIN_SAMPLES {
+                let local: Option<Vec<f64>> =
+                    weights.map(|w| members.iter().map(|&i| w[i]).collect());
+                if k == 0
+                    || members.len() < MIN_SAMPLES
+                    || local.as_ref().is_some_and(|w| w.iter().sum::<f64>() <= 0.0)
+                {
                     for &i in &members {
-                        gauss[i].push(marginal.scores[i]);
+                        gauss[i].push(variable.marginal.forward(column[i]));
                     }
                     continue;
                 }
                 let values: Vec<f64> = members.iter().map(|&i| column[i]).collect();
-                let local = normal_score(&values, None)?;
-                for (&i, &s) in members.iter().zip(&local.scores) {
-                    gauss[i].push(s);
+                let table = normal_score(&values, local.as_deref())?.table;
+                for &i in &members {
+                    gauss[i].push(table.forward(column[i]));
                 }
-                variable.conditional.push((key, local.table));
+                variable.conditional.push((key, table));
             }
             sct.variables.push(variable);
         }
@@ -86,6 +92,18 @@ impl StepwiseConditional {
         v.conditional
             .binary_search_by(|(k, _)| k.cmp(&key))
             .map_or(&v.marginal, |i| &v.conditional[i].1)
+    }
+
+    /// Score of variable `previous.len()` for `value`, given the scores of the
+    /// variables before it.
+    pub fn forward_one(&self, previous: &[f64], value: f64) -> f64 {
+        self.table(previous.len(), previous).forward(value)
+    }
+
+    /// Value of variable `previous.len()` for `score`, given the scores of the
+    /// variables before it.
+    pub fn back_one(&self, previous: &[f64], score: f64) -> f64 {
+        self.table(previous.len(), previous).back(score)
     }
 
     pub fn dim(&self) -> usize {
@@ -141,7 +159,7 @@ mod tests {
                 vec![x, x * x + 0.3 * probit(c[1])]
             })
             .collect();
-        let sct = StepwiseConditional::fit(&banana, 30).unwrap();
+        let sct = StepwiseConditional::fit(&banana, None, 30).unwrap();
         let g = sct.forward(&banana);
         let (g0, g1): (Vec<f64>, Vec<f64>) = g.iter().map(|r| (r[0], r[1])).unzip();
         let squared: Vec<f64> = g0.iter().map(|x| x * x).collect();
@@ -168,13 +186,45 @@ mod tests {
                 c.iter().map(|&v| (common + probit(v)).exp()).collect()
             })
             .collect();
-        let sct = StepwiseConditional::fit(&data, 30).unwrap();
+        let sct = StepwiseConditional::fit(&data, None, 30).unwrap();
         let json = serde_json::to_string(&sct).unwrap();
         let sct: StepwiseConditional = serde_json::from_str(&json).unwrap();
         let back = sct.back(&sct.forward(&data));
         let err = back.iter().flatten().zip(data.iter().flatten());
         assert!(err.map(|(a, b)| (a - b).abs() / b).fold(0.0, f64::max) < 1e-9);
-        assert!(StepwiseConditional::fit(&data, 1 << 16).is_err());
+        assert!(StepwiseConditional::fit(&data, None, 1 << 16).is_err());
+    }
+
+    #[test]
+    fn weights_decluster_every_score_and_ties_share_a_class() {
+        let u = uniforms(3, 2 * 2000);
+        let data: Vec<Vec<f64>> = u
+            .chunks(2)
+            .map(|c| vec![(c[0] * 4.0).floor(), c[0] + probit(c[1])])
+            .collect();
+        let weights: Vec<f64> = data
+            .iter()
+            .map(|r| if r[1] > r[0] / 4.0 + 0.5 { 3.0 } else { 1.0 })
+            .collect();
+        let sct = StepwiseConditional::fit(&data, Some(&weights), 4).unwrap();
+        let g = sct.forward(&data);
+        for class in 0..4 {
+            let members: Vec<usize> = (0..data.len())
+                .filter(|&i| data[i][0] == class as f64)
+                .collect();
+            assert!(members.iter().all(|&i| g[i][0] == g[members[0]][0]));
+            let mean = |w: &dyn Fn(usize) -> f64| {
+                let total: f64 = members.iter().map(|&i| w(i)).sum();
+                members.iter().map(|&i| g[i][1] * w(i)).sum::<f64>() / total
+            };
+            let declustered = mean(&|i| weights[i]);
+            assert!(declustered.abs() < 0.05, "class {class}: {declustered}");
+            assert!(mean(&|_| 1.0) < -0.2, "class {class}");
+        }
+        let back = sct.back(&g);
+        let err = back.iter().flatten().zip(data.iter().flatten());
+        assert!(err.map(|(a, b)| (a - b).abs()).fold(0.0, f64::max) < 1e-9);
+        assert!(StepwiseConditional::fit(&data, Some(&weights[1..]), 4).is_err());
     }
 
     #[test]

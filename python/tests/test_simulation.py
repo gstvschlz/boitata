@@ -1,3 +1,5 @@
+import pickle
+
 import ceres as cs
 import numpy as np
 import pytest
@@ -108,6 +110,78 @@ def test_gibbs_respects_bounds():
     bounds = np.column_stack([np.zeros(20), np.full(20, np.inf)])
     draw = cs.gibbs(pts, bounds, gaussian, seed=3)
     assert np.all(draw >= 0)
+
+
+def trended_samples():
+    r = np.random.default_rng(8)
+    xy = r.uniform(0, 100, (400, 2))
+    trend = xy[:, 0] / 100
+    return xy, np.exp(1.5 * trend + 0.5 * r.normal(size=400)), trend
+
+
+def test_simulation_with_a_trend_follows_it_and_honours_data():
+    xy, z, trend = trended_samples()
+    search = cs.Search(radius=30, max_samples=12)
+    node_trend = grid.centroids[:, 0] / 100
+    white = cs.Variogram([("spherical", 1.0, 4.0)])
+    for simulator in (cs.SGS(white, search, classes=5), cs.TurningBands(white, bands=100, classes=5)):
+        simulator.fit(xy, z, trend=trend)
+        reals = simulator.simulate(grid, n=4, seed=2, realizations=True, trend=node_trend).realizations
+        want = np.corrcoef(np.log(z), trend)[0, 1]
+        for r in reals:
+            assert np.corrcoef(np.log(r), node_trend)[0, 1] == pytest.approx(want, abs=0.12)
+        at_data = simulator.simulate(xy[:5], n=3, seed=1, trend=trend[:5])
+        np.testing.assert_allclose(at_data.mean, z[:5])
+        np.testing.assert_allclose(at_data.variance, 0, atol=1e-9)
+
+    sgs = cs.SGS(gaussian, search).fit(xy, z, trend=trend)
+    model = grid.with_column("drift", node_trend)
+    by_array = sgs.simulate(grid, n=3, seed=4, realizations=True, trend=node_trend).realizations
+    np.testing.assert_array_equal(
+        sgs.simulate(model, n=3, seed=4, realizations=True, trend="drift").realizations, by_array
+    )
+    blocks = cs.BlockModel(origin=(0, 0), size=(20, 20), count=(5, 5))
+    by_block = sgs.simulate(
+        grid, n=3, seed=4, realizations=True, blocks=blocks, trend=node_trend
+    ).realizations
+    xy_block = grid.centroids[:, :2] // 20
+    rows = (xy_block[:, 0] + 5 * xy_block[:, 1]).astype(int)
+    np.testing.assert_allclose(by_block, [np.bincount(rows, r) / np.bincount(rows) for r in by_array])
+
+    flat = cs.SGS(gaussian, search).fit(xy, z, trend=np.ones(len(z)))
+    plain = cs.SGS(gaussian, search).fit(xy, z)
+    np.testing.assert_allclose(
+        flat.simulate(grid, n=2, seed=3, trend=np.ones(400)).mean, plain.simulate(grid, n=2, seed=3).mean
+    )
+
+    with pytest.raises(cs.InvalidInput, match="give trend"):
+        sgs.simulate(grid, n=1)
+    with pytest.raises(cs.InvalidInput, match="needs trend at fit"):
+        plain.simulate(grid, n=1, trend=node_trend)
+    with pytest.raises(cs.InvalidInput, match="BlockModel"):
+        sgs.simulate(grid.centroids, n=1, trend="drift")
+    with pytest.raises(ValueError):
+        sgs.simulate(grid, n=1, trend=node_trend[1:])
+    with pytest.raises(ValueError):
+        cs.SGS(gaussian, search).fit(xy, z, trend=trend[1:])
+    with pytest.raises(cs.InvalidInput, match="does not take a trend"):
+        cs.TurningBands(gaussian).fit(xy, z, trend=trend).simulate_to_parquet("in.parquet", "out.parquet")
+
+
+def test_simulators_with_a_trend_save_and_load_it(tmp_path):
+    xy, z, trend = trended_samples()
+    node_trend = grid.centroids[:, 0] / 100
+    for simulator in (
+        cs.SGS(gaussian, cs.Search(radius=30, max_samples=12), classes=4),
+        cs.TurningBands(gaussian, bands=50, classes=4),
+    ):
+        simulator.fit(xy, z, trend=trend)
+        want = simulator.simulate(grid, n=2, seed=6, realizations=True, trend=node_trend).realizations
+        path = tmp_path / "simulator.parquet"
+        simulator.to_parquet(path)
+        for back in (type(simulator).from_parquet(path), pickle.loads(pickle.dumps(simulator))):
+            got = back.simulate(grid, n=2, seed=6, realizations=True, trend=node_trend).realizations
+            np.testing.assert_array_equal(got, want)
 
 
 def test_multivariate_simulation_reproduces_correlation_and_honours_data():

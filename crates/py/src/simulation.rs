@@ -4,7 +4,8 @@ use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
 use simulation::{
     BlockSupport, CategoricalSummary as CoreCategorical, ContinuousOptions, ContinuousSummary,
-    GibbsParams, PgsParams, Region, SgsParams, SisParams, TruncationRule, TurningBandsParams,
+    GibbsParams, PgsParams, Region, SgsParams, SisParams, TrendConditioning, TruncationRule,
+    TurningBandsParams,
 };
 use variogram::Variogram as CoreVariogram;
 
@@ -276,6 +277,63 @@ struct Data {
     locs: Vec<Point>,
     values: Vec<f64>,
     weights: Option<Vec<f64>>,
+    trend: Option<(Vec<f64>, TrendConditioning)>,
+}
+
+fn classes() -> usize {
+    10
+}
+
+fn trended(
+    values: &[f64],
+    trend: Option<Vec<f64>>,
+    weights: Option<&[f64]>,
+    classes: usize,
+) -> PyResult<Option<(Vec<f64>, TrendConditioning)>> {
+    trend
+        .map(|t| {
+            TrendConditioning::fit(values, &t, weights, classes)
+                .map(|c| (t, c))
+                .map_err(err)
+        })
+        .transpose()
+}
+
+/// With a trend, its conditioning and its values at the nodes.
+type NodeTrend<'a> = Option<(&'a TrendConditioning, Vec<f64>)>;
+
+/// The values to simulate, the trend-independent scores when fitted with a
+/// trend, and the trend at the nodes, given or read from the `targets` column
+/// it names.
+fn to_simulate<'a>(
+    d: &'a Data,
+    targets: &Bound<PyAny>,
+    nodes: usize,
+    trend: Option<&Bound<PyAny>>,
+) -> PyResult<(&'a [f64], NodeTrend<'a>)> {
+    let (conditioning, trend) = match (&d.trend, trend) {
+        (None, None) => return Ok((&d.values, None)),
+        (Some((_, c)), Some(t)) => (c, t),
+        (Some(_), None) => return Err(invalid("fitted with a trend; give trend at the targets")),
+        (None, Some(_)) => return Err(invalid("trend at the targets needs trend at fit")),
+    };
+    let at_nodes = if trend.is_instance_of::<pyo3::types::PyString>() {
+        let model = targets
+            .cast::<PyBlockModel>()
+            .map_err(|_| invalid("a trend column name needs BlockModel targets"))?;
+        finite(&model.get_item(trend)?, "trend")?
+    } else {
+        finite(trend, "trend")?
+    };
+    same_length(nodes, at_nodes.len(), "trend")?;
+    Ok((conditioning.scores(), Some((conditioning, at_nodes))))
+}
+
+fn back(trend: &NodeTrend, values: Vec<f64>) -> simulation::Result<Vec<f64>> {
+    match trend {
+        Some((c, at_nodes)) => c.back(at_nodes, &values),
+        None => Ok(values),
+    }
 }
 
 /// Coordinates keeping the first sample of each shared location, and the
@@ -298,28 +356,50 @@ fn data(
     values: &Bound<PyAny>,
     weights: Option<&Bound<PyAny>>,
     holes: Option<&Bound<PyAny>>,
+    trend: Option<&Bound<PyAny>>,
+    classes: usize,
 ) -> PyResult<Data> {
     let values = finite(values, "values")?;
     let weights = optional_finite(weights, "weights")?;
     if let Some(w) = &weights {
         same_length(values.len(), w.len(), "weights")?;
     }
+    let trend = optional_finite(trend, "trend")?;
+    if let Some(t) = &trend {
+        same_length(values.len(), t.len(), "trend")?;
+    }
     let (locs, keep) = located(coords, values.len(), "values", holes)?;
+    let values = pick(&values, &keep);
+    let weights = weights.map(|w| pick(&w, &keep));
+    let trend = trended(
+        &values,
+        trend.map(|t| pick(&t, &keep)),
+        weights.as_deref(),
+        classes,
+    )?;
     Ok(Data {
         locs,
-        values: pick(&values, &keep),
-        weights: weights.map(|w| pick(&w, &keep)),
+        values,
+        weights,
+        trend,
     })
 }
 
 /// Sequential Gaussian simulation. `variogram` is the normal-score variogram
 /// (unit sill); data are normal-scored internally, with optional declustering
 /// weights, and realizations are back-transformed.
+///
+/// With a trend at `fit`, the data are normal-scored within `classes`
+/// equal-probability classes of the trend (a stepwise conditional transform
+/// of ``[trend, values]``); `variogram` is then the variogram of those
+/// scores, and each node is back-transformed within the class of its trend.
 #[derive(Serialize, Deserialize)]
 #[pyclass(module = "ceres", name = "SGS")]
 pub struct Sgs {
     variogram: CoreVariogram,
     search: estimation::Search,
+    #[serde(default = "classes")]
+    classes: usize,
     #[serde(skip)]
     data: Option<Data>,
 }
@@ -349,25 +429,41 @@ impl Sgs {
     }
 
     #[new]
-    fn new(variogram: Variogram, search: Search) -> PyResult<Self> {
+    #[pyo3(signature = (variogram, search, classes=10))]
+    fn new(variogram: Variogram, search: Search, classes: usize) -> PyResult<Self> {
         Ok(Self {
             variogram: variogram.0,
             search: search.plain("SGS")?,
+            classes,
             data: None,
         })
     }
 
-    /// Samples sharing a location keep the first, with a warning naming their
-    /// `holes`.
-    #[pyo3(signature = (coords, values, weights=None, holes=None))]
+    /// Takes the conditioning data. Samples sharing a location keep the
+    /// first, with a warning naming their `holes`.
+    ///
+    /// Parameters
+    /// ----------
+    /// coords : array_like, shape (n, 2) or (n, 3)
+    /// values : array_like, shape (n,)
+    /// weights : array_like, optional
+    ///     Declustering weights, for every normal score.
+    /// holes : array_like, optional
+    ///     Drill-hole ids or names.
+    /// trend : array_like, optional
+    ///     Trend at the data, from any model or estimator; `simulate` then
+    ///     needs the trend at the targets.
+    #[pyo3(signature = (coords, values, weights=None, holes=None, trend=None))]
     fn fit<'py>(
         mut slf: PyRefMut<'py, Self>,
         coords: &Bound<PyAny>,
         values: &Bound<PyAny>,
         weights: Option<&Bound<PyAny>>,
         holes: Option<&Bound<PyAny>>,
+        trend: Option<&Bound<PyAny>>,
     ) -> PyResult<PyRefMut<'py, Self>> {
-        slf.data = Some(data(coords, values, weights, holes)?);
+        let classes = slf.classes;
+        slf.data = Some(data(coords, values, weights, holes, trend, classes)?);
         Ok(slf)
     }
 
@@ -378,8 +474,10 @@ impl Sgs {
     /// With `blocks` (a coarser BlockModel), each realization is averaged to
     /// its blocks, weighted by node volume, and summarized at block support;
     /// nodes outside every block are ignored and a block holding no node is
-    /// an error.
-    #[pyo3(signature = (targets, n=100, seed=0, cutoffs=vec![], quantiles=vec![], realizations=false, anisotropy=None, blocks=None))]
+    /// an error. `trend`, needed when fitted with one, is the trend at the
+    /// targets: an array, or the name of a column of BlockModel targets; each
+    /// node is back-transformed within its trend class before any averaging.
+    #[pyo3(signature = (targets, n=100, seed=0, cutoffs=vec![], quantiles=vec![], realizations=false, anisotropy=None, blocks=None, trend=None))]
     #[allow(clippy::too_many_arguments)]
     fn simulate(
         &self,
@@ -392,9 +490,11 @@ impl Sgs {
         realizations: bool,
         anisotropy: Option<PyRef<crate::lva::LocalAnisotropy>>,
         blocks: Option<PyRef<PyBlockModel>>,
+        trend: Option<&Bound<PyAny>>,
     ) -> PyResult<SimulationSummary> {
         let d = self.data.as_ref().ok_or_else(not_fitted)?;
         let grid = self::targets(targets)?;
+        let (values, trend) = to_simulate(d, targets, grid.len(), trend)?;
         let support = support(targets, &grid, blocks)?;
         let local = anisotropy.map(|a| a.at_targets(&grid));
         let options = ContinuousOptions {
@@ -410,14 +510,15 @@ impl Sgs {
                 };
                 simulation::sgs(
                     &d.locs,
-                    &d.values,
+                    values,
                     d.weights.as_deref(),
                     &grid,
                     &self.variogram,
                     &params,
                     local.as_ref(),
                 )
-                .and_then(|r| averaged(&support, r.values))
+                .and_then(|r| back(&trend, r.values))
+                .and_then(|v| averaged(&support, v))
             })
         })
         .map(SimulationSummary)
@@ -425,7 +526,8 @@ impl Sgs {
     }
 }
 
-/// Turning-bands simulation conditioned by kriging; same conventions as SGS.
+/// Turning-bands simulation conditioned by kriging; same conventions as SGS,
+/// trend included.
 #[derive(Serialize, Deserialize)]
 #[pyclass(module = "ceres", name = "TurningBands")]
 pub struct TurningBands {
@@ -433,6 +535,8 @@ pub struct TurningBands {
     bands: usize,
     step: Option<f64>,
     search: Option<estimation::Search>,
+    #[serde(default = "classes")]
+    classes: usize,
     #[serde(skip)]
     data: Option<Data>,
 }
@@ -465,41 +569,45 @@ impl TurningBands {
     /// (default: a fiftieth of the shortest range). `search` is the
     /// neighbourhood of the conditioning kriging (default: the 32 nearest
     /// data at any distance); a radius near the range skips nodes far from
-    /// the data, where conditioning changes nothing.
+    /// the data, where conditioning changes nothing. `classes` are the trend
+    /// classes, as in SGS.
     #[new]
-    #[pyo3(signature = (variogram, bands=300, step=None, search=None))]
+    #[pyo3(signature = (variogram, bands=300, step=None, search=None, classes=10))]
     fn new(
         variogram: Variogram,
         bands: usize,
         step: Option<f64>,
         search: Option<Search>,
+        classes: usize,
     ) -> PyResult<Self> {
         Ok(Self {
             variogram: variogram.0,
             bands,
             step,
             search: search.map(|s| s.plain("TurningBands")).transpose()?,
+            classes,
             data: None,
         })
     }
 
-    /// Samples sharing a location keep the first, with a warning naming their
-    /// `holes`.
-    #[pyo3(signature = (coords, values, weights=None, holes=None))]
+    /// Takes the conditioning data; parameters as in `SGS.fit`.
+    #[pyo3(signature = (coords, values, weights=None, holes=None, trend=None))]
     fn fit<'py>(
         mut slf: PyRefMut<'py, Self>,
         coords: &Bound<PyAny>,
         values: &Bound<PyAny>,
         weights: Option<&Bound<PyAny>>,
         holes: Option<&Bound<PyAny>>,
+        trend: Option<&Bound<PyAny>>,
     ) -> PyResult<PyRefMut<'py, Self>> {
-        slf.data = Some(data(coords, values, weights, holes)?);
+        let classes = slf.classes;
+        slf.data = Some(data(coords, values, weights, holes, trend, classes)?);
         Ok(slf)
     }
 
     /// Summary of `n` realizations; same options as `SGS.simulate`.
     #[allow(clippy::too_many_arguments)]
-    #[pyo3(signature = (targets, n=100, seed=0, cutoffs=vec![], quantiles=vec![], realizations=false, blocks=None))]
+    #[pyo3(signature = (targets, n=100, seed=0, cutoffs=vec![], quantiles=vec![], realizations=false, blocks=None, trend=None))]
     fn simulate(
         &self,
         py: Python,
@@ -510,9 +618,11 @@ impl TurningBands {
         quantiles: Vec<f64>,
         realizations: bool,
         blocks: Option<PyRef<PyBlockModel>>,
+        trend: Option<&Bound<PyAny>>,
     ) -> PyResult<SimulationSummary> {
         let d = self.data.as_ref().ok_or_else(not_fitted)?;
         let grid = self::targets(targets)?;
+        let (values, trend) = to_simulate(d, targets, grid.len(), trend)?;
         let support = support(targets, &grid, blocks)?;
         let options = ContinuousOptions {
             cutoffs,
@@ -523,7 +633,7 @@ impl TurningBands {
         py.detach(|| {
             let ensemble = simulation::TurningBandsEnsemble::new(
                 &d.locs,
-                &d.values,
+                values,
                 d.weights.as_deref(),
                 lo,
                 hi,
@@ -532,7 +642,7 @@ impl TurningBands {
                 n,
             )?;
             simulation::continuous(n, &options, |k| {
-                averaged(&support, ensemble.realization(k, &grid)?)
+                averaged(&support, back(&trend, ensemble.realization(k, &grid)?)?)
             })
         })
         .map(SimulationSummary)
@@ -559,6 +669,11 @@ impl TurningBands {
         rows: usize,
     ) -> PyResult<Bound<'py, pyo3::types::PyDict>> {
         let d = self.data.as_ref().ok_or_else(not_fitted)?;
+        if d.trend.is_some() {
+            return Err(invalid(
+                "simulate_to_parquet does not take a trend; use simulate",
+            ));
+        }
         let options = ContinuousOptions {
             cutoffs,
             quantiles,
@@ -928,20 +1043,31 @@ fn data_columns(d: &Data) -> Columns {
         .map(|i| d.weights.as_ref().map(|w| w[i]))
         .collect();
     columns.push(("weight".into(), weights));
+    if let Some((trend, _)) = &d.trend {
+        columns.push(persist::column("trend", trend.iter().copied()));
+    }
     columns
 }
 
-fn data_from(found: &Found) -> PyResult<Data> {
+fn data_from(found: &Found, classes: usize) -> PyResult<Data> {
     let (locs, values, weights) = (
         found.points()?,
         found.values("value")?,
         found.optional("weight")?,
     );
     same_length(locs.len(), values.len(), "value")?;
+    let weights: Option<Vec<f64>> = weights.into_iter().collect();
+    let trend = found
+        .optional("trend")
+        .ok()
+        .map(|_| found.values("trend"))
+        .transpose()?;
+    let trend = trended(&values, trend, weights.as_deref(), classes)?;
     Ok(Data {
         locs,
         values,
-        weights: weights.into_iter().collect(),
+        weights,
+        trend,
     })
 }
 
@@ -967,7 +1093,7 @@ impl Tabular for Sgs {
     }
 
     fn restore(&mut self, columns: Found) -> PyResult<()> {
-        self.data = Some(data_from(&columns)?);
+        self.data = Some(data_from(&columns, self.classes)?);
         Ok(())
     }
 }
@@ -978,7 +1104,7 @@ impl Tabular for TurningBands {
     }
 
     fn restore(&mut self, columns: Found) -> PyResult<()> {
-        self.data = Some(data_from(&columns)?);
+        self.data = Some(data_from(&columns, self.classes)?);
         Ok(())
     }
 }
@@ -1261,7 +1387,7 @@ impl MultivariateSimulation {
     ///     One column per simulator; NaN marks a missing variable.
     /// weights : array_like, optional
     ///     Declustering weights, for the transform when it takes them (PCA,
-    ///     PPMT) and for each factor's normal scores.
+    ///     StepwiseConditional, PPMT) and for each factor's normal scores.
     /// holes : array_like, optional
     ///     Drill-hole ids or names, for `max_per_hole`.
     #[pyo3(signature = (coords, data, weights=None, holes=None))]

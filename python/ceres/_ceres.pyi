@@ -219,7 +219,7 @@ class StepwiseConditional:
     @staticmethod
     def from_json(text: str) -> StepwiseConditional: ...
     def __init__(self, classes: int = 10) -> None: ...
-    def fit(self, data: ArrayLike) -> StepwiseConditional: ...
+    def fit(self, data: ArrayLike, weights: ArrayLike | None = None) -> StepwiseConditional: ...
     def transform(self, data: ArrayLike) -> npt.NDArray[np.float64]: ...
     def inverse_transform(self, data: ArrayLike) -> npt.NDArray[np.float64]: ...
 
@@ -589,13 +589,14 @@ class SGS:
     def to_parquet(self, path: Path) -> None: ...
     @staticmethod
     def from_parquet(path: Path) -> SGS: ...
-    def __init__(self, variogram: Variogram, search: Search) -> None: ...
+    def __init__(self, variogram: Variogram, search: Search, classes: int = 10) -> None: ...
     def fit(
         self,
         coords: ArrayLike,
         values: ArrayLike,
         weights: ArrayLike | None = None,
         holes: Holes | None = None,
+        trend: ArrayLike | None = None,
     ) -> SGS: ...
     def simulate(
         self,
@@ -607,6 +608,7 @@ class SGS:
         realizations: bool = False,
         anisotropy: LocalAnisotropy | None = None,
         blocks: BlockModel | None = None,
+        trend: ArrayLike | str | None = None,
     ) -> SimulationSummary: ...
 
 class TurningBands:
@@ -614,7 +616,12 @@ class TurningBands:
     @staticmethod
     def from_parquet(path: Path) -> TurningBands: ...
     def __init__(
-        self, variogram: Variogram, bands: int = 300, step: float | None = None, search: Search | None = None
+        self,
+        variogram: Variogram,
+        bands: int = 300,
+        step: float | None = None,
+        search: Search | None = None,
+        classes: int = 10,
     ) -> None: ...
     def fit(
         self,
@@ -622,6 +629,7 @@ class TurningBands:
         values: ArrayLike,
         weights: ArrayLike | None = None,
         holes: Holes | None = None,
+        trend: ArrayLike | None = None,
     ) -> TurningBands: ...
     def simulate(
         self,
@@ -632,6 +640,7 @@ class TurningBands:
         quantiles: Sequence[float] = (),
         realizations: bool = False,
         blocks: BlockModel | None = None,
+        trend: ArrayLike | str | None = None,
     ) -> SimulationSummary: ...
     def simulate_to_parquet(
         self,

@@ -618,13 +618,23 @@ impl StepwiseConditional {
         }
     }
 
-    /// `data` is `(n, d)`; column order sets the conditioning order.
+    /// Fits the class tables; tied values share a class.
+    ///
+    /// Parameters
+    /// ----------
+    /// data : array_like, shape (n, d)
+    ///     Column order sets the conditioning order.
+    /// weights : array_like, optional
+    ///     Declustering weights, for every normal score.
+    #[pyo3(signature = (data, weights=None))]
     fn fit<'py>(
         mut slf: PyRefMut<'py, Self>,
         data: &Bound<PyAny>,
+        weights: Option<&Bound<PyAny>>,
     ) -> PyResult<PyRefMut<'py, Self>> {
         let data = rows(data, "data")?;
-        slf.fitted = Some(CoreSct::fit(&data, slf.classes).map_err(err)?);
+        let weights = optional_finite(weights, "weights")?;
+        slf.fitted = Some(CoreSct::fit(&data, weights.as_deref(), slf.classes).map_err(err)?);
         Ok(slf)
     }
 
@@ -1199,7 +1209,7 @@ pub(crate) fn decorrelation(
         let tolerance = t.tolerance.unwrap_or(t.lag / 2.0);
         D::Maf(CoreMaf::fit(data, locs, t.lag, tolerance).map_err(err)?)
     } else if let Ok(t) = transform.cast::<StepwiseConditional>() {
-        D::Stepwise(CoreSct::fit(data, t.borrow().classes).map_err(err)?)
+        D::Stepwise(CoreSct::fit(data, weights, t.borrow().classes).map_err(err)?)
     } else if let Ok(t) = transform.cast::<Ppmt>() {
         D::Ppmt(CorePpmt::fit(data, weights, &t.borrow().params).map_err(err)?)
     } else {
