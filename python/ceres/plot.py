@@ -1197,7 +1197,7 @@ def grade_tonnage(table, *, relative=False, ax=None, **kwargs):
     ax.set_ylabel("Tonnage fraction" if relative else "Tonnage")
     ax.set_ylim(bottom=0)
     grade.set_ylabel("Mean grade above cutoff")
-    grade.legend(handles=handles, loc="center right", frameon=False)
+    grade.legend(handles=handles, loc="upper center", frameon=False)
     return fig, ax
 
 
