@@ -148,6 +148,22 @@ def test_coregionalization_at_zero_lag():
     assert lmc.cross_covariance(1, 1, p, p)[0] == pytest.approx(1.2)
 
 
+def test_coregionalization_must_be_positive_semidefinite():
+    zero = [[0.0, 0.0], [0.0, 0.0]]
+    cs.Coregionalization(zero, [("spherical", 20.0, [[1.0, 1.0 + 1e-14], [1.0, 1.0]])])
+    with pytest.raises(
+        ValueError, match=r"structure 0 sills .* smallest eigenvalue -2\.000e-1.*Coregionalization\.fit"
+    ):
+        cs.Coregionalization(zero, [("spherical", 20.0, [[1.0, 1.2], [1.2, 1.0]])])
+    with pytest.raises(cs.CeresError, match="nugget is not symmetric"):
+        cs.Coregionalization([[0.1, 0.05], [0.0, 0.1]], [])
+    with pytest.raises(ValueError, match="structure 0 sills is not 2 x 2"):
+        cs.Coregionalization(zero, [("spherical", 20.0, [[1.0]])])
+    good = cs.Coregionalization(zero, [("spherical", 20.0, [[1.0, 0.6], [0.6, 1.0]])]).to_json()
+    with pytest.raises(ValueError, match="positive semi-definite"):
+        cs.Coregionalization.from_json(good.replace("0.6", "1.6"))
+
+
 def field(xy, scale, n=200):
     freq = rng.normal(size=(n, 2)) / scale
     return np.cos(xy @ freq.T + rng.uniform(0, 2 * np.pi, n)).sum(1) / np.sqrt(n / 2)

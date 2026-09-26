@@ -985,7 +985,7 @@ pub fn fit_coregionalization(
             sills: unscale(b),
         })
         .collect();
-    let mut coregionalization = Coregionalization::new(unscale(&blocks[0]), structures);
+    let mut coregionalization = Coregionalization::new(unscale(&blocks[0]), structures)?;
     coregionalization.anisotropy = geometry.map(|(_, a)| a.clone());
     Ok(CoregFit {
         coregionalization,
@@ -1553,6 +1553,7 @@ mod tests {
                 },
             ],
         )
+        .unwrap()
     }
 
     /// Noise-free experimental variograms of `truth` along `dirs`, scaled by
@@ -1716,6 +1717,7 @@ mod tests {
             for m in std::iter::once(&c.nugget).chain(c.structures.iter().map(|s| &s.sills)) {
                 assert!(min_eigenvalue(m) >= -1e-12, "{m:?}");
             }
+            assert!(Coregionalization::new(c.nugget.clone(), c.structures.clone()).is_ok());
         }
         let mut gap = exps.clone();
         gap[0][2] = None;

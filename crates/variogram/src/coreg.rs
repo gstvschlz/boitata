@@ -14,7 +14,9 @@
 //! ([`estimation`]) consumes.
 
 use crate::aniso::{Anisotropy, euclidean};
+use crate::error::{Result, VarioError};
 use crate::model::{Model, shape};
+use nalgebra::DMatrix;
 use serde::{Deserialize, Serialize};
 
 /// One nested structure of an LMC: a shape/range plus its coregionalization
@@ -29,6 +31,7 @@ pub struct CoregStructure {
 
 /// A linear model of coregionalization: nugget matrix + nested structures.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(try_from = "Unchecked")]
 pub struct Coregionalization {
     pub nvar: usize,
     /// `nvar × nvar` nugget matrix.
@@ -38,16 +41,82 @@ pub struct Coregionalization {
     pub anisotropy: Option<Anisotropy>,
 }
 
+#[derive(Deserialize)]
+struct Unchecked {
+    nvar: usize,
+    nugget: Vec<Vec<f64>>,
+    structures: Vec<CoregStructure>,
+    #[serde(default)]
+    anisotropy: Option<Anisotropy>,
+}
+
+impl TryFrom<Unchecked> for Coregionalization {
+    type Error = VarioError;
+
+    fn try_from(u: Unchecked) -> Result<Self> {
+        if u.nvar != u.nugget.len() {
+            return Err(VarioError::InvalidParameters(format!(
+                "nvar {} but a {}-row nugget",
+                u.nvar,
+                u.nugget.len()
+            )));
+        }
+        let mut c = Self::new(u.nugget, u.structures)?;
+        c.anisotropy = u.anisotropy;
+        Ok(c)
+    }
+}
+
+/// Rejects a matrix that is not square, symmetric and positive semi-definite,
+/// up to round-off relative to its largest entry or eigenvalue.
+fn check_psd(name: &str, m: &[Vec<f64>], n: usize) -> Result<()> {
+    let bad = |why: String| {
+        Err(VarioError::InvalidParameters(format!(
+            "{name} {why}; use Coregionalization.fit for a valid model"
+        )))
+    };
+    if m.len() != n || m.iter().any(|r| r.len() != n) {
+        return bad(format!("is not {n} x {n}"));
+    }
+    let a = DMatrix::from_fn(n, n, |i, j| m[i][j]);
+    if !a.iter().all(|v| v.is_finite()) {
+        return bad("has a non-finite entry".into());
+    }
+    let tol = 1e-10 * a.amax();
+    if (0..n).any(|i| (0..i).any(|j| (a[(i, j)] - a[(j, i)]).abs() > tol)) {
+        return bad("is not symmetric".into());
+    }
+    if n == 0 {
+        return Ok(());
+    }
+    let eig = a.symmetric_eigenvalues();
+    let min = eig.min();
+    if min < -1e-10 * eig.amax() {
+        return bad(format!(
+            "is not positive semi-definite: smallest eigenvalue {min:.3e}"
+        ));
+    }
+    Ok(())
+}
+
 impl Coregionalization {
     /// Build a bivariate/multivariate model from a nugget matrix and structures.
-    pub fn new(nugget: Vec<Vec<f64>>, structures: Vec<CoregStructure>) -> Self {
+    ///
+    /// # Errors
+    /// [`VarioError::InvalidParameters`] when the nugget or a structure's sill
+    /// matrix is not `nvar × nvar`, symmetric and positive semi-definite.
+    pub fn new(nugget: Vec<Vec<f64>>, structures: Vec<CoregStructure>) -> Result<Self> {
         let nvar = nugget.len();
-        Self {
+        check_psd("nugget", &nugget, nvar)?;
+        for (k, s) in structures.iter().enumerate() {
+            check_psd(&format!("structure {k} sills"), &s.sills, nvar)?;
+        }
+        Ok(Self {
             nvar,
             nugget,
             structures,
             anisotropy: None,
-        }
+        })
     }
 
     pub fn with_anisotropy(mut self, a: Anisotropy) -> Self {
@@ -96,6 +165,58 @@ mod tests {
                 sills: vec![vec![0.9, 0.4], vec![0.4, 0.8]],
             }],
         )
+        .unwrap()
+    }
+
+    fn with_sills(sills: Vec<Vec<f64>>) -> Result<Coregionalization> {
+        let n = sills.len();
+        Coregionalization::new(
+            vec![vec![0.0; n]; n],
+            vec![CoregStructure {
+                model: Model::Spherical,
+                range: 50.0,
+                sills,
+            }],
+        )
+    }
+
+    #[test]
+    fn psd_matrices_accepted() {
+        assert!(with_sills(vec![vec![1.0, 1.0], vec![1.0, 1.0]]).is_ok());
+        assert!(with_sills(vec![vec![0.0, 0.0], vec![0.0, 0.0]]).is_ok());
+        let v = [0.7, -0.3, 0.5];
+        let rank_one = (0..3)
+            .map(|i| (0..3).map(|j| v[i] * v[j]).collect())
+            .collect();
+        assert!(with_sills(rank_one).is_ok());
+    }
+
+    #[test]
+    fn negative_eigenvalue_rejected_with_message() {
+        let e = with_sills(vec![vec![1.0, 1.2], vec![1.2, 1.0]]).unwrap_err();
+        let msg = e.to_string();
+        assert!(msg.contains("structure 0 sills"), "{msg}");
+        assert!(msg.contains("-2.000e-1"), "{msg}");
+        assert!(msg.contains("Coregionalization.fit"), "{msg}");
+        let e = Coregionalization::new(vec![vec![0.1, 0.2], vec![0.2, 0.1]], vec![]).unwrap_err();
+        assert!(e.to_string().contains("nugget"), "{e}");
+    }
+
+    #[test]
+    fn symmetry_checked_up_to_round_off() {
+        assert!(with_sills(vec![vec![1.0, 0.5], vec![0.4, 1.0]]).is_err());
+        assert!(with_sills(vec![vec![1.0, 0.5 + 1e-14], vec![0.5, 1.0]]).is_ok());
+        assert!(with_sills(vec![vec![1.0, 1.0 + 1e-14], vec![1.0, 1.0]]).is_ok());
+        assert!(with_sills(vec![vec![1.0, 0.5]]).is_err());
+    }
+
+    #[test]
+    fn deserializing_validates() {
+        let json = serde_json::to_string(&model()).unwrap();
+        assert!(serde_json::from_str::<Coregionalization>(&json).is_ok());
+        let bad = json.replace("0.4", "1.4");
+        let e = serde_json::from_str::<Coregionalization>(&bad).unwrap_err();
+        assert!(e.to_string().contains("positive semi-definite"), "{e}");
     }
 
     #[test]
