@@ -417,6 +417,56 @@ impl BlockSupport {
     }
 }
 
+/// Localised grade of every block nested in `panels`, from realizations at
+/// block support, `realizations[realization][block]`.
+///
+/// Each panel pools its blocks' values over the `n` realizations, sorts them,
+/// and gives its block ranked `i` by `ranking` (ties by row order) the mean of
+/// the `i`-th chunk of `n` sorted values. The blocks average to the pooled
+/// mean, and the top `k` hold the top `k n` pooled values. Blocks outside every
+/// panel stay `None`; a `None` rank inside a panel is an error.
+pub fn localize(
+    panels: &BlockModel,
+    blocks: &BlockModel,
+    ranking: &[Option<f64>],
+    realizations: &[Vec<f64>],
+) -> Result<Vec<Option<f64>>> {
+    let n = realizations.len();
+    if n == 0 {
+        return Err(SimError::InvalidParameters(
+            "need at least one realization".into(),
+        ));
+    }
+    if realizations.iter().any(|r| r.len() != blocks.len()) {
+        return Err(SimError::InvalidParameters(
+            "every realization needs one value per selective block".into(),
+        ));
+    }
+    if realizations.iter().flatten().any(|v| !v.is_finite()) {
+        return Err(SimError::InvalidParameters(
+            "realizations must be finite".into(),
+        ));
+    }
+    let transform = |e: transforms::TransformError| SimError::Transform(e.to_string());
+    let mut members = vec![vec![]; panels.len()];
+    let nest = transforms::localize::nest(panels, blocks).map_err(transform)?;
+    for (row, panel) in nest.into_iter().enumerate() {
+        if let Some(p) = panel {
+            members[p].push(row);
+        }
+    }
+    transforms::localize::localize(panels, blocks, ranking, |p, _| {
+        let mut pooled: Vec<f64> = realizations
+            .iter()
+            .flat_map(|r| members[p].iter().map(|&b| r[b]))
+            .collect();
+        pooled.sort_by(f64::total_cmp);
+        let means = pooled.chunks(n).map(|c| c.iter().sum::<f64>() / n as f64);
+        Ok(Some(means.collect()))
+    })
+    .map_err(transform)
+}
+
 /// Empirical quantile of `sorted` (ascending) using linear interpolation.
 pub fn quantile_sorted(sorted: &[f64], q: f64) -> f64 {
     let n = sorted.len();
@@ -613,5 +663,111 @@ mod tests {
     fn bad_input_is_an_error() {
         assert!(continuous(0, &ContinuousOptions::default(), fake).is_err());
         assert!(categorical(3, 2, false, |_| Ok(vec![2])).is_err());
+    }
+
+    /// Panels of 20 m holding 4 × 4 blocks of 5 m; the blocks overhang the
+    /// panels by one row and column.
+    type Nested = (BlockModel, BlockModel, Vec<Option<f64>>, Vec<Vec<f64>>);
+
+    fn nested(n: usize) -> Nested {
+        let (panels, blocks) = (grid(20.0, 3), grid(5.0, 13));
+        let ranking = (0..blocks.len())
+            .map(|i| Some(((i * 29) % 17) as f64))
+            .collect();
+        let reals = (0..n)
+            .map(|r| {
+                (0..blocks.len())
+                    .map(|i| ((i * 37 + r * 11) % 23) as f64 + 0.1 * r as f64)
+                    .collect()
+            })
+            .collect();
+        (panels, blocks, ranking, reals)
+    }
+
+    fn by_panel(panels: &BlockModel, blocks: &BlockModel) -> Vec<Vec<usize>> {
+        let mut members = vec![vec![]; panels.len()];
+        let nest = transforms::localize::nest(panels, blocks).unwrap();
+        for (row, p) in nest.into_iter().enumerate() {
+            if let Some(p) = p {
+                members[p].push(row);
+            }
+        }
+        members
+    }
+
+    fn ranked(rows: &[usize], ranking: &[Option<f64>]) -> Vec<usize> {
+        let mut rows = rows.to_vec();
+        rows.sort_by(|&i, &j| ranking[i].unwrap().total_cmp(&ranking[j].unwrap()));
+        rows
+    }
+
+    #[test]
+    fn localized_panels_reproduce_their_pooled_realizations() {
+        let (panels, blocks, ranking, reals) = nested(7);
+        let out = localize(&panels, &blocks, &ranking, &reals).unwrap();
+        let members = by_panel(&panels, &blocks);
+        let inside: usize = members.iter().map(Vec::len).sum();
+        assert_eq!(inside, 144);
+        assert_eq!(out.iter().flatten().count(), inside);
+        for rows in &members {
+            let mut pooled: Vec<f64> = reals
+                .iter()
+                .flat_map(|r| rows.iter().map(|&b| r[b]))
+                .collect();
+            pooled.sort_by(|a, b| b.total_cmp(a));
+            let grades: Vec<f64> = ranked(rows, &ranking)
+                .iter()
+                .map(|&b| out[b].unwrap())
+                .collect();
+            assert!(grades.windows(2).all(|w| w[0] <= w[1]), "not monotone");
+            let mean = |v: &[f64]| v.iter().sum::<f64>() / v.len() as f64;
+            assert!((mean(&grades) - mean(&pooled)).abs() < 1e-9);
+            let n = rows.len();
+            for k in 1..=n {
+                let metal = grades[n - k..].iter().sum::<f64>() / n as f64;
+                let pooled_metal = pooled[..k * 7].iter().sum::<f64>() / pooled.len() as f64;
+                assert!((metal - pooled_metal).abs() < 1e-9, "tonnage {k}/{n}");
+            }
+        }
+    }
+
+    #[test]
+    fn one_realization_is_sorted_onto_the_ranks() {
+        let (panels, blocks, ranking, reals) = nested(1);
+        let own: Vec<Option<f64>> = reals[0].iter().map(|&v| Some(v)).collect();
+        let out = localize(&panels, &blocks, &own, &reals).unwrap();
+        let members = by_panel(&panels, &blocks);
+        for &b in members.iter().flatten() {
+            assert_eq!(out[b], Some(reals[0][b]));
+        }
+        let out = localize(&panels, &blocks, &ranking, &reals).unwrap();
+        for rows in &members {
+            let mut values: Vec<f64> = rows.iter().map(|&b| reals[0][b]).collect();
+            values.sort_by(f64::total_cmp);
+            let got: Vec<f64> = ranked(rows, &ranking)
+                .iter()
+                .map(|&b| out[b].unwrap())
+                .collect();
+            assert_eq!(got, values);
+        }
+    }
+
+    #[test]
+    fn localization_does_not_depend_on_thread_count() {
+        let (panels, blocks, ranking, reals) = nested(9);
+        let one = with_threads(1, || localize(&panels, &blocks, &ranking, &reals).unwrap());
+        let many = with_threads(5, || localize(&panels, &blocks, &ranking, &reals).unwrap());
+        assert_eq!(one, many);
+    }
+
+    #[test]
+    fn bad_realizations_are_errors() {
+        let (panels, blocks, ranking, mut reals) = nested(2);
+        assert!(localize(&panels, &blocks, &ranking, &[]).is_err());
+        assert!(localize(&panels, &blocks, &ranking[1..], &reals).is_err());
+        reals[1][3] = f64::NAN;
+        assert!(localize(&panels, &blocks, &ranking, &reals).is_err());
+        reals[1].pop();
+        assert!(localize(&panels, &blocks, &ranking, &reals).is_err());
     }
 }

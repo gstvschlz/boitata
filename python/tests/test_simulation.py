@@ -54,6 +54,32 @@ def test_block_support_averages_each_realization():
     assert c.realizations.shape == (3, 25) and c.probabilities.shape == (2, 25)
 
 
+def test_localize_realizations_within_panels():
+    sgs = cs.SGS(gaussian, cs.Search(radius=40, max_samples=12)).fit(coords, values)
+    panels = cs.BlockModel(origin=(0, 0), size=(50, 50), count=(2, 2))
+    smus = panels.discretize(5)
+    s = sgs.simulate(grid, n=8, seed=2, realizations=True, blocks=smus)
+    smus = smus.with_column("etype", s.mean)
+    out = cs.localize(smus, "etype", s.realizations, panels)
+    owner, local = smus["block"].astype(int), out["localized"]
+    for p in range(4):
+        mine = owner == p
+        pooled = np.sort(s.realizations[:, mine].ravel())
+        assert local[mine].mean() == pytest.approx(pooled.mean(), rel=1e-9)
+        by_rank = local[mine][np.argsort(s.mean[mine], kind="stable")]
+        np.testing.assert_allclose(by_rank, pooled.reshape(25, 8).mean(axis=1), rtol=1e-12)
+
+    one = cs.localize(smus, "etype", s.realizations[:1], panels, name="one")["one"]
+    for p in range(4):
+        mine = owner == p
+        by_rank = one[mine][np.argsort(s.mean[mine], kind="stable")]
+        np.testing.assert_array_equal(by_rank, np.sort(s.realizations[0, mine]))
+    with pytest.raises(cs.InvalidInput):
+        cs.localize(smus, "etype", s.realizations[:, 1:], panels)
+    with pytest.raises(KeyError):
+        cs.localize(smus, "missing", s.realizations, panels)
+
+
 def test_turning_bands_summary():
     tb = cs.TurningBands(gaussian, bands=100, step=1.0).fit(coords, values)
     s = tb.simulate(grid, n=2, seed=1, cutoffs=[1.0, 2.0])
