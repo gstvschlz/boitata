@@ -14,15 +14,17 @@
 
 use ceres_core::{BlockModel, block_frame};
 use nalgebra::{Matrix3, Vector3};
+use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 use transforms::TransformError;
 use variogram::Variogram;
 
 use crate::Sample;
-use crate::batch::{by_pass, estimate_many};
+use crate::batch::{by_pass, estimate_many, k_fold_at, leave_one_out_at};
 use crate::error::{EstimError, Result};
 use crate::krige::{Kind, krige};
 use crate::lva::{LocalAnisotropy, estimate_many_local};
+use crate::neighborhood::{NeighborhoodStats, neighborhood_stats};
 use crate::search::Search;
 
 type Point = (f64, f64, f64);
@@ -82,6 +84,8 @@ pub struct Conditional {
     pub cdf: Vec<f64>,
     /// Sum of |corrected − kriged| over the thresholds.
     pub correction: f64,
+    /// Thresholds whose kriged probability the correction changed.
+    pub violations: usize,
     pub mean: f64,
     pub variance: f64,
     pub probability_above: Vec<f64>,
@@ -105,6 +109,22 @@ pub struct IndicatorSummary {
     pub mean_above: Vec<Vec<f64>>,
     pub quantiles: Vec<f64>,
     pub quantile_values: Vec<Vec<f64>>,
+    pub diagnostics: Option<IndicatorDiagnostics>,
+}
+
+/// Search diagnostics per target, NaN where unestimated.
+#[derive(Debug, Clone, Default)]
+pub struct IndicatorDiagnostics {
+    pub n_samples: Vec<f64>,
+    /// The search, from 1, that filled the target.
+    pub pass: Vec<f64>,
+    /// Distinct holes among the samples used; untagged samples count one each.
+    pub n_holes: Vec<f64>,
+    pub mean_distance: Vec<f64>,
+    /// 1 where the search returned `max_samples`.
+    pub max_samples_reached: Vec<f64>,
+    /// Thresholds whose kriged probability the order-relation correction changed.
+    pub n_order_violations: Vec<f64>,
 }
 
 fn invalid(message: &str) -> EstimError {
@@ -393,6 +413,7 @@ impl MultipleIndicator {
         quantiles: &[f64],
     ) -> Conditional {
         let (cdf, correction) = correct_order_relations(raw);
+        let violations = cdf.iter().zip(raw).filter(|(c, r)| c != r).count();
         let classes = self.classes(global, &cdf);
         let moment = |c: f64, j: usize| -> f64 {
             classes
@@ -427,6 +448,7 @@ impl MultipleIndicator {
         Conditional {
             cdf,
             correction,
+            violations,
             mean,
             variance,
             probability_above,
@@ -458,10 +480,73 @@ impl MultipleIndicator {
             return Err(invalid("quantiles must be in [0, 1]"));
         }
         let global = self.global(samples, weights)?;
-        let results = self.at_targets(samples, &global, targets, searches, local, |raw| {
-            self.conditional(&global, &raw, cutoffs, quantiles)
+        let results =
+            self.at_targets(samples, &global, targets, searches, local, |t, s, raw| {
+                let near = neighborhood_stats(t, s, s.len(), f64::INFINITY, None);
+                (self.conditional(&global, &raw, cutoffs, quantiles), near)
+            })?;
+        let column = |f: &dyn Fn(usize, &Conditional, &NeighborhoodStats) -> f64| {
+            let at = |r: &Option<(usize, (Conditional, NeighborhoodStats))>| {
+                r.as_ref().map_or(f64::NAN, |(p, (c, s))| f(*p, c, s))
+            };
+            results.iter().map(at).collect()
+        };
+        let diagnostics = IndicatorDiagnostics {
+            n_samples: column(&|_, _, s| s.n_within as f64),
+            pass: column(&|p, _, _| (p + 1) as f64),
+            n_holes: column(&|_, _, s| s.n_holes as f64),
+            mean_distance: column(&|_, _, s| s.mean_dist_knn),
+            max_samples_reached: column(&|p, _, s| {
+                f64::from(u8::from(s.n_within >= searches[p].max_samples))
+            }),
+            n_order_violations: column(&|_, c, _| c.violations as f64),
+        };
+        let conditionals = results.into_iter().map(|r| r.map(|(_, (c, _))| c));
+        Ok(IndicatorSummary {
+            diagnostics: Some(diagnostics),
+            ..self.summary(targets.len(), conditionals, cutoffs, quantiles)
+        })
+    }
+
+    /// Re-estimates every sample's distribution through the search passes
+    /// without the sample (`folds` None) or without its fold, holes kept whole
+    /// (see [`k_fold_at`]). The global distribution comes from all samples.
+    /// Returns the summary at the samples and the PIT, `F*(z)` at each
+    /// sample's own value `z`; identical for any number of threads.
+    pub fn cross_validate(
+        &self,
+        samples: &[Sample],
+        weights: Option<&[f64]>,
+        searches: &[Search],
+        folds: Option<usize>,
+    ) -> Result<(IndicatorSummary, Vec<f64>)> {
+        self.validate()?;
+        let global = self.global(samples, weights)?;
+        let vg = Some(self.search_variogram());
+        let kriged = |t: &Point, s: &[Sample]| self.kriged(t, s, &global, None);
+        let raw = by_pass(samples.len(), searches, |search, remaining| match folds {
+            None => Ok(leave_one_out_at(remaining, samples, search, vg, kriged)),
+            Some(k) => k_fold_at(k, remaining, samples, search, vg, kriged),
         })?;
-        Ok(self.summary(targets.len(), results.into_iter(), cutoffs, quantiles))
+        let results: Vec<Option<Conditional>> = raw
+            .par_iter()
+            .zip(samples)
+            .map(|(r, s)| {
+                r.as_ref()
+                    .map(|(_, raw)| self.conditional(&global, raw, &[s.value], &[]))
+            })
+            .collect();
+        let pit = results
+            .iter()
+            .map(|c| {
+                c.as_ref()
+                    .map_or(f64::NAN, |c| 1.0 - c.probability_above[0])
+            })
+            .collect();
+        Ok((
+            self.summary(samples.len(), results.into_iter(), &[], &[]),
+            pit,
+        ))
     }
 
     fn global(&self, samples: &[Sample], weights: Option<&[f64]>) -> Result<Global> {
@@ -469,7 +554,8 @@ impl MultipleIndicator {
         Global::new(&values, weights, &self.thresholds, self.tails)
     }
 
-    /// `finish` applied to the kriged `P(Z ≤ t)` at every target, by pass.
+    /// `finish` applied to every target, the samples found and the kriged
+    /// `P(Z ≤ t)`, with the index of the pass that filled the target.
     fn at_targets<T: Send>(
         &self,
         samples: &[Sample],
@@ -477,13 +563,13 @@ impl MultipleIndicator {
         targets: &[Point],
         searches: &[Search],
         local: Option<&LocalAnisotropy>,
-        finish: impl Fn(Vec<f64>) -> T + Sync,
-    ) -> Result<Vec<Option<T>>> {
+        finish: impl Fn(&Point, &[Sample], Vec<f64>) -> T + Sync,
+    ) -> Result<Vec<Option<(usize, T)>>> {
         let vg = self.search_variogram();
         let at_target = |t: &Point, s: &[Sample], o: Option<&Variogram>| {
-            Ok(finish(self.kriged(t, s, global, o)?))
+            Ok(finish(t, s, self.kriged(t, s, global, o)?))
         };
-        let passes = by_pass(targets.len(), searches, |search, remaining| {
+        by_pass(targets.len(), searches, |search, remaining| {
             let at: Vec<Point> = remaining.iter().map(|&i| targets[i]).collect();
             match local {
                 None => Ok(estimate_many(
@@ -500,8 +586,7 @@ impl MultipleIndicator {
                     })
                 }
             }
-        })?;
-        Ok(passes.into_iter().map(|p| p.map(|p| p.1)).collect())
+        })
     }
 
     /// Means of `n` equal-probability bands of the conditional distribution
@@ -563,9 +648,9 @@ impl MultipleIndicator {
             .into_iter()
             .map(|c| (c[0], c[1], c[2]))
             .collect();
-        let raw = self.at_targets(samples, &global, &centroids, searches, None, |raw| raw)?;
+        let raw = self.at_targets(samples, &global, &centroids, searches, None, |_, _, r| r)?;
         transforms::localize::localize(panels, smus, ranking, |p, n| {
-            Ok(raw[p].as_ref().map(|raw| {
+            Ok(raw[p].as_ref().map(|(_, raw)| {
                 let means = self.band_means(&global, raw, n);
                 let m = means.iter().sum::<f64>() / n as f64;
                 means.iter().map(|z| m + f.sqrt() * (z - m)).collect()
@@ -796,6 +881,61 @@ mod tests {
     }
 
     #[test]
+    fn cross_validation_with_one_threshold_is_indicator_leave_one_out() {
+        let samples = data(80, 3);
+        let vg = Variogram::single(Model::Spherical, 0.25, 30.0);
+        let m = model(vec![1.0], vec![vg.clone()]);
+        let (s, pit) = m
+            .cross_validate(&samples, None, &[search(25.0)], None)
+            .unwrap();
+        let ik = crate::batch::leave_one_out_many(&samples, &search(25.0), Some(&vg), |t, n| {
+            krige(Kind::Indicator { threshold: 1.0 }, t, n, &vg)
+        });
+        for (i, e) in ik.iter().enumerate() {
+            let (p, u) = (s.cdf[0][i], pit[i]);
+            let Some(e) = e else {
+                assert!(p.is_nan() && u.is_nan());
+                continue;
+            };
+            assert_eq!(p, e.value.clamp(0.0, 1.0));
+            assert!((0.0..=1.0).contains(&u));
+            assert!(if samples[i].value <= 1.0 {
+                u <= p
+            } else {
+                u >= p
+            });
+        }
+        let (folds, _) = m
+            .cross_validate(&samples, None, &[search(25.0)], Some(samples.len()))
+            .unwrap();
+        assert_eq!(folds.mean.len(), 80);
+        for (a, b) in folds.mean.iter().zip(&s.mean) {
+            assert_eq!(a.to_bits(), b.to_bits());
+        }
+    }
+
+    #[test]
+    fn diagnostics_follow_the_search_and_the_correction() {
+        let samples = data(150, 7);
+        let variograms = [10.0, 60.0, 15.0, 80.0, 5.0, 40.0]
+            .map(|r| Variogram::single(Model::Gaussian, 1.0, r))
+            .to_vec();
+        let m = model(vec![0.2, 0.5, 0.8, 1.2, 1.8, 2.6], variograms);
+        let searches = [search(6.0), search(40.0)];
+        let s = m
+            .predict(&samples, None, &grid(), &searches, None, &[], &[])
+            .unwrap();
+        let d = s.diagnostics.unwrap();
+        for i in 0..grid().len() {
+            assert_eq!(d.n_order_violations[i] > 0.0, s.correction[i] > 0.0);
+            assert_eq!(d.max_samples_reached[i] == 1.0, d.n_samples[i] == 12.0);
+            assert!((1.0..=12.0).contains(&d.n_samples[i]));
+            assert!(d.pass[i] == 1.0 || d.pass[i] == 2.0);
+        }
+        assert!(d.pass.contains(&2.0) && d.n_order_violations.iter().any(|&v| v > 0.0));
+    }
+
+    #[test]
     fn simple_form_far_from_data_gives_the_declustered_mean() {
         let samples = data(120, 11);
         let weights: Vec<f64> = (0..120).map(|i| 1.0 + (i % 5) as f64).collect();
@@ -949,9 +1089,16 @@ mod tests {
     fn kriged_panels(m: &MultipleIndicator, samples: &[Sample]) -> (Global, Vec<Vec<f64>>) {
         let global = m.global(samples, None).unwrap();
         let raw = m
-            .at_targets(samples, &global, &centroids(), &[search(60.0)], None, |r| r)
+            .at_targets(
+                samples,
+                &global,
+                &centroids(),
+                &[search(60.0)],
+                None,
+                |_, _, r| r,
+            )
             .unwrap();
-        (global, raw.into_iter().map(Option::unwrap).collect())
+        (global, raw.into_iter().map(|r| r.unwrap().1).collect())
     }
 
     #[test]

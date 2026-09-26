@@ -12,6 +12,7 @@ __all__ = [
     "BlockKriging",
     "CrossValidation",
     "FactorialKriging",
+    "IndicatorCrossValidation",
     "IndicatorKriging",
     "InverseDistance",
     "LocalLeastSquares",
@@ -64,6 +65,43 @@ class CrossValidation:
     def standardized_squared_error(self) -> float:
         """Mean of error² / variance; near 1 when the kriging variance is calibrated."""
         return float(np.nanmean(self.error**2 / self.variance))
+
+
+@dataclass(frozen=True)
+class IndicatorCrossValidation(CrossValidation):
+    """Cross-validation of multiple indicator kriging: `estimate` is the E-type mean, `variance` the conditional
+    variance, `cdf` the ``(thresholds, samples)`` corrected probabilities and `pit` ``F*(actual)``, the probability of
+    the sample's own distribution not exceeding its value; NaN where a sample had too few neighbours."""
+
+    thresholds: list[float]
+    cdf: np.ndarray
+    pit: np.ndarray
+
+    @property
+    def brier(self) -> np.ndarray:
+        """Mean squared difference between each threshold's probability and indicator; 0 is perfect."""
+        indicator = self.actual <= np.asarray(self.thresholds)[:, None]
+        return np.nanmean((self.cdf - indicator) ** 2, axis=1)
+
+    def accuracy(self, p):
+        """Fraction of samples inside their symmetric `p`-probability interval; `p` or above when accurate.
+
+        Parameters
+        ----------
+        p : float or array_like
+            Probabilities in [0, 1].
+        """
+        pit = self.pit[~np.isnan(self.pit)]
+        half = np.asarray(p, dtype=float)[..., None] / 2
+        return np.mean(np.abs(pit - 0.5) <= half, axis=-1)
+
+    @property
+    def goodness(self) -> float:
+        """Goodness statistic, 1 - ∫ (3a(p) - 2)(accuracy(p) - p) dp with a(p) = 1 where accurate; 1 is perfect,
+        and an interval too narrow costs twice one too wide."""
+        p = (np.arange(100) + 0.5) / 100
+        excess = self.accuracy(p) - p
+        return float(1 - np.mean(np.where(excess >= 0, 1, -2) * excess))
 
 
 class _Base:

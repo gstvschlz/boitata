@@ -251,4 +251,42 @@ save(fig, "distributions")
 
 ![distributions](distributions.png)
 
+Cross-validation re-estimates each sample's distribution from the others. Besides the error of the E-type mean, it
+scores the distributions: the Brier score of each threshold's probability, and the accuracy plot, the share of
+samples inside their own symmetric p-probability interval. Points on or above the diagonal are accurate, and the
+goodness statistic falls from 1 as the curve strays from it, twice as fast below. The diagnostics of `predict` count
+the thresholds whose kriged probabilities broke the order relations at each target:
+
+<details><summary>Python</summary>
+
+```python
+p = np.linspace(0, 1, 51)
+fig, ax = plt.subplots(figsize=(4.4, 4), layout="constrained")
+ax.plot([0, 1], [0, 1], color=GREY, ls="--", lw=1)
+for name, estimator, color in (("per-threshold", mik, ACCENT), ("median indicator", median, INK)):
+    cv = estimator.cross_validate()
+    print(
+        f"{name}: E-type RMSE {cv.rmse:.3f} mg/kg, slope {cv.slope:.2f}, goodness {cv.goodness:.3f},"
+        f" Brier {cv.brier.mean():.3f}"
+    )
+    ax.plot(p, cv.accuracy(p), color=color, lw=1.2, label=name)
+diagnostics = mik.predict(test, diagnostics=True).diagnostics
+violated = diagnostics["n_order_violations"] > 0
+print(f"validation targets with order-relation violations: {violated.mean():.0%}")
+ax.set(xlabel="Probability interval p", ylabel="Share of samples inside", title="Accuracy plot")
+ax.set_aspect("equal")
+ax.legend(fontsize=8, loc="upper left")
+save(fig, "accuracy")
+```
+
+</details>
+
+```text
+per-threshold: E-type RMSE 0.756 mg/kg, slope 1.05, goodness 0.956, Brier 0.131
+median indicator: E-type RMSE 0.784 mg/kg, slope 0.96, goodness 0.959, Brier 0.133
+validation targets with order-relation violations: 91%
+```
+
+![accuracy](accuracy.png)
+
 Full script: [`example_08.py`](example_08.py)

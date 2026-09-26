@@ -4,7 +4,6 @@ use rayon::prelude::*;
 use variogram::Variogram;
 
 use crate::error::EstimError;
-use crate::krige::Estimate;
 use crate::search::{Search, SearchTree};
 use crate::{Result, Sample};
 
@@ -59,29 +58,31 @@ where
 }
 
 /// Estimates every sample from its neighbours with the sample itself left out.
-pub fn leave_one_out_many<F>(
+pub fn leave_one_out_many<F, T>(
     samples: &[Sample],
     search: &Search,
     vg: Option<&Variogram>,
     estimator: F,
-) -> Vec<Option<Estimate>>
+) -> Vec<Option<T>>
 where
-    F: Fn(&(f64, f64, f64), &[Sample]) -> Result<Estimate> + Sync,
+    F: Fn(&(f64, f64, f64), &[Sample]) -> Result<T> + Sync,
+    T: Send,
 {
     let all: Vec<usize> = (0..samples.len()).collect();
     leave_one_out_at(&all, samples, search, vg, estimator)
 }
 
 /// As [`leave_one_out_many`] for the samples at indices `which` only.
-pub fn leave_one_out_at<F>(
+pub fn leave_one_out_at<F, T>(
     which: &[usize],
     samples: &[Sample],
     search: &Search,
     vg: Option<&Variogram>,
     estimator: F,
-) -> Vec<Option<Estimate>>
+) -> Vec<Option<T>>
 where
-    F: Fn(&(f64, f64, f64), &[Sample]) -> Result<Estimate> + Sync,
+    F: Fn(&(f64, f64, f64), &[Sample]) -> Result<T> + Sync,
+    T: Send,
 {
     let wider = Search {
         max_samples: search.max_samples + 1,
@@ -111,16 +112,17 @@ where
 /// sorted hole ids goes to fold `j % k`, and an untagged sample `i` to fold
 /// `i % k`. Without holes and with `k` equal to the number of samples this
 /// is leave-one-out.
-pub fn k_fold_at<F>(
+pub fn k_fold_at<F, T>(
     k: usize,
     which: &[usize],
     samples: &[Sample],
     search: &Search,
     vg: Option<&Variogram>,
     estimator: F,
-) -> Result<Vec<Option<Estimate>>>
+) -> Result<Vec<Option<T>>>
 where
-    F: Fn(&(f64, f64, f64), &[Sample]) -> Result<Estimate> + Sync,
+    F: Fn(&(f64, f64, f64), &[Sample]) -> Result<T> + Sync,
+    T: Send,
 {
     if k < 2 {
         return Err(EstimError::InvalidParameters("k must be ≥ 2".into()));
@@ -133,7 +135,7 @@ where
         .enumerate()
         .map(|(i, s)| s.hole.map_or(i, |h| holes.partition_point(|&x| x < h)) % k)
         .collect();
-    let mut out = vec![None; which.len()];
+    let mut out: Vec<Option<T>> = which.iter().map(|_| None).collect();
     for fold in 0..k {
         let (test, held): (Vec<usize>, Vec<&Sample>) = which
             .iter()
@@ -161,7 +163,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::krige::{Kind, krige};
+    use crate::krige::{Estimate, Kind, krige};
     use crate::search::{HighGrade, Soft, SoftPair};
     use std::sync::atomic::{AtomicUsize, Ordering};
 

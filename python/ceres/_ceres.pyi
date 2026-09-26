@@ -5,6 +5,8 @@ from typing import Any, Literal, TypeAlias, overload
 import numpy as np
 import numpy.typing as npt
 
+from ceres.estimation import IndicatorCrossValidation
+
 __version__: str
 
 ArrayLike = npt.ArrayLike
@@ -840,7 +842,9 @@ class MultipleIndicatorKriging:
         cutoffs: Sequence[float] = (),
         quantiles: Sequence[float] = (),
         anisotropy: LocalAnisotropy | None = None,
+        diagnostics: bool = False,
     ) -> IndicatorSummary: ...
+    def cross_validate(self, folds: int | None = None) -> IndicatorCrossValidation: ...
     def localize(
         self,
         panels: BlockModel,
@@ -876,6 +880,8 @@ class IndicatorSummary:
     def quantiles(self) -> list[float]: ...
     @property
     def quantile_values(self) -> npt.NDArray[np.float64]: ...
+    @property
+    def diagnostics(self) -> Table | None: ...
 
 class Drillholes:
     def __init__(
