@@ -743,7 +743,9 @@ impl Coregionalization {
     /// different units count alike. For given ranges the matrices are updated
     /// in turn by weighted least squares, negative eigenvalues clipped; the
     /// ranges start from `Variogram.fit` on the pooled scaled direct
-    /// variograms and are refined, deterministically.
+    /// variograms and are refined, deterministically. With `directions`, the
+    /// shared anisotropy is fitted too, starting from
+    /// `Variogram.fit_directional` on the scaled direct variograms.
     ///
     /// Parameters
     /// ----------
@@ -760,11 +762,10 @@ impl Coregionalization {
     ///     False fixes the nugget matrix at zero.
     /// directions : sequence of (float, float), optional
     ///     Azimuth and dip in degrees of each experimental variogram.
-    /// rotation : (float, float, float), optional
-    ///     Fixed azimuth, dip and rake in degrees; needs `directions`.
-    /// ratios : (float, float), optional
-    ///     Fixed semi-major/major and minor/major range ratios; needs
-    ///     `directions`. Ranges are then major-axis ranges.
+    /// rotation, ratios : sequence of (None, float or (float, float)), optional
+    ///     Azimuth, dip and rake, and the range ratios, free, fixed or bounded
+    ///     as in `Variogram.fit_directional`; need `directions`. Ranges are
+    ///     then major-axis ranges.
     ///
     /// Returns
     /// -------
@@ -779,8 +780,8 @@ impl Coregionalization {
         nugget: bool,
         ranges: Limits,
         directions: Option<Vec<(f64, f64)>>,
-        rotation: Option<(f64, f64, f64)>,
-        ratios: Option<(f64, f64)>,
+        rotation: Limits,
+        ratios: Limits,
     ) -> PyResult<Self> {
         let n = experimentals.len();
         if n == 0 || experimentals.iter().any(|row| row.len() != n) {
@@ -817,26 +818,21 @@ impl Coregionalization {
             .collect::<PyResult<Vec<_>>>()?;
         let nugget = (!nugget).then_some(Limit::Fixed(0.0));
         let spec = nested(model, nugget, None, ranges)?;
-        let given = anisotropy(
-            rotation.unwrap_or((0.0, 0.0, 0.0)),
-            ratios.unwrap_or((1.0, 1.0)),
-        )?;
-        let identity = Anisotropy::new(Angles {
-            azimuth: 0.0,
-            dip: 0.0,
-            rake: 0.0,
-            major: 1.0,
-            semi: 1.0,
-            minor: 1.0,
-        })
-        .map_err(err)?;
-        let a = given.clone().unwrap_or(identity);
-        let geometry = directions.as_deref().map(|d| (d, &a));
-        let mut fitted = fit_coregionalization(&exps, geometry, &spec, self::weighting(weighting)?)
-            .map_err(err)?
-            .coregionalization;
-        fitted.anisotropy = given;
-        Ok(Self(fitted))
+        let (rotation, ratios) = (
+            per_structure(rotation, 3, "rotation")?,
+            per_structure(ratios, 2, "ratios")?,
+        );
+        let aniso = AnisotropySpec {
+            azimuth: rotation[0],
+            dip: rotation[1],
+            rake: rotation[2],
+            semi: ratios[0],
+            minor: ratios[1],
+        };
+        let geometry = directions.as_deref().map(|d| (d, &aniso));
+        let fitted = fit_coregionalization(&exps, geometry, &spec, self::weighting(weighting)?)
+            .map_err(err)?;
+        Ok(Self(fitted.coregionalization))
     }
 
     #[getter]

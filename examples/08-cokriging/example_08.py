@@ -76,6 +76,30 @@ save(fig, "variograms")
 
 
 # %% [markdown]
+# Given directional variograms, the fit also finds the anisotropy the structures share: the angles and range ratios
+# are searched together with the sill matrices. Cd and Zn are most continuous along a north-west to south-east axis; the
+# cokriging below keeps the isotropic model.
+
+# %%
+azimuths = [0.0, 45.0, 90.0, 135.0]
+
+
+def directional(u, v=None):
+    return [cs.experimental_variogram(xy, u, lag, max_lag, azimuth=a, other=v) for a in azimuths]
+
+
+anisotropic = cs.Coregionalization.fit(
+    [[directional(cd), directional(cd, zn)], [None, directional(zn)]],
+    ["spherical", "spherical"],
+    directions=[(a, 0.0) for a in azimuths],
+)
+print(
+    f"major axis azimuth {anisotropic.rotation[0]:.0f}°, semi-major/major ratio {anisotropic.ratios[0]:.2f}, "
+    f"major ranges {', '.join(f'{r:.2f}' for _, r, _ in anisotropic.structures)} km"
+)
+
+
+# %% [markdown]
 # Both estimators at the validation points:
 
 # %%
