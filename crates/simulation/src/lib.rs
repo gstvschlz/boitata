@@ -4,6 +4,7 @@
 //! - [`sgs`]  — Sequential Gaussian Simulation (continuous variables)
 //! - [`sis`]  — Sequential Indicator Simulation (categorical facies)
 //! - [`multivariate`] — several correlated variables through independent factors
+//! - [`trend`] — a continuous variable whose distribution follows a trend
 //! - [`post`] — uncertainty summaries streamed over realizations, at node or
 //!   block support, and localisation of block realizations within panels
 //!
@@ -16,6 +17,7 @@ pub mod pgs;
 pub mod post;
 pub mod sgs;
 pub mod sis;
+pub mod trend;
 pub mod turning_bands;
 
 pub use error::{Result, SimError};
@@ -28,6 +30,7 @@ pub use post::{
 };
 pub use sgs::{Realization, SgsParams, sgs};
 pub use sis::{CategoricalRealization, SisParams, sis};
+pub use trend::TrendConditioning;
 pub use turning_bands::{
     Bands, GlobalSummary, TurningBandsEnsemble, TurningBandsParams, bounds,
     conditional_gaussian_field, turning_bands, turning_bands_to_parquet,
