@@ -457,7 +457,7 @@ impl Estimator {
     }
 
     /// Leave-one-out, or with `folds` k-fold, estimates and variances at the
-    /// fitted samples; sample `i` is in fold `i % folds`.
+    /// fitted samples; folds keep holes whole (see `k_fold_at`).
     #[pyo3(signature = (folds=None))]
     fn cross_validate<'py>(
         &self,

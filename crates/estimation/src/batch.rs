@@ -102,8 +102,10 @@ where
 }
 
 /// K-fold cross-validation: estimates the samples at indices `which` from
-/// the samples outside their fold, sample `i` being in fold `i % k`. With
-/// `k` equal to the number of samples this is leave-one-out.
+/// the samples outside their fold. Holes stay whole: the `j`-th of the
+/// sorted hole ids goes to fold `j % k`, and an untagged sample `i` to fold
+/// `i % k`. Without holes and with `k` equal to the number of samples this
+/// is leave-one-out.
 pub fn k_fold_at<F>(
     k: usize,
     which: &[usize],
@@ -118,19 +120,27 @@ where
     if k < 2 {
         return Err(EstimError::InvalidParameters("k must be ≥ 2".into()));
     }
+    let mut holes: Vec<u32> = samples.iter().filter_map(|s| s.hole).collect();
+    holes.sort_unstable();
+    holes.dedup();
+    let of: Vec<usize> = samples
+        .iter()
+        .enumerate()
+        .map(|(i, s)| s.hole.map_or(i, |h| holes.partition_point(|&x| x < h)) % k)
+        .collect();
     let mut out = vec![None; which.len()];
     for fold in 0..k {
         let (test, at): (Vec<usize>, Vec<_>) = which
             .iter()
             .enumerate()
-            .filter(|(_, i)| *i % k == fold)
+            .filter(|(_, i)| of[**i] == fold)
             .map(|(p, &i)| (p, samples[i].loc))
             .unzip();
         if test.is_empty() {
             continue;
         }
         let train: Vec<Sample> = (0..samples.len())
-            .filter(|i| i % k != fold)
+            .filter(|&i| of[i] != fold)
             .map(|i| samples[i].clone())
             .collect();
         for (p, e) in test
@@ -249,6 +259,34 @@ mod tests {
             assert_eq!(a.estimate.to_bits(), b.estimate.to_bits());
         }
         assert!(k_fold_at(1, &all, &samples, &search, Some(&vg), krige_with(&vg)).is_err());
+    }
+
+    #[test]
+    fn k_fold_never_splits_a_hole() {
+        let samples: Vec<Sample> = samples()
+            .into_iter()
+            .enumerate()
+            .map(|(i, s)| match i % 7 {
+                0 => s,
+                _ => Sample::with_hole(s.loc, s.value, 1000 - (i / 5) as u32),
+            })
+            .collect();
+        let vg = Variogram::single(Model::Spherical, 1.0, 40.0);
+        let (search, all) = (search(2, 60.0), (0..samples.len()).collect::<Vec<_>>());
+        let hole_at = |t: &Point| samples.iter().find(|s| s.loc == *t).unwrap().hole;
+        let used = AtomicUsize::new(0);
+        let check = |t: &Point, s: &[Sample]| {
+            if let Some(h) = hole_at(t) {
+                assert!(s.iter().all(|x| x.hole != Some(h)));
+                used.fetch_add(1, Ordering::Relaxed);
+            }
+            krige(Kind::Ordinary, t, s, &vg)
+        };
+        for k in [2, 5, samples.len()] {
+            let out = k_fold_at(k, &all, &samples, &search, Some(&vg), check).unwrap();
+            assert!(out.iter().all(Option::is_some));
+        }
+        assert!(used.into_inner() > 0);
     }
 
     #[test]

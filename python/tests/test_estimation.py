@@ -221,6 +221,17 @@ def test_k_fold_cross_validation():
         ok.cross_validate(folds=1)
 
 
+def test_k_fold_keeps_holes_whole():
+    holes = np.arange(len(values)) // 5
+    cv = cs.OrdinaryKriging(model, search).fit(coords, values, holes=holes).cross_validate(folds=4)
+    expected = np.empty(len(values))
+    for fold in range(4):
+        test = holes % 4 == fold
+        train = cs.OrdinaryKriging(model, search).fit(coords[~test], values[~test])
+        expected[test] = train.predict(coords[test])
+    np.testing.assert_array_equal(cv.estimate, expected)
+
+
 def test_neighbourhood_diagnostics():
     holes = np.arange(len(values)) // 3
     ok = cs.OrdinaryKriging(model, cs.Search(radius=30, max_samples=8)).fit(coords, values, holes=holes)

@@ -81,7 +81,8 @@ class _Base:
         error_variance : array_like, optional
             Variance of each sample's measurement error, for data of different quality (kriging only).
             It is added to the sample's diagonal entry in the kriging system, so the estimate no longer
-            honours a noisy value and leans towards its neighbours.
+            honours a noisy value and leans towards its neighbours. Cokriging, disjunctive kriging and the
+            simulators do not take it.
         """
         self._engine.fit(coords, values, holes, error_variance)
         return self
@@ -113,8 +114,9 @@ class _Base:
         ----------
         folds : int, optional
             Leave-one-out when None; otherwise k-fold, each sample estimated without the samples of its
-            fold, sample ``i`` being in fold ``i % folds``. With `folds` equal to the number of samples
-            this is leave-one-out.
+            fold. Samples fitted with `holes` keep their holes whole: the ``j``-th of the sorted hole ids
+            goes to fold ``j % folds``. An untagged sample ``i`` goes to fold ``i % folds``, so without
+            holes and with `folds` equal to the number of samples this is leave-one-out.
         """
         estimate, variance = self._engine.cross_validate(folds)
         return CrossValidation(self._engine.values, estimate, variance)
