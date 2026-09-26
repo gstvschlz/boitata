@@ -1,7 +1,8 @@
 # 13. Simulation methods
 
 Sequential Gaussian simulation (SGS) and turning bands simulate a continuous variable; sequential indicator
-simulation (SIS) and plurigaussian simulation (PGS) simulate categories.
+simulation (SIS) and plurigaussian simulation (PGS) simulate categories. Several correlated grades are simulated
+through independent factors in [chapter 17](../17-multivariate/README.md).
 
 <details><summary>Python</summary>
 
@@ -45,7 +46,7 @@ for name, reals, seconds in (("SGS", by_sgs, sgs_seconds), ("turning bands", by_
 </details>
 
 ```text
-          SGS: 20 realizations in 0.42 s, mean 299 ppm, variance 72174 ppm²
+          SGS: 20 realizations in 0.38 s, mean 299 ppm, variance 72174 ppm²
 turning bands: 20 realizations in 0.10 s, mean 289 ppm, variance 61368 ppm²
 ```
 

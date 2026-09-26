@@ -3,6 +3,7 @@
 //! Modules:
 //! - [`sgs`]  — Sequential Gaussian Simulation (continuous variables)
 //! - [`sis`]  — Sequential Indicator Simulation (categorical facies)
+//! - [`multivariate`] — several correlated variables through independent factors
 //! - [`post`] — uncertainty summaries streamed over realizations, at node or
 //!   block support
 //!
@@ -10,6 +11,7 @@
 
 pub mod error;
 pub mod gibbs;
+pub mod multivariate;
 pub mod pgs;
 pub mod post;
 pub mod sgs;
@@ -18,10 +20,11 @@ pub mod turning_bands;
 
 pub use error::{Result, SimError};
 pub use gibbs::{GibbsParams, gibbs};
+pub use multivariate::{Decorrelation, factor_seed, multivariate};
 pub use pgs::{PgsParams, Region, TruncationRule, plurigaussian};
 pub use post::{
     BlockSupport, CategoricalSummary, ContinuousOptions, ContinuousSummary, categorical,
-    continuous, quantile_sorted,
+    continuous, continuous_many, quantile_sorted,
 };
 pub use sgs::{Realization, SgsParams, sgs};
 pub use sis::{CategoricalRealization, SisParams, sis};

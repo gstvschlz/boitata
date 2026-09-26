@@ -71,104 +71,169 @@ pub fn continuous(
     options: &ContinuousOptions,
     simulate: impl Fn(usize) -> Result<Vec<f64>> + Sync,
 ) -> Result<ContinuousSummary> {
-    if options.quantiles.iter().any(|q| !(0.0..=1.0).contains(q)) {
-        return Err(SimError::InvalidParameters(
-            "quantiles must be in [0, 1]".into(),
-        ));
+    let mut acc = Accumulator::new(n, options)?;
+    run(n, simulate, |values| acc.add(values))?;
+    Ok(acc.finish())
+}
+
+/// Summarizes `n` realizations of `variables` continuous variables at once;
+/// `simulate(k)` returns realization `k` of every variable over the same
+/// targets every time.
+pub fn continuous_many(
+    n: usize,
+    variables: usize,
+    options: &ContinuousOptions,
+    simulate: impl Fn(usize) -> Result<Vec<Vec<f64>>> + Sync,
+) -> Result<Vec<ContinuousSummary>> {
+    let mut accs = (0..variables)
+        .map(|_| Accumulator::new(n, options))
+        .collect::<Result<Vec<_>>>()?;
+    run(n, simulate, |values: Vec<Vec<f64>>| {
+        if values.len() != variables {
+            return Err(SimError::InvalidParameters(format!(
+                "one realization per variable ({variables}) needed"
+            )));
+        }
+        accs.iter_mut().zip(values).try_for_each(|(a, v)| a.add(v))
+    })?;
+    Ok(accs.into_iter().map(Accumulator::finish).collect())
+}
+
+struct Accumulator<'a> {
+    options: &'a ContinuousOptions,
+    targets: Option<usize>,
+    k: f64,
+    mean: Vec<f64>,
+    m2: Vec<f64>,
+    above: Vec<Vec<u32>>,
+    sum_above: Vec<Vec<f64>>,
+    stored: Vec<f32>,
+    out: ContinuousSummary,
+}
+
+impl<'a> Accumulator<'a> {
+    fn new(n: usize, options: &'a ContinuousOptions) -> Result<Self> {
+        if options.quantiles.iter().any(|q| !(0.0..=1.0).contains(q)) {
+            return Err(SimError::InvalidParameters(
+                "quantiles must be in [0, 1]".into(),
+            ));
+        }
+        let nc = options.cutoffs.len();
+        Ok(Self {
+            options,
+            targets: None,
+            k: 0.0,
+            mean: vec![],
+            m2: vec![],
+            above: vec![vec![]; nc],
+            sum_above: vec![vec![]; nc],
+            stored: vec![],
+            out: ContinuousSummary {
+                n,
+                mean: vec![],
+                variance: vec![],
+                cutoffs: options.cutoffs.clone(),
+                probability_above: vec![],
+                mean_above: vec![],
+                quantiles: options.quantiles.clone(),
+                quantile_values: vec![],
+                realization_mean: Vec::with_capacity(n),
+                realization_above: vec![Vec::with_capacity(n); nc],
+                realizations: options.keep.then(Vec::new),
+            },
+        })
     }
-    let nc = options.cutoffs.len();
-    let mut targets = None;
-    let (mut mean, mut m2) = (vec![], vec![]);
-    let (mut above, mut sum_above) = (vec![vec![]; nc], vec![vec![]; nc]);
-    let mut stored: Vec<f32> = vec![];
-    let mut out = ContinuousSummary {
-        n,
-        mean: vec![],
-        variance: vec![],
-        cutoffs: options.cutoffs.clone(),
-        probability_above: vec![],
-        mean_above: vec![],
-        quantiles: options.quantiles.clone(),
-        quantile_values: vec![],
-        realization_mean: Vec::with_capacity(n),
-        realization_above: vec![Vec::with_capacity(n); nc],
-        realizations: options.keep.then(Vec::new),
-    };
-    let mut k = 0.0;
-    run(n, simulate, |values: Vec<f64>| {
-        let m = *targets.get_or_insert(values.len());
+
+    fn add(&mut self, values: Vec<f64>) -> Result<()> {
+        let m = *self.targets.get_or_insert(values.len());
         if values.len() != m {
             return Err(SimError::InvalidParameters(
                 "realizations differ in length".into(),
             ));
         }
-        if k == 0.0 {
-            (mean, m2) = (vec![0.0; m], vec![0.0; m]);
-            above = vec![vec![0u32; m]; nc];
-            sum_above = vec![vec![0.0; m]; nc];
+        let nc = self.options.cutoffs.len();
+        if self.k == 0.0 {
+            (self.mean, self.m2) = (vec![0.0; m], vec![0.0; m]);
+            self.above = vec![vec![0u32; m]; nc];
+            self.sum_above = vec![vec![0.0; m]; nc];
         }
-        k += 1.0;
+        self.k += 1.0;
         for (i, &v) in values.iter().enumerate() {
-            let delta = v - mean[i];
-            mean[i] += delta / k;
-            m2[i] += delta * (v - mean[i]);
+            let delta = v - self.mean[i];
+            self.mean[i] += delta / self.k;
+            self.m2[i] += delta * (v - self.mean[i]);
         }
-        for (c, &cut) in options.cutoffs.iter().enumerate() {
+        for (c, &cut) in self.options.cutoffs.iter().enumerate() {
             let mut count = 0usize;
             for (i, &v) in values.iter().enumerate() {
                 if v > cut {
-                    above[c][i] += 1;
-                    sum_above[c][i] += v;
+                    self.above[c][i] += 1;
+                    self.sum_above[c][i] += v;
                     count += 1;
                 }
             }
-            out.realization_above[c].push(count as f64 / m.max(1) as f64);
+            self.out.realization_above[c].push(count as f64 / m.max(1) as f64);
         }
-        out.realization_mean
+        self.out
+            .realization_mean
             .push(values.iter().sum::<f64>() / m.max(1) as f64);
-        if !options.quantiles.is_empty() {
-            stored.extend(values.iter().map(|&v| v as f32));
+        if !self.options.quantiles.is_empty() {
+            self.stored.extend(values.iter().map(|&v| v as f32));
         }
-        if let Some(r) = out.realizations.as_mut() {
+        if let Some(r) = self.out.realizations.as_mut() {
             r.push(values);
         }
         Ok(())
-    })?;
-    let m = targets.unwrap_or(0);
-    out.variance = m2.iter().map(|s| s / k).collect();
-    out.mean = mean;
-    out.probability_above = above
-        .iter()
-        .map(|a| a.iter().map(|&c| c as f64 / k).collect())
-        .collect();
-    out.mean_above = above
-        .iter()
-        .zip(&sum_above)
-        .map(|(a, s)| {
-            a.iter()
-                .zip(s)
-                .map(|(&c, &s)| if c == 0 { f64::NAN } else { s / c as f64 })
-                .collect()
-        })
-        .collect();
-    if !options.quantiles.is_empty() {
-        let columns: Vec<Vec<f64>> = (0..m)
-            .into_par_iter()
-            .map(|i| {
-                let mut col: Vec<f64> = (0..n).map(|r| stored[r * m + i] as f64).collect();
-                col.sort_by(f64::total_cmp);
-                options
-                    .quantiles
-                    .iter()
-                    .map(|&q| quantile_sorted(&col, q))
+    }
+
+    fn finish(self) -> ContinuousSummary {
+        let Self {
+            options,
+            targets,
+            k,
+            mean,
+            m2,
+            above,
+            sum_above,
+            stored,
+            mut out,
+        } = self;
+        let (m, n) = (targets.unwrap_or(0), out.n);
+        out.variance = m2.iter().map(|s| s / k).collect();
+        out.mean = mean;
+        out.probability_above = above
+            .iter()
+            .map(|a| a.iter().map(|&c| c as f64 / k).collect())
+            .collect();
+        out.mean_above = above
+            .iter()
+            .zip(&sum_above)
+            .map(|(a, s)| {
+                a.iter()
+                    .zip(s)
+                    .map(|(&c, &s)| if c == 0 { f64::NAN } else { s / c as f64 })
                     .collect()
             })
             .collect();
-        out.quantile_values = (0..options.quantiles.len())
-            .map(|q| columns.iter().map(|c| c[q]).collect())
-            .collect();
+        if !options.quantiles.is_empty() {
+            let columns: Vec<Vec<f64>> = (0..m)
+                .into_par_iter()
+                .map(|i| {
+                    let mut col: Vec<f64> = (0..n).map(|r| stored[r * m + i] as f64).collect();
+                    col.sort_by(f64::total_cmp);
+                    options
+                        .quantiles
+                        .iter()
+                        .map(|&q| quantile_sorted(&col, q))
+                        .collect()
+                })
+                .collect();
+            out.quantile_values = (0..options.quantiles.len())
+                .map(|q| columns.iter().map(|c| c[q]).collect())
+                .collect();
+        }
+        out
     }
-    Ok(out)
 }
 
 /// Per-target and per-realization summary of a categorical ensemble.

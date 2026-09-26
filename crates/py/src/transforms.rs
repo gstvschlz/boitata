@@ -973,3 +973,37 @@ pub fn register(m: &Bound<PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(normal_ppf, m)?)?;
     Ok(())
 }
+
+/// A fresh fit of `transform` (a PCA, MAF, StepwiseConditional or PPMT) to
+/// `data` at `locs`; `weights` reach the transforms that take them.
+pub(crate) fn decorrelation(
+    transform: &Bound<PyAny>,
+    data: &[Vec<f64>],
+    weights: Option<&[f64]>,
+    locs: &[crate::args::Point],
+) -> PyResult<simulation::Decorrelation> {
+    use simulation::Decorrelation as D;
+    Ok(if let Ok(t) = transform.cast::<Pca>() {
+        D::Pca(CorePca::fit(data, weights, t.borrow().standardize).map_err(err)?)
+    } else if let Ok(t) = transform.cast::<Maf>() {
+        let t = t.borrow();
+        let tolerance = t.tolerance.unwrap_or(t.lag / 2.0);
+        D::Maf(CoreMaf::fit(data, locs, t.lag, tolerance).map_err(err)?)
+    } else if let Ok(t) = transform.cast::<StepwiseConditional>() {
+        D::Stepwise(CoreSct::fit(data, t.borrow().classes).map_err(err)?)
+    } else if let Ok(t) = transform.cast::<Ppmt>() {
+        D::Ppmt(CorePpmt::fit(data, weights, &t.borrow().params).map_err(err)?)
+    } else {
+        return Err(invalid(NOT_DECORRELATION));
+    })
+}
+
+pub(crate) const NOT_DECORRELATION: &str =
+    "transform must be a PCA, MAF, StepwiseConditional or PPMT";
+
+pub(crate) fn is_decorrelation(obj: &Bound<PyAny>) -> bool {
+    obj.cast::<Pca>().is_ok()
+        || obj.cast::<Maf>().is_ok()
+        || obj.cast::<StepwiseConditional>().is_ok()
+        || obj.cast::<Ppmt>().is_ok()
+}

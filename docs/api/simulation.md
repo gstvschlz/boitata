@@ -4,6 +4,8 @@
 
 ::: ceres.TurningBands
 
+::: ceres.MultivariateSimulation
+
 ::: ceres.SIS
 
 ::: ceres.Plurigaussian
