@@ -137,6 +137,41 @@ save(fig, "compositing")
 
 ![compositing](compositing.png)
 
+Other modes: one composite per run of a lithology (`length=None`), 2 m with tails under 1 m merged into the previous
+composite, or composites to 10 m depth slices. Desurvey by `method="tangential"` holds each survey's direction down
+to the next one instead of following an arc.
+
+<details><summary>Python</summary>
+
+```python
+bottom = {}
+for h, t in zip(np.array(intervals["HOLEID"]).astype(str), intervals["TO"]):
+    bottom[h] = max(bottom.get(h, 0.0), t)
+tops = [(h, f) for h, b in bottom.items() for f in np.arange(0.0, b, 10.0)]
+slices = {"HOLEID": [h for h, _ in tops], "FROM": [f for _, f in tops], "TO": [f + 10 for _, f in tops]}
+modes = {
+    "2 m": composites,
+    "runs": dh.composite(None, ["ZN"], domain="LITH"),
+    "2 m, merge < 1 m": dh.composite(2.0, ["ZN"], domain="LITH", residual="merge"),
+    "10 m slices": dh.composite(None, ["ZN"], domain="LITH", intervals=slices),
+}
+for name, c in modes.items():
+    print(f"{name:>17}: {len(c):6} composites, median length {np.median(c['length']):.1f} m")
+tangential = cs.Drillholes(tables["collar"], tables["survey"], intervals, method="tangential")
+shift = np.linalg.norm(dh.samples().coords - tangential.samples().coords, axis=1)
+print(f"tangential vs minimum curvature: sample positions differ by up to {shift.max():.1f} m")
+```
+
+</details>
+
+```text
+              2 m:  62506 composites, median length 2.0 m
+             runs:  15716 composites, median length 5.5 m
+ 2 m, merge < 1 m:  59984 composites, median length 2.0 m
+      10 m slices:  25561 composites, median length 5.4 m
+tangential vs minimum curvature: sample positions differ by up to 43.0 m
+```
+
 Zn by lithology:
 
 <details><summary>Python</summary>

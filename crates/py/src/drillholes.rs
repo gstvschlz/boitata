@@ -7,8 +7,8 @@ use arrow_array::{ArrayRef, Float64Array, RecordBatch, StringArray};
 use arrow_schema::DataType;
 use ceres_core::PointSet;
 use drillholes::{
-    Collar, CompositeParams, DesurveyMethod, SurveyStation, WellborePoint, composite_intervals,
-    desurvey_wellbore, position_at,
+    Collar, CompositeParams, DesurveyMethod, Residual, SurveyStation, WellborePoint,
+    composite_intervals, desurvey_wellbore, position_at,
 };
 use pyo3::prelude::*;
 use rayon::prelude::*;
@@ -37,10 +37,12 @@ fn number(batch: &RecordBatch, name: &str) -> PyResult<Vec<Option<f64>>> {
     Ok(column.as_primitive::<Float64Type>().iter().collect())
 }
 
-/// Collar, survey and interval tables desurveyed by minimum curvature.
-/// Survey angles are `azimuth` (clockwise from north) and either `dip`
-/// (degrees below horizontal) or `inclination` (degrees from vertical); holes
-/// without survey are vertical.
+/// Collar, survey and interval tables desurveyed by `method`:
+/// `"minimum_curvature"` (circular arcs), `"tangential"` (each survey's
+/// direction holds down to the next) or `"balanced_tangential"` (half of
+/// each segment along each end's direction). Survey angles are `azimuth`
+/// (clockwise from north) and either `dip` (degrees below horizontal) or
+/// `inclination` (degrees from vertical); holes without survey are vertical.
 #[pyclass(module = "ceres", name = "Drillholes", frozen)]
 pub struct Drillholes {
     paths: BTreeMap<String, Vec<WellborePoint>>,
@@ -52,7 +54,8 @@ impl Drillholes {
     #[new]
     #[pyo3(signature = (
         collar, survey, intervals=None, hole="HOLEID", x="X", y="Y", z="Z", at="DEPTH",
-        azimuth="AZIMUTH", dip=Some("DIP"), inclination=None, from_="FROM", to="TO"
+        azimuth="AZIMUTH", dip=Some("DIP"), inclination=None, from_="FROM", to="TO",
+        method="minimum_curvature"
     ))]
     #[allow(clippy::too_many_arguments)]
     fn new(
@@ -70,7 +73,18 @@ impl Drillholes {
         inclination: Option<&str>,
         from_: &str,
         to: &str,
+        method: &str,
     ) -> PyResult<Self> {
+        let method = match method {
+            "minimum_curvature" => DesurveyMethod::MinimumCurvature,
+            "tangential" => DesurveyMethod::Tangential,
+            "balanced_tangential" => DesurveyMethod::BalancedTangential,
+            _ => {
+                return Err(invalid(format!(
+                    "method must be minimum_curvature, tangential or balanced_tangential, got {method:?}"
+                )));
+            }
+        };
         let collar = to_batch(collar)?;
         let survey = to_batch(survey)?;
         let mut collars = BTreeMap::new();
@@ -156,8 +170,7 @@ impl Drillholes {
                     {
                         s.push(SurveyStation { depth: d, ..last });
                     }
-                    desurvey_wellbore(c, &s, DesurveyMethod::MinimumCurvature)
-                        .map(|p| (id.clone(), p))
+                    desurvey_wellbore(c, &s, method).map(|p| (id.clone(), p))
                 })
                 .collect::<Result<BTreeMap<_, _>, _>>()
         });
@@ -243,20 +256,62 @@ impl Drillholes {
         ))
     }
 
-    /// Length-weighted composites of `grades` at `length` metres, never
-    /// crossing a change of `domain`; located at their midpoints. Composites
-    /// with none of the grades sampled are dropped.
-    #[pyo3(signature = (length, grades, domain=None))]
+    /// Length-weighted composites, never crossing a change of `domain` and
+    /// located at their midpoints. Composites with none of the grades sampled
+    /// are dropped.
+    ///
+    /// Parameters
+    /// ----------
+    /// length : float or None
+    ///     Composite length in metres; None gives one composite per run of
+    ///     `domain`.
+    /// grades : sequence of str
+    ///     Numeric columns, averaged over the length that carries a value.
+    /// domain : str, optional
+    ///     Column whose changes composites never cross.
+    /// intervals : table, optional
+    ///     Hole, from and to columns (named as in the constructor) of
+    ///     non-overlapping intervals to composite to instead of `length`, e.g.
+    ///     benches; ground outside them is left out.
+    /// residual : {"keep", "drop", "merge"}
+    ///     What to do with the tail of a run shorter than
+    ///     `min_fraction * length`; merge adds it to the previous composite of
+    ///     the run, if there is one.
+    /// min_fraction : float
+    ///     Tail length, as a fraction of `length`, below which `residual`
+    ///     applies.
+    /// categories : sequence of str
+    ///     Categorical columns, composited to the value covering the most
+    ///     length.
+    #[pyo3(signature = (
+        length, grades, domain=None, intervals=None, residual="keep", min_fraction=0.5,
+        categories=vec![]
+    ))]
+    #[allow(clippy::too_many_arguments)]
     fn composite(
         &self,
         py: Python,
-        length: f64,
+        length: Option<f64>,
         grades: Vec<String>,
         domain: Option<&str>,
+        intervals: Option<&Bound<PyAny>>,
+        residual: &str,
+        min_fraction: f64,
+        categories: Vec<String>,
     ) -> PyResult<PyPointSet> {
-        let (batch, hole, from, to) = self.intervals()?;
+        let residual = match residual {
+            "keep" => Residual::Keep,
+            "drop" => Residual::Drop,
+            "merge" => Residual::Merge,
+            _ => {
+                return Err(invalid(format!(
+                    "residual must be keep, drop or merge, got {residual:?}"
+                )));
+            }
+        };
+        let (batch, hole, from_name, to_name) = self.intervals()?;
         let ids = text(batch, hole)?;
-        let (from, to) = (number(batch, from)?, number(batch, to)?);
+        let (from, to) = (number(batch, from_name)?, number(batch, to_name)?);
         let domains = match domain {
             Some(d) => text(batch, d)?,
             None => vec![Some(String::new()); batch.num_rows()],
@@ -265,6 +320,24 @@ impl Drillholes {
             .iter()
             .map(|g| number(batch, g))
             .collect::<PyResult<Vec<_>>>()?;
+        let mut labels: Vec<Vec<String>> = vec![vec![]; categories.len()];
+        let mut codes: Vec<Vec<Option<f64>>> = Vec::new();
+        for (c, name) in categories.iter().enumerate() {
+            let mut index: HashMap<String, usize> = HashMap::new();
+            let column = text(batch, name)?
+                .into_iter()
+                .map(|v| {
+                    v.map(|v| {
+                        let n = index.len();
+                        *index.entry(v.clone()).or_insert_with(|| {
+                            labels[c].push(v);
+                            n
+                        }) as f64
+                    })
+                })
+                .collect();
+            codes.push(column);
+        }
         let mut per_hole: BTreeMap<&str, Vec<(f64, f64, String, HashMap<String, f64>)>> =
             BTreeMap::new();
         for i in 0..batch.num_rows() {
@@ -274,28 +347,56 @@ impl Drillholes {
             let values = grades
                 .iter()
                 .zip(&columns)
+                .chain(categories.iter().zip(&codes))
                 .filter_map(|(g, c)| c[i].map(|v| (g.clone(), v)))
                 .collect();
             let dom = domains[i].clone().unwrap_or_default();
             per_hole.entry(id).or_default().push((f, t, dom, values));
         }
+        let mut targets: HashMap<String, Vec<(f64, f64)>> = HashMap::new();
+        if let Some(table) = intervals {
+            let table = to_batch(table)?;
+            for ((id, f), t) in text(&table, hole)?
+                .into_iter()
+                .zip(number(&table, from_name)?)
+                .zip(number(&table, to_name)?)
+            {
+                if let (Some(id), Some(f), Some(t)) = (id, f, t) {
+                    targets.entry(id).or_default().push((f, t));
+                }
+            }
+        }
         let params = CompositeParams {
-            composite_length: length,
+            composite_length: length.unwrap_or(f64::INFINITY),
             domain_column: domain.unwrap_or_default().to_string(),
             grade_columns: grades.clone(),
+            categorical_columns: categories.clone(),
+            intervals: None,
+            residual,
+            min_fraction,
         };
+        let to_targets = intervals.is_some();
         let composites = py.detach(|| {
             per_hole
                 .par_iter()
                 .filter(|(id, _)| self.paths.contains_key(**id))
-                .map(|(id, rows)| composite_intervals(id, rows, &params))
+                .map(|(id, rows)| match to_targets {
+                    false => composite_intervals(id, rows, &params),
+                    true => {
+                        let params = CompositeParams {
+                            intervals: Some(targets.get(*id).cloned().unwrap_or_default()),
+                            ..params.clone()
+                        };
+                        composite_intervals(id, rows, &params)
+                    }
+                })
                 .collect::<Result<Vec<_>, _>>()
         });
         let composites: Vec<_> = composites
             .map_err(invalid)?
             .into_iter()
             .flatten()
-            .filter(|c| !c.attributes.is_empty())
+            .filter(|c| grades.is_empty() || grades.iter().any(|g| c.attributes.contains_key(g)))
             .collect();
 
         let coords = composites
@@ -330,6 +431,12 @@ impl Drillholes {
         }
         for g in &grades {
             columns.push((g.clone(), floats(&|c| c.attributes.get(g).copied())));
+        }
+        for (name, labels) in categories.iter().zip(&labels) {
+            let values = composites
+                .iter()
+                .map(|c| c.attributes.get(name).map(|&k| labels[k as usize].as_str()));
+            columns.push((name.clone(), Arc::new(StringArray::from_iter(values))));
         }
         let attributes = RecordBatch::try_from_iter(columns).map_err(invalid)?;
         Ok(PyPointSet(
