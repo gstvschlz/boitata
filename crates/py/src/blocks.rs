@@ -12,7 +12,7 @@ use pyo3::prelude::*;
 use pyo3::types::{IntoPyDict, PyDict, PyTuple};
 use rayon::prelude::*;
 
-use crate::args::{Point, array1, finite, points, rows, same_length};
+use crate::args::{Point, array1, finite, floats, points, rows, same_length};
 use crate::containers::{PyBlockModel, coords_arg, coords_array, float_column};
 use crate::estimation::targets;
 use crate::invalid;
@@ -284,6 +284,29 @@ impl Mesh {
         Ok(array1(py, d).into_any())
     }
 
+    /// Weld close vertices, drop degenerate and duplicate triangles, and wind
+    /// the triangles consistently.
+    ///
+    /// Parameters
+    /// ----------
+    /// tolerance : float, default 0.0
+    ///     Vertices within this distance of an earlier vertex merge into it;
+    ///     0 merges exact duplicates only.
+    ///
+    /// Returns
+    /// -------
+    /// Mesh
+    ///     A new mesh without unused vertices, each connected piece wound one
+    ///     way and outward where it is closed. Kept vertices and triangles
+    ///     keep their order and attributes. Repairing it again changes nothing.
+    #[pyo3(signature = (tolerance=0.0))]
+    fn repair(&self, py: Python, tolerance: f64) -> PyResult<Self> {
+        let mesh = py
+            .detach(|| self.mesh.repair(tolerance))
+            .map_err(core_error)?;
+        Ok(Self::from_core(mesh))
+    }
+
     /// Proportion of each block inside, from `discretization`³ points per
     /// block where the surface may cut it. `blocks` is a BlockModel, whose
     /// rotation and sub-block extents count, or axis-aligned centroids with a
@@ -467,6 +490,31 @@ fn convex_hull(points: &Bound<PyAny>) -> PyResult<Mesh> {
     blocks::convex_hull(&pts).map(Mesh::from_core).map_err(err)
 }
 
+/// Triangulated surface from a gridded elevation, such as topography.
+///
+/// Parameters
+/// ----------
+/// model : BlockModel
+///     Regular or masked 2D model (one cell in z).
+/// column : str
+///     Elevation of each block; nulls and NaN leave holes.
+///
+/// Returns
+/// -------
+/// Mesh
+///     One vertex per block with an elevation, at its centre in plan. Four
+///     neighbouring vertices make two triangles and three make one, facing up
+///     in an unrotated grid.
+#[pyfunction]
+fn grid_surface(py: Python, model: PyRef<PyBlockModel>, column: &str) -> PyResult<Mesh> {
+    let m = &model.0;
+    let z = floats(&crate::table::column(py, m.attributes(), column)?, "column")?;
+    let z: Vec<Option<f64>> = z.into_iter().map(|v| (!v.is_nan()).then_some(v)).collect();
+    blocks::grid_surface(m, &z)
+        .map(Mesh::from_core)
+        .map_err(err)
+}
+
 /// Visible skin of a block model; `column` becomes the face column `value`.
 #[pyfunction]
 #[pyo3(signature = (model, column=None))]
@@ -576,5 +624,6 @@ pub fn register(m: &Bound<PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(assign_domain, m)?)?;
     m.add_function(wrap_pyfunction!(block_shell, m)?)?;
     m.add_function(wrap_pyfunction!(convex_hull, m)?)?;
+    m.add_function(wrap_pyfunction!(grid_surface, m)?)?;
     Ok(())
 }

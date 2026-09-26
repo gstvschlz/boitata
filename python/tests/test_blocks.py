@@ -95,6 +95,41 @@ def test_convex_hull():
         cs.convex_hull([[0, 0, 0], [1, 0, 0], [0, 1, 0], [1, 1, 0]])
 
 
+def test_grid_surface_of_a_plane_with_a_hole():
+    grid = cs.BlockModel(origin=(0, 0, 0), size=(10, 5, 1), count=(6, 5, 1), crs="EPSG:32722")
+    plane = lambda xy: 0.3 * xy[:, 0] - 0.2 * xy[:, 1] + 100
+    z = plane(grid.centroids)
+    surface = cs.grid_surface(grid.with_column("z", z), "z")
+    assert surface.triangles.shape == (2 * 5 * 4, 3) and surface.crs == "EPSG:32722"
+    assert surface.area == pytest.approx(50 * 20 * np.sqrt(1 + 0.3**2 + 0.2**2))
+    pts = np.random.default_rng(0).uniform([5, 2.5], [55, 22.5], (300, 2))
+    np.testing.assert_allclose(surface.vertical_distance(np.c_[pts, plane(pts)]), 0, atol=1e-9)
+    z[8] = np.nan
+    holed = cs.grid_surface(grid.with_column("z", z), "z")
+    assert len(holed.triangles) == 40 - 4 and holed.area < surface.area
+    assert np.isnan(holed.vertical_distance([[22, 9, 0]]))[0]
+    with pytest.raises(ValueError):
+        cs.grid_surface(cs.BlockModel((0, 0, 0), (1, 1, 1), (2, 2, 2), attributes={"z": np.zeros(8)}), "z")
+
+
+def test_repair_rebuilds_a_broken_cube():
+    rng = np.random.default_rng(1)
+    soup = cube_vertices[cube_triangles] + rng.uniform(-1e-6, 1e-6, (12, 3, 3))
+    triangles = np.arange(36).reshape(12, 3)
+    triangles[::2] = triangles[::2, ::-1]
+    triangles = np.r_[triangles, triangles[:1], [[0, 1, 1]]]
+    broken = cs.Mesh(soup.reshape(-1, 3), triangles).with_face_column("face", np.arange(14.0))
+    assert not broken.is_closed
+    fixed = broken.repair(tolerance=1e-4)
+    assert fixed.is_closed and fixed.volume == pytest.approx(1000)
+    assert fixed.vertices.shape == (8, 3) and list(fixed.face_attributes["face"]) == list(range(12))
+    again = fixed.repair(tolerance=1e-4)
+    np.testing.assert_array_equal(again.triangles, fixed.triangles)
+    np.testing.assert_array_equal(again.vertices, fixed.vertices)
+    with pytest.raises(ValueError):
+        cube.repair(tolerance=-1)
+
+
 def test_subblocks_from_meshes_and_regularize():
     topo = cs.Mesh([[-10, -10, 7], [30, -10, 7], [30, 30, 7], [-10, 30, 7]], [[0, 1, 2], [0, 2, 3]])
     domains = [(cube, "inside", "ore"), (topo, "below", "rock")]
