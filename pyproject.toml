@@ -12,7 +12,8 @@ dynamic = ["version"]
 
 [project.optional-dependencies]
 plot = ["matplotlib>=3.8"]
-all = ["matplotlib>=3.8", "pandas>=2", "polars>=1", "pyarrow>=16"]
+3d = ["pyvista>=0.45"]
+all = ["matplotlib>=3.8", "pandas>=2", "polars>=1", "pyarrow>=16", "pyvista>=0.45"]
 
 [dependency-groups]
 dev = [
@@ -26,6 +27,7 @@ dev = [
     "mkdocs-material>=9.7.7",
     "mkdocstrings[python]>=1.0.6",
     "mkdocs-gallery>=0.10.4",
+    "pyvista>=0.45",
 ]
 
 [tool.maturin]

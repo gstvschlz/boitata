@@ -3,3 +3,5 @@
 ::: ceres.datasets
 
 ::: ceres.plot
+
+::: ceres.plot3d

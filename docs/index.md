@@ -7,6 +7,7 @@ same result on any number of threads.
 ```bash
 pip install ceres            # numpy only
 pip install "ceres[plot]"    # with matplotlib for ceres.plot
+pip install "ceres[3d]"      # with pyvista for ceres.plot3d
 ```
 
 ```python
