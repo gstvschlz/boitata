@@ -15,8 +15,11 @@ thiserror.workspace = true
 variogram.workspace = true
 libm.workspace = true
 kiddo.workspace = true
+rayon.workspace = true
 
 [dev-dependencies]
+arrow-array.workspace = true
+arrow-schema.workspace = true
 serde_json.workspace = true
 
 [lints]

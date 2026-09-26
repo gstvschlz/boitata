@@ -7,9 +7,13 @@ use transforms::{
     UniformConditioning as CoreUc, Weights,
 };
 
+use arrow_array::cast::AsArray;
+use arrow_array::types::Float64Type;
+
 use crate::args::{
     array1, array2, finite, optional_finite, points, points_array, rows, same_length, triple,
 };
+use crate::containers::PyBlockModel;
 use crate::invalid;
 
 fn err(e: transforms::TransformError) -> PyErr {
@@ -639,7 +643,24 @@ impl StepwiseConditional {
     }
 }
 
-/// Uniform conditioning of panel estimates to SMU recoveries.
+/// Uniform conditioning of panel estimates to recoveries of the selective
+/// blocks (SMUs) inside them.
+///
+/// Parameters
+/// ----------
+/// anamorphosis : HermiteAnamorphosis
+///     Fitted point anamorphosis.
+/// r_smu : float
+///     Change-of-support coefficient of the selective blocks, in (0, 1].
+/// r_panel : float, optional
+///     Change-of-support coefficient of the panel estimates, in (0, `r_smu`].
+///     When omitted, each panel's comes from its own kriging: the panel
+///     methods then take every panel's estimate variance
+///     ``C(V, V) - variance - 2 * lagrange`` (``estimate_variance`` in the
+///     `predict` diagnostics), which carries the smoothing of each estimate.
+///     The kriging variogram's sill should then be the anamorphosis variance.
+///     A panel estimate more variable than the selective blocks takes
+///     ``r_panel = r_smu``.
 #[derive(Serialize, Deserialize)]
 #[pyclass(module = "ceres", name = "UniformConditioning", frozen)]
 pub struct UniformConditioning(CoreUc);
@@ -658,33 +679,221 @@ impl UniformConditioning {
         crate::persist::from_json(text)
     }
 
-    /// `anamorphosis` is the fitted point anamorphosis; `r_smu`, `r_panel` the
-    /// change-of-support coefficients of the SMU and the panel.
     #[new]
-    fn new(anamorphosis: PyRef<Anamorphosis>, r_smu: f64, r_panel: f64) -> PyResult<Self> {
+    #[pyo3(signature = (anamorphosis, r_smu, r_panel=None))]
+    fn new(anamorphosis: PyRef<Anamorphosis>, r_smu: f64, r_panel: Option<f64>) -> PyResult<Self> {
+        let point = anamorphosis.inner()?;
         Ok(Self(
-            CoreUc::new(anamorphosis.inner()?, r_smu, r_panel).map_err(err)?,
+            match r_panel {
+                Some(r_panel) => CoreUc::new(point, r_smu, r_panel),
+                None => CoreUc::per_panel(point, r_smu),
+            }
+            .map_err(err)?,
         ))
     }
 
+    /// Recoveries of the selective blocks within one panel.
+    ///
+    /// Parameters
+    /// ----------
+    /// panel_grade : float
+    ///     Estimated panel grade, clamped to the anamorphosis range.
+    /// cutoffs : array_like
+    /// estimate_variance : float, optional
+    ///     The panel's estimate variance; required without `r_panel`, refused
+    ///     with it.
+    ///
+    /// Returns
+    /// -------
+    /// dict
+    ///     ``cutoff``, ``tonnage`` (proportion of the panel above cutoff),
+    ///     ``metal``, ``mean_grade`` and ``benefit``.
+    #[pyo3(signature = (panel_grade, cutoffs, estimate_variance=None))]
     fn panel_recovery<'py>(
         &self,
         py: Python<'py>,
         panel_grade: f64,
         cutoffs: &Bound<PyAny>,
+        estimate_variance: Option<f64>,
     ) -> PyResult<Bound<'py, PyDict>> {
         let cutoffs = finite(cutoffs, "cutoffs")?;
-        recoveries(py, &self.0.panel_recovery(panel_grade, &cutoffs))
+        let r = self
+            .0
+            .panel_recovery(panel_grade, estimate_variance, &cutoffs)
+            .map_err(err)?;
+        recoveries(py, &r)
     }
 
+    /// Grades of the selective blocks of one panel, ascending.
+    ///
+    /// Parameters
+    /// ----------
+    /// panel_grade : float
+    /// n_smu : int
+    ///     Number of selective blocks in the panel.
+    /// estimate_variance : float, optional
+    ///     As in `panel_recovery`.
+    ///
+    /// Returns
+    /// -------
+    /// numpy.ndarray
+    ///     The means of `n_smu` equal-probability bands of the panel's
+    ///     selective-block distribution. They average to the panel grade, and
+    ///     the top ``k`` recover the panel's metal at tonnage ``k / n_smu``.
+    #[pyo3(signature = (panel_grade, n_smu, estimate_variance=None))]
     fn localized_grades<'py>(
         &self,
         py: Python<'py>,
         panel_grade: f64,
         n_smu: usize,
-    ) -> Bound<'py, PyAny> {
-        array1(py, self.0.localized_grades(panel_grade, n_smu)).into_any()
+        estimate_variance: Option<f64>,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let g = self
+            .0
+            .band_means(panel_grade, estimate_variance, n_smu)
+            .map_err(err)?;
+        Ok(array1(py, g).into_any())
     }
+
+    /// Grade-tonnage curve of every panel.
+    ///
+    /// Parameters
+    /// ----------
+    /// panels : BlockModel
+    /// grade : str
+    ///     Column of estimated panel grades; null panels give NaN rows.
+    /// cutoffs : array_like
+    /// estimate_variance : str, optional
+    ///     Column of the panels' estimate variances; required without
+    ///     `r_panel`, refused with it.
+    ///
+    /// Returns
+    /// -------
+    /// dict
+    ///     ``cutoff``, and ``tonnage``, ``metal``, ``mean_grade`` and
+    ///     ``benefit`` of shape ``(len(panels), len(cutoffs))``. Averaging
+    ///     ``tonnage`` and ``metal`` over equal panels gives the global curve.
+    #[pyo3(signature = (panels, grade, cutoffs, estimate_variance=None))]
+    fn grade_tonnage<'py>(
+        &self,
+        py: Python<'py>,
+        panels: PyRef<PyBlockModel>,
+        grade: &str,
+        cutoffs: &Bound<PyAny>,
+        estimate_variance: Option<&str>,
+    ) -> PyResult<Bound<'py, PyDict>> {
+        let cutoffs = finite(cutoffs, "cutoffs")?;
+        let (grade, variance) = panel_columns(&panels, grade, estimate_variance)?;
+        let curves = py
+            .detach(|| self.0.grade_tonnage(&grade, variance.as_deref(), &cutoffs))
+            .map_err(err)?;
+        let table = |f: fn(&Recovery) -> f64| -> Vec<Vec<f64>> {
+            curves
+                .iter()
+                .map(|c| match c {
+                    Some(c) => c.iter().map(f).collect(),
+                    None => vec![f64::NAN; cutoffs.len()],
+                })
+                .collect()
+        };
+        let d = PyDict::new(py);
+        d.set_item("cutoff", array1(py, cutoffs.clone()))?;
+        d.set_item("tonnage", array2(py, &table(|r| r.tonnage)))?;
+        d.set_item("metal", array2(py, &table(|r| r.metal)))?;
+        d.set_item("mean_grade", array2(py, &table(|r| r.mean_grade)))?;
+        d.set_item("benefit", array2(py, &table(|r| r.benefit)))?;
+        Ok(d)
+    }
+
+    /// Localised grades of the selective blocks nested in the panels.
+    ///
+    /// A panel holding ``n`` selective blocks splits its selective-block
+    /// distribution into ``n`` equal-probability bands, and its block ranked
+    /// ``i`` gets the mean of band ``i``: the blocks average to the panel
+    /// grade and reproduce the panel's grade-tonnage curve at tonnages
+    /// ``k / n``. Partial panels localise over the blocks present.
+    ///
+    /// Parameters
+    /// ----------
+    /// panels : BlockModel
+    /// grade : str
+    ///     Column of estimated panel grades.
+    /// smus : BlockModel
+    ///     Selective blocks nesting in the panels: same rotation, sizes
+    ///     dividing the panel sizes, grids aligned; not sub-blocked.
+    /// ranking : str
+    ///     Column of `smus` ordering the blocks within a panel, such as a
+    ///     direct kriging of the blocks; ties follow row order.
+    /// estimate_variance : str, optional
+    ///     Column of the panels' estimate variances; required without
+    ///     `r_panel`, refused with it.
+    /// name : str, optional
+    ///     Name of the new column; `grade` by default.
+    ///
+    /// Returns
+    /// -------
+    /// BlockModel
+    ///     `smus` with the localised grades; null in null panels and outside
+    ///     every panel.
+    ///
+    /// Raises
+    /// ------
+    /// InvalidInput
+    ///     If the blocks do not nest, or a block of an estimated panel has a
+    ///     null rank.
+    #[pyo3(signature = (panels, grade, smus, ranking, estimate_variance=None, name=None))]
+    #[allow(clippy::too_many_arguments)]
+    fn localize(
+        &self,
+        py: Python,
+        panels: PyRef<PyBlockModel>,
+        grade: &str,
+        smus: PyRef<PyBlockModel>,
+        ranking: &str,
+        estimate_variance: Option<&str>,
+        name: Option<&str>,
+    ) -> PyResult<PyBlockModel> {
+        let (values, variance) = panel_columns(&panels, grade, estimate_variance)?;
+        let rank = nullable(&smus, ranking)?;
+        let (panel_model, smu_model) = (&panels.0, &smus.0);
+        let out = py
+            .detach(|| {
+                self.0
+                    .localize(panel_model, &values, variance.as_deref(), smu_model, &rank)
+            })
+            .map_err(err)?;
+        let column: arrow_array::Float64Array = out.into_iter().collect();
+        Ok(PyBlockModel(
+            smus.0
+                .with_column(name.unwrap_or(grade), std::sync::Arc::new(column))
+                .map_err(invalid)?,
+        ))
+    }
+}
+
+/// A float column of `model`, null as None.
+fn nullable(model: &PyBlockModel, name: &str) -> PyResult<Vec<Option<f64>>> {
+    let column = model
+        .0
+        .attributes()
+        .column_by_name(name)
+        .ok_or_else(|| pyo3::exceptions::PyKeyError::new_err(name.to_string()))?;
+    let values = arrow_cast::cast(column, &arrow_schema::DataType::Float64).map_err(invalid)?;
+    Ok(values.as_primitive::<Float64Type>().iter().collect())
+}
+
+/// Panel grades and, if named, estimate variances.
+type PanelColumns = (Vec<Option<f64>>, Option<Vec<Option<f64>>>);
+
+fn panel_columns(
+    panels: &PyBlockModel,
+    grade: &str,
+    estimate_variance: Option<&str>,
+) -> PyResult<PanelColumns> {
+    Ok((
+        nullable(panels, grade)?,
+        estimate_variance.map(|v| nullable(panels, v)).transpose()?,
+    ))
 }
 
 /// Polynomial trend in the coordinates.
