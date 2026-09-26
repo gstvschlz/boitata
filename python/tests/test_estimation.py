@@ -194,6 +194,62 @@ def test_diagnostics_classification_and_smoothing():
     assert ok.cross_validate().slope > 0
 
 
+def test_hole_distance_classification():
+    hole_xy = rng.uniform(0, 100, (30, 2))
+    xyz = np.repeat(np.c_[hole_xy, np.zeros(30)], 4, axis=0)
+    xyz[:, 2] = np.tile(np.arange(4.0), 30)
+    holes = np.repeat([f"H{i}" for i in range(30)], 4)
+    grid = cs.BlockModel(origin=(0, 0), size=(5, 5), count=(20, 20))
+    d = cs.hole_distance(grid, xyz, holes, n=[1, 3])
+    assert set(d) == {1, 3} and np.all(d[1] <= d[3])
+    np.testing.assert_array_equal(cs.hole_distance(grid, xyz, holes, 3), d[3])
+    np.testing.assert_array_equal(cs.hole_distance(grid, xyz[::4], holes[::4], 3), d[3])
+
+    three = np.array([[50.0, 50.0, 0.0]] * 3)
+    at = cs.hole_distance([[50.0, 50.0]], np.r_[three, xyz], np.r_[["a", "b", "c"], holes], 3)
+    assert at[0] == 0.0
+
+    def labels(measured, indicated):
+        rules = [("measured", {"d3": ("<=", measured)}), ("indicated", {"d3": ("<=", indicated)})]
+        return cs.classify({"d3": d[3]}, rules, default="inferred")
+
+    tight, loose = labels(10, 20), labels(15, 30)
+    assert np.all(loose[tight == "measured"] == "measured")
+    assert np.all(loose[tight == "indicated"] != "inferred")
+
+    near = cs.hole_distance(grid, xyz, holes, 3, search=cs.Search(radius=15))
+    assert np.all(np.isinf(near) | (near == d[3])) and np.isinf(near).any()
+    stretched = cs.hole_distance(grid, xyz, holes, 3, search=cs.Search(radius=1e9, ratios=(0.5, 0.5)))
+    assert np.all(stretched >= d[3] - 1e-9)
+
+    east = grid.centroids[:, 0] > 50
+    sample_east = xyz[:, 0] > 50
+    split = cs.hole_distance(grid, xyz, holes, 3, domains=(east, sample_east))
+    own = cs.hole_distance(grid.centroids[east], xyz[sample_east], holes[sample_east], 3)
+    np.testing.assert_array_equal(split[east], own)
+    assert np.all(split >= d[3])
+
+    zone = np.where(east, "E", "W")
+    by_zone = cs.classify(
+        {"d3": d[3]},
+        {"E": [("measured", {"d3": ("<=", 10)})], None: [("measured", {"d3": ("<=", 20)})]},
+        default="inferred",
+        domains=zone,
+    )
+    np.testing.assert_array_equal(by_zone[east], labels(10, -1)[east])
+    np.testing.assert_array_equal(by_zone[~east], labels(20, -1)[~east])
+    only_e = cs.classify({"d3": d[3]}, {"E": [("measured", {"d3": ("<=", 1e9)})]}, domains=zone)
+    assert set(only_e[~east]) == {"unclassified"}
+    with pytest.raises(ValueError):
+        cs.classify({"d3": d[3]}, {"E": []})
+
+    stripes = np.where(np.arange(400) % 20 == 7, "A", "B")
+    np.testing.assert_array_equal(cs.smooth_classes(grid, stripes, domains=stripes), stripes)
+    assert set(cs.smooth_classes(grid, stripes)) == {"B"}
+    with pytest.raises(ValueError):
+        cs.hole_distance(grid, xyz, holes, 0)
+
+
 def test_measurement_error_blends_a_datum_with_its_neighbours():
     xy, v = coords[:20], values[:20]
     wide = cs.Search(radius=500, max_samples=50)

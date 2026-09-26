@@ -500,35 +500,47 @@ fn block_shell<'py>(
 
 /// Majority filter of block `classes` over a `window` of cells, repeated
 /// `iterations` times; ties keep a block's class and absent cells do not vote.
-/// Classes may be any labels; the result has the same labels.
+/// Classes may be any labels; the result has the same labels. With `domains`
+/// (one label per block), only blocks of the same domain vote.
 #[pyfunction]
-#[pyo3(signature = (model, classes, window=(3, 3, 1), iterations=1))]
+#[pyo3(signature = (model, classes, window=(3, 3, 1), iterations=1, domains=None))]
 fn smooth_classes<'py>(
     py: Python<'py>,
     model: PyRef<PyBlockModel>,
     classes: &Bound<'py, PyAny>,
     window: (usize, usize, usize),
     iterations: usize,
+    domains: Option<&Bound<'py, PyAny>>,
 ) -> PyResult<Bound<'py, PyAny>> {
     let np = py.import("numpy")?;
-    let unique = np.call_method(
-        "unique",
-        (classes,),
-        Some(&[("return_inverse", true)].into_py_dict(py)?),
-    )?;
-    let (labels, codes): (Bound<PyAny>, Vec<u32>) = (
-        unique.get_item(0)?,
-        unique
-            .get_item(1)?
-            .call_method1("astype", ("uint32",))?
-            .call_method0("ravel")?
-            .call_method0("tolist")?
-            .extract()?,
-    );
+    let encode = |values: &Bound<'py, PyAny>| -> PyResult<(Bound<'py, PyAny>, Vec<u32>)> {
+        let unique = np.call_method(
+            "unique",
+            (values,),
+            Some(&[("return_inverse", true)].into_py_dict(py)?),
+        )?;
+        Ok((
+            unique.get_item(0)?,
+            unique
+                .get_item(1)?
+                .call_method1("astype", ("uint32",))?
+                .call_method0("ravel")?
+                .call_method0("tolist")?
+                .extract()?,
+        ))
+    };
+    let (labels, codes) = encode(classes)?;
+    let domains = domains.map(|d| encode(d).map(|e| e.1)).transpose()?;
     let model = &model.0;
     let smoothed = py
         .detach(|| {
-            blocks::smooth_classes(model, &codes, [window.0, window.1, window.2], iterations)
+            blocks::smooth_classes(
+                model,
+                &codes,
+                [window.0, window.1, window.2],
+                iterations,
+                domains.as_deref(),
+            )
         })
         .map_err(err)?;
     labels.get_item(np.call_method1("asarray", (smoothed,))?)

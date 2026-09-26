@@ -1,6 +1,6 @@
 from collections.abc import Callable, Iterator, Mapping, Sequence
 from os import PathLike
-from typing import Any, Literal, TypeAlias
+from typing import Any, Literal, TypeAlias, overload
 
 import numpy as np
 import numpy.typing as npt
@@ -424,6 +424,24 @@ def neighborhood_stats(
     variogram: Variogram | None = None,
     holes: Holes | None = None,
 ) -> dict[str, npt.NDArray[np.float64]]: ...
+@overload
+def hole_distance(
+    targets: Any,
+    coords: ArrayLike,
+    holes: Holes,
+    n: int,
+    search: Search | None = None,
+    domains: tuple[ArrayLike, ArrayLike] | None = None,
+) -> npt.NDArray[np.float64]: ...
+@overload
+def hole_distance(
+    targets: Any,
+    coords: ArrayLike,
+    holes: Holes,
+    n: Sequence[int],
+    search: Search | None = None,
+    domains: tuple[ArrayLike, ArrayLike] | None = None,
+) -> dict[int, npt.NDArray[np.float64]]: ...
 
 class SGS:
     def __init__(self, variogram: Variogram, search: Search) -> None: ...
@@ -801,5 +819,9 @@ def correlation(
     data: ArrayLike, weights: ArrayLike | None = None, method: str = "pearson"
 ) -> npt.NDArray[np.float64]: ...
 def smooth_classes(
-    model: BlockModel, classes: ArrayLike, window: tuple[int, int, int] = (3, 3, 1), iterations: int = 1
+    model: BlockModel,
+    classes: ArrayLike,
+    window: tuple[int, int, int] = (3, 3, 1),
+    iterations: int = 1,
+    domains: ArrayLike | None = None,
 ) -> npt.NDArray[Any]: ...

@@ -6,16 +6,21 @@ use crate::error::{BlockModelError, Result};
 /// Majority filter of `classes` (one per row of a regular or masked `model`)
 /// over a `window` of cells centred on each block, applied `iterations` times.
 /// Blocks keep their class on a tie, and absent cells do not vote, so isolated
-/// blocks take the class around them while contacts stay put.
+/// blocks take the class around them while contacts stay put. With `domains`
+/// (one per row), only blocks of the same domain vote.
 pub fn smooth_classes(
     model: &BlockModel,
     classes: &[u32],
     window: [usize; 3],
     iterations: usize,
+    domains: Option<&[u32]>,
 ) -> Result<Vec<u32>> {
     let invalid = |m: &str| Err(BlockModelError::InvalidGridParams(m.into()));
     if classes.len() != model.len() {
         return invalid("one class per block");
+    }
+    if domains.is_some_and(|d| d.len() != model.len()) {
+        return invalid("one domain per block");
     }
     if window.iter().any(|&w| w % 2 == 0) {
         return invalid("window sizes must be odd");
@@ -56,6 +61,9 @@ pub fn smooth_classes(
                             else {
                                 continue;
                             };
+                            if domains.is_some_and(|d| d[n] != d[r]) {
+                                continue;
+                            }
                             match votes.iter_mut().find(|v| v.0 == current[n]) {
                                 Some(v) => v.1 += 1,
                                 None => votes.push((current[n], 1)),
@@ -112,7 +120,7 @@ mod tests {
         let m = model([5, 5, 1]);
         let mut classes: Vec<u32> = (0..25).map(|i| u32::from(i % 5 >= 3)).collect();
         classes[6] = 1;
-        let out = smooth_classes(&m, &classes, [3, 3, 1], 1).unwrap();
+        let out = smooth_classes(&m, &classes, [3, 3, 1], 1, None).unwrap();
         assert_eq!(out[6], 0);
         let expected: Vec<u32> = (0..25).map(|i| u32::from(i % 5 >= 3)).collect();
         assert_eq!(out, expected);
@@ -122,9 +130,21 @@ mod tests {
     fn masked_cells_do_not_vote() {
         let m =
             BlockModel::masked(geometry([3, 3, 1]), vec![0, 2, 3, 5, 6, 7, 8], batch(7)).unwrap();
-        let out = smooth_classes(&m, &[1, 1, 0, 0, 0, 0, 0], [3, 3, 1], 1).unwrap();
+        let out = smooth_classes(&m, &[1, 1, 0, 0, 0, 0, 0], [3, 3, 1], 1, None).unwrap();
         assert_eq!(out.len(), 7);
         assert_eq!(out[..2], [1, 1]);
-        assert!(smooth_classes(&m, &[0; 7], [2, 3, 1], 1).is_err());
+        assert!(smooth_classes(&m, &[0; 7], [2, 3, 1], 1, None).is_err());
+    }
+
+    #[test]
+    fn only_blocks_of_the_same_domain_vote() {
+        let m = model([5, 5, 1]);
+        let domains: Vec<u32> = (0..25).map(|i| u32::from(i % 5 == 1)).collect();
+        let classes = domains.clone();
+        let mixed = smooth_classes(&m, &classes, [3, 3, 1], 1, None).unwrap();
+        assert!(mixed.iter().all(|&c| c == 0));
+        let apart = smooth_classes(&m, &classes, [3, 3, 1], 1, Some(&domains)).unwrap();
+        assert_eq!(apart, classes);
+        assert!(smooth_classes(&m, &classes, [3, 3, 1], 1, Some(&domains[..3])).is_err());
     }
 }

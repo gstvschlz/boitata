@@ -33,7 +33,7 @@ pub use krige::{Estimate, Kind, krige};
 pub use kriging_algebra::{
     DriftSpec, DualKriging, krige_bayesian, krige_factorial, krige_ordinary, krige_universal,
 };
-pub use neighborhood::{NeighborhoodStats, neighborhood_stats};
+pub use neighborhood::{NeighborhoodStats, hole_distance, neighborhood_stats};
 pub use search::{HighGrade, Search, neighbors};
 pub use simple_interp::{
     InterpEstimate, InterpOptions, inverse_distance, local_least_squares, moving_average,

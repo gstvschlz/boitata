@@ -221,19 +221,23 @@ def global_bias(estimate, data, weights=None, data_weights=None) -> dict[str, fl
 _OPS = {"<": np.less, "<=": np.less_equal, ">": np.greater, ">=": np.greater_equal}
 
 
-def classify(criteria, rules, default="unclassified") -> np.ndarray:
+def classify(criteria, rules, default="unclassified", domains=None) -> np.ndarray:
     """Labels each block with the first rule whose conditions all hold.
 
     Parameters
     ----------
     criteria : dict of str to array_like
-        Per-block metrics, e.g. ``slope``, ``efficiency`` from ``predict(..., diagnostics=True)``
-        and ``nearest_dist``, ``n_holes`` from `neighborhood_stats`.
-    rules : sequence of (str, dict)
+        Per-block metrics, e.g. ``slope``, ``efficiency`` from ``predict(..., diagnostics=True)``,
+        ``nearest_dist``, ``n_holes`` from `neighborhood_stats` and distances from `hole_distance`.
+    rules : sequence of (str, dict), or dict of domain to such a sequence
         ``(label, {metric: (op, threshold)})`` in priority order; `op` is one of
-        ``<``, ``<=``, ``>``, ``>=``. NaN never satisfies a condition.
+        ``<``, ``<=``, ``>``, ``>=``. NaN never satisfies a condition. With `domains`, a dict
+        gives each domain its own rules; the ``None`` key covers domains not listed, and blocks
+        of other domains get `default`.
     default : str
         Label where no rule holds.
+    domains : array_like, optional
+        Domain of each block, the keys of `rules`.
 
     Examples
     --------
@@ -241,14 +245,34 @@ def classify(criteria, rules, default="unclassified") -> np.ndarray:
     ...              ("indicated", {"slope": (">=", 0.5)})], default="inferred")
     """
     n = len(next(iter(criteria.values())))
+    if domains is None:
+        if isinstance(rules, dict):
+            raise ValueError("rules by domain need domains")
+        groups = [(np.ones(n, dtype=bool), rules)]
+    else:
+        domains = np.asarray(domains)
+        if len(domains) != n:
+            raise ValueError("one domain per block")
+        if not isinstance(rules, dict):
+            rules = {None: rules}
+        rest = np.ones(n, dtype=bool)
+        groups = []
+        for key, group in rules.items():
+            if key is not None:
+                inside = domains == key
+                groups.append((inside, group))
+                rest &= ~inside
+        if None in rules:
+            groups.append((rest, rules[None]))
     out = np.full(n, default, dtype=object)
-    free = np.ones(n, dtype=bool)
-    for label, conditions in rules:
-        hit = free.copy()
-        for name, (op, threshold) in conditions.items():
-            if op not in _OPS:
-                raise ValueError(f"unknown operator {op!r}; use one of {', '.join(_OPS)}")
-            hit &= _OPS[op](np.asarray(criteria[name], dtype=float), threshold)
-        out[hit] = label
-        free &= ~hit
+    for free, group in groups:
+        free = free.copy()
+        for label, conditions in group:
+            hit = free.copy()
+            for name, (op, threshold) in conditions.items():
+                if op not in _OPS:
+                    raise ValueError(f"unknown operator {op!r}; use one of {', '.join(_OPS)}")
+                hit &= _OPS[op](np.asarray(criteria[name], dtype=float), threshold)
+            out[hit] = label
+            free &= ~hit
     return out.astype(str)

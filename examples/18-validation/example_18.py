@@ -156,8 +156,9 @@ save(fig, "neighbourhood")
 
 # %% [markdown]
 # Classification combines slope and efficiency with the distance to the nearest sample, from `neighborhood_stats`.
-# Rules apply in order and the first that holds wins; a 3 × 3 majority filter then absorbs isolated blocks into
-# their surroundings.
+# These points carry no hole ids; with drill holes, `hole_distance` measures spacing between holes instead, counting
+# each hole once ([chapter 20](../20-workflow/README.md)). Rules apply in order and the first that holds wins; a
+# 3 × 3 majority filter then absorbs isolated blocks into their surroundings.
 
 # %%
 near = cs.neighborhood_stats(blocks, xy, v, k=8, radius=80)
