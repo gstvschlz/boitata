@@ -317,20 +317,25 @@ pub struct TurningBands {
     variogram: CoreVariogram,
     bands: usize,
     step: Option<f64>,
+    search: Option<estimation::Search>,
     data: Option<Data>,
 }
 
 #[pymethods]
 impl TurningBands {
     /// `bands` lines, each discretized every `step` metres along the major axis
-    /// (default: a fiftieth of the shortest range).
+    /// (default: a fiftieth of the shortest range). `search` is the
+    /// neighbourhood of the conditioning kriging (default: the 32 nearest
+    /// data at any distance); a radius near the range skips nodes far from
+    /// the data, where conditioning changes nothing.
     #[new]
-    #[pyo3(signature = (variogram, bands=300, step=None))]
-    fn new(variogram: Variogram, bands: usize, step: Option<f64>) -> Self {
+    #[pyo3(signature = (variogram, bands=300, step=None, search=None))]
+    fn new(variogram: Variogram, bands: usize, step: Option<f64>, search: Option<Search>) -> Self {
         Self {
             variogram: variogram.0,
             bands,
             step,
+            search: search.map(|s| s.0),
             data: None,
         }
     }
@@ -440,11 +445,12 @@ impl TurningBands {
 
 impl TurningBands {
     fn params(&self, seed: u64) -> TurningBandsParams {
+        let defaults = TurningBandsParams::default();
         TurningBandsParams {
             n_bands: self.bands,
             step: self.step,
             seed,
-            ..Default::default()
+            search: self.search.clone().unwrap_or(defaults.search),
         }
     }
 }

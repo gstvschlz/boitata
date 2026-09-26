@@ -422,7 +422,9 @@ class SGS:
     ) -> SimulationSummary: ...
 
 class TurningBands:
-    def __init__(self, variogram: Variogram, bands: int = 300, step: float | None = None) -> None: ...
+    def __init__(
+        self, variogram: Variogram, bands: int = 300, step: float | None = None, search: Search | None = None
+    ) -> None: ...
     def fit(
         self,
         coords: ArrayLike,
