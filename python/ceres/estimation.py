@@ -69,7 +69,7 @@ class _Base:
     def __init__(self, method: str, search: Searches, variogram: Variogram | None = None, **options):
         self._engine = _Estimator(method, search, variogram, **options)
 
-    def fit(self, coords, values, holes=None, error_variance=None):
+    def fit(self, coords, values, holes=None, error_variance=None, domains=None):
         """Stores the samples. Samples sharing a location keep the first one, with a warning naming their holes.
 
         Parameters
@@ -83,11 +83,19 @@ class _Base:
             It is added to the sample's diagonal entry in the kriging system, so the estimate no longer
             honours a noisy value and leans towards its neighbours. Cokriging, disjunctive kriging and the
             simulators do not take it.
+        domains : array_like, optional
+            Domain label of each sample: strings, numbers or booleans. A target is then estimated from the
+            samples of its own domain, plus those of other domains within `Search` ``soft``. Samples
+            sharing a location are dropped within a domain only; where a search reaches several at one
+            location, it uses the one of the target's domain, or else the first. `predict` then needs
+            domains too.
         """
-        self._engine.fit(coords, values, holes, error_variance)
+        self._engine.fit(coords, values, holes, error_variance, domains)
         return self
 
-    def predict(self, targets, return_variance: bool = False, anisotropy=None, diagnostics: bool = False):
+    def predict(
+        self, targets, return_variance: bool = False, anisotropy=None, diagnostics: bool = False, domains=None
+    ):
         """Estimates at targets; NaN where the search found too few samples.
 
         Parameters
@@ -102,10 +110,14 @@ class _Base:
             ``slope`` (slope of regression), ``n_samples``, ``pass`` (the search, from 1, that filled each
             target), ``n_holes`` (distinct holes among the samples used; untagged samples count one each),
             ``mean_distance`` (to the samples used), ``negative_weight_sum``, ``lagrange`` (the Lagrange
-            multiplier; 0 for simple kriging, NaN where undefined) and ``max_samples_reached`` (1 where the
-            search returned `max_samples`). NaN where unestimated.
+            multiplier; 0 for simple kriging, NaN where undefined), ``max_samples_reached`` (1 where the
+            search returned `max_samples`) and ``n_other_domain`` (samples used from domains other than the
+            target's). NaN where unestimated.
+        domains : array_like or label, optional
+            Domain label of each target, or one label for all of them; required when fitted with domains.
+            Targets of a domain without samples stay NaN.
         """
-        return self._engine.predict(targets, return_variance, anisotropy, diagnostics)
+        return self._engine.predict(targets, return_variance, anisotropy, diagnostics, domains)
 
     def cross_validate(self, folds: int | None = None) -> CrossValidation:
         """Re-estimates every sample from the others, through the same search passes.
@@ -116,7 +128,8 @@ class _Base:
             Leave-one-out when None; otherwise k-fold, each sample estimated without the samples of its
             fold. Samples fitted with `holes` keep their holes whole: the ``j``-th of the sorted hole ids
             goes to fold ``j % folds``. An untagged sample ``i`` goes to fold ``i % folds``, so without
-            holes and with `folds` equal to the number of samples this is leave-one-out.
+            holes and with `folds` equal to the number of samples this is leave-one-out. Folds span all
+            domains; each held-out sample is estimated in its own domain.
         """
         estimate, variance = self._engine.cross_validate(folds)
         return CrossValidation(self._engine.values, estimate, variance)

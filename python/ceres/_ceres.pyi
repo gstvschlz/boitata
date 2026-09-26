@@ -13,6 +13,7 @@ TableLike: TypeAlias = (
 )
 Path: TypeAlias = str | PathLike[str]
 Holes: TypeAlias = Sequence[int] | Sequence[str] | ArrayLike
+Label: TypeAlias = str | int | float | bool
 
 class Table:
     def __init__(self, data: TableLike | Mapping[str, ArrayLike]) -> None: ...
@@ -468,6 +469,7 @@ class Search:
         rotation: tuple[float, float, float] | None = None,
         ratios: tuple[float, float] | None = None,
         high_grade: tuple[float, float] | None = None,
+        soft: float | Mapping[tuple[Label, Label], float] | None = None,
     ) -> None: ...
     @property
     def radius(self) -> float: ...
@@ -493,6 +495,7 @@ class _Estimator:
         values: ArrayLike,
         holes: Holes | None = None,
         error_variance: ArrayLike | None = None,
+        domains: Sequence[Label] | ArrayLike | None = None,
     ) -> _Estimator: ...
     @property
     def values(self) -> npt.NDArray[np.float64]: ...
@@ -502,6 +505,7 @@ class _Estimator:
         return_variance: bool = False,
         anisotropy: LocalAnisotropy | None = None,
         diagnostics: bool = False,
+        domains: Label | Sequence[Label] | ArrayLike | None = None,
     ) -> Any: ...
     def cross_validate(
         self, folds: int | None = None

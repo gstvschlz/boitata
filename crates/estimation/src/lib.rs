@@ -40,7 +40,7 @@ pub use kriging_algebra::{
     DriftSpec, DualKriging, krige_bayesian, krige_factorial, krige_ordinary, krige_universal,
 };
 pub use neighborhood::{NeighborhoodStats, hole_distance, neighborhood_stats};
-pub use search::{HighGrade, Search, neighbors};
+pub use search::{HighGrade, Search, Soft, SoftPair, neighbors, neighbors_in};
 pub use simple_interp::{
     InterpEstimate, InterpOptions, inverse_distance, local_least_squares, moving_average,
     moving_median,
@@ -59,6 +59,10 @@ pub struct Sample {
     /// entry in kriging systems: the estimate no longer honours the value.
     #[serde(default)]
     pub error_variance: f64,
+    /// Domain code: a target of another domain only sees this sample
+    /// within the search's soft distance.
+    #[serde(default)]
+    pub domain: Option<u32>,
 }
 
 impl Sample {
@@ -68,6 +72,7 @@ impl Sample {
             value,
             hole: None,
             error_variance: 0.0,
+            domain: None,
         }
     }
 
@@ -77,6 +82,7 @@ impl Sample {
             value,
             hole: Some(hole),
             error_variance: 0.0,
+            domain: None,
         }
     }
 }

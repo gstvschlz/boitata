@@ -349,12 +349,12 @@ impl Sgs {
     }
 
     #[new]
-    fn new(variogram: Variogram, search: Search) -> Self {
-        Self {
+    fn new(variogram: Variogram, search: Search) -> PyResult<Self> {
+        Ok(Self {
             variogram: variogram.0,
-            search: search.0,
+            search: search.plain("SGS")?,
             data: None,
-        }
+        })
     }
 
     /// Samples sharing a location keep the first, with a warning naming their
@@ -468,14 +468,19 @@ impl TurningBands {
     /// the data, where conditioning changes nothing.
     #[new]
     #[pyo3(signature = (variogram, bands=300, step=None, search=None))]
-    fn new(variogram: Variogram, bands: usize, step: Option<f64>, search: Option<Search>) -> Self {
-        Self {
+    fn new(
+        variogram: Variogram,
+        bands: usize,
+        step: Option<f64>,
+        search: Option<Search>,
+    ) -> PyResult<Self> {
+        Ok(Self {
             variogram: variogram.0,
             bands,
             step,
-            search: search.map(|s| s.0),
+            search: search.map(|s| s.plain("TurningBands")).transpose()?,
             data: None,
-        }
+        })
     }
 
     /// Samples sharing a location keep the first, with a warning naming their
@@ -642,12 +647,12 @@ impl Sis {
     }
 
     #[new]
-    fn new(variograms: Vec<Variogram>, search: Search) -> Self {
-        Self {
+    fn new(variograms: Vec<Variogram>, search: Search) -> PyResult<Self> {
+        Ok(Self {
             variograms: variograms.into_iter().map(|v| v.0).collect(),
-            search: search.0,
+            search: search.plain("SIS")?,
             data: None,
-        }
+        })
     }
 
     #[pyo3(signature = (coords, categories, holes=None))]

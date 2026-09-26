@@ -2,8 +2,8 @@
 
 One pass through a resource workflow on the massive sulphide (`MS`) lens of [chapter 19](../19-geological-model/README.md):
 composites from the drill-hole CSVs, the lens modelled from its contacts and kept within the drilling, exploratory
-statistics, declustering, the normal-score variogram, ordinary kriging in search passes, block-support simulation
-for risk, classification, and the model saved to Parquet.
+statistics, declustering, the normal-score variogram, ordinary kriging in search passes and across a soft boundary,
+block-support simulation for risk, classification, and the model saved to Parquet.
 
 <details><summary>Python</summary>
 
@@ -106,6 +106,8 @@ lens = cs.ImplicitModel("kriging", variogram=field, drift_degree=0).fit(
     xyz[coded], np.where(ms[coded], 1.0, -1.0), boundaries=contacts
 )
 
+sm = (lith == "SM") & ~np.isnan(zn)
+sm_xyz, sm_zn, sm_holes = xyz[sm], zn[sm], hole[sm]
 keep = ms & ~np.isnan(zn)
 xyz, zn, holes, length = xyz[keep], zn[keep], hole[keep], length[keep]
 hull = cs.convex_hull(xyz)
@@ -232,6 +234,76 @@ print(
 pass 1: 80% of blocks, pass 2: 20%
 mean 9.29 % Zn against 9.23 % declustered; 9.41 % without the high-grade restriction
 ```
+
+## A soft boundary with SM
+
+The lens is estimated from `MS` composites alone: a hard boundary. That suits the contact with the RH host rock,
+where Zn drops sharply, but [chapter 16](../16-eda/README.md) shows grade carrying on across the contact with the
+semi-massive sulphide `SM`, with only a small step. Fitted on the `MS` and `SM` composites with their lithology as
+`domains`, every block is predicted as `MS`. Without `soft` the boundary stays hard and the estimate is the one
+above, bit for bit; with `soft=10.0`, `SM` composites within 10 m of a block also inform it.
+
+<details><summary>Python</summary>
+
+```python
+both = (np.vstack([xyz, sm_xyz]), np.r_[zn, sm_zn])
+labels = np.r_[np.full(len(zn), "MS"), np.full(len(sm_zn), "SM")]
+distance = cs.neighborhood_stats(blocks, sm_xyz, sm_zn, k=1)["nearest_dist"]
+contact_ms = cs.neighborhood_stats(xyz, sm_xyz, sm_zn, k=1)["nearest_dist"]
+by_rule = {}
+for name, soft in (("hard", None), ("soft", 10.0)):
+    searches = [
+        cs.Search(radius=r, max_samples=16, min_samples=m, max_per_hole=4, high_grade=(30.0, 15.0), soft=soft)
+        for r, m in ((30, 8), (60, 4))
+    ]
+    estimator = cs.OrdinaryKriging(grades, searches).fit(*both, holes=np.r_[holes, sm_holes], domains=labels)
+    by_rule[name] = estimator.predict(blocks, diagnostics=True, domains="MS")
+print(f"hard boundary equals MS only: {np.array_equal(by_rule['hard']['value'], kriged['value'])}")
+near = distance < 10
+print(f"{len(sm_zn)} SM composites; {near.mean():.0%} of the blocks lie within 10 m of one")
+print(f"MS composites within 10 m of SM: {zn[contact_ms < 10].mean():.2f} % Zn (naive)")
+for name, d in by_rule.items():
+    print(
+        f"{name}: mean {np.mean(d['value']):.2f} % Zn, {np.mean(d['value'][near]):.2f} % near SM, "
+        f"{np.mean(d['value'][~near]):.2f} % elsewhere; SM used in {np.mean(d['n_other_domain'] > 0):.0%} of blocks"
+    )
+
+bins = np.arange(0, 35, 5.0)
+middle = bins[:-1] + 2.5
+
+
+def binned(d, v):
+    inside = [np.digitize(d, bins) == i for i in range(1, len(bins))]
+    return np.array([np.mean(v[i]) for i in inside]), np.array([i.sum() for i in inside])
+
+
+fig, ax = plt.subplots(figsize=(6, 3.4), layout="constrained")
+ax.axvspan(0, 10, color=LIGHT, lw=0)
+mean, n = binned(contact_ms, zn)
+ax.scatter(middle, mean, s=n, color=GREY, label="MS composites, sized by count")
+for name, color, label in (("hard", ACCENT, "hard boundary"), ("soft", HIGHLIGHT, "soft within 10 m")):
+    ax.plot(middle, binned(distance, by_rule[name]["value"])[0], color=color, label=f"blocks, {label}")
+ax.set(xlabel="Distance to the nearest SM composite (m)", ylabel="Mean Zn (%)", title="MS grade near SM")
+ax.legend(loc="upper left")
+save(fig, "soft")
+```
+
+</details>
+
+```text
+hard boundary equals MS only: True
+175 SM composites; 30% of the blocks lie within 10 m of one
+MS composites within 10 m of SM: 8.61 % Zn (naive)
+hard: mean 9.29 % Zn, 9.14 % near SM, 9.35 % elsewhere; SM used in 0% of blocks
+soft: mean 9.15 % Zn, 8.66 % near SM, 9.35 % elsewhere; SM used in 29% of blocks
+```
+
+![soft](soft.png)
+
+Only the blocks within 10 m of an `SM` composite, shaded, change. The `MS` composites there average 8.6 % Zn; the
+hard boundary carries the lens grade up to the contact, 9.1 %, and the soft one, drawing on the leaner `SM` next to
+it, brings them to 8.7 %. Farther in both estimates are the same, and the mean of the lens drops by 0.14 % Zn. The
+rest of the chapter keeps the hard boundary.
 
 ## Simulation at block support
 

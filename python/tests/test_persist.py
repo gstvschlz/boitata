@@ -50,6 +50,8 @@ def plain():
         cs.Structure("exponential", 1.0, 30.0),
         cs.Coregionalization([[0.1, 0.0], [0.0, 0.2]], [("spherical", 40.0, [[1.0, 0.7], [0.7, 1.0]])]),
         cs.Search(np.inf, high_grade=(np.inf, 5.0), rotation=(10.0, 0.0, 0.0), ratios=(0.5, 0.5)),
+        cs.Search(30.0, soft={("MS", "SM"): 5.0, (1, True): np.inf}),
+        cs.Search(30.0, soft=np.inf),
         cs.NormalScore(),
         cs.HermiteAnamorphosis(),
         cs.BoxCox(lambda_=0.3),
@@ -170,11 +172,26 @@ def test_estimator_round_trip_predicts_bit_identically(estimator, extra, tmp_pat
         same((a.estimate, a.variance), (b.estimate, b.variance))
 
 
+def test_estimator_with_domains_round_trips(tmp_path):
+    path, zone = tmp_path / "ok.parquet", ["MS" if x < 50 else 7 for x in coords[:, 0]]
+    passes = [cs.Search(20.0, soft={("MS", 7): 6.0}), cs.Search(60.0, soft=np.inf)]
+    ok = cs.OrdinaryKriging(model, passes).fit(coords, values, domains=zone)
+    ok.to_parquet(path)
+    back = cs.OrdinaryKriging.from_parquet(path)
+    at = ["MS" if x < 50 else 7 for x in targets[:, 0]]
+    same(
+        back.predict(targets, domains=at, diagnostics=True).values(),
+        ok.predict(targets, domains=at, diagnostics=True).values(),
+    )
+    same((back.cross_validate().estimate,), (ok.cross_validate().estimate,))
+    assert cs.read_parquet(path)["domain"].max() == 1
+
+
 def test_estimator_file_is_a_table_of_samples(tmp_path):
     path = tmp_path / "ok.parquet"
     cs.OrdinaryKriging(model, search).fit(coords, values, holes=holes).to_parquet(path)
     table = cs.read_parquet(path)
-    assert table.column_names == ["x", "y", "z", "value", "hole", "error_variance"]
+    assert table.column_names == ["x", "y", "z", "value", "hole", "error_variance", "domain"]
     assert table.num_rows == 300
     with pytest.raises(cs.InvalidInput, match="expected a SimpleKriging"):
         cs.SimpleKriging.from_parquet(path)

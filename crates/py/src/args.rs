@@ -115,8 +115,31 @@ pub fn holes(obj: Option<&Bound<PyAny>>, n: usize) -> PyResult<Option<(Vec<Strin
 /// group. Dropped groups are reported in a `UserWarning` naming their holes
 /// (or rows when `holes` is `None`).
 pub fn distinct(py: Python, locs: &[Point], holes: Option<&[String]>) -> PyResult<Vec<usize>> {
-    let coords: Vec<[f64; 3]> = locs.iter().map(|&(x, y, z)| [x, y, z]).collect();
-    let groups = eda::duplicates(&coords, 0.0).map_err(invalid)?;
+    distinct_in(py, locs, holes, None)
+}
+
+/// As [`distinct`], with locations shared only within each of the `domains`
+/// codes, one per row.
+pub fn distinct_in(
+    py: Python,
+    locs: &[Point],
+    holes: Option<&[String]>,
+    domains: Option<&[u32]>,
+) -> PyResult<Vec<usize>> {
+    let shared = |rows: &[usize]| -> PyResult<Vec<Vec<usize>>> {
+        let coords: Vec<[f64; 3]> = rows.iter().map(|&i| locs[i].into()).collect();
+        let groups = eda::duplicates(&coords, 0.0).map_err(invalid)?;
+        Ok(groups.into_iter().map(|g| pick(rows, &g)).collect())
+    };
+    let mut rows: std::collections::BTreeMap<u32, Vec<usize>> = Default::default();
+    for i in 0..locs.len() {
+        rows.entry(domains.map_or(0, |d| d[i])).or_default().push(i);
+    }
+    let mut groups = vec![];
+    for rows in rows.values() {
+        groups.extend(shared(rows)?);
+    }
+    groups.sort_by_key(|g| g[0]);
     if groups.is_empty() {
         return Ok((0..locs.len()).collect());
     }

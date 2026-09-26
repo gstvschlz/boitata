@@ -341,3 +341,124 @@ def test_block_kriging_with_a_pure_nugget_has_no_block_variance():
         .predict([[50.0, 50.0]], diagnostics=True)
     )
     assert d["variance"][0] == pytest.approx(1.0 / 16)
+
+
+zone = np.where(coords[:, 0] + 0.3 * coords[:, 1] < 50, "MS", "SM")
+grid = np.stack(np.meshgrid(np.arange(0, 100, 4.0), np.arange(0, 100, 4.0)), -1).reshape(-1, 2)
+grid_zone = np.where(grid[:, 0] + 0.3 * grid[:, 1] < 50, "MS", "SM")
+
+
+def zoned(soft=None, passes=((30, 16), (80, 8))):
+    searches = [cs.Search(radius=r, max_samples=n, soft=soft) for r, n in passes]
+    return cs.OrdinaryKriging(model, searches).fit(coords, values, domains=zone)
+
+
+def test_hard_domains_are_separate_estimations():
+    ok = zoned()
+    at = ok.predict(grid, domains=grid_zone)
+    cv = ok.cross_validate().estimate
+    field = cs.LocalAnisotropy(
+        grid, np.tile([35.0, 0.0, 0.0], (len(grid), 1)), np.tile([0.3, 1.0], (len(grid), 1))
+    )
+    local = ok.predict(grid, anisotropy=field, domains=grid_zone)
+    passes = [cs.Search(radius=30, max_samples=16), cs.Search(radius=80, max_samples=8)]
+    for name in ("MS", "SM"):
+        alone = cs.OrdinaryKriging(model, passes).fit(coords[zone == name], values[zone == name])
+        inside = grid_zone == name
+        np.testing.assert_array_equal(at[inside], alone.predict(grid[inside]))
+        np.testing.assert_array_equal(cv[zone == name], alone.cross_validate().estimate)
+        np.testing.assert_array_equal(local[inside], alone.predict(grid[inside], anisotropy=field))
+    assert np.isfinite(at).all()
+
+
+def test_soft_distance_zero_is_hard_and_infinite_pools_the_domains():
+    hard = zoned().predict(grid, domains=grid_zone)
+    np.testing.assert_array_equal(zoned(soft=0.0).predict(grid, domains=grid_zone), hard)
+    passes = [cs.Search(radius=30, max_samples=16), cs.Search(radius=80, max_samples=8)]
+    free = cs.OrdinaryKriging(model, passes).fit(coords, values)
+    pooled = zoned(soft=np.inf)
+    np.testing.assert_array_equal(pooled.predict(grid, domains=grid_zone), free.predict(grid))
+    np.testing.assert_array_equal(pooled.cross_validate().estimate, free.cross_validate().estimate)
+    assert not np.array_equal(zoned(soft=10.0).predict(grid, domains=grid_zone), hard)
+
+
+def test_soft_pairs_are_one_way_and_counted():
+    one_way = zoned(soft={("SM", "MS"): 10.0}).predict(grid, diagnostics=True, domains=grid_zone)
+    hard = zoned().predict(grid, domains=grid_zone)
+    ms, sm = grid_zone == "MS", grid_zone == "SM"
+    np.testing.assert_array_equal(one_way["value"][ms], hard[ms])
+    assert np.all(one_way["n_other_domain"][ms] == 0) and one_way["n_other_domain"][sm].max() > 0
+    near = one_way["n_other_domain"] > 0
+    assert not np.array_equal(one_way["value"][near], hard[near])
+    free = cs.OrdinaryKriging(model, search).fit(coords, values).predict(grid, diagnostics=True)
+    assert np.all(free["n_other_domain"] == 0)
+
+
+def test_domains_in_predict_and_cross_validation():
+    ok = zoned(soft=8.0)
+    single = ok.predict(grid[:5], domains="MS")
+    np.testing.assert_array_equal(single, ok.predict(grid[:5], domains=["MS"] * 5))
+    assert np.isnan(ok.predict(grid[:5], domains="QE")).all()
+    holes = np.arange(len(values)) // 5
+    ok = cs.OrdinaryKriging(model, cs.Search(radius=50, soft=8.0)).fit(
+        coords, values, holes=holes, domains=zone
+    )
+    cv = ok.cross_validate(folds=4).estimate
+    expected = np.empty(len(values))
+    for fold in range(4):
+        test = holes % 4 == fold
+        train = cs.OrdinaryKriging(model, cs.Search(radius=50, soft=8.0))
+        train.fit(coords[~test], values[~test], domains=zone[~test])
+        expected[test] = train.predict(coords[test], domains=zone[test])
+    np.testing.assert_array_equal(cv, expected)
+
+
+def test_labels_of_any_simple_type_and_shared_locations_across_domains():
+    codes = np.where(zone == "MS", 1, 2)
+    a = cs.InverseDistance(cs.Search(radius=50, soft={(1, 2): 5.0})).fit(coords, values, domains=codes)
+    b = cs.InverseDistance(cs.Search(radius=50, soft={(1.0, 2): 5.0})).fit(
+        coords, values, domains=list(codes)
+    )
+    np.testing.assert_array_equal(a.predict(grid, domains=1), b.predict(grid, domains=np.int64(1)))
+    twin = np.vstack([coords[:1], coords[:1]])
+    kept = cs.NearestNeighbor(search).fit(twin, [1.0, 2.0], domains=["a", "b"])
+    np.testing.assert_array_equal(kept.predict(twin, domains=["a", "b"]), [1.0, 2.0])
+
+
+def test_a_shared_contact_location_keeps_the_target_domain_sample():
+    both = np.vstack([coords, [[50.0, 50.0], [50.0, 50.0]]])
+    labels = np.r_[zone, ["SM", "MS"]]
+    data = np.r_[values, 5.0, -5.0]
+    ok = cs.OrdinaryKriging(model, cs.Search(radius=30, soft=np.inf)).fit(both, data, domains=labels)
+    at = ok.predict([[50.0, 50.0]] * 2, domains=["MS", "SM"])
+    np.testing.assert_allclose(at, [-5.0, 5.0], atol=1e-8)
+    near = ok.predict([[50.5, 50.0]] * 2, domains=["MS", "SM"], diagnostics=True)
+    assert np.isfinite(near["value"]).all() and near["value"][0] < near["value"][1]
+    assert np.isfinite(ok.cross_validate().estimate[-2:]).all()
+
+
+def test_domain_errors():
+    with pytest.raises(cs.InvalidInput, match="predict needs domains"):
+        zoned().predict(grid)
+    with pytest.raises(cs.InvalidInput, match="takes none"):
+        cs.OrdinaryKriging(model, search).fit(coords, values).predict(grid, domains="MS")
+    soft = cs.Search(radius=50, soft=5.0)
+    with pytest.raises(cs.InvalidInput, match="needs domains at fit"):
+        cs.OrdinaryKriging(model, soft).fit(coords, values)
+    with pytest.raises(cs.InvalidInput, match="has no samples"):
+        zoned(soft={("MS", "QE"): 5.0})
+    with pytest.raises(cs.InvalidInput, match="expected 150"):
+        cs.OrdinaryKriging(model, search).fit(coords, values, domains=zone[:10])
+    with pytest.raises(cs.InvalidInput, match=">= 0"):
+        cs.Search(radius=50, soft={("MS", "SM"): -1.0})
+    lmc = cs.Coregionalization([[0.1, 0.0], [0.0, 0.1]], [("spherical", 40.0, [[1.0, 0.6], [0.6, 1.0]])])
+    for make in (
+        lambda: cs.SGS(model, soft),
+        lambda: cs.SIS([model], soft),
+        lambda: cs.TurningBands(model, search=soft),
+        lambda: cs.Cokriging(lmc, soft),
+        lambda: cs.MultipleIndicatorKriging(model, soft, [1.0]),
+        lambda: cs.DisjunctiveKriging(cs.HermiteAnamorphosis().fit(values + 2), model, soft),
+    ):
+        with pytest.raises(cs.InvalidInput, match="does not take domains"):
+            make()

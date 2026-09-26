@@ -280,24 +280,25 @@ save(fig, "grade_tonnage")
 
 ## Contact analysis
 
-Zn against distance to the MS/RH contact, measured down each hole to the nearest composite of the other domain:
-negative inside MS, positive in RH. A sharp step supports a hard boundary in estimation.
+Zn against distance to a contact of MS, measured down each hole to the nearest composite of the other domain:
+negative inside MS, positive outside. Into the RH host rock, Zn drops from about 9 % to under 2 % within a composite:
+a sharp step that supports a hard boundary in estimation. Into the semi-massive sulphide SM it steps down by only
+about 2 %, and SM keeps 6 to 10 % out to 30 m: near the contact the samples of one domain say much about the other,
+the case for a soft boundary ([chapter 20](../20-workflow/README.md)).
 
 <details><summary>Python</summary>
 
 ```python
-c = cs.contact(xyz, zn, lith, hole, "MS", "RH", max_distance=30.0, bin=2.0)
-fig, ax = plt.subplots(figsize=(7, 3.4), layout="constrained")
-ax.axvline(0, color=GREY, lw=0.8, ls="--")
-ax.plot(c["distance"], c["mean"], color=ACCENT, lw=1)
-ax.scatter(c["distance"], c["mean"], s=np.sqrt(c["count"]), color=ACCENT)
-ax.text(-15, 2, "inside MS", color=INK, ha="center")
-ax.text(15, 5, "in RH", color=INK, ha="center")
-ax.set(
-    title="Zn across the MS/RH contact (points sized by count)",
-    xlabel="Distance to contact (m)",
-    ylabel="Zn (%)",
-)
+fig, axes = plt.subplots(1, 2, figsize=(9, 3.4), layout="constrained", sharey=True)
+for ax, other in zip(axes, ["RH", "SM"], strict=True):
+    c = cs.contact(xyz, zn, lith, hole, "MS", other, max_distance=30.0, bin=2.0)
+    ax.axvline(0, color=GREY, lw=0.8, ls="--")
+    ax.plot(c["distance"], c["mean"], color=ACCENT, lw=1)
+    ax.scatter(c["distance"], c["mean"], s=np.sqrt(c["count"]), color=ACCENT)
+    ax.text(-15, 13, "inside MS", color=INK, ha="center")
+    ax.text(15, 13, f"in {other}", color=INK, ha="center")
+    ax.set(title=f"Zn across the MS/{other} contact", xlabel="Distance to contact (m)", ylim=(0, 14))
+axes[0].set_ylabel("Zn (%), points sized by count")
 save(fig, "contact")
 ```
 

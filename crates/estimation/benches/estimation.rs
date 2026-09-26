@@ -101,6 +101,7 @@ fn kriging(c: &mut Criterion) {
             b.iter(|| {
                 black_box(estimation::estimate_many(
                     &targets,
+                    None,
                     &samples,
                     &search,
                     Some(&vg),

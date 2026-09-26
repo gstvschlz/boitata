@@ -243,6 +243,7 @@ mod tests {
             value: v,
             hole: None,
             error_variance: 0.0,
+            domain: None,
         }
     }
 
