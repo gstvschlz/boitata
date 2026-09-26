@@ -50,6 +50,34 @@ ck.fit(np.vstack([xy, xy]), np.r_[cd, zn], [0] * len(cd) + [1] * len(zn))
 Cd: nugget share 0.44, range 0.59 km, corr(Cd, Zn) 0.67
 ```
 
+The intrinsic model is only fitted to Cd, so check it against Zn and the cross-variogram, the half mean product of
+the Cd and Zn increments between co-located samples. Each curve is the LMC's C(0) − C(h), and all three
+experimental variograms scatter about the one shared shape:
+
+<details><summary>Python</summary>
+
+```python
+h = np.linspace(0, max_lag, 101)[1:]
+origin = np.zeros((h.size, 3))
+away = np.c_[h, np.zeros((h.size, 2))]
+panels = (
+    (0, 0, "Cd", cs.experimental_variogram(xy, cd, lag, max_lag)),
+    (1, 1, "Zn", cs.experimental_variogram(xy, zn, lag, max_lag)),
+    (0, 1, "Cd × Zn", cs.experimental_variogram(xy, cd, lag, max_lag, other=zn)),
+)
+fig, axes = plt.subplots(1, 3, figsize=(10, 3.2), layout="constrained")
+for ax, (i, j, name, experimental) in zip(axes, panels):
+    cs.plot.variogram(experimental, ax=ax, color=ACCENT)
+    model = lmc.cross_covariance(i, j, origin, origin) - lmc.cross_covariance(i, j, origin, away)
+    ax.plot(h, model, color=INK, lw=1)
+    ax.set(title=name, xlabel="Lag (km)", ylabel="γ(h)" if i == j else "γ₁₂(h)")
+save(fig, "variograms")
+```
+
+</details>
+
+![variograms](variograms.png)
+
 Both estimators at the validation points:
 
 <details><summary>Python</summary>

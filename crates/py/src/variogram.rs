@@ -5,7 +5,7 @@ use variogram::surface::{PlaneMapParams, plane_map};
 use variogram::{
     Angles, Anisotropy, CoregStructure, Coregionalization as CoreCoreg, Direction, Estimator,
     Experimental, LagBins, Model, Structure as CoreStructure, Transiogram as CoreTransiogram,
-    Variogram as CoreVariogram, Weighting, empirical_transiogram, experimental,
+    Variogram as CoreVariogram, Weighting, cross_experimental, empirical_transiogram, experimental,
 };
 
 use crate::args::{Point, array1, array2, finite, floats, points, same_length, triple};
@@ -339,7 +339,8 @@ fn samples(coords: &Bound<PyAny>, values: &Bound<PyAny>) -> PyResult<(Vec<Point>
     Ok((locs, values))
 }
 
-/// Experimental variogram, omnidirectional unless `azimuth` is given.
+/// Experimental variogram, omnidirectional unless `azimuth` is given, or the
+/// cross-variogram of `values` and `other`.
 ///
 /// Every estimator is returned in variogram form, so any of them can be fitted.
 ///
@@ -359,13 +360,24 @@ fn samples(coords: &Bound<PyAny>, values: &Bound<PyAny>) -> PyResult<(Vec<Point>
 ///     variogram (non-negative values only).
 /// standardize : bool
 ///     Divide by the sample variance so the sill is 1. The correlogram and
-///     pairwise-relative estimates are dimensionless and left unchanged.
+///     pairwise-relative estimates are dimensionless and left unchanged; a
+///     cross-variogram is divided by σ₁σ₂.
+/// other : array_like, shape (m,), optional
+///     Second variable, for its cross-variogram with ``values``: "matheron"
+///     gives γ₁₂(h) = Σ Δz₁·Δz₂ / 2N, "covariance" gives C₁₂(0) − C₁₂(h) with
+///     C₁₂(h) in ``covariances``. C₁₂(h) pairs ``values`` at the tail with
+///     ``other`` at the head, so the directional cone is one-sided: reversing
+///     ``azimuth`` estimates C₂₁(h); omnidirectional averages both.
+/// other_coords : array_like, shape (m, 2) or (m, 3), optional
+///     Where ``other`` is sampled when not at ``coords``. Only the
+///     cross-covariance is defined then, with C₁₂(0) estimated from the pairs
+///     closer than half a lag.
 ///
 /// Returns
 /// -------
 /// ExperimentalVariogram
 #[pyfunction]
-#[pyo3(signature = (coords, values, lag, max_lag, azimuth=None, dip=0.0, tolerance=22.5, bandwidth=None, estimator="matheron", standardize=false))]
+#[pyo3(signature = (coords, values, lag, max_lag, azimuth=None, dip=0.0, tolerance=22.5, bandwidth=None, estimator="matheron", standardize=false, other=None, other_coords=None))]
 #[allow(clippy::too_many_arguments)]
 fn experimental_variogram(
     coords: &Bound<PyAny>,
@@ -378,6 +390,8 @@ fn experimental_variogram(
     bandwidth: Option<f64>,
     estimator: &str,
     standardize: bool,
+    other: Option<&Bound<PyAny>>,
+    other_coords: Option<&Bound<PyAny>>,
 ) -> PyResult<ExperimentalVariogram> {
     let (locs, values) = samples(coords, values)?;
     let direction = azimuth.map(|azimuth| Direction {
@@ -386,14 +400,34 @@ fn experimental_variogram(
         tolerance,
         bandwidth,
     });
-    let exp = experimental(
-        &locs,
-        &values,
-        &bins(lag, max_lag)?,
-        self::estimator(estimator)?,
-        direction.as_ref(),
-        standardize,
-    )
+    let (bins, estimator) = (bins(lag, max_lag)?, self::estimator(estimator)?);
+    let (at, other) = match (other_coords, other) {
+        (Some(at), Some(other)) => {
+            let (at, other) = samples(at, other)?;
+            (Some(at), Some(other))
+        }
+        (None, Some(other)) => {
+            let other = finite(other, "other")?;
+            same_length(locs.len(), other.len(), "other")?;
+            (None, Some(other))
+        }
+        (Some(_), None) => return Err(invalid("other_coords needs other")),
+        (None, None) => (None, None),
+    };
+    let dir = direction.as_ref();
+    let exp = match other {
+        None => experimental(&locs, &values, &bins, estimator, dir, standardize),
+        Some(other) => cross_experimental(
+            &locs,
+            &values,
+            at.as_deref(),
+            &other,
+            &bins,
+            estimator,
+            dir,
+            standardize,
+        ),
+    }
     .map_err(err)?;
     Ok(ExperimentalVariogram(exp))
 }

@@ -320,6 +320,8 @@ def experimental_variogram(
     bandwidth: float | None = None,
     estimator: str = "matheron",
     standardize: bool = False,
+    other: ArrayLike | None = None,
+    other_coords: ArrayLike | None = None,
 ) -> ExperimentalVariogram: ...
 def variogram_map(
     coords: ArrayLike,
