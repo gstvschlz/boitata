@@ -1,28 +1,53 @@
 [build-system]
-requires = ["maturin>=1.9,<2"]
+requires = ["maturin>=1.10,<2"]
 build-backend = "maturin"
 
 [project]
 name = "ceres"
 description = "Geostatistics in Rust with a Python interface"
+readme = "README.md"
 requires-python = ">=3.11"
 license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Gustavo Pretto Scholze" }]
+keywords = ["geostatistics", "kriging", "variogram", "simulation", "mining", "geology"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Programming Language :: Rust",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Scientific/Engineering :: GIS",
+    "Typing :: Typed",
+]
 dependencies = ["numpy>=1.26"]
 dynamic = ["version"]
 
 [project.optional-dependencies]
 plot = ["matplotlib>=3.8"]
 3d = ["pyvista>=0.45"]
-all = ["matplotlib>=3.8", "pandas>=2", "polars>=1", "pyarrow>=16", "pyvista>=0.45"]
+all = ["matplotlib>=3.8", "pandas>=2.2", "polars>=1.3", "pyarrow>=16", "pyvista>=0.45"]
+
+[project.urls]
+Homepage = "https://github.com/gstvschlz/ceres"
+Documentation = "https://gstvschlz.github.io/ceres/"
+Repository = "https://github.com/gstvschlz/ceres"
+Issues = "https://github.com/gstvschlz/ceres/issues"
 
 [dependency-groups]
 dev = [
-    "maturin>=1.9,<2",
+    "maturin>=1.10,<2",
     "pytest>=8",
     "ruff>=0.6",
-    "polars>=1",
+    "polars>=1.3",
     "pyarrow>=16",
-    "pandas>=2",
+    "pandas>=2.2",
     "matplotlib>=3.8",
     "mkdocs-material>=9.7.7",
     "mkdocstrings[python]>=1.0.6",
@@ -34,6 +59,7 @@ dev = [
 manifest-path = "crates/py/Cargo.toml"
 module-name = "ceres._ceres"
 python-source = "python"
+locked = true
 
 [tool.uv]
 package = false
