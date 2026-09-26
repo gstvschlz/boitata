@@ -244,6 +244,31 @@ impl Mesh {
         Ok(array1(py, d).into_any())
     }
 
+    /// Signed vertical distance to a surface such as topography.
+    ///
+    /// Parameters
+    /// ----------
+    /// points : array_like, PointSet or BlockModel
+    ///     ``(n, 3)`` points, or the centroids of a point set or block model.
+    ///
+    /// Returns
+    /// -------
+    /// numpy.ndarray
+    ///     Point elevation minus surface elevation at the same (x, y):
+    ///     positive above, negative below. NaN where no triangle covers the
+    ///     point in plan; where the surface overlaps itself, the highest counts.
+    fn vertical_distance<'py>(
+        &self,
+        py: Python<'py>,
+        points: &Bound<PyAny>,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let pts = targets(points)?;
+        let d = py
+            .detach(|| blocks::vertical_distance(&self.mesh, &pts))
+            .map_err(err)?;
+        Ok(array1(py, d).into_any())
+    }
+
     /// Proportion of each block inside, from `discretization`³ points per
     /// block; `blocks` is a BlockModel or centroids with a shared `size`.
     #[pyo3(signature = (blocks, size=None, discretization=4))]

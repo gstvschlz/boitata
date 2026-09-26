@@ -13,6 +13,7 @@ mod solid;
 pub use classes::smooth_classes;
 pub use distance::{
     distance_to, point_in_polygon, polygon_distance, polygon_signed_distance, signed_distance_to,
+    vertical_distance,
 };
 pub use error::{BlockModelError, Result};
 pub use hull::convex_hull;

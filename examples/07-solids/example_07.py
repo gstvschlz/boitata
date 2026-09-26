@@ -205,3 +205,18 @@ print(
     back,
     f"volume {back.volume:,.0f} m3 (written {solid.volume:,.0f} m3), largest shift {shift * 1000:.2f} mm",
 )
+
+# %% [markdown]
+# An open surface such as topography or a weathering front splits blocks by elevation instead.
+# `Mesh.vertical_distance` gives each centroid's height above the surface (negative below, NaN outside its plan
+# footprint). Here a gently undulating surface through the ellipsoid's centre:
+
+# %%
+gx, gy = np.meshgrid(np.linspace(lo[0], hi[0], 21), np.linspace(lo[1], hi[1], 21))
+gz = center[2] + 10 * np.sin((gx - lo[0]) / 40) + 0.05 * (gy - lo[1])
+i = (np.arange(20)[None, :] + 21 * np.arange(20)[:, None]).ravel()
+surface = cs.Mesh(
+    np.c_[gx.ravel(), gy.ravel(), gz.ravel()], np.r_[np.c_[i, i + 1, i + 22], np.c_[i, i + 22, i + 21]]
+)
+height = surface.vertical_distance(ore)
+print(f"{surface}: of {len(ore)} ore blocks, {(height > 0).sum()} above and {(height < 0).sum()} below")
