@@ -648,6 +648,7 @@ class ImplicitModel:
         self,
         coords: ArrayLike | None = None,
         values: ArrayLike | None = None,
+        cutoff: float | None = None,
         boundaries: ArrayLike | None = None,
         planes: ArrayLike | None = None,
         lineations: ArrayLike | None = None,

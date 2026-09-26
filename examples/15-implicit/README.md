@@ -16,10 +16,11 @@ from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 
 </details>
 
-Each composite is coded +1 above the cutoff and −1 below, so the shell is the zero level of the field. Two engines
-fit it: a radial basis function (RBF) interpolates the codes exactly by solving one dense system, whose cost grows
-with the cube of the sample count, so 10 m composites keep it to about 3,000 samples; a sparse Gaussian process
-(GP) smooths through them, learns anisotropic ranges and returns to the mean code away from the data.
+With `cutoff=5` each composite is coded +1 at or above the cutoff and −1 below, so the shell is the zero level of
+the field. Two engines fit it: a radial basis function (RBF) interpolates the codes exactly by solving one dense
+system, whose cost grows with the cube of the sample count, so 10 m composites keep it to about 3,000 samples; a
+sparse Gaussian process (GP) smooths through them, learns anisotropic ranges and returns to the mean code away from
+the data.
 
 <details><summary>Python</summary>
 
@@ -29,11 +30,11 @@ composites = dh.composite(10.0, ["ZN"])
 xyz, zn = composites.coords, composites["ZN"]
 window = (xyz[:, 0] > 4550) & (xyz[:, 0] < 4950) & (xyz[:, 1] > 7400) & (xyz[:, 1] < 7700) & ~np.isnan(zn)
 xyz, zn = xyz[window], zn[window]
-indicator = np.where(zn > 5, 1.0, -1.0)
 models = {
-    "RBF": cs.ImplicitModel("rbf", drift_degree=0).fit(xyz, indicator),
-    "GP": cs.ImplicitModel("gp", drift_degree=0).fit(xyz, indicator),
+    "RBF": cs.ImplicitModel("rbf", drift_degree=0).fit(xyz, zn, cutoff=5),
+    "GP": cs.ImplicitModel("gp", drift_degree=0).fit(xyz, zn, cutoff=5),
 }
+indicator = np.where(zn >= 5, 1.0, -1.0)
 print(f"{len(xyz)} composites, {(indicator > 0).sum()} above 5 % Zn")
 for name, model in models.items():
     agree = np.mean(np.sign(model.evaluate(xyz)) == indicator)
