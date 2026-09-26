@@ -4,7 +4,8 @@ use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
 use simulation::{
     BlockSupport, CategoricalSummary as CoreCategorical, ContinuousOptions, ContinuousSummary,
-    GibbsParams, PgsParams, Region, SgsParams, SisParams, TruncationRule, TurningBandsParams,
+    GibbsParams, Hierarchy, PgsParams, Region, SgsParams, SisParams, TruncationRule,
+    TurningBandsParams,
 };
 use variogram::Variogram as CoreVariogram;
 
@@ -1131,16 +1132,47 @@ impl Sis {
     }
 }
 
-/// Plurigaussian simulation. Give `proportions` for an ordered rule on one
-/// field, or `regions` as `(y1_low, y1_high, y2_low, y2_high, facies)`.
+/// Plurigaussian simulation: facies from thresholding independent latent
+/// Gaussian fields through a truncation rule.
+///
+/// Parameters
+/// ----------
+/// variograms : Variogram or sequence of Variogram
+///     Unit-sill variogram of each latent field, in field order.
+/// proportions : sequence of float, optional
+///     Facies proportions. Alone, facies ``0..k`` are ordered along the first
+///     field, so each touches only its neighbours in that order.
+/// rule : int or tuple, optional
+///     Hierarchical rule, with `proportions`: a facies, or ``(field,
+///     [child, ...])``, which cuts `field` into one slice per child, in
+///     order, sized by the proportions of the facies below it. Facies under
+///     different children touch only across that cut; for instance
+///     ``(0, [4, (1, [0, 1, 2, 3])])`` sets facies 4 apart on the first field
+///     and orders the other four on the second.
+/// regions : sequence of (bounds, int), optional
+///     Explicit rule instead of `proportions`: boxes ``([(low, high), ...],
+///     facies)`` of the fields' Gaussian values, one ``(low, high]`` per
+///     field, unbounded past the last.
 #[derive(Serialize, Deserialize)]
 #[pyclass(module = "ceres", name = "Plurigaussian")]
 pub struct Plurigaussian {
-    variograms: (CoreVariogram, CoreVariogram),
+    variograms: Vec<CoreVariogram>,
     rule: TruncationRule,
-    two_fields: bool,
     #[serde(skip)]
     data: Option<(Vec<Point>, Vec<usize>)>,
+}
+
+fn hierarchy(obj: &Bound<PyAny>) -> PyResult<Hierarchy> {
+    if let Ok(facies) = obj.extract::<usize>() {
+        return Ok(Hierarchy::Facies(facies));
+    }
+    let (field, children): (usize, Vec<Bound<PyAny>>) = obj
+        .extract()
+        .map_err(|_| invalid("rule entries are facies or (field, [children])"))?;
+    Ok(Hierarchy::Split {
+        field,
+        children: children.iter().map(hierarchy).collect::<PyResult<_>>()?,
+    })
 }
 
 #[pymethods]
@@ -1168,33 +1200,67 @@ impl Plurigaussian {
     }
 
     #[new]
-    #[pyo3(signature = (variogram, second_variogram=None, proportions=None, regions=None))]
+    #[pyo3(signature = (variograms, proportions=None, rule=None, regions=None))]
     fn new(
-        variogram: Variogram,
-        second_variogram: Option<Variogram>,
+        variograms: &Bound<PyAny>,
         proportions: Option<Vec<f64>>,
-        regions: Option<Vec<(f64, f64, f64, f64, usize)>>,
+        rule: Option<&Bound<PyAny>>,
+        regions: Option<Vec<(Vec<(f64, f64)>, usize)>>,
     ) -> PyResult<Self> {
-        let rule = match (proportions, regions) {
-            (Some(p), None) => TruncationRule::from_proportions(&p),
-            (None, Some(r)) => TruncationRule {
+        let variograms: Vec<CoreVariogram> = match variograms.extract::<Variogram>() {
+            Ok(v) => vec![v.0],
+            Err(_) => variograms
+                .extract::<Vec<Variogram>>()?
+                .into_iter()
+                .map(|v| v.0)
+                .collect(),
+        };
+        if variograms.is_empty() {
+            return Err(invalid("give at least one variogram"));
+        }
+        let fields = variograms.len();
+        let rule = match (proportions, rule, regions) {
+            (Some(p), rule, None) => {
+                if p.is_empty() || p.iter().any(|&q| !q.is_finite() || q < 0.0) {
+                    return Err(invalid("proportions must be finite and non-negative"));
+                }
+                if p.iter().sum::<f64>() <= 0.0 {
+                    return Err(invalid("proportions must not all be zero"));
+                }
+                let tree = match rule {
+                    Some(r) => hierarchy(r)?,
+                    None => Hierarchy::Split {
+                        field: 0,
+                        children: (0..p.len()).map(Hierarchy::Facies).collect(),
+                    },
+                };
+                tree.validate(p.len(), fields).map_err(err)?;
+                tree.rule(&p)
+            }
+            (None, None, Some(r)) => TruncationRule {
                 regions: r
                     .into_iter()
-                    .map(|(a, b, c, d, facies)| Region {
-                        y1: (a, b),
-                        y2: (c, d),
-                        facies,
-                    })
+                    .map(|(bounds, facies)| Region { bounds, facies })
                     .collect(),
             },
-            _ => return Err(invalid("give exactly one of proportions or regions")),
+            _ => {
+                return Err(invalid(
+                    "give proportions, with an optional rule, or regions",
+                ));
+            }
         };
-        let two_fields = second_variogram.is_some();
-        let second = second_variogram.unwrap_or_else(|| variogram.clone());
+        if rule.regions.is_empty() {
+            return Err(invalid("the rule has no regions"));
+        }
+        if rule.fields() > fields {
+            return Err(invalid(format!(
+                "the rule thresholds {} fields but {fields} variograms were given",
+                rule.fields()
+            )));
+        }
         Ok(Self {
-            variograms: (variogram.0, second.0),
+            variograms,
             rule,
-            two_fields,
             data: None,
         })
     }
@@ -1238,15 +1304,13 @@ impl Plurigaussian {
             simulation::categorical(n, k, realizations, |i| {
                 let params = PgsParams {
                     seed: seed.wrapping_add(i as u64),
-                    two_fields: self.two_fields,
                     ..Default::default()
                 };
                 simulation::plurigaussian(
                     locs,
                     facies,
                     &grid,
-                    &self.variograms.0,
-                    &self.variograms.1,
+                    &self.variograms,
                     &self.rule,
                     &params,
                 )

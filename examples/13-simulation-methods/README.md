@@ -46,8 +46,8 @@ for name, reals, seconds in (("SGS", by_sgs, sgs_seconds), ("turning bands", by_
 </details>
 
 ```text
-          SGS: 20 realizations in 0.06 s, mean 299 ppm, variance 72174 ppm²
-turning bands: 20 realizations in 0.10 s, mean 289 ppm, variance 61368 ppm²
+          SGS: 20 realizations in 0.16 s, mean 299 ppm, variance 72174 ppm²
+turning bands: 20 realizations in 0.66 s, mean 289 ppm, variance 61368 ppm²
 ```
 
 <details><summary>Python</summary>
@@ -150,7 +150,10 @@ trend about as much as the data do.
 
 Jura's rock types are known everywhere on the prediction grid, so simulated categories can be compared with the
 real geology. SIS krigs, at each node, the probability of every rock type from indicator variograms; PGS truncates
-a Gaussian field at thresholds set by the proportions, which orders the types.
+a Gaussian field at thresholds set by the proportions, which orders the types. A hierarchical `rule` truncates
+several fields in turn: here the first sets Quaternary cover apart from the Jurassic, and the second orders the
+Jurassic stages from Argovian to Portlandian, so the cover may touch every stage but each stage touches only the
+next.
 
 <details><summary>Python</summary>
 
@@ -175,16 +178,20 @@ for k in range(5):
 sis = cs.SIS(indicator_models, cs.Search(radius=1.5, max_samples=16)).fit(train.coords, rock)
 sis_summary = sis.simulate(jura_grid, n=10, seed=3, realizations=True)
 by_sis = sis_summary.realizations
-pgs = cs.Plurigaussian(cs.Variogram([("spherical", 1.0, 0.8)]), proportions=proportions).fit(
-    train.coords, rock
-)
+latent = cs.Variogram([("spherical", 1.0, 0.8)])
+pgs = cs.Plurigaussian(latent, proportions=proportions).fit(train.coords, rock)
 by_pgs = pgs.simulate(jura_grid, n=1, seed=3, realizations=True).realizations[0]
+stages = (1, [code["Argovian"], code["Sequanian"], code["Kimmeridgian"], code["Portlandian"]])
+rule = (0, [stages, code["Quaternary"]])
+hierarchy = cs.Plurigaussian([latent, latent], proportions=proportions, rule=rule).fit(train.coords, rock)
+by_rule = hierarchy.simulate(jura_grid, n=1, seed=3, realizations=True).realizations[0]
 
+simulated = (("SIS", by_sis[0]), ("PGS ordered", by_pgs), ("PGS rule", by_rule))
 print(f"{'':>13}" + "".join(f"{n[:5]:>8}" for n in names))
-for label, cats in (("samples", rock), ("true grid", true_rock), ("SIS", by_sis[0]), ("PGS", by_pgs)):
+for label, cats in (("samples", rock), ("true grid", true_rock), *simulated):
     shares = np.bincount(cats, minlength=5) / len(cats)
     print(f"{label:>13}" + "".join(f"{s:8.2f}" for s in shares))
-for label, cats in (("SIS", by_sis[0]), ("PGS", by_pgs)):
+for label, cats in simulated:
     print(f"{label}: {np.mean(cats == true_rock):.0%} of nodes match the true rock type")
 matches = np.mean(sis_summary.most_likely == true_rock)
 print(
@@ -199,9 +206,11 @@ print(
       samples    0.20    0.33    0.24    0.01    0.21
     true grid    0.20    0.34    0.27    0.05    0.13
           SIS    0.12    0.43    0.29    0.01    0.15
-          PGS    0.18    0.36    0.29    0.01    0.16
+  PGS ordered    0.18    0.36    0.29    0.01    0.16
+     PGS rule    0.19    0.40    0.22    0.03    0.16
 SIS: 51% of nodes match the true rock type
-PGS: 43% of nodes match the true rock type
+PGS ordered: 43% of nodes match the true rock type
+PGS rule: 49% of nodes match the true rock type
 SIS most likely type over 10 realizations: 64% match, mean entropy 0.36
 ```
 
@@ -209,10 +218,14 @@ SIS most likely type over 10 realizations: 64% match, mean entropy 0.36
 
 ```python
 colors = ListedColormap(["#1f4e79", "#6f9fc9", "#c9d9ea", "#c05a28", "#8c8c8c"])
-fig, axes = plt.subplots(1, 3, figsize=(13, 4.6), layout="constrained")
-for ax, (cats, title) in zip(
-    axes, [(true_rock, "True rock types"), (by_sis[0], "SIS realization"), (by_pgs, "PGS realization")]
-):
+fig, axes = plt.subplots(2, 2, figsize=(8.5, 10), layout="constrained")
+panels = [
+    (true_rock, "True rock types"),
+    (by_sis[0], "SIS realization"),
+    (by_pgs, "PGS realization, ordered"),
+    (by_rule, "PGS realization, hierarchical rule"),
+]
+for ax, (cats, title) in zip(axes.flat, panels):
     ax.scatter(
         *jura_grid.coords[:, :2].T, c=cats, cmap=colors, vmin=-0.5, vmax=4.5, s=7, marker="s", linewidths=0
     )
@@ -227,10 +240,11 @@ save(fig, "categories")
 
 ![categories](categories.png)
 
-SIS gives each type its own indicator variogram and matches the true type at half the nodes. PGS reproduces the
-proportions closely, but its ordered rule only allows contacts between neighbours in the order, so Portlandian appears
-as specks along every Sequanian-Quaternary contact: suited to sequences like stratigraphy, not these rocks. Neither
-recovers Portlandian's 5 % of the area from 3 of 259 samples.
+SIS gives each type its own indicator variogram and matches the true type at half the nodes. Ordered PGS reproduces
+the proportions closely, but its rule only allows contacts between neighbours in the order, so Portlandian appears
+as specks along every Sequanian-Quaternary contact. The hierarchical rule puts Portlandian next to Kimmeridgian and
+under the cover, as in the true map, and matches about as many nodes as SIS. None recovers Portlandian's 5 % of the
+area from 3 of 259 samples.
 
 ## Grades within simulated rock types
 

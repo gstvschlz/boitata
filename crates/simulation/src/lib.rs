@@ -23,7 +23,7 @@ pub mod turning_bands;
 pub use error::{Result, SimError};
 pub use gibbs::{GibbsParams, gibbs};
 pub use multivariate::{Decorrelation, factor_seed, multivariate};
-pub use pgs::{PgsParams, Region, TruncationRule, plurigaussian};
+pub use pgs::{Hierarchy, PgsParams, Region, TruncationRule, plurigaussian};
 pub use post::{
     BlockSupport, CategoricalSummary, ContinuousOptions, ContinuousSummary, categorical,
     continuous, continuous_many, localize, quantile_sorted,

@@ -16,6 +16,7 @@ TableLike: TypeAlias = (
 Path: TypeAlias = str | PathLike[str]
 Holes: TypeAlias = Sequence[int] | Sequence[str] | ArrayLike
 Label: TypeAlias = str | int | float | bool
+PlurigaussianRule: TypeAlias = int | tuple[int, Sequence[PlurigaussianRule]]
 
 class Table:
     def __init__(self, data: TableLike | Mapping[str, ArrayLike]) -> None: ...
@@ -729,10 +730,10 @@ class Plurigaussian:
     def from_parquet(path: Path) -> Plurigaussian: ...
     def __init__(
         self,
-        variogram: Variogram,
-        second_variogram: Variogram | None = None,
+        variograms: Variogram | Sequence[Variogram],
         proportions: Sequence[float] | None = None,
-        regions: Sequence[tuple[float, float, float, float, int]] | None = None,
+        rule: PlurigaussianRule | None = None,
+        regions: Sequence[tuple[Sequence[tuple[float, float]], int]] | None = None,
     ) -> None: ...
     def fit(self, coords: ArrayLike, facies: ArrayLike, holes: Holes | None = None) -> Plurigaussian: ...
     def simulate(
