@@ -2,8 +2,9 @@
 # 20. From drill holes to a classified model
 
 One pass through a resource workflow on the massive sulphide (`MS`) lens of [chapter 19](../19-geological-model/README.md):
-composites from the drill-hole CSVs, exploratory statistics, declustering, the normal-score variogram, ordinary
-kriging with its diagnostics, a simulation summary for risk, classification, and the model saved to Parquet.
+composites from the drill-hole CSVs, the lens modelled from its contacts and kept within the drilling, exploratory
+statistics, declustering, the normal-score variogram, ordinary kriging in search passes, block-support simulation
+for risk, classification, and the model saved to Parquet.
 """
 
 # %% [hidden]
@@ -27,31 +28,93 @@ from matplotlib.colors import ListedColormap
 # %% [markdown]
 # ## Composites
 #
-# Assays and logged lithology are merged, desurveyed and composited to 5 m within each lithology. The `MS` composites
-# inside the lens window are the data; `hole` names travel with them for the search and for classification.
+# Assays and logged lithology are merged and desurveyed by minimum curvature, with tangential desurvey kept for
+# comparison. Whole runs (`length=None`) show how thick the `MS` intercepts are.
 
 # %%
 tables = cs.datasets.drillhole_tables()
-drillholes = cs.Drillholes(
-    tables["collar"], tables["survey"], cs.merge_intervals(tables["assay"], tables["geology"])
+intervals = cs.merge_intervals(tables["assay"], tables["geology"])
+drillholes = cs.Drillholes(tables["collar"], tables["survey"], intervals, method="minimum_curvature")
+tangential = cs.Drillholes(tables["collar"], tables["survey"], intervals, method="tangential")
+
+
+def in_window(points):
+    return (points[:, 0] > 5300) & (points[:, 0] < 5500) & (points[:, 1] > 8100) & (points[:, 1] < 8400)
+
+
+runs = drillholes.composite(None, ["ZN"], domain="LITH")
+run_length = runs["length"][in_window(runs.coords) & (np.array(runs["LITH"], dtype=object) == "MS")]
+print(
+    f"{len(run_length)} MS intercepts: median {np.median(run_length):.1f} m, "
+    f"90 % shorter than {np.quantile(run_length, 0.9):.1f} m, longest {run_length.max():.1f} m"
 )
-composites = drillholes.composite(5.0, ["ZN"], domain="LITH")
-xyz, zn = composites.coords, composites["ZN"]
-lith = np.array(composites["LITH"], dtype=object)
-lens = (xyz[:, 0] > 5300) & (xyz[:, 0] < 5500) & (xyz[:, 1] > 8100) & (xyz[:, 1] < 8400)
-keep = lens & (lith == "MS") & ~np.isnan(zn)
-xyz, zn = xyz[keep], zn[keep]
-holes = np.array(composites["hole"], dtype=object)[keep]
-print(f"{len(zn)} MS composites from {len(set(holes))} holes")
 
 # %% [markdown]
-# ## Statistics, capping and declustering
+# Most intercepts are shorter than a 5 m composite, so each is one composite of its own length; in longer runs the
+# last piece, if under half a composite, joins the one before (`residual="merge"`) rather than standing alone.
+# Composites are taken within each lithology and sorted down each hole, in the lens window.
+
+# %%
+composites = drillholes.composite(5.0, ["ZN"], domain="LITH", residual="merge")
+shift = np.linalg.norm(
+    tangential.composite(5.0, ["ZN"], domain="LITH", residual="merge").coords - composites.coords, axis=1
+)
+xyz, zn = composites.coords, composites["ZN"]
+lith = np.array(composites["LITH"], dtype=object)
+hole = np.array(composites["hole"], dtype=object)
+top, bottom, length = composites["from"], composites["to"], composites["length"]
+order = np.lexsort((top, hole))
+order = order[in_window(xyz[order])]
+xyz, zn, lith, hole, top, bottom, length, shift = (
+    a[order] for a in (xyz, zn, lith, hole, top, bottom, length, shift)
+)
+ms = lith == "MS"
+print(
+    f"{ms.sum()} MS composites, {length[ms].min():.1f}-{length[ms].max():.1f} m; tangential desurvey moves them "
+    f"{np.median(shift[ms]):.2f} m (median), {shift[ms].max():.1f} m at most"
+)
+
+# %% [markdown]
+# ## The lens and the drilled volume
+#
+# As in chapter 19, the lens is a potential field pinned to 0 at every `MS` contact down a hole, +1 in `MS` and −1
+# around it. The field continues the lens along its plunge past the last hole, so blocks are kept only inside the
+# convex hull of the `MS` composites: no block is estimated from data entirely on one side of it.
+
+# %%
+change = (hole[1:] == hole[:-1]) & (ms[1:] != ms[:-1]) & np.isclose(bottom[:-1], top[1:])
+contacts = drillholes.at(list(hole[:-1][change]), bottom[:-1][change])
+coded = ms | np.r_[change, False] | np.r_[False, change] | (np.random.default_rng(1).random(len(ms)) < 0.1)
+field = cs.Variogram([("spherical", 1.0, 150.0)], rotation=(16, 26, 90), ratios=(0.45, 0.22))
+lens = cs.ImplicitModel("kriging", variogram=field, drift_degree=0).fit(
+    xyz[coded], np.where(ms[coded], 1.0, -1.0), boundaries=contacts
+)
+
+keep = ms & ~np.isnan(zn)
+xyz, zn, holes, length = xyz[keep], zn[keep], hole[keep], length[keep]
+hull = cs.convex_hull(xyz)
+lo, hi = hull.bounds
+origin = np.floor(np.array(lo) / 5) * 5
+count = tuple(int(c) for c in np.ceil((np.array(hi) - origin) / 5))
+grid = cs.BlockModel(origin=tuple(origin), size=(5, 5, 5), count=count)
+in_lens = lens.evaluate(grid.centroids) > 0
+in_hull = hull.contains(grid.centroids)
+blocks = grid.mask(in_lens & in_hull)
+print(
+    f"{len(contacts)} contacts; {in_lens.sum()} blocks in the lens, {len(blocks)} of them inside the hull "
+    f"({len(blocks) * 125 / 1e3:.0f} thousand m3)"
+)
+
+# %% [markdown]
+# ## Statistics and declustering
 #
 # Holes cluster where the lens is rich, so cell declustering weights the composites before any statistic. Capping
-# at the 99th percentile would remove 0.1 % of the metal, so grades are left uncapped.
+# at 31 % Zn would cut 2.7 % of the composites and 1.7 % of the metal; instead they stay, restricted in the search
+# below.
 
 # %%
 weights = cs.cell_declustering(xyz, zn, sizes=np.arange(5, 80, 5)).weights
+weights /= weights.mean()
 naive, declustered = cs.describe(zn), cs.describe(zn, weights)
 print(f"mean {naive['mean']:.2f} % Zn, declustered {declustered['mean']:.2f} %, CV {declustered['cv']:.2f}")
 caps = cs.capping(zn, weights)
@@ -88,25 +151,51 @@ ax.set(xlabel="Lag distance (m)", ylabel="γ(h) of normal scores", title="Normal
 save(fig, "variogram")
 
 # %% [markdown]
-# ## Kriging and its checks
+# ## Kriging in passes
 #
-# 5 m blocks within 10 m of an `MS` composite stand in for the lens volume (chapter 19 models it properly). Ordinary
-# kriging takes at most four composites per hole, and returns kriging efficiency and slope of regression with each
-# estimate. The global mean is within 3 % of the declustered composites; by elevation the blocks follow the
-# composites, smoother as kriging should be, and damp the rich level at 860–880 m.
+# The first pass wants eight composites within 30 m, about the variogram range, from at least two holes; blocks it
+# leaves go to a 60 m pass. In both, composites above 30 % Zn inform only blocks within 15 m, so a rich intercept
+# does not spread through the lens.
+
 
 # %%
-lo, hi = xyz.min(axis=0), xyz.max(axis=0)
-origin = np.floor(lo / 5) * 5
-count = tuple(int(c) for c in np.ceil((hi - origin) / 5))
-blocks = cs.BlockModel(origin=tuple(origin), size=(5, 5, 5), count=count)
-blocks = blocks.mask(cs.neighborhood_stats(blocks, xyz, zn, k=1, radius=50)["nearest_dist"] <= 10)
+def passes(high_grade=None):
+    return [
+        cs.Search(radius=r, max_samples=16, min_samples=m, max_per_hole=4, high_grade=high_grade)
+        for r, m in ((30, 8), (60, 4))
+    ]
 
-search = cs.Search(radius=60, max_samples=16, min_samples=4, max_per_hole=4)
-kriged = cs.OrdinaryKriging(grades, search).fit(xyz, zn, holes=holes).predict(blocks, diagnostics=True)
+
+ok = cs.OrdinaryKriging(grades, passes(high_grade=(30.0, 15.0))).fit(xyz, zn, holes=holes)
+kriged = ok.predict(blocks, diagnostics=True)
+free = cs.OrdinaryKriging(grades, passes()).fit(xyz, zn, holes=holes).predict(blocks)
 bias = cs.global_bias(kriged["value"], zn, data_weights=weights)
+print(f"pass 1: {np.mean(kriged['pass'] == 1):.0%} of blocks, pass 2: {np.mean(kriged['pass'] == 2):.0%}")
 print(
-    f"{len(blocks)} blocks; mean {bias['estimate_mean']:.2f} % Zn against {bias['data_mean']:.2f} % declustered"
+    f"mean {bias['estimate_mean']:.2f} % Zn against {bias['data_mean']:.2f} % declustered; "
+    f"{np.mean(free):.2f} % without the high-grade restriction"
+)
+
+# %% [markdown]
+# ## Simulation at block support
+#
+# Thirty sequential Gaussian simulations on 2.5 m nodes, eight per block, with the same high-grade restriction.
+# `blocks=` averages each realization over the nodes of every 5 m block before summarizing, so the probability
+# above 10 % Zn is that of the block grade, which is what a stope mines.
+
+# %%
+nodes = cs.BlockModel(origin=tuple(origin), size=(2.5, 2.5, 2.5), count=tuple(2 * c for c in count))
+i, j, k = np.unravel_index(np.arange(len(nodes)), (2 * count[2], 2 * count[1], 2 * count[0]))[::-1]
+parent = (k // 2 * count[1] + j // 2) * count[0] + i // 2
+nodes = nodes.mask(np.isin(parent, blocks.index))
+
+search = cs.Search(radius=60, max_samples=16, max_per_hole=4, high_grade=(30.0, 15.0))
+sgs = cs.SGS(gaussian, search).fit(xyz, zn, weights=weights, holes=holes)
+summary = sgs.simulate(nodes, n=30, seed=1, cutoffs=[10.0], blocks=blocks)
+low, high = np.quantile(summary.realization_above[0], [0.1, 0.9])
+print(f"{len(nodes)} nodes in {len(blocks)} blocks")
+print(
+    f"blocks above 10 % Zn: P10 {low:.1%}, P90 {high:.1%} of the lens; kriged {np.mean(kriged['value'] > 10):.1%}"
 )
 
 fig, ax = plt.subplots(figsize=(6, 3.4), layout="constrained")
@@ -114,40 +203,30 @@ cs.plot.swath(
     [
         cs.swath(xyz, zn, 20.0, axis="z", weights=weights),
         cs.swath(blocks.centroids, kriged["value"], 20.0, axis="z"),
+        cs.swath(blocks.centroids, summary.mean, 20.0, axis="z"),
     ],
-    labels=["declustered composites", "blocks"],
+    labels=["declustered composites", "kriged blocks", "mean of 30 simulations"],
     ax=ax,
 )
 ax.set(xlabel="Elevation (m)", ylabel="Zn (%)", title="Swath by elevation")
+ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.22), ncol=3)
 save(fig, "swath")
 
 # %% [markdown]
-# ## Simulation for risk
+# By elevation the kriged blocks and the mean of the simulations agree, and follow the composites more smoothly, as
+# they should, damping the rich level at 860–880 m.
 #
-# Thirty sequential Gaussian simulations give, without storing them, the probability that each block exceeds
-# 10 % Zn and the spread of the lens' share above that cutoff.
-
-# %%
-summary = cs.SGS(gaussian, cs.Search(radius=60, max_samples=16)).fit(xyz, zn, weights=weights, holes=holes)
-summary = summary.simulate(blocks, n=30, seed=1, cutoffs=[10.0])
-low, high = np.quantile(summary.realization_above[0], [0.1, 0.9])
-print(
-    f"share of blocks above 10 % Zn: P10 {low:.1%}, P90 {high:.1%}; kriged {np.mean(kriged['value'] > 10):.1%}"
-)
-
-# %% [markdown]
 # ## Classification
 #
-# Measured blocks need a slope of regression of at least 0.8 and composites from three holes nearby; indicated,
-# a slope of 0.5. A 3 × 3 × 3 majority filter removes isolated blocks.
+# Measured blocks come from the first pass with a slope of regression of at least 0.8; indicated, from either pass
+# with a slope of 0.5. A 3 × 3 × 3 majority filter removes isolated blocks.
 
 # %%
-spacing = cs.neighborhood_stats(blocks, xyz, zn, k=8, radius=60, holes=holes)
 rules = [
-    ("measured", {"slope": (">=", 0.8), "holes": (">=", 3)}),
+    ("measured", {"pass": ("<=", 1), "slope": (">=", 0.8)}),
     ("indicated", {"slope": (">=", 0.5)}),
 ]
-classes = cs.classify({**kriged, "holes": spacing["n_holes"]}, rules, default="inferred")
+classes = cs.classify(kriged, rules, default="inferred")
 classes = cs.smooth_classes(blocks, classes, window=(3, 3, 3))
 names = ["measured", "indicated", "inferred"]
 for name in names:
@@ -155,39 +234,63 @@ for name in names:
     print(f"{name:>9}: {inside.mean():5.1%} of blocks, mean {np.nanmean(kriged['value'][inside]):5.2f} % Zn")
 
 # %% [markdown]
-# On the east–west section through the middle of the lens:
+# On the east–west section through the middle of the lens, the simulated block grade is drawn with
+# `plot.uncertain`: the mean of the realizations sets the colour and their standard deviation, over the spread of
+# all simulated blocks, fades it to white. Blocks along the holes keep their colour; the western ones, informed
+# only by composites off the section, fade almost to white, and are the inferred ones.
 
 # %%
+std_all = np.sqrt(summary.variance.mean() + summary.mean.var())
 blocks = (
     blocks.with_column("zn", kriged["value"])
+    .with_column("mean", summary.mean)
+    .with_column("uncertainty", summary.std / std_all)
     .with_column("p_above_10", summary.probability_above[0])
     .with_column("class", np.select([classes == n for n in names], range(3)).astype(float))
 )
-row = blocks.count[1] // 2
-fig, axes = plt.subplots(1, 3, figsize=(12, 4.6), layout="constrained")
-cs.plot.section(blocks, "zn", axis="y", index=row, ax=axes[0], vmin=0, vmax=25)
-cs.plot.section(blocks, "p_above_10", axis="y", index=row, ax=axes[1], vmin=0, vmax=1)
-cs.plot.section(
-    blocks,
-    "class",
-    axis="y",
-    index=row,
-    ax=axes[2],
-    colorbar=False,
-    cmap=ListedColormap([ACCENT, "#9ebad6", LIGHT]),
-    vmin=-0.5,
-    vmax=2.5,
-)
-north = blocks.origin[1] + (row + 0.5) * 5
+row = int(np.bincount(blocks.index // count[0] % count[1]).argmax())
+regular = blocks.to_regular()
+on_row = {
+    name: regular[name].reshape(count[2], count[1], count[0])[:, row] for name in ("mean", "uncertainty")
+}
+extent = (origin[0], origin[0] + 5 * count[0], origin[2], origin[2] + 5 * count[2])
+k, i = np.nonzero(~np.isnan(on_row["mean"]))
+xlim = origin[0] + 5 * np.array([i.min() - 2, i.max() + 3])
+ylim = origin[2] + 5 * np.array([k.min() - 2, k.max() + 3])
+north = origin[1] + (row + 0.5) * 5
 on_section = np.abs(xyz[:, 1] - north) < 5
-for ax, title in zip(axes, ("Kriged Zn (%)", "P(Zn > 10 %)", "Class"), strict=True):
+
+fig = plt.figure(figsize=(11, 6.4), layout="constrained")
+axes = fig.subplots(2, 4, height_ratios=[4, 1])
+grade = plt.Normalize(0, 25)
+cs.plot.section(blocks, "zn", axis="y", index=row, ax=axes[0, 0], colorbar=False, cmap="viridis", norm=grade)
+cs.plot.uncertain(
+    on_row["mean"],
+    on_row["uncertainty"],
+    extent=extent,
+    norm=grade,
+    label="Zn (%)",
+    legend_ax=axes[1, 1],
+    ax=axes[0, 1],
+)
+cs.plot.section(blocks, "p_above_10", axis="y", index=row, ax=axes[0, 2], colorbar=False, vmin=0, vmax=1)
+colors = ListedColormap([ACCENT, "#9ebad6", LIGHT])
+cs.plot.section(
+    blocks, "class", axis="y", index=row, ax=axes[0, 3], colorbar=False, cmap=colors, vmin=-0.5, vmax=2.5
+)
+titles = ("Kriged Zn", "Simulated block Zn", "P(block Zn > 10 %)", "Class")
+for ax, title in zip(axes[0], titles, strict=True):
     ax.scatter(xyz[on_section, 0], xyz[on_section, 2], s=4, color=HIGHLIGHT, linewidths=0)
-    ax.set_title(title)
-    ax.set(xlabel="Easting (m)", ylabel="Elevation (m)")
-handles = [
-    plt.Line2D([], [], marker="s", ls="", color=c, label=n) for c, n in zip((ACCENT, "#9ebad6", LIGHT), names)
-]
-axes[2].legend(handles=handles, loc="lower right", fontsize=8)
+    ax.set(title=title, xlabel="Easting (m)", ylabel="Elevation (m)", xlim=xlim, ylim=ylim)
+for ax, image, label in (
+    (axes[1, 0], axes[0, 0].images[0], "Zn (%)"),
+    (axes[1, 2], axes[0, 2].images[0], "probability"),
+):
+    ax.axis("off")
+    fig.colorbar(image, cax=ax.inset_axes([0.1, 0.6, 0.8, 0.15]), orientation="horizontal", label=label)
+axes[1, 3].axis("off")
+handles = [plt.Line2D([], [], marker="s", ls="", color=colors(i), label=n) for i, n in enumerate(names)]
+axes[1, 3].legend(handles=handles, loc="upper center", fontsize=8)
 save(fig, "section")
 
 # %% [markdown]
