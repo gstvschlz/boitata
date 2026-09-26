@@ -8,7 +8,7 @@
 use std::collections::HashMap;
 use std::num::NonZero;
 
-use kiddo::{MutableKdTree, SquaredEuclidean};
+use kiddo::{ImmutableKdTree, SquaredEuclidean};
 use nalgebra::{Matrix3, Vector3};
 use serde::{Deserialize, Serialize};
 use variogram::aniso::euclidean;
@@ -170,7 +170,7 @@ pub fn neighbors(
     enough(chosen, params)
 }
 
-/// Samples indexed in a k-d tree for repeated neighbourhood queries. Points
+/// Samples indexed in k-d trees for repeated neighbourhood queries. Points
 /// are stored in the search ellipsoid's frame, so Euclidean distance in the
 /// tree is the anisotropic distance. Axes on which every point shares one
 /// value (2D data, a single level) are left out of the tree and added back
@@ -185,11 +185,31 @@ pub struct SearchTree {
     params: Search,
 }
 
-enum Index {
-    Scan,
-    One(MutableKdTree<f64, 1>, Flat),
-    Two(MutableKdTree<f64, 2>, Flat),
-    Three(MutableKdTree<f64, 3>),
+fn project(frame: &Matrix3<f64>, p: &Point) -> [f64; 3] {
+    let q = frame * Vector3::new(p.0, p.1, p.2);
+    [q.x, q.y, q.z]
+}
+
+/// Added points are scanned until this many, then indexed in a block.
+const SCANNED: usize = 64;
+
+/// Consecutive points in blocks of decreasing size, one tree each, and the
+/// points after the last block scanned. A new block absorbs the blocks before
+/// it that are no larger, so each point is re-indexed O(log n) times.
+struct Index {
+    blocks: Vec<Block>,
+    flat: Flat,
+}
+
+struct Block {
+    start: usize,
+    tree: Tree,
+}
+
+enum Tree {
+    One(ImmutableKdTree<f64, 1>),
+    Two(ImmutableKdTree<f64, 2>),
+    Three(ImmutableKdTree<f64, 3>),
 }
 
 /// Axes kept in the tree and the shared value of the others.
@@ -202,11 +222,15 @@ struct Flat {
 impl Flat {
     fn of(points: &[[f64; 3]]) -> Self {
         let mut constant = [None; 3];
-        for (d, c) in constant.iter_mut().enumerate() {
-            let first = points[0][d];
-            if points.iter().all(|p| p[d] == first) {
-                *c = Some(first);
+        if let Some(first) = points.first() {
+            for (d, c) in constant.iter_mut().enumerate() {
+                if points.iter().all(|p| p[d] == first[d]) {
+                    *c = Some(first[d]);
+                }
             }
+        }
+        if constant.iter().all(Option::is_some) {
+            constant = [None; 3];
         }
         let mut active = [0; 3];
         let mut n = 0;
@@ -217,6 +241,10 @@ impl Flat {
             }
         }
         Self { active, constant }
+    }
+
+    fn dims(&self) -> usize {
+        self.constant.iter().filter(|c| c.is_none()).count()
     }
 
     fn keep<const K: usize>(&self, p: &[f64; 3]) -> [f64; K] {
@@ -233,25 +261,35 @@ impl Flat {
             .filter_map(|d| self.constant[d].map(|c| (q[d] - c).powi(2)))
             .sum()
     }
+
+    /// Squared distance along the kept axes.
+    fn distance(&self, p: &[f64; 3], q: &[f64; 3]) -> f64 {
+        self.active[..self.dims()]
+            .iter()
+            .map(|&d| (p[d] - q[d]).powi(2))
+            .sum()
+    }
 }
 
-fn build<const K: usize>(points: &[[f64; 3]], flat: &Flat) -> Option<MutableKdTree<f64, K>> {
+fn build<const K: usize>(points: &[[f64; 3]], flat: &Flat) -> Option<ImmutableKdTree<f64, K>> {
     let kept: Vec<[f64; K]> = points.iter().map(|p| flat.keep(p)).collect();
-    MutableKdTree::new_from_slice(&kept).ok()
+    ImmutableKdTree::new_from_slice(&kept).ok()
 }
 
 /// The `k` nearest within the radius, plus every point tied with the k-th so
-/// that ties resolve by index exactly as in the scan.
+/// that ties resolve by index exactly as in the scan; every point within the
+/// radius when `k` is 0.
 fn nearest<const K: usize>(
-    tree: &MutableKdTree<f64, K>,
+    tree: &ImmutableKdTree<f64, K>,
     query: [f64; K],
     k: usize,
     radius2: f64,
 ) -> Vec<(f64, usize)> {
-    if k >= tree.size() {
+    if k == 0 || k >= tree.size() {
         return tree
             .query(&query)
             .within::<SquaredEuclidean<f64>>(radius2)
+            .unsorted()
             .execute()
             .iter()
             .map(|r| (r.distance, r.item as usize))
@@ -266,6 +304,7 @@ fn nearest<const K: usize>(
         Some(last) if found.len() == k => tree
             .query(&query)
             .within::<SquaredEuclidean<f64>>(last.distance)
+            .unsorted()
             .execute(),
         _ => found,
     };
@@ -275,69 +314,146 @@ fn nearest<const K: usize>(
         .collect()
 }
 
-impl Index {
-    fn build(points: &[[f64; 3]]) -> Self {
-        if points.len() < 2 {
-            return Index::Scan;
+impl Tree {
+    fn build(points: &[[f64; 3]], flat: &Flat) -> Option<Self> {
+        match flat.dims() {
+            1 => build::<1>(points, flat).map(Tree::One),
+            2 => build::<2>(points, flat).map(Tree::Two),
+            _ => build::<3>(points, flat).map(Tree::Three),
         }
-        let flat = Flat::of(points);
-        let built = match flat.constant.iter().filter(|c| c.is_none()).count() {
-            1 => build::<1>(points, &flat).map(|t| Index::One(t, flat)),
-            2 => build::<2>(points, &flat).map(|t| Index::Two(t, flat)),
-            3 => build::<3>(points, &flat).map(Index::Three),
-            _ => None,
-        };
-        built.unwrap_or(Index::Scan)
     }
 
-    /// Adds point `item`; `false` when the index must be rebuilt.
-    fn add(&mut self, point: &[f64; 3], item: usize) -> bool {
-        let item = item as u32;
+    fn size(&self) -> usize {
         match self {
-            Index::Scan => false,
-            Index::One(tree, flat) => {
-                flat.holds(point) && tree.add(&flat.keep(point), item).is_ok()
-            }
-            Index::Two(tree, flat) => {
-                flat.holds(point) && tree.add(&flat.keep(point), item).is_ok()
-            }
-            Index::Three(tree) => tree.add(point, item).is_ok(),
+            Tree::One(t) => t.size(),
+            Tree::Two(t) => t.size(),
+            Tree::Three(t) => t.size(),
         }
+    }
+
+    fn nearest(&self, flat: &Flat, query: &[f64; 3], k: usize, radius2: f64) -> Vec<(f64, usize)> {
+        match self {
+            Tree::One(t) => nearest(t, flat.keep(query), k, radius2),
+            Tree::Two(t) => nearest(t, flat.keep(query), k, radius2),
+            Tree::Three(t) => nearest(t, flat.keep(query), k, radius2),
+        }
+    }
+}
+
+impl Index {
+    fn new(points: &[[f64; 3]]) -> Self {
+        let mut index = Self {
+            blocks: vec![],
+            flat: Flat::of(points),
+        };
+        index.push(points, 0);
+        index
+    }
+
+    fn push(&mut self, points: &[[f64; 3]], start: usize) {
+        if start == points.len() {
+            return;
+        }
+        if let Some(tree) = Tree::build(&points[start..], &self.flat) {
+            self.blocks
+                .truncate(self.blocks.partition_point(|b| b.start < start));
+            self.blocks.push(Block { start, tree });
+        }
+    }
+
+    fn scanned(&self) -> usize {
+        self.blocks.last().map_or(0, |b| b.start + b.tree.size())
+    }
+
+    /// Indexes the last of `points`; `false` when it leaves the plane or
+    /// line of the others and the index must be rebuilt.
+    fn add(&mut self, points: &[[f64; 3]]) -> bool {
+        if !self.flat.holds(&points[points.len() - 1]) {
+            return false;
+        }
+        let mut start = self.scanned();
+        if points.len() - start >= SCANNED {
+            for b in self.blocks.iter().rev() {
+                if b.tree.size() > points.len() - start {
+                    break;
+                }
+                start = b.start;
+            }
+            self.push(points, start);
+        }
+        true
+    }
+
+    fn candidates(
+        &self,
+        points: &[[f64; 3]],
+        query: &[f64; 3],
+        k: usize,
+        radius2: f64,
+    ) -> Vec<(f64, usize)> {
+        let flat = &self.flat;
+        let mut bound = radius2 - flat.offset(query);
+        if bound < 0.0 {
+            return vec![];
+        }
+        let mut found: Vec<(f64, usize)> = vec![];
+        for b in &self.blocks {
+            let enough = found.len() >= k;
+            let near = b
+                .tree
+                .nearest(flat, query, if enough { 0 } else { k }, bound);
+            if !enough && near.len() >= k {
+                bound = near.iter().map(|n| n.0).fold(0.0, f64::max);
+            }
+            found.extend(near.into_iter().map(|(d, i)| (d, i + b.start)));
+        }
+        let scanned = self.scanned();
+        if self.blocks.len() > 1 || points.len() > scanned {
+            found.extend(
+                points[scanned..]
+                    .iter()
+                    .zip(scanned..)
+                    .map(|(p, i)| (flat.distance(p, query), i))
+                    .filter(|(d, _)| *d <= bound),
+            );
+            found.sort_by(|a, b| a.0.total_cmp(&b.0).then(a.1.cmp(&b.1)));
+            if let Some(&(last, _)) = found.get(k.saturating_sub(1)) {
+                found.retain(|a| a.0 <= last);
+            }
+        }
+        found
     }
 }
 
 impl SearchTree {
     pub fn new(samples: &[Sample], params: &Search, vg: Option<&Variogram>) -> Self {
         let frame = metric(params, vg).map_or_else(Matrix3::identity, Anisotropy::matrix);
-        let mut tree = Self {
-            index: Index::Scan,
+        let locs: Vec<Point> = samples.iter().map(|s| s.loc).collect();
+        let points: Vec<[f64; 3]> = locs.iter().map(|p| project(&frame, p)).collect();
+        Self {
+            index: Index::new(&points),
             frame,
-            points: vec![],
-            locs: samples.iter().map(|s| s.loc).collect(),
+            points,
+            locs,
             holes: samples.iter().map(|s| s.hole).collect(),
             values: samples.iter().map(|s| s.value).collect(),
             params: params.clone(),
-        };
-        tree.points = tree.locs.iter().map(|p| tree.project(p)).collect();
-        tree.index = Index::build(&tree.points);
-        tree
+        }
     }
 
     fn project(&self, p: &Point) -> [f64; 3] {
-        let q = self.frame * Vector3::new(p.0, p.1, p.2);
-        [q.x, q.y, q.z]
+        project(&self.frame, p)
     }
 
     /// Adds a sample; its index is the number of samples before it.
     pub fn add(&mut self, sample: &Sample) {
         let point = self.project(&sample.loc);
-        let item = self.points.len();
         self.points.push(point);
         self.locs.push(sample.loc);
         self.holes.push(sample.hole);
         self.values.push(sample.value);
-        if !self.index.add(&point, item) {
-            self.index = Index::build(&self.points);
+        if !self.index.add(&self.points) {
+            self.index = Index::new(&self.points);
         }
     }
 
@@ -350,31 +466,7 @@ impl SearchTree {
     }
 
     fn candidates(&self, query: &[f64; 3], k: usize, radius2: f64) -> Vec<(f64, usize)> {
-        let reduced = |flat: &Flat| radius2 - flat.offset(query);
-        match &self.index {
-            Index::Scan => {
-                let mut all: Vec<(f64, usize)> = self
-                    .points
-                    .iter()
-                    .enumerate()
-                    .map(|(i, p)| ((0..3).map(|d| (p[d] - query[d]).powi(2)).sum(), i))
-                    .filter(|(d, _)| *d <= radius2)
-                    .collect();
-                all.sort_by(|a, b| a.0.total_cmp(&b.0).then(a.1.cmp(&b.1)));
-                if let Some(&(last, _)) = all.get(k.saturating_sub(1)) {
-                    all.retain(|a| a.0 <= last);
-                }
-                all
-            }
-            Index::One(tree, flat) if reduced(flat) >= 0.0 => {
-                nearest(tree, flat.keep(query), k, reduced(flat))
-            }
-            Index::Two(tree, flat) if reduced(flat) >= 0.0 => {
-                nearest(tree, flat.keep(query), k, reduced(flat))
-            }
-            Index::Three(tree) => nearest(tree, *query, k, radius2),
-            _ => vec![],
-        }
+        self.index.candidates(&self.points, query, k, radius2)
     }
 
     /// Selection by a per-query ellipsoid `local` (major = 1, other ratios ≤ 1)
@@ -583,6 +675,38 @@ mod tests {
         assert_eq!(tree.neighbors(&(3.0, 4.0, 50.0)).unwrap()[0], 50);
         tree.add(&s(3.0, 4.0, 50.0, 0.0, None));
         assert_eq!(tree.neighbors(&(3.0, 4.0, 50.0)).unwrap()[0], 200);
+    }
+
+    #[test]
+    fn a_level_added_among_3d_data_is_searched_exactly() {
+        let mut samples: Vec<Sample> = (0..200)
+            .map(|i| {
+                s(
+                    (i * 37 % 101) as f64,
+                    (i * 53 % 97) as f64,
+                    (i % 9) as f64,
+                    0.0,
+                    None,
+                )
+            })
+            .collect();
+        let p = Search {
+            octant: true,
+            ..params(1, 16, 30.0)
+        };
+        let mut tree = SearchTree::new(&samples, &p, None);
+        for i in 0..3000 {
+            let t = ((i * 7 % 60) as f64, (i / 60) as f64 * 2.0, 4.0);
+            if i % 50 == 0 {
+                assert_eq!(
+                    tree.neighbors(&t).ok(),
+                    neighbors(&t, &samples, &p, None).ok()
+                );
+            }
+            let node = s(t.0, t.1, t.2, 0.0, None);
+            tree.add(&node);
+            samples.push(node);
+        }
     }
 
     #[test]

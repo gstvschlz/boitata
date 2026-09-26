@@ -47,6 +47,41 @@ fn bench(c: &mut Criterion) {
     group.finish();
 }
 
+/// Sequential simulation's pattern on one level of a grid: query a node, then add it.
+fn growth(c: &mut Criterion) {
+    let samples: Vec<Sample> = cloud(300, 5)
+        .into_iter()
+        .map(|p| Sample::new(p, 0.0))
+        .collect();
+    let level: Vec<Sample> = (0..10_000)
+        .map(|i| {
+            let j = i * 7919 % 10_000;
+            Sample::new(
+                ((j % 100) as f64 * 20.0, (j / 100) as f64 * 20.0, 200.0),
+                0.0,
+            )
+        })
+        .collect();
+    let search = Search {
+        min_samples: 1,
+        max_samples: 16,
+        radius: 300.0,
+        ..Default::default()
+    };
+    let mut group = c.benchmark_group("10 000 nodes on one level among 300 samples");
+    group.sample_size(10);
+    group.bench_function("query and add", |b| {
+        b.iter(|| {
+            let mut tree = SearchTree::new(&samples, &search, None);
+            for s in &level {
+                black_box(tree.neighbors(&s.loc).ok());
+                tree.add(s);
+            }
+        })
+    });
+    group.finish();
+}
+
 fn kriging(c: &mut Criterion) {
     let samples: Vec<Sample> = cloud(5_000, 3)
         .into_iter()
@@ -76,5 +111,5 @@ fn kriging(c: &mut Criterion) {
     );
 }
 
-criterion_group!(benches, bench, kriging);
+criterion_group!(benches, bench, growth, kriging);
 criterion_main!(benches);
