@@ -77,7 +77,7 @@ save(fig, "maps")
 
 # %% [markdown]
 # Kriging is smooth: estimates vary less than the truth, so the regression of estimates on true values has a slope
-# below 1. A mean error² / variance of 0.65 means the model's variance is somewhat pessimistic here.
+# below 1. A mean error² / variance of 0.64 means the model's variance is somewhat pessimistic here.
 
 # %%
 fig, (a, b) = plt.subplots(1, 2, figsize=(9, 4), layout="constrained")

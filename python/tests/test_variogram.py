@@ -44,6 +44,25 @@ def test_white_noise_variogram_is_flat_at_the_variance():
     assert fitted.sill == pytest.approx(values.var(), rel=0.2)
 
 
+def test_nested_fit_with_fixed_and_bounded_parameters():
+    x = np.linspace(0, 400, 800)
+    values = np.sin(x / 6) + np.sin(x / 40) + 0.2 * rng.normal(size=x.size)
+    exp = cs.experimental_variogram(np.c_[x, 0 * x], values, lag=4, max_lag=120)
+    assert repr(exp.fit()) == repr(exp.fit("spherical", nugget=None, sills=None, ranges=None))
+    two = exp.fit(["spherical", "spherical"], weighting="count/distance")
+    assert len(two.structures) == 2 and two.structures[0].range < two.structures[1].range
+    fixed = exp.fit(["spherical", "gaussian"], nugget=0.05, sills=[None, (0.1, 0.4)], ranges=[(5, 15), 60.0])
+    assert fixed.nugget == 0.05 and fixed.structures[1].range == 60.0
+    assert 0.1 <= fixed.structures[1].sill <= 0.4 and 5 <= fixed.structures[0].range <= 15
+    assert repr(cs.Variogram.fit(exp, ("spherical", "spherical"), "count/distance")) == repr(two)
+    with pytest.raises(ValueError):
+        exp.fit(["spherical"] * 4)
+    with pytest.raises(ValueError):
+        exp.fit(["spherical"] * 2, sills=[None])
+    with pytest.raises(ValueError):
+        exp.fit(nugget=(0.3, 0.1))
+
+
 def test_estimators_and_standardize():
     coords = rng.uniform(0, 100, (400, 2))
     values = np.exp(rng.normal(size=400))

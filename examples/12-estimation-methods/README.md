@@ -53,13 +53,13 @@ for name, e in estimates.items():
             method  RMSE   corr   variance ratio
  nearest neighbour  178.6  0.739  0.95
  inverse distance²  152.0  0.798  0.66
-  ordinary kriging  157.4  0.779  0.58
- universal kriging  161.6  0.764  0.61
+  ordinary kriging  155.3  0.786  0.61
+ universal kriging  160.1  0.769  0.64
 ```
 
 Nearest neighbour keeps the full variability but places it poorly; inverse distance and kriging trade variability
 for accuracy. Here inverse distance is slightly more accurate than kriging with the chapter 3 model, whose short
-ranges and 35 % nugget smooth hard; kriging adds a variance per estimate and accounts for clustered samples,
+ranges across the major axis smooth hard; kriging adds a variance per estimate and accounts for clustered samples,
 which inverse distance does not. Universal kriging's linear drift does not help on this stationary field.
 
 <details><summary>Python</summary>
@@ -154,10 +154,10 @@ save(fig, "search")
 </details>
 
 ```text
-pass 1:  32% of nodes, mean slope 0.98, RMSE 178 ppm
-pass 2:  68% of nodes, mean slope 0.90, RMSE 147 ppm
-197 nodes move by over 5 ppm; their mean error goes from +44 ppm to +27 ppm
-cross-validation mean error +5.5 ppm without the restriction, +2.7 with
+pass 1:  32% of nodes, mean slope 0.97, RMSE 174 ppm
+pass 2:  68% of nodes, mean slope 0.90, RMSE 146 ppm
+179 nodes move by over 5 ppm; their mean error goes from +55 ppm to +38 ppm
+cross-validation mean error +7.4 ppm without the restriction, +4.8 with
 ```
 
 ![search](search.png)
@@ -192,8 +192,8 @@ save(fig, "blocks")
 </details>
 
 ```text
-           block kriging: RMSE against block averages 105.3 ppm
-point kriging at centres: RMSE against block averages 106.9 ppm
+           block kriging: RMSE against block averages 102.5 ppm
+point kriging at centres: RMSE against block averages 107.7 ppm
 ```
 
 ![blocks](blocks.png)
@@ -216,7 +216,7 @@ print(
 </details>
 
 ```text
-78,000 nodes in 0.03 s; RMSE against all exhaustive values 156.2 ppm
+78,000 nodes in 0.03 s; RMSE against all exhaustive values 153.9 ppm
 ```
 
 Full script: [`example_12.py`](example_12.py)

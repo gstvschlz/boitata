@@ -53,7 +53,7 @@ for name, e in estimates.items():
 # %% [markdown]
 # Nearest neighbour keeps the full variability but places it poorly; inverse distance and kriging trade variability
 # for accuracy. Here inverse distance is slightly more accurate than kriging with the chapter 3 model, whose short
-# ranges and 35 % nugget smooth hard; kriging adds a variance per estimate and accounts for clustered samples,
+# ranges across the major axis smooth hard; kriging adds a variance per estimate and accounts for clustered samples,
 # which inverse distance does not. Universal kriging's linear drift does not help on this stationary field.
 
 # %%

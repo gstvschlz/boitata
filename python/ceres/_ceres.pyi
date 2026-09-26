@@ -232,6 +232,8 @@ def downscale(
 def normal_cdf(x: ArrayLike) -> npt.NDArray[np.float64]: ...
 def normal_ppf(p: ArrayLike) -> npt.NDArray[np.float64]: ...
 
+_Limit: TypeAlias = float | tuple[float, float]
+
 class Structure:
     def __init__(
         self, model: str, sill: float, range: float, order: float | None = None, exponent: float | None = None
@@ -253,7 +255,12 @@ class Variogram:
     ) -> None: ...
     @staticmethod
     def fit(
-        experimental: ExperimentalVariogram, model: str = "spherical", weighting: str = "count"
+        experimental: ExperimentalVariogram,
+        model: str | Sequence[str] = "spherical",
+        weighting: str = "count",
+        nugget: _Limit | None = None,
+        sills: Sequence[_Limit | None] | None = None,
+        ranges: Sequence[_Limit | None] | None = None,
     ) -> Variogram: ...
     def with_anisotropy(
         self, rotation: tuple[float, float, float], ratios: tuple[float, float]
@@ -284,7 +291,14 @@ class ExperimentalVariogram:
     def counts(self) -> npt.NDArray[np.float64]: ...
     @property
     def covariances(self) -> npt.NDArray[np.float64] | None: ...
-    def fit(self, model: str = "spherical", weighting: str = "count") -> Variogram: ...
+    def fit(
+        self,
+        model: str | Sequence[str] = "spherical",
+        weighting: str = "count",
+        nugget: _Limit | None = None,
+        sills: Sequence[_Limit | None] | None = None,
+        ranges: Sequence[_Limit | None] | None = None,
+    ) -> Variogram: ...
 
 class VariogramMap:
     lags: npt.NDArray[np.float64]
