@@ -1,14 +1,71 @@
-# ceres
+---
+hide: [navigation, toc]
+---
 
-Geostatistics in Rust with a Python interface: data containers and I/O, exploratory analysis, transforms,
-variography, estimation, simulation, validation and implicit modelling. Computations run in parallel and give the
-same result on any number of threads.
+<div class="ceres-hero" markdown>
+<img class="logo-light" src="assets/logo.svg" alt="">
+<img class="logo-dark" src="assets/logo-dark.svg" alt="">
+<div markdown>
+<h1>ceres</h1>
+
+Geostatistics in Rust with a Python interface. Parallel, and the same result on any number of threads.
+
+[Get started](#install){ .md-button .md-button--primary }
+[Examples](examples/index.md){ .md-button }
+[API reference](api/containers.md){ .md-button }
+</div>
+</div>
+
+<div class="grid cards" markdown>
+
+-   :material-database-outline: **Data and I/O**
+
+    ---
+
+    Point sets, drillholes and block models with Arrow columns; CSV, GSLIB and Parquet; zero-copy to NumPy,
+    polars and pandas.
+
+-   :material-chart-bell-curve: **Transforms and EDA**
+
+    ---
+
+    Declustering, normal score and anamorphosis, log-ratios, and statistics for exploratory analysis.
+
+-   :material-vector-curve: **Variography**
+
+    ---
+
+    Experimental variograms, model fitting and the linear model of coregionalization.
+
+-   :material-cube-outline: **Estimation**
+
+    ---
+
+    Simple, ordinary and indicator kriging, cokriging, IDW and cross-validation over anisotropic searches.
+
+-   :material-dice-multiple-outline: **Simulation**
+
+    ---
+
+    SGS, SIS and turning bands, with reproducible realizations from a single seed.
+
+-   :material-layers-triple-outline: **Modelling and validation**
+
+    ---
+
+    Desurveying, compositing, domaining, implicit modelling and checks of estimates against the data.
+
+</div>
+
+## Install
 
 ```bash
 pip install ceres            # numpy only
 pip install "ceres[plot]"    # with matplotlib for ceres.plot
 pip install "ceres[3d]"      # with pyvista for ceres.plot3d
 ```
+
+## A first estimate
 
 ```python
 import ceres as cs

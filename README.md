@@ -1,6 +1,18 @@
-# ceres
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/logo-dark.svg">
+    <img src="docs/assets/logo.svg" alt="ceres" width="120">
+  </picture>
+</p>
 
-Geostatistics in Rust with a Python interface.
+<h1 align="center">ceres</h1>
+
+<p align="center">
+  Geostatistics in Rust with a Python interface.<br>
+  <a href="https://gstvschlz.github.io/ceres/">Documentation</a> ·
+  <a href="https://gstvschlz.github.io/ceres/examples/">Examples</a> ·
+  <a href="https://gstvschlz.github.io/ceres/api/containers/">API</a>
+</p>
 
 ## About
 

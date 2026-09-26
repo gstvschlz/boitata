@@ -1,0 +1,68 @@
+@import url("https://fonts.googleapis.com/css2?family=Archivo:wght@700&display=swap");
+
+:root {
+  --ceres-blue: #3776AB;
+  --ceres-yellow: #FFD43B;
+  --ceres-navy: #1F3B57;
+  --ceres-mist: #F4F6F8;
+}
+
+[data-md-color-scheme="default"] {
+  --md-primary-fg-color: var(--ceres-navy);
+  --md-primary-fg-color--light: var(--ceres-blue);
+  --md-primary-fg-color--dark: #14263A;
+  --md-accent-fg-color: var(--ceres-blue);
+  --md-typeset-a-color: var(--ceres-blue);
+  --md-default-fg-color: var(--ceres-navy);
+  --md-code-bg-color: var(--ceres-mist);
+}
+
+[data-md-color-scheme="slate"] {
+  --md-hue: 210;
+  --md-primary-fg-color: #14263A;
+  --md-primary-fg-color--light: #1F3B57;
+  --md-primary-fg-color--dark: #0E1B29;
+  --md-accent-fg-color: var(--ceres-yellow);
+  --md-typeset-a-color: #6FA3D0;
+  --md-default-bg-color: #0F1D2C;
+  --md-code-bg-color: #14263A;
+}
+
+.md-header__topic:first-child,
+.md-typeset h1,
+.md-typeset h2 {
+  font-family: "Archivo", var(--md-text-font-family);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+.md-typeset h1 { color: var(--md-default-fg-color); }
+
+.md-header__button.md-logo img { height: 1.8rem; }
+
+.md-typeset .ceres-hero {
+  display: flex;
+  align-items: center;
+  gap: 2.5rem;
+  margin: 1.5rem 0 2.5rem;
+}
+.md-typeset .ceres-hero img { width: 9rem; flex-shrink: 0; }
+.md-typeset .ceres-hero h1 { font-size: 3rem; margin: 0 0 .4rem; color: inherit; }
+.md-typeset .ceres-hero p { font-size: 1.05rem; margin: 0 0 1.2rem; }
+.md-typeset .ceres-hero .md-button { margin: 0 .5rem .5rem 0; }
+
+@media screen and (max-width: 44.9375em) {
+  .md-typeset .ceres-hero { flex-direction: column; align-items: flex-start; gap: 1rem; }
+  .md-typeset .ceres-hero img { width: 5rem; }
+}
+
+.md-typeset .grid.cards .twemoji { color: var(--md-typeset-a-color); }
+
+[data-md-color-scheme="slate"] .md-typeset .md-button { color: #6FA3D0; }
+[data-md-color-scheme="slate"] .md-typeset .md-button--primary {
+  background-color: var(--ceres-yellow);
+  border-color: var(--ceres-yellow);
+  color: #14263A;
+}
+
+[data-md-color-scheme="default"] .ceres-hero .logo-dark,
+[data-md-color-scheme="slate"] .ceres-hero .logo-light { display: none; }
