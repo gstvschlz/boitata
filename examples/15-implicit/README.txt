@@ -1,1 +1,1 @@
-## 15. Implicit modelling
+## 15. Implicit modeling

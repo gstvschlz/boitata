@@ -23,7 +23,7 @@ fn closure<'py>(py: Python<'py>, parts: &Bound<PyAny>, total: f64) -> PyResult<B
     by_row(py, parts, |r| coda::closure(r, total))
 }
 
-/// Centred log-ratio of each row.
+/// Centerd log-ratio of each row.
 #[pyfunction]
 fn clr<'py>(py: Python<'py>, parts: &Bound<PyAny>) -> PyResult<Bound<'py, PyAny>> {
     by_row(py, parts, coda::clr)

@@ -9,7 +9,7 @@ Cd correlates with Zn, and Zn is also known at the validation points, which suit
 import ceres as cs
 import matplotlib.pyplot as plt
 import numpy as np
-from common import ACCENT, GREY, HIGHLIGHT, INK, save
+from common import ACCENT, GRAY, HIGHLIGHT, INK, save
 
 train = cs.datasets.jura()["prediction"]
 test = cs.datasets.jura()["validation"]
@@ -173,7 +173,7 @@ for ax, estimate, title in (
     (axes[1], by_ck, "Collocated cokriging with Zn"),
 ):
     ax.scatter(truth, estimate, s=12, color=ACCENT, alpha=0.7, linewidths=0)
-    ax.plot([0, 5], [0, 5], color=GREY, ls="--", lw=1)
+    ax.plot([0, 5], [0, 5], color=GRAY, ls="--", lw=1)
     ax.set(xlim=(0, 5), ylim=(0, 5), xlabel="True Cd at validation points (mg/kg)", title=title)
     ax.set_aspect("equal")
     ax.text(0.2, 4.6, f"RMSE {rmse(estimate):.2f} mg/kg", color=INK)
@@ -200,7 +200,7 @@ ax.scatter(
     linewidths=0.9,
     label=f"validation point with Cd > {limit}",
 )
-ax.scatter(*test.coords[~exceeds, :2].T, s=6, color=GREY, label="validation point below")
+ax.scatter(*test.coords[~exceeds, :2].T, s=6, color=GRAY, label="validation point below")
 ax.set_aspect("equal")
 ax.set(title=f"Indicator kriging: P(Cd > {limit} mg/kg)", xlabel="X (km)", ylabel="Y (km)")
 ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.12), ncol=2, fontsize=8)
@@ -260,7 +260,7 @@ order = np.argsort(by_mik.mean)
 fig, axes = plt.subplots(1, 2, figsize=(9, 3.8), layout="constrained")
 sorted_cd = np.sort(cd)
 cumulative = np.cumsum(weights[np.argsort(cd)]) / weights.sum()
-axes[0].step(sorted_cd, cumulative, where="post", color=GREY, lw=1, label="declustered global")
+axes[0].step(sorted_cd, cumulative, where="post", color=GRAY, lw=1, label="declustered global")
 for i, color, label in ((order[0], ACCENT, "lowest E-type"), (order[-1], HIGHLIGHT, "highest E-type")):
     axes[0].plot(
         deciles, by_mik.cdf[:, i], "o-", color=color, ms=3, lw=1, label=f"{label}, true {truth[i]:.2f}"
@@ -269,7 +269,7 @@ axes[0].axvline(limit, color=INK, lw=0.6, ls=":")
 axes[0].set(xlabel="Cd (mg/kg)", ylabel="P(Cd ≤ z)", title="Conditional distributions", xlim=(0, 4))
 axes[0].legend(fontsize=8, loc="lower right")
 axes[1].scatter(truth, by_mik.mean, s=12, color=ACCENT, alpha=0.7, linewidths=0)
-axes[1].plot([0, 5], [0, 5], color=GREY, ls="--", lw=1)
+axes[1].plot([0, 5], [0, 5], color=GRAY, ls="--", lw=1)
 axes[1].set(
     xlim=(0, 5), ylim=(0, 5), xlabel="True Cd (mg/kg)", ylabel="E-type Cd (mg/kg)", title="E-type estimate"
 )
@@ -293,7 +293,7 @@ the thresholds whose kriged probabilities broke the order relations at each targ
 ```python
 p = np.linspace(0, 1, 51)
 fig, ax = plt.subplots(figsize=(4.4, 4), layout="constrained")
-ax.plot([0, 1], [0, 1], color=GREY, ls="--", lw=1)
+ax.plot([0, 1], [0, 1], color=GRAY, ls="--", lw=1)
 for name, estimator, color in (("per-threshold", mik, ACCENT), ("median indicator", median, INK)):
     cv = estimator.cross_validate()
     print(

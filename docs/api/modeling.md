@@ -1,3 +1,3 @@
-# Modelling
+# Modeling
 
 ::: ceres.ImplicitModel

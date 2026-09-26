@@ -21,7 +21,7 @@ def test_describe_skips_nan_and_matches_hazen_quantiles():
 def test_swath_along_azimuth_and_axis():
     xy = rng.uniform(0, 100, (500, 2))
     s = cs.swath(xy, xy[:, 0], 10.0, azimuth=90)
-    np.testing.assert_allclose(s["mean"], s["centres"], atol=1.5)
+    np.testing.assert_allclose(s["mean"], s["center"], atol=1.5)
     assert sum(s["count"]) == 500
     assert cs.swath(xy, xy[:, 0], 10.0, axis="x")["count"] == s["count"]
     with pytest.raises(cs.InvalidInput):

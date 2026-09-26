@@ -2,7 +2,7 @@
 
 Block kriging of Walker Lake `V` on 10 × 10 m blocks, then the checks a resource estimate needs: global and local
 bias against the declustered data, leave-one-out and k-fold cross-validation, kriging efficiency, slope of regression
-and the neighbourhood diagnostics per block, scores for candidate searches, a classification from the diagnostics and
+and the neighborhood diagnostics per block, scores for candidate searches, a classification from the diagnostics and
 the sample spacing, and a majority filter that removes isolated blocks. The exhaustive grid checks what the slope of
 regression and the search scores predict.
 
@@ -12,7 +12,7 @@ regression and the search scores predict.
 import ceres as cs
 import matplotlib.pyplot as plt
 import numpy as np
-from common import ACCENT, GREY, LIGHT, map_axes, save
+from common import ACCENT, GRAY, LIGHT, map_axes, save
 
 samples = cs.datasets.walker_lake()
 truth = cs.datasets.walker_lake_exhaustive()["V"].reshape(300, 260)
@@ -72,7 +72,7 @@ metal = [
     for g in (d["value"], true_blocks)
 ]
 cs.plot.swath(metal, labels=["blocks", "truth"], y="metal", ax=axes[1])
-for ax, colors in ((axes[0], (GREY, ACCENT, "black")), (axes[1], (ACCENT, "black"))):
+for ax, colors in ((axes[0], (GRAY, ACCENT, "black")), (axes[1], (ACCENT, "black"))):
     for line, color in zip(ax.lines, colors, strict=True):
         line.set_color(color)
 axes[0].legend(axes[0].lines, ["declustered samples", "blocks", "truth"])
@@ -102,7 +102,7 @@ for ax, axis, name in ((axes[0], "x", "Easting (m)"), (axes[1], "y", "Northing (
         cs.swath(centroids, true_blocks, 20.0, axis=axis),
     ]
     cs.plot.swath(series, labels=["declustered samples", "blocks", "truth"], ax=ax)
-    for line, color in zip(ax.lines, (GREY, ACCENT, "black"), strict=True):
+    for line, color in zip(ax.lines, (GRAY, ACCENT, "black"), strict=True):
         line.set_color(color)
     ax.legend()
     ax.set(xlabel=name, ylabel="V (ppm)")
@@ -157,7 +157,7 @@ for ax, key, title in (
     (axes[1], "slope", "Slope of regression"),
 ):
     im = ax.imshow(d[key].reshape(shape), origin="lower", extent=extent, vmin=0, vmax=1)
-    ax.scatter(xy[:, 0], xy[:, 1], s=2, color=GREY, linewidths=0)
+    ax.scatter(xy[:, 0], xy[:, 1], s=2, color=GRAY, linewidths=0)
     map_axes(ax, title)
 fig.colorbar(im, ax=axes, shrink=0.8)
 save(fig, "diagnostics")
@@ -245,15 +245,15 @@ for ax, key, title in (
     (axes[1], "negative_weight_sum", "Sum of negative weights"),
 ):
     im = ax.imshow(d[key].reshape(shape), origin="lower", extent=extent)
-    ax.scatter(xy[:, 0], xy[:, 1], s=2, color=GREY, linewidths=0)
+    ax.scatter(xy[:, 0], xy[:, 1], s=2, color=GRAY, linewidths=0)
     map_axes(ax, title)
     fig.colorbar(im, ax=ax, shrink=0.8)
-save(fig, "neighbourhood")
+save(fig, "neighborhood")
 ```
 
 </details>
 
-![neighbourhood](neighbourhood.png)
+![neighborhood](neighborhood.png)
 
 The search is a choice too. `calibrate_search` re-estimates the blocks with each candidate search, keeping the
 variogram and samples, and scores it: the variance of the estimates against the block variance (sill minus the
@@ -333,7 +333,7 @@ panels = (
     ("Tonnage above 500 ppm / reference", [(scores["tonnage_ratio_500"], "discrete Gaussian")], "tonnage"),
 )
 for ax, (title, lines, key) in zip(axes, panels, strict=True):
-    for (series, label), color in zip(lines, (ACCENT, GREY), strict=False):
+    for (series, label), color in zip(lines, (ACCENT, GRAY), strict=False):
         ax.plot(counts, series, "o-", color=color, label=label, ms=3)
     ax.plot(counts, true_scores[key], "o-", color="black", label="truth", ms=3)
     ax.set(title=title, xlabel="max_samples", xscale="log", xticks=counts, xticklabels=counts)
@@ -385,7 +385,7 @@ cmap, norm = cs.plot.category_colors(resource_classes)
 fig, axes = plt.subplots(1, 2, figsize=(9, 4.6), layout="constrained")
 for ax, c, title in ((axes[0], classes, "Rules"), (axes[1], smoothed, "After a 3 × 3 majority filter")):
     ax.imshow(resource_classes.encode(c).reshape(shape), origin="lower", extent=extent, cmap=cmap, norm=norm)
-    ax.scatter(xy[:, 0], xy[:, 1], s=2, color=GREY, linewidths=0)
+    ax.scatter(xy[:, 0], xy[:, 1], s=2, color=GRAY, linewidths=0)
     map_axes(ax, title)
 cs.plot.category_legend(resource_classes, fig, loc="outside lower center", ncol=3)
 save(fig, "classes")

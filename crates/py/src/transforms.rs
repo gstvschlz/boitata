@@ -902,13 +902,13 @@ impl UniformConditioning {
         Ok(d)
     }
 
-    /// Localised grades of the selective blocks nested in the panels.
+    /// Localized grades of the selective blocks nested in the panels.
     ///
     /// A panel holding ``n`` selective blocks splits its selective-block
     /// distribution into ``n`` equal-probability bands, and its block ranked
     /// ``i`` gets the mean of band ``i``: the blocks average to the panel
     /// grade and reproduce the panel's grade-tonnage curve at tonnages
-    /// ``k / n``. Partial panels localise over the blocks present.
+    /// ``k / n``. Partial panels localize over the blocks present.
     ///
     /// Parameters
     /// ----------
@@ -930,7 +930,7 @@ impl UniformConditioning {
     /// Returns
     /// -------
     /// BlockModel
-    ///     `smus` with the localised grades; null in null panels and outside
+    ///     `smus` with the localized grades; null in null panels and outside
     ///     every panel.
     ///
     /// Raises
@@ -1043,7 +1043,7 @@ fn detrend<'py>(
     Ok((Trend(trend), array1(py, residuals).into_any()))
 }
 
-/// Declustering weights (normalised to sum to n) and the declustered mean.
+/// Declustering weights (normalized to sum to n) and the declustered mean.
 #[derive(Serialize, Deserialize)]
 #[pyclass(module = "ceres", name = "Declustering", frozen)]
 pub struct Declustering {
@@ -1150,7 +1150,7 @@ fn cell_declustering(
     Ok(declustering(w, sizes, means))
 }
 
-/// Polygonal (nearest-neighbour area) declustering on a `nodes`-cell grid.
+/// Polygonal (nearest-neighbor area) declustering on a `nodes`-cell grid.
 #[pyfunction]
 #[pyo3(signature = (coords, values, nodes=10_000))]
 fn polygon_declustering(
@@ -1195,7 +1195,7 @@ fn indirect_lognormal_correction<'py>(
     Ok(array1(py, out).into_any())
 }
 
-/// Averages samples into blocks; returns centres, means and counts.
+/// Averages samples into blocks; returns centers, means and counts.
 #[pyfunction]
 #[pyo3(signature = (coords, values, block_size, origin=vec![0.0, 0.0, 0.0]))]
 fn upscale<'py>(

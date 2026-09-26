@@ -1,9 +1,9 @@
 """
 # 12. Estimation methods and search
 
-Five estimators of Walker Lake `V` from the same 470 samples and the same neighbourhood, checked against the
-exhaustive values: nearest neighbour, inverse distance, ordinary and universal kriging at points, and block kriging
-of 10 × 10 m block averages. Search passes and a high-grade restriction refine the neighbourhood.
+Five estimators of Walker Lake `V` from the same 470 samples and the same neighborhood, checked against the
+exhaustive values: nearest neighbor, inverse distance, ordinary and universal kriging at points, and block kriging
+of 10 × 10 m block averages. Search passes and a high-grade restriction refine the neighborhood.
 """
 
 # %% [hidden]
@@ -18,7 +18,7 @@ sys.path.insert(0, str(HERE.parent))
 import ceres as cs
 import matplotlib.pyplot as plt
 import numpy as np
-from common import ACCENT, GREY, HIGHLIGHT, INK, LIGHT, map_axes, save
+from common import ACCENT, GRAY, HIGHLIGHT, INK, LIGHT, map_axes, save
 from matplotlib.colors import ListedColormap, PowerNorm
 
 samples = cs.datasets.walker_lake()
@@ -37,7 +37,7 @@ true_at_nodes = truth[nodes[:, 1] - 1, nodes[:, 0] - 1]
 ellipse = {"max_samples": 24, "octant": True, "rotation": model.rotation, "ratios": (0.5, 1.0)}
 search = cs.Search(radius=80, min_samples=4, **ellipse)
 methods = {
-    "nearest neighbour": cs.NearestNeighbor(search),
+    "nearest neighbor": cs.NearestNeighbor(search),
     "inverse distance²": cs.InverseDistance(search, power=2),
     "ordinary kriging": cs.OrdinaryKriging(model, search),
     "universal kriging": cs.UniversalKriging(model, search, degree=1),
@@ -51,7 +51,7 @@ for name, e in estimates.items():
     print(f"{name:>18}  {rmse:5.1f}  {corr:.3f}  {e[ok].var() / true_at_nodes[ok].var():.2f}")
 
 # %% [markdown]
-# Nearest neighbour keeps the full variability but places it poorly; inverse distance and kriging trade variability
+# Nearest neighbor keeps the full variability but places it poorly; inverse distance and kriging trade variability
 # for accuracy. Here inverse distance is slightly more accurate than kriging with the chapter 3 model, whose short
 # ranges across the major axis smooth hard; kriging adds a variance per estimate and accounts for clustered samples,
 # which inverse distance does not. Universal kriging's linear drift does not help on this stationary field.
@@ -129,7 +129,7 @@ im = b.imshow(
     vmax=100,
 )
 rich = v > 800
-b.scatter(*xy[~rich, :2].T, s=2, color=GREY, linewidths=0)
+b.scatter(*xy[~rich, :2].T, s=2, color=GRAY, linewidths=0)
 b.scatter(*xy[rich, :2].T, s=8, color=INK, linewidths=0, label="V > 800 ppm")
 map_axes(b, "Lowered by the high-grade restriction")
 b.legend(loc="upper right", framealpha=0.9, frameon=True)
@@ -138,21 +138,21 @@ save(fig, "search")
 
 # %% [markdown]
 # Block kriging estimates the average over each 10 × 10 m block directly, from 5 × 5 points per block. Its targets are
-# block centres; the truth is the average of the 100 exhaustive values in each block.
+# block centers; the truth is the average of the 100 exhaustive values in each block.
 
 # %%
 blocks = cs.BlockModel(origin=(0, 0), size=(10, 10), count=(26, 30))
 block_estimate = (
     cs.BlockKriging(model, search, size=(10, 10), discretization=(5, 5, 1)).fit(xy, v).predict(blocks)
 )
-point_at_centres = methods["ordinary kriging"].predict(blocks)
+point_at_centers = methods["ordinary kriging"].predict(blocks)
 true_blocks = truth.reshape(30, 10, 26, 10).mean(axis=(1, 3)).ravel()
-for name, e in (("block kriging", block_estimate), ("point kriging at centres", point_at_centres)):
+for name, e in (("block kriging", block_estimate), ("point kriging at centers", point_at_centers)):
     print(f"{name:>24}: RMSE against block averages {np.sqrt(np.nanmean((e - true_blocks) ** 2)):.1f} ppm")
 
 fig, ax = plt.subplots(figsize=(4.8, 4.6), layout="constrained")
 ax.scatter(
-    true_blocks, point_at_centres, s=8, color=GREY, alpha=0.6, linewidths=0, label="point kriging at centre"
+    true_blocks, point_at_centers, s=8, color=GRAY, alpha=0.6, linewidths=0, label="point kriging at center"
 )
 ax.scatter(true_blocks, block_estimate, s=8, color=ACCENT, alpha=0.8, linewidths=0, label="block kriging")
 ax.plot([0, 1200], [0, 1200], color=HIGHLIGHT, lw=1, ls="--")
@@ -162,7 +162,7 @@ ax.legend(loc="upper left")
 save(fig, "blocks")
 
 # %% [markdown]
-# The neighbourhood search is a k-d tree, so large grids stay fast. Ordinary kriging of every 1 m node of the area,
+# The neighborhood search is a k-d tree, so large grids stay fast. Ordinary kriging of every 1 m node of the area,
 # 78 000 targets, in parallel:
 
 # %%

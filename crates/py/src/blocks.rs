@@ -442,7 +442,7 @@ fn polygon_distance<'py>(
     Ok(array1(py, d).into_any())
 }
 
-/// Domain of each target from labelled samples (`nearest` or `majority`), or
+/// Domain of each target from labeled samples (`nearest` or `majority`), or
 /// inside/outside a `mesh` (`solid`). Returns labels and confidences.
 #[pyfunction]
 #[pyo3(signature = (targets, coords=None, domains=None, method="nearest", mesh=None))]
@@ -502,8 +502,8 @@ fn convex_hull(points: &Bound<PyAny>) -> PyResult<Mesh> {
 /// Returns
 /// -------
 /// Mesh
-///     One vertex per block with an elevation, at its centre in plan. Four
-///     neighbouring vertices make two triangles and three make one, facing up
+///     One vertex per block with an elevation, at its center in plan. Four
+///     neighboring vertices make two triangles and three make one, facing up
 ///     in an unrotated grid.
 #[pyfunction]
 fn grid_surface(py: Python, model: PyRef<PyBlockModel>, column: &str) -> PyResult<Mesh> {

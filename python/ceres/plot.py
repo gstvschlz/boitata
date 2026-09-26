@@ -131,7 +131,7 @@ def probability(values, weights=None, log=False, cap=None, fences=None, ax=None,
     fences : float, optional
         Outlier fences ``P25 - fences × IQR`` and ``P75 + fences × IQR`` (1.5 is customary, 3 for far outliers),
         from weighted quartiles of the values, or of their logarithm with `log`; drawn as dotted vertical lines
-        labelled with the count of values beyond each.
+        labeled with the count of values beyond each.
     **kwargs
         Passed to ``ax.plot``.
     """
@@ -241,7 +241,7 @@ def boxplot(values, categories, weights=None, sort=False, log=False, scheme=None
     values : array_like
         Values; NaN is ignored.
     categories : array_like
-        Category (e.g. domain) of each value, its code when `scheme` is given; each box is labelled with its count.
+        Category (e.g. domain) of each value, its code when `scheme` is given; each box is labeled with its count.
     weights : array_like, optional
         Declustering weights.
     sort : bool
@@ -249,7 +249,7 @@ def boxplot(values, categories, weights=None, sort=False, log=False, scheme=None
     log : bool
         Log value axis.
     scheme : Categories, optional
-        Names and colours of the categories.
+        Names and colors of the categories.
     **kwargs
         Passed to ``ax.bxp``.
     """
@@ -307,7 +307,7 @@ def variogram(experimental, model=None, direction=None, ax=None, **kwargs):
         ``(azimuth, dip)`` in degrees along which an anisotropic `model` is drawn;
         without it, lags are taken as distances in the model's isotropic space.
     **kwargs
-        Passed to ``ax.scatter`` and, for its colour, to the model line.
+        Passed to ``ax.scatter`` and, for its color, to the model line.
     """
     fig, ax = _axes(ax)
     keep = np.asarray(experimental.counts) > 0
@@ -382,7 +382,7 @@ def correlation(data, labels=None, weights=None, method="pearson", colorbar=True
     method : {"pearson", "spearman", "covariance"}
         What to show; correlations span -1 to 1, covariances ± their largest magnitude.
     colorbar : bool
-        Add a colour bar.
+        Add a color bar.
     **kwargs
         Passed to ``ax.imshow`` (e.g. ``cmap``).
     """
@@ -490,7 +490,7 @@ def conditional(x, y, bins=10, weights=None, log=False, ax=None, **kwargs):
 
 
 def completeness(data, ax=None, **kwargs):
-    """Rows by number of variables present, the complete rows in the accent colour, each bar labelled.
+    """Rows by number of variables present, the complete rows in the accent color, each bar labeled.
 
     Parameters
     ----------
@@ -616,14 +616,14 @@ def section(
     index : int, optional
         Cell index along `axis`.
     plane : tuple, optional
-        ``(centre, azimuth, dip)`` as in `slab`; replaces `axis` and `index`. The model is sampled on a raster in
+        ``(center, azimuth, dip)`` as in `slab`; replaces `axis` and `index`. The model is sampled on a raster in
         section coordinates.
     resolution : float, optional
         Raster step on `plane`; default half the smallest block edge.
     colorbar : bool
-        Add a colour bar labelled with the column name, or a legend with `scheme`.
+        Add a color bar labeled with the column name, or a legend with `scheme`.
     scheme : Categories, optional
-        `values` are codes of these categories, drawn in their colours.
+        `values` are codes of these categories, drawn in their colors.
     **kwargs
         Passed to ``ax.imshow`` (e.g. ``cmap``, ``norm``, ``vmin``).
     """
@@ -654,18 +654,18 @@ def _key(fig, ax, mappable, values, colorbar, scheme):
 def _image(ax, block_model, columns, axis, index, plane, resolution):
     if plane is None:
         return _slice(ax, block_model, columns, axis, index)
-    centre, u, v, n = _frame(plane)
+    center, u, v, n = _frame(plane)
     size = np.asarray(block_model.size, dtype=float)
     step = resolution or size.min() / 2
     reach = np.linalg.norm(size) / 2
     centroids = block_model.centroids
-    near = centroids[np.abs((centroids - centre) @ n) <= reach] @ np.c_[u, v]
+    near = centroids[np.abs((centroids - center) @ n) <= reach] @ np.c_[u, v]
     if not len(near):
         raise ValueError("the plane misses the block model")
     lo = near.min(0) - reach
     counts = np.ceil((near.max(0) + reach - lo) / step).astype(int)
     gu, gv = np.meshgrid(*(lo[a] + (np.arange(counts[a]) + 0.5) * step for a in (0, 1)))
-    offset = centre - (centre @ u) * u - (centre @ v) * v
+    offset = center - (center @ u) * u - (center @ v) * v
     rows = block_model.row_at(offset + gu.reshape(-1, 1) * u + gv.reshape(-1, 1) * v).reshape(gu.shape)
     if not (rows >= 0).any():
         raise ValueError("the plane misses the block model")
@@ -681,14 +681,14 @@ def _image(ax, block_model, columns, axis, index, plane, resolution):
 
 
 def _frame(plane):
-    centre, azimuth, dip = plane
-    centre = np.asarray(centre, dtype=float)
-    if centre.shape != (3,):
-        raise ValueError("plane centre must be (x, y, z)")
+    center, azimuth, dip = plane
+    center = np.asarray(center, dtype=float)
+    if center.shape != (3,):
+        raise ValueError("plane center must be (x, y, z)")
     az, dip = np.radians(azimuth), np.radians(dip)
     u = np.array([np.sin(az), np.cos(az), 0.0])
     v = np.cos(dip) * np.array([-np.cos(az), np.sin(az), 0.0]) + np.array([0.0, 0.0, np.sin(dip)])
-    return centre, u, v, np.cross(u, v)
+    return center, u, v, np.cross(u, v)
 
 
 def _label(ax, u, v):
@@ -723,9 +723,9 @@ def slab(
     points : PointSet or array_like
         ``(n, 3)`` coordinates.
     values : str or array_like, optional
-        Column of `points`, or one value per point, colouring them; default one colour.
+        Column of `points`, or one value per point, coloring them; default one color.
     plane : tuple
-        ``(centre, azimuth, dip)``: a point on the plane, the bearing of the section line and the dip of the plane
+        ``(center, azimuth, dip)``: a point on the plane, the bearing of the section line and the dip of the plane
         (90 is vertical, 0 a plan), in degrees.
     thickness : float
         Full width of the slab.
@@ -736,27 +736,27 @@ def slab(
     labels : sequence of str, optional
         One per point; each distinct label is written once, above its highest point in the slab.
     colorbar : bool
-        With `values`, add a colour bar labelled with the column name, or a legend with `scheme`.
+        With `values`, add a color bar labeled with the column name, or a legend with `scheme`.
     scheme : Categories, optional
-        `values` are codes of these categories, drawn in their colours.
+        `values` are codes of these categories, drawn in their colors.
     **kwargs
         Passed to ``ax.scatter`` (e.g. ``s``, ``cmap``, ``norm``, ``color``).
     """
     from matplotlib.collections import LineCollection
 
     fig, ax = _axes(ax)
-    centre, u, v, n = _frame(plane)
+    center, u, v, n = _frame(plane)
     half = thickness / 2
     uv = np.c_[u, v]
     coords = np.asarray(getattr(points, "coords", points), dtype=float)
-    near = np.abs((coords - centre) @ n) <= half
+    near = np.abs((coords - center) @ n) <= half
     xy = coords[near] @ uv
 
     if meshes is not None:
         for mesh in [meshes] if hasattr(meshes, "triangles") else meshes:
-            ax.add_collection(LineCollection(_trace(mesh, centre, n) @ uv, colors="0.2", linewidths=1))
+            ax.add_collection(LineCollection(_trace(mesh, center, n) @ uv, colors="0.2", linewidths=1))
     if lines is not None:
-        segments = _clip([np.asarray(line, dtype=float) for line in lines], centre, n, half)
+        segments = _clip([np.asarray(line, dtype=float) for line in lines], center, n, half)
         ax.add_collection(LineCollection(segments @ uv, colors="0.75", linewidths=0.8))
 
     if values is not None:
@@ -784,9 +784,9 @@ def slab(
     return fig, ax
 
 
-def _trace(mesh, centre, normal):
+def _trace(mesh, center, normal):
     corners = mesh.vertices[mesh.triangles]
-    d = (corners - centre) @ normal
+    d = (corners - center) @ normal
     a, b = [0, 1, 2], [1, 2, 0]
     crossing = (d[:, a] > 0) != (d[:, b] > 0)
     t = d[:, a] / np.where(crossing, d[:, a] - d[:, b], 1.0)
@@ -794,11 +794,11 @@ def _trace(mesh, centre, normal):
     return cuts[crossing].reshape(-1, 2, 3)
 
 
-def _clip(lines, centre, normal, half):
+def _clip(lines, center, normal, half):
     segments = np.concatenate(
         [np.empty((0, 2, 3))] + [np.stack([line[:-1], line[1:]], axis=1) for line in lines]
     )
-    d = (segments - centre) @ normal
+    d = (segments - center) @ normal
     step = d[:, 1] - d[:, 0]
     flat = step == 0
     with np.errstate(divide="ignore", invalid="ignore"):
@@ -854,15 +854,15 @@ def swath(swaths, labels=None, y="mean", ax=None, **kwargs):
     labels = labels or [None] * len(swaths)
     first = swaths[0]
     bars = ax.twinx()
-    width = np.diff(first["centres"]).min() if len(first["centres"]) > 1 else 1.0
-    bars.bar(first["centres"], first["count"], width=width, color="0.9", zorder=0)
+    width = np.diff(first["center"]).min() if len(first["center"]) > 1 else 1.0
+    bars.bar(first["center"], first["count"], width=width, color="0.9", zorder=0)
     bars.set_ylabel("Count", color="0.5")
     bars.tick_params(axis="y", colors="0.5")
     ax.set_zorder(bars.get_zorder() + 1)
     ax.patch.set_visible(False)
     kwargs.setdefault("marker", ".")
     for s, label in zip(swaths, labels, strict=True):
-        ax.plot(s["centres"], s[y], label=label, **kwargs)
+        ax.plot(s["center"], s[y], label=label, **kwargs)
     if any(labels):
         ax.legend()
     ax.set_xlabel("Distance along swath")
@@ -877,7 +877,7 @@ def _palette(k):
 
 
 def _classes(categories, scheme):
-    """Names, colours (None without a scheme), per-sample index and mask of samples with a category."""
+    """Names, colors (None without a scheme), per-sample index and mask of samples with a category."""
     if scheme is None:
         names, index = np.unique(np.asarray(categories), return_inverse=True)
         return [str(n) for n in names], None, index, np.ones(index.size, bool)
@@ -892,18 +892,18 @@ def _classes(categories, scheme):
 def _colors(scheme):
     if scheme.colors is not None:
         return scheme.colors
-    grey = ["0.6"] if scheme.other is not None else []
-    return [*_palette(len(scheme) - len(grey)), *grey]
+    gray = ["0.6"] if scheme.other is not None else []
+    return [*_palette(len(scheme) - len(gray)), *gray]
 
 
 def category_colors(scheme):
-    """Colour map and norm drawing code i of `scheme` in its colour i.
+    """Color map and norm drawing code i of `scheme` in its color i.
 
     Parameters
     ----------
     scheme : Categories
-        Colours of the categories; when it has none, spread over matplotlib's ``image.cmap`` with ``other`` in
-        grey.
+        Colors of the categories; when it has none, spread over matplotlib's ``image.cmap`` with ``other`` in
+        gray.
 
     Returns
     -------
@@ -918,7 +918,7 @@ def category_colors(scheme):
 
 
 def category_legend(scheme, ax, **kwargs):
-    """Legend of `scheme`: one patch per category, in code order, in the colours of `category_colors`.
+    """Legend of `scheme`: one patch per category, in code order, in the colors of `category_colors`.
 
     Parameters
     ----------
@@ -963,10 +963,10 @@ def category_swath(
     weights : array_like, optional
         Declustering weights or lengths.
     colors : sequence, optional
-        One colour per category, sorted; default the scheme's, else spread over matplotlib's ``image.cmap``
-        with ``other`` in grey.
+        One color per category, sorted; default the scheme's, else spread over matplotlib's ``image.cmap``
+        with ``other`` in gray.
     scheme : Categories, optional
-        Order, names and colours of the categories.
+        Order, names and colors of the categories.
     **kwargs
         Passed to every ``ax.bar``.
     """
@@ -981,7 +981,7 @@ def category_swath(
     for code, (name, color) in enumerate(zip(names, colors, strict=True)):
         indicator = (index == code).astype(float)
         s = _swath(coords, indicator, width, azimuth=azimuth, axis=axis, weights=weights)
-        ax.bar(s["centres"], s["mean"], width=width, bottom=bottom, color=color, label=str(name), **kwargs)
+        ax.bar(s["center"], s["mean"], width=width, bottom=bottom, color=color, label=str(name), **kwargs)
         bottom = bottom + s["mean"]
     handles, labels = ax.get_legend_handles_labels()
     ax.legend(handles[::-1], labels[::-1], loc="upper left", bbox_to_anchor=(1.01, 1))
@@ -1001,7 +1001,7 @@ def proportions(categories, weights=None, scheme=None, ax=None, **kwargs):
     weights : array_like, optional
         Declustering weights or lengths; the bars are then weighted and a dark tick marks each unweighted share.
     scheme : Categories, optional
-        Order, names and colours of the categories.
+        Order, names and colors of the categories.
     **kwargs
         Passed to ``ax.barh``.
     """
@@ -1040,7 +1040,7 @@ def directions(anisotropy, plane=None, thickness=None, ax=None, **kwargs):
     anisotropy : LocalAnisotropy
         Locations and angles (azimuth, dip, rake).
     plane : tuple, optional
-        ``(centre, azimuth, dip)`` of a section as in `slab`; default a plan.
+        ``(center, azimuth, dip)`` of a section as in `slab`; default a plan.
     thickness : float, optional
         With `plane`, full width of the slab of locations drawn; default all.
     **kwargs
@@ -1051,10 +1051,10 @@ def directions(anisotropy, plane=None, thickness=None, ax=None, **kwargs):
     az, dip = np.radians(np.asarray(anisotropy.angles, dtype=float)[:, :2].T)
     major = np.c_[np.sin(az) * np.cos(dip), np.cos(az) * np.cos(dip), -np.sin(dip)]
     if plane is None:
-        centre, u, v, n = np.zeros(3), np.eye(3)[0], np.eye(3)[1], np.eye(3)[2]
+        center, u, v, n = np.zeros(3), np.eye(3)[0], np.eye(3)[1], np.eye(3)[2]
     else:
-        centre, u, v, n = _frame(plane)
-    keep = np.abs((coords - centre) @ n) <= (np.inf if thickness is None else thickness / 2)
+        center, u, v, n = _frame(plane)
+    keep = np.abs((coords - center) @ n) <= (np.inf if thickness is None else thickness / 2)
     uv = np.c_[u, v]
     xy, d = coords[keep] @ uv, major[keep] @ uv
     for k, x in {
@@ -1120,10 +1120,10 @@ def uncertain(
     legend_ax=None,
     ax=None,
 ):
-    """Image whose colour gives a value and whose fading towards white gives how uncertain it is.
+    """Image whose color gives a value and whose fading towards white gives how uncertain it is.
 
-    The legend is a fan: the value runs across its angle, certainty along its radius, from white at the centre
-    (uncertain) to the full colour on the arc (certain).
+    The legend is a fan: the value runs across its angle, certainty along its radius, from white at the center
+    (uncertain) to the full color on the arc (certain).
 
     Parameters
     ----------
@@ -1140,7 +1140,7 @@ def uncertain(
     index : int, optional
         With `block_model`, cell index along `axis` (default: the middle).
     plane : tuple, optional
-        With `block_model`, ``(centre, azimuth, dip)`` as in `slab`, replacing `axis` and `index`.
+        With `block_model`, ``(center, azimuth, dip)`` as in `slab`, replacing `axis` and `index`.
     resolution : float, optional
         Raster step on `plane`; default half the smallest block edge.
     extent : tuple of float, optional

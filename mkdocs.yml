@@ -88,5 +88,5 @@ nav:
       - Estimation: api/estimation.md
       - Simulation: api/simulation.md
       - Drillholes and blocks: api/drillholes.md
-      - Modelling: api/modelling.md
+      - Modeling: api/modeling.md
       - EDA and validation: api/eda.md

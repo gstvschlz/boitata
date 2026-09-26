@@ -9,7 +9,7 @@ model = cs.Variogram([("spherical", 1.0, 40.0)], nugget=0.0)
 search = cs.Search(radius=50, max_samples=16)
 
 
-def test_ordinary_kriging_honours_data_with_zero_variance():
+def test_ordinary_kriging_honors_data_with_zero_variance():
     est, var = cs.OrdinaryKriging(model, search).fit(coords, values).predict(coords, return_variance=True)
     np.testing.assert_allclose(est, values, atol=1e-8)
     np.testing.assert_allclose(var, 0.0, atol=1e-8)
@@ -23,7 +23,7 @@ def test_variance_grows_away_from_data():
     assert ok.predict(near, return_variance=True)[1][0] < wide.predict(far, return_variance=True)[1][0]
 
 
-def test_too_few_neighbours_is_nan():
+def test_too_few_neighbors_is_nan():
     ok = cs.OrdinaryKriging(model, cs.Search(radius=5, min_samples=3)).fit(coords, values)
     assert np.isnan(ok.predict([[500.0, 500.0]])[0])
 
@@ -250,7 +250,7 @@ def test_hole_distance_classification():
         cs.hole_distance(grid, xyz, holes, 0)
 
 
-def test_measurement_error_blends_a_datum_with_its_neighbours():
+def test_measurement_error_blends_a_datum_with_its_neighbors():
     xy, v = coords[:20], values[:20]
     wide = cs.Search(radius=500, max_samples=50)
     plain = cs.OrdinaryKriging(model, wide).fit(xy, v)
@@ -288,7 +288,7 @@ def test_k_fold_keeps_holes_whole():
     np.testing.assert_array_equal(cv.estimate, expected)
 
 
-def test_neighbourhood_diagnostics():
+def test_neighborhood_diagnostics():
     holes = np.arange(len(values)) // 3
     ok = cs.OrdinaryKriging(model, cs.Search(radius=30, max_samples=8)).fit(coords, values, holes=holes)
     d = ok.predict(rng.uniform(0, 100, (200, 2)), diagnostics=True)
@@ -576,7 +576,7 @@ def test_calibration_block_variance_excludes_the_nugget():
     assert table["block_variance"][0] == pytest.approx(c - gamma_bar, abs=1e-4)
 
 
-def test_simple_kriging_with_a_unique_neighbourhood_has_slope_one():
+def test_simple_kriging_with_a_unique_neighborhood_has_slope_one():
     unique = cs.Search(radius=1e6, max_samples=len(values))
     sk = cs.SimpleKriging(model, unique, mean=float(values.mean())).fit(coords, values)
     inside = cs.BlockModel(origin=(5.0, 5.0), size=(10, 10), count=(10, 10))

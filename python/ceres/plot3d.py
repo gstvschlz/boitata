@@ -114,7 +114,7 @@ def plot(data, scalars=None, plotter=None, **kwargs):
     data : PointSet, Drillholes, BlockModel, Mesh or pyvista.DataObject
         What to draw; containers go through `to_pyvista`.
     scalars : str, optional
-        Attribute that colours it.
+        Attribute that colors it.
     plotter : pyvista.Plotter, optional
         Scene to add to; a new one by default.
     **kwargs
@@ -141,9 +141,9 @@ def slices(model, scalars=None, x=None, y=None, z=None, plotter=None, **kwargs):
     model : BlockModel
         Block model to cut.
     scalars : str, optional
-        Attribute that colours the slices.
+        Attribute that colors the slices.
     x, y, z : float, optional
-        World coordinates the slices pass through; the model's centre by default.
+        World coordinates the slices pass through; the model's center by default.
     plotter : pyvista.Plotter, optional
         Scene to add to; a new one by default.
     **kwargs
@@ -154,6 +154,6 @@ def slices(model, scalars=None, x=None, y=None, z=None, plotter=None, **kwargs):
     pyvista.Plotter
     """
     mesh = to_pyvista(model)
-    centre = mesh.center
-    at = [centre[a] if v is None else v for a, v in enumerate((x, y, z))]
+    center = mesh.center
+    at = [center[a] if v is None else v for a, v in enumerate((x, y, z))]
     return plot(mesh.slice_orthogonal(x=at[0], y=at[1], z=at[2]), scalars=scalars, plotter=plotter, **kwargs)

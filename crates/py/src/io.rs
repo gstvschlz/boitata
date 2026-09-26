@@ -169,7 +169,7 @@ fn write_shapefile(path: PathBuf, data: &Bound<PyAny>) -> PyResult<()> {
 ///     descriptions or `band_1`, `band_2`, ... float32 bands stay float32, the
 ///     rest become float64. The geometry comes from the pixel scale and tie
 ///     point or from the model transformation, rotation included; cell
-///     centres fall on the tie points of pixel-is-point rasters. An EPSG code
+///     centers fall on the tie points of pixel-is-point rasters. An EPSG code
 ///     in the GeoKeys becomes the CRS `"EPSG:<code>"`, otherwise the citation.
 #[pyfunction]
 #[pyo3(signature = (path, nodata=None))]

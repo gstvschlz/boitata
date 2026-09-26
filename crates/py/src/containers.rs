@@ -486,7 +486,7 @@ impl PyBlockModel {
         Ok(Self(model))
     }
 
-    /// `(n, 3)` cell centres in world coordinates.
+    /// `(n, 3)` cell centers in world coordinates.
     #[getter]
     fn centroids<'py>(&self, py: Python<'py>) -> Bound<'py, PyArray2<f64>> {
         coords_array(py, &self.0.centroids())
@@ -591,10 +591,10 @@ impl PyBlockModel {
         Ok(Self(model))
     }
 
-    /// Sub-blocks every block by prioritised meshes.
+    /// Sub-blocks every block by prioritized meshes.
     ///
     /// Each block is split on a regular ``subgrid``; each sub-cell takes the
-    /// label of the first domain holding its centre. Blocks of one label stay
+    /// label of the first domain holding its center. Blocks of one label stay
     /// whole, others keep runs of sub-cells merged along x, then y.
     ///
     /// Parameters
@@ -641,7 +641,7 @@ impl PyBlockModel {
     }
 
     /// Sub-blocked model of the grid ``origin``, ``size``, ``count`` and
-    /// ``rotation`` from prioritised meshes; see `subblock`.
+    /// ``rotation`` from prioritized meshes; see `subblock`.
     #[staticmethod]
     #[pyo3(signature = (origin, size, count, domains, subgrid, rotation=(0.0, 0.0, 0.0), column="domain", fill=None, crs=None))]
     #[allow(clippy::too_many_arguments)]

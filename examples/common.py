@@ -11,7 +11,7 @@ from ceres.datasets import fetch  # noqa: F401
 ROOT = Path(__file__).resolve().parent
 
 INK = "#222222"
-GREY = "#8c8c8c"
+GRAY = "#8c8c8c"
 LIGHT = "#d9d9d9"
 ACCENT = "#1f4e79"
 HIGHLIGHT = "#c05a28"
@@ -26,10 +26,10 @@ mpl.rcParams.update(
         "axes.titleweight": "bold",
         "axes.titlelocation": "left",
         "axes.labelcolor": INK,
-        "axes.edgecolor": GREY,
+        "axes.edgecolor": GRAY,
         "axes.spines.top": False,
         "axes.spines.right": False,
-        "axes.prop_cycle": mpl.cycler(color=[ACCENT, GREY, HIGHLIGHT]),
+        "axes.prop_cycle": mpl.cycler(color=[ACCENT, GRAY, HIGHLIGHT]),
         "xtick.color": INK,
         "ytick.color": INK,
         "legend.frameon": False,

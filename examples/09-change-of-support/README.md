@@ -9,7 +9,7 @@ tonnage above cutoffs. The exhaustive Walker Lake grid gives true point and bloc
 import ceres as cs
 import matplotlib.pyplot as plt
 import numpy as np
-from common import ACCENT, GREY, HIGHLIGHT, INK, save
+from common import ACCENT, GRAY, HIGHLIGHT, INK, save
 
 samples = cs.datasets.walker_lake()
 truth = cs.datasets.walker_lake_exhaustive()["V"].reshape(300, 260)
@@ -81,7 +81,7 @@ true_block = empirical(blocks_true)
 
 fig, (a, b) = plt.subplots(1, 2, figsize=(10, 3.8), layout="constrained")
 for curves, model, color, label in (
-    (true_point, model_point, GREY, "points"),
+    (true_point, model_point, GRAY, "points"),
     (true_block, model_block, ACCENT, f"{size} × {size} m blocks"),
 ):
     a.plot(cutoffs, curves[0], color=color, lw=3, alpha=0.35)
@@ -198,7 +198,7 @@ for (tonnage, grade), color, style, label in (
         "discrete Gaussian model",
     ),
     ((uc_tonnage, uc_grade), HIGHLIGHT, {"lw": 1.6}, "uniform conditioning"),
-    (direct_curve, GREY, {"lw": 1.2, "ls": ":"}, "kriged blocks"),
+    (direct_curve, GRAY, {"lw": 1.2, "ls": ":"}, "kriged blocks"),
 ):
     a.plot(cutoffs, tonnage, color=color, label=label, **style)
     b.plot(cutoffs, grade, color=color, **style)
@@ -226,7 +226,7 @@ Around 500 ppm uniform conditioning lands on the true tonnage, where the smoothe
 Gaussian model fall short. Below 300 ppm it overstates the tonnage by a few per cent, as the other models do, and
 above 700 ppm, where few blocks remain, both Gaussian models understate it.
 
-Uniform conditioning says how much of each panel is ore, not where. Localisation places it: inside each panel the
+Uniform conditioning says how much of each panel is ore, not where. Localization places it: inside each panel the
 25 blocks of `panels.discretize(5)` are ranked by their direct kriging, and the block ranked i receives the mean
 of the i-th of 25 equal-probability bands of the panel's block distribution. Every panel keeps its grade, and its
 blocks reproduce its grade-tonnage curve:
@@ -270,10 +270,10 @@ true blocks: variance 47350
 
 ![localized](localized.png)
 
-The localised blocks spread as the model says blocks should, and it says too little here: the anamorphosis puts
+The localized blocks spread as the model says blocks should, and it says too little here: the anamorphosis puts
 the variance of 10 m blocks near 35 000 (the first printout), well below the true 47 000. Block by block they
 match the truth less well than kriging does, since the ranking inside a panel is only as good as the kriging that
-sets it; what localisation keeps is each panel's grade and its tonnage above every cutoff.
+sets it; what localization keeps is each panel's grade and its tonnage above every cutoff.
 
 Multiple indicator kriging reaches the panels without a Gaussian model. Kriged at each panel centroid from indicator
 variograms at the deciles, its conditional distribution describes point grades. An affine correction shrinks it
@@ -329,9 +329,9 @@ they spread wider than the true blocks: from 400 to 700 ppm they put a few per c
 The affine correction keeps the shape of each point distribution, so its long upper tail survives the shrinking,
 where the discrete Gaussian model pulls it in.
 
-Simulation localises without a change-of-support model. Thirty realisations averaged to the same 10 m blocks are
-pooled panel by panel: 25 blocks × 30 realisations give 750 values, sorted and cut into 25 chunks of 30, and the
-block ranked i by the same kriging receives the mean of chunk i. Each panel keeps the mean of its realisations,
+Simulation localizes without a change-of-support model. Thirty realizations averaged to the same 10 m blocks are
+pooled panel by panel: 25 blocks × 30 realizations give 750 values, sorted and cut into 25 chunks of 30, and the
+block ranked i by the same kriging receives the mean of chunk i. Each panel keeps the mean of its realizations,
 and its blocks the spread the simulation gives them:
 
 <details><summary>Python</summary>
@@ -390,7 +390,7 @@ Ranked alike, the simulated and uniform-conditioning blocks share their tonnages
 simulated blocks keep the rich tail that uniform conditioning thins out, and their variance, 43 000, lies between
 the anamorphosis's 35 000 and the true 47 000; the indicator blocks overshoot from 400 to 700 ppm. Uniform
 conditioning and indicator kriging need a panel estimate and a change-of-support model; the simulation needs
-neither, only its realisations, and what it pools is only as good as they are.
+neither, only its realizations, and what it pools is only as good as they are.
 
 Disjunctive kriging estimates, at each node, the probability of exceeding a cutoff from the kriged Hermite factors.
 Binned against the truth, a calibrated estimate would sit on the diagonal:
@@ -427,7 +427,7 @@ a.set_aspect("equal")
 a.set(title=f"Disjunctive kriging: P(V > {cutoff:.0f} ppm)", xlabel="Easting (m)", ylabel="Northing (m)")
 fig.colorbar(image, ax=a, shrink=0.8, label="probability; true V > 500 outlined")
 keep = counts > 20
-b.plot([0, 1], [0, 1], color=GREY, ls="--", lw=1)
+b.plot([0, 1], [0, 1], color=GRAY, ls="--", lw=1)
 b.scatter(predicted[keep], observed[keep], s=np.sqrt(counts[keep]) * 4, color=ACCENT)
 b.set(
     xlim=(0, 1),
