@@ -30,6 +30,8 @@
 
 ::: ceres.despike
 
+::: ceres.weight_declustering
+
 ::: ceres.affine_correction
 
 ::: ceres.indirect_lognormal_correction

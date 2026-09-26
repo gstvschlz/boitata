@@ -25,7 +25,10 @@ pub mod search;
 pub mod simple_interp;
 pub mod validate;
 
-pub use batch::{by_pass, estimate_many, k_fold_at, leave_one_out_at, leave_one_out_many};
+pub use batch::{
+    by_pass, estimate_many, k_fold_at, leave_one_out_at, leave_one_out_many, weight_declustering,
+    weights_many,
+};
 pub use block::{Discretization, block_krige, block_krige_points};
 pub use cokrige::{CoKind, CoSample, cokrige, collocated_cokrige};
 pub use disjunctive::{DisjunctiveKriging, GaussianSample};
@@ -42,8 +45,8 @@ pub use kriging_algebra::{
 pub use neighborhood::{NeighborhoodStats, hole_distance, neighborhood_stats};
 pub use search::{HighGrade, Search, Soft, SoftPair, neighbors, neighbors_in};
 pub use simple_interp::{
-    InterpEstimate, InterpOptions, inverse_distance, local_least_squares, moving_average,
-    moving_median,
+    InterpEstimate, InterpOptions, inverse_distance, inverse_distance_weights, local_least_squares,
+    moving_average, moving_median, nearest_index,
 };
 pub use validate::{CvRecord, CvSummary, k_fold, leave_one_out};
 

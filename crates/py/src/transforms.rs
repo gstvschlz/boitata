@@ -1393,7 +1393,7 @@ impl Declustering {
     }
 }
 
-fn declustering(w: Weights, sizes: Vec<f64>, means: Vec<f64>) -> Declustering {
+pub fn declustering(w: Weights, sizes: Vec<f64>, means: Vec<f64>) -> Declustering {
     Declustering {
         mean: w.declustered_mean,
         cell_size: w.cell_size,
