@@ -69,3 +69,14 @@ def test_turning_bands_streamed_equals_in_memory(model, tmp_path):
     np.testing.assert_allclose(result["realization_above"], whole.realization_above)
     with pytest.raises(cs.FileError):
         tb.simulate_to_parquet(tmp_path / "missing.parquet", out)
+
+
+def test_turning_bands_search_defaults_to_the_nearest_32(model):
+    xyz = rng.uniform(0, 100, (50, 3)) * [1, 0.75, 0.2]
+    values = rng.lognormal(0, 0.5, 50)
+    variogram = cs.Variogram([("spherical", 1.0, 30.0)])
+    default = cs.TurningBands(variogram, bands=50).fit(xyz, values).simulate(model, n=3, seed=2)
+    explicit = cs.TurningBands(
+        variogram, bands=50, search=cs.Search(radius=1e9, max_samples=32, min_samples=1)
+    )
+    np.testing.assert_array_equal(explicit.fit(xyz, values).simulate(model, n=3, seed=2).mean, default.mean)
