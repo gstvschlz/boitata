@@ -618,6 +618,8 @@ dependencies = [
 name = "eda"
 version = "0.1.0"
 dependencies = [
+ "kiddo",
+ "rand",
  "rayon",
  "thiserror",
  "transforms",

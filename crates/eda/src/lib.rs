@@ -3,6 +3,7 @@
 
 use std::collections::{BTreeMap, HashMap};
 
+use kiddo::{ImmutableKdTree, SquaredEuclidean};
 use rayon::prelude::*;
 use thiserror::Error;
 pub use variogram::Direction;
@@ -655,6 +656,137 @@ pub fn merge_duplicates(
     Ok((0..n).filter(|&i| !dropped[i]).map(|i| out[i]).collect())
 }
 
+/// Pairs `(i, j, distance)` of `a[i]` and its nearest `b[j]` at most
+/// `max_distance` away, sorted by `i`, e.g. twin holes or two drilling types.
+/// Samples with a NaN in `values` are left out, and so are pairs within one
+/// hole given `holes` codes shared by `a` and `b`. With `unique`, each sample
+/// pairs at most once, the closest pairs first, ties by `(i, j)`; without,
+/// a sample of `b` may be the nearest of several of `a`.
+pub fn pairs(
+    a: &[[f64; 3]],
+    b: &[[f64; 3]],
+    max_distance: f64,
+    values: Option<(&[f64], &[f64])>,
+    holes: Option<(&[u32], &[u32])>,
+    unique: bool,
+) -> Result<Vec<(usize, usize, f64)>> {
+    if !(max_distance >= 0.0 && max_distance.is_finite()) {
+        return invalid("max_distance must be finite and >= 0");
+    }
+    if let Some((va, vb)) = values {
+        check(a.len(), va, None)?;
+        check(b.len(), vb, None)?;
+    }
+    if let Some((ha, hb)) = holes
+        && (ha.len() != a.len() || hb.len() != b.len())
+    {
+        return invalid("holes need one code per sample of a and of b");
+    }
+    let valid = |v: Option<&[f64]>, i: usize| v.is_none_or(|v| !v[i].is_nan());
+    let rows: Vec<usize> = (0..b.len())
+        .filter(|&j| valid(values.map(|v| v.1), j))
+        .collect();
+    if rows.is_empty() {
+        return Ok(vec![]);
+    }
+    let points: Vec<[f64; 3]> = rows.iter().map(|&j| b[j]).collect();
+    let tree = ImmutableKdTree::<f64, 3>::new_from_slice(&points)
+        .map_err(|e| EdaError::InvalidInput(format!("{e:?}")))?;
+    let radius2 = (max_distance * (1.0 + 1e-9)).powi(2);
+    let near: Vec<Vec<(f64, usize, usize)>> = (0..a.len())
+        .into_par_iter()
+        .map(|i| {
+            if !valid(values.map(|v| v.0), i) {
+                return vec![];
+            }
+            let mut near: Vec<(f64, usize, usize)> = tree
+                .query(&a[i])
+                .within::<SquaredEuclidean<f64>>(radius2)
+                .execute()
+                .iter()
+                .map(|r| rows[r.item as usize])
+                .filter(|&j| holes.is_none_or(|(ha, hb)| ha[i] != hb[j]))
+                .map(|j| (distance(a[i], b[j]), i, j))
+                .filter(|p| p.0 <= max_distance)
+                .collect();
+            near.sort_by(|p, q| p.0.total_cmp(&q.0).then(p.2.cmp(&q.2)));
+            near
+        })
+        .collect();
+    let mut out: Vec<(f64, usize, usize)> = if unique {
+        let mut all: Vec<(f64, usize, usize)> = near.into_iter().flatten().collect();
+        all.sort_by(|p, q| p.0.total_cmp(&q.0).then((p.1, p.2).cmp(&(q.1, q.2))));
+        let (mut used_a, mut used_b) = (vec![false; a.len()], vec![false; b.len()]);
+        all.into_iter()
+            .filter(|&(_, i, j)| {
+                let free = !used_a[i] && !used_b[j];
+                if free {
+                    (used_a[i], used_b[j]) = (true, true);
+                }
+                free
+            })
+            .collect()
+    } else {
+        near.into_iter()
+            .filter_map(|n| n.first().copied())
+            .collect()
+    };
+    out.sort_by_key(|p| p.1);
+    Ok(out.into_iter().map(|(d, i, j)| (i, j, d)).collect())
+}
+
+/// Paired values in one bin `[from, to)` of pairing distance, the last bin
+/// closed; means and bias are NaN when the bin is empty.
+#[derive(Debug, Clone)]
+pub struct Bias {
+    pub from: f64,
+    pub to: f64,
+    pub n: usize,
+    pub mean_a: f64,
+    pub mean_b: f64,
+    /// `mean_b / mean_a - 1`.
+    pub bias: f64,
+}
+
+/// Means of paired values `a` and `b` and their relative bias per bin of
+/// `distance` between consecutive `edges`; pairs with a NaN are skipped.
+pub fn paired_bias(distance: &[f64], a: &[f64], b: &[f64], edges: &[f64]) -> Result<Vec<Bias>> {
+    let n = distance.len();
+    check(n, a, None)?;
+    check(n, b, None)?;
+    if edges.len() < 2 || !edges.iter().all(|e| e.is_finite()) || !edges.is_sorted_by(|x, y| x < y)
+    {
+        return invalid("edges must be at least 2 finite increasing values");
+    }
+    let bins = edges.len() - 1;
+    let mut sums = vec![(0usize, 0.0, 0.0); bins];
+    for i in 0..n {
+        let d = distance[i];
+        if a[i].is_nan() || b[i].is_nan() || !(edges[0] <= d && d <= edges[bins]) {
+            continue;
+        }
+        let k = (edges.partition_point(|&e| e <= d) - 1).min(bins - 1);
+        sums[k].0 += 1;
+        sums[k].1 += a[i];
+        sums[k].2 += b[i];
+    }
+    Ok(sums
+        .into_iter()
+        .enumerate()
+        .map(|(k, (n, sa, sb))| {
+            let (mean_a, mean_b) = (sa / n as f64, sb / n as f64);
+            Bias {
+                from: edges[k],
+                to: edges[k + 1],
+                n,
+                mean_a,
+                mean_b,
+                bias: mean_b / mean_a - 1.0,
+            }
+        })
+        .collect())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -972,5 +1104,53 @@ mod tests {
                 .fold(0.0, f64::max)
         );
         assert!(merge_duplicates(&values, &[vec![1, 2], vec![2, 3]], Merge::Mean, None).is_err());
+    }
+
+    #[test]
+    fn twins_are_recovered_with_their_bias() {
+        use rand::{Rng, SeedableRng, seq::SliceRandom};
+        let mut rng = rand::rngs::StdRng::seed_from_u64(7);
+        let a: Vec<[f64; 3]> = (0..400)
+            .map(|k| [20.0 * (k % 20) as f64, 20.0 * (k / 20) as f64, 0.0])
+            .map(|p| p.map(|x| x + rng.gen_range(-2.0..2.0)))
+            .collect();
+        let grade: Vec<f64> = (0..a.len()).map(|_| rng.gen_range(0.5..10.0)).collect();
+        let mut twin: Vec<usize> = (0..a.len()).collect();
+        twin.shuffle(&mut rng);
+        let mut b = vec![[0.0; 3]; a.len()];
+        let mut vb = vec![0.0; a.len()];
+        for (i, &j) in twin.iter().enumerate() {
+            b[j] = a[i].map(|x| x + rng.gen_range(-1.0..1.0));
+            vb[j] = 1.2 * grade[i];
+        }
+        let p = pairs(&a, &b, 5.0, Some((&grade, &vb)), None, true).unwrap();
+        assert_eq!(p.len(), a.len());
+        assert!(p.iter().all(|&(i, j, d)| twin[i] == j && d <= 3f64.sqrt()));
+        let (d, (va, vbs)): (Vec<f64>, (Vec<f64>, Vec<f64>)) =
+            p.iter().map(|&(i, j, d)| (d, (grade[i], vb[j]))).unzip();
+        let bias = paired_bias(&d, &va, &vbs, &[0.0, 1.0, 2.0]).unwrap();
+        assert_eq!(bias.iter().map(|b| b.n).sum::<usize>(), a.len());
+        assert!(bias.iter().all(|b| close(b.bias, 0.2)));
+    }
+
+    #[test]
+    fn unique_pairs_are_greedy_and_skip_holes() {
+        let a = [[0.0, 0.0, 0.0], [1.5, 0.0, 0.0]];
+        let b = [[1.0, 0.0, 0.0]];
+        assert_eq!(
+            pairs(&a, &b, 2.0, None, None, true).unwrap(),
+            vec![(1, 0, 0.5)]
+        );
+        assert_eq!(pairs(&a, &b, 2.0, None, None, false).unwrap().len(), 2);
+        let holes = (&[3, 4][..], &[4][..]);
+        assert_eq!(
+            pairs(&a, &b, 2.0, None, Some(holes), true).unwrap(),
+            vec![(0, 0, 1.0)]
+        );
+        let nan = (&[1.0, f64::NAN][..], &[1.0][..]);
+        assert_eq!(
+            pairs(&a, &b, 2.0, Some(nan), None, true).unwrap(),
+            vec![(0, 0, 1.0)]
+        );
     }
 }

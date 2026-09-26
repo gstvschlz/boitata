@@ -135,6 +135,13 @@ def test_swath_draws_each_result():
     assert len(ax.lines) == 2
 
 
+def test_paired_bias_draws_bias_and_counts():
+    a = rng.uniform(0, 100, (50, 2))
+    p = cs.pairs(a, a + 0.5, 1.0, values=(np.ones(50), np.full(50, 1.2)))
+    _, ax = cs.plot.paired_bias(cs.paired_bias(p, [0, 1]))
+    np.testing.assert_allclose(ax.lines[-1].get_ydata(), 20.0)
+
+
 def test_uncertain_fades_to_white():
     values = np.array([[0.0, 1.0], [1.0, np.nan]])
     uncertainty = np.array([[0.0, 1.0], [0.5, 0.0]])

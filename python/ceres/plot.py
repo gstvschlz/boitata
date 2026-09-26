@@ -12,6 +12,7 @@ __all__ = [
     "boxplot",
     "cdf",
     "histogram",
+    "paired_bias",
     "probability",
     "qq",
     "scatter",
@@ -615,6 +616,33 @@ def swath(swaths, labels=None, ax=None, **kwargs):
         ax.legend()
     ax.set_xlabel("Distance along swath")
     ax.set_ylabel("Mean")
+    return fig, ax
+
+
+def paired_bias(bias, ax=None, **kwargs):
+    """Relative bias of `b` over `a` per bin of pairing distance, with the pair counts as light bars.
+
+    Parameters
+    ----------
+    bias : Table
+        Result of ``ceres.paired_bias``.
+    **kwargs
+        Passed to ``ax.plot``.
+    """
+    fig, ax = _axes(ax)
+    lo, hi = np.asarray(bias["from"]), np.asarray(bias["to"])
+    bars = ax.twinx()
+    bars.bar(lo, bias["n"], width=hi - lo, align="edge", color="0.9", edgecolor="white", zorder=0)
+    bars.set_ylabel("Pairs", color="0.5")
+    bars.tick_params(axis="y", colors="0.5")
+    ax.set_zorder(bars.get_zorder() + 1)
+    ax.patch.set_visible(False)
+    ax.axhline(0, color="0.5", lw=0.8, ls="--")
+    kwargs.setdefault("marker", "o")
+    ax.plot((lo + hi) / 2, 100 * np.asarray(bias["bias"]), **kwargs)
+    ax.set_xlim(lo[0], hi[-1])
+    ax.set_xlabel("Pairing distance")
+    ax.set_ylabel("Bias of b over a (%)")
     return fig, ax
 
 

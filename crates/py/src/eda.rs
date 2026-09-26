@@ -595,7 +595,160 @@ fn duplicates<'py>(
     PyPointSet(merged).into_bound_py_any(py)
 }
 
+fn two<'py>(
+    obj: &Bound<'py, PyAny>,
+    what: &str,
+) -> PyResult<(Bound<'py, PyAny>, Bound<'py, PyAny>)> {
+    obj.extract()
+        .map_err(|_| invalid(format!("{what} must be a pair: one for a, one for b")))
+}
+
+fn set_coords(obj: &Bound<PyAny>) -> PyResult<Vec<[f64; 3]>> {
+    match obj.cast::<PyPointSet>() {
+        Ok(p) => Ok(p.get().0.coords().to_vec()),
+        Err(_) => coords_arg(obj),
+    }
+}
+
+/// Nearest pairs between two sets of samples within `max_distance`, e.g. twin
+/// holes or two drilling types.
+///
+/// Parameters
+/// ----------
+/// a, b : PointSet or array_like
+///     Samples, or their ``(n, 2)`` or ``(n, 3)`` coordinates.
+/// max_distance : float
+///     Largest pairing distance.
+/// values : tuple of array_like, optional
+///     Values of `a` and of `b`; samples with NaN are not paired.
+/// unique : bool
+///     Pair each sample at most once, the closest pairs first; else each
+///     sample of `a` takes its nearest of `b`, which may repeat.
+/// holes : tuple of array_like, optional
+///     Hole ids of `a` and of `b`; samples of one hole are not paired.
+///
+/// Returns
+/// -------
+/// Table
+///     One row per pair, by row of `a`: ``a`` and ``b`` rows, ``distance``
+///     and, with `values`, ``value_a`` and ``value_b``.
+#[pyfunction]
+#[pyo3(signature = (a, b, max_distance, values=None, unique=true, holes=None))]
+fn pairs(
+    a: &Bound<PyAny>,
+    b: &Bound<PyAny>,
+    max_distance: f64,
+    values: Option<&Bound<PyAny>>,
+    unique: bool,
+    holes: Option<&Bound<PyAny>>,
+) -> PyResult<Table> {
+    let (a, b) = (set_coords(a)?, set_coords(b)?);
+    let values = values
+        .map(|v| -> PyResult<_> {
+            let (va, vb) = two(v, "values")?;
+            Ok((floats(&va, "values")?, floats(&vb, "values")?))
+        })
+        .transpose()?;
+    let codes = holes
+        .map(|h| -> PyResult<_> {
+            let (ha, hb) = two(h, "holes")?;
+            let (la, _) = self::holes(Some(&ha), a.len())?.expect("given");
+            let (lb, _) = self::holes(Some(&hb), b.len())?.expect("given");
+            let mut ids = std::collections::HashMap::new();
+            let mut code = |l: String| {
+                let next = ids.len() as u32;
+                *ids.entry(l).or_insert(next)
+            };
+            let ca: Vec<u32> = la.into_iter().map(&mut code).collect();
+            let cb: Vec<u32> = lb.into_iter().map(&mut code).collect();
+            Ok((ca, cb))
+        })
+        .transpose()?;
+    let found = eda::pairs(
+        &a,
+        &b,
+        max_distance,
+        values.as_ref().map(|(va, vb)| (&va[..], &vb[..])),
+        codes.as_ref().map(|(ca, cb)| (&ca[..], &cb[..])),
+        unique,
+    )
+    .map_err(invalid)?;
+    let index = |f: fn(&(usize, usize, f64)) -> usize| -> ArrayRef {
+        Arc::new(UInt64Array::from_iter_values(
+            found.iter().map(|p| f(p) as u64),
+        ))
+    };
+    let mut columns: Vec<(&str, ArrayRef)> = vec![
+        ("a", index(|p| p.0)),
+        ("b", index(|p| p.1)),
+        (
+            "distance",
+            Arc::new(Float64Array::from_iter_values(found.iter().map(|p| p.2))),
+        ),
+    ];
+    if let Some((va, vb)) = &values {
+        columns.push(("value_a", nullable(found.iter().map(|p| va[p.0]))));
+        columns.push(("value_b", nullable(found.iter().map(|p| vb[p.1]))));
+    }
+    Ok(Table(RecordBatch::try_from_iter(columns).map_err(invalid)?))
+}
+
+/// Mean of paired values and their relative bias per bin of pairing distance.
+///
+/// Parameters
+/// ----------
+/// pairs : Table
+///     Result of `pairs` with `values`, or any table with ``distance``,
+///     ``value_a`` and ``value_b`` columns.
+/// bins : int or array_like
+///     Number of equal bins from 0 to the largest distance, or bin edges.
+///
+/// Returns
+/// -------
+/// Table
+///     One row per bin: ``from``, ``to``, ``n`` pairs, ``mean_a``, ``mean_b``
+///     and ``bias``, ``mean_b / mean_a - 1``; null when the bin is empty.
+#[pyfunction]
+fn paired_bias(pairs: &Bound<PyAny>, bins: &Bound<PyAny>) -> PyResult<Table> {
+    let column = |name: &str| -> PyResult<Vec<f64>> {
+        let c = pairs
+            .get_item(name)
+            .map_err(|_| invalid(format!("pairs need a '{name}' column; give pairs values")))?;
+        floats(&c, name)
+    };
+    let distance = column("distance")?;
+    let edges = match bins.extract::<usize>() {
+        Ok(0) => return Err(invalid("bins must be positive")),
+        Ok(k) => {
+            let top = distance.iter().copied().fold(0.0, f64::max);
+            let top = if top > 0.0 { top } else { 1.0 };
+            (0..=k).map(|i| top * i as f64 / k as f64).collect()
+        }
+        Err(_) => floats(bins, "bins")?,
+    };
+    let rows = eda::paired_bias(&distance, &column("value_a")?, &column("value_b")?, &edges)
+        .map_err(invalid)?;
+    let col = |f: fn(&eda::Bias) -> f64| nullable(rows.iter().map(f));
+    let batch = RecordBatch::try_from_iter([
+        ("from", col(|r| r.from)),
+        ("to", col(|r| r.to)),
+        (
+            "n",
+            Arc::new(UInt64Array::from_iter_values(
+                rows.iter().map(|r| r.n as u64),
+            )) as ArrayRef,
+        ),
+        ("mean_a", col(|r| r.mean_a)),
+        ("mean_b", col(|r| r.mean_b)),
+        ("bias", col(|r| r.bias)),
+    ])
+    .map_err(invalid)?;
+    Ok(Table(batch))
+}
+
 pub fn register(m: &Bound<PyModule>) -> PyResult<()> {
+    m.add_function(wrap_pyfunction!(pairs, m)?)?;
+    m.add_function(wrap_pyfunction!(paired_bias, m)?)?;
     m.add_function(wrap_pyfunction!(duplicates, m)?)?;
     m.add_function(wrap_pyfunction!(describe, m)?)?;
     m.add_function(wrap_pyfunction!(describe_by, m)?)?;

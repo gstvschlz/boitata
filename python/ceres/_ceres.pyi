@@ -1167,6 +1167,15 @@ def duplicates(
     merge: Literal["mean", "first", "max"],
     weights: ArrayLike | None = None,
 ) -> PointSet: ...
+def pairs(
+    a: PointSet | ArrayLike,
+    b: PointSet | ArrayLike,
+    max_distance: float,
+    values: tuple[ArrayLike, ArrayLike] | None = None,
+    unique: bool = True,
+    holes: tuple[Holes, Holes] | None = None,
+) -> Table: ...
+def paired_bias(pairs: Table, bins: int | ArrayLike) -> Table: ...
 def smooth_classes(
     model: BlockModel,
     classes: ArrayLike,
