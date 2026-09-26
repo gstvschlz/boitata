@@ -12,6 +12,9 @@
 //!    the conditioning set,
 //! 5. continue until every node is simulated.
 //!
+//! Nodes are searched and kriged in parallel batches along the path, and
+//! the realization is the sequential one for any number of threads.
+//!
 //! The search compares grades, of data and of simulated nodes, with a
 //! high-grade threshold. Kriging uses scores: a neighbour of the node's
 //! domain its own, one of another domain (through a soft boundary) its grade
@@ -219,13 +222,15 @@ pub fn sgs_in(
         vg_nscore,
         params,
         local,
+        None,
         |_, _, _, _| {},
     )
 }
 
 /// SGS calling `used(node, neighbours, samples, kriged)` for each kriged
 /// node: the indices into `samples` (data, then simulated nodes, valued in
-/// grades) it was simulated from, and those samples as kriged, in scores.
+/// grades) it was simulated from, and those samples as kriged, in scores;
+/// `batch` fixes the size of the batches.
 #[allow(clippy::too_many_arguments)]
 fn simulate(
     data_locs: &[(f64, f64, f64)],
@@ -238,6 +243,7 @@ fn simulate(
     vg_nscore: &Variogram,
     params: &SgsParams,
     local: Option<&LocalAnisotropy>,
+    batch: Option<usize>,
     mut used: impl FnMut(usize, &[usize], &[Sample], &[Sample]),
 ) -> Result<Realization> {
     if data_locs.len() != data_vals.len() {
@@ -281,20 +287,22 @@ fn simulate(
     };
     let node_trend = |node: usize| trend.map_or(0.0, |t| t.nodes[node]);
 
-    // Conditioning set in grades (grows as nodes are simulated), with the
-    // scores and trend alongside.
-    let mut samples = data(data_locs, data_vals, holes, domains.map(|d| d.0));
-    let mut scores = fitted.scores.clone();
-    let mut trends = trend.map_or_else(|| vec![0.0; data_locs.len()], |t| t.data.to_vec());
-    let mut trees: Vec<SearchTree> = params
+    let samples = data(data_locs, data_vals, holes, domains.map(|d| d.0));
+    let trees: Vec<SearchTree> = params
         .search
         .iter()
         .map(|s| tree(&samples, s, vg_nscore, local))
         .collect();
-    let last = trees.len() - 1;
+    let mut known = Known {
+        samples,
+        scores: fitted.scores.clone(),
+        trends: trend.map_or_else(|| vec![0.0; data_locs.len()], |t| t.data.to_vec()),
+        trees,
+    };
+    let last = known.trees.len() - 1;
     let passes: Vec<usize> = match last {
         0 => vec![0; grid.len()],
-        _ => first_pass(&trees, grid, domains.map(|d| d.1), local)
+        _ => first_pass(&known.trees, grid, domains.map(|d| d.1), local)
             .into_iter()
             .map(|p| p.unwrap_or(last))
             .collect(),
@@ -305,66 +313,162 @@ fn simulate(
     let mut path: Vec<usize> = (0..grid.len()).collect();
     path.shuffle(&mut rng);
 
-    let normal = Normal::new(0.0, 1.0).unwrap();
-    let mut values = vec![f64::NAN; grid.len()];
-
-    for &node in &path {
+    // 3. Kriging from neighbors (simple kriging, mean 0 in Gaussian space).
+    let step = |known: &Known, node: usize, earlier: Option<&[usize]>| -> Option<Result<Step>> {
         let target = grid[node];
         let domain = domains.map(|d| d.1[node]);
-
-        // 3. Kriging from neighbors (simple kriging, mean 0 in Gaussian space).
         let aniso = local.map(|l| l.anisotropy(node));
-        let found = find(&trees[passes[node]], &target, domain, aniso.as_ref());
+        let tree = &known.trees[passes[node]];
+        let found = find(tree, &target, domain, aniso.as_ref());
+        if let Some(earlier) = earlier {
+            // Stale when a node simulated since `known` would join the
+            // search: within the farthest neighbour of a full search, or
+            // within the radius of one that is not.
+            let search = &params.search[passes[node]];
+            let d = |p: &(f64, f64, f64)| match &aniso {
+                Some(a) => a.lag(&target, p),
+                None => tree.distance(&target, p),
+            };
+            let reach = match &found {
+                Ok(idx) if idx.len() >= search.max_samples => idx
+                    .iter()
+                    .map(|&k| d(&known.samples[k].loc))
+                    .fold(0.0, f64::max),
+                _ => search.radius,
+            };
+            if earlier.iter().any(|&j| d(&grid[j]) <= reach * (1.0 + 1e-9)) {
+                return None;
+            }
+        }
+        if let Some(&k) = found
+            .iter()
+            .flatten()
+            .find(|&&k| known.samples[k].loc == target)
+        {
+            return Some(Ok(Step::Datum(known.samples[k].value)));
+        }
+        let idx = match found {
+            Ok(idx) if !idx.is_empty() => idx,
+            _ => return Some(Ok(Step::Marginal)),
+        };
+        let selected: Vec<Sample> = idx
+            .iter()
+            .map(|&k| Sample {
+                value: match known.samples[k].domain == domain {
+                    true => known.scores[k],
+                    false => transform(domain).forward(known.samples[k].value, known.trends[k]),
+                },
+                ..known.samples[k].clone()
+            })
+            .collect();
         let vg_node = aniso.map(|a| Variogram {
             anisotropy: Some(a),
             ..vg_nscore.clone()
         });
         let vg = vg_node.as_ref().unwrap_or(vg_nscore);
-        if let Some(&k) = found.iter().flatten().find(|&&k| samples[k].loc == target) {
-            // A node on a datum takes its value and is not added again.
-            values[node] = samples[k].value;
-            continue;
-        }
-        let score = match found {
-            Ok(idx) if !idx.is_empty() => {
-                let selected: Vec<Sample> = idx
-                    .iter()
-                    .map(|&k| Sample {
-                        value: match samples[k].domain == domain {
-                            true => scores[k],
-                            false => transform(domain).forward(samples[k].value, trends[k]),
-                        },
-                        ..samples[k].clone()
-                    })
-                    .collect();
-                used(node, &idx, &samples, &selected);
-                let est = krige(Kind::Simple { mean: 0.0 }, &target, &selected, vg)
-                    .map_err(|e| SimError::Estimation(e.to_string()))?;
-                let sd = est.variance.max(0.0).sqrt();
-                est.value + sd * normal.sample(&mut rng)
-            }
-            // No neighbors found: draw from the marginal (standard normal).
-            _ => normal.sample(&mut rng),
-        };
+        Some(
+            krige(Kind::Simple { mean: 0.0 }, &target, &selected, vg)
+                .map_err(|e| SimError::Estimation(e.to_string()))
+                .map(|est| Step::Kriged {
+                    idx,
+                    selected,
+                    mean: est.value,
+                    sd: est.variance.max(0.0).sqrt(),
+                }),
+        )
+    };
 
-        // 4. Back-transform and add the node to the conditioning set.
-        let value = transform(domain).back(score, node_trend(node));
-        values[node] = value;
-        let sample = Sample {
-            loc: target,
-            value,
-            hole: None,
-            error_variance: 0.0,
-            domain,
-        };
-        for tree in &mut trees {
-            tree.add(&sample);
+    let normal = Normal::new(0.0, 1.0).unwrap();
+    let mut values = vec![f64::NAN; grid.len()];
+    let most = params
+        .search
+        .iter()
+        .map(|s| s.max_samples)
+        .max()
+        .unwrap_or(0);
+    let mut start = 0;
+    while start < path.len() {
+        // A batch is searched and kriged in parallel against the nodes
+        // simulated before it; its stale nodes are redone in path order,
+        // so the realization is the sequential one for any batch size. A
+        // node goes stale with probability about size * most / 2 / known,
+        // one in 16 here.
+        let size = batch.unwrap_or(known.samples.len() / (8 * most).max(1));
+        let nodes = &path[start..(start + size.clamp(1, BATCH)).min(path.len())];
+        let steps: Vec<Option<Result<Step>>> = nodes
+            .par_iter()
+            .enumerate()
+            .map(|(t, &node)| step(&known, node, Some(&nodes[..t])))
+            .collect();
+        for (&node, s) in nodes.iter().zip(steps) {
+            let s = s
+                .or_else(|| step(&known, node, None))
+                .expect("never stale alone")?;
+            let score = match s {
+                // A node on a datum takes its value and is not added again.
+                Step::Datum(value) => {
+                    values[node] = value;
+                    continue;
+                }
+                Step::Kriged {
+                    idx,
+                    selected,
+                    mean,
+                    sd,
+                } => {
+                    used(node, &idx, &known.samples, &selected);
+                    mean + sd * normal.sample(&mut rng)
+                }
+                // No neighbors found: draw from the marginal (standard normal).
+                Step::Marginal => normal.sample(&mut rng),
+            };
+
+            // 4. Back-transform and add the node to the conditioning set.
+            let domain = domains.map(|d| d.1[node]);
+            let value = transform(domain).back(score, node_trend(node));
+            values[node] = value;
+            let sample = Sample {
+                loc: grid[node],
+                value,
+                hole: None,
+                error_variance: 0.0,
+                domain,
+            };
+            for tree in &mut known.trees {
+                tree.add(&sample);
+            }
+            known.samples.push(sample);
+            known.scores.push(score);
+            known.trends.push(node_trend(node));
         }
-        samples.push(sample);
-        scores.push(score);
-        trends.push(node_trend(node));
+        start += nodes.len();
     }
     Ok(Realization { values })
+}
+
+/// Largest batch of nodes searched and kriged in parallel.
+const BATCH: usize = 512;
+
+/// The conditioning set in grades, growing as nodes are simulated, with
+/// the scores and trend alongside and a search tree per pass.
+struct Known {
+    samples: Vec<Sample>,
+    scores: Vec<f64>,
+    trends: Vec<f64>,
+    trees: Vec<SearchTree>,
+}
+
+/// A node's draw: a datum's value, or the kriged mean and standard
+/// deviation of its score from neighbours `idx`, kriged as `selected`.
+enum Step {
+    Datum(f64),
+    Kriged {
+        idx: Vec<usize>,
+        selected: Vec<Sample>,
+        mean: f64,
+        sd: f64,
+    },
+    Marginal,
 }
 
 /// Lengths of `domains` and a datum in the domain of every node.
@@ -692,11 +796,16 @@ pub(crate) mod tests {
             }],
             seed: 5,
         };
+        // A pool of its own, as the other tests keep the global one busy.
+        let pool = rayon::ThreadPoolBuilder::new().num_threads(2).build();
         let start = std::time::Instant::now();
-        sgs(
-            &data_locs, &data_vals, None, None, &grid, &vg, &params, None,
-        )
-        .unwrap();
+        pool.unwrap()
+            .install(|| {
+                sgs(
+                    &data_locs, &data_vals, None, None, &grid, &vg, &params, None,
+                )
+            })
+            .unwrap();
         let elapsed = start.elapsed().as_secs_f64();
         assert!(elapsed < 10.0, "{elapsed} s");
     }
@@ -1067,6 +1176,7 @@ pub(crate) mod tests {
             &vg(),
             &params,
             None,
+            None,
             |node, idx, samples, kriged| {
                 for (j, &k) in idx.iter().enumerate() {
                     let (s, d) = (&samples[k], distance(&grid[node], &samples[k].loc));
@@ -1147,6 +1257,7 @@ pub(crate) mod tests {
                 &grid,
                 &vg(),
                 &params,
+                None,
                 None,
                 |node, idx, samples, _| {
                     for &i in idx {
@@ -1472,32 +1583,66 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn domains_follow_the_seed_not_the_thread_count() {
+    fn realizations_follow_the_seed_not_threads_or_batches() {
         let z = zoned();
         let (grid, nodes, node_trend) = zoned_grid();
-        let all: Vec<usize> = (0..z.locs.len()).collect();
-        let search = zoned_search(Some(estimation::Soft::All(8.0)));
-        let run = |threads, seed| {
-            rayon::ThreadPoolBuilder::new()
-                .num_threads(threads)
-                .build()
-                .unwrap()
-                .install(|| {
-                    let trend = Some((&z.trend[..], &node_trend[..]));
-                    run(
-                        &z,
-                        &all,
-                        &grid,
-                        Some((&z.codes, &nodes)),
-                        trend,
-                        &search,
-                        seed,
-                    )
-                })
+        let local = LocalAnisotropy::new(
+            grid.clone(),
+            (0..grid.len())
+                .map(|i| [(i * 37 % 180) as f64, 0.0, 0.0])
+                .collect(),
+            vec![[0.5, 1.0]; grid.len()],
+        )
+        .unwrap();
+        let trend = Trend {
+            data: &z.trend,
+            nodes: &node_trend,
+            classes: 3,
         };
-        let a = run(1, 3);
-        assert_eq!(a, run(4, 3));
-        assert_ne!(a, run(4, 4));
+        let soft = zoned_search(Some(estimation::Soft::All(8.0)));
+        let octant: Vec<Search> = soft
+            .iter()
+            .map(|s| Search {
+                octant: true,
+                ..s.clone()
+            })
+            .collect();
+        for search in [soft, octant] {
+            for local in [None, Some(&local)] {
+                let run = |threads, batch, seed| {
+                    let params = SgsParams {
+                        search: search.clone(),
+                        seed,
+                    };
+                    let pool = rayon::ThreadPoolBuilder::new().num_threads(threads);
+                    pool.build().unwrap().install(|| {
+                        simulate(
+                            &z.locs,
+                            &z.vals,
+                            Some(&z.weights),
+                            Some(&z.holes),
+                            Some((&z.codes, &nodes)),
+                            Some(trend),
+                            &grid,
+                            &vg(),
+                            &params,
+                            local,
+                            batch,
+                            |_, _, _, _| {},
+                        )
+                        .unwrap()
+                        .values
+                    })
+                };
+                let sequential = run(1, Some(1), 3);
+                for threads in [1, 2, 8] {
+                    for batch in [None, Some(16), Some(BATCH)] {
+                        assert_eq!(sequential, run(threads, batch, 3));
+                    }
+                }
+                assert_ne!(sequential, run(8, None, 4));
+            }
+        }
     }
 
     #[test]

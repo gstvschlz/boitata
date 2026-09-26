@@ -54,6 +54,40 @@ fn bench(c: &mut Criterion) {
     group.finish();
 }
 
+/// One SGS realization of 100 000 nodes on 1 and 8 threads.
+fn threads(c: &mut Criterion) {
+    let (data, values, _) = inputs();
+    let grid: Vec<_> = (0..100_000)
+        .map(|i| ((i % 400) as f64 * 0.5, (i / 400) as f64 * 0.8, 0.0))
+        .collect();
+    let vg = Variogram::single(Model::Spherical, 1.0, 40.0);
+    let params = SgsParams {
+        search: vec![Search {
+            min_samples: 1,
+            max_samples: 24,
+            radius: 60.0,
+            ..Default::default()
+        }],
+        seed: 1,
+    };
+    let mut group = c.benchmark_group("SGS, 100 000 nodes");
+    group.sample_size(10);
+    for n in [1, 8] {
+        let pool = rayon::ThreadPoolBuilder::new()
+            .num_threads(n)
+            .build()
+            .unwrap();
+        group.bench_function(format!("{n} threads"), |b| {
+            b.iter(|| {
+                pool.install(|| {
+                    black_box(sgs(&data, &values, None, None, &grid, &vg, &params, None).unwrap())
+                })
+            })
+        });
+    }
+    group.finish();
+}
+
 /// Turning bands on a million nodes, split into its phases.
 fn phases(c: &mut Criterion) {
     let (data, values, _) = inputs();
@@ -90,5 +124,5 @@ fn phases(c: &mut Criterion) {
     group.finish();
 }
 
-criterion_group!(benches, bench, phases);
+criterion_group!(benches, bench, threads, phases);
 criterion_main!(benches);
