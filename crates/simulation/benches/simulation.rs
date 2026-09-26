@@ -35,12 +35,12 @@ fn bench(c: &mut Criterion) {
     group.sample_size(10);
     group.bench_function("SGS", |b| {
         let params = SgsParams {
-            search: Search {
+            search: vec![Search {
                 min_samples: 1,
                 max_samples: 24,
                 radius: 60.0,
                 ..Default::default()
-            },
+            }],
             seed: 1,
         };
         b.iter(|| black_box(sgs(&data, &values, None, None, &grid, &vg, &params, None).unwrap()))

@@ -1,3 +1,4 @@
+import json
 import pickle
 
 import ceres as cs
@@ -283,3 +284,62 @@ def test_max_per_hole_caps_the_data_of_one_hole_with_a_trend(kind):
     capped = run(8, 1, ["DH1"] * 10)
     np.testing.assert_array_equal(capped, run(1))
     assert not np.array_equal(capped, run(8))
+
+
+def holes_in_clusters():
+    r = np.random.default_rng(8)
+    tops = np.vstack([r.uniform(0, 25, (20, 2)), r.uniform(50, 100, (10, 2))])
+    xyz = np.column_stack([np.repeat(tops, 5, axis=0), np.tile(np.arange(5.0), 30)])
+    grades = r.lognormal(0, 0.8, 150)
+    passes = [
+        cs.Search(r, max_samples=12, min_samples=m, max_per_hole=3, high_grade=(4.0, 6.0))
+        for r, m in ((10, 8), (25, 4), (40, 2))
+    ]
+    return xyz, grades, np.repeat(np.arange(30), 5), passes
+
+
+def test_sgs_passes_are_the_kriging_passes():
+    xyz, grades, holes, passes = holes_in_clusters()
+    targets = cs.BlockModel(origin=(0, 0, 2), size=(2.5, 2.5, 1), count=(40, 40, 1))
+    kriged = cs.OrdinaryKriging(gaussian, passes).fit(xyz, grades, holes=holes)
+    want = kriged.predict(targets, diagnostics=True)["pass"]
+    sgs = cs.SGS(gaussian, passes).fit(xyz, grades, holes=holes)
+    np.testing.assert_array_equal(sgs.passes(targets), want)
+    assert {1.0, 2.0, 3.0} <= set(want[~np.isnan(want)]) and np.isnan(want).any()
+
+
+def test_sgs_with_passes_is_reproducible_and_one_pass_is_the_search(tmp_path):
+    xyz, grades, holes, passes = holes_in_clusters()
+    targets = cs.BlockModel(origin=(0, 0, 2), size=(5, 5, 1), count=(20, 20, 1))
+
+    def run(model):
+        return (
+            model.fit(xyz, grades, holes=holes).simulate(targets, n=3, seed=4, realizations=True).realizations
+        )
+
+    np.testing.assert_array_equal(run(cs.SGS(gaussian, [passes[1]])), run(cs.SGS(gaussian, passes[1])))
+    by_pass = cs.SGS(gaussian, passes)
+    reals = run(by_pass)
+    np.testing.assert_array_equal(reals, run(cs.SGS(gaussian, passes)))
+    assert not np.array_equal(reals, run(cs.SGS(gaussian, passes[2])))
+    by_pass.to_parquet(tmp_path / "sgs.parquet")
+    np.testing.assert_array_equal(
+        cs.SGS.from_parquet(tmp_path / "sgs.parquet")
+        .simulate(targets, n=3, seed=4, realizations=True)
+        .realizations,
+        reals,
+    )
+    meta, columns = cs.SGS(gaussian, passes[1]).fit(xyz, grades, holes=holes)._state()
+    older = json.loads(meta)
+    older["search"] = older["search"][0]
+    np.testing.assert_array_equal(
+        cs.SGS._from_state(json.dumps(older), columns)
+        .simulate(targets, n=3, seed=4, realizations=True)
+        .realizations,
+        run(cs.SGS(gaussian, passes[1])),
+    )
+    mv = cs.MultivariateSimulation(cs.PCA(), [cs.SGS(gaussian, passes), cs.SGS(gaussian, passes[0])])
+    two = mv.fit(xyz, np.column_stack([grades, grades**0.5]), holes=holes).simulate(targets, n=2, seed=1)
+    assert len(two) == 2 and np.isfinite(two[0].mean).all()
+    with pytest.raises(ValueError, match="at least one"):
+        cs.SGS(gaussian, [])

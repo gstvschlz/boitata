@@ -243,18 +243,23 @@ save(fig, "soft")
 # %% [markdown]
 # ## Simulation at block support
 #
-# Thirty sequential Gaussian simulations on 2.5 m nodes, eight per block (`discretize(2)`), with the same high-grade
-# restriction. `blocks=` averages each realization over the nodes of every 5 m block before summarizing, so the
-# probability above 10 % Zn is that of the block grade, which is what a stope mines.
+# Thirty sequential Gaussian simulations on 2.5 m nodes, eight per block (`discretize(2)`), in the passes of the
+# kriging, high-grade restriction included. A node takes the first pass that finds enough composites, as a block
+# does in kriging, and is simulated from that pass's composites and nodes already simulated; `passes` gives the map.
+# `blocks=` averages each realization over the nodes of every 5 m block before summarizing, so the probability above
+# 10 % Zn is that of the block grade, which is what a stope mines.
 
 # %%
 nodes = blocks.discretize(2)
 
-search = cs.Search(radius=60, max_samples=16, max_per_hole=4, high_grade=(30.0, 15.0))
-sgs = cs.SGS(gaussian, search).fit(xyz, zn, weights=weights, holes=holes)
+sgs = cs.SGS(gaussian, passes(high_grade=(30.0, 15.0))).fit(xyz, zn, weights=weights, holes=holes)
 summary = sgs.simulate(nodes, n=30, seed=1, cutoffs=[10.0], blocks=blocks)
 low, high = np.quantile(summary.realization_above[0], [0.1, 0.9])
-print(f"{len(nodes)} nodes in {len(blocks)} blocks")
+on = sgs.passes(nodes)
+print(
+    f"{len(nodes)} nodes in {len(blocks)} blocks; pass 1: {np.mean(on == 1):.0%} of nodes, "
+    f"pass 2: {np.mean(on == 2):.0%}, neither: {np.mean(np.isnan(on)):.0%}"
+)
 print(
     f"blocks above 10 % Zn: P10 {low:.1%}, P90 {high:.1%} of the lens; kriged {np.mean(kriged['value'] > 10):.1%}"
 )
@@ -343,7 +348,7 @@ north = on_row[0, 1]
 fig = plt.figure(figsize=(11, 6.4), layout="constrained")
 axes = fig.subplots(2, 4, height_ratios=[4, 1])
 grade = plt.Normalize(0, 25)
-cs.plot.section(blocks, "zn", axis="y", index=row, ax=axes[0, 0], colorbar=False, cmap="cividis", norm=grade)
+cs.plot.section(blocks, "zn", axis="y", index=row, ax=axes[0, 0], colorbar=False, norm=grade)
 cs.plot.uncertain(
     "mean",
     "uncertainty",

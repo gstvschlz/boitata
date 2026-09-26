@@ -4,7 +4,9 @@
 //! 1. normal-score transform the conditioning data,
 //! 2. visit grid nodes along a random path,
 //! 3. at each node, simple-krige (mean 0) from nearby data + previously simulated
-//!    nodes to get a conditional mean/variance, then draw from that Gaussian,
+//!    nodes to get a conditional mean/variance, then draw from that Gaussian;
+//!    with several searches, a node uses the first that finds enough data,
+//!    as a kriging pass would,
 //! 4. add the drawn value to the conditioning set and continue,
 //! 5. back-transform all simulated scores to data space.
 
@@ -17,13 +19,16 @@ use rand::SeedableRng;
 use rand::rngs::StdRng;
 use rand::seq::SliceRandom;
 use rand_distr::{Distribution, Normal};
+use rayon::prelude::*;
 use transforms::{NormalScoreTable, normal_score};
-use variogram::Variogram;
+use variogram::{Anisotropy, Variogram};
 
 /// SGS parameters.
 #[derive(Debug, Clone)]
 pub struct SgsParams {
-    pub search: Search,
+    /// Search passes: a node takes the first that finds `min_samples` among
+    /// the data, or the last when none does.
+    pub search: Vec<Search>,
     /// RNG seed for a reproducible realization.
     pub seed: u64,
 }
@@ -58,6 +63,11 @@ pub fn sgs(
     if data_locs.is_empty() {
         return Err(SimError::InsufficientData("no conditioning data".into()));
     }
+    if params.search.is_empty() {
+        return Err(SimError::InvalidParameters(
+            "need at least one search".into(),
+        ));
+    }
     let holes = crate::holes(data_holes, data_locs.len())?;
     if grid.is_empty() {
         return Ok(Realization { values: vec![] });
@@ -66,7 +76,6 @@ pub fn sgs(
     // 1. Normal-score transform.
     let ns = normal_score::transform(data_vals, data_weights)
         .map_err(|e| SimError::Transform(e.to_string()))?;
-    let search = &in_scores(&params.search, &ns.table);
 
     // Conditioning set (grows as nodes are simulated).
     let mut cond: Vec<Sample> = data_locs
@@ -86,16 +95,18 @@ pub fn sgs(
             "one local anisotropy per grid node".into(),
         ));
     }
-    let mut tree = match local {
-        Some(_) => SearchTree::new(
-            &cond,
-            &Search {
-                anisotropy: None,
-                ..search.clone()
-            },
-            None,
-        ),
-        None => SearchTree::new(&cond, search, Some(vg_nscore)),
+    let mut trees: Vec<SearchTree> = params
+        .search
+        .iter()
+        .map(|s| tree(&cond, &in_scores(s, &ns.table), vg_nscore, local))
+        .collect();
+    let last = trees.len() - 1;
+    let passes: Vec<usize> = match last {
+        0 => vec![0; grid.len()],
+        _ => first_pass(&trees, grid, local)
+            .into_iter()
+            .map(|p| p.unwrap_or(last))
+            .collect(),
     };
 
     // 2. Random path over grid nodes.
@@ -111,10 +122,7 @@ pub fn sgs(
 
         // 3. Kriging from neighbors (simple kriging, mean 0 in Gaussian space).
         let aniso = local.map(|l| l.anisotropy(node));
-        let found = match &aniso {
-            Some(a) => tree.neighbors_within(&target, None, a),
-            None => tree.neighbors(&target),
-        };
+        let found = find(&trees[passes[node]], &target, aniso.as_ref());
         let vg_node = aniso.map(|a| Variogram {
             anisotropy: Some(a),
             ..vg_nscore.clone()
@@ -146,13 +154,98 @@ pub fn sgs(
             error_variance: 0.0,
             domain: None,
         };
-        tree.add(&sample);
+        for tree in &mut trees {
+            tree.add(&sample);
+        }
         cond.push(sample);
     }
 
     // 5. Back-transform to data space.
     let values: Vec<f64> = sim_scores.iter().map(|&s| ns.table.back(s)).collect();
     Ok(Realization { values })
+}
+
+/// The pass of every grid node: the first of `search` that finds
+/// `min_samples` among the data, as in a kriging by passes; `None` where none
+/// does, and SGS then uses the last. Simulated nodes play no part, so the map
+/// is the same in every realization.
+pub fn sgs_passes(
+    data_locs: &[(f64, f64, f64)],
+    data_vals: &[f64],
+    data_holes: Option<&[u32]>,
+    grid: &[(f64, f64, f64)],
+    vg_nscore: &Variogram,
+    search: &[Search],
+    local: Option<&LocalAnisotropy>,
+) -> Result<Vec<Option<usize>>> {
+    if data_locs.len() != data_vals.len() {
+        return Err(SimError::InvalidParameters("data length mismatch".into()));
+    }
+    if local.is_some_and(|l| l.len() != grid.len()) {
+        return Err(SimError::InvalidParameters(
+            "one local anisotropy per grid node".into(),
+        ));
+    }
+    let data: Vec<Sample> = data_locs
+        .iter()
+        .zip(data_vals)
+        .zip(crate::holes(data_holes, data_locs.len())?)
+        .map(|((&loc, &value), hole)| Sample {
+            hole,
+            ..Sample::new(loc, value)
+        })
+        .collect();
+    let trees: Vec<SearchTree> = search
+        .iter()
+        .map(|s| tree(&data, s, vg_nscore, local))
+        .collect();
+    Ok(first_pass(&trees, grid, local))
+}
+
+fn tree(
+    samples: &[Sample],
+    search: &Search,
+    vg: &Variogram,
+    local: Option<&LocalAnisotropy>,
+) -> SearchTree {
+    match local {
+        Some(_) => SearchTree::new(
+            samples,
+            &Search {
+                anisotropy: None,
+                ..search.clone()
+            },
+            None,
+        ),
+        None => SearchTree::new(samples, search, Some(vg)),
+    }
+}
+
+fn find(
+    tree: &SearchTree,
+    target: &(f64, f64, f64),
+    local: Option<&Anisotropy>,
+) -> estimation::Result<Vec<usize>> {
+    match local {
+        Some(a) => tree.neighbors_within(target, None, a),
+        None => tree.neighbors(target),
+    }
+}
+
+fn first_pass(
+    trees: &[SearchTree],
+    grid: &[(f64, f64, f64)],
+    local: Option<&LocalAnisotropy>,
+) -> Vec<Option<usize>> {
+    grid.par_iter()
+        .enumerate()
+        .map(|(i, target)| {
+            let aniso = local.map(|l| l.anisotropy(i));
+            trees
+                .iter()
+                .position(|t| find(t, target, aniso.as_ref()).is_ok_and(|f| !f.is_empty()))
+        })
+        .collect()
 }
 
 /// `search` with its high-grade threshold moved from data values to normal
@@ -189,7 +282,7 @@ mod tests {
         let grid = vec![(0.0, 0.0, 0.0), (50.0, 50.0, 0.0)]; // first coincides with a datum
         let vg = Variogram::single(Model::Spherical, 1.0, 200.0);
         let params = SgsParams {
-            search: Search {
+            search: vec![Search {
                 min_samples: 1,
                 max_samples: 8,
                 radius: f64::INFINITY,
@@ -198,7 +291,7 @@ mod tests {
                 anisotropy: None,
                 high_grade: None,
                 soft: None,
-            },
+            }],
             seed: 42,
         };
         let real = sgs(
@@ -220,7 +313,7 @@ mod tests {
         let grid: Vec<(f64, f64, f64)> = (0..20).map(|i| (i as f64 * 5.0, 25.0, 0.0)).collect();
         let vg = Variogram::single(Model::Exponential, 1.0, 150.0);
         let params = SgsParams {
-            search: Search {
+            search: vec![Search {
                 min_samples: 1,
                 max_samples: 12,
                 radius: f64::INFINITY,
@@ -229,7 +322,7 @@ mod tests {
                 anisotropy: None,
                 high_grade: None,
                 soft: None,
-            },
+            }],
             seed: 7,
         };
         let a = sgs(
@@ -250,7 +343,7 @@ mod tests {
         let grid: Vec<(f64, f64, f64)> = (0..20).map(|i| (i as f64 * 5.0, 25.0, 0.0)).collect();
         let vg = Variogram::single(Model::Exponential, 1.0, 150.0);
         let mk = |seed| SgsParams {
-            search: Search {
+            search: vec![Search {
                 min_samples: 1,
                 max_samples: 12,
                 radius: f64::INFINITY,
@@ -259,7 +352,7 @@ mod tests {
                 anisotropy: None,
                 high_grade: None,
                 soft: None,
-            },
+            }],
             seed,
         };
         let a = sgs(&data_locs, &data_vals, None, None, &grid, &vg, &mk(1), None).unwrap();
@@ -302,12 +395,12 @@ mod tests {
             ..base.clone()
         };
         let params = SgsParams {
-            search: Search {
+            search: vec![Search {
                 min_samples: 1,
                 max_samples: 200,
                 radius: 12.0,
                 ..Default::default()
-            },
+            }],
             seed: 3,
         };
         let a = sgs(
@@ -337,7 +430,7 @@ mod tests {
         let grid = vec![(10.0, 0.0, 0.0), (5.0, 0.0, 0.0), (15.0, 0.0, 0.0)];
         let vg = Variogram::single(Model::Spherical, 1.0, 30.0);
         let params = SgsParams {
-            search: Search {
+            search: vec![Search {
                 min_samples: 1,
                 max_samples: 8,
                 radius: 50.0,
@@ -346,7 +439,7 @@ mod tests {
                 anisotropy: None,
                 high_grade: None,
                 soft: None,
-            },
+            }],
             seed: 4,
         };
         let r = sgs(
@@ -367,12 +460,12 @@ mod tests {
             .collect();
         let vg = Variogram::single(Model::Spherical, 1.0, 30.0);
         let params = SgsParams {
-            search: Search {
+            search: vec![Search {
                 min_samples: 1,
                 max_samples: 16,
                 radius: 40.0,
                 ..Default::default()
-            },
+            }],
             seed: 5,
         };
         let start = std::time::Instant::now();
@@ -399,7 +492,7 @@ mod tests {
         };
         crate::continuous(n, &Default::default(), |k| {
             let params = SgsParams {
-                search: search.clone(),
+                search: vec![search.clone()],
                 seed: 100 + k as u64,
             };
             sgs(data_locs, data_vals, None, None, grid, vg, &params, None).map(|r| r.values)
@@ -497,7 +590,10 @@ mod tests {
                 max_per_hole,
                 ..Default::default()
             };
-            let params = SgsParams { search, seed: 2 };
+            let params = SgsParams {
+                search: vec![search],
+                seed: 2,
+            };
             sgs(&locs, &vals, None, holes, &grid, &vg, &params, None)
                 .unwrap()
                 .values
@@ -506,5 +602,132 @@ mod tests {
         assert_eq!(capped, run(None, 1, None));
         assert_ne!(capped, run(None, 8, None));
         assert_eq!(run(Some(&holes), 8, None), run(None, 8, None));
+    }
+
+    /// Clustered holes of 5 samples down z, the grid around them in 2D.
+    fn passes_case() -> (
+        Vec<(f64, f64, f64)>,
+        Vec<f64>,
+        Vec<(f64, f64, f64)>,
+        Vec<Search>,
+    ) {
+        let locs: Vec<_> = (0..150)
+            .map(|i| {
+                let h = i / 5;
+                let (x, y) = if h < 20 {
+                    ((h * 7 % 20) as f64 * 1.3, (h * 3 % 20) as f64 * 1.1)
+                } else {
+                    (
+                        40.0 + (h * 13 % 10) as f64 * 5.0,
+                        50.0 + (h % 10) as f64 * 3.0,
+                    )
+                };
+                (x, y, (i % 5) as f64)
+            })
+            .collect();
+        let vals: Vec<f64> = (0..150).map(|i| ((i * 29 % 23) as f64).powf(1.5)).collect();
+        let grid: Vec<_> = (0..40 * 40)
+            .map(|i| ((i % 40) as f64 * 2.5, (i / 40) as f64 * 2.5, 2.0))
+            .collect();
+        let pass = |radius, min_samples| Search {
+            min_samples,
+            max_samples: 12,
+            radius,
+            max_per_hole: Some(3),
+            high_grade: Some(estimation::HighGrade {
+                threshold: 60.0,
+                radius: 6.0,
+            }),
+            ..Default::default()
+        };
+        (
+            locs,
+            vals,
+            grid,
+            vec![pass(10.0, 8), pass(25.0, 4), pass(40.0, 2)],
+        )
+    }
+
+    #[test]
+    fn pass_map_is_the_kriging_pass_map() {
+        let (locs, vals, grid, search) = passes_case();
+        let vg = Variogram::single(Model::Spherical, 1.0, 30.0);
+        let data: Vec<Sample> = locs
+            .iter()
+            .zip(&vals)
+            .enumerate()
+            .map(|(i, (&l, &v))| Sample::with_hole(l, v, (i / 5) as u32))
+            .collect();
+        let kriged = estimation::by_pass(grid.len(), &search, |s, remaining| {
+            let at: Vec<_> = remaining.iter().map(|&i| grid[i]).collect();
+            Ok(estimation::estimate_many(
+                &at,
+                None,
+                &data,
+                s,
+                Some(&vg),
+                |t, n| krige(Kind::Ordinary, t, n, &vg),
+            ))
+        })
+        .unwrap();
+        let want: Vec<_> = kriged.iter().map(|k| k.as_ref().map(|k| k.0)).collect();
+        let holes: Vec<u32> = (0..150).map(|i| i / 5).collect();
+        let got = sgs_passes(&locs, &vals, Some(&holes), &grid, &vg, &search, None).unwrap();
+        assert_eq!(got, want);
+        for p in [Some(0), Some(1), Some(2), None] {
+            assert!(got.contains(&p), "no node in pass {p:?}");
+        }
+    }
+
+    #[test]
+    fn passes_never_taken_change_nothing() {
+        let (locs, vals, grid, _) = passes_case();
+        let vg = Variogram::single(Model::Spherical, 1.0, 30.0);
+        let wide = Search {
+            min_samples: 1,
+            max_samples: 12,
+            radius: f64::INFINITY,
+            ..Default::default()
+        };
+        let run = |search: Vec<Search>| {
+            let params = SgsParams { search, seed: 9 };
+            sgs(&locs, &vals, None, None, &grid, &vg, &params, None)
+                .unwrap()
+                .values
+        };
+        let one = run(vec![wide.clone()]);
+        let two = run(vec![
+            wide.clone(),
+            Search {
+                radius: 5.0,
+                ..wide
+            },
+        ]);
+        assert_eq!(one, two);
+    }
+
+    #[test]
+    fn passes_follow_the_seed_not_the_thread_count() {
+        let (locs, vals, grid, search) = passes_case();
+        let vg = Variogram::single(Model::Spherical, 1.0, 30.0);
+        let run = |threads, seed| {
+            rayon::ThreadPoolBuilder::new()
+                .num_threads(threads)
+                .build()
+                .unwrap()
+                .install(|| {
+                    let params = SgsParams {
+                        search: search.clone(),
+                        seed,
+                    };
+                    sgs(&locs, &vals, None, None, &grid, &vg, &params, None)
+                        .unwrap()
+                        .values
+                })
+        };
+        let a = run(1, 3);
+        assert_eq!(a, run(4, 3));
+        assert_eq!(a, run(1, 3));
+        assert_ne!(a, run(4, 4));
     }
 }
