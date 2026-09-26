@@ -23,11 +23,10 @@ import polars as pl
 samples = cs.PointSet.from_table(cs.read_csv(cs.datasets.fetch("walker-lake/sample.csv")), crs="local grid")
 model = cs.Variogram.from_json((HERE.parent / "03-variography" / "model.json").read_text())
 grid = cs.BlockModel(origin=(0, 0), size=(1, 1), count=(260, 300), rotation=(0, 0, 0), crs="local grid")
-estimate, variance = (
-    cs.OrdinaryKriging(model, cs.Search(radius=100, max_samples=24, min_samples=4))
-    .fit(samples.coords, samples["V"])
-    .predict(grid, return_variance=True)
+kriging = cs.OrdinaryKriging(model, cs.Search(radius=100, max_samples=24, min_samples=4)).fit(
+    samples.coords, samples["V"]
 )
+estimate, variance = kriging.predict(grid, return_variance=True)
 grid = grid.with_column("estimate", estimate).with_column("variance", variance)
 rich = grid.mask(grid["estimate"] > 500)
 print(grid)
@@ -64,3 +63,13 @@ bands = (
     .sort("northing band")
 )
 print(bands)
+
+# %% [markdown]
+# A fitted estimator is saved the same way: its samples become columns and its variogram, search and options JSON
+# in the file metadata. The estimator read back predicts exactly the same values.
+
+# %%
+kriging.to_parquet(folder / "kriging.parquet")
+print(pl.read_parquet(folder / "kriging.parquet").head(3))
+again = cs.OrdinaryKriging.from_parquet(folder / "kriging.parquet")
+print("same estimates:", np.array_equal(again.predict(grid), estimate, equal_nan=True))

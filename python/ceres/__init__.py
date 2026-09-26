@@ -17,10 +17,16 @@ def _from_json(cls, text):
     return cls.from_json(text)
 
 
-def _reduce_json(obj):
+def _from_state(cls, meta, columns):
+    return cls._from_state(meta, columns)
+
+
+def _reduce(obj):
+    if hasattr(obj, "_state"):
+        return _from_state, (type(obj), *obj._state())
     return _from_json, (type(obj), obj.to_json())
 
 
 for _cls in vars(_ceres).values():
-    if isinstance(_cls, type) and hasattr(_cls, "from_json"):
-        _copyreg.pickle(_cls, _reduce_json)
+    if isinstance(_cls, type) and (hasattr(_cls, "from_json") or hasattr(_cls, "_from_state")):
+        _copyreg.pickle(_cls, _reduce)

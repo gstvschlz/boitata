@@ -12,8 +12,8 @@ pub use error::{Error, Result};
 pub use gslib::{read_gslib, write_gslib};
 pub use mesh::{read_mesh, write_mesh};
 pub use parquet::{
-    BlockChunks, BlockModelReader, BlockModelWriter, FileLayout, Stored, read_parquet, stream_map,
-    write_block_model, write_parquet, write_points,
+    BlockChunks, BlockModelReader, BlockModelWriter, FileLayout, Stored, read_model, read_parquet,
+    stream_map, write_block_model, write_model, write_parquet, write_points,
 };
 
 /// Values read as null unless the caller overrides them (case-insensitive).

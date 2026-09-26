@@ -91,3 +91,70 @@ def test_envelope_is_checked():
         cs.BoxCox.from_json(text.replace('"format":1', '"format":2'))
     with pytest.raises(cs.InvalidInput):
         cs.BoxCox.from_json("[1, 2]")
+
+
+model = cs.Variogram([("spherical", 0.8, 40.0)], nugget=0.2)
+search = cs.Search(60.0, max_samples=12)
+targets = rng.uniform(0, 100, (50, 3))
+holes = np.repeat(np.arange(30), 10)
+
+
+def estimators():
+    passes = [cs.Search(20.0, max_samples=8, max_per_hole=2), cs.Search(np.inf)]
+    anam = cs.HermiteAnamorphosis(degree=20).fit(values)
+    lmc = cs.Coregionalization([[0.1, 0.0], [0.0, 0.1]], [("spherical", 40.0, [[1.0, 0.6], [0.6, 1.0]])])
+    return [
+        (cs.OrdinaryKriging(model, passes), {"holes": holes, "error_variance": np.full(300, 0.01)}),
+        (cs.SimpleKriging(model, search, mean=1.2), {}),
+        (cs.IndicatorKriging(model, search, threshold=1.0), {}),
+        (cs.UniversalKriging(model, search), {}),
+        (cs.FactorialKriging(model, search, [0], nugget=True), {}),
+        (cs.BlockKriging(model, search, size=(5.0, 5.0, 5.0)), {}),
+        (cs.BayesianKriging(model, search, [1.0], [0.5]), {}),
+        (cs.InverseDistance(search, power=3.0, variogram=model), {}),
+        (cs.NearestNeighbor(search), {}),
+        (cs.MovingAverage(search), {}),
+        (cs.MovingMedian(search), {}),
+        (cs.LocalLeastSquares(search), {}),
+        (cs.DualKriging(model, degree=1), {}),
+        (cs.Cokriging(lmc, search), {"variables": np.arange(300) % 2}),
+        (cs.DisjunctiveKriging(anam, model, search, order=10), {}),
+    ]
+
+
+def prediction(estimator):
+    if isinstance(estimator, cs.DisjunctiveKriging):
+        return estimator.predict(targets), estimator.predict_tonnage(targets, 1.0)
+    if isinstance(estimator, cs.DualKriging):
+        return (estimator.predict(targets),)
+    if isinstance(estimator, cs.Cokriging):
+        return estimator.predict(targets, variable=1, return_variance=True)
+    return estimator.predict(targets, return_variance=True)
+
+
+@pytest.mark.parametrize("estimator, extra", estimators(), ids=lambda o: type(o).__name__)
+def test_estimator_round_trip_predicts_bit_identically(estimator, extra, tmp_path):
+    path = tmp_path / "model.parquet"
+    estimator.to_parquet(path)
+    unfitted = type(estimator).from_parquet(path)
+    estimator.fit(coords, values, **extra)
+    same(prediction(unfitted.fit(coords, values, **extra)), prediction(estimator))
+    estimator.to_parquet(path)
+    for back in (type(estimator).from_parquet(path), pickle.loads(pickle.dumps(estimator))):
+        assert type(back) is type(estimator)
+        same(prediction(back), prediction(estimator))
+    if hasattr(estimator, "cross_validate"):
+        a, b = estimator.cross_validate(folds=5), back.cross_validate(folds=5)
+        same((a.estimate, a.variance), (b.estimate, b.variance))
+
+
+def test_estimator_file_is_a_table_of_samples(tmp_path):
+    path = tmp_path / "ok.parquet"
+    cs.OrdinaryKriging(model, search).fit(coords, values, holes=holes).to_parquet(path)
+    table = cs.read_parquet(path)
+    assert table.column_names == ["x", "y", "z", "value", "hole", "error_variance"]
+    assert table.num_rows == 300
+    with pytest.raises(cs.InvalidInput, match="expected a SimpleKriging"):
+        cs.SimpleKriging.from_parquet(path)
+    with pytest.raises(cs.FileError):
+        cs.OrdinaryKriging.from_parquet(tmp_path / "missing.parquet")

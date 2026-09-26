@@ -8,7 +8,7 @@ use crate::containers::{PyBlockModel, PyPointSet};
 use crate::table::{Table, to_batch};
 use crate::{error, invalid};
 
-fn io_error(e: ceres_io::Error) -> PyErr {
+pub(crate) fn io_error(e: ceres_io::Error) -> PyErr {
     match e {
         ceres_io::Error::Io(e) => error("FileError", e),
         e => invalid(e),

@@ -49,10 +49,10 @@ fn properties() -> WriterProperties {
         .build()
 }
 
-fn write(path: &Path, table: &RecordBatch, meta: Option<Value>) -> Result<()> {
+fn write(path: &Path, table: &RecordBatch, meta: Option<String>) -> Result<()> {
     let mut metadata = table.schema().metadata().clone();
     if let Some(meta) = meta {
-        metadata.insert(KEY.into(), meta.to_string());
+        metadata.insert(KEY.into(), meta);
     }
     let schema = Arc::new(Schema::new_with_metadata(
         table.schema().fields().clone(),
@@ -77,7 +77,7 @@ pub fn write_parquet(path: impl AsRef<Path>, table: &RecordBatch) -> Result<()> 
 /// Writes points as `x`, `y`, `z` and their attributes.
 pub fn write_points(path: impl AsRef<Path>, points: &PointSet) -> Result<()> {
     let meta = json!({ "kind": "points", "crs": points.crs });
-    write(path.as_ref(), &points.to_table()?, Some(meta))
+    write(path.as_ref(), &points.to_table()?, Some(meta.to_string()))
 }
 
 /// How a block model file stores its rows; the same for every chunk.
@@ -342,16 +342,34 @@ fn decode(
     Ok(model)
 }
 
-/// Reads a file written by any Parquet tool; files written from a container
-/// come back as that container.
-pub fn read_parquet(path: impl AsRef<Path>) -> Result<Stored> {
+fn read_table(path: &Path) -> Result<RecordBatch> {
     let builder = ParquetRecordBatchReaderBuilder::try_new(File::open(path)?)?;
     let schema = builder.schema().clone();
     let batches = builder
         .with_batch_size(ROW_GROUP)
         .build()?
         .collect::<std::result::Result<Vec<_>, _>>()?;
-    let table = concat_batches(&schema, &batches)?;
+    Ok(concat_batches(&schema, &batches)?)
+}
+
+/// Writes a fitted object: its arrays as `table`, its parameters as the JSON
+/// `meta` under the `ceres` key.
+pub fn write_model(path: impl AsRef<Path>, table: &RecordBatch, meta: String) -> Result<()> {
+    write(path.as_ref(), table, Some(meta))
+}
+
+/// Table and `ceres` metadata of a file written by [`write_model`].
+pub fn read_model(path: impl AsRef<Path>) -> Result<(RecordBatch, String)> {
+    let table = read_table(path.as_ref())?;
+    let meta = table.schema().metadata().get(KEY).cloned();
+    Ok((table, meta.ok_or_else(|| bad("no ceres metadata"))?))
+}
+
+/// Reads a file written by any Parquet tool; files written from a container
+/// come back as that container, others (e.g. fitted models) as a table.
+pub fn read_parquet(path: impl AsRef<Path>) -> Result<Stored> {
+    let table = read_table(path.as_ref())?;
+    let schema = table.schema();
     let Some(meta) = schema.metadata().get(KEY) else {
         return Ok(Stored::Table(table));
     };
@@ -381,6 +399,7 @@ pub fn read_parquet(path: impl AsRef<Path>) -> Result<Stored> {
             0,
             true,
         )?)),
+        None => Ok(Stored::Table(table)),
         other => Err(bad(format!("unknown kind {other:?}"))),
     }
 }
@@ -575,6 +594,18 @@ mod tests {
             ),
         ])
         .unwrap()
+    }
+
+    #[test]
+    fn model_round_trip() {
+        let path = temp("model.parquet");
+        let meta = r#"{"type":"X","format":1}"#.to_string();
+        write_model(&path, &attributes(4), meta.clone()).unwrap();
+        let (table, back) = read_model(&path).unwrap();
+        assert_eq!(back, meta);
+        assert_eq!(table.columns(), attributes(4).columns());
+        assert!(matches!(read_parquet(&path).unwrap(), Stored::Table(_)));
+        std::fs::remove_file(path).unwrap();
     }
 
     #[test]

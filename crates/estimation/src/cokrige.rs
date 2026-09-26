@@ -14,6 +14,7 @@
 use crate::error::{EstimError, Result};
 use crate::krige::Estimate;
 use nalgebra::{DMatrix, DVector};
+use serde::{Deserialize, Serialize};
 use variogram::Coregionalization;
 
 /// A located datum tagged with the variable it measures.
@@ -32,7 +33,7 @@ impl CoSample {
 }
 
 /// Cokriging variant.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum CoKind {
     /// Simple cokriging with a known mean per variable.
     Simple { means: Vec<f64> },

@@ -4,11 +4,13 @@ use estimation::search::SearchTree;
 use estimation::{CoKind, CoSample, Estimate, GaussianSample, Sample, Search as CoreSearch};
 use pyo3::prelude::*;
 use rayon::prelude::*;
+use serde::{Deserialize, Serialize};
 use variogram::{Anisotropy, Coregionalization as CoreCoreg, Variogram as CoreVariogram};
 
 use crate::args::{self, Point, array1, distinct, finite, pick, points, same_length};
-use crate::estimation::{Search, outputs, targets};
+use crate::estimation::{Search, outputs, sample_columns, samples_from, targets};
 use crate::invalid;
+use crate::persist::{self, Columns, Found, Tabular};
 use crate::transforms::Anamorphosis;
 use crate::variogram::{Coregionalization, Variogram};
 
@@ -27,16 +29,40 @@ fn nearby<T: Clone>(target: &Point, tree: &SearchTree, items: &[T]) -> Option<Ve
 
 /// Cokriging of `variable` from samples of several variables under a linear
 /// model of coregionalization; `means` switches to simple cokriging.
+#[derive(Serialize, Deserialize)]
 #[pyclass(module = "ceres", name = "Cokriging")]
 pub struct Cokriging {
     model: CoreCoreg,
     search: CoreSearch,
     kind: CoKind,
+    #[serde(skip)]
     samples: Option<(Vec<Sample>, Vec<CoSample>)>,
 }
 
 #[pymethods]
 impl Cokriging {
+    /// Writes arrays as Parquet columns and parameters as JSON in the file
+    /// metadata; `from_parquet` reads it back.
+    fn to_parquet(&self, path: std::path::PathBuf) -> PyResult<()> {
+        crate::persist::to_parquet(<Self as pyo3::PyClass>::NAME, self, &path)
+    }
+
+    /// Reads `to_parquet` output; raises InvalidInput on another class's file
+    /// or a newer format.
+    #[staticmethod]
+    fn from_parquet(path: std::path::PathBuf) -> PyResult<Self> {
+        crate::persist::from_parquet(<Self as pyo3::PyClass>::NAME, &path)
+    }
+
+    fn _state(&self) -> PyResult<(String, Option<crate::persist::Columns>)> {
+        crate::persist::state(<Self as pyo3::PyClass>::NAME, self)
+    }
+
+    #[staticmethod]
+    fn _from_state(meta: &str, columns: Option<crate::persist::Columns>) -> PyResult<Self> {
+        crate::persist::from_state(<Self as pyo3::PyClass>::NAME, meta, columns)
+    }
+
     #[new]
     #[pyo3(signature = (coregionalization, search, means=None))]
     fn new(
@@ -167,12 +193,14 @@ fn targets_of(obj: &Bound<PyAny>) -> PyResult<Vec<Point>> {
 
 /// Disjunctive kriging: simple kriging of the Hermite factors of the Gaussian
 /// transform, giving local grades and proportions above cutoffs.
+#[derive(Serialize, Deserialize)]
 #[pyclass(module = "ceres", name = "DisjunctiveKriging")]
 pub struct Disjunctive {
     engine: estimation::DisjunctiveKriging,
     variogram: CoreVariogram,
     search: CoreSearch,
     order: usize,
+    #[serde(skip)]
     samples: Option<(Vec<Sample>, Vec<GaussianSample>)>,
 }
 
@@ -201,6 +229,28 @@ impl Disjunctive {
 
 #[pymethods]
 impl Disjunctive {
+    /// Writes arrays as Parquet columns and parameters as JSON in the file
+    /// metadata; `from_parquet` reads it back.
+    fn to_parquet(&self, path: std::path::PathBuf) -> PyResult<()> {
+        crate::persist::to_parquet(<Self as pyo3::PyClass>::NAME, self, &path)
+    }
+
+    /// Reads `to_parquet` output; raises InvalidInput on another class's file
+    /// or a newer format.
+    #[staticmethod]
+    fn from_parquet(path: std::path::PathBuf) -> PyResult<Self> {
+        crate::persist::from_parquet(<Self as pyo3::PyClass>::NAME, &path)
+    }
+
+    fn _state(&self) -> PyResult<(String, Option<crate::persist::Columns>)> {
+        crate::persist::state(<Self as pyo3::PyClass>::NAME, self)
+    }
+
+    #[staticmethod]
+    fn _from_state(meta: &str, columns: Option<crate::persist::Columns>) -> PyResult<Self> {
+        crate::persist::from_state(<Self as pyo3::PyClass>::NAME, meta, columns)
+    }
+
     /// `anamorphosis` is fitted on the raw values; `variogram` is that of the
     /// Gaussian scores.
     #[new]
@@ -274,6 +324,51 @@ impl Disjunctive {
             })
             .collect();
         Ok(array1(py, t).into_any())
+    }
+}
+
+impl Tabular for Cokriging {
+    fn columns(&self) -> Option<Columns> {
+        let (plain, co) = self.samples.as_ref()?;
+        let mut columns = sample_columns(plain);
+        columns.push(persist::column("variable", co.iter().map(|s| s.var as f64)));
+        Some(columns)
+    }
+
+    fn restore(&mut self, mut columns: Found) -> PyResult<()> {
+        let plain = samples_from(&mut columns)?;
+        let variables = columns.indices("variable")?;
+        same_length(plain.len(), variables.len(), "variable")?;
+        if variables.iter().any(|&v| v >= self.model.nvar) {
+            return Err(invalid("variable index out of range"));
+        }
+        let co = plain
+            .iter()
+            .zip(variables)
+            .map(|(s, k)| CoSample::new(s.loc, k, s.value))
+            .collect();
+        self.samples = Some((plain, co));
+        Ok(())
+    }
+}
+
+impl Tabular for Disjunctive {
+    fn columns(&self) -> Option<Columns> {
+        Some(sample_columns(&self.samples.as_ref()?.0))
+    }
+
+    fn restore(&mut self, mut columns: Found) -> PyResult<()> {
+        let plain = samples_from(&mut columns)?;
+        let anam = self.engine.anamorphosis();
+        let gauss = plain
+            .iter()
+            .map(|s| GaussianSample {
+                loc: s.loc,
+                y: anam.forward(s.value),
+            })
+            .collect();
+        self.samples = Some((plain, gauss));
+        Ok(())
     }
 }
 
