@@ -159,3 +159,24 @@ def test_probability_draws_the_cap():
     v = rng.lognormal(0, 1, 300)
     _, ax = cs.plot.probability(v, log=True, cap=5.0)
     assert ax.lines[-1].get_xdata()[0] == 5.0
+
+
+def test_scatter_matrix_annotates_correlations_and_weights_histograms():
+    x = rng.lognormal(0, 1, 300)
+    y = x * rng.lognormal(0, 0.3, 300)
+    z = rng.normal(0, 1, 300)
+    x[5] = np.nan
+    w = rng.uniform(0.5, 2.0, 300)
+    fig, axes = cs.plot.scatter_matrix({"x": x, "y": y, "z": z}, weights=w, log=[True, True, False])
+    assert axes.shape == (3, 3) and axes[2, 0].get_xlabel() == "x" and axes[1, 0].get_ylabel() == "y"
+    assert axes[1, 0].get_xscale() == "log" and axes[1, 0].get_yscale() == "log"
+    assert axes[2, 2].get_xscale() == "linear"
+    columns = np.column_stack([x, y, z])
+    r = cs.correlation(columns, w)
+    rank = cs.correlation(columns, w, method="spearman")
+    assert axes[1, 0].texts[0].get_text() == f"r {r[1, 0]:.2f}\nrank {rank[1, 0]:.2f}"
+    bars = [a for a in fig.axes if not any(a is b for b in axes.flat)]
+    np.testing.assert_allclose([sum(p.get_height() for p in b.patches) for b in bars], [1.0] * 3)
+    _, grid = plt.subplots(2, 2)
+    _, axes = cs.plot.scatter_matrix(columns[:, :2], labels=["a", "b"], axes=grid)
+    assert axes[0, 1] is grid[0, 1] and axes[1, 1].get_xlabel() == "b"
