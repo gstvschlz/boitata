@@ -1,9 +1,13 @@
 //! Automatic variogram-model fitting by weighted least squares.
 
+use crate::aniso::{Angles, Anisotropy, rotation_matrix};
 use crate::composite::Variogram;
 use crate::empirical::Experimental;
 use crate::error::{Result, VarioError};
 use crate::model::{Model, Structure, shape};
+use crate::surface::unit_vector;
+use ceres_core::angles_from_axes;
+use nalgebra::{Matrix3, SymmetricEigen, Vector3};
 use serde::{Deserialize, Serialize};
 
 /// Weighting scheme for the least-squares objective.
@@ -158,12 +162,16 @@ fn refine(best: &mut FitResult, exp: &Experimental, model: Model, weighting: Wei
 }
 
 fn wsse(v: &Variogram, exp: &Experimental, weighting: Weighting) -> f64 {
+    wsse_at(v, exp, &exp.lags, weighting)
+}
+
+/// Weighted SSE with γ at `exp.lags` and the N(h)/h² weights at `dist`.
+fn wsse_at(v: &Variogram, exp: &Experimental, dist: &[f64], weighting: Weighting) -> f64 {
     let mut acc = 0.0;
     for i in 0..exp.lags.len() {
-        let h = exp.lags[i];
-        let model_g = v.gamma(h);
+        let model_g = v.gamma(exp.lags[i]);
         let resid = exp.gammas[i] - model_g;
-        acc += weight(weighting, exp.counts[i], h, model_g) * resid * resid;
+        acc += weight(weighting, exp.counts[i], dist[i], model_g) * resid * resid;
     }
     acc
 }
@@ -203,11 +211,7 @@ pub fn fit_nested(
         return fit(exp, s.model, weighting);
     }
     let n = spec.structures.len();
-    if !(1..=3).contains(&n) {
-        return Err(VarioError::InvalidParameters(format!(
-            "fit one to three structures, got {n}"
-        )));
-    }
+    let (linear, ranges) = parameters(spec)?;
     let h_max = exp.lags.iter().cloned().fold(0.0, f64::max);
     if h_max <= 0.0 {
         return Err(VarioError::FittingFailed(
@@ -220,30 +224,9 @@ pub fn fit_nested(
         .cloned()
         .filter(|&h| h > 0.0)
         .fold(h_max, f64::min);
-
-    let linear = std::iter::once(bounds(spec.nugget, "nugget")?)
-        .chain(
-            spec.structures
-                .iter()
-                .map(|s| bounds(s.sill, "sill"))
-                .collect::<Result<Vec<_>>>()?,
-        )
-        .collect::<Vec<_>>();
-    let ranges = spec
-        .structures
-        .iter()
-        .map(|s| {
-            let (lo, hi) = bounds(s.range, "range")?;
-            if hi > 0.0 {
-                Ok((lo.max(1e-6).min(hi), hi))
-            } else {
-                Err(VarioError::InvalidParameters("ranges must be > 0".into()))
-            }
-        })
-        .collect::<Result<Vec<_>>>()?;
     let ordered = |r: &[f64]| r.windows(2).all(|w| w[0] < w[1]);
     let eval = |r: &[f64]| {
-        let v = solve(exp, spec, &linear, r, weighting);
+        let v = solve(exp, &exp.lags, spec, &linear, r, weighting);
         (wsse(&v, exp, weighting), v)
     };
 
@@ -308,6 +291,319 @@ pub fn fit_nested(
     Ok(FitResult { variogram, wsse })
 }
 
+/// Bounds on the anisotropy of [`fit_directional`]: angles in degrees, `semi`
+/// and `minor` as ratios to the major range. `None` leaves an angle free and a
+/// ratio in `(0, 1]`.
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+pub struct AnisotropySpec {
+    pub azimuth: Option<Bounds>,
+    pub dip: Option<Bounds>,
+    pub rake: Option<Bounds>,
+    pub semi: Option<Bounds>,
+    pub minor: Option<Bounds>,
+}
+
+/// Fit one anisotropic model, its nested structures sharing the anisotropy,
+/// jointly to experimental variograms along `directions` (azimuth, dip in
+/// degrees). Structure ranges are major-axis ranges.
+///
+/// Lags are mapped to anisotropic distances, so for given angles, ratios and
+/// ranges the nugget and sills are solved exactly as in [`fit_nested`]. The
+/// start rescales the pooled isotropic fit per direction: the inverse squared
+/// scale is a quadratic form in the direction, fitted by least squares and
+/// diagonalised for the axes. Angles, ratios and ranges are then refined by
+/// coordinate descent, deterministically. Ranges without bounds stay within
+/// the largest lag. When every direction is horizontal, dip, rake and
+/// the minor ratio default to 0, 0 and 1. Free angles come back
+/// with azimuth and rake in `[0, 180)` and, with both ratios free,
+/// `semi >= minor`.
+pub fn fit_directional(
+    exps: &[Experimental],
+    directions: &[(f64, f64)],
+    spec: &NestedSpec,
+    aniso: &AnisotropySpec,
+    weighting: Weighting,
+) -> Result<FitResult> {
+    if exps.len() != directions.len() {
+        return Err(VarioError::InvalidParameters(format!(
+            "{} experimental variograms for {} directions",
+            exps.len(),
+            directions.len()
+        )));
+    }
+    if directions
+        .iter()
+        .any(|d| !(d.0.is_finite() && d.1.is_finite()))
+    {
+        return Err(VarioError::InvalidParameters(
+            "directions must be finite".into(),
+        ));
+    }
+    let (linear, ranges) = parameters(spec)?;
+    let flat = directions.iter().all(|d| d.1 == 0.0);
+    let angle = |b: Option<Bounds>, flat_value: Option<f64>| match b {
+        Some((lo, hi)) if lo.is_finite() && hi.is_finite() && lo <= hi => Ok(Some((lo, hi))),
+        Some((lo, hi)) => Err(VarioError::InvalidParameters(format!(
+            "angle bounds need finite low <= high, got ({lo}, {hi})"
+        ))),
+        None => Ok(flat_value.filter(|_| flat).map(|v| (v, v))),
+    };
+    let ratio = |b: Option<Bounds>| {
+        let (lo, hi) = bounds(b.or(Some((0.0, 1.0))), "ratio")?;
+        if hi > 0.0 {
+            Ok(Some((lo.max(1e-6).min(hi), hi)))
+        } else {
+            Err(VarioError::InvalidParameters("ratios must be > 0".into()))
+        }
+    };
+    let units: Vec<Vector3<f64>> = directions
+        .iter()
+        .map(|&(az, dip)| {
+            let (x, y, z) = unit_vector(az, dip);
+            Vector3::new(x, y, z)
+        })
+        .collect();
+    let mut pooled = Experimental {
+        lags: Vec::new(),
+        gammas: Vec::new(),
+        counts: Vec::new(),
+        covariances: None,
+    };
+    let mut owner = Vec::new();
+    for (d, e) in exps.iter().enumerate() {
+        pooled.lags.extend(&e.lags);
+        pooled.gammas.extend(&e.gammas);
+        pooled.counts.extend(&e.counts);
+        owner.extend(std::iter::repeat_n(d, e.lags.len()));
+    }
+    let mut limits = vec![
+        angle(aniso.azimuth, None)?,
+        angle(aniso.dip, Some(0.0))?,
+        angle(aniso.rake, Some(0.0))?,
+        ratio(aniso.semi)?,
+        ratio(aniso.minor.or(flat.then_some((1.0, 1.0))))?,
+    ];
+    let reach = pooled.lags.iter().cloned().fold(0.0, f64::max);
+    limits.extend(
+        spec.structures
+            .iter()
+            .zip(&ranges)
+            .map(|(s, &(lo, hi))| Some((lo, if s.range.is_none() { reach.max(lo) } else { hi }))),
+    );
+    let clamp = |x: &mut [f64]| {
+        for (v, l) in x.iter_mut().zip(&limits) {
+            if let Some((lo, hi)) = *l {
+                *v = if lo == hi { lo } else { v.clamp(lo, hi) };
+            }
+        }
+    };
+
+    let ordered = |r: &[f64]| r.windows(2).all(|w| w[0] < w[1]);
+    let eval = |x: &[f64]| {
+        let a = Matrix3::from_diagonal(&Vector3::new(1.0, 1.0 / x[3], 1.0 / x[4]))
+            * rotation_matrix(x[0], x[1], x[2]);
+        let k: Vec<f64> = units.iter().map(|u| (a * u).norm()).collect();
+        let mut e = pooled.clone();
+        for (h, &d) in e.lags.iter_mut().zip(&owner) {
+            *h *= k[d];
+        }
+        let v = solve(&e, &pooled.lags, spec, &linear, &x[5..], weighting);
+        (wsse_at(&v, &e, &pooled.lags, weighting), v)
+    };
+
+    let iso = fit_nested(&pooled, spec, weighting)?.variogram;
+    let mut normal = vec![vec![0.0; 7]; 6];
+    let mut mean = 0.0;
+    for (e, u) in exps.iter().zip(&units) {
+        if e.lags.is_empty() {
+            continue;
+        }
+        let cost = |s: f64| {
+            let mut r = e.clone();
+            r.lags.iter_mut().for_each(|h| *h /= s);
+            wsse_at(&iso, &r, &e.lags, weighting)
+        };
+        let t = scale_search(cost).powi(-2);
+        let q = [
+            u.x * u.x,
+            u.y * u.y,
+            u.z * u.z,
+            2.0 * u.x * u.y,
+            2.0 * u.x * u.z,
+            2.0 * u.y * u.z,
+        ];
+        for j in 0..6 {
+            for k in 0..6 {
+                normal[j][k] += q[j] * q[k];
+            }
+            normal[j][6] += q[j] * t;
+        }
+        mean += t / directions.len() as f64;
+    }
+    let ridge = 1e-6 * (0..6).map(|j| normal[j][j]).sum::<f64>();
+    for (j, row) in normal.iter_mut().enumerate() {
+        row[j] += ridge;
+        if j < 3 {
+            row[6] += ridge * mean;
+        }
+    }
+    let m = gauss(&mut normal).unwrap_or(vec![mean, mean, mean, 0.0, 0.0, 0.0]);
+    let form = Matrix3::new(m[0], m[3], m[4], m[3], m[1], m[5], m[4], m[5], m[2]);
+    let eig = SymmetricEigen::new(form);
+    let mut axes = [0, 1, 2];
+    axes.sort_by(|&i, &j| eig.eigenvalues[i].total_cmp(&eig.eigenvalues[j]));
+    let col = |i: usize| {
+        let c = eig.eigenvectors.column(axes[i]);
+        [c[0], c[1], c[2]]
+    };
+    let mut round = angles_from_axes(col(0), col(1)).to_vec();
+    round.extend([1.0, 1.0]);
+    round.extend(iso.structures.iter().map(|s| s.range));
+    clamp(&mut round);
+    let r = rotation_matrix(round[0], round[1], round[2]);
+    let floor = 1e-2 * eig.eigenvalues.amax();
+    let d: Vec<f64> = (0..3)
+        .map(|i| (r.row(i) * form * r.row(i).transpose())[0].max(floor))
+        .collect();
+    let mut stretched = round.clone();
+    stretched[3] = (d[0] / d[1]).sqrt();
+    stretched[4] = (d[0] / d[2]).sqrt();
+    for (r, s) in stretched[5..].iter_mut().zip(&iso.structures) {
+        *r = s.range / d[0].sqrt();
+    }
+    clamp(&mut stretched);
+
+    let refine = |mut x: Vec<f64>| {
+        let mut cur = eval(&x);
+        let mut scale = 0.5;
+        for _ in 0..5000 {
+            let mut improved = false;
+            for k in 0..x.len() {
+                for step in [scale, -scale] {
+                    let mut cand = x.clone();
+                    cand[k] = if k < 3 {
+                        x[k] + 90.0 * step
+                    } else {
+                        x[k] * (1.0 + step)
+                    };
+                    clamp(&mut cand);
+                    if cand[k] == x[k] || !ordered(&cand[5..]) {
+                        continue;
+                    }
+                    let e = eval(&cand);
+                    if e.0 < cur.0 {
+                        cur = e;
+                        x = cand;
+                        improved = true;
+                    }
+                }
+            }
+            if !improved {
+                scale *= 0.5;
+                if scale < 1e-9 {
+                    break;
+                }
+            }
+        }
+        (x, cur)
+    };
+    let (x, cur) = [stretched, round]
+        .into_iter()
+        .filter(|x| ordered(&x[5..]))
+        .map(refine)
+        .reduce(|a, b| if b.1.0 < a.1.0 { b } else { a })
+        .ok_or_else(|| {
+            VarioError::InvalidParameters("range bounds leave no increasing order".into())
+        })?;
+
+    let (mut semi, mut minor) = (x[3], x[4]);
+    let mut angles = [x[0], x[1], x[2]];
+    if limits[..3].iter().all(Option::is_none) {
+        let r = rotation_matrix(x[0], x[1], x[2]);
+        let (mut m, mut s) = (r.row(0).transpose(), r.row(1).transpose());
+        if aniso.semi.is_none() && aniso.minor.is_none() && semi < minor {
+            s = m.cross(&s);
+            (semi, minor) = (minor, semi);
+        }
+        let arr = |v: &Vector3<f64>| [v.x, v.y, v.z];
+        angles = angles_from_axes(arr(&m), arr(&s));
+        if angles[0] >= 180.0 {
+            (m, s) = (-m, -s);
+            angles = angles_from_axes(arr(&m), arr(&s));
+        }
+        if angles[2] >= 180.0 {
+            angles = angles_from_axes(arr(&m), arr(&-s));
+        }
+    } else if limits[0].is_none() {
+        let period = if angles[1] == 0.0 && angles[2].rem_euclid(180.0) == 0.0 {
+            180.0
+        } else {
+            360.0
+        };
+        angles[0] = angles[0].rem_euclid(period);
+    }
+    let (wsse, variogram) = cur;
+    let variogram = variogram.with_anisotropy(Anisotropy::new(Angles {
+        azimuth: angles[0],
+        dip: angles[1],
+        rake: angles[2],
+        major: 1.0,
+        semi,
+        minor,
+    })?);
+    Ok(FitResult { variogram, wsse })
+}
+
+/// The scale `s` in `[1/16, 16]` minimizing `cost(s)`: a geometric grid, then
+/// shrinking steps.
+fn scale_search(cost: impl Fn(f64) -> f64) -> f64 {
+    let (mut s, mut best) = (-32..=32)
+        .map(|i| {
+            let s = 2f64.powf(i as f64 / 8.0);
+            (s, cost(s))
+        })
+        .min_by(|a, b| a.1.total_cmp(&b.1))
+        .expect("non-empty grid");
+    let mut f = 2f64.powf(1.0 / 16.0);
+    while f > 1.0 + 1e-10 {
+        match [s * f, s / f]
+            .map(|t| (t, cost(t)))
+            .into_iter()
+            .find(|c| c.1 < best)
+        {
+            Some(c) => (s, best) = c,
+            None => f = f.sqrt(),
+        }
+    }
+    s
+}
+
+/// Nugget-and-sill bounds and range bounds of a spec.
+fn parameters(spec: &NestedSpec) -> Result<(Vec<Bounds>, Vec<Bounds>)> {
+    let n = spec.structures.len();
+    if !(1..=3).contains(&n) {
+        return Err(VarioError::InvalidParameters(format!(
+            "fit one to three structures, got {n}"
+        )));
+    }
+    let linear = std::iter::once(bounds(spec.nugget, "nugget"))
+        .chain(spec.structures.iter().map(|s| bounds(s.sill, "sill")))
+        .collect::<Result<Vec<_>>>()?;
+    let ranges = spec
+        .structures
+        .iter()
+        .map(|s| {
+            let (lo, hi) = bounds(s.range, "range")?;
+            if hi > 0.0 {
+                Ok((lo.max(1e-6).min(hi), hi))
+            } else {
+                Err(VarioError::InvalidParameters("ranges must be > 0".into()))
+            }
+        })
+        .collect::<Result<Vec<_>>>()?;
+    Ok((linear, ranges))
+}
+
 fn bounds(b: Option<Bounds>, what: &str) -> Result<Bounds> {
     let (lo, hi) = b.unwrap_or((0.0, f64::INFINITY));
     if lo.is_finite() && lo >= 0.0 && lo <= hi {
@@ -335,6 +631,7 @@ fn grid(lo: f64, hi: f64, h_min: f64, h_max: f64) -> Vec<f64> {
 /// model-dependent weighting is iterated from the experimental γ.
 fn solve(
     exp: &Experimental,
+    dist: &[f64],
     spec: &NestedSpec,
     linear: &[Bounds],
     ranges: &[f64],
@@ -363,7 +660,7 @@ fn solve(
     let mut coef = Vec::new();
     for _ in 0..passes {
         let w: Vec<f64> = (0..rows.len())
-            .map(|i| weight(weighting, exp.counts[i], exp.lags[i], model_g[i]))
+            .map(|i| weight(weighting, exp.counts[i], dist[i], model_g[i]))
             .collect();
         coef = bounded_lsq(&rows, &exp.gammas, &w, linear);
         model_g = rows
@@ -667,5 +964,184 @@ mod tests {
         spec.structures[0].range = Some((100.0, 200.0));
         spec.structures[1].range = Some((10.0, 50.0));
         assert!(fit_nested(&exp, &spec, Weighting::ByCount).is_err());
+    }
+
+    fn sphere() -> Vec<(f64, f64)> {
+        let mut dirs: Vec<(f64, f64)> = (0..6)
+            .flat_map(|i| [-60.0, -30.0, 0.0, 30.0, 60.0].map(|dip| (i as f64 * 30.0, dip)))
+            .collect();
+        dirs.push((0.0, 90.0));
+        dirs
+    }
+
+    fn along(truth: &Variogram, dirs: &[(f64, f64)]) -> Vec<Experimental> {
+        dirs.iter()
+            .map(|&(az, dip)| {
+                let (x, y, z) = unit_vector(az, dip);
+                let lags: Vec<f64> = (1..=30).map(|i| i as f64 * 5.0).collect();
+                Experimental {
+                    gammas: lags
+                        .iter()
+                        .map(|&h| truth.gamma_points(&(0.0, 0.0, 0.0), &(h * x, h * y, h * z)))
+                        .collect(),
+                    counts: lags.iter().map(|&h| 50 + (400.0 / h) as usize).collect(),
+                    lags,
+                    covariances: None,
+                }
+            })
+            .collect()
+    }
+
+    fn rotated(azimuth: f64, dip: f64, rake: f64, semi: f64, minor: f64) -> Variogram {
+        let angles = Angles {
+            azimuth,
+            dip,
+            rake,
+            major: 1.0,
+            semi,
+            minor,
+        };
+        two_structures().with_anisotropy(Anisotropy::new(angles).unwrap())
+    }
+
+    fn joint(truth: &Variogram, dirs: &[(f64, f64)], weighting: Weighting) -> Variogram {
+        let spec = free(&[Model::Spherical; 2]);
+        fit_directional(
+            &along(truth, dirs),
+            dirs,
+            &spec,
+            &AnisotropySpec::default(),
+            weighting,
+        )
+        .unwrap()
+        .variogram
+    }
+
+    fn assert_recovers(got: &Variogram, truth: &Variogram) {
+        let (g, t) = (
+            &got.anisotropy.as_ref().unwrap().angles,
+            &truth.anisotropy.as_ref().unwrap().angles,
+        );
+        for (a, b) in [
+            (g.azimuth, t.azimuth),
+            (g.dip, t.dip),
+            (g.rake, t.rake),
+            (g.semi, t.semi),
+            (g.minor, t.minor),
+        ] {
+            assert!((a - b).abs() < 1e-3, "{g:?}");
+        }
+        assert!(close(got.nugget, truth.nugget), "nugget {}", got.nugget);
+        for (a, b) in got.structures.iter().zip(&truth.structures) {
+            assert!(close(a.sill, b.sill) && close(a.range, b.range), "{a:?}");
+        }
+    }
+
+    #[test]
+    fn joint_fit_recovers_rotated_anisotropy() {
+        let truth = rotated(35.0, 20.0, 50.0, 0.6, 0.25);
+        for weighting in [Weighting::ByCount, Weighting::ByCountOverGamma] {
+            assert_recovers(&joint(&truth, &sphere(), weighting), &truth);
+        }
+    }
+
+    #[test]
+    fn joint_fit_returns_the_canonical_symmetric_angles() {
+        let truth = rotated(35.0, 20.0, 50.0, 0.6, 0.25);
+        for same in [
+            rotated(215.0, -20.0, 310.0, 0.6, 0.25),
+            rotated(35.0, 20.0, 140.0, 0.25, 0.6),
+        ] {
+            assert_recovers(&joint(&same, &sphere(), Weighting::ByCount), &truth);
+        }
+    }
+
+    #[test]
+    fn joint_fit_caps_free_ranges_at_the_largest_lag() {
+        let truth = rotated(35.0, 20.0, 50.0, 0.6, 0.25);
+        let dirs = sphere();
+        let mut exps = along(&truth, &dirs);
+        for e in &mut exps {
+            e.lags.truncate(20);
+            e.gammas.truncate(20);
+            e.counts.truncate(20);
+        }
+        let fit = |spec: &NestedSpec| {
+            fit_directional(
+                &exps,
+                &dirs,
+                spec,
+                &AnisotropySpec::default(),
+                Weighting::ByCount,
+            )
+            .unwrap()
+            .variogram
+        };
+        let mut spec = free(&[Model::Spherical; 2]);
+        assert!(fit(&spec).structures[1].range <= 100.0);
+        spec.structures[1].range = Some((50.0, 300.0));
+        assert_recovers(&fit(&spec), &truth);
+    }
+
+    #[test]
+    fn joint_fit_of_isotropic_data_has_unit_ratios() {
+        let v = joint(&two_structures(), &sphere(), Weighting::ByCount);
+        let a = &v.anisotropy.unwrap().angles;
+        assert!(
+            (a.semi - 1.0).abs() < 1e-3 && (a.minor - 1.0).abs() < 1e-3,
+            "{a:?}"
+        );
+    }
+
+    #[test]
+    fn joint_fit_of_horizontal_directions_is_two_dimensional() {
+        let truth = rotated(170.0, 0.0, 0.0, 0.33, 1.0);
+        let dirs: Vec<(f64, f64)> = (0..8).map(|i| (i as f64 * 22.5, 0.0)).collect();
+        assert_recovers(&joint(&truth, &dirs, Weighting::ByCount), &truth);
+    }
+
+    #[test]
+    fn joint_fit_is_deterministic() {
+        let truth = rotated(35.0, 20.0, 50.0, 0.6, 0.25);
+        let (a, b) = (
+            joint(&truth, &sphere(), Weighting::ByCountOverGamma),
+            joint(&truth, &sphere(), Weighting::ByCountOverGamma),
+        );
+        assert_eq!(a.structures, b.structures);
+        assert_eq!(a.anisotropy.unwrap().angles, b.anisotropy.unwrap().angles);
+    }
+
+    #[test]
+    fn joint_fit_honours_fixed_angles_and_rejects_bad_input() {
+        let truth = rotated(35.0, 20.0, 50.0, 0.6, 0.25);
+        let (dirs, spec) = (sphere(), free(&[Model::Spherical; 2]));
+        let exps = along(&truth, &dirs);
+        let aniso = AnisotropySpec {
+            azimuth: Some((30.0, 30.0)),
+            minor: Some((0.2, 0.3)),
+            ..Default::default()
+        };
+        let v = fit_directional(&exps, &dirs, &spec, &aniso, Weighting::ByCount)
+            .unwrap()
+            .variogram;
+        let a = v.anisotropy.unwrap().angles;
+        assert!(a.azimuth == 30.0 && (0.2..=0.3).contains(&a.minor));
+        let bad = |aniso: AnisotropySpec, dirs: &[(f64, f64)]| {
+            fit_directional(&exps, dirs, &spec, &aniso, Weighting::ByCount).is_err()
+        };
+        assert!(bad(AnisotropySpec::default(), &dirs[1..]));
+        let mut nan = dirs.clone();
+        nan[0].1 = f64::NAN;
+        assert!(bad(AnisotropySpec::default(), &nan));
+        let flipped = AnisotropySpec {
+            dip: Some((10.0, -10.0)),
+            ..Default::default()
+        };
+        assert!(bad(flipped, &dirs));
+        let zero = AnisotropySpec {
+            semi: Some((0.0, 0.0)),
+            ..Default::default()
+        };
+        assert!(bad(zero, &dirs));
     }
 }

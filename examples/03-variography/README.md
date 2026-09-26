@@ -131,6 +131,55 @@ save(fig, "variogram")
 
 ![variogram](variogram.png)
 
+`Variogram.fit_directional` fits one anisotropic model to experimental variograms in many directions at once:
+azimuth, range ratio, ranges, sills and nugget together, the ranges along the major axis. The directions here are
+horizontal, every 22.5°, so the fit is 2D: dip, rake and the minor/major ratio stay 0, 0 and 1.
+
+<details><summary>Python</summary>
+
+```python
+azimuths = np.arange(0, 180, 22.5)
+directional = [cs.experimental_variogram(xy, v, lag, max_lag, azimuth=a) for a in azimuths]
+joint = cs.Variogram.fit_directional(
+    directional, [(a, 0) for a in azimuths], ["spherical", "spherical"], weighting=weighting
+)
+print(joint)
+```
+
+</details>
+
+```text
+Variogram(nugget=16458.274347134982, structures=[Structure("spherical", sill=39532.52873902907, range=36.61764354287077), Structure("spherical", sill=39110.92894638225, range=115)], rotation=(161.46018248305683, 0.0, 0.0), ratios=(0.33583539147294017, 1.0))
+```
+
+The joint fit puts the major axis at N161°, nine degrees off the map's pick, with the same one-third ratio; its long
+range stops at 115 m, the largest lag, where free ranges are capped unless `ranges` bounds them. It spreads its
+effort over all eight directions, so it fits the major and minor axes worse than the fits made along them: the
+dashed curves fall below the short lags on both. The major/minor model stays the one saved for later chapters.
+
+<details><summary>Python</summary>
+
+```python
+fig, ax = plt.subplots(figsize=(6, 3.4), layout="constrained")
+origin = np.zeros((h.size, 3))
+for exp, color, az in ((major, ACCENT, azimuth), (minor, GREY, azimuth + 90)):
+    cs.plot.variogram(
+        exp, model, direction=(az, 0), ax=ax, color=color, label=f"N{az % 360:.0f}° (solid: major/minor fit)"
+    )
+    unit = np.array([np.sin(np.radians(az)), np.cos(np.radians(az)), 0])
+    ax.plot(h, joint.gamma_between(origin, h[:, None] * unit), color=color, lw=1, ls="--", label="joint fit")
+ax.set_xlim(0, max_lag)
+ax.set_title("Major/minor fit against the joint fit")
+ax.set_xlabel("Lag distance (m)")
+ax.set_ylabel("γ(h) (ppm²)")
+ax.legend(loc="lower right", fontsize=8)
+save(fig, "joint")
+```
+
+</details>
+
+![joint](joint.png)
+
 Other estimators along the major axis. `standardize=True` divides the classical and covariance estimates by the
 sample variance, the correlogram's scale. Covariance and correlogram use each lag's own head and tail means and
 level off below 1 here. The pairwise-relative variogram scales every

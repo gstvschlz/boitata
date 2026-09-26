@@ -87,7 +87,7 @@ search = cs.Search(radius=100, max_samples=24, min_samples=4)
 ok = cs.OrdinaryKriging(model, search).fit(xy, v)
 global_estimate = ok.predict(grid)
 local_estimate = ok.predict(grid, anisotropy=lva)
-for name, estimate in (("global N170°", global_estimate), ("local", local_estimate)):
+for name, estimate in ((f"global N{model.rotation[0]:.0f}°", global_estimate), ("local", local_estimate)):
     error = estimate - true_at_nodes
     print(
         f"{name:>13}: RMSE {np.sqrt(np.mean(error**2)):.1f} ppm, correlation {np.corrcoef(estimate, true_at_nodes)[0, 1]:.3f}"
@@ -133,13 +133,13 @@ with the bodies instead of crossing them.
 weights = cs.cell_declustering(xy, v, sizes=np.arange(2.5, 102.5, 2.5)).weights
 gaussian = cs.Variogram([("spherical", 0.68, 82.0)], nugget=0.32)
 sgs = cs.SGS(gaussian, cs.Search(radius=100, max_samples=24)).fit(xy, v, weights=weights)
-uniform = cs.LocalAnisotropy(np.zeros((1, 3)), [[170.0, 0, 0]], [[0.43, 1.0]])
+uniform = cs.LocalAnisotropy(np.zeros((1, 3)), [model.rotation], [[0.43, 1.0]])
 global_real = sgs.simulate(grid, n=1, seed=11, realizations=True, anisotropy=uniform).realizations[0]
 local_real = sgs.simulate(grid, n=1, seed=11, realizations=True, anisotropy=lva).realizations[0]
 
 fig, axes = plt.subplots(1, 2, figsize=(8.6, 4.6), layout="constrained")
 for ax, image, title in (
-    (axes[0], global_real, "SGS, global N170°"),
+    (axes[0], global_real, f"SGS, global N{model.rotation[0]:.0f}°"),
     (axes[1], local_real, "SGS, local anisotropy"),
 ):
     im = ax.imshow(image.reshape(shape), origin="lower", extent=extent, norm=norm)

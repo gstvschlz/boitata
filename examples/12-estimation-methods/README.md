@@ -30,7 +30,7 @@ ratio, and octants keep samples from piling up on one side.
 <details><summary>Python</summary>
 
 ```python
-ellipse = {"max_samples": 24, "octant": True, "rotation": (170, 0, 0), "ratios": (0.5, 1.0)}
+ellipse = {"max_samples": 24, "octant": True, "rotation": model.rotation, "ratios": (0.5, 1.0)}
 search = cs.Search(radius=80, min_samples=4, **ellipse)
 methods = {
     "nearest neighbour": cs.NearestNeighbor(search),
@@ -216,7 +216,7 @@ print(
 </details>
 
 ```text
-78,000 nodes in 0.03 s; RMSE against all exhaustive values 153.9 ppm
+78,000 nodes in 0.04 s; RMSE against all exhaustive values 153.9 ppm
 ```
 
 Full script: [`example_12.py`](example_12.py)

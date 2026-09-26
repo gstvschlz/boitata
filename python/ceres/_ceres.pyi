@@ -296,6 +296,18 @@ class Variogram:
         sills: Sequence[_Limit | None] | None = None,
         ranges: Sequence[_Limit | None] | None = None,
     ) -> Variogram: ...
+    @staticmethod
+    def fit_directional(
+        experimentals: Sequence[ExperimentalVariogram],
+        directions: Sequence[tuple[float, float]],
+        model: str | Sequence[str] = "spherical",
+        weighting: str = "count",
+        nugget: _Limit | None = None,
+        sills: Sequence[_Limit | None] | None = None,
+        ranges: Sequence[_Limit | None] | None = None,
+        rotation: Sequence[_Limit | None] | None = None,
+        ratios: Sequence[_Limit | None] | None = None,
+    ) -> Variogram: ...
     def with_anisotropy(
         self, rotation: tuple[float, float, float], ratios: tuple[float, float]
     ) -> Variogram: ...
