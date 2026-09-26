@@ -21,6 +21,15 @@ def test_rbf_is_exact_at_data():
     assert model.report is None
 
 
+def test_cutoff_codes_grades():
+    grade = 5 - distance
+    coded = cs.ImplicitModel().fit(coords, np.where(grade >= 5, 1.0, -1.0))
+    raw = cs.ImplicitModel().fit(coords, grade, cutoff=5)
+    np.testing.assert_array_equal(raw.evaluate(coords[:20]), coded.evaluate(coords[:20]))
+    with pytest.raises(cs.InvalidInput, match="cutoff"):
+        cs.ImplicitModel().fit(coords, grade, cutoff=float("nan"))
+
+
 def test_sphere_isosurface_area():
     model = cs.ImplicitModel().fit(coords, distance)
     blocks = cs.BlockModel(origin=(0, 0, 0), size=(2, 2, 2), count=(50, 50, 50))

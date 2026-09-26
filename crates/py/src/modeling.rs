@@ -1,6 +1,6 @@
 use modeling::{
-    ConstraintSet, HermiteKriging, HermiteSpec, Kernel, Lineation, Plane, PlaneEncoding, Rbf,
-    RbfSpec, ScalarGrid, Svgp, SvgpSpec, marching_tetrahedra,
+    ConstraintSet, Driver, HermiteKriging, HermiteSpec, Kernel, Lineation, Plane, PlaneEncoding,
+    Rbf, RbfSpec, ScalarGrid, Svgp, SvgpSpec, marching_tetrahedra,
 };
 use numpy::IntoPyArray;
 use numpy::ndarray::Array2;
@@ -152,6 +152,9 @@ impl ImplicitModel {
     /// ----------
     /// coords, values : array_like, optional
     ///     Samples and their field values, e.g. +1 inside, -1 outside.
+    /// cutoff : float, optional
+    ///     Take `values` as grades coded +1 at or above `cutoff` and -1 below,
+    ///     so the shell is the zero level.
     /// boundaries : array_like, optional
     ///     ``(m, 3)`` points on the surface, pinned to field value 0.
     /// planes : array_like, optional
@@ -160,16 +163,22 @@ impl ImplicitModel {
     /// lineations : array_like, optional
     ///     ``(k, 5)`` rows ``x, y, z, plunge, trend``; the field is flat along
     ///     each line.
-    #[pyo3(signature = (coords=None, values=None, boundaries=None, planes=None, lineations=None))]
+    #[pyo3(signature = (coords=None, values=None, cutoff=None, boundaries=None, planes=None, lineations=None))]
+    #[allow(clippy::too_many_arguments)]
     fn fit<'py>(
         mut slf: PyRefMut<'py, Self>,
         coords: Option<&Bound<PyAny>>,
         values: Option<&Bound<PyAny>>,
+        cutoff: Option<f64>,
         boundaries: Option<&Bound<PyAny>>,
         planes: Option<&Bound<PyAny>>,
         lineations: Option<&Bound<PyAny>>,
     ) -> PyResult<PyRefMut<'py, Self>> {
         let err = |e: modeling::ModelError| invalid(e);
+        if cutoff.is_some_and(|c| !c.is_finite()) {
+            return Err(invalid("cutoff must be finite"));
+        }
+        let driver = cutoff.map_or(Driver::Value, |threshold| Driver::Indicator { threshold });
         let mut set = ConstraintSet::new();
         match (coords, values) {
             (Some(c), Some(v)) => {
@@ -177,7 +186,7 @@ impl ImplicitModel {
                 same_length(locs.len(), values.len(), "values")?;
                 let keep = distinct(slf.py(), &locs, None)?;
                 for ((x, y, z), v) in pick(&locs, &keep).into_iter().zip(pick(&values, &keep)) {
-                    set.push_sample([x, y, z], v);
+                    set.push_sample([x, y, z], driver.encode(v));
                 }
             }
             (None, None) => {}
