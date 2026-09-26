@@ -379,7 +379,7 @@ save(fig, "h_scatter")
 
 # %%
 ms = lith == "MS"
-fig, axes = cs.plot.scatter_matrix({g: composites[g][ms] for g in grades}, weights=weights[ms], log=True)
+fig, axes = cs.plot.scatter_matrix(composites.filter(ms), columns=grades, weights=weights[ms], log=True)
 fig.suptitle("MS grades, declustered", x=0.02, ha="left", fontweight="bold", fontsize=10)
 save(fig, "scatter_matrix")
 
@@ -392,9 +392,9 @@ save(fig, "scatter_matrix")
 assays = {g: composites[g] for g in grades}
 print("  ".join(f"{g} {np.mean(~np.isnan(v)):.0%}" for g, v in assays.items()), "assayed")
 fig, (a, b) = plt.subplots(1, 2, figsize=(9, 3.6), layout="constrained", width_ratios=[1, 1.2])
-cs.plot.completeness(assays, ax=a)
+cs.plot.completeness(composites, columns=grades, ax=a)
 a.set_title("Composites by grades assayed")
-cs.plot.correlation(assays, method="spearman", ax=b)
+cs.plot.correlation(composites, columns=grades, method="spearman", ax=b)
 b.set_title("Spearman correlation, all composites")
 save(fig, "correlation")
 

@@ -44,11 +44,12 @@ class PointSet:
         self,
         coords: ArrayLike,
         attributes: TableLike | Mapping[str, ArrayLike] | None = None,
+        *,
         crs: str | None = None,
     ) -> None: ...
     @staticmethod
     def from_table(
-        table: TableLike, x: str = "X", y: str = "Y", z: str | None = None, crs: str | None = None
+        table: TableLike, *, x: str = "X", y: str = "Y", z: str | None = None, crs: str | None = None
     ) -> PointSet: ...
     @property
     def coords(self) -> npt.NDArray[np.float64]: ...
@@ -68,6 +69,7 @@ class Polylines:
     def __init__(
         self,
         parts: Sequence[ArrayLike],
+        *,
         closed: bool | Sequence[bool] = False,
         features: Sequence[int] | None = None,
         attributes: TableLike | Mapping[str, ArrayLike] | None = None,
@@ -90,6 +92,7 @@ class Polylines:
     @staticmethod
     def from_table(
         table: TableLike,
+        *,
         feature: str = "ID",
         x: str = "X",
         y: str = "Y",
@@ -109,6 +112,7 @@ class BlockModel:
         origin: Sequence[float],
         size: Sequence[float],
         count: Sequence[int],
+        *,
         rotation: tuple[float, float, float] = (0.0, 0.0, 0.0),
         attributes: TableLike | Mapping[str, ArrayLike] | None = None,
         index: npt.NDArray[np.uint64] | None = None,
@@ -133,7 +137,7 @@ class BlockModel:
     def attributes(self) -> Table: ...
     def mask(self, keep: npt.NDArray[np.bool_]) -> BlockModel: ...
     def to_regular(self) -> BlockModel: ...
-    def regularize(self, target: BlockModel, min_fraction: float = 0.0) -> BlockModel: ...
+    def regularize(self, target: BlockModel, *, min_fraction: float = 0.0) -> BlockModel: ...
     def subblock(
         self,
         meshes: Sequence[tuple[Mesh, Literal["inside", "below", "above"], str]],
@@ -169,6 +173,7 @@ class BlockModel:
         count: Sequence[int],
         parent: npt.NDArray[np.uint64],
         extents: ArrayLike,
+        *,
         rotation: tuple[float, float, float] = (0.0, 0.0, 0.0),
         subgrid: tuple[int, int, int] | None = None,
         attributes: TableLike | Mapping[str, ArrayLike] | None = None,
@@ -398,7 +403,13 @@ class Structure:
     @staticmethod
     def from_json(text: str) -> Structure: ...
     def __init__(
-        self, model: str, sill: float, range: float, order: float | None = None, exponent: float | None = None
+        self,
+        model: str,
+        sill: float,
+        range: float,
+        *,
+        order: float | None = None,
+        exponent: float | None = None,
     ) -> None: ...
     @property
     def model(self) -> str: ...
@@ -420,6 +431,7 @@ class Variogram:
     def fit(
         experimental: ExperimentalVariogram,
         model: str | Sequence[str] = "spherical",
+        *,
         weighting: str = "count",
         nugget: _Limit | None = None,
         sills: Sequence[_Limit | None] | None = None,
@@ -430,6 +442,7 @@ class Variogram:
         experimentals: Sequence[ExperimentalVariogram],
         directions: Sequence[tuple[float, float]],
         model: str | Sequence[str] = "spherical",
+        *,
         weighting: str = "count",
         nugget: _Limit | None = None,
         sills: Sequence[_Limit | None] | None = None,
@@ -469,12 +482,13 @@ class ExperimentalVariogram:
     def fit(
         self,
         model: str | Sequence[str] = "spherical",
+        *,
         weighting: str = "count",
         nugget: _Limit | None = None,
         sills: Sequence[_Limit | None] | None = None,
         ranges: Sequence[_Limit | None] | None = None,
     ) -> Variogram: ...
-    def nugget(self, lags: int = 3) -> float: ...
+    def nugget(self, *, lags: int = 3) -> float: ...
 
 class VariogramMap:
     lags: npt.NDArray[np.float64]
@@ -499,6 +513,7 @@ class Coregionalization:
     def fit(
         experimentals: Sequence[Sequence[ExperimentalVariogram | Sequence[ExperimentalVariogram] | None]],
         model: str | Sequence[str] = "spherical",
+        *,
         weighting: str = "count",
         nugget: bool = True,
         ranges: Sequence[_Limit | None] | None = None,
@@ -561,10 +576,11 @@ def change_of_support(
     anamorphosis: HermiteAnamorphosis,
     variogram: Variogram,
     size: Sequence[float],
+    *,
     discretization: tuple[int, int, int] = (4, 4, 1),
 ) -> tuple[float, HermiteAnamorphosis]: ...
 def block_correlation(
-    variogram: Variogram, size: Sequence[float], discretization: tuple[int, int, int] = (4, 4, 1)
+    variogram: Variogram, size: Sequence[float], *, discretization: tuple[int, int, int] = (4, 4, 1)
 ) -> float: ...
 
 class Search:
@@ -637,7 +653,7 @@ class _Estimator:
         domain_column: Column | None = None,
     ) -> Any: ...
     def cross_validate(
-        self, folds: int | None = None
+        self, *, folds: int | None = None
     ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]: ...
     def with_search(self, search: Search | Sequence[Search]) -> _Estimator: ...
     def _point_support(self) -> _Estimator: ...
@@ -650,7 +666,7 @@ class DualKriging:
     def to_parquet(self, path: Path) -> None: ...
     @staticmethod
     def from_parquet(path: Path) -> DualKriging: ...
-    def __init__(self, variogram: Variogram, degree: int = 0) -> None: ...
+    def __init__(self, variogram: Variogram, *, degree: int = 0) -> None: ...
     def fit(self, coords: ArrayLike | PointSet | BlockModel, values: ArrayLike | Column) -> DualKriging: ...
     def predict(self, targets: Any) -> npt.NDArray[np.float64]: ...
 
@@ -680,7 +696,7 @@ class SGS:
     @staticmethod
     def from_parquet(path: Path) -> SGS: ...
     def __init__(
-        self, variogram: Variogram, search: Search | Sequence[Search], classes: int = 10
+        self, variogram: Variogram, search: Search | Sequence[Search], *, classes: int = 10
     ) -> None: ...
     def fit(
         self,
@@ -724,6 +740,7 @@ class TurningBands:
     def __init__(
         self,
         variogram: Variogram,
+        *,
         bands: int = 300,
         step: float | None = None,
         search: Search | None = None,
@@ -827,6 +844,7 @@ class Plurigaussian:
     def __init__(
         self,
         variograms: Variogram | Sequence[Variogram],
+        *,
         proportions: Sequence[float] | None = None,
         rule: PlurigaussianRule | None = None,
         regions: Sequence[tuple[Sequence[tuple[float, float]], int]] | None = None,
@@ -904,6 +922,7 @@ def gibbs(
     coords: ArrayLike,
     bounds: ArrayLike,
     variogram: Variogram,
+    *,
     iterations: int = 200,
     burn_in: int = 50,
     seed: int = 0,
@@ -917,7 +936,7 @@ class Cokriging:
     @staticmethod
     def from_parquet(path: Path) -> Cokriging: ...
     def __init__(
-        self, coregionalization: Coregionalization, search: Search, means: Sequence[float] | None = None
+        self, coregionalization: Coregionalization, search: Search, *, means: Sequence[float] | None = None
     ) -> None: ...
     def fit(
         self,
@@ -941,7 +960,7 @@ class DisjunctiveKriging:
     @staticmethod
     def from_parquet(path: Path) -> DisjunctiveKriging: ...
     def __init__(
-        self, anamorphosis: HermiteAnamorphosis, variogram: Variogram, search: Search, order: int = 20
+        self, anamorphosis: HermiteAnamorphosis, variogram: Variogram, search: Search, *, order: int = 20
     ) -> None: ...
     def fit(
         self, coords: ArrayLike | PointSet | BlockModel, values: ArrayLike | Column
@@ -958,6 +977,7 @@ class MultipleIndicatorKriging:
         variogram: Variogram | Sequence[Variogram],
         search: Search | Sequence[Search],
         thresholds: Sequence[float],
+        *,
         simple: bool = False,
         tails: tuple[float, float] | None = None,
         interpolation: Literal["global", "linear"] = "global",
@@ -983,7 +1003,7 @@ class MultipleIndicatorKriging:
         diagnostics: bool = False,
         discretization: tuple[int, int, int] | None = None,
     ) -> IndicatorSummary: ...
-    def cross_validate(self, folds: int | None = None) -> IndicatorCrossValidation: ...
+    def cross_validate(self, *, folds: int | None = None) -> IndicatorCrossValidation: ...
     def localize(
         self,
         smus: BlockModel,
@@ -1030,6 +1050,7 @@ class Drillholes:
         collar: TableLike,
         survey: TableLike,
         intervals: TableLike | None = None,
+        *,
         hole: str = "HOLEID",
         x: str = "X",
         y: str = "Y",
@@ -1051,6 +1072,7 @@ class Drillholes:
         self,
         length: float | None,
         grades: Sequence[str],
+        *,
         domain: str | None = None,
         intervals: TableLike | None = None,
         residual: Literal["keep", "drop", "merge"] = "keep",
@@ -1059,7 +1081,7 @@ class Drillholes:
     ) -> PointSet: ...
     def __len__(self) -> int: ...
 
-def closure(parts: ArrayLike, total: float = 1.0) -> npt.NDArray[np.float64]: ...
+def closure(parts: ArrayLike, *, total: float = 1.0) -> npt.NDArray[np.float64]: ...
 def clr(parts: ArrayLike) -> npt.NDArray[np.float64]: ...
 def clr_inverse(coords: ArrayLike) -> npt.NDArray[np.float64]: ...
 def alr(parts: ArrayLike) -> npt.NDArray[np.float64]: ...
@@ -1069,7 +1091,7 @@ def ilr_inverse(coords: ArrayLike) -> npt.NDArray[np.float64]: ...
 def aitchison_distance(a: ArrayLike, b: ArrayLike) -> npt.NDArray[np.float64]: ...
 
 class Mesh:
-    def __init__(self, vertices: ArrayLike, triangles: ArrayLike, crs: str | None = None) -> None: ...
+    def __init__(self, vertices: ArrayLike, triangles: ArrayLike, *, crs: str | None = None) -> None: ...
     @property
     def vertices(self) -> npt.NDArray[np.float64]: ...
     @property
@@ -1094,9 +1116,9 @@ class Mesh:
     def with_face_column(self, name: str, values: ArrayLike | Sequence[str]) -> Mesh: ...
     def contains(self, points: ArrayLike) -> npt.NDArray[np.bool_]: ...
     def winding_number(self, points: ArrayLike) -> npt.NDArray[np.float64]: ...
-    def distance(self, points: ArrayLike, signed: bool = False) -> npt.NDArray[np.float64]: ...
+    def distance(self, points: ArrayLike, *, signed: bool = False) -> npt.NDArray[np.float64]: ...
     def vertical_distance(self, points: Any) -> npt.NDArray[np.float64]: ...
-    def repair(self, tolerance: float = 0.0) -> Mesh: ...
+    def repair(self, *, tolerance: float = 0.0) -> Mesh: ...
     def proportion(
         self,
         targets: Any,
@@ -1109,6 +1131,7 @@ class PolygonSelector:
     def __init__(
         self,
         rings: Sequence[ArrayLike],
+        *,
         closed: bool = False,
         z_min: float | None = None,
         z_max: float | None = None,
@@ -1117,7 +1140,7 @@ class PolygonSelector:
 
 def point_in_polygon(points: ArrayLike, polygon: ArrayLike) -> npt.NDArray[np.bool_]: ...
 def polygon_distance(
-    points: ArrayLike, polygon: ArrayLike, signed: bool = False
+    points: ArrayLike, polygon: ArrayLike, *, signed: bool = False
 ) -> npt.NDArray[np.float64]: ...
 def assign_domain(
     targets: Any,
@@ -1128,16 +1151,17 @@ def assign_domain(
     method: str = "nearest",
     mesh: Mesh | None = None,
 ) -> tuple[list[str], npt.NDArray[np.float64]]: ...
-def block_shell(model: BlockModel, column: str | None = None) -> Mesh: ...
+def block_shell(model: BlockModel, *, column: str | None = None) -> Mesh: ...
 def convex_hull(points: ArrayLike) -> Mesh: ...
 def grid_surface(model: BlockModel, column: str) -> Mesh: ...
 def merge_intervals(
-    left: TableLike, right: TableLike, hole: str = "HOLEID", from_: str = "FROM", to: str = "TO"
+    left: TableLike, right: TableLike, *, hole: str = "HOLEID", from_: str = "FROM", to: str = "TO"
 ) -> Table: ...
 def check_drillholes(
     collar: TableLike,
     survey: TableLike | None = None,
     intervals: TableLike | Mapping[str, TableLike] | None = None,
+    *,
     hole: str = "HOLEID",
     x: str = "X",
     y: str = "Y",
@@ -1156,6 +1180,7 @@ def check_drillholes(
 def fix_drillholes(
     flags: Mapping[str, Table],
     tables: Mapping[str, TableLike],
+    *,
     missing: Literal["drop", "keep"] = "drop",
     duplicates: Literal["drop", "keep"] = "drop",
     inverted: Literal["drop", "keep"] = "drop",
@@ -1175,11 +1200,11 @@ class LocalAnisotropy:
     ) -> LocalAnisotropy: ...
     @staticmethod
     def from_points(
-        coords: ArrayLike, k: int = 20, ratios: tuple[float, float] | None = None
+        coords: ArrayLike, *, k: int = 20, ratios: tuple[float, float] | None = None
     ) -> LocalAnisotropy: ...
     @staticmethod
     def from_mesh(
-        mesh: Mesh, targets: Any, major: str = "dip", ratios: tuple[float, float] = (1.0, 0.2)
+        mesh: Mesh, targets: Any, *, major: str = "dip", ratios: tuple[float, float] = (1.0, 0.2)
     ) -> LocalAnisotropy: ...
     def smooth(self, radius: float) -> LocalAnisotropy: ...
     def at(self, targets: Any) -> LocalAnisotropy: ...
@@ -1198,6 +1223,7 @@ class ImplicitModel:
     def __init__(
         self,
         engine: str = "rbf",
+        *,
         kernel: str = "biharmonic",
         variogram: Variogram | None = None,
         degree: int = 1,
@@ -1212,6 +1238,7 @@ class ImplicitModel:
         self,
         coords: ArrayLike | None = None,
         values: ArrayLike | None = None,
+        *,
         cutoff: float | None = None,
         boundaries: ArrayLike | None = None,
         planes: ArrayLike | None = None,
@@ -1263,6 +1290,7 @@ class Categories:
     def __init__(
         self,
         names: Sequence[Label],
+        *,
         colors: Sequence[str] | None = None,
         mapping: Mapping[Label, Label] | None = None,
         other: Label | None = None,
@@ -1270,6 +1298,7 @@ class Categories:
     @staticmethod
     def from_values(
         values: ArrayLike,
+        *,
         weights: ArrayLike | None = None,
         min_share: float = 0.0,
         mapping: Mapping[Label, Label] | None = None,
@@ -1278,8 +1307,8 @@ class Categories:
     ) -> Categories: ...
     def encode(self, values: ArrayLike) -> npt.NDArray[np.float64]: ...
     def decode(self, codes: ArrayLike) -> list[str | None]: ...
-    def lump(self, names: Sequence[str], into: str = "other") -> Categories: ...
-    def shares(self, codes: ArrayLike, weights: ArrayLike | None = None) -> npt.NDArray[np.float64]: ...
+    def lump(self, names: Sequence[str], *, into: str = "other") -> Categories: ...
+    def shares(self, codes: ArrayLike, *, weights: ArrayLike | None = None) -> npt.NDArray[np.float64]: ...
     @property
     def names(self) -> list[str]: ...
     @property

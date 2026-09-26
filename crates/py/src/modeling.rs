@@ -284,7 +284,7 @@ fn readings(obj: Option<&Bound<PyAny>>, what: &str) -> PyResult<Vec<[f64; 5]>> {
 #[pymethods]
 impl ImplicitModel {
     #[new]
-    #[pyo3(signature = (engine="rbf", kernel="biharmonic", variogram=None, degree=1, smoothing=0.0, rotation=None, ratios=None))]
+    #[pyo3(signature = (engine="rbf", *, kernel="biharmonic", variogram=None, degree=1, smoothing=0.0, rotation=None, ratios=None))]
     fn new(
         engine: &str,
         kernel: &str,
@@ -350,7 +350,7 @@ impl ImplicitModel {
     /// lineations : array_like, optional
     ///     ``(k, 5)`` rows ``x, y, z, plunge, trend``; the field is flat along
     ///     each line.
-    #[pyo3(signature = (coords=None, values=None, cutoff=None, boundaries=None, planes=None, lineations=None))]
+    #[pyo3(signature = (coords=None, values=None, *, cutoff=None, boundaries=None, planes=None, lineations=None))]
     #[allow(clippy::too_many_arguments)]
     fn fit<'py>(
         mut slf: PyRefMut<'py, Self>,

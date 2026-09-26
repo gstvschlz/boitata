@@ -388,18 +388,21 @@ def scatter(x, y, *, line=True, data=None, ax=None, **kwargs):
     return fig, ax
 
 
-def correlation(data, *, labels=None, weights=None, method="pearson", colorbar=True, ax=None, **kwargs):
+def correlation(
+    data, *, columns=None, labels=None, weights=None, method="pearson", colorbar=True, ax=None, **kwargs
+):
     """Correlation, rank correlation or covariance matrix as a heatmap, each cell written out.
 
     Parameters
     ----------
-    data : array_like, mapping or Table
-        ``(n, d)`` values, or ``d`` named columns; each pair uses the rows where both are present, as
-        ``ceres.correlation`` does.
+    data : array_like, mapping, Table, PointSet or BlockModel
+        ``(n, d)`` values, or named columns; each pair uses the rows where both are present, as ``ceres.correlation`` does.
+    columns : list of str, optional
+        Columns of `data` to draw, in order; default all of them.
     labels : list of str, optional
-        Column names; default the mapping keys or the column indices.
-    weights : array_like, optional
-        Declustering weights.
+        Axis labels; default the column names or indices.
+    weights : array_like or str, optional
+        Declustering weights, or their column in `data`.
     method : {"pearson", "spearman", "covariance"}
         What to show; correlations span -1 to 1, covariances ± their largest magnitude.
     colorbar : bool
@@ -408,7 +411,8 @@ def correlation(data, *, labels=None, weights=None, method="pearson", colorbar=T
         Passed to ``ax.imshow`` (e.g. ``cmap``).
     """
     fig, ax = _axes(ax)
-    data, labels = _stack(data, labels)
+    weights = _column(data, weights, "weights")
+    data, labels = _stack(data, labels, columns)
     r = _correlation(data, weights=weights, method=method)
     top = np.nanmax(np.abs(r)) if method == "covariance" else 1.0
     kwargs.setdefault("cmap", "RdBu_r")
@@ -511,18 +515,20 @@ def conditional(x, y, *, bins=10, weights=None, log=False, data=None, ax=None, *
     return fig, ax
 
 
-def completeness(data, *, ax=None, **kwargs):
+def completeness(data, *, columns=None, ax=None, **kwargs):
     """Rows by number of variables present, the complete rows in the accent color, each bar labeled.
 
     Parameters
     ----------
-    data : array_like, mapping or Table
-        ``(n, d)`` values, or ``d`` named columns; NaN is missing.
+    data : array_like, mapping, Table, PointSet or BlockModel
+        ``(n, d)`` values, or named columns; NaN is missing.
+    columns : list of str, optional
+        Columns of `data` to draw, in order; default all of them.
     **kwargs
         Passed to ``ax.bar``.
     """
     fig, ax = _axes(ax)
-    data, _ = _stack(data)
+    data, _ = _stack(data, columns=columns)
     d = data.shape[1]
     counts = np.bincount(np.isfinite(data).sum(axis=1), minlength=d + 1)
     kwargs.setdefault("color", ["0.8"] * d + [_accent()])
@@ -534,7 +540,7 @@ def completeness(data, *, ax=None, **kwargs):
     return fig, ax
 
 
-def scatter_matrix(data, *, labels=None, weights=None, log=False, bins=30, axes=None, **kwargs):
+def scatter_matrix(data, *, columns=None, labels=None, weights=None, log=False, bins=30, axes=None, **kwargs):
     """Pairwise scatters of the columns of `data`, with their histograms on the diagonal.
 
     Each scatter is annotated with the Pearson (``r``) and rank correlation of its pair, weighted by `weights` and
@@ -542,12 +548,14 @@ def scatter_matrix(data, *, labels=None, weights=None, log=False, bins=30, axes=
 
     Parameters
     ----------
-    data : array_like, mapping or Table
-        ``(n, d)`` values, or ``d`` named columns; NaN is ignored pair by pair.
+    data : array_like, mapping, Table, PointSet or BlockModel
+        ``(n, d)`` values, or named columns; NaN is ignored pair by pair.
+    columns : list of str, optional
+        Columns of `data` to draw, in order; default all of them.
     labels : list of str, optional
-        Column names; default the mapping keys or the column indices.
-    weights : array_like, optional
-        Declustering weights, used by the histograms and the correlations.
+        Axis labels; default the column names or indices.
+    weights : array_like or str, optional
+        Declustering weights, or their column in `data`, used by the histograms and the correlations.
     log : bool or sequence of bool
         Log axes and bins, for every column or per column; non-positive values are then ignored.
     bins : int
@@ -563,7 +571,8 @@ def scatter_matrix(data, *, labels=None, weights=None, log=False, bins=30, axes=
     axes : ndarray of Axes
         ``(d, d)``; ``axes[i, j]`` has column ``j`` across and column ``i`` up.
     """
-    data, labels = _stack(data, labels)
+    weights = _column(data, weights, "weights")
+    data, labels = _stack(data, labels, columns)
     d = data.shape[1]
     log = np.broadcast_to(log, d)
     for j in np.flatnonzero(log):

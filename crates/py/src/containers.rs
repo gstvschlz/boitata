@@ -67,7 +67,7 @@ pub struct PyPointSet(pub PointSet);
 #[pymethods]
 impl PyPointSet {
     #[new]
-    #[pyo3(signature = (coords, attributes=None, crs=None))]
+    #[pyo3(signature = (coords, attributes=None, *, crs=None))]
     fn new(
         coords: &Bound<PyAny>,
         attributes: Option<&Bound<PyAny>>,
@@ -85,7 +85,7 @@ impl PyPointSet {
 
     /// Splits coordinate columns out of an Arrow-compatible table.
     #[staticmethod]
-    #[pyo3(signature = (table, x="X", y="Y", z=None, crs=None))]
+    #[pyo3(signature = (table, *, x="X", y="Y", z=None, crs=None))]
     fn from_table(
         table: &Bound<PyAny>,
         x: &str,
@@ -207,7 +207,7 @@ pub struct PyPolylines(pub Polylines);
 #[pymethods]
 impl PyPolylines {
     #[new]
-    #[pyo3(signature = (parts, closed=Closed::All(false), features=None, attributes=None, crs=None))]
+    #[pyo3(signature = (parts, *, closed=Closed::All(false), features=None, attributes=None, crs=None))]
     fn new(
         parts: Vec<Bound<PyAny>>,
         closed: Closed,
@@ -343,7 +343,7 @@ impl PyPolylines {
     ///     ``feature`` column included, come from each feature's first row;
     ///     the coordinate and ``part`` columns are dropped.
     #[staticmethod]
-    #[pyo3(signature = (table, feature="ID", x="X", y="Y", z=None, part=None, closed=false, crs=None))]
+    #[pyo3(signature = (table, *, feature="ID", x="X", y="Y", z=None, part=None, closed=false, crs=None))]
     #[allow(clippy::too_many_arguments)]
     fn from_table(
         table: &Bound<PyAny>,
@@ -388,7 +388,7 @@ impl PyBlockModel {
     /// `origin` is the corner of the first cell; `rotation` is azimuth, dip,
     /// rake in degrees. Pass `index` (sorted cell indices) for a masked model.
     #[new]
-    #[pyo3(signature = (origin, size, count, rotation=(0.0, 0.0, 0.0), attributes=None, index=None, crs=None))]
+    #[pyo3(signature = (origin, size, count, *, rotation=(0.0, 0.0, 0.0), attributes=None, index=None, crs=None))]
     fn new(
         origin: Vec<f64>,
         size: Vec<f64>,
@@ -481,7 +481,7 @@ impl PyBlockModel {
     /// `(n, 6)` extent as fractions of that cell; `subgrid` (e.g. `(4, 4, 8)`)
     /// requires corners on that subdivision.
     #[staticmethod]
-    #[pyo3(signature = (origin, size, count, parent, extents, rotation=(0.0, 0.0, 0.0), subgrid=None, attributes=None, crs=None))]
+    #[pyo3(signature = (origin, size, count, parent, extents, *, rotation=(0.0, 0.0, 0.0), subgrid=None, attributes=None, crs=None))]
     #[allow(clippy::too_many_arguments)]
     fn subblocked(
         origin: Vec<f64>,
@@ -623,7 +623,7 @@ impl PyBlockModel {
     ///     smallest, nulls not voting. ``fraction`` is the share of each block
     ///     covered by this model, so ``volumes * fraction * grade`` sums to
     ///     this model's ``volumes * grade``.
-    #[pyo3(signature = (target, min_fraction=0.0))]
+    #[pyo3(signature = (target, *, min_fraction=0.0))]
     fn regularize(&self, py: Python, target: PyRef<Self>, min_fraction: f64) -> PyResult<Self> {
         let (source, target) = (&self.0, &target.0);
         let model = py

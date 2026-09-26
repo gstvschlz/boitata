@@ -54,7 +54,7 @@ def test_nested_fit_with_fixed_and_bounded_parameters():
     fixed = exp.fit(["spherical", "gaussian"], nugget=0.05, sills=[None, (0.1, 0.4)], ranges=[(5, 15), 60.0])
     assert fixed.nugget == 0.05 and fixed.structures[1].range == 60.0
     assert 0.1 <= fixed.structures[1].sill <= 0.4 and 5 <= fixed.structures[0].range <= 15
-    assert repr(cs.Variogram.fit(exp, ("spherical", "spherical"), "count/distance")) == repr(two)
+    assert repr(cs.Variogram.fit(exp, ("spherical", "spherical"), weighting="count/distance")) == repr(two)
     with pytest.raises(ValueError):
         exp.fit(["spherical"] * 4)
     with pytest.raises(ValueError):

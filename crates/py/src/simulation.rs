@@ -557,7 +557,7 @@ impl Sgs {
     }
 
     #[new]
-    #[pyo3(signature = (variogram, search, classes=10))]
+    #[pyo3(signature = (variogram, search, *, classes=10))]
     fn new(variogram: Variogram, search: &Bound<PyAny>, classes: usize) -> PyResult<Self> {
         Ok(Self {
             variogram: variogram.0,
@@ -845,7 +845,7 @@ impl TurningBands {
     /// the data, where conditioning changes nothing. `classes` are the trend
     /// classes, as in SGS.
     #[new]
-    #[pyo3(signature = (variogram, bands=300, step=None, search=None, classes=10))]
+    #[pyo3(signature = (variogram, *, bands=300, step=None, search=None, classes=10))]
     fn new(
         variogram: Variogram,
         bands: usize,
@@ -1327,7 +1327,7 @@ impl Plurigaussian {
     }
 
     #[new]
-    #[pyo3(signature = (variograms, proportions=None, rule=None, regions=None))]
+    #[pyo3(signature = (variograms, *, proportions=None, rule=None, regions=None))]
     fn new(
         variograms: &Bound<PyAny>,
         proportions: Option<Vec<f64>>,
@@ -1546,7 +1546,7 @@ impl Plurigaussian {
 
 /// One Gaussian draw at `coords` honoring `bounds` (`(n, 2)` lower/upper).
 #[pyfunction]
-#[pyo3(signature = (coords, bounds, variogram, iterations=200, burn_in=50, seed=0))]
+#[pyo3(signature = (coords, bounds, variogram, *, iterations=200, burn_in=50, seed=0))]
 fn gibbs<'py>(
     py: Python<'py>,
     coords: &Bound<PyAny>,

@@ -190,7 +190,7 @@ class _Base:
             domain_column=domain_column,
         )
 
-    def cross_validate(self, folds: int | None = None) -> CrossValidation:
+    def cross_validate(self, *, folds: int | None = None) -> CrossValidation:
         """Re-estimates every sample from the others, through the same search passes.
 
         Parameters
@@ -202,7 +202,7 @@ class _Base:
             holes and with `folds` equal to the number of samples this is leave-one-out. Folds span all
             domains; each held-out sample is estimated in its own domain.
         """
-        estimate, variance = self._engine.cross_validate(folds)
+        estimate, variance = self._engine.cross_validate(folds=folds)
         return CrossValidation(self._engine.values, estimate, variance)
 
     def with_search(self, search: Searches):
@@ -254,7 +254,7 @@ class OrdinaryKriging(_Base):
 class SimpleKriging(_Base):
     """Kriging with a known global `mean`."""
 
-    def __init__(self, variogram: Variogram, search: Searches, mean: float = 0.0):
+    def __init__(self, variogram: Variogram, search: Searches, *, mean: float = 0.0):
         super().__init__("simple", search, variogram, mean=mean)
 
 
@@ -268,28 +268,30 @@ class IndicatorKriging(_Base):
 class UniversalKriging(_Base):
     """Kriging with a polynomial drift of `degree` in the coordinates."""
 
-    def __init__(self, variogram: Variogram, search: Searches, degree: int = 1):
+    def __init__(self, variogram: Variogram, search: Searches, *, degree: int = 1):
         super().__init__("universal", search, variogram, degree=degree)
 
 
 class FactorialKriging(_Base):
     """Estimates only the selected components: `structures` by index, plus the nugget if asked."""
 
-    def __init__(self, variogram: Variogram, search: Searches, structures, nugget: bool = False):
+    def __init__(self, variogram: Variogram, search: Searches, structures, *, nugget: bool = False):
         super().__init__("factorial", search, variogram, structures=list(structures), nugget=nugget)
 
 
 class BlockKriging(_Base):
     """Ordinary kriging of block averages; targets are block centers of `size`."""
 
-    def __init__(self, variogram: Variogram, search: Searches, size, discretization=(4, 4, 1)):
+    def __init__(self, variogram: Variogram, search: Searches, size, *, discretization=(4, 4, 1)):
         super().__init__("block", search, variogram, size=list(size), discretization=tuple(discretization))
 
 
 class BayesianKriging(_Base):
     """Kriging with a Gaussian prior on the drift coefficients."""
 
-    def __init__(self, variogram: Variogram, search: Searches, prior_mean, prior_variance, degree: int = 0):
+    def __init__(
+        self, variogram: Variogram, search: Searches, prior_mean, prior_variance, *, degree: int = 0
+    ):
         super().__init__(
             "bayesian",
             search,
@@ -303,29 +305,29 @@ class BayesianKriging(_Base):
 class InverseDistance(_Base):
     """Inverse-distance weighting; a `variogram` supplies anisotropic distances."""
 
-    def __init__(self, search: Searches, power: float = 2.0, variogram: Variogram | None = None):
+    def __init__(self, search: Searches, *, power: float = 2.0, variogram: Variogram | None = None):
         super().__init__("inverse_distance", search, variogram, power=power)
 
 
 class NearestNeighbor(_Base):
-    def __init__(self, search: Searches, variogram: Variogram | None = None):
+    def __init__(self, search: Searches, *, variogram: Variogram | None = None):
         super().__init__("nearest", search, variogram)
 
 
 class MovingAverage(_Base):
-    def __init__(self, search: Searches, variogram: Variogram | None = None):
+    def __init__(self, search: Searches, *, variogram: Variogram | None = None):
         super().__init__("moving_average", search, variogram)
 
 
 class MovingMedian(_Base):
-    def __init__(self, search: Searches, variogram: Variogram | None = None):
+    def __init__(self, search: Searches, *, variogram: Variogram | None = None):
         super().__init__("moving_median", search, variogram)
 
 
 class LocalLeastSquares(_Base):
     """Local polynomial of `degree` fitted to the neighbors."""
 
-    def __init__(self, search: Searches, degree: int = 1, variogram: Variogram | None = None):
+    def __init__(self, search: Searches, *, degree: int = 1, variogram: Variogram | None = None):
         super().__init__("local_least_squares", search, variogram, degree=degree)
 
 
@@ -445,7 +447,7 @@ def calibrate_search(
             estimate = d["value"][np.isfinite(d["value"])]
             row |= _recoveries(estimate, row["block_variance"], engine.variogram, anamorphosis, cutoffs)
         if cross_validation:
-            estimate, _ = candidate._point_support().cross_validate(folds)
+            estimate, _ = candidate._point_support().cross_validate(folds=folds)
             row |= _cross_validation(values[keep], estimate[keep], kept_weights)
         for key, value in row.items():
             columns.setdefault(key, []).append(value)

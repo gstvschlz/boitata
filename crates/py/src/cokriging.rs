@@ -64,7 +64,7 @@ impl Cokriging {
     }
 
     #[new]
-    #[pyo3(signature = (coregionalization, search, means=None))]
+    #[pyo3(signature = (coregionalization, search, *, means=None))]
     fn new(
         coregionalization: PyRef<Coregionalization>,
         search: Search,
@@ -263,7 +263,7 @@ impl Disjunctive {
     /// `anamorphosis` is fitted on the raw values; `variogram` is that of the
     /// Gaussian scores.
     #[new]
-    #[pyo3(signature = (anamorphosis, variogram, search, order=20))]
+    #[pyo3(signature = (anamorphosis, variogram, search, *, order=20))]
     fn new(
         anamorphosis: PyRef<Anamorphosis>,
         variogram: Variogram,

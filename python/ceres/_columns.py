@@ -20,8 +20,12 @@ def column(data, arg, what="values"):
         raise MissingColumn(f'no column "{arg}"; columns: {", ".join(names(data))}') from None
 
 
-def stack(data, labels=None):
-    """`data`, an array or named columns, as an ``(n, d)`` float array and its column labels."""
+def stack(data, labels=None, columns=None):
+    """`data`, an array or named columns (those in `columns` when given), as an ``(n, d)`` float array and labels."""
+    if columns is not None:
+        data = {c: column(data, c, "columns") for c in columns}
+    elif hasattr(data, "attributes"):
+        data = data.attributes
     if hasattr(data, "column_names") or hasattr(data, "keys"):
         keys = names(data)
         labels = keys if labels is None else labels

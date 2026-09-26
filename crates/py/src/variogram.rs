@@ -191,7 +191,7 @@ impl Structure {
     }
 
     #[new]
-    #[pyo3(signature = (model, sill, range, order=None, exponent=None))]
+    #[pyo3(signature = (model, sill, range, *, order=None, exponent=None))]
     fn new(
         model: &str,
         sill: f64,
@@ -297,7 +297,7 @@ impl Variogram {
     ///     Isotropic; one free structure with a free nugget reproduces the
     ///     single-structure fit.
     #[staticmethod]
-    #[pyo3(signature = (experimental, model=Models::One("spherical".into()), weighting="count", nugget=None, sills=None, ranges=None))]
+    #[pyo3(signature = (experimental, model=Models::One("spherical".into()), *, weighting="count", nugget=None, sills=None, ranges=None))]
     fn fit(
         experimental: &ExperimentalVariogram,
         model: Models,
@@ -340,7 +340,7 @@ impl Variogram {
     /// -------
     /// Variogram
     #[staticmethod]
-    #[pyo3(signature = (experimentals, directions, model=Models::One("spherical".into()), weighting="count", nugget=None, sills=None, ranges=None, rotation=None, ratios=None))]
+    #[pyo3(signature = (experimentals, directions, model=Models::One("spherical".into()), *, weighting="count", nugget=None, sills=None, ranges=None, rotation=None, ratios=None))]
     #[allow(clippy::too_many_arguments)]
     fn fit_directional(
         experimentals: Vec<PyRef<ExperimentalVariogram>>,
@@ -501,7 +501,7 @@ impl ExperimentalVariogram {
     }
 
     /// Weighted least-squares fit; see `Variogram.fit`.
-    #[pyo3(signature = (model=Models::One("spherical".into()), weighting="count", nugget=None, sills=None, ranges=None))]
+    #[pyo3(signature = (model=Models::One("spherical".into()), *, weighting="count", nugget=None, sills=None, ranges=None))]
     fn fit(
         &self,
         model: Models,
@@ -528,7 +528,7 @@ impl ExperimentalVariogram {
     /// Returns
     /// -------
     /// float
-    #[pyo3(signature = (lags=3))]
+    #[pyo3(signature = (*, lags=3))]
     fn nugget(&self, lags: usize) -> PyResult<f64> {
         extrapolated_nugget(&self.0, lags).map_err(err)
     }
@@ -816,7 +816,7 @@ impl Coregionalization {
     /// -------
     /// Coregionalization
     #[staticmethod]
-    #[pyo3(signature = (experimentals, model=Models::One("spherical".into()), weighting="count", nugget=true, ranges=None, directions=None, rotation=None, ratios=None))]
+    #[pyo3(signature = (experimentals, model=Models::One("spherical".into()), *, weighting="count", nugget=true, ranges=None, directions=None, rotation=None, ratios=None))]
     #[allow(clippy::too_many_arguments)]
     fn fit(
         experimentals: Vec<Vec<Option<Bound<PyAny>>>>,
@@ -1004,7 +1004,7 @@ fn experimental_transiogram<'py>(
 /// Gaussian model, and the matching block anamorphosis. `variogram` is the
 /// variogram of the Gaussian scores (unit sill).
 #[pyfunction]
-#[pyo3(signature = (anamorphosis, variogram, size, discretization=(4, 4, 1)))]
+#[pyo3(signature = (anamorphosis, variogram, size, *, discretization=(4, 4, 1)))]
 fn change_of_support(
     anamorphosis: PyRef<Anamorphosis>,
     variogram: &Variogram,
@@ -1029,7 +1029,7 @@ fn change_of_support(
 
 /// Mean Gaussian correlation between points of one block (`γ̄`-based).
 #[pyfunction]
-#[pyo3(signature = (variogram, size, discretization=(4, 4, 1)))]
+#[pyo3(signature = (variogram, size, *, discretization=(4, 4, 1)))]
 fn block_correlation(
     variogram: &Variogram,
     size: Vec<f64>,

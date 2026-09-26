@@ -18,7 +18,7 @@ fn by_row<'py>(
 
 /// Rescales each row of parts to sum to `total`.
 #[pyfunction]
-#[pyo3(signature = (parts, total=1.0))]
+#[pyo3(signature = (parts, *, total=1.0))]
 fn closure<'py>(py: Python<'py>, parts: &Bound<PyAny>, total: f64) -> PyResult<Bound<'py, PyAny>> {
     by_row(py, parts, |r| coda::closure(r, total))
 }

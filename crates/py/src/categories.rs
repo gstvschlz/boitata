@@ -58,7 +58,7 @@ fn codes(obj: &Bound<PyAny>) -> PyResult<Vec<Option<u32>>> {
 #[pymethods]
 impl Categories {
     #[new]
-    #[pyo3(signature = (names, colors=None, mapping=None, other=None))]
+    #[pyo3(signature = (names, *, colors=None, mapping=None, other=None))]
     fn new(
         names: &Bound<PyAny>,
         colors: Option<Vec<String>>,
@@ -84,7 +84,7 @@ impl Categories {
     /// lumped. Integral floats are integer labels (1.0 is "1"); None and
     /// NaN are skipped. The result does not depend on row order.
     #[staticmethod]
-    #[pyo3(signature = (values, weights=None, min_share=0.0, mapping=None, other="other", colors=None))]
+    #[pyo3(signature = (values, *, weights=None, min_share=0.0, mapping=None, other="other", colors=None))]
     fn from_values(
         values: &Bound<PyAny>,
         weights: Option<&Bound<PyAny>>,
@@ -126,14 +126,14 @@ impl Categories {
     /// New categories with `names` merged into `into`: a listed name, else
     /// `other` when there is none, else a new name before `other`. The
     /// merged names become mapping entries.
-    #[pyo3(signature = (names, into="other"))]
+    #[pyo3(signature = (names, *, into="other"))]
     fn lump(&self, names: Vec<String>, into: &str) -> PyResult<Self> {
         let names: Vec<&str> = names.iter().map(String::as_str).collect();
         self.0.lump(&names, into).map(Self).map_err(invalid)
     }
 
     /// Weighted proportion of each code, nulls skipped.
-    #[pyo3(signature = (codes, weights=None))]
+    #[pyo3(signature = (codes, *, weights=None))]
     fn shares<'py>(
         &self,
         py: Python<'py>,

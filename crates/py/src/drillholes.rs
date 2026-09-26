@@ -54,7 +54,7 @@ pub struct Drillholes {
 impl Drillholes {
     #[new]
     #[pyo3(signature = (
-        collar, survey, intervals=None, hole="HOLEID", x="X", y="Y", z="Z", at="DEPTH",
+        collar, survey, intervals=None, *, hole="HOLEID", x="X", y="Y", z="Z", at="DEPTH",
         azimuth="AZIMUTH", dip=Some("DIP"), inclination=None, from_="FROM", to="TO",
         method="minimum_curvature"
     ))]
@@ -287,7 +287,7 @@ impl Drillholes {
     ///     Categorical columns, composited to the value covering the most
     ///     length.
     #[pyo3(signature = (
-        length, grades, domain=None, intervals=None, residual="keep", min_fraction=0.5,
+        length, grades, *, domain=None, intervals=None, residual="keep", min_fraction=0.5,
         categories=vec![]
     ))]
     #[allow(clippy::too_many_arguments)]
@@ -478,7 +478,7 @@ impl Drillholes {
 /// Overlapping intervals within a table raise `ValueError` naming the
 /// first few holes; resolve them before merging.
 #[pyfunction]
-#[pyo3(signature = (left, right, hole="HOLEID", from_="FROM", to="TO"))]
+#[pyo3(signature = (left, right, *, hole="HOLEID", from_="FROM", to="TO"))]
 fn merge_intervals(
     left: &Bound<PyAny>,
     right: &Bound<PyAny>,
@@ -691,7 +691,7 @@ fn flags_table(flags: Named, sentinels: &[f64]) -> PyResult<RecordBatch> {
 ///     every check including those that found nothing.
 #[pyfunction]
 #[pyo3(signature = (
-    collar, survey=None, intervals=None, hole="HOLEID", x="X", y="Y", z="Z", at="DEPTH",
+    collar, survey=None, intervals=None, *, hole="HOLEID", x="X", y="Y", z="Z", at="DEPTH",
     azimuth="AZIMUTH", dip=Some("DIP"), inclination=None, from_="FROM", to="TO",
     max_depth=None, nodata=vec![-99.0, -999.0, -9999.0, 1e21], max_deviation=20.0,
     tolerance=1e-6
@@ -870,7 +870,7 @@ fn check_drillholes<'py>(
 ///     whose rule is not keep.
 #[pyfunction]
 #[pyo3(signature = (
-    flags, tables, missing="drop", duplicates="drop", inverted="drop", out_of_range="drop",
+    flags, tables, *, missing="drop", duplicates="drop", inverted="drop", out_of_range="drop",
     overlaps="keep_first", sentinels="null", deviation="drop", no_collar="drop", past_depth="keep"
 ))]
 #[allow(clippy::too_many_arguments)]
