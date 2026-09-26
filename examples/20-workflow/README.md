@@ -3,7 +3,7 @@
 One pass through a resource workflow on the massive sulphide (`MS`) lens of [chapter 19](../19-geological-model/README.md):
 composites from the drill-hole CSVs, the lens modelled from its contacts and kept within the drilling, exploratory
 statistics, declustering, the normal-score variogram, ordinary kriging in search passes and across a soft boundary,
-block-support simulation for risk, classification, and the model saved to Parquet.
+block-support simulation for risk, across the same boundary, classification, and the model saved to Parquet.
 
 <details><summary>Python</summary>
 
@@ -393,6 +393,12 @@ hard boundary equals MS only: True
 hard: mean 9.65 % Zn, 9.33 % within 10 m of SM, P(block > 10 %) there 41.3%
 soft: mean 9.72 % Zn, 9.53 % within 10 m of SM, P(block > 10 %) there 42.9%
 ```
+
+Near `SM` the soft boundary raises the simulated grade a little, where it lowered the kriged one. Simulation kriges
+normal scores, so an `SM` composite brings its rank within `SM`, not its grade. The `SM` composites along the lens
+sit at the middle of their distribution, slightly above where the `MS` composites next to them sit in theirs, and
+pull the nodes up toward the `MS` median. Which reading suits a contact is a geological call: grades that carry on
+across it favor kriging's, ranks that carry on favor simulation's.
 
 ## Classification
 
