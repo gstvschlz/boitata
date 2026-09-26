@@ -35,3 +35,13 @@ pub use turning_bands::{
     Bands, GlobalSummary, TurningBandsEnsemble, TurningBandsParams, bounds,
     conditional_gaussian_field, turning_bands, turning_bands_to_parquet,
 };
+
+/// Hole of each of `n` data, for `Search::max_per_hole`; all `None` without
+/// `holes`.
+pub(crate) fn holes(holes: Option<&[u32]>, n: usize) -> Result<Vec<Option<u32>>> {
+    match holes {
+        None => Ok(vec![None; n]),
+        Some(h) if h.len() == n => Ok(h.iter().copied().map(Some).collect()),
+        Some(_) => Err(SimError::InvalidParameters("one hole per datum".into())),
+    }
+}

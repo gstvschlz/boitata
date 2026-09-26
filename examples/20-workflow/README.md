@@ -344,7 +344,7 @@ save(fig, "swath")
 
 ```text
 16552 nodes in 2069 blocks
-blocks above 10 % Zn: P10 37.7%, P90 46.4% of the lens; kriged 38.2%
+blocks above 10 % Zn: P10 37.6%, P90 46.5% of the lens; kriged 38.2%
 ```
 
 ![swath](swath.png)

@@ -43,11 +43,13 @@ fn bench(c: &mut Criterion) {
             },
             seed: 1,
         };
-        b.iter(|| black_box(sgs(&data, &values, None, &grid, &vg, &params, None).unwrap()))
+        b.iter(|| black_box(sgs(&data, &values, None, None, &grid, &vg, &params, None).unwrap()))
     });
     group.bench_function("turning bands", |b| {
         let params = TurningBandsParams::default();
-        b.iter(|| black_box(turning_bands(&data, &values, None, &grid, &vg, &params).unwrap()))
+        b.iter(|| {
+            black_box(turning_bands(&data, &values, None, None, &grid, &vg, &params).unwrap())
+        })
     });
     group.finish();
 }
@@ -79,7 +81,7 @@ fn phases(c: &mut Criterion) {
         b.iter(|| black_box(bands.field(&grid)))
     });
     let ensemble =
-        TurningBandsEnsemble::new(&data, &values, None, lo, hi, &vg, &params, 1).unwrap();
+        TurningBandsEnsemble::new(&data, &values, None, None, lo, hi, &vg, &params, 1).unwrap();
     group.bench_function("field and conditioning", |b| {
         b.iter(|| black_box(ensemble.realization(0, &grid).unwrap()))
     });

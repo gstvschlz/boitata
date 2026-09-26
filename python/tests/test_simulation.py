@@ -222,3 +222,64 @@ def test_multivariate_simulation_drops_incomplete_samples_and_checks_inputs():
         cs.MultivariateSimulation(cs.NormalScore(), [sgs])
     with pytest.raises(ValueError, match="2 columns"):
         cs.MultivariateSimulation(cs.PCA(), [sgs, sgs]).fit(coords, data[:, :1])
+
+
+@pytest.mark.parametrize("kind", ["SGS", "TurningBands", "SIS", "MultivariateSimulation"])
+def test_max_per_hole_caps_the_data_of_one_hole(kind, tmp_path):
+    down = np.column_stack([np.zeros(10), np.zeros(10), np.arange(10.0)])
+    grades = np.arange(10.0) * 7 % 10 + 1
+    data = {
+        "SGS": grades,
+        "TurningBands": grades,
+        "SIS": np.arange(10) % 2,
+        "MultivariateSimulation": np.column_stack([grades, grades**0.5 + np.arange(10) % 3]),
+    }[kind]
+
+    def simulator(max_samples, max_per_hole=None):
+        search = cs.Search(50.0, max_samples=max_samples, max_per_hole=max_per_hole)
+        if kind == "SGS":
+            return cs.SGS(gaussian, search)
+        if kind == "TurningBands":
+            return cs.TurningBands(gaussian, bands=50, step=1.0, search=search)
+        if kind == "SIS":
+            return cs.SIS([gaussian, gaussian], search)
+        bands = cs.TurningBands(gaussian, bands=50, step=1.0, search=search)
+        return cs.MultivariateSimulation(cs.PCA(), [cs.SGS(gaussian, search), bands])
+
+    def run(model):
+        out = model.simulate([[3.0, 0.0, 4.4]], n=3, seed=2, realizations=True)
+        return [s.realizations for s in out] if isinstance(out, list) else [out.realizations]
+
+    holes = ["DH1"] * 10
+    capped = simulator(8, 1).fit(down, data, holes=holes)
+    np.testing.assert_array_equal(run(capped), run(simulator(1).fit(down, data)))
+    free = run(simulator(8).fit(down, data))
+    np.testing.assert_array_equal(run(simulator(8).fit(down, data, holes=holes)), free)
+    if kind != "SIS":
+        assert not np.array_equal(run(capped), free)
+    if kind != "MultivariateSimulation":
+        capped.to_parquet(tmp_path / "capped.parquet")
+        np.testing.assert_array_equal(
+            run(type(capped).from_parquet(tmp_path / "capped.parquet")), run(capped)
+        )
+        meta, columns = capped._state()
+        older = type(capped)._from_state(meta, [c for c in columns if c[0] != "hole"])
+        np.testing.assert_array_equal(run(older), run(simulator(8, 1).fit(down, data)))
+
+
+@pytest.mark.parametrize("kind", [cs.SGS, cs.TurningBands])
+def test_max_per_hole_caps_the_data_of_one_hole_with_a_trend(kind):
+    down = np.column_stack([np.zeros(10), np.zeros(10), np.arange(10.0)])
+    grades, trend = np.arange(10.0) * 7 % 10 + 1, np.arange(10.0) / 10
+
+    def run(max_samples, max_per_hole=None, holes=None):
+        search = cs.Search(50.0, max_samples=max_samples, max_per_hole=max_per_hole)
+        options = {"bands": 50, "step": 1.0} if kind is cs.TurningBands else {}
+        model = kind(gaussian, search=search, classes=2, **options).fit(
+            down, grades, holes=holes, trend=trend
+        )
+        return model.simulate([[3.0, 0.0, 4.4]], n=3, seed=2, realizations=True, trend=[0.45]).realizations
+
+    capped = run(8, 1, ["DH1"] * 10)
+    np.testing.assert_array_equal(capped, run(1))
+    assert not np.array_equal(capped, run(8))
