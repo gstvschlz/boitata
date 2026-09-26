@@ -462,6 +462,14 @@ impl Drillholes {
 }
 
 impl Drillholes {
+    pub fn stations(&self) -> Vec<[f64; 3]> {
+        self.paths
+            .values()
+            .flatten()
+            .map(|w| [w.east, w.north, w.elev])
+            .collect()
+    }
+
     fn intervals(&self) -> PyResult<(&RecordBatch, &str, &str, &str)> {
         let (b, h, f, t) = self
             .intervals

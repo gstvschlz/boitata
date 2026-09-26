@@ -3,7 +3,7 @@ use ceres_core::{BlockModel, Geometry, Layout, PointSet, Polylines};
 use numpy::ndarray::Array2;
 use numpy::{IntoPyArray, PyArray1, PyArray2, PyReadonlyArray1, PyReadonlyArray2};
 use pyo3::prelude::*;
-use pyo3::types::PyCapsule;
+use pyo3::types::{PyCapsule, PyTuple};
 use pyo3_arrow::error::PyArrowResult;
 
 use crate::invalid;
@@ -176,6 +176,52 @@ impl PyPointSet {
         let table = self.0.to_table().map_err(core_error)?;
         arrow_c_stream(py, &table, requested_schema)
     }
+}
+
+#[derive(FromPyObject)]
+enum PerAxis {
+    One(f64),
+    Each(Vec<f64>),
+}
+
+impl PerAxis {
+    fn values(self, what: &str) -> PyResult<[f64; 3]> {
+        match self {
+            Self::One(v) => Ok([v; 3]),
+            Self::Each(v) => triple(v, 0.0, what),
+        }
+    }
+}
+
+#[derive(FromPyObject)]
+enum Snap {
+    Flag(bool),
+    Step(PerAxis),
+}
+
+/// Points bounding a container, a mesh, drill hole paths or raw coordinates.
+fn extent_points(object: &Bound<PyAny>) -> PyResult<Vec<[f64; 3]>> {
+    if let Ok(model) = object.cast::<PyBlockModel>() {
+        let g = model.get().0.geometry();
+        return Ok((0..8)
+            .map(|c: usize| {
+                let far = [0, 1, 2].map(|a| c >> a & 1 == 1);
+                let ijk = [0, 1, 2].map(|a| if far[a] { g.count[a] - 1 } else { 0 });
+                // Just inside the far faces, which belong to the next cell.
+                g.point(g.index(ijk), far.map(|f| if f { 1.0 - 1e-9 } else { 0.0 }))
+            })
+            .collect());
+    }
+    if let Ok(mesh) = object.cast::<crate::blocks::Mesh>() {
+        return Ok(mesh.get().mesh.vertices().to_vec());
+    }
+    if let Ok(lines) = object.cast::<PyPolylines>() {
+        return Ok(lines.get().0.vertices().to_vec());
+    }
+    if let Ok(holes) = object.cast::<crate::drillholes::Drillholes>() {
+        return Ok(holes.get().stations());
+    }
+    coords_arg(object)
 }
 
 #[derive(FromPyObject)]
@@ -700,6 +746,66 @@ impl PyBlockModel {
     ) -> PyResult<Self> {
         let grid = Self::new(origin, size, count, rotation, None, None, crs)?;
         grid.subblock(py, meshes, subgrid, column, fill)
+    }
+
+    /// Smallest regular grid holding every object plus a buffer.
+    ///
+    /// Parameters
+    /// ----------
+    /// *objects : PointSet, Drillholes, Mesh, Polylines, BlockModel or array_like
+    ///     What the grid must cover: points, drill hole paths, mesh or line
+    ///     vertices, the corners of another grid, or ``(n, 2)``/``(n, 3)``
+    ///     coordinates.
+    /// size : sequence of float
+    ///     ``(dx, dy, dz)`` block size. With ``(dx, dy)`` or ``dz=None`` the
+    ///     grid is 2D: one layer spanning the buffered z range.
+    /// buffer : float or sequence of float, default 0.0
+    ///     Margin added on each side, one value or one per grid axis.
+    /// rotation : tuple of float, optional
+    ///     Azimuth, dip and rake in degrees; the extents are measured along
+    ///     the rotated grid axes.
+    /// snap : bool, float or sequence of float, default False
+    ///     Put the origin on a multiple of this step, measured along the grid
+    ///     axes, so grids built from different data line up; ``True`` snaps
+    ///     to the block size.
+    /// crs : str, optional
+    ///
+    /// Returns
+    /// -------
+    /// BlockModel
+    ///     A regular model without attributes, with the fewest blocks along
+    ///     each axis that hold every point.
+    #[staticmethod]
+    #[pyo3(signature = (*objects, size, buffer=PerAxis::One(0.0), rotation=None, snap=Snap::Flag(false), crs=None))]
+    fn from_extents(
+        objects: &Bound<PyTuple>,
+        size: Vec<Option<f64>>,
+        buffer: PerAxis,
+        rotation: Option<(f64, f64, f64)>,
+        snap: Snap,
+        crs: Option<String>,
+    ) -> PyResult<Self> {
+        let (xy, dz) = match size[..] {
+            [Some(x), Some(y)] => ([x, y], None),
+            [Some(x), Some(y), dz] => ([x, y], dz),
+            _ => return Err(invalid("size needs dx, dy and an optional dz")),
+        };
+        let snap = match snap {
+            Snap::Flag(on) => [xy[0], xy[1], dz.unwrap_or(0.0)].map(|s| if on { s } else { 0.0 }),
+            Snap::Step(step) => step.values("snap")?,
+        };
+        let mut points = Vec::new();
+        for object in objects.iter() {
+            points.extend(extent_points(&object)?);
+        }
+        let rotation = rotation.map_or([0.0; 3], |r| [r.0, r.1, r.2]);
+        let geometry =
+            Geometry::from_extents(&points, xy, dz, buffer.values("buffer")?, rotation, snap)
+                .map_err(core_error)?;
+        let mut model =
+            BlockModel::regular(geometry, empty(geometry.cells() as usize)).map_err(core_error)?;
+        model.crs = crs;
+        Ok(Self(model))
     }
 
     /// Attributes preceded by centroid `x`, `y`, `z`.
