@@ -107,7 +107,7 @@ print(f"kriged in {time.perf_counter() - start:.1f} s")
 </details>
 
 ```text
-kriged in 10.1 s
+kriged in 9.5 s
 ```
 
 Turning bands simulates every realization's bands once over the model's extent, then evaluates and conditions
@@ -133,8 +133,43 @@ print(f"output {(folder / 'simulated.parquet').stat().st_size / 1e6:.0f} MB")
 </details>
 
 ```text
-10 realizations in 29 s; blocks above 10 % Zn: P10 7.92%, P90 9.20% of the model
+10 realizations in 23 s; blocks above 10 % Zn: P10 7.92%, P90 9.20% of the model
 output 262 MB
+```
+
+Mining selects panels, not points. Given a file of 10 m panels, `discretization` simulates each at 2 × 2 × 2
+nodes and writes the realizations averaged over the panel, as `simulate(panels.discretize(...), blocks=panels)`
+would; the panels are read a chunk at a time, so their nodes never outgrow memory either. Averaging smooths the
+highs, so fewer panels than points pass 10 % Zn.
+
+<details><summary>Python</summary>
+
+```python
+ijk = np.c_[index % nx, (index // nx) % ny, index // (nx * ny)] // 5
+pnx, pny, pnz = (-(-np.array(count) // 5)).tolist()
+cells = np.unique(ijk[:, 0] + pnx * (ijk[:, 1] + pny * ijk[:, 2])).astype(np.uint64)
+panels = cs.BlockModel(origin=tuple(origin), size=(10, 10, 10), count=(pnx, pny, pnz), index=cells)
+cs.write_parquet(folder / "panels.parquet", panels)
+start = time.perf_counter()
+panel = bands.simulate_to_parquet(
+    folder / "panels.parquet",
+    folder / "panels_simulated.parquet",
+    n=10,
+    seed=1,
+    cutoffs=[10.0],
+    discretization=(2, 2, 2),
+)
+seconds = time.perf_counter() - start
+low, high = np.quantile(panel["realization_above"][0], [0.1, 0.9])
+print(
+    f"{len(panels):,} panels in {seconds:.0f} s; above 10 % Zn: P10 {low:.2%}, P90 {high:.2%} of the panels"
+)
+```
+
+</details>
+
+```text
+87,912 panels in 2 s; above 10 % Zn: P10 5.98%, P90 6.83% of the panels
 ```
 
 The output is too big to want in memory, so the east–west section with the most composites is collected from the

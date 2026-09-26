@@ -114,6 +114,33 @@ print(f"10 realizations in {seconds:.0f} s; blocks above 10 % Zn: P10 {low:.2%},
 print(f"output {(folder / 'simulated.parquet').stat().st_size / 1e6:.0f} MB")
 
 # %% [markdown]
+# Mining selects panels, not points. Given a file of 10 m panels, `discretization` simulates each at 2 × 2 × 2
+# nodes and writes the realizations averaged over the panel, as `simulate(panels.discretize(...), blocks=panels)`
+# would; the panels are read a chunk at a time, so their nodes never outgrow memory either. Averaging smooths the
+# highs, so fewer panels than points pass 10 % Zn.
+
+# %%
+ijk = np.c_[index % nx, (index // nx) % ny, index // (nx * ny)] // 5
+pnx, pny, pnz = (-(-np.array(count) // 5)).tolist()
+cells = np.unique(ijk[:, 0] + pnx * (ijk[:, 1] + pny * ijk[:, 2])).astype(np.uint64)
+panels = cs.BlockModel(origin=tuple(origin), size=(10, 10, 10), count=(pnx, pny, pnz), index=cells)
+cs.write_parquet(folder / "panels.parquet", panels)
+start = time.perf_counter()
+panel = bands.simulate_to_parquet(
+    folder / "panels.parquet",
+    folder / "panels_simulated.parquet",
+    n=10,
+    seed=1,
+    cutoffs=[10.0],
+    discretization=(2, 2, 2),
+)
+seconds = time.perf_counter() - start
+low, high = np.quantile(panel["realization_above"][0], [0.1, 0.9])
+print(
+    f"{len(panels):,} panels in {seconds:.0f} s; above 10 % Zn: P10 {low:.2%}, P90 {high:.2%} of the panels"
+)
+
+# %% [markdown]
 # The output is too big to want in memory, so the east–west section with the most composites is collected from the
 # chunks, reading only the columns it needs. Near the holes the simulations follow the data; beyond the variogram
 # range kriging leaves blocks unestimated while each realization draws from the declustered histogram. `plot.uncertain`

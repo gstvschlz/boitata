@@ -873,10 +873,20 @@ impl TurningBands {
     /// The same values as `simulate` on the whole model, in memory bounded by
     /// `rows` blocks plus the bands. Returns each realization's global
     /// `realization_mean` and `realization_above` (one row per cutoff).
-    /// `domains`, needed when fitted with them, labels the blocks in file
-    /// order, or is one label for all.
+    ///
+    /// Parameters
+    /// ----------
+    /// domains : array_like or label, optional
+    ///     Needed when fitted with them: labels of the blocks in file order,
+    ///     or one label for all.
+    /// trend : str, optional
+    ///     Needed when fitted with a trend: the column of `path` holding it.
+    /// discretization : tuple of int, optional
+    ///     Nodes per axis simulated in each block and averaged by volume, as
+    ///     ``simulate(model.discretize(discretization), blocks=model)``;
+    ///     default the centroid. A node takes its block's domain and trend.
     #[allow(clippy::too_many_arguments)]
-    #[pyo3(signature = (path, out, n=100, seed=0, cutoffs=vec![], quantiles=vec![], rows=1_000_000, domains=None))]
+    #[pyo3(signature = (path, out, n=100, seed=0, cutoffs=vec![], quantiles=vec![], rows=1_000_000, domains=None, trend=None, discretization=None))]
     fn simulate_to_parquet<'py>(
         &self,
         py: Python<'py>,
@@ -888,12 +898,19 @@ impl TurningBands {
         quantiles: Vec<f64>,
         rows: usize,
         domains: Option<&Bound<PyAny>>,
+        trend: Option<String>,
+        discretization: Option<(usize, usize, usize)>,
     ) -> PyResult<Bound<'py, pyo3::types::PyDict>> {
         let d = self.data.as_ref().ok_or_else(not_fitted)?;
-        if d.trend.is_some() {
-            return Err(invalid(
-                "simulate_to_parquet does not take a trend; use simulate",
-            ));
+        let method = "simulate_to_parquet";
+        match (&d.trend, &trend) {
+            (Some(_), None) => return Err(invalid("fitted with a trend: give trend, its column")),
+            (None, Some(_)) => return Err(invalid("trend needs trend at fit")),
+            _ => {}
+        }
+        let discretization = discretization.map_or([1, 1, 1], |(x, y, z)| [x, y, z]);
+        if discretization.contains(&0) {
+            return Err(invalid("discretization must be positive"));
         }
         let blocks = match domains {
             Some(_) => ceres_io::BlockModelReader::open(&path)
@@ -901,7 +918,6 @@ impl TurningBands {
                 .len(),
             None => 0,
         };
-        let method = "simulate_to_parquet";
         let nodes = node_domains(self.domains.as_deref(), domains, blocks, method)?;
         let params = self.params(seed, self.resolved()?);
         let options = ContinuousOptions {
@@ -919,11 +935,16 @@ impl TurningBands {
                     d.weights.as_deref(),
                     d.holes.as_deref(),
                     zoned(d, &nodes),
+                    d.trend
+                        .as_deref()
+                        .zip(trend.as_deref())
+                        .map(|(t, column)| (t, self.classes, column)),
                     &self.variogram,
                     &params,
                     n,
                     &options,
                     rows,
+                    discretization,
                 )
             })
             .map_err(err)?;

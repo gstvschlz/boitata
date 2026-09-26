@@ -21,7 +21,7 @@
 //! score back-transformed, within its own domain.
 
 use crate::error::{Result, SimError};
-use crate::post::{ContinuousOptions, ContinuousSummary, continuous};
+use crate::post::{BlockSupport, ContinuousOptions, ContinuousSummary, continuous};
 use crate::sgs::{Domains, Realization, Transform, Transforms, Trend, data};
 use estimation::Sample;
 use estimation::krige::{Kind, krige};
@@ -559,7 +559,12 @@ pub fn turning_bands_in(
 /// kept): `mean`, `variance`, `p_above_<c>` and `mean_above_<c>` per cutoff,
 /// `q<p>` per quantile. Memory is bounded by `rows` blocks plus the bands.
 /// Returns the global mean and share above each cutoff of every realization.
-/// `domains` are the codes of the data and of every block, in file order.
+/// `domains` are the codes of the data and of every block, in file order;
+/// `trend` is the trend at the data, its number of classes and the input
+/// column holding it at the blocks. Each block is simulated at
+/// `discretization` nodes per axis, as [`ceres_core::BlockModel::discretize`],
+/// averaged by volume as in [`BlockSupport`]; `[1, 1, 1]` is its centroid.
+/// A node takes the domain and trend of its block.
 #[allow(clippy::too_many_arguments)]
 pub fn turning_bands_to_parquet(
     input: impl AsRef<std::path::Path>,
@@ -569,19 +574,31 @@ pub fn turning_bands_to_parquet(
     data_weights: Option<&[f64]>,
     data_holes: Option<&[u32]>,
     domains: Option<Domains>,
+    trend: Option<(&[f64], usize, &str)>,
     vg_nscore: &Variogram,
     params: &TurningBandsParams,
     n: usize,
     options: &ContinuousOptions,
     rows: usize,
+    discretization: [usize; 3],
 ) -> Result<GlobalSummary> {
     let reader = ceres_io::BlockModelReader::open(&input)?;
     if domains.is_some_and(|d| d.1.len() != reader.len()) {
         return Err(SimError::InvalidParameters("one domain per block".into()));
     }
+    if let Some((.., column)) = trend
+        && !reader.column_names().iter().any(|c| c == column)
+    {
+        return Err(SimError::InvalidParameters(format!(
+            "no trend column {column:?}"
+        )));
+    }
     let (mut lo, mut hi) = ([f64::INFINITY; 3], [f64::NEG_INFINITY; 3]);
     for chunk in reader.chunks(rows, Some(&[]))? {
-        let (clo, chi) = bounds(&points(&chunk?));
+        let nodes = chunk?
+            .discretize(discretization)
+            .map_err(ceres_io::Error::from)?;
+        let (clo, chi) = bounds(&points(&nodes));
         lo = std::array::from_fn(|i| lo[i].min(clo[i]));
         hi = std::array::from_fn(|i| hi[i].max(chi[i]));
     }
@@ -591,7 +608,7 @@ pub fn turning_bands_to_parquet(
         data_weights,
         data_holes,
         domains.map(|d| d.0),
-        None,
+        trend.map(|t| (t.0, t.1)),
         lo,
         hi,
         vg_nscore,
@@ -615,9 +632,23 @@ pub fn turning_bands_to_parquet(
     let mut total = 0.0;
     for chunk in reader.chunks(rows, None)? {
         let chunk = chunk?;
-        let at = total as usize..total as usize + chunk.len();
-        let codes = domains.map(|d| &d.1[at]);
-        let s = ensemble.summary(&points(&chunk), codes, None, &options)?;
+        let start = total as usize;
+        let (nodes, owner, support) = block_nodes(&chunk, discretization)?;
+        let codes: Option<Vec<u32>> =
+            domains.map(|d| owner.iter().map(|&b| d.1[start + b]).collect());
+        let at_nodes: Option<Vec<f64>> = trend
+            .map(|(.., column)| {
+                let at = float_column(&chunk, column)?;
+                Ok::<_, SimError>(owner.iter().map(|&b| at[b]).collect())
+            })
+            .transpose()?;
+        let s = continuous(n, &options, |k| {
+            let r = ensemble.realization(k, &nodes, codes.as_deref(), at_nodes.as_deref())?;
+            match &support {
+                Some(s) => s.mean(&r),
+                None => Ok(r),
+            }
+        })?;
         let m = chunk.len() as f64;
         total += m;
         for k in 0..n {
@@ -652,6 +683,54 @@ pub fn turning_bands_to_parquet(
         above.iter_mut().for_each(|v| *v /= total);
     }
     Ok(global)
+}
+
+/// The simulation nodes of the rows of `chunk`, `n` per axis, the row of each
+/// and their averaging to the rows; the centroids when `n` is `[1, 1, 1]`.
+fn block_nodes(
+    chunk: &ceres_core::BlockModel,
+    n: [usize; 3],
+) -> Result<(Vec<(f64, f64, f64)>, Vec<usize>, Option<BlockSupport>)> {
+    if n == [1, 1, 1] {
+        return Ok((points(chunk), (0..chunk.len()).collect(), None));
+    }
+    use arrow_array::cast::AsArray;
+    let fine = chunk.discretize(n).map_err(ceres_io::Error::from)?;
+    let owner = fine
+        .attributes()
+        .column_by_name("block")
+        .and_then(|c| c.as_primitive_opt::<arrow_array::types::UInt64Type>())
+        .expect("discretize writes the block column")
+        .values()
+        .iter()
+        .map(|&b| b as usize)
+        .collect();
+    let nodes = points(&fine);
+    let support = BlockSupport::new(&nodes, Some(&fine.volumes()), chunk)?;
+    Ok((nodes, owner, Some(support)))
+}
+
+/// Column `name` of `chunk` as f64; nulls are an error.
+fn float_column(chunk: &ceres_core::BlockModel, name: &str) -> Result<Vec<f64>> {
+    use arrow_array::cast::AsArray;
+    use arrow_array::types::{Float32Type, Float64Type};
+    let column = chunk
+        .attributes()
+        .column_by_name(name)
+        .ok_or_else(|| SimError::InvalidParameters(format!("no trend column {name:?}")))?;
+    let values: Vec<Option<f64>> = if let Some(c) = column.as_primitive_opt::<Float64Type>() {
+        c.iter().collect()
+    } else if let Some(c) = column.as_primitive_opt::<Float32Type>() {
+        c.iter().map(|v| v.map(f64::from)).collect()
+    } else {
+        return Err(SimError::InvalidParameters(format!(
+            "trend column {name:?} must be float"
+        )));
+    };
+    values
+        .into_iter()
+        .collect::<Option<_>>()
+        .ok_or_else(|| SimError::InvalidParameters(format!("trend column {name:?} has nulls")))
 }
 
 /// Per-realization results over a whole streamed model.
@@ -849,8 +928,20 @@ mod tests {
             for rows in [7, 160] {
                 let output = input.with_extension(format!("{rows}.parquet"));
                 let global = turning_bands_to_parquet(
-                    &input, &output, &data_locs, &data_vals, None, None, domains, &vg, &params, 6,
-                    &options, rows,
+                    &input,
+                    &output,
+                    &data_locs,
+                    &data_vals,
+                    None,
+                    None,
+                    domains,
+                    None,
+                    &vg,
+                    &params,
+                    6,
+                    &options,
+                    rows,
+                    [1, 1, 1],
                 )
                 .unwrap();
                 let ceres_io::Stored::Blocks(back) = ceres_io::read_parquet(&output).unwrap()
@@ -877,10 +968,142 @@ mod tests {
         let short = Some((&codes[..], &nodes[1..]));
         let output = input.with_extension("short.parquet");
         let r = turning_bands_to_parquet(
-            &input, &output, &data_locs, &data_vals, None, None, short, &vg, &params, 6, &options,
+            &input,
+            &output,
+            &data_locs,
+            &data_vals,
+            None,
+            None,
+            short,
+            None,
+            &vg,
+            &params,
+            6,
+            &options,
             7,
+            [1, 1, 1],
         );
         assert!(r.is_err());
+    }
+
+    #[test]
+    fn streamed_blocks_average_the_discretized_realizations() {
+        use arrow_array::cast::AsArray;
+        use ceres_core::{BlockModel, Geometry};
+        let data_locs: Vec<_> = (0..30)
+            .map(|i| ((i * 7 % 40) as f64 + 0.3, (i * 11 % 30) as f64 + 0.6, 1.0))
+            .collect();
+        let data_vals: Vec<f64> = (0..30)
+            .map(|i| 1.0 + (i as f64 * 0.37).sin().abs() * 5.0)
+            .collect();
+        let data_trend: Vec<f64> = data_locs.iter().map(|p| p.0 / 10.0).collect();
+        let geometry = Geometry {
+            origin: [0.0; 3],
+            size: [8.0, 6.0, 2.0],
+            count: [5, 5, 1],
+            rotation: [0.0; 3],
+        };
+        let trend: Vec<f64> = (0..25).map(|r| geometry.centroid(r)[0] / 10.0).collect();
+        let columns = arrow_array::RecordBatch::try_from_iter([(
+            "trend",
+            std::sync::Arc::new(arrow_array::Float32Array::from_iter_values(
+                trend.iter().map(|&t| t as f32),
+            )) as arrow_array::ArrayRef,
+        )])
+        .unwrap();
+        let model = BlockModel::regular(geometry, columns).unwrap();
+        let input =
+            std::env::temp_dir().join(format!("ceres-tb-blocks-{}.parquet", std::process::id()));
+        ceres_io::write_block_model(&input, &model).unwrap();
+        let vg = Variogram::single(Model::Spherical, 1.0, 20.0);
+        let params = TurningBandsParams {
+            n_bands: 60,
+            ..Default::default()
+        };
+        let options = ContinuousOptions {
+            cutoffs: vec![3.0],
+            quantiles: vec![0.5],
+            keep: false,
+        };
+        let n = [2, 3, 1];
+        let fine = model.discretize(n).unwrap();
+        let nodes = points(&fine);
+        let owner: Vec<usize> = fine.attributes()["block"]
+            .as_primitive::<arrow_array::types::UInt64Type>()
+            .values()
+            .iter()
+            .map(|&b| b as usize)
+            .collect();
+        let at_nodes: Vec<f64> = owner.iter().map(|&b| f64::from(trend[b] as f32)).collect();
+        let support = BlockSupport::new(&nodes, Some(&fine.volumes()), &model).unwrap();
+        let (lo, hi) = bounds(&nodes);
+        for trended in [false, true] {
+            let data_trend = trended.then_some((&data_trend[..], 3));
+            let ensemble = TurningBandsEnsemble::new(
+                &data_locs, &data_vals, None, None, None, data_trend, lo, hi, &vg, &params, 5,
+            )
+            .unwrap();
+            let whole = continuous(5, &options, |k| {
+                let at = trended.then_some(&at_nodes[..]);
+                support.mean(&ensemble.realization(k, &nodes, None, at)?)
+            })
+            .unwrap();
+            let stream = |rows: usize, threads: usize| {
+                let output = input.with_extension(format!("{rows}-{threads}-{trended}.parquet"));
+                rayon::ThreadPoolBuilder::new()
+                    .num_threads(threads)
+                    .build()
+                    .unwrap()
+                    .install(|| {
+                        turning_bands_to_parquet(
+                            &input,
+                            &output,
+                            &data_locs,
+                            &data_vals,
+                            None,
+                            None,
+                            None,
+                            data_trend.map(|(t, c)| (t, c, "trend")),
+                            &vg,
+                            &params,
+                            5,
+                            &options,
+                            rows,
+                            n,
+                        )
+                    })
+                    .unwrap();
+                let ceres_io::Stored::Blocks(back) = ceres_io::read_parquet(&output).unwrap()
+                else {
+                    panic!("expected a block model")
+                };
+                back.attributes()["mean"]
+                    .as_primitive::<arrow_array::types::Float64Type>()
+                    .values()
+                    .to_vec()
+            };
+            let mean = stream(4, 1);
+            assert_eq!(mean, whole.mean);
+            assert_eq!(stream(25, 3), mean);
+        }
+        let output = input.with_extension("missing.parquet");
+        let missing = turning_bands_to_parquet(
+            &input,
+            &output,
+            &data_locs,
+            &data_vals,
+            None,
+            None,
+            None,
+            Some((&data_trend[..], 3, "nope")),
+            &vg,
+            &params,
+            2,
+            &options,
+            4,
+            n,
+        );
+        assert!(missing.is_err());
     }
 
     #[test]

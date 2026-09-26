@@ -678,6 +678,8 @@ class TurningBands:
         quantiles: Sequence[float] = (),
         rows: int = 1_000_000,
         domains: Label | Sequence[Label] | ArrayLike | None = None,
+        trend: str | None = None,
+        discretization: tuple[int, int, int] | None = None,
     ) -> dict[str, npt.NDArray[np.float64]]: ...
 
 class MultivariateSimulation:

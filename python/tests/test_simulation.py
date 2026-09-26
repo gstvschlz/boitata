@@ -165,7 +165,7 @@ def test_simulation_with_a_trend_follows_it_and_honours_data():
         sgs.simulate(grid, n=1, trend=node_trend[1:])
     with pytest.raises(ValueError):
         cs.SGS(gaussian, search).fit(xy, z, trend=trend[1:])
-    with pytest.raises(cs.InvalidInput, match="does not take a trend"):
+    with pytest.raises(cs.InvalidInput, match="give trend"):
         cs.TurningBands(gaussian).fit(xy, z, trend=trend).simulate_to_parquet("in.parquet", "out.parquet")
 
 
