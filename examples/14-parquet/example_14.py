@@ -74,3 +74,13 @@ kriging.to_parquet(folder / "kriging.parquet")
 print(pl.read_parquet(folder / "kriging.parquet").head(3))
 again = cs.OrdinaryKriging.from_parquet(folder / "kriging.parquet")
 print("same estimates:", np.array_equal(again.predict(grid), estimate, equal_nan=True))
+
+# %% [markdown]
+# GIS software exchanges points as shapefiles. `write_shapefile` stores the coordinates, the attributes (names of at
+# most 10 characters) and the CRS in a `.prj`; `read_shapefile` returns the same PointSet.
+
+# %%
+cs.write_shapefile(folder / "samples.shp", samples)
+print(sorted(p.name for p in folder.glob("samples.*")))
+again = cs.read_shapefile(folder / "samples.shp")
+print("same points:", np.array_equal(again.coords, samples.coords), "| crs:", again.crs)

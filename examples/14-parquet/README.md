@@ -132,4 +132,23 @@ shape: (3, 7)
 same estimates: True
 ```
 
+GIS software exchanges points as shapefiles. `write_shapefile` stores the coordinates, the attributes (names of at
+most 10 characters) and the CRS in a `.prj`; `read_shapefile` returns the same PointSet.
+
+<details><summary>Python</summary>
+
+```python
+cs.write_shapefile(folder / "samples.shp", samples)
+print(sorted(p.name for p in folder.glob("samples.*")))
+again = cs.read_shapefile(folder / "samples.shp")
+print("same points:", np.array_equal(again.coords, samples.coords), "| crs:", again.crs)
+```
+
+</details>
+
+```text
+['samples.cpg', 'samples.dbf', 'samples.prj', 'samples.shp', 'samples.shx']
+same points: True | crs: local grid
+```
+
 Full script: [`example_14.py`](example_14.py)
