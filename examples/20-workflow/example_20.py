@@ -286,7 +286,8 @@ save(fig, "swath")
 # own, with its own declustering weights, and every node is back-transformed through the table of its domain; one
 # normal-score variogram serves both. Here every node is `MS`, so the hard boundary again gives the simulation above,
 # bit for bit. With `soft=10.0`, `SM` composites within 10 m of a node inform it, as in kriging, and so would `SM`
-# nodes already simulated had any been asked for.
+# nodes already simulated had any been asked for. They enter by their grade, normal-scored through the `MS` table:
+# the node is `MS`, so its neighbours are read as `MS` grades.
 
 # %%
 sm_weights = cs.cell_declustering(sm_xyz, sm_zn, sizes=np.arange(5, 80, 5)).weights
@@ -305,15 +306,14 @@ print(f"hard boundary equals MS only: {np.array_equal(simulated['hard'].mean, su
 for name, s in simulated.items():
     print(
         f"{name}: mean {s.mean.mean():.2f} % Zn, {s.mean[near].mean():.2f} % within 10 m of SM, "
-        f"P(block > 10 %) there {s.probability_above[0][near].mean():.1%}"
+        f"{s.mean[~near].mean():.2f} % elsewhere; P(block > 10 %) near SM {s.probability_above[0][near].mean():.1%}"
     )
 
 # %% [markdown]
-# Near `SM` the soft boundary raises the simulated grade a little, where it lowered the kriged one. Simulation kriges
-# normal scores, so an `SM` composite brings its rank within `SM`, not its grade. The `SM` composites along the lens
-# sit at the middle of their distribution, slightly above where the `MS` composites next to them sit in theirs, and
-# pull the nodes up toward the `MS` median. Which reading suits a contact is a geological call: grades that carry on
-# across it favor kriging's, ranks that carry on favor simulation's.
+# Near `SM` the soft boundary lowers the simulated block grade from 9.3 to 8.8 % Zn, as it lowered the kriged one
+# from 9.1 to 8.7 %: the leaner `SM` grades score low in the `MS` table and pull the nodes next to them down. The
+# chance that a block there exceeds 10 % Zn drops by three points. Unlike kriging, the rest of the lens moves too, by
+# 0.13 %: nodes simulated near `SM` condition the nodes after them, so the leaner contact reaches beyond 10 m.
 #
 # ## Classification
 #
