@@ -231,3 +231,10 @@ def test_change_of_support_reduces_variance():
     assert 0 < r < 1
     assert block.variance_ < anam.variance_
     assert block.mean_ == pytest.approx(anam.mean_)
+
+
+def test_nugget_averages_out_of_the_block():
+    assert cs.block_correlation(cs.Variogram([], nugget=1.0), size=(10, 10)) == 0.0
+    structured = cs.block_correlation(cs.Variogram([("spherical", 1.0, 50.0)]), size=(10, 10))
+    nugget = cs.block_correlation(cs.Variogram([("spherical", 1.0, 50.0)], nugget=0.5), size=(10, 10))
+    assert nugget == pytest.approx(structured / 1.5)

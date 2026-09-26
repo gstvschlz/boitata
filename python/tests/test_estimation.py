@@ -331,3 +331,13 @@ def test_multiple_indicator_simple_form_far_away_gives_the_declustered_mean():
         cs.MultipleIndicatorKriging(model, search, [1.0, 1.0])
     with pytest.raises(cs.InvalidInput, match="one per threshold"):
         cs.MultipleIndicatorKriging([model, model], search, [0.0, 1.0, 2.0])
+
+
+def test_block_kriging_with_a_pure_nugget_has_no_block_variance():
+    nugget = cs.Variogram([], nugget=1.0)
+    d = (
+        cs.BlockKriging(nugget, search, size=(10, 10))
+        .fit(coords, values)
+        .predict([[50.0, 50.0]], diagnostics=True)
+    )
+    assert d["variance"][0] == pytest.approx(1.0 / 16)
