@@ -308,6 +308,29 @@ impl PyBlockModel {
         Ok(Self(self.0.with_column(name, column).map_err(core_error)?))
     }
 
+    /// Nodes discretizing every block, e.g. targets for ``simulate(blocks=)``.
+    ///
+    /// Parameters
+    /// ----------
+    /// n : int or sequence of int
+    ///     Nodes per axis inside each block; an int applies to x, y and z,
+    ///     or to x and y only in a 2D model.
+    ///
+    /// Returns
+    /// -------
+    /// BlockModel
+    ///     A masked grid ``n`` times finer, or for a sub-blocked model each
+    ///     sub-block split into ``n`` per axis. Its one column, ``block``, is
+    ///     the row in this model of each node.
+    fn discretize(&self, n: &Bound<PyAny>) -> PyResult<Self> {
+        let n = match n.extract::<usize>() {
+            Ok(n) if self.0.geometry().count[2] == 1 => [n, n, 1],
+            Ok(n) => [n; 3],
+            Err(_) => triple(n.extract()?, 1, "n")?,
+        };
+        Ok(Self(self.0.discretize(n).map_err(core_error)?))
+    }
+
     /// Every parent cell, absent cells null.
     fn to_regular(&self) -> PyResult<Self> {
         Ok(Self(self.0.to_regular().map_err(core_error)?))

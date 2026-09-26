@@ -191,15 +191,12 @@ print(
 # %% [markdown]
 # ## Simulation at block support
 #
-# Thirty sequential Gaussian simulations on 2.5 m nodes, eight per block, with the same high-grade restriction.
-# `blocks=` averages each realization over the nodes of every 5 m block before summarizing, so the probability
-# above 10 % Zn is that of the block grade, which is what a stope mines.
+# Thirty sequential Gaussian simulations on 2.5 m nodes, eight per block (`discretize(2)`), with the same high-grade
+# restriction. `blocks=` averages each realization over the nodes of every 5 m block before summarizing, so the
+# probability above 10 % Zn is that of the block grade, which is what a stope mines.
 
 # %%
-nodes = cs.BlockModel(origin=tuple(origin), size=(2.5, 2.5, 2.5), count=tuple(2 * c for c in count))
-i, j, k = np.unravel_index(np.arange(len(nodes)), (2 * count[2], 2 * count[1], 2 * count[0]))[::-1]
-parent = (k // 2 * count[1] + j // 2) * count[0] + i // 2
-nodes = nodes.mask(np.isin(parent, blocks.index))
+nodes = blocks.discretize(2)
 
 search = cs.Search(radius=60, max_samples=16, max_per_hole=4, high_grade=(30.0, 15.0))
 sgs = cs.SGS(gaussian, search).fit(xyz, zn, weights=weights, holes=holes)

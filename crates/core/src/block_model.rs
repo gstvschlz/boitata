@@ -314,6 +314,91 @@ impl BlockModel {
         })
     }
 
+    /// Splits every row into `n` parts per axis, e.g. simulation nodes: a
+    /// masked grid `n` times finer, or sub-blocks `n` times smaller. The only
+    /// column, `block`, is each node's row in `self`.
+    pub fn discretize(&self, n: [usize; 3]) -> Result<Self> {
+        if n.contains(&0) {
+            return Err(Error::Geometry("discretization must be positive".into()));
+        }
+        let parts: Vec<[usize; 3]> = (0..n[2])
+            .flat_map(|k| (0..n[1]).flat_map(move |j| (0..n[0]).map(move |i| [i, j, k])))
+            .collect();
+        let rows = rows((self.len() as u64).saturating_mul(parts.len() as u64))?;
+        let block = |rows: Vec<u64>| {
+            RecordBatch::try_from_iter([("block", Arc::new(UInt64Array::from(rows)) as ArrayRef)])
+        };
+        if let Layout::SubBlocked {
+            parent,
+            extent,
+            grid,
+        } = &self.layout
+        {
+            let grid = grid
+                .map(|g| {
+                    (0..3)
+                        .map(|a| u32::try_from(n[a]).ok().and_then(|n| g[a].checked_mul(n)))
+                        .collect::<Option<Vec<_>>>()
+                        .map(|g| [g[0], g[1], g[2]])
+                        .ok_or_else(|| Error::Geometry("sub-grid too fine".into()))
+                })
+                .transpose()?;
+            let (mut parents, mut extents, mut owner) = (
+                Vec::with_capacity(rows),
+                Vec::with_capacity(rows),
+                Vec::with_capacity(rows),
+            );
+            for (row, (&p, e)) in parent.iter().zip(extent).enumerate() {
+                let edge = |a: usize, t: usize| {
+                    if t == n[a] {
+                        e[a + 3]
+                    } else {
+                        e[a] + (e[a + 3] - e[a]) * t as f64 / n[a] as f64
+                    }
+                };
+                for s in &parts {
+                    parents.push(p);
+                    extents.push([0, 1, 2, 3, 4, 5].map(|i| edge(i % 3, s[i % 3] + i / 3)));
+                    owner.push(row as u64);
+                }
+            }
+            let mut model = Self::subblocked(self.geometry, parents, extents, grid, block(owner)?)?;
+            model.crs.clone_from(&self.crs);
+            return Ok(model);
+        }
+        let g = &self.geometry;
+        let mut count = [0; 3];
+        for a in 0..3 {
+            count[a] = g.count[a]
+                .checked_mul(n[a])
+                .ok_or_else(|| Error::Geometry("too many cells".into()))?;
+        }
+        count
+            .iter()
+            .try_fold(1u64, |c, &m| c.checked_mul(m as u64))
+            .ok_or_else(|| Error::Geometry("too many cells".into()))?;
+        let fine = Geometry {
+            size: [0, 1, 2].map(|a| g.size[a] / n[a] as f64),
+            count,
+            ..*g
+        };
+        let mut nodes = Vec::with_capacity(rows);
+        for row in 0..self.len() {
+            let ijk = g.ijk(self.parent_index(row));
+            nodes.extend(parts.iter().map(|s| {
+                (
+                    fine.index([0, 1, 2].map(|a| ijk[a] * n[a] + s[a])),
+                    row as u64,
+                )
+            }));
+        }
+        nodes.sort_unstable();
+        let (index, owner) = nodes.into_iter().unzip();
+        let mut model = Self::masked(fine, index, block(owner)?)?;
+        model.crs.clone_from(&self.crs);
+        Ok(model)
+    }
+
     /// Every parent cell, one row each: absent cells are null; sub-blocks
     /// merge into their parent, numeric columns as volume-weighted means and
     /// others taking the value of the largest sub-block.
@@ -522,6 +607,88 @@ mod tests {
         assert!(
             matches!(kept.layout(), Layout::SubBlocked { parent, .. } if parent == &vec![0, 0])
         );
+    }
+
+    fn check_nodes(model: &BlockModel, n: [usize; 3]) {
+        let nodes = model.discretize(n).unwrap();
+        let block: Vec<usize> = nodes
+            .attributes()
+            .column(0)
+            .as_primitive::<arrow_array::types::UInt64Type>()
+            .values()
+            .iter()
+            .map(|&b| b as usize)
+            .collect();
+        assert_eq!(nodes.len(), model.len() * n.iter().product::<usize>());
+        let mut volume = vec![0.0; model.len()];
+        for ((c, v), &b) in nodes
+            .centroids()
+            .into_iter()
+            .zip(nodes.volumes())
+            .zip(&block)
+        {
+            assert_eq!(model.row_at(c), Some(b));
+            volume[b] += v;
+        }
+        for (sum, v) in volume.iter().zip(model.volumes()) {
+            assert!((sum - v).abs() < 1e-9 * v);
+        }
+    }
+
+    #[test]
+    fn discretized_nodes_fill_their_blocks() {
+        let rotated = geometry([30.0, 20.0, 10.0]);
+        let m = BlockModel::regular(rotated, grades(vec![1.0; 6])).unwrap();
+        check_nodes(&m, [3, 2, 4]);
+        let masked = m
+            .mask(&BooleanArray::from(vec![
+                false, true, true, false, false, true,
+            ]))
+            .unwrap();
+        check_nodes(&masked, [2, 2, 2]);
+        let extent = vec![
+            [0.0, 0.0, 0.0, 0.3, 1.0, 1.0],
+            [0.3, 0.0, 0.0, 1.0, 0.7, 1.0],
+            [0.3, 0.7, 0.2, 1.0, 1.0, 0.9],
+            [0.0, 0.0, 0.0, 1.0, 1.0, 1.0],
+        ];
+        let sub = BlockModel::subblocked(
+            rotated,
+            vec![0, 0, 0, 5],
+            extent,
+            None,
+            grades(vec![1.0; 4]),
+        )
+        .unwrap();
+        check_nodes(&sub, [3, 2, 2]);
+        let on_grid = BlockModel::subblocked(
+            rotated,
+            vec![0, 0],
+            vec![
+                [0.0, 0.0, 0.0, 0.5, 1.0, 1.0],
+                [0.5, 0.0, 0.0, 1.0, 1.0, 1.0],
+            ],
+            Some([2, 1, 1]),
+            grades(vec![1.0; 2]),
+        )
+        .unwrap();
+        check_nodes(&on_grid, [3, 2, 1]);
+        assert!(matches!(
+            on_grid.discretize([3, 2, 1]).unwrap().layout(),
+            Layout::SubBlocked {
+                grid: Some([6, 2, 1]),
+                ..
+            }
+        ));
+        assert!(m.discretize([2, 0, 1]).is_err());
+    }
+
+    #[test]
+    fn discretizing_by_one_gives_the_centroids() {
+        let m = BlockModel::regular(geometry([30.0, 0.0, 0.0]), grades(vec![1.0; 6])).unwrap();
+        let nodes = m.discretize([1, 1, 1]).unwrap();
+        assert_eq!(nodes.centroids(), m.centroids());
+        assert_eq!(nodes.geometry(), m.geometry());
     }
 
     #[test]

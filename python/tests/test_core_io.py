@@ -59,6 +59,27 @@ def test_blockmodel_rotation_mask_and_regular():
     np.testing.assert_array_equal(np.isnan(back["v"]), [False, True, False, True, True, False])
 
 
+def test_discretize_keeps_each_node_in_its_block():
+    model = cs.BlockModel(origin=(100, 200, 0), size=(10, 5, 2), count=(3, 2, 2), rotation=(30, 20, 10))
+    masked = model.mask(np.arange(12) % 3 != 1)
+    nodes = masked.discretize((2, 3, 2))
+    assert len(nodes) == 12 * len(masked) and nodes.size == pytest.approx([5, 5 / 3, 1])
+    block = nodes["block"].astype(int)
+    np.testing.assert_allclose(np.bincount(block, nodes.volumes), masked.volumes)
+    np.testing.assert_allclose(np.bincount(block, weights=nodes.centroids[:, 0]) / 12, masked.centroids[:, 0])
+    flat = cs.BlockModel(origin=(0, 0), size=(10, 10), count=(2, 2)).discretize(4)
+    assert flat.count == [8, 8, 1]
+    parent = np.array([0, 0], dtype=np.uint64)
+    sub = cs.BlockModel.subblocked(
+        (0, 0), (10, 10), (2, 2), parent, [[0, 0, 0, 0.3, 1, 1], [0.3, 0, 0, 1, 1, 1]]
+    )
+    np.testing.assert_allclose(
+        np.bincount(sub.discretize(3)["block"].astype(int), sub.discretize(3).volumes), [30, 70]
+    )
+    with pytest.raises(cs.InvalidInput):
+        model.discretize(0)
+
+
 def test_gslib_round_trip(tmp_path):
     source = tmp_path / "grid.dat"
     source.write_text("grid\n2\nau\ncu\n1 -999\n0.25 3\n")
