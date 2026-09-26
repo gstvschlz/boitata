@@ -95,14 +95,14 @@ def test_mesh_keeps_triangles_bounds_and_attributes(pv):
 
 
 def test_drillholes_become_one_polyline_per_hole(pv):
-    collar = {"HOLEID": ["a", "b"], "X": [0.0, 50], "Y": [0.0, 0], "Z": [100.0, 100]}
+    collar = {"HOLE_ID": ["a", "b"], "X": [0.0, 50], "Y": [0.0, 0], "Z": [100.0, 100]}
     survey = {
-        "HOLEID": ["a", "a", "b"],
+        "HOLE_ID": ["a", "a", "b"],
         "DEPTH": [0.0, 60, 0],
         "AZIMUTH": [0.0, 10, 90],
         "DIP": [60.0, 70, 90],
     }
-    intervals = {"HOLEID": ["a", "b"], "FROM": [0.0, 0], "TO": [100.0, 40]}
+    intervals = {"HOLE_ID": ["a", "b"], "FROM": [0.0, 0], "TO": [100.0, 40]}
     dh = cs.Drillholes(collar, survey, intervals)
     traces = cs.plot3d.to_pyvista(dh)
     paths = dh.paths()

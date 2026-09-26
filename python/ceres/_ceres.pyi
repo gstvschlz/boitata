@@ -1051,7 +1051,7 @@ class Drillholes:
         survey: TableLike,
         intervals: TableLike | None = None,
         *,
-        hole: str = "HOLEID",
+        hole: str = "HOLE_ID",
         x: str = "X",
         y: str = "Y",
         z: str = "Z",
@@ -1155,14 +1155,14 @@ def block_shell(model: BlockModel, *, column: str | None = None) -> Mesh: ...
 def convex_hull(points: ArrayLike) -> Mesh: ...
 def grid_surface(model: BlockModel, column: str) -> Mesh: ...
 def merge_intervals(
-    left: TableLike, right: TableLike, *, hole: str = "HOLEID", from_: str = "FROM", to: str = "TO"
+    left: TableLike, right: TableLike, *, hole: str = "HOLE_ID", from_: str = "FROM", to: str = "TO"
 ) -> Table: ...
 def check_drillholes(
     collar: TableLike,
     survey: TableLike | None = None,
     intervals: TableLike | Mapping[str, TableLike] | None = None,
     *,
-    hole: str = "HOLEID",
+    hole: str = "HOLE_ID",
     x: str = "X",
     y: str = "Y",
     z: str = "Z",

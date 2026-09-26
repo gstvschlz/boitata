@@ -54,7 +54,7 @@ pub struct Drillholes {
 impl Drillholes {
     #[new]
     #[pyo3(signature = (
-        collar, survey, intervals=None, *, hole="HOLEID", x="X", y="Y", z="Z", at="DEPTH",
+        collar, survey, intervals=None, *, hole="HOLE_ID", x="X", y="Y", z="Z", at="DEPTH",
         azimuth="AZIMUTH", dip=Some("DIP"), inclination=None, from_="FROM", to="TO",
         method="minimum_curvature"
     ))]
@@ -478,7 +478,7 @@ impl Drillholes {
 /// Overlapping intervals within a table raise `ValueError` naming the
 /// first few holes; resolve them before merging.
 #[pyfunction]
-#[pyo3(signature = (left, right, *, hole="HOLEID", from_="FROM", to="TO"))]
+#[pyo3(signature = (left, right, *, hole="HOLE_ID", from_="FROM", to="TO"))]
 fn merge_intervals(
     left: &Bound<PyAny>,
     right: &Bound<PyAny>,
@@ -691,7 +691,7 @@ fn flags_table(flags: Named, sentinels: &[f64]) -> PyResult<RecordBatch> {
 ///     every check including those that found nothing.
 #[pyfunction]
 #[pyo3(signature = (
-    collar, survey=None, intervals=None, *, hole="HOLEID", x="X", y="Y", z="Z", at="DEPTH",
+    collar, survey=None, intervals=None, *, hole="HOLE_ID", x="X", y="Y", z="Z", at="DEPTH",
     azimuth="AZIMUTH", dip=Some("DIP"), inclination=None, from_="FROM", to="TO",
     max_depth=None, nodata=vec![-99.0, -999.0, -9999.0, 1e21], max_deviation=20.0,
     tolerance=1e-6

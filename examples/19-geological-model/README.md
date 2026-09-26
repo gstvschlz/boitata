@@ -25,7 +25,7 @@ using the intervals next to a contact and a sparse subset of the others, which k
 
 ```python
 tables = cs.datasets.drillhole_tables()
-dh = cs.Drillholes(tables["collar"], tables["survey"], tables["geology"])
+dh = cs.Drillholes(tables["collar"], tables["survey"], tables["geology"], hole="HOLEID")
 logged = dh.samples()
 xyz = logged.coords
 hole = np.array(logged["HOLEID"], dtype=object)

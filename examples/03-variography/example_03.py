@@ -187,11 +187,14 @@ save(fig, "estimators")
 # %%
 tables = cs.datasets.drillhole_tables()
 flags, _ = cs.check_drillholes(
-    tables["collar"], tables["survey"], {"assay": tables["assay"], "geology": tables["geology"]}
+    tables["collar"],
+    tables["survey"],
+    {"assay": tables["assay"], "geology": tables["geology"]},
+    hole="HOLEID",
 )
 tables, _ = cs.fix_drillholes(flags, tables)
-intervals = cs.merge_intervals(tables["assay"], tables["geology"])
-drillholes = cs.Drillholes(tables["collar"], tables["survey"], intervals)
+intervals = cs.merge_intervals(tables["assay"], tables["geology"], hole="HOLEID")
+drillholes = cs.Drillholes(tables["collar"], tables["survey"], intervals, hole="HOLEID")
 domains, lengths = ["MS", "SM", "QE", "RH"], [1.0, 2.0, 4.0]
 nuggets, downhole = {}, {}
 for length in lengths:

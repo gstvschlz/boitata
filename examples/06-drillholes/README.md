@@ -26,7 +26,9 @@ that starts first. Gaps are unsampled core and stay.
 ```python
 tables = cs.datasets.drillhole_tables()
 checked = {"assay": tables["assay"], "geology": tables["geology"]}
-flags, summary = cs.check_drillholes(tables["collar"], tables["survey"], checked, max_depth="DEPTH")
+flags, summary = cs.check_drillholes(
+    tables["collar"], tables["survey"], checked, hole="HOLEID", max_depth="DEPTH"
+)
 fixed, log = cs.fix_drillholes(flags, tables, overlaps="keep_first", deviation="drop", past_depth="keep")
 
 for table, check, rows, holes in zip(summary["table"], summary["check"], summary["rows"], summary["holes"]):
@@ -95,7 +97,7 @@ carries its grades and its lithology.
 tables = fixed
 assay, geology = tables["assay"], tables["geology"]
 GRADES = ["ZN", "PB", "CU", "AG", "AU"]
-intervals = cs.merge_intervals(assay, geology)
+intervals = cs.merge_intervals(assay, geology, hole="HOLEID")
 print(f"{assay.num_rows} assays + {geology.num_rows} geology intervals -> {intervals.num_rows} merged")
 ```
 
@@ -113,7 +115,9 @@ segment to each end. On curved holes the methods drift apart with depth.
 
 ```python
 methods = ["minimum_curvature", "tangential", "balanced_tangential"]
-holes = {m: cs.Drillholes(tables["collar"], tables["survey"], intervals, method=m) for m in methods}
+holes = {
+    m: cs.Drillholes(tables["collar"], tables["survey"], intervals, method=m, hole="HOLEID") for m in methods
+}
 dh = holes["minimum_curvature"]
 reference = dh.samples().coords
 print(dh)
