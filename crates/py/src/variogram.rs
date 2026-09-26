@@ -7,7 +7,8 @@ use variogram::{
     Angles, Anisotropy, AnisotropySpec, Bounds, CoregStructure, Coregionalization as CoreCoreg,
     Direction, Estimator, Experimental, LagBins, Model, NestedSpec, Structure as CoreStructure,
     StructureSpec, Transiogram as CoreTransiogram, Variogram as CoreVariogram, Weighting,
-    cross_experimental, empirical_transiogram, experimental, fit_directional, fit_nested,
+    cross_experimental, empirical_transiogram, experimental, fit_coregionalization,
+    fit_directional, fit_nested,
 };
 
 use crate::args::{Point, array1, array2, finite, floats, points, same_length, triple};
@@ -736,9 +737,153 @@ impl Coregionalization {
         Ok(Self(c))
     }
 
+    /// Linear model of coregionalization fitted to the direct and cross
+    /// experimental variograms of several variables together.
+    ///
+    /// The structures, their shapes and ranges, are shared by all variables;
+    /// the nugget and each structure's sill matrix are kept positive
+    /// semi-definite. Each pair's residuals are divided by the square root of
+    /// the product of the two variables' largest direct γ, so variables in
+    /// different units count alike. For given ranges the matrices are updated
+    /// in turn by weighted least squares, negative eigenvalues clipped; the
+    /// ranges start from `Variogram.fit` on the pooled scaled direct
+    /// variograms and are refined, deterministically.
+    ///
+    /// Parameters
+    /// ----------
+    /// experimentals : sequence of sequence of ExperimentalVariogram or None
+    ///     ``nvar x nvar``: entry ``[i][j]`` for ``i <= j`` is the direct
+    ///     (``i == j``, required) or cross variogram of variables ``i`` and
+    ///     ``j``; the lower triangle is ignored, and a missing cross pair
+    ///     (None) is left to the positive semi-definite constraint. With
+    ///     `directions`, each entry is a sequence of one per direction.
+    /// model, weighting, ranges
+    ///     As in `Variogram.fit`; ``count/gamma`` weighs a cross pair by the
+    ///     model's ``sqrt(γii γjj)``.
+    /// nugget : bool, default True
+    ///     False fixes the nugget matrix at zero.
+    /// directions : sequence of (float, float), optional
+    ///     Azimuth and dip in degrees of each experimental variogram.
+    /// rotation : (float, float, float), optional
+    ///     Fixed azimuth, dip and rake in degrees; needs `directions`.
+    /// ratios : (float, float), optional
+    ///     Fixed semi-major/major and minor/major range ratios; needs
+    ///     `directions`. Ranges are then major-axis ranges.
+    ///
+    /// Returns
+    /// -------
+    /// Coregionalization
+    #[staticmethod]
+    #[pyo3(signature = (experimentals, model=Models::One("spherical".into()), weighting="count", nugget=true, ranges=None, directions=None, rotation=None, ratios=None))]
+    #[allow(clippy::too_many_arguments)]
+    fn fit(
+        experimentals: Vec<Vec<Option<Bound<PyAny>>>>,
+        model: Models,
+        weighting: &str,
+        nugget: bool,
+        ranges: Limits,
+        directions: Option<Vec<(f64, f64)>>,
+        rotation: Option<(f64, f64, f64)>,
+        ratios: Option<(f64, f64)>,
+    ) -> PyResult<Self> {
+        let n = experimentals.len();
+        if n == 0 || experimentals.iter().any(|row| row.len() != n) {
+            return Err(invalid("experimentals must be an nvar x nvar matrix"));
+        }
+        if directions.is_none() && (rotation.is_some() || ratios.is_some()) {
+            return Err(invalid("rotation and ratios need directions"));
+        }
+        let cell = |c: &Bound<PyAny>| -> PyResult<Vec<Experimental>> {
+            if directions.is_some() {
+                let many: Vec<PyRef<ExperimentalVariogram>> = c
+                    .extract()
+                    .map_err(|_| invalid("with directions, give one variogram per direction"))?;
+                Ok(many.iter().map(|e| e.0.clone()).collect())
+            } else {
+                let one: PyRef<ExperimentalVariogram> = c
+                    .extract()
+                    .map_err(|_| invalid("without directions, give one variogram per pair"))?;
+                Ok(vec![one.0.clone()])
+            }
+        };
+        let exps = experimentals
+            .iter()
+            .enumerate()
+            .map(|(i, row)| {
+                row.iter()
+                    .enumerate()
+                    .map(|(j, c)| match c {
+                        Some(c) if j >= i => cell(c).map(Some),
+                        _ => Ok(None),
+                    })
+                    .collect::<PyResult<Vec<_>>>()
+            })
+            .collect::<PyResult<Vec<_>>>()?;
+        let nugget = (!nugget).then_some(Limit::Fixed(0.0));
+        let spec = nested(model, nugget, None, ranges)?;
+        let given = anisotropy(
+            rotation.unwrap_or((0.0, 0.0, 0.0)),
+            ratios.unwrap_or((1.0, 1.0)),
+        )?;
+        let identity = Anisotropy::new(Angles {
+            azimuth: 0.0,
+            dip: 0.0,
+            rake: 0.0,
+            major: 1.0,
+            semi: 1.0,
+            minor: 1.0,
+        })
+        .map_err(err)?;
+        let a = given.clone().unwrap_or(identity);
+        let geometry = directions.as_deref().map(|d| (d, &a));
+        let mut fitted = fit_coregionalization(&exps, geometry, &spec, self::weighting(weighting)?)
+            .map_err(err)?
+            .coregionalization;
+        fitted.anisotropy = given;
+        Ok(Self(fitted))
+    }
+
     #[getter]
     fn nvar(&self) -> usize {
         self.0.nvar
+    }
+
+    /// ``nvar x nvar`` nugget matrix.
+    #[getter]
+    fn nugget<'py>(&self, py: Python<'py>) -> Bound<'py, PyAny> {
+        array2(py, &self.0.nugget).into_any()
+    }
+
+    /// ``(model, range, sills)`` per structure, `sills` its ``nvar x nvar``
+    /// matrix.
+    #[getter]
+    fn structures<'py>(&self, py: Python<'py>) -> Vec<(&'static str, f64, Bound<'py, PyAny>)> {
+        self.0
+            .structures
+            .iter()
+            .map(|s| {
+                (
+                    model_name(s.model),
+                    s.range,
+                    array2(py, &s.sills).into_any(),
+                )
+            })
+            .collect()
+    }
+
+    #[getter]
+    fn rotation(&self) -> (f64, f64, f64) {
+        self.0.anisotropy.as_ref().map_or((0.0, 0.0, 0.0), |a| {
+            (a.angles.azimuth, a.angles.dip, a.angles.rake)
+        })
+    }
+
+    #[getter]
+    fn ratios(&self) -> (f64, f64) {
+        self.0
+            .anisotropy
+            .as_ref()
+            .map_or((1.0, 1.0), |a| (a.angles.semi, a.angles.minor))
     }
 
     /// Cross-covariance `C_ij` between paired rows of `a` and `b`.

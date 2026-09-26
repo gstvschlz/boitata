@@ -2,12 +2,13 @@
 
 use crate::aniso::{Angles, Anisotropy, rotation_matrix};
 use crate::composite::Variogram;
+use crate::coreg::{CoregStructure, Coregionalization};
 use crate::empirical::Experimental;
 use crate::error::{Result, VarioError};
 use crate::model::{Model, Structure, shape};
 use crate::surface::unit_vector;
 use ceres_core::angles_from_axes;
-use nalgebra::{Matrix3, SymmetricEigen, Vector3};
+use nalgebra::{DMatrix, Matrix3, SymmetricEigen, Vector3};
 use serde::{Deserialize, Serialize};
 
 /// Weighting scheme for the least-squares objective.
@@ -701,7 +702,7 @@ fn bounded_lsq(rows: &[Vec<f64>], y: &[f64], w: &[f64], bounds: &[Bounds]) -> Ve
             .map(|j| c[j] * ((0..m).map(|k| a[j][k] * c[k]).sum::<f64>() - 2.0 * b[j]))
             .sum::<f64>()
     };
-    let mut best: Vec<f64> = bounds.iter().map(|b| b.0).collect();
+    let mut best: Vec<f64> = bounds.iter().map(|b| 0.0_f64.clamp(b.0, b.1)).collect();
     let mut best_obj = objective(&best);
     'sets: for code in 0..3usize.pow(m as u32) {
         let mut c = vec![0.0; m];
@@ -709,7 +710,7 @@ fn bounded_lsq(rows: &[Vec<f64>], y: &[f64], w: &[f64], bounds: &[Bounds]) -> Ve
         let mut rest = code;
         for (j, &(lo, hi)) in bounds.iter().enumerate() {
             match rest % 3 {
-                0 => c[j] = lo,
+                0 if lo.is_finite() => c[j] = lo,
                 1 if hi.is_finite() && hi > lo => c[j] = hi,
                 2 if hi > lo => free.push(j),
                 _ => continue 'sets,
@@ -769,6 +770,385 @@ fn gauss(sys: &mut [Vec<f64>]) -> Option<Vec<f64>> {
         x[i] = (sys[i][n] - (i + 1..n).map(|k| sys[i][k] * x[k]).sum::<f64>()) / sys[i][i];
     }
     Some(x)
+}
+
+/// Result of [`fit_coregionalization`]: the model and the achieved weighted
+/// SSE of the sill-scaled residuals.
+#[derive(Debug, Clone)]
+pub struct CoregFit {
+    pub coregionalization: Coregionalization,
+    pub wsse: f64,
+}
+
+/// One pair's samples: lags (anisotropic when a geometry is given), original
+/// distances, sill-scaled γ and counts.
+struct Pair {
+    i: usize,
+    j: usize,
+    lags: Vec<f64>,
+    dist: Vec<f64>,
+    gammas: Vec<f64>,
+    counts: Vec<usize>,
+}
+
+/// Fit a linear model of coregionalization to the direct and cross
+/// experimental variograms of `nvar` variables together.
+///
+/// `exps[i][j]` for `i <= j` holds the experimental variograms of the pair,
+/// one per direction; the lower triangle is ignored, the diagonal is
+/// required, and a missing cross pair is left to the positive semi-definite
+/// constraint. Without `geometry` each cell holds one omnidirectional
+/// variogram; with `(directions, anisotropy)` it holds one per direction
+/// (azimuth, dip in degrees) and the fixed anisotropy maps lags to distances
+/// along the major axis.
+///
+/// Each pair's residuals are divided by `√(sᵢ sⱼ)`, `sᵢ` the largest γ of
+/// variable `i`, so variables count alike whatever their units; cross pairs
+/// count twice, once per side of the symmetric matrix, and `ByCountOverGamma`
+/// uses `√(γᵢᵢ γⱼⱼ)` of the model on them. For given ranges, each pair's
+/// nugget and sills are solved exactly with non-negative direct sills; when
+/// every matrix comes out positive semi-definite this is the optimum, and
+/// otherwise the matrices are updated in turn, each by a weighted
+/// least-squares step projected on the positive semi-definite cone by clipping
+/// negative eigenvalues. With the same lags and counts for every pair each step
+/// is the exact minimiser, and one variable gives [`fit_nested`]. The ranges start from [`fit_nested`] on the pooled
+/// sill-scaled direct variograms and are refined by coordinate descent,
+/// deterministically. `spec` takes one to three structures with optional range
+/// bounds; the nugget is free or, with `Some((0, 0))`, absent, and sill bounds
+/// are rejected.
+pub fn fit_coregionalization(
+    exps: &[Vec<Option<Vec<Experimental>>>],
+    geometry: Option<(&[(f64, f64)], &Anisotropy)>,
+    spec: &NestedSpec,
+    weighting: Weighting,
+) -> Result<CoregFit> {
+    let nvar = exps.len();
+    if nvar == 0 || exps.iter().any(|row| row.len() != nvar) {
+        return Err(VarioError::InvalidParameters(
+            "experimental variograms must form an nvar x nvar matrix".into(),
+        ));
+    }
+    let nugget = match spec.nugget {
+        None => true,
+        Some((0.0, 0.0)) => false,
+        Some(_) => {
+            return Err(VarioError::InvalidParameters(
+                "the nugget matrix is free or fixed at zero".into(),
+            ));
+        }
+    };
+    if spec.structures.iter().any(|s| s.sill.is_some()) {
+        return Err(VarioError::InvalidParameters(
+            "sill bounds do not apply to coregionalization matrices".into(),
+        ));
+    }
+    let (_, ranges) = parameters(spec)?;
+    let reduce = |cell: &[Experimental]| -> Result<(Vec<f64>, Experimental)> {
+        let k: Vec<f64> = match geometry {
+            None if cell.len() == 1 => vec![1.0],
+            None => {
+                return Err(VarioError::InvalidParameters(
+                    "one experimental variogram per pair without directions".into(),
+                ));
+            }
+            Some((dirs, _)) if cell.len() != dirs.len() => {
+                return Err(VarioError::InvalidParameters(format!(
+                    "{} experimental variograms for {} directions",
+                    cell.len(),
+                    dirs.len()
+                )));
+            }
+            Some((dirs, a)) => dirs
+                .iter()
+                .map(|&(az, dip)| a.lag(&(0.0, 0.0, 0.0), &unit_vector(az, dip)))
+                .collect(),
+        };
+        let mut e = Experimental {
+            lags: Vec::new(),
+            gammas: Vec::new(),
+            counts: Vec::new(),
+            covariances: None,
+        };
+        let mut dist = Vec::new();
+        for (x, &k) in cell.iter().zip(&k) {
+            dist.extend(&x.lags);
+            e.lags.extend(x.lags.iter().map(|h| h * k));
+            e.gammas.extend(&x.gammas);
+            e.counts.extend(&x.counts);
+        }
+        if e.lags.is_empty() {
+            return Err(VarioError::FittingFailed(
+                "empty experimental variogram".into(),
+            ));
+        }
+        Ok((dist, e))
+    };
+
+    let mut direct = Vec::with_capacity(nvar);
+    for (i, row) in exps.iter().enumerate() {
+        let cell = row[i].as_deref().ok_or_else(|| {
+            VarioError::InvalidParameters(format!("missing direct variogram {i}"))
+        })?;
+        direct.push(reduce(cell)?);
+    }
+    let sills: Vec<f64> = direct
+        .iter()
+        .map(|(_, e)| e.gammas.iter().cloned().fold(0.0, f64::max))
+        .collect();
+    if sills.iter().any(|&s| !(s > 0.0 && s.is_finite())) {
+        return Err(VarioError::FittingFailed(
+            "direct variograms need a positive finite γ".into(),
+        ));
+    }
+    let mut pairs = Vec::new();
+    for (i, row) in exps.iter().enumerate() {
+        for (j, cell) in row.iter().enumerate().skip(i) {
+            let Some(cell) = cell else { continue };
+            let (dist, e) = if i == j {
+                direct[i].clone()
+            } else {
+                reduce(cell)?
+            };
+            let s = (sills[i] * sills[j]).sqrt();
+            pairs.push(Pair {
+                i,
+                j,
+                gammas: e.gammas.iter().map(|g| g / s).collect(),
+                lags: e.lags,
+                dist,
+                counts: e.counts,
+            });
+        }
+    }
+
+    let mut pooled = Experimental {
+        lags: Vec::new(),
+        gammas: Vec::new(),
+        counts: Vec::new(),
+        covariances: None,
+    };
+    for p in pairs.iter().filter(|p| p.i == p.j) {
+        pooled.lags.extend(&p.lags);
+        pooled.gammas.extend(&p.gammas);
+        pooled.counts.extend(&p.counts);
+    }
+    let start = fit_nested(&pooled, spec, weighting)?.variogram;
+
+    let ordered = |r: &[f64]| r.windows(2).all(|w| w[0] < w[1]);
+    let eval = |r: &[f64]| solve_coreg(&pairs, nvar, nugget, spec, r, &start, weighting);
+    let mut r: Vec<f64> = start.structures.iter().map(|s| s.range).collect();
+    let mut cur = eval(&r);
+    let mut scale = 0.5;
+    for _ in 0..500 {
+        let mut improved = false;
+        for k in 0..r.len() {
+            for d in [scale, -scale] {
+                let mut cand = r.clone();
+                cand[k] = (r[k] * (1.0 + d)).clamp(ranges[k].0, ranges[k].1);
+                if cand[k] == r[k] || !ordered(&cand) {
+                    continue;
+                }
+                let e = eval(&cand);
+                if e.0 < cur.0 {
+                    cur = e;
+                    r = cand;
+                    improved = true;
+                }
+            }
+        }
+        if !improved {
+            scale *= 0.5;
+            if scale < 1e-7 {
+                break;
+            }
+        }
+    }
+
+    let (wsse, blocks) = cur;
+    let unscale = |b: &DMatrix<f64>| -> Vec<Vec<f64>> {
+        (0..nvar)
+            .map(|i| {
+                (0..nvar)
+                    .map(|j| b[(i, j)] * (sills[i] * sills[j]).sqrt())
+                    .collect()
+            })
+            .collect()
+    };
+    let structures = spec
+        .structures
+        .iter()
+        .zip(&r)
+        .zip(&blocks[1..])
+        .map(|((s, &range), b)| CoregStructure {
+            model: s.model,
+            range,
+            sills: unscale(b),
+        })
+        .collect();
+    let mut coregionalization = Coregionalization::new(unscale(&blocks[0]), structures);
+    coregionalization.anisotropy = geometry.map(|(_, a)| a.clone());
+    Ok(CoregFit {
+        coregionalization,
+        wsse,
+    })
+}
+
+/// The nugget and structure matrices (sill-scaled) minimising the weighted SSE
+/// for fixed ranges, exactly per pair or by block-wise projected steps; weights
+/// depending on the
+/// model are iterated as in [`fit_nested`].
+fn solve_coreg(
+    pairs: &[Pair],
+    nvar: usize,
+    nugget: bool,
+    spec: &NestedSpec,
+    ranges: &[f64],
+    start: &Variogram,
+    weighting: Weighting,
+) -> (f64, Vec<DMatrix<f64>>) {
+    let nb = ranges.len() + 1;
+    let shapes: Vec<Vec<Vec<f64>>> = pairs
+        .iter()
+        .map(|p| {
+            p.lags
+                .iter()
+                .map(|&h| {
+                    std::iter::once(if h > 0.0 { 1.0 } else { 0.0 })
+                        .chain(
+                            spec.structures
+                                .iter()
+                                .zip(ranges)
+                                .map(|(s, &r)| shape(s.model, h, r)),
+                        )
+                        .collect()
+                })
+                .collect()
+        })
+        .collect();
+    let model = |b: &[DMatrix<f64>], p: usize, i: usize, j: usize, k: usize| {
+        (0..nb).map(|s| b[s][(i, j)] * shapes[p][k][s]).sum::<f64>()
+    };
+    let doubled = |p: &Pair| if p.i == p.j { 1.0 } else { 2.0 };
+    let weights = |b: Option<&[DMatrix<f64>]>| -> Vec<Vec<f64>> {
+        pairs
+            .iter()
+            .enumerate()
+            .map(|(pi, p)| {
+                (0..p.lags.len())
+                    .map(|k| {
+                        let g = match b {
+                            Some(b) => (model(b, pi, p.i, p.i, k) * model(b, pi, p.j, p.j, k))
+                                .max(0.0)
+                                .sqrt(),
+                            None if p.i == p.j => p.gammas[k],
+                            None => start.gamma(p.lags[k]),
+                        };
+                        doubled(p) * weight(weighting, p.counts[k], p.dist[k], g)
+                    })
+                    .collect()
+            })
+            .collect()
+    };
+    let objective = |b: &[DMatrix<f64>], w: &[Vec<f64>]| {
+        pairs
+            .iter()
+            .enumerate()
+            .map(|(pi, p)| {
+                (0..p.lags.len())
+                    .map(|k| {
+                        let r = p.gammas[k] - model(b, pi, p.i, p.j, k);
+                        w[pi][k] * r * r
+                    })
+                    .sum::<f64>()
+            })
+            .sum::<f64>()
+    };
+
+    let mut b = Vec::new();
+    let passes = if weighting == Weighting::ByCountOverGamma {
+        4
+    } else {
+        1
+    };
+    let mut w = weights(None);
+    for pass in 0..passes {
+        if pass > 0 {
+            w = weights(Some(&b));
+        }
+        let limits: Vec<Vec<Bounds>> = pairs
+            .iter()
+            .map(|p| {
+                (0..nb)
+                    .map(|s| match (s, p.i == p.j) {
+                        (0, _) if !nugget => (0.0, 0.0),
+                        (_, true) => (0.0, f64::INFINITY),
+                        _ => (f64::NEG_INFINITY, f64::INFINITY),
+                    })
+                    .collect()
+            })
+            .collect();
+        b = vec![DMatrix::<f64>::zeros(nvar, nvar); nb];
+        for (pi, p) in pairs.iter().enumerate() {
+            let coef = bounded_lsq(&shapes[pi], &p.gammas, &w[pi], &limits[pi]);
+            for (s, c) in coef.into_iter().enumerate() {
+                b[s][(p.i, p.j)] = c;
+                b[s][(p.j, p.i)] = c;
+            }
+        }
+        if b.iter().all(|m| m.symmetric_eigenvalues().min() >= 0.0) {
+            continue;
+        }
+        b = b.into_iter().map(psd).collect();
+        let mut prev = objective(&b, &w);
+        for _ in 0..5000 {
+            for s in (0..nb).filter(|&s| s > 0 || nugget) {
+                let mut a = DMatrix::<f64>::zeros(nvar, nvar);
+                let mut target = b[s].clone();
+                let mut rhs = DMatrix::<f64>::zeros(nvar, nvar);
+                for (pi, p) in pairs.iter().enumerate() {
+                    for k in 0..p.lags.len() {
+                        let g = shapes[pi][k][s];
+                        let rest = model(&b, pi, p.i, p.j, k) - b[s][(p.i, p.j)] * g;
+                        a[(p.i, p.j)] += w[pi][k] * g * g;
+                        rhs[(p.i, p.j)] += w[pi][k] * g * (p.gammas[k] - rest);
+                    }
+                }
+                let c_max = a.max();
+                if c_max <= 0.0 {
+                    continue;
+                }
+                for i in 0..nvar {
+                    for j in i..nvar {
+                        let c = a[(i, j)];
+                        if c > 0.0 {
+                            let step = b[s][(i, j)] + (rhs[(i, j)] / c - b[s][(i, j)]) * c / c_max;
+                            target[(i, j)] = step;
+                            target[(j, i)] = step;
+                        }
+                    }
+                }
+                b[s] = psd(target);
+            }
+            let cur = objective(&b, &w);
+            if cur <= 1e-30 || prev - cur <= 1e-13 * prev {
+                break;
+            }
+            prev = cur;
+        }
+    }
+    if passes > 1 {
+        w = weights(Some(&b));
+    }
+    (objective(&b, &w), b)
+}
+
+/// The nearest positive semi-definite matrix in the Frobenius norm.
+fn psd(m: DMatrix<f64>) -> DMatrix<f64> {
+    let eig = SymmetricEigen::new(m);
+    let clipped = eig.eigenvalues.map(|l| l.max(0.0));
+    let v = &eig.eigenvectors;
+    let p = v * DMatrix::from_diagonal(&clipped) * v.transpose();
+    (&p + p.transpose()) * 0.5
 }
 
 #[cfg(test)]
@@ -1143,5 +1523,277 @@ mod tests {
             ..Default::default()
         };
         assert!(bad(zero, &dirs));
+    }
+
+    fn lmc() -> Coregionalization {
+        Coregionalization::new(
+            vec![
+                vec![0.1, 0.02, 0.0],
+                vec![0.02, 0.2, 0.0],
+                vec![0.0, 0.0, 0.05],
+            ],
+            vec![
+                CoregStructure {
+                    model: Model::Spherical,
+                    range: 30.0,
+                    sills: vec![
+                        vec![0.5, 0.3, 0.1],
+                        vec![0.3, 0.4, 0.05],
+                        vec![0.1, 0.05, 0.3],
+                    ],
+                },
+                CoregStructure {
+                    model: Model::Spherical,
+                    range: 120.0,
+                    sills: vec![
+                        vec![0.4, -0.2, 0.2],
+                        vec![-0.2, 0.1, -0.1],
+                        vec![0.2, -0.1, 0.1],
+                    ],
+                },
+            ],
+        )
+    }
+
+    /// Noise-free experimental variograms of `truth` along `dirs`, scaled by
+    /// `units` per variable.
+    fn cross_along(
+        truth: &Coregionalization,
+        dirs: &[(f64, f64)],
+        units: &[f64],
+    ) -> Vec<Vec<Option<Vec<Experimental>>>> {
+        let n = truth.nvar;
+        (0..n)
+            .map(|i| {
+                (0..n)
+                    .map(|j| {
+                        let cell = dirs
+                            .iter()
+                            .map(|&(az, dip)| {
+                                let (x, y, z) = unit_vector(az, dip);
+                                let lags: Vec<f64> = (1..=40).map(|k| k as f64 * 5.0).collect();
+                                let o = (0.0, 0.0, 0.0);
+                                Experimental {
+                                    gammas: lags
+                                        .iter()
+                                        .map(|&h| {
+                                            units[i]
+                                                * units[j]
+                                                * (truth.sill(i, j)
+                                                    - truth.cross_cov(
+                                                        i,
+                                                        j,
+                                                        &o,
+                                                        &(h * x, h * y, h * z),
+                                                    ))
+                                        })
+                                        .collect(),
+                                    counts: lags
+                                        .iter()
+                                        .map(|&h| 50 + (400.0 / h) as usize)
+                                        .collect(),
+                                    lags,
+                                    covariances: None,
+                                }
+                            })
+                            .collect();
+                        (i <= j).then_some(cell)
+                    })
+                    .collect()
+            })
+            .collect()
+    }
+
+    fn assert_matrices(got: &Coregionalization, truth: &Coregionalization, units: &[f64]) {
+        let pairs = std::iter::once((&got.nugget, &truth.nugget)).chain(
+            got.structures
+                .iter()
+                .zip(&truth.structures)
+                .map(|(g, t)| (&g.sills, &t.sills)),
+        );
+        for (g, t) in pairs {
+            for i in 0..truth.nvar {
+                for j in 0..truth.nvar {
+                    let want = t[i][j] * units[i] * units[j];
+                    let tol = 1e-4 * units[i] * units[j];
+                    assert!((g[i][j] - want).abs() < tol, "{g:?} vs {t:?}");
+                }
+            }
+        }
+        for (g, t) in got.structures.iter().zip(&truth.structures) {
+            assert!(close(g.range, t.range), "range {}", g.range);
+        }
+    }
+
+    fn two_spherical() -> NestedSpec {
+        free(&[Model::Spherical; 2])
+    }
+
+    fn min_eigenvalue(m: &[Vec<f64>]) -> f64 {
+        let n = m.len();
+        let d = DMatrix::from_fn(n, n, |i, j| m[i][j]);
+        SymmetricEigen::new(d).eigenvalues.min()
+    }
+
+    #[test]
+    fn coregionalization_recovers_a_known_model() {
+        let truth = lmc();
+        let units = [1.0, 1000.0, 0.01];
+        let exps = cross_along(&truth, &[(0.0, 0.0)], &units);
+        for weighting in [
+            Weighting::Uniform,
+            Weighting::ByCount,
+            Weighting::ByCountOverGamma,
+            Weighting::ByCountOverDistance,
+        ] {
+            let fit = fit_coregionalization(&exps, None, &two_spherical(), weighting).unwrap();
+            assert_matrices(&fit.coregionalization, &truth, &units);
+        }
+    }
+
+    #[test]
+    fn coregionalization_recovers_a_fixed_anisotropy() {
+        let a = Anisotropy::new(Angles {
+            azimuth: 35.0,
+            dip: 20.0,
+            rake: 50.0,
+            major: 1.0,
+            semi: 0.6,
+            minor: 0.25,
+        })
+        .unwrap();
+        let truth = lmc().with_anisotropy(a.clone());
+        let dirs = sphere();
+        let units = [1.0, 1.0, 1.0];
+        let exps = cross_along(&truth, &dirs, &units);
+        let fit = fit_coregionalization(
+            &exps,
+            Some((&dirs, &a)),
+            &two_spherical(),
+            Weighting::ByCount,
+        )
+        .unwrap();
+        assert_matrices(&fit.coregionalization, &truth, &units);
+        assert!(fit.coregionalization.anisotropy.is_some());
+    }
+
+    /// Noisy variograms whose cross pairs alone would give non-PSD matrices.
+    fn noisy() -> Vec<Vec<Option<Vec<Experimental>>>> {
+        let mut exps = cross_along(&lmc(), &[(0.0, 0.0)], &[1.0, 1.0, 1.0]);
+        for (i, row) in exps.iter_mut().enumerate() {
+            for (j, cell) in row.iter_mut().enumerate() {
+                if let Some(cell) = cell {
+                    for (k, g) in cell[0].gammas.iter_mut().enumerate() {
+                        *g *= 1.0 + 0.2 * ((k * 7 + i * 3 + j) as f64).sin();
+                        if i != j {
+                            *g *= 1.8;
+                        }
+                    }
+                }
+            }
+        }
+        exps
+    }
+
+    #[test]
+    fn coregionalization_matrices_are_positive_semidefinite() {
+        let exps = noisy();
+        for (weighting, nugget) in [
+            (Weighting::ByCount, None),
+            (Weighting::ByCountOverGamma, Some((0.0, 0.0))),
+        ] {
+            let mut spec = two_spherical();
+            spec.nugget = nugget;
+            let c = fit_coregionalization(&exps, None, &spec, weighting)
+                .unwrap()
+                .coregionalization;
+            assert!(
+                c.nugget
+                    .iter()
+                    .flatten()
+                    .all(|&x| nugget.is_none() || x == 0.0)
+            );
+            for m in std::iter::once(&c.nugget).chain(c.structures.iter().map(|s| &s.sills)) {
+                assert!(min_eigenvalue(m) >= -1e-12, "{m:?}");
+            }
+        }
+        let mut gap = exps.clone();
+        gap[0][2] = None;
+        let c = fit_coregionalization(&gap, None, &two_spherical(), Weighting::ByCount)
+            .unwrap()
+            .coregionalization;
+        for s in &c.structures {
+            assert!(min_eigenvalue(&s.sills) >= -1e-12);
+        }
+    }
+
+    #[test]
+    fn coregionalization_of_one_variable_is_fit_nested() {
+        let exps = noisy();
+        let one = vec![vec![exps[1][1].clone()]];
+        let exp = &exps[1][1].as_ref().unwrap()[0];
+        for weighting in [Weighting::ByCount, Weighting::ByCountOverGamma] {
+            let v = fit_nested(exp, &two_spherical(), weighting)
+                .unwrap()
+                .variogram;
+            let c = fit_coregionalization(&one, None, &two_spherical(), weighting)
+                .unwrap()
+                .coregionalization;
+            let o = (0.0, 0.0, 0.0);
+            for &h in &exp.lags {
+                let gamma = c.sill(0, 0) - c.cross_cov(0, 0, &o, &(h, 0.0, 0.0));
+                assert!(
+                    (gamma - v.gamma(h)).abs() < 1e-6 * v.total_sill(),
+                    "{c:?} {v:?}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn coregionalization_is_deterministic() {
+        let exps = noisy();
+        let fit = || {
+            fit_coregionalization(&exps, None, &two_spherical(), Weighting::ByCountOverGamma)
+                .unwrap()
+        };
+        let (a, b) = (fit(), fit());
+        assert_eq!(a.wsse.to_bits(), b.wsse.to_bits());
+        assert_eq!(
+            serde_json::to_string(&a.coregionalization).unwrap(),
+            serde_json::to_string(&b.coregionalization).unwrap()
+        );
+    }
+
+    #[test]
+    fn coregionalization_rejects_bad_input() {
+        let exps = noisy();
+        let spec = two_spherical();
+        let bad = |e: &[Vec<Option<Vec<Experimental>>>], spec: &NestedSpec| {
+            fit_coregionalization(e, None, spec, Weighting::ByCount).is_err()
+        };
+        let mut missing = exps.clone();
+        missing[1][1] = None;
+        assert!(bad(&missing, &spec));
+        assert!(bad(&exps[..2], &spec));
+        let mut sill = spec.clone();
+        sill.structures[0].sill = Some((0.1, 1.0));
+        assert!(bad(&exps, &sill));
+        let mut nugget = spec.clone();
+        nugget.nugget = Some((0.0, 0.1));
+        assert!(bad(&exps, &nugget));
+        let a = Anisotropy::new(Angles {
+            azimuth: 0.0,
+            dip: 0.0,
+            rake: 0.0,
+            major: 1.0,
+            semi: 0.5,
+            minor: 1.0,
+        })
+        .unwrap();
+        let dirs = [(0.0, 0.0), (90.0, 0.0)];
+        assert!(
+            fit_coregionalization(&exps, Some((&dirs, &a)), &spec, Weighting::ByCount).is_err()
+        );
     }
 }

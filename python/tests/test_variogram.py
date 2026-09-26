@@ -148,6 +148,59 @@ def test_coregionalization_at_zero_lag():
     assert lmc.cross_covariance(1, 1, p, p)[0] == pytest.approx(1.2)
 
 
+def field(xy, scale, n=200):
+    freq = rng.normal(size=(n, 2)) / scale
+    return np.cos(xy @ freq.T + rng.uniform(0, 2 * np.pi, n)).sum(1) / np.sqrt(n / 2)
+
+
+def test_coregionalization_fit_is_positive_semidefinite():
+    xy = rng.uniform(0, 100, (500, 2))
+    short, long = field(xy, 5), field(xy, 20)
+    a, b = short + long, 1000 * (0.8 * long - 0.5 * short + 0.3 * rng.normal(size=500))
+    exp = [
+        [cs.experimental_variogram(xy, a, 4, 60), cs.experimental_variogram(xy, a, 4, 60, other=b)],
+        [None, cs.experimental_variogram(xy, b, 4, 60)],
+    ]
+    lmc = cs.Coregionalization.fit(exp, ["spherical", "spherical"])
+    assert lmc.nvar == 2 and lmc.nugget.shape == (2, 2) and len(lmc.structures) == 2
+    for m in [lmc.nugget, *(s[2] for s in lmc.structures)]:
+        assert np.linalg.eigvalsh(m).min() >= -1e-9 * np.abs(m).max()
+    assert lmc.structures[0][1] < lmc.structures[1][1]
+    assert lmc.structures[1][2][0, 1] > 0 > lmc.structures[0][2][0, 1]
+    assert lmc.to_json() == cs.Coregionalization.fit(exp, ["spherical", "spherical"]).to_json()
+    assert cs.Coregionalization.from_json(lmc.to_json()).to_json() == lmc.to_json()
+    one = cs.Coregionalization.fit([[exp[0][0]]], ["spherical", "spherical"])
+    v = exp[0][0].fit(["spherical", "spherical"])
+    assert one.nugget[0, 0] == pytest.approx(v.nugget, abs=1e-6)
+    assert [s[1] for s in one.structures] == pytest.approx([s.range for s in v.structures], rel=1e-6)
+    none = cs.Coregionalization.fit(exp, "spherical", nugget=False, ranges=[(10, 30)])
+    assert not none.nugget.any() and 10 <= none.structures[0][1] <= 30
+    gap = cs.Coregionalization.fit([[exp[0][0], None], [None, exp[1][1]]], "spherical")
+    assert np.linalg.eigvalsh(gap.structures[0][2]).min() >= -1e-9
+
+
+def test_coregionalization_fit_with_fixed_anisotropy():
+    xy = rng.uniform(0, 100, (500, 2))
+    a = field(xy, 10)
+    b = a + 0.5 * rng.normal(size=500)
+    directions = [(0.0, 0.0), (90.0, 0.0)]
+
+    def pair(u, v):
+        return [cs.experimental_variogram(xy, u, 4, 60, azimuth=d, other=v) for d, _ in directions]
+
+    exp = [[pair(a, None), pair(a, b)], [None, pair(b, None)]]
+    lmc = cs.Coregionalization.fit(exp, directions=directions, rotation=(30.0, 0.0, 0.0), ratios=(0.5, 1.0))
+    assert lmc.rotation == (30.0, 0.0, 0.0) and lmc.ratios == (0.5, 1.0)
+    with pytest.raises(ValueError):
+        cs.Coregionalization.fit(exp)
+    with pytest.raises(ValueError):
+        cs.Coregionalization.fit([[pair(a, None)[0]]], rotation=(30.0, 0.0, 0.0))
+    with pytest.raises(ValueError):
+        cs.Coregionalization.fit([[None]])
+    with pytest.raises(ValueError):
+        cs.Coregionalization.fit(exp, directions=directions[:1])
+
+
 def test_transiogram_is_a_markov_matrix():
     t = cs.Transiogram([0.2, 0.3, 0.5], 10.0)
     np.testing.assert_allclose(t.matrix(0.0), np.eye(3), atol=1e-12)

@@ -384,8 +384,27 @@ class Coregionalization:
         rotation: tuple[float, float, float] = (0.0, 0.0, 0.0),
         ratios: tuple[float, float] = (1.0, 1.0),
     ) -> None: ...
+    @staticmethod
+    def fit(
+        experimentals: Sequence[Sequence[ExperimentalVariogram | Sequence[ExperimentalVariogram] | None]],
+        model: str | Sequence[str] = "spherical",
+        weighting: str = "count",
+        nugget: bool = True,
+        ranges: Sequence[_Limit | None] | None = None,
+        directions: Sequence[tuple[float, float]] | None = None,
+        rotation: tuple[float, float, float] | None = None,
+        ratios: tuple[float, float] | None = None,
+    ) -> Coregionalization: ...
     @property
     def nvar(self) -> int: ...
+    @property
+    def nugget(self) -> npt.NDArray[np.float64]: ...
+    @property
+    def structures(self) -> list[tuple[str, float, npt.NDArray[np.float64]]]: ...
+    @property
+    def rotation(self) -> tuple[float, float, float]: ...
+    @property
+    def ratios(self) -> tuple[float, float]: ...
     def cross_covariance(self, i: int, j: int, a: ArrayLike, b: ArrayLike) -> npt.NDArray[np.float64]: ...
 
 class Transiogram:

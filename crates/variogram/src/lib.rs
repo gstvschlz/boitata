@@ -29,8 +29,8 @@ pub use empirical::{
 };
 pub use error::{Result, VarioError};
 pub use fit::{
-    AnisotropySpec, Bounds, FitResult, NestedSpec, StructureSpec, Weighting, fit, fit_directional,
-    fit_nested,
+    AnisotropySpec, Bounds, CoregFit, FitResult, NestedSpec, StructureSpec, Weighting, fit,
+    fit_coregionalization, fit_directional, fit_nested,
 };
 pub use model::{Model, Structure, is_differentiable, shape, shape_d1, shape_d2};
 pub use surface::{PlaneMap, PlaneMapParams, azimuth_dip, plane_map, unit_vector};
