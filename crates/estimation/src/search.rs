@@ -575,6 +575,12 @@ impl SearchTree {
         }
     }
 
+    /// Distance from `a` to `b` in the search ellipsoid, up to rounding.
+    pub fn distance(&self, a: &Point, b: &Point) -> f64 {
+        let (p, q) = (self.project(a), self.project(b));
+        (0..3).map(|d| (p[d] - q[d]).powi(2)).sum::<f64>().sqrt()
+    }
+
     pub fn len(&self) -> usize {
         self.locs.len()
     }
