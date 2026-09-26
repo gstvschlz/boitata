@@ -56,7 +56,7 @@ print(gaussian)
 
 # %%
 grid = cs.BlockModel(origin=(0.5, 0.5), size=(5, 5), count=(52, 60))
-sgs = cs.SGS(gaussian, cs.Search(radius=100, max_samples=24)).fit(xy, v, weights=weights)
+sgs = cs.SGS(gaussian, cs.Search(radius=100, max_samples=24)).fit(samples, "V", weights=weights)
 summary = sgs.simulate(grid, n=50, seed=42, cutoffs=[500.0], quantiles=[0.1, 0.9], realizations=True)
 reals = summary.realizations
 etype = summary.mean

@@ -84,6 +84,15 @@ def test_turning_bands_streamed_with_domains_equals_in_memory(model, tmp_path):
     cs.write_parquet(source, model)
     tb.simulate_to_parquet(source, out, n=4, seed=3, rows=333, domains=labels)
     np.testing.assert_array_equal(cs.read_parquet(out)["mean"], whole.mean)
+    cs.write_parquet(source, model.with_columns({"zone": labels}))
+    tb.simulate_to_parquet(source, out, n=4, seed=3, rows=333, domain_column="zone")
+    np.testing.assert_array_equal(cs.read_parquet(out)["mean"], whole.mean)
+    with pytest.raises(cs.InvalidInput, match="one of domains or domain_column"):
+        tb.simulate_to_parquet(source, out, domains=labels, domain_column="zone")
+    with pytest.raises(cs.MissingColumn):
+        tb.simulate_to_parquet(source, out, domain_column="rock")
+    with pytest.raises(TypeError):
+        tb.simulate_to_parquet(source, out, 4)
     with pytest.raises(cs.InvalidInput, match="simulate_to_parquet needs domains"):
         tb.simulate_to_parquet(source, out)
     with pytest.raises(ValueError):

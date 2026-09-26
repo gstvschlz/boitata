@@ -633,3 +633,54 @@ def test_grades_follow_each_realization_of_simulated_domains(model):
         assert (real[domains == "lean"] < split).all() and (real[domains == "rich"] > split).all()
     with pytest.raises(cs.InvalidInput, match="expected 3 realizations of domains, got 2"):
         run(simulated[:2])
+
+
+@pytest.mark.parametrize("make", [lambda s: cs.SGS(gaussian, s), banded], ids=["SGS", "TurningBands"])
+def test_simulators_take_column_names_and_domain_column(make):
+    xyz, grades, holes, weights, zone, targets, _ = zoned_holes()
+    soft = cs.Search(30.0, max_samples=12, soft=8.0)
+    trend, at = xyz[:, 1] / 100, targets[:, 1] / 100
+    labels = np.where(targets[:, 0] < 40, "MS", "SM")
+    samples = cs.PointSet(xyz, {"zn": grades, "w": weights, "hole": holes, "t": trend, "zone": zone})
+    nodes = cs.PointSet(targets, {"t": at, "zone": labels})
+    arrays = make(soft).fit(xyz, grades, weights=weights, holes=holes, trend=trend, domains=zone)
+    names = make(soft).fit(samples, "zn", weights="w", holes="hole", trend="t", domain_column="zone")
+    want = arrays.simulate(targets, n=2, seed=5, realizations=True, trend=at, domains=labels).realizations
+    for model in (arrays, names):
+        got = model.simulate(nodes, n=2, seed=5, realizations=True, trend="t", domain_column="zone")
+        np.testing.assert_array_equal(got.realizations, want)
+    if isinstance(names, cs.SGS):
+        passes = names.passes(nodes, domain_column="zone")
+        np.testing.assert_array_equal(passes, arrays.passes(targets, domains=labels))
+    with pytest.raises(cs.InvalidInput, match="one of domains or domain_column"):
+        names.simulate(nodes, n=1, trend="t", domains=labels, domain_column="zone")
+    with pytest.raises(cs.InvalidInput, match="one of domains or domain_column"):
+        make(soft).fit(samples, "zn", domains=zone, domain_column="zone")
+    with pytest.raises(cs.InvalidInput, match="simulate needs domains"):
+        names.simulate(nodes, n=1, trend="t")
+    with pytest.raises(cs.MissingColumn, match="columns: t, zone"):
+        names.simulate(nodes, n=1, trend="t", domain_column="rock")
+    with pytest.raises(TypeError):
+        make(soft).fit(samples, "zn", "w")
+    with pytest.raises(TypeError):
+        names.simulate(nodes, 1)
+
+
+def test_categorical_and_multivariate_simulators_take_column_names():
+    rock = (values > 1).astype(int)
+    samples = cs.PointSet(coords, {"rock": rock, "v": values, "root": values**0.5, "w": np.ones(60)})
+    near = cs.Search(radius=40, max_samples=12)
+    for model in (cs.SIS([gaussian] * 2, near), cs.Plurigaussian(gaussian, proportions=[0.5, 0.5])):
+        want = model.fit(coords, rock).simulate(grid, n=2, seed=1, realizations=True).realizations
+        got = model.fit(samples, "rock").simulate(grid, n=2, seed=1, realizations=True).realizations
+        np.testing.assert_array_equal(got, want)
+        with pytest.raises(TypeError):
+            model.fit(coords, rock, None)
+    sgs = cs.SGS(gaussian, near)
+    mv = cs.MultivariateSimulation(cs.PCA(), [sgs, sgs])
+    want = mv.fit(coords, np.column_stack([values, values**0.5]), weights=np.ones(60)).simulate(grid, n=2)
+    got = mv.fit(samples, ["v", "root"], weights="w").simulate(grid, n=2)
+    for a, b in zip(got, want):
+        np.testing.assert_array_equal(a.mean, b.mean)
+    with pytest.raises(cs.MissingColumn):
+        mv.fit(samples, ["v", "missing"])

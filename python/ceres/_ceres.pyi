@@ -653,22 +653,27 @@ class SGS:
     ) -> None: ...
     def fit(
         self,
-        coords: ArrayLike,
-        values: ArrayLike,
-        weights: ArrayLike | None = None,
-        holes: Holes | None = None,
-        trend: ArrayLike | None = None,
+        coords: ArrayLike | PointSet | BlockModel,
+        values: ArrayLike | Column,
+        *,
+        weights: ArrayLike | Column | None = None,
+        holes: Holes | Column | None = None,
+        trend: ArrayLike | Column | None = None,
         domains: Label | Sequence[Label] | ArrayLike | None = None,
+        domain_column: Column | None = None,
     ) -> SGS: ...
     def passes(
         self,
         targets: Any,
+        *,
         anisotropy: LocalAnisotropy | None = None,
         domains: Label | Sequence[Label] | ArrayLike | None = None,
+        domain_column: Column | None = None,
     ) -> npt.NDArray[np.float64]: ...
     def simulate(
         self,
         targets: Any,
+        *,
         n: int = 100,
         seed: int = 0,
         cutoffs: Sequence[float] = (),
@@ -676,8 +681,9 @@ class SGS:
         realizations: bool = False,
         anisotropy: LocalAnisotropy | None = None,
         blocks: BlockModel | None = None,
-        trend: ArrayLike | str | None = None,
+        trend: ArrayLike | Column | None = None,
         domains: Label | Sequence[Label] | ArrayLike | None = None,
+        domain_column: Column | None = None,
     ) -> SimulationSummary: ...
 
 class TurningBands:
@@ -694,36 +700,42 @@ class TurningBands:
     ) -> None: ...
     def fit(
         self,
-        coords: ArrayLike,
-        values: ArrayLike,
-        weights: ArrayLike | None = None,
-        holes: Holes | None = None,
-        trend: ArrayLike | None = None,
+        coords: ArrayLike | PointSet | BlockModel,
+        values: ArrayLike | Column,
+        *,
+        weights: ArrayLike | Column | None = None,
+        holes: Holes | Column | None = None,
+        trend: ArrayLike | Column | None = None,
         domains: Label | Sequence[Label] | ArrayLike | None = None,
+        domain_column: Column | None = None,
     ) -> TurningBands: ...
     def simulate(
         self,
         targets: Any,
+        *,
         n: int = 100,
         seed: int = 0,
         cutoffs: Sequence[float] = (),
         quantiles: Sequence[float] = (),
         realizations: bool = False,
         blocks: BlockModel | None = None,
-        trend: ArrayLike | str | None = None,
+        trend: ArrayLike | Column | None = None,
         domains: Label | Sequence[Label] | ArrayLike | None = None,
+        domain_column: Column | None = None,
     ) -> SimulationSummary: ...
     def simulate_to_parquet(
         self,
         path: Path,
         out: Path,
+        *,
         n: int = 100,
         seed: int = 0,
         cutoffs: Sequence[float] = (),
         quantiles: Sequence[float] = (),
         rows: int = 1_000_000,
         domains: Label | Sequence[Label] | ArrayLike | None = None,
-        trend: str | None = None,
+        domain_column: Column | None = None,
+        trend: Column | None = None,
         discretization: tuple[int, int, int] | None = None,
     ) -> dict[str, npt.NDArray[np.float64]]: ...
 
@@ -735,15 +747,17 @@ class MultivariateSimulation:
     ) -> None: ...
     def fit(
         self,
-        coords: ArrayLike,
-        data: ArrayLike,
-        weights: ArrayLike | None = None,
-        holes: Holes | None = None,
+        coords: ArrayLike | PointSet | BlockModel,
+        data: ArrayLike | Sequence[Column],
+        *,
+        weights: ArrayLike | Column | None = None,
+        holes: Holes | Column | None = None,
         impute: bool = False,
     ) -> MultivariateSimulation: ...
     def simulate(
         self,
         targets: Any,
+        *,
         n: int = 100,
         seed: int = 0,
         cutoffs: Sequence[float] = (),
@@ -758,10 +772,17 @@ class SIS:
     @staticmethod
     def from_parquet(path: Path) -> SIS: ...
     def __init__(self, variograms: Sequence[Variogram], search: Search) -> None: ...
-    def fit(self, coords: ArrayLike, categories: ArrayLike, holes: Holes | None = None) -> SIS: ...
+    def fit(
+        self,
+        coords: ArrayLike | PointSet | BlockModel,
+        categories: ArrayLike | Column,
+        *,
+        holes: Holes | Column | None = None,
+    ) -> SIS: ...
     def simulate(
         self,
         targets: Any,
+        *,
         n: int = 100,
         seed: int = 0,
         realizations: bool = False,
@@ -785,14 +806,16 @@ class Plurigaussian:
     def indicator_variograms(self, lags: ArrayLike) -> npt.NDArray[np.float64]: ...
     def fit(
         self,
-        coords: ArrayLike,
-        facies: ArrayLike,
-        holes: Holes | None = None,
+        coords: ArrayLike | PointSet | BlockModel,
+        categories: ArrayLike | Column,
+        *,
+        holes: Holes | Column | None = None,
         proportions: ArrayLike | None = None,
     ) -> Plurigaussian: ...
     def simulate(
         self,
         targets: Any,
+        *,
         n: int = 100,
         seed: int = 0,
         realizations: bool = False,
@@ -852,7 +875,7 @@ def gibbs(
     variogram: Variogram,
     iterations: int = 200,
     burn_in: int = 50,
-    seed: int = 1,
+    seed: int = 0,
 ) -> npt.NDArray[np.float64]: ...
 def localize(
     smus: BlockModel, ranking: str, realizations: ArrayLike, panels: BlockModel, name: str | None = None

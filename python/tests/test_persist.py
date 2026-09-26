@@ -214,15 +214,15 @@ def simulators():
     return [
         (
             cs.SGS(gaussian, near),
-            (values,),
+            {"values": values},
             {"cutoffs": [1.0, 2.0], "quantiles": [0.1, 0.9], "realizations": True},
         ),
-        (cs.TurningBands(gaussian, bands=50, step=2.0), (values,), {"cutoffs": [1.0]}),
-        (cs.SIS([gaussian] * 3, near), (facies,), {"realizations": True}),
-        (cs.Plurigaussian(gaussian, proportions=[0.4, 0.4, 0.2]), (facies,), {}),
+        (cs.TurningBands(gaussian, bands=50, step=2.0), {"values": values}, {"cutoffs": [1.0]}),
+        (cs.SIS([gaussian] * 3, near), {"categories": facies}, {"realizations": True}),
+        (cs.Plurigaussian(gaussian, proportions=[0.4, 0.4, 0.2]), {"categories": facies}, {}),
         (
             cs.Plurigaussian([gaussian] * 2, proportions=[0.4, 0.4, 0.2], rule=(0, [0, (1, [1, 2])])),
-            (facies, None, west_to_east(coords)),
+            {"categories": facies, "proportions": west_to_east(coords)},
             {"proportions": west_to_east(nodes)},
         ),
     ]
@@ -246,8 +246,8 @@ def summary_arrays(summary):
 def test_simulator_round_trip_simulates_bit_identically(simulator, data, options, tmp_path):
     path = tmp_path / "simulator.parquet"
     simulator.to_parquet(path)
-    unfitted = type(simulator).from_parquet(path).fit(coords, *data)
-    simulator.fit(coords, *data)
+    unfitted = type(simulator).from_parquet(path).fit(coords, **data)
+    simulator.fit(coords, **data)
     summary = simulator.simulate(nodes, n=4, seed=9, **options)
     same(summary_arrays(unfitted.simulate(nodes, n=4, seed=9, **options)), summary_arrays(summary))
     simulator.to_parquet(path)
