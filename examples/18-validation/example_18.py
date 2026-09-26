@@ -34,11 +34,45 @@ kriging = cs.BlockKriging(model, search, size=(10, 10), discretization=(5, 5, 1)
 d = kriging.predict(blocks, diagnostics=True)
 true_blocks = truth.reshape(30, 10, 26, 10).mean(axis=(1, 3)).ravel()
 
-bias = cs.global_bias(d["value"], v, data_weights=weights)
-print(
-    f"blocks {bias['estimate_mean']:.0f} ppm, declustered data {bias['data_mean']:.0f} ppm ({bias['relative']:+.1%})"
-)
-print(f"true mean {true_blocks.mean():.0f} ppm")
+
+# %% [markdown]
+# `validate_model` sets the blocks against the samples, naive and declustered, with the true blocks as a reference.
+# Differences are relative to the declustered samples. The blocks reproduce the declustered mean and, being 10 × 10 m
+# averages smoothed by kriging, have a much smaller variance; the true blocks sit in between, since averaging over a
+# block alone already removes part of the sample variance.
+
+# %%
+table = cs.validate_model(d["value"], v, weights=weights, volume=100.0, reference=true_blocks)
+print(f"{'':12}{'n':>6}{'mean':>7}{'CV':>6}{'P10':>6}{'P50':>6}{'P90':>7}{'mean diff':>11}{'var. ratio':>11}")
+for row in zip(
+    *(table[c] for c in ["source", "n", "mean", "cv", "P10", "P50", "P90", "mean_diff", "variance_ratio"])
+):
+    source, n, mean, cv, p10, p50, p90, diff, ratio = row
+    print(
+        f"{source:<12}{n:>6.0f}{mean:>7.0f}{cv:>6.2f}{p10:>6.0f}{p50:>6.0f}{p90:>7.0f}{diff:>+11.1%}{ratio:>11.2f}"
+    )
+
+# %% [markdown]
+# Their cumulative distributions show the same smoothing: the blocks have fewer low and high grades than the true
+# blocks, the declustered samples more. Swaths of metal, grade × area per 20 m slice of easting, show where the
+# estimate puts the metal; they add up to the metal of the whole model.
+
+# %%
+fig, axes = plt.subplots(1, 2, figsize=(10, 3.6), layout="constrained")
+cs.plot.cdf([v, d["value"], true_blocks], [weights, None, None], ax=axes[0])
+metal = [
+    cs.swath(blocks.centroids, g, 20.0, axis="x", weights=np.full(g.size, 100.0))
+    for g in (d["value"], true_blocks)
+]
+cs.plot.swath(metal, labels=["blocks", "truth"], y="metal", ax=axes[1])
+for ax, colors in ((axes[0], (GREY, ACCENT, "black")), (axes[1], (ACCENT, "black"))):
+    for line, color in zip(ax.lines, colors, strict=True):
+        line.set_color(color)
+axes[0].legend(axes[0].lines, ["declustered samples", "blocks", "truth"])
+axes[1].legend()
+axes[0].set(xlabel="V (ppm)", title="Cumulative distributions")
+axes[1].set(xlabel="Easting (m)", ylabel="Metal (ppm × m²)", title="Metal per 20 m slice")
+save(fig, "distributions")
 
 # %% [markdown]
 # Local bias shows in swaths: mean grade in 20 m slices along easting and northing, for the blocks, the declustered

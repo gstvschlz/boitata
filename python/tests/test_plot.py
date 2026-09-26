@@ -133,6 +133,8 @@ def test_swath_draws_each_result():
     s = cs.swath(xy, xy[:, 0], 10.0, axis="x")
     _, ax = cs.plot.swath([s, s], labels=["a", "b"])
     assert len(ax.lines) == 2
+    _, ax = cs.plot.swath(s, y="metal")
+    np.testing.assert_allclose(ax.lines[0].get_ydata(), s["metal"])
 
 
 def test_paired_bias_draws_bias_and_counts():

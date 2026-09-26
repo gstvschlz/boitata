@@ -1147,6 +1147,7 @@ def swath(
     azimuth: float | None = None,
     axis: str | None = None,
     weights: ArrayLike | None = None,
+    density: float | ArrayLike | None = None,
 ) -> dict[str, npt.NDArray[np.float64] | list[int]]: ...
 def contact(
     coords: ArrayLike,
@@ -1195,6 +1196,15 @@ def pairs(
     holes: tuple[Holes, Holes] | None = None,
 ) -> Table: ...
 def paired_bias(pairs: Table, bins: int | ArrayLike) -> Table: ...
+def validate_model(
+    model: ArrayLike,
+    data: ArrayLike,
+    weights: ArrayLike | None = None,
+    domains: tuple[Holes, Holes] | None = None,
+    volume: float | ArrayLike | None = None,
+    density: float | ArrayLike | None = None,
+    reference: ArrayLike | None = None,
+) -> Table: ...
 def smooth_classes(
     model: BlockModel,
     classes: ArrayLike,

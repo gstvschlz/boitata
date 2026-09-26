@@ -99,6 +99,8 @@ pub struct Summary {
     pub min: f64,
     pub max: f64,
     pub quantiles: Vec<f64>,
+    /// Sum of weights.
+    pub weight: f64,
 }
 
 /// Weighted summary statistics and quantiles at `probabilities`.
@@ -115,6 +117,7 @@ pub fn describe(values: &[f64], weights: Option<&[f64]>, probabilities: &[f64]) 
         min: v.iter().copied().fold(f64::INFINITY, f64::min),
         max: v.iter().copied().fold(f64::NEG_INFINITY, f64::max),
         quantiles: quantiles_of(&v, &w, probabilities)?,
+        weight: w.iter().sum(),
     })
 }
 
@@ -204,6 +207,10 @@ pub struct Profile {
     pub centres: Vec<f64>,
     pub mean: Vec<f64>,
     pub count: Vec<usize>,
+    /// Swaths only: sum of weight × density per bin.
+    pub tonnage: Vec<f64>,
+    /// Swaths only: sum of weight × density × value per bin.
+    pub metal: Vec<f64>,
 }
 
 fn profile(bins: BTreeMap<i64, (f64, f64, usize)>, width: f64) -> Profile {
@@ -223,16 +230,19 @@ pub enum Along {
     Axis(usize),
 }
 
-/// Weighted mean per slice of `width` along a direction; slices start at
-/// coordinate 0 so profiles of different data line up.
+/// Weighted mean per slice of `width` along a direction, with tonnage and
+/// metal as in [`grade_tonnage`]; slices start at coordinate 0 so profiles of
+/// different data line up.
 pub fn swath(
     coords: &[[f64; 3]],
     values: &[f64],
     weights: Option<&[f64]>,
+    density: Option<&[f64]>,
     width: f64,
     along: Along,
 ) -> Result<Profile> {
     check(coords.len(), values, weights)?;
+    check(coords.len(), values, density)?;
     if width.is_nan() || width <= 0.0 {
         return invalid("width must be positive");
     }
@@ -245,19 +255,25 @@ pub fn swath(
         }
         Along::Axis(_) => return invalid("axis must be x, y or z"),
     };
-    let mut bins = BTreeMap::new();
+    let (mut bins, mut totals) = (BTreeMap::new(), BTreeMap::new());
     for (i, (p, &z)) in coords.iter().zip(values).enumerate() {
         if z.is_nan() {
             continue;
         }
         let w = weights.map_or(1.0, |w| w[i]);
-        let t = p[0] * u[0] + p[1] * u[1] + p[2] * u[2];
-        let b: &mut (f64, f64, usize) = bins.entry((t / width).floor() as i64).or_default();
+        let k = ((p[0] * u[0] + p[1] * u[1] + p[2] * u[2]) / width).floor() as i64;
+        let b: &mut (f64, f64, usize) = bins.entry(k).or_default();
         b.0 += w;
         b.1 += w * z;
         b.2 += 1;
+        let t = w * density.map_or(1.0, |d| d[i]);
+        let m: &mut (f64, f64) = totals.entry(k).or_default();
+        m.0 += t;
+        m.1 += t * z;
     }
-    Ok(profile(bins, width))
+    let mut p = profile(bins, width);
+    (p.tonnage, p.metal) = totals.into_values().unzip();
+    Ok(p)
 }
 
 fn distance(a: [f64; 3], b: [f64; 3]) -> f64 {
@@ -425,6 +441,89 @@ pub fn capping_report(
             )
         })
         .collect())
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Source {
+    Naive,
+    Declustered,
+    Model,
+    Reference,
+}
+
+/// One row of [`validate_model`].
+#[derive(Debug, Clone)]
+pub struct Validation {
+    pub domain: Option<u32>,
+    pub source: Source,
+    pub summary: Summary,
+    /// Sum of tonnes of the valid blocks; NaN for data.
+    pub tonnage: f64,
+    /// `mean / data mean - 1`, against the declustered data when weighted.
+    pub mean_diff: f64,
+    /// `variance / data variance`, as `mean_diff`.
+    pub variance_ratio: f64,
+}
+
+/// Block model statistics against the data, per domain (ascending) then over
+/// all (`None`): data naive, declustered with `weights`, the model and an
+/// optional `reference` on the same blocks (e.g. the truth), blocks weighted by
+/// `tonnes`. `domains` codes the model's blocks, then the data.
+pub fn validate_model(
+    model: &[f64],
+    data: &[f64],
+    weights: Option<&[f64]>,
+    domains: Option<(&[u32], &[u32])>,
+    tonnes: Option<&[f64]>,
+    reference: Option<&[f64]>,
+    probabilities: &[f64],
+) -> Result<Vec<Validation>> {
+    let zeros = (vec![0; model.len()], vec![0; data.len()]);
+    let (dm, dd) = domains.unwrap_or((&zeros.0, &zeros.1));
+    let mut sources = vec![(Source::Naive, describe_by(data, dd, None, probabilities)?)];
+    if weights.is_some() {
+        let rows = describe_by(data, dd, weights, probabilities)?;
+        sources.push((Source::Declustered, rows));
+    }
+    for (source, values) in [(Source::Model, Some(model)), (Source::Reference, reference)] {
+        if let Some(v) = values {
+            sources.push((source, describe_by(v, dm, tonnes, probabilities)?));
+        }
+    }
+    let mut keys: Vec<Option<u32>> = sources
+        .iter()
+        .flat_map(|(_, rows)| rows.iter().map(|r| r.0))
+        .filter(|k| domains.is_some() || k.is_none())
+        .collect();
+    keys.sort_by_key(|k| (k.is_none(), *k));
+    keys.dedup();
+    let mut out = Vec::new();
+    for key in keys {
+        let found: Vec<(Source, &Summary)> = sources
+            .iter()
+            .filter_map(|(s, rows)| rows.iter().find(|r| r.0 == key).map(|r| (*s, &r.1)))
+            .collect();
+        let (mean, variance) = found
+            .iter()
+            .rfind(|(s, _)| matches!(s, Source::Naive | Source::Declustered))
+            .map_or((f64::NAN, f64::NAN), |(_, s)| (s.mean, s.variance));
+        for (source, summary) in found {
+            let tonnage = if matches!(source, Source::Model | Source::Reference) {
+                summary.weight
+            } else {
+                f64::NAN
+            };
+            out.push(Validation {
+                domain: key,
+                source,
+                summary: summary.clone(),
+                tonnage,
+                mean_diff: summary.mean / mean - 1.0,
+                variance_ratio: summary.variance / variance,
+            });
+        }
+    }
+    Ok(out)
 }
 
 fn pearson(x: &[f64], y: &[f64], w: &[f64]) -> f64 {
@@ -821,12 +920,12 @@ mod tests {
     fn swath_follows_a_trend() {
         let coords: Vec<[f64; 3]> = (0..100).map(|i| [i as f64 + 0.5, 3.0, 0.0]).collect();
         let values: Vec<f64> = coords.iter().map(|c| c[0]).collect();
-        let s = swath(&coords, &values, None, 10.0, Along::Azimuth(90.0)).unwrap();
+        let s = swath(&coords, &values, None, None, 10.0, Along::Azimuth(90.0)).unwrap();
         assert_eq!(s.count, vec![10; 10]);
         for (c, m) in s.centres.iter().zip(&s.mean) {
             assert!(close(*c, *m));
         }
-        let y = swath(&coords, &values, None, 10.0, Along::Axis(1)).unwrap();
+        let y = swath(&coords, &values, None, None, 10.0, Along::Axis(1)).unwrap();
         assert_eq!((y.centres, y.count), (vec![5.0], vec![100]));
     }
 
@@ -912,6 +1011,36 @@ mod tests {
         assert!(gt.windows(2).all(|p| p[1].tonnage <= p[0].tonnage));
         assert!(gt.last().unwrap().mean_grade.is_nan());
         assert!(grade_tonnage(&v, None, None, &[f64::NAN]).is_err());
+    }
+
+    #[test]
+    fn swath_balances_grade_tonnage() {
+        let (v, _, w) = skewed();
+        let coords: Vec<[f64; 3]> = (0..60).map(|i| [0.0, 0.0, i as f64]).collect();
+        let d: Vec<f64> = (0..60).map(|i| 2.0 + (i % 4) as f64 / 10.0).collect();
+        let s = swath(&coords, &v, Some(&w), Some(&d), 7.0, Along::Axis(2)).unwrap();
+        let gt = &grade_tonnage(&v, Some(&w), Some(&d), &[f64::NEG_INFINITY]).unwrap()[0];
+        assert!(close(s.tonnage.iter().sum(), gt.tonnage));
+        assert!(close(s.metal.iter().sum(), gt.metal));
+    }
+
+    #[test]
+    fn model_equal_to_data_validates() {
+        let (v, c, w) = skewed();
+        let rows =
+            validate_model(&v, &v, Some(&w), Some((&c, &c)), Some(&w), Some(&v), &[0.5]).unwrap();
+        assert_eq!(rows.len(), 4 * 4);
+        assert_eq!(rows.last().unwrap().domain, None);
+        for r in rows.iter().filter(|r| r.source != Source::Naive) {
+            assert!(close(r.mean_diff, 0.0) && close(r.variance_ratio, 1.0));
+            assert!(r.source == Source::Declustered || close(r.tonnage, r.summary.weight));
+        }
+        let all = validate_model(&v, &v, None, None, None, None, &[]).unwrap();
+        assert_eq!(
+            all.iter().map(|r| r.source).collect::<Vec<_>>(),
+            [Source::Naive, Source::Model]
+        );
+        assert!(close(all[1].tonnage, 59.0) && close(all[1].mean_diff, 0.0));
     }
 
     #[test]
