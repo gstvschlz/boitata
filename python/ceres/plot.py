@@ -832,7 +832,7 @@ def swath(swaths, labels=None, y="mean", ax=None, **kwargs):
 
     Parameters
     ----------
-    swaths : dict or list of dict
+    swaths : Table or list of Table
         Results of ``ceres.swath``, e.g. composites and blocks with the same width.
     labels : list of str, optional
         Legend entries.
@@ -842,12 +842,12 @@ def swath(swaths, labels=None, y="mean", ax=None, **kwargs):
         Passed to every ``ax.plot``.
     """
     fig, ax = _axes(ax)
-    swaths = [swaths] if isinstance(swaths, dict) else list(swaths)
+    swaths = [swaths] if hasattr(swaths, "column_names") else list(swaths)
     labels = labels or [None] * len(swaths)
     first = swaths[0]
     bars = ax.twinx()
     width = np.diff(first["center"]).min() if len(first["center"]) > 1 else 1.0
-    bars.bar(first["center"], first["count"], width=width, color="0.9", zorder=0)
+    bars.bar(first["center"], first["n"], width=width, color="0.9", zorder=0)
     bars.set_ylabel("Count", color="0.5")
     bars.tick_params(axis="y", colors="0.5")
     ax.set_zorder(bars.get_zorder() + 1)
