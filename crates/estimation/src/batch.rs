@@ -93,7 +93,7 @@ where
         .map(|&i| {
             let target = &samples[i].loc;
             let mut chosen = tree
-                .neighbors_in(target, samples[i].domain)
+                .neighbors_around(target, samples[i].domain, Some(i))
                 .unwrap_or_default();
             chosen.retain(|&j| j != i);
             chosen.truncate(search.max_samples);
@@ -640,6 +640,68 @@ mod tests {
             before = now;
         }
         assert!(before.iter().flatten().any(|c| c.0 > 0));
+    }
+
+    #[test]
+    fn a_shared_contact_location_keeps_one_sample_of_the_target_domain() {
+        let twin = (50.0, 50.0, 0.0);
+        let mut samples = zoned();
+        for (value, domain) in [(5.0, 1), (-5.0, 0)] {
+            samples.push(Sample {
+                domain: Some(domain),
+                ..Sample::new(twin, value)
+            });
+        }
+        let vg = Variogram::single(Model::Spherical, 1.0, 40.0);
+        let rule = soft(Soft::All(f64::INFINITY));
+        let targets = [(51.0, 50.0, 0.0), (49.0, 51.0, 0.0), twin];
+        let seen = AtomicUsize::new(0);
+        let domain_at = |t: &Point| if t.0 > 50.0 { 1 } else { 0 };
+        let check = |t: &Point, s: &[Sample]| {
+            let at: Vec<_> = s.iter().filter(|x| x.loc == twin).collect();
+            assert_eq!(at.len(), 1);
+            assert_eq!(at[0].domain, Some(domain_at(t)));
+            seen.fetch_add(1, Ordering::Relaxed);
+            krige(Kind::Ordinary, t, s, &vg)
+        };
+        let domains: Vec<u32> = targets.iter().map(domain_at).collect();
+        let out = estimate_many(&targets, Some(&domains), &samples, &rule, Some(&vg), check);
+        assert!(
+            out.iter()
+                .all(|e| e.as_ref().is_some_and(|e| e.value.is_finite()))
+        );
+        let local = crate::lva::LocalAnisotropy::new(
+            targets.to_vec(),
+            vec![[0.0; 3]; 3],
+            vec![[1.0; 2]; 3],
+        )
+        .unwrap();
+        let lva = crate::lva::estimate_many_local(
+            &targets,
+            Some(&domains),
+            &local,
+            &samples,
+            &rule,
+            &vg,
+            |t, s, v| check(t, s).and_then(|_| krige(Kind::Ordinary, t, s, v)),
+        )
+        .unwrap();
+        assert!(lva.iter().all(Option::is_some));
+        let n = samples.len();
+        let cv = leave_one_out_at(&[n - 2, n - 1], &samples, &rule, Some(&vg), |t, s| {
+            assert_eq!(s.iter().filter(|x| x.loc == twin).count(), 1);
+            krige(Kind::Ordinary, t, s, &vg)
+        });
+        assert!(
+            cv.iter()
+                .all(|e| e.as_ref().is_some_and(|e| e.value.is_finite()))
+        );
+        assert_eq!(seen.into_inner(), 6);
+        for (t, d) in targets.iter().zip(&domains) {
+            let scan = crate::search::neighbors_in(t, Some(*d), &samples, &rule, Some(&vg));
+            let tree = SearchTree::new(&samples, &rule, Some(&vg)).neighbors_in(t, Some(*d));
+            assert_eq!(scan.unwrap(), tree.unwrap());
+        }
     }
 
     #[test]

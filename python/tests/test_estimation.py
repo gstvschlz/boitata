@@ -425,6 +425,18 @@ def test_labels_of_any_simple_type_and_shared_locations_across_domains():
     np.testing.assert_array_equal(kept.predict(twin, domains=["a", "b"]), [1.0, 2.0])
 
 
+def test_a_shared_contact_location_keeps_the_target_domain_sample():
+    both = np.vstack([coords, [[50.0, 50.0], [50.0, 50.0]]])
+    labels = np.r_[zone, ["SM", "MS"]]
+    data = np.r_[values, 5.0, -5.0]
+    ok = cs.OrdinaryKriging(model, cs.Search(radius=30, soft=np.inf)).fit(both, data, domains=labels)
+    at = ok.predict([[50.0, 50.0]] * 2, domains=["MS", "SM"])
+    np.testing.assert_allclose(at, [-5.0, 5.0], atol=1e-8)
+    near = ok.predict([[50.5, 50.0]] * 2, domains=["MS", "SM"], diagnostics=True)
+    assert np.isfinite(near["value"]).all() and near["value"][0] < near["value"][1]
+    assert np.isfinite(ok.cross_validate().estimate[-2:]).all()
+
+
 def test_domain_errors():
     with pytest.raises(cs.InvalidInput, match="predict needs domains"):
         zoned().predict(grid)

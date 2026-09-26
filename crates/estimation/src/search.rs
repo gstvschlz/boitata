@@ -6,6 +6,7 @@
 //! [`neighbors`] from a k-d tree, in logarithmic rather than linear time.
 
 use std::collections::HashMap;
+use std::collections::hash_map::Entry;
 use std::num::NonZero;
 
 use kiddo::{ImmutableKdTree, SquaredEuclidean};
@@ -177,6 +178,48 @@ fn select(
     chosen
 }
 
+/// Ordered candidates with samples of different domains at one location
+/// reduced to one, which takes the place of the first: the one of the
+/// target's `domain` if any, otherwise the first. `kept` is passed through
+/// untouched. Nothing changes without a target domain.
+fn one_per_location(
+    ordered: impl IntoIterator<Item = usize>,
+    loc: impl Fn(usize) -> Point,
+    of: impl Fn(usize) -> Option<u32>,
+    domain: Option<u32>,
+    kept: Option<usize>,
+) -> Vec<usize> {
+    let ordered = ordered.into_iter();
+    if domain.is_none() {
+        return ordered.collect();
+    }
+    let key = |i: usize| {
+        let (x, y, z) = loc(i);
+        [x + 0.0, y + 0.0, z + 0.0].map(f64::to_bits)
+    };
+    let mut at: HashMap<[u64; 3], usize> = HashMap::new();
+    let mut out = Vec::new();
+    for i in ordered {
+        if kept == Some(i) {
+            out.push(i);
+            continue;
+        }
+        match at.entry(key(i)) {
+            Entry::Vacant(e) => {
+                e.insert(out.len());
+                out.push(i);
+            }
+            Entry::Occupied(e) => {
+                let first = &mut out[*e.get()];
+                if of(*first) != domain && of(i) == domain {
+                    *first = i;
+                }
+            }
+        }
+    }
+    out
+}
+
 fn enough(chosen: Vec<usize>, params: &Search) -> Result<Vec<usize>> {
     if chosen.len() < params.min_samples {
         return Err(EstimError::SearchFailed(format!(
@@ -225,9 +268,16 @@ pub fn neighbors_in(
         })
         .collect();
     cand.sort_by(|a, b| a.1.total_cmp(&b.1));
+    let ordered = one_per_location(
+        cand.into_iter().map(|c| c.0),
+        |i| samples[i].loc,
+        |i| samples[i].domain,
+        domain,
+        None,
+    );
     let chosen = select(
         target,
-        cand.into_iter().map(|c| c.0),
+        ordered,
         |i| samples[i].loc,
         |i| samples[i].hole,
         params,
@@ -557,19 +607,23 @@ impl SearchTree {
             .filter(|&(d, i)| d <= params.radius && self.admits(domain, i, d))
             .collect();
         found.sort_by(|a, b| a.0.total_cmp(&b.0).then(a.1.cmp(&b.1)));
-        let chosen = select(
-            target,
-            found.into_iter().map(|f| f.1),
-            |i| self.locs[i],
-            |i| self.holes[i],
-            params,
-        );
+        let ordered = self.one_per_location(found.into_iter().map(|f| f.1), domain, None);
+        let chosen = select(target, ordered, |i| self.locs[i], |i| self.holes[i], params);
         enough(chosen, params)
     }
 
     fn admits(&self, domain: Option<u32>, i: usize, distance: f64) -> bool {
         self.params
             .admits(domain, self.values[i], self.domains[i], distance)
+    }
+
+    fn one_per_location(
+        &self,
+        ordered: impl IntoIterator<Item = usize>,
+        domain: Option<u32>,
+        kept: Option<usize>,
+    ) -> Vec<usize> {
+        one_per_location(ordered, |i| self.locs[i], |i| self.domains[i], domain, kept)
     }
 
     /// Same selection as [`neighbors`] over the indexed samples.
@@ -579,6 +633,18 @@ impl SearchTree {
 
     /// Same selection as [`neighbors_in`] over the indexed samples.
     pub fn neighbors_in(&self, target: &Point, domain: Option<u32>) -> Result<Vec<usize>> {
+        self.neighbors_around(target, domain, None)
+    }
+
+    /// As [`SearchTree::neighbors_in`] for the target at sample `kept`, which
+    /// is selected as usual but leaves its location to samples of other
+    /// domains there; for leave-one-out.
+    pub fn neighbors_around(
+        &self,
+        target: &Point,
+        domain: Option<u32>,
+        kept: Option<usize>,
+    ) -> Result<Vec<usize>> {
         let params = &self.params;
         if self.is_empty() || params.max_samples == 0 {
             return enough(vec![], params);
@@ -599,15 +665,16 @@ impl SearchTree {
             let mut found = self.candidates(&query, k, radius2);
             found.sort_by(|a, b| a.0.total_cmp(&b.0).then(a.1.cmp(&b.1)));
             let exhausted = found.len() < k || k == self.len();
+            let admitted = found
+                .into_iter()
+                .filter(|&(_, i)| {
+                    let d2: f64 = (0..3).map(|d| (self.points[i][d] - query[d]).powi(2)).sum();
+                    self.admits(domain, i, d2.sqrt())
+                })
+                .map(|f| f.1);
             let chosen = select(
                 target,
-                found
-                    .into_iter()
-                    .filter(|&(_, i)| {
-                        let d2: f64 = (0..3).map(|d| (self.points[i][d] - query[d]).powi(2)).sum();
-                        self.admits(domain, i, d2.sqrt())
-                    })
-                    .map(|f| f.1),
+                self.one_per_location(admitted, domain, kept),
                 |i| self.locs[i],
                 |i| self.holes[i],
                 params,

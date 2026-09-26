@@ -86,7 +86,9 @@ class _Base:
         domains : array_like, optional
             Domain label of each sample: strings, numbers or booleans. A target is then estimated from the
             samples of its own domain, plus those of other domains within `Search` ``soft``. Samples
-            sharing a location are dropped within a domain only. `predict` then needs domains too.
+            sharing a location are dropped within a domain only; where a search reaches several at one
+            location, it uses the one of the target's domain, or else the first. `predict` then needs
+            domains too.
         """
         self._engine.fit(coords, values, holes, error_variance, domains)
         return self
