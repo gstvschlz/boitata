@@ -155,17 +155,25 @@ fn desurvey_segment(
 ///
 /// Each output piece is `(from, to, a, b)` with the index of the `a` and `b`
 /// interval covering it, `None` where that table has no interval. Pieces
-/// covered by neither are dropped. Intervals within a table must not overlap.
+/// covered by neither are dropped. Overlapping intervals within a table are
+/// an error.
 pub fn merge_intervals(
     a: &[(f64, f64)],
     b: &[(f64, f64)],
-) -> Vec<(f64, f64, Option<usize>, Option<usize>)> {
-    let sorted = |t: &[(f64, f64)]| {
+) -> Result<Vec<(f64, f64, Option<usize>, Option<usize>)>> {
+    let sorted = |t: &[(f64, f64)], table| {
         let mut idx: Vec<usize> = (0..t.len()).collect();
         idx.sort_by(|&i, &j| t[i].0.total_cmp(&t[j].0));
-        idx
+        match idx.windows(2).find(|w| t[w[1]].0 < t[w[0]].1) {
+            Some(w) => Err(DrillholeError::OverlappingIntervals {
+                table,
+                first: w[0],
+                second: w[1],
+            }),
+            None => Ok(idx),
+        }
     };
-    let (ia, ib) = (sorted(a), sorted(b));
+    let (ia, ib) = (sorted(a, 'a')?, sorted(b, 'b')?);
     let covering = |t: &[(f64, f64)], idx: &[usize], x: f64| {
         let k = idx.partition_point(|&i| t[i].0 <= x);
         (k > 0 && t[idx[k - 1]].1 > x).then(|| idx[k - 1])
@@ -173,13 +181,14 @@ pub fn merge_intervals(
     let mut cuts: Vec<f64> = a.iter().chain(b).flat_map(|&(f, t)| [f, t]).collect();
     cuts.sort_by(f64::total_cmp);
     cuts.dedup();
-    cuts.windows(2)
+    Ok(cuts
+        .windows(2)
         .filter_map(|w| {
             let mid = (w[0] + w[1]) / 2.0;
             let (x, y) = (covering(a, &ia, mid), covering(b, &ib, mid));
             (x.is_some() || y.is_some()).then_some((w[0], w[1], x, y))
         })
-        .collect()
+        .collect())
 }
 
 /// Location at measured `depth` along a desurveyed `path`, interpolated
@@ -636,7 +645,7 @@ mod tests {
     fn merge_splits_at_every_boundary() {
         let assay = [(0.0, 2.0), (2.0, 5.0), (7.0, 8.0)];
         let geology = [(0.0, 3.0), (3.0, 8.0)];
-        let merged = merge_intervals(&assay, &geology);
+        let merged = merge_intervals(&assay, &geology).unwrap();
         let expect = vec![
             (0.0, 2.0, Some(0), Some(0)),
             (2.0, 3.0, Some(1), Some(0)),
@@ -645,6 +654,24 @@ mod tests {
             (7.0, 8.0, Some(2), Some(1)),
         ];
         assert_eq!(merged, expect);
+    }
+
+    #[test]
+    fn merge_rejects_overlapping_intervals() {
+        let geology = [(0.0, 8.0)];
+        let assay = [(4.0, 6.0), (0.0, 5.0), (6.0, 8.0)];
+        assert!(matches!(
+            merge_intervals(&assay, &geology),
+            Err(DrillholeError::OverlappingIntervals {
+                table: 'a',
+                first: 1,
+                second: 0
+            })
+        ));
+        assert!(matches!(
+            merge_intervals(&geology, &assay),
+            Err(DrillholeError::OverlappingIntervals { table: 'b', .. })
+        ));
     }
 
     #[test]

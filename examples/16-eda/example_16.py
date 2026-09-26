@@ -18,8 +18,24 @@ import matplotlib.pyplot as plt
 import numpy as np
 from common import ACCENT, GREY, INK, save
 
+# %% [markdown]
+# `merge_intervals` rejects overlapping assays, so each overlap keeps the assay that starts first, as in
+# [chapter 6](../06-drillholes/README.md).
+
+# %%
 tables = cs.datasets.drillhole_tables()
-intervals = cs.merge_intervals(tables["assay"], tables["geology"])
+assay = tables["assay"]
+hole_id = np.array(assay["HOLEID"])
+start, end = assay["FROM"], assay["TO"]
+keep = np.ones(assay.num_rows, bool)
+reach = {}
+for i in np.lexsort((start, hole_id)):
+    if start[i] < reach.get(hole_id[i], -np.inf):
+        keep[i] = False
+    else:
+        reach[hole_id[i]] = end[i]
+assay = cs.Table({c: np.asarray(assay[c])[keep] for c in assay.column_names})
+intervals = cs.merge_intervals(assay, tables["geology"])
 dh = cs.Drillholes(tables["collar"], tables["survey"], intervals)
 grades = ["ZN", "PB", "CU", "AG", "AU"]
 composites = dh.composite(2.0, grades, domain="LITH")

@@ -29,11 +29,23 @@ from matplotlib.colors import ListedColormap
 # ## Composites
 #
 # Assays and logged lithology are merged and desurveyed by minimum curvature, with tangential desurvey kept for
-# comparison. Whole runs (`length=None`) show how thick the `MS` intercepts are.
+# comparison. Whole runs (`length=None`) show how thick the `MS` intercepts are. Overlapping assays are resolved first
+# by keeping the one that starts first, as in [chapter 6](../06-drillholes/README.md).
 
 # %%
 tables = cs.datasets.drillhole_tables()
-intervals = cs.merge_intervals(tables["assay"], tables["geology"])
+assay = tables["assay"]
+hole_id = np.array(assay["HOLEID"])
+start, end = assay["FROM"], assay["TO"]
+keep = np.ones(assay.num_rows, bool)
+reach = {}
+for i in np.lexsort((start, hole_id)):
+    if start[i] < reach.get(hole_id[i], -np.inf):
+        keep[i] = False
+    else:
+        reach[hole_id[i]] = end[i]
+assay = cs.Table({c: np.asarray(assay[c])[keep] for c in assay.column_names})
+intervals = cs.merge_intervals(assay, tables["geology"])
 drillholes = cs.Drillholes(tables["collar"], tables["survey"], intervals, method="minimum_curvature")
 tangential = cs.Drillholes(tables["collar"], tables["survey"], intervals, method="tangential")
 
