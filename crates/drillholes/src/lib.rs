@@ -219,8 +219,8 @@ pub struct Composite {
     pub hole_id: String,
     pub from_depth: f64,
     pub to_depth: f64,
-    /// Sampled length actually accumulated, which is `to_depth - from_depth`
-    /// minus any unsampled gaps the composite spans.
+    /// Length of the intervals accumulated, which is `to_depth - from_depth`
+    /// minus any gaps between intervals the composite spans.
     pub length: f64,
     pub domain: String,
     /// Length-weighted mean per grade column. A column is **absent** when no
@@ -228,6 +228,9 @@ pub struct Composite {
     /// interval must not be read as a zero grade. Categorical columns hold the
     /// code covering the most length.
     pub attributes: HashMap<String, f64>,
+    /// Length that carried a value, per grade column present in
+    /// `attributes`; grade × this length is the composite's metal.
+    pub sampled: HashMap<String, f64>,
 }
 
 /// What happens to the short tail of a run in length compositing.
@@ -291,7 +294,8 @@ const LENGTH_EPS: f64 = 1e-9;
 ///    `composite_length` boundary, so composites come out at the target length
 ///    rather than at whatever length the assay intervals happen to sum to.
 /// 4. Length-weight each grade column over the length that actually carried a
-///    value for it, so unsampled core dilutes nothing.
+///    value for it, so unsampled core dilutes nothing; that length is kept
+///    in `sampled`, so grade × sampled length conserves metal.
 /// 5. Emit the tail of each run at its true (short) length, or drop or merge
 ///    it by `residual` when shorter than `min_fraction × composite_length`.
 ///
@@ -519,10 +523,14 @@ impl<'a> CompositeBuilder<'a> {
             }
         }
         out.extend(self.run.drain(..).map(|part| {
-            let mut attributes: HashMap<String, f64> = part
+            let sums: Vec<_> = part
                 .sums
                 .into_iter()
                 .filter(|(_, (_, len))| *len > 0.0)
+                .collect();
+            let sampled = sums.iter().map(|(col, s)| (col.clone(), s.1)).collect();
+            let mut attributes: HashMap<String, f64> = sums
+                .into_iter()
                 .map(|(col, (sum, len))| (col, sum / len))
                 .collect();
             for (col, votes) in part.votes {
@@ -541,6 +549,7 @@ impl<'a> CompositeBuilder<'a> {
                 length: part.length,
                 domain: self.domain.clone(),
                 attributes,
+                sampled,
             }
         }));
     }
@@ -733,7 +742,7 @@ mod tests {
     fn metal(composites: &[Composite]) -> f64 {
         composites
             .iter()
-            .map(|c| c.attributes["grade"] * c.length)
+            .map(|c| c.attributes["grade"] * c.sampled["grade"])
             .sum()
     }
 
@@ -814,6 +823,73 @@ mod tests {
         assert_eq!(drop.len(), 3);
         let tail = 0.5 * 1.3;
         assert!((metal(&drop) + tail - expected).abs() < 1e-9);
+    }
+
+    #[test]
+    fn every_mode_balances_metal_per_grade_with_partial_sampling() {
+        let rows = [
+            (0.0, 1.3, "a", Some(1.0), Some(0.2)),
+            (1.3, 2.0, "a", None, Some(0.4)),
+            (2.0, 2.9, "a", Some(4.0), None),
+            (2.9, 5.0, "a", Some(2.0), Some(0.1)),
+            (5.0, 6.1, "a", None, None),
+            (6.1, 7.3, "a", Some(0.5), Some(0.3)),
+            (7.3, 8.0, "b", Some(3.0), None),
+            (8.0, 10.0, "b", Some(6.0), Some(0.5)),
+        ];
+        let grades = ["grade", "cu"];
+        let assays: Vec<_> = rows
+            .iter()
+            .map(|r| {
+                let mut row = assay(r.0, r.1, r.2, r.3);
+                if let Some(cu) = r.4 {
+                    row.3.insert("cu".into(), cu);
+                }
+                row
+            })
+            .collect();
+        let input = |g: &str| -> f64 {
+            assays
+                .iter()
+                .filter_map(|r| r.3.get(g).map(|v| v * (r.1 - r.0)))
+                .sum()
+        };
+        let metal = |c: &[Composite], g: &str| -> f64 {
+            c.iter()
+                .filter_map(|c| c.attributes.get(g).map(|v| v * c.sampled[g]))
+                .sum()
+        };
+        let with = |composite_length, intervals, residual| CompositeParams {
+            composite_length,
+            intervals,
+            residual,
+            grade_columns: grades.map(String::from).to_vec(),
+            ..CompositeParams::default()
+        };
+        let benches = Some(vec![(0.0, 4.0), (4.0, 8.0), (8.0, 10.0)]);
+        let modes = [
+            with(3.0, None, Residual::Keep),
+            with(f64::INFINITY, None, Residual::Keep),
+            with(3.0, benches, Residual::Keep),
+            with(3.0, None, Residual::Merge),
+        ];
+        for p in &modes {
+            let c = composite_intervals("H", &assays, p).unwrap();
+            assert!(c.iter().any(|c| c.sampled["grade"] < c.length - 1e-9));
+            for g in grades {
+                assert!((metal(&c, g) - input(g)).abs() < 1e-9, "{g} {p:?}");
+            }
+        }
+        let kept = composite_intervals("H", &assays, &with(3.0, None, Residual::Keep)).unwrap();
+        let drop = composite_intervals("H", &assays, &with(3.0, None, Residual::Drop)).unwrap();
+        let dropped: Vec<_> = kept
+            .into_iter()
+            .filter(|k| !drop.iter().any(|d| d.from_depth == k.from_depth))
+            .collect();
+        assert_eq!(dropped.len(), 1);
+        for g in grades {
+            assert!((metal(&drop, g) + metal(&dropped, g) - input(g)).abs() < 1e-9);
+        }
     }
 
     #[test]

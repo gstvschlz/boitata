@@ -106,3 +106,29 @@ def test_categories_take_the_length_weighted_majority():
     rock = dict(full, ROCK=np.array(["ox", "fresh", "fresh", "ox", "ox"]))
     comps = cs.Drillholes(collar, survey, rock).composite(None, ["AU"], categories=["ROCK"])
     assert list(np.array(comps.attributes["ROCK"])) == ["fresh", "ox"]
+
+
+def test_sampled_length_balances_metal_in_every_mode():
+    dh = cs.Drillholes(collar, survey, intervals)
+    total = 1 * 2 + 2 * 3 + 3 * 4 + 5 * 4
+    benches = {"HOLEID": [1.0, 1.0, 2.0], "FROM": [0.0, 4.0, 0.0], "TO": [4.0, 6.0, 8.0]}
+    for kwargs in [
+        {"length": 4.0},
+        {"length": None},
+        {"length": None, "intervals": benches},
+        {"length": 4.0, "residual": "merge"},
+    ]:
+        comps = dh.composite(grades=["AU"], **kwargs)
+        assert np.nansum(comps["AU"] * comps["AU_length"]) == pytest.approx(total)
+        assert np.any(comps["AU_length"] < comps["length"])
+
+
+@pytest.mark.slow
+def test_sampled_length_balances_metal_on_the_dataset():
+    t = cs.datasets.drillhole_tables()
+    merged = cs.merge_intervals(t["assay"], t["geology"])
+    comps = cs.Drillholes(t["collar"], t["survey"], merged).composite(
+        2.0, ["ZN"], domain="LITH", residual="merge"
+    )
+    metal = np.nansum(merged["ZN"] * (merged["TO"] - merged["FROM"]))
+    assert np.nansum(comps["ZN"] * comps["ZN_length"]) == pytest.approx(metal, rel=1e-9)

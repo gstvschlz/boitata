@@ -15,31 +15,82 @@ from matplotlib.colors import LogNorm
 
 </details>
 
-Assays and lithology come in separate interval tables. `merge_intervals` splits both at every boundary so each piece
-carries its grades and its lithology. `Drillholes` desurveys every hole by minimum curvature; compositing to 2 m by
-`LITH` never averages across a contact, does not read unsampled core as zero and drops composites without assays.
+Assays and lithology come in separate interval tables. Within a table intervals must not overlap, so the few
+overlapping assays are resolved first, here by keeping the one that starts first. `merge_intervals` then splits both
+tables at every boundary so each piece carries its grades and its lithology.
 
 <details><summary>Python</summary>
 
 ```python
 tables = cs.datasets.drillhole_tables()
 assay, geology = tables["assay"], tables["geology"]
-intervals = cs.merge_intervals(assay, geology)
-dh = cs.Drillholes(tables["collar"], tables["survey"], intervals)
+GRADES = ["ZN", "PB", "CU", "AG", "AU"]
 
-composites = dh.composite(2.0, ["ZN", "PB", "CU", "AG", "AU"], domain="LITH")
-paths = dh.paths()
+hole_id = np.array(assay["HOLEID"])
+start, end = assay["FROM"], assay["TO"]
+keep = np.ones(assay.num_rows, bool)
+reach = {}
+for i in np.lexsort((start, hole_id)):
+    if start[i] < reach.get(hole_id[i], -np.inf):
+        keep[i] = False
+    else:
+        reach[hole_id[i]] = end[i]
+assay = cs.Table({c: np.asarray(assay[c])[keep] for c in assay.column_names})
+intervals = cs.merge_intervals(assay, geology)
+print(f"{(~keep).sum()} overlapping assays dropped")
+print(f"{assay.num_rows} assays + {geology.num_rows} geology intervals -> {intervals.num_rows} merged")
+```
+
+</details>
+
+```text
+22 overlapping assays dropped
+81634 assays + 64431 geology intervals -> 137014 merged
+```
+
+`Drillholes` desurveys each hole from its collar and survey. Minimum curvature bends along a circular arc between
+stations; tangential holds each station's direction down to the next one; balanced tangential gives half of each
+segment to each end. On curved holes the methods drift apart with depth.
+
+<details><summary>Python</summary>
+
+```python
+methods = ["minimum_curvature", "tangential", "balanced_tangential"]
+holes = {m: cs.Drillholes(tables["collar"], tables["survey"], intervals, method=m) for m in methods}
+dh = holes["minimum_curvature"]
+reference = dh.samples().coords
 print(dh)
+for m in methods[1:]:
+    shift = np.linalg.norm(holes[m].samples().coords - reference, axis=1)
+    print(f"{m:>19} vs minimum curvature: median {np.median(shift):.2f} m, max {shift.max():.1f} m")
+```
+
+</details>
+
+```text
+Drillholes(5277 holes, 137014 intervals)
+         tangential vs minimum curvature: median 0.31 m, max 43.0 m
+balanced_tangential vs minimum curvature: median 0.00 m, max 13.5 m
+```
+
+Compositing to 2 m by `LITH` cuts intervals at every 2 m mark and never averages across a contact. A grade is the
+mean over the length that carries a value, so unsampled core is not read as zero; that length is returned per grade
+as `<grade>_length`, next to `length`, which also counts unsampled ground. Composites without assays are dropped.
+
+<details><summary>Python</summary>
+
+```python
+composites = dh.composite(2.0, GRADES, domain="LITH")
+paths = dh.paths()
 print(
-    f"{assay.num_rows} assays + {geology.num_rows} geology intervals -> {intervals.num_rows} merged -> {len(composites)} composites"
+    f"{len(composites)} composites; {np.mean(composites['ZN_length'] < composites['length'] - 1e-9):.1%} partly unsampled for Zn"
 )
 ```
 
 </details>
 
 ```text
-Drillholes(5277 holes, 137018 intervals)
-81656 assays + 64431 geology intervals -> 137018 merged -> 62506 composites
+62506 composites; 16.0% partly unsampled for Zn
 ```
 
 Traces in plan and a 50 m thick section with the Zn composites:
@@ -57,9 +108,9 @@ half = 25.0
 in_slab = [t for t in traces if np.any(np.abs(t[:, 1] - y0) < half)]
 inside = []
 for t in in_slab:
-    keep = np.abs(t[:, 1] - y0) < half
-    for run in np.split(np.arange(len(t)), np.flatnonzero(np.diff(keep.astype(int))) + 1):
-        if keep[run[0]] and len(run) > 1:
+    inslab = np.abs(t[:, 1] - y0) < half
+    for run in np.split(np.arange(len(t)), np.flatnonzero(np.diff(inslab.astype(int))) + 1):
+        if inslab[run[0]] and len(run) > 1:
             inside.append(t[run][:, [0, 2]])
 comps = composites.coords
 zn = composites["ZN"]
@@ -137,41 +188,6 @@ save(fig, "compositing")
 
 ![compositing](compositing.png)
 
-Other modes: one composite per run of a lithology (`length=None`), 2 m with tails under 1 m merged into the previous
-composite, or composites to 10 m depth slices. Desurvey by `method="tangential"` holds each survey's direction down
-to the next one instead of following an arc.
-
-<details><summary>Python</summary>
-
-```python
-bottom = {}
-for h, t in zip(np.array(intervals["HOLEID"]).astype(str), intervals["TO"]):
-    bottom[h] = max(bottom.get(h, 0.0), t)
-tops = [(h, f) for h, b in bottom.items() for f in np.arange(0.0, b, 10.0)]
-slices = {"HOLEID": [h for h, _ in tops], "FROM": [f for _, f in tops], "TO": [f + 10 for _, f in tops]}
-modes = {
-    "2 m": composites,
-    "runs": dh.composite(None, ["ZN"], domain="LITH"),
-    "2 m, merge < 1 m": dh.composite(2.0, ["ZN"], domain="LITH", residual="merge"),
-    "10 m slices": dh.composite(None, ["ZN"], domain="LITH", intervals=slices),
-}
-for name, c in modes.items():
-    print(f"{name:>17}: {len(c):6} composites, median length {np.median(c['length']):.1f} m")
-tangential = cs.Drillholes(tables["collar"], tables["survey"], intervals, method="tangential")
-shift = np.linalg.norm(dh.samples().coords - tangential.samples().coords, axis=1)
-print(f"tangential vs minimum curvature: sample positions differ by up to {shift.max():.1f} m")
-```
-
-</details>
-
-```text
-              2 m:  62506 composites, median length 2.0 m
-             runs:  15716 composites, median length 5.5 m
- 2 m, merge < 1 m:  59984 composites, median length 2.0 m
-      10 m slices:  25561 composites, median length 5.4 m
-tangential vs minimum curvature: sample positions differ by up to 43.0 m
-```
-
 Zn by lithology:
 
 <details><summary>Python</summary>
@@ -197,5 +213,88 @@ save(fig, "domains")
 </details>
 
 ![domains](domains.png)
+
+Other supports. `length=None` gives one composite per run of a lithology. `intervals=` composites to given
+intervals instead, here 10 m benches: the depths where each desurveyed path crosses a bench elevation. `residual=`
+decides the fate of a run's tail shorter than `min_fraction` of the length: kept, merged into the previous composite
+or dropped. Without `domain`, composites cross contacts and `categories=` gives the lithology covering most of each.
+
+<details><summary>Python</summary>
+
+```python
+BENCH = 10.0
+depth, z = paths["depth"], paths["z"]
+cuts = {hole[i]: [0.0, depth[i]] for i in np.r_[breaks - 1, len(hole) - 1]}
+for i in np.flatnonzero(hole[1:] == hole[:-1]):
+    lo, hi = sorted((z[i], z[i + 1]))
+    for level in np.arange(np.ceil(lo / BENCH) * BENCH, hi, BENCH):
+        cuts[hole[i]].append(depth[i] + (level - z[i]) / (z[i + 1] - z[i]) * (depth[i + 1] - depth[i]))
+benches = {"HOLEID": [], "FROM": [], "TO": []}
+for h, c in cuts.items():
+    c = np.unique(c)
+    benches["HOLEID"] += [h] * (len(c) - 1)
+    benches["FROM"] += list(c[:-1])
+    benches["TO"] += list(c[1:])
+
+modes = {
+    "2 m": composites,
+    "runs": dh.composite(None, GRADES, domain="LITH"),
+    "10 m benches": dh.composite(None, GRADES, domain="LITH", intervals=benches),
+    "2 m, merge < 1 m": dh.composite(2.0, GRADES, domain="LITH", residual="merge"),
+    "2 m, drop < 1 m": dh.composite(2.0, GRADES, domain="LITH", residual="drop"),
+    "2 m, majority LITH": dh.composite(2.0, GRADES, categories=["LITH"]),
+}
+for name, c in modes.items():
+    print(f"{name:>18}: {len(c):6} composites, median length {np.median(c['length']):.1f} m")
+```
+
+</details>
+
+```text
+               2 m:  62506 composites, median length 2.0 m
+              runs:  15761 composites, median length 5.5 m
+      10 m benches:  24438 composites, median length 5.1 m
+  2 m, merge < 1 m:  60149 composites, median length 2.0 m
+   2 m, drop < 1 m:  57780 composites, median length 2.0 m
+2 m, majority LITH:  56842 composites, median length 2.0 m
+```
+
+Metal balance: Σ grade × `<grade>_length` over the composites reproduces Σ grade × interval length over the assays,
+for every grade and every mode except `drop`, which leaves its short tails out. Weighting by `length` instead
+counts unsampled ground at the composite grade and inflates metal.
+
+<details><summary>Python</summary>
+
+```python
+def metal(grade, length):
+    return np.nansum(grade * length)
+
+
+assayed = {g: metal(assay[g], assay["TO"] - assay["FROM"]) for g in GRADES}
+print(f"{'':>18}  {'Zn metal':>10}  {'error':>8}  {'by length':>9}")
+print(f"{'assays':>18}  {assayed['ZN']:10.1f}")
+for name, c in modes.items():
+    zn_metal = metal(c["ZN"], c["ZN_length"])
+    error, naive = zn_metal / assayed["ZN"] - 1, metal(c["ZN"], c["length"]) / assayed["ZN"] - 1
+    print(f"{name:>18}  {zn_metal:10.1f}  {error:+8.1e}  {naive:+9.1%}")
+    if name != "2 m, drop < 1 m":
+        for g in GRADES:
+            assert abs(metal(c[g], c[f"{g}_length"]) / assayed[g] - 1) < 1e-9, (name, g)
+print("metal balanced to 1e-9 for", ", ".join(GRADES))
+```
+
+</details>
+
+```text
+                      Zn metal     error  by length
+            assays    325074.7
+               2 m    325074.7  +0.0e+00      +8.0%
+              runs    325074.7  +0.0e+00     +77.2%
+      10 m benches    325074.7  +0.0e+00     +40.6%
+  2 m, merge < 1 m    325074.7  +0.0e+00      +8.2%
+   2 m, drop < 1 m    316029.6  -2.8e-02      +5.2%
+2 m, majority LITH    325074.7  +0.0e+00      +7.5%
+metal balanced to 1e-9 for ZN, PB, CU, AG, AU
+```
 
 Full script: [`example_06.py`](example_06.py)
