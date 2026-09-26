@@ -173,37 +173,165 @@ fn describe_by(
 ///     Volume or declustering weight of each value.
 /// density : array_like, optional
 ///     Density of each value.
+/// categories : array_like, optional
+///     Category (e.g. domain) of each value, int or str; adds a curve per
+///     category.
 ///
 /// Returns
 /// -------
-/// dict
-///     ``cutoff``, ``tonnage``, ``mean_grade`` (NaN when nothing is above) and
-///     ``metal`` (tonnage × mean grade).
+/// Table
+///     ``category`` (with `categories`: sorted, then ``"all"``), ``cutoff``,
+///     ``tonnage``, ``mean_grade`` (null when nothing is above) and ``metal``
+///     (tonnage × mean grade).
 #[pyfunction]
-#[pyo3(signature = (values, cutoffs, weights=None, density=None))]
-fn grade_tonnage<'py>(
-    py: Python<'py>,
+#[pyo3(signature = (values, cutoffs, weights=None, density=None, categories=None))]
+fn grade_tonnage(
     values: &Bound<PyAny>,
     cutoffs: &Bound<PyAny>,
     weights: Option<&Bound<PyAny>>,
     density: Option<&Bound<PyAny>>,
-) -> PyResult<Bound<'py, PyDict>> {
+    categories: Option<&Bound<PyAny>>,
+) -> PyResult<Table> {
+    let values = floats(values, "values")?;
     let w = optional_floats(weights, "weights")?;
     let density = optional_floats(density, "density")?;
-    let r = eda::grade_tonnage(
-        &floats(values, "values")?,
-        w.as_deref(),
-        density.as_deref(),
+    let cutoffs = floats(cutoffs, "cutoffs")?;
+    let (names, rows) = match categories {
+        None => {
+            let r = eda::grade_tonnage(&values, w.as_deref(), density.as_deref(), &cutoffs);
+            (vec![], vec![(None, r.map_err(invalid)?)])
+        }
+        Some(c) => {
+            let (names, codes) = self::categories(c, values.len())?;
+            let rows =
+                eda::grade_tonnage_by(&values, &codes, w.as_deref(), density.as_deref(), &cutoffs)
+                    .map_err(invalid)?;
+            (names, rows)
+        }
+    };
+    let flat: Vec<(Option<u32>, &eda::Tonnage)> = rows
+        .iter()
+        .flat_map(|(c, r)| r.iter().map(move |t| (*c, t)))
+        .collect();
+    let columns = tonnage_columns(flat.iter().map(|r| r.1));
+    if categories.is_none() {
+        return Ok(Table(RecordBatch::try_from_iter(columns).map_err(invalid)?));
+    }
+    table("category", &names, &flat, columns)
+}
+
+fn tonnage_columns<'a>(
+    rows: impl Iterator<Item = &'a eda::Tonnage> + Clone,
+) -> Vec<(String, ArrayRef)> {
+    let col = |f: fn(&eda::Tonnage) -> f64| rows.clone().map(f);
+    vec![
+        (
+            "cutoff".into(),
+            Arc::new(Float64Array::from_iter_values(col(|t| t.cutoff))) as ArrayRef,
+        ),
+        ("tonnage".into(), nullable(col(|t| t.tonnage))),
+        ("mean_grade".into(), nullable(col(|t| t.mean_grade))),
+        ("metal".into(), nullable(col(|t| t.metal))),
+    ]
+}
+
+/// Grade-tonnage of several models of the same blocks, by cutoff and category,
+/// against a reference model.
+///
+/// Each block stands for ``volume × density`` tonnes (1 each by default), as in
+/// `grade_tonnage`.
+///
+/// Parameters
+/// ----------
+/// models : dict of str to array_like
+///     Block grades of each model, all on the same blocks; NaN is skipped.
+/// cutoffs : array_like
+///     Cutoff grades; ``-inf`` keeps everything.
+/// categories : array_like, optional
+///     Category (e.g. class or domain) of each block, int or str.
+/// reference : str, optional
+///     Model the others are compared with; the first by default.
+/// volume, density : float or array_like, optional
+///     Block volumes and densities.
+///
+/// Returns
+/// -------
+/// Table
+///     One row per category (sorted, then ``"all"``), cutoff and model:
+///     ``category``, ``cutoff``, ``model``, ``tonnage``, ``mean_grade`` and
+///     ``metal`` at or above the cutoff, and ``tonnage_diff``, ``grade_diff``
+///     and ``metal_diff``, each ``value / reference value - 1``.
+#[pyfunction]
+#[pyo3(signature = (models, cutoffs, categories=None, reference=None, volume=None, density=None))]
+fn compare_models(
+    models: &Bound<PyAny>,
+    cutoffs: &Bound<PyAny>,
+    categories: Option<&Bound<PyAny>>,
+    reference: Option<&str>,
+    volume: Option<&Bound<PyAny>>,
+    density: Option<&Bound<PyAny>>,
+) -> PyResult<Table> {
+    let (labels, grades) = models
+        .call_method0("items")
+        .map_err(|_| invalid("models must be a dict of name to grades"))?
+        .try_iter()?
+        .map(|item| {
+            let (name, values): (String, Bound<PyAny>) = item?.extract()?;
+            Ok((name.clone(), floats(&values, &name)?))
+        })
+        .collect::<PyResult<(Vec<String>, Vec<Vec<f64>>)>>()?;
+    let reference = match reference {
+        None => 0,
+        Some(r) => labels
+            .iter()
+            .position(|l| l == r)
+            .ok_or_else(|| invalid(format!("reference {r:?} is not one of the models")))?,
+    };
+    let n = grades.first().map_or(0, Vec::len);
+    let (names, codes) = categories
+        .map(|c| self::categories(c, n))
+        .transpose()?
+        .unwrap_or_default();
+    let tonnes = block_tonnes(volume, density, n)?;
+    let slices: Vec<&[f64]> = grades.iter().map(Vec::as_slice).collect();
+    let rows = eda::compare_models(
+        &slices,
+        categories.map(|_| &codes[..]),
+        tonnes.as_deref(),
         &floats(cutoffs, "cutoffs")?,
+        reference,
     )
     .map_err(invalid)?;
-    let d = PyDict::new(py);
-    let col = |f: fn(&eda::Tonnage) -> f64| array1(py, r.iter().map(f).collect());
-    d.set_item("cutoff", col(|t| t.cutoff))?;
-    d.set_item("tonnage", col(|t| t.tonnage))?;
-    d.set_item("mean_grade", col(|t| t.mean_grade))?;
-    d.set_item("metal", col(|t| t.metal))?;
-    Ok(d)
+    let mut columns = tonnage_columns(rows.iter().map(|r| &r.tonnage));
+    let model = rows.iter().map(|r| labels[r.model].as_str());
+    columns.insert(
+        1,
+        (
+            "model".into(),
+            Arc::new(StringArray::from_iter_values(model)),
+        ),
+    );
+    let col = |f: fn(&eda::Comparison) -> f64| nullable(rows.iter().map(f));
+    columns.push(("tonnage_diff".into(), col(|r| r.tonnage_diff)));
+    columns.push(("grade_diff".into(), col(|r| r.grade_diff)));
+    columns.push(("metal_diff".into(), col(|r| r.metal_diff)));
+    let keyed: Vec<(Option<u32>, ())> = rows.iter().map(|r| (r.category, ())).collect();
+    table("category", &names, &keyed, columns)
+}
+
+/// `volume × density` per block, or `None` when both are omitted.
+fn block_tonnes(
+    volume: Option<&Bound<PyAny>>,
+    density: Option<&Bound<PyAny>>,
+    n: usize,
+) -> PyResult<Option<Vec<f64>>> {
+    if volume.is_none() && density.is_none() {
+        return Ok(None);
+    }
+    let one =
+        |o: Option<&Bound<PyAny>>, what| o.map_or(Ok(vec![1.0; n]), |o| per_value(o, n, what));
+    let (v, d) = (one(volume, "volume")?, one(density, "density")?);
+    Ok(Some(v.iter().zip(&d).map(|(v, d)| v * d).collect()))
 }
 
 /// Mean of `values` per slice of `width` along `azimuth` (degrees from north)
@@ -314,16 +442,7 @@ fn validate_model(
     let w = optional_floats(weights, "weights")?;
     let reference = optional_floats(reference, "reference")?;
     let n = model.len();
-    let tonnes = match (volume, density) {
-        (None, None) => None,
-        _ => {
-            let one = |o: Option<&Bound<PyAny>>, what| {
-                o.map_or(Ok(vec![1.0; n]), |o| per_value(o, n, what))
-            };
-            let (v, d) = (one(volume, "volume")?, one(density, "density")?);
-            Some(v.iter().zip(&d).map(|(v, d)| v * d).collect::<Vec<f64>>())
-        }
-    };
+    let tonnes = block_tonnes(volume, density, n)?;
     let (names, codes) = match domains {
         None => (vec![], None),
         Some(obj) => {
@@ -888,6 +1007,7 @@ pub fn register(m: &Bound<PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(describe, m)?)?;
     m.add_function(wrap_pyfunction!(describe_by, m)?)?;
     m.add_function(wrap_pyfunction!(grade_tonnage, m)?)?;
+    m.add_function(wrap_pyfunction!(compare_models, m)?)?;
     m.add_function(wrap_pyfunction!(capping_report, m)?)?;
     m.add_function(wrap_pyfunction!(swath, m)?)?;
     m.add_function(wrap_pyfunction!(contact, m)?)?;
