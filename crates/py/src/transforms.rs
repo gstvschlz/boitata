@@ -1,5 +1,6 @@
+use std::sync::Arc;
+
 use pyo3::prelude::*;
-use pyo3::types::PyDict;
 use serde::{Deserialize, Serialize};
 use transforms::{
     HermiteAnamorphosis, Maf as CoreMaf, NormalScore as CoreNormalScore, Pca as CorePca,
@@ -9,12 +10,15 @@ use transforms::{
 
 use arrow_array::cast::AsArray;
 use arrow_array::types::Float64Type;
+use arrow_array::{ArrayRef, Float64Array, RecordBatch};
 
 use crate::args::{
-    array1, array2, finite, optional_finite, points, points_array, rows, same_length, triple,
+    Point, array1, array2, column, finite, optional_finite, per_row, points, points_array, rows,
+    same_length, triple,
 };
 use crate::containers::PyBlockModel;
 use crate::invalid;
+use crate::table::Table;
 
 fn err(e: transforms::TransformError) -> PyErr {
     invalid(e)
@@ -28,15 +32,18 @@ fn map<'py>(py: Python<'py>, values: Vec<f64>, f: impl Fn(f64) -> f64) -> Bound<
     array1(py, values.into_iter().map(f).collect()).into_any()
 }
 
-fn recoveries<'py>(py: Python<'py>, r: &[Recovery]) -> PyResult<Bound<'py, PyDict>> {
-    let d = PyDict::new(py);
-    let col = |f: fn(&Recovery) -> f64| array1(py, r.iter().map(f).collect());
-    d.set_item("cutoff", col(|r| r.cutoff))?;
-    d.set_item("tonnage", col(|r| r.tonnage))?;
-    d.set_item("metal", col(|r| r.metal))?;
-    d.set_item("mean_grade", col(|r| r.mean_grade))?;
-    d.set_item("benefit", col(|r| r.benefit))?;
-    Ok(d)
+fn recoveries(r: &[Recovery]) -> PyResult<Table> {
+    let col = |f: fn(&Recovery) -> f64| -> ArrayRef {
+        Arc::new(Float64Array::from_iter_values(r.iter().map(f)))
+    };
+    let columns = [
+        ("cutoff", col(|r| r.cutoff)),
+        ("tonnage", col(|r| r.tonnage)),
+        ("mean_grade", col(|r| r.mean_grade)),
+        ("metal", col(|r| r.metal)),
+        ("benefit", col(|r| r.benefit)),
+    ];
+    Ok(Table(RecordBatch::try_from_iter(columns).map_err(invalid)?))
 }
 
 /// Normal-score transform through the (weighted) empirical CDF. Beyond the
@@ -204,6 +211,16 @@ impl Anamorphosis {
         Ok(slf)
     }
 
+    #[pyo3(signature = (values, weights=None))]
+    fn fit_transform<'py>(
+        slf: PyRefMut<'py, Self>,
+        values: &Bound<'py, PyAny>,
+        weights: Option<&Bound<PyAny>>,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let py = slf.py();
+        Self::fit(slf, values, weights)?.transform(py, values)
+    }
+
     /// Raw values to Gaussian scores.
     fn transform<'py>(
         &self,
@@ -247,14 +264,17 @@ impl Anamorphosis {
         Ok(Self::from_inner(self.fitted()?.block(r)))
     }
 
-    /// Tonnage, metal, mean grade and benefit above each cutoff.
-    fn grade_tonnage<'py>(
-        &self,
-        py: Python<'py>,
-        cutoffs: &Bound<PyAny>,
-    ) -> PyResult<Bound<'py, PyDict>> {
+    /// Recoveries above each cutoff, as proportions of the whole.
+    ///
+    /// Returns
+    /// -------
+    /// Table
+    ///     ``cutoff``; ``tonnage``, the proportion above cutoff; ``mean_grade``
+    ///     above cutoff; ``metal``, ``tonnage × mean_grade``; and ``benefit``,
+    ///     ``metal - cutoff × tonnage``.
+    fn grade_tonnage(&self, cutoffs: &Bound<PyAny>) -> PyResult<Table> {
         let cutoffs = finite(cutoffs, "cutoffs")?;
-        recoveries(py, &transforms::grade_tonnage(self.fitted()?, &cutoffs))
+        recoveries(&transforms::grade_tonnage(self.fitted()?, &cutoffs))
     }
 }
 
@@ -303,6 +323,14 @@ impl BoxCox {
         };
         slf.lambda = Some(lambda);
         Ok(slf)
+    }
+
+    fn fit_transform<'py>(
+        slf: PyRefMut<'py, Self>,
+        values: &Bound<'py, PyAny>,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let py = slf.py();
+        Self::fit(slf, values)?.transform(py, values)
     }
 
     #[getter]
@@ -361,7 +389,7 @@ impl Ppmt {
 
     /// `marginal` normal-scores each variable before the projections.
     #[new]
-    #[pyo3(signature = (iterations=30, candidates=60, seed=1, marginal=true))]
+    #[pyo3(signature = (iterations=30, candidates=60, seed=0, marginal=true))]
     fn new(iterations: usize, candidates: usize, seed: u64, marginal: bool) -> Self {
         Self {
             params: PpmtParams {
@@ -385,6 +413,16 @@ impl Ppmt {
         let weights = optional_finite(weights, "weights")?;
         slf.fitted = Some(CorePpmt::fit(&data, weights.as_deref(), &slf.params).map_err(err)?);
         Ok(slf)
+    }
+
+    #[pyo3(signature = (data, weights=None))]
+    fn fit_transform<'py>(
+        slf: PyRefMut<'py, Self>,
+        data: &Bound<'py, PyAny>,
+        weights: Option<&Bound<PyAny>>,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let py = slf.py();
+        Self::fit(slf, data, weights)?.transform(py, data)
     }
 
     fn transform<'py>(&self, py: Python<'py>, data: &Bound<PyAny>) -> PyResult<Bound<'py, PyAny>> {
@@ -470,6 +508,16 @@ impl GaussianImputer {
         Ok(slf)
     }
 
+    #[pyo3(signature = (data, weights=None))]
+    fn fit_transform<'py>(
+        slf: PyRefMut<'py, Self>,
+        data: &Bound<'py, PyAny>,
+        weights: Option<&Bound<PyAny>>,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let py = slf.py();
+        Self::fit(slf, data, weights)?.transform(py, data)
+    }
+
     /// `data` with every NaN replaced by an imputed value; the other values
     /// are returned unchanged.
     fn transform<'py>(&self, py: Python<'py>, data: &Bound<PyAny>) -> PyResult<Bound<'py, PyAny>> {
@@ -551,6 +599,16 @@ impl Pca {
         let pca = CorePca::fit(&data, weights.as_deref(), slf.standardize).map_err(err)?;
         slf.fitted = Some((pca, data[0].len()));
         Ok(slf)
+    }
+
+    #[pyo3(signature = (data, weights=None))]
+    fn fit_transform<'py>(
+        slf: PyRefMut<'py, Self>,
+        data: &Bound<'py, PyAny>,
+        weights: Option<&Bound<PyAny>>,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let py = slf.py();
+        Self::fit(slf, data, weights)?.transform(py, data)
     }
 
     fn transform<'py>(&self, py: Python<'py>, data: &Bound<PyAny>) -> PyResult<Bound<'py, PyAny>> {
@@ -643,6 +701,15 @@ impl Maf {
         Ok(slf)
     }
 
+    fn fit_transform<'py>(
+        slf: PyRefMut<'py, Self>,
+        data: &Bound<'py, PyAny>,
+        coords: &Bound<PyAny>,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let py = slf.py();
+        Self::fit(slf, data, coords)?.transform(py, data)
+    }
+
     fn transform<'py>(&self, py: Python<'py>, data: &Bound<PyAny>) -> PyResult<Bound<'py, PyAny>> {
         let (maf, dim) = self.fitted()?;
         Ok(array2(py, &maf.forward(&table(data, *dim)?)).into_any())
@@ -725,6 +792,16 @@ impl StepwiseConditional {
         Ok(slf)
     }
 
+    #[pyo3(signature = (data, weights=None))]
+    fn fit_transform<'py>(
+        slf: PyRefMut<'py, Self>,
+        data: &Bound<'py, PyAny>,
+        weights: Option<&Bound<PyAny>>,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let py = slf.py();
+        Self::fit(slf, data, weights)?.transform(py, data)
+    }
+
     fn transform<'py>(&self, py: Python<'py>, data: &Bound<PyAny>) -> PyResult<Bound<'py, PyAny>> {
         let fitted = self.fitted()?;
         Ok(array2(py, &fitted.forward(&table(data, fitted.dim())?)).into_any())
@@ -802,23 +879,21 @@ impl UniformConditioning {
     ///
     /// Returns
     /// -------
-    /// dict
-    ///     ``cutoff``, ``tonnage`` (proportion of the panel above cutoff),
-    ///     ``metal``, ``mean_grade`` and ``benefit``.
+    /// Table
+    ///     As `HermiteAnamorphosis.grade_tonnage`, in proportions of the panel.
     #[pyo3(signature = (panel_grade, cutoffs, estimate_variance=None))]
-    fn panel_recovery<'py>(
+    fn panel_recovery(
         &self,
-        py: Python<'py>,
         panel_grade: f64,
         cutoffs: &Bound<PyAny>,
         estimate_variance: Option<f64>,
-    ) -> PyResult<Bound<'py, PyDict>> {
+    ) -> PyResult<Table> {
         let cutoffs = finite(cutoffs, "cutoffs")?;
         let r = self
             .0
             .panel_recovery(panel_grade, estimate_variance, &cutoffs)
             .map_err(err)?;
-        recoveries(py, &r)
+        recoveries(&r)
     }
 
     /// Grades of the selective blocks of one panel, ascending.
@@ -852,54 +927,65 @@ impl UniformConditioning {
         Ok(array1(py, g).into_any())
     }
 
-    /// Grade-tonnage curve of every panel.
+    /// Global grade-tonnage curve of the panels.
     ///
     /// Parameters
     /// ----------
     /// panels : BlockModel
     /// grade : str
-    ///     Column of estimated panel grades; null panels give NaN rows.
+    ///     Column of estimated panel grades; null panels are left out.
     /// cutoffs : array_like
     /// estimate_variance : str, optional
     ///     Column of the panels' estimate variances; required without
     ///     `r_panel`, refused with it.
+    /// density : float, array_like or str, default 1.0
+    ///     Density of each panel, or the column of `panels` holding it.
     ///
     /// Returns
     /// -------
-    /// dict
-    ///     ``cutoff``, and ``tonnage``, ``metal``, ``mean_grade`` and
-    ///     ``benefit`` of shape ``(len(panels), len(cutoffs))``. Averaging
-    ///     ``tonnage`` and ``metal`` over equal panels gives the global curve.
-    #[pyo3(signature = (panels, grade, cutoffs, estimate_variance=None))]
-    fn grade_tonnage<'py>(
+    /// Table
+    ///     ``cutoff``, ``tonnage`` (volume × density above cutoff, summed over
+    ///     the panels), ``mean_grade``, ``metal`` (``tonnage × mean_grade``)
+    ///     and ``benefit``.
+    #[pyo3(signature = (panels, grade, cutoffs, *, estimate_variance=None, density=None))]
+    fn grade_tonnage(
         &self,
-        py: Python<'py>,
-        panels: PyRef<PyBlockModel>,
+        py: Python,
+        panels: &Bound<PyBlockModel>,
         grade: &str,
         cutoffs: &Bound<PyAny>,
         estimate_variance: Option<&str>,
-    ) -> PyResult<Bound<'py, PyDict>> {
+        density: Option<&Bound<PyAny>>,
+    ) -> PyResult<Table> {
         let cutoffs = finite(cutoffs, "cutoffs")?;
-        let (grade, variance) = panel_columns(&panels, grade, estimate_variance)?;
+        let model = panels.borrow();
+        let (grade, variance) = panel_columns(&model, grade, estimate_variance)?;
+        let density = match density {
+            Some(d) => per_row(Some(panels.as_any()), d, grade.len(), "density")?,
+            None => vec![1.0; grade.len()],
+        };
         let curves = py
             .detach(|| self.0.grade_tonnage(&grade, variance.as_deref(), &cutoffs))
             .map_err(err)?;
-        let table = |f: fn(&Recovery) -> f64| -> Vec<Vec<f64>> {
-            curves
-                .iter()
-                .map(|c| match c {
-                    Some(c) => c.iter().map(f).collect(),
-                    None => vec![f64::NAN; cutoffs.len()],
-                })
-                .collect()
-        };
-        let d = PyDict::new(py);
-        d.set_item("cutoff", array1(py, cutoffs.clone()))?;
-        d.set_item("tonnage", array2(py, &table(|r| r.tonnage)))?;
-        d.set_item("metal", array2(py, &table(|r| r.metal)))?;
-        d.set_item("mean_grade", array2(py, &table(|r| r.mean_grade)))?;
-        d.set_item("benefit", array2(py, &table(|r| r.benefit)))?;
-        Ok(d)
+        let mut sums = vec![(0.0, 0.0, 0.0); cutoffs.len()];
+        for ((curve, volume), density) in curves.iter().zip(model.0.volumes()).zip(density) {
+            for (s, r) in sums.iter_mut().zip(curve.iter().flatten()) {
+                let w = volume * density;
+                *s = (s.0 + w * r.tonnage, s.1 + w * r.metal, s.2 + w * r.benefit);
+            }
+        }
+        let global: Vec<Recovery> = cutoffs
+            .iter()
+            .zip(sums)
+            .map(|(&cutoff, (tonnage, metal, benefit))| Recovery {
+                cutoff,
+                tonnage,
+                metal,
+                mean_grade: metal / tonnage,
+                benefit,
+            })
+            .collect();
+        recoveries(&global)
     }
 
     /// Localized grades of the selective blocks nested in the panels.
@@ -912,20 +998,20 @@ impl UniformConditioning {
     ///
     /// Parameters
     /// ----------
-    /// panels : BlockModel
-    /// grade : str
-    ///     Column of estimated panel grades.
     /// smus : BlockModel
     ///     Selective blocks nesting in the panels: same rotation, sizes
     ///     dividing the panel sizes, grids aligned; not sub-blocked.
     /// ranking : str
     ///     Column of `smus` ordering the blocks within a panel, such as a
     ///     direct kriging of the blocks; ties follow row order.
+    /// panels : BlockModel
+    /// grade : str
+    ///     Column of estimated panel grades.
     /// estimate_variance : str, optional
     ///     Column of the panels' estimate variances; required without
     ///     `r_panel`, refused with it.
-    /// name : str, optional
-    ///     Name of the new column; `grade` by default.
+    /// name : str, default "localized"
+    ///     Name of the new column.
     ///
     /// Returns
     /// -------
@@ -938,17 +1024,17 @@ impl UniformConditioning {
     /// InvalidInput
     ///     If the blocks do not nest, or a block of an estimated panel has a
     ///     null rank.
-    #[pyo3(signature = (panels, grade, smus, ranking, estimate_variance=None, name=None))]
+    #[pyo3(signature = (smus, ranking, panels, grade, *, estimate_variance=None, name="localized"))]
     #[allow(clippy::too_many_arguments)]
     fn localize(
         &self,
         py: Python,
-        panels: PyRef<PyBlockModel>,
-        grade: &str,
         smus: PyRef<PyBlockModel>,
         ranking: &str,
+        panels: PyRef<PyBlockModel>,
+        grade: &str,
         estimate_variance: Option<&str>,
-        name: Option<&str>,
+        name: &str,
     ) -> PyResult<PyBlockModel> {
         let (values, variance) = panel_columns(&panels, grade, estimate_variance)?;
         let rank = nullable(&smus, ranking)?;
@@ -959,10 +1045,10 @@ impl UniformConditioning {
                     .localize(panel_model, &values, variance.as_deref(), smu_model, &rank)
             })
             .map_err(err)?;
-        let column: arrow_array::Float64Array = out.into_iter().collect();
+        let column: Float64Array = out.into_iter().collect();
         Ok(PyBlockModel(
             smus.0
-                .with_column(name.unwrap_or(grade), std::sync::Arc::new(column))
+                .with_column(name, Arc::new(column))
                 .map_err(invalid)?,
         ))
     }
@@ -1027,17 +1113,25 @@ impl Trend {
     }
 }
 
+/// Locations of `coords` and finite `values`, or the column of `coords` they name.
+fn samples(coords: &Bound<PyAny>, values: &Bound<PyAny>) -> PyResult<(Vec<Point>, Vec<f64>)> {
+    let locs = points(coords)?;
+    let values = finite(&column(Some(coords), values, "values")?, "values")?;
+    same_length(locs.len(), values.len(), "values")?;
+    Ok((locs, values))
+}
+
 /// Fits a polynomial trend of `degree` (0-2); returns the trend and residuals.
+/// `values` may name a column of `coords`, a PointSet or BlockModel.
 #[pyfunction]
-#[pyo3(signature = (coords, values, degree=1))]
+#[pyo3(signature = (coords, values, *, degree=1))]
 fn detrend<'py>(
     py: Python<'py>,
     coords: &Bound<PyAny>,
     values: &Bound<PyAny>,
     degree: usize,
 ) -> PyResult<(Trend, Bound<'py, PyAny>)> {
-    let (locs, values) = (points(coords)?, finite(values, "values")?);
-    same_length(locs.len(), values.len(), "values")?;
+    let (locs, values) = samples(coords, values)?;
     let (trend, residuals) = transforms::detrend(&locs, &values, degree).map_err(err)?;
     Ok((Trend(trend), array1(py, residuals).into_any()))
 }
@@ -1107,9 +1201,10 @@ fn declustering(w: Weights, sizes: Vec<f64>, means: Vec<f64>) -> Declustering {
 
 /// Cell declustering. Without `cell_size`, scans `sizes` (default: 30 sizes up
 /// to half the largest extent), each averaged over `offsets` grid origins, and
-/// keeps the size with the lowest mean (`minimize=False`: highest).
+/// keeps the size with the lowest mean (`minimize=False`: highest). `values`
+/// may name a column of `coords`.
 #[pyfunction]
-#[pyo3(signature = (coords, values, cell_size=None, sizes=None, offsets=25, minimize=true))]
+#[pyo3(signature = (coords, values, *, cell_size=None, sizes=None, offsets=25, minimize=true))]
 fn cell_declustering(
     coords: &Bound<PyAny>,
     values: &Bound<PyAny>,
@@ -1118,8 +1213,7 @@ fn cell_declustering(
     offsets: usize,
     minimize: bool,
 ) -> PyResult<Declustering> {
-    let (locs, values) = (points(coords)?, finite(values, "values")?);
-    same_length(locs.len(), values.len(), "values")?;
+    let (locs, values) = samples(coords, values)?;
     let origin = locs.iter().fold((f64::MAX, f64::MAX, f64::MAX), |m, p| {
         (m.0.min(p.0), m.1.min(p.1), m.2.min(p.2))
     });
@@ -1151,14 +1245,13 @@ fn cell_declustering(
 
 /// Polygonal (nearest-neighbor area) declustering on a `nodes`-cell grid.
 #[pyfunction]
-#[pyo3(signature = (coords, values, nodes=10_000))]
+#[pyo3(signature = (coords, values, *, nodes=10_000))]
 fn polygon_declustering(
     coords: &Bound<PyAny>,
     values: &Bound<PyAny>,
     nodes: usize,
 ) -> PyResult<Declustering> {
-    let (locs, values) = (points(coords)?, finite(values, "values")?);
-    same_length(locs.len(), values.len(), "values")?;
+    let (locs, values) = samples(coords, values)?;
     let w = transforms::polygon_weights(&locs, &values, nodes).map_err(err)?;
     Ok(declustering(w, vec![], vec![]))
 }
@@ -1194,22 +1287,21 @@ fn indirect_lognormal_correction<'py>(
     Ok(array1(py, out).into_any())
 }
 
-/// Averages samples into blocks; returns centers, means and counts.
+/// Averages samples into blocks of `size`; returns centers, means and counts.
 #[pyfunction]
-#[pyo3(signature = (coords, values, block_size, origin=vec![0.0, 0.0, 0.0]))]
+#[pyo3(signature = (coords, values, size, *, origin=vec![0.0, 0.0, 0.0]))]
 fn upscale<'py>(
     py: Python<'py>,
     coords: &Bound<PyAny>,
     values: &Bound<PyAny>,
-    block_size: Vec<f64>,
+    size: Vec<f64>,
     origin: Vec<f64>,
 ) -> PyResult<(Bound<'py, PyAny>, Bound<'py, PyAny>, Bound<'py, PyAny>)> {
-    let (locs, values) = (points(coords)?, finite(values, "values")?);
-    same_length(locs.len(), values.len(), "values")?;
+    let (locs, values) = samples(coords, values)?;
     let blocks = transforms::upscale(
         &locs,
         &values,
-        triple(block_size, 1.0, "block_size")?,
+        triple(size, 1.0, "size")?,
         triple(origin, 0.0, "origin")?,
     )
     .map_err(err)?;
@@ -1226,13 +1318,13 @@ fn upscale<'py>(
 fn downscale<'py>(
     py: Python<'py>,
     center: Vec<f64>,
-    block_size: Vec<f64>,
+    size: Vec<f64>,
     value: f64,
     refine: (usize, usize, usize),
 ) -> PyResult<(Bound<'py, PyAny>, Bound<'py, PyAny>)> {
     let cells = transforms::downscale(
         triple(center, 0.0, "center")?,
-        triple(block_size, 1.0, "block_size")?,
+        triple(size, 1.0, "size")?,
         value,
         refine,
     )

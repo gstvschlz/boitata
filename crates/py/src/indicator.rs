@@ -298,20 +298,20 @@ impl MultipleIndicatorKriging {
     ///
     /// Parameters
     /// ----------
-    /// panels : BlockModel
     /// smus : BlockModel
     ///     Selective blocks nesting in the panels: same rotation, sizes
     ///     dividing the panel sizes, grids aligned; not sub-blocked.
     /// ranking : str
     ///     Column of `smus` ordering the blocks within a panel, such as a
     ///     direct kriging of the blocks; ties follow row order.
+    /// panels : BlockModel
     /// variance_factor : float or Variogram, optional
     ///     ``f``, the variance of the blocks within a panel over that of the
     ///     points within it, in [0, 1]; or a variogram to compute it from,
     ///     ``(C(v, v) - C(V, V)) / (C(0) - C(V, V))`` with the nugget left out
     ///     of the block averages. The median threshold's variogram by default.
-    /// name : str, optional
-    ///     Name of the new column; ``"localized"`` by default.
+    /// name : str, default "localized"
+    ///     Name of the new column.
     /// discretization : tuple of int, optional
     ///     Points per axis of each panel to krige the indicators over; at the
     ///     centroid by default.
@@ -327,16 +327,16 @@ impl MultipleIndicatorKriging {
     /// InvalidInput
     ///     If the blocks do not nest, or a block of an estimated panel has a
     ///     null rank.
-    #[pyo3(signature = (panels, smus, ranking, variance_factor=None, name=None, discretization=None))]
+    #[pyo3(signature = (smus, ranking, panels, *, variance_factor=None, name="localized", discretization=None))]
     #[allow(clippy::too_many_arguments)]
     fn localize(
         &self,
         py: Python,
-        panels: PyRef<PyBlockModel>,
         smus: PyRef<PyBlockModel>,
         ranking: &str,
+        panels: PyRef<PyBlockModel>,
         variance_factor: Option<&Bound<PyAny>>,
-        name: Option<&str>,
+        name: &str,
         discretization: Option<(usize, usize, usize)>,
     ) -> PyResult<PyBlockModel> {
         let (samples, weights) = self.fitted()?;
@@ -373,7 +373,7 @@ impl MultipleIndicatorKriging {
         let column: arrow_array::Float64Array = out.into_iter().collect();
         Ok(PyBlockModel(
             smus.0
-                .with_column(name.unwrap_or("localized"), std::sync::Arc::new(column))
+                .with_column(name, std::sync::Arc::new(column))
                 .map_err(invalid)?,
         ))
     }
