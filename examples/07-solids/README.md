@@ -106,30 +106,26 @@ visible faces with `block_shell`:
 ```python
 k = count[2] // 2
 level = lo[2] + (k + 0.5) * size
-layer = blocks.centroids[:, 2] == level
+bench = ((0, 0, level), 90, 0)
 fig = plt.figure(figsize=(12, 5), layout="constrained")
 a = fig.add_subplot(1, 2, 1)
-image = a.imshow(
-    proportion[layer].reshape(count[1], count[0]),
-    origin="lower",
-    extent=(lo[0], lo[0] + count[0] * size, lo[1], lo[1] + count[1] * size),
-    cmap="cividis",
-    vmin=0,
-    vmax=1,
+cs.plot.section(blocks, "inside", axis="z", index=k, colorbar=False, vmin=0, vmax=1, ax=a)
+cs.plot.slab(
+    xyz[local][~inside], plane=bench, thickness=size, s=6, color=GREY, label="composite outside", ax=a
 )
-slab = local.copy()
-slab[local] = np.abs(xyz[local, 2] - level) < size / 2
-near_inside = solid.contains(xyz[slab])
-a.scatter(*xyz[slab][~near_inside, :2].T, s=6, color=GREY, label="composite outside")
-a.scatter(*xyz[slab][near_inside, :2].T, s=6, color=HIGHLIGHT, label="composite inside")
-a.set_aspect("equal")
-a.set(
-    title=f"Block proportion inside the solid, bench {level:.0f} m",
-    xlabel="Easting (m)",
-    ylabel="Northing (m)",
+cs.plot.slab(
+    xyz[local][inside],
+    plane=bench,
+    thickness=size,
+    meshes=solid,
+    s=6,
+    color=HIGHLIGHT,
+    label="composite inside",
+    ax=a,
 )
+a.set_title(f"Block proportion inside the solid and its outline, bench {level:.0f} m")
 a.legend(loc="lower right")
-fig.colorbar(image, ax=a, shrink=0.8, label="proportion of block inside")
+fig.colorbar(a.images[0], ax=a, shrink=0.8, label="proportion of block inside")
 
 b = fig.add_subplot(1, 2, 2, projection="3d")
 shell = cs.block_shell(ore)

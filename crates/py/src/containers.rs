@@ -291,6 +291,29 @@ impl PyBlockModel {
         coords_array(py, &self.0.centroids())
     }
 
+    /// Row holding each point.
+    ///
+    /// Parameters
+    /// ----------
+    /// points : array_like
+    ///     ``(n, 3)`` or ``(n, 2)`` world coordinates.
+    ///
+    /// Returns
+    /// -------
+    /// numpy.ndarray
+    ///     ``int64`` row of each point, -1 outside the model or in a missing block.
+    fn row_at<'py>(
+        &self,
+        py: Python<'py>,
+        points: &Bound<'py, PyAny>,
+    ) -> PyResult<Bound<'py, PyArray1<i64>>> {
+        let rows: Vec<i64> = coords_arg(points)?
+            .into_iter()
+            .map(|p| self.0.row_at(p).map_or(-1, |r| r as i64))
+            .collect();
+        Ok(rows.into_pyarray(py))
+    }
+
     #[getter]
     fn attributes(&self) -> Table {
         Table(self.0.attributes().clone())

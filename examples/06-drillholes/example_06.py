@@ -109,15 +109,6 @@ traces = np.split(xyz, breaks)
 y0 = np.median(composites.coords[:, 1])
 half = 25.0
 in_slab = [t for t in traces if np.any(np.abs(t[:, 1] - y0) < half)]
-inside = []
-for t in in_slab:
-    inslab = np.abs(t[:, 1] - y0) < half
-    for run in np.split(np.arange(len(t)), np.flatnonzero(np.diff(inslab.astype(int))) + 1):
-        if inslab[run[0]] and len(run) > 1:
-            inside.append(t[run][:, [0, 2]])
-comps = composites.coords
-zn = composites["ZN"]
-near = (np.abs(comps[:, 1] - y0) < half) & ~np.isnan(zn) & (zn > 0)
 
 fig, (a, b) = plt.subplots(
     1, 2, figsize=(12, 5.2), layout="constrained", gridspec_kw={"width_ratios": [1, 1.6]}
@@ -128,16 +119,19 @@ a.axhspan(y0 - half, y0 + half, color=ACCENT, alpha=0.08, lw=0)
 a.autoscale()
 a.set_aspect("equal")
 a.set(title=f"Plan: {len(dh)} desurveyed holes", xlabel="Easting (m)", ylabel="Northing (m)")
-b.add_collection(LineCollection(inside, colors=LIGHT, linewidths=0.8))
-points = b.scatter(comps[near, 0], comps[near, 2], c=zn[near], s=5, norm=LogNorm(0.05, 30), cmap="cividis")
-b.autoscale()
-b.set_aspect("equal")
-b.set(
-    title=f"Section: northing {y0:.0f} ± {half:.0f} m, 2 m composites",
-    xlabel="Easting (m)",
-    ylabel="Elevation (m)",
+cs.plot.slab(
+    composites,
+    "ZN",
+    plane=((0, y0, 0), 90, 90),
+    thickness=2 * half,
+    lines=in_slab,
+    colorbar=False,
+    s=5,
+    norm=LogNorm(0.05, 30),
+    ax=b,
 )
-fig.colorbar(points, ax=b, shrink=0.7, label="Zn (%)")
+b.set_title(f"Section: northing {y0:.0f} ± {half:.0f} m, 2 m composites")
+fig.colorbar(b.collections[-1], ax=b, shrink=0.7, label="Zn (%)")
 save(fig, "holes")
 
 
@@ -156,6 +150,7 @@ a.legend()
 logbins = np.logspace(-2, 1.7, 40)
 raw_zn = assay["ZN"]
 a_zn = raw_zn[raw_zn > 0]
+zn = composites["ZN"]
 c_zn = zn[zn > 0]
 b.hist(
     a_zn,

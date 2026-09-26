@@ -366,7 +366,6 @@ row = int(np.bincount(rows).argmax())
 on_row = blocks.centroids[rows == row]
 xlim, ylim = ((on_row[:, j].min() - 12.5, on_row[:, j].max() + 12.5) for j in (0, 2))
 north = on_row[0, 1]
-on_section = np.abs(xyz[:, 1] - north) < 5
 
 fig = plt.figure(figsize=(11, 6.4), layout="constrained")
 axes = fig.subplots(2, 4, height_ratios=[4, 1])
@@ -390,8 +389,8 @@ cs.plot.section(
 )
 titles = ("Kriged Zn", "Simulated block Zn", "P(block Zn > 10 %)", "Class")
 for ax, title in zip(axes[0], titles, strict=True):
-    ax.scatter(xyz[on_section, 0], xyz[on_section, 2], s=4, color=HIGHLIGHT, linewidths=0)
-    ax.set(title=title, xlabel="Easting (m)", ylabel="Elevation (m)", xlim=xlim, ylim=ylim)
+    cs.plot.slab(xyz, plane=((0, north, 0), 90, 90), thickness=10, s=4, color=HIGHLIGHT, linewidths=0, ax=ax)
+    ax.set(title=title, xlim=xlim, ylim=ylim)
 for ax, image, label in (
     (axes[1, 0], axes[0, 0].images[0], "Zn (%)"),
     (axes[1, 2], axes[0, 2].images[0], "probability"),
