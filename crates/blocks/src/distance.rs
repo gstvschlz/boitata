@@ -31,34 +31,34 @@ fn point_triangle_dist2(p: Vector3<f64>, a: Vector3<f64>, b: Vector3<f64>, c: Ve
     let d1 = ab.dot(&ap);
     let d2 = ac.dot(&ap);
     if d1 <= 0.0 && d2 <= 0.0 {
-        return ap.norm_squared(); // vertex A
+        return ap.norm_squared();
     }
     let bp = p - b;
     let d3 = ab.dot(&bp);
     let d4 = ac.dot(&bp);
     if d3 >= 0.0 && d4 <= d3 {
-        return bp.norm_squared(); // vertex B
+        return bp.norm_squared();
     }
     let vc = d1 * d4 - d3 * d2;
     if vc <= 0.0 && d1 >= 0.0 && d3 <= 0.0 {
         let w = d1 / (d1 - d3);
-        return (ap - ab * w).norm_squared(); // edge AB
+        return (ap - ab * w).norm_squared();
     }
     let cp = p - c;
     let d5 = ab.dot(&cp);
     let d6 = ac.dot(&cp);
     if d6 >= 0.0 && d5 <= d6 {
-        return cp.norm_squared(); // vertex C
+        return cp.norm_squared();
     }
     let vb = d5 * d2 - d1 * d6;
     if vb <= 0.0 && d2 >= 0.0 && d6 <= 0.0 {
         let w = d2 / (d2 - d6);
-        return (ap - ac * w).norm_squared(); // edge AC
+        return (ap - ac * w).norm_squared();
     }
     let va = d3 * d6 - d5 * d4;
     if va <= 0.0 && (d4 - d3) >= 0.0 && (d5 - d6) >= 0.0 {
         let w = (d4 - d3) / ((d4 - d3) + (d5 - d6));
-        return (p - (b + (c - b) * w)).norm_squared(); // edge BC
+        return (p - (b + (c - b) * w)).norm_squared();
     }
     // Interior: project onto the triangle plane via barycentric coords.
     let denom = 1.0 / (va + vb + vc);

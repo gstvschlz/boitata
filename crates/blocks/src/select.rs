@@ -35,7 +35,7 @@ pub fn ring_is_closed(vertices: &[[f64; 3]]) -> bool {
     }
     let extent = ((max_x - min_x).powi(2) + (max_y - min_y).powi(2)).sqrt();
     if extent <= 0.0 {
-        return false; // a degenerate (single-point) "ring" closes nothing
+        return false;
     }
     let first = vertices[0];
     let last = vertices[vertices.len() - 1];
@@ -76,7 +76,7 @@ impl PolygonSelector {
         let mut flat = Vec::new();
         for ring in rings {
             if ring.len() < 3 {
-                continue; // too short to enclose anything
+                continue;
             }
             if !already_closed && !ring_is_closed(ring) {
                 return Err(BlockModelError::InvalidGridParams(

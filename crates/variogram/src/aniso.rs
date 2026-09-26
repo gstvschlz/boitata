@@ -140,7 +140,7 @@ mod tests {
             minor: 10.0,
         })
         .unwrap();
-        let along = a.lag(&(0.0, 0.0, 0.0), &(0.0, 0.0, 20.0)); // vertical
+        let along = a.lag(&(0.0, 0.0, 0.0), &(0.0, 0.0, 20.0));
         assert!(along > 1.0); // 20 / 10 = 2 reduced units
     }
 

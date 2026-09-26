@@ -416,7 +416,7 @@ fn face_is_buried(
 ) -> bool {
     let neighbour = if positive {
         if span.hi[axis] >= lattice.counts[axis] {
-            return false; // model boundary
+            return false;
         }
         span.hi[axis]
     } else {
