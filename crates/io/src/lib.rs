@@ -6,6 +6,7 @@ mod error;
 mod gslib;
 mod mesh;
 mod parquet;
+mod shapefile;
 
 pub use csv::{CsvOptions, read_csv, write_csv};
 pub use error::{Error, Result};
@@ -15,6 +16,7 @@ pub use parquet::{
     BlockChunks, BlockModelReader, BlockModelWriter, FileLayout, Stored, read_model, read_parquet,
     stream_map, write_block_model, write_model, write_parquet, write_points,
 };
+pub use shapefile::{read_shapefile, write_shapefile};
 
 /// Values read as null unless the caller overrides them (case-insensitive).
 pub const NODATA: &[&str] = &[

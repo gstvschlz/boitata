@@ -165,3 +165,18 @@ def test_mesh_files_round_trip(tmp_path):
         cs.write_mesh(tmp_path / "m.ply", tetra)
     with pytest.raises(cs.FileError):
         cs.read_mesh(tmp_path / "missing.obj")
+
+
+def test_shapefile_round_trip(tmp_path):
+    points = cs.PointSet(
+        [[500000.5, 7000000.25, 350.0], [500010.0, 7000020.0, -12.5]],
+        {"au": [0.1 + 0.2, float("nan")], "rock": ["óxido", "fresh"]},
+        crs='PROJCS["SIRGAS 2000 / UTM zone 22S"]',
+    )
+    cs.write_shapefile(tmp_path / "collars.shp", points)
+    back = cs.read_shapefile(tmp_path / "collars.shp")
+    np.testing.assert_array_equal(back.coords, points.coords)
+    np.testing.assert_array_equal(back["au"], points["au"])
+    assert back["rock"] == points["rock"] and back.crs == points.crs
+    with pytest.raises(cs.InvalidInput):
+        cs.write_shapefile(tmp_path / "long.shp", points.with_column("a_long_column", [1, 2]))

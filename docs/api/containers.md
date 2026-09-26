@@ -28,6 +28,10 @@
 
 ::: ceres.write_mesh
 
+::: ceres.read_shapefile
+
+::: ceres.write_shapefile
+
 ::: ceres.CeresError
 
 ::: ceres.InvalidInput

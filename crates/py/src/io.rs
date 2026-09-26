@@ -90,6 +90,46 @@ fn write_mesh(path: PathBuf, mesh: PyRef<Mesh>, ascii: bool) -> PyResult<()> {
     ceres_io::write_mesh(path, &mesh.mesh, ascii).map_err(io_error)
 }
 
+/// Reads a point shapefile as a PointSet.
+///
+/// Parameters
+/// ----------
+/// path : str or Path
+///     The `.shp` file; the `.dbf` beside it holds the attributes and an
+///     optional `.prj` the CRS.
+/// nodata : list of str, optional
+///     Values read as null, case-insensitive; blank fields are always null.
+///
+/// Returns
+/// -------
+/// PointSet
+///     One point per shape, and one per member of a multipoint, which repeats
+///     its row. 2D shapes get z = 0. Numeric fields are float64, logical fields
+///     bool, the rest text. The `.prj` text is the CRS.
+#[pyfunction]
+#[pyo3(signature = (path, nodata=None))]
+fn read_shapefile(path: PathBuf, nodata: Option<Vec<String>>) -> PyResult<PyPointSet> {
+    Ok(PyPointSet(
+        ceres_io::read_shapefile(path, &self::nodata(nodata)).map_err(io_error)?,
+    ))
+}
+
+/// Writes a PointSet as a 3D point shapefile.
+///
+/// Parameters
+/// ----------
+/// path : str or Path
+///     The `.shp` file; `.shx`, `.dbf`, `.cpg` and, with a CRS, `.prj` are
+///     written beside it.
+/// points : PointSet
+///     Attribute names must be ASCII of at most 10 characters; numeric, bool
+///     and text columns are written, nulls as blanks. The CRS is written
+///     verbatim to the `.prj`, which GIS software expects as WKT.
+#[pyfunction]
+fn write_shapefile(path: PathBuf, points: PyRef<PyPointSet>) -> PyResult<()> {
+    ceres_io::write_shapefile(path, &points.0).map_err(io_error)
+}
+
 /// A block model file read in chunks, for models larger than memory.
 #[pyclass(module = "ceres", name = "BlockModelFile", frozen)]
 pub struct BlockModelFile(ceres_io::BlockModelReader);
@@ -231,5 +271,7 @@ pub fn register(m: &Bound<PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(write_gslib, m)?)?;
     m.add_function(wrap_pyfunction!(read_mesh, m)?)?;
     m.add_function(wrap_pyfunction!(write_mesh, m)?)?;
+    m.add_function(wrap_pyfunction!(read_shapefile, m)?)?;
+    m.add_function(wrap_pyfunction!(write_shapefile, m)?)?;
     Ok(())
 }
