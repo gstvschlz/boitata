@@ -433,5 +433,29 @@ def test_sgs_domains_errors_and_persistence(tmp_path):
         cs.SGS(gaussian, soft).fit(xyz, grades)
     with pytest.raises(cs.InvalidInput, match="has no samples"):
         cs.SGS(gaussian, soft).fit(xyz, grades, domains="MS")
-    with pytest.raises(cs.InvalidInput, match="not both"):
-        cs.SGS(gaussian, passes).fit(xyz, grades, trend=xyz[:, 0], domains=zone)
+
+
+def test_sgs_domains_with_a_trend():
+    xyz, grades, holes, weights, zone, targets, passes = zoned_holes()
+    trend, at = xyz[:, 1] / 100, targets[:, 1] / 100
+    ms = zone == "MS"
+
+    def run(search, rows, labels=None, **on):
+        sgs = cs.SGS(gaussian, search, classes=3).fit(
+            xyz[rows],
+            grades[rows],
+            weights=weights[rows],
+            holes=holes[rows],
+            trend=trend[rows],
+            domains=labels,
+        )
+        return sgs.simulate(targets, n=3, seed=2, realizations=True, trend=at, **on).realizations
+
+    everything = np.ones(len(zone), bool)
+    alone = run(passes, ms)
+    np.testing.assert_array_equal(run(passes, everything, zone, domains="MS"), alone)
+    np.testing.assert_array_equal(run(passes, ms, "MS", domains="MS"), alone)
+    labels = np.where(targets[:, 0] < 40, "MS", "SM")
+    soft = run(softened(passes, 10.0), everything, zone, domains=labels)
+    hard = run(softened(passes, None), everything, zone, domains=labels)
+    assert np.isfinite(soft).all() and not np.array_equal(soft, hard)

@@ -55,11 +55,20 @@ impl TrendConditioning {
         Ok(trend
             .iter()
             .zip(scores)
-            .map(|(&t, &y)| {
-                let g = self.transform.forward_one(&[], t);
-                self.transform.back_one(&[g], y)
-            })
+            .map(|(&t, &y)| self.back_one(t, y))
             .collect())
+    }
+
+    /// Score of `value` at trend `trend`.
+    pub fn forward_one(&self, trend: f64, value: f64) -> f64 {
+        let g = self.transform.forward_one(&[], trend);
+        self.transform.forward_one(&[g], value)
+    }
+
+    /// Value at trend `trend` of `score`.
+    pub fn back_one(&self, trend: f64, score: f64) -> f64 {
+        let g = self.transform.forward_one(&[], trend);
+        self.transform.back_one(&[g], score)
     }
 }
 

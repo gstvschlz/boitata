@@ -313,9 +313,23 @@ fn to_simulate<'a>(
     nodes: usize,
     trend: Option<&Bound<PyAny>>,
 ) -> PyResult<(&'a [f64], NodeTrend<'a>)> {
-    let (conditioning, trend) = match (&d.trend, trend) {
-        (None, None) => return Ok((&d.values, None)),
-        (Some((_, c)), Some(t)) => (c, t),
+    Ok(match (&d.trend, trend_at(d, targets, nodes, trend)?) {
+        (Some((_, c)), Some(at_nodes)) => (c.scores(), Some((c, at_nodes))),
+        _ => (&d.values, None),
+    })
+}
+
+/// The trend at the `nodes` targets, given or read from the `targets` column
+/// it names, when fitted with a trend.
+fn trend_at(
+    d: &Data,
+    targets: &Bound<PyAny>,
+    nodes: usize,
+    trend: Option<&Bound<PyAny>>,
+) -> PyResult<Option<Vec<f64>>> {
+    let trend = match (&d.trend, trend) {
+        (None, None) => return Ok(None),
+        (Some(_), Some(t)) => t,
         (Some(_), None) => return Err(invalid("fitted with a trend; give trend at the targets")),
         (None, Some(_)) => return Err(invalid("trend at the targets needs trend at fit")),
     };
@@ -328,7 +342,7 @@ fn to_simulate<'a>(
         finite(trend, "trend")?
     };
     same_length(nodes, at_nodes.len(), "trend")?;
-    Ok((conditioning.scores(), Some((conditioning, at_nodes))))
+    Ok(Some(at_nodes))
 }
 
 fn back(trend: &NodeTrend, values: Vec<f64>) -> simulation::Result<Vec<f64>> {
@@ -408,13 +422,15 @@ fn data(
 /// does, or the last when none does, and is simulated from that pass's
 /// neighbours among the data and the nodes already simulated.
 ///
-/// With `domains` at `fit`, each domain is normal-scored on its own, with
-/// the declustering weights, and its nodes are back-transformed through its
-/// table; `variogram` is the one normal-score variogram of every domain.
-/// Search.soft lets data and nodes already simulated of another domain
-/// inform a node within the soft distance, and boundaries are hard without
-/// it. `high_grade` compares data values and the simulated values of nodes
-/// with its threshold. One random path visits the nodes of every domain.
+/// With `domains` at `fit`, each domain is transformed on its own, with the
+/// declustering weights and within its own trend classes, and its nodes are
+/// back-transformed through its transform; `variogram` is the one
+/// normal-score variogram of every domain. Search.soft lets data and nodes
+/// already simulated of another domain inform a node within the soft
+/// distance, each as its grade (and trend) transformed through the node's
+/// domain; boundaries are hard without it. `high_grade` compares grades, of
+/// data and of simulated nodes, with its threshold. One random path visits
+/// the nodes of every domain.
 #[derive(Serialize, Deserialize)]
 #[pyclass(module = "ceres", name = "SGS")]
 pub struct Sgs {
@@ -532,7 +548,7 @@ impl Sgs {
     ///     Drill-hole ids or names, for `max_per_hole`.
     /// trend : array_like, optional
     ///     Trend at the data, from any model or estimator; `simulate` then
-    ///     needs the trend at the targets. Not with `domains`.
+    ///     needs the trend at the targets.
     /// domains : array_like or label, optional
     ///     Domain label of each sample, or one label for all: strings,
     ///     numbers or booleans. Samples sharing a location in different
@@ -542,7 +558,7 @@ impl Sgs {
     /// ------
     /// InvalidInput
     ///     If a Search.soft names a domain without samples, or has no
-    ///     `domains` to work on, or with both `trend` and `domains`.
+    ///     `domains` to work on.
     #[pyo3(signature = (coords, values, weights=None, holes=None, trend=None, domains=None))]
     #[allow(clippy::too_many_arguments)]
     fn fit<'py>(
@@ -554,9 +570,6 @@ impl Sgs {
         trend: Option<&Bound<PyAny>>,
         domains: Option<&Bound<PyAny>>,
     ) -> PyResult<PyRefMut<'py, Self>> {
-        if trend.is_some() && domains.is_some() {
-            return Err(invalid("SGS takes a trend or domains, not both"));
-        }
         let (fitted, codes) = match domains {
             None => (None, None),
             Some(obj) => {
@@ -577,6 +590,10 @@ impl Sgs {
             classes,
             codes.as_deref(),
         )?);
+        let d = slf.data.as_ref().expect("fitted");
+        let trend = d.trend.as_ref().map(|(t, _)| (&t[..], classes));
+        simulation::Transforms::fit(&d.values, d.weights.as_deref(), d.domains.as_deref(), trend)
+            .map_err(err)?;
         slf.domains = fitted;
         Ok(slf)
     }
@@ -614,7 +631,16 @@ impl Sgs {
         let grid = self::targets(targets)?;
         let nodes = self.node_domains(domains, grid.len(), "simulate")?;
         let search = self.resolved()?;
-        let (values, trend) = to_simulate(d, targets, grid.len(), trend)?;
+        let at_nodes = trend_at(d, targets, grid.len(), trend)?;
+        let trend = d
+            .trend
+            .as_ref()
+            .zip(at_nodes.as_deref())
+            .map(|((data, _), nodes)| simulation::Trend {
+                data,
+                nodes,
+                classes: self.classes,
+            });
         let support = support(targets, &grid, blocks)?;
         let local = anisotropy.map(|a| a.at_targets(&grid));
         let options = ContinuousOptions {
@@ -630,17 +656,17 @@ impl Sgs {
                 };
                 simulation::sgs_in(
                     &d.locs,
-                    values,
+                    &d.values,
                     d.weights.as_deref(),
                     d.holes.as_deref(),
                     zoned(d, &nodes),
+                    trend,
                     &grid,
                     &self.variogram,
                     &params,
                     local.as_ref(),
                 )
-                .and_then(|r| back(&trend, r.values))
-                .and_then(|v| averaged(&support, v))
+                .and_then(|r| averaged(&support, r.values))
             })
         })
         .map(SimulationSummary)

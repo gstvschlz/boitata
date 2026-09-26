@@ -1,7 +1,8 @@
 //! Sequential Gaussian Simulation (SGS).
 //!
 //! Produces conditional realizations of a continuous variable:
-//! 1. normal-score transform the conditioning data, within each domain,
+//! 1. normal-score transform the conditioning data, within each domain, and
+//!    with a trend within its classes (a stepwise conditional transform),
 //! 2. visit grid nodes along a random path,
 //! 3. at each node, simple-krige (mean 0) from nearby data + previously simulated
 //!    nodes to get a conditional mean/variance, then draw from that Gaussian;
@@ -11,9 +12,12 @@
 //!    the conditioning set,
 //! 5. continue until every node is simulated.
 //!
-//! The search compares data values and the back-transformed values of
-//! simulated nodes with a high-grade threshold, and kriging uses their scores.
+//! The search compares grades, of data and of simulated nodes, with a
+//! high-grade threshold. Kriging uses scores: a neighbour of the node's
+//! domain its own, one of another domain (through a soft boundary) its grade
+//! transformed as the node's domain transforms grades.
 
+use crate::TrendConditioning;
 use crate::error::{Result, SimError};
 use estimation::Sample;
 use estimation::krige::{Kind, krige};
@@ -47,6 +51,112 @@ pub struct Realization {
 /// Domain codes of the data and of the grid nodes.
 pub type Domains<'a> = (&'a [u32], &'a [u32]);
 
+/// A trend at the data and at the grid nodes, and its number of classes.
+#[derive(Debug, Clone, Copy)]
+pub struct Trend<'a> {
+    pub data: &'a [f64],
+    pub nodes: &'a [f64],
+    pub classes: usize,
+}
+
+/// Grades to normal scores and back in one domain: the declustered normal
+/// score of the grades, or with a trend of their stepwise conditional
+/// scores given the trend.
+#[derive(Debug, Clone)]
+pub struct Transform {
+    trend: Option<TrendConditioning>,
+    table: NormalScoreTable,
+}
+
+impl Transform {
+    /// Score of `value` at trend `trend` (ignored without one).
+    pub fn forward(&self, value: f64, trend: f64) -> f64 {
+        let value = match &self.trend {
+            Some(c) => c.forward_one(trend, value),
+            None => value,
+        };
+        self.table.forward(value)
+    }
+
+    /// Grade at trend `trend` (ignored without one) of `score`.
+    pub fn back(&self, score: f64, trend: f64) -> f64 {
+        let value = self.table.back(score);
+        match &self.trend {
+            Some(c) => c.back_one(trend, value),
+            None => value,
+        }
+    }
+}
+
+/// The transform of each domain code, `None` for a code without data, and
+/// the scores of the data, each in its own domain.
+#[derive(Debug, Clone)]
+pub struct Transforms {
+    pub scores: Vec<f64>,
+    pub domains: Vec<Option<Transform>>,
+}
+
+impl Transforms {
+    /// One transform for all data without `domains`; `trend` is the trend at
+    /// the data and its number of classes.
+    pub fn fit(
+        values: &[f64],
+        weights: Option<&[f64]>,
+        domains: Option<&[u32]>,
+        trend: Option<(&[f64], usize)>,
+    ) -> Result<Self> {
+        let n = values.len();
+        if weights.is_some_and(|w| w.len() != n) {
+            return Err(SimError::InvalidParameters("one weight per datum".into()));
+        }
+        if domains.is_some_and(|d| d.len() != n) {
+            return Err(SimError::InvalidParameters("one domain per datum".into()));
+        }
+        if trend.is_some_and(|t| t.0.len() != n) {
+            return Err(SimError::InvalidParameters(
+                "one trend value per datum".into(),
+            ));
+        }
+        let k = domains.map_or(1, |d| d.iter().max().map_or(0, |&m| m as usize + 1));
+        let mut rows = vec![vec![]; k];
+        for i in 0..n {
+            rows[domains.map_or(0, |d| d[i] as usize)].push(i);
+        }
+        let mut scores = vec![0.0; n];
+        let mut fitted = Vec::with_capacity(k);
+        for rows in &rows {
+            if rows.is_empty() {
+                fitted.push(None);
+                continue;
+            }
+            let pick = |v: &[f64]| rows.iter().map(|&i| v[i]).collect::<Vec<_>>();
+            let w = weights.map(pick);
+            let trend = trend
+                .map(|(t, classes)| {
+                    TrendConditioning::fit(&pick(values), &pick(t), w.as_deref(), classes)
+                })
+                .transpose()?;
+            let values = match &trend {
+                Some(c) => c.scores().to_vec(),
+                None => pick(values),
+            };
+            let ns = normal_score::transform(&values, w.as_deref())
+                .map_err(|e| SimError::Transform(e.to_string()))?;
+            for (&i, s) in rows.iter().zip(ns.scores) {
+                scores[i] = s;
+            }
+            fitted.push(Some(Transform {
+                trend,
+                table: ns.table,
+            }));
+        }
+        Ok(Self {
+            scores,
+            domains: fitted,
+        })
+    }
+}
+
 /// Run a single SGS realization.
 ///
 /// `vg_nscore` is the variogram of the *normal scores* (unit-sill Gaussian variogram);
@@ -70,6 +180,7 @@ pub fn sgs(
         data_weights,
         data_holes,
         None,
+        None,
         grid,
         vg_nscore,
         params,
@@ -77,10 +188,11 @@ pub fn sgs(
     )
 }
 
-/// As [`sgs`] with `domains`: each domain has its own declustered
-/// normal-score table, a node is back-transformed through its domain's, and
-/// the search's soft boundaries apply to data and simulated nodes alike. A
-/// node whose domain has no data is an error.
+/// As [`sgs`] with `domains` and a `trend`. Each domain has its own
+/// declustered transform (see [`Transforms`]), and a node is
+/// back-transformed through its domain's at its trend; `vg_nscore` is then
+/// the variogram of the scores. The search's soft boundaries apply to data
+/// and simulated nodes alike. A node whose domain has no data is an error.
 #[allow(clippy::too_many_arguments)]
 pub fn sgs_in(
     data_locs: &[(f64, f64, f64)],
@@ -88,6 +200,7 @@ pub fn sgs_in(
     data_weights: Option<&[f64]>,
     data_holes: Option<&[u32]>,
     domains: Option<Domains>,
+    trend: Option<Trend>,
     grid: &[(f64, f64, f64)],
     vg_nscore: &Variogram,
     params: &SgsParams,
@@ -99,17 +212,18 @@ pub fn sgs_in(
         data_weights,
         data_holes,
         domains,
+        trend,
         grid,
         vg_nscore,
         params,
         local,
-        |_, _, _| {},
+        |_, _, _, _| {},
     )
 }
 
-/// SGS calling `used(node, neighbours, samples)` with the indices into
-/// `samples` (data, then simulated nodes, valued in data units) each
-/// kriged node was simulated from.
+/// SGS calling `used(node, neighbours, samples, kriged)` for each kriged
+/// node: the indices into `samples` (data, then simulated nodes, valued in
+/// grades) it was simulated from, and those samples as kriged, in scores.
 #[allow(clippy::too_many_arguments)]
 fn simulate(
     data_locs: &[(f64, f64, f64)],
@@ -117,11 +231,12 @@ fn simulate(
     data_weights: Option<&[f64]>,
     data_holes: Option<&[u32]>,
     domains: Option<Domains>,
+    trend: Option<Trend>,
     grid: &[(f64, f64, f64)],
     vg_nscore: &Variogram,
     params: &SgsParams,
     local: Option<&LocalAnisotropy>,
-    mut used: impl FnMut(usize, &[usize], &[Sample]),
+    mut used: impl FnMut(usize, &[usize], &[Sample], &[Sample]),
 ) -> Result<Realization> {
     if data_locs.len() != data_vals.len() {
         return Err(SimError::InvalidParameters("data length mismatch".into()));
@@ -136,22 +251,39 @@ fn simulate(
     }
     let holes = crate::holes(data_holes, data_locs.len())?;
     check(domains, data_locs.len(), grid.len())?;
+    if trend.is_some_and(|t| t.nodes.len() != grid.len()) {
+        return Err(SimError::InvalidParameters(
+            "one trend value per node".into(),
+        ));
+    }
     if local.is_some_and(|l| l.len() != grid.len()) {
         return Err(SimError::InvalidParameters(
             "one local anisotropy per grid node".into(),
         ));
     }
+
+    // 1. Normal-score transform within each domain.
+    let fitted = Transforms::fit(
+        data_vals,
+        data_weights,
+        domains.map(|d| d.0),
+        trend.map(|t| (t.data, t.classes)),
+    )?;
     if grid.is_empty() {
         return Ok(Realization { values: vec![] });
     }
+    let transform = |domain: Option<u32>| {
+        fitted.domains[domain.unwrap_or(0) as usize]
+            .as_ref()
+            .expect("checked")
+    };
+    let node_trend = |node: usize| trend.map_or(0.0, |t| t.nodes[node]);
 
-    // 1. Normal-score transform within each domain.
-    let (mut scores, tables) = normal_scores(data_vals, data_weights, domains.map(|d| d.0))?;
-    let node_domain = |node: usize| domains.map(|d| d.1[node]);
-
-    // Conditioning set in data units (grows as nodes are simulated), with
-    // the scores kriging uses alongside.
+    // Conditioning set in grades (grows as nodes are simulated), with the
+    // scores and trend alongside.
     let mut samples = data(data_locs, data_vals, holes, domains.map(|d| d.0));
+    let mut scores = fitted.scores.clone();
+    let mut trends = trend.map_or_else(|| vec![0.0; data_locs.len()], |t| t.data.to_vec());
     let mut trees: Vec<SearchTree> = params
         .search
         .iter()
@@ -176,7 +308,7 @@ fn simulate(
 
     for &node in &path {
         let target = grid[node];
-        let domain = node_domain(node);
+        let domain = domains.map(|d| d.1[node]);
 
         // 3. Kriging from neighbors (simple kriging, mean 0 in Gaussian space).
         let aniso = local.map(|l| l.anisotropy(node));
@@ -193,14 +325,17 @@ fn simulate(
         }
         let score = match found {
             Ok(idx) if !idx.is_empty() => {
-                used(node, &idx, &samples);
                 let selected: Vec<Sample> = idx
                     .iter()
                     .map(|&k| Sample {
-                        value: scores[k],
+                        value: match samples[k].domain == domain {
+                            true => scores[k],
+                            false => transform(domain).forward(samples[k].value, trends[k]),
+                        },
                         ..samples[k].clone()
                     })
                     .collect();
+                used(node, &idx, &samples, &selected);
                 let est = krige(Kind::Simple { mean: 0.0 }, &target, &selected, vg)
                     .map_err(|e| SimError::Estimation(e.to_string()))?;
                 let sd = est.variance.max(0.0).sqrt();
@@ -211,10 +346,7 @@ fn simulate(
         };
 
         // 4. Back-transform and add the node to the conditioning set.
-        let value = tables[domain.unwrap_or(0) as usize]
-            .as_ref()
-            .expect("checked")
-            .back(score);
+        let value = transform(domain).back(score, node_trend(node));
         values[node] = value;
         let sample = Sample {
             loc: target,
@@ -228,6 +360,7 @@ fn simulate(
         }
         samples.push(sample);
         scores.push(score);
+        trends.push(node_trend(node));
     }
     Ok(Realization { values })
 }
@@ -250,44 +383,6 @@ fn check(domains: Option<Domains>, data: usize, nodes: usize) -> Result<()> {
         ))),
         None => Ok(()),
     }
-}
-
-/// Normal scores of the data and the table of each domain code, one table
-/// for all without `domains`.
-fn normal_scores(
-    values: &[f64],
-    weights: Option<&[f64]>,
-    domains: Option<&[u32]>,
-) -> Result<(Vec<f64>, Vec<Option<NormalScoreTable>>)> {
-    let transform = |rows: &[usize]| {
-        let pick = |v: &[f64]| rows.iter().map(|&i| v[i]).collect::<Vec<_>>();
-        normal_score::transform(&pick(values), weights.map(pick).as_deref())
-            .map_err(|e| SimError::Transform(e.to_string()))
-    };
-    let Some(codes) = domains else {
-        let ns = normal_score::transform(values, weights)
-            .map_err(|e| SimError::Transform(e.to_string()))?;
-        return Ok((ns.scores, vec![Some(ns.table)]));
-    };
-    let k = codes.iter().max().map_or(0, |&m| m as usize + 1);
-    let mut rows = vec![vec![]; k];
-    for (i, &c) in codes.iter().enumerate() {
-        rows[c as usize].push(i);
-    }
-    let mut scores = vec![0.0; values.len()];
-    let mut tables = Vec::with_capacity(k);
-    for rows in &rows {
-        if rows.is_empty() {
-            tables.push(None);
-            continue;
-        }
-        let ns = transform(rows)?;
-        for (&i, s) in rows.iter().zip(ns.scores) {
-            scores[i] = s;
-        }
-        tables.push(Some(ns.table));
-    }
-    Ok((scores, tables))
 }
 
 fn data(
@@ -821,11 +916,25 @@ mod tests {
         weights: Vec<f64>,
         holes: Vec<u32>,
         codes: Vec<u32>,
+        trend: Vec<f64>,
+    }
+
+    impl Zoned {
+        fn of(&self, code: u32) -> Vec<usize> {
+            (0..self.vals.len())
+                .filter(|&i| self.codes[i] == code)
+                .collect()
+        }
+    }
+
+    fn pick<T: Copy>(v: &[T], rows: &[usize]) -> Vec<T> {
+        rows.iter().map(|&i| v[i]).collect()
     }
 
     /// Domain 0 west of x = 50, domain 1 east and richer, both richer to the
-    /// north where the weights are higher; holes of 3 samples down z, and
-    /// holes on the contact logging both domains at every sample.
+    /// north where the weights are higher and the trend `y / 100` too; holes
+    /// of 3 samples down z, and holes on the contact logging both domains at
+    /// every sample.
     fn zoned() -> Zoned {
         use rand::Rng;
         let mut rng = StdRng::seed_from_u64(8);
@@ -835,6 +944,7 @@ mod tests {
             weights: vec![],
             holes: vec![],
             codes: vec![],
+            trend: vec![],
         };
         for h in 0..60 {
             let x = if h < 40 { 0.0 } else { 50.0 } + rng.r#gen::<f64>() * 49.0;
@@ -848,23 +958,26 @@ mod tests {
                 z.weights.push(if y > 50.0 { 3.0 } else { 1.0 });
                 z.holes.push(h);
                 z.codes.push(code);
+                z.trend.push(y / 100.0);
             }
         }
         for h in 0..5 {
             for code in 0..2 {
-                z.locs.push((50.0, 10.0 + 20.0 * h as f64, 1.0));
+                let y = 10.0 + 20.0 * h as f64;
+                z.locs.push((50.0, y, 1.0));
                 z.vals.push(if code == 0 { 0.5 } else { 20.0 });
                 z.weights.push(1.0);
                 z.holes.push(100 + h);
                 z.codes.push(code);
+                z.trend.push(y / 100.0);
             }
         }
         z
     }
 
     /// Nodes on a 4 m grid at z = 1 and on the contact holes, each in both
-    /// domains.
-    fn zoned_grid() -> (Vec<Point>, Vec<u32>) {
+    /// domains, with their trend.
+    fn zoned_grid() -> (Vec<Point>, Vec<u32>, Vec<f64>) {
         let mut grid: Vec<Point> = (0..25 * 25)
             .map(|i| {
                 (
@@ -881,7 +994,8 @@ mod tests {
                 codes.push(code);
             }
         }
-        (grid, codes)
+        let trend = grid.iter().map(|p| p.1 / 100.0).collect();
+        (grid, codes, trend)
     }
 
     fn zoned_search(soft: Option<estimation::Soft>) -> Vec<Search> {
@@ -900,19 +1014,45 @@ mod tests {
         vec![pass(12.0, 6), pass(40.0, 2)]
     }
 
+    fn vg() -> Variogram {
+        Variogram::single(Model::Spherical, 1.0, 25.0)
+    }
+
     fn distance(a: &Point, b: &Point) -> f64 {
         ((a.0 - b.0).powi(2) + (a.1 - b.1).powi(2) + (a.2 - b.2).powi(2)).sqrt()
     }
 
+    /// Grade to score in domain `code`, fitted apart from SGS.
+    fn forward(z: &Zoned, code: u32, trended: bool) -> impl Fn(f64, f64) -> f64 {
+        let rows = z.of(code);
+        let (vals, w, t) = (
+            pick(&z.vals, &rows),
+            pick(&z.weights, &rows),
+            pick(&z.trend, &rows),
+        );
+        let c = trended.then(|| TrendConditioning::fit(&vals, &t, Some(&w), 3).unwrap());
+        let scores = c.as_ref().map_or(vals, |c| c.scores().to_vec());
+        let table = normal_score::transform(&scores, Some(&w)).unwrap().table;
+        move |g, t| table.forward(c.as_ref().map_or(g, |c| c.forward_one(t, g)))
+    }
+
     /// Neighbours of the other domain used; asserts every neighbour obeys the
-    /// high-grade rule in data units and is in the node's domain or within
-    /// `soft`.
-    fn other_domain_used(soft: Option<f64>, seed: u64) -> usize {
+    /// high-grade rule in grades and is in the node's domain or strictly
+    /// within `soft`, where it is kriged as its grade transformed through
+    /// the node's domain.
+    fn other_domain_used(soft: Option<f64>, seed: u64, trended: bool) -> usize {
         let z = zoned();
-        let (grid, nodes) = zoned_grid();
-        let search = zoned_search(soft.map(estimation::Soft::All));
-        let vg = Variogram::single(Model::Spherical, 1.0, 25.0);
-        let params = SgsParams { search, seed };
+        let (grid, nodes, node_trend) = zoned_grid();
+        let trend = trended.then_some(Trend {
+            data: &z.trend,
+            nodes: &node_trend,
+            classes: 3,
+        });
+        let into = [forward(&z, 0, trended), forward(&z, 1, trended)];
+        let params = SgsParams {
+            search: zoned_search(soft.map(estimation::Soft::All)),
+            seed,
+        };
         let (mut other, mut high, mut simulated) = (0, 0, 0);
         simulate(
             &z.locs,
@@ -920,12 +1060,13 @@ mod tests {
             Some(&z.weights),
             Some(&z.holes),
             Some((&z.codes, &nodes)),
+            trend,
             &grid,
-            &vg,
+            &vg(),
             &params,
             None,
-            |node, idx, samples| {
-                for &k in idx {
+            |node, idx, samples, kriged| {
+                for (j, &k) in idx.iter().enumerate() {
                     let (s, d) = (&samples[k], distance(&grid[node], &samples[k].loc));
                     if s.value > 12.0 {
                         assert!(d <= 6.0, "high grade {} at {d}", s.value);
@@ -933,6 +1074,10 @@ mod tests {
                     }
                     if s.domain != Some(nodes[node]) {
                         assert!(d < soft.unwrap_or(0.0), "other domain at {d}");
+                        // Data and nodes alike have trend y / 100.
+                        let t = s.loc.1 / 100.0;
+                        let want = into[nodes[node] as usize](s.value, t);
+                        assert!((kriged[j].value - want).abs() < 1e-12);
                         other += 1;
                     }
                     simulated += usize::from(k >= z.locs.len());
@@ -946,55 +1091,76 @@ mod tests {
 
     #[test]
     fn hard_boundaries_use_only_the_node_domain() {
-        assert_eq!(other_domain_used(None, 1), 0);
+        assert_eq!(other_domain_used(None, 1, false), 0);
+        assert_eq!(other_domain_used(None, 1, true), 0);
     }
 
     #[test]
-    fn soft_boundaries_reach_strictly_within_the_distance() {
-        assert!(other_domain_used(Some(8.0), 2) > 0);
-        assert!(other_domain_used(Some(20.0), 3) > 0);
+    fn soft_samples_enter_as_grades_through_the_node_domain() {
+        assert!(other_domain_used(Some(8.0), 2, false) > 0);
+        assert!(other_domain_used(Some(20.0), 3, false) > 0);
+        assert!(other_domain_used(Some(8.0), 4, true) > 0);
+    }
+
+    fn run(
+        z: &Zoned,
+        rows: &[usize],
+        grid: &[Point],
+        domains: Option<Domains>,
+        trend: Option<(&[f64], &[f64])>,
+        search: &[Search],
+        seed: u64,
+    ) -> Vec<f64> {
+        let t = trend.map(|(_, nodes)| (pick(&z.trend, rows), nodes));
+        let params = SgsParams {
+            search: search.to_vec(),
+            seed,
+        };
+        sgs_in(
+            &pick(&z.locs, rows),
+            &pick(&z.vals, rows),
+            Some(&pick(&z.weights, rows)),
+            Some(&pick(&z.holes, rows)),
+            domains,
+            t.as_ref().map(|(data, nodes)| Trend {
+                data,
+                nodes,
+                classes: 3,
+            }),
+            grid,
+            &vg(),
+            &params,
+            None,
+        )
+        .unwrap()
+        .values
     }
 
     #[test]
     fn one_label_everywhere_is_no_domains() {
         let z = zoned();
-        let (grid, _) = zoned_grid();
-        let vg = Variogram::single(Model::Spherical, 1.0, 25.0);
+        let (grid, _, node_trend) = zoned_grid();
         let search = zoned_search(Some(estimation::Soft::All(5.0)));
         // Without the contact holes, which put two samples at one location.
-        let n = z.locs.len() - 10;
-        let (one, all) = (vec![0; n], vec![0; grid.len()]);
+        let rows: Vec<usize> = (0..z.locs.len() - 10).collect();
+        let (one, all) = (vec![0; rows.len()], vec![0; grid.len()]);
         let domains = Some((&one[..], &all[..]));
-        for seed in 0..3 {
-            let params = SgsParams {
-                search: search.clone(),
-                seed,
-            };
-            let run = |domains| {
-                sgs_in(
-                    &z.locs[..n],
-                    &z.vals[..n],
-                    Some(&z.weights[..n]),
-                    Some(&z.holes[..n]),
-                    domains,
-                    &grid,
-                    &vg,
-                    &params,
-                    None,
-                )
-                .unwrap()
-                .values
-            };
-            assert_eq!(run(None), run(domains));
+        for trend in [None, Some((&z.trend[..], &node_trend[..]))] {
+            for seed in 0..3 {
+                assert_eq!(
+                    run(&z, &rows, &grid, None, trend, &search, seed),
+                    run(&z, &rows, &grid, domains, trend, &search, seed)
+                );
+            }
         }
         let passes = |domains| {
             sgs_passes(
-                &z.locs[..n],
-                &z.vals[..n],
-                Some(&z.holes[..n]),
+                &pick(&z.locs, &rows),
+                &pick(&z.vals, &rows),
+                Some(&pick(&z.holes, &rows)),
                 domains,
                 &grid,
-                &vg,
+                &vg(),
                 &search,
                 None,
             )
@@ -1004,47 +1170,140 @@ mod tests {
     }
 
     #[test]
+    fn a_hard_domain_is_simulated_as_if_alone() {
+        let z = zoned();
+        let (grid, _, node_trend) = zoned_grid();
+        let all: Vec<usize> = (0..z.locs.len()).collect();
+        let west = z.of(0);
+        let nodes = vec![0; grid.len()];
+        let search = zoned_search(None);
+        for trend in [None, Some((&z.trend[..], &node_trend[..]))] {
+            let both = run(&z, &all, &grid, Some((&z.codes, &nodes)), trend, &search, 6);
+            assert_eq!(both, run(&z, &west, &grid, None, trend, &search, 6));
+        }
+    }
+
+    fn mean(v: &[f64], w: &[f64]) -> f64 {
+        v.iter().zip(w).map(|(v, w)| v * w).sum::<f64>() / w.iter().sum::<f64>()
+    }
+
+    #[test]
+    fn soft_moves_the_contact_grade_as_kriging_does() {
+        // Rich domain 0 west of x = 50 and lean domain 1 east, sampled every
+        // 5 m on three lines; nodes of domain 0 just west of the contact.
+        let (mut locs, mut vals, mut codes) = (vec![], vec![], vec![]);
+        for i in 0..60 {
+            let (x, y) = ((i % 20) as f64 * 5.0 + 2.5, (i / 20) as f64 * 10.0);
+            let code = u32::from(x > 50.0);
+            locs.push((x, y, 0.0));
+            vals.push(if code == 0 { 10.0 } else { 1.0 } * (0.3 * (i as f64).sin()).exp());
+            codes.push(code);
+        }
+        let grid: Vec<Point> = (0..12)
+            .map(|i| (46.0 + (i % 4) as f64, (i / 4) as f64 * 10.0, 0.0))
+            .collect();
+        let nodes = vec![0; grid.len()];
+        let search = |soft| Search {
+            min_samples: 1,
+            max_samples: 6,
+            radius: 30.0,
+            soft,
+            ..Default::default()
+        };
+        let simulated = |soft| {
+            let search = vec![search(soft)];
+            let params = |seed| SgsParams {
+                search: search.clone(),
+                seed,
+            };
+            let total: f64 = (0..50)
+                .map(|seed| {
+                    let domains = Some((&codes[..], &nodes[..]));
+                    let r = sgs_in(
+                        &locs,
+                        &vals,
+                        None,
+                        None,
+                        domains,
+                        None,
+                        &grid,
+                        &vg(),
+                        &params(seed),
+                        None,
+                    );
+                    r.unwrap().values.iter().sum::<f64>()
+                })
+                .sum();
+            total / (50 * grid.len()) as f64
+        };
+        let samples: Vec<Sample> = (0..locs.len())
+            .map(|i| Sample {
+                domain: Some(codes[i]),
+                ..Sample::new(locs[i], vals[i])
+            })
+            .collect();
+        let kriged = |soft| {
+            let at = estimation::estimate_many(
+                &grid,
+                Some(&nodes),
+                &samples,
+                &search(soft),
+                Some(&vg()),
+                |t, n| krige(Kind::Ordinary, t, n, &vg()),
+            );
+            at.iter().map(|e| e.as_ref().unwrap().value).sum::<f64>() / grid.len() as f64
+        };
+        let soft = Some(estimation::Soft::All(10.0));
+        let (sgs_shift, kriging_shift) = (
+            simulated(soft.clone()) / simulated(None) - 1.0,
+            kriged(soft) / kriged(None) - 1.0,
+        );
+        let shifts = format!("SGS {sgs_shift}, kriging {kriging_shift}");
+        assert!(kriging_shift < -0.03 && sgs_shift < -0.03, "{shifts}");
+    }
+
+    /// Nodes far apart and far from the data, `per` in each domain, at trend
+    /// `trend(code)`.
+    fn far(per: usize) -> (Vec<Point>, Vec<u32>) {
+        let grid = (0..2 * per)
+            .map(|i| (1e4 * (1 + i / per) as f64 + 100.0 * i as f64, 1e4, 0.0))
+            .collect();
+        (grid, (0..2 * per).map(|i| (i / per) as u32).collect())
+    }
+
+    fn pooled(reals: &[Vec<f64>], range: std::ops::Range<usize>) -> Vec<f64> {
+        let mut v: Vec<f64> = reals
+            .iter()
+            .flat_map(|r| r[range.clone()].to_vec())
+            .collect();
+        v.sort_by(f64::total_cmp);
+        v
+    }
+
+    #[test]
     fn each_domain_reproduces_its_declustered_histogram() {
         let z = zoned();
         let per = 30;
-        let grid: Vec<Point> = (0..2 * per)
-            .map(|i| (1e4 * (1 + i / per) as f64 + 100.0 * i as f64, 1e4, 0.0))
-            .collect();
-        let nodes: Vec<u32> = (0..2 * per).map(|i| (i / per) as u32).collect();
-        let vg = Variogram::single(Model::Spherical, 1.0, 25.0);
+        let (grid, nodes) = far(per);
+        let all: Vec<usize> = (0..z.locs.len()).collect();
+        let search = zoned_search(None);
         let reals: Vec<Vec<f64>> = (0..100)
             .map(|seed| {
-                let params = SgsParams {
-                    search: zoned_search(None),
-                    seed,
-                };
-                sgs_in(
-                    &z.locs,
-                    &z.vals,
-                    Some(&z.weights),
-                    None,
-                    Some((&z.codes, &nodes)),
+                run(
+                    &z,
+                    &all,
                     &grid,
-                    &vg,
-                    &params,
+                    Some((&z.codes, &nodes)),
                     None,
+                    &search,
+                    seed,
                 )
-                .unwrap()
-                .values
             })
             .collect();
-        let mean = |v: &[f64], w: &[f64]| {
-            v.iter().zip(w).map(|(v, w)| v * w).sum::<f64>() / w.iter().sum::<f64>()
-        };
         for code in 0..2 {
-            let rows: Vec<usize> = (0..z.vals.len()).filter(|&i| z.codes[i] == code).collect();
-            let data: Vec<f64> = rows.iter().map(|&i| z.vals[i]).collect();
-            let w: Vec<f64> = rows.iter().map(|&i| z.weights[i]).collect();
-            let range = code as usize * per..(code as usize + 1) * per;
-            let mut pooled: Vec<f64> = reals
-                .iter()
-                .flat_map(|r| r[range.clone()].to_vec())
-                .collect();
+            let rows = z.of(code);
+            let (data, w) = (pick(&z.vals, &rows), pick(&z.weights, &rows));
+            let pooled = pooled(&reals, code as usize * per..(code as usize + 1) * per);
             let (want, naive) = (mean(&data, &w), mean(&data, &vec![1.0; data.len()]));
             let got = mean(&pooled, &vec![1.0; pooled.len()]);
             assert!((want / naive - 1.0).abs() > 0.1, "weights change nothing");
@@ -1052,14 +1311,13 @@ mod tests {
                 (got / want - 1.0).abs() < 0.05,
                 "domain {code}: {got} vs {want}"
             );
-            pooled.sort_by(f64::total_cmp);
             let table = normal_score::transform(&data, Some(&w)).unwrap().table;
-            for (q, z) in [
+            for (q, s) in [
                 (0.1, -1.281_551_565_545),
                 (0.5, 0.0),
                 (0.9, 1.281_551_565_545),
             ] {
-                let (got, want) = (pooled[(q * pooled.len() as f64) as usize], table.back(z));
+                let (got, want) = (pooled[(q * pooled.len() as f64) as usize], table.back(s));
                 assert!(
                     (got / want).ln().abs() < 0.1,
                     "domain {code} q{q}: {got} vs {want}"
@@ -1069,29 +1327,88 @@ mod tests {
     }
 
     #[test]
+    fn each_domain_reproduces_its_histogram_in_each_trend_class() {
+        let z = zoned();
+        let (classes, per) = (3, 20);
+        // Members of each class of each domain: equal declustered
+        // probability by trend, a datum in the class of its midpoint.
+        let members: Vec<Vec<Vec<usize>>> = (0..2)
+            .map(|code| {
+                let mut rows = z.of(code);
+                rows.sort_by(|&a, &b| z.trend[a].total_cmp(&z.trend[b]));
+                let total: f64 = rows.iter().map(|&i| z.weights[i]).sum();
+                let mut cum = 0.0;
+                let mut members = vec![vec![]; classes];
+                for &i in &rows {
+                    let p = cum + z.weights[i] / total / 2.0;
+                    cum += z.weights[i] / total;
+                    members[((p * classes as f64) as usize).min(classes - 1)].push(i);
+                }
+                members
+            })
+            .collect();
+        let groups = 2 * classes;
+        let grid: Vec<Point> = (0..groups * per)
+            .map(|i| (1e4 + 100.0 * i as f64, 1e4, 0.0))
+            .collect();
+        let nodes: Vec<u32> = (0..grid.len())
+            .map(|i| (i / per / classes) as u32)
+            .collect();
+        let node_trend: Vec<f64> = (0..grid.len())
+            .map(|i| {
+                let m = &members[i / per / classes][i / per % classes];
+                z.trend[m[m.len() / 2]]
+            })
+            .collect();
+        let all: Vec<usize> = (0..z.locs.len()).collect();
+        let search = zoned_search(None);
+        let reals: Vec<Vec<f64>> = (0..100)
+            .map(|seed| {
+                let trend = Some((&z.trend[..], &node_trend[..]));
+                run(
+                    &z,
+                    &all,
+                    &grid,
+                    Some((&z.codes, &nodes)),
+                    trend,
+                    &search,
+                    seed,
+                )
+            })
+            .collect();
+        for g in 0..groups {
+            let rows = &members[g / classes][g % classes];
+            let want = mean(&pick(&z.vals, rows), &pick(&z.weights, rows));
+            let got = pooled(&reals, g * per..(g + 1) * per);
+            let got = mean(&got, &vec![1.0; got.len()]);
+            assert!(
+                (got / want - 1.0).abs() < 0.1,
+                "domain {} class {}: {got} vs {want}",
+                g / classes,
+                g % classes
+            );
+        }
+    }
+
+    #[test]
     fn on_the_contact_a_node_takes_its_own_domain_datum() {
         let z = zoned();
-        let (grid, nodes) = zoned_grid();
-        let vg = Variogram::single(Model::Spherical, 1.0, 25.0);
-        for soft in [None, Some(estimation::Soft::All(f64::INFINITY))] {
-            let params = SgsParams {
-                search: zoned_search(soft),
-                seed: 5,
-            };
-            let r = sgs_in(
-                &z.locs,
-                &z.vals,
-                Some(&z.weights),
-                Some(&z.holes),
-                Some((&z.codes, &nodes)),
-                &grid,
-                &vg,
-                &params,
-                None,
-            )
-            .unwrap();
-            for (i, &code) in nodes.iter().enumerate().skip(625) {
-                assert_eq!(r.values[i], if code == 0 { 0.5 } else { 20.0 });
+        let (grid, nodes, node_trend) = zoned_grid();
+        let all: Vec<usize> = (0..z.locs.len()).collect();
+        for trend in [None, Some((&z.trend[..], &node_trend[..]))] {
+            for soft in [None, Some(estimation::Soft::All(f64::INFINITY))] {
+                let r = run(
+                    &z,
+                    &all,
+                    &grid,
+                    Some((&z.codes, &nodes)),
+                    trend,
+                    &zoned_search(soft),
+                    5,
+                );
+                for (i, &code) in nodes.iter().enumerate().skip(625) {
+                    assert_eq!(r[i], if code == 0 { 0.5 } else { 20.0 });
+                }
             }
         }
     }
@@ -1099,31 +1416,25 @@ mod tests {
     #[test]
     fn domains_follow_the_seed_not_the_thread_count() {
         let z = zoned();
-        let (grid, nodes) = zoned_grid();
-        let vg = Variogram::single(Model::Spherical, 1.0, 25.0);
+        let (grid, nodes, node_trend) = zoned_grid();
+        let all: Vec<usize> = (0..z.locs.len()).collect();
+        let search = zoned_search(Some(estimation::Soft::All(8.0)));
         let run = |threads, seed| {
             rayon::ThreadPoolBuilder::new()
                 .num_threads(threads)
                 .build()
                 .unwrap()
                 .install(|| {
-                    let params = SgsParams {
-                        search: zoned_search(Some(estimation::Soft::All(8.0))),
-                        seed,
-                    };
-                    sgs_in(
-                        &z.locs,
-                        &z.vals,
-                        Some(&z.weights),
-                        Some(&z.holes),
-                        Some((&z.codes, &nodes)),
+                    let trend = Some((&z.trend[..], &node_trend[..]));
+                    run(
+                        &z,
+                        &all,
                         &grid,
-                        &vg,
-                        &params,
-                        None,
+                        Some((&z.codes, &nodes)),
+                        trend,
+                        &search,
+                        seed,
                     )
-                    .unwrap()
-                    .values
                 })
         };
         let a = run(1, 3);
@@ -1132,34 +1443,44 @@ mod tests {
     }
 
     #[test]
-    fn a_node_domain_without_data_is_an_error() {
+    fn bad_domains_and_trends_are_errors() {
         let z = zoned();
         let grid = vec![(1.0, 1.0, 1.0), (2.0, 2.0, 1.0)];
-        let vg = Variogram::single(Model::Spherical, 1.0, 25.0);
         let search = zoned_search(None);
         let params = SgsParams {
             search: search.clone(),
             seed: 1,
         };
-        let run = |nodes: &[u32], codes: &[u32]| {
+        let run = |nodes: &[u32], codes: &[u32], trend: Option<Trend>| {
             sgs_in(
                 &z.locs,
                 &z.vals,
                 None,
                 None,
                 Some((codes, nodes)),
+                trend,
                 &grid,
-                &vg,
+                &vg(),
                 &params,
                 None,
             )
         };
-        assert!(run(&[0, 1], &z.codes).is_ok());
-        assert!(run(&[0, 2], &z.codes).is_err());
-        assert!(run(&[0], &z.codes).is_err());
-        assert!(run(&[0, 1], &z.codes[1..]).is_err());
+        let trend = |data, nodes| {
+            Some(Trend {
+                data,
+                nodes,
+                classes: 3,
+            })
+        };
+        assert!(run(&[0, 1], &z.codes, None).is_ok());
+        assert!(run(&[0, 1], &z.codes, trend(&z.trend, &[0.1, 0.2])).is_ok());
+        assert!(run(&[0, 2], &z.codes, None).is_err());
+        assert!(run(&[0], &z.codes, None).is_err());
+        assert!(run(&[0, 1], &z.codes[1..], None).is_err());
+        assert!(run(&[0, 1], &z.codes, trend(&z.trend, &[0.1])).is_err());
+        assert!(run(&[0, 1], &z.codes, trend(&z.trend[1..], &[0.1, 0.2])).is_err());
         let domains = Some((&z.codes[..], &[0, 2][..]));
-        let passes = sgs_passes(&z.locs, &z.vals, None, domains, &grid, &vg, &search, None);
+        let passes = sgs_passes(&z.locs, &z.vals, None, domains, &grid, &vg(), &search, None);
         assert!(passes.is_err());
     }
 }
