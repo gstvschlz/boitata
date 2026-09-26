@@ -106,7 +106,7 @@ logs = cs.PointSet(coords, {"chalcocite": pair[:, 0], "tennantite": pair[:, 1]})
 
 runs = {}
 for name, transform in {"PPMT": cs.PPMT(seed=7), "PCA": cs.PCA(standardize=True)}.items():
-    f = transform.fit(pair, weights=weights).transform(pair)
+    f = transform.fit_transform(pair, weights=weights)
     variograms = [cs.experimental_variogram(coords, f[:, j], 25.0, 300.0).fit("spherical") for j in range(2)]
     simulation = cs.MultivariateSimulation(transform, [cs.TurningBands(v, search=search) for v in variograms])
     runs[name] = simulation.fit(logs, ["chalcocite", "tennantite"], weights=weights)
@@ -267,7 +267,7 @@ complete composites.
 <details><summary>Python</summary>
 
 ```python
-f = cs.PPMT(seed=7).fit(pair[~hidden], weights=weights[~hidden]).transform(pair[~hidden])
+f = cs.PPMT(seed=7).fit_transform(pair[~hidden], weights=weights[~hidden])
 variograms = [
     cs.experimental_variogram(coords[~hidden], f[:, j], 25.0, 300.0).fit("spherical") for j in range(2)
 ]

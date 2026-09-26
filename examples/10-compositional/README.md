@@ -32,8 +32,8 @@ The way back must return every composition.
 
 ```python
 coords = cs.ilr(composition)
-ppmt = cs.PPMT(iterations=40, seed=7).fit(coords)
-gauss = ppmt.transform(coords)
+ppmt = cs.PPMT(iterations=40, seed=7)
+gauss = ppmt.fit_transform(coords)
 back = cs.ilr_inverse(ppmt.inverse_transform(gauss)) * 100
 print(f"round trip max error {np.abs(back - composition).max():.2e} %")
 ```

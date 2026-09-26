@@ -15,7 +15,7 @@ samples = cs.datasets.walker_lake()
 truth = cs.datasets.walker_lake_exhaustive()["V"].reshape(300, 260)
 xy, v = samples.coords, samples["V"]
 azimuth = cs.Variogram.from_json((HERE.parent / "03-variography" / "model.json").read_text()).rotation[0]
-weights = cs.cell_declustering(xy, v, sizes=np.arange(2.5, 102.5, 2.5)).weights
+weights = cs.cell_declustering(samples, "V", sizes=np.arange(2.5, 102.5, 2.5)).weights
 ```
 
 </details>
@@ -174,8 +174,7 @@ d = kriged.predict(panels, diagnostics=True)
 panels = panels.with_columns({"V": d["value"], "estimate_variance": d["estimate_variance"]})
 uc = cs.UniformConditioning(anam, r_smu=r)
 curves = uc.grade_tonnage(panels, "V", cutoffs, estimate_variance="estimate_variance")
-uc_tonnage = np.nanmean(curves["tonnage"], axis=0)
-uc_grade = np.nanmean(curves["metal"], axis=0) / uc_tonnage
+uc_tonnage, uc_grade = curves["tonnage"] / panels.volumes.sum(), curves["mean_grade"]
 
 true_smu = truth[:, :250].reshape(30, size, 25, size).mean(axis=(1, 3))
 smus = panels.discretize(5)
@@ -235,7 +234,7 @@ blocks reproduce its grade-tonnage curve:
 
 ```python
 smus = smus.with_column("kriged", direct)
-local = uc.localize(panels, "V", smus, "kriged", estimate_variance="estimate_variance", name="localized")
+local = uc.localize(smus, "kriged", panels, "V", estimate_variance="estimate_variance")
 localized = local["localized"]
 for label, values in (("kriged", direct), ("localized", localized)):
     print(
@@ -289,7 +288,7 @@ indicators = [
 ]
 mik = cs.MultipleIndicatorKriging(indicators, search, deciles, tails=(0.0, v.max()))
 mik.fit(xy, v, weights=weights)
-local = mik.localize(panels, smus, "kriged", variance_factor=raw, name="mik")
+local = mik.localize(smus, "kriged", panels, variance_factor=raw, name="mik")
 by_mik = local["mik"]
 for label, values in (("uniform conditioning", localized), ("indicator kriging", by_mik)):
     print(
@@ -339,7 +338,7 @@ and its blocks the spread the simulation gives them:
 ```python
 west = cs.BlockModel(origin=(0.5, 0.5), size=(2.5, 2.5), count=(100, 120))
 ensemble = sgs.simulate(west, n=30, seed=11, blocks=smus, realizations=True)
-simulated = cs.localize(smus, "kriged", ensemble.realizations, panels)["localized"]
+simulated = cs.localize(smus, "kriged", panels, ensemble.realizations)["localized"]
 print(
     f"localized simulation: variance {simulated.var():.0f}, "
     f"correlation with truth {np.corrcoef(simulated, true_smu.ravel())[0, 1]:.2f}"

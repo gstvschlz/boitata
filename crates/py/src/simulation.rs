@@ -1591,12 +1591,12 @@ fn gibbs<'py>(
 /// ranking : str
 ///     Column of `smus` ordering the blocks within a panel, such as a direct
 ///     kriging or the E-type mean of the realizations; ties follow row order.
+/// panels : BlockModel
 /// realizations : array_like
 ///     ``(n, len(smus))`` realizations at selective-block support, as from
 ///     ``simulate(..., blocks=smus, realizations=True).realizations``.
-/// panels : BlockModel
-/// name : str, optional
-///     Name of the new column; ``"localized"`` by default.
+/// name : str, default "localized"
+///     Name of the new column.
 ///
 /// Returns
 /// -------
@@ -1609,14 +1609,14 @@ fn gibbs<'py>(
 ///     If the blocks do not nest, a block inside a panel has a null rank, or
 ///     the realizations are not finite.
 #[pyfunction]
-#[pyo3(signature = (smus, ranking, realizations, panels, name=None))]
+#[pyo3(signature = (smus, ranking, panels, realizations, *, name="localized"))]
 fn localize(
     py: Python,
     smus: PyRef<PyBlockModel>,
     ranking: &str,
-    realizations: &Bound<PyAny>,
     panels: PyRef<PyBlockModel>,
-    name: Option<&str>,
+    realizations: &Bound<PyAny>,
+    name: &str,
 ) -> PyResult<PyBlockModel> {
     let rank = crate::transforms::nullable(&smus, ranking)?;
     let reals = rows(realizations, "realizations")?;
@@ -1627,7 +1627,7 @@ fn localize(
     let column: arrow_array::Float64Array = out.into_iter().collect();
     Ok(PyBlockModel(
         smus.0
-            .with_column(name.unwrap_or("localized"), std::sync::Arc::new(column))
+            .with_column(name, std::sync::Arc::new(column))
             .map_err(invalid)?,
     ))
 }

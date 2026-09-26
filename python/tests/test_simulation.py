@@ -63,7 +63,7 @@ def test_localize_realizations_within_panels():
     smus = panels.discretize(5)
     s = sgs.simulate(grid, n=8, seed=2, realizations=True, blocks=smus)
     smus = smus.with_column("etype", s.mean)
-    out = cs.localize(smus, "etype", s.realizations, panels)
+    out = cs.localize(smus, "etype", panels, s.realizations)
     owner, local = smus["block"].astype(int), out["localized"]
     for p in range(4):
         mine = owner == p
@@ -72,15 +72,15 @@ def test_localize_realizations_within_panels():
         by_rank = local[mine][np.argsort(s.mean[mine], kind="stable")]
         np.testing.assert_allclose(by_rank, pooled.reshape(25, 8).mean(axis=1), rtol=1e-12)
 
-    one = cs.localize(smus, "etype", s.realizations[:1], panels, name="one")["one"]
+    one = cs.localize(smus, "etype", panels, s.realizations[:1], name="one")["one"]
     for p in range(4):
         mine = owner == p
         by_rank = one[mine][np.argsort(s.mean[mine], kind="stable")]
         np.testing.assert_array_equal(by_rank, np.sort(s.realizations[0, mine]))
     with pytest.raises(cs.InvalidInput):
-        cs.localize(smus, "etype", s.realizations[:, 1:], panels)
+        cs.localize(smus, "etype", panels, s.realizations[:, 1:])
     with pytest.raises(KeyError):
-        cs.localize(smus, "missing", s.realizations, panels)
+        cs.localize(smus, "missing", panels, s.realizations)
 
 
 def test_turning_bands_summary():

@@ -13,7 +13,7 @@ from common import ACCENT, GRAY, HIGHLIGHT, INK, LIGHT, save
 
 samples = cs.datasets.walker_lake()
 v = samples["V"]
-w = cs.cell_declustering(samples.coords, v, sizes=np.arange(2.5, 102.5, 2.5)).weights
+w = cs.cell_declustering(samples, "V", sizes=np.arange(2.5, 102.5, 2.5)).weights
 
 ns = cs.NormalScore()
 y = ns.fit_transform(v, weights=w)

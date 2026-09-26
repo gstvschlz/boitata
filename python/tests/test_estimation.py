@@ -710,7 +710,7 @@ def test_multiple_indicator_localization():
     n, f = 25, 0.4
     k = np.arange(1, n)
     s = mik.predict(panels, quantiles=list(1 - k / n))
-    out = mik.localize(panels, smus, "rank", variance_factor=f)["localized"]
+    out = mik.localize(smus, "rank", panels, variance_factor=f)["localized"]
     for p, m in enumerate(s.mean):
         mine = owner == p
         if np.isnan(m):
@@ -724,17 +724,17 @@ def test_multiple_indicator_localization():
         np.testing.assert_allclose(top, m + np.sqrt(f) * (point.mean_above[:, 0] - m), atol=1e-9)
     assert np.isnan(s.mean).any() and not np.isnan(s.mean).all()
 
-    point = mik.localize(panels, smus, "rank", variance_factor=1.0)["localized"]
-    derived = mik.localize(panels, smus, "rank", variance_factor=model)["localized"]
-    default = mik.localize(panels, smus, "rank", name="g")["g"]
+    point = mik.localize(smus, "rank", panels, variance_factor=1.0)["localized"]
+    derived = mik.localize(smus, "rank", panels, variance_factor=model)["localized"]
+    default = mik.localize(smus, "rank", panels, name="g")["g"]
     np.testing.assert_array_equal(derived, default)
     ok = ~np.isnan(point)
     assert 0 < np.var((derived - s.mean[owner])[ok]) < np.var((point - s.mean[owner])[ok])
     with pytest.raises(cs.InvalidInput):
-        mik.localize(panels, smus, "rank", variance_factor=1.5)
+        mik.localize(smus, "rank", panels, variance_factor=1.5)
     with pytest.raises(cs.InvalidInput):
         shifted = cs.BlockModel(origin=(3, 0), size=(5, 5), count=(4, 4)).with_column("rank", np.zeros(16))
-        mik.localize(panels, shifted, "rank")
+        mik.localize(shifted, "rank", panels)
 
 
 def test_block_multiple_indicator_kriging():
@@ -748,7 +748,7 @@ def test_block_multiple_indicator_kriging():
         block = mik.predict(panels, discretization=(4, 4, 1), diagnostics=True)
         assert block.cdf[1].var() < point.cdf[1].var() and block.diagnostics is not None
     smus = panels.discretize(5).with_column("rank", rng.normal(size=400))
-    local = mik.localize(panels, smus, "rank", discretization=(4, 4, 1))["localized"]
+    local = mik.localize(smus, "rank", panels, discretization=(4, 4, 1))["localized"]
     owner = smus["block"].astype(int)
     for p, m in enumerate(block.mean):
         assert local[owner == p].mean() == pytest.approx(m, abs=1e-9)

@@ -37,6 +37,24 @@ def test_normal_score_is_standard_and_invertible(skewed):
     np.testing.assert_allclose(ns.transform(skewed), y, atol=1e-12)
 
 
+@pytest.mark.parametrize(
+    ("make", "args"),
+    [
+        (lambda: cs.HermiteAnamorphosis(), lambda x, xy: (x[:, 0],)),
+        (lambda: cs.BoxCox(), lambda x, xy: (x[:, 0],)),
+        (lambda: cs.PPMT(iterations=5), lambda x, xy: (x,)),
+        (lambda: cs.PCA(), lambda x, xy: (x,)),
+        (lambda: cs.MAF(lag=10.0), lambda x, xy: (x, xy)),
+        (lambda: cs.StepwiseConditional(classes=5), lambda x, xy: (x,)),
+        (lambda: cs.GaussianImputer(seed=2), lambda x, xy: (np.where(np.eye(200, 2) > 0, np.nan, x),)),
+    ],
+)
+def test_fit_transform_is_fit_then_transform(make, args):
+    x = rng.lognormal(0.0, 0.5, (200, 2))
+    a = args(x, rng.uniform(0, 100, (200, 2)))
+    np.testing.assert_array_equal(make().fit_transform(*a), make().fit(*a).transform(a[0]))
+
+
 def test_normal_score_requires_fit():
     with pytest.raises(cs.InvalidInput):
         cs.NormalScore().transform([1.0])
@@ -127,6 +145,13 @@ def test_cell_declustering_downweights_clusters():
     assert d.mean < values.mean()
     assert d.weights.sum() == pytest.approx(len(values))
     assert len(d.sizes) == len(d.means) == 9
+    points = cs.PointSet(coords, {"v": values})
+    named = cs.cell_declustering(points, "v", sizes=np.arange(5.0, 50.0, 5.0))
+    np.testing.assert_array_equal(named.weights, d.weights)
+    np.testing.assert_array_equal(
+        cs.polygon_declustering(points, "v", nodes=400).weights,
+        cs.polygon_declustering(coords, values, nodes=400).weights,
+    )
 
 
 def test_detrend_removes_linear_trend():
@@ -134,6 +159,7 @@ def test_detrend_removes_linear_trend():
     values = 3.0 + 0.5 * coords[:, 0] - 0.2 * coords[:, 1]
     trend, residuals = cs.detrend(coords, values, degree=1)
     assert np.abs(residuals).max() < 1e-8
+    np.testing.assert_array_equal(cs.detrend(cs.PointSet(coords, {"v": values}), "v")[1], residuals)
     np.testing.assert_allclose(trend.predict(coords), values, atol=1e-8)
 
 
@@ -145,9 +171,11 @@ def test_normal_cdf_and_ppf_are_inverse():
 
 def test_upscale_conserves_samples():
     coords = rng.uniform(0, 20, size=(100, 2))
-    centers, means, counts = cs.upscale(coords, np.ones(100), block_size=(10, 10, 1))
+    centers, means, counts = cs.upscale(coords, np.ones(100), (10, 10, 1))
     assert counts.sum() == 100 and np.allclose(means, 1.0)
     assert centers.shape[1] == 3
+    named = cs.upscale(cs.PointSet(coords, {"v": np.ones(100)}), "v", (10, 10, 1), origin=(0, 0, 0))
+    np.testing.assert_array_equal(named[2], counts)
 
 
 def test_affine_correction_scales_variance(skewed):
@@ -192,7 +220,7 @@ def uc_panels(skewed):
 def test_uniform_conditioning_localizes_band_means(skewed):
     anam, panels, smus = uc_panels(skewed)
     uc = cs.UniformConditioning(anam, 0.8, 0.5)
-    out = uc.localize(panels, "grade", smus, "rank", name="uc")
+    out = uc.localize(smus, "rank", panels, "grade", name="uc")
     owner, rank, local = smus["block"].astype(int), out["rank"], out["uc"]
     for p, g in enumerate(panels["grade"]):
         mine = owner == p
@@ -204,8 +232,8 @@ def test_uniform_conditioning_localizes_band_means(skewed):
         np.testing.assert_allclose(by_rank, uc.localized_grades(g, 25), rtol=1e-12)
         assert (np.diff(by_rank) >= 0).all()
 
-    tied = uc.localize(panels, "grade", smus.with_column("rank", np.zeros(len(smus))), "rank")
-    assert (np.diff(tied["grade"][owner == 0]) >= 0).all()
+    tied = uc.localize(smus.with_column("rank", np.zeros(len(smus))), "rank", panels, "grade")
+    assert (np.diff(tied["localized"][owner == 0]) >= 0).all()
 
 
 def test_uniform_conditioning_per_panel_coefficient(skewed):
@@ -213,17 +241,28 @@ def test_uniform_conditioning_per_panel_coefficient(skewed):
     uc = cs.UniformConditioning(anam, 0.8)
     cutoffs = [0.5, 1.0, 2.0]
     curves = uc.grade_tonnage(panels, "grade", cutoffs, estimate_variance="ev")
-    assert curves["tonnage"].shape == (12, 3) and np.isnan(curves["metal"][5]).all()
-    one = uc.panel_recovery(panels["grade"][0], cutoffs, estimate_variance=panels["ev"][0])
-    np.testing.assert_allclose(curves["metal"][0], one["metal"], rtol=1e-12)
-    out = uc.localize(panels, "grade", smus, "rank", estimate_variance="ev")
-    assert out["grade"][smus["block"] == 0].mean() == pytest.approx(panels["grade"][0], rel=1e-9)
+    each = [
+        uc.panel_recovery(g, cutoffs, estimate_variance=e)
+        for g, e in zip(panels["grade"], panels["ev"], strict=True)
+        if np.isfinite(g)
+    ]
+    for key in ("tonnage", "metal", "benefit"):
+        np.testing.assert_allclose(curves[key], 2500 * sum(r[key] for r in each), rtol=1e-12)
+    np.testing.assert_allclose(curves["metal"], curves["tonnage"] * curves["mean_grade"], rtol=1e-12)
+    np.testing.assert_allclose(curves["benefit"], curves["metal"] - curves["cutoff"] * curves["tonnage"])
+    dense = uc.grade_tonnage(
+        panels.with_column("d", np.full(12, 2.7)), "grade", cutoffs, estimate_variance="ev", density="d"
+    )
+    np.testing.assert_allclose(dense["tonnage"], 2.7 * curves["tonnage"], rtol=1e-12)
+    np.testing.assert_allclose(dense["mean_grade"], curves["mean_grade"], rtol=1e-12)
+    out = uc.localize(smus, "rank", panels, "grade", estimate_variance="ev")
+    assert out["localized"][smus["block"] == 0].mean() == pytest.approx(panels["grade"][0], rel=1e-9)
     with pytest.raises(cs.InvalidInput):
-        uc.localize(panels, "grade", smus, "rank")
+        uc.localize(smus, "rank", panels, "grade")
     with pytest.raises(cs.InvalidInput):
         cs.UniformConditioning(anam, 0.8, 0.5).grade_tonnage(panels, "grade", cutoffs, estimate_variance="ev")
     with pytest.raises(KeyError):
-        uc.localize(panels, "grade", smus, "missing", estimate_variance="ev")
+        uc.localize(smus, "missing", panels, "grade", estimate_variance="ev")
 
 
 def test_uniform_conditioning_needs_nested_ranked_blocks(skewed):
@@ -231,11 +270,11 @@ def test_uniform_conditioning_needs_nested_ranked_blocks(skewed):
     uc = cs.UniformConditioning(anam, 0.8, 0.5)
     shifted = cs.BlockModel(origin=(5, 0), size=(10, 10), count=(20, 15)).with_column("rank", np.zeros(300))
     with pytest.raises(cs.InvalidInput):
-        uc.localize(panels, "grade", shifted, "rank")
+        uc.localize(shifted, "rank", panels, "grade")
     rank = smus["rank"]
     rank[np.flatnonzero(smus["block"] == 0)[0]] = np.nan
     with pytest.raises(cs.InvalidInput):
-        uc.localize(panels, "grade", smus.with_column("rank", rank), "rank")
+        uc.localize(smus.with_column("rank", rank), "rank", panels, "grade")
 
 
 def test_normal_score_tails_bound_the_back_transform(skewed):
@@ -260,6 +299,6 @@ def test_block_kriging_estimate_variance_feeds_uniform_conditioning(skewed):
     panels = panels.with_column("V", d["value"]).with_column("ev", d["estimate_variance"])
     smus = panels.discretize(5)
     smus = smus.with_column("rank", rng.normal(size=len(smus)))
-    out = cs.UniformConditioning(anam, 0.9).localize(panels, "V", smus, "rank", estimate_variance="ev")
-    means = np.bincount(smus["block"].astype(int), weights=out["V"]) / 25
+    out = cs.UniformConditioning(anam, 0.9).localize(smus, "rank", panels, "V", estimate_variance="ev")
+    means = np.bincount(smus["block"].astype(int), weights=out["localized"]) / 25
     np.testing.assert_allclose(means, d["value"], rtol=1e-9)
