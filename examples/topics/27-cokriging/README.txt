@@ -1,1 +1,1 @@
-## 27. Cokriging and indicator kriging
+## 27. Cokriging

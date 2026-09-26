@@ -25,10 +25,13 @@ Tutorials follow one deposit from data to a result; topics show one feature each
 | 18 | [Experimental variograms](topics/18-experimental-variograms/README.md) | Walker Lake | `variogram_map`, `experimental_variogram`, `plot.variogram` |
 | 19 | [Variogram fitting](topics/19-variogram-fitting/README.md) | Walker Lake | `variogram_map`, `experimental_variogram`, `plot.variogram`, `Variogram` |
 | 20 | [Downhole nugget](topics/20-downhole-nugget/README.md) | Nickel laterite profile | `merge_intervals`, `Drillholes`, `experimental_variogram` |
+| 21 | [Coregionalization](topics/21-coregionalization/README.md) | Jura | `experimental_variogram`, `Coregionalization`, `plot.variogram` |
 | | **Estimation** | | |
 | 22 | [Ordinary kriging](topics/22-ordinary-kriging/README.md) | Walker Lake | `Variogram`, `BlockModel`, `Search`, `OrdinaryKriging`, `plot.scatter` |
 | 23 | [Estimation methods and search](topics/23-simple-estimators/README.md) | Walker Lake | `Variogram`, `BlockModel`, `Search`, `NearestNeighbor`, `InverseDistance`, `OrdinaryKriging`, `UniversalKriging`, `BlockKriging` |
-| 27 | [Cokriging and indicator kriging](topics/27-cokriging/README.md) | Jura | `experimental_variogram`, `Coregionalization`, `Search`, `OrdinaryKriging`, `Cokriging`, `plot.variogram`, `IndicatorKriging`, `cell_declustering`, `MultipleIndicatorKriging`, `BlockModel` |
+| 27 | [Cokriging](topics/27-cokriging/README.md) | Jura | `experimental_variogram`, `Coregionalization`, `Search`, `OrdinaryKriging`, `Cokriging` |
+| 28 | [Indicator kriging](topics/28-indicator-kriging/README.md) | Jura | `experimental_variogram`, `Search`, `IndicatorKriging` |
+| 29 | [Multiple indicator kriging](topics/29-multiple-indicator-kriging/README.md) | Jura | `Search`, `cell_declustering`, `experimental_variogram`, `MultipleIndicatorKriging`, `OrdinaryKriging`, `BlockModel` |
 | 31 | [Locally varying anisotropy](topics/31-local-anisotropy/README.md) | Walker Lake | `Variogram`, `BlockModel`, `OrdinaryKriging`, `Search`, `LocalAnisotropy`, `plot.directions`, `cell_declustering`, `SGS` |
 | | **Change of support** | | |
 | 32 | [Discrete Gaussian model](topics/32-discrete-gaussian-model/README.md) | Walker Lake | `cell_declustering`, `HermiteAnamorphosis`, `experimental_variogram`, `Variogram`, `change_of_support` |
