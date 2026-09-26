@@ -38,6 +38,45 @@ pub struct Search {
     /// Samples above a threshold only inform targets within a smaller radius.
     #[serde(default)]
     pub high_grade: Option<HighGrade>,
+    /// Samples of another domain than the target's only inform it within a
+    /// distance; without it domain boundaries are hard.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub soft: Option<Soft>,
+}
+
+/// Soft domain boundaries: a sample of another domain informs a target only
+/// when strictly closer than the distance of their pair, measured in the
+/// same ellipsoid as [`Search::radius`], so 0 is a hard boundary and
+/// infinity pools the domains. Pairs not listed are hard.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Soft<L = u32> {
+    /// One distance for every pair of domains, both ways.
+    All(#[serde(with = "ceres_core::nonfinite")] f64),
+    /// Distances from a target's domain to a sample's domain, one way.
+    Pairs(Vec<SoftPair<L>>),
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct SoftPair<L = u32> {
+    pub target: L,
+    pub sample: L,
+    #[serde(with = "ceres_core::nonfinite")]
+    pub distance: f64,
+}
+
+impl<L: PartialEq> Soft<L> {
+    /// Distance within which samples of domain `sample` inform targets of
+    /// domain `target`; 0 when the pair is hard.
+    pub fn distance(&self, target: &L, sample: &L) -> f64 {
+        match self {
+            Soft::All(d) => *d,
+            Soft::Pairs(pairs) => pairs
+                .iter()
+                .find(|p| p.target == *target && p.sample == *sample)
+                .map_or(0.0, |p| p.distance),
+        }
+    }
 }
 
 /// Samples valued above `threshold` are used only within `radius`, measured in
@@ -61,14 +100,25 @@ impl Default for Search {
             octant: false,
             anisotropy: None,
             high_grade: None,
+            soft: None,
         }
     }
 }
 
 impl Search {
-    fn excludes(&self, value: f64, distance: f64) -> bool {
-        self.high_grade
-            .is_some_and(|h| value > h.threshold && distance > h.radius)
+    /// Whether a sample of `value` and `domain` at `distance` may inform a
+    /// target of domain `target` under the high-grade and soft-boundary rules.
+    fn admits(&self, target: Option<u32>, value: f64, domain: Option<u32>, distance: f64) -> bool {
+        let high = self
+            .high_grade
+            .is_some_and(|h| value > h.threshold && distance > h.radius);
+        let reached = match (target, domain) {
+            (Some(t), Some(s)) if t != s => {
+                distance < self.soft.as_ref().map_or(0.0, |r| r.distance(&t, &s))
+            }
+            _ => true,
+        };
+        !high && reached
     }
 }
 
@@ -146,6 +196,18 @@ pub fn neighbors(
     params: &Search,
     vg: Option<&Variogram>,
 ) -> Result<Vec<usize>> {
+    neighbors_in(target, None, samples, params, vg)
+}
+
+/// As [`neighbors`] for a target of `domain`: samples of other domains are
+/// kept only within [`Search::soft`].
+pub fn neighbors_in(
+    target: &Point,
+    domain: Option<u32>,
+    samples: &[Sample],
+    params: &Search,
+    vg: Option<&Variogram>,
+) -> Result<Vec<usize>> {
     let aniso = metric(params, vg);
     let mut cand: Vec<(usize, f64)> = samples
         .iter()
@@ -157,7 +219,10 @@ pub fn neighbors(
             };
             (i, d)
         })
-        .filter(|&(i, d)| d <= params.radius && !params.excludes(samples[i].value, d))
+        .filter(|&(i, d)| {
+            let s = &samples[i];
+            d <= params.radius && params.admits(domain, s.value, s.domain, d)
+        })
         .collect();
     cand.sort_by(|a, b| a.1.total_cmp(&b.1));
     let chosen = select(
@@ -182,6 +247,7 @@ pub struct SearchTree {
     locs: Vec<Point>,
     holes: Vec<Option<u32>>,
     values: Vec<f64>,
+    domains: Vec<Option<u32>>,
     params: Search,
 }
 
@@ -437,6 +503,7 @@ impl SearchTree {
             locs,
             holes: samples.iter().map(|s| s.hole).collect(),
             values: samples.iter().map(|s| s.value).collect(),
+            domains: samples.iter().map(|s| s.domain).collect(),
             params: params.clone(),
         }
     }
@@ -452,6 +519,7 @@ impl SearchTree {
         self.locs.push(sample.loc);
         self.holes.push(sample.hole);
         self.values.push(sample.value);
+        self.domains.push(sample.domain);
         if !self.index.add(&self.points) {
             self.index = Index::new(&self.points);
         }
@@ -471,8 +539,14 @@ impl SearchTree {
 
     /// Selection by a per-query ellipsoid `local` (major = 1, other ratios ≤ 1)
     /// for a tree built without anisotropy: every sample in the sphere of
-    /// `radius` is re-ranked by its local distance.
-    pub fn neighbors_within(&self, target: &Point, local: &Anisotropy) -> Result<Vec<usize>> {
+    /// `radius` is re-ranked by its local distance. `domain` is the target's,
+    /// as in [`neighbors_in`].
+    pub fn neighbors_within(
+        &self,
+        target: &Point,
+        domain: Option<u32>,
+        local: &Anisotropy,
+    ) -> Result<Vec<usize>> {
         let params = &self.params;
         let query = self.project(target);
         let radius2 = params.radius * params.radius;
@@ -480,7 +554,7 @@ impl SearchTree {
             .candidates(&query, self.len(), radius2)
             .into_iter()
             .map(|(_, i)| (local.lag(target, &self.locs[i]), i))
-            .filter(|&(d, i)| d <= params.radius && !params.excludes(self.values[i], d))
+            .filter(|&(d, i)| d <= params.radius && self.admits(domain, i, d))
             .collect();
         found.sort_by(|a, b| a.0.total_cmp(&b.0).then(a.1.cmp(&b.1)));
         let chosen = select(
@@ -493,13 +567,26 @@ impl SearchTree {
         enough(chosen, params)
     }
 
+    fn admits(&self, domain: Option<u32>, i: usize, distance: f64) -> bool {
+        self.params
+            .admits(domain, self.values[i], self.domains[i], distance)
+    }
+
     /// Same selection as [`neighbors`] over the indexed samples.
     pub fn neighbors(&self, target: &Point) -> Result<Vec<usize>> {
+        self.neighbors_in(target, None)
+    }
+
+    /// Same selection as [`neighbors_in`] over the indexed samples.
+    pub fn neighbors_in(&self, target: &Point, domain: Option<u32>) -> Result<Vec<usize>> {
         let params = &self.params;
         if self.is_empty() || params.max_samples == 0 {
             return enough(vec![], params);
         }
-        let capped = params.octant || params.max_per_hole.is_some() || params.high_grade.is_some();
+        let capped = params.octant
+            || params.max_per_hole.is_some()
+            || params.high_grade.is_some()
+            || domain.is_some();
         let query = self.project(target);
         let radius2 = params.radius * params.radius;
         let mut k = if capped {
@@ -518,7 +605,7 @@ impl SearchTree {
                     .into_iter()
                     .filter(|&(_, i)| {
                         let d2: f64 = (0..3).map(|d| (self.points[i][d] - query[d]).powi(2)).sum();
-                        !params.excludes(self.values[i], d2.sqrt())
+                        self.admits(domain, i, d2.sqrt())
                     })
                     .map(|f| f.1),
                 |i| self.locs[i],
@@ -544,6 +631,7 @@ mod tests {
             value: v,
             hole,
             error_variance: 0.0,
+            domain: None,
         }
     }
 
@@ -615,6 +703,7 @@ mod tests {
                     value: (i % 10) as f64,
                     hole: Some((i / 20) as u32),
                     error_variance: 0.0,
+                    domain: Some(zone(&loc)),
                 }
             })
             .collect();
@@ -639,20 +728,44 @@ mod tests {
                     threshold: 7.0,
                     radius: 40.0,
                 }),
-                anisotropy: Some(aniso),
+                anisotropy: Some(aniso.clone()),
                 ..params(1, 12, 150.0)
+            },
+            Search {
+                soft: Some(Soft::All(60.0)),
+                anisotropy: Some(aniso),
+                ..params(1, 16, 150.0)
+            },
+            Search {
+                soft: Some(Soft::Pairs(vec![SoftPair {
+                    target: 1,
+                    sample: 2,
+                    distance: 80.0,
+                }])),
+                octant: true,
+                high_grade: Some(HighGrade {
+                    threshold: 7.0,
+                    radius: 40.0,
+                }),
+                ..params(1, 24, 200.0)
             },
         ];
         for p in &cases {
             let tree = SearchTree::new(&samples, p, None);
             for _ in 0..200 {
                 let t = (next() * 1000.0, next() * 1000.0, next() * 100.0);
-                assert_eq!(
-                    tree.neighbors(&t).ok(),
-                    neighbors(&t, &samples, p, None).ok()
-                );
+                for d in [None, Some(zone(&t))] {
+                    assert_eq!(
+                        tree.neighbors_in(&t, d).ok(),
+                        neighbors_in(&t, d, &samples, p, None).ok()
+                    );
+                }
             }
         }
+    }
+
+    fn zone(p: &Point) -> u32 {
+        ((p.0 + p.1) / 400.0) as u32 % 3
     }
 
     #[test]

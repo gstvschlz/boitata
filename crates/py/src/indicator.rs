@@ -99,7 +99,10 @@ impl MultipleIndicatorKriging {
         model.validate().map_err(invalid)?;
         Ok(Self {
             model,
-            search: searches(search)?,
+            search: searches(search)?
+                .into_iter()
+                .map(|s| s.plain("MultipleIndicatorKriging"))
+                .collect::<PyResult<_>>()?,
             samples: None,
         })
     }

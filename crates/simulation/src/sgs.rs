@@ -72,6 +72,7 @@ pub fn sgs(
             value: score,
             hole: None,
             error_variance: 0.0,
+            domain: None,
         })
         .collect();
     if local.is_some_and(|l| l.len() != grid.len()) {
@@ -105,7 +106,7 @@ pub fn sgs(
         // 3. Kriging from neighbors (simple kriging, mean 0 in Gaussian space).
         let aniso = local.map(|l| l.anisotropy(node));
         let found = match &aniso {
-            Some(a) => tree.neighbors_within(&target, a),
+            Some(a) => tree.neighbors_within(&target, None, a),
             None => tree.neighbors(&target),
         };
         let vg_node = aniso.map(|a| Variogram {
@@ -137,6 +138,7 @@ pub fn sgs(
             value: score,
             hole: None,
             error_variance: 0.0,
+            domain: None,
         };
         tree.add(&sample);
         cond.push(sample);
@@ -189,6 +191,7 @@ mod tests {
                 octant: false,
                 anisotropy: None,
                 high_grade: None,
+                soft: None,
             },
             seed: 42,
         };
@@ -216,6 +219,7 @@ mod tests {
                 octant: false,
                 anisotropy: None,
                 high_grade: None,
+                soft: None,
             },
             seed: 7,
         };
@@ -239,6 +243,7 @@ mod tests {
                 octant: false,
                 anisotropy: None,
                 high_grade: None,
+                soft: None,
             },
             seed,
         };
@@ -321,6 +326,7 @@ mod tests {
                 octant: false,
                 anisotropy: None,
                 high_grade: None,
+                soft: None,
             },
             seed: 4,
         };

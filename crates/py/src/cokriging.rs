@@ -78,7 +78,7 @@ impl Cokriging {
         };
         Ok(Self {
             model,
-            search: search.0,
+            search: search.plain("Cokriging")?,
             kind,
             samples: None,
         })
@@ -264,7 +264,7 @@ impl Disjunctive {
         Ok(Self {
             engine: estimation::DisjunctiveKriging::new(anamorphosis.inner()?),
             variogram: variogram.0,
-            search: search.0,
+            search: search.plain("DisjunctiveKriging")?,
             order,
             samples: None,
         })

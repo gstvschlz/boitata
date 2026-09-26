@@ -391,9 +391,11 @@ impl LocalAnisotropy {
 }
 
 /// As [`crate::estimate_many`], with target `i` using `local[i]` for its
-/// variogram and its search ellipsoid (`search.radius` along the major axis).
+/// variogram and its search ellipsoid (`search.radius` along the major axis),
+/// and `domains` as there.
 pub fn estimate_many_local<F, T>(
     targets: &[Point],
+    domains: Option<&[u32]>,
     local: &LocalAnisotropy,
     samples: &[Sample],
     search: &Search,
@@ -417,7 +419,9 @@ where
         .enumerate()
         .map(|(i, target)| {
             let aniso = local.anisotropy(i);
-            let chosen = tree.neighbors_within(target, &aniso).ok()?;
+            let chosen = tree
+                .neighbors_within(target, domains.map(|d| d[i]), &aniso)
+                .ok()?;
             let selected: Vec<Sample> = chosen.iter().map(|&k| samples[k].clone()).collect();
             let vg = Variogram {
                 anisotropy: Some(aniso),
@@ -564,7 +568,7 @@ mod tests {
         );
         for t in [(50.3, 40.1, 0.0), (10.7, 80.2, 0.0), (90.0, 5.5, 0.0)] {
             assert_eq!(
-                iso.neighbors_within(&t, &aniso).unwrap(),
+                iso.neighbors_within(&t, None, &aniso).unwrap(),
                 rotated.neighbors(&t).unwrap()
             );
         }
@@ -594,17 +598,19 @@ mod tests {
             ..Default::default()
         };
         let vg = Variogram::single(Model::Spherical, 1.0, 50.0);
-        let ours = estimate_many_local(&targets, &local, &samples, &search, &vg, |t, s, v| {
-            krige(Kind::Ordinary, t, s, v)
-        })
-        .unwrap();
+        let ours =
+            estimate_many_local(&targets, None, &local, &samples, &search, &vg, |t, s, v| {
+                krige(Kind::Ordinary, t, s, v)
+            })
+            .unwrap();
         let global = Variogram {
             anisotropy: Some(local.anisotropy(0)),
             ..vg.clone()
         };
-        let reference = crate::estimate_many(&targets, &samples, &search, Some(&global), |t, s| {
-            krige(Kind::Ordinary, t, s, &global)
-        });
+        let reference =
+            crate::estimate_many(&targets, None, &samples, &search, Some(&global), |t, s| {
+                krige(Kind::Ordinary, t, s, &global)
+            });
         for (a, b) in ours.iter().zip(&reference) {
             assert!((a.as_ref().unwrap().value - b.as_ref().unwrap().value).abs() < 1e-9);
         }

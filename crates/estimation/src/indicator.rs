@@ -441,12 +441,19 @@ impl MultipleIndicator {
         let passes = by_pass(targets.len(), searches, |search, remaining| {
             let at: Vec<Point> = remaining.iter().map(|&i| targets[i]).collect();
             match local {
-                None => Ok(estimate_many(&at, samples, search, Some(vg), |t, s| {
-                    at_target(t, s, None)
-                })),
-                Some(l) => estimate_many_local(&at, &l.at(&at), samples, search, vg, |t, s, v| {
-                    at_target(t, s, Some(v))
-                }),
+                None => Ok(estimate_many(
+                    &at,
+                    None,
+                    samples,
+                    search,
+                    Some(vg),
+                    |t, s| at_target(t, s, None),
+                )),
+                Some(l) => {
+                    estimate_many_local(&at, None, &l.at(&at), samples, search, vg, |t, s, v| {
+                        at_target(t, s, Some(v))
+                    })
+                }
             }
         })?;
         Ok(self.summary(
@@ -536,6 +543,7 @@ mod tests {
             octant: false,
             anisotropy: None,
             high_grade: None,
+            soft: None,
         }
     }
 
@@ -609,7 +617,7 @@ mod tests {
         let s = m
             .predict(&samples, None, &grid(), &[search(25.0)], None, &[], &[])
             .unwrap();
-        let ik = estimate_many(&grid(), &samples, &search(25.0), Some(&vg), |t, n| {
+        let ik = estimate_many(&grid(), None, &samples, &search(25.0), Some(&vg), |t, n| {
             krige(Kind::Indicator { threshold: 1.0 }, t, n, &vg)
         });
         for (p, e) in s.cdf[0].iter().zip(ik) {

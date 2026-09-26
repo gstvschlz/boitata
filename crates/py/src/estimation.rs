@@ -1,13 +1,14 @@
 use estimation::{
     Discretization, DriftSpec, DualKriging, Estimate, HighGrade, InterpEstimate, InterpOptions,
-    Kind, NeighborhoodStats, Sample, Search as CoreSearch, block_krige, by_pass, estimate_many,
-    k_fold_at, krige, krige_bayesian, krige_factorial, krige_universal, leave_one_out_at,
+    Kind, NeighborhoodStats, Sample, Search as CoreSearch, Soft, SoftPair, block_krige, by_pass,
+    estimate_many, k_fold_at, krige, krige_bayesian, krige_factorial, krige_universal,
+    leave_one_out_at,
 };
 use std::path::PathBuf;
 
 use pyo3::PyClass;
 use pyo3::prelude::*;
-use pyo3::types::{PyDict, PyTuple};
+use pyo3::types::{PyDict, PyString, PyTuple};
 use serde::{Deserialize, Serialize};
 use variogram::Variogram as CoreVariogram;
 
@@ -26,10 +27,143 @@ use crate::variogram::Variogram;
 /// units: simulators working on normal scores convert it through their
 /// fitted transform, so it picks the same samples as in estimation. Estimators also take a sequence
 /// of searches as passes: targets one leaves unestimated go to the next.
+/// `soft` lets samples of another domain inform a target strictly within a
+/// distance in the same ellipsoid: one distance for every pair of domains,
+/// or a dict `{(target_domain, sample_domain): distance}`, one way; pairs not
+/// listed are hard.
 #[derive(Serialize, Deserialize)]
 #[pyclass(module = "ceres", name = "Search", frozen, from_py_object)]
 #[derive(Clone)]
-pub struct Search(pub CoreSearch);
+pub struct Search {
+    #[serde(flatten)]
+    pub core: CoreSearch,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    soft: Option<Soft<Label>>,
+}
+
+/// A domain label: a string, number or boolean.
+pub type Label = serde_json::Value;
+
+/// `obj` as a label; integral floats become integers, as `1.0 == 1` in Python.
+fn label(obj: &Bound<PyAny>) -> PyResult<Label> {
+    if let Ok(s) = obj.cast::<PyString>() {
+        return Ok(Label::String(s.to_str()?.into()));
+    }
+    if let Ok(b) = obj.extract::<bool>() {
+        return Ok(Label::Bool(b));
+    }
+    if let Ok(i) = obj.extract::<i64>() {
+        return Ok(Label::from(i));
+    }
+    match obj.extract::<f64>() {
+        Ok(f) if f.fract() == 0.0 && f.abs() < 9e15 => Ok(Label::from(f as i64)),
+        Ok(f) if f.is_finite() => Ok(Label::from(f)),
+        _ => Err(invalid(format!(
+            "domain labels must be strings, finite numbers or booleans, not {obj}"
+        ))),
+    }
+}
+
+fn key(label: &Label) -> String {
+    label.to_string()
+}
+
+/// Labels of a sequence, or of a single label repeated `n` times.
+fn labels(obj: &Bound<PyAny>, n: Option<usize>) -> PyResult<Vec<Label>> {
+    let single = obj.is_instance_of::<PyString>() || obj.try_iter().is_err();
+    if single && let Some(n) = n {
+        return Ok(vec![label(obj)?; n]);
+    }
+    let labels = obj
+        .try_iter()
+        .map_err(|_| invalid("domains must be a sequence of labels"))?
+        .map(|item| label(&item?))
+        .collect::<PyResult<Vec<_>>>()?;
+    if let Some(n) = n {
+        same_length(n, labels.len(), "domains")?;
+    }
+    Ok(labels)
+}
+
+impl Search {
+    /// The parameters of a search that has no soft boundaries, for `what`.
+    pub fn plain(self, what: &str) -> PyResult<CoreSearch> {
+        match self.soft {
+            Some(_) => Err(invalid(format!(
+                "{what} does not take domains; Search.soft works with the kriging, inverse-distance, \
+                 nearest-neighbour and interpolation estimators"
+            ))),
+            None => Ok(self.core),
+        }
+    }
+
+    /// The core search with `soft` by domain code: the index of its labels
+    /// in `domains`, the fitted ones.
+    fn resolve(&self, domains: Option<&[Label]>) -> PyResult<CoreSearch> {
+        let soft = match (&self.soft, domains) {
+            (None, _) => None,
+            (Some(_), None) => return Err(invalid("Search.soft needs domains at fit")),
+            (Some(Soft::All(d)), Some(_)) => Some(Soft::All(*d)),
+            (Some(Soft::Pairs(pairs)), Some(domains)) => {
+                let code = |l: &Label| {
+                    domains
+                        .iter()
+                        .position(|d| key(d) == key(l))
+                        .map(|c| c as u32)
+                        .ok_or_else(|| {
+                            invalid(format!(
+                                "Search.soft names domain {l}, which has no samples"
+                            ))
+                        })
+                };
+                Some(Soft::Pairs(
+                    pairs
+                        .iter()
+                        .map(|p| {
+                            Ok(SoftPair {
+                                target: code(&p.target)?,
+                                sample: code(&p.sample)?,
+                                distance: p.distance,
+                            })
+                        })
+                        .collect::<PyResult<_>>()?,
+                ))
+            }
+        };
+        Ok(CoreSearch {
+            soft,
+            ..self.core.clone()
+        })
+    }
+}
+
+fn soft(obj: &Bound<PyAny>) -> PyResult<Soft<Label>> {
+    let distance = |d: f64| {
+        if d.is_nan() || d < 0.0 {
+            Err(invalid("soft distances must be >= 0"))
+        } else {
+            Ok(d)
+        }
+    };
+    if let Ok(d) = obj.extract::<f64>() {
+        return Ok(Soft::All(distance(d)?));
+    }
+    let dict = obj.cast::<PyDict>().map_err(|_| {
+        invalid("soft must be a distance or a dict {(target_domain, sample_domain): distance}")
+    })?;
+    let mut pairs = Vec::with_capacity(dict.len());
+    for (k, d) in dict.iter() {
+        let (t, s): (Bound<PyAny>, Bound<PyAny>) = k
+            .extract()
+            .map_err(|_| invalid("soft keys must be (target_domain, sample_domain) pairs"))?;
+        pairs.push(SoftPair {
+            target: label(&t)?,
+            sample: label(&s)?,
+            distance: distance(d.extract()?)?,
+        });
+    }
+    Ok(Soft::Pairs(pairs))
+}
 
 #[pymethods]
 impl Search {
@@ -46,7 +180,7 @@ impl Search {
     }
 
     #[new]
-    #[pyo3(signature = (radius, max_samples=16, min_samples=1, octant=false, max_per_hole=None, rotation=None, ratios=None, high_grade=None))]
+    #[pyo3(signature = (radius, max_samples=16, min_samples=1, octant=false, max_per_hole=None, rotation=None, ratios=None, high_grade=None, soft=None))]
     #[allow(clippy::too_many_arguments)]
     fn new(
         radius: f64,
@@ -57,6 +191,7 @@ impl Search {
         rotation: Option<(f64, f64, f64)>,
         ratios: Option<(f64, f64)>,
         high_grade: Option<(f64, f64)>,
+        soft: Option<&Bound<PyAny>>,
     ) -> PyResult<Self> {
         if radius.is_nan() || radius <= 0.0 || max_samples == 0 || min_samples > max_samples {
             return Err(invalid(
@@ -68,42 +203,46 @@ impl Search {
         {
             return Err(invalid("high_grade needs a threshold and a radius >= 0"));
         }
-        Ok(Self(CoreSearch {
-            min_samples,
-            max_samples,
-            radius,
-            max_per_hole,
-            octant,
-            anisotropy: match (rotation, ratios) {
-                (None, None) => None,
-                (rotation, ratios) => crate::variogram::anisotropy(
-                    rotation.unwrap_or((0.0, 0.0, 0.0)),
-                    ratios.unwrap_or((1.0, 1.0)),
-                )?,
+        Ok(Self {
+            soft: soft.map(self::soft).transpose()?,
+            core: CoreSearch {
+                min_samples,
+                max_samples,
+                radius,
+                max_per_hole,
+                octant,
+                anisotropy: match (rotation, ratios) {
+                    (None, None) => None,
+                    (rotation, ratios) => crate::variogram::anisotropy(
+                        rotation.unwrap_or((0.0, 0.0, 0.0)),
+                        ratios.unwrap_or((1.0, 1.0)),
+                    )?,
+                },
+                high_grade: high_grade.map(|(threshold, radius)| HighGrade { threshold, radius }),
+                soft: None,
             },
-            high_grade: high_grade.map(|(threshold, radius)| HighGrade { threshold, radius }),
-        }))
+        })
     }
 
     #[getter]
     fn radius(&self) -> f64 {
-        self.0.radius
+        self.core.radius
     }
 
     #[getter]
     fn max_samples(&self) -> usize {
-        self.0.max_samples
+        self.core.max_samples
     }
 
     #[getter]
     fn min_samples(&self) -> usize {
-        self.0.min_samples
+        self.core.min_samples
     }
 
     fn __repr__(&self) -> String {
         format!(
             "Search(radius={}, max_samples={}, min_samples={}, octant={})",
-            self.0.radius, self.0.max_samples, self.0.min_samples, self.0.octant
+            self.core.radius, self.core.max_samples, self.core.min_samples, self.core.octant
         )
     }
 }
@@ -231,12 +370,13 @@ pub fn outputs<'py>(
     Ok(PyTuple::new(py, [value, variance])?.into_any())
 }
 
-type Used = (Estimate, NeighborhoodStats);
+/// The estimate, statistics of the samples used and their domains.
+type Used = (Estimate, NeighborhoodStats, Vec<Option<u32>>);
 
 fn used(t: &Point, s: &[Sample], e: estimation::Result<Estimate>) -> estimation::Result<Used> {
     e.map(|e| {
         let near = estimation::neighborhood_stats(t, s, s.len(), f64::INFINITY, None);
-        (e, near)
+        (e, near, s.iter().map(|s| s.domain).collect())
     })
 }
 
@@ -244,16 +384,27 @@ fn diagnostics<'py>(
     py: Python<'py>,
     results: &[Option<(usize, Used)>],
     searches: &[CoreSearch],
+    domains: Option<&[Option<u32>]>,
 ) -> PyResult<Bound<'py, PyDict>> {
     let column = |f: &dyn Fn(usize, &Estimate, &NeighborhoodStats) -> f64| {
         array1(
             py,
             results
                 .iter()
-                .map(|r| r.as_ref().map_or(f64::NAN, |(p, (e, s))| f(*p, e, s)))
+                .map(|r| r.as_ref().map_or(f64::NAN, |(p, (e, s, _))| f(*p, e, s)))
                 .collect(),
         )
     };
+    let other = results
+        .iter()
+        .enumerate()
+        .map(|(i, r)| {
+            r.as_ref().map_or(f64::NAN, |(_, (_, _, used))| {
+                let own = domains.and_then(|d| d[i]);
+                used.iter().filter(|&&d| own.is_some() && d != own).count() as f64
+            })
+        })
+        .collect();
     let d = PyDict::new(py);
     d.set_item("value", column(&|_, e, _| e.value))?;
     d.set_item("variance", column(&|_, e, _| e.variance))?;
@@ -262,6 +413,7 @@ fn diagnostics<'py>(
     d.set_item("n_samples", column(&|_, e, _| e.n_used as f64))?;
     d.set_item("pass", column(&|p, _, _| (p + 1) as f64))?;
     d.set_item("n_holes", column(&|_, _, s| s.n_holes as f64))?;
+    d.set_item("n_other_domain", array1(py, other))?;
     d.set_item("mean_distance", column(&|_, _, s| s.mean_dist_knn))?;
     d.set_item(
         "negative_weight_sum",
@@ -280,7 +432,8 @@ fn split<T>(passes: Vec<Option<(usize, T)>>) -> Vec<Option<T>> {
     passes.into_iter().map(|r| r.map(|(_, e)| e)).collect()
 }
 
-/// `x`, `y`, `z`, `value`, `hole` (null when untagged) and `error_variance`.
+/// `x`, `y`, `z`, `value`, `hole` and `domain` codes (null when untagged)
+/// and `error_variance`.
 pub fn sample_columns(samples: &[Sample]) -> Columns {
     let mut columns = persist::point_columns(samples.iter().map(|s| s.loc));
     columns.push(persist::column("value", samples.iter().map(|s| s.value)));
@@ -288,6 +441,8 @@ pub fn sample_columns(samples: &[Sample]) -> Columns {
     columns.push(("hole".into(), holes));
     let error = samples.iter().map(|s| s.error_variance);
     columns.push(persist::column("error_variance", error));
+    let domains = samples.iter().map(|s| s.domain.map(f64::from)).collect();
+    columns.push(("domain".into(), domains));
     columns
 }
 
@@ -297,14 +452,18 @@ pub fn samples_from(found: &Found) -> PyResult<Vec<Sample>> {
     same_length(locs.len(), values.len(), "value")?;
     same_length(locs.len(), holes.len(), "hole")?;
     same_length(locs.len(), error.len(), "error_variance")?;
+    let domains = found.optional("domain")?;
+    same_length(locs.len(), domains.len(), "domain")?;
     (0..locs.len())
         .map(|i| {
             let hole = holes[i].map(persist::index).transpose()?;
+            let domain = domains[i].map(persist::index).transpose()?;
             Ok(Sample {
                 loc: locs[i],
                 value: values[i],
                 hole: hole.map(|h| h as u32),
                 error_variance: error[i],
+                domain: domain.map(|d| d as u32),
             })
         })
         .collect()
@@ -333,7 +492,7 @@ impl Tabular for Dual {
 }
 
 /// A Search, or a sequence of them as passes.
-pub fn searches(obj: &Bound<PyAny>) -> PyResult<Vec<CoreSearch>> {
+pub fn searches(obj: &Bound<PyAny>) -> PyResult<Vec<Search>> {
     let search: Vec<Search> = match obj.extract::<Search>() {
         Ok(s) => vec![s],
         Err(_) => obj
@@ -343,7 +502,7 @@ pub fn searches(obj: &Bound<PyAny>) -> PyResult<Vec<CoreSearch>> {
     if search.is_empty() {
         return Err(invalid("search needs at least one Search"));
     }
-    Ok(search.into_iter().map(|s| s.0).collect())
+    Ok(search)
 }
 
 /// Shared engine behind the estimator classes in `ceres.estimation`.
@@ -352,9 +511,46 @@ pub fn searches(obj: &Bound<PyAny>) -> PyResult<Vec<CoreSearch>> {
 pub struct Estimator {
     method: Method,
     variogram: Option<CoreVariogram>,
-    search: Vec<CoreSearch>,
+    search: Vec<Search>,
+    /// Labels of the fitted domains, indexed by code.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    domains: Option<Vec<Label>>,
     #[serde(skip)]
     samples: Option<Vec<Sample>>,
+}
+
+impl Estimator {
+    fn fitted(&self) -> PyResult<&[Sample]> {
+        self.samples
+            .as_deref()
+            .ok_or_else(|| invalid("estimator is not fitted; call fit first"))
+    }
+
+    /// The searches with soft boundaries by domain code.
+    fn passes(&self) -> PyResult<Vec<CoreSearch>> {
+        let domains = self.domains.as_deref();
+        self.search.iter().map(|s| s.resolve(domains)).collect()
+    }
+
+    /// Codes of target labels; None for a domain without samples.
+    fn codes(&self, obj: Option<&Bound<PyAny>>, n: usize) -> PyResult<Option<Vec<Option<u32>>>> {
+        match (&self.domains, obj) {
+            (None, None) => Ok(None),
+            (Some(_), None) => Err(invalid("fitted with domains; predict needs domains too")),
+            (None, Some(_)) => Err(invalid("fitted without domains; predict takes none")),
+            (Some(fitted), Some(obj)) => {
+                let code: std::collections::HashMap<String, u32> = fitted
+                    .iter()
+                    .enumerate()
+                    .map(|(c, l)| (key(l), c as u32))
+                    .collect();
+                let labels = labels(obj, Some(n))?;
+                Ok(Some(
+                    labels.iter().map(|l| code.get(&key(l)).copied()).collect(),
+                ))
+            }
+        }
+    }
 }
 
 #[pymethods]
@@ -427,19 +623,22 @@ impl Estimator {
             method,
             variogram: variogram.map(|v| v.0),
             search,
+            domains: None,
             samples: None,
         })
     }
 
     /// `holes` (optional) tags samples by drill hole for `max_per_hole`;
-    /// `error_variance` (optional) is each sample's measurement-error variance.
-    #[pyo3(signature = (coords, values, holes=None, error_variance=None))]
+    /// `error_variance` (optional) is each sample's measurement-error variance;
+    /// `domains` (optional) labels each sample's domain.
+    #[pyo3(signature = (coords, values, holes=None, error_variance=None, domains=None))]
     fn fit<'py>(
         mut slf: PyRefMut<'py, Self>,
         coords: &Bound<PyAny>,
         values: &Bound<PyAny>,
         holes: Option<&Bound<PyAny>>,
         error_variance: Option<&Bound<PyAny>>,
+        domains: Option<&Bound<PyAny>>,
     ) -> PyResult<PyRefMut<'py, Self>> {
         let (locs, values) = (points(coords)?, finite(values, "values")?);
         same_length(locs.len(), values.len(), "values")?;
@@ -454,11 +653,32 @@ impl Estimator {
                 return Err(invalid("error_variance needs a kriging method"));
             }
         }
-        let keep = distinct(slf.py(), &locs, holes.as_ref().map(|h| &h.0[..]))?;
+        let (fitted, codes) = match domains {
+            None => (None, None),
+            Some(obj) => {
+                let (mut fitted, mut code) = (vec![], std::collections::HashMap::new());
+                let codes: Vec<u32> = labels(obj, Some(locs.len()))?
+                    .into_iter()
+                    .map(|l| {
+                        *code.entry(key(&l)).or_insert_with(|| {
+                            fitted.push(l);
+                            fitted.len() as u32 - 1
+                        })
+                    })
+                    .collect();
+                (Some(fitted), Some(codes))
+            }
+        };
+        for s in &slf.search {
+            s.resolve(fitted.as_deref())?;
+        }
+        let holes_text = holes.as_ref().map(|h| &h.0[..]);
+        let keep = args::distinct_in(slf.py(), &locs, holes_text, codes.as_deref())?;
         let samples = keep
             .into_iter()
             .map(|i| Sample {
                 error_variance: error.as_ref().map_or(0.0, |e| e[i]),
+                domain: codes.as_ref().map(|c| c[i]),
                 ..match &holes {
                     Some((_, ids)) => Sample::with_hole(locs[i], values[i], ids[i]),
                     None => Sample::new(locs[i], values[i]),
@@ -466,6 +686,7 @@ impl Estimator {
             })
             .collect();
         slf.samples = Some(samples);
+        slf.domains = fitted;
         Ok(slf)
     }
 
@@ -474,10 +695,13 @@ impl Estimator {
     /// efficiency, slope of regression, samples used, the search pass
     /// (1-based) that filled each target, holes used, mean distance to the
     /// samples used, sum of negative weights, Lagrange multiplier and whether
-    /// the search hit `max_samples`. `anisotropy` (a
-    /// LocalAnisotropy) gives each target its own variogram and search
-    /// orientation, taken from the nearest location.
-    #[pyo3(signature = (targets, return_variance=false, anisotropy=None, diagnostics=false))]
+    /// the search hit `max_samples`, and other-domain samples used.
+    /// `anisotropy` (a LocalAnisotropy) gives each target its own variogram
+    /// and search orientation, taken from the nearest location. `domains`
+    /// labels the targets, or is one label for all; a domain without samples
+    /// is left unestimated.
+    #[pyo3(signature = (targets, return_variance=false, anisotropy=None, diagnostics=false, domains=None))]
+    #[allow(clippy::too_many_arguments)]
     fn predict<'py>(
         &self,
         py: Python<'py>,
@@ -485,12 +709,15 @@ impl Estimator {
         return_variance: bool,
         anisotropy: Option<PyRef<crate::lva::LocalAnisotropy>>,
         diagnostics: bool,
+        domains: Option<&Bound<PyAny>>,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let samples = self
-            .samples
-            .as_ref()
-            .ok_or_else(|| invalid("estimator is not fitted; call fit first"))?;
+        let samples = self.fitted()?;
         let targets = self::targets(targets)?;
+        let codes = self.codes(domains, targets.len())?;
+        let known: Vec<usize> = (0..targets.len())
+            .filter(|&i| codes.as_ref().is_none_or(|c| c[i].is_some()))
+            .collect();
+        let search = self.passes()?;
         let vg = self.variogram.as_ref();
         let local = anisotropy.map(|field| field.at_targets(&targets));
         let base = self.variogram.clone().unwrap_or(CoreVariogram {
@@ -498,16 +725,22 @@ impl Estimator {
             structures: vec![],
             anisotropy: None,
         });
-        let passes = py
+        let found = py
             .detach(|| {
-                by_pass(targets.len(), &self.search, |search, remaining| {
-                    let at = pick(&targets, remaining);
+                by_pass(known.len(), &search, |search, remaining| {
+                    let rows = pick(&known, remaining);
+                    let at = pick(&targets, &rows);
+                    let codes: Option<Vec<u32>> = codes
+                        .as_ref()
+                        .map(|c| rows.iter().map(|&i| c[i].expect("known")).collect());
+                    let codes = codes.as_deref();
                     match &local {
-                        None => Ok(estimate_many(&at, samples, search, vg, |t, s| {
+                        None => Ok(estimate_many(&at, codes, samples, search, vg, |t, s| {
                             used(t, s, self.method.run(t, s, vg))
                         })),
                         Some(local) => estimation::lva::estimate_many_local(
                             &at,
+                            codes,
                             &local.at(&at),
                             samples,
                             search,
@@ -518,8 +751,12 @@ impl Estimator {
                 })
             })
             .map_err(invalid)?;
+        let mut passes: Vec<Option<(usize, Used)>> = (0..targets.len()).map(|_| None).collect();
+        for (i, r) in known.into_iter().zip(found) {
+            passes[i] = r;
+        }
         if diagnostics {
-            return Ok(self::diagnostics(py, &passes, &self.search)?.into_any());
+            return Ok(self::diagnostics(py, &passes, &search, codes.as_deref())?.into_any());
         }
         let results: Vec<_> = split(passes).into_iter().map(|r| r.map(|r| r.0)).collect();
         outputs(py, &results, return_variance)
@@ -528,37 +765,29 @@ impl Estimator {
     /// Values of the fitted samples, after dropping shared locations.
     #[getter]
     fn values<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let samples = self
-            .samples
-            .as_ref()
-            .ok_or_else(|| invalid("estimator is not fitted; call fit first"))?;
+        let samples = self.fitted()?;
         Ok(array1(py, samples.iter().map(|s| s.value).collect()).into_any())
     }
 
     /// Leave-one-out, or with `folds` k-fold, estimates and variances at the
-    /// fitted samples; folds keep holes whole (see `k_fold_at`).
+    /// fitted samples, each in its own domain; folds keep holes whole (see
+    /// `k_fold_at`).
     #[pyo3(signature = (folds=None))]
     fn cross_validate<'py>(
         &self,
         py: Python<'py>,
         folds: Option<usize>,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let samples = self
-            .samples
-            .as_ref()
-            .ok_or_else(|| invalid("estimator is not fitted; call fit first"))?;
+        let samples = self.fitted()?;
+        let search = self.passes()?;
         let vg = self.variogram.as_ref();
         let run = |t: &Point, s: &[Sample]| self.method.run(t, s, vg);
         let passes = py
             .detach(|| {
-                by_pass(
-                    samples.len(),
-                    &self.search,
-                    |search, remaining| match folds {
-                        None => Ok(leave_one_out_at(remaining, samples, search, vg, run)),
-                        Some(k) => k_fold_at(k, remaining, samples, search, vg, run),
-                    },
-                )
+                by_pass(samples.len(), &search, |search, remaining| match folds {
+                    None => Ok(leave_one_out_at(remaining, samples, search, vg, run)),
+                    Some(k) => k_fold_at(k, remaining, samples, search, vg, run),
+                })
             })
             .map_err(invalid)?;
         outputs(py, &split(passes), true)
@@ -778,7 +1007,9 @@ fn hole_distance<'py>(
             by.into_values().collect()
         }
     };
-    let (radius, aniso) = search.map_or((f64::INFINITY, None), |s| (s.0.radius, s.0.anisotropy));
+    let (radius, aniso) = search.map_or((f64::INFINITY, None), |s| {
+        (s.core.radius, s.core.anisotropy)
+    });
     let columns = py.detach(|| {
         let mut columns = vec![vec![f64::INFINITY; targets.len()]; ns.len()];
         for (at, of) in &groups {

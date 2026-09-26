@@ -11,9 +11,11 @@ use crate::{Result, Sample};
 /// Selects the neighbours of every target and applies `estimator` to them, in
 /// parallel. A target with too few neighbours, or whose system fails, gives
 /// `None`. The output follows `targets` and does not depend on the number of
-/// threads.
+/// threads. `domains`, one code per target, confines each target to the
+/// samples of its domain, and of others within [`Search::soft`].
 pub fn estimate_many<F, T>(
     targets: &[(f64, f64, f64)],
+    domains: Option<&[u32]>,
     samples: &[Sample],
     search: &Search,
     vg: Option<&Variogram>,
@@ -26,8 +28,9 @@ where
     let tree = SearchTree::new(samples, search, vg);
     targets
         .par_iter()
-        .map(|target| {
-            let chosen = tree.neighbors(target).ok()?;
+        .enumerate()
+        .map(|(i, target)| {
+            let chosen = tree.neighbors_in(target, domains.map(|d| d[i])).ok()?;
             let selected: Vec<Sample> = chosen.iter().map(|&i| samples[i].clone()).collect();
             estimator(target, &selected).ok()
         })
@@ -89,7 +92,9 @@ where
         .par_iter()
         .map(|&i| {
             let target = &samples[i].loc;
-            let mut chosen = tree.neighbors(target).unwrap_or_default();
+            let mut chosen = tree
+                .neighbors_in(target, samples[i].domain)
+                .unwrap_or_default();
             chosen.retain(|&j| j != i);
             chosen.truncate(search.max_samples);
             if chosen.len() < search.min_samples.max(1) {
@@ -130,23 +135,23 @@ where
         .collect();
     let mut out = vec![None; which.len()];
     for fold in 0..k {
-        let (test, at): (Vec<usize>, Vec<_>) = which
+        let (test, held): (Vec<usize>, Vec<&Sample>) = which
             .iter()
             .enumerate()
             .filter(|(_, i)| of[**i] == fold)
-            .map(|(p, &i)| (p, samples[i].loc))
+            .map(|(p, &i)| (p, &samples[i]))
             .unzip();
         if test.is_empty() {
             continue;
         }
+        let at: Vec<_> = held.iter().map(|s| s.loc).collect();
+        let domains: Option<Vec<u32>> = held.iter().map(|s| s.domain).collect();
         let train: Vec<Sample> = (0..samples.len())
             .filter(|&i| of[i] != fold)
             .map(|i| samples[i].clone())
             .collect();
-        for (p, e) in test
-            .into_iter()
-            .zip(estimate_many(&at, &train, search, vg, &estimator))
-        {
+        let estimates = estimate_many(&at, domains.as_deref(), &train, search, vg, &estimator);
+        for (p, e) in test.into_iter().zip(estimates) {
             out[p] = e;
         }
     }
@@ -157,7 +162,7 @@ where
 mod tests {
     use super::*;
     use crate::krige::{Kind, krige};
-    use crate::search::HighGrade;
+    use crate::search::{HighGrade, Soft, SoftPair};
     use std::sync::atomic::{AtomicUsize, Ordering};
 
     type Point = (f64, f64, f64);
@@ -183,6 +188,7 @@ mod tests {
             octant: false,
             anisotropy: None,
             high_grade: None,
+            soft: None,
         };
         let targets: Vec<_> = (0..400)
             .map(|i| ((i % 20) as f64 * 5.0, (i / 20) as f64 * 5.0, 0.0))
@@ -192,7 +198,7 @@ mod tests {
             .build()
             .unwrap()
             .install(|| {
-                estimate_many(&targets, &samples, &search, Some(&vg), |t, s| {
+                estimate_many(&targets, None, &samples, &search, Some(&vg), |t, s| {
                     krige(Kind::Ordinary, t, s, &vg)
                 })
             })
@@ -222,6 +228,7 @@ mod tests {
             octant: false,
             anisotropy: None,
             high_grade: None,
+            soft: None,
         };
         let ours = leave_one_out_many(&samples, &search, Some(&vg), |t, s| {
             krige(Kind::Ordinary, t, s, &vg)
@@ -329,9 +336,10 @@ mod tests {
             octant: false,
             anisotropy: None,
             high_grade: None,
+            soft: None,
         };
         let targets: Vec<_> = samples.iter().map(|s| s.loc).collect();
-        let out = estimate_many(&targets, &samples, &search, Some(&vg), |t, s| {
+        let out = estimate_many(&targets, None, &samples, &search, Some(&vg), |t, s| {
             krige(Kind::Ordinary, t, s, &vg)
         });
         for (e, s) in out.iter().zip(&samples) {
@@ -351,7 +359,14 @@ mod tests {
 
     fn many(targets: &[Point], search: &Search) -> Vec<Option<Estimate>> {
         let vg = Variogram::single(Model::Spherical, 1.0, 40.0);
-        estimate_many(targets, &samples(), search, Some(&vg), krige_with(&vg))
+        estimate_many(
+            targets,
+            None,
+            &samples(),
+            search,
+            Some(&vg),
+            krige_with(&vg),
+        )
     }
 
     fn passes(targets: &[Point], searches: &[Search]) -> Vec<Option<(usize, Estimate)>> {
@@ -360,6 +375,7 @@ mod tests {
             let at: Vec<Point> = remaining.iter().map(|&i| targets[i]).collect();
             Ok(estimate_many(
                 &at,
+                None,
                 &samples,
                 search,
                 Some(&vg),
@@ -453,7 +469,7 @@ mod tests {
             }
             krige(Kind::Ordinary, t, s, &vg)
         };
-        let out = estimate_many(&targets, &samples, &restricted, Some(&vg), check);
+        let out = estimate_many(&targets, None, &samples, &restricted, Some(&vg), check);
         let cv = leave_one_out_many(&samples, &restricted, Some(&vg), check);
         assert!(used.into_inner() > 0);
         let changed = |a: &[Option<Estimate>], b: &[Option<Estimate>]| {
@@ -462,5 +478,186 @@ mod tests {
         assert!(changed(&out, &many(&targets, &plain)));
         let plain_cv = leave_one_out_many(&samples, &plain, Some(&vg), krige_with(&vg));
         assert!(changed(&cv, &plain_cv));
+    }
+
+    fn domain_of(p: &Point) -> u32 {
+        match p.0 + 0.3 * p.1 {
+            v if v < 45.0 => 0,
+            v if v < 80.0 => 1,
+            _ => 2,
+        }
+    }
+
+    fn zoned() -> Vec<Sample> {
+        samples()
+            .into_iter()
+            .map(|s| Sample {
+                domain: Some(domain_of(&s.loc)),
+                ..s
+            })
+            .collect()
+    }
+
+    fn soft(soft: Soft) -> Search {
+        Search {
+            soft: Some(soft),
+            ..search(2, 30.0)
+        }
+    }
+
+    fn zoned_many<T: Send>(
+        search: &Search,
+        estimator: impl Fn(&Point, &[Sample]) -> Result<T> + Sync,
+    ) -> Vec<Option<T>> {
+        let (targets, vg) = (grid(), Variogram::single(Model::Spherical, 1.0, 40.0));
+        let domains: Vec<u32> = targets.iter().map(domain_of).collect();
+        estimate_many(
+            &targets,
+            Some(&domains),
+            &zoned(),
+            search,
+            Some(&vg),
+            estimator,
+        )
+    }
+
+    fn zoned_krige(search: &Search) -> Vec<Option<Estimate>> {
+        let vg = Variogram::single(Model::Spherical, 1.0, 40.0);
+        zoned_many(search, krige_with(&vg))
+    }
+
+    fn zoned_loo(search: &Search) -> Vec<Option<Estimate>> {
+        let vg = Variogram::single(Model::Spherical, 1.0, 40.0);
+        leave_one_out_many(&zoned(), search, Some(&vg), krige_with(&vg))
+    }
+
+    fn same(a: &[Option<Estimate>], b: &[Option<Estimate>]) -> bool {
+        a.len() == b.len() && a.iter().zip(b).all(|(a, b)| bits(a) == bits(b))
+    }
+
+    #[test]
+    fn hard_domains_are_separate_estimations() {
+        let (samples, targets, plain) = (zoned(), grid(), search(2, 30.0));
+        let vg = Variogram::single(Model::Spherical, 1.0, 40.0);
+        let (hard, hard_cv) = (zoned_krige(&plain), zoned_loo(&plain));
+        for d in 0..3 {
+            let own: Vec<Sample> = samples
+                .iter()
+                .filter(|s| s.domain == Some(d))
+                .cloned()
+                .collect();
+            let at: Vec<usize> = (0..targets.len())
+                .filter(|&i| domain_of(&targets[i]) == d)
+                .collect();
+            let points: Vec<Point> = at.iter().map(|&i| targets[i]).collect();
+            let alone = estimate_many(&points, None, &own, &plain, Some(&vg), krige_with(&vg));
+            let joint: Vec<_> = at.iter().map(|&i| hard[i].clone()).collect();
+            assert!(same(&alone, &joint));
+            let cv = leave_one_out_many(&own, &plain, Some(&vg), krige_with(&vg));
+            let joint: Vec<_> = (0..samples.len())
+                .filter(|&i| samples[i].domain == Some(d))
+                .map(|i| hard_cv[i].clone())
+                .collect();
+            assert!(same(&cv, &joint));
+        }
+        assert!(hard.iter().filter(|e| e.is_some()).count() > 300);
+    }
+
+    #[test]
+    fn a_zero_soft_distance_is_hard() {
+        let plain = search(2, 30.0);
+        let zero = [
+            Soft::All(0.0),
+            Soft::Pairs(vec![SoftPair {
+                target: 0,
+                sample: 1,
+                distance: 0.0,
+            }]),
+        ];
+        for z in zero {
+            assert!(same(&zoned_krige(&soft(z.clone())), &zoned_krige(&plain)));
+            assert!(same(&zoned_loo(&soft(z)), &zoned_loo(&plain)));
+        }
+    }
+
+    #[test]
+    fn an_infinite_soft_distance_pools_the_domains() {
+        let pooled = soft(Soft::All(f64::INFINITY));
+        let plain = search(2, 30.0);
+        let vg = Variogram::single(Model::Spherical, 1.0, 40.0);
+        let (targets, samples) = (grid(), samples());
+        let free = estimate_many(&targets, None, &samples, &plain, Some(&vg), krige_with(&vg));
+        assert!(same(&zoned_krige(&pooled), &free));
+        let cv = leave_one_out_many(&samples, &plain, Some(&vg), krige_with(&vg));
+        assert!(same(&zoned_loo(&pooled), &cv));
+    }
+
+    #[test]
+    fn other_domain_samples_lie_within_the_soft_distance() {
+        let vg = Variogram::single(Model::Spherical, 1.0, 40.0);
+        let one_way = Soft::Pairs(vec![SoftPair {
+            target: 1,
+            sample: 0,
+            distance: 12.0,
+        }]);
+        for (rule, limit) in [(Soft::All(8.0), [8.0; 2]), (one_way, [12.0, 0.0])] {
+            let used = AtomicUsize::new(0);
+            let check = |t: &Point, s: &[Sample]| {
+                for x in s.iter().filter(|x| x.domain != Some(domain_of(t))) {
+                    let d = variogram::aniso::euclidean(t, &x.loc);
+                    let allowed = match (domain_of(t), x.domain) {
+                        (1, Some(0)) => limit[0],
+                        _ => limit[1],
+                    };
+                    assert!(d < allowed, "{d} from domain {:?}", x.domain);
+                    used.fetch_add(1, Ordering::Relaxed);
+                }
+                krige(Kind::Ordinary, t, s, &vg)
+            };
+            zoned_many(&soft(rule.clone()), check);
+            leave_one_out_many(&zoned(), &soft(rule), Some(&vg), check);
+            assert!(used.into_inner() > 0);
+        }
+    }
+
+    #[test]
+    fn other_domain_samples_used_never_decrease_as_the_soft_distance_grows() {
+        let counts = |d: f64| {
+            zoned_many(&soft(Soft::All(d)), |t, s| {
+                let other = s.iter().filter(|x| x.domain != Some(domain_of(t)));
+                Ok((other.count(), s.len()))
+            })
+        };
+        let mut before = counts(0.0);
+        for d in [2.0, 5.0, 10.0, 20.0, 40.0, f64::INFINITY] {
+            let now = counts(d);
+            for (a, b) in before.iter().zip(&now) {
+                if let Some(a) = a {
+                    let b = b.expect("more samples, still estimated");
+                    assert!(b.0 >= a.0 && b.1 >= a.1);
+                }
+            }
+            before = now;
+        }
+        assert!(before.iter().flatten().any(|c| c.0 > 0));
+    }
+
+    #[test]
+    fn soft_boundaries_do_not_depend_on_thread_count() {
+        let rule = soft(Soft::All(10.0));
+        let run = |threads| {
+            rayon::ThreadPoolBuilder::new()
+                .num_threads(threads)
+                .build()
+                .unwrap()
+                .install(|| {
+                    let vg = Variogram::single(Model::Spherical, 1.0, 40.0);
+                    let all: Vec<usize> = (0..200).collect();
+                    let folds = k_fold_at(5, &all, &zoned(), &rule, Some(&vg), krige_with(&vg));
+                    (zoned_krige(&rule), zoned_loo(&rule), folds.unwrap())
+                })
+        };
+        let (one, many) = (run(1), run(8));
+        assert!(same(&one.0, &many.0) && same(&one.1, &many.1) && same(&one.2, &many.2));
     }
 }

@@ -152,18 +152,21 @@ mod tests {
                 value: 1.0,
                 hole: None,
                 error_variance: 0.0,
+                domain: None,
             },
             Sample {
                 loc: (60.0, 0.0, 0.0),
                 value: 2.0,
                 hole: None,
                 error_variance: 0.0,
+                domain: None,
             },
             Sample {
                 loc: (0.0, 60.0, 0.0),
                 value: 3.0,
                 hole: None,
                 error_variance: 0.0,
+                domain: None,
             },
         ];
         let center = (30.0, 30.0, 0.0);
@@ -180,6 +183,7 @@ mod tests {
             value,
             hole: None,
             error_variance: 0.0,
+            domain: None,
         }
     }
 
