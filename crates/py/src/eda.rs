@@ -5,12 +5,14 @@ use arrow_array::types::Float64Type;
 use arrow_array::{ArrayRef, Float64Array, RecordBatch, StringArray, UInt64Array};
 use arrow_schema::DataType;
 use ceres_core::PointSet;
-use eda::{Along, Direction, Merge, Method, Profile};
+use eda::{Along, Direction, Merge, Method};
 use pyo3::IntoPyObjectExt;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 
-use crate::args::{array1, array2, column, floats, holes, pair, per_row, rows};
+use crate::args::{
+    array1, array2, column, column_names, floats, holes, named, pair, per_row, rows,
+};
 use crate::containers::{PyBlockModel, PyPointSet, coords_arg};
 use crate::invalid;
 use crate::table::Table;
@@ -19,31 +21,43 @@ fn optional_floats(obj: Option<&Bound<PyAny>>, what: &str) -> PyResult<Option<Ve
     obj.map(|o| floats(o, what)).transpose()
 }
 
-fn profile<'py>(py: Python<'py>, p: Profile, key: &str) -> PyResult<Bound<'py, PyDict>> {
-    let d = PyDict::new(py);
-    d.set_item(key, array1(py, p.centers))?;
-    d.set_item("mean", array1(py, p.mean))?;
-    d.set_item("count", p.count)?;
-    Ok(d)
+/// Name of the quantile at probability `p`: ``P10``, ``P97.5``, ...
+fn quantile_name(p: f64) -> String {
+    let name = format!("{:.4}", 100.0 * p);
+    format!("P{}", name.trim_end_matches('0').trim_end_matches('.'))
 }
 
 /// Weighted (declustered) statistics of `values`; NaN is skipped.
 ///
+/// Parameters
+/// ----------
+/// values : array_like or str
+///     Values, or their column in `data`.
+/// weights : array_like or str, optional
+///     Declustering weights; default the volumes of a BlockModel `data`, else 1.
+/// quantiles : sequence of float
+///     Probabilities of the quantile keys.
+/// data : PointSet, BlockModel, Table or dict, optional
+///     Where column names are looked up.
+///
 /// Returns
 /// -------
 /// dict
-///     ``n``, ``mean``, ``variance``, ``std``, ``cv``, ``min``, ``max`` and
-///     ``quantiles`` at the given probabilities (mid-point cumulative weights).
+///     ``n``, ``mean``, ``variance``, ``std``, ``cv``, ``min``, ``max`` and one
+///     key per quantile named ``P10``, ``P97.5``, ... (mid-point cumulative
+///     weights).
 #[pyfunction]
-#[pyo3(signature = (values, weights=None, quantiles=vec![0.1, 0.25, 0.5, 0.75, 0.9]))]
+#[pyo3(signature = (values, *, weights=None, quantiles=vec![0.1, 0.25, 0.5, 0.75, 0.9], data=None))]
 fn describe<'py>(
     py: Python<'py>,
     values: &Bound<PyAny>,
     weights: Option<&Bound<PyAny>>,
     quantiles: Vec<f64>,
+    data: Option<&Bound<PyAny>>,
 ) -> PyResult<Bound<'py, PyDict>> {
-    let w = optional_floats(weights, "weights")?;
-    let s = eda::describe(&floats(values, "values")?, w.as_deref(), &quantiles).map_err(invalid)?;
+    let values = floats(&column(data, values, "values")?, "values")?;
+    let w = weights_or_volumes(data, weights, values.len())?;
+    let s = eda::describe(&values, w.as_deref(), &quantiles).map_err(invalid)?;
     let d = PyDict::new(py);
     d.set_item("n", s.n)?;
     for (k, v) in [
@@ -56,7 +70,9 @@ fn describe<'py>(
     ] {
         d.set_item(k, v)?;
     }
-    d.set_item("quantiles", array1(py, s.quantiles))?;
+    for (p, q) in quantiles.iter().zip(s.quantiles) {
+        d.set_item(quantile_name(*p), q)?;
+    }
     Ok(d)
 }
 
@@ -105,14 +121,16 @@ fn table<T>(
 ///
 /// Parameters
 /// ----------
-/// values : array_like
-///     Values; NaN is skipped.
-/// categories : array_like
-///     Category (e.g. domain) of each value, int or str.
-/// weights : array_like, optional
-///     Declustering weights.
+/// values : array_like or str
+///     Values, or their column in `data`; NaN is skipped.
+/// categories : array_like or str
+///     Category (e.g. domain) of each value, int or str, or its column.
+/// weights : array_like or str, optional
+///     Declustering weights; default the volumes of a BlockModel `data`, else 1.
 /// quantiles : sequence of float
 ///     Probabilities of the quantile columns.
+/// data : PointSet, BlockModel, Table or dict, optional
+///     Where column names are looked up.
 ///
 /// Returns
 /// -------
@@ -121,16 +139,18 @@ fn table<T>(
 ///     ``std``, ``cv``, ``min``, ``max`` and one column per quantile named
 ///     ``P10``, ``P97.5``, ...
 #[pyfunction]
-#[pyo3(signature = (values, categories, weights=None, quantiles=vec![0.1, 0.25, 0.5, 0.75, 0.9]))]
+#[pyo3(signature = (values, categories, *, weights=None, quantiles=vec![0.1, 0.25, 0.5, 0.75, 0.9], data=None))]
 fn describe_by(
     values: &Bound<PyAny>,
     categories: &Bound<PyAny>,
     weights: Option<&Bound<PyAny>>,
     quantiles: Vec<f64>,
+    data: Option<&Bound<PyAny>>,
 ) -> PyResult<Table> {
-    let values = floats(values, "values")?;
-    let (names, codes) = self::categories(categories, values.len())?;
-    let w = optional_floats(weights, "weights")?;
+    let values = floats(&column(data, values, "values")?, "values")?;
+    let n = values.len();
+    let (names, codes) = self::categories(&column(data, categories, "categories")?, n)?;
+    let w = weights_or_volumes(data, weights, n)?;
     let rows = eda::describe_by(&values, &codes, w.as_deref(), &quantiles).map_err(invalid)?;
     let col = |f: &dyn Fn(&eda::Summary) -> f64| nullable(rows.iter().map(|(_, s)| f(s)));
     let mut columns: Vec<(String, ArrayRef)> = vec![(
@@ -150,9 +170,7 @@ fn describe_by(
         columns.push((k.into(), col(&f)));
     }
     for (j, p) in quantiles.iter().enumerate() {
-        let name = format!("{:.4}", 100.0 * p);
-        let name = name.trim_end_matches('0').trim_end_matches('.');
-        columns.push((format!("P{name}"), col(&|s| s.quantiles[j])));
+        columns.push((quantile_name(*p), col(&|s| s.quantiles[j])));
     }
     table("category", &names, &rows, columns)
 }
@@ -571,27 +589,50 @@ fn validate_model(
 /// Mean of `values` against signed distance to the `inside`/`outside` contact
 /// along each hole, negative inside.
 ///
+/// Parameters
+/// ----------
+/// coords : PointSet or array_like
+///     Samples, or their ``(n, 2)`` or ``(n, 3)`` coordinates.
+/// values : array_like or str
+///     Values, or their column in `coords`.
+/// domains : array_like, optional
+///     Domain of each sample, int or str.
+/// domain_column : str, optional
+///     Column of `coords` holding the domains; give it or `domains`.
+/// holes : array_like or str
+///     Hole id of each sample, or its column.
+/// inside, outside : int or str
+///     Domains on either side of the contact.
+/// max_distance : float
+///     Largest distance to the contact.
+/// bin : float
+///     Width of the distance bins.
+///
 /// Returns
 /// -------
-/// dict
-///     ``distance`` (bin centers), ``mean`` and ``count``.
+/// Table
+///     ``distance`` (bin centers), ``mean`` and ``n`` samples per bin.
 #[pyfunction]
+#[pyo3(signature = (coords, values, *, domains=None, domain_column=None, holes, inside, outside, max_distance, bin))]
 #[allow(clippy::too_many_arguments)]
-fn contact<'py>(
-    py: Python<'py>,
+fn contact(
     coords: &Bound<PyAny>,
     values: &Bound<PyAny>,
-    domains: &Bound<PyAny>,
+    domains: Option<&Bound<PyAny>>,
+    domain_column: Option<&str>,
     holes: &Bound<PyAny>,
     inside: &Bound<PyAny>,
     outside: &Bound<PyAny>,
     max_distance: f64,
     bin: f64,
-) -> PyResult<Bound<'py, PyDict>> {
+) -> PyResult<Table> {
+    let data = coords;
+    let values = floats(&column(Some(data), values, "values")?, "values")?;
     let coords = coords_arg(coords)?;
     let n = coords.len();
-    let (_, hole_ids) = self::holes(Some(holes), n)?.expect("given");
-    let (labels, ids) = self::holes(Some(domains), n)
+    let (_, hole_ids) = self::holes(Some(&column(Some(data), holes, "holes")?), n)?.expect("given");
+    let domains = domain_labels(Some(data), domains, domain_column)?;
+    let (labels, ids) = self::holes(Some(&domains), n)
         .map_err(|_| invalid("domains must be a 1-D sequence of labels"))?
         .expect("given");
     let code = |d: &Bound<PyAny>| -> PyResult<u32> {
@@ -604,7 +645,7 @@ fn contact<'py>(
     };
     let p = eda::contact(
         &coords,
-        &floats(values, "values")?,
+        &values,
         &ids,
         &hole_ids,
         code(inside)?,
@@ -613,51 +654,90 @@ fn contact<'py>(
         bin,
     )
     .map_err(invalid)?;
-    profile(py, p, "distance")
+    let f = |v: Vec<f64>| Arc::new(Float64Array::from(v)) as ArrayRef;
+    let count = p.count.iter().map(|&c| c as u64);
+    let columns = vec![
+        ("distance", f(p.centers)),
+        ("mean", f(p.mean)),
+        (
+            "n",
+            Arc::new(UInt64Array::from_iter_values(count)) as ArrayRef,
+        ),
+    ];
+    Ok(Table(RecordBatch::try_from_iter(columns).map_err(invalid)?))
 }
 
-/// Metal removed and statistics after capping at each of `caps` (default:
-/// weighted quantiles 0.9, 0.95, 0.975, 0.99, 0.995, 0.999).
+/// `domains`, or the `domain_column` of `data`; exactly one of the two.
+fn domain_labels<'py>(
+    data: Option<&Bound<'py, PyAny>>,
+    domains: Option<&Bound<'py, PyAny>>,
+    domain_column: Option<&str>,
+) -> PyResult<Bound<'py, PyAny>> {
+    match (domains, domain_column) {
+        (Some(d), None) => Ok(d.clone()),
+        (None, Some(c)) => named(data, c, "domain_column"),
+        _ => Err(invalid("give one of domains or domain_column")),
+    }
+}
+
+/// Metal removed and statistics after capping at each of `caps`.
+///
+/// Parameters
+/// ----------
+/// values : array_like or str
+///     Values, or their column in `data`; NaN is skipped.
+/// weights : array_like or str, optional
+///     Declustering weights; default the volumes of a BlockModel `data`, else 1.
+/// caps : array_like, optional
+///     Caps; default the weighted quantiles 0.9, 0.95, 0.975, 0.99, 0.995 and
+///     0.999.
+/// data : PointSet, BlockModel, Table or dict, optional
+///     Where column names are looked up.
 ///
 /// Returns
 /// -------
-/// dict
+/// Table
 ///     ``cap``, ``fraction`` of weight above it, ``metal_removed``
 ///     (1 - capped mean / mean), capped ``mean`` and ``cv``.
 #[pyfunction]
-#[pyo3(signature = (values, weights=None, caps=None))]
-fn capping<'py>(
-    py: Python<'py>,
+#[pyo3(signature = (values, *, weights=None, caps=None, data=None))]
+fn capping(
     values: &Bound<PyAny>,
     weights: Option<&Bound<PyAny>>,
     caps: Option<&Bound<PyAny>>,
-) -> PyResult<Bound<'py, PyDict>> {
-    let w = optional_floats(weights, "weights")?;
+    data: Option<&Bound<PyAny>>,
+) -> PyResult<Table> {
+    let values = floats(&column(data, values, "values")?, "values")?;
+    let w = weights_or_volumes(data, weights, values.len())?;
     let caps = optional_floats(caps, "caps")?;
-    let r =
-        eda::capping(&floats(values, "values")?, w.as_deref(), caps.as_deref()).map_err(invalid)?;
-    let d = PyDict::new(py);
-    let col = |f: fn(&eda::Cap) -> f64| array1(py, r.iter().map(f).collect());
-    d.set_item("cap", col(|c| c.cap))?;
-    d.set_item("fraction", col(|c| c.fraction))?;
-    d.set_item("metal_removed", col(|c| c.metal_removed))?;
-    d.set_item("mean", col(|c| c.mean))?;
-    d.set_item("cv", col(|c| c.cv))?;
-    Ok(d)
+    let r = eda::capping(&values, w.as_deref(), caps.as_deref()).map_err(invalid)?;
+    let col = |f: fn(&eda::Cap) -> f64| nullable(r.iter().map(f));
+    let columns = vec![
+        ("cap", col(|c| c.cap)),
+        ("fraction", col(|c| c.fraction)),
+        ("metal_removed", col(|c| c.metal_removed)),
+        ("mean", col(|c| c.mean)),
+        ("cv", col(|c| c.cv)),
+    ];
+    Ok(Table(RecordBatch::try_from_iter(columns).map_err(invalid)?))
 }
 
 /// Weighted statistics per domain before and after capping, and the metal removed.
 ///
 /// Parameters
 /// ----------
-/// values : array_like
-///     Values; NaN is skipped.
-/// domains : array_like
-///     Domain of each value, int or str.
+/// values : array_like or str
+///     Values, or their column in `data`; NaN is skipped.
 /// caps : dict
 ///     Cap per domain; domains left out are not capped.
-/// weights : array_like, optional
-///     Declustering weights.
+/// domains : array_like, optional
+///     Domain of each value, int or str.
+/// domain_column : str, optional
+///     Column of `data` holding the domains; give it or `domains`.
+/// weights : array_like or str, optional
+///     Declustering weights; default the volumes of a BlockModel `data`, else 1.
+/// data : PointSet, BlockModel, Table or dict, optional
+///     Where column names are looked up.
 ///
 /// Returns
 /// -------
@@ -669,15 +749,18 @@ fn capping<'py>(
 ///     ``(value - cap) × weight`` above the cap; ``1 - mean_capped / mean`` is
 ///     the fraction removed.
 #[pyfunction]
-#[pyo3(signature = (values, domains, caps, weights=None))]
+#[pyo3(signature = (values, caps, *, domains=None, domain_column=None, weights=None, data=None))]
 fn capping_report(
     values: &Bound<PyAny>,
-    domains: &Bound<PyAny>,
     caps: &Bound<PyDict>,
+    domains: Option<&Bound<PyAny>>,
+    domain_column: Option<&str>,
     weights: Option<&Bound<PyAny>>,
+    data: Option<&Bound<PyAny>>,
 ) -> PyResult<Table> {
-    let values = floats(values, "values")?;
-    let (names, codes) = categories(domains, values.len())?;
+    let values = floats(&column(data, values, "values")?, "values")?;
+    let domains = domain_labels(data, domains, domain_column)?;
+    let (names, codes) = categories(&domains, values.len())?;
     let mut by_domain = vec![f64::INFINITY; names.len()];
     for (k, cap) in caps.iter() {
         let k = k.str()?.to_string();
@@ -686,7 +769,7 @@ fn capping_report(
             .map_err(|_| invalid(format!("no value in domain {k}")))?;
         by_domain[i] = cap.extract()?;
     }
-    let w = optional_floats(weights, "weights")?;
+    let w = weights_or_volumes(data, weights, values.len())?;
     let rows = eda::capping_report(&values, &codes, w.as_deref(), &by_domain).map_err(invalid)?;
     let count = |f: fn(&eda::CapReport) -> usize| -> ArrayRef {
         Arc::new(UInt64Array::from_iter_values(
@@ -715,8 +798,14 @@ fn capping_report(
 ///
 /// With `azimuth`, pairs are oriented within `angle_tolerance` of (`azimuth`,
 /// `dip`); without, omnidirectional. Tails come from `other` when given.
+/// `values` and `other` may name columns of a PointSet `coords`.
+///
+/// Returns
+/// -------
+/// head, tail : ndarray
+/// r : float
 #[pyfunction]
-#[pyo3(signature = (coords, values, lag, tolerance, azimuth=None, dip=0.0, angle_tolerance=22.5, other=None))]
+#[pyo3(signature = (coords, values, lag, tolerance, *, azimuth=None, dip=0.0, angle_tolerance=22.5, other=None))]
 #[allow(clippy::too_many_arguments)]
 fn h_scatter<'py>(
     py: Python<'py>,
@@ -735,10 +824,12 @@ fn h_scatter<'py>(
         tolerance: angle_tolerance,
         bandwidth: None,
     });
-    let other = optional_floats(other, "other")?;
+    let other = other
+        .map(|o| floats(&column(Some(coords), o, "other")?, "other"))
+        .transpose()?;
     let (head, tail, r) = eda::h_scatter(
         &coords_arg(coords)?,
-        &floats(values, "values")?,
+        &floats(&column(Some(coords), values, "values")?, "values")?,
         other.as_deref(),
         lag,
         tolerance,
@@ -752,10 +843,12 @@ fn h_scatter<'py>(
 ///
 /// Parameters
 /// ----------
-/// data : array_like
-///     ``(n, d)`` values.
-/// weights : array_like, optional
-///     Declustering weights.
+/// data : array_like, PointSet, BlockModel, Table or dict
+///     ``(n, d)`` values, or named columns.
+/// columns : sequence of str, optional
+///     Columns of `data` to correlate, in order; default all of them.
+/// weights : array_like or str, optional
+///     Declustering weights, or their column in `data`.
 /// method : {"pearson", "spearman", "covariance"}
 ///     Pearson correlation, rank correlation, or the covariance (over the sum
 ///     of weights, as the variance of `describe`), variances on the diagonal.
@@ -765,10 +858,11 @@ fn h_scatter<'py>(
 /// ndarray
 ///     ``(d, d)`` symmetric matrix.
 #[pyfunction]
-#[pyo3(signature = (data, weights=None, method="pearson"))]
+#[pyo3(signature = (data, *, columns=None, weights=None, method="pearson"))]
 fn correlation<'py>(
     py: Python<'py>,
     data: &Bound<PyAny>,
+    columns: Option<Vec<String>>,
     weights: Option<&Bound<PyAny>>,
     method: &str,
 ) -> PyResult<Bound<'py, PyAny>> {
@@ -782,12 +876,23 @@ fn correlation<'py>(
             ));
         }
     };
-    let rows = rows(data, "data")?;
-    let d = rows.first().map_or(0, Vec::len);
-    let columns: Vec<Vec<f64>> = (0..d)
-        .map(|j| rows.iter().map(|r| r[j]).collect())
-        .collect();
-    let w = optional_floats(weights, "weights")?;
+    let by_name = columns.is_some() || column_names(data).is_ok();
+    let columns: Vec<Vec<f64>> = if by_name {
+        columns
+            .map_or_else(|| column_names(data), Ok)?
+            .iter()
+            .map(|c| floats(&named(Some(data), c, "columns")?, c))
+            .collect::<PyResult<_>>()?
+    } else {
+        let rows = rows(data, "data")?;
+        let d = rows.first().map_or(0, Vec::len);
+        (0..d)
+            .map(|j| rows.iter().map(|r| r[j]).collect())
+            .collect()
+    };
+    let w = weights
+        .map(|w| floats(&column(Some(data), w, "weights")?, "weights"))
+        .transpose()?;
     let r = eda::correlation(&columns, w.as_deref(), method).map_err(invalid)?;
     Ok(array2(py, &r).into_any())
 }
@@ -799,7 +904,7 @@ fn correlation<'py>(
 ///
 /// Parameters
 /// ----------
-/// points : PointSet or array_like
+/// coords : PointSet or array_like
 ///     Samples, or their ``(n, 2)`` or ``(n, 3)`` coordinates.
 /// tolerance : float
 ///     Largest distance between duplicates; 0 groups samples at exactly the
@@ -810,8 +915,8 @@ fn correlation<'py>(
 ///     `weights` (by count without), ``max`` is each column's own maximum,
 ///     both skipping nulls; ``first`` is the first sample's value. Other
 ///     columns take the first sample's value.
-/// weights : array_like, optional
-///     Weights of ``merge="mean"``, e.g. composite lengths.
+/// weights : array_like or str, optional
+///     Weights of ``merge="mean"``, e.g. composite lengths, or their column.
 ///
 /// Returns
 /// -------
@@ -825,14 +930,15 @@ fn correlation<'py>(
 ///     With `merge`, instead: the samples alone and one per group, in row
 ///     order, with an ``n`` column counting the samples merged into each.
 #[pyfunction]
-#[pyo3(signature = (points, tolerance=0.0, merge=None, weights=None))]
+#[pyo3(signature = (coords, *, tolerance=0.0, merge=None, weights=None))]
 fn duplicates<'py>(
     py: Python<'py>,
-    points: &Bound<'py, PyAny>,
+    coords: &Bound<'py, PyAny>,
     tolerance: f64,
     merge: Option<&str>,
     weights: Option<&Bound<PyAny>>,
 ) -> PyResult<Bound<'py, PyAny>> {
+    let points = coords;
     let set = points.cast::<PyPointSet>().ok().map(|p| p.get().0.clone());
     let coords = match &set {
         Some(p) => p.coords().to_vec(),
@@ -890,13 +996,13 @@ fn duplicates<'py>(
         _ => return Err(invalid("merge must be 'mean', 'first' or 'max'")),
     };
     let set = set.ok_or_else(|| invalid("merge needs a PointSet"))?;
-    let w = optional_floats(weights, "weights")?;
+    let w = optional_per_row(Some(points), weights, n, "weights")?;
     if w.is_some() && rule != Merge::Mean {
         return Err(invalid("weights are only used with merge='mean'"));
     }
     let batch = set.attributes();
     if batch.column_by_name("n").is_some() {
-        return Err(invalid("points already have a column 'n'"));
+        return Err(invalid("coords already have a column 'n'"));
     }
     let mut dropped = vec![false; n];
     let mut count = vec![1u64; n];
@@ -945,13 +1051,14 @@ fn duplicates<'py>(
 ///     Samples, or their ``(n, 2)`` or ``(n, 3)`` coordinates.
 /// max_distance : float
 ///     Largest pairing distance.
-/// values : tuple of array_like, optional
-///     Values of `a` and of `b`; samples with NaN are not paired.
+/// values : str or tuple of array_like or str, optional
+///     Column of both `a` and `b`, or the values (or column) of each;
+///     samples with NaN are not paired.
 /// unique : bool
 ///     Pair each sample at most once, the closest pairs first; else each
 ///     sample of `a` takes its nearest of `b`, which may repeat.
-/// holes : tuple of array_like, optional
-///     Hole ids of `a` and of `b`; samples of one hole are not paired.
+/// holes : str or tuple of array_like or str, optional
+///     Hole ids, as `values`; samples of one hole are not paired.
 ///
 /// Returns
 /// -------
@@ -959,7 +1066,7 @@ fn duplicates<'py>(
 ///     One row per pair, by row of `a`: ``a`` and ``b`` rows, ``distance``
 ///     and, with `values`, ``value_a`` and ``value_b``.
 #[pyfunction]
-#[pyo3(signature = (a, b, max_distance, values=None, unique=true, holes=None))]
+#[pyo3(signature = (a, b, max_distance, *, values=None, unique=true, holes=None))]
 fn pairs(
     a: &Bound<PyAny>,
     b: &Bound<PyAny>,
@@ -1040,7 +1147,7 @@ fn pairs(
 /// ndarray
 ///     One distance per target, ``inf`` when there are fewer than `n` samples.
 #[pyfunction]
-#[pyo3(signature = (coords, n=1, targets=None, horizontal=false))]
+#[pyo3(signature = (coords, *, n=1, targets=None, horizontal=false))]
 fn data_spacing<'py>(
     py: Python<'py>,
     coords: &Bound<PyAny>,

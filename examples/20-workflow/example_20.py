@@ -121,9 +121,9 @@ print(
 # %%
 weights = cs.cell_declustering(xyz, zn, sizes=np.arange(5, 80, 5)).weights
 weights /= weights.mean()
-naive, declustered = cs.describe(zn), cs.describe(zn, weights)
+naive, declustered = cs.describe(zn), cs.describe(zn, weights=weights)
 print(f"mean {naive['mean']:.2f} % Zn, declustered {declustered['mean']:.2f} %, CV {declustered['cv']:.2f}")
-caps = cs.capping(zn, weights)
+caps = cs.capping(zn, weights=weights)
 for cap, fraction, removed in zip(caps["cap"], caps["fraction"], caps["metal_removed"], strict=True):
     print(f"cap {cap:5.1f} % Zn: {fraction:5.1%} of composites cut, {removed:5.1%} of the metal removed")
 

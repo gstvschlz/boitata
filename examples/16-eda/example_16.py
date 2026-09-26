@@ -46,7 +46,7 @@ hole = composites["hole"]
 
 
 def holes_per_group(tolerance):
-    report, group = cs.duplicates(composites, tolerance)
+    report, group = cs.duplicates(composites, tolerance=tolerance)
     return report, [tuple(sorted(set(hole[group == k]))) for k in report["group"]]
 
 
@@ -87,7 +87,7 @@ edges = np.arange(0.0, 11.0, 2.0)
 paired, bias = {}, {}
 for name in ["SLUDGE", "PC"]:
     other = drilling == name
-    paired[name] = cs.pairs(xyz[dd], xyz[other], 10.0, values=(zn[dd], zn[other]))
+    paired[name] = cs.pairs(composites.filter(dd), composites.filter(other), 10.0, values="ZN")
     bias[name] = cs.paired_bias(paired[name], edges)
     p = paired[name]
     print(f"DD-{name}: {len(p)} pairs, Zn {np.mean(p['value_a']):.2f} vs {np.mean(p['value_b']):.2f} %")
@@ -148,8 +148,9 @@ for name in domains:
     keep = (lith == name) & ~np.isnan(zn)
     weights[keep] = cs.cell_declustering(xyz[keep], zn[keep], cell_size=50.0).weights
 five = np.isin(lith, domains)
-naive = cs.describe_by(zn[five], lith[five])
-stats = cs.describe_by(zn[five], lith[five], weights[five], quantiles=[0.5, 0.9, 0.995])
+in_five = composites.filter(five)
+naive = cs.describe_by("ZN", "LITH", data=in_five)
+stats = cs.describe_by("ZN", "LITH", weights=weights[five], quantiles=[0.5, 0.9, 0.995], data=in_five)
 print(f"{'LITH':<6}{'n':>7}{'mean':>8}{'declust.':>10}{'CV':>6}{'P50':>7}{'P90':>7}")
 for name, n, raw, mean, cv, p50, p90 in zip(
     *(stats[c] for c in ["category", "n"]),
@@ -199,9 +200,9 @@ save(fig, "distributions")
 
 # %%
 ms = (lith == "MS") & ~np.isnan(zn)
-caps = cs.capping(zn[ms], weights[ms])
+caps = cs.capping("ZN", weights=weights[ms], data=composites.filter(ms))
 print(f"{'cap':>7}{'cut (%)':>9}{'metal (%)':>11}{'mean':>7}{'CV':>6}")
-for cap, frac, metal, mean, cv in zip(*caps.values(), strict=True):
+for cap, frac, metal, mean, cv in zip(*(caps[c] for c in caps.column_names), strict=True):
     print(f"{cap:>7.2f}{100 * frac:>9.1f}{100 * metal:>11.2f}{mean:>7.2f}{cv:>6.2f}")
 
 # %% [markdown]
@@ -230,7 +231,8 @@ save(fig, "probability")
 # percent of its metal.
 
 # %%
-report = cs.capping_report(zn[five], lith[five], {k: cap[k] for k in domains}, weights[five])
+domain_caps = {k: cap[k] for k in domains}
+report = cs.capping_report("ZN", domain_caps, domain_column="LITH", weights=weights[five], data=in_five)
 columns = ["domain", "cap", "n_capped", "mean", "mean_capped", "cv", "cv_capped"]
 print(f"{'LITH':<6}{'cap':>7}{'cut':>5}{'mean':>7}{'capped':>8}{'CV':>6}{'capped':>8}{'metal (%)':>11}")
 for name, c, n, mean, capped, cv, cv_capped in zip(*(report[k] for k in columns), strict=True):
@@ -271,10 +273,19 @@ save(fig, "grade_tonnage")
 # %%
 fig, axes = plt.subplots(1, 2, figsize=(9, 3.4), layout="constrained", sharey=True)
 for ax, other in zip(axes, ["RH", "SM"], strict=True):
-    c = cs.contact(xyz, zn, lith, hole, "MS", other, max_distance=30.0, bin=2.0)
+    c = cs.contact(
+        composites,
+        "ZN",
+        domain_column="LITH",
+        holes="hole",
+        inside="MS",
+        outside=other,
+        max_distance=30.0,
+        bin=2.0,
+    )
     ax.axvline(0, color=GRAY, lw=0.8, ls="--")
     ax.plot(c["distance"], c["mean"], color=ACCENT, lw=1)
-    ax.scatter(c["distance"], c["mean"], s=np.sqrt(c["count"]), color=ACCENT)
+    ax.scatter(c["distance"], c["mean"], s=np.sqrt(c["n"]), color=ACCENT)
     ax.text(-15, 13, "inside MS", color=INK, ha="center")
     ax.text(15, 13, f"in {other}", color=INK, ha="center")
     ax.set(title=f"Zn across the MS/{other} contact", xlabel="Distance to contact (m)", ylim=(0, 14))

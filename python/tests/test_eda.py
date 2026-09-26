@@ -11,9 +11,11 @@ def test_describe_skips_nan_and_matches_hazen_quantiles():
     assert s["n"] == 200
     assert s["mean"] == pytest.approx(v.mean())
     assert s["std"] == pytest.approx(v.std())
-    np.testing.assert_allclose(s["quantiles"], np.quantile(v, [0.1, 0.5, 0.9], method="hazen"))
+    np.testing.assert_allclose(
+        [s["P10"], s["P50"], s["P90"]], np.quantile(v, [0.1, 0.5, 0.9], method="hazen")
+    )
     w = rng.uniform(0.5, 2, 200)
-    assert cs.describe(v, w)["mean"] == pytest.approx(np.average(v, weights=w))
+    assert cs.describe(v, weights=w)["mean"] == pytest.approx(np.average(v, weights=w))
     with pytest.raises(cs.InvalidInput):
         cs.describe(v, weights=-w)
 
@@ -79,11 +81,31 @@ def test_contact_signs_distance_by_side():
     coords = np.c_[np.zeros(40), np.zeros(40), z]
     domains = np.where(z < 10, "ore", "waste")
     values = np.where(z < 10, 3.0, 1.0)
-    c = cs.contact(coords, values, domains, np.repeat(["A", "B"], 20), "ore", "waste", 50.0, 2.0)
-    assert sum(c["count"]) == 40
+    holes = np.repeat(["A", "B"], 20)
+    c = cs.contact(
+        coords,
+        values,
+        domains=domains,
+        holes=holes,
+        inside="ore",
+        outside="waste",
+        max_distance=50.0,
+        bin=2.0,
+    )
+    assert c.column_names == ["distance", "mean", "n"]
+    assert c["n"].sum() == 40
     np.testing.assert_array_equal(c["mean"], np.where(c["distance"] < 0, 3.0, 1.0))
     with pytest.raises(cs.InvalidInput):
-        cs.contact(coords, values, domains, np.zeros(40), "ore", "oxide", 50.0, 2.0)
+        cs.contact(
+            coords,
+            values,
+            domains=domains,
+            holes=holes,
+            inside="ore",
+            outside="oxide",
+            max_distance=50.0,
+            bin=2.0,
+        )
 
 
 def test_capping_at_maximum_removes_nothing():
@@ -92,7 +114,7 @@ def test_capping_at_maximum_removes_nothing():
     assert c["metal_removed"][0] == pytest.approx(0.0)
     assert c["fraction"][1] == pytest.approx(0.5)
     assert c["mean"][1] == pytest.approx(np.minimum(v, np.median(v)).mean())
-    assert len(cs.capping(v)["cap"]) == 6
+    assert len(cs.capping(v)) == 6
 
 
 def test_h_scatter_correlation_decays():
@@ -115,10 +137,10 @@ def test_correlation_pairwise():
     np.testing.assert_allclose(r, r.T)
     assert cs.correlation(data, method="spearman")[0, 2] == pytest.approx(1.0)
     w = rng.uniform(0.5, 2.0, 100)
-    c = cs.correlation(data[:, :2], w, method="covariance")
-    assert c[0, 0] == pytest.approx(cs.describe(a, w)["variance"])
+    c = cs.correlation(data[:, :2], weights=w, method="covariance")
+    assert c[0, 0] == pytest.approx(cs.describe(a, weights=w)["variance"])
     ok = ~np.isnan(data[:, 1])
-    assert c[1, 1] == pytest.approx(4 * cs.describe(a[ok], w[ok])["variance"])
+    assert c[1, 1] == pytest.approx(4 * cs.describe(a[ok], weights=w[ok])["variance"])
     with pytest.raises(cs.InvalidInput):
         cs.correlation(data, method="kendall")
 
@@ -127,13 +149,13 @@ def test_describe_by_ends_with_the_all_data_row():
     v = np.r_[rng.lognormal(0, 1, 90), np.nan]
     c = np.repeat(["b", "a", "c"], 31)[:91]
     w = rng.uniform(0.5, 2, 91)
-    t = cs.describe_by(v, c, w, quantiles=[0.5, 0.975])
+    t = cs.describe_by(v, c, weights=w, quantiles=[0.5, 0.975])
     assert t.column_names == ["category", "n", "mean", "variance", "std", "cv", "min", "max", "P50", "P97.5"]
     assert list(t["category"]) == ["a", "b", "c", "all"]
-    whole = cs.describe(v, w, quantiles=[0.5, 0.975])
+    whole = cs.describe(v, weights=w, quantiles=[0.5, 0.975])
     assert t["n"][-1] == whole["n"] == t["n"][:3].sum()
     assert t["mean"][-1] == pytest.approx(whole["mean"])
-    np.testing.assert_allclose([t["P50"][-1], t["P97.5"][-1]], whole["quantiles"])
+    np.testing.assert_allclose([t["P50"][-1], t["P97.5"][-1]], [whole["P50"], whole["P97.5"]])
     a = c == "a"
     assert t["mean"][0] == pytest.approx(np.average(v[a], weights=w[a]))
 
@@ -198,7 +220,7 @@ def test_capping_report_by_domain():
     d = np.repeat([1, 2, 3], 100)
     w = rng.uniform(0.5, 2, 300)
     caps = {1: 3.0, 3: 5.0}
-    t = cs.capping_report(v, d, caps, weights=w)
+    t = cs.capping_report(v, caps, domains=d, weights=w)
     assert list(t["domain"]) == ["1", "2", "3", "all"]
     cap = np.select([d == 1, d == 3], [3.0, 5.0], np.inf)
     removed = np.maximum(v - cap, 0) * w
@@ -210,7 +232,7 @@ def test_capping_report_by_domain():
     assert t["max_capped"][0] == 3.0 and t["max_capped"][1] == t["max"][1]
     assert t["mean_capped"][-1] == pytest.approx(np.average(np.minimum(v, cap), weights=w))
     with pytest.raises(cs.InvalidInput):
-        cs.capping_report(v, d, {4: 1.0})
+        cs.capping_report(v, {4: 1.0}, domains=d)
 
 
 def test_pairs_recover_twins_and_their_bias():
@@ -243,15 +265,15 @@ def test_duplicates_report_group_ids_and_merge():
     cu = np.arange(1.0, 6.0)
     rock = ["a", "b", "c", "d", "e"]
     points = cs.PointSet(coords, {"zn": zn, "cu": cu, "rock": rock}, crs="EPSG:32718")
-    merged = cs.duplicates(points, 0.5, merge="mean", weights=[1, 1, 3, 1, 1])
+    merged = cs.duplicates(points, tolerance=0.5, merge="mean", weights=[1, 1, 3, 1, 1])
     np.testing.assert_allclose(merged.coords, coords[[0, 1, 4]])
     np.testing.assert_allclose(merged["zn"], [2.5, 2.0, 5.0])
     assert list(merged["rock"]) == ["a", "b", "e"] and merged["n"].tolist() == [3, 1, 1]
     assert merged.crs == "EPSG:32718"
-    counted = cs.duplicates(points, 0.5, merge="mean")
+    counted = cs.duplicates(points, tolerance=0.5, merge="mean")
     assert np.average(counted["cu"], weights=counted["n"]) == pytest.approx(cu.mean())
-    assert cs.duplicates(points, 0.5, merge="max")["zn"][0] == 3.0
-    assert cs.duplicates(points, 0.5, merge="first")["zn"][0] == 1.0
+    assert cs.duplicates(points, tolerance=0.5, merge="max")["zn"][0] == 3.0
+    assert cs.duplicates(points, tolerance=0.5, merge="first")["zn"][0] == 1.0
     for bad in (
         lambda: cs.duplicates(coords, merge="mean"),
         lambda: cs.duplicates(points, merge="median"),

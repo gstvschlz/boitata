@@ -1287,15 +1287,19 @@ class Categories:
     def __eq__(self, other: object) -> bool: ...
 
 def describe(
-    values: ArrayLike,
-    weights: ArrayLike | None = None,
+    values: ArrayLike | Column,
+    *,
+    weights: ArrayLike | Column | None = None,
     quantiles: Sequence[float] = (0.1, 0.25, 0.5, 0.75, 0.9),
-) -> dict[str, Any]: ...
+    data: Data | None = None,
+) -> dict[str, float]: ...
 def describe_by(
-    values: ArrayLike,
-    categories: Labels,
-    weights: ArrayLike | None = None,
+    values: ArrayLike | Column,
+    categories: Labels | Column,
+    *,
+    weights: ArrayLike | Column | None = None,
     quantiles: Sequence[float] = (0.1, 0.25, 0.5, 0.75, 0.9),
+    data: Data | None = None,
 ) -> Table: ...
 def grade_tonnage(
     values: ArrayLike | Column,
@@ -1316,10 +1320,13 @@ def compare_models(
     density: float | ArrayLike | Column = 1.0,
 ) -> Table: ...
 def capping_report(
-    values: ArrayLike,
-    domains: Labels,
+    values: ArrayLike | Column,
     caps: Mapping[int | str, float],
-    weights: ArrayLike | None = None,
+    *,
+    domains: Labels | None = None,
+    domain_column: Column | None = None,
+    weights: ArrayLike | Column | None = None,
+    data: Data | None = None,
 ) -> Table: ...
 def swath(
     coords: PointSet | BlockModel | ArrayLike,
@@ -1332,49 +1339,59 @@ def swath(
     density: float | ArrayLike | Column = 1.0,
 ) -> Table: ...
 def contact(
-    coords: ArrayLike,
-    values: ArrayLike,
-    domains: Labels,
-    holes: Holes,
+    coords: PointSet | ArrayLike,
+    values: ArrayLike | Column,
+    *,
+    domains: Labels | None = None,
+    domain_column: Column | None = None,
+    holes: Holes | Column,
     inside: int | str,
     outside: int | str,
     max_distance: float,
     bin: float,
-) -> dict[str, npt.NDArray[np.float64] | list[int]]: ...
+) -> Table: ...
 def capping(
-    values: ArrayLike, weights: ArrayLike | None = None, caps: ArrayLike | None = None
-) -> dict[str, npt.NDArray[np.float64]]: ...
+    values: ArrayLike | Column,
+    *,
+    weights: ArrayLike | Column | None = None,
+    caps: ArrayLike | None = None,
+    data: Data | None = None,
+) -> Table: ...
 def h_scatter(
-    coords: ArrayLike,
-    values: ArrayLike,
+    coords: PointSet | ArrayLike,
+    values: ArrayLike | Column,
     lag: float,
     tolerance: float,
+    *,
     azimuth: float | None = None,
     dip: float = 0.0,
     angle_tolerance: float = 22.5,
-    other: ArrayLike | None = None,
+    other: ArrayLike | Column | None = None,
 ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64], float]: ...
 def correlation(
-    data: ArrayLike,
-    weights: ArrayLike | None = None,
+    data: ArrayLike | Data,
+    *,
+    columns: Sequence[Column] | None = None,
+    weights: ArrayLike | Column | None = None,
     method: Literal["pearson", "spearman", "covariance"] = "pearson",
 ) -> npt.NDArray[np.float64]: ...
 @overload
 def duplicates(
-    points: PointSet | ArrayLike, tolerance: float = 0.0, merge: None = None, weights: None = None
+    coords: PointSet | ArrayLike, *, tolerance: float = 0.0, merge: None = None, weights: None = None
 ) -> tuple[Table, npt.NDArray[np.int64]]: ...
 @overload
 def duplicates(
-    points: PointSet,
-    tolerance: float = 0.0,
+    coords: PointSet,
     *,
+    tolerance: float = 0.0,
     merge: Literal["mean", "first", "max"],
-    weights: ArrayLike | None = None,
+    weights: ArrayLike | Column | None = None,
 ) -> PointSet: ...
 def pairs(
     a: PointSet | ArrayLike,
     b: PointSet | ArrayLike,
     max_distance: float,
+    *,
     values: Column | tuple[ArrayLike | Column, ArrayLike | Column] | None = None,
     unique: bool = True,
     holes: Column | tuple[Holes | Column, Holes | Column] | None = None,
@@ -1382,6 +1399,7 @@ def pairs(
 def paired_bias(pairs: Table, bins: int | ArrayLike) -> Table: ...
 def data_spacing(
     coords: PointSet | ArrayLike,
+    *,
     n: int = 1,
     targets: Any | None = None,
     horizontal: bool = False,

@@ -61,13 +61,18 @@ def _finite(values, weights):
     return values[ok], weights[ok] / weights[ok].sum()
 
 
+def _quantiles(values, weights, p):
+    s = describe(values, weights=weights, quantiles=p)
+    return np.array([v for k, v in s.items() if k.startswith("P")])
+
+
 def _stats(ax, series, labels, corner):
     rows = [("n", "{:,}"), ("mean", "{:.3g}"), ("CV", "{:.2f}"), ("P10", "{:.3g}"), ("P50", "{:.3g}")]
     rows.append(("P90", "{:.3g}"))
     columns = []
     for values, weights in series:
-        s = describe(values, weights, quantiles=[0.1, 0.5, 0.9])
-        numbers = [s["n"], s["mean"], s["cv"], *s["quantiles"]]
+        s = describe(values, weights=weights, quantiles=[0.1, 0.5, 0.9])
+        numbers = [s["n"], s["mean"], s["cv"], s["P10"], s["P50"], s["P90"]]
         columns.append([f.format(x) for (_, f), x in zip(rows, numbers, strict=True)])
     table = [[name] + [c[i] for c in columns] for i, (name, _) in enumerate(rows)]
     if len(series) > 1:
@@ -154,7 +159,7 @@ def probability(values, weights=None, log=False, cap=None, fences=None, ax=None,
     if fences is not None:
         keep = v > 0 if log else np.full(v.size, True)
         x = np.log10(v[keep]) if log else v
-        q1, q3 = describe(x, w[keep], quantiles=[0.25, 0.75])["quantiles"]
+        q1, q3 = _quantiles(x, w[keep], [0.25, 0.75])
         spread = fences * (q3 - q1)
         for fence, n in ((q1 - spread, np.sum(x < q1 - spread)), (q3 + spread, np.sum(x > q3 + spread))):
             fence = 10.0**fence if log else fence
@@ -222,8 +227,8 @@ def qq(x, y, x_weights=None, y_weights=None, quantiles=None, log=False, ax=None,
     """
     fig, ax = _axes(ax)
     p = np.linspace(0.01, 0.99, 99) if quantiles is None else quantiles
-    qx = describe(x, x_weights, quantiles=p)["quantiles"]
-    qy = describe(y, y_weights, quantiles=p)["quantiles"]
+    qx = _quantiles(x, x_weights, p)
+    qy = _quantiles(y, y_weights, p)
     kwargs.setdefault("marker", ".")
     kwargs.setdefault("linestyle", "none")
     ax.plot(qx, qy, **kwargs)
@@ -263,8 +268,8 @@ def boxplot(values, categories, weights=None, sort=False, log=False, scheme=None
     weights = None if weights is None else np.asarray(weights, dtype=float)[keep]
     stats, codes = [], []
     for c in np.unique(index[~np.isnan(values)]):
-        s = describe(values[index == c], None if weights is None else weights[index == c])
-        p10, q1, med, q3, p90 = s["quantiles"]
+        s = describe(values[index == c], weights=None if weights is None else weights[index == c])
+        p10, q1, med, q3, p90 = (s[k] for k in ("P10", "P25", "P50", "P75", "P90"))
         stats.append(
             {
                 "label": f"{names[c]}\nn = {s['n']:,}",
@@ -380,7 +385,7 @@ def correlation(data, labels=None, weights=None, method="pearson", colorbar=True
     """
     fig, ax = _axes(ax)
     data, labels = _stack(data, labels)
-    r = _correlation(data, weights, method=method)
+    r = _correlation(data, weights=weights, method=method)
     top = np.nanmax(np.abs(r)) if method == "covariance" else 1.0
     kwargs.setdefault("cmap", "RdBu_r")
     im = ax.imshow(r, vmin=-top, vmax=top, **kwargs)
@@ -463,10 +468,8 @@ def conditional(x, y, bins=10, weights=None, log=False, ax=None, **kwargs):
     for b in range(len(edges) - 1):
         keep = inside & (k == b)
         if keep.any():
-            s = describe(y[keep], w[keep], quantiles=[0.1, 0.9])
-            rows.append(
-                (describe(x[keep], w[keep], quantiles=[0.5])["quantiles"][0], s["mean"], *s["quantiles"])
-            )
+            s = describe(y[keep], weights=w[keep], quantiles=[0.1, 0.9])
+            rows.append((_quantiles(x[keep], w[keep], [0.5])[0], s["mean"], s["P10"], s["P90"]))
     cx, mean, p10, p90 = np.array(rows).T
     kwargs.setdefault("s", 4)
     kwargs.setdefault("color", "0.75")
@@ -538,8 +541,8 @@ def scatter_matrix(data, labels=None, weights=None, log=False, bins=30, axes=Non
     log = np.broadcast_to(log, d)
     for j in np.flatnonzero(log):
         data[data[:, j] <= 0, j] = np.nan
-    pearson = _correlation(data, weights)
-    rank = _correlation(data, weights, method="spearman")
+    pearson = _correlation(data, weights=weights)
+    rank = _correlation(data, weights=weights, method="spearman")
     if axes is None:
         fig, _ = _axes(None)
         fig.clear()
