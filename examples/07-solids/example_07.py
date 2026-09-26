@@ -219,3 +219,20 @@ print(
     back,
     f"volume {back.volume:,.0f} m3 (written {solid.volume:,.0f} m3), largest shift {shift * 1000:.2f} mm",
 )
+
+# %% [markdown]
+# A solid from elsewhere can arrive as loose triangles: each with its own copy of its corners, rounded differently,
+# and wound either way. It has no shared edges, so it is not closed and has no volume. `Mesh.repair` welds corners
+# within `tolerance`, drops degenerate and repeated triangles, and winds each piece consistently, outward where it
+# is closed:
+
+# %%
+rng = np.random.default_rng(7)
+corners = solid.vertices[solid.triangles] + rng.normal(0, 1e-4, (len(solid.triangles), 3, 3))
+loose = np.arange(3 * len(solid.triangles)).reshape(-1, 3)
+flip = rng.random(len(loose)) < 0.5
+loose[flip] = loose[flip, ::-1]
+broken = cs.Mesh(corners.reshape(-1, 3), loose)
+repaired = broken.repair(tolerance=0.01)
+print(broken, broken.analysis)
+print(repaired, f"volume {repaired.volume:,.0f} m3 (original {solid.volume:,.0f} m3)")

@@ -265,16 +265,17 @@ save(fig, "dip")
 `BlockModel.from_meshes` turns meshes into a sub-blocked model: `(mesh, rule, label)` domains in priority order,
 each sub-cell labelled by the first that holds its centre, `"inside"` a solid or `"below"` or `"above"` a surface
 such as topography. On 10 m blocks with 1 m sub-cells in elevation, the volume below the true fold and below the
-twelve-plane model, each triangulated:
+twelve-plane model. A surface given as a grid of elevations, the usual form of topography, is a 2D `BlockModel`
+with an elevation column; `grid_surface` triangulates it through the block centres, leaving holes where the
+elevation is missing. The true fold is such a grid at 5 m:
 
 <details><summary>Python</summary>
 
 ```python
-gx, gy = np.meshgrid(np.linspace(-5, 605, 123), np.linspace(-5, 305, 63))
-i = (np.arange(122)[None, :] + 123 * np.arange(62)[:, None]).ravel()
-grid_triangles = np.r_[np.c_[i, i + 1, i + 124], np.c_[i, i + 124, i + 123]]
+topography = cs.BlockModel(origin=(-7.5, -7.5, 0), size=(5, 5, 1), count=(123, 63, 1))
+topography = topography.with_column("z", surface(topography.centroids[:, 0]))
 surfaces = {
-    "true fold": cs.Mesh(np.c_[gx.ravel(), gy.ravel(), surface(gx.ravel())], grid_triangles),
+    "true fold": cs.grid_surface(topography, "z"),
     "12-plane model": folds["5 holes, 12 planes"].isosurface(volume),
 }
 xs = np.linspace(-5, 605, 6101)
