@@ -34,6 +34,26 @@ def test_sgs_summary_matches_its_realizations():
     assert sgs.simulate(grid, n=2, seed=3).realizations is None
 
 
+def test_block_support_averages_each_realization():
+    sgs = cs.SGS(gaussian, cs.Search(radius=40, max_samples=12)).fit(coords, values)
+    blocks = cs.BlockModel(origin=(0, 0), size=(20, 20), count=(5, 5))
+    nodes = sgs.simulate(grid, n=6, seed=2, realizations=True).realizations
+    s = sgs.simulate(grid, n=6, seed=2, cutoffs=[1.0], realizations=True, blocks=blocks)
+    xy = grid.centroids[:, :2] // 20
+    rows = (xy[:, 0] + 5 * xy[:, 1]).astype(int)
+    expected = np.stack([np.bincount(rows, r) / np.bincount(rows) for r in nodes])
+    np.testing.assert_allclose(s.realizations, expected)
+    np.testing.assert_allclose(s.mean, expected.mean(axis=0))
+    assert (s.variance <= np.bincount(rows, nodes.var(axis=0)) / 16 + 1e-9).all()
+    with pytest.raises(ValueError):
+        sgs.simulate(grid, n=1, blocks=cs.BlockModel(origin=(0, 0), size=(20, 20), count=(6, 5)))
+
+    cats = (values > np.median(values)).astype(int)
+    sis = cs.SIS([gaussian, gaussian], cs.Search(radius=40, max_samples=12)).fit(coords, cats)
+    c = sis.simulate(grid, n=3, seed=4, realizations=True, blocks=blocks)
+    assert c.realizations.shape == (3, 25) and c.probabilities.shape == (2, 25)
+
+
 def test_turning_bands_summary():
     tb = cs.TurningBands(gaussian, bands=100, step=1.0).fit(coords, values)
     s = tb.simulate(grid, n=2, seed=1, cutoffs=[1.0, 2.0])

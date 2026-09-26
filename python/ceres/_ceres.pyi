@@ -419,6 +419,7 @@ class SGS:
         quantiles: Sequence[float] = (),
         realizations: bool = False,
         anisotropy: LocalAnisotropy | None = None,
+        blocks: BlockModel | None = None,
     ) -> SimulationSummary: ...
 
 class TurningBands:
@@ -440,6 +441,7 @@ class TurningBands:
         cutoffs: Sequence[float] = (),
         quantiles: Sequence[float] = (),
         realizations: bool = False,
+        blocks: BlockModel | None = None,
     ) -> SimulationSummary: ...
     def simulate_to_parquet(
         self,
@@ -456,7 +458,12 @@ class SIS:
     def __init__(self, variograms: Sequence[Variogram], search: Search) -> None: ...
     def fit(self, coords: ArrayLike, categories: ArrayLike, holes: Holes | None = None) -> SIS: ...
     def simulate(
-        self, targets: Any, n: int = 100, seed: int = 0, realizations: bool = False
+        self,
+        targets: Any,
+        n: int = 100,
+        seed: int = 0,
+        realizations: bool = False,
+        blocks: BlockModel | None = None,
     ) -> CategoricalSummary: ...
 
 class Plurigaussian:
@@ -469,7 +476,12 @@ class Plurigaussian:
     ) -> None: ...
     def fit(self, coords: ArrayLike, facies: ArrayLike, holes: Holes | None = None) -> Plurigaussian: ...
     def simulate(
-        self, targets: Any, n: int = 100, seed: int = 0, realizations: bool = False
+        self,
+        targets: Any,
+        n: int = 100,
+        seed: int = 0,
+        realizations: bool = False,
+        blocks: BlockModel | None = None,
     ) -> CategoricalSummary: ...
 
 class SimulationSummary:

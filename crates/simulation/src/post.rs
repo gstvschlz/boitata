@@ -4,6 +4,7 @@
 //! Realizations are simulated in parallel batches and folded in realization
 //! order, so every summary is identical for any number of threads.
 
+use ceres_core::BlockModel;
 use rayon::prelude::*;
 
 use crate::error::{Result, SimError};
@@ -257,6 +258,100 @@ pub fn categorical(
     })
 }
 
+/// Averages realizations from simulation nodes to the rows of a coarser block
+/// model: each node counts in the block holding it, weighted by its volume;
+/// nodes outside every block are ignored.
+#[derive(Debug, Clone)]
+pub struct BlockSupport {
+    block: Vec<Option<usize>>,
+    volume: Vec<f64>,
+    blocks: usize,
+}
+
+impl BlockSupport {
+    /// `volumes` of the nodes, equal when `None`. Every block must hold a node.
+    pub fn new(
+        nodes: &[(f64, f64, f64)],
+        volumes: Option<&[f64]>,
+        blocks: &BlockModel,
+    ) -> Result<Self> {
+        let volume = volumes.map_or_else(|| vec![1.0; nodes.len()], <[f64]>::to_vec);
+        if volume.len() != nodes.len() {
+            return Err(SimError::InvalidParameters("one volume per node".into()));
+        }
+        if volume.iter().any(|v| !(v.is_finite() && *v > 0.0)) {
+            return Err(SimError::InvalidParameters(
+                "node volumes must be positive".into(),
+            ));
+        }
+        let block: Vec<Option<usize>> = nodes
+            .par_iter()
+            .map(|&(x, y, z)| blocks.row_at([x, y, z]))
+            .collect();
+        let mut held = vec![false; blocks.len()];
+        block.iter().flatten().for_each(|&b| held[b] = true);
+        if let Some(empty) = held.iter().position(|h| !h) {
+            return Err(SimError::InvalidParameters(format!(
+                "block row {empty} holds no node"
+            )));
+        }
+        Ok(Self {
+            block,
+            volume,
+            blocks: blocks.len(),
+        })
+    }
+
+    fn check(&self, n: usize) -> Result<()> {
+        if n == self.block.len() {
+            Ok(())
+        } else {
+            Err(SimError::InvalidParameters(
+                "one value per node needed".into(),
+            ))
+        }
+    }
+
+    /// Volume-weighted mean of `values` in each block.
+    pub fn mean(&self, values: &[f64]) -> Result<Vec<f64>> {
+        self.check(values.len())?;
+        let mut sum = vec![(0.0, 0.0); self.blocks];
+        for ((b, v), w) in self.block.iter().zip(values).zip(&self.volume) {
+            if let Some(b) = *b {
+                sum[b].0 += w * v;
+                sum[b].1 += w;
+            }
+        }
+        Ok(sum.into_iter().map(|(s, w)| s / w).collect())
+    }
+
+    /// Category `0..k` filling the most volume of each block; ties go to the
+    /// lowest.
+    pub fn majority(&self, categories: &[usize], k: usize) -> Result<Vec<usize>> {
+        self.check(categories.len())?;
+        let mut share = vec![0.0; self.blocks * k];
+        for ((b, &c), w) in self.block.iter().zip(categories).zip(&self.volume) {
+            if c >= k {
+                return Err(SimError::InvalidParameters(format!(
+                    "category {c} outside 0..{k}"
+                )));
+            }
+            if let Some(b) = *b {
+                share[b * k + c] += w;
+            }
+        }
+        Ok(share
+            .chunks(k.max(1))
+            .map(|s| {
+                (0..k)
+                    .rev()
+                    .max_by(|&a, &b| s[a].total_cmp(&s[b]))
+                    .unwrap_or(0)
+            })
+            .collect())
+    }
+}
+
 /// Empirical quantile of `sorted` (ascending) using linear interpolation.
 pub fn quantile_sorted(sorted: &[f64], q: f64) -> f64 {
     let n = sorted.len();
@@ -345,6 +440,108 @@ mod tests {
         assert_eq!(s.entropy[0], 0.0);
         assert!(s.entropy[1] > 0.9 && s.entropy[1] <= 1.0);
         assert_eq!(s.proportions.len(), 10);
+    }
+
+    fn grid(size: f64, count: usize) -> BlockModel {
+        let geometry = ceres_core::Geometry {
+            origin: [0.0; 3],
+            size: [size, size, 1.0],
+            count: [count, count, 1],
+            rotation: [0.0; 3],
+        };
+        let rows = arrow_array::RecordBatchOptions::new().with_row_count(Some(count * count));
+        let empty = ceres_core::RecordBatch::try_new_with_options(
+            std::sync::Arc::new(arrow_schema::Schema::empty()),
+            vec![],
+            &rows,
+        )
+        .unwrap();
+        BlockModel::regular(geometry, empty).unwrap()
+    }
+
+    fn nodes(model: &BlockModel) -> Vec<(f64, f64, f64)> {
+        model
+            .centroids()
+            .into_iter()
+            .map(|[x, y, z]| (x, y, z))
+            .collect()
+    }
+
+    #[test]
+    fn block_mean_of_realizations_is_the_average_of_node_means() {
+        let fine = nodes(&grid(1.0, 8));
+        let volumes: Vec<f64> = (0..64).map(|i| 1.0 + (i % 3) as f64).collect();
+        let support = BlockSupport::new(&fine, Some(&volumes), &grid(4.0, 2)).unwrap();
+        let field = |k: usize| Ok((0..64).map(|i| ((k * 7 + i * 3) % 11) as f64).collect());
+        let options = ContinuousOptions::default();
+        let node = continuous(19, &options, field).unwrap();
+        let block = continuous(19, &options, |k| support.mean(&field(k)?)).unwrap();
+        assert_eq!(support.mean(&node.mean).unwrap().len(), 4);
+        for (a, b) in support.mean(&node.mean).unwrap().iter().zip(&block.mean) {
+            assert!((a - b).abs() < 1e-12, "{a} vs {b}");
+        }
+    }
+
+    #[test]
+    fn block_variance_is_below_node_variance() {
+        use crate::sgs::{SgsParams, sgs};
+        let data = vec![(0.5, 0.5, 0.5), (7.5, 7.5, 0.5), (0.5, 7.5, 0.5)];
+        let values = vec![1.0, 4.0, 9.0];
+        let fine = nodes(&grid(1.0, 8));
+        let support = BlockSupport::new(&fine, None, &grid(4.0, 2)).unwrap();
+        let vg = variogram::Variogram::single(variogram::model::Model::Spherical, 1.0, 5.0);
+        let realization = |k: usize| {
+            let params = SgsParams {
+                search: estimation::search::Search {
+                    min_samples: 1,
+                    max_samples: 16,
+                    radius: f64::INFINITY,
+                    ..Default::default()
+                },
+                seed: 7 + k as u64,
+            };
+            sgs(&data, &values, None, &fine, &vg, &params, None).map(|r| r.values)
+        };
+        let options = ContinuousOptions::default();
+        let node = continuous(40, &options, realization).unwrap();
+        let block = continuous(40, &options, |k| support.mean(&realization(k)?)).unwrap();
+        let within = support.mean(&node.variance).unwrap();
+        for (b, n) in block.variance.iter().zip(&within) {
+            assert!(b <= &(n + 1e-12), "block {b} above nodes {n}");
+        }
+        assert!(block.variance.iter().sum::<f64>() < 0.8 * within.iter().sum::<f64>());
+    }
+
+    #[test]
+    fn blocks_the_size_of_the_nodes_change_nothing() {
+        let model = grid(2.5, 5);
+        let support = BlockSupport::new(&nodes(&model), None, &model).unwrap();
+        let values: Vec<f64> = (0..25).map(|i| (i * i % 7) as f64 - 0.3).collect();
+        assert_eq!(support.mean(&values).unwrap(), values);
+        let cats: Vec<usize> = (0..25).map(|i| i % 3).collect();
+        assert_eq!(support.majority(&cats, 3).unwrap(), cats);
+    }
+
+    #[test]
+    fn majority_is_deterministic_on_ties() {
+        let fine = nodes(&grid(1.0, 2));
+        let support = BlockSupport::new(&fine, None, &grid(2.0, 1)).unwrap();
+        assert_eq!(support.majority(&[2, 1, 1, 2], 3).unwrap(), [1]);
+        assert_eq!(support.majority(&[1, 2, 2, 1], 3).unwrap(), [1]);
+        let heavier = BlockSupport::new(&fine, Some(&[1.0, 1.0, 1.0, 4.0]), &grid(2.0, 1)).unwrap();
+        assert_eq!(heavier.majority(&[1, 1, 1, 2], 3).unwrap(), [2]);
+        let s = categorical(5, 3, false, |_| support.majority(&[2, 0, 0, 2], 3)).unwrap();
+        assert_eq!(s.most_likely, [0]);
+    }
+
+    #[test]
+    fn empty_blocks_and_bad_volumes_are_errors() {
+        let fine = nodes(&grid(1.0, 2));
+        assert!(BlockSupport::new(&fine, None, &grid(1.0, 3)).is_err());
+        assert!(BlockSupport::new(&fine, Some(&[1.0, 0.0, 1.0, 1.0]), &grid(2.0, 1)).is_err());
+        let support = BlockSupport::new(&fine, None, &grid(2.0, 1)).unwrap();
+        assert!(support.mean(&[1.0]).is_err());
+        assert!(support.majority(&[0, 0, 0, 5], 3).is_err());
     }
 
     #[test]

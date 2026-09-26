@@ -73,6 +73,22 @@ impl Geometry {
         [0, 1, 2].map(|a| self.origin[a] + world[a])
     }
 
+    /// Cell holding world point `p` and the point's fractional position in
+    /// it; the inverse of [`Geometry::point`].
+    pub fn locate(&self, p: [f64; 3]) -> Option<(u64, [f64; 3])> {
+        let local = block_frame(self.rotation) * Vector3::from_fn(|a, _| p[a] - self.origin[a]);
+        let (mut ijk, mut at) = ([0; 3], [0.0; 3]);
+        for a in 0..3 {
+            let u = local[a] / self.size[a];
+            let i = u.floor();
+            if !(0.0..self.count[a] as f64).contains(&i) {
+                return None;
+            }
+            (ijk[a], at[a]) = (i as usize, u - i);
+        }
+        Some((self.index(ijk), at))
+    }
+
     pub fn cell_volume(&self) -> f64 {
         self.size.iter().product()
     }
@@ -229,6 +245,18 @@ impl BlockModel {
             Layout::Regular => row as u64,
             Layout::Masked(index) => index[row],
             Layout::SubBlocked { parent, .. } => parent[row],
+        }
+    }
+
+    /// Row holding world point `p`, if any.
+    pub fn row_at(&self, p: [f64; 3]) -> Option<usize> {
+        let (cell, at) = self.geometry.locate(p)?;
+        match &self.layout {
+            Layout::Regular => Some(cell as usize),
+            Layout::Masked(index) => index.binary_search(&cell).ok(),
+            Layout::SubBlocked { parent, extent, .. } => (parent.partition_point(|&c| c < cell)
+                ..parent.partition_point(|&c| c <= cell))
+                .find(|&r| (0..3).all(|a| extent[r][a] <= at[a] && at[a] < extent[r][a + 3])),
         }
     }
 
@@ -420,6 +448,13 @@ mod tests {
         let c = geometry([90.0, 0.0, 0.0]).centroid(0);
         let expected = [102.5, 195.0, 1.0];
         assert!(c.iter().zip(expected).all(|(a, b)| (a - b).abs() < 1e-9));
+        let g = geometry([30.0, 20.0, 10.0]);
+        for cell in 0..g.cells() {
+            let (found, at) = g.locate(g.point(cell, [0.2, 0.5, 0.9])).unwrap();
+            assert_eq!(found, cell);
+            assert!((at[0] - 0.2).abs() < 1e-9 && (at[2] - 0.9).abs() < 1e-9);
+        }
+        assert!(g.locate([0.0; 3]).is_none());
     }
 
     #[test]
@@ -468,6 +503,10 @@ mod tests {
         .unwrap();
         assert_eq!(model.centroids()[1], [107.5, 201.25, 1.0]);
         assert_eq!(model.volumes(), vec![50.0, 25.0, 25.0, 100.0]);
+        for (row, c) in model.centroids().into_iter().enumerate() {
+            assert_eq!(model.row_at(c), Some(row));
+        }
+        assert_eq!(model.row_at(g.centroid(1)), None);
         assert!((model.volumes().iter().sum::<f64>() - 2.0 * g.cell_volume()).abs() < 1e-9);
         let regular = model.to_regular().unwrap();
         let au: Vec<_> = regular
