@@ -29,22 +29,34 @@ pub fn empty(rows: usize) -> RecordBatch {
     .expect("empty batch")
 }
 
-/// Any Arrow-compatible object or a dict of 1-D numeric arrays (NaN is null).
+/// Any Arrow-compatible object or a dict of 1-D numeric (NaN is null) or text arrays.
 pub fn to_batch(data: &Bound<PyAny>) -> PyResult<RecordBatch> {
     if let Ok(dict) = data.cast::<PyDict>() {
         let np = data.py().import("numpy")?;
         let mut columns = Vec::with_capacity(dict.len());
         for (name, values) in dict.iter() {
-            let values: PyReadonlyArray1<f64> = np
-                .call_method1("asarray", (values, "float64"))
-                .and_then(|v| Ok(v.extract()?))
-                .map_err(|_| invalid(format!("column {name} is not a 1-D numeric array")))?;
-            let array: Float64Array = values
-                .as_array()
-                .iter()
-                .map(|v| (!v.is_nan()).then_some(*v))
-                .collect();
-            columns.push((name.extract::<String>()?, Arc::new(array) as ArrayRef));
+            let array = np.call_method1("asarray", (&values,))?;
+            let kind: String = array.getattr("dtype")?.getattr("kind")?.extract()?;
+            let column: ArrayRef = if matches!(kind.as_str(), "U" | "S" | "O") {
+                let text: Vec<Option<String>> = array
+                    .call_method0("tolist")?
+                    .extract()
+                    .map_err(|_| invalid(format!("column {name} is not a 1-D array of text")))?;
+                Arc::new(arrow_array::StringArray::from(text))
+            } else {
+                let values: PyReadonlyArray1<f64> = np
+                    .call_method1("asarray", (values, "float64"))
+                    .and_then(|v| Ok(v.extract()?))
+                    .map_err(|_| invalid(format!("column {name} is not a 1-D numeric array")))?;
+                Arc::new(
+                    values
+                        .as_array()
+                        .iter()
+                        .map(|v| (!v.is_nan()).then_some(*v))
+                        .collect::<Float64Array>(),
+                )
+            };
+            columns.push((name.extract::<String>()?, column));
         }
         return RecordBatch::try_from_iter(columns).map_err(invalid);
     }

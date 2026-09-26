@@ -90,7 +90,139 @@ fn write_mesh(path: PathBuf, mesh: PyRef<Mesh>, ascii: bool) -> PyResult<()> {
     ceres_io::write_mesh(path, &mesh.mesh, ascii).map_err(io_error)
 }
 
+/// A block model file read in chunks, for models larger than memory.
+#[pyclass(module = "ceres", name = "BlockModelFile", frozen)]
+pub struct BlockModelFile(ceres_io::BlockModelReader);
+
+#[pymethods]
+impl BlockModelFile {
+    #[new]
+    fn new(path: PathBuf) -> PyResult<Self> {
+        Ok(Self(
+            ceres_io::BlockModelReader::open(path).map_err(io_error)?,
+        ))
+    }
+
+    #[getter]
+    fn origin(&self) -> [f64; 3] {
+        self.0.geometry().origin
+    }
+
+    #[getter]
+    fn size(&self) -> [f64; 3] {
+        self.0.geometry().size
+    }
+
+    #[getter]
+    fn count(&self) -> [usize; 3] {
+        self.0.geometry().count
+    }
+
+    #[getter]
+    fn rotation(&self) -> [f64; 3] {
+        self.0.geometry().rotation
+    }
+
+    #[getter]
+    fn crs(&self) -> Option<String> {
+        self.0.crs().map(str::to_string)
+    }
+
+    #[getter]
+    fn column_names(&self) -> Vec<String> {
+        self.0.column_names().to_vec()
+    }
+
+    /// BlockModel pieces of at most `rows` blocks with the chosen `columns`
+    /// (all by default); pieces of a regular model are masked to their cells.
+    #[pyo3(signature = (rows=1_000_000, columns=None))]
+    fn chunks(&self, rows: usize, columns: Option<Vec<String>>) -> PyResult<BlockChunkIterator> {
+        let names: Option<Vec<&str>> = columns
+            .as_ref()
+            .map(|c| c.iter().map(String::as_str).collect());
+        Ok(BlockChunkIterator(
+            self.0.chunks(rows, names.as_deref()).map_err(io_error)?,
+        ))
+    }
+
+    fn __len__(&self) -> usize {
+        self.0.len()
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "BlockModelFile({} blocks, count {:?}, columns {:?})",
+            self.0.len(),
+            self.0.geometry().count,
+            self.0.column_names()
+        )
+    }
+}
+
+#[pyclass(module = "ceres", unsendable)]
+pub struct BlockChunkIterator(ceres_io::BlockChunks);
+
+#[pymethods]
+impl BlockChunkIterator {
+    fn __iter__(slf: PyRef<Self>) -> PyRef<Self> {
+        slf
+    }
+
+    fn __next__(&mut self) -> PyResult<Option<PyBlockModel>> {
+        self.0
+            .next()
+            .transpose()
+            .map(|chunk| chunk.map(PyBlockModel))
+            .map_err(io_error)
+    }
+}
+
+struct StreamError(PyErr);
+
+impl From<ceres_io::Error> for StreamError {
+    fn from(e: ceres_io::Error) -> Self {
+        Self(io_error(e))
+    }
+}
+
+/// Streams the block model file `path` to `out` in chunks of `rows` blocks:
+/// `func(chunk)` returns a dict of new columns, written with the chunk's
+/// layout and, when `keep`, its columns. Memory stays bounded by `rows`.
+#[pyfunction]
+#[pyo3(signature = (path, out, func, rows=1_000_000, keep=true))]
+fn map_blocks(
+    path: PathBuf,
+    out: PathBuf,
+    func: &Bound<PyAny>,
+    rows: usize,
+    keep: bool,
+) -> PyResult<()> {
+    ceres_io::stream_map::<StreamError>(path, out, rows, keep, |chunk| {
+        let columns = func
+            .call1((PyBlockModel(chunk.clone()),))
+            .and_then(|result| to_batch(&result))
+            .map_err(StreamError)?;
+        if columns.num_rows() != chunk.len() {
+            return Err(StreamError(invalid(format!(
+                "func returned {} rows for a chunk of {}",
+                columns.num_rows(),
+                chunk.len()
+            ))));
+        }
+        let schema = columns.schema();
+        Ok(schema
+            .fields()
+            .iter()
+            .zip(columns.columns())
+            .map(|(f, c)| (f.name().clone(), c.clone()))
+            .collect())
+    })
+    .map_err(|e| e.0)
+}
+
 pub fn register(m: &Bound<PyModule>) -> PyResult<()> {
+    m.add_class::<BlockModelFile>()?;
+    m.add_function(wrap_pyfunction!(map_blocks, m)?)?;
     m.add_function(wrap_pyfunction!(write_parquet, m)?)?;
     m.add_function(wrap_pyfunction!(read_parquet, m)?)?;
     m.add_function(wrap_pyfunction!(read_csv, m)?)?;
