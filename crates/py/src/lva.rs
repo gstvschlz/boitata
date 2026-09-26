@@ -100,11 +100,22 @@ impl LocalAnisotropy {
                 )));
             }
         };
-        let (vertices, triangles) = mesh.parts();
+        let vertices: Vec<Point> = mesh
+            .mesh
+            .vertices()
+            .iter()
+            .map(|v| (v[0], v[1], v[2]))
+            .collect();
+        let triangles: Vec<(usize, usize, usize)> = mesh
+            .mesh
+            .triangles()
+            .iter()
+            .map(|t| (t[0] as usize, t[1] as usize, t[2] as usize))
+            .collect();
         Ok(Self(
             Core::from_mesh(
-                vertices,
-                triangles,
+                &vertices,
+                &triangles,
                 &self::targets(targets)?,
                 major,
                 [ratios.0, ratios.1],

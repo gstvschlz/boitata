@@ -1,8 +1,8 @@
 //! Block-and-sample geometry against a closed triangle solid: the layer between
 //! an imported wireframe and the data you want to flag with it (#259).
 //!
-//! [`Mesh::is_inside`](crate::Mesh::is_inside) answers one point at a time and
-//! re-validates the mesh on every call. Flagging a block model asks the same
+//! [`is_inside`](crate::is_inside) answers one point at a time and
+//! checks closure on every call. Flagging a block model asks the same
 //! question millions of times, so [`SolidTester`] pays the setup once —
 //! validation, vertex lookup, per-triangle bounds — and adds the two rejections
 //! that make the volume tractable:
@@ -17,7 +17,8 @@
 //! grow with its surface area rather than its volume.
 
 use crate::error::Result;
-use crate::{Mesh, is_inside_winding, signed_solid_angle};
+use crate::{is_inside_winding, require_closed, signed_solid_angle};
+use ceres_core::Mesh;
 use nalgebra::Vector3;
 use serde::{Deserialize, Serialize};
 
@@ -84,6 +85,7 @@ pub struct BlockSolid {
 }
 
 /// A closed triangle mesh prepared for repeated inside/outside queries.
+#[derive(Clone)]
 pub struct SolidTester {
     /// Triangle vertices, resolved once so queries don't chase indices.
     triangles: Vec<[Vector3<f64>; 3]>,
@@ -95,16 +97,9 @@ pub struct SolidTester {
 impl SolidTester {
     /// Validates the mesh and precomputes the query structures.
     pub fn new(mesh: &Mesh) -> Result<Self> {
-        mesh.validate()?;
-
-        let vertex = |i: usize| {
-            let (x, y, z) = mesh.vertices[i];
-            Vector3::new(x, y, z)
-        };
-        let triangles: Vec<[Vector3<f64>; 3]> = mesh
-            .triangles
-            .iter()
-            .map(|(a, b, c)| [vertex(*a), vertex(*b), vertex(*c)])
+        require_closed(mesh)?;
+        let triangles: Vec<[Vector3<f64>; 3]> = (0..mesh.triangles().len())
+            .map(|t| mesh.corners(t).map(Vector3::from))
             .collect();
         let triangle_bounds = triangles
             .iter()
@@ -113,9 +108,8 @@ impl SolidTester {
                     .expect("a triangle always has three vertices")
             })
             .collect();
-        // validate() guarantees at least one vertex, so bounds always exist.
-        let bounds = Aabb::of_points(mesh.vertices.iter().map(|(x, y, z)| [*x, *y, *z]))
-            .expect("validate() rejects an empty vertex list");
+        let bounds =
+            Aabb::of_points(mesh.vertices().iter().copied()).expect("a closed mesh has vertices");
 
         Ok(SolidTester {
             triangles,
@@ -242,49 +236,51 @@ impl SolidTester {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
 
     /// Axis-aligned cube spanning `[lo, hi]` on every axis, triangles wound
     /// counter-clockwise seen from outside.
     pub(crate) fn cube(lo: f64, hi: f64) -> Mesh {
-        Mesh {
-            vertices: vec![
-                (lo, lo, lo),
-                (hi, lo, lo),
-                (hi, hi, lo),
-                (lo, hi, lo),
-                (lo, lo, hi),
-                (hi, lo, hi),
-                (hi, hi, hi),
-                (lo, hi, hi),
+        Mesh::new(
+            vec![
+                [lo, lo, lo],
+                [hi, lo, lo],
+                [hi, hi, lo],
+                [lo, hi, lo],
+                [lo, lo, hi],
+                [hi, lo, hi],
+                [hi, hi, hi],
+                [lo, hi, hi],
             ],
-            triangles: vec![
-                (0, 2, 1),
-                (0, 3, 2), // bottom, -Z
-                (4, 5, 6),
-                (4, 6, 7), // top, +Z
-                (0, 1, 5),
-                (0, 5, 4), // front, -Y
-                (2, 3, 7),
-                (2, 7, 6), // back, +Y
-                (0, 4, 7),
-                (0, 7, 3), // left, -X
-                (1, 2, 6),
-                (1, 6, 5), // right, +X
-            ],
-        }
+            CUBE.to_vec(),
+        )
+        .unwrap()
     }
+
+    const CUBE: [[u32; 3]; 12] = [
+        [0, 2, 1],
+        [0, 3, 2], // bottom, -Z
+        [4, 5, 6],
+        [4, 6, 7], // top, +Z
+        [0, 1, 5],
+        [0, 5, 4], // front, -Y
+        [2, 3, 7],
+        [2, 7, 6], // back, +Y
+        [0, 4, 7],
+        [0, 7, 3], // left, -X
+        [1, 2, 6],
+        [1, 6, 5], // right, +X
+    ];
 
     /// Same cube with every triangle reversed, so it winds inward.
     fn inverted_cube(lo: f64, hi: f64) -> Mesh {
-        let mut mesh = cube(lo, hi);
-        mesh.triangles = mesh
-            .triangles
-            .iter()
-            .map(|(a, b, c)| (*c, *b, *a))
-            .collect();
-        mesh
+        let cube = cube(lo, hi);
+        Mesh::new(
+            cube.vertices().to_vec(),
+            CUBE.iter().map(|&[a, b, c]| [c, b, a]).collect(),
+        )
+        .unwrap()
     }
 
     #[test]

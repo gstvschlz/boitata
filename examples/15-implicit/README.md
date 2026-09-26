@@ -67,13 +67,11 @@ count = np.ceil((hi - lo) / size).astype(int)
 blocks = cs.BlockModel(origin=lo, size=(size, size, size), count=count)
 fields, shells = {}, {}
 for name, model in models.items():
-    vertices, triangles = shells[name] = model.isosurface(blocks, closed=True)
-    a, b, c = (vertices[triangles[:, i]] for i in range(3))
-    shell_volume = np.einsum("ij,ij->i", a, np.cross(b, c)).sum() / 6
+    shell = shells[name] = model.isosurface(blocks, closed=True)
     fields[name] = model.evaluate(blocks).reshape(count[::-1])
     count_volume = (fields[name] > 0).sum() * size**3
     print(
-        f"{name}: shell of {len(triangles):,} triangles, {shell_volume:,.0f} m3; blocks inside {count_volume:,.0f} m3"
+        f"{name}: shell of {len(shell.triangles):,} triangles, {shell.volume:,.0f} m3; blocks inside {count_volume:,.0f} m3"
     )
 ```
 
@@ -118,10 +116,12 @@ The GP shell:
 <details><summary>Python</summary>
 
 ```python
-vertices, triangles = shells["GP"]
+shell = shells["GP"]
 fig = plt.figure(figsize=(7, 5.5), layout="constrained")
 ax = fig.add_subplot(projection="3d")
-ax.add_collection3d(Poly3DCollection(vertices[triangles], facecolor=ACCENT, edgecolor="none", alpha=0.25))
+ax.add_collection3d(
+    Poly3DCollection(shell.vertices[shell.triangles], facecolor=ACCENT, edgecolor="none", alpha=0.25)
+)
 ax.scatter(*xyz[indicator > 0].T, s=2, color=HIGHLIGHT, depthshade=False)
 ax.set(xlim=(lo[0], hi[0]), ylim=(lo[1], hi[1]), zlim=(lo[2], hi[2]))
 ax.set_box_aspect(hi - lo)

@@ -74,7 +74,9 @@ ore = blocks.mask(proportion > 0.5)
 local = window & ~np.isnan(zn)
 inside = solid.contains(xyz[local])
 print(f"{len(blocks)} blocks, {len(ore)} more than half inside; volume {proportion.sum() * size**3:,.0f} m3")
-print(f"exact ellipsoid volume {4 / 3 * np.pi * np.prod(2 * np.sqrt(eigen)):,.0f} m3")
+print(
+    f"mesh volume {solid.volume:,.0f} m3, exact ellipsoid {4 / 3 * np.pi * np.prod(2 * np.sqrt(eigen)):,.0f} m3"
+)
 print(
     f"composites inside: {inside.sum()}, mean Zn {np.nanmean(zn[local][inside]):.2f}% vs outside {np.nanmean(zn[local][~inside]):.2f}%"
 )
@@ -113,9 +115,9 @@ a.legend(loc="lower right")
 fig.colorbar(image, ax=a, shrink=0.8, label="proportion of block inside")
 
 b = fig.add_subplot(1, 2, 2, projection="3d")
-shell_vertices, shell_triangles, _ = cs.block_shell(ore)
+shell = cs.block_shell(ore)
 b.add_collection3d(
-    Poly3DCollection(shell_vertices[shell_triangles], facecolor=ACCENT, edgecolor="none", alpha=0.35)
+    Poly3DCollection(shell.vertices[shell.triangles], facecolor=ACCENT, edgecolor="none", alpha=0.35)
 )
 b.plot_trisurf(*vertices.T, triangles=triangles, color=LIGHT, edgecolor=GREY, linewidth=0.1, alpha=0.15)
 b.set(xlim=(lo[0], hi[0]), ylim=(lo[1], hi[1]), zlim=(lo[2], hi[2]))

@@ -8,11 +8,6 @@ coords = rng.uniform(10, 90, (300, 3))
 distance = np.linalg.norm(coords - centre, axis=1) - radius
 
 
-def area(vertices, triangles):
-    a, b, c = (vertices[triangles[:, i]] for i in range(3))
-    return 0.5 * np.linalg.norm(np.cross(b - a, c - a), axis=1).sum()
-
-
 def test_rbf_is_exact_at_data():
     model = cs.ImplicitModel().fit(coords, distance)
     np.testing.assert_allclose(model.evaluate(coords), distance, atol=1e-6)
@@ -33,24 +28,18 @@ def test_cutoff_codes_grades():
 def test_sphere_isosurface_area():
     model = cs.ImplicitModel().fit(coords, distance)
     blocks = cs.BlockModel(origin=(0, 0, 0), size=(2, 2, 2), count=(50, 50, 50))
-    vertices, triangles = model.isosurface(blocks)
-    assert triangles.dtype == np.int64
-    assert area(vertices, triangles) == pytest.approx(4 * np.pi * radius**2, rel=0.02)
-    np.testing.assert_allclose(np.linalg.norm(vertices - centre, axis=1), radius, atol=0.5)
+    sphere = model.isosurface(blocks)
+    assert sphere.triangles.dtype == np.int64 and sphere.is_closed
+    assert sphere.area == pytest.approx(4 * np.pi * radius**2, rel=0.02)
+    assert abs(sphere.volume) == pytest.approx(4 / 3 * np.pi * radius**3, rel=0.03)
+    np.testing.assert_allclose(np.linalg.norm(sphere.vertices - centre, axis=1), radius, atol=0.5)
 
     half = cs.BlockModel(origin=(0, 0, 50), size=(2, 2, 2), count=(50, 50, 25))
-    _, open_triangles = model.isosurface(half)
-    vertices, closed_triangles = model.isosurface(half, closed=True)
-    assert shared_edges(closed_triangles).min() == 2 and shared_edges(open_triangles).min() == 1
-    a, b, c = (vertices[closed_triangles[:, i]] for i in range(3))
-    volume = np.einsum("ij,ij->i", a, np.cross(b, c)).sum() / 6
+    assert model.isosurface(half).analysis["boundary_edges"] > 0
+    capped = model.isosurface(half, closed=True)
+    assert capped.is_closed
     hemisphere = 2 / 3 * np.pi * radius**3
-    assert 100 * 100 * 50 - volume == pytest.approx(hemisphere, rel=0.02)
-
-
-def shared_edges(triangles):
-    edges = np.sort(np.r_[triangles[:, [0, 1]], triangles[:, [1, 2]], triangles[:, [2, 0]]], axis=1)
-    return np.unique(edges, axis=0, return_counts=True)[1]
+    assert 100 * 100 * 50 - capped.volume == pytest.approx(hemisphere, rel=0.02)
 
 
 def test_planes_with_boundaries():

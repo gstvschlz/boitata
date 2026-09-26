@@ -44,5 +44,26 @@ def test_assign_domain_nearest_and_solid():
 
 def test_block_shell_of_a_single_block():
     model = cs.BlockModel(origin=(0, 0, 0), size=(1, 1, 1), count=(1, 1, 1), attributes={"v": [2.0]})
-    _, triangles, values = cs.block_shell(model, "v")
-    assert triangles.shape == (12, 3) and np.all(values == 2.0)
+    shell = cs.block_shell(model, "v")
+    assert shell.triangles.shape == (12, 3) and np.all(shell.face_attributes["value"] == 2.0)
+    assert shell.area == pytest.approx(6)
+
+
+def test_mesh_topology():
+    assert cube.is_closed and cube.volume == pytest.approx(1000) and cube.area == pytest.approx(600)
+    square = cs.Mesh([[0, 0, 0], [1, 0, 0], [1, 1, 0], [0, 1, 0]], [[0, 1, 2], [0, 2, 3]], crs="EPSG:32722")
+    assert square.analysis["boundary_edges"] == 4 and not square.is_closed and square.crs == "EPSG:32722"
+    fin = cs.Mesh([[0, 0, 0], [1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1]], [[0, 1, 2], [0, 1, 3], [0, 1, 4]])
+    assert fin.analysis["non_manifold_edges"] == 1
+    for call in (
+        lambda: square.volume,
+        lambda: square.contains([[0.5, 0.5, 0]]),
+        lambda: square.proportion([[0, 0, 0]], size=(1, 1, 1)),
+    ):
+        with pytest.raises(cs.errors.InvalidInput):
+            call()
+    assert square.distance([[0.5, 0.5, 2]])[0] == pytest.approx(2)
+    labelled = square.with_face_column("layer", ["a", "b"]).with_vertex_column("z", [1, 2, 3, 4])
+    assert labelled.face_attributes["layer"] == ["a", "b"] and labelled.vertex_attributes.num_rows == 4
+    with pytest.raises(cs.errors.InvalidInput):
+        square.with_face_column("bad", [1.0])
