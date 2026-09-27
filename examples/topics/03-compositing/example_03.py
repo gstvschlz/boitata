@@ -1,7 +1,9 @@
 """
-# 3. Drillholes
+# 3. Compositing
 
-5 277 holes with collar, survey (dip positive down, azimuth clockwise from north), assay and geology tables.
+The stacked sulphide lenses: 16 995 assays, mostly 1 m or 2 m, taken only in and around the mineralized zones, and 1726
+lithology intervals. Compositing brings the assays to one support without averaging across a contact or reading
+unsampled core as zero, and without creating or losing metal.
 """
 
 # %% [hidden]
@@ -15,184 +17,49 @@ sys.path.insert(0, str(HERE.parents[1]))
 import ceres as cs
 import matplotlib.pyplot as plt
 import numpy as np
-from common import ACCENT, GRAY, INK, LIGHT, save
-from matplotlib.collections import LineCollection
-from matplotlib.colors import LogNorm
-
-# %% [markdown]
-# The tables are checked before anything else. `check_drillholes` flags every record of the collar, survey and interval
-# tables (duplicate ids, missing or sentinel values, from >= to, gaps, overlaps, angles out of range, depths past the
-# hole length, holes missing from a table, abrupt survey deviation) and summarizes each check. `fix_drillholes` then
-# resolves them with one named rule per check; the log says what each rule changed. Overlapping assays keep the one
-# that starts first. Gaps are unsampled core and stay.
-
-# %%
-tables = cs.datasets.drillhole_tables()
-checked = {"assay": tables["assay"], "geology": tables["geology"]}
-flags, summary = cs.check_drillholes(
-    tables["collar"], tables["survey"], checked, hole="HOLEID", max_depth="DEPTH"
-)
-fixed, log = cs.fix_drillholes(flags, tables, overlaps="keep_first", deviation="drop", past_depth="keep")
-
-for table, check, rows, holes in zip(summary["table"], summary["check"], summary["rows"], summary["holes"]):
-    if rows:
-        print(f"{table:>8} {check:<11} {rows:6.0f} rows in {holes:4.0f} holes")
-for table, check, action, rows in zip(log["table"], log["check"], log["action"], log["rows"]):
-    if rows:
-        print(f"{action:>10} {rows:3.0f} {table} rows flagged {check}")
-
-# %% [markdown]
-# A survey station is flagged when its direction turns more than 20° from the station above, so one wrong station is
-# flagged together with the station below it, as the dip of DH1432 flipping sign at 116 m. Here every flagged station
-# is dropped; each is shown against the station above it.
-
-# %%
-survey = tables["survey"]
-hole_id, depth, dip, azimuth = np.array(survey["HOLEID"]), survey["DEPTH"], survey["DIP"], survey["AZIMUTH"]
-order = np.lexsort((depth, hole_id))
-above = dict(zip(order[1:], order[:-1]))
-for i in np.flatnonzero(flags["survey"]["deviation"]):
-    j = above[i]
-    print(
-        f"{hole_id[i]} {depth[j]:5.1f} -> {depth[i]:5.1f} m: dip {dip[j]:5.1f} -> {dip[i]:5.1f},"
-        f" azimuth {azimuth[j]:5.1f} -> {azimuth[i]:5.1f}"
-    )
+from common import ACCENT, GRAY, LIGHT, save
 
 # %% [markdown]
 # Assays and lithology come in separate interval tables. `merge_intervals` splits both at every boundary so each piece
-# carries its grades and its lithology.
+# carries its grades and its lithology; pieces outside the assayed zones have no grades.
 
 # %%
-tables = fixed
-assay, geology = tables["assay"], tables["geology"]
-GRADES = ["ZN", "PB", "CU", "AG", "AU"]
-intervals = cs.merge_intervals(assay, geology, hole="HOLEID")
-print(f"{assay.num_rows} assays + {geology.num_rows} geology intervals -> {intervals.num_rows} merged")
-
-
-# %% [markdown]
-# `Drillholes` desurveys each hole from its collar and survey. Minimum curvature bends along a circular arc between
-# stations; tangential holds each station's direction down to the next one; balanced tangential gives half of each
-# segment to each end. On curved holes the methods drift apart with depth.
-
-# %%
-methods = ["minimum_curvature", "tangential", "balanced_tangential"]
-holes = {
-    m: cs.Drillholes(tables["collar"], tables["survey"], intervals, method=m, hole="HOLEID") for m in methods
-}
-dh = holes["minimum_curvature"]
-reference = dh.samples().coords
+data = cs.datasets.stacked_sulphide_lenses()
+collar, survey, assay, lithology = data["collars"], data["surveys"], data["assays"], data["lithology"]
+GRADES = ["ZN_PCT", "PB_PCT", "CU_PCT", "AG_GPT", "AU_GPT"]
+intervals = cs.merge_intervals(assay, lithology)
+dh = cs.Drillholes(collar, survey, intervals)
+print(f"{assay.num_rows} assays + {lithology.num_rows} lithology intervals -> {intervals.num_rows} merged")
 print(dh)
-for m in methods[1:]:
-    shift = np.linalg.norm(holes[m].samples().coords - reference, axis=1)
-    print(f"{m:>19} vs minimum curvature: median {np.median(shift):.2f} m, max {shift.max():.1f} m")
-
 
 # %% [markdown]
 # Compositing to 2 m by `LITH` cuts intervals at every 2 m mark and never averages across a contact. A grade is the
 # mean over the length that carries a value, so unsampled core is not read as zero; that length is returned per grade
 # as `<grade>_length`, next to `length`, which also counts unsampled ground. Composites without assays are dropped.
+# Here the assayed zones start and end at lithology contacts, so inside a lithology Zn is sampled everywhere; Au is
+# not assayed in the RC holes.
 
 # %%
 composites = dh.composite(2.0, GRADES, domain="LITH")
-paths = dh.paths()
+partial = composites["ZN_PCT_length"] < composites["length"] - 1e-9
+no_au = np.isnan(composites["AU_GPT"])
 print(
-    f"{len(composites)} composites; {np.mean(composites['ZN_length'] < composites['length'] - 1e-9):.1%} partly unsampled for Zn"
+    f"{len(composites)} composites; {partial.sum()} partly unsampled for Zn; {no_au.sum()} without Au (RC holes)"
 )
-
 
 # %% [markdown]
-# Traces in plan and a 50 m thick section with the Zn composites:
-
-# %%
-hole = np.array(paths["hole"])
-xyz = np.c_[paths["x"], paths["y"], paths["z"]]
-breaks = np.flatnonzero(hole[1:] != hole[:-1]) + 1
-traces = np.split(xyz, breaks)
-
-y0 = np.median(composites.coords[:, 1])
-half = 25.0
-in_slab = [t for t in traces if np.any(np.abs(t[:, 1] - y0) < half)]
-
-fig, (a, b) = plt.subplots(
-    1, 2, figsize=(12, 5.2), layout="constrained", gridspec_kw={"width_ratios": [1, 1.6]}
-)
-a.add_collection(LineCollection([t[:, :2] for t in traces], colors=LIGHT, linewidths=0.4))
-a.add_collection(LineCollection([t[:, :2] for t in in_slab], colors=ACCENT, linewidths=0.6))
-a.axhspan(y0 - half, y0 + half, color=ACCENT, alpha=0.08, lw=0)
-a.autoscale()
-a.set_aspect("equal")
-a.set(title=f"Plan: {len(dh)} desurveyed holes", xlabel="Easting (m)", ylabel="Northing (m)")
-cs.plot.slab(
-    composites,
-    "ZN",
-    plane=((0, y0, 0), 90, 90),
-    thickness=2 * half,
-    lines=in_slab,
-    colorbar=False,
-    s=5,
-    norm=LogNorm(0.05, 30),
-    ax=b,
-)
-b.set_title(f"Section: northing {y0:.0f} ± {half:.0f} m, 2 m composites")
-fig.colorbar(b.collections[-1], ax=b, shrink=0.7, label="Zn (%)")
-save(fig, "holes")
-
-
-# %% [markdown]
-# Compositing regularizes support: most assays are 1 m, some much longer.
+# Compositing regularizes support: the assays are mostly 1 m or 2 m, the composites 2 m, with shorter tails where a run of
+# one lithology ends.
 
 # %%
 raw_len = assay["TO"] - assay["FROM"]
-comp_len = composites["to"] - composites["from"]
-fig, (a, b) = plt.subplots(1, 2, figsize=(10, 3.6), layout="constrained")
-bins = np.arange(0, 6.25, 0.25)
-a.hist(np.clip(raw_len, 0, 6), bins, color=LIGHT, edgecolor=GRAY, lw=0.5, label="assays")
-a.hist(comp_len, bins, histtype="step", color=ACCENT, lw=1.6, label="composites")
-a.set(title="Interval lengths", xlabel="Length (m)", ylabel="Count")
-a.legend()
-logbins = np.logspace(-2, 1.7, 40)
-raw_zn = assay["ZN"]
-a_zn = raw_zn[raw_zn > 0]
-zn = composites["ZN"]
-c_zn = zn[zn > 0]
-b.hist(
-    a_zn,
-    logbins,
-    weights=np.full(a_zn.size, 1 / a_zn.size),
-    color=LIGHT,
-    edgecolor=GRAY,
-    lw=0.5,
-    label=f"assays, CV {a_zn.std() / a_zn.mean():.2f}",
-)
-b.hist(
-    c_zn,
-    logbins,
-    weights=np.full(c_zn.size, 1 / c_zn.size),
-    histtype="step",
-    color=ACCENT,
-    lw=1.6,
-    label=f"composites, CV {c_zn.std() / c_zn.mean():.2f}",
-)
-b.set_xscale("log")
-b.set(title="Compositing narrows the Zn distribution", xlabel="Zn (%)", ylabel="Proportion")
-b.legend(loc="upper left")
-b.tick_params(axis="y", colors=INK)
+fig, ax = plt.subplots(figsize=(6, 3.4), layout="constrained")
+bins = np.arange(0, 3.0, 0.125)
+ax.hist(raw_len, bins, color=LIGHT, edgecolor=GRAY, lw=0.5, label="assays")
+ax.hist(composites["length"], bins, histtype="step", color=ACCENT, lw=1.6, label="composites")
+ax.set(title="Interval lengths", xlabel="Length (m)", ylabel="Count")
+ax.legend(loc="upper left")
 save(fig, "compositing")
-
-
-# %% [markdown]
-# Zn by lithology:
-
-# %%
-lith = composites["LITH"]
-names, counts = np.unique(lith[lith != ""], return_counts=True)
-top = np.isin(lith, names[np.argsort(counts)[::-1][:8]])
-fig, ax = plt.subplots(figsize=(8, 3.6), layout="constrained")
-cs.plot.boxplot(zn[top], lith[top], sort=True, log=True, ax=ax)
-ax.set(title="Zn of 2 m composites by lithology (P10, P25, median, P75, P90 and mean)", ylabel="Zn (%)")
-save(fig, "domains")
-
 
 # %% [markdown]
 # Other supports. `length=None` gives one composite per run of a lithology. `intervals=` composites to given
@@ -202,16 +69,17 @@ save(fig, "domains")
 
 # %%
 BENCH = 10.0
-depth, z = paths["depth"], paths["z"]
-cuts = {hole[i]: [0.0, depth[i]] for i in np.r_[breaks - 1, len(hole) - 1]}
+paths = dh.paths()
+hole, depth, z = np.array(paths["hole"]), paths["depth"], paths["z"]
+cuts = {h: [0.0, depth[hole == h].max()] for h in np.unique(hole)}
 for i in np.flatnonzero(hole[1:] == hole[:-1]):
     lo, hi = sorted((z[i], z[i + 1]))
     for level in np.arange(np.ceil(lo / BENCH) * BENCH, hi, BENCH):
         cuts[hole[i]].append(depth[i] + (level - z[i]) / (z[i + 1] - z[i]) * (depth[i + 1] - depth[i]))
-benches = {"HOLEID": [], "FROM": [], "TO": []}
+benches = {"HOLE_ID": [], "FROM": [], "TO": []}
 for h, c in cuts.items():
     c = np.unique(c)
-    benches["HOLEID"] += [h] * (len(c) - 1)
+    benches["HOLE_ID"] += [h] * (len(c) - 1)
     benches["FROM"] += list(c[:-1])
     benches["TO"] += list(c[1:])
 
@@ -226,11 +94,11 @@ modes = {
 for name, c in modes.items():
     print(f"{name:>18}: {len(c):6} composites, median length {np.median(c['length']):.1f} m")
 
-
 # %% [markdown]
 # Metal balance: Σ grade × `<grade>_length` over the composites reproduces Σ grade × interval length over the assays,
 # for every grade and every mode except `drop`, which leaves its short tails out. Weighting by `length` instead
-# counts unsampled ground at the composite grade and inflates metal.
+# counts unsampled ground at the composite grade and inflates metal, here where majority-`LITH` composites cross a
+# contact into unassayed rock.
 
 
 # %%
@@ -238,12 +106,12 @@ def metal(grade, length):
     return np.nansum(grade * length)
 
 
-assayed = {g: metal(assay[g], assay["TO"] - assay["FROM"]) for g in GRADES}
+assayed = {g: metal(assay[g], raw_len) for g in GRADES}
 print(f"{'':>18}  {'Zn metal':>10}  {'error':>8}  {'by length':>9}")
-print(f"{'assays':>18}  {assayed['ZN']:10.1f}")
+print(f"{'assays':>18}  {assayed['ZN_PCT']:10.1f}")
 for name, c in modes.items():
-    zn_metal = metal(c["ZN"], c["ZN_length"])
-    error, naive = zn_metal / assayed["ZN"] - 1, metal(c["ZN"], c["length"]) / assayed["ZN"] - 1
+    zn_metal = metal(c["ZN_PCT"], c["ZN_PCT_length"])
+    error, naive = zn_metal / assayed["ZN_PCT"] - 1, metal(c["ZN_PCT"], c["length"]) / assayed["ZN_PCT"] - 1
     print(f"{name:>18}  {zn_metal:10.1f}  {error:+8.1e}  {naive:+9.1%}")
     if name != "2 m, drop < 1 m":
         for g in GRADES:
