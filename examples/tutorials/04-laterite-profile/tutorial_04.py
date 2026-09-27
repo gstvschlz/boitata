@@ -148,7 +148,7 @@ print(f"{len(blocks)} blocks and sub-blocks")
 intervals = cs.merge_intervals(data["assays"], horizons)
 drillholes = cs.Drillholes(collars, data["surveys"], intervals)
 composites = drillholes.composite(1.0, ["NI_PCT", "CO_PCT"], domain="HORIZON", residual="merge")
-unit, hole = (np.array(composites[c], dtype=object) for c in ("HORIZON", "hole"))
+unit, hole = (np.array(composites[c], dtype=object) for c in ("HORIZON", "HOLE_ID"))
 height = composites.coords[:, 2] - tops["BRK"][[row[h] for h in hole]]
 ni, co = composites["NI_PCT"], composites["CO_PCT"]
 print(f"{'':5}{'n':>6}{'Ni %':>7}{'CV':>6}{'Co %':>7}{'CV':>6}")
