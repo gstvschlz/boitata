@@ -1,8 +1,8 @@
 # 59. Models larger than memory
 
 A block model can stay in a Parquet file and be processed a chunk at a time, so its size is limited by the disk, not
-by memory. Here the zinc of the drill-hole dataset is modeled on 2 m blocks inside the convex hull of the composites
-— ten million blocks — kriged and simulated without ever holding more than a million of them.
+by memory. Here the iron ore of an iron formation plateau is simulated on 5 m blocks, millions of them, by domain and
+around a trend, without ever holding more than a million blocks.
 
 <details><summary>Python</summary>
 
@@ -15,209 +15,208 @@ import ceres as cs
 import matplotlib.pyplot as plt
 import numpy as np
 from common import HIGHLIGHT, save
-from matplotlib.colors import PowerNorm
+```
 
-composites = cs.datasets.drillholes().composite(2.0, ["ZN"])
-xyz, zn = composites.coords, composites["ZN"]
-window = ~np.isnan(zn) & (xyz[:, 0] > 5250) & (xyz[:, 0] < 5550) & (xyz[:, 1] > 8000) & (xyz[:, 1] < 8500)
-xyz, zn = xyz[window], zn[window]
-holes = np.array(composites["HOLEID"], dtype=object)[window]
-weights = cs.cell_declustering(xyz, zn, sizes=np.arange(10, 100, 10)).weights
-print(f"{len(zn):,} composites of 2 m from {len(set(holes))} holes")
+</details>
+
+The dataset's block model codes each 25 × 25 × 12 m block with a lithology. Two ore domains group them: hematite
+(friable, compact and canga) and itabirite (friable and compact); laterite and mafic dykes are left out. The 6 m
+composites take the domain of the block they fall in.
+
+<details><summary>Python</summary>
+
+```python
+data = cs.datasets.iron_formation_plateau()
+model = data["block_model"]
+DOMAINS = {"HF": "hematite", "HC": "hematite", "CG": "hematite", "IF": "itabirite", "IC": "itabirite"}
+coded = np.array([DOMAINS.get(c, "") for c in np.asarray(model["LITH"], dtype=object)], dtype=object)
+model = model.with_columns({"domain": coded}).mask(coded != "")
+coded = coded[coded != ""]
+
+holes = cs.Drillholes(data["collars"], data["surveys"], data["assays"])
+composites = holes.composite(6.0, ["FE_PCT"])
+row = model.row_at(composites.coords)
+keep = (row >= 0) & ~np.isnan(composites["FE_PCT"])
+xyz, fe, domain = composites.coords[keep], composites["FE_PCT"][keep], coded[row[keep]]
+hole = np.asarray(composites["HOLE_ID"], dtype=object)[keep]
+for name in ("hematite", "itabirite"):
+    inside = domain == name
+    count = len(model.mask(model["domain"] == name))
+    print(f"{name:10} {count:6,} blocks of 25 m, {inside.sum():5} composites")
 ```
 
 </details>
 
 ```text
-4,575 composites of 2 m from 499 holes
+hematite   14,889 blocks of 25 m,  1794 composites
+itabirite  32,771 blocks of 25 m,  3635 composites
 ```
 
-Blocks beyond the drilling would be extrapolation, so the model keeps only those inside the convex hull of the
-composites. A point is inside a convex solid when it is behind every face, which is tested one level at a time.
-The kept blocks are a masked model: the grid geometry plus the sorted index of the cells present.
+`from_extents` sizes a 5 m grid on the block model (topic 65). Only the blocks whose center falls in an ore block
+are kept, found one level at a time; they are a masked model, the grid geometry plus the sorted index of the cells
+present, written to Parquet. `BlockModelFile` opens it without reading the blocks.
 
 <details><summary>Python</summary>
 
 ```python
-hull = cs.convex_hull(xyz)
-a, b, c = hull.vertices[hull.triangles].transpose(1, 0, 2)
-normal = np.cross(b - a, c - a)
-offset = (normal * a).sum(axis=1)
-
-origin = np.floor(xyz.min(axis=0) / 2) * 2
-count = tuple(int(c) for c in np.ceil((xyz.max(axis=0) - origin) / 2))
-nx, ny, nz = count
-row, column = np.divmod(np.arange(nx * ny), nx)
-plan = origin[:2] + (np.c_[column, row] + 0.5) * 2
-kept = []
-for k in range(nz):
-    level = np.c_[plan, np.full(nx * ny, origin[2] + (k + 0.5) * 2)]
-    kept.append(k * nx * ny + np.flatnonzero((level @ normal.T <= offset).all(axis=1)))
-index = np.concatenate(kept).astype(np.uint64)
-
 folder = Path(tempfile.mkdtemp())
-grid = cs.BlockModel(origin=tuple(origin), size=(2, 2, 2), count=count, index=index)
-cs.write_parquet(folder / "grid.parquet", grid)
-file = cs.BlockModelFile(folder / "grid.parquet")
-size = (folder / "grid.parquet").stat().st_size / 1e6
-print(
-    f"{len(file):,} of {nx * ny * nz:,} blocks inside the hull of {hull.volume / 1e6:.0f} Mm³, {size:.0f} MB"
-)
-print(f"{sum(1 for _ in file.chunks(rows=1_000_000))} chunks of at most 1,000,000 blocks")
+grid = cs.BlockModel.from_extents(model, size=(5, 5, 5), snap=True)
+nx, ny, nz = grid.count
+plan = grid.centroids[: nx * ny]
+kept = [k * nx * ny + np.flatnonzero(model.row_at(plan + (0, 0, 5 * k)) >= 0) for k in range(nz)]
+blocks = cs.BlockModel(grid.origin, grid.size, grid.count, index=np.concatenate(kept).astype(np.uint64))
+cs.write_parquet(folder / "blocks.parquet", blocks)
+file = cs.BlockModelFile(folder / "blocks.parquet")
+size = (folder / "blocks.parquet").stat().st_size / 1e6
+print(f"grid {grid.count}: {len(file):,} of {len(grid):,} blocks of 5 m kept, {size:.0f} MB")
 ```
 
 </details>
 
 ```text
-10,223,191 of 19,762,500 blocks inside the hull of 82 Mm³, 13 MB
-11 chunks of at most 1,000,000 blocks
+grid [445, 405, 80]: 2,849,350 of 14,418,000 blocks of 5 m kept, 4 MB
 ```
 
-`map_blocks` streams the file through any function of a chunk and writes the columns it returns next to the
-input's. Ordinary kriging is independent block by block, so chunked kriging equals kriging the whole model; blocks
-with fewer than four composites within 60 m are left unestimated. The same pass keeps the simple-kriging variance
-of the normal scores: the share of the variance the composites leave unexplained, 1 beyond the variogram range —
-how much the data say about a block, whatever its grade.
+The plateau is weathered from the top, so within a domain iron still drifts with position. A smooth trend per
+domain (topic 63), with a 400 m kernel flattened to 80 m vertically, takes that out, and the residuals are
+simulated. The trend is smooth enough to be evaluated on the 25 m blocks. `map_blocks` streams the file through any
+function of a chunk and writes the columns it returns next to the input's: here each block's domain and trend,
+looked up in the 25 m model.
 
 <details><summary>Python</summary>
 
 ```python
-grades = cs.experimental_variogram(xyz, zn, 10.0, 150.0).fit("spherical")
-search = cs.Search(radius=60, max_samples=16, min_samples=4, max_per_hole=4)
-kriging = cs.OrdinaryKriging(grades, search).fit(xyz, zn, holes=holes)
-
-scores = cs.NormalScore().fit_transform(zn, weights=weights)
-fitted = cs.experimental_variogram(xyz, scores, 10.0, 150.0).fit("spherical")
-sill = fitted.nugget + fitted.structures[0].sill
-reach = fitted.structures[0].range
-gaussian = cs.Variogram([("spherical", fitted.structures[0].sill / sill, reach)], nugget=fitted.nugget / sill)
-neighborhood = cs.Search(radius=reach, max_samples=16)
-scoring = cs.SimpleKriging(gaussian, neighborhood).fit(xyz, scores, holes=holes)
+at_data, at_model = np.zeros(len(fe)), np.zeros(len(model))
+for name in ("hematite", "itabirite"):
+    trend, _ = cs.detrend(xyz[domain == name], fe[domain == name], bandwidth=400.0, ratios=(1.0, 0.2))
+    at_data[domain == name] = trend.predict(xyz[domain == name])
+    at_model[coded == name] = trend.predict(model.centroids[coded == name])
+model = model.with_column("trend", at_model)
 
 
-def estimate(chunk):
-    return {"zn": kriging.predict(chunk), "score_variance": scoring.predict(chunk, return_variance=True)[1]}
+def attributes(chunk):
+    row = model.row_at(chunk.centroids)
+    return {"domain": coded[row], "trend": at_model[row]}
 
 
 start = time.perf_counter()
-cs.map_blocks(folder / "grid.parquet", folder / "kriged.parquet", estimate)
-print(f"kriged in {time.perf_counter() - start:.1f} s")
+cs.map_blocks(folder / "blocks.parquet", folder / "attributes.parquet", attributes)
+print(f"domains and trend in {time.perf_counter() - start:.0f} s")
+print(f"trend at the composites: variance {at_data.var():.0f} of {fe.var():.0f} %²")
 ```
 
 </details>
 
 ```text
-kriged in 9.5 s
+domains and trend in 2 s
+trend at the composites: variance 65 of 175 %²
 ```
 
 Turning bands simulates every realization's bands once over the model's extent, then evaluates and conditions
-them chunk by chunk. Conditioning only reaches nodes within the variogram range of a composite, so beyond it the
-search is skipped. `simulate_to_parquet` writes the same summary `simulate` would return for the whole model,
-plus each realization's global statistics.
+them chunk by chunk. Fitted with the domains and the trend at the data, each domain gets its own normal-score
+transform of the residuals; `simulate_to_parquet` then reads each block's domain and trend from the columns named
+by `domain_column` and `trend`. It writes the same summary `simulate` would return for the whole model, plus each
+realization's global statistics.
 
 <details><summary>Python</summary>
 
 ```python
-bands = cs.TurningBands(gaussian, bands=100, search=neighborhood)
-bands.fit(xyz, zn, weights=weights, holes=holes)
+scores = cs.NormalScore().fit_transform(fe - at_data)
+fitted = cs.experimental_variogram(xyz, scores, 15.0, 300.0).fit("spherical")
+sill = fitted.nugget + fitted.structures[0].sill
+reach = fitted.structures[0].range
+gaussian = cs.Variogram([("spherical", fitted.structures[0].sill / sill, reach)], nugget=fitted.nugget / sill)
+print(f"residual scores: nugget {gaussian.nugget:.2f}, range {reach:.0f} m")
+bands = cs.TurningBands(gaussian, bands=100, search=cs.Search(radius=reach, max_samples=16))
+bands.fit(xyz, fe, trend=at_data, domains=domain, holes=hole)
+
 start = time.perf_counter()
 result = bands.simulate_to_parquet(
-    folder / "kriged.parquet", folder / "simulated.parquet", n=10, seed=1, cutoffs=[10.0]
+    folder / "attributes.parquet",
+    folder / "simulated.parquet",
+    n=10,
+    seed=1,
+    cutoffs=[60.0],
+    domain_column="domain",
+    trend="trend",
 )
 seconds = time.perf_counter() - start
 low, high = np.quantile(result["realization_above"][0], [0.1, 0.9])
-print(f"10 realizations in {seconds:.0f} s; blocks above 10 % Zn: P10 {low:.2%}, P90 {high:.2%} of the model")
+print(f"10 realizations in {seconds:.0f} s; blocks above 60 % Fe: P10 {low:.1%}, P90 {high:.1%}")
 print(f"output {(folder / 'simulated.parquet').stat().st_size / 1e6:.0f} MB")
 ```
 
 </details>
 
 ```text
-10 realizations in 19 s; blocks above 10 % Zn: P10 7.92%, P90 9.20% of the model
-output 262 MB
+residual scores: nugget 0.36, range 35 m
+10 realizations in 52 s; blocks above 60 % Fe: P10 21.7%, P90 22.3%
+output 61 MB
 ```
 
-Mining selects panels, not points. Given a file of 10 m panels, `discretization` simulates each at 2 × 2 × 2
-nodes and writes the realizations averaged over the panel, as `simulate(panels.discretize(...), blocks=panels)`
-would; the panels are read a chunk at a time, so their nodes never outgrow memory either. Averaging smooths the
-highs, so fewer panels than points pass 10 % Zn.
+Mining selects the 25 × 25 × 12 m blocks, not 5 m ones. With `discretization`, each block of a file is simulated
+at nodes, here 3 × 3 × 2, and the realizations are averaged over the block, as
+`simulate(model.discretize(...), blocks=model)` would; a node takes its block's domain and trend. The blocks are
+read a chunk at a time, so their nodes never outgrow memory either.
 
 <details><summary>Python</summary>
 
 ```python
-ijk = np.c_[index % nx, (index // nx) % ny, index // (nx * ny)] // 5
-pnx, pny, pnz = (-(-np.array(count) // 5)).tolist()
-cells = np.unique(ijk[:, 0] + pnx * (ijk[:, 1] + pny * ijk[:, 2])).astype(np.uint64)
-panels = cs.BlockModel(origin=tuple(origin), size=(10, 10, 10), count=(pnx, pny, pnz), index=cells)
-cs.write_parquet(folder / "panels.parquet", panels)
+cs.write_parquet(folder / "model.parquet", model)
 start = time.perf_counter()
 panel = bands.simulate_to_parquet(
-    folder / "panels.parquet",
-    folder / "panels_simulated.parquet",
+    folder / "model.parquet",
+    folder / "model_simulated.parquet",
     n=10,
     seed=1,
-    cutoffs=[10.0],
-    discretization=(2, 2, 2),
+    cutoffs=[60.0],
+    domain_column="domain",
+    trend="trend",
+    discretization=(3, 3, 2),
 )
 seconds = time.perf_counter() - start
 low, high = np.quantile(panel["realization_above"][0], [0.1, 0.9])
-print(
-    f"{len(panels):,} panels in {seconds:.0f} s; above 10 % Zn: P10 {low:.2%}, P90 {high:.2%} of the panels"
-)
+print(f"{len(model):,} blocks of 25 m in {seconds:.0f} s; above 60 % Fe: P10 {low:.1%}, P90 {high:.1%}")
 ```
 
 </details>
 
 ```text
-87,912 panels in 2 s; above 10 % Zn: P10 5.98%, P90 6.83% of the panels
+47,660 blocks of 25 m in 44 s; above 60 % Fe: P10 15.9%, P90 16.7%
 ```
 
+Averaging smooths the highs: about 16 % of the 25 m blocks pass 60 % Fe, against 22 % of the 5 m blocks.
+
 The output is too big to want in memory, so the east–west section with the most composites is collected from the
-chunks, reading only the columns it needs. Near the holes the simulations follow the data; beyond the variogram
-range kriging leaves blocks unestimated while each realization draws from the declustered histogram. `plot.uncertain`
-shows both at once: the mean of the realizations sets the color and the normal-score kriging variance fades it
-to white, so beyond the range of every composite the section is blank. The fan is its legend — the value across,
-certainty from the center out.
+chunks, reading only the columns it needs, into a small model of its own.
 
 <details><summary>Python</summary>
 
 ```python
-row = int(np.bincount(((xyz[:, 1] - origin[1]) // 2).astype(int), minlength=ny).argmax())
-section = {name: np.full((nz, nx), np.nan) for name in ("zn", "mean", "score_variance", "p_above_10")}
-for chunk in cs.BlockModelFile(folder / "simulated.parquet").chunks(columns=list(section)):
-    index = chunk.index
-    on = (index // nx) % ny == row
-    k, i = index[on] // (nx * ny), index[on] % nx
-    for name, image in section.items():
-        image[k, i] = chunk[name][on]
-
-levels = np.flatnonzero(np.isfinite(section["mean"]).any(axis=1))
-bottom, top = origin[2] + 2 * levels[0], origin[2] + 2 * (levels[-1] + 1)
-north = origin[1] + (row + 0.5) * 2
-near = np.abs(xyz[:, 1] - north) < 2
-extent = (origin[0], origin[0] + 2 * nx, origin[2], origin[2] + 2 * nz)
-grade = PowerNorm(0.5, vmin=0, vmax=30)
-fig, axes = plt.subplots(2, 3, figsize=(8, 8), layout="constrained", sharey="row", height_ratios=(1, 0.2))
-im = axes[0, 0].imshow(section["zn"], origin="lower", extent=extent, norm=grade)
-fig.colorbar(im, cax=axes[1, 0].inset_axes([0.1, 0.6, 0.8, 0.15]), orientation="horizontal")
-cs.plot.uncertain(
-    section["mean"],
-    section["score_variance"],
-    extent=extent,
-    cmap="cividis",
-    norm=grade,
-    label="Zn (%)",
-    legend_ax=axes[1, 1],
-    ax=axes[0, 1],
+row = int(np.bincount(((xyz[:, 1] - grid.origin[1]) // 5).astype(int), minlength=ny).argmax())
+columns = ["mean", "p_above_60"]
+parts, index = {name: [] for name in columns}, []
+for chunk in cs.BlockModelFile(folder / "simulated.parquet").chunks(columns=columns):
+    on = (chunk.index // nx) % ny == row
+    index.append(chunk.index[on])
+    for name in columns:
+        parts[name].append(chunk[name][on])
+index = np.concatenate(index)
+section = cs.BlockModel(
+    (grid.origin[0], grid.origin[1] + 5 * row, grid.origin[2]),
+    grid.size,
+    (nx, 1, nz),
+    index=index % nx + nx * (index // (nx * ny)),
+    attributes={name: np.concatenate(parts[name]) for name in columns},
 )
-im = axes[0, 2].imshow(section["p_above_10"], origin="lower", extent=extent, vmin=0, vmax=1)
-fig.colorbar(im, cax=axes[1, 2].inset_axes([0.1, 0.6, 0.8, 0.15]), orientation="horizontal")
-for ax, title in zip(axes[0], ("Kriged Zn (%)", "Mean of 10 simulations", "P(Zn > 10 %)"), strict=True):
+north = grid.origin[1] + 5 * (row + 0.5)
+near = np.abs(xyz[:, 1] - north) < 5
+fig, axes = plt.subplots(2, 1, figsize=(9, 5.5), layout="constrained", sharex=True)
+cs.plot.section(section, "mean", axis="y", index=0, vmin=20, vmax=68, ax=axes[0])
+cs.plot.section(section, "p_above_60", axis="y", index=0, vmin=0, vmax=1, ax=axes[1])
+for ax, title in zip(axes, (f"Mean of 10 simulations, Fe (%), {north:.0f} N", "P(Fe > 60 %)"), strict=True):
     ax.scatter(xyz[near, 0], xyz[near, 2], s=2, color=HIGHLIGHT, linewidths=0)
-    ax.set(title=title, xlabel="Easting (m)", aspect="auto", ylim=(bottom, top))
-axes[0, 0].set_ylabel("Elevation (m)")
-for ax in axes[1, [0, 2]]:
-    ax.axis("off")
+    ax.set(title=title, xlabel="Easting (m)", ylabel="Elevation (m)")
 save(fig, "section")
 ```
 
