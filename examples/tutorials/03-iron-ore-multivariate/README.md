@@ -401,4 +401,4 @@ save(fig, "bench")
 
 ![bench](bench.png)
 
-Full script: [`example_03.py`](example_03.py)
+Full script: [`tutorial_03.py`](tutorial_03.py)
