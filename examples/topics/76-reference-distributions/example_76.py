@@ -169,7 +169,7 @@ axes[0].set_ylabel(names[1])
 save(fig, "imputed")
 
 # %% [markdown]
-# Of the hidden samples, 3.5 % have both minerals above their P80. One Gaussian imputes 6.0 %: it draws tennantite from
+# Of the hidden samples, 3.5 % have both minerals above their P80. One Gaussian imputes 5.6 %: it draws tennantite from
 # the correlation of the scores alone, and that correlation is weak, so high chalcocite gets typical tennantite. The
-# mixture imputes 4.1 %: it first picks the arm of the L that the chalcocite of the sample points to. The one-Gaussian
+# mixture imputes 3.6 %: it first picks the arm of the L that the chalcocite of the sample points to. The one-Gaussian
 # imputer of topic 17 stays the default; `components=None` lets BIC decide.

@@ -188,9 +188,9 @@ for name, search in searches.items():
 </details>
 
 ```text
-              hard: [1.89 1.84 1.77 1.7  1.65 1.62 1.6  1.08 1.09 1.07 1.08 1.07 1.07 1.09]
-    soft both ways: [1.85 1.78 1.67 1.56 1.45 1.35 1.31 1.27 1.25 1.17 1.15 1.12 1.1  1.11]
-soft, SAP from LIM: [1.84 1.77 1.65 1.53 1.4  1.29 1.24 1.08 1.09 1.07 1.08 1.07 1.07 1.09]
+              hard: [1.84 1.8  1.74 1.67 1.64 1.61 1.6  1.05 1.07 1.09 1.08 1.08 1.1  1.11]
+    soft both ways: [1.8  1.74 1.64 1.53 1.44 1.35 1.31 1.25 1.23 1.2  1.16 1.13 1.13 1.13]
+soft, SAP from LIM: [1.79 1.73 1.63 1.5  1.4  1.29 1.24 1.05 1.07 1.09 1.08 1.08 1.1  1.11]
 ```
 
 <details><summary>Python</summary>
@@ -225,7 +225,7 @@ save(fig, "profiles")
 In the last meter of `SAP` the hard boundary kriges 1.55 % Ni against 1.28 % held out: it sees only saprolite,
 richer deeper down. Letting `SAP` draw on `LIM` brings it to 1.34 % and follows the gradient. Opened both ways, the
 boundary also lifts the first meter of `LIM` from 1.03 % to 1.21 %, where the held-out samples stay at 1.06 %. SGS
-agrees: 1.60 % hard and 1.24 % one way in the last meter of `SAP`, and 1.27 % in the first meter of `LIM` when soft
+agrees: 1.60 % hard and 1.24 % one way in the last meter of `SAP`, and 1.25 % in the first meter of `LIM` when soft
 both ways. The contact profile says which way to open a boundary; here only the saprolite side is gradational.
 
 Full script: [`example_30.py`](example_30.py)

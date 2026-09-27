@@ -82,7 +82,7 @@ for test, hidden in tests.items():
 
 # %% [markdown]
 # Across holes, the neighbors add almost nothing: the hidden holes lie beyond the range of the variogram. Within
-# holes, one spatial draw errs by 0.16 t/m³ against 0.23 from the same sample alone, and both keep the spread of the
+# holes, one spatial draw errs by 0.16 t/m³ against 0.22 from the same sample alone, and both keep the spread of the
 # truth. Along one hole, the spatial draws follow the level of the measured densities around them.
 
 # %%

@@ -254,20 +254,20 @@ parents = grid.mask(np.isin(np.arange(len(grid)), blocks.index[block_lens == "le
 nodes = parents.discretize(2)
 sgs = cs.SGS(gaussian, passes[:2]).fit(one, "ZN_PCT", weights="weight", holes="HOLE_ID")
 summary = sgs.simulate(nodes, n=30, seed=1, cutoffs=[5.0], blocks=parents)
-low, high = np.quantile(summary.realization_above[0], [0.1, 0.9])
+low, high = np.quantile(summary.realization_above[:, 0], [0.1, 0.9])
 print(f"{len(parents)} parent blocks: P10 {low:.0%}, P90 {high:.0%} of them above 5 % Zn")
-sure = np.mean(summary.probability_above[0] > 0.9)
+sure = np.mean(summary.probability_above[:, 0] > 0.9)
 print(f"mean {summary.mean.mean():.2f} % Zn; blocks above 5 % in more than 90 % of realizations: {sure:.0%}")
 ```
 
 </details>
 
 ```text
-4417 parent blocks: P10 43%, P90 49% of them above 5 % Zn
-mean 5.27 % Zn; blocks above 5 % in more than 90 % of realizations: 1%
+4417 parent blocks: P10 42%, P90 51% of them above 5 % Zn
+mean 5.29 % Zn; blocks above 5 % in more than 90 % of realizations: 1%
 ```
 
-In eight realizations out of ten, between 43 and 49 % of the parent blocks exceed 5 % Zn, yet only 1 % of them do
+In eight realizations out of ten, between 42 and 51 % of the parent blocks exceed 5 % Zn, yet only 1 % of them do
 so in more than 90 % of the realizations: at this drill spacing hardly any single block is a sure thing, even
 though the share of ore across the lens is well known.
 
@@ -377,7 +377,7 @@ dots. The plane's pole is the least spread direction of the wireframe's vertices
 <details><summary>Python</summary>
 
 ```python
-parents = parents.with_column("p_above_5", summary.probability_above[0])
+parents = parents.with_column("p_above_5", summary.probability_above[:, 0])
 vertices = lenses["lens_1"].vertices
 pole = np.linalg.eigh(np.cov(vertices.T))[1][:, 0]
 pole *= np.sign(pole[2])

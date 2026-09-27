@@ -59,10 +59,10 @@ for label, cats in simulated:
              Argov   Kimme   Sequa   Portl   Quate
    samples    0.20    0.33    0.24    0.01    0.21
  true grid    0.20    0.34    0.27    0.05    0.13
-   ordered    0.18    0.36    0.29    0.01    0.16
-      rule    0.19    0.40    0.22    0.03    0.16
-ordered: 43% of nodes match the true rock type
-rule: 49% of nodes match the true rock type
+   ordered    0.14    0.37    0.29    0.01    0.19
+      rule    0.18    0.41    0.21    0.01    0.19
+ordered: 37% of nodes match the true rock type
+rule: 51% of nodes match the true rock type
 ```
 
 <details><summary>Python</summary>
@@ -84,9 +84,9 @@ save(fig, "categories")
 
 ![categories](categories.png)
 
-The single field reproduces the proportions closely, but only allows contacts between neighbors in the order, so
+The single field keeps roughly to the sample proportions, but only allows contacts between neighbors in the order, so
 Portlandian appears as specks along every Sequanian-Quaternary contact. The hierarchical rule puts Portlandian next
-to Kimmeridgian and under the cover, as in the true map, and matches 49 % of the nodes against 43 %. Neither
+to Kimmeridgian and under the cover, as in the true map, and matches 51 % of the nodes against 37 %. Neither
 recovers Portlandian's 5 % of the area from 3 of 259 samples.
 
 ## Local proportions
@@ -117,7 +117,7 @@ print(f"rule, local proportions: {np.mean(by_local == true_rock):.0%} of nodes m
 </details>
 
 ```text
-rule, local proportions: 56% of nodes match the true rock type
+rule, local proportions: 57% of nodes match the true rock type
 ```
 
 <details><summary>Python</summary>
@@ -139,7 +139,7 @@ save(fig, "local-proportions")
 ![local-proportions](local-proportions.png)
 
 With local proportions, Argovian keeps to the north-west and the south where its samples are, and the realization
-matches the true rock type at 56 % of the nodes, against 49 % with global proportions.
+matches the true rock type at 57 % of the nodes, against 51 % with global proportions.
 
 ## Latent variograms
 

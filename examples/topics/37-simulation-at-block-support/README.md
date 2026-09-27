@@ -66,7 +66,7 @@ nodes = cs.BlockModel(origin=(0.5, 0.5), size=(2.5, 2.5), count=(104, 120))
 blocks = cs.BlockModel(origin=(0.5, 0.5), size=(size, size), count=(26, 30))
 sgs = cs.SGS(gaussian, cs.Search(radius=100, max_samples=24)).fit(xy, v, weights=weights)
 summary = sgs.simulate(nodes, n=30, seed=7, cutoffs=list(cutoffs), blocks=blocks)
-low, high = np.quantile(summary.realization_above, [0.1, 0.9], axis=1)
+low, high = np.quantile(summary.realization_above, [0.1, 0.9], axis=0)
 true_block = empirical(truth.reshape(30, size, 26, size).mean(axis=(1, 3)).ravel())
 for c in (300, 500, 800):
     k = np.searchsorted(cutoffs, c)
@@ -87,14 +87,14 @@ save(fig, "simulated-blocks")
 </details>
 
 ```text
-above 300 ppm: P10 42.8%, P90 49.5%, true 40.1%
-above 500 ppm: P10 13.8%, P90 17.8%, true 16.2%
-above 800 ppm: P10 1.5%, P90 2.7%, true 2.1%
+above 300 ppm: P10 40.3%, P90 48.7%, true 40.1%
+above 500 ppm: P10 13.6%, P90 18.5%, true 16.2%
+above 800 ppm: P10 1.8%, P90 2.7%, true 2.1%
 ```
 
 ![simulated-blocks](simulated-blocks.png)
 
-From 500 ppm up the band holds the true curve; at 300 ppm every realization puts a few per cent more blocks above
+From 500 ppm up the band holds the true curve; at 300 ppm nearly every realization puts a few per cent more blocks above
 cutoff than the truth has.
 
 Localization pools the realizations panel by panel. Over the western 250 m, each 50 × 50 m panel holds 25 blocks;
@@ -152,14 +152,14 @@ save(fig, "localized-simulation")
 
 ```text
 kriged: variance 35064, correlation with truth 0.89
-localized: variance 40836, correlation with truth 0.85
+localized: variance 41411, correlation with truth 0.86
 true blocks: variance 47350
 ```
 
 ![localized-simulation](localized-simulation.png)
 
-Each panel keeps the mean of its realizations, and its blocks the spread the simulation gives them: variance 40 836,
-between kriging's 35 064 and the true 47 350, with a correlation to the truth of 0.85 against kriging's 0.89. No
+Each panel keeps the mean of its realizations, and its blocks the spread the simulation gives them: variance 41 411,
+between kriging's 35 064 and the true 47 350, with a correlation to the truth of 0.86 against kriging's 0.89. No
 change-of-support model is involved; what the pooling returns is only as good as the realizations. Topics 33 and 34
 localize the same panels from a change-of-support model.
 

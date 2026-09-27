@@ -68,9 +68,9 @@ cs.plot.category_legend(rock_types, fig, loc="outside lower center", ncol=5)
 save(fig, "categories")
 
 # %% [markdown]
-# The single field reproduces the proportions closely, but only allows contacts between neighbors in the order, so
+# The single field keeps roughly to the sample proportions, but only allows contacts between neighbors in the order, so
 # Portlandian appears as specks along every Sequanian-Quaternary contact. The hierarchical rule puts Portlandian next
-# to Kimmeridgian and under the cover, as in the true map, and matches 49 % of the nodes against 43 %. Neither
+# to Kimmeridgian and under the cover, as in the true map, and matches 51 % of the nodes against 37 %. Neither
 # recovers Portlandian's 5 % of the area from 3 of 259 samples.
 
 # %% [markdown]
@@ -109,7 +109,7 @@ save(fig, "local-proportions")
 
 # %% [markdown]
 # With local proportions, Argovian keeps to the north-west and the south where its samples are, and the realization
-# matches the true rock type at 56 % of the nodes, against 49 % with global proportions.
+# matches the true rock type at 57 % of the nodes, against 51 % with global proportions.
 
 # %% [markdown]
 # ## Latent variograms
