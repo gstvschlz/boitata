@@ -2,7 +2,7 @@
 # 72. Spatial bootstrap
 
 A declustered mean is one number from a few hundred holes. How far off could it be? The classical bootstrap
-resamples the holes independently and answers σ/√n, but neighboring holes carry much the same information, so the
+resamples the holes independently and answers Ïƒ/âˆšn, but neighboring holes carry much the same information, so the
 true uncertainty is larger. `cs.spatial_bootstrap` resamples with the spatial correlation: each realization draws
 unconditional Gaussian values at the holes with the normal-score variogram, turns them into ranks, and reads the ranks
 through the declustered distribution of the data. Nearby holes then get similar draws and the resampled mean spreads
@@ -45,15 +45,16 @@ variogram = cs.Variogram(
 )
 print(variogram)
 
-independent = cs.spatial_bootstrap(holes, "THICKNESS_M", cs.Variogram([], nugget=1.0), weights=weights, n=1000)
+nugget = cs.Variogram([], nugget=1.0)
+independent = cs.spatial_bootstrap(holes, "THICKNESS_M", nugget, weights=weights, n=1000)
 spatial = cs.spatial_bootstrap(holes, "THICKNESS_M", variogram, weights=weights, n=1000)
 for name, table in (("independent", independent), ("spatial", spatial)):
     print(f"{name:>11}: standard deviation of the mean {np.std(table['mean']):.3f} m")
-print(f"        σ/√n: {sd / np.sqrt(len(holes)):.3f} m")
+print(f"        Ïƒ/âˆšn: {sd / np.sqrt(len(holes)):.3f} m")
 
 # %% [markdown]
-# A pure-nugget variogram makes every draw independent, which is the classical bootstrap: its spread matches σ/√n.
-# With the fitted variogram, whose range is about 3 km over an 11 × 7 km lease, the spread is four times wider:
+# A pure-nugget variogram makes every draw independent, which is the classical bootstrap: its spread matches Ïƒ/âˆšn.
+# With the fitted variogram, whose range is about 3 km over an 11 Ã— 7 km lease, the spread is four times wider:
 
 # %%
 bins = np.linspace(1.3, 2.5, 49)
@@ -69,7 +70,7 @@ save(fig, "means")
 # %% [markdown]
 # ## Range and effective number of holes
 #
-# The spread grows with the range. Written as an effective number of independent holes, (σ / spread)², the 295
+# The spread grows with the range. Written as an effective number of independent holes, (Ïƒ / spread)Â², the 295
 # holes count as about a dozen at the fitted range of 3 km, and as one once the range spans the whole lease.
 
 # %%
@@ -89,8 +90,8 @@ for r, s in zip(ranges, spreads):
 
 fig, ax = plt.subplots(figsize=(7, 3.4), layout="constrained")
 ax.semilogx(ranges, spreads, "o-", color=ACCENT, lw=1.4, ms=4, label="spatial bootstrap")
-ax.axhline(sd / np.sqrt(len(holes)), color=GRAY, ls="--", lw=1, label="σ/√n: independent holes")
-ax.axhline(sd, color=INK, ls=":", lw=1, label="σ: one effective hole")
+ax.axhline(sd / np.sqrt(len(holes)), color=GRAY, ls="--", lw=1, label="Ïƒ/âˆšn: independent holes")
+ax.axhline(sd, color=INK, ls=":", lw=1, label="Ïƒ: one effective hole")
 ax.axvline(structure.range, color=HIGHLIGHT, lw=1)
 ax.text(structure.range, sd * 0.93, " fitted range", color=HIGHLIGHT, va="top", fontsize=8)
 ax.set(
@@ -105,15 +106,15 @@ save(fig, "ranges")
 # %% [markdown]
 # ## Tonnage uncertainty
 #
-# The lease covers the cells flagged `INSIDE`; at 1.4 t/m³ each realization of the mean thickness gives a tonnage.
+# The lease covers the cells flagged `INSIDE`; at 1.4 t/mÂ³ each realization of the mean thickness gives a tonnage.
 # The table also returns quantiles and proportions above cutoffs per realization, here the share of the seam thicker
 # than 2 m, the minimum mining height.
 
 # %%
 area = np.sum(grid["INSIDE"] == 1) * 100.0 * 100.0
 density = 1.4
-for name, v in (("independent", cs.Variogram([], nugget=1.0)), ("spatial", variogram)):
-    table = cs.spatial_bootstrap(holes, "THICKNESS_M", v, weights=weights, n=1000, quantiles=[0.5], cutoffs=[2.0])
+for name, v in (("independent", nugget), ("spatial", variogram)):
+    table = cs.spatial_bootstrap(holes, "THICKNESS_M", v, weights=weights, n=1000, cutoffs=[2.0])
     tonnes = np.asarray(table["mean"]) * area * density / 1e6
     p10, p50, p90 = np.quantile(tonnes, [0.1, 0.5, 0.9])
     above = np.quantile(table["above 2"], [0.1, 0.9])
@@ -123,6 +124,6 @@ for name, v in (("independent", cs.Variogram([], nugget=1.0)), ("spatial", vario
     )
 
 # %% [markdown]
-# Independent resampling promises the tonnage within a few percent; with the spatial correlation the P10–P90 range
+# Independent resampling promises the tonnage within a few percent; with the spatial correlation the P10â€“P90 range
 # is four times wider. That is the uncertainty in the global mean from the holes alone, before any estimate or
 # simulation: a lower bound on what a resource can claim, and a guide to whether more holes pay.
