@@ -85,7 +85,7 @@ collar direction only: end of hole  17.181 m from minimum curvature (median), 13
 ```
 
 With stations every 30 m, tangential ends at most 4.2 m from minimum curvature and balanced tangential within
-1 cm; ignoring the survey puts a hole's end up to 130 m away. Both gaps grow with depth:
+about 1 cm; ignoring the survey puts a hole's end up to 130 m away. Both gaps grow with depth:
 
 <details><summary>Python</summary>
 

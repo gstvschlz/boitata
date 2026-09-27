@@ -83,14 +83,14 @@ Every flag points at a planted error, or follows from one:
   `'DD0132 '` are ids in the wrong case or with a trailing space, and the collar `'DD0104 '` has a trailing space,
   so none of its survey, assay or lithology rows find it (it also has `no_survey` and `no_lithology`).
 - `no_survey`: `DD0151` has no survey.
-- `deviation`: two stations of `DD0197`, where the azimuth turns 180° at one station and back at the next.
+- `deviation`: two stations of `DD0197`, where the azimuth flips at one station and back at the next.
 - `past_depth`: `DD0055` has surveys, assays and lithology below its collar `LENGTH`.
 - `inverted`: an assay of `DD0100` with `FROM` > `TO`.
 - `overlap`: two assays of `DD0200` start before the previous one ends, and three of `DD0162` are entered twice.
 - `gap`: two missing samples in `DD0080`; the gaps in `DD0062`, `DD0100`, `DD0132` and `DD0200` are left by the
   rows above. The RC holes' gaps are unsampled core and real.
 - `no_assays`: 113 collars. Only mineralized zones are assayed, so a hole that never logs `MS`, `SMS` or `STR`
-  has no assays by design. `DD0104 ` is the id error again.
+  has no assays by design. `'DD0104 '` is the id error again, and one more hides among them.
 
 Three errors no generic check can see. The grades were read as text, because some cells are not numbers:
 
@@ -197,7 +197,7 @@ lithology no_collar       7 rows in   1 holes: 'DD0111'
 ```
 
 `fix_drillholes` resolves the rest with one named rule per check, and its log says what each rule changed: the
-later duplicate collar is dropped (for `DD0067`, a second entry 290 m from the first and shorter), overlapping
+later duplicate collar is dropped (for `DD0067`, the second, wrong entry), overlapping
 assays keep the one that starts first (dropping the twinned re-entries), the two `DD0197` stations turned by the
 flip are dropped, sentinels become null and rows of a hole without collar go.
 
