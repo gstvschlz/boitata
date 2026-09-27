@@ -102,6 +102,7 @@ Tutorials follow one deposit from data to a result; topics show one feature each
 | 74 | [Spatial imputation](topics/74-spatial-imputation/README.md) | Stacked sulphide lenses | `merge_intervals`, `Drillholes`, `NormalScore`, `experimental_variogram`, `plot.variogram`, `GaussianImputer` |
 | 75 | [Local proportions](topics/75-local-proportions/README.md) | Tailings reprocessing | `Drillholes`, `Categories`, `cell_declustering`, `vertical_proportions`, `plot.category_legend`, `detrend`, `BlockModel`, `combine_proportions`, `Variogram`, `Search`, `SIS`, `plot.category_colors`, `check_realizations`, `plot.histogram_reproduction` |
 | 76 | [Reference distributions](topics/76-reference-distributions/README.md) | Vein gold grade control, Porphyry geometallurgy | `merge_intervals`, `Drillholes`, `cell_declustering`, `KernelDensity`, `NormalScore`, `GaussianMixture`, `GaussianImputer` |
+| 77 | [Unfolding](topics/77-unfolding/README.md) | Nickel laterite profile | `Drillholes`, `BlockModel`, `InverseDistance`, `Search`, `grid_surface`, `Unfold`, `experimental_variogram`, `Variogram`, `OrdinaryKriging`, `plot.section`, `plot.slab` |
 | 80 | [Domain cleanup](topics/80-domain-cleanup/README.md) | Stacked sulphide lenses | `Drillholes`, `Categories`, `cell_declustering`, `Variogram`, `Search`, `CategoricalIndicatorKriging`, `BlockModel`, `remove_small_units`, `plot.section`, `contact_distance`, `buffer_domains`, `plot.category_legend` |
 
 Each page alternates text, collapsed Python and its results. `mise run examples` reruns every script

@@ -142,6 +142,8 @@ search = cs.Search(60.0, max_samples=12)
 
 def fits():
     anam = cs.HermiteAnamorphosis(degree=10).fit(values)
+    square = np.array([[0, 0, 0], [100, 0, 0], [100, 100, 0], [0, 100, 0]])
+    walls = [cs.Mesh(square + [0, 0, z], [[0, 1, 2], [0, 2, 3]]) for z in (0, 100)]
     lmc = cs.Coregionalization(
         [[0.0, 0.0], [0.0, 0.0]], structures=[("spherical", 40.0, [[1.0, 0.5], [0.5, 1.0]])]
     )
@@ -181,6 +183,7 @@ def fits():
         (cs.GaussianImputer(), (table,)),
         (cs.KernelDensity(), (values,)),
         (cs.GaussianMixture(components=2), (table,)),
+        (cs.Unfold(*walls), (coords,)),
     ]
 
 
