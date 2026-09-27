@@ -5,6 +5,7 @@ use numpy::{IntoPyArray, PyArray1, PyArray2, PyReadonlyArray1, PyReadonlyArray2}
 use pyo3::prelude::*;
 use pyo3::types::{PyCapsule, PyTuple};
 use pyo3_arrow::error::PyArrowResult;
+use rayon::prelude::*;
 
 use crate::invalid;
 use crate::table::{Table, arrow_c_stream, column, describe, empty, to_batch};
@@ -251,6 +252,19 @@ enum Closed {
 #[pyclass(module = "ceres", name = "Polylines", frozen)]
 pub struct PyPolylines(pub Polylines);
 
+impl PyPolylines {
+    fn feature_index(&self, feature: Option<i64>) -> PyResult<Option<usize>> {
+        feature
+            .map(|f| {
+                usize::try_from(f)
+                    .ok()
+                    .filter(|&f| f < self.0.len())
+                    .ok_or_else(|| invalid(format!("feature {f} out of range")))
+            })
+            .transpose()
+    }
+}
+
 #[pymethods]
 impl PyPolylines {
     #[new]
@@ -343,6 +357,104 @@ impl PyPolylines {
     /// feature's attributes.
     fn to_points(&self) -> PyResult<PyPointSet> {
         Ok(PyPointSet(self.0.to_points().map_err(core_error)?))
+    }
+
+    /// Whether each point is inside a feature in plan.
+    ///
+    /// Parameters
+    /// ----------
+    /// points : PointSet, BlockModel or array_like
+    ///     ``(n, 2)`` or ``(n, 3)`` coordinates; z is ignored.
+    /// feature : int, optional
+    ///     Feature to test; any feature by default.
+    ///
+    /// Returns
+    /// -------
+    /// ndarray of bool
+    ///     Inside means an odd number of the feature's closed parts hold the
+    ///     point, so a ring inside another is a hole. Open parts are ignored.
+    #[pyo3(signature = (points, *, feature=None))]
+    fn contains<'py>(
+        &self,
+        py: Python<'py>,
+        points: &Bound<PyAny>,
+        feature: Option<i64>,
+    ) -> PyResult<Bound<'py, PyArray1<bool>>> {
+        let feature = self.feature_index(feature)?;
+        let xy = coords_arg(points)?;
+        let inside = py.detach(|| {
+            xy.par_iter()
+                .map(|p| match feature {
+                    Some(f) => self.0.feature_contains(f, [p[0], p[1]]),
+                    None => self.0.locate([p[0], p[1]]).is_some(),
+                })
+                .collect()
+        });
+        Ok(PyArray1::from_vec(py, inside))
+    }
+
+    /// Feature holding each point in plan, as `contains`; the first one
+    /// where features overlap and -1 outside all of them.
+    fn locate<'py>(
+        &self,
+        py: Python<'py>,
+        points: &Bound<PyAny>,
+    ) -> PyResult<Bound<'py, PyArray1<i64>>> {
+        let xy = coords_arg(points)?;
+        let found = py.detach(|| {
+            xy.par_iter()
+                .map(|p| self.0.locate([p[0], p[1]]).map_or(-1, |f| f as i64))
+                .collect()
+        });
+        Ok(PyArray1::from_vec(py, found))
+    }
+
+    /// Plan distance from each point to the nearest closed part.
+    ///
+    /// Parameters
+    /// ----------
+    /// points : PointSet, BlockModel or array_like
+    ///     ``(n, 2)`` or ``(n, 3)`` coordinates; z is ignored.
+    /// feature : int, optional
+    ///     Feature whose closed parts count; all by default.
+    /// signed : bool, default False
+    ///     Negative inside, as `contains`.
+    ///
+    /// Returns
+    /// -------
+    /// ndarray of float
+    #[pyo3(signature = (points, *, feature=None, signed=false))]
+    fn distance<'py>(
+        &self,
+        py: Python<'py>,
+        points: &Bound<PyAny>,
+        feature: Option<i64>,
+        signed: bool,
+    ) -> PyResult<Bound<'py, PyArray1<f64>>> {
+        let feature = self.feature_index(feature)?;
+        let xy = coords_arg(points)?;
+        let d: Option<Vec<f64>> = py.detach(|| {
+            xy.par_iter()
+                .map(|p| self.0.distance([p[0], p[1]], feature, signed))
+                .collect()
+        });
+        let d = d.or_else(|| xy.is_empty().then(Vec::new));
+        Ok(PyArray1::from_vec(
+            py,
+            d.ok_or_else(|| invalid("no closed parts to measure to"))?,
+        ))
+    }
+
+    /// 3D length of each feature, closed parts with their closing segment.
+    fn length<'py>(&self, py: Python<'py>) -> Bound<'py, PyArray1<f64>> {
+        PyArray1::from_vec(py, self.0.length())
+    }
+
+    /// Plan area of each feature: closed parts inside an odd number of the
+    /// feature's other closed parts are holes and subtract. Parts of a
+    /// feature must not cross.
+    fn area<'py>(&self, py: Python<'py>) -> Bound<'py, PyArray1<f64>> {
+        PyArray1::from_vec(py, self.0.area())
     }
 
     fn __getitem__<'py>(&self, py: Python<'py>, name: &str) -> PyResult<Bound<'py, PyAny>> {
@@ -688,11 +800,13 @@ impl PyBlockModel {
     ///
     /// Parameters
     /// ----------
-    /// meshes : sequence of (Mesh, str, str)
+    /// meshes : sequence of (Mesh or Polylines, str, str)
     ///     ``(mesh, rule, label)`` in priority order, the first match
     ///     winning. ``rule`` is ``"inside"`` a closed mesh, or ``"below"`` or
     ///     ``"above"`` a surface such as topography, along world z; off the
-    ///     surface's footprint neither matches.
+    ///     surface's footprint neither matches. Polylines take ``"inside"``
+    ///     only: the vertical prism over their features, as
+    ///     `Polylines.contains`.
     /// subgrid : int or sequence of int
     ///     Sub-cells per axis, which sets the smallest sub-block; an int
     ///     applies to x, y and z, or to x and y only in a 2D model.
@@ -711,7 +825,7 @@ impl PyBlockModel {
     fn subblock(
         &self,
         py: Python,
-        meshes: Vec<(PyRef<crate::blocks::Mesh>, String, String)>,
+        meshes: Vec<(Bound<PyAny>, String, String)>,
         subgrid: &Bound<PyAny>,
         column: &str,
         fill: Option<&str>,
@@ -721,7 +835,7 @@ impl PyBlockModel {
             .map(|n| u32::try_from(n).unwrap_or(u32::MAX));
         let domains = meshes
             .into_iter()
-            .map(|(mesh, rule, label)| mesh.domain(&rule, label))
+            .map(|(mesh, rule, label)| crate::blocks::domain(&mesh, &rule, label))
             .collect::<PyResult<Vec<_>>>()?;
         let model = py
             .detach(|| blocks::subblock(&self.0, &domains, subgrid, column, fill))
@@ -739,7 +853,7 @@ impl PyBlockModel {
         origin: Vec<f64>,
         size: Vec<f64>,
         count: Vec<usize>,
-        meshes: Vec<(PyRef<crate::blocks::Mesh>, String, String)>,
+        meshes: Vec<(Bound<PyAny>, String, String)>,
         subgrid: &Bound<PyAny>,
         rotation: (f64, f64, f64),
         column: &str,

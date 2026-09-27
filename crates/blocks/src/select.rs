@@ -4,9 +4,12 @@
 //! A "string" here is a closed polyline that came from a file (DXF, shapefile)
 //! — there is deliberately no drawing tool. The test is 2-D: the
 //! ring is projected to the XY (plan) plane and a point is inside when its
-//! (x, y) falls inside **any** ring, with z further constrained to the RL
+//! (x, y) falls inside an odd number of rings, so a ring inside another is a
+//! hole, with z further constrained to the RL
 //! window when one is set. This is the standard "inside the pit outline
 //! between 7800 and 7850" query.
+
+use ceres_core::Polylines;
 
 use crate::distance::point_in_polygon;
 use crate::error::{BlockModelError, Result};
@@ -45,10 +48,13 @@ pub fn ring_is_closed(vertices: &[[f64; 3]]) -> bool {
 
 /// A plan-view polygon selector built from one or more closed rings, with an
 /// optional RL (elevation) window. A point is selected when its XY projection
-/// lies inside any ring and its z lies inside the window.
+/// lies inside a feature, an odd number of its rings, and its z lies inside
+/// the window.
 #[derive(Debug, Clone)]
 pub struct PolygonSelector {
-    rings: Vec<Vec<(f64, f64)>>,
+    features: Vec<Vec<Vec<(f64, f64)>>>,
+    lo: [f64; 2],
+    hi: [f64; 2],
     /// Inclusive elevation window, when constrained.
     rl_min: Option<f64>,
     rl_max: Option<f64>,
@@ -66,13 +72,6 @@ impl PolygonSelector {
         rl_min: Option<f64>,
         rl_max: Option<f64>,
     ) -> Result<Self> {
-        if let (Some(lo), Some(hi)) = (rl_min, rl_max)
-            && lo > hi
-        {
-            return Err(BlockModelError::InvalidGridParams(format!(
-                "RL window is inverted ({lo} > {hi})"
-            )));
-        }
         let mut flat = Vec::new();
         for ring in rings {
             if ring.len() < 3 {
@@ -93,20 +92,62 @@ impl PolygonSelector {
             }
             flat.push(xy);
         }
-        if flat.is_empty() {
+        Self::with_features(vec![flat], rl_min, rl_max)
+    }
+
+    /// Build a selector from the closed parts of `lines`, one feature each.
+    pub fn from_polylines(
+        lines: &Polylines,
+        rl_min: Option<f64>,
+        rl_max: Option<f64>,
+    ) -> Result<Self> {
+        let features = (0..lines.len())
+            .map(|f| {
+                let ring = |r| lines.part(r).iter().map(|v| (v[0], v[1])).collect();
+                lines.rings(f).map(ring).collect()
+            })
+            .collect();
+        Self::with_features(features, rl_min, rl_max)
+    }
+
+    fn with_features(
+        features: Vec<Vec<Vec<(f64, f64)>>>,
+        rl_min: Option<f64>,
+        rl_max: Option<f64>,
+    ) -> Result<Self> {
+        if let (Some(lo), Some(hi)) = (rl_min, rl_max)
+            && lo > hi
+        {
+            return Err(BlockModelError::InvalidGridParams(format!(
+                "RL window is inverted ({lo} > {hi})"
+            )));
+        }
+        let (mut lo, mut hi) = ([f64::INFINITY; 2], [f64::NEG_INFINITY; 2]);
+        for &(x, y) in features.iter().flatten().flatten() {
+            lo = [lo[0].min(x), lo[1].min(y)];
+            hi = [hi[0].max(x), hi[1].max(y)];
+        }
+        if lo[0] > hi[0] {
             return Err(BlockModelError::InvalidGridParams(
                 "no ring with three or more vertices to select with".into(),
             ));
         }
         Ok(Self {
-            rings: flat,
+            features,
+            lo,
+            hi,
             rl_min,
             rl_max,
         })
     }
 
-    /// Whether `point` is inside the selection volume: in plan inside any
-    /// ring, and inside the RL window when one is set.
+    /// `(min, max)` plan corners of the rings.
+    pub fn bounds(&self) -> ([f64; 2], [f64; 2]) {
+        (self.lo, self.hi)
+    }
+
+    /// Whether `point` is inside the selection volume: in plan inside a
+    /// feature, and inside the RL window when one is set.
     pub fn contains(&self, point: [f64; 3]) -> bool {
         if let Some(lo) = self.rl_min
             && point[2] < lo
@@ -118,9 +159,10 @@ impl PolygonSelector {
         {
             return false;
         }
-        self.rings
+        let xy = (point[0], point[1]);
+        self.features
             .iter()
-            .any(|ring| point_in_polygon((point[0], point[1]), ring))
+            .any(|rings| rings.iter().filter(|r| point_in_polygon(xy, r)).count() % 2 == 1)
     }
 }
 
@@ -237,6 +279,30 @@ mod tests {
         assert!(sel.contains([5.0, 5.0, 0.0]));
         assert!(sel.contains([105.0, 105.0, 0.0]));
         assert!(!sel.contains([50.0, 50.0, 0.0]));
+    }
+
+    /// Theory check: an outer ring with a ring inside it selects nothing in
+    /// the hole, from raw rings as from a two-part feature, and the same
+    /// points come out every time.
+    #[test]
+    fn a_ring_inside_another_is_a_hole() {
+        let (outer, inner) = (square(0.0, 10.0, 0.0), square(4.0, 6.0, 0.0));
+        let raw = PolygonSelector::new(&[&outer, &inner], false, None, None).expect("selector");
+        let mut vertices = outer[..4].to_vec();
+        vertices.extend(&inner[..4]);
+        let id: arrow_array::ArrayRef = std::sync::Arc::new(arrow_array::Int32Array::from(vec![0]));
+        let table = arrow_array::RecordBatch::try_from_iter([("id", id)]).unwrap();
+        let lines = Polylines::new(vertices, vec![0, 4, 8], vec![0, 2], vec![true; 2], table);
+        let lines = PolygonSelector::from_polylines(&lines.unwrap(), None, None).unwrap();
+        let grid: Vec<[f64; 3]> = (0..121)
+            .map(|k| [(k % 11) as f64 + 0.5, (k / 11) as f64 + 0.5, 0.0])
+            .collect();
+        let picked = |s: &PolygonSelector| grid.iter().map(|&p| s.contains(p)).collect::<Vec<_>>();
+        assert_eq!(picked(&raw), picked(&lines));
+        assert_eq!(picked(&raw), picked(&raw));
+        assert_eq!(picked(&raw).iter().filter(|&&b| b).count(), 100 - 4);
+        assert!(raw.contains([2.0, 2.0, 0.0]));
+        assert!(!raw.contains([5.0, 5.0, 0.0]));
     }
 
     #[test]

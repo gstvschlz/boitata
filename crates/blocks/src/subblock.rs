@@ -9,15 +9,17 @@ use ceres_core::{BlockModel, Geometry, Layout};
 use nalgebra::{Matrix3, Vector3};
 use rayon::prelude::*;
 
-use crate::{Aabb, BlockModelError, Result, SolidTester, Surface};
+use crate::{Aabb, BlockModelError, PolygonSelector, Result, SolidTester, Surface};
 
 const WHOLE: [f64; 6] = [0.0, 0.0, 0.0, 1.0, 1.0, 1.0];
 
-/// Where a domain lies: inside a closed solid, or below or above a surface
-/// along world z. Off the surface's footprint, neither.
+/// Where a domain lies: inside a closed solid, inside a vertical prism over
+/// plan polygons, or below or above a surface along world z. Off the
+/// surface's footprint, neither.
 #[derive(Clone)]
 pub enum Region {
     Inside(SolidTester),
+    Prism(PolygonSelector),
     Below(Surface),
     Above(Surface),
 }
@@ -162,6 +164,17 @@ fn pieces(
                 }
                 for s in 0..label.len() {
                     if label[s].is_none() && solid.contains(center(s)) {
+                        label[s] = Some(id);
+                    }
+                }
+            }
+            Region::Prism(prism) => {
+                let (lo, hi) = prism.bounds();
+                if (0..2).any(|a| bounds.max[a] < lo[a] || bounds.min[a] > hi[a]) {
+                    continue;
+                }
+                for s in 0..label.len() {
+                    if label[s].is_none() && prism.contains(center(s)) {
                         label[s] = Some(id);
                     }
                 }
@@ -350,6 +363,28 @@ pub(crate) mod tests {
             errors[3] < 0.01 && errors[3] < errors[0] / 4.0,
             "{errors:?}"
         );
+    }
+
+    /// Theory check: a prism over a 6 m square with a 2 m square hole holds
+    /// (36 - 4) m² times the model height.
+    #[test]
+    fn a_prism_with_a_hole() {
+        let ring = |h: f64| [[-h, -h, 0.0], [h, -h, 0.0], [h, h, 0.0], [-h, h, 0.0]];
+        let (outer, inner) = (ring(3.0), ring(1.0));
+        let prism = PolygonSelector::new(&[&outer, &inner], true, None, None).unwrap();
+        let domain = Domain {
+            region: Region::Prism(prism),
+            label: "lease".into(),
+        };
+        let sub = subblock(
+            &grid(1.0, 8, [0.0; 3]),
+            &[domain],
+            [2, 2, 1],
+            "domain",
+            None,
+        )
+        .unwrap();
+        assert!((volume_of(&sub, "lease") - 32.0 * 8.0).abs() < 1e-9);
     }
 
     /// `z = 0.25 x + 0.1 y - 1` over `x` in [-4, 2], `y` in [-4, 4].

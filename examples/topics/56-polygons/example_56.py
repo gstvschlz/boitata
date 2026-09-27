@@ -105,37 +105,44 @@ save(fig, "domains")
 #
 # ## A polygon with a hole
 #
-# A lease often excludes an area inside it; take a 1.5 km circle around a point in the middle. The even-odd rule
-# handles it in a single ring: the outer ring, closed, then the inner ring, closed. The two bridge edges between
-# them run along the same segment, so they cancel, and points in the inner ring cross the boundary an even number
-# of times.
-#
-# `PolygonSelector` takes several rings, with an optional elevation window, but a point is selected when it is
-# inside *any* ring: the exclusion zone counts as inside. It cannot express a hole yet.
+# A lease often excludes an area inside it; take a 1.5 km circle around a point in the middle. The exclusion is a
+# second closed part of the lease feature. `Polylines` decide inside by even-odd counting over a feature's closed
+# parts, so a ring inside another is a hole: `contains` leaves the exclusion out, `area` subtracts it and
+# `distance` measures to the nearest ring, negative inside, so the 200 m standoff now runs along both rings.
+# `PolygonSelector`, `point_in_polygon` and `BlockModel.subblock` take the same `Polylines`.
 
 # %%
 center = lease.mean(axis=0)
 angle = np.linspace(0, 2 * np.pi, 60, endpoint=False)
 exclusion = center + 1500 * np.column_stack([np.cos(angle), np.sin(angle)])
-with_hole = np.vstack([lease, lease[:1], exclusion, exclusion[:1]])
-even_odd = cs.point_in_polygon(centers, with_hole)
-selector = cs.PolygonSelector([np.c_[ring, np.zeros(len(ring))] for ring in (lease, exclusion)], closed=True)
-selected = selector.contains(np.c_[centers, np.zeros(len(centers))])
+leased = cs.Polylines([lease, exclusion], closed=True, features=[0, 0], attributes={"name": ["lease"]})
+kept = leased.contains(centers)
 in_exclusion = cs.point_in_polygon(centers, exclusion)
-print(f"cells in the exclusion zone: {in_exclusion.sum()}")
-print(f"point_in_polygon, one ring with a hole: {even_odd.sum()} cells")
 print(
-    f"PolygonSelector, outer and inner rings: {selected.sum()} cells, {np.sum(selected & in_exclusion)} of them in the hole"
+    f"area: {boundary.area()[0] / 1e6:.2f} km² lease, {leased.area()[0] / 1e6:.2f} km² net of the exclusion"
 )
+print(
+    f"cells kept: {kept.sum()}, {np.sum(kept & in_exclusion)} of the {in_exclusion.sum()} in the exclusion zone"
+)
+print(f"PolygonSelector agrees: {np.array_equal(cs.PolygonSelector(leased).contains(centers), kept)}")
+signed = leased.distance(centers, signed=True)
+standoff = (signed > -200) & (signed < 0)
+print(f"standoff along both rings: {standoff.sum()} cells, {standoff.sum() * 100 * 100 / 1e6:.1f} km²")
 
 fig, (a, b) = plt.subplots(1, 2, figsize=(10, 3.8), sharey=True, layout="constrained")
-for ax, keep, title in (
-    (a, even_odd, "point_in_polygon, even-odd"),
-    (b, selected, "PolygonSelector, any ring"),
-):
-    cs.plot.section(grid, keep.astype(float), ax=ax, colorbar=False, cmap="Greys", vmin=0, vmax=2)
+cs.plot.section(grid, kept.astype(float), ax=a, colorbar=False, cmap="Greys", vmin=0, vmax=2)
+cs.plot.section(grid, np.where(kept, -signed, np.nan), ax=b, colorbar=False, cmap="Greys")
+b.contour(
+    centers[:, 0].reshape(90, 120),
+    centers[:, 1].reshape(90, 120),
+    signed.reshape(90, 120),
+    levels=[-200],
+    colors=HIGHLIGHT,
+    linewidths=1,
+)
+for ax, title in ((a, "contains, even-odd"), (b, "Signed distance; 200 m standoff in orange")):
     outline(ax, lease, color=INK, lw=1)
-    outline(ax, exclusion, color=HIGHLIGHT, lw=1)
+    outline(ax, exclusion, color=INK, lw=1)
     map_axes(ax, title)
 b.set_ylabel("")
 save(fig, "hole")

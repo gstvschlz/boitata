@@ -63,6 +63,49 @@ fn without(table: &RecordBatch, names: &[Option<&str>]) -> Result<RecordBatch> {
     Ok(table.project(&keep)?)
 }
 
+fn in_ring(p: [f64; 2], ring: &[[f64; 3]]) -> bool {
+    let mut inside = false;
+    let mut j = ring.len() - 1;
+    for (i, a) in ring.iter().enumerate() {
+        let b = ring[j];
+        if (a[1] > p[1]) != (b[1] > p[1])
+            && p[0] < (b[0] - a[0]) * (p[1] - a[1]) / (b[1] - a[1]) + a[0]
+        {
+            inside = !inside;
+        }
+        j = i;
+    }
+    inside
+}
+
+fn ring_distance(p: [f64; 2], ring: &[[f64; 3]]) -> f64 {
+    let n = ring.len();
+    (0..n)
+        .map(|i| {
+            let (a, b) = (ring[i], ring[(i + 1) % n]);
+            let (dx, dy) = (b[0] - a[0], b[1] - a[1]);
+            let len2 = dx * dx + dy * dy;
+            let t = if len2 > 0.0 {
+                (((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / len2).clamp(0.0, 1.0)
+            } else {
+                0.0
+            };
+            (p[0] - a[0] - t * dx).hypot(p[1] - a[1] - t * dy)
+        })
+        .fold(f64::INFINITY, f64::min)
+}
+
+fn ring_area(ring: &[[f64; 3]]) -> f64 {
+    let n = ring.len();
+    let twice: f64 = (0..n)
+        .map(|i| {
+            let (a, b) = (ring[i], ring[(i + 1) % n]);
+            a[0] * b[1] - b[0] * a[1]
+        })
+        .sum();
+    twice.abs() / 2.0
+}
+
 impl Polylines {
     /// `parts` offsets into `vertices` (one more than the parts), `features`
     /// offsets into the parts (one more than the features), `closed` one flag
@@ -144,6 +187,77 @@ impl Polylines {
             attributes: crate::set_column(&self.attributes, name, column)?,
             ..self.clone()
         })
+    }
+
+    /// Indices of the closed parts of feature `f`.
+    pub fn rings(&self, f: usize) -> impl Iterator<Item = usize> + '_ {
+        self.feature_parts(f).filter(|&p| self.closed[p])
+    }
+
+    /// Whether `xy` is inside feature `f` in plan: an odd number of its
+    /// closed parts hold it.
+    pub fn feature_contains(&self, f: usize, xy: [f64; 2]) -> bool {
+        self.rings(f).filter(|&r| in_ring(xy, self.part(r))).count() % 2 == 1
+    }
+
+    /// First feature holding `xy` in plan.
+    pub fn locate(&self, xy: [f64; 2]) -> Option<usize> {
+        (0..self.len()).find(|&f| self.feature_contains(f, xy))
+    }
+
+    /// Plan distance from `xy` to the nearest closed part of `feature`, or of
+    /// any feature without it; `signed` makes it negative inside. `None`
+    /// without closed parts.
+    pub fn distance(&self, xy: [f64; 2], feature: Option<usize>, signed: bool) -> Option<f64> {
+        let features = feature.map_or(0..self.len(), |f| f..f + 1);
+        let d = features
+            .clone()
+            .flat_map(|f| self.rings(f))
+            .map(|r| ring_distance(xy, self.part(r)))
+            .reduce(f64::min)?;
+        let inside = signed && features.into_iter().any(|f| self.feature_contains(f, xy));
+        Some(if inside { -d } else { d })
+    }
+
+    /// 3D length of each feature, closed parts including their closing
+    /// segment.
+    pub fn length(&self) -> Vec<f64> {
+        let dist = |a: [f64; 3], b: [f64; 3]| {
+            ((a[0] - b[0]).powi(2) + (a[1] - b[1]).powi(2) + (a[2] - b[2]).powi(2)).sqrt()
+        };
+        let part = |p: usize| {
+            let v = self.part(p);
+            let open: f64 = v.windows(2).map(|w| dist(w[0], w[1])).sum();
+            open + if self.closed[p] {
+                dist(v[v.len() - 1], v[0])
+            } else {
+                0.0
+            }
+        };
+        (0..self.len())
+            .map(|f| self.feature_parts(f).map(part).sum())
+            .collect()
+    }
+
+    /// Plan area of each feature by even-odd counting: a closed part inside
+    /// an odd number of the feature's other closed parts is a hole. Parts of
+    /// a feature must not cross.
+    pub fn area(&self) -> Vec<f64> {
+        (0..self.len())
+            .map(|f| {
+                self.rings(f)
+                    .map(|r| {
+                        let [x, y, _] = self.part(r)[0];
+                        let depth = self
+                            .rings(f)
+                            .filter(|&o| o != r && in_ring([x, y], self.part(o)))
+                            .count();
+                        let area = ring_area(self.part(r));
+                        if depth % 2 == 0 { area } else { -area }
+                    })
+                    .sum()
+            })
+            .collect()
     }
 
     /// `(min, max)` corners, `None` without vertices.
@@ -370,6 +484,50 @@ mod tests {
         assert!(p.feature_parts(1).is_empty());
         assert_eq!(p.part(3), &[[40., 5., 5.], [50., 5., 5.]]);
         assert_eq!(p.bounds(), Some(([0.; 3], [50., 10., 5.])));
+    }
+
+    /// Theory check: a 10 m square with a 2 m square hole has area 100 - 4,
+    /// holds nothing in the hole, and its signed distance changes sign across
+    /// both rings.
+    #[test]
+    fn a_hole_subtracts_and_excludes() {
+        let p = sample();
+        assert_eq!(p.area(), [96., 0., 0.]);
+        assert_eq!(p.length()[0], 48.);
+        assert_eq!(p.length()[2], 20.);
+        assert!(p.feature_contains(0, [2., 2.]));
+        assert!(!p.feature_contains(0, [5., 5.]));
+        assert!(!p.feature_contains(0, [11., 5.]));
+        assert_eq!((p.locate([2., 2.]), p.locate([5., 5.])), (Some(0), None));
+        let d = |x: f64| p.distance([x, 5.], None, true).unwrap();
+        assert_eq!(
+            [d(-1.), d(1.), d(3.5), d(4.5), d(5.)],
+            [1., -1., -0.5, 0.5, 1.]
+        );
+        assert_eq!(p.distance([5., 5.], Some(1), false), None);
+    }
+
+    /// Theory check: two disjoint rings of one feature both hold points and
+    /// add their areas; a later feature overlapping them is not located.
+    #[test]
+    fn multipart_features_add() {
+        let mut v = square(0., 2.);
+        v.extend(square(10., 3.));
+        v.extend(square(1., 10.));
+        let p = Polylines::new(
+            v,
+            vec![0, 4, 8, 12],
+            vec![0, 2, 3],
+            vec![true; 3],
+            rock(&["a", "b"]),
+        )
+        .unwrap();
+        assert_eq!(p.area(), [13., 100.]);
+        assert_eq!(p.locate([1.5, 1.5]), Some(0));
+        assert_eq!(p.locate([12., 12.]), Some(0));
+        assert_eq!(p.locate([5., 5.]), Some(1));
+        assert_eq!(p.distance([5., 5.], Some(0), false), Some(18f64.sqrt()));
+        assert_eq!(p.distance([5., 5.], None, true), Some(-4.));
     }
 
     #[test]
