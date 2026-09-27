@@ -46,7 +46,7 @@ def image(ax, values, **kwargs):
 </details>
 
 ```text
-295 holes, mean 2.23 m, declustered 2.00 m
+295 holes, mean 2.23 m, declustered 1.98 m
 ```
 
 ## Bandwidth
@@ -142,8 +142,8 @@ save(fig, "residuals")
 </details>
 
 ```text
-residual mean -0.011 m, sd 0.44 m
-correlation with the trend +0.18
+residual mean -0.011 m, sd 0.42 m
+correlation with the trend +0.20
 ```
 
 ![residuals](residuals.png)

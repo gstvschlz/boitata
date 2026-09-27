@@ -53,7 +53,7 @@ print(gaussian)
 
 ```text
 22 samples at 0 ppm
-Variogram(nugget=0.35106841657526755, structures=[Structure("spherical", sill=0.6489315834247326, range=89.57382885506857)], rotation=(170.0, 0.0, 0.0), ratios=(0.4171629628129134, 1.0))
+Variogram(nugget=0.35175731509510166, structures=[Structure("spherical", sill=0.6482426849048983, range=88.80893128585629)], rotation=(170.0, 0.0, 0.0), ratios=(0.4191037941481459, 1.0))
 ```
 
 ## Distributions at points
@@ -86,8 +86,8 @@ print(f"expected area above 500 ppm {p500.mean():.1%}, true {np.mean(true_at_nod
 ```text
 mean E-type 300 ppm, true 276
 correlation with the truth 0.78
-truth inside the 80% interval at 86% of nodes
-expected area above 500 ppm 23.4%, true 18.9%
+truth inside the 80% interval at 85% of nodes
+expected area above 500 ppm 22.4%, true 18.9%
 ```
 
 The E-type is smooth like kriging; the probability map says where grade above 500 ppm is likely, and the interval
@@ -150,7 +150,7 @@ save(fig, "checks")
 
 ```text
 panel means: r 0.91
-panel shares above 500 ppm: r 0.89
+panel shares above 500 ppm: r 0.90
 ```
 
 ![checks](checks.png)
@@ -174,10 +174,10 @@ for p, a in zip([0.5, 0.8, 0.9], cv.accuracy([0.5, 0.8, 0.9])):
 </details>
 
 ```text
-mean E-type 300 ppm, declustered sample mean 293 ppm
-cross-validation: ME 9.6  RMSE 189.6  goodness 0.95
+mean E-type 300 ppm, declustered sample mean 291 ppm
+cross-validation: ME 9.6  RMSE 189.4  goodness 0.96
 inside the central 50% interval: 56%
-inside the central 80% interval: 88%
+inside the central 80% interval: 87%
 inside the central 90% interval: 94%
 ```
 

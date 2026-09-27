@@ -84,6 +84,16 @@ def test_filter_and_with_columns_round_trip():
         model.with_columns({"g": [1.0]})
 
 
+def test_with_column_takes_text():
+    rocks = np.array(["ox", "fr"] * 15)
+    assert list(points.with_column("r", rocks)["r"]) == list(rocks)
+    assert list(points.with_column("r", list(rocks))["r"]) == list(rocks)
+    gaps = np.array(["a", None, "b", None, "c", "d"], dtype=object)
+    assert list(model.with_column("r", gaps)["r"]) == list(gaps)
+    with pytest.raises(cs.InvalidInput):
+        points.with_column("r", ["ox"])
+
+
 rock = np.array(["ox", "na", "fr"] * 10)
 labeled = points.with_columns({"rock": rock, "w": np.linspace(1, 2, 30)})
 

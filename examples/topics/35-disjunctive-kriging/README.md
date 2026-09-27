@@ -37,7 +37,7 @@ print(gaussian)
 </details>
 
 ```text
-Variogram(nugget=0.37159062388586706, structures=[Structure("spherical", sill=0.6466265241068904, range=93.47014893726075)], rotation=(170.0, 0.0, 0.0), ratios=(0.3518201871856887, 1.0))
+Variogram(nugget=0.3880893922398883, structures=[Structure("spherical", sill=0.6541305202954576, range=95.35462791604381)], rotation=(170.0, 0.0, 0.0), ratios=(0.3490856607382125, 1.0))
 ```
 
 `predict_tonnage` gives P(V > cutoff) on a 5 m grid. Binned against the truth, a calibrated estimate would sit on
@@ -95,17 +95,17 @@ save(fig, "disjunctive")
 </details>
 
 ```text
-mean predicted P(V > 500) 0.237, true proportion 0.189
-bin 0.0–0.1: 963 nodes, predicted 0.03, observed 0.01
-bin 0.1–0.2: 743 nodes, predicted 0.15, observed 0.07
-bin 0.2–0.3: 547 nodes, predicted 0.25, observed 0.15
-bin 0.3–0.4: 300 nodes, predicted 0.34, observed 0.25
-bin 0.4–0.5: 179 nodes, predicted 0.45, observed 0.40
-bin 0.5–0.6: 108 nodes, predicted 0.55, observed 0.57
-bin 0.6–0.7: 102 nodes, predicted 0.65, observed 0.71
-bin 0.7–0.8: 60 nodes, predicted 0.75, observed 0.90
-bin 0.8–0.9: 42 nodes, predicted 0.85, observed 0.93
-bin 0.9–1.0: 76 nodes, predicted 0.98, observed 0.96
+mean predicted P(V > 500) 0.231, true proportion 0.189
+bin 0.0–0.1: 1021 nodes, predicted 0.03, observed 0.01
+bin 0.1–0.2: 740 nodes, predicted 0.15, observed 0.07
+bin 0.2–0.3: 527 nodes, predicted 0.25, observed 0.17
+bin 0.3–0.4: 277 nodes, predicted 0.34, observed 0.25
+bin 0.4–0.5: 174 nodes, predicted 0.45, observed 0.41
+bin 0.5–0.6: 111 nodes, predicted 0.55, observed 0.59
+bin 0.6–0.7: 99 nodes, predicted 0.65, observed 0.72
+bin 0.7–0.8: 56 nodes, predicted 0.75, observed 0.89
+bin 0.8–0.9: 40 nodes, predicted 0.84, observed 0.95
+bin 0.9–1.0: 75 nodes, predicted 0.98, observed 0.96
 ```
 
 ![disjunctive](disjunctive.png)

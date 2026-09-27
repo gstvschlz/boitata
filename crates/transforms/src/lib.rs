@@ -30,7 +30,8 @@ pub mod uc;
 pub use anamorphosis::HermiteAnamorphosis;
 pub use boxcox::{box_cox, box_cox_inverse, optimal_lambda, skewness_at};
 pub use decluster::{
-    Weights, cell_weights, decluster_mean_over_offsets, optimal_cell_size, polygon_weights,
+    Weights, cell_weights, cell_weights_over_offsets, decluster_mean_over_offsets,
+    optimal_cell_size, polygon_weights,
 };
 pub use despike::{default_radii, despike};
 pub use detrend::{KernelTrend, Trend, detrend};

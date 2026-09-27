@@ -77,7 +77,7 @@ save(fig, "declustering")
 </details>
 
 ```text
-naive mean 2.23 m, declustered 1.95 m with 700 m cells
+naive mean 2.23 m, declustered 1.91 m with 700 m cells
 curve at 700 m: 1.91 m
 ```
 
@@ -213,7 +213,7 @@ save(fig, "swath")
 </details>
 
 ```text
-easternmost km: declustered holes 1.13 m, ordinary kriging 1.47 m, universal kriging 1.39 m
+easternmost km: declustered holes 1.16 m, ordinary kriging 1.47 m, universal kriging 1.39 m
 ```
 
 ![swath](swath.png)
@@ -290,9 +290,9 @@ save(fig, "tonnes")
 </details>
 
 ```text
-Variogram(nugget=0.32178357673904373, structures=[Structure("spherical", sill=0.6782164232609562, range=3907.2905411236584)], rotation=(60.749821473917336, 0.0, 0.0), ratios=(0.3163054489067232, 1.0))
-total: P10 185.5 Mt, P50 188.3 Mt, P90 191.7 Mt; kriged 189.4 Mt
-P10-P90 spread ±1.7% of P50
+Variogram(nugget=0.32547257276727426, structures=[Structure("spherical", sill=0.6745274272327257, range=3908.50043827286)], rotation=(60.754957940474014, 0.0, 0.0), ratios=(0.3059102706452142, 1.0))
+total: P10 185.7 Mt, P50 188.5 Mt, P90 192.4 Mt; kriged 189.4 Mt
+P10-P90 spread ±1.8% of P50
 ```
 
 ![tonnes](tonnes.png)

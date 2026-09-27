@@ -49,7 +49,7 @@ print(
 </details>
 
 ```text
-blocks 291.7 ppm, declustered samples 293.2 ppm, bias -0.5%; true blocks 278.0 ppm
+blocks 291.7 ppm, declustered samples 290.7 ppm, bias +0.3%; true blocks 278.0 ppm
 ```
 
 ## Distributions
@@ -75,10 +75,10 @@ for row in zip(
 
 ```text
                  n   mean    CV   P10   P50    P90  mean diff var. ratio
-naive          470    435  0.69    31   424    819     +48.5%       1.34
-declustered    470    293  0.88     2   236    646      +0.0%       1.00
-model          780    292  0.64    85   265    539      -0.5%       0.52
-reference      780    278  0.78    26   239    576      -5.2%       0.70
+naive          470    435  0.69    31   424    819     +49.8%       1.38
+declustered    470    291  0.88     2   235    636      +0.0%       1.00
+model          780    292  0.64    85   265    539      +0.3%       0.54
+reference      780    278  0.78    26   239    576      -4.4%       0.72
 ```
 
 The blocks reproduce the declustered mean within 0.5 %; both sit about 5 % above the truth, which no check against

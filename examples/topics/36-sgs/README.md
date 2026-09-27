@@ -47,7 +47,7 @@ print(gaussian)
 </details>
 
 ```text
-Variogram(nugget=0.32126839519606537, structures=[Structure("spherical", sill=0.6787316048039347, range=82.07160980744193)], rotation=(170.0, 0.0, 0.0), ratios=(0.4270832349370336, 1.0))
+Variogram(nugget=0.3315861183518779, structures=[Structure("spherical", sill=0.6684138816481222, range=82.43111673409601)], rotation=(170.0, 0.0, 0.0), ratios=(0.42564072265384956, 1.0))
 ```
 
 SGS normal-scores the data itself, simulates along a random path and back-transforms. 50 realizations, the same on
@@ -77,9 +77,9 @@ print(f"area above 500 ppm: P10 {low:.1%}, P90 {high:.1%}, true {np.mean(true_at
 </details>
 
 ```text
-realization means 282-320, true 276
-realization variance 72667, true 62312
-area above 500 ppm: P10 21.8%, P90 25.1%, true 18.9%
+realization means 284-322, true 276
+realization variance 71966, true 62312
+area above 500 ppm: P10 21.0%, P90 24.3%, true 18.9%
 ```
 
 Each realization looks like the truth; their mean is smooth like kriging and their spread measures uncertainty.

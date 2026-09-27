@@ -66,6 +66,17 @@ def test_domains_and_classes_by_name():
         cs.smooth_classes(grid, "c", (3, 1, 1))
 
 
+def test_smooth_classes_subblocked_votes_by_volume():
+    extents = [[0, 0, 0, 0.6, 1, 1], [0.6, 0, 0, 0.8, 1, 1], [0.8, 0, 0, 1, 1, 1], [0, 0, 0, 1, 1, 1]]
+    model = cs.BlockModel.subblocked((0, 0), (10, 10), (2, 1), np.array([0, 0, 0, 1], np.uint64), extents)
+    np.testing.assert_array_equal(
+        cs.smooth_classes(model, ["a", "b", "b", "b"], window=(1, 1, 1)), list("aaab")
+    )
+    np.testing.assert_array_equal(
+        cs.smooth_classes(model, ["a", "b", "b", "b"], window=(3, 1, 1)), list("bbbb")
+    )
+
+
 def test_polygons():
     square = np.array([[0, 0], [10, 0], [10, 10], [0, 10]], float)
     np.testing.assert_array_equal(cs.point_in_polygon([[5, 5], [15, 5]], square), [True, False])

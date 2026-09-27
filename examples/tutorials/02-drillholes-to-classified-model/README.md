@@ -74,8 +74,8 @@ for name in lenses:
 </details>
 
 ```text
-lens_1: 1 degenerate triangles, 3 open edges; 2.79 Mm3 once closed
-lens_2: 1 degenerate triangles, 3 open edges; 1.90 Mm3 once closed
+lens_1: 0 degenerate triangles, 0 open edges; 2.79 Mm3 once closed
+lens_2: 0 degenerate triangles, 0 open edges; 1.90 Mm3 once closed
 lens_3: 0 degenerate triangles, 0 open edges; 1.65 Mm3 once closed
 lens_1: 609 composites from 78 holes, 408 with a density
 lens_2: 279 composites from 53 holes, 234 with a density
@@ -118,15 +118,15 @@ save(fig, "statistics")
 </details>
 
 ```text
-lens_1: mean 6.26 % Zn, declustered 5.13 % (90 m cells)
-lens_2: mean 6.17 % Zn, declustered 5.61 % (40 m cells)
-lens_3: mean 5.99 % Zn, declustered 5.42 % (80 m cells)
-cap  10.7 % Zn: 10.0% of composites cut,  8.1% of the metal removed
-cap  14.1 % Zn:  5.0% of composites cut,  3.6% of the metal removed
-cap  16.8 % Zn:  2.5% of composites cut,  1.7% of the metal removed
-cap  19.6 % Zn:  1.0% of composites cut,  0.8% of the metal removed
-cap  23.1 % Zn:  0.4% of composites cut,  0.3% of the metal removed
-cap  29.2 % Zn:  0.1% of composites cut,  0.1% of the metal removed
+lens_1: mean 6.26 % Zn, declustered 5.22 % (90 m cells)
+lens_2: mean 6.17 % Zn, declustered 5.24 % (40 m cells)
+lens_3: mean 5.99 % Zn, declustered 5.17 % (80 m cells)
+cap  10.3 % Zn: 10.0% of composites cut,  8.2% of the metal removed
+cap  13.4 % Zn:  5.0% of composites cut,  3.8% of the metal removed
+cap  16.6 % Zn:  2.5% of composites cut,  1.6% of the metal removed
+cap  18.9 % Zn:  1.0% of composites cut,  0.9% of the metal removed
+cap  21.8 % Zn:  0.5% of composites cut,  0.5% of the metal removed
+cap  31.3 % Zn:  0.1% of composites cut,  0.0% of the metal removed
 ```
 
 ![statistics](statistics.png)
@@ -165,7 +165,7 @@ save(fig, "variogram")
 
 ```text
 Zn: nugget 9.90, spherical sill 13.27, range 38 m
-normal scores: nugget 0.48, spherical sill 0.52, range 42 m
+normal scores: nugget 0.49, spherical sill 0.51, range 43 m
 ```
 
 ![variogram](variogram.png)
@@ -270,8 +270,8 @@ print(f"mean {summary.mean.mean():.2f} % Zn; blocks above 5 % in more than 90 % 
 </details>
 
 ```text
-4417 parent blocks: P10 42%, P90 48% of them above 5 % Zn
-mean 5.20 % Zn; blocks above 5 % in more than 90 % of realizations: 1%
+4417 parent blocks: P10 43%, P90 49% of them above 5 % Zn
+mean 5.27 % Zn; blocks above 5 % in more than 90 % of realizations: 1%
 ```
 
 In eight realizations out of ten, between 42 and 48 % of the parent blocks exceed 5 % Zn, yet only 1 % of them do
@@ -336,9 +336,9 @@ save(fig, "swath")
 </details>
 
 ```text
-lens_1: kriged 5.49 % Zn, declustered composites 5.13 % (+7.1%), nearest neighbor 5.50 % (-0.1%)
-lens_2: kriged 5.46 % Zn, declustered composites 5.61 % (-2.7%), nearest neighbor 4.88 % (+11.8%)
-lens_3: kriged 5.30 % Zn, declustered composites 5.42 % (-2.1%), nearest neighbor 4.48 % (+18.3%)
+lens_1: kriged 5.49 % Zn, declustered composites 5.22 % (+5.3%), nearest neighbor 5.50 % (-0.1%)
+lens_2: kriged 5.46 % Zn, declustered composites 5.24 % (+4.2%), nearest neighbor 4.88 % (+11.8%)
+lens_3: kriged 5.30 % Zn, declustered composites 5.17 % (+2.5%), nearest neighbor 4.48 % (+18.3%)
 ```
 
 ![swath](swath.png)

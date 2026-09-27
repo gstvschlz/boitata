@@ -102,10 +102,10 @@ print(f"PPMT at 500 composites: largest departure from the data {error:.1e}")
 
 ```text
            r   chalcocite q10, q50, q90   tennantite q10, q50, q90  both > q80
-data    0.23        -7.61, -5.68, -2.35        -7.62, -6.06, -3.80       0.038
-PPMT    0.21        -7.61, -5.70, -2.54        -7.62, -6.15, -3.96       0.025
-PCA     0.25        -7.69, -5.50, -3.03        -7.62, -5.86, -3.97       0.062
-PPMT at 500 composites: largest departure from the data 2.3e-11
+data    0.25        -7.61, -5.69, -2.38        -7.62, -6.10, -3.81       0.038
+PPMT    0.23        -7.61, -5.70, -2.48        -7.61, -6.16, -3.94       0.028
+PCA     0.26        -7.69, -5.50, -3.01        -7.63, -5.87, -3.95       0.066
+PPMT at 500 composites: largest departure from the data 1.3e-11
 ```
 
 One realization of each: PPMT rebuilds the L-shaped cloud of the data; PCA spreads a rotated square over it,
@@ -147,8 +147,8 @@ for j, s in enumerate(by_block):
 </details>
 
 ```text
-log chalcocite (%): variance 3.52 at nodes, 1.52 in 1144 blocks
-log tennantite (%): variance 1.87 at nodes, 0.85 in 1144 blocks
+log chalcocite (%): variance 3.64 at nodes, 1.57 in 1144 blocks
+log tennantite (%): variance 1.93 at nodes, 0.88 in 1144 blocks
 ```
 
 ## Missing variables
@@ -182,7 +182,7 @@ print(f"r {r:.2f}, tennantite q10, q50, q90: " + ", ".join(f"{v:.2f}" for v in n
 
 ```text
 3334 of 6817 composites miss tennantite
-r 0.23, tennantite q10, q50, q90: -7.62, -6.18, -3.92
+r 0.25, tennantite q10, q50, q90: -7.62, -6.18, -3.90
 ```
 
 Full script: [`example_43.py`](example_43.py)

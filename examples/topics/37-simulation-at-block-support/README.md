@@ -44,7 +44,7 @@ print(gaussian)
 </details>
 
 ```text
-Variogram(nugget=0.3653793532355138, structures=[Structure("spherical", sill=0.6346206467644863, range=103.1494653921111)], rotation=(170.0, 0.0, 0.0), ratios=(0.34621781150520614, 1.0))
+Variogram(nugget=0.37122942069243425, structures=[Structure("spherical", sill=0.6287705793075657, range=102.93178901150715)], rotation=(170.0, 0.0, 0.0), ratios=(0.3446899131893413, 1.0))
 ```
 
 Thirty realizations on 2.5 m nodes. `blocks=` averages each over the 16 nodes of every 10 × 10 m block before
@@ -87,9 +87,9 @@ save(fig, "simulated-blocks")
 </details>
 
 ```text
-above 300 ppm: P10 42.7%, P90 49.4%, true 40.1%
-above 500 ppm: P10 14.0%, P90 17.9%, true 16.2%
-above 800 ppm: P10 1.7%, P90 2.7%, true 2.1%
+above 300 ppm: P10 42.8%, P90 49.5%, true 40.1%
+above 500 ppm: P10 13.8%, P90 17.8%, true 16.2%
+above 800 ppm: P10 1.5%, P90 2.7%, true 2.1%
 ```
 
 ![simulated-blocks](simulated-blocks.png)
@@ -152,7 +152,7 @@ save(fig, "localized-simulation")
 
 ```text
 kriged: variance 35064, correlation with truth 0.89
-localized: variance 41343, correlation with truth 0.85
+localized: variance 40836, correlation with truth 0.85
 true blocks: variance 47350
 ```
 
