@@ -372,14 +372,15 @@ impl Mesh {
     }
 
     fn __repr__(&self) -> String {
+        let a = self.mesh.analysis();
         format!(
             "Mesh({} vertices, {} triangles, {})",
             self.mesh.vertices().len(),
             self.mesh.triangles().len(),
-            if self.mesh.is_closed() {
-                "closed"
+            if a.is_closed {
+                "closed".to_string()
             } else {
-                "open"
+                format!("open, {} boundary edges", a.boundary_edges)
             }
         )
     }

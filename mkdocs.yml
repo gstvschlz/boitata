@@ -51,6 +51,7 @@ plugins:
       ignore_pattern: (render|common)\.py$
       within_subsection_order: FileNameSortKey
       show_memory: false
+      inspect_global_variables: false
   - mkdocstrings:
       handlers:
         python:
