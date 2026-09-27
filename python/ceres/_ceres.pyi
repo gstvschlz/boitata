@@ -1821,3 +1821,28 @@ def smooth_classes(
     domains: Labels | None = None,
     domain_column: Column | None = None,
 ) -> npt.NDArray[Any]: ...
+def remove_small_units(
+    model: BlockModel,
+    classes: ArrayLike | Column,
+    *,
+    min_volume: float | None = None,
+    min_blocks: int | None = None,
+    connectivity: int = 6,
+    domains: Labels | None = None,
+    domain_column: Column | None = None,
+) -> npt.NDArray[Any]: ...
+def contact_distance(
+    model: BlockModel,
+    classes: ArrayLike | Column,
+    *,
+    target: Any | None = None,
+    signed: bool = True,
+) -> npt.NDArray[np.float64]: ...
+def buffer_domains(
+    model: BlockModel,
+    classes: ArrayLike | Column,
+    *,
+    distance: float,
+    label: Any = "contact",
+    target: Any | None = None,
+) -> npt.NDArray[Any]: ...

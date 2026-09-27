@@ -79,6 +79,35 @@ def test_smooth_classes_subblocked_votes_by_volume():
     )
 
 
+def test_remove_small_units():
+    rock = np.full(25, "ox")
+    rock[12], rock[[3, 4, 8, 9]] = "fr", "tr"
+    grid = cs.BlockModel((0, 0, 0), (2, 2, 1), (5, 5, 1), attributes={"rock": rock})
+    out = cs.remove_small_units(grid, "rock", min_blocks=2)
+    np.testing.assert_array_equal(out, np.where(np.arange(25) == 12, "ox", rock))
+    np.testing.assert_array_equal(cs.remove_small_units(grid, "rock", min_volume=8.0), out)
+    kept = cs.remove_small_units(grid, "rock", min_blocks=2, domains=np.arange(25) == 12)
+    assert kept[12] == "fr"
+    with pytest.raises(cs.InvalidInput):
+        cs.remove_small_units(grid, "rock")
+    with pytest.raises(cs.InvalidInput):
+        cs.remove_small_units(grid, "rock", min_blocks=2, connectivity=18)
+
+
+def test_contact_distance_and_buffers():
+    grid = cs.BlockModel((0, 0, 0), (1, 1, 1), (10, 2, 1))
+    rock = np.where(grid.centroids[:, 0] < 5, "a", "b")
+    d = cs.contact_distance(grid, rock)
+    np.testing.assert_allclose(d[:10], [5, 4, 3, 2, 1, 1, 2, 3, 4, 5])
+    signed = cs.contact_distance(grid, rock, target="b")
+    np.testing.assert_allclose(signed[:10], [5, 4, 3, 2, 1, -1, -2, -3, -4, -5])
+    assert np.isnan(cs.contact_distance(grid, rock, target="c")).all()
+    buffered = cs.buffer_domains(grid, rock, distance=2)
+    np.testing.assert_array_equal(buffered[:10], list("aaa") + ["contact"] * 4 + list("bbb"))
+    coded = cs.buffer_domains(grid, (rock == "b").astype(int), distance=1, label=-1, target=1)
+    np.testing.assert_array_equal(coded[:10], [0, 0, 0, 0, -1, -1, 1, 1, 1, 1])
+
+
 def test_polygons():
     square = np.array([[0, 0], [10, 0], [10, 10], [0, 10]], float)
     np.testing.assert_array_equal(cs.point_in_polygon([[5, 5], [15, 5]], square), [True, False])

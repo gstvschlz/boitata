@@ -12,7 +12,7 @@ mod select;
 mod shell;
 mod solid;
 mod subblock;
-pub use classes::smooth_classes;
+pub use classes::{MinSize, contact_distance, remove_small_units, smooth_classes};
 pub use distance::{
     Surface, TriangleTree, distance_to, point_in_polygon, polygon_distance,
     polygon_signed_distance, signed_distance_to, vertical_distance,
