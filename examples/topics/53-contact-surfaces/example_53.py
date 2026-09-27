@@ -1,21 +1,17 @@
 """
-# 53. Geological modeling
+# 53. Contact surfaces
 
-Topic 52 modeled a grade shell. A geological unit is modeled from where the drill
-holes cross its contacts, and from structural readings where the rock is measured. Here the massive sulphide
-(`MS`) of the drillhole dataset is modeled from its logged contacts with three engines, then a synthetic fold
-shows what plane and lineation readings add and how the field's gradient returns the dip. Last, both become
-sub-blocked domain models.
+A geological unit is modeled from where the drill holes cross its contacts. Here lens 1 of the stacked sulphide
+lenses is modeled from its logged contacts with three engines, and each model is scored against the supplied
+`lens_1.stl` solid.
 """
 
 # %% [hidden]
 import sys
-import warnings
 from pathlib import Path
 
 HERE = Path(__file__).parent if "__file__" in globals() else Path.cwd()
 sys.path.insert(0, str(HERE.parents[1]))
-warnings.filterwarnings("ignore", ".*locations hold several samples")
 
 # %%
 import ceres as cs
@@ -24,46 +20,57 @@ import numpy as np
 from common import ACCENT, GRAY, HIGHLIGHT, INK, LIGHT, save
 
 # %% [markdown]
-# Every change between `MS` and another rock down a hole is a contact; `Drillholes.at` places it in space from the
-# desurveyed path. The field is pinned to 0 at the contacts, +1 at the middle of each `MS` interval and −1 outside,
-# using the intervals next to a contact and a sparse subset of the others, which keeps the systems small.
+# The lens solids are slightly open; `repair` welds the vertices closer than 1 mm and closes them.
 
 # %%
-tables = cs.datasets.drillhole_tables()
-dh = cs.Drillholes(tables["collar"], tables["survey"], tables["geology"], hole="HOLEID")
-logged = dh.samples()
-xyz = logged.coords
-hole = np.array(logged["HOLEID"], dtype=object)
-lith = np.array(logged["LITH"], dtype=object)
-top, bottom = logged["FROM"], logged["TO"]
-window = (xyz[:, 0] > 5300) & (xyz[:, 0] < 5500) & (xyz[:, 1] > 8100) & (xyz[:, 1] < 8400)
-order = np.lexsort((top, hole))[window[np.lexsort((top, hole))]]
-xyz, hole, lith, top, bottom = xyz[order], hole[order], lith[order], top[order], bottom[order]
+data = cs.datasets.stacked_sulphide_lenses()
+print(data["lens_1"].analysis)
+lens = data["lens_1"].repair(tolerance=1e-3)
+print(f"repaired: closed {lens.is_closed}, {lens.volume / 1e6:.2f} Mm3")
 
-ms = lith == "MS"
-change = (hole[1:] == hole[:-1]) & (ms[1:] != ms[:-1]) & np.isclose(bottom[:-1], top[1:])
-contacts = dh.at(list(hole[:-1][change]), bottom[:-1][change])
+# %% [markdown]
+# The logs say `MS` or `SMS` for all three lenses; the intervals of lens 1 are those whose middle lies in its
+# solid. Every change between lens 1 and other rock down a hole is a contact; `Drillholes.at` places it in space from
+# the desurveyed path. The field is pinned to 0 at the contacts, +1 at the middle of each lens interval and −1
+# outside, using the intervals next to a contact and a sparse subset of the others.
+
+# %%
+holes = cs.Drillholes(data["collars"], data["surveys"], data["lithology"])
+logged = holes.samples()
+xyz = logged.coords
+lo, hi = np.array(lens.bounds[0]) - 30, np.array(lens.bounds[1]) + 30
+order = np.lexsort((logged["FROM"], logged["HOLE_ID"]))
+order = order[np.all((xyz[order] > lo) & (xyz[order] < hi), axis=1)]
+xyz = xyz[order]
+hole = np.array(logged["HOLE_ID"], dtype=object)[order]
+lith = np.array(logged["LITH"], dtype=object)[order]
+bottom = np.asarray(logged["TO"])[order]
+
+unit = np.isin(lith, ["MS", "SMS"]) & lens.contains(xyz)
+change = (hole[1:] == hole[:-1]) & (unit[1:] != unit[:-1])
+contacts = holes.at(list(hole[:-1][change]), bottom[:-1][change])
 beside = np.r_[change, False] | np.r_[False, change]
-sparse = np.random.default_rng(1).random(len(ms)) < 0.08
-coded = ms | beside | sparse
-points, code = xyz[coded], np.where(ms[coded], 1.0, -1.0)
+sparse = np.random.default_rng(1).random(len(unit)) < 0.15
+coded = unit | beside | sparse
+points, code = xyz[coded], np.where(unit[coded], 1.0, -1.0)
 print(
-    f"{len(set(hole))} holes, {ms.sum()} MS intervals, {len(contacts)} contacts, {coded.sum()} coded points"
+    f"{len(set(hole))} holes, {unit.sum()} lens intervals, {len(contacts)} contacts, {coded.sum()} coded points"
 )
 
 # %% [markdown]
-# The covariance of the `MS` intervals shows a steep lens striking N16°E, plunging 26° north and thin east–west.
-# The `kriging` engine is a potential field: dual kriging with a covariance, here of 150 m along the plunge, 68 m up
-# the lens and 33 m across it (`rotation` azimuth, dip, rake and `ratios`). The RBF takes the same anisotropy. The
-# Gaussian process learns its own ranges along the `rotation` axes. The share of the window each model calls `MS`
-# tells a sound model from one that invents bodies:
+# The lens strikes N22.5°E and dips 60° to the east-southeast, so the anisotropy axes run along strike, down dip and
+# across the lens (`rotation` azimuth 22.5, dip 0, rake 60). The `kriging` engine is a potential field: dual
+# kriging with a covariance, here of 200 m along strike, 100 m down dip and 20 m across (`ratios` 0.5 and 0.1). The
+# RBF takes the same anisotropy; the Gaussian process (GP) learns its own ranges along the `rotation` axes. Each
+# model's lens is compared with the solid on 5 m cells: the share of the solid it covers, and of its own volume that
+# lies outside the solid.
 
 # %%
-rotation, ratios = (16, 26, 90), (0.45, 0.22)
+rotation, ratios = (22.5, 0, 60), (0.5, 0.1)
 
 
 def potential(covariance):
-    variogram = cs.Variogram([(covariance, 1.0, 150.0)], rotation=rotation, ratios=ratios)
+    variogram = cs.Variogram([(covariance, 1.0, 200.0)], rotation=rotation, ratios=ratios)
     return cs.ImplicitModel("kriging", variogram=variogram, degree=0)
 
 
@@ -73,207 +80,48 @@ models = {
     "RBF": cs.ImplicitModel("rbf", degree=0, rotation=rotation, ratios=ratios),
     "GP": cs.ImplicitModel("gp", degree=0, rotation=rotation),
 }
-volume = np.random.default_rng(0).uniform([5300, 8100, 650], [5500, 8400, 950], (20_000, 3))
+cells = cs.BlockModel(origin=lo, size=(5, 5, 5), count=np.ceil((hi - lo) / 5).astype(int))
+solid = lens.contains(cells.centroids)
 for name, model in models.items():
     model.fit(points, code, boundaries=contacts)
     right = np.mean(np.sign(model.predict(points)) == code)
-    share = np.mean(model.predict(volume) > 0)
-    print(f"{name:>14}: {right:6.1%} of coded points on their side, {share:5.1%} of the window is MS")
-report = models["GP"].report
-print(f"GP noise variance {report['noise_variance']:.2f}, signal variance {report['signal_variance']:.2f}")
+    inside = model.predict(cells) > 0
+    print(
+        f"{name:>14}: {right:6.1%} of coded points on their side, {inside.sum() * 125 / 1e6:.2f} Mm3, "
+        f"covers {(inside & solid).sum() / solid.sum():.0%} of the solid, {(inside & ~solid).sum() / inside.sum():.0%} outside it"
+    )
+print(f"GP ranges {[round(r) for r in models['GP'].report['lengthscales']]} m")
 
 # %% [markdown]
-# Kriging and the RBF honor every contact and all but a few coded points, yet with a cubic covariance kriging
-# calls about ten times more of the window `MS`: the smooth cubic overshoots between codes a meter apart and grows bodies
-# away from the holes. The spherical covariance, rougher at the origin, does not, and agrees with the RBF. The GP
-# explains most of the codes as noise, so its field is a smooth trend that misses more than a quarter of them; its
-# standard deviation still shows where the model rests on data and where it does not. On an east–west section
-# across the lens:
+# Kriging with a spherical covariance and the RBF honor every contact and agree with the solid on all but a thin
+# rind. The cubic covariance, smooth at the origin, overshoots between codes a few meters apart and swells the lens.
+# The GP explains a sixth of the codes as noise and stretches its ranges along strike and down dip far beyond the
+# window, so its lens is a slab that leaves the solid at both ends. On a vertical section down the dip, with the
+# trace of the solid in black:
 
 # %%
-north = np.median(xyz[ms, 1])
-plane = ((0, north, 0), 90, 90)
-east, elevation = np.meshgrid(np.linspace(5300, 5500, 201), np.linspace(650, 950, 301))
-section = np.c_[east.ravel(), np.full(east.size, north), elevation.ravel()]
-extent = (5300, 5500, 650, 950)
+center = lens.vertices.mean(axis=0)
+plane = (center, 112.5, 90)
+u = np.array([np.sin(np.radians(112.5)), np.cos(np.radians(112.5)), 0.0])
+normal = np.cross(u, [0, 0, 1])
+along, elevation = np.meshgrid(np.arange(-160, 160.1, 2.0) + center @ u, np.arange(lo[2], hi[2], 2.0))
+section = (center @ normal) * normal + along.reshape(-1, 1) * u + elevation.reshape(-1, 1) * [0, 0, 1]
 
-fig, axes = plt.subplots(1, 3, figsize=(14, 4.8), sharey=True, layout="constrained")
-for ax, name, covariance in zip(axes[:2], ("kriging, cubic", "kriging"), ("cubic", "spherical"), strict=True):
-    field = models[name].predict(section).reshape(east.shape)
-    ax.contourf(east, elevation, field, levels=[0, np.inf], colors=[LIGHT])
-    ax.contour(east, elevation, field, levels=[0], colors=ACCENT, linewidths=1.2)
-    ax.set_title(f"Kriging, {covariance} covariance, northing {north:.0f} m")
-_, variance = models["GP"].predict(section, variance=True)
-sd = axes[2].imshow(
-    np.sqrt(variance).reshape(east.shape), origin="lower", extent=extent, cmap="cividis", aspect="auto"
-)
-axes[2].set_title("GP standard deviation")
-fig.colorbar(sd, ax=axes[2], shrink=0.8)
-for ax in axes:
-    cs.plot.slab(
-        xyz[~ms], plane=plane, thickness=20, s=3, color=GRAY, linewidths=0, label="other rock", ax=ax
-    )
-    cs.plot.slab(xyz[ms], plane=plane, thickness=20, s=5, color=HIGHLIGHT, linewidths=0, label="MS", ax=ax)
-    cs.plot.slab(
-        contacts,
-        plane=plane,
-        thickness=20,
-        s=12,
-        marker="x",
-        color=INK,
-        linewidths=0.8,
-        label="contact",
-        ax=ax,
-    )
-    ax.set(xlim=extent[:2], ylim=extent[2:])
+fig, axes = plt.subplots(1, 4, figsize=(11, 5.6), sharey=True, layout="constrained")
+for ax, (name, model) in zip(axes, models.items(), strict=True):
+    field = model.predict(section).reshape(along.shape)
+    ax.contourf(along, elevation, field, levels=[0, np.inf], colors=[LIGHT])
+    ax.contour(along, elevation, field, levels=[0], colors=ACCENT, linewidths=1.2)
+    style = {"plane": plane, "thickness": 20, "ax": ax}
+    cs.plot.slab(points[code < 0], s=4, color=GRAY, label="other rock", meshes=lens, **style)
+    cs.plot.slab(points[code > 0], s=6, color=HIGHLIGHT, label="lens 1", **style)
+    cs.plot.slab(contacts, s=14, marker="x", color=INK, linewidths=0.8, label="contact", **style)
+    ax.set(title=name, xlabel="Toward 112.5° (m)", xlim=(along.min(), along.max()), ylim=(lo[2], hi[2]))
 for ax in axes[1:]:
     ax.set_ylabel("")
-axes[0].legend(loc="lower left", markerscale=2)
+axes[0].legend(loc="upper right", markerscale=2)
 save(fig, "section")
 
 # %% [markdown]
-# ## Structural readings
-#
-# Drill holes give contacts at a few places; mapping and oriented core give the dip of the surface at many more.
-# A synthetic fold, `z = 100 + 30 sin(2πx / 400)` with its axis north–south, is known exactly. Five holes pierce it,
-# twelve outcrops spread along it give its dip and dip direction, and fold-axis lineations (plunge 0, trend 0) are measured at six
-# other places. Planes and lineations need the triharmonic kernel; one point above the surface sets which side is
-# positive. `isosurface` extracts each modeled surface as a mesh, and `Mesh.vertical_distance` gives how far
-# above it 400 points on the true surface lie: the elevation error over the whole fold. The same call flags blocks
-# above or below topography.
-
-# %%
-rng = np.random.default_rng(4)
-
-
-def surface(x):
-    return 100 + 30 * np.sin(2 * np.pi * x / 400)
-
-
-def true_dip(xy):
-    slope = 30 * 2 * np.pi / 400 * np.cos(2 * np.pi * xy[:, 0] / 400)
-    return np.degrees(np.arctan(np.abs(slope))), np.where(slope < 0, 90.0, 270.0)
-
-
-def on_surface(xy):
-    return np.c_[xy, surface(xy[:, 0])]
-
-
-picks = on_surface(np.array([[40.0, 150], [170, 60], [310, 90], [420, 250], [560, 180]]))
-outcrops = np.c_[np.linspace(20, 580, 12) + rng.uniform(-20, 20, 12), rng.uniform(0, 300, 12)]
-planes = np.c_[on_surface(outcrops), np.column_stack(true_dip(outcrops))]
-axis_readings = rng.uniform([0, 0], [600, 300], (6, 2))
-lineations = np.c_[on_surface(axis_readings), np.zeros((6, 2))]
-above = [[300.0, 150, 200]]
-fits = {
-    "5 holes": {},
-    "5 holes, 12 planes": {"planes": planes},
-    "5 holes, 4 planes": {"planes": planes[:4]},
-    "5 holes, 4 planes, 6 lineations": {"planes": planes[:4], "lineations": lineations},
-}
-x = np.linspace(0, 600, 241)
-z = np.linspace(0, 200, 801)
-X, Z = np.meshgrid(x, z)
-probe = rng.uniform([0, 0], [600, 300], (400, 2))
-volume = cs.BlockModel(origin=(-5, -5, 0), size=(5, 5, 5), count=(122, 62, 40))
-folds, depths = {}, {}
-for name, readings in fits.items():
-    folds[name] = cs.ImplicitModel(kernel="triharmonic").fit(above, [1.0], boundaries=picks, **readings)
-    field = folds[name].predict(np.c_[X.ravel(), np.full(X.size, 150.0), Z.ravel()]).reshape(X.shape)
-    depths[name] = z[np.argmin(np.abs(field), axis=0)]
-    _, gradient = folds[name].predict(on_surface(probe), gradient=True)
-    dip = np.degrees(np.arccos(np.abs(gradient[:, 2]) / np.linalg.norm(gradient, axis=1)))
-    error = np.abs(folds[name].isosurface(volume).vertical_distance(on_surface(probe)))
-    print(
-        f"{name:>31}: surface within {np.median(error):4.1f} m (median), {error.max():4.1f} m (max); "
-        f"dip within {np.median(np.abs(dip - true_dip(probe)[0])):3.1f}°"
-    )
-
-# %% [markdown]
-# Twelve planes bring the surface from 14 m to 2 m of the truth (median) and the dip from 7° to under 2°. With
-# only four planes, the lineations add the direction of the fold axis and improve both.
-
-# %%
-fig, ax = plt.subplots(figsize=(10, 3.6), layout="constrained")
-ax.plot(x, surface(x), color=INK, lw=2.2, label="true surface")
-for (name, depth), color, style in zip(
-    depths.items(), (GRAY, ACCENT, HIGHLIGHT, HIGHLIGHT), ("--", "-", ":", "-"), strict=True
-):
-    ax.plot(x, depth, color=color, ls=style, lw=1.2, label=name)
-ax.scatter(picks[:, 0], picks[:, 2], color=INK, zorder=3, s=18, label="hole pierce points (all northings)")
-ax.set(xlabel="Easting (m)", ylabel="Elevation (m)", title="Fold at northing 150 m", xlim=(0, 600))
-ax.legend(ncol=2, loc="lower left", fontsize=8)
-save(fig, "fold")
-
-# %% [markdown]
-# The gradient of the field is normal to the surface, so `evaluate(..., gradient=True)` returns the modeled dip and
-# dip direction anywhere, here against the truth at the 400 probe points of the twelve-plane model:
-
-# %%
-_, gradient = folds["5 holes, 12 planes"].predict(on_surface(probe), gradient=True)
-dip = np.degrees(np.arccos(np.abs(gradient[:, 2]) / np.linalg.norm(gradient, axis=1)))
-direction = np.degrees(np.arctan2(gradient[:, 0], gradient[:, 1])) % 360
-truth_dip, truth_direction = true_dip(probe)
-fig, (a, b) = plt.subplots(1, 2, figsize=(9, 3.8), layout="constrained")
-cs.plot.scatter(truth_dip, dip, line=False, ax=a, color=ACCENT)
-a.set(xlabel="True dip (°)", ylabel="Modeled dip (°)", title="Dip from the gradient")
-b.hist(
-    np.abs((direction - truth_direction + 180) % 360 - 180),
-    bins=np.arange(0, 32, 2),
-    color=LIGHT,
-    edgecolor=GRAY,
-)
-b.set(xlabel="Dip direction error (°)", ylabel="Probe points", title="Dip direction")
-save(fig, "dip")
-
-# %% [markdown]
-# ## A domain block model
-#
-# `BlockModel.from_meshes` turns meshes into a sub-blocked model: `(mesh, rule, label)` domains in priority order,
-# each sub-cell labeled by the first that holds its center, `"inside"` a solid or `"below"` or `"above"` a surface
-# such as topography. On 10 m blocks with 1 m sub-cells in elevation, the volume below the true fold and below the
-# twelve-plane model. A surface given as a grid of elevations, the usual form of topography, is a 2D `BlockModel`
-# with an elevation column; `grid_surface` triangulates it through the block centers, leaving holes where the
-# elevation is missing. The true fold is such a grid at 5 m:
-
-# %%
-topography = cs.BlockModel(origin=(-7.5, -7.5, 0), size=(5, 5, 1), count=(123, 63, 1))
-topography = topography.with_column("z", surface(topography.centroids[:, 0]))
-surfaces = {
-    "true fold": cs.grid_surface(topography, "z"),
-    "12-plane model": folds["5 holes, 12 planes"].isosurface(volume),
-}
-xs = np.linspace(-5, 605, 6101)
-exact = 310 * np.trapezoid(surface(xs), xs)
-for name, mesh in surfaces.items():
-    fold = cs.BlockModel.from_meshes(
-        (-5, -5, 0),
-        (10, 10, 10),
-        (61, 31, 20),
-        [(mesh, "below", "footwall")],
-        subgrid=(1, 1, 10),
-        fill="hanging wall",
-    )
-    below = fold.volumes[np.array(fold["domain"]) == "footwall"].sum()
-    print(
-        f"{name:>15}: {len(fold)} sub-blocks, footwall {below / 1e6:.3f} Mm3 ({below / exact - 1:+.2%} of the truth)"
-    )
-
-# %% [markdown]
-# Sub-blocks follow the true fold to within 0.1 %; the rest of the model's shortfall is the surface's own error.
-# The `MS` lens of the spherical kriging model, closed at the edges of its window, is a solid. `regularize` averages
-# the units to 20 m blocks, each taking the unit that fills most of it. A lens about 30 m thick fills few 20 m
-# blocks by more than half, so the label keeps a fraction of its volume; an `MS` indicator column averages to a
-# proportion per block instead and keeps all of it.
-
-# %%
-window = cs.BlockModel(origin=(5300, 8100, 650), size=(10, 10, 10), count=(20, 30, 30))
-lens = models["kriging"].isosurface(window, closed=True)
-units = window.subblock([(lens, "inside", "MS")], 4, fill="other")
-is_ms = np.array(units["domain"]) == "MS"
-units = units.with_column("ms", is_ms.astype(float))
-coarse = units.regularize(cs.BlockModel(origin=(5300, 8100, 650), size=(20, 20, 20), count=(10, 15, 15)))
-print(f"MS volume: mesh {lens.volume / 1e6:.3f} Mm3, sub-blocks {units.volumes[is_ms].sum() / 1e6:.3f} Mm3")
-labeled = coarse.volumes[np.array(coarse["domain"]) == "MS"].sum()
-proportion = (coarse.volumes * coarse["fraction"] * coarse["ms"]).sum()
-print(f"20 m blocks: labeled MS {labeled / 1e6:.3f} Mm3, MS proportion {proportion / 1e6:.3f} Mm3")
+# `isosurface(cells, closed=True)` turns a field into a solid mesh, which `BlockModel.from_meshes` and `subblock`
+# turn into a domain model (see topic 50). Plane and lineation readings are in topic 54.
