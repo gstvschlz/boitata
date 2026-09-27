@@ -608,8 +608,10 @@ fn block_shell<'py>(
     Ok(Mesh::from_core(mesh))
 }
 
-/// Majority filter of block `classes` over a `window` of cells, repeated
+/// Majority filter of block `classes` over a `window` of parent cells, repeated
 /// `iterations` times; ties keep a block's class and absent cells do not vote.
+/// Blocks vote with their volume, so in a sub-blocked model each sub-block
+/// counts by the fraction of its parent it fills.
 /// Classes may be any labels, or the column of `model` holding them; the
 /// result has the same labels. With `domains` (one label per block) or the
 /// `domain_column` of `model`, only blocks of the same domain vote.
