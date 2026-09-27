@@ -22,7 +22,8 @@ Tutorials follow one deposit from data to a result; topics show one feature each
 | | **Transforms** | | |
 | 14 | [Normal-score transform](topics/14-normal-score/README.md) | Walker Lake | `cell_declustering`, `NormalScore`, `normal_cdf`, `plot.probability` |
 | 15 | [Compositional data](topics/15-compositional/README.md) | Porphyry geometallurgy | `closure`, `ilr`, `PPMT`, `ilr_inverse` |
-| 16 | [Multivariate transforms](topics/16-multivariate-transforms/README.md) | Porphyry geometallurgy | `PCA`, `MAF`, `StepwiseConditional`, `PPMT`, `cell_declustering`, `BlockModel`, `Search`, `PointSet`, `experimental_variogram`, `MultivariateSimulation`, `TurningBands`, `GaussianImputer` |
+| 16 | [Multivariate transforms](topics/16-multivariate-transforms/README.md) | Porphyry geometallurgy | `PCA`, `MAF`, `StepwiseConditional`, `PPMT` |
+| 17 | [Imputation](topics/17-imputation/README.md) | Stacked sulphide lenses | `merge_intervals`, `GaussianImputer` |
 | | **Variography** | | |
 | 18 | [Experimental variograms](topics/18-experimental-variograms/README.md) | Walker Lake | `variogram_map`, `experimental_variogram`, `plot.variogram` |
 | 19 | [Variogram fitting](topics/19-variogram-fitting/README.md) | Walker Lake | `variogram_map`, `experimental_variogram`, `plot.variogram`, `Variogram` |
@@ -47,6 +48,7 @@ Tutorials follow one deposit from data to a result; topics show one feature each
 | 36 | [Sequential Gaussian simulation](topics/36-sgs/README.md) | Walker Lake | `Variogram`, `cell_declustering`, `NormalScore`, `experimental_variogram`, `BlockModel`, `SGS`, `Search` |
 | 37 | [Simulation at block support](topics/37-simulation-at-block-support/README.md) | Walker Lake | `cell_declustering`, `NormalScore`, `experimental_variogram`, `Variogram`, `BlockModel`, `SGS`, `Search`, `BlockKriging`, `localize` |
 | 42 | [Simulation methods](topics/42-grades-in-simulated-rocks/README.md) | Walker Lake, Jura | `cell_declustering`, `Variogram`, `BlockModel`, `SGS`, `Search`, `TurningBands`, `MovingAverage`, `StepwiseConditional`, `experimental_variogram`, `Categories`, `SIS`, `Plurigaussian`, `plot.category_colors`, `plot.category_legend`, `NormalScore` |
+| 43 | [Multivariate simulation](topics/43-multivariate-simulation/README.md) | Porphyry geometallurgy | `PointSet`, `cell_declustering`, `BlockModel`, `Search`, `PPMT`, `PCA`, `experimental_variogram`, `MultivariateSimulation`, `TurningBands` |
 | | **Validation** | | |
 | 44 | [Validation and classification](topics/44-model-checks/README.md) | Walker Lake | `Variogram`, `cell_declustering`, `BlockModel`, `Search`, `BlockKriging`, `validate_model`, `plot.cdf`, `swath`, `plot.swath`, `OrdinaryKriging`, `HermiteAnamorphosis`, `calibrate_search`, `neighborhood_stats`, `classify`, `smooth_classes`, `Categories`, `plot.category_colors`, `plot.category_legend` |
 | | **Modeling** | | |

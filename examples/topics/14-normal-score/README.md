@@ -1,7 +1,7 @@
 # 14. Normal-score transform
 
 Gaussian methods need a standard normal variable. The normal-score transform maps each value to the Gaussian score
-with the same cumulative probability, weighting samples by the declustering weights of topic 7.
+with the same cumulative probability, weighting samples by cell-declustering weights (topic 7).
 
 <details><summary>Python</summary>
 
@@ -120,5 +120,28 @@ save(fig, "probability")
 ![probability](probability.png)
 
 The weighted scores have mean 0 and standard deviation 1, and the back-transform returns every sample exactly.
+
+Only the samples at 0 ppm tie. `fit_transform` scores each sample by its rank, so tied samples spread in file
+order; `transform` maps the tied value to one score:
+
+<details><summary>Python</summary>
+
+```python
+zero = v == 0
+print(f"{zero.sum()} of {len(v)} samples at 0 ppm")
+print(f"fit_transform: scores {y[zero].min():.2f} to {y[zero].max():.2f}")
+print(f"transform: {np.unique(ns.transform(v[zero]))[0]:.2f} for all")
+```
+
+</details>
+
+```text
+22 of 470 samples at 0 ppm
+fit_transform: scores -3.04 to -1.34
+transform: -1.87 for all
+```
+
+Neither order means anything. For a large spike, such as assays at a detection limit, topic 61 breaks the ties by
+the neighborhood of each sample before the transform.
 
 Full script: [`example_14.py`](example_14.py)
