@@ -53,5 +53,5 @@ Tutorials follow one deposit from data to a result; topics show one feature each
 | 65 | [Block model from extents](topics/65-block-model-from-extents/README.md) | Stacked sulphide lenses | `Drillholes`, `BlockModel` |
 | 66 | [Result plots](topics/66-result-plots/README.md) | Walker Lake, Nickel laterite profile | `experimental_variogram`, `Variogram`, `Search`, `OrdinaryKriging`, `plot.cross_validation`, `MultipleIndicatorKriging`, `BlockModel`, `BlockKriging`, `cell_declustering`, `grade_tonnage`, `compare_models`, `plot.grade_tonnage`, `merge_intervals`, `Drillholes`, `contact`, `plot.contact` |
 
-Each page alternates text, collapsed Python and its results. `mise run examples` reruns every `example_NN.py`
+Each page alternates text, collapsed Python and its results. `mise run examples` reruns every script
 and rewrites the pages; `cs.datasets` downloads the data once and caches it. `render.py --index` writes this file.
