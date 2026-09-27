@@ -45,6 +45,7 @@ Tutorials follow one deposit from data to a result; topics show one feature each
 | 60 | [3D views](topics/60-3d-views/README.md) | Drillholes (legacy) | `PointSet`, `convex_hull`, `plot3d.to_pyvista`, `plot3d.plot`, `BlockModel`, `Search`, `InverseDistance`, `plot3d.slices` |
 | | **More methods** | | |
 | 63 | [Smooth trend](topics/63-smooth-trend/README.md) | Coal seam thickness | `cell_declustering`, `detrend` |
+| 64 | [Categorical indicator kriging](topics/64-categorical-indicator-kriging/README.md) | Stacked sulphide lenses | `Drillholes`, `Categories`, `cell_declustering`, `Variogram`, `Search`, `CategoricalIndicatorKriging`, `BlockModel`, `plot.section`, `plot.category_legend` |
 | 66 | [Result plots](topics/66-result-plots/README.md) | Walker Lake, Nickel laterite profile | `experimental_variogram`, `Variogram`, `Search`, `OrdinaryKriging`, `plot.cross_validation`, `MultipleIndicatorKriging`, `BlockModel`, `BlockKriging`, `cell_declustering`, `grade_tonnage`, `compare_models`, `plot.grade_tonnage`, `merge_intervals`, `Drillholes`, `contact`, `plot.contact` |
 
 Each page alternates text, collapsed Python and its results. `mise run examples` reruns every `example_NN.py`
