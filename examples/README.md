@@ -53,9 +53,11 @@ Tutorials follow one deposit from data to a result; topics show one feature each
 | 34 | [MIK localization](topics/34-mik-localization/README.md) | Walker Lake | `cell_declustering`, `experimental_variogram`, `Variogram`, `Search`, `BlockModel`, `BlockKriging`, `MultipleIndicatorKriging` |
 | 35 | [Disjunctive kriging](topics/35-disjunctive-kriging/README.md) | Walker Lake | `cell_declustering`, `HermiteAnamorphosis`, `experimental_variogram`, `Variogram`, `BlockModel`, `DisjunctiveKriging`, `Search` |
 | | **Simulation** | | |
-| 36 | [Sequential Gaussian simulation](topics/36-sgs/README.md) | Walker Lake | `Variogram`, `cell_declustering`, `NormalScore`, `experimental_variogram`, `BlockModel`, `SGS`, `Search` |
+| 36 | [Sequential Gaussian simulation](topics/36-sgs/README.md) | Walker Lake | `cell_declustering`, `NormalScore`, `experimental_variogram`, `Variogram`, `BlockModel`, `SGS`, `Search` |
 | 37 | [Simulation at block support](topics/37-simulation-at-block-support/README.md) | Walker Lake | `cell_declustering`, `NormalScore`, `experimental_variogram`, `Variogram`, `BlockModel`, `SGS`, `Search`, `BlockKriging`, `localize` |
-| 42 | [Simulation methods](topics/42-grades-in-simulated-rocks/README.md) | Walker Lake, Jura | `cell_declustering`, `Variogram`, `BlockModel`, `SGS`, `Search`, `TurningBands`, `MovingAverage`, `StepwiseConditional`, `experimental_variogram`, `Categories`, `SIS`, `Plurigaussian`, `plot.category_colors`, `plot.category_legend`, `NormalScore` |
+| 38 | [Turning bands](topics/38-turning-bands/README.md) | Walker Lake | `BlockModel`, `cell_declustering`, `NormalScore`, `experimental_variogram`, `Variogram`, `SGS`, `Search`, `TurningBands` |
+| 39 | [Simulation with a trend](topics/39-simulation-with-trend/README.md) | Walker Lake | `cell_declustering`, `BlockModel`, `MovingAverage`, `Search`, `StepwiseConditional`, `NormalScore`, `experimental_variogram`, `Variogram`, `SGS` |
+| 42 | [Simulation methods](topics/42-grades-in-simulated-rocks/README.md) | Jura | `Categories`, `experimental_variogram`, `Variogram`, `SIS`, `Search`, `Plurigaussian`, `plot.category_colors`, `plot.category_legend`, `NormalScore`, `SGS` |
 | 43 | [Multivariate simulation](topics/43-multivariate-simulation/README.md) | Porphyry geometallurgy | `PointSet`, `cell_declustering`, `BlockModel`, `Search`, `PPMT`, `PCA`, `experimental_variogram`, `MultivariateSimulation`, `TurningBands` |
 | | **Validation** | | |
 | 44 | [Model checks](topics/44-model-checks/README.md) | Walker Lake | `experimental_variogram`, `Variogram`, `cell_declustering`, `BlockModel`, `Search`, `BlockKriging`, `global_bias`, `validate_model`, `plot.cdf`, `swath`, `plot.swath` |

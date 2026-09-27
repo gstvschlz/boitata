@@ -1,8 +1,7 @@
 # 42. Simulation methods
 
-Sequential Gaussian simulation (SGS) and turning bands simulate a continuous variable; sequential indicator
-simulation (SIS) and plurigaussian simulation (PGS) simulate categories. Several correlated grades are simulated
-through independent factors in topic 16.
+Sequential indicator simulation (SIS) and plurigaussian simulation (PGS) simulate categories; continuous variables
+are in topics 36 to 39. Several correlated grades are simulated through independent factors in topic 16.
 
 <details><summary>Python</summary>
 
@@ -10,141 +9,10 @@ through independent factors in topic 16.
 import ceres as cs
 import matplotlib.pyplot as plt
 import numpy as np
-from common import map_axes, save
-from matplotlib.colors import PowerNorm
-
-samples = cs.datasets.walker_lake()
-xy, v = samples.coords, samples["V"]
-weights = cs.cell_declustering(xy, v, sizes=np.arange(2.5, 102.5, 2.5)).weights
-gaussian = cs.Variogram([("spherical", 0.68, 82.0)], nugget=0.32, rotation=(170, 0, 0), ratios=(0.43, 1.0))
-grid = cs.BlockModel(origin=(0.5, 0.5), size=(5, 5), count=(52, 60))
+from common import save
 ```
 
 </details>
-
-Both use the normal-score variogram of topic 36. SGS visits nodes along a random
-path, kriging each from data and nodes already simulated. Turning bands sums many one-dimensional processes along
-random lines into an unconditional Gaussian field, then conditions it to the data by kriging the residuals.
-
-<details><summary>Python</summary>
-
-```python
-sgs = cs.SGS(gaussian, cs.Search(radius=100, max_samples=24)).fit(samples, "V", weights=weights)
-tb = cs.TurningBands(gaussian, bands=500).fit(samples, "V", weights=weights)
-start = time.perf_counter()
-by_sgs = sgs.simulate(grid, n=20, seed=5, realizations=True).realizations
-sgs_seconds = time.perf_counter() - start
-start = time.perf_counter()
-by_tb = tb.simulate(grid, n=20, seed=5, realizations=True).realizations
-tb_seconds = time.perf_counter() - start
-for name, reals, seconds in (("SGS", by_sgs, sgs_seconds), ("turning bands", by_tb, tb_seconds)):
-    print(
-        f"{name:>13}: 20 realizations in {seconds:.2f} s, mean {reals.mean():.0f} ppm, variance {reals.var():.0f} ppm²"
-    )
-```
-
-</details>
-
-```text
-          SGS: 20 realizations in 0.08 s, mean 299 ppm, variance 72174 ppm²
-turning bands: 20 realizations in 0.13 s, mean 289 ppm, variance 61368 ppm²
-```
-
-<details><summary>Python</summary>
-
-```python
-shape = (60, 52)
-extent = (0.5, 260.5, 0.5, 300.5)
-norm = PowerNorm(0.5, vmin=0, vmax=1500)
-fig, axes = plt.subplots(1, 4, figsize=(15, 4.4), layout="constrained")
-panels = [
-    (by_sgs[0], "SGS, realization 1"),
-    (by_sgs[1], "SGS, realization 2"),
-    (by_tb[0], "Turning bands, realization 1"),
-    (by_tb[1], "Turning bands, realization 2"),
-]
-for ax, (image, title) in zip(axes, panels):
-    im = ax.imshow(image.reshape(shape), origin="lower", extent=extent, norm=norm)
-    map_axes(ax, title)
-fig.colorbar(im, ax=axes, shrink=0.8, label="V (ppm)")
-save(fig, "continuous")
-```
-
-</details>
-
-![continuous](continuous.png)
-
-## With a trend
-
-Far from the data, SGS draws from the global histogram, wherever it is. A trend known everywhere can steer it
-instead. Here the trend is a moving-window average of V within 40 m, built with an existing estimator; any model
-or estimate would do. `trend=` gives it at the data to `fit` and at the nodes to `simulate`, as an array or the
-name of a BlockModel column. The data are normal-scored within 8 equal-probability classes of the trend, the
-stepwise conditional transform of topic 16 on (trend, V), which leaves scores
-independent of the trend. Those scores are simulated with their own variogram, and every node is back-transformed
-with the histogram of its trend class, before any averaging to `blocks`.
-
-<details><summary>Python</summary>
-
-```python
-window = cs.MovingAverage(cs.Search(radius=40, max_samples=200)).fit(xy, v)
-trend = window.predict(xy)
-trended = grid.with_column("trend", window.predict(grid))
-pair = np.column_stack([trend, v])
-scores = cs.StepwiseConditional(classes=8).fit(pair, weights=weights).transform(pair)[:, 1]
-score_variogram = cs.experimental_variogram(xy, scores, 10.0, 150.0).fit("spherical")
-with_trend = cs.SGS(score_variogram, cs.Search(radius=100, max_samples=24), classes=8)
-with_trend.fit(xy, v, weights=weights, trend=trend)
-by_trend = with_trend.simulate(trended, n=20, seed=5, realizations=True, trend="trend").realizations
-
-node_trend = trended["trend"]
-cov = np.cov(v, trend, aweights=weights)
-print(f"correlation with the trend: data {cov[0, 1] / np.sqrt(cov[0, 0] * cov[1, 1]):.2f}", end="")
-for name, reals in (("SGS", by_sgs), ("SGS with trend", by_trend)):
-    print(f", {name} {np.mean([np.corrcoef(r, node_trend)[0, 1] for r in reals]):.2f}", end="")
-edges = np.quantile(node_trend, [0.25, 0.5, 0.75])
-at_data, at_nodes = np.digitize(trend, edges), np.digitize(node_trend, edges)
-print(f"\n{'mean V (ppm) by trend quartile':<32}{'data':>6}{'SGS':>6}{'SGS with trend':>16}")
-for k in range(4):
-    data_mean = np.average(v[at_data == k], weights=weights[at_data == k])
-    plain_mean, trend_mean = (reals[:, at_nodes == k].mean() for reals in (by_sgs, by_trend))
-    print(f"{f'quartile {k + 1}':<32}{data_mean:6.0f}{plain_mean:6.0f}{trend_mean:16.0f}")
-```
-
-</details>
-
-```text
-correlation with the trend: data 0.53, SGS 0.43, SGS with trend 0.50
-mean V (ppm) by trend quartile    data   SGS  SGS with trend
-quartile 1                         115   156             113
-quartile 2                         273   267             276
-quartile 3                         328   328             320
-quartile 4                         466   446             455
-```
-
-<details><summary>Python</summary>
-
-```python
-fig, axes = plt.subplots(1, 3, figsize=(11.5, 4.4), layout="constrained")
-panels = [
-    (node_trend, "Moving-window trend, 40 m"),
-    (by_sgs[0], "SGS, realization 1"),
-    (by_trend[0], "SGS with the trend, realization 1"),
-]
-for ax, (image, title) in zip(axes, panels):
-    im = ax.imshow(image.reshape(shape), origin="lower", extent=extent, norm=norm)
-    map_axes(ax, title)
-fig.colorbar(im, ax=axes, shrink=0.8, label="V (ppm)")
-save(fig, "trend")
-```
-
-</details>
-
-![trend](trend.png)
-
-Plain SGS already follows the trend where data are dense, but pulls the low-trend quarter up towards the global
-mean; with the trend, each quarter keeps the declustered mean of its data, and the realizations correlate with the
-trend about as much as the data do.
 
 ## Categories
 
