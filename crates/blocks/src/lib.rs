@@ -14,8 +14,8 @@ mod solid;
 mod subblock;
 pub use classes::smooth_classes;
 pub use distance::{
-    Surface, distance_to, point_in_polygon, polygon_distance, polygon_signed_distance,
-    signed_distance_to, vertical_distance,
+    Surface, TriangleTree, distance_to, point_in_polygon, polygon_distance,
+    polygon_signed_distance, signed_distance_to, vertical_distance,
 };
 pub use error::{BlockModelError, Result};
 pub use grid::grid_surface;

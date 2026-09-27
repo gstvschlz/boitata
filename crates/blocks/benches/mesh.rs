@@ -2,7 +2,7 @@ use std::hint::black_box;
 use std::sync::Arc;
 
 use arrow_array::{ArrayRef, Float64Array, RecordBatch};
-use blocks::{Domain, Region, SolidTester, convex_hull, subblock};
+use blocks::{Domain, Region, SolidTester, TriangleTree, convex_hull, distance_to, subblock};
 use ceres_core::{BlockModel, Geometry, Mesh};
 use criterion::{Criterion, criterion_group, criterion_main};
 
@@ -62,5 +62,36 @@ fn bench(c: &mut Criterion) {
     group.finish();
 }
 
-criterion_group!(benches, bench);
+fn distance(c: &mut Criterion) {
+    let mesh = lens(1000, [90.0, 50.0, 8.0], 0.0);
+    let points: Vec<[f64; 3]> = (0..2000)
+        .map(|i| {
+            let t = i as f64;
+            [
+                (t * 0.618).fract() * 200.0 - 100.0,
+                (t * 0.414).fract() * 120.0 - 60.0,
+                (t * 0.732).fract() * 80.0 - 40.0,
+            ]
+        })
+        .collect();
+    let tree = TriangleTree::new(&mesh).unwrap();
+    let mut group = c.benchmark_group("distance of 2000 points to 2000 triangles");
+    group.bench_function("scan", |b| {
+        b.iter(|| {
+            for p in &points {
+                black_box(distance_to(&mesh, &(p[0], p[1], p[2])).unwrap());
+            }
+        })
+    });
+    group.bench_function("tree", |b| {
+        b.iter(|| {
+            for p in &points {
+                black_box(tree.distance(*p));
+            }
+        })
+    });
+    group.finish();
+}
+
+criterion_group!(benches, bench, distance);
 criterion_main!(benches);

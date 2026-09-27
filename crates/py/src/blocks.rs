@@ -1,9 +1,9 @@
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 
 use arrow_array::{ArrayRef, Float64Array, StringArray};
 use blocks::{
     DomainMethod, Orientation, PolygonSelector as CoreSelector, ShellBlock, ShellFilter,
-    ShellLimits, SolidTester, extract_shell,
+    ShellLimits, SolidTester, TriangleTree, extract_shell,
 };
 use ceres_core::Mesh as CoreMesh;
 use numpy::ndarray::Array2;
@@ -41,12 +41,17 @@ fn core_error(e: ceres_core::Error) -> PyErr {
 pub struct Mesh {
     pub mesh: CoreMesh,
     tester: Option<SolidTester>,
+    tree: OnceLock<Result<TriangleTree, String>>,
 }
 
 impl Mesh {
     pub fn from_core(mesh: CoreMesh) -> Self {
         let tester = SolidTester::new(&mesh).ok();
-        Self { mesh, tester }
+        Self {
+            mesh,
+            tester,
+            tree: OnceLock::new(),
+        }
     }
 
     /// Flat `(n, 3)` corners and triangles as `(k, 3)` index rows.
@@ -89,6 +94,7 @@ impl Mesh {
         Ok(Self {
             mesh: mesh.map_err(core_error)?,
             tester: self.tester.clone(),
+            tree: self.tree.clone(),
         })
     }
 }
@@ -249,19 +255,25 @@ impl Mesh {
         signed: bool,
     ) -> PyResult<Bound<'py, PyAny>> {
         let pts = self::points(points)?;
-        let d = py
-            .detach(|| {
-                pts.par_iter()
-                    .map(|p| {
-                        if signed {
-                            blocks::signed_distance_to(&self.mesh, p)
-                        } else {
-                            blocks::distance_to(&self.mesh, p)
-                        }
-                    })
-                    .collect::<Result<Vec<_>, _>>()
-            })
-            .map_err(err)?;
+        let tree = py.detach(|| {
+            self.tree
+                .get_or_init(|| TriangleTree::new(&self.mesh).map_err(|e| e.to_string()))
+        });
+        let tree = tree.as_ref().map_err(invalid)?;
+        let solid = if signed { Some(self.solid()?) } else { None };
+        let d = py.detach(|| {
+            pts.par_iter()
+                .map(|p| {
+                    let p = [p.0, p.1, p.2];
+                    let d = tree.distance(p);
+                    if solid.is_some_and(|s| s.contains(p)) {
+                        -d
+                    } else {
+                        d
+                    }
+                })
+                .collect()
+        });
         Ok(array1(py, d).into_any())
     }
 
