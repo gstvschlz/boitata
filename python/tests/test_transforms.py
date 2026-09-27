@@ -163,6 +163,32 @@ def test_detrend_removes_linear_trend():
     np.testing.assert_allclose(trend.predict(coords), values, atol=1e-8)
 
 
+def test_kernel_trend_picks_a_bandwidth_and_smooths_categories():
+    local = np.random.default_rng(4)
+    coords = local.uniform(0, 100, size=(300, 2))
+    smooth = np.sin(coords[:, 0] / 20.0)
+    values = smooth + local.normal(0, 0.3, 300)
+    points = cs.PointSet(coords, {"v": values, "w": np.ones(300), "c": np.where(smooth > 0, "a", "b")})
+    trend, residuals = cs.detrend(points, "v", bandwidth=[2.0, 8.0, 50.0], weights="w")
+    assert trend.bandwidth == 8.0 and trend.degree is None and trend.coefficients is None
+    assert trend.scores.argmin() == 1
+    np.testing.assert_allclose(residuals, values - trend.predict(coords))
+    grid = cs.BlockModel((0, 0, 0), (5, 5, 1), (20, 20, 1))
+    assert trend.predict(grid).shape == (400,)
+    assert np.isnan(trend.predict([[1e4, 1e4]]))[0]
+
+    categories, indicators = cs.detrend(points, "c", bandwidth=10.0, categorical=True)
+    assert categories.categories == ["a", "b"]
+    p = categories.predict(grid)
+    total = np.asarray(p["a"]) + np.asarray(p["b"])
+    np.testing.assert_allclose(total, 1.0)
+    assert set(indicators.column_names) == {"a", "b"}
+    restored = cs.Trend.from_json(categories.to_json())
+    np.testing.assert_array_equal(restored.predict(grid)["a"], p["a"])
+    with pytest.raises(ValueError, match="bandwidth"):
+        cs.detrend(points, "v", weights="w")
+
+
 def test_normal_cdf_and_ppf_are_inverse():
     x = np.linspace(-3, 3, 13)
     np.testing.assert_allclose(cs.normal_ppf(cs.normal_cdf(x)), x, atol=1e-6)

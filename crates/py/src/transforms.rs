@@ -1,11 +1,12 @@
 use std::sync::Arc;
 
+use pyo3::IntoPyObjectExt;
 use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
 use transforms::{
-    HermiteAnamorphosis, Maf as CoreMaf, NormalScore as CoreNormalScore, Pca as CorePca,
-    Ppmt as CorePpmt, PpmtParams, Recovery, StepwiseConditional as CoreSct, Trend as CoreTrend,
-    UniformConditioning as CoreUc, Weights,
+    HermiteAnamorphosis, KernelTrend, Maf as CoreMaf, NormalScore as CoreNormalScore,
+    Pca as CorePca, Ppmt as CorePpmt, PpmtParams, Recovery, StepwiseConditional as CoreSct,
+    Trend as CoreTrend, UniformConditioning as CoreUc, Weights,
 };
 
 use arrow_array::cast::AsArray;
@@ -1083,10 +1084,51 @@ fn panel_columns(
     ))
 }
 
-/// Polynomial trend in the coordinates.
+#[derive(Serialize, Deserialize)]
+#[serde(untagged)]
+enum TrendModel {
+    Polynomial(CoreTrend),
+    Kernel {
+        kernel: KernelTrend,
+        categories: Option<Vec<String>>,
+    },
+}
+
+/// A trend in the coordinates, from `detrend`: a polynomial, or a smooth
+/// kernel average of the samples.
 #[derive(Serialize, Deserialize)]
 #[pyclass(module = "ceres", name = "Trend", frozen)]
-pub struct Trend(CoreTrend);
+pub struct Trend(TrendModel);
+
+impl Trend {
+    fn kernel(&self) -> Option<&KernelTrend> {
+        match &self.0 {
+            TrendModel::Kernel { kernel, .. } => Some(kernel),
+            TrendModel::Polynomial(_) => None,
+        }
+    }
+}
+
+/// One column per category, or an array, of per-row values; null where None.
+fn trend_output<'py>(
+    py: Python<'py>,
+    rows: Vec<Option<Vec<f64>>>,
+    categories: Option<&[String]>,
+) -> PyResult<Bound<'py, PyAny>> {
+    let Some(names) = categories else {
+        let values = rows
+            .into_iter()
+            .map(|r| r.map_or(f64::NAN, |r| r[0]))
+            .collect();
+        return Ok(array1(py, values).into_any());
+    };
+    let columns = names.iter().enumerate().map(|(c, name)| {
+        let column: Float64Array = rows.iter().map(|r| r.as_ref().map(|r| r[c])).collect();
+        (name.clone(), Arc::new(column) as ArrayRef)
+    });
+    let batch = RecordBatch::try_from_iter(columns).map_err(invalid)?;
+    Table(batch).into_bound_py_any(py)
+}
 
 #[pymethods]
 impl Trend {
@@ -1102,19 +1144,68 @@ impl Trend {
         crate::persist::from_json(text)
     }
 
+    /// Polynomial degree; None for a kernel trend.
     #[getter]
-    fn degree(&self) -> usize {
-        self.0.degree
+    fn degree(&self) -> Option<usize> {
+        match &self.0 {
+            TrendModel::Polynomial(t) => Some(t.degree),
+            TrendModel::Kernel { .. } => None,
+        }
     }
 
+    /// Polynomial coefficients (1, x, y, z, x², y², z², xy, xz, yz up to the
+    /// degree); None for a kernel trend.
     #[getter]
-    fn coefficients<'py>(&self, py: Python<'py>) -> Bound<'py, PyAny> {
-        array1(py, self.0.coeffs.clone()).into_any()
+    fn coefficients<'py>(&self, py: Python<'py>) -> Option<Bound<'py, PyAny>> {
+        match &self.0 {
+            TrendModel::Polynomial(t) => Some(array1(py, t.coeffs.clone()).into_any()),
+            TrendModel::Kernel { .. } => None,
+        }
     }
 
+    /// Kernel bandwidth in use; None for a polynomial.
+    #[getter]
+    fn bandwidth(&self) -> Option<f64> {
+        self.kernel().map(|k| k.bandwidth)
+    }
+
+    /// Candidate bandwidths; None for a polynomial.
+    #[getter]
+    fn bandwidths<'py>(&self, py: Python<'py>) -> Option<Bound<'py, PyAny>> {
+        self.kernel()
+            .map(|k| array1(py, k.bandwidths.clone()).into_any())
+    }
+
+    /// Leave-one-out error of each candidate bandwidth; None for a polynomial.
+    #[getter]
+    fn scores<'py>(&self, py: Python<'py>) -> Option<Bound<'py, PyAny>> {
+        self.kernel()
+            .map(|k| array1(py, k.scores.clone()).into_any())
+    }
+
+    /// Category names of a categorical trend, else None.
+    #[getter]
+    fn categories(&self) -> Option<Vec<String>> {
+        match &self.0 {
+            TrendModel::Kernel { categories, .. } => categories.clone(),
+            TrendModel::Polynomial(_) => None,
+        }
+    }
+
+    /// The trend at `coords` (array, PointSet or BlockModel cells): an array,
+    /// or for categories a Table of proportions, one column each. A kernel
+    /// trend is null (NaN) beyond four bandwidths of every sample.
     fn predict<'py>(&self, py: Python<'py>, coords: &Bound<PyAny>) -> PyResult<Bound<'py, PyAny>> {
-        let values = points(coords)?.iter().map(|p| self.0.eval(p)).collect();
-        Ok(array1(py, values).into_any())
+        let targets = points(coords)?;
+        match &self.0 {
+            TrendModel::Polynomial(t) => {
+                Ok(array1(py, targets.iter().map(|p| t.eval(p)).collect()).into_any())
+            }
+            TrendModel::Kernel { kernel, categories } => {
+                let rows = py.detach(|| kernel.eval(&targets)).map_err(err)?;
+                trend_output(py, rows, categories.as_deref())
+            }
+        }
     }
 }
 
@@ -1126,19 +1217,127 @@ fn samples(coords: &Bound<PyAny>, values: &Bound<PyAny>) -> PyResult<(Vec<Point>
     Ok((locs, values))
 }
 
-/// Fits a polynomial trend of `degree` (0-2); returns the trend and residuals.
-/// `values` may name a column of `coords`, a PointSet or BlockModel.
+/// Fits a trend and returns it with the residuals, data minus trend.
+///
+/// Without `bandwidth`, the trend is a polynomial of `degree` in the
+/// coordinates, fitted by least squares. With it, the trend is smooth: at each
+/// location, the weighted average of the samples under an anisotropic Gaussian
+/// kernel whose standard deviation is `bandwidth` along the major axis and
+/// `ratios` times it along the semi-major and minor axes. Given several
+/// bandwidths, the one with the least leave-one-out error is kept: the
+/// weighted mean squared difference between each sample and the trend of the
+/// others, a sample with no other within four bandwidths counting against the
+/// global mean. Noisier data thus get a smoother trend.
+///
+/// Parameters
+/// ----------
+/// coords : array_like, PointSet or BlockModel
+///     Sample locations, shape (n, 2) or (n, 3), or a container.
+/// values : array_like or str
+///     Sample values, or the column of `coords` holding them. With
+///     `categorical`, category labels.
+/// degree : int, default 1
+///     Polynomial degree, 0 to 2, without `bandwidth`.
+/// bandwidth : float or sequence of float, optional
+///     Kernel standard deviation along the major axis, or candidates to
+///     choose from.
+/// rotation : tuple of float, default (0, 0, 0)
+///     Azimuth, dip and rake of the kernel's major axis, in degrees.
+/// ratios : tuple of float, default (1, 1)
+///     Semi-major and minor over major bandwidth.
+/// weights : array_like or str, optional
+///     Declustering weights, or the column of `coords` holding them.
+/// categorical : bool, default False
+///     Smooth the indicator of each category instead: the trend is the local
+///     proportions, which lie in [0, 1] and sum to 1.
+///
+/// Returns
+/// -------
+/// Trend
+///     The fitted trend; `predict` evaluates it anywhere, e.g. at the cells of
+///     a BlockModel, as `trend=` of `SGS` or `TurningBands`.
+/// numpy.ndarray or Table
+///     Residuals at the samples; per category, indicator minus proportion.
 #[pyfunction]
-#[pyo3(signature = (coords, values, *, degree=1))]
+#[pyo3(signature = (coords, values, *, degree=1, bandwidth=None, rotation=(0.0, 0.0, 0.0), ratios=(1.0, 1.0), weights=None, categorical=false))]
+#[allow(clippy::too_many_arguments)]
 fn detrend<'py>(
     py: Python<'py>,
     coords: &Bound<PyAny>,
     values: &Bound<PyAny>,
     degree: usize,
+    bandwidth: Option<&Bound<PyAny>>,
+    rotation: (f64, f64, f64),
+    ratios: (f64, f64),
+    weights: Option<&Bound<PyAny>>,
+    categorical: bool,
 ) -> PyResult<(Trend, Bound<'py, PyAny>)> {
-    let (locs, values) = samples(coords, values)?;
-    let (trend, residuals) = transforms::detrend(&locs, &values, degree).map_err(err)?;
-    Ok((Trend(trend), array1(py, residuals).into_any()))
+    let Some(bandwidth) = bandwidth else {
+        if weights.is_some() || categorical {
+            return Err(invalid("weights and categorical need a bandwidth"));
+        }
+        let (locs, values) = samples(coords, values)?;
+        let (trend, residuals) = transforms::detrend(&locs, &values, degree).map_err(err)?;
+        return Ok((
+            Trend(TrendModel::Polynomial(trend)),
+            array1(py, residuals).into_any(),
+        ));
+    };
+    let bandwidths: Vec<f64> = match bandwidth.extract::<f64>() {
+        Ok(b) => vec![b],
+        Err(_) => bandwidth
+            .extract()
+            .map_err(|_| invalid("bandwidth must be a number or a sequence of numbers"))?,
+    };
+    let locs = points(coords)?;
+    let (rows, categories) = if categorical {
+        let labels = crate::args::texts(&column(Some(coords), values, "values")?, "values")?;
+        let labels: Vec<String> = labels
+            .into_iter()
+            .collect::<Option<_>>()
+            .ok_or_else(|| invalid("values must not be null; drop missing values first"))?;
+        let names: Vec<String> = labels
+            .iter()
+            .cloned()
+            .collect::<std::collections::BTreeSet<_>>()
+            .into_iter()
+            .collect();
+        let rows: Vec<Vec<f64>> = labels
+            .iter()
+            .map(|l| names.iter().map(|n| f64::from(u8::from(n == l))).collect())
+            .collect();
+        (rows, Some(names))
+    } else {
+        let values = finite(&column(Some(coords), values, "values")?, "values")?;
+        (values.into_iter().map(|v| vec![v]).collect(), None)
+    };
+    same_length(locs.len(), rows.len(), "values")?;
+    let weights = weights
+        .map(|w| per_row(Some(coords), w, locs.len(), "weights"))
+        .transpose()?;
+    let rotation = [rotation.0, rotation.1, rotation.2];
+    let ratios = [ratios.0, ratios.1];
+    let (kernel, fitted) = py
+        .detach(|| {
+            let k = KernelTrend::fit(
+                &locs,
+                &rows,
+                weights.as_deref(),
+                &bandwidths,
+                rotation,
+                ratios,
+            )?;
+            let fitted = k.eval(&locs)?;
+            Ok((k, fitted))
+        })
+        .map_err(err)?;
+    let residuals = rows
+        .iter()
+        .zip(fitted)
+        .map(|(v, t)| t.map(|t| v.iter().zip(t).map(|(v, t)| v - t).collect()))
+        .collect();
+    let residuals = trend_output(py, residuals, categories.as_deref())?;
+    Ok((Trend(TrendModel::Kernel { kernel, categories }), residuals))
 }
 
 /// Declustering weights (normalized to sum to n) and the declustered mean.
