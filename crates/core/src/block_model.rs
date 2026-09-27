@@ -93,6 +93,97 @@ impl Geometry {
     pub fn cell_volume(&self) -> f64 {
         self.size.iter().product()
     }
+
+    /// Smallest grid of `size` cells, rotated by `rotation`, holding every
+    /// point plus `buffer` on each side along the grid axes. A non-zero
+    /// `snap` puts the origin on a multiple of it in the grid frame, so grids
+    /// with the same rotation and snap line up. Without `dz` the grid is 2D:
+    /// one layer spanning the buffered z range.
+    pub fn from_extents(
+        points: &[[f64; 3]],
+        size: [f64; 2],
+        dz: Option<f64>,
+        buffer: [f64; 3],
+        rotation: [f64; 3],
+        snap: [f64; 3],
+    ) -> Result<Self> {
+        if points.is_empty() {
+            return Err(Error::Geometry("no points to size the grid from".into()));
+        }
+        if points.iter().flatten().any(|v| !v.is_finite()) {
+            return Err(Error::Geometry("points must be finite".into()));
+        }
+        if buffer
+            .iter()
+            .chain(&snap)
+            .any(|v| !(v.is_finite() && *v >= 0.0))
+        {
+            return Err(Error::Geometry(
+                "buffer and snap must be non-negative".into(),
+            ));
+        }
+        let frame = block_frame(rotation);
+        let local: Vec<Vector3<f64>> = points.iter().map(|p| frame * Vector3::from(*p)).collect();
+        let bound = |a: usize, pick: fn(f64, f64) -> f64| {
+            local.iter().map(|p| p[a]).reduce(pick).expect("points")
+        };
+        let rotated = rotation.iter().any(|&r| r != 0.0);
+        let mut start = [0.0; 3];
+        let mut end = [0.0; 3];
+        for a in 0..3 {
+            let (lo, hi) = (
+                bound(a, f64::min) - buffer[a],
+                bound(a, f64::max) + buffer[a],
+            );
+            let slack = if rotated {
+                1e-9 * (1.0 + lo.abs().max(hi.abs()))
+            } else {
+                0.0
+            };
+            start[a] = lo - slack;
+            if snap[a] > 0.0 {
+                start[a] = (start[a] / snap[a]).floor() * snap[a];
+            }
+            end[a] = hi;
+        }
+        let z_span = end[2] - start[2];
+        let size = [
+            size[0],
+            size[1],
+            dz.unwrap_or(if z_span > 0.0 {
+                z_span * (1.0 + 1e-9)
+            } else {
+                1.0
+            }),
+        ];
+        let origin = frame.transpose() * Vector3::from(start);
+        let mut geometry = Self {
+            origin: origin.into(),
+            size,
+            count: [1; 3],
+            rotation,
+        };
+        geometry.validate()?;
+        let offsets: Vec<Vector3<f64>> = points
+            .iter()
+            .map(|p| frame * (Vector3::from(*p) - origin))
+            .collect();
+        for a in 0..if dz.is_some() { 3 } else { 2 } {
+            let cells = offsets
+                .iter()
+                .map(|p| (p[a] / size[a]).floor() + 1.0)
+                .fold((end[a] - start[a]) / size[a], f64::max)
+                .ceil();
+            geometry.count[a] = cells.clamp(1.0, 1e12) as usize;
+        }
+        if geometry.count.iter().map(|&n| n as f64).product::<f64>() > 1e12 {
+            return Err(Error::Geometry("too many cells for the extents".into()));
+        }
+        if points.iter().any(|&p| geometry.locate(p).is_none()) {
+            return Err(Error::Geometry("points fall outside the grid".into()));
+        }
+        Ok(geometry)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -647,6 +738,111 @@ mod tests {
     fn grades(values: Vec<f64>) -> RecordBatch {
         RecordBatch::try_from_iter([("au", Arc::new(Float64Array::from(values)) as ArrayRef)])
             .unwrap()
+    }
+
+    fn scatter(n: usize, lo: [f64; 3], hi: [f64; 3]) -> Vec<[f64; 3]> {
+        let mut state = 12345u64;
+        let mut next = move || {
+            state = state
+                .wrapping_mul(6364136223846793005)
+                .wrapping_add(1442695040888963407);
+            (state >> 11) as f64 / (1u64 << 53) as f64
+        };
+        (0..n)
+            .map(|_| [0, 1, 2].map(|a| lo[a] + (hi[a] - lo[a]) * next()))
+            .collect()
+    }
+
+    fn far_corner(g: &Geometry) -> [f64; 3] {
+        g.point(g.cells() - 1, [1.0; 3])
+    }
+
+    #[test]
+    fn extents_hold_every_point_with_the_exact_buffer() {
+        let points = scatter(500, [310.0, -45.0, 120.0], [870.0, 260.0, 415.0]);
+        let buffer = [25.0, 10.0, 5.0];
+        let g = Geometry::from_extents(
+            &points,
+            [20.0, 20.0],
+            Some(10.0),
+            buffer,
+            [0.0; 3],
+            [0.0; 3],
+        )
+        .unwrap();
+        assert!(points.iter().all(|&p| g.locate(p).is_some()));
+        let far = far_corner(&g);
+        for a in 0..3 {
+            let lo = points.iter().map(|p| p[a]).fold(f64::INFINITY, f64::min);
+            let hi = points
+                .iter()
+                .map(|p| p[a])
+                .fold(f64::NEG_INFINITY, f64::max);
+            assert_eq!(g.origin[a], lo - buffer[a]);
+            assert!(far[a] >= hi + buffer[a] && far[a] - g.size[a] < hi + buffer[a]);
+        }
+    }
+
+    #[test]
+    fn snapped_origins_are_multiples_of_snap() {
+        let points = scatter(200, [313.7, -44.2, 121.9], [870.0, 260.0, 415.0]);
+        let snap = [50.0, 25.0, 10.0];
+        let g = Geometry::from_extents(&points, [10.0, 10.0], Some(5.0), [3.0; 3], [0.0; 3], snap)
+            .unwrap();
+        for a in 0..3 {
+            let k = g.origin[a] / snap[a];
+            assert_eq!(k, k.round());
+            assert!(g.origin[a] <= points.iter().map(|p| p[a]).fold(f64::INFINITY, f64::min) - 3.0);
+        }
+        assert!(points.iter().all(|&p| g.locate(p).is_some()));
+    }
+
+    #[test]
+    fn rotated_extents_hold_rotated_points_with_the_fewest_cells() {
+        let rotation = [35.0, 20.0, 10.0];
+        let to_world = block_frame(rotation).transpose();
+        let origin = Vector3::new(1000.0, 5000.0, 300.0);
+        let points: Vec<[f64; 3]> = scatter(400, [0.5, 0.5, 0.5], [99.5, 49.5, 29.5])
+            .into_iter()
+            .map(|p| (origin + to_world * Vector3::from(p)).into())
+            .collect();
+        let g = Geometry::from_extents(
+            &points,
+            [10.0, 10.0],
+            Some(10.0),
+            [0.0; 3],
+            rotation,
+            [0.0; 3],
+        )
+        .unwrap();
+        assert_eq!(g.count, [10, 5, 3]);
+        assert!(points.iter().all(|&p| g.locate(p).is_some()));
+        let unrotated = Geometry::from_extents(
+            &points,
+            [10.0, 10.0],
+            Some(10.0),
+            [0.0; 3],
+            [0.0; 3],
+            [0.0; 3],
+        )
+        .unwrap();
+        assert!(unrotated.cells() > g.cells());
+    }
+
+    #[test]
+    fn extents_without_dz_give_one_layer() {
+        let flat = scatter(100, [0.0, 0.0, 0.0], [95.0, 45.0, 0.0]);
+        let g =
+            Geometry::from_extents(&flat, [5.0, 5.0], None, [0.0; 3], [0.0; 3], [0.0; 3]).unwrap();
+        assert_eq!(g.count[2], 1);
+        let deep = scatter(100, [0.0, 0.0, 100.0], [95.0, 45.0, 180.0]);
+        let g =
+            Geometry::from_extents(&deep, [5.0, 5.0], None, [0.0; 3], [0.0; 3], [0.0; 3]).unwrap();
+        assert_eq!(g.count[2], 1);
+        assert!(deep.iter().all(|&p| g.locate(p).is_some()));
+        assert!(
+            Geometry::from_extents(&[], [5.0, 5.0], None, [0.0; 3], [0.0; 3], [0.0; 3]).is_err()
+        );
     }
 
     #[test]

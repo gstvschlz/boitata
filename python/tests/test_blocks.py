@@ -187,3 +187,58 @@ def test_rotated_proportions():
     expected = cube.contains(nodes.centroids).mean() * grid.volumes.sum()
     inside = (cube.proportion(grid, discretization=20) * grid.volumes).sum()
     assert inside == pytest.approx(expected, rel=0.01) and 0 < inside < 1000
+
+
+def test_from_extents_holds_every_object_with_the_buffer():
+    rng = np.random.default_rng(7)
+    points = cs.PointSet(rng.uniform((200, 300, 50), (600, 500, 150), (300, 3)))
+    shifted = cs.Mesh(cube_vertices + (700, 450, 20), cube_triangles)
+    model = cs.BlockModel.from_extents(points, shifted, size=(10, 10, 5), buffer=(20, 20, 5), crs="local")
+    everything = np.vstack([points.coords, shifted.vertices])
+    assert (model.row_at(everything) >= 0).all()
+    np.testing.assert_allclose(model.origin, everything.min(0) - (20, 20, 5))
+    top = np.array(model.origin) + np.array(model.count) * model.size
+    assert (top >= everything.max(0) + (20, 20, 5)).all()
+    assert (top - model.size < everything.max(0) + (20, 20, 5)).all()
+    assert model.crs == "local" and len(model) == np.prod(model.count)
+
+
+def test_from_extents_snaps_rotates_and_flattens():
+    rng = np.random.default_rng(3)
+    xyz = rng.uniform((13.3, 7.1, 2.2), (487.0, 233.0, 91.0), (200, 3))
+    snapped = cs.BlockModel.from_extents(xyz, size=(25, 25, 10), snap=True)
+    np.testing.assert_allclose(np.array(snapped.origin) % (25, 25, 10), 0)
+    stepped = cs.BlockModel.from_extents(xyz, size=(5, 5, 5), snap=100)
+    np.testing.assert_allclose(stepped.origin, (0, 0, 0))
+
+    local = rng.uniform(0.5, (99.5, 49.5, 19.5), (300, 3))
+    az = np.radians(30)
+    world = np.c_[
+        local[:, 0] * np.cos(az) + local[:, 1] * np.sin(az),
+        -local[:, 0] * np.sin(az) + local[:, 1] * np.cos(az),
+        local[:, 2],
+    ]
+    rotated = cs.BlockModel.from_extents(world, size=(10, 10, 10), rotation=(30, 0, 0))
+    assert rotated.count == [10, 5, 2] and (rotated.row_at(world) >= 0).all()
+
+    flat = cs.BlockModel.from_extents(xyz[:, :2], size=(10, 10))
+    assert flat.count[2] == 1 and (flat.row_at(xyz[:, :2]) >= 0).all()
+    deep = cs.BlockModel.from_extents(xyz, size=(10, 10, None))
+    assert deep.count[2] == 1 and (deep.row_at(xyz) >= 0).all()
+    with pytest.raises(ValueError):
+        cs.BlockModel.from_extents(size=(10, 10))
+
+
+def test_from_extents_covers_drill_holes_lines_and_grids():
+    holes = cs.Drillholes(
+        {"HOLE_ID": ["a", "b"], "X": [0.0, 100.0], "Y": [0.0, 0.0], "Z": [500.0, 500.0]},
+        {"HOLE_ID": ["a", "b"], "DEPTH": [0.0, 0.0], "AZIMUTH": [0.0, 90.0], "DIP": [90.0, 45.0]},
+        {"HOLE_ID": ["a", "b"], "FROM": [0.0, 0.0], "TO": [50.0, 80.0]},
+    )
+    line = cs.Polylines([np.array([[-40.0, 10, 480], [20, 60, 470]])])
+    model = cs.BlockModel.from_extents(holes, line, size=(5, 5, 5))
+    stations = holes.paths()
+    ends = np.c_[stations["x"], stations["y"], stations["z"]]
+    assert (model.row_at(np.vstack([ends, line.vertices])) >= 0).all()
+    copy = cs.BlockModel.from_extents(model, size=model.size)
+    assert copy.origin == model.origin and copy.count == model.count
