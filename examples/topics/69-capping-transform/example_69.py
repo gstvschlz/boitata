@@ -20,20 +20,19 @@ import numpy as np
 from common import ACCENT, GRAY, HIGHLIGHT, save
 
 # %% [markdown]
-# Four steep gold veins, drilled by diamond holes and sampled by channels in the drives. Assays are composited to
-# 1 m inside each vein, and cell declustering evens out the channels, which crowd the levels.
+# The quartz-vein composites of [topic 8](../08-top-cuts/README.md): gold in four veins, V1 to V4, sampled by
+# diamond holes and underground channels, composited to 1 m and declustered in 20 m cells.
 
 # %%
 data = cs.datasets.vein_gold_grade_control()
 intervals = cs.merge_intervals(data["assays"], data["lithology"])
-drillholes = cs.Drillholes(data["collars"], data["surveys"], intervals)
-composites = drillholes.composite(1.0, ["AU_GPT"], domain="VEIN")
-composites = composites.filter(np.asarray(composites["VEIN"]) != "")
-composites = composites.filter(~np.isnan(composites["AU_GPT"]))
-weights = cs.cell_declustering(composites, "AU_GPT", cell_size=20.0).weights
-composites = composites.with_column("w", weights)
-veins = sorted(set(composites["VEIN"]))
-print(f"{len(composites)} composites in {len(veins)} veins")
+holes = cs.Drillholes(data["collars"], data["surveys"], intervals)
+composites = holes.composite(1.0, ["AU_GPT"], domain="LITH", categories=["VEIN"])
+quartz = composites.filter((composites["LITH"] == "QV") & ~np.isnan(composites["AU_GPT"]))
+weights = cs.cell_declustering(quartz, "AU_GPT", cell_size=20.0).weights
+quartz = quartz.with_column("w", weights)
+veins = sorted(set(quartz["VEIN"]))
+print(f"{len(quartz)} composites in {len(veins)} veins")
 
 # %% [markdown]
 # ## One cap per vein
@@ -49,33 +48,34 @@ rules = {
     "CV 1.5": cs.Capping(cv=1.5),
 }
 for rule in rules.values():
-    rule.fit("AU_GPT", domain_column="VEIN", weights="w", data=composites)
+    rule.fit("AU_GPT", domain_column="VEIN", weights="w", data=quartz)
 print(f"{'vein':<6}" + "".join(f"{name:>11}{'metal (%)':>11}" for name in rules))
 for vein in veins:
     row = "".join(f"{r.caps_[vein]:>11.1f}{100 * r.metal_removed_[vein]:>11.2f}" for r in rules.values())
     print(f"{vein:<6}{row}")
 
 # %% [markdown]
-# The rules disagree most where the tail is longest. V1 and V2, sampled by thousands of channels with a lognormal
-# tail up to 500 g/t, lose 12 to 15 % of their metal at the P99; holding the loss to 5 % puts their caps near
-# 95 g/t. V4's P99 cuts a single composite and removes almost nothing. A CV target caps harder than either:
-# it pulls every cap down to 11 to 13 g/t, and V4, whose grades are spread rather than skewed, loses half its metal.
+# The rules disagree most where the tail is longest. V1 and V2 lose 10 and 14 % of their metal at the P99;
+# holding the loss to 5 % lifts their caps to 144 and 514 g/t, the latter just under V2's extreme channels. In the
+# small veins the P99 barely cuts: it is the maximum of V3. A CV of 1.5 caps V1 and V2 near 50 g/t and costs them
+# 15 to 18 % of their metal.
 #
-# ## The same numbers as the report
+# ## The same numbers as topic 8
 #
-# `capping_report`, used in [topic 13](../13-correlations/README.md) to compare statistics before and after a
-# given cap, reads the fitted caps directly. Its fraction of metal removed, `1 - mean_capped / mean`, is the
-# `metal_removed_` of the transform.
+# Topic 8 read each vein's declustered P99 off `describe_by` and passed it to `capping_report`. The quantile rule
+# fits the same caps, and its `metal_removed_` is the report's `1 - mean_capped / mean`.
 
 # %%
 capping = rules["P99"]
-report = cs.capping_report("AU_GPT", capping.caps_, domain_column="VEIN", weights="w", data=composites)
-columns = ["domain", "cap", "n_capped", "mean", "mean_capped", "cv", "cv_capped"]
-print(f"{'vein':<6}{'cap':>7}{'cut':>5}{'mean':>7}{'capped':>8}{'CV':>6}{'capped':>8}{'metal (%)':>11}")
-for name, c, n, mean, capped, cv, cv_capped in zip(*(report[k] for k in columns), strict=True):
+stats = cs.describe_by("AU_GPT", "VEIN", weights="w", quantiles=[0.99], data=quartz)
+top = dict(zip(stats["category"][:-1], stats["P99"][:-1], strict=True))
+report = cs.capping_report("AU_GPT", top, domain_column="VEIN", weights="w", data=quartz)
+removed = 1 - report["mean_capped"] / report["mean"]
+print(f"{'vein':<5}{'P99':>8}{'fitted cap':>12}{'report (%)':>12}{'fitted (%)':>12}")
+for k, vein in enumerate(report["domain"][:-1]):
     print(
-        f"{name:<6}{'' if np.isnan(c) else f'{c:.1f}':>7}{n:>5.0f}{mean:>7.2f}{capped:>8.2f}{cv:>6.2f}"
-        f"{cv_capped:>8.2f}{100 * (1 - capped / mean):>11.2f}"
+        f"{vein:<5}{top[vein]:>8.2f}{capping.caps_[vein]:>12.2f}"
+        f"{100 * removed[k]:>12.2f}{100 * capping.metal_removed_[vein]:>12.2f}"
     )
 
 # %% [markdown]
@@ -84,9 +84,9 @@ for name, c, n, mean, capped, cv, cv_capped in zip(*(report[k] for k in columns)
 # %%
 fig, axes = plt.subplots(1, len(veins), figsize=(11, 3.4), layout="constrained", sharey=True)
 for ax, vein in zip(axes, veins, strict=True):
-    keep = np.asarray(composites["VEIN"]) == vein
+    keep = quartz["VEIN"] == vein
     cs.plot.probability(
-        composites["AU_GPT"][keep],
+        quartz["AU_GPT"][keep],
         weights=weights[keep],
         log=True,
         cap=capping.caps_[vein],
@@ -105,11 +105,12 @@ save(fig, "probability")
 #
 # The capped grades feed the estimate as any other column. Blocks of 5 m inside the V1 solid are kriged from the
 # raw and from the capped composites of V1 with one variogram and search. The extreme channels no longer spread
-# their grade over their neighborhood: the blocks lose about as much metal as the declustered composites, 11 %,
-# almost all of it from blocks above 3 g/t, while the low-grade blocks stay on the diagonal.
+# their grade over their neighborhood: the richest blocks drop below the diagonal while the low-grade ones stay on
+# it. The blocks lose 6 % of their mean grade, against 10 % for the declustered composites: most blocks are
+# estimated from samples below the cap, which capping leaves unchanged.
 
 # %%
-v1 = composites.filter(np.asarray(composites["VEIN"]) == "V1")
+v1 = quartz.filter(quartz["VEIN"] == "V1")
 v1 = v1.with_column("AU_CAPPED", capping.transform("AU_GPT", domain_column="VEIN", data=v1))
 blocks = cs.BlockModel.from_extents(data["vein_V1"], size=(5.0, 5.0, 5.0))
 targets = blocks.centroids[data["vein_V1"].contains(blocks.centroids)]
@@ -139,13 +140,14 @@ save(fig, "kriged")
 # ## In a pipeline
 #
 # `Capping` has `fit`, `transform` and `fit_transform` like `NormalScore`, so the two chain: cap, then score, the
-# usual preparation for a Gaussian simulation. Fitted once, both apply to new samples: 50 and 500 g/t are both
-# capped, so they get the same score. The fitted caps round-trip through JSON and pickle.
+# usual preparation for a Gaussian simulation. Fitted once, both apply to new samples: 500 g/t is capped to
+# 77 g/t before scoring, so its score is that of the cap. The fitted caps round-trip through JSON and pickle.
 
 # %%
-capped = capping.fit_transform("AU_GPT", domain_column="VEIN", weights="w", data=v1)
+pipeline = cs.Capping(quantile=0.99)
+capped = pipeline.fit_transform("AU_GPT", domain_column="VEIN", weights="w", data=v1)
 scores = cs.NormalScore().fit(capped, weights=v1["w"])
 new = np.array([0.5, 5.0, 50.0, 500.0])
-print(scores.transform(capping.transform(new, domains=["V1"] * 4)).round(3))
-restored = cs.Capping.from_json(capping.to_json())
-print(restored.caps_ == capping.caps_)
+print(scores.transform(pipeline.transform(new, domains=["V1"] * 4)).round(3))
+restored = cs.Capping.from_json(pipeline.to_json())
+print(restored.caps_ == pipeline.caps_)
