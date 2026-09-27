@@ -1359,6 +1359,7 @@ def uncertain(
     extent=None,
     cmap=None,
     norm=None,
+    scheme=None,
     label=None,
     legend_ax=None,
     ax=None,
@@ -1392,8 +1393,11 @@ def uncertain(
         Default: matplotlib's ``image.cmap``.
     norm : Normalize, optional
         Maps values to [0, 1]; default spans their range.
+    scheme : Categories, optional
+        `values` are codes of these categories (e.g. the most likely one), drawn in their colors and keyed by a
+        legend instead of the fan; replaces `cmap` and `norm`.
     label : str, optional
-        Value name written under the legend.
+        Value name written under the legend, or its title with `scheme`.
     legend_ax : Axes, optional
         Where to draw the legend; default below `ax`.
     """
@@ -1406,8 +1410,16 @@ def uncertain(
         )
     values = np.asarray(values, dtype=float)
     cmap = mpl.colormaps[cmap or mpl.rcParams["image.cmap"]] if not callable(cmap) else cmap
+    if scheme is not None:
+        cmap, norm = category_colors(scheme)
     norm = norm or mpl.colors.Normalize(np.nanmin(values), np.nanmax(values))
     ax.imshow(_fade(values, np.asarray(uncertainty, dtype=float), cmap, norm), origin="lower", extent=extent)
+    if scheme is not None:
+        where = {"loc": "center"} if legend_ax else {"loc": "upper left", "bbox_to_anchor": (1.01, 1)}
+        category_legend(scheme, legend_ax or ax, title=label, **where)
+        if legend_ax:
+            legend_ax.axis("off")
+        return fig, ax
 
     fan = legend_ax or ax.inset_axes([0.2, -0.6, 0.6, 0.4])
     x, y = np.meshgrid(np.linspace(-1, 1, 201), np.linspace(0, 1, 101))
