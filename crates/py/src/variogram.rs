@@ -1,9 +1,12 @@
 use ceres_core::{Geometry, Layout};
+use numpy::IntoPyArray;
+use numpy::ndarray::Array3;
 use pyo3::prelude::*;
 use pyo3::types::{PyList, PyTuple};
 use serde::{Deserialize, Serialize};
 use transforms::dgm::{BlockDiscretization, block_average_correlation};
 use variogram::surface::{PlaneMapParams, plane_map};
+use variogram::volume::VolumeParams;
 use variogram::{
     Angles, Anisotropy, AnisotropySpec, Bounds, CoregStructure, Coregionalization as CoreCoreg,
     Direction, Estimator, Experimental, LagBins, Model, NestedSpec, Structure as CoreStructure,
@@ -1052,6 +1055,147 @@ fn matrix(
         .collect()
 }
 
+/// γ on a cube of lag vectors, and the principal axes of continuity.
+///
+/// Attributes
+/// ----------
+/// lags : ndarray
+///     Cell centers along each axis, symmetric about 0.
+/// gammas : ndarray
+///     ``(n, n, n)`` γ indexed ``[ix, iy, iz]`` by lag vector; NaN where a cell holds no pairs.
+/// counts : ndarray
+///     Pair counts, shaped like `gammas`.
+/// directions : ndarray
+///     ``(m, 2)`` azimuth and dip of each direction read.
+/// direction_ranges : ndarray
+///     Range in each direction, NaN where too few pairs or γ stayed under half the sill.
+/// rotation : tuple of float
+///     Azimuth and dip of the major axis and rake of the semi-major, for ``Variogram(rotation=...)``.
+/// axes : list of tuple
+///     Azimuth and dip (dip ≥ 0) of the major, semi-major and minor axes.
+/// ranges : tuple of float
+///     Major, semi-major and minor ranges.
+/// ratios : tuple of float
+///     Semi-major and minor over major range, for ``Variogram(ratios=...)``.
+#[pyclass(module = "ceres", name = "VariogramVolume", frozen)]
+pub struct VariogramVolume {
+    #[pyo3(get)]
+    lags: Py<PyAny>,
+    #[pyo3(get)]
+    gammas: Py<PyAny>,
+    #[pyo3(get)]
+    counts: Py<PyAny>,
+    #[pyo3(get)]
+    directions: Py<PyAny>,
+    #[pyo3(get)]
+    direction_ranges: Py<PyAny>,
+    #[pyo3(get)]
+    rotation: (f64, f64, f64),
+    #[pyo3(get)]
+    axes: Vec<(f64, f64)>,
+    #[pyo3(get)]
+    ranges: (f64, f64, f64),
+    #[pyo3(get)]
+    ratios: (f64, f64),
+}
+
+/// Experimental variogram over a cube of lag vectors, and its principal axes of continuity.
+///
+/// Pairs are binned by lag vector into cubic cells of side `lag` out to `max_lag` on each axis. The axes are
+/// read over `directions` near-uniform directions: `model` is fitted to the omnidirectional variogram, and in
+/// each direction the lag where γ reaches the nugget plus half the sill traces an ellipsoid, whose axes give
+/// the rotation and ratios. One structure fitted to every direction's variogram, stretched onto the major
+/// axis, sets the major range.
+///
+/// Parameters
+/// ----------
+/// coords : array_like, PointSet or BlockModel
+///     ``(n, 3)`` sample coordinates, or a container holding `values`.
+/// values : array_like or str
+///     Values, or a column name of `coords`.
+/// lag : float
+///     Cell size of the lag grid and lag width of each direction's variogram.
+/// max_lag : float
+///     Half-extent of the lag grid and longest lag read; at most 25 lags.
+/// tolerance : float, default 20.0
+///     Half-angle of the cone about each direction, in degrees.
+/// directions : int, default 200
+///     Directions read over the half-sphere; at least 9.
+/// model : str, default "spherical"
+///     Structure fitted to the variograms.
+/// estimator : str, default "matheron"
+///     As in `experimental_variogram`.
+///
+/// Returns
+/// -------
+/// VariogramVolume
+///     The cube and the principal axes; `rotation` and `ratios` go straight into `Variogram`.
+#[pyfunction]
+#[pyo3(signature = (coords, values, lag, max_lag, *, tolerance=20.0, directions=200, model="spherical", estimator="matheron"))]
+#[allow(clippy::too_many_arguments)]
+fn variogram_volume(
+    py: Python,
+    coords: &Bound<PyAny>,
+    values: &Bound<PyAny>,
+    lag: f64,
+    max_lag: f64,
+    tolerance: f64,
+    directions: usize,
+    model: &str,
+    estimator: &str,
+) -> PyResult<VariogramVolume> {
+    let (locs, values) = samples(coords, values, "values")?;
+    let params = VolumeParams {
+        bins: bins(lag, max_lag)?,
+        tolerance,
+        directions,
+        model: self::model(model, None, None)?,
+        estimator: self::estimator(estimator)?,
+        ..Default::default()
+    };
+    let v = py
+        .detach(|| variogram::variogram_volume(&locs, &values, &params))
+        .map_err(err)?;
+    let n = v.lags.len();
+    let cube = |values: Vec<f64>| {
+        Array3::from_shape_vec((n, n, n), values)
+            .expect("a cube of cells")
+            .into_pyarray(py)
+            .into_any()
+            .unbind()
+    };
+    let a = &v.angles;
+    let frame = ceres_core::rotation_matrix(a.azimuth, a.dip, a.rake);
+    let axes = frame
+        .row_iter()
+        .map(|row| {
+            let s = if row[2] > 0.0 { -1.0 } else { 1.0 };
+            variogram::azimuth_dip((s * row[0], s * row[1], s * row[2]))
+        })
+        .collect();
+    Ok(VariogramVolume {
+        lags: array1(py, v.lags.clone()).into_any().unbind(),
+        gammas: cube(v.gammas),
+        counts: cube(v.counts.iter().map(|&c| c as f64).collect()),
+        directions: array2(
+            py,
+            &v.directions
+                .iter()
+                .map(|&(az, dip)| vec![az, dip])
+                .collect::<Vec<_>>(),
+        )
+        .into_any()
+        .unbind(),
+        direction_ranges: array1(py, v.ranges.iter().map(|r| r.unwrap_or(f64::NAN)).collect())
+            .into_any()
+            .unbind(),
+        rotation: (a.azimuth, a.dip, a.rake),
+        axes,
+        ranges: (a.major, a.semi, a.minor),
+        ratios: (a.semi / a.major, a.minor / a.major),
+    })
+}
+
 /// Linear model of coregionalization: `nugget` and each structure's `sills`
 /// are symmetric positive semi-definite `nvar × nvar` matrices, else
 /// InvalidInput is raised. `rotation` and `ratios` are as in `Variogram`.
@@ -1353,12 +1497,14 @@ pub fn register(m: &Bound<PyModule>) -> PyResult<()> {
     m.add_class::<ExperimentalVariogram>()?;
     m.add_class::<VariogramSet>()?;
     m.add_class::<VariogramMap>()?;
+    m.add_class::<VariogramVolume>()?;
     m.add_class::<Coregionalization>()?;
     m.add_class::<Transiogram>()?;
     m.add_function(wrap_pyfunction!(experimental_variogram, m)?)?;
     m.add_function(wrap_pyfunction!(experimental_variograms, m)?)?;
     m.add_function(wrap_pyfunction!(_realization_variograms, m)?)?;
     m.add_function(wrap_pyfunction!(variogram_map, m)?)?;
+    m.add_function(wrap_pyfunction!(variogram_volume, m)?)?;
     m.add_function(wrap_pyfunction!(experimental_transiogram, m)?)?;
     m.add_function(wrap_pyfunction!(change_of_support, m)?)?;
     m.add_function(wrap_pyfunction!(block_correlation, m)?)?;

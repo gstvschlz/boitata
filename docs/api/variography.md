@@ -16,6 +16,10 @@
 
 ::: ceres.variogram_map
 
+::: ceres.VariogramVolume
+
+::: ceres.variogram_volume
+
 ::: ceres.Coregionalization
 
 ::: ceres.Transiogram

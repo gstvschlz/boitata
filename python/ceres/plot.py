@@ -43,6 +43,7 @@ __all__ = [
     "uncertain",
     "variogram",
     "variogram_reproduction",
+    "variogram_volume",
     "variograms",
 ]
 
@@ -593,6 +594,59 @@ def correlation_reproduction(check, *, band=(0.0, 1.0), ax=None, **kwargs):
     ax.set_ylim(-1, 1)
     ax.set_ylabel("Correlation")
     ax.legend()
+    return fig, ax
+
+
+def _principal(rotation):
+    """Rows: major, semi-major and minor unit vectors (East, North, Up) of ``(azimuth, dip, rake)``."""
+    (sa, ca), (sd, cd), (sr, cr) = ((np.sin(t), np.cos(t)) for t in np.radians(rotation))
+    r1 = np.array([[sa, ca, 0], [-ca, sa, 0], [0, 0, 1]])
+    r2 = np.array([[cd, 0, -sd], [0, 1, 0], [sd, 0, cd]])
+    r3 = np.array([[1, 0, 0], [0, cr, sr], [0, -sr, cr]])
+    return r3 @ r2 @ r1
+
+
+def variogram_volume(volume, *, plane="major-semi", ellipse=True, ax=None, **kwargs):
+    """Slice of a variogram volume through two of its principal axes, with the range ellipse.
+
+    Parameters
+    ----------
+    volume : VariogramVolume
+    plane : {"major-semi", "major-minor", "semi-minor"}
+        Principal axes spanning the slice, drawn along x and y.
+    ellipse : bool
+        Draw the range ellipse and the two axes.
+    **kwargs
+        Passed to ``ax.pcolormesh`` (e.g. ``cmap``, ``vmax``).
+    """
+    names = ("major", "semi", "minor")
+    pair = plane.split("-")
+    if len(pair) != 2 or not set(pair) <= set(names) or pair[0] == pair[1]:
+        raise InvalidInput(f"plane must be two of {names} joined by '-', got {plane!r}")
+    i, j = (names.index(p) for p in pair)
+    axes = _principal(volume.rotation)
+    lags = np.asarray(volume.lags)
+    gammas = np.asarray(volume.gammas)
+    n, width = lags.size, lags[1] - lags[0]
+    s, t = np.meshgrid(lags, lags)
+    cell = np.rint((s[..., None] * axes[i] + t[..., None] * axes[j]) / width).astype(int) + n // 2
+    inside = np.all((cell >= 0) & (cell < n), axis=-1)
+    image = np.full(s.shape, np.nan)
+    image[inside] = gammas[tuple(cell[inside].T)]
+    fig, ax = _axes(ax)
+    kwargs.setdefault("shading", "nearest")
+    ax.pcolormesh(lags, lags, image, **kwargs)
+    if ellipse:
+        a, b = volume.ranges[i], volume.ranges[j]
+        angle = np.linspace(0, 2 * np.pi, 181)
+        ax.plot(a * np.cos(angle), b * np.sin(angle), color="white", lw=1.2)
+        ax.plot([-a, a], [0, 0], color="white", lw=0.8)
+        ax.plot([0, 0], [-b, b], color="white", lw=0.8, ls="--")
+    ax.set_aspect("equal")
+    ax.set_xlim(lags[0], lags[-1])
+    ax.set_ylim(lags[0], lags[-1])
+    ax.set_xlabel(f"Lag along {pair[0]} axis")
+    ax.set_ylabel(f"Lag along {pair[1]} axis")
     return fig, ax
 
 

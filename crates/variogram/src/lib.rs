@@ -10,6 +10,7 @@
 //! - [`fit`]    — automatic model fitting by weighted least squares
 //! - [`surface`] — γ on a cut plane (variogram maps)
 //! - [`transio`] — transiograms for categorical / facies variables
+//! - [`volume`] — γ on a 3D grid of lag vectors and the principal axes of continuity
 
 pub mod aniso;
 pub mod composite;
@@ -20,6 +21,7 @@ pub mod fit;
 pub mod model;
 pub mod surface;
 pub mod transio;
+pub mod volume;
 
 pub use aniso::{Angles, Anisotropy};
 pub use composite::Variogram;
@@ -36,3 +38,4 @@ pub use fit::{
 pub use model::{Model, Structure, is_differentiable, shape, shape_d1, shape_d2};
 pub use surface::{PlaneMap, PlaneMapParams, azimuth_dip, plane_map, unit_vector};
 pub use transio::{EmpiricalTransiogram, Transiogram, empirical_transiogram};
+pub use volume::{VariogramVolume, VolumeParams, variogram_volume};
