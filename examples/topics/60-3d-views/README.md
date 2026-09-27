@@ -42,7 +42,7 @@ zinc, the others left gray.
 ```python
 data = cs.datasets.stacked_sulphide_lenses()
 holes = cs.Drillholes(data["collars"], data["surveys"], data["assays"])
-lenses = [data[f"lens_{i}"].repair(tolerance=1e-3) for i in (1, 2, 3)]
+lenses = [data[f"lens_{i}"] for i in (1, 2, 3)]
 composites = holes.composite(2.0, ["ZN_PCT"])
 composites = composites.filter(~np.isnan(composites["ZN_PCT"]))
 ore = np.any([lens.contains(composites.coords) for lens in lenses], axis=0)

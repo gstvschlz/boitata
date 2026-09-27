@@ -38,7 +38,7 @@ composites = holes.composite(6.0, ["FE_PCT"])
 row = model.row_at(composites.coords)
 keep = (row >= 0) & ~np.isnan(composites["FE_PCT"])
 xyz, fe, domain = composites.coords[keep], composites["FE_PCT"][keep], coded[row[keep]]
-hole = np.asarray(composites["hole"], dtype=object)[keep]
+hole = np.asarray(composites["HOLE_ID"], dtype=object)[keep]
 for name in ("hematite", "itabirite"):
     inside = domain == name
     count = len(model.mask(model["domain"] == name))
@@ -150,7 +150,7 @@ print(f"output {(folder / 'simulated.parquet').stat().st_size / 1e6:.0f} MB")
 
 ```text
 residual scores: nugget 0.36, range 35 m
-10 realizations in 102 s; blocks above 60 % Fe: P10 21.7%, P90 22.3%
+10 realizations in 52 s; blocks above 60 % Fe: P10 21.7%, P90 22.3%
 output 61 MB
 ```
 
@@ -182,7 +182,7 @@ print(f"{len(model):,} blocks of 25 m in {seconds:.0f} s; above 60 % Fe: P10 {lo
 </details>
 
 ```text
-47,660 blocks of 25 m in 59 s; above 60 % Fe: P10 15.9%, P90 16.7%
+47,660 blocks of 25 m in 44 s; above 60 % Fe: P10 15.9%, P90 16.7%
 ```
 
 Averaging smooths the highs: about 16 % of the 25 m blocks pass 60 % Fe, against 22 % of the 5 m blocks.
