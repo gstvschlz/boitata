@@ -39,7 +39,7 @@ def profile(points, values):
         holes="HOLE_ID",
         inside="SAP",
         outside="LIM",
-        max_distance=6.5,
+        max_distance=7.0,
         bin=1,
     )
 
@@ -62,7 +62,7 @@ ax.set(
 save(fig, "contact")
 
 # %% [markdown]
-# `LIM` is flat up to the contact. `SAP` loses grade steadily toward it, from 1.83 % Ni 6 m below to 1.32 % in the
+# `LIM` is flat up to the contact. `SAP` loses grade steadily toward it, from 1.86 % Ni 6 to 7 m below to 1.32 % in the
 # last meter, and the step at the contact itself is small: the boundary is gradational on the saprolite side.
 #
 # One normal-score variogram serves both horizons: each is scored on its own, then the scores are pooled. The nugget

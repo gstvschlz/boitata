@@ -95,6 +95,10 @@ def test_contact_signs_distance_by_side():
     assert c.column_names == ["distance", "mean", "n"]
     assert c["n"].sum() == 40
     np.testing.assert_array_equal(c["mean"], np.where(c["distance"] < 0, 3.0, 1.0))
+    edge = cs.contact(
+        coords, values, domains=domains, holes=holes, inside="ore", outside="waste", max_distance=8.0, bin=1.0
+    )
+    assert edge["n"].sum() == 32 and np.abs(edge["distance"]).max() == 7.5
     with pytest.raises(cs.InvalidInput):
         cs.contact(
             coords,

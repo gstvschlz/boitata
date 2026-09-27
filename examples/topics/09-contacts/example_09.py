@@ -38,7 +38,7 @@ tables = {
         holes="HOLE_ID",
         inside=inside,
         outside=outside,
-        max_distance=6.5,
+        max_distance=8.0,
         bin=1.0,
     )
     for grade in ["NI_PCT", "CO_PCT"]
