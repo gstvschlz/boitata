@@ -60,6 +60,68 @@ def test_normal_score_requires_fit():
         cs.NormalScore().transform([1.0])
 
 
+def test_kernel_density_reference_keeps_bounds_and_mean(skewed):
+    w = rng.uniform(0.5, 2.0, skewed.size)
+    free = cs.KernelDensity(bandwidth="scott").fit(skewed, weights=w)
+    x = np.linspace(-10, 40, 200_001)
+    f = free.pdf(x)
+    assert np.trapezoid(f, x) == pytest.approx(1.0, abs=1e-6)
+    assert np.trapezoid(x * f, x) == pytest.approx(np.average(skewed, weights=w), rel=1e-6)
+    bounded = cs.KernelDensity(lower=0.0).fit("v", weights="w", data={"v": skewed, "w": w})
+    logged = cs.KernelDensity(log=True, bandwidth=0.2).fit(skewed)
+    for kde in (bounded, logged):
+        assert kde.pdf([-1.0, -1e-9]).max() == 0.0
+        draws = kde.sample(10_000, seed=3)
+        assert draws.min() >= 0.0
+        np.testing.assert_array_equal(draws, kde.sample(10_000, seed=3))
+        ns = cs.NormalScore(reference=kde)
+        y = ns.fit_transform(skewed)
+        np.testing.assert_allclose(ns.inverse_transform(y), skewed, rtol=1e-9)
+        assert ns.inverse_transform([-9.0])[0] >= 0.0
+    np.testing.assert_allclose(logged.cdf(logged.quantile([0.1, 0.9])), [0.1, 0.9], atol=1e-9)
+    with pytest.raises(cs.InvalidInput):
+        cs.NormalScore(reference=logged).fit(skewed, weights=w)
+    with pytest.raises(cs.InvalidInput):
+        cs.KernelDensity(bandwidth="wide")
+    with pytest.raises(cs.InvalidInput):
+        cs.NormalScore(reference=cs.KernelDensity())
+
+
+def test_gaussian_mixture_recovers_components_and_picks_their_count():
+    a = rng.multivariate_normal([-4.0, 2.0], [[1.0, 0.6], [0.6, 1.0]], 600)
+    b = rng.multivariate_normal([3.0, -1.0], [[0.25, 0.0], [0.0, 0.25]], 1400)
+    data = np.vstack([a, b])
+    gm = cs.GaussianMixture(seed=1).fit(data)
+    assert list(gm.bic_) == [1, 2, 3, 4, 5, 6] and min(gm.bic_, key=gm.bic_.get) == 2
+    order = np.argsort(gm.means_[:, 0])
+    np.testing.assert_allclose(gm.proportions_[order], [0.3, 0.7], atol=0.02)
+    np.testing.assert_allclose(gm.means_[order], [[-4.0, 2.0], [3.0, -1.0]], atol=0.12)
+    assert gm.covariances_.shape == (2, 2, 2)
+    assert (gm.predict(data[:600]) == order[0]).mean() > 0.99
+    again = cs.GaussianMixture(seed=1).fit(data)
+    np.testing.assert_array_equal(gm.means_, again.means_)
+    np.testing.assert_array_equal(gm.sample(50, seed=2), again.sample(50, seed=2))
+    one = cs.GaussianMixture(components=2).fit(data[:, 0])
+    assert one.sample(10).shape == (10, 1)
+    y = cs.NormalScore(reference=one).fit_transform(data[:, 0])
+    assert abs(y.mean()) < 0.05
+    with pytest.raises(cs.InvalidInput):
+        cs.NormalScore(reference=gm)
+
+
+def test_gaussian_imputer_with_a_mixture_keeps_the_empty_corner_empty():
+    z = rng.standard_normal((3000, 2))
+    arm = np.arange(3000)[:, None] % 2 == 0
+    full = np.exp(np.where(arm, [2.0, -1.0] + z * [0.8, 0.3], [-1.0, 2.0] + z * [0.3, 0.8]))
+    holed = full.copy()
+    holed[::3, 1] = np.nan
+    corner = {
+        k: np.mean(np.all(cs.GaussianImputer(components=k, seed=0).fit_transform(holed)[::3] > 1.5, axis=1))
+        for k in (1, None)
+    }
+    assert corner[None] < 0.5 * corner[1]
+
+
 def test_hermite_anamorphosis_moments_and_support(skewed):
     anam = cs.HermiteAnamorphosis(degree=40).fit(skewed)
     assert anam.mean_ == pytest.approx(skewed.mean(), rel=1e-6)

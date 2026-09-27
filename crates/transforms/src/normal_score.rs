@@ -6,6 +6,7 @@
 
 use crate::error::{Result, TransformError};
 use crate::normal::{phi, probit};
+use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 
 /// A monotone data↔score mapping table (sorted by data value).
@@ -83,6 +84,55 @@ pub fn transform(values: &[f64], weights: Option<&[f64]>) -> Result<NormalScore>
             scores: table_scores,
         },
     })
+}
+
+/// A continuous distribution to take normal scores against, in place of the
+/// empirical CDF of the data.
+pub trait Reference: Sync {
+    /// Value at cumulative probability `p` in (0, 1).
+    fn quantile(&self, p: f64) -> f64;
+    /// Lowest and highest possible values, infinite when unbounded.
+    fn support(&self) -> (f64, f64);
+}
+
+/// Transform through the quantiles of `reference` at scores -5 to 5 in steps
+/// of 0.025; the tails reach its bounds, or stop at the last quantiles.
+pub fn from_reference(values: &[f64], reference: &impl Reference) -> NormalScore {
+    let scores: Vec<f64> = (0..=400).map(|j| -5.0 + 0.025 * j as f64).collect();
+    let quantiles: Vec<f64> = scores
+        .par_iter()
+        .map(|&z| reference.quantile(phi(z)))
+        .collect();
+    let (lo, hi) = reference.support();
+    let tails = (
+        if lo.is_finite() { lo } else { quantiles[0] },
+        if hi.is_finite() { hi } else { quantiles[400] },
+    );
+    let table = NormalScoreTable {
+        values: quantiles,
+        scores,
+        tails,
+    };
+    NormalScore {
+        scores: values.iter().map(|&v| table.forward(v)).collect(),
+        table,
+    }
+}
+
+/// The `x` in `[lo, hi]` where the increasing `cdf` reaches `p`, by bisection.
+pub(crate) fn invert(cdf: impl Fn(f64) -> f64, mut lo: f64, mut hi: f64, p: f64) -> f64 {
+    for _ in 0..200 {
+        let mid = 0.5 * (lo + hi);
+        if mid <= lo || mid >= hi {
+            break;
+        }
+        if cdf(mid) < p {
+            lo = mid;
+        } else {
+            hi = mid;
+        }
+    }
+    0.5 * (lo + hi)
 }
 
 impl NormalScoreTable {

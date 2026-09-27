@@ -17,7 +17,9 @@ pub mod dgm;
 pub mod error;
 pub mod hermite;
 pub mod impute;
+pub mod kernel_density;
 pub mod localize;
+pub mod mixture;
 pub mod normal;
 pub mod normal_score;
 pub mod pca;
@@ -40,8 +42,12 @@ pub use detrend::{KernelTrend, Trend, detrend};
 pub use dgm::{BlockDiscretization, change_of_support};
 pub use error::{Result, TransformError};
 pub use impute::GaussianImputer;
+pub use kernel_density::{Bandwidth, KernelDensity};
+pub use mixture::GaussianMixture;
 pub use normal::{phi, probit};
-pub use normal_score::{NormalScore, NormalScoreTable, transform as normal_score};
+pub use normal_score::{
+    NormalScore, NormalScoreTable, Reference, from_reference, transform as normal_score,
+};
 pub use pca::{Maf, Pca};
 pub use ppmt::{Ppmt, PpmtParams};
 pub use scale::{CoarseBlock, downscale, upscale};

@@ -179,6 +179,8 @@ def fits():
         (cs.MAF(lag=1.0, tolerance=0.01), (rng.normal(size=(64, 2)), grid)),
         (cs.StepwiseConditional(classes=3), (table,)),
         (cs.GaussianImputer(), (table,)),
+        (cs.KernelDensity(), (values,)),
+        (cs.GaussianMixture(components=2), (table,)),
     ]
 
 

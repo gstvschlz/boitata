@@ -18,6 +18,10 @@
 
 ::: ceres.GaussianImputer
 
+::: ceres.KernelDensity
+
+::: ceres.GaussianMixture
+
 ::: ceres.UniformConditioning
 
 ::: ceres.Trend
