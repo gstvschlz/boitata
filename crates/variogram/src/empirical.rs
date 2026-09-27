@@ -509,9 +509,9 @@ where
 /// The pairs of grid cells, by index offset. An offset `(di, dj, dk)` after
 /// `(0, 0, 0)` in z-, y-, x-major order always leads to a later cell, so its
 /// pairs are each tail with the head that far on, as in the point sweep. Work
-/// is split into a fixed list of (offset, block of grid lines) tasks whose
-/// partial sums merge in list order: the result does not depend on the
-/// thread count.
+/// is split into a fixed list of (offset, block of grid lines) tasks dealt
+/// to a fixed number of chunks whose partial sums merge in chunk order: the
+/// result does not depend on the thread count.
 fn grid_sweep<F>(
     geometry: &Geometry,
     cells: &[u64],
@@ -554,39 +554,47 @@ where
         slot
     });
     let blocks = ((ny * nz) as usize).div_ceil(LINES as usize);
-    let partials: Vec<(Moments, usize)> = (0..offsets.len() * blocks)
+    let tasks = offsets.len() * blocks;
+    // As in the point sweep: a fixed number of chunks, each taking every
+    // N_CHUNKS-th task, merged in chunk order.
+    const N_CHUNKS: usize = 64;
+    let partials: Vec<(Vec<Moments>, Vec<usize>)> = (0..N_CHUNKS)
         .into_par_iter()
-        .map(|task| {
-            let ([di, dj, dk], _, side) = offsets[task / blocks];
-            let first = (task % blocks) as i64 * LINES;
-            let shift = di + nx * (dj + ny * dk);
-            let (mut sum, mut n) = ([0.0f64; 8], 0);
-            for line in first..(first + LINES).min(ny * nz) {
-                let (j, k) = (line % ny, line / ny);
-                if !(0..ny).contains(&(j + dj)) || !(0..nz).contains(&(k + dk)) {
-                    continue;
-                }
-                for i in (-di).max(0)..nx - di.max(0) {
-                    let tail = (i + nx * line) as usize;
-                    let head = (tail as i64 + shift) as usize;
-                    let (tail, head) = match &slot {
-                        None => (tail, head),
-                        Some(s) if s[tail] == u32::MAX || s[head] == u32::MAX => continue,
-                        Some(s) => (s[tail] as usize, s[head] as usize),
-                    };
-                    add(&mut sum, &terms(tail, head, side));
-                    n += 1;
+        .map(|chunk| {
+            let mut sums = vec![[0.0f64; 8]; n_bins];
+            let mut counts = vec![0usize; n_bins];
+            for task in (chunk..tasks).step_by(N_CHUNKS) {
+                let ([di, dj, dk], bin, side) = offsets[task / blocks];
+                let first = (task % blocks) as i64 * LINES;
+                let shift = di + nx * (dj + ny * dk);
+                for line in first..(first + LINES).min(ny * nz) {
+                    let (j, k) = (line % ny, line / ny);
+                    if !(0..ny).contains(&(j + dj)) || !(0..nz).contains(&(k + dk)) {
+                        continue;
+                    }
+                    for i in (-di).max(0)..nx - di.max(0) {
+                        let tail = (i + nx * line) as usize;
+                        let head = (tail as i64 + shift) as usize;
+                        let (tail, head) = match &slot {
+                            None => (tail, head),
+                            Some(s) if s[tail] == u32::MAX || s[head] == u32::MAX => continue,
+                            Some(s) => (s[tail] as usize, s[head] as usize),
+                        };
+                        add(&mut sums[bin], &terms(tail, head, side));
+                        counts[bin] += 1;
+                    }
                 }
             }
-            (sum, n)
+            (sums, counts)
         })
         .collect();
     let mut sums = vec![[0.0f64; 8]; n_bins];
     let mut counts = vec![0usize; n_bins];
-    for (task, (sum, n)) in partials.iter().enumerate() {
-        let bin = offsets[task / blocks].1;
-        add(&mut sums[bin], sum);
-        counts[bin] += n;
+    for (chunk_sums, chunk_counts) in &partials {
+        for b in 0..n_bins {
+            add(&mut sums[b], &chunk_sums[b]);
+            counts[b] += chunk_counts[b];
+        }
     }
     (sums, counts)
 }
