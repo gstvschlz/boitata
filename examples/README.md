@@ -115,6 +115,7 @@ Tutorials follow one deposit from data to a result; topics show one feature each
 | 87 | [External drift kriging](topics/87-external-drift-kriging/README.md) | Soil geochemistry survey | `experimental_variogram`, `Search`, `OrdinaryKriging`, `ExternalDriftKriging` |
 | 88 | [Stepped sections](topics/88-stepped-sections/README.md) | Stacked sulphide lenses | `merge_intervals`, `Drillholes`, `Variogram`, `Search`, `BlockModel`, `OrdinaryKriging`, `plot.section`, `plot.fence` |
 | 89 | [Hole traces with deviation flags](topics/89-hole-traces/README.md) | Stacked sulphide lenses | `check_drillholes`, `Drillholes`, `plot.holes` |
+| 90 | [Along-hole transition matrix and MDS](topics/90-transition-matrix-mds/README.md) | Stacked sulphide lenses | `merge_intervals`, `Drillholes`, `Categories`, `transition_matrix`, `plot.domain_change`, `plot.transition_mds` |
 
 Each page alternates text, collapsed Python and its results. `mise run examples` reruns every script
 and rewrites the pages; `cs.datasets` downloads the data once and caches it. `render.py --index` writes this file.

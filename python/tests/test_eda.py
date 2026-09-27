@@ -367,3 +367,27 @@ def test_domain_change_margins_and_metal():
     assert np.isclose(np.sum(cs.domain_change("old", "new", scheme=scheme, data=points)["tonnage"]), 400)
     with pytest.raises(cs.InvalidInput):
         cs.domain_change(before + 3, after, scheme=scheme)
+
+
+def test_transition_matrix_counts_and_frequency():
+    depth = np.tile(np.arange(5, dtype=float), 2)
+    categories = np.tile([0, 0, 1, 1, 2], 2)
+    holes = np.repeat([0, 1], 5)
+    scheme = cs.Categories(["a", "b", "c"])
+    t = cs.transition_matrix(depth, categories, holes, lag=1.0, scheme=scheme)
+    assert t.column_names == ["from", "to", "count", "frequency"]
+    assert list(t["from"])[:3] == ["a", "a", "a"] and list(t["to"])[:3] == ["a", "b", "c"]
+    counts = np.asarray(t["count"]).reshape(3, 3)
+    np.testing.assert_array_equal(counts, [[2, 2, 0], [0, 2, 2], [0, 0, 0]])
+    freq = np.asarray(t["frequency"]).reshape(3, 3)
+    np.testing.assert_allclose(freq[:2], counts[:2] / counts[:2].sum(axis=1, keepdims=True))
+    assert np.isnan(freq[2]).all()
+    labels = cs.transition_matrix(depth, scheme.decode(categories), holes, lag=1.0)
+    np.testing.assert_array_equal(np.asarray(labels["count"]), counts.ravel())
+    data = {"depth": depth, "lith": categories, "hole": holes}
+    same = cs.transition_matrix("depth", "lith", "hole", lag=1.0, scheme=scheme, data=data)
+    np.testing.assert_array_equal(np.asarray(same["count"]), counts.ravel())
+    with pytest.raises(cs.InvalidInput):
+        cs.transition_matrix(depth, categories, holes, lag=0.0, scheme=scheme)
+    with pytest.raises(cs.InvalidInput):
+        cs.transition_matrix(depth, categories + 3, holes, lag=1.0, scheme=scheme)

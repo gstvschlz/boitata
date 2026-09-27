@@ -36,6 +36,8 @@
 
 ::: ceres.domain_change
 
+::: ceres.transition_matrix
+
 ::: ceres.hole_distance
 
 ::: ceres.classify
