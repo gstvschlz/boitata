@@ -19,7 +19,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from common import ACCENT, GRAY, INK, save
 
-data = cs.datasets.geomet()
+data = cs.datasets.porphyry_geometallurgy(deposit=1)["synthetic_drillholes"]
 minerals = ["arcilla", "calcosina", "bornita", "calcopirita", "tenantita", "molibdenita", "pirita"]
 names = ["clay", "chalcocite", "bornite", "chalcopyrite", "tennantite", "molybdenite", "pyrite", "rest"]
 parts = np.column_stack([data[m] for m in minerals])
