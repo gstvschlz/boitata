@@ -221,7 +221,7 @@ pub fn signed_distance_to(mesh: &Mesh, point: &(f64, f64, f64)) -> Result<f64> {
 
 /// Signed vertical distance from each point to a surface such as topography:
 /// the point's z minus the surface elevation at its (x, y), positive above.
-/// NaN where no triangle covers the point in plan. Where the surface overlaps
+/// NaN where a coordinate is NaN or no triangle covers the point in plan. Where the surface overlaps
 /// itself in plan, the highest elevation counts.
 pub fn vertical_distance(mesh: &Mesh, points: &[(f64, f64, f64)]) -> Result<Vec<f64>> {
     let surface = Surface::new(mesh)?;
@@ -510,6 +510,10 @@ mod tests {
         }
         let outside = vertical_distance(&mesh, &[(-1.0, 50.0, 0.0), (50.0, 100.5, 0.0)]).unwrap();
         assert!(outside.iter().all(|d| d.is_nan()));
+        let nan = f64::NAN;
+        let missing = [(nan, 50.0, 0.0), (50.0, nan, 0.0), (50.0, 50.0, nan)];
+        let missing = vertical_distance(&mesh, &missing).unwrap();
+        assert!(missing.iter().all(|d| d.is_nan()));
     }
 
     #[test]

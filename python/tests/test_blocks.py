@@ -33,6 +33,8 @@ def test_vertical_distance_to_a_tilted_plane():
         surface.vertical_distance(pts), pts[:, 2] - plane(pts[:, 0], pts[:, 1]), atol=1e-9
     )
     assert np.isnan(surface.vertical_distance([[11, 5, 0]])).all()
+    d = surface.vertical_distance([[np.nan, 5, 0], [5, 5, np.nan], [5, 5, 4]])
+    np.testing.assert_array_equal(np.isnan(d), [True, True, False])
     grid = cs.BlockModel(origin=(0, 0, 0), size=(5, 5, 5), count=(2, 2, 2))
     assert surface.vertical_distance(grid).shape == (8,)
 
@@ -114,8 +116,15 @@ def test_polygon_with_a_hole():
 
 def test_assign_domain_nearest_and_solid():
     labels, confidence = cs.assign_domain([[1, 1, 0]], coords=[[0, 0, 0], [9, 9, 0]], domains=["ox", "fr"])
-    assert 0 <= confidence[0] <= 1
-    assert labels == ["ox"]
+    assert labels == ["ox"] and confidence[0] == 0.5
+    coords = [[1, 0, 0], [2, 0, 0], [3, 0, 0], [4, 0, 0], [5, 0, 0], [6, 0, 0]]
+    domains = ["z", "a", "a", "z", "c", "a"]
+    labels, confidence = cs.assign_domain([[0, 0, 0]], coords=coords, domains=domains, method="majority")
+    assert labels == ["z"] and confidence[0] == pytest.approx(0.4)
+    labels, confidence = cs.assign_domain([[0, 0, 0]], coords=coords, domains=domains, method="majority", n=3)
+    assert labels == ["a"] and confidence[0] == pytest.approx(2 / 3)
+    with pytest.raises(cs.InvalidInput):
+        cs.assign_domain([[0, 0, 0]], coords=coords, domains=domains, n=0)
     labels, _ = cs.assign_domain([[5, 5, 5], [20, 5, 5]], method="solid", mesh=cube)
     assert labels[0] != labels[1]
 

@@ -93,7 +93,7 @@ holes from the boundary: 0.1 to 3775 m, 23 within 200 m
 
 `assign_domain` gives each target the domain of its nearest sample, read from the `domain_column` of the holes.
 Here the targets are the cells in the lease and the domain is the mining method; labels come back as a list, with
-a confidence per target (always 1 for the nearest sample).
+a confidence per target: the share of the `n` nearest holes (5 by default) that carry its label.
 
 <details><summary>Python</summary>
 
@@ -130,6 +130,49 @@ UNECONOMIC:   3.4% of the lease,   2.0% of the holes
 
 `MECHANIZED` holes are 81.0 % of the holes but their domain covers 69.7 % of the lease: the infill was drilled
 where the seam is thick. Counting cells, not holes, declusters the shares.
+
+## Majority vote
+
+`method="majority"` takes the most frequent label among the `n` nearest holes instead; a tie goes to the label of
+the nearest hole. A lone hole among holes of another method no longer claims its own patch.
+
+<details><summary>Python</summary>
+
+```python
+majority, agreement = cs.assign_domain(cells, coords=holes, domain_column="CATEGORY", method="majority")
+changed = np.array(labels) != np.array(majority)
+print(f"{changed.sum()} of {len(cells)} cells change label ({changed.mean():.1%})")
+print(f"mean confidence: nearest {confidence.mean():.2f}, majority {agreement.mean():.2f}")
+for name, share in zip(methods.names, methods.shares(methods.encode(majority)), strict=True):
+    print(f"{name:>10}: {share:6.1%} of the lease")
+
+fig, (a, b) = plt.subplots(1, 2, figsize=(10, 3.8), sharey=True, layout="constrained")
+cs.plot.section(cells, methods.encode(majority), scheme=methods, colorbar=False, ax=a)
+outline(a, lease, color=GRAY, lw=1)
+map_axes(a, "Majority of the 5 nearest holes")
+cs.plot.section(cells, changed.astype(float), ax=b, colorbar=False, cmap="Greys", vmin=0, vmax=2)
+outline(b, lease, color=GRAY, lw=1)
+b.scatter(*xy.T, c=logged, cmap=cmap, norm=norm, s=6, edgecolors=INK, linewidths=0.3)
+map_axes(b, "Cells that differ from the nearest hole")
+b.set_ylabel("")
+save(fig, "majority")
+```
+
+</details>
+
+```text
+1314 of 7162 cells change label (18.3%)
+mean confidence: nearest 0.75, majority 0.81
+MECHANIZED:  80.4% of the lease
+ SELECTIVE:  18.8% of the lease
+UNECONOMIC:   0.7% of the lease
+```
+
+![majority](majority.png)
+
+The changed cells sit around isolated `SELECTIVE` holes, now outvoted by their `MECHANIZED` neighbors, and
+`MECHANIZED` grows from 69.7 % to 80.4 % of the lease. Majority smooths the map but gives back the declustering:
+where the drilling is dense, one method wins most votes.
 
 ## A polygon with a hole
 
