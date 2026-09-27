@@ -1,7 +1,13 @@
+import logging
 import re
 
 CHAPTER = re.compile(r"\]\(((?:\.\./)+((?:tutorials|topics)/)?(\d\d)-[\w-]+)/README\.md\)")
 SOURCE = re.compile(r"\]\((?:\.\./)+common\.py\)")
+
+# Tutorials and topics share example_NN.py names; each page builds in its own folder, so nothing collides.
+logging.getLogger("mkdocs.plugins.mkdocs-gallery").addFilter(
+    lambda record: not record.getMessage().startswith("Duplicate example file name")
+)
 
 
 def on_page_markdown(markdown, page, **kwargs):

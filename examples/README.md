@@ -14,7 +14,9 @@ Tutorials follow one deposit from data to a result; topics show one feature each
 | # | Topic | Dataset | Covers |
 |---|---|---|---|
 | | **Data** | | |
-| 3 | [Drillholes](topics/03-compositing/README.md) | Drillholes (legacy) | `check_drillholes`, `fix_drillholes`, `merge_intervals`, `Drillholes`, `plot.slab`, `plot.boxplot` |
+| 1 | [Checking drill holes](topics/01-check-drillholes/README.md) | Stacked sulphide lenses | `check_drillholes`, `Table`, `fix_drillholes`, `Drillholes` |
+| 2 | [Desurveying drill holes](topics/02-desurvey/README.md) | Stacked sulphide lenses | `Drillholes`, `Table` |
+| 3 | [Compositing](topics/03-compositing/README.md) | Stacked sulphide lenses | `merge_intervals`, `Drillholes` |
 | 7 | [Data and declustering](topics/07-declustering/README.md) | Walker Lake | `cell_declustering`, `plot.declustering` |
 | 13 | [Exploratory data analysis](topics/13-correlations/README.md) | Drillholes (legacy) | `check_drillholes`, `fix_drillholes`, `merge_intervals`, `Drillholes`, `duplicates`, `pairs`, `paired_bias`, `plot.paired_bias`, `plot.qq`, `plot.scatter`, `cell_declustering`, `describe_by`, `plot.boxplot`, `plot.cdf`, `capping`, `plot.probability`, `capping_report`, `grade_tonnage`, `contact`, `swath`, `plot.swath`, `Categories`, `plot.proportions`, `plot.category_swath`, `data_spacing`, `plot.histogram`, `h_scatter`, `plot.scatter_matrix`, `plot.completeness`, `plot.correlation`, `plot.conditional` |
 | | **Transforms** | | |
