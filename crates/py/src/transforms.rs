@@ -1405,8 +1405,10 @@ pub fn declustering(w: Weights, sizes: Vec<f64>, means: Vec<f64>) -> Declusterin
 
 /// Cell declustering. Without `cell_size`, scans `sizes` (default: 30 sizes up
 /// to half the largest extent), each averaged over `offsets` grid origins, and
-/// keeps the size with the lowest mean (`minimize=False`: highest). `values`
-/// may name a column of `coords`.
+/// keeps the size with the lowest mean (`minimize=False`: highest). The weights
+/// are averaged over the same `offsets` origins, so they sum to the number of
+/// samples and `mean` equals `means` at the kept size. `values` may name a
+/// column of `coords`.
 #[pyfunction]
 #[pyo3(signature = (coords, values, *, cell_size=None, sizes=None, offsets=25, minimize=true))]
 fn cell_declustering(
@@ -1418,13 +1420,14 @@ fn cell_declustering(
     minimize: bool,
 ) -> PyResult<Declustering> {
     let (locs, values) = samples(coords, values)?;
+    if let Some(size) = cell_size {
+        let w =
+            transforms::cell_weights_over_offsets(&locs, &values, size, offsets).map_err(err)?;
+        return Ok(declustering(w, vec![], vec![]));
+    }
     let origin = locs.iter().fold((f64::MAX, f64::MAX, f64::MAX), |m, p| {
         (m.0.min(p.0), m.1.min(p.1), m.2.min(p.2))
     });
-    if let Some(size) = cell_size {
-        let w = transforms::cell_weights(&locs, &values, size, origin).map_err(err)?;
-        return Ok(declustering(w, vec![], vec![]));
-    }
     let sizes = match sizes {
         Some(s) => finite(s, "sizes")?,
         None => {
@@ -1443,7 +1446,7 @@ fn cell_declustering(
         .map_err(err)?;
     let (best, _) =
         transforms::optimal_cell_size(&locs, &values, &sizes, offsets, !minimize).map_err(err)?;
-    let w = transforms::cell_weights(&locs, &values, best, origin).map_err(err)?;
+    let w = transforms::cell_weights_over_offsets(&locs, &values, best, offsets).map_err(err)?;
     Ok(declustering(w, sizes, means))
 }
 

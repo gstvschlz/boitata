@@ -145,6 +145,10 @@ def test_cell_declustering_downweights_clusters():
     assert d.mean < values.mean()
     assert d.weights.sum() == pytest.approx(len(values))
     assert len(d.sizes) == len(d.means) == 9
+    assert d.mean == pytest.approx(d.means[list(d.sizes).index(d.cell_size)], rel=1e-12)
+    assert d.mean == pytest.approx(np.average(values, weights=d.weights), rel=1e-12)
+    fixed = cs.cell_declustering(coords, values, cell_size=d.cell_size)
+    np.testing.assert_allclose(fixed.weights, d.weights)
     points = cs.PointSet(coords, {"v": values})
     named = cs.cell_declustering(points, "v", sizes=np.arange(5.0, 50.0, 5.0))
     np.testing.assert_array_equal(named.weights, d.weights)

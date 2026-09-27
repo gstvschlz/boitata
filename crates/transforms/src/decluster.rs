@@ -73,6 +73,38 @@ pub fn cell_weights(
     })
 }
 
+/// Cell weights averaged over `n_offsets` grid origins shifted along the cell diagonal
+/// (reduces placement bias). Each origin's weights sum to `n`, so the average does too
+/// and its declustered mean is the average of the per-origin means.
+pub fn cell_weights_over_offsets(
+    locations: &[(f64, f64, f64)],
+    values: &[f64],
+    cell_size: f64,
+    n_offsets: usize,
+) -> Result<Weights> {
+    if n_offsets == 0 {
+        return Err(TransformError::InvalidParameters(
+            "n_offsets must be > 0".into(),
+        ));
+    }
+    let mut weights = vec![0.0; locations.len()];
+    for k in 0..n_offsets {
+        let frac = k as f64 / n_offsets as f64;
+        let off = (frac * cell_size, frac * cell_size, frac * cell_size);
+        let w = cell_weights(locations, values, cell_size, off)?;
+        for (a, b) in weights.iter_mut().zip(&w.weights) {
+            *a += b / n_offsets as f64;
+        }
+    }
+    let wsum: f64 = weights.iter().sum();
+    let declustered_mean = weights.iter().zip(values).map(|(w, v)| w * v).sum::<f64>() / wsum;
+    Ok(Weights {
+        weights,
+        declustered_mean,
+        cell_size,
+    })
+}
+
 /// Average declustered mean over several grid-origin offsets (reduces placement bias).
 pub fn decluster_mean_over_offsets(
     locations: &[(f64, f64, f64)],
@@ -80,18 +112,7 @@ pub fn decluster_mean_over_offsets(
     cell_size: f64,
     n_offsets: usize,
 ) -> Result<f64> {
-    if n_offsets == 0 {
-        return Err(TransformError::InvalidParameters(
-            "n_offsets must be > 0".into(),
-        ));
-    }
-    let mut acc = 0.0;
-    for k in 0..n_offsets {
-        let frac = k as f64 / n_offsets as f64;
-        let off = (frac * cell_size, frac * cell_size, frac * cell_size);
-        acc += cell_weights(locations, values, cell_size, off)?.declustered_mean;
-    }
-    Ok(acc / n_offsets as f64)
+    Ok(cell_weights_over_offsets(locations, values, cell_size, n_offsets)?.declustered_mean)
 }
 
 /// Sweep a set of cell sizes and return the one whose declustered mean is minimum
@@ -307,5 +328,30 @@ mod tests {
             optimal_cell_size(&locs, &vals, &[5.0, 20.0, 50.0, 100.0], 3, false).unwrap();
         assert!(size > 0.0);
         assert!(mean.is_finite());
+    }
+
+    #[test]
+    fn offset_weights_reproduce_offset_mean() {
+        let locs: Vec<_> = (0..40)
+            .map(|i| {
+                let t = i as f64;
+                ((t * 7.3) % 50.0, (t * t * 1.9) % 50.0, 0.0)
+            })
+            .collect();
+        let vals: Vec<f64> = (0..40).map(|i| (i % 7) as f64).collect();
+        let w = cell_weights_over_offsets(&locs, &vals, 12.0, 5).unwrap();
+        let m = decluster_mean_over_offsets(&locs, &vals, 12.0, 5).unwrap();
+        let naive: f64 = (0..5)
+            .map(|k| {
+                let o = k as f64 / 5.0 * 12.0;
+                cell_weights(&locs, &vals, 12.0, (o, o, o))
+                    .unwrap()
+                    .declustered_mean
+            })
+            .sum::<f64>()
+            / 5.0;
+        assert!((w.declustered_mean - naive).abs() < 1e-12);
+        assert_eq!(w.declustered_mean, m);
+        assert!((w.weights.iter().sum::<f64>() - 40.0).abs() < 1e-9);
     }
 }
