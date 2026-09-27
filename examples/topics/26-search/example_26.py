@@ -166,6 +166,7 @@ save(fig, "passes")
 
 # %% [markdown]
 # Around isolated rich samples the restriction lowers the estimates where kriging overestimates most, and brings the
-# mean error of those nodes to zero. Inside the dense cluster of rich samples it raises them instead: dropping the
-# rich samples beyond 20 m lets other samples into the neighborhood and shifts the weights of the rest. The
-# restriction suits isolated high values; over all samples the cross-validation mean error barely moves.
+# mean error of those nodes to zero. Inside the dense cluster of rich samples it raises them instead. There the rich
+# samples 20 to 30 m away sit behind closer samples that screen them, so ordinary kriging gives them small negative
+# weights, and dropping a negative weight on a high value raises the estimate. The restriction suits isolated high
+# values; over all samples the cross-validation mean error barely moves.
