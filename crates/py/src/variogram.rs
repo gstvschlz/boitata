@@ -11,8 +11,9 @@ use variogram::{
     Angles, Anisotropy, AnisotropySpec, Bounds, CoregStructure, Coregionalization as CoreCoreg,
     Direction, Estimator, Experimental, LagBins, Model, NestedSpec, Structure as CoreStructure,
     StructureSpec, Support, Transiogram as CoreTransiogram, Variogram as CoreVariogram, Weighting,
-    cross_experimental, downhole, empirical_transiogram, experimental, experimental_realizations,
-    experimental_set, extrapolated_nugget, fit_coregionalization, fit_directional, fit_nested,
+    cross_experimental, downhole, empirical_transiogram, experimental, experimental_local,
+    experimental_realizations, experimental_set, extrapolated_nugget, fit_coregionalization,
+    fit_directional, fit_nested,
 };
 
 use crate::args::{Point, array1, array2, column, finite, floats, points, same_length, triple};
@@ -649,12 +650,18 @@ fn locations(coords: &Bound<PyAny>, method: Option<&str>) -> PyResult<Locations>
 ///     cone boundary are decided once, where round-off can split their pairs
 ///     in the search. None takes "grid" for such a BlockModel without
 ///     ``holes`` or ``other_coords``, else "pairs".
+/// anisotropy : LocalAnisotropy, optional
+///     Local frames: each pair's separation is read in the frame of the
+///     nearest location to its tail, and ``azimuth`` and ``dip`` are relative
+///     to it (azimuth 0 the local major axis, 90 the semi-major, dip 90 the
+///     minor), so the cone follows a folded or rotating continuity. Pairs
+///     come from "pairs"; not with ``other`` or ``holes``.
 ///
 /// Returns
 /// -------
 /// ExperimentalVariogram
 #[pyfunction]
-#[pyo3(signature = (coords, values, lag, max_lag, *, azimuth=None, dip=0.0, tolerance=22.5, bandwidth=None, estimator="matheron", standardize=false, other=None, other_coords=None, holes=None, method=None))]
+#[pyo3(signature = (coords, values, lag, max_lag, *, azimuth=None, dip=0.0, tolerance=22.5, bandwidth=None, estimator="matheron", standardize=false, other=None, other_coords=None, holes=None, method=None, anisotropy=None))]
 #[allow(clippy::too_many_arguments)]
 fn experimental_variogram(
     coords: &Bound<PyAny>,
@@ -671,8 +678,36 @@ fn experimental_variogram(
     other_coords: Option<&Bound<PyAny>>,
     holes: Option<&Bound<PyAny>>,
     method: Option<&str>,
+    anisotropy: Option<PyRef<crate::lva::LocalAnisotropy>>,
 ) -> PyResult<ExperimentalVariogram> {
     let (bins, estimator) = (bins(lag, max_lag)?, self::estimator(estimator)?);
+    if let Some(field) = anisotropy {
+        if holes.is_some() || other.is_some() || other_coords.is_some() {
+            return Err(invalid("anisotropy takes neither holes nor other"));
+        }
+        if !matches!(method, None | Some("pairs")) {
+            return Err(invalid("anisotropy needs method=\"pairs\""));
+        }
+        let (locs, values) = samples(coords, values, "values")?;
+        let direction = azimuth.map(|azimuth| Direction {
+            azimuth,
+            dip,
+            tolerance,
+            bandwidth,
+        });
+        let rotations = field.0.at(&locs).rotations();
+        let exp = experimental_local(
+            &locs,
+            &rotations,
+            &values,
+            &bins,
+            estimator,
+            direction.as_ref(),
+            standardize,
+        )
+        .map_err(err)?;
+        return Ok(ExperimentalVariogram(exp));
+    }
     if holes.is_some() || other_coords.is_some() {
         if method == Some("grid") {
             return Err(invalid(

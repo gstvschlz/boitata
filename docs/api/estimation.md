@@ -44,6 +44,8 @@
 
 ::: ceres.LocalAnisotropy
 
+::: ceres.local_variogram_parameters
+
 ::: ceres.CrossValidation
 
 ::: ceres.IndicatorCrossValidation

@@ -757,6 +757,7 @@ def experimental_variogram(
     other_coords: ArrayLike | PointSet | BlockModel | None = None,
     holes: Holes | Column | None = None,
     method: str | None = None,
+    anisotropy: LocalAnisotropy | None = None,
 ) -> ExperimentalVariogram: ...
 def experimental_variograms(
     coords: ArrayLike | PointSet | BlockModel,
@@ -1565,7 +1566,14 @@ def fix_drillholes(
 ) -> tuple[dict[str, Table], Table]: ...
 
 class LocalAnisotropy:
-    def __init__(self, coords: ArrayLike, angles: ArrayLike, ratios: ArrayLike) -> None: ...
+    def __init__(
+        self,
+        coords: ArrayLike,
+        angles: ArrayLike,
+        ratios: ArrayLike,
+        *,
+        scales: ArrayLike | float | None = None,
+    ) -> None: ...
     @staticmethod
     def from_grid(
         model: BlockModel, column: str, *, window: int = 2, ratios: tuple[float, float] | None = None
@@ -1589,7 +1597,23 @@ class LocalAnisotropy:
     def angles(self) -> npt.NDArray[np.float64]: ...
     @property
     def ratios(self) -> npt.NDArray[np.float64]: ...
+    @property
+    def scales(self) -> npt.NDArray[np.float64]: ...
     def __len__(self) -> int: ...
+
+def local_variogram_parameters(
+    coords: ArrayLike | PointSet | BlockModel,
+    values: ArrayLike | Column,
+    grid: BlockModel | PointSet | ArrayLike,
+    *,
+    variogram: Variogram,
+    window: float,
+    lag: float,
+    max_lag: float | None = None,
+    anisotropy: LocalAnisotropy | None = None,
+    sectors: int = 8,
+    min_pairs: int = 100,
+) -> LocalAnisotropy: ...
 
 class ImplicitModel:
     def __init__(

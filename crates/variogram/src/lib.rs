@@ -28,7 +28,7 @@ pub use composite::Variogram;
 pub use coreg::{CoregStructure, Coregionalization};
 pub use empirical::{
     Direction, Estimator, Experimental, LagBins, Support, cross_experimental, downhole,
-    experimental, experimental_realizations, experimental_set,
+    experimental, experimental_local, experimental_realizations, experimental_set,
 };
 pub use error::{Result, VarioError};
 pub use fit::{
