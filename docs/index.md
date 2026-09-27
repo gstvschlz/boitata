@@ -59,11 +59,13 @@ Geostatistics in Rust with a Python interface. Parallel, and the same result on 
 
 ## Install
 
+ceres is not on PyPI yet. Install it from git (this builds the Rust core, so it needs Rust and a C compiler):
+
 ```bash
-pip install ceres            # numpy only
-pip install "ceres[plot]"    # with matplotlib for ceres.plot
-pip install "ceres[3d]"      # with pyvista for ceres.plot3d
+pip install "ceres[all] @ git+https://github.com/gstvschlz/ceres"
 ```
+
+The [install page](install.md) covers uv, poetry, conda and pixi, wheels, extras and offline installs.
 
 ## A first estimate
 
