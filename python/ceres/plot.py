@@ -1,7 +1,8 @@
 """Plots on matplotlib (the ``plot`` extra).
 
-Every function draws on `ax` when given, else on a new figure, and returns ``(fig, ax)``; `scatter_matrix` takes
-and returns a grid of `axes` instead, and `category_colors` and `category_legend` return what they make.
+Every function draws on `ax` when given, else on a new figure, and returns ``(fig, ax)``; `scatter_matrix` and
+`variograms` take and return a grid of `axes` instead, and `category_colors` and `category_legend` return what they
+make.
 """
 
 import numpy as np
@@ -39,6 +40,7 @@ __all__ = [
     "swath",
     "uncertain",
     "variogram",
+    "variograms",
 ]
 
 
@@ -364,6 +366,82 @@ def variogram(experimental, *, variogram=None, direction=None, ax=None, **kwargs
     ax.set_xlabel("Lag distance")
     ax.set_ylabel("γ(h)")
     return fig, ax
+
+
+def variograms(variograms, *, model=None, labels=None, axes=None, **kwargs):
+    """Every direct and cross variogram of a `VariogramSet` as a matrix of panels, with `model` if given.
+
+    Panel ``(i, j)`` holds the direct variogram of variable ``i`` on the diagonal and the cross variogram of
+    ``i`` and ``j`` above it; the lower triangle is left empty. Points are sized by their share of the largest pair
+    count, one color per direction.
+
+    Parameters
+    ----------
+    variograms : VariogramSet
+    model : Coregionalization, optional
+        Drawn as ``C_ij(0) - C_ij(h)`` along each direction, or east when the set is omnidirectional.
+    labels : list of str, optional
+        Variable names; default the set's column names or indices.
+    axes : array of Axes, optional
+        ``(nvar, nvar)`` axes to draw on; default a new figure.
+    **kwargs
+        Passed to every ``ax.scatter``.
+
+    Returns
+    -------
+    fig : Figure
+    axes : ndarray of Axes
+        ``(nvar, nvar)``.
+    """
+    import matplotlib as mpl
+
+    n = variograms.nvar
+    if axes is None:
+        fig, _ = _axes(None)
+        fig.clear()
+        fig.set_size_inches(2.3 * n + 0.5, 1.9 * n + 0.3)
+        fig.set_layout_engine("constrained")
+        axes = fig.subplots(n, n, squeeze=False)
+    axes = np.asarray(axes)
+    fig = axes.flat[0].figure
+    labels = labels or [str(i) if name is None else name for i, name in enumerate(variograms.names)]
+    directions = variograms.directions or [(90.0, 0.0)]
+    colors = mpl.rcParams["axes.prop_cycle"].by_key()["color"]
+    for i in range(n):
+        for j in range(n):
+            ax = axes[i, j]
+            if j < i:
+                ax.set_axis_off()
+                continue
+            entries = variograms[i, j]
+            entries = entries if variograms.directions else [entries]
+            for (azimuth, dip), e, color in zip(directions, entries, colors * len(entries), strict=False):
+                keep = e.counts > 0
+                size = 4 + 30 * np.sqrt(e.counts[keep] / e.counts.max())
+                style = {"s": size, "color": color, "linewidths": 0} | kwargs
+                label = f"{azimuth:g}°" if variograms.directions else None
+                ax.scatter(e.lags[keep], e.gammas[keep], label=label, **style)
+                if model is not None and keep.any():
+                    h = np.linspace(0, e.lags[keep].max() * 1.05, 101)[1:]
+                    a, d = np.radians(azimuth), np.radians(dip)
+                    unit = np.array([np.cos(d) * np.sin(a), np.cos(d) * np.cos(a), -np.sin(d)])
+                    origin = np.zeros((h.size, 3))
+                    c0 = model.cross_covariance(i, j, origin, origin)
+                    ax.plot(
+                        h, c0 - model.cross_covariance(i, j, origin, h[:, None] * unit), color=color, lw=1
+                    )
+            ax.set_xlim(left=0)
+            if i == j:
+                ax.set_ylim(bottom=0)
+                ax.set_title(labels[i])
+                ax.set_xlabel("Lag distance")
+                ax.set_ylabel("γ(h)")
+            else:
+                ax.axhline(0, color="0.5", lw=0.6)
+                ax.set_title(f"{labels[i]} × {labels[j]}")
+    if variograms.directions:
+        axes[0, 0].legend(fontsize=7, title="azimuth", title_fontsize=7)
+    return fig, axes
 
 
 def scatter(x, y, *, line=True, data=None, ax=None, **kwargs):

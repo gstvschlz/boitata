@@ -531,6 +531,17 @@ class ExperimentalVariogram:
     ) -> Variogram: ...
     def nugget(self, *, lags: int = 3) -> float: ...
 
+class VariogramSet:
+    @property
+    def nvar(self) -> int: ...
+    @property
+    def names(self) -> list[str | None]: ...
+    @property
+    def directions(self) -> list[tuple[float, float]] | None: ...
+    def __getitem__(
+        self, key: tuple[int | str, int | str]
+    ) -> ExperimentalVariogram | list[ExperimentalVariogram]: ...
+
 class VariogramMap:
     lags: npt.NDArray[np.float64]
     angles: npt.NDArray[np.float64]
@@ -552,7 +563,8 @@ class Coregionalization:
     ) -> None: ...
     @staticmethod
     def fit(
-        experimentals: Sequence[Sequence[ExperimentalVariogram | Sequence[ExperimentalVariogram] | None]],
+        experimentals: VariogramSet
+        | Sequence[Sequence[ExperimentalVariogram | Sequence[ExperimentalVariogram] | None]],
         model: str | Sequence[str] = "spherical",
         *,
         weighting: str = "count",
@@ -593,7 +605,21 @@ def experimental_variogram(
     other: ArrayLike | Column | None = None,
     other_coords: ArrayLike | PointSet | BlockModel | None = None,
     holes: Holes | Column | None = None,
+    method: str | None = None,
 ) -> ExperimentalVariogram: ...
+def experimental_variograms(
+    coords: ArrayLike | PointSet | BlockModel,
+    values: Sequence[ArrayLike | Column],
+    lag: float,
+    max_lag: float,
+    *,
+    directions: Sequence[tuple[float, float]] | None = None,
+    tolerance: float = 22.5,
+    bandwidth: float | None = None,
+    estimator: str = "matheron",
+    standardize: bool = False,
+    method: str | None = None,
+) -> VariogramSet: ...
 def variogram_map(
     coords: ArrayLike | PointSet | BlockModel,
     values: ArrayLike | Column,

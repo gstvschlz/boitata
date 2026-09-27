@@ -8,6 +8,10 @@
 
 ::: ceres.experimental_variogram
 
+::: ceres.VariogramSet
+
+::: ceres.experimental_variograms
+
 ::: ceres.VariogramMap
 
 ::: ceres.variogram_map

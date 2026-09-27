@@ -245,6 +245,64 @@ def test_coregionalization_fit_finds_the_anisotropy():
     assert bounded.rotation[0] == 45 and 0.2 <= bounded.ratios[0] <= 0.5
 
 
+def test_variogram_sets_match_single_calls_and_feed_the_fit():
+    xy = rng.uniform(0, 100, (300, 2))
+    a = field(xy, 10)
+    b, c = a + 0.5 * rng.normal(size=300), rng.normal(size=300)
+    points = cs.PointSet(xy, attributes={"a": a, "b": b, "c": c})
+    vs = cs.experimental_variograms(points, ["a", "b", c], 4, 60)
+    assert vs.nvar == 3 and vs.names == ["a", "b", None] and vs.directions is None
+    np.testing.assert_array_equal(vs[0, 0].gammas, cs.experimental_variogram(xy, a, 4, 60).gammas)
+    np.testing.assert_array_equal(
+        vs["a", "b"].gammas, cs.experimental_variogram(xy, a, 4, 60, other=b).gammas
+    )
+    swapped = cs.experimental_variograms(xy, [b, a], 4, 60)
+    np.testing.assert_array_equal(vs[1, 0].gammas, swapped[0, 1].gammas)
+    one = cs.experimental_variograms(xy, [a], 4, 60)
+    np.testing.assert_array_equal(one[0, 0].gammas, cs.experimental_variogram(xy, a, 4, 60).gammas)
+    matrix = [[vs[i, j] if j >= i else None for j in range(3)] for i in range(3)]
+    assert cs.Coregionalization.fit(vs).to_json() == cs.Coregionalization.fit(matrix).to_json()
+    directions = [(0.0, 0.0), (90.0, 0.0)]
+    directed = cs.experimental_variograms(xy, [a, b], 4, 60, directions=directions)
+    assert len(directed[0, 1]) == 2 and directed.directions == directions
+    by_hand = [[directed[0, 0], directed[0, 1]], [None, directed[1, 1]]]
+    fitted = cs.Coregionalization.fit(directed, directions=None)
+    assert fitted.to_json() == cs.Coregionalization.fit(by_hand, directions=directions).to_json()
+    with pytest.raises(ValueError):
+        cs.Coregionalization.fit(directed, directions=directions)
+    with pytest.raises(KeyError):
+        vs["d", 0]
+    with pytest.raises(ValueError):
+        cs.experimental_variograms(xy, [a, b], 4, 60, estimator="correlogram")
+
+
+def test_grid_variograms_match_the_pair_search():
+    model = cs.BlockModel((10.0, 20.0), (2.0, 3.0), (30, 20), rotation=(25.0, 0.0, 0.0))
+    xy = model.centroids
+    a = field(xy[:, :2], 8)
+    b = a + rng.normal(size=len(a))
+    for kwargs in [{}, {"azimuth": 43.0, "tolerance": 14.0, "bandwidth": 6.1}]:
+        by_grid = cs.experimental_variogram(model, a, 2.3, 30.7, **kwargs)
+        by_pairs = cs.experimental_variogram(model, a, 2.3, 30.7, method="pairs", **kwargs)
+        np.testing.assert_array_equal(by_grid.counts, by_pairs.counts)
+        np.testing.assert_allclose(by_grid.gammas, by_pairs.gammas, rtol=1e-10)
+        cross = cs.experimental_variogram(model, a, 2.3, 30.7, other=b, method="grid", **kwargs)
+        np.testing.assert_allclose(
+            cross.gammas, cs.experimental_variogram(xy, a, 2.3, 30.7, other=b, **kwargs).gammas, rtol=1e-10
+        )
+    keep = np.flatnonzero(np.arange(len(a)) % 5 != 2)
+    masked = cs.BlockModel(
+        (10.0, 20.0), (2.0, 3.0), (30, 20), rotation=(25.0, 0.0, 0.0), index=keep.astype(np.uint64)
+    )
+    grid_set = cs.experimental_variograms(masked, [a[keep], b[keep]], 2.3, 30.7)
+    pair_set = cs.experimental_variograms(xy[keep], [a[keep], b[keep]], 2.3, 30.7)
+    np.testing.assert_allclose(grid_set[0, 1].gammas, pair_set[0, 1].gammas, rtol=1e-10)
+    with pytest.raises(ValueError):
+        cs.experimental_variogram(xy, a, 2.3, 30.7, method="grid")
+    with pytest.raises(ValueError):
+        cs.experimental_variogram(model, a, 2.3, 30.7, method="nearest")
+
+
 def test_transiogram_is_a_markov_matrix():
     t = cs.Transiogram([0.2, 0.3, 0.5], 10.0)
     np.testing.assert_allclose(t.matrix(0.0), np.eye(3), atol=1e-12)

@@ -74,6 +74,18 @@ def test_variogram_with_anisotropic_model():
     assert g[np.searchsorted(h, 20.0)] == pytest.approx(1.0, abs=1e-9)
 
 
+def test_variogram_matrix():
+    xy = rng.uniform(0, 100, (200, 2))
+    a = rng.normal(size=200)
+    vs = cs.experimental_variograms(
+        xy, [a, a + rng.normal(size=200)], 10.0, 60.0, directions=[(0, 0), (90, 0)]
+    )
+    lmc = cs.Coregionalization.fit(vs)
+    _, axes = cs.plot.variograms(vs, model=lmc, labels=["A", "B"])
+    assert axes.shape == (2, 2) and not axes[1, 0].axison
+    assert axes[0, 1].get_title() == "A × B" and len(axes[0, 1].lines) == 3
+
+
 def test_scatter_reports_slope():
     x = rng.normal(size=100)
     _, ax = cs.plot.scatter(x, 2 * x + 1)

@@ -2114,6 +2114,7 @@ name = "variogram"
 version = "0.1.0"
 dependencies = [
  "ceres-core",
+ "criterion",
  "nalgebra",
  "rand 0.8.8",
  "rand_distr",
