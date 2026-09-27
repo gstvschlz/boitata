@@ -28,7 +28,7 @@ grade across the vein.
 ```python
 intercepts = holes.composite(None, ["AU_GPT"], domain="LITH")
 kind = dict(zip(collars["HOLE_ID"], collars["TYPE"], strict=True))
-drilling = np.array([kind[h] for h in intercepts["hole"]])
+drilling = np.array([kind[h] for h in intercepts["HOLE_ID"]])
 vein = (intercepts["LITH"] == "QV") & ~np.isnan(intercepts["AU_GPT"])
 dd = intercepts.filter(vein & (drilling == "DD"))
 ch = intercepts.filter(vein & (drilling == "CH"))

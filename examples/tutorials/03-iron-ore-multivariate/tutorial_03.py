@@ -227,7 +227,7 @@ for name in domains:
         f"{bh_si[k].mean():11.2f}{silica[:, drilled][:, b].mean():9.2f}{composites['SIO2_PCT'][j].mean():11.2f}"
     )
 print(
-    f"{np.sum(in_window >= 0)} composites from {len(set(composites['hole'][in_window >= 0]))} holes in the window"
+    f"{np.sum(in_window >= 0)} composites from {len(set(composites['HOLE_ID'][in_window >= 0]))} holes in the window"
 )
 point = at_blastholes[..., 0] / 1.4297
 print(

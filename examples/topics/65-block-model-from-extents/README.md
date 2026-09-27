@@ -42,7 +42,7 @@ def outline(ax, model, **style):
 paths = holes.paths()
 fig, ax = plt.subplots(figsize=(6.5, 6.5), layout="constrained")
 for hole in holes.holes:
-    on = paths["hole"] == hole
+    on = paths["HOLE_ID"] == hole
     ax.plot(paths["x"][on], paths["y"][on], color=LIGHT, lw=0.6)
 for lens in lenses:
     ax.plot(*lens.vertices[::7, :2].T, ".", color=GRAY, ms=0.6)

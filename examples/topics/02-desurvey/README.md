@@ -26,7 +26,7 @@ collar, survey = data["collars"], data["surveys"]
 dh = cs.Drillholes(collar, survey)
 paths = dh.paths()
 print(dh)
-last = np.flatnonzero(paths["hole"] == "DD0027")[[0, 1, -2, -1]]
+last = np.flatnonzero(paths["HOLE_ID"] == "DD0027")[[0, 1, -2, -1]]
 station = np.flatnonzero(survey["HOLE_ID"] == "DD0027")[[0, 1, -2, -1]]
 for i, j in zip(last, station):
     print(
