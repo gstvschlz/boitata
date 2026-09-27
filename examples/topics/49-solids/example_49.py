@@ -1,22 +1,19 @@
 """
-# 49. Solids and block models
+# 49. Solids
 
-A wireframe bounds a domain. Here an ellipsoid is fitted to the Zn > 5 % composites of the cluster seen in
-topic 3.
+A closed triangle mesh bounds a domain. `Mesh.contains` flags the samples inside it, `Mesh.proportion` measures
+how much of each block it fills, `BlockModel.mask` keeps the blocks that count as inside and `block_shell` draws
+them. Here the three stacked sulphide lenses are the solids.
 """
 
 # %% [hidden]
 import sys
-import warnings
 from pathlib import Path
 
 HERE = Path(__file__).parent if "__file__" in globals() else Path.cwd()
 sys.path.insert(0, str(HERE.parents[1]))
-warnings.filterwarnings("ignore", ".*locations hold several samples")
 
 # %%
-import tempfile
-
 import ceres as cs
 import matplotlib.pyplot as plt
 import numpy as np
@@ -24,211 +21,94 @@ from common import ACCENT, GRAY, HIGHLIGHT, LIGHT, save
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 
 # %% [markdown]
-# A small helper builds a closed triangle mesh of an ellipsoid:
-
+# The lens files as delivered are slightly open: lenses 1 and 2 each have a degenerate triangle and three
+# boundary edges, and a solid needs no boundary edges to have an inside. `Mesh.repair` with a 1 mm tolerance
+# welds the gap and drops the sliver (topic 51 covers repair); lens 3 is already closed and comes back unchanged.
 
 # %%
-def ellipsoid(center, axes, rotation, rings=24, segments=48):
-    """Closed triangle mesh of an ellipsoid with semi-axes `axes` along the columns of `rotation`."""
-    theta = np.linspace(0, np.pi, rings + 1)[1:-1]
-    phi = np.linspace(0, 2 * np.pi, segments, endpoint=False)
-    t, p = np.meshgrid(theta, phi, indexing="ij")
-    unit = np.c_[(np.sin(t) * np.cos(p)).ravel(), (np.sin(t) * np.sin(p)).ravel(), np.cos(t).ravel()]
-    unit = np.vstack([[0, 0, 1], unit, [0, 0, -1]])
-    vertices = center + (unit * axes) @ rotation.T
-    ring = lambda i: 1 + i * segments + np.arange(segments)
-    tris = [[0, *e] for e in zip(ring(0), np.roll(ring(0), -1))]
-    for i in range(rings - 2):
-        a, b = ring(i), ring(i + 1)
-        tris += [[a[j], b[j], a[(j + 1) % segments]] for j in range(segments)]
-        tris += [[a[(j + 1) % segments], b[j], b[(j + 1) % segments]] for j in range(segments)]
-    last = len(vertices) - 1
-    tris += [[last, *e[::-1]] for e in zip(ring(rings - 2), np.roll(ring(rings - 2), -1))]
-    return vertices, np.array(tris)
-
+data = cs.datasets.stacked_sulphide_lenses()
+lenses = []
+for i in (1, 2, 3):
+    mesh = data[f"lens_{i}"]
+    lenses.append(mesh.repair(tolerance=1e-3))
+    print(f"lens {i}: {mesh.analysis} -> closed {lenses[-1].is_closed}, {lenses[-1].volume:,.0f} m3")
 
 # %% [markdown]
-# The ellipsoid's axes come from the covariance of the high-grade composites (two standard deviations):
+# `contains` tests points by generalized winding number. Of the 2 m zinc composites, those inside a lens carry
+# the ore:
 
 # %%
-dh = cs.datasets.drillholes()
-composites = dh.composite(2.0, ["ZN"])
-xyz, zn = composites.coords, composites["ZN"]
-window = (xyz[:, 0] > 4550) & (xyz[:, 0] < 4950) & (xyz[:, 1] > 7400) & (xyz[:, 1] < 7700)
-high = xyz[window & (zn > 5)]
-center = high.mean(axis=0)
-eigen, vectors = np.linalg.eigh(np.cov((high - center).T))
-vertices, triangles = ellipsoid(center, 2 * np.sqrt(eigen), vectors)
-solid = cs.Mesh(vertices, triangles)
-lo, hi = solid.bounds
-print(solid, "semi-axes", np.round(2 * np.sqrt(eigen), 1))
-
+holes = cs.Drillholes(data["collars"], data["surveys"], data["assays"])
+composites = holes.composite(2.0, ["ZN_PCT"])
+xyz, zn = composites.coords, composites["ZN_PCT"]
+inside = np.array([lens.contains(xyz) for lens in lenses])
+for i, flags in enumerate(inside, 1):
+    print(f"lens {i}: {flags.sum():4} composites, mean Zn {np.nanmean(zn[flags]):.2f}%")
+outside = ~inside.any(axis=0)
+print(f"outside: {outside.sum()} composites, mean Zn {np.nanmean(zn[outside]):.2f}%")
 
 # %% [markdown]
-# `Mesh.proportion` samples 4 × 4 × 4 points in each block; `Mesh.contains` tests points by generalized winding
-# number. Block proportions should add up to the ellipsoid's volume.
+# A 20 × 20 × 10 m model around the lenses comes from `BlockModel.from_extents` (topic 65). `proportion` settles
+# blocks no triangle passes through with one centroid test and samples `discretization`³ points in the others,
+# here 8. Summed over the blocks, the proportions give back each lens's volume to within 1 %.
 
 # %%
-size = 10.0
-count = np.ceil((np.array(hi) - lo) / size).astype(int)
-blocks = cs.BlockModel(origin=lo, size=(size, size, size), count=count)
-proportion = solid.proportion(blocks, discretization=4)
-blocks = blocks.with_column("inside", proportion)
-ore = blocks.mask(proportion > 0.5)
-local = window & ~np.isnan(zn)
-inside = solid.contains(xyz[local])
-print(f"{len(blocks)} blocks, {len(ore)} more than half inside; volume {proportion.sum() * size**3:,.0f} m3")
-print(
-    f"mesh volume {solid.volume:,.0f} m3, exact ellipsoid {4 / 3 * np.pi * np.prod(2 * np.sqrt(eigen)):,.0f} m3"
-)
-print(
-    f"composites inside: {inside.sum()}, mean Zn {np.nanmean(zn[local][inside]):.2f}% vs outside {np.nanmean(zn[local][~inside]):.2f}%"
-)
-
+size = (20, 20, 10)
+blocks = cs.BlockModel.from_extents(*lenses, size=size, buffer=10, snap=True)
+proportions = [lens.proportion(blocks, discretization=2) for lens in lenses]
+for i, (lens, p) in enumerate(zip(lenses, proportions), 1):
+    print(f"lens {i}: mesh {lens.volume:,.0f} m3, blocks {p.sum() * np.prod(size):,.0f} m3")
+blocks = blocks.with_column("proportion", np.sum(proportions, axis=0))
 
 # %% [markdown]
-# One bench of block proportions, and the blocks more than half inside as a masked `BlockModel` drawn from its
-# visible faces with `block_shell`:
+# `mask` keeps the blocks more than half inside a lens. The lenses are thin next to the blocks, so many blocks
+# they cross are less than half filled, and the kept blocks hold under two thirds of the lens volume; topic 50
+# sub-blocks the edges instead.
 
 # %%
-k = count[2] // 2
-level = lo[2] + (k + 0.5) * size
-bench = ((0, 0, level), 90, 0)
-fig = plt.figure(figsize=(12, 5), layout="constrained")
+ore = blocks.mask(blocks["proportion"] > 0.5)
+print(f"{len(blocks):,} blocks, {len(ore):,} more than half inside: {ore.volumes.sum():,.0f} m3")
+print(f"lenses: {sum(lens.volume for lens in lenses):,.0f} m3")
+
+# %% [markdown]
+# A vertical section across strike (the lenses strike N22.5°E) shows the block proportions with the lens
+# outlines and the composites within 10 m of the section. `block_shell` turns the masked blocks into the mesh of
+# their outer faces, drawn in 3D over the lens surfaces.
+
+# %%
+center = np.mean([lens.vertices.mean(axis=0) for lens in lenses], axis=0)
+plane = (center, 112.5, 90)
+fig = plt.figure(figsize=(12, 5.5), layout="constrained")
 a = fig.add_subplot(1, 2, 1)
-cs.plot.section(blocks, "inside", axis="z", index=k, colorbar=False, vmin=0, vmax=1, ax=a)
+cs.plot.section(blocks, "proportion", plane=plane, colorbar=False, vmin=0, vmax=1, cmap="Greys", ax=a)
+cs.plot.slab(xyz[outside], plane=plane, thickness=20, s=4, color=GRAY, label="composite outside", ax=a)
 cs.plot.slab(
-    xyz[local][~inside], plane=bench, thickness=size, s=6, color=GRAY, label="composite outside", ax=a
-)
-cs.plot.slab(
-    xyz[local][inside],
-    plane=bench,
-    thickness=size,
-    meshes=solid,
+    xyz[~outside],
+    plane=plane,
+    thickness=20,
+    meshes=lenses,
     s=6,
     color=HIGHLIGHT,
     label="composite inside",
     ax=a,
 )
-a.set_title(f"Block proportion inside the solid and its outline, bench {level:.0f} m")
-a.legend(loc="lower right", frameon=True, framealpha=0.9)
-fig.colorbar(a.images[0], ax=a, shrink=0.8, label="proportion of block inside")
+a.set(title="Block proportion inside a lens, section across strike", xlabel="Across strike (m)")
+a.legend(loc="lower left", frameon=True, framealpha=0.9)
+fig.colorbar(a.images[0], ax=a, shrink=0.7, label="proportion of block inside")
 
 b = fig.add_subplot(1, 2, 2, projection="3d")
 shell = cs.block_shell(ore)
 b.add_collection3d(
     Poly3DCollection(shell.vertices[shell.triangles], facecolor=ACCENT, edgecolor="none", alpha=0.35)
 )
-b.plot_trisurf(*vertices.T, triangles=triangles, color=LIGHT, edgecolor=GRAY, linewidth=0.1, alpha=0.15)
+for lens in lenses:
+    b.plot_trisurf(*lens.vertices.T, triangles=lens.triangles, color=LIGHT, linewidth=0, alpha=0.2)
+lo, hi = np.array(blocks.origin), np.array(blocks.origin) + np.array(size) * blocks.count
 b.set(xlim=(lo[0], hi[0]), ylim=(lo[1], hi[1]), zlim=(lo[2], hi[2]))
-b.set_box_aspect(np.array(hi) - lo)
-b.set_title(f"{len(ore)} blocks more than half inside (shell)")
+b.set_box_aspect(hi - lo)
+b.set_title(f"{len(ore):,} blocks more than half inside (shell)")
 b.set_xlabel("Easting")
 b.set_ylabel("Northing")
 b.set_zlabel("Elevation")
 b.tick_params(labelsize=6)
-save(fig, "solid")
-
-# %% [markdown]
-# Whole blocks misstate the volume near the wireframe. `subblock` takes `(mesh, rule, label)` domains in priority
-# order and splits the blocks a mesh cuts on a regular sub-grid: each sub-cell takes the label of the first domain
-# holding its center, and the sub-cells of a block merge along x, then y. Blocks the mesh does not cut stay whole.
-# Each sub-block stores its parent cell and its extent as fractions of that cell. Counting centers gets the total
-# volume nearly right at any sub-grid, as errors on either side cancel; what a finer sub-grid shrinks is the volume
-# in the wrong place, sub-blocks outside the mesh plus mesh outside the sub-blocks, measured with `Mesh.proportion`:
-
-
-# %%
-def misplaced(model):
-    p = solid.proportion(model, discretization=4)
-    return ((1 - p) * model.volumes).sum() + solid.volume - (p * model.volumes).sum()
-
-
-print(f"blocks more than half inside: {len(ore) * size**3:,.0f} m3, {misplaced(ore):,.0f} m3 misplaced")
-for n in (1, 2, 4, 8):
-    sub = blocks.subblock([(solid, "inside", "ore")], n)
-    print(
-        f"sub-grid {n}: {len(sub):>6} sub-blocks, {sub.volumes.sum():,.0f} m3, {misplaced(sub):,.0f} m3 misplaced"
-    )
-subblocked = blocks.subblock([(solid, "inside", "ore")], 4)
-print(subblocked)
-
-# %%
-z = subblocked.centroids[:, 2]
-thick = size * (subblocked.extents[:, 5] - subblocked.extents[:, 2])
-cut = (z - thick / 2 < level + 0.1) & (z + thick / 2 > level + 0.1)
-whole = (subblocked.extents == [0, 0, 0, 1, 1, 1]).all(axis=1)
-fig, ax = plt.subplots(figsize=(6.4, 5), layout="constrained")
-for c, e, w in zip(subblocked.centroids[cut], subblocked.extents[cut], whole[cut]):
-    dx, dy = (e[3] - e[0]) * size, (e[4] - e[1]) * size
-    ax.add_patch(
-        plt.Rectangle(
-            (c[0] - dx / 2, c[1] - dy / 2),
-            dx,
-            dy,
-            facecolor=ACCENT if w else HIGHLIGHT,
-            edgecolor="white",
-            lw=0.3,
-        )
-    )
-ax.autoscale()
-ax.set_aspect("equal")
-ax.set(
-    title=f"Sub-blocked bench {level:.0f} m: whole blocks and sub-blocks",
-    xlabel="Easting (m)",
-    ylabel="Northing (m)",
-)
-save(fig, "subblocks")
-
-# %% [markdown]
-# `regularize` moves columns between any two models of the same rotation by the volume each pair of blocks shares:
-# floats as volume-weighted means, labels by the value filling the most volume. Here the sub-blocks take an
-# inverse-distance Zn grade from the composites inside, then go to 20 m blocks. `fraction` is how much of each
-# 20 m block the sub-blocks fill, so volume × fraction × grade keeps the metal; `min_fraction` drops thin edges.
-
-# %%
-search = cs.Search(radius=200, min_samples=1, max_samples=12)
-grade = cs.InverseDistance(search, power=2).fit(xyz[local][inside], zn[local][inside]).predict(subblocked)
-subblocked = subblocked.with_column("zn", grade)
-coarse = cs.BlockModel(origin=lo, size=(20, 20, 20), count=np.ceil(count / 2).astype(int))
-for minimum in (0.0, 0.5):
-    out = subblocked.regularize(coarse, min_fraction=minimum)
-    kept = ~np.isnan(out["zn"])
-    tonnes = out.volumes[kept] * out["fraction"][kept]
-    print(
-        f"min_fraction {minimum}: {kept.sum()} blocks, {tonnes.sum():,.0f} m3 at {np.average(out['zn'][kept], weights=tonnes):.2f}% Zn"
-    )
-print(
-    f"      sub-blocks: {subblocked.volumes.sum():,.0f} m3 at {np.average(grade, weights=subblocked.volumes):.2f}% Zn"
-)
-
-# %% [markdown]
-# Meshes read and write OBJ, STL and DXF, chosen by extension. STL stores single precision, so vertices move by
-# less than a millimeter at these coordinates:
-
-# %%
-with tempfile.TemporaryDirectory() as folder:
-    cs.write_mesh(Path(folder) / "ellipsoid.stl", solid)
-    back = cs.read_mesh(Path(folder) / "ellipsoid.stl")
-shift = np.abs(back.vertices[back.triangles] - solid.vertices[solid.triangles]).max()
-print(
-    back,
-    f"volume {back.volume:,.0f} m3 (written {solid.volume:,.0f} m3), largest shift {shift * 1000:.2f} mm",
-)
-
-# %% [markdown]
-# A solid from elsewhere can arrive as loose triangles: each with its own copy of its corners, rounded differently,
-# and wound either way. It has no shared edges, so it is not closed and has no volume. `Mesh.repair` welds corners
-# within `tolerance`, drops degenerate and repeated triangles, and winds each piece consistently, outward where it
-# is closed:
-
-# %%
-rng = np.random.default_rng(7)
-corners = solid.vertices[solid.triangles] + rng.normal(0, 1e-4, (len(solid.triangles), 3, 3))
-loose = np.arange(3 * len(solid.triangles)).reshape(-1, 3)
-flip = rng.random(len(loose)) < 0.5
-loose[flip] = loose[flip, ::-1]
-broken = cs.Mesh(corners.reshape(-1, 3), loose)
-repaired = broken.repair(tolerance=0.01)
-print(broken, broken.analysis)
-print(repaired, f"volume {repaired.volume:,.0f} m3 (original {solid.volume:,.0f} m3)")
+save(fig, "solids")
