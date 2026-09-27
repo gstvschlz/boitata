@@ -1,0 +1,4 @@
+contact_links:
+  - name: Examples and documentation
+    url: https://gstvschlz.github.io/ceres/
+    about: "Worked examples on public datasets; check them before asking how to do something."

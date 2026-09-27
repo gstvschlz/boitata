@@ -1,0 +1,53 @@
+name: Bug report
+description: Report a crash, a wrong result or an unclear error message.
+title: "BUG: <write a short title after the 'BUG: ' prefix>"
+labels: [bug]
+
+body:
+- type: markdown
+  attributes:
+    value: >
+      Thank you for reporting a bug. Please search the
+      [existing issues](https://github.com/gstvschlz/ceres/issues) first.
+
+- type: textarea
+  attributes:
+    label: "Describe the issue:"
+    description: What did you expect, and what happened instead?
+  validations:
+    required: true
+
+- type: textarea
+  attributes:
+    label: "Reproduce the code example:"
+    description: >
+      A short, self-contained script we can run as-is. Use a dataset from
+      `cs.datasets` or small seeded synthetic data, not client data.
+    placeholder: |
+      import ceres as cs
+      << your code here >>
+    render: python
+  validations:
+    required: true
+
+- type: textarea
+  attributes:
+    label: "Error message:"
+    description: The full traceback or panic message, if any.
+    placeholder: |
+      << Full traceback starting from `Traceback: ...` >>
+    render: shell
+
+- type: textarea
+  attributes:
+    label: "Versions and platform:"
+    description: >
+      Output of `import sys, platform, ceres; print(ceres.__version__, sys.version, platform.platform())`.
+  validations:
+    required: true
+
+- type: textarea
+  attributes:
+    label: "How does this issue affect you:"
+    description: >
+      For example: data size, how often it happens, whether you have a workaround.
