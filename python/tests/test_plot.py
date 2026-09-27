@@ -164,6 +164,19 @@ def test_uncertain_slices_a_masked_model():
     assert rgba[1, 1, 3] == 0 and rgba[1, 3, :3].max() < 1
 
 
+def test_uncertain_draws_category_codes_with_a_legend():
+    scheme = cs.Categories(["a", "b", "c"], colors=["red", "green", "blue"])
+    codes = np.array([[0.0, 1.0], [2.0, np.nan]])
+    entropy = np.array([[0.0, 1.0], [0.0, 0.0]])
+    _, ax = cs.plot.uncertain(codes, entropy, scheme=scheme)
+    rgba = ax.images[0].get_array()
+    np.testing.assert_allclose(rgba[0, 0], [1, 0, 0, 1])
+    np.testing.assert_allclose(rgba[0, 1, :3], 1.0)
+    np.testing.assert_allclose(rgba[1, 0], [0, 0, 1, 1])
+    assert rgba[1, 1, 3] == 0
+    assert [t.get_text() for t in ax.get_legend().get_texts()] == ["a", "b", "c"]
+
+
 def test_probability_draws_the_cap():
     v = rng.lognormal(0, 1, 300)
     _, ax = cs.plot.probability(v, log=True, cap=5.0)
