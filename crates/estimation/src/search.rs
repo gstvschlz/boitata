@@ -656,9 +656,9 @@ impl SearchTree {
         self.index.candidates(&self.points, query, k, radius2)
     }
 
-    /// Selection by a per-query ellipsoid `local` (major = 1, other ratios â‰¤ 1)
-    /// for a tree built without anisotropy: every sample in the sphere of
-    /// `radius` is re-ranked by its local distance. `domain` is the target's,
+    /// Selection by a per-query ellipsoid `local` for a tree built without
+    /// anisotropy: every sample in the sphere of `radius` times the longest
+    /// axis of `local` is re-ranked by its local distance. `domain` is the target's,
     /// as in [`neighbors_in`].
     pub fn neighbors_within(
         &self,
@@ -668,7 +668,9 @@ impl SearchTree {
     ) -> Result<Vec<usize>> {
         let params = &self.params;
         let query = self.project(target);
-        let radius2 = params.radius * params.radius;
+        let axes = &local.angles;
+        let reach = params.radius * axes.major.max(axes.semi).max(axes.minor);
+        let radius2 = reach * reach;
         let mut found: Vec<(f64, usize)> = self
             .candidates(&query, self.len(), radius2)
             .into_iter()

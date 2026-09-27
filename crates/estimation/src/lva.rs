@@ -21,6 +21,8 @@ pub struct LocalAnisotropy {
     pub angles: Vec<[f64; 3]>,
     /// Semi-major/major and minor/major range ratios, in (0, 1].
     pub ratios: Vec<[f64; 2]>,
+    /// Multiplier of every variogram range and of the search radius, > 0.
+    pub scales: Vec<f64>,
 }
 
 /// Which in-plane direction of a mesh becomes the major axis.
@@ -65,10 +67,31 @@ impl LocalAnisotropy {
             return Err(invalid("ratios must be in (0, 1]"));
         }
         Ok(Self {
+            scales: vec![1.0; coords.len()],
             coords,
             angles,
             ratios,
         })
+    }
+
+    /// This field with range multipliers `scales`, one per location.
+    pub fn with_scales(mut self, scales: Vec<f64>) -> Result<Self> {
+        if scales.len() != self.len() {
+            return Err(invalid("one scale per location"));
+        }
+        if scales.iter().any(|s| !(s.is_finite() && *s > 0.0)) {
+            return Err(invalid("scales must be positive"));
+        }
+        self.scales = scales;
+        Ok(self)
+    }
+
+    /// World-to-(major, semi-major, minor) rotation at each location.
+    pub fn rotations(&self) -> Vec<Matrix3<f64>> {
+        self.angles
+            .iter()
+            .map(|&[a, d, r]| ceres_core::rotation_matrix(a, d, r))
+            .collect()
     }
 
     pub fn len(&self) -> usize {
@@ -79,23 +102,25 @@ impl LocalAnisotropy {
         self.coords.is_empty()
     }
 
-    /// Anisotropy at location `i`, with ranges as ratios of the major range.
+    /// Anisotropy at location `i`: major axis `scales[i]`, the others that
+    /// times their ratios, so every variogram range is multiplied by the scale.
     pub fn anisotropy(&self, i: usize) -> Anisotropy {
         let [azimuth, dip, rake] = self.angles[i];
         let [semi, minor] = self.ratios[i];
+        let s = self.scales[i];
         Anisotropy::new(Angles {
             azimuth,
             dip,
             rake,
-            major: 1.0,
-            semi,
-            minor,
+            major: s,
+            semi: s * semi,
+            minor: s * minor,
         })
-        .expect("ratios are positive")
+        .expect("ratios and scales are positive")
     }
 
     fn from_axes(coords: Vec<Point>, axes: Vec<(Vector3<f64>, Vector3<f64>, [f64; 2])>) -> Self {
-        let (angles, ratios) = axes
+        let (angles, ratios): (Vec<_>, Vec<_>) = axes
             .into_iter()
             .map(|(major, semi, ratios)| {
                 let (major, semi) = frame(major, semi);
@@ -103,6 +128,7 @@ impl LocalAnisotropy {
             })
             .unzip();
         Self {
+            scales: vec![1.0; coords.len()],
             coords,
             angles,
             ratios,
@@ -326,7 +352,7 @@ impl LocalAnisotropy {
     }
 
     /// Averages, over all locations within `radius`, the direction tensors of
-    /// the major and semi-major axes and the ratios.
+    /// the major and semi-major axes, the ratios and the scales.
     pub fn smooth(&self, radius: f64) -> Self {
         let axes: Vec<(Matrix3<f64>, Matrix3<f64>)> = (0..self.len())
             .map(|i| {
@@ -349,7 +375,7 @@ impl LocalAnisotropy {
             let i = eig.eigenvalues.imax();
             column(&eig.eigenvectors, i)
         };
-        let averaged = self
+        let (averaged, scales): (Vec<_>, Vec<_>) = self
             .coords
             .par_iter()
             .map(|p| {
@@ -363,10 +389,15 @@ impl LocalAnisotropy {
                         acc[1] + self.ratios[i][1] / n,
                     ]
                 });
-                (top(&major), top(&semi), ratios)
+                let scale = near.iter().map(|&i| self.scales[i] / n).sum::<f64>();
+                let ratios = ratios.map(|r| r.min(1.0));
+                ((top(&major), top(&semi), ratios), scale)
             })
-            .collect();
-        Self::from_axes(self.coords.clone(), averaged)
+            .unzip();
+        Self {
+            scales,
+            ..Self::from_axes(self.coords.clone(), averaged)
+        }
     }
 
     /// The anisotropy of the nearest location, at each target.
@@ -386,8 +417,267 @@ impl LocalAnisotropy {
             coords: targets.to_vec(),
             angles: nearest.iter().map(|&i| self.angles[i]).collect(),
             ratios: nearest.iter().map(|&i| self.ratios[i]).collect(),
+            scales: nearest.iter().map(|&i| self.scales[i]).collect(),
         }
     }
+}
+
+/// Settings of [`local_parameters`].
+#[derive(Debug, Clone)]
+pub struct WindowFit {
+    /// Radius of the moving window around each node.
+    pub window: f64,
+    /// Lag-bin width and largest pair distance.
+    pub lag: f64,
+    pub max_lag: f64,
+    /// Direction sectors over 180 degrees in the major/semi-major plane.
+    pub sectors: usize,
+    /// Fewest pairs in a window for a fit; fewer keep the base parameters.
+    pub min_pairs: usize,
+}
+
+/// Experimental variogram of one window: per (sector, lag) bin the pair
+/// count, the squared-difference sum, the mean (major, semi) separation,
+/// folded onto one side, and the mean squared minor separation; and the
+/// variance of the window's values.
+struct Bins {
+    count: Vec<f64>,
+    sq: Vec<f64>,
+    along: Vec<[f64; 2]>,
+    across: Vec<f64>,
+    variance: f64,
+}
+
+const SCALES: (f64, f64) = (0.1, 10.0);
+
+impl Bins {
+    fn gather(
+        near: &[usize],
+        coords: &[Point],
+        values: &[f64],
+        frames: &[Matrix3<f64>],
+        params: &WindowFit,
+    ) -> Self {
+        let lags = ((params.max_lag / params.lag).ceil() as usize).max(1);
+        let n = params.sectors * lags;
+        let mut b = Self {
+            count: vec![0.0; n],
+            sq: vec![0.0; n],
+            along: vec![[0.0; 2]; n],
+            across: vec![0.0; n],
+            variance: 0.0,
+        };
+        let k = near.len().max(1) as f64;
+        let mean = near.iter().map(|&i| values[i]).sum::<f64>() / k;
+        b.variance = near
+            .iter()
+            .map(|&i| (values[i] - mean).powi(2))
+            .sum::<f64>()
+            / k;
+        let width = std::f64::consts::PI / params.sectors as f64;
+        for (k, &i) in near.iter().enumerate() {
+            let p = coords[i];
+            for &j in &near[k + 1..] {
+                let q = coords[j];
+                let d = Vector3::new(q.0 - p.0, q.1 - p.1, q.2 - p.2);
+                let dist = d.norm();
+                if dist == 0.0 || dist > params.max_lag {
+                    continue;
+                }
+                let mut c = frames[i] * d;
+                if (-c.y).atan2(c.x) < 0.0 {
+                    c = -c;
+                }
+                let psi = (-c.y).atan2(c.x).rem_euclid(std::f64::consts::PI);
+                let sector = ((psi / width) as usize).min(params.sectors - 1);
+                let lag = ((dist / params.lag) as usize).min(lags - 1);
+                let at = sector * lags + lag;
+                b.count[at] += 1.0;
+                b.sq[at] += (values[i] - values[j]).powi(2);
+                b.along[at][0] += c.x;
+                b.along[at][1] += c.y;
+                b.across[at] += c.z * c.z;
+            }
+        }
+        for at in 0..n {
+            if b.count[at] > 0.0 {
+                let w = b.count[at];
+                b.along[at] = b.along[at].map(|v| v / w);
+                b.across[at] /= w;
+                b.sq[at] /= 2.0 * w;
+            }
+        }
+        b
+    }
+
+    fn pairs(&self) -> usize {
+        self.count.iter().sum::<f64>() as usize
+    }
+
+    /// Weighted squared misfit of the shape of `vg`, with the window's
+    /// variance as sill, turned by `theta` (radians) in the plane, with
+    /// semi-major ratio `ratio`, minor ratio `minor` and ranges times `scale`.
+    fn misfit(&self, vg: &Variogram, theta: f64, ratio: f64, minor: f64, scale: f64) -> f64 {
+        let (s, c) = theta.sin_cos();
+        let sill = self.variance / vg.total_sill();
+        let mut sum = 0.0;
+        for at in 0..self.count.len() {
+            let w = self.count[at];
+            if w == 0.0 {
+                continue;
+            }
+            let [m, t] = self.along[at];
+            let a = m * c - t * s;
+            let b = m * s + t * c;
+            let h = ((a / scale).powi(2)
+                + (b / (scale * ratio)).powi(2)
+                + self.across[at] / (scale * minor).powi(2))
+            .sqrt();
+            let g = sill * vg.gamma(h);
+            sum += w * (self.sq[at] / g - 1.0).powi(2);
+        }
+        sum
+    }
+
+    /// Best (theta, ratio, scale): a coarse grid, then a pattern search with
+    /// halving steps. `turn` false keeps theta at 0.
+    fn fit(&self, vg: &Variogram, minor: f64, turn: bool) -> (f64, f64, f64) {
+        let f = |p: [f64; 3]| self.misfit(vg, p[0].to_radians(), p[1].exp(), minor, p[2].exp());
+        let thetas: Vec<f64> = match turn {
+            true => (0..18).map(|k| k as f64 * 10.0).collect(),
+            false => vec![0.0],
+        };
+        let (lo_r, lo_s, hi_s) = (0.05f64.ln(), SCALES.0.ln(), SCALES.1.ln());
+        let mut best = ([0.0, 0.0, 0.0], f64::INFINITY);
+        for &t in &thetas {
+            for r in 0..10 {
+                for k in 0..17 {
+                    let p = [
+                        t,
+                        lo_r * (1.0 - r as f64 / 9.0),
+                        lo_s + (hi_s - lo_s) * k as f64 / 16.0,
+                    ];
+                    let v = f(p);
+                    if v < best.1 {
+                        best = (p, v);
+                    }
+                }
+            }
+        }
+        let mut step = [
+            if turn { 5.0 } else { 0.0 },
+            -lo_r / 18.0,
+            (hi_s - lo_s) / 32.0,
+        ];
+        for _ in 0..8 {
+            for axis in 0..3 {
+                if step[axis] == 0.0 {
+                    continue;
+                }
+                for sign in [-1.0, 1.0] {
+                    let mut p = best.0;
+                    p[axis] += sign * step[axis];
+                    p[1] = p[1].clamp(lo_r, 0.0);
+                    p[2] = p[2].clamp(lo_s, hi_s);
+                    let v = f(p);
+                    if v < best.1 {
+                        best = (p, v);
+                    }
+                }
+            }
+            step = step.map(|s| s / 2.0);
+        }
+        let [t, r, s] = best.0;
+        (t.rem_euclid(180.0), r.exp(), s.exp())
+    }
+}
+
+/// Moving-window fits of locally varying variogram parameters at `nodes`.
+///
+/// The pairs of samples within `params.window` of a node are binned by
+/// distance and by direction in the plane of the major and semi-major axes
+/// of a base frame, their separations read in the base frame of the tail.
+/// The shape of `vg` (nugget and structures), rescaled to the variance of
+/// the window's values, is fitted to these bins by least squares weighted by
+/// the pair counts: without `field`
+/// the base frame is the anisotropy of `vg` and the fit finds the in-plane
+/// rotation, the semi-major ratio and a scale of every range; with `field`
+/// the base frame at each sample and node is that of its nearest location
+/// in `field`, the angles and the minor ratio stay, and the fit finds the
+/// semi-major ratio and the scale. A window with fewer than
+/// `params.min_pairs` pairs keeps the base parameters and scale 1. Scales
+/// are within [0.1, 10], ratios within [0.05, 1].
+pub fn local_parameters(
+    nodes: &[Point],
+    coords: &[Point],
+    values: &[f64],
+    vg: &Variogram,
+    field: Option<&LocalAnisotropy>,
+    params: &WindowFit,
+) -> Result<LocalAnisotropy> {
+    if coords.len() != values.len() {
+        return Err(invalid("one value per sample"));
+    }
+    if !(params.window > 0.0 && params.lag > 0.0 && params.max_lag > 0.0) {
+        return Err(invalid("window, lag and max_lag must be positive"));
+    }
+    if params.sectors == 0 {
+        return Err(invalid("sectors must be at least 1"));
+    }
+    if vg.total_sill() <= 0.0 || !vg.is_stationary() {
+        return Err(invalid("the variogram needs a positive, finite sill"));
+    }
+    if field.is_some_and(|f| f.is_empty()) {
+        return Err(invalid("the anisotropy field is empty"));
+    }
+    let shape = Variogram {
+        anisotropy: None,
+        ..vg.clone()
+    };
+    let base = match &vg.anisotropy {
+        Some(a) => {
+            let g = &a.angles;
+            let angles = [g.azimuth, g.dip, g.rake];
+            let ratios = [g.semi / g.major, g.minor / g.major];
+            LocalAnisotropy::new(vec![(0.0, 0.0, 0.0)], vec![angles], vec![ratios])?
+        }
+        None => LocalAnisotropy::new(vec![(0.0, 0.0, 0.0)], vec![[0.0; 3]], vec![[1.0; 2]])?,
+    };
+    let (at_samples, at_nodes) = match field {
+        Some(f) => (f.at(coords), f.at(nodes)),
+        None => (base.at(coords), base.at(nodes)),
+    };
+    let frames = at_samples.rotations();
+    let samples: Vec<Sample> = coords.iter().map(|&p| Sample::new(p, 0.0)).collect();
+    let search = Search {
+        min_samples: 1,
+        max_samples: coords.len().max(1),
+        radius: params.window,
+        ..Default::default()
+    };
+    let tree = SearchTree::new(&samples, &search, None);
+    let node_frames = at_nodes.rotations();
+    let (axes, scales): (Vec<_>, Vec<_>) = nodes
+        .par_iter()
+        .enumerate()
+        .map(|(n, p)| {
+            let [ratio, minor] = at_nodes.ratios[n];
+            let mut near = tree.neighbors(p).unwrap_or_default();
+            near.sort_unstable();
+            let bins = Bins::gather(&near, coords, values, &frames, params);
+            let (theta, ratio, scale) = if bins.pairs() < params.min_pairs {
+                (0.0, ratio, 1.0)
+            } else {
+                bins.fit(&shape, minor, field.is_none())
+            };
+            let (s, c) = theta.to_radians().sin_cos();
+            let back = node_frames[n].transpose();
+            let major = back * Vector3::new(c, -s, 0.0);
+            let semi = back * Vector3::new(s, c, 0.0);
+            ((major, semi, [ratio, minor]), scale)
+        })
+        .unzip();
+    LocalAnisotropy::from_axes(nodes.to_vec(), axes).with_scales(scales)
 }
 
 /// As [`crate::estimate_many`], with target `i` using `local[i]` for its
@@ -571,6 +861,256 @@ mod tests {
                 iso.neighbors_within(&t, None, &aniso).unwrap(),
                 rotated.neighbors(&t).unwrap()
             );
+        }
+    }
+
+    /// Uniforms in [0, 1) from a seed.
+    fn uniforms(seed: u64) -> impl FnMut() -> f64 {
+        let mut state = seed;
+        move || {
+            state = state.wrapping_add(0x9E37_79B9_7F4A_7C15);
+            let mut z = state;
+            z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+            z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+            ((z ^ (z >> 31)) >> 11) as f64 / (1u64 << 53) as f64
+        }
+    }
+
+    /// Unit-sill field with a Gaussian covariance of practical ranges `major`
+    /// and `major * ratio`, major axis at `azimuth`: a sum of random waves.
+    fn waves(seed: u64, azimuth: f64, major: f64, ratio: f64) -> impl Fn(&Point) -> f64 {
+        let mut u = uniforms(seed);
+        let mut normal = move || {
+            let (a, b) = (u().max(1e-300), u());
+            (-2.0 * a.ln()).sqrt() * (std::f64::consts::TAU * b).cos()
+        };
+        let back = ceres_core::rotation_matrix(azimuth, 0.0, 0.0).transpose();
+        let k = 400;
+        let waves: Vec<(Vector3<f64>, f64)> = (0..k)
+            .map(|_| {
+                let w = Vector3::new(
+                    normal() * 6f64.sqrt() / major,
+                    normal() * 6f64.sqrt() / (major * ratio),
+                    0.0,
+                );
+                (back * w, normal() * 1e3)
+            })
+            .collect();
+        move |p| {
+            let x = Vector3::new(p.0, p.1, p.2);
+            waves
+                .iter()
+                .map(|(w, f)| (w.dot(&x) + f).cos())
+                .sum::<f64>()
+                * (2.0 / k as f64).sqrt()
+        }
+    }
+
+    /// Azimuth 30, ranges 36 and 9 west of x = 60; azimuth 120, ranges 12
+    /// and 4 east of it.
+    fn two_regions(n: usize) -> (Vec<Point>, Vec<f64>) {
+        let (west, east) = (waves(1, 30.0, 20.0, 0.25), waves(2, 120.0, 8.0, 0.4));
+        let mut u = uniforms(3);
+        let coords: Vec<Point> = (0..n).map(|_| (120.0 * u(), 80.0 * u(), 0.0)).collect();
+        let values = coords
+            .iter()
+            .map(|p| if p.0 < 60.0 { west(p) } else { east(p) })
+            .collect();
+        (coords, values)
+    }
+
+    fn gaussian(range: f64) -> Variogram {
+        Variogram {
+            nugget: 0.01,
+            ..Variogram::single(Model::Gaussian, 0.99, range)
+        }
+    }
+
+    #[test]
+    fn window_fits_find_each_region() {
+        let (coords, values) = two_regions(1500);
+        let params = WindowFit {
+            window: 25.0,
+            lag: 2.0,
+            max_lag: 15.0,
+            sectors: 8,
+            min_pairs: 100,
+        };
+        let nodes = vec![(28.0, 40.0, 0.0), (92.0, 40.0, 0.0)];
+        let local =
+            local_parameters(&nodes, &coords, &values, &gaussian(12.0), None, &params).unwrap();
+        let expected = [(30.0, 0.25, 20.0 / 12.0), (120.0, 0.4, 8.0 / 12.0)];
+        for (i, (azimuth, ratio, scale)) in expected.into_iter().enumerate() {
+            let d = (local.angles[i][0] - azimuth).rem_euclid(180.0);
+            assert!(d.min(180.0 - d) < 12.0, "azimuth {:?}", local.angles[i]);
+            assert!(
+                (local.ratios[i][0] - ratio).abs() < 0.12,
+                "ratio {:?}",
+                local.ratios[i]
+            );
+            assert!(
+                (local.scales[i] / scale - 1.0).abs() < 0.3,
+                "scale {}",
+                local.scales[i]
+            );
+        }
+    }
+
+    #[test]
+    fn window_fits_do_not_depend_on_the_thread_count() {
+        let (coords, values) = two_regions(800);
+        let nodes: Vec<Point> = (0..24)
+            .map(|i| {
+                (
+                    5.0 + 20.0 * (i % 6) as f64,
+                    10.0 + 20.0 * (i / 6) as f64,
+                    0.0,
+                )
+            })
+            .collect();
+        let params = WindowFit {
+            window: 25.0,
+            lag: 2.0,
+            max_lag: 15.0,
+            sectors: 8,
+            min_pairs: 100,
+        };
+        let run = |threads| {
+            rayon::ThreadPoolBuilder::new()
+                .num_threads(threads)
+                .build()
+                .unwrap()
+                .install(|| {
+                    let l =
+                        local_parameters(&nodes, &coords, &values, &gaussian(12.0), None, &params)
+                            .unwrap();
+                    (l.angles, l.ratios, l.scales)
+                })
+        };
+        assert_eq!(run(1), run(8));
+    }
+
+    #[test]
+    fn local_parameters_beat_global_kriging_on_held_out_samples() {
+        let (coords, values) = two_regions(1500);
+        let samples: Vec<Sample> = coords[..1200]
+            .iter()
+            .zip(&values)
+            .map(|(&p, &v)| Sample::new(p, v))
+            .collect();
+        let (targets, truth) = (&coords[1200..], &values[1200..]);
+        let nodes: Vec<Point> = (0..48)
+            .map(|i| {
+                (
+                    5.0 + 10.0 * (i % 12) as f64,
+                    10.0 + 20.0 * (i / 12) as f64,
+                    0.0,
+                )
+            })
+            .collect();
+        let params = WindowFit {
+            window: 25.0,
+            lag: 2.0,
+            max_lag: 15.0,
+            sectors: 8,
+            min_pairs: 100,
+        };
+        let vg = gaussian(12.0);
+        let train: Vec<Point> = samples.iter().map(|s| s.loc).collect();
+        let train_values: Vec<f64> = samples.iter().map(|s| s.value).collect();
+        let local = local_parameters(&nodes, &train, &train_values, &vg, None, &params)
+            .unwrap()
+            .smooth(12.0);
+        let search = Search {
+            min_samples: 1,
+            max_samples: 16,
+            radius: 40.0,
+            ..Default::default()
+        };
+        let ok = |t: &Point, s: &[Sample], v: &Variogram| krige(Kind::Ordinary, t, s, v);
+        let ours = estimate_many_local(
+            targets,
+            None,
+            &local.at(targets),
+            &samples,
+            &search,
+            &vg,
+            ok,
+        )
+        .unwrap();
+        let global_search = Search {
+            radius: 60.0,
+            ..search.clone()
+        };
+        let global = crate::estimate_many(targets, None, &samples, &global_search, None, |t, s| {
+            krige(Kind::Ordinary, t, s, &vg)
+        });
+        let mse = |e: &[Option<crate::Estimate>]| {
+            e.iter()
+                .zip(truth)
+                .map(|(e, v)| (e.as_ref().unwrap().value - v).powi(2))
+                .sum::<f64>()
+                / truth.len() as f64
+        };
+        let (ours, global) = (mse(&ours), mse(&global));
+        assert!(ours < 0.8 * global, "local {ours} vs global {global}");
+    }
+
+    #[test]
+    fn a_constant_scale_is_a_global_range_and_radius() {
+        let samples: Vec<Sample> = (0..300)
+            .map(|i| {
+                let (x, y) = ((i * 37 % 101) as f64, (i * 53 % 97) as f64);
+                Sample::new((x, y, 0.0), (x / 10.0).sin() + y / 50.0)
+            })
+            .collect();
+        let targets: Vec<Point> = (0..100)
+            .map(|i| ((i % 10) as f64 * 9.5, (i / 10) as f64 * 9.5, 0.0))
+            .collect();
+        let local = LocalAnisotropy::new(
+            targets.clone(),
+            vec![[30.0, 0.0, 0.0]; 100],
+            vec![[0.4, 1.0]; 100],
+        )
+        .unwrap()
+        .with_scales(vec![1.5; 100])
+        .unwrap();
+        let search = Search {
+            min_samples: 1,
+            max_samples: 16,
+            radius: 40.0,
+            ..Default::default()
+        };
+        let vg = Variogram::single(Model::Spherical, 1.0, 50.0);
+        let ours =
+            estimate_many_local(&targets, None, &local, &samples, &search, &vg, |t, s, v| {
+                krige(Kind::Ordinary, t, s, v)
+            })
+            .unwrap();
+        let global = Variogram {
+            anisotropy: Some(
+                Anisotropy::new(Angles {
+                    azimuth: 30.0,
+                    dip: 0.0,
+                    rake: 0.0,
+                    major: 1.0,
+                    semi: 0.4,
+                    minor: 1.0,
+                })
+                .unwrap(),
+            ),
+            ..Variogram::single(Model::Spherical, 1.0, 75.0)
+        };
+        let wide = Search {
+            radius: 60.0,
+            ..search.clone()
+        };
+        let reference =
+            crate::estimate_many(&targets, None, &samples, &wide, Some(&global), |t, s| {
+                krige(Kind::Ordinary, t, s, &global)
+            });
+        for (a, b) in ours.iter().zip(&reference) {
+            assert!((a.as_ref().unwrap().value - b.as_ref().unwrap().value).abs() < 1e-9);
         }
     }
 

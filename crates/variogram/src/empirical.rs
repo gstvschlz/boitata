@@ -8,7 +8,7 @@
 use crate::aniso::euclidean;
 use crate::error::{Result, VarioError};
 use ceres_core::{Geometry, block_frame};
-use nalgebra::Vector3;
+use nalgebra::{Matrix3, Vector3};
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 
@@ -134,6 +134,47 @@ pub fn experimental<'a>(
     let (sums, counts) = sweep(locations, None, bins, direction, false, |i, j, _| {
         moments(values[i], values[j])
     });
+    Ok(collect(bins, &sums, &counts, estimator, scale))
+}
+
+/// As [`experimental`] over scattered points, with each pair's separation
+/// read in the local frame of its tail: `rotations[i]` takes world
+/// coordinates to the (major, semi-major, minor) axes at location `i`, as
+/// [`ceres_core::rotation_matrix`] does. `direction` is then relative to the
+/// local axes: azimuth 0 is the major axis, azimuth 90 the semi-major, dip
+/// 90 the minor, so a cone follows a folded or rotating continuity.
+/// Distances are unchanged; with every rotation that of `(a, 0, 0)` the
+/// result is the global variogram at azimuth `a` plus `direction.azimuth`.
+pub fn experimental_local(
+    locations: &[(f64, f64, f64)],
+    rotations: &[Matrix3<f64>],
+    values: &[f64],
+    bins: &LagBins,
+    estimator: Estimator,
+    direction: Option<&Direction>,
+    standardize: bool,
+) -> Result<Experimental> {
+    check(Support::Points(locations), values, bins)?;
+    if rotations.len() != locations.len() {
+        return Err(VarioError::InvalidParameters(
+            "one rotation per location".into(),
+        ));
+    }
+    let scale = scale(values, estimator, standardize)?;
+    let back = ceres_core::rotation_matrix(0.0, 0.0, 0.0).transpose();
+    let frames: Vec<Matrix3<f64>> = rotations.iter().map(|r| back * r).collect();
+    let n_bins = ((bins.max_lag / bins.lag_width).ceil() as usize).max(1);
+    let dir = direction.map(|d| (d, d.unit(), d.tolerance.to_radians().cos()));
+    let (sums, counts) = point_sweep(
+        locations,
+        None,
+        Some(&frames),
+        bins,
+        n_bins,
+        dir.as_ref(),
+        false,
+        |i, j, _| moments(values[i], values[j]),
+    );
     Ok(collect(bins, &sums, &counts, estimator, scale))
 }
 
@@ -431,7 +472,7 @@ where
     let dir = direction.map(|d| (d, d.unit(), d.tolerance.to_radians().cos()));
     match tails {
         Support::Points(tails) => {
-            point_sweep(tails, heads, bins, n_bins, dir.as_ref(), near, terms)
+            point_sweep(tails, heads, None, bins, n_bins, dir.as_ref(), near, terms)
         }
         Support::Grid(geometry, cells) => {
             grid_sweep(geometry, cells, bins, n_bins, dir.as_ref(), terms)
@@ -477,9 +518,11 @@ fn classify(
     ))
 }
 
+#[allow(clippy::too_many_arguments)]
 fn point_sweep<F>(
     tails: &[(f64, f64, f64)],
     heads: Option<&[(f64, f64, f64)]>,
+    frames: Option<&[Matrix3<f64>]>,
     bins: &LagBins,
     n_bins: usize,
     dir: Option<&Cone>,
@@ -514,7 +557,11 @@ where
                 let pi = tails[i];
                 let (others, first) = heads.map_or((tails, i + 1), |h| (h, 0));
                 for (j, pj) in others.iter().enumerate().skip(first) {
-                    let d = (pj.0 - pi.0, pj.1 - pi.1, pj.2 - pi.2);
+                    let mut d = (pj.0 - pi.0, pj.1 - pi.1, pj.2 - pi.2);
+                    if let Some(f) = frames {
+                        let v = f[i] * Vector3::new(d.0, d.1, d.2);
+                        d = (v.x, v.y, v.z);
+                    }
                     let dist = (d.0 * d.0 + d.1 * d.1 + d.2 * d.2).sqrt();
                     if near && dist <= 0.5 * bins.lag_width {
                         add(&mut sums[n_bins], &terms(i, j, 0.0));
@@ -768,6 +815,43 @@ pub(crate) fn finalize(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn local_frames_turn_the_direction() {
+        let locs: Vec<(f64, f64, f64)> = (0..300)
+            .map(|i| {
+                (
+                    (i * 37 % 101) as f64 + 0.37,
+                    (i * 53 % 97) as f64 + 0.61,
+                    0.0,
+                )
+            })
+            .collect();
+        let vals: Vec<f64> = locs
+            .iter()
+            .map(|p| (p.0 / 9.0).sin() + p.1 / 40.0)
+            .collect();
+        let bins = LagBins {
+            max_lag: 40.0,
+            lag_width: 5.0,
+        };
+        let cone = |azimuth| Direction {
+            azimuth,
+            dip: 0.0,
+            tolerance: 20.0,
+            bandwidth: None,
+        };
+        let rotations = vec![ceres_core::rotation_matrix(30.0, 0.0, 0.0); locs.len()];
+        let m = Estimator::Matheron;
+        let local =
+            experimental_local(&locs, &rotations, &vals, &bins, m, Some(&cone(15.0)), false)
+                .unwrap();
+        let global = experimental(&locs, &vals, &bins, m, Some(&cone(45.0)), false).unwrap();
+        assert_eq!(local.counts, global.counts);
+        for (a, b) in local.gammas.iter().zip(&global.gammas) {
+            assert!((a - b).abs() < 1e-12);
+        }
+    }
 
     #[test]
     fn matheron_linear_trend() {

@@ -392,9 +392,19 @@ def test_local_anisotropy_round_trip(tmp_path):
     path = tmp_path / "lva.parquet"
     lva = cs.LocalAnisotropy.from_points(coords, k=15)
     lva.to_parquet(path)
-    assert cs.read_parquet(path).column_names[3:] == ["azimuth", "dip", "rake", "semi_ratio", "minor_ratio"]
+    assert cs.read_parquet(path).column_names[3:] == [
+        "azimuth",
+        "dip",
+        "rake",
+        "semi_ratio",
+        "minor_ratio",
+        "scale",
+    ]
     estimator = cs.OrdinaryKriging(model, search).fit(coords, values)
     expected = estimator.predict(targets, return_variance=True, anisotropy=lva)
     for back in (cs.LocalAnisotropy.from_parquet(path), pickle.loads(pickle.dumps(lva))):
-        same((back.coords, back.angles, back.ratios), (lva.coords, lva.angles, lva.ratios))
+        same(
+            (back.coords, back.angles, back.ratios, back.scales),
+            (lva.coords, lva.angles, lva.ratios, lva.scales),
+        )
         same(estimator.predict(targets, return_variance=True, anisotropy=back), expected)
