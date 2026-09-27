@@ -446,6 +446,88 @@ pub fn contact(
     Ok(p)
 }
 
+/// Which restriction of the samples a row of [`soft_boundary`] describes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Boundary {
+    /// Only the `target` domain.
+    Hard,
+    /// `Hard` plus samples of other domains within `buffer` of it.
+    Soft,
+}
+
+/// Result of [`soft_boundary`].
+#[derive(Debug, Clone)]
+pub struct SoftBoundary {
+    /// One per sample of the other domains, in their original order: true
+    /// where within `buffer` of the nearest `target` sample.
+    pub added: Vec<bool>,
+    /// `[(Hard, ...), (Soft, ...)]`.
+    pub rows: Vec<(Boundary, Summary)>,
+}
+
+/// Statistics of the `target` domain alone (`Hard`) against also folding in
+/// samples of other domains within `buffer` of their nearest `target` sample
+/// (`Soft`): how much a search allowed to cross the boundary would draw in.
+pub fn soft_boundary(
+    coords: &[[f64; 3]],
+    values: &[f64],
+    domains: &[u32],
+    weights: Option<&[f64]>,
+    target: u32,
+    buffer: f64,
+    probabilities: &[f64],
+) -> Result<SoftBoundary> {
+    let n = coords.len();
+    check(n, values, weights)?;
+    if domains.len() != n {
+        return invalid(format!("expected {n} domains, got {}", domains.len()));
+    }
+    if buffer.is_nan() || buffer <= 0.0 {
+        return invalid("buffer must be positive");
+    }
+    if !domains.contains(&target) {
+        return invalid("target must be a domain present in domains");
+    }
+    let points: Vec<[f64; 3]> = (0..n)
+        .filter(|&i| domains[i] == target)
+        .map(|i| coords[i])
+        .collect();
+    let tree = ImmutableKdTree::<f64, 3>::new_from_slice(&points)
+        .map_err(|e| EdaError::InvalidInput(format!("{e:?}")))?;
+    let other: Vec<usize> = (0..n).filter(|&i| domains[i] != target).collect();
+    let added: Vec<bool> = other
+        .par_iter()
+        .map(|&i| {
+            tree.query(&coords[i])
+                .nearest_n::<SquaredEuclidean<f64>>(std::num::NonZero::<usize>::MIN)
+                .execute()
+                .first()
+                .is_some_and(|r| r.distance.sqrt() <= buffer)
+        })
+        .collect();
+    let mut in_soft = vec![false; n];
+    other
+        .iter()
+        .zip(&added)
+        .filter(|&(_, &a)| a)
+        .for_each(|(&i, _)| in_soft[i] = true);
+    let subset = |extra: bool| -> Result<Summary> {
+        let rows: Vec<usize> = (0..n)
+            .filter(|&i| domains[i] == target || (extra && in_soft[i]))
+            .collect();
+        let v: Vec<f64> = rows.iter().map(|&i| values[i]).collect();
+        let w = weights.map(|w| rows.iter().map(|&i| w[i]).collect::<Vec<_>>());
+        describe(&v, w.as_deref(), probabilities)
+    };
+    Ok(SoftBoundary {
+        added,
+        rows: vec![
+            (Boundary::Hard, subset(false)?),
+            (Boundary::Soft, subset(true)?),
+        ],
+    })
+}
+
 pub const CAP_PROBABILITIES: [f64; 6] = [0.90, 0.95, 0.975, 0.99, 0.995, 0.999];
 
 #[derive(Debug, Clone)]
@@ -1441,6 +1523,27 @@ mod tests {
         let c = contact(&coords, &values, &domains, &[0; 20], 0, 1, 6.5, 1.0).unwrap();
         assert_eq!(c.count.iter().sum::<usize>(), 12);
         assert_eq!((c.centers[0], *c.centers.last().unwrap()), (-6.25, 6.25));
+    }
+
+    #[test]
+    fn soft_boundary_folds_in_nearby_other_domain_samples() {
+        let coords: Vec<[f64; 3]> = vec![
+            [0.0, 0.0, 0.0],
+            [10.0, 0.0, 0.0],
+            [5.0, 0.0, 0.0],
+            [50.0, 0.0, 0.0],
+        ];
+        let domains = vec![0u32, 0, 1, 1];
+        let values = vec![1.0, 2.0, 3.0, 4.0];
+        let r = soft_boundary(&coords, &values, &domains, None, 0, 6.0, &[]).unwrap();
+        assert_eq!(r.added, vec![true, false]);
+        let (hard, soft) = (&r.rows[0].1, &r.rows[1].1);
+        assert_eq!(r.rows.len(), 2);
+        assert_eq!(hard.n, 2);
+        assert_eq!(soft.n, hard.n + r.added.iter().filter(|&&a| a).count());
+        assert!(close(soft.mean, (1.0 + 2.0 + 3.0) / 3.0));
+        assert!(soft_boundary(&coords, &values, &domains, None, 0, 0.0, &[]).is_err());
+        assert!(soft_boundary(&coords, &values, &domains, None, 9, 6.0, &[]).is_err());
     }
 
     #[test]

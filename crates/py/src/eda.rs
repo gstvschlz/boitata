@@ -898,6 +898,115 @@ fn domain_labels<'py>(
     }
 }
 
+/// Hard (`target` domain alone) vs soft statistics: also folding in samples of
+/// other domains within `buffer`, as a search opened with `Search(...,
+/// soft=buffer)` would.
+///
+/// Parameters
+/// ----------
+/// coords : PointSet or array_like
+///     Samples, or their ``(n, 2)`` or ``(n, 3)`` coordinates.
+/// values : array_like or str
+///     Values, or their column in `coords`; NaN is skipped.
+/// domains : array_like, optional
+///     Domain of each sample, int or str.
+/// domain_column : str, optional
+///     Column of `coords` holding the domains; give it or `domains`.
+/// target : int or str
+///     The domain whose statistics are computed.
+/// buffer : float
+///     Distance within which a sample of another domain is folded into the
+///     soft row.
+/// weights : array_like or str, optional
+///     Declustering weights; default 1.
+/// quantiles : sequence of float
+///     Probabilities of the quantile columns.
+///
+/// Returns
+/// -------
+/// added : ndarray of bool
+///     One per sample of the other domains, in their original order: whether
+///     it is within `buffer` of `target` and folded into the soft row.
+/// table : Table
+///     ``kind`` (``"hard"``, ``"soft"``), ``n``, ``mean``, ``variance``,
+///     ``std``, ``cv``, ``min``, ``max`` and one column per quantile named
+///     ``P10``, ``P97.5``, ...
+#[pyfunction]
+#[pyo3(signature = (coords, values, *, domains=None, domain_column=None, target, buffer, weights=None, quantiles=vec![0.1, 0.25, 0.5, 0.75, 0.9]))]
+#[allow(clippy::too_many_arguments)]
+fn soft_boundary<'py>(
+    py: Python<'py>,
+    coords: &Bound<PyAny>,
+    values: &Bound<PyAny>,
+    domains: Option<&Bound<PyAny>>,
+    domain_column: Option<&str>,
+    target: &Bound<PyAny>,
+    buffer: f64,
+    weights: Option<&Bound<PyAny>>,
+    quantiles: Vec<f64>,
+) -> PyResult<(Bound<'py, PyAny>, Table)> {
+    let data = coords;
+    let values = floats(&column(Some(data), values, "values")?, "values")?;
+    let coords = coords_arg(coords)?;
+    let n = coords.len();
+    let domains = domain_labels(Some(data), domains, domain_column)?;
+    let (labels, ids) = self::holes(Some(&domains), n)
+        .map_err(|_| invalid("domains must be a 1-D sequence of labels"))?
+        .expect("given");
+    let label = target.str()?.to_string();
+    let target = labels
+        .iter()
+        .position(|l| *l == label)
+        .map(|i| ids[i])
+        .ok_or_else(|| invalid(format!("no sample in domain {label}")))?;
+    let w = weights_or_volumes(Some(data), weights, n)?;
+    let r = eda::soft_boundary(
+        &coords,
+        &values,
+        &ids,
+        w.as_deref(),
+        target,
+        buffer,
+        &quantiles,
+    )
+    .map_err(invalid)?;
+    let added = numpy::PyArray1::from_vec(py, r.added);
+    let names = vec!["hard".to_string(), "soft".to_string()];
+    let rows: Vec<(Option<u32>, eda::Summary)> = r
+        .rows
+        .into_iter()
+        .map(|(b, s)| {
+            let code = match b {
+                eda::Boundary::Hard => 0,
+                eda::Boundary::Soft => 1,
+            };
+            (Some(code), s)
+        })
+        .collect();
+    let col = |f: &dyn Fn(&eda::Summary) -> f64| nullable(rows.iter().map(|(_, s)| f(s)));
+    let mut columns: Vec<(String, ArrayRef)> = vec![(
+        "n".into(),
+        Arc::new(UInt64Array::from_iter_values(
+            rows.iter().map(|(_, s)| s.n as u64),
+        )),
+    )];
+    for (k, f) in [
+        ("mean", (|s| s.mean) as fn(&eda::Summary) -> f64),
+        ("variance", |s| s.variance),
+        ("std", |s| s.std),
+        ("cv", |s| s.cv),
+        ("min", |s| s.min),
+        ("max", |s| s.max),
+    ] {
+        columns.push((k.into(), col(&f)));
+    }
+    for (j, p) in quantiles.iter().enumerate() {
+        columns.push((quantile_name(*p), col(&|s| s.quantiles[j])));
+    }
+    let table = table("kind", &names, &rows, columns)?;
+    Ok((added.into_any(), table))
+}
+
 /// Metal removed and statistics after capping at each of `caps`.
 ///
 /// Parameters
@@ -1749,6 +1858,7 @@ pub fn register(m: &Bound<PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(capping_report, m)?)?;
     m.add_function(wrap_pyfunction!(swath, m)?)?;
     m.add_function(wrap_pyfunction!(contact, m)?)?;
+    m.add_function(wrap_pyfunction!(soft_boundary, m)?)?;
     m.add_function(wrap_pyfunction!(capping, m)?)?;
     m.add_class::<Capping>()?;
     m.add_function(wrap_pyfunction!(h_scatter, m)?)?;

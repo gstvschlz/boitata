@@ -12,6 +12,8 @@
 
 ::: ceres.contact
 
+::: ceres.soft_boundary
+
 ::: ceres.capping
 
 ::: ceres.capping_report

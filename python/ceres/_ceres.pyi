@@ -1857,6 +1857,17 @@ def contact(
     max_distance: float,
     bin: float,
 ) -> Table: ...
+def soft_boundary(
+    coords: PointSet | ArrayLike,
+    values: ArrayLike | Column,
+    *,
+    domains: Labels | None = None,
+    domain_column: Column | None = None,
+    target: Any,
+    buffer: float,
+    weights: ArrayLike | Column | None = None,
+    quantiles: Sequence[float] = (0.1, 0.25, 0.5, 0.75, 0.9),
+) -> tuple[npt.NDArray[np.bool_], Table]: ...
 def capping(
     values: ArrayLike | Column,
     *,

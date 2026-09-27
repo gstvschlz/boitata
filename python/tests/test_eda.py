@@ -112,6 +112,25 @@ def test_contact_signs_distance_by_side():
         )
 
 
+def test_soft_boundary_folds_in_nearby_other_domain_samples():
+    z = np.arange(20.0)
+    coords = np.c_[np.zeros(20), np.zeros(20), z]
+    domains = np.where(z < 10, "ore", "waste")
+    added, t = cs.soft_boundary(coords, z, domains=domains, target="ore", buffer=1.5, quantiles=[0.5])
+    assert added.dtype == np.bool_
+    assert list(added) == [i == 0 for i in range(10)]
+    assert t.column_names == ["kind", "n", "mean", "variance", "std", "cv", "min", "max", "P50"]
+    assert list(t["kind"]) == ["hard", "soft"]
+    assert t["n"][0] == 10
+    assert t["n"][1] == 10 + added.sum()
+    assert t["mean"][0] == pytest.approx(z[:10].mean())
+    assert t["mean"][1] == pytest.approx(np.r_[z[:10], 10.0].mean())
+    with pytest.raises(cs.InvalidInput):
+        cs.soft_boundary(coords, z, domains=domains, target="ore", buffer=0.0)
+    with pytest.raises(cs.InvalidInput):
+        cs.soft_boundary(coords, z, domains=domains, target="oxide", buffer=1.5)
+
+
 def test_capping_at_maximum_removes_nothing():
     v = rng.lognormal(0, 1, 300)
     c = cs.capping(v, caps=[v.max(), np.median(v)])
