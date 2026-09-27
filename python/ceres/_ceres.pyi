@@ -724,7 +724,10 @@ class Coregionalization:
         directions: Sequence[tuple[float, float]] | None = None,
         rotation: Sequence[_Limit | None] | None = None,
         ratios: Sequence[_Limit | None] | None = None,
+        intrinsic: bool = False,
     ) -> Coregionalization: ...
+    @staticmethod
+    def intrinsic(variogram: Variogram, covariance: ArrayLike) -> Coregionalization: ...
     @property
     def nvar(self) -> int: ...
     @property
@@ -759,6 +762,7 @@ def experimental_variogram(
     method: str | None = None,
     anisotropy: LocalAnisotropy | None = None,
 ) -> ExperimentalVariogram: ...
+def dissemination(madogram: ExperimentalVariogram, variogram: ExperimentalVariogram) -> npt.NDArray[np.float64]: ...
 def experimental_variograms(
     coords: ArrayLike | PointSet | BlockModel,
     values: Sequence[ArrayLike | Column],

@@ -235,7 +235,7 @@ fn lag_grid(
     let partials: Vec<(Vec<Moments>, Vec<usize>)> = (0..GRID_CHUNKS)
         .into_par_iter()
         .map(|chunk| {
-            let mut sums = vec![[0.0f64; 8]; cells];
+            let mut sums = vec![[0.0f64; 9]; cells];
             let mut counts = vec![0usize; cells];
             for i in (chunk..n).step_by(GRID_CHUNKS) {
                 let pi = locations[i];
@@ -256,7 +256,7 @@ fn lag_grid(
             (sums, counts)
         })
         .collect();
-    let mut sums = vec![[0.0f64; 8]; cells];
+    let mut sums = vec![[0.0f64; 9]; cells];
     let mut counts = vec![0usize; cells];
     for (chunk_sums, chunk_counts) in &partials {
         for c in 0..cells {

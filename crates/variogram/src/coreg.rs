@@ -13,6 +13,7 @@
 //! `N` is the (PSD) nugget matrix. This is the model layer that cokriging
 //! ([`estimation`]) consumes.
 
+use crate::Variogram;
 use crate::aniso::{Anisotropy, euclidean};
 use crate::error::{Result, VarioError};
 use crate::model::{Model, shape};
@@ -119,6 +120,41 @@ impl Coregionalization {
         })
     }
 
+    /// Intrinsic model: every direct and cross variogram is `covariance[i][j]`
+    /// times the shape of `variogram` scaled to a unit sill, whose structures,
+    /// nugget proportion and anisotropy all variables share.
+    ///
+    /// # Errors
+    /// [`VarioError::InvalidParameters`] when `variogram` has no finite
+    /// positive sill or `covariance` is not symmetric positive semi-definite.
+    pub fn intrinsic(variogram: &Variogram, covariance: &[Vec<f64>]) -> Result<Self> {
+        let sill = variogram.total_sill();
+        if !variogram.is_stationary() || !(sill > 0.0 && sill.is_finite()) {
+            return Err(VarioError::InvalidParameters(
+                "an intrinsic model needs a variogram with a finite positive sill".into(),
+            ));
+        }
+        check_psd("covariance", covariance, covariance.len())?;
+        let part = |w: f64| -> Vec<Vec<f64>> {
+            covariance
+                .iter()
+                .map(|r| r.iter().map(|c| c * w / sill).collect())
+                .collect()
+        };
+        let structures = variogram
+            .structures
+            .iter()
+            .map(|s| CoregStructure {
+                model: s.model,
+                range: s.range,
+                sills: part(s.sill),
+            })
+            .collect();
+        let mut c = Self::new(part(variogram.nugget), structures)?;
+        c.anisotropy = variogram.anisotropy.clone();
+        Ok(c)
+    }
+
     pub fn with_anisotropy(mut self, a: Anisotropy) -> Self {
         self.anisotropy = Some(a);
         self
@@ -178,6 +214,24 @@ mod tests {
                 sills,
             }],
         )
+    }
+
+    #[test]
+    fn intrinsic_scales_one_shape() {
+        let v = Variogram {
+            nugget: 0.2,
+            structures: vec![crate::Structure::new(Model::Spherical, 0.8, 50.0)],
+            anisotropy: None,
+        };
+        let cov = vec![vec![4.0, 1.2], vec![1.2, 1.0]];
+        let m = Coregionalization::intrinsic(&v, &cov).unwrap();
+        let (p, q) = ((0.0, 0.0, 0.0), (20.0, 0.0, 0.0));
+        for (i, j) in [(0, 0), (0, 1), (1, 1)] {
+            assert!((m.sill(i, j) - cov[i][j]).abs() < 1e-12);
+            let expected = cov[i][j] * v.cov_points(&p, &q);
+            assert!((m.cross_cov(i, j, &p, &q) - expected).abs() < 1e-12);
+        }
+        assert!(Coregionalization::intrinsic(&v, &[vec![1.0, 2.0], vec![2.0, 1.0]]).is_err());
     }
 
     #[test]
