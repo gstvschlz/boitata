@@ -3,7 +3,7 @@
 
 `write_parquet` saves a `PointSet`, `BlockModel` or `Polylines` with its geometry, layout and CRS in the file metadata;
 `read_parquet` returns the same container. The file is ordinary Parquet, so polars, pandas or DuckDB read it as a
-table.
+table. Fitted estimators and categorical estimates are saved the same way.
 """
 
 # %% [hidden]
@@ -22,14 +22,19 @@ import numpy as np
 import polars as pl
 from common import ACCENT, HIGHLIGHT, LIGHT, map_axes, save
 
-samples = cs.PointSet.from_table(
-    cs.read_csv(cs.datasets.fetch("mining/2d/walker-lake/sample.csv")), crs="local grid"
+# %% [markdown]
+# Walker Lake `V` is kriged on a 1 m grid with a variogram fitted in eight directions (topic 19 explains the fit), and
+# the cells above 500 ppm are kept in a masked model.
+
+# %%
+samples = cs.datasets.walker_lake()
+azimuths = np.arange(0, 180, 22.5)
+directional = [cs.experimental_variogram(samples, "V", 10.0, 120.0, azimuth=a) for a in azimuths]
+model = cs.Variogram.fit_directional(
+    directional, [(a, 0) for a in azimuths], ["spherical", "spherical"], weighting="count/gamma"
 )
-model = cs.Variogram.from_json((HERE.parent / "model.json").read_text())
-grid = cs.BlockModel(origin=(0, 0), size=(1, 1), count=(260, 300), rotation=(0, 0, 0), crs="local grid")
-kriging = cs.OrdinaryKriging(model, cs.Search(radius=100, max_samples=24, min_samples=4)).fit(
-    samples.coords, samples["V"]
-)
+grid = cs.BlockModel(origin=(0.5, 0.5), size=(1, 1), count=(260, 300), crs="local grid")
+kriging = cs.OrdinaryKriging(model, cs.Search(radius=100, max_samples=24, min_samples=4)).fit(samples, "V")
 estimate, variance = kriging.predict(grid, return_variance=True)
 grid = grid.with_column("estimate", estimate).with_column("variance", variance)
 rich = grid.mask(grid["estimate"] > 500)
@@ -37,7 +42,7 @@ print(grid)
 print(rich)
 
 # %% [markdown]
-# Only the cells above 500 ppm are kept in the masked model; its cell index is stored with the attributes.
+# The masked model keeps 10273 of the 78000 cells; its cell index is stored with the attributes.
 
 # %%
 folder = Path(tempfile.mkdtemp())
@@ -52,8 +57,9 @@ print(back)
 print("same cells:", np.array_equal(back.index, rich.index), "| crs:", back.crs)
 
 # %% [markdown]
-# Grouping and summaries belong to polars, which reads the same file. A regular model stores no coordinates: its
-# geometry is implicit and the row number is the cell index, x fastest, so a 1 m row of 260 cells is one northing.
+# The full grid takes 1.47 MB in Parquet against 4.04 MB as CSV. Grouping and summaries belong to polars, which reads
+# the same file. A regular model stores no coordinates: its geometry is implicit and the row number is the cell index,
+# x fastest, so a 1 m row of 260 cells is one northing.
 
 # %%
 table = pl.read_parquet(folder / "grid.parquet")
@@ -80,19 +86,29 @@ again = cs.OrdinaryKriging.from_parquet(folder / "kriging.parquet")
 print("same estimates:", np.array_equal(again.predict(grid), estimate, equal_nan=True))
 
 # %% [markdown]
-# GIS software exchanges points as shapefiles. `write_shapefile` stores the coordinates, the attributes (names of at
-# most 10 characters) and the CRS in a `.prj`; `read_shapefile` returns the same PointSet.
+# A categorical estimate keeps its `Categories` scheme, the names and colors of the codes. Walker Lake's type `T`
+# (1 and 2) is kriged as indicators on a 5 m grid (topic 64); the probabilities are saved as columns and the scheme
+# as JSON in the metadata.
 
 # %%
-cs.write_shapefile(folder / "samples.shp", samples)
-print(sorted(p.name for p in folder.glob("samples.*")))
-again = cs.read_shapefile(folder / "samples.shp")
-print("same points:", np.array_equal(again.coords, samples.coords), "| crs:", again.crs)
+scheme = cs.Categories(["T1", "T2"], mapping={1: "T1", 2: "T2"}, colors=[LIGHT, ACCENT])
+types = cs.CategoricalIndicatorKriging(
+    cs.Variogram([("spherical", 0.25, 60.0)]), cs.Search(radius=80, max_samples=16), scheme=scheme
+).fit(samples, "T")
+summary = types.predict(cs.BlockModel(origin=(2.5, 2.5), size=(5, 5), count=(52, 60)))
+summary.to_parquet(folder / "types.parquet")
+print(pl.read_parquet(folder / "types.parquet").head(3))
+kept = cs.CategoricalIndicatorSummary.from_parquet(folder / "types.parquet")
+print(
+    "same scheme:",
+    kept.scheme == scheme,
+    "| same probabilities:",
+    np.array_equal(kept.probabilities, summary.probabilities),
+)
 
 # %% [markdown]
 # Lines and polygons are `Polylines`: one attribute row per feature, each feature made of parts. A closed part is a
-# ring whose last vertex joins the first; a ring inside another ring of the same feature is a hole. A pit outline with
-# an unmined core and a section line go to separate files, polygons and lines, and come back the same. In Parquet a
+# ring whose last vertex joins the first; a ring inside another ring of the same feature is a hole. In Parquet a
 # feature is one row whose `geometry` lists its parts, each a list of vertices; `Polylines.from_table` builds features
 # from a long table with one row per vertex.
 
@@ -100,17 +116,14 @@ print("same points:", np.array_equal(again.coords, samples.coords), "| crs:", ag
 pit = [[60, 80], [60, 240], [200, 240], [200, 80]]
 core = [[110, 140], [150, 140], [150, 190], [110, 190]]
 pits = cs.Polylines([pit, core], closed=True, features=[0, 0], attributes={"name": ["pit"]}, crs="local grid")
-lines = cs.Polylines([[[20, 160], [240, 160]]], attributes={"name": ["A-A'"]}, crs="local grid")
-cs.write_shapefile(folder / "pit.shp", pits)
-cs.write_shapefile(folder / "section.shp", lines)
-pits, lines = cs.read_shapefile(folder / "pit.shp"), cs.read_shapefile(folder / "section.shp")
-print(pits)
-print(lines)
-
 cs.write_parquet(folder / "pit.parquet", pits)
 print(pl.read_parquet(folder / "pit.parquet"))
+pits = cs.read_parquet(folder / "pit.parquet")
+print(pits)
+
 vertices = pl.DataFrame({"ID": ["A-A'", "A-A'"], "X": [20.0, 240.0], "Y": [160.0, 160.0]})
-print("same section:", np.array_equal(cs.Polylines.from_table(vertices).vertices, lines.vertices))
+lines = cs.Polylines.from_table(vertices)
+print(lines)
 
 fig, ax = plt.subplots(figsize=(5, 5.2), layout="constrained")
 ax.scatter(*samples.coords[:, :2].T, s=6, color=LIGHT)
@@ -121,17 +134,3 @@ for part in lines.parts:
     ax.plot(part[:, 0], part[:, 1], color=HIGHLIGHT, lw=1.6, ls="--")
 map_axes(ax, "Pit outline with its core, and section A-A'")
 save(fig, "polylines")
-
-# %% [markdown]
-# Rasters travel as GeoTIFF. `write_geotiff` writes each column of a 2D grid as a band, nulls as the `nodata` value
-# and the CRS in the GeoKeys, so GIS software opens it as a georeferenced raster; `read_geotiff` returns the same
-# grid. Rotated grids are supported, and a masked model is written with nodata in its absent cells.
-
-# %%
-cs.write_geotiff(folder / "grid.tif", grid)
-raster = cs.read_geotiff(folder / "grid.tif")
-print(raster)
-print(f"{(folder / 'grid.tif').stat().st_size / 1e6:.2f} MB")
-print(
-    "same grid:", raster.origin == grid.origin, np.array_equal(raster["estimate"], estimate, equal_nan=True)
-)

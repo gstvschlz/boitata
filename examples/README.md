@@ -79,7 +79,8 @@ Tutorials follow one deposit from data to a result; topics show one feature each
 | 55 | [Layered surfaces](topics/55-layered-surfaces/README.md) | Phosphate weathering profile | `grid_surface`, `plot.section`, `Drillholes`, `InverseDistance`, `Search`, `BlockModel`, `Categories`, `plot.slab`, `plot.category_legend` |
 | 56 | [Polygons](topics/56-polygons/README.md) | Coal seam thickness | `point_in_polygon`, `polygon_distance`, `plot.section`, `assign_domain`, `Categories`, `plot.category_colors`, `plot.category_legend`, `PolygonSelector` |
 | | **I/O and scale** | | |
-| 57 | [Storing containers in Parquet](topics/57-parquet/README.md) | Walker Lake | `PointSet`, `Variogram`, `BlockModel`, `OrdinaryKriging`, `Search`, `write_parquet`, `write_csv`, `read_parquet`, `write_shapefile`, `read_shapefile`, `Polylines`, `write_geotiff`, `read_geotiff` |
+| 57 | [Storing containers in Parquet](topics/57-parquet/README.md) | Walker Lake | `experimental_variogram`, `Variogram`, `BlockModel`, `OrdinaryKriging`, `Search`, `write_parquet`, `write_csv`, `read_parquet`, `Categories`, `CategoricalIndicatorKriging`, `CategoricalIndicatorSummary`, `Polylines` |
+| 58 | [Shapefiles and GeoTIFF](topics/58-gis-formats/README.md) | Soil geochemistry survey | `write_shapefile`, `read_shapefile`, `Polylines`, `Categories`, `BlockModel`, `write_geotiff`, `read_geotiff` |
 | 59 | [Models larger than memory](topics/59-large-models/README.md) | Drillholes (legacy) | `cell_declustering`, `convex_hull`, `BlockModel`, `write_parquet`, `BlockModelFile`, `experimental_variogram`, `Search`, `OrdinaryKriging`, `NormalScore`, `Variogram`, `SimpleKriging`, `map_blocks`, `TurningBands`, `plot.uncertain` |
 | 60 | [3D views](topics/60-3d-views/README.md) | Drillholes (legacy) | `PointSet`, `convex_hull`, `plot3d.to_pyvista`, `plot3d.plot`, `BlockModel`, `Search`, `InverseDistance`, `plot3d.slices` |
 | | **More methods** | | |
