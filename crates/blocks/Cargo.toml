@@ -12,6 +12,7 @@ arrow-array.workspace = true
 arrow-select.workspace = true
 ceres-core.workspace = true
 serde.workspace = true
+kiddo.workspace = true
 nalgebra.workspace = true
 thiserror.workspace = true
 rayon.workspace = true

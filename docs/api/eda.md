@@ -39,3 +39,9 @@
 ::: ceres.classify
 
 ::: ceres.smooth_classes
+
+::: ceres.remove_small_units
+
+::: ceres.contact_distance
+
+::: ceres.buffer_domains

@@ -12,7 +12,9 @@ use pyo3::prelude::*;
 use pyo3::types::{IntoPyDict, PyDict, PyTuple};
 use rayon::prelude::*;
 
-use crate::args::{Point, array1, column, finite, floats, named, points, rows, same_length, texts};
+use crate::args::{
+    Point, array1, column, domain_codes, finite, floats, named, points, rows, same_length, texts,
+};
 use crate::containers::{
     PyBlockModel, PyPolylines, coords_arg, coords_array, coords_or_nan, float_column,
 };
@@ -700,23 +702,6 @@ fn smooth_classes<'py>(
         (None, Some(c)) => Some(named(Some(model.as_any()), c, "domain_column")?),
         (d, None) => d.cloned(),
     };
-    let np = py.import("numpy")?;
-    let encode = |values: &Bound<'py, PyAny>| -> PyResult<(Bound<'py, PyAny>, Vec<u32>)> {
-        let unique = np.call_method(
-            "unique",
-            (values,),
-            Some(&[("return_inverse", true)].into_py_dict(py)?),
-        )?;
-        Ok((
-            unique.get_item(0)?,
-            unique
-                .get_item(1)?
-                .call_method1("astype", ("uint32",))?
-                .call_method0("ravel")?
-                .call_method0("tolist")?
-                .extract()?,
-        ))
-    };
     let (labels, codes) = encode(classes)?;
     let domains = domains.map(|d| encode(&d).map(|e| e.1)).transpose()?;
     let model = &model.get().0;
@@ -731,11 +716,160 @@ fn smooth_classes<'py>(
             )
         })
         .map_err(err)?;
-    labels.get_item(np.call_method1("asarray", (smoothed,))?)
+    decode(&labels, smoothed)
+}
+
+/// Distinct labels of `values` and the code of each value.
+fn encode<'py>(values: &Bound<'py, PyAny>) -> PyResult<(Bound<'py, PyAny>, Vec<u32>)> {
+    let py = values.py();
+    let unique = py.import("numpy")?.call_method(
+        "unique",
+        (values,),
+        Some(&[("return_inverse", true)].into_py_dict(py)?),
+    )?;
+    Ok((
+        unique.get_item(0)?,
+        unique
+            .get_item(1)?
+            .call_method1("astype", ("uint32",))?
+            .call_method0("ravel")?
+            .call_method0("tolist")?
+            .extract()?,
+    ))
+}
+
+fn decode<'py>(labels: &Bound<'py, PyAny>, codes: Vec<u32>) -> PyResult<Bound<'py, PyAny>> {
+    labels.get_item(PyArray1::from_vec(labels.py(), codes))
+}
+
+/// Reclassify connected units of block `classes` smaller than `min_volume`
+/// (or `min_blocks` blocks) into the class of their neighbors.
+///
+/// A unit joins blocks of one class whose parent cells share a face
+/// (`connectivity=6`) or a face, edge or corner (`connectivity=26`); sub-blocks
+/// of one parent cell touch. Units go smallest first, and each takes the class
+/// with the most volume among the blocks touching it, ties to the first class
+/// in sorted order, merging with the units of that class it touches. A unit
+/// left below the minimum has no neighbor to join: absent cells or other
+/// domains surround it. With `domains` (one label per block) or the
+/// `domain_column` of `model`, units and neighbors stay within a domain.
+/// Classes may be any labels, or the column of `model` holding them; the
+/// result has the same labels.
+#[pyfunction]
+#[pyo3(signature = (model, classes, *, min_volume=None, min_blocks=None, connectivity=6, domains=None, domain_column=None))]
+fn remove_small_units<'py>(
+    model: &Bound<'py, PyBlockModel>,
+    classes: &Bound<'py, PyAny>,
+    min_volume: Option<f64>,
+    min_blocks: Option<usize>,
+    connectivity: usize,
+    domains: Option<&Bound<'py, PyAny>>,
+    domain_column: Option<&str>,
+) -> PyResult<Bound<'py, PyAny>> {
+    let min = match (min_volume, min_blocks) {
+        (Some(v), None) => blocks::MinSize::Volume(v),
+        (None, Some(b)) => blocks::MinSize::Blocks(b),
+        _ => return Err(invalid("give one of min_volume or min_blocks")),
+    };
+    let classes = &column(Some(model.as_any()), classes, "classes")?;
+    let n = model.get().0.len();
+    let domains = (domains.is_some() || domain_column.is_some())
+        .then(|| domain_codes(Some(model.as_any()), domains, domain_column, n))
+        .transpose()?
+        .map(|d| d.1);
+    let (labels, codes) = encode(classes)?;
+    let py = model.py();
+    let model = &model.get().0;
+    let out = py
+        .detach(|| blocks::remove_small_units(model, &codes, min, connectivity, domains.as_deref()))
+        .map_err(err)?;
+    decode(&labels, out)
+}
+
+fn contact<'py>(
+    model: &Bound<'py, PyBlockModel>,
+    classes: &Bound<'py, PyAny>,
+    target: Option<&Bound<'py, PyAny>>,
+    signed: bool,
+) -> PyResult<(Bound<'py, PyAny>, Vec<f64>)> {
+    let classes = column(Some(model.as_any()), classes, "classes")?;
+    let (labels, codes) = encode(&classes)?;
+    let target = match target {
+        Some(t) => Some(
+            labels
+                .try_iter()?
+                .position(|l| l.and_then(|l| l.eq(t)).unwrap_or(false))
+                .map_or(u32::MAX, |c| c as u32),
+        ),
+        None => None,
+    };
+    let py = model.py();
+    let model = &model.get().0;
+    let distances = py
+        .detach(|| blocks::contact_distance(model, &codes, target, signed))
+        .map_err(err)?;
+    Ok((classes, distances))
+}
+
+/// Distance from each block to the nearest block of another class, or with
+/// `target`, to the nearest block of class `target`.
+///
+/// Blocks of `target` get the distance to the nearest block outside it,
+/// negative when `signed`; without `target` distances are never negative.
+/// Distances are exact, between block centroids, in any layout, so blocks on
+/// either side of a contact get the same distance. NaN where there is no such
+/// block. Classes may be any labels, or the column of `model` holding them.
+#[pyfunction]
+#[pyo3(signature = (model, classes, *, target=None, signed=true))]
+fn contact_distance<'py>(
+    model: &Bound<'py, PyBlockModel>,
+    classes: &Bound<'py, PyAny>,
+    target: Option<&Bound<'py, PyAny>>,
+    signed: bool,
+) -> PyResult<Bound<'py, PyArray1<f64>>> {
+    let (_, distances) = contact(model, classes, target, signed)?;
+    Ok(array1(model.py(), distances))
+}
+
+/// Block `classes` with every block within `distance` of a contact relabeled
+/// `label` (`"contact"` by default): of a contact between any two classes, or with `target`, of the
+/// contact of class `target`, on both sides of it. Distances are those of
+/// `contact_distance`, so the buffer is as wide on either side.
+#[pyfunction]
+#[pyo3(signature = (model, classes, *, distance, label=None, target=None))]
+fn buffer_domains<'py>(
+    model: &Bound<'py, PyBlockModel>,
+    classes: &Bound<'py, PyAny>,
+    distance: f64,
+    label: Option<&Bound<'py, PyAny>>,
+    target: Option<&Bound<'py, PyAny>>,
+) -> PyResult<Bound<'py, PyAny>> {
+    let py = model.py();
+    let label = match label {
+        Some(l) => l.clone(),
+        None => "contact".into_pyobject(py)?.into_any(),
+    };
+    if distance.is_nan() || distance < 0.0 {
+        return Err(invalid("distance must not be negative"));
+    }
+    let (classes, distances) = contact(model, classes, target, false)?;
+    let near: Vec<bool> = distances.iter().map(|d| *d <= distance).collect();
+    let np = model.py().import("numpy")?;
+    np.call_method1(
+        "where",
+        (
+            bools(model.py(), near),
+            label,
+            np.call_method1("asarray", (classes,))?,
+        ),
+    )
 }
 
 pub fn register(m: &Bound<PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(smooth_classes, m)?)?;
+    m.add_function(wrap_pyfunction!(remove_small_units, m)?)?;
+    m.add_function(wrap_pyfunction!(contact_distance, m)?)?;
+    m.add_function(wrap_pyfunction!(buffer_domains, m)?)?;
     m.add_class::<Mesh>()?;
     m.add_class::<PolygonSelector>()?;
     m.add_function(wrap_pyfunction!(point_in_polygon, m)?)?;
