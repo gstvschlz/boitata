@@ -14,7 +14,7 @@
 //! - Vertical distance to an open surface (topography) looks triangles up on a
 //!   plan-view grid and interpolates the surface elevation under each point.
 
-use crate::{BlockModelError, Result};
+use crate::{Aabb, BlockModelError, Result};
 use ceres_core::Mesh;
 use nalgebra::Vector3;
 use rayon::prelude::*;
@@ -80,6 +80,133 @@ pub fn distance_to(mesh: &Mesh, point: &(f64, f64, f64)) -> Result<f64> {
         })
         .fold(f64::INFINITY, f64::min)
         .sqrt())
+}
+
+/// A mesh's triangles in a bounding-volume hierarchy, for distances from many
+/// points. Gives the same distance as [`distance_to`].
+#[derive(Clone)]
+pub struct TriangleTree {
+    triangles: Vec<[Vector3<f64>; 3]>,
+    nodes: Vec<Node>,
+    order: Vec<u32>,
+    scale: f64,
+}
+
+#[derive(Clone)]
+struct Node {
+    bounds: Aabb,
+    /// Leaf: `order[first..first + count]`. Inner: children `first` and
+    /// `first + 1`, with `count` zero.
+    first: u32,
+    count: u32,
+}
+
+impl TriangleTree {
+    pub fn new(mesh: &Mesh) -> Result<Self> {
+        if mesh.triangles().is_empty() {
+            return Err(BlockModelError::InvalidMesh("mesh has no triangles".into()));
+        }
+        let triangles: Vec<[Vector3<f64>; 3]> = (0..mesh.triangles().len())
+            .map(|t| mesh.corners(t).map(Vector3::from))
+            .collect();
+        let bounds: Vec<Aabb> = triangles
+            .iter()
+            .map(|t| Aabb::of_points(t.iter().map(|v| [v.x, v.y, v.z])).expect("three corners"))
+            .collect();
+        let scale = bounds
+            .iter()
+            .flat_map(|b| b.min.into_iter().chain(b.max))
+            .fold(1.0f64, |s, v| s.max(v.abs()));
+        let mut tree = Self {
+            triangles,
+            nodes: vec![],
+            order: (0..bounds.len() as u32).collect(),
+            scale,
+        };
+        tree.nodes.push(tree.node(&bounds, 0, bounds.len()));
+        let mut stack = vec![0];
+        while let Some(n) = stack.pop() {
+            let Node { first, count, .. } = tree.nodes[n];
+            let (first, count) = (first as usize, count as usize);
+            if count <= 4 {
+                continue;
+            }
+            let b = tree.nodes[n].bounds;
+            let axis = (0..3)
+                .max_by(|&a, &c| (b.max[a] - b.min[a]).total_cmp(&(b.max[c] - b.min[c])))
+                .expect("three axes");
+            let center = |t: &u32| {
+                let t = &bounds[*t as usize];
+                t.min[axis] + t.max[axis]
+            };
+            let half = count / 2;
+            tree.order[first..first + count].select_nth_unstable_by(half, |a, c| {
+                center(a).total_cmp(&center(c)).then(a.cmp(c))
+            });
+            let children = tree.nodes.len();
+            let left = tree.node(&bounds, first, half);
+            let right = tree.node(&bounds, first + half, count - half);
+            tree.nodes.extend([left, right]);
+            tree.nodes[n].first = children as u32;
+            tree.nodes[n].count = 0;
+            stack.extend([children, children + 1]);
+        }
+        Ok(tree)
+    }
+
+    fn node(&self, bounds: &[Aabb], first: usize, count: usize) -> Node {
+        let ids = &self.order[first..first + count];
+        let corners = ids
+            .iter()
+            .flat_map(|&t| [bounds[t as usize].min, bounds[t as usize].max]);
+        Node {
+            bounds: Aabb::of_points(corners).expect("a node holds triangles"),
+            first: first as u32,
+            count: count as u32,
+        }
+    }
+
+    /// Unsigned distance from `point` to the nearest point on the mesh.
+    pub fn distance(&self, point: [f64; 3]) -> f64 {
+        let p = Vector3::from(point);
+        // Boxes farther than the best distance by more than rounding can
+        // explain cannot hold a nearer triangle.
+        let margin = 1e-8 * point.iter().fold(self.scale, |s, v| s.max(v.abs()));
+        let reach = |n: &Node| {
+            (0..3)
+                .map(|a| {
+                    (n.bounds.min[a] - p[a])
+                        .max(p[a] - n.bounds.max[a])
+                        .max(0.0)
+                        .powi(2)
+                })
+                .sum::<f64>()
+                .sqrt()
+        };
+        let mut best = f64::INFINITY;
+        let mut stack = vec![0usize];
+        while let Some(n) = stack.pop() {
+            let node = &self.nodes[n];
+            if reach(node) > best.sqrt() + margin {
+                continue;
+            }
+            let (first, count) = (node.first as usize, node.count as usize);
+            if count > 0 {
+                for &t in &self.order[first..first + count] {
+                    let [a, b, c] = self.triangles[t as usize];
+                    best = best.min(point_triangle_dist2(p, a, b, c));
+                }
+            } else {
+                let (near, far) = if reach(&self.nodes[first]) <= reach(&self.nodes[first + 1]) {
+                    (first, first + 1)
+                } else {
+                    (first + 1, first)
+                };
+                stack.extend([far, near]);
+            }
+        }
+        best.sqrt()
+    }
 }
 
 /// Signed distance to a closed mesh: negative inside, positive outside.
@@ -266,6 +393,54 @@ mod tests {
             vec![[0, 2, 1], [0, 1, 3], [0, 3, 2], [1, 2, 3]],
         )
         .unwrap()
+    }
+
+    /// The tree gives exactly the distance of the full scan: on, near and far
+    /// from the surface, on open and closed meshes, far from the origin.
+    #[test]
+    fn tree_distance_matches_the_full_scan() {
+        let shift = |m: Mesh, by: [f64; 3]| {
+            let vertices = m
+                .vertices()
+                .iter()
+                .map(|v| [0, 1, 2].map(|a| v[a] + by[a]))
+                .collect();
+            Mesh::new(vertices, m.triangles().to_vec()).unwrap()
+        };
+        let utm = [500_000.0, 7_000_000.0, 1_000.0];
+        let open = Mesh::new(
+            vec![
+                [0.0, 0.0, 0.0],
+                [4.0, 0.0, 1.0],
+                [0.0, 4.0, 2.0],
+                [4.0, 4.0, 0.0],
+            ],
+            vec![[0, 1, 2], [1, 3, 2]],
+        )
+        .unwrap();
+        let meshes = [
+            tetra(),
+            open,
+            crate::solid::tests::cube(0.0, 3.0),
+            crate::subblock::tests::sphere(3.0),
+            shift(crate::subblock::tests::sphere(3.0), utm),
+        ];
+        for mesh in &meshes {
+            let tree = TriangleTree::new(mesh).unwrap();
+            let o = mesh.bounds().unwrap().0;
+            for i in -8..=20 {
+                for j in -8..=20 {
+                    for k in -8..=20 {
+                        let p = [i, j, k].map(|v| v as f64 * 0.5);
+                        let p = [0, 1, 2].map(|a| o[a].floor() + p[a]);
+                        let exact = distance_to(mesh, &(p[0], p[1], p[2])).unwrap();
+                        assert_eq!(tree.distance(p).to_bits(), exact.to_bits(), "{p:?}");
+                    }
+                }
+            }
+        }
+        let empty = Mesh::new(vec![[0.0; 3]], vec![]).unwrap();
+        assert!(TriangleTree::new(&empty).is_err());
     }
 
     #[test]
