@@ -1,1 +1,1 @@
-## 42. Simulation methods
+## 42. Grades in simulated rock types
