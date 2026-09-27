@@ -23,7 +23,9 @@ v4 = composites.filter(
 )
 au = v4["AU_GPT"]
 weights = cs.cell_declustering(v4, "AU_GPT", cell_size=20.0).weights
-print(f"{len(au)} composites of 1 m in vein V4, declustered mean Au {np.average(au, weights=weights):.2f} g/t")
+print(
+    f"{len(au)} composites of 1 m in vein V4, declustered mean Au {np.average(au, weights=weights):.2f} g/t"
+)
 print(f"highest {np.sort(au)[-3:].round(1)} g/t")
 ```
 
@@ -53,7 +55,9 @@ references = {
 transforms = {"empirical": cs.NormalScore(tails=(0.0, au.max())).fit(au, weights=weights)}
 for name, kde in references.items():
     transforms[name] = cs.NormalScore(reference=kde).fit(au)
-    print(f"{name:15} bandwidth {kde.bandwidth_:.2f}" + (" g/t" if name == "reflected at 0" else " (log units)"))
+    print(
+        f"{name:15} bandwidth {kde.bandwidth_:.2f}" + (" g/t" if name == "reflected at 0" else " (log units)")
+    )
 ```
 
 </details>
@@ -151,7 +155,10 @@ reference = mixture.sample(len(pair), seed=1)
 single = cs.GaussianMixture(components=1).fit(pair).sample(len(pair), seed=1)
 fig, axes = plt.subplots(1, 3, figsize=(12, 3.8), layout="constrained", sharex=True, sharey=True)
 for ax, xy, title in zip(
-    axes, [pair, single, reference], ["Data", "One Gaussian", f"Mixture of {len(mixture.proportions_)}"], strict=True
+    axes,
+    [pair, single, reference],
+    ["Data", "One Gaussian", f"Mixture of {len(mixture.proportions_)}"],
+    strict=True,
 ):
     ax.scatter(xy[:, 0], xy[:, 1], s=2, color=ACCENT, alpha=0.3, linewidths=0)
     ax.set(xlabel=names[0], title=title, xlim=(-9.5, 1.5), ylim=(-9.5, 0.5))

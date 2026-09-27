@@ -52,7 +52,7 @@ def fitted():
             cs.NormalScore(reference=cs.KernelDensity(lower=0.0).fit(values)).fit(values),
             lambda o: (o.transform(values), o.inverse_transform([-6.0, 0.0, 6.0])),
         ),
-        (cs.PCA(standardize=True).fit(table),lambda o: (o.transform(table), o.inverse_transform(table))),
+        (cs.PCA(standardize=True).fit(table), lambda o: (o.transform(table), o.inverse_transform(table))),
         (
             cs.MAF(lag=1.0, tolerance=0.01).fit(rng.normal(size=(100, 2)), grid),
             lambda o: (o.transform(table[:, :2]),),
