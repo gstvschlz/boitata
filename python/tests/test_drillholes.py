@@ -455,6 +455,48 @@ def test_internal_dilution_by_hand():
     assert list(runs["ore"]) == [True, False]
 
 
+box = cs.Mesh(
+    np.array([[x, y, z] for z in (0, 1) for y in (0, 1) for x in (0, 1)], float) * 10,
+    [
+        [0, 2, 1], [1, 2, 3], [4, 5, 6], [5, 7, 6],
+        [0, 1, 4], [1, 5, 4], [2, 6, 3], [3, 6, 7],
+        [0, 4, 2], [2, 4, 6], [1, 3, 5], [3, 7, 5],
+    ],
+)  # fmt: skip
+
+
+def test_mesh_intervals_bracket_the_crossing():
+    # Hole straight down through the box, entering its top face at depth 5 and leaving the bottom at depth 15.
+    c = {"HOLE_ID": ["A"], "X": [5.0], "Y": [5.0], "Z": [15.0]}
+    s = {"HOLE_ID": ["A", "A"], "DEPTH": [0.0, 25.0], "AZIMUTH": [0.0, 0.0], "DIP": [90.0, 90.0]}
+    dh = cs.Drillholes(c, s)
+    crossings = dh.mesh_intervals(box, step=0.5, tolerance=0.01)
+    assert crossings.column_names == ["HOLE_ID", "FROM", "TO", "INSIDE"]
+    assert list(crossings["INSIDE"]) == [False, True, False]
+    np.testing.assert_allclose(crossings["FROM"], [0.0, 5.0, 15.0], atol=0.01)
+    np.testing.assert_allclose(crossings["TO"], [5.0, 15.0, 25.0], atol=0.01)
+
+    open_mesh = cs.Mesh([[0, 0, 0], [1, 0, 0], [1, 1, 0]], [[0, 1, 2]])
+    with pytest.raises(cs.InvalidInput, match="not closed"):
+        dh.mesh_intervals(open_mesh)
+
+
+def test_mesh_intervals_split_assays_with_merge_intervals():
+    assays = {
+        "HOLE_ID": ["A", "A", "A"],
+        "FROM": [0.0, 8.0, 18.0],
+        "TO": [8.0, 18.0, 25.0],
+        "AU": [1.0, 2.0, 3.0],
+    }
+    c = {"HOLE_ID": ["A"], "X": [5.0], "Y": [5.0], "Z": [15.0]}
+    s = {"HOLE_ID": ["A"], "DEPTH": [0.0], "AZIMUTH": [0.0], "DIP": [90.0]}
+    dh = cs.Drillholes(c, s, assays)
+    crossings = dh.mesh_intervals(box, step=0.5, tolerance=0.01)
+    split = cs.merge_intervals(assays, crossings)
+    np.testing.assert_allclose(sorted(split["TO"]), [5.0, 8.0, 15.0, 18.0, 25.0], atol=0.01)
+    assert set(split.column_names) == {"HOLE_ID", "FROM", "TO", "AU", "INSIDE"}
+
+
 def test_category_runs_and_bad_input():
     dh = one_hole([1.0] * 5, lith=["QV", "QV", None, "BX", "QV"])
     runs = dh.runs(None, category="LITH", ore=["QV"])

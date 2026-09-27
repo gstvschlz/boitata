@@ -15,6 +15,7 @@ use pyo3::prelude::*;
 use pyo3::types::PyDict;
 use rayon::prelude::*;
 
+use crate::blocks::Mesh;
 use crate::containers::PyPointSet;
 use crate::invalid;
 use crate::table::{Table, to_batch};
@@ -593,6 +594,73 @@ impl Drillholes {
             Arc::new(BooleanArray::from_iter(rows.iter().map(|r| Some(r.1.ore)))),
         ));
         Ok(Table(RecordBatch::try_from_iter(columns).map_err(invalid)?))
+    }
+
+    /// Splits each hole's path against a closed `mesh`, wherever it crosses
+    /// the surface.
+    ///
+    /// The path is sampled every `step` of depth and a crossing between two
+    /// samples is bisected down to `tolerance`; a boundary crossed more than
+    /// once within one `step` is missed. Every depth down every hole falls in
+    /// exactly one row, so piping the result through `merge_intervals` splits
+    /// assays exactly at the mesh instead of at a logged contact.
+    ///
+    /// Parameters
+    /// ----------
+    /// mesh : Mesh
+    ///     A closed mesh.
+    /// step : float
+    ///     Sampling step down each hole, in meters.
+    /// tolerance : float
+    ///     Depth tolerance the crossing is refined to, in meters.
+    ///
+    /// Returns
+    /// -------
+    /// Table
+    ///     Hole (named as in the constructor), `FROM`, `TO` and `INSIDE`
+    ///     (whether the run is inside `mesh`), one row per run down each hole
+    ///     — matching `merge_intervals`'s own column names.
+    #[pyo3(signature = (mesh, *, step=1.0, tolerance=0.01))]
+    fn mesh_intervals(
+        &self,
+        py: Python<'_>,
+        mesh: &Mesh,
+        step: f64,
+        tolerance: f64,
+    ) -> PyResult<Table> {
+        let solid = mesh.solid()?;
+        let runs: Vec<(&String, Vec<(f64, f64, bool)>)> = py.detach(|| {
+            self.paths
+                .par_iter()
+                .map(|(id, path)| {
+                    (
+                        id,
+                        drillholes::mesh_intervals(path, step, tolerance, |p| solid.contains(p)),
+                    )
+                })
+                .collect()
+        });
+        let rows: Vec<(&str, (f64, f64, bool))> = runs
+            .iter()
+            .flat_map(|(id, r)| r.iter().map(move |&run| (id.as_str(), run)))
+            .collect();
+        let col = |f: fn((f64, f64, bool)) -> f64| {
+            Arc::new(Float64Array::from_iter_values(rows.iter().map(|r| f(r.1)))) as ArrayRef
+        };
+        let batch = RecordBatch::try_from_iter([
+            (
+                self.hole.as_str(),
+                Arc::new(StringArray::from_iter_values(rows.iter().map(|r| r.0))) as ArrayRef,
+            ),
+            ("FROM", col(|r| r.0)),
+            ("TO", col(|r| r.1)),
+            (
+                "INSIDE",
+                Arc::new(BooleanArray::from_iter(rows.iter().map(|r| Some(r.1.2)))),
+            ),
+        ])
+        .map_err(invalid)?;
+        Ok(Table(batch))
     }
 
     fn __len__(&self) -> usize {
