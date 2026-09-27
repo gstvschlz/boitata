@@ -6,6 +6,7 @@
 //! - [`detrend`]  — polynomial and kernel trends
 //! - [`scale`]    — up/downscaling between supports
 //! - [`normal`]   — standard-normal CDF/quantile helpers (shared)
+//! - [`proportions`] — vertical proportion curves and 3D category proportions
 
 pub mod anamorphosis;
 pub mod bootstrap;
@@ -24,6 +25,7 @@ pub mod normal;
 pub mod normal_score;
 pub mod pca;
 pub mod ppmt;
+pub mod proportions;
 pub mod scale;
 pub mod selectivity;
 pub mod stepwise;
@@ -50,6 +52,7 @@ pub use normal_score::{
 };
 pub use pca::{Maf, Pca};
 pub use ppmt::{Ppmt, PpmtParams};
+pub use proportions::VerticalCurve;
 pub use scale::{CoarseBlock, downscale, upscale};
 pub use selectivity::{Recovery, grade_tonnage, recovery};
 pub use stepwise::StepwiseConditional;

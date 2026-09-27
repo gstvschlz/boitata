@@ -1255,6 +1255,22 @@ pub struct Sis {
     data: Option<(Vec<Point>, Vec<usize>)>,
     #[serde(skip)]
     holes: Option<Vec<u32>>,
+    /// Local proportions at the data.
+    #[serde(skip)]
+    local: Option<Vec<Vec<f64>>>,
+}
+
+/// `n` rows of `k` local proportions.
+fn proportion_rows(obj: &Bound<PyAny>, n: usize, k: usize) -> PyResult<Vec<Vec<f64>>> {
+    let rows = rows(obj, "proportions")?;
+    same_length(n, rows.len(), "proportions")?;
+    for row in &rows {
+        if row.len() != k {
+            return Err(invalid(format!("proportions must have shape (n, {k})")));
+        }
+        proportion_row(row)?;
+    }
+    Ok(rows)
 }
 
 #[pymethods]
@@ -1288,28 +1304,40 @@ impl Sis {
             search: search.plain("SIS")?,
             data: None,
             holes: None,
+            local: None,
         })
     }
 
     /// Takes the categories ``0..k`` at `coords`. `holes` tag the samples for
     /// `max_per_hole`; samples sharing a location keep the first, with a
     /// warning naming their holes. Both may name columns of `coords`.
-    #[pyo3(signature = (coords, categories, *, holes=None))]
+    /// `proportions`, shape ``(n, k)`` (an array or a Table such as
+    /// `combine_proportions` returns), are local category proportions at the
+    /// samples; `simulate` then needs them at the targets, and krigs each
+    /// indicator minus its local proportion by simple kriging, so every node
+    /// is drawn towards its own proportions.
+    #[pyo3(signature = (coords, categories, *, holes=None, proportions=None))]
     fn fit<'py>(
         mut slf: PyRefMut<'py, Self>,
         coords: &Bound<PyAny>,
         categories: &Bound<PyAny>,
         holes: Option<&Bound<PyAny>>,
+        proportions: Option<&Bound<PyAny>>,
     ) -> PyResult<PyRefMut<'py, Self>> {
         let cats = self::categories(coords, categories)?;
+        let k = slf.variograms.len();
+        let local = proportions
+            .map(|p| proportion_rows(p, cats.len(), k))
+            .transpose()?;
         let holes = resolve(coords, holes, "holes")?;
         let (locs, keep, holes) = located(coords, cats.len(), "categories", holes.as_ref(), None)?;
         let cats = pick(&cats, &keep);
-        if cats.iter().any(|&c| c >= slf.variograms.len()) {
+        if cats.iter().any(|&c| c >= k) {
             return Err(invalid("every category needs a variogram"));
         }
         slf.data = Some((locs, cats));
         slf.holes = holes;
+        slf.local = local.map(|l| pick(&l, &keep));
         Ok(slf)
     }
 
@@ -1317,8 +1345,10 @@ impl Sis {
     /// realizations themselves only when `realizations`. With `blocks` (a
     /// coarser BlockModel), each block takes the category filling most of its
     /// node volume, ties to the smallest, as in `BlockModel.regularize`; blocks as in
-    /// `SGS.simulate`.
-    #[pyo3(signature = (targets, *, n=100, seed=0, realizations=false, blocks=None))]
+    /// `SGS.simulate`. `proportions`, shape ``(targets, k)``, are the local
+    /// category proportions at the targets, when `fit` had them at the samples.
+    #[pyo3(signature = (targets, *, n=100, seed=0, realizations=false, blocks=None, proportions=None))]
+    #[allow(clippy::too_many_arguments)]
     fn simulate(
         &self,
         py: Python,
@@ -1327,11 +1357,22 @@ impl Sis {
         seed: u64,
         realizations: bool,
         blocks: Option<PyRef<PyBlockModel>>,
+        proportions: Option<&Bound<PyAny>>,
     ) -> PyResult<CategoricalSummary> {
         let (locs, cats) = self.data.as_ref().ok_or_else(not_fitted)?;
         let grid = self::targets(targets)?;
-        let support = support(targets, &grid, blocks)?;
         let k = self.variograms.len();
+        let at_grid = match (&self.local, proportions) {
+            (Some(_), Some(p)) => Some(proportion_rows(p, grid.len(), k)?),
+            (None, None) => None,
+            _ => {
+                return Err(invalid(
+                    "give local proportions at both fit and simulate, or at neither",
+                ));
+            }
+        };
+        let local = self.local.as_deref().zip(at_grid.as_deref());
+        let support = support(targets, &grid, blocks)?;
         py.detach(|| {
             simulation::categorical(n, k, realizations, |i| {
                 let params = SisParams {
@@ -1339,8 +1380,17 @@ impl Sis {
                     seed: seed.wrapping_add(i as u64),
                 };
                 let holes = self.holes.as_deref();
-                simulation::sis(locs, cats, holes, &grid, k, &self.variograms, &params)
-                    .and_then(|r| majority(&support, r.categories, k))
+                simulation::sis(
+                    locs,
+                    cats,
+                    holes,
+                    &grid,
+                    k,
+                    &self.variograms,
+                    &params,
+                    local,
+                )
+                .and_then(|r| majority(&support, r.categories, k))
             })
         })
         .map(CategoricalSummary)
@@ -1400,16 +1450,7 @@ impl Plurigaussian {
                 "local proportions need a rule built from proportions",
             ));
         }
-        let rows = rows(obj, "proportions")?;
-        same_length(n, rows.len(), "proportions")?;
-        let k = self.facies();
-        for row in &rows {
-            if row.len() != k {
-                return Err(invalid(format!("proportions must have shape (n, {k})")));
-            }
-            proportion_row(row)?;
-        }
-        Ok(rows)
+        proportion_rows(obj, n, self.facies())
     }
 }
 

@@ -200,3 +200,43 @@ def test_section_slab_and_boxplot_take_a_scheme():
     _, ax = cs.plot.boxplot([1.0, 2, 3, 4], [1.0, 1, 0, np.nan], sort=True, scheme=c)
     assert [t.get_text().split("\n")[0] for t in ax.get_xticklabels()] == ["b", "a"]
     assert ax.patches[0].get_facecolor() == rgba((0, 0, 1, 0.6))
+
+
+def test_vertical_and_combined_proportions():
+    local = np.random.default_rng(5)
+    xyz = local.uniform([0, 0, 0], [100, 100, 10], size=(1500, 3))
+    upper = local.uniform(size=1500) < xyz[:, 1] / 100
+    lith = np.where(xyz[:, 2] < 2, "clay", np.where(upper, "sand", "slime"))
+    points = cs.PointSet(xyz, {"lith": lith, "w": np.ones(1500), "h": xyz[:, 2] + 100})
+    curve = cs.vertical_proportions(points, "lith", size=1.0, weights="w")
+    assert curve.column_names == ["elevation", "weight", "clay", "sand", "slime"]
+    np.testing.assert_allclose(curve["elevation"], np.arange(10) + 0.5)
+    assert curve["clay"][0] == 1.0 and curve["clay"][-1] == 0.0
+    by_height = cs.vertical_proportions(points, "lith", size=1.0, elevation="h")
+    np.testing.assert_allclose(by_height["elevation"], curve["elevation"] + 100)
+    scheme = cs.Categories(["slime", "sand", "clay"])
+    assert cs.vertical_proportions(xyz, lith, size=1.0, scheme=scheme).column_names[2:] == scheme.names
+
+    trend, _ = cs.detrend(xyz[:, :2], lith, bandwidth=15.0, categorical=True, scheme=scheme)
+    assert trend.categories == scheme.names
+    p = cs.combine_proportions(xyz, curve, trend.predict(xyz[:, :2]))
+    assert p.column_names == ["clay", "sand", "slime"]
+    rows = np.c_[p["clay"], p["sand"], p["slime"]]
+    assert ((rows >= 0) & (rows <= 1)).all()
+    np.testing.assert_allclose(rows.sum(axis=1), 1.0)
+    above = xyz[:, 2] > 3
+    assert np.corrcoef(rows[above, 1], xyz[above, 1])[0, 1] > 0.8
+
+    total = np.asarray(curve["weight"])
+    shares = [np.average(curve[n], weights=total) for n in ("clay", "sand", "slime")]
+    flat = cs.combine_proportions(xyz, curve, np.tile(shares, (1500, 1)))
+    alone = cs.combine_proportions(xyz, curve, np.full((1500, 3), np.nan))
+    for name in ("clay", "sand", "slime"):
+        np.testing.assert_allclose(flat[name], alone[name], atol=1e-12)
+
+    sand = cs.vertical_proportions(xyz, ["sand"] * 1500, size=2.0)
+    np.testing.assert_array_equal(cs.combine_proportions(xyz, sand, np.ones((1500, 1)))["sand"], 1.0)
+    with pytest.raises(cs.InvalidInput):
+        cs.combine_proportions(xyz, curve, np.ones((1500, 2)))
+    with pytest.raises(cs.InvalidInput):
+        cs.vertical_proportions(xyz, lith, size=0.0)

@@ -1667,7 +1667,11 @@ fn samples(coords: &Bound<PyAny>, values: &Bound<PyAny>) -> PyResult<(Vec<Point>
 ///     Declustering weights, or the column of `coords` holding them.
 /// categorical : bool, default False
 ///     Smooth the indicator of each category instead: the trend is the local
-///     proportions, which lie in [0, 1] and sum to 1.
+///     proportions, which lie in [0, 1] and sum to 1, one per category in the
+///     order of `Categories.from_values`.
+/// scheme : Categories, optional
+///     With `categorical`, the categories' order and names, which encode the
+///     labels.
 ///
 /// Returns
 /// -------
@@ -1677,7 +1681,7 @@ fn samples(coords: &Bound<PyAny>, values: &Bound<PyAny>) -> PyResult<(Vec<Point>
 /// numpy.ndarray or Table
 ///     Residuals at the samples; per category, indicator minus proportion.
 #[pyfunction]
-#[pyo3(signature = (coords, values, *, degree=1, bandwidth=None, rotation=(0.0, 0.0, 0.0), ratios=(1.0, 1.0), weights=None, categorical=false))]
+#[pyo3(signature = (coords, values, *, degree=1, bandwidth=None, rotation=(0.0, 0.0, 0.0), ratios=(1.0, 1.0), weights=None, categorical=false, scheme=None))]
 #[allow(clippy::too_many_arguments)]
 fn detrend<'py>(
     py: Python<'py>,
@@ -1689,7 +1693,11 @@ fn detrend<'py>(
     ratios: (f64, f64),
     weights: Option<&Bound<PyAny>>,
     categorical: bool,
+    scheme: Option<PyRef<crate::categories::Categories>>,
 ) -> PyResult<(Trend, Bound<'py, PyAny>)> {
+    if scheme.is_some() && !categorical {
+        return Err(invalid("scheme needs categorical=True"));
+    }
     let Some(bandwidth) = bandwidth else {
         if weights.is_some() || categorical {
             return Err(invalid("weights and categorical need a bandwidth"));
@@ -1710,19 +1718,18 @@ fn detrend<'py>(
     let locs = points(coords)?;
     let (rows, categories) = if categorical {
         let labels = crate::args::texts(&column(Some(coords), values, "values")?, "values")?;
-        let labels: Vec<String> = labels
+        let (names, codes) = crate::categories::coded(&labels, scheme.as_deref())?;
+        let codes: Vec<u32> = codes
             .into_iter()
             .collect::<Option<_>>()
             .ok_or_else(|| invalid("values must not be null; drop missing values first"))?;
-        let names: Vec<String> = labels
+        let rows: Vec<Vec<f64>> = codes
             .iter()
-            .cloned()
-            .collect::<std::collections::BTreeSet<_>>()
-            .into_iter()
-            .collect();
-        let rows: Vec<Vec<f64>> = labels
-            .iter()
-            .map(|l| names.iter().map(|n| f64::from(u8::from(n == l))).collect())
+            .map(|&c| {
+                (0..names.len())
+                    .map(|n| f64::from(u8::from(n == c as usize)))
+                    .collect()
+            })
             .collect();
         (rows, Some(names))
     } else {

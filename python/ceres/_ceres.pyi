@@ -498,6 +498,7 @@ def detrend(
     ratios: tuple[float, float] = (1.0, 1.0),
     weights: ArrayLike | Column | None = None,
     categorical: bool = False,
+    scheme: Categories | None = None,
 ) -> tuple[Trend, npt.NDArray[np.float64] | Table]: ...
 def cell_declustering(
     coords: ArrayLike | PointSet | BlockModel,
@@ -1054,6 +1055,7 @@ class SIS:
         categories: ArrayLike | Column,
         *,
         holes: Holes | Column | None = None,
+        proportions: ArrayLike | Table | None = None,
     ) -> SIS: ...
     def simulate(
         self,
@@ -1063,6 +1065,7 @@ class SIS:
         seed: int = 0,
         realizations: bool = False,
         blocks: BlockModel | None = None,
+        proportions: ArrayLike | Table | None = None,
     ) -> CategoricalSummary: ...
 
 class Plurigaussian:
@@ -1087,7 +1090,7 @@ class Plurigaussian:
         categories: ArrayLike | Column,
         *,
         holes: Holes | Column | None = None,
-        proportions: ArrayLike | None = None,
+        proportions: ArrayLike | Table | None = None,
     ) -> Plurigaussian: ...
     def simulate(
         self,
@@ -1097,7 +1100,7 @@ class Plurigaussian:
         seed: int = 0,
         realizations: bool = False,
         blocks: BlockModel | None = None,
-        proportions: ArrayLike | None = None,
+        proportions: ArrayLike | Table | None = None,
     ) -> CategoricalSummary: ...
 
 class SimulationSummary:
@@ -1645,6 +1648,22 @@ class Categories:
     def __len__(self) -> int: ...
     def __eq__(self, other: object) -> bool: ...
 
+def vertical_proportions(
+    coords: ArrayLike | PointSet | BlockModel,
+    categories: Labels | Column,
+    *,
+    size: float,
+    elevation: ArrayLike | Column | None = None,
+    weights: ArrayLike | Column | None = None,
+    scheme: Categories | None = None,
+) -> Table: ...
+def combine_proportions(
+    coords: ArrayLike | PointSet | BlockModel,
+    vertical: Table,
+    areal: Table | ArrayLike,
+    *,
+    elevation: ArrayLike | Column | None = None,
+) -> Table: ...
 def describe(
     values: ArrayLike | Column,
     *,

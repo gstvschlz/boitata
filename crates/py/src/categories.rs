@@ -1,12 +1,18 @@
 use std::collections::BTreeMap;
+use std::sync::Arc;
 
+use arrow_array::{ArrayRef, Float64Array, RecordBatch};
 use ceres_core::Categories as Core;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 use serde::{Deserialize, Serialize};
+use transforms::VerticalCurve;
 
-use crate::args::{array1, floats, optional_finite, text, texts};
+use crate::args::{
+    array1, column, floats, optional_finite, per_row, pick, points, rows, same_length, text, texts,
+};
 use crate::invalid;
+use crate::table::Table;
 
 /// Named categories with integer codes: a code is the index of its name.
 ///
@@ -193,6 +199,196 @@ impl Categories {
     }
 }
 
+/// Names and per-row codes, None for null, of `labels`: encoded by `scheme`,
+/// else in the order of `Categories.from_values`.
+pub(crate) fn coded(
+    labels: &[Option<String>],
+    scheme: Option<&Categories>,
+) -> PyResult<(Vec<String>, Vec<Option<u32>>)> {
+    let refs = refs(labels);
+    let scheme = match scheme {
+        Some(s) => s.0.clone(),
+        None => Core::from_labels(&refs, None, 0.0, BTreeMap::new(), "other").map_err(invalid)?,
+    };
+    let codes = scheme.encode(&refs).map_err(invalid)?;
+    Ok((scheme.names().to_vec(), codes))
+}
+
+fn float_table(columns: Vec<(String, Vec<f64>)>) -> PyResult<Table> {
+    let columns = columns
+        .into_iter()
+        .map(|(name, v)| (name, Arc::new(Float64Array::from(v)) as ArrayRef));
+    RecordBatch::try_from_iter(columns)
+        .map(Table)
+        .map_err(invalid)
+}
+
+/// `elevation` of each row of `coords`, or their z.
+fn heights(
+    coords: &Bound<PyAny>,
+    elevation: Option<&Bound<PyAny>>,
+    n: usize,
+) -> PyResult<Vec<f64>> {
+    match elevation {
+        Some(e) => per_row(Some(coords), e, n, "elevation"),
+        None => Ok(points(coords)?.into_iter().map(|p| p.2).collect()),
+    }
+}
+
+/// Vertical proportion curve: the weighted proportion of each category in
+/// slices of height.
+///
+/// Parameters
+/// ----------
+/// coords : array_like, PointSet or BlockModel
+///     Sample locations, shape (n, 2) or (n, 3), or a container.
+/// categories : array_like or str
+///     Category label of each sample, or the column of `coords` holding them;
+///     null labels are skipped.
+/// size : float
+///     Slice thickness; slices start at multiples of it.
+/// elevation : array_like or str, optional
+///     Height of each sample, e.g. stratigraphic height above a base
+///     surface, or the column of `coords` holding it; default the z
+///     coordinate.
+/// weights : array_like or str, optional
+///     Declustering weights or lengths, or the column of `coords` holding them.
+/// scheme : Categories, optional
+///     Order and names of the categories, which encode the labels; default
+///     the order of `Categories.from_values`.
+///
+/// Returns
+/// -------
+/// Table
+///     One row per slice holding data, bottom up: ``elevation``, the slice
+///     center, ``weight``, the weight in it, and the proportion of each
+///     category, one column per name, summing to 1.
+#[pyfunction]
+#[pyo3(signature = (coords, categories, *, size, elevation=None, weights=None, scheme=None))]
+fn vertical_proportions(
+    coords: &Bound<PyAny>,
+    categories: &Bound<PyAny>,
+    size: f64,
+    elevation: Option<&Bound<PyAny>>,
+    weights: Option<&Bound<PyAny>>,
+    scheme: Option<PyRef<Categories>>,
+) -> PyResult<Table> {
+    let labels = labels(&column(Some(coords), categories, "categories")?)?;
+    let n = labels.len();
+    let heights = heights(coords, elevation, n)?;
+    same_length(n, heights.len(), "categories")?;
+    let weights = weights
+        .map(|w| per_row(Some(coords), w, n, "weights"))
+        .transpose()?;
+    let (names, codes) = coded(&labels, scheme.as_deref())?;
+    let keep: Vec<usize> = (0..n).filter(|&i| codes[i].is_some()).collect();
+    let cats: Vec<usize> = keep
+        .iter()
+        .map(|&i| codes[i].unwrap_or(0) as usize)
+        .collect();
+    let curve = VerticalCurve::fit(
+        &pick(&heights, &keep),
+        &cats,
+        names.len(),
+        weights.map(|w| pick(&w, &keep)).as_deref(),
+        size,
+    )
+    .map_err(invalid)?;
+    let mut columns = vec![
+        ("elevation".to_string(), curve.heights),
+        ("weight".to_string(), curve.weights),
+    ];
+    for (c, name) in names.into_iter().enumerate() {
+        columns.push((name, curve.proportions.iter().map(|r| r[c]).collect()));
+    }
+    float_table(columns)
+}
+
+/// Category proportions in 3D from a vertical proportion curve and areal
+/// proportion maps: at each target, the curve at its height times the areal
+/// proportions over the global ones, rescaled to sum 1. Areal proportions
+/// equal to the global ones everywhere give back the curve.
+///
+/// Parameters
+/// ----------
+/// coords : array_like, PointSet or BlockModel
+///     Target locations, e.g. BlockModel cells.
+/// vertical : Table
+///     A curve from `vertical_proportions`: ``elevation``, ``weight`` and one
+///     column per category. The global proportions are its weighted mean.
+///     It is linear between slice centers and constant beyond the ends.
+/// areal : Table or array_like
+///     Areal proportions at the targets, e.g. `Trend.predict` of a
+///     categorical trend at their x and y: a Table with the curve's
+///     category columns, or an (n, k) array in the curve's order. A row
+///     with a NaN keeps the curve alone.
+/// elevation : array_like or str, optional
+///     Height of each target, as in `vertical_proportions`; default the z
+///     coordinate.
+///
+/// Returns
+/// -------
+/// Table
+///     One column per category, each in [0, 1], summing to 1 in every row;
+///     `proportions=` of `SIS` and `Plurigaussian`.
+#[pyfunction]
+#[pyo3(signature = (coords, vertical, areal, *, elevation=None))]
+fn combine_proportions(
+    py: Python,
+    coords: &Bound<PyAny>,
+    vertical: &Bound<PyAny>,
+    areal: &Bound<PyAny>,
+    elevation: Option<&Bound<PyAny>>,
+) -> PyResult<Table> {
+    use crate::table::floats;
+    let curve = crate::table::to_batch(vertical)?;
+    let names: Vec<String> = crate::table::names(&curve)
+        .into_iter()
+        .filter(|n| n != "elevation" && n != "weight")
+        .collect();
+    let columns: Vec<Vec<f64>> = names
+        .iter()
+        .map(|n| floats(&curve, n))
+        .collect::<PyResult<_>>()?;
+    let curve = VerticalCurve::new(
+        floats(&curve, "elevation")?,
+        floats(&curve, "weight")?,
+        (0..curve.num_rows())
+            .map(|i| columns.iter().map(|c| c[i]).collect())
+            .collect(),
+    )
+    .map_err(invalid)?;
+    let rows = match areal.cast::<Table>() {
+        Ok(t) => {
+            let columns: Vec<Vec<f64>> = names
+                .iter()
+                .map(|n| floats(&t.get().0, n))
+                .collect::<PyResult<_>>()?;
+            (0..t.get().0.num_rows())
+                .map(|i| columns.iter().map(|c| c[i]).collect())
+                .collect()
+        }
+        Err(_) => rows(areal, "areal")?,
+    };
+    let heights = heights(coords, elevation, rows.len())?;
+    same_length(heights.len(), rows.len(), "areal")?;
+    let areal: Vec<Option<Vec<f64>>> = rows
+        .into_iter()
+        .map(|r| (!r.iter().any(|p| p.is_nan())).then_some(r))
+        .collect();
+    let combined = py
+        .detach(|| curve.combine(&heights, &areal))
+        .map_err(invalid)?;
+    let columns = names
+        .into_iter()
+        .enumerate()
+        .map(|(c, name)| (name, combined.iter().map(|r| r[c]).collect()))
+        .collect();
+    float_table(columns)
+}
+
 pub fn register(m: &Bound<PyModule>) -> PyResult<()> {
-    m.add_class::<Categories>()
+    m.add_class::<Categories>()?;
+    m.add_function(wrap_pyfunction!(vertical_proportions, m)?)?;
+    m.add_function(wrap_pyfunction!(combine_proportions, m)?)
 }

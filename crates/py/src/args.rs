@@ -192,8 +192,18 @@ pub fn same_length(n: usize, m: usize, what: &str) -> PyResult<()> {
     }
 }
 
-/// `(n, d)` array-like as rows.
+/// `(n, d)` array-like, or a Table of numeric columns, as rows.
 pub fn rows(obj: &Bound<PyAny>, what: &str) -> PyResult<Vec<Vec<f64>>> {
+    if let Ok(t) = obj.cast::<crate::table::Table>() {
+        let batch = &t.get().0;
+        let columns: Vec<Vec<f64>> = crate::table::names(batch)
+            .iter()
+            .map(|n| crate::table::floats(batch, n))
+            .collect::<PyResult<_>>()?;
+        return Ok((0..batch.num_rows())
+            .map(|i| columns.iter().map(|c| c[i]).collect())
+            .collect());
+    }
     let array: PyReadonlyArray2<f64> = asarray(obj)?
         .extract()
         .map_err(|_| invalid(format!("{what} must be a 2-D numeric array")))?;
