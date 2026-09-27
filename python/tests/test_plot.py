@@ -528,3 +528,17 @@ def test_domain_change_draws_the_matrix():
     assert sorted(t.get_text() for t in ax.texts) == ["100%", "100%", "50%", "50%"]
     _, ax = cs.plot.domain_change(table, value="metal")
     assert len(ax.patches) == 3
+
+
+def test_transition_mds_annotates_categories_and_draws_the_matrix():
+    depth = np.tile(np.arange(5, dtype=float), 2)
+    categories = np.tile([0, 0, 1, 1, 2], 2)
+    holes = np.repeat([0, 1], 5)
+    scheme = cs.Categories(["a", "b", "c"])
+    table = cs.transition_matrix(depth, categories, holes, lag=1.0, scheme=scheme)
+    _, ax = cs.plot.domain_change(table, value="frequency")
+    assert len(ax.patches) == 3
+    _, ax = cs.plot.transition_mds(table)
+    assert sorted(t.get_text() for t in ax.texts) == ["a", "b", "c"]
+    assert len(ax.collections) == 1
+    assert ax.collections[0].get_offsets().shape == (3, 2)

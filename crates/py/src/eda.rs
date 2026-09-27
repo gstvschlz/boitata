@@ -371,6 +371,96 @@ fn domain_change(
     Ok(Table(RecordBatch::try_from_iter(columns).map_err(invalid)?))
 }
 
+/// Along-hole category transition matrix: for every sample, the classes of
+/// samples `lag ± tolerance` deeper in the same hole.
+///
+/// Parameters
+/// ----------
+/// depth : array_like or str
+///     Depth down the hole of each sample, or its column in `data`.
+/// categories : array_like or str
+///     Class of each sample, int or str, or its column; null leaves the
+///     sample out. With `scheme`, numbers are its codes and labels are
+///     encoded by it; without, labels in the order of `Categories.from_values`.
+/// holes : array_like or str
+///     Hole id of each sample, or its column.
+/// lag : float
+///     Along-hole distance searched for a deeper sample.
+/// tolerance : float
+///     Half-width of the lag window.
+/// scheme : Categories, optional
+///     Names and order of the classes.
+/// data : PointSet, BlockModel, Table or dict, optional
+///     Where column names are looked up.
+///
+/// Returns
+/// -------
+/// Table
+///     One row per pair of classes, ``from`` (shallower) then ``to`` (deeper)
+///     in class order: ``from``, ``to``, ``count`` and ``frequency``
+///     (``count`` over its row's total, null when the row has none).
+#[pyfunction]
+#[pyo3(signature = (depth, categories, holes, *, lag, tolerance=0.0, scheme=None, data=None))]
+#[allow(clippy::too_many_arguments)]
+fn transition_matrix(
+    depth: &Bound<PyAny>,
+    categories: &Bound<PyAny>,
+    holes: &Bound<PyAny>,
+    lag: f64,
+    tolerance: f64,
+    scheme: Option<PyRef<Categories>>,
+    data: Option<&Bound<PyAny>>,
+) -> PyResult<Table> {
+    let categories = column(data, categories, "categories")?;
+    let (names, codes) = match scheme.as_deref() {
+        Some(s) => {
+            let n = categories.len()?;
+            (s.0.names().to_vec(), scheme_codes(&categories, s, n)?)
+        }
+        None => {
+            let labels = crate::categories::labels(&categories)?;
+            crate::categories::coded(&labels, None)?
+        }
+    };
+    let n = codes.len();
+    let depth = floats(&column(data, depth, "depth")?, "depth")?;
+    same_length(n, depth.len(), "depth")?;
+    let (_, hole_ids) = self::holes(Some(&column(data, holes, "holes")?), n)?.expect("given");
+    let keep: Vec<usize> = (0..n).filter(|&i| codes[i].is_some()).collect();
+    let d: Vec<f64> = keep.iter().map(|&i| depth[i]).collect();
+    let c: Vec<u32> = keep.iter().map(|&i| codes[i].expect("kept")).collect();
+    let h: Vec<u32> = keep.iter().map(|&i| hole_ids[i]).collect();
+    let k = names.len();
+    let cells = eda::transition_matrix(&d, &c, &h, k, lag, tolerance).map_err(invalid)?;
+    let mut totals = vec![0u64; k];
+    for t in &cells {
+        totals[t.from as usize] += t.count;
+    }
+    let label = |f: fn(&eda::Transition) -> u32| -> ArrayRef {
+        Arc::new(StringArray::from_iter_values(
+            cells.iter().map(|t| names[f(t) as usize].as_str()),
+        ))
+    };
+    let frequency = cells.iter().map(|t| {
+        let total = totals[t.from as usize];
+        if total > 0 {
+            t.count as f64 / total as f64
+        } else {
+            f64::NAN
+        }
+    });
+    let columns: Vec<(&str, ArrayRef)> = vec![
+        ("from", label(|t| t.from)),
+        ("to", label(|t| t.to)),
+        (
+            "count",
+            Arc::new(UInt64Array::from_iter_values(cells.iter().map(|t| t.count))),
+        ),
+        ("frequency", nullable(frequency)),
+    ];
+    Ok(Table(RecordBatch::try_from_iter(columns).map_err(invalid)?))
+}
+
 fn tonnage_columns<'a>(
     rows: impl Iterator<Item = &'a eda::Tonnage> + Clone,
 ) -> Vec<(String, ArrayRef)> {
@@ -1652,6 +1742,7 @@ pub fn register(m: &Bound<PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(duplicates, m)?)?;
     m.add_function(wrap_pyfunction!(describe, m)?)?;
     m.add_function(wrap_pyfunction!(domain_change, m)?)?;
+    m.add_function(wrap_pyfunction!(transition_matrix, m)?)?;
     m.add_function(wrap_pyfunction!(describe_by, m)?)?;
     m.add_function(wrap_pyfunction!(grade_tonnage, m)?)?;
     m.add_function(wrap_pyfunction!(compare_models, m)?)?;

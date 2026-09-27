@@ -1807,6 +1807,16 @@ def domain_change(
     scheme: Categories | None = None,
     data: Data | None = None,
 ) -> Table: ...
+def transition_matrix(
+    depth: ArrayLike | Column,
+    categories: Labels | Column,
+    holes: Labels | Column,
+    *,
+    lag: float,
+    tolerance: float = 0.0,
+    scheme: Categories | None = None,
+    data: Data | None = None,
+) -> Table: ...
 def compare_models(
     model: BlockModel,
     columns: Sequence[Column] | Mapping[str, ArrayLike | Column],

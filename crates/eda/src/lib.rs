@@ -1198,9 +1198,122 @@ pub fn domain_change(
         .collect())
 }
 
+/// One cell of [`transition_matrix`]: `count` samples of class `from` with a
+/// sample of class `to` at `lag ± tolerance` deeper in the same hole.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Transition {
+    pub from: u32,
+    pub to: u32,
+    pub count: u64,
+}
+
+/// Along-hole category transition matrix: samples are grouped by hole and
+/// sorted by `depth`, then for every sample the classes of samples `lag ±
+/// tolerance` deeper in the same hole are tallied, `from` (the shallower
+/// sample) then `to` (the deeper one), into a dense `k × k` matrix.
+pub fn transition_matrix(
+    depth: &[f64],
+    categories: &[u32],
+    holes: &[u32],
+    k: usize,
+    lag: f64,
+    tolerance: f64,
+) -> Result<Vec<Transition>> {
+    let n = depth.len();
+    if categories.len() != n || holes.len() != n {
+        return invalid(format!("expected {n} categories and holes"));
+    }
+    if k == 0 {
+        return invalid("k must be positive");
+    }
+    if !(lag > 0.0 && tolerance >= 0.0) {
+        return invalid("lag must be positive and tolerance >= 0");
+    }
+    if depth.iter().any(|d| !d.is_finite()) {
+        return invalid("depth must be finite");
+    }
+    if categories.iter().any(|&c| c as usize >= k) {
+        return invalid(format!("classes must be codes 0 to {}", k - 1));
+    }
+    let mut by_hole: BTreeMap<u32, Vec<usize>> = BTreeMap::new();
+    for i in 0..n {
+        by_hole.entry(holes[i]).or_default().push(i);
+    }
+    let mut counts = vec![0u64; k * k];
+    for members in by_hole.values_mut() {
+        members.sort_by(|&a, &b| depth[a].total_cmp(&depth[b]));
+        let ds: Vec<f64> = members.iter().map(|&i| depth[i]).collect();
+        for &i in members.iter() {
+            let lo = ds.partition_point(|&d| d < depth[i] + lag - tolerance);
+            let hi = ds.partition_point(|&d| d <= depth[i] + lag + tolerance);
+            for &j in &members[lo..hi] {
+                if j == i {
+                    continue;
+                }
+                counts[categories[i] as usize * k + categories[j] as usize] += 1;
+            }
+        }
+    }
+    Ok(counts
+        .into_iter()
+        .enumerate()
+        .map(|(c, count)| Transition {
+            from: (c / k) as u32,
+            to: (c % k) as u32,
+            count,
+        })
+        .collect())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn transition_matrix_counts_and_margins() {
+        let depth: Vec<f64> = (0..10).map(f64::from).collect();
+        let categories: Vec<u32> = vec![0, 0, 1, 1, 2, 2, 0, 0, 1, 1];
+        let holes = vec![0u32; 10];
+        let t = transition_matrix(&depth, &categories, &holes, 3, 1.0, 0.0).unwrap();
+        assert_eq!(t.len(), 9);
+        let count = |from: u32, to: u32| {
+            t.iter()
+                .find(|x| x.from == from && x.to == to)
+                .unwrap()
+                .count
+        };
+        assert_eq!(count(0, 0), 2);
+        assert_eq!(count(0, 1), 2);
+        assert_eq!(count(0, 2), 0);
+        assert_eq!(count(1, 0), 0);
+        assert_eq!(count(1, 1), 2);
+        assert_eq!(count(1, 2), 1);
+        assert_eq!(count(2, 0), 1);
+        assert_eq!(count(2, 1), 0);
+        assert_eq!(count(2, 2), 1);
+        // Row `c` sums to how often `c` occurs with a deeper neighbor in reach
+        // (every occurrence but the last sample of the hole); columns, with a
+        // shallower one (every occurrence but the first).
+        for c in 0..3u32 {
+            let occurrences = categories.iter().filter(|&&x| x == c).count() as u64;
+            let row: u64 = t.iter().filter(|x| x.from == c).map(|x| x.count).sum();
+            assert_eq!(
+                row,
+                occurrences - u64::from(*categories.last().unwrap() == c)
+            );
+            let col: u64 = t.iter().filter(|x| x.to == c).map(|x| x.count).sum();
+            assert_eq!(col, occurrences - u64::from(categories[0] == c));
+        }
+    }
+
+    #[test]
+    fn transition_matrix_rejects_bad_input() {
+        assert!(transition_matrix(&[0.0, 1.0], &[0, 1], &[0, 0], 0, 1.0, 0.0).is_err());
+        assert!(transition_matrix(&[0.0, 1.0], &[0, 1], &[0, 0], 2, 0.0, 0.0).is_err());
+        assert!(transition_matrix(&[0.0, 1.0], &[0, 1], &[0, 0], 2, 1.0, -0.1).is_err());
+        assert!(transition_matrix(&[0.0, 1.0], &[0, 2], &[0, 0], 2, 1.0, 0.0).is_err());
+        assert!(transition_matrix(&[0.0], &[0, 1], &[0, 0], 2, 1.0, 0.0).is_err());
+    }
 
     #[test]
     fn domain_change_margins_diagonal_and_metal() {

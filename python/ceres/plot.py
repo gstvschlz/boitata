@@ -44,6 +44,7 @@ __all__ = [
     "slab",
     "strip_log",
     "swath",
+    "transition_mds",
     "uncertain",
     "variogram",
     "variogram_reproduction",
@@ -1905,6 +1906,42 @@ def domain_change(table, *, value="tonnage", relative=False, fmt=None, ax=None, 
     ax.set_yticks(range(k), names)
     ax.set_xlabel("To")
     ax.set_ylabel("From")
+    return fig, ax
+
+
+def transition_mds(table, *, ax=None, **kwargs):
+    """Classical (Torgerson) MDS of an along-hole transition table: categories that transition into each other most
+    often sit close together in 2D.
+
+    The ``frequency`` column, one class's row shares, is symmetrized into a dissimilarity, ``1 - (freq + freq.T)
+    / 2``, then scaled from the top two eigenvectors of its double-centered squared distances.
+
+    Parameters
+    ----------
+    table : Table
+        Result of ``ceres.transition_matrix``.
+    **kwargs
+        Passed to ``ax.scatter``.
+    """
+    fig, ax = _axes(ax)
+    names = list(dict.fromkeys(np.asarray(table["from"]).astype(str)))
+    k = len(names)
+    freq = np.nan_to_num(np.asarray(table["frequency"], dtype=float).reshape(k, k))
+    d = 1.0 - (freq + freq.T) / 2.0
+    np.fill_diagonal(d, 0.0)
+    j = np.eye(k) - np.ones((k, k)) / k
+    b = -0.5 * j @ (d**2) @ j
+    values, vectors = np.linalg.eigh(b)
+    order = np.argsort(values)[::-1][:2]
+    coords = vectors[:, order] * np.sqrt(np.clip(values[order], 0.0, None))
+    if coords.shape[1] < 2:
+        coords = np.column_stack([coords, np.zeros(k)])
+    kwargs.setdefault("color", _accent())
+    ax.scatter(coords[:, 0], coords[:, 1], **kwargs)
+    for (x, y), name in zip(coords, names, strict=True):
+        ax.annotate(name, (x, y), xytext=(4, 4), textcoords="offset points")
+    ax.set_xlabel("Dimension 1")
+    ax.set_ylabel("Dimension 2")
     return fig, ax
 
 
