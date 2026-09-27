@@ -152,6 +152,7 @@ impl CategoricalIndicator {
         searches: &[Search],
         local: Option<&LocalAnisotropy>,
     ) -> Result<CategoricalIndicatorSummary> {
+        crate::search::unclamped(searches, "categorical kriging")?;
         let proportions = self.proportions(samples, weights)?;
         if domains.is_some_and(|d| d.len() != targets.len()) {
             return Err(invalid("need one domain per target"));
@@ -188,6 +189,7 @@ impl CategoricalIndicator {
         searches: &[Search],
         folds: Option<usize>,
     ) -> Result<CategoricalIndicatorSummary> {
+        crate::search::unclamped(searches, "categorical kriging")?;
         let proportions = self.proportions(samples, weights)?;
         let vg = Some(self.search_variogram());
         let kriged = |t: &Point, s: &[Sample]| self.kriged(t, s, &proportions, None);

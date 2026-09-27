@@ -82,15 +82,53 @@ impl<L: PartialEq> Soft<L> {
     }
 }
 
-/// Samples valued above `threshold` are used only within `radius`, measured in
-/// the same ellipsoid as [`Search::radius`]. `threshold` is in data units,
-/// also in simulators that krige normal scores.
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+/// Samples valued above `threshold` are restricted beyond `radius`, measured
+/// in the same ellipsoid as [`Search::radius`], or in `anisotropy` when
+/// given (ratios, major = 1, so `radius` is along its major axis).
+/// `threshold` is in data units, also in simulators that krige normal
+/// scores.
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HighGrade {
     #[serde(with = "ceres_core::nonfinite")]
     pub threshold: f64,
     #[serde(with = "ceres_core::nonfinite")]
     pub radius: f64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub anisotropy: Option<Anisotropy>,
+    #[serde(default)]
+    pub mode: HighGradeMode,
+}
+
+/// What happens to a high-grade sample beyond the restricted distance.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum HighGradeMode {
+    /// Left out of the search.
+    #[default]
+    Drop,
+    /// Kept, with its value capped at the threshold.
+    Clamp,
+}
+
+impl HighGrade {
+    pub fn new(threshold: f64, radius: f64) -> Self {
+        Self {
+            threshold,
+            radius,
+            anisotropy: None,
+            mode: HighGradeMode::Drop,
+        }
+    }
+
+    /// Whether a sample of `value` at `loc`, at `distance` from `target` in
+    /// the search ellipsoid, lies beyond the restriction.
+    fn beyond(&self, target: &Point, loc: &Point, value: f64, distance: f64) -> bool {
+        value > self.threshold
+            && match &self.anisotropy {
+                Some(a) => a.lag(target, loc),
+                None => distance,
+            } > self.radius
+    }
 }
 
 impl Default for Search {
@@ -109,13 +147,22 @@ impl Default for Search {
 }
 
 impl Search {
-    /// Whether a sample of `value` and `domain` at `distance` may inform a
-    /// target of domain `target` under the high-grade and soft-boundary rules.
-    fn admits(&self, target: Option<u32>, value: f64, domain: Option<u32>, distance: f64) -> bool {
-        let high = self
-            .high_grade
-            .is_some_and(|h| value > h.threshold && distance > h.radius);
-        let reached = match (target, domain) {
+    /// Whether a sample of `value` and `domain` at `loc`, `distance` from a
+    /// target of domain `target_domain`, may inform it under the high-grade
+    /// and soft-boundary rules.
+    fn admits(
+        &self,
+        target: &Point,
+        target_domain: Option<u32>,
+        loc: &Point,
+        value: f64,
+        domain: Option<u32>,
+        distance: f64,
+    ) -> bool {
+        let high = self.high_grade.as_ref().is_some_and(|h| {
+            h.mode == HighGradeMode::Drop && h.beyond(target, loc, value, distance)
+        });
+        let reached = match (target_domain, domain) {
             (Some(t), Some(s)) if t != s => {
                 distance < self.soft.as_ref().map_or(0.0, |r| r.distance(&t, &s))
             }
@@ -123,6 +170,58 @@ impl Search {
         };
         !high && reached
     }
+
+    /// The threshold when a sample of `value` at `loc`, `distance` from
+    /// `target`, is capped by a clamping high-grade restriction.
+    pub fn cap(&self, target: &Point, loc: &Point, value: f64, distance: f64) -> Option<f64> {
+        self.high_grade
+            .as_ref()
+            .filter(|h| h.mode == HighGradeMode::Clamp && h.beyond(target, loc, value, distance))
+            .map(|h| h.threshold)
+    }
+
+    /// Whether high-grade samples may be capped rather than left out.
+    pub fn clamps(&self) -> bool {
+        self.high_grade
+            .as_ref()
+            .is_some_and(|h| h.mode == HighGradeMode::Clamp)
+    }
+}
+
+/// An error when a search clamps high grades for an estimator that
+/// cannot, named `what`.
+pub fn unclamped(searches: &[Search], what: &str) -> Result<()> {
+    match searches.iter().any(Search::clamps) {
+        true => Err(EstimError::InvalidParameters(format!(
+            "{what} does not clamp high grades; use mode drop"
+        ))),
+        false => Ok(()),
+    }
+}
+
+/// The samples at `chosen` for `target`, as selected by [`neighbors`] with
+/// the same arguments, their values capped by a clamping restriction.
+pub fn take(
+    target: &Point,
+    chosen: &[usize],
+    samples: &[Sample],
+    params: &Search,
+    vg: Option<&Variogram>,
+) -> Vec<Sample> {
+    let aniso = metric(params, vg);
+    chosen
+        .iter()
+        .map(|&i| {
+            let mut s = samples[i].clone();
+            if params.clamps() {
+                let d = aniso.map_or_else(|| euclidean(target, &s.loc), |a| a.lag(target, &s.loc));
+                if let Some(t) = params.cap(target, &s.loc, s.value, d) {
+                    s.value = t;
+                }
+            }
+            s
+        })
+        .collect()
 }
 
 fn metric<'a>(params: &'a Search, vg: Option<&'a Variogram>) -> Option<&'a Anisotropy> {
@@ -302,7 +401,7 @@ pub fn neighbors_in(
         })
         .filter(|&(i, d)| {
             let s = &samples[i];
-            d <= params.radius && params.admits(domain, s.value, s.domain, d)
+            d <= params.radius && params.admits(target, domain, &s.loc, s.value, s.domain, d)
         })
         .collect();
     cand.sort_by(|a, b| a.1.total_cmp(&b.1));
@@ -675,7 +774,7 @@ impl SearchTree {
             .candidates(&query, self.len(), radius2)
             .into_iter()
             .map(|(_, i)| (local.lag(target, &self.locs[i]), i))
-            .filter(|&(d, i)| d <= params.radius && self.admits(domain, i, d))
+            .filter(|&(d, i)| d <= params.radius && self.admits(target, domain, i, d))
             .collect();
         found.sort_by(|a, b| a.0.total_cmp(&b.0).then(a.1.cmp(&b.1)));
         let ordered = self.one_per_location(found.into_iter().map(|f| f.1), domain, None);
@@ -691,9 +790,48 @@ impl SearchTree {
         enough(chosen, params)
     }
 
-    fn admits(&self, domain: Option<u32>, i: usize, distance: f64) -> bool {
-        self.params
-            .admits(domain, self.values[i], self.domains[i], distance)
+    fn admits(&self, target: &Point, domain: Option<u32>, i: usize, distance: f64) -> bool {
+        self.params.admits(
+            target,
+            domain,
+            &self.locs[i],
+            self.values[i],
+            self.domains[i],
+            distance,
+        )
+    }
+
+    /// The threshold when sample `i` is capped for `target` by a clamping
+    /// restriction; `local` is the ellipsoid of
+    /// [`SearchTree::neighbors_within`], if searched so.
+    pub fn cap(&self, target: &Point, local: Option<&Anisotropy>, i: usize) -> Option<f64> {
+        if !self.params.clamps() {
+            return None;
+        }
+        let loc = &self.locs[i];
+        let d = local.map_or_else(|| self.distance(target, loc), |a| a.lag(target, loc));
+        self.params.cap(target, loc, self.values[i], d)
+    }
+
+    /// The samples at `chosen` for `target`, their values capped by a
+    /// clamping restriction; `samples` are those the tree was built from.
+    pub fn take(
+        &self,
+        target: &Point,
+        local: Option<&Anisotropy>,
+        chosen: &[usize],
+        samples: &[Sample],
+    ) -> Vec<Sample> {
+        chosen
+            .iter()
+            .map(|&i| {
+                let mut s = samples[i].clone();
+                if let Some(t) = self.cap(target, local, i) {
+                    s.value = t;
+                }
+                s
+            })
+            .collect()
     }
 
     fn one_per_location(
@@ -748,7 +886,7 @@ impl SearchTree {
                 .into_iter()
                 .filter(|&(_, i)| {
                     let d2: f64 = (0..3).map(|d| (self.points[i][d] - query[d]).powi(2)).sum();
-                    self.admits(domain, i, d2.sqrt())
+                    self.admits(target, domain, i, d2.sqrt())
                 })
                 .map(|f| f.1);
             let chosen = select(
@@ -871,12 +1009,17 @@ mod tests {
             },
             Search {
                 max_per_hole: Some(3),
-                high_grade: Some(HighGrade {
-                    threshold: 7.0,
-                    radius: 40.0,
-                }),
+                high_grade: Some(HighGrade::new(7.0, 40.0)),
                 anisotropy: Some(aniso.clone()),
                 ..params(1, 12, 150.0)
+            },
+            Search {
+                high_grade: Some(HighGrade {
+                    anisotropy: Some(aniso.clone()),
+                    ..HighGrade::new(7.0, 60.0)
+                }),
+                octant: true,
+                ..params(1, 16, 150.0)
             },
             Search {
                 soft: Some(Soft::All(60.0)),
@@ -890,10 +1033,7 @@ mod tests {
                     distance: 80.0,
                 }])),
                 octant: true,
-                high_grade: Some(HighGrade {
-                    threshold: 7.0,
-                    radius: 40.0,
-                }),
+                high_grade: Some(HighGrade::new(7.0, 40.0)),
                 ..params(1, 24, 200.0)
             },
         ];

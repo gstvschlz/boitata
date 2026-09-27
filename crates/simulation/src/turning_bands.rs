@@ -408,15 +408,15 @@ fn unconditional(
 }
 
 /// Simple kriging of residuals at every target, of domain `domains[i]`,
-/// added to `field`: `residual(k, domain)` is the residual of neighbor `k`
-/// for a target of `domain`.
+/// added to `field`: `residual(k, domain, cap)` is the residual of neighbor
+/// `k` for a target of `domain`, its value capped at `cap` when given.
 fn condition(
     targets: &[(f64, f64, f64)],
     domains: Option<&[u32]>,
     field: Vec<f64>,
     tree: &SearchTree,
     vg: &Variogram,
-    residual: impl Fn(usize, Option<u32>) -> Sample + Sync,
+    residual: impl Fn(usize, Option<u32>, Option<f64>) -> Sample + Sync,
 ) -> Result<Vec<f64>> {
     targets
         .par_iter()
@@ -428,7 +428,10 @@ fn condition(
             if chosen.is_empty() {
                 return Ok(u);
             }
-            let near: Vec<Sample> = chosen.iter().map(|&k| residual(k, domain)).collect();
+            let near: Vec<Sample> = chosen
+                .iter()
+                .map(|&k| residual(k, domain, tree.cap(g, None, k)))
+                .collect();
             let rk = krige(Kind::Simple { mean: 0.0 }, g, &near, vg)
                 .map_err(|e| SimError::Estimation(e.to_string()))?
                 .value;
@@ -466,8 +469,8 @@ pub fn conditional_gaussian_field(
     let at_data = bands.field(data_locs);
     let data = data(data_locs, gaussian_data, vec![None; data_locs.len()], None);
     let tree = SearchTree::new(&data, &params.search, Some(vg));
-    condition(grid, None, bands.field(grid), &tree, vg, |k, _| {
-        Sample::new(data[k].loc, data[k].value - at_data[k])
+    condition(grid, None, bands.field(grid), &tree, vg, |k, _, cap| {
+        Sample::new(data[k].loc, cap.unwrap_or(data[k].value) - at_data[k])
     })
 }
 
@@ -592,18 +595,19 @@ impl TurningBandsEnsemble {
     }
 
     /// Score of datum `j` for a target of `domain`: its own in its domain,
-    /// its grade (and trend) transformed through `domain` in another.
-    fn score(&self, j: usize, domain: Option<u32>) -> f64 {
+    /// its grade (and trend) transformed through `domain` in another, or
+    /// the grade `cap` transformed so when capped.
+    fn score(&self, j: usize, domain: Option<u32>, cap: Option<f64>) -> f64 {
         let s = &self.data[j];
-        if s.domain == domain {
+        if s.domain == domain && cap.is_none() {
             return self.transforms.scores[j];
         }
-        let code = domain.expect("another domain") as usize;
+        let code = domain.unwrap_or(0) as usize;
         let t = self.trend.as_ref().map_or(0.0, |t| t[j]);
         self.transforms.domains[code]
             .as_ref()
             .expect("checked")
-            .forward(s.value, t)
+            .forward(cap.unwrap_or(s.value), t)
     }
 
     /// Realization `k` at `targets`, of codes `domains` and trend `trend`
@@ -628,7 +632,7 @@ impl TurningBandsEnsemble {
             bands.field(targets),
             &self.tree,
             &self.vg,
-            |j, domain| Sample::new(self.data[j].loc, self.score(j, domain) - at_data[j]),
+            |j, domain, cap| Sample::new(self.data[j].loc, self.score(j, domain, cap) - at_data[j]),
         )?;
         Ok(scores
             .iter()
@@ -1526,7 +1530,7 @@ mod tests {
                         true => e.transforms.scores[j],
                         false => into[code as usize](z.vals[j], z.trend[j]),
                     };
-                    assert!((e.score(j, Some(code)) - want).abs() < 1e-12);
+                    assert!((e.score(j, Some(code), None) - want).abs() < 1e-12);
                 }
             }
         }

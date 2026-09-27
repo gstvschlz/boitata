@@ -7,7 +7,7 @@
 use crate::Sample;
 use crate::error::{EstimError, Result};
 use crate::krige::{Kind, krige};
-use crate::search::{Search, neighbors};
+use crate::search::{Search, neighbors, take};
 use serde::{Deserialize, Serialize};
 use variogram::Variogram;
 
@@ -122,7 +122,7 @@ pub fn leave_one_out(samples: &[Sample], vg: &Variogram, search: &Search) -> Res
             Ok(v) => v,
             Err(_) => continue, // not enough neighbors; skip this sample
         };
-        let selected: Vec<Sample> = idx.iter().map(|&k| rest[k].clone()).collect();
+        let selected = take(&target, &idx, &rest, search, Some(vg));
         let est = krige(Kind::Ordinary, &target, &selected, vg)?;
         let std_error = if est.variance > 0.0 {
             (samples[i].value - est.value) / est.variance.sqrt()
@@ -174,7 +174,7 @@ pub fn k_fold(samples: &[Sample], vg: &Variogram, search: &Search, k: usize) -> 
                 Ok(v) => v,
                 Err(_) => continue,
             };
-            let selected: Vec<Sample> = idx.iter().map(|&j| train[j].clone()).collect();
+            let selected = take(&s.loc, &idx, &train, search, Some(vg));
             let est = krige(Kind::Ordinary, &s.loc, &selected, vg)?;
             let std_error = if est.variance > 0.0 {
                 (s.value - est.value) / est.variance.sqrt()

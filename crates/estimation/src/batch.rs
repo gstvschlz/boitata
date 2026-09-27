@@ -30,7 +30,7 @@ where
         .enumerate()
         .map(|(i, target)| {
             let chosen = tree.neighbors_in(target, domains.map(|d| d[i])).ok()?;
-            let selected: Vec<Sample> = chosen.iter().map(|&i| samples[i].clone()).collect();
+            let selected = tree.take(target, None, &chosen, samples);
             estimator(target, &selected).ok()
         })
         .collect()
@@ -53,7 +53,7 @@ where
         .par_iter()
         .map(|target| {
             let chosen = tree.neighbors_in(target, None).ok()?;
-            let selected: Vec<Sample> = chosen.iter().map(|&i| samples[i].clone()).collect();
+            let selected = tree.take(target, None, &chosen, samples);
             Some((chosen, weights(target, &selected).ok()?))
         })
         .collect()
@@ -155,7 +155,7 @@ where
             if chosen.len() < search.min_samples.max(1) {
                 return None;
             }
-            let selected: Vec<Sample> = chosen.iter().map(|&j| samples[j].clone()).collect();
+            let selected = tree.take(target, None, &chosen, samples);
             estimator(target, &selected).ok()
         })
         .collect()
@@ -218,7 +218,7 @@ where
 mod tests {
     use super::*;
     use crate::krige::{Estimate, Kind, krige};
-    use crate::search::{HighGrade, Soft, SoftPair};
+    use crate::search::{HighGrade, HighGradeMode, Soft, SoftPair};
     use std::sync::atomic::{AtomicUsize, Ordering};
 
     type Point = (f64, f64, f64);
@@ -559,10 +559,7 @@ mod tests {
         let loo = |s: &Search| leave_one_out_many(&samples, s, Some(&vg), krige_with(&vg));
         for radius in [30.0, 100.0] {
             let restricted = Search {
-                high_grade: Some(HighGrade {
-                    threshold: 1.0,
-                    radius,
-                }),
+                high_grade: Some(HighGrade::new(1.0, radius)),
                 ..plain.clone()
             };
             let a = many(&targets, &plain).into_iter().chain(loo(&plain));
@@ -581,7 +578,7 @@ mod tests {
         let vg = Variogram::single(Model::Spherical, 1.0, 40.0);
         let (threshold, radius) = (1.0, 8.0);
         let restricted = Search {
-            high_grade: Some(HighGrade { threshold, radius }),
+            high_grade: Some(HighGrade::new(threshold, radius)),
             ..plain.clone()
         };
         let used = AtomicUsize::new(0);
@@ -601,6 +598,129 @@ mod tests {
         assert!(changed(&out, &many(&targets, &plain)));
         let plain_cv = leave_one_out_many(&samples, &plain, Some(&vg), krige_with(&vg));
         assert!(changed(&cv, &plain_cv));
+    }
+
+    fn restricted(mode: HighGradeMode, anisotropy: Option<variogram::Anisotropy>) -> Search {
+        Search {
+            high_grade: Some(HighGrade {
+                anisotropy,
+                mode,
+                ..HighGrade::new(1.0, 8.3)
+            }),
+            ..search(4, 30.0)
+        }
+    }
+
+    #[test]
+    fn a_spherical_high_grade_ellipsoid_is_the_scalar_radius() {
+        let sphere = variogram::Anisotropy::new(variogram::Angles {
+            azimuth: 30.0,
+            dip: 20.0,
+            rake: 10.0,
+            major: 1.0,
+            semi: 1.0,
+            minor: 1.0,
+        })
+        .unwrap();
+        let (samples, targets) = (samples(), grid());
+        let vg = Variogram::single(Model::Spherical, 1.0, 40.0);
+        let loo = |s: &Search| leave_one_out_many(&samples, s, Some(&vg), krige_with(&vg));
+        for mode in [HighGradeMode::Drop, HighGradeMode::Clamp] {
+            let (a, b) = (
+                restricted(mode, None),
+                restricted(mode, Some(sphere.clone())),
+            );
+            let x = many(&targets, &a).into_iter().chain(loo(&a));
+            let y = many(&targets, &b).into_iter().chain(loo(&b));
+            for (x, y) in x.zip(y) {
+                assert_eq!(bits(&x), bits(&y));
+            }
+        }
+    }
+
+    #[test]
+    fn a_high_grade_ellipsoid_restricts_along_its_axes() {
+        let east = variogram::Anisotropy::new(variogram::Angles {
+            azimuth: 90.0,
+            dip: 0.0,
+            rake: 0.0,
+            major: 1.0,
+            semi: 0.25,
+            minor: 0.25,
+        })
+        .unwrap();
+        let samples = vec![
+            Sample::new((10.0, 0.0, 0.0), 5.0),
+            Sample::new((0.0, 10.0, 0.0), 5.0),
+            Sample::new((-3.0, -3.0, 0.0), 0.0),
+        ];
+        let s = Search {
+            high_grade: Some(HighGrade {
+                anisotropy: Some(east),
+                ..HighGrade::new(1.0, 20.0)
+            }),
+            ..search(1, 100.0)
+        };
+        let got = crate::search::neighbors(&(0.0, 0.0, 0.0), &samples, &s, None).unwrap();
+        assert_eq!(got, vec![2, 0]);
+    }
+
+    #[test]
+    fn clamping_lies_between_dropping_and_no_restriction() {
+        let (samples, threshold, radius) = (samples(), 1.0, 0.0);
+        let targets: Vec<Point> = grid().iter().map(|p| (p.0 + 0.5, p.1 + 0.5, 0.0)).collect();
+        let all = Search {
+            min_samples: 1,
+            max_samples: samples.len(),
+            ..Default::default()
+        };
+        let with = |mode| Search {
+            high_grade: Some(HighGrade {
+                mode,
+                ..HighGrade::new(threshold, radius)
+            }),
+            ..all.clone()
+        };
+        let checked = |t: &Point, s: &[Sample]| {
+            for x in s.iter().filter(|x| x.value > threshold) {
+                assert!(variogram::aniso::euclidean(t, &x.loc) <= radius);
+            }
+            crate::idw::idw(t, s, 2.0)
+        };
+        let idw = |s: &Search| estimate_many(&targets, None, &samples, s, None, checked);
+        let open = estimate_many(&targets, None, &samples, &all, None, |t, s| {
+            crate::idw::idw(t, s, 2.0)
+        });
+        let (dropped, clamped) = (
+            idw(&with(HighGradeMode::Drop)),
+            idw(&with(HighGradeMode::Clamp)),
+        );
+        let mut strict = 0;
+        for ((d, c), u) in dropped.iter().zip(&clamped).zip(&open) {
+            let (d, c, u) = (d.unwrap(), c.unwrap(), u.unwrap());
+            assert!(d <= c + 1e-12 && c <= u + 1e-12, "{d} {c} {u}");
+            strict += usize::from(d < c && c < u);
+        }
+        assert!(strict > 0);
+        let cv = leave_one_out_many(&samples, &with(HighGradeMode::Clamp), None, checked);
+        assert!(cv.iter().all(Option::is_some));
+    }
+
+    #[test]
+    fn clamping_does_not_depend_on_thread_count() {
+        let (targets, s) = (grid(), restricted(HighGradeMode::Clamp, None));
+        let run = |threads| {
+            let pool = rayon::ThreadPoolBuilder::new().num_threads(threads);
+            let out = pool.build().unwrap().install(|| many(&targets, &s));
+            out.iter().map(bits).collect::<Vec<_>>()
+        };
+        let one = run(1);
+        assert_eq!(one, run(8));
+        let dropped: Vec<_> = many(&targets, &restricted(HighGradeMode::Drop, None))
+            .iter()
+            .map(bits)
+            .collect();
+        assert_ne!(one, dropped);
     }
 
     fn domain_of(p: &Point) -> u32 {

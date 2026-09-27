@@ -523,7 +523,8 @@ fn of_realization(rows: &Option<Vec<Vec<u32>>>, k: usize) -> Option<&[u32]> {
 /// already simulated of another domain inform a node within the soft
 /// distance, each as its grade (and trend) transformed through the node's
 /// domain; boundaries are hard without it. `high_grade` compares grades, of
-/// data and of simulated nodes, with its threshold. One random path visits
+/// data and of simulated nodes, with its threshold; a clamped neighbor is
+/// kriged as the score of the threshold. One random path visits
 /// the nodes of every domain. Simulated domains at `simulate`, one
 /// realization of the domains per realization of the grades, carry the
 /// uncertainty of the domains into the grades.

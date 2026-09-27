@@ -16,7 +16,8 @@
 //! the realization is the sequential one for any number of threads.
 //!
 //! The search compares grades, of data and of simulated nodes, with a
-//! high-grade threshold. Kriging uses scores: a neighbor of the node's
+//! high-grade threshold; a clamped neighbor enters as the score of the
+//! threshold. Kriging uses scores: a neighbor of the node's
 //! domain its own, one of another domain (through a soft boundary) its grade
 //! transformed as the node's domain transforms grades.
 
@@ -464,9 +465,15 @@ fn simulate(
         let selected: Vec<Sample> = idx
             .iter()
             .map(|&k| Sample {
-                value: match known.samples[k].domain == domain {
-                    true => known.scores[k],
-                    false => transform(domain).forward(known.samples[k].value, known.trends[k]),
+                value: match (
+                    tree.cap(&target, aniso.as_ref(), k),
+                    known.samples[k].domain == domain,
+                ) {
+                    (Some(t), _) => transform(domain).forward(t, known.trends[k]),
+                    (None, true) => known.scores[k],
+                    (None, false) => {
+                        transform(domain).forward(known.samples[k].value, known.trends[k])
+                    }
                 },
                 ..known.samples[k].clone()
             })
@@ -1013,10 +1020,7 @@ pub(crate) mod tests {
             max_samples: 12,
             radius,
             max_per_hole: Some(3),
-            high_grade: Some(estimation::HighGrade {
-                threshold: 60.0,
-                radius: 6.0,
-            }),
+            high_grade: Some(estimation::HighGrade::new(60.0, 6.0)),
             ..Default::default()
         };
         (
@@ -1206,10 +1210,7 @@ pub(crate) mod tests {
             max_samples: 12,
             radius,
             max_per_hole: Some(2),
-            high_grade: Some(estimation::HighGrade {
-                threshold: 12.0,
-                radius: 6.0,
-            }),
+            high_grade: Some(estimation::HighGrade::new(12.0, 6.0)),
             soft: soft.clone(),
             ..Default::default()
         };
@@ -1291,6 +1292,54 @@ pub(crate) mod tests {
         .unwrap();
         assert!(high > 0 && simulated > 0);
         other
+    }
+
+    fn clamp(s: &Search) -> Search {
+        Search {
+            high_grade: s.high_grade.clone().map(|h| estimation::HighGrade {
+                mode: estimation::HighGradeMode::Clamp,
+                ..h
+            }),
+            ..s.clone()
+        }
+    }
+
+    #[test]
+    fn clamped_high_grades_enter_as_the_score_of_the_threshold() {
+        let z = zoned();
+        let (grid, nodes, _) = zoned_grid();
+        let into = [forward(&z, 0, false), forward(&z, 1, false)];
+        let params = SgsParams {
+            search: zoned_search(None).iter().map(clamp).collect(),
+            seed: 5,
+        };
+        let mut clamped = 0;
+        simulate(
+            &z.locs,
+            &z.vals,
+            Some(&z.weights),
+            Some(&z.holes),
+            Some((&z.codes, &nodes)),
+            None,
+            &grid,
+            &vg(),
+            &params,
+            None,
+            None,
+            None,
+            |node, idx, samples, kriged| {
+                for (j, &k) in idx.iter().enumerate() {
+                    let (s, d) = (&samples[k], distance(&grid[node], &samples[k].loc));
+                    if s.value > 12.0 && d > 6.0 + 1e-9 {
+                        let want = into[nodes[node] as usize](12.0, 0.0);
+                        assert!((kriged[j].value - want).abs() < 1e-12);
+                        clamped += 1;
+                    }
+                }
+            },
+        )
+        .unwrap();
+        assert!(clamped > 0);
     }
 
     #[test]
@@ -1700,7 +1749,8 @@ pub(crate) mod tests {
                 ..s.clone()
             })
             .collect();
-        for search in [soft, octant] {
+        let clamped: Vec<Search> = soft.iter().map(clamp).collect();
+        for search in [soft, octant, clamped] {
             for local in [None, Some(&local)] {
                 let run = |threads, batch, seed| {
                     let params = SgsParams {

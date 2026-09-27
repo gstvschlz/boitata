@@ -712,7 +712,7 @@ where
             let chosen = tree
                 .neighbors_within(target, domains.map(|d| d[i]), &aniso)
                 .ok()?;
-            let selected: Vec<Sample> = chosen.iter().map(|&k| samples[k].clone()).collect();
+            let selected = tree.take(target, Some(&aniso), &chosen, samples);
             let vg = Variogram {
                 anisotropy: Some(aniso),
                 ..vg.clone()

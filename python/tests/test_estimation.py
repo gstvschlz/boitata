@@ -104,6 +104,43 @@ def test_high_grade_restriction():
         cs.Search(radius=50, high_grade=(1.0, -1))
 
 
+def test_high_grade_modes():
+    grid = rng.uniform(0, 100, (300, 2))
+
+    def run(high_grade):
+        est = cs.OrdinaryKriging(model, cs.Search(radius=50, high_grade=high_grade)).fit(coords, values)
+        return est.predict(grid), est.cross_validate().estimate
+
+    threshold = np.quantile(values, 0.8)
+    drop = run((threshold, 5.0))
+    for same in [
+        cs.HighGrade(threshold, 5.0),
+        cs.HighGrade(threshold, (5.0, 5.0, 5.0), rotation=(30, 10, 0)),
+    ]:
+        for a, b in zip(drop, run(same)):
+            np.testing.assert_array_equal(a, b)
+    clamp = run(cs.HighGrade(threshold, 5.0, mode="clamp"))
+    assert not np.array_equal(drop[0], clamp[0])
+    np.testing.assert_array_equal(clamp[0], run(cs.HighGrade(threshold, 5.0, mode="clamp"))[0])
+    passes = [
+        cs.Search(radius=10, min_samples=6, high_grade=(threshold, 5.0)),
+        cs.Search(radius=60, high_grade=(threshold, 20.0)),
+    ]
+    assert np.isfinite(cs.OrdinaryKriging(model, passes).fit(coords, values).predict(grid)).all()
+    h = cs.HighGrade(2.0, (40.0, 20.0, 5.0), rotation=(30.0, 0.0, 0.0), mode="clamp")
+    assert (h.threshold, h.radius, h.mode, h.rotation) == (2.0, 40.0, "clamp", (30.0, 0.0, 0.0))
+    np.testing.assert_allclose(h.ranges, (40.0, 20.0, 5.0))
+    assert cs.HighGrade.from_json(h.to_json()) == h
+    assert cs.Search(radius=50, high_grade=h).high_grade == h
+    with pytest.raises(ValueError):
+        cs.HighGrade(1.0, 5.0, mode="cap")
+    with pytest.raises(ValueError):
+        cs.HighGrade(1.0, (1.0, 0.0, 1.0))
+    clamped = cs.Search(radius=50, high_grade=cs.HighGrade(1.0, 5.0, mode="clamp"))
+    with pytest.raises(ValueError):
+        cs.MultigaussianKriging(model, clamped).fit(coords, np.exp(values)).predict(grid)
+
+
 def test_targets_from_containers():
     ok = cs.OrdinaryKriging(model, search).fit(coords, values)
     grid = cs.BlockModel(origin=(0, 0), size=(10, 10), count=(10, 10))
@@ -637,7 +674,7 @@ def test_search_getters():
         ratios=(0.5, 0.2),
         high_grade=(2.0, 10.0),
     )
-    assert (s.octant, s.max_per_hole, s.high_grade) == (True, 3, (2.0, 10.0))
+    assert (s.octant, s.max_per_hole, s.high_grade) == (True, 3, cs.HighGrade(2.0, 10.0))
     assert (s.rotation, s.ratios) == ((30, 10, 5), (0.5, 0.2))
     plain = cs.Search(radius=50)
     assert not plain.octant

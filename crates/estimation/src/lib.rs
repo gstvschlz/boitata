@@ -49,7 +49,7 @@ pub use kriging_algebra::{
 };
 pub use multigaussian::Multigaussian;
 pub use neighborhood::{NeighborhoodStats, hole_distance, neighborhood_stats};
-pub use search::{HighGrade, Search, Soft, SoftPair, neighbors, neighbors_in};
+pub use search::{HighGrade, HighGradeMode, Search, Soft, SoftPair, neighbors, neighbors_in, take};
 pub use simple_interp::{
     InterpEstimate, InterpOptions, inverse_distance, inverse_distance_weights, local_least_squares,
     moving_average, moving_median, nearest_index,
