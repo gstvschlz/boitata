@@ -280,6 +280,8 @@ struct Data {
     holes: Option<Vec<u32>>,
     trend: Option<Vec<f64>>,
     domains: Option<Vec<u32>>,
+    /// A secondary variable at the data, for collocated cosimulation.
+    secondary: Option<Vec<f64>>,
 }
 
 impl Data {
@@ -394,6 +396,7 @@ fn data(
     trend: Option<&Bound<PyAny>>,
     domains: Option<&Bound<PyAny>>,
     domain_column: Option<&str>,
+    secondary: Option<&Bound<PyAny>>,
     classes: usize,
     search: &[Search],
 ) -> PyResult<(Data, Option<Vec<Label>>)> {
@@ -418,6 +421,11 @@ fn data(
     if let Some(t) = &trend {
         same_length(values.len(), t.len(), "trend")?;
     }
+    let secondary = resolve(coords, secondary, "secondary")?;
+    let secondary = optional_finite(secondary.as_ref(), "secondary")?;
+    if let Some(s) = &secondary {
+        same_length(values.len(), s.len(), "secondary")?;
+    }
     let codes = codes.as_deref();
     let (locs, keep, holes) = located(coords, values.len(), "values", holes, codes)?;
     let data = Data {
@@ -427,6 +435,7 @@ fn data(
         holes,
         trend: trend.map(|t| pick(&t, &keep)),
         domains: codes.map(|d| pick(d, &keep)),
+        secondary: secondary.map(|s| pick(&s, &keep)),
     };
     data.check(classes)?;
     Ok((data, fitted))
@@ -528,8 +537,63 @@ pub struct Sgs {
     /// Labels of the fitted domains, indexed by code.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     domains: Option<Vec<Label>>,
+    /// Correlation of primary and secondary scores, when fitted with a
+    /// secondary variable.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    correlation: Option<f64>,
     #[serde(skip)]
     data: Option<Data>,
+}
+
+impl Sgs {
+    /// The secondary variable at the targets, one row shared by every
+    /// realization or one per realization, and its transform, when fitted
+    /// with one.
+    fn secondary_at(
+        &self,
+        d: &Data,
+        targets: &Bound<PyAny>,
+        nodes: usize,
+        n: usize,
+        secondary: Option<&Bound<PyAny>>,
+    ) -> PyResult<Option<(simulation::Secondary, Vec<Vec<f64>>)>> {
+        let (at_data, secondary) = match (&d.secondary, secondary) {
+            (None, None) => return Ok(None),
+            (Some(a), Some(s)) => (a, args::column(Some(targets), s, "secondary")?),
+            (Some(_), None) => {
+                return Err(invalid(
+                    "fitted with a secondary; give secondary at the targets",
+                ));
+            }
+            (None, Some(_)) => {
+                return Err(invalid("secondary at the targets needs secondary at fit"));
+            }
+        };
+        let array = secondary
+            .py()
+            .import("numpy")?
+            .call_method1("asarray", (&secondary, "float64"))?;
+        let rows = match array.getattr("ndim")?.extract::<usize>()? {
+            2 => args::rows(&array, "secondary")?,
+            _ => vec![args::floats(&array, "secondary")?],
+        };
+        if rows.len() != 1 && rows.len() != n {
+            return Err(invalid(format!(
+                "secondary: expected {n} realizations, got {}",
+                rows.len()
+            )));
+        }
+        for row in &rows {
+            same_length(nodes, row.len(), "secondary")?;
+            if row.iter().any(|v| !v.is_finite()) {
+                return Err(invalid("secondary must be finite at every target"));
+            }
+        }
+        let fitted =
+            simulation::Secondary::fit(at_data, d.weights.as_deref(), &[], self.correlation)
+                .map_err(err)?;
+        Ok(Some((fitted, rows)))
+    }
 }
 
 #[pymethods]
@@ -564,8 +628,16 @@ impl Sgs {
             search: searches(search)?,
             classes,
             domains: None,
+            correlation: None,
             data: None,
         })
+    }
+
+    /// Correlation of the primary and secondary normal scores used in
+    /// collocated cosimulation; None when fitted without `secondary`.
+    #[getter]
+    fn correlation(&self) -> Option<f64> {
+        self.correlation
     }
 
     /// The search pass of every target.
@@ -652,14 +724,27 @@ impl Sgs {
     ///     domains are all kept.
     /// domain_column : str, optional
     ///     The column of `coords` holding the domains, instead of `domains`.
+    /// secondary : array_like or str, optional
+    ///     A secondary variable at the data, for collocated cosimulation:
+    ///     `simulate` then needs it at every target, and draws each node
+    ///     from the collocated simple cokriging of its normal score from
+    ///     its neighbors and the secondary score at the node, under the
+    ///     Markov model (the cross-covariance is `correlation` times the
+    ///     primary covariance). The secondary is normal-scored with the
+    ///     declustering weights.
+    /// correlation : float, optional
+    ///     Correlation of the primary and secondary normal scores, in
+    ///     [-1, 1]; by default the weighted correlation of their scores at
+    ///     the data. 0 simulates as without `secondary`.
     ///
     /// Raises
     /// ------
     /// InvalidInput
     ///     If a Search.soft names a domain without samples, or has no
     ///     `domains` to work on, or both `domains` and `domain_column` are
-    ///     given.
-    #[pyo3(signature = (coords, values, *, weights=None, holes=None, trend=None, domains=None, domain_column=None))]
+    ///     given, or `correlation` comes without `secondary` or outside
+    ///     [-1, 1].
+    #[pyo3(signature = (coords, values, *, weights=None, holes=None, trend=None, domains=None, domain_column=None, secondary=None, correlation=None))]
     #[allow(clippy::too_many_arguments)]
     fn fit<'py>(
         mut slf: PyRefMut<'py, Self>,
@@ -670,7 +755,12 @@ impl Sgs {
         trend: Option<&Bound<PyAny>>,
         domains: Option<&Bound<PyAny>>,
         domain_column: Option<&str>,
+        secondary: Option<&Bound<PyAny>>,
+        correlation: Option<f64>,
     ) -> PyResult<PyRefMut<'py, Self>> {
+        if correlation.is_some() && secondary.is_none() {
+            return Err(invalid("correlation needs secondary"));
+        }
         let (d, fitted) = data(
             coords,
             values,
@@ -679,9 +769,26 @@ impl Sgs {
             trend,
             domains,
             domain_column,
+            secondary,
             slf.classes,
             &slf.search,
         )?;
+        slf.correlation = match &d.secondary {
+            None => None,
+            Some(s) => {
+                let scores = simulation::Transforms::fit(
+                    &d.values,
+                    d.weights.as_deref(),
+                    d.domains.as_deref(),
+                    d.trend.as_deref().map(|t| (t, slf.classes)),
+                )
+                .map_err(err)?
+                .scores;
+                let w = d.weights.as_deref();
+                let fitted = simulation::Secondary::fit(s, w, &scores, correlation).map_err(err)?;
+                Some(fitted.correlation)
+            }
+        };
         slf.data = Some(d);
         slf.domains = fitted;
         Ok(slf)
@@ -703,8 +810,12 @@ impl Sgs {
     /// the `realizations` of SIS or Plurigaussian, give each realization its
     /// own: realization ``k`` of the grades is simulated within row ``k``.
     /// `domain_column`, instead of `domains`, names the column of PointSet or
-    /// BlockModel targets holding them.
-    #[pyo3(signature = (targets, *, n=100, seed=0, cutoffs=vec![], quantiles=vec![], realizations=false, anisotropy=None, blocks=None, trend=None, domains=None, domain_column=None))]
+    /// BlockModel targets holding them. `secondary`, needed when fitted with
+    /// one, is the secondary variable at the targets: an array, the name of
+    /// a column of PointSet or BlockModel targets, or an ``(n, targets)``
+    /// array such as the `realizations` of a simulation of the secondary,
+    /// realization ``k`` then cosimulated with row ``k``.
+    #[pyo3(signature = (targets, *, n=100, seed=0, cutoffs=vec![], quantiles=vec![], realizations=false, anisotropy=None, blocks=None, trend=None, domains=None, domain_column=None, secondary=None))]
     #[allow(clippy::too_many_arguments)]
     fn simulate(
         &self,
@@ -720,12 +831,14 @@ impl Sgs {
         trend: Option<&Bound<PyAny>>,
         domains: Option<&Bound<PyAny>>,
         domain_column: Option<&str>,
+        secondary: Option<&Bound<PyAny>>,
     ) -> PyResult<SimulationSummary> {
         let d = self.data.as_ref().ok_or_else(not_fitted)?;
         let grid = self::targets(targets)?;
         let fitted = self.domains.as_deref();
         let domains = domain_arg(targets, domains, domain_column)?;
         let nodes = realization_domains(fitted, domains.as_ref(), grid.len(), n, "simulate")?;
+        let secondary = self.secondary_at(d, targets, grid.len(), n, secondary)?;
         let search = resolved(&self.search, fitted)?;
         let at_nodes = trend_at(d, targets, grid.len(), trend)?;
         let trend = d
@@ -750,18 +863,35 @@ impl Sgs {
                     search: search.clone(),
                     seed: seed.wrapping_add(k as u64),
                 };
-                simulation::sgs_in(
-                    &d.locs,
-                    &d.values,
-                    d.weights.as_deref(),
-                    d.holes.as_deref(),
-                    d.domains.as_deref().zip(of_realization(&nodes, k)),
-                    trend,
-                    &grid,
-                    &self.variogram,
-                    &params,
-                    local.as_ref(),
-                )
+                let domains = d.domains.as_deref().zip(of_realization(&nodes, k));
+                match &secondary {
+                    None => simulation::sgs_in(
+                        &d.locs,
+                        &d.values,
+                        d.weights.as_deref(),
+                        d.holes.as_deref(),
+                        domains,
+                        trend,
+                        &grid,
+                        &self.variogram,
+                        &params,
+                        local.as_ref(),
+                    ),
+                    Some((fitted, rows)) => simulation::cosgs(
+                        &d.locs,
+                        &d.values,
+                        d.weights.as_deref(),
+                        d.holes.as_deref(),
+                        domains,
+                        trend,
+                        &grid,
+                        &self.variogram,
+                        &params,
+                        local.as_ref(),
+                        fitted,
+                        &rows[k % rows.len()],
+                    ),
+                }
                 .and_then(|r| averaged(&support, r.values))
             })
         })
@@ -913,6 +1043,7 @@ impl TurningBands {
             trend,
             domains,
             domain_column,
+            None,
             slf.classes,
             slf.search.as_slice(),
         )?;
@@ -1652,6 +1783,9 @@ fn data_columns(d: &Data) -> Columns {
             domains.iter().map(|&c| f64::from(c)),
         ));
     }
+    if let Some(secondary) = &d.secondary {
+        columns.push(persist::column("secondary", secondary.iter().copied()));
+    }
     columns
 }
 
@@ -1691,6 +1825,11 @@ fn data_from(found: &Found, classes: usize, fitted: Option<&[Label]>) -> PyResul
         .ok()
         .map(|_| found.values("trend"))
         .transpose()?;
+    let secondary = found
+        .optional("secondary")
+        .ok()
+        .map(|_| found.values("secondary"))
+        .transpose()?;
     let domains = found
         .optional("domain")
         .ok()
@@ -1714,6 +1853,7 @@ fn data_from(found: &Found, classes: usize, fitted: Option<&[Label]>) -> PyResul
         weights,
         trend,
         domains: domains.map(|d| d.into_iter().map(|c| c as u32).collect()),
+        secondary,
     };
     data.check(classes)?;
     Ok(data)

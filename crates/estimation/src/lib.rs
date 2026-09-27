@@ -35,7 +35,7 @@ pub use batch::{
 };
 pub use block::{Discretization, block_krige, block_krige_points};
 pub use categorical::{CategoricalIndicator, CategoricalIndicatorSummary, correct_probabilities};
-pub use cokrige::{CoKind, CoSample, cokrige, collocated_cokrige};
+pub use cokrige::{CoKind, CoSample, cokrige, collocated_cokrige, markov_collocated};
 pub use disjunctive::{DisjunctiveKriging, GaussianSample};
 pub use error::{EstimError, Result};
 pub use idw::{idw, nearest};

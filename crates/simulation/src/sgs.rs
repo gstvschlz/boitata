@@ -160,6 +160,114 @@ impl Transforms {
     }
 }
 
+/// A secondary variable for collocated cosimulation: the declustered normal
+/// score of its values at the data and the correlation of those scores with
+/// the primary's.
+#[derive(Debug, Clone)]
+pub struct Secondary {
+    table: NormalScoreTable,
+    pub correlation: f64,
+}
+
+impl Secondary {
+    /// Fitted to the secondary `values` at the data, declustered by
+    /// `weights`; `correlation`, in [-1, 1], or else the weighted correlation
+    /// of their scores with `scores`, the primary scores of the data
+    /// ([`Transforms::scores`]).
+    pub fn fit(
+        values: &[f64],
+        weights: Option<&[f64]>,
+        scores: &[f64],
+        correlation: Option<f64>,
+    ) -> Result<Self> {
+        if weights.is_some_and(|w| w.len() != values.len()) {
+            return Err(SimError::InvalidParameters("one weight per datum".into()));
+        }
+        let ns = normal_score::transform(values, weights)
+            .map_err(|e| SimError::Transform(e.to_string()))?;
+        let correlation = match correlation {
+            Some(r) => r,
+            None if scores.len() != values.len() => {
+                return Err(SimError::InvalidParameters(
+                    "one secondary value per datum".into(),
+                ));
+            }
+            None => pearson(scores, &ns.scores, weights),
+        };
+        if !(-1.0..=1.0).contains(&correlation) {
+            return Err(SimError::InvalidParameters(format!(
+                "correlation {correlation} outside [-1, 1]"
+            )));
+        }
+        Ok(Self {
+            table: ns.table,
+            correlation,
+        })
+    }
+
+    /// Score of the secondary `value`.
+    pub fn forward(&self, value: f64) -> f64 {
+        self.table.forward(value)
+    }
+}
+
+fn pearson(a: &[f64], b: &[f64], weights: Option<&[f64]>) -> f64 {
+    let w = |i: usize| weights.map_or(1.0, |w| w[i]);
+    let total: f64 = (0..a.len()).map(w).sum();
+    let mean = |v: &[f64]| (0..v.len()).map(|i| w(i) * v[i]).sum::<f64>() / total;
+    let (ma, mb) = (mean(a), mean(b));
+    let co = |x: &[f64], mx: f64, y: &[f64], my: f64| {
+        (0..x.len())
+            .map(|i| w(i) * (x[i] - mx) * (y[i] - my))
+            .sum::<f64>()
+    };
+    let r = co(a, ma, b, mb) / (co(a, ma, a, ma) * co(b, mb, b, mb)).sqrt();
+    if r.is_finite() { r } else { 0.0 }
+}
+
+/// As [`sgs_in`], cosimulated with a `secondary` variable known at every
+/// node, `at_nodes` in its units: each node is drawn from the collocated
+/// simple cokriging of its score from its neighbors and the secondary score
+/// at the node, under the Markov model, the cross-covariance the correlation
+/// times the primary's. A zero correlation is plain SGS.
+#[allow(clippy::too_many_arguments)]
+pub fn cosgs(
+    data_locs: &[(f64, f64, f64)],
+    data_vals: &[f64],
+    data_weights: Option<&[f64]>,
+    data_holes: Option<&[u32]>,
+    domains: Option<Domains>,
+    trend: Option<Trend>,
+    grid: &[(f64, f64, f64)],
+    vg_nscore: &Variogram,
+    params: &SgsParams,
+    local: Option<&LocalAnisotropy>,
+    secondary: &Secondary,
+    at_nodes: &[f64],
+) -> Result<Realization> {
+    if at_nodes.len() != grid.len() {
+        return Err(SimError::InvalidParameters(
+            "one secondary value per node".into(),
+        ));
+    }
+    let scores: Vec<f64> = at_nodes.iter().map(|&v| secondary.forward(v)).collect();
+    simulate(
+        data_locs,
+        data_vals,
+        data_weights,
+        data_holes,
+        domains,
+        trend,
+        grid,
+        vg_nscore,
+        params,
+        local,
+        Some((&scores, secondary.correlation)),
+        None,
+        |_, _, _, _| {},
+    )
+}
+
 /// Run a single SGS realization.
 ///
 /// `vg_nscore` is the variogram of the *normal scores* (unit-sill Gaussian variogram);
@@ -223,6 +331,7 @@ pub fn sgs_in(
         params,
         local,
         None,
+        None,
         |_, _, _, _| {},
     )
 }
@@ -243,6 +352,7 @@ fn simulate(
     vg_nscore: &Variogram,
     params: &SgsParams,
     local: Option<&LocalAnisotropy>,
+    collocated: Option<(&[f64], f64)>,
     batch: Option<usize>,
     mut used: impl FnMut(usize, &[usize], &[Sample], &[Sample]),
 ) -> Result<Realization> {
@@ -373,11 +483,18 @@ fn simulate(
                     idx,
                     selected,
                     mean: est.value,
-                    sd: est.variance.max(0.0).sqrt(),
+                    variance: est.variance.max(0.0),
                 }),
         )
     };
 
+    let sill = vg_nscore.total_sill();
+    let cokriged = |mean: f64, variance: f64, node: usize| match collocated {
+        Some((scores, rho)) => {
+            estimation::markov_collocated(mean, variance, sill, rho, scores[node])
+        }
+        None => (mean, variance),
+    };
     let normal = Normal::new(0.0, 1.0).unwrap();
     let mut values = vec![f64::NAN; grid.len()];
     let most = params
@@ -414,13 +531,20 @@ fn simulate(
                     idx,
                     selected,
                     mean,
-                    sd,
+                    variance,
                 } => {
                     used(node, &idx, &known.samples, &selected);
-                    mean + sd * normal.sample(&mut rng)
+                    let (mean, variance) = cokriged(mean, variance, node);
+                    mean + variance.sqrt() * normal.sample(&mut rng)
                 }
                 // No neighbors found: draw from the marginal (standard normal).
-                Step::Marginal => normal.sample(&mut rng),
+                Step::Marginal => match collocated {
+                    Some(_) => {
+                        let (mean, variance) = cokriged(0.0, sill, node);
+                        mean + variance.sqrt() * normal.sample(&mut rng)
+                    }
+                    None => normal.sample(&mut rng),
+                },
             };
 
             // 4. Back-transform and add the node to the conditioning set.
@@ -466,7 +590,7 @@ enum Step {
         idx: Vec<usize>,
         selected: Vec<Sample>,
         mean: f64,
-        sd: f64,
+        variance: f64,
     },
     Marginal,
 }
@@ -1144,6 +1268,7 @@ pub(crate) mod tests {
             &params,
             None,
             None,
+            None,
             |node, idx, samples, kriged| {
                 for (j, &k) in idx.iter().enumerate() {
                     let (s, d) = (&samples[k], distance(&grid[node], &samples[k].loc));
@@ -1224,6 +1349,7 @@ pub(crate) mod tests {
                 &grid,
                 &vg(),
                 &params,
+                None,
                 None,
                 None,
                 |node, idx, samples, _| {
@@ -1594,6 +1720,7 @@ pub(crate) mod tests {
                             &vg(),
                             &params,
                             local,
+                            None,
                             batch,
                             |_, _, _, _| {},
                         )
@@ -1652,5 +1779,209 @@ pub(crate) mod tests {
         let domains = Some((&z.codes[..], &[0, 2][..]));
         let passes = sgs_passes(&z.locs, &z.vals, None, domains, &grid, &vg(), &search, None);
         assert!(passes.is_err());
+    }
+
+    /// A secondary field simulated on a 30 x 30 grid of 2 m, and primary data
+    /// at 60 of its nodes whose scores correlate at `rho` with its scores.
+    struct Cosim {
+        grid: Vec<Point>,
+        secondary: Vec<f64>,
+        locs: Vec<Point>,
+        vals: Vec<f64>,
+        at_data: Vec<f64>,
+        table: Secondary,
+    }
+
+    fn cosim(rho: f64) -> Cosim {
+        use rand::Rng;
+        let mut rng = StdRng::seed_from_u64(11);
+        let grid: Vec<Point> = (0..900)
+            .map(|i| ((i % 30) as f64 * 2.0, (i / 30) as f64 * 2.0, 0.0))
+            .collect();
+        let seeds: Vec<Point> = (0..30)
+            .map(|_| (rng.r#gen::<f64>() * 60.0, rng.r#gen::<f64>() * 60.0, 0.0))
+            .collect();
+        let seed_vals: Vec<f64> = (0..30)
+            .map(|_| rng.sample::<f64, _>(rand_distr::StandardNormal).exp())
+            .collect();
+        let search = vec![Search {
+            max_samples: 16,
+            radius: 40.0,
+            ..Default::default()
+        }];
+        let params = SgsParams { search, seed: 5 };
+        let secondary = sgs(&seeds, &seed_vals, None, None, &grid, &vg(), &params, None)
+            .unwrap()
+            .values;
+        let table = Secondary::fit(&secondary, None, &[], Some(rho)).unwrap();
+        let nodes: Vec<usize> = (0..60).map(|i| i * 887 % 900).collect();
+        let vals = nodes
+            .iter()
+            .map(|&k| {
+                let g: f64 = rng.sample(rand_distr::StandardNormal);
+                (rho * table.forward(secondary[k]) + (1.0 - rho * rho).sqrt() * g).exp()
+            })
+            .collect();
+        Cosim {
+            locs: pick(&grid, &nodes),
+            at_data: pick(&secondary, &nodes),
+            grid,
+            secondary,
+            vals,
+            table,
+        }
+    }
+
+    fn cosimulate(c: &Cosim, secondary: &Secondary, seed: u64) -> Vec<f64> {
+        let search = vec![Search {
+            max_samples: 16,
+            radius: 40.0,
+            ..Default::default()
+        }];
+        let params = SgsParams { search, seed };
+        cosgs(
+            &c.locs,
+            &c.vals,
+            None,
+            None,
+            None,
+            None,
+            &c.grid,
+            &vg(),
+            &params,
+            None,
+            secondary,
+            &c.secondary,
+        )
+        .unwrap()
+        .values
+    }
+
+    #[test]
+    fn cosimulation_reproduces_the_correlation_and_honors_the_data() {
+        let c = cosim(0.7);
+        let primary = Transforms::fit(&c.vals, None, None, None).unwrap().domains[0]
+            .clone()
+            .unwrap();
+        let s: Vec<f64> = c.secondary.iter().map(|&v| c.table.forward(v)).collect();
+        let independent = Secondary::fit(&c.secondary, None, &[], Some(0.0)).unwrap();
+        let (mut with, mut without) = (0.0, 0.0);
+        for seed in 0..10 {
+            let r = cosimulate(&c, &c.table, seed);
+            for (k, v) in c.vals.iter().enumerate() {
+                assert_eq!(r[(k * 887) % 900], *v);
+            }
+            let scores: Vec<f64> = r.iter().map(|&v| primary.forward(v, 0.0)).collect();
+            with += pearson(&scores, &s, None) / 10.0;
+            let r = cosimulate(&c, &independent, seed);
+            let scores: Vec<f64> = r.iter().map(|&v| primary.forward(v, 0.0)).collect();
+            without += pearson(&scores, &s, None) / 10.0;
+        }
+        assert!(
+            (with - 0.7).abs() < 0.1,
+            "correlation {with}, independent {without}"
+        );
+        assert!(
+            without < with - 0.15,
+            "independent {without}, collocated {with}"
+        );
+    }
+
+    #[test]
+    fn zero_correlation_is_plain_sgs() {
+        let z = zoned();
+        let (grid, nodes, node_trend) = zoned_grid();
+        let trend = Trend {
+            data: &z.trend,
+            nodes: &node_trend,
+            classes: 3,
+        };
+        let secondary: Vec<f64> = grid.iter().map(|p| p.0.sin()).collect();
+        let zero = Secondary::fit(&secondary, None, &[], Some(0.0)).unwrap();
+        for seed in 0..3 {
+            let params = SgsParams {
+                search: zoned_search(Some(estimation::Soft::All(8.0))),
+                seed,
+            };
+            let domains = Some((&z.codes[..], &nodes[..]));
+            let plain = sgs_in(
+                &z.locs,
+                &z.vals,
+                Some(&z.weights),
+                Some(&z.holes),
+                domains,
+                Some(trend),
+                &grid,
+                &vg(),
+                &params,
+                None,
+            )
+            .unwrap();
+            let co = cosgs(
+                &z.locs,
+                &z.vals,
+                Some(&z.weights),
+                Some(&z.holes),
+                domains,
+                Some(trend),
+                &grid,
+                &vg(),
+                &params,
+                None,
+                &zero,
+                &secondary,
+            )
+            .unwrap();
+            assert_eq!(plain.values, co.values);
+        }
+    }
+
+    #[test]
+    fn cosimulation_follows_the_seed_not_the_thread_count() {
+        let c = cosim(0.6);
+        let run = |threads, seed| {
+            let pool = rayon::ThreadPoolBuilder::new().num_threads(threads);
+            pool.build()
+                .unwrap()
+                .install(|| cosimulate(&c, &c.table, seed))
+        };
+        let a = run(1, 3);
+        assert_eq!(a, run(8, 3));
+        assert_ne!(a, run(8, 4));
+    }
+
+    #[test]
+    fn secondary_fits_the_correlation_of_the_scores() {
+        let c = cosim(0.8);
+        let scores = Transforms::fit(&c.vals, None, None, None).unwrap().scores;
+        let fitted = Secondary::fit(&c.at_data, None, &scores, None).unwrap();
+        assert!(
+            (fitted.correlation - 0.8).abs() < 0.15,
+            "{}",
+            fitted.correlation
+        );
+        assert!(Secondary::fit(&c.at_data, None, &scores[1..], None).is_err());
+        assert!(Secondary::fit(&c.at_data, None, &scores, Some(1.2)).is_err());
+        assert!(Secondary::fit(&c.at_data, Some(&[1.0]), &scores, None).is_err());
+        let grid = &c.grid[..3];
+        let params = SgsParams {
+            search: zoned_search(None),
+            seed: 1,
+        };
+        let short = cosgs(
+            &c.locs,
+            &c.vals,
+            None,
+            None,
+            None,
+            None,
+            grid,
+            &vg(),
+            &params,
+            None,
+            &fitted,
+            &c.secondary,
+        );
+        assert!(short.is_err());
     }
 }

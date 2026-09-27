@@ -872,6 +872,8 @@ class SGS:
     def __init__(
         self, variogram: Variogram, search: Search | Sequence[Search], *, classes: int = 10
     ) -> None: ...
+    @property
+    def correlation(self) -> float | None: ...
     def fit(
         self,
         coords: ArrayLike | PointSet | BlockModel,
@@ -882,6 +884,8 @@ class SGS:
         trend: ArrayLike | Column | None = None,
         domains: Label | Sequence[Label] | ArrayLike | None = None,
         domain_column: Column | None = None,
+        secondary: ArrayLike | Column | None = None,
+        correlation: float | None = None,
     ) -> SGS: ...
     def passes(
         self,
@@ -905,6 +909,7 @@ class SGS:
         trend: ArrayLike | Column | None = None,
         domains: Label | Sequence[Label] | ArrayLike | None = None,
         domain_column: Column | None = None,
+        secondary: ArrayLike | Column | None = None,
     ) -> SimulationSummary: ...
 
 class TurningBands:
