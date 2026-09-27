@@ -25,7 +25,11 @@ Tutorials follow one deposit from data to a result; topics show one feature each
 | 6 | [Statistics by domain](topics/06-statistics-by-domain/README.md) | Stacked sulphide lenses | `merge_intervals`, `Drillholes`, `describe_by`, `plot.boxplot`, `plot.cdf`, `plot.qq` |
 | 7 | [Declustering](topics/07-declustering/README.md) | Coal seam thickness | `cell_declustering`, `plot.declustering`, `polygon_declustering` |
 | 8 | [Top cuts](topics/08-top-cuts/README.md) | Vein gold grade control | `merge_intervals`, `Drillholes`, `cell_declustering`, `capping`, `describe_by`, `plot.probability`, `capping_report` |
-| 13 | [Exploratory data analysis](topics/13-correlations/README.md) | Drillholes (legacy) | `check_drillholes`, `fix_drillholes`, `merge_intervals`, `Drillholes`, `duplicates`, `cell_declustering`, `grade_tonnage`, `contact`, `swath`, `plot.swath`, `Categories`, `plot.proportions`, `plot.category_swath`, `data_spacing`, `plot.histogram`, `h_scatter`, `plot.scatter_matrix`, `plot.completeness`, `plot.correlation`, `plot.conditional` |
+| 9 | [Contacts](topics/09-contacts/README.md) | Nickel laterite profile | `merge_intervals`, `Drillholes`, `contact`, `plot.contact` |
+| 10 | [Swaths](topics/10-swaths/README.md) | Phosphate weathering profile | `merge_intervals`, `Drillholes`, `describe_by`, `swath`, `plot.swath` |
+| 11 | [Categories](topics/11-categories/README.md) | Tailings reprocessing | `Drillholes`, `Categories`, `plot.proportions`, `plot.category_swath` |
+| 12 | [Data spacing](topics/12-data-spacing/README.md) | Coal seam thickness | `data_spacing`, `plot.histogram`, `hole_distance`, `plot.section` |
+| 13 | [Correlations](topics/13-correlations/README.md) | Iron formation plateau | `merge_intervals`, `Drillholes`, `correlation`, `plot.correlation`, `plot.scatter_matrix`, `plot.completeness`, `plot.conditional`, `h_scatter` |
 | | **Transforms** | | |
 | 14 | [Normal-score transform](topics/14-normal-score/README.md) | Walker Lake | `cell_declustering`, `NormalScore`, `normal_cdf`, `plot.probability` |
 | 15 | [Compositional data](topics/15-compositional/README.md) | Porphyry geometallurgy | `closure`, `ilr`, `PPMT`, `ilr_inverse` |
