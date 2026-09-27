@@ -7,7 +7,7 @@ Tutorials follow one deposit from data to a result; topics show one feature each
 
 | # | Tutorial | Dataset | Steps |
 |---|---|---|---|
-| 2 | [From drill holes to a classified model](tutorials/02-drillholes-to-classified-model/README.md) | Drillholes (legacy) | Composites; The lens and the drilled volume; Statistics and declustering; Variograms; Kriging in passes; A soft boundary with SM; Simulation at block support; Classification; Comparing models; Saving |
+| 2 | [From drill holes to a classified model](tutorials/02-drillholes-to-classified-model/README.md) | Stacked sulphide lenses | Drill holes; Samples inside each lens; Declustering and capping; Zn variogram of lens 1; A sub-blocked model; Kriging in passes; Simulation at block support; Validation; Classification; Tonnes and metal |
 
 ## Topics
 
