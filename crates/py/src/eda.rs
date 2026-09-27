@@ -10,10 +10,14 @@ use pyo3::IntoPyObjectExt;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 
+use serde::{Deserialize, Serialize};
+
 use crate::args::{
-    array1, array2, column, column_names, floats, holes, named, pair, per_row, rows,
+    Label, array1, array2, column, column_names, domain_codes, floats, holes, named, pair, per_row,
+    rows,
 };
 use crate::containers::{PyBlockModel, PyPointSet, coords_arg};
+use crate::estimation::py_label;
 use crate::invalid;
 use crate::table::Table;
 
@@ -794,6 +798,299 @@ fn capping_report(
     table("domain", &names, &rows, columns)
 }
 
+#[derive(Serialize, Deserialize)]
+#[serde(untagged)]
+enum Given {
+    One(f64),
+    PerDomain(Vec<(Label, f64)>),
+}
+
+#[derive(Serialize, Deserialize)]
+struct FittedCaps {
+    domains: Option<Vec<Label>>,
+    /// None: not capped.
+    caps: Vec<Option<f64>>,
+    removed: Vec<Option<f64>>,
+}
+
+/// Top-cut transform: clips values to a cap per domain.
+///
+/// Give exactly one of `cap`, `quantile`, `metal_removed` or `cv`. The rules
+/// choose each domain's cap from its own weighted values when fitted.
+///
+/// Parameters
+/// ----------
+/// cap : float or dict, optional
+///     The cap, or a cap per domain; domains left out are not capped.
+/// quantile : float, optional
+///     Cap at the weighted quantile of this probability, as in `describe`.
+/// metal_removed : float, optional
+///     Cap removing this fraction of the metal, ``1 - capped mean / mean``,
+///     in [0, 1).
+/// cv : float, optional
+///     The largest cap whose capped coefficient of variation is at most this;
+///     the largest value when the data already are.
+///
+/// Attributes
+/// ----------
+/// caps_ : float or dict
+///     The cap, or the cap per domain when fitted with domains (inf when not
+///     capped).
+/// metal_removed_ : float or dict
+///     Fraction of the metal removed, ``1 - mean_capped / mean`` of
+///     `capping_report`, likewise.
+#[derive(Serialize, Deserialize)]
+#[pyclass(module = "ceres", name = "Capping")]
+pub struct Capping {
+    cap: Option<Given>,
+    quantile: Option<f64>,
+    metal_removed: Option<f64>,
+    cv: Option<f64>,
+    fitted: Option<FittedCaps>,
+}
+
+impl Capping {
+    fn fitted(&self) -> PyResult<&FittedCaps> {
+        self.fitted
+            .as_ref()
+            .ok_or_else(|| invalid("Capping is not fitted; call fit first"))
+    }
+
+    fn caps(&self) -> PyResult<Vec<f64>> {
+        Ok(self
+            .fitted()?
+            .caps
+            .iter()
+            .map(|c| c.unwrap_or(f64::INFINITY))
+            .collect())
+    }
+
+    /// Fits and returns the values and their domain codes.
+    fn fit_codes(
+        &mut self,
+        values: &Bound<PyAny>,
+        domains: Option<&Bound<PyAny>>,
+        domain_column: Option<&str>,
+        weights: Option<&Bound<PyAny>>,
+        data: Option<&Bound<PyAny>>,
+    ) -> PyResult<(Vec<f64>, Vec<u32>)> {
+        let values = floats(&column(data, values, "values")?, "values")?;
+        let n = values.len();
+        let (labels, codes) = match (domains, domain_column) {
+            (None, None) => (None, vec![0; n]),
+            _ => {
+                let (l, c) = domain_codes(data, domains, domain_column, n)?;
+                (Some(l), c)
+            }
+        };
+        let w = weights_or_volumes(data, weights, n)?;
+        let k = labels.as_ref().map_or(1, Vec::len);
+        let rule = |r: fn(f64) -> eda::CapRule, x: f64| {
+            eda::fit_caps(&values, &codes, w.as_deref(), r(x)).map_err(invalid)
+        };
+        let caps = match (&self.cap, self.quantile, self.metal_removed, self.cv) {
+            (Some(Given::One(c)), ..) => vec![*c; k],
+            (Some(Given::PerDomain(given)), ..) => {
+                let labels = labels
+                    .as_ref()
+                    .ok_or_else(|| invalid("caps per domain need domains or domain_column"))?;
+                let mut caps = vec![f64::INFINITY; k];
+                for (l, c) in given {
+                    let i = labels
+                        .iter()
+                        .position(|x| x == l)
+                        .ok_or_else(|| invalid(format!("no value in domain {l}")))?;
+                    caps[i] = *c;
+                }
+                caps
+            }
+            (_, Some(p), ..) => rule(eda::CapRule::Quantile, p)?,
+            (_, _, Some(t), _) => rule(eda::CapRule::MetalRemoved, t)?,
+            (.., Some(t)) => rule(eda::CapRule::Cv, t)?,
+            _ => return Err(invalid("give one of cap, quantile, metal_removed or cv")),
+        };
+        let rows = eda::capping_report(&values, &codes, w.as_deref(), &caps).map_err(invalid)?;
+        let mut removed = vec![None; k];
+        for (c, r) in rows {
+            if let Some(c) = c {
+                removed[c as usize] = Some(1.0 - r.after.mean / r.before.mean);
+            }
+        }
+        self.fitted = Some(FittedCaps {
+            domains: labels,
+            caps: caps.iter().map(|c| c.is_finite().then_some(*c)).collect(),
+            removed,
+        });
+        Ok((values, codes))
+    }
+
+    /// `per_domain` as a dict by domain, or its only value without domains.
+    fn by_domain<'py>(
+        &self,
+        py: Python<'py>,
+        per_domain: impl Iterator<Item = f64>,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let mut per_domain = per_domain.peekable();
+        let Some(labels) = &self.fitted()?.domains else {
+            return per_domain.next().unwrap_or(f64::NAN).into_bound_py_any(py);
+        };
+        let d = PyDict::new(py);
+        for (l, v) in labels.iter().zip(per_domain) {
+            d.set_item(py_label(py, l)?, v)?;
+        }
+        Ok(d.into_any())
+    }
+}
+
+#[pymethods]
+impl Capping {
+    /// JSON of the parameters and, once fitted, the fitted state.
+    fn to_json(&self) -> PyResult<String> {
+        crate::persist::to_json(self)
+    }
+
+    /// Reads `to_json` output; raises InvalidInput on another class's JSON
+    /// or a newer format.
+    #[staticmethod]
+    fn from_json(text: &str) -> PyResult<Self> {
+        crate::persist::from_json(text)
+    }
+
+    #[new]
+    #[pyo3(signature = (*, cap=None, quantile=None, metal_removed=None, cv=None))]
+    fn new(
+        cap: Option<&Bound<PyAny>>,
+        quantile: Option<f64>,
+        metal_removed: Option<f64>,
+        cv: Option<f64>,
+    ) -> PyResult<Self> {
+        let given = [
+            cap.is_some(),
+            quantile.is_some(),
+            metal_removed.is_some(),
+            cv.is_some(),
+        ];
+        if given.iter().filter(|g| **g).count() != 1 {
+            return Err(invalid("give one of cap, quantile, metal_removed or cv"));
+        }
+        let cap = match cap {
+            None => None,
+            Some(c) => match c.cast::<PyDict>() {
+                Ok(d) => Some(Given::PerDomain(
+                    d.iter()
+                        .map(|(k, v)| {
+                            let l = crate::args::label(&k)?
+                                .ok_or_else(|| invalid(format!("invalid domain {k}")))?;
+                            Ok((l, v.extract()?))
+                        })
+                        .collect::<PyResult<_>>()?,
+                )),
+                Err(_) => Some(Given::One(c.extract()?)),
+            },
+        };
+        let finite = |c: &f64| c.is_finite();
+        let ok = match &cap {
+            Some(Given::One(c)) => finite(c),
+            Some(Given::PerDomain(given)) => given.iter().all(|(_, c)| finite(c)),
+            None => true,
+        };
+        if !ok {
+            return Err(invalid("caps must be finite"));
+        }
+        Ok(Self {
+            cap,
+            quantile,
+            metal_removed,
+            cv,
+            fitted: None,
+        })
+    }
+
+    /// Fits the caps to `values`, per domain when given.
+    ///
+    /// Parameters
+    /// ----------
+    /// values : array_like or str
+    ///     Values, or their column in `data`; NaN is skipped.
+    /// domains : array_like, optional
+    ///     Domain of each value, int or str.
+    /// domain_column : str, optional
+    ///     Column of `data` holding the domains; give it or `domains`.
+    /// weights : array_like or str, optional
+    ///     Declustering weights; default the volumes of a BlockModel `data`,
+    ///     else 1.
+    /// data : PointSet, BlockModel, Table or dict, optional
+    ///     Where column names are looked up.
+    #[pyo3(signature = (values, *, domains=None, domain_column=None, weights=None, data=None))]
+    fn fit<'py>(
+        mut slf: PyRefMut<'py, Self>,
+        values: &Bound<PyAny>,
+        domains: Option<&Bound<PyAny>>,
+        domain_column: Option<&str>,
+        weights: Option<&Bound<PyAny>>,
+        data: Option<&Bound<PyAny>>,
+    ) -> PyResult<PyRefMut<'py, Self>> {
+        slf.fit_codes(values, domains, domain_column, weights, data)?;
+        Ok(slf)
+    }
+
+    /// `fit`, then the fitted values capped.
+    #[pyo3(signature = (values, *, domains=None, domain_column=None, weights=None, data=None))]
+    fn fit_transform<'py>(
+        &mut self,
+        py: Python<'py>,
+        values: &Bound<PyAny>,
+        domains: Option<&Bound<PyAny>>,
+        domain_column: Option<&str>,
+        weights: Option<&Bound<PyAny>>,
+        data: Option<&Bound<PyAny>>,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let (values, codes) = self.fit_codes(values, domains, domain_column, weights, data)?;
+        Ok(array1(py, eda::cap_values(&values, &codes, &self.caps()?)).into_any())
+    }
+
+    /// `values` clipped to the cap of their domain; values of a domain not
+    /// fitted, and NaN, are unchanged.
+    #[pyo3(signature = (values, *, domains=None, domain_column=None, data=None))]
+    fn transform<'py>(
+        &self,
+        py: Python<'py>,
+        values: &Bound<PyAny>,
+        domains: Option<&Bound<PyAny>>,
+        domain_column: Option<&str>,
+        data: Option<&Bound<PyAny>>,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let values = floats(&column(data, values, "values")?, "values")?;
+        let n = values.len();
+        let mut caps = self.caps()?;
+        let obj = match (domains, domain_column) {
+            (None, None) => None,
+            _ => Some(domain_labels(data, domains, domain_column)?),
+        };
+        let fitted = self.fitted()?.domains.as_deref();
+        let codes = match crate::estimation::codes(fitted, obj.as_ref(), n, "transform")? {
+            None => vec![0; n],
+            Some(codes) => {
+                let unknown = caps.len() as u32;
+                caps.push(f64::INFINITY);
+                codes.into_iter().map(|c| c.unwrap_or(unknown)).collect()
+            }
+        };
+        Ok(array1(py, eda::cap_values(&values, &codes, &caps)).into_any())
+    }
+
+    #[getter]
+    fn caps_<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        self.by_domain(py, self.caps()?.into_iter())
+    }
+
+    #[getter]
+    fn metal_removed_<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let removed = &self.fitted()?.removed;
+        self.by_domain(py, removed.iter().map(|r| r.unwrap_or(f64::NAN)))
+    }
+}
+
 /// Head and tail values of pairs `lag ± tolerance` apart, and their correlation.
 ///
 /// With `azimuth`, pairs are oriented within `angle_tolerance` of (`azimuth`,
@@ -1237,6 +1534,7 @@ pub fn register(m: &Bound<PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(swath, m)?)?;
     m.add_function(wrap_pyfunction!(contact, m)?)?;
     m.add_function(wrap_pyfunction!(capping, m)?)?;
+    m.add_class::<Capping>()?;
     m.add_function(wrap_pyfunction!(h_scatter, m)?)?;
     m.add_function(wrap_pyfunction!(correlation, m)?)?;
     Ok(())

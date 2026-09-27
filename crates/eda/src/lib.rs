@@ -511,17 +511,7 @@ pub fn capping_report(
             caps.len()
         ));
     }
-    let capped: Vec<f64> = values
-        .iter()
-        .zip(categories)
-        .map(|(&v, &c)| {
-            if v > caps[c as usize] {
-                caps[c as usize]
-            } else {
-                v
-            }
-        })
-        .collect();
+    let capped = cap_values(values, categories, caps);
     let before = describe_by(values, categories, weights, &[])?;
     let after = describe_by(&capped, categories, weights, &[])?;
     Ok(before
@@ -548,6 +538,87 @@ pub fn capping_report(
             )
         })
         .collect())
+}
+
+/// `values` clipped to `caps[category]`; NaN stays NaN.
+pub fn cap_values(values: &[f64], categories: &[u32], caps: &[f64]) -> Vec<f64> {
+    values
+        .iter()
+        .zip(categories)
+        .map(|(&v, &c)| {
+            if v > caps[c as usize] {
+                caps[c as usize]
+            } else {
+                v
+            }
+        })
+        .collect()
+}
+
+/// How a cap is chosen from the data.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum CapRule {
+    /// The weighted quantile at this probability.
+    Quantile(f64),
+    /// The cap removing this fraction of the metal, `1 - capped mean / mean`.
+    MetalRemoved(f64),
+    /// The largest cap whose capped coefficient of variation is at most this.
+    Cv(f64),
+}
+
+/// Cap of `values` chosen by `rule`; the metal and CV rules bisect between
+/// the smallest and largest value, evaluating each cap with [`capping`].
+pub fn choose_cap(values: &[f64], weights: Option<&[f64]>, rule: CapRule) -> Result<f64> {
+    let (v, w) = valid(values, weights)?;
+    let effect = |cap: f64| -> Result<Cap> { Ok(capping(&v, Some(&w), Some(&[cap]))?.remove(0)) };
+    let (mut lo, mut hi) = v
+        .iter()
+        .fold((f64::MAX, f64::MIN), |(a, b), &x| (a.min(x), b.max(x)));
+    let (target, metal) = match rule {
+        CapRule::Quantile(p) => return Ok(quantiles_of(&v, &w, &[p])?[0]),
+        CapRule::MetalRemoved(t) if (0.0..1.0).contains(&t) => (t, true),
+        CapRule::Cv(t) if t > 0.0 => (t, false),
+        _ => return invalid("metal_removed must be in [0, 1) and cv > 0"),
+    };
+    if !metal && effect(hi)?.cv <= target {
+        return Ok(hi);
+    }
+    loop {
+        let mid = 0.5 * (lo + hi);
+        if mid <= lo || mid >= hi {
+            break;
+        }
+        let e = effect(mid)?;
+        if (metal && e.metal_removed <= target) || (!metal && e.cv > target) {
+            hi = mid;
+        } else {
+            lo = mid;
+        }
+    }
+    Ok(if metal { hi } else { lo })
+}
+
+/// Cap per category (`0..=max`) of `values` chosen by `rule` within the
+/// category; infinite for a category without valid values.
+pub fn fit_caps(
+    values: &[f64],
+    categories: &[u32],
+    weights: Option<&[f64]>,
+    rule: CapRule,
+) -> Result<Vec<f64>> {
+    check(categories.len(), values, weights)?;
+    let n = categories.iter().max().map_or(0, |&c| c + 1);
+    (0..n)
+        .map(|c| {
+            let rows: Vec<usize> = (0..values.len()).filter(|&i| categories[i] == c).collect();
+            let v: Vec<f64> = rows.iter().map(|&i| values[i]).collect();
+            let w = weights.map(|w| rows.iter().map(|&i| w[i]).collect::<Vec<_>>());
+            if v.iter().all(|x| x.is_nan()) {
+                return Ok(f64::INFINITY);
+            }
+            choose_cap(&v, w.as_deref(), rule)
+        })
+        .collect()
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1260,6 +1331,33 @@ mod tests {
         assert_eq!(rows[1].1.capped, 0);
         assert_eq!(rows[2].1.after.max, 5.0);
         assert!(capping_report(&v, &c, None, &caps[..2]).is_err());
+    }
+
+    #[test]
+    fn fitted_caps_follow_their_rule() {
+        let (v, c, w) = skewed();
+        let q = fit_caps(&v, &c, Some(&w), CapRule::Quantile(0.9)).unwrap();
+        for k in 0..3u32 {
+            let (vk, wk): (Vec<f64>, Vec<f64>) = (0..v.len())
+                .filter(|&i| c[i] == k)
+                .map(|i| (v[i], w[i]))
+                .unzip();
+            assert_eq!(q[k as usize], quantiles(&vk, Some(&wk), &[0.9]).unwrap()[0]);
+            let m = choose_cap(&vk, Some(&wk), CapRule::MetalRemoved(0.05)).unwrap();
+            let e = &capping(&vk, Some(&wk), Some(&[m])).unwrap()[0];
+            assert!((e.metal_removed - 0.05).abs() < 1e-9);
+            let cv = choose_cap(&vk, Some(&wk), CapRule::Cv(0.3)).unwrap();
+            let e = &capping(&vk, Some(&wk), Some(&[cv])).unwrap()[0];
+            assert!((e.cv - 0.3).abs() < 1e-9);
+        }
+        assert!(q[0] != q[1] && q[1] != q[2]);
+        let capped = cap_values(&v, &c, &q);
+        for i in 0..v.len() {
+            let cap = q[c[i] as usize];
+            assert!(capped[i] <= cap || v[i].is_nan());
+            assert!(v[i] > cap || capped[i].to_bits() == v[i].to_bits());
+        }
+        assert!(choose_cap(&v, None, CapRule::MetalRemoved(1.0)).is_err());
     }
 
     #[test]

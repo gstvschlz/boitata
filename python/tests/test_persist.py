@@ -19,6 +19,14 @@ def fitted():
             lambda o: (o.transform(values), o.inverse_transform([-4.0, 0.0, 4.0])),
         ),
         (anam, lambda o: (o.transform(values), o.inverse_transform([-3.0, 0.0, 3.0]))),
+        (
+            cs.Capping(cv=0.9).fit(values, domains=np.arange(300) % 3),
+            lambda o: (o.transform(values, domains=np.arange(300) % 3), list(o.metal_removed_.values())),
+        ),
+        (
+            cs.Capping(cap={"x": 2.0}).fit(values, domains=np.where(values > 1, "x", "y")),
+            lambda o: (o.transform(values, domains=["x"] * 300), list(o.caps_.values())),
+        ),
         (cs.BoxCox().fit(values), lambda o: (o.transform(values), o.inverse_transform([0.1, 1.0]))),
         (
             cs.PPMT(iterations=5, seed=4).fit(table),
@@ -63,6 +71,7 @@ def plain():
         cs.Search(30.0, soft={("MS", "SM"): 5.0, (1, True): np.inf}),
         cs.Search(30.0, soft=np.inf),
         cs.NormalScore(),
+        cs.Capping(quantile=0.99),
         cs.HermiteAnamorphosis(),
         cs.BoxCox(lambda_=0.3),
         cs.PPMT(),

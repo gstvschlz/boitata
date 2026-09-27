@@ -2,6 +2,8 @@
 
 ::: ceres.NormalScore
 
+::: ceres.Capping
+
 ::: ceres.HermiteAnamorphosis
 
 ::: ceres.BoxCox
