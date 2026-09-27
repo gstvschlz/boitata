@@ -99,6 +99,24 @@ def test_sis_probabilities():
     assert ((s.entropy >= 0) & (s.entropy <= 1)).all()
 
 
+def test_sis_follows_local_proportions():
+    far = np.array([[-1e3, 0.0], [-1e3, 5.0]])
+    line = np.c_[np.arange(200) + 0.5, np.zeros(200)]
+    east = line[:, 0] / 200
+    local = cs.Table({"west": 1 - east, "east": east})
+    sis = cs.SIS([gaussian, gaussian], cs.Search(radius=30, max_samples=12))
+    sis.fit(far, [0, 1], proportions=[[0.5, 0.5]] * 2)
+    s = sis.simulate(line, n=60, seed=1, proportions=local)
+    by_half = s.probabilities[:, 1].reshape(2, 100).mean(axis=1)
+    np.testing.assert_allclose(by_half, [0.25, 0.75], atol=0.08)
+    again = sis.simulate(line, n=60, seed=1, proportions=np.c_[1 - east, east])
+    np.testing.assert_array_equal(again.probabilities, s.probabilities)
+    with pytest.raises(cs.InvalidInput, match="both fit and simulate"):
+        sis.simulate(line, n=1)
+    with pytest.raises(cs.InvalidInput, match="shape"):
+        sis.fit(far, [0, 1], proportions=[[1.0, 0.0, 0.0]] * 2)
+
+
 def test_plurigaussian_proportions():
     facies = rng.choice(3, 60, p=[0.2, 0.3, 0.5])
     pgs = cs.Plurigaussian(gaussian, proportions=[0.2, 0.3, 0.5]).fit(coords, facies)

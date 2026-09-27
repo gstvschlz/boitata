@@ -1323,7 +1323,7 @@ pub(crate) mod tests {
                 search: search.clone(),
                 seed,
             };
-            crate::sis(&locs, &cats, None, &grid, 2, &[vg(), vg()], &params)
+            crate::sis(&locs, &cats, None, &grid, 2, &[vg(), vg()], &params, None)
                 .unwrap()
                 .categories
                 .into_iter()

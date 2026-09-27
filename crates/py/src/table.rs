@@ -130,6 +130,22 @@ pub fn column<'py>(
         .call_method1("array", (PyList::new(py, items)?, "object"))
 }
 
+/// The numeric column `name` as floats, null as NaN.
+pub fn floats(batch: &RecordBatch, name: &str) -> PyResult<Vec<f64>> {
+    let array = batch
+        .column_by_name(name)
+        .ok_or_else(|| missing(name, names(batch)))?;
+    if !array.data_type().is_numeric() {
+        return Err(invalid(format!("column {name} is not numeric")));
+    }
+    let values = arrow_cast::cast(array, &DataType::Float64).map_err(invalid)?;
+    Ok(values
+        .as_primitive::<Float64Type>()
+        .iter()
+        .map(|v| v.unwrap_or(f64::NAN))
+        .collect())
+}
+
 fn struct_field(batch: &RecordBatch) -> Arc<Field> {
     let schema = batch.schema();
     Arc::new(

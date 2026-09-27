@@ -28,6 +28,10 @@
 
 ::: ceres.detrend
 
+::: ceres.vertical_proportions
+
+::: ceres.combine_proportions
+
 ::: ceres.Declustering
 
 ::: ceres.cell_declustering

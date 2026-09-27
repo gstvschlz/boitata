@@ -99,6 +99,7 @@ Tutorials follow one deposit from data to a result; topics show one feature each
 | 71 | [Variogram volume](topics/71-variogram-volume/README.md) | Stacked sulphide lenses | `Drillholes`, `variogram_volume`, `plot.variogram_volume`, `experimental_variogram`, `Variogram`, `plot.variogram` |
 | 72 | [Spatial bootstrap](topics/72-spatial-bootstrap/README.md) | Coal seam thickness | `cell_declustering`, `despike`, `NormalScore`, `Variogram`, `experimental_variogram`, `spatial_bootstrap` |
 | 73 | [Collocated cosimulation](topics/73-collocated-cosimulation/README.md) | Jura | `NormalScore`, `experimental_variogram`, `Variogram`, `BlockModel`, `Search`, `SGS`, `check_realizations`, `plot.histogram_reproduction`, `plot.variogram_reproduction` |
+| 75 | [Local proportions](topics/75-local-proportions/README.md) | Tailings reprocessing | `Drillholes`, `Categories`, `cell_declustering`, `vertical_proportions`, `plot.category_legend`, `detrend`, `BlockModel`, `combine_proportions`, `Variogram`, `Search`, `SIS`, `plot.category_colors`, `check_realizations`, `plot.histogram_reproduction` |
 | 76 | [Reference distributions](topics/76-reference-distributions/README.md) | Vein gold grade control, Porphyry geometallurgy | `merge_intervals`, `Drillholes`, `cell_declustering`, `KernelDensity`, `NormalScore`, `GaussianMixture`, `GaussianImputer` |
 
 Each page alternates text, collapsed Python and its results. `mise run examples` reruns every script
