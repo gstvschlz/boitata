@@ -113,3 +113,8 @@ Tutorials follow one deposit from data to a result; topics show one feature each
 | 85 | [Domain change tables](topics/85-domain-change-tables/README.md) | Stacked sulphide lenses | `merge_intervals`, `Drillholes`, `Categories`, `cell_declustering`, `Variogram`, `Search`, `CategoricalIndicatorKriging`, `BlockModel`, `OrdinaryKriging`, `remove_small_units`, `domain_change`, `plot.domain_change` |
 | 86 | [Mesh-crossing interval splits](topics/86-mesh-interval-splits/README.md) | Stacked sulphide lenses | `Drillholes`, `merge_intervals`, `describe_by` |
 | 87 | [External drift kriging](topics/87-external-drift-kriging/README.md) | Soil geochemistry survey | `experimental_variogram`, `Search`, `OrdinaryKriging`, `ExternalDriftKriging` |
+| 88 | [Stepped sections](topics/88-stepped-sections/README.md) | Stacked sulphide lenses | `merge_intervals`, `Drillholes`, `Variogram`, `Search`, `BlockModel`, `OrdinaryKriging`, `plot.section`, `plot.fence` |
+| 89 | [Hole traces with deviation flags](topics/89-hole-traces/README.md) | Stacked sulphide lenses | `check_drillholes`, `Drillholes`, `plot.holes` |
+
+Each page alternates text, collapsed Python and its results. `mise run examples` reruns every script
+and rewrites the pages; `cs.datasets` downloads the data once and caches it. `render.py --index` writes this file.

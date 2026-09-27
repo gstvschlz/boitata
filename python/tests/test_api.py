@@ -117,7 +117,7 @@ def test_plots_take_keyword_only_axes():
         name: obj for name, obj in CALLABLES.items() if name.startswith("plot") and name not in NOT_PLOTS
     }
     for name, obj in plots.items():
-        target = {"plot.scatter_matrix": "axes", "plot.variograms": "axes"}.get(
+        target = {"plot.scatter_matrix": "axes", "plot.variograms": "axes", "plot.fence": "axes"}.get(
             name, "plotter" if name.startswith("plot3d.") else "ax"
         )
         p = inspect.signature(obj).parameters.get(target)
