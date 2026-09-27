@@ -114,9 +114,10 @@ impl PyPointSet {
         self.0.crs.clone()
     }
 
-    /// New point set with the attribute `name` added or replaced (NaN is null).
+    /// New point set with the attribute `name` added or replaced: numbers (NaN
+    /// is null) or text (None is null).
     fn with_column(&self, name: &str, values: &Bound<PyAny>) -> PyResult<Self> {
-        let column = float_column(values, self.0.len())?;
+        let column = crate::blocks::attribute(values, self.0.len())?;
         Ok(Self(self.0.with_column(name, column).map_err(core_error)?))
     }
 
@@ -604,9 +605,10 @@ impl PyBlockModel {
         Ok(Self(self.0.mask(&keep).map_err(core_error)?))
     }
 
-    /// New model with the attribute `name` added or replaced (NaN is null).
+    /// New model with the attribute `name` added or replaced: numbers (NaN is
+    /// null) or text (None is null).
     fn with_column(&self, name: &str, values: &Bound<PyAny>) -> PyResult<Self> {
-        let column = float_column(values, self.0.len())?;
+        let column = crate::blocks::attribute(values, self.0.len())?;
         Ok(Self(self.0.with_column(name, column).map_err(core_error)?))
     }
 

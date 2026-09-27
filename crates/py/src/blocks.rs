@@ -101,7 +101,10 @@ impl Mesh {
 
 pub fn attribute(values: &Bound<PyAny>, rows: usize) -> PyResult<ArrayRef> {
     match values.extract::<Vec<Option<String>>>() {
-        Ok(text) => Ok(Arc::new(StringArray::from(text))),
+        Ok(text) => {
+            crate::args::same_length(rows, text.len(), "values")?;
+            Ok(Arc::new(StringArray::from(text)))
+        }
         Err(_) => float_column(values, rows),
     }
 }
