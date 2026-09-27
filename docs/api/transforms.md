@@ -32,6 +32,8 @@
 
 ::: ceres.despike
 
+::: ceres.spatial_bootstrap
+
 ::: ceres.weight_declustering
 
 ::: ceres.affine_correction

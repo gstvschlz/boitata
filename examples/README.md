@@ -97,6 +97,7 @@ Tutorials follow one deposit from data to a result; topics show one feature each
 | 69 | [Capping transform](topics/69-capping-transform/README.md) | Vein gold grade control | `merge_intervals`, `Drillholes`, `cell_declustering`, `Capping`, `describe_by`, `capping_report`, `plot.probability`, `BlockModel`, `experimental_variogram`, `Search`, `OrdinaryKriging`, `NormalScore` |
 | 70 | [Realization checks](topics/70-realization-checks/README.md) | Walker Lake, Porphyry geometallurgy | `cell_declustering`, `NormalScore`, `experimental_variogram`, `Variogram`, `BlockModel`, `SGS`, `Search`, `check_realizations`, `plot.histogram_reproduction`, `plot.variogram_reproduction`, `PointSet`, `PPMT`, `TurningBands`, `MultivariateSimulation`, `plot.correlation_reproduction` |
 | 71 | [Variogram volume](topics/71-variogram-volume/README.md) | Stacked sulphide lenses | `Drillholes`, `variogram_volume`, `plot.variogram_volume`, `experimental_variogram`, `Variogram`, `plot.variogram` |
+| 72 | [Spatial bootstrap](topics/72-spatial-bootstrap/README.md) | Coal seam thickness | `cell_declustering`, `despike`, `NormalScore`, `Variogram`, `experimental_variogram`, `spatial_bootstrap` |
 
 Each page alternates text, collapsed Python and its results. `mise run examples` reruns every script
 and rewrites the pages; `cs.datasets` downloads the data once and caches it. `render.py --index` writes this file.

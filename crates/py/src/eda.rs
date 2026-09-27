@@ -26,7 +26,7 @@ fn optional_floats(obj: Option<&Bound<PyAny>>, what: &str) -> PyResult<Option<Ve
 }
 
 /// Name of the quantile at probability `p`: ``P10``, ``P97.5``, ...
-fn quantile_name(p: f64) -> String {
+pub(crate) fn quantile_name(p: f64) -> String {
     let name = format!("{:.4}", 100.0 * p);
     format!("P{}", name.trim_end_matches('0').trim_end_matches('.'))
 }

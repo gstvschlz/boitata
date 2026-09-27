@@ -8,6 +8,7 @@
 //! - [`normal`]   — standard-normal CDF/quantile helpers (shared)
 
 pub mod anamorphosis;
+pub mod bootstrap;
 pub mod boxcox;
 pub mod decluster;
 pub mod despike;
@@ -28,6 +29,7 @@ pub mod support;
 pub mod uc;
 
 pub use anamorphosis::HermiteAnamorphosis;
+pub use bootstrap::{Bootstrap, spatial_bootstrap};
 pub use boxcox::{box_cox, box_cox_inverse, optimal_lambda, skewness_at};
 pub use decluster::{
     Weights, cell_weights, cell_weights_over_offsets, decluster_mean_over_offsets,
