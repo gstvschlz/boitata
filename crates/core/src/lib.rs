@@ -7,6 +7,7 @@ mod mesh;
 pub mod nonfinite;
 mod points;
 mod polylines;
+pub mod rng;
 mod rotation;
 
 pub use arrow_array::RecordBatch;

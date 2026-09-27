@@ -523,12 +523,12 @@ fn latent(
         let k = k as u64;
         let bounds: Vec<(f64, f64)> = intervals.iter().map(|b| b[k as usize]).collect();
         let g = GibbsParams {
-            seed: params.seed.wrapping_add(101 * k),
+            seed: ceres_core::rng::realization_seed(params.seed, 2 * k),
             ..params.gibbs.clone()
         };
         let at_data = gibbs(data_locs, &bounds, vg, &g)?;
         let b = TurningBandsParams {
-            seed: params.seed.wrapping_add(11 + 200 * k),
+            seed: ceres_core::rng::realization_seed(params.seed, 2 * k + 1),
             ..params.bands.clone()
         };
         let field = conditional_gaussian_field(data_locs, &at_data, grid, vg, &b, &mut rng)?;

@@ -18,6 +18,7 @@
 use crate::error::{Result, TransformError};
 use crate::mixture::{GaussianMixture, conditional};
 use crate::normal_score::{NormalScoreTable, transform as normal_score};
+use ceres_core::rng::realization_seed;
 use kiddo::{ImmutableKdTree, SquaredEuclidean};
 use nalgebra::{DMatrix, DVector, Vector3};
 use rand::SeedableRng;
@@ -96,13 +97,6 @@ impl Spatial {
             })
             .collect())
     }
-}
-
-fn splitmix(z: u64) -> u64 {
-    let z = z.wrapping_add(0x9E37_79B9_7F4A_7C15);
-    let z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
-    let z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
-    z ^ (z >> 31)
 }
 
 impl GaussianImputer {
@@ -255,7 +249,7 @@ impl GaussianImputer {
             })
             .collect();
         let gm = &self.mixture;
-        let mut rng = StdRng::seed_from_u64(seed);
+        let mut rng = StdRng::seed_from_u64(realization_seed(seed, 0));
         let mut draws = vec![None; z.len()];
         for (i, r) in z.iter().enumerate() {
             let m = r.iter().filter(|v| v.is_nan()).count();
@@ -270,7 +264,7 @@ impl GaussianImputer {
             draws[i] = Some((c, e));
         }
         let mut path: Vec<usize> = (0..z.len()).filter(|&i| draws[i].is_some()).collect();
-        path.shuffle(&mut StdRng::seed_from_u64(splitmix(seed)));
+        path.shuffle(&mut StdRng::seed_from_u64(realization_seed(seed, 1)));
         for i in path {
             let Some((c, e)) = &draws[i] else { continue };
             let (mean, cov) = (&gm.means[*c], &gm.covariances[*c]);

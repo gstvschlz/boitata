@@ -7,6 +7,7 @@
 //! spatial correlation this is the classical bootstrap; with correlation the
 //! resampled values cluster and the statistics spread more.
 
+use ceres_core::rng::realization_seed;
 use nalgebra::{DMatrix, DVector};
 use rand::SeedableRng;
 use rand::rngs::StdRng;
@@ -26,19 +27,6 @@ pub struct Bootstrap {
     pub quantiles: Vec<Vec<f64>>,
     /// Per realization, the fraction of values above each cutoff.
     pub above: Vec<Vec<f64>>,
-}
-
-fn splitmix(mut z: u64) -> u64 {
-    z = z.wrapping_add(0x9E37_79B9_7F4A_7C15);
-    z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
-    z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
-    z ^ (z >> 31)
-}
-
-/// Seed of realization `k`, mixed from the user seed so nearby seeds do not
-/// share realizations.
-fn realization_seed(seed: u64, k: usize) -> u64 {
-    splitmix(splitmix(seed) ^ k as u64)
 }
 
 /// `n` resampled data sets of `values` at `coords`, drawn with the correlation of
@@ -103,7 +91,7 @@ pub fn spatial_bootstrap(
     let realizations: Vec<(f64, Vec<f64>, Vec<f64>)> = (0..n)
         .into_par_iter()
         .map(|k| {
-            let mut rng = StdRng::seed_from_u64(realization_seed(seed, k));
+            let mut rng = StdRng::seed_from_u64(realization_seed(seed, k as u64));
             let w = DVector::from_fn(m, |_, _| StandardNormal.sample(&mut rng));
             let y = &factor * w;
             let mut x: Vec<f64> = y.iter().map(|&y| draw(phi(y))).collect();

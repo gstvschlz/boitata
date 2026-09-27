@@ -232,12 +232,7 @@ fn band_step(vg: &Variogram, params: &TurningBandsParams) -> f64 {
 
 /// A standard-normal draw fixed by `key` and the coordinates of `p`.
 fn white(key: u64, p: &(f64, f64, f64)) -> f64 {
-    let mix = |z: u64| {
-        let z = z.wrapping_add(0x9E37_79B9_7F4A_7C15);
-        let z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
-        let z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
-        z ^ (z >> 31)
-    };
+    let mix = ceres_core::rng::splitmix;
     let h = [p.0, p.1, p.2]
         .iter()
         .fold(key, |h, v| mix(h ^ (v + 0.0).to_bits()));
@@ -476,7 +471,8 @@ pub fn conditional_gaussian_field(
     })
 }
 
-/// `n` conditional turning-bands realizations (seeds `seed, seed + 1, …`)
+/// `n` conditional turning-bands realizations (realization `k` seeded by
+/// [`ceres_core::rng::realization_seed`])
 /// prepared over a box, so they can be evaluated at any targets inside it —
 /// all at once or chunk by chunk, with the same values.
 ///
@@ -531,7 +527,8 @@ impl TurningBandsEnsemble {
         let (bands, at_data): (Vec<Bands>, Vec<Vec<f64>>) = (0..n)
             .into_par_iter()
             .map(|k| {
-                let mut rng = StdRng::seed_from_u64(params.seed.wrapping_add(k as u64));
+                let mut rng =
+                    StdRng::seed_from_u64(ceres_core::rng::realization_seed(params.seed, k as u64));
                 let bands = layout.bands(params.n_bands, &mut rng);
                 let at_data = bands.field(data_locs);
                 (bands, at_data)

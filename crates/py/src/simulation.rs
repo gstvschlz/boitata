@@ -794,7 +794,8 @@ impl Sgs {
         Ok(slf)
     }
 
-    /// Summary of `n` realizations at `targets`, seeds `seed, seed + 1, …`,
+    /// Summary of `n` realizations at `targets`, each seeded from `seed` and
+    /// its index,
     /// with the probability and mean above each of `cutoffs` and the values at
     /// `quantiles`; the ``(n, targets)`` realizations only when `realizations`.
     /// `anisotropy` (a LocalAnisotropy) orients each node's variogram and search.
@@ -861,7 +862,7 @@ impl Sgs {
             simulation::continuous(n, &options, |k| {
                 let params = SgsParams {
                     search: search.clone(),
-                    seed: seed.wrapping_add(k as u64),
+                    seed: ceres_core::rng::realization_seed(seed, k as u64),
                 };
                 let domains = d.domains.as_deref().zip(of_realization(&nodes, k));
                 match &secondary {
@@ -1341,7 +1342,7 @@ impl Sis {
         Ok(slf)
     }
 
-    /// Summary of `n` realizations, seeds `seed, seed + 1, …`; the ``(n, targets)``
+    /// Summary of `n` realizations, each seeded from `seed` and its index; the ``(n, targets)``
     /// realizations themselves only when `realizations`. With `blocks` (a
     /// coarser BlockModel), each block takes the category filling most of its
     /// node volume, ties to the smallest, as in `BlockModel.regularize`; blocks as in
@@ -1377,7 +1378,7 @@ impl Sis {
             simulation::categorical(n, k, realizations, |i| {
                 let params = SisParams {
                     search: self.search.clone(),
-                    seed: seed.wrapping_add(i as u64),
+                    seed: ceres_core::rng::realization_seed(seed, i as u64),
                 };
                 let holes = self.holes.as_deref();
                 simulation::sis(
@@ -1701,7 +1702,7 @@ impl Plurigaussian {
         py.detach(|| {
             simulation::categorical(n, k, realizations, |i| {
                 let params = PgsParams {
-                    seed: seed.wrapping_add(i as u64),
+                    seed: ceres_core::rng::realization_seed(seed, i as u64),
                     ..Default::default()
                 };
                 let (vgs, rule) = (&self.variograms, &self.rule);
@@ -2378,7 +2379,7 @@ impl MultivariateSimulation {
     ///
     /// Parameters are those of `SGS.simulate`; `anisotropy` needs SGS for
     /// every factor. Factor `j` of realization `k` is simulated with a seed
-    /// mixed from `seed + k` and `j`, so no two factors share random numbers.
+    /// mixed from `seed`, `k` and `j`, so no two factors share random numbers.
     ///
     /// Returns
     /// -------
