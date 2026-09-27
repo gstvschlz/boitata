@@ -14,8 +14,9 @@ use serde::{Deserialize, Serialize};
 
 use crate::args::{
     Label, array1, array2, column, column_names, domain_codes, floats, holes, named, pair, per_row,
-    rows,
+    rows, same_length,
 };
+use crate::categories::Categories;
 use crate::containers::{PyBlockModel, PyPointSet, coords_arg};
 use crate::estimation::py_label;
 use crate::invalid;
@@ -245,6 +246,129 @@ fn grade_tonnage(
         return Ok(Table(RecordBatch::try_from_iter(columns).map_err(invalid)?));
     }
     table("category", &names, &flat, columns)
+}
+
+/// Codes of `classes` as a scheme reads them: numbers are its codes (NaN for
+/// none), labels are encoded by it.
+fn scheme_codes(
+    classes: &Bound<PyAny>,
+    scheme: &Categories,
+    n: usize,
+) -> PyResult<Vec<Option<u32>>> {
+    let codes = match floats(classes, "classes") {
+        Ok(c) => {
+            let k = scheme.0.len() as f64;
+            c.into_iter()
+                .map(|c| match c {
+                    c if c.is_nan() => Ok(None),
+                    c if c >= 0.0 && c < k && c.fract() == 0.0 => Ok(Some(c as u32)),
+                    c => Err(invalid(format!("{c} is not a code of the scheme"))),
+                })
+                .collect::<PyResult<Vec<_>>>()?
+        }
+        Err(_) => crate::categories::coded(&crate::categories::labels(classes)?, Some(scheme))?.1,
+    };
+    same_length(n, codes.len(), "classes")?;
+    Ok(codes)
+}
+
+/// Tonnage, and with `grades` metal, moving between the classes of two
+/// categorical models of the same blocks, such as an old and a new domain
+/// model, or the most likely category and a simulated realization.
+///
+/// Parameters
+/// ----------
+/// before, after : array_like or str
+///     Class of each block in each model, or their columns in `data`; null
+///     or NaN leaves the block out. With `scheme`, numbers are its codes and
+///     labels are encoded by it; without, labels of either model, in the
+///     order of `Categories.from_values`.
+/// weights : array_like or str, optional
+///     Volume of each block; default the volumes of a BlockModel `data`,
+///     else 1.
+/// density : float, array_like or str, optional
+///     Density of each block; default 1.
+/// grades : array_like or str, optional
+///     Grade of each block; adds ``mean_grade`` and ``metal``. NaN grades add
+///     tonnage but no metal.
+/// scheme : Categories, optional
+///     Names and order of the classes.
+/// data : PointSet, BlockModel, Table or dict, optional
+///     Where column names are looked up.
+///
+/// Returns
+/// -------
+/// Table
+///     One row per pair of classes, ``from`` then ``to`` in class order:
+///     ``from``, ``to``, ``tonnage`` (weights × density), and with `grades`
+///     ``mean_grade`` (null without tonnage) and ``metal``. Summing
+///     ``tonnage`` over ``to`` gives each class of `before`, over ``from``
+///     each class of `after`; rows with ``from == to`` hold what is unchanged.
+#[pyfunction]
+#[pyo3(signature = (before, after, *, weights=None, density=None, grades=None, scheme=None, data=None))]
+#[allow(clippy::too_many_arguments)]
+fn domain_change(
+    before: &Bound<PyAny>,
+    after: &Bound<PyAny>,
+    weights: Option<&Bound<PyAny>>,
+    density: Option<&Bound<PyAny>>,
+    grades: Option<&Bound<PyAny>>,
+    scheme: Option<PyRef<Categories>>,
+    data: Option<&Bound<PyAny>>,
+) -> PyResult<Table> {
+    let before = column(data, before, "before")?;
+    let after = column(data, after, "after")?;
+    let (names, a, b) = match scheme.as_deref() {
+        Some(s) => {
+            let a = scheme_codes(&before, s, before.len()?)?;
+            let b = scheme_codes(&after, s, a.len())?;
+            (s.0.names().to_vec(), a, b)
+        }
+        None => {
+            let mut labels = crate::categories::labels(&before)?;
+            let n = labels.len();
+            labels.extend(crate::categories::labels(&after)?);
+            same_length(n, labels.len() - n, "after")?;
+            let (names, mut codes) = crate::categories::coded(&labels, None)?;
+            let b = codes.split_off(n);
+            (names, codes, b)
+        }
+    };
+    let n = a.len();
+    let w = weights_or_volumes(data, weights, n)?;
+    let d = optional_per_row(data, density, n, "density")?;
+    let tonnes = match (w, d) {
+        (Some(w), Some(d)) => Some(w.iter().zip(&d).map(|(w, d)| w * d).collect()),
+        (w, d) => w.or(d),
+    };
+    let g = optional_per_row(data, grades, n, "grades")?;
+    let cells = eda::domain_change(&a, &b, names.len(), tonnes.as_deref(), g.as_deref())
+        .map_err(invalid)?;
+    let label = |f: fn(&eda::Change) -> usize| -> ArrayRef {
+        Arc::new(StringArray::from_iter_values(
+            cells.iter().map(|c| names[f(c)].as_str()),
+        ))
+    };
+    let mut columns: Vec<(&str, ArrayRef)> = vec![
+        ("from", label(|c| c.from)),
+        ("to", label(|c| c.to)),
+        (
+            "tonnage",
+            Arc::new(Float64Array::from_iter_values(
+                cells.iter().map(|c| c.tonnage),
+            )),
+        ),
+    ];
+    if g.is_some() {
+        columns.push(("mean_grade", nullable(cells.iter().map(|c| c.mean_grade))));
+        columns.push((
+            "metal",
+            Arc::new(Float64Array::from_iter_values(
+                cells.iter().map(|c| c.metal),
+            )),
+        ));
+    }
+    Ok(Table(RecordBatch::try_from_iter(columns).map_err(invalid)?))
 }
 
 fn tonnage_columns<'a>(
@@ -1527,6 +1651,7 @@ pub fn register(m: &Bound<PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(validate_model, m)?)?;
     m.add_function(wrap_pyfunction!(duplicates, m)?)?;
     m.add_function(wrap_pyfunction!(describe, m)?)?;
+    m.add_function(wrap_pyfunction!(domain_change, m)?)?;
     m.add_function(wrap_pyfunction!(describe_by, m)?)?;
     m.add_function(wrap_pyfunction!(grade_tonnage, m)?)?;
     m.add_function(wrap_pyfunction!(compare_models, m)?)?;

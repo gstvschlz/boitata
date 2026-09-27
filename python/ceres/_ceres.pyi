@@ -1210,6 +1210,14 @@ def gibbs(
 def localize(
     smus: BlockModel, ranking: Column, panels: BlockModel, realizations: ArrayLike, *, name: str = "localized"
 ) -> BlockModel: ...
+def correct_distribution(
+    values: SimulationSummary | ArrayLike,
+    reference: ArrayLike | KernelDensity | GaussianMixture,
+    *,
+    weights: ArrayLike | None = None,
+    strength: float = 1.0,
+    realizations: Sequence[int] | None = None,
+) -> npt.NDArray[np.float64]: ...
 
 class Cokriging:
     def to_parquet(self, path: Path) -> None: ...
@@ -1786,6 +1794,16 @@ def grade_tonnage(
     weights: ArrayLike | Column | None = None,
     density: float | ArrayLike | Column = 1.0,
     categories: Labels | Column | None = None,
+    data: Data | None = None,
+) -> Table: ...
+def domain_change(
+    before: Labels | Column,
+    after: Labels | Column,
+    *,
+    weights: ArrayLike | Column | None = None,
+    density: float | ArrayLike | Column | None = None,
+    grades: ArrayLike | Column | None = None,
+    scheme: Categories | None = None,
     data: Data | None = None,
 ) -> Table: ...
 def compare_models(

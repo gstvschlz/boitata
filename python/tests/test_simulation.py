@@ -842,3 +842,42 @@ def test_cosimulation_takes_a_secondary_realization_per_realization(tmp_path):
     ]:
         with pytest.raises(ValueError):
             call()
+
+
+def test_correct_distribution_matches_the_target_and_keeps_ranks():
+    rng = np.random.default_rng(11)
+    reals = rng.normal(size=(4, 250))
+    target = rng.lognormal(0.0, 0.7, 250)
+    out = cs.correct_distribution(reals, target)
+    np.testing.assert_allclose(np.sort(out, axis=1), np.tile(np.sort(target), (4, 1)), atol=1e-9)
+    np.testing.assert_array_equal(np.argsort(out, axis=1), np.argsort(reals, axis=1))
+    np.testing.assert_array_equal(cs.correct_distribution(reals, target, strength=0.0), reals)
+    half = cs.correct_distribution(reals, target, strength=0.5)
+    np.testing.assert_allclose(half, 0.5 * (reals + out))
+    only = cs.correct_distribution(reals, target, realizations=[2])
+    np.testing.assert_array_equal(only[[0, 1, 3]], reals[[0, 1, 3]])
+    np.testing.assert_array_equal(only[2], out[2])
+    one = cs.correct_distribution(reals[0], target)
+    assert one.shape == (250,)
+    np.testing.assert_array_equal(one, out[0])
+    kde = cs.KernelDensity(lower=0.0).fit(target)
+    smooth = cs.correct_distribution(reals, kde)
+    np.testing.assert_allclose(np.median(smooth, axis=1), kde.quantile([0.5])[0], rtol=0.02)
+    with pytest.raises(ValueError):
+        cs.correct_distribution(reals, target, strength=2.0)
+    with pytest.raises(ValueError):
+        cs.correct_distribution(reals, target, realizations=[9])
+
+
+def test_correct_distribution_takes_a_summary():
+    model = cs.Variogram([("spherical", 1.0, 30.0)])
+    rng = np.random.default_rng(2)
+    points = cs.PointSet(rng.uniform(0, 100, (40, 2)), {"v": rng.lognormal(0.0, 0.5, 40)})
+    nodes = cs.BlockModel(origin=(2.5, 2.5), size=(5, 5), count=(20, 20))
+    sgs = cs.SGS(model, cs.Search(radius=40)).fit(points, "v")
+    summary = sgs.simulate(nodes, n=3, seed=1, realizations=True)
+    out = cs.correct_distribution(summary, points["v"])
+    assert out.shape == summary.realizations.shape
+    np.testing.assert_allclose(out.mean(axis=1), points["v"].mean(), rtol=0.01)
+    with pytest.raises(ValueError):
+        cs.correct_distribution(sgs.simulate(nodes, n=2), points["v"])

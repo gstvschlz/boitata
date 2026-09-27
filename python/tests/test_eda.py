@@ -345,3 +345,25 @@ def test_data_spacing_on_a_square_grid():
     assert np.isinf(cs.data_spacing(xy[:2], n=2)).all()
     with pytest.raises(cs.InvalidInput):
         cs.data_spacing(xy, n=0)
+
+
+def test_domain_change_margins_and_metal():
+    before = rng.integers(0, 3, 400).astype(float)
+    after = np.where(rng.random(400) < 0.25, rng.integers(0, 3, 400), before)
+    volume, grade = rng.uniform(1, 2, 400), rng.uniform(0, 3, 400)
+    scheme = cs.Categories(["a", "b", "c"])
+    t = cs.domain_change(before, after, weights=volume, grades=grade, scheme=scheme)
+    assert t.column_names == ["from", "to", "tonnage", "mean_grade", "metal"]
+    assert list(t["from"])[:3] == ["a", "a", "a"] and list(t["to"])[:3] == ["a", "b", "c"]
+    cells = np.asarray(t["tonnage"]).reshape(3, 3)
+    for c in range(3):
+        assert np.isclose(cells[c].sum(), volume[before == c].sum())
+        assert np.isclose(cells[:, c].sum(), volume[after == c].sum())
+    assert np.isclose(np.trace(cells), volume[before == after].sum())
+    assert np.isclose(np.sum(t["metal"]), np.sum(volume * grade))
+    labels = cs.domain_change(scheme.decode(before), scheme.decode(after), weights=volume)
+    np.testing.assert_allclose(np.asarray(labels["tonnage"]), cells.ravel())
+    points = cs.PointSet(rng.uniform(0, 1, (400, 3)), {"old": before, "new": after})
+    assert np.isclose(np.sum(cs.domain_change("old", "new", scheme=scheme, data=points)["tonnage"]), 400)
+    with pytest.raises(cs.InvalidInput):
+        cs.domain_change(before + 3, after, scheme=scheme)

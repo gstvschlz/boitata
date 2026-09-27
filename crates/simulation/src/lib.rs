@@ -5,11 +5,13 @@
 //! - [`sis`]  — Sequential Indicator Simulation (categorical facies)
 //! - [`multivariate`] — several correlated variables through independent factors
 //! - [`trend`] — a continuous variable whose distribution follows a trend
+//! - [`correct`] — correction of realizations to a target distribution
 //! - [`post`] — uncertainty summaries streamed over realizations, at node or
 //!   block support, and localization of block realizations within panels
 //!
 //! Realizations are conditional and reproducible given a seed.
 
+pub mod correct;
 pub mod error;
 pub mod gibbs;
 pub mod multivariate;
@@ -20,6 +22,7 @@ pub mod sis;
 pub mod trend;
 pub mod turning_bands;
 
+pub use correct::{Empirical, correct_distribution};
 pub use error::{Result, SimError};
 pub use gibbs::{GibbsParams, gibbs};
 pub use multivariate::{Decorrelation, factor_seed, multivariate};

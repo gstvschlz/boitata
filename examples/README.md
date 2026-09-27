@@ -109,6 +109,8 @@ Tutorials follow one deposit from data to a result; topics show one feature each
 | 81 | [Intrinsic coregionalization](topics/81-intrinsic-coregionalization/README.md) | Jura | `experimental_variograms`, `Coregionalization`, `plot.variogram`, `Search`, `Cokriging` |
 | 82 | [Madogram](topics/82-madogram/README.md) | Vein gold grade control | `merge_intervals`, `Drillholes`, `experimental_variogram`, `dissemination` |
 | 83 | [High-grade restriction](topics/83-high-grade-restriction/README.md) | Walker Lake | `BlockModel`, `experimental_variogram`, `Variogram`, `BlockKriging`, `Search`, `HighGrade` |
+| 84 | [Target distribution correction](topics/84-target-distribution-correction/README.md) | Walker Lake | `cell_declustering`, `NormalScore`, `experimental_variogram`, `Variogram`, `BlockModel`, `SGS`, `Search`, `check_realizations`, `correct_distribution`, `plot.histogram_reproduction`, `plot.section`, `KernelDensity` |
+| 85 | [Domain change tables](topics/85-domain-change-tables/README.md) | Stacked sulphide lenses | `merge_intervals`, `Drillholes`, `Categories`, `cell_declustering`, `Variogram`, `Search`, `CategoricalIndicatorKriging`, `BlockModel`, `OrdinaryKriging`, `remove_small_units`, `domain_change`, `plot.domain_change` |
 
 Each page alternates text, collapsed Python and its results. `mise run examples` reruns every script
 and rewrites the pages; `cs.datasets` downloads the data once and caches it. `render.py --index` writes this file.

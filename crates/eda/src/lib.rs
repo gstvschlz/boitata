@@ -1127,9 +1127,136 @@ pub fn paired_bias(distance: &[f64], a: &[f64], b: &[f64], edges: &[f64]) -> Res
         .collect())
 }
 
+/// One cell of [`domain_change`]: the blocks of class `from` in the first
+/// model and `to` in the second.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Change {
+    pub from: usize,
+    pub to: usize,
+    pub tonnage: f64,
+    /// Sum of tonnage × grade; 0 without grades.
+    pub metal: f64,
+    /// `metal` over the tonnage of blocks with a grade; NaN when none has one.
+    pub mean_grade: f64,
+}
+
+/// Cross-tabulation of two classifications of the same blocks into `k`
+/// classes: the tonnage (weights, 1 by default) and metal moving from each
+/// class of `before` to each of `after`, `k × k` cells by `from` then `to`.
+/// Blocks unclassed (`None`) in either model are left out; NaN grades add
+/// tonnage but no metal.
+pub fn domain_change(
+    before: &[Option<u32>],
+    after: &[Option<u32>],
+    k: usize,
+    tonnes: Option<&[f64]>,
+    grades: Option<&[f64]>,
+) -> Result<Vec<Change>> {
+    let n = before.len();
+    if after.len() != n {
+        return invalid(format!("expected {n} classes in both models"));
+    }
+    if grades.is_some_and(|g| g.len() != n) {
+        return invalid(format!("expected {n} grades"));
+    }
+    check(n, grades.unwrap_or(&vec![0.0; n]), tonnes)?;
+    if before
+        .iter()
+        .chain(after)
+        .flatten()
+        .any(|&c| c as usize >= k)
+    {
+        return invalid(format!("classes must be codes 0 to {}", k.max(1) - 1));
+    }
+    let mut cells = vec![[0.0; 3]; k * k];
+    for i in 0..n {
+        let (Some(a), Some(b)) = (before[i], after[i]) else {
+            continue;
+        };
+        let t = tonnes.map_or(1.0, |t| t[i]);
+        let cell = &mut cells[a as usize * k + b as usize];
+        cell[0] += t;
+        if let Some(g) = grades.map(|g| g[i]).filter(|g| !g.is_nan()) {
+            cell[1] += t * g;
+            cell[2] += t;
+        }
+    }
+    Ok(cells
+        .into_iter()
+        .enumerate()
+        .map(|(c, [tonnage, metal, graded])| Change {
+            from: c / k,
+            to: c % k,
+            tonnage,
+            metal,
+            mean_grade: if graded > 0.0 {
+                metal / graded
+            } else {
+                f64::NAN
+            },
+        })
+        .collect())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn domain_change_margins_diagonal_and_metal() {
+        use rand::{Rng, SeedableRng, rngs::StdRng};
+        let mut rng = StdRng::seed_from_u64(9);
+        let n = 500;
+        let before: Vec<Option<u32>> = (0..n).map(|_| Some(rng.gen_range(0..3))).collect();
+        let after: Vec<Option<u32>> = before
+            .iter()
+            .map(|b| match rng.gen_bool(0.2) {
+                true => Some(rng.gen_range(0..3)),
+                false => *b,
+            })
+            .collect();
+        let tonnes: Vec<f64> = (0..n).map(|_| rng.gen_range(1.0..3.0)).collect();
+        let grades: Vec<f64> = (0..n).map(|_| rng.gen_range(0.0..5.0)).collect();
+        let cells = domain_change(&before, &after, 3, Some(&tonnes), Some(&grades)).unwrap();
+        assert_eq!(cells.len(), 9);
+        let class = |m: &[Option<u32>], c: u32| -> f64 {
+            (0..n).filter(|&i| m[i] == Some(c)).map(|i| tonnes[i]).sum()
+        };
+        for c in 0..3 {
+            let row: f64 = cells
+                .iter()
+                .filter(|x| x.from == c)
+                .map(|x| x.tonnage)
+                .sum();
+            let col: f64 = cells.iter().filter(|x| x.to == c).map(|x| x.tonnage).sum();
+            assert!(close(row, class(&before, c as u32)));
+            assert!(close(col, class(&after, c as u32)));
+        }
+        let unchanged: f64 = (0..n)
+            .filter(|&i| before[i] == after[i])
+            .map(|i| tonnes[i])
+            .sum();
+        let diagonal: f64 = cells
+            .iter()
+            .filter(|x| x.from == x.to)
+            .map(|x| x.tonnage)
+            .sum();
+        assert!(close(unchanged, diagonal));
+        let metal: f64 = tonnes.iter().zip(&grades).map(|(t, g)| t * g).sum();
+        assert!(close(cells.iter().map(|x| x.metal).sum(), metal));
+        let c = &cells[4];
+        assert!(close(c.mean_grade * c.tonnage, c.metal));
+    }
+
+    #[test]
+    fn domain_change_skips_unclassed_and_rejects_bad_codes() {
+        let cells = domain_change(&[Some(0), None], &[Some(1), Some(1)], 2, None, None).unwrap();
+        assert_eq!(cells[1].tonnage, 1.0);
+        assert!(cells[1].mean_grade.is_nan());
+        assert_eq!(cells.iter().map(|c| c.tonnage).sum::<f64>(), 1.0);
+        assert!(domain_change(&[Some(2)], &[Some(0)], 2, None, None).is_err());
+        assert!(domain_change(&[Some(0)], &[], 2, None, None).is_err());
+    }
 
     fn close(a: f64, b: f64) -> bool {
         (a - b).abs() < 1e-9

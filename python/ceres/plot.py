@@ -28,6 +28,7 @@ __all__ = [
     "cross_validation",
     "declustering",
     "directions",
+    "domain_change",
     "grade_tonnage",
     "histogram",
     "histogram_reproduction",
@@ -1736,6 +1737,51 @@ def contact(table, *, labels=("inside", "outside"), ax=None, **kwargs):
         ax.text(x, 0.97, text, transform=ax.get_xaxis_transform(), ha="center", va="top", color="0.3")
     ax.set_xlabel("Distance to contact")
     ax.set_ylabel("Mean grade")
+    return fig, ax
+
+
+def domain_change(table, *, value="tonnage", relative=False, fmt=None, ax=None, **kwargs):
+    """Cross-table of two categorical models as a matrix, rows the first model's classes, columns the second's,
+    each cell labeled with its value. The diagonal, what is unchanged, is outlined and left blank so the grays scale
+    to what moves.
+
+    Parameters
+    ----------
+    table : Table
+        Result of ``ceres.domain_change``.
+    value : str
+        Column to show: ``"tonnage"``, ``"metal"`` or ``"mean_grade"``.
+    relative : bool
+        Each row as a fraction of its total: the share of each class of the first model going to each class of
+        the second (not with ``"mean_grade"``).
+    fmt : str, optional
+        Format of the cell labels; default ``"{:.0%}"`` when relative, else ``"{:,.3g}"``.
+    **kwargs
+        Passed to ``ax.imshow``.
+    """
+    from matplotlib.patches import Rectangle
+
+    fig, ax = _axes(ax)
+    names = list(dict.fromkeys(np.asarray(table["from"]).astype(str)))
+    k = len(names)
+    cells = np.asarray(table[value], dtype=float).reshape(k, k)
+    if relative:
+        with np.errstate(invalid="ignore", divide="ignore"):
+            cells = cells / np.nansum(cells, axis=1, keepdims=True)
+    fmt = fmt or ("{:.0%}" if relative else "{:,.3g}")
+    kwargs = {"cmap": "Greys", "vmin": 0.0} | kwargs
+    moved = np.where(np.eye(k, dtype=bool), np.nan, cells)
+    im = ax.imshow(np.ma.masked_invalid(moved), **kwargs)
+    for i in range(k):
+        for j in range(k):
+            if np.isfinite(cells[i, j]) and cells[i, j] != 0:
+                color = "white" if i != j and im.norm(cells[i, j]) > 0.5 else "0.2"
+                ax.text(j, i, fmt.format(cells[i, j]), ha="center", va="center", color=color)
+        ax.add_patch(Rectangle((i - 0.5, i - 0.5), 1, 1, fill=False, ec=_accent(), lw=1.5))
+    ax.set_xticks(range(k), names)
+    ax.set_yticks(range(k), names)
+    ax.set_xlabel("To")
+    ax.set_ylabel("From")
     return fig, ax
 
 

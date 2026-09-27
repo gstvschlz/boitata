@@ -18,6 +18,8 @@
 
 ::: ceres.localize
 
+::: ceres.correct_distribution
+
 ::: ceres.check_realizations
 
 ::: ceres.RealizationCheck

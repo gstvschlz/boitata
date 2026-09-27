@@ -519,3 +519,12 @@ def test_strip_log_draws_categories_grades_and_runs():
     assert ax.yaxis_inverted() and len(ax.get_legend().get_texts()) == 3
     with pytest.raises(cs.InvalidInput):
         cs.plot.strip_log(dh, "C")
+
+
+def test_domain_change_draws_the_matrix():
+    table = cs.domain_change(["a", "a", "b", "c"], ["a", "b", "b", "c"], grades=[1.0, 2.0, 3.0, 4.0])
+    _, ax = cs.plot.domain_change(table, relative=True)
+    assert [t.get_text() for t in ax.get_xticklabels()] == ["a", "b", "c"]
+    assert sorted(t.get_text() for t in ax.texts) == ["100%", "100%", "50%", "50%"]
+    _, ax = cs.plot.domain_change(table, value="metal")
+    assert len(ax.patches) == 3
