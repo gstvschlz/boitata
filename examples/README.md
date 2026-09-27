@@ -7,6 +7,7 @@ Tutorials follow one deposit from data to a result; topics show one feature each
 
 | # | Tutorial | Dataset | Steps |
 |---|---|---|---|
+| 1 | [A coal seam in a lease](tutorials/01-coal-seam-in-a-lease/README.md) | Coal seam thickness | The lease and its grid; Declustering; An anisotropic variogram; Ordinary or universal kriging; Volume and tonnes; How sure is the total?; Classification by data spacing |
 | 2 | [From drill holes to a classified model](tutorials/02-drillholes-to-classified-model/README.md) | Stacked sulphide lenses | Drill holes; Samples inside each lens; Declustering and capping; Zn variogram of lens 1; A sub-blocked model; Kriging in passes; Simulation at block support; Validation; Classification; Tonnes and metal |
 
 ## Topics
