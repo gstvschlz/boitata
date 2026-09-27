@@ -22,6 +22,10 @@ fn text(batch: &RecordBatch, name: &str) -> PyResult<Vec<Option<String>>> {
     let column = batch
         .column_by_name(name)
         .ok_or_else(|| invalid(format!("column {name} not found")))?;
+    text_of(column)
+}
+
+fn text_of(column: &ArrayRef) -> PyResult<Vec<Option<String>>> {
     let column = arrow_cast::cast(column, &DataType::Utf8).map_err(invalid)?;
     Ok(column
         .as_string::<i32>()
@@ -626,7 +630,11 @@ fn is_table(value: &Bound<PyAny>) -> PyResult<bool> {
         || value.hasattr("columns")?)
 }
 
-fn flags_table(flags: Named, sentinels: &[f64]) -> PyResult<RecordBatch> {
+fn flags_table(
+    flags: Named,
+    sentinels: &[f64],
+    mut meta: HashMap<String, String>,
+) -> PyResult<RecordBatch> {
     let columns: Vec<(String, ArrayRef)> = flags
         .into_iter()
         .map(|(name, f)| (name, Arc::new(BooleanArray::from(f)) as ArrayRef))
@@ -637,15 +645,112 @@ fn flags_table(flags: Named, sentinels: &[f64]) -> PyResult<RecordBatch> {
         .map(|s| format!("{s:?}"))
         .collect::<Vec<_>>()
         .join(",");
-    let schema = batch
-        .schema()
-        .as_ref()
-        .clone()
-        .with_metadata([("sentinels".to_string(), listed)].into());
+    meta.insert("sentinels".into(), listed);
+    let schema = batch.schema().as_ref().clone().with_metadata(meta);
     batch.with_schema(Arc::new(schema)).map_err(invalid)
 }
 
-/// Per-record flags of drillhole tables, and a summary of every check.
+fn is_text(t: &DataType) -> bool {
+    matches!(t, DataType::Utf8 | DataType::LargeUtf8 | DataType::Utf8View)
+}
+
+/// Rows with text in numeric-looking columns, the (row, column, value) of
+/// each, and the columns checked.
+type TextFound = (Vec<bool>, Vec<(usize, String, String)>, Vec<String>);
+
+fn text_check(
+    batch: &RecordBatch,
+    keys: &[&str],
+    grades: Option<&[String]>,
+) -> PyResult<TextFound> {
+    let mut rows = vec![false; batch.num_rows()];
+    let (mut found, mut columns) = (vec![], vec![]);
+    for field in batch.schema().fields() {
+        let name = field.name();
+        let chosen = match grades {
+            Some(g) => g.contains(name),
+            None => !keys.contains(&name.as_str()),
+        };
+        if !chosen || !is_text(field.data_type()) {
+            continue;
+        }
+        let values = text(batch, name)?;
+        if grades.is_none() && !checks::numeric_looking(&values) {
+            continue;
+        }
+        for (i, hit) in checks::text_values(&values).into_iter().enumerate() {
+            if hit {
+                rows[i] = true;
+                found.push((i, name.clone(), values[i].clone().unwrap_or_default()));
+            }
+        }
+        columns.push(name.clone());
+    }
+    found.sort_by_key(|f| f.0);
+    Ok((rows, found, columns))
+}
+
+struct Checked {
+    name: String,
+    batch: RecordBatch,
+    flags: Named,
+    ids: Vec<Option<String>>,
+    meta: HashMap<String, String>,
+}
+
+#[derive(Default)]
+struct Details {
+    table: Vec<String>,
+    row: Vec<i64>,
+    hole: Vec<Option<String>>,
+    check: Vec<&'static str>,
+    column: Vec<String>,
+    value: Vec<String>,
+    suggestion: Vec<Option<String>>,
+}
+
+impl Details {
+    #[allow(clippy::too_many_arguments)]
+    fn push(
+        &mut self,
+        table: &str,
+        row: usize,
+        hole: Option<String>,
+        check: &'static str,
+        column: &str,
+        value: String,
+        suggestion: Option<String>,
+    ) {
+        self.table.push(table.into());
+        self.row.push(row as i64);
+        self.hole.push(hole);
+        self.check.push(check);
+        self.column.push(column.into());
+        self.value.push(value);
+        self.suggestion.push(suggestion);
+    }
+
+    fn table(self) -> PyResult<Table> {
+        let batch = RecordBatch::try_from_iter([
+            ("table", Arc::new(StringArray::from(self.table)) as ArrayRef),
+            ("row", Arc::new(Int64Array::from(self.row))),
+            ("hole", Arc::new(StringArray::from(self.hole))),
+            ("check", Arc::new(StringArray::from(self.check))),
+            ("column", Arc::new(StringArray::from(self.column))),
+            ("value", Arc::new(StringArray::from(self.value))),
+            ("suggestion", Arc::new(StringArray::from(self.suggestion))),
+        ])
+        .map_err(invalid)?;
+        Ok(Table(batch))
+    }
+}
+
+fn json<T: serde::Serialize>(value: &T) -> PyResult<String> {
+    serde_json::to_string(value).map_err(invalid)
+}
+
+/// Per-record flags of drillhole tables, a summary of every check and the
+/// values behind the checks that suggest a correction.
 ///
 /// Rows with a missing or sentinel required value (id, coordinates,
 /// depths, angles, from and to) are left out of the other checks, so each
@@ -667,6 +772,10 @@ fn flags_table(flags: Named, sentinels: &[f64]) -> PyResult<RecordBatch> {
 ///     from vertical, is used instead when given.
 /// max_depth : str, optional
 ///     Collar column with the hole length; enables the ``past_depth`` check.
+/// grades : sequence of str, optional
+///     Columns that must hold numbers, searched for ``text_values`` in every
+///     table that has them. By default, every text column other than the
+///     ones named above in which most values are numbers.
 /// nodata : sequence of float
 ///     Values that stand for missing data, searched in every numeric column.
 /// max_deviation : float
@@ -687,11 +796,18 @@ fn flags_table(flags: Named, sentinels: &[f64]) -> PyResult<RecordBatch> {
 ///     - ``missing``: null or non-finite required value.
 ///     - ``out_of_range``: negative depth, length or from; azimuth outside
 ///       [0, 360]; dip outside [-90, 90].
-///     - ``sentinel``: a numeric column holds one of `nodata`.
+///     - ``sentinel``: a numeric column, or a text column checked for
+///       ``text_values``, holds one of `nodata`.
+///     - ``text_values``: a value of a numeric-looking column is not a
+///       number, e.g. ``"NS"`` or ``"<0.01"``.
 ///     - ``no_survey``, ``no_<name>``: collar without survey or intervals.
+///     - ``id_mismatch``: survey or interval hole id that matches no collar
+///       id exactly, but one after trimming whitespace and case-folding.
 ///     - ``no_collar``: survey or interval of a hole without collar.
 ///     - ``deviation``: survey station more than `max_deviation` from the
 ///       station above.
+///     - ``dip_sign``: every station of the hole dips against the sign most
+///       holes share, e.g. a hole entered pointing up.
 ///     - ``inverted``: interval with from ≥ to.
 ///     - ``gap``: interval starting below the end of the one above.
 ///     - ``overlap``: interval starting above the end of the ones kept above
@@ -700,11 +816,16 @@ fn flags_table(flags: Named, sentinels: &[f64]) -> PyResult<RecordBatch> {
 /// summary : Table
 ///     ``table``, ``check``, ``rows`` flagged and distinct ``holes``, for
 ///     every check including those that found nothing.
+/// details : Table
+///     One row per flagged value of ``dip_sign``, ``id_mismatch`` and
+///     ``text_values``: ``table``, ``row``, ``hole``, ``check``, ``column``,
+///     ``value`` as text and the ``suggestion`` (the negated dip or matching
+///     collar id; null for text values).
 #[pyfunction]
 #[pyo3(signature = (
     collar, survey=None, intervals=None, *, hole="HOLE_ID", x="X", y="Y", z="Z", at="DEPTH",
     azimuth="AZIMUTH", dip=Some("DIP"), inclination=None, from_="FROM", to="TO",
-    max_depth=None, nodata=vec![-99.0, -999.0, -9999.0, 1e21], max_deviation=20.0,
+    max_depth=None, grades=None, nodata=vec![-99.0, -999.0, -9999.0, 1e21], max_deviation=20.0,
     tolerance=1e-6
 ))]
 #[allow(clippy::too_many_arguments)]
@@ -724,10 +845,11 @@ fn check_drillholes<'py>(
     from_: &str,
     to: &str,
     max_depth: Option<&str>,
+    grades: Option<Vec<String>>,
     nodata: Vec<f64>,
     max_deviation: f64,
     tolerance: f64,
-) -> PyResult<(Bound<'py, PyDict>, Table)> {
+) -> PyResult<(Bound<'py, PyDict>, Table, Table)> {
     let s = &nodata;
     let collar = to_batch(collar)?;
     let collar_ids = text(&collar, hole)?;
@@ -755,15 +877,26 @@ fn check_drillholes<'py>(
         lengths.as_deref(),
         s,
     );
-    let mut collar_flags = with_sentinels(named(flags), &collar, s)?;
+    let mut details = Details::default();
+    let mut tables = vec![Checked {
+        name: "collar".into(),
+        flags: with_sentinels(named(flags), &collar, s)?,
+        batch: collar,
+        ids: collar_ids.clone(),
+        meta: HashMap::new(),
+    }];
 
-    let mut others: Vec<(String, Named, Vec<Option<String>>)> = vec![];
     if let Some(survey) = survey {
         let batch = to_batch(survey)?;
         let ids = text(&batch, hole)?;
-        let angle = match (inclination, dip) {
-            (Some(name), _) => number(&batch, name)?
-                .into_iter()
+        let (column, raw) = match (inclination, dip) {
+            (Some(name), _) => (name, number(&batch, name)?),
+            (None, Some(name)) => (name, number(&batch, name)?),
+            (None, None) => return Err(invalid("give the dip or inclination column")),
+        };
+        let upward = |v: f64| if inclination.is_some() { 180.0 - v } else { -v };
+        let angle: Vec<Option<f64>> = if inclination.is_some() {
+            raw.iter()
                 .map(|v| {
                     v.map(|v| {
                         if checks::is_sentinel(v, s) {
@@ -773,9 +906,9 @@ fn check_drillholes<'py>(
                         }
                     })
                 })
-                .collect(),
-            (None, Some(name)) => number(&batch, name)?,
-            (None, None) => return Err(invalid("give the dip or inclination column")),
+                .collect()
+        } else {
+            raw.clone()
         };
         let flags = checks::check_survey(
             &ids,
@@ -787,24 +920,49 @@ fn check_drillholes<'py>(
             tolerance,
             s,
         );
-        others.push((
-            "survey".into(),
-            with_sentinels(named(flags), &batch, s)?,
+        let (_, sign) = flags
+            .iter()
+            .find(|(k, _)| *k == "dip_sign")
+            .expect("dip_sign");
+        for (i, _) in sign.iter().enumerate().filter(|(_, f)| **f) {
+            let v = raw[i].expect("usable station");
+            let fmt = |v: f64| format!("{v:?}");
+            let suggestion = Some(fmt(upward(v)));
+            details.push(
+                "survey",
+                i,
+                ids[i].clone(),
+                "dip_sign",
+                column,
+                fmt(v),
+                suggestion,
+            );
+        }
+        let kind = if inclination.is_some() {
+            "inclination"
+        } else {
+            "dip"
+        };
+        tables.push(Checked {
+            name: "survey".into(),
+            flags: with_sentinels(named(flags), &batch, s)?,
+            batch,
             ids,
-        ));
+            meta: [(kind.to_string(), column.to_string())].into(),
+        });
     }
-    let mut tables = vec![];
+    let mut interval_tables = vec![];
     if let Some(t) = intervals {
         match t.cast::<PyDict>() {
             Ok(d) if d.values().iter().all(|v| is_table(&v).unwrap_or(false)) => {
                 for (k, v) in d.iter() {
-                    tables.push((k.extract::<String>()?, to_batch(&v)?));
+                    interval_tables.push((k.extract::<String>()?, to_batch(&v)?));
                 }
             }
-            _ => tables.push(("intervals".to_string(), to_batch(t)?)),
+            _ => interval_tables.push(("intervals".to_string(), to_batch(t)?)),
         }
     }
-    for (name, batch) in tables {
+    for (name, batch) in interval_tables {
         let ids = text(&batch, hole)?;
         let flags = checks::check_intervals(
             &ids,
@@ -814,39 +972,131 @@ fn check_drillholes<'py>(
             tolerance,
             s,
         );
-        others.push((name, with_sentinels(named(flags), &batch, s)?, ids));
+        tables.push(Checked {
+            name,
+            flags: with_sentinels(named(flags), &batch, s)?,
+            batch,
+            ids,
+            meta: HashMap::new(),
+        });
     }
-    for (name, flags, ids) in &mut others {
-        flags.push(("no_collar".into(), checks::absent(ids, &collar_ids)));
-        collar_flags.push((format!("no_{name}"), checks::absent(&collar_ids, ids)));
-    }
-    others.insert(0, ("collar".into(), collar_flags, collar_ids));
 
-    let (mut t, mut c, mut rows, mut holes) = (vec![], vec![], vec![], vec![]);
+    if let Some(grades) = &grades {
+        for g in grades {
+            if !tables
+                .iter()
+                .any(|t| t.batch.schema().field_with_name(g).is_ok())
+            {
+                return Err(invalid(format!("column {g} not found in any table")));
+            }
+        }
+    }
+    let keys: Vec<&str> = [hole, x, y, z, at, azimuth, from_, to]
+        .into_iter()
+        .chain(dip)
+        .chain(inclination)
+        .chain(max_depth)
+        .collect();
+    for t in &mut tables {
+        let (rows, found, columns) = text_check(&t.batch, &keys, grades.as_deref())?;
+        let parsed = columns
+            .iter()
+            .map(|c| {
+                let values = text(&t.batch, c)?;
+                Ok(values
+                    .iter()
+                    .map(|v| v.as_deref().and_then(checks::parse_number))
+                    .collect())
+            })
+            .collect::<PyResult<Vec<_>>>()?;
+        let hidden = checks::sentinel_rows(&parsed, t.batch.num_rows(), s);
+        let (_, sentinel) = t
+            .flags
+            .iter_mut()
+            .find(|(k, _)| k == "sentinel")
+            .expect("sentinel");
+        sentinel.iter_mut().zip(hidden).for_each(|(a, b)| *a |= b);
+        for (i, column, value) in found {
+            details.push(
+                &t.name,
+                i,
+                t.ids[i].clone(),
+                "text_values",
+                &column,
+                value,
+                None,
+            );
+        }
+        t.flags.push(("text_values".into(), rows));
+        t.meta.insert("text_values".into(), json(&columns)?);
+        t.meta.insert("hole".into(), hole.into());
+    }
+
+    let (collar_table, others) = tables.split_first_mut().expect("collar");
+    for t in others {
+        let suggested = checks::id_mismatch(&t.ids, &collar_ids);
+        let mut renames = BTreeMap::new();
+        for (i, c) in suggested.iter().enumerate() {
+            if let Some(c) = c {
+                let id = t.ids[i].clone().expect("matched id");
+                renames.insert(id.clone(), c.clone());
+                details.push(
+                    &t.name,
+                    i,
+                    Some(id.clone()),
+                    "id_mismatch",
+                    hole,
+                    id,
+                    Some(c.clone()),
+                );
+            }
+        }
+        let matched: Vec<Option<String>> = t
+            .ids
+            .iter()
+            .zip(&suggested)
+            .map(|(id, c)| c.clone().or_else(|| id.clone()))
+            .collect();
+        let mismatch: Vec<bool> = suggested.iter().map(Option::is_some).collect();
+        let no_collar = checks::absent(&t.ids, &collar_ids)
+            .into_iter()
+            .zip(&mismatch)
+            .map(|(a, m)| a && !m)
+            .collect();
+        t.flags.push(("id_mismatch".into(), mismatch));
+        t.flags.push(("no_collar".into(), no_collar));
+        t.meta.insert("id_mismatch".into(), json(&renames)?);
+        collar_table.flags.push((
+            format!("no_{}", t.name),
+            checks::absent(&collar_ids, &matched),
+        ));
+    }
+
+    let (mut tn, mut c, mut rows, mut holes) = (vec![], vec![], vec![], vec![]);
     let out = PyDict::new(py);
-    for (name, flags, ids) in others {
-        for (check, f) in &flags {
+    for t in tables {
+        for (check, f) in &t.flags {
             let hit: HashSet<&str> = f
                 .iter()
-                .zip(&ids)
+                .zip(&t.ids)
                 .filter(|(f, _)| **f)
                 .filter_map(|(_, id)| id.as_deref())
                 .collect();
-            t.push(name.clone());
+            tn.push(t.name.clone());
             c.push(check.clone());
             rows.push(f.iter().filter(|f| **f).count() as i64);
             holes.push(hit.len() as i64);
         }
-        out.set_item(&name, Table(flags_table(flags, s)?))?;
+        out.set_item(&t.name, Table(flags_table(t.flags, s, t.meta)?))?;
     }
     let summary = RecordBatch::try_from_iter([
-        ("table", Arc::new(StringArray::from(t)) as ArrayRef),
+        ("table", Arc::new(StringArray::from(tn)) as ArrayRef),
         ("check", Arc::new(StringArray::from(c))),
         ("rows", Arc::new(Int64Array::from(rows))),
         ("holes", Arc::new(Int64Array::from(holes))),
     ])
     .map_err(invalid)?;
-    Ok((out, Table(summary)))
+    Ok((out, Table(summary), details.table()?))
 }
 
 /// Tables cleaned by the flags of `check_drillholes`, one rule per check.
@@ -871,6 +1121,14 @@ fn check_drillholes<'py>(
 ///     overlapping intervals.
 /// sentinels : {"null", "drop", "keep"}
 ///     ``null`` sets the sentinel values to null, leaving the rest of the row.
+/// dip_sign : {"keep", "negate"}
+///     ``negate`` turns the flagged holes' dips (or inclinations) down.
+/// id_mismatch : {"rename", "keep"}
+///     ``rename`` replaces the flagged ids with the collar id they match.
+/// text_values : {"null", "half", "limit", "keep"}
+///     Unless ``keep``, the checked columns become numbers and their text
+///     values null. ``half`` and ``limit`` instead turn a below-detection
+///     value ``"<x"`` into ``x / 2`` or ``x``.
 ///
 /// Returns
 /// -------
@@ -882,7 +1140,8 @@ fn check_drillholes<'py>(
 #[pyfunction]
 #[pyo3(signature = (
     flags, tables, *, missing="drop", duplicates="drop", inverted="drop", out_of_range="drop",
-    overlaps="keep_first", sentinels="null", deviation="drop", no_collar="drop", past_depth="keep"
+    overlaps="keep_first", sentinels="null", deviation="drop", no_collar="drop", past_depth="keep",
+    dip_sign="keep", id_mismatch="rename", text_values="null"
 ))]
 #[allow(clippy::too_many_arguments)]
 fn fix_drillholes<'py>(
@@ -898,6 +1157,9 @@ fn fix_drillholes<'py>(
     deviation: &str,
     no_collar: &str,
     past_depth: &str,
+    dip_sign: &str,
+    id_mismatch: &str,
+    text_values: &str,
 ) -> PyResult<(Bound<'py, PyDict>, Table)> {
     let drop_keep: &[&str] = &["drop", "keep"];
     let rules = [
@@ -907,6 +1169,12 @@ fn fix_drillholes<'py>(
         ("out_of_range", "out_of_range", out_of_range, drop_keep),
         ("overlap", "overlaps", overlaps, &["keep_first", "keep"]),
         (
+            "text_values",
+            "text_values",
+            text_values,
+            &["null", "half", "limit", "keep"],
+        ),
+        (
             "sentinel",
             "sentinels",
             sentinels,
@@ -915,6 +1183,13 @@ fn fix_drillholes<'py>(
         ("deviation", "deviation", deviation, drop_keep),
         ("no_collar", "no_collar", no_collar, drop_keep),
         ("past_depth", "past_depth", past_depth, drop_keep),
+        ("dip_sign", "dip_sign", dip_sign, &["keep", "negate"]),
+        (
+            "id_mismatch",
+            "id_mismatch",
+            id_mismatch,
+            &["rename", "keep"],
+        ),
     ];
     for (_, arg, rule, allowed) in &rules {
         if !allowed.contains(rule) {
@@ -954,10 +1229,12 @@ fn fix_drillholes<'py>(
                 .iter()
                 .map(|v| v.unwrap_or(false))
                 .collect();
-            if *rule == "null" {
-                batch = null_sentinels(&batch, &f, &name)?;
-            } else {
-                drop.iter_mut().zip(&hit).for_each(|(d, h)| *d |= h);
+            match *check {
+                "sentinel" if *rule == "null" => batch = null_sentinels(&batch, &f, &name)?,
+                "dip_sign" => batch = negate_dips(&batch, &f, &hit, &name)?,
+                "id_mismatch" => batch = rename_ids(&batch, &f, &hit, &name)?,
+                "text_values" => batch = parse_text(&batch, &f, rule, &name)?,
+                _ => drop.iter_mut().zip(&hit).for_each(|(d, h)| *d |= h),
             }
             t.push(name.clone());
             c.push(check.to_string());
@@ -978,6 +1255,120 @@ fn fix_drillholes<'py>(
     Ok((out, Table(log)))
 }
 
+fn meta(flags: &RecordBatch, key: &str, name: &str) -> PyResult<String> {
+    flags
+        .schema()
+        .metadata()
+        .get(key)
+        .cloned()
+        .ok_or_else(|| invalid(format!("flags of {name:?} do not list their {key}")))
+}
+
+fn replace_column(batch: &RecordBatch, name: &str, column: ArrayRef) -> PyResult<RecordBatch> {
+    let schema = batch.schema();
+    let i = schema.index_of(name).map_err(invalid)?;
+    let mut columns = batch.columns().to_vec();
+    columns[i] = column;
+    let fields: Vec<_> = schema
+        .fields()
+        .iter()
+        .zip(&columns)
+        .map(|(f, c)| {
+            f.as_ref()
+                .clone()
+                .with_data_type(c.data_type().clone())
+                .with_nullable(true)
+        })
+        .collect();
+    let schema = arrow_schema::Schema::new_with_metadata(fields, schema.metadata().clone());
+    RecordBatch::try_new(Arc::new(schema), columns).map_err(invalid)
+}
+
+fn negate_dips(
+    batch: &RecordBatch,
+    flags: &RecordBatch,
+    hit: &[bool],
+    name: &str,
+) -> PyResult<RecordBatch> {
+    let (column, inclination) = match meta(flags, "dip", name) {
+        Ok(c) => (c, false),
+        Err(_) => (meta(flags, "inclination", name)?, true),
+    };
+    let values: Float64Array = number(batch, &column)?
+        .into_iter()
+        .zip(hit)
+        .map(|(v, h)| {
+            v.map(|v| {
+                if !h {
+                    v
+                } else if inclination {
+                    180.0 - v
+                } else {
+                    -v
+                }
+            })
+        })
+        .collect();
+    let original = batch
+        .column_by_name(&column)
+        .expect("dip column")
+        .data_type();
+    let values = arrow_cast::cast(&values, original).map_err(invalid)?;
+    replace_column(batch, &column, values)
+}
+
+fn rename_ids(
+    batch: &RecordBatch,
+    flags: &RecordBatch,
+    hit: &[bool],
+    name: &str,
+) -> PyResult<RecordBatch> {
+    let hole = meta(flags, "hole", name)?;
+    let renames: HashMap<String, String> =
+        serde_json::from_str(&meta(flags, "id_mismatch", name)?).map_err(invalid)?;
+    let ids: StringArray = text(batch, &hole)?
+        .into_iter()
+        .zip(hit)
+        .map(|(id, h)| match (id, h) {
+            (Some(id), true) => Some(renames.get(&id).cloned().unwrap_or(id)),
+            (id, _) => id,
+        })
+        .collect();
+    let original = batch
+        .column_by_name(&hole)
+        .expect("hole column")
+        .data_type();
+    let ids = arrow_cast::cast(&ids, original).map_err(invalid)?;
+    replace_column(batch, &hole, ids)
+}
+
+fn parse_text(
+    batch: &RecordBatch,
+    flags: &RecordBatch,
+    rule: &str,
+    name: &str,
+) -> PyResult<RecordBatch> {
+    let columns: Vec<String> =
+        serde_json::from_str(&meta(flags, "text_values", name)?).map_err(invalid)?;
+    let factor = match rule {
+        "half" => Some(0.5),
+        "limit" => Some(1.0),
+        _ => None,
+    };
+    let mut batch = batch.clone();
+    for column in columns {
+        let values: Float64Array = text(&batch, &column)?
+            .iter()
+            .map(|v| {
+                let v = v.as_deref()?;
+                checks::parse_number(v).or_else(|| Some(checks::detection_limit(v)? * factor?))
+            })
+            .collect();
+        batch = replace_column(&batch, &column, Arc::new(values))?;
+    }
+    Ok(batch)
+}
+
 fn null_sentinels(batch: &RecordBatch, flags: &RecordBatch, name: &str) -> PyResult<RecordBatch> {
     let values: Vec<f64> = flags
         .schema()
@@ -988,16 +1379,28 @@ fn null_sentinels(batch: &RecordBatch, flags: &RecordBatch, name: &str) -> PyRes
         .filter(|v| !v.is_empty())
         .map(|v| v.parse::<f64>().map_err(invalid))
         .collect::<PyResult<_>>()?;
+    let text: Vec<String> = match flags.schema().metadata().get("text_values") {
+        Some(t) => serde_json::from_str(t).map_err(invalid)?,
+        None => vec![],
+    };
     let columns = batch
-        .columns()
+        .schema()
+        .fields()
         .iter()
-        .map(|col| {
-            if !col.data_type().is_numeric() {
+        .zip(batch.columns())
+        .map(|(field, col)| {
+            let parsed: Vec<Option<f64>> = if col.data_type().is_numeric() {
+                let as_f64 = arrow_cast::cast(col, &DataType::Float64).map_err(invalid)?;
+                as_f64.as_primitive::<Float64Type>().iter().collect()
+            } else if is_text(col.data_type()) && text.contains(field.name()) {
+                text_of(col)?
+                    .iter()
+                    .map(|v| v.as_deref().and_then(checks::parse_number))
+                    .collect()
+            } else {
                 return Ok(col.clone());
-            }
-            let as_f64 = arrow_cast::cast(col, &DataType::Float64).map_err(invalid)?;
-            let mask: BooleanArray = as_f64
-                .as_primitive::<Float64Type>()
+            };
+            let mask: BooleanArray = parsed
                 .iter()
                 .map(|v| Some(v.is_some_and(|v| checks::is_sentinel(v, &values))))
                 .collect();
