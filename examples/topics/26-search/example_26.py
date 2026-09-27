@@ -46,8 +46,9 @@ def rmse(estimate):
 #
 # `radius` is the major semi-axis; `rotation` orients the ellipse like a variogram, and `ratios` shrink the other
 # axes. `octant=True` takes at most `max_samples / 8` samples from each octant around the node, split along the
-# coordinate axes, so a dense cluster on one side cannot fill the neighborhood. In 2D the samples fall in four of the
-# eight octants, the quadrants drawn below, so at most half of `max_samples` are used. `with_search` keeps the fitted samples and the variogram, and swaps the search.
+# axes of the ellipse, so a dense cluster on one side cannot fill the neighborhood. With 2D data the sectors are the
+# ellipse's four quadrants, drawn below, with `max_samples / 4` each. `with_search` keeps the fitted samples and the
+# variogram, and swaps the search.
 
 # %%
 ellipse = {"rotation": model.rotation, "ratios": (0.5, 1.0)}
@@ -71,8 +72,9 @@ center = (130, 150)
 azimuth = model.rotation[0]
 ax.add_patch(Circle(center, 80, fill=False, color=INK, lw=1, ls="--", label="circle"))
 ax.add_patch(Ellipse(center, 160, 80, angle=90 - azimuth, fill=False, color=ACCENT, lw=1.5, label="ellipse"))
-ax.axhline(center[1], color=LIGHT, lw=0.8, zorder=0)
-ax.axvline(center[0], color=LIGHT, lw=0.8, zorder=0)
+for angle in (azimuth, azimuth + 90):
+    dx, dy = 150 * np.sin(np.radians(angle)), 150 * np.cos(np.radians(angle))
+    ax.plot([center[0] - dx, center[0] + dx], [center[1] - dy, center[1] + dy], color=LIGHT, lw=0.8, zorder=0)
 ax.set(xlim=(0, 260), ylim=(0, 300))
 map_axes(ax, "Search shapes")
 ax.legend(loc="upper right", framealpha=0.9, frameon=True)
@@ -80,7 +82,7 @@ save(fig, "shapes")
 
 # %% [markdown]
 # The three searches give almost the same accuracy. The ellipse reaches closer samples along the continuity, and the
-# octants halve the neighborhood to 11 samples without loss: kriging already gives far and redundant samples little
+# quadrants keep about 21 of the 24 samples, fewer only where one side of a node is empty: kriging already gives far and redundant samples little
 # weight, so the search matters more for speed, for extrapolation and for limiting negative weights than for the
 # estimate at well-informed nodes.
 #
@@ -118,12 +120,12 @@ capped = kriging.with_search(
 )
 before, after = free.predict(grid), capped.predict(grid)
 difference = after - before
-changed = np.abs(difference) > 5
-error = before[changed] - true_at_nodes[changed]
-print(
-    f"{changed.sum()} nodes move by over 5 ppm; their mean error goes from {error.mean():+.0f} ppm to "
-    f"{(error + difference[changed]).mean():+.0f} ppm"
-)
+error = before - true_at_nodes
+for name, moved in (("lowered", difference < -5), ("raised", difference > 5)):
+    print(
+        f"{moved.sum()} nodes {name} by over 5 ppm; their mean error goes from {error[moved].mean():+.0f} ppm to "
+        f"{(error + difference)[moved].mean():+.0f} ppm"
+    )
 print(
     f"cross-validation mean error {free.cross_validate().mean_error:+.1f} ppm without the restriction, "
     f"{capped.cross_validate().mean_error:+.1f} with"
@@ -152,17 +154,18 @@ a.legend(
     framealpha=0.9,
     frameon=True,
 )
-im = b.imshow(-difference.reshape(shape), origin="lower", extent=extent, cmap="cividis", vmin=0, vmax=40)
+im = b.imshow(difference.reshape(shape), origin="lower", extent=extent, cmap="PuOr_r", vmin=-40, vmax=40)
 rich = v > 800
 b.scatter(*xy[~rich, :2].T, s=2, color=GRAY, linewidths=0)
 b.scatter(*xy[rich, :2].T, s=8, color=HIGHLIGHT, linewidths=0, label="V > 800 ppm")
-map_axes(b, "Lowered by the high-grade restriction")
+map_axes(b, "Change from the high-grade restriction")
 b.set_ylabel("")
 b.legend(loc="upper right", framealpha=0.9, frameon=True)
 fig.colorbar(im, ax=b, shrink=0.8, label="ppm")
 save(fig, "passes")
 
 # %% [markdown]
-# The restriction only lowers estimates, near isolated rich samples where kriging overestimates most, and there it
-# brings the mean error of the moved nodes closer to zero. It is a local correction: over all samples the
-# cross-validation mean error hardly changes.
+# Around isolated rich samples the restriction lowers the estimates where kriging overestimates most, and brings the
+# mean error of those nodes to zero. Inside the dense cluster of rich samples it raises them instead: dropping the
+# rich samples beyond 20 m lets other samples into the neighborhood and shifts the weights of the rest. The
+# restriction suits isolated high values; over all samples the cross-validation mean error barely moves.
