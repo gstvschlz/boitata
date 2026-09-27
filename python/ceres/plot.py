@@ -29,9 +29,11 @@ __all__ = [
     "declustering",
     "directions",
     "domain_change",
+    "fence",
     "grade_tonnage",
     "histogram",
     "histogram_reproduction",
+    "holes",
     "paired_bias",
     "probability",
     "proportions",
@@ -958,6 +960,77 @@ def section(
     return fig, ax
 
 
+def fence(
+    model,
+    values,
+    positions,
+    *,
+    azimuth,
+    dip=90.0,
+    resolution=None,
+    colorbar=True,
+    scheme=None,
+    axes=None,
+    **kwargs,
+):
+    """One vertical (or dipping) section per row of `positions`, on the same `azimuth` and `dip`, sharing one
+    color scale: a fence of parallel sections stepped along a corridor.
+
+    Parameters
+    ----------
+    model : BlockModel
+        As in `section`.
+    values : str or array_like
+        Column name, or one value per block.
+    positions : array_like
+        ``(n, 3)`` plane centers, one per panel, as `section`'s `plane` center.
+    azimuth, dip : float
+        Orientation shared by every panel's plane, in degrees; `dip` as in `section`'s `plane` (90 vertical).
+    resolution : float, optional
+        Raster step on each plane; default half the smallest block edge.
+    colorbar : bool
+        Add one color bar for every panel, labeled with the column name, or a legend with `scheme`.
+    scheme : Categories, optional
+        `values` are codes of these categories, drawn in their colors.
+    axes : array of Axes, optional
+        One per position; default a new figure.
+    **kwargs
+        Passed to every ``ax.imshow`` (e.g. ``cmap``, ``norm``, ``vmin``, ``vmax``).
+
+    Returns
+    -------
+    fig : Figure
+    axes : ndarray of Axes
+    """
+    positions = np.atleast_2d(np.asarray(positions, dtype=float))
+    n = len(positions)
+    if axes is None:
+        fig, _ = _axes(None)
+        fig.clear()
+        fig.set_size_inches(2.4 * n + 0.6, 4.4)
+        fig.set_layout_engine("constrained")
+        axes = fig.subplots(1, n, sharey=True, squeeze=False)[0]
+    axes = np.asarray(axes)
+    fig = axes.flat[0].figure
+    images, extents = [], []
+    for ax, center in zip(axes, positions, strict=True):
+        (image,), extent = _image(ax, model, [values], "z", None, (center, azimuth, dip), resolution)
+        images.append(image)
+        extents.append(extent)
+    _scheme_colors(scheme, kwargs)
+    if scheme is None:
+        kwargs.setdefault("vmin", np.nanmin([np.nanmin(image) for image in images]))
+        kwargs.setdefault("vmax", np.nanmax([np.nanmax(image) for image in images]))
+    ims = [
+        ax.imshow(image, origin="lower", extent=extent, **kwargs)
+        for ax, image, extent in zip(axes, images, extents, strict=True)
+    ]
+    for ax in axes[1:]:
+        ax.set_ylabel("")
+    _key(fig, axes[-1], ims[-1], values, colorbar, scheme)
+    return fig, axes
+
+
 def _scheme_colors(scheme, kwargs):
     if scheme is not None:
         cmap, norm = category_colors(scheme)
@@ -1472,6 +1545,56 @@ def strip_log(drillholes, hole, *, columns=(), categories=(), scheme=None, runs=
     ax.set_ylabel("Depth (m)")
     if handles:
         ax.legend(handles=handles, loc="upper left", bbox_to_anchor=(1.01, 1), fontsize=7)
+    return fig, ax
+
+
+def holes(paths, *, plane=None, mark=None, hole="HOLE_ID", labels=True, ax=None, **kwargs):
+    """Drill-hole traces, one line per hole, in plan or projected on a section.
+
+    Parameters
+    ----------
+    paths : Table
+        Result of ``Drillholes.paths``: a hole id column, ``depth``, ``x``, ``y`` and ``z``.
+    plane : tuple, optional
+        ``(center, azimuth, dip)`` as in `section`'s `plane`; projects traces into that section instead of
+        drawing plan-view ``(x, y)``.
+    mark : array_like, optional
+        ``(m, 3)`` extra points scattered on top, e.g. flagged stations from ``Drillholes.at``.
+    hole : str
+        Column of `paths` naming each row's hole.
+    labels : bool
+        Label each hole at its shallowest row.
+    **kwargs
+        Passed to every ``ax.plot``.
+    """
+    fig, ax = _axes(ax)
+    ids = np.asarray(paths[hole], dtype=object)
+    xyz = np.column_stack([np.asarray(paths[c], dtype=float) for c in ("x", "y", "z")])
+    depth = np.asarray(paths["depth"], dtype=float)
+    if plane is not None:
+        _, u, v, _ = _frame(plane)
+        uv = np.c_[u, v]
+        xy = xyz @ uv
+    else:
+        xy = xyz[:, :2]
+    kwargs.setdefault("color", "0.3")
+    kwargs.setdefault("lw", 1.0)
+    for name in dict.fromkeys(ids):
+        m = ids == name
+        order = np.argsort(depth[m])
+        ax.plot(xy[m][order, 0], xy[m][order, 1], **kwargs)
+        if labels:
+            ax.annotate(str(name), xy[m][order[0]], xytext=(3, 3), textcoords="offset points", fontsize=7)
+    if mark is not None:
+        mark = np.asarray(mark, dtype=float)
+        points = mark @ uv if plane is not None else mark[:, :2]
+        ax.scatter(points[:, 0], points[:, 1], color=_accent(), marker="x", zorder=5)
+    if plane is not None:
+        _label(ax, u, v)
+    else:
+        ax.set_xlabel("Easting (m)")
+        ax.set_ylabel("Northing (m)")
+        ax.set_aspect("equal")
     return fig, ax
 
 
