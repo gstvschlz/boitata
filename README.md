@@ -21,16 +21,14 @@ The core is Rust, parallel and reproducible for any thread count; everything is 
 
 ## Install
 
+Not on PyPI yet. Install from git, which builds the Rust core (Rust ≥ 1.97 and a C compiler):
+
 ```sh
-pip install ceres            # numpy only
-pip install "ceres[all]"     # + matplotlib, pyvista, polars, pandas, pyarrow
-uv add "ceres[all]"
+pip install "ceres[all] @ git+https://github.com/gstvschlz/ceres"
 ```
 
-Extras: `plot` (matplotlib), `3d` (pyvista), `all`.
-In a conda or pixi environment, install the dependencies from conda-forge and ceres with pip until the conda-forge package exists.
-
-From source (Rust ≥ 1.97), with [mise](https://mise.jdx.dev): `mise run py:build`.
+Extras: `plot` (matplotlib), `3d` (pyvista), `all` (also polars, pandas, pyarrow).
+See the [install page](https://gstvschlz.github.io/ceres/install/) for uv, poetry, conda, pixi, wheels and offline installs.
 
 ## Use
 

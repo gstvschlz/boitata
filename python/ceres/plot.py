@@ -1,4 +1,4 @@
-"""Plots on matplotlib (``pip install ceres[plot]``).
+"""Plots on matplotlib (the ``plot`` extra).
 
 Every function draws on `ax` when given, else on a new figure, and returns ``(fig, ax)``; `scatter_matrix` takes
 and returns a grid of `axes` instead, and `category_colors` and `category_legend` return what they make.

@@ -1,4 +1,4 @@
-"""3D views on pyvista (``pip install ceres[3d]``).
+"""3D views on pyvista (the ``3d`` extra).
 
 `to_pyvista` converts a container to a pyvista dataset with its attributes as point or cell data; the plotting
 functions add it to `plotter` when given, else to a new one, and return the plotter.

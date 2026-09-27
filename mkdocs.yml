@@ -79,6 +79,7 @@ markdown_extensions:
 
 nav:
   - Home: index.md
+  - Install: install.md
   - Examples:
       - Tutorials: examples/tutorials
       - Topics: examples/topics
