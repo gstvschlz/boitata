@@ -105,6 +105,7 @@ def test_mesh_topology():
     assert cube.is_closed and cube.volume == pytest.approx(1000) and cube.area == pytest.approx(600)
     square = cs.Mesh([[0, 0, 0], [1, 0, 0], [1, 1, 0], [0, 1, 0]], [[0, 1, 2], [0, 2, 3]], crs="EPSG:32722")
     assert square.analysis["boundary_edges"] == 4 and not square.is_closed and square.crs == "EPSG:32722"
+    assert "open, 4 boundary edges" in repr(square) and "closed" in repr(cube)
     fin = cs.Mesh([[0, 0, 0], [1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1]], [[0, 1, 2], [0, 1, 3], [0, 1, 4]])
     assert fin.analysis["non_manifold_edges"] == 1
     for call in (

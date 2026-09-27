@@ -127,7 +127,7 @@ print(f"repaired at 0.1 mm: {repaired.volume:,.0f} m3, original {v1.volume:,.0f}
 </details>
 
 ```text
-Mesh(161682 vertices, 53894 triangles, open) {'degenerate_triangles': 0, 'boundary_edges': 161682, 'non_manifold_edges': 0, 'is_closed': False}
+Mesh(161682 vertices, 53894 triangles, open, 161682 boundary edges) {'degenerate_triangles': 0, 'boundary_edges': 161682, 'non_manifold_edges': 0, 'is_closed': False}
 shortest edge 1.0 mm
 tolerance 1e-06 m: Mesh(161644 vertices, 53894 triangles, open), 161682 boundary edges
 tolerance 0.0001 m: Mesh(26949 vertices, 53894 triangles, closed), 0 boundary edges
