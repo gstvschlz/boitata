@@ -451,7 +451,7 @@ def test_accuracy_is_diagonal_when_the_variance_is_calibrated():
     assert np.all(accuracy[1:-1] < p[1:-1])
 
     pit = rng.uniform(0, 1, 500)
-    cv = cs.IndicatorCrossValidation(np.ones(500), np.ones(500), np.ones(500), [1.0], np.ones((1, 500)), pit)
+    cv = cs.IndicatorCrossValidation(np.ones(500), np.ones(500), np.ones(500), [1.0], np.ones((500, 1)), pit)
     _, ax = cs.plot.cross_validation(cv, kind="accuracy")
     p, accuracy = ax.lines[1].get_data()
     np.testing.assert_allclose(accuracy, cv.accuracy(p))

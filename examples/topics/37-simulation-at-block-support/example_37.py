@@ -63,7 +63,7 @@ nodes = cs.BlockModel(origin=(0.5, 0.5), size=(2.5, 2.5), count=(104, 120))
 blocks = cs.BlockModel(origin=(0.5, 0.5), size=(size, size), count=(26, 30))
 sgs = cs.SGS(gaussian, cs.Search(radius=100, max_samples=24)).fit(xy, v, weights=weights)
 summary = sgs.simulate(nodes, n=30, seed=7, cutoffs=list(cutoffs), blocks=blocks)
-low, high = np.quantile(summary.realization_above, [0.1, 0.9], axis=1)
+low, high = np.quantile(summary.realization_above, [0.1, 0.9], axis=0)
 true_block = empirical(truth.reshape(30, size, 26, size).mean(axis=(1, 3)).ravel())
 for c in (300, 500, 800):
     k = np.searchsorted(cutoffs, c)

@@ -74,7 +74,7 @@ class CrossValidation:
 @dataclass(frozen=True)
 class IndicatorCrossValidation(CrossValidation):
     """Cross-validation of multiple indicator kriging: `estimate` is the E-type mean, `variance` the conditional
-    variance, `cdf` the ``(thresholds, samples)`` corrected probabilities and `pit` ``F*(actual)``, the probability of
+    variance, `cdf` the ``(samples, thresholds)`` corrected probabilities and `pit` ``F*(actual)``, the probability of
     the sample's own distribution not exceeding its value; NaN where a sample had too few neighbors."""
 
     thresholds: list[float]
@@ -84,8 +84,8 @@ class IndicatorCrossValidation(CrossValidation):
     @property
     def brier(self) -> np.ndarray:
         """Mean squared difference between each threshold's probability and indicator; 0 is perfect."""
-        indicator = self.actual <= np.asarray(self.thresholds)[:, None]
-        return np.nanmean((self.cdf - indicator) ** 2, axis=1)
+        indicator = self.actual[:, None] <= np.asarray(self.thresholds)
+        return np.nanmean((self.cdf - indicator) ** 2, axis=0)
 
     def accuracy(self, p):
         """Fraction of samples inside their symmetric `p`-probability interval; `p` or above when accurate.

@@ -12,6 +12,7 @@ use variogram::Variogram as CoreVariogram;
 use crate::args::{
     self, Point, array1, distinct, finite, floats, optional_finite, pick, points, rows, same_length,
 };
+use crate::categorical::by_target;
 use crate::containers::PyBlockModel;
 use crate::estimation::{Label, Search, codes, fit_codes, labels, searches, targets};
 use crate::invalid;
@@ -47,8 +48,8 @@ fn int_rows(rows: &[Vec<usize>]) -> Vec<Vec<i64>> {
 }
 
 /// Uncertainty at every target from `n` realizations of a continuous
-/// variable. Per-cutoff and per-quantile arrays have one row per cutoff or
-/// quantile.
+/// variable. Per-cutoff and per-quantile arrays have one row per target and
+/// one column per cutoff or quantile.
 #[pyclass(module = "ceres", name = "SimulationSummary", frozen)]
 pub struct SimulationSummary(ContinuousSummary);
 
@@ -103,17 +104,17 @@ impl SimulationSummary {
         self.0.cutoffs.clone()
     }
 
-    /// `(cutoffs, targets)` fraction of realizations above each cutoff.
+    /// `(targets, cutoffs)` fraction of realizations above each cutoff.
     #[getter]
     fn probability_above<'py>(&self, py: Python<'py>) -> Bound<'py, PyArray2<f64>> {
-        matrix(py, &self.0.probability_above, self.0.mean.len())
+        by_target(py, &self.0.probability_above, self.0.mean.len())
     }
 
-    /// `(cutoffs, targets)` mean of the values above each cutoff; NaN where
+    /// `(targets, cutoffs)` mean of the values above each cutoff; NaN where
     /// no realization is above it.
     #[getter]
     fn mean_above<'py>(&self, py: Python<'py>) -> Bound<'py, PyArray2<f64>> {
-        matrix(py, &self.0.mean_above, self.0.mean.len())
+        by_target(py, &self.0.mean_above, self.0.mean.len())
     }
 
     #[getter]
@@ -121,10 +122,10 @@ impl SimulationSummary {
         self.0.quantiles.clone()
     }
 
-    /// `(quantiles, targets)` values at each requested quantile.
+    /// `(targets, quantiles)` values at each requested quantile.
     #[getter]
     fn quantile_values<'py>(&self, py: Python<'py>) -> Bound<'py, PyArray2<f64>> {
-        matrix(py, &self.0.quantile_values, self.0.mean.len())
+        by_target(py, &self.0.quantile_values, self.0.mean.len())
     }
 
     /// Mean of each realization over all targets, `(n,)`.
@@ -133,10 +134,10 @@ impl SimulationSummary {
         array1(py, self.0.realization_mean.clone())
     }
 
-    /// `(cutoffs, n)` fraction of targets above each cutoff in each realization.
+    /// `(n, cutoffs)` fraction of targets above each cutoff in each realization.
     #[getter]
     fn realization_above<'py>(&self, py: Python<'py>) -> Bound<'py, PyArray2<f64>> {
-        matrix(py, &self.0.realization_above, self.0.n)
+        by_target(py, &self.0.realization_above, self.0.n)
     }
 
     /// `(n, targets)` realizations when simulated with `realizations=True`.
@@ -195,7 +196,7 @@ impl CategoricalSummary {
     /// `(targets, categories)` fraction of realizations in each category.
     #[getter]
     fn probabilities<'py>(&self, py: Python<'py>) -> Bound<'py, PyArray2<f64>> {
-        crate::categorical::by_target(py, &self.0.probabilities)
+        by_target(py, &self.0.probabilities, self.0.most_likely.len())
     }
 
     /// Most probable category per target; ties go to the lowest.
@@ -1118,7 +1119,7 @@ impl TurningBands {
     /// `p_above_<c>` and `mean_above_<c>` per cutoff, `q<p>` per quantile.
     /// The same values as `simulate` on the whole model, in memory bounded by
     /// `rows` blocks plus the bands. Returns each realization's global
-    /// `realization_mean` and `realization_above` (one row per cutoff).
+    /// `realization_mean` and ``(n, cutoffs)`` `realization_above`.
     ///
     /// Parameters
     /// ----------
@@ -1210,7 +1211,7 @@ impl TurningBands {
         result.set_item("realization_mean", array1(py, global.realization_mean))?;
         result.set_item(
             "realization_above",
-            matrix(py, &global.realization_above, n),
+            by_target(py, &global.realization_above, n),
         )?;
         Ok(result)
     }

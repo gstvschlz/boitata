@@ -5,14 +5,14 @@ use estimation::{
     Discretization, IndicatorDiagnostics, IndicatorSummary as CoreSummary, Interpolation,
     MultipleIndicator, Sample, Search as CoreSearch, UpperTail,
 };
-use numpy::ndarray::Array2;
-use numpy::{IntoPyArray, PyArray1, PyArray2};
+use numpy::{PyArray1, PyArray2};
 use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
 
 use crate::args::{
     self, array1, column, distinct, finite, optional_finite, pick, points, same_length,
 };
+use crate::categorical::by_target;
 use crate::containers::PyBlockModel;
 use crate::estimation::{sample_columns, samples_from, searches, targets};
 use crate::invalid;
@@ -20,16 +20,6 @@ use crate::persist::{self, Columns, Found, Tabular};
 use crate::table::Table;
 use crate::transforms::nullable;
 use crate::variogram::Variogram;
-
-pub(crate) fn matrix<'py>(
-    py: Python<'py>,
-    rows: &[Vec<f64>],
-    cols: usize,
-) -> Bound<'py, PyArray2<f64>> {
-    Array2::from_shape_vec((rows.len(), cols), rows.concat())
-        .expect("rectangular rows")
-        .into_pyarray(py)
-}
 
 /// The diagnostics columns, `correction` among them, when predicted with them.
 pub(crate) fn diagnostic_columns<'a>(
@@ -332,7 +322,7 @@ impl MultipleIndicatorKriging {
                 array1(py, s.mean.clone()),
                 array1(py, s.variance.clone()),
                 s.thresholds.clone(),
-                matrix(py, &s.cdf, samples.len()),
+                by_target(py, &s.cdf, samples.len()),
                 array1(py, pit),
             ))
     }
@@ -507,7 +497,8 @@ impl Tabular for MultipleIndicatorKriging {
 /// Conditional distribution at every target from multiple indicator or
 /// multigaussian kriging.
 /// Per-threshold, per-cutoff and per-quantile arrays have one row per
-/// threshold, cutoff or quantile; NaN where unestimated.
+/// target and one column per threshold, cutoff or quantile; NaN where
+/// unestimated.
 #[pyclass(module = "ceres", name = "IndicatorSummary", frozen)]
 pub struct IndicatorSummary(pub(crate) CoreSummary);
 
@@ -557,10 +548,10 @@ impl IndicatorSummary {
         self.0.thresholds.clone()
     }
 
-    /// `(thresholds, targets)` order-relation corrected `P(value <= t)`.
+    /// `(targets, thresholds)` order-relation corrected `P(value <= t)`.
     #[getter]
     fn cdf<'py>(&self, py: Python<'py>) -> Bound<'py, PyArray2<f64>> {
-        matrix(py, &self.0.cdf, self.0.mean.len())
+        by_target(py, &self.0.cdf, self.0.mean.len())
     }
 
     /// Sum over thresholds of |corrected − kriged| probability.
@@ -574,16 +565,16 @@ impl IndicatorSummary {
         self.0.cutoffs.clone()
     }
 
-    /// `(cutoffs, targets)` probability above each cutoff.
+    /// `(targets, cutoffs)` probability above each cutoff.
     #[getter]
     fn probability_above<'py>(&self, py: Python<'py>) -> Bound<'py, PyArray2<f64>> {
-        matrix(py, &self.0.probability_above, self.0.mean.len())
+        by_target(py, &self.0.probability_above, self.0.mean.len())
     }
 
-    /// `(cutoffs, targets)` mean above each cutoff; NaN where nothing is above it.
+    /// `(targets, cutoffs)` mean above each cutoff; NaN where nothing is above it.
     #[getter]
     fn mean_above<'py>(&self, py: Python<'py>) -> Bound<'py, PyArray2<f64>> {
-        matrix(py, &self.0.mean_above, self.0.mean.len())
+        by_target(py, &self.0.mean_above, self.0.mean.len())
     }
 
     #[getter]
@@ -591,10 +582,10 @@ impl IndicatorSummary {
         self.0.quantiles.clone()
     }
 
-    /// `(quantiles, targets)` values at each requested quantile.
+    /// `(targets, quantiles)` values at each requested quantile.
     #[getter]
     fn quantile_values<'py>(&self, py: Python<'py>) -> Bound<'py, PyArray2<f64>> {
-        matrix(py, &self.0.quantile_values, self.0.mean.len())
+        by_target(py, &self.0.quantile_values, self.0.mean.len())
     }
 
     /// Per-target Table when predicted with ``diagnostics=True``, else None:

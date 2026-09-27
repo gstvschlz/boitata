@@ -118,7 +118,7 @@ result = bands.simulate_to_parquet(
     trend="trend",
 )
 seconds = time.perf_counter() - start
-low, high = np.quantile(result["realization_above"][0], [0.1, 0.9])
+low, high = np.quantile(result["realization_above"][:, 0], [0.1, 0.9])
 print(f"10 realizations in {seconds:.0f} s; blocks above 60 % Fe: P10 {low:.1%}, P90 {high:.1%}")
 print(f"output {(folder / 'simulated.parquet').stat().st_size / 1e6:.0f} MB")
 
@@ -142,7 +142,7 @@ panel = bands.simulate_to_parquet(
     discretization=(3, 3, 2),
 )
 seconds = time.perf_counter() - start
-low, high = np.quantile(panel["realization_above"][0], [0.1, 0.9])
+low, high = np.quantile(panel["realization_above"][:, 0], [0.1, 0.9])
 print(f"{len(model):,} blocks of 25 m in {seconds:.0f} s; above 60 % Fe: P10 {low:.1%}, P90 {high:.1%}")
 
 # %% [markdown]

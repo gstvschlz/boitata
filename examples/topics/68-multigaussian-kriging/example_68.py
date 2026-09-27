@@ -64,7 +64,7 @@ grid = cs.BlockModel(origin=(0.5, 0.5), size=(5, 5), count=(52, 60))
 mg = cs.MultigaussianKriging(gaussian, cs.Search(radius=100, max_samples=24), tails=(0.0, v.max()))
 mg.fit(samples, "V", weights=weights, despike=True)
 summary = mg.predict(grid, cutoffs=[500.0], quantiles=[0.1, 0.9])
-etype, (p10, p90), p500 = summary.mean, summary.quantile_values, summary.probability_above[0]
+etype, (p10, p90), p500 = summary.mean, summary.quantile_values.T, summary.probability_above[:, 0]
 
 nodes = grid.centroids.astype(int)
 true_at_nodes = truth[nodes[:, 1] - 1, nodes[:, 0] - 1]
@@ -111,12 +111,12 @@ cells = truth.reshape(15, 20, 13, 20)
 true_share = (cells > 500).mean(axis=(1, 3)).ravel()
 true_mean = cells.mean(axis=(1, 3)).ravel()
 print(f"panel means: r {np.corrcoef(blocks.mean, true_mean)[0, 1]:.2f}")
-print(f"panel shares above 500 ppm: r {np.corrcoef(blocks.probability_above[0], true_share)[0, 1]:.2f}")
+print(f"panel shares above 500 ppm: r {np.corrcoef(blocks.probability_above[:, 0], true_share)[0, 1]:.2f}")
 
 fig, (a, b) = plt.subplots(1, 2, figsize=(9, 4), layout="constrained")
 cs.plot.scatter(true_at_nodes, etype, ax=a, s=4, color=ACCENT, alpha=0.4)
 a.set(xlim=(0, 1600), ylim=(0, 1600), xlabel="True V (ppm)", ylabel="E-type (ppm)", title="Points")
-cs.plot.scatter(true_share, blocks.probability_above[0], ax=b, s=10, color=ACCENT)
+cs.plot.scatter(true_share, blocks.probability_above[:, 0], ax=b, s=10, color=ACCENT)
 b.set(xlabel="True share above 500 ppm", ylabel="P(V > 500 ppm)", title="20 m panels")
 for ax in (a, b):
     ax.set_aspect("equal")

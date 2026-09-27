@@ -262,3 +262,27 @@ def test_categorical_probabilities_have_one_row_per_target():
         cs.CategoricalIndicatorKriging(model, search).fit(coords, categories).predict(grid),
     ]
     assert [s.probabilities.shape for s in summaries] == [(len(grid), 3)] * 3
+
+
+def test_continuous_summaries_have_one_row_per_target():
+    grades = values - values.min() + 0.1
+    options = {"cutoffs": [0.5, 1.0], "quantiles": [0.1, 0.5, 0.9]}
+    thresholds = list(np.quantile(grades, [0.25, 0.5, 0.75, 0.9]))
+    kriged = [
+        cs.MultipleIndicatorKriging(model, search, thresholds).fit(coords, grades).predict(grid, **options),
+        cs.MultigaussianKriging(model, search).fit(coords, grades).predict(grid, **options),
+    ]
+    for s in kriged:
+        assert s.probability_above.shape == s.mean_above.shape == (len(grid), 2)
+        assert s.quantile_values.shape == (len(grid), 3)
+    assert kriged[0].cdf.shape == (len(grid), 4) and kriged[1].cdf.shape == (len(grid), 0)
+    simulated = [
+        cs.SGS(model, search).fit(coords, grades).simulate(grid, n=3, realizations=True, **options),
+        cs.TurningBands(model, bands=50)
+        .fit(coords, grades)
+        .simulate(grid, n=3, realizations=True, **options),
+    ]
+    for s in simulated:
+        assert s.probability_above.shape == s.mean_above.shape == (len(grid), 2)
+        assert s.quantile_values.shape == (len(grid), 3)
+        assert s.realization_above.shape == (3, 2) and s.realizations.shape == (3, len(grid))
