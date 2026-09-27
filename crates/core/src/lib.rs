@@ -13,7 +13,7 @@ pub use arrow_array::RecordBatch;
 pub use block_model::{BlockModel, Geometry, Layout};
 pub use categories::Categories;
 pub use error::{Error, Result};
-pub use mesh::{Mesh, MeshAnalysis};
+pub use mesh::{Mesh, MeshAnalysis, signed_solid_angle};
 pub use points::PointSet;
 pub use polylines::Polylines;
 pub use rotation::{angles_from_axes, block_frame, rotation_matrix};

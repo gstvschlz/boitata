@@ -221,5 +221,7 @@ def test_dataset_details():
     np.testing.assert_array_equal(iron["blastholes"].coords[:, 2], iron["blastholes"]["Z_TOP"] - 6.0)
     assert np.isnan(cs.datasets.porphyry_geometallurgy()["grindability_distribution"]["bwi"]).sum() > 0
     assert "-999" in cs.datasets.stacked_sulphide_lenses(raw=True)["assays"]["ZN_PCT"]
+    high_grade = iron["high_grade"]
+    assert high_grade.repair().volume == pytest.approx(high_grade.volume, rel=1e-9)
     assert cs.datasets.geomet().num_rows == 6817
     assert len(cs.datasets.drillholes().samples()) > 0
