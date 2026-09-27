@@ -56,7 +56,7 @@ save(fig, "topography")
 ```text
 BlockModel(regular, 46031 of 46031 cells, count [241, 191, 1], size [10.0, 10.0, 1.0], rotation [0.0, 0.0, 0.0])
   Z: Float64
-Mesh(46031 vertices, 91200 triangles, open)
+Mesh(46031 vertices, 91200 triangles, open, 860 boundary edges)
 collar minus topography: -0.06 to +0.06 m
 ```
 
@@ -89,10 +89,10 @@ for name in LAYERS:
 </details>
 
 ```text
-base of SOIL: depth   2.7 m median, Mesh(45939 vertices, 91033 triangles, open)
-base of ALU: depth  21.8 m median, Mesh(45939 vertices, 91033 triangles, open)
-base of OXI: depth  48.5 m median, Mesh(45940 vertices, 91035 triangles, open)
-base of SAP: depth  69.2 m median, Mesh(45948 vertices, 91050 triangles, open)
+base of SOIL: depth   2.7 m median, Mesh(45939 vertices, 91033 triangles, open, 843 boundary edges)
+base of ALU: depth  21.8 m median, Mesh(45939 vertices, 91033 triangles, open, 843 boundary edges)
+base of OXI: depth  48.5 m median, Mesh(45940 vertices, 91035 triangles, open, 843 boundary edges)
+base of SAP: depth  69.2 m median, Mesh(45948 vertices, 91050 triangles, open, 844 boundary edges)
 ```
 
 Cells beyond 400 m of a hole are left out of the surfaces. The thickness of a horizon is the vertical distance from

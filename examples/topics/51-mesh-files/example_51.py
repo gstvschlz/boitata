@@ -94,6 +94,6 @@ print(broken, broken.analysis)
 print(f"shortest edge {edges.min() * 1000:.1f} mm")
 for tolerance in (1e-6, 1e-4, 5e-3):
     attempt = broken.repair(tolerance=tolerance)
-    print(f"tolerance {tolerance:g} m: {attempt}, {attempt.analysis['boundary_edges']} boundary edges")
+    print(f"tolerance {tolerance:g} m: {attempt}")
 repaired = broken.repair(tolerance=1e-4)
 print(f"repaired at 0.1 mm: {repaired.volume:,.0f} m3, original {v1.volume:,.0f} m3")
