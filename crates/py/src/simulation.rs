@@ -2262,21 +2262,34 @@ impl MultivariateSimulation {
     /// holes : array_like or str, optional
     ///     Drill-hole ids or names, for `max_per_hole` and the warning on
     ///     samples sharing a location.
-    /// impute : bool, default False
+    /// impute : bool or GaussianImputer, optional
     ///     Keep samples missing some variables: a `GaussianImputer` fitted to
     ///     the data fills them afresh in every realization, so the imputation
-    ///     uncertainty reaches the realizations. The transform is fitted to
-    ///     the complete samples. Samples missing every variable are dropped.
-    #[pyo3(signature = (coords, data, *, weights=None, holes=None, impute=false))]
+    ///     uncertainty reaches the realizations. Given an imputer, its
+    ///     `components`, `spatial` and `neighbors` are used, so with `spatial` the gaps
+    ///     also follow nearby samples. The transform is fitted to the complete samples.
+    ///     Samples missing every variable are dropped.
+    #[pyo3(signature = (coords, data, *, weights=None, holes=None, impute=None))]
     fn fit<'py>(
         mut slf: PyRefMut<'py, Self>,
         coords: &Bound<PyAny>,
         data: &Bound<PyAny>,
         weights: Option<&Bound<PyAny>>,
         holes: Option<&Bound<PyAny>>,
-        impute: bool,
+        impute: Option<&Bound<PyAny>>,
     ) -> PyResult<PyRefMut<'py, Self>> {
         let py = coords.py();
+        let template = match impute {
+            None => None,
+            Some(t) => match t.cast::<crate::transforms::GaussianImputer>() {
+                Ok(t) => Some(Some(t.borrow())),
+                Err(_) => t
+                    .extract::<bool>()
+                    .map_err(|_| invalid("impute must be a bool or a GaussianImputer"))?
+                    .then_some(None),
+            },
+        };
+        let impute = template.is_some();
         let data = match data.extract::<Vec<String>>() {
             Ok(names) => {
                 let columns = names
@@ -2333,12 +2346,16 @@ impl MultivariateSimulation {
             &pick(&locs, &full),
         )?;
         let keep = distinct(py, &locs, holes.as_ref().map(|h| &h.0[..]))?;
-        let imputed = if impute {
-            let imputer =
-                transforms::GaussianImputer::fit(&data, weights.as_deref()).map_err(invalid)?;
-            Some((imputer, pick(&data, &keep)))
-        } else {
-            None
+        let imputed = match template {
+            None => None,
+            Some(t) => {
+                let imputer = match t {
+                    Some(t) => t.fit_like(&data, weights.as_deref())?,
+                    None => transforms::GaussianImputer::fit(&data, weights.as_deref())
+                        .map_err(invalid)?,
+                };
+                Some((imputer, pick(&data, &keep)))
+            }
         };
         let factors = match imputed {
             Some(_) => vec![],
@@ -2408,7 +2425,7 @@ impl MultivariateSimulation {
                         Some((imputer, data)) => {
                             let p = self.factors.len();
                             let rows = imputer
-                                .impute(data, simulation::factor_seed(seed, k, p))
+                                .impute(data, Some(&f.locs), simulation::factor_seed(seed, k, p))
                                 .map_err(|e| simulation::SimError::Transform(e.to_string()))?;
                             drawn = f.transform.forward(&rows).iter().map(|r| r[j]).collect();
                             &drawn

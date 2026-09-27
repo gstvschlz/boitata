@@ -313,6 +313,13 @@ def test_multivariate_simulation_drops_incomplete_samples_and_checks_inputs():
     np.testing.assert_allclose(at_data[0].realizations, np.tile(values[:4], (6, 1)), rtol=1e-6)
     imputed = at_data[1].realizations
     assert np.isfinite(imputed).all() and np.ptp(imputed, axis=0).min() > 0
+    with pytest.warns(UserWarning):
+        mv.fit(coords, data, impute=cs.GaussianImputer(spatial=gaussian, neighbors=8))
+    spatial = mv.simulate(coords[:4], n=6, seed=2, realizations=True)
+    assert np.isfinite(spatial[1].realizations).all()
+    np.testing.assert_allclose(spatial[0].realizations, at_data[0].realizations)
+    with pytest.raises(ValueError, match="impute must be"):
+        mv.fit(coords, data, impute="yes")
     with pytest.raises(ValueError, match="transform must be"):
         cs.MultivariateSimulation(cs.NormalScore(), [sgs])
     with pytest.raises(ValueError, match="2 columns"):

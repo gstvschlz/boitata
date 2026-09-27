@@ -327,12 +327,31 @@ class GaussianImputer:
     def to_json(self) -> str: ...
     @staticmethod
     def from_json(text: str) -> GaussianImputer: ...
-    def __init__(self, *, components: int | None = 1, seed: int = 0) -> None: ...
-    def fit(self, data: ArrayLike, *, weights: ArrayLike | None = None) -> GaussianImputer: ...
+    def __init__(
+        self,
+        *,
+        components: int | None = 1,
+        seed: int = 0,
+        spatial: Variogram | None = None,
+        neighbors: int = 16,
+    ) -> None: ...
+    def fit(
+        self,
+        data: ArrayLike,
+        *,
+        coords: ArrayLike | PointSet | None = None,
+        weights: ArrayLike | None = None,
+    ) -> GaussianImputer: ...
     def fit_transform(
-        self, data: ArrayLike, *, weights: ArrayLike | None = None
+        self,
+        data: ArrayLike,
+        *,
+        coords: ArrayLike | PointSet | None = None,
+        weights: ArrayLike | None = None,
     ) -> npt.NDArray[np.float64]: ...
-    def transform(self, data: ArrayLike) -> npt.NDArray[np.float64]: ...
+    def transform(
+        self, data: ArrayLike, *, coords: ArrayLike | PointSet | None = None
+    ) -> npt.NDArray[np.float64]: ...
     @property
     def correlation_(self) -> npt.NDArray[np.float64]: ...
 
@@ -1029,7 +1048,7 @@ class MultivariateSimulation:
         *,
         weights: ArrayLike | Column | None = None,
         holes: Holes | Column | None = None,
-        impute: bool = False,
+        impute: bool | GaussianImputer | None = None,
     ) -> MultivariateSimulation: ...
     def simulate(
         self,
