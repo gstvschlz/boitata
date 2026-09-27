@@ -16,7 +16,7 @@ from common import ACCENT, GRAY, LIGHT, map_axes, save
 
 data = cs.datasets.stacked_sulphide_lenses()
 holes = cs.Drillholes(data["collars"], data["surveys"], data["assays"])
-lenses = [data[f"lens_{i}"].repair(tolerance=1e-3) for i in (1, 2, 3)]
+lenses = [data[f"lens_{i}"] for i in (1, 2, 3)]
 size = (20, 20, 10)
 ```
 

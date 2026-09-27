@@ -39,22 +39,15 @@ print(f"{len(drillholes)} holes, {len(samples)} assays")
 
 ## Samples inside each lens
 
-Two of the three wireframes have a degenerate triangle and an open seam; `repair` closes them, since only a
-closed mesh has an inside. Each assay takes the name of the lens around its midpoint, and 2 m composites never
-cross from one lens to another or into the host rock.
+Each lens wireframe is a closed mesh, so it has an inside. Each assay takes the name of the lens around its
+midpoint, and 2 m composites never cross from one lens to another or into the host rock.
 
 <details><summary>Python</summary>
 
 ```python
-lenses = {}
-for name in ("lens_1", "lens_2", "lens_3"):
-    mesh = data[name]
-    lenses[name] = mesh if mesh.is_closed else mesh.repair(tolerance=0.01)
-    report = mesh.analysis
-    print(
-        f"{name}: {report['degenerate_triangles']} degenerate triangles, {report['boundary_edges']} open edges; "
-        f"{lenses[name].volume / 1e6:.2f} Mm3 once closed"
-    )
+lenses = {name: data[name] for name in ("lens_1", "lens_2", "lens_3")}
+for name, mesh in lenses.items():
+    print(f"{name}: closed {mesh.is_closed}, {mesh.volume / 1e6:.2f} Mm3")
 
 lens = np.full(len(samples), "host", dtype=object)
 for name, mesh in lenses.items():
@@ -74,9 +67,9 @@ for name in lenses:
 </details>
 
 ```text
-lens_1: 0 degenerate triangles, 0 open edges; 2.79 Mm3 once closed
-lens_2: 0 degenerate triangles, 0 open edges; 1.90 Mm3 once closed
-lens_3: 0 degenerate triangles, 0 open edges; 1.65 Mm3 once closed
+lens_1: closed True, 2.79 Mm3
+lens_2: closed True, 1.90 Mm3
+lens_3: closed True, 1.65 Mm3
 lens_1: 609 composites from 78 holes, 408 with a density
 lens_2: 279 composites from 53 holes, 234 with a density
 lens_3: 263 composites from 49 holes, 200 with a density

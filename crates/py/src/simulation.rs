@@ -996,7 +996,10 @@ impl TurningBands {
     /// domain_column : str, optional
     ///     Instead of `domains`, the column of `path` holding them.
     /// trend : str, optional
-    ///     Needed when fitted with a trend: the column of `path` holding it.
+    ///     Needed when fitted with a trend: the column of `path` holding it,
+    ///     with no nulls. A kernel trend's `predict` is NaN beyond four
+    ///     bandwidths of its data; fill those blocks first, e.g. with the
+    ///     mean of the data.
     /// discretization : tuple of int, optional
     ///     Nodes per axis simulated in each block and averaged by volume, as
     ///     ``simulate(model.discretize(discretization), blocks=model)``;

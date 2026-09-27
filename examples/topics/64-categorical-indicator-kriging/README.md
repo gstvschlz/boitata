@@ -153,18 +153,20 @@ save(fig, "probabilities")
 ## Most likely rock and its uncertainty
 
 The most likely category is drawn in the scheme's colors. Entropy, scaled to [0, 1], is 0 where one category is
-certain and 1 where all are equally likely: it is highest along the contacts and far from the holes.
+certain and 1 where all are equally likely: it is highest along the contacts and far from the holes. The last
+panel draws both at once: the most likely rock fades towards white as its entropy rises.
 
 <details><summary>Python</summary>
 
 ```python
-fig, axes = plt.subplots(1, 2, figsize=(12, 4.8), layout="constrained", sharey=True)
+fig, axes = plt.subplots(1, 3, figsize=(17, 4.8), layout="constrained", sharey=True)
 cs.plot.section(section, "most_likely", axis="y", index=0, scheme=scheme, colorbar=False, ax=axes[0])
 axes[0].set_title("Most likely rock")
-cs.plot.category_legend(scheme, axes[0], loc="lower left")
 cs.plot.section(section, "entropy", axis="y", index=0, vmin=0.0, vmax=1.0, cmap="Greys", ax=axes[1])
 axes[1].set_title("Entropy")
-for ax, y in zip(axes, ["Elevation (m)", ""]):
+cs.plot.uncertain("most_likely", "entropy", model=section, axis="y", index=0, scheme=scheme, ax=axes[2])
+axes[2].set_title("Most likely, faded by entropy")
+for ax, y in zip(axes, ["Elevation (m)", "", ""]):
     ax.set_xlabel("Along the section (m)")
     ax.set_ylabel(y)
 save(fig, "most-likely")
