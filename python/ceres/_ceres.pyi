@@ -212,6 +212,49 @@ class NormalScore:
     @property
     def table_(self) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]: ...
 
+class Capping:
+    def to_json(self) -> str: ...
+    @staticmethod
+    def from_json(text: str) -> Capping: ...
+    def __init__(
+        self,
+        *,
+        cap: float | Mapping[int | str, float] | None = None,
+        quantile: float | None = None,
+        metal_removed: float | None = None,
+        cv: float | None = None,
+    ) -> None: ...
+    def fit(
+        self,
+        values: ArrayLike | Column,
+        *,
+        domains: Labels | None = None,
+        domain_column: Column | None = None,
+        weights: ArrayLike | Column | None = None,
+        data: Data | None = None,
+    ) -> Capping: ...
+    def fit_transform(
+        self,
+        values: ArrayLike | Column,
+        *,
+        domains: Labels | None = None,
+        domain_column: Column | None = None,
+        weights: ArrayLike | Column | None = None,
+        data: Data | None = None,
+    ) -> npt.NDArray[np.float64]: ...
+    def transform(
+        self,
+        values: ArrayLike | Column,
+        *,
+        domains: Labels | None = None,
+        domain_column: Column | None = None,
+        data: Data | None = None,
+    ) -> npt.NDArray[np.float64]: ...
+    @property
+    def caps_(self) -> float | dict[int | str, float]: ...
+    @property
+    def metal_removed_(self) -> float | dict[int | str, float]: ...
+
 class HermiteAnamorphosis:
     def to_json(self) -> str: ...
     @staticmethod

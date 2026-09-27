@@ -171,6 +171,7 @@ def fits():
         (cs.MultivariateSimulation(cs.PCA(), [cs.SGS(model, search)] * 2), (coords, table)),
         (cs.ImplicitModel(), (coords, values - values.mean())),
         (cs.NormalScore(), (values,)),
+        (cs.Capping(quantile=0.99), (values,)),
         (cs.HermiteAnamorphosis(degree=10), (values,)),
         (cs.BoxCox(), (values,)),
         (cs.PPMT(iterations=2), (table,)),

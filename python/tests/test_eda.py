@@ -235,6 +235,51 @@ def test_capping_report_by_domain():
         cs.capping_report(v, {4: 1.0}, domains=d)
 
 
+def test_capping_transform_per_domain():
+    d = np.repeat(["a", "b", "c"], 200)
+    v = rng.lognormal(0, 1, 600) * np.repeat([1.0, 3.0, 10.0], 200)
+    w = rng.uniform(0.5, 2, 600)
+    capping = cs.Capping(quantile=0.95)
+    capped = capping.fit_transform(v, domains=d, weights=w)
+    caps = capping.caps_
+    assert len(set(caps.values())) == 3
+    for k in "abc":
+        assert caps[k] == pytest.approx(cs.describe(v[d == k], weights=w[d == k], quantiles=[0.95])["P95"])
+    cap = np.array([caps[k] for k in d])
+    assert (capped <= cap).all() and (capped[v <= cap] == v[v <= cap]).all()
+    t = cs.capping_report(v, caps, domains=d, weights=w)
+    np.testing.assert_allclose(
+        list(capping.metal_removed_.values()), 1 - t["mean_capped"][:3] / t["mean"][:3]
+    )
+    np.testing.assert_array_equal(capping.transform(v, domains=d), capped)
+    points = cs.PointSet(rng.uniform(0, 100, (600, 3)), {"v": v, "rock": d, "w": w})
+    by_name = cs.Capping(quantile=0.95).fit("v", domain_column="rock", weights="w", data=points)
+    assert by_name.caps_ == caps
+    assert np.isnan(capping.transform([np.nan], domains=["a"])[0])
+    assert capping.transform([1e9], domains=["z"])[0] == 1e9
+    with pytest.raises(cs.InvalidInput):
+        capping.transform(v)
+
+
+def test_capping_rules_and_pipeline():
+    v = rng.lognormal(0, 1, 500)
+    m = cs.Capping(metal_removed=0.05).fit(v)
+    assert m.metal_removed_ == pytest.approx(0.05)
+    c = cs.Capping(cv=0.8).fit(v)
+    assert cs.capping(v, caps=[c.caps_])["cv"][0] == pytest.approx(0.8)
+    assert cs.Capping(cap=2.0).fit(v).caps_ == 2.0
+    capping, scores = cs.Capping(quantile=0.99), cs.NormalScore()
+    y = scores.fit_transform(capping.fit_transform(v))
+    below = v < capping.caps_
+    np.testing.assert_allclose(scores.transform(capping.transform(v))[below], y[below])
+    assert scores.inverse_transform(y).max() <= capping.caps_ + 1e-9
+    for bad in ({}, {"cap": 1.0, "cv": 1.0}, {"cap": np.inf}):
+        with pytest.raises(cs.InvalidInput):
+            cs.Capping(**bad)
+    with pytest.raises(cs.InvalidInput):
+        cs.Capping(cap={"a": 1.0}).fit(v)
+
+
 def test_pairs_recover_twins_and_their_bias():
     a = np.c_[np.arange(0.0, 500.0, 25.0), np.zeros(20)]
     order = rng.permutation(20)
