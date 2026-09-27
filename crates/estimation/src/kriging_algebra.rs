@@ -577,6 +577,60 @@ mod tests {
     }
 
     #[test]
+    fn external_drift_matches_universal_when_covariate_is_a_coordinate() {
+        // Data varies only in x (y constant), so UK(degree 1)'s basis is
+        // [1, x_scaled] (y is inactive, no spread). An external-drift column
+        // equal to the raw x coordinate spans the same constraint subspace
+        // under OK's constant column, so KED must match UK exactly.
+        let coords = [
+            (0.0, 10.0),
+            (20.0, 10.0),
+            (40.0, 10.0),
+            (60.0, 10.0),
+            (80.0, 10.0),
+        ];
+        let values = [1.0, 2.5, 1.8, 3.2, 2.0];
+        let samples: Vec<Sample> = coords
+            .iter()
+            .zip(values)
+            .map(|(&(x, y), v)| samp(x, y, v))
+            .collect();
+        let vg = Variogram::single(Model::Spherical, 1.0, 50.0);
+        let t = (35.0, 10.0, 0.0);
+
+        let cvec: Vec<(f64, f64, f64)> = coords.iter().map(|&(x, y)| (x, y, 0.0)).collect();
+        let uk_drift = DriftSpec::polynomial(&cvec, &t, 1);
+        let uk = krige_universal(&t, &samples, &uk_drift, &vg, None).unwrap();
+
+        let data_ext: Vec<Vec<f64>> = coords.iter().map(|&(x, _)| vec![x]).collect();
+        let ked_drift = DriftSpec::ordinary(samples.len()).with_external(&data_ext, &[t.0]);
+        let ked = krige_universal(&t, &samples, &ked_drift, &vg, None).unwrap();
+
+        assert!(
+            (uk.value - ked.value).abs() < 1e-9,
+            "{} vs {}",
+            uk.value,
+            ked.value
+        );
+        assert!((uk.variance - ked.variance).abs() < 1e-9);
+    }
+
+    #[test]
+    fn external_drift_collinear_with_ordinary_constant_is_singular() {
+        // A covariate that is the same constant for every sample and the
+        // target is a scalar multiple of OK's own constant column: the
+        // augmented drift matrix is rank-deficient and must fail, not
+        // silently drop the covariate.
+        let d = data();
+        let t = (20.0, 30.0, 0.0);
+        let vg = Variogram::single(Model::Spherical, 1.0, 100.0);
+        let data_ext: Vec<Vec<f64>> = vec![vec![5.0]; d.len()];
+        let drift = DriftSpec::ordinary(d.len()).with_external(&data_ext, &[5.0]);
+        let err = krige_universal(&t, &d, &drift, &vg, None).unwrap_err();
+        assert!(matches!(err, EstimError::Singular(_)), "{err:?}");
+    }
+
+    #[test]
     fn dual_matches_ordinary() {
         let vg = Variogram::single(Model::Spherical, 1.0, 100.0);
         let d = data();

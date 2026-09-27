@@ -1,8 +1,8 @@
 use estimation::{
     Discretization, DriftSpec, DualKriging, Estimate, HighGrade, HighGradeMode, InterpEstimate,
     InterpOptions, Kind, NeighborhoodStats, Sample, Search as CoreSearch, Soft, SoftPair,
-    block_krige, by_pass, estimate_many, k_fold_at, krige, krige_bayesian, krige_factorial,
-    krige_universal, leave_one_out_at,
+    block_krige, by_pass, estimate_many, estimate_many_ext, k_fold_at, krige, krige_bayesian,
+    krige_factorial, krige_universal, leave_one_out_at,
 };
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -463,6 +463,10 @@ impl Search {
 enum Method {
     Kriging(Kind),
     Universal(usize),
+    ExternalDrift {
+        degree: usize,
+        drift: Vec<String>,
+    },
     Factorial {
         nugget: bool,
         structures: Vec<usize>,
@@ -525,6 +529,9 @@ impl Method {
         match self {
             Method::Kriging(kind) => krige(*kind, t, s, vg()),
             Method::Universal(degree) => krige_universal(t, s, &drift(*degree), vg(), None),
+            Method::ExternalDrift { .. } => Err(estimation::EstimError::InvalidParameters(
+                "external-drift kriging needs covariates; only predict() supports it".into(),
+            )),
             Method::Factorial { nugget, structures } => {
                 krige_factorial(t, s, vg(), *nugget, structures)
             }
@@ -725,11 +732,21 @@ pub fn samples_from(found: &Found) -> PyResult<Vec<Sample>> {
 
 impl Tabular for Estimator {
     fn columns(&self) -> Option<Columns> {
-        self.samples.as_deref().map(sample_columns)
+        let mut columns = sample_columns(self.samples.as_deref()?);
+        for (j, col) in self.drift_data.iter().enumerate() {
+            columns.push(persist::column(&format!("drift_{j}"), col.iter().copied()));
+        }
+        Some(columns)
     }
 
     fn restore(&mut self, columns: Found) -> PyResult<()> {
         self.samples = Some(samples_from(&columns)?);
+        self.drift_data = match &self.method {
+            Method::ExternalDrift { drift, .. } => (0..drift.len())
+                .map(|j| columns.values(&format!("drift_{j}")))
+                .collect::<PyResult<_>>()?,
+            _ => vec![],
+        };
         Ok(())
     }
 }
@@ -769,6 +786,11 @@ pub struct Estimator {
     /// Labels of the fitted domains, indexed by code.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     domains: Option<Vec<Label>>,
+    /// External-drift covariates, fitted with `Method::ExternalDrift`: one
+    /// entry per drift variable, each a value per fitted sample. Empty for
+    /// every other method.
+    #[serde(default)]
+    drift_data: Vec<Vec<f64>>,
     #[serde(skip)]
     samples: Option<Vec<Sample>>,
 }
@@ -824,6 +846,17 @@ impl Estimator {
         }
         let holes_text = holes.as_ref().map(|h| &h.0[..]);
         let keep = args::distinct_in(py, &locs, holes_text, codes.as_deref())?;
+        self.drift_data = match &self.method {
+            Method::ExternalDrift { drift, .. } => drift
+                .iter()
+                .map(|name| {
+                    let col = args::finite(&args::named(data, name, "drift")?, "drift")?;
+                    same_length(locs.len(), col.len(), "drift")?;
+                    Ok(keep.iter().map(|&i| col[i]).collect())
+                })
+                .collect::<PyResult<_>>()?,
+            _ => vec![],
+        };
         let samples = keep
             .iter()
             .map(|&i| Sample {
@@ -925,6 +958,19 @@ impl Estimator {
                 threshold: float("threshold", 0.0)?,
             }),
             "universal" => Method::Universal(int("degree", 1)?),
+            "external_drift" => Method::ExternalDrift {
+                degree: int("degree", 0)?,
+                drift: {
+                    let drift = get("drift")?
+                        .ok_or_else(|| invalid("external-drift kriging needs drift"))?;
+                    match drift.extract::<String>() {
+                        Ok(name) => vec![name],
+                        Err(_) => drift.extract().map_err(|_| {
+                            invalid("drift must be a column name or a sequence of names")
+                        })?,
+                    }
+                },
+            },
             "factorial" => Method::Factorial {
                 nugget: get("nugget")?.map_or(Ok(false), |v| v.extract())?,
                 structures: get("structures")?.map_or(Ok(vec![]), |v| v.extract())?,
@@ -964,6 +1010,7 @@ impl Estimator {
             variogram: variogram.map(|v| v.0),
             search,
             domains: None,
+            drift_data: vec![],
             samples: None,
         })
     }
@@ -1004,6 +1051,13 @@ impl Estimator {
         values: &Bound<PyAny>,
         targets: &Bound<PyAny>,
     ) -> PyResult<crate::transforms::Declustering> {
+        // Scope cut: declustering estimates over `targets`, which would need
+        // each target's own covariate row too; not wired up yet.
+        if matches!(self.method, Method::ExternalDrift { .. }) {
+            return Err(invalid(
+                "weight declustering is not yet supported for external-drift kriging",
+            ));
+        }
         if !self.method.linear() {
             return Err(invalid(
                 "weight declustering needs an estimator linear in the data",
@@ -1091,7 +1145,24 @@ impl Estimator {
             (None, Some(c)) => Some(args::named(Some(targets), c, "domain_column")?),
             _ => return Err(invalid("give one of domains or domain_column")),
         };
+        // Resolve external-drift columns against the raw `targets` container,
+        // before it is reduced to bare coordinates below.
+        let target_drift: Vec<Vec<f64>> = match &self.method {
+            Method::ExternalDrift { drift, .. } => drift
+                .iter()
+                .map(|name| args::finite(&args::named(Some(targets), name, "drift")?, "drift"))
+                .collect::<PyResult<_>>()?,
+            _ => vec![],
+        };
+        if anisotropy.is_some() && matches!(self.method, Method::ExternalDrift { .. }) {
+            return Err(invalid(
+                "external-drift kriging does not support local anisotropy",
+            ));
+        }
         let targets = self::targets(targets)?;
+        for c in &target_drift {
+            same_length(targets.len(), c.len(), "drift")?;
+        }
         let codes = codes(
             self.domains.as_deref(),
             domains.as_ref(),
@@ -1109,6 +1180,13 @@ impl Estimator {
             structures: vec![],
             anisotropy: None,
         });
+        // Per-sample covariate rows, aligned with `samples`, for external-drift kriging.
+        let cov: Vec<Vec<f64>> = match &self.method {
+            Method::ExternalDrift { .. } => (0..samples.len())
+                .map(|i| self.drift_data.iter().map(|c| c[i]).collect())
+                .collect(),
+            _ => vec![],
+        };
         let found = py
             .detach(|| {
                 by_pass(known.len(), &search, |search, remaining| {
@@ -1118,11 +1196,36 @@ impl Estimator {
                         .as_ref()
                         .map(|c| rows.iter().map(|&i| c[i].expect("known")).collect());
                     let codes = codes.as_deref();
-                    match &local {
-                        None => Ok(estimate_many(&at, codes, samples, search, vg, |t, s| {
+                    match (&local, &self.method) {
+                        (None, Method::ExternalDrift { degree, .. }) => {
+                            let ext: Vec<Vec<f64>> = rows
+                                .iter()
+                                .map(|&i| target_drift.iter().map(|c| c[i]).collect())
+                                .collect();
+                            Ok(estimate_many_ext(
+                                &at,
+                                codes,
+                                &cov,
+                                &ext,
+                                samples,
+                                search,
+                                vg,
+                                |t, s, cov, e| {
+                                    let locs: Vec<Point> = s.iter().map(|x| x.loc).collect();
+                                    let drift = DriftSpec::polynomial(&locs, t, *degree)
+                                        .with_external(cov, e);
+                                    used(
+                                        t,
+                                        s,
+                                        krige_universal(t, s, &drift, vg.expect("kriging"), None),
+                                    )
+                                },
+                            ))
+                        }
+                        (None, _) => Ok(estimate_many(&at, codes, samples, search, vg, |t, s| {
                             used(t, s, self.method.run(t, s, vg))
                         })),
-                        Some(local) => estimation::lva::estimate_many_local(
+                        (Some(local), _) => estimation::lva::estimate_many_local(
                             &at,
                             codes,
                             &local.at(&at),
@@ -1209,6 +1312,14 @@ impl Estimator {
         py: Python<'py>,
         folds: Option<usize>,
     ) -> PyResult<Bound<'py, PyAny>> {
+        // Scope cut: cross-validation re-estimates fitted samples, which
+        // would need each held-out sample's own covariate row too; not
+        // wired up yet.
+        if matches!(self.method, Method::ExternalDrift { .. }) {
+            return Err(invalid(
+                "cross-validation is not yet supported for external-drift kriging",
+            ));
+        }
         let samples = self.fitted()?;
         let search = self.passes()?;
         let vg = self.variogram.as_ref();

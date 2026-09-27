@@ -112,6 +112,4 @@ Tutorials follow one deposit from data to a result; topics show one feature each
 | 84 | [Target distribution correction](topics/84-target-distribution-correction/README.md) | Walker Lake | `cell_declustering`, `NormalScore`, `experimental_variogram`, `Variogram`, `BlockModel`, `SGS`, `Search`, `check_realizations`, `correct_distribution`, `plot.histogram_reproduction`, `plot.section`, `KernelDensity` |
 | 85 | [Domain change tables](topics/85-domain-change-tables/README.md) | Stacked sulphide lenses | `merge_intervals`, `Drillholes`, `Categories`, `cell_declustering`, `Variogram`, `Search`, `CategoricalIndicatorKriging`, `BlockModel`, `OrdinaryKriging`, `remove_small_units`, `domain_change`, `plot.domain_change` |
 | 86 | [Mesh-crossing interval splits](topics/86-mesh-interval-splits/README.md) | Stacked sulphide lenses | `Drillholes`, `merge_intervals`, `describe_by` |
-
-Each page alternates text, collapsed Python and its results. `mise run examples` reruns every script
-and rewrites the pages; `cs.datasets` downloads the data once and caches it. `render.py --index` writes this file.
+| 87 | [External drift kriging](topics/87-external-drift-kriging/README.md) | Soil geochemistry survey | `experimental_variogram`, `Search`, `OrdinaryKriging`, `ExternalDriftKriging` |
