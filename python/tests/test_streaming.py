@@ -122,6 +122,24 @@ def test_turning_bands_streamed_blocks_average_their_nodes(model, tmp_path):
         tb.simulate_to_parquet(source, out, trend="missing")
 
 
+def test_kernel_trend_beyond_its_data_must_be_filled_before_streaming(model, tmp_path):
+    xyz = rng.uniform(0, 30, (60, 3)) * [1, 1, 0.2]
+    values = rng.lognormal(0, 0.5, 60)
+    trend, _ = cs.detrend(xyz, values, bandwidth=5.0)
+    at = trend.predict(model)
+    assert np.isnan(at).any() and not np.isnan(at).all()
+    tb = cs.TurningBands(cs.Variogram([("spherical", 1.0, 30.0)]), bands=50).fit(
+        xyz, values, trend=trend.predict(xyz)
+    )
+    source, out = tmp_path / "in.parquet", tmp_path / "out.parquet"
+    cs.write_parquet(source, model.with_column("trend", at))
+    with pytest.raises(cs.InvalidInput, match="has nulls; fill them"):
+        tb.simulate_to_parquet(source, out, n=2, trend="trend")
+    filled = np.where(np.isnan(at), values.mean(), at)
+    cs.write_parquet(source, model.with_column("trend", filled))
+    assert np.isfinite(tb.simulate_to_parquet(source, out, n=2, trend="trend")["realization_mean"]).all()
+
+
 def test_turning_bands_search_defaults_to_the_nearest_32(model):
     xyz = rng.uniform(0, 100, (50, 3)) * [1, 0.75, 0.2]
     values = rng.lognormal(0, 0.5, 50)

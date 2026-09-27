@@ -864,7 +864,11 @@ fn float_column(chunk: &ceres_core::BlockModel, name: &str) -> Result<Vec<f64>> 
     values
         .into_iter()
         .collect::<Option<_>>()
-        .ok_or_else(|| SimError::InvalidParameters(format!("trend column {name:?} has nulls")))
+        .ok_or_else(|| {
+            SimError::InvalidParameters(format!(
+                "trend column {name:?} has nulls; fill them first (a kernel trend is null beyond four bandwidths of its data)"
+            ))
+        })
 }
 
 /// Per-realization results over a whole streamed model.

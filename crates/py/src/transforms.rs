@@ -1194,7 +1194,8 @@ impl Trend {
 
     /// The trend at `coords` (array, PointSet or BlockModel cells): an array,
     /// or for categories a Table of proportions, one column each. A kernel
-    /// trend is null (NaN) beyond four bandwidths of every sample.
+    /// trend is null (NaN) beyond four bandwidths of every sample; fill it
+    /// (e.g. with the data mean) where a simulation needs a trend everywhere.
     fn predict<'py>(&self, py: Python<'py>, coords: &Bound<PyAny>) -> PyResult<Bound<'py, PyAny>> {
         let targets = points(coords)?;
         match &self.0 {
