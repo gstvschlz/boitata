@@ -381,3 +381,22 @@ def test_despike_breaks_ties_consistently():
     np.testing.assert_array_equal(cs.despike(points, "a"), cs.despike(coords, values))
     with pytest.raises(ValueError):
         cs.despike(coords, values[:10])
+
+
+def test_spatial_bootstrap_widens_with_correlation():
+    r = np.random.default_rng(4)
+    coords = r.uniform(0, 100, (100, 2))
+    values = r.lognormal(0.0, 0.5, 100)
+    nugget = cs.Variogram([], nugget=1.0)
+    table = cs.spatial_bootstrap(coords, values, nugget, n=1000, quantiles=[0.5], cutoffs=[1.0])
+    assert table.column_names == ["mean", "P50", "above 1"]
+    np.testing.assert_allclose(np.std(table["mean"]), values.std() / 10, rtol=0.1)
+    long = cs.spatial_bootstrap(coords, values, cs.Variogram([("spherical", 1.0, 1e6)]), n=1000)
+    np.testing.assert_allclose(np.std(long["mean"]), values.std(), rtol=0.1)
+    points = cs.PointSet(coords, {"v": values, "w": np.ones(100)})
+    np.testing.assert_array_equal(
+        cs.spatial_bootstrap(points, "v", nugget, weights="w")["mean"],
+        cs.spatial_bootstrap(coords, values, nugget)["mean"],
+    )
+    with pytest.raises(ValueError):
+        cs.spatial_bootstrap(coords, values, nugget, weights=np.zeros(100))

@@ -478,6 +478,17 @@ def despike(
     radii: Sequence[float] | None = None,
     seed: int = 0,
 ) -> npt.NDArray[np.float64]: ...
+def spatial_bootstrap(
+    coords: ArrayLike | PointSet | BlockModel,
+    values: ArrayLike | Column,
+    variogram: Variogram,
+    *,
+    weights: ArrayLike | Column | None = None,
+    n: int = 100,
+    seed: int = 0,
+    quantiles: Sequence[float] = (),
+    cutoffs: Sequence[float] = (),
+) -> Table: ...
 def affine_correction(
     values: ArrayLike, f: float, *, weights: ArrayLike | None = None
 ) -> npt.NDArray[np.float64]: ...

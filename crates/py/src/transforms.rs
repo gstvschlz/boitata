@@ -1537,6 +1537,84 @@ fn despike<'py>(
     Ok(array1(py, out.into_iter().next().unwrap_or_default()).into_any())
 }
 
+/// Uncertainty in global statistics of spatially correlated data.
+///
+/// Each realization draws unconditional Gaussian values at the sample
+/// locations with the correlation of `variogram`, turns them into uniform
+/// ranks and reads them through the declustered distribution of `values`. The
+/// statistics of the resampled values then spread as far as the spatial
+/// correlation allows: with a pure nugget they match the classical bootstrap,
+/// with ranges much longer than the data extent the samples act as one.
+///
+/// Parameters
+/// ----------
+/// coords : array_like, PointSet or BlockModel
+///     ``(n, 2)`` or ``(n, 3)`` sample coordinates, or a container.
+/// values : array_like or str
+///     ``(n,)`` values, or their column in `coords`.
+/// variogram : Variogram
+///     Normal-score variogram; only its correlation (the variogram over its
+///     total sill) is used.
+/// weights : array_like or str, optional
+///     Declustering weights, or their column; default equal.
+/// n : int, default 100
+///     Number of realizations.
+/// seed : int, default 0
+///     Seed; each realization draws from a seed mixed from it.
+/// quantiles : sequence of float, optional
+///     Probabilities of quantile columns ``P10``, ``P50``, ...
+/// cutoffs : sequence of float, optional
+///     Cutoffs of proportion columns ``above 1.5``, ...: the fraction of
+///     values above each cutoff.
+///
+/// Returns
+/// -------
+/// Table
+///     One row per realization: ``mean``, then the quantile and proportion
+///     columns.
+#[pyfunction]
+#[pyo3(signature = (coords, values, variogram, *, weights=None, n=100, seed=0, quantiles=vec![], cutoffs=vec![]))]
+#[allow(clippy::too_many_arguments)]
+fn spatial_bootstrap(
+    coords: &Bound<PyAny>,
+    values: &Bound<PyAny>,
+    variogram: PyRef<crate::variogram::Variogram>,
+    weights: Option<&Bound<PyAny>>,
+    n: usize,
+    seed: u64,
+    quantiles: Vec<f64>,
+    cutoffs: Vec<f64>,
+) -> PyResult<Table> {
+    let locs = points(coords)?;
+    let values = finite(&column(Some(coords), values, "values")?, "values")?;
+    same_length(locs.len(), values.len(), "values")?;
+    let w = weights
+        .map(|w| per_row(Some(coords), w, values.len(), "weights"))
+        .transpose()?;
+    let b = transforms::spatial_bootstrap(
+        &locs,
+        &values,
+        w.as_deref(),
+        &variogram.0,
+        n,
+        seed,
+        &quantiles,
+        &cutoffs,
+    )
+    .map_err(err)?;
+    let f = |v: Vec<f64>| Arc::new(Float64Array::from(v)) as ArrayRef;
+    let mut columns = vec![("mean".to_string(), f(b.mean))];
+    for (j, &p) in quantiles.iter().enumerate() {
+        let q = b.quantiles.iter().map(|q| q[j]).collect();
+        columns.push((crate::eda::quantile_name(p), f(q)));
+    }
+    for (j, &c) in cutoffs.iter().enumerate() {
+        let a = b.above.iter().map(|a| a[j]).collect();
+        columns.push((format!("above {c}"), f(a)));
+    }
+    Ok(Table(RecordBatch::try_from_iter(columns).map_err(invalid)?))
+}
+
 /// Polygonal (nearest-neighbor area) declustering on a `nodes`-cell grid.
 #[pyfunction]
 #[pyo3(signature = (coords, values, *, nodes=10_000))]
@@ -1658,6 +1736,7 @@ pub fn register(m: &Bound<PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(cell_declustering, m)?)?;
     m.add_function(wrap_pyfunction!(polygon_declustering, m)?)?;
     m.add_function(wrap_pyfunction!(despike, m)?)?;
+    m.add_function(wrap_pyfunction!(spatial_bootstrap, m)?)?;
     m.add_function(wrap_pyfunction!(affine_correction, m)?)?;
     m.add_function(wrap_pyfunction!(indirect_lognormal_correction, m)?)?;
     m.add_function(wrap_pyfunction!(upscale, m)?)?;
