@@ -39,7 +39,7 @@ print(f"declustered mean Au {np.average(au, weights=weights):.2f} g/t")
 </details>
 
 ```text
-declustered mean Au 8.29 g/t
+declustered mean Au 8.33 g/t
 ```
 
 ## How much metal sits in the tail
@@ -60,12 +60,12 @@ for cap, above, metal, mean, cv in zip(*(caps[c] for c in caps.column_names), st
 
 ```text
     cap  above (%)  metal (%)   mean    CV
-   18.4      10.00       35.1   5.37  1.07
-   31.0       5.01       24.4   6.27  1.29
-   49.4       2.50       16.5   6.92  1.50
-   80.6       1.00       10.6   7.41  1.72
-  120.1       0.55        7.1   7.70  1.90
-  272.9       0.09        3.2   8.03  2.25
+   18.1       9.99       36.5   5.29  1.07
+   30.8       5.00       25.5   6.21  1.30
+   49.2       2.50       17.6   6.86  1.51
+   81.4       1.00       11.5   7.38  1.74
+  120.3       0.44        8.1   7.66  1.92
+  297.7       0.10        3.4   8.05  2.34
 ```
 
 The top 1 % of the weight holds 10.6 % of the metal, the top 10 % holds 35.1 %. The CV climbs from 1.07 at the
@@ -125,11 +125,11 @@ for name, c, n, cut, mean, capped, cv, cv_capped in zip(*(report[k] for k in col
 
 ```text
 vein     cap     n  cut   mean  capped    CV  capped  metal (%)
-V1      77.2  3659   50   8.30    7.46  2.52    1.69       10.1
-V2      71.0  1968   24   7.74    6.62  4.17    1.64       14.5
-V3      67.5    94    0   6.49    6.49  1.63    1.63        0.0
-V4     186.8   105    1  20.09   20.02  1.64    1.63        0.4
-all           5826   75   8.29    7.44  3.08    1.76       10.2
+V1      81.3  3659   47   8.52    7.60  2.60    1.72       10.8
+V2      71.7  1968   23   7.95    6.73  4.31    1.67       15.4
+V3      67.5    94    0   6.59    6.59  1.65    1.65        0.0
+V4     183.5   105    1  15.06   14.96  2.04    2.01        0.7
+all           5826   71   8.33    7.41  3.22    1.78       11.1
 ```
 
 The caps cut 50 composites in V1 and 24 in V2, and remove 10.1 % and 14.5 % of their metal; pooled, 10.2 % of the

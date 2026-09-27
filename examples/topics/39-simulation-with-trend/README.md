@@ -67,8 +67,8 @@ by_sgs = plain.simulate(grid, n=20, seed=5, realizations=True).realizations
 </details>
 
 ```text
-Variogram(nugget=0.18193747129981566, structures=[Structure("spherical", sill=0.8180625287001844, range=22.276616189519796)], rotation=(0.0, 0.0, 0.0), ratios=(1.0, 1.0))
-Variogram(nugget=0.3383319470441442, structures=[Structure("spherical", sill=0.6616680529558558, range=51.467908218372635)], rotation=(0.0, 0.0, 0.0), ratios=(1.0, 1.0))
+Variogram(nugget=0.19038648061160174, structures=[Structure("spherical", sill=0.8096135193883982, range=22.62299198336531)], rotation=(0.0, 0.0, 0.0), ratios=(1.0, 1.0))
+Variogram(nugget=0.3405226282644493, structures=[Structure("spherical", sill=0.6594773717355508, range=51.76429044224697)], rotation=(0.0, 0.0, 0.0), ratios=(1.0, 1.0))
 ```
 
 <details><summary>Python</summary>
@@ -91,12 +91,12 @@ for k in range(4):
 </details>
 
 ```text
-correlation with the trend: data 0.53, SGS 0.44, SGS with trend 0.50
+correlation with the trend: data 0.52, SGS 0.44, SGS with trend 0.50
 mean V (ppm) by trend quartile    data   SGS  SGS with trend
-quartile 1                         115   149             113
-quartile 2                         273   263             275
-quartile 3                         328   325             320
-quartile 4                         466   450             455
+quartile 1                         106   150             115
+quartile 2                         267   264             264
+quartile 3                         320   326             319
+quartile 4                         450   451             453
 ```
 
 <details><summary>Python</summary>

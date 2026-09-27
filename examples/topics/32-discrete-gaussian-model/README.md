@@ -37,7 +37,7 @@ print(gaussian)
 </details>
 
 ```text
-Variogram(nugget=0.37159062388586706, structures=[Structure("spherical", sill=0.6466265241068904, range=93.47014893726075)], rotation=(170.0, 0.0, 0.0), ratios=(0.3518201871856887, 1.0))
+Variogram(nugget=0.3880893922398883, structures=[Structure("spherical", sill=0.6541305202954576, range=95.35462791604381)], rotation=(170.0, 0.0, 0.0), ratios=(0.3490856607382125, 1.0))
 ```
 
 `change_of_support` averages the Gaussian correlogram over a 10 × 10 m block and returns the change-of-support
@@ -57,7 +57,7 @@ print(
 </details>
 
 ```text
-r = 0.728; point variance 67110, block 34001, true block 46694
+r = 0.725; point variance 64974, block 32652, true block 46694
 ```
 
 Grade-tonnage curves, model against truth:
@@ -110,9 +110,9 @@ save(fig, "grade-tonnage")
 </details>
 
 ```text
-above 300 ppm: points 42.2% (true 39.3%), blocks 43.3% (true 40.1%)
-above 500 ppm: points 22.2% (true 18.8%), blocks 14.1% (true 16.2%)
-above 800 ppm: points 4.6% (true 3.9%), blocks 1.1% (true 2.1%)
+above 300 ppm: points 41.7% (true 39.3%), blocks 42.7% (true 40.1%)
+above 500 ppm: points 21.1% (true 18.8%), blocks 13.3% (true 16.2%)
+above 800 ppm: points 4.3% (true 3.9%), blocks 1.0% (true 2.1%)
 ```
 
 ![grade-tonnage](grade-tonnage.png)

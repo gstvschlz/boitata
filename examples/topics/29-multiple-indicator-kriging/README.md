@@ -65,9 +65,9 @@ print(f"validation points inside their 10-90% interval: {inside:.0%}")
 
 ```text
 ordinary kriging: RMSE 0.777 mg/kg
-per-threshold variograms: E-type RMSE 0.717 mg/kg, mean P(Cd > 0.8) 0.76 where true exceedance, 0.62 elsewhere, mean correction 0.060
-median indicator: E-type RMSE 0.757 mg/kg, mean P(Cd > 0.8) 0.77 where true exceedance, 0.62 elsewhere, mean correction 0.005
-validation points inside their 10-90% interval: 75%
+per-threshold variograms: E-type RMSE 0.717 mg/kg, mean P(Cd > 0.8) 0.76 where true exceedance, 0.61 elsewhere, mean correction 0.060
+median indicator: E-type RMSE 0.755 mg/kg, mean P(Cd > 0.8) 0.76 where true exceedance, 0.62 elsewhere, mean correction 0.005
+validation points inside their 10-90% interval: 77%
 ```
 
 The E-type estimate, the mean of each distribution, has a lower error than ordinary kriging, and the median-indicator
@@ -134,8 +134,8 @@ save(fig, "accuracy")
 </details>
 
 ```text
-per-threshold: E-type RMSE 0.756 mg/kg, slope 1.05, goodness 0.956, Brier 0.131
-median indicator: E-type RMSE 0.784 mg/kg, slope 0.96, goodness 0.959, Brier 0.133
+per-threshold: E-type RMSE 0.756 mg/kg, slope 1.06, goodness 0.939, Brier 0.131
+median indicator: E-type RMSE 0.783 mg/kg, slope 0.97, goodness 0.944, Brier 0.133
 validation targets with order-relation violations: 91%
 ```
 

@@ -60,7 +60,7 @@ save(fig, "cell_sizes")
 </details>
 
 ```text
-cell size 700 m, declustered mean 1.95 m
+cell size 700 m, declustered mean 1.91 m
 scanned mean at that size 1.91 m
 ```
 

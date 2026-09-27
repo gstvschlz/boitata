@@ -64,10 +64,10 @@ for vein in veins:
 
 ```text
 vein          P99  metal (%)  5 % metal  metal (%)     CV 1.5  metal (%)
-V1           77.2      10.11      144.1       5.00       49.1      15.36
-V2           71.0      14.46      513.7       5.00       51.1      17.59
-V3           67.5       0.00       50.3       5.00       56.5       3.20
-V4          186.8       0.37      107.3       5.00       96.7       8.08
+V1           81.3      10.76      160.6       5.00       48.4      17.07
+V2           71.7      15.38      591.8       5.00       48.7      19.38
+V3           67.5       0.00       50.5       5.00       54.0       3.97
+V4          183.5       0.71      111.6       5.00       52.0      30.36
 ```
 
 The rules disagree most where the tail is longest. V1 and V2 lose 10 and 14 % of their metal at the P99;
@@ -100,10 +100,10 @@ for k, vein in enumerate(report["domain"][:-1]):
 
 ```text
 vein      P99  fitted cap  report (%)  fitted (%)
-V1      77.18       77.18       10.11       10.11
-V2      70.97       70.97       14.46       14.46
+V1      81.35       81.35       10.76       10.76
+V2      71.68       71.68       15.38       15.38
 V3      67.53       67.53        0.00        0.00
-V4     186.79      186.79        0.37        0.37
+V4     183.55      183.55        0.71        0.71
 ```
 
 On a log-probability plot the dashed caps cut the last percent of each vein's tail.
@@ -165,9 +165,9 @@ print(
 </details>
 
 ```text
-AU_GPT: 5225 blocks, mean 7.74 g/t
-AU_CAPPED: 5225 blocks, mean 7.28 g/t
-composites: 8.30 and 7.46 g/t
+AU_GPT: 5225 blocks, mean 7.73 g/t
+AU_CAPPED: 5225 blocks, mean 7.31 g/t
+composites: 8.52 and 7.60 g/t
 ```
 
 <details><summary>Python</summary>
@@ -208,7 +208,7 @@ print(restored.caps_ == pipeline.caps_)
 </details>
 
 ```text
-[-1.296  0.385  2.011  2.721]
+[-1.305  0.386  1.981  2.658]
 True
 ```
 

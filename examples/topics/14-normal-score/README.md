@@ -26,7 +26,7 @@ print(f"back-transform max error {np.abs(ns.inverse_transform(y) - v).max():.1e}
 </details>
 
 ```text
-scores: weighted mean 0.000, sd 0.999
+scores: weighted mean 0.001, sd 0.998
 back-transform max error 0.0e+00
 ```
 
@@ -137,8 +137,8 @@ print(f"transform: {np.unique(ns.transform(v[zero]))[0]:.2f} for all")
 
 ```text
 22 of 470 samples at 0 ppm
-fit_transform: scores -3.04 to -1.34
-transform: -1.87 for all
+fit_transform: scores -2.73 to -1.34
+transform: -1.76 for all
 ```
 
 Neither order means anything. For a large spike, such as assays at a detection limit, topic 61 breaks the ties by

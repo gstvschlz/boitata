@@ -44,7 +44,7 @@ print(gaussian)
 </details>
 
 ```text
-Variogram(nugget=0.32126839519606537, structures=[Structure("spherical", sill=0.6787316048039347, range=82.07160980744193)], rotation=(170.0, 0.0, 0.0), ratios=(0.4270832349370336, 1.0))
+Variogram(nugget=0.3315861183518779, structures=[Structure("spherical", sill=0.6684138816481222, range=82.43111673409601)], rotation=(170.0, 0.0, 0.0), ratios=(0.42564072265384956, 1.0))
 ```
 
 Both methods normal-score the data, simulate and back-transform; `bands` sets how many lines turning bands sums.
@@ -69,8 +69,8 @@ for name, reals, seconds in (("SGS", by_sgs, sgs_seconds), ("turning bands", by_
 </details>
 
 ```text
-          SGS: 20 realizations in 3.24 s, mean 299 ppm, variance 72265 ppm²
-turning bands: 20 realizations in 2.33 s, mean 290 ppm, variance 62342 ppm²
+          SGS: 20 realizations in 0.48 s, mean 301 ppm, variance 71507 ppm²
+turning bands: 20 realizations in 0.27 s, mean 291 ppm, variance 60711 ppm²
 ```
 
 Both follow the same high-grade trends; turning bands' realizations are smoother at short scale:

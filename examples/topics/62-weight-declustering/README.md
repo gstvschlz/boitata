@@ -49,7 +49,7 @@ print(f"cell {cell.cell_size:.0f} m: mean {cell.mean:.2f} m")
 </details>
 
 ```text
-cell 768 m: mean 1.90 m
+cell 768 m: mean 1.91 m
 ```
 
 ## Weights from estimation

@@ -52,8 +52,8 @@ print(raw)
 </details>
 
 ```text
-r = 0.728
-Variogram(nugget=16712.278964470897, structures=[Structure("spherical", sill=15352.978766138172, range=35.64044049883205), Structure("spherical", sill=35044.62402064784, range=79.3306247959381)], rotation=(170.0, 0.0, 0.0), ratios=(0.3439680551606079, 1.0))
+r = 0.725
+Variogram(nugget=16180.287820160911, structures=[Structure("spherical", sill=14864.257344019225, range=35.64044049883205), Structure("spherical", sill=33929.07121816696, range=79.3306247959381)], rotation=(170.0, 0.0, 0.0), ratios=(0.3439680551606079, 1.0))
 ```
 
 Ordinary block kriging of 50 × 50 m panels over the western 250 m. Its diagnostics give each panel the variance of
@@ -112,7 +112,7 @@ save(fig, "uniform-conditioning")
 
 ```text
 above 300 ppm: uniform conditioning 45.3%, kriged blocks 42.9%, true 40.9%
-above 500 ppm: uniform conditioning 16.0%, kriged blocks 13.6%, true 16.8%
+above 500 ppm: uniform conditioning 15.6%, kriged blocks 13.6%, true 16.8%
 above 800 ppm: uniform conditioning 1.1%, kriged blocks 2.3%, true 2.1%
 ```
 
@@ -159,7 +159,7 @@ save(fig, "localized")
 
 ```text
 kriged: variance 35064, correlation with truth 0.89
-localized: variance 36264, correlation with truth 0.80
+localized: variance 35465, correlation with truth 0.80
 true blocks: variance 47350
 ```
 

@@ -73,7 +73,7 @@ print(f"true blocks: variance {true_smu.var():.0f}")
 
 ```text
 kriged: variance 35064, correlation with truth 0.89
-localized: variance 53981, correlation with truth 0.82
+localized: variance 54348, correlation with truth 0.82
 true blocks: variance 47350
 ```
 
@@ -124,9 +124,9 @@ save(fig, "localized-mik")
 </details>
 
 ```text
-above 300 ppm: localized 44.8%, kriged 42.9%, true 40.9%
-above 500 ppm: localized 23.5%, kriged 13.6%, true 16.8%
-above 800 ppm: localized 2.8%, kriged 2.3%, true 2.1%
+above 300 ppm: localized 45.1%, kriged 42.9%, true 40.9%
+above 500 ppm: localized 23.3%, kriged 13.6%, true 16.8%
+above 800 ppm: localized 3.2%, kriged 2.3%, true 2.1%
 ```
 
 ![localized-mik](localized-mik.png)
