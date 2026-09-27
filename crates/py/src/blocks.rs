@@ -73,7 +73,7 @@ impl Mesh {
         .map_err(core_error)
     }
 
-    fn solid(&self) -> PyResult<&SolidTester> {
+    pub(crate) fn solid(&self) -> PyResult<&SolidTester> {
         self.tester
             .as_ref()
             .ok_or_else(|| invalid("mesh is not closed; this needs a solid"))

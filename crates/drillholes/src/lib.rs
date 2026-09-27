@@ -216,6 +216,73 @@ pub fn position_at(path: &[WellborePoint], depth: f64) -> (f64, f64, f64) {
     }
 }
 
+/// Splits `path` into contiguous runs of `inside`/`outside` a boundary such
+/// as a mesh, sampling the desurveyed path every `step` of depth and
+/// bisecting a crossing between two samples down to `tolerance`.
+///
+/// # Algorithm
+/// `inside` is evaluated at 0, `step`, 2·`step`, ... and at the end of the
+/// path; wherever two consecutive samples disagree, the depth between them is
+/// bisected until the bracket is within `tolerance`, which becomes a run
+/// boundary. A boundary crossed more than once between two samples less than
+/// `step` apart is missed; pick `step` accordingly.
+///
+/// # Returns
+/// `(from, to, inside)` runs covering `[0, length of path]` exactly once
+/// each, contiguous: `runs[i].1 == runs[i + 1].0`.
+pub fn mesh_intervals(
+    path: &[WellborePoint],
+    step: f64,
+    tolerance: f64,
+    inside: impl Fn([f64; 3]) -> bool,
+) -> Vec<(f64, f64, bool)> {
+    let Some(total) = path.last().map(|p| p.measured_depth) else {
+        return vec![];
+    };
+    let at = |depth: f64| {
+        let (x, y, z) = position_at(path, depth);
+        inside([x, y, z])
+    };
+    let step = if step > 0.0 { step } else { total.max(1.0) };
+
+    let mut depths = vec![0.0];
+    let mut d = step;
+    while d < total {
+        depths.push(d);
+        d += step;
+    }
+    if total > 0.0 {
+        depths.push(total);
+    }
+
+    let bisect = |mut lo: f64, mut hi: f64, lo_inside: bool| {
+        while hi - lo > tolerance {
+            let mid = (lo + hi) / 2.0;
+            if at(mid) == lo_inside {
+                lo = mid;
+            } else {
+                hi = mid;
+            }
+        }
+        hi
+    };
+
+    let mut runs = Vec::new();
+    let mut start = 0.0;
+    let mut current = at(0.0);
+    for w in depths.windows(2) {
+        let next = at(w[1]);
+        if next != current {
+            let cross = bisect(w[0], w[1], current);
+            runs.push((start, cross, current));
+            start = cross;
+            current = next;
+        }
+    }
+    runs.push((start, total, current));
+    runs
+}
+
 /// Wellbore point (3D location at measured depth).
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct WellborePoint {
@@ -706,6 +773,24 @@ mod tests {
             (end.north - 25.0).abs() < 1e-9
                 && (end.elev + 50.0 * 30f64.to_radians().cos()).abs() < 1e-9
         );
+    }
+
+    #[test]
+    fn mesh_intervals_bracket_the_crossing_and_cover_the_path() {
+        // Vertical hole, elevation = -depth; stand in for a mesh with a flat
+        // boundary at elevation -40, i.e. depth 40.
+        let path = hole(&[(0.0, 0.0, 0.0), (100.0, 0.0, 0.0)]);
+        let tolerance = 0.01;
+        let runs = mesh_intervals(&path, 1.0, tolerance, |p| p[2] < -40.0);
+
+        assert_eq!(runs.len(), 2);
+        assert!(!runs[0].2 && runs[1].2);
+        assert_eq!(runs[0].0, 0.0);
+        assert_eq!(runs.last().unwrap().1, 100.0);
+        for w in runs.windows(2) {
+            assert_eq!(w[0].1, w[1].0, "runs must be contiguous");
+        }
+        assert!((runs[0].1 - 40.0).abs() < tolerance);
     }
 
     #[test]
