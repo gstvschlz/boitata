@@ -6,6 +6,7 @@
 //! - [`idw`]     — inverse-distance weighting and nearest-neighbor
 //! - [`indicator`] — multiple indicator kriging of conditional distributions
 //! - [`categorical`] — indicator kriging of category probabilities
+//! - [`multigaussian`] — conditional distributions from kriged normal scores
 //! - [`search`]  — search-neighborhood selection (anisotropic, octant, per-hole caps)
 //! - [`validate`] — leave-one-out and k-fold cross-validation with diagnostics
 //!
@@ -22,6 +23,7 @@ pub mod indicator;
 pub mod krige;
 pub mod kriging_algebra;
 pub mod lva;
+pub mod multigaussian;
 pub mod neighborhood;
 pub mod search;
 pub mod simple_interp;
@@ -45,6 +47,7 @@ pub use krige::{Estimate, Kind, krige};
 pub use kriging_algebra::{
     DriftSpec, DualKriging, krige_bayesian, krige_factorial, krige_ordinary, krige_universal,
 };
+pub use multigaussian::Multigaussian;
 pub use neighborhood::{NeighborhoodStats, hole_distance, neighborhood_stats};
 pub use search::{HighGrade, Search, Soft, SoftPair, neighbors, neighbors_in};
 pub use simple_interp::{

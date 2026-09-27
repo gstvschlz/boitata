@@ -140,6 +140,10 @@ def estimators():
             ),
             {"weights": np.linspace(1.0, 2.0, 300), "holes": holes},
         ),
+        (
+            cs.MultigaussianKriging(model, passes, tails=(0.0, 20.0)),
+            {"weights": np.linspace(1.0, 2.0, 300), "holes": holes, "despike": True},
+        ),
     ]
 
 
@@ -160,7 +164,7 @@ def indicator_arrays(s):
 def prediction(estimator):
     if isinstance(estimator, cs.DisjunctiveKriging):
         return estimator.predict(targets), estimator.predict_tonnage(targets, 1.0)
-    if isinstance(estimator, cs.MultipleIndicatorKriging):
+    if isinstance(estimator, (cs.MultipleIndicatorKriging, cs.MultigaussianKriging)):
         return indicator_arrays(estimator.predict(targets, cutoffs=[1.0], quantiles=[0.5]))
     if isinstance(estimator, cs.DualKriging):
         return (estimator.predict(targets),)

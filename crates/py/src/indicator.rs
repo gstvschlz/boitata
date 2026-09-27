@@ -463,7 +463,7 @@ fn disc((nx, ny, nz): (usize, usize, usize)) -> Discretization {
 }
 
 /// Discretization points of a block of `model` about its centroid.
-fn offsets(
+pub(crate) fn offsets(
     model: &ceres_core::BlockModel,
     d: (usize, usize, usize),
 ) -> PyResult<Vec<(f64, f64, f64)>> {
@@ -504,11 +504,12 @@ impl Tabular for MultipleIndicatorKriging {
     }
 }
 
-/// Conditional distribution at every target from multiple indicator kriging.
+/// Conditional distribution at every target from multiple indicator or
+/// multigaussian kriging.
 /// Per-threshold, per-cutoff and per-quantile arrays have one row per
 /// threshold, cutoff or quantile; NaN where unestimated.
 #[pyclass(module = "ceres", name = "IndicatorSummary", frozen)]
-pub struct IndicatorSummary(CoreSummary);
+pub struct IndicatorSummary(pub(crate) CoreSummary);
 
 #[pymethods]
 impl IndicatorSummary {

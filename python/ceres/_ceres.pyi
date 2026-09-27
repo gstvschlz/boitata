@@ -1059,6 +1059,37 @@ class MultipleIndicatorKriging:
         discretization: tuple[int, int, int] | None = None,
     ) -> BlockModel: ...
 
+class MultigaussianKriging:
+    def to_parquet(self, path: Path) -> None: ...
+    @staticmethod
+    def from_parquet(path: Path) -> MultigaussianKriging: ...
+    def __init__(
+        self,
+        variogram: Variogram,
+        search: Search | Sequence[Search],
+        *,
+        tails: tuple[float, float] | None = None,
+    ) -> None: ...
+    def fit(
+        self,
+        coords: ArrayLike | PointSet | BlockModel,
+        values: ArrayLike | Column,
+        *,
+        weights: ArrayLike | Column | None = None,
+        holes: Holes | Column | None = None,
+        despike: bool = False,
+    ) -> MultigaussianKriging: ...
+    def predict(
+        self,
+        targets: Any,
+        *,
+        cutoffs: Sequence[float] = (),
+        quantiles: Sequence[float] = (),
+        discretization: tuple[int, int, int] | None = None,
+        diagnostics: bool = False,
+    ) -> IndicatorSummary: ...
+    def cross_validate(self, *, folds: int | None = None) -> IndicatorCrossValidation: ...
+
 class IndicatorSummary:
     def to_parquet(self, path: Path) -> None: ...
     @staticmethod
