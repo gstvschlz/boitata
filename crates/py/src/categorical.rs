@@ -316,7 +316,7 @@ fn names(scheme: Option<&Categories>, k: usize) -> Vec<String> {
 }
 
 /// `[category][target]` rows as a `(targets, categories)` array.
-fn by_target<'py>(py: Python<'py>, rows: &[Vec<f64>]) -> Bound<'py, PyArray2<f64>> {
+pub(crate) fn by_target<'py>(py: Python<'py>, rows: &[Vec<f64>]) -> Bound<'py, PyArray2<f64>> {
     let n = rows.first().map_or(0, Vec::len);
     Array2::from_shape_vec((rows.len(), n), rows.concat())
         .expect("rectangular rows")
