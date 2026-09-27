@@ -303,8 +303,11 @@ impl Mesh {
     /// -------
     /// Mesh
     ///     A new mesh without unused vertices, each connected piece wound one
-    ///     way and outward where it is closed. Kept vertices and triangles
-    ///     keep their order and attributes. Repairing it again changes nothing.
+    ///     way. A closed piece inside an even number of other closed pieces
+    ///     winds outward; inside an odd number it is a cavity and winds
+    ///     inward, so the volume is outer minus cavities. Kept vertices and
+    ///     triangles keep their order and attributes. Repairing it again
+    ///     changes nothing.
     #[pyo3(signature = (*, tolerance=0.0))]
     fn repair(&self, py: Python, tolerance: f64) -> PyResult<Self> {
         let mesh = py

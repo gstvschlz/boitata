@@ -4,6 +4,7 @@ use std::sync::Arc;
 use arrow_array::{ArrayRef, RecordBatch, RecordBatchOptions, UInt32Array};
 use arrow_schema::Schema;
 use arrow_select::take::take_record_batch;
+use nalgebra::Vector3;
 
 use crate::{Error, Result};
 
@@ -73,6 +74,32 @@ fn volume6(vertices: &[[f64; 3]], o: [f64; 3], triangles: impl Iterator<Item = [
             a[0] * n[0] + a[1] * n[1] + a[2] * n[2]
         })
         .sum()
+}
+
+/// Signed solid angle subtended by a triangle at the origin (van Oosterom &
+/// Strackee, IEEE Trans. Biomed. Eng.). Summed over a closed mesh and divided
+/// by 4π it is the winding number: ±1 inside, 0 outside. `atan2` keeps angles
+/// past π in the right quadrant; `atan2(0, 0) = 0` covers degenerate triangles
+/// and points on a vertex.
+pub fn signed_solid_angle(a: &Vector3<f64>, b: &Vector3<f64>, c: &Vector3<f64>) -> f64 {
+    let num = a.dot(&b.cross(c));
+    let denom = a.norm() * b.norm() * c.norm()
+        + a.dot(b) * c.norm()
+        + b.dot(c) * a.norm()
+        + c.dot(a) * b.norm();
+    2.0 * num.atan2(denom)
+}
+
+fn encloses(vertices: &[[f64; 3]], triangles: &[[u32; 3]], p: [f64; 3]) -> bool {
+    let p = Vector3::from(p);
+    let w: f64 = triangles
+        .iter()
+        .map(|t| {
+            let [a, b, c] = t.map(|i| Vector3::from(vertices[i as usize]) - p);
+            signed_solid_angle(&a, &b, &c)
+        })
+        .sum();
+    (w / (4.0 * std::f64::consts::PI)).abs() > 0.5
 }
 
 pub(crate) fn take_rows(batch: &RecordBatch, keep: Vec<u32>) -> Result<RecordBatch> {
@@ -196,8 +223,10 @@ impl Mesh {
 
     /// Copy with vertices within `tolerance` of an earlier one welded to it,
     /// degenerate and duplicate triangles and unused vertices dropped, and
-    /// each connected piece wound consistently, outward where it is closed.
-    /// Kept vertices and triangles keep their order and attributes.
+    /// each connected piece wound consistently. A closed piece inside an even
+    /// number of other closed pieces winds outward; inside an odd number it is
+    /// a cavity and winds inward. Kept vertices and triangles keep their order
+    /// and attributes.
     pub fn repair(&self, tolerance: f64) -> Result<Self> {
         if !(tolerance.is_finite() && tolerance >= 0.0) {
             return Err(Error::Geometry("tolerance must be finite and >= 0".into()));
@@ -256,6 +285,7 @@ impl Mesh {
         }
         let directed = |t: [u32; 3]| [(t[0], t[1]), (t[1], t[2]), (t[2], t[0])];
         let mut flip: Vec<Option<bool>> = vec![None; triangles.len()];
+        let mut shells = vec![];
         for seed in 0..triangles.len() {
             if flip[seed].is_some() {
                 continue;
@@ -281,23 +311,41 @@ impl Mesh {
                     }
                 }
             }
-            let oriented = |&f: &usize| {
-                let mut t = triangles[f];
-                if flip[f] == Some(true) {
-                    t.swap(1, 2);
-                }
-                t
-            };
-            let o = self.vertices[triangles[seed][0] as usize];
-            if closed && volume6(&self.vertices, o, piece.iter().map(oriented)) < 0.0 {
-                for f in piece {
-                    flip[f] = flip[f].map(|x| !x);
-                }
+            if closed {
+                shells.push(piece);
             }
         }
         for (t, flip) in triangles.iter_mut().zip(&flip) {
             if *flip == Some(true) {
                 t.swap(1, 2);
+            }
+        }
+        let shell_triangles: Vec<Vec<[u32; 3]>> = shells
+            .iter()
+            .map(|s| s.iter().map(|&f| triangles[f]).collect())
+            .collect();
+        let mut owners: HashMap<u32, usize> = HashMap::new();
+        for s in &shell_triangles {
+            let mut v: Vec<u32> = s.iter().flatten().copied().collect();
+            v.sort_unstable();
+            v.dedup();
+            for i in v {
+                *owners.entry(i).or_default() += 1;
+            }
+        }
+        for (i, own) in shell_triangles.iter().enumerate() {
+            let v = own.iter().flatten().copied().find(|v| owners[v] == 1);
+            let p = self.vertices[v.unwrap_or(own[0][0]) as usize];
+            let depth = shell_triangles
+                .iter()
+                .enumerate()
+                .filter(|&(j, t)| j != i && encloses(&self.vertices, t, p))
+                .count();
+            let outward = volume6(&self.vertices, p, own.iter().copied()) > 0.0;
+            if outward != (depth % 2 == 0) {
+                for &f in &shells[i] {
+                    triangles[f].swap(1, 2);
+                }
             }
         }
 
@@ -469,6 +517,32 @@ mod tests {
         let fixed = mesh(c.vertices(), &inward).repair(0.0).unwrap();
         assert!((fixed.volume().unwrap() - 1.0).abs() < 1e-12);
         assert!(c.repair(-1.0).is_err() && c.repair(f64::NAN).is_err());
+    }
+
+    /// Theory check: a 3-cube with a unit-cube cavity repairs to volume 27 - 1
+    /// with the cavity wound inward, from any starting windings.
+    #[test]
+    fn repair_keeps_a_cavity_wound_inward() {
+        let c = cube();
+        let mut vertices: Vec<[f64; 3]> = c.vertices().iter().map(|p| p.map(|v| 3.0 * v)).collect();
+        vertices.extend(c.vertices().iter().map(|p| p.map(|v| v + 1.0)));
+        let outer = c.triangles().to_vec();
+        let inner: Vec<[u32; 3]> = outer.iter().map(|t| t.map(|i| i + 8)).collect();
+        let flipped = |ts: &[[u32; 3]]| ts.iter().map(|&[a, b, c]| [a, c, b]).collect::<Vec<_>>();
+        let correct = [outer.clone(), flipped(&inner)].concat();
+        let fixed = mesh(&vertices, &correct).repair(0.0).unwrap();
+        assert_eq!(fixed.triangles(), &correct[..]);
+        assert!((fixed.volume().unwrap() - 26.0).abs() < 1e-12);
+        for start in [
+            [outer.clone(), inner.clone()],
+            [flipped(&outer), inner.clone()],
+            [flipped(&outer), flipped(&inner)],
+        ] {
+            let m = mesh(&vertices, &start.concat()).repair(0.0).unwrap();
+            assert_eq!(m.triangles(), &correct[..]);
+        }
+        let inside = |p| encloses(fixed.vertices(), fixed.triangles(), p);
+        assert!(inside([0.5; 3]) && !inside([1.5; 3]) && !inside([4.0; 3]));
     }
 
     #[test]

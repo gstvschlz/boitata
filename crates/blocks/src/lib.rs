@@ -28,7 +28,7 @@ pub use shell::{
 pub use solid::{Aabb, BlockDomainRule, BlockSolid, SolidTester};
 pub use subblock::{Domain, Region, proportions, subblock};
 
-use ceres_core::Mesh;
+use ceres_core::{Mesh, signed_solid_angle};
 use nalgebra::Vector3;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -190,29 +190,6 @@ pub fn winding_number(mesh: &Mesh, point: &(f64, f64, f64)) -> f64 {
 pub fn is_inside(mesh: &Mesh, point: &(f64, f64, f64)) -> Result<bool> {
     require_closed(mesh)?;
     Ok(winding_number(mesh, point).abs() > 0.5)
-}
-
-/// Signed solid angle subtended by a triangle at the origin (van Oosterom &
-/// Strackee, IEEE Trans. Biomed. Eng.).
-///
-/// The *sign* is what makes a sum of these a winding number — it encodes which
-/// face of the triangle the origin sees. Taking `.abs()` of the numerator
-/// instead turns every contribution positive, so the sum approaches 2π just
-/// outside any face and the point reads as inside: a false-"inside" halo around
-/// the whole surface.
-///
-/// `atan2`, not `atan(num / denom)`: the denominator goes negative for solid
-/// angles past π, and only atan2 puts those in the right quadrant.
-fn signed_solid_angle(a: &Vector3<f64>, b: &Vector3<f64>, c: &Vector3<f64>) -> f64 {
-    let num = a.dot(&(b.cross(c)));
-    let denom = a.norm() * b.norm() * c.norm()
-        + a.dot(b) * c.norm()
-        + b.dot(c) * a.norm()
-        + c.dot(a) * b.norm();
-
-    // atan2(0, 0) is 0, which is the right contribution for a degenerate
-    // triangle or a point sitting exactly on a vertex.
-    2.0 * num.atan2(denom)
 }
 
 /// Inside test on a summed winding angle (radians, not yet divided by 4π).

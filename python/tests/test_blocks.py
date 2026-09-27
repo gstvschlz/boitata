@@ -154,6 +154,20 @@ def test_repair_rebuilds_a_broken_cube():
         cube.repair(tolerance=-1)
 
 
+def test_repair_keeps_a_cavity_wound_inward():
+    vertices = np.r_[cube_vertices * 3, cube_vertices + 10]
+    flip = lambda t: t[:, [0, 2, 1]]
+    outer, inner = cube_triangles, flip(cube_triangles) + 8
+    hollow = cs.Mesh(vertices, np.r_[outer, inner])
+    for start in (np.r_[outer, flip(inner)], np.r_[flip(outer), flip(inner)], np.r_[outer, inner]):
+        fixed = cs.Mesh(vertices, start).repair()
+        np.testing.assert_array_equal(fixed.triangles, hollow.triangles)
+    assert fixed.volume == pytest.approx(27000 - 1000)
+    np.testing.assert_array_equal(fixed.contains([[5, 5, 5], [15, 15, 15], [35, 5, 5]]), [True, False, False])
+    blocks = [[5, 5, 5], [15, 15, 15]]
+    np.testing.assert_allclose(fixed.proportion(blocks, size=(10, 10, 10)), [1, 0])
+
+
 def test_subblocks_from_meshes_and_regularize():
     topo = cs.Mesh([[-10, -10, 7], [30, -10, 7], [30, 30, 7], [-10, 30, 7]], [[0, 1, 2], [0, 2, 3]])
     meshes = [(cube, "inside", "ore"), (topo, "below", "rock")]
