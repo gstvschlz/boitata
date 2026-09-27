@@ -1,1 +1,1 @@
-## 19. Variography
+## 19. Variogram fitting
