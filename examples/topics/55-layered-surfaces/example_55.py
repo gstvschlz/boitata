@@ -77,16 +77,14 @@ for name in LAYERS:
 
 # %% [markdown]
 # Cells beyond 400 m of a hole are left out of the surfaces. The thickness of a horizon is the vertical distance from
-# its base, at each cell center, up to the surface above it.
+# its base, at each cell center, up to the surface above it; a cell with no base elevation gets NaN.
 
 # %%
 above = {"SOIL": ground, "ALU": bases["SOIL"], "OXI": bases["ALU"], "SAP": bases["OXI"]}
 fig, axes = plt.subplots(2, 2, figsize=(9, 6), sharex=True, sharey=True, layout="constrained")
 for ax, name in zip(axes.flat, LAYERS, strict=True):
     points = np.column_stack([topography.centroids[:, :2], elevations[name]])
-    known = np.isfinite(elevations[name])
-    thickness = np.full(len(points), np.nan)
-    thickness[known] = -above[name].vertical_distance(points[known])
+    thickness = -above[name].vertical_distance(points)
     print(f"{name:>4}: thickness {np.nanmin(thickness):5.1f} to {np.nanmax(thickness):5.1f} m")
     cs.plot.section(topography, thickness, ax=ax, colorbar=False)
     fig.colorbar(ax.images[0], ax=ax, shrink=0.8, label="m")

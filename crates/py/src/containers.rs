@@ -13,6 +13,16 @@ use crate::table::{Table, arrow_c_stream, column, describe, empty, to_batch};
 /// `(n, 2)` or `(n, 3)` array-like to xyz rows, 2D with z = 0; the coords
 /// of a PointSet or the centroids of a BlockModel.
 pub fn coords_arg(coords: &Bound<PyAny>) -> PyResult<Vec<[f64; 3]>> {
+    let rows = coords_or_nan(coords)?;
+    if rows.iter().flatten().any(|v| v.is_nan()) {
+        return Err(invalid("coordinates must be finite"));
+    }
+    Ok(rows)
+}
+
+/// [`coords_arg`] that keeps NaN coordinates, for functions that return NaN
+/// for those rows.
+pub fn coords_or_nan(coords: &Bound<PyAny>) -> PyResult<Vec<[f64; 3]>> {
     if let Ok(points) = coords.cast::<PyPointSet>() {
         return Ok(points.get().0.coords().to_vec());
     }
@@ -33,7 +43,7 @@ pub fn coords_arg(coords: &Bound<PyAny>) -> PyResult<Vec<[f64; 3]>> {
             "coordinates need 2 or 3 columns, got {dims}"
         )));
     }
-    if array.iter().any(|v| !v.is_finite()) {
+    if array.iter().any(|v| v.is_infinite()) {
         return Err(invalid("coordinates must be finite"));
     }
     Ok(array

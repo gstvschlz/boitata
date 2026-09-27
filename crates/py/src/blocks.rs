@@ -13,7 +13,9 @@ use pyo3::types::{IntoPyDict, PyDict, PyTuple};
 use rayon::prelude::*;
 
 use crate::args::{Point, array1, column, finite, floats, named, points, rows, same_length, texts};
-use crate::containers::{PyBlockModel, PyPolylines, coords_arg, coords_array, float_column};
+use crate::containers::{
+    PyBlockModel, PyPolylines, coords_arg, coords_array, coords_or_nan, float_column,
+};
 use crate::estimation::targets;
 use crate::invalid;
 use crate::table::Table;
@@ -286,19 +288,24 @@ impl Mesh {
     /// ----------
     /// points : array_like, PointSet or BlockModel
     ///     ``(n, 3)`` points, or the centroids of a point set or block model.
+    ///     Rows with a NaN coordinate are allowed.
     ///
     /// Returns
     /// -------
     /// numpy.ndarray
     ///     Point elevation minus surface elevation at the same (x, y):
-    ///     positive above, negative below. NaN where no triangle covers the
-    ///     point in plan; where the surface overlaps itself, the highest counts.
+    ///     positive above, negative below. NaN where a coordinate is NaN or no
+    ///     triangle covers the point in plan; where the surface overlaps itself,
+    ///     the highest counts.
     fn vertical_distance<'py>(
         &self,
         py: Python<'py>,
         points: &Bound<PyAny>,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let pts = targets(points)?;
+        let pts: Vec<Point> = coords_or_nan(points)?
+            .into_iter()
+            .map(|[x, y, z]| (x, y, z))
+            .collect();
         let d = py
             .detach(|| blocks::vertical_distance(&self.mesh, &pts))
             .map_err(err)?;
@@ -503,11 +510,36 @@ fn polygon_distance<'py>(
     Ok(array1(py, d).into_any())
 }
 
-/// Domain of each target from labeled samples (`nearest` or `majority`), or
-/// inside/outside a `mesh` (`solid`). Sample labels are `domains` or the
-/// `domain_column` of `coords`. Returns labels and confidences.
+/// Domain of each target from labeled samples, or inside/outside a closed mesh.
+///
+/// Parameters
+/// ----------
+/// targets : array_like, PointSet or BlockModel
+///     ``(n, 2|3)`` points, or the centroids of a point set or block model.
+/// coords : array_like, PointSet or BlockModel, optional
+///     Sample locations, for ``nearest`` and ``majority``.
+/// domains : array_like of str, optional
+///     Sample labels; or give ``domain_column``.
+/// domain_column : str, optional
+///     Column of ``coords`` holding the sample labels.
+/// method : {"nearest", "majority", "solid"}, default "nearest"
+///     ``nearest``: the label of the nearest sample. ``majority``: the most
+///     frequent label among the ``n`` nearest samples; a tie goes to the label
+///     of the nearest sample. Samples at equal distance rank by label.
+///     ``solid``: ``"inside"`` or ``"outside"`` of ``mesh``.
+/// mesh : Mesh, optional
+///     Closed mesh, for ``solid``.
+/// n : int, default 5
+///     Neighbors that vote and that the confidence is measured on.
+///
+/// Returns
+/// -------
+/// labels : list of str
+/// confidence : numpy.ndarray
+///     Share of the ``n`` nearest samples (all of them when fewer) carrying
+///     the chosen label; 1 for ``solid``.
 #[pyfunction]
-#[pyo3(signature = (targets, *, coords=None, domains=None, domain_column=None, method="nearest", mesh=None))]
+#[pyo3(signature = (targets, *, coords=None, domains=None, domain_column=None, method="nearest", mesh=None, n=5))]
 #[allow(clippy::too_many_arguments)]
 fn assign_domain<'py>(
     py: Python<'py>,
@@ -517,6 +549,7 @@ fn assign_domain<'py>(
     domain_column: Option<&str>,
     method: &str,
     mesh: Option<PyRef<Mesh>>,
+    n: usize,
 ) -> PyResult<Bound<'py, PyTuple>> {
     let method = match method {
         "nearest" => DomainMethod::Nearest,
@@ -547,10 +580,9 @@ fn assign_domain<'py>(
         _ => return Err(invalid("give both coords and domains")),
     };
     let mesh = mesh.as_ref().map(|m| &m.mesh);
-    let out = self::targets(targets)?
-        .iter()
-        .map(|t| blocks::assign_domain(t, &samples, method, mesh))
-        .collect::<Result<Vec<_>, _>>()
+    let targets = self::targets(targets)?;
+    let out = py
+        .detach(|| blocks::assign_domain(&targets, &samples, method, n, mesh))
         .map_err(err)?;
     let labels: Vec<String> = out.iter().map(|a| a.domain.clone()).collect();
     let confidence = array1(py, out.iter().map(|a| a.confidence).collect());

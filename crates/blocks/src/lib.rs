@@ -30,8 +30,9 @@ pub use subblock::{Domain, Region, proportions, subblock};
 
 use ceres_core::{Mesh, signed_solid_angle};
 use nalgebra::Vector3;
+use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 
 /// Domain assignment method.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -48,116 +49,91 @@ pub struct DomainAssignment {
     pub confidence: f64,
 }
 
-/// Assign domain to block.
+/// Domain of each target.
+///
+/// `Nearest` takes the label of the nearest sample; `MajorityVote` the most
+/// frequent label among the `n` nearest samples, ties going to the label of
+/// the nearest sample. Samples at equal distance rank by label. For both,
+/// confidence is the share of the `n` nearest samples carrying the chosen
+/// label. `PointInSolid` gives `"inside"` or `"outside"` of the closed `mesh`,
+/// with confidence 1.
 pub fn assign_domain(
-    block_center: &(f64, f64, f64),
+    targets: &[(f64, f64, f64)],
     samples: &[((f64, f64, f64), String)],
     method: DomainMethod,
+    n: usize,
     mesh: Option<&Mesh>,
-) -> Result<DomainAssignment> {
+) -> Result<Vec<DomainAssignment>> {
     match method {
-        DomainMethod::Nearest => assign_nearest(block_center, samples),
-        DomainMethod::MajorityVote => assign_majority_vote(block_center, samples),
         DomainMethod::PointInSolid => {
-            if let Some(m) = mesh {
-                assign_point_in_solid(block_center, m)
-            } else {
-                Err(BlockModelError::DomainAssignmentFailed(
+            let mesh = mesh.ok_or_else(|| {
+                BlockModelError::DomainAssignmentFailed(
                     "Wireframe required for point-in-solid".to_string(),
-                ))
-            }
+                )
+            })?;
+            require_closed(mesh)?;
+            Ok(targets
+                .par_iter()
+                .map(|t| assign_point_in_solid(t, mesh))
+                .collect())
         }
+        _ if samples.is_empty() => Err(BlockModelError::DomainAssignmentFailed(
+            "No samples available".to_string(),
+        )),
+        _ if n == 0 => Err(BlockModelError::DomainAssignmentFailed(
+            "n must be at least 1".to_string(),
+        )),
+        _ => Ok(targets
+            .par_iter()
+            .map(|t| assign_from_samples(t, samples, method, n))
+            .collect()),
     }
 }
 
-/// Assign to nearest sample's domain.
-fn assign_nearest(
-    block_center: &(f64, f64, f64),
+fn assign_from_samples(
+    target: &(f64, f64, f64),
     samples: &[((f64, f64, f64), String)],
-) -> Result<DomainAssignment> {
-    if samples.is_empty() {
-        return Err(BlockModelError::DomainAssignmentFailed(
-            "No samples available".to_string(),
-        ));
-    }
-
-    let mut nearest = 0;
-    let mut min_dist = f64::INFINITY;
-
-    for (i, (loc, _)) in samples.iter().enumerate() {
-        let dx = block_center.0 - loc.0;
-        let dy = block_center.1 - loc.1;
-        let dz = block_center.2 - loc.2;
-        let dist = (dx * dx + dy * dy + dz * dz).sqrt();
-
-        if dist < min_dist {
-            min_dist = dist;
-            nearest = i;
-        }
-    }
-
-    Ok(DomainAssignment {
-        domain: samples[nearest].1.clone(),
-        confidence: 1.0,
-    })
-}
-
-/// Assign by majority vote among K nearest samples.
-fn assign_majority_vote(
-    block_center: &(f64, f64, f64),
-    samples: &[((f64, f64, f64), String)],
-) -> Result<DomainAssignment> {
-    if samples.is_empty() {
-        return Err(BlockModelError::DomainAssignmentFailed(
-            "No samples available".to_string(),
-        ));
-    }
-
-    let k = 5.min(samples.len());
-
-    let mut distances: Vec<(usize, f64)> = samples
+    method: DomainMethod,
+    n: usize,
+) -> DomainAssignment {
+    let k = n.min(samples.len());
+    let mut ranked: Vec<(f64, &str)> = samples
         .iter()
-        .enumerate()
-        .map(|(i, (loc, _))| {
-            let dx = block_center.0 - loc.0;
-            let dy = block_center.1 - loc.1;
-            let dz = block_center.2 - loc.2;
-            let dist = (dx * dx + dy * dy + dz * dz).sqrt();
-            (i, dist)
+        .map(|(p, label)| {
+            let d = (target.0 - p.0).powi(2) + (target.1 - p.1).powi(2) + (target.2 - p.2).powi(2);
+            (d, label.as_str())
         })
         .collect();
-
-    distances.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap());
-
-    let mut votes: HashMap<String, usize> = HashMap::new();
-    for (i, _) in distances.iter().take(k) {
-        let domain = &samples[*i].1;
-        *votes.entry(domain.clone()).or_insert(0) += 1;
+    let order = |a: &(f64, &str), b: &(f64, &str)| a.0.total_cmp(&b.0).then(a.1.cmp(b.1));
+    if k < ranked.len() {
+        ranked.select_nth_unstable_by(k - 1, order);
+        ranked.truncate(k);
     }
-
-    let (domain, count) = votes
-        .iter()
-        .max_by_key(|&(_, &v)| v)
-        .ok_or_else(|| BlockModelError::DomainAssignmentFailed("Voting failed".to_string()))?;
-
-    Ok(DomainAssignment {
-        domain: domain.clone(),
-        confidence: *count as f64 / k as f64,
-    })
+    ranked.sort_unstable_by(order);
+    // label -> (votes, rank of its nearest sample)
+    let mut votes: BTreeMap<&str, (usize, usize)> = BTreeMap::new();
+    for (rank, (_, label)) in ranked.iter().enumerate() {
+        votes.entry(label).or_insert((0, rank)).0 += 1;
+    }
+    let (domain, (count, _)) = match method {
+        DomainMethod::MajorityVote => votes
+            .into_iter()
+            .min_by_key(|&(_, (count, rank))| (std::cmp::Reverse(count), rank))
+            .expect("at least one sample"),
+        _ => (ranked[0].1, votes[ranked[0].1]),
+    };
+    DomainAssignment {
+        domain: domain.to_string(),
+        confidence: count as f64 / k as f64,
+    }
 }
 
-/// Assign using point-in-solid test (generalized winding number).
-fn assign_point_in_solid(block_center: &(f64, f64, f64), mesh: &Mesh) -> Result<DomainAssignment> {
-    let inside = is_inside(mesh, block_center)?;
-
-    Ok(DomainAssignment {
-        domain: if inside {
-            "inside".to_string()
-        } else {
-            "outside".to_string()
-        },
+fn assign_point_in_solid(target: &(f64, f64, f64), mesh: &Mesh) -> DomainAssignment {
+    let inside = winding_number(mesh, target).abs() > 0.5;
+    DomainAssignment {
+        domain: if inside { "inside" } else { "outside" }.to_string(),
         confidence: 1.0,
-    })
+    }
 }
 
 /// Error unless `mesh` is closed.
@@ -205,19 +181,96 @@ fn is_inside_winding(winding: f64) -> bool {
 mod tests {
     use super::*;
 
+    fn labeled(points: &[(f64, &str)]) -> Vec<((f64, f64, f64), String)> {
+        points
+            .iter()
+            .map(|&(x, label)| ((x, 0.0, 0.0), label.to_string()))
+            .collect()
+    }
+
+    fn assign(
+        samples: &[((f64, f64, f64), String)],
+        method: DomainMethod,
+        n: usize,
+    ) -> (String, f64) {
+        let out = assign_domain(&[(0.0, 0.0, 0.0)], samples, method, n, None).unwrap();
+        (out[0].domain.clone(), out[0].confidence)
+    }
+
     #[test]
-    fn test_nearest_domain_assignment() {
-        let samples = vec![
-            ((0.0, 0.0, 0.0), "granite".to_string()),
-            ((100.0, 0.0, 0.0), "basalt".to_string()),
-        ];
+    fn test_nearest_and_majority_confidence() {
+        let samples = labeled(&[
+            (1.0, "z"),
+            (2.0, "a"),
+            (3.0, "a"),
+            (4.0, "z"),
+            (5.0, "c"),
+            (6.0, "a"),
+        ]);
+        // Five nearest: z a a z c; the z/a tie goes to z, the nearest.
+        let z = ("z".to_string(), 0.4);
+        assert_eq!(assign(&samples, DomainMethod::MajorityVote, 5), z);
+        assert_eq!(assign(&samples, DomainMethod::Nearest, 5), z);
+        // Three nearest: z a a.
+        let (label, share) = assign(&samples, DomainMethod::MajorityVote, 3);
+        assert_eq!((label.as_str(), share), ("a", 2.0 / 3.0));
+        let (label, share) = assign(&samples, DomainMethod::Nearest, 3);
+        assert_eq!((label.as_str(), share), ("z", 1.0 / 3.0));
+        // More neighbors than samples uses them all.
+        let (label, share) = assign(&samples, DomainMethod::MajorityVote, 50);
+        assert_eq!((label.as_str(), share), ("a", 0.5));
+        assert!(
+            assign_domain(&[(0.0, 0.0, 0.0)], &samples, DomainMethod::Nearest, 0, None).is_err()
+        );
+    }
 
-        let block = (5.0, 5.0, 0.0);
-        let result = assign_domain(&block, &samples, DomainMethod::Nearest, None);
+    #[test]
+    fn test_equidistant_samples_rank_by_label() {
+        for samples in [
+            labeled(&[(-1.0, "b"), (1.0, "a")]),
+            labeled(&[(1.0, "a"), (-1.0, "b")]),
+        ] {
+            let (label, share) = assign(&samples, DomainMethod::Nearest, 1);
+            assert_eq!((label.as_str(), share), ("a", 1.0));
+            let (label, share) = assign(&samples, DomainMethod::MajorityVote, 2);
+            assert_eq!((label.as_str(), share), ("a", 0.5));
+        }
+    }
 
-        assert!(result.is_ok());
-        let assignment = result.unwrap();
-        assert_eq!(assignment.domain, "granite");
+    #[test]
+    fn test_domains_do_not_depend_on_runs_threads_or_sample_order() {
+        let names = ["ox", "tr", "fr"];
+        let samples: Vec<_> = (0..60)
+            .map(|i| {
+                let p = ((i % 10) as f64 * 2.0, (i / 10) as f64 * 2.0, 0.0);
+                (p, names[i % 3].to_string())
+            })
+            .collect();
+        let reversed: Vec<_> = samples.iter().rev().cloned().collect();
+        let targets: Vec<_> = (0..400)
+            .map(|i| ((i % 20) as f64, (i / 20) as f64 * 0.5, 0.0))
+            .collect();
+        let run = |threads: usize, samples: &[((f64, f64, f64), String)]| {
+            rayon::ThreadPoolBuilder::new()
+                .num_threads(threads)
+                .build()
+                .unwrap()
+                .install(|| assign_domain(&targets, samples, DomainMethod::MajorityVote, 4, None))
+                .unwrap()
+                .into_iter()
+                .map(|a| (a.domain, a.confidence.to_bits()))
+                .collect::<Vec<_>>()
+        };
+        let reference = run(1, &samples);
+        let ties = reference
+            .iter()
+            .filter(|(_, c)| f64::from_bits(*c) == 0.5)
+            .count();
+        assert!(ties > 0);
+        for _ in 0..5 {
+            assert_eq!(run(8, &samples), reference);
+        }
+        assert_eq!(run(8, &reversed), reference);
     }
 
     fn unit_cube() -> Mesh {
@@ -257,21 +310,15 @@ mod tests {
     #[test]
     fn test_point_in_solid_domain_assignment() {
         let mesh = unit_cube();
-        let inside = assign_domain(
-            &(0.5, 0.5, 0.5),
+        let out = assign_domain(
+            &[(0.5, 0.5, 0.5), (0.5, 0.5, 2.0)],
             &[],
             DomainMethod::PointInSolid,
+            5,
             Some(&mesh),
         )
         .expect("assigns");
-        assert_eq!(inside.domain, "inside");
-        let outside = assign_domain(
-            &(0.5, 0.5, 2.0),
-            &[],
-            DomainMethod::PointInSolid,
-            Some(&mesh),
-        )
-        .expect("assigns");
-        assert_eq!(outside.domain, "outside");
+        assert_eq!(out[0].domain, "inside");
+        assert_eq!(out[1].domain, "outside");
     }
 }
