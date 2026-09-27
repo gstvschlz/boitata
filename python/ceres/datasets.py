@@ -39,7 +39,7 @@ __all__ = [
 ]
 
 REPO = "https://raw.githubusercontent.com/gstvschlz/datasets"
-COMMIT = "e237a9724e3b1023f560eba3e508b795e1227aab"
+COMMIT = "dbf4bdfeffda2aa02df6e800e960b7c28c0672da"
 URL = f"{REPO}/{COMMIT}"
 FILES = {
     "mining/2d/coal-seam-thickness/boreholes.csv": "722383adf51416b50c897b08e61d8a7d7cafd2bdb244426999c7057fdd07420d",
@@ -83,8 +83,8 @@ FILES = {
     "mining/3d/porphyry-geometallurgy/porphyry_03/topography.csv": "2f0f9bc706d8f0378fa2e57d6d605a755e7fab6aed7ae892088aca666dfc181f",
     "mining/3d/stacked-sulphide-lenses/assays.csv": "1b91f6ae05b9932e6f1e220e99be654fc12a4bfd58a65fec45ee11d379a65a1a",
     "mining/3d/stacked-sulphide-lenses/collars.csv": "a0c84d5614565f90300a0ff115e01357d23a9b218daecb7e0113b814ecb1846c",
-    "mining/3d/stacked-sulphide-lenses/lens_1.stl": "670faa33c28784159ef814aebeb46c17d45de490108d8ca88816af1b33a1c546",
-    "mining/3d/stacked-sulphide-lenses/lens_2.stl": "df4ba12d42e9dbda4260ea943f67793a8d7932e2c951b2714242012fe1ba92c8",
+    "mining/3d/stacked-sulphide-lenses/lens_1.stl": "9faf5bbf7b2b0b00d12ad1cf435c1113a1f7f2f5b9f626ef2dda8290d5f6c035",
+    "mining/3d/stacked-sulphide-lenses/lens_2.stl": "697cc65d886a4aedeae1973b494a34a438b971e9baf5c34870910ed33383a517",
     "mining/3d/stacked-sulphide-lenses/lens_3.stl": "45651f98347eb4ec347e82fce1106d1bdad9b506a37e577acc31f31ebaf7e1ca",
     "mining/3d/stacked-sulphide-lenses/lithology.csv": "d91f97cc0bcfce30d91eb159294ff47fbfca8fb729aa3ee3079b84c392cdb87e",
     "mining/3d/stacked-sulphide-lenses/raw/assays.csv": "ab959842f61e072e229a0b8c74085b2643afda2af1ff9a9b60c1dedcd2ed184c",
