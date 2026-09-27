@@ -2,214 +2,770 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
     <url>
          <loc>https://gstvschlz.github.io/ceres/</loc>
-         <lastmod>2026-09-26</lastmod>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/install/</loc>
+         <lastmod>2026-09-27</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/ceres/api/containers/</loc>
-         <lastmod>2026-09-26</lastmod>
+         <lastmod>2026-09-27</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/ceres/api/datasets/</loc>
-         <lastmod>2026-09-26</lastmod>
+         <lastmod>2026-09-27</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/ceres/api/drillholes/</loc>
-         <lastmod>2026-09-26</lastmod>
+         <lastmod>2026-09-27</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/ceres/api/eda/</loc>
-         <lastmod>2026-09-26</lastmod>
+         <lastmod>2026-09-27</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/ceres/api/estimation/</loc>
-         <lastmod>2026-09-26</lastmod>
+         <lastmod>2026-09-27</lastmod>
     </url>
     <url>
-         <loc>https://gstvschlz.github.io/ceres/api/modelling/</loc>
-         <lastmod>2026-09-26</lastmod>
+         <loc>https://gstvschlz.github.io/ceres/api/modeling/</loc>
+         <lastmod>2026-09-27</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/ceres/api/simulation/</loc>
-         <lastmod>2026-09-26</lastmod>
+         <lastmod>2026-09-27</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/ceres/api/transforms/</loc>
-         <lastmod>2026-09-26</lastmod>
+         <lastmod>2026-09-27</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/ceres/api/variography/</loc>
-         <lastmod>2026-09-26</lastmod>
+         <lastmod>2026-09-27</lastmod>
     </url>
     <url>
-         <loc>https://gstvschlz.github.io/ceres/examples/</loc>
-         <lastmod>2026-09-26</lastmod>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/</loc>
+         <lastmod>2026-09-27</lastmod>
     </url>
     <url>
-         <loc>https://gstvschlz.github.io/ceres/examples/01-data/example_01/</loc>
-         <lastmod>2026-09-26</lastmod>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/01-check-drillholes/example_01/</loc>
+         <lastmod>2026-09-27</lastmod>
     </url>
     <url>
-         <loc>https://gstvschlz.github.io/ceres/examples/01-data/mg_execution_times/</loc>
-         <lastmod>2026-09-26</lastmod>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/01-check-drillholes/mg_execution_times/</loc>
+         <lastmod>2026-09-27</lastmod>
     </url>
     <url>
-         <loc>https://gstvschlz.github.io/ceres/examples/02-normal-score/example_02/</loc>
-         <lastmod>2026-09-26</lastmod>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/02-desurvey/example_02/</loc>
+         <lastmod>2026-09-27</lastmod>
     </url>
     <url>
-         <loc>https://gstvschlz.github.io/ceres/examples/02-normal-score/mg_execution_times/</loc>
-         <lastmod>2026-09-26</lastmod>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/02-desurvey/mg_execution_times/</loc>
+         <lastmod>2026-09-27</lastmod>
     </url>
     <url>
-         <loc>https://gstvschlz.github.io/ceres/examples/03-variography/example_03/</loc>
-         <lastmod>2026-09-26</lastmod>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/03-compositing/example_03/</loc>
+         <lastmod>2026-09-27</lastmod>
     </url>
     <url>
-         <loc>https://gstvschlz.github.io/ceres/examples/03-variography/mg_execution_times/</loc>
-         <lastmod>2026-09-26</lastmod>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/03-compositing/mg_execution_times/</loc>
+         <lastmod>2026-09-27</lastmod>
     </url>
     <url>
-         <loc>https://gstvschlz.github.io/ceres/examples/04-kriging/example_04/</loc>
-         <lastmod>2026-09-26</lastmod>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/04-duplicates/example_04/</loc>
+         <lastmod>2026-09-27</lastmod>
     </url>
     <url>
-         <loc>https://gstvschlz.github.io/ceres/examples/04-kriging/mg_execution_times/</loc>
-         <lastmod>2026-09-26</lastmod>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/04-duplicates/mg_execution_times/</loc>
+         <lastmod>2026-09-27</lastmod>
     </url>
     <url>
-         <loc>https://gstvschlz.github.io/ceres/examples/05-simulation/example_05/</loc>
-         <lastmod>2026-09-26</lastmod>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/05-paired-data/example_05/</loc>
+         <lastmod>2026-09-27</lastmod>
     </url>
     <url>
-         <loc>https://gstvschlz.github.io/ceres/examples/05-simulation/mg_execution_times/</loc>
-         <lastmod>2026-09-26</lastmod>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/05-paired-data/mg_execution_times/</loc>
+         <lastmod>2026-09-27</lastmod>
     </url>
     <url>
-         <loc>https://gstvschlz.github.io/ceres/examples/06-drillholes/example_06/</loc>
-         <lastmod>2026-09-26</lastmod>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/06-statistics-by-domain/example_06/</loc>
+         <lastmod>2026-09-27</lastmod>
     </url>
     <url>
-         <loc>https://gstvschlz.github.io/ceres/examples/06-drillholes/mg_execution_times/</loc>
-         <lastmod>2026-09-26</lastmod>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/06-statistics-by-domain/mg_execution_times/</loc>
+         <lastmod>2026-09-27</lastmod>
     </url>
     <url>
-         <loc>https://gstvschlz.github.io/ceres/examples/07-solids/example_07/</loc>
-         <lastmod>2026-09-26</lastmod>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/07-declustering/example_07/</loc>
+         <lastmod>2026-09-27</lastmod>
     </url>
     <url>
-         <loc>https://gstvschlz.github.io/ceres/examples/07-solids/mg_execution_times/</loc>
-         <lastmod>2026-09-26</lastmod>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/07-declustering/mg_execution_times/</loc>
+         <lastmod>2026-09-27</lastmod>
     </url>
     <url>
-         <loc>https://gstvschlz.github.io/ceres/examples/08-cokriging/example_08/</loc>
-         <lastmod>2026-09-26</lastmod>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/08-top-cuts/example_08/</loc>
+         <lastmod>2026-09-27</lastmod>
     </url>
     <url>
-         <loc>https://gstvschlz.github.io/ceres/examples/08-cokriging/mg_execution_times/</loc>
-         <lastmod>2026-09-26</lastmod>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/08-top-cuts/mg_execution_times/</loc>
+         <lastmod>2026-09-27</lastmod>
     </url>
     <url>
-         <loc>https://gstvschlz.github.io/ceres/examples/09-change-of-support/example_09/</loc>
-         <lastmod>2026-09-26</lastmod>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/09-contacts/example_09/</loc>
+         <lastmod>2026-09-27</lastmod>
     </url>
     <url>
-         <loc>https://gstvschlz.github.io/ceres/examples/09-change-of-support/mg_execution_times/</loc>
-         <lastmod>2026-09-26</lastmod>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/09-contacts/mg_execution_times/</loc>
+         <lastmod>2026-09-27</lastmod>
     </url>
     <url>
-         <loc>https://gstvschlz.github.io/ceres/examples/10-compositional/example_10/</loc>
-         <lastmod>2026-09-26</lastmod>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/10-swaths/example_10/</loc>
+         <lastmod>2026-09-27</lastmod>
     </url>
     <url>
-         <loc>https://gstvschlz.github.io/ceres/examples/10-compositional/mg_execution_times/</loc>
-         <lastmod>2026-09-26</lastmod>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/10-swaths/mg_execution_times/</loc>
+         <lastmod>2026-09-27</lastmod>
     </url>
     <url>
-         <loc>https://gstvschlz.github.io/ceres/examples/11-local-anisotropy/example_11/</loc>
-         <lastmod>2026-09-26</lastmod>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/11-categories/example_11/</loc>
+         <lastmod>2026-09-27</lastmod>
     </url>
     <url>
-         <loc>https://gstvschlz.github.io/ceres/examples/11-local-anisotropy/mg_execution_times/</loc>
-         <lastmod>2026-09-26</lastmod>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/11-categories/mg_execution_times/</loc>
+         <lastmod>2026-09-27</lastmod>
     </url>
     <url>
-         <loc>https://gstvschlz.github.io/ceres/examples/12-estimation-methods/example_12/</loc>
-         <lastmod>2026-09-26</lastmod>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/12-data-spacing/example_12/</loc>
+         <lastmod>2026-09-27</lastmod>
     </url>
     <url>
-         <loc>https://gstvschlz.github.io/ceres/examples/12-estimation-methods/mg_execution_times/</loc>
-         <lastmod>2026-09-26</lastmod>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/12-data-spacing/mg_execution_times/</loc>
+         <lastmod>2026-09-27</lastmod>
     </url>
     <url>
-         <loc>https://gstvschlz.github.io/ceres/examples/13-simulation-methods/example_13/</loc>
-         <lastmod>2026-09-26</lastmod>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/13-correlations/example_13/</loc>
+         <lastmod>2026-09-27</lastmod>
     </url>
     <url>
-         <loc>https://gstvschlz.github.io/ceres/examples/13-simulation-methods/mg_execution_times/</loc>
-         <lastmod>2026-09-26</lastmod>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/13-correlations/mg_execution_times/</loc>
+         <lastmod>2026-09-27</lastmod>
     </url>
     <url>
-         <loc>https://gstvschlz.github.io/ceres/examples/14-parquet/example_14/</loc>
-         <lastmod>2026-09-26</lastmod>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/14-normal-score/example_14/</loc>
+         <lastmod>2026-09-27</lastmod>
     </url>
     <url>
-         <loc>https://gstvschlz.github.io/ceres/examples/14-parquet/mg_execution_times/</loc>
-         <lastmod>2026-09-26</lastmod>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/14-normal-score/mg_execution_times/</loc>
+         <lastmod>2026-09-27</lastmod>
     </url>
     <url>
-         <loc>https://gstvschlz.github.io/ceres/examples/15-implicit/example_15/</loc>
-         <lastmod>2026-09-26</lastmod>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/15-compositional/example_15/</loc>
+         <lastmod>2026-09-27</lastmod>
     </url>
     <url>
-         <loc>https://gstvschlz.github.io/ceres/examples/15-implicit/mg_execution_times/</loc>
-         <lastmod>2026-09-26</lastmod>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/15-compositional/mg_execution_times/</loc>
+         <lastmod>2026-09-27</lastmod>
     </url>
     <url>
-         <loc>https://gstvschlz.github.io/ceres/examples/16-eda/example_16/</loc>
-         <lastmod>2026-09-26</lastmod>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/16-multivariate-transforms/example_16/</loc>
+         <lastmod>2026-09-27</lastmod>
     </url>
     <url>
-         <loc>https://gstvschlz.github.io/ceres/examples/16-eda/mg_execution_times/</loc>
-         <lastmod>2026-09-26</lastmod>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/16-multivariate-transforms/mg_execution_times/</loc>
+         <lastmod>2026-09-27</lastmod>
     </url>
     <url>
-         <loc>https://gstvschlz.github.io/ceres/examples/17-multivariate/example_17/</loc>
-         <lastmod>2026-09-26</lastmod>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/17-imputation/example_17/</loc>
+         <lastmod>2026-09-27</lastmod>
     </url>
     <url>
-         <loc>https://gstvschlz.github.io/ceres/examples/17-multivariate/mg_execution_times/</loc>
-         <lastmod>2026-09-26</lastmod>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/17-imputation/mg_execution_times/</loc>
+         <lastmod>2026-09-27</lastmod>
     </url>
     <url>
-         <loc>https://gstvschlz.github.io/ceres/examples/18-validation/example_18/</loc>
-         <lastmod>2026-09-26</lastmod>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/18-experimental-variograms/example_18/</loc>
+         <lastmod>2026-09-27</lastmod>
     </url>
     <url>
-         <loc>https://gstvschlz.github.io/ceres/examples/18-validation/mg_execution_times/</loc>
-         <lastmod>2026-09-26</lastmod>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/18-experimental-variograms/mg_execution_times/</loc>
+         <lastmod>2026-09-27</lastmod>
     </url>
     <url>
-         <loc>https://gstvschlz.github.io/ceres/examples/19-geological-model/example_19/</loc>
-         <lastmod>2026-09-26</lastmod>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/19-variogram-fitting/example_19/</loc>
+         <lastmod>2026-09-27</lastmod>
     </url>
     <url>
-         <loc>https://gstvschlz.github.io/ceres/examples/19-geological-model/mg_execution_times/</loc>
-         <lastmod>2026-09-26</lastmod>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/19-variogram-fitting/mg_execution_times/</loc>
+         <lastmod>2026-09-27</lastmod>
     </url>
     <url>
-         <loc>https://gstvschlz.github.io/ceres/examples/20-workflow/example_20/</loc>
-         <lastmod>2026-09-26</lastmod>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/20-downhole-nugget/example_20/</loc>
+         <lastmod>2026-09-27</lastmod>
     </url>
     <url>
-         <loc>https://gstvschlz.github.io/ceres/examples/20-workflow/mg_execution_times/</loc>
-         <lastmod>2026-09-26</lastmod>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/20-downhole-nugget/mg_execution_times/</loc>
+         <lastmod>2026-09-27</lastmod>
     </url>
     <url>
-         <loc>https://gstvschlz.github.io/ceres/examples/21-large-models/example_21/</loc>
-         <lastmod>2026-09-26</lastmod>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/21-coregionalization/example_21/</loc>
+         <lastmod>2026-09-27</lastmod>
     </url>
     <url>
-         <loc>https://gstvschlz.github.io/ceres/examples/21-large-models/mg_execution_times/</loc>
-         <lastmod>2026-09-26</lastmod>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/21-coregionalization/mg_execution_times/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/22-ordinary-kriging/example_22/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/22-ordinary-kriging/mg_execution_times/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/23-simple-estimators/example_23/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/23-simple-estimators/mg_execution_times/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/24-universal-kriging/example_24/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/24-universal-kriging/mg_execution_times/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/25-block-kriging/example_25/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/25-block-kriging/mg_execution_times/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/26-search/example_26/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/26-search/mg_execution_times/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/27-cokriging/example_27/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/27-cokriging/mg_execution_times/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/28-indicator-kriging/example_28/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/28-indicator-kriging/mg_execution_times/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/29-multiple-indicator-kriging/example_29/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/29-multiple-indicator-kriging/mg_execution_times/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/30-soft-boundaries/example_30/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/30-soft-boundaries/mg_execution_times/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/31-local-anisotropy/example_31/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/31-local-anisotropy/mg_execution_times/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/32-discrete-gaussian-model/example_32/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/32-discrete-gaussian-model/mg_execution_times/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/33-uniform-conditioning/example_33/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/33-uniform-conditioning/mg_execution_times/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/34-mik-localization/example_34/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/34-mik-localization/mg_execution_times/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/35-disjunctive-kriging/example_35/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/35-disjunctive-kriging/mg_execution_times/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/36-sgs/example_36/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/36-sgs/mg_execution_times/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/37-simulation-at-block-support/example_37/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/37-simulation-at-block-support/mg_execution_times/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/38-turning-bands/example_38/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/38-turning-bands/mg_execution_times/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/39-simulation-with-trend/example_39/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/39-simulation-with-trend/mg_execution_times/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/40-sis/example_40/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/40-sis/mg_execution_times/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/41-plurigaussian/example_41/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/41-plurigaussian/mg_execution_times/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/42-grades-in-simulated-rocks/example_42/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/42-grades-in-simulated-rocks/mg_execution_times/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/43-multivariate-simulation/example_43/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/43-multivariate-simulation/mg_execution_times/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/44-model-checks/example_44/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/44-model-checks/mg_execution_times/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/45-cross-validation/example_45/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/45-cross-validation/mg_execution_times/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/46-kriging-diagnostics/example_46/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/46-kriging-diagnostics/mg_execution_times/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/47-search-calibration/example_47/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/47-search-calibration/mg_execution_times/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/48-classification/example_48/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/48-classification/mg_execution_times/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/49-solids/example_49/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/49-solids/mg_execution_times/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/50-sub-blocks/example_50/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/50-sub-blocks/mg_execution_times/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/51-mesh-files/example_51/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/51-mesh-files/mg_execution_times/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/52-grade-shells/example_52/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/52-grade-shells/mg_execution_times/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/53-contact-surfaces/example_53/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/53-contact-surfaces/mg_execution_times/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/54-structural-data/example_54/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/54-structural-data/mg_execution_times/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/55-layered-surfaces/example_55/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/55-layered-surfaces/mg_execution_times/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/56-polygons/example_56/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/56-polygons/mg_execution_times/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/57-parquet/example_57/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/57-parquet/mg_execution_times/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/58-gis-formats/example_58/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/58-gis-formats/mg_execution_times/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/59-large-models/example_59/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/59-large-models/mg_execution_times/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/60-3d-views/example_60/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/60-3d-views/mg_execution_times/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/61-despiking/example_61/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/61-despiking/mg_execution_times/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/62-weight-declustering/example_62/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/62-weight-declustering/mg_execution_times/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/63-smooth-trend/example_63/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/63-smooth-trend/mg_execution_times/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/64-categorical-indicator-kriging/example_64/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/64-categorical-indicator-kriging/mg_execution_times/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/65-block-model-from-extents/example_65/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/65-block-model-from-extents/mg_execution_times/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/66-result-plots/example_66/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/66-result-plots/mg_execution_times/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/67-variogram-sets/example_67/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/67-variogram-sets/mg_execution_times/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/68-multigaussian-kriging/example_68/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/68-multigaussian-kriging/mg_execution_times/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/69-capping-transform/example_69/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/69-capping-transform/mg_execution_times/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/70-realization-checks/example_70/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/70-realization-checks/mg_execution_times/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/71-variogram-volume/example_71/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/71-variogram-volume/mg_execution_times/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/72-spatial-bootstrap/example_72/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/72-spatial-bootstrap/mg_execution_times/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/73-collocated-cosimulation/example_73/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/73-collocated-cosimulation/mg_execution_times/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/74-spatial-imputation/example_74/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/74-spatial-imputation/mg_execution_times/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/75-local-proportions/example_75/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/75-local-proportions/mg_execution_times/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/76-reference-distributions/example_76/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/76-reference-distributions/mg_execution_times/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/77-unfolding/example_77/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/77-unfolding/mg_execution_times/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/78-local-variogram-parameters/example_78/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/78-local-variogram-parameters/mg_execution_times/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/79-runs-and-strip-logs/example_79/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/79-runs-and-strip-logs/mg_execution_times/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/80-domain-cleanup/example_80/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/80-domain-cleanup/mg_execution_times/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/81-intrinsic-coregionalization/example_81/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/81-intrinsic-coregionalization/mg_execution_times/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/82-madogram/example_82/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/82-madogram/mg_execution_times/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/83-high-grade-restriction/example_83/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/83-high-grade-restriction/mg_execution_times/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/84-target-distribution-correction/example_84/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/84-target-distribution-correction/mg_execution_times/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/85-domain-change-tables/example_85/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/topics/85-domain-change-tables/mg_execution_times/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/tutorials/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/tutorials/01-coal-seam-in-a-lease/mg_execution_times/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/tutorials/01-coal-seam-in-a-lease/tutorial_01/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/tutorials/02-drillholes-to-classified-model/mg_execution_times/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/tutorials/02-drillholes-to-classified-model/tutorial_02/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/tutorials/03-iron-ore-multivariate/mg_execution_times/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/tutorials/03-iron-ore-multivariate/tutorial_03/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/tutorials/04-laterite-profile/mg_execution_times/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/examples/tutorials/04-laterite-profile/tutorial_04/</loc>
+         <lastmod>2026-09-27</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/ceres/superpowers/specs/2026-09-27-progress-feedback-design/</loc>
+         <lastmod>2026-09-27</lastmod>
     </url>
 </urlset>
