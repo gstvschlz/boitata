@@ -417,3 +417,51 @@ def test_options_are_keyword_only():
     ):
         with pytest.raises(TypeError):
             call()
+
+
+def test_intrinsic_coregionalization_recovers_its_sill_matrix():
+    xy = np.random.default_rng(3).uniform(0, 200, (1500, 2))
+    xyz = np.c_[xy, np.zeros(len(xy))]
+    z = np.stack([gaussian_field(xyz, (0, 0, 0), (1, 1), 15.0, seed=s) for s in (1, 2)])
+    truth = np.array([[4.0, 1.2], [1.2, 1.0]])
+    a, b = np.linalg.cholesky(truth) @ z
+    exp = cs.experimental_variograms(xy, [a, b], 3, 45)
+    icm = cs.Coregionalization.fit(exp, "gaussian", intrinsic=True)
+    sill = icm.nugget + sum(s for _, _, s in icm.structures)
+    assert np.linalg.eigvalsh(sill).min() >= 0
+    assert sill[0, 1] / np.sqrt(sill[0, 0] * sill[1, 1]) == pytest.approx(0.6, abs=0.1)
+    assert sill[0, 0] / sill[1, 1] == pytest.approx(4.0, rel=0.3)
+    for s in [icm.nugget, *(m for _, _, m in icm.structures)]:
+        np.testing.assert_allclose(s, s[0, 0] / sill[0, 0] * sill, atol=1e-12)
+    shape = cs.Variogram([cs.Structure("gaussian", 1.0, 20.0)])
+    np.testing.assert_allclose(cs.Coregionalization.intrinsic(shape, sill).structures[0][2], sill)
+    one = cs.Coregionalization.fit([[exp[0, 0]]], ["spherical", "spherical"], intrinsic=True)
+    v = exp[0, 0].fit(["spherical", "spherical"])
+    assert one.nugget[0, 0] == pytest.approx(v.nugget, abs=1e-3 * v.sill)
+    assert [s[2][0, 0] for s in one.structures] == pytest.approx([s.sill for s in v.structures], rel=1e-3)
+    with pytest.raises(ValueError, match="positive semi-definite"):
+        cs.Coregionalization.intrinsic(shape, [[1, 2], [2, 1]])
+
+
+def moving_gaussian(n, window, seed):
+    noise = np.random.default_rng(seed).normal(size=n + window - 1)
+    return np.c_[np.arange(n, dtype=float), np.zeros(n)], np.convolve(noise, np.ones(window), "valid")
+
+
+def test_madogram_is_root_gamma_over_pi_for_gaussian_data():
+    xy, z = moving_gaussian(8000, 15, seed=4)
+
+    def run(values, estimator="matheron", **kwargs):
+        return cs.experimental_variogram(xy, values, 1.0, 30.0, estimator=estimator, **kwargs)
+
+    gamma, madogram = run(z), run(z, "madogram")
+    np.testing.assert_allclose(madogram.gammas, np.sqrt(gamma.gammas / np.pi), rtol=0.04)
+    np.testing.assert_allclose(cs.dissemination(madogram, gamma), 1.0, atol=0.04)
+    np.testing.assert_allclose(run(z, "madogram", standardize=True).gammas, madogram.gammas / z.std())
+    spiked = z.copy()
+    spiked[::500] += 40.0
+    ratio = {e: run(spiked, e).gammas / run(z, e).gammas for e in ("matheron", "madogram")}
+    assert np.all(ratio["matheron"] - 1 > 3 * (ratio["madogram"] - 1))
+    assert cs.dissemination(run(spiked, "madogram"), run(spiked))[0] < 0.7
+    with pytest.raises(ValueError, match="same lags"):
+        cs.dissemination(madogram, cs.experimental_variogram(xy, z, 2.0, 30.0))

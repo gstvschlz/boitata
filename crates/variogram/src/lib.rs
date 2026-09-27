@@ -6,7 +6,7 @@
 //! - [`composite`] — nugget + nested structures with optional anisotropy ([`Variogram`])
 //! - [`aniso`]  — anisotropy (rotation + range scaling)
 //! - [`empirical`] — experimental variograms (classical, robust, covariance, correlogram,
-//!   pairwise relative; directional) and cross-variograms
+//!   pairwise relative, madogram; directional) and cross-variograms
 //! - [`fit`]    — automatic model fitting by weighted least squares
 //! - [`surface`] — γ on a cut plane (variogram maps)
 //! - [`transio`] — transiograms for categorical / facies variables
@@ -27,13 +27,13 @@ pub use aniso::{Angles, Anisotropy};
 pub use composite::Variogram;
 pub use coreg::{CoregStructure, Coregionalization};
 pub use empirical::{
-    Direction, Estimator, Experimental, LagBins, Support, cross_experimental, downhole,
-    experimental, experimental_local, experimental_realizations, experimental_set,
+    Direction, Estimator, Experimental, LagBins, Support, cross_experimental, dissemination,
+    downhole, experimental, experimental_local, experimental_realizations, experimental_set,
 };
 pub use error::{Result, VarioError};
 pub use fit::{
     AnisotropySpec, Bounds, CoregFit, FitResult, NestedSpec, StructureSpec, Weighting,
-    extrapolated_nugget, fit, fit_coregionalization, fit_directional, fit_nested,
+    extrapolated_nugget, fit, fit_coregionalization, fit_directional, fit_intrinsic, fit_nested,
 };
 pub use model::{Model, Structure, is_differentiable, shape, shape_d1, shape_d2};
 pub use surface::{PlaneMap, PlaneMapParams, azimuth_dip, plane_map, unit_vector};

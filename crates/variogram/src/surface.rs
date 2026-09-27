@@ -157,7 +157,7 @@ impl PairHistogram {
         let partials: Vec<(Vec<Moments>, Vec<usize>)> = (0..HISTOGRAM_CHUNKS)
             .into_par_iter()
             .map(|chunk| {
-                let mut sums = vec![[0.0f64; 8]; slots];
+                let mut sums = vec![[0.0f64; 9]; slots];
                 let mut counts = vec![0usize; slots];
                 for i in (chunk..n).step_by(HISTOGRAM_CHUNKS) {
                     for j in (i + 1)..n {
@@ -193,7 +193,7 @@ impl PairHistogram {
             })
             .collect();
 
-        let mut sums = vec![[0.0f64; 8]; slots];
+        let mut sums = vec![[0.0f64; 9]; slots];
         let mut counts = vec![0usize; slots];
         for (chunk_sums, chunk_counts) in &partials {
             for s in 0..slots {
@@ -231,7 +231,7 @@ impl PairHistogram {
         estimator: Estimator,
         scale: Scale,
     ) -> ConeCurve {
-        let mut sums = vec![[0.0f64; 8]; self.n_bins];
+        let mut sums = vec![[0.0f64; 9]; self.n_bins];
         let mut counts = vec![0usize; self.n_bins];
         for (cell, u) in self.units.iter().enumerate() {
             let proj = u.0 * axis.0 + u.1 * axis.1 + u.2 * axis.2;
@@ -438,6 +438,7 @@ mod tests {
             Estimator::Covariance,
             Estimator::Correlogram,
             Estimator::PairwiseRelative,
+            Estimator::Madogram,
         ] {
             let scale = scale(&values, estimator, false).unwrap();
             // cos_tol = -1 admits every cell, so the cone becomes the whole sphere.

@@ -11,9 +11,9 @@ use variogram::{
     Angles, Anisotropy, AnisotropySpec, Bounds, CoregStructure, Coregionalization as CoreCoreg,
     Direction, Estimator, Experimental, LagBins, Model, NestedSpec, Structure as CoreStructure,
     StructureSpec, Support, Transiogram as CoreTransiogram, Variogram as CoreVariogram, Weighting,
-    cross_experimental, downhole, empirical_transiogram, experimental, experimental_local,
-    experimental_realizations, experimental_set, extrapolated_nugget, fit_coregionalization,
-    fit_directional, fit_nested,
+    cross_experimental, dissemination as core_dissemination, downhole, empirical_transiogram,
+    experimental, experimental_local, experimental_realizations, experimental_set,
+    extrapolated_nugget, fit_coregionalization, fit_directional, fit_intrinsic, fit_nested,
 };
 
 use crate::args::{Point, array1, array2, column, finite, floats, points, same_length, triple};
@@ -71,6 +71,7 @@ fn estimator(name: &str) -> PyResult<Estimator> {
         "covariance" => Ok(Estimator::Covariance),
         "correlogram" => Ok(Estimator::Correlogram),
         "pairwise-relative" | "pairwise_relative" => Ok(Estimator::PairwiseRelative),
+        "madogram" => Ok(Estimator::Madogram),
         _ => Err(invalid(format!("unknown estimator {name:?}"))),
     }
 }
@@ -617,13 +618,17 @@ fn locations(coords: &Bound<PyAny>, method: Option<&str>) -> PyResult<Locations>
 ///     ``azimuth`` is None.
 /// bandwidth : float, optional
 ///     Largest offset of a pair from the direction line.
-/// estimator : {"matheron", "cressie-hawkins", "covariance", "correlogram", "pairwise-relative"}
-///     Classical, robust, σ² − C(h), 1 − ρ(h), or the pairwise-relative
-///     variogram (non-negative values only).
+/// estimator : {"matheron", "cressie-hawkins", "covariance", "correlogram", "pairwise-relative", "madogram"}
+///     Classical, robust, σ² − C(h), 1 − ρ(h), the pairwise-relative
+///     variogram (non-negative values only), or the madogram
+///     Σ |Δz| / 2N, in the units of the values: √(γ/π) for Gaussian
+///     increments and less sensitive than γ to a few extreme pairs (see
+///     `dissemination`).
 /// standardize : bool
-///     Divide by the sample variance so the sill is 1. The correlogram and
-///     pairwise-relative estimates are dimensionless and left unchanged; a
-///     cross-variogram is divided by σ₁σ₂.
+///     Divide by the sample variance so the sill is 1, the madogram by the
+///     standard deviation. The correlogram and pairwise-relative estimates
+///     are dimensionless and left unchanged; a cross-variogram is divided by
+///     σ₁σ₂.
 /// other : array_like, shape (m,), optional
 ///     Second variable, for its cross-variogram with ``values``: "matheron"
 ///     gives γ₁₂(h) = Σ Δz₁·Δz₂ / 2N, "covariance" gives C₁₂(0) − C₁₂(h) with
@@ -781,6 +786,34 @@ fn experimental_variogram(
     }
     .map_err(err)?;
     Ok(ExperimentalVariogram(exp))
+}
+
+/// Degree of dissemination per lag, ``√π · M(h) / √γ(h)``.
+///
+/// M is the madogram and γ the classical variogram of the same values, lags
+/// and directions. Gaussian increments give 1. Below 1, a few large
+/// differences carry γ while most pairs differ little, as when high values
+/// sit in isolated samples; above 1, differences are more even than Gaussian.
+///
+/// Parameters
+/// ----------
+/// madogram : ExperimentalVariogram
+///     From ``estimator="madogram"``.
+/// variogram : ExperimentalVariogram
+///     From ``estimator="matheron"`` with the same arguments otherwise.
+///
+/// Returns
+/// -------
+/// ndarray
+///     One value per lag, NaN where γ is 0.
+#[pyfunction]
+fn dissemination<'py>(
+    py: Python<'py>,
+    madogram: &ExperimentalVariogram,
+    variogram: &ExperimentalVariogram,
+) -> PyResult<Bound<'py, PyAny>> {
+    let d = core_dissemination(&madogram.0, &variogram.0).map_err(err)?;
+    Ok(array1(py, d).into_any())
 }
 
 /// Direct and cross experimental variograms of several variables, indexed
@@ -1310,11 +1343,20 @@ impl Coregionalization {
     ///     as in `Variogram.fit_directional`; need `directions`. Ranges are
     ///     then major-axis ranges.
     ///
+    /// intrinsic : bool, default False
+    ///     Fit an intrinsic model instead (see `Coregionalization.intrinsic`):
+    ///     one shape, fitted to the direct variograms each divided by its
+    ///     largest γ and pooled, scaled to a unit sill; then each pair's entry
+    ///     of the covariance matrix by weighted least squares on its
+    ///     variograms, the matrix projected on the positive semi-definite cone.
+    ///     A missing cross pair is taken as uncorrelated. With one variable
+    ///     this is `Variogram.fit`.
+    ///
     /// Returns
     /// -------
     /// Coregionalization
     #[staticmethod]
-    #[pyo3(signature = (experimentals, model=Models::One("spherical".into()), *, weighting="count", nugget=true, ranges=None, directions=None, rotation=None, ratios=None))]
+    #[pyo3(signature = (experimentals, model=Models::One("spherical".into()), *, weighting="count", nugget=true, ranges=None, directions=None, rotation=None, ratios=None, intrinsic=false))]
     #[allow(clippy::too_many_arguments)]
     fn fit(
         experimentals: &Bound<PyAny>,
@@ -1325,6 +1367,7 @@ impl Coregionalization {
         directions: Option<Vec<(f64, f64)>>,
         rotation: Limits,
         ratios: Limits,
+        intrinsic: bool,
     ) -> PyResult<Self> {
         let (exps, directions) = match experimentals.cast::<VariogramSet>() {
             Ok(_) if directions.is_some() => {
@@ -1353,9 +1396,39 @@ impl Coregionalization {
             minor: ratios[1],
         };
         let geometry = directions.as_deref().map(|d| (d, &aniso));
-        let fitted = fit_coregionalization(&exps, geometry, &spec, self::weighting(weighting)?)
-            .map_err(err)?;
+        let fit = if intrinsic {
+            fit_intrinsic
+        } else {
+            fit_coregionalization
+        };
+        let fitted = fit(&exps, geometry, &spec, self::weighting(weighting)?).map_err(err)?;
         Ok(Self(fitted.coregionalization))
+    }
+
+    /// Intrinsic coregionalization: every direct and cross variogram is one
+    /// shape scaled by an entry of `covariance`.
+    ///
+    /// ``γ_ij(h) = covariance[i][j] · γ(h) / sill``: all variables share the
+    /// structures, ranges, nugget proportion and anisotropy of `variogram`,
+    /// and the correlation between two variables is the same at every lag.
+    /// The result is an ordinary Coregionalization for cokriging and
+    /// cosimulation.
+    ///
+    /// Parameters
+    /// ----------
+    /// variogram : Variogram
+    ///     The shape; only its proportions matter. Needs a finite positive sill.
+    /// covariance : array_like, shape (nvar, nvar)
+    ///     Symmetric positive semi-definite sill matrix, else InvalidInput.
+    ///
+    /// Returns
+    /// -------
+    /// Coregionalization
+    #[staticmethod]
+    fn intrinsic(variogram: &Variogram, covariance: Vec<Vec<f64>>) -> PyResult<Self> {
+        Ok(Self(
+            CoreCoreg::intrinsic(&variogram.0, &covariance).map_err(err)?,
+        ))
     }
 
     #[getter]
@@ -1537,6 +1610,7 @@ pub fn register(m: &Bound<PyModule>) -> PyResult<()> {
     m.add_class::<Transiogram>()?;
     m.add_function(wrap_pyfunction!(experimental_variogram, m)?)?;
     m.add_function(wrap_pyfunction!(experimental_variograms, m)?)?;
+    m.add_function(wrap_pyfunction!(dissemination, m)?)?;
     m.add_function(wrap_pyfunction!(_realization_variograms, m)?)?;
     m.add_function(wrap_pyfunction!(variogram_map, m)?)?;
     m.add_function(wrap_pyfunction!(variogram_volume, m)?)?;

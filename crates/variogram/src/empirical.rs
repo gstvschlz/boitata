@@ -2,7 +2,7 @@
 //!
 //! Classical, robust, covariance, correlogram and pairwise-relative estimators,
 //! omnidirectional or directional (azimuth/dip cone with tolerance), all
-//! reported in variogram form so any of them can be fitted. Values on a
+//! reported in variogram form so any of them can be fitted, and the madogram. Values on a
 //! regular grid are paired by index shifts instead of a search over pairs.
 
 use crate::aniso::euclidean;
@@ -26,6 +26,9 @@ pub enum Estimator {
     Correlogram,
     /// `1/(2N) Σ (zᵢ − zⱼ)² / ((zᵢ + zⱼ)/2)²`; needs non-negative values.
     PairwiseRelative,
+    /// Madogram `1/(2N) Σ |zᵢ − zⱼ|`, in the units of `z`: `√(γ/π)` for
+    /// Gaussian increments, and less sensitive than γ to a few extreme pairs.
+    Madogram,
 }
 
 /// Optional directional constraint (a cone about a unit direction).
@@ -116,8 +119,9 @@ pub struct Experimental {
 
 /// Estimate an experimental variogram. `standardize` divides the classical,
 /// robust and covariance estimates (and C(h)) by the sample variance so the
-/// sill is 1; the correlogram and pairwise-relative estimates are
-/// dimensionless already and are left as they are.
+/// sill is 1, and the madogram by the standard deviation; the correlogram and
+/// pairwise-relative estimates are dimensionless already and are left as they
+/// are.
 ///
 /// `O(n²)` over sample pairs; for large `n` this is the dominant cost.
 pub fn experimental<'a>(
@@ -135,6 +139,33 @@ pub fn experimental<'a>(
         moments(values[i], values[j])
     });
     Ok(collect(bins, &sums, &counts, estimator, scale))
+}
+
+/// Degree of dissemination per lag, `√π · M(h) / √γ(h)`, from a madogram and a
+/// classical variogram on the same lags and pairs.
+///
+/// Gaussian increments give 1. Below 1, a few large differences carry γ while
+/// most pairs differ little, as when high values are scattered as isolated
+/// samples; above 1, differences are more even than Gaussian. NaN where γ is 0.
+pub fn dissemination(madogram: &Experimental, variogram: &Experimental) -> Result<Vec<f64>> {
+    if madogram.lags != variogram.lags || madogram.counts != variogram.counts {
+        return Err(VarioError::InvalidParameters(
+            "the madogram and the variogram need the same lags and pairs".into(),
+        ));
+    }
+    let root_pi = std::f64::consts::PI.sqrt();
+    Ok(madogram
+        .gammas
+        .iter()
+        .zip(&variogram.gammas)
+        .map(|(m, g)| {
+            if *g > 0.0 {
+                root_pi * m / g.sqrt()
+            } else {
+                f64::NAN
+            }
+        })
+        .collect())
 }
 
 /// As [`experimental`] over scattered points, with each pair's separation
@@ -237,7 +268,7 @@ pub fn cross_experimental<'a>(
         let pair = |t: usize, h: usize| {
             let (d1, d2) = (values[t] - values[h], other[t] - other[h]);
             let (t1, h2) = (values[t], other[h]);
-            [d1 * d2, 0.0, t1, h2, t1 * h2, t1 * t1, h2 * h2, 0.0]
+            [d1 * d2, 0.0, t1, h2, t1 * h2, t1 * t1, h2 * h2, 0.0, 0.0]
         };
         let (sums, counts) = sweep(locations, None, bins, direction, false, |i, j, side| {
             if side > 0.0 {
@@ -266,7 +297,7 @@ pub fn cross_experimental<'a>(
     let tails = Support::Points(locations);
     let (mut sums, mut counts) = sweep(tails, Some(heads), bins, direction, true, |i, j, _| {
         let (t1, h2) = (values[i], other[j]);
-        [0.0, 0.0, t1, h2, t1 * h2, t1 * t1, h2 * h2, 0.0]
+        [0.0, 0.0, t1, h2, t1 * h2, t1 * t1, h2 * h2, 0.0, 0.0]
     });
     let (near, n_near) = (sums.pop().unwrap_or_default(), counts.pop().unwrap_or(0));
     let unit = Scale {
@@ -382,7 +413,7 @@ pub fn downhole(
     }
     let scale = scale(values, estimator, standardize)?;
     let n_bins = ((bins.max_lag / bins.lag_width).ceil() as usize).max(1);
-    let mut sums = vec![[0.0f64; 8]; n_bins];
+    let mut sums = vec![[0.0f64; 9]; n_bins];
     let mut counts = vec![0usize; n_bins];
     let mut distances = vec![0.0; n_bins];
     let dir = direction.map(|d| (d, d.unit(), d.tolerance.to_radians().cos()));
@@ -551,7 +582,7 @@ where
     let partials: Vec<(Vec<Moments>, Vec<usize>)> = (0..N_CHUNKS)
         .into_par_iter()
         .map(|chunk| {
-            let mut sums = vec![[0.0f64; 8]; slots];
+            let mut sums = vec![[0.0f64; 9]; slots];
             let mut counts = vec![0usize; slots];
             for i in (chunk..n).step_by(N_CHUNKS) {
                 let pi = tails[i];
@@ -579,7 +610,7 @@ where
         .collect();
 
     // Sequential merge in chunk-index order — the deterministic fold.
-    let mut sums = vec![[0.0f64; 8]; slots];
+    let mut sums = vec![[0.0f64; 9]; slots];
     let mut counts = vec![0usize; slots];
     for (chunk_sums, chunk_counts) in &partials {
         for b in 0..slots {
@@ -645,7 +676,7 @@ where
     let partials: Vec<(Vec<Moments>, Vec<usize>)> = (0..N_CHUNKS)
         .into_par_iter()
         .map(|chunk| {
-            let mut sums = vec![[0.0f64; 8]; n_bins];
+            let mut sums = vec![[0.0f64; 9]; n_bins];
             let mut counts = vec![0usize; n_bins];
             for task in (chunk..tasks).step_by(N_CHUNKS) {
                 let ([di, dj, dk], bin, side) = offsets[task / blocks];
@@ -672,7 +703,7 @@ where
             (sums, counts)
         })
         .collect();
-    let mut sums = vec![[0.0f64; 8]; n_bins];
+    let mut sums = vec![[0.0f64; 9]; n_bins];
     let mut counts = vec![0usize; n_bins];
     for (chunk_sums, chunk_counts) in &partials {
         for b in 0..n_bins {
@@ -721,8 +752,9 @@ fn variance(values: &[f64]) -> f64 {
 }
 
 /// Per-pair terms summed in each lag bin: squared and root differences, head,
-/// tail, head·tail, head², tail² and the relative squared difference.
-pub(crate) type Moments = [f64; 8];
+/// tail, head·tail, head², tail², the relative squared difference and the
+/// absolute difference.
+pub(crate) type Moments = [f64; 9];
 
 pub(crate) fn moments(head: f64, tail: f64) -> Moments {
     let diff = (head - tail).abs();
@@ -741,6 +773,7 @@ pub(crate) fn moments(head: f64, tail: f64) -> Moments {
         head * head,
         tail * tail,
         relative,
+        diff,
     ]
 }
 
@@ -773,7 +806,11 @@ pub(crate) fn scale(values: &[f64], estimator: Estimator, standardize: bool) -> 
     if (divide || estimator == Estimator::Covariance) && variance == 0.0 {
         return Err(VarioError::InsufficientData("values are constant".into()));
     }
-    let divisor = if divide { variance } else { 1.0 };
+    let divisor = match (divide, estimator) {
+        (false, _) => 1.0,
+        (true, Estimator::Madogram) => variance.sqrt(),
+        (true, _) => variance,
+    };
     Ok(Scale { variance, divisor })
 }
 
@@ -789,7 +826,7 @@ pub(crate) fn finalize(
         return None;
     }
     let nf = count as f64;
-    let [sq, root, head, tail, prod, head2, tail2, relative] = sums.map(|s| s / nf);
+    let [sq, root, head, tail, prod, head2, tail2, relative, abs] = sums.map(|s| s / nf);
     let covariance = prod - head * tail;
     let (gamma, raw) = match estimator {
         Estimator::Matheron => (sq / 2.0, f64::NAN),
@@ -808,6 +845,7 @@ pub(crate) fn finalize(
             (1.0 - rho, rho)
         }
         Estimator::PairwiseRelative => (relative / 2.0, f64::NAN),
+        Estimator::Madogram => (abs / 2.0, f64::NAN),
     };
     Some((gamma / scale.divisor, raw / scale.divisor))
 }
@@ -1008,12 +1046,13 @@ mod tests {
         }
     }
 
-    const ALL: [Estimator; 5] = [
+    const ALL: [Estimator; 6] = [
         Estimator::Matheron,
         Estimator::CressieHawkins,
         Estimator::Covariance,
         Estimator::Correlogram,
         Estimator::PairwiseRelative,
+        Estimator::Madogram,
     ];
 
     /// Moving sum of seeded white noise on a unit-spaced line: stationary,
@@ -1108,9 +1147,71 @@ mod tests {
             }
         }
         let vals: Vec<f64> = vals.iter().map(|v| v + 10.0).collect();
-        for e in &ALL[3..] {
+        for e in &ALL[3..5] {
             assert_eq!(run(&locs, &vals, *e, true), run(&locs, &vals, *e, false));
         }
+        let raw = run(&locs, &vals, Estimator::Madogram, false);
+        for (s, r) in run(&locs, &vals, Estimator::Madogram, true)
+            .iter()
+            .zip(&raw)
+        {
+            assert!((s - r / var.sqrt()).abs() < 1e-12);
+        }
+    }
+
+    /// Moving sum of seeded Gaussian noise: Gaussian increments at every lag.
+    fn gaussian_field(n: usize, window: usize) -> (Vec<(f64, f64, f64)>, Vec<f64>) {
+        let mut state = 7u64;
+        let mut uniform = || {
+            state = state
+                .wrapping_mul(6364136223846793005)
+                .wrapping_add(1442695040888963407);
+            ((state >> 11) as f64 + 0.5) / (1u64 << 53) as f64
+        };
+        let noise: Vec<f64> = (0..n + window)
+            .map(|_| {
+                let (u, v) = (uniform(), uniform());
+                (-2.0 * u.ln()).sqrt() * (std::f64::consts::TAU * v).cos()
+            })
+            .collect();
+        let values = noise
+            .windows(window)
+            .take(n)
+            .map(|w| w.iter().sum())
+            .collect();
+        ((0..n).map(|i| (i as f64, 0.0, 0.0)).collect(), values)
+    }
+
+    #[test]
+    fn madogram_is_root_gamma_over_pi_for_gaussian_data() {
+        let (locs, vals) = gaussian_field(20000, 20);
+        let gamma = run(&locs, &vals, Estimator::Matheron, false);
+        let mado = run(&locs, &vals, Estimator::Madogram, false);
+        for (m, g) in mado.iter().zip(&gamma) {
+            let expected = (g / std::f64::consts::PI).sqrt();
+            assert!((m / expected - 1.0).abs() < 0.03, "{m} vs {expected}");
+        }
+    }
+
+    #[test]
+    fn madogram_resists_outliers() {
+        let (locs, vals) = gaussian_field(4000, 20);
+        let mut spiked = vals.clone();
+        for k in (0..spiked.len()).step_by(400) {
+            spiked[k] += 50.0;
+        }
+        let change = |e| {
+            let (a, b) = (run(&locs, &vals, e, false), run(&locs, &spiked, e, false));
+            a.iter()
+                .zip(&b)
+                .map(|(a, b)| b / a - 1.0)
+                .fold(0.0, f64::max)
+        };
+        let (matheron, madogram) = (change(Estimator::Matheron), change(Estimator::Madogram));
+        assert!(
+            madogram < 0.25 && matheron > 4.0 * madogram,
+            "{madogram} {matheron}"
+        );
     }
 
     fn scattered(n: usize) -> (Vec<(f64, f64, f64)>, Vec<f64>) {
