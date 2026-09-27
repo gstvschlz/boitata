@@ -143,7 +143,7 @@ def test_sampled_length_balances_metal_in_every_mode():
 @pytest.mark.slow
 def test_sampled_length_balances_metal_on_the_dataset():
     t = cs.datasets.drillhole_tables()
-    flags, _ = cs.check_drillholes(t["collar"], intervals={"assay": t["assay"]}, hole="HOLEID")
+    flags, _, _ = cs.check_drillholes(t["collar"], intervals={"assay": t["assay"]}, hole="HOLEID")
     assay = t["assay"].filter(~flags["assay"]["overlap"])
     merged = cs.merge_intervals(assay, t["geology"], hole="HOLEID")
     comps = cs.Drillholes(t["collar"], t["survey"], merged, hole="HOLEID").composite(
@@ -184,7 +184,7 @@ checked_assay = {
 
 
 def test_each_defect_is_flagged_once():
-    flags, summary = cs.check_drillholes(
+    flags, summary, _ = cs.check_drillholes(
         checked_collar, checked_survey, {"assay": checked_assay}, max_depth="LENGTH"
     )
     assert _flagged(flags) == {
@@ -208,14 +208,14 @@ def test_each_defect_is_flagged_once():
         ("assay", "no_collar", 6),
     }
     assert summary.num_rows == sum(len(t.column_names) for t in flags.values())
-    flags, _ = cs.check_drillholes(checked_collar, checked_survey, {"assay": checked_assay}, nodata=[])
+    flags, _, _ = cs.check_drillholes(checked_collar, checked_survey, {"assay": checked_assay}, nodata=[])
     assert not any(t["sentinel"].any() for t in flags.values())
     rows = dict(zip(zip(summary["table"], summary["check"]), summary["rows"]))
     assert rows[("assay", "overlap")] == 1 and rows[("collar", "out_of_range")] == 0
 
 
 def test_clean_tables_give_no_flags():
-    flags, summary = cs.check_drillholes(collar, survey, intervals, inclination=None)
+    flags, summary, _ = cs.check_drillholes(collar, survey, intervals, inclination=None)
     assert list(flags) == ["collar", "survey", "intervals"]
     assert not _flagged(flags)
     assert (summary["rows"] == 0).all()
@@ -223,15 +223,15 @@ def test_clean_tables_give_no_flags():
 
 def test_inclination_is_checked_as_dip():
     upward = {**survey, "INC": np.array([0.0, 170.0])}
-    flags, _ = cs.check_drillholes(collar, upward, inclination="INC")
+    flags, _, _ = cs.check_drillholes(collar, upward, inclination="INC")
     assert not flags["survey"]["out_of_range"].any()
-    flags, _ = cs.check_drillholes(collar, {**upward, "INC": np.array([0.0, 190.0])}, inclination="INC")
+    flags, _, _ = cs.check_drillholes(collar, {**upward, "INC": np.array([0.0, 190.0])}, inclination="INC")
     assert list(flags["survey"]["out_of_range"]) == [False, True]
 
 
 def test_fix_applies_one_rule_per_check():
     tables = {"collar": checked_collar, "survey": checked_survey, "assay": checked_assay}
-    flags, _ = cs.check_drillholes(
+    flags, _, _ = cs.check_drillholes(
         checked_collar, checked_survey, {"assay": checked_assay}, max_depth="LENGTH"
     )
     clean, log = cs.fix_drillholes(flags, tables)
@@ -247,6 +247,112 @@ def test_fix_applies_one_rule_per_check():
     assert list(kept["assay"]["FROM"]) == [0.0, 1.0]
     with pytest.raises(ValueError, match="overlaps must be one of keep_first, keep"):
         cs.fix_drillholes(flags, tables, overlaps="drop")
+
+
+entry_collar = {
+    "HOLE_ID": np.array(["A", "B", "C "]),
+    "X": np.zeros(3),
+    "Y": np.zeros(3),
+    "Z": np.zeros(3),
+}
+entry_survey = {
+    "HOLE_ID": np.array(["A", "B", "B", "C"]),
+    "DEPTH": np.array([0.0, 0.0, 10.0, 0.0]),
+    "AZIMUTH": np.zeros(4),
+    "DIP": np.array([60.0, -60.0, -58.0, 70.0]),
+}
+entry_assay = {
+    "HOLE_ID": np.array(["A", "a", "B ", "D", "A"]),
+    "FROM": np.array([0.0, 0.0, 0.0, 0.0, 1.0]),
+    "TO": np.array([1.0, 1.0, 1.0, 1.0, 2.0]),
+    "AU": np.array(["1.5", "NS", "<0.02", "2.0", "-999"], dtype=object),
+    "LITH": np.array(["MS", "MS", "SMS", "1", "MS"], dtype=object),
+}
+
+
+def test_entry_errors_are_flagged_with_their_values():
+    flags, _, details = cs.check_drillholes(entry_collar, entry_survey, {"assay": entry_assay})
+    assert _flagged(flags) == {
+        ("collar", "no_assay", 2),
+        ("survey", "dip_sign", 1),
+        ("survey", "dip_sign", 2),
+        ("survey", "id_mismatch", 3),
+        ("assay", "id_mismatch", 1),
+        ("assay", "id_mismatch", 2),
+        ("assay", "no_collar", 3),
+        ("assay", "text_values", 1),
+        ("assay", "text_values", 2),
+        ("assay", "sentinel", 4),
+    }
+    rows = zip(*(details[c] for c in ("table", "row", "check", "column", "value", "suggestion")))
+    assert [(t, int(r), *rest) for t, r, *rest in rows] == [
+        ("survey", 1, "dip_sign", "DIP", "-60.0", "60.0"),
+        ("survey", 2, "dip_sign", "DIP", "-58.0", "58.0"),
+        ("assay", 1, "text_values", "AU", "NS", None),
+        ("assay", 2, "text_values", "AU", "<0.02", None),
+        ("survey", 3, "id_mismatch", "HOLE_ID", "C", "C "),
+        ("assay", 1, "id_mismatch", "HOLE_ID", "a", "A"),
+        ("assay", 2, "id_mismatch", "HOLE_ID", "B ", "B"),
+    ]
+    _, _, lith = cs.check_drillholes(entry_collar, intervals={"assay": entry_assay}, grades=["LITH"])
+    assert list(lith["value"])[:4] == ["MS", "MS", "SMS", "MS"] and list(lith["column"])[:4] == ["LITH"] * 4
+    with pytest.raises(ValueError, match="column CU not found in any table"):
+        cs.check_drillholes(entry_collar, grades=["CU"])
+
+
+def test_entry_errors_are_fixed_only_as_asked():
+    tables = {"collar": entry_collar, "survey": entry_survey, "assay": entry_assay}
+    flags, _, _ = cs.check_drillholes(entry_collar, entry_survey, {"assay": entry_assay})
+    fixed, log = cs.fix_drillholes(flags, tables)
+    assert list(fixed["survey"]["DIP"]) == [60.0, -60.0, -58.0, 70.0]
+    assert list(fixed["survey"]["HOLE_ID"]) == ["A", "B", "B", "C "]
+    assert list(fixed["assay"]["HOLE_ID"]) == ["A", "A", "B", "A"]
+    np.testing.assert_array_equal(fixed["assay"]["AU"], [1.5, np.nan, np.nan, np.nan])
+    actions = dict(zip(zip(log["table"], log["check"]), log["action"]))
+    assert actions[("assay", "text_values")] == "null" and ("survey", "dip_sign") not in actions
+    assert actions[("assay", "sentinel")] == "null"
+    fixed, _ = cs.fix_drillholes(flags, tables, dip_sign="negate", text_values="half", id_mismatch="keep")
+    assert list(fixed["survey"]["DIP"]) == [60.0, 60.0, 58.0, 70.0]
+    assert list(fixed["assay"]["HOLE_ID"]) == ["A", "a", "B ", "A"]
+    np.testing.assert_array_equal(fixed["assay"]["AU"], [1.5, np.nan, 0.01, np.nan])
+    fixed, _ = cs.fix_drillholes(flags, tables, text_values="limit")
+    np.testing.assert_array_equal(fixed["assay"]["AU"], [1.5, np.nan, 0.02, np.nan])
+    fixed, _ = cs.fix_drillholes(flags, tables, text_values="keep")
+    assert list(fixed["assay"]["AU"]) == ["1.5", "NS", "<0.02", None]
+    inclined = {**entry_survey, "INC": 90.0 - entry_survey["DIP"]}
+    flags, _, _ = cs.check_drillholes(entry_collar, inclined, inclination="INC")
+    fixed, _ = cs.fix_drillholes(flags, {"survey": inclined}, dip_sign="negate")
+    np.testing.assert_allclose(fixed["survey"]["INC"], [30.0, 30.0, 32.0, 20.0])
+
+
+@pytest.mark.slow
+def test_planted_entry_errors_are_found_on_the_raw_dataset():
+    data = cs.datasets.stacked_sulphide_lenses(raw=True)
+    intervals = {"assays": data["assays"], "lithology": data["lithology"]}
+    flags, _, details = cs.check_drillholes(data["collars"], data["surveys"], intervals)
+    found = {}
+    for check, hole, column, value, suggestion in zip(
+        *(details[c] for c in ("check", "hole", "column", "value", "suggestion"))
+    ):
+        found.setdefault(check, set()).add(
+            hole if check == "dip_sign" else (value, suggestion) if suggestion else (hole, column, value)
+        )
+    assert found == {
+        "dip_sign": {"DD0116"},
+        "id_mismatch": {("dd0062", "DD0062"), ("DD0132 ", "DD0132"), ("DD0104", "DD0104 ")},
+        "text_values": {
+            *(("DD0083", g, "NS") for g in ("ZN_PCT", "PB_PCT", "CU_PCT", "AG_GPT", "AU_GPT")),
+            ("DD0083", "CU_PCT", "<0.01"),
+            ("DD0083", "AU_GPT", "<0.01"),
+        },
+    }
+    tables = {"collar": data["collars"], "survey": data["surveys"], **intervals}
+    fixed, _ = cs.fix_drillholes(flags, tables, dip_sign="negate")
+    flags, _, details = cs.check_drillholes(
+        fixed["collar"], fixed["survey"], {"assays": fixed["assays"], "lithology": fixed["lithology"]}
+    )
+    assert details.num_rows == 0
+    assert not any(flags[t]["no_collar"].any() for t in intervals)
 
 
 def test_filter_keeps_masked_rows():
@@ -266,7 +372,7 @@ def test_overlap_flags_keep_the_first_interval_on_the_dataset():
         keep[i] = start[i] >= reach.get(hole[i], -np.inf)
         if keep[i]:
             reach[hole[i]] = end[i]
-    flags, _ = cs.check_drillholes(
+    flags, _, _ = cs.check_drillholes(
         t["collar"], t["survey"], {"assay": assay}, hole="HOLEID", max_depth="DEPTH"
     )
     assert (flags["assay"]["overlap"] == ~keep).all()

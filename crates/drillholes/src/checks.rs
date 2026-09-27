@@ -36,6 +36,67 @@ pub fn absent(ids: &[Option<String>], others: &[Option<String>]) -> Vec<bool> {
         .collect()
 }
 
+fn normalized(id: &str) -> String {
+    id.trim().to_lowercase()
+}
+
+/// For each id matching no collar id exactly, the one collar id it equals
+/// after trimming whitespace and case-folding; `None` when it matches
+/// exactly, matches no collar, or matches several.
+pub fn id_mismatch(ids: &[Option<String>], collars: &[Option<String>]) -> Vec<Option<String>> {
+    let exact: HashSet<&str> = collars.iter().flatten().map(String::as_str).collect();
+    let mut by_key: HashMap<String, Option<&str>> = HashMap::new();
+    for &c in &exact {
+        by_key
+            .entry(normalized(c))
+            .and_modify(|v| *v = None)
+            .or_insert(Some(c));
+    }
+    ids.iter()
+        .map(|id| {
+            let id = id.as_deref().filter(|id| !exact.contains(id))?;
+            by_key
+                .get(&normalized(id))
+                .copied()
+                .flatten()
+                .map(str::to_string)
+        })
+        .collect()
+}
+
+/// A finite number, ignoring surrounding whitespace.
+pub fn parse_number(s: &str) -> Option<f64> {
+    s.trim().parse::<f64>().ok().filter(|v| v.is_finite())
+}
+
+/// The detection limit `x` of a below-detection value `"<x"`.
+pub fn detection_limit(s: &str) -> Option<f64> {
+    parse_number(s.trim().strip_prefix('<')?)
+}
+
+fn blank(s: &Option<String>) -> bool {
+    s.as_deref().is_none_or(|s| s.trim().is_empty())
+}
+
+/// Whether more than half of the non-blank values are numbers.
+pub fn numeric_looking(values: &[Option<String>]) -> bool {
+    let filled: Vec<&str> = values
+        .iter()
+        .filter(|v| !blank(v))
+        .flatten()
+        .map(String::as_str)
+        .collect();
+    2 * filled.iter().filter(|v| parse_number(v).is_some()).count() > filled.len()
+}
+
+/// Non-blank values that are not numbers, such as `"NS"` or `"<0.01"`.
+pub fn text_values(values: &[Option<String>]) -> Vec<bool> {
+    values
+        .iter()
+        .map(|v| !blank(v) && v.as_deref().and_then(parse_number).is_none())
+        .collect()
+}
+
 fn missing(v: Option<f64>) -> bool {
     v.is_none_or(|v| !v.is_finite())
 }
@@ -89,8 +150,10 @@ fn direction(azimuth: f64, dip: f64) -> [f64; 3] {
 /// azimuth outside [0, 360] or dip outside [-90, 90]. `duplicate`: a hole's
 /// depth seen on an earlier row. `deviation`: direction more than
 /// `max_deviation` degrees from the station above; one wrong station is
-/// flagged twice, on itself and on the station below. `past_depth`: deeper
-/// than the hole length plus `tolerance`.
+/// flagged twice, on itself and on the station below. `dip_sign`: every
+/// station of a hole dips against the sign most holes share (positive unless
+/// more holes are all negative), e.g. a hole entered pointing up.
+/// `past_depth`: deeper than the hole length plus `tolerance`.
 #[allow(clippy::too_many_arguments)]
 pub fn check_survey(
     ids: &[Option<String>],
@@ -150,12 +213,33 @@ pub fn check_survey(
             deviation[w[1]] = cos.clamp(-1.0, 1.0).acos().to_degrees() > max_deviation;
         }
     }
+    let sign = |stations: &Vec<usize>| {
+        let dips = || stations.iter().map(|&i| rows[i].expect("usable station").3);
+        if dips().all(|p| p > 0.0) {
+            1
+        } else if dips().all(|p| p < 0.0) {
+            -1
+        } else {
+            0
+        }
+    };
+    let signs: Vec<i32> = holes.values().map(sign).collect();
+    let down = signs.iter().filter(|&&s| s == 1).count();
+    let up = signs.iter().filter(|&&s| s == -1).count();
+    let convention = if up > down { -1 } else { 1 };
+    let mut dip_sign = vec![false; n];
+    for (stations, s) in holes.values().zip(&signs) {
+        if *s == -convention {
+            stations.iter().for_each(|&i| dip_sign[i] = true);
+        }
+    }
 
     let mut flags = vec![
         ("duplicate", duplicate),
         ("missing", missing),
         ("out_of_range", out_of_range),
         ("deviation", deviation),
+        ("dip_sign", dip_sign),
     ];
     if let Some(lengths) = lengths {
         let past = rows
@@ -442,6 +526,66 @@ mod tests {
             &SENTINELS,
         );
         assert_eq!(flagged(&i), [("overlap", 1)]);
+    }
+
+    #[test]
+    fn a_hole_dipping_against_the_majority_is_flagged() {
+        let hole = |dips: [f64; 6]| {
+            check_survey(
+                &ids(&["A", "A", "B", "B", "C", "C"]),
+                &some(&[0.0, 10.0, 0.0, 10.0, 0.0, 10.0]),
+                &some(&[0.0; 6]),
+                &some(&dips),
+                None,
+                20.0,
+                1e-6,
+                &SENTINELS,
+            )
+        };
+        let up = hole([60.0, 60.0, -60.0, -62.0, 70.0, 70.0]);
+        assert_eq!(flagged(&up), [("dip_sign", 2), ("dip_sign", 3)]);
+        let down = hole([-60.0, -60.0, 60.0, 62.0, -70.0, -70.0]);
+        assert_eq!(flagged(&down), [("dip_sign", 2), ("dip_sign", 3)]);
+        let mixed = hole([60.0, 60.0, 5.0, -5.0, 70.0, 70.0]);
+        assert!(flagged(&mixed).is_empty());
+    }
+
+    #[test]
+    fn ids_matching_a_collar_after_normalizing() {
+        let collars = [Some("DD1".into()), Some("DD2 ".into()), None];
+        let found = id_mismatch(
+            &[
+                Some("DD1".into()),
+                Some("dd1".into()),
+                Some(" DD1 ".into()),
+                Some("DD2".into()),
+                Some("DD3".into()),
+                None,
+            ],
+            &collars,
+        );
+        let d = |s: &str| Some(s.to_string());
+        assert_eq!(found, [None, d("DD1"), d("DD1"), d("DD2 "), None, None]);
+        let ambiguous = [Some("A".into()), Some("a".into())];
+        assert_eq!(id_mismatch(&[Some("A ".into())], &ambiguous), [None]);
+    }
+
+    #[test]
+    fn text_in_numeric_columns() {
+        let s = |v: &[&str]| v.iter().map(|x| Some(x.to_string())).collect::<Vec<_>>();
+        let grades = [
+            s(&["1.5", " 2", "NS", "<0.01", "", "nan", "3", "4e-1"]),
+            vec![None],
+        ]
+        .concat();
+        assert!(numeric_looking(&grades));
+        assert_eq!(
+            text_values(&grades),
+            [false, false, true, true, false, true, false, false, false]
+        );
+        assert!(!numeric_looking(&s(&["MS", "SMS", "1"])));
+        assert_eq!(detection_limit(" <0.01"), Some(0.01));
+        assert_eq!(detection_limit("NS"), None);
     }
 
     #[test]

@@ -1375,10 +1375,11 @@ def check_drillholes(
     from_: str = "FROM",
     to: str = "TO",
     max_depth: str | None = None,
+    grades: Sequence[str] | None = None,
     nodata: Sequence[float] = (-99.0, -999.0, -9999.0, 1e21),
     max_deviation: float = 20.0,
     tolerance: float = 1e-6,
-) -> tuple[dict[str, Table], Table]: ...
+) -> tuple[dict[str, Table], Table, Table]: ...
 def fix_drillholes(
     flags: Mapping[str, Table],
     tables: Mapping[str, TableLike],
@@ -1392,6 +1393,9 @@ def fix_drillholes(
     deviation: Literal["drop", "keep"] = "drop",
     no_collar: Literal["drop", "keep"] = "drop",
     past_depth: Literal["drop", "keep"] = "keep",
+    dip_sign: Literal["keep", "negate"] = "keep",
+    id_mismatch: Literal["rename", "keep"] = "rename",
+    text_values: Literal["null", "half", "limit", "keep"] = "null",
 ) -> tuple[dict[str, Table], Table]: ...
 
 class LocalAnisotropy:
