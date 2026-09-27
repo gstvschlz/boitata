@@ -2,10 +2,13 @@
 //!
 //! Classical, robust, covariance, correlogram and pairwise-relative estimators,
 //! omnidirectional or directional (azimuth/dip cone with tolerance), all
-//! reported in variogram form so any of them can be fitted.
+//! reported in variogram form so any of them can be fitted. Values on a
+//! regular grid are paired by index shifts instead of a search over pairs.
 
 use crate::aniso::euclidean;
 use crate::error::{Result, VarioError};
+use ceres_core::{Geometry, block_frame};
+use nalgebra::Vector3;
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 
@@ -48,6 +51,41 @@ impl Direction {
     }
 }
 
+/// Where the values sit.
+#[derive(Debug, Clone, Copy)]
+pub enum Support<'a> {
+    /// Scattered points; pairs come from an `O(n²)` sweep.
+    Points(&'a [(f64, f64, f64)]),
+    /// Cells of a regular grid, one strictly increasing cell index per value.
+    /// Every pair at one index offset has the same separation, so each
+    /// offset within `max_lag` and the direction cone is binned once and its
+    /// pairs gathered by index shifts: `O(n · offsets)`, with the same pairs,
+    /// bins and estimates as the sweep over the cell centers, save pairs
+    /// exactly on a lag or cone boundary, which round-off can split there.
+    Grid(&'a Geometry, &'a [u64]),
+}
+
+impl<'a> From<&'a [(f64, f64, f64)]> for Support<'a> {
+    fn from(points: &'a [(f64, f64, f64)]) -> Self {
+        Support::Points(points)
+    }
+}
+
+impl<'a> From<&'a Vec<(f64, f64, f64)>> for Support<'a> {
+    fn from(points: &'a Vec<(f64, f64, f64)>) -> Self {
+        Support::Points(points)
+    }
+}
+
+impl Support<'_> {
+    fn len(&self) -> usize {
+        match self {
+            Support::Points(p) => p.len(),
+            Support::Grid(_, cells) => cells.len(),
+        }
+    }
+}
+
 /// Lag-binning parameters.
 #[derive(Debug, Clone)]
 pub struct LagBins {
@@ -82,14 +120,15 @@ pub struct Experimental {
 /// dimensionless already and are left as they are.
 ///
 /// `O(n²)` over sample pairs; for large `n` this is the dominant cost.
-pub fn experimental(
-    locations: &[(f64, f64, f64)],
+pub fn experimental<'a>(
+    locations: impl Into<Support<'a>>,
     values: &[f64],
     bins: &LagBins,
     estimator: Estimator,
     direction: Option<&Direction>,
     standardize: bool,
 ) -> Result<Experimental> {
+    let locations = locations.into();
     check(locations, values, bins)?;
     let scale = scale(values, estimator, standardize)?;
     let (sums, counts) = sweep(locations, None, bins, direction, false, |i, j, _| {
@@ -111,8 +150,8 @@ pub fn experimental(
 /// `C₁₂(−h) = C₂₁(h)`, and the omnidirectional estimate averages both.
 /// `standardize` divides by `σ₁σ₂`.
 #[allow(clippy::too_many_arguments)]
-pub fn cross_experimental(
-    locations: &[(f64, f64, f64)],
+pub fn cross_experimental<'a>(
+    locations: impl Into<Support<'a>>,
     values: &[f64],
     other_locations: Option<&[(f64, f64, f64)]>,
     other: &[f64],
@@ -121,6 +160,7 @@ pub fn cross_experimental(
     direction: Option<&Direction>,
     standardize: bool,
 ) -> Result<Experimental> {
+    let locations = locations.into();
     check(locations, values, bins)?;
     if !matches!(estimator, Estimator::Matheron | Estimator::Covariance) {
         return Err(VarioError::InvalidParameters(
@@ -171,13 +211,19 @@ pub fn cross_experimental(
         });
         return Ok(collect(bins, &sums, &counts, estimator, scale));
     };
-    check(heads, other, bins)?;
+    let Support::Points(locations) = locations else {
+        return Err(VarioError::InvalidParameters(
+            "a grid cross-variogram needs co-located values".into(),
+        ));
+    };
+    check(Support::Points(heads), other, bins)?;
     if estimator == Estimator::Matheron {
         return Err(VarioError::InvalidParameters(
             "the cross-variogram needs co-located values; use the covariance estimator".into(),
         ));
     }
-    let (mut sums, mut counts) = sweep(locations, Some(heads), bins, direction, true, |i, j, _| {
+    let tails = Support::Points(locations);
+    let (mut sums, mut counts) = sweep(tails, Some(heads), bins, direction, true, |i, j, _| {
         let (t1, h2) = (values[i], other[j]);
         [0.0, 0.0, t1, h2, t1 * h2, t1 * t1, h2 * h2, 0.0]
     });
@@ -198,6 +244,51 @@ pub fn cross_experimental(
     Ok(collect(bins, &sums, &counts, estimator, scale))
 }
 
+/// Direct and cross experimental variograms of every pair of `variables`,
+/// all at `locations`: entry `[i][j]` for `i <= j` holds one per direction,
+/// or one omnidirectional when `directions` is empty, and the lower triangle
+/// is `None`, the layout [`crate::fit_coregionalization`] takes. Each entry
+/// is what [`experimental`] or [`cross_experimental`] gives for that pair.
+pub fn experimental_set<'a>(
+    locations: impl Into<Support<'a>>,
+    variables: &[&[f64]],
+    bins: &LagBins,
+    estimator: Estimator,
+    directions: &[Direction],
+    standardize: bool,
+) -> Result<Vec<Vec<Option<Vec<Experimental>>>>> {
+    let locations = locations.into();
+    if variables.is_empty() {
+        return Err(VarioError::InsufficientData("no variables".into()));
+    }
+    let directions: Vec<Option<&Direction>> = match directions {
+        [] => vec![None],
+        d => d.iter().map(Some).collect(),
+    };
+    let entry = |i: usize, j: usize, d: Option<&Direction>| match i == j {
+        true => experimental(locations, variables[i], bins, estimator, d, standardize),
+        false => {
+            let (a, b) = (variables[i], variables[j]);
+            cross_experimental(locations, a, None, b, bins, estimator, d, standardize)
+        }
+    };
+    let n = variables.len();
+    (0..n)
+        .map(|i| {
+            (0..n)
+                .map(|j| match j < i {
+                    true => Ok(None),
+                    false => directions
+                        .iter()
+                        .map(|&d| entry(i, j, d))
+                        .collect::<Result<_>>()
+                        .map(Some),
+                })
+                .collect()
+        })
+        .collect()
+}
+
 /// Downhole experimental variogram: only pairs of samples in the same hole
 /// (equal `holes` ids) are counted. Lag `k` gathers the pairs within half a
 /// lag width of `k · lag_width`, so with the width set to the composite length
@@ -211,7 +302,7 @@ pub fn downhole(
     estimator: Estimator,
     standardize: bool,
 ) -> Result<Experimental> {
-    check(locations, values, bins)?;
+    check(Support::Points(locations), values, bins)?;
     if holes.len() != values.len() {
         return Err(VarioError::InsufficientData(
             "holes must have one id per location".into(),
@@ -247,7 +338,20 @@ pub fn downhole(
     Ok(exp)
 }
 
-fn check(locations: &[(f64, f64, f64)], values: &[f64], bins: &LagBins) -> Result<()> {
+fn check(locations: Support, values: &[f64], bins: &LagBins) -> Result<()> {
+    if let Support::Grid(geometry, cells) = locations {
+        geometry
+            .validate()
+            .map_err(|e| VarioError::InvalidParameters(e.to_string()))?;
+        if cells.windows(2).any(|w| w[0] >= w[1])
+            || cells.last().is_some_and(|&c| c >= geometry.cells())
+            || cells.len() >= u32::MAX as usize
+        {
+            return Err(VarioError::InvalidParameters(
+                "grid cells must be strictly increasing indices inside the grid".into(),
+            ));
+        }
+    }
     if locations.len() != values.len() {
         return Err(VarioError::InsufficientData(
             "locations and values length mismatch".into(),
@@ -266,14 +370,17 @@ fn check(locations: &[(f64, f64, f64)], values: &[f64], bins: &LagBins) -> Resul
     Ok(())
 }
 
+type Cone<'a> = (&'a Direction, (f64, f64, f64), f64);
+
 /// Moment sums and pair counts per lag bin over the pairs of `tails` with
 /// `heads`, or with the later `tails` when `heads` is `None`, within `max_lag`
 /// and the direction cone. `terms(i, j, side)` gives a pair's moments, `side`
 /// being `+1`/`−1` as `h = head − tail` points along or against the direction
 /// (`0` when omnidirectional). Distinct `heads` keep the forward side only, and
-/// with `near` one extra bin gathers every pair closer than half a lag.
+/// with `near` one extra bin gathers every pair closer than half a lag. Grid
+/// tails take neither `heads` nor `near`.
 fn sweep<F>(
-    tails: &[(f64, f64, f64)],
+    tails: Support,
     heads: Option<&[(f64, f64, f64)]>,
     bins: &LagBins,
     direction: Option<&Direction>,
@@ -284,8 +391,68 @@ where
     F: Fn(usize, usize, f64) -> Moments + Sync,
 {
     let n_bins = ((bins.max_lag / bins.lag_width).ceil() as usize).max(1);
-    let slots = n_bins + near as usize;
     let dir = direction.map(|d| (d, d.unit(), d.tolerance.to_radians().cos()));
+    match tails {
+        Support::Points(tails) => {
+            point_sweep(tails, heads, bins, n_bins, dir.as_ref(), near, terms)
+        }
+        Support::Grid(geometry, cells) => {
+            grid_sweep(geometry, cells, bins, n_bins, dir.as_ref(), terms)
+        }
+    }
+}
+
+/// Lag bin and side of the separation `d` of length `dist`; `None` at zero,
+/// beyond `max_lag`, or outside the cone or band. `one_sided` rejects the
+/// backward side.
+fn classify(
+    d: (f64, f64, f64),
+    dist: f64,
+    bins: &LagBins,
+    n_bins: usize,
+    dir: Option<&Cone>,
+    one_sided: bool,
+) -> Option<(usize, f64)> {
+    if dist == 0.0 || dist > bins.max_lag {
+        return None;
+    }
+    let (dx, dy, dz) = d;
+    let mut side = 0.0;
+    if let Some((d, u, ct)) = dir {
+        let inv = 1.0 / dist;
+        let proj = (dx * u.0 + dy * u.1 + dz * u.2) * inv; // cos(angle)
+        if proj.abs() < *ct || (one_sided && proj < 0.0) {
+            return None;
+        }
+        if let Some(bw) = d.bandwidth {
+            // Perpendicular offset from the direction line.
+            let along = dx * u.0 + dy * u.1 + dz * u.2;
+            let perp2 = (dx * dx + dy * dy + dz * dz) - along * along;
+            if perp2.max(0.0).sqrt() > bw {
+                return None;
+            }
+        }
+        side = proj.signum();
+    }
+    Some((
+        ((dist / bins.lag_width).floor() as usize).min(n_bins - 1),
+        side,
+    ))
+}
+
+fn point_sweep<F>(
+    tails: &[(f64, f64, f64)],
+    heads: Option<&[(f64, f64, f64)]>,
+    bins: &LagBins,
+    n_bins: usize,
+    dir: Option<&Cone>,
+    near: bool,
+    terms: F,
+) -> (Vec<Moments>, Vec<usize>)
+where
+    F: Fn(usize, usize, f64) -> Moments + Sync,
+{
+    let slots = n_bins + near as usize;
     let n = tails.len();
 
     // The O(n²) pair sweep runs over a *fixed* number of chunks, never one sized
@@ -310,39 +477,17 @@ where
                 let pi = tails[i];
                 let (others, first) = heads.map_or((tails, i + 1), |h| (h, 0));
                 for (j, pj) in others.iter().enumerate().skip(first) {
-                    let dx = pj.0 - pi.0;
-                    let dy = pj.1 - pi.1;
-                    let dz = pj.2 - pi.2;
-                    let dist = (dx * dx + dy * dy + dz * dz).sqrt();
+                    let d = (pj.0 - pi.0, pj.1 - pi.1, pj.2 - pi.2);
+                    let dist = (d.0 * d.0 + d.1 * d.1 + d.2 * d.2).sqrt();
                     if near && dist <= 0.5 * bins.lag_width {
                         add(&mut sums[n_bins], &terms(i, j, 0.0));
                         counts[n_bins] += 1;
                     }
-                    if dist == 0.0 || dist > bins.max_lag {
-                        continue;
+                    if let Some((idx, side)) = classify(d, dist, bins, n_bins, dir, heads.is_some())
+                    {
+                        add(&mut sums[idx], &terms(i, j, side));
+                        counts[idx] += 1;
                     }
-
-                    let mut side = 0.0;
-                    if let Some((d, u, ct)) = &dir {
-                        let inv = 1.0 / dist;
-                        let proj = (dx * u.0 + dy * u.1 + dz * u.2) * inv; // cos(angle)
-                        if proj.abs() < *ct || (heads.is_some() && proj < 0.0) {
-                            continue;
-                        }
-                        if let Some(bw) = d.bandwidth {
-                            // Perpendicular offset from the direction line.
-                            let along = dx * u.0 + dy * u.1 + dz * u.2;
-                            let perp2 = (dx * dx + dy * dy + dz * dz) - along * along;
-                            if perp2.max(0.0).sqrt() > bw {
-                                continue;
-                            }
-                        }
-                        side = proj.signum();
-                    }
-
-                    let idx = ((dist / bins.lag_width).floor() as usize).min(n_bins - 1);
-                    add(&mut sums[idx], &terms(i, j, side));
-                    counts[idx] += 1;
                 }
             }
             (sums, counts)
@@ -357,6 +502,91 @@ where
             add(&mut sums[b], &chunk_sums[b]);
             counts[b] += chunk_counts[b];
         }
+    }
+    (sums, counts)
+}
+
+/// The pairs of grid cells, by index offset. An offset `(di, dj, dk)` after
+/// `(0, 0, 0)` in z-, y-, x-major order always leads to a later cell, so its
+/// pairs are each tail with the head that far on, as in the point sweep. Work
+/// is split into a fixed list of (offset, block of grid lines) tasks whose
+/// partial sums merge in list order: the result does not depend on the
+/// thread count.
+fn grid_sweep<F>(
+    geometry: &Geometry,
+    cells: &[u64],
+    bins: &LagBins,
+    n_bins: usize,
+    dir: Option<&Cone>,
+    terms: F,
+) -> (Vec<Moments>, Vec<usize>)
+where
+    F: Fn(usize, usize, f64) -> Moments + Sync,
+{
+    const LINES: i64 = 1024;
+    let [nx, ny, nz] = geometry.count.map(|c| c as i64);
+    let reach: [i64; 3] = std::array::from_fn(|a| {
+        ((bins.max_lag / geometry.size[a]).floor() as i64).min(geometry.count[a] as i64 - 1)
+    });
+    let frame = block_frame(geometry.rotation).transpose();
+    let mut offsets = Vec::new();
+    for dk in 0..=reach[2] {
+        for dj in -reach[1]..=reach[1] {
+            for di in -reach[0]..=reach[0] {
+                if dk == 0 && (dj < 0 || (dj == 0 && di <= 0)) {
+                    continue;
+                }
+                let local = [di, dj, dk];
+                let h = frame * Vector3::from_fn(|a, _| local[a] as f64 * geometry.size[a]);
+                let d = (h.x, h.y, h.z);
+                let dist = (d.0 * d.0 + d.1 * d.1 + d.2 * d.2).sqrt();
+                if let Some((bin, side)) = classify(d, dist, bins, n_bins, dir, false) {
+                    offsets.push((local, bin, side));
+                }
+            }
+        }
+    }
+    let slot = (cells.len() as u64 != geometry.cells()).then(|| {
+        let mut slot = vec![u32::MAX; geometry.cells() as usize];
+        for (row, &c) in cells.iter().enumerate() {
+            slot[c as usize] = row as u32;
+        }
+        slot
+    });
+    let blocks = ((ny * nz) as usize).div_ceil(LINES as usize);
+    let partials: Vec<(Moments, usize)> = (0..offsets.len() * blocks)
+        .into_par_iter()
+        .map(|task| {
+            let ([di, dj, dk], _, side) = offsets[task / blocks];
+            let first = (task % blocks) as i64 * LINES;
+            let shift = di + nx * (dj + ny * dk);
+            let (mut sum, mut n) = ([0.0f64; 8], 0);
+            for line in first..(first + LINES).min(ny * nz) {
+                let (j, k) = (line % ny, line / ny);
+                if !(0..ny).contains(&(j + dj)) || !(0..nz).contains(&(k + dk)) {
+                    continue;
+                }
+                for i in (-di).max(0)..nx - di.max(0) {
+                    let tail = (i + nx * line) as usize;
+                    let head = (tail as i64 + shift) as usize;
+                    let (tail, head) = match &slot {
+                        None => (tail, head),
+                        Some(s) if s[tail] == u32::MAX || s[head] == u32::MAX => continue,
+                        Some(s) => (s[tail] as usize, s[head] as usize),
+                    };
+                    add(&mut sum, &terms(tail, head, side));
+                    n += 1;
+                }
+            }
+            (sum, n)
+        })
+        .collect();
+    let mut sums = vec![[0.0f64; 8]; n_bins];
+    let mut counts = vec![0usize; n_bins];
+    for (task, (sum, n)) in partials.iter().enumerate() {
+        let bin = offsets[task / blocks].1;
+        add(&mut sums[bin], sum);
+        counts[bin] += n;
     }
     (sums, counts)
 }
@@ -862,5 +1092,161 @@ mod tests {
         assert!(run(Some(&near[..]), Estimator::Covariance).is_ok());
         assert!(run(Some(&far[..]), Estimator::Covariance).is_err());
         assert!(run(Some(&far[..10]), Estimator::Covariance).is_err());
+    }
+
+    fn grid(rotation: [f64; 3]) -> (Geometry, Vec<f64>, Vec<f64>) {
+        let geometry = Geometry {
+            origin: [100.0, 200.0, 50.0],
+            size: [2.0, 3.0, 1.5],
+            count: [17, 13, 4],
+            rotation,
+        };
+        let (_, a) = field(geometry.cells() as usize, 9);
+        let a: Vec<f64> = a.iter().map(|v| v + 10.0).collect();
+        let b = a
+            .iter()
+            .enumerate()
+            .map(|(i, v)| 0.6 * v + (i as f64 * 0.91).sin())
+            .collect();
+        (geometry, a, b)
+    }
+
+    fn centers(geometry: &Geometry, cells: &[u64]) -> Vec<(f64, f64, f64)> {
+        cells
+            .iter()
+            .map(|&c| {
+                let [x, y, z] = geometry.centroid(c);
+                (x, y, z)
+            })
+            .collect()
+    }
+
+    fn agree(a: &Experimental, b: &Experimental) {
+        assert_eq!(a.counts, b.counts);
+        assert_eq!(a.lags, b.lags);
+        for (x, y) in a.gammas.iter().zip(&b.gammas) {
+            assert!((x - y).abs() <= 1e-10 * x.abs().max(1.0), "{x} vs {y}");
+        }
+    }
+
+    #[test]
+    fn grid_shifts_match_the_pair_sweep() {
+        let bins = LagBins {
+            max_lag: 19.7,
+            lag_width: 2.3,
+        };
+        let dir = Direction {
+            azimuth: 37.0,
+            dip: 11.0,
+            tolerance: 21.0,
+            bandwidth: Some(4.1),
+        };
+        for rotation in [[0.0; 3], [30.0, 12.0, 5.0]] {
+            let (geometry, a, b) = grid(rotation);
+            let all: Vec<u64> = (0..geometry.cells()).collect();
+            let masked: Vec<u64> = all.iter().copied().filter(|c| c % 7 != 3).collect();
+            for cells in [&all, &masked] {
+                let at = centers(&geometry, cells);
+                let pick = |v: &[f64]| cells.iter().map(|&c| v[c as usize]).collect::<Vec<_>>();
+                let (a, b) = (pick(&a), pick(&b));
+                let on = Support::Grid(&geometry, cells);
+                for d in [None, Some(&dir)] {
+                    for e in ALL {
+                        let by_grid = experimental(on, &a, &bins, e, d, false).unwrap();
+                        agree(
+                            &by_grid,
+                            &experimental(&at, &a, &bins, e, d, false).unwrap(),
+                        );
+                    }
+                    for e in [Estimator::Matheron, Estimator::Covariance] {
+                        let by_grid = cross_experimental(on, &a, None, &b, &bins, e, d, true);
+                        let by_pairs = cross_experimental(&at, &a, None, &b, &bins, e, d, true);
+                        agree(&by_grid.unwrap(), &by_pairs.unwrap());
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn a_set_holds_every_direct_and_cross_variogram() {
+        let (locs, a) = scattered(200);
+        let b: Vec<f64> = a.iter().map(|v| (v * 0.3).cos()).collect();
+        let c: Vec<f64> = a.iter().zip(&b).map(|(x, y)| x - 4.0 * y).collect();
+        let bins = LagBins {
+            max_lag: 80.0,
+            lag_width: 5.0,
+        };
+        let dirs = [cone(0.0), cone(90.0)];
+        let m = Estimator::Matheron;
+        let set = experimental_set(&locs, &[&a, &b, &c], &bins, m, &dirs, false).unwrap();
+        let swapped = experimental_set(&locs, &[&c, &b, &a], &bins, m, &dirs, false).unwrap();
+        for (d, dir) in dirs.iter().enumerate() {
+            let direct = experimental(&locs, &b, &bins, m, Some(dir), false).unwrap();
+            assert_eq!(set[1][1].as_ref().unwrap()[d].gammas, direct.gammas);
+            for (i, j) in [(0, 1), (0, 2), (1, 2)] {
+                let (x, y) = (&set[i][j].as_ref().unwrap()[d], &swapped[2 - j][2 - i]);
+                assert_eq!(x.gammas, y.as_ref().unwrap()[d].gammas);
+                assert!(set[j][i].is_none());
+            }
+        }
+        let one = experimental_set(&locs, &[&a], &bins, m, &[], false).unwrap();
+        let direct = experimental(&locs, &a, &bins, m, None, false).unwrap();
+        assert_eq!(one[0][0].as_ref().unwrap()[0].gammas, direct.gammas);
+        assert!(experimental_set(&locs, &[], &bins, m, &[], false).is_err());
+    }
+
+    #[test]
+    fn grid_sets_are_deterministic_across_thread_counts() {
+        let (geometry, a, b) = grid([20.0, 0.0, 0.0]);
+        let cells: Vec<u64> = (0..geometry.cells()).collect();
+        let bins = LagBins {
+            max_lag: 15.0,
+            lag_width: 1.5,
+        };
+        let dirs = [cone(0.0), cone(90.0)];
+        let run = || {
+            let on = Support::Grid(&geometry, &cells);
+            let m = Estimator::Matheron;
+            experimental_set(on, &[&a, &b], &bins, m, &dirs, false).unwrap()
+        };
+        let reference = run();
+        for k in [1usize, 8] {
+            let pool = rayon::ThreadPoolBuilder::new()
+                .num_threads(k)
+                .build()
+                .unwrap();
+            let got = pool.install(run);
+            for (r, g) in reference.iter().flatten().zip(got.iter().flatten()) {
+                for (r, g) in r.iter().flatten().zip(g.iter().flatten()) {
+                    assert_eq!(r.gammas, g.gammas, "gammas differ at {k} threads");
+                    assert_eq!(r.counts, g.counts, "counts differ at {k} threads");
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn grids_reject_bad_cells_and_separate_heads() {
+        let (geometry, a, _) = grid([0.0; 3]);
+        let bins = LagBins::default();
+        let m = Estimator::Matheron;
+        let backwards: Vec<u64> = (0..geometry.cells()).rev().collect();
+        assert!(
+            experimental(
+                Support::Grid(&geometry, &backwards),
+                &a,
+                &bins,
+                m,
+                None,
+                false
+            )
+            .is_err()
+        );
+        let cells: Vec<u64> = (0..geometry.cells()).collect();
+        let on = Support::Grid(&geometry, &cells);
+        let heads = centers(&geometry, &cells);
+        let c = Estimator::Covariance;
+        assert!(cross_experimental(on, &a, Some(&heads), &a, &bins, c, None, false).is_err());
     }
 }

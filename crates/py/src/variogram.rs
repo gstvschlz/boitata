@@ -1,17 +1,19 @@
+use ceres_core::{Geometry, Layout};
 use pyo3::prelude::*;
-use pyo3::types::PyTuple;
+use pyo3::types::{PyList, PyTuple};
 use serde::{Deserialize, Serialize};
 use transforms::dgm::{BlockDiscretization, block_average_correlation};
 use variogram::surface::{PlaneMapParams, plane_map};
 use variogram::{
     Angles, Anisotropy, AnisotropySpec, Bounds, CoregStructure, Coregionalization as CoreCoreg,
     Direction, Estimator, Experimental, LagBins, Model, NestedSpec, Structure as CoreStructure,
-    StructureSpec, Transiogram as CoreTransiogram, Variogram as CoreVariogram, Weighting,
-    cross_experimental, downhole, empirical_transiogram, experimental, extrapolated_nugget,
-    fit_coregionalization, fit_directional, fit_nested,
+    StructureSpec, Support, Transiogram as CoreTransiogram, Variogram as CoreVariogram, Weighting,
+    cross_experimental, downhole, empirical_transiogram, experimental, experimental_set,
+    extrapolated_nugget, fit_coregionalization, fit_directional, fit_nested,
 };
 
 use crate::args::{Point, array1, array2, column, finite, floats, points, same_length, triple};
+use crate::containers::PyBlockModel;
 use crate::invalid;
 use crate::transforms::Anamorphosis;
 
@@ -549,6 +551,50 @@ fn samples(
     Ok((locs, values))
 }
 
+enum Locations {
+    Points(Vec<Point>),
+    Grid(Geometry, Vec<u64>),
+}
+
+impl Locations {
+    fn support(&self) -> Support<'_> {
+        match self {
+            Locations::Points(p) => Support::Points(p),
+            Locations::Grid(g, cells) => Support::Grid(g, cells),
+        }
+    }
+
+    fn len(&self) -> usize {
+        match self {
+            Locations::Points(p) => p.len(),
+            Locations::Grid(_, cells) => cells.len(),
+        }
+    }
+}
+
+/// The cells of a regular or masked BlockModel with `method` None or
+/// "grid", else the points of `coords`.
+fn locations(coords: &Bound<PyAny>, method: Option<&str>) -> PyResult<Locations> {
+    let grid = coords.cast::<PyBlockModel>().ok().and_then(|m| {
+        let m = &m.get().0;
+        match m.layout() {
+            Layout::Regular => Some((*m.geometry(), (0..m.geometry().cells()).collect())),
+            Layout::Masked(index) => Some((*m.geometry(), index.clone())),
+            Layout::SubBlocked { .. } => None,
+        }
+    });
+    match (method, grid) {
+        (None | Some("grid"), Some((g, cells))) => Ok(Locations::Grid(g, cells)),
+        (Some("grid"), None) => Err(invalid(
+            "method=\"grid\" needs a regular or masked BlockModel",
+        )),
+        (None | Some("pairs"), _) => Ok(Locations::Points(points(coords)?)),
+        (Some(m), _) => Err(invalid(format!(
+            "unknown method {m:?}; use \"pairs\" or \"grid\""
+        ))),
+    }
+}
+
 /// Experimental variogram, omnidirectional unless `azimuth` is given, or the
 /// cross-variogram of `values` and `other`.
 ///
@@ -589,12 +635,22 @@ fn samples(
 ///     same hole count, lag ``k`` gathers the pairs within ``lag / 2`` of
 ///     ``k * lag`` and reports their mean distance. Not with ``azimuth`` or
 ///     ``other``.
+/// method : {None, "pairs", "grid"}
+///     How pairs are found. "pairs" compares every two samples, O(n²).
+///     "grid" needs a regular or masked BlockModel: every pair of cells one
+///     index offset apart has the same separation, so each offset within
+///     ``max_lag`` and the direction cone is binned once and its pairs are
+///     gathered by shifting cell indices, O(n x offsets), with the same pairs
+///     and estimates as "pairs" up to round-off; offsets exactly on a lag or
+///     cone boundary are decided once, where round-off can split their pairs
+///     in the search. None takes "grid" for such a BlockModel without
+///     ``holes`` or ``other_coords``, else "pairs".
 ///
 /// Returns
 /// -------
 /// ExperimentalVariogram
 #[pyfunction]
-#[pyo3(signature = (coords, values, lag, max_lag, *, azimuth=None, dip=0.0, tolerance=22.5, bandwidth=None, estimator="matheron", standardize=false, other=None, other_coords=None, holes=None))]
+#[pyo3(signature = (coords, values, lag, max_lag, *, azimuth=None, dip=0.0, tolerance=22.5, bandwidth=None, estimator="matheron", standardize=false, other=None, other_coords=None, holes=None, method=None))]
 #[allow(clippy::too_many_arguments)]
 fn experimental_variogram(
     coords: &Bound<PyAny>,
@@ -610,54 +666,231 @@ fn experimental_variogram(
     other: Option<&Bound<PyAny>>,
     other_coords: Option<&Bound<PyAny>>,
     holes: Option<&Bound<PyAny>>,
+    method: Option<&str>,
 ) -> PyResult<ExperimentalVariogram> {
-    let (locs, values) = samples(coords, values, "values")?;
     let (bins, estimator) = (bins(lag, max_lag)?, self::estimator(estimator)?);
-    let holes = holes
-        .map(|h| column(Some(coords), h, "holes"))
-        .transpose()?;
-    if let Some((_, holes)) = crate::args::holes(holes.as_ref(), locs.len())? {
-        if azimuth.is_some() || other.is_some() {
-            return Err(invalid("holes takes neither azimuth nor other"));
+    if holes.is_some() || other_coords.is_some() {
+        if method == Some("grid") {
+            return Err(invalid(
+                "method=\"grid\" takes neither holes nor other_coords",
+            ));
         }
-        let exp = downhole(&locs, &values, &holes, &bins, estimator, standardize).map_err(err)?;
+        let (locs, values) = samples(coords, values, "values")?;
+        let holes = holes
+            .map(|h| column(Some(coords), h, "holes"))
+            .transpose()?;
+        if let Some((_, holes)) = crate::args::holes(holes.as_ref(), locs.len())? {
+            if azimuth.is_some() || other.is_some() {
+                return Err(invalid("holes takes neither azimuth nor other"));
+            }
+            let exp =
+                downhole(&locs, &values, &holes, &bins, estimator, standardize).map_err(err)?;
+            return Ok(ExperimentalVariogram(exp));
+        }
+        let (Some(at), Some(other)) = (other_coords, other) else {
+            return Err(invalid("other_coords needs other"));
+        };
+        let (at, other) = samples(at, other, "other")?;
+        let direction = azimuth.map(|azimuth| Direction {
+            azimuth,
+            dip,
+            tolerance,
+            bandwidth,
+        });
+        let exp = cross_experimental(
+            &locs,
+            &values,
+            Some(&at),
+            &other,
+            &bins,
+            estimator,
+            direction.as_ref(),
+            standardize,
+        )
+        .map_err(err)?;
         return Ok(ExperimentalVariogram(exp));
     }
+    let values = finite(&column(Some(coords), values, "values")?, "values")?;
+    let locs = locations(coords, method)?;
+    same_length(locs.len(), values.len(), "values")?;
     let direction = azimuth.map(|azimuth| Direction {
         azimuth,
         dip,
         tolerance,
         bandwidth,
     });
-    let (at, other) = match (other_coords, other) {
-        (Some(at), Some(other)) => {
-            let (at, other) = samples(at, other, "other")?;
-            (Some(at), Some(other))
-        }
-        (None, Some(other)) => {
-            let other = finite(&column(Some(coords), other, "other")?, "other")?;
-            same_length(locs.len(), other.len(), "other")?;
-            (None, Some(other))
-        }
-        (Some(_), None) => return Err(invalid("other_coords needs other")),
-        (None, None) => (None, None),
-    };
-    let dir = direction.as_ref();
+    let other = other
+        .map(|o| finite(&column(Some(coords), o, "other")?, "other"))
+        .transpose()?;
+    let (at, dir) = (locs.support(), direction.as_ref());
     let exp = match other {
-        None => experimental(&locs, &values, &bins, estimator, dir, standardize),
-        Some(other) => cross_experimental(
-            &locs,
-            &values,
-            at.as_deref(),
-            &other,
-            &bins,
-            estimator,
-            dir,
-            standardize,
-        ),
+        None => experimental(at, &values, &bins, estimator, dir, standardize),
+        Some(other) => {
+            same_length(values.len(), other.len(), "other")?;
+            cross_experimental(
+                at,
+                &values,
+                None,
+                &other,
+                &bins,
+                estimator,
+                dir,
+                standardize,
+            )
+        }
     }
     .map_err(err)?;
     Ok(ExperimentalVariogram(exp))
+}
+
+/// Direct and cross experimental variograms of several variables, indexed
+/// by variable pair.
+///
+/// ``set[i, j]`` is the ExperimentalVariogram of variables ``i`` and ``j``
+/// (their positions in ``values``, or their column names): the direct
+/// variogram for ``i == j``, else the cross-variogram, the same for
+/// ``(j, i)``. With ``directions`` each entry is a list, one per direction.
+/// `Coregionalization.fit` takes the set as it is, directions included.
+#[pyclass(module = "ceres", name = "VariogramSet", frozen)]
+pub struct VariogramSet {
+    entries: Vec<Vec<Option<Vec<Experimental>>>>,
+    names: Vec<Option<String>>,
+    directions: Option<Vec<(f64, f64)>>,
+}
+
+impl VariogramSet {
+    fn index(&self, key: &Bound<PyAny>) -> PyResult<usize> {
+        let found = match key.extract::<String>() {
+            Ok(name) => self.names.iter().position(|n| n.as_deref() == Some(&name)),
+            Err(_) => key
+                .extract::<usize>()
+                .ok()
+                .filter(|&i| i < self.names.len()),
+        };
+        found.ok_or_else(|| {
+            pyo3::exceptions::PyKeyError::new_err(format!("no variable {key} in the set"))
+        })
+    }
+}
+
+#[pymethods]
+impl VariogramSet {
+    /// Number of variables.
+    #[getter]
+    fn nvar(&self) -> usize {
+        self.names.len()
+    }
+
+    /// Column name of each variable, None where given as an array.
+    #[getter]
+    fn names(&self) -> Vec<Option<String>> {
+        self.names.clone()
+    }
+
+    /// ``(azimuth, dip)`` of each direction, None when omnidirectional.
+    #[getter]
+    fn directions(&self) -> Option<Vec<(f64, f64)>> {
+        self.directions.clone()
+    }
+
+    fn __getitem__<'py>(
+        &self,
+        py: Python<'py>,
+        key: (Bound<'py, PyAny>, Bound<'py, PyAny>),
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let (i, j) = (self.index(&key.0)?, self.index(&key.1)?);
+        let entry = self.entries[i.min(j)][i.max(j)]
+            .as_ref()
+            .expect("upper triangle");
+        let wrap = |e: &Experimental| Bound::new(py, ExperimentalVariogram(e.clone()));
+        if self.directions.is_none() {
+            return Ok(wrap(&entry[0])?.into_any());
+        }
+        let list = entry.iter().map(wrap).collect::<PyResult<Vec<_>>>()?;
+        Ok(PyList::new(py, list)?.into_any())
+    }
+
+    fn __repr__(&self) -> String {
+        let dirs = match &self.directions {
+            None => "omnidirectional".into(),
+            Some(d) => format!("{} directions", d.len()),
+        };
+        format!("VariogramSet({} variables, {dirs})", self.nvar())
+    }
+}
+
+/// Every direct and cross experimental variogram of several variables at
+/// the same samples.
+///
+/// Parameters
+/// ----------
+/// coords : array_like, shape (n, 2) or (n, 3), PointSet or BlockModel
+/// values : sequence of array_like or str
+///     One column per variable, or the column of ``coords`` holding it.
+/// lag, max_lag : float
+///     Lag-bin width and largest pair distance.
+/// directions : sequence of (float, float), optional
+///     Azimuth and dip in degrees of each direction; omnidirectional when
+///     None.
+/// tolerance, bandwidth, estimator, standardize, method
+///     As in `experimental_variogram`, for every direction. Cross-variograms
+///     take the "matheron" or "covariance" estimator.
+///
+/// Returns
+/// -------
+/// VariogramSet
+///     ``set[i, j]`` as `experimental_variogram` gives it for ``values[i]``
+///     with ``other=values[j]``.
+#[pyfunction]
+#[pyo3(signature = (coords, values, lag, max_lag, *, directions=None, tolerance=22.5, bandwidth=None, estimator="matheron", standardize=false, method=None))]
+#[allow(clippy::too_many_arguments)]
+fn experimental_variograms(
+    coords: &Bound<PyAny>,
+    values: Vec<Bound<PyAny>>,
+    lag: f64,
+    max_lag: f64,
+    directions: Option<Vec<(f64, f64)>>,
+    tolerance: f64,
+    bandwidth: Option<f64>,
+    estimator: &str,
+    standardize: bool,
+    method: Option<&str>,
+) -> PyResult<VariogramSet> {
+    let (bins, estimator) = (bins(lag, max_lag)?, self::estimator(estimator)?);
+    let locs = locations(coords, method)?;
+    let columns = values
+        .iter()
+        .map(|v| {
+            let column = finite(&column(Some(coords), v, "values")?, "values")?;
+            same_length(locs.len(), column.len(), "values")?;
+            Ok(column)
+        })
+        .collect::<PyResult<Vec<_>>>()?;
+    let cones: Vec<Direction> = directions
+        .iter()
+        .flatten()
+        .map(|&(azimuth, dip)| Direction {
+            azimuth,
+            dip,
+            tolerance,
+            bandwidth,
+        })
+        .collect();
+    let variables: Vec<&[f64]> = columns.iter().map(Vec::as_slice).collect();
+    let entries = experimental_set(
+        locs.support(),
+        &variables,
+        &bins,
+        estimator,
+        &cones,
+        standardize,
+    )
+    .map_err(err)?;
+    Ok(VariogramSet {
+        entries,
+        names: values.iter().map(|v| v.extract().ok()).collect(),
+        directions,
+    })
 }
 
 /// γ on a plane as an angle × lag grid, with the fitted range per angle.
@@ -734,6 +967,43 @@ fn variogram_map(
     })
 }
 
+/// An nvar x nvar matrix of experimental variograms, one per direction in
+/// each cell when `directed`; the lower triangle is dropped.
+fn matrix(
+    rows: &[Vec<Option<Bound<PyAny>>>],
+    directed: bool,
+) -> PyResult<Vec<Vec<Option<Vec<Experimental>>>>> {
+    let n = rows.len();
+    if n == 0 || rows.iter().any(|row| row.len() != n) {
+        return Err(invalid("experimentals must be an nvar x nvar matrix"));
+    }
+    let cell = |c: &Bound<PyAny>| -> PyResult<Vec<Experimental>> {
+        if directed {
+            let many: Vec<PyRef<ExperimentalVariogram>> = c
+                .extract()
+                .map_err(|_| invalid("with directions, give one variogram per direction"))?;
+            Ok(many.iter().map(|e| e.0.clone()).collect())
+        } else {
+            let one: PyRef<ExperimentalVariogram> = c
+                .extract()
+                .map_err(|_| invalid("without directions, give one variogram per pair"))?;
+            Ok(vec![one.0.clone()])
+        }
+    };
+    rows.iter()
+        .enumerate()
+        .map(|(i, row)| {
+            row.iter()
+                .enumerate()
+                .map(|(j, c)| match c {
+                    Some(c) if j >= i => cell(c).map(Some),
+                    _ => Ok(None),
+                })
+                .collect()
+        })
+        .collect()
+}
+
 /// Linear model of coregionalization: `nugget` and each structure's `sills`
 /// are symmetric positive semi-definite `nvar × nvar` matrices, else
 /// InvalidInput is raised. `rotation` and `ratios` are as in `Variogram`.
@@ -794,8 +1064,9 @@ impl Coregionalization {
     ///
     /// Parameters
     /// ----------
-    /// experimentals : sequence of sequence of ExperimentalVariogram or None
-    ///     ``nvar x nvar``: entry ``[i][j]`` for ``i <= j`` is the direct
+    /// experimentals : VariogramSet or sequence of sequence of ExperimentalVariogram or None
+    ///     A `VariogramSet`, whose directions are used, or an ``nvar x nvar``
+    ///     matrix: entry ``[i][j]`` for ``i <= j`` is the direct
     ///     (``i == j``, required) or cross variogram of variables ``i`` and
     ///     ``j``; the lower triangle is ignored, and a missing cross pair
     ///     (None) is left to the positive semi-definite constraint. With
@@ -819,7 +1090,7 @@ impl Coregionalization {
     #[pyo3(signature = (experimentals, model=Models::One("spherical".into()), *, weighting="count", nugget=true, ranges=None, directions=None, rotation=None, ratios=None))]
     #[allow(clippy::too_many_arguments)]
     fn fit(
-        experimentals: Vec<Vec<Option<Bound<PyAny>>>>,
+        experimentals: &Bound<PyAny>,
         model: Models,
         weighting: &str,
         nugget: bool,
@@ -828,39 +1099,19 @@ impl Coregionalization {
         rotation: Limits,
         ratios: Limits,
     ) -> PyResult<Self> {
-        let n = experimentals.len();
-        if n == 0 || experimentals.iter().any(|row| row.len() != n) {
-            return Err(invalid("experimentals must be an nvar x nvar matrix"));
-        }
+        let (exps, directions) = match experimentals.cast::<VariogramSet>() {
+            Ok(_) if directions.is_some() => {
+                return Err(invalid("a VariogramSet carries its own directions"));
+            }
+            Ok(set) => (set.get().entries.clone(), set.get().directions.clone()),
+            Err(_) => (
+                matrix(&experimentals.extract::<Vec<_>>()?, directions.is_some())?,
+                directions,
+            ),
+        };
         if directions.is_none() && (rotation.is_some() || ratios.is_some()) {
             return Err(invalid("rotation and ratios need directions"));
         }
-        let cell = |c: &Bound<PyAny>| -> PyResult<Vec<Experimental>> {
-            if directions.is_some() {
-                let many: Vec<PyRef<ExperimentalVariogram>> = c
-                    .extract()
-                    .map_err(|_| invalid("with directions, give one variogram per direction"))?;
-                Ok(many.iter().map(|e| e.0.clone()).collect())
-            } else {
-                let one: PyRef<ExperimentalVariogram> = c
-                    .extract()
-                    .map_err(|_| invalid("without directions, give one variogram per pair"))?;
-                Ok(vec![one.0.clone()])
-            }
-        };
-        let exps = experimentals
-            .iter()
-            .enumerate()
-            .map(|(i, row)| {
-                row.iter()
-                    .enumerate()
-                    .map(|(j, c)| match c {
-                        Some(c) if j >= i => cell(c).map(Some),
-                        _ => Ok(None),
-                    })
-                    .collect::<PyResult<Vec<_>>>()
-            })
-            .collect::<PyResult<Vec<_>>>()?;
         let nugget = (!nugget).then_some(Limit::Fixed(0.0));
         let spec = nested(model, nugget, None, ranges)?;
         let (rotation, ratios) = (
@@ -1052,10 +1303,12 @@ pub fn register(m: &Bound<PyModule>) -> PyResult<()> {
     m.add_class::<Structure>()?;
     m.add_class::<Variogram>()?;
     m.add_class::<ExperimentalVariogram>()?;
+    m.add_class::<VariogramSet>()?;
     m.add_class::<VariogramMap>()?;
     m.add_class::<Coregionalization>()?;
     m.add_class::<Transiogram>()?;
     m.add_function(wrap_pyfunction!(experimental_variogram, m)?)?;
+    m.add_function(wrap_pyfunction!(experimental_variograms, m)?)?;
     m.add_function(wrap_pyfunction!(variogram_map, m)?)?;
     m.add_function(wrap_pyfunction!(experimental_transiogram, m)?)?;
     m.add_function(wrap_pyfunction!(change_of_support, m)?)?;
