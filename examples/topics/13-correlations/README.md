@@ -1,7 +1,7 @@
 # 13. Exploratory data analysis
 
-Duplicates, paired data of two drilling types, statistics and distributions per domain, top cuts, grade-tonnage, contacts, swaths, h-scatterplots and
-correlations on the 2 m composites of the drillhole dataset. Every function skips missing values, so raw columns go in as they are.
+Grade-tonnage, contacts, swaths, categories, data spacing, h-scatterplots and correlations on the 2 m composites of the
+drillhole dataset. Every function skips missing values, so raw columns go in as they are.
 
 <details><summary>Python</summary>
 
@@ -9,13 +9,15 @@ correlations on the 2 m composites of the drillhole dataset. Every function skip
 import ceres as cs
 import matplotlib.pyplot as plt
 import numpy as np
-from common import ACCENT, GRAY, HIGHLIGHT, INK, map_axes, save
+from common import ACCENT, GRAY, INK, map_axes, save
 ```
 
 </details>
 
 The tables are checked and fixed with the default rules first, as in topic 3:
-overlapping assays keep the one that starts first and abruptly deviating survey stations are dropped.
+overlapping assays keep the one that starts first and abruptly deviating survey stations are dropped. Composites
+of holes collared at the same point are merged, keeping the first (topic 4), and each composite is weighted by cell
+declustering in 50 m cells, domain by domain (topic 7).
 
 <details><summary>Python</summary>
 
@@ -31,336 +33,30 @@ tables, _ = cs.fix_drillholes(flags, tables)
 intervals = cs.merge_intervals(tables["assay"], tables["geology"], hole="HOLEID")
 dh = cs.Drillholes(tables["collar"], tables["survey"], intervals, hole="HOLEID")
 grades = ["ZN", "PB", "CU", "AG", "AU"]
-composites = dh.composite(2.0, grades, domain="LITH")
+composites = cs.duplicates(dh.composite(2.0, grades, domain="LITH"), merge="first")
 print(f"{len(composites)} composites")
-```
-
-</details>
-
-```text
-62506 composites
-```
-
-## Duplicates
-
-Twin holes, re-entries and collars entered twice put several composites at one place, and kriging cannot weight
-two samples at the same location. `duplicates` groups the composites closer than a tolerance, transitively, and
-reports each group with its first sample and its spread.
-
-<details><summary>Python</summary>
-
-```python
-hole = composites["hole"]
-
-
-def holes_per_group(tolerance):
-    report, group = cs.duplicates(composites, tolerance=tolerance)
-    return report, [tuple(sorted(set(hole[group == k]))) for k in report["group"]]
-
-
-report, groups = holes_per_group(0.1)
-across = [h for h in groups if len(h) > 1]
-print(f"{len(report)} groups within 0.1 m, at most {report['spread'].max():.2f} m from their first composite")
-print(f"{len(across)} across {len(set(across))} sets of holes, {len(groups) - len(across)} inside one hole")
-exact, groups = holes_per_group(0.0)
-print(f"{len(exact)} groups at exactly the same location, from {len(set(groups))} pairs of holes")
-```
-
-</details>
-
-```text
-160 groups within 0.1 m, at most 0.10 m from their first composite
-147 across 27 sets of holes, 13 inside one hole
-43 groups at exactly the same location, from 9 pairs of holes
-```
-
-The groups inside one hole are short intervals on both sides of a contact, in different lithologies: they stay.
-The exact duplicates are the top composites of pairs of holes collared at the same point. One pair puts an MS
-composite on one of unknown lithology (UNK), which a length-weighted `merge="mean"` would blend, so each pair keeps the composite
-of its first hole instead; the `n` column counts the composites behind each row.
-
-<details><summary>Python</summary>
-
-```python
-composites = cs.duplicates(composites, merge="first")
-print(f"{len(composites)} composites, {int((composites['n'] > 1).sum())} of them merged pairs")
 xyz = composites.coords
 zn = composites["ZN"]
 lith, hole = composites["LITH"], composites["hole"]
-```
-
-</details>
-
-```text
-62463 composites, 43 of them merged pairs
-```
-
-## Paired data
-
-Most holes are diamond drill holes (DD); many others are sludge holes, and some percussion (PC). Are their grades
-alike? `pairs` finds, for each DD composite, the nearest composite of the other type within 10 m, each composite in
-at most one pair, the closest pairs first. `paired_bias` compares the paired means per bin of pairing distance: the
-bias read at short distances is the sampling bias, not a change of grade over space.
-
-<details><summary>Python</summary>
-
-```python
-collar = tables["collar"]
-kind = dict(zip(collar["HOLEID"], collar["TYPE"], strict=True))
-drilling = np.array([kind[h] for h in hole])
-dd = drilling == "DD"
-edges = np.arange(0.0, 11.0, 2.0)
-paired, bias = {}, {}
-for name in ["SLUDGE", "PC"]:
-    other = drilling == name
-    paired[name] = cs.pairs(composites.filter(dd), composites.filter(other), 10.0, values="ZN")
-    bias[name] = cs.paired_bias(paired[name], edges)
-    p = paired[name]
-    print(f"DD-{name}: {len(p)} pairs, Zn {np.mean(p['value_a']):.2f} vs {np.mean(p['value_b']):.2f} %")
-```
-
-</details>
-
-```text
-DD-SLUDGE: 5464 pairs, Zn 3.80 vs 3.61 %
-DD-PC: 370 pairs, Zn 1.65 vs 3.88 %
-```
-
-Sludge composites average about 5 % less Zn than their DD pairs, but the bins swing between -10 and +10 %: no
-consistent bias. Percussion composites read two to four times the DD grade in pairs closer than 4 m, and still
-more than 1.5 times at 10 m. A bias that is largest where the pairs are closest is a sampling problem, not a change
-of grade over space, and a reason to leave PC out of the estimate.
-
-<details><summary>Python</summary>
-
-```python
-fig, axes = plt.subplots(1, 2, figsize=(9, 3.4), layout="constrained")
-for ax, name in zip(axes, ["SLUDGE", "PC"], strict=True):
-    cs.plot.paired_bias(bias[name], ax=ax, color=ACCENT)
-    ax.set(title=f"{name} against DD", xlabel="Pairing distance (m)", ylabel=f"Bias of {name} over DD (%)")
-save(fig, "paired_bias")
-```
-
-</details>
-
-![paired_bias](paired_bias.png)
-
-The Q-Q plot and the scatter plot of the DD-PC pairs, and the pairs on a plan with the five largest differences
-listed and marked. The Q-Q plot sits above the 1:1 line at every quantile.
-
-<details><summary>Python</summary>
-
-```python
-p = paired["PC"]
-a, b = p["a"].astype(int), p["b"].astype(int)
-pc_rows, dd_rows = np.flatnonzero(drilling == "PC")[b], np.flatnonzero(dd)[a]
-worst = np.argsort(-np.abs(p["value_b"] - p["value_a"]))[:5]
-print(f"{'DD hole':<9}{'PC hole':<9}{'distance':>9}{'DD Zn':>7}{'PC Zn':>7}")
-for k in worst:
-    print(
-        f"{hole[dd_rows[k]]:<9}{hole[pc_rows[k]]:<9}{p['distance'][k]:>9.1f}"
-        f"{p['value_a'][k]:>7.2f}{p['value_b'][k]:>7.2f}"
-    )
-fig, (q, s, m) = plt.subplots(1, 3, figsize=(11, 3.6), layout="constrained")
-cs.plot.qq(p["value_a"], p["value_b"], ax=q, color=ACCENT)
-q.set(title="Q-Q, DD-PC pairs", xlabel="DD Zn (%)", ylabel="PC Zn (%)")
-cs.plot.scatter(p["value_a"], p["value_b"], ax=s, color=ACCENT)
-s.set(title="Scatter, DD-PC pairs", xlabel="DD Zn (%)", ylabel="PC Zn (%)")
-s.legend(loc="upper left")
-m.scatter(*xyz[dd_rows, :2].T, s=4, color=GRAY, label="paired DD composites")
-m.scatter(
-    *xyz[dd_rows[worst], :2].T, s=30, facecolors="none", edgecolors=HIGHLIGHT, label="5 largest differences"
-)
-map_axes(m, "DD-PC pairs")
-m.legend(loc="lower left")
-save(fig, "paired")
-```
-
-</details>
-
-```text
-DD hole  PC hole   distance  DD Zn  PC Zn
-DH1820   DH1330         9.7   3.89  27.90
-DH2296   DH1478         6.1   5.06  26.79
-DH2089   DH2759         2.8   0.65  21.05
-DH3329   DH2099        10.0  23.30   4.33
-DH4204   DH0453         3.7   4.07  22.95
-```
-
-![paired](paired.png)
-
-## Declustered statistics
-
-Drilling concentrates where grades are high. Cell declustering (50 m cells) weights each composite by the inverse
-of the number of composites in its cell, domain by domain. `describe_by` gives weighted moments and quantiles per
-lithology and, on the last row, over all five together.
-
-<details><summary>Python</summary>
-
-```python
 domains = ["MS", "SM", "QE", "EX", "RH"]
 weights = np.zeros(len(zn))
 for name in domains:
     keep = (lith == name) & ~np.isnan(zn)
     weights[keep] = cs.cell_declustering(xyz[keep], zn[keep], cell_size=50.0).weights
-five = np.isin(lith, domains)
-in_five = composites.filter(five)
-naive = cs.describe_by("ZN", "LITH", data=in_five)
-stats = cs.describe_by("ZN", "LITH", weights=weights[five], quantiles=[0.5, 0.9, 0.995], data=in_five)
-print(f"{'LITH':<6}{'n':>7}{'mean':>8}{'declust.':>10}{'CV':>6}{'P50':>7}{'P90':>7}")
-for name, n, raw, mean, cv, p50, p90 in zip(
-    *(stats[c] for c in ["category", "n"]),
-    naive["mean"],
-    *(stats[c] for c in ["mean", "cv", "P50", "P90"]),
-    strict=True,
-):
-    print(f"{name:<6}{n:>7.0f}{raw:>8.2f}{mean:>10.2f}{cv:>6.2f}{p50:>7.2f}{p90:>7.2f}")
-```
-
-</details>
-
-```text
-LITH        n    mean  declust.    CV    P50    P90
-EX       2190    3.45      3.74  1.54   1.14  11.83
-MS       2662    9.35      9.27  1.00   6.10  23.52
-QE       4311    3.58      3.43  1.60   0.94  10.79
-RH      11129    1.60      1.66  2.24   0.21   4.87
-SM       1845    8.49      8.63  1.06   5.14  22.13
-all     22137    3.68      3.70  1.73   0.70  12.43
-```
-
-The same declustered quantiles as box plots, sorted by median: the box spans P25 to P75, the whiskers P10 to P90,
-the dot is the declustered mean.
-
-<details><summary>Python</summary>
-
-```python
-fig, ax = plt.subplots(figsize=(7, 3.4), layout="constrained")
-cs.plot.boxplot(zn[five], lith[five], weights=weights[five], sort=True, log=True, ax=ax)
-ax.set(title="Declustered Zn by lithology", ylabel="Zn (%)")
-save(fig, "boxplot")
-```
-
-</details>
-
-![boxplot](boxplot.png)
-
-Cumulative distributions show that declustering shifts MS only slightly towards low grades; `stats=True` lists the
-count, weighted mean, CV and deciles of each curve in the corner. The Q-Q plot compares
-MS with SM quantile by quantile: above about 1 % Zn they follow the 1:1 line, below it MS is richer, so the two
-domains differ in their low tail rather than in their high grades.
-
-<details><summary>Python</summary>
-
-```python
-ms, sm = lith == "MS", lith == "SM"
-fig, (a, b) = plt.subplots(1, 2, figsize=(9, 3.6), layout="constrained")
-cs.plot.cdf(
-    [zn[ms], zn[ms], zn[sm]],
-    weights=[None, weights[ms], weights[sm]],
-    labels=["MS naive", "MS declustered", "SM declustered"],
-    log=True,
-    stats=True,
-    ax=a,
-)
-a.set(title="Cumulative distribution of Zn", xlabel="Zn (%)")
-cs.plot.qq(zn[sm], zn[ms], x_weights=weights[sm], y_weights=weights[ms], log=True, ax=b)
-b.set(title="Q-Q, declustered: P1 to P99", xlabel="SM Zn (%)", ylabel="MS Zn (%)")
-save(fig, "distributions")
-```
-
-</details>
-
-![distributions](distributions.png)
-
-## Top cuts
-
-`capping` reports, for caps at high quantiles, the share of composites cut and of metal removed. A cap that removes
-a few percent of the metal from a fraction of a percent of the samples tames the tail without flattening it.
-
-<details><summary>Python</summary>
-
-```python
 ms = (lith == "MS") & ~np.isnan(zn)
-caps = cs.capping("ZN", weights=weights[ms], data=composites.filter(ms))
-print(f"{'cap':>7}{'cut (%)':>9}{'metal (%)':>11}{'mean':>7}{'CV':>6}")
-for cap, frac, metal, mean, cv in zip(*(caps[c] for c in caps.column_names), strict=True):
-    print(f"{cap:>7.2f}{100 * frac:>9.1f}{100 * metal:>11.2f}{mean:>7.2f}{cv:>6.2f}")
 ```
 
 </details>
 
 ```text
-    cap  cut (%)  metal (%)   mean    CV
-  23.52      9.9       6.21   8.69  0.92
-  28.86      5.0       1.99   9.08  0.97
-  32.10      2.5       0.63   9.21  0.99
-  34.55      1.1       0.21   9.25  0.99
-  35.92      0.5       0.11   9.26  0.99
-  39.43      0.1       0.01   9.27  1.00
-```
-
-Zn is bounded by the zinc content of sphalerite: on a log-probability plot the upper tails bend towards a ceiling
-near 40 % instead of trailing off into isolated outliers. A cap at the declustered P99.5 of each domain, dashed,
-only trims the last half percent of that tail. The dotted Tukey fences, 1.5 interquartile ranges beyond the
-quartiles of log Zn, agree: no upper fence falls inside the data. The only fence drawn is a lower one in MS: its
-outliers are the few composites below 0.05 % Zn, a low tail that a cap does not touch.
-
-<details><summary>Python</summary>
-
-```python
-cap = dict(zip(stats["category"], stats["P99.5"], strict=True))
-fig, axes = plt.subplots(1, 2, figsize=(9, 3.6), layout="constrained", sharey=True)
-for ax, name in zip(axes, ["MS", "RH"], strict=True):
-    keep = (lith == name) & (zn > 0)
-    cs.plot.probability(
-        zn[keep], weights=weights[keep], log=True, cap=cap[name], fences=1.5, ax=ax, color=ACCENT, ms=2
-    )
-    ax.set(title=f"{name}, declustered", xlabel="Zn (%)")
-    ax.legend(loc="lower right")
-axes[1].set_ylabel("")
-save(fig, "probability")
-```
-
-</details>
-
-![probability](probability.png)
-
-`capping_report` applies one cap per domain and compares the declustered statistics before and after, with the
-metal removed; the last row pools the domains. Only RH, the low-grade host rock, loses more than a fraction of a
-percent of its metal.
-
-<details><summary>Python</summary>
-
-```python
-domain_caps = {k: cap[k] for k in domains}
-report = cs.capping_report("ZN", domain_caps, domain_column="LITH", weights=weights[five], data=in_five)
-columns = ["domain", "cap", "n_capped", "mean", "mean_capped", "cv", "cv_capped"]
-print(f"{'LITH':<6}{'cap':>7}{'cut':>5}{'mean':>7}{'capped':>8}{'CV':>6}{'capped':>8}{'metal (%)':>11}")
-for name, c, n, mean, capped, cv, cv_capped in zip(*(report[k] for k in columns), strict=True):
-    print(
-        f"{name:<6}{'' if np.isnan(c) else f'{c:.2f}':>7}{n:>5.0f}{mean:>7.2f}{capped:>8.2f}{cv:>6.2f}"
-        f"{cv_capped:>8.2f}{100 * (1 - capped / mean):>11.2f}"
-    )
-```
-
-</details>
-
-```text
-LITH      cap  cut   mean  capped    CV  capped  metal (%)
-EX      29.31    8   3.74    3.73  1.54    1.54       0.20
-MS      35.92   13   9.27    9.26  1.00    0.99       0.11
-QE      30.06   10   3.43    3.42  1.60    1.59       0.31
-RH      23.28   54   1.66    1.64  2.24    2.18       1.25
-SM      37.32    6   8.63    8.63  1.06    1.06       0.08
-all             91   3.70    3.69  1.73    1.73       0.41
+62463 composites
 ```
 
 ## Grade-tonnage of the data
 
 `grade_tonnage` sums the weight of the composites at or above each cutoff and their mean grade: a first look at
 selectivity on composite support, here as a proportion of the total. Declustering moves the MS curves only a
-little, as it did the mean: slightly less material above low cutoffs, slightly richer above most of them. Blocks are
+little: slightly less material above low cutoffs, slightly richer above most of them. Blocks are
 less selective than composites; topic 32 models that change of support.
 
 <details><summary>Python</summary>

@@ -1,1 +1,1 @@
-## 7. Data and declustering
+## 7. Declustering

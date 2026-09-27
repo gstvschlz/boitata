@@ -19,8 +19,12 @@ Tutorials follow one deposit from data to a result; topics show one feature each
 | 1 | [Checking drill holes](topics/01-check-drillholes/README.md) | Stacked sulphide lenses | `check_drillholes`, `Table`, `fix_drillholes`, `Drillholes` |
 | 2 | [Desurveying drill holes](topics/02-desurvey/README.md) | Stacked sulphide lenses | `Drillholes`, `Table` |
 | 3 | [Compositing](topics/03-compositing/README.md) | Stacked sulphide lenses | `merge_intervals`, `Drillholes` |
-| 7 | [Data and declustering](topics/07-declustering/README.md) | Walker Lake | `cell_declustering`, `plot.declustering` |
-| 13 | [Exploratory data analysis](topics/13-correlations/README.md) | Drillholes (legacy) | `check_drillholes`, `fix_drillholes`, `merge_intervals`, `Drillholes`, `duplicates`, `pairs`, `paired_bias`, `plot.paired_bias`, `plot.qq`, `plot.scatter`, `cell_declustering`, `describe_by`, `plot.boxplot`, `plot.cdf`, `capping`, `plot.probability`, `capping_report`, `grade_tonnage`, `contact`, `swath`, `plot.swath`, `Categories`, `plot.proportions`, `plot.category_swath`, `data_spacing`, `plot.histogram`, `h_scatter`, `plot.scatter_matrix`, `plot.completeness`, `plot.correlation`, `plot.conditional` |
+| 4 | [Duplicates](topics/04-duplicates/README.md) | Stacked sulphide lenses | `duplicates`, `Table`, `check_drillholes`, `fix_drillholes`, `Drillholes` |
+| 5 | [Paired data](topics/05-paired-data/README.md) | Vein gold grade control | `merge_intervals`, `Drillholes`, `pairs`, `paired_bias`, `plot.paired_bias`, `plot.qq`, `plot.scatter` |
+| 6 | [Statistics by domain](topics/06-statistics-by-domain/README.md) | Stacked sulphide lenses | `merge_intervals`, `Drillholes`, `describe_by`, `plot.boxplot`, `plot.cdf`, `plot.qq` |
+| 7 | [Declustering](topics/07-declustering/README.md) | Coal seam thickness | `cell_declustering`, `plot.declustering`, `polygon_declustering` |
+| 8 | [Top cuts](topics/08-top-cuts/README.md) | Vein gold grade control | `merge_intervals`, `Drillholes`, `cell_declustering`, `capping`, `describe_by`, `plot.probability`, `capping_report` |
+| 13 | [Exploratory data analysis](topics/13-correlations/README.md) | Drillholes (legacy) | `check_drillholes`, `fix_drillholes`, `merge_intervals`, `Drillholes`, `duplicates`, `cell_declustering`, `grade_tonnage`, `contact`, `swath`, `plot.swath`, `Categories`, `plot.proportions`, `plot.category_swath`, `data_spacing`, `plot.histogram`, `h_scatter`, `plot.scatter_matrix`, `plot.completeness`, `plot.correlation`, `plot.conditional` |
 | | **Transforms** | | |
 | 14 | [Normal-score transform](topics/14-normal-score/README.md) | Walker Lake | `cell_declustering`, `NormalScore`, `normal_cdf`, `plot.probability` |
 | 15 | [Compositional data](topics/15-compositional/README.md) | Porphyry geometallurgy | `closure`, `ilr`, `PPMT`, `ilr_inverse` |
