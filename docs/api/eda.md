@@ -34,6 +34,8 @@
 
 ::: ceres.compare_models
 
+::: ceres.domain_change
+
 ::: ceres.hole_distance
 
 ::: ceres.classify
