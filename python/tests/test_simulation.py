@@ -745,3 +745,74 @@ def test_multivariate_and_categorical_checks():
     ]:
         with pytest.raises(ValueError):
             cs.check_realizations(nodes, args, points, "a", **options)
+
+
+def _cosimulation_case():
+    model = cs.Variogram([("spherical", 1.0, 10.0)])
+    nodes = cs.BlockModel((0.5, 0.5), (1.0, 1.0), (40, 40))
+    far = cs.PointSet(rng.uniform(1000, 2000, (500, 2)), {"v": rng.normal(size=500)})
+    field = cs.SGS(model, cs.Search(radius=30, max_samples=16)).fit(far, "v")
+    secondary = field.simulate(nodes, n=2, seed=9, realizations=True).realizations
+    rows = rng.choice(1600, 100, replace=False)
+    s = secondary[0]
+    scores = (s - s.mean()) / s.std()
+    grade = np.exp(0.7 * scores[rows] + np.sqrt(0.51) * rng.normal(size=100))
+    points = cs.PointSet(nodes.centroids[rows], {"v": grade, "s": s[rows]})
+    return model, nodes, secondary, rows, points
+
+
+def test_collocated_cosimulation_reproduces_correlation_histogram_and_variogram():
+    model, nodes, secondary, rows, points = _cosimulation_case()
+    s = secondary[0]
+    search = cs.Search(radius=30, max_samples=16)
+    sgs = cs.SGS(model, search).fit(points, "v", secondary="s")
+    assert sgs.correlation == pytest.approx(0.7, abs=0.15)
+    reals = sgs.simulate(nodes, n=10, seed=1, secondary=s, realizations=True).realizations
+    np.testing.assert_array_equal(reals[:, rows], np.tile(points["v"], (10, 1)))
+    logs = cs.PointSet(points.coords, {"v": np.log(points["v"]), "s": points["s"]})
+    check = cs.check_realizations(
+        nodes,
+        [np.log(reals), np.tile(s, (10, 1))],
+        logs,
+        ["v", "s"],
+        variogram=[model, model],
+        lag=1.0,
+        max_lag=8.0,
+    )
+    assert check.correlations[:, 0, 1].mean() == pytest.approx(sgs.correlation, abs=0.15)
+    inner = (check.probabilities >= 0.1) & (check.probabilities <= 0.9)
+    median = np.median(check.score_quantiles[0], axis=0)
+    np.testing.assert_allclose(median[inner], cs.normal_ppf(check.probabilities[inner]), atol=0.3)
+    for d in range(2):
+        mean = np.mean([r[d].gammas for r in check.variograms[0]], axis=0)
+        np.testing.assert_allclose(mean, model.gamma(check.variograms[0][0][d].lags), atol=0.15)
+
+    independent = cs.SGS(model, search).fit(points, "v").simulate(nodes, n=3, seed=1, realizations=True)
+    zero = cs.SGS(model, search).fit(points, "v", secondary="s", correlation=0.0)
+    assert zero.correlation == 0.0
+    same = zero.simulate(nodes, n=3, seed=1, secondary=s, realizations=True).realizations
+    np.testing.assert_array_equal(same, independent.realizations)
+
+
+def test_cosimulation_takes_a_secondary_realization_per_realization(tmp_path):
+    model, nodes, secondary, _, points = _cosimulation_case()
+    sgs = cs.SGS(model, cs.Search(radius=30, max_samples=16)).fit(points, "v", secondary="s", correlation=0.8)
+    both = sgs.simulate(nodes, n=2, seed=4, secondary=secondary, realizations=True).realizations
+    second = sgs.simulate(nodes, n=1, seed=5, secondary=secondary[1], realizations=True).realizations
+    np.testing.assert_array_equal(both[1], second[0])
+    sgs.to_parquet(tmp_path / "cosgs.parquet")
+    loaded = cs.SGS.from_parquet(tmp_path / "cosgs.parquet")
+    assert loaded.correlation == 0.8
+    again = loaded.simulate(nodes, n=2, seed=4, secondary=secondary, realizations=True).realizations
+    np.testing.assert_array_equal(again, both)
+    plain = cs.SGS(model, cs.Search(radius=30)).fit(points, "v")
+    for call in [
+        lambda: sgs.simulate(nodes, n=2),
+        lambda: sgs.simulate(nodes, n=3, secondary=secondary),
+        lambda: sgs.simulate(nodes, n=1, secondary=secondary[0][:10]),
+        lambda: plain.simulate(nodes, n=1, secondary=secondary[0]),
+        lambda: cs.SGS(model, cs.Search(radius=30)).fit(points, "v", correlation=0.5),
+        lambda: cs.SGS(model, cs.Search(radius=30)).fit(points, "v", secondary="s", correlation=1.5),
+    ]:
+        with pytest.raises(ValueError):
+            call()

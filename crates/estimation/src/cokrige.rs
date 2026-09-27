@@ -171,9 +171,79 @@ pub fn collocated_cokrige(
     cokrige(target, target_var, &all, model, kind)
 }
 
+/// Collocated simple cokriging of zero-mean scores under a Markov model, the
+/// cross-covariance `correlation` times the primary covariance of sill
+/// `sill`: the estimate and variance from the simple kriging `mean` and
+/// `variance` of the primary from its neighbors alone and the `secondary`
+/// score at the target, as [`collocated_cokrige`] solves them.
+pub fn markov_collocated(
+    mean: f64,
+    variance: f64,
+    sill: f64,
+    correlation: f64,
+    secondary: f64,
+) -> (f64, f64) {
+    let denominator = sill - correlation * correlation * (sill - variance);
+    if denominator <= 0.0 {
+        return (mean, 0.0);
+    }
+    let mu = correlation * variance / denominator;
+    let shrink = 1.0 - correlation * mu;
+    (shrink * mean + mu * secondary, (shrink * variance).max(0.0))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn markov_collocated_solves_the_collocated_system() {
+        use variogram::{CoregStructure, Model, Variogram};
+        let (rho, nugget, sill) = (0.6, 0.2, 1.0);
+        let model = Coregionalization::new(
+            vec![vec![nugget, rho * nugget], vec![rho * nugget, nugget]],
+            vec![CoregStructure {
+                model: Model::Spherical,
+                range: 30.0,
+                sills: vec![
+                    vec![sill - nugget, rho * (sill - nugget)],
+                    vec![rho * (sill - nugget), sill - nugget],
+                ],
+            }],
+        )
+        .unwrap();
+        let vg = Variogram {
+            nugget,
+            ..Variogram::single(Model::Spherical, sill - nugget, 30.0)
+        };
+        let locs = [(0.0, 0.0, 0.0), (10.0, 5.0, 0.0), (3.0, 12.0, 0.0)];
+        let vals = [0.8, -0.4, 1.3];
+        let co: Vec<CoSample> = locs
+            .iter()
+            .zip(vals)
+            .map(|(&l, v)| CoSample::new(l, 0, v))
+            .collect();
+        let plain: Vec<crate::Sample> = locs
+            .iter()
+            .zip(vals)
+            .map(|(&l, v)| crate::Sample::new(l, v))
+            .collect();
+        let simple = CoKind::Simple {
+            means: vec![0.0, 0.0],
+        };
+        for target in [(6.0, 4.0, 0.0), (40.0, 40.0, 0.0)] {
+            let want = collocated_cokrige(&target, 0, &co, &[(1, -1.1)], &model, &simple).unwrap();
+            let sk = crate::krige(crate::Kind::Simple { mean: 0.0 }, &target, &plain, &vg).unwrap();
+            let (mean, variance) = markov_collocated(sk.value, sk.variance, sill, rho, -1.1);
+            assert!(
+                (mean - want.value).abs() < 1e-10,
+                "{mean} vs {}",
+                want.value
+            );
+            assert!((variance - want.variance).abs() < 1e-10);
+        }
+        assert_eq!(markov_collocated(0.3, 0.5, 1.0, 0.0, 2.0), (0.3, 0.5));
+    }
 
     #[test]
     fn ordinary_cokriging_without_secondary_data_is_ordinary_kriging() {

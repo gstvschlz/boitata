@@ -31,7 +31,8 @@ pub use post::{
     continuous, continuous_many, localize, quantile_sorted,
 };
 pub use sgs::{
-    Domains, Realization, SgsParams, Transform, Transforms, Trend, sgs, sgs_in, sgs_passes,
+    Domains, Realization, Secondary, SgsParams, Transform, Transforms, Trend, cosgs, sgs, sgs_in,
+    sgs_passes,
 };
 pub use sis::{CategoricalRealization, SisParams, sis};
 pub use trend::TrendConditioning;
