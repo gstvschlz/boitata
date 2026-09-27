@@ -140,13 +140,56 @@ def test_sampled_length_balances_metal_in_every_mode():
         assert np.any(comps["AU_length"] < comps["length"])
 
 
-@pytest.mark.slow
-def test_sampled_length_balances_metal_on_the_dataset():
-    t = cs.datasets.drillhole_tables()
-    flags, _, _ = cs.check_drillholes(t["collar"], intervals={"assay": t["assay"]}, hole="HOLEID")
+def planted_overlaps(holes=30, rows=40, seed=7):
+    rng = np.random.default_rng(seed)
+    assay, geology, depth = [], [], []
+    for h in range(holes):
+        end = np.cumsum(rng.uniform(0.5, 3.0, rows))
+        start = np.r_[0.0, end[:-1]]
+        shift = rng.random(rows) < 0.1
+        shift[0] = False
+        start[shift] = np.maximum(start[shift] - rng.uniform(0.1, 1.0, shift.sum()), 0.0)
+        zn = np.where(rng.random(rows) < 0.1, np.nan, rng.lognormal(0.0, 1.0, rows))
+        assay.append((np.full(rows, f"H{h:02}"), start, end, zn))
+        cuts = np.r_[0.0, np.sort(rng.uniform(0, end[-1], 3)), end[-1]]
+        geology.append((np.full(4, f"H{h:02}"), cuts[:-1], cuts[1:], np.array(["A", "B", "A", "C"])))
+        depth.append(end[-1])
+    order = rng.permutation(holes * rows)
+    a = [np.concatenate(c)[order] for c in zip(*assay)]
+    g = [np.concatenate(c) for c in zip(*geology)]
+    ids = np.array([f"H{h:02}" for h in range(holes)], dtype=object)
+    return {
+        "collar": cs.Table(
+            {
+                "HOLE_ID": ids,
+                "X": np.arange(holes) * 50.0,
+                "Y": np.zeros(holes),
+                "Z": np.full(holes, 100.0),
+                "DEPTH": np.array(depth),
+            }
+        ),
+        "survey": cs.Table(
+            {
+                "HOLE_ID": ids,
+                "DEPTH": np.zeros(holes),
+                "AZIMUTH": np.zeros(holes),
+                "DIP": np.full(holes, 90.0),
+            }
+        ),
+        "assay": cs.Table({"HOLE_ID": a[0].astype(object), "FROM": a[1], "TO": a[2], "ZN": a[3]}),
+        "geology": cs.Table(
+            {"HOLE_ID": g[0].astype(object), "FROM": g[1], "TO": g[2], "LITH": g[3].astype(object)}
+        ),
+    }
+
+
+def test_sampled_length_balances_metal_after_dropping_overlaps():
+    t = planted_overlaps()
+    flags, _, _ = cs.check_drillholes(t["collar"], intervals={"assay": t["assay"]})
+    assert flags["assay"]["overlap"].sum() > 0
     assay = t["assay"].filter(~flags["assay"]["overlap"])
-    merged = cs.merge_intervals(assay, t["geology"], hole="HOLEID")
-    comps = cs.Drillholes(t["collar"], t["survey"], merged, hole="HOLEID").composite(
+    merged = cs.merge_intervals(assay, t["geology"])
+    comps = cs.Drillholes(t["collar"], t["survey"], merged).composite(
         2.0, ["ZN"], domain="LITH", residual="merge"
     )
     metal = np.nansum(merged["ZN"] * (merged["TO"] - merged["FROM"]))
@@ -362,17 +405,15 @@ def test_filter_keeps_masked_rows():
         t.filter(np.array([True]))
 
 
-@pytest.mark.slow
-def test_overlap_flags_keep_the_first_interval_on_the_dataset():
-    t = cs.datasets.drillhole_tables()
+def test_overlap_flags_keep_the_first_interval():
+    t = planted_overlaps()
     assay = t["assay"]
-    hole, start, end = np.array(assay["HOLEID"]), assay["FROM"], assay["TO"]
+    hole, start, end = np.array(assay["HOLE_ID"]), assay["FROM"], assay["TO"]
     keep, reach = np.ones(assay.num_rows, bool), {}
     for i in np.lexsort((start, hole)):
         keep[i] = start[i] >= reach.get(hole[i], -np.inf)
         if keep[i]:
             reach[hole[i]] = end[i]
-    flags, _, _ = cs.check_drillholes(
-        t["collar"], t["survey"], {"assay": assay}, hole="HOLEID", max_depth="DEPTH"
-    )
+    flags, _, _ = cs.check_drillholes(t["collar"], t["survey"], {"assay": assay}, max_depth="DEPTH")
+    assert (~keep).sum() > 0
     assert (flags["assay"]["overlap"] == ~keep).all()

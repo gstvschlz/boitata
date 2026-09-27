@@ -24,15 +24,16 @@ from matplotlib.colors import PowerNorm
 samples = cs.datasets.walker_lake()
 truth = cs.datasets.walker_lake_exhaustive()["V"].reshape(300, 260)
 xy, v = samples.coords, samples["V"]
-azimuth = cs.Variogram.from_json((HERE.parent / "model.json").read_text()).rotation[0]
+azimuth = 170.0
 
 # %% [markdown]
 # ## Scores and their variogram
 #
 # The declustering weights set the transform, so the E-type follows the declustered histogram rather than the
 # clustered high-grade samples. Some samples are tied at 0 ppm; `despike=True` in `fit` breaks the ties as
-# [`despike`](../61-despiking/README.md) does, so they get distinct scores. The scores' variogram, along N170° and
-# N260°, is scaled to a unit sill: the kriging variance is then the variance of the conditional Gaussian.
+# [`despike`](../61-despiking/README.md) does, so they get distinct scores. The scores' variogram, along N170° (the
+# major axis found in topic 19) and N260°, is scaled to a unit sill: the kriging variance is then the variance of
+# the conditional Gaussian.
 
 # %%
 weights = cs.cell_declustering(xy, v, sizes=np.arange(2.5, 102.5, 2.5)).weights

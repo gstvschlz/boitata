@@ -37,9 +37,6 @@ DATASETS = {
     "walker_lake": "Walker Lake",
     "walker_lake_exhaustive": "Walker Lake",
     "jura": "Jura",
-    "geomet": "Porphyry geometallurgy",
-    "drillhole_tables": "Drillholes (legacy)",
-    "drillholes": "Drillholes (legacy)",
 }
 STOPLIST = {"datasets", "plot", "plot3d", "read_csv"}
 LINK = re.compile(r"\]\((?!https?:|#)([^)\s]+)\)")
@@ -127,7 +124,7 @@ def summary(script: Path) -> tuple[int, str, str, str, str]:
                 covers[f"{base.attr}.{node.attr}"] = None
     covers = ", ".join(f"`{name}`" for name in covers if name not in STOPLIST)
     steps = "; ".join(line[5:].strip() for line in source.splitlines() if line.startswith("# ## "))
-    return int(number), title, ", ".join(datasets), covers, steps
+    return int(number), title, ", ".join(datasets) or "Synthetic", covers, steps
 
 
 def broken_links() -> list[str]:
