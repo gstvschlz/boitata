@@ -15,12 +15,20 @@
 //! The second rejection is why partial-block proportions stay affordable: the
 //! blocks that need the expensive path are the ones on the solid's skin, which
 //! grow with its surface area rather than its volume.
+//!
+//! Both queries look up triangles binned in plan. A point counts the signed
+//! crossings of a ray up z through the few triangles under it, which is the
+//! winding number of a closed mesh; within a tolerance of an edge or crossing,
+//! or on a mesh whose edges do not cancel, it takes the full winding sum, so
+//! answers never change.
 
 use crate::error::Result;
 use crate::{is_inside_winding, require_closed, signed_solid_angle};
 use ceres_core::Mesh;
 use nalgebra::Vector3;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use std::ops::RangeInclusive;
 
 /// Axis-aligned bounds, `[min, max]` per axis.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -92,6 +100,142 @@ pub struct SolidTester {
     /// Per-triangle bounds, for the "does the surface cut this block" test.
     triangle_bounds: Vec<Aabb>,
     bounds: Aabb,
+    /// Triangles binned in plan; `None` when the mesh's edges do not cancel,
+    /// so only the full winding sum is exact.
+    bins: Option<Bins>,
+}
+
+/// Plan grid over the solid's bounds, each cell listing the triangles whose
+/// bounds, grown by `tol`, reach it.
+#[derive(Clone)]
+struct Bins {
+    lo: [f64; 2],
+    step: [f64; 2],
+    side: usize,
+    cells: Vec<Vec<u32>>,
+    /// Distance under which a point counts as on the surface and takes the
+    /// winding sum instead of the ray.
+    tol: f64,
+    scale: f64,
+}
+
+impl Bins {
+    fn new(triangle_bounds: &[Aabb], bounds: &Aabb) -> Self {
+        let scale = bounds
+            .min
+            .iter()
+            .chain(&bounds.max)
+            .fold(1.0f64, |s, v| s.max(v.abs()));
+        let side = ((triangle_bounds.len() as f64).sqrt().ceil() as usize).clamp(1, 1024);
+        let lo = [bounds.min[0], bounds.min[1]];
+        let step = [0, 1].map(|a| (bounds.max[a] - bounds.min[a]) / side as f64);
+        let mut bins = Bins {
+            lo,
+            step,
+            side,
+            cells: vec![vec![]; side * side],
+            tol: 1e-10 * scale,
+            scale,
+        };
+        for (t, b) in triangle_bounds.iter().enumerate() {
+            let (x, y) = bins.span(b.min, b.max, bins.tol);
+            for j in y {
+                for i in x.clone() {
+                    bins.cells[j * side + i].push(t as u32);
+                }
+            }
+        }
+        bins
+    }
+
+    fn cell(&self, v: f64, axis: usize) -> usize {
+        if self.step[axis] > 0.0 {
+            (((v - self.lo[axis]) / self.step[axis]) as usize).min(self.side - 1)
+        } else {
+            0
+        }
+    }
+
+    fn span(
+        &self,
+        min: [f64; 3],
+        max: [f64; 3],
+        grow: f64,
+    ) -> (RangeInclusive<usize>, RangeInclusive<usize>) {
+        let range = |a| self.cell(min[a] - grow, a)..=self.cell(max[a] + grow, a);
+        (range(0), range(1))
+    }
+
+    /// Signed count of the triangles a ray from `p` up world z crosses, the
+    /// winding number of a closed mesh; `None` when `p` lies within `tol` of
+    /// an edge the ray passes or of a crossing.
+    fn crossings(
+        &self,
+        triangles: &[[Vector3<f64>; 3]],
+        bounds: &[Aabb],
+        p: [f64; 3],
+    ) -> Option<i64> {
+        let tol = self.tol;
+        let mut winding = 0;
+        for &t in &self.cells[self.cell(p[1], 1) * self.side + self.cell(p[0], 0)] {
+            let b = &bounds[t as usize];
+            if (0..2).any(|a| p[a] < b.min[a] - tol || p[a] > b.max[a] + tol) {
+                continue;
+            }
+            let v = &triangles[t as usize];
+            let area =
+                (v[1].x - v[0].x) * (v[2].y - v[0].y) - (v[1].y - v[0].y) * (v[2].x - v[0].x);
+            let sign = if area < 0.0 { -1.0 } else { 1.0 };
+            // Edge i runs between the other two corners; its edge function
+            // weighs corner i.
+            let edges = [0, 1, 2].map(|i| {
+                let (a, c) = (&v[(i + 1) % 3], &v[(i + 2) % 3]);
+                let (dx, dy) = (c.x - a.x, c.y - a.y);
+                let e = dx * (p[1] - a.y) - dy * (p[0] - a.x);
+                let length = dx.hypot(dy);
+                let distance = if length > 0.0 { sign * e / length } else { 0.0 };
+                (e, length, distance)
+            });
+            if edges.iter().any(|&(_, _, d)| d < -tol) {
+                continue;
+            }
+            if edges.iter().any(|&(_, _, d)| d <= tol) {
+                return None;
+            }
+            let weight = edges.map(|(e, _, _)| e);
+            let perimeter: f64 = edges.iter().map(|&(_, l, _)| l).sum();
+            let total: f64 = weight.iter().sum();
+            let dz: [f64; 3] = [0, 1, 2].map(|i| v[i].z - p[2]);
+            let height = (0..3).map(|i| weight[i] * dz[i]).sum::<f64>() / total;
+            let error = 64.0
+                * f64::EPSILON
+                * self.scale
+                * perimeter
+                * dz.iter().map(|d| d.abs()).sum::<f64>()
+                / total.abs();
+            if height.abs() <= tol + error {
+                return None;
+            }
+            if height > 0.0 {
+                winding += sign as i64;
+            }
+        }
+        Some(winding)
+    }
+}
+
+/// Whether every edge is walked as often one way as the other, so the
+/// winding number is an integer off the surface.
+fn edges_cancel(mesh: &Mesh) -> bool {
+    let mut edges: HashMap<(u32, u32), i64> = HashMap::new();
+    for &[a, b, c] in mesh.triangles() {
+        for (i, j) in [(a, b), (b, c), (c, a)] {
+            if i != j {
+                *edges.entry((i.min(j), i.max(j))).or_insert(0) += if i < j { 1 } else { -1 };
+            }
+        }
+    }
+    edges.values().all(|&n| n == 0)
 }
 
 impl SolidTester {
@@ -101,7 +245,7 @@ impl SolidTester {
         let triangles: Vec<[Vector3<f64>; 3]> = (0..mesh.triangles().len())
             .map(|t| mesh.corners(t).map(Vector3::from))
             .collect();
-        let triangle_bounds = triangles
+        let triangle_bounds: Vec<Aabb> = triangles
             .iter()
             .map(|t| {
                 Aabb::of_points(t.iter().map(|v| [v.x, v.y, v.z]))
@@ -110,12 +254,20 @@ impl SolidTester {
             .collect();
         let bounds =
             Aabb::of_points(mesh.vertices().iter().copied()).expect("a closed mesh has vertices");
-
+        let bins = edges_cancel(mesh).then(|| Bins::new(&triangle_bounds, &bounds));
         Ok(SolidTester {
             triangles,
             triangle_bounds,
             bounds,
+            bins,
         })
+    }
+
+    /// The same tester answering every query with the full winding sum.
+    #[cfg(test)]
+    pub(crate) fn unbinned(mut self) -> Self {
+        self.bins = None;
+        self
     }
 
     pub fn triangle_count(&self) -> usize {
@@ -147,20 +299,38 @@ impl SolidTester {
         }) {
             return false;
         }
-        let p = Vector3::new(point[0], point[1], point[2]);
-        let winding: f64 = self
-            .triangles
-            .iter()
-            .map(|[v0, v1, v2]| signed_solid_angle(&(v0 - p), &(v1 - p), &(v2 - p)))
-            .sum();
-        is_inside_winding(winding)
+        let ray = self
+            .bins
+            .as_ref()
+            .and_then(|b| b.crossings(&self.triangles, &self.triangle_bounds, point));
+        match ray {
+            Some(winding) => winding != 0,
+            None => {
+                let p = Vector3::new(point[0], point[1], point[2]);
+                let winding: f64 = self
+                    .triangles
+                    .iter()
+                    .map(|[v0, v1, v2]| signed_solid_angle(&(v0 - p), &(v1 - p), &(v2 - p)))
+                    .sum();
+                is_inside_winding(winding)
+            }
+        }
     }
 
     /// True when at least one triangle's bounds reach into the box — i.e. the
     /// surface may pass through it. Conservative: a false positive only costs
     /// the slower sampling path, never a wrong answer.
     pub fn surface_may_cut(&self, box_bounds: &Aabb) -> bool {
-        self.triangle_bounds.iter().any(|t| t.overlaps(box_bounds))
+        let Some(bins) = &self.bins else {
+            return self.triangle_bounds.iter().any(|t| t.overlaps(box_bounds));
+        };
+        if !self.bounds.overlaps(box_bounds) {
+            return false;
+        }
+        let (x, y) = bins.span(box_bounds.min, box_bounds.max, 0.0);
+        y.flat_map(|j| x.clone().map(move |i| j * bins.side + i))
+            .flat_map(|c| &bins.cells[c])
+            .any(|&t| self.triangle_bounds[t as usize].overlaps(box_bounds))
     }
 
     /// Measures one axis-aligned block against the solid.
@@ -281,6 +451,61 @@ pub(crate) mod tests {
             CUBE.iter().map(|&[a, b, c]| [c, b, a]).collect(),
         )
         .unwrap()
+    }
+
+    fn merged(meshes: &[Mesh]) -> Mesh {
+        let (mut vertices, mut triangles) = (vec![], vec![]);
+        for m in meshes {
+            let offset = vertices.len() as u32;
+            vertices.extend_from_slice(m.vertices());
+            triangles.extend(m.triangles().iter().map(|t| t.map(|v| v + offset)));
+        }
+        Mesh::new(vertices, triangles).unwrap()
+    }
+
+    fn shifted(mesh: &Mesh, by: [f64; 3]) -> Mesh {
+        let vertices = mesh
+            .vertices()
+            .iter()
+            .map(|v| [0, 1, 2].map(|a| v[a] + by[a]))
+            .collect();
+        Mesh::new(vertices, mesh.triangles().to_vec()).unwrap()
+    }
+
+    /// The binned ray answers exactly as the winding sum, on lattice points
+    /// that sit on faces, edges and corners, inside nested shells, on inward
+    /// wound meshes and far from the origin.
+    #[test]
+    fn binned_queries_match_the_winding_sum() {
+        let utm = [500_000.0, 7_000_000.0, 1_000.0];
+        let meshes = [
+            cube(0.0, 10.0),
+            inverted_cube(0.0, 10.0),
+            merged(&[cube(0.0, 10.0), cube(2.0, 8.0)]),
+            crate::subblock::tests::sphere(6.0),
+            shifted(&crate::subblock::tests::sphere(6.0), utm),
+            shifted(&cube(0.0, 10.0), utm),
+        ];
+        for mesh in &meshes {
+            let fast = SolidTester::new(mesh).unwrap();
+            assert!(fast.bins.is_some());
+            let exact = fast.clone().unbinned();
+            let o = fast.bounds().min;
+            for i in -2..=30 {
+                for j in -2..=30 {
+                    for k in -2..=30 {
+                        let p = [i, j, k].map(|v| v as f64 * 0.5);
+                        let p = [0, 1, 2].map(|a| o[a].floor() + p[a]);
+                        assert_eq!(fast.contains(p), exact.contains(p), "{p:?}");
+                        let b = Aabb {
+                            min: p,
+                            max: p.map(|v| v + 0.6),
+                        };
+                        assert_eq!(fast.surface_may_cut(&b), exact.surface_may_cut(&b));
+                    }
+                }
+            }
+        }
     }
 
     #[test]
