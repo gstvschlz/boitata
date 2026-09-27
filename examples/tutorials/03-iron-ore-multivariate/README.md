@@ -172,8 +172,8 @@ The isometric log-ratio (ilr) maps each 7-part composition to 6 unconstrained co
 back to a composition summing to 100 %. PPMT turns the coordinates into independent Gaussian factors (topics 15 and
 16), each simulated on its own by turning bands with the omnidirectional variogram of its scores. Per domain,
 `MultivariateSimulation` simulates 30 realizations on 12.5 × 12.5 × 6 m nodes, eight per block, and at every
-blasthole, with bands discretized every 2 m. The factors come back as ilr coordinates, turned into oxides at the
-nodes; blocks average their nodes only after that, since the log-ratio is not linear.
+blasthole. The factors come back as ilr coordinates, turned into oxides at the nodes; blocks average their nodes
+only after that, since the log-ratio is not linear.
 
 <details><summary>Python</summary>
 
@@ -353,13 +353,13 @@ blasthole means per block against the mean of the simulations: r 0.80, slope 1.6
 ![reconciliation](reconciliation.png)
 
 Per domain the simulation sits near the drilling in the window, not the blastholes: 115 composites from 12 holes,
-against 1953 blastholes. Hematite blocks come out 2.9 % Fe poorer than the blastholes say, compact itabirite blocks
-5.0 % richer; friable itabirite is close. The spreads order as the supports do: 157 at 6 m points, 114 for the
-12 m blastholes, 99 for the mean of about six blastholes per block, 61 for simulated blocks. The mean of six
+against 1953 blastholes. Hematite blocks come out 3.3 % Fe poorer than the blastholes say, compact itabirite blocks
+5.3 % richer; friable itabirite is close. The spreads order as the supports do: 158 at 6 m points, 114 for the
+12 m blastholes, 99 for the mean of about six blastholes per block, 60 for simulated blocks. The mean of six
 blastholes still carries their analytical error and short-scale variation, so it varies more than the block
 itself would.
 
-Blocks rank well (r 0.80), but the blasthole means spread 1.55 times as far as the simulated means: with holes
+Blocks rank well (r 0.80), but the blasthole means spread 1.61 times as far as the simulated means: with holes
 100 m apart, the model cannot place the 25 m contrasts between hematite and itabirite that grade control sees. That
 gap is what blastholes are drilled to close.
 
