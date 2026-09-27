@@ -1,14 +1,13 @@
 """
-# 23. Estimation methods and search
+# 23. Simple estimators
 
-Five estimators of Walker Lake `V` from the same 470 samples and the same neighborhood, checked against the
-exhaustive values: nearest neighbor, inverse distance, ordinary and universal kriging at points, and block kriging
-of 10 × 10 m block averages. Search passes and a high-grade restriction refine the neighborhood.
+Nearest neighbor, inverse distance and moving average estimate Walker Lake `V` without a variogram. From the same
+470 samples and neighborhood as ordinary kriging, they are checked against the exhaustive values, and
+`compare_models` sets their grade-tonnage curves against the truth.
 """
 
 # %% [hidden]
 import sys
-import time
 from pathlib import Path
 
 HERE = Path(__file__).parent if "__file__" in globals() else Path.cwd()
@@ -18,43 +17,47 @@ sys.path.insert(0, str(HERE.parents[1]))
 import ceres as cs
 import matplotlib.pyplot as plt
 import numpy as np
-from common import ACCENT, GRAY, HIGHLIGHT, INK, LIGHT, map_axes, save
-from matplotlib.colors import ListedColormap, PowerNorm
+from common import ACCENT, GRAY, HIGHLIGHT, INK, map_axes, save
+from matplotlib.colors import PowerNorm
 
 samples = cs.datasets.walker_lake()
 truth = cs.datasets.walker_lake_exhaustive()["V"].reshape(300, 260)
-xy, v = samples.coords, samples["V"]
-model = cs.Variogram.from_json((HERE.parent / "model.json").read_text())
 grid = cs.BlockModel(origin=(0.5, 0.5), size=(5, 5), count=(52, 60))
 nodes = grid.centroids.astype(int)
 true_at_nodes = truth[nodes[:, 1] - 1, nodes[:, 0] - 1]
 
+azimuths = np.arange(0, 180, 22.5)
+directional = [cs.experimental_variogram(samples, "V", 10.0, 120.0, azimuth=a) for a in azimuths]
+model = cs.Variogram.fit_directional(
+    directional, [(a, 0) for a in azimuths], ["spherical", "spherical"], weighting="count/gamma"
+)
+
 # %% [markdown]
-# The search ellipsoid can differ from the variogram's: here it follows the N170° anisotropy but with a milder
-# ratio, and octants keep samples from piling up on one side.
+# All four share one search: up to 24 samples in an ellipse along the direction of greatest continuity. Nearest
+# neighbor takes the closest sample, inverse distance weights by 1/d², moving average weights all neighbors equally.
+# Kriging, for reference, uses the variogram above.
 
 # %%
-ellipse = {"max_samples": 24, "octant": True, "rotation": model.rotation, "ratios": (0.5, 1.0)}
-search = cs.Search(radius=80, min_samples=4, **ellipse)
+search = cs.Search(radius=80, max_samples=24, min_samples=4, rotation=model.rotation, ratios=(0.5, 1.0))
 methods = {
     "nearest neighbor": cs.NearestNeighbor(search),
-    "inverse distance²": cs.InverseDistance(search, power=2),
+    "inverse distance": cs.InverseDistance(search, power=2),
+    "moving average": cs.MovingAverage(search),
     "ordinary kriging": cs.OrdinaryKriging(model, search),
-    "universal kriging": cs.UniversalKriging(model, search, degree=1),
 }
-estimates = {name: m.fit(xy, v).predict(grid) for name, m in methods.items()}
-print(f"{'method':>18}  RMSE   corr   variance ratio")
+estimates = {name: m.fit(samples, "V").predict(grid) for name, m in methods.items()}
+print(f"{'method':>17}  RMSE   corr   variance ratio")
 for name, e in estimates.items():
     ok = ~np.isnan(e)
     rmse = np.sqrt(np.mean((e[ok] - true_at_nodes[ok]) ** 2))
     corr = np.corrcoef(e[ok], true_at_nodes[ok])[0, 1]
-    print(f"{name:>18}  {rmse:5.1f}  {corr:.3f}  {e[ok].var() / true_at_nodes[ok].var():.2f}")
+    print(f"{name:>17}  {rmse:5.1f}  {corr:.3f}  {e[ok].var() / true_at_nodes[ok].var():.2f}")
 
 # %% [markdown]
-# Nearest neighbor keeps the full variability but places it poorly; inverse distance and kriging trade variability
-# for accuracy. Here inverse distance is slightly more accurate than kriging with the chapter 3 model, whose short
-# ranges across the major axis smooth hard; kriging adds a variance per estimate and accounts for clustered samples,
-# which inverse distance does not. Universal kriging's linear drift does not help on this stationary field.
+# Nearest neighbor keeps almost all the variance but places it poorly: a patchwork of polygons around the samples.
+# Moving average smooths the most and is the least accurate, since distant samples weigh as much as close ones.
+# Inverse distance sits between them and comes close to kriging, which is the most accurate here; kriging also gives
+# a variance per estimate and accounts for clustered samples, which inverse distance does not.
 
 # %%
 shape = (60, 52)
@@ -69,107 +72,40 @@ fig.colorbar(im, ax=axes, shrink=0.8, label="V (ppm)")
 save(fig, "methods")
 
 # %% [markdown]
-# A list of searches runs as passes: nodes the first leaves unestimated go to the next, and `diagnostics` reports
-# the pass behind each. A first pass wanting eight samples within 30 m hardly changes the estimates; it labels the
-# nodes by how well they are informed, which classification uses. Pass-1 nodes have the higher slope of regression
-# but also the larger errors: Walker Lake was sampled densely where `V` is high and variable.
+# ## Grade-tonnage
 #
-# `high_grade` keeps samples above 800 ppm, the top 12 %, from informing nodes more than 20 m away. It lowers the
-# nodes around isolated rich samples, where kriging overestimates most.
+# Smoothing shows in selection. `compare_models` computes, for each cutoff, the tonnage, mean grade and metal above it
+# for every model of the same blocks, and their differences from a reference, here the truth at the nodes.
 
 # %%
-passes = [cs.Search(radius=30, min_samples=8, **ellipse), search]
-d = cs.OrdinaryKriging(model, passes).fit(xy, v).predict(grid, diagnostics=True)
-for p in (1, 2):
-    s = d["pass"] == p
-    rmse = np.sqrt(np.mean((d["value"][s] - true_at_nodes[s]) ** 2))
-    print(f"pass {p}: {s.mean():4.0%} of nodes, mean slope {np.mean(d['slope'][s]):.2f}, RMSE {rmse:.0f} ppm")
+cutoffs = np.arange(0, 1001, 50)
+table = cs.compare_models(grid, {"truth": true_at_nodes, **estimates}, cutoffs, reference="truth")
+for cutoff in (300, 600):
+    rows = np.asarray(table["cutoff"]) == cutoff
+    print(f"cutoff {cutoff} ppm")
+    for name, t, g in zip(
+        np.asarray(table["model"])[rows],
+        np.asarray(table["tonnage_diff"])[rows],
+        np.asarray(table["grade_diff"])[rows],
+    ):
+        print(f"  {name:>17}: tonnage {t:+.0%}, grade {g:+.0%}")
 
-capped = cs.Search(radius=80, min_samples=4, high_grade=(800, 20), **ellipse)
-restricted = cs.OrdinaryKriging(model, capped).fit(xy, v)
-free = estimates["ordinary kriging"]
-difference = restricted.predict(grid) - free
-changed = np.abs(difference) > 5
-error = free[changed] - true_at_nodes[changed]
-print(
-    f"{changed.sum()} nodes move by over 5 ppm; their mean error goes from {error.mean():+.0f} ppm to "
-    f"{(error + difference[changed]).mean():+.0f} ppm"
-)
-before, after = methods["ordinary kriging"].cross_validate(), restricted.cross_validate()
-print(
-    f"cross-validation mean error {before.mean_error:+.1f} ppm without the restriction, {after.mean_error:+.1f} with"
-)
-
-fig, (a, b) = plt.subplots(1, 2, figsize=(8.4, 4.4), layout="constrained")
-a.imshow(
-    d["pass"].reshape(shape),
-    origin="lower",
-    extent=extent,
-    cmap=ListedColormap([ACCENT, LIGHT]),
-    vmin=0.5,
-    vmax=2.5,
-)
-a.scatter(*xy[:, :2].T, s=2, color=INK, linewidths=0)
-map_axes(a, "Search pass")
-a.legend(
-    handles=[
-        plt.Line2D([], [], marker="s", ls="", color=c, label=f"pass {p}")
-        for p, c in ((1, ACCENT), (2, LIGHT))
-    ],
-    loc="upper right",
-    framealpha=0.9,
-    frameon=True,
-)
-im = b.imshow(
-    -difference.reshape(shape),
-    origin="lower",
-    extent=extent,
-    cmap="cividis",
-    vmin=0,
-    vmax=100,
-)
-rich = v > 800
-b.scatter(*xy[~rich, :2].T, s=2, color=GRAY, linewidths=0)
-b.scatter(*xy[rich, :2].T, s=8, color=INK, linewidths=0, label="V > 800 ppm")
-map_axes(b, "Lowered by the high-grade restriction")
-b.legend(loc="upper right", framealpha=0.9, frameon=True)
-fig.colorbar(im, ax=b, shrink=0.8, label="ppm")
-save(fig, "search")
+colors = [INK, GRAY, ACCENT, "#8fb3d9", HIGHLIGHT]
+fig, (a, b) = plt.subplots(1, 2, figsize=(10, 4), layout="constrained")
+for name, color in zip(["truth", *estimates], colors):
+    rows = np.asarray(table["model"]) == name
+    tonnage = np.asarray(table["tonnage"])[rows]
+    a.plot(cutoffs, tonnage / tonnage[0], color=color, lw=2 if name == "truth" else 1.2, label=name)
+    b.plot(cutoffs, np.asarray(table["mean_grade"])[rows], color=color, lw=2 if name == "truth" else 1.2)
+a.set(xlabel="Cutoff V (ppm)", ylabel="Fraction of the area above cutoff", ylim=(0, 1.02))
+a.set_title("Tonnage above cutoff")
+a.legend()
+b.set(xlabel="Cutoff V (ppm)", ylabel="Mean V above cutoff (ppm)")
+b.set_title("Grade above cutoff")
+save(fig, "grade_tonnage")
 
 # %% [markdown]
-# Block kriging estimates the average over each 10 × 10 m block directly, from 5 × 5 points per block. Its targets are
-# block centers; the truth is the average of the 100 exhaustive values in each block.
-
-# %%
-blocks = cs.BlockModel(origin=(0, 0), size=(10, 10), count=(26, 30))
-block_estimate = (
-    cs.BlockKriging(model, search, size=(10, 10), discretization=(5, 5, 1)).fit(xy, v).predict(blocks)
-)
-point_at_centers = methods["ordinary kriging"].predict(blocks)
-true_blocks = truth.reshape(30, 10, 26, 10).mean(axis=(1, 3)).ravel()
-for name, e in (("block kriging", block_estimate), ("point kriging at centers", point_at_centers)):
-    print(f"{name:>24}: RMSE against block averages {np.sqrt(np.nanmean((e - true_blocks) ** 2)):.1f} ppm")
-
-fig, ax = plt.subplots(figsize=(4.8, 4.6), layout="constrained")
-ax.scatter(
-    true_blocks, point_at_centers, s=8, color=GRAY, alpha=0.6, linewidths=0, label="point kriging at center"
-)
-ax.scatter(true_blocks, block_estimate, s=8, color=ACCENT, alpha=0.8, linewidths=0, label="block kriging")
-ax.plot([0, 1200], [0, 1200], color=HIGHLIGHT, lw=1, ls="--")
-ax.set(xlim=(0, 1200), ylim=(0, 1200), xlabel="True 10 × 10 m block average (ppm)", ylabel="Estimate (ppm)")
-ax.set_title("Block kriging against true block averages")
-ax.legend(loc="upper left")
-save(fig, "blocks")
-
-# %% [markdown]
-# The neighborhood search is a k-d tree, so large grids stay fast. Ordinary kriging of every 1 m node of the area,
-# 78 000 targets, in parallel:
-
-# %%
-fine = cs.BlockModel(origin=(0.5, 0.5), size=(1, 1), count=(260, 300))
-start = time.perf_counter()
-full = methods["ordinary kriging"].predict(fine)
-seconds = time.perf_counter() - start
-print(
-    f"{len(fine):,} nodes in {seconds:.2f} s; RMSE against all exhaustive values {np.sqrt(np.nanmean((full - truth.ravel()) ** 2)):.1f} ppm"
-)
+# Smooth estimates put too much of the area above a low cutoff and too little above a high one: at 300 ppm moving
+# average nearly doubles the true tonnage, at 600 ppm it misses 45 % of it. Nearest neighbor follows the true tonnage
+# closely because it keeps the variance of the data, yet its estimates are the wrong ones locally; the reliable
+# grade-tonnage of selected blocks is a change-of-support question (topics 32 to 35).

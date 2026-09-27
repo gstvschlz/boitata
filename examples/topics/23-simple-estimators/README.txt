@@ -1,1 +1,1 @@
-## 23. Estimation methods and search
+## 23. Simple estimators
