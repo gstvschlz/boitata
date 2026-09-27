@@ -81,7 +81,7 @@ estimate, variance = kriging.predict(grid, return_variance=True)
 scores = cs.NormalScore().fit_transform(v)
 gaussian = cs.experimental_variogram(xy, scores, lag=10, max_lag=120).fit("spherical")
 summary = cs.SGS(gaussian, cs.Search(radius=80)).fit(xy, v).simulate(grid, n=50, cutoffs=[500])
-risk = summary.probability_above[0]
+risk = summary.probability_above[:, 0]
 ```
 
 The [examples](examples/tutorials/index.md) work through every topic on open datasets; the API pages list every

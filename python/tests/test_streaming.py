@@ -62,8 +62,8 @@ def test_turning_bands_streamed_equals_in_memory(model, tmp_path):
     result = tb.simulate_to_parquet(source, out, n=8, seed=3, cutoffs=[1.5], quantiles=[0.1, 0.9], rows=333)
     back = cs.read_parquet(out)
     np.testing.assert_array_equal(back["mean"], whole.mean)
-    np.testing.assert_array_equal(back["p_above_1.5"], whole.probability_above[0])
-    np.testing.assert_array_equal(back["q0.9"], whole.quantile_values[1])
+    np.testing.assert_array_equal(back["p_above_1.5"], whole.probability_above[:, 0])
+    np.testing.assert_array_equal(back["q0.9"], whole.quantile_values[:, 1])
     np.testing.assert_array_equal(back["grade"], model["grade"])
     np.testing.assert_allclose(result["realization_mean"], whole.realization_mean)
     np.testing.assert_allclose(result["realization_above"], whole.realization_above)
@@ -115,7 +115,7 @@ def test_turning_bands_streamed_blocks_average_their_nodes(model, tmp_path):
     )
     back = cs.read_parquet(out)
     np.testing.assert_array_equal(back["mean"], whole.mean)
-    np.testing.assert_array_equal(back["p_above_1.5"], whole.probability_above[0])
+    np.testing.assert_array_equal(back["p_above_1.5"], whole.probability_above[:, 0])
     with pytest.raises(cs.InvalidInput, match="positive"):
         tb.simulate_to_parquet(source, out, trend="drift", discretization=(2, 0, 1))
     with pytest.raises(cs.InvalidInput, match="no trend column"):

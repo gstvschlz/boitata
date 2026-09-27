@@ -269,7 +269,7 @@ impl CategoricalIndicatorKriging {
             .getattr("CategoricalCrossValidation")?
             .call1((
                 array1(py, actual),
-                by_target(py, &s.probabilities),
+                by_target(py, &s.probabilities, samples.len()),
                 self.names(),
             ))
     }
@@ -316,9 +316,14 @@ fn names(scheme: Option<&Categories>, k: usize) -> Vec<String> {
 }
 
 /// `[category][target]` rows as a `(targets, categories)` array.
-pub(crate) fn by_target<'py>(py: Python<'py>, rows: &[Vec<f64>]) -> Bound<'py, PyArray2<f64>> {
-    let n = rows.first().map_or(0, Vec::len);
-    Array2::from_shape_vec((rows.len(), n), rows.concat())
+/// `rows`, one per category, cutoff or quantile, each over `targets`, as a
+/// `(targets, rows)` array.
+pub(crate) fn by_target<'py>(
+    py: Python<'py>,
+    rows: &[Vec<f64>],
+    targets: usize,
+) -> Bound<'py, PyArray2<f64>> {
+    Array2::from_shape_vec((rows.len(), targets), rows.concat())
         .expect("rectangular rows")
         .reversed_axes()
         .as_standard_layout()
@@ -397,7 +402,11 @@ impl CategoricalIndicatorSummary {
     /// `(targets, categories)` probabilities, each row summing to 1.
     #[getter]
     fn probabilities<'py>(&self, py: Python<'py>) -> Bound<'py, PyArray2<f64>> {
-        by_target(py, &self.summary.probabilities)
+        by_target(
+            py,
+            &self.summary.probabilities,
+            self.summary.correction.len(),
+        )
     }
 
     /// Code of the most probable category, ties to the lowest; float so

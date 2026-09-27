@@ -30,9 +30,9 @@ def test_sgs_summary_matches_its_realizations():
     reals = s.realizations
     np.testing.assert_allclose(s.mean, reals.mean(axis=0))
     np.testing.assert_allclose(s.variance, reals.var(axis=0), atol=1e-9)
-    np.testing.assert_allclose(s.probability_above[0], (reals > cut).mean(axis=0))
-    np.testing.assert_allclose(s.quantile_values[1], np.median(reals, axis=0), rtol=1e-6)
-    np.testing.assert_allclose(s.realization_above[0], (reals > cut).mean(axis=1))
+    np.testing.assert_allclose(s.probability_above[:, 0], (reals > cut).mean(axis=0))
+    np.testing.assert_allclose(s.quantile_values[:, 1], np.median(reals, axis=0), rtol=1e-6)
+    np.testing.assert_allclose(s.realization_above[:, 0], (reals > cut).mean(axis=1))
     assert np.median(reals) == pytest.approx(np.median(values), rel=0.25)
     assert sgs.simulate(grid, n=2, seed=3).realizations is None
 
@@ -86,7 +86,7 @@ def test_localize_realizations_within_panels():
 def test_turning_bands_summary():
     tb = cs.TurningBands(gaussian, bands=100, step=1.0).fit(coords, values)
     s = tb.simulate(grid, n=2, seed=1, cutoffs=[1.0, 2.0])
-    assert s.mean.shape == (400,) and s.probability_above.shape == (2, 400)
+    assert s.mean.shape == (400,) and s.probability_above.shape == (400, 2)
 
 
 def test_sis_probabilities():

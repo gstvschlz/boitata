@@ -1495,7 +1495,7 @@ def _accuracy_curve(cv):
     pit = np.full(z.size, np.nan)
     ok = np.isfinite(z)
     pit[ok] = normal_cdf(z[ok])
-    return IndicatorCrossValidation(cv.actual, cv.estimate, cv.variance, [], np.empty((0, z.size)), pit)
+    return IndicatorCrossValidation(cv.actual, cv.estimate, cv.variance, [], np.empty((z.size, 0)), pit)
 
 
 def cross_validation(cv, *, kind="scatter", coords=None, ax=None, **kwargs):

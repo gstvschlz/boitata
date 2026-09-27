@@ -56,12 +56,12 @@ def rmse(e):
 exceeds = truth > limit
 print(f"ordinary kriging: RMSE {rmse(ok.predict(test)):.3f} mg/kg")
 for name, s in (("per-threshold variograms", by_mik), ("median indicator", by_median)):
-    p = s.probability_above[0]
+    p = s.probability_above[:, 0]
     print(
         f"{name}: E-type RMSE {rmse(s.mean):.3f} mg/kg, mean P(Cd > {limit}) {p[exceeds].mean():.2f} where true"
         f" exceedance, {p[~exceeds].mean():.2f} elsewhere, mean correction {s.correction.mean():.3f}"
     )
-inside = np.mean((truth >= by_mik.quantile_values[0]) & (truth <= by_mik.quantile_values[2]))
+inside = np.mean((truth >= by_mik.quantile_values[:, 0]) & (truth <= by_mik.quantile_values[:, 2]))
 print(f"validation points inside their 10-90% interval: {inside:.0%}")
 
 
@@ -77,9 +77,7 @@ sorted_cd = np.sort(cd)
 cumulative = np.cumsum(weights[np.argsort(cd)]) / weights.sum()
 axes[0].step(sorted_cd, cumulative, where="post", color=GRAY, lw=1, label="declustered global")
 for i, color, label in ((order[0], ACCENT, "lowest E-type"), (order[-1], HIGHLIGHT, "highest E-type")):
-    axes[0].plot(
-        deciles, by_mik.cdf[:, i], "o-", color=color, ms=3, lw=1, label=f"{label}, true {truth[i]:.2f}"
-    )
+    axes[0].plot(deciles, by_mik.cdf[i], "o-", color=color, ms=3, lw=1, label=f"{label}, true {truth[i]:.2f}")
 axes[0].axvline(limit, color=INK, lw=0.6, ls=":")
 axes[0].set(xlabel="Cd (mg/kg)", ylabel="P(Cd ≤ z)", title="Conditional distributions", xlim=(0, 4))
 axes[0].legend(fontsize=8, loc="lower right")
@@ -133,8 +131,8 @@ by_centroid = mik.predict(panels, cutoffs=[limit])
 by_panel = mik.predict(panels, cutoffs=[limit], discretization=(4, 4, 1))
 for name, s in (("centroids", by_centroid), ("1 km panels", by_panel)):
     print(
-        f"{name}: std of P(Cd > {limit}) across panels {np.nanstd(s.probability_above[0]):.3f},"
+        f"{name}: std of P(Cd > {limit}) across panels {np.nanstd(s.probability_above[:, 0]):.3f},"
         f" mean correction {np.nanmean(s.correction):.4f}"
     )
-shift = np.nanmean(np.abs(by_panel.probability_above[0] - by_centroid.probability_above[0]))
+shift = np.nanmean(np.abs(by_panel.probability_above[:, 0] - by_centroid.probability_above[:, 0]))
 print(f"mean |panel - centroid| probability {shift:.3f}")

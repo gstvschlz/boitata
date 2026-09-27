@@ -342,14 +342,14 @@ def test_multiple_indicator_kriging_distributions():
     s = mik.fit(coords, values - values.min() + 0.1).predict(
         targets, cutoffs=[1.0], quantiles=[0.1, 0.5, 0.9]
     )
-    assert s.cdf.shape == (4, 60) and s.quantile_values.shape == (3, 60)
-    assert np.all((s.cdf >= 0) & (s.cdf <= 1)) and np.all(np.diff(s.cdf, axis=0) >= 0)
-    assert np.all(np.diff(s.quantile_values, axis=0) >= 0) and np.all(s.std >= 0)
+    assert s.cdf.shape == (60, 4) and s.quantile_values.shape == (60, 3)
+    assert np.all((s.cdf >= 0) & (s.cdf <= 1)) and np.all(np.diff(s.cdf, axis=1) >= 0)
+    assert np.all(np.diff(s.quantile_values, axis=1) >= 0) and np.all(s.std >= 0)
     assert np.all((s.probability_above >= 0) & (s.probability_above <= 1))
 
     one = cs.MultipleIndicatorKriging(model, search, [thresholds[1]]).fit(coords, values).predict(targets)
     ik = cs.IndicatorKriging(model, search, threshold=thresholds[1]).fit(coords, values)
-    np.testing.assert_array_equal(one.cdf[0], ik.predict(targets))
+    np.testing.assert_array_equal(one.cdf[:, 0], ik.predict(targets))
 
 
 def test_multiple_indicator_simple_form_far_away_gives_the_declustered_mean():
@@ -370,7 +370,7 @@ def test_multiple_indicator_cross_validation_and_diagnostics():
     passes = [cs.Search(radius=6.0, max_samples=8), search]
     mik = cs.MultipleIndicatorKriging(model, passes, thresholds).fit(coords, values)
     cv = mik.cross_validate()
-    assert isinstance(cv, cs.IndicatorCrossValidation) and cv.cdf.shape == (3, len(values))
+    assert isinstance(cv, cs.IndicatorCrossValidation) and cv.cdf.shape == (len(values), 3)
     assert np.all((cv.pit >= 0) & (cv.pit <= 1)) and cv.rmse < values.std()
     assert cv.brier.shape == (3,) and np.all(cv.brier < 0.25)
     assert cv.accuracy(1.0) == 1.0 and cv.accuracy([0.2, 0.8]).shape == (2,)
@@ -386,7 +386,7 @@ def test_multiple_indicator_cross_validation_and_diagnostics():
         .fit(coords, values)
         .cross_validate(folds=5)
     )
-    np.testing.assert_array_equal(one.cdf[0], np.clip(ik.estimate, 0, 1))
+    np.testing.assert_array_equal(one.cdf[:, 0], np.clip(ik.estimate, 0, 1))
 
     targets = rng.uniform(0, 100, (80, 2))
     assert mik.predict(targets).diagnostics is None
@@ -414,14 +414,14 @@ def test_multigaussian_kriging_distributions():
     mg = cs.MultigaussianKriging(model, search).fit(coords, grades)
     exact = mg.predict(coords, quantiles=[0.1, 0.9])
     np.testing.assert_allclose(exact.mean, grades, rtol=1e-9)
-    np.testing.assert_allclose(exact.quantile_values, [grades, grades], rtol=1e-6)
+    np.testing.assert_allclose(exact.quantile_values, np.c_[grades, grades], rtol=1e-6)
     cutoffs = np.quantile(grades, [0.2, 0.5, 0.8])
     s = mg.predict(rng.uniform(0, 100, (60, 2)), cutoffs=cutoffs, quantiles=[0.1, 0.5, 0.9], diagnostics=True)
     assert s.thresholds == [] and np.all(s.correction == 0) and np.all(s.std >= 0)
-    assert np.all(np.diff(s.probability_above, axis=0) <= 0) and np.all(
-        np.diff(s.quantile_values, axis=0) >= 0
+    assert np.all(np.diff(s.probability_above, axis=1) <= 0) and np.all(
+        np.diff(s.quantile_values, axis=1) >= 0
     )
-    assert np.all((s.mean_above >= cutoffs[:, None]) | (s.probability_above == 0))
+    assert np.all((s.mean_above >= cutoffs) | (s.probability_above == 0))
     assert s.diagnostics.column_names[0] == "n_samples"
 
     blocks = cs.BlockModel(origin=(0, 0, 0), size=(10, 10, 1), count=(10, 10, 1))
@@ -431,7 +431,7 @@ def test_multigaussian_kriging_distributions():
     assert np.nanmean(block.variance) > np.nanmean(point.variance)
 
     cv = mg.cross_validate(folds=5)
-    assert isinstance(cv, cs.IndicatorCrossValidation) and cv.cdf.shape == (0, len(values))
+    assert isinstance(cv, cs.IndicatorCrossValidation) and cv.cdf.shape == (len(values), 0)
     assert np.all((cv.pit >= 0) & (cv.pit <= 1)) and cv.rmse < grades.std() and 0.5 < cv.goodness <= 1.0
     with pytest.raises(cs.InvalidInput, match="not fitted"):
         cs.MultigaussianKriging(model, search).predict(coords)
@@ -808,9 +808,9 @@ def test_multiple_indicator_localization():
         by_rank = out[mine][np.argsort(rank[mine], kind="stable")]
         assert by_rank.mean() == pytest.approx(m, abs=1e-9)
         assert (np.diff(by_rank) >= -1e-12).all()
-        point = mik.predict(panels.centroids[p : p + 1], cutoffs=list(s.quantile_values[:, p]))
+        point = mik.predict(panels.centroids[p : p + 1], cutoffs=list(s.quantile_values[p]))
         top = np.cumsum(by_rank[::-1])[:-1] / k
-        np.testing.assert_allclose(top, m + np.sqrt(f) * (point.mean_above[:, 0] - m), atol=1e-9)
+        np.testing.assert_allclose(top, m + np.sqrt(f) * (point.mean_above[0] - m), atol=1e-9)
     assert np.isnan(s.mean).any() and not np.isnan(s.mean).all()
 
     point = mik.localize(smus, "rank", panels, variance_factor=1.0)["localized"]
@@ -835,7 +835,7 @@ def test_block_multiple_indicator_kriging():
         point = mik.predict(panels)
         np.testing.assert_array_equal(mik.predict(panels, discretization=(1, 1, 1)).cdf, point.cdf)
         block = mik.predict(panels, discretization=(4, 4, 1), diagnostics=True)
-        assert block.cdf[1].var() < point.cdf[1].var() and block.diagnostics is not None
+        assert block.cdf[:, 1].var() < point.cdf[:, 1].var() and block.diagnostics is not None
     smus = panels.discretize(5).with_column("rank", rng.normal(size=400))
     local = mik.localize(smus, "rank", panels, discretization=(4, 4, 1))["localized"]
     owner = smus["block"].astype(int)

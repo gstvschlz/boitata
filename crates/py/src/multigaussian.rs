@@ -5,9 +5,10 @@ use serde::{Deserialize, Serialize};
 use crate::args::{
     self, array1, column, distinct, finite, optional_finite, pick, points, same_length,
 };
+use crate::categorical::by_target;
 use crate::containers::PyBlockModel;
 use crate::estimation::{sample_columns, samples_from, searches, targets};
-use crate::indicator::{IndicatorSummary, matrix, offsets};
+use crate::indicator::{IndicatorSummary, offsets};
 use crate::invalid;
 use crate::persist::{self, Columns, Found, Tabular};
 use crate::variogram::Variogram;
@@ -216,7 +217,7 @@ impl MultigaussianKriging {
                 array1(py, s.mean),
                 array1(py, s.variance),
                 Vec::<f64>::new(),
-                matrix(py, &[], samples.len()),
+                by_target(py, &[], samples.len()),
                 array1(py, pit),
             ))
     }
