@@ -191,9 +191,9 @@ for name, codes in domains.items():
     scores = ppmt.fit_transform(coords)
     variograms = [cs.experimental_variogram(xyz, s, 25.0, 300.0).fit("spherical") for s in scores.T]
     search = cs.Search(radius=300, max_samples=16)
-    simulation = cs.MultivariateSimulation(
-        ppmt, [cs.TurningBands(v, search=search) for v in variograms]
-    ).fit(xyz, coords)
+    simulation = cs.MultivariateSimulation(ppmt, [cs.TurningBands(v, search=search) for v in variograms]).fit(
+        xyz, coords
+    )
     in_domain = block_domain[node_block] == name
     bh_in = block_domain[bh_block] == name
     targets = np.vstack([nodes.centroids[in_domain], blastholes.coords[bh_in]])
@@ -232,9 +232,7 @@ alone = []
 for seed, (g, factor) in enumerate((("FE_PCT", 1.4297), ("SIO2_PCT", 1.0)), start=2):
     ns = cs.NormalScore().fit_transform(composites[g][use])
     variogram = cs.experimental_variogram(composites.coords[use], ns, 25.0, 300.0).fit("spherical")
-    bands = cs.TurningBands(variogram, search=search).fit(
-        composites.coords[use], composites[g][use]
-    )
+    bands = cs.TurningBands(variogram, search=search).fit(composites.coords[use], composites[g][use])
     alone.append(
         factor
         * bands.simulate(
