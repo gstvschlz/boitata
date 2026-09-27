@@ -1,13 +1,14 @@
 //! Imputation of missing variables from the present ones.
 //!
-//! Each variable is normal-scored on its observed values; the mean and
-//! covariance of the scores are fitted by expectation-maximization over all
-//! rows, missing entries included. A missing score is drawn from its Gaussian
+//! Each variable is normal-scored on its observed values; a Gaussian, or a
+//! mixture of Gaussians, is fitted to the scores by expectation-maximization
+//! over all rows, missing entries included. A missing score is drawn from its
 //! distribution conditional on the scores present in its row, then
 //! back-transformed, so imputed values keep the histograms and the
 //! correlation of the data.
 
 use crate::error::{Result, TransformError};
+use crate::mixture::{GaussianMixture, conditional};
 use crate::normal_score::{NormalScoreTable, transform as normal_score};
 use nalgebra::{DMatrix, DVector};
 use rand::SeedableRng;
@@ -19,40 +20,24 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GaussianImputer {
     tables: Vec<NormalScoreTable>,
-    mean: DVector<f64>,
-    covariance: DMatrix<f64>,
-}
-
-/// Conditional mean of the whole row (observed entries unchanged) and
-/// covariance of its missing entries, whose indices are returned too.
-fn conditional(
-    mean: &DVector<f64>,
-    cov: &DMatrix<f64>,
-    z: &[f64],
-) -> Result<(DVector<f64>, DMatrix<f64>, Vec<usize>)> {
-    let (o, m): (Vec<usize>, Vec<usize>) = (0..z.len()).partition(|&v| z[v].is_finite());
-    let mut filled = DVector::from_row_slice(z);
-    if o.is_empty() {
-        return Ok((mean.clone(), cov.clone(), m));
-    }
-    let s_oo = cov.select_rows(&o).select_columns(&o);
-    let s_mo = cov.select_rows(&m).select_columns(&o);
-    let chol = s_oo
-        .cholesky()
-        .ok_or_else(|| TransformError::InvalidParameters("score covariance is singular".into()))?;
-    let resid = DVector::from_iterator(o.len(), o.iter().map(|&v| z[v] - mean[v]));
-    let mu = &s_mo * chol.solve(&resid);
-    for (k, &v) in m.iter().enumerate() {
-        filled[v] = mean[v] + mu[k];
-    }
-    let c = cov.select_rows(&m).select_columns(&m) - &s_mo * chol.solve(&s_mo.transpose());
-    Ok((filled, c, m))
+    mixture: GaussianMixture,
 }
 
 impl GaussianImputer {
     /// Fits on `n` rows of `d` variables, NaN where missing; `weights`
     /// (e.g. declustering) shape the scores and the covariance.
     pub fn fit(data: &[Vec<f64>], weights: Option<&[f64]>) -> Result<Self> {
+        Self::fit_mixture(data, weights, Some(1), 0)
+    }
+
+    /// As [`GaussianImputer::fit`], with `components` Gaussians in the
+    /// scores, chosen by BIC up to 6 when `None`; `seed` starts the mixture.
+    pub fn fit_mixture(
+        data: &[Vec<f64>],
+        weights: Option<&[f64]>,
+        components: Option<usize>,
+        seed: u64,
+    ) -> Result<Self> {
         let dim = data.first().map_or(0, Vec::len);
         if dim == 0 || data.iter().any(|r| r.len() != dim) {
             return Err(TransformError::InvalidParameters(
@@ -89,33 +74,11 @@ impl GaussianImputer {
             }
             tables.push(table);
         }
-        let total: f64 = (0..data.len()).map(w).sum();
-        let (mut mean, mut cov) = (DVector::zeros(dim), DMatrix::identity(dim, dim));
-        for _ in 0..500 {
-            let (mut m1, mut m2) = (DVector::zeros(dim), DMatrix::zeros(dim, dim));
-            for (i, z) in scores.iter().enumerate() {
-                let (x, c, missing) = conditional(&mean, &cov, z)?;
-                let mut extra = DMatrix::zeros(dim, dim);
-                for (a, &p) in missing.iter().enumerate() {
-                    for (b, &q) in missing.iter().enumerate() {
-                        extra[(p, q)] = c[(a, b)];
-                    }
-                }
-                m2 += (&x * x.transpose() + extra) * (w(i) / total);
-                m1 += x * (w(i) / total);
-            }
-            let next = &m2 - &m1 * m1.transpose();
-            let change = (&next - &cov).amax().max((&m1 - &mean).amax());
-            (mean, cov) = (m1, next);
-            if change < 1e-10 {
-                break;
-            }
-        }
-        Ok(Self {
-            tables,
-            mean,
-            covariance: cov,
-        })
+        let mixture = match components {
+            Some(k) => GaussianMixture::fit(&scores, weights, k, seed)?,
+            None => GaussianMixture::select(&scores, weights, 6, seed)?.0,
+        };
+        Ok(Self { tables, mixture })
     }
 
     /// Number of variables.
@@ -123,10 +86,16 @@ impl GaussianImputer {
         self.tables.len()
     }
 
+    /// The mixture fitted to the normal scores.
+    pub fn mixture(&self) -> &GaussianMixture {
+        &self.mixture
+    }
+
     /// Correlation matrix of the normal scores.
     pub fn correlation(&self) -> DMatrix<f64> {
-        let s = self.covariance.diagonal().map(f64::sqrt);
-        self.covariance.component_div(&(&s * s.transpose()))
+        let cov = self.mixture.moments().1;
+        let s = cov.diagonal().map(f64::sqrt);
+        cov.component_div(&(&s * s.transpose()))
     }
 
     /// `data` with every NaN replaced by a draw conditional on the values
@@ -138,6 +107,7 @@ impl GaussianImputer {
                 "rows must have {dim} values"
             )));
         }
+        let gm = &self.mixture;
         let mut rng = StdRng::seed_from_u64(seed);
         data.iter()
             .map(|row| {
@@ -149,9 +119,13 @@ impl GaussianImputer {
                     .zip(&self.tables)
                     .map(|(&x, t)| if x.is_nan() { x } else { t.forward(x) })
                     .collect();
-                let (mu, c, missing) = conditional(&self.mean, &self.covariance, &z)?;
+                let c = match gm.proportions.len() {
+                    1 => 0,
+                    _ => GaussianMixture::draw_component(&gm.posterior(&z)?, &mut rng),
+                };
+                let (mu, cov, missing) = conditional(&gm.means[c], &gm.covariances[c], &z)?;
                 let jitter = DMatrix::identity(missing.len(), missing.len()) * 1e-12;
-                let l = (c + jitter)
+                let l = (cov + jitter)
                     .cholesky()
                     .map_or_else(|| DMatrix::zeros(missing.len(), missing.len()), |ch| ch.l());
                 let e = DVector::from_fn(missing.len(), |_, _| StandardNormal.sample(&mut rng));
@@ -257,5 +231,46 @@ mod tests {
         let (_, holed) = samples();
         let imputer = GaussianImputer::fit(&holed, None).unwrap();
         assert!(imputer.impute(&[vec![1.0]], 0).is_err());
+    }
+
+    /// Two groups in an L: one high in the first variable only, one high in
+    /// the second only; a single Gaussian fills the empty corner.
+    #[test]
+    fn a_mixture_keeps_imputed_rows_on_the_l() {
+        let mut rng = StdRng::seed_from_u64(8);
+        let mut normal = || -> f64 { StandardNormal.sample(&mut rng) };
+        let full: Vec<Vec<f64>> = (0..3000)
+            .map(|i| match i % 2 {
+                0 => vec![(2.0 + 0.8 * normal()).exp(), (-1.0 + 0.3 * normal()).exp()],
+                _ => vec![(-1.0 + 0.3 * normal()).exp(), (2.0 + 0.8 * normal()).exp()],
+            })
+            .collect();
+        let holed: Vec<Vec<f64>> = full
+            .iter()
+            .enumerate()
+            .map(|(i, r)| {
+                if i % 3 == 0 {
+                    vec![r[0], f64::NAN]
+                } else {
+                    r.clone()
+                }
+            })
+            .collect();
+        let corner = |rows: &[Vec<f64>]| {
+            let hidden = rows.iter().step_by(3);
+            hidden.filter(|r| r[0] > 1.5 && r[1] > 1.5).count() as f64 / 1000.0
+        };
+        let truth = corner(&full);
+        let one = GaussianImputer::fit(&holed, None).unwrap();
+        let two = GaussianImputer::fit_mixture(&holed, None, None, 0).unwrap();
+        assert!(two.mixture().proportions.len() >= 2);
+        let (one, two) = (
+            corner(&one.impute(&holed, 1).unwrap()),
+            corner(&two.impute(&holed, 1).unwrap()),
+        );
+        assert!(
+            truth < 0.01 && two < 0.4 * one && one > 0.1,
+            "{truth} {two} {one}"
+        );
     }
 }

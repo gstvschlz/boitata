@@ -36,7 +36,23 @@ def fitted():
             cs.GaussianImputer(seed=2).fit(np.where(table > 1.5, np.nan, table)),
             lambda o: (o.transform(np.where(table > 1.5, np.nan, table)), o.correlation_),
         ),
-        (cs.PCA(standardize=True).fit(table), lambda o: (o.transform(table), o.inverse_transform(table))),
+        (
+            cs.GaussianImputer(components=2, seed=2).fit(np.where(table > 1.5, np.nan, table)),
+            lambda o: (o.transform(np.where(table > 1.5, np.nan, table)), o.correlation_),
+        ),
+        (
+            cs.KernelDensity(log=True, upper=50.0).fit(values),
+            lambda o: (o.pdf(values), o.quantile([0.01, 0.99]), o.sample(20, seed=1)),
+        ),
+        (
+            cs.GaussianMixture(max_components=3, seed=1).fit(table[:, :2]),
+            lambda o: (o.pdf(table[:, :2]), o.sample(20), o.means_, o.covariances_, list(o.bic_.values())),
+        ),
+        (
+            cs.NormalScore(reference=cs.KernelDensity(lower=0.0).fit(values)).fit(values),
+            lambda o: (o.transform(values), o.inverse_transform([-6.0, 0.0, 6.0])),
+        ),
+        (cs.PCA(standardize=True).fit(table),lambda o: (o.transform(table), o.inverse_transform(table))),
         (
             cs.MAF(lag=1.0, tolerance=0.01).fit(rng.normal(size=(100, 2)), grid),
             lambda o: (o.transform(table[:, :2]),),
@@ -76,6 +92,8 @@ def plain():
         cs.BoxCox(lambda_=0.3),
         cs.PPMT(),
         cs.GaussianImputer(),
+        cs.KernelDensity(bandwidth=0.3, lower=0.0),
+        cs.GaussianMixture(),
         cs.PCA(),
         cs.MAF(lag=2.0),
         cs.StepwiseConditional(),

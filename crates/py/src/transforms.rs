@@ -14,8 +14,8 @@ use arrow_array::types::Float64Type;
 use arrow_array::{ArrayRef, Float64Array, RecordBatch};
 
 use crate::args::{
-    Point, array1, array2, column, finite, optional_finite, per_row, points, points_array, rows,
-    same_length, triple,
+    Point, array1, array2, column, finite, floats, optional_finite, per_row, points, points_array,
+    rows, same_length, triple,
 };
 use crate::containers::PyBlockModel;
 use crate::invalid;
@@ -51,15 +51,59 @@ fn recoveries(r: &[Recovery]) -> PyResult<Table> {
     Ok(Table(RecordBatch::try_from_iter(columns).map_err(invalid)?))
 }
 
-/// Normal-score transform through the (weighted) empirical CDF. Beyond the
-/// data, values interpolate in probability toward `tails` (lower, upper),
-/// which default to the data range.
+/// Normal-score transform through the (weighted) empirical CDF, or through a
+/// smooth reference distribution.
+///
+/// Parameters
+/// ----------
+/// tails : (float, float), optional
+///     Values at cumulative probability 0 and 1. Beyond the data, values
+///     interpolate in probability toward them; they default to the data
+///     range, or to the bounds of the reference.
+/// reference : KernelDensity or GaussianMixture, optional
+///     A fitted one-variable distribution to take the scores against, in
+///     place of the data: its quantiles at scores -5 to 5 form the table, so
+///     few or clustered data still get smooth tails. Fit the reference with
+///     the declustering weights; `fit` then takes no weights.
 #[derive(Serialize, Deserialize)]
 #[pyclass(module = "ceres", name = "NormalScore")]
 pub struct NormalScore {
     #[serde(with = "ceres_core::nonfinite")]
     tails: Option<(f64, f64)>,
+    reference: Option<Reference>,
     fitted: Option<CoreNormalScore>,
+}
+
+/// A fitted reference distribution of `NormalScore`.
+#[derive(Serialize, Deserialize)]
+enum Reference {
+    KernelDensity(transforms::KernelDensity),
+    GaussianMixture(transforms::GaussianMixture),
+}
+
+impl Reference {
+    fn extract(obj: &Bound<PyAny>) -> PyResult<Self> {
+        if let Ok(kde) = obj.cast::<KernelDensity>() {
+            return Ok(Self::KernelDensity(kde.borrow().fitted()?.clone()));
+        }
+        if let Ok(gm) = obj.cast::<GaussianMixture>() {
+            let gm = gm.borrow().fitted()?.clone();
+            if gm.dim() != 1 {
+                return Err(invalid("reference needs a one-variable GaussianMixture"));
+            }
+            return Ok(Self::GaussianMixture(gm));
+        }
+        Err(invalid(
+            "reference must be a KernelDensity or a GaussianMixture",
+        ))
+    }
+
+    fn transform(&self, values: &[f64]) -> CoreNormalScore {
+        match self {
+            Self::KernelDensity(r) => transforms::from_reference(values, r),
+            Self::GaussianMixture(r) => transforms::from_reference(values, r),
+        }
+    }
 }
 
 impl NormalScore {
@@ -85,12 +129,13 @@ impl NormalScore {
     }
 
     #[new]
-    #[pyo3(signature = (*, tails=None))]
-    fn new(tails: Option<(f64, f64)>) -> Self {
-        Self {
+    #[pyo3(signature = (*, tails=None, reference=None))]
+    fn new(tails: Option<(f64, f64)>, reference: Option<&Bound<PyAny>>) -> PyResult<Self> {
+        Ok(Self {
             tails,
+            reference: reference.map(Reference::extract).transpose()?,
             fitted: None,
-        }
+        })
     }
 
     #[pyo3(signature = (values, *, weights=None))]
@@ -104,7 +149,15 @@ impl NormalScore {
         if let Some(w) = &weights {
             same_length(values.len(), w.len(), "weights")?;
         }
-        let mut ns = transforms::normal_score(&values, weights.as_deref()).map_err(err)?;
+        let mut ns = match (&slf.reference, &weights) {
+            (Some(_), Some(_)) => {
+                return Err(invalid(
+                    "with a reference, give the weights to the reference's fit",
+                ));
+            }
+            (Some(r), None) => r.transform(&values),
+            (None, _) => transforms::normal_score(&values, weights.as_deref()).map_err(err)?,
+        };
         if let Some((lower, upper)) = slf.tails {
             ns.table = ns.table.with_tails(lower, upper);
         }
@@ -455,11 +508,18 @@ impl Ppmt {
 ///
 /// Parameters
 /// ----------
+/// components : int or None, default 1
+///     Gaussians mixed in the scores, e.g. 2 for two mineral associations
+///     that one Gaussian cannot represent; None picks 1 to 6 by BIC. A
+///     missing score is then drawn from a component picked by its
+///     probability given the scores present in the row.
 /// seed : int, default 0
-///     Seed of the draws; the same seed imputes the same values.
+///     Seed of the mixture and of the draws; the same seed imputes the same
+///     values.
 #[derive(Serialize, Deserialize)]
 #[pyclass(module = "ceres", name = "GaussianImputer")]
 pub struct GaussianImputer {
+    components: Option<usize>,
     seed: u64,
     fitted: Option<transforms::GaussianImputer>,
 }
@@ -487,9 +547,13 @@ impl GaussianImputer {
     }
 
     #[new]
-    #[pyo3(signature = (*, seed=0))]
-    fn new(seed: u64) -> Self {
-        Self { seed, fitted: None }
+    #[pyo3(signature = (*, components=Some(1), seed=0))]
+    fn new(components: Option<usize>, seed: u64) -> Self {
+        Self {
+            components,
+            seed,
+            fitted: None,
+        }
     }
 
     /// Fits the normal scores and their covariance.
@@ -508,8 +572,9 @@ impl GaussianImputer {
     ) -> PyResult<PyRefMut<'py, Self>> {
         let data = rows(data, "data")?;
         let weights = optional_finite(weights, "weights")?;
+        let (w, k, seed) = (weights.as_deref(), slf.components, slf.seed);
         slf.fitted =
-            Some(transforms::GaussianImputer::fit(&data, weights.as_deref()).map_err(err)?);
+            Some(transforms::GaussianImputer::fit_mixture(&data, w, k, seed).map_err(err)?);
         Ok(slf)
     }
 
@@ -539,6 +604,358 @@ impl GaussianImputer {
         let c = self.fitted()?.correlation();
         let rows: Vec<Vec<f64>> = c.row_iter().map(|r| r.iter().copied().collect()).collect();
         Ok(array2(py, &rows).into_any())
+    }
+}
+
+/// Rows of a 1-D (one variable) or 2-D array-like.
+fn variables(data: &Bound<PyAny>) -> PyResult<Vec<Vec<f64>>> {
+    let array = data
+        .py()
+        .import("numpy")?
+        .call_method1("asarray", (data, "float64"))?;
+    match array.getattr("ndim")?.extract::<usize>()? {
+        1 => Ok(floats(&array, "data")?
+            .into_iter()
+            .map(|v| vec![v])
+            .collect()),
+        _ => rows(&array, "data"),
+    }
+}
+
+/// Weighted Gaussian kernel density of one variable: a smooth reference
+/// distribution for `NormalScore` when the data are too few or too clustered
+/// to define the tails.
+///
+/// Parameters
+/// ----------
+/// bandwidth : {"silverman", "scott"} or float, optional
+///     Kernel width: Silverman's rule ``0.9 min(sd, IQR / 1.34) n^-1/5`` (default),
+///     robust to skewed and bimodal data, Scott's rule ``1.06 sd n^-1/5``, or
+///     a width, in log units when `log`. `n` is the effective number of
+///     samples of the weights.
+/// lower, upper : float, optional
+///     Bounds of the values, kept by reflecting the kernels at them, e.g.
+///     ``lower=0`` for grades.
+/// log : bool, default False
+///     Kernels on ``ln x``: positive values with a lognormal-like upper tail.
+///
+/// Attributes
+/// ----------
+/// bandwidth_ : float
+///     The fitted kernel width.
+#[derive(Serialize, Deserialize)]
+#[pyclass(module = "ceres", name = "KernelDensity")]
+pub struct KernelDensity {
+    bandwidth: transforms::Bandwidth,
+    lower: Option<f64>,
+    upper: Option<f64>,
+    log: bool,
+    fitted: Option<transforms::KernelDensity>,
+}
+
+impl KernelDensity {
+    fn fitted(&self) -> PyResult<&transforms::KernelDensity> {
+        self.fitted
+            .as_ref()
+            .ok_or_else(|| not_fitted("KernelDensity"))
+    }
+}
+
+#[pymethods]
+impl KernelDensity {
+    /// JSON of the parameters and, once fitted, the fitted state.
+    fn to_json(&self) -> PyResult<String> {
+        crate::persist::to_json(self)
+    }
+
+    /// Reads `to_json` output; raises InvalidInput on another class's JSON
+    /// or a newer format.
+    #[staticmethod]
+    fn from_json(text: &str) -> PyResult<Self> {
+        crate::persist::from_json(text)
+    }
+
+    #[new]
+    #[pyo3(signature = (*, bandwidth=None, lower=None, upper=None, log=false))]
+    fn new(
+        bandwidth: Option<&Bound<PyAny>>,
+        lower: Option<f64>,
+        upper: Option<f64>,
+        log: bool,
+    ) -> PyResult<Self> {
+        use transforms::Bandwidth;
+        let bandwidth = match bandwidth {
+            None => Bandwidth::Silverman,
+            Some(b) => match (b.extract::<f64>(), b.extract::<String>().as_deref()) {
+                (Ok(h), _) if h > 0.0 && h.is_finite() => Bandwidth::Given(h),
+                (_, Ok("silverman")) => Bandwidth::Silverman,
+                (_, Ok("scott")) => Bandwidth::Scott,
+                _ => {
+                    return Err(invalid(
+                        "bandwidth must be 'silverman', 'scott' or a positive width",
+                    ));
+                }
+            },
+        };
+        Ok(Self {
+            bandwidth,
+            lower,
+            upper,
+            log,
+            fitted: None,
+        })
+    }
+
+    /// Fits the density to `values`.
+    ///
+    /// Parameters
+    /// ----------
+    /// values : array_like or str
+    ///     Finite values, or the column of `data` holding them.
+    /// weights : array_like or str, optional
+    ///     Declustering weights, or their column.
+    /// data : PointSet, Table or mapping, optional
+    ///     Holds the columns named by the other arguments.
+    #[pyo3(signature = (values, *, weights=None, data=None))]
+    fn fit<'py>(
+        mut slf: PyRefMut<'py, Self>,
+        values: &Bound<'py, PyAny>,
+        weights: Option<&Bound<'py, PyAny>>,
+        data: Option<&Bound<'py, PyAny>>,
+    ) -> PyResult<PyRefMut<'py, Self>> {
+        let values = finite(&column(data, values, "values")?, "values")?;
+        let weights = match weights {
+            Some(w) => Some(per_row(data, w, values.len(), "weights")?),
+            None => None,
+        };
+        slf.fitted = Some(
+            transforms::KernelDensity::fit(
+                &values,
+                weights.as_deref(),
+                slf.bandwidth,
+                slf.lower,
+                slf.upper,
+                slf.log,
+            )
+            .map_err(err)?,
+        );
+        Ok(slf)
+    }
+
+    /// Density at each of `x`, zero outside the bounds.
+    fn pdf<'py>(&self, py: Python<'py>, x: &Bound<PyAny>) -> PyResult<Bound<'py, PyAny>> {
+        let kde = self.fitted()?;
+        Ok(map(py, finite(x, "x")?, |v| kde.pdf(v)))
+    }
+
+    /// Probability of a value at most each of `x`.
+    fn cdf<'py>(&self, py: Python<'py>, x: &Bound<PyAny>) -> PyResult<Bound<'py, PyAny>> {
+        let kde = self.fitted()?;
+        Ok(map(py, finite(x, "x")?, |v| kde.cdf(v)))
+    }
+
+    /// Value at each cumulative probability of `p`, in (0, 1).
+    fn quantile<'py>(&self, py: Python<'py>, p: &Bound<PyAny>) -> PyResult<Bound<'py, PyAny>> {
+        use transforms::Reference;
+        let kde = self.fitted()?;
+        let p = finite(p, "p")?;
+        if p.iter().any(|&q| q <= 0.0 || q >= 1.0) {
+            return Err(invalid("p must be in (0, 1)"));
+        }
+        Ok(map(py, p, |q| kde.quantile(q)))
+    }
+
+    /// `n` values drawn from the density; the same `seed` gives the same
+    /// values.
+    #[pyo3(signature = (n, *, seed=0))]
+    fn sample<'py>(&self, py: Python<'py>, n: usize, seed: u64) -> PyResult<Bound<'py, PyAny>> {
+        Ok(array1(py, self.fitted()?.sample(n, seed)).into_any())
+    }
+
+    #[getter]
+    fn bandwidth_(&self) -> PyResult<f64> {
+        Ok(self.fitted()?.bandwidth())
+    }
+}
+
+/// Mixture of Gaussians fitted by expectation-maximization.
+///
+/// A smooth reference for one variable (`NormalScore(reference=...)`) or for
+/// several, e.g. two mineral associations that one Gaussian cannot represent.
+/// Rows may miss variables (NaN): each weighs the components by its present
+/// entries. The components start from a k-means++ clustering drawn from
+/// `seed`, so a seed gives one fit.
+///
+/// Parameters
+/// ----------
+/// components : int, optional
+///     Number of Gaussians; by default the count from 1 to `max_components`
+///     with the lowest BIC.
+/// max_components : int, default 6
+/// seed : int, default 0
+///
+/// Attributes
+/// ----------
+/// proportions_ : ndarray, shape (k,)
+/// means_ : ndarray, shape (k, d)
+/// covariances_ : ndarray, shape (k, d, d)
+/// bic_ : dict
+///     Bayesian information criterion by number of components fitted.
+#[derive(Serialize, Deserialize)]
+#[pyclass(module = "ceres", name = "GaussianMixture")]
+pub struct GaussianMixture {
+    components: Option<usize>,
+    max_components: usize,
+    seed: u64,
+    fitted: Option<(transforms::GaussianMixture, Vec<(usize, f64)>)>,
+}
+
+impl GaussianMixture {
+    fn fitted(&self) -> PyResult<&transforms::GaussianMixture> {
+        self.fitted
+            .as_ref()
+            .map(|f| &f.0)
+            .ok_or_else(|| not_fitted("GaussianMixture"))
+    }
+}
+
+#[pymethods]
+impl GaussianMixture {
+    /// JSON of the parameters and, once fitted, the fitted state.
+    fn to_json(&self) -> PyResult<String> {
+        crate::persist::to_json(self)
+    }
+
+    /// Reads `to_json` output; raises InvalidInput on another class's JSON
+    /// or a newer format.
+    #[staticmethod]
+    fn from_json(text: &str) -> PyResult<Self> {
+        crate::persist::from_json(text)
+    }
+
+    #[new]
+    #[pyo3(signature = (*, components=None, max_components=6, seed=0))]
+    fn new(components: Option<usize>, max_components: usize, seed: u64) -> Self {
+        Self {
+            components,
+            max_components,
+            seed,
+            fitted: None,
+        }
+    }
+
+    /// Fits the mixture.
+    ///
+    /// Parameters
+    /// ----------
+    /// data : array_like, shape (n,) or (n, d)
+    ///     One variable or `d`; NaN marks a missing entry.
+    /// weights : array_like, optional
+    ///     Declustering weights of the rows.
+    #[pyo3(signature = (data, *, weights=None))]
+    fn fit<'py>(
+        mut slf: PyRefMut<'py, Self>,
+        data: &Bound<PyAny>,
+        weights: Option<&Bound<PyAny>>,
+    ) -> PyResult<PyRefMut<'py, Self>> {
+        let data = variables(data)?;
+        let weights = optional_finite(weights, "weights")?;
+        let w = weights.as_deref();
+        slf.fitted = Some(match slf.components {
+            Some(k) => {
+                let gm = transforms::GaussianMixture::fit(&data, w, k, slf.seed).map_err(err)?;
+                let bic = vec![(k, gm.bic)];
+                (gm, bic)
+            }
+            None => {
+                let (gm, bics) =
+                    transforms::GaussianMixture::select(&data, w, slf.max_components, slf.seed)
+                        .map_err(err)?;
+                (
+                    gm,
+                    bics.into_iter()
+                        .enumerate()
+                        .map(|(i, b)| (i + 1, b))
+                        .collect(),
+                )
+            }
+        });
+        Ok(slf)
+    }
+
+    /// Mixture density at each complete row of `data`.
+    fn pdf<'py>(&self, py: Python<'py>, data: &Bound<PyAny>) -> PyResult<Bound<'py, PyAny>> {
+        let gm = self.fitted()?;
+        let pdf = variables(data)?
+            .iter()
+            .map(|r| gm.pdf(r))
+            .collect::<Result<_, _>>()
+            .map_err(err)?;
+        Ok(array1(py, pdf).into_any())
+    }
+
+    /// Most probable component of each row given its present entries.
+    fn predict<'py>(&self, py: Python<'py>, data: &Bound<PyAny>) -> PyResult<Bound<'py, PyAny>> {
+        let gm = self.fitted()?;
+        let labels = variables(data)?
+            .iter()
+            .map(|r| {
+                let p = gm.posterior(r)?;
+                Ok((0..p.len())
+                    .max_by(|&a, &b| p[a].total_cmp(&p[b]))
+                    .unwrap_or(0) as i64)
+            })
+            .collect::<Result<Vec<i64>, transforms::TransformError>>()
+            .map_err(err)?;
+        Ok(numpy::PyArray1::from_vec(py, labels).into_any())
+    }
+
+    /// `n` rows drawn from the mixture, shape (n, d); the same `seed` gives
+    /// the same rows.
+    #[pyo3(signature = (n, *, seed=0))]
+    fn sample<'py>(&self, py: Python<'py>, n: usize, seed: u64) -> PyResult<Bound<'py, PyAny>> {
+        Ok(array2(py, &self.fitted()?.sample(n, seed)).into_any())
+    }
+
+    #[getter]
+    fn proportions_<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        Ok(array1(py, self.fitted()?.proportions.clone()).into_any())
+    }
+
+    #[getter]
+    fn means_<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let rows: Vec<Vec<f64>> = self
+            .fitted()?
+            .means
+            .iter()
+            .map(|m| m.iter().copied().collect())
+            .collect();
+        Ok(array2(py, &rows).into_any())
+    }
+
+    #[getter]
+    fn covariances_<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let gm = self.fitted()?;
+        let (k, d) = (gm.covariances.len(), gm.dim());
+        let flat = gm
+            .covariances
+            .iter()
+            .flat_map(|c| c.transpose().iter().copied().collect::<Vec<_>>())
+            .collect();
+        array1(py, flat).call_method1("reshape", ((k, d, d),))
+    }
+
+    #[getter]
+    fn bic_<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let (_, bics) = self
+            .fitted
+            .as_ref()
+            .ok_or_else(|| not_fitted("GaussianMixture"))?;
+        let d = pyo3::types::PyDict::new(py);
+        for (k, b) in bics {
+            d.set_item(k, b)?;
+        }
+        Ok(d.into_any())
     }
 }
 
@@ -1726,6 +2143,8 @@ pub fn register(m: &Bound<PyModule>) -> PyResult<()> {
     m.add_class::<BoxCox>()?;
     m.add_class::<Ppmt>()?;
     m.add_class::<GaussianImputer>()?;
+    m.add_class::<KernelDensity>()?;
+    m.add_class::<GaussianMixture>()?;
     m.add_class::<Pca>()?;
     m.add_class::<Maf>()?;
     m.add_class::<StepwiseConditional>()?;
