@@ -1,9 +1,9 @@
 # 2. From drill holes to a classified model
 
-One pass through a resource workflow on the massive sulphide (`MS`) lens of topic 53:
-composites from the drill-hole CSVs, the lens modeled from its contacts and kept within the drilling, exploratory
-statistics, declustering, the normal-score variogram, ordinary kriging in search passes and across a soft boundary,
-block-support simulation for risk, across the same boundary, classification, and the model saved to Parquet.
+A resource estimate of three stacked sulphide lenses, end to end: drill-hole tables to composites inside each
+lens wireframe, declustered statistics and a capping check, the Zn variogram, a sub-blocked model built from the
+wireframes, Zn and density kriged in search passes, block-support simulation for risk, validation, classification,
+and tonnes and metal per lens saved to Parquet.
 
 <details><summary>Python</summary>
 
@@ -18,143 +18,99 @@ from common import ACCENT, GRAY, HIGHLIGHT, LIGHT, save
 
 </details>
 
-## Composites
+## Drill holes
 
-Assays and logged lithology are merged and desurveyed by minimum curvature, with tangential desurvey kept for
-comparison. Whole runs (`length=None`) show how thick the `MS` intercepts are. The tables are checked and fixed first
-with the default rules, as in topic 3.
+Collars, surveys and assays become desurveyed drill holes; each assay sits at the midpoint of its interval.
 
 <details><summary>Python</summary>
 
 ```python
-tables = cs.datasets.drillhole_tables()
-flags, _ = cs.check_drillholes(
-    tables["collar"],
-    tables["survey"],
-    {"assay": tables["assay"], "geology": tables["geology"]},
-    hole="HOLEID",
-)
-tables, _ = cs.fix_drillholes(flags, tables)
-intervals = cs.merge_intervals(tables["assay"], tables["geology"], hole="HOLEID")
-drillholes = cs.Drillholes(
-    tables["collar"], tables["survey"], intervals, method="minimum_curvature", hole="HOLEID"
-)
-tangential = cs.Drillholes(tables["collar"], tables["survey"], intervals, method="tangential", hole="HOLEID")
-
-
-def in_window(points):
-    return (points[:, 0] > 5300) & (points[:, 0] < 5500) & (points[:, 1] > 8100) & (points[:, 1] < 8400)
-
-
-runs = drillholes.composite(None, ["ZN"], domain="LITH")
-run_length = runs["length"][in_window(runs.coords) & (np.array(runs["LITH"], dtype=object) == "MS")]
-print(
-    f"{len(run_length)} MS intercepts: median {np.median(run_length):.1f} m, "
-    f"90 % shorter than {np.quantile(run_length, 0.9):.1f} m, longest {run_length.max():.1f} m"
-)
+data = cs.datasets.stacked_sulphide_lenses()
+drillholes = cs.Drillholes(data["collars"], data["surveys"], data["assays"])
+samples = drillholes.samples()
+print(f"{len(drillholes)} holes, {len(samples)} assays")
 ```
 
 </details>
 
 ```text
-306 MS intercepts: median 2.2 m, 90 % shorter than 10.0 m, longest 35.3 m
+289 holes, 16995 assays
 ```
 
-Most intercepts are shorter than a 5 m composite, so each is one composite of its own length; in longer runs the
-last piece, if under half a composite, joins the one before (`residual="merge"`) rather than standing alone.
-Composites are taken within each lithology and sorted down each hole, in the lens window.
+## Samples inside each lens
+
+Two of the three wireframes have a degenerate triangle and an open seam; `repair` closes them, since only a
+closed mesh has an inside. Each assay takes the name of the lens around its midpoint, and 2 m composites never
+cross from one lens to another or into the host rock.
 
 <details><summary>Python</summary>
 
 ```python
-composites = drillholes.composite(5.0, ["ZN"], domain="LITH", residual="merge")
-shift = np.linalg.norm(
-    tangential.composite(5.0, ["ZN"], domain="LITH", residual="merge").coords - composites.coords, axis=1
-)
-xyz, zn = composites.coords, composites["ZN"]
-lith = np.array(composites["LITH"], dtype=object)
-hole = np.array(composites["hole"], dtype=object)
-top, bottom, length = composites["from"], composites["to"], composites["length"]
-order = np.lexsort((top, hole))
-order = order[in_window(xyz[order])]
-xyz, zn, lith, hole, top, bottom, length, shift = (
-    a[order] for a in (xyz, zn, lith, hole, top, bottom, length, shift)
-)
-ms = lith == "MS"
-print(
-    f"{ms.sum()} MS composites, {length[ms].min():.1f}-{length[ms].max():.1f} m; tangential desurvey moves them "
-    f"{np.median(shift[ms]):.2f} m (median), {shift[ms].max():.1f} m at most"
-)
+lenses = {}
+for name in ("lens_1", "lens_2", "lens_3"):
+    mesh = data[name]
+    lenses[name] = mesh if mesh.is_closed else mesh.repair(tolerance=0.01)
+    report = mesh.analysis
+    print(
+        f"{name}: {report['degenerate_triangles']} degenerate triangles, {report['boundary_edges']} open edges; "
+        f"{lenses[name].volume / 1e6:.2f} Mm3 once closed"
+    )
+
+lens = np.full(len(samples), "host", dtype=object)
+for name, mesh in lenses.items():
+    lens[mesh.contains(samples.coords)] = name
+intervals = samples.with_columns({"LENS": list(lens)}).attributes
+drillholes = cs.Drillholes(data["collars"], data["surveys"], intervals)
+composites = drillholes.composite(2.0, ["ZN_PCT", "DENSITY"], domain="LENS", residual="merge")
+composites = composites.filter(np.array(composites["LENS"], dtype=object) != "host")
+names = np.array(composites["LENS"], dtype=object)
+for name in lenses:
+    inside = names == name
+    measured = np.isfinite(composites["DENSITY"][inside]).sum()
+    holes = len(set(composites["hole"][inside]))
+    print(f"{name}: {inside.sum()} composites from {holes} holes, {measured} with a density")
 ```
 
 </details>
 
 ```text
-392 MS composites, 0.1-7.0 m; tangential desurvey moves them 0.26 m (median), 6.8 m at most
+lens_1: 1 degenerate triangles, 3 open edges; 2.79 Mm3 once closed
+lens_2: 1 degenerate triangles, 3 open edges; 1.90 Mm3 once closed
+lens_3: 0 degenerate triangles, 0 open edges; 1.65 Mm3 once closed
+lens_1: 609 composites from 78 holes, 408 with a density
+lens_2: 279 composites from 53 holes, 234 with a density
+lens_3: 263 composites from 49 holes, 200 with a density
 ```
 
-## The lens and the drilled volume
+## Declustering and capping
 
-As in chapter 19, the lens is a potential field pinned to 0 at every `MS` contact down a hole, +1 in `MS` and −1
-around it. The field continues the lens along its plunge past the last hole, so blocks are kept only inside the
-convex hull of the `MS` composites: no block is estimated from data entirely on one side of it.
+Holes cluster where a lens is rich, so each lens is cell-declustered on its own. The capping table then shows how
+much metal the top composites carry.
 
 <details><summary>Python</summary>
 
 ```python
-change = (hole[1:] == hole[:-1]) & (ms[1:] != ms[:-1]) & np.isclose(bottom[:-1], top[1:])
-contacts = drillholes.at(list(hole[:-1][change]), bottom[:-1][change])
-coded = ms | np.r_[change, False] | np.r_[False, change] | (np.random.default_rng(1).random(len(ms)) < 0.1)
-field = cs.Variogram([("spherical", 1.0, 150.0)], rotation=(16, 26, 90), ratios=(0.45, 0.22))
-lens = cs.ImplicitModel("kriging", variogram=field, degree=0).fit(
-    xyz[coded], np.where(ms[coded], 1.0, -1.0), boundaries=contacts
-)
+weights = np.zeros(len(composites))
+for name in lenses:
+    inside = names == name
+    zn = composites["ZN_PCT"][inside]
+    declustering = cs.cell_declustering(composites.coords[inside], zn, sizes=np.arange(10, 105, 5))
+    weights[inside] = declustering.weights / declustering.weights.mean()
+    print(
+        f"{name}: mean {zn.mean():.2f} % Zn, declustered {declustering.mean:.2f} % ({declustering.cell_size:.0f} m cells)"
+    )
+composites = composites.with_column("weight", weights)
 
-sm = (lith == "SM") & ~np.isnan(zn)
-sm_xyz, sm_zn, sm_holes = xyz[sm], zn[sm], hole[sm]
-keep = ms & ~np.isnan(zn)
-xyz, zn, holes, length = xyz[keep], zn[keep], hole[keep], length[keep]
-hull = cs.convex_hull(xyz)
-lo, hi = hull.bounds
-origin = np.floor(np.array(lo) / 5) * 5
-count = tuple(int(c) for c in np.ceil((np.array(hi) - origin) / 5))
-grid = cs.BlockModel(origin=tuple(origin), size=(5, 5, 5), count=count)
-in_lens = lens.predict(grid.centroids) > 0
-in_hull = hull.contains(grid.centroids)
-blocks = grid.mask(in_lens & in_hull)
-print(
-    f"{len(contacts)} contacts; {in_lens.sum()} blocks in the lens, {len(blocks)} of them inside the hull "
-    f"({len(blocks) * 125 / 1e3:.0f} thousand m3)"
-)
-```
-
-</details>
-
-```text
-582 contacts; 2733 blocks in the lens, 2069 of them inside the hull (259 thousand m3)
-```
-
-## Statistics and declustering
-
-Holes cluster where the lens is rich, so cell declustering weights the composites before any statistic. Capping
-at 31 % Zn would cut 2.7 % of the composites and 1.7 % of the metal; instead they stay, restricted in the search
-below.
-
-<details><summary>Python</summary>
-
-```python
-weights = cs.cell_declustering(xyz, zn, sizes=np.arange(5, 80, 5)).weights
-weights /= weights.mean()
-naive, declustered = cs.describe(zn), cs.describe(zn, weights=weights)
-print(f"mean {naive['mean']:.2f} % Zn, declustered {declustered['mean']:.2f} %, CV {declustered['cv']:.2f}")
-caps = cs.capping(zn, weights=weights)
+caps = cs.capping("ZN_PCT", weights="weight", data=composites)
 for cap, fraction, removed in zip(caps["cap"], caps["fraction"], caps["metal_removed"], strict=True):
     print(f"cap {cap:5.1f} % Zn: {fraction:5.1%} of composites cut, {removed:5.1%} of the metal removed")
 
 fig, (a, b) = plt.subplots(1, 2, figsize=(9, 3.4), layout="constrained")
-cs.plot.histogram(zn, weights=weights, bins=np.arange(0, 44, 2), ax=a, color=LIGHT, edgecolor=GRAY)
-a.set(xlabel="Zn (%)", title="Declustered histogram")
-cs.plot.probability(zn[zn > 0], weights=weights[zn > 0], log=True, ax=b, color=ACCENT, ms=3)
+cs.plot.histogram(
+    "ZN_PCT", weights="weight", data=composites, bins=np.arange(0, 38, 2), ax=a, color=LIGHT, edgecolor=GRAY
+)
+a.set(xlabel="Zn (%)", title="Declustered histogram, three lenses")
+cs.plot.probability("ZN_PCT", weights="weight", data=composites, log=True, ax=b, color=ACCENT, ms=3)
 b.set(xlabel="Zn (%)", title="Probability plot")
 save(fig, "statistics")
 ```
@@ -162,471 +118,363 @@ save(fig, "statistics")
 </details>
 
 ```text
-mean 9.03 % Zn, declustered 9.23 %, CV 0.93
-cap  21.9 % Zn: 10.6% of composites cut,  5.9% of the metal removed
-cap  24.6 % Zn:  5.0% of composites cut,  3.9% of the metal removed
-cap  30.9 % Zn:  2.7% of composites cut,  1.7% of the metal removed
-cap  38.4 % Zn:  1.8% of composites cut,  0.1% of the metal removed
-cap  39.9 % Zn:  0.1% of composites cut,  0.0% of the metal removed
-cap  41.0 % Zn:  0.1% of composites cut,  0.0% of the metal removed
+lens_1: mean 6.26 % Zn, declustered 5.13 % (90 m cells)
+lens_2: mean 6.17 % Zn, declustered 5.61 % (40 m cells)
+lens_3: mean 5.99 % Zn, declustered 5.42 % (80 m cells)
+cap  10.7 % Zn: 10.0% of composites cut,  8.1% of the metal removed
+cap  14.1 % Zn:  5.0% of composites cut,  3.6% of the metal removed
+cap  16.8 % Zn:  2.5% of composites cut,  1.7% of the metal removed
+cap  19.6 % Zn:  1.0% of composites cut,  0.8% of the metal removed
+cap  23.1 % Zn:  0.4% of composites cut,  0.3% of the metal removed
+cap  29.2 % Zn:  0.1% of composites cut,  0.1% of the metal removed
 ```
 
 ![statistics](statistics.png)
 
-## Variograms
+Declustering lowers every lens mean, most in lens 1. The top 1 % of composites, above 19.6 % Zn, holds 0.8 % of
+the metal, and the probability plot shows no break in the upper tail: the grades are left uncapped.
 
-Simulation needs the variogram of the normal scores, rescaled to a unit sill; kriging uses the variogram of the
-grades. Both are fitted omnidirectionally here: the lens is too narrow across strike for reliable directional
-pairs.
+## Zn variogram of lens 1
+
+Lens 1 has the most composites. A thin lens leaves few pairs across it, so the variogram is omnidirectional;
+kriging uses the variogram of the grades, simulation that of the declustered normal scores, rescaled to a unit
+sill.
 
 <details><summary>Python</summary>
 
 ```python
-scores = cs.NormalScore().fit_transform(zn, weights=weights)
-experimental = cs.experimental_variogram(xyz, scores, 10.0, 120.0)
-fitted = experimental.fit("spherical")
-sill = fitted.nugget + fitted.structures[0].sill
+one = composites.filter(names == "lens_1")
+grades = cs.experimental_variogram(one, "ZN_PCT", 10.0, 150.0)
+variogram = grades.fit("spherical")
+scores = cs.NormalScore().fit(one["ZN_PCT"], weights=one["weight"])
+fitted = cs.experimental_variogram(one.coords, scores.transform(one["ZN_PCT"]), 10.0, 150.0).fit("spherical")
+structure = fitted.structures[0]
 gaussian = cs.Variogram(
-    [("spherical", fitted.structures[0].sill / sill, fitted.structures[0].range)], nugget=fitted.nugget / sill
+    [("spherical", structure.sill / fitted.sill, structure.range)], nugget=fitted.nugget / fitted.sill
 )
-grades = cs.experimental_variogram(xyz, zn, 10.0, 120.0).fit("spherical")
-print(gaussian)
+for label, model in (("Zn", variogram), ("normal scores", gaussian)):
+    s = model.structures[0]
+    print(f"{label}: nugget {model.nugget:.2f}, spherical sill {s.sill:.2f}, range {s.range:.0f} m")
 
-fig, ax = cs.plot.variogram(experimental, variogram=fitted, color=ACCENT)
-ax.set(xlabel="Lag distance (m)", ylabel="γ(h) of normal scores", title="Normal-score variogram")
+fig, ax = cs.plot.variogram(grades, variogram=variogram, color=ACCENT)
+ax.set(xlabel="Lag distance (m)", ylabel="γ(h), Zn (%²)", title="Zn variogram, lens 1")
 save(fig, "variogram")
 ```
 
 </details>
 
 ```text
-Variogram(nugget=0, structures=[Structure("spherical", sill=1, range=29.377377682207207)], rotation=(0.0, 0.0, 0.0), ratios=(1.0, 1.0))
+Zn: nugget 9.90, spherical sill 13.27, range 38 m
+normal scores: nugget 0.48, spherical sill 0.52, range 42 m
 ```
 
 ![variogram](variogram.png)
 
+## A sub-blocked model
+
+Parent blocks of 10 m are split into 5 m sub-blocks wherever a wireframe cuts them, so the model keeps each
+lens's volume; blocks outside every lens are dropped.
+
+<details><summary>Python</summary>
+
+```python
+low = np.min([m.bounds[0] for m in lenses.values()], axis=0)
+high = np.max([m.bounds[1] for m in lenses.values()], axis=0)
+origin = np.floor(low / 10) * 10
+count = [int(c) for c in np.ceil((high - origin) / 10)]
+blocks = cs.BlockModel.from_meshes(
+    origin, (10, 10, 10), count, [(mesh, "inside", name) for name, mesh in lenses.items()], 2, column="LENS"
+)
+block_lens = np.array(blocks["LENS"], dtype=object)
+for name, mesh in lenses.items():
+    volume = blocks.volumes[block_lens == name].sum()
+    print(
+        f"{name}: {np.sum(block_lens == name)} blocks, {volume / 1e6:.3f} Mm3 against {mesh.volume / 1e6:.3f} Mm3"
+    )
+```
+
+</details>
+
+```text
+lens_1: 7511 blocks, 2.789 Mm3 against 2.788 Mm3
+lens_2: 6575 blocks, 1.900 Mm3 against 1.901 Mm3
+lens_3: 5895 blocks, 1.651 Mm3 against 1.653 Mm3
+```
+
 ## Kriging in passes
 
-The first pass wants eight composites within 30 m, about the variogram range, from at least two holes; blocks it
-leaves go to a 60 m pass. In both, composites above 30 % Zn inform only blocks within 15 m, so a rich intercept
-does not spread through the lens.
+Each lens is kriged from its own composites (`domain_column`). The first pass wants six composites within the
+variogram range, at most two per hole, so at least three holes; blocks it leaves go to a pass at twice the range,
+and a last one reaches every block. Two per hole matters here: holes with long intercepts tend to be the richer
+ones, and would otherwise fill the search with their own composites. Density, measured on fewer samples, is
+kriged the same way with the shape of the Zn variogram: kriging weights do not depend on the sill.
 
 <details><summary>Python</summary>
 
 ```python
-def passes(high_grade=None):
-    return [
-        cs.Search(radius=r, max_samples=16, min_samples=m, max_per_hole=4, high_grade=high_grade)
-        for r, m in ((30, 8), (60, 4))
-    ]
-
-
-ok = cs.OrdinaryKriging(grades, passes(high_grade=(30.0, 15.0))).fit(xyz, zn, holes=holes)
-kriged = ok.predict(blocks, diagnostics=True)
-free = cs.OrdinaryKriging(grades, passes()).fit(xyz, zn, holes=holes).predict(blocks)
-samples = cs.PointSet(xyz, {"ZN": zn, "weight": weights})
-check = cs.validate_model(blocks, kriged["value"], samples, "ZN", weights="weight")
-mean = dict(zip(check["source"], check["mean"], strict=True))
-print(f"pass 1: {np.mean(kriged['pass'] == 1):.0%} of blocks, pass 2: {np.mean(kriged['pass'] == 2):.0%}")
-print(
-    f"mean {mean['model']:.2f} % Zn against {mean['declustered']:.2f} % declustered "
-    f"({check['mean_diff'][-1]:+.1%}); {np.mean(free):.2f} % without the high-grade restriction"
+reach = variogram.structures[0].range
+passes = [
+    cs.Search(reach, max_samples=12, min_samples=6, max_per_hole=2),
+    cs.Search(2 * reach, max_samples=12, min_samples=4, max_per_hole=2),
+    cs.Search(250, max_samples=12, max_per_hole=2),
+]
+zn = cs.OrdinaryKriging(variogram, passes).fit(composites, "ZN_PCT", holes="hole", domain_column="LENS")
+kriged = zn.predict(blocks, diagnostics=True, domain_column="LENS")
+measured = composites.filter(np.isfinite(composites["DENSITY"]))
+density = cs.OrdinaryKriging(variogram, passes).fit(measured, "DENSITY", holes="hole", domain_column="LENS")
+blocks = blocks.with_columns(
+    {
+        "zn": kriged["value"],
+        "density": density.predict(blocks, domain_column="LENS"),
+        "pass": kriged["pass"],
+        "slope": kriged["slope"],
+    }
 )
+for p in (1, 2, 3):
+    print(f"pass {p}: {np.mean(kriged['pass'] == p):.0%} of blocks")
+print(f"density {np.nanmin(blocks['density']):.2f}-{np.nanmax(blocks['density']):.2f} t/m3")
 ```
 
 </details>
 
 ```text
-pass 1: 80% of blocks, pass 2: 20%
-mean 9.29 % Zn against 9.23 % declustered (+0.6%); 9.41 % without the high-grade restriction
+pass 1: 8% of blocks
+pass 2: 91% of blocks
+pass 3: 1% of blocks
+density 3.00-4.22 t/m3
 ```
-
-## A soft boundary with SM
-
-The lens is estimated from `MS` composites alone: a hard boundary. That suits the contact with the RH host rock,
-where Zn drops sharply, but topic 13 shows grade carrying on across the contact with the
-semi-massive sulphide `SM`, with only a small step. Fitted on the `MS` and `SM` composites with their lithology as
-`domains`, every block is predicted as `MS`. Without `soft` the boundary stays hard and the estimate is the one
-above, bit for bit; with `soft=10.0`, `SM` composites within 10 m of a block also inform it.
-
-<details><summary>Python</summary>
-
-```python
-both = (np.vstack([xyz, sm_xyz]), np.r_[zn, sm_zn])
-labels = np.r_[np.full(len(zn), "MS"), np.full(len(sm_zn), "SM")]
-distance = cs.neighborhood_stats(blocks, sm_xyz, sm_zn, k=1)["nearest_dist"]
-contact_ms = cs.neighborhood_stats(xyz, sm_xyz, sm_zn, k=1)["nearest_dist"]
-by_rule = {}
-for name, soft in (("hard", None), ("soft", 10.0)):
-    searches = [
-        cs.Search(radius=r, max_samples=16, min_samples=m, max_per_hole=4, high_grade=(30.0, 15.0), soft=soft)
-        for r, m in ((30, 8), (60, 4))
-    ]
-    estimator = cs.OrdinaryKriging(grades, searches).fit(*both, holes=np.r_[holes, sm_holes], domains=labels)
-    by_rule[name] = estimator.predict(blocks, diagnostics=True, domains="MS")
-print(f"hard boundary equals MS only: {np.array_equal(by_rule['hard']['value'], kriged['value'])}")
-near = distance < 10
-print(f"{len(sm_zn)} SM composites; {near.mean():.0%} of the blocks lie within 10 m of one")
-print(f"MS composites within 10 m of SM: {zn[contact_ms < 10].mean():.2f} % Zn (naive)")
-for name, d in by_rule.items():
-    print(
-        f"{name}: mean {np.mean(d['value']):.2f} % Zn, {np.mean(d['value'][near]):.2f} % near SM, "
-        f"{np.mean(d['value'][~near]):.2f} % elsewhere; SM used in {np.mean(d['n_other_domain'] > 0):.0%} of blocks"
-    )
-
-bins = np.arange(0, 35, 5.0)
-middle = bins[:-1] + 2.5
-
-
-def binned(d, v):
-    inside = [np.digitize(d, bins) == i for i in range(1, len(bins))]
-    return np.array([np.mean(v[i]) for i in inside]), np.array([i.sum() for i in inside])
-
-
-fig, ax = plt.subplots(figsize=(6, 3.4), layout="constrained")
-ax.axvspan(0, 10, color=LIGHT, lw=0)
-mean, n = binned(contact_ms, zn)
-ax.scatter(middle, mean, s=n, color=GRAY, label="MS composites, sized by count")
-for name, color, label in (("hard", ACCENT, "hard boundary"), ("soft", HIGHLIGHT, "soft within 10 m")):
-    ax.plot(middle, binned(distance, by_rule[name]["value"])[0], color=color, label=f"blocks, {label}")
-ax.set(xlabel="Distance to the nearest SM composite (m)", ylabel="Mean Zn (%)", title="MS grade near SM")
-ax.legend(loc="upper left")
-save(fig, "soft")
-```
-
-</details>
-
-```text
-hard boundary equals MS only: True
-175 SM composites; 30% of the blocks lie within 10 m of one
-MS composites within 10 m of SM: 8.61 % Zn (naive)
-hard: mean 9.29 % Zn, 9.14 % near SM, 9.35 % elsewhere; SM used in 0% of blocks
-soft: mean 9.15 % Zn, 8.66 % near SM, 9.35 % elsewhere; SM used in 29% of blocks
-```
-
-![soft](soft.png)
-
-Only the blocks within 10 m of an `SM` composite, shaded, change. The `MS` composites there average 8.6 % Zn; the
-hard boundary carries the lens grade up to the contact, 9.1 %, and the soft one, drawing on the leaner `SM` next to
-it, brings them to 8.7 %. Farther in both estimates are the same, and the mean of the lens drops by 0.14 % Zn. The
-rest of the chapter keeps the hard boundary.
 
 ## Simulation at block support
 
-Thirty sequential Gaussian simulations on 2.5 m nodes, eight per block (`discretize(2)`), in the passes of the
-kriging, high-grade restriction included. A node takes the first pass that finds enough composites, as a block
-does in kriging, and is simulated from that pass's composites and nodes already simulated; `passes` gives the map.
-`blocks=` averages each realization over the nodes of every 5 m block before summarizing, so the probability above
-10 % Zn is that of the block grade, which is what a stope mines.
+Kriging smooths; the risk in a stope comes from simulation. Thirty sequential Gaussian simulations of lens 1
+run on 5 m nodes, eight to each 10 m parent block the lens touches, and `blocks=` averages each realization
+over those blocks, so the probability above 5 % Zn is that of a 10 m block. The first two kriging passes serve as
+the simulation's search.
 
 <details><summary>Python</summary>
 
 ```python
-nodes = blocks.discretize(2)
-
-sgs = cs.SGS(gaussian, passes(high_grade=(30.0, 15.0))).fit(xyz, zn, weights=weights, holes=holes)
-summary = sgs.simulate(nodes, n=30, seed=1, cutoffs=[10.0], blocks=blocks)
+grid = cs.BlockModel(origin, (10, 10, 10), count)
+parents = grid.mask(np.isin(np.arange(len(grid)), blocks.index[block_lens == "lens_1"]))
+nodes = parents.discretize(2)
+sgs = cs.SGS(gaussian, passes[:2]).fit(one, "ZN_PCT", weights="weight", holes="hole")
+summary = sgs.simulate(nodes, n=30, seed=1, cutoffs=[5.0], blocks=parents)
 low, high = np.quantile(summary.realization_above[0], [0.1, 0.9])
-on = sgs.passes(nodes)
-print(
-    f"{len(nodes)} nodes in {len(blocks)} blocks; pass 1: {np.mean(on == 1):.0%} of nodes, "
-    f"pass 2: {np.mean(on == 2):.0%}, neither: {np.mean(np.isnan(on)):.0%}"
-)
-print(
-    f"blocks above 10 % Zn: P10 {low:.1%}, P90 {high:.1%} of the lens; kriged {np.mean(kriged['value'] > 10):.1%}"
-)
+print(f"{len(parents)} parent blocks: P10 {low:.0%}, P90 {high:.0%} of them above 5 % Zn")
+sure = np.mean(summary.probability_above[0] > 0.9)
+print(f"mean {summary.mean.mean():.2f} % Zn; blocks above 5 % in more than 90 % of realizations: {sure:.0%}")
+```
 
-fig, ax = plt.subplots(figsize=(6, 3.4), layout="constrained")
-cs.plot.swath(
-    [
-        cs.swath(samples, "ZN", 20.0, axis="z", weights="weight"),
-        cs.swath(blocks, kriged["value"], 20.0, axis="z"),
-        cs.swath(blocks, summary.mean, 20.0, axis="z"),
-    ],
-    labels=["declustered composites", "kriged blocks", "mean of 30 simulations"],
-    ax=ax,
-)
-ax.set(xlabel="Elevation (m)", ylabel="Zn (%)", title="Swath by elevation")
-ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.22), ncol=3)
+</details>
+
+```text
+4417 parent blocks: P10 42%, P90 48% of them above 5 % Zn
+mean 5.20 % Zn; blocks above 5 % in more than 90 % of realizations: 1%
+```
+
+In eight realizations out of ten, between 42 and 48 % of the parent blocks exceed 5 % Zn, yet only 1 % of them do
+so in more than 90 % of the realizations: at this drill spacing hardly any single block is a sure thing, even
+though the share of ore across the lens is well known.
+
+## Validation
+
+The kriged blocks, weighted by volume, should match the declustered composites of each lens, and a nearest-neighbor
+model, the other unbiased reference, and follow them along strike and down the lens.
+
+<details><summary>Python</summary>
+
+```python
+nearest = cs.NearestNeighbor(cs.Search(250, max_samples=1)).fit(composites, "ZN_PCT", domain_column="LENS")
+blocks = blocks.with_column("nn", nearest.predict(blocks, domain_column="LENS"))
+for name in lenses:
+    inside = block_lens == name
+    bias = cs.global_bias(
+        blocks["zn"][inside],
+        composites["ZN_PCT"][names == name],
+        weights=blocks.volumes[inside],
+        data_weights=weights[names == name],
+    )
+    nn = np.average(blocks["nn"][inside], weights=blocks.volumes[inside])
+    print(
+        f"{name}: kriged {bias['estimate_mean']:.2f} % Zn, declustered composites {bias['data_mean']:.2f} % "
+        f"({bias['relative']:+.1%}), nearest neighbor {nn:.2f} % ({bias['estimate_mean'] / nn - 1:+.1%})"
+    )
+
+in_one = block_lens == "lens_1"
+fig, axes = plt.subplots(1, 2, figsize=(9, 3.4), layout="constrained")
+for ax, (axis, label) in zip(axes, (("y", "Northing (m)"), ("z", "Elevation (m)")), strict=True):
+    cs.plot.swath(
+        [
+            cs.swath(one, "ZN_PCT", 40.0, axis=axis),
+            cs.swath(
+                blocks.centroids[in_one],
+                blocks["nn"][in_one],
+                40.0,
+                axis=axis,
+                weights=blocks.volumes[in_one],
+            ),
+            cs.swath(
+                blocks.centroids[in_one],
+                blocks["zn"][in_one],
+                40.0,
+                axis=axis,
+                weights=blocks.volumes[in_one],
+            ),
+        ],
+        labels=["composites", "nearest neighbor", "kriged blocks"],
+        ax=ax,
+    )
+    ax.set(xlabel=label, ylabel="Zn (%)")
+    ax.get_legend().remove()
+axes[0].set_title("Lens 1 swaths")
+fig.legend(*axes[0].get_legend_handles_labels(), loc="outside lower center", ncol=3)
 save(fig, "swath")
 ```
 
 </details>
 
 ```text
-16552 nodes in 2069 blocks; pass 1: 80% of nodes, pass 2: 20%, neither: 0%
-blocks above 10 % Zn: P10 37.7%, P90 46.5% of the lens; kriged 38.2%
+lens_1: kriged 5.49 % Zn, declustered composites 5.13 % (+7.1%), nearest neighbor 5.50 % (-0.1%)
+lens_2: kriged 5.46 % Zn, declustered composites 5.61 % (-2.7%), nearest neighbor 4.88 % (+11.8%)
+lens_3: kriged 5.30 % Zn, declustered composites 5.42 % (-2.1%), nearest neighbor 4.48 % (+18.3%)
 ```
 
 ![swath](swath.png)
 
-By elevation the kriged blocks and the mean of the simulations agree, and follow the composites more smoothly, as
-they should, damping the rich level at 860–880 m.
-
-The soft boundary with `SM` carries over to simulation. Fitted with `domains`, each domain is normal-scored on its
-own, with its own declustering weights, and every node is back-transformed through the table of its domain; one
-normal-score variogram serves both. Here every node is `MS`, so the hard boundary again gives the simulation above,
-bit for bit. With `soft=10.0`, `SM` composites within 10 m of a node inform it, as in kriging, and so would `SM`
-nodes already simulated had any been asked for. They enter by their grade, normal-scored through the `MS` table:
-the node is `MS`, so its neighbors are read as `MS` grades.
-
-<details><summary>Python</summary>
-
-```python
-sm_weights = cs.cell_declustering(sm_xyz, sm_zn, sizes=np.arange(5, 80, 5)).weights
-sm_weights /= sm_weights.mean()
-simulated = {}
-for name, soft in (("hard", None), ("soft", 10.0)):
-    searches = [
-        cs.Search(radius=r, max_samples=16, min_samples=m, max_per_hole=4, high_grade=(30.0, 15.0), soft=soft)
-        for r, m in ((30, 8), (60, 4))
-    ]
-    zoned = cs.SGS(gaussian, searches).fit(
-        *both, weights=np.r_[weights, sm_weights], holes=np.r_[holes, sm_holes], domains=labels
-    )
-    simulated[name] = zoned.simulate(nodes, n=30, seed=1, cutoffs=[10.0], blocks=blocks, domains="MS")
-print(f"hard boundary equals MS only: {np.array_equal(simulated['hard'].mean, summary.mean)}")
-for name, s in simulated.items():
-    print(
-        f"{name}: mean {s.mean.mean():.2f} % Zn, {s.mean[near].mean():.2f} % within 10 m of SM, "
-        f"{s.mean[~near].mean():.2f} % elsewhere; P(block > 10 %) near SM {s.probability_above[0][near].mean():.1%}"
-    )
-```
-
-</details>
-
-```text
-hard boundary equals MS only: True
-hard: mean 9.65 % Zn, 9.33 % within 10 m of SM, 9.78 % elsewhere; P(block > 10 %) near SM 41.3%
-soft: mean 9.38 % Zn, 8.75 % within 10 m of SM, 9.65 % elsewhere; P(block > 10 %) near SM 38.2%
-```
-
-Near `SM` the soft boundary lowers the simulated block grade from 9.3 to 8.8 % Zn, as it lowered the kriged one
-from 9.1 to 8.7 %: the leaner `SM` grades score low in the `MS` table and pull the nodes next to them down. The
-chance that a block there exceeds 10 % Zn drops by three points. Unlike kriging, the rest of the lens moves too, by
-0.13 %: nodes simulated near `SM` condition the nodes after them, so the leaner contact reaches beyond 10 m.
-
-Turning bands takes the same `domains` and soft boundary, with one search. Both domains share the bands of a
-realization; each node kriges the residuals of the composites of its domain, and of the `SM` composites within
-10 m read through the `MS` table, and is back-transformed through the table of its own domain.
-
-<details><summary>Python</summary>
-
-```python
-banded = {}
-for name, soft in (("hard", None), ("soft", 10.0)):
-    search = cs.Search(radius=60, max_samples=16, max_per_hole=4, high_grade=(30.0, 15.0), soft=soft)
-    bands = cs.TurningBands(gaussian, search=search).fit(
-        *both, weights=np.r_[weights, sm_weights], holes=np.r_[holes, sm_holes], domains=labels
-    )
-    banded[name] = bands.simulate(nodes, n=30, seed=1, cutoffs=[10.0], blocks=blocks, domains="MS")
-for name, s in banded.items():
-    print(
-        f"turning bands, {name}: mean {s.mean.mean():.2f} % Zn, {s.mean[near].mean():.2f} % within 10 m of SM, "
-        f"{s.mean[~near].mean():.2f} % elsewhere"
-    )
-```
-
-</details>
-
-```text
-turning bands, hard: mean 9.60 % Zn, 9.35 % within 10 m of SM, 9.71 % elsewhere
-turning bands, soft: mean 9.39 % Zn, 8.72 % within 10 m of SM, 9.68 % elsewhere
-```
-
-Near `SM` the soft boundary lowers the block grade from 9.35 to 8.72 % Zn, close to what it does in SGS. Farther in
-the lens barely moves, 9.71 against 9.68 %: turning bands conditions on composites only, as kriging does, so only
-the nodes within 10 m of an `SM` composite see it, and a few of them sit in blocks whose center lies farther away.
+In lens 1 the kriged mean equals that of the nearest-neighbor model and lies 7.1 % above the declustered
+composites; in lenses 2 and 3 it is within 3 % of the declustered composites but 12 and 18 % above nearest
+neighbor. The two references disagree with each other as much as with the model: nearest neighbor spreads each
+edge composite over the blocks around it, and cell declustering depends on the cell size it settles on. Along
+northing and elevation, kriged blocks and nearest neighbor follow the same course, and the composites swing
+around both, as raw data do.
 
 ## Classification
 
-Measured blocks come from the first pass with a slope of regression of at least 0.8; indicated, from either pass
-with a slope of 0.5. A 3 × 3 × 3 majority filter removes isolated blocks.
+Measured blocks come from the first pass with a slope of regression of at least 0.6; indicated, from the first
+two passes with a slope of 0.3; the rest is inferred. With a nugget of 43 % of the sill and a 38 m range, only
+blocks close to several holes qualify as measured.
 
 <details><summary>Python</summary>
 
 ```python
 rules = [
-    ("measured", {"pass": ("<=", 1), "slope": (">=", 0.8)}),
-    ("indicated", {"slope": (">=", 0.5)}),
+    ("measured", {"pass": ("<=", 1), "slope": (">=", 0.6)}),
+    ("indicated", {"pass": ("<=", 2), "slope": (">=", 0.3)}),
 ]
 classes = cs.classify(kriged, rules, default="inferred")
-classes = cs.smooth_classes(blocks, classes, window=(3, 3, 3))
-names = ["measured", "indicated", "inferred"]
-for name in names:
-    inside = classes == name
-    print(f"{name:>9}: {inside.mean():5.1%} of blocks, mean {np.nanmean(kriged['value'][inside]):5.2f} % Zn")
+categories = cs.Categories(["measured", "indicated", "inferred"], colors=[ACCENT, "#9ebad6", LIGHT])
+blocks = blocks.with_column("class", categories.encode(classes))
+for name in categories.names:
+    print(f"{name:>9}: {np.mean(classes == name):.0%} of blocks")
 ```
 
 </details>
 
 ```text
- measured: 50.7% of blocks, mean  9.61 % Zn
-indicated: 13.8% of blocks, mean  8.94 % Zn
- inferred: 35.6% of blocks, mean  8.97 % Zn
+ measured: 2% of blocks
+indicated: 39% of blocks
+ inferred: 59% of blocks
 ```
 
-Drill spacing gives a second opinion that does not depend on the variogram fit. `hole_distance` takes, for each
-block, the nearest composite of every hole, and averages the distances to the `n` nearest holes, so a hole with
-many composites near a block still counts once. Measured blocks are on average within half the variogram range
-(15 m) of three holes; indicated, within the range (30 m) of two; holes beyond the 60 m of the second pass do not
-count.
+Lens 1 is seen face on, on the plane through its middle, with its outline on that plane and its composites as
+dots. The plane's pole is the least spread direction of the wireframe's vertices.
 
 <details><summary>Python</summary>
 
 ```python
-spacing = cs.hole_distance(blocks, xyz, holes, n=[2, 3], search=cs.Search(radius=60))
-rules = [
-    ("measured", {"three": ("<=", 15)}),
-    ("indicated", {"two": ("<=", 30)}),
-]
-by_distance = cs.classify({"two": spacing[:, 0], "three": spacing[:, 1]}, rules, default="inferred")
-by_distance = cs.smooth_classes(blocks, by_distance, window=(3, 3, 3))
-print(f"{'':>9}  " + "".join(f"{n:>10}" for n in names) + "   (rows: pass and slope, columns: distance)")
-for name in names:
-    print(f"{name:>9}: " + "".join(f"{np.mean((classes == name) & (by_distance == m)):10.1%}" for m in names))
-print(f"same class for {np.mean(classes == by_distance):.0%} of blocks")
-```
-
-</details>
-
-```text
-             measured indicated  inferred   (rows: pass and slope, columns: distance)
- measured:      50.2%      0.4%      0.0%
-indicated:       9.2%      4.5%      0.0%
- inferred:       1.8%     29.0%      4.8%
-same class for 60% of blocks
-```
-
-Where the slope is high, spacing agrees: almost every block measured by slope is measured by distance too. Spacing
-is the more generous of the two elsewhere, placing most blocks the slope leaves inferred within 30 m of two holes.
-Most intercepts give a hole one composite in the lens, so a block near two holes may still rest on few data; the
-slope sees that and the distance does not. Rules can combine both, as in chapter 18.
-
-On the east–west section through the middle of the lens, the simulated block grade is drawn with
-`plot.uncertain`: the mean of the realizations sets the color and their standard deviation, over the spread of
-all simulated blocks, fades it to white. Blocks along the holes keep their color; the western ones, informed
-only by composites off the section, fade almost to white, and are the inferred ones.
-
-<details><summary>Python</summary>
-
-```python
-std_all = np.sqrt(summary.variance.mean() + summary.mean.var())
-resource_classes = cs.Categories(names, colors=[ACCENT, "#9ebad6", LIGHT])
-blocks = (
-    blocks.with_column("zn", kriged["value"])
-    .with_column("mean", summary.mean)
-    .with_column("uncertainty", summary.std / std_all)
-    .with_column("p_above_10", summary.probability_above[0])
-    .with_column("class", resource_classes.encode(classes))
-)
-rows = blocks.index // count[0] % count[1]
-row = int(np.bincount(rows).argmax())
-on_row = blocks.centroids[rows == row]
-xlim, ylim = ((on_row[:, j].min() - 12.5, on_row[:, j].max() + 12.5) for j in (0, 2))
-north = on_row[0, 1]
-
-fig = plt.figure(figsize=(11, 6.4), layout="constrained")
-axes = fig.subplots(2, 4, height_ratios=[4, 1])
-grade = plt.Normalize(0, 25)
-cs.plot.section(blocks, "zn", axis="y", index=row, ax=axes[0, 0], colorbar=False, norm=grade)
-cs.plot.uncertain(
-    "mean",
-    "uncertainty",
-    model=blocks,
-    axis="y",
-    index=row,
-    norm=grade,
-    label="Zn (%)",
-    legend_ax=axes[1, 1],
-    ax=axes[0, 1],
-)
-cs.plot.section(blocks, "p_above_10", axis="y", index=row, ax=axes[0, 2], colorbar=False, vmin=0, vmax=1)
-cs.plot.section(blocks, "class", axis="y", index=row, ax=axes[0, 3], colorbar=False, scheme=resource_classes)
-titles = ("Kriged Zn", "Simulated block Zn", "P(block Zn > 10 %)", "Class")
-for ax, title in zip(axes[0], titles, strict=True):
-    cs.plot.slab(xyz, plane=((0, north, 0), 90, 90), thickness=10, s=4, color=HIGHLIGHT, linewidths=0, ax=ax)
-    ax.set(title=title, xlim=xlim, ylim=ylim)
-for ax, image, label in (
-    (axes[1, 0], axes[0, 0].images[0], "Zn (%)"),
-    (axes[1, 2], axes[0, 2].images[0], "probability"),
-):
-    ax.axis("off")
-    fig.colorbar(image, cax=ax.inset_axes([0.1, 0.6, 0.8, 0.15]), orientation="horizontal", label=label)
-axes[1, 3].axis("off")
-cs.plot.category_legend(resource_classes, axes[1, 3], loc="upper center", fontsize=8)
+parents = parents.with_column("p_above_5", summary.probability_above[0])
+vertices = lenses["lens_1"].vertices
+pole = np.linalg.eigh(np.cov(vertices.T))[1][:, 0]
+pole *= np.sign(pole[2])
+strike = (np.degrees(np.arctan2(pole[0], pole[1])) - 90) % 360
+dip = np.degrees(np.arccos(pole[2]))
+print(f"lens 1 strikes {strike:03.0f}°, dips {dip:.0f}°")
+plane = (tuple(vertices.mean(axis=0)), strike, dip)
+fig, axes = plt.subplots(3, 1, figsize=(7, 10), layout="constrained", sharex=True)
+cs.plot.section(blocks, "zn", plane=plane, ax=axes[0], colorbar=False, vmin=0, vmax=12)
+cs.plot.section(parents, "p_above_5", plane=plane, ax=axes[1], colorbar=False, vmin=0, vmax=1)
+cs.plot.section(blocks, "class", plane=plane, ax=axes[2], colorbar=False, scheme=categories)
+for ax in axes[:2]:
+    fig.colorbar(ax.images[0], cax=ax.inset_axes([0.7, 1.04, 0.28, 0.04]), orientation="horizontal")
+cs.plot.category_legend(categories, axes[2], loc="lower right", bbox_to_anchor=(1, 1), ncol=3)
+titles = ("Kriged Zn (%)", "P(10 m block Zn > 5 %)", "Class")
+for ax, title in zip(axes, titles, strict=True):
+    cs.plot.slab(one, plane=plane, thickness=60, meshes=[lenses["lens_1"]], s=3, color=HIGHLIGHT, ax=ax)
+    ax.set(title=title, aspect="equal")
 save(fig, "section")
 ```
 
 </details>
 
+```text
+lens 1 strikes 021°, dips 59°
+```
+
 ![section](section.png)
 
-## Comparing models
+## Tonnes and metal
 
-`compare_models` sets several models of the same blocks side by side: tonnage, mean grade and metal at or above
-each cutoff, per class and over all, with each model's difference from the first. Here the kriged blocks, the soft
-boundary with `SM` and the mean of the simulations, at a 10 % Zn cutoff, with 125 m³ blocks and an assumed
-density of 3.5 t/m³.
+Tonnes are block volume × kriged density and metal is tonnes × Zn, per lens and class, in all of each lens and
+above a 5 % Zn cutoff.
 
 <details><summary>Python</summary>
 
 ```python
-models = {"kriged": "zn", "soft SM": by_rule["soft"]["value"], "simulated": "mean"}
-table = cs.compare_models(blocks, models, [10.0], categories=classes, density=3.5)
-print(f"{'':21}{'kt':>7}{'Zn %':>7}{'kt Zn':>7}{'tonnes':>9}{'metal':>8}")
-columns = ["category", "model", "tonnage", "mean_grade", "metal", "tonnage_diff", "metal_diff"]
-for category, model, tonnage, grade, metal, tonnage_diff, metal_diff in zip(
-    *(table[c] for c in columns), strict=True
-):
-    print(
-        f"{category:10}{model:11}{tonnage / 1e3:7.1f}{grade:7.2f}{metal / 1e5:7.2f}"
-        f"{tonnage_diff:+9.1%}{metal_diff:+8.1%}"
+print(f"{'':20}{'kt':>8}{'Zn %':>7}{'kt Zn':>8}")
+for groups in (block_lens, classes):
+    table = cs.grade_tonnage(
+        "zn", [0.0, 5.0], weights=blocks.volumes, density="density", categories=groups, data=blocks
     )
+    for category, cutoff, tonnes, grade, metal in zip(
+        *(table[c] for c in ("category", "cutoff", "tonnage", "mean_grade", "metal")), strict=True
+    ):
+        print(f"{category:10} ≥ {cutoff:1.0f} % Zn{tonnes / 1e3:8.0f}{grade:7.2f}{metal / 1e5:8.1f}")
 ```
 
 </details>
 
 ```text
-                          kt   Zn %  kt Zn   tonnes   metal
-indicated kriged        44.6  13.46   6.01    +0.0%   +0.0%
-indicated soft SM       48.6  13.17   6.40    +8.8%   +6.5%
-indicated simulated     58.2  12.74   7.41   +30.4%  +23.4%
-inferred  kriged       101.1  12.32  12.45    +0.0%   +0.0%
-inferred  soft SM      101.1  12.31  12.44    +0.0%   -0.1%
-inferred  simulated    136.1  11.38  15.49   +34.6%  +24.4%
-measured  kriged       199.9  14.97  29.93    +0.0%   +0.0%
-measured  soft SM      189.0  14.95  28.26    -5.5%   -5.6%
-measured  simulated    213.5  14.91  31.82    +6.8%   +6.3%
-all       kriged       345.6  14.00  48.39    +0.0%   +0.0%
-all       soft SM      338.6  13.91  47.09    -2.0%   -2.7%
-all       simulated    407.8  13.42  54.72   +18.0%  +13.1%
+                          kt   Zn %   kt Zn
+lens_1     ≥ 0 % Zn    9564   5.55   530.4
+lens_1     ≥ 5 % Zn    4700   7.31   343.4
+lens_2     ≥ 0 % Zn    6412   5.51   353.4
+lens_2     ≥ 5 % Zn    3566   7.01   249.9
+lens_3     ≥ 0 % Zn    5531   5.33   294.9
+lens_3     ≥ 5 % Zn    2974   6.38   189.7
+all        ≥ 0 % Zn   21507   5.48  1178.7
+all        ≥ 5 % Zn   11241   6.97   783.0
+indicated  ≥ 0 % Zn    8681   5.73   497.1
+indicated  ≥ 5 % Zn    4803   7.26   348.8
+inferred   ≥ 0 % Zn   12198   5.21   635.3
+inferred   ≥ 5 % Zn    6021   6.58   396.0
+measured   ≥ 0 % Zn     628   7.38    46.4
+measured   ≥ 5 % Zn     417   9.15    38.2
+all        ≥ 0 % Zn   21507   5.48  1178.7
+all        ≥ 5 % Zn   11241   6.97   783.0
 ```
 
-The soft boundary takes 2.7 % of the metal above cutoff, most of it from measured blocks. The mean of the
-simulations puts 18 % more tonnes above 10 % Zn, at a lower grade, and 13 % more metal, mostly in indicated and
-inferred blocks, where kriging, far from the composites, smooths grades towards the mean and below the cutoff.
+The three lenses hold 21.5 Mt at 5.48 % Zn, 1.18 Mt of zinc, of which 11.2 Mt at 6.97 % lie above 5 % Zn. Lens 1
+carries 45 % of the metal; measured blocks, only 628 kt, are its rich core near the top.
 
-## Saving
-
-The block model, with its geometry, mask and columns, goes to Parquet and back unchanged.
+The model, sub-blocks, lens names, grades, classes and all, goes to Parquet and back unchanged.
 
 <details><summary>Python</summary>
 
 ```python
 with tempfile.TemporaryDirectory() as folder:
-    path = Path(folder) / "ms_lens.parquet"
+    path = Path(folder) / "lenses.parquet"
     cs.write_parquet(path, blocks)
     stored = cs.read_parquet(path)
-print(
-    f"{len(stored)} blocks, columns {stored.attributes.column_names}, same Zn: {np.allclose(stored['zn'], blocks['zn'])}"
-)
+print(f"{len(stored)} blocks, columns {stored.attributes.column_names}")
+same = np.array_equal(stored.extents, blocks.extents) and np.array_equal(stored["zn"], blocks["zn"])
+print(f"same sub-blocks and Zn: {same}")
 ```
 
 </details>
 
 ```text
-2069 blocks, columns ['zn', 'mean', 'uncertainty', 'p_above_10', 'class'], same Zn: True
+19981 blocks, columns ['LENS', 'zn', 'density', 'pass', 'slope', 'nn', 'class']
+same sub-blocks and Zn: True
 ```
 
 Full script: [`tutorial_02.py`](tutorial_02.py)
