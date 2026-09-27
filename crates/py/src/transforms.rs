@@ -498,13 +498,21 @@ impl Ppmt {
     }
 }
 
-/// Imputes missing variables from the variables present in the same sample.
+/// Imputes missing variables from the variables present in the same sample
+/// and, with `spatial`, from nearby samples.
 ///
 /// Each variable is normal-scored on its observed values; the mean and
 /// covariance of the scores are fitted by expectation-maximization, missing
 /// entries included. Each missing score is drawn from its Gaussian
 /// distribution given the scores present in its row and back-transformed, so
 /// the imputed values keep the histograms and correlations of the data.
+///
+/// With `spatial`, the scores follow an intrinsic model: every variable and
+/// pair of variables shares the correlogram of `spatial`, scaled by the score
+/// covariance (of the row's component, with a mixture). Rows are visited
+/// along a random path and their missing scores drawn by simple cokriging
+/// from the scores in the row and in the nearest samples, imputed ones
+/// included.
 ///
 /// Parameters
 /// ----------
@@ -516,12 +524,28 @@ impl Ppmt {
 /// seed : int, default 0
 ///     Seed of the mixture and of the draws; the same seed imputes the same
 ///     values.
+/// spatial : Variogram, optional
+///     Normal-score variogram shared by all variables; its sill is rescaled
+///     to one. A pure nugget imputes as without `spatial`.
+/// neighbors : int, default 16
+///     Nearest samples, in the variogram's anisotropic distance, that each
+///     draw conditions on; those beyond the range are left out.
 #[derive(Serialize, Deserialize)]
 #[pyclass(module = "ceres", name = "GaussianImputer")]
 pub struct GaussianImputer {
     components: Option<usize>,
     seed: u64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    spatial: Option<variogram::Variogram>,
+    #[serde(default = "default_neighbors")]
+    neighbors: usize,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    coords: Option<Vec<Point>>,
     fitted: Option<transforms::GaussianImputer>,
+}
+
+fn default_neighbors() -> usize {
+    16
 }
 
 impl GaussianImputer {
@@ -529,6 +553,21 @@ impl GaussianImputer {
         self.fitted
             .as_ref()
             .ok_or_else(|| not_fitted("GaussianImputer"))
+    }
+
+    /// An imputer fitted to `data`, with the settings of this one.
+    pub(crate) fn fit_like(
+        &self,
+        data: &[Vec<f64>],
+        weights: Option<&[f64]>,
+    ) -> PyResult<transforms::GaussianImputer> {
+        let imputer =
+            transforms::GaussianImputer::fit_mixture(data, weights, self.components, self.seed)
+                .map_err(err)?;
+        match &self.spatial {
+            None => Ok(imputer),
+            Some(v) => imputer.with_spatial(v.clone(), self.neighbors).map_err(err),
+        }
     }
 }
 
@@ -547,13 +586,32 @@ impl GaussianImputer {
     }
 
     #[new]
-    #[pyo3(signature = (*, components=Some(1), seed=0))]
-    fn new(components: Option<usize>, seed: u64) -> Self {
-        Self {
+    #[pyo3(signature = (*, components=Some(1), seed=0, spatial=None, neighbors=16))]
+    fn new(
+        components: Option<usize>,
+        seed: u64,
+        spatial: Option<PyRef<crate::variogram::Variogram>>,
+        neighbors: usize,
+    ) -> PyResult<Self> {
+        if neighbors == 0 {
+            return Err(invalid("neighbors must be at least 1"));
+        }
+        let spatial = spatial.map(|v| v.0.clone());
+        if let Some(v) = &spatial
+            && (!v.is_stationary() || !(v.total_sill() > 0.0 && v.total_sill().is_finite()))
+        {
+            return Err(invalid(
+                "spatial needs a variogram with a finite, positive sill",
+            ));
+        }
+        Ok(Self {
             components,
             seed,
+            spatial,
+            neighbors,
+            coords: None,
             fitted: None,
-        }
+        })
     }
 
     /// Fits the normal scores and their covariance.
@@ -562,38 +620,72 @@ impl GaussianImputer {
     /// ----------
     /// data : array_like, shape (n, variables)
     ///     NaN marks a missing variable; each variable needs two values.
+    /// coords : array_like, shape (n, 2) or (n, 3), or PointSet, optional
+    ///     Sample locations, needed with `spatial`; `transform` uses them when
+    ///     given none.
     /// weights : array_like, optional
     ///     Declustering weights, for the scores and the covariance.
-    #[pyo3(signature = (data, *, weights=None))]
+    #[pyo3(signature = (data, *, coords=None, weights=None))]
     fn fit<'py>(
         mut slf: PyRefMut<'py, Self>,
         data: &Bound<PyAny>,
+        coords: Option<&Bound<PyAny>>,
         weights: Option<&Bound<PyAny>>,
     ) -> PyResult<PyRefMut<'py, Self>> {
         let data = rows(data, "data")?;
+        let coords = coords.map(points).transpose()?;
+        match &coords {
+            Some(c) => same_length(data.len(), c.len(), "coords")?,
+            None if slf.spatial.is_some() => {
+                return Err(invalid("a spatial GaussianImputer needs coords"));
+            }
+            None => {}
+        }
         let weights = optional_finite(weights, "weights")?;
-        let (w, k, seed) = (weights.as_deref(), slf.components, slf.seed);
-        slf.fitted =
-            Some(transforms::GaussianImputer::fit_mixture(&data, w, k, seed).map_err(err)?);
+        slf.fitted = Some(slf.fit_like(&data, weights.as_deref())?);
+        slf.coords = coords.filter(|_| slf.spatial.is_some());
         Ok(slf)
     }
 
-    #[pyo3(signature = (data, *, weights=None))]
+    #[pyo3(signature = (data, *, coords=None, weights=None))]
     fn fit_transform<'py>(
         slf: PyRefMut<'py, Self>,
         data: &Bound<'py, PyAny>,
+        coords: Option<&Bound<PyAny>>,
         weights: Option<&Bound<PyAny>>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let py = slf.py();
-        Self::fit(slf, data, weights)?.transform(py, data)
+        Self::fit(slf, data, coords, weights)?.transform(py, data, None)
     }
 
     /// `data` with every NaN replaced by an imputed value; the other values
     /// are returned unchanged.
-    fn transform<'py>(&self, py: Python<'py>, data: &Bound<PyAny>) -> PyResult<Bound<'py, PyAny>> {
+    ///
+    /// Parameters
+    /// ----------
+    /// data : array_like, shape (n, variables)
+    /// coords : array_like, shape (n, 2) or (n, 3), or PointSet, optional
+    ///     Locations of `data`, used with `spatial`; defaults to those given
+    ///     to `fit`.
+    #[pyo3(signature = (data, *, coords=None))]
+    fn transform<'py>(
+        &self,
+        py: Python<'py>,
+        data: &Bound<PyAny>,
+        coords: Option<&Bound<PyAny>>,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let data = rows(data, "data")?;
+        let given = coords.map(points).transpose()?;
+        let coords = given
+            .as_deref()
+            .or(self.coords.as_deref())
+            .filter(|_| self.spatial.is_some());
+        if let Some(c) = coords {
+            same_length(data.len(), c.len(), "coords")?;
+        }
         let out = self
             .fitted()?
-            .impute(&rows(data, "data")?, self.seed)
+            .impute(&data, coords, self.seed)
             .map_err(err)?;
         Ok(array2(py, &out).into_any())
     }

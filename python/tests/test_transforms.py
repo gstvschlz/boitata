@@ -29,6 +29,31 @@ def test_gaussian_imputer_keeps_data_and_reproduces_correlation():
         cs.GaussianImputer().fit(np.column_stack([full[:, 0], np.full(2000, np.nan)]))
 
 
+def test_spatial_imputer_follows_neighbors():
+    xy = rng.uniform(0, 100, (400, 2))
+    d = np.linalg.norm(xy[:, None] - xy[None], axis=-1)
+    h = np.minimum(d / 20.0, 1.0)
+    chol = np.linalg.cholesky(1 - 1.5 * h + 0.5 * h**3 + 1e-9 * np.eye(400))
+    y = chol @ rng.standard_normal((400, 2))
+    full = np.column_stack([y[:, 0], 0.7 * y[:, 0] + np.sqrt(0.51) * y[:, 1]])
+    data = full.copy()
+    hidden = np.arange(400) % 2 == 0
+    data[hidden, 1] = np.nan
+    spatial = cs.GaussianImputer(seed=3, spatial=cs.Variogram([("spherical", 1.0, 20.0)]))
+    out = spatial.fit(data, coords=xy).transform(data)
+    np.testing.assert_array_equal(out[~np.isnan(data)], data[~np.isnan(data)])
+    np.testing.assert_array_equal(out, spatial.fit_transform(data, coords=xy))
+    plain = cs.GaussianImputer(seed=3).fit_transform(data)
+    err = [np.sqrt(np.mean((o[hidden, 1] - full[hidden, 1]) ** 2)) for o in (out, plain)]
+    assert err[0] < 0.8 * err[1]
+    nugget = cs.GaussianImputer(seed=3, spatial=cs.Variogram([], nugget=1.0)).fit(data, coords=xy)
+    np.testing.assert_array_equal(nugget.transform(data), plain)
+    back = cs.GaussianImputer.from_json(spatial.to_json())
+    np.testing.assert_array_equal(back.transform(data), out)
+    with pytest.raises(ValueError, match="coords"):
+        cs.GaussianImputer(spatial=cs.Variogram([("spherical", 1.0, 20.0)])).fit(data)
+
+
 def test_normal_score_is_standard_and_invertible(skewed):
     ns = cs.NormalScore()
     y = ns.fit_transform(skewed)
