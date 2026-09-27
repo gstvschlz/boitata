@@ -1,0 +1,27 @@
+name: Feature request
+description: Propose a new feature or a change to an existing one.
+title: "ENH: <write a short title after the 'ENH: ' prefix>"
+labels: [enhancement]
+
+body:
+- type: markdown
+  attributes:
+    value: >
+      Describe the geostatistics problem first, then the change you have in mind.
+      See [CONTRIBUTING.md](https://github.com/gstvschlz/ceres/blob/main/CONTRIBUTING.md)
+      if you want to implement it yourself.
+
+- type: textarea
+  attributes:
+    label: "Proposed new feature or change:"
+    description: >
+      What do you want to estimate, simulate, validate or read, and what stops you today?
+      Name the algorithm, format or paper if there is one.
+  validations:
+    required: true
+
+- type: textarea
+  attributes:
+    label: "Example usage:"
+    description: How would you call it from Python?
+    render: python
