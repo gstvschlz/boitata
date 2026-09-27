@@ -69,11 +69,11 @@ for name, reals, seconds in (("SGS", by_sgs, sgs_seconds), ("turning bands", by_
 </details>
 
 ```text
-          SGS: 20 realizations in 0.48 s, mean 301 ppm, variance 71507 ppm²
-turning bands: 20 realizations in 0.27 s, mean 291 ppm, variance 60711 ppm²
+          SGS: 20 realizations in 0.45 s, mean 301 ppm, variance 71507 ppm²
+turning bands: 20 realizations in 0.24 s, mean 300 ppm, variance 70795 ppm²
 ```
 
-Both follow the same high-grade trends; turning bands' realizations are smoother at short scale:
+Both follow the same high-grade trends, with the same short-scale scatter:
 
 <details><summary>Python</summary>
 
@@ -99,8 +99,8 @@ save(fig, "realizations")
 
 ![realizations](realizations.png)
 
-Along the major axis both reach the sill at the model range, but at the first lags turning bands falls below the
-model nugget, where SGS follows it:
+Along the major axis both follow the model, from its nugget at the first lags to the sill at its range. Turning bands
+simulates the nugget as independent noise at each node, since the bands carry only the structures:
 
 <details><summary>Python</summary>
 

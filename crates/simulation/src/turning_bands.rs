@@ -15,7 +15,9 @@
 //! `Zc = Zk(data) + [Zu − Zk(Zu@data)]` (kriging of the residual).
 //!
 //! Anisotropy is handled by running the bands in the space where the variogram
-//! is isotropic.
+//! is isotropic. The bands carry the structures only; the nugget is white
+//! noise drawn at each point from the realization and the point's
+//! coordinates, and the kriging uses the whole model.
 //!
 //! The data are transformed as in SGS, within each domain and trend class;
 //! every domain shares the bands, and a node's residuals are kriged, and its
@@ -28,8 +30,8 @@ use estimation::Sample;
 use estimation::krige::{Kind, krige};
 use estimation::search::{Search, SearchTree};
 use nalgebra::{Matrix3, Vector3};
-use rand::SeedableRng;
 use rand::rngs::StdRng;
+use rand::{RngCore, SeedableRng};
 use rand_distr::{Distribution, Normal};
 use rayon::prelude::*;
 use variogram::Variogram;
@@ -228,6 +230,22 @@ fn band_step(vg: &Variogram, params: &TurningBandsParams) -> f64 {
     })
 }
 
+/// A standard-normal draw fixed by `key` and the coordinates of `p`.
+fn white(key: u64, p: &(f64, f64, f64)) -> f64 {
+    let mix = |z: u64| {
+        let z = z.wrapping_add(0x9E37_79B9_7F4A_7C15);
+        let z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+        let z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+        z ^ (z >> 31)
+    };
+    let h = [p.0, p.1, p.2]
+        .iter()
+        .fold(key, |h, v| mix(h ^ (v + 0.0).to_bits()));
+    let unit = |z: u64| (z >> 11) as f64 / (1u64 << 53) as f64;
+    let (u1, u2) = (unit(h) + 0.5 / (1u64 << 53) as f64, unit(mix(h)));
+    (-2.0 * u1.ln()).sqrt() * (std::f64::consts::TAU * u2).cos()
+}
+
 /// Bounding box of `points`, `(lo, hi)`.
 pub fn bounds(points: &[(f64, f64, f64)]) -> ([f64; 3], [f64; 3]) {
     points.iter().fold(
@@ -243,12 +261,14 @@ pub fn bounds(points: &[(f64, f64, f64)]) -> ([f64; 3], [f64; 3]) {
 }
 
 /// What every realization over one box shares: the band spacing, the
-/// corners in isotropic space and the band factorization.
+/// corners in isotropic space, the band factorization of the structures and
+/// the nugget's share of the sill.
 struct Layout {
     to_isotropic: Matrix3<f64>,
     corners: Vec<Vector3<f64>>,
     step: f64,
     factor: Vec<Vec<f64>>,
+    nugget: f64,
 }
 
 impl Layout {
@@ -259,6 +279,7 @@ impl Layout {
             .map_or_else(Matrix3::identity, |a| a.matrix());
         let isotropic = Variogram {
             anisotropy: None,
+            nugget: 0.0,
             ..vg.clone()
         };
         let corners: Vec<Vector3<f64>> = (0..8)
@@ -289,6 +310,7 @@ impl Layout {
             corners,
             step,
             factor: band_factor(&isotropic, longest, step),
+            nugget: (vg.nugget / vg.total_sill()).clamp(0.0, 1.0),
         }
     }
 
@@ -319,6 +341,8 @@ impl Layout {
             directions,
             origins,
             values: simulate_bands(&self.factor, &noise),
+            nugget: self.nugget,
+            key: if self.nugget > 0.0 { rng.next_u64() } else { 0 },
         }
     }
 }
@@ -333,6 +357,8 @@ pub struct Bands {
     directions: Vec<Vector3<f64>>,
     origins: Vec<f64>,
     values: Vec<Vec<f64>>,
+    nugget: f64,
+    key: u64,
 }
 
 impl Bands {
@@ -354,17 +380,21 @@ impl Bands {
         points
             .par_iter()
             .map(|p| {
-                let p = self.to_isotropic * Vector3::new(p.0, p.1, p.2);
+                let q = self.to_isotropic * Vector3::new(p.0, p.1, p.2);
                 let mut sum = 0.0;
                 for ((dir, &tmin), band) in
                     self.directions.iter().zip(&self.origins).zip(&self.values)
                 {
-                    let x = ((p.dot(dir) - tmin) / self.step).max(0.0);
+                    let x = ((q.dot(dir) - tmin) / self.step).max(0.0);
                     let i0 = (x.floor() as usize).min(band.len() - 2);
                     let frac = x - i0 as f64;
                     sum += band[i0] * (1.0 - frac) + band[i0 + 1] * frac;
                 }
-                sum * inv
+                if self.nugget > 0.0 {
+                    sum * inv * (1.0 - self.nugget).sqrt() + white(self.key, p) * self.nugget.sqrt()
+                } else {
+                    sum * inv
+                }
             })
             .collect()
     }
@@ -1008,6 +1038,52 @@ mod tests {
         assert_eq!(a, run(7, 5));
         assert_eq!(a, run(1, 5));
         assert_ne!(a, run(7, 6));
+    }
+
+    #[test]
+    fn unconditional_field_reproduces_the_nugget() {
+        let mut vg = Variogram::single(Model::Spherical, 0.7, 50.0);
+        vg.nugget = 0.3;
+        let pairs: Vec<((f64, f64, f64), (f64, f64, f64))> = (0..100)
+            .map(|i| {
+                let a = ((i % 10) as f64 * 55.0, (i / 10) as f64 * 55.0, 0.0);
+                (a, (a.0 + 2.0, a.1, 0.0))
+            })
+            .collect();
+        let points: Vec<_> = pairs.iter().flat_map(|&(a, b)| [a, b]).collect();
+        let far: Vec<_> = pairs.iter().map(|&(a, _)| (a.0, a.1 + 25.0, 0.0)).collect();
+        let points = [points, far].concat();
+        let (lo, hi) = bounds(&points);
+        let params = TurningBandsParams {
+            n_bands: 200,
+            ..Default::default()
+        };
+        let layout = Layout::new(lo, hi, &vg, &params);
+        let (mut near, mut across, mut var, runs) = (0.0, 0.0, 0.0, 200);
+        for k in 0..runs {
+            let z = layout
+                .bands(params.n_bands, &mut StdRng::seed_from_u64(k as u64))
+                .field(&points);
+            let n = pairs.len();
+            let scale = (runs * n) as f64;
+            for i in 0..n {
+                near += (z[2 * i + 1] - z[2 * i]).powi(2) / 2.0 / scale;
+                across += (z[2 * n + i] - z[2 * i]).powi(2) / 2.0 / scale;
+                var += z[2 * i].powi(2) / scale;
+            }
+        }
+        let want = |h: f64| vg.gamma(h);
+        assert!(
+            (near - want(2.0)).abs() < 0.04,
+            "γ(2) {near} vs {}",
+            want(2.0)
+        );
+        assert!(
+            (across - want(25.0)).abs() < 0.06,
+            "γ(25) {across} vs {}",
+            want(25.0)
+        );
+        assert!((var - 1.0).abs() < 0.08, "variance {var}");
     }
 
     #[test]
