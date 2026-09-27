@@ -60,7 +60,7 @@ def number(text):
 assays = raw["assays"]
 assays = cs.Table({**{c: assays[c] for c in ("HOLE_ID", "FROM", "TO")}, "ZN_PCT": number(assays["ZN_PCT"])})
 tables = {"collar": collars, "survey": raw["surveys"], "assays": assays}
-flags, _ = cs.check_drillholes(collars, raw["surveys"], {"assays": assays}, max_depth="LENGTH")
+flags, _, _ = cs.check_drillholes(collars, raw["surveys"], {"assays": assays}, max_depth="LENGTH")
 fixed, _ = cs.fix_drillholes(flags, tables, overlaps="keep")
 samples = cs.Drillholes(fixed["collar"], fixed["survey"], fixed["assays"]).samples()
 print(f"{len(samples)} samples at their midpoints")

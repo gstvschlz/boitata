@@ -70,7 +70,7 @@ def number(text):
 assays = raw["assays"]
 assays = cs.Table({**{c: assays[c] for c in ("HOLE_ID", "FROM", "TO")}, "ZN_PCT": number(assays["ZN_PCT"])})
 tables = {"collar": collars, "survey": raw["surveys"], "assays": assays}
-flags, _ = cs.check_drillholes(collars, raw["surveys"], {"assays": assays}, max_depth="LENGTH")
+flags, _, _ = cs.check_drillholes(collars, raw["surveys"], {"assays": assays}, max_depth="LENGTH")
 fixed, _ = cs.fix_drillholes(flags, tables, overlaps="keep")
 samples = cs.Drillholes(fixed["collar"], fixed["survey"], fixed["assays"]).samples()
 print(f"{len(samples)} samples at their midpoints")
@@ -79,7 +79,7 @@ print(f"{len(samples)} samples at their midpoints")
 </details>
 
 ```text
-16670 samples at their midpoints
+16779 samples at their midpoints
 ```
 
 With a tolerance of 0, only samples at exactly the same location are grouped: three intervals of DD0162 were
@@ -145,7 +145,7 @@ print(f"{len(merged)} samples, {int(twins.sum())} of them merged pairs, Zn {mean
 </details>
 
 ```text
-16667 samples, 3 of them merged pairs, Zn 0.023, 0.018, 0.084 %
+16776 samples, 3 of them merged pairs, Zn 0.023, 0.018, 0.084 %
 ```
 
 Full script: [`example_04.py`](example_04.py)
