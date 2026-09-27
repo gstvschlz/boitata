@@ -36,6 +36,39 @@ where
         .collect()
 }
 
+/// As [`estimate_many`], but for an estimator that also needs external-drift
+/// covariates: `covariates` has one row per sample, aligned with `samples`,
+/// and `ext` one row per target, aligned with `targets`. Each target's
+/// estimator call receives the covariate rows of its chosen neighbors,
+/// gathered in the same order as the samples it receives.
+#[allow(clippy::too_many_arguments)]
+pub fn estimate_many_ext<F, T>(
+    targets: &[(f64, f64, f64)],
+    domains: Option<&[u32]>,
+    covariates: &[Vec<f64>],
+    ext: &[Vec<f64>],
+    samples: &[Sample],
+    search: &Search,
+    vg: Option<&Variogram>,
+    estimator: F,
+) -> Vec<Option<T>>
+where
+    F: Fn(&(f64, f64, f64), &[Sample], &[Vec<f64>], &[f64]) -> Result<T> + Sync,
+    T: Send,
+{
+    let tree = SearchTree::new(samples, search, vg);
+    targets
+        .par_iter()
+        .enumerate()
+        .map(|(i, target)| {
+            let chosen = tree.neighbors_in(target, domains.map(|d| d[i])).ok()?;
+            let selected = tree.take(target, None, &chosen, samples);
+            let cov: Vec<Vec<f64>> = chosen.iter().map(|&j| covariates[j].clone()).collect();
+            estimator(target, &selected, &cov, &ext[i]).ok()
+        })
+        .collect()
+}
+
 /// Samples used for every target and the `weights` the estimator gives them,
 /// in the order of the samples it receives, in parallel; as [`estimate_many`].
 pub fn weights_many<F>(

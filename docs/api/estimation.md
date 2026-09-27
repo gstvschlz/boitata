@@ -12,6 +12,8 @@
 
 ::: ceres.UniversalKriging
 
+::: ceres.ExternalDriftKriging
+
 ::: ceres.FactorialKriging
 
 ::: ceres.BlockKriging

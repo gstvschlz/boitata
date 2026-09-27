@@ -49,6 +49,62 @@ def test_universal_kriging_reproduces_a_linear_drift():
     np.testing.assert_allclose(uk.predict(targets), expected, atol=1e-6)
 
 
+def test_external_drift_kriging_matches_universal_when_covariate_is_a_coordinate():
+    # Data varies only in x (y constant), so UniversalKriging(degree=1)'s basis is [1, x]:
+    # an external-drift column equal to x spans the same constraint space under
+    # ExternalDriftKriging's default constant drift (degree=0).
+    x = np.linspace(0.0, 100.0, 40)
+    coords1d = np.column_stack([x, np.full_like(x, 10.0)])
+    linear = 2.0 + 0.3 * x
+    s = cs.Search(radius=200, max_samples=30)
+    uk = cs.UniversalKriging(model, s, degree=1).fit(coords1d, linear)
+
+    samples = cs.PointSet(coords1d, {"grade": linear, "guide": x})
+    edk = cs.ExternalDriftKriging(model, s, "guide").fit(samples, "grade")
+
+    tx = np.linspace(5.0, 95.0, 15)
+    targets = cs.PointSet(np.column_stack([tx, np.full_like(tx, 10.0)]), {"guide": tx})
+    np.testing.assert_allclose(edk.predict(targets), uk.predict(targets.coords), atol=1e-8)
+
+
+def test_external_drift_kriging_honors_the_data():
+    guide = np.sin(coords[:, 0] / 12.0) * np.cos(coords[:, 1] / 9.0)
+    samples = cs.PointSet(coords, {"grade": values, "guide": guide})
+    edk = cs.ExternalDriftKriging(model, search, "guide").fit(samples, "grade")
+    at_data = edk.predict(samples)
+    np.testing.assert_allclose(at_data, values, atol=1e-6)
+
+    targets = cs.PointSet(rng.uniform(0, 100, (30, 2)), {"guide": rng.uniform(-1, 1, 30)})
+    assert np.all(np.isfinite(edk.predict(targets)))
+
+
+def test_external_drift_kriging_round_trips_through_parquet(tmp_path):
+    guide = np.sin(coords[:, 0] / 12.0) * np.cos(coords[:, 1] / 9.0)
+    samples = cs.PointSet(coords, {"grade": values, "guide": guide})
+    edk = cs.ExternalDriftKriging(model, search, "guide").fit(samples, "grade")
+    targets = cs.PointSet(rng.uniform(0, 100, (30, 2)), {"guide": rng.uniform(-1, 1, 30)})
+    before = edk.predict(targets)
+
+    path = tmp_path / "edk.parquet"
+    edk.to_parquet(path)
+    back = cs.ExternalDriftKriging.from_parquet(path)
+    np.testing.assert_array_equal(back.predict(targets), before)
+
+
+def test_external_drift_kriging_scope_cuts():
+    guide = np.sin(coords[:, 0] / 12.0) * np.cos(coords[:, 1] / 9.0)
+    samples = cs.PointSet(coords, {"grade": values, "guide": guide})
+    edk = cs.ExternalDriftKriging(model, search, "guide").fit(samples, "grade")
+    with pytest.raises(cs.InvalidInput, match="cross-validation"):
+        edk.cross_validate()
+    with pytest.raises(cs.InvalidInput, match="declustering"):
+        cs.weight_declustering(samples, "grade", samples, estimator=edk)
+    targets = cs.PointSet(coords[:5], {"guide": guide[:5]})
+    la = cs.LocalAnisotropy(coords[:5], np.zeros((5, 3)), np.ones((5, 2)))
+    with pytest.raises(cs.InvalidInput, match="local anisotropy"):
+        edk.predict(targets, anisotropy=la)
+
+
 def test_block_kriging_of_a_constant_is_the_constant():
     bk = cs.BlockKriging(model, search, size=(10, 10)).fit(coords, np.full(len(coords), 3.0))
     np.testing.assert_allclose(bk.predict([[50.0, 50.0]]), 3.0)

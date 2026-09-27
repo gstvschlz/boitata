@@ -152,6 +152,10 @@ def fits():
         (cs.SimpleKriging(model, search), (coords, values)),
         (cs.IndicatorKriging(model, search, threshold=1.0), (coords, values)),
         (cs.UniversalKriging(model, search), (coords, values)),
+        (
+            cs.ExternalDriftKriging(model, search, "drift"),
+            (cs.PointSet(coords, {"drift": coords[:, 0]}), values),
+        ),
         (cs.FactorialKriging(model, search, [0]), (coords, values)),
         (cs.BlockKriging(model, search, (5.0, 5.0, 5.0)), (coords, values)),
         (cs.BayesianKriging(model, search, [1.0], [0.5]), (coords, values)),

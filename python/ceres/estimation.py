@@ -14,6 +14,7 @@ __all__ = [
     "BlockKriging",
     "CategoricalCrossValidation",
     "CrossValidation",
+    "ExternalDriftKriging",
     "FactorialKriging",
     "IndicatorCrossValidation",
     "IndicatorKriging",
@@ -295,6 +296,17 @@ class UniversalKriging(_Base):
 
     def __init__(self, variogram: Variogram, search: Searches, *, degree: int = 1):
         super().__init__("universal", search, variogram, degree=degree)
+
+
+class ExternalDriftKriging(_Base):
+    """Kriging with a polynomial drift of `degree` (0 by default) plus one column per external
+    drift variable, evaluated at the samples with `fit` and at the targets with `predict`."""
+
+    def __init__(
+        self, variogram: Variogram, search: Searches, drift: str | Sequence[str], *, degree: int = 0
+    ):
+        names = [drift] if isinstance(drift, str) else list(drift)
+        super().__init__("external_drift", search, variogram, degree=degree, drift=names)
 
 
 class FactorialKriging(_Base):
