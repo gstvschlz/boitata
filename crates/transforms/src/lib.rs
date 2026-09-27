@@ -49,6 +49,7 @@ pub use mixture::GaussianMixture;
 pub use normal::{phi, probit};
 pub use normal_score::{
     NormalScore, NormalScoreTable, Reference, from_reference, transform as normal_score,
+    transform_censored,
 };
 pub use pca::{Maf, Pca};
 pub use ppmt::{Ppmt, PpmtParams};

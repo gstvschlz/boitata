@@ -6,6 +6,9 @@
 
 use crate::error::{Result, TransformError};
 use crate::normal::{phi, probit};
+use rand::SeedableRng;
+use rand::rngs::StdRng;
+use rand::seq::SliceRandom;
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 
@@ -35,9 +38,32 @@ pub struct NormalScore {
 /// `weights` (optional) are declustering weights used to build the empirical CDF;
 /// when omitted, samples are weighted equally.
 pub fn transform(values: &[f64], weights: Option<&[f64]>) -> Result<NormalScore> {
+    transform_censored(values, &vec![false; values.len()], weights, 0)
+}
+
+/// Forward normal-score transform with left-censored (below-detection) values.
+///
+/// `censored[i]` marks `values[i]` as reported at its detection limit rather than measured
+/// exactly; those cells still hold that limit as their numeric value. Uncensored values, and
+/// censored values at different detection limits, keep their relative order exactly as
+/// [`transform`] would give it. Censored values tied at the same detection limit form a run
+/// (once sorted) with no true order between them, so each such run is shuffled with `seed`
+/// before scores are assigned, spreading the tie instead of averaging it into one repeated
+/// score. `weights` (optional) are declustering weights, as in [`transform`].
+pub fn transform_censored(
+    values: &[f64],
+    censored: &[bool],
+    weights: Option<&[f64]>,
+    seed: u64,
+) -> Result<NormalScore> {
     let n = values.len();
     if n == 0 {
         return Err(TransformError::InsufficientData("no values".into()));
+    }
+    if censored.len() != n {
+        return Err(TransformError::InvalidParameters(
+            "censored length mismatch".into(),
+        ));
     }
     if let Some(w) = weights
         && w.len() != n
@@ -49,6 +75,24 @@ pub fn transform(values: &[f64], weights: Option<&[f64]>) -> Result<NormalScore>
 
     let mut order: Vec<usize> = (0..n).collect();
     order.sort_by(|&a, &b| values[a].partial_cmp(&values[b]).unwrap());
+
+    // Shuffle each maximal run of censored ties at one detection limit, so the tie carries
+    // no spurious order while everything else keeps its rank.
+    let mut rng = StdRng::seed_from_u64(seed);
+    let mut i = 0;
+    while i < n {
+        let mut j = i + 1;
+        while j < n
+            && censored[order[j]] == censored[order[i]]
+            && values[order[j]] == values[order[i]]
+        {
+            j += 1;
+        }
+        if censored[order[i]] && j - i > 1 {
+            order[i..j].shuffle(&mut rng);
+        }
+        i = j;
+    }
 
     let w: Vec<f64> = match weights {
         Some(w) => {
@@ -268,5 +312,58 @@ mod tests {
         assert_eq!(ns.scores.len(), 4);
         // Ordering preserved: larger value → larger score.
         assert!(ns.scores[0] < ns.scores[3]);
+    }
+
+    #[test]
+    fn censored_keeps_order_relative_to_uncensored_values() {
+        let values = vec![1.0, 2.0, 5.0, 5.0, 5.0, 5.0, 8.0, 9.0];
+        let censored = vec![false, false, true, true, true, true, false, false];
+        let ns = transform_censored(&values, &censored, None, 42).unwrap();
+        let below = ns.scores[0].max(ns.scores[1]);
+        let above = ns.scores[6].min(ns.scores[7]);
+        for &i in &[2, 3, 4, 5] {
+            assert!(ns.scores[i] > below, "censored score should beat below");
+            assert!(ns.scores[i] < above, "censored score should trail above");
+        }
+    }
+
+    #[test]
+    fn censored_ties_are_seed_deterministic() {
+        let values = vec![1.0, 5.0, 5.0, 5.0, 5.0, 9.0];
+        let censored = vec![false, true, true, true, true, false];
+        let a = transform_censored(&values, &censored, None, 7).unwrap();
+        let b = transform_censored(&values, &censored, None, 7).unwrap();
+        assert_eq!(a.scores, b.scores);
+    }
+
+    #[test]
+    fn censored_ties_break_by_seed_not_input_order() {
+        let values = vec![1.0, 5.0, 5.0, 5.0, 5.0, 5.0, 5.0, 5.0, 9.0];
+        let censored = vec![false, true, true, true, true, true, true, true, false];
+        let a = transform_censored(&values, &censored, None, 1).unwrap();
+        let b = transform_censored(&values, &censored, None, 2).unwrap();
+        let tied: Vec<usize> = (1..8).collect();
+        let rank_order = |scores: &[f64]| {
+            let mut idx = tied.clone();
+            idx.sort_by(|&x, &y| scores[x].partial_cmp(&scores[y]).unwrap());
+            idx
+        };
+        assert_ne!(
+            rank_order(&a.scores),
+            rank_order(&b.scores),
+            "different seeds should break the tie differently"
+        );
+    }
+
+    #[test]
+    fn uncensored_mask_matches_plain_transform() {
+        let values = vec![2.0, 5.0, 1.0, 9.0, 4.0, 7.0, 4.0];
+        let w = vec![0.1, 0.2, 0.3, 0.1, 0.1, 0.1, 0.1];
+        let censored = vec![false; values.len()];
+        let a = transform_censored(&values, &censored, Some(&w), 123).unwrap();
+        let b = transform(&values, Some(&w)).unwrap();
+        assert_eq!(a.scores, b.scores);
+        assert_eq!(a.table.values, b.table.values);
+        assert_eq!(a.table.scores, b.table.scores);
     }
 }

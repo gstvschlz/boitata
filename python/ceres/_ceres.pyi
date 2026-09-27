@@ -225,9 +225,21 @@ class NormalScore:
         tails: tuple[float, float] | None = None,
         reference: KernelDensity | GaussianMixture | None = None,
     ) -> None: ...
-    def fit(self, values: ArrayLike, *, weights: ArrayLike | None = None) -> NormalScore: ...
+    def fit(
+        self,
+        values: ArrayLike,
+        *,
+        weights: ArrayLike | None = None,
+        censored: ArrayLike | None = None,
+        seed: int = 0,
+    ) -> NormalScore: ...
     def fit_transform(
-        self, values: ArrayLike, *, weights: ArrayLike | None = None
+        self,
+        values: ArrayLike,
+        *,
+        weights: ArrayLike | None = None,
+        censored: ArrayLike | None = None,
+        seed: int = 0,
     ) -> npt.NDArray[np.float64]: ...
     def transform(self, values: ArrayLike) -> npt.NDArray[np.float64]: ...
     def inverse_transform(self, scores: ArrayLike) -> npt.NDArray[np.float64]: ...

@@ -80,6 +80,53 @@ def test_fit_transform_is_fit_then_transform(make, args):
     np.testing.assert_array_equal(make().fit_transform(*a), make().fit(*a).transform(a[0]))
 
 
+def test_censored_normal_score_orders_between_uncensored_neighbors():
+    values = np.array([0.5, 1.0, 3.0, 3.0, 3.0, 3.0, 3.0, 6.0, 8.0])
+    censored = np.array([False, False, True, True, True, True, True, False, False])
+    scores = cs.NormalScore().fit_transform(values, censored=censored, seed=0)
+    below, above = scores[:2].max(), scores[7:].min()
+    assert (scores[2:7] > below).all() and (scores[2:7] < above).all()
+
+
+def test_censored_normal_score_avoids_spurious_order_among_ties():
+    """The point of `censored=`: a naive fit ties censored values by their input order, so an array
+    recorded in a spatially (or otherwise) meaningful order leaves the tied group falsely correlated
+    with that order; shuffling the tie removes that artifact instead of asserting a false rank."""
+    n = 3000
+    coord = np.sort(rng.uniform(0, 100, n))  # samples logged in coordinate order, as along a hole
+    true = rng.lognormal(0.0, 0.9, n)  # independent of coord: order carries no real information
+    limit = np.quantile(true, 0.45)
+    censored = true < limit
+    values = np.where(censored, limit, true)
+
+    naive = cs.NormalScore().fit_transform(values)
+    aware = cs.NormalScore().fit_transform(values, censored=censored, seed=0)
+    naive_corr = np.corrcoef(naive[censored], coord[censored])[0, 1]
+    aware_corr = np.corrcoef(aware[censored], coord[censored])[0, 1]
+    assert abs(naive_corr) > 0.9
+    assert abs(aware_corr) < 0.1
+
+
+def test_censored_normal_score_seed_is_reproducible():
+    n = 500
+    values = np.where(rng.uniform(size=n) < 0.4, 2.0, rng.lognormal(0.5, 0.7, n))
+    censored = values == 2.0
+    a = cs.NormalScore().fit_transform(values, censored=censored, seed=5)
+    b = cs.NormalScore().fit_transform(values, censored=censored, seed=5)
+    np.testing.assert_array_equal(a, b)
+    c = cs.NormalScore().fit_transform(values, censored=censored, seed=6)
+    assert not np.array_equal(a, c)
+
+
+def test_censored_none_matches_pre_censoring_behavior(skewed):
+    censored = np.zeros(skewed.size, dtype=bool)
+    plain = cs.NormalScore().fit_transform(skewed)
+    explicit = cs.NormalScore().fit_transform(skewed, censored=censored, seed=3)
+    np.testing.assert_array_equal(plain, explicit)
+    default = cs.NormalScore().fit_transform(skewed, censored=None)
+    np.testing.assert_array_equal(plain, default)
+
+
 def test_normal_score_requires_fit():
     with pytest.raises(cs.InvalidInput):
         cs.NormalScore().transform([1.0])
@@ -106,6 +153,8 @@ def test_kernel_density_reference_keeps_bounds_and_mean(skewed):
     np.testing.assert_allclose(logged.cdf(logged.quantile([0.1, 0.9])), [0.1, 0.9], atol=1e-9)
     with pytest.raises(cs.InvalidInput):
         cs.NormalScore(reference=logged).fit(skewed, weights=w)
+    with pytest.raises(cs.InvalidInput):
+        cs.NormalScore(reference=logged).fit(skewed, censored=np.zeros(skewed.size, dtype=bool))
     with pytest.raises(cs.InvalidInput):
         cs.KernelDensity(bandwidth="wide")
     with pytest.raises(cs.InvalidInput):
