@@ -97,7 +97,3 @@ for tolerance in (1e-6, 1e-4, 5e-3):
     print(f"tolerance {tolerance:g} m: {attempt}, {attempt.analysis['boundary_edges']} boundary edges")
 repaired = broken.repair(tolerance=1e-4)
 print(f"repaired at 0.1 mm: {repaired.volume:,.0f} m3, original {v1.volume:,.0f} m3")
-
-# %% [markdown]
-# Real files break in smaller ways: two of the stacked sulphide lens files (topic 49) arrive with one degenerate
-# triangle and three boundary edges each, and `repair` at 1 mm closes them.

@@ -21,17 +21,14 @@ from common import ACCENT, GRAY, HIGHLIGHT, LIGHT, save
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 
 # %% [markdown]
-# The lens files as delivered are slightly open: lenses 1 and 2 each have a degenerate triangle and three
-# boundary edges, and a solid needs no boundary edges to have an inside. `Mesh.repair` with a 1 mm tolerance
-# welds the gap and drops the sliver (topic 51 covers repair); lens 3 is already closed and comes back unchanged.
+# A solid needs a closed mesh: no boundary edges, every edge shared by two triangles. `Mesh.analysis` checks
+# that before anything relies on an inside; topic 51 repairs meshes that fail it.
 
 # %%
 data = cs.datasets.stacked_sulphide_lenses()
-lenses = []
-for i in (1, 2, 3):
-    mesh = data[f"lens_{i}"]
-    lenses.append(mesh.repair(tolerance=1e-3))
-    print(f"lens {i}: {mesh.analysis} -> closed {lenses[-1].is_closed}, {lenses[-1].volume:,.0f} m3")
+lenses = [data[f"lens_{i}"] for i in (1, 2, 3)]
+for i, lens in enumerate(lenses, 1):
+    print(f"lens {i}: {lens}, {lens.analysis['boundary_edges']} boundary edges, {lens.volume:,.0f} m3")
 
 # %% [markdown]
 # `contains` tests points by generalized winding number. Of the 2 m zinc composites, those inside a lens carry

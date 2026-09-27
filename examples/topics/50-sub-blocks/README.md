@@ -16,14 +16,13 @@ from common import ACCENT, HIGHLIGHT, LIGHT, save
 
 </details>
 
-Lenses 1 and 2 arrive with a tiny gap each; `repair` closes them (topic 49). The parent grid, 40 × 40 × 20 m,
-comes from `BlockModel.from_extents` (topic 65).
+The parent grid, 40 × 40 × 20 m around the lenses, comes from `BlockModel.from_extents` (topic 65).
 
 <details><summary>Python</summary>
 
 ```python
 data = cs.datasets.stacked_sulphide_lenses()
-lenses = [data[f"lens_{i}"].repair(tolerance=1e-3) for i in (1, 2, 3)]
+lenses = [data[f"lens_{i}"] for i in (1, 2, 3)]
 names = ["lens 1", "lens 2", "lens 3"]
 parents = cs.BlockModel.from_extents(*lenses, size=(40, 40, 20), buffer=10, snap=True)
 print(parents)

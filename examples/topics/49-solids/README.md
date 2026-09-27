@@ -16,27 +16,24 @@ from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 
 </details>
 
-The lens files as delivered are slightly open: lenses 1 and 2 each have a degenerate triangle and three
-boundary edges, and a solid needs no boundary edges to have an inside. `Mesh.repair` with a 1 mm tolerance
-welds the gap and drops the sliver (topic 51 covers repair); lens 3 is already closed and comes back unchanged.
+A solid needs a closed mesh: no boundary edges, every edge shared by two triangles. `Mesh.analysis` checks
+that before anything relies on an inside; topic 51 repairs meshes that fail it.
 
 <details><summary>Python</summary>
 
 ```python
 data = cs.datasets.stacked_sulphide_lenses()
-lenses = []
-for i in (1, 2, 3):
-    mesh = data[f"lens_{i}"]
-    lenses.append(mesh.repair(tolerance=1e-3))
-    print(f"lens {i}: {mesh.analysis} -> closed {lenses[-1].is_closed}, {lenses[-1].volume:,.0f} m3")
+lenses = [data[f"lens_{i}"] for i in (1, 2, 3)]
+for i, lens in enumerate(lenses, 1):
+    print(f"lens {i}: {lens}, {lens.analysis['boundary_edges']} boundary edges, {lens.volume:,.0f} m3")
 ```
 
 </details>
 
 ```text
-lens 1: {'degenerate_triangles': 1, 'boundary_edges': 3, 'non_manifold_edges': 0, 'is_closed': False} -> closed True, 2,788,266 m3
-lens 2: {'degenerate_triangles': 1, 'boundary_edges': 3, 'non_manifold_edges': 0, 'is_closed': False} -> closed True, 1,901,081 m3
-lens 3: {'degenerate_triangles': 0, 'boundary_edges': 0, 'non_manifold_edges': 0, 'is_closed': True} -> closed True, 1,652,929 m3
+lens 1: Mesh(15766 vertices, 31528 triangles, closed), 0 boundary edges, 2,788,266 m3
+lens 2: Mesh(12962 vertices, 25920 triangles, closed), 0 boundary edges, 1,901,081 m3
+lens 3: Mesh(13034 vertices, 26064 triangles, closed), 0 boundary edges, 1,652,929 m3
 ```
 
 `contains` tests points by generalized winding number. Of the 2 m zinc composites, those inside a lens carry

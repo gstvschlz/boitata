@@ -135,7 +135,4 @@ tolerance 0.005 m: Mesh(26938 vertices, 53871 triangles, open), 6 boundary edges
 repaired at 0.1 mm: 658,571 m3, original 658,570 m3
 ```
 
-Real files break in smaller ways: two of the stacked sulphide lens files (topic 49) arrive with one degenerate
-triangle and three boundary edges each, and `repair` at 1 mm closes them.
-
 Full script: [`example_51.py`](example_51.py)
