@@ -124,5 +124,41 @@ fn phases(c: &mut Criterion) {
     group.finish();
 }
 
-criterion_group!(benches, bench, threads, phases);
+/// Turning bands over a 20 km plateau: 3000 data, range 300 m, 30
+/// realizations, summarized at 20 000 nodes.
+fn wide(c: &mut Criterion) {
+    let data: Vec<_> = (0..3000)
+        .map(|i| {
+            (
+                ((i * 7919) % 20_000) as f64,
+                ((i * 104_729) % 8000) as f64,
+                ((i * 31) % 200) as f64,
+            )
+        })
+        .collect();
+    let values: Vec<f64> = data
+        .iter()
+        .map(|p| (p.0 / 900.0).sin() + p.1 / 8000.0 + 2.0)
+        .collect();
+    let grid: Vec<_> = (0..20_000)
+        .map(|i| ((i % 200) as f64 * 100.0, (i / 200) as f64 * 80.0, 100.0))
+        .collect();
+    let vg = Variogram::single(Model::Spherical, 1.0, 300.0);
+    let params = TurningBandsParams::default();
+    let (lo, hi) = bounds(&grid);
+    let mut group = c.benchmark_group("turning bands, 20 km extent");
+    group.sample_size(10);
+    group.bench_function("30 realizations", |b| {
+        b.iter(|| {
+            let e = TurningBandsEnsemble::new(
+                &data, &values, None, None, None, None, lo, hi, &vg, &params, 30,
+            )
+            .unwrap();
+            black_box(e.summary(&grid, None, None, &Default::default()).unwrap())
+        })
+    });
+    group.finish();
+}
+
+criterion_group!(benches, bench, threads, phases, wide);
 criterion_main!(benches);
