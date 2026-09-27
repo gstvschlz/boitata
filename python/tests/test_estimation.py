@@ -409,6 +409,36 @@ def test_multiple_indicator_cross_validation_and_diagnostics():
     assert set(d["pass"]) == {1.0, 2.0}
 
 
+def test_multigaussian_kriging_distributions():
+    grades = np.exp(values)
+    mg = cs.MultigaussianKriging(model, search).fit(coords, grades)
+    exact = mg.predict(coords, quantiles=[0.1, 0.9])
+    np.testing.assert_allclose(exact.mean, grades, rtol=1e-9)
+    np.testing.assert_allclose(exact.quantile_values, [grades, grades], rtol=1e-6)
+    cutoffs = np.quantile(grades, [0.2, 0.5, 0.8])
+    s = mg.predict(rng.uniform(0, 100, (60, 2)), cutoffs=cutoffs, quantiles=[0.1, 0.5, 0.9], diagnostics=True)
+    assert s.thresholds == [] and np.all(s.correction == 0) and np.all(s.std >= 0)
+    assert np.all(np.diff(s.probability_above, axis=0) <= 0) and np.all(
+        np.diff(s.quantile_values, axis=0) >= 0
+    )
+    assert np.all((s.mean_above >= cutoffs[:, None]) | (s.probability_above == 0))
+    assert s.diagnostics.column_names[0] == "n_samples"
+
+    blocks = cs.BlockModel(origin=(0, 0, 0), size=(10, 10, 1), count=(10, 10, 1))
+    point = mg.predict(blocks, cutoffs=cutoffs)
+    np.testing.assert_array_equal(mg.predict(blocks, discretization=(1, 1, 1)).mean, point.mean)
+    block = mg.predict(blocks, cutoffs=cutoffs, discretization=(3, 3, 1))
+    assert np.nanmean(block.variance) > np.nanmean(point.variance)
+
+    cv = mg.cross_validate(folds=5)
+    assert isinstance(cv, cs.IndicatorCrossValidation) and cv.cdf.shape == (0, len(values))
+    assert np.all((cv.pit >= 0) & (cv.pit <= 1)) and cv.rmse < grades.std() and 0.5 < cv.goodness <= 1.0
+    with pytest.raises(cs.InvalidInput, match="not fitted"):
+        cs.MultigaussianKriging(model, search).predict(coords)
+    with pytest.raises(cs.InvalidInput, match="tails"):
+        cs.MultigaussianKriging(model, search, tails=(2.0, 1.0))
+
+
 rock = np.where(values < -0.3, "shale", np.where(values < 0.7, "sand", "lime"))
 scheme = cs.Categories(["sand", "shale", "lime"], colors=["gold", "gray", "skyblue"])
 

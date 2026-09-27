@@ -471,7 +471,13 @@ impl MultipleIndicator {
         let conditionals = results.into_iter().map(|r| r.map(|(_, (c, _))| c));
         Ok(IndicatorSummary {
             diagnostics: Some(diagnostics),
-            ..self.summary(targets.len(), conditionals, cutoffs, quantiles)
+            ..summary(
+                &self.thresholds,
+                targets.len(),
+                conditionals,
+                cutoffs,
+                quantiles,
+            )
         })
     }
 
@@ -511,7 +517,13 @@ impl MultipleIndicator {
             })
             .collect();
         Ok((
-            self.summary(samples.len(), results.into_iter(), &[], &[]),
+            summary(
+                &self.thresholds,
+                samples.len(),
+                results.into_iter(),
+                &[],
+                &[],
+            ),
             pit,
         ))
     }
@@ -628,42 +640,43 @@ impl MultipleIndicator {
             other => EstimError::InvalidParameters(other.to_string()),
         })
     }
+}
 
-    fn summary(
-        &self,
-        n: usize,
-        results: impl Iterator<Item = Option<Conditional>>,
-        cutoffs: &[f64],
-        quantiles: &[f64],
-    ) -> IndicatorSummary {
-        let rows = |k: usize| vec![Vec::with_capacity(n); k];
-        let mut out = IndicatorSummary {
-            thresholds: self.thresholds.clone(),
-            cdf: rows(self.thresholds.len()),
-            cutoffs: cutoffs.to_vec(),
-            probability_above: rows(cutoffs.len()),
-            mean_above: rows(cutoffs.len()),
-            quantiles: quantiles.to_vec(),
-            quantile_values: rows(quantiles.len()),
-            ..Default::default()
-        };
-        let push = |to: &mut Vec<Vec<f64>>, from: Option<&Vec<f64>>| {
-            for (k, row) in to.iter_mut().enumerate() {
-                row.push(from.map_or(f64::NAN, |f| f[k]));
-            }
-        };
-        for r in results {
-            let r = r.as_ref();
-            out.correction.push(r.map_or(f64::NAN, |r| r.correction));
-            out.mean.push(r.map_or(f64::NAN, |r| r.mean));
-            out.variance.push(r.map_or(f64::NAN, |r| r.variance));
-            push(&mut out.cdf, r.map(|r| &r.cdf));
-            push(&mut out.probability_above, r.map(|r| &r.probability_above));
-            push(&mut out.mean_above, r.map(|r| &r.mean_above));
-            push(&mut out.quantile_values, r.map(|r| &r.quantile_values));
+/// Summary of the conditional distributions `results`, NaN where `None`.
+pub(crate) fn summary(
+    thresholds: &[f64],
+    n: usize,
+    results: impl Iterator<Item = Option<Conditional>>,
+    cutoffs: &[f64],
+    quantiles: &[f64],
+) -> IndicatorSummary {
+    let rows = |k: usize| vec![Vec::with_capacity(n); k];
+    let mut out = IndicatorSummary {
+        thresholds: thresholds.to_vec(),
+        cdf: rows(thresholds.len()),
+        cutoffs: cutoffs.to_vec(),
+        probability_above: rows(cutoffs.len()),
+        mean_above: rows(cutoffs.len()),
+        quantiles: quantiles.to_vec(),
+        quantile_values: rows(quantiles.len()),
+        ..Default::default()
+    };
+    let push = |to: &mut Vec<Vec<f64>>, from: Option<&Vec<f64>>| {
+        for (k, row) in to.iter_mut().enumerate() {
+            row.push(from.map_or(f64::NAN, |f| f[k]));
         }
-        out
+    };
+    for r in results {
+        let r = r.as_ref();
+        out.correction.push(r.map_or(f64::NAN, |r| r.correction));
+        out.mean.push(r.map_or(f64::NAN, |r| r.mean));
+        out.variance.push(r.map_or(f64::NAN, |r| r.variance));
+        push(&mut out.cdf, r.map(|r| &r.cdf));
+        push(&mut out.probability_above, r.map(|r| &r.probability_above));
+        push(&mut out.mean_above, r.map(|r| &r.mean_above));
+        push(&mut out.quantile_values, r.map(|r| &r.quantile_values));
     }
+    out
 }
 
 /// Kriged indicators at `target`, one per entry of `means`: entry `k` krigs

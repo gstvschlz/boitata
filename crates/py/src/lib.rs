@@ -15,6 +15,7 @@ mod indicator;
 mod io;
 mod lva;
 mod modeling;
+mod multigaussian;
 mod persist;
 mod simulation;
 mod table;
@@ -61,5 +62,6 @@ fn _ceres(m: &Bound<PyModule>) -> PyResult<()> {
     eda::register(m)?;
     categories::register(m)?;
     categorical::register(m)?;
+    multigaussian::register(m)?;
     Ok(())
 }

@@ -24,6 +24,8 @@
 
 ::: ceres.MultipleIndicatorKriging
 
+::: ceres.MultigaussianKriging
+
 ::: ceres.IndicatorSummary
 
 ::: ceres.CategoricalIndicatorKriging
