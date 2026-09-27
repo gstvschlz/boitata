@@ -118,12 +118,10 @@ edges = np.linalg.norm(corners - np.roll(corners, 1, axis=1), axis=2)
 print(broken, broken.analysis)
 print(f"shortest edge {edges.min() * 1000:.1f} mm")
 for tolerance in (1e-6, 1e-4, 5e-3):
-    repaired = broken.repair(tolerance=tolerance)
-    volume = f"{repaired.volume:,.0f} m3" if repaired.is_closed else "no volume"
-    print(
-        f"tolerance {tolerance:g} m: {repaired}, {repaired.analysis['boundary_edges']} boundary edges, {volume}"
-    )
-print(f"original: {v1.volume:,.0f} m3")
+    attempt = broken.repair(tolerance=tolerance)
+    print(f"tolerance {tolerance:g} m: {attempt}, {attempt.analysis['boundary_edges']} boundary edges")
+repaired = broken.repair(tolerance=1e-4)
+print(f"repaired at 0.1 mm: {repaired.volume:,.0f} m3, original {v1.volume:,.0f} m3")
 ```
 
 </details>
@@ -131,10 +129,10 @@ print(f"original: {v1.volume:,.0f} m3")
 ```text
 Mesh(161682 vertices, 53894 triangles, open) {'degenerate_triangles': 0, 'boundary_edges': 161682, 'non_manifold_edges': 0, 'is_closed': False}
 shortest edge 1.0 mm
-tolerance 1e-06 m: Mesh(161644 vertices, 53894 triangles, open), 161682 boundary edges, no volume
-tolerance 0.0001 m: Mesh(26949 vertices, 53894 triangles, closed), 0 boundary edges, 658,571 m3
-tolerance 0.005 m: Mesh(26938 vertices, 53871 triangles, open), 6 boundary edges, no volume
-original: 658,570 m3
+tolerance 1e-06 m: Mesh(161644 vertices, 53894 triangles, open), 161682 boundary edges
+tolerance 0.0001 m: Mesh(26949 vertices, 53894 triangles, closed), 0 boundary edges
+tolerance 0.005 m: Mesh(26938 vertices, 53871 triangles, open), 6 boundary edges
+repaired at 0.1 mm: 658,571 m3, original 658,570 m3
 ```
 
 Real files break in smaller ways: two of the stacked sulphide lens files (topic 49) arrive with one degenerate
