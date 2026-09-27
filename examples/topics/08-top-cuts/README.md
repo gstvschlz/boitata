@@ -68,8 +68,8 @@ for cap, above, metal, mean, cv in zip(*(caps[c] for c in caps.column_names), st
   297.7       0.10        3.4   8.05  2.34
 ```
 
-The top 1 % of the weight holds 10.6 % of the metal, the top 10 % holds 35.1 %. The CV climbs from 1.07 at the
-lowest cap to 2.25 at the highest: the tail, not the body, makes gold grades erratic.
+The top 1 % of the weight holds 11.5 % of the metal, the top 10 % holds 36.5 %. The CV climbs from 1.07 at the
+lowest cap to 2.34 at the highest: the tail, not the body, makes gold grades erratic.
 
 The log-probability plot shows where the tail breaks away from the body of the distribution. The dotted Tukey
 fences sit 1.5 interquartile ranges beyond the quartiles of log Au; the dashed line is a cap at the declustered
@@ -132,8 +132,8 @@ V4     183.5   105    1  15.06   14.96  2.04    2.01        0.7
 all           5826   71   8.33    7.41  3.22    1.78       11.1
 ```
 
-The caps cut 50 composites in V1 and 24 in V2, and remove 10.1 % and 14.5 % of their metal; pooled, 10.2 % of the
-metal goes and the CV falls from 3.08 to 1.76. V3 and V4 hold about a hundred composites each, too few for a P99 to
+The caps cut 47 composites in V1 and 23 in V2, and remove 10.8 % and 15.4 % of their metal; pooled, 11.1 % of the
+metal goes and the CV falls from 3.22 to 1.78. V3 and V4 hold about a hundred composites each, too few for a P99 to
 mean much: in V3 it is the maximum and cuts nothing. A small domain is better capped with the cap of a similar,
 larger one.
 

@@ -108,7 +108,7 @@ print(f"trend at the composites: variance {at_data.var():.0f} of {fe.var():.0f} 
 </details>
 
 ```text
-domains and trend in 2 s
+domains and trend in 1 s
 trend at the composites: variance 65 of 175 %²
 ```
 
@@ -150,8 +150,8 @@ print(f"output {(folder / 'simulated.parquet').stat().st_size / 1e6:.0f} MB")
 
 ```text
 residual scores: nugget 0.36, range 35 m
-10 realizations in 52 s; blocks above 60 % Fe: P10 21.7%, P90 22.3%
-output 61 MB
+10 realizations in 8 s; blocks above 60 % Fe: P10 22.4%, P90 22.7%
+output 62 MB
 ```
 
 Mining selects the 25 × 25 × 12 m blocks, not 5 m ones. With `discretization`, each block of a file is simulated
@@ -182,10 +182,10 @@ print(f"{len(model):,} blocks of 25 m in {seconds:.0f} s; above 60 % Fe: P10 {lo
 </details>
 
 ```text
-47,660 blocks of 25 m in 44 s; above 60 % Fe: P10 15.9%, P90 16.7%
+47,660 blocks of 25 m in 2 s; above 60 % Fe: P10 15.2%, P90 15.5%
 ```
 
-Averaging smooths the highs: about 16 % of the 25 m blocks pass 60 % Fe, against 22 % of the 5 m blocks.
+Averaging smooths the highs: about 15 % of the 25 m blocks pass 60 % Fe, against 22 % of the 5 m blocks.
 
 The output is too big to want in memory, so the east–west section with the most composites is collected from the
 chunks, reading only the columns it needs, into a small model of its own.

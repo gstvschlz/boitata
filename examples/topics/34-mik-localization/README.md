@@ -131,10 +131,10 @@ above 800 ppm: localized 3.2%, kriged 2.3%, true 2.1%
 
 ![localized-mik](localized-mik.png)
 
-The localized blocks spread wider than the true ones (variance 53 981 against 47 350) where kriging smooths them to
+The localized blocks spread wider than the true ones (variance 54 348 against 47 350) where kriging smooths them to
 35 064, and they follow the truth block by block a little less well than kriging (correlation 0.82 against 0.89).
 The affine correction keeps the shape of each point distribution, so its long upper tail survives the shrinking:
-at 500 ppm the localized blocks put 23.5% above cutoff against a true 16.8%, overshooting as much as kriging falls
+at 500 ppm the localized blocks put 23.3% above cutoff against a true 16.8%, overshooting as much as kriging falls
 short. Topic 33 localizes the same panels from a Gaussian model instead.
 
 Full script: [`example_34.py`](example_34.py)

@@ -90,7 +90,7 @@ b.set(xlabel="Zn (%)", title="Probability plot")
 save(fig, "statistics")
 
 # %% [markdown]
-# Declustering lowers every lens mean, most in lens 1. The top 1 % of composites, above 19.6 % Zn, holds 0.8 % of
+# Declustering lowers every lens mean, most in lens 1. The top 1 % of composites, above 18.9 % Zn, holds 0.9 % of
 # the metal, and the probability plot shows no break in the upper tail: the grades are left uncapped.
 
 # %% [markdown]
@@ -193,7 +193,7 @@ sure = np.mean(summary.probability_above[0] > 0.9)
 print(f"mean {summary.mean.mean():.2f} % Zn; blocks above 5 % in more than 90 % of realizations: {sure:.0%}")
 
 # %% [markdown]
-# In eight realizations out of ten, between 42 and 48 % of the parent blocks exceed 5 % Zn, yet only 1 % of them do
+# In eight realizations out of ten, between 43 and 49 % of the parent blocks exceed 5 % Zn, yet only 1 % of them do
 # so in more than 90 % of the realizations: at this drill spacing hardly any single block is a sure thing, even
 # though the share of ore across the lens is well known.
 #
@@ -250,8 +250,8 @@ fig.legend(*axes[0].get_legend_handles_labels(), loc="outside lower center", nco
 save(fig, "swath")
 
 # %% [markdown]
-# In lens 1 the kriged mean equals that of the nearest-neighbor model and lies 7.1 % above the declustered
-# composites; in lenses 2 and 3 it is within 3 % of the declustered composites but 12 and 18 % above nearest
+# In lens 1 the kriged mean equals that of the nearest-neighbor model and lies 5.3 % above the declustered
+# composites; in lenses 2 and 3 it is 4 and 3 % above the declustered composites but 12 and 18 % above nearest
 # neighbor. The two references disagree with each other as much as with the model: nearest neighbor spreads each
 # edge composite over the blocks around it, and cell declustering depends on the cell size it settles on. Along
 # northing and elevation, kriged blocks and nearest neighbor follow the same course, and the composites swing

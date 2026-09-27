@@ -68,7 +68,7 @@ for row in zip(
     )
 
 # %% [markdown]
-# The blocks reproduce the declustered mean within 0.5 %; both sit about 5 % above the truth, which no check against
+# The blocks reproduce the declustered mean within 0.3 %; both sit about 5 % above the truth, which no check against
 # the samples can see. Being 10 × 10 m averages smoothed by kriging, the blocks have a much smaller variance; the true
 # blocks sit in between, since averaging over a block alone already removes part of the sample
 # variance. Their cumulative distributions show the same smoothing: the blocks have fewer low and high grades than
