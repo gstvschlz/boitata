@@ -7,7 +7,7 @@ Tutorials follow one deposit from data to a result; topics show one feature each
 
 | # | Tutorial | Dataset | Steps |
 |---|---|---|---|
-| 2 | [From drill holes to a classified model](tutorials/02-drillholes-to-classified-model/README.md) | Drillholes (legacy) | Composites; The lens and the drilled volume; Statistics and declustering; Variograms; Kriging in passes; A soft boundary with SM; Simulation at block support; Classification; Comparing models; Saving |
+| 2 | [From drill holes to a classified model](tutorials/02-drillholes-to-classified-model/README.md) | Stacked sulphide lenses | Drill holes; Samples inside each lens; Declustering and capping; Zn variogram of lens 1; A sub-blocked model; Kriging in passes; Simulation at block support; Validation; Classification; Tonnes and metal |
 | 3 | [Iron ore: several grades, one closure, reconciled](tutorials/03-iron-ore-multivariate/README.md) | Iron formation plateau | Composites by lithology; One closure; Ore domains of the model; Log-ratios, PPMT and simulation; Do the blocks still close?; Reconciliation with the blastholes; A bench in plan |
 
 ## Topics
@@ -26,15 +26,25 @@ Tutorials follow one deposit from data to a result; topics show one feature each
 | 18 | [Experimental variograms](topics/18-experimental-variograms/README.md) | Walker Lake | `variogram_map`, `experimental_variogram`, `plot.variogram` |
 | 19 | [Variogram fitting](topics/19-variogram-fitting/README.md) | Walker Lake | `variogram_map`, `experimental_variogram`, `plot.variogram`, `Variogram` |
 | 20 | [Downhole nugget](topics/20-downhole-nugget/README.md) | Nickel laterite profile | `merge_intervals`, `Drillholes`, `experimental_variogram` |
+| 21 | [Coregionalization](topics/21-coregionalization/README.md) | Jura | `experimental_variogram`, `Coregionalization`, `plot.variogram` |
 | | **Estimation** | | |
-| 22 | [Ordinary kriging](topics/22-ordinary-kriging/README.md) | Walker Lake | `Variogram`, `BlockModel`, `Search`, `OrdinaryKriging`, `plot.scatter` |
-| 23 | [Estimation methods and search](topics/23-simple-estimators/README.md) | Walker Lake | `Variogram`, `BlockModel`, `Search`, `NearestNeighbor`, `InverseDistance`, `OrdinaryKriging`, `UniversalKriging`, `BlockKriging` |
-| 27 | [Cokriging and indicator kriging](topics/27-cokriging/README.md) | Jura | `experimental_variogram`, `Coregionalization`, `Search`, `OrdinaryKriging`, `Cokriging`, `plot.variogram`, `IndicatorKriging`, `cell_declustering`, `MultipleIndicatorKriging`, `BlockModel` |
+| 22 | [Ordinary kriging](topics/22-ordinary-kriging/README.md) | Walker Lake | `experimental_variogram`, `Variogram`, `BlockModel`, `Search`, `OrdinaryKriging`, `plot.scatter` |
+| 23 | [Simple estimators](topics/23-simple-estimators/README.md) | Walker Lake | `BlockModel`, `experimental_variogram`, `Variogram`, `Search`, `NearestNeighbor`, `InverseDistance`, `MovingAverage`, `OrdinaryKriging`, `compare_models` |
+| 24 | [Universal kriging](topics/24-universal-kriging/README.md) | Coal seam thickness | `detrend`, `experimental_variogram`, `plot.variogram`, `Search`, `OrdinaryKriging`, `UniversalKriging` |
+| 25 | [Block kriging](topics/25-block-kriging/README.md) | Walker Lake | `experimental_variogram`, `Variogram`, `Search`, `BlockModel`, `BlockKriging`, `OrdinaryKriging` |
+| 26 | [Search](topics/26-search/README.md) | Walker Lake | `BlockModel`, `experimental_variogram`, `Variogram`, `OrdinaryKriging`, `Search` |
+| 27 | [Cokriging](topics/27-cokriging/README.md) | Jura | `experimental_variogram`, `Coregionalization`, `Search`, `OrdinaryKriging`, `Cokriging` |
+| 28 | [Indicator kriging](topics/28-indicator-kriging/README.md) | Jura | `experimental_variogram`, `Search`, `IndicatorKriging` |
+| 29 | [Multiple indicator kriging](topics/29-multiple-indicator-kriging/README.md) | Jura | `Search`, `cell_declustering`, `experimental_variogram`, `MultipleIndicatorKriging`, `OrdinaryKriging`, `BlockModel` |
 | 31 | [Locally varying anisotropy](topics/31-local-anisotropy/README.md) | Walker Lake | `Variogram`, `BlockModel`, `OrdinaryKriging`, `Search`, `LocalAnisotropy`, `plot.directions`, `cell_declustering`, `SGS` |
 | | **Change of support** | | |
-| 32 | [Change of support and disjunctive kriging](topics/32-discrete-gaussian-model/README.md) | Walker Lake | `Variogram`, `cell_declustering`, `HermiteAnamorphosis`, `experimental_variogram`, `change_of_support`, `BlockModel`, `SGS`, `Search`, `BlockKriging`, `UniformConditioning`, `MultipleIndicatorKriging`, `localize`, `DisjunctiveKriging` |
+| 32 | [Discrete Gaussian model](topics/32-discrete-gaussian-model/README.md) | Walker Lake | `cell_declustering`, `HermiteAnamorphosis`, `experimental_variogram`, `Variogram`, `change_of_support` |
+| 33 | [Uniform conditioning](topics/33-uniform-conditioning/README.md) | Walker Lake | `cell_declustering`, `HermiteAnamorphosis`, `experimental_variogram`, `Variogram`, `change_of_support`, `Search`, `BlockModel`, `BlockKriging`, `UniformConditioning` |
+| 34 | [MIK localization](topics/34-mik-localization/README.md) | Walker Lake | `cell_declustering`, `experimental_variogram`, `Variogram`, `Search`, `BlockModel`, `BlockKriging`, `MultipleIndicatorKriging` |
+| 35 | [Disjunctive kriging](topics/35-disjunctive-kriging/README.md) | Walker Lake | `cell_declustering`, `HermiteAnamorphosis`, `experimental_variogram`, `Variogram`, `BlockModel`, `DisjunctiveKriging`, `Search` |
 | | **Simulation** | | |
 | 36 | [Sequential Gaussian simulation](topics/36-sgs/README.md) | Walker Lake | `Variogram`, `cell_declustering`, `NormalScore`, `experimental_variogram`, `BlockModel`, `SGS`, `Search` |
+| 37 | [Simulation at block support](topics/37-simulation-at-block-support/README.md) | Walker Lake | `cell_declustering`, `NormalScore`, `experimental_variogram`, `Variogram`, `BlockModel`, `SGS`, `Search`, `BlockKriging`, `localize` |
 | 42 | [Simulation methods](topics/42-grades-in-simulated-rocks/README.md) | Walker Lake, Jura | `cell_declustering`, `Variogram`, `BlockModel`, `SGS`, `Search`, `TurningBands`, `MovingAverage`, `StepwiseConditional`, `experimental_variogram`, `Categories`, `SIS`, `Plurigaussian`, `plot.category_colors`, `plot.category_legend`, `NormalScore` |
 | | **Validation** | | |
 | 44 | [Validation and classification](topics/44-model-checks/README.md) | Walker Lake | `Variogram`, `cell_declustering`, `BlockModel`, `Search`, `BlockKriging`, `validate_model`, `plot.cdf`, `swath`, `plot.swath`, `OrdinaryKriging`, `HermiteAnamorphosis`, `calibrate_search`, `neighborhood_stats`, `classify`, `smooth_classes`, `Categories`, `plot.category_colors`, `plot.category_legend` |
