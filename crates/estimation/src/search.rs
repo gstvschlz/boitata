@@ -9,11 +9,12 @@ use std::collections::HashMap;
 use std::collections::hash_map::Entry;
 use std::num::NonZero;
 
+use ceres_core::block_frame;
 use kiddo::{ImmutableKdTree, SquaredEuclidean};
 use nalgebra::{Matrix3, Vector3};
 use serde::{Deserialize, Serialize};
 use variogram::aniso::euclidean;
-use variogram::{Anisotropy, Variogram};
+use variogram::{Angles, Anisotropy, Variogram};
 
 use crate::Sample;
 use crate::error::{EstimError, Result};
@@ -31,7 +32,8 @@ pub struct Search {
     pub radius: f64,
     /// Maximum samples taken from any single drill hole (requires `Sample::hole`).
     pub max_per_hole: Option<usize>,
-    /// Balance samples across 8 octants around the target.
+    /// Balance samples across the octants of the search ellipsoid around the
+    /// target, or its quadrants when the data are 2D (one elevation).
     pub octant: bool,
     /// Search ellipsoid; without it the variogram's anisotropy is used.
     #[serde(default)]
@@ -130,12 +132,47 @@ fn metric<'a>(params: &'a Search, vg: Option<&'a Variogram>) -> Option<&'a Aniso
         .or_else(|| vg.and_then(|v| v.anisotropy.as_ref()))
 }
 
-/// Octant index (0..8) of `sample` relative to `target`.
-fn octant_of(target: &Point, s: &Point) -> usize {
-    let bx = (s.0 >= target.0) as usize;
-    let by = (s.1 >= target.1) as usize;
-    let bz = (s.2 >= target.2) as usize;
-    (bx << 2) | (by << 1) | bz
+/// Sectors around a target: octants split by the axes of the search
+/// ellipsoid, or quadrants split by its horizontal axes when the data are 2D.
+#[derive(Clone, Copy)]
+struct Sectors {
+    axes: Matrix3<f64>,
+    planar: bool,
+}
+
+impl Sectors {
+    /// Axes of `aniso` as (x, y, z) at zero rotation, so an unrotated
+    /// ellipsoid splits along the coordinate axes.
+    fn new(aniso: Option<&Anisotropy>, planar: bool) -> Self {
+        let axes = aniso.map_or_else(Matrix3::identity, |a| {
+            let Angles {
+                azimuth, dip, rake, ..
+            } = a.angles;
+            block_frame([azimuth, dip, rake])
+        });
+        Self { axes, planar }
+    }
+
+    fn count(&self) -> usize {
+        if self.planar { 4 } else { 8 }
+    }
+
+    /// Sector (0..count) of `s` around `target`.
+    fn of(&self, target: &Point, s: &Point) -> usize {
+        let d = self.axes * Vector3::new(s.0 - target.0, s.1 - target.1, s.2 - target.2);
+        let [bx, by, bz] = [d.x, d.y, d.z].map(|v| (v >= 0.0) as usize);
+        if self.planar {
+            (bx << 1) | by
+        } else {
+            (bx << 2) | (by << 1) | bz
+        }
+    }
+}
+
+/// Whether every point shares one elevation.
+fn planar<'a>(mut locs: impl Iterator<Item = &'a Point>) -> bool {
+    let z = locs.next().map(|p| p.2);
+    locs.all(|p| Some(p.2) == z)
 }
 
 /// Greedy selection over candidates ordered by increasing distance.
@@ -145,12 +182,13 @@ fn select(
     loc: impl Fn(usize) -> Point,
     hole: impl Fn(usize) -> Option<u32>,
     params: &Search,
+    sectors: &Sectors,
 ) -> Vec<usize> {
     let mut chosen = Vec::with_capacity(params.max_samples);
     let mut per_hole: HashMap<u32, usize> = HashMap::new();
     let mut per_octant = [0usize; 8];
     let octant_cap = if params.octant {
-        params.max_samples.div_ceil(8)
+        params.max_samples.div_ceil(sectors.count())
     } else {
         usize::MAX
     };
@@ -164,7 +202,7 @@ fn select(
             continue;
         }
         if params.octant {
-            let o = octant_of(target, &loc(idx));
+            let o = sectors.of(target, &loc(idx));
             if per_octant[o] >= octant_cap {
                 continue;
             }
@@ -275,12 +313,17 @@ pub fn neighbors_in(
         domain,
         None,
     );
+    let sectors = Sectors::new(
+        aniso,
+        params.octant && planar(samples.iter().map(|s| &s.loc)),
+    );
     let chosen = select(
         target,
         ordered,
         |i| samples[i].loc,
         |i| samples[i].hole,
         params,
+        &sectors,
     );
     enough(chosen, params)
 }
@@ -299,6 +342,7 @@ pub struct SearchTree {
     values: Vec<f64>,
     domains: Vec<Option<u32>>,
     params: Search,
+    sectors: Sectors,
 }
 
 fn project(frame: &Matrix3<f64>, p: &Point) -> [f64; 3] {
@@ -556,8 +600,10 @@ impl Index {
 
 impl SearchTree {
     pub fn new(samples: &[Sample], params: &Search, vg: Option<&Variogram>) -> Self {
-        let frame = metric(params, vg).map_or_else(Matrix3::identity, Anisotropy::matrix);
+        let aniso = metric(params, vg);
+        let frame = aniso.map_or_else(Matrix3::identity, Anisotropy::matrix);
         let locs: Vec<Point> = samples.iter().map(|s| s.loc).collect();
+        let sectors = Sectors::new(aniso, planar(locs.iter()));
         let points: Vec<[f64; 3]> = locs.iter().map(|p| project(&frame, p)).collect();
         Self {
             index: Index::new(&points),
@@ -568,6 +614,7 @@ impl SearchTree {
             values: samples.iter().map(|s| s.value).collect(),
             domains: samples.iter().map(|s| s.domain).collect(),
             params: params.clone(),
+            sectors,
         }
     }
 
@@ -577,6 +624,9 @@ impl SearchTree {
 
     /// Adds a sample; its index is the number of samples before it.
     pub fn add(&mut self, sample: &Sample) {
+        if let Some(first) = self.locs.first() {
+            self.sectors.planar &= first.2 == sample.loc.2;
+        }
         let point = self.project(&sample.loc);
         self.points.push(point);
         self.locs.push(sample.loc);
@@ -606,7 +656,7 @@ impl SearchTree {
         self.index.candidates(&self.points, query, k, radius2)
     }
 
-    /// Selection by a per-query ellipsoid `local` (major = 1, other ratios ≤ 1)
+    /// Selection by a per-query ellipsoid `local` (major = 1, other ratios â‰¤ 1)
     /// for a tree built without anisotropy: every sample in the sphere of
     /// `radius` is re-ranked by its local distance. `domain` is the target's,
     /// as in [`neighbors_in`].
@@ -627,7 +677,15 @@ impl SearchTree {
             .collect();
         found.sort_by(|a, b| a.0.total_cmp(&b.0).then(a.1.cmp(&b.1)));
         let ordered = self.one_per_location(found.into_iter().map(|f| f.1), domain, None);
-        let chosen = select(target, ordered, |i| self.locs[i], |i| self.holes[i], params);
+        let sectors = Sectors::new(Some(local), self.sectors.planar);
+        let chosen = select(
+            target,
+            ordered,
+            |i| self.locs[i],
+            |i| self.holes[i],
+            params,
+            &sectors,
+        );
         enough(chosen, params)
     }
 
@@ -697,6 +755,7 @@ impl SearchTree {
                 |i| self.locs[i],
                 |i| self.holes[i],
                 params,
+                &self.sectors,
             );
             if chosen.len() >= params.max_samples || exhausted {
                 return enough(chosen, params);
@@ -906,6 +965,127 @@ mod tests {
             tree.add(&node);
             samples.push(node);
         }
+    }
+
+    fn ellipse(azimuth: f64) -> Anisotropy {
+        Anisotropy::new(Angles {
+            azimuth,
+            dip: 0.0,
+            rake: 0.0,
+            major: 1.0,
+            semi: 0.5,
+            minor: 0.5,
+        })
+        .unwrap()
+    }
+
+    #[test]
+    fn octants_follow_the_ellipse() {
+        let (sa, ca) = 30f64.to_radians().sin_cos();
+        let at = |along: f64, across: f64, z: f64| {
+            (along * sa + across * ca, along * ca - across * sa, z)
+        };
+        let o = (0.0, 0.0, 0.0);
+        for planar in [false, true] {
+            let sectors = Sectors::new(Some(&ellipse(30.0)), planar);
+            let z = if planar { 0.0 } else { 1.0 };
+            let quadrants = [(-1.0, -1.0), (-1.0, 1.0), (1.0, -1.0), (1.0, 1.0)];
+            let got =
+                quadrants.map(|(along, across)| sectors.of(&o, &at(5.0 * along, 0.5 * across, z)));
+            let expected = if planar { [0, 2, 1, 3] } else { [1, 5, 3, 7] };
+            assert_eq!(got, expected);
+        }
+        let samples: Vec<Sample> = [-0.5, 0.5, -0.4, 0.4]
+            .iter()
+            .zip([4.0, 5.0, 6.0, 7.0])
+            .map(|(&across, along)| {
+                let (x, y, z) = at(along, across, 0.0);
+                s(x, y, z, 0.0, None)
+            })
+            .chain([s(-20.0, -20.0, 0.0, 0.0, None)])
+            .collect();
+        let p = Search {
+            octant: true,
+            anisotropy: Some(ellipse(30.0)),
+            ..params(1, 4, 100.0)
+        };
+        let mut got = neighbors(&o, &samples, &p, None).unwrap();
+        got.sort();
+        assert_eq!(got, vec![0, 1, 4]);
+    }
+
+    #[test]
+    fn planar_octants_fill_max_samples() {
+        let samples: Vec<Sample> = (0..400)
+            .map(|i| s((i % 20) as f64, (i / 20) as f64, 0.0, 0.0, None))
+            .collect();
+        for anisotropy in [None, Some(ellipse(35.0))] {
+            let p = Search {
+                octant: true,
+                anisotropy,
+                ..params(1, 24, 100.0)
+            };
+            let tree = SearchTree::new(&samples, &p, None);
+            let t = (9.3, 10.6, 0.0);
+            assert_eq!(neighbors(&t, &samples, &p, None).unwrap().len(), 24);
+            assert_eq!(tree.neighbors(&t).unwrap().len(), 24);
+        }
+    }
+
+    #[test]
+    fn unrotated_octants_split_along_the_axes() {
+        let old = |t: &Point, s: &Point| {
+            (((s.0 >= t.0) as usize) << 2) | (((s.1 >= t.1) as usize) << 1) | (s.2 >= t.2) as usize
+        };
+        let zero = Anisotropy::new(Angles {
+            major: 1.0,
+            semi: 0.3,
+            minor: 0.1,
+            ..ellipse(0.0).angles
+        })
+        .unwrap();
+        let t = (0.0, 0.0, 0.0);
+        for sectors in [Sectors::new(None, false), Sectors::new(Some(&zero), false)] {
+            for i in 0..125 {
+                let p = (
+                    (i % 5 - 2) as f64,
+                    (i / 5 % 5 - 2) as f64,
+                    (i / 25 - 2) as f64,
+                );
+                assert_eq!(sectors.of(&t, &p), old(&t, &p));
+            }
+        }
+    }
+
+    #[test]
+    fn octant_selection_is_deterministic() {
+        let samples: Vec<Sample> = (0..2000)
+            .map(|i| s((i * 37 % 211) as f64, (i * 53 % 197) as f64, 0.0, 0.0, None))
+            .collect();
+        let p = Search {
+            octant: true,
+            anisotropy: Some(ellipse(60.0)),
+            ..params(1, 16, 60.0)
+        };
+        let tree = SearchTree::new(&samples, &p, None);
+        let run = |threads| {
+            use rayon::prelude::*;
+            let pool = rayon::ThreadPoolBuilder::new()
+                .num_threads(threads)
+                .build()
+                .unwrap();
+            pool.install(|| {
+                (0..500)
+                    .into_par_iter()
+                    .map(|i| {
+                        tree.neighbors(&((i % 25) as f64 * 8.1, (i / 25) as f64 * 9.7, 0.0))
+                            .ok()
+                    })
+                    .collect::<Vec<_>>()
+            })
+        };
+        let one = run(1);
+        assert_eq!(one, run(4));
     }
 
     #[test]
