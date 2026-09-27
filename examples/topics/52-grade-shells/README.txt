@@ -1,1 +1,1 @@
-## 52. Implicit modeling
+## 52. Grade shells

@@ -1,111 +1,109 @@
 """
-# 52. Implicit modeling
+# 52. Grade shells
 
 An implicit model fits a scalar field to the data and takes a surface as one of its level sets, instead of
-digitizing outlines section by section. Here a Zn > 5 % shell is modeled from the composites of the cluster seen
-in topic 49.
+digitizing outlines section by section. Here a Fe ≥ 60 % shell of the iron formation plateau is modeled from the
+drill-hole composites and compared with the supplied `high_grade.stl` solid.
 """
 
 # %% [hidden]
 import sys
-import warnings
 from pathlib import Path
 
 HERE = Path(__file__).parent if "__file__" in globals() else Path.cwd()
 sys.path.insert(0, str(HERE.parents[1]))
-warnings.filterwarnings("ignore", ".*locations hold several samples")
 
 # %%
 import ceres as cs
 import matplotlib.pyplot as plt
 import numpy as np
 from common import ACCENT, GRAY, HIGHLIGHT, LIGHT, save
-from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 
 # %% [markdown]
-# With `cutoff=5` each composite is coded +1 at or above the cutoff and −1 below, so the shell is the zero level of
-# the field. Two engines fit it: a radial basis function (RBF) interpolates the codes exactly by solving one dense
-# system, whose cost grows with the cube of the sample count, so 10 m composites keep it to about 3,000 samples; a
-# sparse Gaussian process (GP) smooths through them, learns anisotropic ranges and returns to the mean code away from
-# the data.
+# With `cutoff=60` each composite is coded +1 at or above the cutoff and −1 below, so the shell is the zero level of
+# the field. A radial basis function (RBF) interpolates the codes exactly by solving one dense system, whose cost
+# grows with the cube of the sample count, so 12 m composites keep it to a few thousand samples. The plateau's
+# layers are flat, so a second RBF shrinks distances across them (`ratios`: vertical ranges a fifth of the
+# horizontal). A sparse Gaussian process (GP) smooths through the codes and learns its own ranges.
 
 # %%
-dh = cs.datasets.drillholes()
-composites = dh.composite(10.0, ["ZN"])
-xyz, zn = composites.coords, composites["ZN"]
-window = (xyz[:, 0] > 4550) & (xyz[:, 0] < 4950) & (xyz[:, 1] > 7400) & (xyz[:, 1] < 7700) & ~np.isnan(zn)
-xyz, zn = xyz[window], zn[window]
+data = cs.datasets.iron_formation_plateau()
+holes = cs.Drillholes(data["collars"], data["surveys"], data["assays"])
+composites = holes.composite(12.0, ["FE_PCT"])
+fe = np.asarray(composites["FE_PCT"])
+xyz, fe = composites.coords[~np.isnan(fe)], fe[~np.isnan(fe)]
+code = np.where(fe >= 60, 1.0, -1.0)
+print(f"{len(xyz)} composites, {(code > 0).sum()} at or above 60 % Fe")
+
 models = {
-    "RBF": cs.ImplicitModel("rbf", degree=0).fit(xyz, zn, cutoff=5),
-    "GP": cs.ImplicitModel("gp", degree=0).fit(xyz, zn, cutoff=5),
+    "RBF": cs.ImplicitModel("rbf", degree=0),
+    "RBF, flat": cs.ImplicitModel("rbf", degree=0, rotation=(0, 0, 0), ratios=(1, 0.2)),
+    "GP": cs.ImplicitModel("gp", degree=0),
 }
-indicator = np.where(zn >= 5, 1.0, -1.0)
-print(f"{len(xyz)} composites, {(indicator > 0).sum()} above 5 % Zn")
 for name, model in models.items():
-    agree = np.mean(np.sign(model.predict(xyz)) == indicator)
-    print(f"{name}: {agree:.1%} of composites on their side of the shell")
-report = models["GP"].report
-print(
-    f"GP {report['status']} in {report['iterations']} iterations, ranges {np.round(report['lengthscales'])} m"
-)
+    model.fit(xyz, fe, cutoff=60)
+    print(f"{name:>9}: {np.mean(np.sign(model.predict(xyz)) == code):.1%} of composites on their side")
+print(f"GP ranges {[round(r) for r in models['GP'].report['lengthscales']]} m")
 
 # %% [markdown]
-# `isosurface` samples the field at the block centroids and triangulates the zero level. With `closed=True` the shell
-# is capped where it leaves the block model, so it bounds a volume, which should match the count of blocks whose
-# centroid lies inside.
+# Each field is evaluated on the supplied block model, 25 × 25 × 12 m blocks below topography, and compared with
+# the solid: the volume of the shell, the share of the solid it covers and the share of its own volume outside the
+# solid. The solid is scored on the composites too.
 
 # %%
-size = 5.0
-lo, hi = xyz.min(axis=0), xyz.max(axis=0)
-count = np.ceil((hi - lo) / size).astype(int)
-blocks = cs.BlockModel(origin=lo, size=(size, size, size), count=count)
-fields, shells = {}, {}
+solid, blocks = data["high_grade"], data["block_model"]
+in_solid = solid.contains(blocks.centroids)
+on_side = np.mean(np.where(solid.contains(xyz), 1, -1) == code)
+print(f"    solid: {solid.volume / 1e6:5.1f} Mm3, {on_side:.1%} of composites on their side")
 for name, model in models.items():
-    shell = shells[name] = model.isosurface(blocks, closed=True)
-    fields[name] = model.predict(blocks).reshape(count[::-1])
-    count_volume = (fields[name] > 0).sum() * size**3
+    inside = model.predict(blocks) > 0
     print(
-        f"{name}: shell of {len(shell.triangles):,} triangles, {shell.volume:,.0f} m3; blocks inside {count_volume:,.0f} m3"
+        f"{name:>9}: {blocks.volumes[inside].sum() / 1e6:5.1f} Mm3, "
+        f"covers {blocks.volumes[inside & in_solid].sum() / blocks.volumes[in_solid].sum():.0%} of the solid, "
+        f"{(inside & ~in_solid).sum() / inside.sum():.0%} outside it"
     )
 
 # %% [markdown]
-# An east–west section through the high-grade composites. The RBF honors every code but bulges into undrilled
-# ground; the GP draws flat lenses along its learned ranges and leaves some isolated codes outside.
+# Both RBFs honor every code, yet they cover only 56 % and 65 % of the solid, and the solid itself leaves 8.6 % of
+# the composites on the wrong side: a cutoff on Fe and a solid drawn around the hematite units are not the same
+# surface. Flattening the RBF adds a tenth of the solid at no cost in spill. The GP explains an eighth of the codes
+# as noise and returns a smooth sheet. On an east–west section through the high-grade composites, at true scale,
+# with the trace of the solid in black and topography as a thin line:
 
 # %%
-j = int((np.median(xyz[indicator > 0, 1]) - lo[1]) // size)
-northing = lo[1] + (j + 0.5) * size
-x = lo[0] + (np.arange(count[0]) + 0.5) * size
-z = lo[2] + (np.arange(count[2]) + 0.5) * size
+northing = 25 * round(np.median(xyz[code > 0, 1]) / 25)
+x, z = np.meshgrid(np.arange(44000, 46100, 5.0), np.arange(300, 720, 3.0))
+section = np.c_[x.ravel(), np.full(x.size, northing), z.ravel()]
+topography = data["topography"]
+row = np.isclose(topography.centroids[:, 1], northing, atol=12.5)
+ground = np.interp(x[0], topography.centroids[row, 0], np.asarray(topography["Z"])[row])
 plane = ((0, northing, 0), 90, 90)
-fig, axes = plt.subplots(1, 2, figsize=(12, 5), layout="constrained", sharey=True)
-for ax, (name, field) in zip(axes, fields.items()):
-    ax.contourf(x, z, field[:, j, :], levels=[0, np.inf], colors=[LIGHT])
-    ax.contour(x, z, field[:, j, :], levels=[0], colors=[ACCENT], linewidths=1.2)
-    for mask, color, label in ((indicator < 0, GRAY, "Zn ≤ 5 %"), (indicator > 0, HIGHLIGHT, "Zn > 5 %")):
-        cs.plot.slab(xyz[mask], plane=plane, thickness=20, s=8, color=color, label=label, ax=ax)
-    ax.set_title(f"{name}, northing {northing:.0f} m")
-axes[1].set_ylabel("")
-axes[0].set_ylim(np.percentile(xyz[:, 2], 1) - 50, hi[2])
-axes[0].legend(loc="lower right", title="composites within 10 m")
+fig, axes = plt.subplots(3, 1, figsize=(12, 8.5), layout="constrained", sharex=True)
+for ax, (name, model) in zip(axes, models.items(), strict=True):
+    field = np.where(z <= ground, model.predict(section).reshape(x.shape), np.nan)
+    ax.contourf(x, z, field, levels=[0, np.inf], colors=[LIGHT])
+    ax.contour(x, z, field, levels=[0], colors=[ACCENT], linewidths=1.2)
+    ax.plot(x[0], ground, color=GRAY, lw=0.8)
+    style = {"plane": plane, "thickness": 50, "ax": ax}
+    cs.plot.slab(xyz[code < 0], s=6, color=GRAY, label="Fe < 60 %", meshes=solid, **style)
+    cs.plot.slab(xyz[code > 0], s=6, color=HIGHLIGHT, label="Fe ≥ 60 %", **style)
+    ax.set(title=f"{name}, northing {northing:.0f} m", xlim=(x[0, 0], x[0, -1]), ylim=(z[0, 0], z[-1, 0]))
+    if ax is not axes[-1]:
+        ax.set_xlabel("")
+axes[0].legend(loc="lower right", title="composites within 25 m", ncol=2)
 save(fig, "section")
 
 # %% [markdown]
-# The GP shell:
+# The isotropic RBF grows a round body around one deep high-grade composite; the flat one keeps it a
+# thin pod, as the solid does. `isosurface` triangulates the zero level at the centroids of a regular grid. With `closed=True` the shell is
+# capped where it leaves the grid, so it bounds a volume close to that of the cells inside. The grid is the full
+# box of the block model: the shell is not cut at topography.
 
 # %%
-shell = shells["GP"]
-fig = plt.figure(figsize=(7, 5.5), layout="constrained")
-ax = fig.add_subplot(projection="3d")
-ax.add_collection3d(
-    Poly3DCollection(shell.vertices[shell.triangles], facecolor=ACCENT, edgecolor="none", alpha=0.25)
+box = cs.BlockModel(origin=blocks.origin, size=blocks.size, count=blocks.count)
+shell = models["RBF, flat"].isosurface(box, closed=True)
+inside = models["RBF, flat"].predict(box) > 0
+print(
+    f"flat RBF shell: {len(shell.triangles):,} triangles, closed {shell.is_closed}, {shell.volume / 1e6:.1f} Mm3; "
+    f"cells inside {box.volumes[inside].sum() / 1e6:.1f} Mm3"
 )
-ax.scatter(*xyz[indicator > 0].T, s=2, color=HIGHLIGHT, depthshade=False)
-ax.set(xlim=(lo[0], hi[0]), ylim=(lo[1], hi[1]), zlim=(lo[2], hi[2]))
-ax.set_box_aspect(hi - lo)
-ax.set_title("GP Zn > 5 % shell and the composites above the cutoff")
-ax.set_xlabel("Easting")
-ax.set_ylabel("Northing")
-ax.set_zlabel("Elevation")
-ax.tick_params(labelsize=6)
-save(fig, "shell")

@@ -64,8 +64,9 @@ Tutorials follow one deposit from data to a result; topics show one feature each
 | 48 | [Classification](topics/48-classification/README.md) | Coal seam thickness | `data_spacing`, `classify`, `experimental_variogram`, `Variogram`, `Search`, `BlockKriging`, `smooth_classes`, `Categories`, `plot.category_colors`, `plot.category_legend` |
 | | **Modeling** | | |
 | 49 | [Solids and block models](topics/49-solids/README.md) | Drillholes (legacy) | `Mesh`, `BlockModel`, `plot.section`, `plot.slab`, `block_shell`, `Search`, `InverseDistance`, `write_mesh`, `read_mesh` |
-| 52 | [Implicit modeling](topics/52-grade-shells/README.md) | Drillholes (legacy) | `ImplicitModel`, `BlockModel`, `plot.slab` |
-| 53 | [Geological modeling](topics/53-contact-surfaces/README.md) | Drillholes (legacy) | `Drillholes`, `Variogram`, `ImplicitModel`, `plot.slab`, `BlockModel`, `plot.scatter`, `grid_surface` |
+| 52 | [Grade shells](topics/52-grade-shells/README.md) | Iron formation plateau | `Drillholes`, `ImplicitModel`, `plot.slab`, `BlockModel` |
+| 53 | [Contact surfaces](topics/53-contact-surfaces/README.md) | Stacked sulphide lenses | `Drillholes`, `Variogram`, `ImplicitModel`, `BlockModel`, `plot.slab` |
+| 54 | [Structural data](topics/54-structural-data/README.md) |  | `BlockModel`, `ImplicitModel`, `plot.scatter` |
 | | **I/O and scale** | | |
 | 57 | [Storing containers in Parquet](topics/57-parquet/README.md) | Walker Lake | `PointSet`, `Variogram`, `BlockModel`, `OrdinaryKriging`, `Search`, `write_parquet`, `write_csv`, `read_parquet`, `write_shapefile`, `read_shapefile`, `Polylines`, `write_geotiff`, `read_geotiff` |
 | 59 | [Models larger than memory](topics/59-large-models/README.md) | Drillholes (legacy) | `cell_declustering`, `convex_hull`, `BlockModel`, `write_parquet`, `BlockModelFile`, `experimental_variogram`, `Search`, `OrdinaryKriging`, `NormalScore`, `Variogram`, `SimpleKriging`, `map_blocks`, `TurningBands`, `plot.uncertain` |
