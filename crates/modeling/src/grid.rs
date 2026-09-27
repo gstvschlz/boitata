@@ -96,6 +96,50 @@ impl ScalarGrid {
         Self::new(origin, spacing, counts, values)
     }
 
+    /// Lattice on the centroids of a `count` grid of `size` blocks, in the
+    /// grid's local frame. `cells` holds one field value per block, x-fastest;
+    /// blocks where `active` is false fall outside the solid. With `closed`,
+    /// a ring of nodes is added around the grid and every node outside the
+    /// solid is mirrored below `isovalue`, so the surface caps at the grid's
+    /// faces and at the edge of the active blocks. Without it, inactive
+    /// blocks are NaN and the surface stops open at them.
+    pub fn blocks(
+        size: [f64; 3],
+        count: [usize; 3],
+        cells: &[f64],
+        active: Option<&[bool]>,
+        isovalue: f64,
+        closed: bool,
+    ) -> Result<Self> {
+        let total = count[0] * count[1] * count[2];
+        if cells.len() != total || active.is_some_and(|a| a.len() != total) {
+            return Err(ModelError::InvalidParameter(format!(
+                "block grid needs {total} cell values"
+            )));
+        }
+        let pad = closed as usize;
+        let counts = count.map(|n| n + 2 * pad);
+        let values = (0..counts.iter().product::<usize>())
+            .map(|n| {
+                let ijk = [
+                    n % counts[0],
+                    n / counts[0] % counts[1],
+                    n / (counts[0] * counts[1]),
+                ];
+                let inner = [0, 1, 2].map(|a| ijk[a].clamp(pad, count[a] + pad - 1) - pad);
+                let cell = inner[0] + count[0] * (inner[1] + count[1] * inner[2]);
+                let v = cells[cell];
+                let on = active.is_none_or(|a| a[cell]) && inner.map(|i| i + pad) == ijk;
+                match (on, closed) {
+                    (true, _) => v,
+                    (false, true) => isovalue - (v - isovalue).abs(),
+                    (false, false) => f64::NAN,
+                }
+            })
+            .collect();
+        Self::new(size.map(|s| s * (0.5 - pad as f64)), size, counts, values)
+    }
+
     /// Smallest and largest sampled value, or `None` for an empty grid.
     pub fn value_range(&self) -> Option<(f64, f64)> {
         let mut iter = self.values.iter().copied().filter(|v| v.is_finite());
