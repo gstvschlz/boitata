@@ -1,7 +1,7 @@
 # 42. Simulation methods
 
 Sequential indicator simulation (SIS) and plurigaussian simulation (PGS) simulate categories; continuous variables
-are in topics 36 to 39. Several correlated grades are simulated through independent factors in topic 16.
+are in topics 36 to 39. Several correlated grades are simulated through independent factors in topic 43.
 
 <details><summary>Python</summary>
 
