@@ -103,7 +103,7 @@ save(fig, "variograms")
 
 ## Realizations
 
-`simulate` returns a summary over `n` realizations: `probabilities` holds each type's frequency at every node,
+`simulate` returns a summary over `n` realizations: `probabilities` holds each type's frequency, one row per node,
 `most_likely` the most frequent type and `entropy`, scaled to [0, 1], how evenly the realizations disagree.
 `realizations=True` keeps the maps themselves.
 
@@ -154,7 +154,7 @@ for ax, (cats, title) in zip(axes[0], categorical):
 axes[1, 0].scatter(*xy, c=summary.most_likely, cmap=cmap, norm=norm, s=7, marker="s", linewidths=0)
 axes[1, 0].set_title("Most likely over 20 realizations")
 for ax, values, title, label, color in (
-    (axes[1, 1], summary.probabilities[0], "P(Argovian)", "probability", "cividis"),
+    (axes[1, 1], summary.probabilities[:, 0], "P(Argovian)", "probability", "cividis"),
     (axes[1, 2], summary.entropy, "Entropy", "entropy", "Greys"),
 ):
     im = ax.scatter(*xy, c=values, s=7, marker="s", linewidths=0, vmin=0, vmax=1, cmap=color)

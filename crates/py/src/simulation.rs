@@ -192,10 +192,10 @@ impl CategoricalSummary {
         self.0.n
     }
 
-    /// `(categories, targets)` fraction of realizations in each category.
+    /// `(targets, categories)` fraction of realizations in each category.
     #[getter]
     fn probabilities<'py>(&self, py: Python<'py>) -> Bound<'py, PyArray2<f64>> {
-        matrix(py, &self.0.probabilities, self.0.most_likely.len())
+        crate::categorical::by_target(py, &self.0.probabilities)
     }
 
     /// Most probable category per target; ties go to the lowest.
@@ -689,7 +689,7 @@ impl Sgs {
 
     /// Summary of `n` realizations at `targets`, seeds `seed, seed + 1, …`,
     /// with the probability and mean above each of `cutoffs` and the values at
-    /// `quantiles`; the realizations themselves only when `realizations`.
+    /// `quantiles`; the ``(n, targets)`` realizations only when `realizations`.
     /// `anisotropy` (a LocalAnisotropy) orients each node's variogram and search.
     /// With `blocks` (a coarser BlockModel), each realization is averaged to
     /// its blocks, weighted by node volume, and summarized at block support;
@@ -1179,7 +1179,7 @@ impl Sis {
         Ok(slf)
     }
 
-    /// Summary of `n` realizations, seeds `seed, seed + 1, …`; the
+    /// Summary of `n` realizations, seeds `seed, seed + 1, …`; the ``(n, targets)``
     /// realizations themselves only when `realizations`. With `blocks` (a
     /// coarser BlockModel), each block takes the category filling most of its
     /// node volume, ties to the smallest, as in `BlockModel.regularize`; blocks as in

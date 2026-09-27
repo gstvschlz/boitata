@@ -248,3 +248,12 @@ def test_matrix_plots_draw_the_named_columns(name):
     with pytest.raises(cs.MissingColumn):
         f(points, columns=["a", "c"])
     plt.close("all")
+
+
+def test_categorical_probabilities_have_one_row_per_target():
+    summaries = [
+        cs.SIS([model] * 3, search).fit(coords, categories).simulate(grid, n=2),
+        cs.Plurigaussian(model, proportions=[0.4, 0.4, 0.2]).fit(coords, categories).simulate(grid, n=2),
+        cs.CategoricalIndicatorKriging(model, search).fit(coords, categories).predict(grid),
+    ]
+    assert [s.probabilities.shape for s in summaries] == [(len(grid), 3)] * 3

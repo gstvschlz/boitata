@@ -54,7 +54,7 @@ def test_block_support_averages_each_realization():
     cats = (values > np.median(values)).astype(int)
     sis = cs.SIS([gaussian, gaussian], cs.Search(radius=40, max_samples=12)).fit(coords, cats)
     c = sis.simulate(grid, n=3, seed=4, realizations=True, blocks=blocks)
-    assert c.realizations.shape == (3, 25) and c.probabilities.shape == (2, 25)
+    assert c.realizations.shape == (3, 25) and c.probabilities.shape == (25, 2)
 
 
 def test_localize_realizations_within_panels():
@@ -93,8 +93,8 @@ def test_sis_probabilities():
     cats = (values > np.median(values)).astype(int)
     sis = cs.SIS([gaussian, gaussian], cs.Search(radius=40, max_samples=12)).fit(coords, cats)
     s = sis.simulate(grid, n=4, seed=4, realizations=True)
-    assert s.probabilities.shape == (2, 400) and s.proportions.shape == (4, 2)
-    np.testing.assert_allclose(s.probabilities.sum(axis=0), 1.0)
+    assert s.probabilities.shape == (400, 2) and s.proportions.shape == (4, 2)
+    np.testing.assert_allclose(s.probabilities.sum(axis=1), 1.0)
     assert set(np.unique(s.realizations)) <= {0, 1}
     assert ((s.entropy >= 0) & (s.entropy <= 1)).all()
 
@@ -103,7 +103,7 @@ def test_plurigaussian_proportions():
     facies = rng.choice(3, 60, p=[0.2, 0.3, 0.5])
     pgs = cs.Plurigaussian(gaussian, proportions=[0.2, 0.3, 0.5]).fit(coords, facies)
     s = pgs.simulate(grid, n=2, seed=2)
-    assert s.probabilities.shape == (3, 400) and set(np.unique(s.most_likely)) <= {0, 1, 2}
+    assert s.probabilities.shape == (400, 3) and set(np.unique(s.most_likely)) <= {0, 1, 2}
 
 
 def test_plurigaussian_hierarchy_honors_data_on_three_fields():
@@ -158,7 +158,7 @@ def test_plurigaussian_follows_local_proportions():
     nodes = grid.centroids[:, :2]
     s = pgs.simulate(grid, n=10, seed=1, proportions=west_to_east(nodes))
     west, east = nodes[:, 0] < 30, nodes[:, 0] > 70
-    assert s.probabilities[0, west].mean() > 0.6 and s.probabilities[0, east].mean() < 0.4
+    assert s.probabilities[west, 0].mean() > 0.6 and s.probabilities[east, 0].mean() < 0.4
     with pytest.raises(ValueError, match="at both fit and simulate"):
         pgs.simulate(grid, n=1)
     with pytest.raises(ValueError, match="shape"):
