@@ -32,7 +32,7 @@ def profile(points, values):
         holes="HOLE_ID",
         inside="SAP",
         outside="LIM",
-        max_distance=6.5,
+        max_distance=7.0,
         bin=1,
     )
 ```
@@ -67,12 +67,12 @@ save(fig, "contact")
 
 ```text
 distance: [-6.5 -5.5 -4.5 -3.5 -2.5 -1.5 -0.5  0.5  1.5  2.5  3.5  4.5  5.5  6.5]
-mean Ni:  [1.83 1.78 1.73 1.63 1.48 1.43 1.32 1.1  1.09 1.07 1.08 1.08 1.1  1.08]
+mean Ni:  [1.86 1.78 1.73 1.63 1.48 1.43 1.32 1.1  1.09 1.07 1.08 1.08 1.1  1.07]
 ```
 
 ![contact](contact.png)
 
-`LIM` is flat up to the contact. `SAP` loses grade steadily toward it, from 1.83 % Ni 6 m below to 1.32 % in the
+`LIM` is flat up to the contact. `SAP` loses grade steadily toward it, from 1.86 % Ni 6 to 7 m below to 1.32 % in the
 last meter, and the step at the contact itself is small: the boundary is gradational on the saprolite side.
 
 One normal-score variogram serves both horizons: each is scored on its own, then the scores are pooled. The nugget
@@ -165,10 +165,10 @@ for name, values in kriged.items():
 
 ```text
           distance: [-6.5 -5.5 -4.5 -3.5 -2.5 -1.5 -0.5  0.5  1.5  2.5  3.5  4.5  5.5  6.5]
-          held out: [1.83 1.77 1.68 1.57 1.44 1.36 1.28 1.06 1.05 1.06 1.05 1.05 1.   0.98]
-              hard: [1.9  1.84 1.76 1.68 1.61 1.57 1.55 1.03 1.04 1.05 1.05 1.06 1.06 1.04]
-    soft both ways: [1.88 1.81 1.71 1.59 1.48 1.39 1.34 1.21 1.18 1.13 1.1  1.09 1.08 1.05]
-soft, SAP from LIM: [1.88 1.81 1.71 1.59 1.48 1.39 1.34 1.03 1.04 1.05 1.05 1.06 1.06 1.04]
+          held out: [1.84 1.77 1.68 1.57 1.44 1.36 1.28 1.06 1.05 1.06 1.05 1.05 1.   1.01]
+              hard: [1.89 1.84 1.76 1.68 1.61 1.57 1.55 1.03 1.04 1.05 1.05 1.06 1.06 1.08]
+    soft both ways: [1.88 1.81 1.71 1.59 1.48 1.39 1.34 1.21 1.18 1.13 1.1  1.09 1.08 1.09]
+soft, SAP from LIM: [1.88 1.81 1.71 1.59 1.48 1.39 1.34 1.03 1.04 1.05 1.05 1.06 1.06 1.08]
 ```
 
 SGS takes the same searches and the same domains. Each horizon keeps its own normal-score table; a `LIM` sample
@@ -188,9 +188,9 @@ for name, search in searches.items():
 </details>
 
 ```text
-              hard: [1.89 1.84 1.77 1.7  1.65 1.62 1.6  1.08 1.09 1.07 1.08 1.07 1.07 1.08]
-    soft both ways: [1.85 1.78 1.67 1.56 1.45 1.35 1.31 1.27 1.25 1.17 1.15 1.12 1.1  1.1 ]
-soft, SAP from LIM: [1.84 1.77 1.65 1.53 1.4  1.29 1.24 1.08 1.09 1.07 1.08 1.07 1.07 1.08]
+              hard: [1.89 1.84 1.77 1.7  1.65 1.62 1.6  1.08 1.09 1.07 1.08 1.07 1.07 1.09]
+    soft both ways: [1.85 1.78 1.67 1.56 1.45 1.35 1.31 1.27 1.25 1.17 1.15 1.12 1.1  1.11]
+soft, SAP from LIM: [1.84 1.77 1.65 1.53 1.4  1.29 1.24 1.08 1.09 1.07 1.08 1.07 1.07 1.09]
 ```
 
 <details><summary>Python</summary>

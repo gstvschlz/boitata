@@ -608,7 +608,7 @@ fn validate_model(
 /// inside, outside : int or str
 ///     Domains on either side of the contact.
 /// max_distance : float
-///     Largest distance to the contact.
+///     Largest distance to the contact; the outermost bins end there.
 /// bin : float
 ///     Width of the distance bins.
 ///

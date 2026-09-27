@@ -389,7 +389,9 @@ fn distance(a: [f64; 3], b: [f64; 3]) -> f64 {
 
 /// Mean value against signed distance to the contact between domains `inside`
 /// and `outside`: each sample's distance to the nearest sample of the other
-/// domain in the same hole, negative inside.
+/// domain in the same hole, negative inside. Bins are `[k·bin, (k+1)·bin)`
+/// covering exactly `[-max_distance, max_distance]`: the outermost one is
+/// closed and ends at `max_distance`, so it may be narrower than `bin`.
 #[allow(clippy::too_many_arguments)]
 pub fn contact(
     coords: &[[f64; 3]],
@@ -416,6 +418,7 @@ pub fn contact(
     for i in (0..n).filter(|&i| domains[i] == inside || domains[i] == outside) {
         by_hole.entry(holes[i]).or_default().push(i);
     }
+    let last = ((max_distance / bin).ceil() as i64).max(1) - 1;
     let mut bins = BTreeMap::new();
     for members in by_hole.values() {
         for &i in members.iter().filter(|&&i| !values[i].is_nan()) {
@@ -427,7 +430,7 @@ pub fn contact(
             if d > max_distance {
                 continue;
             }
-            let k = (d / bin).floor() as i64;
+            let k = ((d / bin).floor() as i64).min(last);
             let k = if domains[i] == inside { -k - 1 } else { k };
             let b: &mut (f64, f64, usize) = bins.entry(k).or_default();
             b.0 += 1.0;
@@ -435,7 +438,12 @@ pub fn contact(
             b.2 += 1;
         }
     }
-    Ok(profile(bins, bin))
+    let mut p = profile(bins, bin);
+    let edge = last as f64 * bin;
+    for c in p.centers.iter_mut().filter(|c| c.abs() > edge) {
+        *c = c.signum() * (edge + max_distance) / 2.0;
+    }
+    Ok(p)
 }
 
 pub const CAP_PROBABILITIES: [f64; 6] = [0.90, 0.95, 0.975, 0.99, 0.995, 0.999];
@@ -1176,6 +1184,23 @@ mod tests {
         }
         assert_eq!(c.count.iter().sum::<usize>(), 20);
         assert_eq!(c.centers.first(), Some(&-11.0));
+    }
+
+    #[test]
+    fn contact_bins_stop_at_max_distance() {
+        let coords: Vec<[f64; 3]> = (0..20).map(|i| [0.0, 0.0, f64::from(i)]).collect();
+        let domains: Vec<u32> = (0..20).map(|i| u32::from(i >= 10)).collect();
+        let values = vec![1.0; 20];
+        let c = contact(&coords, &values, &domains, &[0; 20], 0, 1, 8.0, 1.0).unwrap();
+        assert_eq!(c.count.iter().sum::<usize>(), 16);
+        assert_eq!((c.centers[0], c.count[0]), (-7.5, 2));
+        assert_eq!(
+            (*c.centers.last().unwrap(), *c.count.last().unwrap()),
+            (7.5, 2)
+        );
+        let c = contact(&coords, &values, &domains, &[0; 20], 0, 1, 6.5, 1.0).unwrap();
+        assert_eq!(c.count.iter().sum::<usize>(), 12);
+        assert_eq!((c.centers[0], *c.centers.last().unwrap()), (-6.25, 6.25));
     }
 
     #[test]
