@@ -106,6 +106,8 @@ Tutorials follow one deposit from data to a result; topics show one feature each
 | 78 | [Local variogram parameters](topics/78-local-variogram-parameters/README.md) | Walker Lake | `BlockModel`, `experimental_variogram`, `Variogram`, `OrdinaryKriging`, `Search`, `LocalAnisotropy`, `local_variogram_parameters` |
 | 79 | [Runs and strip logs](topics/79-runs-and-strip-logs/README.md) | Vein gold grade control | `merge_intervals`, `Drillholes`, `Categories`, `plot.strip_log` |
 | 80 | [Domain cleanup](topics/80-domain-cleanup/README.md) | Stacked sulphide lenses | `Drillholes`, `Categories`, `cell_declustering`, `Variogram`, `Search`, `CategoricalIndicatorKriging`, `BlockModel`, `remove_small_units`, `plot.section`, `contact_distance`, `buffer_domains`, `plot.category_legend` |
+| 81 | [Intrinsic coregionalization](topics/81-intrinsic-coregionalization/README.md) | Jura | `experimental_variograms`, `Coregionalization`, `plot.variogram`, `Search`, `Cokriging` |
+| 82 | [Madogram](topics/82-madogram/README.md) | Vein gold grade control | `merge_intervals`, `Drillholes`, `experimental_variogram`, `dissemination` |
 
 Each page alternates text, collapsed Python and its results. `mise run examples` reruns every script
 and rewrites the pages; `cs.datasets` downloads the data once and caches it. `render.py --index` writes this file.

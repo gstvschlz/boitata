@@ -8,6 +8,8 @@
 
 ::: ceres.experimental_variogram
 
+::: ceres.dissemination
+
 ::: ceres.VariogramSet
 
 ::: ceres.experimental_variograms

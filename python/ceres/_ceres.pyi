@@ -762,7 +762,9 @@ def experimental_variogram(
     method: str | None = None,
     anisotropy: LocalAnisotropy | None = None,
 ) -> ExperimentalVariogram: ...
-def dissemination(madogram: ExperimentalVariogram, variogram: ExperimentalVariogram) -> npt.NDArray[np.float64]: ...
+def dissemination(
+    madogram: ExperimentalVariogram, variogram: ExperimentalVariogram
+) -> npt.NDArray[np.float64]: ...
 def experimental_variograms(
     coords: ArrayLike | PointSet | BlockModel,
     values: Sequence[ArrayLike | Column],
