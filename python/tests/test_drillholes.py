@@ -421,7 +421,12 @@ def test_overlap_flags_keep_the_first_interval():
 
 def one_hole(grades, lith=None):
     n = len(grades)
-    table = {"HOLE_ID": ["A"] * n, "FROM": np.arange(n, dtype=float), "TO": np.arange(1.0, n + 1), "AU": grades}
+    table = {
+        "HOLE_ID": ["A"] * n,
+        "FROM": np.arange(n, dtype=float),
+        "TO": np.arange(1.0, n + 1),
+        "AU": grades,
+    }
     if lith is not None:
         table["LITH"] = lith
     c = {"HOLE_ID": ["A"], "X": [0.0], "Y": [0.0], "Z": [0.0]}

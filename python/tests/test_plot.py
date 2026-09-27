@@ -515,7 +515,7 @@ def test_strip_log_draws_categories_grades_and_runs():
     dh = cs.Drillholes(c, s, t)
     runs = dh.runs("AU", cutoff=1.0)
     scheme = cs.Categories(["AND", "QV"], colors=["0.8", "gold"])
-    fig, ax = cs.plot.strip_log(dh, ["A", "B"], columns=["AU"], categories="LITH", scheme=scheme, runs=runs)
+    _, ax = cs.plot.strip_log(dh, ["A", "B"], columns=["AU"], categories="LITH", scheme=scheme, runs=runs)
     assert ax.yaxis_inverted() and len(ax.get_legend().get_texts()) == 3
     with pytest.raises(cs.InvalidInput):
         cs.plot.strip_log(dh, "C")
