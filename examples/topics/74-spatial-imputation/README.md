@@ -94,10 +94,10 @@ for test, hidden in tests.items():
 
 ```text
 hidden              imputer       one draw   mean    sd
-every other hole    same sample      0.217  0.129  0.35
-every other hole    spatial          0.208  0.130  0.36
+every other hole    same sample      0.217  0.130  0.35
+every other hole    spatial          0.209  0.130  0.36
 every other hole    truth                          0.35
-every other sample  same sample      0.227  0.139  0.37
+every other sample  same sample      0.227  0.139  0.36
 every other sample  spatial          0.157  0.121  0.37
 every other sample  truth                          0.36
 ```
