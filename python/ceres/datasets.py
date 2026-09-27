@@ -16,15 +16,12 @@ from typing import TypedDict
 
 import numpy as np
 
-from ceres._ceres import BlockModel, Drillholes, Mesh, PointSet, Polylines, Table, read_csv, read_mesh
+from ceres._ceres import BlockModel, Mesh, PointSet, Polylines, Table, read_csv, read_mesh
 from ceres.errors import FileError, InvalidInput
 
 __all__ = [
     "coal_seam_thickness",
-    "drillhole_tables",
-    "drillholes",
     "fetch",
-    "geomet",
     "iron_formation_plateau",
     "jura",
     "nickel_laterite_profile",
@@ -108,13 +105,6 @@ FILES = {
     "mining/3d/vein-gold-grade-control/vein_V2.stl": "0d2c5a8d497a67c14d456782929346ce5358125508b239932b868630ed3b646c",
     "mining/3d/vein-gold-grade-control/vein_V3.stl": "9d34c4ae2b4002e90998251fd82dfe164dbc0ffe2a6d9edd4448332ccdccec31",
     "mining/3d/vein-gold-grade-control/vein_V4.stl": "889ef7c06e49d8734352a443bd420d797e583a0af3a2d97b15ff0e9f4b093f05",
-}
-LEGACY_COMMIT = "560bd39c9ec79dcd6565dc763009aa83cac68fb8"
-LEGACY = {
-    "drillholes/assay.csv": "73c0ef83b4b95b0e9e27f8fd70bb3b16db6dd83e2f03af2594348de288c4b50c",
-    "drillholes/collar.csv": "32659b881ed13f7576ec2baf81a159dde4fbb943d83890df79768041581dd572",
-    "drillholes/geology.csv": "91c15f49d15be88a145944dcb3f459b86fdd2608e6b6d9f4a1ba1d8c7b0475ef",
-    "drillholes/survey.csv": "84257952228ba01200c6d440eaa6bca104a9afb09ccdb199e38e5a4d730914db",
 }
 HOLES = ("collars", "surveys", "assays")
 
@@ -233,23 +223,21 @@ def fetch(name: str) -> Path:
     FileError
         If the download fails or its SHA-256 does not match.
     """
-    known = FILES | LEGACY
-    if name not in known:
-        raise InvalidInput(f"unknown dataset file {name!r}; known: {', '.join(sorted(known))}")
+    if name not in FILES:
+        raise InvalidInput(f"unknown dataset file {name!r}; known: {', '.join(sorted(FILES))}")
     path = _cache() / name
-    if path.exists() and _sha256(path) == known[name]:
+    if path.exists() and _sha256(path) == FILES[name]:
         return path
-    url = f"{REPO}/{LEGACY_COMMIT}/{name}" if name in LEGACY else f"{URL}/{name}"
     path.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.NamedTemporaryFile(dir=path.parent, delete=False) as tmp:
         try:
-            with urllib.request.urlopen(url) as response:
+            with urllib.request.urlopen(f"{URL}/{name}") as response:
                 tmp.write(response.read())
         except OSError as e:
             tmp.close()
             os.unlink(tmp.name)
             raise FileError(f"could not download {name}: {e}") from e
-    if _sha256(Path(tmp.name)) != known[name]:
+    if _sha256(Path(tmp.name)) != FILES[name]:
         os.unlink(tmp.name)
         raise FileError(f"{name} does not match its SHA-256; the download is corrupt")
     os.replace(tmp.name, path)
@@ -512,19 +500,3 @@ def porphyry_geometallurgy(deposit: int = 1) -> PorphyryGeometallurgy:
         "pseudo_drillholes": PointSet.from_table(t["pseudo_drillholes"], **mid),
         "synthetic_drillholes": PointSet.from_table(t["synthetic_drillholes"], **mid),
     }
-
-
-def drillhole_tables() -> dict[str, Table]:
-    """The ``collar``, ``survey``, ``assay`` and ``geology`` tables of the legacy drillhole dataset (HOLEID)."""
-    return {k: read_csv(fetch(f"drillholes/{k}.csv")) for k in ("collar", "survey", "assay", "geology")}
-
-
-def drillholes() -> Drillholes:
-    """Desurveyed legacy drillholes with their assays."""
-    t = drillhole_tables()
-    return Drillholes(t["collar"], t["survey"], t["assay"], hole="HOLEID")
-
-
-def geomet(name: str = "porphyry_01/synthetic_drillholes") -> Table:
-    """A table of the porphyry geometallurgy datasets, e.g. ``"porphyry_02/drillholes"``."""
-    return read_csv(fetch(f"mining/3d/porphyry-geometallurgy/{name}.csv"))

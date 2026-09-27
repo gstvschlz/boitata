@@ -36,29 +36,22 @@ def test_corrupt_download_is_an_error_and_leaves_nothing(offline, monkeypatch):
     assert not any(p.is_file() for p in offline.rglob("*"))
 
 
-def test_legacy_files_come_from_their_own_commit(offline, monkeypatch):
-    name = "drillholes/collar.csv"
-    monkeypatch.setitem(cs.datasets.LEGACY, name, hashlib.sha256(CSV).hexdigest())
+def test_files_come_from_the_pinned_commit(offline, monkeypatch):
     urls = []
     monkeypatch.setattr(
         cs.datasets.urllib.request, "urlopen", lambda url: urls.append(url) or io.BytesIO(CSV)
     )
-    cs.datasets.fetch(name)
     cs.datasets.fetch(SAMPLE)
-    assert urls == [
-        f"{cs.datasets.REPO}/{cs.datasets.LEGACY_COMMIT}/{name}",
-        f"{cs.datasets.REPO}/{cs.datasets.COMMIT}/{SAMPLE}",
-    ]
+    assert urls == [f"{cs.datasets.REPO}/{cs.datasets.COMMIT}/{SAMPLE}"]
 
 
 def test_registry_paths_and_hashes():
     files = cs.datasets.FILES
     assert all(re.fullmatch(r"mining/(2d|3d)/[a-z-]+/[\w/-]+\.(csv|stl)", k) for k in files)
-    assert all(re.fullmatch(r"[0-9a-f]{64}", v) for v in (files | cs.datasets.LEGACY).values())
+    assert all(re.fullmatch(r"[0-9a-f]{64}", v) for v in files.values())
     folders = {k.split("/")[2] for k in files}
     assert {f.replace("-", "_") for f in folders} <= set(cs.datasets.__all__)
     assert sum(k.startswith("mining/3d/stacked-sulphide-lenses/raw/") for k in files) == 4
-    assert not set(files) & set(cs.datasets.LEGACY)
 
 
 def test_unknown_file():
@@ -223,5 +216,3 @@ def test_dataset_details():
     assert "-999" in cs.datasets.stacked_sulphide_lenses(raw=True)["assays"]["ZN_PCT"]
     high_grade = iron["high_grade"]
     assert high_grade.repair().volume == pytest.approx(high_grade.volume, rel=1e-9)
-    assert cs.datasets.geomet().num_rows == 6817
-    assert len(cs.datasets.drillholes().samples()) > 0
