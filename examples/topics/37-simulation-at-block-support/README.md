@@ -158,7 +158,7 @@ true blocks: variance 47350
 
 ![localized-simulation](localized-simulation.png)
 
-Each panel keeps the mean of its realizations, and its blocks the spread the simulation gives them: variance 41 343,
+Each panel keeps the mean of its realizations, and its blocks the spread the simulation gives them: variance 40 836,
 between kriging's 35 064 and the true 47 350, with a correlation to the truth of 0.85 against kriging's 0.89. No
 change-of-support model is involved; what the pooling returns is only as good as the realizations. Topics 33 and 34
 localize the same panels from a change-of-support model.

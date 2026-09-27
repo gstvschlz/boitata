@@ -117,8 +117,8 @@ above 800 ppm: points 4.3% (true 3.9%), blocks 1.0% (true 2.1%)
 
 ![grade-tonnage](grade-tonnage.png)
 
-The model shrinks the point variance of 67 110 to 34 001 for 10 m blocks, below the true 46 694, so it pulls the
-rich tail in too far: above 500 ppm it keeps 14.1% of the blocks against a true 16.2%, above 800 ppm 1.1% against
+The model shrinks the point variance of 64 974 to 32 652 for 10 m blocks, below the true 46 694, so it pulls the
+rich tail in too far: above 500 ppm it keeps 13.3% of the blocks against a true 16.2%, above 800 ppm 1.0% against
 2.1%. The point curves run a few per cent high, since the declustered samples still overstate the rich grades.
 Topics 33 and 34 carry block support down to panels; topic 37 reaches it by simulation.
 

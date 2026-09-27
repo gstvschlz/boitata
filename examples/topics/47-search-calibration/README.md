@@ -83,7 +83,7 @@ samples   mean     CV   true scores   true scores   true  weights
 Every score moves with the truth. More samples raise the slope, and the cross-validation slope follows the true
 one closely; the mean predicted slope sits lower. Estimates grow smoother, so the variance ratio falls and fewer
 blocks clear 500 ppm. The true variance ratio sits higher because the blocks of this 260 × 300 m area vary less
-than the sill implies, and the discrete Gaussian reference puts slightly fewer blocks above 500 ppm than the
+than the sill implies, and the discrete Gaussian reference puts about 7 % fewer blocks above 500 ppm than the
 truth. Past 16 to 24 samples the slope barely rises while the negative weights keep growing, and that trade-off
 is the user's to settle.
 

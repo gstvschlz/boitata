@@ -85,7 +85,7 @@ Tutorials follow one deposit from data to a result; topics show one feature each
 | 58 | [Shapefiles and GeoTIFF](topics/58-gis-formats/README.md) | Soil geochemistry survey | `write_shapefile`, `read_shapefile`, `Polylines`, `Categories`, `BlockModel`, `write_geotiff`, `read_geotiff` |
 | 59 | [Models larger than memory](topics/59-large-models/README.md) | Iron formation plateau | `Drillholes`, `BlockModel`, `write_parquet`, `BlockModelFile`, `detrend`, `map_blocks`, `NormalScore`, `experimental_variogram`, `Variogram`, `TurningBands`, `Search`, `plot.section` |
 | 60 | [3D views](topics/60-3d-views/README.md) | Stacked sulphide lenses | `Drillholes`, `plot3d.to_pyvista`, `plot3d.plot`, `BlockModel`, `Search`, `InverseDistance` |
-| | **More methods** | | |
+| | **More methods, across the workflow** | | |
 | 61 | [Despiking](topics/61-despiking/README.md) | Soil geochemistry survey | `despike`, `NormalScore` |
 | 62 | [Weight declustering](topics/62-weight-declustering/README.md) | Coal seam thickness | `cell_declustering`, `experimental_variogram`, `Search`, `NearestNeighbor`, `InverseDistance`, `OrdinaryKriging`, `weight_declustering` |
 | 63 | [Smooth trend](topics/63-smooth-trend/README.md) | Coal seam thickness | `cell_declustering`, `detrend` |

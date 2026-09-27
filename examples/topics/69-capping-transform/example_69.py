@@ -55,10 +55,10 @@ for vein in veins:
     print(f"{vein:<6}{row}")
 
 # %% [markdown]
-# The rules disagree most where the tail is longest. V1 and V2 lose 10 and 14 % of their metal at the P99;
-# holding the loss to 5 % lifts their caps to 144 and 514 g/t, the latter just under V2's extreme channels. In the
+# The rules disagree most where the tail is longest. V1 and V2 lose 11 and 15 % of their metal at the P99;
+# holding the loss to 5 % lifts their caps to 161 and 592 g/t, the latter just under V2's extreme channels. In the
 # small veins the P99 barely cuts: it is the maximum of V3. A CV of 1.5 caps V1 and V2 near 50 g/t and costs them
-# 15 to 18 % of their metal.
+# 17 to 19 % of their metal.
 #
 # ## The same numbers as topic 8
 #
@@ -106,7 +106,7 @@ save(fig, "probability")
 # The capped grades feed the estimate as any other column. Blocks of 5 m inside the V1 solid are kriged from the
 # raw and from the capped composites of V1 with one variogram and search. The extreme channels no longer spread
 # their grade over their neighborhood: the richest blocks drop below the diagonal while the low-grade ones stay on
-# it. The blocks lose 6 % of their mean grade, against 10 % for the declustered composites: most blocks are
+# it. The blocks lose 5 % of their mean grade, against 11 % for the declustered composites: most blocks are
 # estimated from samples below the cap, which capping leaves unchanged.
 
 # %%
@@ -141,7 +141,7 @@ save(fig, "kriged")
 #
 # `Capping` has `fit`, `transform` and `fit_transform` like `NormalScore`, so the two chain: cap, then score, the
 # usual preparation for a Gaussian simulation. Fitted once, both apply to new samples: 500 g/t is capped to
-# 77 g/t before scoring, so its score is that of the cap. The fitted caps round-trip through JSON and pickle.
+# 81 g/t before scoring, so its score is that of the cap. The fitted caps round-trip through JSON and pickle.
 
 # %%
 pipeline = cs.Capping(quantile=0.99)

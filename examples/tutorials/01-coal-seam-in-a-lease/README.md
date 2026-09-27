@@ -84,8 +84,8 @@ curve at 700 m: 1.91 m
 ![declustering](declustering.png)
 
 The minimum falls at 700 m, the spacing of the regional grid: one regional hole per cell, the infill sharing its
-cell's weight. The weights themselves come from one grid origin, the corner of the holes, so their mean sits a
-little above the curve: 1.95 against 1.91 m. Either way the infill inflates the plain mean by about 0.3 m.
+cell's weight. The weights are averaged over the same 25 origins, so their mean is the curve's minimum, 1.91 m:
+the infill inflates the plain mean by about 0.3 m.
 
 ## An anisotropic variogram
 
@@ -218,7 +218,7 @@ easternmost km: declustered holes 1.16 m, ordinary kriging 1.47 m, universal kri
 
 ![swath](swath.png)
 
-Both smooth the holes, as kriging does. In the easternmost kilometer, where the holes average 1.13 m, universal
+Both smooth the holes, as kriging does. In the easternmost kilometer, where the holes average 1.16 m, universal
 kriging gives 1.39 m and ordinary kriging 1.47 m: the plane carries the thinning into the edge cells. Universal
 kriging is kept for the tonnes.
 
@@ -297,7 +297,7 @@ P10-P90 spread ±1.8% of P50
 
 ![tonnes](tonnes.png)
 
-From P10 to P90 the simulated totals span 185.5 to 191.7 Mt, ±1.7 % around 188.3 Mt, and the kriged 189.4 Mt
+From P10 to P90 the simulated totals span 185.7 to 192.4 Mt, ±1.8 % around 188.5 Mt, and the kriged 189.4 Mt
 lies within. With a hole every 700 m or closer, errors in single cells cancel over the 7162 cells of the lease.
 The assumed density weighs more: 0.1 t/m³ either way moves the total more than the whole P10–P90 range.
 
