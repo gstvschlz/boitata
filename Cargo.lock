@@ -272,6 +272,7 @@ dependencies = [
  "arrow-array",
  "arrow-select",
  "ceres-core",
+ "criterion",
  "nalgebra",
  "rayon",
  "serde",

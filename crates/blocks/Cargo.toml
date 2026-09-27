@@ -16,5 +16,12 @@ nalgebra.workspace = true
 thiserror.workspace = true
 rayon.workspace = true
 
+[dev-dependencies]
+criterion.workspace = true
+
+[[bench]]
+name = "subblock"
+harness = false
+
 [lints]
 workspace = true

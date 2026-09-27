@@ -6,6 +6,7 @@ use std::sync::Arc;
 use arrow_array::{RecordBatch, RecordBatchOptions, StringArray, UInt64Array};
 use arrow_select::take::take;
 use ceres_core::{BlockModel, Geometry, Layout};
+use nalgebra::{Matrix3, Vector3};
 use rayon::prelude::*;
 
 use crate::{Aabb, BlockModelError, Result, SolidTester, Surface};
@@ -34,10 +35,30 @@ fn extent(model: &BlockModel, row: usize) -> [f64; 6] {
     }
 }
 
-/// World bounds of the part `e` of cell `cell`.
-fn world_box(g: &Geometry, cell: u64, e: [f64; 6]) -> Aabb {
-    let corners = (0..8).map(|c| g.point(cell, [0, 1, 2].map(|a| e[a + 3 * (c >> a & 1)])));
-    Aabb::of_points(corners).expect("eight corners")
+/// A grid with its rotation evaluated once; `point` is [`Geometry::point`].
+struct Frame<'a> {
+    g: &'a Geometry,
+    axes: Matrix3<f64>,
+}
+
+impl<'a> Frame<'a> {
+    fn new(g: &'a Geometry) -> Self {
+        let axes = ceres_core::block_frame(g.rotation).transpose();
+        Self { g, axes }
+    }
+
+    fn point(&self, cell: u64, at: [f64; 3]) -> [f64; 3] {
+        let ijk = self.g.ijk(cell);
+        let local = Vector3::from_fn(|a, _| (ijk[a] as f64 + at[a]) * self.g.size[a]);
+        let world = self.axes * local;
+        [0, 1, 2].map(|a| self.g.origin[a] + world[a])
+    }
+
+    /// World bounds of the part `e` of cell `cell`.
+    fn world_box(&self, cell: u64, e: [f64; 6]) -> Aabb {
+        let corners = (0..8).map(|c| self.point(cell, [0, 1, 2].map(|a| e[a + 3 * (c >> a & 1)])));
+        Aabb::of_points(corners).expect("eight corners")
+    }
 }
 
 /// Sub-blocks every row of a regular or masked `model` on a `subgrid` per
@@ -74,9 +95,10 @@ pub fn subblock(
     let fill = fill.map(id);
     let g = *model.geometry();
     let n = subgrid.map(|v| v as usize);
+    let frame = Frame::new(&g);
     let pieces: Vec<Vec<([f64; 6], usize)>> = (0..model.len())
         .into_par_iter()
-        .map(|row| pieces(&g, model.parent_index(row), n, domains, &ids, fill))
+        .map(|row| pieces(&frame, model.parent_index(row), n, domains, &ids, fill))
         .collect();
     let (mut parent, mut extents, mut owner, mut label) = (vec![], vec![], vec![], vec![]);
     for (row, found) in pieces.into_iter().enumerate() {
@@ -108,7 +130,7 @@ pub fn subblock(
 }
 
 fn pieces(
-    g: &Geometry,
+    frame: &Frame,
     cell: u64,
     n: [usize; 3],
     domains: &[Domain],
@@ -118,10 +140,10 @@ fn pieces(
     let at = |s: usize| [s % n[0], s / n[0] % n[1], s / (n[0] * n[1])];
     let center = |s: usize| {
         let ijk = at(s);
-        g.point(cell, [0, 1, 2].map(|a| (ijk[a] as f64 + 0.5) / n[a] as f64))
+        frame.point(cell, [0, 1, 2].map(|a| (ijk[a] as f64 + 0.5) / n[a] as f64))
     };
-    let bounds = world_box(g, cell, WHOLE);
-    let flat = g.rotation[1] == 0.0 && g.rotation[2] == 0.0;
+    let bounds = frame.world_box(cell, WHOLE);
+    let flat = frame.g.rotation[1] == 0.0 && frame.g.rotation[2] == 0.0;
     let mut label: Vec<Option<usize>> = vec![None; n.iter().product()];
     for (domain, &id) in domains.iter().zip(ids) {
         if label.iter().all(Option::is_some) {
@@ -133,7 +155,7 @@ fn pieces(
                     continue;
                 }
                 if !solid.surface_may_cut(&bounds) {
-                    if solid.contains(g.centroid(cell)) {
+                    if solid.contains(frame.point(cell, [0.5; 3])) {
                         label.iter_mut().for_each(|l| *l = l.or(Some(id)));
                     }
                     continue;
@@ -216,16 +238,16 @@ pub fn proportions(
     model: &BlockModel,
     discretization: [usize; 3],
 ) -> Vec<f64> {
-    let g = model.geometry();
+    let frame = Frame::new(model.geometry());
     let d = discretization.map(|n| n.max(1));
     let n = d.iter().product::<usize>();
     (0..model.len())
         .into_par_iter()
         .map(|row| {
             let (cell, e) = (model.parent_index(row), extent(model, row));
-            let bounds = world_box(g, cell, e);
+            let bounds = frame.world_box(cell, e);
             let point =
-                |t: [f64; 3]| g.point(cell, [0, 1, 2].map(|a| e[a] + (e[a + 3] - e[a]) * t[a]));
+                |t: [f64; 3]| frame.point(cell, [0, 1, 2].map(|a| e[a] + (e[a + 3] - e[a]) * t[a]));
             if !solid.bounds().overlaps(&bounds) {
                 0.0
             } else if !solid.surface_may_cut(&bounds) {
@@ -248,7 +270,7 @@ pub fn proportions(
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use crate::convex_hull;
     use crate::solid::tests::cube;
@@ -272,7 +294,7 @@ mod tests {
         BlockModel::regular(g, attributes.unwrap()).unwrap()
     }
 
-    fn sphere(radius: f64) -> Mesh {
+    pub(crate) fn sphere(radius: f64) -> Mesh {
         let n = 200;
         let golden = std::f64::consts::PI * (3.0 - 5f64.sqrt());
         let points: Vec<[f64; 3]> = (0..n)
@@ -383,6 +405,36 @@ mod tests {
         assert!((volume_of(&sub, "b") - 19.0).abs() < 1e-9);
         assert!(subblock(&sub, &ranked, [2, 2, 2], "domain", None).is_err());
         assert!(subblock(&model, &ranked, [2, 0, 2], "domain", None).is_err());
+    }
+
+    /// The binned tester gives the same sub-blocks, in the same order, and
+    /// the same proportions as the full winding sum, including sub-cell
+    /// centers lying on faces.
+    #[test]
+    fn binned_solids_match_the_winding_sum() {
+        let cases = [
+            (grid(4.0, 6, [30.0, 20.0, 10.0]), sphere(9.0), [4; 3]),
+            (grid(1.0, 8, [0.0; 3]), cube(-2.25, 1.75), [2; 3]),
+            (grid(1.0, 8, [0.0; 3]), cube(-1.5, 1.5), [1, 2, 3]),
+        ];
+        for (model, mesh, n) in &cases {
+            let fast = SolidTester::new(mesh).unwrap();
+            let exact = fast.clone().unbinned();
+            let run = |solid: &SolidTester| {
+                let domains = [Domain {
+                    region: Region::Inside(solid.clone()),
+                    label: "ore".into(),
+                }];
+                subblock(model, &domains, *n, "domain", Some("waste")).unwrap()
+            };
+            let (a, b) = (run(&fast), run(&exact));
+            assert_eq!(a.layout(), b.layout());
+            assert_eq!(labels(&a, "domain"), labels(&b, "domain"));
+            assert_eq!(
+                proportions(&fast, model, [3; 3]),
+                proportions(&exact, model, [3; 3])
+            );
+        }
     }
 
     #[test]
