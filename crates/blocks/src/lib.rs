@@ -12,6 +12,7 @@ mod select;
 mod shell;
 mod solid;
 mod subblock;
+mod unfold;
 pub use classes::{MinSize, contact_distance, remove_small_units, smooth_classes};
 pub use distance::{
     Surface, TriangleTree, distance_to, point_in_polygon, polygon_distance,
@@ -27,6 +28,7 @@ pub use shell::{
 };
 pub use solid::{Aabb, BlockDomainRule, BlockSolid, SolidTester};
 pub use subblock::{Domain, Region, proportions, subblock};
+pub use unfold::{Reference, Unfold, UnfoldMode};
 
 use ceres_core::{Mesh, signed_solid_angle};
 use nalgebra::Vector3;

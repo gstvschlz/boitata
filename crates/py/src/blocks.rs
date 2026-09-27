@@ -437,6 +437,136 @@ impl PolygonSelector {
     }
 }
 
+/// Coordinates in the frame of a layer between two surfaces.
+///
+/// Folded or undulating layers flatten: ``w`` places a point between the
+/// footwall and the hanging wall, vertically, and ``(u, v)`` run along the
+/// layer. Variograms and estimates computed on unfolded coordinates follow
+/// the layer; results stay in the input's row order, so they go back to the
+/// real points or blocks as they are.
+///
+/// Parameters
+/// ----------
+/// footwall, hangingwall : Mesh
+///     Bounding surfaces, such as ``grid_surface`` meshes; where either
+///     overlaps itself in plan, its highest elevation counts.
+/// mode : {"proportional", "footwall", "hangingwall"}, default "proportional"
+///     ``w`` as the relative position, 0 on the footwall and 1 on the hanging
+///     wall; as the height above the footwall; or as the height relative to
+///     the hanging wall, negative below it.
+/// reference : {"footwall", "hangingwall"}, optional
+///     Surface along which ``u`` and ``v`` are arc lengths in the x and y
+///     directions, from its south-west corner and offset so that a flat
+///     surface keeps x and y. By default ``u`` and ``v`` are x and y.
+/// extrapolate : bool, default False
+///     Unfold points above or below the layer too, instead of giving NaN.
+#[pyclass(module = "ceres", name = "Unfold", frozen)]
+pub struct Unfold(blocks::Unfold);
+
+fn triples<'py>(py: Python<'py>, rows: Vec<[f64; 3]>) -> Bound<'py, PyAny> {
+    let n = rows.len();
+    Array2::from_shape_vec((n, 3), rows.into_iter().flatten().collect())
+        .expect("three columns")
+        .into_pyarray(py)
+        .into_any()
+}
+
+#[pymethods]
+impl Unfold {
+    #[new]
+    #[pyo3(signature = (footwall, hangingwall, *, mode="proportional", reference=None, extrapolate=false))]
+    fn new(
+        py: Python,
+        footwall: PyRef<Mesh>,
+        hangingwall: PyRef<Mesh>,
+        mode: &str,
+        reference: Option<&str>,
+        extrapolate: bool,
+    ) -> PyResult<Self> {
+        let mode = match mode {
+            "proportional" => blocks::UnfoldMode::Proportional,
+            "footwall" => blocks::UnfoldMode::Footwall,
+            "hangingwall" => blocks::UnfoldMode::Hangingwall,
+            _ => {
+                return Err(invalid(format!(
+                    "mode must be 'proportional', 'footwall' or 'hangingwall', got {mode:?}"
+                )));
+            }
+        };
+        let reference = match reference {
+            None => None,
+            Some("footwall") => Some(blocks::Reference::Footwall),
+            Some("hangingwall") => Some(blocks::Reference::Hangingwall),
+            Some(r) => {
+                return Err(invalid(format!(
+                    "reference must be 'footwall' or 'hangingwall', got {r:?}"
+                )));
+            }
+        };
+        let (f, h) = (&footwall.mesh, &hangingwall.mesh);
+        py.detach(|| blocks::Unfold::new(f, h, mode, reference, extrapolate))
+            .map(Self)
+            .map_err(err)
+    }
+
+    /// Nothing to learn from the data; checks the coordinates and returns the
+    /// unfolding, for pipelines.
+    fn fit<'py>(slf: PyRef<'py, Self>, coords: &Bound<PyAny>) -> PyResult<PyRef<'py, Self>> {
+        coords_or_nan(coords)?;
+        Ok(slf)
+    }
+
+    /// Same as ``transform``.
+    fn fit_transform<'py>(
+        &self,
+        py: Python<'py>,
+        coords: &Bound<PyAny>,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        self.transform(py, coords)
+    }
+
+    /// Unfold points.
+    ///
+    /// Parameters
+    /// ----------
+    /// coords : array_like, PointSet or BlockModel
+    ///     ``(n, 3)`` points, or the centroids of a point set or block model.
+    ///
+    /// Returns
+    /// -------
+    /// numpy.ndarray
+    ///     ``(n, 3)`` rows of ``(u, v, w)``. NaN where the surfaces do not
+    ///     both cover the point in plan, the hanging wall lies below the
+    ///     footwall (or on it, for ``"proportional"``), or, unless
+    ///     extrapolating, the point is outside the layer.
+    fn transform<'py>(
+        &self,
+        py: Python<'py>,
+        coords: &Bound<PyAny>,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let points = coords_or_nan(coords)?;
+        Ok(triples(py, py.detach(|| self.0.transform(&points))))
+    }
+
+    /// Real coordinates of unfolded points.
+    ///
+    /// Parameters
+    /// ----------
+    /// coords : array_like
+    ///     ``(n, 3)`` rows of ``(u, v, w)``.
+    ///
+    /// Returns
+    /// -------
+    /// numpy.ndarray
+    ///     ``(n, 3)`` rows of ``(x, y, z)``, NaN where ``transform`` would
+    ///     give NaN. With a reference surface, ``(x, y)`` is found by Newton
+    ///     steps and is NaN if they do not converge.
+    fn inverse<'py>(&self, py: Python<'py>, coords: &Bound<PyAny>) -> PyResult<Bound<'py, PyAny>> {
+        let points = coords_or_nan(coords)?;
+        Ok(triples(py, py.detach(|| self.0.inverse(&points))))
+    }
+}
+
 /// Domain `label` from a `(Mesh or Polylines, rule, label)` tuple; a
 /// Polylines is a vertical prism, `"inside"` only.
 pub fn domain(region: &Bound<PyAny>, rule: &str, label: String) -> PyResult<blocks::Domain> {
@@ -872,6 +1002,7 @@ pub fn register(m: &Bound<PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(buffer_domains, m)?)?;
     m.add_class::<Mesh>()?;
     m.add_class::<PolygonSelector>()?;
+    m.add_class::<Unfold>()?;
     m.add_function(wrap_pyfunction!(point_in_polygon, m)?)?;
     m.add_function(wrap_pyfunction!(polygon_distance, m)?)?;
     m.add_function(wrap_pyfunction!(assign_domain, m)?)?;

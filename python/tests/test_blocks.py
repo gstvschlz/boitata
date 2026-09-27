@@ -338,3 +338,52 @@ def test_from_extents_covers_drill_holes_lines_and_grids():
     assert (model.row_at(np.vstack([ends, line.vertices])) >= 0).all()
     copy = cs.BlockModel.from_extents(model, size=model.size)
     assert copy.origin == model.origin and copy.count == model.count
+
+
+def test_unfold_flat_and_folded_layers():
+    grid = cs.BlockModel(origin=(0, 0, 0), size=(10, 10, 1), count=(11, 11, 1))
+    x = grid.centroids[:, 0]
+    base, top = (cs.grid_surface(grid.with_column("z", 0 * x + z), "z") for z in (0, 10))
+    flat = cs.Unfold(base, top)
+    pts = np.random.default_rng(0).uniform([5, 5, 0], [105, 105, 10], (200, 3))
+    np.testing.assert_allclose(flat.transform(pts), pts / [1, 1, 10], atol=1e-12)
+    np.testing.assert_allclose(flat.inverse(flat.fit_transform(pts)), pts, atol=1e-9)
+    assert np.isnan(flat.transform([[50, 50, 11], [200, 50, 5]])).all()
+    assert flat.transform(cs.PointSet(pts)).shape == (200, 3)
+    with pytest.raises(ValueError):
+        cs.Unfold(base, top, mode="up")
+
+    fold = 20 * np.sin(x / 40)
+    footwall = cs.grid_surface(grid.with_column("z", fold), "z")
+    hangingwall = cs.grid_surface(grid.with_column("z", fold + 10), "z")
+    unfold = cs.Unfold(footwall, hangingwall, reference="footwall")
+    assert (unfold.transform(footwall.vertices)[:, 2] == 0).all()
+    assert (unfold.transform(hangingwall.vertices)[:, 2] == 1).all()
+    below = np.c_[footwall.vertices[:, :2], footwall.vertices[:, 2] - 2]
+    assert np.isnan(unfold.transform(below)).all()
+    extra = cs.Unfold(footwall, hangingwall, mode="footwall", extrapolate=True).transform(below)
+    np.testing.assert_allclose(extra[:, 2], -2, atol=1e-9)
+
+
+def test_kriging_on_unfolded_coordinates_follows_the_layer():
+    grid = cs.BlockModel(origin=(0, 0, 0), size=(5, 5, 1), count=(81, 21, 1))
+    x = grid.centroids[:, 0]
+    fold = lambda x: 25 * np.sin(x / 40)
+    footwall, hangingwall = (cs.grid_surface(grid.with_column("z", fold(x) + dz), "z") for dz in (0, 12))
+    unfold = cs.Unfold(footwall, hangingwall, mode="footwall", reference="footwall")
+    truth = lambda uvw: np.sin(uvw[:, 2] * np.pi / 4) + 0.3 * np.cos(uvw[:, 0] / 60)
+    holes = [(hx, hy) for hx in np.arange(10, 400, 30.0) for hy in (30.0, 70.0)]
+    samples = np.array([[hx, hy, fold(hx) + d] for hx, hy in holes for d in np.linspace(0.25, 11.75, 24)])
+    targets = np.random.default_rng(7).uniform([10, 30, 0], [390, 70, 1], (400, 3))
+    targets[:, 2] = fold(targets[:, 0]) + 0.5 + 11 * targets[:, 2]
+    s, t = unfold.transform(samples), unfold.transform(targets)
+    assert not np.isnan(s).any() and not np.isnan(t).any()
+    model = cs.Variogram([("gaussian", 1.0, 150.0)], ratios=(1.0, 0.03))
+    search = cs.Search(200.0, max_samples=24, ratios=(1.0, 0.05))
+    error = {
+        name: np.sqrt(
+            np.mean((cs.OrdinaryKriging(model, search).fit(a, truth(s)).predict(b) - truth(t)) ** 2)
+        )
+        for name, a, b in [("real", samples, targets), ("unfolded", s, t)]
+    }
+    assert error["unfolded"] < 0.3 * error["real"], error

@@ -293,6 +293,11 @@ impl Surface {
         (self.lo, self.hi)
     }
 
+    /// Plan bins along x and y.
+    pub fn resolution(&self) -> [usize; 2] {
+        [self.side; 2]
+    }
+
     /// Surface elevation at `(x, y)`, the highest where it overlaps itself;
     /// `None` where no triangle covers the point.
     pub fn elevation(&self, x: f64, y: f64) -> Option<f64> {
