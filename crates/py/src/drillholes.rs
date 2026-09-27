@@ -7,8 +7,9 @@ use arrow_array::{ArrayRef, BooleanArray, Float64Array, Int64Array, RecordBatch,
 use arrow_schema::DataType;
 use ceres_core::PointSet;
 use drillholes::{
-    Collar, CompositeParams, DesurveyMethod, DrillholeError, Residual, SurveyStation,
-    WellborePoint, checks, composite_intervals, desurvey_wellbore, position_at,
+    Collar, CompositeParams, DesurveyMethod, DrillholeError, Residual, Run, RunRules,
+    SurveyStation, WellborePoint, checks, composite_intervals, desurvey_wellbore, ore_runs,
+    position_at,
 };
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
@@ -190,6 +191,13 @@ impl Drillholes {
     #[getter]
     fn holes(&self) -> Vec<String> {
         self.paths.keys().cloned().collect()
+    }
+
+    /// Hole, from and to column names of the interval table, if one was given.
+    #[getter]
+    fn interval_columns(&self) -> Option<(String, String, String)> {
+        let (_, h, f, t) = self.intervals.as_ref()?;
+        Some((h.clone(), f.clone(), t.clone()))
     }
 
     /// Desurveyed stations: hole (named as in the constructor), depth, x, y, z.
@@ -456,6 +464,135 @@ impl Drillholes {
         Ok(PyPointSet(
             PointSet::new(coords, attributes).map_err(invalid)?,
         ))
+    }
+
+    /// Ore and waste runs down each hole: contiguous intervals above `cutoff`
+    /// (or of an `ore` category), cleaned by mining rules. The runs of a hole
+    /// partition its samples, so Σ grade × `length` equals the sample metal.
+    ///
+    /// Rules apply in order: internal dilution, then edge dilution, then
+    /// minimum length. Samples missing the grade are left out, as unsampled
+    /// ground, and samples missing the category are waste; like
+    /// `composite(None, ...)`, gaps are skipped, not bridged.
+    ///
+    /// Parameters
+    /// ----------
+    /// grade : str or None
+    ///     Numeric column; None with `category` for runs without grades.
+    /// cutoff : float, optional
+    ///     Samples at or above it are ore, unless `category` is given; also the
+    ///     grade a run must keep when it takes in internal dilution.
+    /// category : str, optional
+    ///     Column whose values in `ore` flag ore samples.
+    /// ore : sequence of str
+    ///     Ore values of `category`.
+    /// min_length : float
+    ///     Runs spanning less, shortest first, take their neighbors' flag and
+    ///     merge with them.
+    /// max_dilution : float
+    ///     Waste runs between ore spanning at most this are taken into the ore
+    ///     when the grade of the three together stays at or above `cutoff`.
+    /// edge : float
+    ///     Waste taken into each ore run on each side where it meets waste.
+    ///
+    /// Returns
+    /// -------
+    /// Table
+    ///     Hole (named as in the constructor), `from`, `to`, `length` (sampled
+    ///     length), the grade, and `ore`, one row per run down each hole.
+    #[pyo3(signature = (
+        grade, *, cutoff=None, category=None, ore=vec![], min_length=0.0, max_dilution=0.0,
+        edge=0.0
+    ))]
+    #[allow(clippy::too_many_arguments)]
+    fn runs(
+        &self,
+        py: Python,
+        grade: Option<&str>,
+        cutoff: Option<f64>,
+        category: Option<&str>,
+        ore: Vec<String>,
+        min_length: f64,
+        max_dilution: f64,
+        edge: f64,
+    ) -> PyResult<Table> {
+        if cutoff.is_some_and(|c| !c.is_finite()) {
+            return Err(invalid("cutoff must be a finite number"));
+        }
+        let (batch, hole, from_name, to_name) = self.intervals()?;
+        let n = batch.num_rows();
+        let grades = match grade {
+            Some(g) => number(batch, g)?,
+            None => vec![Some(0.0); n],
+        };
+        let flags: Vec<Option<bool>> = match (category, cutoff) {
+            (Some(c), _) => {
+                if ore.is_empty() {
+                    return Err(invalid("give the ore values of the category"));
+                }
+                text(batch, c)?
+                    .into_iter()
+                    .map(|v| Some(v.is_some_and(|v| ore.contains(&v))))
+                    .collect()
+            }
+            (None, Some(c)) if grade.is_some() => {
+                grades.iter().map(|g| g.map(|g| g >= c)).collect()
+            }
+            _ => {
+                return Err(invalid(
+                    "give a grade and cutoff, or a category and its ore values",
+                ));
+            }
+        };
+        let ids = text(batch, hole)?;
+        let (from, to) = (number(batch, from_name)?, number(batch, to_name)?);
+        let mut per_hole: BTreeMap<&str, Vec<(f64, f64, f64, bool)>> = BTreeMap::new();
+        for i in 0..n {
+            if let (Some(id), Some(f), Some(t), Some(g), Some(o)) =
+                (&ids[i], from[i], to[i], grades[i], flags[i])
+                && self.paths.contains_key(id)
+            {
+                per_hole.entry(id).or_default().push((f, t, g, o));
+            }
+        }
+        let rules = RunRules {
+            cutoff,
+            min_length,
+            max_dilution,
+            edge,
+        };
+        let runs = py
+            .detach(|| {
+                per_hole
+                    .par_iter()
+                    .map(|(id, s)| ore_runs(s, &rules).map(|r| (*id, r)))
+                    .collect::<Result<Vec<_>, _>>()
+            })
+            .map_err(invalid)?;
+        let rows: Vec<(&str, &Run)> = runs
+            .iter()
+            .flat_map(|(id, r)| r.iter().map(move |r| (*id, r)))
+            .collect();
+        let col = |f: fn(&Run) -> f64| {
+            Arc::new(Float64Array::from_iter_values(rows.iter().map(|r| f(r.1)))) as ArrayRef
+        };
+        let mut columns: Vec<(&str, ArrayRef)> = vec![
+            (
+                hole,
+                Arc::new(StringArray::from_iter_values(rows.iter().map(|r| r.0))),
+            ),
+            ("from", col(|r| r.from)),
+            ("to", col(|r| r.to)),
+            ("length", col(|r| r.length)),
+        ];
+        if let Some(g) = grade {
+            columns.push((g, col(|r| r.grade)));
+        }
+        columns.push((
+            "ore",
+            Arc::new(BooleanArray::from_iter(rows.iter().map(|r| Some(r.1.ore)))),
+        ));
+        Ok(Table(RecordBatch::try_from_iter(columns).map_err(invalid)?))
     }
 
     fn __len__(&self) -> usize {
