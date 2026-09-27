@@ -89,6 +89,19 @@ class Polylines:
     def crs(self) -> str | None: ...
     def with_column(self, name: str, values: ArrayLike | Sequence[str]) -> Polylines: ...
     def to_points(self) -> PointSet: ...
+    def contains(
+        self, points: PointSet | BlockModel | ArrayLike, *, feature: int | None = None
+    ) -> npt.NDArray[np.bool_]: ...
+    def locate(self, points: PointSet | BlockModel | ArrayLike) -> npt.NDArray[np.int64]: ...
+    def distance(
+        self,
+        points: PointSet | BlockModel | ArrayLike,
+        *,
+        feature: int | None = None,
+        signed: bool = False,
+    ) -> npt.NDArray[np.float64]: ...
+    def length(self) -> npt.NDArray[np.float64]: ...
+    def area(self) -> npt.NDArray[np.float64]: ...
     @staticmethod
     def from_table(
         table: TableLike,
@@ -140,7 +153,9 @@ class BlockModel:
     def regularize(self, target: BlockModel, *, min_fraction: float = 0.0) -> BlockModel: ...
     def subblock(
         self,
-        meshes: Sequence[tuple[Mesh, Literal["inside", "below", "above"], str]],
+        meshes: Sequence[
+            tuple[Mesh, Literal["inside", "below", "above"], str] | tuple[Polylines, Literal["inside"], str]
+        ],
         subgrid: int | Sequence[int],
         *,
         column: str = "domain",
@@ -151,7 +166,9 @@ class BlockModel:
         origin: Sequence[float],
         size: Sequence[float],
         count: Sequence[int],
-        meshes: Sequence[tuple[Mesh, Literal["inside", "below", "above"], str]],
+        meshes: Sequence[
+            tuple[Mesh, Literal["inside", "below", "above"], str] | tuple[Polylines, Literal["inside"], str]
+        ],
         subgrid: int | Sequence[int],
         *,
         rotation: tuple[float, float, float] = (0.0, 0.0, 0.0),
@@ -1365,7 +1382,7 @@ class Mesh:
 class PolygonSelector:
     def __init__(
         self,
-        rings: Sequence[ArrayLike],
+        rings: Sequence[ArrayLike] | Polylines,
         *,
         closed: bool = False,
         z_min: float | None = None,
@@ -1373,9 +1390,9 @@ class PolygonSelector:
     ) -> None: ...
     def contains(self, points: ArrayLike) -> npt.NDArray[np.bool_]: ...
 
-def point_in_polygon(points: ArrayLike, polygon: ArrayLike) -> npt.NDArray[np.bool_]: ...
+def point_in_polygon(points: ArrayLike, polygon: ArrayLike | Polylines) -> npt.NDArray[np.bool_]: ...
 def polygon_distance(
-    points: ArrayLike, polygon: ArrayLike, *, signed: bool = False
+    points: ArrayLike, polygon: ArrayLike | Polylines, *, signed: bool = False
 ) -> npt.NDArray[np.float64]: ...
 def assign_domain(
     targets: Any,

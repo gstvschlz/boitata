@@ -86,6 +86,32 @@ def test_polygons():
     np.testing.assert_array_equal(selector.contains([[5, 5, 0], [5, 5, 3]]), [True, False])
 
 
+def test_polygon_with_a_hole():
+    square = lambda o, s: [[o, o], [o + s, o], [o + s, o + s], [o, o + s]]
+    lines = cs.Polylines([square(0, 10), square(4, 2), square(20, 1)], closed=True, features=[0, 0, 1])
+    np.testing.assert_allclose(lines.area(), [96, 1])
+    np.testing.assert_allclose(lines.length(), [48, 4])
+    points = [[2, 2], [5, 5], [20.5, 20.5], [15, 5]]
+    np.testing.assert_array_equal(lines.contains(points), [True, False, True, False])
+    np.testing.assert_array_equal(lines.contains(points, feature=1), [False, False, True, False])
+    np.testing.assert_array_equal(lines.locate(points), [0, -1, 1, -1])
+    across = [[x, 5] for x in (-1, 1, 3.5, 4.5, 5)]
+    np.testing.assert_allclose(lines.distance(across, signed=True), [1, -1, -0.5, 0.5, 1])
+    np.testing.assert_allclose(lines.distance(across, feature=1)[0], np.hypot(21, 15))
+    np.testing.assert_array_equal(cs.point_in_polygon(points, lines), lines.contains(points))
+    np.testing.assert_array_equal(
+        cs.polygon_distance(across, lines, signed=True), lines.distance(across, signed=True)
+    )
+    selector = cs.PolygonSelector(lines)
+    np.testing.assert_array_equal(selector.contains(points), [True, False, True, False])
+    raw = cs.PolygonSelector([square(0, 10), square(4, 2)], closed=True)
+    np.testing.assert_array_equal(raw.contains(points), [True, False, False, False])
+    with pytest.raises(cs.InvalidInput):
+        lines.contains(points, feature=2)
+    with pytest.raises(cs.InvalidInput):
+        cs.Polylines([square(0, 1)]).distance(points)
+
+
 def test_assign_domain_nearest_and_solid():
     labels, confidence = cs.assign_domain([[1, 1, 0]], coords=[[0, 0, 0], [9, 9, 0]], domains=["ox", "fr"])
     assert 0 <= confidence[0] <= 1
@@ -194,6 +220,12 @@ def test_subblocks_from_meshes_and_regularize():
     assert len(grid.subblock(meshes, 4)) < len(sub)
     with pytest.raises(cs.InvalidInput):
         grid.subblock([(cube, "beside", "ore")], 4)
+    ring = lambda h: [[-h, -h], [h, -h], [h, h], [-h, h]]
+    lease = cs.Polylines([ring(8), ring(4)], closed=True, features=[0, 0])
+    prism = grid.subblock([(lease, "inside", "lease")], 2)
+    assert prism.volumes.sum() == pytest.approx((12 * 12 - 8 * 8) * 16)
+    with pytest.raises(cs.InvalidInput):
+        grid.subblock([(lease, "below", "lease")], 2)
 
     grade = sub.with_column("au", np.where(domain == "ore", 2.0, 0.5))
     coarse = cs.BlockModel((-4, -4, -4), (10, 10, 8), (2, 2, 2))

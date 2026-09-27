@@ -13,7 +13,7 @@ use pyo3::types::{IntoPyDict, PyDict, PyTuple};
 use rayon::prelude::*;
 
 use crate::args::{Point, array1, column, finite, floats, named, points, rows, same_length, texts};
-use crate::containers::{PyBlockModel, coords_arg, coords_array, float_column};
+use crate::containers::{PyBlockModel, PyPolylines, coords_arg, coords_array, float_column};
 use crate::estimation::targets;
 use crate::invalid;
 use crate::table::Table;
@@ -76,7 +76,7 @@ impl Mesh {
     }
 
     /// Domain `label` inside this solid, or below or above this surface.
-    pub fn domain(&self, rule: &str, label: String) -> PyResult<blocks::Domain> {
+    fn domain(&self, rule: &str, label: String) -> PyResult<blocks::Domain> {
         let region = match rule {
             "inside" => blocks::Region::Inside(self.solid()?.clone()),
             "below" => blocks::Region::Below(blocks::Surface::new(&self.mesh).map_err(err)?),
@@ -386,9 +386,11 @@ impl Mesh {
     }
 }
 
-/// Selects points inside any plan-view ring, optionally between `z_min` and
-/// `z_max`. Rings are `(n, 3)` polylines; `closed=True` means they close
-/// implicitly.
+/// Selects points inside plan-view rings, optionally between `z_min` and
+/// `z_max`. `rings` are `(n, 3)` polylines, where `closed=True` means they
+/// close implicitly, or a Polylines, whose closed parts are used. Inside means
+/// an odd number of rings of a feature hold the point, so a ring inside
+/// another is a hole; raw rings are one feature.
 #[pyclass(module = "ceres", name = "PolygonSelector", frozen)]
 pub struct PolygonSelector(CoreSelector);
 
@@ -397,11 +399,16 @@ impl PolygonSelector {
     #[new]
     #[pyo3(signature = (rings, *, closed=false, z_min=None, z_max=None))]
     fn new(
-        rings: Vec<Bound<PyAny>>,
+        rings: &Bound<PyAny>,
         closed: bool,
         z_min: Option<f64>,
         z_max: Option<f64>,
     ) -> PyResult<Self> {
+        if let Ok(lines) = rings.cast::<PyPolylines>() {
+            let selector = CoreSelector::from_polylines(&lines.get().0, z_min, z_max);
+            return Ok(Self(selector.map_err(err)?));
+        }
+        let rings: Vec<Bound<PyAny>> = rings.extract()?;
         let rings: Vec<Vec<[f64; 3]>> = rings
             .iter()
             .map(|r| Ok(points(r)?.into_iter().map(|p| [p.0, p.1, p.2]).collect()))
@@ -421,6 +428,22 @@ impl PolygonSelector {
     }
 }
 
+/// Domain `label` from a `(Mesh or Polylines, rule, label)` tuple; a
+/// Polylines is a vertical prism, `"inside"` only.
+pub fn domain(region: &Bound<PyAny>, rule: &str, label: String) -> PyResult<blocks::Domain> {
+    if let Ok(lines) = region.cast::<PyPolylines>() {
+        if rule != "inside" {
+            return Err(invalid(format!(
+                "Polylines take rule 'inside', got {rule:?}"
+            )));
+        }
+        let prism = CoreSelector::from_polylines(&lines.get().0, None, None).map_err(err)?;
+        let region = blocks::Region::Prism(prism);
+        return Ok(blocks::Domain { region, label });
+    }
+    region.cast::<Mesh>()?.get().domain(rule, label)
+}
+
 fn polygon(obj: &Bound<PyAny>) -> PyResult<Vec<(f64, f64)>> {
     rows(obj, "polygon")?
         .into_iter()
@@ -431,13 +454,17 @@ fn polygon(obj: &Bound<PyAny>) -> PyResult<Vec<(f64, f64)>> {
         .collect()
 }
 
-/// Whether each `(x, y)` point is inside `polygon` (even-odd rule).
+/// Whether each `(x, y)` point is inside `polygon`, an `(n, 2)` ring or a
+/// Polylines (even-odd rule; see `Polylines.contains`).
 #[pyfunction]
 fn point_in_polygon<'py>(
     py: Python<'py>,
-    points: &Bound<PyAny>,
-    polygon: &Bound<PyAny>,
+    points: &Bound<'py, PyAny>,
+    polygon: &Bound<'py, PyAny>,
 ) -> PyResult<Bound<'py, PyAny>> {
+    if let Ok(lines) = polygon.cast::<PyPolylines>() {
+        return Ok(lines.call_method1("contains", (points,))?.into_any());
+    }
     let ring = self::polygon(polygon)?;
     let inside = self::points(points)?
         .iter()
@@ -446,16 +473,21 @@ fn point_in_polygon<'py>(
     Ok(bools(py, inside))
 }
 
-/// Plan distance from each point to the polygon boundary; `signed` makes
-/// inside points negative.
+/// Plan distance from each point to the boundary of `polygon`, an `(n, 2)`
+/// ring or a Polylines (see `Polylines.distance`); `signed` makes inside
+/// points negative.
 #[pyfunction]
 #[pyo3(signature = (points, polygon, *, signed=false))]
 fn polygon_distance<'py>(
     py: Python<'py>,
-    points: &Bound<PyAny>,
-    polygon: &Bound<PyAny>,
+    points: &Bound<'py, PyAny>,
+    polygon: &Bound<'py, PyAny>,
     signed: bool,
 ) -> PyResult<Bound<'py, PyAny>> {
+    if let Ok(lines) = polygon.cast::<PyPolylines>() {
+        let kwargs = [("signed", signed)].into_py_dict(py)?;
+        return lines.call_method("distance", (points,), Some(&kwargs));
+    }
     let ring = self::polygon(polygon)?;
     let d = self::points(points)?
         .iter()
