@@ -27,8 +27,11 @@ Tutorials follow one deposit from data to a result; topics show one feature each
 | 20 | [Downhole nugget](topics/20-downhole-nugget/README.md) | Nickel laterite profile | `merge_intervals`, `Drillholes`, `experimental_variogram` |
 | 21 | [Coregionalization](topics/21-coregionalization/README.md) | Jura | `experimental_variogram`, `Coregionalization`, `plot.variogram` |
 | | **Estimation** | | |
-| 22 | [Ordinary kriging](topics/22-ordinary-kriging/README.md) | Walker Lake | `Variogram`, `BlockModel`, `Search`, `OrdinaryKriging`, `plot.scatter` |
-| 23 | [Estimation methods and search](topics/23-simple-estimators/README.md) | Walker Lake | `Variogram`, `BlockModel`, `Search`, `NearestNeighbor`, `InverseDistance`, `OrdinaryKriging`, `UniversalKriging`, `BlockKriging` |
+| 22 | [Ordinary kriging](topics/22-ordinary-kriging/README.md) | Walker Lake | `experimental_variogram`, `Variogram`, `BlockModel`, `Search`, `OrdinaryKriging`, `plot.scatter` |
+| 23 | [Simple estimators](topics/23-simple-estimators/README.md) | Walker Lake | `BlockModel`, `experimental_variogram`, `Variogram`, `Search`, `NearestNeighbor`, `InverseDistance`, `MovingAverage`, `OrdinaryKriging`, `compare_models` |
+| 24 | [Universal kriging](topics/24-universal-kriging/README.md) | Coal seam thickness | `detrend`, `experimental_variogram`, `plot.variogram`, `Search`, `OrdinaryKriging`, `UniversalKriging` |
+| 25 | [Block kriging](topics/25-block-kriging/README.md) | Walker Lake | `experimental_variogram`, `Variogram`, `Search`, `BlockModel`, `BlockKriging`, `OrdinaryKriging` |
+| 26 | [Search](topics/26-search/README.md) | Walker Lake | `BlockModel`, `experimental_variogram`, `Variogram`, `OrdinaryKriging`, `Search` |
 | 27 | [Cokriging](topics/27-cokriging/README.md) | Jura | `experimental_variogram`, `Coregionalization`, `Search`, `OrdinaryKriging`, `Cokriging` |
 | 28 | [Indicator kriging](topics/28-indicator-kriging/README.md) | Jura | `experimental_variogram`, `Search`, `IndicatorKriging` |
 | 29 | [Multiple indicator kriging](topics/29-multiple-indicator-kriging/README.md) | Jura | `Search`, `cell_declustering`, `experimental_variogram`, `MultipleIndicatorKriging`, `OrdinaryKriging`, `BlockModel` |
