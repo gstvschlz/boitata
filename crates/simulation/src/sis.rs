@@ -54,6 +54,11 @@ pub fn sis(
     if data_locs.is_empty() {
         return Err(SimError::InsufficientData("no conditioning data".into()));
     }
+    if params.search.clamps() {
+        return Err(SimError::InvalidParameters(
+            "categories cannot be clamped at a high-grade threshold".into(),
+        ));
+    }
     if variograms.len() != n_categories {
         return Err(SimError::InvalidParameters(
             "need one variogram per category".into(),

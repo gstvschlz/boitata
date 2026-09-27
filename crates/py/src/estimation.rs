@@ -1,8 +1,8 @@
 use estimation::{
-    Discretization, DriftSpec, DualKriging, Estimate, HighGrade, InterpEstimate, InterpOptions,
-    Kind, NeighborhoodStats, Sample, Search as CoreSearch, Soft, SoftPair, block_krige, by_pass,
-    estimate_many, k_fold_at, krige, krige_bayesian, krige_factorial, krige_universal,
-    leave_one_out_at,
+    Discretization, DriftSpec, DualKriging, Estimate, HighGrade, HighGradeMode, InterpEstimate,
+    InterpOptions, Kind, NeighborhoodStats, Sample, Search as CoreSearch, Soft, SoftPair,
+    block_krige, by_pass, estimate_many, k_fold_at, krige, krige_bayesian, krige_factorial,
+    krige_universal, leave_one_out_at,
 };
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -30,9 +30,10 @@ use crate::variogram::Variogram;
 /// `octant` takes at most `max_samples / 8` samples from each octant around
 /// the target, split along the ellipsoid's axes; with 2D data (one elevation)
 /// the sectors are the ellipse's four quadrants, `max_samples / 4` each.
-/// `high_grade` `(threshold, radius)` lets samples above `threshold` inform
-/// only targets within `radius`, measured in the same ellipsoid, in
-/// estimation and cross-validation alike. The threshold is always in data
+/// `high_grade`, a HighGrade or `(threshold, radius)`, restricts samples
+/// above `threshold` to targets within `radius`, measured in the same
+/// ellipsoid unless the HighGrade has its own, in estimation and
+/// cross-validation alike; give each pass its own to vary it by pass. The threshold is always in data
 /// units: simulators compare it with the data values and the simulated
 /// values of nodes, so it picks the same samples as in estimation. Estimators also take a sequence
 /// of searches as passes: targets one leaves unestimated go to the next.
@@ -40,6 +41,162 @@ use crate::variogram::Variogram;
 /// distance in the same ellipsoid: one distance for every pair of domains,
 /// or a dict `{(target_domain, sample_domain): distance}`, one way; pairs not
 /// listed are hard.
+/// High-grade restriction of a Search: samples above `threshold` are left
+/// out (`mode="drop"`) or capped at `threshold` (`mode="clamp"`) beyond
+/// `radius` of the target. `radius` is a distance in the search ellipsoid,
+/// or ranges `(major, semi, minor)` of an ellipsoid of its own, rotated by
+/// `rotation` (azimuth, dip, rake).
+#[derive(Serialize, Deserialize)]
+#[pyclass(module = "ceres", name = "HighGrade", frozen, from_py_object)]
+#[derive(Clone)]
+pub struct PyHighGrade(pub HighGrade);
+
+impl PyHighGrade {
+    /// A HighGrade, or a `(threshold, radius)` tuple.
+    fn of(obj: &Bound<PyAny>) -> PyResult<HighGrade> {
+        if let Ok(h) = obj.cast::<PyHighGrade>() {
+            return Ok(h.get().0.clone());
+        }
+        let (threshold, radius): (f64, f64) = obj
+            .extract()
+            .map_err(|_| invalid("high_grade must be a HighGrade or (threshold, radius)"))?;
+        Ok(Self::new(
+            threshold,
+            &radius.into_bound_py_any(obj.py())?,
+            None,
+            "drop",
+        )?
+        .0)
+    }
+}
+
+#[pymethods]
+impl PyHighGrade {
+    fn to_json(&self) -> PyResult<String> {
+        crate::persist::to_json(self)
+    }
+
+    #[staticmethod]
+    fn from_json(text: &str) -> PyResult<Self> {
+        crate::persist::from_json(text)
+    }
+
+    #[new]
+    #[pyo3(signature = (threshold, radius, *, rotation=None, mode="drop"))]
+    fn new(
+        threshold: f64,
+        radius: &Bound<PyAny>,
+        rotation: Option<(f64, f64, f64)>,
+        mode: &str,
+    ) -> PyResult<Self> {
+        let mode = match mode {
+            "drop" => HighGradeMode::Drop,
+            "clamp" => HighGradeMode::Clamp,
+            _ => {
+                return Err(invalid(format!(
+                    "mode must be 'drop' or 'clamp', not {mode:?}"
+                )));
+            }
+        };
+        let (ranges, own) = match radius.extract::<f64>() {
+            Ok(r) => ((r, r, r), rotation.is_some()),
+            Err(_) => (
+                radius
+                    .extract::<(f64, f64, f64)>()
+                    .map_err(|_| invalid("radius must be a distance or (major, semi, minor)"))?,
+                true,
+            ),
+        };
+        let (major, semi, minor) = ranges;
+        let valid = match own {
+            false => major >= 0.0,
+            true => major > 0.0 && semi > 0.0 && minor > 0.0,
+        };
+        if threshold.is_nan() || !valid {
+            return Err(invalid(
+                "high_grade needs a threshold, a radius >= 0 and ranges > 0",
+            ));
+        }
+        let anisotropy = match own {
+            false => None,
+            true => Some(
+                variogram::Anisotropy::new(variogram::Angles {
+                    azimuth: rotation.map_or(0.0, |r| r.0),
+                    dip: rotation.map_or(0.0, |r| r.1),
+                    rake: rotation.map_or(0.0, |r| r.2),
+                    major: 1.0,
+                    semi: semi / major,
+                    minor: minor / major,
+                })
+                .map_err(|e| invalid(e.to_string()))?,
+            ),
+        };
+        Ok(Self(HighGrade {
+            threshold,
+            radius: major,
+            anisotropy,
+            mode,
+        }))
+    }
+
+    #[getter]
+    fn threshold(&self) -> f64 {
+        self.0.threshold
+    }
+
+    /// The distance, or the major range of the restriction's own ellipsoid.
+    #[getter]
+    fn radius(&self) -> f64 {
+        self.0.radius
+    }
+
+    /// Ranges `(major, semi, minor)` of the restriction's own ellipsoid;
+    /// None when it is measured in the search ellipsoid.
+    #[getter]
+    fn ranges(&self) -> Option<(f64, f64, f64)> {
+        let a = &self.0.anisotropy.as_ref()?.angles;
+        let r = self.0.radius;
+        Some((r, r * a.semi, r * a.minor))
+    }
+
+    #[getter]
+    fn rotation(&self) -> Option<(f64, f64, f64)> {
+        let a = &self.0.anisotropy.as_ref()?.angles;
+        Some((a.azimuth, a.dip, a.rake))
+    }
+
+    #[getter]
+    fn mode(&self) -> &'static str {
+        match self.0.mode {
+            HighGradeMode::Drop => "drop",
+            HighGradeMode::Clamp => "clamp",
+        }
+    }
+
+    fn __eq__(&self, other: &Bound<PyAny>) -> bool {
+        other.cast::<PyHighGrade>().is_ok_and(|o| {
+            let (a, b) = (&self.0, &o.get().0);
+            a.threshold == b.threshold
+                && a.radius == b.radius
+                && a.mode == b.mode
+                && a.anisotropy.as_ref().map(|x| &x.angles)
+                    == b.anisotropy.as_ref().map(|x| &x.angles)
+        })
+    }
+
+    fn __repr__(&self) -> String {
+        let extent = match self.ranges() {
+            Some(r) => format!("{r:?}, rotation={:?}", self.rotation().unwrap_or_default()),
+            None => format!("{}", self.0.radius),
+        };
+        format!(
+            "HighGrade({}, {extent}, mode={:?})",
+            self.0.threshold,
+            self.mode()
+        )
+    }
+}
+
 #[derive(Serialize, Deserialize)]
 #[pyclass(module = "ceres", name = "Search", frozen, from_py_object)]
 #[derive(Clone)]
@@ -199,18 +356,14 @@ impl Search {
         max_per_hole: Option<usize>,
         rotation: Option<(f64, f64, f64)>,
         ratios: Option<(f64, f64)>,
-        high_grade: Option<(f64, f64)>,
+        high_grade: Option<&Bound<PyAny>>,
         soft: Option<&Bound<PyAny>>,
     ) -> PyResult<Self> {
+        let high_grade = high_grade.map(PyHighGrade::of).transpose()?;
         if radius.is_nan() || radius <= 0.0 || max_samples == 0 || min_samples > max_samples {
             return Err(invalid(
                 "need radius > 0 and 1 <= min_samples <= max_samples",
             ));
-        }
-        if let Some((threshold, radius)) = high_grade
-            && (threshold.is_nan() || radius.is_nan() || radius < 0.0)
-        {
-            return Err(invalid("high_grade needs a threshold and a radius >= 0"));
         }
         Ok(Self {
             soft: soft.map(self::soft).transpose()?,
@@ -227,7 +380,7 @@ impl Search {
                         ratios.unwrap_or((1.0, 1.0)),
                     )?,
                 },
-                high_grade: high_grade.map(|(threshold, radius)| HighGrade { threshold, radius }),
+                high_grade,
                 soft: None,
             },
         })
@@ -259,8 +412,8 @@ impl Search {
     }
 
     #[getter]
-    fn high_grade(&self) -> Option<(f64, f64)> {
-        self.core.high_grade.map(|h| (h.threshold, h.radius))
+    fn high_grade(&self) -> Option<PyHighGrade> {
+        self.core.high_grade.clone().map(PyHighGrade)
     }
 
     /// Azimuth, dip and rake of the search ellipsoid; None when the search
@@ -1332,6 +1485,7 @@ fn hole_distance<'py>(
 pub fn register(m: &Bound<PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(hole_distance, m)?)?;
     m.add_class::<Search>()?;
+    m.add_class::<PyHighGrade>()?;
     m.add_class::<Estimator>()?;
     m.add_class::<Dual>()?;
     m.add_function(wrap_pyfunction!(neighborhood_stats, m)?)?;

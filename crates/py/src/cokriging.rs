@@ -166,6 +166,11 @@ impl Cokriging {
                 Ok((k, v))
             })
             .collect::<PyResult<_>>()?;
+        if self.search.clamps() {
+            return Err(invalid(
+                "cokriging does not clamp high grades; use mode drop",
+            ));
+        }
         let metric = metric(self.model.anisotropy.clone());
         let tree = SearchTree::new(plain, &self.search, Some(&metric));
         let results: Vec<Option<Estimate>> = py.detach(|| {
@@ -220,6 +225,11 @@ impl Disjunctive {
             .as_ref()
             .ok_or_else(|| invalid("DisjunctiveKriging is not fitted; call fit first"))?;
         let targets = targets_of(targets)?;
+        if self.search.clamps() {
+            return Err(invalid(
+                "disjunctive kriging does not clamp high grades; use mode drop",
+            ));
+        }
         let metric = metric(self.variogram.anisotropy.clone());
         let tree = SearchTree::new(plain, &self.search, Some(&metric));
         Ok(py.detach(|| {

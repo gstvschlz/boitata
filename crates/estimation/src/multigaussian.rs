@@ -216,6 +216,7 @@ impl Multigaussian {
         cutoffs: &[f64],
         quantiles: &[f64],
     ) -> Result<IndicatorSummary> {
+        crate::search::unclamped(searches, "multi-Gaussian kriging")?;
         self.validate()?;
         if cutoffs.iter().any(|c| !c.is_finite()) {
             return Err(invalid("cutoffs must be finite"));
@@ -258,6 +259,7 @@ impl Multigaussian {
         searches: &[Search],
         folds: Option<usize>,
     ) -> Result<(IndicatorSummary, Vec<f64>)> {
+        crate::search::unclamped(searches, "multi-Gaussian kriging")?;
         self.validate()?;
         let table = self.table(samples, weights)?;
         let scores = Self::scores(&table, samples);

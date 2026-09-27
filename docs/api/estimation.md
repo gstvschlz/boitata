@@ -2,6 +2,8 @@
 
 ::: ceres.Search
 
+::: ceres.HighGrade
+
 ::: ceres.OrdinaryKriging
 
 ::: ceres.SimpleKriging
