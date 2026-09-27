@@ -24,10 +24,29 @@ from matplotlib.colors import PowerNorm
 samples = cs.datasets.walker_lake()
 truth = cs.datasets.walker_lake_exhaustive()["V"].reshape(300, 260)
 xy, v = samples.coords, samples["V"]
-model = cs.Variogram.from_json((HERE.parent / "model.json").read_text())
 grid = cs.BlockModel(origin=(0.5, 0.5), size=(5, 5), count=(52, 60))
 nodes = grid.centroids.astype(int)
 true_at_nodes = truth[nodes[:, 1] - 1, nodes[:, 0] - 1]
+
+# %% [markdown]
+# The global model, fitted along N170° and across it as in topic 19: two nested structures, the minor/major ratio set
+# by the long one.
+
+# %%
+azimuth, lag, max_lag = 170.0, 10.0, 120.0
+along = cs.experimental_variogram(xy, v, lag, max_lag, azimuth=azimuth).fit(
+    ["spherical", "spherical"], weighting="count/gamma"
+)
+across = cs.experimental_variogram(xy, v, lag, max_lag, azimuth=azimuth + 90).fit(
+    ["spherical", "spherical"],
+    weighting="count/gamma",
+    nugget=along.nugget,
+    sills=[s.sill for s in along.structures],
+)
+model = along.with_anisotropy(
+    (azimuth, 0, 0), (across.structures[-1].range / along.structures[-1].range, 1.0)
+)
+print(model)
 
 # %% [markdown]
 # A quick isotropic estimate outlines the bodies; the gradient of that map gives the orientation of least change.
@@ -91,13 +110,15 @@ save(fig, "kriging")
 
 # %% [markdown]
 # Simulation takes the same field: each node's variogram and search follow the local direction, so continuity bends
-# with the bodies instead of crossing them.
+# with the bodies instead of crossing them. The normal-score variogram is fitted along the major axis; the field
+# supplies the orientation and the ratios.
 
 # %%
 weights = cs.cell_declustering(xy, v, sizes=np.arange(2.5, 102.5, 2.5)).weights
-gaussian = cs.Variogram([("spherical", 0.68, 82.0)], nugget=0.32)
+scores = cs.NormalScore().fit_transform(v, weights=weights)
+gaussian = cs.experimental_variogram(xy, scores, lag, max_lag, azimuth=azimuth).fit("spherical")
 sgs = cs.SGS(gaussian, cs.Search(radius=100, max_samples=24)).fit(xy, v, weights=weights)
-uniform = cs.LocalAnisotropy(np.zeros((1, 3)), [model.rotation], [[0.43, 1.0]])
+uniform = cs.LocalAnisotropy(np.zeros((1, 3)), [model.rotation], [model.ratios])
 global_real = sgs.simulate(grid, n=1, seed=11, realizations=True, anisotropy=uniform).realizations[0]
 local_real = sgs.simulate(grid, n=1, seed=11, realizations=True, anisotropy=lva).realizations[0]
 

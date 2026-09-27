@@ -44,7 +44,8 @@ Tutorials follow one deposit from data to a result; topics show one feature each
 | 27 | [Cokriging](topics/27-cokriging/README.md) | Jura | `experimental_variogram`, `Coregionalization`, `Search`, `OrdinaryKriging`, `Cokriging` |
 | 28 | [Indicator kriging](topics/28-indicator-kriging/README.md) | Jura | `experimental_variogram`, `Search`, `IndicatorKriging` |
 | 29 | [Multiple indicator kriging](topics/29-multiple-indicator-kriging/README.md) | Jura | `Search`, `cell_declustering`, `experimental_variogram`, `MultipleIndicatorKriging`, `OrdinaryKriging`, `BlockModel` |
-| 31 | [Locally varying anisotropy](topics/31-local-anisotropy/README.md) | Walker Lake | `Variogram`, `BlockModel`, `OrdinaryKriging`, `Search`, `LocalAnisotropy`, `plot.directions`, `cell_declustering`, `SGS` |
+| 30 | [Soft boundaries](topics/30-soft-boundaries/README.md) | Nickel laterite profile | `merge_intervals`, `Drillholes`, `contact`, `plot.contact`, `NormalScore`, `experimental_variogram`, `Search`, `OrdinaryKriging`, `SGS` |
+| 31 | [Locally varying anisotropy](topics/31-local-anisotropy/README.md) | Walker Lake | `BlockModel`, `experimental_variogram`, `Variogram`, `OrdinaryKriging`, `Search`, `LocalAnisotropy`, `plot.directions`, `cell_declustering`, `NormalScore`, `SGS` |
 | | **Change of support** | | |
 | 32 | [Discrete Gaussian model](topics/32-discrete-gaussian-model/README.md) | Walker Lake | `cell_declustering`, `HermiteAnamorphosis`, `experimental_variogram`, `Variogram`, `change_of_support` |
 | 33 | [Uniform conditioning](topics/33-uniform-conditioning/README.md) | Walker Lake | `cell_declustering`, `HermiteAnamorphosis`, `experimental_variogram`, `Variogram`, `change_of_support`, `Search`, `BlockModel`, `BlockKriging`, `UniformConditioning` |
