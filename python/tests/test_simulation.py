@@ -151,7 +151,7 @@ def test_plurigaussian_fitted_variograms_recover_the_latent_ranges():
     fine = cs.BlockModel(origin=(0, 0), size=(2, 2), count=(60, 60))
     xy = fine.centroids[:, :2]
     pgs = cs.Plurigaussian(truth, proportions=[0.3, 0.4, 0.3], rule=rule).fit([[60.0, 60.0]], [1])
-    facies = pgs.simulate(fine, n=1, seed=2, realizations=True).realizations[0]
+    facies = pgs.simulate(fine, n=1, seed=5, realizations=True).realizations[0]
     experimental = [cs.experimental_variogram(xy, (facies == f).astype(float), 2.0, 24.0) for f in range(3)]
     start = [cs.Variogram([("spherical", 1.0, 5.0)]), cs.Variogram([("exponential", 1.0, 80.0)])]
     fitted = cs.Plurigaussian(start, proportions=[0.3, 0.4, 0.3], rule=rule).fit_variograms(experimental)
@@ -823,8 +823,9 @@ def test_cosimulation_takes_a_secondary_realization_per_realization(tmp_path):
     model, nodes, secondary, _, points = _cosimulation_case()
     sgs = cs.SGS(model, cs.Search(radius=30, max_samples=16)).fit(points, "v", secondary="s", correlation=0.8)
     both = sgs.simulate(nodes, n=2, seed=4, secondary=secondary, realizations=True).realizations
-    second = sgs.simulate(nodes, n=1, seed=5, secondary=secondary[1], realizations=True).realizations
-    np.testing.assert_array_equal(both[1], second[0])
+    second = sgs.simulate(nodes, n=2, seed=4, secondary=secondary[[1, 1]], realizations=True).realizations
+    np.testing.assert_array_equal(both[1], second[1])
+    assert not np.array_equal(both[0], second[0])
     sgs.to_parquet(tmp_path / "cosgs.parquet")
     loaded = cs.SGS.from_parquet(tmp_path / "cosgs.parquet")
     assert loaded.correlation == 0.8

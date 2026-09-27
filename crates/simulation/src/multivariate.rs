@@ -4,6 +4,8 @@
 
 use transforms::{Maf, Pca, Ppmt, StepwiseConditional};
 
+use ceres_core::rng::realization_seed;
+
 use crate::error::Result;
 use crate::post::{BlockSupport, ContinuousOptions, ContinuousSummary, continuous_many};
 
@@ -38,17 +40,10 @@ impl Decorrelation {
     }
 }
 
-fn splitmix(z: u64) -> u64 {
-    let z = z.wrapping_add(0x9E37_79B9_7F4A_7C15);
-    let z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
-    let z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
-    z ^ (z >> 31)
-}
-
 /// Seed of factor `j` in realization `k`, so that no two factors share a
 /// random stream.
 pub fn factor_seed(seed: u64, k: usize, j: usize) -> u64 {
-    splitmix(seed.wrapping_add(k as u64) ^ splitmix(j as u64))
+    realization_seed(realization_seed(seed, k as u64), j as u64)
 }
 
 /// Summaries of `n` realizations of every variable. `simulate(k, j, seed)`
