@@ -461,3 +461,28 @@ def test_contact_draws_each_side_apart():
     assert np.all(inside < 0) and np.all(outside > 0)
     assert sum(p.get_height() for p in _twin(ax).patches) == 40
     assert [t.get_text() for t in ax.texts] == ["ore", "waste"]
+
+
+def test_reproduction_plots():
+    nodes = cs.BlockModel((0.5, 0.5), (1.0, 1.0), (20, 20))
+    points = cs.PointSet(rng.uniform(0, 20, (50, 2)), {"a": rng.normal(size=50), "b": rng.normal(size=50)})
+    reals = [rng.normal(size=(5, 400)), rng.normal(size=(5, 400))]
+    model = cs.Variogram([("spherical", 1.0, 5.0)], rotation=(30.0, 0.0, 0.0))
+    check = cs.check_realizations(
+        nodes, reals, points, ["a", "b"], variogram=[model, model], lag=1.0, max_lag=6.0
+    )
+    _, ax = cs.plot.histogram_reproduction(check, variable="b", scores=True)
+    np.testing.assert_allclose(ax.lines[1].get_xdata(), cs.normal_ppf(check.probabilities))
+    _, ax = cs.plot.variogram_reproduction(check)
+    assert len(ax.collections) == 2 and ax.get_legend() is not None
+    _, ax = cs.plot.correlation_reproduction(check)
+    assert ax.lines[1].get_ydata()[0] == pytest.approx(check.data_correlation[0, 1])
+    cats = cs.check_realizations(nodes, rng.integers(0, 2, (4, 400)), points, rng.integers(0, 2, 50))
+    _, ax = cs.plot.histogram_reproduction(cats)
+    np.testing.assert_allclose(ax.lines[1].get_ydata(), cats.data_proportions)
+    with pytest.raises(cs.InvalidInput):
+        cs.plot.variogram_reproduction(cats)
+    with pytest.raises(cs.InvalidInput):
+        cs.plot.correlation_reproduction(cats)
+    with pytest.raises(cs.InvalidInput):
+        cs.plot.histogram_reproduction(check, variable="c")

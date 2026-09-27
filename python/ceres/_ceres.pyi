@@ -663,6 +663,17 @@ def experimental_variograms(
     standardize: bool = False,
     method: str | None = None,
 ) -> VariogramSet: ...
+def _realization_variograms(
+    coords: ArrayLike | PointSet | BlockModel,
+    realizations: ArrayLike,
+    lag: float,
+    max_lag: float,
+    *,
+    directions: Sequence[tuple[float, float]] | None = None,
+    tolerance: float = 22.5,
+    bandwidth: float | None = None,
+    method: str | None = None,
+) -> list[list[ExperimentalVariogram]]: ...
 def variogram_map(
     coords: ArrayLike | PointSet | BlockModel,
     values: ArrayLike | Column,

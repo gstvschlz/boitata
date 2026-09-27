@@ -8,8 +8,8 @@ use variogram::{
     Angles, Anisotropy, AnisotropySpec, Bounds, CoregStructure, Coregionalization as CoreCoreg,
     Direction, Estimator, Experimental, LagBins, Model, NestedSpec, Structure as CoreStructure,
     StructureSpec, Support, Transiogram as CoreTransiogram, Variogram as CoreVariogram, Weighting,
-    cross_experimental, downhole, empirical_transiogram, experimental, experimental_set,
-    extrapolated_nugget, fit_coregionalization, fit_directional, fit_nested,
+    cross_experimental, downhole, empirical_transiogram, experimental, experimental_realizations,
+    experimental_set, extrapolated_nugget, fit_coregionalization, fit_directional, fit_nested,
 };
 
 use crate::args::{Point, array1, array2, column, finite, floats, points, same_length, triple};
@@ -895,6 +895,52 @@ fn experimental_variograms(
     })
 }
 
+/// Direct experimental variogram of each row of `realizations` at `coords`,
+/// in parallel over the rows: one list per row, one entry per direction
+/// (one omnidirectional when `directions` is None). Backs
+/// `check_realizations`.
+#[pyfunction]
+#[pyo3(signature = (coords, realizations, lag, max_lag, *, directions=None, tolerance=22.5, bandwidth=None, method=None))]
+#[allow(clippy::too_many_arguments)]
+fn _realization_variograms(
+    coords: &Bound<PyAny>,
+    realizations: &Bound<PyAny>,
+    lag: f64,
+    max_lag: f64,
+    directions: Option<Vec<(f64, f64)>>,
+    tolerance: f64,
+    bandwidth: Option<f64>,
+    method: Option<&str>,
+) -> PyResult<Vec<Vec<ExperimentalVariogram>>> {
+    let bins = bins(lag, max_lag)?;
+    let locs = locations(coords, method)?;
+    let rows = crate::args::rows(realizations, "realizations")?;
+    if rows.iter().flatten().any(|v| !v.is_finite()) {
+        return Err(invalid("realizations must be finite"));
+    }
+    if let Some(row) = rows.first() {
+        same_length(locs.len(), row.len(), "realizations")?;
+    }
+    let cones: Vec<Direction> = directions
+        .iter()
+        .flatten()
+        .map(|&(azimuth, dip)| Direction {
+            azimuth,
+            dip,
+            tolerance,
+            bandwidth,
+        })
+        .collect();
+    let rows: Vec<&[f64]> = rows.iter().map(Vec::as_slice).collect();
+    let m = Estimator::Matheron;
+    let out =
+        experimental_realizations(locs.support(), &rows, &bins, m, &cones, false).map_err(err)?;
+    Ok(out
+        .into_iter()
+        .map(|r| r.into_iter().map(ExperimentalVariogram).collect())
+        .collect())
+}
+
 /// γ on a plane as an angle × lag grid, with the fitted range per angle.
 #[pyclass(module = "ceres", name = "VariogramMap", frozen)]
 pub struct VariogramMap {
@@ -1311,6 +1357,7 @@ pub fn register(m: &Bound<PyModule>) -> PyResult<()> {
     m.add_class::<Transiogram>()?;
     m.add_function(wrap_pyfunction!(experimental_variogram, m)?)?;
     m.add_function(wrap_pyfunction!(experimental_variograms, m)?)?;
+    m.add_function(wrap_pyfunction!(_realization_variograms, m)?)?;
     m.add_function(wrap_pyfunction!(variogram_map, m)?)?;
     m.add_function(wrap_pyfunction!(experimental_transiogram, m)?)?;
     m.add_function(wrap_pyfunction!(change_of_support, m)?)?;

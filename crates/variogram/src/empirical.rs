@@ -289,6 +289,35 @@ pub fn experimental_set<'a>(
         .collect()
 }
 
+/// Direct experimental variogram of each of `realizations`, all at
+/// `locations`: entry `[r]` holds one per direction, or one omnidirectional
+/// when `directions` is empty, each what [`experimental`] gives for
+/// realization `r`. Realizations run in parallel and each is summed in a
+/// fixed order, so the result does not depend on the thread count.
+pub fn experimental_realizations<'a>(
+    locations: impl Into<Support<'a>>,
+    realizations: &[&[f64]],
+    bins: &LagBins,
+    estimator: Estimator,
+    directions: &[Direction],
+    standardize: bool,
+) -> Result<Vec<Vec<Experimental>>> {
+    let locations = locations.into();
+    let directions: Vec<Option<&Direction>> = match directions {
+        [] => vec![None],
+        d => d.iter().map(Some).collect(),
+    };
+    realizations
+        .par_iter()
+        .map(|values| {
+            directions
+                .iter()
+                .map(|&d| experimental(locations, values, bins, estimator, d, standardize))
+                .collect()
+        })
+        .collect()
+}
+
 /// Downhole experimental variogram: only pairs of samples in the same hole
 /// (equal `holes` ids) are counted. Lag `k` gathers the pairs within half a
 /// lag width of `k · lag_width`, so with the width set to the composite length
@@ -1273,6 +1302,40 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn realization_variograms_are_each_direct_variogram_on_any_thread_count() {
+        let (geometry, a, b) = grid([20.0, 0.0, 0.0]);
+        let cells: Vec<u64> = (0..geometry.cells()).collect();
+        let bins = LagBins {
+            max_lag: 15.0,
+            lag_width: 1.5,
+        };
+        let dirs = [cone(0.0), cone(90.0)];
+        let m = Estimator::Matheron;
+        let on = Support::Grid(&geometry, &cells);
+        let run = || experimental_realizations(on, &[&a, &b], &bins, m, &dirs, false).unwrap();
+        let reference = run();
+        for (values, got) in [&a, &b].iter().zip(&reference) {
+            for (dir, g) in dirs.iter().zip(got) {
+                let direct = experimental(on, values, &bins, m, Some(dir), false).unwrap();
+                assert_eq!(direct.gammas, g.gammas);
+            }
+        }
+        for k in [1usize, 8] {
+            let pool = rayon::ThreadPoolBuilder::new()
+                .num_threads(k)
+                .build()
+                .unwrap();
+            let got = pool.install(run);
+            for (r, g) in reference.iter().flatten().zip(got.iter().flatten()) {
+                assert_eq!(r.gammas, g.gammas, "gammas differ at {k} threads");
+                assert_eq!(r.counts, g.counts, "counts differ at {k} threads");
+            }
+        }
+        let short = &a[..10];
+        assert!(experimental_realizations(on, &[&a, short], &bins, m, &[], false).is_err());
     }
 
     #[test]

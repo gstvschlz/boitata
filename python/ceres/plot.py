@@ -24,11 +24,13 @@ __all__ = [
     "conditional",
     "contact",
     "correlation",
+    "correlation_reproduction",
     "cross_validation",
     "declustering",
     "directions",
     "grade_tonnage",
     "histogram",
+    "histogram_reproduction",
     "paired_bias",
     "probability",
     "proportions",
@@ -40,6 +42,7 @@ __all__ = [
     "swath",
     "uncertain",
     "variogram",
+    "variogram_reproduction",
     "variograms",
 ]
 
@@ -442,6 +445,155 @@ def variograms(variograms, *, model=None, labels=None, axes=None, **kwargs):
     if variograms.directions:
         axes[0, 0].legend(fontsize=7, title="azimuth", title_fontsize=7)
     return fig, axes
+
+
+def _variable(check, variable):
+    if isinstance(variable, str):
+        if variable not in check.names:
+            raise InvalidInput(f"no variable {variable!r}; checked: {', '.join(check.names)}")
+        return check.names.index(variable)
+    return variable
+
+
+def _band(label, band, n):
+    return (
+        f"{n} {label}" if tuple(band) == (0.0, 1.0) else f"{n} {label}, P{100 * band[0]:g}–P{100 * band[1]:g}"
+    )
+
+
+def histogram_reproduction(check, *, variable=0, scores=False, band=(0.0, 1.0), ax=None, **kwargs):
+    """Cumulative distributions of the realizations as a band, against the declustered data's; for categories,
+    the spread of each category's proportion across realizations against the data's.
+
+    Parameters
+    ----------
+    check : RealizationCheck
+        Result of ``check_realizations``.
+    variable : int or str
+        Variable to draw.
+    scores : bool
+        In the normal scores of the data, against the standard normal distribution, instead of data units.
+    band : tuple of float
+        Quantiles across realizations bounding the band; default their full range.
+    **kwargs
+        Passed to ``ax.fill_betweenx`` (``ax.vlines`` for categories).
+    """
+    fig, ax = _axes(ax)
+    color = _accent()
+    if check.categorical:
+        shares = check.proportions
+        lo, hi = np.quantile(shares, band, axis=0)
+        x = np.arange(len(check.names))
+        kwargs = {"color": "0.75", "lw": 6} | kwargs
+        ax.vlines(x, lo, hi, label=_band("realizations", band, len(shares)), **kwargs)
+        ax.plot(x, np.median(shares, axis=0), "_", color="0.3", ms=12, label="median")
+        ax.plot(x, check.data_proportions, "o", color=color, ms=5, label="declustered data")
+        ax.set_xticks(x, check.names)
+        ax.set_ylim(bottom=0)
+        ax.set_xlabel("Category")
+        ax.set_ylabel("Proportion")
+        ax.legend()
+        return fig, ax
+    v = _variable(check, variable)
+    p = check.probabilities
+    q = check.score_quantiles[v] if scores else check.quantiles[v]
+    target = normal_ppf(p) if scores else check.data_quantiles[v]
+    lo, hi = np.quantile(q, band, axis=0)
+    kwargs = {"color": "0.85", "lw": 0} | kwargs
+    ax.fill_betweenx(p, lo, hi, label=_band("realizations", band, len(q)), **kwargs)
+    ax.plot(np.median(q, axis=0), p, color="0.5", lw=0.8, label="median realization")
+    ax.plot(target, p, color=color, lw=1.4, label="standard normal" if scores else "declustered data")
+    ax.set_ylim(0, 1)
+    ax.set_xlabel(f"{check.names[v]}, normal score" if scores else check.names[v])
+    ax.set_ylabel("Cumulative probability")
+    ax.legend(loc="lower right")
+    return fig, ax
+
+
+def variogram_reproduction(check, *, variable=0, band=(0.0, 1.0), ax=None, **kwargs):
+    """Experimental variograms of the realizations as a band per direction, with the data's as points and the
+    model as a line.
+
+    Parameters
+    ----------
+    check : RealizationCheck
+        Result of ``check_realizations`` with ``lag`` and ``max_lag``.
+    variable : int or str
+        Variable, or category for its indicator, to draw.
+    band : tuple of float
+        Quantiles across realizations bounding each band; default their full range.
+    **kwargs
+        Passed to every ``ax.fill_between``.
+    """
+    import matplotlib as mpl
+
+    if check.variograms is None:
+        raise InvalidInput("the check holds no variograms; give check_realizations lag and max_lag")
+    fig, ax = _axes(ax)
+    v = _variable(check, variable)
+    reals, data = check.variograms[v], check.data_variograms[v]
+    model = None if check.models is None else check.models[v]
+    directions = check.directions or [None]
+    colors = mpl.rcParams["axes.prop_cycle"].by_key()["color"]
+    for d, (direction, color) in enumerate(zip(directions, colors * len(directions), strict=False)):
+        lags = reals[0][d].lags
+        gammas = np.array([r[d].gammas for r in reals])
+        lo, hi = np.quantile(gammas, band, axis=0)
+        name = "omnidirectional" if direction is None else f"azimuth {direction[0]:g}°, dip {direction[1]:g}°"
+        ax.fill_between(lags, lo, hi, **({"color": color, "alpha": 0.25, "lw": 0, "label": name} | kwargs))
+        keep = data[d].counts > 0
+        ax.plot(data[d].lags[keep], data[d].gammas[keep], "o", color=color, ms=4)
+        if model is not None:
+            h = np.linspace(0, lags.max() * 1.05, 201)[1:]
+            if direction is None:
+                gamma = model.gamma(h)
+            else:
+                az, dip = np.radians(direction[0]), np.radians(direction[1])
+                unit = np.array([np.cos(dip) * np.sin(az), np.cos(dip) * np.cos(az), -np.sin(dip)])
+                gamma = model.gamma_between(np.zeros((h.size, 3)), h[:, None] * unit)
+            ax.plot(h, gamma, color=color, lw=1.2)
+    ax.plot([], [], "o", color="0.4", ms=4, label="data")
+    if model is not None:
+        ax.plot([], [], color="0.4", lw=1.2, label="model")
+    ax.set_xlim(left=0)
+    ax.set_ylim(bottom=0)
+    ax.set_xlabel("Lag distance")
+    ax.set_ylabel("γ(h)")
+    ax.legend(loc="lower right")
+    return fig, ax
+
+
+def correlation_reproduction(check, *, band=(0.0, 1.0), ax=None, **kwargs):
+    """Correlation of each pair of variables across realizations as a range, against the declustered data's.
+
+    Parameters
+    ----------
+    check : RealizationCheck
+        Result of ``check_realizations`` with several variables.
+    band : tuple of float
+        Quantiles across realizations bounding each range; default their full range.
+    **kwargs
+        Passed to ``ax.vlines``.
+    """
+    if check.correlations is None:
+        raise InvalidInput("the check holds no correlations; check several variables together")
+    fig, ax = _axes(ax)
+    i, j = np.triu_indices(len(check.names), 1)
+    r = check.correlations[:, i, j]
+    lo, hi = np.quantile(r, band, axis=0)
+    x = np.arange(len(i))
+    ax.vlines(
+        x, lo, hi, **({"color": "0.75", "lw": 6, "label": _band("realizations", band, len(r))} | kwargs)
+    )
+    ax.plot(x, np.median(r, axis=0), "_", color="0.3", ms=12, label="median")
+    ax.plot(x, check.data_correlation[i, j], "o", color=_accent(), ms=5, label="declustered data")
+    ax.axhline(0, color="0.5", lw=0.6)
+    ax.set_xticks(x, [f"{check.names[a]} × {check.names[b]}" for a, b in zip(i, j, strict=True)])
+    ax.set_xlim(-0.6, len(x) - 0.4)
+    ax.set_ylim(-1, 1)
+    ax.set_ylabel("Correlation")
+    ax.legend()
+    return fig, ax
 
 
 def scatter(x, y, *, line=True, data=None, ax=None, **kwargs):

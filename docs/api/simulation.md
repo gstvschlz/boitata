@@ -17,3 +17,7 @@
 ::: ceres.gibbs
 
 ::: ceres.localize
+
+::: ceres.check_realizations
+
+::: ceres.RealizationCheck
