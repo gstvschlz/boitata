@@ -417,3 +417,49 @@ def test_overlap_flags_keep_the_first_interval():
     flags, _, _ = cs.check_drillholes(t["collar"], t["survey"], {"assay": assay}, max_depth="DEPTH")
     assert (~keep).sum() > 0
     assert (flags["assay"]["overlap"] == ~keep).all()
+
+
+def one_hole(grades, lith=None):
+    n = len(grades)
+    table = {
+        "HOLE_ID": ["A"] * n,
+        "FROM": np.arange(n, dtype=float),
+        "TO": np.arange(1.0, n + 1),
+        "AU": grades,
+    }
+    if lith is not None:
+        table["LITH"] = lith
+    c = {"HOLE_ID": ["A"], "X": [0.0], "Y": [0.0], "Z": [0.0]}
+    s = {"HOLE_ID": ["A"], "DEPTH": [0.0], "AZIMUTH": [0.0], "DIP": [90.0]}
+    return cs.Drillholes(c, s, table)
+
+
+def test_runs_balance_metal_and_honor_rules():
+    rng = np.random.default_rng(11)
+    grades = rng.lognormal(-0.5, 1.0, 400)
+    dh = one_hole(grades)
+    for rules in [{}, {"min_length": 4.0}, {"min_length": 4.0, "max_dilution": 3.0, "edge": 0.5}]:
+        runs = dh.runs("AU", cutoff=1.0, **rules)
+        assert np.dot(runs["AU"], runs["length"]) == pytest.approx(grades.sum())
+        assert np.all(np.asarray(runs["to"]) - runs["from"] >= rules.get("min_length", 0.0) - 1e-9)
+        assert np.all(np.diff(np.asarray(runs["ore"], dtype=int)) != 0)
+        again = dh.runs("AU", cutoff=1.0, **rules)
+        np.testing.assert_array_equal(runs["AU"], again["AU"])
+
+
+def test_internal_dilution_by_hand():
+    runs = one_hole([2.0, 2.0, 0.1, 3.0, 0.1]).runs("AU", cutoff=1.0, max_dilution=1.0)
+    assert runs.column_names == ["HOLE_ID", "from", "to", "length", "AU", "ore"]
+    np.testing.assert_allclose(runs["to"], [4.0, 5.0])
+    np.testing.assert_allclose(runs["AU"], [7.1 / 4, 0.1])
+    assert list(runs["ore"]) == [True, False]
+
+
+def test_category_runs_and_bad_input():
+    dh = one_hole([1.0] * 5, lith=["QV", "QV", None, "BX", "QV"])
+    runs = dh.runs(None, category="LITH", ore=["QV"])
+    assert list(runs["ore"]) == [True, False, True] and "AU" not in runs.column_names
+    with pytest.raises(cs.InvalidInput):
+        dh.runs("AU")
+    with pytest.raises(cs.InvalidInput):
+        dh.runs("AU", cutoff=1.0, min_length=-1.0)

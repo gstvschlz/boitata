@@ -1,4 +1,4 @@
-//! Drillhole data processing: table checks, desurvey and compositing.
+//! Drillhole data processing: table checks, desurvey, compositing and ore runs.
 //!
 //! Handles wellbore survey-to-coordinates conversion (minimum curvature,
 //! tangential, balanced tangential) and domain-aware sample compositing with
@@ -7,6 +7,8 @@
 pub mod checks;
 mod error;
 pub use error::{DrillholeError, Result};
+mod runs;
+pub use runs::{Run, RunRules, ore_runs};
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;

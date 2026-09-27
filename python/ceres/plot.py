@@ -39,6 +39,7 @@ __all__ = [
     "scatter_matrix",
     "section",
     "slab",
+    "strip_log",
     "swath",
     "uncertain",
     "variogram",
@@ -1355,6 +1356,121 @@ def proportions(categories, *, weights=None, scheme=None, data=None, ax=None, **
     ax.set_yticks(rows, names)
     ax.invert_yaxis()
     ax.set_xlabel("Proportion")
+    return fig, ax
+
+
+def strip_log(drillholes, hole, *, columns=(), categories=(), scheme=None, runs=None, ax=None, **kwargs):
+    """Holes as vertical logs side by side: category bars, grade profiles as steps and ore runs shaded.
+
+    Parameters
+    ----------
+    drillholes : Drillholes
+        With an interval table.
+    hole : str or sequence of str
+        Hole or holes to draw, left to right.
+    columns : sequence of str
+        Grade columns, one track each, drawn as steps from zero to the largest value over the holes drawn.
+    categories : str or sequence of str
+        Categorical columns (e.g. lithology), one bar each.
+    scheme : Categories or dict, optional
+        Names and colors of the categories, or a Categories per column name; values outside it are left
+        blank. Without one, values are sorted and spread over matplotlib's ``image.cmap``.
+    runs : Table, optional
+        From ``Drillholes.runs``; ore runs are shaded across the grade tracks.
+    **kwargs
+        Passed to every grade ``ax.plot``.
+    """
+    from matplotlib.patches import Patch
+    from matplotlib.transforms import blended_transform_factory
+
+    names = drillholes.interval_columns
+    if names is None:
+        raise InvalidInput("drillholes has no interval table")
+    id_col, from_col, to_col = names
+    holes = [hole] if isinstance(hole, str) else list(hole)
+    unknown = sorted(set(holes) - set(drillholes.holes))
+    if unknown:
+        raise InvalidInput(f"unknown holes: {', '.join(unknown)}")
+    categories = [categories] if isinstance(categories, str) else list(categories)
+    columns = list(columns)
+    samples = drillholes.samples()
+    ids = np.asarray(samples[id_col], dtype=object)
+    top, bottom = np.asarray(samples[from_col], dtype=float), np.asarray(samples[to_col], dtype=float)
+
+    colors, found = {}, {}
+    for c in categories:
+        s = scheme.get(c) if isinstance(scheme, dict) else scheme
+        if s is None:
+            values = np.asarray(samples[c], dtype=object)[np.isin(ids, holes)]
+            found[c] = sorted({str(v) for v in values if v is not None})
+        else:
+            colors[c] = dict(zip(s.names, _colors(s), strict=True))
+    spread = iter(_palette(sum(map(len, found.values()))))
+    for c, names_c in found.items():
+        colors[c] = {n: next(spread) for n in names_c}
+    handles = [Patch(color=p, label=f"{c} {n}") for c in categories for n, p in colors[c].items()]
+
+    width = len(categories) + 2 * len(columns) + 0.6
+    scale = {}
+    for c in columns:
+        v = np.asarray(samples[c], dtype=float)[np.isin(ids, holes)]
+        scale[c] = np.nanmax(v) if np.any(v > 0) else 1.0
+    fig, ax = _axes(ax)
+    ticks, labels = [], []
+    run_color = _accent()
+    for k, h in enumerate(holes):
+        x0 = k * width
+        m = ids == h
+        f, t = top[m], bottom[m]
+        for j, c in enumerate(categories):
+            values = np.asarray(samples[c], dtype=object)[m]
+            color = [colors[c].get(str(v), "none") if v is not None else "none" for v in values]
+            ax.bar(x0 + j + 0.5, t - f, width=0.9, bottom=f, color=color, align="center")
+            ticks.append(x0 + j + 0.5)
+            labels.append(c)
+        g0 = x0 + len(categories) + 0.1
+        if runs is not None and columns:
+            r = np.asarray(runs[id_col], dtype=object) == h
+            ore = r & np.asarray(runs["ore"], dtype=bool)
+            ax.bar(
+                g0 + len(columns),
+                np.asarray(runs["to"])[ore] - np.asarray(runs["from"])[ore],
+                width=2 * len(columns),
+                bottom=np.asarray(runs["from"])[ore],
+                color=run_color,
+                alpha=0.15,
+                linewidth=0,
+            )
+        order = np.argsort(f)
+        for j, c in enumerate(columns):
+            v = np.asarray(samples[c], dtype=float)[m][order]
+            x = g0 + 2 * j + 1.8 * np.clip(v / scale[c], 0.0, 1.0)
+            ys = np.column_stack([f[order], t[order]]).ravel()
+            xs = np.repeat(x, 2)
+            gap = np.flatnonzero(f[order][1:] > t[order][:-1] + 1e-9) + 1
+            ys, xs = np.insert(ys, 2 * gap, np.nan), np.insert(xs, 2 * gap, np.nan)
+            kw = {"color": "0.2", "linewidth": 0.8, **kwargs}
+            ax.plot(xs, ys, **kw)
+            ax.axvline(g0 + 2 * j, color="0.8", linewidth=0.5)
+            ticks.append(g0 + 2 * j + 0.9)
+            labels.append(f"{c}\n0-{scale[c]:.3g}")
+        ax.text(
+            x0 + (width - 0.6) / 2,
+            1.01,
+            h,
+            transform=blended_transform_factory(ax.transData, ax.transAxes),
+            ha="center",
+            va="bottom",
+        )
+    if runs is not None and columns:
+        handles.append(Patch(color=run_color, alpha=0.15, label="ore run"))
+    ax.set_xticks(ticks, labels, fontsize=7)
+    ax.set_xlim(-0.3, len(holes) * width - 0.3)
+    if not ax.yaxis_inverted():
+        ax.invert_yaxis()
+    ax.set_ylabel("Depth (m)")
+    if handles:
+        ax.legend(handles=handles, loc="upper left", bbox_to_anchor=(1.01, 1), fontsize=7)
     return fig, ax
 
 

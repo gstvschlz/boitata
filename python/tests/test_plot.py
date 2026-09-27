@@ -500,3 +500,22 @@ def test_reproduction_plots():
         cs.plot.correlation_reproduction(cats)
     with pytest.raises(cs.InvalidInput):
         cs.plot.histogram_reproduction(check, variable="c")
+
+
+def test_strip_log_draws_categories_grades_and_runs():
+    c = {"HOLE_ID": ["A", "B"], "X": [0.0, 50.0], "Y": [0.0, 0.0], "Z": [0.0, 0.0]}
+    s = {"HOLE_ID": ["A", "B"], "DEPTH": [0.0, 0.0], "AZIMUTH": [0.0, 0.0], "DIP": [90.0, 90.0]}
+    t = {
+        "HOLE_ID": ["A"] * 4 + ["B"] * 4,
+        "FROM": np.tile(np.arange(4.0), 2),
+        "TO": np.tile(np.arange(1.0, 5.0), 2),
+        "AU": [0.1, 2.0, 3.0, 0.1, 0.2, 0.2, 5.0, 0.2],
+        "LITH": ["AND", "QV", "QV", "AND"] * 2,
+    }
+    dh = cs.Drillholes(c, s, t)
+    runs = dh.runs("AU", cutoff=1.0)
+    scheme = cs.Categories(["AND", "QV"], colors=["0.8", "gold"])
+    _, ax = cs.plot.strip_log(dh, ["A", "B"], columns=["AU"], categories="LITH", scheme=scheme, runs=runs)
+    assert ax.yaxis_inverted() and len(ax.get_legend().get_texts()) == 3
+    with pytest.raises(cs.InvalidInput):
+        cs.plot.strip_log(dh, "C")
