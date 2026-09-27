@@ -107,7 +107,7 @@ def test_sis_follows_local_proportions():
     sis = cs.SIS([gaussian, gaussian], cs.Search(radius=30, max_samples=12))
     sis.fit(far, [0, 1], proportions=[[0.5, 0.5]] * 2)
     s = sis.simulate(line, n=60, seed=1, proportions=local)
-    by_half = s.probabilities[1].reshape(2, 100).mean(axis=1)
+    by_half = s.probabilities[:, 1].reshape(2, 100).mean(axis=1)
     np.testing.assert_allclose(by_half, [0.25, 0.75], atol=0.08)
     again = sis.simulate(line, n=60, seed=1, proportions=np.c_[1 - east, east])
     np.testing.assert_array_equal(again.probabilities, s.probabilities)
