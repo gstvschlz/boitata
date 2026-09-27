@@ -22,7 +22,9 @@ Tutorials follow one deposit from data to a result; topics show one feature each
 | 15 | [Compositional data](topics/15-compositional/README.md) | Porphyry geometallurgy | `closure`, `ilr`, `PPMT`, `ilr_inverse` |
 | 16 | [Multivariate transforms](topics/16-multivariate-transforms/README.md) | Porphyry geometallurgy | `PCA`, `MAF`, `StepwiseConditional`, `PPMT`, `cell_declustering`, `BlockModel`, `Search`, `PointSet`, `experimental_variogram`, `MultivariateSimulation`, `TurningBands`, `GaussianImputer` |
 | | **Variography** | | |
-| 19 | [Variography](topics/19-variogram-fitting/README.md) | Walker Lake, Drillholes (legacy) | `variogram_map`, `experimental_variogram`, `plot.variogram`, `Variogram`, `check_drillholes`, `fix_drillholes`, `merge_intervals`, `Drillholes` |
+| 18 | [Experimental variograms](topics/18-experimental-variograms/README.md) | Walker Lake | `variogram_map`, `experimental_variogram`, `plot.variogram` |
+| 19 | [Variogram fitting](topics/19-variogram-fitting/README.md) | Walker Lake | `variogram_map`, `experimental_variogram`, `plot.variogram`, `Variogram` |
+| 20 | [Downhole nugget](topics/20-downhole-nugget/README.md) | Nickel laterite profile | `merge_intervals`, `Drillholes`, `experimental_variogram` |
 | | **Estimation** | | |
 | 22 | [Ordinary kriging](topics/22-ordinary-kriging/README.md) | Walker Lake | `Variogram`, `BlockModel`, `Search`, `OrdinaryKriging`, `plot.scatter` |
 | 23 | [Estimation methods and search](topics/23-simple-estimators/README.md) | Walker Lake | `Variogram`, `BlockModel`, `Search`, `NearestNeighbor`, `InverseDistance`, `OrdinaryKriging`, `UniversalKriging`, `BlockKriging` |
