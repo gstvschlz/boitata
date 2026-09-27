@@ -47,6 +47,7 @@ fn number(batch: &RecordBatch, name: &str) -> PyResult<Vec<Option<f64>>> {
 #[pyclass(module = "ceres", name = "Drillholes", frozen)]
 pub struct Drillholes {
     paths: BTreeMap<String, Vec<WellborePoint>>,
+    hole: String,
     intervals: Option<(RecordBatch, String, String, String)>,
 }
 
@@ -177,6 +178,7 @@ impl Drillholes {
         });
         Ok(Self {
             paths: paths.map_err(invalid)?,
+            hole: hole.to_string(),
             intervals,
         })
     }
@@ -186,7 +188,7 @@ impl Drillholes {
         self.paths.keys().cloned().collect()
     }
 
-    /// Desurveyed stations: hole, depth, x, y, z.
+    /// Desurveyed stations: hole (named as in the constructor), depth, x, y, z.
     fn paths(&self) -> PyResult<Table> {
         let rows: Vec<(&String, &WellborePoint)> = self
             .paths
@@ -198,7 +200,7 @@ impl Drillholes {
         };
         let batch = RecordBatch::try_from_iter([
             (
-                "hole",
+                self.hole.as_str(),
                 Arc::new(StringArray::from_iter_values(rows.iter().map(|r| r.0))) as ArrayRef,
             ),
             ("depth", col(|w| w.measured_depth)),
@@ -261,7 +263,8 @@ impl Drillholes {
     /// located at their midpoints. Composites with none of the grades sampled
     /// are dropped. Each grade comes with its sampled length,
     /// `<grade>_length`, so the sum of grade × `<grade>_length` equals the
-    /// input metal; `length` also counts unsampled ground.
+    /// input metal; `length` also counts unsampled ground. The hole column
+    /// keeps its constructor name, followed by `from`, `to` and `length`.
     ///
     /// Parameters
     /// ----------
@@ -415,7 +418,7 @@ impl Drillholes {
         };
         let mut columns: Vec<(String, ArrayRef)> = vec![
             (
-                "hole".into(),
+                hole.into(),
                 Arc::new(StringArray::from_iter_values(
                     composites.iter().map(|c| &c.hole_id),
                 )),

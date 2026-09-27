@@ -84,7 +84,7 @@ passes = [
     cs.Search(300.0, max_samples=24, rotation=layers, ratios=(1.0, 0.4)),
 ]
 cik = cs.CategoricalIndicatorKriging(variograms, passes, scheme=scheme)
-cik.fit(composites, "LITH", weights=weights, holes="hole")
+cik.fit(composites, "LITH", weights=weights, holes="HOLE_ID")
 ```
 
 </details>

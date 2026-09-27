@@ -84,7 +84,7 @@ def to_pyvista(data):
         fields = [(out.point_data, data.attributes)]
     elif isinstance(data, Drillholes):
         paths = data.paths()
-        hole = np.array(paths["hole"])
+        hole = np.array(paths[paths.column_names[0]])
         starts = np.flatnonzero(np.r_[True, hole[1:] != hole[:-1], True])
         lines = [v for a, b in pairwise(starts) if b - a > 1 for v in (b - a, *range(a, b))]
         out = pv.PolyData(np.c_[paths["x"], paths["y"], paths["z"]], lines=lines or None)

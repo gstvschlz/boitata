@@ -30,7 +30,7 @@ composites = cs.datasets.drillholes().composite(2.0, ["ZN"])
 xyz, zn = composites.coords, composites["ZN"]
 window = ~np.isnan(zn) & (xyz[:, 0] > 5250) & (xyz[:, 0] < 5550) & (xyz[:, 1] > 8000) & (xyz[:, 1] < 8500)
 xyz, zn = xyz[window], zn[window]
-holes = np.array(composites["hole"], dtype=object)[window]
+holes = np.array(composites["HOLEID"], dtype=object)[window]
 weights = cs.cell_declustering(xyz, zn, sizes=np.arange(10, 100, 10)).weights
 print(f"{len(zn):,} composites of 2 m from {len(set(holes))} holes")
 

@@ -90,7 +90,7 @@ or dropped. Without `domain`, composites cross contacts and `categories=` gives 
 ```python
 BENCH = 10.0
 paths = dh.paths()
-hole, depth, z = np.array(paths["hole"]), paths["depth"], paths["z"]
+hole, depth, z = np.array(paths["HOLE_ID"]), paths["depth"], paths["z"]
 cuts = {h: [0.0, depth[hole == h].max()] for h in np.unique(hole)}
 for i in np.flatnonzero(hole[1:] == hole[:-1]):
     lo, hi = sorted((z[i], z[i + 1]))

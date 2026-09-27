@@ -33,11 +33,21 @@ def test_desurvey_follows_dip_and_azimuth():
 
 def test_compositing_conserves_metal():
     comps = cs.Drillholes(collar, survey, intervals).composite(3.0, ["AU"])
-    second = np.array(comps.attributes["hole"]) == "2.0"
+    second = np.array(comps.attributes["HOLE_ID"]) == "2.0"
     assert np.dot(comps["length"][second], comps["AU"][second]) == pytest.approx(4 * 3 + 4 * 5)
     assert np.all(comps["length"] <= 3.0 + 1e-9)
     first = comps["AU"][~second]
     np.testing.assert_allclose(first, [(2 * 1 + 1 * 2) / 3, 2.0])
+
+
+def test_outputs_keep_the_hole_column_name():
+    def rename(t):
+        return {("BHID" if k == "HOLE_ID" else k): v for k, v in t.items()}
+
+    dh = cs.Drillholes(rename(collar), rename(survey), rename(intervals), hole="BHID")
+    assert dh.paths().column_names[0] == "BHID"
+    assert "BHID" in dh.samples().attributes.column_names
+    assert dh.composite(3.0, ["AU"]).attributes.column_names[:4] == ["BHID", "from", "to", "length"]
 
 
 def test_intervals_are_required_for_samples():
@@ -56,7 +66,7 @@ def test_merge_then_composite_by_domain():
     assert merged.column_names == ["HOLE_ID", "FROM", "TO", "AU", "LITH"]
     np.testing.assert_array_equal(merged["TO"][:4], [2, 3, 5, 6])
     comps = cs.Drillholes(collar, survey, merged).composite(2.0, ["AU"], domain="LITH")
-    first = np.array(comps.attributes["hole"]) == "1.0"
+    first = np.array(comps.attributes["HOLE_ID"]) == "1.0"
     assert set(np.array(comps.attributes["LITH"])[first]) == {"1.0", "2.0"}
     crosses = (comps["from"][first] < 3.0 - 1e-9) & (comps["to"][first] > 3.0 + 1e-9)
     assert not crosses.any()

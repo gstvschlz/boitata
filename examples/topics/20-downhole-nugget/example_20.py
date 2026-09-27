@@ -47,7 +47,7 @@ for length in lengths:
             length,
             6 * length,
             standardize=True,
-            holes=np.array(composites["hole"])[keep],
+            holes=np.array(composites["HOLE_ID"])[keep],
         )
         nuggets[name, length], downhole[name, length] = exp.nugget(), exp
 print("nugget / variance")

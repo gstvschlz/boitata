@@ -62,7 +62,7 @@ names = np.array(composites["LENS"], dtype=object)
 for name in lenses:
     inside = names == name
     measured = np.isfinite(composites["DENSITY"][inside]).sum()
-    holes = len(set(composites["hole"][inside]))
+    holes = len(set(composites["HOLE_ID"][inside]))
     print(f"{name}: {inside.sum()} composites from {holes} holes, {measured} with a density")
 
 # %% [markdown]
@@ -162,10 +162,12 @@ passes = [
     cs.Search(2 * reach, max_samples=12, min_samples=4, max_per_hole=2),
     cs.Search(250, max_samples=12, max_per_hole=2),
 ]
-zn = cs.OrdinaryKriging(variogram, passes).fit(composites, "ZN_PCT", holes="hole", domain_column="LENS")
+zn = cs.OrdinaryKriging(variogram, passes).fit(composites, "ZN_PCT", holes="HOLE_ID", domain_column="LENS")
 kriged = zn.predict(blocks, diagnostics=True, domain_column="LENS")
 measured = composites.filter(np.isfinite(composites["DENSITY"]))
-density = cs.OrdinaryKriging(variogram, passes).fit(measured, "DENSITY", holes="hole", domain_column="LENS")
+density = cs.OrdinaryKriging(variogram, passes).fit(
+    measured, "DENSITY", holes="HOLE_ID", domain_column="LENS"
+)
 blocks = blocks.with_columns(
     {
         "zn": kriged["value"],
@@ -190,7 +192,7 @@ print(f"density {np.nanmin(blocks['density']):.2f}-{np.nanmax(blocks['density'])
 grid = cs.BlockModel(origin, (10, 10, 10), count)
 parents = grid.mask(np.isin(np.arange(len(grid)), blocks.index[block_lens == "lens_1"]))
 nodes = parents.discretize(2)
-sgs = cs.SGS(gaussian, passes[:2]).fit(one, "ZN_PCT", weights="weight", holes="hole")
+sgs = cs.SGS(gaussian, passes[:2]).fit(one, "ZN_PCT", weights="weight", holes="HOLE_ID")
 summary = sgs.simulate(nodes, n=30, seed=1, cutoffs=[5.0], blocks=parents)
 low, high = np.quantile(summary.realization_above[0], [0.1, 0.9])
 print(f"{len(parents)} parent blocks: P10 {low:.0%}, P90 {high:.0%} of them above 5 % Zn")

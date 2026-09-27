@@ -37,7 +37,7 @@ composites = cs.duplicates(dh.composite(2.0, grades, domain="LITH"), merge="firs
 print(f"{len(composites)} composites")
 xyz = composites.coords
 zn = composites["ZN"]
-lith, hole = composites["LITH"], composites["hole"]
+lith, hole = composites["LITH"], composites["HOLEID"]
 domains = ["MS", "SM", "QE", "EX", "RH"]
 weights = np.zeros(len(zn))
 for name in domains:
@@ -95,7 +95,7 @@ for ax, other in zip(axes, ["RH", "SM"], strict=True):
         composites,
         "ZN",
         domain_column="LITH",
-        holes="hole",
+        holes="HOLEID",
         inside="MS",
         outside=other,
         max_distance=30.0,
