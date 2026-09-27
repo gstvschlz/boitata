@@ -6,4 +6,7 @@ __pycache__/
 *.pdb
 /docs/examples/
 /site/
+/dist/
+/.pixi/
 /.compat/
+pixi.lock

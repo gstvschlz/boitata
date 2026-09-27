@@ -13,8 +13,8 @@ depends = ["py:sync"]
 run = [
   "cargo fmt --all --check",
   "cargo clippy --workspace --all-targets -- -D warnings",
-  "uv run --no-sync ruff check python examples",
-  "uv run --no-sync ruff format --check python examples",
+  "uv run --no-sync ruff check python examples ci",
+  "uv run --no-sync ruff format --check python examples ci",
 ]
 
 [tasks."py:sync"]
@@ -27,10 +27,18 @@ run = "uv run --no-sync maturin develop -q --uv --release"
 [tasks.verify]
 depends = ["lint", "test"]
 
+[tasks.dist]
+run = "python ci/compat.py dist"
+
+[tasks.compat]
+usage = 'arg "[mode]" default="all" help="all, dist, venv, uv, pixi or conda"'
+run = "python ci/compat.py {{usage.mode}}"
+
 [tools]
 pixi = "0.81"
 python = "3.13"
 uv = "0.12"
+micromamba = "2.9"
 
 [tasks.examples]
 depends = ["py:build"]
