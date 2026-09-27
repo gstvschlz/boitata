@@ -57,7 +57,11 @@ Tutorials follow one deposit from data to a result; topics show one feature each
 | 42 | [Simulation methods](topics/42-grades-in-simulated-rocks/README.md) | Walker Lake, Jura | `cell_declustering`, `Variogram`, `BlockModel`, `SGS`, `Search`, `TurningBands`, `MovingAverage`, `StepwiseConditional`, `experimental_variogram`, `Categories`, `SIS`, `Plurigaussian`, `plot.category_colors`, `plot.category_legend`, `NormalScore` |
 | 43 | [Multivariate simulation](topics/43-multivariate-simulation/README.md) | Porphyry geometallurgy | `PointSet`, `cell_declustering`, `BlockModel`, `Search`, `PPMT`, `PCA`, `experimental_variogram`, `MultivariateSimulation`, `TurningBands` |
 | | **Validation** | | |
-| 44 | [Validation and classification](topics/44-model-checks/README.md) | Walker Lake | `Variogram`, `cell_declustering`, `BlockModel`, `Search`, `BlockKriging`, `validate_model`, `plot.cdf`, `swath`, `plot.swath`, `OrdinaryKriging`, `HermiteAnamorphosis`, `calibrate_search`, `neighborhood_stats`, `classify`, `smooth_classes`, `Categories`, `plot.category_colors`, `plot.category_legend` |
+| 44 | [Model checks](topics/44-model-checks/README.md) | Walker Lake | `experimental_variogram`, `Variogram`, `cell_declustering`, `BlockModel`, `Search`, `BlockKriging`, `global_bias`, `validate_model`, `plot.cdf`, `swath`, `plot.swath` |
+| 45 | [Cross-validation](topics/45-cross-validation/README.md) | Walker Lake | `experimental_variogram`, `Variogram`, `Search`, `OrdinaryKriging`, `plot.cross_validation` |
+| 46 | [Kriging diagnostics](topics/46-kriging-diagnostics/README.md) | Walker Lake | `experimental_variogram`, `Variogram`, `BlockModel`, `Search`, `BlockKriging` |
+| 47 | [Search calibration](topics/47-search-calibration/README.md) | Walker Lake | `experimental_variogram`, `Variogram`, `cell_declustering`, `BlockModel`, `Search`, `BlockKriging`, `HermiteAnamorphosis`, `calibrate_search` |
+| 48 | [Classification](topics/48-classification/README.md) | Coal seam thickness | `data_spacing`, `classify`, `experimental_variogram`, `Variogram`, `Search`, `BlockKriging`, `smooth_classes`, `Categories`, `plot.category_colors`, `plot.category_legend` |
 | | **Modeling** | | |
 | 49 | [Solids and block models](topics/49-solids/README.md) | Drillholes (legacy) | `Mesh`, `BlockModel`, `plot.section`, `plot.slab`, `block_shell`, `Search`, `InverseDistance`, `write_mesh`, `read_mesh` |
 | 52 | [Implicit modeling](topics/52-grade-shells/README.md) | Drillholes (legacy) | `ImplicitModel`, `BlockModel`, `plot.slab` |
