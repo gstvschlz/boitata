@@ -629,4 +629,4 @@ print(
 2069 blocks, columns ['zn', 'mean', 'uncertainty', 'p_above_10', 'class'], same Zn: True
 ```
 
-Full script: [`example_02.py`](example_02.py)
+Full script: [`tutorial_02.py`](tutorial_02.py)

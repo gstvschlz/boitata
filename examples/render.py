@@ -1,4 +1,4 @@
-"""Runs each page's example_NN.py cell by cell and writes its README.md.
+"""Runs each page's script (tutorial_NN.py or example_NN.py) cell by cell and writes its README.md.
 
 The module docstring is the opening text. Cells start with `# %%` (code), `# %% [markdown]` (text written as `# `
 comments) or `# %% [hidden]` (run, not shown). Each code cell is shown collapsed, followed by what it printed and
@@ -89,8 +89,11 @@ def render(script: Path) -> str:
     return "\n\n".join(parts) + "\n"
 
 
+SCRIPT = {"tutorials": "tutorial_*.py", "topics": "example_*.py"}
+
+
 def scripts(gallery: str) -> list[Path]:
-    return sorted((ROOT / gallery).glob("*/example_*.py"))
+    return sorted((ROOT / gallery).glob(f"*/{SCRIPT[gallery]}"))
 
 
 def dataset(name: str) -> str:
@@ -163,7 +166,7 @@ def index() -> str:
         lines.append(f"| {number} | [{title}]({link}/README.md) | {datasets} | {covers} |")
     lines += [
         "",
-        "Each page alternates text, collapsed Python and its results. `mise run examples` reruns every `example_NN.py`",
+        "Each page alternates text, collapsed Python and its results. `mise run examples` reruns every script",
         "and rewrites the pages; `cs.datasets` downloads the data once and caches it. `render.py --index` writes this file.",
     ]
     return "\n".join(lines) + "\n"
@@ -178,6 +181,6 @@ if __name__ == "__main__":
         sys.exit()
     pages = sys.argv[1:] or [p.parent.relative_to(ROOT).as_posix() for g in GALLERIES for p in scripts(g)]
     for page in pages:
-        (script,) = (ROOT / page).glob("example_*.py")
+        (script,) = (ROOT / page).glob(SCRIPT[page.split("/")[0]])
         (script.parent / "README.md").write_text(render(script), encoding="utf-8", newline="\n")
         print(f"rendered {page}")

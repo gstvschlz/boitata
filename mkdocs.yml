@@ -47,7 +47,7 @@ plugins:
   - gallery:
       examples_dirs: [examples/tutorials, examples/topics]
       gallery_dirs: [docs/examples/tutorials, docs/examples/topics]
-      filename_pattern: example_\d+\.py$
+      filename_pattern: (example|tutorial)_\d+\.py$
       ignore_pattern: (render|common)\.py$
       within_subsection_order: FileNameSortKey
       show_memory: false
