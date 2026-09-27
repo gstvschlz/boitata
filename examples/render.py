@@ -113,7 +113,9 @@ def summary(script: Path) -> tuple[int, str, str, str, str]:
         if isinstance(node, ast.Call):
             func = node.func
             if (getattr(func, "attr", None) or getattr(func, "id", None)) == "fetch" and node.args:
-                datasets[dataset(node.args[0].value.split("/")[2])] = None
+                path = node.args[0]
+                path = path.values[0] if isinstance(path, ast.JoinedStr) else path
+                datasets[dataset(path.value.split("/")[2])] = None
             continue
         base = node.value
         if isinstance(base, ast.Name) and base.id == "cs":
