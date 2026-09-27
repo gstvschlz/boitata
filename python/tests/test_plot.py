@@ -86,6 +86,20 @@ def test_variogram_matrix():
     assert axes[0, 1].get_title() == "A × B" and len(axes[0, 1].lines) == 3
 
 
+def test_variogram_volume_slices_the_principal_planes():
+    xyz = np.random.default_rng(1).uniform(0, 100, (600, 3))
+    values = np.sin(xyz[:, 0] / 8) + np.sin(xyz[:, 1] / 15) + np.sin(xyz[:, 2] / 25)
+    vol = cs.variogram_volume(xyz, values, 10.0, 50.0)
+    for plane in ("major-semi", "major-minor", "semi-minor"):
+        _, ax = cs.plot.variogram_volume(vol, plane=plane)
+        x, _ = ax.lines[0].get_data()
+        assert x.max() == pytest.approx(vol.ranges[("major", "semi").index(plane.split("-")[0])])
+    center = cs.plot.variogram_volume(vol, ellipse=False)[1].collections[0].get_array().reshape(11, 11)
+    assert center[5, 5] == pytest.approx(vol.gammas[5, 5, 5], nan_ok=True)
+    with pytest.raises(ValueError):
+        cs.plot.variogram_volume(vol, plane="major-major")
+
+
 def test_scatter_reports_slope():
     x = rng.normal(size=100)
     _, ax = cs.plot.scatter(x, 2 * x + 1)

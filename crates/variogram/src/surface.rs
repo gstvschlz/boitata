@@ -115,7 +115,7 @@ fn norm(v: (f64, f64, f64)) -> f64 {
 
 /// Pair moments and counts per (direction cell, lag bin) — the one aggregate
 /// every direction of a cut plane is answered from.
-struct PairHistogram {
+pub(crate) struct PairHistogram {
     n_bins: usize,
     lag_width: f64,
     sums: Vec<Moments>,
@@ -125,7 +125,11 @@ struct PairHistogram {
 }
 
 impl PairHistogram {
-    fn build(locations: &[(f64, f64, f64)], values: &[f64], bins: &LagBins) -> Result<Self> {
+    pub(crate) fn build(
+        locations: &[(f64, f64, f64)],
+        values: &[f64],
+        bins: &LagBins,
+    ) -> Result<Self> {
         if locations.len() != values.len() {
             return Err(VarioError::InsufficientData(
                 "locations and values length mismatch".into(),
@@ -220,7 +224,7 @@ impl PairHistogram {
     /// finalize the result into (γ, count) per lag bin. `cos_tol` is the cosine
     /// of the cone's half-angle; the test is bidirectional, so a cell and its
     /// antipode are equally admitted.
-    fn cone(
+    pub(crate) fn cone(
         &self,
         axis: (f64, f64, f64),
         cos_tol: f64,
@@ -250,7 +254,7 @@ impl PairHistogram {
         ConeCurve { gammas, counts }
     }
 
-    fn lag_centers(&self) -> Vec<f64> {
+    pub(crate) fn lag_centers(&self) -> Vec<f64> {
         (0..self.n_bins)
             .map(|b| (b as f64 + 0.5) * self.lag_width)
             .collect()
@@ -258,7 +262,7 @@ impl PairHistogram {
 }
 
 /// One direction's dense curve: γ and pair count per lag bin.
-struct ConeCurve {
+pub(crate) struct ConeCurve {
     gammas: Vec<f64>,
     counts: Vec<usize>,
 }
@@ -267,6 +271,13 @@ struct ConeCurve {
 /// `None` when the cone is too sparse for a fit to mean anything — a tight cone
 /// with no pairs is a normal outcome, not an error.
 fn fit_range(lags: &[f64], curve: &ConeCurve, model: Model, weighting: Weighting) -> Option<f64> {
+    fit(&populated(lags, curve)?, model, weighting)
+        .ok()
+        .map(|f| f.variogram.structures[0].range)
+}
+
+/// The populated bins of a curve, or `None` when too sparse to fit.
+pub(crate) fn populated(lags: &[f64], curve: &ConeCurve) -> Option<Experimental> {
     let mut exp = Experimental {
         lags: Vec::new(),
         gammas: Vec::new(),
@@ -284,15 +295,10 @@ fn fit_range(lags: &[f64], curve: &ConeCurve, model: Model, weighting: Weighting
         exp.counts.push(count);
         pairs += count;
     }
-    if exp.lags.len() < MIN_FIT_BINS || pairs < MIN_FIT_PAIRS {
-        return None;
-    }
-    fit(&exp, model, weighting)
-        .ok()
-        .map(|f| f.variogram.structures[0].range)
+    (exp.lags.len() >= MIN_FIT_BINS && pairs >= MIN_FIT_PAIRS).then_some(exp)
 }
 
-fn check_tolerance(tolerance: f64) -> Result<f64> {
+pub(crate) fn check_tolerance(tolerance: f64) -> Result<f64> {
     if tolerance <= 0.0 || tolerance > 90.0 {
         return Err(VarioError::InvalidParameters(
             "tolerance must be in (0, 90] degrees".into(),

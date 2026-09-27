@@ -141,6 +141,35 @@ def test_directional_and_map_shapes():
     assert m.gammas.shape == (12, len(m.lags)) and m.ranges.shape == (12,)
 
 
+def gaussian_field(coords, rotation, ratios, scale, seed, waves=400):
+    """Gaussian-covariance field by a sum of random cosines, anisotropic as `rotation` and `ratios`."""
+    to_isotropic = cs.plot._principal(rotation) / np.array([1.0, *ratios])[:, None] / scale
+    rng = np.random.default_rng(seed)
+    omega = rng.normal(scale=np.sqrt(2), size=(waves, 3))
+    phase = rng.uniform(0, 2 * np.pi, waves)
+    return np.sqrt(2 / waves) * np.cos(coords @ to_isotropic.T @ omega.T + phase).sum(axis=1)
+
+
+def test_variogram_volume_recovers_a_rotated_anisotropy():
+    coords = np.random.default_rng(5).uniform(0, 200, (4000, 3))
+    values = gaussian_field(coords, (120.0, 35.0, 30.0), (0.5, 0.25), 25.0, seed=4)
+    vol = cs.variogram_volume(coords, values, 5.0, 70.0, model="gaussian")
+    n = vol.lags.size
+    assert vol.gammas.shape == vol.counts.shape == (n, n, n) and vol.lags[n // 2] == 0
+    np.testing.assert_array_equal(vol.counts, vol.counts[::-1, ::-1, ::-1])
+    found, truth = cs.plot._principal(vol.rotation), cs.plot._principal((120.0, 35.0, 30.0))
+    angles = np.degrees(np.arccos(np.clip(np.abs(np.sum(found * truth, axis=1)), 0, 1)))
+    assert np.all(angles < 6), (vol.rotation, angles)
+    np.testing.assert_allclose(vol.ratios, (0.5, 0.25), atol=0.1)
+    assert vol.ratios == pytest.approx((vol.ranges[1] / vol.ranges[0], vol.ranges[2] / vol.ranges[0]))
+    assert vol.directions.shape == (200, 2) and vol.direction_ranges.shape == (200,)
+    assert vol.axes[0] == pytest.approx(vol.rotation[:2])
+    iso = cs.variogram_volume(coords, gaussian_field(coords, (0, 0, 0), (1, 1), 25.0, seed=3), 5.0, 70.0)
+    assert iso.ratios[1] > 0.75
+    with pytest.raises(ValueError):
+        cs.variogram_volume(coords, values, 1.0, 70.0)
+
+
 def test_coregionalization_at_zero_lag():
     lmc = cs.Coregionalization(
         [[0.1, 0.0], [0.0, 0.2]], structures=[("spherical", 20.0, [[1.0, 0.6], [0.6, 1.0]])]
@@ -363,6 +392,7 @@ def test_names_resolve_against_the_container():
             cs.experimental_variogram(xyz, v, 10.0, 50.0, holes=columns["hole"]),
         ),
         (cs.variogram_map(points, "v", 10.0, 50.0), cs.variogram_map(xyz, v, 10.0, 50.0)),
+        (cs.variogram_volume(points, "v", 10.0, 50.0), cs.variogram_volume(xyz, v, 10.0, 50.0)),
     ]
     for named, arrays in pairs:
         np.testing.assert_array_equal(named.gammas, arrays.gammas)
@@ -380,6 +410,7 @@ def test_options_are_keyword_only():
     for call in (
         lambda: cs.experimental_variogram(xyz, v, 10.0, 50.0, 0.0),
         lambda: cs.variogram_map(xyz, v, 10.0, 50.0, (1, 0, 0)),
+        lambda: cs.variogram_volume(xyz, v, 10.0, 50.0, 20.0),
         lambda: cs.Variogram([("spherical", 1.0, 30.0)], 0.1),
         lambda: cs.Search(50.0, 8),
         lambda: cs.Coregionalization([[0.0]], [("spherical", 20.0, [[1.0]])]),

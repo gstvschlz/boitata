@@ -592,6 +592,17 @@ class VariogramMap:
     counts: npt.NDArray[np.float64]
     ranges: npt.NDArray[np.float64]
 
+class VariogramVolume:
+    lags: npt.NDArray[np.float64]
+    gammas: npt.NDArray[np.float64]
+    counts: npt.NDArray[np.float64]
+    directions: npt.NDArray[np.float64]
+    direction_ranges: npt.NDArray[np.float64]
+    rotation: tuple[float, float, float]
+    axes: list[tuple[float, float]]
+    ranges: tuple[float, float, float]
+    ratios: tuple[float, float]
+
 class Coregionalization:
     def to_json(self) -> str: ...
     @staticmethod
@@ -687,6 +698,17 @@ def variogram_map(
     model: str = "spherical",
     estimator: str = "matheron",
 ) -> VariogramMap: ...
+def variogram_volume(
+    coords: ArrayLike | PointSet | BlockModel,
+    values: ArrayLike | Column,
+    lag: float,
+    max_lag: float,
+    *,
+    tolerance: float = 20.0,
+    directions: int = 200,
+    model: str = "spherical",
+    estimator: str = "matheron",
+) -> VariogramVolume: ...
 def experimental_transiogram(
     coords: ArrayLike | PointSet | BlockModel,
     categories: Sequence[int] | ArrayLike | Column,
