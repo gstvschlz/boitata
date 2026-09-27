@@ -95,6 +95,7 @@ Tutorials follow one deposit from data to a result; topics show one feature each
 | 67 | [Variogram sets](topics/67-variogram-sets/README.md) | Jura, Walker Lake | `experimental_variograms`, `Coregionalization`, `plot.variograms`, `BlockModel`, `experimental_variogram` |
 | 68 | [Multigaussian kriging](topics/68-multigaussian-kriging/README.md) | Walker Lake | `Variogram`, `cell_declustering`, `NormalScore`, `despike`, `experimental_variogram`, `BlockModel`, `MultigaussianKriging`, `Search`, `plot.scatter` |
 | 69 | [Capping transform](topics/69-capping-transform/README.md) | Vein gold grade control | `merge_intervals`, `Drillholes`, `cell_declustering`, `Capping`, `describe_by`, `capping_report`, `plot.probability`, `BlockModel`, `experimental_variogram`, `Search`, `OrdinaryKriging`, `NormalScore` |
+| 70 | [Realization checks](topics/70-realization-checks/README.md) | Walker Lake, Porphyry geometallurgy | `cell_declustering`, `NormalScore`, `experimental_variogram`, `Variogram`, `BlockModel`, `SGS`, `Search`, `check_realizations`, `plot.histogram_reproduction`, `plot.variogram_reproduction`, `PointSet`, `PPMT`, `TurningBands`, `MultivariateSimulation`, `plot.correlation_reproduction` |
 
 Each page alternates text, collapsed Python and its results. `mise run examples` reruns every script
 and rewrites the pages; `cs.datasets` downloads the data once and caches it. `render.py --index` writes this file.

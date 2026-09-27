@@ -684,3 +684,64 @@ def test_categorical_and_multivariate_simulators_take_column_names():
         np.testing.assert_array_equal(a.mean, b.mean)
     with pytest.raises(cs.MissingColumn):
         mv.fit(samples, ["v", "missing"])
+
+
+def test_cdf_bands_contain_the_data_cdf_of_the_distribution_drawn_from():
+    points = cs.PointSet(coords, {"v": values, "w": rng.uniform(0.5, 2.0, 60)})
+    p = points["w"] / points["w"].sum()
+    drawn = rng.choice(values, size=(50, 400), p=p)
+    check = cs.check_realizations(grid, drawn, points, "v", weights="w")
+    inner = (check.probabilities >= 0.05) & (check.probabilities <= 0.95)
+    for q, target in [
+        (check.quantiles[0], check.data_quantiles[0]),
+        (check.score_quantiles[0], cs.normal_ppf(check.probabilities)),
+    ]:
+        assert np.all((q.min(axis=0) <= target)[inner] & (target <= q.max(axis=0))[inner])
+    shifted = cs.check_realizations(grid, drawn * 1.5, points, "v", weights="w").quantiles[0]
+    assert np.mean(shifted.min(axis=0)[inner] > check.data_quantiles[0][inner]) > 0.5
+    stats = check.statistics
+    assert stats.num_rows == 51 and list(stats["realization"][:2]) == [0, 1]
+    np.testing.assert_allclose(stats["mean"][0], np.average(values, weights=p))
+    np.testing.assert_allclose(stats["mean"][1:], drawn.mean(axis=1))
+
+
+def test_unconditional_sgs_reproduces_the_model_variogram_at_short_lags():
+    model = cs.Variogram([("spherical", 1.0, 15.0)])
+    data = cs.PointSet(rng.uniform(1000, 2000, (1000, 2)), {"v": rng.normal(size=1000)})
+    nodes = cs.BlockModel((0.5, 0.5), (1.0, 1.0), (60, 60))
+    sgs = cs.SGS(model, cs.Search(radius=30, max_samples=16)).fit(data, "v")
+    reals = sgs.simulate(nodes, n=20, seed=4, realizations=True)
+    check = cs.check_realizations(nodes, reals, data, "v", variogram=model, lag=1.0, max_lag=8.0)
+    assert check.directions == [(0.0, 0.0), (90.0, 0.0)]
+    for d in range(2):
+        mean = np.mean([r[d].gammas for r in check.variograms[0]], axis=0)
+        np.testing.assert_allclose(mean, model.gamma(check.variograms[0][0][d].lags), atol=0.1)
+
+
+def test_multivariate_and_categorical_checks():
+    nodes = cs.BlockModel((0.5, 0.5), (1.0, 1.0), (20, 20))
+    a = rng.normal(size=(8, 400))
+    b = 0.8 * a + 0.6 * rng.normal(size=(8, 400))
+    x = rng.normal(size=60)
+    points = cs.PointSet(coords, {"a": x, "b": 0.8 * x + 0.6 * rng.normal(size=60)})
+    check = cs.check_realizations(nodes, [a, b], points, ["a", "b"], lag=2.0, max_lag=8.0)
+    assert check.names == ["a", "b"] and check.correlations.shape == (8, 2, 2)
+    np.testing.assert_allclose(check.correlations[3, 0, 1], np.corrcoef(a[3], b[3])[0, 1])
+    np.testing.assert_allclose(check.data_correlation, cs.correlation(points, columns=["a", "b"]))
+    assert len(check.variograms[1]) == 8 and check.directions is None
+    codes = (values > 1).astype(int) + (values > 2)
+    reals = rng.integers(0, 3, (6, 400))
+    cats = cs.check_realizations(nodes, reals, coords, codes, lag=2.0, max_lag=8.0)
+    assert cats.categorical and cats.quantiles is None and cats.proportions.shape == (6, 3)
+    np.testing.assert_allclose(cats.data_proportions, np.bincount(codes, minlength=3) / 60)
+    np.testing.assert_allclose(cats.proportions[0], np.bincount(reals[0], minlength=3) / 400)
+    indicator = cs.experimental_variogram(nodes, (reals[2] == 1).astype(float), 2.0, 8.0)
+    np.testing.assert_array_equal(cats.variograms[1][2][0].gammas, indicator.gammas)
+    no_reals = cs.SGS(gaussian, cs.Search(40.0)).fit(coords, values).simulate(nodes, n=2)
+    for args, options in [
+        ([a, b], {}),
+        (a, {"lag": 2.0}),
+        (no_reals, {}),
+    ]:
+        with pytest.raises(ValueError):
+            cs.check_realizations(nodes, args, points, "a", **options)
