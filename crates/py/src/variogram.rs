@@ -633,8 +633,9 @@ fn locations(coords: &Bound<PyAny>, method: Option<&str>) -> PyResult<Locations>
 /// holes : array_like, shape (n,), optional
 ///     Hole id of each sample, for a downhole variogram: only pairs in the
 ///     same hole count, lag ``k`` gathers the pairs within ``lag / 2`` of
-///     ``k * lag`` and reports their mean distance. Not with ``azimuth`` or
-///     ``other``.
+///     ``k * lag`` and reports their mean distance. With ``azimuth``, only
+///     the pairs inside the direction cone count, e.g. the flat stretches of
+///     bent holes. Not with ``other``.
 /// method : {None, "pairs", "grid"}
 ///     How pairs are found. "pairs" compares every two samples, O(n²).
 ///     "grid" needs a regular or masked BlockModel: every pair of cells one
@@ -679,24 +680,25 @@ fn experimental_variogram(
         let holes = holes
             .map(|h| column(Some(coords), h, "holes"))
             .transpose()?;
-        if let Some((_, holes)) = crate::args::holes(holes.as_ref(), locs.len())? {
-            if azimuth.is_some() || other.is_some() {
-                return Err(invalid("holes takes neither azimuth nor other"));
-            }
-            let exp =
-                downhole(&locs, &values, &holes, &bins, estimator, standardize).map_err(err)?;
-            return Ok(ExperimentalVariogram(exp));
-        }
-        let (Some(at), Some(other)) = (other_coords, other) else {
-            return Err(invalid("other_coords needs other"));
-        };
-        let (at, other) = samples(at, other, "other")?;
         let direction = azimuth.map(|azimuth| Direction {
             azimuth,
             dip,
             tolerance,
             bandwidth,
         });
+        if let Some((_, holes)) = crate::args::holes(holes.as_ref(), locs.len())? {
+            if other.is_some() {
+                return Err(invalid("holes does not take other"));
+            }
+            let dir = direction.as_ref();
+            let exp = downhole(&locs, &values, &holes, &bins, estimator, dir, standardize)
+                .map_err(err)?;
+            return Ok(ExperimentalVariogram(exp));
+        }
+        let (Some(at), Some(other)) = (other_coords, other) else {
+            return Err(invalid("other_coords needs other"));
+        };
+        let (at, other) = samples(at, other, "other")?;
         let exp = cross_experimental(
             &locs,
             &values,

@@ -293,13 +293,15 @@ pub fn experimental_set<'a>(
 /// (equal `holes` ids) are counted. Lag `k` gathers the pairs within half a
 /// lag width of `k · lag_width`, so with the width set to the composite length
 /// neighbors fall in the first lag, and each lag is the mean distance of its
-/// pairs. `O(Σ nₕ²)` over the holes.
+/// pairs. With `direction`, only pairs inside its cone count. `O(Σ nₕ²)`
+/// over the holes.
 pub fn downhole(
     locations: &[(f64, f64, f64)],
     values: &[f64],
     holes: &[u32],
     bins: &LagBins,
     estimator: Estimator,
+    direction: Option<&Direction>,
     standardize: bool,
 ) -> Result<Experimental> {
     check(Support::Points(locations), values, bins)?;
@@ -313,14 +315,20 @@ pub fn downhole(
     let mut sums = vec![[0.0f64; 8]; n_bins];
     let mut counts = vec![0usize; n_bins];
     let mut distances = vec![0.0; n_bins];
+    let dir = direction.map(|d| (d, d.unit(), d.tolerance.to_radians().cos()));
     let mut order: Vec<usize> = (0..values.len()).collect();
     order.sort_by_key(|&i| holes[i]);
     for hole in order.chunk_by(|&a, &b| holes[a] == holes[b]) {
         for (k, &i) in hole.iter().enumerate() {
             for &j in &hole[k + 1..] {
-                let dist = euclidean(&locations[i], &locations[j]);
+                let (a, b) = (locations[i], locations[j]);
+                let dist = euclidean(&a, &b);
                 let k = (dist / bins.lag_width).round() as usize;
                 if k == 0 || dist > bins.max_lag {
+                    continue;
+                }
+                let h = (b.0 - a.0, b.1 - a.1, b.2 - a.2);
+                if dir.is_some() && classify(h, dist, bins, n_bins, dir.as_ref(), false).is_none() {
                     continue;
                 }
                 let idx = (k - 1).min(n_bins - 1);
@@ -787,6 +795,39 @@ mod tests {
         // Only the East-West pair (0,0,0)-(10,0,0) qualifies.
         let total: usize = e.counts.iter().sum();
         assert_eq!(total, 1);
+    }
+
+    #[test]
+    fn downhole_direction_keeps_pairs_in_the_cone() {
+        // One hole bends from vertical to east-west: 3 vertical, then 3 horizontal samples.
+        let locs = vec![
+            (0.0, 0.0, 0.0),
+            (0.0, 0.0, -1.0),
+            (0.0, 0.0, -2.0),
+            (1.0, 0.0, -2.0),
+            (2.0, 0.0, -2.0),
+            (3.0, 0.0, -2.0),
+        ];
+        let vals = vec![1.0, 2.0, 3.0, 5.0, 8.0, 13.0];
+        let bins = LagBins {
+            max_lag: 1.2,
+            lag_width: 1.0,
+        };
+        let dir = |dip: f64| Direction {
+            azimuth: 90.0,
+            dip,
+            tolerance: 10.0,
+            bandwidth: None,
+        };
+        let holes = [0; 6];
+        let run = |d: Option<&Direction>| {
+            downhole(&locs, &vals, &holes, &bins, Estimator::Matheron, d, false).unwrap()
+        };
+        assert_eq!(run(None).counts, [5]);
+        let flat = run(Some(&dir(0.0)));
+        assert_eq!(flat.counts, [3]);
+        assert!((flat.gammas[0] - (4.0 + 9.0 + 25.0) / 6.0).abs() < 1e-12);
+        assert_eq!(run(Some(&dir(90.0))).counts, [2]);
     }
 
     #[test]

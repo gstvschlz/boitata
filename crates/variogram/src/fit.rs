@@ -1286,7 +1286,16 @@ mod tests {
             max_lag: 10.0,
             lag_width: 1.0,
         };
-        let exp = downhole(&locs, &values, &holes, &bins, Estimator::Matheron, false).unwrap();
+        let exp = downhole(
+            &locs,
+            &values,
+            &holes,
+            &bins,
+            Estimator::Matheron,
+            None,
+            false,
+        )
+        .unwrap();
         assert!((exp.lags[0] - 1.0).abs() < 1e-9);
         let c0 = extrapolated_nugget(&exp, 3).unwrap();
         assert!((c0 - nugget).abs() < 0.03, "{c0}");

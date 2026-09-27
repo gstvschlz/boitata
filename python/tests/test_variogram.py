@@ -339,8 +339,14 @@ def test_downhole_nugget():
     exp = cs.experimental_variogram(coords.reshape(-1, 3), values, 1.0, 10.0, holes=holes)
     assert exp.lags[0] == pytest.approx(1.0)
     assert exp.nugget() == pytest.approx(0.3, abs=0.05)
+    vertical = cs.experimental_variogram(
+        coords.reshape(-1, 3), values, 1.0, 10.0, azimuth=0, dip=90, holes=holes
+    )
+    np.testing.assert_array_equal(vertical.gammas, exp.gammas)
+    flat = cs.experimental_variogram(coords.reshape(-1, 3), values, 1.0, 10.0, azimuth=90, holes=holes)
+    assert flat.counts.sum() == 0
     with pytest.raises(ValueError):
-        cs.experimental_variogram(coords.reshape(-1, 3), values, 1.0, 10.0, azimuth=0, holes=holes)
+        cs.experimental_variogram(coords.reshape(-1, 3), values, 1.0, 10.0, other=values, holes=holes)
 
 
 def test_names_resolve_against_the_container():
