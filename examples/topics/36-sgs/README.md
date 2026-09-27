@@ -15,13 +15,13 @@ from matplotlib.colors import PowerNorm
 samples = cs.datasets.walker_lake()
 truth = cs.datasets.walker_lake_exhaustive()["V"].reshape(300, 260)
 xy, v = samples.coords, samples["V"]
-azimuth = cs.Variogram.from_json((HERE.parent / "model.json").read_text()).rotation[0]
+azimuth = 170.0
 ```
 
 </details>
 
 Normal scores with declustering weights, tails bounded to 0 and the largest sample, and their variogram along
-N170° and N260° scaled to a unit sill:
+N170°, the direction of greatest continuity (topic 19), and across it, scaled to a unit sill:
 
 <details><summary>Python</summary>
 
@@ -166,6 +166,7 @@ save(fig, "reproduction")
 
 ![reproduction](reproduction.png)
 
-Topic 32 averages realizations over mining blocks.
+Topic 37 simulates at block support, topic 38 draws realizations by turning bands, and topic 39 steers them with a
+trend.
 
 Full script: [`example_36.py`](example_36.py)
