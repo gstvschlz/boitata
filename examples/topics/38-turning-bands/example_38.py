@@ -65,7 +65,7 @@ for name, reals, seconds in (("SGS", by_sgs, sgs_seconds), ("turning bands", by_
 
 
 # %% [markdown]
-# Both follow the same high-grade trends; turning bands' realizations are smoother at short scale:
+# Both follow the same high-grade trends, with the same short-scale scatter:
 
 # %%
 shape = (60, 52)
@@ -86,8 +86,8 @@ save(fig, "realizations")
 
 
 # %% [markdown]
-# Along the major axis both reach the sill at the model range, but at the first lags turning bands falls below the
-# model nugget, where SGS follows it:
+# Along the major axis both follow the model, from its nugget at the first lags to the sill at its range. Turning bands
+# simulates the nugget as independent noise at each node, since the bands carry only the structures:
 
 # %%
 h = np.linspace(0, 120, 200)
