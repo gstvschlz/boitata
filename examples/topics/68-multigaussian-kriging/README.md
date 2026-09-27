@@ -183,11 +183,11 @@ inside the central 90% interval: 94%
 
 ## Compared with multiple indicator kriging
 
-[Multiple indicator kriging](../27-cokriging/README.md) builds the distribution from indicators kriged at a set of
-thresholds, one variogram each, then corrects order relations and fills in between the thresholds and in the tails.
-It lets each grade range have its own continuity, such as high grades less continuous than low ones. Multigaussian
-kriging needs one variogram and no order-relation correction, and gives smooth distributions at any cutoff, but it
-assumes the Gaussian model: high and low scores are equally continuous, and extremes are disconnected. Where the
-data show connected high grades, indicators follow them better.
+[Multiple indicator kriging](../29-multiple-indicator-kriging/README.md) builds the distribution from indicators
+kriged at a set of thresholds, one variogram each, then corrects order relations and fills in between the thresholds
+and in the tails. It lets each grade range have its own continuity, such as high grades less continuous than low ones.
+Multigaussian kriging needs one variogram and no order-relation correction, and gives smooth distributions at any
+cutoff, but it assumes the Gaussian model: high and low scores are equally continuous, and extremes are disconnected.
+Where the data show connected high grades, indicators follow them better.
 
 Full script: [`example_68.py`](example_68.py)
