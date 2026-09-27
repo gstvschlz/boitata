@@ -191,7 +191,7 @@ impl Categories {
             .map(|(c, n)| (n.as_str(), c as u32))
             .collect();
         let other = self.other.as_ref().map(|_| self.names.len() as u32 - 1);
-        let mut unknown = BTreeSet::new();
+        let mut unknown: BTreeMap<&str, usize> = BTreeMap::new();
         let codes = labels
             .iter()
             .map(|l| {
@@ -199,19 +199,41 @@ impl Categories {
                 let name = self.mapping.get(l).map_or(l, String::as_str);
                 let c = code.get(name).copied().or(other);
                 if c.is_none() {
-                    unknown.insert(l);
+                    *unknown.entry(l).or_default() += 1;
                 }
                 c
             })
             .collect();
         if unknown.is_empty() {
-            Ok(codes)
-        } else {
-            Err(Error::UnknownLabels {
-                count: unknown.len(),
-                labels: unknown.into_iter().take(5).collect::<Vec<_>>().join(", "),
-            })
+            return Ok(codes);
         }
+        let list = |items: Vec<String>| {
+            let more = items.len().saturating_sub(5);
+            let mut s = items[..items.len() - more].join(", ");
+            if more > 0 {
+                s += &format!(" and {more} more");
+            }
+            s
+        };
+        let found = unknown
+            .iter()
+            .map(|(l, &n)| format!("{l} ({n} row{})", if n == 1 { "" } else { "s" }))
+            .collect();
+        let known = self
+            .names
+            .iter()
+            .chain(self.mapping.keys())
+            .cloned()
+            .collect();
+        let count = match unknown.len() {
+            1 => "1 label is not a category".to_string(),
+            n => format!("{n} labels are not categories"),
+        };
+        Err(Error::UnknownLabels(format!(
+            "{count}: {}; known labels are {}",
+            list(found),
+            list(known)
+        )))
     }
 
     pub fn decode(&self, codes: &[Option<u32>]) -> Result<Vec<Option<&str>>> {
@@ -396,7 +418,10 @@ mod tests {
         assert!(Categories::new(s(&["a"]), None, to_b, None).is_err());
         let c = Categories::new(s(&["a", "b"]), None, none(), None).unwrap();
         let err = c.encode(&[Some("a"), Some("z"), Some("y")]).unwrap_err();
-        assert_eq!(err.to_string(), "2 labels are not categories: y, z");
+        assert_eq!(
+            err.to_string(),
+            "2 labels are not categories: y (1 row), z (1 row); known labels are a, b"
+        );
         assert!(c.decode(&[Some(2)]).is_err());
         assert!(c.shares(&[Some(0)], Some(&[-1.0])).is_err());
         assert!(c.lump(&["z"], "other").is_err());
