@@ -1,8 +1,10 @@
 """
-# 13. Exploratory data analysis
+# 13. Correlations
 
-Grade-tonnage, contacts, swaths, categories, data spacing, h-scatterplots and correlations on the 2 m composites of the
-drillhole dataset. Every function skips missing values, so raw columns go in as they are.
+An iron formation drilled by 187 diamond holes: hematite ore, compact (HC) and friable (HF), in itabirite, compact (IC)
+and friable (IF), with canga (CG), laterite (LAT) and mafic intrusions (MAF). Every composite carries six oxides that
+share one whole, so they cannot vary independently: the correlations between them, and how they fade with distance,
+decide whether to estimate them together.
 """
 
 # %% [hidden]
@@ -16,203 +18,92 @@ sys.path.insert(0, str(HERE.parents[1]))
 import ceres as cs
 import matplotlib.pyplot as plt
 import numpy as np
-from common import ACCENT, GRAY, INK, map_axes, save
+from common import save
+
+data = cs.datasets.iron_formation_plateau()
+intervals = cs.merge_intervals(data["assays"], data["lithology"])
+holes = cs.Drillholes(data["collars"], data["surveys"], intervals)
+OXIDES = ["FE_PCT", "SIO2_PCT", "AL2O3_PCT", "P_PCT", "MN_PCT", "LOI_PCT"]
+composites = holes.composite(2.0, [*OXIDES, "DENSITY"], domain="LITH")
+lith = composites["LITH"]
+hematite = composites.filter(np.isin(lith, ["HC", "HF"]))
+itabirite = composites.filter(np.isin(lith, ["IC", "IF"]))
+print(f"{len(composites)} composites of 2 m: {len(hematite)} hematite, {len(itabirite)} itabirite")
 
 # %% [markdown]
-# The tables are checked and fixed with the default rules first, as in topic 3:
-# overlapping assays keep the one that starts first and abruptly deviating survey stations are dropped. Composites
-# of holes collared at the same point are merged, keeping the first (topic 4), and each composite is weighted by cell
-# declustering in 50 m cells, domain by domain (topic 7).
-
-# %%
-tables = cs.datasets.drillhole_tables()
-flags, _ = cs.check_drillholes(
-    tables["collar"],
-    tables["survey"],
-    {"assay": tables["assay"], "geology": tables["geology"]},
-    hole="HOLEID",
-)
-tables, _ = cs.fix_drillholes(flags, tables)
-intervals = cs.merge_intervals(tables["assay"], tables["geology"], hole="HOLEID")
-dh = cs.Drillholes(tables["collar"], tables["survey"], intervals, hole="HOLEID")
-grades = ["ZN", "PB", "CU", "AG", "AU"]
-composites = cs.duplicates(dh.composite(2.0, grades, domain="LITH"), merge="first")
-print(f"{len(composites)} composites")
-xyz = composites.coords
-zn = composites["ZN"]
-lith, hole = composites["LITH"], composites["HOLEID"]
-domains = ["MS", "SM", "QE", "EX", "RH"]
-weights = np.zeros(len(zn))
-for name in domains:
-    keep = (lith == name) & ~np.isnan(zn)
-    weights[keep] = cs.cell_declustering(xyz[keep], zn[keep], cell_size=50.0).weights
-ms = (lith == "MS") & ~np.isnan(zn)
-
-# %% [markdown]
-# ## Grade-tonnage of the data
+# ## Correlation matrices
 #
-# `grade_tonnage` sums the weight of the composites at or above each cutoff and their mean grade: a first look at
-# selectivity on composite support, here as a proportion of the total. Declustering moves the MS curves only a
-# little: slightly less material above low cutoffs, slightly richer above most of them. Blocks are
-# less selective than composites; topic 32 models that change of support.
+# `correlation` returns the Pearson or rank (Spearman) correlation matrix of some columns, each pair over the rows
+# where both are present, optionally weighted; `plot.correlation` draws it with every cell written out. The rank
+# correlation is the safer one on skewed grades.
 
 # %%
-cutoffs = np.linspace(0, 30, 61)
-fig, (a, b) = plt.subplots(1, 2, figsize=(9, 3.6), layout="constrained")
-for w, color, label in ((None, GRAY, "naive"), (weights[ms], ACCENT, "declustered")):
-    gt = cs.grade_tonnage("ZN", cutoffs, weights=w, data=composites.filter(ms))
-    a.plot(cutoffs, gt["tonnage"] / gt["tonnage"][0], color=color, label=label)
-    b.plot(cutoffs, gt["mean_grade"], color=color)
-a.set(title="MS proportion above cutoff", xlabel="Cutoff Zn (%)", ylabel="Proportion of weight")
-a.legend()
-b.set(title="MS mean grade above cutoff", xlabel="Cutoff Zn (%)", ylabel="Mean Zn above cutoff (%)")
-save(fig, "grade_tonnage")
-
-# %% [markdown]
-# ## Contact analysis
-#
-# Zn against distance to a contact of MS, measured down each hole to the nearest composite of the other domain:
-# negative inside MS, positive outside. Into the RH host rock, Zn drops from about 9 % to under 2 % within a composite:
-# a sharp step that supports a hard boundary in estimation. Into the semi-massive sulphide SM it steps down by only
-# about 2 %, and SM keeps 6 to 10 % out to 30 m: near the contact the samples of one domain say much about the other,
-# the case for a soft boundary (tutorial 2).
-
-# %%
-fig, axes = plt.subplots(1, 2, figsize=(9, 3.4), layout="constrained", sharey=True)
-for ax, other in zip(axes, ["RH", "SM"], strict=True):
-    c = cs.contact(
-        composites,
-        "ZN",
-        domain_column="LITH",
-        holes="HOLEID",
-        inside="MS",
-        outside=other,
-        max_distance=30.0,
-        bin=2.0,
+labels = ["Fe", "SiO₂", "Al₂O₃", "P", "Mn", "LOI"]
+fig, axes = plt.subplots(1, 2, figsize=(10, 4), layout="constrained")
+for ax, rock, name in zip(axes, [itabirite, hematite], ["Itabirite", "Hematite"], strict=True):
+    r = cs.correlation(rock, columns=OXIDES, method="spearman")
+    print(
+        f"{name}, Fe against", "  ".join(f"{c} {v:+.2f}" for c, v in zip(labels[1:], r[0, 1:], strict=True))
     )
-    ax.axvline(0, color=GRAY, lw=0.8, ls="--")
-    ax.plot(c["distance"], c["mean"], color=ACCENT, lw=1)
-    ax.scatter(c["distance"], c["mean"], s=np.sqrt(c["n"]), color=ACCENT)
-    ax.text(-15, 13, "inside MS", color=INK, ha="center")
-    ax.text(15, 13, f"in {other}", color=INK, ha="center")
-    ax.set(title=f"Zn across the MS/{other} contact", xlabel="Distance to contact (m)", ylim=(0, 14))
-axes[0].set_ylabel("Zn (%), points sized by count")
-save(fig, "contact")
+    cs.plot.correlation(rock, columns=OXIDES, labels=labels, method="spearman", colorbar=ax is axes[1], ax=ax)
+    ax.set_title(f"{name}, Spearman")
+save(fig, "correlation")
 
 # %% [markdown]
-# ## Swath
+# In itabirite, a banded rock of hematite and quartz, Fe and SiO₂ are opposed at -1.00: one oxide replaces the other,
+# and SiO₂ tells nothing that Fe does not. In the hematite ore the silica is mostly gone, and Fe falls instead with
+# Al₂O₃ (-0.81) and LOI (-0.52), the clay and goethite that dilute it. The same six oxides relate differently in each
+# rock, one more reason to estimate the two apart.
 #
-# Mean Zn in 100 m slices along easting, with the counts of the first swath as bars. The same call on a block model
-# and its column of estimates gives the model swath, weighted by block volume, to check for local bias.
+# ## Scatter-plot matrix
+#
+# `plot.scatter_matrix` shows the pairs behind the numbers: scatters off the diagonal, histograms on it, and in each
+# panel the Pearson (r) and rank correlation of the pair. `columns=` picks and orders the columns. Density is measured
+# on only part of the composites, and each panel uses those where both of its values are present.
 
 # %%
-swaths = [cs.swath(composites.filter(lith == name), "ZN", 100.0, axis="x") for name in ["MS", "SM"]]
-fig, ax = plt.subplots(figsize=(8, 3.4), layout="constrained")
-cs.plot.swath(swaths, labels=["MS", "SM"], ax=ax)
-ax.set(title="Zn swath along easting", xlabel="Easting (m)", ylabel="Zn (%)")
-save(fig, "swath")
+columns = ["FE_PCT", "AL2O3_PCT", "LOI_PCT", "DENSITY"]
+print(f"density measured on {np.mean(~np.isnan(hematite['DENSITY'])):.0%} of the hematite composites")
+fig, axes = cs.plot.scatter_matrix(hematite, columns=columns, labels=["Fe", "Al₂O₃", "LOI", "Density"])
+fig.suptitle("Hematite composites", x=0.02, ha="left", fontweight="bold", fontsize=10)
+save(fig, "scatter_matrix")
 
 # %% [markdown]
-# ## Categories
+# Density splits into two groups that Fe does not separate: friable and compact hematite, alike in grade but not in
+# density. Density follows the rock type, not the grade, and a regression of density on Fe would miss it.
 #
-# How much of each lithology do the composites hold? A `Categories` scheme keeps the five domains and lumps the many
-# minor lithology codes into "other", its last code; `Categories.from_values(lith, weights=w, min_share=0.02)` would
-# instead keep every lithology above 2 % of the weight. Given the scheme, `plot.proportions` draws the shares weighted by cell
-# declustering over all composites (50 m cells), with the unweighted shares as ticks; `plot.category_swath` stacks
-# the declustered shares per 100 m slice of easting, to see where each lithology sits along strike. Drilling targets
-# the sulphides, so declustering lowers the share of MS and SM and nearly doubles that of the RH host rock.
+# `plot.completeness` counts the composites by how many of the columns they hold, the complete ones in color, and
+# `plot.conditional` draws the mean of one column and its P10 to P90 in bins of the other, each holding a tenth of
+# the composites: the relation a dense scatter hides. Al₂O₃ falls steadily as Fe rises, and its spread narrows in the
+# richest ore.
 
 # %%
-assayed = ~np.isnan(zn)
-cell_weights = cs.cell_declustering(xyz[assayed], zn[assayed], cell_size=50.0).weights
-lithology = cs.Categories(domains, other="other")
-rock = lithology.encode(lith[assayed])
-fig, (a, b) = plt.subplots(1, 2, figsize=(10, 3.4), layout="constrained", width_ratios=[1, 2])
-cs.plot.proportions(rock, weights=cell_weights, scheme=lithology, ax=a)
-a.set_title("Lithologies, declustered")
-cs.plot.category_swath(xyz[assayed], rock, 100.0, axis="x", weights=cell_weights, scheme=lithology, ax=b)
-b.set(title="Lithologies along easting, declustered", xlabel="Easting (m)")
-save(fig, "categories")
-
-# %% [markdown]
-# ## Data spacing
-#
-# The spacing of the drilling is read between holes, not along them: each hole's MS intercept stands at the mean
-# location of its MS composites, and `data_spacing(..., horizontal=True)` measures, in plan, the distance from each
-# intercept to its nearest neighbor. The same call with `targets=` a block model gives the spacing at every block,
-# a common basis for resource classification.
-
-# %%
-in_ms = lith == "MS"
-names, which = np.unique(hole[in_ms], return_inverse=True)
-intercepts = np.column_stack([np.bincount(which, xyz[in_ms, k]) / np.bincount(which) for k in range(3)])
-spacing = cs.data_spacing(intercepts, horizontal=True)
-print(f"{len(names)} MS intercepts, nearest neighbor in plan: median {np.median(spacing):.0f} m, ", end="")
-print(f"P90 {np.percentile(spacing, 90):.0f} m")
-fig, (a, b) = plt.subplots(1, 2, figsize=(10, 4), layout="constrained", width_ratios=[1.4, 1])
-drawn = a.scatter(*intercepts[:, :2].T, c=spacing, s=8, cmap="cividis_r", vmax=np.percentile(spacing, 95))
-fig.colorbar(drawn, ax=a, shrink=0.8, label="Spacing (m)")
-map_axes(a, "Distance to the nearest MS intercept")
-cs.plot.histogram(
-    spacing, bins=np.arange(0, np.percentile(spacing, 99) + 5, 5), stats=True, ax=b, color=ACCENT
-)
-b.set(title="Spacing of MS intercepts", xlabel="Spacing (m)")
-save(fig, "spacing")
+fig, (a, b) = plt.subplots(1, 2, figsize=(9, 3.4), layout="constrained")
+cs.plot.completeness(hematite, columns=columns, ax=a)
+a.set_title("Hematite composites by columns present")
+cs.plot.conditional("FE_PCT", "AL2O3_PCT", data=hematite, ax=b)
+b.set(title="Al₂O₃ given Fe, hematite", xlabel="Fe (%)", ylabel="Al₂O₃ (%)")
+b.legend(loc="upper right")
+save(fig, "completeness")
 
 # %% [markdown]
 # ## h-scatterplots
 #
-# Pairs of composites a lag apart: tail value against head value. Correlation drops as the lag grows, the mirror image
-# of the variogram rising.
+# The correlation of a grade with itself, a lag apart: `h_scatter` pairs the composites separated by `lag` within
+# `tolerance`, in any direction unless an `azimuth` is given, and returns the values at both ends with their
+# correlation. As the lag grows the cloud widens and the correlation drops, the mirror image of the variogram rising.
 
 # %%
-log_zn = np.log10(np.where(zn > 0, zn, np.nan))
 fig, axes = plt.subplots(1, 3, figsize=(10, 3.4), layout="constrained", sharey=True)
-for ax, lag in zip(axes, [2.0, 10.0, 50.0], strict=True):
-    head, tail, r = cs.h_scatter(xyz, log_zn, lag, 0.1 * lag)
-    ax.hexbin(tail, head, gridsize=40, bins="log", linewidths=0)
-    ax.set(title=f"h = {lag:g} m, ρ = {r:.2f}", xlabel="log₁₀ Zn at x", aspect="equal")
-axes[0].set_ylabel("log₁₀ Zn at x + h")
+for ax, lag in zip(axes, [2.0, 8.0, 32.0], strict=True):
+    head, tail, r = cs.h_scatter(itabirite, "FE_PCT", lag, 0.1 * lag)
+    print(f"h = {lag:>3.0f} m: {len(head):>6} pairs, correlation {r:.2f}")
+    ax.hexbin(tail, head, gridsize=30, bins="log", linewidths=0)
+    ax.set(title=f"h = {lag:g} m, ρ = {r:.2f}", xlabel="Fe at x (%)", aspect="equal")
+axes[0].set_ylabel("Fe at x + h (%)")
 save(fig, "h_scatter")
 
 # %% [markdown]
-# ## Correlations
-#
-# The scatter-plot matrix of the MS grades on log axes, with declustered histograms on the diagonal and, in each
-# panel, the declustered Pearson (r) and rank correlation of the pair. Pearson's r, on the raw grades, falls well
-# below the rank correlation wherever a few high values dominate a pair; on skewed grades the rank correlation is the
-# one to read. Zn, Pb and Ag move together most closely. The rows of points at Ag 1 g/t and Au 0.01 g/t are
-# detection limits.
-
-# %%
-ms = lith == "MS"
-fig, axes = cs.plot.scatter_matrix(composites.filter(ms), columns=grades, weights=weights[ms], log=True)
-fig.suptitle("MS grades, declustered", x=0.02, ha="left", fontweight="bold", fontsize=10)
-save(fig, "scatter_matrix")
-
-# %% [markdown]
-# Not every composite is assayed for every grade, and each correlation only uses the composites where both grades
-# are. `plot.completeness` counts the composites by the number of grades present, the complete ones in color: Au is
-# assayed in only half of them, so the correlations with Au rest on half the data.
-
-# %%
-assays = {g: composites[g] for g in grades}
-print("  ".join(f"{g} {np.mean(~np.isnan(v)):.0%}" for g, v in assays.items()), "assayed")
-fig, (a, b) = plt.subplots(1, 2, figsize=(9, 3.6), layout="constrained", width_ratios=[1, 1.2])
-cs.plot.completeness(composites, columns=grades, ax=a)
-a.set_title("Composites by grades assayed")
-cs.plot.correlation(composites, columns=grades, method="spearman", ax=b)
-b.set_title("Spearman correlation, all composites")
-save(fig, "correlation")
-
-# %% [markdown]
-# A scatter plot hides how many points sit on top of one another. The mean of Pb and its P10 to P90 in ten bins of
-# Zn, each holding a tenth of the MS composites, show the relation itself: Pb rises steadily with Zn, and its spread
-# narrows from two orders of magnitude in the lowest bins to less than one in the richest.
-
-# %%
-fig, ax = plt.subplots(figsize=(5, 3.6), layout="constrained")
-cs.plot.conditional(composites["ZN"][ms], composites["PB"][ms], weights=weights[ms], log=True, ax=ax)
-ax.set(title="Pb given Zn, MS, declustered", xlabel="Zn (%)", ylabel="Pb (%)")
-ax.legend(loc="lower right")
-save(fig, "conditional")
+# Fe in itabirite correlates at 0.80 between neighboring composites, 0.32 at 8 m and 0.08 at 32 m: the bands that make
+# the grade are thin, and beyond a few tens of meters a composite says little about its neighbor's Fe. The variogram
+# (topic 18) measures the same loss of correlation lag by lag.
