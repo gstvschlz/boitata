@@ -1447,6 +1447,92 @@ fn cell_declustering(
     Ok(declustering(w, sizes, means))
 }
 
+/// Breaks ties in values before a normal-score transform.
+///
+/// Tied samples, such as those at a detection limit, are ranked on the average
+/// over their neighborhood of each sample's rank, within each radius in turn,
+/// then on a seeded random draw. Several variables share one ordering: the
+/// averaged rank is the mean over the variables.
+///
+/// Parameters
+/// ----------
+/// coords : array_like, PointSet or BlockModel
+///     ``(n, 2)`` or ``(n, 3)`` sample coordinates, or a container.
+/// values : array_like, str or list of str
+///     ``(n,)`` values, ``(n, k)`` values of k variables, or column names of
+///     ``coords``.
+/// radii : sequence of float, optional
+///     Neighborhood radii, used smallest first. Defaults to 1, 2, 4 and 8
+///     times the median distance to the nearest sample.
+/// seed : int, default 0
+///     Seed of the last-resort random tie-break.
+///
+/// Returns
+/// -------
+/// numpy.ndarray or Table
+///     The values with each tie spread over tiny increasing offsets (at most
+///     1e-4 of the gap to the next value) in rank order, so no ties remain and
+///     untied values keep their order. A Table when ``values`` are names.
+#[pyfunction]
+#[pyo3(signature = (coords, values, *, radii=None, seed=0))]
+fn despike<'py>(
+    py: Python<'py>,
+    coords: &Bound<'py, PyAny>,
+    values: &Bound<'py, PyAny>,
+    radii: Option<Vec<f64>>,
+    seed: u64,
+) -> PyResult<Bound<'py, PyAny>> {
+    let locs = points(coords)?;
+    let names = match values.is_instance_of::<pyo3::types::PyString>() {
+        true => None,
+        false => values.extract::<Vec<String>>().ok(),
+    };
+    let mut matrix = false;
+    let columns = match &names {
+        Some(names) => names
+            .iter()
+            .map(|n| finite(&crate::args::named(Some(coords), n, "values")?, "values"))
+            .collect::<PyResult<Vec<_>>>()?,
+        None => {
+            let values = column(Some(coords), values, "values")?;
+            let ndim: usize = py
+                .import("numpy")?
+                .call_method1("ndim", (&values,))?
+                .extract()?;
+            if ndim == 2 {
+                matrix = true;
+                let rows = rows(&values, "values")?;
+                let k = rows.first().map_or(0, Vec::len);
+                (0..k)
+                    .map(|j| rows.iter().map(|r| r[j]).collect())
+                    .collect()
+            } else {
+                vec![finite(&values, "values")?]
+            }
+        }
+    };
+    for c in &columns {
+        same_length(locs.len(), c.len(), "values")?;
+    }
+    let radii = radii.unwrap_or_else(|| transforms::default_radii(&locs));
+    let out = transforms::despike(&locs, &columns, &radii, seed).map_err(err)?;
+    if let Some(names) = names {
+        let columns = names
+            .iter()
+            .zip(out)
+            .map(|(n, c)| (n.as_str(), Arc::new(Float64Array::from(c)) as ArrayRef));
+        let table = Table(RecordBatch::try_from_iter(columns).map_err(invalid)?);
+        return Ok(Bound::new(py, table)?.into_any());
+    }
+    if matrix {
+        let rows: Vec<Vec<f64>> = (0..locs.len())
+            .map(|i| out.iter().map(|c| c[i]).collect())
+            .collect();
+        return Ok(array2(py, &rows).into_any());
+    }
+    Ok(array1(py, out.into_iter().next().unwrap_or_default()).into_any())
+}
+
 /// Polygonal (nearest-neighbor area) declustering on a `nodes`-cell grid.
 #[pyfunction]
 #[pyo3(signature = (coords, values, *, nodes=10_000))]
@@ -1567,6 +1653,7 @@ pub fn register(m: &Bound<PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(detrend, m)?)?;
     m.add_function(wrap_pyfunction!(cell_declustering, m)?)?;
     m.add_function(wrap_pyfunction!(polygon_declustering, m)?)?;
+    m.add_function(wrap_pyfunction!(despike, m)?)?;
     m.add_function(wrap_pyfunction!(affine_correction, m)?)?;
     m.add_function(wrap_pyfunction!(indirect_lognormal_correction, m)?)?;
     m.add_function(wrap_pyfunction!(upscale, m)?)?;

@@ -28,6 +28,8 @@
 
 ::: ceres.polygon_declustering
 
+::: ceres.despike
+
 ::: ceres.affine_correction
 
 ::: ceres.indirect_lognormal_correction
