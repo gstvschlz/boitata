@@ -76,13 +76,13 @@ pub struct NormalScore {
 
 /// A fitted reference distribution of `NormalScore`.
 #[derive(Serialize, Deserialize)]
-enum Reference {
+pub(crate) enum Reference {
     KernelDensity(transforms::KernelDensity),
     GaussianMixture(transforms::GaussianMixture),
 }
 
 impl Reference {
-    fn extract(obj: &Bound<PyAny>) -> PyResult<Self> {
+    pub(crate) fn extract(obj: &Bound<PyAny>) -> PyResult<Self> {
         if let Ok(kde) = obj.cast::<KernelDensity>() {
             return Ok(Self::KernelDensity(kde.borrow().fitted()?.clone()));
         }
@@ -96,6 +96,13 @@ impl Reference {
         Err(invalid(
             "reference must be a KernelDensity or a GaussianMixture",
         ))
+    }
+
+    pub(crate) fn distribution(&self) -> &dyn transforms::Reference {
+        match self {
+            Self::KernelDensity(r) => r,
+            Self::GaussianMixture(r) => r,
+        }
     }
 
     fn transform(&self, values: &[f64]) -> CoreNormalScore {

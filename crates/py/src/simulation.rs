@@ -1810,6 +1810,98 @@ fn localize(
     ))
 }
 
+/// Realizations, or an estimate, corrected to a target distribution.
+///
+/// Each realization's values are ranked and the value ranked ``i`` of ``m``
+/// is mapped to the reference quantile at ``(i + 0.5) / m``, then moved
+/// `strength` of the way from its original value: at 1 every realization
+/// takes the reference histogram exactly, at 0 nothing changes. Ranks are
+/// kept, ties in the order of the targets, so the spatial pattern of each
+/// realization stays; the correction is exact in distribution only, its
+/// variogram moves with the values. Realizations are corrected in parallel,
+/// identically on any number of threads.
+///
+/// Parameters
+/// ----------
+/// values : SimulationSummary or array_like
+///     A summary simulated with ``realizations=True``, ``(n, targets)``
+///     realizations, or one ``(targets,)`` estimate; NaN stays NaN.
+/// reference : array_like, KernelDensity or GaussianMixture
+///     Data values, whose weighted distribution is the target (quantiles
+///     interpolate between the midpoints of the cumulative weights, NaN
+///     dropped), or a fitted one-variable distribution.
+/// weights : array_like, optional
+///     Declustering weights of the reference data.
+/// strength : float
+///     Share of the correction applied, in [0, 1].
+/// realizations : sequence of int, optional
+///     The realizations to correct, e.g. those a `check_realizations` shows
+///     outside a tolerance; the others are returned unchanged. Default all.
+///
+/// Returns
+/// -------
+/// ndarray
+///     The corrected values, shaped as `values` (``(n, targets)`` for a
+///     summary).
+///
+/// Raises
+/// ------
+/// InvalidInput
+///     If a summary holds no realizations, `strength` is outside [0, 1], a
+///     realization index is out of range, or the reference is empty.
+#[pyfunction]
+#[pyo3(signature = (values, reference, *, weights=None, strength=1.0, realizations=None))]
+fn correct_distribution<'py>(
+    py: Python<'py>,
+    values: &Bound<'py, PyAny>,
+    reference: &Bound<'py, PyAny>,
+    weights: Option<&Bound<'py, PyAny>>,
+    strength: f64,
+    realizations: Option<Vec<usize>>,
+) -> PyResult<Bound<'py, PyAny>> {
+    let (rows, single) = if let Ok(s) = values.cast::<SimulationSummary>() {
+        let s = s.get();
+        let rows = s.0.realizations.clone().ok_or_else(|| {
+            invalid("the summary holds no realizations; simulate with realizations=True")
+        })?;
+        (rows, false)
+    } else if let Ok(v) = floats(values, "values") {
+        (vec![v], true)
+    } else {
+        (rows(values, "values")?, false)
+    };
+    let fitted;
+    let empirical;
+    let target: &dyn transforms::Reference = match crate::transforms::Reference::extract(reference)
+    {
+        Ok(r) => {
+            fitted = r;
+            fitted.distribution()
+        }
+        Err(_) => {
+            let data = floats(reference, "reference")?;
+            let w = optional_finite(weights, "weights")?;
+            if let Some(w) = &w {
+                same_length(data.len(), w.len(), "weights")?;
+            }
+            let keep: Vec<usize> = (0..data.len()).filter(|&i| !data[i].is_nan()).collect();
+            let w = w.map(|w| pick(&w, &keep));
+            empirical =
+                simulation::Empirical::new(&pick(&data, &keep), w.as_deref()).map_err(err)?;
+            &empirical
+        }
+    };
+    let out = py
+        .detach(|| {
+            simulation::correct_distribution(&rows, target, strength, realizations.as_deref())
+        })
+        .map_err(err)?;
+    Ok(match single {
+        true => array1(py, out.into_iter().next().expect("one row")).into_any(),
+        false => matrix(py, &out, rows.first().map_or(0, Vec::len)).into_any(),
+    })
+}
+
 fn data_columns(d: &Data) -> Columns {
     let mut columns = persist::point_columns(d.locs.iter().copied());
     columns.push(persist::column("value", d.values.iter().copied()));
@@ -2488,6 +2580,7 @@ pub fn register(m: &Bound<PyModule>) -> PyResult<()> {
     m.add_class::<Plurigaussian>()?;
     m.add_function(wrap_pyfunction!(gibbs, m)?)?;
     m.add_function(wrap_pyfunction!(localize, m)?)?;
+    m.add_function(wrap_pyfunction!(correct_distribution, m)?)?;
     m.add_class::<SimulationSummary>()?;
     m.add_class::<CategoricalSummary>()?;
     Ok(())
