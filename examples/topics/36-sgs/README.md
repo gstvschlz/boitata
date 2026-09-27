@@ -63,23 +63,23 @@ sgs = cs.SGS(gaussian, cs.Search(radius=100, max_samples=24)).fit(samples, "V", 
 summary = sgs.simulate(grid, n=50, seed=42, cutoffs=[500.0], quantiles=[0.1, 0.9], realizations=True)
 reals = summary.realizations
 etype = summary.mean
-p500 = summary.probability_above[0]
+p500 = summary.probability_above[:, 0]
 
 nodes = grid.centroids.astype(int)
 true_at_nodes = truth[nodes[:, 1] - 1, nodes[:, 0] - 1]
 means = summary.realization_mean
 print(f"realization means {means.min():.0f}-{means.max():.0f}, true {true_at_nodes.mean():.0f}")
 print(f"realization variance {reals.var(axis=1).mean():.0f}, true {true_at_nodes.var():.0f}")
-low, high = np.quantile(summary.realization_above[0], [0.1, 0.9])
+low, high = np.quantile(summary.realization_above[:, 0], [0.1, 0.9])
 print(f"area above 500 ppm: P10 {low:.1%}, P90 {high:.1%}, true {np.mean(true_at_nodes > 500):.1%}")
 ```
 
 </details>
 
 ```text
-realization means 284-322, true 276
-realization variance 71966, true 62312
-area above 500 ppm: P10 21.0%, P90 24.3%, true 18.9%
+realization means 277-327, true 276
+realization variance 71636, true 62312
+area above 500 ppm: P10 20.8%, P90 23.6%, true 18.9%
 ```
 
 Each realization looks like the truth; their mean is smooth like kriging and their spread measures uncertainty.

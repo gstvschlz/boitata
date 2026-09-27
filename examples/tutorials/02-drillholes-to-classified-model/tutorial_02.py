@@ -193,7 +193,7 @@ sure = np.mean(summary.probability_above[:, 0] > 0.9)
 print(f"mean {summary.mean.mean():.2f} % Zn; blocks above 5 % in more than 90 % of realizations: {sure:.0%}")
 
 # %% [markdown]
-# In eight realizations out of ten, between 43 and 49 % of the parent blocks exceed 5 % Zn, yet only 1 % of them do
+# In eight realizations out of ten, between 42 and 51 % of the parent blocks exceed 5 % Zn, yet only 1 % of them do
 # so in more than 90 % of the realizations: at this drill spacing hardly any single block is a sure thing, even
 # though the share of ore across the lens is well known.
 #

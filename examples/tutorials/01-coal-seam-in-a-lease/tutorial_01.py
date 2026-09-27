@@ -227,7 +227,7 @@ ax.set(xlabel="Coal in the lease (Mt)", ylabel="Realizations", title="Total tonn
 save(fig, "tonnes")
 
 # %% [markdown]
-# From P10 to P90 the simulated totals span 185.7 to 192.4 Mt, ±1.8 % around 188.5 Mt, and the kriged 189.4 Mt
+# From P10 to P90 the simulated totals span 186.3 to 192.4 Mt, ±1.6 % around 189.1 Mt, and the kriged 189.4 Mt
 # lies within. With a hole every 700 m or closer, errors in single cells cancel over the 7162 cells of the lease.
 # The assumed density weighs more: 0.1 t/m³ either way moves the total more than the whole P10–P90 range.
 

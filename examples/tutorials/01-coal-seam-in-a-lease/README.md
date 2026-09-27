@@ -291,13 +291,13 @@ save(fig, "tonnes")
 
 ```text
 Variogram(nugget=0.32547257276727426, structures=[Structure("spherical", sill=0.6745274272327257, range=3908.50043827286)], rotation=(60.754957940474014, 0.0, 0.0), ratios=(0.3059102706452142, 1.0))
-total: P10 185.7 Mt, P50 188.5 Mt, P90 192.4 Mt; kriged 189.4 Mt
-P10-P90 spread ±1.8% of P50
+total: P10 186.3 Mt, P50 189.1 Mt, P90 192.4 Mt; kriged 189.4 Mt
+P10-P90 spread ±1.6% of P50
 ```
 
 ![tonnes](tonnes.png)
 
-From P10 to P90 the simulated totals span 185.7 to 192.4 Mt, ±1.8 % around 188.5 Mt, and the kriged 189.4 Mt
+From P10 to P90 the simulated totals span 186.3 to 192.4 Mt, ±1.6 % around 189.1 Mt, and the kriged 189.4 Mt
 lies within. With a hole every 700 m or closer, errors in single cells cancel over the 7162 cells of the lease.
 The assumed density weighs more: 0.1 t/m³ either way moves the total more than the whole P10–P90 range.
 

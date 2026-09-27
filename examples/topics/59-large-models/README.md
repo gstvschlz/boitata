@@ -141,7 +141,7 @@ result = bands.simulate_to_parquet(
     trend="trend",
 )
 seconds = time.perf_counter() - start
-low, high = np.quantile(result["realization_above"][0], [0.1, 0.9])
+low, high = np.quantile(result["realization_above"][:, 0], [0.1, 0.9])
 print(f"10 realizations in {seconds:.0f} s; blocks above 60 % Fe: P10 {low:.1%}, P90 {high:.1%}")
 print(f"output {(folder / 'simulated.parquet').stat().st_size / 1e6:.0f} MB")
 ```
@@ -150,7 +150,7 @@ print(f"output {(folder / 'simulated.parquet').stat().st_size / 1e6:.0f} MB")
 
 ```text
 residual scores: nugget 0.36, range 35 m
-10 realizations in 8 s; blocks above 60 % Fe: P10 22.4%, P90 22.7%
+10 realizations in 8 s; blocks above 60 % Fe: P10 22.3%, P90 22.6%
 output 62 MB
 ```
 
@@ -175,14 +175,14 @@ panel = bands.simulate_to_parquet(
     discretization=(3, 3, 2),
 )
 seconds = time.perf_counter() - start
-low, high = np.quantile(panel["realization_above"][0], [0.1, 0.9])
+low, high = np.quantile(panel["realization_above"][:, 0], [0.1, 0.9])
 print(f"{len(model):,} blocks of 25 m in {seconds:.0f} s; above 60 % Fe: P10 {low:.1%}, P90 {high:.1%}")
 ```
 
 </details>
 
 ```text
-47,660 blocks of 25 m in 2 s; above 60 % Fe: P10 15.2%, P90 15.5%
+47,660 blocks of 25 m in 2 s; above 60 % Fe: P10 15.0%, P90 15.4%
 ```
 
 Averaging smooths the highs: about 15 % of the 25 m blocks pass 60 % Fe, against 22 % of the 5 m blocks.

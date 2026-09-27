@@ -87,8 +87,7 @@ save(fig, "maps")
 
 # %% [markdown]
 # The cosimulated Co still reproduces its own histogram and variogram, the checks of topic 70, while its correlation
-# with Ni sits near the samples'. Tying each Co node to the Ni at that node alone, the cosimulation carries the
-# correlation up to the resolution of the nodes, which here lifts it a little above the samples'.
+# with Ni, 0.70 to 0.87 across realizations, brackets the samples' 0.75; simulated alone, Co keeps little of it.
 
 # %%
 fig, axes = plt.subplots(1, 3, figsize=(13, 3.8), layout="constrained")

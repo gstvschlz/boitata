@@ -192,7 +192,7 @@ print(
 )
 
 # %% [markdown]
-# Simulated apart, a quarter of the hematite nodes hold more Fe2O3 and SiO2 than a sample can, and the two grades
+# Simulated apart, over a quarter of the hematite nodes hold more Fe2O3 and SiO2 than a sample can, and the two grades
 # lose their correlation altogether. Through the log-ratios the blocks keep it, and every part stays positive.
 #
 # ## Reconciliation with the blastholes
@@ -269,13 +269,13 @@ save(fig, "reconciliation")
 
 # %% [markdown]
 # Per domain the simulation sits near the drilling in the window, not the blastholes: 115 composites from 12 holes,
-# against 1953 blastholes. Hematite blocks come out 4.0 % Fe poorer than the blastholes say, compact itabirite blocks
-# 6.0 % richer; friable itabirite is close. The spreads order as the supports do: 173 at 6 m points, 114 for the
-# 12 m blastholes, 99 for the mean of about six blastholes per block, 50 for simulated blocks. The mean of six
+# against 1953 blastholes. Hematite blocks come out 3.8 % Fe poorer than the blastholes say, compact itabirite blocks
+# 5.2 % richer; friable itabirite is close. The spreads order as the supports do: 171 at 6 m points, 114 for the
+# 12 m blastholes, 99 for the mean of about six blastholes per block, 51 for simulated blocks. The mean of six
 # blastholes still carries their analytical error and short-scale variation, so it varies more than the block
 # itself would.
 #
-# Blocks rank well (r 0.80), but the blasthole means spread 1.82 times as far as the simulated means: with holes
+# Blocks rank well (r 0.81), but the blasthole means spread 1.70 times as far as the simulated means: with holes
 # 100 m apart, the model cannot place the 25 m contrasts between hematite and itabirite that grade control sees. That
 # gap is what blastholes are drilled to close.
 #

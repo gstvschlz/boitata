@@ -94,16 +94,16 @@ for test, hidden in tests.items():
 
 ```text
 hidden              imputer       one draw   mean    sd
-every other hole    same sample      0.217  0.130  0.35
-every other hole    spatial          0.209  0.130  0.36
+every other hole    same sample      0.210  0.135  0.35
+every other hole    spatial          0.216  0.138  0.35
 every other hole    truth                          0.35
-every other sample  same sample      0.227  0.139  0.36
-every other sample  spatial          0.157  0.121  0.37
+every other sample  same sample      0.220  0.135  0.36
+every other sample  spatial          0.156  0.121  0.37
 every other sample  truth                          0.36
 ```
 
 Across holes, the neighbors add almost nothing: the hidden holes lie beyond the range of the variogram. Within
-holes, one spatial draw errs by 0.16 t/m³ against 0.23 from the same sample alone, and both keep the spread of the
+holes, one spatial draw errs by 0.16 t/m³ against 0.22 from the same sample alone, and both keep the spread of the
 truth. Along one hole, the spatial draws follow the level of the measured densities around them.
 
 <details><summary>Python</summary>
@@ -161,7 +161,7 @@ print(f"{'fitted':12}" + "".join(f"{target[j]:7.2f}" for j in (0, 1, 3)))
 
 ```text
 same sample    0.80   0.79   0.81
-spatial        0.82   0.81   0.84
+spatial        0.83   0.81   0.84
 fitted         0.80   0.79   0.81
 ```
 

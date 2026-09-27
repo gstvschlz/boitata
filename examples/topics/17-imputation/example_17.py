@@ -74,8 +74,8 @@ save(fig, "check")
 
 
 # %% [markdown]
-# One draw keeps the spread of the hidden densities (sd 0.38 against 0.36), with a root-mean-square error of
-# 0.23 t/m³. The mean of 50 draws cuts the error to 0.13 but narrows the spread to 0.32, like any prediction. Draws
+# One draw keeps the spread of the hidden densities (sd 0.37 against 0.36), with a root-mean-square error of
+# 0.21 t/m³. The mean of 50 draws cuts the error to 0.13 but narrows the spread to 0.32, like any prediction. Draws
 # suit simulation and tonnage uncertainty; the mean suits a single best value per sample.
 #
 # Filling every gap with one draw: imputed densities follow the trend of the measured ones against zinc, with the same

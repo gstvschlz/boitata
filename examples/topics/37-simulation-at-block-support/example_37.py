@@ -82,7 +82,7 @@ save(fig, "simulated-blocks")
 
 
 # %% [markdown]
-# From 500 ppm up the band holds the true curve; at 300 ppm every realization puts a few per cent more blocks above
+# From 500 ppm up the band holds the true curve; at 300 ppm nearly every realization puts a few per cent more blocks above
 # cutoff than the truth has.
 
 
@@ -137,7 +137,7 @@ save(fig, "localized-simulation")
 
 
 # %% [markdown]
-# Each panel keeps the mean of its realizations, and its blocks the spread the simulation gives them: variance 40 836,
-# between kriging's 35 064 and the true 47 350, with a correlation to the truth of 0.85 against kriging's 0.89. No
+# Each panel keeps the mean of its realizations, and its blocks the spread the simulation gives them: variance 41 411,
+# between kriging's 35 064 and the true 47 350, with a correlation to the truth of 0.86 against kriging's 0.89. No
 # change-of-support model is involved; what the pooling returns is only as good as the realizations. Topics 33 and 34
 # localize the same panels from a change-of-support model.

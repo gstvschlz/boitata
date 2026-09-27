@@ -92,14 +92,14 @@ save(fig, "check")
 ```text
 758 densities hidden
 truth       q10, q50, q90: 2.93, 3.14, 3.80   sd 0.36
-one draw    q10, q50, q90: 2.91, 3.15, 3.87   sd 0.38   rmse 0.23
-mean of 50  q10, q50, q90: 2.93, 3.19, 3.78   sd 0.32   rmse 0.13
+one draw    q10, q50, q90: 2.91, 3.16, 3.86   sd 0.37   rmse 0.21
+mean of 50  q10, q50, q90: 2.93, 3.19, 3.79   sd 0.32   rmse 0.13
 ```
 
 ![check](check.png)
 
-One draw keeps the spread of the hidden densities (sd 0.38 against 0.36), with a root-mean-square error of
-0.23 t/m³. The mean of 50 draws cuts the error to 0.13 but narrows the spread to 0.32, like any prediction. Draws
+One draw keeps the spread of the hidden densities (sd 0.37 against 0.36), with a root-mean-square error of
+0.21 t/m³. The mean of 50 draws cuts the error to 0.13 but narrows the spread to 0.32, like any prediction. Draws
 suit simulation and tonnage uncertainty; the mean suits a single best value per sample.
 
 Filling every gap with one draw: imputed densities follow the trend of the measured ones against zinc, with the same
@@ -124,7 +124,7 @@ print(f"density mean {np.nanmean(data[:, 5]):.3f} measured, {filled[:, 5].mean()
 </details>
 
 ```text
-density mean 3.264 measured, 3.283 after imputation
+density mean 3.264 measured, 3.279 after imputation
 ```
 
 ![filled](filled.png)

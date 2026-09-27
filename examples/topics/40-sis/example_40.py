@@ -121,9 +121,9 @@ cs.plot.category_legend(rock_types, fig, loc="outside lower center", ncol=5)
 save(fig, "realizations")
 
 # %% [markdown]
-# Each realization matches the true rock type at 51 % to 59 % of the nodes, and two realizations differ wherever the
+# Each realization matches the true rock type at 53 % to 60 % of the nodes, and two realizations differ wherever the
 # samples leave room. The proportions drift from the samples: Kimmeridgian, whose indicator has the longest range,
 # grows to 0.44 on average against 0.33 in the samples, while Argovian and Portlandian shrink; none recovers
-# Portlandian's 5 % of the area from 3 of 259 samples. The most likely type matches at 65 %, more than any
+# Portlandian's 5 % of the area from 3 of 259 samples. The most likely type matches at 64 %, more than any
 # realization, but it is a smooth estimate rather than a possible map. Entropy is highest at the contacts and far
 # from the samples.

@@ -132,13 +132,13 @@ print(
 
 ```text
               true grid   mean    min    max
-Argovian           0.20   0.16   0.12   0.19
-Kimmeridgian       0.34   0.44   0.40   0.48
-Sequanian          0.27   0.25   0.21   0.29
-Portlandian        0.05   0.02   0.01   0.02
-Quaternary         0.13   0.13   0.09   0.16
-a realization matches the true rock type at 51% to 59% of the nodes
-the most likely type matches at 65%; mean entropy 0.39
+Argovian           0.20   0.16   0.14   0.19
+Kimmeridgian       0.34   0.44   0.39   0.49
+Sequanian          0.27   0.24   0.20   0.28
+Portlandian        0.05   0.02   0.01   0.03
+Quaternary         0.13   0.14   0.12   0.16
+a realization matches the true rock type at 53% to 60% of the nodes
+the most likely type matches at 64%; mean entropy 0.38
 ```
 
 <details><summary>Python</summary>
@@ -171,10 +171,10 @@ save(fig, "realizations")
 
 ![realizations](realizations.png)
 
-Each realization matches the true rock type at 51 % to 59 % of the nodes, and two realizations differ wherever the
+Each realization matches the true rock type at 53 % to 60 % of the nodes, and two realizations differ wherever the
 samples leave room. The proportions drift from the samples: Kimmeridgian, whose indicator has the longest range,
 grows to 0.44 on average against 0.33 in the samples, while Argovian and Portlandian shrink; none recovers
-Portlandian's 5 % of the area from 3 of 259 samples. The most likely type matches at 65 %, more than any
+Portlandian's 5 % of the area from 3 of 259 samples. The most likely type matches at 64 %, more than any
 realization, but it is a smooth estimate rather than a possible map. Entropy is highest at the contacts and far
 from the samples.
 
