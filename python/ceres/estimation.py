@@ -5,7 +5,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from ceres._ceres import Search, Table, Variogram, _Estimator
+from ceres._ceres import Declustering, Search, Table, Variogram, _Estimator
 from ceres._columns import column
 from ceres.errors import InvalidInput
 
@@ -28,6 +28,7 @@ __all__ = [
     "calibrate_search",
     "classify",
     "global_bias",
+    "weight_declustering",
 ]
 
 Searches = Search | Sequence[Search]
@@ -353,6 +354,35 @@ class LocalLeastSquares(_Base):
 
     def __init__(self, search: Searches, *, degree: int = 1, variogram: Variogram | None = None):
         super().__init__("local_least_squares", search, variogram, degree=degree)
+
+
+def weight_declustering(coords, values, targets, *, estimator: _Base) -> Declustering:
+    """Declustering weights from estimation weights: each sample's weight is the sum of the weights it receives
+    when `estimator` estimates `targets`, scaled to sum to the number of samples, as in `cell_declustering`.
+
+    A sample alone in a sparse area informs many targets and gets a large weight; samples in a cluster share
+    the targets around them. Targets the search leaves unestimated add nothing, so they should cover the domain
+    and no more. Kriging can give negative weights, so a screened sample's weight can be below 0.
+
+    Parameters
+    ----------
+    coords : array_like, PointSet or BlockModel
+        Sample locations, ``(n, 2)`` or ``(n, 3)``, or a container whose column `values` may name.
+    values : array_like or str
+    targets : array_like, PointSet or BlockModel
+        A dense set of points, or blocks (their centroids), covering the domain.
+    estimator : OrdinaryKriging, SimpleKriging, UniversalKriging, BlockKriging, IndicatorKriging,
+        InverseDistance, NearestNeighbor or MovingAverage
+        Its search passes and variogram, and its weights; it is not fitted or changed. `NearestNeighbor` gives
+        polygon declustering at the resolution of the targets.
+
+    Returns
+    -------
+    Declustering
+        ``weights`` per sample, samples sharing a location sharing one weight, and the declustered ``mean``;
+        ``cell_size`` is NaN.
+    """
+    return estimator._engine._declustering(coords, values, targets)
 
 
 def global_bias(estimate, data, *, weights=None, data_weights=None) -> dict[str, float]:

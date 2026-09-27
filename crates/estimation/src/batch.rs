@@ -36,6 +36,60 @@ where
         .collect()
 }
 
+/// Samples used for every target and the `weights` the estimator gives them,
+/// in the order of the samples it receives, in parallel; as [`estimate_many`].
+pub fn weights_many<F>(
+    targets: &[(f64, f64, f64)],
+    samples: &[Sample],
+    search: &Search,
+    vg: Option<&Variogram>,
+    weights: F,
+) -> Vec<Option<(Vec<usize>, Vec<f64>)>>
+where
+    F: Fn(&(f64, f64, f64), &[Sample]) -> Result<Vec<f64>> + Sync,
+{
+    let tree = SearchTree::new(samples, search, vg);
+    targets
+        .par_iter()
+        .map(|target| {
+            let chosen = tree.neighbors_in(target, None).ok()?;
+            let selected: Vec<Sample> = chosen.iter().map(|&i| samples[i].clone()).collect();
+            Some((chosen, weights(target, &selected).ok()?))
+        })
+        .collect()
+}
+
+/// Declustering weights from estimation weights: each sample's weight is the
+/// sum of the weights it receives over targets covering the domain, as given
+/// by [`weights_many`], scaled to sum to the number of samples. Unestimated
+/// targets add nothing; the sum is taken in target order.
+pub fn weight_declustering(
+    per_target: &[Option<(Vec<usize>, Vec<f64>)>],
+    values: &[f64],
+) -> Result<transforms::Weights> {
+    let mut weights = vec![0.0; values.len()];
+    for (used, w) in per_target.iter().flatten() {
+        for (&i, &w) in used.iter().zip(w) {
+            weights[i] += w;
+        }
+    }
+    let total: f64 = weights.iter().sum();
+    if total.is_nan() || total <= 0.0 {
+        return Err(EstimError::InsufficientData(
+            "no target was estimated".into(),
+        ));
+    }
+    let scale = values.len() as f64 / total;
+    weights.iter_mut().for_each(|w| *w *= scale);
+    let declustered_mean =
+        weights.iter().zip(values).map(|(w, v)| w * v).sum::<f64>() / values.len() as f64;
+    Ok(transforms::Weights {
+        weights,
+        declustered_mean,
+        cell_size: f64::NAN,
+    })
+}
+
 /// Runs `pass(search, remaining)` for each search in turn on the indices of
 /// the `n` targets that earlier passes left unestimated; `pass` returns one
 /// estimate per remaining index. Each estimate comes with the index of the
@@ -790,5 +844,98 @@ mod tests {
         };
         let (one, many) = (run(1), run(8));
         assert!(same(&one.0, &many.0) && same(&one.1, &many.1) && same(&one.2, &many.2));
+    }
+
+    fn field(p: &Point) -> f64 {
+        (p.0 / 15.0).sin() + p.1 / 40.0
+    }
+
+    /// A 10 x 10 grid at spacing 10, plus 60 samples clustered where the
+    /// field is high.
+    fn preferential() -> Vec<Sample> {
+        let mut locs: Vec<Point> = (0..100)
+            .map(|i| {
+                (
+                    (i % 10) as f64 * 10.0 + 5.0,
+                    (i / 10) as f64 * 10.0 + 5.0,
+                    0.0,
+                )
+            })
+            .collect();
+        locs.extend((0..60).map(|i| {
+            let (a, r) = (i as f64 * 2.4, 1.0 + (i as f64).sqrt() * 1.5);
+            (23.0 + r * a.cos(), 85.0 + r * a.sin(), 0.0)
+        }));
+        locs.iter().map(|p| Sample::new(*p, field(p))).collect()
+    }
+
+    fn cover() -> Vec<Point> {
+        (0..10_000)
+            .map(|i| ((i % 100) as f64 + 0.5, (i / 100) as f64 + 0.5, 0.0))
+            .collect()
+    }
+
+    fn declustered(samples: &[Sample], ordinary: bool) -> transforms::Weights {
+        let vg = Variogram::single(Model::Spherical, 1.0, 40.0);
+        let search = Search {
+            min_samples: 1,
+            max_samples: 16,
+            radius: 50.0,
+            ..Default::default()
+        };
+        let opts = crate::InterpOptions::default();
+        let per = weights_many(&cover(), samples, &search, Some(&vg), |t, s| {
+            if ordinary {
+                krige(Kind::Ordinary, t, s, &vg).map(|e| e.weights)
+            } else {
+                crate::inverse_distance_weights(t, s, 2.0, &opts)
+            }
+        });
+        let values: Vec<f64> = samples.iter().map(|s| s.value).collect();
+        weight_declustering(&per, &values).unwrap()
+    }
+
+    #[test]
+    fn weight_declustering_is_uniform_on_a_regular_grid() {
+        let grid: Vec<Sample> = preferential().into_iter().take(100).collect();
+        for ordinary in [false, true] {
+            let w = declustered(&grid, ordinary).weights;
+            assert!((w.iter().sum::<f64>() - 100.0).abs() < 1e-9);
+            assert!(w.iter().all(|w| (w - 1.0).abs() < 0.15), "{w:?}");
+        }
+    }
+
+    #[test]
+    fn weight_declustering_lowers_clustered_samples_and_the_bias() {
+        let samples = preferential();
+        let truth = cover().iter().map(field).sum::<f64>() / 10_000.0;
+        let naive = samples.iter().map(|s| s.value).sum::<f64>() / samples.len() as f64;
+        for ordinary in [false, true] {
+            let w = declustered(&samples, ordinary);
+            assert!((w.weights.iter().sum::<f64>() - 160.0).abs() < 1e-9);
+            let (grid, cluster) = w.weights.split_at(100);
+            let mean = |w: &[f64]| w.iter().sum::<f64>() / w.len() as f64;
+            assert!(mean(cluster) < 0.5 * mean(grid));
+            assert!((w.declustered_mean - truth).abs() < 0.25 * (naive - truth).abs());
+        }
+    }
+
+    #[test]
+    fn weight_declustering_does_not_depend_on_thread_count() {
+        let samples = preferential();
+        let run = |threads| {
+            rayon::ThreadPoolBuilder::new()
+                .num_threads(threads)
+                .build()
+                .unwrap()
+                .install(|| declustered(&samples, true).weights)
+        };
+        let (one, many) = (run(1), run(8));
+        assert!(
+            one.iter()
+                .zip(&many)
+                .all(|(a, b)| a.to_bits() == b.to_bits())
+        );
+        assert!(weight_declustering(&[None], &[1.0]).is_err());
     }
 }

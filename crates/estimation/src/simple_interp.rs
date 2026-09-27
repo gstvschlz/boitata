@@ -86,6 +86,29 @@ fn check_min(n: usize, opts: &InterpOptions) -> Result<()> {
     Ok(())
 }
 
+/// Weights of [`inverse_distance`] on `samples`, in their order, summing
+/// to 1: all on a sample at the target, none beyond `dmax`.
+pub fn inverse_distance_weights(
+    target: &(f64, f64, f64),
+    samples: &[Sample],
+    power: f64,
+    opts: &InterpOptions,
+) -> Result<Vec<f64>> {
+    let neigh = within(target, samples, opts);
+    check_min(neigh.len(), opts)?;
+    let mut w = vec![0.0; samples.len()];
+    if neigh[0].1 < 1e-12 {
+        w[neigh[0].0] = 1.0;
+        return Ok(w);
+    }
+    for &(i, d) in &neigh {
+        w[i] = 1.0 / d.powf(power);
+    }
+    let den: f64 = w.iter().sum();
+    w.iter_mut().for_each(|w| *w /= den);
+    Ok(w)
+}
+
 /// Inverse-distance weighting with exponent `power`, anisotropy and `dmax`.
 pub fn inverse_distance(
     target: &(f64, f64, f64),
@@ -93,33 +116,30 @@ pub fn inverse_distance(
     power: f64,
     opts: &InterpOptions,
 ) -> Result<InterpEstimate> {
-    let neigh = within(target, samples, opts);
-    check_min(neigh.len(), opts)?;
-    if let Some(&(i, d)) = neigh.first()
-        && d < 1e-12
-    {
-        return Ok(InterpEstimate {
-            value: samples[i].value,
-            stdev: Some(0.0),
-            n_used: 1,
-        });
-    }
-    let (mut num, mut den) = (0.0, 0.0);
-    let mut vals = Vec::new();
-    let mut ws = Vec::new();
-    for &(i, d) in &neigh {
-        let w = 1.0 / d.powf(power);
-        num += w * samples[i].value;
-        den += w;
-        vals.push(samples[i].value);
-        ws.push(w);
-    }
-    let value = num / den;
+    let w = inverse_distance_weights(target, samples, power, opts)?;
+    let (vals, ws): (Vec<f64>, Vec<f64>) = samples
+        .iter()
+        .zip(w)
+        .filter(|(_, w)| *w > 0.0)
+        .map(|(s, w)| (s.value, w))
+        .unzip();
+    let value = vals.iter().zip(&ws).map(|(v, w)| v * w).sum();
     Ok(InterpEstimate {
         value,
         stdev: Some(weighted_stdev(&vals, &ws, value)),
-        n_used: neigh.len(),
+        n_used: vals.len(),
     })
+}
+
+/// Index of the sample [`nearest`] takes.
+pub fn nearest_index(
+    target: &(f64, f64, f64),
+    samples: &[Sample],
+    opts: &InterpOptions,
+) -> Result<usize> {
+    let neigh = within(target, samples, opts);
+    check_min(neigh.len(), opts)?;
+    Ok(neigh[0].0)
 }
 
 /// Nearest-neighbor within `dmax`.
@@ -128,9 +148,7 @@ pub fn nearest(
     samples: &[Sample],
     opts: &InterpOptions,
 ) -> Result<InterpEstimate> {
-    let neigh = within(target, samples, opts);
-    check_min(neigh.len(), opts)?;
-    let (i, _) = neigh[0];
+    let i = nearest_index(target, samples, opts)?;
     Ok(InterpEstimate {
         value: samples[i].value,
         stdev: None,

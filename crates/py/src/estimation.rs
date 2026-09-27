@@ -387,6 +387,43 @@ impl Method {
             }
         }
     }
+
+    /// Whether the estimate is a weighted sum of the data, as `weights` needs.
+    fn linear(&self) -> bool {
+        !matches!(
+            self,
+            Method::Factorial { .. }
+                | Method::Bayesian { .. }
+                | Method::MovingMedian
+                | Method::LocalLeastSquares(_)
+        )
+    }
+
+    /// The weights of the estimate on `s`, in their order.
+    fn weights(
+        &self,
+        t: &Point,
+        s: &[Sample],
+        vg: Option<&CoreVariogram>,
+    ) -> estimation::Result<Vec<f64>> {
+        let opts = InterpOptions {
+            dmax: f64::INFINITY,
+            anisotropy: vg.and_then(|v| v.anisotropy.clone()),
+            min_samples: 1,
+        };
+        match self {
+            Method::InverseDistance(power) => {
+                estimation::inverse_distance_weights(t, s, *power, &opts)
+            }
+            Method::Nearest => {
+                let mut w = vec![0.0; s.len()];
+                w[estimation::nearest_index(t, s, &opts)?] = 1.0;
+                Ok(w)
+            }
+            Method::MovingAverage => Ok(vec![1.0 / s.len() as f64; s.len()]),
+            _ => self.run(t, s, vg).map(|e| e.weights),
+        }
+    }
 }
 
 /// Targets from a PointSet, a BlockModel (centroids) or an `(n, 2|3)` array.
@@ -587,6 +624,66 @@ impl Estimator {
             .ok_or_else(|| invalid("estimator is not fitted; call fit first"))
     }
 
+    /// Stores the samples as `fit` does; returns all locations and values and
+    /// the rows kept.
+    #[allow(clippy::too_many_arguments)]
+    fn store(
+        &mut self,
+        py: Python,
+        coords: &Bound<PyAny>,
+        values: &Bound<PyAny>,
+        holes: Option<&Bound<PyAny>>,
+        error_variance: Option<&Bound<PyAny>>,
+        domains: Option<&Bound<PyAny>>,
+        domain_column: Option<&str>,
+    ) -> PyResult<(Vec<Point>, Vec<f64>, Vec<usize>)> {
+        let data = Some(coords);
+        let locs = points(coords)?;
+        let values = finite(&column(data, values, "values")?, "values")?;
+        same_length(locs.len(), values.len(), "values")?;
+        let holes = holes.map(|h| column(data, h, "holes")).transpose()?;
+        let holes = args::holes(holes.as_ref(), locs.len())?;
+        let error = error_variance
+            .map(|e| column(data, e, "error_variance"))
+            .transpose()?;
+        let error = args::optional_finite(error.as_ref(), "error_variance")?;
+        if let Some(e) = &error {
+            same_length(locs.len(), e.len(), "error_variance")?;
+            if e.iter().any(|v| *v < 0.0) {
+                return Err(invalid("error_variance must be >= 0"));
+            }
+            if !self.method.kriging() {
+                return Err(invalid("error_variance needs a kriging method"));
+            }
+        }
+        let (fitted, codes) = match (domains, domain_column) {
+            (None, None) => (None, None),
+            _ => {
+                let (fitted, codes) = args::domain_codes(data, domains, domain_column, locs.len())?;
+                (Some(fitted), Some(codes))
+            }
+        };
+        for s in &self.search {
+            s.resolve(fitted.as_deref())?;
+        }
+        let holes_text = holes.as_ref().map(|h| &h.0[..]);
+        let keep = args::distinct_in(py, &locs, holes_text, codes.as_deref())?;
+        let samples = keep
+            .iter()
+            .map(|&i| Sample {
+                error_variance: error.as_ref().map_or(0.0, |e| e[i]),
+                domain: codes.as_ref().map(|c| c[i]),
+                ..match &holes {
+                    Some((_, ids)) => Sample::with_hole(locs[i], values[i], ids[i]),
+                    None => Sample::new(locs[i], values[i]),
+                }
+            })
+            .collect();
+        self.samples = Some(samples);
+        self.domains = fitted;
+        Ok((locs, values, keep))
+    }
+
     /// The searches with soft boundaries by domain code.
     fn passes(&self) -> PyResult<Vec<CoreSearch>> {
         let domains = self.domains.as_deref();
@@ -729,51 +826,83 @@ impl Estimator {
         domains: Option<&Bound<PyAny>>,
         domain_column: Option<&str>,
     ) -> PyResult<PyRefMut<'py, Self>> {
-        let data = Some(coords);
-        let locs = points(coords)?;
-        let values = finite(&column(data, values, "values")?, "values")?;
-        same_length(locs.len(), values.len(), "values")?;
-        let holes = holes.map(|h| column(data, h, "holes")).transpose()?;
-        let holes = args::holes(holes.as_ref(), locs.len())?;
-        let error = error_variance
-            .map(|e| column(data, e, "error_variance"))
-            .transpose()?;
-        let error = args::optional_finite(error.as_ref(), "error_variance")?;
-        if let Some(e) = &error {
-            same_length(locs.len(), e.len(), "error_variance")?;
-            if e.iter().any(|v| *v < 0.0) {
-                return Err(invalid("error_variance must be >= 0"));
-            }
-            if !slf.method.kriging() {
-                return Err(invalid("error_variance needs a kriging method"));
-            }
-        }
-        let (fitted, codes) = match (domains, domain_column) {
-            (None, None) => (None, None),
-            _ => {
-                let (fitted, codes) = args::domain_codes(data, domains, domain_column, locs.len())?;
-                (Some(fitted), Some(codes))
-            }
-        };
-        for s in &slf.search {
-            s.resolve(fitted.as_deref())?;
-        }
-        let holes_text = holes.as_ref().map(|h| &h.0[..]);
-        let keep = args::distinct_in(slf.py(), &locs, holes_text, codes.as_deref())?;
-        let samples = keep
-            .into_iter()
-            .map(|i| Sample {
-                error_variance: error.as_ref().map_or(0.0, |e| e[i]),
-                domain: codes.as_ref().map(|c| c[i]),
-                ..match &holes {
-                    Some((_, ids)) => Sample::with_hole(locs[i], values[i], ids[i]),
-                    None => Sample::new(locs[i], values[i]),
-                }
-            })
-            .collect();
-        slf.samples = Some(samples);
-        slf.domains = fitted;
+        let py = slf.py();
+        slf.store(
+            py,
+            coords,
+            values,
+            holes,
+            error_variance,
+            domains,
+            domain_column,
+        )?;
         Ok(slf)
+    }
+
+    /// Weight declustering of `coords` over `targets`: see
+    /// `ceres.weight_declustering`.
+    fn _declustering(
+        &self,
+        py: Python,
+        coords: &Bound<PyAny>,
+        values: &Bound<PyAny>,
+        targets: &Bound<PyAny>,
+    ) -> PyResult<crate::transforms::Declustering> {
+        if !self.method.linear() {
+            return Err(invalid(
+                "weight declustering needs an estimator linear in the data",
+            ));
+        }
+        let mut fitted = Self {
+            domains: None,
+            ..self.clone()
+        };
+        let (locs, values, keep) = fitted.store(py, coords, values, None, None, None, None)?;
+        let samples = fitted.fitted()?;
+        let targets = self::targets(targets)?;
+        let search = fitted.passes()?;
+        let vg = fitted.variogram.as_ref();
+        let per_target = py
+            .detach(|| {
+                by_pass(targets.len(), &search, |search, remaining| {
+                    let at = pick(&targets, remaining);
+                    Ok(estimation::weights_many(
+                        &at,
+                        samples,
+                        search,
+                        vg,
+                        |t, s| self.method.weights(t, s, vg),
+                    ))
+                })
+            })
+            .map_err(invalid)?;
+        let kept: Vec<f64> = samples.iter().map(|s| s.value).collect();
+        let w = estimation::weight_declustering(&split(per_target), &kept).map_err(invalid)?;
+        // Samples sharing a location share the weight of the one kept.
+        let bits = |p: &Point| [p.0 + 0.0, p.1 + 0.0, p.2 + 0.0].map(f64::to_bits);
+        let at: std::collections::HashMap<_, usize> = keep
+            .iter()
+            .enumerate()
+            .map(|(k, &i)| (bits(&locs[i]), k))
+            .collect();
+        let owner: Vec<usize> = locs.iter().map(|p| at[&bits(p)]).collect();
+        let mut shared = vec![0usize; keep.len()];
+        owner.iter().for_each(|&k| shared[k] += 1);
+        let scale = locs.len() as f64 / keep.len() as f64;
+        let weights: Vec<f64> = owner
+            .iter()
+            .map(|&k| w.weights[k] / shared[k] as f64 * scale)
+            .collect();
+        let mean = weights.iter().zip(&values).map(|(w, v)| w * v).sum::<f64>() / locs.len() as f64;
+        Ok(crate::transforms::declustering(
+            transforms::Weights {
+                weights,
+                declustered_mean: mean,
+                cell_size: f64::NAN,
+            },
+            vec![],
+            vec![],
+        ))
     }
 
     /// Estimates (NaN where too few neighbors); with `return_variance`, also

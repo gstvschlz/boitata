@@ -883,3 +883,23 @@ def test_defaulted_arguments_are_keyword_only():
     for call in calls:
         with pytest.raises(TypeError):
             call()
+
+
+def test_weight_declustering_downweights_clusters_and_shares_duplicates():
+    grid = np.array([(x, y) for x in range(5, 100, 10) for y in range(5, 100, 10)], float)
+    cluster = rng.uniform(15, 30, (60, 2))
+    xy = np.vstack([grid, cluster, grid[:1]])
+    z = np.sin(xy[:, 0] / 15) + xy[:, 1] / 50
+    targets = cs.BlockModel((0, 0, 0), (2, 2, 1), (50, 50, 1))
+    for estimator in [cs.OrdinaryKriging(model, search), cs.InverseDistance(search, power=2)]:
+        with pytest.warns(UserWarning):
+            d = cs.weight_declustering(xy, z, targets, estimator=estimator)
+        assert d.weights.sum() == pytest.approx(len(xy))
+        assert d.weights[100:160].mean() < 0.5 * d.weights[:100].mean()
+        assert d.weights[0] == d.weights[-1]
+        assert d.mean == pytest.approx(np.average(z, weights=d.weights))
+        assert np.isnan(d.cell_size)
+    near = cs.weight_declustering(grid, grid[:, 0], targets, estimator=cs.NearestNeighbor(search))
+    np.testing.assert_allclose(near.weights, 1.0)
+    with pytest.raises(ValueError, match="linear"):
+        cs.weight_declustering(grid, grid[:, 0], targets, estimator=cs.MovingMedian(search))
