@@ -160,6 +160,7 @@ def fits():
         (cs.Cokriging(lmc, search), (coords, values, np.arange(60) % 2)),
         (cs.DisjunctiveKriging(anam, model, search), (coords, values)),
         (cs.MultipleIndicatorKriging(model, search, [0.8, 1.5]), (coords, values)),
+        (cs.CategoricalIndicatorKriging(model, search), (coords, categories)),
         (cs.SGS(model, search), (coords, values)),
         (cs.TurningBands(model, bands=20), (coords, values)),
         (cs.SIS([model] * 3, search), (coords, categories)),

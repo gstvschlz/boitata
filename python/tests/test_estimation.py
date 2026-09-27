@@ -409,6 +409,63 @@ def test_multiple_indicator_cross_validation_and_diagnostics():
     assert set(d["pass"]) == {1.0, 2.0}
 
 
+rock = np.where(values < -0.3, "shale", np.where(values < 0.7, "sand", "lime"))
+scheme = cs.Categories(["sand", "shale", "lime"], colors=["gold", "gray", "skyblue"])
+
+
+def test_categorical_indicator_kriging_gives_a_distribution_exact_at_the_data():
+    variograms = [cs.Variogram([("spherical", 0.2, r)], nugget=0.02) for r in (15.0, 40.0, 25.0)]
+    for simple in (False, True):
+        cik = cs.CategoricalIndicatorKriging(variograms, search, simple=simple, scheme=scheme)
+        s = cik.fit(coords, rock).predict(rng.uniform(0, 100, (200, 2)), diagnostics=True)
+        assert s.probabilities.shape == (200, 3) and s.names == ["sand", "shale", "lime"]
+        assert np.all((s.probabilities >= 0) & (s.probabilities <= 1))
+        np.testing.assert_allclose(s.probabilities.sum(axis=1), 1.0)
+        np.testing.assert_array_equal(s.most_likely, s.probabilities.argmax(axis=1))
+        assert np.all((s.entropy >= 0) & (s.entropy <= 1 + 1e-12))
+        assert s.diagnostics["n_order_violations"].max() > 0
+        np.testing.assert_array_equal(s.diagnostics["correction"], s.correction)
+        at = cik.predict(coords)
+        np.testing.assert_allclose(at.probabilities, np.eye(3)[scheme.encode(rock).astype(int)], atol=1e-8)
+        assert scheme.decode(at.most_likely) == list(rock)
+    one = cs.CategoricalIndicatorKriging(model, search).fit(coords, np.zeros(len(coords), int))
+    assert np.all(one.predict(rng.uniform(0, 100, (20, 2))).probabilities == 1.0)
+
+
+def test_categorical_indicator_kriging_domains_and_proportions():
+    weights = cs.cell_declustering(coords, values, cell_size=20.0).weights
+    cik = cs.CategoricalIndicatorKriging(model, cs.Search(radius=1e4), simple=True, scheme=scheme)
+    s = cik.fit(coords, rock, weights=weights).predict([[5000.0, 5000.0]])
+    expected = scheme.shares(scheme.encode(rock), weights=weights)
+    np.testing.assert_allclose(s.proportions, expected)
+    np.testing.assert_allclose(s.probabilities[0], expected, atol=1e-9)
+    points = cs.PointSet(coords, {"rock": rock, "zone": np.where(coords[:, 0] < 50, "w", "e")})
+    zoned = cs.CategoricalIndicatorKriging(model, search, scheme=scheme).fit(
+        points, "rock", domain_column="zone"
+    )
+    at = rng.uniform(0, 100, (30, 2))
+    targets = cs.PointSet(at, {"zone": np.where(np.arange(30) < 20, np.where(at[:, 0] < 50, "w", "e"), "x")})
+    p = zoned.predict(targets, domain_column="zone").probabilities
+    assert np.isnan(p[20:]).all() and not np.isnan(p[:20]).any()
+    with pytest.raises(cs.InvalidInput, match="needs domains"):
+        zoned.predict(targets)
+    with pytest.raises(cs.InvalidInput, match="one per category"):
+        cs.CategoricalIndicatorKriging([model, model], search, scheme=scheme)
+    with pytest.raises(cs.InvalidInput):
+        cs.CategoricalIndicatorKriging(model, search, scheme=scheme).fit(
+            coords, np.where(rock == "sand", "clay", rock)
+        )
+
+
+def test_categorical_indicator_cross_validation():
+    cik = cs.CategoricalIndicatorKriging(model, search, scheme=scheme).fit(coords, rock)
+    cv = cik.cross_validate()
+    assert isinstance(cv, cs.CategoricalCrossValidation) and cv.probabilities.shape == (len(rock), 3)
+    assert cv.brier.shape == (3,) and np.all(cv.brier < 0.2)
+    assert np.mean(cv.most_likely == scheme.encode(rock)) > 0.7
+    np.testing.assert_array_equal(cik.cross_validate(folds=len(rock)).probabilities, cv.probabilities)
+
+
 def test_block_kriging_with_a_pure_nugget_has_no_block_variance():
     nugget = cs.Variogram([], nugget=1.0)
     d = (

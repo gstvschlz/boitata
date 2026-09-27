@@ -5,7 +5,7 @@ from typing import Any, Literal, TypeAlias, overload
 import numpy as np
 import numpy.typing as npt
 
-from ceres.estimation import IndicatorCrossValidation
+from ceres.estimation import CategoricalCrossValidation, IndicatorCrossValidation
 
 __version__: str
 
@@ -1073,6 +1073,64 @@ class IndicatorSummary:
     def quantiles(self) -> list[float]: ...
     @property
     def quantile_values(self) -> npt.NDArray[np.float64]: ...
+    @property
+    def diagnostics(self) -> Table | None: ...
+
+class CategoricalIndicatorKriging:
+    def to_parquet(self, path: Path) -> None: ...
+    @staticmethod
+    def from_parquet(path: Path) -> CategoricalIndicatorKriging: ...
+    def __init__(
+        self,
+        variograms: Variogram | Sequence[Variogram],
+        search: Search | Sequence[Search],
+        *,
+        simple: bool = False,
+        scheme: Categories | None = None,
+    ) -> None: ...
+    @property
+    def names(self) -> list[str]: ...
+    @property
+    def scheme(self) -> Categories | None: ...
+    def fit(
+        self,
+        coords: ArrayLike | PointSet | BlockModel,
+        categories: ArrayLike | Column,
+        *,
+        weights: ArrayLike | Column | None = None,
+        holes: Holes | Column | None = None,
+        domains: Label | Sequence[Label] | ArrayLike | None = None,
+        domain_column: Column | None = None,
+    ) -> CategoricalIndicatorKriging: ...
+    def predict(
+        self,
+        targets: Any,
+        *,
+        domains: Label | Sequence[Label] | ArrayLike | None = None,
+        domain_column: Column | None = None,
+        anisotropy: LocalAnisotropy | None = None,
+        diagnostics: bool = False,
+    ) -> CategoricalIndicatorSummary: ...
+    def cross_validate(self, *, folds: int | None = None) -> CategoricalCrossValidation: ...
+
+class CategoricalIndicatorSummary:
+    def to_parquet(self, path: Path) -> None: ...
+    @staticmethod
+    def from_parquet(path: Path) -> CategoricalIndicatorSummary: ...
+    @property
+    def probabilities(self) -> npt.NDArray[np.float64]: ...
+    @property
+    def most_likely(self) -> npt.NDArray[np.float64]: ...
+    @property
+    def entropy(self) -> npt.NDArray[np.float64]: ...
+    @property
+    def correction(self) -> npt.NDArray[np.float64]: ...
+    @property
+    def proportions(self) -> npt.NDArray[np.float64]: ...
+    @property
+    def names(self) -> list[str]: ...
+    @property
+    def scheme(self) -> Categories | None: ...
     @property
     def diagnostics(self) -> Table | None: ...
 

@@ -26,6 +26,10 @@
 
 ::: ceres.IndicatorSummary
 
+::: ceres.CategoricalIndicatorKriging
+
+::: ceres.CategoricalIndicatorSummary
+
 ::: ceres.InverseDistance
 
 ::: ceres.NearestNeighbor
@@ -41,6 +45,8 @@
 ::: ceres.CrossValidation
 
 ::: ceres.IndicatorCrossValidation
+
+::: ceres.CategoricalCrossValidation
 
 ::: ceres.calibrate_search
 

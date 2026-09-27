@@ -21,25 +21,77 @@ use crate::table::Table;
 use crate::transforms::nullable;
 use crate::variogram::Variogram;
 
-fn matrix<'py>(py: Python<'py>, rows: &[Vec<f64>], cols: usize) -> Bound<'py, PyArray2<f64>> {
+pub(crate) fn matrix<'py>(
+    py: Python<'py>,
+    rows: &[Vec<f64>],
+    cols: usize,
+) -> Bound<'py, PyArray2<f64>> {
     Array2::from_shape_vec((rows.len(), cols), rows.concat())
         .expect("rectangular rows")
         .into_pyarray(py)
 }
 
 /// The diagnostics columns, `correction` among them, when predicted with them.
-fn diagnostic_columns(s: &CoreSummary) -> Option<Vec<(&'static str, &Vec<f64>)>> {
-    s.diagnostics.as_ref().map(|d| {
+pub(crate) fn diagnostic_columns<'a>(
+    diagnostics: Option<&'a IndicatorDiagnostics>,
+    correction: &'a Vec<f64>,
+) -> Option<Vec<(&'static str, &'a Vec<f64>)>> {
+    diagnostics.map(|d| {
         vec![
             ("n_samples", &d.n_samples),
             ("pass", &d.pass),
             ("n_holes", &d.n_holes),
             ("mean_distance", &d.mean_distance),
             ("max_samples_reached", &d.max_samples_reached),
-            ("correction", &s.correction),
+            ("correction", correction),
             ("n_order_violations", &d.n_order_violations),
         ]
     })
+}
+
+/// The diagnostics columns as a Table, null where unestimated.
+pub(crate) fn diagnostics_table(
+    columns: Option<Vec<(&'static str, &Vec<f64>)>>,
+) -> PyResult<Option<Table>> {
+    columns
+        .map(|columns| {
+            RecordBatch::try_from_iter(columns.into_iter().map(|(name, values)| {
+                let column: Float64Array =
+                    values.iter().map(|v| (!v.is_nan()).then_some(*v)).collect();
+                (name, Arc::new(column) as ArrayRef)
+            }))
+            .map(Table)
+            .map_err(invalid)
+        })
+        .transpose()
+}
+
+/// The diagnostics columns of `diagnostic_columns`, but `correction`.
+pub(crate) fn push_diagnostics(
+    out: &mut Columns,
+    diagnostics: Option<&IndicatorDiagnostics>,
+    correction: &Vec<f64>,
+) {
+    for (name, values) in diagnostic_columns(diagnostics, correction).unwrap_or_default() {
+        if name != "correction" {
+            out.push(persist::column(name, values.iter().copied()));
+        }
+    }
+}
+
+/// The diagnostics `push_diagnostics` wrote, if any.
+pub(crate) fn restore_diagnostics(found: &Found) -> PyResult<Option<IndicatorDiagnostics>> {
+    let Ok(n_samples) = found.values("n_samples") else {
+        return Ok(None);
+    };
+    Ok(Some(IndicatorDiagnostics {
+        n_samples,
+        pass: found.values("pass")?,
+        n_holes: found.values("n_holes")?,
+        mean_distance: found.values("mean_distance")?,
+        max_samples_reached: found.values("max_samples_reached")?,
+        n_order_violations: found.values("n_order_violations")?,
+    }))
 }
 
 /// Multiple indicator kriging: `P(value <= t)` kriged at every threshold,
@@ -554,17 +606,10 @@ impl IndicatorSummary {
     /// unestimated.
     #[getter]
     fn diagnostics(&self) -> PyResult<Option<Table>> {
-        diagnostic_columns(&self.0)
-            .map(|columns| {
-                RecordBatch::try_from_iter(columns.into_iter().map(|(name, values)| {
-                    let column: Float64Array =
-                        values.iter().map(|v| (!v.is_nan()).then_some(*v)).collect();
-                    (name, Arc::new(column) as ArrayRef)
-                }))
-                .map(Table)
-                .map_err(invalid)
-            })
-            .transpose()
+        diagnostics_table(diagnostic_columns(
+            self.0.diagnostics.as_ref(),
+            &self.0.correction,
+        ))
     }
 
     fn __repr__(&self) -> String {
@@ -627,11 +672,7 @@ impl Tabular for IndicatorSummary {
         for (q, values) in c.quantiles.iter().zip(&c.quantile_values) {
             out.push(column(format!("q{q}"), values));
         }
-        for (name, values) in diagnostic_columns(c).unwrap_or_default() {
-            if name != "correction" {
-                out.push(column(name.into(), values));
-            }
-        }
+        push_diagnostics(&mut out, c.diagnostics.as_ref(), &c.correction);
         Some(out)
     }
 
@@ -652,16 +693,7 @@ impl Tabular for IndicatorSummary {
                 .collect(),
         )?;
         c.quantile_values = each(c.quantiles.iter().map(|q| format!("q{q}")).collect())?;
-        if let Ok(n_samples) = found.values("n_samples") {
-            c.diagnostics = Some(IndicatorDiagnostics {
-                n_samples,
-                pass: found.values("pass")?,
-                n_holes: found.values("n_holes")?,
-                mean_distance: found.values("mean_distance")?,
-                max_samples_reached: found.values("max_samples_reached")?,
-                n_order_violations: found.values("n_order_violations")?,
-            });
-        }
+        c.diagnostics = restore_diagnostics(&found)?;
         Ok(())
     }
 }

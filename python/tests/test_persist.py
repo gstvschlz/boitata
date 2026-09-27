@@ -278,6 +278,28 @@ def test_indicator_summary_round_trip(tmp_path):
         same([back.diagnostics[n] for n in names], [summary.diagnostics[n] for n in names])
 
 
+def test_categorical_indicator_kriging_round_trip(tmp_path):
+    path = tmp_path / "cik.parquet"
+    scheme = cs.Categories(["low", "mid", "high"], colors=["C0", "C1", "C2"])
+    rock = np.array(["low", "mid", "high"])[np.digitize(values, [0.8, 1.5])]
+    zone = np.where(coords[:, 0] < 50, "w", "e")
+    passes = [cs.Search(20.0, max_samples=8, soft={("w", "e"): 5.0}), cs.Search(np.inf)]
+    cik = cs.CategoricalIndicatorKriging([model] * 3, passes, simple=True, scheme=scheme)
+    cik.fit(coords, rock, weights=np.linspace(1.0, 2.0, 300), holes=holes, domains=zone)
+    at = np.where(targets[:, 0] < 50, "w", "e")
+    summary = cik.predict(targets, domains=at, diagnostics=True)
+    cik.to_parquet(path)
+    for back in (cs.CategoricalIndicatorKriging.from_parquet(path), pickle.loads(pickle.dumps(cik))):
+        assert back.scheme == scheme
+        same((back.predict(targets, domains=at).probabilities,), (summary.probabilities,))
+        same((back.cross_validate(folds=5).probabilities,), (cik.cross_validate(folds=5).probabilities,))
+    summary.to_parquet(path)
+    for back in (cs.CategoricalIndicatorSummary.from_parquet(path), pickle.loads(pickle.dumps(summary))):
+        names = ("probabilities", "most_likely", "entropy", "correction", "proportions")
+        same([getattr(back, n) for n in names], [getattr(summary, n) for n in names])
+        assert back.scheme == scheme and back.diagnostics.column_names == summary.diagnostics.column_names
+
+
 xy = rng.uniform(0, 100, (20, 2))
 on_plane = np.c_[xy, 0.5 * xy[:, 0]]
 structure = {
