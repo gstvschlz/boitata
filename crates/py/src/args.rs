@@ -176,6 +176,17 @@ pub fn optional_finite(obj: Option<&Bound<PyAny>>, what: &str) -> PyResult<Optio
     obj.map(|o| finite(o, what)).transpose()
 }
 
+/// 1-D array-like of booleans, e.g. a below-detection flag column.
+pub fn bools(obj: &Bound<PyAny>, what: &str) -> PyResult<Vec<bool>> {
+    let array: PyReadonlyArray1<bool> = obj
+        .py()
+        .import("numpy")?
+        .call_method1("asarray", (obj, "bool"))?
+        .extract()
+        .map_err(|_| invalid(format!("{what} must be a 1-D boolean array")))?;
+    Ok(array.as_array().to_vec())
+}
+
 /// `(n, 2)` or `(n, 3)` coordinates as tuples.
 pub fn points(obj: &Bound<PyAny>) -> PyResult<Vec<Point>> {
     Ok(coords_arg(obj)?

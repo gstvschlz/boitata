@@ -14,8 +14,8 @@ use arrow_array::types::Float64Type;
 use arrow_array::{ArrayRef, Float64Array, RecordBatch};
 
 use crate::args::{
-    Point, array1, array2, column, finite, floats, optional_finite, per_row, points, points_array,
-    rows, same_length, triple,
+    Point, array1, array2, bools, column, finite, floats, optional_finite, per_row, points,
+    points_array, rows, same_length, triple,
 };
 use crate::containers::PyBlockModel;
 use crate::invalid;
@@ -145,16 +145,45 @@ impl NormalScore {
         })
     }
 
-    #[pyo3(signature = (values, *, weights=None))]
+    /// Fits the empirical (or reference) distribution.
+    ///
+    /// Parameters
+    /// ----------
+    /// values : array_like
+    ///     Sample values, in the units to transform.
+    /// weights : array_like, optional
+    ///     Declustering weights; refused together with `reference`, whose own
+    ///     `fit` takes them instead.
+    /// censored : array_like of bool, optional
+    ///     Marks values reported at their detection limit rather than
+    ///     measured exactly (those cells still hold the limit as their
+    ///     numeric value). Values keep their exact rank against every
+    ///     uncensored value and against censored values at another limit;
+    ///     censored values tied at the same limit have no true order between
+    ///     them, so each such tie is shuffled with `seed` before scoring
+    ///     instead of averaged into one repeated score. Refused together with
+    ///     `reference`.
+    /// seed : int, default 0
+    ///     Seed for breaking ties among `censored` values at the same limit.
+    #[pyo3(signature = (values, *, weights=None, censored=None, seed=0))]
     fn fit<'py>(
         mut slf: PyRefMut<'py, Self>,
         values: &Bound<PyAny>,
         weights: Option<&Bound<PyAny>>,
+        censored: Option<&Bound<PyAny>>,
+        seed: u64,
     ) -> PyResult<PyRefMut<'py, Self>> {
         let values = finite(values, "values")?;
         let weights = optional_finite(weights, "weights")?;
         if let Some(w) = &weights {
             same_length(values.len(), w.len(), "weights")?;
+        }
+        let censored = censored.map(|c| bools(c, "censored")).transpose()?;
+        if let Some(c) = &censored {
+            same_length(values.len(), c.len(), "censored")?;
+        }
+        if censored.is_some() && slf.reference.is_some() {
+            return Err(invalid("reference does not take censored values"));
         }
         let mut ns = match (&slf.reference, &weights) {
             (Some(_), Some(_)) => {
@@ -163,7 +192,11 @@ impl NormalScore {
                 ));
             }
             (Some(r), None) => r.transform(&values),
-            (None, _) => transforms::normal_score(&values, weights.as_deref()).map_err(err)?,
+            (None, _) => match &censored {
+                Some(c) => transforms::transform_censored(&values, c, weights.as_deref(), seed)
+                    .map_err(err)?,
+                None => transforms::normal_score(&values, weights.as_deref()).map_err(err)?,
+            },
         };
         if let Some((lower, upper)) = slf.tails {
             ns.table = ns.table.with_tails(lower, upper);
@@ -173,14 +206,16 @@ impl NormalScore {
     }
 
     /// Scores of the fitted values, exact per rank.
-    #[pyo3(signature = (values, *, weights=None))]
+    #[pyo3(signature = (values, *, weights=None, censored=None, seed=0))]
     fn fit_transform<'py>(
         slf: PyRefMut<'py, Self>,
         values: &Bound<PyAny>,
         weights: Option<&Bound<PyAny>>,
+        censored: Option<&Bound<PyAny>>,
+        seed: u64,
     ) -> PyResult<Bound<'py, PyAny>> {
         let py = slf.py();
-        let slf = Self::fit(slf, values, weights)?;
+        let slf = Self::fit(slf, values, weights, censored, seed)?;
         Ok(array1(py, slf.fitted()?.scores.clone()).into_any())
     }
 
