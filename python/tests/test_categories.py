@@ -88,10 +88,42 @@ def test_json_and_pickle_round_trip(c):
         assert back == c and back.to_json() == c.to_json()
 
 
+@pytest.mark.parametrize("keys", [(1, 2), (1.0, 2.0), ("1", "2"), (np.int64(1), np.float32(2))])
+def test_numeric_labels_are_one_label_whatever_their_type(keys):
+    scheme = cs.Categories(["T1", "T2"], mapping=dict(zip(keys, ["T1", "T2"], strict=True)))
+    values = [np.array([2.0, 1.0, np.nan, 2.0]), np.array([2.0, 1.0, np.nan, 2.0], "f4"), [2, 1, None, 2]]
+    values += [["2", "1", None, "2"], [2.0, 1, None, "2"]]
+    pa = pytest.importorskip("pyarrow")
+    values += [pa.array([2, 1, None, 2], pa.uint8()), pa.array([2.0, 1.0, None, 2.0])]
+    for v in values:
+        np.testing.assert_array_equal(scheme.encode(v), [1, 0, np.nan, 1])
+    np.testing.assert_array_equal(scheme.encode(np.array([2, 1], "u1")), [1, 0])
+
+
+def test_encode_and_fit_agree_on_a_numeric_column():
+    points = cs.PointSet(np.c_[np.arange(6.0), np.zeros(6)], {"T": np.array([1.0, 2, 2, 1, 2, 2])})
+    scheme = cs.Categories(["T1", "T2"], mapping={1: "T1", 2: "T2"})
+    np.testing.assert_array_equal(scheme.encode(points["T"]), [0, 1, 1, 0, 1, 1])
+    kriging = cs.CategoricalIndicatorKriging(
+        cs.Variogram([("spherical", 0.25, 3.0)]), cs.Search(radius=5), scheme=scheme
+    )
+    kriging.fit(points, "T")
+    codes = cs.PointSet(points.coords, {"T": scheme.encode(points["T"])})
+    message = r"^1 label is not a category: 0 \(2 rows\); known labels are T1, T2, 1, 2$"
+    with pytest.raises(cs.InvalidInput, match=message):
+        scheme.encode(codes["T"])
+    with pytest.raises(cs.InvalidInput, match=message):
+        kriging.fit(codes, "T")
+
+
 def test_errors():
     c = cs.Categories(["a", "b"])
-    with pytest.raises(cs.InvalidInput, match="6 labels are not categories: c, d, e, f, g$"):
-        c.encode(list("abcdefgh"))
+    with pytest.raises(
+        cs.InvalidInput,
+        match=r"^6 labels are not categories: c \(2 rows\), d \(1 row\), e \(1 row\), f \(1 row\), g \(1 row\) "
+        r"and 1 more; known labels are a, b$",
+    ):
+        c.encode(list("abccdefgh"))
     for bad in (
         lambda: cs.Categories([]),
         lambda: cs.Categories(["a", "a"]),

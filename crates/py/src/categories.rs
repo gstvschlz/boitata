@@ -109,8 +109,9 @@ impl Categories {
             .map_err(invalid)
     }
 
-    /// Code of each value as float64, NaN for null. An unlisted label goes
-    /// to `other`, else raises InvalidInput.
+    /// Code of each value as float64, NaN for null. 1, 1.0 and "1" are one
+    /// label. An unlisted label goes to `other`, else raises InvalidInput
+    /// naming it and its row count.
     fn encode<'py>(&self, py: Python<'py>, values: &Bound<PyAny>) -> PyResult<Bound<'py, PyAny>> {
         let codes = self.0.encode(&refs(&labels(values)?)).map_err(invalid)?;
         let codes = codes.into_iter().map(|c| c.map_or(f64::NAN, f64::from));
