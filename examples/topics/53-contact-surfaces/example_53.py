@@ -19,14 +19,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 from common import ACCENT, GRAY, HIGHLIGHT, INK, LIGHT, save
 
-# %% [markdown]
-# The lens solids are slightly open; `repair` welds the vertices closer than 1 mm and closes them.
-
 # %%
 data = cs.datasets.stacked_sulphide_lenses()
-print(data["lens_1"].analysis)
-lens = data["lens_1"].repair(tolerance=1e-3)
-print(f"repaired: closed {lens.is_closed}, {lens.volume / 1e6:.2f} Mm3")
+lens = data["lens_1"]
+print(f"lens 1: closed {lens.is_closed}, {lens.volume / 1e6:.2f} Mm3")
 
 # %% [markdown]
 # The logs say `MS` or `SMS` for all three lenses; the intervals of lens 1 are those whose middle lies in its

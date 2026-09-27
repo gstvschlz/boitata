@@ -15,22 +15,18 @@ from common import ACCENT, GRAY, HIGHLIGHT, INK, LIGHT, save
 
 </details>
 
-The lens solids are slightly open; `repair` welds the vertices closer than 1 mm and closes them.
-
 <details><summary>Python</summary>
 
 ```python
 data = cs.datasets.stacked_sulphide_lenses()
-print(data["lens_1"].analysis)
-lens = data["lens_1"].repair(tolerance=1e-3)
-print(f"repaired: closed {lens.is_closed}, {lens.volume / 1e6:.2f} Mm3")
+lens = data["lens_1"]
+print(f"lens 1: closed {lens.is_closed}, {lens.volume / 1e6:.2f} Mm3")
 ```
 
 </details>
 
 ```text
-{'degenerate_triangles': 1, 'boundary_edges': 3, 'non_manifold_edges': 0, 'is_closed': False}
-repaired: closed True, 2.79 Mm3
+lens 1: closed True, 2.79 Mm3
 ```
 
 The logs say `MS` or `SMS` for all three lenses; the intervals of lens 1 are those whose middle lies in its

@@ -39,7 +39,7 @@ __all__ = [
 ]
 
 REPO = "https://raw.githubusercontent.com/gstvschlz/datasets"
-COMMIT = "dbf4bdfeffda2aa02df6e800e960b7c28c0672da"
+COMMIT = "8fd08b2fabf99194dadfd83a5d02f34035535a81"
 URL = f"{REPO}/{COMMIT}"
 FILES = {
     "mining/2d/coal-seam-thickness/boreholes.csv": "722383adf51416b50c897b08e61d8a7d7cafd2bdb244426999c7057fdd07420d",

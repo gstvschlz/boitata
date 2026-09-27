@@ -128,8 +128,8 @@ for name, codes in domains.items():
 # back to a composition summing to 100 %. PPMT turns the coordinates into independent Gaussian factors (topics 15 and
 # 16), each simulated on its own by turning bands with the omnidirectional variogram of its scores. Per domain,
 # `MultivariateSimulation` simulates 30 realizations on 12.5 × 12.5 × 6 m nodes, eight per block, and at every
-# blasthole, with bands discretized every 2 m. The factors come back as ilr coordinates, turned into oxides at the
-# nodes; blocks average their nodes only after that, since the log-ratio is not linear.
+# blasthole. The factors come back as ilr coordinates, turned into oxides at the nodes; blocks average their nodes
+# only after that, since the log-ratio is not linear.
 
 # %%
 n = 30
@@ -146,7 +146,7 @@ for name, codes in domains.items():
     variograms = [cs.experimental_variogram(xyz, s, 25.0, 300.0).fit("spherical") for s in scores.T]
     search = cs.Search(radius=300, max_samples=16)
     simulation = cs.MultivariateSimulation(
-        ppmt, [cs.TurningBands(v, search=search, step=2.0) for v in variograms]
+        ppmt, [cs.TurningBands(v, search=search) for v in variograms]
     ).fit(xyz, coords)
     in_domain = block_domain[node_block] == name
     bh_in = block_domain[bh_block] == name
@@ -176,7 +176,7 @@ alone = []
 for seed, (g, factor) in enumerate((("FE_PCT", 1.4297), ("SIO2_PCT", 1.0)), start=2):
     ns = cs.NormalScore().fit_transform(composites[g][use])
     variogram = cs.experimental_variogram(composites.coords[use], ns, 25.0, 300.0).fit("spherical")
-    bands = cs.TurningBands(variogram, search=search, step=2.0).fit(
+    bands = cs.TurningBands(variogram, search=search).fit(
         composites.coords[use], composites[g][use]
     )
     alone.append(
@@ -271,13 +271,13 @@ save(fig, "reconciliation")
 
 # %% [markdown]
 # Per domain the simulation sits near the drilling in the window, not the blastholes: 115 composites from 12 holes,
-# against 1953 blastholes. Hematite blocks come out 2.9 % Fe poorer than the blastholes say, compact itabirite blocks
-# 5.0 % richer; friable itabirite is close. The spreads order as the supports do: 157 at 6 m points, 114 for the
-# 12 m blastholes, 99 for the mean of about six blastholes per block, 61 for simulated blocks. The mean of six
+# against 1953 blastholes. Hematite blocks come out 3.3 % Fe poorer than the blastholes say, compact itabirite blocks
+# 5.3 % richer; friable itabirite is close. The spreads order as the supports do: 158 at 6 m points, 114 for the
+# 12 m blastholes, 99 for the mean of about six blastholes per block, 60 for simulated blocks. The mean of six
 # blastholes still carries their analytical error and short-scale variation, so it varies more than the block
 # itself would.
 #
-# Blocks rank well (r 0.80), but the blasthole means spread 1.55 times as far as the simulated means: with holes
+# Blocks rank well (r 0.80), but the blasthole means spread 1.61 times as far as the simulated means: with holes
 # 100 m apart, the model cannot place the 25 m contrasts between hematite and itabirite that grade control sees. That
 # gap is what blastholes are drilled to close.
 #
