@@ -380,6 +380,41 @@ mod tests {
     }
 
     #[test]
+    fn a_mask_clips_the_solid_and_closed_caps_it() {
+        // 40³ blocks of 1 m, a radius-12 ball in the middle; keep z < 20.
+        let (n, radius) = (40usize, 12.0f64);
+        let cells: Vec<f64> = (0..n * n * n)
+            .map(|c| {
+                let p = [c % n, c / n % n, c / (n * n)].map(|i| i as f64 + 0.5 - 20.0);
+                radius - (p[0] * p[0] + p[1] * p[1] + p[2] * p[2]).sqrt()
+            })
+            .collect();
+        let active: Vec<bool> = (0..n * n * n).map(|c| c / (n * n) < 20).collect();
+        let lattice = |mask: Option<&[bool]>, closed| {
+            marching_tetrahedra(
+                &ScalarGrid::blocks([1.0; 3], [n; 3], &cells, mask, 0.0, closed).unwrap(),
+                0.0,
+            )
+        };
+
+        let full = lattice(None, true);
+        let all = vec![true; n * n * n];
+        assert_eq!(full.triangles, lattice(Some(&all), true).triangles);
+        assert_eq!(full.vertices, lattice(Some(&all), true).vertices);
+
+        let half = lattice(Some(&active), true);
+        assert_eq!(unmatched_edges(&half), 0);
+        let exact = 2.0 / 3.0 * std::f64::consts::PI * radius.powi(3);
+        let err = (half.enclosed_volume() - exact).abs() / exact;
+        assert!(err < 0.02, "hemisphere volume error {err}");
+        assert!(half.vertices.iter().all(|v| v[2] < 20.5));
+
+        let open = lattice(Some(&active), false);
+        assert!(unmatched_edges(&open) > 0);
+        assert!(open.vertices.iter().all(|v| v[2] < 20.0));
+    }
+
+    #[test]
     fn non_finite_nodes_do_not_produce_nan_geometry() {
         let mut g = sphere([0.0; 3], 10.0, 15, 15.0);
         g.values[0] = f64::NAN;

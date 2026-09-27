@@ -438,8 +438,9 @@ impl ImplicitModel {
     }
 
     /// Mesh of the `isovalue` surface, the field sampled at the block
-    /// centroids of `model`. `closed` caps the solid where the field
-    /// exceeds `isovalue` on the block model's outer faces.
+    /// centroids of `model`. Blocks a masked model leaves out are outside
+    /// the solid. `closed` caps the solid where the field exceeds `isovalue`
+    /// on the block model's outer faces and at the edge of its mask.
     #[pyo3(signature = (model, *, isovalue=0.0, closed=false))]
     fn isosurface<'py>(
         &self,
@@ -450,29 +451,33 @@ impl ImplicitModel {
     ) -> PyResult<Mesh> {
         let fitted = self.fitted()?;
         let g = *model.0.geometry();
-        let pad = closed as usize;
-        let counts = g.count.map(|n| n + 2 * pad);
-        let values = py.detach(|| {
-            (0..counts.iter().product::<usize>())
+        let active = match model.0.layout() {
+            ceres_core::Layout::Regular => None,
+            ceres_core::Layout::Masked(index) => {
+                let mut on = vec![false; g.cells() as usize];
+                for &i in index {
+                    on[i as usize] = true;
+                }
+                Some(on)
+            }
+            ceres_core::Layout::SubBlocked { .. } => {
+                return Err(invalid("isosurface needs a regular or masked BlockModel"));
+            }
+        };
+        let cells: Vec<f64> = py.detach(|| {
+            (0..g.cells())
                 .into_par_iter()
                 .map(|n| {
-                    let ijk = [
-                        n % counts[0],
-                        n / counts[0] % counts[1],
-                        n / (counts[0] * counts[1]),
-                    ];
-                    let inner = [0, 1, 2].map(|a| ijk[a].clamp(pad, g.count[a] + pad - 1) - pad);
-                    let v = fitted.value(&g.centroid(g.index(inner)));
-                    if inner.map(|i| i + pad) == ijk {
-                        v
+                    if closed || active.as_ref().is_none_or(|a| a[n as usize]) {
+                        fitted.value(&g.centroid(n))
                     } else {
-                        isovalue - (v - isovalue).abs()
+                        f64::NAN
                     }
                 })
                 .collect()
         });
-        let origin = g.size.map(|s| s * (0.5 - pad as f64));
-        let grid = ScalarGrid::new(origin, g.size, counts, values).map_err(invalid)?;
+        let grid = ScalarGrid::blocks(g.size, g.count, &cells, active.as_deref(), isovalue, closed)
+            .map_err(invalid)?;
         let mesh = py.detach(|| marching_tetrahedra(&grid, isovalue));
         let frame = ceres_core::block_frame(g.rotation);
         let vertices: Vec<f64> = mesh

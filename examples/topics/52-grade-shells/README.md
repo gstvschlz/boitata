@@ -119,26 +119,26 @@ save(fig, "section")
 ![section](section.png)
 
 The isotropic RBF grows a round body around one deep high-grade composite; the flat one keeps it a
-thin pod, as the solid does. `isosurface` triangulates the zero level at the centroids of a regular grid. With `closed=True` the shell is
-capped where it leaves the grid, so it bounds a volume close to that of the cells inside. The grid is the full
-box of the block model: the shell is not cut at topography.
+thin pod, as the solid does. `isosurface` triangulates the zero level at the centroids of the block model and
+treats blocks outside its mask, here those above topography, as outside the shell. With `closed=True` the shell
+is capped where it leaves the blocks, at the grid's faces and under topography, so it bounds a volume close to
+that of the blocks inside.
 
 <details><summary>Python</summary>
 
 ```python
-box = cs.BlockModel(origin=blocks.origin, size=blocks.size, count=blocks.count)
-shell = models["RBF, flat"].isosurface(box, closed=True)
-inside = models["RBF, flat"].predict(box) > 0
+shell = models["RBF, flat"].isosurface(blocks, closed=True)
+inside = models["RBF, flat"].predict(blocks) > 0
 print(
     f"flat RBF shell: {len(shell.triangles):,} triangles, closed {shell.is_closed}, {shell.volume / 1e6:.1f} Mm3; "
-    f"cells inside {box.volumes[inside].sum() / 1e6:.1f} Mm3"
+    f"blocks inside {blocks.volumes[inside].sum() / 1e6:.1f} Mm3"
 )
 ```
 
 </details>
 
 ```text
-flat RBF shell: 93,624 triangles, closed True, 81.4 Mm3; cells inside 84.9 Mm3
+flat RBF shell: 74,788 triangles, closed True, 64.6 Mm3; blocks inside 67.4 Mm3
 ```
 
 Full script: [`example_52.py`](example_52.py)

@@ -41,6 +41,19 @@ def test_sphere_isosurface_area():
     hemisphere = 2 / 3 * np.pi * radius**3
     assert 100 * 100 * 50 - capped.volume == pytest.approx(hemisphere, rel=0.02)
 
+    below = blocks.mask(blocks.centroids[:, 2] < center[2])
+    clipped = model.isosurface(below, closed=True)
+    assert clipped.is_closed
+    assert 100 * 100 * 50 - clipped.volume == pytest.approx(hemisphere, rel=0.02)
+    assert clipped.vertices[:, 2].max() < center[2] + 1
+    assert model.isosurface(below).analysis["boundary_edges"] > 0
+    with pytest.raises(cs.InvalidInput, match="masked"):
+        model.isosurface(
+            cs.BlockModel.subblocked(
+                (0, 0, 0), (2, 2, 2), (2, 2, 2), np.array([0], np.uint64), [[0, 0, 0, 1, 1, 1]]
+            )
+        )
+
 
 def test_planes_with_boundaries():
     xy = rng.uniform(0, 100, (20, 2))
