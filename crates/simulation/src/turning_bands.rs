@@ -24,7 +24,7 @@
 //! score back-transformed, within its own domain.
 
 use crate::error::{Result, SimError};
-use crate::post::{BlockSupport, ContinuousOptions, ContinuousSummary, continuous};
+use crate::post::{BlockSupport, ContinuousOptions, ContinuousSummary, Keep, continuous};
 use crate::sgs::{Domains, Realization, Transform, Transforms, Trend, data};
 use estimation::Sample;
 use estimation::krige::{Kind, krige};
@@ -781,7 +781,7 @@ pub fn turning_bands_to_parquet(
         n,
     )?;
     let options = ContinuousOptions {
-        keep: false,
+        keep: Keep::None,
         ..options.clone()
     };
     let mut writer = ceres_io::BlockModelWriter::create(
@@ -1193,7 +1193,7 @@ mod tests {
         let options = ContinuousOptions {
             cutoffs: vec![3.0],
             quantiles: vec![0.5],
-            keep: false,
+            keep: Keep::None,
         };
         let grid = points(&model);
         let (lo, hi) = bounds(&grid);
@@ -1314,7 +1314,7 @@ mod tests {
         let options = ContinuousOptions {
             cutoffs: vec![3.0],
             quantiles: vec![0.5],
-            keep: false,
+            keep: Keep::None,
         };
         let n = [2, 3, 1];
         let fine = model.discretize(n).unwrap();

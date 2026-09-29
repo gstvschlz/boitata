@@ -75,7 +75,7 @@ impl TrendConditioning {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::post::{ContinuousOptions, ContinuousSummary, continuous};
+    use crate::post::{ContinuousOptions, ContinuousSummary, Keep, continuous};
     use crate::sgs::{SgsParams, sgs};
     use estimation::Search;
     use rand::rngs::StdRng;
@@ -137,7 +137,7 @@ mod tests {
         n: usize,
     ) -> ContinuousSummary {
         let options = ContinuousOptions {
-            keep: true,
+            keep: Keep::All,
             ..Default::default()
         };
         continuous(n, &options, |k| {
@@ -261,7 +261,7 @@ mod tests {
             })
             .collect();
         let s = simulate(&locs, &conditioning, &weights, &nodes, &node_trend, 50);
-        let reals = s.realizations.unwrap();
+        let reals = s.realizations;
         for (c, m) in members.iter().enumerate() {
             let data: Vec<f64> = m.iter().map(|&i| values[i]).collect();
             let w: Vec<f64> = m.iter().map(|&i| weights[i]).collect();
@@ -300,7 +300,7 @@ mod tests {
         let logs: Vec<f64> = values.iter().map(|v| v.ln()).collect();
         let want = corr(&logs, &trend, &weights);
         let ones = vec![1.0; nodes.len()];
-        for r in s.realizations.unwrap() {
+        for r in s.realizations {
             let logs: Vec<f64> = r.iter().map(|v| v.ln()).collect();
             let got = corr(&logs, &node_trend, &ones);
             assert!((got - want).abs() < 0.1, "correlation {got} vs {want}");
@@ -321,8 +321,8 @@ mod tests {
                 .install(|| simulate(&locs, &conditioning, &weights, &nodes, &node_trend, 6))
         };
         let (one, four) = (run(1), run(4));
-        let reals = one.realizations.unwrap();
-        assert_eq!(reals, four.realizations.unwrap());
+        let reals = one.realizations;
+        assert_eq!(reals, four.realizations);
         for r in &reals {
             for (got, want) in r.iter().zip(&values[..30]) {
                 assert!((got / want - 1.0).abs() < 1e-9, "{got} vs {want}");

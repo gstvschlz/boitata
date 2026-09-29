@@ -32,14 +32,61 @@ fn run<R: Send>(
     Ok(())
 }
 
+/// Which realizations a summary returns beside its statistics.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub enum Keep {
+    /// None: each realization updates the summary, then is freed.
+    #[default]
+    None,
+    /// Every realization.
+    All,
+    /// These 0-based realizations, returned in realization order.
+    Indices(Vec<usize>),
+}
+
+impl Keep {
+    pub fn keeps(&self, k: usize) -> bool {
+        match self {
+            Keep::None => false,
+            Keep::All => true,
+            Keep::Indices(indices) => indices.contains(&k),
+        }
+    }
+
+    /// The kept realizations of `0..n`, ascending.
+    pub fn kept(&self, n: usize) -> Vec<usize> {
+        (0..n).filter(|&k| self.keeps(k)).collect()
+    }
+
+    /// Every index is below `n` and listed once.
+    pub fn validate(&self, n: usize) -> Result<()> {
+        let Keep::Indices(indices) = self else {
+            return Ok(());
+        };
+        for (position, &k) in indices.iter().enumerate() {
+            if k >= n {
+                return Err(SimError::InvalidParameters(format!(
+                    "keep lists realization {k}, but there are {n}; indices start at 0"
+                )));
+            }
+            if indices[..position].contains(&k) {
+                return Err(SimError::InvalidParameters(format!(
+                    "keep lists realization {k} twice"
+                )));
+            }
+        }
+        Ok(())
+    }
+}
+
 /// What to accumulate for a continuous variable.
 #[derive(Debug, Clone, Default)]
 pub struct ContinuousOptions {
     pub cutoffs: Vec<f64>,
     /// Probabilities in `[0, 1]`; exact, but they hold every value as `f32`.
     pub quantiles: Vec<f64>,
-    /// Also return every realization.
-    pub keep: bool,
+    /// Realizations to return beside the statistics.
+    pub keep: Keep,
 }
 
 /// Per-target and per-realization summary of a continuous ensemble. Per-cutoff
@@ -61,7 +108,10 @@ pub struct ContinuousSummary {
     pub realization_mean: Vec<f64>,
     /// Fraction of targets above each cutoff in each realization.
     pub realization_above: Vec<Vec<f64>>,
-    pub realizations: Option<Vec<Vec<f64>>>,
+    /// Indices of the kept realizations, ascending.
+    pub kept: Vec<usize>,
+    /// The kept realizations, one row per entry of `kept`.
+    pub realizations: Vec<Vec<f64>>,
 }
 
 /// Summarizes `n` realizations of a continuous variable; `simulate(k)` returns
@@ -113,6 +163,7 @@ struct Accumulator<'a> {
 
 impl<'a> Accumulator<'a> {
     fn new(n: usize, options: &'a ContinuousOptions) -> Result<Self> {
+        options.keep.validate(n)?;
         if options.quantiles.iter().any(|q| !(0.0..=1.0).contains(q)) {
             return Err(SimError::InvalidParameters(
                 "quantiles must be in [0, 1]".into(),
@@ -139,7 +190,8 @@ impl<'a> Accumulator<'a> {
                 quantile_values: vec![],
                 realization_mean: Vec::with_capacity(n),
                 realization_above: vec![Vec::with_capacity(n); nc],
-                realizations: options.keep.then(Vec::new),
+                kept: options.keep.kept(n),
+                realizations: vec![],
             },
         })
     }
@@ -151,6 +203,7 @@ impl<'a> Accumulator<'a> {
                 "realizations differ in length".into(),
             ));
         }
+        let index = self.out.realization_mean.len();
         let nc = self.options.cutoffs.len();
         if self.k == 0.0 {
             (self.mean, self.m2) = (vec![0.0; m], vec![0.0; m]);
@@ -180,8 +233,8 @@ impl<'a> Accumulator<'a> {
         if !self.options.quantiles.is_empty() {
             self.stored.extend(values.iter().map(|&v| v as f32));
         }
-        if let Some(r) = self.out.realizations.as_mut() {
-            r.push(values);
+        if self.options.keep.keeps(index) {
+            self.out.realizations.push(values);
         }
         Ok(())
     }
@@ -249,14 +302,17 @@ pub struct CategoricalSummary {
     pub entropy: Vec<f64>,
     /// Share of targets in each category, `[realization][category]`.
     pub proportions: Vec<Vec<f64>>,
-    pub realizations: Option<Vec<Vec<usize>>>,
+    /// Indices of the kept realizations, ascending.
+    pub kept: Vec<usize>,
+    /// The kept realizations, one row per entry of `kept`.
+    pub realizations: Vec<Vec<usize>>,
 }
 
 /// Summarizes `n` realizations of categories `0..k`.
 pub fn categorical(
     n: usize,
     k: usize,
-    keep: bool,
+    keep: &Keep,
     simulate: impl Fn(usize) -> Result<Vec<usize>> + Sync,
 ) -> Result<CategoricalSummary> {
     if k == 0 {
@@ -264,9 +320,10 @@ pub fn categorical(
             "need at least one category".into(),
         ));
     }
+    keep.validate(n)?;
     let mut counts: Vec<Vec<u32>> = vec![];
     let mut proportions = Vec::with_capacity(n);
-    let mut realizations = keep.then(Vec::new);
+    let mut realizations = vec![];
     run(n, simulate, |cats: Vec<usize>| {
         if counts.is_empty() {
             counts = vec![vec![0; cats.len()]; k];
@@ -287,9 +344,10 @@ pub fn categorical(
             share[c] += 1.0;
         }
         let m = cats.len().max(1) as f64;
+        let index = proportions.len();
         proportions.push(share.into_iter().map(|s| s / m).collect());
-        if let Some(r) = realizations.as_mut() {
-            r.push(cats);
+        if keep.keeps(index) {
+            realizations.push(cats);
         }
         Ok(())
     })?;
@@ -319,6 +377,7 @@ pub fn categorical(
         most_likely,
         entropy,
         proportions,
+        kept: keep.kept(n),
         realizations,
     })
 }
@@ -504,14 +563,46 @@ mod tests {
     }
 
     #[test]
+    fn keep_selects_realizations_in_order() {
+        let simulate = |k: usize| Ok(vec![k as f64, 10.0 * k as f64]);
+        let options = |keep| ContinuousOptions {
+            keep,
+            ..Default::default()
+        };
+        let all = continuous(5, &options(Keep::All), simulate).unwrap();
+        assert_eq!(all.kept, vec![0, 1, 2, 3, 4]);
+        assert_eq!(all.realizations.len(), 5);
+        let some = continuous(5, &options(Keep::Indices(vec![3, 1])), simulate).unwrap();
+        assert_eq!(some.kept, vec![1, 3]);
+        assert_eq!(some.realizations, vec![vec![1.0, 10.0], vec![3.0, 30.0]]);
+        assert_eq!(some.mean, all.mean);
+        let none = continuous(5, &options(Keep::None), simulate).unwrap();
+        assert!(none.kept.is_empty() && none.realizations.is_empty());
+        let cats = categorical(4, 2, &Keep::Indices(vec![2]), |k| Ok(vec![k % 2])).unwrap();
+        assert_eq!((cats.kept, cats.realizations), (vec![2], vec![vec![0]]));
+    }
+
+    #[test]
+    fn keep_rejects_bad_indices() {
+        let options = |keep| ContinuousOptions {
+            keep,
+            ..Default::default()
+        };
+        let simulate = |_| Ok(vec![0.0]);
+        assert!(continuous(3, &options(Keep::Indices(vec![3])), simulate).is_err());
+        assert!(continuous(3, &options(Keep::Indices(vec![1, 1])), simulate).is_err());
+        assert!(categorical(3, 2, &Keep::Indices(vec![5]), |_| Ok(vec![0])).is_err());
+    }
+
+    #[test]
     fn streamed_statistics_match_the_stored_ensemble() {
         let options = ContinuousOptions {
             cutoffs: vec![4.5],
             quantiles: vec![0.1, 0.5, 0.9],
-            keep: true,
+            keep: Keep::All,
         };
         let s = continuous(23, &options, fake).unwrap();
-        let reals = s.realizations.as_ref().unwrap();
+        let reals = s.realizations;
         for i in 0..5 {
             let mut col: Vec<f64> = reals.iter().map(|r| r[i]).collect();
             let mean = col.iter().sum::<f64>() / 23.0;
@@ -534,19 +625,19 @@ mod tests {
         let options = ContinuousOptions {
             cutoffs: vec![3.0, 7.0],
             quantiles: vec![0.5],
-            keep: false,
+            keep: Keep::None,
         };
         let one = with_threads(1, || continuous(37, &options, fake).unwrap());
         let many = with_threads(6, || continuous(37, &options, fake).unwrap());
         assert_eq!(one.mean, many.mean);
         assert_eq!(one.variance, many.variance);
         assert_eq!(one.realization_above, many.realization_above);
-        assert!(one.realizations.is_none());
+        assert!(one.realizations.is_empty());
     }
 
     #[test]
     fn category_probabilities_sum_to_one_and_entropy_is_bounded() {
-        let s = categorical(10, 3, false, |k| Ok(vec![0, k % 3, (k / 4) % 2])).unwrap();
+        let s = categorical(10, 3, &Keep::None, |k| Ok(vec![0, k % 3, (k / 4) % 2])).unwrap();
         for i in 0..3 {
             let total: f64 = s.probabilities.iter().map(|p| p[i]).sum();
             assert!((total - 1.0).abs() < 1e-12);
@@ -645,7 +736,7 @@ mod tests {
         assert_eq!(support.majority(&[1, 2, 2, 1], 3).unwrap(), [1]);
         let heavier = BlockSupport::new(&fine, Some(&[1.0, 1.0, 1.0, 4.0]), &grid(2.0, 1)).unwrap();
         assert_eq!(heavier.majority(&[1, 1, 1, 2], 3).unwrap(), [2]);
-        let s = categorical(5, 3, false, |_| support.majority(&[2, 0, 0, 2], 3)).unwrap();
+        let s = categorical(5, 3, &Keep::None, |_| support.majority(&[2, 0, 0, 2], 3)).unwrap();
         assert_eq!(s.most_likely, [0]);
     }
 
@@ -662,7 +753,7 @@ mod tests {
     #[test]
     fn bad_input_is_an_error() {
         assert!(continuous(0, &ContinuousOptions::default(), fake).is_err());
-        assert!(categorical(3, 2, false, |_| Ok(vec![2])).is_err());
+        assert!(categorical(3, 2, &Keep::None, |_| Ok(vec![2])).is_err());
     }
 
     /// Panels of 20 m holding 4 × 4 blocks of 5 m; the blocks overhang the
