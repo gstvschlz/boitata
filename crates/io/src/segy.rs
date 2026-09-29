@@ -8,12 +8,16 @@
 //! ```
 
 use std::fs::File;
-use std::io::{BufReader, Read, Seek, SeekFrom};
+use std::io::{BufReader, BufWriter, Read, Seek, SeekFrom, Write};
 use std::path::Path;
 use std::sync::Arc;
 
-use arrow_array::{ArrayRef, Float32Array, RecordBatch};
-use ceres_core::{BlockModel, Geometry};
+use arrow_array::cast::AsArray;
+use arrow_array::types::Float32Type;
+use arrow_array::{Array, ArrayRef, Float32Array, RecordBatch};
+use arrow_cast::cast;
+use arrow_schema::DataType;
+use ceres_core::{BlockModel, Geometry, Layout};
 
 use crate::{Error, Result};
 
@@ -248,6 +252,202 @@ pub fn read_segy(path: impl AsRef<Path>, options: &SegyOptions) -> Result<BlockM
     Ok(BlockModel::regular(geometry, table)?)
 }
 
+/// Writes one column of a BlockModel as SEG-Y revision 1: big-endian IEEE
+/// floats (format 5), an EBCDIC textual header and one trace per (x, y)
+/// column, inline-sorted. Inline `i + 1` and crossline `j + 1` go to bytes 189
+/// and 193, the column's cell-center CDP coordinates to bytes 181 and 185 with
+/// the finest coordinate scalar (byte 71) that fits them in 32 bits. Samples
+/// run from the top cell down: the cell height times 1000 is the sample
+/// interval and minus the top cell-center z the delay (bytes 109 and 215),
+/// both stored exactly or rejected. Nulls and absent cells of a masked model
+/// are written as `nodata`.
+pub fn write_segy(
+    path: impl AsRef<Path>,
+    model: &BlockModel,
+    column: &str,
+    nodata: f64,
+) -> Result<()> {
+    if matches!(model.layout(), Layout::SubBlocked { .. }) {
+        return Err(bad(
+            "sub-blocked models cannot be written; regularize first",
+        ));
+    }
+    let g = *model.geometry();
+    if g.rotation[1] != 0.0 || g.rotation[2] != 0.0 {
+        return Err(bad("only an azimuth rotation can be written"));
+    }
+    let model = model.to_regular()?;
+    let values = model
+        .attributes()
+        .column_by_name(column)
+        .ok_or_else(|| bad(format!("the model has no column `{column}`")))?;
+    if !(values.data_type().is_numeric() || values.data_type() == &DataType::Boolean) {
+        return Err(Error::NotNumeric(column.into()));
+    }
+    let values = cast(values, &DataType::Float32)?;
+    let values = values.as_primitive::<Float32Type>();
+
+    let [nx, ny, nz] = g.count;
+    let dz = g.size[2];
+    let us = dz * 1000.0;
+    let interval = u16::try_from(us.round() as i64)
+        .ok()
+        .filter(|&v| v > 0 && (us - us.round()).abs() < 1e-6)
+        .ok_or_else(|| {
+            bad(format!(
+                "the cell height {dz} is not a whole number of thousandths from 0.001 to 65.535"
+            ))
+        })?;
+    let n_samples =
+        u16::try_from(nz).map_err(|_| bad("SEG-Y revision 1 holds at most 65535 samples"))?;
+    if i32::try_from(nx).is_err() || i32::try_from(ny).is_err() {
+        return Err(bad("too many cells along x or y"));
+    }
+    let top = -(g.origin[2] + (nz as f64 - 0.5) * dz);
+    let (delay, time_scalar) = exact_i16(top).ok_or_else(|| {
+        bad(format!(
+            "the top cell center, z = {}, cannot be stored exactly as a delay",
+            -top
+        ))
+    })?;
+    let columns: Vec<(usize, usize)> = (0..nx).flat_map(|i| (0..ny).map(move |j| (i, j))).collect();
+    let center = |i, j| {
+        let c = g.centroid(g.index([i, j, 0]));
+        [c[0], c[1]]
+    };
+    let far = columns
+        .iter()
+        .flat_map(|&(i, j)| center(i, j))
+        .fold(0.0f64, |m, v| m.max(v.abs()));
+    let power = (0..=4)
+        .rev()
+        .find(|&k| far * 10f64.powi(k) <= f64::from(i32::MAX))
+        .ok_or_else(|| bad("the coordinates do not fit in 32-bit CDP fields"))?;
+    let xy_scalar = if power == 0 {
+        1
+    } else {
+        -(10i16.pow(power as u32))
+    };
+
+    let mut lines = vec![String::new(); 40];
+    lines[0] = "CERES BLOCK MODEL AS SEG-Y".into();
+    lines[1] = format!("COLUMN {column}");
+    lines[2] = format!("CRS {}", model.crs.as_deref().unwrap_or("UNKNOWN"));
+    lines[3] = format!("INLINES 1-{nx} CROSSLINES 1-{ny} SAMPLES {nz}");
+    lines[4] = format!("SAMPLE INTERVAL {dz} FIRST SAMPLE {top} (MS OR M)");
+    lines[5] = "BYTES: INLINE 189 CROSSLINE 193 CDP X 181 CDP Y 185".into();
+    lines[6] = format!("NULLS WRITTEN AS {nodata}");
+    lines[38] = "SEG Y REV1".into();
+    lines[39] = "END TEXTUAL HEADER".into();
+    let mut text = vec![0x40u8; TEXT_HEADER as usize];
+    for (n, line) in lines.iter().enumerate() {
+        let card = format!("C{:2} {line}", n + 1);
+        for (c, ch) in card.chars().take(80).enumerate() {
+            text[n * 80 + c] = ebcdic(ch);
+        }
+    }
+    let mut binary = [0u8; BINARY_HEADER];
+    let mut bin = |byte: usize, bytes: &[u8]| {
+        binary[byte - 3201..byte - 3201 + bytes.len()].copy_from_slice(bytes);
+    };
+    bin(3213, &1u16.to_be_bytes());
+    bin(3217, &interval.to_be_bytes());
+    bin(3221, &n_samples.to_be_bytes());
+    bin(3225, &5u16.to_be_bytes());
+    bin(3227, &1u16.to_be_bytes());
+    bin(3229, &4u16.to_be_bytes());
+    bin(3501, &0x0100u16.to_be_bytes());
+    bin(3503, &1u16.to_be_bytes());
+
+    let mut out = BufWriter::new(File::create(path)?);
+    out.write_all(&text)?;
+    out.write_all(&binary)?;
+    let nodata = nodata as f32;
+    for (t, &(i, j)) in columns.iter().enumerate() {
+        let mut header = [0u8; TRACE_HEADER];
+        let mut put = |byte: usize, bytes: &[u8]| {
+            header[byte - 1..byte - 1 + bytes.len()].copy_from_slice(bytes);
+        };
+        let [x, y] = center(i, j).map(|v| (v * 10f64.powi(power)).round() as i32);
+        let sequence = (t as u32 + 1).to_be_bytes();
+        put(1, &sequence);
+        put(5, &sequence);
+        put(21, &sequence);
+        put(29, &1i16.to_be_bytes());
+        put(71, &xy_scalar.to_be_bytes());
+        put(89, &1i16.to_be_bytes());
+        put(109, &delay.to_be_bytes());
+        put(115, &n_samples.to_be_bytes());
+        put(117, &interval.to_be_bytes());
+        put(181, &x.to_be_bytes());
+        put(185, &y.to_be_bytes());
+        put(189, &(i as i32 + 1).to_be_bytes());
+        put(193, &(j as i32 + 1).to_be_bytes());
+        put(215, &time_scalar.to_be_bytes());
+        out.write_all(&header)?;
+        for k in (0..nz).rev() {
+            let row = g.index([i, j, k]) as usize;
+            let v = if values.is_valid(row) {
+                values.value(row)
+            } else {
+                nodata
+            };
+            out.write_all(&v.to_be_bytes())?;
+        }
+    }
+    out.flush()?;
+    Ok(())
+}
+
+/// `v` as an i16 and the SEG-Y scalar that recovers it exactly, if any.
+fn exact_i16(v: f64) -> Option<(i16, i16)> {
+    [1i16, -10, -100, -1000, -10000, 10, 100, 1000, 10000]
+        .into_iter()
+        .find_map(|s| {
+            let n = if s < 0 {
+                v * -f64::from(s)
+            } else {
+                v / f64::from(s)
+            };
+            let r = n.round();
+            ((n - r).abs() < 1e-6 && r.abs() <= f64::from(i16::MAX)).then_some((r as i16, s))
+        })
+}
+
+/// A character in EBCDIC, upper-cased; unmapped ones become spaces.
+fn ebcdic(c: char) -> u8 {
+    let c = c.to_ascii_uppercase();
+    let at = |from: char| c as u8 - from as u8;
+    match c {
+        '0'..='9' => 0xF0 + at('0'),
+        'A'..='I' => 0xC1 + at('A'),
+        'J'..='R' => 0xD1 + at('J'),
+        'S'..='Z' => 0xE2 + at('S'),
+        '.' => 0x4B,
+        '<' => 0x4C,
+        '(' => 0x4D,
+        '+' => 0x4E,
+        '&' => 0x50,
+        '*' => 0x5C,
+        ')' => 0x5D,
+        ';' => 0x5E,
+        '-' => 0x60,
+        '/' => 0x61,
+        ',' => 0x6B,
+        '%' => 0x6C,
+        '_' => 0x6D,
+        '>' => 0x6E,
+        '?' => 0x6F,
+        ':' => 0x7A,
+        '#' => 0x7B,
+        '@' => 0x7C,
+        '\'' => 0x7D,
+        '=' => 0x7E,
+        '"' => 0x7F,
+        _ => 0x40,
+    }
+}
+
 /// A header number with a SEG-Y scalar: positive multiplies, negative divides.
 fn scale(v: f64, scalar: i16) -> f64 {
     match scalar {
@@ -404,11 +604,8 @@ fn ibm_to_f32(bits: u32) -> f32 {
 mod tests {
     use std::path::PathBuf;
 
-    use arrow_array::Array;
-    use arrow_array::cast::AsArray;
-    use arrow_array::types::Float32Type;
-
     use super::*;
+    use arrow_array::Array;
 
     fn temp(name: &str) -> PathBuf {
         let dir = std::env::temp_dir().join(format!("ceres-segy-{}", std::process::id()));
@@ -706,5 +903,101 @@ mod tests {
             ..SegyOptions::default()
         };
         assert!(read_segy(&path, &options).is_err());
+    }
+
+    fn cube(rotation: [f64; 3]) -> BlockModel {
+        let geometry = Geometry {
+            origin: [500_000.5, 7_000_000.25, -41.0],
+            size: [25.0, 12.5, 4.0],
+            count: [3, 4, 5],
+            rotation,
+        };
+        let v =
+            Float32Array::from_iter((0..60).map(|r| (r % 7 != 3).then_some(r as f32 * 0.5 - 7.0)));
+        let table = RecordBatch::try_from_iter([("amplitude", Arc::new(v) as ArrayRef)]).unwrap();
+        BlockModel::regular(geometry, table).unwrap()
+    }
+
+    fn close(a: &Geometry, b: &Geometry, tol: f64) {
+        assert_eq!(a.count, b.count);
+        for c in 0..3 {
+            assert!((a.origin[c] - b.origin[c]).abs() < tol, "{a:?} {b:?}");
+            assert!((a.size[c] - b.size[c]).abs() < tol, "{a:?} {b:?}");
+            assert!((a.rotation[c] - b.rotation[c]).abs() < tol, "{a:?} {b:?}");
+        }
+    }
+
+    #[test]
+    fn round_trip_keeps_values_nulls_and_geometry() {
+        let options = SegyOptions {
+            nodata: Some(-9999.0),
+            ..SegyOptions::default()
+        };
+        // Rotated cell centers are rounded to the centimetre in the CDP fields.
+        for (azimuth, tol) in [(0.0, 1e-6), (30.0, 1e-2), (215.0, 1e-2)] {
+            let m = cube([azimuth, 0.0, 0.0]);
+            let path = temp(&format!("round-trip-{azimuth}.sgy"));
+            write_segy(&path, &m, "amplitude", -9999.0).unwrap();
+            let back = read_segy(&path, &options).unwrap();
+            close(m.geometry(), back.geometry(), tol);
+            assert_eq!(back.attributes(), m.attributes());
+
+            let again = temp(&format!("round-trip-{azimuth}-again.sgy"));
+            write_segy(&again, &back, "amplitude", -9999.0).unwrap();
+            let twice = read_segy(&again, &options).unwrap();
+            close(back.geometry(), twice.geometry(), tol);
+            assert_eq!(twice.attributes(), back.attributes());
+        }
+    }
+
+    #[test]
+    fn read_write_read_of_a_survey_is_identical() {
+        let mut survey = Survey::new(vec![(1, 10), (1, 11), (2, 10), (4, 10), (4, 11)]);
+        survey.format = 1;
+        survey.delay_ms = 20;
+        let first = read(&survey.write("survey.sgy"));
+        let path = temp("survey-again.sgy");
+        write_segy(&path, &first, "amplitude", 0.5).unwrap();
+        let options = SegyOptions {
+            nodata: Some(0.5),
+            ..SegyOptions::default()
+        };
+        let second = read_segy(&path, &options).unwrap();
+        close(first.geometry(), second.geometry(), 1e-9);
+        assert_eq!(second.attributes(), first.attributes());
+        let text = std::fs::read(&path).unwrap();
+        assert_eq!(&text[..3], &[0xC3, 0x40, 0xF1]);
+        assert_eq!(text.len(), 3600 + 8 * (240 + 4 * 4));
+    }
+
+    #[test]
+    fn writes_masked_and_rejects_others() {
+        let m = cube([0.0; 3]);
+        let path = temp("masked.sgy");
+        let keep: Vec<bool> = (0..60).map(|r| r % 2 == 0).collect();
+        let masked = m.mask(&keep.into()).unwrap();
+        write_segy(&path, &masked, "amplitude", -100.0).unwrap();
+        let options = SegyOptions {
+            nodata: Some(-100.0),
+            ..SegyOptions::default()
+        };
+        let back = read_segy(&path, &options).unwrap();
+        assert_eq!(back.attributes(), masked.to_regular().unwrap().attributes());
+
+        assert!(write_segy(&path, &cube([0.0, 10.0, 0.0]), "amplitude", 0.0).is_err());
+        assert!(write_segy(&path, &m, "missing", 0.0).is_err());
+        let mut g = *m.geometry();
+        g.size[2] = 0.0001;
+        let thin = BlockModel::regular(g, m.attributes().clone()).unwrap();
+        assert!(write_segy(&path, &thin, "amplitude", 0.0).is_err());
+        let sub = BlockModel::subblocked(
+            *m.geometry(),
+            vec![0],
+            vec![[0.0, 0.0, 0.0, 1.0, 1.0, 1.0]],
+            None,
+            m.attributes().slice(0, 1),
+        )
+        .unwrap();
+        assert!(write_segy(&path, &sub, "amplitude", 0.0).is_err());
     }
 }
