@@ -10,7 +10,7 @@
 <p align="center">
   My Python tooling for day-to-day geostatistics.<br>
   <a href="https://gstvschlz.github.io/ceres/">Documentation</a> ·
-  <a href="https://gstvschlz.github.io/ceres/examples/">Examples</a> ·
+  <a href="https://gstvschlz.github.io/ceres/examples/01-first-steps/">Examples</a> ·
   <a href="https://gstvschlz.github.io/ceres/api/containers/">API</a>
 </p>
 
