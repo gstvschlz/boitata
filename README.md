@@ -14,6 +14,10 @@
   <a href="https://gstvschlz.github.io/ceres/api/containers/">API</a>
 </p>
 
+<p align="center">
+  <a href="https://codecov.io/github/gstvschlz/ceres"><img src="https://codecov.io/github/gstvschlz/ceres/graph/badge.svg?token=QHMHF8VFRG" alt="codecov"></a>
+</p>
+
 ceres holds the tools I use for resource work: drill hole checks, statistics, transforms, variograms, kriging, simulation and model checks. It runs from Python; the numerical core is Rust.
 
 ## Install
