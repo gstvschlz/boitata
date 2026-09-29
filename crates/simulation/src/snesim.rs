@@ -6,14 +6,21 @@
 //! event around it, so no node scans the image. Strebelle, S. (2002).
 //! Conditional simulation of complex geological structures using
 //! multiple-point statistics. Mathematical Geology 34(1), 1-21.
+//!
+//! Zones and local anisotropy read the patterns turned and stretched: a node
+//! of template class `(image, M)` compares its neighbor at grid offset `g`
+//! with the cell at `round(M g)` of training image `image`, and each class
+//! has trees of its own.
 
 mod tree;
 
+use std::collections::HashMap;
 use std::sync::{Arc, Mutex, PoisonError};
 
 use ceres_core::rng::realization_seed;
-use ceres_core::{Geometry, Progress};
-use nalgebra::Matrix3;
+use ceres_core::{Geometry, Progress, block_frame};
+use estimation::lva::LocalAnisotropy;
+use nalgebra::{Matrix3, Vector3};
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
 use rayon::prelude::*;
@@ -23,7 +30,7 @@ use crate::error::{Result, SimError};
 use crate::lattice::{Lattice, Template, level, multigrid_path};
 use crate::post::{CategoricalSummary, Keep, categorical};
 use crate::sis::closed;
-use crate::training_image::{NO_CODE, TrainingImage};
+use crate::training_image::{NO_CODE, TrainingImage, unify};
 use tree::{SearchTree, TreeScratch};
 
 /// Share of the template of a coarse level kept next to the node, where only
@@ -48,6 +55,14 @@ pub struct SnesimParams {
     pub target_proportions: Option<Vec<f64>>,
     /// Servosystem strength in `[0, 1)`; 0 switches it off.
     pub servo: f64,
+    /// Width in degrees of the classes local angles are rounded to; affinities
+    /// are rounded on a logarithmic scale of the same step in radians.
+    #[serde(default = "default_angle_step")]
+    pub angle_step: f64,
+}
+
+fn default_angle_step() -> f64 {
+    10.0
 }
 
 impl Default for SnesimParams {
@@ -58,16 +73,27 @@ impl Default for SnesimParams {
             min_replicates: 10,
             target_proportions: None,
             servo: 0.5,
+            angle_step: default_angle_step(),
         }
     }
 }
 
 /// Which trees a node reads: the training image and the matrix taking grid
-/// offsets to image offsets. The identity here; zones and local anisotropy
-/// add their own classes, each with trees of its own.
+/// offsets to image offsets.
 type TemplateClass = (usize, [[f64; 3]; 3]);
 
-const PLAIN: TemplateClass = (0, [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]);
+const IDENTITY: [[f64; 3]; 3] = [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]];
+
+/// What varies from node to node besides hard data and soft probabilities.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct SnesimLocal<'a> {
+    /// The training image of each node, an index into
+    /// [`Snesim::training_images`]; `None` reads the first everywhere.
+    pub zones: Option<&'a [usize]>,
+    /// The anisotropy of each node, turning and stretching the patterns of
+    /// its image (see [`Snesim::simulate`]).
+    pub anisotropy: Option<&'a LocalAnisotropy>,
+}
 
 /// Pulls a realization towards target proportions: a node draws from
 /// `P(c) + gain * (target(c) - current(c))`, negative values set to 0, where
@@ -93,28 +119,44 @@ impl Servo {
     }
 }
 
-/// SNESIM (Strebelle, 2002) over a categorical training image.
+/// SNESIM (Strebelle, 2002) over categorical training images, one per zone.
 ///
 /// Each level of the multigrid has a template of `template_size` offsets,
 /// nearest first. On a coarse level `L`, half of them stay next to the node,
 /// where they see hard data off the level's lattice, and half are offsets
-/// scaled by `2^L`, which see the level's nodes. Search trees are built on
-/// the first `simulate` and kept.
+/// scaled by `2^L`, which see the level's nodes. Search trees are built for
+/// the template classes a `simulate` needs and kept until the next.
 #[derive(Debug)]
 pub struct Snesim {
-    ti: TrainingImage,
+    images: Vec<TrainingImage>,
     params: SnesimParams,
     servo: Option<Servo>,
-    /// Template offsets of each level, in cells, nearest first.
+    /// Template offsets of each level, in grid cells, nearest first.
     templates: Vec<Vec<[i32; 3]>>,
     trees: Mutex<Vec<(TemplateClass, Arc<Vec<SearchTree>>)>>,
 }
 
 impl Snesim {
     pub fn new(ti: TrainingImage, params: SnesimParams) -> Result<Self> {
+        Self::zoned(vec![ti], params)
+    }
+
+    /// SNESIM whose zone `i` draws from `images[i]`; the images share one
+    /// code set (see [`unify`]).
+    pub fn zoned(mut images: Vec<TrainingImage>, params: SnesimParams) -> Result<Self> {
         let bad = |m: String| Err(SimError::InvalidParameters(m));
-        if !ti.is_categorical() {
-            return bad("SNESIM needs a categorical training image".into());
+        if images.is_empty() {
+            return bad("give at least one training image".into());
+        }
+        if !images.iter().all(TrainingImage::is_categorical) {
+            return bad("SNESIM needs categorical training images".into());
+        }
+        unify(&mut images)?;
+        if !(params.angle_step > 0.0 && params.angle_step.is_finite()) {
+            return bad(format!(
+                "angle_step is {}; it must be a finite number of degrees above 0",
+                params.angle_step
+            ));
         }
         if params.template_size == 0 {
             return bad("template_size must be at least 1".into());
@@ -131,7 +173,7 @@ impl Snesim {
         if !(0.0..1.0).contains(&params.servo) {
             return bad(format!("servo is {}; it must be in [0, 1)", params.servo));
         }
-        let k = ti.n_categories();
+        let k = images[0].n_categories();
         let servo = match &params.target_proportions {
             None => None,
             Some(t) => {
@@ -156,9 +198,13 @@ impl Snesim {
                 })
             }
         };
-        let templates = templates(ti.dims(), params.template_size, params.n_levels)?;
+        let mut dims = [1; 3];
+        for image in &images {
+            dims = std::array::from_fn(|a| dims[a].max(image.dims()[a]));
+        }
+        let templates = templates(dims, params.template_size, params.n_levels)?;
         Ok(Self {
-            ti,
+            images,
             params,
             servo,
             templates,
@@ -170,8 +216,22 @@ impl Snesim {
         &self.params
     }
 
-    pub fn training_image(&self) -> &TrainingImage {
-        &self.ti
+    /// The training images, one per zone, sharing one code set.
+    pub fn training_images(&self) -> &[TrainingImage] {
+        &self.images
+    }
+
+    /// Categories of the training images.
+    pub fn n_categories(&self) -> usize {
+        self.images[0].n_categories()
+    }
+
+    /// Template classes whose trees the last `simulate` read.
+    pub fn n_classes(&self) -> usize {
+        self.trees
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .len()
     }
 
     /// Summary of `n` realizations over the nodes of `lattice`, realization
@@ -182,15 +242,33 @@ impl Snesim {
     /// data off the nodes are ignored. `soft` holds one row per node: `None`
     /// where the node has no soft information, else a probability per
     /// category, closed to sum 1 (see [`Snesim::prior`] for how they combine
-    /// with the image); hard data override them. The search trees are built
-    /// on the first call, once their size is bounded by `memory` bytes (0
-    /// skips the check).
+    /// with the image); hard data override them.
+    ///
+    /// `local.zones` picks the training image of each node. With
+    /// `local.anisotropy`, one per node, the patterns of a node's image are
+    /// turned by its angles (world azimuth, dip and rake; azimuth only on a
+    /// grid one cell thick) and stretched by its affinity: at angles 0 the
+    /// image's y axis runs north along the major axis, x east against the
+    /// semi-major axis and z up along the minor axis, and the image's
+    /// structures grow by `scale` along y, `scale * semi_ratio` along x and
+    /// `scale * minor_ratio` along z. The image's cells are taken to have the
+    /// size of the grid's. Angles are rounded to multiples of `angle_step`
+    /// and the logarithm of each affinity to multiples of `angle_step` in
+    /// radians, so that either moves an offset at distance `r` by about
+    /// `r * angle_step`. Each distinct (image, rounded transform) is a
+    /// template class with trees of its own, and a node of class `(image, M)`
+    /// reads its neighbor at grid offset `g`, on every level, from image
+    /// offset `round(M g)`.
+    ///
+    /// The trees of the classes are built once their summed size is bounded
+    /// by `memory` bytes (0 skips the check), and kept until the next call.
     #[allow(clippy::too_many_arguments)]
     pub fn simulate(
         &self,
         lattice: &Lattice,
         data: Option<(&[(f64, f64, f64)], &[usize])>,
         soft: Option<&[Option<Vec<f64>>]>,
+        local: SnesimLocal,
         n: usize,
         seed: u64,
         keep: &Keep,
@@ -199,14 +277,20 @@ impl Snesim {
     ) -> Result<CategoricalSummary> {
         let hard = self.snap(lattice, data)?;
         let soft = soft.map(|rows| self.soft(lattice, rows)).transpose()?;
-        let trees = self.trees(PLAIN, memory)?;
+        let (of_node, classes) = self.classes(lattice, local)?;
+        let trees = self.trees(&classes, local.anisotropy.is_some(), memory)?;
+        let classes = Classes {
+            of_node: &of_node,
+            images: classes.iter().map(|c| c.0).collect(),
+            trees,
+        };
         let mut skip = vec![false; lattice.len()];
         for &(m, _) in &hard {
             skip[m] = true;
         }
         categorical(
             n,
-            self.ti.n_categories(),
+            self.n_categories(),
             keep,
             |i| {
                 self.realization(
@@ -214,7 +298,7 @@ impl Snesim {
                     &hard,
                     &skip,
                     soft.as_deref(),
-                    &trees,
+                    &classes,
                     realization_seed(seed, i as u64),
                 )
             },
@@ -222,9 +306,112 @@ impl Snesim {
         )
     }
 
+    /// The template class of each node, an index into the classes, which are
+    /// in order of their first node.
+    fn classes(
+        &self,
+        lattice: &Lattice,
+        local: SnesimLocal,
+    ) -> Result<(Vec<u32>, Vec<TemplateClass>)> {
+        let bad = |m: String| Err(SimError::InvalidParameters(m));
+        let nodes = lattice.len();
+        if let Some(zones) = local.zones {
+            if zones.len() != nodes {
+                return bad(format!(
+                    "give one zone per target, {nodes}, got {}",
+                    zones.len()
+                ));
+            }
+            if let Some(z) = zones.iter().find(|&&z| z >= self.images.len()) {
+                return bad(format!(
+                    "zone {z} has no training image; there are {} (zones 0 to {})",
+                    self.images.len(),
+                    self.images.len() - 1
+                ));
+            }
+        }
+        let image = |m: usize| local.zones.map_or(0, |z| z[m]);
+        let Some(field) = local.anisotropy else {
+            let mut of_image: HashMap<usize, u32> = HashMap::new();
+            let mut classes = Vec::new();
+            let of_node = (0..nodes)
+                .map(|m| {
+                    *of_image.entry(image(m)).or_insert_with(|| {
+                        classes.push((image(m), IDENTITY));
+                        classes.len() as u32 - 1
+                    })
+                })
+                .collect();
+            return Ok((of_node, classes));
+        };
+        if field.len() != nodes {
+            return bad(format!(
+                "give one local anisotropy per target, {nodes}, got {}",
+                field.len()
+            ));
+        }
+        let flat = lattice.geometry().count[2] == 1;
+        let keys: Vec<Result<[u64; 6]>> = (0..nodes)
+            .into_par_iter()
+            .map(|m| self.binned(field, m, flat).map(|t| t.map(f64::to_bits)))
+            .collect();
+        let mut of_key: HashMap<(usize, [u64; 6]), u32> = HashMap::new();
+        let mut classes = Vec::new();
+        let mut of_node = Vec::with_capacity(nodes);
+        for (m, key) in keys.into_iter().enumerate() {
+            let key = (image(m), key?);
+            let class = *of_key.entry(key).or_insert_with(|| {
+                let t = key.1.map(f64::from_bits);
+                let matrix = lag_matrix(lattice.geometry(), [t[0], t[1], t[2]], [t[3], t[4], t[5]]);
+                classes.push((key.0, matrix));
+                classes.len() as u32 - 1
+            });
+            of_node.push(class);
+        }
+        Ok((of_node, classes))
+    }
+
+    /// Angles and affinity along the image's x, y and z at node `m` of
+    /// `field`, rounded by `angle_step`; `flat` keeps the azimuth only.
+    fn binned(&self, field: &LocalAnisotropy, m: usize, flat: bool) -> Result<[f64; 6]> {
+        let [azimuth, dip, rake] = field.angles[m];
+        let [semi, minor] = field.ratios[m];
+        let scale = field.scales[m];
+        let finite = [azimuth, dip, rake, semi, minor, scale];
+        if finite.iter().any(|x| !x.is_finite()) || [semi, minor, scale].iter().any(|&x| x <= 0.0) {
+            return Err(SimError::InvalidParameters(format!(
+                "the anisotropy of target {m} is angles {:?}, ratios {:?}, scale {scale}; give finite angles and ratios and scales above 0",
+                field.angles[m], field.ratios[m]
+            )));
+        }
+        let step = self.params.angle_step;
+        let angle = |a: f64| ((a / step).round() * step).rem_euclid(360.0) + 0.0;
+        let log_step = step.to_radians();
+        let affinity = |a: f64| ((a.ln() / log_step).round() * log_step).exp();
+        Ok(if flat {
+            [
+                angle(azimuth),
+                0.0,
+                0.0,
+                affinity(scale * semi),
+                affinity(scale),
+                1.0,
+            ]
+        } else {
+            [
+                angle(azimuth),
+                (dip / step).round() * step + 0.0,
+                angle(rake),
+                affinity(scale * semi),
+                affinity(scale),
+                affinity(scale * minor),
+            ]
+        })
+    }
+
     /// `rows` checked against `lattice`, each closed to sum 1.
     fn soft(&self, lattice: &Lattice, rows: &[Option<Vec<f64>>]) -> Result<Vec<Option<Vec<f64>>>> {
-        let k = self.ti.n_categories();
+        let k = self.n_categories();
         if rows.len() != lattice.len() {
             return Err(SimError::InvalidParameters(format!(
                 "give one row of soft probabilities per target, {}, got {}",
@@ -243,16 +430,16 @@ impl Snesim {
 
     /// `P0`, what soft probabilities are measured against: permanence of
     /// ratios (Journel, 2002) with tau = 1 draws from
-    /// `P(c) ∝ P_tree(c) · P_soft(c) / P0(c)`. `P0` is the image's
-    /// proportions, or the target proportions while the servosystem pulls
-    /// the tree probabilities towards them, so that soft probabilities equal
-    /// to `P0` change nothing. Journel, A. G. (2002). Combining knowledge from
+    /// `P(c) ∝ P_tree(c) · P_soft(c) / P0(c)`. `P0` is the proportions of
+    /// `image`, the node's training image, or the target proportions while
+    /// the servosystem pulls the tree probabilities towards them, so that
+    /// soft probabilities equal to `P0` change nothing. Journel, A. G. (2002). Combining knowledge from
     /// diverse sources: an alternative to traditional data independence
     /// hypotheses. Mathematical Geology 34(5), 573-596.
-    fn prior(&self) -> &[f64] {
+    fn prior(&self, image: usize) -> &[f64] {
         self.servo
             .as_ref()
-            .map_or(self.ti.proportions(), |s| &s.targets)
+            .map_or(self.images[image].proportions(), |s| &s.targets)
     }
 
     /// Hard data as `(node, category)`, one per node, sorted by node.
@@ -269,7 +456,7 @@ impl Snesim {
                 "one category per location".into(),
             ));
         }
-        let k = self.ti.n_categories();
+        let k = self.n_categories();
         if let Some(c) = codes.iter().find(|&&c| c >= k) {
             return Err(SimError::InvalidParameters(format!(
                 "category {c} is not in the training image, whose codes are 0 to {}",
@@ -307,48 +494,84 @@ impl Snesim {
             .collect())
     }
 
-    /// The trees of `class`, one per level, built and cached on first use.
-    fn trees(&self, class: TemplateClass, memory: u64) -> Result<Arc<Vec<SearchTree>>> {
+    /// The trees of each of `classes`, one per level, those not cached
+    /// built once the bound of all of them fits in `memory` bytes (0 skips
+    /// the check); the cache then holds `classes` only. `turned` says the
+    /// classes come from local anisotropy, which `angle_step` rounds.
+    fn trees(
+        &self,
+        classes: &[TemplateClass],
+        turned: bool,
+        memory: u64,
+    ) -> Result<Vec<Arc<Vec<SearchTree>>>> {
         let mut cache = self.trees.lock().unwrap_or_else(PoisonError::into_inner);
-        if let Some((_, trees)) = cache.iter().find(|(c, _)| *c == class) {
-            return Ok(trees.clone());
-        }
-        let (dims, k) = (self.ti.dims(), self.ti.n_categories());
-        let valid = self.ti.valid_positions().len();
+        let k = self.n_categories();
+        let too_large = |what: String| {
+            let step = match turned {
+                true => format!(
+                    "widen angle_step (now {}) for fewer template classes, ",
+                    self.params.angle_step
+                ),
+                false => String::new(),
+            };
+            SimError::InvalidParameters(format!(
+                "{what}; {step}lower template_size (now {}) or n_levels (now {}), or use a smaller training image",
+                self.params.template_size, self.params.n_levels
+            ))
+        };
         let mut bytes = 0u64;
-        for template in &self.templates {
-            let nodes = SearchTree::bound(dims, valid, k, template);
-            if nodes > u64::from(u32::MAX) {
-                return Err(self.too_large(format!(
-                    "a search tree may need {nodes} nodes, more than the {} it can hold",
-                    u32::MAX
-                )));
+        for &(image, matrix) in classes {
+            let ti = &self.images[image];
+            for template in &self.templates {
+                let offsets = image_offsets(template, &matrix);
+                let nodes = SearchTree::bound(ti.dims(), ti.valid_positions().len(), k, &offsets);
+                if nodes > u64::from(u32::MAX) {
+                    return Err(too_large(format!(
+                        "a search tree may need {nodes} nodes, more than the {} it can hold",
+                        u32::MAX
+                    )));
+                }
+                bytes = bytes.saturating_add(nodes * SearchTree::node_bytes(k));
             }
-            bytes = bytes.saturating_add(nodes * SearchTree::node_bytes(k));
         }
         if memory > 0 && bytes > memory {
-            return Err(self.too_large(format!(
-                "the search trees may need {:.2} GB of memory but {:.2} GB is available",
+            return Err(too_large(format!(
+                "the search trees of {} template classes may need {:.2} GB of memory but {:.2} GB is available",
+                classes.len(),
                 bytes as f64 / 1e9,
                 memory as f64 / 1e9
             )));
         }
-        let codes = self.ti.codes().unwrap_or_default();
-        let trees: Vec<SearchTree> = self
-            .templates
-            .par_iter()
-            .map(|t| SearchTree::build(codes, dims, k, t))
+        let cached = |class: &TemplateClass| {
+            cache
+                .iter()
+                .find(|(c, _)| c == class)
+                .map(|(_, trees)| trees.clone())
+        };
+        let missing: Vec<(TemplateClass, usize)> = classes
+            .iter()
+            .filter(|c| cached(c).is_none())
+            .flat_map(|&c| (0..self.templates.len()).map(move |l| (c, l)))
             .collect();
-        let trees = Arc::new(trees);
-        cache.push((class, trees.clone()));
+        let built: Vec<SearchTree> = missing
+            .par_iter()
+            .map(|&((image, matrix), l)| {
+                let ti = &self.images[image];
+                let offsets = image_offsets(&self.templates[l], &matrix);
+                SearchTree::build(ti.codes().unwrap_or_default(), ti.dims(), k, &offsets)
+            })
+            .collect();
+        let mut built = built.into_iter();
+        let trees: Vec<Arc<Vec<SearchTree>>> = classes
+            .iter()
+            .map(|c| {
+                cached(c).unwrap_or_else(|| {
+                    Arc::new(built.by_ref().take(self.templates.len()).collect())
+                })
+            })
+            .collect();
+        *cache = classes.iter().copied().zip(trees.iter().cloned()).collect();
         Ok(trees)
-    }
-
-    fn too_large(&self, what: String) -> SimError {
-        SimError::InvalidParameters(format!(
-            "{what}; lower template_size (now {}) or n_levels (now {}), or use a smaller training image",
-            self.params.template_size, self.params.n_levels
-        ))
     }
 
     fn realization(
@@ -357,12 +580,12 @@ impl Snesim {
         hard: &[(usize, u8)],
         skip: &[bool],
         soft: Option<&[Option<Vec<f64>>]>,
-        trees: &[SearchTree],
+        classes: &Classes,
         seed: u64,
     ) -> Result<Vec<usize>> {
         let top = self.params.n_levels;
         let (path, _) = multigrid_path(lattice, top, seed, skip)?;
-        let k = self.ti.n_categories();
+        let k = self.n_categories();
         let mut grid = vec![NO_CODE; lattice.len()];
         let mut informed = vec![0u64; k];
         for &(m, c) in hard {
@@ -384,7 +607,8 @@ impl Snesim {
             if let Some(servo) = &self.servo {
                 servo.correction(&informed, &mut correction);
             }
-            let tree = &trees[l];
+            let class = classes.of_node[m] as usize;
+            let (tree, prior) = (&classes.trees[class][l], self.prior(classes.images[class]));
             let u: f64 = rng.r#gen();
             let soft = soft.and_then(|rows| rows[m].as_deref());
             // Longest data event first; where the soft probabilities and the
@@ -395,7 +619,7 @@ impl Snesim {
                 .find_map(|(depth, counts)| {
                     probabilities(tree, depth, counts, &correction, &mut weights);
                     if let Some(soft) = soft {
-                        weigh_by_soft(&mut weights, soft, self.prior());
+                        weigh_by_soft(&mut weights, soft, prior);
                     }
                     let total: f64 = weights.iter().sum();
                     (total > 0.0).then(|| pick(&weights, u * total))
@@ -412,6 +636,57 @@ impl Snesim {
         }
         Ok(grid.into_iter().map(usize::from).collect())
     }
+}
+
+/// The template classes of a run.
+struct Classes<'a> {
+    /// The class of each node.
+    of_node: &'a [u32],
+    /// The training image of each class.
+    images: Vec<usize>,
+    /// The trees of each class, one per level.
+    trees: Vec<Arc<Vec<SearchTree>>>,
+}
+
+/// Grid offsets, in cells of `geometry`, to training-image offsets, for
+/// patterns turned by `angles` (world azimuth, dip and rake) and stretched by
+/// `affinity` along the image's x, y and z: at angles 0 the image's axes are
+/// east, north and up, and its cells have the size of the grid's. Entries
+/// below 1e-9 in size become 0, so that `cos 90°` rounds no offset of half a
+/// cell.
+fn lag_matrix(geometry: &Geometry, angles: [f64; 3], affinity: [f64; 3]) -> [[f64; 3]; 3] {
+    let size = Vector3::from(geometry.size);
+    let to_image = Matrix3::from_diagonal(&Vector3::from(affinity).map(|a| 1.0 / a))
+        * block_frame(angles)
+        * block_frame(geometry.rotation).transpose();
+    let m =
+        Matrix3::from_diagonal(&size.map(|s| 1.0 / s)) * to_image * Matrix3::from_diagonal(&size);
+    std::array::from_fn(|r| {
+        std::array::from_fn(|c| {
+            if m[(r, c)].abs() < 1e-9 {
+                0.0
+            } else {
+                m[(r, c)]
+            }
+        })
+    })
+}
+
+/// Where each offset of `template` lands in the training image read through
+/// `matrix`: `round(matrix · offset)`, halves up.
+fn image_offsets(template: &[[i32; 3]], matrix: &[[f64; 3]; 3]) -> Vec<[i32; 3]> {
+    if *matrix == IDENTITY {
+        return template.to_vec();
+    }
+    template
+        .iter()
+        .map(|d| {
+            matrix.map(|row| {
+                let x: f64 = (0..3).map(|a| row[a] * f64::from(d[a])).sum();
+                (x + 0.5).floor() as i32
+            })
+        })
+        .collect()
 }
 
 /// Template offsets of levels `0..=n_levels` over an image of `dims`, in
@@ -572,7 +847,17 @@ mod tests {
         n: usize,
     ) -> CategoricalSummary {
         snesim
-            .simulate(lattice, data, None, n, 7, &Keep::All, 0, None)
+            .simulate(
+                lattice,
+                data,
+                None,
+                SnesimLocal::default(),
+                n,
+                7,
+                &Keep::All,
+                0,
+                None,
+            )
             .unwrap()
     }
 
@@ -739,14 +1024,34 @@ mod tests {
     fn trees_beyond_the_memory_are_refused_before_they_are_built() {
         let snesim = Snesim::new(ti(64), params()).unwrap();
         let e = snesim
-            .simulate(&grid(8), None, None, 1, 0, &Keep::None, 1000, None)
+            .simulate(
+                &grid(8),
+                None,
+                None,
+                SnesimLocal::default(),
+                1,
+                0,
+                &Keep::None,
+                1000,
+                None,
+            )
             .unwrap_err()
             .to_string();
         assert!(e.contains("lower template_size (now 24)"), "{e}");
         assert!(snesim.trees.lock().unwrap().is_empty());
         assert!(
             snesim
-                .simulate(&grid(8), None, None, 1, 0, &Keep::None, 0, None)
+                .simulate(
+                    &grid(8),
+                    None,
+                    None,
+                    SnesimLocal::default(),
+                    1,
+                    0,
+                    &Keep::None,
+                    0,
+                    None
+                )
                 .is_ok()
         );
         assert_eq!(snesim.trees.lock().unwrap().len(), 1);
@@ -775,7 +1080,17 @@ mod tests {
         n: usize,
     ) -> CategoricalSummary {
         snesim
-            .simulate(&grid(side), None, Some(soft), n, 7, &Keep::All, 0, None)
+            .simulate(
+                &grid(side),
+                None,
+                Some(soft),
+                SnesimLocal::default(),
+                n,
+                7,
+                &Keep::All,
+                0,
+                None,
+            )
             .unwrap()
     }
 
@@ -810,7 +1125,7 @@ mod tests {
     #[test]
     fn soft_probabilities_at_the_prior_change_nothing() {
         let snesim = Snesim::new(ti(64), params()).unwrap();
-        let p = snesim.training_image().proportions().to_vec();
+        let p = snesim.training_images()[0].proportions().to_vec();
         let plain = run(&snesim, &grid(40), None, 4);
         let soft = run_soft(&snesim, 40, &vec![Some(p); 1600], 4);
         let (a, b) = (mean(&plain, share_of_1), mean(&soft, share_of_1));
@@ -841,6 +1156,7 @@ mod tests {
                 &grid(40),
                 Some((&locs, &[0])),
                 Some(&soft),
+                SnesimLocal::default(),
                 3,
                 7,
                 &Keep::All,
@@ -893,7 +1209,17 @@ mod tests {
         let snesim = Snesim::new(ti(32), params()).unwrap();
         let bad = |soft: Vec<Option<Vec<f64>>>| {
             snesim
-                .simulate(&grid(4), None, Some(&soft), 1, 0, &Keep::None, 0, None)
+                .simulate(
+                    &grid(4),
+                    None,
+                    Some(&soft),
+                    SnesimLocal::default(),
+                    1,
+                    0,
+                    &Keep::None,
+                    0,
+                    None,
+                )
                 .unwrap_err()
                 .to_string()
         };
@@ -947,5 +1273,270 @@ mod tests {
         );
         let continuous = TrainingImage::continuous(&model([4, 4, 1], vec![0.5; 16]), "v").unwrap();
         assert!(Snesim::new(continuous, params()).is_err());
+        assert!(
+            bad(SnesimParams {
+                angle_step: 0.0,
+                ..params()
+            })
+            .contains("angle_step")
+        );
+    }
+
+    /// `azimuth`, ratios `semi` and 1 and `scale` at each of `n` nodes.
+    fn field(n: usize, at: impl Fn(usize) -> (f64, f64, f64)) -> LocalAnisotropy {
+        let (angles, (ratios, scales)): (Vec<_>, (Vec<_>, Vec<_>)) = (0..n)
+            .map(|m| {
+                let (azimuth, semi, scale) = at(m);
+                ([azimuth, 0.0, 0.0], ([semi, 1.0], scale))
+            })
+            .unzip();
+        LocalAnisotropy::new(vec![(0.0, 0.0, 0.0); n], angles, ratios)
+            .unwrap()
+            .with_scales(scales)
+            .unwrap()
+    }
+
+    fn turned(snesim: &Snesim, side: usize, local: SnesimLocal, n: usize) -> CategoricalSummary {
+        snesim
+            .simulate(&grid(side), None, None, local, n, 7, &Keep::All, 0, None)
+            .unwrap()
+    }
+
+    fn anisotropic(field: &LocalAnisotropy) -> SnesimLocal<'_> {
+        SnesimLocal {
+            anisotropy: Some(field),
+            ..SnesimLocal::default()
+        }
+    }
+
+    /// Mean length of the runs of code 1 along x and along y, in the columns
+    /// `x0..x1` of a square image.
+    fn runs(r: &[usize], side: usize, x0: usize, x1: usize) -> [f64; 2] {
+        let mean = |lines: Vec<Vec<usize>>| {
+            let (mut cells, mut n) = (0, 0);
+            for line in &lines {
+                for run in line.split(|&c| c != 1).filter(|run| !run.is_empty()) {
+                    cells += run.len();
+                    n += 1;
+                }
+            }
+            cells as f64 / n.max(1) as f64
+        };
+        let along_x = (0..side).map(|y| (x0..x1).map(|x| r[x + side * y]).collect());
+        let along_y = (x0..x1).map(|x| (0..side).map(|y| r[x + side * y]).collect());
+        [mean(along_x.collect()), mean(along_y.collect())]
+    }
+
+    #[test]
+    fn a_quarter_turn_reads_grid_east_as_image_north() {
+        let unit = geometry([8, 8, 8]);
+        let m = lag_matrix(&unit, [90.0, 0.0, 0.0], [1.0; 3]);
+        assert_eq!(
+            image_offsets(&[[3, 0, 0], [0, -3, 0], [0, 0, 4]], &m),
+            [[0, 3, 0], [3, 0, 0], [0, 0, 4]]
+        );
+        let m = lag_matrix(&unit, [0.0, 90.0, 0.0], [1.0; 3]);
+        assert_eq!(image_offsets(&[[0, 0, -5]], &m), [[0, 5, 0]]);
+        let m = lag_matrix(&unit, [0.0; 3], [2.0, 1.0, 1.0]);
+        assert_eq!(
+            image_offsets(&[[6, 5, 0], [1, 0, 0], [-1, 0, 0]], &m),
+            [[3, 5, 0], [1, 0, 0], [0, 0, 0]]
+        );
+        assert_eq!(lag_matrix(&unit, [0.0; 3], [1.0; 3]), IDENTITY);
+    }
+
+    #[test]
+    fn a_turned_image_simulates_as_the_image_turned_on_every_level() {
+        // Azimuth 90 reads grid offset (x, y) at image offset (-y, x): the
+        // same counts as the image turned a quarter, exactly.
+        let side = 64;
+        let codes = channels(side);
+        let quarter: Vec<f64> = (0..side * side)
+            .map(|p| codes[(side - 1 - p / side) + side * (p % side)])
+            .collect();
+        let quarter = TrainingImage::categorical(&model([side, side, 1], quarter), "v").unwrap();
+        let expected = run(&Snesim::new(quarter, params()).unwrap(), &grid(40), None, 3);
+        let f = field(1600, |_| (90.0, 1.0, 1.0));
+        let s = turned(
+            &Snesim::new(ti(side), params()).unwrap(),
+            40,
+            anisotropic(&f),
+            3,
+        );
+        assert_eq!(s.realizations, expected.realizations);
+    }
+
+    #[test]
+    fn zero_anisotropy_changes_nothing() {
+        let snesim = Snesim::new(ti(64), params()).unwrap();
+        let f = field(1600, |_| (1.0, 0.99, 1.01));
+        let s = turned(&snesim, 40, anisotropic(&f), 3);
+        assert_eq!(snesim.n_classes(), 1);
+        assert_eq!(
+            s.realizations,
+            run(&snesim, &grid(40), None, 3).realizations
+        );
+    }
+
+    #[test]
+    fn channels_follow_a_rotation_field() {
+        let side = 64;
+        let snesim = Snesim::new(ti(120), params()).unwrap();
+        let f = field(side * side, |m| {
+            (if m % side < side / 2 { 90.0 } else { 0.0 }, 1.0, 1.0)
+        });
+        let s = turned(&snesim, side, anisotropic(&f), 6);
+        let [west, east] = [(0, side / 2), (side / 2, side)].map(|(a, b)| {
+            let r = s.realizations.iter().map(|r| runs(r, side, a, b));
+            let [x, y] = r.fold([0.0; 2], |t, v| [t[0] + v[0], t[1] + v[1]]);
+            x / y
+        });
+        // Azimuth 0 keeps the image's channels along x; 90 turns them north.
+        assert!(
+            east > 1.4 && west < 0.6,
+            "x/y runs {west} west, {east} east"
+        );
+    }
+
+    #[test]
+    fn affinity_widens_the_channels() {
+        let side = 64;
+        let snesim = Snesim::new(ti(120), params()).unwrap();
+        let width = |scale: f64| {
+            let f = field(side * side, |_| (0.0, 1.0 / scale, scale));
+            let s = turned(&snesim, side, anisotropic(&f), 6);
+            mean(&s, |r| runs(r, side, 0, side)[1])
+        };
+        let (plain, wide) = (width(1.0), width(2.0));
+        assert!(
+            (1.5..2.6).contains(&(wide / plain)),
+            "widths {plain} and {wide}"
+        );
+        // A semi-major ratio of 0.5 halves the image along its x axis, and
+        // with it the channels' length.
+        let f = field(side * side, |_| (0.0, 0.5, 1.0));
+        let short = mean(&turned(&snesim, side, anisotropic(&f), 6), |r| {
+            runs(r, side, 0, side)[0]
+        });
+        let long = mean(&run(&snesim, &grid(side), None, 6), |r| mean_run(r, side));
+        assert!(short < 0.75 * long, "runs along x {short} vs {long}");
+    }
+
+    #[test]
+    fn each_zone_draws_from_its_image() {
+        let side = 64;
+        let second: Vec<f64> = channels(side).iter().map(|&c| 2.0 * c).collect();
+        let second = TrainingImage::categorical(&model([side, side, 1], second), "v").unwrap();
+        let snesim = Snesim::zoned(vec![ti(side), second], params()).unwrap();
+        assert_eq!(snesim.n_categories(), 3);
+        let zones: Vec<usize> = (0..side * side)
+            .map(|m| usize::from(m % side >= side / 2))
+            .collect();
+        let local = SnesimLocal {
+            zones: Some(&zones),
+            ..SnesimLocal::default()
+        };
+        let s = turned(&snesim, side, local, 8);
+        let p = snesim.training_images()[0].proportions()[1];
+        let share = |zone: usize, c: usize| {
+            let cells = s.realizations.iter().flat_map(|r| r.iter().zip(&zones));
+            let of_zone: Vec<usize> = cells
+                .filter(|(_, z)| **z == zone)
+                .map(|(c, _)| *c)
+                .collect();
+            assert!(of_zone.iter().all(|&x| x == 0 || x == c));
+            of_zone.iter().filter(|&&x| x == c).count() as f64 / of_zone.len() as f64
+        };
+        let (west, east) = (share(0, 1), share(1, 2));
+        assert!(
+            (west - p).abs() < 0.06 && (east - p).abs() < 0.06,
+            "{west} and {east} vs {p}"
+        );
+        let zones: Vec<usize> = (0..1600).map(|m| usize::from(m / 40 >= 20)).collect();
+        let local = SnesimLocal {
+            zones: Some(&zones),
+            ..SnesimLocal::default()
+        };
+        let f = field(1600, |m| ((m % 4) as f64 * 90.0, 1.0, 1.0));
+        let both = SnesimLocal {
+            anisotropy: Some(&f),
+            ..local
+        };
+        turned(&snesim, 40, both, 1);
+        assert_eq!(snesim.n_classes(), 8);
+        let bad = |zones: &[usize]| {
+            let local = SnesimLocal {
+                zones: Some(zones),
+                ..SnesimLocal::default()
+            };
+            let e = snesim.simulate(&grid(4), None, None, local, 1, 0, &Keep::None, 0, None);
+            e.unwrap_err().to_string()
+        };
+        assert!(bad(&[0; 3]).contains("one zone per target, 16"));
+        assert!(bad(&[2; 16]).contains("zone 2 has no training image"));
+    }
+
+    #[test]
+    fn angle_step_bounds_the_template_classes_and_the_memory() {
+        let f = field(1600, |m| (m as f64 * 0.3, 1.0, 1.0));
+        let classes = |step: f64, memory: u64| {
+            let p = SnesimParams {
+                angle_step: step,
+                ..params()
+            };
+            let snesim = Snesim::new(ti(48), p).unwrap();
+            let run = |memory| {
+                let local = anisotropic(&f);
+                snesim.simulate(
+                    &grid(40),
+                    None,
+                    None,
+                    local,
+                    1,
+                    0,
+                    &Keep::None,
+                    memory,
+                    None,
+                )
+            };
+            run(memory).map(|_| snesim.n_classes())
+        };
+        assert_eq!(classes(10.0, 0).unwrap(), 36);
+        assert_eq!(classes(90.0, 0).unwrap(), 4);
+        let e = classes(10.0, 20_000_000).unwrap_err().to_string();
+        assert!(
+            e.contains("36 template classes") && e.contains("widen angle_step (now 10)"),
+            "{e}"
+        );
+        assert_eq!(classes(90.0, 20_000_000).unwrap(), 4);
+    }
+
+    #[test]
+    fn anisotropic_zoned_output_is_the_same_for_any_thread_count() {
+        let second = TrainingImage::categorical(&model([40, 40, 1], channels(40)), "v").unwrap();
+        let snesim = Snesim::zoned(vec![ti(48), second], params()).unwrap();
+        let f = field(1600, |m| {
+            ((m % 40) as f64 * 4.0, 0.7, 1.0 + (m / 40) as f64 / 40.0)
+        });
+        let zones: Vec<usize> = (0..1600).map(|m| m % 3 / 2).collect();
+        let local = SnesimLocal {
+            zones: Some(&zones),
+            anisotropy: Some(&f),
+        };
+        let locs = [(3.5, 4.5, 0.5), (20.5, 30.5, 0.5)];
+        let data = Some((&locs[..], &[1usize, 0][..]));
+        let go = |t| {
+            let pool = rayon::ThreadPoolBuilder::new()
+                .num_threads(t)
+                .build()
+                .unwrap();
+            pool.install(|| {
+                snesim
+                    .simulate(&grid(40), data, None, local, 4, 7, &Keep::All, 0, None)
+                    .unwrap()
+                    .realizations
+            })
+        };
+        assert_eq!(go(1), go(4));
     }
 }

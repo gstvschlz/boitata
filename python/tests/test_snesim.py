@@ -1,3 +1,5 @@
+import pickle
+
 import ceres as cs
 import numpy as np
 import pytest
@@ -83,3 +85,103 @@ def test_bad_soft_probabilities_are_refused():
         s.simulate(grid, n=1, soft=np.tile([0.5, np.nan], (1600, 1)), progress=False)
     with pytest.raises(cs.InvalidInput, match="give 2"):
         s.simulate(grid.with_column("p", np.ones(1600)), n=1, soft=["p"], progress=False)
+
+
+def field(targets, azimuth, semi=1.0, scale=1.0):
+    n = len(targets.centroids)
+    angles = np.column_stack([np.broadcast_to(azimuth, n), np.zeros(n), np.zeros(n)])
+    ratios = np.column_stack([np.broadcast_to(semi, n), np.ones(n)])
+    return cs.LocalAnisotropy(targets.centroids, angles, ratios, scales=np.broadcast_to(scale, n).copy())
+
+
+def runs(r, axis):
+    """Mean length of the runs of code 1 along x (axis 1) or y (axis 0) of (ny, nx) images."""
+    lines = np.moveaxis(r, axis + 1, -1).reshape(-1, r.shape[1 + axis])
+    padded = np.pad(lines == 1, ((0, 0), (1, 1))).astype(int)
+    steps = np.diff(padded, axis=1)
+    return (lines == 1).sum() / max((steps == 1).sum(), 1)
+
+
+def test_channels_follow_a_rotation_field():
+    targets = cs.BlockModel((0, 0), (1, 1), (64, 64))
+    azimuth = np.where(targets.centroids[:, 0] < 32, 0.0, 90.0)
+    s = cs.SNESIM(ti, "facies", template_size=24, n_levels=2)
+    r = s.simulate(targets, n=6, anisotropy=field(targets, azimuth), keep=True, progress=False)
+    images = r.realizations.reshape(6, 64, 64)
+    west, east = images[:, :, :32], images[:, :, 32:]
+    # The image's channels run east; azimuth 90 turns its north to the east,
+    # so its channels run south there.
+    assert runs(west, 1) > 1.4 * runs(west, 0)
+    assert runs(east, 0) > 1.4 * runs(east, 1)
+    assert s.n_classes == 2
+
+
+def test_affinity_widens_the_channels():
+    s = cs.SNESIM(ti, "facies", template_size=24, n_levels=2)
+
+    def width(scale):
+        a = field(grid, 0.0, semi=1 / scale, scale=scale)
+        r = s.simulate(grid, n=6, anisotropy=a, keep=True, progress=False).realizations
+        return runs(r.reshape(6, 40, 40), 0)
+
+    assert 1.4 < width(2.0) / width(1.0) < 2.6
+
+
+def test_angle_step_sets_the_template_classes():
+    a = field(grid, np.arange(1600) * 0.3)
+    fine = cs.SNESIM(ti, "facies", template_size=12, n_levels=1)
+    coarse = cs.SNESIM(ti, "facies", template_size=12, n_levels=1, angle_step=90)
+    fine.simulate(grid, n=1, anisotropy=a, progress=False)
+    coarse.simulate(grid, n=1, anisotropy=a, progress=False)
+    assert (fine.n_classes, coarse.n_classes) == (36, 4)
+
+
+other = cs.object_training_image(
+    cs.BlockModel((0, 0), (1, 1), (80, 80)), [dict(CHANNELS, code=2, proportion=0.5)], seed=4
+)
+
+
+def zoned():
+    return cs.SNESIM({"west": (ti, "facies"), "east": (other, "facies")}, template_size=20, n_levels=2)
+
+
+def test_each_domain_draws_from_its_training_image():
+    domains = np.where(grid.centroids[:, 0] < 20, "west", "east")
+    r = zoned().simulate(grid, n=12, domains=domains, keep=True, progress=False).realizations
+    west, east = r[:, domains == "west"], r[:, domains == "east"]
+    assert set(np.unique(west)) <= {0, 1} and set(np.unique(east)) <= {0, 2}
+    assert abs(np.mean(west == 1) - np.mean(ti["facies"] == 1)) < 0.1
+    assert abs(np.mean(east == 2) - np.mean(other["facies"] == 2)) < 0.1
+    by_column = zoned().simulate(
+        grid.with_column("zone", domains), n=12, domain_column="zone", keep=True, progress=False
+    )
+    np.testing.assert_array_equal(by_column.realizations, r)
+
+
+def test_zones_and_anisotropy_combine_and_persist(tmp_path):
+    domains = np.where(grid.centroids[:, 1] < 20, "west", "east")
+    a = field(grid, np.where(grid.centroids[:, 0] < 20, 0.0, 90.0))
+    s = zoned().fit(grid.centroids[:3], [0, 2, 1])
+    first = s.simulate(grid, n=2, domains=domains, anisotropy=a, keep=True, progress=False)
+    assert s.n_classes == 4
+    path = tmp_path / "snesim.parquet"
+    s.to_parquet(path)
+    for back in (cs.SNESIM.from_parquet(path), pickle.loads(pickle.dumps(s))):
+        again = back.simulate(grid, n=2, domains=domains, anisotropy=a, keep=True, progress=False)
+        np.testing.assert_array_equal(again.realizations, first.realizations)
+
+
+def test_bad_domains_are_refused():
+    domains = np.where(grid.centroids[:, 0] < 20, "west", "north")
+    with pytest.raises(cs.InvalidInput, match='domain "north" has no training image'):
+        zoned().simulate(grid, n=1, domains=domains, progress=False)
+    with pytest.raises(cs.InvalidInput, match="give domains or domain_column"):
+        zoned().simulate(grid, n=1, progress=False)
+    with pytest.raises(cs.InvalidInput, match="give ti as a dict"):
+        cs.SNESIM(ti, "facies").simulate(grid, n=1, domains="west", progress=False)
+    with pytest.raises(cs.InvalidInput, match="dict names each image's column"):
+        cs.SNESIM({"a": (ti, "facies")}, "facies")
+    with pytest.raises(cs.InvalidInput, match="pair"):
+        cs.SNESIM({"a": ti})
+    with pytest.raises(cs.InvalidInput, match="angle_step"):
+        cs.SNESIM(ti, "facies", angle_step=0)

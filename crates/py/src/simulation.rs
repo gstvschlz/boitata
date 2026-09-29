@@ -3050,18 +3050,22 @@ pub fn register(m: &Bound<PyModule>) -> PyResult<()> {
 /// training image.
 ///
 /// The patterns around each cell of the image are counted once into search
-/// trees, one per multigrid level, on the first `simulate`. A node reads the
-/// categories at the `template_size` cells nearest to it and draws its own
-/// from the image's counts of that data event. Patterns are read in cell
-/// index space, so the targets' cells match the image's cells one to one.
+/// trees, one per multigrid level and template class, on `simulate`. A node
+/// reads the categories at the `template_size` cells nearest to it and draws
+/// its own from the image's counts of that data event. Patterns are read in
+/// cell index space, so the targets' cells match the image's cells one to
+/// one, unless `simulate` turns or stretches them with local anisotropy.
 ///
 /// Parameters
 /// ----------
-/// ti : BlockModel
+/// ti : BlockModel or dict
 ///     Regular or masked training image; null and masked-out cells are not
-///     patterns.
-/// column : str
-///     Column of `ti` holding category codes, integers 0 to 254.
+///     patterns. A dict ``{domain: (model, column)}`` gives each domain its
+///     own image, picked by `domains` or `domain_column` in `simulate`; the
+///     images share one code set, 0 to the largest code of any of them.
+/// column : str, optional
+///     Column of `ti` holding category codes, integers 0 to 254; required
+///     with one image, left out with a dict.
 /// template_size : int, default 40
 ///     Cells every node reads, nearest first.
 /// n_levels : int, default 3
@@ -3080,6 +3084,13 @@ pub fn register(m: &Bound<PyModule>) -> PyResult<()> {
 ///     Servosystem strength in [0, 1): a node draws from
 ///     ``P(c) + servo / (1 - servo) * (target(c) - current(c))``; 0 switches
 ///     it off.
+/// angle_step : float, default 10.0
+///     Degrees the local angles of `simulate`'s `anisotropy` are rounded to;
+///     the logarithm of each affinity is rounded to `angle_step` in radians
+///     (factors about 1.19 apart at 10), so that either rounding moves a
+///     template cell at distance ``r`` by about ``r * angle_step``. Each
+///     distinct rounded (image, angles, affinity) is a template class with
+///     search trees of its own; a wider step makes fewer.
 ///
 /// Examples
 /// --------
@@ -3094,27 +3105,77 @@ pub fn register(m: &Bound<PyModule>) -> PyResult<()> {
 pub struct Snesim {
     core: simulation::Snesim,
     data: Option<(Vec<Point>, Vec<usize>)>,
+    /// The domain of each training image, when `ti` was a dict.
+    zones: Option<Vec<Label>>,
 }
 
 /// What a SNESIM file keeps: the training image's codes, 255 without data,
-/// and the parameters.
+/// or those of each domain's image, and the parameters.
 #[derive(Serialize, Deserialize)]
 struct SnesimState {
-    ti_dims: [usize; 3],
-    ti_codes: Vec<u8>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    ti_dims: Option<[usize; 3]>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    ti_codes: Option<Vec<u8>>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    zone_images: Vec<ZoneImage>,
     #[serde(flatten)]
     params: simulation::SnesimParams,
 }
 
+#[derive(Serialize, Deserialize)]
+struct ZoneImage {
+    zone: Label,
+    dims: [usize; 3],
+    codes: Vec<u8>,
+}
+
+/// A categorical image of `dims` from its `codes`, 255 without data.
+fn image_of_codes(dims: [usize; 3], codes: &[u8]) -> Result<simulation::TrainingImage, String> {
+    let values: Vec<Option<f64>> = codes
+        .iter()
+        .map(|&c| (c != simulation::NO_CODE).then_some(f64::from(c)))
+        .collect();
+    let column = std::sync::Arc::new(arrow_array::Float64Array::from(values));
+    let batch = arrow_array::RecordBatch::try_from_iter([("code", column as _)])
+        .map_err(|e| e.to_string())?;
+    let geometry = ceres_core::Geometry {
+        origin: [0.0; 3],
+        size: [1.0; 3],
+        count: dims,
+        rotation: [0.0; 3],
+    };
+    let model = ceres_core::BlockModel::regular(geometry, batch).map_err(|e| e.to_string())?;
+    simulation::TrainingImage::categorical(&model, "code").map_err(|e| e.to_string())
+}
+
 impl Serialize for Snesim {
     fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
-        let ti = self.core.training_image();
-        SnesimState {
-            ti_dims: ti.dims(),
-            ti_codes: ti.codes().unwrap_or_default().to_vec(),
-            params: self.core.params().clone(),
-        }
-        .serialize(s)
+        let images = self.core.training_images();
+        let codes = |ti: &simulation::TrainingImage| ti.codes().unwrap_or_default().to_vec();
+        let state = match &self.zones {
+            None => SnesimState {
+                ti_dims: Some(images[0].dims()),
+                ti_codes: Some(codes(&images[0])),
+                zone_images: Vec::new(),
+                params: self.core.params().clone(),
+            },
+            Some(zones) => SnesimState {
+                ti_dims: None,
+                ti_codes: None,
+                zone_images: zones
+                    .iter()
+                    .zip(images)
+                    .map(|(zone, ti)| ZoneImage {
+                        zone: zone.clone(),
+                        dims: ti.dims(),
+                        codes: codes(ti),
+                    })
+                    .collect(),
+                params: self.core.params().clone(),
+            },
+        };
+        state.serialize(s)
     }
 }
 
@@ -3122,25 +3183,27 @@ impl<'de> Deserialize<'de> for Snesim {
     fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
         use serde::de::Error;
         let state = SnesimState::deserialize(d)?;
-        let values: Vec<Option<f64>> = state
-            .ti_codes
-            .iter()
-            .map(|&c| (c != simulation::NO_CODE).then_some(f64::from(c)))
-            .collect();
-        let column = std::sync::Arc::new(arrow_array::Float64Array::from(values));
-        let batch = arrow_array::RecordBatch::try_from_iter([("code", column as _)])
-            .map_err(D::Error::custom)?;
-        let geometry = ceres_core::Geometry {
-            origin: [0.0; 3],
-            size: [1.0; 3],
-            count: state.ti_dims,
-            rotation: [0.0; 3],
+        let (images, zones) = match (state.ti_dims, state.ti_codes) {
+            (Some(dims), Some(codes)) => (vec![image_of_codes(dims, &codes)], None),
+            _ => {
+                let images = state
+                    .zone_images
+                    .iter()
+                    .map(|z| image_of_codes(z.dims, &z.codes));
+                let zones = state.zone_images.iter().map(|z| z.zone.clone());
+                (images.collect(), Some(zones.collect()))
+            }
         };
-        let model = ceres_core::BlockModel::regular(geometry, batch).map_err(D::Error::custom)?;
-        let ti =
-            simulation::TrainingImage::categorical(&model, "code").map_err(D::Error::custom)?;
-        let core = simulation::Snesim::new(ti, state.params).map_err(D::Error::custom)?;
-        Ok(Self { core, data: None })
+        let images = images
+            .into_iter()
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(D::Error::custom)?;
+        let core = simulation::Snesim::zoned(images, state.params).map_err(D::Error::custom)?;
+        Ok(Self {
+            core,
+            data: None,
+            zones,
+        })
     }
 }
 
@@ -3150,7 +3213,7 @@ impl Tabular for Snesim {
     }
 
     fn restore(&mut self, columns: Found) -> PyResult<()> {
-        let k = self.core.training_image().n_categories();
+        let k = self.core.n_categories();
         self.data = Some(categories_from(&columns, k)?);
         Ok(())
     }
@@ -3181,28 +3244,79 @@ impl Snesim {
     }
 
     #[new]
-    #[pyo3(signature = (ti, column, *, template_size=40, n_levels=3, min_replicates=10, target_proportions=None, servo=0.5))]
+    #[pyo3(signature = (ti, column=None, *, template_size=40, n_levels=3, min_replicates=10, target_proportions=None, servo=0.5, angle_step=10.0))]
+    #[allow(clippy::too_many_arguments)]
     fn new(
-        ti: PyRef<PyBlockModel>,
-        column: &str,
+        ti: &Bound<PyAny>,
+        column: Option<&str>,
         template_size: usize,
         n_levels: usize,
         min_replicates: u32,
         target_proportions: Option<Vec<f64>>,
         servo: f64,
+        angle_step: f64,
     ) -> PyResult<Self> {
-        let ti = simulation::TrainingImage::categorical(&ti.0, column).map_err(err)?;
+        let image = |model: &PyBlockModel, column: &str| {
+            simulation::TrainingImage::categorical(&model.0, column).map_err(err)
+        };
+        let (images, zones) = match (ti.cast::<pyo3::types::PyDict>(), column) {
+            (Ok(_), Some(_)) => {
+                return Err(invalid(
+                    "give column with one training image; a dict names each image's column",
+                ));
+            }
+            (Ok(dict), None) => {
+                if dict.is_empty() {
+                    return Err(invalid(
+                        "ti is an empty dict; give at least one training image",
+                    ));
+                }
+                let (mut images, mut zones) = (vec![], vec![]);
+                for (zone, value) in dict.iter() {
+                    let label = args::label(&zone)?.ok_or_else(|| {
+                        invalid(format!(
+                            "domain {zone} is not a string, finite number or boolean"
+                        ))
+                    })?;
+                    let (model, column): (PyRef<PyBlockModel>, String) =
+                        value.extract().map_err(|_| {
+                            invalid(format!("ti[{zone}] must be a (BlockModel, column) pair"))
+                        })?;
+                    images.push(image(&model, &column)?);
+                    zones.push(label);
+                }
+                (images, Some(zones))
+            }
+            (Err(_), column) => {
+                let model = ti.cast::<PyBlockModel>().map_err(|_| {
+                    invalid("ti must be a BlockModel or a dict {domain: (BlockModel, column)}")
+                })?;
+                let column =
+                    column.ok_or_else(|| invalid("give the column of ti holding the codes"))?;
+                (vec![image(model.get(), column)?], None)
+            }
+        };
         let params = simulation::SnesimParams {
             template_size,
             n_levels,
             min_replicates,
             target_proportions,
             servo,
+            angle_step,
         };
         Ok(Self {
-            core: simulation::Snesim::new(ti, params).map_err(err)?,
+            core: simulation::Snesim::zoned(images, params).map_err(err)?,
             data: None,
+            zones,
         })
+    }
+
+    /// Template classes whose search trees the last `simulate` used: one
+    /// per training image in use, times the distinct rounded local
+    /// anisotropies.
+    #[getter]
+    fn n_classes(&self) -> usize {
+        self.core.n_classes()
     }
 
     /// Takes hard data: categories ``0..k`` of the training image at
@@ -3230,7 +3344,7 @@ impl Snesim {
         let cats = self::categories(coords, categories)?;
         let locs = points(coords)?;
         same_length(locs.len(), cats.len(), "categories")?;
-        let k = slf.core.training_image().n_categories();
+        let k = slf.core.n_categories();
         if let Some(c) = cats.iter().find(|&&c| c >= k) {
             return Err(invalid(format!(
                 "category {c} is not in the training image, whose codes are 0 to {}",
@@ -3265,6 +3379,25 @@ impl Snesim {
     ///     probabilities equal to ``P0`` change nothing. Where the image and
     ///     the soft probabilities share no category, shorter data events are
     ///     tried. Hard data override them.
+    /// anisotropy : LocalAnisotropy, optional
+    ///     Turns and stretches the patterns at each target, taken from its
+    ///     nearest location. At angles 0 the image's y axis runs north, along
+    ///     the major axis, its x axis east, against the semi-major axis, and
+    ///     its z axis up, along the minor axis; the angles (azimuth clockwise
+    ///     from north, dip positive down, rake; azimuth only on a grid one
+    ///     cell thick) turn them as they turn a variogram. The image's
+    ///     structures grow by ``scale`` along its y axis, ``scale *
+    ///     semi_ratio`` along x and ``scale * minor_ratio`` along z: ratios
+    ///     and scales of 1 turn the patterns only. The image's cells are taken
+    ///     to have the size of the targets' cells. Angles and affinities are
+    ///     rounded by `angle_step`, and a template cell at grid offset ``g``,
+    ///     on every multigrid level, reads the image at ``round(M g)`` for the
+    ///     matrix ``M`` of the target's class.
+    /// domains : array_like or label, optional
+    ///     Domain of each target, picking its training image when `ti` was a
+    ///     dict; every domain needs an image.
+    /// domain_column : str, optional
+    ///     Column of `targets` holding the domains, instead of `domains`.
     /// progress : bool, default True
     ///     Show a progress bar.
     ///
@@ -3277,10 +3410,11 @@ impl Snesim {
     /// ------
     /// InvalidInput
     ///     If `targets` is not a regular or masked BlockModel, the search
-    ///     trees would not fit in memory (lower `template_size`), or `soft`
-    ///     is not ``(n_targets, k)`` of non-negative values, some row mixing
-    ///     numbers and NaN or holding only zeros.
-    #[pyo3(signature = (targets, *, n=100, seed=0, keep=None, soft=None, progress=true))]
+    ///     trees would not fit in memory (widen `angle_step`, lower
+    ///     `template_size`), `soft` is not ``(n_targets, k)`` of non-negative
+    ///     values, some row mixing numbers and NaN or holding only zeros, or
+    ///     the domains do not match the training images.
+    #[pyo3(signature = (targets, *, n=100, seed=0, keep=None, soft=None, anisotropy=None, domains=None, domain_column=None, progress=true))]
     #[allow(clippy::too_many_arguments)]
     fn simulate(
         &self,
@@ -3290,14 +3424,22 @@ impl Snesim {
         seed: u64,
         keep: Option<&Bound<PyAny>>,
         soft: Option<&Bound<PyAny>>,
+        anisotropy: Option<PyRef<crate::lva::LocalAnisotropy>>,
+        domains: Option<&Bound<PyAny>>,
+        domain_column: Option<&str>,
         progress: bool,
     ) -> PyResult<CategoricalSummary> {
         let lattice = lattice_of(targets)
             .ok_or_else(|| invalid("SNESIM simulates on a regular or masked BlockModel"))?;
         let keep = keep_arg(keep)?;
-        let k = self.core.training_image().n_categories();
+        let k = self.core.n_categories();
         let soft = soft
             .map(|s| soft_rows(targets, s, lattice.len(), k))
+            .transpose()?;
+        let domains = domain_arg(targets, domains, domain_column)?;
+        let zones = self.zones_of(domains.as_ref(), lattice.len())?;
+        let local = anisotropy
+            .map(|a| Ok::<_, PyErr>(a.at_targets(&self::targets(targets)?)))
             .transpose()?;
         let memory = memory_budget(py)?;
         let data = self.data.as_ref().map(|(l, c)| (&l[..], &c[..]));
@@ -3306,6 +3448,10 @@ impl Snesim {
                 &lattice,
                 data,
                 soft.as_deref(),
+                simulation::SnesimLocal {
+                    zones: zones.as_deref(),
+                    anisotropy: local.as_ref(),
+                },
                 n,
                 seed,
                 &keep,
@@ -3325,6 +3471,42 @@ impl Snesim {
             p.n_levels,
             self.data.is_some()
         )
+    }
+}
+
+impl Snesim {
+    /// The training image of each of `n` targets from their `domains`, when
+    /// `ti` was a dict.
+    fn zones_of(&self, domains: Option<&Bound<PyAny>>, n: usize) -> PyResult<Option<Vec<usize>>> {
+        match (&self.zones, domains) {
+            (None, None) => Ok(None),
+            (None, Some(_)) => Err(invalid(
+                "domains pick a training image per domain; give ti as a dict {domain: (model, column)}",
+            )),
+            (Some(_), None) => Err(invalid(
+                "SNESIM has a training image per domain; give domains or domain_column",
+            )),
+            (Some(zones), Some(domains)) => {
+                let index: std::collections::HashMap<String, usize> = zones
+                    .iter()
+                    .enumerate()
+                    .map(|(i, z)| (z.to_string(), i))
+                    .collect();
+                labels(domains, Some(n))?
+                    .iter()
+                    .map(|l| {
+                        index.get(&l.to_string()).copied().ok_or_else(|| {
+                            let known: Vec<String> = zones.iter().map(|z| z.to_string()).collect();
+                            invalid(format!(
+                                "domain {l} has no training image; ti has {}",
+                                known.join(", ")
+                            ))
+                        })
+                    })
+                    .collect::<PyResult<_>>()
+                    .map(Some)
+            }
+        }
     }
 }
 
