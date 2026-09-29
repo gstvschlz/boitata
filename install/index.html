@@ -566,17 +566,6 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#building-from-source" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Building from source
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
   <a href="#headless-3d-rendering" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -14540,17 +14529,6 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#building-from-source" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Building from source
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
   <a href="#headless-3d-rendering" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -14612,47 +14590,40 @@
 
 
 <h1 id="install">Install<a class="headerlink" href="#install" title="Permanent link">&para;</a></h1>
-<p>ceres is not on PyPI or conda-forge yet; there will be no release there until the API settles. Install it from
-the git repository, or from a wheel attached to a <a href="https://github.com/gstvschlz/ceres/releases">GitHub Release</a>
-once version tags exist. Python ≥ 3.11 is required.</p>
-<div class="highlight"><pre><span></span><code>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">"ceres[all] @ git+https://github.com/gstvschlz/ceres"</span><span class="w">   </span><span class="c1"># today, builds from source</span>
-pip<span class="w"> </span>install<span class="w"> </span><span class="s2">"./ceres-0.1.0-cp311-abi3-&lt;platform&gt;.whl[all]"</span><span class="w">         </span><span class="c1"># a wheel downloaded from a Release</span>
-pip<span class="w"> </span>install<span class="w"> </span><span class="s2">"ceres[all]"</span><span class="w">                                            </span><span class="c1"># later, once on PyPI</span>
+<p>ceres is published on PyPI as <code>ceresgeo</code> and imported as <code>ceres</code>. It ships as one <code>abi3</code> wheel per platform
+(Linux x86_64 and aarch64, macOS Intel and Apple silicon, Windows x64) that serves every Python from 3.11, so no
+compiler is needed.</p>
+<div class="highlight"><pre><span></span><code>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">"ceresgeo[all]"</span>
 </code></pre></div>
-<p>A git install compiles the Rust core, so it needs a Rust toolchain and a C compiler (see
-<a href="#building-from-source">Building from source</a>). A wheel needs neither: one <code>abi3</code> wheel per platform serves every
-Python from 3.11.</p>
+<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">ceres</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">cs</span>
+</code></pre></div>
 <h2 id="environment-managers">Environment managers<a class="headerlink" href="#environment-managers" title="Permanent link">&para;</a></h2>
-<p>To install from a downloaded wheel, replace <code>git+https://github.com/gstvschlz/ceres</code> by the wheel's path.</p>
 <h3 id="venv-and-pip">venv and pip<a class="headerlink" href="#venv-and-pip" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code>python<span class="w"> </span>-m<span class="w"> </span>venv<span class="w"> </span>.venv
 <span class="nb">source</span><span class="w"> </span>.venv/bin/activate<span class="w">          </span><span class="c1"># Windows: .venv\Scripts\activate</span>
-pip<span class="w"> </span>install<span class="w"> </span><span class="s2">"ceres[all] @ git+https://github.com/gstvschlz/ceres"</span>
+pip<span class="w"> </span>install<span class="w"> </span><span class="s2">"ceresgeo[all]"</span>
 </code></pre></div>
 <h3 id="uv">uv<a class="headerlink" href="#uv" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code>uv<span class="w"> </span>add<span class="w"> </span><span class="s2">"ceres[all] @ git+https://github.com/gstvschlz/ceres"</span><span class="w">         </span><span class="c1"># in a uv project</span>
-uv<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">"ceres[all] @ git+https://github.com/gstvschlz/ceres"</span><span class="w">  </span><span class="c1"># in any environment</span>
+<div class="highlight"><pre><span></span><code>uv<span class="w"> </span>add<span class="w"> </span><span class="s2">"ceresgeo[all]"</span><span class="w">            </span><span class="c1"># in a uv project</span>
+uv<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">"ceresgeo[all]"</span><span class="w">    </span><span class="c1"># in any environment</span>
 </code></pre></div>
 <h3 id="poetry">poetry<a class="headerlink" href="#poetry" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code>poetry<span class="w"> </span>add<span class="w"> </span>git+https://github.com/gstvschlz/ceres.git<span class="w"> </span>-E<span class="w"> </span>all
+<div class="highlight"><pre><span></span><code>poetry<span class="w"> </span>add<span class="w"> </span><span class="s2">"ceresgeo[all]"</span>
 </code></pre></div>
 <h3 id="conda-or-mamba">conda or mamba<a class="headerlink" href="#conda-or-mamba" title="Permanent link">&para;</a></h3>
 <p>Install the dependencies from conda-forge, then ceres with pip and <code>--no-deps</code>, so that pip leaves the conda
-packages alone. <code>rust</code>, <code>c-compiler</code> and <code>maturin</code> are only needed to build from git.</p>
-<div class="highlight"><pre><span></span><code>conda<span class="w"> </span>create<span class="w"> </span>-n<span class="w"> </span>geo<span class="w"> </span>-c<span class="w"> </span>conda-forge<span class="w"> </span>python<span class="w"> </span>numpy<span class="w"> </span>matplotlib<span class="w"> </span>pyvista<span class="w"> </span>polars<span class="w"> </span>pandas<span class="w"> </span>pyarrow<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>rust<span class="w"> </span>c-compiler<span class="w"> </span><span class="s2">"maturin&gt;=1.10,&lt;2"</span><span class="w"> </span>pip
+packages alone.</p>
+<div class="highlight"><pre><span></span><code>conda<span class="w"> </span>create<span class="w"> </span>-n<span class="w"> </span>geo<span class="w"> </span>-c<span class="w"> </span>conda-forge<span class="w"> </span>python<span class="w"> </span>numpy<span class="w"> </span>tqdm<span class="w"> </span>matplotlib<span class="w"> </span>pyvista<span class="w"> </span>polars<span class="w"> </span>pandas<span class="w"> </span>pyarrow<span class="w"> </span>pip
 conda<span class="w"> </span>activate<span class="w"> </span>geo
-pip<span class="w"> </span>install<span class="w"> </span>--no-deps<span class="w"> </span>--no-build-isolation<span class="w"> </span>git+https://github.com/gstvschlz/ceres
+pip<span class="w"> </span>install<span class="w"> </span>--no-deps<span class="w"> </span>ceresgeo
 </code></pre></div>
 <h3 id="pixi">pixi<a class="headerlink" href="#pixi" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code>pixi<span class="w"> </span>add<span class="w"> </span>python<span class="w"> </span>numpy<span class="w"> </span>matplotlib<span class="w"> </span>pyvista<span class="w"> </span>polars<span class="w"> </span>pandas<span class="w"> </span>pyarrow
-pixi<span class="w"> </span>add<span class="w"> </span>--pypi<span class="w"> </span><span class="s2">"ceres @ git+https://github.com/gstvschlz/ceres"</span>
+<div class="highlight"><pre><span></span><code>pixi<span class="w"> </span>add<span class="w"> </span>python<span class="w"> </span>numpy<span class="w"> </span>tqdm<span class="w"> </span>matplotlib<span class="w"> </span>pyvista<span class="w"> </span>polars<span class="w"> </span>pandas<span class="w"> </span>pyarrow
+pixi<span class="w"> </span>add<span class="w"> </span>--pypi<span class="w"> </span><span class="s2">"ceresgeo[all]"</span>
 </code></pre></div>
-<p>The build needs Rust on <code>PATH</code> (<a href="https://rustup.rs">rustup</a>). With a wheel instead:
-<code>pixi run pip install --no-deps ./ceres-0.1.0-cp311-abi3-&lt;platform&gt;.whl</code>.</p>
 <h2 id="extras">Extras<a class="headerlink" href="#extras" title="Permanent link">&para;</a></h2>
-<p>The only required dependency is numpy. The others are imported on first use, and the error names the missing
-package.</p>
+<p>The required dependencies are numpy and tqdm. The others are imported on first use, and the error names the
+missing package.</p>
 <table>
 <thead>
 <tr>
@@ -14664,8 +14635,8 @@ package.</p>
 <tbody>
 <tr>
 <td>(none)</td>
-<td><code>numpy</code></td>
-<td><code>numpy</code></td>
+<td><code>numpy</code>, <code>tqdm</code></td>
+<td><code>numpy tqdm</code></td>
 </tr>
 <tr>
 <td><code>plot</code></td>
@@ -14702,6 +14673,10 @@ package.</p>
 <td>1.26 (1.x and 2.x both work)</td>
 </tr>
 <tr>
+<td>tqdm</td>
+<td>4.66</td>
+</tr>
+<tr>
 <td>matplotlib</td>
 <td>3.8</td>
 </tr>
@@ -14723,15 +14698,6 @@ package.</p>
 </tr>
 </tbody>
 </table>
-<h2 id="building-from-source">Building from source<a class="headerlink" href="#building-from-source" title="Permanent link">&para;</a></h2>
-<p>Either install Rust ≥ 1.97 with <a href="https://rustup.rs">rustup</a> (the repository pins its toolchain in
-<code>rust-toolchain.toml</code>) and a C compiler, or take all of it from conda-forge:</p>
-<div class="highlight"><pre><span></span><code>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/gstvschlz/ceres<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">cd</span><span class="w"> </span>ceres
-conda<span class="w"> </span>env<span class="w"> </span>create<span class="w"> </span>-f<span class="w"> </span>environment.yml<span class="w">       </span><span class="c1"># rust, c-compiler, maturin, test dependencies</span>
-conda<span class="w"> </span>activate<span class="w"> </span>ceres
-pip<span class="w"> </span>install<span class="w"> </span>--no-deps<span class="w"> </span>--no-build-isolation<span class="w"> </span>.
-</code></pre></div>
-<p>With rustup, <code>pip install .</code> is enough; pip fetches maturin itself.</p>
 <h2 id="headless-3d-rendering">Headless 3D rendering<a class="headerlink" href="#headless-3d-rendering" title="Permanent link">&para;</a></h2>
 <p><code>ceres.plot3d</code> renders with VTK, which needs OpenGL. On a Linux server or container without a display, either
 install <code>mesalib</code> from conda-forge (or the system <code>libEGL</code>) and set <code>PYVISTA_OFF_SCREEN=true</code>, or run under a
@@ -14746,20 +14712,17 @@ sit directly in it.</p>
 <p>Downloads honour the standard <code>HTTPS_PROXY</code>, <code>HTTP_PROXY</code> and <code>NO_PROXY</code> variables (and the system proxy
 settings on Windows and macOS). Behind a proxy that re-signs TLS, point <code>SSL_CERT_FILE</code> at its CA bundle.</p>
 <h2 id="air-gapped-installs">Air-gapped installs<a class="headerlink" href="#air-gapped-installs" title="Permanent link">&para;</a></h2>
-<p>From a wheel: on a connected machine with the same OS, architecture and Python, download the ceres wheel from a
-Release and its dependencies, then install without an index:</p>
-<div class="highlight"><pre><span></span><code>pip<span class="w"> </span>download<span class="w"> </span><span class="s2">"./ceres-0.1.0-cp311-abi3-&lt;platform&gt;.whl[all]"</span><span class="w"> </span>-d<span class="w"> </span>wheels<span class="w">   </span><span class="c1"># connected machine</span>
-pip<span class="w"> </span>install<span class="w"> </span>--no-index<span class="w"> </span>--find-links<span class="w"> </span>wheels<span class="w"> </span><span class="s2">"ceres[all]"</span><span class="w">                  </span><span class="c1"># offline machine</span>
+<p>On a connected machine with the same OS, architecture and Python, download the wheels, then install without an
+index:</p>
+<div class="highlight"><pre><span></span><code>pip<span class="w"> </span>download<span class="w"> </span><span class="s2">"ceresgeo[all]"</span><span class="w"> </span>-d<span class="w"> </span>wheels<span class="w">                                 </span><span class="c1"># connected machine</span>
+pip<span class="w"> </span>install<span class="w"> </span>--no-index<span class="w"> </span>--find-links<span class="w"> </span>wheels<span class="w"> </span><span class="s2">"ceresgeo[all]"</span><span class="w">             </span><span class="c1"># offline machine</span>
 </code></pre></div>
-<p>From source: vendor the Rust crates on a connected machine and copy the repository across.</p>
-<div class="highlight"><pre><span></span><code>mkdir<span class="w"> </span>-p<span class="w"> </span>.cargo<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>cargo<span class="w"> </span>vendor<span class="w"> </span>&gt;&gt;<span class="w"> </span>.cargo/config.toml
-</code></pre></div>
-<p>The offline machine then builds with Rust, a C compiler and maturin already installed:
-<code>pip install --no-deps --no-build-isolation .</code>. For datasets, copy the commit folder of a filled cache and point
-<code>CERES_DATA</code> at it.</p>
+<p>For datasets, copy the commit folder of a filled cache and point <code>CERES_DATA</code> at it.</p>
 <h2 id="contributors">Contributors<a class="headerlink" href="#contributors" title="Permanent link">&para;</a></h2>
-<p><code>mise run compat</code> builds an sdist and a wheel into <code>dist/</code>, installs them into fresh environments and runs the
-Python tests in each. <code>mise run compat &lt;mode&gt;</code> runs one mode; all but <code>dist</code> reuse what is already in <code>dist/</code>.</p>
+<p>Building ceres needs Rust ≥ 1.97 (pinned in <code>rust-toolchain.toml</code>) and a C compiler; <code>mise run build</code> compiles it
+into the development environment. <code>mise run compat</code> builds a wheel into <code>dist/</code>, installs it into fresh
+environments and runs the Python tests in each. <code>mise run compat &lt;mode&gt;</code> runs one mode; all but <code>dist</code> reuse what
+is already in <code>dist/</code>.</p>
 <table>
 <thead>
 <tr>

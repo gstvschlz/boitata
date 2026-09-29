@@ -14488,7 +14488,7 @@ gives the estimate on a 5 m grid.</p>
 </code></pre></div>
 <p class="mkd-glr-script-out">Out:</p>
 <div class="mkd-glr-script-out-disp highlight"><pre><span></span><code>0it<span class="w"> </span><span class="o">[</span><span class="m">00</span>:00,<span class="w"> </span>?it/s<span class="o">]</span>
-1it<span class="w"> </span><span class="o">[</span><span class="m">00</span>:00,<span class="w"> </span><span class="m">994</span>.38it/s<span class="o">]</span>
+1it<span class="w"> </span><span class="o">[</span><span class="m">00</span>:00,<span class="w"> </span>?it/s<span class="o">]</span>
 cap:<span class="w"> </span><span class="m">982</span><span class="w"> </span>ppm<span class="w"> </span><span class="p">|</span><span class="w"> </span>declustered<span class="w"> </span>mean:<span class="w"> </span><span class="m">290</span>.7<span class="w"> </span>ppm
 Variogram<span class="o">(</span><span class="nv">nugget</span><span class="o">=</span><span class="m">0</span>.3052597668357192,<span class="w"> </span><span class="nv">structures</span><span class="o">=[</span>Structure<span class="o">(</span><span class="s2">"spherical"</span>,<span class="w"> </span><span class="nv">sill</span><span class="o">=</span><span class="m">0</span>.501613916596432,<span class="w"> </span><span class="nv">range</span><span class="o">=</span><span class="m">39</span>.9400880709822<span class="o">)</span>,<span class="w"> </span>Structure<span class="o">(</span><span class="s2">"spherical"</span>,<span class="w"> </span><span class="nv">sill</span><span class="o">=</span><span class="m">0</span>.32454526508977327,<span class="w"> </span><span class="nv">range</span><span class="o">=</span><span class="m">63</span>.403682315084254<span class="o">)]</span>,<span class="w"> </span><span class="nv">rotation</span><span class="o">=(</span><span class="m">0</span>.0,<span class="w"> </span><span class="m">0</span>.0,<span class="w"> </span><span class="m">0</span>.0<span class="o">)</span>,<span class="w"> </span><span class="nv">ratios</span><span class="o">=(</span><span class="m">1</span>.0,<span class="w"> </span><span class="m">1</span>.0<span class="o">))</span>
 </code></pre></div>
@@ -14559,7 +14559,7 @@ already carry them. They come back separately, for declustered statistics in a r
 <p><img alt="Estimate rebuilt from the saved pieces" class="mkd-glr-single-img" src="../images/mkd_glr_example_01_03_001.png" srcset="../images/mkd_glr_example_01_03_001.png" /></p>
 <p class="mkd-glr-script-out">Out:</p>
 <div class="mkd-glr-script-out-disp highlight"><pre><span></span><code>0it<span class="w"> </span><span class="o">[</span><span class="m">00</span>:00,<span class="w"> </span>?it/s<span class="o">]</span>
-1it<span class="w"> </span><span class="o">[</span><span class="m">00</span>:00,<span class="w"> </span><span class="m">104</span>.92it/s<span class="o">]</span>
+1it<span class="w"> </span><span class="o">[</span><span class="m">00</span>:00,<span class="w"> </span>?it/s<span class="o">]</span>
 identical<span class="w"> </span>estimate:<span class="w"> </span>True
 declustered<span class="w"> </span>mean<span class="w"> </span>from<span class="w"> </span>the<span class="w"> </span>saved<span class="w"> </span>weights:<span class="w"> </span><span class="m">288</span>.8<span class="w"> </span>ppm<span class="w"> </span><span class="o">(</span>capped<span class="o">)</span>
 </code></pre></div>
@@ -14570,7 +14570,7 @@ declustered<span class="w"> </span>mean<span class="w"> </span>from<span class="
 transforms (<code>HermiteAnamorphosis</code>, <code>BoxCox</code>, <code>PPMT</code>, <code>PCA</code>, <code>MAF</code>, <code>StepwiseConditional</code>, <code>UniformConditioning</code>,
 <code>GaussianImputer</code>, <code>KernelDensity</code>, <code>GaussianMixture</code>). These objects also pickle, through the same JSON.
 A fitted estimator such as the <code>SimpleKriging</code> above carries its samples, so it saves with <code>to_parquet</code>.</p>
-<p><strong>Total running time of the script:</strong> ( 0 minutes  0.160 seconds)</p>
+<p><strong>Total running time of the script:</strong> ( 0 minutes  0.182 seconds)</p>
 <div id="download_links"></div>
 
 <p><a class="md-button center" href="../example_01_03.py"><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M256 32c0-17.7-14.3-32-32-32s-32 14.3-32 32v210.7l-41.4-41.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3l96 96c12.5 12.5 32.8 12.5 45.3 0l96-96c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L256 242.7zM64 320c-35.3 0-64 28.7-64 64v32c0 35.3 28.7 64 64 64h320c35.3 0 64-28.7 64-64v-32c0-35.3-28.7-64-64-64h-46.9l-56.6 56.6c-31.2 31.2-81.9 31.2-113.1 0L110.9 320zm304 56a24 24 0 1 1 0 48 24 24 0 1 1 0-48"/></svg></span> Download Python source code: example_01_03.py</a></p>
