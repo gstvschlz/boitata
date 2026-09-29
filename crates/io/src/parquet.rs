@@ -10,13 +10,14 @@ use std::sync::Arc;
 use arrow_array::cast::AsArray;
 use arrow_array::types::{Float64Type, UInt64Type};
 use arrow_array::{ArrayRef, Float64Array, RecordBatch, RecordBatchOptions, UInt64Array};
-use arrow_schema::{Field, Schema};
+use arrow_schema::{DataType, Field, Schema};
 use arrow_select::concat::concat_batches;
 use ceres_core::{BlockModel, Geometry, Layout, PointSet, Polylines};
 use parquet::arrow::arrow_reader::{ParquetRecordBatchReader, ParquetRecordBatchReaderBuilder};
 use parquet::arrow::{ArrowWriter, ProjectionMask};
-use parquet::basic::{Compression, ZstdLevel};
-use parquet::file::properties::WriterProperties;
+use parquet::basic::{Compression, Encoding, ZstdLevel};
+use parquet::file::properties::{EnabledStatistics, WriterProperties, WriterVersion};
+use parquet::schema::types::ColumnPath;
 use serde_json::{Value, json};
 
 use crate::{Error, Result};
@@ -43,11 +44,26 @@ pub enum Stored {
     Polylines(Polylines),
 }
 
-fn properties() -> WriterProperties {
-    WriterProperties::builder()
+fn properties(schema: &Schema) -> WriterProperties {
+    let mut builder = WriterProperties::builder()
+        .set_writer_version(WriterVersion::PARQUET_2_0)
         .set_compression(Compression::ZSTD(ZstdLevel::default()))
-        .set_max_row_group_row_count(Some(ROW_GROUP))
-        .build()
+        .set_dictionary_enabled(false)
+        .set_statistics_enabled(EnabledStatistics::Chunk)
+        .set_max_row_group_row_count(Some(ROW_GROUP));
+    for field in schema.fields() {
+        let path = ColumnPath::from(field.name().as_str());
+        builder = match field.data_type() {
+            DataType::Float32 | DataType::Float64 => {
+                builder.set_column_encoding(path, Encoding::BYTE_STREAM_SPLIT)
+            }
+            _ if field.name() == INDEX => {
+                builder.set_column_encoding(path, Encoding::DELTA_BINARY_PACKED)
+            }
+            _ => builder.set_column_dictionary_enabled(path, true),
+        };
+    }
+    builder.build()
 }
 
 fn write(path: &Path, table: &RecordBatch, meta: Option<String>) -> Result<()> {
@@ -64,7 +80,11 @@ fn write(path: &Path, table: &RecordBatch, meta: Option<String>) -> Result<()> {
         table.columns().to_vec(),
         &RecordBatchOptions::new().with_row_count(Some(table.num_rows())),
     )?;
-    let mut writer = ArrowWriter::try_new(File::create(path)?, schema, Some(properties()))?;
+    let mut writer = ArrowWriter::try_new(
+        File::create(path)?,
+        schema.clone(),
+        Some(properties(&schema)),
+    )?;
     writer.write(&batch)?;
     writer.close()?;
     Ok(())
@@ -213,7 +233,11 @@ impl BlockModelWriter {
         )?;
         if self.writer.is_none() {
             let file = self.file.take().expect("a file until the first chunk");
-            self.writer = Some(ArrowWriter::try_new(file, schema, Some(properties()))?);
+            self.writer = Some(ArrowWriter::try_new(
+                file,
+                schema.clone(),
+                Some(properties(&schema)),
+            )?);
         }
         self.writer.as_mut().expect("created above").write(&batch)?;
         self.rows += n as u64;
@@ -608,6 +632,28 @@ mod tests {
             ),
         ])
         .unwrap()
+    }
+
+    #[test]
+    fn floats_are_split_by_byte_stream() {
+        use parquet::basic::Encoding;
+        use parquet::file::reader::{FileReader, SerializedFileReader};
+        let path = temp("encodings.parquet");
+        write_parquet(&path, &attributes(64)).unwrap();
+        let reader = SerializedFileReader::new(File::open(&path).unwrap()).unwrap();
+        let group = reader.metadata().row_group(0);
+        let encodings = |i: usize| group.column(i).encodings().collect::<Vec<Encoding>>();
+        assert!(
+            encodings(0).contains(&Encoding::BYTE_STREAM_SPLIT),
+            "{:?}",
+            encodings(0)
+        );
+        assert!(
+            encodings(1).contains(&Encoding::RLE_DICTIONARY),
+            "{:?}",
+            encodings(1)
+        );
+        std::fs::remove_file(path).unwrap();
     }
 
     #[test]
