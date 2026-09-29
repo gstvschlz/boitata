@@ -5,6 +5,7 @@ use pyo3::prelude::*;
 
 use crate::blocks::Mesh;
 use crate::containers::{PyBlockModel, PyPointSet, PyPolylines};
+use crate::progress::with_progress;
 use crate::table::{Table, to_batch, to_batches};
 use crate::{error, invalid};
 
@@ -63,19 +64,40 @@ fn write_csv(path: PathBuf, table: &Bound<PyAny>) -> PyResult<()> {
 }
 
 /// Reads a GSLIB file; the title is kept in the schema metadata and
-/// `nodata` values, as in `read_csv`, become null.
+/// `nodata` values, as in `read_csv`, become null. `progress` shows a `tqdm` bar.
 #[pyfunction]
-#[pyo3(signature = (path, *, nodata=None))]
-fn read_gslib(path: PathBuf, nodata: Option<Vec<Bound<PyAny>>>) -> PyResult<Table> {
-    let batch = ceres_io::read_gslib(path, &self::nodata(nodata)?).map_err(io_error)?;
+#[pyo3(signature = (path, *, nodata=None, progress=true))]
+fn read_gslib(
+    py: Python,
+    path: PathBuf,
+    nodata: Option<Vec<Bound<PyAny>>>,
+    progress: bool,
+) -> PyResult<Table> {
+    let nodata = self::nodata(nodata)?;
+    let batch = with_progress(py, None, progress, |counter| {
+        ceres_io::read_gslib(path, &nodata, counter)
+    })?
+    .map_err(io_error)?;
     Ok(Table(batch))
 }
 
-/// Writes numeric columns as GSLIB; nulls are written as `nodata`.
+/// Writes numeric columns as GSLIB; nulls are written as `nodata`. `progress`
+/// shows a `tqdm` bar.
 #[pyfunction]
-#[pyo3(signature = (path, table, *, nodata=-999.0))]
-fn write_gslib(path: PathBuf, table: &Bound<PyAny>, nodata: f64) -> PyResult<()> {
-    ceres_io::write_gslib(path, &to_batch(table)?, nodata).map_err(io_error)
+#[pyo3(signature = (path, table, *, nodata=-999.0, progress=true))]
+fn write_gslib(
+    py: Python,
+    path: PathBuf,
+    table: &Bound<PyAny>,
+    nodata: f64,
+    progress: bool,
+) -> PyResult<()> {
+    let batch = to_batch(table)?;
+    let total = Some(batch.num_rows() as u64);
+    with_progress(py, total, progress, |counter| {
+        ceres_io::write_gslib(path, &batch, nodata, counter)
+    })?
+    .map_err(io_error)
 }
 
 /// Writes a PointSet, a BlockModel, Polylines or any table to Parquet;

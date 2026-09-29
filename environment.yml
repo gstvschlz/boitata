@@ -4,6 +4,7 @@ channels:
 dependencies:
   - python>=3.11
   - numpy>=1.26
+  - tqdm>=4.66
   - rust>=1.97
   - c-compiler
   - maturin>=1.10,<2

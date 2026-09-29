@@ -9,13 +9,18 @@ use arrow_array::types::Float64Type;
 use arrow_array::{Array, ArrayRef, Float64Array, RecordBatch, RecordBatchOptions};
 use arrow_cast::cast;
 use arrow_schema::{DataType, Field, Schema};
+use ceres_core::Progress;
 
 use crate::{Error, Nodata, Result, is_nodata};
 
 /// Reads a GSLIB file: title, column count, one name per line, then
 /// whitespace-separated rows. Extra tokens on a row are ignored. The title is
-/// kept in the schema metadata under `title`.
-pub fn read_gslib(path: impl AsRef<Path>, nodata: &[Nodata]) -> Result<RecordBatch> {
+/// kept in the schema metadata under `title`. `progress` is ticked per row.
+pub fn read_gslib(
+    path: impl AsRef<Path>,
+    nodata: &[Nodata],
+    progress: Option<&Progress>,
+) -> Result<RecordBatch> {
     let text = std::fs::read_to_string(path)?;
     let mut lines = text
         .lines()
@@ -60,6 +65,9 @@ pub fn read_gslib(path: impl AsRef<Path>, nodata: &[Nodata]) -> Result<RecordBat
             };
             column.push(value);
         }
+        if let Some(p) = progress {
+            p.inc();
+        }
     }
 
     let rows = columns.first().map_or(0, Vec::len);
@@ -79,8 +87,14 @@ pub fn read_gslib(path: impl AsRef<Path>, nodata: &[Nodata]) -> Result<RecordBat
     )?)
 }
 
-/// Writes numeric columns as GSLIB; nulls are written as `nodata`.
-pub fn write_gslib(path: impl AsRef<Path>, table: &RecordBatch, nodata: f64) -> Result<()> {
+/// Writes numeric columns as GSLIB; nulls are written as `nodata`. `progress`
+/// is ticked per row.
+pub fn write_gslib(
+    path: impl AsRef<Path>,
+    table: &RecordBatch,
+    nodata: f64,
+    progress: Option<&Progress>,
+) -> Result<()> {
     let schema = table.schema();
     if let Some(f) = schema.fields().iter().find(|f| !f.data_type().is_numeric()) {
         return Err(Error::NotNumeric(f.name().clone()));
@@ -117,6 +131,9 @@ pub fn write_gslib(path: impl AsRef<Path>, table: &RecordBatch, nodata: f64) -> 
             })
             .collect();
         writeln!(out, "{}", values.join(" "))?;
+        if let Some(p) = progress {
+            p.inc();
+        }
     }
     Ok(out.flush()?)
 }
@@ -138,7 +155,7 @@ mod tests {
             "walker\n3\nx\ny\nv\n1 2 3.5\n\n4 5 -999 99\n6 7 1e21\n",
         )
         .unwrap();
-        let t = read_gslib(&path, &default_nodata()).unwrap();
+        let t = read_gslib(&path, &default_nodata(), None).unwrap();
         assert_eq!(t.num_rows(), 3);
         assert_eq!(t.schema().metadata()["title"], "walker");
         let v = t.column(2).as_primitive::<Float64Type>();
@@ -150,12 +167,12 @@ mod tests {
         let path = temp("b.dat");
         std::fs::write(&path, "t\n2\na\nb\n1 2\n3\n").unwrap();
         assert!(matches!(
-            read_gslib(&path, &[]),
+            read_gslib(&path, &[], None),
             Err(Error::Format { line: 6, .. })
         ));
         std::fs::write(&path, "t\n1\na\nabc\n").unwrap();
         assert!(matches!(
-            read_gslib(&path, &[]),
+            read_gslib(&path, &[], None),
             Err(Error::Format { line: 4, .. })
         ));
     }
@@ -164,10 +181,12 @@ mod tests {
     fn write_then_read_round_trips() {
         let path = temp("c.dat");
         std::fs::write(&path, "grid\n2\nau\ncu\n1 -999\n0.25 3\n").unwrap();
-        let t = read_gslib(&path, &default_nodata()).unwrap();
+        let t = read_gslib(&path, &default_nodata(), None).unwrap();
         let out = temp("c-out.dat");
-        write_gslib(&out, &t, -999.0).unwrap();
-        let back = read_gslib(&out, &default_nodata()).unwrap();
+        let progress = Progress::new(Some(2));
+        write_gslib(&out, &t, -999.0, Some(&progress)).unwrap();
+        assert_eq!(progress.snapshot(), (2, Some(2)));
+        let back = read_gslib(&out, &default_nodata(), None).unwrap();
         assert_eq!(back, t);
         assert_eq!(back.column(1).null_count(), 1);
     }
@@ -180,7 +199,7 @@ mod tests {
         )])
         .unwrap();
         assert!(matches!(
-            write_gslib(temp("d.dat"), &t, -999.0),
+            write_gslib(temp("d.dat"), &t, -999.0, None),
             Err(Error::NotNumeric(_))
         ));
     }

@@ -91,6 +91,20 @@ def test_gslib_round_trip(tmp_path):
     np.testing.assert_array_equal(back["cu"], table["cu"])
 
 
+def test_gslib_progress_does_not_change_output(tmp_path, capsys):
+    source = tmp_path / "grid.dat"
+    source.write_text("grid\n2\nau\ncu\n" + "1 -999\n0.25 3\n" * 500)
+    table = cs.read_gslib(source, progress=False)
+    assert capsys.readouterr().err == ""
+    cs.write_gslib(tmp_path / "on.dat", table, progress=True)
+    assert "100%" in capsys.readouterr().err
+    cs.write_gslib(tmp_path / "off.dat", table, progress=False)
+    assert (tmp_path / "on.dat").read_text() == (tmp_path / "off.dat").read_text()
+    on = cs.read_gslib(tmp_path / "on.dat", progress=True)
+    off = cs.read_gslib(tmp_path / "on.dat", progress=False)
+    np.testing.assert_array_equal(on["cu"], off["cu"])
+
+
 def test_nodata_numbers_match_numerically_and_strings_as_tokens(tmp_path):
     path = tmp_path / "v.csv"
     path.write_text("v,rock\n-999.0,ox\n-999,none\n1,fr\n")

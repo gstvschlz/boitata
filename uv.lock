@@ -50,6 +50,7 @@ source = { virtual = "." }
 dependencies = [
     { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
     { name = "numpy", version = "2.5.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
+    { name = "tqdm" },
 ]
 
 [package.optional-dependencies]
@@ -92,6 +93,7 @@ requires-dist = [
     { name = "pyarrow", marker = "extra == 'all'", specifier = ">=16" },
     { name = "pyvista", marker = "extra == '3d'", specifier = ">=0.45" },
     { name = "pyvista", marker = "extra == 'all'", specifier = ">=0.45" },
+    { name = "tqdm", specifier = ">=4.66" },
 ]
 provides-extras = ["3d", "all", "plot"]
 

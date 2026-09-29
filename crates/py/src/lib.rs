@@ -17,6 +17,7 @@ mod lva;
 mod modeling;
 mod multigaussian;
 mod persist;
+mod progress;
 mod simulation;
 mod table;
 mod transforms;
