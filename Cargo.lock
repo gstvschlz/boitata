@@ -357,6 +357,7 @@ dependencies = [
  "criterion",
  "dxf",
  "parquet",
+ "rayon",
  "regex",
  "serde",
  "serde_json",
