@@ -61,6 +61,9 @@ pub use turning_bands::{
     conditional_gaussian_field, turning_bands, turning_bands_in, turning_bands_to_parquet,
 };
 
+pub mod snesim;
+pub use snesim::{Snesim, SnesimParams};
+
 /// Hole of each of `n` data, for `Search::max_per_hole`; all `None` without
 /// `holes`.
 pub(crate) fn holes(holes: Option<&[u32]>, n: usize) -> Result<Vec<Option<u32>>> {

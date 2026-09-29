@@ -408,3 +408,22 @@ def test_local_anisotropy_round_trip(tmp_path):
             (lva.coords, lva.angles, lva.ratios, lva.scales),
         )
         same(estimator.predict(targets, return_variance=True, anisotropy=back), expected)
+
+
+def test_snesim_round_trip_simulates_bit_identically(tmp_path):
+    path = tmp_path / "snesim.parquet"
+    grid = cs.BlockModel((0, 0), (1, 1), (30, 30))
+    channels = {"shape": "channel", "code": 1, "proportion": 0.25, "width": 5.0, "azimuth": (80, 100)}
+    ti = cs.object_training_image(cs.BlockModel((0, 0), (1, 1), (60, 60)), [channels], seed=3)
+    snesim = cs.SNESIM(ti, "facies", template_size=12, n_levels=1, target_proportions=[0.7, 0.3])
+    snesim.to_parquet(path)
+    unfitted = cs.SNESIM.from_parquet(path)
+    same(
+        summary_arrays(unfitted.simulate(grid, n=3, seed=4)),
+        summary_arrays(snesim.simulate(grid, n=3, seed=4)),
+    )
+    snesim.fit(grid.centroids[:50], np.arange(50) % 2)
+    snesim.to_parquet(path)
+    summary = snesim.simulate(grid, n=3, seed=4, keep=True)
+    for back in (cs.SNESIM.from_parquet(path), pickle.loads(pickle.dumps(snesim))):
+        same(summary_arrays(back.simulate(grid, n=3, seed=4, keep=True)), summary_arrays(summary))

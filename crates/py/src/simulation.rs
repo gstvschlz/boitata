@@ -3044,3 +3044,262 @@ pub fn register(m: &Bound<PyModule>) -> PyResult<()> {
     m.add_class::<CategoricalSummary>()?;
     Ok(())
 }
+
+/// SNESIM (Strebelle, 2002): categories simulated from the patterns of a
+/// training image.
+///
+/// The patterns around each cell of the image are counted once into search
+/// trees, one per multigrid level, on the first `simulate`. A node reads the
+/// categories at the `template_size` cells nearest to it and draws its own
+/// from the image's counts of that data event. Patterns are read in cell
+/// index space, so the targets' cells match the image's cells one to one.
+///
+/// Parameters
+/// ----------
+/// ti : BlockModel
+///     Regular or masked training image; null and masked-out cells are not
+///     patterns.
+/// column : str
+///     Column of `ti` holding category codes, integers 0 to 254.
+/// template_size : int, default 40
+///     Cells every node reads, nearest first.
+/// n_levels : int, default 3
+///     Coarse grids above the finest, at spacings ``2^L``; half of the
+///     template of a coarse level stays next to the node, where it sees hard
+///     data, the rest spreads over the level's grid. 0 uses the finest grid
+///     only.
+/// min_replicates : int, default 10
+///     Fewest replicates of a data event in the image; the farthest informed
+///     cells are dropped until enough remain, down to the image's
+///     proportions.
+/// target_proportions : sequence of float, optional
+///     Proportion of each code ``0..k``, summing to 1, that a servosystem
+///     steers each realization towards.
+/// servo : float, default 0.5
+///     Servosystem strength in [0, 1): a node draws from
+///     ``P(c) + servo / (1 - servo) * (target(c) - current(c))``; 0 switches
+///     it off.
+///
+/// Examples
+/// --------
+/// >>> grid = cs.BlockModel((0, 0), (1, 1), (80, 80))
+/// >>> ti = cs.object_training_image(
+/// ...     grid,
+/// ...     [{"shape": "channel", "code": 1, "proportion": 0.3, "width": 6,
+/// ...       "azimuth": (80, 100), "amplitude": 6, "wavelength": 50}],
+/// ... )
+/// >>> summary = cs.SNESIM(ti, "facies", template_size=24).simulate(grid, n=4)
+#[pyclass(module = "ceres", name = "SNESIM")]
+pub struct Snesim {
+    core: simulation::Snesim,
+    data: Option<(Vec<Point>, Vec<usize>)>,
+}
+
+/// What a SNESIM file keeps: the training image's codes, 255 without data,
+/// and the parameters.
+#[derive(Serialize, Deserialize)]
+struct SnesimState {
+    ti_dims: [usize; 3],
+    ti_codes: Vec<u8>,
+    #[serde(flatten)]
+    params: simulation::SnesimParams,
+}
+
+impl Serialize for Snesim {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        let ti = self.core.training_image();
+        SnesimState {
+            ti_dims: ti.dims(),
+            ti_codes: ti.codes().unwrap_or_default().to_vec(),
+            params: self.core.params().clone(),
+        }
+        .serialize(s)
+    }
+}
+
+impl<'de> Deserialize<'de> for Snesim {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        use serde::de::Error;
+        let state = SnesimState::deserialize(d)?;
+        let values: Vec<Option<f64>> = state
+            .ti_codes
+            .iter()
+            .map(|&c| (c != simulation::NO_CODE).then_some(f64::from(c)))
+            .collect();
+        let column = std::sync::Arc::new(arrow_array::Float64Array::from(values));
+        let batch = arrow_array::RecordBatch::try_from_iter([("code", column as _)])
+            .map_err(D::Error::custom)?;
+        let geometry = ceres_core::Geometry {
+            origin: [0.0; 3],
+            size: [1.0; 3],
+            count: state.ti_dims,
+            rotation: [0.0; 3],
+        };
+        let model = ceres_core::BlockModel::regular(geometry, batch).map_err(D::Error::custom)?;
+        let ti =
+            simulation::TrainingImage::categorical(&model, "code").map_err(D::Error::custom)?;
+        let core = simulation::Snesim::new(ti, state.params).map_err(D::Error::custom)?;
+        Ok(Self { core, data: None })
+    }
+}
+
+impl Tabular for Snesim {
+    fn columns(&self) -> Option<Columns> {
+        self.data.as_ref().map(category_columns)
+    }
+
+    fn restore(&mut self, columns: Found) -> PyResult<()> {
+        let k = self.core.training_image().n_categories();
+        self.data = Some(categories_from(&columns, k)?);
+        Ok(())
+    }
+}
+
+#[pymethods]
+impl Snesim {
+    /// Writes arrays as Parquet columns and parameters as JSON in the file
+    /// metadata; `from_parquet` reads it back.
+    fn to_parquet(&self, path: std::path::PathBuf) -> PyResult<()> {
+        crate::persist::to_parquet(<Self as pyo3::PyClass>::NAME, self, &path)
+    }
+
+    /// Reads `to_parquet` output; raises InvalidInput on another class's file
+    /// or a newer format.
+    #[staticmethod]
+    fn from_parquet(path: std::path::PathBuf) -> PyResult<Self> {
+        crate::persist::from_parquet(<Self as pyo3::PyClass>::NAME, &path)
+    }
+
+    fn _state(&self) -> PyResult<(String, Option<crate::persist::Columns>)> {
+        crate::persist::state(<Self as pyo3::PyClass>::NAME, self)
+    }
+
+    #[staticmethod]
+    fn _from_state(meta: &str, columns: Option<crate::persist::Columns>) -> PyResult<Self> {
+        crate::persist::from_state(<Self as pyo3::PyClass>::NAME, meta, columns)
+    }
+
+    #[new]
+    #[pyo3(signature = (ti, column, *, template_size=40, n_levels=3, min_replicates=10, target_proportions=None, servo=0.5))]
+    fn new(
+        ti: PyRef<PyBlockModel>,
+        column: &str,
+        template_size: usize,
+        n_levels: usize,
+        min_replicates: u32,
+        target_proportions: Option<Vec<f64>>,
+        servo: f64,
+    ) -> PyResult<Self> {
+        let ti = simulation::TrainingImage::categorical(&ti.0, column).map_err(err)?;
+        let params = simulation::SnesimParams {
+            template_size,
+            n_levels,
+            min_replicates,
+            target_proportions,
+            servo,
+        };
+        Ok(Self {
+            core: simulation::Snesim::new(ti, params).map_err(err)?,
+            data: None,
+        })
+    }
+
+    /// Takes hard data: categories ``0..k`` of the training image at
+    /// `coords`. Each goes to the target cell holding it, several in one cell
+    /// to their most frequent category, and every realization reproduces it;
+    /// data outside the targets are ignored. Without `fit`, realizations are
+    /// unconditional.
+    ///
+    /// Parameters
+    /// ----------
+    /// coords : array_like, PointSet or BlockModel
+    ///     Data locations, ``(n, 2)`` or ``(n, 3)``.
+    /// categories : array_like or str
+    ///     Category of each datum, or the column of `coords` holding them.
+    ///
+    /// Returns
+    /// -------
+    /// SNESIM
+    ///     This simulator.
+    fn fit<'py>(
+        mut slf: PyRefMut<'py, Self>,
+        coords: &Bound<PyAny>,
+        categories: &Bound<PyAny>,
+    ) -> PyResult<PyRefMut<'py, Self>> {
+        let cats = self::categories(coords, categories)?;
+        let locs = points(coords)?;
+        same_length(locs.len(), cats.len(), "categories")?;
+        let k = slf.core.training_image().n_categories();
+        if let Some(c) = cats.iter().find(|&&c| c >= k) {
+            return Err(invalid(format!(
+                "category {c} is not in the training image, whose codes are 0 to {}",
+                k - 1
+            )));
+        }
+        slf.data = Some((locs, cats));
+        Ok(slf)
+    }
+
+    /// Summary of `n` realizations, each seeded from `seed` and its index,
+    /// the same for any number of threads.
+    ///
+    /// Parameters
+    /// ----------
+    /// targets : BlockModel
+    ///     Regular or masked grid; one category per row.
+    /// n : int, default 100
+    ///     Realizations.
+    /// seed : int, default 0
+    ///     Seed of the realizations.
+    /// keep : bool or sequence of int, optional
+    ///     Realizations to return beside the summary.
+    /// progress : bool, default True
+    ///     Show a progress bar.
+    ///
+    /// Returns
+    /// -------
+    /// CategoricalSummary
+    ///     Probabilities, most likely category and entropy per target.
+    ///
+    /// Raises
+    /// ------
+    /// InvalidInput
+    ///     If `targets` is not a regular or masked BlockModel, or the search
+    ///     trees would not fit in memory (lower `template_size`).
+    #[pyo3(signature = (targets, *, n=100, seed=0, keep=None, progress=true))]
+    fn simulate(
+        &self,
+        py: Python,
+        targets: &Bound<PyAny>,
+        n: usize,
+        seed: u64,
+        keep: Option<&Bound<PyAny>>,
+        progress: bool,
+    ) -> PyResult<CategoricalSummary> {
+        let lattice = lattice_of(targets)
+            .ok_or_else(|| invalid("SNESIM simulates on a regular or masked BlockModel"))?;
+        let keep = keep_arg(keep)?;
+        let memory = memory_budget(py)?;
+        let data = self.data.as_ref().map(|(l, c)| (&l[..], &c[..]));
+        with_progress(py, Some(n as u64), progress, |counter| {
+            self.core
+                .simulate(&lattice, data, n, seed, &keep, memory, counter)
+        })?
+        .map(CategoricalSummary)
+        .map_err(err)
+    }
+
+    fn __repr__(&self) -> String {
+        let p = self.core.params();
+        format!(
+            "SNESIM(template_size={}, n_levels={}, fitted={})",
+            p.template_size,
+            p.n_levels,
+            self.data.is_some()
+        )
+    }
+}
+
+pub fn register_snesim(m: &Bound<PyModule>) -> PyResult<()> {
+    m.add_class::<Snesim>()
+}

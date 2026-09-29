@@ -15,6 +15,10 @@ paired = np.c_[values, values**0.5 + rng.uniform(0, 0.1, 40)]
 v = cs.Variogram([("spherical", 1.0, 30.0)], nugget=0.1)
 search = cs.Search(radius=40, max_samples=8)
 grid = cs.BlockModel(origin=(0, 0), size=(10, 10), count=(10, 10))
+ti = cs.object_training_image(
+    cs.BlockModel((0, 0), (1, 1), (40, 40)),
+    [{"shape": "ellipsoid", "code": 1, "proportion": 0.3, "radii": (6.0, 3.0)}],
+)
 
 SIMULATORS = {
     "sgs": lambda: cs.SGS(v, search).fit(coords, values),
@@ -24,6 +28,7 @@ SIMULATORS = {
     "multivariate": lambda: cs.MultivariateSimulation(
         cs.PCA(), [cs.SGS(v, search), cs.TurningBands(v, bands=50)]
     ).fit(coords, paired),
+    "snesim": lambda: cs.SNESIM(ti, "facies", template_size=12, n_levels=1).fit(coords, facies),
 }
 
 

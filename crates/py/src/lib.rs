@@ -61,6 +61,7 @@ fn _ceres(m: &Bound<PyModule>) -> PyResult<()> {
     lva::register(m)?;
     modeling::register(m)?;
     simulation::register(m)?;
+    simulation::register_snesim(m)?;
     eda::register(m)?;
     categories::register(m)?;
     categorical::register(m)?;
