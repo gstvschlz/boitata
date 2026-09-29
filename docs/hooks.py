@@ -9,7 +9,8 @@ SENTENCE = re.compile(r"(?<=\.)\s+(?=[A-Z`])")
 
 API = """
 containers: Containers and I/O
-    Table PointSet BlockModel Mesh Polylines read_csv write_csv read_gslib write_gslib
+    Table PointSet BlockModel Mesh Polylines read_csv write_csv read_gslib write_gslib read_segy
+    write_segy
 datasets: Datasets and plots
     datasets plot plot3d
 transforms: Transforms

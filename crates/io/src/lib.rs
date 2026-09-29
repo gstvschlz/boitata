@@ -7,6 +7,7 @@ mod geotiff;
 mod gslib;
 mod mesh;
 mod parquet;
+mod segy;
 mod shapefile;
 
 pub use csv::{CsvOptions, read_csv, write_csv};
@@ -19,6 +20,7 @@ pub use parquet::{
     stream_map, write_block_model, write_model, write_parquet, write_parquet_batches, write_points,
     write_polylines,
 };
+pub use segy::{SegyOptions, read_segy, write_segy};
 pub use shapefile::{Shapes, read_shapefile, write_polylines_shapefile, write_shapefile};
 
 /// A value read as null. A number matches every token that parses to it, so
