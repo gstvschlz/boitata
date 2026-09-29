@@ -1036,3 +1036,18 @@ def test_predict_progress_shows_a_bar_without_changing_output(capsys):
     on = ok.predict(targets, progress=True)
     assert "100%" in capsys.readouterr().err
     np.testing.assert_array_equal(on, off)
+
+
+def test_indicator_predict_progress_shows_a_bar_without_changing_output(capsys):
+    grades = values - values.min() + 0.1
+    mik = cs.MultipleIndicatorKriging(model, search, list(np.quantile(grades, [0.3, 0.6]))).fit(
+        coords, grades
+    )
+    field = cs.LocalAnisotropy(coords[:5], np.zeros((5, 3)), np.ones((5, 2)))
+    for options in ({}, {"anisotropy": field}):
+        off = mik.predict(coords, cutoffs=[1.0], progress=False, **options)
+        assert capsys.readouterr().err == ""
+        on = mik.predict(coords, cutoffs=[1.0], progress=True, **options)
+        assert "100%" in capsys.readouterr().err
+        np.testing.assert_array_equal(on.cdf, off.cdf)
+        np.testing.assert_array_equal(on.probability_above, off.probability_above)

@@ -14,6 +14,7 @@ use crate::indicator::{
 };
 use crate::invalid;
 use crate::persist::{self, Columns, Found, Tabular};
+use crate::progress::with_progress;
 use crate::table::Table;
 use crate::variogram::Variogram;
 
@@ -185,12 +186,15 @@ impl CategoricalIndicatorKriging {
     ///     Orients every category's variogram and the search at each target.
     /// diagnostics : bool
     ///     Fill ``CategoricalIndicatorSummary.diagnostics``.
+    /// progress : bool, default True
+    ///     Show a `tqdm` progress bar.
     ///
     /// Returns
     /// -------
     /// CategoricalIndicatorSummary
     ///     NaN where the search found too few samples.
-    #[pyo3(signature = (targets, *, domains=None, domain_column=None, anisotropy=None, diagnostics=false))]
+    #[pyo3(signature = (targets, *, domains=None, domain_column=None, anisotropy=None, diagnostics=false, progress=true))]
+    #[allow(clippy::too_many_arguments)]
     fn predict(
         &self,
         py: Python,
@@ -199,6 +203,7 @@ impl CategoricalIndicatorKriging {
         domain_column: Option<&str>,
         anisotropy: Option<PyRef<crate::lva::LocalAnisotropy>>,
         diagnostics: bool,
+        progress: bool,
     ) -> PyResult<CategoricalIndicatorSummary> {
         let (samples, weights) = self.fitted()?;
         let domains = match (domains, domain_column) {
@@ -215,16 +220,18 @@ impl CategoricalIndicatorKriging {
         )?;
         let search = self.passes()?;
         let local = anisotropy.map(|a| a.at_targets(&targets));
-        py.detach(|| {
-            self.model.predict(
+        let total = Some(targets.len() as u64);
+        with_progress(py, total, progress, |counter| {
+            self.model.predict_with_progress(
                 samples,
                 weights.as_deref(),
                 &targets,
                 codes.as_deref(),
                 &search,
                 local.as_ref(),
+                counter,
             )
-        })
+        })?
         .map(|s| CategoricalIndicatorSummary {
             summary: CoreSummary {
                 diagnostics: s.diagnostics.filter(|_| diagnostics),

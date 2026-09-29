@@ -240,3 +240,15 @@ def test_vertical_and_combined_proportions():
         cs.combine_proportions(xyz, curve, np.ones((1500, 2)))
     with pytest.raises(cs.InvalidInput):
         cs.vertical_proportions(xyz, lith, size=0.0)
+
+
+def test_categorical_predict_progress_shows_a_bar_without_changing_output(capsys):
+    xy = np.random.default_rng(2).uniform(0, 50, (80, 2))
+    labels = (xy[:, 0] > 25).astype(int)
+    kriging = cs.CategoricalIndicatorKriging(cs.Variogram([("spherical", 0.25, 30.0)]), cs.Search(radius=40))
+    kriging.fit(xy, labels)
+    off = kriging.predict(xy, progress=False)
+    assert capsys.readouterr().err == ""
+    on = kriging.predict(xy, progress=True)
+    assert "100%" in capsys.readouterr().err
+    np.testing.assert_array_equal(on.probabilities, off.probabilities)

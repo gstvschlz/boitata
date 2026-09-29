@@ -1316,6 +1316,7 @@ class MultipleIndicatorKriging:
         anisotropy: LocalAnisotropy | None = None,
         diagnostics: bool = False,
         discretization: tuple[int, int, int] | None = None,
+        progress: bool = True,
     ) -> IndicatorSummary: ...
     def cross_validate(self, *, folds: int | None = None) -> IndicatorCrossValidation: ...
     def localize(
@@ -1423,6 +1424,7 @@ class CategoricalIndicatorKriging:
         domain_column: Column | None = None,
         anisotropy: LocalAnisotropy | None = None,
         diagnostics: bool = False,
+        progress: bool = True,
     ) -> CategoricalIndicatorSummary: ...
     def cross_validate(self, *, folds: int | None = None) -> CategoricalCrossValidation: ...
 

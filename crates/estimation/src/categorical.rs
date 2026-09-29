@@ -152,6 +152,21 @@ impl CategoricalIndicator {
         searches: &[Search],
         local: Option<&LocalAnisotropy>,
     ) -> Result<CategoricalIndicatorSummary> {
+        self.predict_with_progress(samples, weights, targets, domains, searches, local, None)
+    }
+
+    /// As [`Self::predict`], ticking `progress` for each target estimated.
+    #[allow(clippy::too_many_arguments)]
+    pub fn predict_with_progress(
+        &self,
+        samples: &[Sample],
+        weights: Option<&[f64]>,
+        targets: &[Point],
+        domains: Option<&[Option<u32>]>,
+        searches: &[Search],
+        local: Option<&LocalAnisotropy>,
+        progress: Option<&ceres_core::Progress>,
+    ) -> Result<CategoricalIndicatorSummary> {
         crate::search::unclamped(searches, "categorical kriging")?;
         let proportions = self.proportions(samples, weights)?;
         if domains.is_some_and(|d| d.len() != targets.len()) {
@@ -169,6 +184,7 @@ impl CategoricalIndicator {
                 let near = neighborhood_stats(t, s, s.len(), f64::INFINITY, None);
                 Ok((self.corrected(&raw, &proportions), near))
             },
+            progress,
         )?;
         let diagnostics = diagnostics(&results, searches, |c: &Corrected| c.violations);
         let corrected = results.into_iter().map(|r| r.map(|(_, (c, _))| c));
