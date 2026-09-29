@@ -264,5 +264,109 @@ fn shared(c: &mut Criterion) {
     group.finish();
 }
 
-criterion_group!(benches, bench, threads, phases, wide, many, shared);
+criterion_group!(
+    benches, bench, threads, phases, wide, many, shared, quilting
+);
 criterion_main!(benches);
+
+/// One patch's costs by direct scan and by FFT: channels in 2D comparing the
+/// overlap alone and with a secondary variable over the whole patch, and
+/// layers in 3D comparing the overlap.
+fn quilting(c: &mut Criterion) {
+    use simulation::{CostFft, CostScratch, Term, cost_map};
+    let channels: Vec<f32> = (0..250 * 250)
+        .map(|i| {
+            let (x, y) = ((i % 250) as f32, (i / 250) as f32);
+            f32::from(u8::from((y - 6.0 * (x / 7.0).sin()).rem_euclid(16.0) < 5.0))
+        })
+        .collect();
+    let layers: Vec<f32> = (0..64 * 64 * 32)
+        .map(|i| (((i % 64) + 2 * (i / 4096)) / 4 % 2) as f32)
+        .collect();
+    let secondary: Vec<f32> = channels.iter().map(|v| 3.0 * v + 0.5).collect();
+    let cases: [(&str, &[f32], [usize; 3], [usize; 3], [usize; 3], bool); 3] = [
+        (
+            "2D overlap",
+            &channels,
+            [250, 250, 1],
+            [40, 40, 1],
+            [6, 6, 0],
+            false,
+        ),
+        (
+            "2D overlap and secondary",
+            &channels,
+            [250, 250, 1],
+            [40, 40, 1],
+            [6, 6, 0],
+            true,
+        ),
+        (
+            "3D overlap",
+            &layers,
+            [64, 64, 32],
+            [20, 20, 10],
+            [3, 3, 1],
+            false,
+        ),
+    ];
+    let mut group = c.benchmark_group("image quilting, one patch's costs");
+    group.sample_size(10);
+    for (name, image, dims, patch, overlap, with_secondary) in cases {
+        let cells: usize = patch.iter().product();
+        let in_overlap = |c: usize| {
+            let p = [
+                c % patch[0],
+                c / patch[0] % patch[1],
+                c / (patch[0] * patch[1]),
+            ];
+            (0..3).any(|a| p[a] < overlap[a])
+        };
+        let n = (0..cells).filter(|&c| in_overlap(c)).count() as f64;
+        let template: Vec<f32> = (0..cells)
+            .map(|c| {
+                if in_overlap(c) {
+                    image[c % patch[0] + dims[0] * (c / patch[0] % patch[1])]
+                } else {
+                    f32::NAN
+                }
+            })
+            .collect();
+        let weights: Vec<f64> = (0..cells)
+            .map(|c| if in_overlap(c) { 1.0 / n } else { 0.0 })
+            .collect();
+        let full: Vec<f32> = (0..cells).map(|c| (c % 3) as f32).collect();
+        let all = vec![1.0 / cells as f64; cells];
+        let mut terms = vec![Term {
+            image,
+            categorical: true,
+            inv_range: 0.0,
+            template: &template,
+            weights: &weights,
+        }];
+        let mut images = vec![0];
+        if with_secondary {
+            terms.push(Term {
+                image: &secondary,
+                categorical: false,
+                inv_range: 1.0 / 3.0,
+                template: &full,
+                weights: &all,
+            });
+            images.push(1);
+        }
+        let fft = CostFft::new(
+            dims,
+            patch,
+            &[(image, true), (&secondary, false)][..images.len()],
+        );
+        let mut scratch = CostScratch::default();
+        group.bench_function(format!("{name}, direct"), |b| {
+            b.iter(|| black_box(cost_map(dims, patch, &terms)))
+        });
+        group.bench_function(format!("{name}, FFT"), |b| {
+            b.iter(|| black_box(fft.costs(&terms, &images, &mut scratch)))
+        });
+    }
+    group.finish();
+}

@@ -436,22 +436,31 @@ def test_snesim_round_trip_simulates_bit_identically(tmp_path):
 def test_image_quilting_round_trip_simulates_bit_identically(categorical, tmp_path):
     x, y = np.meshgrid(np.arange(40), np.arange(40))
     image = ((y - 4 * np.sin(x / 5)) % 10 < 4) * 1.0 if categorical else np.sin(x / 5) * np.cos(y / 7)
-    ti = cs.BlockModel((0, 0), (1, 1), (40, 40), attributes={"v": image.ravel()})
+    ti = cs.BlockModel(
+        (0, 0), (1, 1), (40, 40), attributes={"v": image.ravel(), "s": (image + x / 40).ravel()}
+    )
     targets = cs.BlockModel((0, 0), (4, 4), (25, 25))
     data = {"values": facies % 2 if categorical else values}
-    simulator = cs.ImageQuilting(ti, "v", patch_size=8, n_best=4)
+    simulator = cs.ImageQuilting(
+        ti, "v", patch_size=8, n_best=4, secondary="s", secondary_weight=0.5, soft_weight=2.0
+    )
+    p1 = np.linspace(0, 1, 625)
+    given = {
+        "secondary": np.linspace(0, 1.5, 625),
+        "soft": np.column_stack([1 - p1, p1]) if categorical else None,
+    }
     path = tmp_path / "simulator.parquet"
     simulator.to_parquet(path)
     unfitted = type(simulator).from_parquet(path).fit(coords[:, :2], **data)
     simulator.fit(coords[:, :2], **data)
-    summary = simulator.simulate(targets, n=3, seed=9, keep=True, progress=False)
+    summary = simulator.simulate(targets, n=3, seed=9, keep=True, progress=False, **given)
     same(
-        summary_arrays(unfitted.simulate(targets, n=3, seed=9, keep=True, progress=False)),
+        summary_arrays(unfitted.simulate(targets, n=3, seed=9, keep=True, progress=False, **given)),
         summary_arrays(summary),
     )
     simulator.to_parquet(path)
     for back in (type(simulator).from_parquet(path), pickle.loads(pickle.dumps(simulator))):
         same(
-            summary_arrays(back.simulate(targets, n=3, seed=9, keep=True, progress=False)),
+            summary_arrays(back.simulate(targets, n=3, seed=9, keep=True, progress=False, **given)),
             summary_arrays(summary),
         )

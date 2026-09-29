@@ -3397,6 +3397,15 @@ pub fn register_snesim(m: &Bound<PyModule>) -> PyResult<()> {
 /// The mismatch of a cell is 0 or 1 for codes, and the squared difference
 /// over the squared value range of the training image for values.
 ///
+/// Two more kinds of data steer the choice when `simulate` is given them.
+/// Soft probabilities of each code at the targets add `soft_weight` times the
+/// mean of ``1 - P(c)`` over the patch, `c` the code the patch puts in a
+/// block. A secondary variable known over both the training image and the
+/// targets, such as seismic amplitude, adds `secondary_weight` times the mean
+/// squared difference between the two over the patch, over the squared
+/// range of the training image's secondary column. A patch that compares
+/// many cells has its costs computed by FFT, with the same realizations.
+///
 /// Parameters
 /// ----------
 /// ti : BlockModel
@@ -3419,6 +3428,13 @@ pub fn register_snesim(m: &Bound<PyModule>) -> PyResult<()> {
 ///     Whether the column holds codes (categories 0 to 254) or continuous
 ///     values. By default it is categorical when every value is an integer
 ///     from 0 to 254; set False for integer-valued continuous variables.
+/// secondary : str, optional
+///     The float column of `ti` holding the secondary variable; `simulate`
+///     then needs it at the targets.
+/// secondary_weight : float, default 1.0
+///     Weight of the secondary variable against the overlap.
+/// soft_weight : float, default 1.0
+///     Weight of the soft probabilities against the overlap.
 ///
 /// Examples
 /// --------
@@ -3435,10 +3451,16 @@ pub struct ImageQuilting {
     overlap: Option<[usize; 3]>,
     n_best: usize,
     data_weight: f64,
+    soft_weight: f64,
+    secondary_weight: f64,
     categorical: bool,
     ti_dims: [usize; 3],
     #[serde(skip)]
     ti: Option<simulation::TrainingImage>,
+    /// The column the secondary variable was read from.
+    secondary: Option<String>,
+    #[serde(skip)]
+    secondary_ti: Option<simulation::TrainingImage>,
     /// Hard data as locations and values.
     #[serde(default)]
     data: Option<(Vec<Point>, Vec<f64>)>,
@@ -3460,6 +3482,8 @@ impl ImageQuilting {
             overlap: self.overlap,
             n_best: self.n_best,
             data_weight: self.data_weight,
+            soft_weight: self.soft_weight,
+            secondary_weight: self.secondary_weight,
         }
     }
 
@@ -3468,38 +3492,52 @@ impl ImageQuilting {
     }
 }
 
+/// The cells of a training image, null where it has no data.
+fn image_cells(image: &simulation::TrainingImage) -> Vec<Option<f64>> {
+    match image.values() {
+        simulation::TrainingValues::Categorical(codes) => codes
+            .iter()
+            .map(|&c| (c != simulation::NO_CODE).then_some(f64::from(c)))
+            .collect(),
+        simulation::TrainingValues::Continuous(values) => values
+            .iter()
+            .map(|&v| (!v.is_nan()).then_some(f64::from(v)))
+            .collect(),
+    }
+}
+
 impl Tabular for ImageQuilting {
     fn columns(&self) -> Option<Columns> {
-        let cells: Vec<Option<f64>> = match self.ti.as_ref()?.values() {
-            simulation::TrainingValues::Categorical(codes) => codes
-                .iter()
-                .map(|&c| (c != simulation::NO_CODE).then_some(f64::from(c)))
-                .collect(),
-            simulation::TrainingValues::Continuous(values) => values
-                .iter()
-                .map(|&v| (!v.is_nan()).then_some(f64::from(v)))
-                .collect(),
-        };
-        Some(vec![("ti".into(), cells)])
+        let mut columns = vec![("ti".into(), image_cells(self.ti.as_ref()?))];
+        if let Some(secondary) = &self.secondary_ti {
+            columns.push(("secondary".into(), image_cells(secondary)));
+        }
+        Some(columns)
     }
 
     fn restore(&mut self, columns: Found) -> PyResult<()> {
-        let cells = columns.optional("ti")?;
         let geometry = ceres_core::Geometry {
             origin: [0.0; 3],
             size: [1.0; 3],
             count: self.ti_dims,
             rotation: [0.0; 3],
         };
-        let array = std::sync::Arc::new(arrow_array::Float64Array::from(cells));
-        let batch =
-            arrow_array::RecordBatch::try_from_iter([("ti", array as _)]).map_err(invalid)?;
-        let model = ceres_core::BlockModel::regular(geometry, batch).map_err(invalid)?;
-        let image = match self.categorical {
-            true => simulation::TrainingImage::categorical(&model, "ti"),
-            false => simulation::TrainingImage::continuous(&model, "ti"),
+        let image = |name: &str, categorical: bool| -> PyResult<simulation::TrainingImage> {
+            let array =
+                std::sync::Arc::new(arrow_array::Float64Array::from(columns.optional(name)?));
+            let batch =
+                arrow_array::RecordBatch::try_from_iter([(name, array as _)]).map_err(invalid)?;
+            let model = ceres_core::BlockModel::regular(geometry, batch).map_err(invalid)?;
+            match categorical {
+                true => simulation::TrainingImage::categorical(&model, name),
+                false => simulation::TrainingImage::continuous(&model, name),
+            }
+            .map_err(err)
         };
-        self.ti = Some(image.map_err(err)?);
+        self.ti = Some(image("ti", self.categorical)?);
+        if self.secondary.is_some() {
+            self.secondary_ti = Some(image("secondary", false)?);
+        }
         Ok(())
     }
 }
@@ -3529,7 +3567,7 @@ impl ImageQuilting {
     }
 
     #[new]
-    #[pyo3(signature = (ti, column, *, patch_size=None, overlap=None, n_best=10, data_weight=5.0, categorical=None))]
+    #[pyo3(signature = (ti, column, *, patch_size=None, overlap=None, n_best=10, data_weight=5.0, categorical=None, secondary=None, secondary_weight=1.0, soft_weight=1.0))]
     #[allow(clippy::too_many_arguments)]
     fn new(
         py: Python,
@@ -3540,6 +3578,9 @@ impl ImageQuilting {
         n_best: usize,
         data_weight: f64,
         categorical: Option<bool>,
+        secondary: Option<String>,
+        secondary_weight: f64,
+        soft_weight: f64,
     ) -> PyResult<Self> {
         let patch_size = patch_size.map_or(Ok([40; 3]), |p| cells_arg(p, "patch_size"))?;
         let overlap = overlap.map(|o| cells_arg(o, "overlap")).transpose()?;
@@ -3552,14 +3593,23 @@ impl ImageQuilting {
                     .or_else(|_| simulation::TrainingImage::continuous(model, column)),
             })
             .map_err(err)?;
+        let secondary_ti = secondary
+            .as_deref()
+            .map(|name| py.detach(|| simulation::TrainingImage::continuous(model, name)))
+            .transpose()
+            .map_err(err)?;
         let quilting = Self {
             patch_size,
             overlap,
             n_best,
             data_weight,
+            soft_weight,
+            secondary_weight,
             categorical: image.is_categorical(),
             ti_dims: image.dims(),
             ti: Some(image),
+            secondary,
+            secondary_ti,
             data: None,
         };
         quilting.params().validate().map_err(err)?;
@@ -3621,24 +3671,69 @@ impl ImageQuilting {
     /// seed : int, default 0
     /// keep : bool or sequence of int, optional
     ///     Return all realizations, or these 0-based ones, beside the summary.
+    /// soft : sequence of str or array_like, shape (targets, k), optional
+    ///     Probability of each code ``0..k`` at every target block, as `k`
+    ///     columns of `targets` in code order or an array; a row of nulls
+    ///     carries none. Rows are scaled to sum to 1. Categorical training
+    ///     images only.
+    /// secondary : str or array_like, shape (targets,), optional
+    ///     The secondary variable at the targets, as a column of `targets` or
+    ///     an array; null where unknown. Needed exactly when the simulator was
+    ///     built with `secondary`.
     /// progress : bool, default True
     ///
     /// Returns
     /// -------
     /// CategoricalSummary or SimulationSummary
     ///     Categorical for a categorical training image, else continuous.
-    #[pyo3(signature = (targets, *, n=100, seed=0, keep=None, progress=true))]
+    #[pyo3(signature = (targets, *, n=100, seed=0, keep=None, soft=None, secondary=None, progress=true))]
+    #[allow(clippy::too_many_arguments)]
     fn simulate(
         &self,
         py: Python,
-        targets: PyRef<PyBlockModel>,
+        targets: &Bound<PyAny>,
         n: usize,
         seed: u64,
         keep: Option<&Bound<PyAny>>,
+        soft: Option<&Bound<PyAny>>,
+        secondary: Option<&Bound<PyAny>>,
         progress: bool,
     ) -> PyResult<Py<PyAny>> {
-        let lattice = simulation::Lattice::from_model(&targets.0)
+        let model = targets
+            .cast::<PyBlockModel>()
+            .map_err(|_| invalid("targets must be a BlockModel"))?
+            .borrow();
+        let lattice = simulation::Lattice::from_model(&model.0)
             .ok_or_else(|| invalid("targets must be a regular or masked BlockModel"))?;
+        if soft.is_some() && !self.categorical {
+            return Err(invalid(
+                "soft probabilities need a categorical training image",
+            ));
+        }
+        let soft = soft
+            .map(|s| soft_rows(targets, s, lattice.len(), self.ti()?.n_categories()))
+            .transpose()?;
+        let secondary = match (&self.secondary_ti, secondary) {
+            (Some(image), Some(values)) => {
+                let values = floats(
+                    &args::column(Some(targets), values, "secondary")?,
+                    "secondary",
+                )?;
+                same_length(lattice.len(), values.len(), "secondary")?;
+                let values: Vec<Option<f64>> = values
+                    .into_iter()
+                    .map(|v| (!v.is_nan()).then_some(v))
+                    .collect();
+                Some((image, values))
+            }
+            (None, None) => None,
+            _ => {
+                return Err(invalid(
+                    "give secondary both to ImageQuilting, as a column of the training image, \
+                     and to simulate, at the targets, or to neither",
+                ));
+            }
+        };
         let data: Vec<([f64; 3], f64)> = self
             .data
             .iter()
@@ -3647,7 +3742,16 @@ impl ImageQuilting {
             .collect();
         let ti = self.ti()?;
         let quilting = py
-            .detach(|| simulation::Quilting::new(ti, &lattice, &data, &self.params()))
+            .detach(|| {
+                let mut q = simulation::Quilting::new(ti, &lattice, &data, &self.params())?;
+                if let Some(soft) = &soft {
+                    q = q.with_soft(soft)?;
+                }
+                if let Some((image, values)) = &secondary {
+                    q = q.with_secondary(image, values)?;
+                }
+                Ok::<_, simulation::SimError>(q)
+            })
             .map_err(err)?;
         let keep = keep_arg(keep)?;
         let realization = |i: usize| {

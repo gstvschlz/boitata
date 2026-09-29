@@ -7,21 +7,31 @@
 //!
 //! 1. reads what the grid already holds under the patch: the cells of earlier
 //!    patches and the hard data;
-//! 2. scores every position of the training image against them ([`cost_map`]);
+//! 2. scores every position of the training image against them, and against
+//!    the soft probabilities and the secondary variable under the patch when
+//!    there are some ([`cost_map`]);
 //! 3. picks one of the `n_best` cheapest positions at random;
 //! 4. finds the seam through the overlap where the new patch and the old cells
 //!    agree best ([`crate::seam`]);
 //! 5. pastes the patch on the new side of the seam, never over a hard datum.
 //!
+//! A patch that compares many cells has its costs computed by FFT
+//! ([`CostFft`]) when that is expected to be faster. The FFT costs only
+//! shortlist the positions that can be among the `n_best`: those are scored
+//! again by the direct sum, so a realization is the same whichever path runs.
+//!
 //! A realization draws from one random stream in patch order, and the cost
 //! map sums every position in a fixed order, so a realization does not depend
 //! on the number of threads.
+
+use std::sync::OnceLock;
 
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
 use rayon::prelude::*;
 
 use crate::error::{Result, SimError};
+use crate::fft::{CostFft, CostScratch, fft_bytes, fft_pays, n_kernels};
 use crate::lattice::Lattice;
 use crate::seam::{Side, path_cut, surface_cut};
 use crate::training_image::{NO_CODE, TrainingImage, TrainingValues};
@@ -94,15 +104,22 @@ pub fn cost_map(image_dims: [usize; 3], patch: [usize; 3], terms: &[Term<'_>]) -
             let (ty, tz) = (row % positions[1], row / positions[1]);
             let row_start = nx * (ty + ny * tz);
             for (tx, cost) in costs.iter_mut().enumerate() {
-                for (term, cells) in terms.iter().zip(&compared) {
-                    for &(offset, value, weight) in cells {
-                        let image = term.image[row_start + tx + offset];
-                        *cost += weight * term.mismatch(image, value);
-                    }
-                }
+                *cost = cost_at(terms, &compared, row_start + tx);
             }
         });
     costs
+}
+
+/// The cost of the position whose patch starts at image cell `start`, summed
+/// in [`cost_map`]'s order.
+fn cost_at(terms: &[Term<'_>], compared: &[Vec<(usize, f32, f64)>], start: usize) -> f64 {
+    let mut cost = 0.0;
+    for (term, cells) in terms.iter().zip(compared) {
+        for &(offset, value, weight) in cells {
+            cost += weight * term.mismatch(term.image[start + offset], value);
+        }
+    }
+    cost
 }
 
 /// The cells of `term` that [`cost_map`] compares, as (offset in the image
@@ -125,6 +142,38 @@ fn compared_cells(
         .collect()
 }
 
+/// The soft error of a patch as categorical [`cost_map`] terms, as (template,
+/// weights): `soft_weight` times the mean of `1 − P(c)` over the cells of the
+/// patch with probabilities, where `c` is the image's code at the cell.
+///
+/// `boxes[k]` holds `P(k)` at each cell of the patch box, summing to 1 over
+/// the codes; NaN at a cell without probabilities. As `1 − P(c) = Σ_k P(k) ·
+/// [c ≠ k]`, the error is one term per code `k`: template `k`, weight
+/// `soft_weight · P(k) / n` at each of the `n` cells with probabilities.
+fn soft_terms(boxes: Vec<Vec<f32>>, soft_weight: f64) -> Vec<(Vec<f32>, Vec<f64>)> {
+    let n = boxes
+        .first()
+        .map_or(0, |w| w.iter().filter(|p| !p.is_nan()).count());
+    boxes
+        .into_iter()
+        .enumerate()
+        .map(|(k, probabilities)| {
+            let template = probabilities
+                .iter()
+                .map(|p| if p.is_nan() { f32::NAN } else { k as f32 })
+                .collect();
+            let weights = probabilities
+                .iter()
+                .map(|&p| match p.is_nan() {
+                    true => 0.0,
+                    false => soft_weight * f64::from(p) / n as f64,
+                })
+                .collect();
+            (template, weights)
+        })
+        .collect()
+}
+
 /// Image quilting parameters.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct QuiltingParams {
@@ -139,6 +188,12 @@ pub struct QuiltingParams {
     /// Weight of the hard data against the overlap in a position's cost; 0
     /// leaves them out of the choice.
     pub data_weight: f64,
+    /// Weight of the soft probabilities against the overlap
+    /// ([`Quilting::with_soft`]).
+    pub soft_weight: f64,
+    /// Weight of the secondary variable against the overlap
+    /// ([`Quilting::with_secondary`]).
+    pub secondary_weight: f64,
 }
 
 impl Default for QuiltingParams {
@@ -148,6 +203,8 @@ impl Default for QuiltingParams {
             overlap: None,
             n_best: 10,
             data_weight: 5.0,
+            soft_weight: 1.0,
+            secondary_weight: 1.0,
         }
     }
 }
@@ -172,11 +229,16 @@ impl QuiltingParams {
         if self.n_best == 0 {
             return bad("n_best must be at least 1".into());
         }
-        if !(self.data_weight.is_finite() && self.data_weight >= 0.0) {
-            return bad(format!(
-                "data_weight is {}; it must be finite and at least 0",
-                self.data_weight
-            ));
+        for (name, weight) in [
+            ("data_weight", self.data_weight),
+            ("soft_weight", self.soft_weight),
+            ("secondary_weight", self.secondary_weight),
+        ] {
+            if !(weight.is_finite() && weight >= 0.0) {
+                return bad(format!(
+                    "{name} is {weight}; it must be finite and at least 0"
+                ));
+            }
         }
         Ok(())
     }
@@ -315,6 +377,30 @@ struct Hard {
     value: f64,
 }
 
+/// Memory the FFT path may hold, spectra and every thread's buffers; above
+/// it, costs are summed directly.
+const FFT_MEMORY_BUDGET: usize = 1 << 30;
+
+/// How patch costs are computed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(not(test), allow(dead_code))]
+enum CostPath {
+    /// By FFT when [`fft_pays`] and it fits [`FFT_MEMORY_BUDGET`].
+    Auto,
+    Direct,
+    Fft,
+}
+
+/// A secondary variable paired between the training image and the grid.
+#[derive(Debug, Clone)]
+struct Secondary {
+    /// Over the training image, x fastest; NaN where there is no data.
+    image: Vec<f32>,
+    inv_range: f64,
+    /// Over the grid cells; NaN where there is no value.
+    grid: Vec<f32>,
+}
+
 /// Everything the realizations of an image-quilting run share.
 #[derive(Debug, Clone)]
 pub struct Quilting {
@@ -323,6 +409,8 @@ pub struct Quilting {
     image: Vec<f32>,
     ti_dims: [usize; 3],
     categorical: bool,
+    /// Codes of a categorical image; 0 for a continuous one.
+    n_codes: usize,
     inv_range: f64,
     patches: PatchGrid,
     n_best: usize,
@@ -333,6 +421,15 @@ pub struct Quilting {
     roles: Vec<u8>,
     /// Sorted by cell.
     hard: Vec<Hard>,
+    soft_weight: f64,
+    secondary_weight: f64,
+    /// Soft probabilities: per code, one value per grid cell, summing to 1
+    /// over the codes; NaN where a cell has none.
+    soft: Option<Vec<Vec<f32>>>,
+    secondary: Option<Secondary>,
+    path: CostPath,
+    /// The FFT spectra, built by the first patch that needs them.
+    spectra: OnceLock<CostFft>,
 }
 
 impl Quilting {
@@ -408,6 +505,7 @@ impl Quilting {
             image,
             ti_dims,
             categorical,
+            n_codes: k,
             inv_range: if range > 0.0 { 1.0 / range } else { 0.0 },
             patches,
             n_best: params.n_best,
@@ -415,7 +513,91 @@ impl Quilting {
             valid,
             roles,
             hard,
+            soft_weight: params.soft_weight,
+            secondary_weight: params.secondary_weight,
+            soft: None,
+            secondary: None,
+            path: CostPath::Auto,
+            spectra: OnceLock::new(),
         })
+    }
+
+    /// Adds soft probabilities of a categorical training image: for each
+    /// node, `None` or one probability per code, finite, at least 0 and not
+    /// all 0, scaled to sum to 1. A position then also costs `soft_weight`
+    /// times the mean of `1 − P(c)` over the cells of the patch with
+    /// probabilities, where `c` is the code the position puts there.
+    pub fn with_soft(mut self, probabilities: &[Option<Vec<f64>>]) -> Result<Self> {
+        let bad = |m: String| Err(SimError::InvalidParameters(m));
+        if !self.categorical {
+            return bad("soft probabilities need a categorical training image".into());
+        }
+        if probabilities.len() != self.lattice.len() {
+            return bad(format!(
+                "{} rows of soft probabilities for {} nodes",
+                probabilities.len(),
+                self.lattice.len()
+            ));
+        }
+        let k = self.n_codes;
+        let mut soft = vec![vec![f32::NAN; self.roles.len()]; k];
+        for (node, row) in probabilities.iter().enumerate() {
+            let Some(row) = row else { continue };
+            let sum: f64 = row.iter().sum();
+            if row.len() != k || row.iter().any(|p| !(p.is_finite() && *p >= 0.0)) || sum <= 0.0 {
+                return bad(format!(
+                    "soft probabilities at node {node} are {row:?}; give {k}, finite, at least \
+                     0 and not all 0"
+                ));
+            }
+            let cell = self.lattice.cell(node) as usize;
+            for (grid, p) in soft.iter_mut().zip(row) {
+                grid[cell] = (p / sum) as f32;
+            }
+        }
+        self.soft = Some(soft);
+        Ok(self)
+    }
+
+    /// Adds a secondary variable: `image`, continuous with the dimensions of
+    /// the training image, paired with `values`, one per node or `None`. A
+    /// position then also costs `secondary_weight` times the mean squared
+    /// difference between the two, over the squared range of `image`, across
+    /// the cells of the patch with a value.
+    pub fn with_secondary(mut self, image: &TrainingImage, values: &[Option<f64>]) -> Result<Self> {
+        let bad = |m: String| Err(SimError::InvalidParameters(m));
+        let Some(secondary) = image.continuous_values() else {
+            return bad("the secondary training image must be continuous".into());
+        };
+        if image.dims() != self.ti_dims {
+            return bad(format!(
+                "the secondary training image has {:?} cells, the training image {:?}",
+                image.dims(),
+                self.ti_dims
+            ));
+        }
+        if values.len() != self.lattice.len() {
+            return bad(format!(
+                "{} secondary values for {} nodes",
+                values.len(),
+                self.lattice.len()
+            ));
+        }
+        let mut grid = vec![f32::NAN; self.roles.len()];
+        for (node, value) in values.iter().enumerate() {
+            let Some(v) = *value else { continue };
+            if !(v.is_finite() && (v as f32).is_finite()) {
+                return bad(format!("secondary value {v} at node {node} is not finite"));
+            }
+            grid[self.lattice.cell(node) as usize] = v as f32;
+        }
+        let range = image.value_range();
+        self.secondary = Some(Secondary {
+            image: secondary.to_vec(),
+            inv_range: if range > 0.0 { 1.0 / range } else { 0.0 },
+            grid,
+        });
+        Ok(self)
     }
 
     /// The patches covering the grid, after clamping.
@@ -436,8 +618,9 @@ impl Quilting {
         }
         let mut rng = StdRng::seed_from_u64(seed);
         let mut disagrees = vec![false; self.hard.len()];
+        let mut scratch = CostScratch::default();
         for k in 0..self.patches.len() {
-            self.paste(&mut store, &mut rng, k, &mut disagrees);
+            self.paste(&mut store, &mut rng, k, &mut disagrees, &mut scratch);
         }
         let mut values: Vec<f64> = (0..self.lattice.len())
             .map(|n| f64::from(store[self.lattice.cell(n) as usize]))
@@ -460,7 +643,14 @@ impl Quilting {
     }
 
     /// Chooses patch `k` of the raster path and pastes it into `store`.
-    fn paste(&self, store: &mut [f32], rng: &mut StdRng, k: usize, disagrees: &mut [bool]) {
+    fn paste(
+        &self,
+        store: &mut [f32],
+        rng: &mut StdRng,
+        k: usize,
+        disagrees: &mut [bool],
+        scratch: &mut CostScratch,
+    ) {
         let patch = self.patches.patch;
         let grid = self.lattice.geometry().count;
         let origin = self.patches.origin(k);
@@ -471,7 +661,10 @@ impl Quilting {
         }
 
         // 1. The cost of every position: the mean mismatch over the cells of
-        //    earlier patches plus `data_weight` times that over the hard data.
+        //    earlier patches, `data_weight` times that over the hard data,
+        //    `secondary_weight` times that over the secondary values and
+        //    `soft_weight` times the soft error. Image 0 is the training
+        //    image, 1 the secondary one.
         let n_data = roles.iter().filter(|&&r| r == HARD).count();
         let n_old = old.iter().filter(|v| !v.is_nan()).count() - n_data;
         let weights: Vec<f64> = (0..old.len())
@@ -481,14 +674,49 @@ impl Quilting {
                 _ => 0.0,
             })
             .collect();
-        let terms = [Term {
+        let mut terms = vec![Term {
             image: &self.image,
             categorical: self.categorical,
             inv_range: self.inv_range,
             template: &old,
             weights: &weights,
         }];
-        let costs = cost_map(self.ti_dims, patch, &terms);
+        let mut images = vec![0];
+        let (secondary_template, secondary_weights);
+        if let Some(secondary) = &self.secondary {
+            secondary_template = cells_in_box(&secondary.grid, grid, origin, patch, f32::NAN);
+            let n = secondary_template.iter().filter(|v| !v.is_nan()).count();
+            secondary_weights = vec![self.secondary_weight / n.max(1) as f64; old.len()];
+            terms.push(Term {
+                image: &secondary.image,
+                categorical: false,
+                inv_range: secondary.inv_range,
+                template: &secondary_template,
+                weights: &secondary_weights,
+            });
+            images.push(1);
+        }
+        let soft = match &self.soft {
+            Some(grids) => soft_terms(
+                grids
+                    .iter()
+                    .map(|g| cells_in_box(g, grid, origin, patch, f32::NAN))
+                    .collect(),
+                self.soft_weight,
+            ),
+            None => Vec::new(),
+        };
+        for (template, weights) in &soft {
+            terms.push(Term {
+                image: &self.image,
+                categorical: true,
+                inv_range: 0.0,
+                template,
+                weights,
+            });
+            images.push(0);
+        }
+        let costs = self.costs(&terms, &images, scratch);
 
         // 2. One of the `n_best` cheapest positions.
         let position = self.choose(&costs, rng);
@@ -543,6 +771,80 @@ impl Quilting {
                 _ => {}
             }
         }
+    }
+
+    /// The cost of every position for `terms`, term `i` reading image
+    /// `images[i]`: [`cost_map`], or the same costs wherever they can matter.
+    ///
+    /// By FFT, a cost lies within `e` of the direct sum. Let `T` be the
+    /// `n_best`-th smallest FFT cost of a valid position: `n_best` positions
+    /// cost at most `T + e`, so every position [`Quilting::choose`] may keep
+    /// has an FFT cost of at most `T + 2e`. Those are summed again directly
+    /// and the others set to infinity, which `choose` never keeps.
+    fn costs(&self, terms: &[Term<'_>], images: &[usize], scratch: &mut CostScratch) -> Vec<f64> {
+        let patch = self.patches.patch;
+        let compared: Vec<_> = terms
+            .iter()
+            .map(|term| compared_cells(term, self.ti_dims, patch))
+            .collect();
+        let Some(fft) = self.fft(terms, images, &compared) else {
+            return cost_map(self.ti_dims, patch, terms);
+        };
+        let approximate = fft.costs(terms, images, scratch);
+        let mut valid: Vec<f64> = approximate
+            .iter()
+            .zip(&self.valid)
+            .filter_map(|(&c, &v)| v.then_some(c))
+            .collect();
+        let nth = self.n_best.min(valid.len()) - 1;
+        let threshold = *valid.select_nth_unstable_by(nth, f64::total_cmp).1
+            + 2.0 * fft.error_bound(terms, images);
+        let positions: [usize; 3] = std::array::from_fn(|a| self.ti_dims[a] - patch[a] + 1);
+        let [nx, ny, _] = self.ti_dims;
+        (0..approximate.len())
+            .into_par_iter()
+            .map(|p| match self.valid[p] && approximate[p] <= threshold {
+                true => {
+                    let [tx, ty, tz] = ijk_of(p, positions);
+                    cost_at(terms, &compared, tx + nx * (ty + ny * tz))
+                }
+                false => f64::INFINITY,
+            })
+            .collect()
+    }
+
+    /// The FFT spectra, when this patch's costs go by FFT.
+    fn fft(
+        &self,
+        terms: &[Term<'_>],
+        images: &[usize],
+        compared: &[Vec<(usize, f32, f64)>],
+    ) -> Option<&CostFft> {
+        let patch = self.patches.patch;
+        let by_fft = match self.path {
+            CostPath::Direct => false,
+            CostPath::Fft => true,
+            CostPath::Auto => {
+                let n_compared = compared.iter().map(Vec::len).sum();
+                let n_spectra = match self.categorical {
+                    true => self.n_codes,
+                    false => 3,
+                } + 3 * usize::from(self.secondary.is_some());
+                let threads = rayon::current_num_threads();
+                fft_pays(self.ti_dims, patch, n_compared, n_kernels(terms, images))
+                    && fft_bytes(self.ti_dims, patch, n_spectra, n_spectra, threads)
+                        <= FFT_MEMORY_BUDGET
+            }
+        };
+        by_fft.then(|| {
+            self.spectra.get_or_init(|| {
+                let mut images = vec![(&self.image[..], self.categorical)];
+                if let Some(secondary) = &self.secondary {
+                    images.push((&secondary.image[..], false));
+                }
+                CostFft::new(self.ti_dims, patch, &images)
+            })
+        })
     }
 
     /// One of the `n_best` cheapest valid positions. The scan starts at a
@@ -748,6 +1050,7 @@ mod tests {
             overlap: Some(overlap),
             n_best: 1,
             data_weight: 1.0,
+            ..Default::default()
         };
         let mut quilting = Quilting::new(&ti, &lattice(grid), &[], &params).unwrap();
         quilting.valid.fill(false);
@@ -972,5 +1275,282 @@ mod tests {
         );
         let ti = TrainingImage::categorical(&holes, "v").unwrap();
         assert!(Quilting::new(&ti, &grid, &[], &params(3)).is_err());
+    }
+
+    #[test]
+    fn soft_and_secondary_inputs_are_checked() {
+        let ti = channels([30, 30, 1]);
+        let grid = lattice([10, 10, 1]);
+        for weight in [-1.0, f64::INFINITY] {
+            for p in [
+                QuiltingParams {
+                    soft_weight: weight,
+                    ..params(8)
+                },
+                QuiltingParams {
+                    secondary_weight: weight,
+                    ..params(8)
+                },
+            ] {
+                assert!(Quilting::new(&ti, &grid, &[], &p).is_err());
+            }
+        }
+        let q = || Quilting::new(&ti, &grid, &[], &params(8)).unwrap();
+        let rows = |row: Option<Vec<f64>>| vec![row; 100];
+        assert!(q().with_soft(&rows(Some(vec![0.2, 0.8]))).is_ok());
+        assert!(q().with_soft(&rows(None)).is_ok());
+        for bad in [
+            vec![1.0],
+            vec![0.0, 0.0],
+            vec![-0.1, 1.1],
+            vec![f64::NAN, 1.0],
+        ] {
+            assert!(q().with_soft(&rows(Some(bad))).is_err());
+        }
+        assert!(q().with_soft(&vec![None; 99]).is_err());
+        let smooth = field([30, 30, 1]);
+        assert!(q().with_secondary(&smooth, &[Some(0.5); 100]).is_ok());
+        assert!(q().with_secondary(&smooth, &[Some(0.5); 99]).is_err());
+        assert!(q().with_secondary(&smooth, &[Some(f64::NAN); 100]).is_err());
+        assert!(q().with_secondary(&ti, &[None; 100]).is_err());
+        assert!(
+            q().with_secondary(&field([30, 31, 1]), &[None; 100])
+                .is_err()
+        );
+        let continuous = Quilting::new(&smooth, &grid, &[], &params(8)).unwrap();
+        assert!(continuous.with_soft(&rows(None)).is_err());
+    }
+
+    #[test]
+    fn the_soft_error_is_the_mean_of_1_minus_the_probability_of_the_image_code() {
+        // Probabilities at the first two cells of a 3-cell patch, none at the
+        // third.
+        let image = [0.0, 1.0, 1.0, 2.0, f32::NAN, 0.0];
+        let boxes = vec![
+            vec![0.2, 0.25, f32::NAN],
+            vec![0.8, 0.25, f32::NAN],
+            vec![0.0, 0.5, f32::NAN],
+        ];
+        let parts = soft_terms(boxes, 2.0);
+        let terms: Vec<Term<'_>> = parts
+            .iter()
+            .map(|(template, weights)| Term {
+                image: &image,
+                categorical: true,
+                inv_range: 0.0,
+                template,
+                weights,
+            })
+            .collect();
+        let costs = cost_map([6, 1, 1], [3, 1, 1], &terms);
+        // At position 3 the image holds code 2 and then no data, a full
+        // mismatch.
+        let expected = [0.8 + 0.75, 0.2 + 0.75, 0.2 + 0.5, 1.0 + 1.0];
+        for (cost, expected) in costs.iter().zip(expected) {
+            assert!((cost - expected).abs() < 1e-6, "{costs:?}");
+        }
+    }
+
+    /// The mean of each cell's box of `2 r + 1` cells, clipped to the grid.
+    fn smoothed(values: &[f64], count: [usize; 3], r: usize) -> Vec<f64> {
+        (0..values.len())
+            .map(|i| {
+                let [x, y, _] = ijk_of(i, count);
+                let (mut sum, mut n) = (0.0, 0.0);
+                for v in y.saturating_sub(r)..(y + r + 1).min(count[1]) {
+                    for u in x.saturating_sub(r)..(x + r + 1).min(count[0]) {
+                        sum += values[u + count[0] * v];
+                        n += 1.0;
+                    }
+                }
+                sum / n
+            })
+            .collect()
+    }
+
+    fn continuous_of(values: &[f64], count: [usize; 3]) -> TrainingImage {
+        image(
+            count,
+            |[x, y, z]| values[x + count[0] * (y + count[1] * z)],
+            false,
+        )
+    }
+
+    #[test]
+    fn fft_and_direct_costs_give_the_same_realizations() {
+        // Categorical with hard data and soft probabilities; continuous with
+        // a secondary variable; 3D.
+        let count = [60, 60, 1];
+        let ti = channels(count);
+        let grid = lattice([50, 50, 1]);
+        let p1: Vec<Option<Vec<f64>>> = (0..2500)
+            .map(|i| (i % 7 != 0).then(|| vec![1.0 - (i % 50) as f64 / 50.0, 0.3]))
+            .collect();
+        let categorical = Quilting::new(&ti, &grid, &hard_from(&ti, count, 41), &params(14))
+            .unwrap()
+            .with_soft(&p1)
+            .unwrap();
+        let wave = field(count);
+        let secondary = continuous_of(
+            &smoothed(
+                &ti.codes()
+                    .unwrap()
+                    .iter()
+                    .map(|&c| f64::from(c))
+                    .collect::<Vec<_>>(),
+                count,
+                2,
+            ),
+            count,
+        );
+        let values: Vec<Option<f64>> = (0..2500).map(|i| Some((i % 50) as f64 / 50.0)).collect();
+        let continuous = Quilting::new(&wave, &grid, &[], &params(12))
+            .unwrap()
+            .with_secondary(&secondary, &values)
+            .unwrap();
+        let layers = image([16, 16, 8], |[x, _, z]| ((x + 2 * z) / 4 % 2) as f64, true);
+        let deep = Quilting::new(
+            &layers,
+            &lattice([12, 11, 8]),
+            &[],
+            &QuiltingParams {
+                patch_size: [6, 6, 4],
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        for q in [categorical, continuous, deep] {
+            let run = |path: CostPath| {
+                let mut q = q.clone();
+                q.path = path;
+                (0..3).map(|s| q.simulate(s).values).collect::<Vec<_>>()
+            };
+            let direct = run(CostPath::Direct);
+            assert_eq!(run(CostPath::Fft), direct);
+            assert_eq!(run(CostPath::Auto), direct);
+        }
+    }
+
+    /// Share of code 1 over the nodes of the west or the east half of a
+    /// square grid of `side`.
+    fn share_of_1(runs: &[Vec<f64>], side: usize, west: bool) -> f64 {
+        let cells: Vec<f64> = runs
+            .iter()
+            .flat_map(|r| r.iter().enumerate())
+            .filter(|(i, _)| (i % side < side / 2) == west)
+            .map(|(_, &v)| v)
+            .collect();
+        cells.iter().sum::<f64>() / cells.len() as f64
+    }
+
+    #[test]
+    fn soft_probabilities_steer_the_patches() {
+        // Code 1 certain in the west half, code 0 in the east half, and
+        // channels wide enough for a patch to lie inside one.
+        let side = 64;
+        let ti = image(
+            [80, 80, 1],
+            |[x, y, _]| {
+                let centre = 6.0 * (x as f64 / 9.0).sin();
+                f64::from(u8::from((y as f64 - centre).rem_euclid(24.0) < 10.0))
+            },
+            true,
+        );
+        let grid = lattice([side, side, 1]);
+        let soft: Vec<Option<Vec<f64>>> = (0..side * side)
+            .map(|i| {
+                let west = f64::from(u8::from(i % side < side / 2));
+                Some(vec![1.0 - west, west])
+            })
+            .collect();
+        let run = |weight: Option<f64>, threads: usize| {
+            let p = QuiltingParams {
+                soft_weight: weight.unwrap_or(1.0),
+                n_best: 3,
+                ..params(12)
+            };
+            let mut q = Quilting::new(&ti, &grid, &[], &p).unwrap();
+            if weight.is_some() {
+                q = q.with_soft(&soft).unwrap();
+            }
+            rayon::ThreadPoolBuilder::new()
+                .num_threads(threads)
+                .build()
+                .unwrap()
+                .install(|| (0..6).map(|s| q.simulate(s).values).collect::<Vec<_>>())
+        };
+        let (steered, free) = (run(Some(1.0), 1), run(None, 1));
+        let (west, east) = (
+            share_of_1(&steered, side, true),
+            share_of_1(&steered, side, false),
+        );
+        let (free_west, free_east) = (
+            share_of_1(&free, side, true),
+            share_of_1(&free, side, false),
+        );
+        assert!(
+            west > free_west + 0.1 && east < free_east - 0.05,
+            "code 1: {west} west and {east} east, {free_west} and {free_east} without soft data"
+        );
+        assert_eq!(run(Some(1.0), 4), steered);
+        assert_eq!(run(Some(0.0), 1), free);
+    }
+
+    /// Correlation of two equal-length series.
+    fn correlation(a: &[f64], b: &[f64]) -> f64 {
+        let n = a.len() as f64;
+        let (ma, mb) = (a.iter().sum::<f64>() / n, b.iter().sum::<f64>() / n);
+        let cov: f64 = a.iter().zip(b).map(|(x, y)| (x - ma) * (y - mb)).sum();
+        let va: f64 = a.iter().map(|x| (x - ma).powi(2)).sum();
+        let vb: f64 = b.iter().map(|y| (y - mb).powi(2)).sum();
+        cov / (va * vb).sqrt()
+    }
+
+    #[test]
+    fn a_secondary_variable_pulls_realizations_toward_its_pattern() {
+        // The secondary variable is the facies smoothed, over the training
+        // image and over a reference of other channels on the grid.
+        let count = [80, 80, 1];
+        let ti = channels(count);
+        let codes: Vec<f64> = ti.codes().unwrap().iter().map(|&c| f64::from(c)).collect();
+        let secondary_ti = continuous_of(&smoothed(&codes, count, 2), count);
+        let side = [60, 60, 1];
+        let reference: Vec<f64> = (0..3600)
+            .map(|i| {
+                let [x, y, _] = ijk_of(i, side);
+                let centre = 9.0 * ((x as f64 + 20.0) / 11.0).cos();
+                f64::from(u8::from((y as f64 - centre).rem_euclid(16.0) < 5.0))
+            })
+            .collect();
+        let target: Vec<Option<f64>> = smoothed(&reference, side, 2)
+            .into_iter()
+            .map(Some)
+            .collect();
+        let grid = lattice(side);
+        let run = |weight: Option<f64>, threads: usize| {
+            let p = QuiltingParams {
+                secondary_weight: weight.unwrap_or(1.0),
+                ..params(16)
+            };
+            let mut q = Quilting::new(&ti, &grid, &[], &p).unwrap();
+            if weight.is_some() {
+                q = q.with_secondary(&secondary_ti, &target).unwrap();
+            }
+            rayon::ThreadPoolBuilder::new()
+                .num_threads(threads)
+                .build()
+                .unwrap()
+                .install(|| (0..4).map(|s| q.simulate(s).values).collect::<Vec<_>>())
+        };
+        let mean_correlation =
+            |runs: &[Vec<f64>]| runs.iter().map(|r| correlation(r, &reference)).sum::<f64>() / 4.0;
+        let (steered, free) = (run(Some(2.0), 1), run(None, 1));
+        let (with, without) = (mean_correlation(&steered), mean_correlation(&free));
+        assert!(
+            with > 0.5 && with > without + 0.4,
+            "{with} against {without}"
+        );
+        assert_eq!(run(Some(2.0), 4), steered);
+        assert_eq!(run(Some(0.0), 1), free);
     }
 }

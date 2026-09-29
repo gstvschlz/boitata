@@ -88,3 +88,107 @@ def test_bad_parameters():
     ]:
         with pytest.raises(ValueError, match=match):
             cs.ImageQuilting(ti, "facies", **kwargs)
+
+
+def wide_channels(nx=80, ny=80):
+    """Channels wide enough for a patch to lie inside one."""
+    x, y = np.meshgrid(np.arange(nx), np.arange(ny), indexing="xy")
+    codes = ((y - 6 * np.sin(x / 9)) % 24 < 10).astype(float)
+    return cs.BlockModel((0, 0), (1, 1), (nx, ny), attributes={"facies": codes.ravel()})
+
+
+def smooth(image, r=2):
+    """Mean over each cell's box of 2r + 1 cells, edges repeated."""
+    k = 2 * r + 1
+    windows = np.lib.stride_tricks.sliding_window_view(np.pad(image, r, mode="edge"), (k, k))
+    return windows.mean(axis=(-1, -2))
+
+
+def test_soft_probabilities_steer_the_realizations():
+    side = 64
+    west = np.tile(np.arange(side) < side // 2, side).astype(float)
+    soft = np.column_stack([1 - west, west])
+    targets = cs.BlockModel((0, 0), (1, 1), (side, side), attributes={"p0": 1 - west, "p1": west})
+    iq = cs.ImageQuilting(wide_channels(), "facies", patch_size=12, n_best=3)
+    free = iq.simulate(targets, n=6, keep=True, progress=False).realizations
+    steered = iq.simulate(targets, n=6, soft=soft, keep=True, progress=False).realizations
+    by_name = iq.simulate(targets, n=6, soft=["p0", "p1"], keep=True, progress=False).realizations
+    np.testing.assert_array_equal(by_name, steered)
+    is_west = west.astype(bool)
+    assert steered[:, is_west].mean() > free[:, is_west].mean() + 0.1
+    assert steered[:, ~is_west].mean() < free[:, ~is_west].mean() - 0.05
+    # A row of nulls carries no probabilities.
+    none = np.full((side * side, 2), np.nan)
+    np.testing.assert_array_equal(
+        iq.simulate(targets, n=6, soft=none, keep=True, progress=False).realizations, free
+    )
+
+
+def test_soft_probabilities_are_checked():
+    targets = grid(10, 10)
+    iq = cs.ImageQuilting(channels(), "facies", patch_size=8)
+    for soft, match in [
+        (np.ones((100, 3)), "shape"),
+        (np.ones((99, 2)), "soft"),
+        (np.array([[np.nan, 1.0]] * 100), "missing"),
+        (np.array([[-1.0, 1.0]] * 100), "soft"),
+    ]:
+        with pytest.raises(ValueError, match=match):
+            iq.simulate(targets, n=1, soft=soft, progress=False)
+    with pytest.raises(ValueError, match="categorical"):
+        cs.ImageQuilting(wave(), "grade", patch_size=8).simulate(
+            targets, n=1, soft=np.ones((100, 2)), progress=False
+        )
+
+
+def test_a_secondary_variable_pulls_realizations_toward_its_pattern():
+    ti = channels()
+    facies = np.asarray(ti["facies"]).reshape(80, 80)
+    ti = cs.BlockModel(
+        (0, 0), (1, 1), (80, 80), attributes={"facies": facies.ravel(), "s": smooth(facies).ravel()}
+    )
+    x, y = np.meshgrid(np.arange(60), np.arange(60), indexing="xy")
+    reference = ((y - 9 * np.cos((x + 20) / 11)) % 16 < 5).astype(float)
+    targets = cs.BlockModel((0, 0), (1, 1), (60, 60), attributes={"s": smooth(reference).ravel()})
+
+    def correlation(realizations):
+        return np.mean([np.corrcoef(r, reference.ravel())[0, 1] for r in realizations])
+
+    free = cs.ImageQuilting(ti, "facies", patch_size=16).simulate(targets, n=4, keep=True, progress=False)
+    steered = cs.ImageQuilting(ti, "facies", patch_size=16, secondary="s", secondary_weight=2.0).simulate(
+        targets, n=4, secondary="s", keep=True, progress=False
+    )
+    with_, without = correlation(steered.realizations), correlation(free.realizations)
+    assert with_ > 0.5 and with_ > without + 0.4, (with_, without)
+    # An array works as well as a column, and weight 0 leaves the variable out.
+    iq = cs.ImageQuilting(ti, "facies", patch_size=16, secondary="s", secondary_weight=0.0)
+    same = iq.simulate(targets, n=4, secondary=smooth(reference).ravel(), keep=True, progress=False)
+    np.testing.assert_array_equal(same.realizations, free.realizations)
+
+
+def test_a_continuous_primary_takes_a_secondary_variable():
+    ti = wave()
+    grade = np.asarray(ti["grade"])
+    ti = cs.BlockModel((0, 0), (1, 1), (80, 80), attributes={"grade": grade, "s": -grade})
+    iq = cs.ImageQuilting(ti, "grade", patch_size=10, secondary="s")
+    s = iq.simulate(grid(20, 20), n=2, secondary=np.linspace(-1, 1, 400), progress=False)
+    assert isinstance(s, cs.SimulationSummary)
+
+
+def test_secondary_is_given_to_both_or_neither():
+    ti = cs.BlockModel(
+        (0, 0), (1, 1), (30, 30), attributes={"f": np.arange(900) % 2 * 1.0, "s": np.arange(900.0)}
+    )
+    targets = grid(10, 10)
+    with pytest.raises(ValueError, match="neither"):
+        cs.ImageQuilting(ti, "f", patch_size=5, secondary="s").simulate(targets, n=1, progress=False)
+    with pytest.raises(ValueError, match="neither"):
+        cs.ImageQuilting(ti, "f", patch_size=5).simulate(targets, n=1, secondary=np.ones(100), progress=False)
+    with pytest.raises(ValueError, match="secondary"):
+        cs.ImageQuilting(ti, "f", patch_size=5, secondary="s").simulate(
+            targets, n=1, secondary=np.ones(99), progress=False
+        )
+    with pytest.raises(ValueError, match="secondary_weight"):
+        cs.ImageQuilting(ti, "f", secondary="s", secondary_weight=-1.0)
+    with pytest.raises(ValueError, match="soft_weight"):
+        cs.ImageQuilting(ti, "f", soft_weight=float("nan"))
