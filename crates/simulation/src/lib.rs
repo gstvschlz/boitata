@@ -5,6 +5,7 @@
 //! - [`sis`]  — Sequential Indicator Simulation (categorical facies)
 //! - [`training_image`] — block model columns as training images
 //! - [`objects`] — object-based training images: channels and ellipsoids
+//! - [`consistency`] — consistency of a training image with the hard data
 //! - [`multivariate`] — several correlated variables through independent factors
 //! - [`trend`] — a continuous variable whose distribution follows a trend
 //! - [`correct`] — correction of realizations to a target distribution
@@ -14,6 +15,7 @@
 //! Realizations are conditional and reproducible given a seed.
 
 mod conditioning;
+pub mod consistency;
 pub mod correct;
 pub mod error;
 pub mod gibbs;
@@ -29,6 +31,7 @@ pub mod training_image;
 pub mod trend;
 pub mod turning_bands;
 
+pub use consistency::{Consistency, ConsistencyParams, consistency};
 pub use correct::{Empirical, correct_distribution};
 pub use error::{Result, SimError};
 pub use gibbs::{GibbsParams, gibbs};
