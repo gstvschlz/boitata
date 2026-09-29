@@ -2052,15 +2052,18 @@ class SNESIM:
     def from_parquet(path: Path) -> SNESIM: ...
     def __init__(
         self,
-        ti: BlockModel,
-        column: str,
+        ti: BlockModel | Mapping[Label, tuple[BlockModel, str]],
+        column: str | None = None,
         *,
         template_size: int = 40,
         n_levels: int = 3,
         min_replicates: int = 10,
         target_proportions: Sequence[float] | None = None,
         servo: float = 0.5,
+        angle_step: float = 10.0,
     ) -> None: ...
+    @property
+    def n_classes(self) -> int: ...
     def fit(self, coords: ArrayLike | PointSet | BlockModel, categories: ArrayLike | Column) -> SNESIM: ...
     def simulate(
         self,
@@ -2070,6 +2073,9 @@ class SNESIM:
         seed: int = 0,
         keep: bool | Sequence[int] = False,
         soft: Sequence[Column] | ArrayLike | None = None,
+        anisotropy: LocalAnisotropy | None = None,
+        domains: Label | Labels | None = None,
+        domain_column: str | None = None,
         progress: bool = True,
     ) -> CategoricalSummary: ...
 
