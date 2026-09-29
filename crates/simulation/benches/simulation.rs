@@ -154,7 +154,10 @@ fn wide(c: &mut Criterion) {
                 &data, &values, None, None, None, None, lo, hi, &vg, &params, 30,
             )
             .unwrap();
-            black_box(e.summary(&grid, None, None, &Default::default()).unwrap())
+            black_box(
+                e.summary(&grid, None, None, &Default::default(), None)
+                    .unwrap(),
+            )
         })
     });
     group.finish();
@@ -195,7 +198,12 @@ fn many(c: &mut Criterion) {
     let mut group = c.benchmark_group("turning bands, 50 realizations of 100 000 nodes");
     group.sample_size(10);
     group.bench_function("summary", |b| {
-        b.iter(|| black_box(e.summary(&grid, None, None, &Default::default()).unwrap()))
+        b.iter(|| {
+            black_box(
+                e.summary(&grid, None, None, &Default::default(), None)
+                    .unwrap(),
+            )
+        })
     });
     group.finish();
 }

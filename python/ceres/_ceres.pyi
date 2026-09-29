@@ -1030,6 +1030,7 @@ class SGS:
         secondary: ArrayLike | Column | None = None,
         path: Literal["shared", "random"] | None = None,
         batch: int | None = None,
+        progress: bool = True,
     ) -> SimulationSummary: ...
 
 class TurningBands:
@@ -1069,6 +1070,7 @@ class TurningBands:
         trend: ArrayLike | Column | None = None,
         domains: Label | Sequence[Label] | ArrayLike | None = None,
         domain_column: Column | None = None,
+        progress: bool = True,
     ) -> SimulationSummary: ...
     def simulate_to_parquet(
         self,
@@ -1085,6 +1087,7 @@ class TurningBands:
         domain_column: Column | None = None,
         trend: Column | None = None,
         discretization: tuple[int, int, int] | None = None,
+        progress: bool = True,
     ) -> dict[str, npt.NDArray[np.float64]]: ...
 
 class MultivariateSimulation:
@@ -1113,6 +1116,7 @@ class MultivariateSimulation:
         keep: bool | Sequence[int] = False,
         anisotropy: LocalAnisotropy | None = None,
         blocks: BlockModel | None = None,
+        progress: bool = True,
     ) -> list[SimulationSummary]: ...
 
 class SIS:
@@ -1137,6 +1141,7 @@ class SIS:
         keep: bool | Sequence[int] = False,
         blocks: BlockModel | None = None,
         proportions: ArrayLike | Table | None = None,
+        progress: bool = True,
     ) -> CategoricalSummary: ...
 
 class Plurigaussian:
@@ -1172,6 +1177,7 @@ class Plurigaussian:
         keep: bool | Sequence[int] = False,
         blocks: BlockModel | None = None,
         proportions: ArrayLike | Table | None = None,
+        progress: bool = True,
     ) -> CategoricalSummary: ...
 
 class SimulationSummary:
