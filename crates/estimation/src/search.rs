@@ -19,6 +19,8 @@ use variogram::{Angles, Anisotropy, Variogram};
 use crate::Sample;
 use crate::error::{EstimError, Result};
 
+mod grid;
+
 type Point = (f64, f64, f64);
 
 /// Search-neighborhood parameters.
