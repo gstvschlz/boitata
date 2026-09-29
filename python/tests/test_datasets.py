@@ -47,7 +47,7 @@ def test_files_come_from_the_pinned_commit(offline, monkeypatch):
 
 def test_registry_paths_and_hashes():
     files = cs.datasets.FILES
-    assert all(re.fullmatch(r"mining/(2d|3d)/[a-z-]+/[\w/-]+\.(csv|stl)", k) for k in files)
+    assert all(re.fullmatch(r"(mining|oil-gas)/(2d|3d)/[a-z0-9-]+/[\w/-]+\.(csv|stl|sgy)", k) for k in files)
     assert all(re.fullmatch(r"[0-9a-f]{64}", v) for v in files.values())
     folders = {k.split("/")[2] for k in files}
     assert {f.replace("-", "_") for f in folders} <= set(cs.datasets.__all__)
@@ -216,3 +216,20 @@ def test_dataset_details():
     assert "-999" in cs.datasets.stacked_sulphide_lenses(raw=True)["assays"]["ZN_PCT"]
     high_grade = iron["high_grade"]
     assert high_grade.repair().volume == pytest.approx(high_grade.volume, rel=1e-9)
+
+
+@pytest.mark.slow
+def test_download_strebelle():
+    ti = cs.datasets.strebelle()
+    assert ti.count == [250, 250, 1] and ti.origin[:2] == [0.0, 0.0] and ti.size[:2] == [1.0, 1.0]
+    assert ti.index is None and set(np.unique(ti["facies"])) == {0.0, 1.0}
+    assert ti["facies"].mean() == pytest.approx(0.28, abs=0.01)
+
+
+@pytest.mark.slow
+def test_download_f3_seismic():
+    cube = cs.datasets.f3_seismic()
+    assert cube.count == [45, 45, 51] and cube.crs == "EPSG:23031"
+    assert cube.size == pytest.approx([25.0, 25.0, 4.0], abs=1e-3)
+    assert cube.rotation[0] == pytest.approx(88.4, abs=0.05)
+    assert np.isfinite(cube["amplitude"]).all()
