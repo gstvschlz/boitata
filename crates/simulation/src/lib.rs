@@ -20,6 +20,7 @@ pub mod multivariate;
 pub mod pgs;
 pub mod post;
 pub mod sgs;
+pub mod shared;
 pub mod sis;
 pub mod trend;
 pub mod turning_bands;
@@ -40,6 +41,7 @@ pub use sgs::{
     Domains, Realization, Secondary, SgsParams, Transform, Transforms, Trend, cosgs, sgs, sgs_in,
     sgs_passes,
 };
+pub use shared::{Collocated, SharedBatch, SharedSgs, sgs_shared};
 pub use sis::{CategoricalRealization, SisParams, sis};
 pub use trend::TrendConditioning;
 pub use turning_bands::{

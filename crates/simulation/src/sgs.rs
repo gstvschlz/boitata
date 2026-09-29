@@ -603,7 +603,7 @@ enum Step {
 }
 
 /// Lengths of `domains` and a datum in the domain of every node.
-fn check(domains: Option<Domains>, data: usize, nodes: usize) -> Result<()> {
+pub(crate) fn check(domains: Option<Domains>, data: usize, nodes: usize) -> Result<()> {
     let Some((of_data, of_nodes)) = domains else {
         return Ok(());
     };
@@ -673,7 +673,7 @@ pub fn sgs_passes(
     Ok(first_pass(&trees, grid, domains.map(|d| d.1), local))
 }
 
-fn tree(
+pub(crate) fn tree(
     samples: &[Sample],
     search: &Search,
     vg: &Variogram,
@@ -692,7 +692,7 @@ fn tree(
     }
 }
 
-fn find(
+pub(crate) fn find(
     tree: &SearchTree,
     target: &(f64, f64, f64),
     domain: Option<u32>,
