@@ -3,6 +3,7 @@
 //! Modules:
 //! - [`sgs`]  — Sequential Gaussian Simulation (continuous variables)
 //! - [`sis`]  — Sequential Indicator Simulation (categorical facies)
+//! - [`training_image`] — block model columns as training images
 //! - [`multivariate`] — several correlated variables through independent factors
 //! - [`trend`] — a continuous variable whose distribution follows a trend
 //! - [`correct`] — correction of realizations to a target distribution
@@ -22,6 +23,7 @@ pub mod post;
 pub mod sgs;
 pub mod shared;
 pub mod sis;
+pub mod training_image;
 pub mod trend;
 pub mod turning_bands;
 
@@ -46,6 +48,7 @@ pub use shared::{
     Collocated, SharedBatch, SharedSgs, sgs_shared, shared_batch, shared_unsupported,
 };
 pub use sis::{CategoricalRealization, SisParams, sis};
+pub use training_image::{NO_CODE, TrainingImage, TrainingValues, unify};
 pub use trend::TrendConditioning;
 pub use turning_bands::{
     Bands, GlobalSummary, TurningBandsEnsemble, TurningBandsParams, bounds,
