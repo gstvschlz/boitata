@@ -4,8 +4,8 @@ use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
 use simulation::{
     BlockSupport, CategoricalSummary as CoreCategorical, ContinuousOptions, ContinuousSummary,
-    GibbsParams, Hierarchy, PgsParams, Region, SgsParams, SisParams, TruncationRule,
-    TurningBandsParams,
+    GibbsParams, Hierarchy, ObjectSet, Param, PgsParams, Region, SgsParams, Shape, SisParams,
+    TruncationRule, TurningBandsParams,
 };
 use variogram::Variogram as CoreVariogram;
 
@@ -2005,6 +2005,206 @@ fn localize(
     ))
 }
 
+/// A size or angle of an object set: a number, or a ``(min, max)`` range.
+fn object_param(
+    set: &Bound<pyo3::types::PyDict>,
+    key: &str,
+    default: Option<f64>,
+) -> PyResult<Param> {
+    let Some(value) = set.get_item(key)? else {
+        return default
+            .map(Param::Fixed)
+            .ok_or_else(|| invalid(format!("an object set needs {key:?}")));
+    };
+    if let Ok(v) = value.extract::<f64>() {
+        return Ok(Param::Fixed(v));
+    }
+    value
+        .extract::<(f64, f64)>()
+        .map(|(lo, hi)| Param::Uniform(lo, hi))
+        .map_err(|_| invalid(format!("{key} must be a number or a (min, max) pair")))
+}
+
+/// An object set from its dict; `flat` for a 2D grid, where thickness and
+/// the minor radius are optional.
+fn object_set(set: &Bound<pyo3::types::PyDict>, flat: bool) -> PyResult<ObjectSet> {
+    let text = |key: &str| -> PyResult<String> {
+        set.get_item(key)?
+            .ok_or_else(|| invalid(format!("an object set needs {key:?}")))?
+            .extract()
+            .map_err(|_| invalid(format!("{key} must be a string")))
+    };
+    let shape = text("shape")?;
+    let keys: &[&str] = match shape.as_str() {
+        "channel" => &["width", "thickness", "azimuth", "wavelength", "amplitude"],
+        "ellipsoid" => &["radii", "azimuth", "dip", "rake"],
+        _ => {
+            return Err(invalid(format!(
+                "shape must be 'channel' or 'ellipsoid', got {shape:?}"
+            )));
+        }
+    };
+    for key in set.keys() {
+        let key: String = key.extract()?;
+        if !["shape", "code", "proportion"].contains(&key.as_str()) && !keys.contains(&key.as_str())
+        {
+            return Err(invalid(format!(
+                "a {shape} set takes code, proportion, {}; not {key:?}",
+                keys.join(", ")
+            )));
+        }
+    }
+    let code = set
+        .get_item("code")?
+        .ok_or_else(|| invalid("an object set needs \"code\""))?
+        .extract::<u8>()
+        .map_err(|_| invalid("code must be an integer 0 to 254"))?;
+    let proportion = set
+        .get_item("proportion")?
+        .ok_or_else(|| invalid("an object set needs \"proportion\""))?
+        .extract::<f64>()
+        .map_err(|_| invalid("proportion must be a number"))?;
+    let unused = flat.then_some(1.0);
+    let shape = if shape == "channel" {
+        let amplitude = object_param(set, "amplitude", Some(0.0))?;
+        let straight = set.get_item("amplitude")?.is_none();
+        Shape::Channel {
+            width: object_param(set, "width", None)?,
+            thickness: object_param(set, "thickness", unused)?,
+            azimuth: object_param(set, "azimuth", Some(0.0))?,
+            wavelength: object_param(set, "wavelength", straight.then_some(1.0))?,
+            amplitude,
+        }
+    } else {
+        let radii = set
+            .get_item("radii")?
+            .ok_or_else(|| invalid("an ellipsoid set needs \"radii\""))?;
+        let radii: Vec<Bound<PyAny>> = radii
+            .try_iter()
+            .and_then(|r| r.collect())
+            .map_err(|_| invalid("radii must be (major, semi-major, minor)"))?;
+        let radius = |r: &Bound<PyAny>| -> PyResult<Param> {
+            if let Ok(v) = r.extract::<f64>() {
+                return Ok(Param::Fixed(v));
+            }
+            r.extract::<(f64, f64)>()
+                .map(|(lo, hi)| Param::Uniform(lo, hi))
+                .map_err(|_| invalid("each radius must be a number or a (min, max) pair"))
+        };
+        let radii = match (&radii[..], flat) {
+            ([a, b, c], _) => [radius(a)?, radius(b)?, radius(c)?],
+            ([a, b], true) => [radius(a)?, radius(b)?, Param::Fixed(1.0)],
+            _ => {
+                return Err(invalid(match flat {
+                    true => "radii must be (major, semi-major) or (major, semi-major, minor)",
+                    false => "radii must be (major, semi-major, minor) on a 3D grid",
+                }));
+            }
+        };
+        Shape::Ellipsoid {
+            radii,
+            azimuth: object_param(set, "azimuth", Some(0.0))?,
+            dip: object_param(set, "dip", Some(0.0))?,
+            rake: object_param(set, "rake", Some(0.0))?,
+        }
+    };
+    Ok(ObjectSet {
+        code,
+        proportion,
+        shape,
+    })
+}
+
+/// Categorical training image drawn from channels and ellipsoids.
+///
+/// The image starts as `background`. Each object set, in order, adds
+/// objects of its shape with its code at random places until the code covers
+/// its ``proportion`` of the cells. A later set overwrites the cells of the
+/// earlier ones, so their final shares can end below their proportions; the
+/// last object of a set can overshoot. Objects cut by the edges of the grid
+/// are as frequent as whole ones.
+///
+/// Every size and angle of a set is a number, or a ``(min, max)`` range drawn
+/// uniformly for each object. Lengths are in the units of the cell sizes and
+/// angles in degrees, in world coordinates: azimuth clockwise from north, dip
+/// positive down.
+///
+/// - ``{"shape": "channel", ...}``: a channel across the whole grid, with a
+///   flat top and a lens-shaped cross-section, ``thickness`` deep at its
+///   centreline. Keys ``width``, ``thickness`` (optional on a 2D grid),
+///   ``azimuth`` (default 0), ``amplitude`` (how far the centreline swings to
+///   each side, default 0 for straight channels) and ``wavelength`` (distance
+///   between two bends on the same side, needed with ``amplitude``). On a 2D
+///   grid, a sinuous band.
+/// - ``{"shape": "ellipsoid", ...}``: keys ``radii`` (major, semi-major,
+///   minor; the minor radius is optional on a 2D grid), ``azimuth``, ``dip``
+///   and ``rake`` of the major axis (default 0). On a 2D grid, an ellipse
+///   along ``azimuth``.
+///
+/// Every set also has ``code``, an integer 0 to 254, and ``proportion``,
+/// above 0 and below 1.
+///
+/// Parameters
+/// ----------
+/// grid : BlockModel
+///     The grid whose geometry the image takes, 2D (one layer) or 3D,
+///     optionally rotated.
+/// objects : sequence of dict
+///     The object sets, in the order they are laid down.
+/// background : int, default 0
+///     Code of the cells no object covers, 0 to 254.
+/// column : str, default "facies"
+///     Name of the code column.
+/// seed : int, default 0
+///     The same seed and objects give the same image on any number of
+///     threads.
+///
+/// Returns
+/// -------
+/// BlockModel
+///     A regular model on the geometry of `grid` with the codes in `column`.
+///
+/// Raises
+/// ------
+/// InvalidInput
+///     If a set has an unknown shape or key, a size is not positive, a range
+///     is reversed, a proportion is outside (0, 1), or a set has not reached
+///     its proportion after 100 000 objects.
+///
+/// Examples
+/// --------
+/// >>> grid = cs.BlockModel((0, 0, 0), (1, 1, 1), (120, 120, 1))
+/// >>> ti = cs.object_training_image(
+/// ...     grid,
+/// ...     [
+/// ...         {"shape": "channel", "code": 1, "proportion": 0.25, "width": 8,
+/// ...          "azimuth": (-20, 20), "amplitude": 8, "wavelength": 60},
+/// ...         {"shape": "ellipsoid", "code": 2, "proportion": 0.05, "radii": (10, 6)},
+/// ...     ],
+/// ...     seed=0,
+/// ... )
+#[pyfunction]
+#[pyo3(signature = (grid, objects, *, background=0, column="facies", seed=0))]
+fn object_training_image(
+    py: Python,
+    grid: PyRef<PyBlockModel>,
+    objects: Vec<Bound<pyo3::types::PyDict>>,
+    background: u8,
+    column: &str,
+    seed: u64,
+) -> PyResult<PyBlockModel> {
+    let geometry = *grid.0.geometry();
+    let sets = objects
+        .iter()
+        .map(|set| object_set(set, geometry.count[2] == 1))
+        .collect::<PyResult<Vec<_>>>()?;
+    let mut model = py
+        .detach(|| simulation::object_training_image(geometry, &sets, background, seed, column))
+        .map_err(err)?;
+    model.crs = grid.0.crs.clone();
+    Ok(PyBlockModel(model))
+}
+
 /// Realizations, or an estimate, corrected to a target distribution.
 ///
 /// Each realization's values are ranked and the value ranked ``i`` of ``m``
@@ -2838,6 +3038,7 @@ pub fn register(m: &Bound<PyModule>) -> PyResult<()> {
     m.add_class::<Plurigaussian>()?;
     m.add_function(wrap_pyfunction!(gibbs, m)?)?;
     m.add_function(wrap_pyfunction!(localize, m)?)?;
+    m.add_function(wrap_pyfunction!(object_training_image, m)?)?;
     m.add_function(wrap_pyfunction!(correct_distribution, m)?)?;
     m.add_class::<SimulationSummary>()?;
     m.add_class::<CategoricalSummary>()?;

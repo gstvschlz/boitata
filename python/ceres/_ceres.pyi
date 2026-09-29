@@ -1242,6 +1242,16 @@ def gibbs(
 def localize(
     smus: BlockModel, ranking: Column, panels: BlockModel, realizations: ArrayLike, *, name: str = "localized"
 ) -> BlockModel: ...
+def object_training_image(
+    grid: BlockModel,
+    objects: Sequence[
+        Mapping[str, str | float | tuple[float, float] | Sequence[float | tuple[float, float]]]
+    ],
+    *,
+    background: int = 0,
+    column: str = "facies",
+    seed: int = 0,
+) -> BlockModel: ...
 def correct_distribution(
     values: SimulationSummary | ArrayLike,
     reference: ArrayLike | KernelDensity | GaussianMixture,
