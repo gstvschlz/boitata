@@ -167,6 +167,19 @@ pub fn write_parquet(path: impl AsRef<Path>, table: &RecordBatch) -> Result<()> 
     write(path.as_ref(), table, None)
 }
 
+/// Writes a plain table given as batches of one schema.
+pub fn write_parquet_batches(
+    path: impl AsRef<Path>,
+    schema: SchemaRef,
+    batches: &[RecordBatch],
+) -> Result<()> {
+    let mut encoder = Encoder::create(File::create(path)?, schema, ROW_GROUP)?;
+    for batch in batches {
+        encoder.write(batch)?;
+    }
+    encoder.finish()
+}
+
 /// Writes points as `x`, `y`, `z` and their attributes.
 pub fn write_points(path: impl AsRef<Path>, points: &PointSet) -> Result<()> {
     let meta = json!({ "kind": "points", "crs": points.crs });
