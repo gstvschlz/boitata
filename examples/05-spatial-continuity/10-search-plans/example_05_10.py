@@ -65,11 +65,11 @@ print(
 # ## The variogram
 #
 # The search takes three things from the variogram: the directions of its axes, the range along each, and the
-# nugget. [Variogram volume](../04-variogram-volume/README.md) finds the axes from log Zn over all composites, lens and host rock alike, since
+# nugget. [Variogram volume](../../05-spatial-continuity/04-variogram-volume/README.md) finds the axes from log Zn over all composites, lens and host rock alike, since
 # the lenses are the continuous bodies and their shape sets the orientation. Within the lenses Zn is fitted along the
 # major and semi-major axes with that rotation held. Across a lens the pairs are too few to fit, so the minor/major
 # ratio keeps the value from the volume. The 2 m lags of the downhole variogram sit closest to the origin and fix
-# the nugget ([downhole nugget](../05-downhole-nugget/README.md)).
+# the nugget ([downhole nugget](../../05-spatial-continuity/05-downhole-nugget/README.md)).
 
 # %%
 volume = cs.variogram_volume(composites, np.log(composites["ZN_PCT"]), 15.0, 225.0, tolerance=15.0)
