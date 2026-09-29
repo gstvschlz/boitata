@@ -10,6 +10,7 @@ use arrow_csv::reader::Format;
 use arrow_csv::{ReaderBuilder, WriterBuilder};
 use arrow_schema::{DataType, Field, Schema};
 use arrow_select::concat::concat_batches;
+use ceres_core::Progress;
 use regex::Regex;
 
 use crate::{Nodata, Result, default_nodata, is_nodata};
@@ -30,8 +31,15 @@ impl Default for CsvOptions {
     }
 }
 
+const CHUNK: usize = 1 << 16;
+
 /// Reads a headed CSV. Integer and all-null columns become `Float64`.
-pub fn read_csv(path: impl AsRef<Path>, options: &CsvOptions) -> Result<RecordBatch> {
+/// `progress` is ticked once per batch read; the total is not known upfront.
+pub fn read_csv(
+    path: impl AsRef<Path>,
+    options: &CsvOptions,
+    progress: Option<&Progress>,
+) -> Result<RecordBatch> {
     let format = Format::default()
         .with_header(true)
         .with_delimiter(options.delimiter)
@@ -49,10 +57,16 @@ pub fn read_csv(path: impl AsRef<Path>, options: &CsvOptions) -> Result<RecordBa
         })
         .collect();
     let schema = Arc::new(Schema::new(fields));
-    let batches = ReaderBuilder::new(schema.clone())
+    let mut batches = Vec::new();
+    for batch in ReaderBuilder::new(schema.clone())
         .with_format(format)
         .build(file)?
-        .collect::<std::result::Result<Vec<_>, _>>()?;
+    {
+        batches.push(batch?);
+        if let Some(p) = progress {
+            p.inc();
+        }
+    }
     let table = concat_batches(&schema, &batches)?;
     let columns = table
         .columns()
@@ -76,13 +90,29 @@ pub fn read_csv(path: impl AsRef<Path>, options: &CsvOptions) -> Result<RecordBa
     Ok(RecordBatch::try_new(schema, columns)?)
 }
 
-/// Writes a headed CSV; nulls are written as empty cells.
-pub fn write_csv(path: impl AsRef<Path>, table: &RecordBatch) -> Result<()> {
+/// Writes a headed CSV; nulls are written as empty cells. `progress` is ticked
+/// by the rows of each chunk written.
+pub fn write_csv(
+    path: impl AsRef<Path>,
+    table: &RecordBatch,
+    progress: Option<&Progress>,
+) -> Result<()> {
     let mut writer = WriterBuilder::new()
         .with_header(true)
         .build(BufWriter::new(File::create(path)?));
-    writer.write(table)?;
-    Ok(())
+    let rows = table.num_rows();
+    let mut offset = 0;
+    loop {
+        let len = CHUNK.min(rows - offset);
+        writer.write(&table.slice(offset, len))?;
+        offset += len;
+        if let Some(p) = progress {
+            p.inc_by(len as u64);
+        }
+        if offset >= rows {
+            return Ok(());
+        }
+    }
 }
 
 fn nodata_regex(nodata: &[Nodata]) -> Result<Regex> {
@@ -113,7 +143,7 @@ mod tests {
             "a.csv",
             "id,x,au,rock,empty\n1,10.5,-999,ox,\n2,11,0.3,na,\n3,12,N/A,fr,\n",
         );
-        let t = read_csv(&path, &CsvOptions::default()).unwrap();
+        let t = read_csv(&path, &CsvOptions::default(), None).unwrap();
         assert_eq!(t.num_rows(), 3);
         for name in ["id", "x", "au", "empty"] {
             assert_eq!(
@@ -132,7 +162,7 @@ mod tests {
     #[test]
     fn exponent_sentinels_are_null() {
         let path = temp("e.csv", "v\n1e21\n1E+21\n2\n");
-        let t = read_csv(&path, &CsvOptions::default()).unwrap();
+        let t = read_csv(&path, &CsvOptions::default(), None).unwrap();
         let v = t.column_by_name("v").unwrap().as_primitive::<Float64Type>();
         assert_eq!(v.iter().collect::<Vec<_>>(), [None, None, Some(2.0)]);
     }
@@ -144,7 +174,7 @@ mod tests {
             nodata: vec![Nodata::Number(-1.0)],
             ..Default::default()
         };
-        let t = read_csv(&path, &options).unwrap();
+        let t = read_csv(&path, &options, None).unwrap();
         let v = t.column(0).as_primitive::<Float64Type>();
         assert_eq!(v.iter().collect::<Vec<_>>(), [Some(-999.0), None]);
     }
@@ -157,7 +187,7 @@ mod tests {
                 nodata: vec![n],
                 ..Default::default()
             };
-            let t = read_csv(&path, &options).unwrap();
+            let t = read_csv(&path, &options, None).unwrap();
             (t.column(0).null_count(), t.column(1).null_count())
         };
         assert_eq!(read(Nodata::Number(-999.0)), (2, 1));
@@ -167,9 +197,11 @@ mod tests {
     #[test]
     fn write_then_read_round_trips() {
         let path = temp("c.csv", "a,b\n1.5,x\n,y\n");
-        let t = read_csv(&path, &CsvOptions::default()).unwrap();
+        let t = read_csv(&path, &CsvOptions::default(), None).unwrap();
         let out = std::env::temp_dir().join(format!("ceres-io-{}-c-out.csv", std::process::id()));
-        write_csv(&out, &t).unwrap();
-        assert_eq!(read_csv(&out, &CsvOptions::default()).unwrap(), t);
+        let progress = Progress::new(Some(t.num_rows() as u64));
+        write_csv(&out, &t, Some(&progress)).unwrap();
+        assert_eq!(progress.snapshot().0, t.num_rows() as u64);
+        assert_eq!(read_csv(&out, &CsvOptions::default(), None).unwrap(), t);
     }
 }

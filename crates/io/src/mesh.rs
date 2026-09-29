@@ -6,7 +6,7 @@ use std::sync::Arc;
 use arrow_array::cast::AsArray;
 use arrow_array::{Array, StringArray};
 use arrow_schema::DataType;
-use ceres_core::Mesh;
+use ceres_core::{Mesh, Progress};
 use dxf::entities::{Entity, EntityType, Face3D};
 use dxf::{Drawing, DxfError};
 
@@ -22,23 +22,28 @@ impl From<DxfError> for Error {
 }
 
 /// Reads an OBJ, STL (binary or ASCII) or DXF (`3DFACE`) mesh by extension.
-pub fn read_mesh(path: impl AsRef<Path>) -> Result<Mesh> {
+pub fn read_mesh(path: impl AsRef<Path>, progress: Option<&Progress>) -> Result<Mesh> {
     let path = path.as_ref();
     match extension(path)? {
-        "obj" => parse_obj(&std::fs::read_to_string(path)?),
-        "stl" => parse_stl(&std::fs::read(path)?),
-        _ => from_drawing(&Drawing::load_file(path)?),
+        "obj" => parse_obj(&std::fs::read_to_string(path)?, progress),
+        "stl" => parse_stl(&std::fs::read(path)?, progress),
+        _ => from_drawing(&Drawing::load_file(path)?, progress),
     }
 }
 
 /// Writes OBJ, STL (binary unless `ascii`) or DXF by extension. DXF faces go
 /// on the layer named by the face column `layer`, else layer `0`.
-pub fn write_mesh(path: impl AsRef<Path>, mesh: &Mesh, ascii: bool) -> Result<()> {
+pub fn write_mesh(
+    path: impl AsRef<Path>,
+    mesh: &Mesh,
+    ascii: bool,
+    progress: Option<&Progress>,
+) -> Result<()> {
     let path = path.as_ref();
     match extension(path)? {
-        "obj" => Ok(std::fs::write(path, obj_string(mesh))?),
-        "stl" => Ok(std::fs::write(path, stl_bytes(mesh, ascii))?),
-        _ => Ok(to_drawing(mesh)?.save_file(path)?),
+        "obj" => Ok(std::fs::write(path, obj_string(mesh, progress))?),
+        "stl" => Ok(std::fs::write(path, stl_bytes(mesh, ascii, progress))?),
+        _ => Ok(to_drawing(mesh, progress)?.save_file(path)?),
     }
 }
 
@@ -72,7 +77,7 @@ fn weld(corners: &[[f64; 3]]) -> Result<Mesh> {
     Ok(Mesh::new(vertices, triangles)?)
 }
 
-fn parse_obj(text: &str) -> Result<Mesh> {
+fn parse_obj(text: &str, progress: Option<&Progress>) -> Result<Mesh> {
     let mut vertices = Vec::new();
     let mut triangles = Vec::new();
     for (n, line) in text.lines().enumerate() {
@@ -107,17 +112,23 @@ fn parse_obj(text: &str) -> Result<Mesh> {
             }
             _ => {}
         }
+        if let Some(p) = progress {
+            p.inc();
+        }
     }
     Ok(Mesh::new(vertices, triangles)?)
 }
 
-fn obj_string(mesh: &Mesh) -> String {
+fn obj_string(mesh: &Mesh, progress: Option<&Progress>) -> String {
     let mut out = String::new();
     for [x, y, z] in mesh.vertices() {
         writeln!(out, "v {x} {y} {z}").expect("string");
     }
     for [a, b, c] in mesh.triangles() {
         writeln!(out, "f {} {} {}", a + 1, b + 1, c + 1).expect("string");
+        if let Some(p) = progress {
+            p.inc();
+        }
     }
     out
 }
@@ -137,7 +148,7 @@ fn normal(c: [[f64; 3]; 3]) -> [f64; 3] {
 }
 
 /// STL stores single precision; coordinates are rounded to f32 on write.
-fn stl_bytes(mesh: &Mesh, ascii: bool) -> Vec<u8> {
+fn stl_bytes(mesh: &Mesh, ascii: bool, progress: Option<&Progress>) -> Vec<u8> {
     let n = mesh.triangles().len();
     if ascii {
         let mut out = String::from("solid ceres\n");
@@ -149,6 +160,9 @@ fn stl_bytes(mesh: &Mesh, ascii: bool) -> Vec<u8> {
                 writeln!(out, "vertex {x} {y} {z}").expect("string");
             }
             out.push_str("endloop\nendfacet\n");
+            if let Some(p) = progress {
+                p.inc();
+            }
         }
         out.push_str("endsolid ceres\n");
         return out.into_bytes();
@@ -163,11 +177,14 @@ fn stl_bytes(mesh: &Mesh, ascii: bool) -> Vec<u8> {
             out.extend((x as f32).to_le_bytes());
         }
         out.extend([0, 0]);
+        if let Some(p) = progress {
+            p.inc();
+        }
     }
     out
 }
 
-fn parse_stl(bytes: &[u8]) -> Result<Mesh> {
+fn parse_stl(bytes: &[u8], progress: Option<&Progress>) -> Result<Mesh> {
     let mut corners = Vec::new();
     let count = bytes
         .get(80..84)
@@ -176,6 +193,9 @@ fn parse_stl(bytes: &[u8]) -> Result<Mesh> {
         for record in bytes[84..].chunks_exact(50) {
             let f = |i: usize| f32::from_le_bytes(record[i..i + 4].try_into().expect("4")) as f64;
             corners.extend((0..3).map(|v| [0, 1, 2].map(|a| f(12 + 12 * v + 4 * a))));
+            if let Some(p) = progress {
+                p.inc();
+            }
         }
     } else {
         let bad = || Error::Mesh("not a binary or ASCII STL file".into());
@@ -203,7 +223,7 @@ fn parse_stl(bytes: &[u8]) -> Result<Mesh> {
     weld(&corners)
 }
 
-fn from_drawing(drawing: &Drawing) -> Result<Mesh> {
+fn from_drawing(drawing: &Drawing, progress: Option<&Progress>) -> Result<Mesh> {
     let mut corners = Vec::new();
     let mut layers = Vec::new();
     for entity in drawing.entities() {
@@ -222,11 +242,14 @@ fn from_drawing(drawing: &Drawing) -> Result<Mesh> {
                 layers.push(entity.common.layer.clone());
             }
         }
+        if let Some(p) = progress {
+            p.inc();
+        }
     }
     Ok(weld(&corners)?.with_face_column("layer", Arc::new(StringArray::from(layers)))?)
 }
 
-fn to_drawing(mesh: &Mesh) -> Result<Drawing> {
+fn to_drawing(mesh: &Mesh, progress: Option<&Progress>) -> Result<Drawing> {
     let layers = mesh
         .face_attributes()
         .column_by_name("layer")
@@ -243,6 +266,9 @@ fn to_drawing(mesh: &Mesh) -> Result<Drawing> {
             .map_or("0", |l| l.value(t))
             .to_string();
         drawing.add_entity(entity);
+        if let Some(p) = progress {
+            p.inc();
+        }
     }
     Ok(drawing)
 }
@@ -270,7 +296,7 @@ mod tests {
 
     #[test]
     fn obj_round_trip() {
-        let m = parse_obj(&obj_string(&tetra())).unwrap();
+        let m = parse_obj(&obj_string(&tetra(), None), None).unwrap();
         assert_eq!(m.vertices(), tetra().vertices());
         assert_eq!(m.triangles(), tetra().triangles());
     }
@@ -279,21 +305,21 @@ mod tests {
     fn obj_quads_and_negative_indices() {
         let text =
             "# c\nv 0 0 0\nv 1 0 0\nv 1 1 0\nv 0 1 0\nvn 0 0 1\nf 1/1 2//1 3/3/1 4\nf -4 -3 -2\n";
-        let m = parse_obj(text).unwrap();
+        let m = parse_obj(text, None).unwrap();
         assert_eq!(m.triangles(), &[[0, 1, 2], [0, 2, 3], [0, 1, 2]]);
-        assert!(parse_obj("v 0 0 0\nf 1 2 0\n").is_err());
+        assert!(parse_obj("v 0 0 0\nf 1 2 0\n", None).is_err());
     }
 
     #[test]
     fn binary_and_ascii_stl_read_the_same() {
         let m = tetra();
-        let binary = parse_stl(&stl_bytes(&m, false)).unwrap();
-        let ascii = parse_stl(&stl_bytes(&m, true)).unwrap();
+        let binary = parse_stl(&stl_bytes(&m, false, None), None).unwrap();
+        let ascii = parse_stl(&stl_bytes(&m, true, None), None).unwrap();
         assert_eq!(corners(&binary), corners(&m));
         assert_eq!(binary.vertices(), ascii.vertices());
         assert_eq!(binary.triangles(), ascii.triangles());
         assert_eq!(binary.vertices().len(), 4);
-        assert!(parse_stl(b"garbage").is_err());
+        assert!(parse_stl(b"garbage", None).is_err());
     }
 
     #[test]
@@ -301,11 +327,27 @@ mod tests {
         let layers = Arc::new(StringArray::from(vec!["a", "a", "b", "b"]));
         let m = tetra().with_face_column("layer", layers.clone()).unwrap();
         let mut buffer = Vec::new();
-        to_drawing(&m).unwrap().save(&mut buffer).unwrap();
-        let read = from_drawing(&Drawing::load(&mut buffer.as_slice()).unwrap()).unwrap();
+        to_drawing(&m, None).unwrap().save(&mut buffer).unwrap();
+        let read = from_drawing(&Drawing::load(&mut buffer.as_slice()).unwrap(), None).unwrap();
         assert_eq!(corners(&read), corners(&m));
         let got = read.face_attributes().column_by_name("layer").unwrap();
         assert_eq!(got.as_string::<i32>(), layers.as_ref());
+    }
+
+    #[test]
+    fn writers_tick_once_per_triangle() {
+        let m = tetra();
+        for (name, ascii) in [
+            ("t.obj", false),
+            ("t.stl", false),
+            ("t.stl", true),
+            ("t.dxf", false),
+        ] {
+            let path = std::env::temp_dir().join(format!("ceres-io-{}-{name}", std::process::id()));
+            let progress = Progress::new(Some(4));
+            write_mesh(&path, &m, ascii, Some(&progress)).unwrap();
+            assert_eq!(progress.snapshot().0, 4);
+        }
     }
 
     #[test]
@@ -314,7 +356,7 @@ mod tests {
         let p = |x, y| dxf::Point::new(x, y, 0.0);
         let face = Face3D::new(p(0.0, 0.0), p(1.0, 0.0), p(1.0, 1.0), p(0.0, 1.0));
         drawing.add_entity(Entity::new(EntityType::Face3D(face)));
-        let m = from_drawing(&drawing).unwrap();
+        let m = from_drawing(&drawing, None).unwrap();
         assert_eq!(m.triangles(), &[[0, 1, 2], [0, 2, 3]]);
         assert_eq!(m.area(), 1.0);
     }
