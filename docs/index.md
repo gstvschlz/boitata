@@ -8,11 +8,13 @@ hide: [navigation, toc]
 <div markdown>
 <h1>ceres</h1>
 
-Geostatistics in Rust with a Python interface. Parallel, and the same result on any number of threads.
+My Python tooling for day-to-day geostatistics.
+
+ceres holds the tools I use for resource work: drill hole checks, statistics, transforms, variograms, kriging, simulation and model checks. It runs from Python; the numerical core is Rust.
 
 [Get started](#install){ .md-button .md-button--primary }
 [Examples](examples/01-first-steps/index.md){ .md-button }
-[API reference](api/containers.md){ .md-button }
+[API reference](api/containers/index.md){ .md-button }
 </div>
 </div>
 
@@ -101,23 +103,3 @@ pip install "ceres[all] @ git+https://github.com/gstvschlz/ceres"
 ```
 
 The [install page](install.md) covers uv, poetry, conda and pixi, wheels, extras and offline installs.
-
-## A first estimate
-
-```python
-import ceres as cs
-
-samples = cs.datasets.walker_lake()
-xy, v = samples.coords, samples["V"]
-variogram = cs.experimental_variogram(xy, v, lag=10, max_lag=120).fit("spherical")
-grid = cs.BlockModel(origin=(0.5, 0.5), size=(5, 5), count=(52, 60))
-kriging = cs.OrdinaryKriging(variogram, cs.Search(radius=80, max_samples=24)).fit(xy, v)
-estimate, variance = kriging.predict(grid, return_variance=True)
-scores = cs.NormalScore().fit_transform(v)
-gaussian = cs.experimental_variogram(xy, scores, lag=10, max_lag=120).fit("spherical")
-summary = cs.SGS(gaussian, cs.Search(radius=80)).fit(xy, v).simulate(grid, n=50, cutoffs=[500])
-risk = summary.probability_above[:, 0]
-```
-
-The [examples](examples/01-first-steps/index.md) work through every topic on open datasets; the API pages list every
-class and function.

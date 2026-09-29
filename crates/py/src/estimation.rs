@@ -25,23 +25,6 @@ use crate::progress::with_progress;
 use crate::table::Table;
 use crate::variogram::Variogram;
 
-/// Neighborhood: `radius` is in meters along the major axis of the
-/// search ellipsoid (`rotation` azimuth, dip, rake and `ratios` semi/major,
-/// minor/major), or of the variogram's anisotropy when no ellipsoid is given.
-/// `octant` takes at most `max_samples / 8` samples from each octant around
-/// the target, split along the ellipsoid's axes; with 2D data (one elevation)
-/// the sectors are the ellipse's four quadrants, `max_samples / 4` each.
-/// `high_grade`, a HighGrade or `(threshold, radius)`, restricts samples
-/// above `threshold` to targets within `radius`, measured in the same
-/// ellipsoid unless the HighGrade has its own, in estimation and
-/// cross-validation alike; give each pass its own to vary it by pass. The threshold is always in data
-/// units: simulators compare it with the data values and the simulated
-/// values of nodes, so it picks the same samples as in estimation. Estimators also take a sequence
-/// of searches as passes: targets one leaves unestimated go to the next.
-/// `soft` lets samples of another domain inform a target strictly within a
-/// distance in the same ellipsoid: one distance for every pair of domains,
-/// or a dict `{(target_domain, sample_domain): distance}`, one way; pairs not
-/// listed are hard.
 /// High-grade restriction of a Search: samples above `threshold` are left
 /// out (`mode="drop"`) or capped at `threshold` (`mode="clamp"`) beyond
 /// `radius` of the target. `radius` is a distance in the search ellipsoid,
@@ -198,6 +181,23 @@ impl PyHighGrade {
     }
 }
 
+/// Neighborhood: `radius` is in meters along the major axis of the
+/// search ellipsoid (`rotation` azimuth, dip, rake and `ratios` semi/major,
+/// minor/major), or of the variogram's anisotropy when no ellipsoid is given.
+/// `octant` takes at most `max_samples / 8` samples from each octant around
+/// the target, split along the ellipsoid's axes; with 2D data (one elevation)
+/// the sectors are the ellipse's four quadrants, `max_samples / 4` each.
+/// `high_grade`, a HighGrade or `(threshold, radius)`, restricts samples
+/// above `threshold` to targets within `radius`, measured in the same
+/// ellipsoid unless the HighGrade has its own, in estimation and
+/// cross-validation alike; give each pass its own to vary it by pass. The threshold is always in data
+/// units: simulators compare it with the data values and the simulated
+/// values of nodes, so it picks the same samples as in estimation. Estimators also take a sequence
+/// of searches as passes: targets one leaves unestimated go to the next.
+/// `soft` lets samples of another domain inform a target strictly within a
+/// distance in the same ellipsoid: one distance for every pair of domains,
+/// or a dict `{(target_domain, sample_domain): distance}`, one way; pairs not
+/// listed are hard.
 #[derive(Serialize, Deserialize)]
 #[pyclass(module = "ceres", name = "Search", frozen, from_py_object)]
 #[derive(Clone)]

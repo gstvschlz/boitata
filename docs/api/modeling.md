@@ -1,3 +1,0 @@
-# Modeling
-
-::: ceres.ImplicitModel
