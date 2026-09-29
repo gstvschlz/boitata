@@ -274,6 +274,66 @@ fn planar<'a>(mut locs: impl Iterator<Item = &'a Point>) -> bool {
     locs.all(|p| Some(p.2) == z)
 }
 
+/// Greedy selection over candidates offered by increasing distance.
+struct Selector<'a> {
+    target: &'a Point,
+    params: &'a Search,
+    sectors: &'a Sectors,
+    chosen: Vec<usize>,
+    per_hole: Vec<(u32, usize)>,
+    per_octant: [usize; 8],
+    octant_cap: usize,
+}
+
+impl<'a> Selector<'a> {
+    fn new(target: &'a Point, params: &'a Search, sectors: &'a Sectors) -> Self {
+        Self {
+            target,
+            params,
+            sectors,
+            chosen: Vec::with_capacity(params.max_samples),
+            per_hole: vec![],
+            per_octant: [0; 8],
+            octant_cap: if params.octant {
+                params.max_samples.div_ceil(sectors.count())
+            } else {
+                usize::MAX
+            },
+        }
+    }
+
+    fn full(&self) -> bool {
+        self.chosen.len() >= self.params.max_samples
+    }
+
+    /// Offers sample `idx`; true once the selection is full.
+    fn offer(&mut self, idx: usize, loc: &Point, hole: Option<u32>) -> bool {
+        if self.full() {
+            return true;
+        }
+        let seen = hole.and_then(|h| self.per_hole.iter().position(|p| p.0 == h));
+        if let (Some(cap), Some(k)) = (self.params.max_per_hole, seen)
+            && self.per_hole[k].1 >= cap
+        {
+            return false;
+        }
+        if self.params.octant {
+            let o = self.sectors.of(self.target, loc);
+            if self.per_octant[o] >= self.octant_cap {
+                return false;
+            }
+            self.per_octant[o] += 1;
+        }
+        match (hole, seen) {
+            (Some(_), Some(k)) => self.per_hole[k].1 += 1,
+            (Some(h), None) => self.per_hole.push((h, 1)),
+            _ => {}
+        }
+        self.chosen.push(idx);
+        self.full()
+    }
+}
+
 /// Greedy selection over candidates ordered by increasing distance.
 fn select(
     target: &Point,
@@ -283,36 +343,13 @@ fn select(
     params: &Search,
     sectors: &Sectors,
 ) -> Vec<usize> {
-    let mut chosen = Vec::with_capacity(params.max_samples);
-    let mut per_hole: HashMap<u32, usize> = HashMap::new();
-    let mut per_octant = [0usize; 8];
-    let octant_cap = if params.octant {
-        params.max_samples.div_ceil(sectors.count())
-    } else {
-        usize::MAX
-    };
+    let mut selector = Selector::new(target, params, sectors);
     for idx in ordered {
-        if chosen.len() >= params.max_samples {
+        if selector.offer(idx, &loc(idx), hole(idx)) {
             break;
         }
-        if let (Some(cap), Some(h)) = (params.max_per_hole, hole(idx))
-            && per_hole.get(&h).copied().unwrap_or(0) >= cap
-        {
-            continue;
-        }
-        if params.octant {
-            let o = sectors.of(target, &loc(idx));
-            if per_octant[o] >= octant_cap {
-                continue;
-            }
-            per_octant[o] += 1;
-        }
-        if let Some(h) = hole(idx) {
-            *per_hole.entry(h).or_insert(0) += 1;
-        }
-        chosen.push(idx);
     }
-    chosen
+    selector.chosen
 }
 
 /// Ordered candidates with samples of different domains at one location
