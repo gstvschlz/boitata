@@ -62,7 +62,7 @@ pub use turning_bands::{
 };
 
 pub mod snesim;
-pub use snesim::{Snesim, SnesimParams};
+pub use snesim::{Snesim, SnesimLocal, SnesimParams};
 
 /// Hole of each of `n` data, for `Search::max_per_hole`; all `None` without
 /// `holes`.
