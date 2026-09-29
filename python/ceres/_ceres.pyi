@@ -2045,3 +2045,29 @@ def training_image_consistency(
     n_samples: int = 200,
     seed: int = 0,
 ) -> dict[str, Any]: ...
+
+class SNESIM:
+    def to_parquet(self, path: Path) -> None: ...
+    @staticmethod
+    def from_parquet(path: Path) -> SNESIM: ...
+    def __init__(
+        self,
+        ti: BlockModel,
+        column: str,
+        *,
+        template_size: int = 40,
+        n_levels: int = 3,
+        min_replicates: int = 10,
+        target_proportions: Sequence[float] | None = None,
+        servo: float = 0.5,
+    ) -> None: ...
+    def fit(self, coords: ArrayLike | PointSet | BlockModel, categories: ArrayLike | Column) -> SNESIM: ...
+    def simulate(
+        self,
+        targets: BlockModel,
+        *,
+        n: int = 100,
+        seed: int = 0,
+        keep: bool | Sequence[int] = False,
+        progress: bool = True,
+    ) -> CategoricalSummary: ...
