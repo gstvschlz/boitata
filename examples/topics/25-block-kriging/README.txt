@@ -1,1 +1,0 @@
-## 25. Block kriging
