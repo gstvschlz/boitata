@@ -84,8 +84,8 @@ for name, check in checks.items():
 </details>
 
 ```text
-Co alone    correlation with Ni -0.05 to 0.39 (samples 0.75)
-Co with Ni  correlation with Ni 0.70 to 0.87 (samples 0.75)
+Co alone    correlation with Ni -0.14 to 0.20 (samples 0.75)
+Co with Ni  correlation with Ni 0.69 to 0.84 (samples 0.75)
 ```
 
 <details><summary>Python</summary>
@@ -110,7 +110,7 @@ save(fig, "maps")
 ![maps](maps.png)
 
 The cosimulated Co still reproduces its own histogram and variogram, the checks of topic 70, while its correlation
-with Ni, 0.70 to 0.87 across realizations, brackets the samples' 0.75; simulated alone, Co keeps little of it.
+with Ni, 0.69 to 0.84 across realizations, brackets the samples' 0.75; simulated alone, Co keeps little of it.
 
 <details><summary>Python</summary>
 

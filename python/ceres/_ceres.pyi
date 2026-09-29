@@ -1023,6 +1023,8 @@ class SGS:
         domains: Label | Sequence[Label] | ArrayLike | None = None,
         domain_column: Column | None = None,
         secondary: ArrayLike | Column | None = None,
+        path: Literal["shared", "random"] | None = None,
+        batch: int | None = None,
     ) -> SimulationSummary: ...
 
 class TurningBands:

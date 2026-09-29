@@ -82,8 +82,7 @@ save(fig, "simulated-blocks")
 
 
 # %% [markdown]
-# From 500 ppm up the band holds the true curve; at 300 ppm nearly every realization puts a few per cent more blocks above
-# cutoff than the truth has.
+# The band holds the true curve at every cutoff; at 300 ppm the truth sits at its lower edge.
 
 
 # %% [markdown]

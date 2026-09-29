@@ -98,7 +98,7 @@ for ax, values, title in zip(axes, [reals[low], corrected[low]], ["Realization",
     cs.plot.section(grid, values, vmin=0, vmax=1200, colorbar=False, ax=ax)
     map_axes(ax, f"{title} {low + 1}, mean {values.mean():.0f} ppm")
 axes[1].set_ylabel("")
-fig.colorbar(axes[1].images[0], ax=axes, label="V (ppm)", shrink=0.8)
+fig.colorbar(axes[1].collections[0], ax=axes, label="V (ppm)", shrink=0.8)
 save(fig, "maps")
 
 # %% [markdown]

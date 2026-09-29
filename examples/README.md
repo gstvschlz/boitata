@@ -118,6 +118,8 @@ Tutorials follow one deposit from data to a result; topics show one feature each
 | 90 | [Along-hole transition matrix and MDS](topics/90-transition-matrix-mds/README.md) | Stacked sulphide lenses | `merge_intervals`, `Drillholes`, `Categories`, `transition_matrix`, `plot.domain_change`, `plot.transition_mds` |
 | 91 | [Soft-boundary statistics](topics/91-soft-boundary-statistics/README.md) | Nickel laterite profile | `merge_intervals`, `Drillholes`, `soft_boundary` |
 | 92 | [Censored normal-score transform](topics/92-censored-normal-score/README.md) | Tailings reprocessing, Soil geochemistry survey | `NormalScore`, `experimental_variogram`, `Search`, `ExternalDriftKriging` |
+| 93 | [Section validation plates](topics/93-section-validation-plates/README.md) | Stacked sulphide lenses | `BlockModel`, `Drillholes`, `InverseDistance`, `Search`, `plot.section`, `plot.slab`, `plot.scatter` |
+| 94 | [SGS along a shared path](topics/94-sgs-shared-path/README.md) | Walker Lake | `cell_declustering`, `NormalScore`, `experimental_variogram`, `Variogram`, `BlockModel`, `SGS`, `Search`, `check_realizations`, `plot.histogram_reproduction`, `plot.variogram_reproduction` |
 
 Each page alternates text, collapsed Python and its results. `mise run examples` reruns every script
 and rewrites the pages; `cs.datasets` downloads the data once and caches it. `render.py --index` writes this file.

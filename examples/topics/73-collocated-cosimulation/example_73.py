@@ -87,7 +87,7 @@ save(fig, "maps")
 
 # %% [markdown]
 # The cosimulated Co still reproduces its own histogram and variogram, the checks of topic 70, while its correlation
-# with Ni, 0.70 to 0.87 across realizations, brackets the samples' 0.75; simulated alone, Co keeps little of it.
+# with Ni, 0.69 to 0.84 across realizations, brackets the samples' 0.75; simulated alone, Co keeps little of it.
 
 # %%
 fig, axes = plt.subplots(1, 3, figsize=(13, 3.8), layout="constrained")

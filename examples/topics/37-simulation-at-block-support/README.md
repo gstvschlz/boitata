@@ -87,15 +87,14 @@ save(fig, "simulated-blocks")
 </details>
 
 ```text
-above 300 ppm: P10 40.3%, P90 48.7%, true 40.1%
-above 500 ppm: P10 13.6%, P90 18.5%, true 16.2%
-above 800 ppm: P10 1.8%, P90 2.7%, true 2.1%
+above 300 ppm: P10 39.8%, P90 47.9%, true 40.1%
+above 500 ppm: P10 14.1%, P90 17.7%, true 16.2%
+above 800 ppm: P10 1.8%, P90 2.6%, true 2.1%
 ```
 
 ![simulated-blocks](simulated-blocks.png)
 
-From 500 ppm up the band holds the true curve; at 300 ppm nearly every realization puts a few per cent more blocks above
-cutoff than the truth has.
+The band holds the true curve at every cutoff; at 300 ppm the truth sits at its lower edge.
 
 Localization pools the realizations panel by panel. Over the western 250 m, each 50 × 50 m panel holds 25 blocks;
 25 blocks × 30 realizations give 750 values, sorted and cut into 25 chunks of 30, and the block ranked i by
@@ -152,7 +151,7 @@ save(fig, "localized-simulation")
 
 ```text
 kriged: variance 35064, correlation with truth 0.89
-localized: variance 41411, correlation with truth 0.86
+localized: variance 41003, correlation with truth 0.85
 true blocks: variance 47350
 ```
 

@@ -216,16 +216,18 @@ def test_simulation_with_a_trend_follows_it_and_honors_data():
 
     sgs = cs.SGS(gaussian, search).fit(xy, z, trend=trend)
     model = grid.with_column("drift", node_trend)
-    by_array = sgs.simulate(grid, n=3, seed=4, keep=True, trend=node_trend).realizations
+    by_array = sgs.simulate(grid, n=3, seed=4, keep=True, path="random", trend=node_trend).realizations
     np.testing.assert_array_equal(
-        sgs.simulate(model, n=3, seed=4, keep=True, trend="drift").realizations, by_array
+        sgs.simulate(model, n=3, seed=4, keep=True, path="random", trend="drift").realizations, by_array
     )
     points = cs.PointSet(model.centroids, {"drift": node_trend})
     np.testing.assert_array_equal(
-        sgs.simulate(points, n=3, seed=4, keep=True, trend="drift").realizations, by_array
+        sgs.simulate(points, n=3, seed=4, keep=True, path="random", trend="drift").realizations, by_array
     )
     blocks = cs.BlockModel(origin=(0, 0), size=(20, 20), count=(5, 5))
-    by_block = sgs.simulate(grid, n=3, seed=4, keep=True, blocks=blocks, trend=node_trend).realizations
+    by_block = sgs.simulate(
+        grid, n=3, seed=4, keep=True, path="random", blocks=blocks, trend=node_trend
+    ).realizations
     xy_block = grid.centroids[:, :2] // 20
     rows = (xy_block[:, 0] + 5 * xy_block[:, 1]).astype(int)
     np.testing.assert_allclose(by_block, [np.bincount(rows, r) / np.bincount(rows) for r in by_array])
@@ -638,7 +640,8 @@ def test_grades_follow_each_realization_of_simulated_domains(model):
     fixed = np.where(nodes[:, 0] < 50, "lean", "rich")
 
     def run(domains):
-        return model.simulate(grid, n=3, seed=4, keep=True, domains=domains).realizations
+        path = {"path": "random"} if isinstance(model, cs.SGS) else {}
+        return model.simulate(grid, n=3, seed=4, keep=True, domains=domains, **path).realizations
 
     np.testing.assert_array_equal(run(np.tile(fixed, (3, 1))), run(fixed))
     simulated = np.array([np.where(nodes[:, 0] < edge, "lean", "rich") for edge in (20, 50, 80)])
@@ -767,7 +770,7 @@ def _cosimulation_case():
     nodes = cs.BlockModel((0.5, 0.5), (1.0, 1.0), (40, 40))
     far = cs.PointSet(rng.uniform(1000, 2000, (500, 2)), {"v": rng.normal(size=500)})
     field = cs.SGS(model, cs.Search(radius=30, max_samples=16)).fit(far, "v")
-    secondary = field.simulate(nodes, n=2, seed=9, keep=True).realizations
+    secondary = field.simulate(nodes, n=2, seed=9, keep=True, path="random").realizations
     rows = rng.choice(1600, 100, replace=False)
     s = secondary[0]
     scores = (s - s.mean()) / s.std()
@@ -899,3 +902,63 @@ def test_kept_realizations_survive_parquet(tmp_path):
     back = cs.SimulationSummary.from_parquet(tmp_path / "s.parquet")
     assert back.kept == [2]
     np.testing.assert_array_equal(back.realizations, summary.realizations)
+
+
+def _shared_case():
+    sgs = cs.SGS(gaussian, cs.Search(radius=40, max_samples=12)).fit(coords, values)
+    return sgs, cs.BlockModel(origin=(0, 0), size=(5, 5), count=(20, 20))
+
+
+def test_shared_realizations_do_not_depend_on_the_batch():
+    sgs, blocks = _shared_case()
+    one = sgs.simulate(blocks, n=5, seed=2, keep=True, path="shared", batch=1)
+    together = sgs.simulate(blocks, n=5, seed=2, keep=True, path="shared", batch=5)
+    np.testing.assert_array_equal(one.realizations, together.realizations)
+    np.testing.assert_array_equal(one.mean, together.mean)
+
+
+def test_block_models_default_to_the_shared_path():
+    sgs, blocks = _shared_case()
+    default = sgs.simulate(blocks, n=3, seed=1, keep=True)
+    shared = sgs.simulate(blocks, n=3, seed=1, keep=True, path="shared")
+    random = sgs.simulate(blocks, n=3, seed=1, keep=True, path="random")
+    np.testing.assert_array_equal(default.realizations, shared.realizations)
+    assert not np.array_equal(default.realizations, random.realizations)
+
+
+def test_points_default_to_the_random_path_and_refuse_a_shared_one():
+    sgs, blocks = _shared_case()
+    points = np.asarray(blocks.centroids)[:, :2]
+    default = sgs.simulate(points, n=2, seed=1, keep=True)
+    random = sgs.simulate(points, n=2, seed=1, keep=True, path="random")
+    np.testing.assert_array_equal(default.realizations, random.realizations)
+    with pytest.raises(cs.InvalidInput, match="path='shared' does not support"):
+        sgs.simulate(points, n=2, path="shared")
+    with pytest.raises(cs.InvalidInput, match="path must be"):
+        sgs.simulate(blocks, n=2, path="spiral")
+
+
+def test_octant_searches_fall_back_to_the_random_path():
+    sgs = cs.SGS(gaussian, cs.Search(radius=40, max_samples=12, octant=True)).fit(coords, values)
+    blocks = cs.BlockModel(origin=(0, 0), size=(5, 5), count=(20, 20))
+    default = sgs.simulate(blocks, n=2, seed=1, keep=True)
+    random = sgs.simulate(blocks, n=2, seed=1, keep=True, path="random")
+    np.testing.assert_array_equal(default.realizations, random.realizations)
+    with pytest.raises(cs.InvalidInput, match="octant"):
+        sgs.simulate(blocks, n=2, path="shared")
+
+
+def test_shared_path_honors_data_and_supports_masked_models_and_blocks():
+    sgs, blocks = _shared_case()
+    s = sgs.simulate(blocks, n=4, seed=3, keep=True, path="shared")
+    assert s.realizations.shape == (4, 400)
+    assert np.isfinite(s.realizations).all()
+    coarse = cs.BlockModel(origin=(0, 0), size=(20, 20), count=(5, 5))
+    b = sgs.simulate(blocks, n=3, seed=3, blocks=coarse, path="shared")
+    assert b.mean.shape == (25,)
+
+
+def test_available_memory_is_a_positive_size():
+    from ceres import _memory
+
+    assert _memory.available() > 2**20

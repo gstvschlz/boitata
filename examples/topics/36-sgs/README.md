@@ -77,9 +77,9 @@ print(f"area above 500 ppm: P10 {low:.1%}, P90 {high:.1%}, true {np.mean(true_at
 </details>
 
 ```text
-realization means 277-327, true 276
-realization variance 70531, true 62312
-area above 500 ppm: P10 20.8%, P90 23.6%, true 18.9%
+realization means 274-334, true 276
+realization variance 70844, true 62312
+area above 500 ppm: P10 20.6%, P90 24.6%, true 18.9%
 ```
 
 Each realization looks like the truth; their mean is smooth like kriging and their spread measures uncertainty.

@@ -57,7 +57,7 @@ print(
 </details>
 
 ```text
-declustered mean 291 ppm; realization means 277 to 325 ppm
+declustered mean 291 ppm; realization means 274 to 322 ppm
 ```
 
 ## Correcting to the declustered data
@@ -95,8 +95,8 @@ save(fig, "histograms")
 </details>
 
 ```text
-SGS realizations  means    277 to    325 ppm
-strength 0.5      means    284 to    308 ppm
+SGS realizations  means    274 to    322 ppm
+strength 0.5      means    282 to    306 ppm
 strength 1        means    291 to    291 ppm
 order kept in every realization: True
 ```
@@ -116,7 +116,7 @@ for ax, values, title in zip(axes, [reals[low], corrected[low]], ["Realization",
     cs.plot.section(grid, values, vmin=0, vmax=1200, colorbar=False, ax=ax)
     map_axes(ax, f"{title} {low + 1}, mean {values.mean():.0f} ppm")
 axes[1].set_ylabel("")
-fig.colorbar(axes[1].images[0], ax=axes, label="V (ppm)", shrink=0.8)
+fig.colorbar(axes[1].collections[0], ax=axes, label="V (ppm)", shrink=0.8)
 save(fig, "maps")
 ```
 
@@ -142,7 +142,7 @@ print(f"{len(outside)} of {len(reals)} realizations corrected; means now {m.min(
 </details>
 
 ```text
-8 of 20 realizations corrected; means now 277 to 304 ppm
+7 of 20 realizations corrected; means now 283 to 302 ppm
 ```
 
 ## A smooth reference
