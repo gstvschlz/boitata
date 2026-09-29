@@ -18,6 +18,8 @@ pub enum Error {
     Mesh(String),
     #[error("GeoTIFF: {0}")]
     GeoTiff(String),
+    #[error("SEG-Y: {0}")]
+    Segy(String),
     #[error("shapefile: {0}")]
     Shapefile(String),
     #[error("line {line}: {message}")]
