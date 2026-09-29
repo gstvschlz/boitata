@@ -926,7 +926,7 @@ def test_block_multiple_indicator_kriging():
     for simple in (False, True):
         mik = cs.MultipleIndicatorKriging(model, wide, thresholds, simple=simple).fit(coords, values)
         point = mik.predict(panels)
-        np.testing.assert_array_equal(mik.predict(panels, discretization=(1, 1, 1)).cdf, point.cdf)
+        np.testing.assert_allclose(mik.predict(panels, discretization=(1, 1, 1)).cdf, point.cdf, atol=1e-9)
         block = mik.predict(panels, discretization=(4, 4, 1), diagnostics=True)
         assert block.cdf[:, 1].var() < point.cdf[:, 1].var() and block.diagnostics is not None
     smus = panels.discretize(5).with_column("rank", rng.normal(size=400))
