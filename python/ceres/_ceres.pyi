@@ -2089,6 +2089,9 @@ class ImageQuilting:
         n_best: int = 10,
         data_weight: float = 5.0,
         categorical: bool | None = None,
+        secondary: str | None = None,
+        secondary_weight: float = 1.0,
+        soft_weight: float = 1.0,
     ) -> None: ...
     @property
     def categorical(self) -> bool: ...
@@ -2100,5 +2103,7 @@ class ImageQuilting:
         n: int = 100,
         seed: int = 0,
         keep: bool | Sequence[int] = False,
+        soft: Sequence[Column] | ArrayLike | None = None,
+        secondary: ArrayLike | Column | None = None,
         progress: bool = True,
     ) -> CategoricalSummary | SimulationSummary: ...
