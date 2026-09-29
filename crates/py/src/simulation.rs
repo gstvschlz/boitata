@@ -3460,6 +3460,7 @@ impl ImageQuilting {
             overlap: self.overlap,
             n_best: self.n_best,
             data_weight: self.data_weight,
+            ..Default::default()
         }
     }
 
