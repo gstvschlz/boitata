@@ -95,7 +95,8 @@ print(f"trend at the composites: variance {at_data.var():.0f} of {fe.var():.0f} 
 # them chunk by chunk. Fitted with the domains and the trend at the data, each domain gets its own normal-score
 # transform of the residuals; `simulate_to_parquet` then reads each block's domain and trend from the columns named
 # by `domain_column` and `trend`. It writes the same summary `simulate` would return for the whole model, plus each
-# realization's global statistics.
+# realization's global statistics. `keep=` writes chosen realizations beside the summary, here the first, as
+# `realization_0`.
 
 # %%
 scores = cs.NormalScore().fit_transform(fe - at_data)
@@ -114,6 +115,7 @@ result = bands.simulate_to_parquet(
     n=10,
     seed=1,
     cutoffs=[60.0],
+    keep=[0],
     domain_column="domain",
     trend="trend",
 )
@@ -121,6 +123,13 @@ seconds = time.perf_counter() - start
 low, high = np.quantile(result["realization_above"][:, 0], [0.1, 0.9])
 print(f"10 realizations in {seconds:.0f} s; blocks above 60 % Fe: P10 {low:.1%}, P90 {high:.1%}")
 print(f"output {(folder / 'simulated.parquet').stat().st_size / 1e6:.0f} MB")
+first = np.concatenate(
+    [
+        c["realization_0"]
+        for c in cs.BlockModelFile(folder / "simulated.parquet").chunks(columns=["realization_0"])
+    ]
+)
+print(f"first realization: mean {first.mean():.2f} % Fe, as accumulated {result['realization_mean'][0]:.2f}")
 
 # %% [markdown]
 # Mining selects the 25 × 25 × 12 m blocks, not 5 m ones. With `discretization`, each block of a file is simulated

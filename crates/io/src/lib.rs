@@ -16,7 +16,8 @@ pub use gslib::{read_gslib, write_gslib};
 pub use mesh::{read_mesh, write_mesh};
 pub use parquet::{
     BlockChunks, BlockModelReader, BlockModelWriter, FileLayout, Stored, read_model, read_parquet,
-    stream_map, write_block_model, write_model, write_parquet, write_points, write_polylines,
+    stream_map, write_block_model, write_model, write_parquet, write_parquet_batches, write_points,
+    write_polylines,
 };
 pub use shapefile::{Shapes, read_shapefile, write_polylines_shapefile, write_shapefile};
 

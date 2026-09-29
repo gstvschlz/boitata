@@ -306,3 +306,17 @@ def test_table_conversion_without_the_package_names_pip_and_conda(monkeypatch, m
     )
     with pytest.raises(ImportError, match=f"^{hint}$"):
         getattr(table, method)()
+
+
+def test_write_parquet_keeps_float32(tmp_path):
+    pq = pytest.importorskip("pyarrow.parquet")
+    values = np.arange(10, dtype=np.float32)
+    cs.write_parquet(tmp_path / "t.parquet", {"v": values})
+    assert pq.read_schema(tmp_path / "t.parquet").field("v").type == "float"
+    np.testing.assert_array_equal(np.asarray(cs.read_parquet(tmp_path / "t.parquet")["v"]), values)
+
+
+def test_write_parquet_keeps_nan_as_null(tmp_path):
+    pq = pytest.importorskip("pyarrow.parquet")
+    cs.write_parquet(tmp_path / "t.parquet", {"v": np.array([1.0, np.nan], dtype=np.float32)})
+    assert pq.read_table(tmp_path / "t.parquet")["v"].null_count == 1

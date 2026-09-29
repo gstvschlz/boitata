@@ -5,7 +5,7 @@ use pyo3::prelude::*;
 
 use crate::blocks::Mesh;
 use crate::containers::{PyBlockModel, PyPointSet, PyPolylines};
-use crate::table::{Table, to_batch};
+use crate::table::{Table, to_batch, to_batches};
 use crate::{error, invalid};
 
 pub(crate) fn io_error(e: ceres_io::Error) -> PyErr {
@@ -82,17 +82,28 @@ fn write_gslib(path: PathBuf, table: &Bound<PyAny>, nodata: f64) -> PyResult<()>
 /// containers keep their geometry, layout and CRS in the file metadata.
 /// Polylines are stored one row per feature, as ``Polylines.to_table``.
 #[pyfunction]
-fn write_parquet(path: PathBuf, data: &Bound<PyAny>) -> PyResult<()> {
+fn write_parquet(py: Python, path: PathBuf, data: &Bound<PyAny>) -> PyResult<()> {
     if let Ok(points) = data.cast::<PyPointSet>() {
-        return ceres_io::write_points(path, &points.get().0).map_err(io_error);
+        let points = &points.get().0;
+        return py
+            .detach(|| ceres_io::write_points(path, points))
+            .map_err(io_error);
     }
     if let Ok(lines) = data.cast::<PyPolylines>() {
-        return ceres_io::write_polylines(path, &lines.get().0).map_err(io_error);
+        let lines = &lines.get().0;
+        return py
+            .detach(|| ceres_io::write_polylines(path, lines))
+            .map_err(io_error);
     }
     if let Ok(model) = data.cast::<PyBlockModel>() {
-        return ceres_io::write_block_model(path, &model.get().0).map_err(io_error);
+        let model = &model.get().0;
+        return py
+            .detach(|| ceres_io::write_block_model(path, model))
+            .map_err(io_error);
     }
-    ceres_io::write_parquet(path, &to_batch(data)?).map_err(io_error)
+    let (schema, batches) = to_batches(data)?;
+    py.detach(|| ceres_io::write_parquet_batches(path, schema, &batches))
+        .map_err(io_error)
 }
 
 /// Reads Parquet as the PointSet, BlockModel or Polylines it was written

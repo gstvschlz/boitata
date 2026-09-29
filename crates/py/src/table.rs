@@ -2,8 +2,10 @@ use std::sync::Arc;
 
 use arrow_array::cast::AsArray;
 use arrow_array::types::Float64Type;
-use arrow_array::{ArrayRef, Float64Array, RecordBatch, RecordBatchOptions, StructArray};
-use arrow_schema::{DataType, Field, Schema};
+use arrow_array::{
+    ArrayRef, Float32Array, Float64Array, RecordBatch, RecordBatchOptions, StructArray,
+};
+use arrow_schema::{DataType, Field, Schema, SchemaRef};
 use numpy::{PyArray1, PyReadonlyArray1};
 use pyo3::exceptions::PyImportError;
 use pyo3::prelude::*;
@@ -60,17 +62,46 @@ pub fn to_batch(data: &Bound<PyAny>) -> PyResult<RecordBatch> {
                     .map_err(|_| invalid(format!("column {name} is not a 1-D array of text")))?;
                 Arc::new(arrow_array::StringArray::from(text))
             } else {
-                let values: PyReadonlyArray1<f64> = np
-                    .call_method1("asarray", (values, "float64"))
-                    .and_then(|v| Ok(v.extract()?))
-                    .map_err(|_| invalid(format!("column {name} is not a 1-D numeric array")))?;
-                Arc::new(
-                    values
-                        .as_array()
-                        .iter()
-                        .map(|v| (!v.is_nan()).then_some(*v))
-                        .collect::<Float64Array>(),
-                )
+                let not_numeric = || invalid(format!("column {name} is not a 1-D numeric array"));
+                let dtype: String = array.getattr("dtype")?.getattr("name")?.extract()?;
+                let wide = if dtype == "float32" {
+                    "float32"
+                } else {
+                    "float64"
+                };
+                let array = np
+                    .call_method1("asarray", (values, wide))
+                    .map_err(|_| not_numeric())?;
+                let has_nan: bool = np
+                    .call_method1("isnan", (&array,))
+                    .map_err(|_| not_numeric())?
+                    .call_method0("any")?
+                    .extract()?;
+                if wide == "float32" {
+                    let values: PyReadonlyArray1<f32> =
+                        array.extract().map_err(|_| not_numeric())?;
+                    let v = values.as_array();
+                    match has_nan {
+                        true => Arc::new(
+                            v.iter()
+                                .map(|v| (!v.is_nan()).then_some(*v))
+                                .collect::<Float32Array>(),
+                        ),
+                        false => Arc::new(Float32Array::from_iter_values(v.iter().copied())),
+                    }
+                } else {
+                    let values: PyReadonlyArray1<f64> =
+                        array.extract().map_err(|_| not_numeric())?;
+                    let v = values.as_array();
+                    match has_nan {
+                        true => Arc::new(
+                            v.iter()
+                                .map(|v| (!v.is_nan()).then_some(*v))
+                                .collect::<Float64Array>(),
+                        ),
+                        false => Arc::new(Float64Array::from_iter_values(v.iter().copied())),
+                    }
+                }
             };
             columns.push((name.extract::<String>()?, column));
         }
@@ -82,6 +113,20 @@ pub fn to_batch(data: &Bound<PyAny>) -> PyResult<RecordBatch> {
         .into_table()?;
     let (batches, schema) = table.into_inner();
     arrow_select::concat::concat_batches(&schema, &batches).map_err(invalid)
+}
+
+/// As [`to_batch`], but an Arrow table stays in its batches.
+pub fn to_batches(data: &Bound<PyAny>) -> PyResult<(SchemaRef, Vec<RecordBatch>)> {
+    if data.cast::<PyDict>().is_ok() {
+        let batch = to_batch(data)?;
+        return Ok((batch.schema(), vec![batch]));
+    }
+    let table = data
+        .extract::<AnyRecordBatch>()
+        .map_err(|_| invalid("expected an Arrow-compatible table or a dict of arrays"))?
+        .into_table()?;
+    let (batches, schema) = table.into_inner();
+    Ok((schema, batches))
 }
 
 /// `MissingColumn` for `name`, listing the `columns` there are.
