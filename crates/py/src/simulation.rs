@@ -2308,6 +2308,9 @@ impl Tabular for CategoricalSummary {
         Ok(())
     }
 }
+/// Realizations of a turning-bands factor built together: their bands take
+/// about 10 MB each.
+const MULTIVARIATE_BATCH: usize = 8;
 
 enum Factor {
     Sgs(CoreVariogram, Vec<estimation::Search>),
@@ -2549,7 +2552,63 @@ impl MultivariateSimulation {
             quantiles,
             keep: keep_arg(keep)?,
         };
+        let bands_only = !grid.is_empty()
+            && self.factors.iter().all(|factor| {
+                matches!(factor, Factor::Bands(_, params)
+                    if f.imputed.is_none() || params.search.high_grade.is_none())
+            });
         py.detach(|| {
+            if bands_only {
+                let p = self.factors.len();
+                let (lo, hi) = simulation::bounds(&grid);
+                return simulation::multivariate_batched(
+                    n,
+                    p,
+                    &f.transform,
+                    &options,
+                    support.as_ref(),
+                    MULTIVARIATE_BATCH.min(n),
+                    |j, ks| {
+                        let Factor::Bands(variogram, params) = &self.factors[j] else {
+                            unreachable!("checked")
+                        };
+                        let values: Vec<Vec<f64>> = match &f.imputed {
+                            None => vec![f.columns[j].clone()],
+                            Some((imputer, data)) => ks
+                                .clone()
+                                .map(|k| {
+                                    let rows = imputer
+                                        .impute(
+                                            data,
+                                            Some(&f.locs),
+                                            simulation::factor_seed(seed, k, p),
+                                        )
+                                        .map_err(|e| {
+                                            simulation::SimError::Transform(e.to_string())
+                                        })?;
+                                    Ok(f.transform.forward(&rows).iter().map(|r| r[j]).collect())
+                                })
+                                .collect::<simulation::Result<_>>()?,
+                        };
+                        let seeds: Vec<u64> = ks
+                            .clone()
+                            .map(|k| simulation::factor_seed(seed, k, j))
+                            .collect();
+                        simulation::TurningBandsEnsemble::with_realizations(
+                            &f.locs,
+                            &values,
+                            f.weights.as_deref(),
+                            f.holes.as_deref(),
+                            lo,
+                            hi,
+                            variogram,
+                            params,
+                            &seeds,
+                        )?
+                        .realizations(0..ks.len(), &grid, |_| None, None)
+                    },
+                );
+            }
             simulation::multivariate(
                 n,
                 seed,

@@ -326,6 +326,24 @@ impl Layout {
         }
     }
 
+    /// The bands of a realization seeded by each of `seeds`, and their
+    /// field at the data.
+    fn simulate(
+        &self,
+        params: &TurningBandsParams,
+        data_locs: &[(f64, f64, f64)],
+        seeds: &[u64],
+    ) -> (Vec<Bands>, Vec<Vec<f64>>) {
+        seeds
+            .par_iter()
+            .map(|&s| {
+                let bands = self.bands(params.n_bands, &mut StdRng::seed_from_u64(s));
+                let at_data = bands.field(data_locs);
+                (bands, at_data)
+            })
+            .unzip()
+    }
+
     /// The bands of one realization, drawn from `rng`.
     fn bands(&self, n_bands: usize, rng: &mut StdRng) -> Bands {
         let normal = Normal::new(0.0, 1.0).unwrap();
@@ -532,7 +550,7 @@ pub fn conditional_gaussian_field(
 /// bands are shared. A datum of another domain enters the kriging as its
 /// grade (and trend) transformed through the target's domain.
 pub struct TurningBandsEnsemble {
-    transforms: Transforms,
+    transforms: Vec<Transforms>,
     data: Vec<Sample>,
     trend: Option<Vec<f64>>,
     bands: Vec<Bands>,
@@ -574,20 +592,14 @@ impl TurningBandsEnsemble {
         let lo = std::array::from_fn(|i| lo[i].min(dlo[i]));
         let hi = std::array::from_fn(|i| hi[i].max(dhi[i]));
         let layout = Layout::new(lo, hi, vg_nscore, params);
-        let (bands, at_data): (Vec<Bands>, Vec<Vec<f64>>) = (0..n)
-            .into_par_iter()
-            .map(|k| {
-                let mut rng =
-                    StdRng::seed_from_u64(ceres_core::rng::realization_seed(params.seed, k as u64));
-                let bands = layout.bands(params.n_bands, &mut rng);
-                let at_data = bands.field(data_locs);
-                (bands, at_data)
-            })
-            .unzip();
+        let seeds: Vec<u64> = (0..n)
+            .map(|k| ceres_core::rng::realization_seed(params.seed, k as u64))
+            .collect();
+        let (bands, at_data) = layout.simulate(params, data_locs, &seeds);
         let data = data(data_locs, data_vals, holes, data_domains);
         let tree = SearchTree::new(&data, &params.search, Some(vg_nscore));
         Ok(Self {
-            transforms,
+            transforms: vec![transforms],
             data,
             trend: data_trend.map(|t| t.0.to_vec()),
             bands,
@@ -595,6 +607,68 @@ impl TurningBandsEnsemble {
             tree,
             vg: vg_nscore.clone(),
         })
+    }
+
+    /// As [`Self::new`] without domains or trend, realization `k` drawn
+    /// as a one-realization ensemble seeded `seeds[k]` would draw it, from
+    /// data values `data_vals[k]` (one entry: the same values for all).
+    #[allow(clippy::too_many_arguments)]
+    pub fn with_realizations(
+        data_locs: &[(f64, f64, f64)],
+        data_vals: &[Vec<f64>],
+        data_weights: Option<&[f64]>,
+        data_holes: Option<&[u32]>,
+        lo: [f64; 3],
+        hi: [f64; 3],
+        vg_nscore: &Variogram,
+        params: &TurningBandsParams,
+        seeds: &[u64],
+    ) -> Result<Self> {
+        if data_vals.is_empty() || (data_vals.len() != 1 && data_vals.len() != seeds.len()) {
+            return Err(SimError::InvalidParameters(
+                "one values vector, or one per realization".into(),
+            ));
+        }
+        if data_vals.iter().any(|v| v.len() != data_locs.len()) {
+            return Err(SimError::InvalidParameters("data length mismatch".into()));
+        }
+        if data_locs.is_empty() {
+            return Err(SimError::InsufficientData("no conditioning data".into()));
+        }
+        if params.search.high_grade.is_some() && data_vals.len() > 1 {
+            return Err(SimError::InvalidParameters(
+                "a high-grade restriction needs the same data values in every realization".into(),
+            ));
+        }
+        let holes = crate::holes(data_holes, data_locs.len())?;
+        let transforms = data_vals
+            .iter()
+            .map(|v| Transforms::fit(v, data_weights, None, None))
+            .collect::<Result<Vec<_>>>()?;
+        let (dlo, dhi) = bounds(data_locs);
+        let lo = std::array::from_fn(|i| lo[i].min(dlo[i]));
+        let hi = std::array::from_fn(|i| hi[i].max(dhi[i]));
+        let seeds: Vec<u64> = seeds
+            .iter()
+            .map(|&s| ceres_core::rng::realization_seed(s, 0))
+            .collect();
+        let (bands, at_data) =
+            Layout::new(lo, hi, vg_nscore, params).simulate(params, data_locs, &seeds);
+        let data = data(data_locs, &data_vals[0], holes, None);
+        let tree = SearchTree::new(&data, &params.search, Some(vg_nscore));
+        Ok(Self {
+            transforms,
+            data,
+            trend: None,
+            bands,
+            at_data,
+            tree,
+            vg: vg_nscore.clone(),
+        })
+    }
+
+    fn fitted(&self, k: usize) -> &Transforms {
+        &self.transforms[k.min(self.transforms.len() - 1)]
     }
 
     pub fn len(&self) -> usize {
@@ -609,6 +683,7 @@ impl TurningBandsEnsemble {
     /// against the data's domains and trend.
     fn transforms(
         &self,
+        k: usize,
         targets: usize,
         domains: Option<&[u32]>,
         trend: Option<&[f64]>,
@@ -630,7 +705,7 @@ impl TurningBandsEnsemble {
         (0..targets)
             .map(|i| {
                 let code = domains.map_or(0, |d| d[i]);
-                self.transforms
+                self.fitted(k)
                     .domains
                     .get(code as usize)
                     .and_then(Option::as_ref)
@@ -644,14 +719,14 @@ impl TurningBandsEnsemble {
     /// Score of datum `j` for a target of `domain`: its own in its domain,
     /// its grade (and trend) transformed through `domain` in another, or
     /// the grade `cap` transformed so when capped.
-    fn score(&self, j: usize, domain: Option<u32>, cap: Option<f64>) -> f64 {
+    fn score(&self, k: usize, j: usize, domain: Option<u32>, cap: Option<f64>) -> f64 {
         let s = &self.data[j];
         if s.domain == domain && cap.is_none() {
-            return self.transforms.scores[j];
+            return self.fitted(k).scores[j];
         }
         let code = domain.unwrap_or(0) as usize;
         let t = self.trend.as_ref().map_or(0.0, |t| t[j]);
-        self.transforms.domains[code]
+        self.fitted(k).domains[code]
             .as_ref()
             .expect("checked")
             .forward(cap.unwrap_or(s.value), t)
@@ -690,13 +765,13 @@ impl TurningBandsEnsemble {
             )));
         }
         for k in ks.clone() {
-            self.transforms(targets.len(), domains(k), trend)?;
+            self.transforms(k, targets.len(), domains(k), trend)?;
         }
         let b = ks.len();
         let mut residuals = vec![0.0; self.data.len() * b];
         for (j, row) in residuals.chunks_mut(b).enumerate() {
             for (r, k) in row.iter_mut().zip(ks.clone()) {
-                *r = self.transforms.scores[j] - self.at_data[k][j];
+                *r = self.fitted(k).scores[j] - self.at_data[k][j];
             }
         }
         let tiles: Vec<Vec<Vec<f64>>> = targets
@@ -733,18 +808,23 @@ impl TurningBandsEnsemble {
                                     *r = residuals[d * b + kk];
                                 }
                             } else {
-                                let s = self.score(d, domain, n.cap);
-                                for (r, &kk) in row.iter_mut().zip(&members) {
+                                let shared = self.transforms.len() == 1;
+                                let mut s = 0.0;
+                                for (m, (r, &kk)) in row.iter_mut().zip(&members).enumerate() {
+                                    if m == 0 || !shared {
+                                        s = self.score(ks.start + kk, d, domain, n.cap);
+                                    }
                                     *r = s - self.at_data[ks.start + kk][d];
                                 }
                             }
                         };
                         let found = c.krige_batch(i, residual, &mut row, &mut rk);
                         let at = trend.map_or(0.0, |t| t[start + i]);
-                        let transform = self.transforms.domains[domain.unwrap_or(0) as usize]
-                            .as_ref()
-                            .expect("checked");
                         for (m, &kk) in members.iter().enumerate() {
+                            let transform = self.fitted(ks.start + kk).domains
+                                [domain.unwrap_or(0) as usize]
+                                .as_ref()
+                                .expect("checked");
                             let u = fields[m][i];
                             let score = if found { u + rk[m] } else { u };
                             out[kk].push(transform.back(score, at));
@@ -782,7 +862,7 @@ impl TurningBandsEnsemble {
             .bands
             .get(k)
             .ok_or_else(|| SimError::InvalidParameters(format!("no realization {k}")))?;
-        let transforms = self.transforms(targets.len(), domains, trend)?;
+        let transforms = self.transforms(k, targets.len(), domains, trend)?;
         let at_data = &self.at_data[k];
         let scores = condition(
             targets,
@@ -790,7 +870,9 @@ impl TurningBandsEnsemble {
             bands.field(targets),
             &self.tree,
             &self.vg,
-            |j, domain, cap| Sample::new(self.data[j].loc, self.score(j, domain, cap) - at_data[j]),
+            |j, domain, cap| {
+                Sample::new(self.data[j].loc, self.score(k, j, domain, cap) - at_data[j])
+            },
         )?;
         Ok(scores
             .iter()
@@ -1712,10 +1794,10 @@ mod tests {
             for j in all.iter().copied() {
                 for code in 0..2 {
                     let want = match z.codes[j] == code {
-                        true => e.transforms.scores[j],
+                        true => e.transforms[0].scores[j],
                         false => into[code as usize](z.vals[j], z.trend[j]),
                     };
-                    assert!((e.score(j, Some(code), None) - want).abs() < 1e-12);
+                    assert!((e.score(0, j, Some(code), None) - want).abs() < 1e-12);
                 }
             }
         }
@@ -1929,6 +2011,48 @@ mod tests {
         let want: Vec<f64> = points.iter().map(|p| bands.at(p)).collect();
         assert_eq!(bands.field_serial(&points), want);
         assert_eq!(bands.field(&points), want);
+    }
+
+    #[test]
+    fn per_realization_seeds_and_values_equal_one_ensemble_each() {
+        let data: Vec<_> = (0..150)
+            .map(|i| ((i * 37 % 101) as f64, (i * 53 % 97) as f64, 0.0))
+            .collect();
+        let vals: Vec<Vec<f64>> = (0..3)
+            .map(|k| {
+                (0..150)
+                    .map(|i| ((i + 7 * k) as f64 / 11.0).sin())
+                    .collect()
+            })
+            .collect();
+        let grid: Vec<_> = (0..2000)
+            .map(|i| ((i % 50) as f64 * 2.0, (i / 50) as f64 * 2.5, 0.0))
+            .collect();
+        let vg = Variogram::single(Model::Spherical, 1.0, 35.0);
+        let params = TurningBandsParams::default();
+        let (lo, hi) = bounds(&grid);
+        let seeds = [11, 12, 13];
+        let e = TurningBandsEnsemble::with_realizations(
+            &data, &vals, None, None, lo, hi, &vg, &params, &seeds,
+        )
+        .unwrap();
+        let got = e.realizations(0..3, &grid, |_| None, None).unwrap();
+        for k in 0..3 {
+            let alone = turning_bands(
+                &data,
+                &vals[k],
+                None,
+                None,
+                &grid,
+                &vg,
+                &TurningBandsParams {
+                    seed: seeds[k],
+                    ..params.clone()
+                },
+            )
+            .unwrap();
+            assert_eq!(got[k], alone.values);
+        }
     }
 
     #[test]

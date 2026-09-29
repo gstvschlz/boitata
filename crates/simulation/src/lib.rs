@@ -29,13 +29,14 @@ pub use correct::{Empirical, correct_distribution};
 pub use error::{Result, SimError};
 pub use gibbs::{GibbsParams, gibbs};
 pub use lattice::{Lattice, Template, default_levels, multigrid_path};
-pub use multivariate::{Decorrelation, factor_seed, multivariate};
+pub use multivariate::{Decorrelation, factor_seed, multivariate, multivariate_batched};
 pub use pgs::{
     Hierarchy, PgsParams, Region, TruncationRule, fit_latent, plurigaussian, plurigaussian_local,
 };
 pub use post::{
     BlockSupport, CategoricalSummary, ContinuousOptions, ContinuousSummary, Keep, categorical,
-    continuous, continuous_batched, continuous_many, localize, quantile_sorted,
+    continuous, continuous_batched, continuous_many, continuous_many_batched, localize,
+    quantile_sorted,
 };
 pub use sgs::{
     Domains, Realization, Secondary, SgsParams, Transform, Transforms, Trend, cosgs, sgs, sgs_in,
