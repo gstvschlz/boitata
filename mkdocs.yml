@@ -1,5 +1,5 @@
 site_name: ceres
-site_description: Geostatistics in Rust with a Python interface
+site_description: My Python tooling for day-to-day geostatistics.
 site_url: https://gstvschlz.github.io/ceres/
 repo_url: https://github.com/gstvschlz/ceres
 repo_name: gstvschlz/ceres
@@ -88,7 +88,12 @@ plugins:
             show_root_heading: true
             show_root_full_path: false
             members_order: source
-            heading_level: 3
+            filters: ["!^_"]
+            inherited_members: true
+            show_bases: false
+            merge_init_into_class: true
+            show_signature_annotations: true
+            separate_signature: true
 
 markdown_extensions:
   - admonition
@@ -118,13 +123,4 @@ nav:
       - Checking models: examples/10-checking-models
       - Geological modeling: examples/11-geological-modeling
       - Case studies: examples/12-case-studies
-  - API:
-      - Containers and I/O: api/containers.md
-      - Datasets and plots: api/datasets.md
-      - Transforms: api/transforms.md
-      - Variography: api/variography.md
-      - Estimation: api/estimation.md
-      - Simulation: api/simulation.md
-      - Drillholes and blocks: api/drillholes.md
-      - Modeling: api/modeling.md
-      - EDA and validation: api/eda.md
+  - API: []
