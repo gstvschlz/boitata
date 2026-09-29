@@ -69,5 +69,8 @@ testpaths = ["python/tests"]
 addopts = "-m 'not slow'"
 markers = ["slow: downloads datasets"]
 
+[tool.coverage.run]
+source = ["ceres"]
+
 [tool.ruff]
 line-length = 110
