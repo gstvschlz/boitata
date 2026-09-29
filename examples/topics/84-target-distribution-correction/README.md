@@ -44,7 +44,7 @@ gaussian = cs.Variogram(
 )
 grid = cs.BlockModel(origin=(0.5, 0.5), size=(5, 5), count=(52, 60))
 sgs = cs.SGS(gaussian, cs.Search(radius=100, max_samples=24)).fit(samples, "V", weights=weights)
-summary = sgs.simulate(grid, n=20, seed=42, realizations=True)
+summary = sgs.simulate(grid, n=20, seed=42, keep=True)
 reals = summary.realizations
 
 check = cs.check_realizations(grid, reals, samples, "V", weights=weights)

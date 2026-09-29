@@ -55,10 +55,10 @@ Both methods normal-score the data, simulate and back-transform; `bands` sets ho
 sgs = cs.SGS(gaussian, cs.Search(radius=100, max_samples=24)).fit(samples, "V", weights=weights)
 tb = cs.TurningBands(gaussian, bands=500).fit(samples, "V", weights=weights)
 start = time.perf_counter()
-by_sgs = sgs.simulate(grid, n=20, seed=5, realizations=True).realizations
+by_sgs = sgs.simulate(grid, n=20, seed=5, keep=True).realizations
 sgs_seconds = time.perf_counter() - start
 start = time.perf_counter()
-by_tb = tb.simulate(grid, n=20, seed=5, realizations=True).realizations
+by_tb = tb.simulate(grid, n=20, seed=5, keep=True).realizations
 tb_seconds = time.perf_counter() - start
 for name, reals, seconds in (("SGS", by_sgs, sgs_seconds), ("turning bands", by_tb, tb_seconds)):
     print(
@@ -69,8 +69,8 @@ for name, reals, seconds in (("SGS", by_sgs, sgs_seconds), ("turning bands", by_
 </details>
 
 ```text
-          SGS: 20 realizations in 0.45 s, mean 299 ppm, variance 72759 ppm²
-turning bands: 20 realizations in 0.24 s, mean 295 ppm, variance 69673 ppm²
+          SGS: 20 realizations in 0.30 s, mean 299 ppm, variance 72759 ppm²
+turning bands: 20 realizations in 0.22 s, mean 295 ppm, variance 69673 ppm²
 ```
 
 Both follow the same high-grade trends, with the same short-scale scatter:

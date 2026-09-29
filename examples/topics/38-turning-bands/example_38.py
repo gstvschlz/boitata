@@ -53,10 +53,10 @@ print(gaussian)
 sgs = cs.SGS(gaussian, cs.Search(radius=100, max_samples=24)).fit(samples, "V", weights=weights)
 tb = cs.TurningBands(gaussian, bands=500).fit(samples, "V", weights=weights)
 start = time.perf_counter()
-by_sgs = sgs.simulate(grid, n=20, seed=5, realizations=True).realizations
+by_sgs = sgs.simulate(grid, n=20, seed=5, keep=True).realizations
 sgs_seconds = time.perf_counter() - start
 start = time.perf_counter()
-by_tb = tb.simulate(grid, n=20, seed=5, realizations=True).realizations
+by_tb = tb.simulate(grid, n=20, seed=5, keep=True).realizations
 tb_seconds = time.perf_counter() - start
 for name, reals, seconds in (("SGS", by_sgs, sgs_seconds), ("turning bands", by_tb, tb_seconds)):
     print(

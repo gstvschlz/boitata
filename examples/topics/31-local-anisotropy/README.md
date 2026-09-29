@@ -155,8 +155,8 @@ scores = cs.NormalScore().fit_transform(v, weights=weights)
 gaussian = cs.experimental_variogram(xy, scores, lag, max_lag, azimuth=azimuth).fit("spherical")
 sgs = cs.SGS(gaussian, cs.Search(radius=100, max_samples=24)).fit(xy, v, weights=weights)
 uniform = cs.LocalAnisotropy(np.zeros((1, 3)), [model.rotation], [model.ratios])
-global_real = sgs.simulate(grid, n=1, seed=11, realizations=True, anisotropy=uniform).realizations[0]
-local_real = sgs.simulate(grid, n=1, seed=11, realizations=True, anisotropy=lva).realizations[0]
+global_real = sgs.simulate(grid, n=1, seed=11, keep=True, anisotropy=uniform).realizations[0]
+local_real = sgs.simulate(grid, n=1, seed=11, keep=True, anisotropy=lva).realizations[0]
 
 fig, axes = plt.subplots(1, 2, figsize=(8.6, 4.6), layout="constrained")
 for ax, image, title in (

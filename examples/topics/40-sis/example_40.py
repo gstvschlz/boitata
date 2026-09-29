@@ -77,11 +77,11 @@ save(fig, "variograms")
 #
 # `simulate` returns a summary over `n` realizations: `probabilities` holds each type's frequency, one row per node,
 # `most_likely` the most frequent type and `entropy`, scaled to [0, 1], how evenly the realizations disagree.
-# `realizations=True` keeps the maps themselves.
+# `keep=True` keeps the maps themselves.
 
 # %%
 sis = cs.SIS(variograms, cs.Search(radius=1.5, max_samples=16)).fit(train, rock)
-summary = sis.simulate(grid, n=20, seed=3, realizations=True)
+summary = sis.simulate(grid, n=20, seed=3, keep=True)
 maps = summary.realizations
 shares = np.array([rock_types.shares(m) for m in maps])
 print(f"{'':<13}{'true grid':>10}{'mean':>7}{'min':>7}{'max':>7}")

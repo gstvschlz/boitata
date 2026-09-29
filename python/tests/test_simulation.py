@@ -14,9 +14,9 @@ grid = cs.BlockModel(origin=(0, 0), size=(5, 5), count=(20, 20))
 
 def test_sgs_is_reproducible_and_honors_data():
     sgs = cs.SGS(gaussian, cs.Search(radius=40, max_samples=12)).fit(coords, values)
-    a = sgs.simulate(grid, n=3, seed=7, realizations=True).realizations
+    a = sgs.simulate(grid, n=3, seed=7, keep=True).realizations
     assert a.shape == (3, 400)
-    np.testing.assert_array_equal(a, sgs.simulate(grid, n=3, seed=7, realizations=True).realizations)
+    np.testing.assert_array_equal(a, sgs.simulate(grid, n=3, seed=7, keep=True).realizations)
     assert not np.array_equal(a[0], a[1])
     at_data = sgs.simulate(coords[:5], n=4, seed=1)
     np.testing.assert_allclose(at_data.mean, values[:5])
@@ -26,7 +26,7 @@ def test_sgs_is_reproducible_and_honors_data():
 def test_sgs_summary_matches_its_realizations():
     sgs = cs.SGS(gaussian, cs.Search(radius=40, max_samples=12)).fit(coords, values)
     cut = float(np.median(values))
-    s = sgs.simulate(grid, n=20, seed=3, cutoffs=[cut], quantiles=[0.1, 0.5, 0.9], realizations=True)
+    s = sgs.simulate(grid, n=20, seed=3, cutoffs=[cut], quantiles=[0.1, 0.5, 0.9], keep=True)
     reals = s.realizations
     np.testing.assert_allclose(s.mean, reals.mean(axis=0))
     np.testing.assert_allclose(s.variance, reals.var(axis=0), atol=1e-9)
@@ -40,8 +40,8 @@ def test_sgs_summary_matches_its_realizations():
 def test_block_support_averages_each_realization():
     sgs = cs.SGS(gaussian, cs.Search(radius=40, max_samples=12)).fit(coords, values)
     blocks = cs.BlockModel(origin=(0, 0), size=(20, 20), count=(5, 5))
-    nodes = sgs.simulate(grid, n=6, seed=2, realizations=True).realizations
-    s = sgs.simulate(grid, n=6, seed=2, cutoffs=[1.0], realizations=True, blocks=blocks)
+    nodes = sgs.simulate(grid, n=6, seed=2, keep=True).realizations
+    s = sgs.simulate(grid, n=6, seed=2, cutoffs=[1.0], keep=True, blocks=blocks)
     xy = grid.centroids[:, :2] // 20
     rows = (xy[:, 0] + 5 * xy[:, 1]).astype(int)
     expected = np.stack([np.bincount(rows, r) / np.bincount(rows) for r in nodes])
@@ -53,7 +53,7 @@ def test_block_support_averages_each_realization():
 
     cats = (values > np.median(values)).astype(int)
     sis = cs.SIS([gaussian, gaussian], cs.Search(radius=40, max_samples=12)).fit(coords, cats)
-    c = sis.simulate(grid, n=3, seed=4, realizations=True, blocks=blocks)
+    c = sis.simulate(grid, n=3, seed=4, keep=True, blocks=blocks)
     assert c.realizations.shape == (3, 25) and c.probabilities.shape == (25, 2)
 
 
@@ -61,7 +61,7 @@ def test_localize_realizations_within_panels():
     sgs = cs.SGS(gaussian, cs.Search(radius=40, max_samples=12)).fit(coords, values)
     panels = cs.BlockModel(origin=(0, 0), size=(50, 50), count=(2, 2))
     smus = panels.discretize(5)
-    s = sgs.simulate(grid, n=8, seed=2, realizations=True, blocks=smus)
+    s = sgs.simulate(grid, n=8, seed=2, keep=True, blocks=smus)
     smus = smus.with_column("etype", s.mean)
     out = cs.localize(smus, "etype", panels, s.realizations)
     owner, local = smus["block"].astype(int), out["localized"]
@@ -92,7 +92,7 @@ def test_turning_bands_summary():
 def test_sis_probabilities():
     cats = (values > np.median(values)).astype(int)
     sis = cs.SIS([gaussian, gaussian], cs.Search(radius=40, max_samples=12)).fit(coords, cats)
-    s = sis.simulate(grid, n=4, seed=4, realizations=True)
+    s = sis.simulate(grid, n=4, seed=4, keep=True)
     assert s.probabilities.shape == (400, 2) and s.proportions.shape == (4, 2)
     np.testing.assert_allclose(s.probabilities.sum(axis=1), 1.0)
     assert set(np.unique(s.realizations)) <= {0, 1}
@@ -128,7 +128,7 @@ def test_plurigaussian_hierarchy_honors_data_on_three_fields():
     facies = rng.choice(4, 60, p=[0.4, 0.3, 0.2, 0.1])
     rule = (0, [0, (1, [1, (2, [2, 3])])])
     pgs = cs.Plurigaussian([gaussian] * 3, proportions=[0.4, 0.3, 0.2, 0.1], rule=rule).fit(coords, facies)
-    s = pgs.simulate(coords, n=2, seed=4, realizations=True)
+    s = pgs.simulate(coords, n=2, seed=4, keep=True)
     np.testing.assert_array_equal(s.realizations, [facies, facies])
     with pytest.raises(ValueError, match="splits field 2"):
         cs.Plurigaussian([gaussian] * 2, proportions=[0.4, 0.3, 0.2, 0.1], rule=rule)
@@ -151,7 +151,7 @@ def test_plurigaussian_fitted_variograms_recover_the_latent_ranges():
     fine = cs.BlockModel(origin=(0, 0), size=(2, 2), count=(60, 60))
     xy = fine.centroids[:, :2]
     pgs = cs.Plurigaussian(truth, proportions=[0.3, 0.4, 0.3], rule=rule).fit([[60.0, 60.0]], [1])
-    facies = pgs.simulate(fine, n=1, seed=5, realizations=True).realizations[0]
+    facies = pgs.simulate(fine, n=1, seed=5, keep=True).realizations[0]
     experimental = [cs.experimental_variogram(xy, (facies == f).astype(float), 2.0, 24.0) for f in range(3)]
     start = [cs.Variogram([("spherical", 1.0, 5.0)]), cs.Variogram([("exponential", 1.0, 80.0)])]
     fitted = cs.Plurigaussian(start, proportions=[0.3, 0.4, 0.3], rule=rule).fit_variograms(experimental)
@@ -206,7 +206,7 @@ def test_simulation_with_a_trend_follows_it_and_honors_data():
     white = cs.Variogram([("spherical", 1.0, 4.0)])
     for simulator in (cs.SGS(white, search, classes=5), cs.TurningBands(white, bands=100, classes=5)):
         simulator.fit(xy, z, trend=trend)
-        reals = simulator.simulate(grid, n=4, seed=2, realizations=True, trend=node_trend).realizations
+        reals = simulator.simulate(grid, n=4, seed=2, keep=True, trend=node_trend).realizations
         want = np.corrcoef(np.log(z), trend)[0, 1]
         for r in reals:
             assert np.corrcoef(np.log(r), node_trend)[0, 1] == pytest.approx(want, abs=0.12)
@@ -216,18 +216,16 @@ def test_simulation_with_a_trend_follows_it_and_honors_data():
 
     sgs = cs.SGS(gaussian, search).fit(xy, z, trend=trend)
     model = grid.with_column("drift", node_trend)
-    by_array = sgs.simulate(grid, n=3, seed=4, realizations=True, trend=node_trend).realizations
+    by_array = sgs.simulate(grid, n=3, seed=4, keep=True, trend=node_trend).realizations
     np.testing.assert_array_equal(
-        sgs.simulate(model, n=3, seed=4, realizations=True, trend="drift").realizations, by_array
+        sgs.simulate(model, n=3, seed=4, keep=True, trend="drift").realizations, by_array
     )
     points = cs.PointSet(model.centroids, {"drift": node_trend})
     np.testing.assert_array_equal(
-        sgs.simulate(points, n=3, seed=4, realizations=True, trend="drift").realizations, by_array
+        sgs.simulate(points, n=3, seed=4, keep=True, trend="drift").realizations, by_array
     )
     blocks = cs.BlockModel(origin=(0, 0), size=(20, 20), count=(5, 5))
-    by_block = sgs.simulate(
-        grid, n=3, seed=4, realizations=True, blocks=blocks, trend=node_trend
-    ).realizations
+    by_block = sgs.simulate(grid, n=3, seed=4, keep=True, blocks=blocks, trend=node_trend).realizations
     xy_block = grid.centroids[:, :2] // 20
     rows = (xy_block[:, 0] + 5 * xy_block[:, 1]).astype(int)
     np.testing.assert_allclose(by_block, [np.bincount(rows, r) / np.bincount(rows) for r in by_array])
@@ -262,11 +260,11 @@ def test_simulators_with_a_trend_save_and_load_it(tmp_path):
         cs.TurningBands(gaussian, bands=50, classes=4),
     ):
         simulator.fit(xy, z, trend=trend)
-        want = simulator.simulate(grid, n=2, seed=6, realizations=True, trend=node_trend).realizations
+        want = simulator.simulate(grid, n=2, seed=6, keep=True, trend=node_trend).realizations
         path = tmp_path / "simulator.parquet"
         simulator.to_parquet(path)
         for back in (type(simulator).from_parquet(path), pickle.loads(pickle.dumps(simulator))):
-            got = back.simulate(grid, n=2, seed=6, realizations=True, trend=node_trend).realizations
+            got = back.simulate(grid, n=2, seed=6, keep=True, trend=node_trend).realizations
             np.testing.assert_array_equal(got, want)
 
 
@@ -277,13 +275,11 @@ def test_multivariate_simulation_reproduces_correlation_and_honors_data():
     mv = cs.MultivariateSimulation(
         cs.PPMT(seed=3), [cs.SGS(gaussian, search), cs.TurningBands(gaussian, bands=100, step=1.0)]
     ).fit(coords, data)
-    a, b = mv.simulate(grid, n=10, seed=4, realizations=True)
+    a, b = mv.simulate(grid, n=10, seed=4, keep=True)
     assert a.realizations.shape == b.realizations.shape == (10, 400)
     r = np.mean([np.corrcoef(np.log(x), np.log(y))[0, 1] for x, y in zip(a.realizations, b.realizations)])
     assert r == pytest.approx(np.corrcoef(np.log(data.T))[0, 1], abs=0.15)
-    np.testing.assert_array_equal(
-        a.realizations, mv.simulate(grid, n=10, seed=4, realizations=True)[0].realizations
-    )
+    np.testing.assert_array_equal(a.realizations, mv.simulate(grid, n=10, seed=4, keep=True)[0].realizations)
 
     at_data = mv.simulate(coords[:5], n=3, seed=1)
     for v, s in enumerate(at_data):
@@ -292,7 +288,7 @@ def test_multivariate_simulation_reproduces_correlation_and_honors_data():
     blocks = cs.BlockModel(origin=(0, 0), size=(20, 20), count=(5, 5))
     xy = grid.centroids[:, :2] // 20
     rows = (xy[:, 0] + 5 * xy[:, 1]).astype(int)
-    by_block = mv.simulate(grid, n=10, seed=4, realizations=True, blocks=blocks)
+    by_block = mv.simulate(grid, n=10, seed=4, keep=True, blocks=blocks)
     for s, nodes in zip(by_block, (a, b)):
         expected = np.stack([np.bincount(rows, x) / np.bincount(rows) for x in nodes.realizations])
         np.testing.assert_allclose(s.realizations, expected)
@@ -309,13 +305,13 @@ def test_multivariate_simulation_drops_incomplete_samples_and_checks_inputs():
     mv = cs.MultivariateSimulation(cs.PPMT(seed=3), [sgs, sgs])
     with pytest.warns(UserWarning, match="1 samples miss every variable"):
         mv.fit(coords, data, impute=True)
-    at_data = mv.simulate(coords[:4], n=6, seed=2, realizations=True)
+    at_data = mv.simulate(coords[:4], n=6, seed=2, keep=True)
     np.testing.assert_allclose(at_data[0].realizations, np.tile(values[:4], (6, 1)), rtol=1e-6)
     imputed = at_data[1].realizations
     assert np.isfinite(imputed).all() and np.ptp(imputed, axis=0).min() > 0
     with pytest.warns(UserWarning):
         mv.fit(coords, data, impute=cs.GaussianImputer(spatial=gaussian, neighbors=8))
-    spatial = mv.simulate(coords[:4], n=6, seed=2, realizations=True)
+    spatial = mv.simulate(coords[:4], n=6, seed=2, keep=True)
     assert np.isfinite(spatial[1].realizations).all()
     np.testing.assert_allclose(spatial[0].realizations, at_data[0].realizations)
     with pytest.raises(ValueError, match="impute must be"):
@@ -349,7 +345,7 @@ def test_max_per_hole_caps_the_data_of_one_hole(kind, tmp_path):
         return cs.MultivariateSimulation(cs.PCA(), [cs.SGS(gaussian, search), bands])
 
     def run(model):
-        out = model.simulate([[3.0, 0.0, 4.4]], n=3, seed=2, realizations=True)
+        out = model.simulate([[3.0, 0.0, 4.4]], n=3, seed=2, keep=True)
         return [s.realizations for s in out] if isinstance(out, list) else [out.realizations]
 
     holes = ["DH1"] * 10
@@ -380,7 +376,7 @@ def test_max_per_hole_caps_the_data_of_one_hole_with_a_trend(kind):
         model = kind(gaussian, search=search, classes=2, **options).fit(
             down, grades, holes=holes, trend=trend
         )
-        return model.simulate([[3.0, 0.0, 4.4]], n=3, seed=2, realizations=True, trend=[0.45]).realizations
+        return model.simulate([[3.0, 0.0, 4.4]], n=3, seed=2, keep=True, trend=[0.45]).realizations
 
     capped = run(8, 1, ["DH1"] * 10)
     np.testing.assert_array_equal(capped, run(1))
@@ -414,9 +410,7 @@ def test_sgs_with_passes_is_reproducible_and_one_pass_is_the_search(tmp_path):
     targets = cs.BlockModel(origin=(0, 0, 2), size=(5, 5, 1), count=(20, 20, 1))
 
     def run(model):
-        return (
-            model.fit(xyz, grades, holes=holes).simulate(targets, n=3, seed=4, realizations=True).realizations
-        )
+        return model.fit(xyz, grades, holes=holes).simulate(targets, n=3, seed=4, keep=True).realizations
 
     np.testing.assert_array_equal(run(cs.SGS(gaussian, [passes[1]])), run(cs.SGS(gaussian, passes[1])))
     by_pass = cs.SGS(gaussian, passes)
@@ -425,18 +419,14 @@ def test_sgs_with_passes_is_reproducible_and_one_pass_is_the_search(tmp_path):
     assert not np.array_equal(reals, run(cs.SGS(gaussian, passes[2])))
     by_pass.to_parquet(tmp_path / "sgs.parquet")
     np.testing.assert_array_equal(
-        cs.SGS.from_parquet(tmp_path / "sgs.parquet")
-        .simulate(targets, n=3, seed=4, realizations=True)
-        .realizations,
+        cs.SGS.from_parquet(tmp_path / "sgs.parquet").simulate(targets, n=3, seed=4, keep=True).realizations,
         reals,
     )
     meta, columns = cs.SGS(gaussian, passes[1]).fit(xyz, grades, holes=holes)._state()
     older = json.loads(meta)
     older["search"] = older["search"][0]
     np.testing.assert_array_equal(
-        cs.SGS._from_state(json.dumps(older), columns)
-        .simulate(targets, n=3, seed=4, realizations=True)
-        .realizations,
+        cs.SGS._from_state(json.dumps(older), columns).simulate(targets, n=3, seed=4, keep=True).realizations,
         run(cs.SGS(gaussian, passes[1])),
     )
     mv = cs.MultivariateSimulation(cs.PCA(), [cs.SGS(gaussian, passes), cs.SGS(gaussian, passes[0])])
@@ -464,8 +454,8 @@ def test_sgs_with_one_domain_is_sgs_without():
     xyz, grades, holes, weights, _, targets, passes = zoned_holes()
     plain = cs.SGS(gaussian, passes).fit(xyz, grades, weights=weights, holes=holes)
     one = cs.SGS(gaussian, passes).fit(xyz, grades, weights=weights, holes=holes, domains="MS")
-    want = plain.simulate(targets, n=3, seed=4, realizations=True).realizations
-    got = one.simulate(targets, n=3, seed=4, realizations=True, domains="MS").realizations
+    want = plain.simulate(targets, n=3, seed=4, keep=True).realizations
+    got = one.simulate(targets, n=3, seed=4, keep=True, domains="MS").realizations
     np.testing.assert_array_equal(got, want)
     np.testing.assert_array_equal(one.passes(targets, domains="MS"), plain.passes(targets))
 
@@ -482,7 +472,7 @@ def test_hard_sgs_domains_ignore_the_other_domain():
         )
         sgs = cs.SGS(gaussian, search).fit(data[0], data[1], weights=data[2], holes=data[3], domains=domains)
         on = {"domains": "MS"} if domains is not None else {}
-        return sgs.simulate(targets, n=3, seed=1, realizations=True, **on).realizations
+        return sgs.simulate(targets, n=3, seed=1, keep=True, **on).realizations
 
     np.testing.assert_array_equal(run(passes, zone), run(passes))
     alone = run(softened(passes, None))
@@ -506,7 +496,7 @@ def test_a_contact_node_takes_its_own_domain_datum():
     sgs = cs.SGS(gaussian, cs.Search(50.0, soft=np.inf)).fit(
         xy, [1.0, 9.0, 2.0, 8.0], domains=["A", "B", "A", "B"]
     )
-    at = sgs.simulate([[0.0, 0.0], [0.0, 0.0]], n=4, seed=1, realizations=True, domains=["A", "B"])
+    at = sgs.simulate([[0.0, 0.0], [0.0, 0.0]], n=4, seed=1, keep=True, domains=["A", "B"])
     np.testing.assert_array_equal(at.realizations, [[1.0, 9.0]] * 4)
 
 
@@ -517,7 +507,7 @@ def test_sgs_domains_errors_and_persistence(tmp_path):
     labels = np.where(targets[:, 0] < 40, "MS", "SM")
 
     def run(model):
-        return model.simulate(targets, n=2, seed=5, realizations=True, domains=labels).realizations
+        return model.simulate(targets, n=2, seed=5, keep=True, domains=labels).realizations
 
     sgs.to_parquet(tmp_path / "sgs.parquet")
     for again in (cs.SGS.from_parquet(tmp_path / "sgs.parquet"), pickle.loads(pickle.dumps(sgs))):
@@ -550,7 +540,7 @@ def test_sgs_domains_with_a_trend():
             trend=trend[rows],
             domains=labels,
         )
-        return sgs.simulate(targets, n=3, seed=2, realizations=True, trend=at, **on).realizations
+        return sgs.simulate(targets, n=3, seed=2, keep=True, trend=at, **on).realizations
 
     everything = np.ones(len(zone), bool)
     alone = run(passes, ms)
@@ -584,7 +574,7 @@ def test_turning_bands_domains_are_hard_unless_soft():
             domains=labels,
         )
         on |= {"trend": at} if trended else {}
-        return tb.simulate(targets, n=3, seed=2, realizations=True, **on).realizations
+        return tb.simulate(targets, n=3, seed=2, keep=True, **on).realizations
 
     for trended in (False, True):
         alone = run(hard, ms, trended=trended)
@@ -614,7 +604,7 @@ def test_turning_bands_domains_errors_and_persistence(tmp_path):
     labels = np.where(targets[:, 0] < 40, "MS", "SM")
 
     def run(model):
-        return model.simulate(targets, n=2, seed=5, realizations=True, domains=labels).realizations
+        return model.simulate(targets, n=2, seed=5, keep=True, domains=labels).realizations
 
     tb.to_parquet(tmp_path / "tb.parquet")
     for again in (cs.TurningBands.from_parquet(tmp_path / "tb.parquet"), pickle.loads(pickle.dumps(tb))):
@@ -648,7 +638,7 @@ def test_grades_follow_each_realization_of_simulated_domains(model):
     fixed = np.where(nodes[:, 0] < 50, "lean", "rich")
 
     def run(domains):
-        return model.simulate(grid, n=3, seed=4, realizations=True, domains=domains).realizations
+        return model.simulate(grid, n=3, seed=4, keep=True, domains=domains).realizations
 
     np.testing.assert_array_equal(run(np.tile(fixed, (3, 1))), run(fixed))
     simulated = np.array([np.where(nodes[:, 0] < edge, "lean", "rich") for edge in (20, 50, 80)])
@@ -670,9 +660,9 @@ def test_simulators_take_column_names_and_domain_column(make):
     nodes = cs.PointSet(targets, {"t": at, "zone": labels})
     arrays = make(soft).fit(xyz, grades, weights=weights, holes=holes, trend=trend, domains=zone)
     names = make(soft).fit(samples, "zn", weights="w", holes="hole", trend="t", domain_column="zone")
-    want = arrays.simulate(targets, n=2, seed=5, realizations=True, trend=at, domains=labels).realizations
+    want = arrays.simulate(targets, n=2, seed=5, keep=True, trend=at, domains=labels).realizations
     for model in (arrays, names):
-        got = model.simulate(nodes, n=2, seed=5, realizations=True, trend="t", domain_column="zone")
+        got = model.simulate(nodes, n=2, seed=5, keep=True, trend="t", domain_column="zone")
         np.testing.assert_array_equal(got.realizations, want)
     if isinstance(names, cs.SGS):
         passes = names.passes(nodes, domain_column="zone")
@@ -696,8 +686,8 @@ def test_categorical_and_multivariate_simulators_take_column_names():
     samples = cs.PointSet(coords, {"rock": rock, "v": values, "root": values**0.5, "w": np.ones(60)})
     near = cs.Search(radius=40, max_samples=12)
     for model in (cs.SIS([gaussian] * 2, near), cs.Plurigaussian(gaussian, proportions=[0.5, 0.5])):
-        want = model.fit(coords, rock).simulate(grid, n=2, seed=1, realizations=True).realizations
-        got = model.fit(samples, "rock").simulate(grid, n=2, seed=1, realizations=True).realizations
+        want = model.fit(coords, rock).simulate(grid, n=2, seed=1, keep=True).realizations
+        got = model.fit(samples, "rock").simulate(grid, n=2, seed=1, keep=True).realizations
         np.testing.assert_array_equal(got, want)
         with pytest.raises(TypeError):
             model.fit(coords, rock, None)
@@ -735,7 +725,7 @@ def test_unconditional_sgs_reproduces_the_model_variogram_at_short_lags():
     data = cs.PointSet(rng.uniform(1000, 2000, (1000, 2)), {"v": rng.normal(size=1000)})
     nodes = cs.BlockModel((0.5, 0.5), (1.0, 1.0), (60, 60))
     sgs = cs.SGS(model, cs.Search(radius=30, max_samples=16)).fit(data, "v")
-    reals = sgs.simulate(nodes, n=20, seed=4, realizations=True)
+    reals = sgs.simulate(nodes, n=20, seed=4, keep=True)
     check = cs.check_realizations(nodes, reals, data, "v", variogram=model, lag=1.0, max_lag=8.0)
     assert check.directions == [(0.0, 0.0), (90.0, 0.0)]
     for d in range(2):
@@ -777,7 +767,7 @@ def _cosimulation_case():
     nodes = cs.BlockModel((0.5, 0.5), (1.0, 1.0), (40, 40))
     far = cs.PointSet(rng.uniform(1000, 2000, (500, 2)), {"v": rng.normal(size=500)})
     field = cs.SGS(model, cs.Search(radius=30, max_samples=16)).fit(far, "v")
-    secondary = field.simulate(nodes, n=2, seed=9, realizations=True).realizations
+    secondary = field.simulate(nodes, n=2, seed=9, keep=True).realizations
     rows = rng.choice(1600, 100, replace=False)
     s = secondary[0]
     scores = (s - s.mean()) / s.std()
@@ -792,7 +782,7 @@ def test_collocated_cosimulation_reproduces_correlation_histogram_and_variogram(
     search = cs.Search(radius=30, max_samples=16)
     sgs = cs.SGS(model, search).fit(points, "v", secondary="s")
     assert sgs.correlation == pytest.approx(0.7, abs=0.15)
-    reals = sgs.simulate(nodes, n=10, seed=1, secondary=s, realizations=True).realizations
+    reals = sgs.simulate(nodes, n=10, seed=1, secondary=s, keep=True).realizations
     np.testing.assert_array_equal(reals[:, rows], np.tile(points["v"], (10, 1)))
     logs = cs.PointSet(points.coords, {"v": np.log(points["v"]), "s": points["s"]})
     check = cs.check_realizations(
@@ -812,24 +802,24 @@ def test_collocated_cosimulation_reproduces_correlation_histogram_and_variogram(
         mean = np.mean([r[d].gammas for r in check.variograms[0]], axis=0)
         np.testing.assert_allclose(mean, model.gamma(check.variograms[0][0][d].lags), atol=0.15)
 
-    independent = cs.SGS(model, search).fit(points, "v").simulate(nodes, n=3, seed=1, realizations=True)
+    independent = cs.SGS(model, search).fit(points, "v").simulate(nodes, n=3, seed=1, keep=True)
     zero = cs.SGS(model, search).fit(points, "v", secondary="s", correlation=0.0)
     assert zero.correlation == 0.0
-    same = zero.simulate(nodes, n=3, seed=1, secondary=s, realizations=True).realizations
+    same = zero.simulate(nodes, n=3, seed=1, secondary=s, keep=True).realizations
     np.testing.assert_array_equal(same, independent.realizations)
 
 
 def test_cosimulation_takes_a_secondary_realization_per_realization(tmp_path):
     model, nodes, secondary, _, points = _cosimulation_case()
     sgs = cs.SGS(model, cs.Search(radius=30, max_samples=16)).fit(points, "v", secondary="s", correlation=0.8)
-    both = sgs.simulate(nodes, n=2, seed=4, secondary=secondary, realizations=True).realizations
-    second = sgs.simulate(nodes, n=2, seed=4, secondary=secondary[[1, 1]], realizations=True).realizations
+    both = sgs.simulate(nodes, n=2, seed=4, secondary=secondary, keep=True).realizations
+    second = sgs.simulate(nodes, n=2, seed=4, secondary=secondary[[1, 1]], keep=True).realizations
     np.testing.assert_array_equal(both[1], second[1])
     assert not np.array_equal(both[0], second[0])
     sgs.to_parquet(tmp_path / "cosgs.parquet")
     loaded = cs.SGS.from_parquet(tmp_path / "cosgs.parquet")
     assert loaded.correlation == 0.8
-    again = loaded.simulate(nodes, n=2, seed=4, secondary=secondary, realizations=True).realizations
+    again = loaded.simulate(nodes, n=2, seed=4, secondary=secondary, keep=True).realizations
     np.testing.assert_array_equal(again, both)
     plain = cs.SGS(model, cs.Search(radius=30)).fit(points, "v")
     for call in [
@@ -875,9 +865,37 @@ def test_correct_distribution_takes_a_summary():
     points = cs.PointSet(rng.uniform(0, 100, (40, 2)), {"v": rng.lognormal(0.0, 0.5, 40)})
     nodes = cs.BlockModel(origin=(2.5, 2.5), size=(5, 5), count=(20, 20))
     sgs = cs.SGS(model, cs.Search(radius=40)).fit(points, "v")
-    summary = sgs.simulate(nodes, n=3, seed=1, realizations=True)
+    summary = sgs.simulate(nodes, n=3, seed=1, keep=True)
     out = cs.correct_distribution(summary, points["v"])
     assert out.shape == summary.realizations.shape
     np.testing.assert_allclose(out.mean(axis=1), points["v"].mean(), rtol=0.01)
     with pytest.raises(ValueError):
         cs.correct_distribution(sgs.simulate(nodes, n=2), points["v"])
+
+
+def test_keep_selects_realizations():
+    sgs = cs.SGS(gaussian, cs.Search(radius=40, max_samples=12)).fit(coords, values)
+    everything = sgs.simulate(grid, n=4, seed=7, keep=True)
+    some = sgs.simulate(grid, n=4, seed=7, keep=[3, 1])
+    assert everything.kept == [0, 1, 2, 3]
+    assert some.kept == [1, 3]
+    np.testing.assert_array_equal(some.realizations, everything.realizations[[1, 3]])
+    np.testing.assert_array_equal(some.mean, everything.mean)
+    none = sgs.simulate(grid, n=4, seed=7)
+    assert none.kept == [] and none.realizations is None
+
+
+def test_keep_rejects_bad_indices():
+    sgs = cs.SGS(gaussian, cs.Search(radius=40, max_samples=12)).fit(coords, values)
+    for keep in ([4], [1, 1], [-1], "all"):
+        with pytest.raises(cs.InvalidInput):
+            sgs.simulate(grid, n=4, seed=7, keep=keep)
+
+
+def test_kept_realizations_survive_parquet(tmp_path):
+    sgs = cs.SGS(gaussian, cs.Search(radius=40, max_samples=12)).fit(coords, values)
+    summary = sgs.simulate(grid, n=4, seed=7, keep=[2])
+    summary.to_parquet(tmp_path / "s.parquet")
+    back = cs.SimulationSummary.from_parquet(tmp_path / "s.parquet")
+    assert back.kept == [2]
+    np.testing.assert_array_equal(back.realizations, summary.realizations)

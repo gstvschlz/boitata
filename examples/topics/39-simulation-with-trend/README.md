@@ -59,9 +59,9 @@ print(score_variogram, plain_variogram, sep="\n")
 
 search = cs.Search(radius=100, max_samples=24)
 with_trend = cs.SGS(score_variogram, search, classes=8).fit(xy, v, weights=weights, trend=trend)
-by_trend = with_trend.simulate(trended, n=20, seed=5, realizations=True, trend="trend").realizations
+by_trend = with_trend.simulate(trended, n=20, seed=5, keep=True, trend="trend").realizations
 plain = cs.SGS(plain_variogram, search).fit(xy, v, weights=weights)
-by_sgs = plain.simulate(grid, n=20, seed=5, realizations=True).realizations
+by_sgs = plain.simulate(grid, n=20, seed=5, keep=True).realizations
 ```
 
 </details>

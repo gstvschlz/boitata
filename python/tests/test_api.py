@@ -281,10 +281,8 @@ def test_continuous_summaries_have_one_row_per_target():
         assert s.quantile_values.shape == (len(grid), 3)
     assert kriged[0].cdf.shape == (len(grid), 4) and kriged[1].cdf.shape == (len(grid), 0)
     simulated = [
-        cs.SGS(model, search).fit(coords, grades).simulate(grid, n=3, realizations=True, **options),
-        cs.TurningBands(model, bands=50)
-        .fit(coords, grades)
-        .simulate(grid, n=3, realizations=True, **options),
+        cs.SGS(model, search).fit(coords, grades).simulate(grid, n=3, keep=True, **options),
+        cs.TurningBands(model, bands=50).fit(coords, grades).simulate(grid, n=3, keep=True, **options),
     ]
     for s in simulated:
         assert s.probability_above.shape == s.mean_above.shape == (len(grid), 2)

@@ -42,11 +42,11 @@ proportions = rock_types.shares(rock)
 
 latent = cs.Variogram([("spherical", 1.0, 0.8)])
 ordered = cs.Plurigaussian(latent, proportions=proportions).fit(train, rock)
-by_order = ordered.simulate(grid, n=1, seed=3, realizations=True).realizations[0]
+by_order = ordered.simulate(grid, n=1, seed=3, keep=True).realizations[0]
 stages = (1, [names.index(n) for n in ("Argovian", "Sequanian", "Kimmeridgian", "Portlandian")])
 rule = (0, [stages, names.index("Quaternary")])
 hierarchy = cs.Plurigaussian([latent, latent], proportions=proportions, rule=rule).fit(train, rock)
-by_rule = hierarchy.simulate(grid, n=1, seed=3, realizations=True).realizations[0]
+by_rule = hierarchy.simulate(grid, n=1, seed=3, keep=True).realizations[0]
 
 simulated = (("ordered", by_order), ("rule", by_rule))
 print(f"{'':>10}" + "".join(f"{n[:5]:>8}" for n in names))
@@ -93,7 +93,7 @@ def local_proportions(xy, bandwidth=0.3):
 
 at_nodes = local_proportions(grid.coords)
 hierarchy.fit(train.coords, rock, proportions=local_proportions(train.coords))
-by_local = hierarchy.simulate(grid, n=1, seed=3, realizations=True, proportions=at_nodes).realizations[0]
+by_local = hierarchy.simulate(grid, n=1, seed=3, keep=True, proportions=at_nodes).realizations[0]
 print(f"rule, local proportions: {np.mean(by_local == true_rock):.0%} of nodes match the true rock type")
 
 # %%
@@ -130,7 +130,7 @@ fitted = cs.Plurigaussian([latent, latent], proportions=proportions, rule=rule).
 cover, stage = (v.structures[0].range for v in fitted.variograms)
 print(f"fitted latent ranges: {cover:.2f} km for the cover field, {stage:.2f} km for the stages field")
 fitted.fit(train.coords, rock, proportions=local_proportions(train.coords))
-by_fitted = fitted.simulate(grid, n=1, seed=3, realizations=True, proportions=at_nodes).realizations[0]
+by_fitted = fitted.simulate(grid, n=1, seed=3, keep=True, proportions=at_nodes).realizations[0]
 print(
     f"rule, local proportions, fitted: {np.mean(by_fitted == true_rock):.0%} of nodes match the true rock type"
 )

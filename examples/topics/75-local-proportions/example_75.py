@@ -150,8 +150,8 @@ search = cs.Search(radius=150.0, max_samples=16, ratios=(1.0, 0.05))
 plain = cs.SIS(variograms, search).fit(xyz, codes)
 local = cs.SIS(variograms, search).fit(xyz, codes, proportions=at_data)
 runs = {
-    "Global": plain.simulate(model, n=20, seed=7, realizations=True),
-    "Local proportions": local.simulate(model, n=20, seed=7, realizations=True, proportions=at_cells),
+    "Global": plain.simulate(model, n=20, seed=7, keep=True),
+    "Local proportions": local.simulate(model, n=20, seed=7, keep=True, proportions=at_cells),
 }
 
 # %% [markdown]

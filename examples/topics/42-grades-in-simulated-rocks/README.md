@@ -39,7 +39,7 @@ for k in range(5):
         fitted = cs.Variogram([("spherical", indicator.var(), 0.5)])
     indicator_variograms.append(fitted)
 sis = cs.SIS(indicator_variograms, cs.Search(radius=1.5, max_samples=16)).fit(train, rock)
-by_sis = sis.simulate(grid, n=10, seed=3, realizations=True).realizations
+by_sis = sis.simulate(grid, n=10, seed=3, keep=True).realizations
 print(f"rock-type realizations: {by_sis.shape}")
 print(f"{'Co (ppm)':<14}{'samples':>8}{'mean':>7}")
 for k, name in enumerate(names):
@@ -74,8 +74,8 @@ for k in range(5):
     co_scores[rock == k] = cs.NormalScore().fit_transform(co[rock == k])
 co_variogram = cs.experimental_variogram(train.coords, co_scores, 0.1, 1.5).fit("spherical")
 cobalt = cs.SGS(co_variogram, cs.Search(radius=1.5, max_samples=16)).fit(train, "Co", domains=rock)
-within_true = cobalt.simulate(grid, n=10, seed=3, realizations=True, domains=true_rock).realizations
-within_sis = cobalt.simulate(grid, n=10, seed=3, realizations=True, domains=by_sis).realizations
+within_true = cobalt.simulate(grid, n=10, seed=3, keep=True, domains=true_rock).realizations
+within_sis = cobalt.simulate(grid, n=10, seed=3, keep=True, domains=by_sis).realizations
 
 argovian = (by_sis == 0).mean(axis=0)
 unsure = (argovian > 0) & (argovian < 1)
