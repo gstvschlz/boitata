@@ -3254,6 +3254,17 @@ impl Snesim {
     ///     Seed of the realizations.
     /// keep : bool or sequence of int, optional
     ///     Realizations to return beside the summary.
+    /// soft : sequence of str or array_like, optional
+    ///     Soft probabilities: one column of `targets` per category, in code
+    ///     order, or an ``(n_targets, k)`` array. Each row is rescaled to sum
+    ///     1; a row of nulls or NaN leaves its target without soft
+    ///     information. They combine with the image's probabilities by
+    ///     permanence of ratios, ``P(c) ∝ P_ti(c) * P_soft(c) / P0(c)``
+    ///     (Journel, 2002), where ``P0`` is the image's proportions, or the
+    ///     target proportions while the servosystem is on, so soft
+    ///     probabilities equal to ``P0`` change nothing. Where the image and
+    ///     the soft probabilities share no category, shorter data events are
+    ///     tried. Hard data override them.
     /// progress : bool, default True
     ///     Show a progress bar.
     ///
@@ -3265,9 +3276,12 @@ impl Snesim {
     /// Raises
     /// ------
     /// InvalidInput
-    ///     If `targets` is not a regular or masked BlockModel, or the search
-    ///     trees would not fit in memory (lower `template_size`).
-    #[pyo3(signature = (targets, *, n=100, seed=0, keep=None, progress=true))]
+    ///     If `targets` is not a regular or masked BlockModel, the search
+    ///     trees would not fit in memory (lower `template_size`), or `soft`
+    ///     is not ``(n_targets, k)`` of non-negative values, some row mixing
+    ///     numbers and NaN or holding only zeros.
+    #[pyo3(signature = (targets, *, n=100, seed=0, keep=None, soft=None, progress=true))]
+    #[allow(clippy::too_many_arguments)]
     fn simulate(
         &self,
         py: Python,
@@ -3275,16 +3289,29 @@ impl Snesim {
         n: usize,
         seed: u64,
         keep: Option<&Bound<PyAny>>,
+        soft: Option<&Bound<PyAny>>,
         progress: bool,
     ) -> PyResult<CategoricalSummary> {
         let lattice = lattice_of(targets)
             .ok_or_else(|| invalid("SNESIM simulates on a regular or masked BlockModel"))?;
         let keep = keep_arg(keep)?;
+        let k = self.core.training_image().n_categories();
+        let soft = soft
+            .map(|s| soft_rows(targets, s, lattice.len(), k))
+            .transpose()?;
         let memory = memory_budget(py)?;
         let data = self.data.as_ref().map(|(l, c)| (&l[..], &c[..]));
         with_progress(py, Some(n as u64), progress, |counter| {
-            self.core
-                .simulate(&lattice, data, n, seed, &keep, memory, counter)
+            self.core.simulate(
+                &lattice,
+                data,
+                soft.as_deref(),
+                n,
+                seed,
+                &keep,
+                memory,
+                counter,
+            )
         })?
         .map(CategoricalSummary)
         .map_err(err)
@@ -3299,6 +3326,53 @@ impl Snesim {
             self.data.is_some()
         )
     }
+}
+
+/// Soft probabilities of `n` targets over `k` categories, from `k` column
+/// names of `targets` or an ``(n, k)`` array; `None` for all-NaN rows.
+fn soft_rows(
+    targets: &Bound<PyAny>,
+    soft: &Bound<PyAny>,
+    n: usize,
+    k: usize,
+) -> PyResult<Vec<Option<Vec<f64>>>> {
+    let rows = match soft.extract::<Vec<String>>() {
+        Ok(names) => {
+            if names.len() != k {
+                return Err(invalid(format!(
+                    "soft names {} columns; give {k}, one per category in code order",
+                    names.len()
+                )));
+            }
+            let columns = names
+                .iter()
+                .map(|name| {
+                    let values = floats(&args::named(Some(targets), name, "soft")?, "soft")?;
+                    same_length(n, values.len(), "soft")?;
+                    Ok(values)
+                })
+                .collect::<PyResult<Vec<_>>>()?;
+            (0..n)
+                .map(|i| columns.iter().map(|c| c[i]).collect())
+                .collect()
+        }
+        Err(_) => rows(soft, "soft")?,
+    };
+    if rows.len() != n || rows.iter().any(|r| r.len() != k) {
+        return Err(invalid(format!(
+            "soft must have shape ({n}, {k}): one row per target, one column per category"
+        )));
+    }
+    rows.into_iter()
+        .enumerate()
+        .map(|(i, r)| match r.iter().filter(|p| p.is_nan()).count() {
+            0 => Ok(Some(r)),
+            m if m == k => Ok(None),
+            _ => Err(invalid(format!(
+                "soft row {i} has some probabilities missing; give all or none"
+            ))),
+        })
+        .collect()
 }
 
 pub fn register_snesim(m: &Bound<PyModule>) -> PyResult<()> {

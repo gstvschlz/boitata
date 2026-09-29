@@ -2069,6 +2069,7 @@ class SNESIM:
         n: int = 100,
         seed: int = 0,
         keep: bool | Sequence[int] = False,
+        soft: Sequence[Column] | ArrayLike | None = None,
         progress: bool = True,
     ) -> CategoricalSummary: ...
 

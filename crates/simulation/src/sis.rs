@@ -81,7 +81,7 @@ pub fn sis(
             }
             let close = |rows: &[Vec<f64>]| {
                 rows.iter()
-                    .map(|r| closed(r, n_categories))
+                    .map(|r| closed(r, n_categories, "proportions"))
                     .collect::<Result<Vec<_>>>()
             };
             (close(at_data)?, Some(close(at_grid)?))
@@ -198,12 +198,12 @@ fn normalize(p: &mut [f64], marg: &[f64]) {
     }
 }
 
-/// `row` of `k` proportions rescaled to sum 1.
-fn closed(row: &[f64], k: usize) -> Result<Vec<f64>> {
+/// `row` of `k` probabilities (`what`) rescaled to sum 1.
+pub(crate) fn closed(row: &[f64], k: usize, what: &str) -> Result<Vec<f64>> {
     let s: f64 = row.iter().sum();
     if row.len() != k || row.iter().any(|p| !p.is_finite() || *p < 0.0) || s <= 0.0 {
         return Err(SimError::InvalidParameters(format!(
-            "proportions must be {k} finite, non-negative values, not all zero"
+            "{what} must be {k} finite, non-negative values, not all zero"
         )));
     }
     Ok(row.iter().map(|p| p / s).collect())

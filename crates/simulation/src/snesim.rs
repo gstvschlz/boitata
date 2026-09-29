@@ -22,6 +22,7 @@ use serde::{Deserialize, Serialize};
 use crate::error::{Result, SimError};
 use crate::lattice::{Lattice, Template, level, multigrid_path};
 use crate::post::{CategoricalSummary, Keep, categorical};
+use crate::sis::closed;
 use crate::training_image::{NO_CODE, TrainingImage};
 use tree::{SearchTree, TreeScratch};
 
@@ -178,13 +179,18 @@ impl Snesim {
     /// locations and categories: each goes to the node whose cell holds it,
     /// several in one cell to their most frequent category (ties to the one
     /// nearest the cell center, then the lowest), and is reproduced exactly;
-    /// data off the nodes are ignored. The search trees are built on the first
-    /// call, once their size is bounded by `memory` bytes (0 skips the check).
+    /// data off the nodes are ignored. `soft` holds one row per node: `None`
+    /// where the node has no soft information, else a probability per
+    /// category, closed to sum 1 (see [`Snesim::prior`] for how they combine
+    /// with the image); hard data override them. The search trees are built
+    /// on the first call, once their size is bounded by `memory` bytes (0
+    /// skips the check).
     #[allow(clippy::too_many_arguments)]
     pub fn simulate(
         &self,
         lattice: &Lattice,
         data: Option<(&[(f64, f64, f64)], &[usize])>,
+        soft: Option<&[Option<Vec<f64>>]>,
         n: usize,
         seed: u64,
         keep: &Keep,
@@ -192,6 +198,7 @@ impl Snesim {
         progress: Option<&Progress>,
     ) -> Result<CategoricalSummary> {
         let hard = self.snap(lattice, data)?;
+        let soft = soft.map(|rows| self.soft(lattice, rows)).transpose()?;
         let trees = self.trees(PLAIN, memory)?;
         let mut skip = vec![false; lattice.len()];
         for &(m, _) in &hard {
@@ -206,12 +213,46 @@ impl Snesim {
                     lattice,
                     &hard,
                     &skip,
+                    soft.as_deref(),
                     &trees,
                     realization_seed(seed, i as u64),
                 )
             },
             progress,
         )
+    }
+
+    /// `rows` checked against `lattice`, each closed to sum 1.
+    fn soft(&self, lattice: &Lattice, rows: &[Option<Vec<f64>>]) -> Result<Vec<Option<Vec<f64>>>> {
+        let k = self.ti.n_categories();
+        if rows.len() != lattice.len() {
+            return Err(SimError::InvalidParameters(format!(
+                "give one row of soft probabilities per target, {}, got {}",
+                lattice.len(),
+                rows.len()
+            )));
+        }
+        rows.iter()
+            .map(|r| {
+                r.as_deref()
+                    .map(|r| closed(r, k, "soft probabilities"))
+                    .transpose()
+            })
+            .collect()
+    }
+
+    /// `P0`, what soft probabilities are measured against: permanence of
+    /// ratios (Journel, 2002) with tau = 1 draws from
+    /// `P(c) ∝ P_tree(c) · P_soft(c) / P0(c)`. `P0` is the image's
+    /// proportions, or the target proportions while the servosystem pulls
+    /// the tree probabilities towards them, so that soft probabilities equal
+    /// to `P0` change nothing. Journel, A. G. (2002). Combining knowledge from
+    /// diverse sources: an alternative to traditional data independence
+    /// hypotheses. Mathematical Geology 34(5), 573-596.
+    fn prior(&self) -> &[f64] {
+        self.servo
+            .as_ref()
+            .map_or(self.ti.proportions(), |s| &s.targets)
     }
 
     /// Hard data as `(node, category)`, one per node, sorted by node.
@@ -315,6 +356,7 @@ impl Snesim {
         lattice: &Lattice,
         hard: &[(usize, u8)],
         skip: &[bool],
+        soft: Option<&[Option<Vec<f64>>]>,
         trees: &[SearchTree],
         seed: u64,
     ) -> Result<Vec<usize>> {
@@ -344,17 +386,27 @@ impl Snesim {
             }
             let tree = &trees[l];
             let u: f64 = rng.r#gen();
-            // Longest data event first; soft probabilities will weigh `weights`
-            // here and may leave none, falling back to a shorter event.
+            let soft = soft.and_then(|rows| rows[m].as_deref());
+            // Longest data event first; where the soft probabilities and the
+            // image share no category, the next shorter one.
             let c = tree
                 .lookup(&event, self.params.min_replicates, &mut scratch)
                 .rev()
                 .find_map(|(depth, counts)| {
                     probabilities(tree, depth, counts, &correction, &mut weights);
+                    if let Some(soft) = soft {
+                        weigh_by_soft(&mut weights, soft, self.prior());
+                    }
                     let total: f64 = weights.iter().sum();
                     (total > 0.0).then(|| pick(&weights, u * total))
-                })
-                .unwrap_or(0);
+                });
+            // Soft probabilities only on categories of `P0` 0: the image's
+            // proportions decide, as without them.
+            let c = c.unwrap_or_else(|| {
+                let (depth, counts) = tree.lookup(&[], 0, &mut scratch).next().unwrap_or_default();
+                probabilities(tree, depth, counts, &correction, &mut weights);
+                pick(&weights, u * weights.iter().sum::<f64>())
+            });
             grid[m] = c as u8;
             informed[c] += 1;
         }
@@ -439,6 +491,14 @@ fn probabilities(
     }
 }
 
+/// Multiplies each category's tree probability by `soft[c] / prior[c]`
+/// (see [`Snesim::prior`]); a category of prior 0 gets 0.
+fn weigh_by_soft(weights: &mut [f64], soft: &[f64], prior: &[f64]) {
+    for ((w, s), p) in weights.iter_mut().zip(soft).zip(prior) {
+        *w = if *p > 0.0 { *w * s / p } else { 0.0 };
+    }
+}
+
 /// The category `u` in `[0, total)` falls on, the categories laid end to
 /// end, each as long as its weight.
 fn pick(weights: &[f64], mut u: f64) -> usize {
@@ -512,7 +572,7 @@ mod tests {
         n: usize,
     ) -> CategoricalSummary {
         snesim
-            .simulate(lattice, data, n, 7, &Keep::All, 0, None)
+            .simulate(lattice, data, None, n, 7, &Keep::All, 0, None)
             .unwrap()
     }
 
@@ -679,14 +739,14 @@ mod tests {
     fn trees_beyond_the_memory_are_refused_before_they_are_built() {
         let snesim = Snesim::new(ti(64), params()).unwrap();
         let e = snesim
-            .simulate(&grid(8), None, 1, 0, &Keep::None, 1000, None)
+            .simulate(&grid(8), None, None, 1, 0, &Keep::None, 1000, None)
             .unwrap_err()
             .to_string();
         assert!(e.contains("lower template_size (now 24)"), "{e}");
         assert!(snesim.trees.lock().unwrap().is_empty());
         assert!(
             snesim
-                .simulate(&grid(8), None, 1, 0, &Keep::None, 0, None)
+                .simulate(&grid(8), None, None, 1, 0, &Keep::None, 0, None)
                 .is_ok()
         );
         assert_eq!(snesim.trees.lock().unwrap().len(), 1);
@@ -706,6 +766,145 @@ mod tests {
             10
         );
         assert!(t[2].iter().any(|d| d[0].abs() >= 8));
+    }
+
+    fn run_soft(
+        snesim: &Snesim,
+        side: usize,
+        soft: &[Option<Vec<f64>>],
+        n: usize,
+    ) -> CategoricalSummary {
+        snesim
+            .simulate(&grid(side), None, Some(soft), n, 7, &Keep::All, 0, None)
+            .unwrap()
+    }
+
+    /// Share of code 1 in each column of a square image, over realizations.
+    fn column_shares(s: &CategoricalSummary, side: usize) -> Vec<f64> {
+        let mut shares = vec![0.0; side];
+        for r in &s.realizations {
+            for (p, &c) in r.iter().enumerate() {
+                shares[p % side] += (c == 1) as u8 as f64;
+            }
+        }
+        let cells = (side * s.realizations.len()) as f64;
+        shares.iter().map(|x| x / cells).collect()
+    }
+
+    #[test]
+    fn realizations_follow_a_soft_trend() {
+        let side = 48;
+        let soft: Vec<_> = (0..side * side)
+            .map(|p| {
+                let east = 0.05 + 0.9 * (p % side) as f64 / (side - 1) as f64;
+                Some(vec![1.0 - east, east])
+            })
+            .collect();
+        let s = run_soft(&Snesim::new(ti(64), params()).unwrap(), side, &soft, 8);
+        let shares = column_shares(&s, side);
+        let band = |a: usize| shares[a..a + 12].iter().sum::<f64>() / 12.0;
+        let bands: Vec<f64> = (0..4).map(|b| band(12 * b)).collect();
+        assert!(bands.windows(2).all(|w| w[1] > w[0] + 0.05), "{bands:?}");
+    }
+
+    #[test]
+    fn soft_probabilities_at_the_prior_change_nothing() {
+        let snesim = Snesim::new(ti(64), params()).unwrap();
+        let p = snesim.training_image().proportions().to_vec();
+        let plain = run(&snesim, &grid(40), None, 4);
+        let soft = run_soft(&snesim, 40, &vec![Some(p); 1600], 4);
+        let (a, b) = (mean(&plain, share_of_1), mean(&soft, share_of_1));
+        assert!((a - b).abs() < 0.01, "{a} vs {b}");
+        let same = plain
+            .realizations
+            .iter()
+            .flatten()
+            .zip(soft.realizations.iter().flatten())
+            .filter(|(x, y)| x == y)
+            .count();
+        assert!(same as f64 > 0.99 * 4.0 * 1600.0, "{same}");
+    }
+
+    #[test]
+    fn certain_soft_probabilities_are_reproduced_and_hard_data_override_them() {
+        let snesim = Snesim::new(ti(64), params()).unwrap();
+        let soft: Vec<_> = (0..1600)
+            .map(|p| match p % 5 {
+                0 => Some(vec![0.0, 1.0]),
+                1 => Some(vec![3.0, 0.0]),
+                _ => None,
+            })
+            .collect();
+        let locs = [(0.5, 0.5, 0.5)];
+        let s = snesim
+            .simulate(
+                &grid(40),
+                Some((&locs, &[0])),
+                Some(&soft),
+                3,
+                7,
+                &Keep::All,
+                0,
+                None,
+            )
+            .unwrap();
+        for r in &s.realizations {
+            assert_eq!(r[0], 0);
+            for p in 1..1600 {
+                match p % 5 {
+                    0 => assert_eq!(r[p], 1, "node {p}"),
+                    1 => assert_eq!(r[p], 0, "node {p}"),
+                    _ => {}
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn soft_probabilities_on_categories_of_prior_zero_fall_back_to_the_image() {
+        let p = SnesimParams {
+            target_proportions: Some(vec![1.0, 0.0]),
+            ..params()
+        };
+        let snesim = Snesim::new(ti(64), p).unwrap();
+        let s = run_soft(&snesim, 24, &vec![Some(vec![0.0, 1.0]); 576], 2);
+        assert!(s.realizations.iter().flatten().all(|&c| c < 2));
+    }
+
+    #[test]
+    fn soft_output_is_the_same_for_any_thread_count() {
+        let snesim = Snesim::new(ti(48), params()).unwrap();
+        let soft: Vec<_> = (0..1600)
+            .map(|p| (p % 3 != 0).then(|| vec![0.3, 0.7 * (p % 40) as f64 / 40.0]))
+            .collect();
+        let pool = |t| {
+            rayon::ThreadPoolBuilder::new()
+                .num_threads(t)
+                .build()
+                .unwrap()
+        };
+        let one = pool(1).install(|| run_soft(&snesim, 40, &soft, 4).realizations);
+        let four = pool(4).install(|| run_soft(&snesim, 40, &soft, 4).realizations);
+        assert_eq!(one, four);
+    }
+
+    #[test]
+    fn bad_soft_probabilities_are_refused() {
+        let snesim = Snesim::new(ti(32), params()).unwrap();
+        let bad = |soft: Vec<Option<Vec<f64>>>| {
+            snesim
+                .simulate(&grid(4), None, Some(&soft), 1, 0, &Keep::None, 0, None)
+                .unwrap_err()
+                .to_string()
+        };
+        assert!(bad(vec![None; 3]).contains("one row of soft probabilities per target, 16"));
+        let mut rows = vec![None; 16];
+        rows[5] = Some(vec![0.5, -0.1]);
+        assert!(bad(rows.clone()).contains("soft probabilities must be 2 finite"));
+        rows[5] = Some(vec![1.0]);
+        assert!(bad(rows.clone()).contains("soft probabilities"));
+        rows[5] = Some(vec![0.0, 0.0]);
+        assert!(bad(rows).contains("not all zero"));
     }
 
     #[test]
