@@ -81,7 +81,14 @@ def uv():
     run(uv, "venv", "-q", "--python", "3.11", env)
     python = venv_python(env)
     run(
-        uv, "pip", "install", "-q", "--python", python, f"ceresgeo[all] @ {artifact('*.whl').as_uri()}", "pytest"
+        uv,
+        "pip",
+        "install",
+        "-q",
+        "--python",
+        python,
+        f"ceresgeo[all] @ {artifact('*.whl').as_uri()}",
+        "pytest",
     )
     pytest([python])
 
