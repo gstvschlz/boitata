@@ -989,3 +989,34 @@ def test_every_simulator_accepts_progress():
         sis.simulate(grid, n=3, seed=1, keep=True, progress=True).realizations,
         sis.simulate(grid, n=3, seed=1, keep=True, progress=False).realizations,
     )
+
+
+CHANNELS = {"shape": "channel", "code": 1, "proportion": 0.25, "width": 8.0, "azimuth": (-10, 10)}
+LOBES = {"shape": "ellipsoid", "code": 2, "proportion": 0.1, "radii": (6.0, 3.0)}
+
+
+def test_object_training_image_is_seeded_and_hits_its_proportions():
+    tpl = cs.BlockModel(origin=(0, 0), size=(1, 1), count=(80, 60), crs="EPSG:32722")
+    ti = cs.object_training_image(tpl, [CHANNELS, LOBES], background=0, seed=4)
+    assert ti.count == [80, 60, 1] and ti.crs == "EPSG:32722"
+    codes = ti["facies"]
+    assert set(np.unique(codes)) <= {0, 1, 2}
+    assert np.mean(codes == 2) >= 0.1
+    assert np.mean(codes >= 1) >= 0.25
+    np.testing.assert_array_equal(codes, cs.object_training_image(tpl, [CHANNELS, LOBES], seed=4)["facies"])
+    assert not np.array_equal(codes, cs.object_training_image(tpl, [CHANNELS, LOBES], seed=5)["facies"])
+
+
+def test_object_training_image_rejects_bad_sets():
+    tpl = cs.BlockModel(origin=(0, 0, 0), size=(1, 1, 1), count=(20, 20, 5))
+    for bad in [
+        {**CHANNELS, "shape": "blob"},
+        {**CHANNELS, "length": 3},
+        {**CHANNELS, "width": (5, 2)},
+        {**CHANNELS, "proportion": 1.5},
+        {**CHANNELS, "amplitude": 3},
+        CHANNELS,
+        {**LOBES, "radii": (6.0, 3.0)},
+    ]:
+        with pytest.raises(cs.InvalidInput):
+            cs.object_training_image(tpl, [bad])
