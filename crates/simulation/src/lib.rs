@@ -4,6 +4,7 @@
 //! - [`sgs`]  — Sequential Gaussian Simulation (continuous variables)
 //! - [`sis`]  — Sequential Indicator Simulation (categorical facies)
 //! - [`training_image`] — block model columns as training images
+//! - [`objects`] — object-based training images: channels and ellipsoids
 //! - [`multivariate`] — several correlated variables through independent factors
 //! - [`trend`] — a continuous variable whose distribution follows a trend
 //! - [`correct`] — correction of realizations to a target distribution
@@ -18,6 +19,7 @@ pub mod error;
 pub mod gibbs;
 pub mod lattice;
 pub mod multivariate;
+pub mod objects;
 pub mod pgs;
 pub mod post;
 pub mod sgs;
@@ -32,6 +34,7 @@ pub use error::{Result, SimError};
 pub use gibbs::{GibbsParams, gibbs};
 pub use lattice::{Lattice, Template, default_levels, multigrid_path};
 pub use multivariate::{Decorrelation, factor_seed, multivariate, multivariate_batched};
+pub use objects::{ObjectSet, Param, Shape, object_training_image};
 pub use pgs::{
     Hierarchy, PgsParams, Region, TruncationRule, fit_latent, plurigaussian, plurigaussian_local,
 };
