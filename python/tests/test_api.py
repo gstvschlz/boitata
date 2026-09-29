@@ -178,6 +178,12 @@ def fits():
             cs.SNESIM(cs.object_training_image(cs.BlockModel((0, 0), (1, 1), (20, 20)), []), "facies"),
             (coords, categories * 0),
         ),
+        (
+            cs.ImageQuilting(
+                cs.BlockModel((0, 0), (1, 1), (8, 8), attributes={"f": np.arange(64.0) % 3}), "f"
+            ),
+            (coords, categories),
+        ),
         (cs.MultivariateSimulation(cs.PCA(), [cs.SGS(model, search)] * 2), (coords, table)),
         (cs.ImplicitModel(), (coords, values - values.mean())),
         (cs.NormalScore(), (values,)),

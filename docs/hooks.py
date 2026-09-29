@@ -26,6 +26,7 @@ simulation: Simulation
     gibbs localize object_training_image
     training_image_consistency
     SNESIM
+    ImageQuilting
 drillholes: Drillholes and blocks
     Drillholes merge_intervals check_drillholes fix_drillholes PolygonSelector point_in_polygon
     polygon_distance assign_domain block_shell

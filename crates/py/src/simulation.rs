@@ -3042,6 +3042,7 @@ pub fn register(m: &Bound<PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(correct_distribution, m)?)?;
     m.add_class::<SimulationSummary>()?;
     m.add_class::<CategoricalSummary>()?;
+    m.add_class::<ImageQuilting>()?;
     Ok(())
 }
 
@@ -3302,4 +3303,321 @@ impl Snesim {
 
 pub fn register_snesim(m: &Bound<PyModule>) -> PyResult<()> {
     m.add_class::<Snesim>()
+}
+
+// Image quilting.
+
+/// Image quilting: realizations pasted together from patches of a training
+/// image (Efros and Freeman, 2001; Mariethoz and Lefebvre, 2014).
+///
+/// Overlapping patches cover the targets along a raster path, x fastest,
+/// then y, then z. Each patch is drawn at random among the `n_best`
+/// positions of the training image that best match what the targets already
+/// hold under it: the cells of earlier patches, and the hard data weighted
+/// by `data_weight`. It joins the earlier patches along the seam where the
+/// two differ least: a minimum-error boundary cut in 2D, a graph cut in 3D
+/// (Kwatra et al., 2003). Positions whose patch holds a null of the training
+/// image are never pasted. Hard data steer the choice and are never pasted
+/// over.
+///
+/// The mismatch of a cell is 0 or 1 for codes, and the squared difference
+/// over the squared value range of the training image for values.
+///
+/// Parameters
+/// ----------
+/// ti : BlockModel
+///     Regular or masked training image. Patterns are read in cell index
+///     space, so its origin, cell size and rotation play no part.
+/// column : str
+///     The float column of `ti` to copy.
+/// patch_size : int or sequence of int, default 40
+///     Cells of a patch along x, y and z (one int for all), clamped to the
+///     training image and to the targets.
+/// overlap : int or sequence of int, optional
+///     Cells a patch shares with the one before it along each axis, at most
+///     half the patch; by default a sixth of the patch, at least 1.
+/// n_best : int, default 10
+///     How many of the cheapest positions a patch is drawn from.
+/// data_weight : float, default 5.0
+///     Weight of the hard data against the overlap in the choice of a patch;
+///     0 leaves them out of it.
+/// categorical : bool, optional
+///     Whether the column holds codes (categories 0 to 254) or continuous
+///     values. By default it is categorical when every value is an integer
+///     from 0 to 254; set False for integer-valued continuous variables.
+///
+/// Examples
+/// --------
+/// >>> grid = cs.BlockModel((0, 0, 0), (1, 1, 1), (100, 100, 1))
+/// >>> ti = cs.object_training_image(
+/// ...     grid, [{"shape": "channel", "code": 1, "proportion": 0.3, "width": 6}], seed=1
+/// ... )
+/// >>> targets = cs.BlockModel((0, 0, 0), (1, 1, 1), (80, 80, 1))
+/// >>> summary = cs.ImageQuilting(ti, "facies", patch_size=20).simulate(targets, n=10)
+#[derive(Serialize, Deserialize)]
+#[pyclass(module = "ceres", name = "ImageQuilting")]
+pub struct ImageQuilting {
+    patch_size: [usize; 3],
+    overlap: Option<[usize; 3]>,
+    n_best: usize,
+    data_weight: f64,
+    categorical: bool,
+    ti_dims: [usize; 3],
+    #[serde(skip)]
+    ti: Option<simulation::TrainingImage>,
+    /// Hard data as locations and values.
+    #[serde(default)]
+    data: Option<(Vec<Point>, Vec<f64>)>,
+}
+
+/// An int for every axis, or three.
+fn cells_arg(obj: &Bound<PyAny>, what: &str) -> PyResult<[usize; 3]> {
+    if let Ok(n) = obj.extract::<usize>() {
+        return Ok([n; 3]);
+    }
+    obj.extract::<[usize; 3]>()
+        .map_err(|_| invalid(format!("{what} must be an int or three ints")))
+}
+
+impl ImageQuilting {
+    fn params(&self) -> simulation::QuiltingParams {
+        simulation::QuiltingParams {
+            patch_size: self.patch_size,
+            overlap: self.overlap,
+            n_best: self.n_best,
+            data_weight: self.data_weight,
+        }
+    }
+
+    fn ti(&self) -> PyResult<&simulation::TrainingImage> {
+        self.ti.as_ref().ok_or_else(|| invalid("no training image"))
+    }
+}
+
+impl Tabular for ImageQuilting {
+    fn columns(&self) -> Option<Columns> {
+        let cells: Vec<Option<f64>> = match self.ti.as_ref()?.values() {
+            simulation::TrainingValues::Categorical(codes) => codes
+                .iter()
+                .map(|&c| (c != simulation::NO_CODE).then_some(f64::from(c)))
+                .collect(),
+            simulation::TrainingValues::Continuous(values) => values
+                .iter()
+                .map(|&v| (!v.is_nan()).then_some(f64::from(v)))
+                .collect(),
+        };
+        Some(vec![("ti".into(), cells)])
+    }
+
+    fn restore(&mut self, columns: Found) -> PyResult<()> {
+        let cells = columns.optional("ti")?;
+        let geometry = ceres_core::Geometry {
+            origin: [0.0; 3],
+            size: [1.0; 3],
+            count: self.ti_dims,
+            rotation: [0.0; 3],
+        };
+        let array = std::sync::Arc::new(arrow_array::Float64Array::from(cells));
+        let batch =
+            arrow_array::RecordBatch::try_from_iter([("ti", array as _)]).map_err(invalid)?;
+        let model = ceres_core::BlockModel::regular(geometry, batch).map_err(invalid)?;
+        let image = match self.categorical {
+            true => simulation::TrainingImage::categorical(&model, "ti"),
+            false => simulation::TrainingImage::continuous(&model, "ti"),
+        };
+        self.ti = Some(image.map_err(err)?);
+        Ok(())
+    }
+}
+
+#[pymethods]
+impl ImageQuilting {
+    /// Writes the training image as a Parquet column, and parameters and
+    /// hard data as JSON in the file metadata; `from_parquet` reads it back.
+    fn to_parquet(&self, path: std::path::PathBuf) -> PyResult<()> {
+        crate::persist::to_parquet(<Self as pyo3::PyClass>::NAME, self, &path)
+    }
+
+    /// Reads `to_parquet` output; raises InvalidInput on another class's file
+    /// or a newer format.
+    #[staticmethod]
+    fn from_parquet(path: std::path::PathBuf) -> PyResult<Self> {
+        crate::persist::from_parquet(<Self as pyo3::PyClass>::NAME, &path)
+    }
+
+    fn _state(&self) -> PyResult<(String, Option<crate::persist::Columns>)> {
+        crate::persist::state(<Self as pyo3::PyClass>::NAME, self)
+    }
+
+    #[staticmethod]
+    fn _from_state(meta: &str, columns: Option<crate::persist::Columns>) -> PyResult<Self> {
+        crate::persist::from_state(<Self as pyo3::PyClass>::NAME, meta, columns)
+    }
+
+    #[new]
+    #[pyo3(signature = (ti, column, *, patch_size=None, overlap=None, n_best=10, data_weight=5.0, categorical=None))]
+    #[allow(clippy::too_many_arguments)]
+    fn new(
+        py: Python,
+        ti: PyRef<PyBlockModel>,
+        column: &str,
+        patch_size: Option<&Bound<PyAny>>,
+        overlap: Option<&Bound<PyAny>>,
+        n_best: usize,
+        data_weight: f64,
+        categorical: Option<bool>,
+    ) -> PyResult<Self> {
+        let patch_size = patch_size.map_or(Ok([40; 3]), |p| cells_arg(p, "patch_size"))?;
+        let overlap = overlap.map(|o| cells_arg(o, "overlap")).transpose()?;
+        let model = &ti.0;
+        let image = py
+            .detach(|| match categorical {
+                Some(true) => simulation::TrainingImage::categorical(model, column),
+                Some(false) => simulation::TrainingImage::continuous(model, column),
+                None => simulation::TrainingImage::categorical(model, column)
+                    .or_else(|_| simulation::TrainingImage::continuous(model, column)),
+            })
+            .map_err(err)?;
+        let quilting = Self {
+            patch_size,
+            overlap,
+            n_best,
+            data_weight,
+            categorical: image.is_categorical(),
+            ti_dims: image.dims(),
+            ti: Some(image),
+            data: None,
+        };
+        quilting.params().validate().map_err(err)?;
+        Ok(quilting)
+    }
+
+    /// Whether the training image holds codes rather than continuous values.
+    #[getter]
+    fn categorical(&self) -> bool {
+        self.categorical
+    }
+
+    /// Takes hard data, which every realization reproduces. A datum outside
+    /// the targets is ignored; of several in one target block the first is
+    /// kept.
+    ///
+    /// Parameters
+    /// ----------
+    /// coords : array_like, shape (n, 2) or (n, 3), PointSet or BlockModel
+    /// values : array_like, shape (n,), or str
+    ///     Codes of the training image, or values, or the column of `coords`
+    ///     holding them.
+    ///
+    /// Returns
+    /// -------
+    /// ImageQuilting
+    ///     This simulator.
+    fn fit<'py>(
+        mut slf: PyRefMut<'py, Self>,
+        coords: &Bound<PyAny>,
+        values: &Bound<PyAny>,
+    ) -> PyResult<PyRefMut<'py, Self>> {
+        let values = finite(&args::column(Some(coords), values, "values")?, "values")?;
+        let (locs, keep, _) = located(coords, values.len(), "values", None, None)?;
+        let values = pick(&values, &keep);
+        let data: Vec<([f64; 3], f64)> = locs
+            .iter()
+            .zip(&values)
+            .map(|(p, &v)| ([p.0, p.1, p.2], v))
+            .collect();
+        let one = simulation::Lattice::regular(ceres_core::Geometry {
+            origin: [0.0; 3],
+            size: [1.0; 3],
+            count: [1; 3],
+            rotation: [0.0; 3],
+        });
+        simulation::Quilting::new(slf.ti()?, &one, &data, &slf.params()).map_err(err)?;
+        slf.data = Some((locs, values));
+        Ok(slf)
+    }
+
+    /// Summary of `n` realizations, each seeded from `seed` and its index.
+    ///
+    /// Parameters
+    /// ----------
+    /// targets : BlockModel
+    ///     Regular or masked grid; every block is simulated.
+    /// n : int, default 100
+    /// seed : int, default 0
+    /// keep : bool or sequence of int, optional
+    ///     Return all realizations, or these 0-based ones, beside the summary.
+    /// progress : bool, default True
+    ///
+    /// Returns
+    /// -------
+    /// CategoricalSummary or SimulationSummary
+    ///     Categorical for a categorical training image, else continuous.
+    #[pyo3(signature = (targets, *, n=100, seed=0, keep=None, progress=true))]
+    fn simulate(
+        &self,
+        py: Python,
+        targets: PyRef<PyBlockModel>,
+        n: usize,
+        seed: u64,
+        keep: Option<&Bound<PyAny>>,
+        progress: bool,
+    ) -> PyResult<Py<PyAny>> {
+        let lattice = simulation::Lattice::from_model(&targets.0)
+            .ok_or_else(|| invalid("targets must be a regular or masked BlockModel"))?;
+        let data: Vec<([f64; 3], f64)> = self
+            .data
+            .iter()
+            .flat_map(|(locs, values)| locs.iter().zip(values))
+            .map(|(p, &v)| ([p.0, p.1, p.2], v))
+            .collect();
+        let ti = self.ti()?;
+        let quilting = py
+            .detach(|| simulation::Quilting::new(ti, &lattice, &data, &self.params()))
+            .map_err(err)?;
+        let keep = keep_arg(keep)?;
+        let realization = |i: usize| {
+            quilting
+                .simulate(ceres_core::rng::realization_seed(seed, i as u64))
+                .values
+        };
+        if self.categorical {
+            let k = ti.n_categories();
+            let summary = with_progress(py, Some(n as u64), progress, |counter| {
+                simulation::categorical(
+                    n,
+                    k,
+                    &keep,
+                    |i| Ok(realization(i).into_iter().map(|c| c as usize).collect()),
+                    counter,
+                )
+            })?
+            .map_err(err)?;
+            return Ok(Bound::new(py, CategoricalSummary(summary))?
+                .into_any()
+                .unbind());
+        }
+        let options = ContinuousOptions {
+            keep,
+            ..Default::default()
+        };
+        let summary = with_progress(py, Some(n as u64), progress, |counter| {
+            simulation::continuous(n, &options, |i| Ok(realization(i)), counter)
+        })?
+        .map_err(err)?;
+        Ok(Bound::new(py, SimulationSummary(summary))?
+            .into_any()
+            .unbind())
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "ImageQuilting(ti={:?}, categorical={}, patch_size={:?}, n_best={}, fitted={})",
+            self.ti_dims,
+            self.categorical,
+            self.patch_size,
+            self.n_best,
+            self.data.is_some()
+        )
+    }
 }

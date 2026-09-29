@@ -73,3 +73,9 @@ pub(crate) fn holes(holes: Option<&[u32]>, n: usize) -> Result<Vec<Option<u32>>>
         Some(_) => Err(SimError::InvalidParameters("one hole per datum".into())),
     }
 }
+
+// Image quilting.
+pub mod quilting;
+pub mod seam;
+pub use quilting::{PatchGrid, Quilt, Quilting, QuiltingParams, Term, cost_map};
+pub use seam::{CutGraph, Side, path_cut, path_seam, surface_cut};
