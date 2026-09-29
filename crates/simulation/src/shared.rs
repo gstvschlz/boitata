@@ -222,6 +222,11 @@ pub fn sgs_shared<'a>(
     realizations: Range<usize>,
     collocated: Option<&Collocated>,
 ) -> Result<SharedBatch<'a>> {
+    if let Some(why) = shared_unsupported(shared.search, false, false) {
+        return Err(SimError::InvalidParameters(format!(
+            "a shared path does not support {why}"
+        )));
+    }
     let lattice = shared.lattice;
     let n = lattice.len();
     if data_locs.len() != data_vals.len() {
@@ -401,6 +406,59 @@ fn draw(
         .collect()
 }
 
+/// Why a shared path cannot simulate these inputs, if it cannot: the first
+/// of the features it leaves to the random path.
+pub fn shared_unsupported(
+    search: &[Search],
+    local_anisotropy: bool,
+    per_realization_domains: bool,
+) -> Option<&'static str> {
+    if local_anisotropy {
+        return Some("local anisotropy");
+    }
+    if per_realization_domains {
+        return Some("simulated domains");
+    }
+    if search.iter().any(|s| s.octant) {
+        return Some("octant searches");
+    }
+    if search.iter().any(|s| s.high_grade.is_some()) {
+        return Some("high-grade restrictions");
+    }
+    if search.iter().any(|s| s.soft.is_some()) {
+        return Some("soft boundaries");
+    }
+    None
+}
+
+/// Realizations per batch (1 to `n`) whose shared-path simulation and
+/// summary of `nodes` nodes fit `budget` bytes, with `cutoffs` cutoffs,
+/// stored quantiles and `kept` kept realizations as asked. Errors, naming
+/// the memory needed, when what the run holds whatever the batch (paths,
+/// summaries, quantiles, kept realizations) plus one realization in flight
+/// exceeds `budget`.
+pub fn shared_batch(
+    nodes: usize,
+    n: usize,
+    cutoffs: usize,
+    quantiles: bool,
+    kept: usize,
+    budget: u64,
+) -> Result<usize> {
+    let (nodes, n) = (nodes as u64, n as u64);
+    let fixed = nodes
+        * (8 + 16 + 8 + 12 * cutoffs as u64 + if quantiles { 8 * n } else { 0 } + 8 * kept as u64);
+    let each = 4 * nodes.max(1);
+    if fixed + each > budget {
+        return Err(SimError::InvalidParameters(format!(
+            "this run needs about {:.1} GB for {nodes} nodes with one realization in flight, above the {:.1} GB budget; drop quantiles, keep fewer realizations or simulate fewer nodes",
+            (fixed + each) as f64 / 1e9,
+            budget as f64 / 1e9,
+        )));
+    }
+    Ok(((budget - fixed) / each).clamp(1, n.max(1)) as usize)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -570,6 +628,290 @@ mod tests {
         let v = run(&l, 0..1).realization(0);
         assert_eq!(v.len(), l.len());
         assert!(v.iter().all(|x| x.is_finite()));
+    }
+
+    #[test]
+    fn unsupported_inputs_are_named() {
+        let plain = Search {
+            min_samples: 1,
+            max_samples: 8,
+            radius: 5.0,
+            ..Default::default()
+        };
+        assert_eq!(
+            shared_unsupported(std::slice::from_ref(&plain), false, false),
+            None
+        );
+        assert_eq!(
+            shared_unsupported(std::slice::from_ref(&plain), true, false),
+            Some("local anisotropy")
+        );
+        assert_eq!(
+            shared_unsupported(std::slice::from_ref(&plain), false, true),
+            Some("simulated domains")
+        );
+        let octant = Search {
+            octant: true,
+            ..plain.clone()
+        };
+        assert_eq!(
+            shared_unsupported(&[plain.clone(), octant], false, false),
+            Some("octant searches")
+        );
+        let hg = Search {
+            high_grade: Some(estimation::HighGrade::new(5.0, 10.0)),
+            ..plain.clone()
+        };
+        assert_eq!(
+            shared_unsupported(&[hg], false, false),
+            Some("high-grade restrictions")
+        );
+        let soft = Search {
+            soft: Some(estimation::Soft::All(3.0)),
+            ..plain
+        };
+        assert_eq!(
+            shared_unsupported(&[soft], false, false),
+            Some("soft boundaries")
+        );
+    }
+
+    #[test]
+    fn sgs_shared_refuses_octant_searches() {
+        let l = square(10);
+        let search = [Search {
+            min_samples: 1,
+            octant: true,
+            ..Default::default()
+        }];
+        let vg = Variogram::single(Model::Spherical, 1.0, 4.0);
+        let shared = SharedSgs {
+            lattice: &l,
+            search: &search,
+            levels: None,
+            seed: 1,
+        };
+        let r = sgs_shared(
+            &[(1.5, 1.5, 0.5)],
+            &[1.0],
+            None,
+            None,
+            None,
+            None,
+            &vg,
+            &shared,
+            0..1,
+            None,
+        );
+        assert!(matches!(r, Err(SimError::InvalidParameters(_))));
+    }
+
+    #[test]
+    fn hard_domains_keep_their_own_data_and_nodes() {
+        let l = square(40);
+        let nodes: Vec<u32> = (0..l.len()).map(|m| u32::from(m % 40 >= 20)).collect();
+        let locs: Vec<_> = (0..40)
+            .map(|i| {
+                (
+                    (i % 20) as f64 * 2.0 + 0.3,
+                    (i / 20) as f64 * 20.0 + 5.3,
+                    0.5,
+                )
+            })
+            .collect();
+        let of_data: Vec<u32> = locs.iter().map(|p| u32::from(p.0 >= 20.0)).collect();
+        let vals: Vec<f64> = of_data
+            .iter()
+            .enumerate()
+            .map(|(i, &d)| if d == 1 { 100.0 + i as f64 } else { i as f64 })
+            .collect();
+        let search = [Search {
+            min_samples: 1,
+            max_samples: 12,
+            radius: 15.0,
+            ..Default::default()
+        }];
+        let vg = Variogram::single(Model::Spherical, 1.0, 10.0);
+        let shared = SharedSgs {
+            lattice: &l,
+            search: &search,
+            levels: None,
+            seed: 2,
+        };
+        let domains = Some((&of_data[..], &nodes[..]));
+        let b = sgs_shared(
+            &locs,
+            &vals,
+            None,
+            None,
+            domains,
+            None,
+            &vg,
+            &shared,
+            0..4,
+            None,
+        )
+        .unwrap();
+        for r in 0..4 {
+            let v = b.realization(r);
+            assert!((0..l.len()).all(|m| (nodes[m] == 1) == (v[m] >= 50.0)));
+        }
+    }
+
+    #[test]
+    fn a_node_takes_the_first_pass_that_finds_data() {
+        let l = square(40);
+        let locs = vec![(5.5, 5.5, 0.5)];
+        let search = [
+            Search {
+                min_samples: 1,
+                max_samples: 3,
+                radius: 4.0,
+                ..Default::default()
+            },
+            Search {
+                min_samples: 1,
+                max_samples: 10,
+                radius: 12.0,
+                ..Default::default()
+            },
+        ];
+        let vg = Variogram::single(Model::Spherical, 1.0, 10.0);
+        let ctx = context(&l, &search, &vg, &locs);
+        let near = l.node_at(6 * 40 + 6).unwrap();
+        let far = l.node_at(30 * 40 + 30).unwrap();
+        let (n, f) = (plan(&ctx, near).unwrap(), plan(&ctx, far).unwrap());
+        assert!(n.nodes.len() <= 2);
+        assert!(f.nodes.len() > 3 && f.nodes.len() <= 10);
+    }
+
+    #[test]
+    fn collocated_cosimulation_reproduces_the_correlation() {
+        let (l, locs, vals, vg, search) = field();
+        let smooth = SharedSgs {
+            lattice: &l,
+            search: &search,
+            levels: None,
+            seed: 99,
+        };
+        let other = sgs_shared(
+            &locs,
+            &vals,
+            None,
+            None,
+            None,
+            None,
+            &vg,
+            &smooth,
+            0..1,
+            None,
+        )
+        .unwrap();
+        let secondary: Vec<f64> = (0..l.len()).map(|m| other.scores[m] as f64).collect();
+        let rows = vec![secondary.clone()];
+        let c = Collocated {
+            scores: &rows,
+            correlation: 0.8,
+        };
+        let shared = SharedSgs {
+            lattice: &l,
+            search: &search,
+            levels: None,
+            seed: 4,
+        };
+        let b = sgs_shared(
+            &locs,
+            &vals,
+            None,
+            None,
+            None,
+            None,
+            &vg,
+            &shared,
+            0..4,
+            Some(&c),
+        )
+        .unwrap();
+        for r in 0..4 {
+            let s: Vec<f64> = (0..l.len()).map(|m| b.scores[m * 4 + r] as f64).collect();
+            let rho = crate::sgs::pearson(&s, &secondary, None);
+            assert!((rho - 0.8).abs() < 0.1, "realization {r}: {rho}");
+        }
+    }
+
+    #[test]
+    fn a_trend_moves_the_grades_with_it() {
+        let l = square(40);
+        let locs: Vec<_> = (0..60)
+            .map(|i| {
+                (
+                    (i % 10) as f64 * 4.0 + 0.3,
+                    (i / 10) as f64 * 6.0 + 0.3,
+                    0.5,
+                )
+            })
+            .collect();
+        let at_data: Vec<f64> = locs.iter().map(|p| p.0).collect();
+        let vals: Vec<f64> = locs.iter().map(|p| p.0 + (p.1 * 0.7).sin()).collect();
+        let at_nodes: Vec<f64> = (0..l.len()).map(|m| l.location(m).0).collect();
+        let trend = Trend {
+            data: &at_data,
+            nodes: &at_nodes,
+            classes: 4,
+        };
+        let search = [Search {
+            min_samples: 1,
+            max_samples: 12,
+            radius: 12.0,
+            ..Default::default()
+        }];
+        let vg = Variogram::single(Model::Spherical, 1.0, 8.0);
+        let shared = SharedSgs {
+            lattice: &l,
+            search: &search,
+            levels: None,
+            seed: 6,
+        };
+        let b = sgs_shared(
+            &locs,
+            &vals,
+            None,
+            None,
+            None,
+            Some(trend),
+            &vg,
+            &shared,
+            0..2,
+            None,
+        )
+        .unwrap();
+        let v = b.realization(0);
+        let side = |east: bool| {
+            let pick: Vec<f64> = (0..l.len())
+                .filter(|&m| (m % 40 >= 20) == east)
+                .map(|m| v[m])
+                .collect();
+            pick.iter().sum::<f64>() / pick.len() as f64
+        };
+        assert!(side(true) > side(false) + 10.0);
+    }
+
+    #[test]
+    fn batches_fit_the_memory_budget() {
+        // 1e6 nodes: fixed 8 + 16 + 8 = 32 B/node, 4 B/node per realization.
+        let size = |n, cutoffs, quantiles, kept, budget| {
+            shared_batch(1_000_000, n, cutoffs, quantiles, kept, budget)
+        };
+        assert_eq!(size(100, 0, false, 0, 32_000_000 + 64_000_000).unwrap(), 16);
+        assert_eq!(size(5, 0, false, 0, u64::MAX).unwrap(), 5);
+        assert_eq!(size(100, 0, false, 0, 36_000_000).unwrap(), 1);
+        // stored quantiles and kept realizations hold 8 B/node per realization of the run.
+        assert_eq!(
+            size(10, 0, true, 10, 32_000_000 + 160_000_000 + 16_000_000).unwrap(),
+            4
+        );
+        let refused = size(10, 0, true, 0, 100_000_000).unwrap_err().to_string();
+        assert!(refused.contains("0.1 GB budget"), "{refused}");
     }
 
     type Field = (
