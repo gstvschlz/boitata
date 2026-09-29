@@ -180,6 +180,7 @@ class _Base:
         diagnostics: bool = False,
         domains=None,
         domain_column=None,
+        progress: bool = True,
     ):
         """Estimates at targets; NaN where the search found too few samples.
 
@@ -206,6 +207,8 @@ class _Base:
             Targets of a domain without samples stay NaN.
         domain_column : str, optional
             The column of `targets` holding their domains; instead of `domains`.
+        progress : bool, default True
+            Show a `tqdm` progress bar.
         """
         return self._engine.predict(
             targets,
@@ -214,6 +217,7 @@ class _Base:
             diagnostics=diagnostics,
             domains=domains,
             domain_column=domain_column,
+            progress=progress,
         )
 
     def cross_validate(self, *, folds: int | None = None) -> CrossValidation:

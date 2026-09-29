@@ -1026,3 +1026,13 @@ def test_weight_declustering_downweights_clusters_and_shares_duplicates():
     np.testing.assert_allclose(near.weights, 1.0)
     with pytest.raises(ValueError, match="linear"):
         cs.weight_declustering(grid, grid[:, 0], targets, estimator=cs.MovingMedian(search))
+
+
+def test_predict_progress_shows_a_bar_without_changing_output(capsys):
+    ok = cs.OrdinaryKriging(model, search).fit(coords, values)
+    targets = np.vstack([coords, [[500.0, 500.0]]])
+    off = ok.predict(targets, progress=False)
+    assert capsys.readouterr().err == ""
+    on = ok.predict(targets, progress=True)
+    assert "100%" in capsys.readouterr().err
+    np.testing.assert_array_equal(on, off)

@@ -937,6 +937,7 @@ class _Estimator:
         diagnostics: bool = False,
         domains: Label | Labels | None = None,
         domain_column: Column | None = None,
+        progress: bool = True,
     ) -> Any: ...
     def cross_validate(
         self, *, folds: int | None = None

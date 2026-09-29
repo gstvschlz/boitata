@@ -56,6 +56,10 @@ pub fn with_progress<T: Send>(
                 }
             });
             let result = f(Some(&counter));
+            let (done, total) = counter.snapshot();
+            if let Some(total) = total {
+                counter.inc_by(total.saturating_sub(done));
+            }
             stop.store(true, Ordering::Release);
             monitor.thread().unpark();
             let _ = monitor.join();
