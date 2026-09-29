@@ -2,7 +2,7 @@
 
 Files are cached under ``$CERES_DATA``, else the user cache directory
 (``%LOCALAPPDATA%/ceres`` on Windows, ``$XDG_CACHE_HOME/ceres`` or
-``~/.cache/ceres`` elsewhere). Coordinates are local metres (Jura: km), with no CRS.
+``~/.cache/ceres`` elsewhere). Coordinates are local metres (Jura: km) with no CRS, except F3 (EPSG:23031).
 Synthetic datasets are CC BY 4.0; classic ones keep their original terms.
 """
 
@@ -16,11 +16,12 @@ from typing import TypedDict
 
 import numpy as np
 
-from ceres._ceres import BlockModel, Mesh, PointSet, Polylines, Table, read_csv, read_mesh
+from ceres._ceres import BlockModel, Mesh, PointSet, Polylines, Table, read_csv, read_mesh, read_segy
 from ceres.errors import FileError, InvalidInput
 
 __all__ = [
     "coal_seam_thickness",
+    "f3_seismic",
     "fetch",
     "iron_formation_plateau",
     "jura",
@@ -29,6 +30,7 @@ __all__ = [
     "porphyry_geometallurgy",
     "soil_geochemistry_survey",
     "stacked_sulphide_lenses",
+    "strebelle",
     "tailings_reprocessing",
     "vein_gold_grade_control",
     "walker_lake",
@@ -36,7 +38,7 @@ __all__ = [
 ]
 
 REPO = "https://raw.githubusercontent.com/gstvschlz/datasets"
-COMMIT = "8fd08b2fabf99194dadfd83a5d02f34035535a81"
+COMMIT = "6cba7994ef7376381039c757ad9a996fd7927d8e"
 URL = f"{REPO}/{COMMIT}"
 FILES = {
     "mining/2d/coal-seam-thickness/boreholes.csv": "722383adf51416b50c897b08e61d8a7d7cafd2bdb244426999c7057fdd07420d",
@@ -105,6 +107,8 @@ FILES = {
     "mining/3d/vein-gold-grade-control/vein_V2.stl": "0d2c5a8d497a67c14d456782929346ce5358125508b239932b868630ed3b646c",
     "mining/3d/vein-gold-grade-control/vein_V3.stl": "9d34c4ae2b4002e90998251fd82dfe164dbc0ffe2a6d9edd4448332ccdccec31",
     "mining/3d/vein-gold-grade-control/vein_V4.stl": "889ef7c06e49d8734352a443bd420d797e583a0af3a2d97b15ff0e9f4b093f05",
+    "oil-gas/2d/strebelle/training_image.csv": "520159482ac4def977300ef8a1af9d4a09e037ac78e53a7b3c8bbc8d5eea1d4b",
+    "oil-gas/3d/f3-seismic/seismic.sgy": "ddd2038885a7abd436413fa31dcc600c3972c93f8c0a404282f2057d5f42c703",
 }
 HOLES = ("collars", "surveys", "assays")
 
@@ -500,3 +504,45 @@ def porphyry_geometallurgy(deposit: int = 1) -> PorphyryGeometallurgy:
         "pseudo_drillholes": PointSet.from_table(t["pseudo_drillholes"], **mid),
         "synthetic_drillholes": PointSet.from_table(t["synthetic_drillholes"], **mid),
     }
+
+
+def strebelle() -> BlockModel:
+    """The 250 x 250 channel training image: sinuous sand channels along Y in shale.
+
+    Strebelle, S. (2002). Conditional simulation of complex geological structures using multiple-point
+    statistics. *Mathematical Geology* 34(1), 1-21. Classic public dataset, under its original terms.
+
+    Returns
+    -------
+    BlockModel
+        250 x 250 x 1 cells of 1 m from the origin (0, 0), with ``facies`` 0 (shale) or 1 (sand); sand is
+        28 % of the cells. The spacing is nominal: the image has no physical scale.
+    """
+    t = read_csv(fetch("oil-gas/2d/strebelle/training_image.csv"))
+    return _grid(Table({"X": t["X"], "Y": t["Y"], "facies": np.asarray(t["FACIES"], dtype=np.float64)}))
+
+
+def f3_seismic() -> BlockModel:
+    """A crop of the F3 post-stack seismic cube, Dutch sector of the North Sea.
+
+    Inlines 320-364, crosslines 580-624 and two-way time 1600-1800 ms at 4 ms: 45 x 45 traces of 51
+    samples in 25 m bins, dip-steered median-filtered amplitude. Coordinates are in ED50 / UTM zone 31N
+    (EPSG:23031), which the SEG-Y file does not state. Released by the Dutch government through TNO and
+    published by dGB Earth Sciences under CC BY-SA 3.0; the crop keeps that license.
+
+    Returns
+    -------
+    BlockModel
+        45 x 45 x 51 cells from `read_segy`, rotated to the inline direction, with ``amplitude`` and
+        ``crs`` set.
+    """
+    m = read_segy(fetch("oil-gas/3d/f3-seismic/seismic.sgy"))
+    return BlockModel(
+        m.origin,
+        m.size,
+        m.count,
+        rotation=tuple(m.rotation),
+        attributes=m.attributes,
+        index=m.index,
+        crs="EPSG:23031",
+    )
