@@ -1072,6 +1072,7 @@ class TurningBands:
         seed: int = 0,
         cutoffs: Sequence[float] = (),
         quantiles: Sequence[float] = (),
+        keep: bool | Sequence[int] = False,
         rows: int = 1_000_000,
         domains: Label | Sequence[Label] | ArrayLike | None = None,
         domain_column: Column | None = None,

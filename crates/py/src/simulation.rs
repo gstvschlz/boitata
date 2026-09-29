@@ -1148,13 +1148,17 @@ impl TurningBands {
 
     /// Summary of `n` realizations over the block model file `path`, written
     /// to `out` chunk by chunk with the input columns: `mean`, `variance`,
-    /// `p_above_<c>` and `mean_above_<c>` per cutoff, `q<p>` per quantile.
+    /// `p_above_<c>` and `mean_above_<c>` per cutoff, `q<p>` per quantile, and
+    /// `realization_<k>` for each realization kept with `keep`.
     /// The same values as `simulate` on the whole model, in memory bounded by
     /// `rows` blocks plus the bands. Returns each realization's global
     /// `realization_mean` and ``(n, cutoffs)`` `realization_above`.
     ///
     /// Parameters
     /// ----------
+    /// keep : bool or sequence of int, default False
+    ///     Realizations written beside the summary as ``realization_<k>``:
+    ///     none, all, or these 0-based indices.
     /// domains : array_like or label, optional
     ///     Needed when fitted with them: labels of the blocks in file order,
     ///     or one label for all.
@@ -1170,7 +1174,7 @@ impl TurningBands {
     ///     ``simulate(model.discretize(discretization), blocks=model)``;
     ///     default the centroid. A node takes its block's domain and trend.
     #[allow(clippy::too_many_arguments)]
-    #[pyo3(signature = (path, out, *, n=100, seed=0, cutoffs=vec![], quantiles=vec![], rows=1_000_000, domains=None, domain_column=None, trend=None, discretization=None))]
+    #[pyo3(signature = (path, out, *, n=100, seed=0, cutoffs=vec![], quantiles=vec![], keep=None, rows=1_000_000, domains=None, domain_column=None, trend=None, discretization=None))]
     fn simulate_to_parquet<'py>(
         &self,
         py: Python<'py>,
@@ -1180,6 +1184,7 @@ impl TurningBands {
         seed: u64,
         cutoffs: Vec<f64>,
         quantiles: Vec<f64>,
+        keep: Option<&Bound<PyAny>>,
         rows: usize,
         domains: Option<&Bound<PyAny>>,
         domain_column: Option<&str>,
@@ -1214,7 +1219,7 @@ impl TurningBands {
         let options = ContinuousOptions {
             cutoffs,
             quantiles,
-            keep: simulation::Keep::None,
+            keep: keep_arg(keep)?,
         };
         let global = py
             .detach(|| {
