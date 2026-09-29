@@ -962,3 +962,30 @@ def test_available_memory_is_a_positive_size():
     from ceres import _memory
 
     assert _memory.available() > 2**20
+
+
+def test_progress_bar_shows_only_when_asked_and_changes_nothing(capsys):
+    sgs, blocks = _shared_case()
+    on = sgs.simulate(blocks, n=4, seed=3, keep=True, progress=True)
+    assert "100%" in capsys.readouterr().err
+    off = sgs.simulate(blocks, n=4, seed=3, keep=True, progress=False)
+    assert capsys.readouterr().err == ""
+    np.testing.assert_array_equal(on.realizations, off.realizations)
+    on = sgs.simulate(coords[:20], n=3, seed=3, keep=True, progress=True)
+    off = sgs.simulate(coords[:20], n=3, seed=3, keep=True, progress=False)
+    np.testing.assert_array_equal(on.realizations, off.realizations)
+    capsys.readouterr()
+
+
+def test_every_simulator_accepts_progress():
+    tb = cs.TurningBands(gaussian, bands=50, step=1.0).fit(coords, values)
+    np.testing.assert_array_equal(
+        tb.simulate(grid, n=3, seed=1, keep=True, progress=True).realizations,
+        tb.simulate(grid, n=3, seed=1, keep=True, progress=False).realizations,
+    )
+    cats = (values > np.median(values)).astype(int)
+    sis = cs.SIS([gaussian, gaussian], cs.Search(radius=40, max_samples=12)).fit(coords, cats)
+    np.testing.assert_array_equal(
+        sis.simulate(grid, n=3, seed=1, keep=True, progress=True).realizations,
+        sis.simulate(grid, n=3, seed=1, keep=True, progress=False).realizations,
+    )

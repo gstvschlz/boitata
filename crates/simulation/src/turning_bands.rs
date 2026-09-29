@@ -890,10 +890,15 @@ impl TurningBandsEnsemble {
         domains: Option<&[u32]>,
         trend: Option<&[f64]>,
         options: &ContinuousOptions,
+        progress: Option<&ceres_core::Progress>,
     ) -> Result<ContinuousSummary> {
-        continuous_batched(self.len(), options, self.batch(targets.len()), |ks| {
-            self.realizations(ks, targets, |_| domains, trend)
-        })
+        continuous_batched(
+            self.len(),
+            options,
+            self.batch(targets.len()),
+            |ks| self.realizations(ks, targets, |_| domains, trend),
+            progress,
+        )
     }
 }
 
@@ -987,6 +992,7 @@ pub fn turning_bands_to_parquet(
     options: &ContinuousOptions,
     rows: usize,
     discretization: [usize; 3],
+    progress: Option<&ceres_core::Progress>,
 ) -> Result<GlobalSummary> {
     let reader = ceres_io::BlockModelReader::open(&input)?;
     if domains.is_some_and(|d| d.1.len() != reader.len()) {
@@ -1057,16 +1063,22 @@ pub fn turning_bands_to_parquet(
                         Ok::<_, SimError>(owner.iter().map(|&b| at[b]).collect())
                     })
                     .transpose()?;
-                let s = continuous_batched(n, options, ensemble.batch(nodes.len()), |ks| {
-                    ensemble
-                        .realizations(ks, &nodes, |_| codes.as_deref(), at_nodes.as_deref())?
-                        .into_iter()
-                        .map(|r| match &support {
-                            Some(s) => s.mean(&r),
-                            None => Ok(r),
-                        })
-                        .collect()
-                })?;
+                let s = continuous_batched(
+                    n,
+                    options,
+                    ensemble.batch(nodes.len()),
+                    |ks| {
+                        ensemble
+                            .realizations(ks, &nodes, |_| codes.as_deref(), at_nodes.as_deref())?
+                            .into_iter()
+                            .map(|r| match &support {
+                                Some(s) => s.mean(&r),
+                                None => Ok(r),
+                            })
+                            .collect()
+                    },
+                    None,
+                )?;
                 let m = chunk.len() as f64;
                 total += m;
                 for k in 0..n {
@@ -1095,6 +1107,9 @@ pub fn turning_bands_to_parquet(
                     out = out
                         .with_column(&name, std::sync::Arc::new(column))
                         .map_err(ceres_io::Error::from)?;
+                }
+                if let Some(p) = progress {
+                    p.inc_by(m as u64);
                 }
                 if send.send(out).is_err() {
                     break;
@@ -1479,10 +1494,11 @@ mod tests {
                 6,
             )
             .unwrap()
-            .summary(&grid, domains.map(|d| d.1), None, &options)
+            .summary(&grid, domains.map(|d| d.1), None, &options, None)
             .unwrap();
             for rows in [7, 160] {
                 let output = input.with_extension(format!("{rows}.parquet"));
+                let bar = ceres_core::Progress::new(None);
                 let global = turning_bands_to_parquet(
                     &input,
                     &output,
@@ -1498,8 +1514,10 @@ mod tests {
                     &options,
                     rows,
                     [1, 1, 1],
+                    Some(&bar),
                 )
                 .unwrap();
+                assert_eq!(bar.snapshot().0, grid.len() as u64);
                 let ceres_io::Stored::Blocks(back) = ceres_io::read_parquet(&output, None).unwrap()
                 else {
                     panic!("expected a block model")
@@ -1540,6 +1558,7 @@ mod tests {
             &options,
             7,
             [1, 1, 1],
+            None,
         );
         assert!(r.is_err());
     }
@@ -1601,10 +1620,15 @@ mod tests {
                 &data_locs, &data_vals, None, None, None, data_trend, lo, hi, &vg, &params, 5,
             )
             .unwrap();
-            let whole = continuous(5, &options, |k| {
-                let at = trended.then_some(&at_nodes[..]);
-                support.mean(&ensemble.realization(k, &nodes, None, at)?)
-            })
+            let whole = continuous(
+                5,
+                &options,
+                |k| {
+                    let at = trended.then_some(&at_nodes[..]);
+                    support.mean(&ensemble.realization(k, &nodes, None, at)?)
+                },
+                None,
+            )
             .unwrap();
             let stream = |rows: usize, threads: usize| {
                 let output = input.with_extension(format!("{rows}-{threads}-{trended}.parquet"));
@@ -1628,6 +1652,7 @@ mod tests {
                             &options,
                             rows,
                             n,
+                            None,
                         )
                     })
                     .unwrap();
@@ -1660,6 +1685,7 @@ mod tests {
             &options,
             4,
             n,
+            None,
         );
         assert!(missing.is_err());
     }

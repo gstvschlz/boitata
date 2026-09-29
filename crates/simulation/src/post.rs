@@ -4,17 +4,19 @@
 //! Realizations are simulated in parallel batches and folded in realization
 //! order, so every summary is identical for any number of threads.
 
-use ceres_core::BlockModel;
+use ceres_core::{BlockModel, Progress};
 use rayon::prelude::*;
 
 use crate::error::{Result, SimError};
 
 /// Runs realizations `0..n` in parallel batches and hands them to `add` in
 /// order; at most one batch (one realization per thread) is held at a time.
+/// `progress`, when given, counts finished realizations.
 fn run<R: Send>(
     n: usize,
     simulate: impl Fn(usize) -> Result<R> + Sync,
     mut add: impl FnMut(R) -> Result<()>,
+    progress: Option<&Progress>,
 ) -> Result<()> {
     if n == 0 {
         return Err(SimError::InvalidParameters(
@@ -27,9 +29,17 @@ fn run<R: Send>(
             .into_par_iter()
             .map(&simulate)
             .collect::<Result<_>>()?;
+        let count = done.len() as u64;
         done.into_iter().try_for_each(&mut add)?;
+        tick(progress, count);
     }
     Ok(())
+}
+
+fn tick(progress: Option<&Progress>, n: u64) {
+    if let Some(p) = progress {
+        p.inc_by(n);
+    }
 }
 
 /// Which realizations a summary returns beside its statistics.
@@ -120,9 +130,10 @@ pub fn continuous(
     n: usize,
     options: &ContinuousOptions,
     simulate: impl Fn(usize) -> Result<Vec<f64>> + Sync,
+    progress: Option<&Progress>,
 ) -> Result<ContinuousSummary> {
     let mut acc = Accumulator::new(n, options)?;
-    run(n, simulate, |values| acc.add(values))?;
+    run(n, simulate, |values| acc.add(values), progress)?;
     Ok(acc.finish())
 }
 
@@ -134,6 +145,7 @@ pub fn continuous_batched(
     options: &ContinuousOptions,
     batch: usize,
     mut simulate: impl FnMut(std::ops::Range<usize>) -> Result<Vec<Vec<f64>>>,
+    progress: Option<&Progress>,
 ) -> Result<ContinuousSummary> {
     if n == 0 {
         return Err(SimError::InvalidParameters(
@@ -153,6 +165,7 @@ pub fn continuous_batched(
             )));
         }
         done.into_iter().try_for_each(|v| acc.add(v))?;
+        tick(progress, ks.len() as u64);
     }
     Ok(acc.finish())
 }
@@ -168,6 +181,7 @@ pub fn continuous_in_batches<B>(
     batch: usize,
     mut simulate: impl FnMut(std::ops::Range<usize>) -> Result<B>,
     realization: impl Fn(&B, usize) -> Result<Vec<f64>>,
+    progress: Option<&Progress>,
 ) -> Result<ContinuousSummary> {
     if n == 0 {
         return Err(SimError::InvalidParameters(
@@ -182,6 +196,7 @@ pub fn continuous_in_batches<B>(
         for i in 0..ks.len() {
             acc.add(realization(&prepared, i)?)?;
         }
+        tick(progress, ks.len() as u64);
     }
     Ok(acc.finish())
 }
@@ -194,18 +209,24 @@ pub fn continuous_many(
     variables: usize,
     options: &ContinuousOptions,
     simulate: impl Fn(usize) -> Result<Vec<Vec<f64>>> + Sync,
+    progress: Option<&Progress>,
 ) -> Result<Vec<ContinuousSummary>> {
     let mut accs = (0..variables)
         .map(|_| Accumulator::new(n, options))
         .collect::<Result<Vec<_>>>()?;
-    run(n, simulate, |values: Vec<Vec<f64>>| {
-        if values.len() != variables {
-            return Err(SimError::InvalidParameters(format!(
-                "one realization per variable ({variables}) needed"
-            )));
-        }
-        accs.iter_mut().zip(values).try_for_each(|(a, v)| a.add(v))
-    })?;
+    run(
+        n,
+        simulate,
+        |values: Vec<Vec<f64>>| {
+            if values.len() != variables {
+                return Err(SimError::InvalidParameters(format!(
+                    "one realization per variable ({variables}) needed"
+                )));
+            }
+            accs.iter_mut().zip(values).try_for_each(|(a, v)| a.add(v))
+        },
+        progress,
+    )?;
     Ok(accs.into_iter().map(Accumulator::finish).collect())
 }
 
@@ -217,6 +238,7 @@ pub fn continuous_many_batched(
     options: &ContinuousOptions,
     batch: usize,
     mut simulate: impl FnMut(std::ops::Range<usize>) -> Result<Vec<Vec<Vec<f64>>>>,
+    progress: Option<&Progress>,
 ) -> Result<Vec<ContinuousSummary>> {
     if n == 0 {
         return Err(SimError::InvalidParameters(
@@ -247,6 +269,7 @@ pub fn continuous_many_batched(
                 .zip(values)
                 .try_for_each(|(a, v)| a.add(v))?;
         }
+        tick(progress, ks.len() as u64);
     }
     Ok(accs.into_iter().map(Accumulator::finish).collect())
 }
@@ -416,6 +439,7 @@ pub fn categorical(
     k: usize,
     keep: &Keep,
     simulate: impl Fn(usize) -> Result<Vec<usize>> + Sync,
+    progress: Option<&Progress>,
 ) -> Result<CategoricalSummary> {
     if k == 0 {
         return Err(SimError::InvalidParameters(
@@ -426,33 +450,38 @@ pub fn categorical(
     let mut counts: Vec<Vec<u32>> = vec![];
     let mut proportions = Vec::with_capacity(n);
     let mut realizations = vec![];
-    run(n, simulate, |cats: Vec<usize>| {
-        if counts.is_empty() {
-            counts = vec![vec![0; cats.len()]; k];
-        }
-        if cats.len() != counts[0].len() {
-            return Err(SimError::InvalidParameters(
-                "realizations differ in length".into(),
-            ));
-        }
-        let mut share = vec![0.0; k];
-        for (i, &c) in cats.iter().enumerate() {
-            if c >= k {
-                return Err(SimError::InvalidParameters(format!(
-                    "category {c} outside 0..{k}"
-                )));
+    run(
+        n,
+        simulate,
+        |cats: Vec<usize>| {
+            if counts.is_empty() {
+                counts = vec![vec![0; cats.len()]; k];
             }
-            counts[c][i] += 1;
-            share[c] += 1.0;
-        }
-        let m = cats.len().max(1) as f64;
-        let index = proportions.len();
-        proportions.push(share.into_iter().map(|s| s / m).collect());
-        if keep.keeps(index) {
-            realizations.push(cats);
-        }
-        Ok(())
-    })?;
+            if cats.len() != counts[0].len() {
+                return Err(SimError::InvalidParameters(
+                    "realizations differ in length".into(),
+                ));
+            }
+            let mut share = vec![0.0; k];
+            for (i, &c) in cats.iter().enumerate() {
+                if c >= k {
+                    return Err(SimError::InvalidParameters(format!(
+                        "category {c} outside 0..{k}"
+                    )));
+                }
+                counts[c][i] += 1;
+                share[c] += 1.0;
+            }
+            let m = cats.len().max(1) as f64;
+            let index = proportions.len();
+            proportions.push(share.into_iter().map(|s| s / m).collect());
+            if keep.keeps(index) {
+                realizations.push(cats);
+            }
+            Ok(())
+        },
+        progress,
+    )?;
     let probabilities: Vec<Vec<f64>> = counts
         .iter()
         .map(|c| c.iter().map(|&c| c as f64 / n as f64).collect())
@@ -656,6 +685,24 @@ mod tests {
         Ok((0..5).map(|i| ((k * 7 + i * 3) % 11) as f64).collect())
     }
 
+    #[test]
+    fn progress_counts_each_realization_once_and_changes_nothing() {
+        let options = ContinuousOptions::default();
+        let bar = Progress::new(Some(23));
+        let with = continuous(23, &options, fake, Some(&bar)).unwrap();
+        assert_eq!(bar.snapshot(), (23, Some(23)));
+        assert_eq!(
+            with.mean,
+            continuous(23, &options, fake, None).unwrap().mean
+        );
+        let bar = Progress::new(Some(23));
+        continuous_batched(23, &options, 5, |ks| ks.map(fake).collect(), Some(&bar)).unwrap();
+        assert_eq!(bar.snapshot().0, 23);
+        let bar = Progress::new(Some(4));
+        categorical(4, 2, &Keep::None, |k| Ok(vec![k % 2]), Some(&bar)).unwrap();
+        assert_eq!(bar.snapshot().0, 4);
+    }
+
     fn with_threads<T: Send>(threads: usize, f: impl FnOnce() -> T + Send) -> T {
         rayon::ThreadPoolBuilder::new()
             .num_threads(threads)
@@ -671,16 +718,16 @@ mod tests {
             keep,
             ..Default::default()
         };
-        let all = continuous(5, &options(Keep::All), simulate).unwrap();
+        let all = continuous(5, &options(Keep::All), simulate, None).unwrap();
         assert_eq!(all.kept, vec![0, 1, 2, 3, 4]);
         assert_eq!(all.realizations.len(), 5);
-        let some = continuous(5, &options(Keep::Indices(vec![3, 1])), simulate).unwrap();
+        let some = continuous(5, &options(Keep::Indices(vec![3, 1])), simulate, None).unwrap();
         assert_eq!(some.kept, vec![1, 3]);
         assert_eq!(some.realizations, vec![vec![1.0, 10.0], vec![3.0, 30.0]]);
         assert_eq!(some.mean, all.mean);
-        let none = continuous(5, &options(Keep::None), simulate).unwrap();
+        let none = continuous(5, &options(Keep::None), simulate, None).unwrap();
         assert!(none.kept.is_empty() && none.realizations.is_empty());
-        let cats = categorical(4, 2, &Keep::Indices(vec![2]), |k| Ok(vec![k % 2])).unwrap();
+        let cats = categorical(4, 2, &Keep::Indices(vec![2]), |k| Ok(vec![k % 2]), None).unwrap();
         assert_eq!((cats.kept, cats.realizations), (vec![2], vec![vec![0]]));
     }
 
@@ -691,9 +738,9 @@ mod tests {
             ..Default::default()
         };
         let simulate = |_| Ok(vec![0.0]);
-        assert!(continuous(3, &options(Keep::Indices(vec![3])), simulate).is_err());
-        assert!(continuous(3, &options(Keep::Indices(vec![1, 1])), simulate).is_err());
-        assert!(categorical(3, 2, &Keep::Indices(vec![5]), |_| Ok(vec![0])).is_err());
+        assert!(continuous(3, &options(Keep::Indices(vec![3])), simulate, None).is_err());
+        assert!(continuous(3, &options(Keep::Indices(vec![1, 1])), simulate, None).is_err());
+        assert!(categorical(3, 2, &Keep::Indices(vec![5]), |_| Ok(vec![0]), None).is_err());
     }
 
     #[test]
@@ -703,13 +750,14 @@ mod tests {
             quantiles: vec![0.5],
             keep: Keep::All,
         };
-        let one = continuous(7, &options, fake).unwrap();
+        let one = continuous(7, &options, fake, None).unwrap();
         let batched = continuous_in_batches(
             7,
             &options,
             3,
             |range| Ok(range.map(|k| fake(k).unwrap()).collect::<Vec<_>>()),
             |b: &Vec<Vec<f64>>, i| Ok(b[i].clone()),
+            None,
         )
         .unwrap();
         assert_eq!(one.mean, batched.mean);
@@ -724,7 +772,7 @@ mod tests {
             quantiles: vec![0.1, 0.5, 0.9],
             keep: Keep::All,
         };
-        let s = continuous(23, &options, fake).unwrap();
+        let s = continuous(23, &options, fake, None).unwrap();
         let reals = s.realizations;
         for i in 0..5 {
             let mut col: Vec<f64> = reals.iter().map(|r| r[i]).collect();
@@ -750,8 +798,8 @@ mod tests {
             quantiles: vec![0.5],
             keep: Keep::None,
         };
-        let one = with_threads(1, || continuous(37, &options, fake).unwrap());
-        let many = with_threads(6, || continuous(37, &options, fake).unwrap());
+        let one = with_threads(1, || continuous(37, &options, fake, None).unwrap());
+        let many = with_threads(6, || continuous(37, &options, fake, None).unwrap());
         assert_eq!(one.mean, many.mean);
         assert_eq!(one.variance, many.variance);
         assert_eq!(one.realization_above, many.realization_above);
@@ -760,7 +808,14 @@ mod tests {
 
     #[test]
     fn category_probabilities_sum_to_one_and_entropy_is_bounded() {
-        let s = categorical(10, 3, &Keep::None, |k| Ok(vec![0, k % 3, (k / 4) % 2])).unwrap();
+        let s = categorical(
+            10,
+            3,
+            &Keep::None,
+            |k| Ok(vec![0, k % 3, (k / 4) % 2]),
+            None,
+        )
+        .unwrap();
         for i in 0..3 {
             let total: f64 = s.probabilities.iter().map(|p| p[i]).sum();
             assert!((total - 1.0).abs() < 1e-12);
@@ -803,8 +858,8 @@ mod tests {
         let support = BlockSupport::new(&fine, Some(&volumes), &grid(4.0, 2)).unwrap();
         let field = |k: usize| Ok((0..64).map(|i| ((k * 7 + i * 3) % 11) as f64).collect());
         let options = ContinuousOptions::default();
-        let node = continuous(19, &options, field).unwrap();
-        let block = continuous(19, &options, |k| support.mean(&field(k)?)).unwrap();
+        let node = continuous(19, &options, field, None).unwrap();
+        let block = continuous(19, &options, |k| support.mean(&field(k)?), None).unwrap();
         assert_eq!(support.mean(&node.mean).unwrap().len(), 4);
         for (a, b) in support.mean(&node.mean).unwrap().iter().zip(&block.mean) {
             assert!((a - b).abs() < 1e-12, "{a} vs {b}");
@@ -832,8 +887,8 @@ mod tests {
             sgs(&data, &values, None, None, &fine, &vg, &params, None).map(|r| r.values)
         };
         let options = ContinuousOptions::default();
-        let node = continuous(40, &options, realization).unwrap();
-        let block = continuous(40, &options, |k| support.mean(&realization(k)?)).unwrap();
+        let node = continuous(40, &options, realization, None).unwrap();
+        let block = continuous(40, &options, |k| support.mean(&realization(k)?), None).unwrap();
         let within = support.mean(&node.variance).unwrap();
         for (b, n) in block.variance.iter().zip(&within) {
             assert!(b <= &(n + 1e-12), "block {b} above nodes {n}");
@@ -859,7 +914,14 @@ mod tests {
         assert_eq!(support.majority(&[1, 2, 2, 1], 3).unwrap(), [1]);
         let heavier = BlockSupport::new(&fine, Some(&[1.0, 1.0, 1.0, 4.0]), &grid(2.0, 1)).unwrap();
         assert_eq!(heavier.majority(&[1, 1, 1, 2], 3).unwrap(), [2]);
-        let s = categorical(5, 3, &Keep::None, |_| support.majority(&[2, 0, 0, 2], 3)).unwrap();
+        let s = categorical(
+            5,
+            3,
+            &Keep::None,
+            |_| support.majority(&[2, 0, 0, 2], 3),
+            None,
+        )
+        .unwrap();
         assert_eq!(s.most_likely, [0]);
     }
 
@@ -875,8 +937,8 @@ mod tests {
 
     #[test]
     fn bad_input_is_an_error() {
-        assert!(continuous(0, &ContinuousOptions::default(), fake).is_err());
-        assert!(categorical(3, 2, &Keep::None, |_| Ok(vec![2])).is_err());
+        assert!(continuous(0, &ContinuousOptions::default(), fake, None).is_err());
+        assert!(categorical(3, 2, &Keep::None, |_| Ok(vec![2]), None).is_err());
     }
 
     /// Panels of 20 m holding 4 × 4 blocks of 5 m; the blocks overhang the
@@ -992,9 +1054,10 @@ mod tests {
             quantiles: vec![0.1, 0.5, 0.9],
             keep: Keep::All,
         };
-        let whole = continuous(23, &options, fake).unwrap();
+        let whole = continuous(23, &options, fake, None).unwrap();
         for batch in [1, 4, 23, 100] {
-            let s = continuous_batched(23, &options, batch, |ks| ks.map(fake).collect()).unwrap();
+            let s =
+                continuous_batched(23, &options, batch, |ks| ks.map(fake).collect(), None).unwrap();
             assert_eq!(s.mean, whole.mean);
             assert_eq!(s.variance, whole.variance);
             assert_eq!(s.probability_above, whole.probability_above);
@@ -1002,7 +1065,7 @@ mod tests {
             assert_eq!(s.realization_mean, whole.realization_mean);
             assert_eq!(s.realizations, whole.realizations);
         }
-        assert!(continuous_batched(3, &options, 4, |_| Ok(vec![])).is_err());
+        assert!(continuous_batched(3, &options, 4, |_| Ok(vec![]), None).is_err());
     }
 
     #[test]
@@ -1012,7 +1075,13 @@ mod tests {
             ..Default::default()
         };
         let value = |k: usize, i: usize| 1.0 + (k * 7 + i) as f64 * 1e-9 + 1.0 / 3.0;
-        let s = continuous(9, &options, |k| Ok((0..5).map(|i| value(k, i)).collect())).unwrap();
+        let s = continuous(
+            9,
+            &options,
+            |k| Ok((0..5).map(|i| value(k, i)).collect()),
+            None,
+        )
+        .unwrap();
         for i in 0..5 {
             let mut col: Vec<f64> = (0..9).map(|k| value(k, i)).collect();
             col.sort_by(f64::total_cmp);

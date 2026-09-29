@@ -17,6 +17,7 @@ use crate::containers::PyBlockModel;
 use crate::estimation::{Label, Search, codes, fit_codes, labels, searches, targets};
 use crate::invalid;
 use crate::persist::{self, Columns, Found, Tabular};
+use crate::progress::with_progress;
 use crate::variogram::Variogram;
 
 fn err(e: simulation::SimError) -> PyErr {
@@ -876,8 +877,9 @@ impl Sgs {
     /// `batch`, on a shared path, is the number of realizations simulated
     /// together, by default as many as fit in 70 % of the free memory; a run
     /// whose quantiles and kept realizations alone exceed that memory
-    /// raises InvalidInput. Realizations do not depend on `batch`.
-    #[pyo3(signature = (targets, *, n=100, seed=0, cutoffs=vec![], quantiles=vec![], keep=None, anisotropy=None, blocks=None, trend=None, domains=None, domain_column=None, secondary=None, path=None, batch=None))]
+    /// raises InvalidInput. Realizations do not depend on `batch`. `progress`
+    /// shows a `tqdm` bar over the realizations.
+    #[pyo3(signature = (targets, *, n=100, seed=0, cutoffs=vec![], quantiles=vec![], keep=None, anisotropy=None, blocks=None, trend=None, domains=None, domain_column=None, secondary=None, path=None, batch=None, progress=true))]
     #[allow(clippy::too_many_arguments)]
     fn simulate(
         &self,
@@ -896,6 +898,7 @@ impl Sgs {
         secondary: Option<&Bound<PyAny>>,
         path: Option<&str>,
         batch: Option<usize>,
+        progress: bool,
     ) -> PyResult<SimulationSummary> {
         let d = self.data.as_ref().ok_or_else(not_fitted)?;
         if !matches!(path, None | Some("shared" | "random")) {
@@ -983,74 +986,79 @@ impl Sgs {
                 levels: None,
                 seed,
             };
-            return py
-                .detach(|| {
-                    let collocated = rows.as_deref().map(|scores| simulation::Collocated {
-                        scores,
-                        correlation,
-                    });
-                    simulation::continuous_in_batches(
-                        n,
-                        &options,
-                        batch,
-                        |range| {
-                            simulation::sgs_shared(
-                                &d.locs,
-                                &d.values,
-                                d.weights.as_deref(),
-                                d.holes.as_deref(),
-                                d.domains.as_deref().zip(of_realization(&nodes, 0)),
-                                trend,
-                                &self.variogram,
-                                &shared,
-                                range,
-                                collocated.as_ref(),
-                            )
-                        },
-                        |b, i| averaged(&support, b.realization(i)),
-                    )
-                })
-                .map(SimulationSummary)
-                .map_err(err);
+            return with_progress(py, Some(n as u64), progress, |counter| {
+                let collocated = rows.as_deref().map(|scores| simulation::Collocated {
+                    scores,
+                    correlation,
+                });
+                simulation::continuous_in_batches(
+                    n,
+                    &options,
+                    batch,
+                    |range| {
+                        simulation::sgs_shared(
+                            &d.locs,
+                            &d.values,
+                            d.weights.as_deref(),
+                            d.holes.as_deref(),
+                            d.domains.as_deref().zip(of_realization(&nodes, 0)),
+                            trend,
+                            &self.variogram,
+                            &shared,
+                            range,
+                            collocated.as_ref(),
+                        )
+                    },
+                    |b, i| averaged(&support, b.realization(i)),
+                    counter,
+                )
+            })?
+            .map(SimulationSummary)
+            .map_err(err);
         }
-        py.detach(|| {
-            simulation::continuous(n, &options, |k| {
-                let params = SgsParams {
-                    search: search.clone(),
-                    seed: ceres_core::rng::realization_seed(seed, k as u64),
-                };
-                let domains = d.domains.as_deref().zip(of_realization(&nodes, k));
-                match &secondary {
-                    None => simulation::sgs_in(
-                        &d.locs,
-                        &d.values,
-                        d.weights.as_deref(),
-                        d.holes.as_deref(),
-                        domains,
-                        trend,
-                        &grid,
-                        &self.variogram,
-                        &params,
-                        local.as_ref(),
-                    ),
-                    Some((fitted, rows)) => simulation::cosgs(
-                        &d.locs,
-                        &d.values,
-                        d.weights.as_deref(),
-                        d.holes.as_deref(),
-                        domains,
-                        trend,
-                        &grid,
-                        &self.variogram,
-                        &params,
-                        local.as_ref(),
-                        fitted,
-                        &rows[k % rows.len()],
-                    ),
-                }
-                .and_then(|r| averaged(&support, r.values))
-            })
-        })
+        with_progress(py, Some(n as u64), progress, |counter| {
+            simulation::continuous(
+                n,
+                &options,
+                |k| {
+                    let params = SgsParams {
+                        search: search.clone(),
+                        seed: ceres_core::rng::realization_seed(seed, k as u64),
+                    };
+                    let domains = d.domains.as_deref().zip(of_realization(&nodes, k));
+                    match &secondary {
+                        None => simulation::sgs_in(
+                            &d.locs,
+                            &d.values,
+                            d.weights.as_deref(),
+                            d.holes.as_deref(),
+                            domains,
+                            trend,
+                            &grid,
+                            &self.variogram,
+                            &params,
+                            local.as_ref(),
+                        ),
+                        Some((fitted, rows)) => simulation::cosgs(
+                            &d.locs,
+                            &d.values,
+                            d.weights.as_deref(),
+                            d.holes.as_deref(),
+                            domains,
+                            trend,
+                            &grid,
+                            &self.variogram,
+                            &params,
+                            local.as_ref(),
+                            fitted,
+                            &rows[k % rows.len()],
+                        ),
+                    }
+                    .and_then(|r| averaged(&support, r.values))
+                },
+                counter,
+            )
+        })?
         .map(SimulationSummary)
         .map_err(err)
     }
@@ -1213,9 +1221,9 @@ impl TurningBands {
     /// label for all; a target in a domain without samples raises
     /// InvalidInput. Simulated domains, an ``(n, targets)`` array, give
     /// realization ``k`` of the grades the domains of row ``k``;
-    /// `domain_column` as in `SGS.simulate`.
+    /// `domain_column` and `progress` as in `SGS.simulate`.
     #[allow(clippy::too_many_arguments)]
-    #[pyo3(signature = (targets, *, n=100, seed=0, cutoffs=vec![], quantiles=vec![], keep=None, blocks=None, trend=None, domains=None, domain_column=None))]
+    #[pyo3(signature = (targets, *, n=100, seed=0, cutoffs=vec![], quantiles=vec![], keep=None, blocks=None, trend=None, domains=None, domain_column=None, progress=true))]
     fn simulate(
         &self,
         py: Python,
@@ -1229,6 +1237,7 @@ impl TurningBands {
         trend: Option<&Bound<PyAny>>,
         domains: Option<&Bound<PyAny>>,
         domain_column: Option<&str>,
+        progress: bool,
     ) -> PyResult<SimulationSummary> {
         let d = self.data.as_ref().ok_or_else(not_fitted)?;
         let grid = self::targets(targets)?;
@@ -1244,7 +1253,7 @@ impl TurningBands {
             keep: keep_arg(keep)?,
         };
         let (lo, hi) = simulation::bounds(&grid);
-        py.detach(|| {
+        with_progress(py, Some(n as u64), progress, |counter| {
             let ensemble = simulation::TurningBandsEnsemble::new(
                 &d.locs,
                 &d.values,
@@ -1258,19 +1267,25 @@ impl TurningBands {
                 &params,
                 n,
             )?;
-            simulation::continuous_batched(n, &options, ensemble.batch(grid.len()), |ks| {
-                ensemble
-                    .realizations(
-                        ks,
-                        &grid,
-                        |k| of_realization(&nodes, k),
-                        at_nodes.as_deref(),
-                    )?
-                    .into_iter()
-                    .map(|r| averaged(&support, r))
-                    .collect()
-            })
-        })
+            simulation::continuous_batched(
+                n,
+                &options,
+                ensemble.batch(grid.len()),
+                |ks| {
+                    ensemble
+                        .realizations(
+                            ks,
+                            &grid,
+                            |k| of_realization(&nodes, k),
+                            at_nodes.as_deref(),
+                        )?
+                        .into_iter()
+                        .map(|r| averaged(&support, r))
+                        .collect()
+                },
+                counter,
+            )
+        })?
         .map(SimulationSummary)
         .map_err(err)
     }
@@ -1303,7 +1318,7 @@ impl TurningBands {
     ///     ``simulate(model.discretize(discretization), blocks=model)``;
     ///     default the centroid. A node takes its block's domain and trend.
     #[allow(clippy::too_many_arguments)]
-    #[pyo3(signature = (path, out, *, n=100, seed=0, cutoffs=vec![], quantiles=vec![], keep=None, rows=1_000_000, domains=None, domain_column=None, trend=None, discretization=None))]
+    #[pyo3(signature = (path, out, *, n=100, seed=0, cutoffs=vec![], quantiles=vec![], keep=None, rows=1_000_000, domains=None, domain_column=None, trend=None, discretization=None, progress=true))]
     fn simulate_to_parquet<'py>(
         &self,
         py: Python<'py>,
@@ -1319,6 +1334,7 @@ impl TurningBands {
         domain_column: Option<&str>,
         trend: Option<String>,
         discretization: Option<(usize, usize, usize)>,
+        progress: bool,
     ) -> PyResult<Bound<'py, pyo3::types::PyDict>> {
         let domains = match (domains, domain_column) {
             (Some(_), Some(_)) => return Err(invalid("give one of domains or domain_column")),
@@ -1337,12 +1353,10 @@ impl TurningBands {
         if discretization.contains(&0) {
             return Err(invalid("discretization must be positive"));
         }
-        let blocks = match domains {
-            Some(_) => ceres_io::BlockModelReader::open(&path)
-                .map_err(|e| err(simulation::SimError::Io(e)))?
-                .len(),
-            None => 0,
-        };
+        let total = ceres_io::BlockModelReader::open(&path)
+            .map_err(|e| err(simulation::SimError::Io(e)))?
+            .len();
+        let blocks = if domains.is_some() { total } else { 0 };
         let nodes = node_domains(self.domains.as_deref(), domains, blocks, method)?;
         let params = self.params(seed, self.resolved()?);
         let options = ContinuousOptions {
@@ -1350,29 +1364,29 @@ impl TurningBands {
             quantiles,
             keep: keep_arg(keep)?,
         };
-        let global = py
-            .detach(|| {
-                simulation::turning_bands_to_parquet(
-                    path,
-                    out,
-                    &d.locs,
-                    &d.values,
-                    d.weights.as_deref(),
-                    d.holes.as_deref(),
-                    zoned(d, &nodes),
-                    d.trend
-                        .as_deref()
-                        .zip(trend.as_deref())
-                        .map(|(t, column)| (t, self.classes, column)),
-                    &self.variogram,
-                    &params,
-                    n,
-                    &options,
-                    rows,
-                    discretization,
-                )
-            })
-            .map_err(err)?;
+        let global = with_progress(py, Some(total as u64), progress, |counter| {
+            simulation::turning_bands_to_parquet(
+                path,
+                out,
+                &d.locs,
+                &d.values,
+                d.weights.as_deref(),
+                d.holes.as_deref(),
+                zoned(d, &nodes),
+                d.trend
+                    .as_deref()
+                    .zip(trend.as_deref())
+                    .map(|(t, column)| (t, self.classes, column)),
+                &self.variogram,
+                &params,
+                n,
+                &options,
+                rows,
+                discretization,
+                counter,
+            )
+        })?
+        .map_err(err)?;
         let result = pyo3::types::PyDict::new(py);
         result.set_item("realization_mean", array1(py, global.realization_mean))?;
         result.set_item(
@@ -1515,7 +1529,7 @@ impl Sis {
     /// node volume, ties to the smallest, as in `BlockModel.regularize`; blocks as in
     /// `SGS.simulate`. `proportions`, shape ``(targets, k)``, are the local
     /// category proportions at the targets, when `fit` had them at the samples.
-    #[pyo3(signature = (targets, *, n=100, seed=0, keep=None, blocks=None, proportions=None))]
+    #[pyo3(signature = (targets, *, n=100, seed=0, keep=None, blocks=None, proportions=None, progress=true))]
     #[allow(clippy::too_many_arguments)]
     fn simulate(
         &self,
@@ -1526,6 +1540,7 @@ impl Sis {
         keep: Option<&Bound<PyAny>>,
         blocks: Option<PyRef<PyBlockModel>>,
         proportions: Option<&Bound<PyAny>>,
+        progress: bool,
     ) -> PyResult<CategoricalSummary> {
         let (locs, cats) = self.data.as_ref().ok_or_else(not_fitted)?;
         let grid = self::targets(targets)?;
@@ -1542,26 +1557,32 @@ impl Sis {
         let local = self.local.as_deref().zip(at_grid.as_deref());
         let support = support(targets, &grid, blocks)?;
         let keep = keep_arg(keep)?;
-        py.detach(|| {
-            simulation::categorical(n, k, &keep, |i| {
-                let params = SisParams {
-                    search: self.search.clone(),
-                    seed: ceres_core::rng::realization_seed(seed, i as u64),
-                };
-                let holes = self.holes.as_deref();
-                simulation::sis(
-                    locs,
-                    cats,
-                    holes,
-                    &grid,
-                    k,
-                    &self.variograms,
-                    &params,
-                    local,
-                )
-                .and_then(|r| majority(&support, r.categories, k))
-            })
-        })
+        with_progress(py, Some(n as u64), progress, |counter| {
+            simulation::categorical(
+                n,
+                k,
+                &keep,
+                |i| {
+                    let params = SisParams {
+                        search: self.search.clone(),
+                        seed: ceres_core::rng::realization_seed(seed, i as u64),
+                    };
+                    let holes = self.holes.as_deref();
+                    simulation::sis(
+                        locs,
+                        cats,
+                        holes,
+                        &grid,
+                        k,
+                        &self.variograms,
+                        &params,
+                        local,
+                    )
+                    .and_then(|r| majority(&support, r.categories, k))
+                },
+                counter,
+            )
+        })?
         .map(CategoricalSummary)
         .map_err(err)
     }
@@ -1842,7 +1863,7 @@ impl Plurigaussian {
     /// Summary of `n` realizations; same options as `SIS.simulate`, and
     /// `proportions` of shape ``(targets, k)``, the local facies proportions
     /// at the targets, when `fit` had them at the samples.
-    #[pyo3(signature = (targets, *, n=100, seed=0, keep=None, blocks=None, proportions=None))]
+    #[pyo3(signature = (targets, *, n=100, seed=0, keep=None, blocks=None, proportions=None, progress=true))]
     #[allow(clippy::too_many_arguments)]
     fn simulate(
         &self,
@@ -1853,6 +1874,7 @@ impl Plurigaussian {
         keep: Option<&Bound<PyAny>>,
         blocks: Option<PyRef<PyBlockModel>>,
         proportions: Option<&Bound<PyAny>>,
+        progress: bool,
     ) -> PyResult<CategoricalSummary> {
         let (locs, facies) = self.data.as_ref().ok_or_else(not_fitted)?;
         let grid = self::targets(targets)?;
@@ -1868,22 +1890,28 @@ impl Plurigaussian {
         let support = support(targets, &grid, blocks)?;
         let k = self.facies();
         let keep = keep_arg(keep)?;
-        py.detach(|| {
-            simulation::categorical(n, k, &keep, |i| {
-                let params = PgsParams {
-                    seed: ceres_core::rng::realization_seed(seed, i as u64),
-                    ..Default::default()
-                };
-                let (vgs, rule) = (&self.variograms, &self.rule);
-                match (&local, &self.hierarchy) {
-                    (Some((at_data, at_grid)), Some(tree)) => simulation::plurigaussian_local(
-                        locs, facies, &grid, vgs, tree, at_data, at_grid, &params,
-                    ),
-                    _ => simulation::plurigaussian(locs, facies, &grid, vgs, rule, &params),
-                }
-                .and_then(|f| majority(&support, f, k))
-            })
-        })
+        with_progress(py, Some(n as u64), progress, |counter| {
+            simulation::categorical(
+                n,
+                k,
+                &keep,
+                |i| {
+                    let params = PgsParams {
+                        seed: ceres_core::rng::realization_seed(seed, i as u64),
+                        ..Default::default()
+                    };
+                    let (vgs, rule) = (&self.variograms, &self.rule);
+                    match (&local, &self.hierarchy) {
+                        (Some((at_data, at_grid)), Some(tree)) => simulation::plurigaussian_local(
+                            locs, facies, &grid, vgs, tree, at_data, at_grid, &params,
+                        ),
+                        _ => simulation::plurigaussian(locs, facies, &grid, vgs, rule, &params),
+                    }
+                    .and_then(|f| majority(&support, f, k))
+                },
+                counter,
+            )
+        })?
         .map(CategoricalSummary)
         .map_err(err)
     }
@@ -2648,7 +2676,9 @@ impl MultivariateSimulation {
     /// -------
     /// list of SimulationSummary
     ///     One per variable, in column order.
-    #[pyo3(signature = (targets, *, n=100, seed=0, cutoffs=vec![], quantiles=vec![], keep=None, anisotropy=None, blocks=None))]
+    ///
+    /// `progress` shows a `tqdm` bar over the realizations.
+    #[pyo3(signature = (targets, *, n=100, seed=0, cutoffs=vec![], quantiles=vec![], keep=None, anisotropy=None, blocks=None, progress=true))]
     #[allow(clippy::too_many_arguments)]
     fn simulate(
         &self,
@@ -2661,6 +2691,7 @@ impl MultivariateSimulation {
         keep: Option<&Bound<PyAny>>,
         anisotropy: Option<PyRef<crate::lva::LocalAnisotropy>>,
         blocks: Option<PyRef<PyBlockModel>>,
+        progress: bool,
     ) -> PyResult<Vec<SimulationSummary>> {
         let f = self.fitted.as_ref().ok_or_else(not_fitted)?;
         let grid = self::targets(targets)?;
@@ -2679,7 +2710,7 @@ impl MultivariateSimulation {
                 matches!(factor, Factor::Bands(_, params)
                     if f.imputed.is_none() || params.search.high_grade.is_none())
             });
-        py.detach(|| {
+        with_progress(py, Some(n as u64), progress, |counter| {
             if bands_only {
                 let p = self.factors.len();
                 let (lo, hi) = simulation::bounds(&grid);
@@ -2729,6 +2760,7 @@ impl MultivariateSimulation {
                         )?
                         .realizations(0..ks.len(), &grid, |_| None, None)
                     },
+                    counter,
                 );
             }
             simulation::multivariate(
@@ -2782,8 +2814,9 @@ impl MultivariateSimulation {
                     }
                     .values)
                 },
+                counter,
             )
-        })
+        })?
         .map(|s| s.into_iter().map(SimulationSummary).collect())
         .map_err(err)
     }
