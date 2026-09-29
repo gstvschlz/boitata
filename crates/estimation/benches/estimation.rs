@@ -140,5 +140,78 @@ fn systems(c: &mut Criterion) {
     });
 }
 
-criterion_group!(benches, bench, growth, kriging, systems);
+/// 40 x 40 holes 30 m apart, 100 composites of 4 m each, slightly inclined.
+fn drill_holes() -> Vec<Sample> {
+    let mut state = 7u64;
+    let mut next = move || {
+        state = state
+            .wrapping_mul(6364136223846793005)
+            .wrapping_add(1442695040888963407);
+        (state >> 11) as f64 / (1u64 << 53) as f64
+    };
+    let mut out = vec![];
+    for h in 0..1600u32 {
+        let (x0, y0) = ((h % 40) as f64 * 30.0, (h / 40) as f64 * 30.0);
+        let (dx, dy) = (next() - 0.5, next() - 0.5);
+        for k in 0..100 {
+            let d = k as f64 * 4.0 + 2.0;
+            let loc = (x0 + dx * 0.3 * d, y0 + dy * 0.3 * d, 400.0 - d);
+            out.push(Sample::with_hole(loc, next(), h));
+        }
+    }
+    out
+}
+
+/// Block centroids 5 m apart, as a block model queries them.
+fn constrained(c: &mut Criterion) {
+    let samples = drill_holes();
+    let targets: Vec<(f64, f64, f64)> = (0..20_000)
+        .map(|i| {
+            (
+                300.0 + (i % 40) as f64 * 5.0,
+                300.0 + (i / 40 % 25) as f64 * 5.0,
+                50.0 + (i / 1000) as f64 * 5.0,
+            )
+        })
+        .collect();
+    let base = Search {
+        min_samples: 4,
+        max_samples: 32,
+        radius: 200.0,
+        ..Default::default()
+    };
+    let cases = [
+        ("plain", base.clone()),
+        (
+            "max_per_hole 4",
+            Search {
+                max_per_hole: Some(4),
+                ..base.clone()
+            },
+        ),
+        (
+            "octant + max_per_hole 4",
+            Search {
+                max_per_hole: Some(4),
+                octant: true,
+                ..base.clone()
+            },
+        ),
+    ];
+    let mut group = c.benchmark_group("20 000 queries among drill holes");
+    group.sample_size(10);
+    for (label, search) in cases {
+        let tree = SearchTree::new(&samples, &search, None);
+        group.bench_function(label, |b| {
+            b.iter(|| {
+                for t in &targets {
+                    black_box(tree.neighbors(t).ok());
+                }
+            })
+        });
+    }
+    group.finish();
+}
+
+criterion_group!(benches, bench, growth, kriging, systems, constrained);
 criterion_main!(benches);
