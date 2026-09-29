@@ -263,8 +263,8 @@ print(f"mean {summary.mean.mean():.2f} % Zn; blocks above 5 % in more than 90 % 
 </details>
 
 ```text
-4417 parent blocks: P10 42%, P90 51% of them above 5 % Zn
-mean 5.29 % Zn; blocks above 5 % in more than 90 % of realizations: 1%
+4417 parent blocks: P10 43%, P90 50% of them above 5 % Zn
+mean 5.30 % Zn; blocks above 5 % in more than 90 % of realizations: 1%
 ```
 
 In eight realizations out of ten, between 42 and 51 % of the parent blocks exceed 5 % Zn, yet only 1 % of them do

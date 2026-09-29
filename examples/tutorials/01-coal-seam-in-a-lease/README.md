@@ -168,10 +168,10 @@ fig, axes = plt.subplots(1, 3, figsize=(11, 3.4), layout="constrained")
 for ax, name in zip(axes[:2], estimates, strict=True):
     cs.plot.section(cells, name, ax=ax, colorbar=False, vmin=0, vmax=4.5)
     map_axes(ax, f"{name.capitalize()} kriging")
-fig.colorbar(axes[0].images[0], ax=axes[:2], shrink=0.8, label="Thickness (m)")
+fig.colorbar(axes[0].collections[0], ax=axes[:2], shrink=0.8, label="Thickness (m)")
 limit = np.abs(difference).max()
 cs.plot.section(cells, "difference", ax=axes[2], colorbar=False, cmap="RdBu", vmin=-limit, vmax=limit)
-fig.colorbar(axes[2].images[0], ax=axes[2], shrink=0.8, label="Universal - ordinary (m)")
+fig.colorbar(axes[2].collections[0], ax=axes[2], shrink=0.8, label="Universal - ordinary (m)")
 map_axes(axes[2], "Difference")
 save(fig, "kriging")
 ```
@@ -291,13 +291,13 @@ save(fig, "tonnes")
 
 ```text
 Variogram(nugget=0.32547257276727426, structures=[Structure("spherical", sill=0.6745274272327257, range=3908.50043827286)], rotation=(60.754957940474014, 0.0, 0.0), ratios=(0.3059102706452142, 1.0))
-total: P10 186.3 Mt, P50 189.1 Mt, P90 192.4 Mt; kriged 189.4 Mt
-P10-P90 spread ±1.6% of P50
+total: P10 185.4 Mt, P50 189.4 Mt, P90 192.6 Mt; kriged 189.4 Mt
+P10-P90 spread ±1.9% of P50
 ```
 
 ![tonnes](tonnes.png)
 
-From P10 to P90 the simulated totals span 186.3 to 192.4 Mt, ±1.6 % around 189.1 Mt, and the kriged 189.4 Mt
+From P10 to P90 the simulated totals span 185.4 to 192.6 Mt, ±1.9 % around 189.4 Mt, and the kriged 189.4 Mt
 lies within. With a hole every 700 m or closer, errors in single cells cancel over the 7162 cells of the lease.
 The assumed density weighs more: 0.1 t/m³ either way moves the total more than the whole P10–P90 range.
 

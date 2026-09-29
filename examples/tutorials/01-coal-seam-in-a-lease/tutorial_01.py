@@ -138,10 +138,10 @@ fig, axes = plt.subplots(1, 3, figsize=(11, 3.4), layout="constrained")
 for ax, name in zip(axes[:2], estimates, strict=True):
     cs.plot.section(cells, name, ax=ax, colorbar=False, vmin=0, vmax=4.5)
     map_axes(ax, f"{name.capitalize()} kriging")
-fig.colorbar(axes[0].images[0], ax=axes[:2], shrink=0.8, label="Thickness (m)")
+fig.colorbar(axes[0].collections[0], ax=axes[:2], shrink=0.8, label="Thickness (m)")
 limit = np.abs(difference).max()
 cs.plot.section(cells, "difference", ax=axes[2], colorbar=False, cmap="RdBu", vmin=-limit, vmax=limit)
-fig.colorbar(axes[2].images[0], ax=axes[2], shrink=0.8, label="Universal - ordinary (m)")
+fig.colorbar(axes[2].collections[0], ax=axes[2], shrink=0.8, label="Universal - ordinary (m)")
 map_axes(axes[2], "Difference")
 save(fig, "kriging")
 
@@ -227,7 +227,7 @@ ax.set(xlabel="Coal in the lease (Mt)", ylabel="Realizations", title="Total tonn
 save(fig, "tonnes")
 
 # %% [markdown]
-# From P10 to P90 the simulated totals span 186.3 to 192.4 Mt, ±1.6 % around 189.1 Mt, and the kriged 189.4 Mt
+# From P10 to P90 the simulated totals span 185.4 to 192.6 Mt, ±1.9 % around 189.4 Mt, and the kriged 189.4 Mt
 # lies within. With a hole every 700 m or closer, errors in single cells cancel over the 7162 cells of the lease.
 # The assumed density weighs more: 0.1 t/m³ either way moves the total more than the whole P10–P90 range.
 
