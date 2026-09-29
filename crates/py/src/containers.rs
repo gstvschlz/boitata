@@ -1,7 +1,7 @@
 use arrow_array::BooleanArray;
 use ceres_core::{BlockModel, Geometry, Layout, PointSet, Polylines};
-use numpy::ndarray::Array2;
-use numpy::{IntoPyArray, PyArray1, PyArray2, PyReadonlyArray1, PyReadonlyArray2};
+use numpy::ndarray::{Array2, Array3};
+use numpy::{IntoPyArray, PyArray1, PyArray2, PyArray3, PyReadonlyArray1, PyReadonlyArray2};
 use pyo3::prelude::*;
 use pyo3::types::{PyCapsule, PyTuple};
 use pyo3_arrow::error::PyArrowResult;
@@ -691,6 +691,18 @@ impl PyBlockModel {
     #[getter]
     fn centroids<'py>(&self, py: Python<'py>) -> Bound<'py, PyArray2<f64>> {
         coords_array(py, &self.0.centroids())
+    }
+
+    /// `(n, 8, 3)` world-space corners of each row's box: vertex `c` (0..8)
+    /// takes the row's minimum extent on axis `a` if bit `a` of `c` is 0, its
+    /// maximum if 1.
+    #[getter]
+    fn corners<'py>(&self, py: Python<'py>) -> Bound<'py, PyArray3<f64>> {
+        let rows = self.0.corners();
+        let flat: Vec<f64> = rows.iter().flatten().flatten().copied().collect();
+        Array3::from_shape_vec((rows.len(), 8, 3), flat)
+            .expect("n x 8 x 3")
+            .into_pyarray(py)
     }
 
     /// Row holding each point.
