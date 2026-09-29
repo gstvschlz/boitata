@@ -48,8 +48,7 @@ for name, transform in {"PPMT": cs.PPMT(seed=7), "PCA": cs.PCA(standardize=True)
     simulation = cs.MultivariateSimulation(transform, [cs.TurningBands(v, search=search) for v in variograms])
     runs[name] = simulation.fit(logs, ["chalcocite", "tennantite"], weights=weights)
 reals = {
-    name: [s.realizations for s in sim.simulate(nodes, n=20, seed=1, realizations=True)]
-    for name, sim in runs.items()
+    name: [s.realizations for s in sim.simulate(nodes, n=20, seed=1, keep=True)] for name, sim in runs.items()
 }
 print(f"{len(nodes.centroids)} nodes, 20 realizations")
 ```
@@ -136,7 +135,7 @@ give other values, since the transform is not linear. Here 100 × 100 × 50 m bl
 <details><summary>Python</summary>
 
 ```python
-by_block = runs["PPMT"].simulate(nodes, n=20, seed=1, realizations=True, blocks=blocks)
+by_block = runs["PPMT"].simulate(nodes, n=20, seed=1, keep=True, blocks=blocks)
 for j, s in enumerate(by_block):
     print(
         f"{names[j]}: variance {reals['PPMT'][j].var(axis=1).mean():.2f} at nodes, "
@@ -172,7 +171,7 @@ simulation = cs.MultivariateSimulation(
     cs.PPMT(seed=7), [cs.TurningBands(v, search=search) for v in variograms]
 )
 simulation.fit(coords, holed, weights=weights, impute=True)
-a, b = (s.realizations for s in simulation.simulate(nodes, n=20, seed=1, realizations=True))
+a, b = (s.realizations for s in simulation.simulate(nodes, n=20, seed=1, keep=True))
 r = np.mean([np.corrcoef(x, y)[0, 1] for x, y in zip(a, b)])
 print(f"{hidden.sum()} of {len(pair)} composites miss tennantite")
 print(f"r {r:.2f}, tennantite q10, q50, q90: " + ", ".join(f"{v:.2f}" for v in np.quantile(b, qs)))

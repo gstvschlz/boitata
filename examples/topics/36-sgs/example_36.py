@@ -52,12 +52,12 @@ print(gaussian)
 # SGS normal-scores the data itself, simulates along a random path and back-transforms. 50 realizations, the same on
 # any number of threads. `simulate` returns a summary accumulated while it runs: the mean, variance and quantiles at
 # every node, the probability and mean above each cutoff, and each realization's global mean and share above the
-# cutoffs. Realizations are kept only when asked for, here to check them.
+# cutoffs. Realizations are kept only when asked for: here the first 20, to check them.
 
 # %%
 grid = cs.BlockModel(origin=(0.5, 0.5), size=(5, 5), count=(52, 60))
 sgs = cs.SGS(gaussian, cs.Search(radius=100, max_samples=24)).fit(samples, "V", weights=weights)
-summary = sgs.simulate(grid, n=50, seed=42, cutoffs=[500.0], quantiles=[0.1, 0.9], realizations=True)
+summary = sgs.simulate(grid, n=50, seed=42, cutoffs=[500.0], quantiles=[0.1, 0.9], keep=range(20))
 reals = summary.realizations
 etype = summary.mean
 p500 = summary.probability_above[:, 0]
@@ -124,12 +124,12 @@ a.step(
     where="post",
     label="declustered samples",
 )
-a.plot([], [], color=LIGHT, label="50 realizations")
+a.plot([], [], color=LIGHT, label="20 realizations")
 a.set(xlim=(0, 1600), xlabel="V (ppm)", ylabel="Cumulative probability", title="Histogram reproduction")
 a.legend(loc="lower right")
 
 xyz = grid.centroids
-for r in reals[:20]:
+for r in reals:
     scores = cs.NormalScore().fit_transform(r)
     exp = cs.experimental_variogram(xyz, scores, lag, max_lag, azimuth=azimuth)
     b.plot(exp.lags, exp.gammas, color=LIGHT, lw=0.8)

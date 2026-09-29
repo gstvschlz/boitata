@@ -47,11 +47,11 @@ and fits the correlation of the Co and Ni scores:
 nodes = cs.BlockModel(origin=(0.6, 0.55), size=(0.05, 0.05), count=(87, 103))
 search = cs.Search(radius=1.5, max_samples=24)
 ni_model = unit_sill(samples["Ni"])
-ni = cs.SGS(ni_model, search).fit(samples, "Ni").simulate(nodes, n=20, seed=1, realizations=True)
+ni = cs.SGS(ni_model, search).fit(samples, "Ni").simulate(nodes, n=20, seed=1, keep=True)
 model = unit_sill(samples["Co"])
-alone = cs.SGS(model, search).fit(samples, "Co").simulate(nodes, n=20, seed=100, realizations=True)
+alone = cs.SGS(model, search).fit(samples, "Co").simulate(nodes, n=20, seed=100, keep=True)
 cosgs = cs.SGS(model, search).fit(samples, "Co", secondary="Ni")
-with_ni = cosgs.simulate(nodes, n=20, seed=100, secondary=ni.realizations, realizations=True)
+with_ni = cosgs.simulate(nodes, n=20, seed=100, secondary=ni.realizations, keep=True)
 print(f"correlation of Co and Ni scores at the samples: {cosgs.correlation:.2f}")
 ```
 

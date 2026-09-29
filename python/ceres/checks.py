@@ -82,7 +82,7 @@ def _stack(realizations):
     for r in realizations:
         r = getattr(r, "realizations", r)
         if r is None:
-            raise InvalidInput("the summary holds no realizations; simulate with realizations=True")
+            raise InvalidInput("the summary holds no realizations; simulate with keep=")
         r = np.asarray(r)
         if r.ndim != 2:
             raise InvalidInput("realizations must be (n, targets) arrays")
@@ -122,7 +122,7 @@ def check_realizations(
     model : BlockModel
         The nodes the realizations were simulated at.
     realizations : SimulationSummary, CategoricalSummary, list of SimulationSummary or array_like
-        Summaries simulated with ``realizations=True`` (a list from `MultivariateSimulation`), or ``(n, targets)``
+        Summaries simulated with ``keep=`` (a list from `MultivariateSimulation`), or ``(n, targets)``
         arrays, one per variable; integer arrays are categories ``0..k``.
     data : PointSet or array_like, shape (m, 2) or (m, 3)
         Conditioning data, or their coordinates.

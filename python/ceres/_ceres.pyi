@@ -1016,7 +1016,7 @@ class SGS:
         seed: int = 0,
         cutoffs: Sequence[float] = (),
         quantiles: Sequence[float] = (),
-        realizations: bool = False,
+        keep: bool | Sequence[int] = False,
         anisotropy: LocalAnisotropy | None = None,
         blocks: BlockModel | None = None,
         trend: ArrayLike | Column | None = None,
@@ -1057,7 +1057,7 @@ class TurningBands:
         seed: int = 0,
         cutoffs: Sequence[float] = (),
         quantiles: Sequence[float] = (),
-        realizations: bool = False,
+        keep: bool | Sequence[int] = False,
         blocks: BlockModel | None = None,
         trend: ArrayLike | Column | None = None,
         domains: Label | Sequence[Label] | ArrayLike | None = None,
@@ -1102,7 +1102,7 @@ class MultivariateSimulation:
         seed: int = 0,
         cutoffs: Sequence[float] = (),
         quantiles: Sequence[float] = (),
-        realizations: bool = False,
+        keep: bool | Sequence[int] = False,
         anisotropy: LocalAnisotropy | None = None,
         blocks: BlockModel | None = None,
     ) -> list[SimulationSummary]: ...
@@ -1126,7 +1126,7 @@ class SIS:
         *,
         n: int = 100,
         seed: int = 0,
-        realizations: bool = False,
+        keep: bool | Sequence[int] = False,
         blocks: BlockModel | None = None,
         proportions: ArrayLike | Table | None = None,
     ) -> CategoricalSummary: ...
@@ -1161,7 +1161,7 @@ class Plurigaussian:
         *,
         n: int = 100,
         seed: int = 0,
-        realizations: bool = False,
+        keep: bool | Sequence[int] = False,
         blocks: BlockModel | None = None,
         proportions: ArrayLike | Table | None = None,
     ) -> CategoricalSummary: ...
@@ -1193,6 +1193,8 @@ class SimulationSummary:
     @property
     def realization_above(self) -> npt.NDArray[np.float64]: ...
     @property
+    def kept(self) -> list[int]: ...
+    @property
     def realizations(self) -> npt.NDArray[np.float64] | None: ...
 
 class CategoricalSummary:
@@ -1209,6 +1211,8 @@ class CategoricalSummary:
     def entropy(self) -> npt.NDArray[np.float64]: ...
     @property
     def proportions(self) -> npt.NDArray[np.float64]: ...
+    @property
+    def kept(self) -> list[int]: ...
     @property
     def realizations(self) -> npt.NDArray[np.int64] | None: ...
 

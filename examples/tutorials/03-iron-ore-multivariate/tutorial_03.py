@@ -151,7 +151,7 @@ for name, codes in domains.items():
     in_domain = block_domain[node_block] == name
     bh_in = block_domain[bh_block] == name
     targets = np.vstack([nodes.centroids[in_domain], blastholes.coords[bh_in]])
-    factors = simulation.simulate(targets, n=n, seed=1, realizations=True)
+    factors = simulation.simulate(targets, n=n, seed=1, keep=True)
     ilr = np.stack([f.realizations for f in factors], axis=-1)
     oxides = 100 * cs.ilr_inverse(ilr.reshape(-1, 6)).reshape(n, len(targets), 7)
     split = in_domain.sum()
@@ -180,7 +180,7 @@ for seed, (g, factor) in enumerate((("FE_PCT", 1.4297), ("SIO2_PCT", 1.0)), star
     alone.append(
         factor
         * bands.simulate(
-            nodes.centroids[block_domain[node_block] == "hematite"], n=n, seed=seed, realizations=True
+            nodes.centroids[block_domain[node_block] == "hematite"], n=n, seed=seed, keep=True
         ).realizations
     )
 hematite = at_blocks[:, block_domain == "hematite"]

@@ -252,10 +252,10 @@ def simulators():
         (
             cs.SGS(gaussian, near),
             {"values": values},
-            {"cutoffs": [1.0, 2.0], "quantiles": [0.1, 0.9], "realizations": True},
+            {"cutoffs": [1.0, 2.0], "quantiles": [0.1, 0.9], "keep": True},
         ),
         (cs.TurningBands(gaussian, bands=50, step=2.0), {"values": values}, {"cutoffs": [1.0]}),
-        (cs.SIS([gaussian] * 3, near), {"categories": facies}, {"realizations": True}),
+        (cs.SIS([gaussian] * 3, near), {"categories": facies}, {"keep": True}),
         (cs.Plurigaussian(gaussian, proportions=[0.4, 0.4, 0.2]), {"categories": facies}, {}),
         (
             cs.Plurigaussian([gaussian] * 2, proportions=[0.4, 0.4, 0.2], rule=(0, [0, (1, [1, 2])])),

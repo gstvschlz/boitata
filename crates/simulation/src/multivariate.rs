@@ -83,6 +83,7 @@ pub fn multivariate(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::post::Keep;
     use crate::sgs::{SgsParams, sgs};
     use estimation::Search;
     use rand::rngs::StdRng;
@@ -125,7 +126,7 @@ mod tests {
         let factors = transform.forward(data);
         let vg = Variogram::single(Model::Spherical, 1.0, 15.0);
         let options = ContinuousOptions {
-            keep: true,
+            keep: Keep::All,
             ..Default::default()
         };
         multivariate(n, 3, 2, &transform, &options, None, |_, j, seed| {
@@ -186,10 +187,7 @@ mod tests {
     fn reproduces_declustered_histograms_and_correlation() {
         let (locs, data, weights) = samples();
         let out = simulate(&locs, &data, &weights, &grid(), 8);
-        let reals: Vec<&Vec<Vec<f64>>> = out
-            .iter()
-            .map(|s| s.realizations.as_ref().unwrap())
-            .collect();
+        let reals: Vec<&Vec<Vec<f64>>> = out.iter().map(|s| &s.realizations).collect();
         for (v, r) in reals.iter().enumerate() {
             let column: Vec<f64> = data.iter().map(|row| row[v]).collect();
             let pooled: Vec<f64> = r.iter().flatten().copied().collect();
@@ -231,8 +229,8 @@ mod tests {
         };
         let (one, four) = (run(1), run(4));
         for v in 0..2 {
-            let reals = one[v].realizations.as_ref().unwrap();
-            assert_eq!(reals, four[v].realizations.as_ref().unwrap());
+            let reals = &one[v].realizations;
+            assert_eq!(reals, &four[v].realizations);
             for r in reals {
                 for (i, value) in r.iter().enumerate() {
                     assert!(

@@ -30,7 +30,7 @@ pub use pgs::{
     Hierarchy, PgsParams, Region, TruncationRule, fit_latent, plurigaussian, plurigaussian_local,
 };
 pub use post::{
-    BlockSupport, CategoricalSummary, ContinuousOptions, ContinuousSummary, categorical,
+    BlockSupport, CategoricalSummary, ContinuousOptions, ContinuousSummary, Keep, categorical,
     continuous, continuous_many, localize, quantile_sorted,
 };
 pub use sgs::{

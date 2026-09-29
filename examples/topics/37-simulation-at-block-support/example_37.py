@@ -103,7 +103,7 @@ kriged = cs.BlockKriging(grade, search, size=(size, size), discretization=(5, 5,
 smus = smus.with_column("kriged", kriged)
 
 west = cs.BlockModel(origin=(0.5, 0.5), size=(2.5, 2.5), count=(100, 120))
-ensemble = sgs.simulate(west, n=30, seed=11, blocks=smus, realizations=True)
+ensemble = sgs.simulate(west, n=30, seed=11, blocks=smus, keep=True)
 localized = cs.localize(smus, "kriged", panels, ensemble.realizations)["localized"]
 true_smu = truth[:, :250].reshape(30, size, 25, size).mean(axis=(1, 3))
 for label, values in (("kriged", kriged), ("localized", localized)):

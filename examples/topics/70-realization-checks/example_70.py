@@ -43,7 +43,7 @@ gaussian = cs.Variogram(
 )
 grid = cs.BlockModel(origin=(0.5, 0.5), size=(5, 5), count=(52, 60))
 sgs = cs.SGS(gaussian, cs.Search(radius=100, max_samples=24)).fit(samples, "V", weights=weights)
-summary = sgs.simulate(grid, n=50, seed=42, realizations=True)
+summary = sgs.simulate(grid, n=50, seed=42, keep=True)
 
 # %% [markdown]
 # One call checks them all. Given the model, the variograms run along its azimuth and across it, in the normal scores
@@ -97,7 +97,7 @@ simulators = [
     cs.TurningBands(cs.experimental_variogram(coords, f, 25.0, 300.0).fit("spherical")) for f in factors.T
 ]
 simulation = cs.MultivariateSimulation(ppmt, simulators).fit(logs, names, weights=weights)
-reals = simulation.simulate(nodes, n=20, seed=1, realizations=True)
+reals = simulation.simulate(nodes, n=20, seed=1, keep=True)
 
 multi = cs.check_realizations(
     nodes, reals, logs, names, weights=weights, lag=25.0, max_lag=200.0, directions=[(0, 0), (90, 0), (0, 90)]

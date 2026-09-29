@@ -30,7 +30,7 @@ SIMULATORS = {
 def realizations(name, n, seed):
     if name == "bootstrap":
         return cs.spatial_bootstrap(coords, values, v, n=n, seed=seed)["mean"][:, None]
-    s = SIMULATORS[name]().simulate(grid, n=n, seed=seed, realizations=True)
+    s = SIMULATORS[name]().simulate(grid, n=n, seed=seed, keep=True)
     if isinstance(s, list):
         return np.hstack([x.realizations for x in s])
     return s.realizations
