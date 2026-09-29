@@ -122,36 +122,52 @@ fn write_gslib(
 /// Writes a PointSet, a BlockModel, Polylines or any table to Parquet;
 /// containers keep their geometry, layout and CRS in the file metadata.
 /// Polylines are stored one row per feature, as ``Polylines.to_table``.
+/// `progress` shows a `tqdm` bar.
 #[pyfunction]
-fn write_parquet(py: Python, path: PathBuf, data: &Bound<PyAny>) -> PyResult<()> {
+#[pyo3(signature = (path, data, *, progress=true))]
+fn write_parquet(py: Python, path: PathBuf, data: &Bound<PyAny>, progress: bool) -> PyResult<()> {
     if let Ok(points) = data.cast::<PyPointSet>() {
         let points = &points.get().0;
-        return py
-            .detach(|| ceres_io::write_points(path, points))
-            .map_err(io_error);
+        let total = Some(points.len() as u64);
+        return with_progress(py, total, progress, |counter| {
+            ceres_io::write_points(path, points, counter)
+        })?
+        .map_err(io_error);
     }
     if let Ok(lines) = data.cast::<PyPolylines>() {
         let lines = &lines.get().0;
-        return py
-            .detach(|| ceres_io::write_polylines(path, lines))
-            .map_err(io_error);
+        let total = Some(lines.len() as u64);
+        return with_progress(py, total, progress, |counter| {
+            ceres_io::write_polylines(path, lines, counter)
+        })?
+        .map_err(io_error);
     }
     if let Ok(model) = data.cast::<PyBlockModel>() {
         let model = &model.get().0;
-        return py
-            .detach(|| ceres_io::write_block_model(path, model))
-            .map_err(io_error);
+        let total = Some(model.len() as u64);
+        return with_progress(py, total, progress, |counter| {
+            ceres_io::write_block_model(path, model, counter)
+        })?
+        .map_err(io_error);
     }
     let (schema, batches) = to_batches(data)?;
-    py.detach(|| ceres_io::write_parquet_batches(path, schema, &batches))
-        .map_err(io_error)
+    let total = Some(batches.iter().map(|b| b.num_rows() as u64).sum());
+    with_progress(py, total, progress, |counter| {
+        ceres_io::write_parquet_batches(path, schema, &batches, counter)
+    })?
+    .map_err(io_error)
 }
 
 /// Reads Parquet as the PointSet, BlockModel or Polylines it was written
-/// from, or a Table.
+/// from, or a Table. `progress` shows a `tqdm` bar.
 #[pyfunction]
-fn read_parquet(py: Python, path: PathBuf) -> PyResult<Py<PyAny>> {
-    Ok(match ceres_io::read_parquet(path).map_err(io_error)? {
+#[pyo3(signature = (path, *, progress=true))]
+fn read_parquet(py: Python, path: PathBuf, progress: bool) -> PyResult<Py<PyAny>> {
+    let stored = with_progress(py, None, progress, |counter| {
+        ceres_io::read_parquet(path, counter)
+    })?
+    .map_err(io_error)?;
+    Ok(match stored {
         ceres_io::Stored::Polylines(l) => Py::new(py, PyPolylines(l))?.into_any(),
         ceres_io::Stored::Points(p) => PyPointSet(p).into_pyobject(py)?.into_any().unbind(),
         ceres_io::Stored::Blocks(b) => PyBlockModel(b).into_pyobject(py)?.into_any().unbind(),
