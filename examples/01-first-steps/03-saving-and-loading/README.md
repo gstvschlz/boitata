@@ -3,7 +3,7 @@
 Models, transforms and searches save to JSON: `to_json` returns a string and the class's `from_json` builds the
 object back from it. A fitted transform keeps what it learned, so the loaded copy transforms new values the same
 way. Containers and fitted estimators hold columns and go to Parquet instead
-([storing containers in Parquet](../04-parquet/README.md)).
+([storing containers in Parquet](../../01-first-steps/04-parquet/README.md)).
 
 <details><summary>Python</summary>
 
