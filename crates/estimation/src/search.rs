@@ -232,6 +232,43 @@ fn metric<'a>(params: &'a Search, vg: Option<&'a Variogram>) -> Option<&'a Aniso
         .or_else(|| vg.and_then(|v| v.anisotropy.as_ref()))
 }
 
+/// Whether `a` with variogram `va` and `b` with `vb` select the same
+/// neighbors from the same sample locations, whatever the values: same
+/// parameters and ellipsoid, and no high-grade restriction, which depends
+/// on values.
+pub fn same_neighborhood(
+    a: &Search,
+    va: Option<&Variogram>,
+    b: &Search,
+    vb: Option<&Variogram>,
+) -> bool {
+    a.high_grade.is_none()
+        && b.high_grade.is_none()
+        && a.min_samples == b.min_samples
+        && a.max_samples == b.max_samples
+        && a.radius == b.radius
+        && a.max_per_hole == b.max_per_hole
+        && a.octant == b.octant
+        && a.soft == b.soft
+        && metric(a, va).map(|m| &m.angles) == metric(b, vb).map(|m| &m.angles)
+}
+
+/// Indices of `searches` grouped by [`same_neighborhood`]: each group in
+/// index order, groups in the order of their first index.
+pub fn neighborhood_groups(searches: &[(&Search, Option<&Variogram>)]) -> Vec<Vec<usize>> {
+    let mut groups: Vec<Vec<usize>> = vec![];
+    for (i, &(s, v)) in searches.iter().enumerate() {
+        match groups.iter_mut().find(|g| {
+            let (t, w) = searches[g[0]];
+            same_neighborhood(s, v, t, w)
+        }) {
+            Some(g) => g.push(i),
+            None => groups.push(vec![i]),
+        }
+    }
+    groups
+}
+
 /// Sectors around a target: octants split by the axes of the search
 /// ellipsoid, or quadrants split by its horizontal axes when the data are 2D.
 #[derive(Clone, Copy)]
@@ -714,6 +751,70 @@ impl SearchTree {
 mod tests {
     use super::*;
     use variogram::Angles;
+
+    fn tilted(azimuth: f64) -> Variogram {
+        Variogram::single(variogram::Model::Spherical, 1.0, 100.0).with_anisotropy(
+            variogram::Anisotropy::new(Angles {
+                azimuth,
+                dip: 0.0,
+                rake: 0.0,
+                major: 1.0,
+                semi: 0.5,
+                minor: 0.5,
+            })
+            .unwrap(),
+        )
+    }
+
+    #[test]
+    fn factors_share_a_search_only_with_the_same_ellipsoid_and_parameters() {
+        let plain = Search {
+            max_samples: 24,
+            radius: 150.0,
+            ..Default::default()
+        };
+        let (north, east) = (tilted(0.0), tilted(90.0));
+        let per_hole = Search {
+            max_per_hole: Some(4),
+            ..plain.clone()
+        };
+        let groups = neighborhood_groups(&[
+            (&plain, Some(&north)),
+            (&plain, Some(&east)),
+            (&plain, Some(&north)),
+            (&per_hole, Some(&north)),
+        ]);
+        assert_eq!(groups, vec![vec![0, 2], vec![1], vec![3]]);
+    }
+
+    #[test]
+    fn an_explicit_search_ellipsoid_overrides_the_variograms() {
+        let fixed = Search {
+            anisotropy: tilted(45.0).anisotropy,
+            ..Default::default()
+        };
+        assert!(same_neighborhood(
+            &fixed,
+            Some(&tilted(0.0)),
+            &fixed,
+            Some(&tilted(90.0))
+        ));
+    }
+
+    #[test]
+    fn a_high_grade_restriction_never_shares() {
+        let restricted = Search {
+            high_grade: Some(HighGrade::new(5.0, 20.0)),
+            ..Default::default()
+        };
+        let vg = tilted(0.0);
+        assert!(!same_neighborhood(
+            &restricted,
+            Some(&vg),
+            &restricted,
+            Some(&vg)
+        ));
+    }
 
     fn s(x: f64, y: f64, z: f64, v: f64, hole: Option<u32>) -> Sample {
         Sample {
