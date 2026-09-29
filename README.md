@@ -46,7 +46,7 @@ See [examples](https://github.com/gstvschlz/ceres/blob/main/examples/README.md).
 
 ## Examples
 
-- [First steps](https://github.com/gstvschlz/ceres/blob/main/examples/README.md#first-steps): storing containers in Parquet
+- [First steps](https://github.com/gstvschlz/ceres/blob/main/examples/README.md#first-steps): a quick tour, storing containers in Parquet
 - [Data and geometry](https://github.com/gstvschlz/ceres/blob/main/examples/README.md#data-and-geometry): drill holes, composites, block models, solids, meshes, GIS files
 - [Exploratory analysis](https://github.com/gstvschlz/ceres/blob/main/examples/README.md#exploratory-analysis): declustering, top cuts, contacts, swaths, data spacing
 - [Transforms](https://github.com/gstvschlz/ceres/blob/main/examples/README.md#transforms): normal scores, log-ratios, multivariate factors, imputation
