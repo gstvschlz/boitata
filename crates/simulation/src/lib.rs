@@ -73,3 +73,6 @@ pub(crate) fn holes(holes: Option<&[u32]>, n: usize) -> Result<Vec<Option<u32>>>
         Some(_) => Err(SimError::InvalidParameters("one hole per datum".into())),
     }
 }
+
+pub mod seam;
+pub use seam::{CutGraph, Side, path_cut, path_seam, surface_cut};
