@@ -81,6 +81,16 @@ pub fn krige(
     samples: &[Sample],
     vg: &Variogram,
 ) -> Result<Estimate> {
+    krige_lu(kind, target, samples, vg)
+}
+
+/// [`krige`] by LU with partial pivoting over the full bordered system.
+pub(crate) fn krige_lu(
+    kind: Kind,
+    target: &(f64, f64, f64),
+    samples: &[Sample],
+    vg: &Variogram,
+) -> Result<Estimate> {
     let n = samples.len();
     if n == 0 {
         return Err(EstimError::InsufficientData("no samples".into()));

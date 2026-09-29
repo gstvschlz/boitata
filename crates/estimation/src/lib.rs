@@ -20,6 +20,7 @@ pub mod disjunctive;
 pub mod error;
 pub mod idw;
 pub mod indicator;
+mod kernel;
 pub mod krige;
 pub mod kriging_algebra;
 pub mod lva;
