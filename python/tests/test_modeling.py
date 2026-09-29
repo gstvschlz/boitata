@@ -55,6 +55,20 @@ def test_sphere_isosurface_area():
         )
 
 
+def test_progress_does_not_change_output(capsys):
+    model = cs.ImplicitModel().fit(coords, distance)
+    blocks = cs.BlockModel(origin=(0, 0, 0), size=(5, 5, 5), count=(20, 20, 20))
+    off = model.predict(coords, progress=False)
+    mesh_off = model.isosurface(blocks, progress=False)
+    assert capsys.readouterr().err == ""
+    np.testing.assert_array_equal(model.predict(coords, progress=True), off)
+    assert "100%" in capsys.readouterr().err
+    mesh_on = model.isosurface(blocks, progress=True)
+    assert "100%" in capsys.readouterr().err
+    np.testing.assert_array_equal(mesh_on.vertices, mesh_off.vertices)
+    np.testing.assert_array_equal(mesh_on.triangles, mesh_off.triangles)
+
+
 def test_planes_with_boundaries():
     xy = rng.uniform(0, 100, (20, 2))
     on_plane = np.c_[xy, 0.5 * xy[:, 0]]
