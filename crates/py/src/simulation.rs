@@ -41,6 +41,25 @@ fn matrix<'py, T: numpy::Element + Copy>(
         .into_pyarray(py)
 }
 
+/// `keep=`: False, True or 0-based realization indices.
+fn keep_arg(keep: Option<&Bound<PyAny>>) -> PyResult<simulation::Keep> {
+    let Some(keep) = keep else {
+        return Ok(simulation::Keep::None);
+    };
+    if let Ok(flag) = keep.cast::<pyo3::types::PyBool>() {
+        return Ok(match flag.is_true() {
+            true => simulation::Keep::All,
+            false => simulation::Keep::None,
+        });
+    }
+    if keep.is_instance_of::<pyo3::types::PyString>() {
+        return Err(invalid("keep must be a bool or realization indices"));
+    }
+    keep.extract::<Vec<usize>>()
+        .map(simulation::Keep::Indices)
+        .map_err(|_| invalid("keep must be a bool or non-negative realization indices"))
+}
+
 fn int_rows(rows: &[Vec<usize>]) -> Vec<Vec<i64>> {
     rows.iter()
         .map(|r| r.iter().map(|&c| c as i64).collect())
@@ -140,13 +159,16 @@ impl SimulationSummary {
         by_target(py, &self.0.realization_above, self.0.n)
     }
 
-    /// `(n, targets)` realizations when simulated with `realizations=True`.
+    /// Indices of the realizations kept with `keep=`.
+    #[getter]
+    fn kept(&self) -> Vec<usize> {
+        self.0.kept.clone()
+    }
+
+    /// `(len(kept), targets)` kept realizations; None when none were kept.
     #[getter]
     fn realizations<'py>(&self, py: Python<'py>) -> Option<Bound<'py, PyArray2<f64>>> {
-        self.0
-            .realizations
-            .as_ref()
-            .map(|r| matrix(py, r, self.0.mean.len()))
+        (!self.0.kept.is_empty()).then(|| matrix(py, &self.0.realizations, self.0.mean.len()))
     }
 
     fn __repr__(&self) -> String {
@@ -218,13 +240,22 @@ impl CategoricalSummary {
         matrix(py, &self.0.proportions, self.0.probabilities.len())
     }
 
-    /// `(n, targets)` realizations when simulated with `realizations=True`.
+    /// Indices of the realizations kept with `keep=`.
+    #[getter]
+    fn kept(&self) -> Vec<usize> {
+        self.0.kept.clone()
+    }
+
+    /// `(len(kept), targets)` kept realizations; None when none were kept.
     #[getter]
     fn realizations<'py>(&self, py: Python<'py>) -> Option<Bound<'py, PyArray2<i64>>> {
-        self.0
-            .realizations
-            .as_ref()
-            .map(|r| matrix(py, &int_rows(r), self.0.most_likely.len()))
+        (!self.0.kept.is_empty()).then(|| {
+            matrix(
+                py,
+                &int_rows(&self.0.realizations),
+                self.0.most_likely.len(),
+            )
+        })
     }
 
     fn __repr__(&self) -> String {
@@ -799,7 +830,7 @@ impl Sgs {
     /// Summary of `n` realizations at `targets`, each seeded from `seed` and
     /// its index,
     /// with the probability and mean above each of `cutoffs` and the values at
-    /// `quantiles`; the ``(n, targets)`` realizations only when `realizations`.
+    /// `quantiles`; the ``(n, targets)`` realizations only when `keep`.
     /// `anisotropy` (a LocalAnisotropy) orients each node's variogram and search.
     /// With `blocks` (a coarser BlockModel), each realization is averaged to
     /// its blocks, weighted by node volume, and summarized at block support;
@@ -818,7 +849,7 @@ impl Sgs {
     /// a column of PointSet or BlockModel targets, or an ``(n, targets)``
     /// array such as the `realizations` of a simulation of the secondary,
     /// realization ``k`` then cosimulated with row ``k``.
-    #[pyo3(signature = (targets, *, n=100, seed=0, cutoffs=vec![], quantiles=vec![], realizations=false, anisotropy=None, blocks=None, trend=None, domains=None, domain_column=None, secondary=None))]
+    #[pyo3(signature = (targets, *, n=100, seed=0, cutoffs=vec![], quantiles=vec![], keep=None, anisotropy=None, blocks=None, trend=None, domains=None, domain_column=None, secondary=None))]
     #[allow(clippy::too_many_arguments)]
     fn simulate(
         &self,
@@ -828,7 +859,7 @@ impl Sgs {
         seed: u64,
         cutoffs: Vec<f64>,
         quantiles: Vec<f64>,
-        realizations: bool,
+        keep: Option<&Bound<PyAny>>,
         anisotropy: Option<PyRef<crate::lva::LocalAnisotropy>>,
         blocks: Option<PyRef<PyBlockModel>>,
         trend: Option<&Bound<PyAny>>,
@@ -858,7 +889,7 @@ impl Sgs {
         let options = ContinuousOptions {
             cutoffs,
             quantiles,
-            keep: realizations,
+            keep: keep_arg(keep)?,
         };
         py.detach(|| {
             simulation::continuous(n, &options, |k| {
@@ -1062,7 +1093,7 @@ impl TurningBands {
     /// realization ``k`` of the grades the domains of row ``k``;
     /// `domain_column` as in `SGS.simulate`.
     #[allow(clippy::too_many_arguments)]
-    #[pyo3(signature = (targets, *, n=100, seed=0, cutoffs=vec![], quantiles=vec![], realizations=false, blocks=None, trend=None, domains=None, domain_column=None))]
+    #[pyo3(signature = (targets, *, n=100, seed=0, cutoffs=vec![], quantiles=vec![], keep=None, blocks=None, trend=None, domains=None, domain_column=None))]
     fn simulate(
         &self,
         py: Python,
@@ -1071,7 +1102,7 @@ impl TurningBands {
         seed: u64,
         cutoffs: Vec<f64>,
         quantiles: Vec<f64>,
-        realizations: bool,
+        keep: Option<&Bound<PyAny>>,
         blocks: Option<PyRef<PyBlockModel>>,
         trend: Option<&Bound<PyAny>>,
         domains: Option<&Bound<PyAny>>,
@@ -1088,7 +1119,7 @@ impl TurningBands {
         let options = ContinuousOptions {
             cutoffs,
             quantiles,
-            keep: realizations,
+            keep: keep_arg(keep)?,
         };
         let (lo, hi) = simulation::bounds(&grid);
         py.detach(|| {
@@ -1183,7 +1214,7 @@ impl TurningBands {
         let options = ContinuousOptions {
             cutoffs,
             quantiles,
-            keep: false,
+            keep: simulation::Keep::None,
         };
         let global = py
             .detach(|| {
@@ -1345,12 +1376,12 @@ impl Sis {
     }
 
     /// Summary of `n` realizations, each seeded from `seed` and its index; the ``(n, targets)``
-    /// realizations themselves only when `realizations`. With `blocks` (a
+    /// realizations themselves only when `keep`. With `blocks` (a
     /// coarser BlockModel), each block takes the category filling most of its
     /// node volume, ties to the smallest, as in `BlockModel.regularize`; blocks as in
     /// `SGS.simulate`. `proportions`, shape ``(targets, k)``, are the local
     /// category proportions at the targets, when `fit` had them at the samples.
-    #[pyo3(signature = (targets, *, n=100, seed=0, realizations=false, blocks=None, proportions=None))]
+    #[pyo3(signature = (targets, *, n=100, seed=0, keep=None, blocks=None, proportions=None))]
     #[allow(clippy::too_many_arguments)]
     fn simulate(
         &self,
@@ -1358,7 +1389,7 @@ impl Sis {
         targets: &Bound<PyAny>,
         n: usize,
         seed: u64,
-        realizations: bool,
+        keep: Option<&Bound<PyAny>>,
         blocks: Option<PyRef<PyBlockModel>>,
         proportions: Option<&Bound<PyAny>>,
     ) -> PyResult<CategoricalSummary> {
@@ -1376,8 +1407,9 @@ impl Sis {
         };
         let local = self.local.as_deref().zip(at_grid.as_deref());
         let support = support(targets, &grid, blocks)?;
+        let keep = keep_arg(keep)?;
         py.detach(|| {
-            simulation::categorical(n, k, realizations, |i| {
+            simulation::categorical(n, k, &keep, |i| {
                 let params = SisParams {
                     search: self.search.clone(),
                     seed: ceres_core::rng::realization_seed(seed, i as u64),
@@ -1676,7 +1708,7 @@ impl Plurigaussian {
     /// Summary of `n` realizations; same options as `SIS.simulate`, and
     /// `proportions` of shape ``(targets, k)``, the local facies proportions
     /// at the targets, when `fit` had them at the samples.
-    #[pyo3(signature = (targets, *, n=100, seed=0, realizations=false, blocks=None, proportions=None))]
+    #[pyo3(signature = (targets, *, n=100, seed=0, keep=None, blocks=None, proportions=None))]
     #[allow(clippy::too_many_arguments)]
     fn simulate(
         &self,
@@ -1684,7 +1716,7 @@ impl Plurigaussian {
         targets: &Bound<PyAny>,
         n: usize,
         seed: u64,
-        realizations: bool,
+        keep: Option<&Bound<PyAny>>,
         blocks: Option<PyRef<PyBlockModel>>,
         proportions: Option<&Bound<PyAny>>,
     ) -> PyResult<CategoricalSummary> {
@@ -1701,8 +1733,9 @@ impl Plurigaussian {
         };
         let support = support(targets, &grid, blocks)?;
         let k = self.facies();
+        let keep = keep_arg(keep)?;
         py.detach(|| {
-            simulation::categorical(n, k, realizations, |i| {
+            simulation::categorical(n, k, &keep, |i| {
                 let params = PgsParams {
                     seed: ceres_core::rng::realization_seed(seed, i as u64),
                     ..Default::default()
@@ -1772,7 +1805,7 @@ fn gibbs<'py>(
 /// panels : BlockModel
 /// realizations : array_like
 ///     ``(n, len(smus))`` realizations at selective-block support, as from
-///     ``simulate(..., blocks=smus, realizations=True).realizations``.
+///     ``simulate(..., blocks=smus, keep=True).realizations``.
 /// name : str, default "localized"
 ///     Name of the new column.
 ///
@@ -1824,7 +1857,7 @@ fn localize(
 /// Parameters
 /// ----------
 /// values : SimulationSummary or array_like
-///     A summary simulated with ``realizations=True``, ``(n, targets)``
+///     A summary simulated with ``keep=``, its ``(len(kept), targets)``
 ///     realizations, or one ``(targets,)`` estimate; NaN stays NaN.
 /// reference : array_like, KernelDensity or GaussianMixture
 ///     Data values, whose weighted distribution is the target (quantiles
@@ -1861,10 +1894,12 @@ fn correct_distribution<'py>(
 ) -> PyResult<Bound<'py, PyAny>> {
     let (rows, single) = if let Ok(s) = values.cast::<SimulationSummary>() {
         let s = s.get();
-        let rows = s.0.realizations.clone().ok_or_else(|| {
-            invalid("the summary holds no realizations; simulate with realizations=True")
-        })?;
-        (rows, false)
+        if s.0.kept.is_empty() {
+            return Err(invalid(
+                "the summary holds no realizations; simulate with keep=",
+            ));
+        }
+        (s.0.realizations.clone(), false)
     } else if let Ok(v) = floats(values, "values") {
         (vec![v], true)
     } else {
@@ -2097,7 +2132,7 @@ struct ContinuousMeta {
     realization_mean: Vec<f64>,
     #[serde(with = "ceres_core::nonfinite")]
     realization_above: Vec<Vec<f64>>,
-    realizations: bool,
+    kept: Vec<usize>,
 }
 
 impl Serialize for SimulationSummary {
@@ -2109,7 +2144,7 @@ impl Serialize for SimulationSummary {
             quantiles: c.quantiles.clone(),
             realization_mean: c.realization_mean.clone(),
             realization_above: c.realization_above.clone(),
-            realizations: c.realizations.is_some(),
+            kept: c.kept.clone(),
         }
         .serialize(s)
     }
@@ -2137,7 +2172,8 @@ impl<'de> Deserialize<'de> for SimulationSummary {
             quantile_values: vec![],
             realization_mean: m.realization_mean,
             realization_above: m.realization_above,
-            realizations: m.realizations.then(Vec::new),
+            kept: m.kept,
+            realizations: vec![],
         }))
     }
 }
@@ -2157,8 +2193,8 @@ impl Tabular for SimulationSummary {
         for (q, values) in c.quantiles.iter().zip(&c.quantile_values) {
             out.push(column(format!("q{q}"), values));
         }
-        for (i, r) in c.realizations.iter().flatten().enumerate() {
-            out.push(column(format!("realization_{i}"), r));
+        for (k, r) in c.kept.iter().zip(&c.realizations) {
+            out.push(column(format!("realization_{k}"), r));
         }
         Some(out)
     }
@@ -2178,11 +2214,7 @@ impl Tabular for SimulationSummary {
                 .collect(),
         )?;
         c.quantile_values = each(c.quantiles.iter().map(|q| format!("q{q}")).collect())?;
-        if c.realizations.is_some() {
-            c.realizations = Some(each(
-                (0..c.n).map(|i| format!("realization_{i}")).collect(),
-            )?);
-        }
+        c.realizations = each(c.kept.iter().map(|k| format!("realization_{k}")).collect())?;
         Ok(())
     }
 }
@@ -2193,7 +2225,7 @@ struct CategoricalMeta {
     categories: usize,
     #[serde(with = "ceres_core::nonfinite")]
     proportions: Vec<Vec<f64>>,
-    realizations: bool,
+    kept: Vec<usize>,
 }
 
 impl Serialize for CategoricalSummary {
@@ -2203,7 +2235,7 @@ impl Serialize for CategoricalSummary {
             n: c.n,
             categories: c.probabilities.len(),
             proportions: c.proportions.clone(),
-            realizations: c.realizations.is_some(),
+            kept: c.kept.clone(),
         }
         .serialize(s)
     }
@@ -2223,7 +2255,8 @@ impl<'de> Deserialize<'de> for CategoricalSummary {
             most_likely: vec![],
             entropy: vec![],
             proportions: m.proportions,
-            realizations: m.realizations.then(Vec::new),
+            kept: m.kept,
+            realizations: vec![],
         }))
     }
 }
@@ -2241,9 +2274,9 @@ impl Tabular for CategoricalSummary {
                 p.iter().copied(),
             ));
         }
-        for (i, r) in c.realizations.iter().flatten().enumerate() {
-            let r = r.iter().map(|&k| k as f64);
-            out.push(persist::column(&format!("realization_{i}"), r));
+        for (k, r) in c.kept.iter().zip(&c.realizations) {
+            let r = r.iter().map(|&v| v as f64);
+            out.push(persist::column(&format!("realization_{k}"), r));
         }
         Some(out)
     }
@@ -2255,12 +2288,11 @@ impl Tabular for CategoricalSummary {
         c.probabilities = (0..c.probabilities.len())
             .map(|k| found.values(&format!("probability_{k}")))
             .collect::<PyResult<_>>()?;
-        if c.realizations.is_some() {
-            let realizations = (0..c.n)
-                .map(|i| found.indices(&format!("realization_{i}")))
-                .collect::<PyResult<_>>()?;
-            c.realizations = Some(realizations);
-        }
+        c.realizations = c
+            .kept
+            .iter()
+            .map(|k| found.indices(&format!("realization_{k}")))
+            .collect::<PyResult<_>>()?;
         Ok(())
     }
 }
@@ -2479,7 +2511,7 @@ impl MultivariateSimulation {
     /// -------
     /// list of SimulationSummary
     ///     One per variable, in column order.
-    #[pyo3(signature = (targets, *, n=100, seed=0, cutoffs=vec![], quantiles=vec![], realizations=false, anisotropy=None, blocks=None))]
+    #[pyo3(signature = (targets, *, n=100, seed=0, cutoffs=vec![], quantiles=vec![], keep=None, anisotropy=None, blocks=None))]
     #[allow(clippy::too_many_arguments)]
     fn simulate(
         &self,
@@ -2489,7 +2521,7 @@ impl MultivariateSimulation {
         seed: u64,
         cutoffs: Vec<f64>,
         quantiles: Vec<f64>,
-        realizations: bool,
+        keep: Option<&Bound<PyAny>>,
         anisotropy: Option<PyRef<crate::lva::LocalAnisotropy>>,
         blocks: Option<PyRef<PyBlockModel>>,
     ) -> PyResult<Vec<SimulationSummary>> {
@@ -2503,7 +2535,7 @@ impl MultivariateSimulation {
         let options = ContinuousOptions {
             cutoffs,
             quantiles,
-            keep: realizations,
+            keep: keep_arg(keep)?,
         };
         py.detach(|| {
             simulation::multivariate(
