@@ -62,7 +62,7 @@ for ax, position in zip(axes, positions, strict=True):
     cs.plot.section(model, "ZN_PCT", plane=(position, 113.0, 90.0), vmin=0, vmax=8, colorbar=False, ax=ax)
 for ax in axes[1:]:
     ax.set_ylabel("")
-fig.colorbar(axes[-1].images[0], ax=axes, shrink=0.8, label="ZN_PCT")
+fig.colorbar(axes[-1].collections[0], ax=axes, shrink=0.8, label="ZN_PCT")
 save(fig, "manual")
 
 # %% [markdown]

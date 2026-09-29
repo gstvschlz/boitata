@@ -118,7 +118,7 @@ for ax, name in zip(axes.flat, ["HWS", "VCL", "SUL", "FWV"]):
     ax.set_title(f"P({name})")
     ax.set_xlabel("Along the section (m)" if ax in axes[1] else "")
     ax.set_ylabel("Elevation (m)")
-fig.colorbar(ax.images[0], ax=axes, shrink=0.6, label="probability")
+fig.colorbar(ax.collections[0], ax=axes, shrink=0.6, label="probability")
 save(fig, "probabilities")
 
 # %% [markdown]

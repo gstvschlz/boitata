@@ -65,7 +65,7 @@ print(
 
 fig, ax = plt.subplots(figsize=(7, 4.6), layout="constrained")
 cs.plot.section(grid, np.where(inside, -distance, np.nan), ax=ax, colorbar=False, cmap="Greys")
-fig.colorbar(ax.images[0], ax=ax, shrink=0.8, label="Distance inside the boundary (m)")
+fig.colorbar(ax.collections[0], ax=ax, shrink=0.8, label="Distance inside the boundary (m)")
 ax.contour(
     centers[:, 0].reshape(90, 120),
     centers[:, 1].reshape(90, 120),

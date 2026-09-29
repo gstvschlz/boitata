@@ -125,7 +125,7 @@ section = section.with_columns({**columns, "most_likely": summary.most_likely, "
 ```text
 7645 of 9224 cells estimated, 2304 in the second pass
 rows sum to 1: True
-correction: 27% of the cells had a category kriged outside [0, 1]; mean size 0.041
+correction: 24% of the cells had a category kriged outside [0, 1]; mean size 0.041
 ```
 
 ## Probability maps
@@ -142,7 +142,7 @@ for ax, name in zip(axes.flat, ["HWS", "VCL", "SUL", "FWV"]):
     ax.set_title(f"P({name})")
     ax.set_xlabel("Along the section (m)" if ax in axes[1] else "")
     ax.set_ylabel("Elevation (m)")
-fig.colorbar(ax.images[0], ax=axes, shrink=0.6, label="probability")
+fig.colorbar(ax.collections[0], ax=axes, shrink=0.6, label="probability")
 save(fig, "probabilities")
 ```
 

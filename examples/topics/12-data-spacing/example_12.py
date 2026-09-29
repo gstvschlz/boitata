@@ -67,7 +67,7 @@ for ax, k, n in zip(axes, [0, 1], [1, 3], strict=True):
     ax.plot(*lease.vertices[:, :2].T, color=GRAY, lw=0.8)
     ax.scatter(*holes.coords[:, :2].T, s=2, color=INK)
     map_axes(ax, "Distance to the nearest hole" if n == 1 else f"Mean distance to the {n} nearest holes")
-fig.colorbar(ax.images[0], ax=axes, shrink=0.8, label="Distance (m)")
+fig.colorbar(ax.collections[0], ax=axes, shrink=0.8, label="Distance (m)")
 axes[1].set_ylabel("")
 save(fig, "distance")
 
