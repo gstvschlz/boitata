@@ -191,4 +191,4 @@ Multigaussian kriging needs one variogram and no order-relation correction, and 
 cutoff, but it assumes the Gaussian model: high and low scores are equally continuous, and extremes are disconnected.
 Where the data show connected high grades, indicators follow them better.
 
-Full script: [`example_12.py`](example_12.py)
+Full script: [`example_06_12.py`](example_06_12.py)

@@ -138,4 +138,4 @@ save(fig, "swaths")
 
 ![swaths](swaths.png)
 
-Full script: [`example_01.py`](example_01.py)
+Full script: [`example_10_01.py`](example_10_01.py)

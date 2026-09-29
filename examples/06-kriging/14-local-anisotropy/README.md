@@ -173,4 +173,4 @@ save(fig, "simulation")
 
 ![simulation](simulation.png)
 
-Full script: [`example_14.py`](example_14.py)
+Full script: [`example_06_14.py`](example_06_14.py)

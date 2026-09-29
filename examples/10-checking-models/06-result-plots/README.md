@@ -156,4 +156,4 @@ save(fig, "contact")
 
 ![contact](contact.png)
 
-Full script: [`example_06.py`](example_06.py)
+Full script: [`example_10_06.py`](example_10_06.py)

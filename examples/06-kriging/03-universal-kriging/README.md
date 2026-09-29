@@ -185,4 +185,4 @@ geological call, not a statistical one. The local drift is fitted from the neigh
 a wider search than ordinary kriging: with a few one-sided samples the drift is poorly determined and its
 extrapolation erratic.
 
-Full script: [`example_03.py`](example_03.py)
+Full script: [`example_06_03.py`](example_06_03.py)

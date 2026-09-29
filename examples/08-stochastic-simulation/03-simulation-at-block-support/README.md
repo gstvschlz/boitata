@@ -162,4 +162,4 @@ between kriging's 35 064 and the true 47 350, with a correlation to the truth of
 change-of-support model is involved; what the pooling returns is only as good as the realizations. [Uniform conditioning](../../09-recoverable-resources/02-uniform-conditioning/README.md) and [MIK localization](../../09-recoverable-resources/03-mik-localization/README.md)
 localize the same panels from a change-of-support model.
 
-Full script: [`example_03.py`](example_03.py)
+Full script: [`example_08_03.py`](example_08_03.py)

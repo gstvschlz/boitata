@@ -233,4 +233,4 @@ save(fig, "dip")
 
 ![dip](dip.png)
 
-Full script: [`example_01.py`](example_01.py)
+Full script: [`example_02_01.py`](example_02_01.py)

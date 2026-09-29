@@ -169,4 +169,4 @@ save(fig, "reproduction")
 [Simulation at block support](../../08-stochastic-simulation/03-simulation-at-block-support/README.md) targets blocks, [turning bands](../../08-stochastic-simulation/04-turning-bands/README.md) draws realizations another way, and [simulation with a trend](../../08-stochastic-simulation/05-simulation-with-trend/README.md) steers them with a
 trend.
 
-Full script: [`example_01.py`](example_01.py)
+Full script: [`example_08_01.py`](example_08_01.py)

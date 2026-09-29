@@ -90,4 +90,4 @@ save(fig, "map")
 Several variables, such as gold and arsenic, can be despiked together with `cs.despike(samples, ["AU_PPB",
 "AS_PPM"])`: samples tied in both are then ordered the same way in each.
 
-Full script: [`example_06.py`](example_06.py)
+Full script: [`example_03_06.py`](example_03_06.py)

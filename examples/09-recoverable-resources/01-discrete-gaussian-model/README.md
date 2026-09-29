@@ -122,4 +122,4 @@ rich tail in too far: above 500 ppm it keeps 13.3% of the blocks against a true 
 2.1%. The point curves run a few per cent high, since the declustered samples still overstate the rich grades.
 [Uniform conditioning](../../09-recoverable-resources/02-uniform-conditioning/README.md) and [MIK localization](../../09-recoverable-resources/03-mik-localization/README.md) carry block support down to panels; [simulation at block support](../../08-stochastic-simulation/03-simulation-at-block-support/README.md) reaches it by simulation.
 
-Full script: [`example_01.py`](example_01.py)
+Full script: [`example_09_01.py`](example_09_01.py)

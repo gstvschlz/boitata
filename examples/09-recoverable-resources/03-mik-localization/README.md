@@ -137,4 +137,4 @@ The affine correction keeps the shape of each point distribution, so its long up
 at 500 ppm the localized blocks put 23.3% above cutoff against a true 16.8%, overshooting as much as kriging falls
 short. [Uniform conditioning](../../09-recoverable-resources/02-uniform-conditioning/README.md) localizes the same panels from a Gaussian model instead.
 
-Full script: [`example_03.py`](example_03.py)
+Full script: [`example_09_03.py`](example_09_03.py)

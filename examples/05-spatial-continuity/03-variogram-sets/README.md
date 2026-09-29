@@ -141,4 +141,4 @@ save(fig, "walker_lake")
 
 ![walker_lake](walker_lake.png)
 
-Full script: [`example_03.py`](example_03.py)
+Full script: [`example_05_03.py`](example_05_03.py)

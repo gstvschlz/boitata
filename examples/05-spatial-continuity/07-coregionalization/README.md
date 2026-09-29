@@ -109,4 +109,4 @@ print(
 major axis azimuth 132°, semi-major/major ratio 0.31, major ranges 0.67, 1.45 km
 ```
 
-Full script: [`example_07.py`](example_07.py)
+Full script: [`example_05_07.py`](example_05_07.py)

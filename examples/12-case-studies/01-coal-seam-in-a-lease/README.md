@@ -347,4 +347,4 @@ Measured cells, a fifth of the lease, sit on the infill where the seam is thicke
 beyond the last holes, and where the regional grid has gaps. Spacing ignores the variogram; [classification](../../10-checking-models/05-classification/README.md) classifies
 from the kriging itself.
 
-Full script: [`example_01.py`](example_01.py)
+Full script: [`example_12_01.py`](example_12_01.py)

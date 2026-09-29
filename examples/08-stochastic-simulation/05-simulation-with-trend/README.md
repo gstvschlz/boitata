@@ -126,4 +126,4 @@ Plain SGS already follows the trend where data are dense, but pulls the low-tren
 mean; with the trend, each quarter keeps the declustered mean of its data, and the realizations correlate with the
 trend about as much as the data do.
 
-Full script: [`example_05.py`](example_05.py)
+Full script: [`example_08_05.py`](example_08_05.py)

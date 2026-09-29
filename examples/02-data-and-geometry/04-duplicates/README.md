@@ -148,4 +148,4 @@ print(f"{len(merged)} samples, {int(twins.sum())} of them merged pairs, Zn {mean
 16776 samples, 3 of them merged pairs, Zn 0.023, 0.018, 0.084 %
 ```
 
-Full script: [`example_04.py`](example_04.py)
+Full script: [`example_02_04.py`](example_02_04.py)

@@ -136,4 +136,4 @@ some of them. The gap narrows as the blocks grow, which is one reason not to est
 data spacing. The model overstates both variances, the true one most for small blocks, but gets their order
 and trend right.
 
-Full script: [`example_05.py`](example_05.py)
+Full script: [`example_06_05.py`](example_06_05.py)

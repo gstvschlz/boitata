@@ -141,4 +141,4 @@ print(
 flat RBF shell: 74,788 triangles, closed True, 64.6 Mm3; blocks inside 67.4 Mm3
 ```
 
-Full script: [`example_01.py`](example_01.py)
+Full script: [`example_11_01.py`](example_11_01.py)

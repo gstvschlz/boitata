@@ -71,7 +71,7 @@ plugins:
         - docs/examples/10-checking-models
         - docs/examples/11-geological-modeling
         - docs/examples/12-case-studies
-      filename_pattern: example_\d+\.py$
+      filename_pattern: example_\d\d_\d\d\.py$
       ignore_pattern: (render|common)\.py$
       within_subsection_order: FileNameSortKey
       show_memory: false

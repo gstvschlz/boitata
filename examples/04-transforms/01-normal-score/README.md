@@ -144,4 +144,4 @@ transform: -1.76 for all
 Neither order means anything. For a large spike, such as assays at a detection limit, [despiking](../../03-exploratory-analysis/06-despiking/README.md) breaks the ties by
 the neighborhood of each sample before the transform.
 
-Full script: [`example_01.py`](example_01.py)
+Full script: [`example_04_01.py`](example_04_01.py)

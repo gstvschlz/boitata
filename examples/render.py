@@ -1,4 +1,4 @@
-"""Runs each page's script (example_NN.py) cell by cell and writes its README.md.
+"""Runs each page's script (example_CC_NN.py: category and page numbers) cell by cell and writes its README.md.
 
 The module docstring is the opening text. Cells start with `# %%` (code), `# %% [markdown]` (text written as `# `
 comments) or `# %% [hidden]` (run, not shown). Each code cell is shown collapsed, followed by what it printed and

@@ -137,4 +137,4 @@ The cross-validation mean error follows none of this closely: the samples sit in
 restriction acts through those negative weights, not in the halos. The truth, or a simulated one, is the better
 judge of a restriction.
 
-Full script: [`example_08.py`](example_08.py)
+Full script: [`example_06_08.py`](example_06_08.py)

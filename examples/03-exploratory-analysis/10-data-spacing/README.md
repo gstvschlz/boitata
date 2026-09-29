@@ -97,4 +97,4 @@ to one isolated hole looks well drilled by the first measure and not by the seco
 and the edges of the lease, up to 923 m from three holes, stand out on the right. [Classification](../../10-checking-models/05-classification/README.md) turns these distances
 into measured, indicated and inferred classes.
 
-Full script: [`example_10.py`](example_10.py)
+Full script: [`example_03_10.py`](example_03_10.py)

@@ -178,4 +178,4 @@ Portlandian's 5 % of the area from 3 of 259 samples. The most likely type matche
 realization, but it is a smooth estimate rather than a possible map. Entropy is highest at the contacts and far
 from the samples.
 
-Full script: [`example_06.py`](example_06.py)
+Full script: [`example_07_06.py`](example_07_06.py)

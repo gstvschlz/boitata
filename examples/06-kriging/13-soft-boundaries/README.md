@@ -228,4 +228,4 @@ boundary also lifts the first meter of `LIM` from 1.03 % to 1.21 %, where the he
 agrees: 1.60 % hard and 1.24 % one way in the last meter of `SAP`, and 1.25 % in the first meter of `LIM` when soft
 both ways. The contact profile says which way to open a boundary; here only the saprolite side is gradational.
 
-Full script: [`example_13.py`](example_13.py)
+Full script: [`example_06_13.py`](example_06_13.py)

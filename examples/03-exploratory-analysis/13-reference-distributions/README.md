@@ -227,4 +227,4 @@ the correlation of the scores alone, and that correlation is weak, so high chalc
 mixture imputes 3.6 %: it first picks the arm of the L that the chalcocite of the sample points to. The one-Gaussian
 imputer of [imputation](../../04-transforms/06-imputation/README.md) stays the default; `components=None` lets BIC decide.
 
-Full script: [`example_13.py`](example_13.py)
+Full script: [`example_03_13.py`](example_03_13.py)

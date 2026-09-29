@@ -177,4 +177,4 @@ kriged Au inside the survey: mean 3.5 ppb
 
 ![map](map.png)
 
-Full script: [`example_02.py`](example_02.py)
+Full script: [`example_04_02.py`](example_04_02.py)

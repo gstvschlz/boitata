@@ -76,4 +76,4 @@ of the saprolite it falls from 2.21 to 0.29 % within a meter: a hard boundary, a
 the saprolite estimate. Co has the other pattern: it steps from 0.12 to 0.04 % at the LIM/SAP contact and stays
 flat on each side. The same horizons can be a hard boundary for one grade and a soft one for another.
 
-Full script: [`example_07.py`](example_07.py)
+Full script: [`example_03_07.py`](example_03_07.py)

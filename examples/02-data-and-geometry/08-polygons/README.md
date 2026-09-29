@@ -232,4 +232,4 @@ standoff along both rings: 843 cells, 8.4 km²
 
 ![hole](hole.png)
 
-Full script: [`example_08.py`](example_08.py)
+Full script: [`example_02_08.py`](example_02_08.py)

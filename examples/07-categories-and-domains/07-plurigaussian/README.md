@@ -197,4 +197,4 @@ The fitted cover field is short (0.49 km) and the stages field long (1.87 km), s
 the cover patches over; with 0.8 km on both, the stages varied too fast. The fitted variograms follow the
 experimental points of every rock type and bring the match to 59 %.
 
-Full script: [`example_07.py`](example_07.py)
+Full script: [`example_07_07.py`](example_07_07.py)

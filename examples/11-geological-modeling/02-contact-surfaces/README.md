@@ -152,4 +152,4 @@ save(fig, "section")
 `isosurface(cells, closed=True)` turns a field into a solid mesh, which `BlockModel.from_meshes` and `subblock`
 turn into a domain model (see [sub-blocks](../../02-data-and-geometry/06-sub-blocks/README.md)). Plane and lineation readings are in [structural data](../../11-geological-modeling/03-structural-data/README.md).
 
-Full script: [`example_02.py`](example_02.py)
+Full script: [`example_11_02.py`](example_11_02.py)

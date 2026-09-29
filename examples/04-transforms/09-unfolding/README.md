@@ -236,4 +236,4 @@ BlockModel(masked, 87068 of 644480 cells, count [106, 76, 80], size [10.0, 10.0,
 
 ![section](section.png)
 
-Full script: [`example_09.py`](example_09.py)
+Full script: [`example_04_09.py`](example_04_09.py)

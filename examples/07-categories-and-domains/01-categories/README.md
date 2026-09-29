@@ -93,4 +93,4 @@ print(found.names)
 ['CLAY', 'SAND', 'SLIME', 'other']
 ```
 
-Full script: [`example_01.py`](example_01.py)
+Full script: [`example_07_01.py`](example_07_01.py)

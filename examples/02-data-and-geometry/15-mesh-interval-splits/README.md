@@ -106,4 +106,4 @@ save(fig, "grade")
 
 ![grade](grade.png)
 
-Full script: [`example_15.py`](example_15.py)
+Full script: [`example_02_15.py`](example_02_15.py)

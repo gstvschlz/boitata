@@ -91,4 +91,4 @@ Every transform returns the data exactly and leaves uncorrelated factors. PCA an
 (r(f1², f2) of 0.07 and −0.08) and MAF a skewed second factor (0.88); SCT and PPMT bring both to about 0, so their
 factors can be simulated one at a time without losing the shape of the cloud.
 
-Full script: [`example_05.py`](example_05.py)
+Full script: [`example_04_05.py`](example_04_05.py)

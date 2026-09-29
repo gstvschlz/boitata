@@ -115,4 +115,4 @@ save(fig, "aligned")
 
 ![aligned](aligned.png)
 
-Full script: [`example_12.py`](example_12.py)
+Full script: [`example_02_12.py`](example_02_12.py)

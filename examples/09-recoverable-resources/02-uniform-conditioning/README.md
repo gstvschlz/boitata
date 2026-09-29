@@ -170,4 +170,4 @@ the true 47 350. Block by block they match the truth less well than kriging does
 since the ranking inside a panel is only as good as the kriging that sets it; what localization keeps is each
 panel's grade and its tonnage above every cutoff.
 
-Full script: [`example_02.py`](example_02.py)
+Full script: [`example_09_02.py`](example_09_02.py)

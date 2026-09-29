@@ -254,4 +254,4 @@ Local proportions  [0.044 0.392 0.387 0.177] data [0.028 0.439 0.374 0.158]
 
 ![checks](checks.png)
 
-Full script: [`example_04.py`](example_04.py)
+Full script: [`example_07_04.py`](example_07_04.py)

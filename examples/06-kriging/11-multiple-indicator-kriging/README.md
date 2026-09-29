@@ -168,4 +168,4 @@ centroids: std of P(Cd > 0.8) across panels 0.188, mean correction 0.0218
 mean |panel - centroid| probability 0.016
 ```
 
-Full script: [`example_11.py`](example_11.py)
+Full script: [`example_06_11.py`](example_06_11.py)

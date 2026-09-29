@@ -120,4 +120,4 @@ save(fig, "dissemination")
 
 ![dissemination](dissemination.png)
 
-Full script: [`example_06.py`](example_06.py)
+Full script: [`example_05_06.py`](example_05_06.py)

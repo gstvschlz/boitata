@@ -241,4 +241,4 @@ lens sub-blocks 6,325,000 m3
 40 m blocks: labeled as a lens 1,856,000 m3, lens proportion 6,325,000 m3
 ```
 
-Full script: [`example_06.py`](example_06.py)
+Full script: [`example_02_06.py`](example_02_06.py)

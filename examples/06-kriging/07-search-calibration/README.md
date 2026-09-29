@@ -118,4 +118,4 @@ save(fig, "calibration")
 
 ![calibration](calibration.png)
 
-Full script: [`example_07.py`](example_07.py)
+Full script: [`example_06_07.py`](example_06_07.py)

@@ -128,4 +128,4 @@ the SIS rock types the contacts move from one realization to the next, so the le
 uncertain margin: the true Argovian averages 7.20 ppm, and where SIS is unsure of Argovian, a third of the nodes,
 the spread of Co across realizations is 2.87 ppm against 2.07 ppm with the domains fixed.
 
-Full script: [`example_08.py`](example_08.py)
+Full script: [`example_07_08.py`](example_07_08.py)

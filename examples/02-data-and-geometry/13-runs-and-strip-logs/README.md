@@ -223,4 +223,4 @@ minimum 2 m: 93 quartz vein runs, 308 m at 7.88 g/t
 Half of the quartz vein runs are thinner than 2 m. At a 2 m minimum they fall to waste, and the rest takes in the
 thin waste bands between vein runs: fewer, thicker runs, at about the same grade.
 
-Full script: [`example_13.py`](example_13.py)
+Full script: [`example_02_13.py`](example_02_13.py)

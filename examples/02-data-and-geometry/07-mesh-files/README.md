@@ -135,4 +135,4 @@ tolerance 0.005 m: Mesh(26938 vertices, 53871 triangles, open, 6 boundary edges)
 repaired at 0.1 mm: 658,571 m3, original 658,570 m3
 ```
 
-Full script: [`example_07.py`](example_07.py)
+Full script: [`example_02_07.py`](example_02_07.py)

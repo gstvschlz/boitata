@@ -155,4 +155,4 @@ save(fig, "porphyry")
 
 ![porphyry](porphyry.png)
 
-Full script: [`example_04.py`](example_04.py)
+Full script: [`example_10_04.py`](example_10_04.py)

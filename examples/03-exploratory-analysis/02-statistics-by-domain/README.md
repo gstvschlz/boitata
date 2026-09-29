@@ -102,4 +102,4 @@ MS over SMS at P10, P50, P90: 2.7, 2.7, 2.6
 
 ![distributions](distributions.png)
 
-Full script: [`example_02.py`](example_02.py)
+Full script: [`example_03_02.py`](example_03_02.py)

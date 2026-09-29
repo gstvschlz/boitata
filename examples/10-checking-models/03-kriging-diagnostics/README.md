@@ -144,4 +144,4 @@ save(fig, "neighborhood")
 
 ![neighborhood](neighborhood.png)
 
-Full script: [`example_03.py`](example_03.py)
+Full script: [`example_10_03.py`](example_10_03.py)

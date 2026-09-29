@@ -79,4 +79,4 @@ save(fig, "mds")
 
 ![mds](mds.png)
 
-Full script: [`example_03.py`](example_03.py)
+Full script: [`example_07_03.py`](example_07_03.py)

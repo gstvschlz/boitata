@@ -183,4 +183,4 @@ save(fig, "joint")
 
 ![joint](joint.png)
 
-Full script: [`example_02.py`](example_02.py)
+Full script: [`example_05_02.py`](example_05_02.py)

@@ -71,4 +71,4 @@ save(fig, "cross_validation")
 
 ![cross_validation](cross_validation.png)
 
-Full script: [`example_02.py`](example_02.py)
+Full script: [`example_10_02.py`](example_10_02.py)

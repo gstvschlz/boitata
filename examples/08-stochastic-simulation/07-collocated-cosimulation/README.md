@@ -135,4 +135,4 @@ save(fig, "checks")
 
 ![checks](checks.png)
 
-Full script: [`example_07.py`](example_07.py)
+Full script: [`example_08_07.py`](example_08_07.py)

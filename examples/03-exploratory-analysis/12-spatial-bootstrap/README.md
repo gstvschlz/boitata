@@ -171,4 +171,4 @@ Independent resampling promises the tonnage within a few percent; with the spati
 is four times wider. That is the uncertainty in the global mean from the holes alone, before any estimate or
 simulation: a lower bound on what a resource can claim, and a guide to whether more holes pay.
 
-Full script: [`example_12.py`](example_12.py)
+Full script: [`example_03_12.py`](example_03_12.py)

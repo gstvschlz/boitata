@@ -154,4 +154,4 @@ Pb      0.25  0.24  0.31  0.79  0.36  1.00  0.63
 Zn      0.64  0.53  0.69  0.60  0.67  0.63  1.00
 ```
 
-Full script: [`example_08.py`](example_08.py)
+Full script: [`example_05_08.py`](example_05_08.py)

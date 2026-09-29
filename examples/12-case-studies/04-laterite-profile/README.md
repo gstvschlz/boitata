@@ -350,4 +350,4 @@ Mt of it lie above 1.5 % Ni. The limonite, 8.21 Mt at 1.09 % Ni, is poorer in ni
 9.84 of the 15.8 kt of cobalt. The ferricrete, 3.28 Mt at 0.37 % Ni, is overburden. Every tonne scales with the
 assumed densities: a saprolite at 1.4 instead of 1.6 t/m³ would lose an eighth of its tonnes and metal.
 
-Full script: [`example_04.py`](example_04.py)
+Full script: [`example_12_04.py`](example_12_04.py)

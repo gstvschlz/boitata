@@ -84,4 +84,4 @@ samples, with no trend. In elevation the lines are noisier because the horizons 
 a slice of elevation cuts OXI on a hill and SAP in a valley at once. The slices at the ends hold few samples and the
 bars say how far to trust them.
 
-Full script: [`example_09.py`](example_09.py)
+Full script: [`example_03_09.py`](example_03_09.py)

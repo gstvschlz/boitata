@@ -139,4 +139,4 @@ The neighborhood search is a k-d tree and nodes are kriged in parallel, so large
 the area, 78 000 targets, takes about half a second. [Simple estimators](../../06-kriging/02-simple-estimators/README.md) compares cheaper methods, [search](../../06-kriging/06-search/README.md) refines the
 search.
 
-Full script: [`example_01.py`](example_01.py)
+Full script: [`example_06_01.py`](example_06_01.py)

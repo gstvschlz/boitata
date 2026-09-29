@@ -144,4 +144,4 @@ average nearly doubles the true tonnage, at 600 ppm it misses 45 % of it. Neares
 closely because it keeps the variance of the data, yet its estimates are the wrong ones locally; the reliable
 grade-tonnage of selected blocks is a change-of-support question (the [discrete Gaussian model](../../09-recoverable-resources/01-discrete-gaussian-model/README.md) and the pages after it).
 
-Full script: [`example_02.py`](example_02.py)
+Full script: [`example_06_02.py`](example_06_02.py)

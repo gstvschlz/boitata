@@ -472,4 +472,4 @@ print(f"same sub-blocks and Zn: {same}")
 same sub-blocks and Zn: True
 ```
 
-Full script: [`example_02.py`](example_02.py)
+Full script: [`example_12_02.py`](example_12_02.py)

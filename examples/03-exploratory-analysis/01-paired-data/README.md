@@ -103,4 +103,4 @@ save(fig, "paired")
 
 ![paired](paired.png)
 
-Full script: [`example_01.py`](example_01.py)
+Full script: [`example_03_01.py`](example_03_01.py)

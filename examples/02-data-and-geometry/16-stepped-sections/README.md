@@ -91,4 +91,4 @@ save(fig, "fence")
 
 ![fence](fence.png)
 
-Full script: [`example_16.py`](example_16.py)
+Full script: [`example_02_16.py`](example_02_16.py)

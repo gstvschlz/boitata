@@ -234,4 +234,4 @@ save(fig, "section")
 
 ![section](section.png)
 
-Full script: [`example_10.py`](example_10.py)
+Full script: [`example_02_10.py`](example_02_10.py)

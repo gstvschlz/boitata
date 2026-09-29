@@ -167,4 +167,4 @@ highest datum 1528 ppm; highest corrected value 1528 ppm
 highest value corrected to the kernel density 1612 ppm
 ```
 
-Full script: [`example_10.py`](example_10.py)
+Full script: [`example_04_10.py`](example_04_10.py)

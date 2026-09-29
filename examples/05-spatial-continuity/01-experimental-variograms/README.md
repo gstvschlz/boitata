@@ -138,4 +138,4 @@ save(fig, "estimators")
 
 ![estimators](estimators.png)
 
-Full script: [`example_01.py`](example_01.py)
+Full script: [`example_05_01.py`](example_05_01.py)

@@ -165,4 +165,4 @@ print("metal balanced to 1e-9 for", ", ".join(GRADES))
 metal balanced to 1e-9 for ZN_PCT, PB_PCT, CU_PCT, AG_GPT, AU_GPT
 ```
 
-Full script: [`example_03.py`](example_03.py)
+Full script: [`example_02_03.py`](example_02_03.py)

@@ -69,4 +69,4 @@ save(fig, "soft_boundary")
 
 ![soft_boundary](soft_boundary.png)
 
-Full script: [`example_08.py`](example_08.py)
+Full script: [`example_03_08.py`](example_03_08.py)

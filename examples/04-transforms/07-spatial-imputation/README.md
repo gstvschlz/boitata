@@ -173,4 +173,4 @@ gaps this way in every realization ([multivariate simulation](../../08-stochasti
 The intrinsic model is the simplest spatial model with the fitted correlations: one correlogram for all variables.
 Here it comes from density, the variable being imputed; grades with a different continuity borrow it too.
 
-Full script: [`example_07.py`](example_07.py)
+Full script: [`example_04_07.py`](example_04_07.py)

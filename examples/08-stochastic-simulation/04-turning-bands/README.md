@@ -125,4 +125,4 @@ save(fig, "variograms")
 
 ![variograms](variograms.png)
 
-Full script: [`example_04.py`](example_04.py)
+Full script: [`example_08_04.py`](example_08_04.py)

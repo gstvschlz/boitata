@@ -133,4 +133,4 @@ The imputer assumes the missing values behave like the measured ones with the sa
 here, measured on part of the same core; gold in RC chips borrows its relation to the base metals from the diamond
 holes. `MultivariateSimulation.fit(..., impute=True)` redraws the gaps in every realization ([multivariate simulation](../../08-stochastic-simulation/06-multivariate-simulation/README.md)).
 
-Full script: [`example_06.py`](example_06.py)
+Full script: [`example_04_06.py`](example_04_06.py)

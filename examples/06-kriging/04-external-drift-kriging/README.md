@@ -116,4 +116,4 @@ save(fig, "maps")
 `cross_validate` and weight declustering are not wired up for external-drift kriging yet: each held-out point or
 target would need its own covariate row, which those two do not carry through.
 
-Full script: [`example_04.py`](example_04.py)
+Full script: [`example_06_04.py`](example_06_04.py)

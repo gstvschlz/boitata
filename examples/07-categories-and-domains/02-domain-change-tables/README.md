@@ -145,4 +145,4 @@ save(fig, "change")
 
 ![change](change.png)
 
-Full script: [`example_02.py`](example_02.py)
+Full script: [`example_07_02.py`](example_07_02.py)

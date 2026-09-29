@@ -146,4 +146,4 @@ Fe in itabirite correlates at 0.80 between neighboring composites, 0.32 at 8 m a
 the grade are thin, and beyond a few tens of meters a composite says little about its neighbor's Fe. The variogram
 ([experimental variograms](../../05-spatial-continuity/01-experimental-variograms/README.md)) measures the same loss of correlation lag by lag.
 
-Full script: [`example_11.py`](example_11.py)
+Full script: [`example_03_11.py`](example_03_11.py)

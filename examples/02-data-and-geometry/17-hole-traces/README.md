@@ -72,4 +72,4 @@ save(fig, "traces")
 
 ![traces](traces.png)
 
-Full script: [`example_17.py`](example_17.py)
+Full script: [`example_02_17.py`](example_02_17.py)

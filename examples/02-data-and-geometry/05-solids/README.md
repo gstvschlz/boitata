@@ -152,4 +152,4 @@ save(fig, "solids")
 
 ![solids](solids.png)
 
-Full script: [`example_05.py`](example_05.py)
+Full script: [`example_02_05.py`](example_02_05.py)

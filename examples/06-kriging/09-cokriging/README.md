@@ -93,4 +93,4 @@ save(fig, "validation")
 
 ![validation](validation.png)
 
-Full script: [`example_09.py`](example_09.py)
+Full script: [`example_06_09.py`](example_06_09.py)

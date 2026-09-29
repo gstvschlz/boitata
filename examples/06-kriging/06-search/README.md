@@ -206,4 +206,4 @@ samples 20 to 30 m away sit behind closer samples that screen them, so ordinary 
 weights, and dropping a negative weight on a high value raises the estimate. The restriction suits isolated high
 values; over all samples the cross-validation mean error barely moves.
 
-Full script: [`example_06.py`](example_06.py)
+Full script: [`example_06_06.py`](example_06_06.py)

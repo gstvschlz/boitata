@@ -76,4 +76,4 @@ save(fig, "probability")
 
 ![probability](probability.png)
 
-Full script: [`example_10.py`](example_10.py)
+Full script: [`example_06_10.py`](example_06_10.py)

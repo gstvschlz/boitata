@@ -184,4 +184,4 @@ print(f"r {r:.2f}, tennantite q10, q50, q90: " + ", ".join(f"{v:.2f}" for v in n
 r 0.27, tennantite q10, q50, q90: -7.62, -6.17, -3.81
 ```
 
-Full script: [`example_06.py`](example_06.py)
+Full script: [`example_08_06.py`](example_08_06.py)

@@ -217,4 +217,4 @@ rises to 161.1 ppm, worse than the global model. Narrow local ratios pay off onl
 can be trusted; with a field this rough, keep the global ratios and take the local angles and scales. SGS,
 indicator and categorical kriging take the same `anisotropy=` field, scales included.
 
-Full script: [`example_09.py`](example_09.py)
+Full script: [`example_05_09.py`](example_05_09.py)

@@ -141,4 +141,4 @@ rotated grid [38, 47, 14]: 94% of 25,004 blocks estimated
 
 ![section](section.png)
 
-Full script: [`example_11.py`](example_11.py)
+Full script: [`example_02_11.py`](example_02_11.py)

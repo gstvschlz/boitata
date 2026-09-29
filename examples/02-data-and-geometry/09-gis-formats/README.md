@@ -172,4 +172,4 @@ save(fig, "gis")
 
 ![gis](gis.png)
 
-Full script: [`example_09.py`](example_09.py)
+Full script: [`example_02_09.py`](example_02_09.py)

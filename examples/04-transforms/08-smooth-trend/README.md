@@ -185,4 +185,4 @@ bandwidth 600 m; proportions sum to 1: True
 
 ![proportions](proportions.png)
 
-Full script: [`example_08.py`](example_08.py)
+Full script: [`example_04_08.py`](example_04_08.py)

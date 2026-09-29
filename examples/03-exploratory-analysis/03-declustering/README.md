@@ -135,4 +135,4 @@ These weights describe the data: histograms, statistics per domain, top cuts and
 transform. Declustering weights derived from estimation weights, what each hole contributes to estimating the whole
 lease, are the subject of [weight declustering](../../03-exploratory-analysis/04-weight-declustering/README.md).
 
-Full script: [`example_03.py`](example_03.py)
+Full script: [`example_03_03.py`](example_03_03.py)

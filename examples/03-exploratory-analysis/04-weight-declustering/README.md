@@ -154,4 +154,4 @@ save(fig, "means")
 
 ![means](means.png)
 
-Full script: [`example_04.py`](example_04.py)
+Full script: [`example_03_04.py`](example_03_04.py)

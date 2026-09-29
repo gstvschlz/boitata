@@ -114,4 +114,4 @@ On average the estimate says 23.1% of the nodes exceed 500 ppm; 18.9% do. The er
 most nodes: where it predicts 0.1 to 0.4, half to two thirds of that is observed. From 0.5 to 0.9 it turns the other way:
 more nodes exceed the cutoff than it predicts.
 
-Full script: [`example_04.py`](example_04.py)
+Full script: [`example_09_04.py`](example_09_04.py)

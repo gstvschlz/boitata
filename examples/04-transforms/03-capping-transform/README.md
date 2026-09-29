@@ -212,4 +212,4 @@ print(restored.caps_ == pipeline.caps_)
 True
 ```
 
-Full script: [`example_03.py`](example_03.py)
+Full script: [`example_04_03.py`](example_04_03.py)
