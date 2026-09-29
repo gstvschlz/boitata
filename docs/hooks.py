@@ -5,6 +5,7 @@ from mkdocs.structure.files import File
 
 CHAPTER = re.compile(r"\]\(((?:\.\./)+(\d\d)-[\w-]+/(\d\d)-[\w-]+)/README\.md\)")
 SOURCE = re.compile(r"\]\((?:\.\./)+common\.py\)")
+SENTENCE = re.compile(r"(?<=\.)\s+(?=[A-Z`])")
 
 API = """
 containers: Containers and I/O
@@ -53,14 +54,14 @@ def on_config(config, **kwargs):
 
 
 def on_files(files, config, **kwargs):
-    """Generates the API pages, with summaries from the first docstring paragraph."""
+    """Generates the API pages, with summaries from the first docstring sentence."""
     import ceres
 
     for slug, title, names in sections():
         rows = ["| Name | Summary |", "| --- | --- |"]
         for name in names:
             doc = inspect.getdoc(getattr(ceres, name)) or ""
-            summary = " ".join(doc.partition("\n\n")[0].split()).replace("|", "\\|")
+            summary = SENTENCE.split(" ".join(doc.split()), 1)[0].replace("|", "\\|")
             rows.append(f"| [`{name}`]({name}.md) | {summary} |")
             page = f"::: ceres.{name}\n    options:\n      heading_level: 1\n"
             files.append(File.generated(config, f"api/{slug}/{name}.md", content=page))
