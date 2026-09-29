@@ -109,7 +109,7 @@ impl Lattice {
 
 /// Level of cell `ijk`: the largest `l <= top` with every coordinate a
 /// multiple of `2^l`.
-fn level(ijk: [usize; 3], top: usize) -> usize {
+pub(crate) fn level(ijk: [usize; 3], top: usize) -> usize {
     (0..=top)
         .rev()
         .find(|&l| ijk.iter().all(|&c| c % (1 << l) == 0))
