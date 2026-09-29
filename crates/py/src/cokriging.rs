@@ -11,6 +11,7 @@ use crate::args::{self, Point, array1, column, distinct, finite, pick, points, s
 use crate::estimation::{Search, outputs, sample_columns, samples_from, targets};
 use crate::invalid;
 use crate::persist::{self, Columns, Found, Tabular};
+use crate::progress::with_progress;
 use crate::transforms::Anamorphosis;
 use crate::variogram::{Coregionalization, Variogram};
 
@@ -139,8 +140,9 @@ impl Cokriging {
     }
 
     /// Estimates of `variable`; `collocated` maps a variable index to its
-    /// values at every target for collocated cokriging.
-    #[pyo3(signature = (targets, *, variable=0, return_variance=false, collocated=None))]
+    /// values at every target for collocated cokriging. `progress` shows a
+    /// `tqdm` bar.
+    #[pyo3(signature = (targets, *, variable=0, return_variance=false, collocated=None, progress=true))]
     fn predict<'py>(
         &self,
         py: Python<'py>,
@@ -148,6 +150,7 @@ impl Cokriging {
         variable: usize,
         return_variance: bool,
         collocated: Option<HashMap<usize, Bound<'py, PyAny>>>,
+        progress: bool,
     ) -> PyResult<Bound<'py, PyAny>> {
         let (plain, co) = self
             .samples
@@ -173,30 +176,43 @@ impl Cokriging {
         }
         let metric = metric(self.model.anisotropy.clone());
         let tree = SearchTree::new(plain, &self.search, Some(&metric));
-        let results: Vec<Option<Estimate>> = py.detach(|| {
+        let total = Some(targets.len() as u64);
+        let results: Vec<Option<Estimate>> = with_progress(py, total, progress, |counter| {
             targets
                 .par_iter()
                 .enumerate()
                 .map(|(i, t)| {
-                    let near = nearby(t, &tree, co)?;
-                    if collocated.is_empty() {
-                        return estimation::cokrige(t, variable, &near, &self.model, &self.kind)
+                    let result = (|| {
+                        let near = nearby(t, &tree, co)?;
+                        if collocated.is_empty() {
+                            return estimation::cokrige(
+                                t,
+                                variable,
+                                &near,
+                                &self.model,
+                                &self.kind,
+                            )
                             .ok();
+                        }
+                        let here: Vec<(usize, f64)> =
+                            collocated.iter().map(|(k, v)| (*k, v[i])).collect();
+                        estimation::collocated_cokrige(
+                            t,
+                            variable,
+                            &near,
+                            &here,
+                            &self.model,
+                            &self.kind,
+                        )
+                        .ok()
+                    })();
+                    if let Some(p) = counter {
+                        p.inc();
                     }
-                    let here: Vec<(usize, f64)> =
-                        collocated.iter().map(|(k, v)| (*k, v[i])).collect();
-                    estimation::collocated_cokrige(
-                        t,
-                        variable,
-                        &near,
-                        &here,
-                        &self.model,
-                        &self.kind,
-                    )
-                    .ok()
+                    result
                 })
                 .collect()
-        });
+        })?;
         outputs(py, &results, return_variance)
     }
 }
@@ -219,7 +235,12 @@ pub struct Disjunctive {
 }
 
 impl Disjunctive {
-    fn factors(&self, py: Python, targets: &Bound<PyAny>) -> PyResult<Vec<Option<Vec<f64>>>> {
+    fn factors(
+        &self,
+        py: Python,
+        targets: &Bound<PyAny>,
+        progress: bool,
+    ) -> PyResult<Vec<Option<Vec<f64>>>> {
         let (plain, gauss) = self
             .samples
             .as_ref()
@@ -232,17 +253,23 @@ impl Disjunctive {
         }
         let metric = metric(self.variogram.anisotropy.clone());
         let tree = SearchTree::new(plain, &self.search, Some(&metric));
-        Ok(py.detach(|| {
+        let total = Some(targets.len() as u64);
+        with_progress(py, total, progress, |counter| {
             targets
                 .par_iter()
                 .map(|t| {
-                    let near = nearby(t, &tree, gauss)?;
-                    self.engine
-                        .factors(t, &near, &self.variogram, self.order)
-                        .ok()
+                    let result = nearby(t, &tree, gauss).and_then(|near| {
+                        self.engine
+                            .factors(t, &near, &self.variogram, self.order)
+                            .ok()
+                    });
+                    if let Some(p) = counter {
+                        p.inc();
+                    }
+                    result
                 })
                 .collect()
-        }))
+        })
     }
 }
 
@@ -320,25 +347,33 @@ impl Disjunctive {
         Ok(slf)
     }
 
-    /// Local grade estimates.
-    fn predict<'py>(&self, py: Python<'py>, targets: &Bound<PyAny>) -> PyResult<Bound<'py, PyAny>> {
+    /// Local grade estimates. `progress` shows a `tqdm` bar.
+    #[pyo3(signature = (targets, *, progress=true))]
+    fn predict<'py>(
+        &self,
+        py: Python<'py>,
+        targets: &Bound<PyAny>,
+        progress: bool,
+    ) -> PyResult<Bound<'py, PyAny>> {
         let grades = self
-            .factors(py, targets)?
+            .factors(py, targets, progress)?
             .iter()
             .map(|f| f.as_ref().map_or(f64::NAN, |f| self.engine.grade(f)))
             .collect();
         Ok(array1(py, grades).into_any())
     }
 
-    /// Local proportion above `cutoff`.
+    /// Local proportion above `cutoff`. `progress` shows a `tqdm` bar.
+    #[pyo3(signature = (targets, cutoff, *, progress=true))]
     fn predict_tonnage<'py>(
         &self,
         py: Python<'py>,
         targets: &Bound<PyAny>,
         cutoff: f64,
+        progress: bool,
     ) -> PyResult<Bound<'py, PyAny>> {
         let t = self
-            .factors(py, targets)?
+            .factors(py, targets, progress)?
             .iter()
             .map(|f| {
                 f.as_ref()

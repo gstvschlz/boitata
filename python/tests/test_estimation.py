@@ -1051,3 +1051,25 @@ def test_indicator_predict_progress_shows_a_bar_without_changing_output(capsys):
         assert "100%" in capsys.readouterr().err
         np.testing.assert_array_equal(on.cdf, off.cdf)
         np.testing.assert_array_equal(on.probability_above, off.probability_above)
+
+
+def test_cokriging_and_disjunctive_progress_show_a_bar_without_changing_output(capsys):
+    lmc = cs.Coregionalization(
+        [[0.0, 0.0], [0.0, 0.0]], structures=[("spherical", 40.0, [[1.0, 0.7], [0.7, 1.0]])]
+    )
+    ck = cs.Cokriging(lmc, search).fit(coords, values, [0] * len(values))
+    grades = np.exp(values / 2)
+    dk = cs.DisjunctiveKriging(cs.HermiteAnamorphosis().fit(grades), model, search, order=15).fit(
+        coords, grades
+    )
+    targets = np.vstack([coords[:40], [[500.0, 500.0]]])
+    for call in (
+        lambda **k: ck.predict(targets, **k),
+        lambda **k: dk.predict(targets, **k),
+        lambda **k: dk.predict_tonnage(targets, 1.0, **k),
+    ):
+        off = call(progress=False)
+        assert capsys.readouterr().err == ""
+        on = call(progress=True)
+        assert "100%" in capsys.readouterr().err
+        np.testing.assert_array_equal(on, off)
