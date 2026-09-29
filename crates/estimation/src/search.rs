@@ -571,6 +571,12 @@ impl SearchTree {
         self.index.add(&self.points);
     }
 
+    /// Linear map to the isotropic search space: the search distance
+    /// between two points is the norm of their difference mapped by it.
+    pub fn frame(&self) -> &Matrix3<f64> {
+        &self.frame
+    }
+
     /// Distance from `a` to `b` in the search ellipsoid, up to rounding.
     pub fn distance(&self, a: &Point, b: &Point) -> f64 {
         let (p, q) = (self.project(a), self.project(b));
@@ -749,6 +755,31 @@ impl SearchTree {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn frame_gives_the_search_distance() {
+        let samples = vec![Sample::new((0.0, 0.0, 0.0), 1.0)];
+        let anisotropy = Anisotropy::new(Angles {
+            azimuth: 40.0,
+            dip: 10.0,
+            rake: 0.0,
+            major: 1.0,
+            semi: 0.5,
+            minor: 0.25,
+        })
+        .unwrap();
+        let search = Search {
+            min_samples: 1,
+            max_samples: 4,
+            radius: 100.0,
+            anisotropy: Some(anisotropy),
+            ..Default::default()
+        };
+        let tree = SearchTree::new(&samples, &search, None);
+        let (a, b) = ((1.0, 2.0, 3.0), (20.0, -5.0, 9.0));
+        let v = Vector3::new(b.0 - a.0, b.1 - a.1, b.2 - a.2);
+        assert!(((tree.frame() * v).norm() - tree.distance(&a, &b)).abs() < 1e-9);
+    }
+
     use super::*;
     use variogram::Angles;
 
