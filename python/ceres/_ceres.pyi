@@ -2071,3 +2071,33 @@ class SNESIM:
         keep: bool | Sequence[int] = False,
         progress: bool = True,
     ) -> CategoricalSummary: ...
+
+# Image quilting.
+
+class ImageQuilting:
+    def to_parquet(self, path: Path) -> None: ...
+    @staticmethod
+    def from_parquet(path: Path) -> ImageQuilting: ...
+    def __init__(
+        self,
+        ti: BlockModel,
+        column: str,
+        *,
+        patch_size: int | Sequence[int] = 40,
+        overlap: int | Sequence[int] | None = None,
+        n_best: int = 10,
+        data_weight: float = 5.0,
+        categorical: bool | None = None,
+    ) -> None: ...
+    @property
+    def categorical(self) -> bool: ...
+    def fit(self, coords: ArrayLike | PointSet | BlockModel, values: ArrayLike | Column) -> ImageQuilting: ...
+    def simulate(
+        self,
+        targets: BlockModel,
+        *,
+        n: int = 100,
+        seed: int = 0,
+        keep: bool | Sequence[int] = False,
+        progress: bool = True,
+    ) -> CategoricalSummary | SimulationSummary: ...

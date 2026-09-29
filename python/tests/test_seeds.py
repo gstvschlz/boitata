@@ -31,6 +31,13 @@ SIMULATORS = {
     "snesim": lambda: cs.SNESIM(ti, "facies", template_size=12, n_levels=1).fit(coords, facies),
 }
 
+# Image quilting.
+_x, _y = np.meshgrid(np.arange(40), np.arange(40))
+_ti = cs.BlockModel(
+    (0, 0), (1, 1), (40, 40), attributes={"f": (((_y - 4 * np.sin(_x / 5)) % 10) < 4).ravel() * 1.0}
+)
+SIMULATORS["image_quilting"] = lambda: cs.ImageQuilting(_ti, "f", patch_size=5).fit(coords, facies)
+
 
 def realizations(name, n, seed):
     if name == "bootstrap":

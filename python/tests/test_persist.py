@@ -427,3 +427,31 @@ def test_snesim_round_trip_simulates_bit_identically(tmp_path):
     summary = snesim.simulate(grid, n=3, seed=4, keep=True)
     for back in (cs.SNESIM.from_parquet(path), pickle.loads(pickle.dumps(snesim))):
         same(summary_arrays(back.simulate(grid, n=3, seed=4, keep=True)), summary_arrays(summary))
+
+
+# Image quilting.
+
+
+@pytest.mark.parametrize("categorical", [True, False])
+def test_image_quilting_round_trip_simulates_bit_identically(categorical, tmp_path):
+    x, y = np.meshgrid(np.arange(40), np.arange(40))
+    image = ((y - 4 * np.sin(x / 5)) % 10 < 4) * 1.0 if categorical else np.sin(x / 5) * np.cos(y / 7)
+    ti = cs.BlockModel((0, 0), (1, 1), (40, 40), attributes={"v": image.ravel()})
+    targets = cs.BlockModel((0, 0), (4, 4), (25, 25))
+    data = {"values": facies % 2 if categorical else values}
+    simulator = cs.ImageQuilting(ti, "v", patch_size=8, n_best=4)
+    path = tmp_path / "simulator.parquet"
+    simulator.to_parquet(path)
+    unfitted = type(simulator).from_parquet(path).fit(coords[:, :2], **data)
+    simulator.fit(coords[:, :2], **data)
+    summary = simulator.simulate(targets, n=3, seed=9, keep=True, progress=False)
+    same(
+        summary_arrays(unfitted.simulate(targets, n=3, seed=9, keep=True, progress=False)),
+        summary_arrays(summary),
+    )
+    simulator.to_parquet(path)
+    for back in (type(simulator).from_parquet(path), pickle.loads(pickle.dumps(simulator))):
+        same(
+            summary_arrays(back.simulate(targets, n=3, seed=9, keep=True, progress=False)),
+            summary_arrays(summary),
+        )
