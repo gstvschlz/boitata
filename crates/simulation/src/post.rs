@@ -83,7 +83,7 @@ impl Keep {
 #[derive(Debug, Clone, Default)]
 pub struct ContinuousOptions {
     pub cutoffs: Vec<f64>,
-    /// Probabilities in `[0, 1]`; exact, but they hold every value as `f32`.
+    /// Probabilities in `[0, 1]`; exact, but they hold every value.
     pub quantiles: Vec<f64>,
     /// Realizations to return beside the statistics.
     pub keep: Keep,
@@ -126,6 +126,32 @@ pub fn continuous(
     Ok(acc.finish())
 }
 
+/// As [`continuous`], simulating `batch` realizations at a time:
+/// `simulate(ks)` returns realizations `ks`, in order. The summary does not
+/// depend on `batch`.
+pub fn continuous_batched(
+    n: usize,
+    options: &ContinuousOptions,
+    batch: usize,
+    mut simulate: impl FnMut(std::ops::Range<usize>) -> Result<Vec<Vec<f64>>>,
+) -> Result<ContinuousSummary> {
+    let mut acc = Accumulator::new(n, options)?;
+    let batch = batch.max(1);
+    for start in (0..n).step_by(batch) {
+        let ks = start..(start + batch).min(n);
+        let done = simulate(ks.clone())?;
+        if done.len() != ks.len() {
+            return Err(SimError::InvalidParameters(format!(
+                "{} realizations for {} indices",
+                done.len(),
+                ks.len()
+            )));
+        }
+        done.into_iter().try_for_each(|v| acc.add(v))?;
+    }
+    Ok(acc.finish())
+}
+
 /// Summarizes `n` realizations of `variables` continuous variables at once;
 /// `simulate(k)` returns realization `k` of every variable over the same
 /// targets every time.
@@ -157,7 +183,7 @@ struct Accumulator<'a> {
     m2: Vec<f64>,
     above: Vec<Vec<u32>>,
     sum_above: Vec<Vec<f64>>,
-    stored: Vec<f32>,
+    stored: Vec<f64>,
     out: ContinuousSummary,
 }
 
@@ -231,7 +257,7 @@ impl<'a> Accumulator<'a> {
             .realization_mean
             .push(values.iter().sum::<f64>() / m.max(1) as f64);
         if !self.options.quantiles.is_empty() {
-            self.stored.extend(values.iter().map(|&v| v as f32));
+            self.stored.extend_from_slice(&values);
         }
         if self.options.keep.keeps(index) {
             self.out.realizations.push(values);
@@ -272,7 +298,7 @@ impl<'a> Accumulator<'a> {
             let columns: Vec<Vec<f64>> = (0..m)
                 .into_par_iter()
                 .map(|i| {
-                    let mut col: Vec<f64> = (0..n).map(|r| stored[r * m + i] as f64).collect();
+                    let mut col: Vec<f64> = (0..n).map(|r| stored[r * m + i]).collect();
                     col.sort_by(f64::total_cmp);
                     options
                         .quantiles
@@ -860,5 +886,42 @@ mod tests {
         assert!(localize(&panels, &blocks, &ranking, &reals).is_err());
         reals[1].pop();
         assert!(localize(&panels, &blocks, &ranking, &reals).is_err());
+    }
+
+    #[test]
+    fn batched_summary_does_not_depend_on_the_batch() {
+        let options = ContinuousOptions {
+            cutoffs: vec![0.2, 0.7],
+            quantiles: vec![0.1, 0.5, 0.9],
+            keep: Keep::All,
+        };
+        let whole = continuous(23, &options, fake).unwrap();
+        for batch in [1, 4, 23, 100] {
+            let s = continuous_batched(23, &options, batch, |ks| ks.map(fake).collect()).unwrap();
+            assert_eq!(s.mean, whole.mean);
+            assert_eq!(s.variance, whole.variance);
+            assert_eq!(s.probability_above, whole.probability_above);
+            assert_eq!(s.quantile_values, whole.quantile_values);
+            assert_eq!(s.realization_mean, whole.realization_mean);
+            assert_eq!(s.realizations, whole.realizations);
+        }
+        assert!(continuous_batched(3, &options, 4, |_| Ok(vec![])).is_err());
+    }
+
+    #[test]
+    fn quantiles_are_exact_in_f64() {
+        let options = ContinuousOptions {
+            quantiles: vec![0.25, 0.5, 0.9],
+            ..Default::default()
+        };
+        let value = |k: usize, i: usize| 1.0 + (k * 7 + i) as f64 * 1e-9 + 1.0 / 3.0;
+        let s = continuous(9, &options, |k| Ok((0..5).map(|i| value(k, i)).collect())).unwrap();
+        for i in 0..5 {
+            let mut col: Vec<f64> = (0..9).map(|k| value(k, i)).collect();
+            col.sort_by(f64::total_cmp);
+            for (q, &p) in options.quantiles.iter().enumerate() {
+                assert_eq!(s.quantile_values[q][i], quantile_sorted(&col, p));
+            }
+        }
     }
 }

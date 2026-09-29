@@ -12,6 +12,7 @@
 //! Realizations are conditional and reproducible given a seed.
 
 pub mod correct;
+mod conditioning;
 pub mod error;
 pub mod gibbs;
 pub mod multivariate;
@@ -31,7 +32,7 @@ pub use pgs::{
 };
 pub use post::{
     BlockSupport, CategoricalSummary, ContinuousOptions, ContinuousSummary, Keep, categorical,
-    continuous, continuous_many, localize, quantile_sorted,
+    continuous, continuous_batched, continuous_many, localize, quantile_sorted,
 };
 pub use sgs::{
     Domains, Realization, Secondary, SgsParams, Transform, Transforms, Trend, cosgs, sgs, sgs_in,

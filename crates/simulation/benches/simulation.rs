@@ -160,5 +160,45 @@ fn wide(c: &mut Criterion) {
     group.finish();
 }
 
-criterion_group!(benches, bench, threads, phases, wide);
+/// 50 realizations of 100 000 nodes from 5000 data: conditioning shared by
+/// the realizations.
+fn many(c: &mut Criterion) {
+    let data: Vec<_> = (0..5000)
+        .map(|i| {
+            (
+                ((i * 7919) % 2000) as f64,
+                ((i * 104_729) % 2000) as f64,
+                ((i * 31) % 200) as f64,
+            )
+        })
+        .collect();
+    let values: Vec<f64> = data
+        .iter()
+        .map(|p| (p.0 / 300.0).sin() + p.1 / 2000.0)
+        .collect();
+    let grid: Vec<_> = (0..100_000)
+        .map(|i| {
+            (
+                (i % 100) as f64 * 20.0,
+                ((i / 100) % 100) as f64 * 20.0,
+                (i / 10_000) as f64 * 20.0,
+            )
+        })
+        .collect();
+    let vg = Variogram::single(Model::Spherical, 1.0, 200.0);
+    let params = TurningBandsParams::default();
+    let (lo, hi) = bounds(&grid);
+    let e = TurningBandsEnsemble::new(
+        &data, &values, None, None, None, None, lo, hi, &vg, &params, 50,
+    )
+    .unwrap();
+    let mut group = c.benchmark_group("turning bands, 50 realizations of 100 000 nodes");
+    group.sample_size(10);
+    group.bench_function("summary", |b| {
+        b.iter(|| black_box(e.summary(&grid, None, None, &Default::default()).unwrap()))
+    });
+    group.finish();
+}
+
+criterion_group!(benches, bench, threads, phases, wide, many);
 criterion_main!(benches);

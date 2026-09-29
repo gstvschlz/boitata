@@ -23,8 +23,9 @@
 //! every domain shares the bands, and a node's residuals are kriged, and its
 //! score back-transformed, within its own domain.
 
+use crate::conditioning::{Conditioning, Neighbor};
 use crate::error::{Result, SimError};
-use crate::post::{BlockSupport, ContinuousOptions, ContinuousSummary, continuous};
+use crate::post::{BlockSupport, ContinuousOptions, ContinuousSummary, continuous_batched};
 use crate::sgs::{Domains, Realization, Transform, Transforms, Trend, data};
 use estimation::Sample;
 use estimation::krige::{Kind, krige};
@@ -35,6 +36,22 @@ use rand::{RngCore, SeedableRng};
 use rand_distr::{Distribution, Normal};
 use rayon::prelude::*;
 use variogram::Variogram;
+
+/// Targets conditioned together. Fixed, so results never depend on the
+/// thread count.
+const TILE: usize = 1024;
+
+/// Memory a batch of realizations may take for its values and residuals.
+const BATCH_BYTES: usize = 1 << 30;
+
+/// Blocks per streamed chunk: `rows`, fewer when quantiles keep every
+/// realization of the chunk, so they stay within [`BATCH_BYTES`].
+fn quantile_rows(rows: usize, n: usize, quantiles: usize) -> usize {
+    match quantiles {
+        0 => rows,
+        _ => rows.min(BATCH_BYTES / (n.max(1) * 8)).max(1),
+    }
+}
 
 /// Turning-bands parameters.
 #[derive(Debug, Clone)]
@@ -371,27 +388,29 @@ impl Bands {
 
     /// Standard-Gaussian unconditional field at `points` (inside the box).
     pub fn field(&self, points: &[(f64, f64, f64)]) -> Vec<f64> {
+        points.par_iter().map(|p| self.at(p)).collect()
+    }
+
+    /// As [`Bands::field`] on the calling thread.
+    fn field_serial(&self, points: &[(f64, f64, f64)]) -> Vec<f64> {
+        points.iter().map(|p| self.at(p)).collect()
+    }
+
+    fn at(&self, p: &(f64, f64, f64)) -> f64 {
         let inv = 1.0 / (self.directions.len() as f64).sqrt();
-        points
-            .par_iter()
-            .map(|p| {
-                let q = self.to_isotropic * Vector3::new(p.0, p.1, p.2);
-                let mut sum = 0.0;
-                for ((dir, &tmin), band) in
-                    self.directions.iter().zip(&self.origins).zip(&self.values)
-                {
-                    let x = ((q.dot(dir) - tmin) / self.step).max(0.0);
-                    let i0 = (x.floor() as usize).min(band.len() - 2);
-                    let frac = x - i0 as f64;
-                    sum += band[i0] * (1.0 - frac) + band[i0 + 1] * frac;
-                }
-                if self.nugget > 0.0 {
-                    sum * inv * (1.0 - self.nugget).sqrt() + white(self.key, p) * self.nugget.sqrt()
-                } else {
-                    sum * inv
-                }
-            })
-            .collect()
+        let q = self.to_isotropic * Vector3::new(p.0, p.1, p.2);
+        let mut sum = 0.0;
+        for ((dir, &tmin), band) in self.directions.iter().zip(&self.origins).zip(&self.values) {
+            let x = ((q.dot(dir) - tmin) / self.step).max(0.0);
+            let i0 = (x.floor() as usize).min(band.len() - 2);
+            let frac = x - i0 as f64;
+            sum += band[i0] * (1.0 - frac) + band[i0 + 1] * frac;
+        }
+        if self.nugget > 0.0 {
+            sum * inv * (1.0 - self.nugget).sqrt() + white(self.key, p) * self.nugget.sqrt()
+        } else {
+            sum * inv
+        }
     }
 }
 
@@ -620,6 +639,119 @@ impl TurningBandsEnsemble {
         domains: Option<&[u32]>,
         trend: Option<&[f64]>,
     ) -> Result<Vec<f64>> {
+        Ok(self
+            .realizations(k..k + 1, targets, |_| domains, trend)?
+            .remove(0))
+    }
+
+    /// Realizations `ks` at `targets`, each as [`Self::realization`] with
+    /// the node domains `domains(k)`. The targets are taken a tile at a
+    /// time; a tile's neighbours and kriging weights are found once for
+    /// every realization in `ks` that gives it the same domains.
+    pub fn realizations<'d>(
+        &self,
+        ks: std::ops::Range<usize>,
+        targets: &[(f64, f64, f64)],
+        domains: impl Fn(usize) -> Option<&'d [u32]> + Sync,
+        trend: Option<&[f64]>,
+    ) -> Result<Vec<Vec<f64>>> {
+        if ks.is_empty() || ks.end > self.bands.len() {
+            return Err(SimError::InvalidParameters(format!(
+                "no realizations {ks:?} among {}",
+                self.bands.len()
+            )));
+        }
+        for k in ks.clone() {
+            self.transforms(targets.len(), domains(k), trend)?;
+        }
+        let b = ks.len();
+        let mut residuals = vec![0.0; self.data.len() * b];
+        for (j, row) in residuals.chunks_mut(b).enumerate() {
+            for (r, k) in row.iter_mut().zip(ks.clone()) {
+                *r = self.transforms.scores[j] - self.at_data[k][j];
+            }
+        }
+        let tiles: Vec<Vec<Vec<f64>>> = targets
+            .par_chunks(TILE)
+            .enumerate()
+            .map(|(t, tile)| {
+                let start = t * TILE;
+                let codes =
+                    |kk: usize| domains(ks.start + kk).map(|d| &d[start..start + tile.len()]);
+                let mut groups: Vec<(Option<&[u32]>, Vec<usize>)> = vec![];
+                for kk in 0..b {
+                    match groups.iter_mut().find(|(c, _)| *c == codes(kk)) {
+                        Some((_, members)) => members.push(kk),
+                        None => groups.push((codes(kk), vec![kk])),
+                    }
+                }
+                let mut out = vec![vec![]; b];
+                for (codes, members) in groups {
+                    let c = Conditioning::new(tile, codes, &self.tree, &self.data, &self.vg)?;
+                    let fields: Vec<Vec<f64>> = members
+                        .iter()
+                        .map(|&kk| self.bands[ks.start + kk].field_serial(tile))
+                        .collect();
+                    let (mut row, mut rk) = (vec![0.0; members.len()], vec![0.0; members.len()]);
+                    for kk in &members {
+                        out[*kk] = Vec::with_capacity(tile.len());
+                    }
+                    for i in 0..tile.len() {
+                        let domain = codes.map(|d| d[i]);
+                        let residual = |n: &Neighbor, row: &mut [f64]| {
+                            let d = n.datum as usize;
+                            if n.cap.is_none() && self.data[d].domain == domain {
+                                for (r, &kk) in row.iter_mut().zip(&members) {
+                                    *r = residuals[d * b + kk];
+                                }
+                            } else {
+                                let s = self.score(d, domain, n.cap);
+                                for (r, &kk) in row.iter_mut().zip(&members) {
+                                    *r = s - self.at_data[ks.start + kk][d];
+                                }
+                            }
+                        };
+                        let found = c.krige_batch(i, residual, &mut row, &mut rk);
+                        let at = trend.map_or(0.0, |t| t[start + i]);
+                        let transform = self.transforms.domains[domain.unwrap_or(0) as usize]
+                            .as_ref()
+                            .expect("checked");
+                        for (m, &kk) in members.iter().enumerate() {
+                            let u = fields[m][i];
+                            let score = if found { u + rk[m] } else { u };
+                            out[kk].push(transform.back(score, at));
+                        }
+                    }
+                }
+                Ok(out)
+            })
+            .collect::<Result<_>>()?;
+        let mut all: Vec<Vec<f64>> = (0..b)
+            .map(|_| Vec::with_capacity(targets.len()))
+            .collect();
+        for tile in tiles {
+            for (a, t) in all.iter_mut().zip(tile) {
+                a.extend(t);
+            }
+        }
+        Ok(all)
+    }
+
+    /// Realizations per batch for `targets` nodes: as many as keep the
+    /// batch's values and residuals within [`BATCH_BYTES`], at least one.
+    pub fn batch(&self, targets: usize) -> usize {
+        let per = (targets + self.data.len()).max(1) * std::mem::size_of::<f64>();
+        (BATCH_BYTES / per).clamp(1, self.bands.len().max(1))
+    }
+
+    #[cfg(test)]
+    fn realization_reference(
+        &self,
+        k: usize,
+        targets: &[(f64, f64, f64)],
+        domains: Option<&[u32]>,
+        trend: Option<&[f64]>,
+    ) -> Result<Vec<f64>> {
         let bands = self
             .bands
             .get(k)
@@ -651,8 +783,8 @@ impl TurningBandsEnsemble {
         trend: Option<&[f64]>,
         options: &ContinuousOptions,
     ) -> Result<ContinuousSummary> {
-        continuous(self.len(), options, |k| {
-            self.realization(k, targets, domains, trend)
+        continuous_batched(self.len(), options, self.batch(targets.len()), |ks| {
+            self.realizations(ks, targets, |_| domains, trend)
         })
     }
 }
@@ -792,6 +924,7 @@ pub fn turning_bands_to_parquet(
         realization_mean: vec![0.0; n],
         realization_above: vec![vec![0.0; n]; options.cutoffs.len()],
     };
+    let rows = quantile_rows(rows, n, options.quantiles.len());
     let mut total = 0.0;
     std::thread::scope(|scope| -> Result<()> {
         let (send, receive) = std::sync::mpsc::sync_channel::<ceres_core::BlockModel>(1);
@@ -816,13 +949,15 @@ pub fn turning_bands_to_parquet(
                         Ok::<_, SimError>(owner.iter().map(|&b| at[b]).collect())
                     })
                     .transpose()?;
-                let s = continuous(n, options, |k| {
-                    let r =
-                        ensemble.realization(k, &nodes, codes.as_deref(), at_nodes.as_deref())?;
-                    match &support {
-                        Some(s) => s.mean(&r),
-                        None => Ok(r),
-                    }
+                let s = continuous_batched(n, options, ensemble.batch(nodes.len()), |ks| {
+                    ensemble
+                        .realizations(ks, &nodes, |_| codes.as_deref(), at_nodes.as_deref())?
+                        .into_iter()
+                        .map(|r| match &support {
+                            Some(s) => s.mean(&r),
+                            None => Ok(r),
+                        })
+                        .collect()
                 })?;
                 let m = chunk.len() as f64;
                 total += m;
@@ -1674,5 +1809,119 @@ mod tests {
         );
         assert!(plain.realization(0, &grid, Some(&[0, 0]), None).is_err());
         assert!(plain.realization(0, &grid, None, Some(&t)).is_err());
+    }
+
+    #[test]
+    fn cached_weights_krige_residuals_as_condition_does() {
+        use crate::conditioning::Conditioning;
+        let z = zoned();
+        let (grid, nodes, _) = zoned_grid();
+        let all: Vec<usize> = (0..z.locs.len()).collect();
+        let params = zoned_params(Some(estimation::Soft::All(8.0)), 2);
+        let e = ensemble(&z, &all, Some(&z.codes), false, &params, 1);
+        let residual: Vec<f64> = (0..e.data.len()).map(|j| (j as f64 * 0.37).sin()).collect();
+        let want = condition(
+            &grid,
+            Some(&nodes),
+            vec![0.0; grid.len()],
+            &e.tree,
+            &e.vg,
+            |k, _, _| Sample::new(e.data[k].loc, residual[k]),
+        )
+        .unwrap();
+        let c = Conditioning::new(&grid, Some(&nodes), &e.tree, &e.data, &e.vg).unwrap();
+        let (mut row, mut out) = ([0.0], [0.0]);
+        let got: Vec<f64> = (0..grid.len())
+            .map(|i| {
+                let found = c.krige_batch(
+                    i,
+                    |n, row| row[0] = residual[n.datum as usize],
+                    &mut row,
+                    &mut out,
+                );
+                if found { 0.0 + out[0] } else { 0.0 }
+            })
+            .collect();
+        assert_eq!(got, want);
+        assert!((0..grid.len()).any(|i| !c.of(i).is_empty()));
+    }
+
+    /// Two domains with soft boundaries, per-realization node domains, a
+    /// trend, and a clamping high-grade restriction.
+    #[test]
+    fn batched_realizations_equal_the_per_realization_path() {
+        let z = zoned();
+        let (grid, nodes, node_trend) = zoned_grid();
+        let all: Vec<usize> = (0..z.locs.len()).collect();
+        let mut params = zoned_params(Some(estimation::Soft::All(8.0)), 5);
+        let top = z.vals.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+        params.search.high_grade = Some(estimation::HighGrade {
+            mode: estimation::HighGradeMode::Clamp,
+            ..estimation::HighGrade::new(0.8 * top, 6.0)
+        });
+        let flipped: Vec<u32> = nodes.iter().map(|c| 1 - c).collect();
+        let of = |k: usize| Some(if k % 2 == 0 { &nodes[..] } else { &flipped[..] });
+        for trended in [false, true] {
+            let trend = trended.then_some(&node_trend[..]);
+            let e = ensemble(&z, &all, Some(&z.codes), trended, &params, 5);
+            let want: Vec<Vec<f64>> = (0..5)
+                .map(|k| e.realization_reference(k, &grid, of(k), trend).unwrap())
+                .collect();
+            assert_eq!(e.realizations(0..5, &grid, of, trend).unwrap(), want);
+            assert_eq!(e.realizations(2..4, &grid, of, trend).unwrap(), want[2..4]);
+            let one = rayon::ThreadPoolBuilder::new()
+                .num_threads(1)
+                .build()
+                .unwrap();
+            assert_eq!(
+                one.install(|| e.realizations(0..5, &grid, of, trend))
+                    .unwrap(),
+                want
+            );
+        }
+    }
+
+    #[test]
+    fn quantile_chunks_fit_the_memory_budget() {
+        assert_eq!(quantile_rows(1_000_000, 100, 0), 1_000_000);
+        assert_eq!(
+            quantile_rows(1_000_000, 100, 3),
+            (BATCH_BYTES / (100 * 8)).min(1_000_000)
+        );
+        assert_eq!(quantile_rows(1_000_000, 1 << 40, 3), 1);
+    }
+
+    #[test]
+    fn batched_realizations_with_a_nugget_and_no_domains() {
+        let data: Vec<_> = (0..200)
+            .map(|i| ((i * 37 % 101) as f64, (i * 53 % 97) as f64, 0.0))
+            .collect();
+        let values: Vec<f64> = (0..200).map(|i| (i as f64 / 9.0).sin()).collect();
+        let grid: Vec<_> = (0..5000)
+            .map(|i| ((i % 100) as f64, (i / 100) as f64 * 2.0, 0.0))
+            .collect();
+        let vg = Variogram {
+            nugget: 0.2,
+            ..Variogram::single(Model::Spherical, 0.8, 30.0)
+        };
+        let (lo, hi) = bounds(&grid);
+        let e = TurningBandsEnsemble::new(
+            &data,
+            &values,
+            None,
+            None,
+            None,
+            None,
+            lo,
+            hi,
+            &vg,
+            &TurningBandsParams::default(),
+            3,
+        )
+        .unwrap();
+        let want: Vec<Vec<f64>> = (0..3)
+            .map(|k| e.realization_reference(k, &grid, None, None).unwrap())
+            .collect();
+        assert_eq!(e.realizations(0..3, &grid, |_| None, None).unwrap(), want);
     }
 }

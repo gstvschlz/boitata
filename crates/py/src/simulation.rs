@@ -1136,10 +1136,12 @@ impl TurningBands {
                 &params,
                 n,
             )?;
-            simulation::continuous(n, &options, |k| {
-                let nodes = of_realization(&nodes, k);
-                let r = ensemble.realization(k, &grid, nodes, at_nodes.as_deref());
-                averaged(&support, r?)
+            simulation::continuous_batched(n, &options, ensemble.batch(grid.len()), |ks| {
+                ensemble
+                    .realizations(ks, &grid, |k| of_realization(&nodes, k), at_nodes.as_deref())?
+                    .into_iter()
+                    .map(|r| averaged(&support, r))
+                    .collect()
             })
         })
         .map(SimulationSummary)
