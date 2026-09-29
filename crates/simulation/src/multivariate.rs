@@ -187,10 +187,7 @@ mod tests {
     fn reproduces_declustered_histograms_and_correlation() {
         let (locs, data, weights) = samples();
         let out = simulate(&locs, &data, &weights, &grid(), 8);
-        let reals: Vec<&Vec<Vec<f64>>> = out
-            .iter()
-            .map(|s| &s.realizations)
-            .collect();
+        let reals: Vec<&Vec<Vec<f64>>> = out.iter().map(|s| &s.realizations).collect();
         for (v, r) in reals.iter().enumerate() {
             let column: Vec<f64> = data.iter().map(|row| row[v]).collect();
             let pooled: Vec<f64> = r.iter().flatten().copied().collect();
