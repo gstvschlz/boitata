@@ -14508,11 +14508,11 @@ links to the page that covers it in full.</p>
 </code></pre></div>
 <p class="mkd-glr-script-out">Out:</p>
 <div class="mkd-glr-script-out-disp highlight"><pre><span></span><code>0it<span class="w"> </span><span class="o">[</span><span class="m">00</span>:00,<span class="w"> </span>?it/s<span class="o">]</span>
-1it<span class="w"> </span><span class="o">[</span><span class="m">00</span>:00,<span class="w"> </span>?it/s<span class="o">]</span>
+1it<span class="w"> </span><span class="o">[</span><span class="m">00</span>:00,<span class="w"> </span><span class="m">187</span>.22it/s<span class="o">]</span>
 
 
 0it<span class="w"> </span><span class="o">[</span><span class="m">00</span>:00,<span class="w"> </span>?it/s<span class="o">]</span>
-77it<span class="w"> </span><span class="o">[</span><span class="m">00</span>:00,<span class="w"> </span><span class="m">2338</span>.62it/s<span class="o">]</span>
+77it<span class="w"> </span><span class="o">[</span><span class="m">00</span>:00,<span class="w"> </span><span class="m">2960</span>.61it/s<span class="o">]</span>
 PointSet<span class="o">(</span><span class="m">470</span><span class="w"> </span>points,<span class="w"> </span>crs:<span class="w"> </span>none<span class="o">)</span>
 <span class="w">  </span>ID:<span class="w"> </span>Float64
 <span class="w">  </span>V:<span class="w"> </span>Float64
@@ -14648,7 +14648,7 @@ the true value at each node joins the model as a second column.</p>
 <p><img alt="Ordinary kriging, True V at the nodes" class="mkd-glr-single-img" src="../images/mkd_glr_example_01_01_003.png" srcset="../images/mkd_glr_example_01_01_003.png" /></p>
 <p class="mkd-glr-script-out">Out:</p>
 <div class="mkd-glr-script-out-disp highlight"><pre><span></span><code><span class="w">  </span><span class="m">0</span>%<span class="p">|</span><span class="w">          </span><span class="p">|</span><span class="w"> </span><span class="m">0</span>/3120<span class="w"> </span><span class="o">[</span><span class="m">00</span>:00&lt;?,<span class="w"> </span>?it/s<span class="o">]</span>
-<span class="m">100</span>%<span class="p">|</span><span class="c1">##########| 3120/3120 [00:00&lt;?, ?it/s]</span>
+<span class="m">100</span>%<span class="p">|</span><span class="c1">##########| 3120/3120 [00:00&lt;00:00, 168181.83it/s]</span>
 BlockModel<span class="o">(</span>regular,<span class="w"> </span><span class="m">3120</span><span class="w"> </span>of<span class="w"> </span><span class="m">3120</span><span class="w"> </span>cells,<span class="w"> </span>count<span class="w"> </span><span class="o">[</span><span class="m">52</span>,<span class="w"> </span><span class="m">60</span>,<span class="w"> </span><span class="m">1</span><span class="o">]</span>,<span class="w"> </span>size<span class="w"> </span><span class="o">[</span><span class="m">5</span>.0,<span class="w"> </span><span class="m">5</span>.0,<span class="w"> </span><span class="m">1</span>.0<span class="o">]</span>,<span class="w"> </span>rotation<span class="w"> </span><span class="o">[</span><span class="m">0</span>.0,<span class="w"> </span><span class="m">0</span>.0,<span class="w"> </span><span class="m">0</span>.0<span class="o">])</span>
 <span class="w">  </span>estimate:<span class="w"> </span>Float64
 <span class="w">  </span>truth:<span class="w"> </span>Float64
@@ -14702,7 +14702,7 @@ mean:<span class="w"> </span>estimate<span class="w"> </span><span class="m">288
 give errors of the same size. The estimate follows the swath of the truth and flattens its peaks. Its mean matches
 the declustered samples and sits 4 % above the truth, a bias that no check against the samples can detect.
 <a href="../../04-parquet/example_01_04/">Storing containers in Parquet</a> saves a grid like this one to a file.</p>
-<p><strong>Total running time of the script:</strong> ( 0 minutes  1.058 seconds)</p>
+<p><strong>Total running time of the script:</strong> ( 0 minutes  1.032 seconds)</p>
 <div id="download_links"></div>
 
 <p><a class="md-button center" href="../example_01_01.py"><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M256 32c0-17.7-14.3-32-32-32s-32 14.3-32 32v210.7l-41.4-41.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3l96 96c12.5 12.5 32.8 12.5 45.3 0l96-96c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L256 242.7zM64 320c-35.3 0-64 28.7-64 64v32c0 35.3 28.7 64 64 64h320c35.3 0 64-28.7 64-64v-32c0-35.3-28.7-64-64-64h-46.9l-56.6 56.6c-31.2 31.2-81.9 31.2-113.1 0L110.9 320zm304 56a24 24 0 1 1 0 48 24 24 0 1 1 0-48"/></svg></span> Download Python source code: example_01_01.py</a></p>
