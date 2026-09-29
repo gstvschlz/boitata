@@ -157,6 +157,35 @@ pub fn continuous_batched(
     Ok(acc.finish())
 }
 
+/// As [`continuous`], simulating realizations `batch` at a time:
+/// `simulate(range)` prepares a batch and `realization(&batch, i)` returns
+/// its `i`-th realization; realizations reach the summary in order, one at a
+/// time, so a batch never holds them all in grades. The summary does not
+/// depend on `batch`.
+pub fn continuous_in_batches<B>(
+    n: usize,
+    options: &ContinuousOptions,
+    batch: usize,
+    mut simulate: impl FnMut(std::ops::Range<usize>) -> Result<B>,
+    realization: impl Fn(&B, usize) -> Result<Vec<f64>>,
+) -> Result<ContinuousSummary> {
+    if n == 0 {
+        return Err(SimError::InvalidParameters(
+            "need at least one realization".into(),
+        ));
+    }
+    let mut acc = Accumulator::new(n, options)?;
+    let batch = batch.clamp(1, n);
+    for start in (0..n).step_by(batch) {
+        let ks = start..(start + batch).min(n);
+        let prepared = simulate(ks.clone())?;
+        for i in 0..ks.len() {
+            acc.add(realization(&prepared, i)?)?;
+        }
+    }
+    Ok(acc.finish())
+}
+
 /// Summarizes `n` realizations of `variables` continuous variables at once;
 /// `simulate(k)` returns realization `k` of every variable over the same
 /// targets every time.
@@ -665,6 +694,27 @@ mod tests {
         assert!(continuous(3, &options(Keep::Indices(vec![3])), simulate).is_err());
         assert!(continuous(3, &options(Keep::Indices(vec![1, 1])), simulate).is_err());
         assert!(categorical(3, 2, &Keep::Indices(vec![5]), |_| Ok(vec![0])).is_err());
+    }
+
+    #[test]
+    fn realizations_folded_from_batches_match_one_by_one() {
+        let options = ContinuousOptions {
+            cutoffs: vec![5.0],
+            quantiles: vec![0.5],
+            keep: Keep::All,
+        };
+        let one = continuous(7, &options, fake).unwrap();
+        let batched = continuous_in_batches(
+            7,
+            &options,
+            3,
+            |range| Ok(range.map(|k| fake(k).unwrap()).collect::<Vec<_>>()),
+            |b: &Vec<Vec<f64>>, i| Ok(b[i].clone()),
+        )
+        .unwrap();
+        assert_eq!(one.mean, batched.mean);
+        assert_eq!(one.quantile_values, batched.quantile_values);
+        assert_eq!(one.realizations, batched.realizations);
     }
 
     #[test]

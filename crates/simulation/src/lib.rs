@@ -35,14 +35,16 @@ pub use pgs::{
 };
 pub use post::{
     BlockSupport, CategoricalSummary, ContinuousOptions, ContinuousSummary, Keep, categorical,
-    continuous, continuous_batched, continuous_many, continuous_many_batched, localize,
-    quantile_sorted,
+    continuous, continuous_batched, continuous_in_batches, continuous_many,
+    continuous_many_batched, localize, quantile_sorted,
 };
 pub use sgs::{
     Domains, Realization, Secondary, SgsParams, Transform, Transforms, Trend, cosgs, sgs, sgs_in,
     sgs_passes,
 };
-pub use shared::{Collocated, SharedBatch, SharedSgs, sgs_shared};
+pub use shared::{
+    Collocated, SharedBatch, SharedSgs, sgs_shared, shared_batch, shared_unsupported,
+};
 pub use sis::{CategoricalRealization, SisParams, sis};
 pub use trend::TrendConditioning;
 pub use turning_bands::{

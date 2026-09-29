@@ -212,7 +212,7 @@ impl Secondary {
     }
 }
 
-fn pearson(a: &[f64], b: &[f64], weights: Option<&[f64]>) -> f64 {
+pub(crate) fn pearson(a: &[f64], b: &[f64], weights: Option<&[f64]>) -> f64 {
     let w = |i: usize| weights.map_or(1.0, |w| w[i]);
     let total: f64 = (0..a.len()).map(w).sum();
     let mean = |v: &[f64]| (0..v.len()).map(|i| w(i) * v[i]).sum::<f64>() / total;
