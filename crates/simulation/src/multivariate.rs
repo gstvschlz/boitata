@@ -7,7 +7,9 @@ use transforms::{Maf, Pca, Ppmt, StepwiseConditional};
 use ceres_core::rng::realization_seed;
 
 use crate::error::Result;
-use crate::post::{BlockSupport, ContinuousOptions, ContinuousSummary, continuous_many};
+use crate::post::{
+    BlockSupport, ContinuousOptions, ContinuousSummary, continuous_many, continuous_many_batched,
+};
 
 /// A fitted transform from correlated variables to independent factors.
 #[derive(Debug, Clone)]
@@ -75,6 +77,42 @@ pub fn multivariate(
                     Some(s) => s.mean(&values),
                     None => Ok(values),
                 }
+            })
+            .collect()
+    })
+}
+
+/// As [`multivariate`], `batch` realizations at a time: `simulate(j, ks)`
+/// returns realizations `ks` of factor `j` at the nodes.
+pub fn multivariate_batched(
+    n: usize,
+    factors: usize,
+    transform: &Decorrelation,
+    options: &ContinuousOptions,
+    support: Option<&BlockSupport>,
+    batch: usize,
+    mut simulate: impl FnMut(usize, std::ops::Range<usize>) -> Result<Vec<Vec<f64>>>,
+) -> Result<Vec<ContinuousSummary>> {
+    continuous_many_batched(n, factors, options, batch, |ks| {
+        let columns = (0..factors)
+            .map(|j| simulate(j, ks.clone()))
+            .collect::<Result<Vec<_>>>()?;
+        (0..ks.len())
+            .map(|kk| {
+                let nodes = columns.first().map_or(0, |c| c[kk].len());
+                let rows: Vec<Vec<f64>> = (0..nodes)
+                    .map(|i| columns.iter().map(|c| c[kk][i]).collect())
+                    .collect();
+                let back = transform.back(&rows);
+                (0..factors)
+                    .map(|v| {
+                        let values: Vec<f64> = back.iter().map(|r| r[v]).collect();
+                        match support {
+                            Some(s) => s.mean(&values),
+                            None => Ok(values),
+                        }
+                    })
+                    .collect()
             })
             .collect()
     })
@@ -239,6 +277,64 @@ mod tests {
                         data[i][v]
                     );
                 }
+            }
+        }
+    }
+
+    #[test]
+    fn batched_turning_bands_factors_equal_one_realization_at_a_time() {
+        use crate::turning_bands::{
+            TurningBandsEnsemble, TurningBandsParams, bounds, turning_bands,
+        };
+        let (locs, data, weights) = samples();
+        let targets = grid();
+        let transform =
+            Decorrelation::Ppmt(Ppmt::fit(&data, Some(&weights), &PpmtParams::default()).unwrap());
+        let factors = transform.forward(&data);
+        let column = |j: usize| -> Vec<f64> { factors.iter().map(|r| r[j]).collect() };
+        let vg = Variogram::single(Model::Spherical, 1.0, 15.0);
+        let params = TurningBandsParams::default();
+        let options = ContinuousOptions::default();
+        let (n, seed) = (4, 3);
+        let want = multivariate(n, seed, 2, &transform, &options, None, |_, j, seed| {
+            let params = TurningBandsParams {
+                seed,
+                ..params.clone()
+            };
+            Ok(turning_bands(
+                &locs,
+                &column(j),
+                Some(&weights),
+                None,
+                &targets,
+                &vg,
+                &params,
+            )?
+            .values)
+        })
+        .unwrap();
+        let (lo, hi) = bounds(&targets);
+        for batch in [1, 3, n] {
+            let got = multivariate_batched(n, 2, &transform, &options, None, batch, |j, ks| {
+                let seeds: Vec<u64> = ks.clone().map(|k| factor_seed(seed, k, j)).collect();
+                TurningBandsEnsemble::with_realizations(
+                    &locs,
+                    &[column(j)],
+                    Some(&weights),
+                    None,
+                    lo,
+                    hi,
+                    &vg,
+                    &params,
+                    &seeds,
+                )?
+                .realizations(0..ks.len(), &targets, |_| None, None)
+            })
+            .unwrap();
+            for (g, w) in got.iter().zip(&want) {
+                assert_eq!(g.mean, w.mean);
+                assert_eq!(g.variance, w.variance);
+                assert_eq!(g.realization_mean, w.realization_mean);
             }
         }
     }

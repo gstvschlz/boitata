@@ -135,6 +135,11 @@ pub fn continuous_batched(
     batch: usize,
     mut simulate: impl FnMut(std::ops::Range<usize>) -> Result<Vec<Vec<f64>>>,
 ) -> Result<ContinuousSummary> {
+    if n == 0 {
+        return Err(SimError::InvalidParameters(
+            "need at least one realization".into(),
+        ));
+    }
     let mut acc = Accumulator::new(n, options)?;
     let batch = batch.max(1);
     for start in (0..n).step_by(batch) {
@@ -172,6 +177,48 @@ pub fn continuous_many(
         }
         accs.iter_mut().zip(values).try_for_each(|(a, v)| a.add(v))
     })?;
+    Ok(accs.into_iter().map(Accumulator::finish).collect())
+}
+
+/// As [`continuous_many`], `batch` realizations at a time: `simulate(ks)`
+/// returns, for each realization of `ks` in order, every variable.
+pub fn continuous_many_batched(
+    n: usize,
+    variables: usize,
+    options: &ContinuousOptions,
+    batch: usize,
+    mut simulate: impl FnMut(std::ops::Range<usize>) -> Result<Vec<Vec<Vec<f64>>>>,
+) -> Result<Vec<ContinuousSummary>> {
+    if n == 0 {
+        return Err(SimError::InvalidParameters(
+            "need at least one realization".into(),
+        ));
+    }
+    let mut accs = (0..variables)
+        .map(|_| Accumulator::new(n, options))
+        .collect::<Result<Vec<_>>>()?;
+    let batch = batch.max(1);
+    for start in (0..n).step_by(batch) {
+        let ks = start..(start + batch).min(n);
+        let done = simulate(ks.clone())?;
+        if done.len() != ks.len() {
+            return Err(SimError::InvalidParameters(format!(
+                "{} realizations for {} indices",
+                done.len(),
+                ks.len()
+            )));
+        }
+        for values in done {
+            if values.len() != variables {
+                return Err(SimError::InvalidParameters(format!(
+                    "one realization per variable ({variables}) needed"
+                )));
+            }
+            accs.iter_mut()
+                .zip(values)
+                .try_for_each(|(a, v)| a.add(v))?;
+        }
+    }
     Ok(accs.into_iter().map(Accumulator::finish).collect())
 }
 
