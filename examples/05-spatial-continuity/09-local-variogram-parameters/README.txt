@@ -1,0 +1,1 @@
+## Local variogram parameters

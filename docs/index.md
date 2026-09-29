@@ -11,49 +11,84 @@ hide: [navigation, toc]
 Geostatistics in Rust with a Python interface. Parallel, and the same result on any number of threads.
 
 [Get started](#install){ .md-button .md-button--primary }
-[Examples](examples/tutorials/index.md){ .md-button }
+[Examples](examples/01-first-steps/index.md){ .md-button }
 [API reference](api/containers.md){ .md-button }
 </div>
 </div>
 
 <div class="grid cards" markdown>
 
--   :material-database-outline: **Data and I/O**
+-   :material-rocket-launch-outline: **[First steps](examples/01-first-steps/index.md)**
 
     ---
 
-    Point sets, drillholes and block models with Arrow columns; CSV, GSLIB and Parquet; zero-copy to NumPy,
-    polars and pandas.
+    Short pages to get going, such as saving containers to Parquet and reading them back.
 
--   :material-chart-bell-curve: **Transforms and EDA**
-
-    ---
-
-    Declustering, normal score and anamorphosis, log-ratios, and statistics for exploratory analysis.
-
--   :material-vector-curve: **Variography**
+-   :material-database-outline: **[Data and geometry](examples/02-data-and-geometry/index.md)**
 
     ---
 
-    Experimental variograms, model fitting and the linear model of coregionalization.
+    Drill holes, composites, block models, solids, meshes and GIS files.
 
--   :material-cube-outline: **Estimation**
-
-    ---
-
-    Simple, ordinary and indicator kriging, cokriging, IDW and cross-validation over anisotropic searches.
-
--   :material-dice-multiple-outline: **Simulation**
+-   :material-chart-bell-curve: **[Exploratory analysis](examples/03-exploratory-analysis/index.md)**
 
     ---
 
-    SGS, SIS and turning bands, with reproducible realizations from a single seed.
+    Declustering, top cuts, contacts, swaths and data spacing before any model.
 
--   :material-layers-triple-outline: **Modeling and validation**
+-   :material-swap-horizontal: **[Transforms](examples/04-transforms/index.md)**
 
     ---
 
-    Desurveying, compositing, domaining, implicit modeling and checks of estimates against the data.
+    Normal scores, log-ratios, multivariate factors and imputation.
+
+-   :material-vector-curve: **[Spatial continuity](examples/05-spatial-continuity/index.md)**
+
+    ---
+
+    Experimental variograms, model fitting and coregionalization.
+
+-   :material-grid: **[Kriging](examples/06-kriging/index.md)**
+
+    ---
+
+    Point and block kriging, cokriging, indicators and search tuning.
+
+-   :material-shape-outline: **[Categories and domains](examples/07-categories-and-domains/index.md)**
+
+    ---
+
+    Rock types as proportions, probabilities and simulated layouts.
+
+-   :material-dice-multiple-outline: **[Stochastic simulation](examples/08-stochastic-simulation/index.md)**
+
+    ---
+
+    SGS, turning bands and cosimulation, reproducible from one seed.
+
+-   :material-pickaxe: **[Recoverable resources](examples/09-recoverable-resources/index.md)**
+
+    ---
+
+    Tonnes and grade above cutoff at the size of a mining block.
+
+-   :material-check-decagram-outline: **[Checking models](examples/10-checking-models/index.md)**
+
+    ---
+
+    Cross-validation, swaths, realization checks and classification.
+
+-   :material-layers-triple-outline: **[Geological modeling](examples/11-geological-modeling/index.md)**
+
+    ---
+
+    Grade shells, contact surfaces and layered horizons.
+
+-   :material-book-open-page-variant-outline: **[Case studies](examples/12-case-studies/index.md)**
+
+    ---
+
+    Four deposits, each from raw tables to a result.
 
 </div>
 
@@ -84,5 +119,5 @@ summary = cs.SGS(gaussian, cs.Search(radius=80)).fit(xy, v).simulate(grid, n=50,
 risk = summary.probability_above[:, 0]
 ```
 
-The [examples](examples/tutorials/index.md) work through every topic on open datasets; the API pages list every
+The [examples](examples/01-first-steps/index.md) work through every topic on open datasets; the API pages list every
 class and function.

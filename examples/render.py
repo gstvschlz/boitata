@@ -1,11 +1,11 @@
-"""Runs each page's script (tutorial_NN.py or example_NN.py) cell by cell and writes its README.md.
+"""Runs each page's script (example_CC_NN.py: category and page numbers) cell by cell and writes its README.md.
 
 The module docstring is the opening text. Cells start with `# %%` (code), `# %% [markdown]` (text written as `# `
 comments) or `# %% [hidden]` (run, not shown). Each code cell is shown collapsed, followed by what it printed and
 the figures it saved.
 
-`render.py topics/07-declustering` renders one page, no argument renders both galleries, and `--index` only writes
-examples/README.md from the scripts, without running them.
+`render.py 03-exploratory-analysis/03-declustering` renders one page, no argument renders every page, and `--index`
+only writes examples/README.md from the scripts, without running them.
 """
 
 import ast
@@ -20,19 +20,6 @@ import matplotlib
 matplotlib.use("Agg")
 
 ROOT = Path(__file__).resolve().parent
-GALLERIES = ("tutorials", "topics")
-SECTIONS = {
-    1: "Data",
-    14: "Transforms",
-    18: "Variography",
-    22: "Estimation",
-    32: "Change of support",
-    36: "Simulation",
-    44: "Validation",
-    49: "Modeling",
-    57: "I/O and scale",
-    61: "More methods, across the workflow",
-}
 DATASETS = {
     "walker_lake": "Walker Lake",
     "walker_lake_exhaustive": "Walker Lake",
@@ -86,11 +73,12 @@ def render(script: Path) -> str:
     return "\n\n".join(parts) + "\n"
 
 
-SCRIPT = {"tutorials": "tutorial_*.py", "topics": "example_*.py"}
+def categories() -> list[Path]:
+    return sorted(p.parent for p in ROOT.glob("[0-9][0-9]-*/README.txt"))
 
 
-def scripts(gallery: str) -> list[Path]:
-    return sorted((ROOT / gallery).glob(f"*/{SCRIPT[gallery]}"))
+def scripts(category: Path) -> list[Path]:
+    return sorted(category.glob("*/example_*.py"))
 
 
 def dataset(name: str) -> str:
@@ -98,10 +86,10 @@ def dataset(name: str) -> str:
     return DATASETS.get(name, name.replace("_", " ").capitalize())
 
 
-def summary(script: Path) -> tuple[int, str, str, str, str]:
+def summary(script: Path) -> tuple[str, str, str, str]:
     source = script.read_text(encoding="utf-8")
     tree = ast.parse(source)
-    number, title = ast.get_docstring(tree).splitlines()[0].removeprefix("# ").split(". ", 1)
+    title = ast.get_docstring(tree).splitlines()[0].removeprefix("# ")
     datasets, covers = {}, {}
     for node in sorted(
         (n for n in ast.walk(tree) if isinstance(n, (ast.Attribute, ast.Call))),
@@ -124,13 +112,13 @@ def summary(script: Path) -> tuple[int, str, str, str, str]:
                 covers[f"{base.attr}.{node.attr}"] = None
     covers = ", ".join(f"`{name}`" for name in covers if name not in STOPLIST)
     steps = "; ".join(line[5:].strip() for line in source.splitlines() if line.startswith("# ## "))
-    return int(number), title, ", ".join(datasets) or "Synthetic", covers, steps
+    return title, ", ".join(datasets) or "Synthetic", covers, steps
 
 
 def broken_links() -> list[str]:
     broken = []
-    for gallery in GALLERIES:
-        for script in scripts(gallery):
+    for category in categories():
+        for script in scripts(category):
             for target in LINK.findall(script.read_text(encoding="utf-8")):
                 if not (script.parent / target).parent.is_dir():
                     broken.append(f"{script.relative_to(ROOT).as_posix()}: {target}")
@@ -142,27 +130,18 @@ def index() -> str:
         "# Examples",
         "",
         "Worked examples with the Python API on open datasets from [gstvschlz/datasets](https://github.com/gstvschlz/datasets).",
-        "Tutorials follow one deposit from data to a result; topics show one feature each.",
-        "",
-        "## Tutorials",
-        "",
-        "| # | Tutorial | Dataset | Steps |",
-        "|---|---|---|---|",
     ]
-    for script in scripts("tutorials"):
-        number, title, datasets, _, steps = summary(script)
-        link = script.parent.relative_to(ROOT).as_posix()
-        lines.append(f"| {number} | [{title}]({link}/README.md) | {datasets} | {steps} |")
-    lines += ["", "## Topics", "", "| # | Topic | Dataset | Covers |", "|---|---|---|---|"]
-    section = None
-    for script in scripts("topics"):
-        number, title, datasets, covers, _ = summary(script)
-        heading = SECTIONS[max(n for n in SECTIONS if n <= number)]
-        if heading != section:
-            section = heading
-            lines.append(f"| | **{heading}** | | |")
-        link = script.parent.relative_to(ROOT).as_posix()
-        lines.append(f"| {number} | [{title}]({link}/README.md) | {datasets} | {covers} |")
+    for category in categories():
+        heading = (category / "README.txt").read_text(encoding="utf-8").splitlines()[0].removeprefix("# ")
+        last = "Steps" if category.name.endswith("case-studies") else "Covers"
+        lines += ["", f"## {heading}", "", f"| # | Example | Dataset | {last} |", "|---|---|---|---|"]
+        for script in scripts(category):
+            title, datasets, covers, steps = summary(script)
+            link = script.parent.relative_to(ROOT).as_posix()
+            number = int(script.parent.name[:2])
+            lines.append(
+                f"| {number} | [{title}]({link}/README.md) | {datasets} | {steps if last == 'Steps' else covers} |"
+            )
     lines += [
         "",
         "Each page alternates text, collapsed Python and its results. `mise run examples` reruns every script",
@@ -178,8 +157,8 @@ if __name__ == "__main__":
         (ROOT / "README.md").write_text(index(), encoding="utf-8", newline="\n")
         print("wrote README.md")
         sys.exit()
-    pages = sys.argv[1:] or [p.parent.relative_to(ROOT).as_posix() for g in GALLERIES for p in scripts(g)]
+    pages = sys.argv[1:] or [p.parent.relative_to(ROOT).as_posix() for c in categories() for p in scripts(c)]
     for page in pages:
-        (script,) = (ROOT / page).glob(SCRIPT[page.split("/")[0]])
+        (script,) = (ROOT / page).glob("example_*.py")
         (script.parent / "README.md").write_text(render(script), encoding="utf-8", newline="\n")
         print(f"rendered {page}")

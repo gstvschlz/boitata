@@ -45,9 +45,33 @@ exclude_docs: |
 plugins:
   - search
   - gallery:
-      examples_dirs: [examples/tutorials, examples/topics]
-      gallery_dirs: [docs/examples/tutorials, docs/examples/topics]
-      filename_pattern: (example|tutorial)_\d+\.py$
+      examples_dirs:
+        - examples/01-first-steps
+        - examples/02-data-and-geometry
+        - examples/03-exploratory-analysis
+        - examples/04-transforms
+        - examples/05-spatial-continuity
+        - examples/06-kriging
+        - examples/07-categories-and-domains
+        - examples/08-stochastic-simulation
+        - examples/09-recoverable-resources
+        - examples/10-checking-models
+        - examples/11-geological-modeling
+        - examples/12-case-studies
+      gallery_dirs:
+        - docs/examples/01-first-steps
+        - docs/examples/02-data-and-geometry
+        - docs/examples/03-exploratory-analysis
+        - docs/examples/04-transforms
+        - docs/examples/05-spatial-continuity
+        - docs/examples/06-kriging
+        - docs/examples/07-categories-and-domains
+        - docs/examples/08-stochastic-simulation
+        - docs/examples/09-recoverable-resources
+        - docs/examples/10-checking-models
+        - docs/examples/11-geological-modeling
+        - docs/examples/12-case-studies
+      filename_pattern: example_\d\d_\d\d\.py$
       ignore_pattern: (render|common)\.py$
       within_subsection_order: FileNameSortKey
       show_memory: false
@@ -82,8 +106,18 @@ nav:
   - Home: index.md
   - Install: install.md
   - Examples:
-      - Tutorials: examples/tutorials
-      - Topics: examples/topics
+      - First steps: examples/01-first-steps
+      - Data and geometry: examples/02-data-and-geometry
+      - Exploratory analysis: examples/03-exploratory-analysis
+      - Transforms: examples/04-transforms
+      - Spatial continuity: examples/05-spatial-continuity
+      - Kriging: examples/06-kriging
+      - Categories and domains: examples/07-categories-and-domains
+      - Stochastic simulation: examples/08-stochastic-simulation
+      - Recoverable resources: examples/09-recoverable-resources
+      - Checking models: examples/10-checking-models
+      - Geological modeling: examples/11-geological-modeling
+      - Case studies: examples/12-case-studies
   - API:
       - Containers and I/O: api/containers.md
       - Datasets and plots: api/datasets.md
