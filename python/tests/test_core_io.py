@@ -196,6 +196,32 @@ def test_mesh_files_round_trip(tmp_path):
         cs.read_mesh(tmp_path / "missing.obj")
 
 
+def test_parquet_progress_does_not_change_output(tmp_path, capsys):
+    points = cs.PointSet([[0, 0], [1, 1], [2, 2]], {"v": [1.0, 2.0, 3.0]})
+    model = cs.BlockModel(origin=(0, 0), size=(1, 1), count=(3, 3), attributes={"v": np.arange(9.0)})
+    masked = model.mask(np.arange(9) % 2 == 0)
+    for name, data in (("p", points), ("m", masked), ("t", cs.read_csv(_csv(tmp_path)))):
+        cs.write_parquet(tmp_path / f"{name}_on.parquet", data, progress=True)
+        assert "100%" in capsys.readouterr().err
+        cs.write_parquet(tmp_path / f"{name}_off.parquet", data, progress=False)
+        assert capsys.readouterr().err == ""
+        assert (tmp_path / f"{name}_on.parquet").read_bytes() == (
+            tmp_path / f"{name}_off.parquet"
+        ).read_bytes()
+        on = cs.read_parquet(tmp_path / f"{name}_on.parquet", progress=True)
+        assert capsys.readouterr().err
+        off = cs.read_parquet(tmp_path / f"{name}_on.parquet", progress=False)
+        np.testing.assert_array_equal(
+            on["v"] if name != "t" else on["au"], off["v"] if name != "t" else off["au"]
+        )
+
+
+def _csv(tmp_path):
+    path = tmp_path / "t.csv"
+    path.write_text("au\n1\n2\n")
+    return path
+
+
 def test_csv_progress_does_not_change_output(tmp_path, capsys):
     source = tmp_path / "in.csv"
     source.write_text("au,rock\n" + "0.5,ox\n-999,fr\n" * 500)

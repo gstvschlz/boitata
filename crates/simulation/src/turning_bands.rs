@@ -1449,7 +1449,7 @@ mod tests {
         .unwrap();
         let model = BlockModel::regular(geometry, empty).unwrap();
         let input = std::env::temp_dir().join(format!("ceres-tb-{}.parquet", std::process::id()));
-        ceres_io::write_block_model(&input, &model).unwrap();
+        ceres_io::write_block_model(&input, &model, None).unwrap();
         let vg = Variogram::single(Model::Spherical, 1.0, 20.0);
         let params = TurningBandsParams {
             n_bands: 60,
@@ -1500,7 +1500,7 @@ mod tests {
                     [1, 1, 1],
                 )
                 .unwrap();
-                let ceres_io::Stored::Blocks(back) = ceres_io::read_parquet(&output).unwrap()
+                let ceres_io::Stored::Blocks(back) = ceres_io::read_parquet(&output, None).unwrap()
                 else {
                     panic!("expected a block model")
                 };
@@ -1572,7 +1572,7 @@ mod tests {
         let model = BlockModel::regular(geometry, columns).unwrap();
         let input =
             std::env::temp_dir().join(format!("ceres-tb-blocks-{}.parquet", std::process::id()));
-        ceres_io::write_block_model(&input, &model).unwrap();
+        ceres_io::write_block_model(&input, &model, None).unwrap();
         let vg = Variogram::single(Model::Spherical, 1.0, 20.0);
         let params = TurningBandsParams {
             n_bands: 60,
@@ -1631,7 +1631,7 @@ mod tests {
                         )
                     })
                     .unwrap();
-                let ceres_io::Stored::Blocks(back) = ceres_io::read_parquet(&output).unwrap()
+                let ceres_io::Stored::Blocks(back) = ceres_io::read_parquet(&output, None).unwrap()
                 else {
                     panic!("expected a block model")
                 };

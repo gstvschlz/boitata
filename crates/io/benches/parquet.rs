@@ -37,7 +37,7 @@ fn bench(c: &mut Criterion) {
     group.sample_size(10);
     group.throughput(Throughput::Elements((n * 15) as u64));
     group.bench_function("block model, 2M cells x 15 f32", |b| {
-        b.iter(|| ceres_io::write_block_model(&path, &model).unwrap())
+        b.iter(|| ceres_io::write_block_model(&path, &model, None).unwrap())
     });
     group.finish();
     println!(
