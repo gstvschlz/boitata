@@ -79,6 +79,7 @@ Worked examples with the Python API on open datasets from [gstvschlz/datasets](h
 | 7 | [Coregionalization](05-spatial-continuity/07-coregionalization/README.md) | Jura | `experimental_variogram`, `Coregionalization`, `plot.variogram` |
 | 8 | [Intrinsic coregionalization](05-spatial-continuity/08-intrinsic-coregionalization/README.md) | Jura | `experimental_variograms`, `Coregionalization`, `plot.variogram`, `Search`, `Cokriging` |
 | 9 | [Local variogram parameters](05-spatial-continuity/09-local-variogram-parameters/README.md) | Walker Lake | `BlockModel`, `experimental_variogram`, `Variogram`, `OrdinaryKriging`, `Search`, `LocalAnisotropy`, `local_variogram_parameters` |
+| 11 | [Nugget inference](05-spatial-continuity/11-nugget-inference/README.md) | Vein gold grade control | `merge_intervals`, `Drillholes`, `experimental_variogram`, `pairs` |
 
 ## Kriging
 
