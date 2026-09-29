@@ -1,5 +1,5 @@
 context:
-  name: ceres
+  name: ceresgeo
   version: "0.1.0"
 
 package:
@@ -7,8 +7,8 @@ package:
   version: ${{ version }}
 
 source:
-  # Switch to the PyPI sdist once released:
-  #   url: https://pypi.org/packages/source/c/ceres/ceres-${{ version }}.tar.gz
+  # Switch to the GitHub tag archive once released (PyPI carries wheels only):
+  #   url: https://github.com/gstvschlz/ceres/archive/refs/tags/v${{ version }}.tar.gz
   #   sha256: ...
   path: ../..
 

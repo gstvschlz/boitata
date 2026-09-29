@@ -71,7 +71,7 @@ def venv():
     env = fresh(COMPAT / "venv")
     run(sys.executable, "-m", "venv", env)
     python = venv_python(env)
-    run(python, "-m", "pip", "install", "-q", f"ceres[all] @ {artifact('*.whl').as_uri()}", "pytest")
+    run(python, "-m", "pip", "install", "-q", f"ceresgeo[all] @ {artifact('*.whl').as_uri()}", "pytest")
     pytest([python])
 
 
@@ -81,7 +81,7 @@ def uv():
     run(uv, "venv", "-q", "--python", "3.11", env)
     python = venv_python(env)
     run(
-        uv, "pip", "install", "-q", "--python", python, f"ceres[all] @ {artifact('*.whl').as_uri()}", "pytest"
+        uv, "pip", "install", "-q", "--python", python, f"ceresgeo[all] @ {artifact('*.whl').as_uri()}", "pytest"
     )
     pytest([python])
 

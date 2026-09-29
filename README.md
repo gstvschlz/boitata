@@ -1,7 +1,7 @@
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/logo-dark.svg">
-    <img src="docs/assets/logo.svg" alt="ceres" width="120">
+    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/gstvschlz/ceres/main/docs/assets/logo-dark.svg">
+    <img src="https://raw.githubusercontent.com/gstvschlz/ceres/main/docs/assets/logo.svg" alt="ceres" width="120">
   </picture>
 </p>
 
@@ -18,14 +18,13 @@ ceres holds the tools I use for resource work: drill hole checks, statistics, tr
 
 ## Install
 
-Not on PyPI yet. Install from git, which builds the Rust core (Rust ≥ 1.97 and a C compiler):
-
 ```sh
-pip install "ceres[all] @ git+https://github.com/gstvschlz/ceres"
+pip install "ceresgeo[all]"
 ```
 
+Published on PyPI as `ceresgeo`, imported as `ceres`. Wheels for Linux, macOS and Windows, Python ≥ 3.11.
 Extras: `plot` (matplotlib), `3d` (pyvista), `all` (also polars, pandas, pyarrow).
-See the [install page](https://gstvschlz.github.io/ceres/install/) for uv, poetry, conda, pixi, wheels and offline installs.
+See the [install page](https://gstvschlz.github.io/ceres/install/) for uv, poetry, conda, pixi and offline installs.
 
 ## Examples
 
