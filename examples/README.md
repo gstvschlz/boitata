@@ -7,6 +7,7 @@ Worked examples with the Python API on open datasets from [gstvschlz/datasets](h
 | # | Example | Dataset | Covers |
 |---|---|---|---|
 | 1 | [Quick tour](01-first-steps/01-quick-tour/README.md) | Walker Lake | `cell_declustering`, `describe`, `plot.histogram`, `Capping`, `experimental_variogram`, `Variogram`, `plot.variogram`, `BlockModel`, `Search`, `OrdinaryKriging`, `plot.cross_validation`, `swath`, `plot.swath` |
+| 2 | [Block models](01-first-steps/02-block-models/README.md) | Synthetic | `BlockModel`, `Polylines`, `write_csv`, `write_parquet`, `read_parquet` |
 | 3 | [Saving and loading](01-first-steps/03-saving-and-loading/README.md) | Walker Lake | `cell_declustering`, `Capping`, `NormalScore`, `Variogram`, `experimental_variogram`, `Search`, `BlockModel`, `SimpleKriging`, `Declustering` |
 | 4 | [Storing containers in Parquet](01-first-steps/04-parquet/README.md) | Walker Lake | `experimental_variogram`, `Variogram`, `BlockModel`, `OrdinaryKriging`, `Search`, `write_parquet`, `write_csv`, `read_parquet`, `Categories`, `CategoricalIndicatorKriging`, `CategoricalIndicatorSummary`, `Polylines` |
 
