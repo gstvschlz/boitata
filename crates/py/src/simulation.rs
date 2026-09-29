@@ -533,6 +533,22 @@ fn of_realization(rows: &Option<Vec<Vec<u32>>>, k: usize) -> Option<&[u32]> {
     rows.as_ref().map(|r| &r[k % r.len()][..])
 }
 
+/// The lattice of BlockModel targets, regular or masked.
+fn lattice_of(targets: &Bound<PyAny>) -> Option<simulation::Lattice> {
+    let model = targets.cast::<PyBlockModel>().ok()?;
+    simulation::Lattice::from_model(&model.get().0)
+}
+
+/// Bytes a batch of realizations may take: 70 % of the memory free now.
+fn memory_budget(py: Python) -> PyResult<u64> {
+    let free: u64 = py
+        .import("ceres._memory")?
+        .getattr("available")?
+        .call0()?
+        .extract()?;
+    Ok(free / 10 * 7)
+}
+
 /// Sequential Gaussian simulation. `variogram` is the normal-score variogram
 /// (unit sill); data are normal-scored internally, with optional declustering
 /// weights, and realizations are back-transformed.
@@ -849,7 +865,19 @@ impl Sgs {
     /// a column of PointSet or BlockModel targets, or an ``(n, targets)``
     /// array such as the `realizations` of a simulation of the secondary,
     /// realization ``k`` then cosimulated with row ``k``.
-    #[pyo3(signature = (targets, *, n=100, seed=0, cutoffs=vec![], quantiles=vec![], keep=None, anisotropy=None, blocks=None, trend=None, domains=None, domain_column=None, secondary=None))]
+    /// `path` orders the nodes. On a regular or masked BlockModel every
+    /// realization follows, by default, one multigrid path (coarse cells
+    /// first), so each node's neighbors and kriging weights are found once
+    /// for a batch of realizations; a node on a datum takes its grade.
+    /// "random" draws a new random path per realization, which points,
+    /// sub-blocked models, local anisotropy, simulated domains, octant
+    /// searches, high-grade restrictions and soft boundaries need and the
+    /// default then uses; "shared" raises InvalidInput where it cannot run.
+    /// `batch`, on a shared path, is the number of realizations simulated
+    /// together, by default as many as fit in 70 % of the free memory; a run
+    /// whose quantiles and kept realizations alone exceed that memory
+    /// raises InvalidInput. Realizations do not depend on `batch`.
+    #[pyo3(signature = (targets, *, n=100, seed=0, cutoffs=vec![], quantiles=vec![], keep=None, anisotropy=None, blocks=None, trend=None, domains=None, domain_column=None, secondary=None, path=None, batch=None))]
     #[allow(clippy::too_many_arguments)]
     fn simulate(
         &self,
@@ -866,15 +894,52 @@ impl Sgs {
         domains: Option<&Bound<PyAny>>,
         domain_column: Option<&str>,
         secondary: Option<&Bound<PyAny>>,
+        path: Option<&str>,
+        batch: Option<usize>,
     ) -> PyResult<SimulationSummary> {
         let d = self.data.as_ref().ok_or_else(not_fitted)?;
-        let grid = self::targets(targets)?;
+        if !matches!(path, None | Some("shared" | "random")) {
+            return Err(invalid(format!(
+                "path must be 'shared' or 'random', got {:?}",
+                path.unwrap_or_default()
+            )));
+        }
+        let lattice = lattice_of(targets);
+        let mut grid = match &lattice {
+            Some(_) => None,
+            None => Some(self::targets(targets)?),
+        };
+        let count = lattice
+            .as_ref()
+            .map_or_else(|| grid.as_ref().map_or(0, Vec::len), |l| l.len());
         let fitted = self.domains.as_deref();
         let domains = domain_arg(targets, domains, domain_column)?;
-        let nodes = realization_domains(fitted, domains.as_ref(), grid.len(), n, "simulate")?;
-        let secondary = self.secondary_at(d, targets, grid.len(), n, secondary)?;
+        let nodes = realization_domains(fitted, domains.as_ref(), count, n, "simulate")?;
+        let secondary = self.secondary_at(d, targets, count, n, secondary)?;
         let search = resolved(&self.search, fitted)?;
-        let at_nodes = trend_at(d, targets, grid.len(), trend)?;
+        let at_nodes = trend_at(d, targets, count, trend)?;
+        let unsupported = match (&lattice, anisotropy.is_some()) {
+            (None, _) => Some("targets that are not a regular or masked BlockModel"),
+            (_, true) => Some("local anisotropy"),
+            _ => simulation::shared_unsupported(
+                &search,
+                false,
+                nodes.as_ref().is_some_and(|rows| rows.len() > 1),
+            ),
+        };
+        let lattice = match (path, unsupported) {
+            (Some("random"), _) | (None, Some(_)) => None,
+            (_, None) => lattice,
+            (_, Some(why)) => {
+                return Err(invalid(format!(
+                    "path='shared' does not support {why}; use path='random'"
+                )));
+            }
+        };
+        if grid.is_none() && (lattice.is_none() || blocks.is_some()) {
+            grid = Some(self::targets(targets)?);
+        }
+        let grid = grid.unwrap_or_default();
         let trend = d
             .trend
             .as_deref()
@@ -891,6 +956,63 @@ impl Sgs {
             quantiles,
             keep: keep_arg(keep)?,
         };
+        if let Some(lattice) = lattice {
+            let kept = options.keep.kept(n).len();
+            let budget = memory_budget(py)?;
+            let size = simulation::shared_batch(
+                lattice.len(),
+                n,
+                options.cutoffs.len(),
+                !options.quantiles.is_empty(),
+                kept,
+                budget,
+            )
+            .map_err(err)?;
+            let batch = batch.map_or(size, |b| b.max(1));
+            let rows: Option<Vec<Vec<f64>>> = secondary.as_ref().map(|(fitted, rows)| {
+                rows.iter()
+                    .map(|r| r.iter().map(|&v| fitted.forward(v)).collect())
+                    .collect()
+            });
+            let correlation = secondary
+                .as_ref()
+                .map_or(0.0, |(fitted, _)| fitted.correlation);
+            let shared = simulation::SharedSgs {
+                lattice: &lattice,
+                search: &search,
+                levels: None,
+                seed,
+            };
+            return py
+                .detach(|| {
+                    let collocated = rows.as_deref().map(|scores| simulation::Collocated {
+                        scores,
+                        correlation,
+                    });
+                    simulation::continuous_in_batches(
+                        n,
+                        &options,
+                        batch,
+                        |range| {
+                            simulation::sgs_shared(
+                                &d.locs,
+                                &d.values,
+                                d.weights.as_deref(),
+                                d.holes.as_deref(),
+                                d.domains.as_deref().zip(of_realization(&nodes, 0)),
+                                trend,
+                                &self.variogram,
+                                &shared,
+                                range,
+                                collocated.as_ref(),
+                            )
+                        },
+                        |b, i| averaged(&support, b.realization(i)),
+                    )
+                })
+                .map(SimulationSummary)
+                .map_err(err);
+        }
         py.detach(|| {
             simulation::continuous(n, &options, |k| {
                 let params = SgsParams {

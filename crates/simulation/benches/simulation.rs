@@ -200,5 +200,61 @@ fn many(c: &mut Criterion) {
     group.finish();
 }
 
-criterion_group!(benches, bench, threads, phases, wide, many);
+/// SGS on 1 000 000 lattice nodes: 16 realizations along a shared path
+/// against one along a random path.
+fn shared(c: &mut Criterion) {
+    let (data, values, _) = inputs();
+    let geometry = ceres_core::Geometry {
+        origin: [0.0; 3],
+        size: [0.2, 0.2, 1.0],
+        count: [1000, 1000, 1],
+        rotation: [0.0; 3],
+    };
+    let lattice = simulation::Lattice::regular(geometry);
+    let grid: Vec<_> = (0..lattice.len()).map(|m| lattice.location(m)).collect();
+    let vg = Variogram::single(Model::Spherical, 1.0, 40.0);
+    let search = vec![Search {
+        min_samples: 1,
+        max_samples: 24,
+        radius: 60.0,
+        ..Default::default()
+    }];
+    let mut group = c.benchmark_group("SGS, 1 000 000 nodes");
+    group.sample_size(10);
+    group.bench_function("shared path, 16 realizations", |b| {
+        let shared = simulation::SharedSgs {
+            lattice: &lattice,
+            search: &search,
+            levels: None,
+            seed: 1,
+        };
+        b.iter(|| {
+            black_box(
+                simulation::sgs_shared(
+                    &data,
+                    &values,
+                    None,
+                    None,
+                    None,
+                    None,
+                    &vg,
+                    &shared,
+                    0..16,
+                    None,
+                )
+                .unwrap(),
+            )
+        })
+    });
+    group.bench_function("random path, 1 realization", |b| {
+        let params = SgsParams {
+            search: search.clone(),
+            seed: 1,
+        };
+        b.iter(|| black_box(sgs(&data, &values, None, None, &grid, &vg, &params, None).unwrap()))
+    });
+    group.finish();
+}
+
+criterion_group!(benches, bench, threads, phases, wide, many, shared);
 criterion_main!(benches);
