@@ -58,7 +58,7 @@ pub(crate) fn krige(
     for j in 0..n {
         let rj = j * (j + 1) / 2;
         let d = l[rj + j] - dot(&l[rj..rj + j], &l[rj..rj + j]);
-        if !(d > PIVOT * c0) {
+        if d.is_nan() || d <= PIVOT * c0 {
             return Some(Err(EstimError::Singular(format!(
                 "kriging matrix is not positive definite at sample {j} of {n} (duplicate locations without a nugget, or a model not valid in 3D)"
             ))));
@@ -194,8 +194,14 @@ mod tests {
                 let fast = krige(kind, &target, &samples, &vg).unwrap().unwrap();
                 let slow = krige_lu(kind, &target, &samples, &vg).unwrap();
                 assert!(close(fast.value, slow.value), "value {trial} {kind:?}");
-                assert!(close(fast.variance, slow.variance), "variance {trial} {kind:?}");
-                assert!(close(fast.lagrange, slow.lagrange), "lagrange {trial} {kind:?}");
+                assert!(
+                    close(fast.variance, slow.variance),
+                    "variance {trial} {kind:?}"
+                );
+                assert!(
+                    close(fast.lagrange, slow.lagrange),
+                    "lagrange {trial} {kind:?}"
+                );
                 for (a, b) in fast.weights.iter().zip(&slow.weights) {
                     assert!(close(*a, *b), "weight {trial} {kind:?}");
                 }
@@ -209,7 +215,9 @@ mod tests {
         let mut state = 11;
         for n in [1, 5, 32, MAX] {
             let (target, samples) = system(&mut state, n);
-            let e = krige(Kind::Ordinary, &target, &samples, &vg).unwrap().unwrap();
+            let e = krige(Kind::Ordinary, &target, &samples, &vg)
+                .unwrap()
+                .unwrap();
             assert!((e.weights.iter().sum::<f64>() - 1.0).abs() < 1e-10);
         }
     }
@@ -264,7 +272,9 @@ mod tests {
         let mut state = 13;
         let (target, mut samples) = system(&mut state, 10);
         samples[2].error_variance = 0.4;
-        let fast = krige(Kind::Ordinary, &target, &samples, &vg).unwrap().unwrap();
+        let fast = krige(Kind::Ordinary, &target, &samples, &vg)
+            .unwrap()
+            .unwrap();
         let slow = krige_lu(Kind::Ordinary, &target, &samples, &vg).unwrap();
         assert!(close(fast.value, slow.value) && close(fast.variance, slow.variance));
     }

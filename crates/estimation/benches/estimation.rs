@@ -112,5 +112,33 @@ fn kriging(c: &mut Criterion) {
     );
 }
 
-criterion_group!(benches, bench, growth, kriging);
+/// The solve alone: 20 000 ordinary-kriging systems of 32 samples, one thread.
+fn systems(c: &mut Criterion) {
+    let samples: Vec<Sample> = cloud(5_000, 3)
+        .into_iter()
+        .map(|p| Sample::new(p, p.0 / 1000.0))
+        .collect();
+    let targets = cloud(20_000, 4);
+    let search = Search {
+        min_samples: 32,
+        max_samples: 32,
+        radius: f64::INFINITY,
+        ..Default::default()
+    };
+    let vg = variogram::Variogram::single(variogram::Model::Spherical, 1.0, 300.0);
+    let tree = SearchTree::new(&samples, &search, Some(&vg));
+    let sets: Vec<Vec<Sample>> = targets
+        .iter()
+        .map(|t| tree.take(t, None, &tree.neighbors(t).unwrap(), &samples))
+        .collect();
+    c.bench_function("20 000 ordinary-kriging systems of 32 samples", |b| {
+        b.iter(|| {
+            for (t, s) in targets.iter().zip(&sets) {
+                black_box(estimation::krige(estimation::Kind::Ordinary, t, s, &vg).ok());
+            }
+        })
+    });
+}
+
+criterion_group!(benches, bench, growth, kriging, systems);
 criterion_main!(benches);

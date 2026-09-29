@@ -1005,7 +1005,9 @@ mod tests {
             let kriged = |t: &Point, b| m.kriged(t, &samples, &global, None, b).unwrap();
             for t in grid().iter().step_by(37) {
                 let point = kriged(t, None);
-                assert_eq!(kriged(t, Some(&one)), point);
+                for (a, b) in kriged(t, Some(&one)).iter().zip(&point) {
+                    assert!((a - b).abs() < 1e-9, "{a} {b}");
+                }
                 let at = |o: &Point| (t.0 + o.0, t.1 + o.1, t.2 + o.2);
                 let points: Vec<Vec<f64>> = four.iter().map(|o| kriged(&at(o), None)).collect();
                 for (k, b) in kriged(t, Some(&four)).iter().enumerate() {
@@ -1018,7 +1020,9 @@ mod tests {
                     .unwrap()
                     .mean
             };
-            assert_eq!(predict(Some(&one)), predict(None));
+            for (a, b) in predict(Some(&one)).iter().zip(&predict(None)) {
+                assert!((a - b).abs() < 1e-9, "{a} {b}");
+            }
         }
     }
 

@@ -1,8 +1,10 @@
 //! Kriging estimators: Ordinary (OK), Simple (SK), and Indicator (IK).
 //!
 //! All variants use the pseudo-covariance `C(h) = C(0) − γ(h)` from a
-//! [`variogram::Variogram`] (which may carry anisotropy), and solve the linear
-//! system with an LU factorization (partial pivoting) via nalgebra.
+//! [`variogram::Variogram`] (which may carry anisotropy). Up to
+//! 64 samples are solved on the stack by Cholesky (see `kernel`), where a
+//! matrix that is not positive definite is [`crate::EstimError::Singular`];
+//! larger systems, and variograms without a sill, by LU.
 
 use crate::Sample;
 use crate::error::{EstimError, Result};
@@ -81,7 +83,8 @@ pub fn krige(
     samples: &[Sample],
     vg: &Variogram,
 ) -> Result<Estimate> {
-    krige_lu(kind, target, samples, vg)
+    crate::kernel::krige(kind, target, samples, vg)
+        .unwrap_or_else(|| krige_lu(kind, target, samples, vg))
 }
 
 /// [`krige`] by LU with partial pivoting over the full bordered system.
