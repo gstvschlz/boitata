@@ -196,6 +196,36 @@ def test_mesh_files_round_trip(tmp_path):
         cs.read_mesh(tmp_path / "missing.obj")
 
 
+def test_csv_progress_does_not_change_output(tmp_path, capsys):
+    source = tmp_path / "in.csv"
+    source.write_text("au,rock\n" + "0.5,ox\n-999,fr\n" * 500)
+    table = cs.read_csv(source, progress=False)
+    assert capsys.readouterr().err == ""
+    cs.write_csv(tmp_path / "on.csv", table, progress=True)
+    assert "100%" in capsys.readouterr().err
+    cs.write_csv(tmp_path / "off.csv", table, progress=False)
+    assert (tmp_path / "on.csv").read_bytes() == (tmp_path / "off.csv").read_bytes()
+    on = cs.read_csv(tmp_path / "on.csv", progress=True)
+    assert capsys.readouterr().err
+    np.testing.assert_array_equal(on["au"], table["au"])
+
+
+def test_mesh_progress_does_not_change_output(tmp_path, capsys):
+    tetra = cs.Mesh(
+        [[0, 0, 0], [1, 0, 0], [0, 1, 0], [0, 0, 1]], [[0, 2, 1], [0, 1, 3], [0, 3, 2], [1, 2, 3]]
+    )
+    for name in ("m.obj", "m.stl", "m.dxf"):
+        cs.write_mesh(tmp_path / f"on_{name}", tetra, progress=True)
+        assert "100%" in capsys.readouterr().err
+        cs.write_mesh(tmp_path / f"off_{name}", tetra, progress=False)
+        assert capsys.readouterr().err == ""
+        on = cs.read_mesh(tmp_path / f"on_{name}", progress=True)
+        off = cs.read_mesh(tmp_path / f"on_{name}", progress=False)
+        np.testing.assert_array_equal(on.vertices, off.vertices)
+        if name != "m.dxf":
+            assert (tmp_path / f"on_{name}").read_bytes() == (tmp_path / f"off_{name}").read_bytes()
+
+
 def test_shapefile_round_trip(tmp_path):
     points = cs.PointSet(
         [[500000.5, 7000000.25, 350.0], [500010.0, 7000020.0, -12.5]],

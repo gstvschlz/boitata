@@ -45,9 +45,17 @@ fn nodata(values: Option<Vec<Bound<PyAny>>>) -> PyResult<Vec<Nodata>> {
 ///     are always null.
 /// delimiter : str, default ","
 ///     Single-byte field separator.
+/// progress : bool, default True
+///     Show a `tqdm` progress bar.
 #[pyfunction]
-#[pyo3(signature = (path, *, nodata=None, delimiter=","))]
-fn read_csv(path: PathBuf, nodata: Option<Vec<Bound<PyAny>>>, delimiter: &str) -> PyResult<Table> {
+#[pyo3(signature = (path, *, nodata=None, delimiter=",", progress=true))]
+fn read_csv(
+    py: Python,
+    path: PathBuf,
+    nodata: Option<Vec<Bound<PyAny>>>,
+    delimiter: &str,
+    progress: bool,
+) -> PyResult<Table> {
     let &[delimiter] = delimiter.as_bytes() else {
         return Err(invalid("delimiter must be a single byte"));
     };
@@ -55,12 +63,23 @@ fn read_csv(path: PathBuf, nodata: Option<Vec<Bound<PyAny>>>, delimiter: &str) -
         delimiter,
         nodata: self::nodata(nodata)?,
     };
-    Ok(Table(ceres_io::read_csv(path, &options).map_err(io_error)?))
+    let batch = with_progress(py, None, progress, |counter| {
+        ceres_io::read_csv(path, &options, counter)
+    })?
+    .map_err(io_error)?;
+    Ok(Table(batch))
 }
 
+/// Writes a headed CSV. `progress` shows a `tqdm` bar.
 #[pyfunction]
-fn write_csv(path: PathBuf, table: &Bound<PyAny>) -> PyResult<()> {
-    ceres_io::write_csv(path, &to_batch(table)?).map_err(io_error)
+#[pyo3(signature = (path, table, *, progress=true))]
+fn write_csv(py: Python, path: PathBuf, table: &Bound<PyAny>, progress: bool) -> PyResult<()> {
+    let batch = to_batch(table)?;
+    let total = Some(batch.num_rows() as u64);
+    with_progress(py, total, progress, |counter| {
+        ceres_io::write_csv(path, &batch, counter)
+    })?
+    .map_err(io_error)
 }
 
 /// Reads a GSLIB file; the title is kept in the schema metadata and
@@ -141,18 +160,34 @@ fn read_parquet(py: Python, path: PathBuf) -> PyResult<Py<PyAny>> {
 }
 
 /// Reads a `.obj`, `.stl` or `.dxf` mesh; DXF faces carry a `layer` column.
+/// `progress` shows a `tqdm` bar.
 #[pyfunction]
-fn read_mesh(path: PathBuf) -> PyResult<Mesh> {
-    Ok(Mesh::from_core(
-        ceres_io::read_mesh(path).map_err(io_error)?,
-    ))
+#[pyo3(signature = (path, *, progress=true))]
+fn read_mesh(py: Python, path: PathBuf, progress: bool) -> PyResult<Mesh> {
+    let mesh = with_progress(py, None, progress, |counter| {
+        ceres_io::read_mesh(path, counter)
+    })?
+    .map_err(io_error)?;
+    Ok(Mesh::from_core(mesh))
 }
 
-/// Writes a `.obj`, `.stl` (binary unless `ascii`) or `.dxf` mesh.
+/// Writes a `.obj`, `.stl` (binary unless `ascii`) or `.dxf` mesh. `progress`
+/// shows a `tqdm` bar.
 #[pyfunction]
-#[pyo3(signature = (path, mesh, *, ascii=false))]
-fn write_mesh(path: PathBuf, mesh: PyRef<Mesh>, ascii: bool) -> PyResult<()> {
-    ceres_io::write_mesh(path, &mesh.mesh, ascii).map_err(io_error)
+#[pyo3(signature = (path, mesh, *, ascii=false, progress=true))]
+fn write_mesh(
+    py: Python,
+    path: PathBuf,
+    mesh: PyRef<Mesh>,
+    ascii: bool,
+    progress: bool,
+) -> PyResult<()> {
+    let mesh = &mesh.mesh;
+    let total = Some(mesh.triangles().len() as u64);
+    with_progress(py, total, progress, |counter| {
+        ceres_io::write_mesh(path, mesh, ascii, counter)
+    })?
+    .map_err(io_error)
 }
 
 /// Reads a shapefile as a PointSet or Polylines.
