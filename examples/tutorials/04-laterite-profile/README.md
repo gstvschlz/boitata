@@ -294,7 +294,7 @@ cs.plot.section(
     blocks, profile.encode(list(horizon)), plane=plane, scheme=profile, colorbar=False, ax=axes[0]
 )
 cs.plot.section(blocks, "NI_PCT", plane=plane, colorbar=False, vmin=0, vmax=3, ax=axes[1])
-fig.colorbar(axes[1].images[0], ax=axes[1], shrink=0.9, label="Ni (%)")
+fig.colorbar(axes[1].collections[0], ax=axes[1], shrink=0.9, label="Ni (%)")
 cs.plot.category_legend(profile, axes[0], loc="lower left", bbox_to_anchor=(1, 0), fontsize=8)
 for ax, title in zip(axes, ("Horizons", "Kriged Ni"), strict=True):
     for name in names[1:]:

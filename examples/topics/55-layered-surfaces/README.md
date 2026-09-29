@@ -108,7 +108,7 @@ for ax, name in zip(axes.flat, LAYERS, strict=True):
     thickness = -above[name].vertical_distance(points)
     print(f"{name:>4}: thickness {np.nanmin(thickness):5.1f} to {np.nanmax(thickness):5.1f} m")
     cs.plot.section(topography, thickness, ax=ax, colorbar=False)
-    fig.colorbar(ax.images[0], ax=ax, shrink=0.8, label="m")
+    fig.colorbar(ax.collections[0], ax=ax, shrink=0.8, label="m")
     map_axes(ax, f"{name} thickness")
 for ax in axes.flat[1::2]:
     ax.set_ylabel("")
