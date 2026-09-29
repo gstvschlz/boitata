@@ -14,6 +14,7 @@
 pub mod correct;
 pub mod error;
 pub mod gibbs;
+pub mod lattice;
 pub mod multivariate;
 pub mod pgs;
 pub mod post;
@@ -25,6 +26,7 @@ pub mod turning_bands;
 pub use correct::{Empirical, correct_distribution};
 pub use error::{Result, SimError};
 pub use gibbs::{GibbsParams, gibbs};
+pub use lattice::{Lattice, Template, default_levels, multigrid_path};
 pub use multivariate::{Decorrelation, factor_seed, multivariate};
 pub use pgs::{
     Hierarchy, PgsParams, Region, TruncationRule, fit_latent, plurigaussian, plurigaussian_local,
