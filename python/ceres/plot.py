@@ -987,7 +987,7 @@ def _axis_plane(model, axis, index):
     local[k] = (index + 0.5) * size[k]
     axes = _block_axes(model.rotation)
     center = np.asarray(model.origin) + local @ axes
-    azimuth, dip = _angles_for_normal(axes[k])
+    azimuth, dip = _angles_for_normal(-axes[k] if k == 1 else axes[k])
     return tuple(center), azimuth, dip
 
 

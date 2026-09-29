@@ -561,3 +561,21 @@ def test_transition_mds_annotates_categories_and_draws_the_matrix():
     assert sorted(t.get_text() for t in ax.texts) == ["a", "b", "c"]
     assert len(ax.collections) == 1
     assert ax.collections[0].get_offsets().shape == (3, 2)
+
+
+@pytest.mark.parametrize("rotation", [(0, 0, 0), (30, 0, 0)])
+def test_axis_sections_keep_true_signs_in_a_right_handed_view(rotation):
+    bm = cs.BlockModel(origin=(45000, 8000, 100), size=(2, 3, 1), count=(4, 5, 3), rotation=rotation)
+    bm = bm.with_column("g", np.arange(60.0))
+    axes = cs.plot._block_axes(rotation)
+    for axis, right, up in (("x", axes[1], axes[2]), ("y", axes[0], axes[2]), ("z", axes[0], axes[1])):
+        _, ax = cs.plot.section(bm, "g", axis=axis)
+        _, u, v, _ = cs.plot._frame(cs.plot._axis_plane(bm, axis, None))
+        if axis == "z":
+            right, up = np.eye(3)[:2]
+        np.testing.assert_allclose([u, v], [right, up], atol=1e-9)
+        xy = np.vstack([p.vertices[:4] for p in ax.collections[0].get_paths()])
+        c = bm.corners.reshape(-1, 3)
+        np.testing.assert_allclose([xy[:, 0].min(), xy[:, 0].max()], [(c @ right).min(), (c @ right).max()])
+        np.testing.assert_allclose([xy[:, 1].min(), xy[:, 1].max()], [(c @ up).min(), (c @ up).max()])
+        assert ax.get_xlim()[0] < ax.get_xlim()[1] and ax.get_ylim()[0] < ax.get_ylim()[1]
