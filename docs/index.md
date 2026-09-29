@@ -24,7 +24,7 @@ ceres holds the tools I use for resource work: drill hole checks, statistics, tr
 
     ---
 
-    Short pages to get going, such as saving containers to Parquet and reading them back.
+    A quick tour from samples to a checked estimate, and short pages to get going, such as saving to Parquet.
 
 -   :material-database-outline: **[Data and geometry](examples/02-data-and-geometry/index.md)**
 

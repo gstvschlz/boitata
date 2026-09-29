@@ -6,7 +6,8 @@ Worked examples with the Python API on open datasets from [gstvschlz/datasets](h
 
 | # | Example | Dataset | Covers |
 |---|---|---|---|
-| 1 | [Storing containers in Parquet](01-first-steps/01-parquet/README.md) | Walker Lake | `experimental_variogram`, `Variogram`, `BlockModel`, `OrdinaryKriging`, `Search`, `write_parquet`, `write_csv`, `read_parquet`, `Categories`, `CategoricalIndicatorKriging`, `CategoricalIndicatorSummary`, `Polylines` |
+| 1 | [Quick tour](01-first-steps/01-quick-tour/README.md) | Walker Lake | `cell_declustering`, `describe`, `plot.histogram`, `Capping`, `experimental_variogram`, `Variogram`, `plot.variogram`, `BlockModel`, `Search`, `OrdinaryKriging`, `plot.cross_validation`, `swath`, `plot.swath` |
+| 4 | [Storing containers in Parquet](01-first-steps/04-parquet/README.md) | Walker Lake | `experimental_variogram`, `Variogram`, `BlockModel`, `OrdinaryKriging`, `Search`, `write_parquet`, `write_csv`, `read_parquet`, `Categories`, `CategoricalIndicatorKriging`, `CategoricalIndicatorSummary`, `Polylines` |
 
 ## Data and geometry
 
