@@ -323,6 +323,32 @@ def test_geotiff_round_trip(tmp_path):
         cs.write_geotiff(tmp_path / "clash.tif", turned, nodata=5.0)
 
 
+def test_segy_round_trip(tmp_path):
+    amplitude = np.arange(60, dtype=np.float32) - 20
+    amplitude[[4, 31]] = np.nan
+    cube = cs.BlockModel(
+        origin=(500000.0, 7000000.0, -50.0),
+        size=(25.0, 12.5, 4.0),
+        count=(3, 4, 5),
+        attributes={"amplitude": amplitude},
+    )
+    cs.write_segy(tmp_path / "cube.sgy", cube, "amplitude", nodata=-999.0)
+    back = cs.read_segy(tmp_path / "cube.sgy", nodata=-999.0)
+    assert (back.size, back.count, back.rotation) == (cube.size, cube.count, cube.rotation)
+    np.testing.assert_allclose(back.origin, cube.origin)
+    np.testing.assert_array_equal(back["amplitude"], cube["amplitude"])
+    cs.write_segy(tmp_path / "again.sgy", back, "amplitude", nodata=-999.0)
+    again = cs.read_segy(tmp_path / "again.sgy", column="vp", nodata=-999.0)
+    np.testing.assert_allclose(again.centroids, back.centroids)
+    np.testing.assert_array_equal(again["vp"], back["amplitude"])
+
+    turned = cs.BlockModel(origin=(0, 0, 0), size=(1, 1, 1), count=(2, 2, 2), rotation=(30, 10, 0))
+    with pytest.raises(cs.InvalidInput):
+        cs.write_segy(tmp_path / "dip.sgy", turned.with_column("v", np.zeros(8)), "v")
+    with pytest.raises(cs.InvalidInput):
+        cs.read_segy(tmp_path / "cube.sgy", x_byte=239)
+
+
 def test_polylines_shapefile_round_trip(tmp_path):
     pit = [[0, 0, 1], [0, 10, 1], [10, 10, 1], [10, 0, 1]]
     hole = [[4, 4, 2], [6, 4, 2], [6, 6, 2], [4, 6, 2]]

@@ -320,6 +320,100 @@ fn write_geotiff(path: PathBuf, model: PyRef<PyBlockModel>, nodata: f64) -> PyRe
     ceres_io::write_geotiff(path, &model.0, nodata).map_err(io_error)
 }
 
+/// Reads a post-stack SEG-Y cube as a 3D BlockModel.
+///
+/// Parameters
+/// ----------
+/// path : str or Path
+///     A SEG-Y file with one trace per inline and crossline, in sample format
+///     1 (IBM float), 2, 3, 5, 6, 8, 10, 11 or 16 and either byte order.
+/// column : str, default "amplitude"
+///     Name of the float32 column holding the samples.
+/// inline_byte, crossline_byte : int, default 189 and 193
+///     1-based trace-header bytes of the 4-byte inline and crossline numbers.
+/// x_byte, y_byte : int, default 181 and 185
+///     1-based trace-header bytes of the 4-byte CDP x and y, scaled by the
+///     coordinate scalar at byte 71 (negative divides).
+/// nodata : float, optional
+///     Sample value read as null. NaN samples are always null.
+///
+/// Returns
+/// -------
+/// BlockModel
+///     A regular grid with x along the inlines and y along the crosslines,
+///     each from the smallest to the largest line number in steps of the gcd
+///     of their gaps; positions without a trace are null. Cell sizes, origin
+///     and azimuth (that of the crossline axis) are a least-squares fit of the
+///     CDP coordinates; a left-handed survey has its inlines reversed. z is
+///     minus the sample time (ms) or depth, the sample interval divided by
+///     1000, so the first sample is the top cell.
+///
+/// Raises
+/// ------
+/// InvalidInput
+///     For truncated or non-SEG-Y files, unsupported sample formats, two
+///     traces at one position (prestack gathers) and skewed surveys.
+#[pyfunction]
+#[pyo3(signature = (
+    path, *, column="amplitude", inline_byte=189, crossline_byte=193, x_byte=181,
+    y_byte=185, nodata=None
+))]
+fn read_segy(
+    path: PathBuf,
+    column: &str,
+    inline_byte: usize,
+    crossline_byte: usize,
+    x_byte: usize,
+    y_byte: usize,
+    nodata: Option<f64>,
+) -> PyResult<PyBlockModel> {
+    let options = ceres_io::SegyOptions {
+        column: column.into(),
+        inline_byte,
+        crossline_byte,
+        x_byte,
+        y_byte,
+        nodata,
+    };
+    Ok(PyBlockModel(
+        ceres_io::read_segy(path, &options).map_err(io_error)?,
+    ))
+}
+
+/// Writes one column of a BlockModel as SEG-Y revision 1.
+///
+/// Parameters
+/// ----------
+/// path : str or Path
+///     The `.sgy` file: big-endian IEEE floats (format 5), an EBCDIC textual
+///     header and one trace per (x, y) column.
+/// model : BlockModel
+///     A regular or masked grid rotated by azimuth only. Inline `i + 1` and
+///     crossline `j + 1` go to trace bytes 189 and 193 and the cell-center
+///     CDP x and y to bytes 181 and 185. The cell height times 1000 is the
+///     sample interval and minus the top cell-center z the delay; both must
+///     be stored exactly.
+/// column : str
+///     Numeric column to write, as float32, top cell first.
+/// nodata : float, default 0.0
+///     Value written for nulls and absent cells of a masked model.
+///
+/// Raises
+/// ------
+/// InvalidInput
+///     For sub-blocked models, dip or rake rotations, missing or text
+///     columns, and cell heights or tops that SEG-Y cannot hold exactly.
+#[pyfunction]
+#[pyo3(signature = (path, model, column, *, nodata=0.0))]
+fn write_segy(
+    path: PathBuf,
+    model: PyRef<PyBlockModel>,
+    column: &str,
+    nodata: f64,
+) -> PyResult<()> {
+    ceres_io::write_segy(path, &model.0, column, nodata).map_err(io_error)
+}
+
 /// A block model file read in chunks, for models larger than memory.
 #[pyclass(module = "ceres", name = "BlockModelFile", frozen)]
 pub struct BlockModelFile(ceres_io::BlockModelReader);
@@ -465,5 +559,7 @@ pub fn register(m: &Bound<PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(write_shapefile, m)?)?;
     m.add_function(wrap_pyfunction!(read_geotiff, m)?)?;
     m.add_function(wrap_pyfunction!(write_geotiff, m)?)?;
+    m.add_function(wrap_pyfunction!(read_segy, m)?)?;
+    m.add_function(wrap_pyfunction!(write_segy, m)?)?;
     Ok(())
 }
