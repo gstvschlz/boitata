@@ -1,7 +1,7 @@
 use estimation::{
     Discretization, DriftSpec, DualKriging, Estimate, HighGrade, HighGradeMode, InterpEstimate,
     InterpOptions, Kind, NeighborhoodStats, Sample, Search as CoreSearch, Soft, SoftPair,
-    block_krige, by_pass, estimate_many, estimate_many_ext, k_fold_at, krige, krige_bayesian,
+    block_krige, by_pass, estimate_many_ext, estimate_many_with, k_fold_at, krige, krige_bayesian,
     krige_factorial, krige_universal, leave_one_out_at,
 };
 use std::path::PathBuf;
@@ -21,6 +21,7 @@ use crate::args::{
 use crate::containers::{PyBlockModel, PyPointSet};
 use crate::invalid;
 use crate::persist::{self, Columns, Found, Tabular};
+use crate::progress::with_progress;
 use crate::table::Table;
 use crate::variogram::Variogram;
 
@@ -1127,7 +1128,7 @@ impl Estimator {
     /// labels the targets, or is one label for all, and `domain_column` names
     /// a column of the targets holding them; a domain without samples is left
     /// unestimated.
-    #[pyo3(signature = (targets, *, return_variance=false, anisotropy=None, diagnostics=false, domains=None, domain_column=None))]
+    #[pyo3(signature = (targets, *, return_variance=false, anisotropy=None, diagnostics=false, domains=None, domain_column=None, progress=true))]
     #[allow(clippy::too_many_arguments)]
     fn predict<'py>(
         &self,
@@ -1138,6 +1139,7 @@ impl Estimator {
         diagnostics: bool,
         domains: Option<Bound<'py, PyAny>>,
         domain_column: Option<&str>,
+        progress: bool,
     ) -> PyResult<Bound<'py, PyAny>> {
         let samples = self.fitted()?;
         let domains = match (domains, domain_column) {
@@ -1187,57 +1189,65 @@ impl Estimator {
                 .collect(),
             _ => vec![],
         };
-        let found = py
-            .detach(|| {
-                by_pass(known.len(), &search, |search, remaining| {
-                    let rows = pick(&known, remaining);
-                    let at = pick(&targets, &rows);
-                    let codes: Option<Vec<u32>> = codes
-                        .as_ref()
-                        .map(|c| rows.iter().map(|&i| c[i].expect("known")).collect());
-                    let codes = codes.as_deref();
-                    match (&local, &self.method) {
-                        (None, Method::ExternalDrift { degree, .. }) => {
-                            let ext: Vec<Vec<f64>> = rows
-                                .iter()
-                                .map(|&i| target_drift.iter().map(|c| c[i]).collect())
-                                .collect();
-                            Ok(estimate_many_ext(
-                                &at,
-                                codes,
-                                &cov,
-                                &ext,
-                                samples,
-                                search,
-                                vg,
-                                |t, s, cov, e| {
-                                    let locs: Vec<Point> = s.iter().map(|x| x.loc).collect();
-                                    let drift = DriftSpec::polynomial(&locs, t, *degree)
-                                        .with_external(cov, e);
-                                    used(
-                                        t,
-                                        s,
-                                        krige_universal(t, s, &drift, vg.expect("kriging"), None),
-                                    )
-                                },
-                            ))
-                        }
-                        (None, _) => Ok(estimate_many(&at, codes, samples, search, vg, |t, s| {
-                            used(t, s, self.method.run(t, s, vg))
-                        })),
-                        (Some(local), _) => estimation::lva::estimate_many_local(
+        let total = known.len() as u64;
+        let found = with_progress(py, Some(total), progress, |counter| {
+            by_pass(known.len(), &search, |search, remaining| {
+                let rows = pick(&known, remaining);
+                let at = pick(&targets, &rows);
+                let codes: Option<Vec<u32>> = codes
+                    .as_ref()
+                    .map(|c| rows.iter().map(|&i| c[i].expect("known")).collect());
+                let codes = codes.as_deref();
+                match (&local, &self.method) {
+                    (None, Method::ExternalDrift { degree, .. }) => {
+                        let ext: Vec<Vec<f64>> = rows
+                            .iter()
+                            .map(|&i| target_drift.iter().map(|c| c[i]).collect())
+                            .collect();
+                        Ok(estimate_many_ext(
                             &at,
                             codes,
-                            &local.at(&at),
+                            &cov,
+                            &ext,
                             samples,
                             search,
-                            &base,
-                            |t, s, v| used(t, s, self.method.run(t, s, Some(v))),
-                        ),
+                            vg,
+                            |t, s, cov, e| {
+                                let locs: Vec<Point> = s.iter().map(|x| x.loc).collect();
+                                let drift =
+                                    DriftSpec::polynomial(&locs, t, *degree).with_external(cov, e);
+                                used(
+                                    t,
+                                    s,
+                                    krige_universal(t, s, &drift, vg.expect("kriging"), None),
+                                )
+                            },
+                            counter,
+                        ))
                     }
-                })
+                    (None, _) => Ok(estimate_many_with(
+                        &at,
+                        codes,
+                        samples,
+                        search,
+                        vg,
+                        |t, s| used(t, s, self.method.run(t, s, vg)),
+                        counter,
+                    )),
+                    (Some(local), _) => estimation::lva::estimate_many_local_with(
+                        &at,
+                        codes,
+                        &local.at(&at),
+                        samples,
+                        search,
+                        &base,
+                        |t, s, v| used(t, s, self.method.run(t, s, Some(v))),
+                        counter,
+                    ),
+                }
             })
-            .map_err(invalid)?;
+        })?
+        .map_err(invalid)?;
         let mut passes: Vec<Option<(usize, Used)>> = (0..targets.len()).map(|_| None).collect();
         for (i, r) in known.into_iter().zip(found) {
             passes[i] = r;

@@ -696,6 +696,27 @@ where
     F: Fn(&Point, &[Sample], &Variogram) -> Result<T> + Sync,
     T: Send,
 {
+    estimate_many_local_with(
+        targets, domains, local, samples, search, vg, estimator, None,
+    )
+}
+
+/// As [`estimate_many_local`], ticking `progress` for each target estimated.
+#[allow(clippy::too_many_arguments)]
+pub fn estimate_many_local_with<F, T>(
+    targets: &[Point],
+    domains: Option<&[u32]>,
+    local: &LocalAnisotropy,
+    samples: &[Sample],
+    search: &Search,
+    vg: &Variogram,
+    estimator: F,
+    progress: Option<&ceres_core::Progress>,
+) -> Result<Vec<Option<T>>>
+where
+    F: Fn(&Point, &[Sample], &Variogram) -> Result<T> + Sync,
+    T: Send,
+{
     if local.len() != targets.len() {
         return Err(invalid("one local anisotropy per target"));
     }
@@ -717,7 +738,11 @@ where
                 anisotropy: Some(aniso),
                 ..vg.clone()
             };
-            estimator(target, &selected, &vg).ok()
+            let result = estimator(target, &selected, &vg).ok();
+            if let (Some(p), Some(_)) = (progress, &result) {
+                p.inc();
+            }
+            result
         })
         .collect())
 }

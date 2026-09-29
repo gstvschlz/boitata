@@ -1,5 +1,6 @@
 //! Estimation over many targets.
 
+use ceres_core::Progress;
 use rayon::prelude::*;
 use variogram::Variogram;
 
@@ -24,6 +25,25 @@ where
     F: Fn(&(f64, f64, f64), &[Sample]) -> Result<T> + Sync,
     T: Send,
 {
+    estimate_many_with(targets, domains, samples, search, vg, estimator, None)
+}
+
+/// As [`estimate_many`], ticking `progress` for each target estimated. Targets
+/// left for a later search pass are not counted, so a caller running passes
+/// tops the counter up once they are done.
+pub fn estimate_many_with<F, T>(
+    targets: &[(f64, f64, f64)],
+    domains: Option<&[u32]>,
+    samples: &[Sample],
+    search: &Search,
+    vg: Option<&Variogram>,
+    estimator: F,
+    progress: Option<&Progress>,
+) -> Vec<Option<T>>
+where
+    F: Fn(&(f64, f64, f64), &[Sample]) -> Result<T> + Sync,
+    T: Send,
+{
     let tree = SearchTree::new(samples, search, vg);
     targets
         .par_iter()
@@ -31,9 +51,17 @@ where
         .map(|(i, target)| {
             let chosen = tree.neighbors_in(target, domains.map(|d| d[i])).ok()?;
             let selected = tree.take(target, None, &chosen, samples);
-            estimator(target, &selected).ok()
+            let result = estimator(target, &selected).ok();
+            tick(progress, &result);
+            result
         })
         .collect()
+}
+
+fn tick<T>(progress: Option<&Progress>, result: &Option<T>) {
+    if let (Some(p), Some(_)) = (progress, result) {
+        p.inc();
+    }
 }
 
 /// As [`estimate_many`], but for an estimator that also needs external-drift
@@ -51,6 +79,7 @@ pub fn estimate_many_ext<F, T>(
     search: &Search,
     vg: Option<&Variogram>,
     estimator: F,
+    progress: Option<&Progress>,
 ) -> Vec<Option<T>>
 where
     F: Fn(&(f64, f64, f64), &[Sample], &[Vec<f64>], &[f64]) -> Result<T> + Sync,
@@ -64,7 +93,9 @@ where
             let chosen = tree.neighbors_in(target, domains.map(|d| d[i])).ok()?;
             let selected = tree.take(target, None, &chosen, samples);
             let cov: Vec<Vec<f64>> = chosen.iter().map(|&j| covariates[j].clone()).collect();
-            estimator(target, &selected, &cov, &ext[i]).ok()
+            let result = estimator(target, &selected, &cov, &ext[i]).ok();
+            tick(progress, &result);
+            result
         })
         .collect()
 }
@@ -303,6 +334,44 @@ mod tests {
                 b.as_ref().map(|e| e.value.to_bits())
             );
         }
+    }
+
+    #[test]
+    fn progress_counts_estimated_targets_and_leaves_results_unchanged() {
+        let samples = samples();
+        let vg = Variogram::single(Model::Spherical, 1.0, 40.0);
+        let search = Search {
+            min_samples: 4,
+            max_samples: 12,
+            radius: 30.0,
+            max_per_hole: None,
+            octant: false,
+            anisotropy: None,
+            high_grade: None,
+            soft: None,
+        };
+        let targets: Vec<_> = (0..50).map(|i| (i as f64 * 5.0, 0.0, 0.0)).collect();
+        let at = |t: &Point, s: &[Sample]| krige(Kind::Ordinary, t, s, &vg);
+        let plain = estimate_many(&targets, None, &samples, &search, Some(&vg), at);
+        let counter = Progress::new(Some(50));
+        let counted = estimate_many_with(
+            &targets,
+            None,
+            &samples,
+            &search,
+            Some(&vg),
+            at,
+            Some(&counter),
+        );
+        let bits = |v: &[Option<Estimate>]| -> Vec<_> {
+            v.iter()
+                .map(|e| e.as_ref().map(|e| e.value.to_bits()))
+                .collect()
+        };
+        assert_eq!(bits(&plain), bits(&counted));
+        let estimated = plain.iter().flatten().count() as u64;
+        assert!(estimated < 50);
+        assert_eq!(counter.snapshot().0, estimated);
     }
 
     #[test]
