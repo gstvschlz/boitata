@@ -8,7 +8,7 @@ body:
   attributes:
     label: "Steps to reproduce:"
     description: >
-      The commands you ran, for example `pip install "ceres[all] @ git+https://github.com/gstvschlz/ceres"`.
+      The commands you ran, for example `pip install "ceresgeo[all]"`.
     render: shell
   validations:
     required: true

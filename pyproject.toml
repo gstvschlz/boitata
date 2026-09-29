@@ -3,8 +3,8 @@ requires = ["maturin>=1.10,<2"]
 build-backend = "maturin"
 
 [project]
-name = "ceres"
-description = "Geostatistics in Rust with a Python interface"
+name = "ceresgeo"
+description = "My Python tooling for day-to-day geostatistics"
 readme = "README.md"
 requires-python = ">=3.11"
 license = "MIT"

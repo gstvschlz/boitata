@@ -59,5 +59,6 @@ run = ["uv run --no-sync python -c \"import shutil; [shutil.rmtree(p, True) for 
 
 [tasks."conda:recipe"]
 run = "pixi exec rattler-build build -r packaging/conda-forge -m packaging/conda-forge/local-variants.yaml --output-dir .compat/conda-bld"
+
 [tasks.changelog]
 run = "git-cliff -o CHANGELOG.md"

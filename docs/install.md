@@ -1,74 +1,66 @@
 # Install
 
-ceres is not on PyPI or conda-forge yet; there will be no release there until the API settles. Install it from
-the git repository, or from a wheel attached to a [GitHub Release](https://github.com/gstvschlz/ceres/releases)
-once version tags exist. Python ≥ 3.11 is required.
+ceres is published on PyPI as `ceresgeo` and imported as `ceres`. It ships as one `abi3` wheel per platform
+(Linux x86_64 and aarch64, macOS Intel and Apple silicon, Windows x64) that serves every Python from 3.11, so no
+compiler is needed.
 
 ```sh
-pip install "ceres[all] @ git+https://github.com/gstvschlz/ceres"   # today, builds from source
-pip install "./ceres-0.1.0-cp311-abi3-<platform>.whl[all]"         # a wheel downloaded from a Release
-pip install "ceres[all]"                                            # later, once on PyPI
+pip install "ceresgeo[all]"
 ```
 
-A git install compiles the Rust core, so it needs a Rust toolchain and a C compiler (see
-[Building from source](#building-from-source)). A wheel needs neither: one `abi3` wheel per platform serves every
-Python from 3.11.
+```python
+import ceres as cs
+```
 
 ## Environment managers
-
-To install from a downloaded wheel, replace `git+https://github.com/gstvschlz/ceres` by the wheel's path.
 
 ### venv and pip
 
 ```sh
 python -m venv .venv
 source .venv/bin/activate          # Windows: .venv\Scripts\activate
-pip install "ceres[all] @ git+https://github.com/gstvschlz/ceres"
+pip install "ceresgeo[all]"
 ```
 
 ### uv
 
 ```sh
-uv add "ceres[all] @ git+https://github.com/gstvschlz/ceres"         # in a uv project
-uv pip install "ceres[all] @ git+https://github.com/gstvschlz/ceres"  # in any environment
+uv add "ceresgeo[all]"            # in a uv project
+uv pip install "ceresgeo[all]"    # in any environment
 ```
 
 ### poetry
 
 ```sh
-poetry add git+https://github.com/gstvschlz/ceres.git -E all
+poetry add "ceresgeo[all]"
 ```
 
 ### conda or mamba
 
 Install the dependencies from conda-forge, then ceres with pip and `--no-deps`, so that pip leaves the conda
-packages alone. `rust`, `c-compiler` and `maturin` are only needed to build from git.
+packages alone.
 
 ```sh
-conda create -n geo -c conda-forge python numpy matplotlib pyvista polars pandas pyarrow \
-    rust c-compiler "maturin>=1.10,<2" pip
+conda create -n geo -c conda-forge python numpy tqdm matplotlib pyvista polars pandas pyarrow pip
 conda activate geo
-pip install --no-deps --no-build-isolation git+https://github.com/gstvschlz/ceres
+pip install --no-deps ceresgeo
 ```
 
 ### pixi
 
 ```sh
-pixi add python numpy matplotlib pyvista polars pandas pyarrow
-pixi add --pypi "ceres @ git+https://github.com/gstvschlz/ceres"
+pixi add python numpy tqdm matplotlib pyvista polars pandas pyarrow
+pixi add --pypi "ceresgeo[all]"
 ```
-
-The build needs Rust on `PATH` ([rustup](https://rustup.rs)). With a wheel instead:
-`pixi run pip install --no-deps ./ceres-0.1.0-cp311-abi3-<platform>.whl`.
 
 ## Extras
 
-The only required dependency is numpy. The others are imported on first use, and the error names the missing
-package.
+The required dependencies are numpy and tqdm. The others are imported on first use, and the error names the
+missing package.
 
 | pip extra | Adds | conda-forge packages |
 |-----------|------|----------------------|
-| (none) | `numpy` | `numpy` |
+| (none) | `numpy`, `tqdm` | `numpy tqdm` |
 | `plot` | `ceres.plot` | `matplotlib` (or `matplotlib-base`) |
 | `3d` | `ceres.plot3d` | `pyvista` |
 | `all` | the above, and `to_polars`, `to_pandas`, `to_pyarrow` | `matplotlib pyvista polars pandas pyarrow` |
@@ -79,25 +71,12 @@ package.
 |---------|---------|
 | Python | 3.11 |
 | numpy | 1.26 (1.x and 2.x both work) |
+| tqdm | 4.66 |
 | matplotlib | 3.8 |
 | pyvista | 0.45 |
 | polars | 1.4 |
 | pandas | 2.2 |
 | pyarrow | 16 |
-
-## Building from source
-
-Either install Rust ≥ 1.97 with [rustup](https://rustup.rs) (the repository pins its toolchain in
-`rust-toolchain.toml`) and a C compiler, or take all of it from conda-forge:
-
-```sh
-git clone https://github.com/gstvschlz/ceres && cd ceres
-conda env create -f environment.yml       # rust, c-compiler, maturin, test dependencies
-conda activate ceres
-pip install --no-deps --no-build-isolation .
-```
-
-With rustup, `pip install .` is enough; pip fetches maturin itself.
 
 ## Headless 3D rendering
 
@@ -121,28 +100,22 @@ settings on Windows and macOS). Behind a proxy that re-signs TLS, point `SSL_CER
 
 ## Air-gapped installs
 
-From a wheel: on a connected machine with the same OS, architecture and Python, download the ceres wheel from a
-Release and its dependencies, then install without an index:
+On a connected machine with the same OS, architecture and Python, download the wheels, then install without an
+index:
 
 ```sh
-pip download "./ceres-0.1.0-cp311-abi3-<platform>.whl[all]" -d wheels   # connected machine
-pip install --no-index --find-links wheels "ceres[all]"                  # offline machine
+pip download "ceresgeo[all]" -d wheels                                 # connected machine
+pip install --no-index --find-links wheels "ceresgeo[all]"             # offline machine
 ```
 
-From source: vendor the Rust crates on a connected machine and copy the repository across.
-
-```sh
-mkdir -p .cargo && cargo vendor >> .cargo/config.toml
-```
-
-The offline machine then builds with Rust, a C compiler and maturin already installed:
-`pip install --no-deps --no-build-isolation .`. For datasets, copy the commit folder of a filled cache and point
-`CERES_DATA` at it.
+For datasets, copy the commit folder of a filled cache and point `CERES_DATA` at it.
 
 ## Contributors
 
-`mise run compat` builds an sdist and a wheel into `dist/`, installs them into fresh environments and runs the
-Python tests in each. `mise run compat <mode>` runs one mode; all but `dist` reuse what is already in `dist/`.
+Building ceres needs Rust ≥ 1.97 (pinned in `rust-toolchain.toml`) and a C compiler; `mise run build` compiles it
+into the development environment. `mise run compat` builds a wheel into `dist/`, installs it into fresh
+environments and runs the Python tests in each. `mise run compat <mode>` runs one mode; all but `dist` reuse what
+is already in `dist/`.
 
 | Mode | Environment |
 |------|-------------|
