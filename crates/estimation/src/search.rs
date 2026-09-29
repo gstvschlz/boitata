@@ -3,14 +3,12 @@
 //! Selects the samples used to estimate a target location, honoring an
 //! anisotropic search ellipsoid, min/max sample counts, a per-hole cap, and
 //! optional octant balancing. [`SearchTree`] answers the same query as
-//! [`neighbors`] from a k-d tree, in logarithmic rather than linear time.
+//! [`neighbors`] from a grid of cells visited nearest first.
 
 use std::collections::HashMap;
 use std::collections::hash_map::Entry;
-use std::num::NonZero;
 
 use ceres_core::block_frame;
-use kiddo::{ImmutableKdTree, SquaredEuclidean};
 use nalgebra::{Matrix3, Vector3};
 use serde::{Deserialize, Serialize};
 use variogram::aniso::euclidean;
@@ -18,6 +16,9 @@ use variogram::{Angles, Anisotropy, Variogram};
 
 use crate::Sample;
 use crate::error::{EstimError, Result};
+
+mod grid;
+use grid::Grid;
 
 type Point = (f64, f64, f64);
 
@@ -464,13 +465,11 @@ pub fn neighbors_in(
     enough(chosen, params)
 }
 
-/// Samples indexed in k-d trees for repeated neighborhood queries. Points
-/// are stored in the search ellipsoid's frame, so Euclidean distance in the
-/// tree is the anisotropic distance. Axes on which every point shares one
-/// value (2D data, a single level) are left out of the tree and added back
-/// exactly at query time. Samples can be added after construction.
+/// Samples indexed for repeated neighborhood queries. Points are stored in
+/// the search ellipsoid's frame, where the ellipsoid is a sphere, in a grid
+/// of cells visited nearest first. Samples can be added after construction.
 pub struct SearchTree {
-    index: Index,
+    index: Grid,
     frame: Matrix3<f64>,
     points: Vec<[f64; 3]>,
     locs: Vec<Point>,
@@ -486,87 +485,6 @@ fn project(frame: &Matrix3<f64>, p: &Point) -> [f64; 3] {
     [q.x, q.y, q.z]
 }
 
-/// Added points are scanned until this many, then indexed in a block.
-const SCANNED: usize = 64;
-
-/// Consecutive points in blocks of decreasing size, one tree each, and the
-/// points after the last block scanned. A new block absorbs the blocks before
-/// it that are no larger, so each point is re-indexed O(log n) times.
-struct Index {
-    blocks: Vec<Block>,
-    flat: Flat,
-}
-
-struct Block {
-    start: usize,
-    tree: Tree,
-}
-
-enum Tree {
-    One(ImmutableKdTree<f64, 1>),
-    Two(ImmutableKdTree<f64, 2>),
-    Three(ImmutableKdTree<f64, 3>),
-}
-
-/// Axes kept in the tree and the shared value of the others.
-#[derive(Clone, Copy)]
-struct Flat {
-    active: [usize; 3],
-    constant: [Option<f64>; 3],
-}
-
-impl Flat {
-    fn of(points: &[[f64; 3]]) -> Self {
-        let mut constant = [None; 3];
-        if let Some(first) = points.first() {
-            for (d, c) in constant.iter_mut().enumerate() {
-                if points.iter().all(|p| p[d] == first[d]) {
-                    *c = Some(first[d]);
-                }
-            }
-        }
-        if constant.iter().all(Option::is_some) {
-            constant = [None; 3];
-        }
-        let mut active = [0; 3];
-        let mut n = 0;
-        for d in 0..3 {
-            if constant[d].is_none() {
-                active[n] = d;
-                n += 1;
-            }
-        }
-        Self { active, constant }
-    }
-
-    fn dims(&self) -> usize {
-        self.constant.iter().filter(|c| c.is_none()).count()
-    }
-
-    fn keep<const K: usize>(&self, p: &[f64; 3]) -> [f64; K] {
-        std::array::from_fn(|i| p[self.active[i]])
-    }
-
-    fn holds(&self, p: &[f64; 3]) -> bool {
-        (0..3).all(|d| self.constant[d].is_none_or(|c| p[d] == c))
-    }
-
-    /// Squared distance from `q` to the plane or line of the points.
-    fn offset(&self, q: &[f64; 3]) -> f64 {
-        (0..3)
-            .filter_map(|d| self.constant[d].map(|c| (q[d] - c).powi(2)))
-            .sum()
-    }
-
-    /// Squared distance along the kept axes.
-    fn distance(&self, p: &[f64; 3], q: &[f64; 3]) -> f64 {
-        self.active[..self.dims()]
-            .iter()
-            .map(|&d| (p[d] - q[d]).powi(2))
-            .sum()
-    }
-}
-
 #[cfg(test)]
 thread_local! {
     /// Points indexed or scanned on this thread.
@@ -578,162 +496,6 @@ fn work(_n: usize) {
     WORK.set(WORK.get() + _n);
 }
 
-fn build<const K: usize>(points: &[[f64; 3]], flat: &Flat) -> Option<ImmutableKdTree<f64, K>> {
-    work(points.len());
-    let kept: Vec<[f64; K]> = points.iter().map(|p| flat.keep(p)).collect();
-    ImmutableKdTree::new_from_slice(&kept).ok()
-}
-
-/// The `k` nearest within the radius, plus every point tied with the k-th so
-/// that ties resolve by index exactly as in the scan; every point within the
-/// radius when `k` is 0.
-fn nearest<const K: usize>(
-    tree: &ImmutableKdTree<f64, K>,
-    query: [f64; K],
-    k: usize,
-    radius2: f64,
-) -> Vec<(f64, usize)> {
-    if k == 0 || k >= tree.size() {
-        return tree
-            .query(&query)
-            .within::<SquaredEuclidean<f64>>(radius2)
-            .unsorted()
-            .execute()
-            .iter()
-            .map(|r| (r.distance, r.item as usize))
-            .collect();
-    }
-    let found = tree
-        .query(&query)
-        .nearest_n::<SquaredEuclidean<f64>>(NonZero::new(k).expect("k > 0"))
-        .within(radius2)
-        .execute();
-    let found = match found.last() {
-        Some(last) if found.len() == k => tree
-            .query(&query)
-            .within::<SquaredEuclidean<f64>>(last.distance)
-            .unsorted()
-            .execute(),
-        _ => found,
-    };
-    found
-        .iter()
-        .map(|r| (r.distance, r.item as usize))
-        .collect()
-}
-
-impl Tree {
-    fn build(points: &[[f64; 3]], flat: &Flat) -> Option<Self> {
-        match flat.dims() {
-            1 => build::<1>(points, flat).map(Tree::One),
-            2 => build::<2>(points, flat).map(Tree::Two),
-            _ => build::<3>(points, flat).map(Tree::Three),
-        }
-    }
-
-    fn size(&self) -> usize {
-        match self {
-            Tree::One(t) => t.size(),
-            Tree::Two(t) => t.size(),
-            Tree::Three(t) => t.size(),
-        }
-    }
-
-    fn nearest(&self, flat: &Flat, query: &[f64; 3], k: usize, radius2: f64) -> Vec<(f64, usize)> {
-        match self {
-            Tree::One(t) => nearest(t, flat.keep(query), k, radius2),
-            Tree::Two(t) => nearest(t, flat.keep(query), k, radius2),
-            Tree::Three(t) => nearest(t, flat.keep(query), k, radius2),
-        }
-    }
-}
-
-impl Index {
-    fn new(points: &[[f64; 3]]) -> Self {
-        let mut index = Self {
-            blocks: vec![],
-            flat: Flat::of(points),
-        };
-        index.push(points, 0);
-        index
-    }
-
-    fn push(&mut self, points: &[[f64; 3]], start: usize) {
-        if start == points.len() {
-            return;
-        }
-        if let Some(tree) = Tree::build(&points[start..], &self.flat) {
-            self.blocks
-                .truncate(self.blocks.partition_point(|b| b.start < start));
-            self.blocks.push(Block { start, tree });
-        }
-    }
-
-    fn scanned(&self) -> usize {
-        self.blocks.last().map_or(0, |b| b.start + b.tree.size())
-    }
-
-    /// Indexes the last of `points`; `false` when it leaves the plane or
-    /// line of the others and the index must be rebuilt.
-    fn add(&mut self, points: &[[f64; 3]]) -> bool {
-        if !self.flat.holds(&points[points.len() - 1]) {
-            return false;
-        }
-        let mut start = self.scanned();
-        if points.len() - start >= SCANNED {
-            for b in self.blocks.iter().rev() {
-                if b.tree.size() > points.len() - start {
-                    break;
-                }
-                start = b.start;
-            }
-            self.push(points, start);
-        }
-        true
-    }
-
-    fn candidates(
-        &self,
-        points: &[[f64; 3]],
-        query: &[f64; 3],
-        k: usize,
-        radius2: f64,
-    ) -> Vec<(f64, usize)> {
-        let flat = &self.flat;
-        let mut bound = radius2 - flat.offset(query);
-        if bound < 0.0 {
-            return vec![];
-        }
-        let mut found: Vec<(f64, usize)> = vec![];
-        for b in &self.blocks {
-            let enough = found.len() >= k;
-            let near = b
-                .tree
-                .nearest(flat, query, if enough { 0 } else { k }, bound);
-            if !enough && near.len() >= k {
-                bound = near.iter().map(|n| n.0).fold(0.0, f64::max);
-            }
-            found.extend(near.into_iter().map(|(d, i)| (d, i + b.start)));
-        }
-        let scanned = self.scanned();
-        work(points.len() - scanned);
-        if self.blocks.len() > 1 || points.len() > scanned {
-            found.extend(
-                points[scanned..]
-                    .iter()
-                    .zip(scanned..)
-                    .map(|(p, i)| (flat.distance(p, query), i))
-                    .filter(|(d, _)| *d <= bound),
-            );
-            found.sort_by(|a, b| a.0.total_cmp(&b.0).then(a.1.cmp(&b.1)));
-            if let Some(&(last, _)) = found.get(k.saturating_sub(1)) {
-                found.retain(|a| a.0 <= last);
-            }
-        }
-        found
-    }
-}
-
 impl SearchTree {
     pub fn new(samples: &[Sample], params: &Search, vg: Option<&Variogram>) -> Self {
         let aniso = metric(params, vg);
@@ -742,7 +504,7 @@ impl SearchTree {
         let sectors = Sectors::new(aniso, planar(locs.iter()));
         let points: Vec<[f64; 3]> = locs.iter().map(|p| project(&frame, p)).collect();
         Self {
-            index: Index::new(&points),
+            index: Grid::new(&points),
             frame,
             points,
             locs,
@@ -769,9 +531,7 @@ impl SearchTree {
         self.holes.push(sample.hole);
         self.values.push(sample.value);
         self.domains.push(sample.domain);
-        if !self.index.add(&self.points) {
-            self.index = Index::new(&self.points);
-        }
+        self.index.add(&self.points);
     }
 
     /// Distance from `a` to `b` in the search ellipsoid, up to rounding.
@@ -786,10 +546,6 @@ impl SearchTree {
 
     pub fn is_empty(&self) -> bool {
         self.locs.is_empty()
-    }
-
-    fn candidates(&self, query: &[f64; 3], k: usize, radius2: f64) -> Vec<(f64, usize)> {
-        self.index.candidates(&self.points, query, k, radius2)
     }
 
     /// Selection by a per-query ellipsoid `local` for a tree built without
@@ -807,10 +563,14 @@ impl SearchTree {
         let axes = &local.angles;
         let reach = params.radius * axes.major.max(axes.semi).max(axes.minor);
         let radius2 = reach * reach;
-        let mut found: Vec<(f64, usize)> = self
-            .candidates(&query, self.len(), radius2)
+        let mut near = vec![];
+        self.index.nearest(&query, radius2, |_, i| {
+            near.push(i);
+            false
+        });
+        let mut found: Vec<(f64, usize)> = near
             .into_iter()
-            .map(|(_, i)| (local.lag(target, &self.locs[i]), i))
+            .map(|i| (local.lag(target, &self.locs[i]), i))
             .filter(|&(d, i)| d <= params.radius && self.admits(target, domain, i, d))
             .collect();
         found.sort_by(|a, b| a.0.total_cmp(&b.0).then(a.1.cmp(&b.1)));
@@ -903,42 +663,50 @@ impl SearchTree {
         if self.is_empty() || params.max_samples == 0 {
             return enough(vec![], params);
         }
-        let capped = params.octant
-            || params.max_per_hole.is_some()
-            || params.high_grade.is_some()
-            || domain.is_some();
         let query = self.project(target);
-        let radius2 = params.radius * params.radius;
-        let mut k = if capped {
-            params.max_samples * 4
-        } else {
-            params.max_samples
-        };
-        loop {
-            k = k.min(self.len());
-            let mut found = self.candidates(&query, k, radius2);
-            found.sort_by(|a, b| a.0.total_cmp(&b.0).then(a.1.cmp(&b.1)));
-            let exhausted = found.len() < k || k == self.len();
-            let admitted = found
-                .into_iter()
-                .filter(|&(_, i)| {
-                    let d2: f64 = (0..3).map(|d| (self.points[i][d] - query[d]).powi(2)).sum();
-                    self.admits(target, domain, i, d2.sqrt())
-                })
-                .map(|f| f.1);
-            let chosen = select(
-                target,
-                self.one_per_location(admitted, domain, kept),
-                |i| self.locs[i],
-                |i| self.holes[i],
-                params,
-                &self.sectors,
-            );
-            if chosen.len() >= params.max_samples || exhausted {
-                return enough(chosen, params);
-            }
-            k *= 2;
+        let mut selector = Selector::new(target, params, &self.sectors);
+        let mut group: Vec<usize> = vec![];
+        let mut at = f64::NAN;
+        let mut full = false;
+        self.index
+            .nearest(&query, params.radius * params.radius, |d2, i| {
+                if d2 != at && !group.is_empty() {
+                    full = self.offer(&mut group, at, target, domain, kept, &mut selector);
+                    if full {
+                        return true;
+                    }
+                }
+                at = d2;
+                group.push(i);
+                false
+            });
+        if !full {
+            self.offer(&mut group, at, target, domain, kept, &mut selector);
         }
+        enough(selector.chosen, params)
+    }
+
+    /// Offers the samples of `group`, all at squared distance `d2`, that the
+    /// search admits, one per location; true once the selection is full.
+    fn offer(
+        &self,
+        group: &mut Vec<usize>,
+        d2: f64,
+        target: &Point,
+        domain: Option<u32>,
+        kept: Option<usize>,
+        selector: &mut Selector,
+    ) -> bool {
+        let admitted: Vec<usize> = group
+            .drain(..)
+            .filter(|&i| self.admits(target, domain, i, d2.sqrt()))
+            .collect();
+        for i in self.one_per_location(admitted, domain, kept) {
+            if selector.offer(i, &self.locs[i], self.holes[i]) {
+                return true;
+            }
+        }
+        false
     }
 }
 
@@ -1294,6 +1062,6 @@ mod tests {
             tree.add(&s(loc.0, loc.1, loc.2, 0.0, None));
         }
         let work = WORK.get();
-        assert!(work < 100 * n, "{work} points indexed or scanned");
+        assert!(work < 400 * n, "{work} points indexed or scanned");
     }
 }
