@@ -21,8 +21,9 @@ jobs:
         with:
           python-version: "3.13"
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      - run: sudo apt-get install -y --no-install-recommends xvfb libgl1 libgl1-mesa-dri
       - run: pip install -e ".[all]" pytest pytest-cov
-      - run: pytest --cov --cov-branch --cov-report=xml
+      - run: xvfb-run -a pytest --cov --cov-branch --cov-report=xml
       - uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
