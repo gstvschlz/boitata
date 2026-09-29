@@ -2031,3 +2031,17 @@ def buffer_domains(
     label: Any = "contact",
     target: Any | None = None,
 ) -> npt.NDArray[Any]: ...
+def training_image_consistency(
+    ti: BlockModel,
+    column: Column,
+    coords: ArrayLike | PointSet,
+    values: ArrayLike | Column,
+    *,
+    grid: BlockModel | None = None,
+    categorical: bool = True,
+    axis: Literal["x", "y", "z"] | None = None,
+    pattern_length: int = 4,
+    n_classes: int = 4,
+    n_samples: int = 200,
+    seed: int = 0,
+) -> dict[str, Any]: ...

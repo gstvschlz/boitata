@@ -7,6 +7,7 @@ mod categorical;
 mod categories;
 mod coda;
 mod cokriging;
+mod consistency;
 mod containers;
 mod drillholes;
 mod eda;
@@ -64,5 +65,6 @@ fn _ceres(m: &Bound<PyModule>) -> PyResult<()> {
     categories::register(m)?;
     categorical::register(m)?;
     multigaussian::register(m)?;
+    consistency::register(m)?;
     Ok(())
 }
