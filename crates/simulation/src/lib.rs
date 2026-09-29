@@ -11,8 +11,8 @@
 //!
 //! Realizations are conditional and reproducible given a seed.
 
-pub mod correct;
 mod conditioning;
+pub mod correct;
 pub mod error;
 pub mod gibbs;
 pub mod multivariate;

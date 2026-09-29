@@ -388,14 +388,42 @@ impl Bands {
 
     /// Standard-Gaussian unconditional field at `points` (inside the box).
     pub fn field(&self, points: &[(f64, f64, f64)]) -> Vec<f64> {
-        points.par_iter().map(|p| self.at(p)).collect()
+        points
+            .par_chunks(TILE)
+            .flat_map_iter(|c| self.field_serial(c))
+            .collect()
     }
 
-    /// As [`Bands::field`] on the calling thread.
+    /// As [`Bands::field`] on the calling thread, band by band over the
+    /// points; each point sums its bands in order.
     fn field_serial(&self, points: &[(f64, f64, f64)]) -> Vec<f64> {
-        points.iter().map(|p| self.at(p)).collect()
+        let q: Vec<Vector3<f64>> = points
+            .iter()
+            .map(|p| self.to_isotropic * Vector3::new(p.0, p.1, p.2))
+            .collect();
+        let mut sum = vec![0.0; points.len()];
+        for ((dir, &tmin), band) in self.directions.iter().zip(&self.origins).zip(&self.values) {
+            for (s, q) in sum.iter_mut().zip(&q) {
+                let x = ((q.dot(dir) - tmin) / self.step).max(0.0);
+                let i0 = (x.floor() as usize).min(band.len() - 2);
+                let frac = x - i0 as f64;
+                *s += band[i0] * (1.0 - frac) + band[i0 + 1] * frac;
+            }
+        }
+        let inv = 1.0 / (self.directions.len() as f64).sqrt();
+        sum.iter()
+            .zip(points)
+            .map(|(s, p)| {
+                if self.nugget > 0.0 {
+                    s * inv * (1.0 - self.nugget).sqrt() + white(self.key, p) * self.nugget.sqrt()
+                } else {
+                    s * inv
+                }
+            })
+            .collect()
     }
 
+    #[cfg(test)]
     fn at(&self, p: &(f64, f64, f64)) -> f64 {
         let inv = 1.0 / (self.directions.len() as f64).sqrt();
         let q = self.to_isotropic * Vector3::new(p.0, p.1, p.2);
@@ -726,9 +754,7 @@ impl TurningBandsEnsemble {
                 Ok(out)
             })
             .collect::<Result<_>>()?;
-        let mut all: Vec<Vec<f64>> = (0..b)
-            .map(|_| Vec::with_capacity(targets.len()))
-            .collect();
+        let mut all: Vec<Vec<f64>> = (0..b).map(|_| Vec::with_capacity(targets.len())).collect();
         for tile in tiles {
             for (a, t) in all.iter_mut().zip(tile) {
                 a.extend(t);
@@ -1078,6 +1104,7 @@ fn points(model: &ceres_core::BlockModel) -> Vec<(f64, f64, f64)> {
 mod tests {
     use super::*;
     use crate::post::Keep;
+    use crate::post::continuous;
     use variogram::model::Model;
 
     #[test]
@@ -1860,7 +1887,13 @@ mod tests {
             ..estimation::HighGrade::new(0.8 * top, 6.0)
         });
         let flipped: Vec<u32> = nodes.iter().map(|c| 1 - c).collect();
-        let of = |k: usize| Some(if k % 2 == 0 { &nodes[..] } else { &flipped[..] });
+        let of = |k: usize| {
+            Some(if k.is_multiple_of(2) {
+                &nodes[..]
+            } else {
+                &flipped[..]
+            })
+        };
         for trended in [false, true] {
             let trend = trended.then_some(&node_trend[..]);
             let e = ensemble(&z, &all, Some(&z.codes), trended, &params, 5);
@@ -1879,6 +1912,23 @@ mod tests {
                 want
             );
         }
+    }
+
+    #[test]
+    fn serial_field_equals_the_pointwise_field() {
+        let vg = Variogram {
+            nugget: 0.1,
+            ..Variogram::single(Model::Exponential, 0.9, 25.0)
+        };
+        let points: Vec<_> = (0..3000)
+            .map(|i| ((i % 60) as f64 * 1.5, (i / 60) as f64 * 2.0, 0.5))
+            .collect();
+        let (lo, hi) = bounds(&points);
+        let params = TurningBandsParams::default();
+        let bands = Bands::new(lo, hi, &vg, &params, &mut StdRng::seed_from_u64(3));
+        let want: Vec<f64> = points.iter().map(|p| bands.at(p)).collect();
+        assert_eq!(bands.field_serial(&points), want);
+        assert_eq!(bands.field(&points), want);
     }
 
     #[test]
