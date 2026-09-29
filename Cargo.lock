@@ -354,6 +354,7 @@ dependencies = [
  "arrow-schema",
  "arrow-select",
  "ceres-core",
+ "criterion",
  "dxf",
  "parquet",
  "regex",
