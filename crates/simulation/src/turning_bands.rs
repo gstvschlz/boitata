@@ -24,7 +24,7 @@
 //! score back-transformed, within its own domain.
 
 use crate::error::{Result, SimError};
-use crate::post::{BlockSupport, ContinuousOptions, ContinuousSummary, Keep, continuous};
+use crate::post::{BlockSupport, ContinuousOptions, ContinuousSummary, continuous};
 use crate::sgs::{Domains, Realization, Transform, Transforms, Trend, data};
 use estimation::Sample;
 use estimation::krige::{Kind, krige};
@@ -722,7 +722,8 @@ pub fn turning_bands_in(
 /// Summary columns of turning-bands realizations, streamed from the block
 /// model file `input` to `output` chunk by chunk (the input columns are
 /// kept): `mean`, `variance`, `p_above_<c>` and `mean_above_<c>` per cutoff,
-/// `q<p>` per quantile. Memory is bounded by `rows` blocks plus the bands.
+/// `q<p>` per quantile, and `realization_<k>` for each realization kept by
+/// `options.keep`. Memory is bounded by `rows` blocks plus the bands.
 /// Returns the global mean and share above each cutoff of every realization.
 /// `domains` are the codes of the data and of every block, in file order;
 /// `trend` is the trend at the data, its number of classes and the input
@@ -758,6 +759,7 @@ pub fn turning_bands_to_parquet(
             "no trend column {column:?}"
         )));
     }
+    options.keep.validate(n)?;
     let (mut lo, mut hi) = ([f64::INFINITY; 3], [f64::NEG_INFINITY; 3]);
     for chunk in reader.chunks(rows, Some(&[]))? {
         let nodes = chunk?
@@ -780,11 +782,7 @@ pub fn turning_bands_to_parquet(
         params,
         n,
     )?;
-    let options = ContinuousOptions {
-        keep: Keep::None,
-        ..options.clone()
-    };
-    let mut writer = ceres_io::BlockModelWriter::create(
+    let writer = ceres_io::BlockModelWriter::create(
         output,
         *reader.geometry(),
         reader.layout(),
@@ -795,54 +793,76 @@ pub fn turning_bands_to_parquet(
         realization_above: vec![vec![0.0; n]; options.cutoffs.len()],
     };
     let mut total = 0.0;
-    for chunk in reader.chunks(rows, None)? {
-        let chunk = chunk?;
-        let start = total as usize;
-        let (nodes, owner, support) = block_nodes(&chunk, discretization)?;
-        let codes: Option<Vec<u32>> =
-            domains.map(|d| owner.iter().map(|&b| d.1[start + b]).collect());
-        let at_nodes: Option<Vec<f64>> = trend
-            .map(|(.., column)| {
-                let at = float_column(&chunk, column)?;
-                Ok::<_, SimError>(owner.iter().map(|&b| at[b]).collect())
-            })
-            .transpose()?;
-        let s = continuous(n, &options, |k| {
-            let r = ensemble.realization(k, &nodes, codes.as_deref(), at_nodes.as_deref())?;
-            match &support {
-                Some(s) => s.mean(&r),
-                None => Ok(r),
+    std::thread::scope(|scope| -> Result<()> {
+        let (send, receive) = std::sync::mpsc::sync_channel::<ceres_core::BlockModel>(1);
+        let writing = scope.spawn(move || -> Result<()> {
+            let mut writer = writer;
+            for chunk in receive {
+                writer.write(&chunk)?;
             }
-        })?;
-        let m = chunk.len() as f64;
-        total += m;
-        for k in 0..n {
-            global.realization_mean[k] += s.realization_mean[k] * m;
-            for (c, above) in global.realization_above.iter_mut().enumerate() {
-                above[k] += s.realization_above[c][k] * m;
+            writer.finish()?;
+            Ok(())
+        });
+        let simulated = (|| -> Result<()> {
+            for chunk in reader.chunks(rows, None)? {
+                let chunk = chunk?;
+                let start = total as usize;
+                let (nodes, owner, support) = block_nodes(&chunk, discretization)?;
+                let codes: Option<Vec<u32>> =
+                    domains.map(|d| owner.iter().map(|&b| d.1[start + b]).collect());
+                let at_nodes: Option<Vec<f64>> = trend
+                    .map(|(.., column)| {
+                        let at = float_column(&chunk, column)?;
+                        Ok::<_, SimError>(owner.iter().map(|&b| at[b]).collect())
+                    })
+                    .transpose()?;
+                let s = continuous(n, options, |k| {
+                    let r =
+                        ensemble.realization(k, &nodes, codes.as_deref(), at_nodes.as_deref())?;
+                    match &support {
+                        Some(s) => s.mean(&r),
+                        None => Ok(r),
+                    }
+                })?;
+                let m = chunk.len() as f64;
+                total += m;
+                for k in 0..n {
+                    global.realization_mean[k] += s.realization_mean[k] * m;
+                    for (c, above) in global.realization_above.iter_mut().enumerate() {
+                        above[k] += s.realization_above[c][k] * m;
+                    }
+                }
+                let mut columns: Vec<(String, Vec<f64>)> =
+                    vec![("mean".into(), s.mean), ("variance".into(), s.variance)];
+                for (c, cut) in options.cutoffs.iter().enumerate() {
+                    columns.push((format!("p_above_{cut}"), s.probability_above[c].clone()));
+                    columns.push((format!("mean_above_{cut}"), s.mean_above[c].clone()));
+                }
+                for (q, p) in options.quantiles.iter().zip(s.quantile_values) {
+                    columns.push((format!("q{q}"), p));
+                }
+                for (k, values) in s.kept.iter().zip(s.realizations) {
+                    columns.push((format!("realization_{k}"), values));
+                }
+                let mut out = chunk;
+                for (name, values) in columns {
+                    let column = arrow_array::Float64Array::from_iter(
+                        values.into_iter().map(|v| (!v.is_nan()).then_some(v)),
+                    );
+                    out = out
+                        .with_column(&name, std::sync::Arc::new(column))
+                        .map_err(ceres_io::Error::from)?;
+                }
+                if send.send(out).is_err() {
+                    break;
+                }
             }
-        }
-        let mut columns: Vec<(String, Vec<f64>)> =
-            vec![("mean".into(), s.mean), ("variance".into(), s.variance)];
-        for (c, cut) in options.cutoffs.iter().enumerate() {
-            columns.push((format!("p_above_{cut}"), s.probability_above[c].clone()));
-            columns.push((format!("mean_above_{cut}"), s.mean_above[c].clone()));
-        }
-        for (q, p) in options.quantiles.iter().zip(s.quantile_values) {
-            columns.push((format!("q{q}"), p));
-        }
-        let mut out = chunk;
-        for (name, values) in columns {
-            let column = arrow_array::Float64Array::from_iter(
-                values.into_iter().map(|v| (!v.is_nan()).then_some(v)),
-            );
-            out = out
-                .with_column(&name, std::sync::Arc::new(column))
-                .map_err(ceres_io::Error::from)?;
-        }
-        writer.write(&out)?;
-    }
-    writer.finish()?;
+            Ok(())
+        })();
+        drop(send);
+        let written = writing.join().expect("the writer thread does not panic");
+        simulated.and(written)
+    })?;
     global.realization_mean.iter_mut().for_each(|v| *v /= total);
     for above in &mut global.realization_above {
         above.iter_mut().for_each(|v| *v /= total);
@@ -922,6 +942,7 @@ fn points(model: &ceres_core::BlockModel) -> Vec<(f64, f64, f64)> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::post::Keep;
     use variogram::model::Model;
 
     #[test]
@@ -1193,7 +1214,7 @@ mod tests {
         let options = ContinuousOptions {
             cutoffs: vec![3.0],
             quantiles: vec![0.5],
-            keep: Keep::None,
+            keep: Keep::Indices(vec![1, 4]),
         };
         let grid = points(&model);
         let (lo, hi) = bounds(&grid);
@@ -1251,6 +1272,8 @@ mod tests {
                 assert_eq!(column("mean"), whole.mean);
                 assert_eq!(column("p_above_3"), whole.probability_above[0]);
                 assert_eq!(column("q0.5"), whole.quantile_values[0]);
+                assert_eq!(column("realization_1"), whole.realizations[0]);
+                assert_eq!(column("realization_4"), whole.realizations[1]);
                 for (a, b) in global.realization_mean.iter().zip(&whole.realization_mean) {
                     assert!((a - b).abs() < 1e-12);
                 }

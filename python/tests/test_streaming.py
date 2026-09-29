@@ -149,3 +149,17 @@ def test_turning_bands_search_defaults_to_the_nearest_32(model):
         variogram, bands=50, search=cs.Search(radius=1e9, max_samples=32, min_samples=1)
     )
     np.testing.assert_array_equal(explicit.fit(xyz, values).simulate(model, n=3, seed=2).mean, default.mean)
+
+
+def test_streamed_file_holds_kept_realizations(model, tmp_path):
+    xyz = rng.uniform(0, 100, (60, 3)) * [1, 0.75, 0.2]
+    tb = cs.TurningBands(cs.Variogram([("spherical", 1.0, 30.0)]), bands=80).fit(
+        xyz, rng.lognormal(0, 0.5, 60)
+    )
+    source, out = tmp_path / "in.parquet", tmp_path / "out.parquet"
+    cs.write_parquet(source, model)
+    tb.simulate_to_parquet(source, out, n=5, seed=3, keep=[0, 3], rows=333)
+    back = cs.read_parquet(out)
+    whole = tb.simulate(model, n=5, seed=3, keep=[0, 3])
+    np.testing.assert_array_equal(back["realization_3"], whole.realizations[1])
+    assert "realization_1" not in back.attributes.column_names
