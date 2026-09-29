@@ -16,11 +16,19 @@ arrow-select.workspace = true
 ceres-core.workspace = true
 dxf.workspace = true
 parquet.workspace = true
+rayon.workspace = true
 regex.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
 tiff.workspace = true
+
+[dev-dependencies]
+criterion.workspace = true
+
+[[bench]]
+name = "parquet"
+harness = false
 
 [lints]
 workspace = true

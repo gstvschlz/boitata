@@ -10,13 +10,20 @@ use std::sync::Arc;
 use arrow_array::cast::AsArray;
 use arrow_array::types::{Float64Type, UInt64Type};
 use arrow_array::{ArrayRef, Float64Array, RecordBatch, RecordBatchOptions, UInt64Array};
-use arrow_schema::{Field, Schema};
+use arrow_schema::{DataType, Field, Schema, SchemaRef};
 use arrow_select::concat::concat_batches;
 use ceres_core::{BlockModel, Geometry, Layout, PointSet, Polylines};
 use parquet::arrow::arrow_reader::{ParquetRecordBatchReader, ParquetRecordBatchReaderBuilder};
+use parquet::arrow::arrow_writer::{
+    ArrowColumnChunk, ArrowColumnWriter, ArrowLeafColumn, ArrowRowGroupWriterFactory,
+    compute_leaves,
+};
 use parquet::arrow::{ArrowWriter, ProjectionMask};
-use parquet::basic::{Compression, ZstdLevel};
-use parquet::file::properties::WriterProperties;
+use parquet::basic::{Compression, Encoding, ZstdLevel};
+use parquet::file::properties::{EnabledStatistics, WriterProperties, WriterVersion};
+use parquet::file::writer::SerializedFileWriter;
+use parquet::schema::types::ColumnPath;
+use rayon::prelude::*;
 use serde_json::{Value, json};
 
 use crate::{Error, Result};
@@ -43,11 +50,97 @@ pub enum Stored {
     Polylines(Polylines),
 }
 
-fn properties() -> WriterProperties {
-    WriterProperties::builder()
+fn properties(schema: &Schema) -> WriterProperties {
+    let mut builder = WriterProperties::builder()
+        .set_writer_version(WriterVersion::PARQUET_2_0)
         .set_compression(Compression::ZSTD(ZstdLevel::default()))
-        .set_max_row_group_row_count(Some(ROW_GROUP))
-        .build()
+        .set_dictionary_enabled(false)
+        .set_statistics_enabled(EnabledStatistics::Chunk)
+        .set_max_row_group_row_count(Some(ROW_GROUP));
+    for field in schema.fields() {
+        let path = ColumnPath::from(field.name().as_str());
+        builder = match field.data_type() {
+            DataType::Float32 | DataType::Float64 => {
+                builder.set_column_encoding(path, Encoding::BYTE_STREAM_SPLIT)
+            }
+            _ if field.name() == INDEX => {
+                builder.set_column_encoding(path, Encoding::DELTA_BINARY_PACKED)
+            }
+            _ => builder.set_column_dictionary_enabled(path, true),
+        };
+    }
+    builder.build()
+}
+
+/// A Parquet file whose row groups are encoded column by column in
+/// parallel and appended in order, so its bytes do not depend on the
+/// number of threads.
+struct Encoder {
+    file: SerializedFileWriter<File>,
+    factory: ArrowRowGroupWriterFactory,
+    schema: SchemaRef,
+    group: usize,
+}
+
+impl Encoder {
+    /// A file of row groups of at most `group` rows.
+    fn create(file: File, schema: SchemaRef, group: usize) -> Result<Self> {
+        let props = properties(&schema);
+        let (file, factory) =
+            ArrowWriter::try_new(file, schema.clone(), Some(props))?.into_serialized_writer()?;
+        Ok(Self {
+            file,
+            factory,
+            schema,
+            group,
+        })
+    }
+
+    /// Appends `batch` as row groups, encoding up to one row group per
+    /// thread at a time.
+    fn write(&mut self, batch: &RecordBatch) -> Result<()> {
+        let rows = batch.num_rows();
+        let starts: Vec<usize> = (0..rows).step_by(self.group.max(1)).collect();
+        for wave in starts.chunks(rayon::current_num_threads().max(1)) {
+            let first = self.file.flushed_row_groups().len();
+            let mut jobs: Vec<Vec<(ArrowColumnWriter, ArrowLeafColumn)>> = vec![];
+            for (g, &start) in wave.iter().enumerate() {
+                let slice = batch.slice(start, self.group.min(rows - start));
+                let mut writers = self.factory.create_column_writers(first + g)?.into_iter();
+                let mut job = vec![];
+                for (field, column) in self.schema.fields().iter().zip(slice.columns()) {
+                    for leaf in compute_leaves(field, column)? {
+                        job.push((writers.next().expect("one writer per leaf"), leaf));
+                    }
+                }
+                jobs.push(job);
+            }
+            let groups: Vec<Vec<ArrowColumnChunk>> = jobs
+                .into_par_iter()
+                .map(|job| {
+                    job.into_par_iter()
+                        .map(|(mut writer, leaf)| {
+                            writer.write(&leaf)?;
+                            writer.close()
+                        })
+                        .collect::<parquet::errors::Result<Vec<_>>>()
+                })
+                .collect::<parquet::errors::Result<_>>()?;
+            for chunks in groups {
+                let mut group = self.file.next_row_group()?;
+                for chunk in chunks {
+                    chunk.append_to_row_group(&mut group)?;
+                }
+                group.close()?;
+            }
+        }
+        Ok(())
+    }
+
+    fn finish(self) -> Result<()> {
+        self.file.close()?;
+        Ok(())
+    }
 }
 
 fn write(path: &Path, table: &RecordBatch, meta: Option<String>) -> Result<()> {
@@ -64,10 +157,9 @@ fn write(path: &Path, table: &RecordBatch, meta: Option<String>) -> Result<()> {
         table.columns().to_vec(),
         &RecordBatchOptions::new().with_row_count(Some(table.num_rows())),
     )?;
-    let mut writer = ArrowWriter::try_new(File::create(path)?, schema, Some(properties()))?;
-    writer.write(&batch)?;
-    writer.close()?;
-    Ok(())
+    let mut encoder = Encoder::create(File::create(path)?, schema, ROW_GROUP)?;
+    encoder.write(&batch)?;
+    encoder.finish()
 }
 
 /// Writes a plain table.
@@ -111,7 +203,7 @@ impl FileLayout {
 /// Writes a block model file chunk by chunk; `write_block_model` is one chunk.
 pub struct BlockModelWriter {
     file: Option<File>,
-    writer: Option<ArrowWriter<File>>,
+    writer: Option<Encoder>,
     meta: Value,
     geometry: Geometry,
     layout: FileLayout,
@@ -213,7 +305,7 @@ impl BlockModelWriter {
         )?;
         if self.writer.is_none() {
             let file = self.file.take().expect("a file until the first chunk");
-            self.writer = Some(ArrowWriter::try_new(file, schema, Some(properties()))?);
+            self.writer = Some(Encoder::create(file, schema, ROW_GROUP)?);
         }
         self.writer.as_mut().expect("created above").write(&batch)?;
         self.rows += n as u64;
@@ -230,10 +322,7 @@ impl BlockModelWriter {
             )));
         }
         match self.writer {
-            Some(writer) => {
-                writer.close()?;
-                Ok(())
-            }
+            Some(writer) => writer.finish(),
             None => Err(bad("no blocks were written")),
         }
     }
@@ -608,6 +697,59 @@ mod tests {
             ),
         ])
         .unwrap()
+    }
+
+    #[test]
+    fn floats_are_split_by_byte_stream() {
+        use parquet::basic::Encoding;
+        use parquet::file::reader::{FileReader, SerializedFileReader};
+        let path = temp("encodings.parquet");
+        write_parquet(&path, &attributes(64)).unwrap();
+        let reader = SerializedFileReader::new(File::open(&path).unwrap()).unwrap();
+        let group = reader.metadata().row_group(0);
+        let encodings = |i: usize| group.column(i).encodings().collect::<Vec<Encoding>>();
+        assert!(
+            encodings(0).contains(&Encoding::BYTE_STREAM_SPLIT),
+            "{:?}",
+            encodings(0)
+        );
+        assert!(
+            encodings(1).contains(&Encoding::RLE_DICTIONARY),
+            "{:?}",
+            encodings(1)
+        );
+        std::fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn files_do_not_depend_on_thread_count() {
+        let batch = attributes(4500);
+        let bytes = |threads: usize| {
+            let path = temp(&format!("threads-{threads}.parquet"));
+            let pool = rayon::ThreadPoolBuilder::new()
+                .num_threads(threads)
+                .build()
+                .unwrap();
+            pool.install(|| {
+                let mut encoder =
+                    Encoder::create(File::create(&path).unwrap(), batch.schema(), 1000).unwrap();
+                encoder.write(&batch.slice(0, 2500)).unwrap();
+                encoder.write(&batch.slice(2500, 2000)).unwrap();
+                encoder.finish().unwrap();
+            });
+            let bytes = std::fs::read(&path).unwrap();
+            std::fs::remove_file(path).unwrap();
+            bytes
+        };
+        let one = bytes(1);
+        assert_eq!(one, bytes(8));
+        let path = temp("threads-back.parquet");
+        std::fs::write(&path, &one).unwrap();
+        let Stored::Table(back) = read_parquet(&path).unwrap() else {
+            panic!("expected a table")
+        };
+        assert_eq!(back.columns(), batch.columns());
+        std::fs::remove_file(path).unwrap();
     }
 
     #[test]
