@@ -387,3 +387,21 @@ def test_kriging_on_unfolded_coordinates_follows_the_layer():
         for name, a, b in [("real", samples, targets), ("unfolded", s, t)]
     }
     assert error["unfolded"] < 0.3 * error["real"], error
+
+
+def _box_volume(corners):
+    e0, e1, e2 = (corners[:, i] - corners[:, 0] for i in (1, 2, 4))
+    return np.abs(np.sum(np.cross(e0, e1) * e2, axis=1))
+
+
+def test_corners_hold_every_centroid_and_reconstruct_the_volume():
+    bm = cs.BlockModel(origin=(10, 20, 0), size=(2, 3, 1), count=(2, 2, 1), rotation=(30, 0, 0))
+    assert bm.corners.shape == (4, 8, 3)
+    np.testing.assert_allclose(bm.corners.mean(axis=1), bm.centroids, atol=1e-9)
+    np.testing.assert_allclose(_box_volume(bm.corners), bm.volumes, atol=1e-9)
+
+    extents = [[0, 0, 0, 0.6, 1, 1], [0.6, 0, 0, 1, 1, 1]]
+    sub = cs.BlockModel.subblocked(
+        (0, 0, 0), (10, 10, 10), (1, 1, 1), np.array([0, 0], np.uint64), extents, rotation=(15, 20, 5)
+    )
+    np.testing.assert_allclose(_box_volume(sub.corners), sub.volumes, atol=1e-9)

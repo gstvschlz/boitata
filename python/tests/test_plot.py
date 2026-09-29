@@ -106,15 +106,17 @@ def test_scatter_reports_slope():
     assert ax.lines[1].get_label() == "slope 2.00"
 
 
-def test_section_slices_a_masked_model():
+def test_section_draws_true_edges_for_a_masked_model():
     bm = cs.BlockModel(origin=(0, 0, 0), size=(2, 2, 1), count=(4, 3, 2))
     bm = bm.with_column("g", np.arange(24.0)).mask(np.arange(24) != 5)
     _, ax = cs.plot.section(bm, "g", axis="z", index=0)
-    image = ax.images[0].get_array()
-    assert image.shape == (3, 4) and np.isnan(np.ma.filled(image, np.nan)[1, 1])
-    assert ax.images[0].get_extent() == [0, 8, 0, 6]
+    patches = ax.collections[0]
+    assert len(patches.get_paths()) == 11
+    np.testing.assert_allclose(patches.get_array(), np.r_[0:5, 6:12])
+    centers = np.array([p.vertices[:4].mean(axis=0) for p in patches.get_paths()])
+    assert not np.any(np.all(np.isclose(centers, [3, 3]), axis=1))
     _, ax = cs.plot.section(bm, np.ones(23), axis="x")
-    assert ax.images[0].get_array().shape == (2, 3)
+    assert len(ax.collections[0].get_paths()) == 6
 
 
 def test_row_at_finds_rotated_and_masked_blocks():
@@ -124,15 +126,32 @@ def test_row_at_finds_rotated_and_masked_blocks():
     assert rows.dtype == np.int64 and (rows == [*range(23), -1]).all()
 
 
-def test_section_on_a_plane_matches_the_axis_slice():
+def test_section_falls_back_to_a_raster_off_a_model_axis():
+    bm = cs.BlockModel(origin=(0, 0, 0), size=(2, 2, 1), count=(4, 3, 2))
+    bm = bm.with_column("g", np.arange(24.0))
+    _, ax = cs.plot.section(bm, "g", plane=((4, 3, 0.5), 45, 45))
+    assert len(ax.images) == 1 and len(ax.collections) == 0
+
+
+def test_section_honours_rotation_and_matches_slab_on_the_same_plane():
+    bm = cs.BlockModel(origin=(0, 0, 0), size=(2, 2, 1), count=(4, 3, 2), rotation=(20, 0, 0))
+    bm = bm.with_column("g", np.arange(24.0))
+    plane = (bm.centroids[:12].mean(axis=0), 90.0, 0.0)
+    _, ax = cs.plot.section(bm, "g", axis="z", index=0)
+    _, direct = cs.plot.section(bm, "g", plane=plane)
+    patches, direct_patches = ax.collections[0], direct.collections[0]
+    np.testing.assert_allclose(sorted(patches.get_array()), sorted(direct_patches.get_array()))
+    centers = sorted(p.vertices[:4].mean(axis=0).tolist() for p in patches.get_paths())
+    direct_centers = sorted(p.vertices[:4].mean(axis=0).tolist() for p in direct_patches.get_paths())
+    np.testing.assert_allclose(centers, direct_centers, atol=1e-9)
+    _, slab_ax = plt.subplots()
+    cs.plot.slab(np.empty((0, 3)), plane=plane, thickness=1, meshes=[], ax=slab_ax)
+    assert slab_ax.get_xlabel() == ax.get_xlabel() and slab_ax.get_ylabel() == ax.get_ylabel()
+
+
+def test_uncertain_labels_a_plane_section():
     bm = cs.BlockModel(origin=(0, 0, 0), size=(2, 2, 1), count=(4, 3, 2))
     bm = bm.with_column("g", np.arange(24.0)).mask(np.arange(24) != 5)
-    _, ax = cs.plot.section(bm, "g", plane=((4, 3, 0.5), 90, 0), resolution=0.5)
-    np.testing.assert_allclose(ax.images[0].get_extent(), [0, 8, 0, 6], atol=1e-9)
-    assert ax.get_xlabel() == "Easting (m)" and ax.get_ylabel() == "Northing (m)"
-    _, axis = cs.plot.section(bm, "g", axis="z", index=0)
-    image = np.ma.filled(ax.images[0].get_array(), np.nan)
-    np.testing.assert_array_equal(image[::4, ::4], np.ma.filled(axis.images[0].get_array(), np.nan))
     _, ax = cs.plot.uncertain("g", np.zeros(23), model=bm, plane=((4, 3, 0.5), 45, 90))
     assert ax.get_xlabel() == "Along strike (m)" and ax.get_ylabel() == "Elevation (m)"
 

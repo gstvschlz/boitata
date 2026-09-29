@@ -190,7 +190,7 @@ def test_section_slab_and_boxplot_take_a_scheme():
     c = cs.Categories(["a", "b"], colors=["red", "blue"])
     bm = cs.BlockModel(origin=(0, 0, 0), size=(1, 1, 1), count=(2, 2, 1)).with_column("k", [0.0, 1, 1, 0])
     _, ax = cs.plot.section(bm, "k", scheme=c)
-    assert ax.images[0].cmap(ax.images[0].norm(1)) == rgba("blue")
+    assert ax.collections[0].cmap(ax.collections[0].norm(1)) == rgba("blue")
     assert [t.get_text() for t in ax.get_legend().get_texts()] == ["a", "b"] and len(ax.figure.axes) == 1
     points = np.c_[np.arange(4.0), np.zeros(4), np.zeros(4)]
     _, ax = cs.plot.slab(points, [1.0, 0, 1, 0], plane=((0, 0, 0), 90, 90), thickness=1, scheme=c)

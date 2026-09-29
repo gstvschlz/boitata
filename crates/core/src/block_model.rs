@@ -380,6 +380,23 @@ impl BlockModel {
         }
     }
 
+    /// World-space corners of each row's box: 8 vertices. Vertex `c` (0..8)
+    /// takes, for axis `a` (0..3), the row's minimum extent on that axis if
+    /// bit `a` of `c` is 0, its maximum if 1.
+    pub fn corners(&self) -> Vec<[[f64; 3]; 8]> {
+        let whole = [0.0, 0.0, 0.0, 1.0, 1.0, 1.0];
+        match &self.layout {
+            Layout::SubBlocked { parent, extent, .. } => parent
+                .iter()
+                .zip(extent)
+                .map(|(&p, e)| corners_of(&self.geometry, p, e))
+                .collect(),
+            _ => (0..self.len())
+                .map(|row| corners_of(&self.geometry, self.parent_index(row), &whole))
+                .collect(),
+        }
+    }
+
     /// Keeps the rows where `keep` is true; a regular model becomes masked.
     pub fn mask(&self, keep: &BooleanArray) -> Result<Self> {
         check_rows(keep.len(), &self.attributes)?;
@@ -720,6 +737,15 @@ fn ranks(column: &ArrayRef) -> Result<(Vec<Option<usize>>, Vec<usize>)> {
 
 fn rows(cells: u64) -> Result<usize> {
     usize::try_from(cells).map_err(|_| Error::Geometry("too many cells".into()))
+}
+
+fn corners_of(geometry: &Geometry, index: u64, extent: &[f64; 6]) -> [[f64; 3]; 8] {
+    let mut corners = [[0.0; 3]; 8];
+    for (c, corner) in corners.iter_mut().enumerate() {
+        let at = [0, 1, 2].map(|a| extent[a + 3 * ((c >> a) & 1)]);
+        *corner = geometry.point(index, at);
+    }
+    corners
 }
 
 #[cfg(test)]
@@ -1176,5 +1202,75 @@ mod tests {
             grades(vec![1.0, 2.0]),
         );
         assert!(unsorted.is_err());
+    }
+
+    use proptest::prelude::*;
+
+    #[test]
+    fn corners_of_an_unrotated_cell_are_its_axis_aligned_box() {
+        let g = geometry([0.0; 3]);
+        let model = BlockModel::regular(g, grades(vec![0.0; 6])).unwrap();
+        let corners = model.corners();
+        assert_eq!(corners.len(), 6);
+        assert_eq!(corners[0][0], g.origin);
+        let hi = [
+            g.origin[0] + g.size[0],
+            g.origin[1] + g.size[1],
+            g.origin[2] + g.size[2],
+        ];
+        assert_eq!(corners[0][7], hi);
+    }
+
+    #[test]
+    fn corners_of_a_masked_row_use_its_own_parent_cell() {
+        let g = geometry([0.0; 3]);
+        let model = BlockModel::masked(g, vec![4], grades(vec![0.0])).unwrap();
+        let corners = model.corners()[0];
+        assert_eq!(corners[0], g.point(4, [0.0; 3]));
+        assert_eq!(corners[7], g.point(4, [1.0; 3]));
+    }
+
+    fn sub_extent() -> impl Strategy<Value = [f64; 6]> {
+        (
+            0.05f64..0.95,
+            0.05f64..0.95,
+            0.05f64..0.95,
+            0.05f64..0.95,
+            0.05f64..0.95,
+            0.05f64..0.95,
+        )
+            .prop_map(|(u0, v0, w0, du, dv, dw)| {
+                [
+                    u0,
+                    v0,
+                    w0,
+                    u0 + du * (1.0 - u0),
+                    v0 + dv * (1.0 - v0),
+                    w0 + dw * (1.0 - w0),
+                ]
+            })
+    }
+
+    fn box_volume(model: &BlockModel) -> f64 {
+        let c = model.corners()[0];
+        let edge = |i: usize| Vector3::from(c[i]) - Vector3::from(c[0]);
+        edge(1).cross(&edge(2)).dot(&edge(4)).abs()
+    }
+
+    proptest! {
+        #[test]
+        fn corner_box_volume_matches_row_volume(
+            azimuth in 0.0f64..360.0,
+            dip in -90.0f64..90.0,
+            rake in -180.0f64..180.0,
+            extent in sub_extent(),
+        ) {
+            for rotation in [[0.0; 3], [azimuth, dip, rake]] {
+                let g = geometry(rotation);
+                let model =
+                    BlockModel::subblocked(g, vec![0], vec![extent], None, grades(vec![0.0])).unwrap();
+                prop_assert!((box_volume(&model) - model.volumes()[0]).abs() < 1e-6);
+            }
+        }
     }
 }

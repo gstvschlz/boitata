@@ -933,8 +933,9 @@ def section(
     Parameters
     ----------
     model : BlockModel
-        Missing blocks are left blank. Sliced along `axis`: regular or masked, in model coordinates, rotation
-        ignored. On a `plane`: any layout and rotation.
+        Missing blocks are left blank. Drawn as true block edges (exact for masked and sub-blocked layouts)
+        whenever the cut is normal to one of the model's own local axes: always along `axis`, and for an
+        explicit `plane` only when it matches the model's `rotation`. Otherwise resampled onto a raster.
     values : str or array_like
         Column name, or one value per block.
     axis : {"x", "y", "z"}
@@ -954,11 +955,72 @@ def section(
         Passed to ``ax.imshow`` (e.g. ``cmap``, ``norm``, ``vmin``).
     """
     fig, ax = _axes(ax)
-    (image,), extent = _image(ax, model, [values], axis, index, plane, resolution)
-    _scheme_colors(scheme, kwargs)
-    im = ax.imshow(image, origin="lower", extent=extent, **kwargs)
-    _key(fig, ax, im, values, colorbar, scheme)
+    resolved = plane if plane is not None else _axis_plane(model, axis, index)
+    k = _aligned_axis(model, resolved)
+    if k is not None:
+        mappable = _blocks(ax, model, values, resolved, k, scheme, kwargs)
+    else:
+        (image,), extent = _image(ax, model, [values], axis, index, plane, resolution)
+        _scheme_colors(scheme, kwargs)
+        mappable = ax.imshow(image, origin="lower", extent=extent, **kwargs)
+    _key(fig, ax, mappable, values, colorbar, scheme)
     return fig, ax
+
+
+def _block_axes(rotation):
+    p = _principal(rotation)
+    return np.array([-p[1], p[0], p[2]])
+
+
+def _angles_for_normal(axis):
+    dip = np.degrees(np.arccos(np.clip(axis[2], -1.0, 1.0)))
+    spread = np.hypot(axis[0], axis[1])
+    azimuth = 90.0 if spread < 1e-12 else np.degrees(np.arctan2(-axis[1], axis[0]))
+    return azimuth, dip
+
+
+def _axis_plane(model, axis, index):
+    k = {"x": 0, "y": 1, "z": 2}[axis]
+    size, count = np.asarray(model.size, dtype=float), np.asarray(model.count, dtype=float)
+    index = count[k] // 2 if index is None else float(index)
+    local = size * count / 2
+    local[k] = (index + 0.5) * size[k]
+    axes = _block_axes(model.rotation)
+    center = np.asarray(model.origin) + local @ axes
+    azimuth, dip = _angles_for_normal(axes[k])
+    return tuple(center), azimuth, dip
+
+
+def _aligned_axis(model, plane):
+    n = _frame(plane)[3]
+    matches = np.flatnonzero(np.abs(_block_axes(model.rotation) @ n) > 1 - 1e-9)
+    return int(matches[0]) if len(matches) else None
+
+
+def _blocks(ax, model, values, plane, k, scheme, kwargs):
+    from matplotlib.collections import PatchCollection
+    from matplotlib.patches import Polygon
+
+    center, u, v, _ = _frame(plane)
+    corners = model.corners
+    depth = (corners - center) @ _block_axes(model.rotation)[k]
+    keep = (depth.min(axis=1) <= 0) & (depth.max(axis=1) >= 0)
+    if not keep.any():
+        raise InvalidInput("the plane misses the block model")
+    others = [a for a in range(3) if a != k]
+    face = [sum(bit << others[i] for i, bit in enumerate(bits)) for bits in ((0, 0), (0, 1), (1, 1), (1, 0))]
+    faces = corners[keep][:, face, :] @ np.c_[u, v]
+    values = np.asarray(_column(model, values), dtype=float)[keep]
+    _scheme_colors(scheme, kwargs)
+    kwargs.setdefault("linewidths", 0)
+    vmin, vmax = kwargs.pop("vmin", None), kwargs.pop("vmax", None)
+    patches = PatchCollection([Polygon(f) for f in faces], **kwargs)
+    patches.set_array(values)
+    patches.set_clim(vmin, vmax)
+    ax.add_collection(patches)
+    ax.autoscale()
+    _label(ax, u, v)
+    return patches
 
 
 def fence(
