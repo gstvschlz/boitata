@@ -68,7 +68,7 @@ for levels in (0, 1, 2, 3):
 # than the image. The servosystem in the next page pulls it back.
 
 # %%
-codes = ListedColormap(["black", "white"])
+codes = ListedColormap(["white", "black"])
 fig, axes = plt.subplots(1, 5, figsize=(15, 3.6), layout="constrained")
 panels = [(image, "Training image")] + [(realizations[k], f"n_levels={k}") for k in realizations]
 for ax, (img, title) in zip(axes, panels):

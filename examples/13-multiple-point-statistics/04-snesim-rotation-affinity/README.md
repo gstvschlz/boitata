@@ -89,7 +89,7 @@ Three zones: template classes 3, sand runs 9.2 cells along Y
 <details><summary>Python</summary>
 
 ```python
-codes = ListedColormap(["black", "white"])
+codes = ListedColormap(["white", "black"])
 fig, axes = plt.subplots(2, 5, figsize=(15, 6.4), layout="constrained")
 for ax, (title, (azimuth, semi, scale)) in zip(axes[0], fields.items()):
     im = ax.imshow(

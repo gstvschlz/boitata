@@ -49,14 +49,14 @@ for name, image in (("channels", channels), ("lenses", lenses)):
     print(f"{name}: realizations {share:.1%} sand, image {image['facies'].mean():.1%}")
 
 # %%
-codes = ListedColormap(["black", "white"])
+codes = ListedColormap(["white", "black"])
 boundary = (domains == "lenses").reshape(n, n).astype(float)
 fig, axes = plt.subplots(1, 4, figsize=(15, 4), layout="constrained")
 panels = (
     (channels["facies"], "Image: channels", codes),
     (lenses["facies"], "Image: lenses", codes),
     (summary.realizations[0], "Realization 1", codes),
-    (summary.probabilities[:, 1], "P(sand), 20 realizations", "gray"),
+    (summary.probabilities[:, 1], "P(sand), 20 realizations", "gray_r"),
 )
 for ax, (values, title, cmap) in zip(axes, panels):
     im = ax.imshow(values.reshape(n, n), origin="lower", cmap=cmap, vmin=0, vmax=1, interpolation="nearest")

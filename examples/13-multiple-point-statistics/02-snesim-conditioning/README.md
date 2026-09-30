@@ -96,7 +96,7 @@ within 3 cells of shale data: P(sand) 0.13, image 0.05
 <details><summary>Python</summary>
 
 ```python
-codes = ListedColormap(["black", "white"])
+codes = ListedColormap(["white", "black"])
 fig, axes = plt.subplots(1, 4, figsize=(15, 4), layout="constrained", width_ratios=[1, 1, 1, 0.9])
 for ax, img, title in (
     (axes[0], image, "Training image and data"),
@@ -104,10 +104,10 @@ for ax, img, title in (
 ):
     ax.imshow(img, origin="lower", cmap=codes, vmin=0, vmax=1, interpolation="nearest")
     ax.scatter(
-        *wells[:, :2].T, s=10, c=np.where(facies == 1, "white", "black"), edgecolors=HIGHLIGHT, linewidths=0.9
+        *wells[:, :2].T, s=10, c=np.where(facies == 1, "black", "white"), edgecolors=HIGHLIGHT, linewidths=0.9
     )
     ax.set_title(title)
-im = axes[2].imshow(p_sand, origin="lower", cmap="gray", vmin=0, vmax=1)
+im = axes[2].imshow(p_sand, origin="lower", cmap="gray_r", vmin=0, vmax=1)
 axes[2].set_title("P(sand), 50 realizations")
 fig.colorbar(im, ax=axes[2], shrink=0.8, label="probability")
 for ax in axes[:3]:
