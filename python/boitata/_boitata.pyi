@@ -1288,7 +1288,8 @@ class Cokriging:
         *,
         variable: int = 0,
         return_variance: bool = False,
-        collocated: Mapping[int, ArrayLike] | None = None,
+        anisotropy: LocalAnisotropy | None = None,
+        collocated: Mapping[int, ArrayLike | Column] | None = None,
         progress: bool = True,
     ) -> Any: ...
 

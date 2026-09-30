@@ -93,4 +93,29 @@ save(fig, "validation")
 
 ![validation](validation.png)
 
+## Locally varying anisotropy
+
+`anisotropy=` takes a [LocalAnisotropy](../14-local-anisotropy/README.md) as ordinary kriging does: each target
+searches its own ellipse, shared by Cd and Zn, and every structure and cross term of the model turns with it. Here
+the directions follow the gradient of the ordinary kriging map of Cd, with semi-major ranges half the major.
+`collocated` also takes a column of the targets by name:
+
+<details><summary>Python</summary>
+
+```python
+grid = bt.BlockModel(origin=(0.3, 0.4), size=(0.1, 0.1), count=(47, 54))
+guide = grid.with_column("Cd", ok.predict(grid, progress=False))
+lva = bt.LocalAnisotropy.from_grid(guide, "Cd", window=3, ratios=(0.5, 1.0)).smooth(0.5)
+by_lva = ck.predict(test, anisotropy=lva, collocated={1: "Zn"})
+print(
+    f"validation RMSE: collocated cokriging {rmse(by_ck):.3f}, with local anisotropy {rmse(by_lva):.3f} mg/kg"
+)
+```
+
+</details>
+
+```text
+validation RMSE: collocated cokriging 0.689, with local anisotropy 0.671 mg/kg
+```
+
 Full script: [`example_06_09.py`](example_06_09.py)
