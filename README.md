@@ -1,7 +1,7 @@
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/gstvschlz/boitata/main/docs/assets/logo-animated-dark.svg">
-    <img src="https://raw.githubusercontent.com/gstvschlz/boitata/main/docs/assets/logo-animated.svg" alt="Boitatá" width="120">
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/logo-animated-dark.svg">
+    <img src="docs/assets/logo-animated.svg" alt="Boitatá" width="120">
   </picture>
 </p>
 
