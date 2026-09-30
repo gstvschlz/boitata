@@ -95,7 +95,7 @@ save(fig, "validation")
 
 ## Locally varying anisotropy
 
-`anisotropy=` takes a [LocalAnisotropy](../14-local-anisotropy/README.md) as ordinary kriging does: each target
+`anisotropy=` takes a [LocalAnisotropy](../../06-kriging/14-local-anisotropy/README.md) as ordinary kriging does: each target
 searches its own ellipse, shared by Cd and Zn, and every structure and cross term of the model turns with it. Here
 the directions follow the gradient of the ordinary kriging map of Cd, with semi-major ranges half the major.
 `collocated` also takes a column of the targets by name:

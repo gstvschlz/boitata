@@ -21,6 +21,7 @@ theme:
     - navigation.footer
     - search.suggest
     - content.code.copy
+    - content.tabs.link
   palette:
     - media: "(prefers-color-scheme: light)"
       scheme: default
@@ -35,17 +36,28 @@ theme:
 
 extra_css:
   - assets/extra.css
+  - assets/components.css
+  - assets/themes/themes.css
+  - https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css
+
+extra_javascript:
+  - assets/theme-switcher.js
+  - https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js
+  - https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js
+  - assets/katex-init.js
 
 hooks:
   - docs/hooks.py
 exclude_docs: |
   hooks.py
   __pycache__/
+  snippets/
 
 plugins:
   - search
   - gallery:
       examples_dirs:
+        - learn
         - examples/01-first-steps
         - examples/02-data-and-geometry
         - examples/03-exploratory-analysis
@@ -59,7 +71,9 @@ plugins:
         - examples/11-geological-modeling
         - examples/12-case-studies
         - examples/13-multiple-point-statistics
+        - examples/14-workflows
       gallery_dirs:
+        - docs/learn
         - docs/examples/01-first-steps
         - docs/examples/02-data-and-geometry
         - docs/examples/03-exploratory-analysis
@@ -73,7 +87,8 @@ plugins:
         - docs/examples/11-geological-modeling
         - docs/examples/12-case-studies
         - docs/examples/13-multiple-point-statistics
-      filename_pattern: example_\d\d_\d\d\.py$
+        - docs/examples/14-workflows
+      filename_pattern: (example_\d\d_\d\d|learn_\d\d)\.py$
       ignore_pattern: (render|common)\.py$
       within_subsection_order: FileNameSortKey
       show_memory: false
@@ -107,11 +122,23 @@ markdown_extensions:
   - pymdownx.highlight
   - pymdownx.superfences
   - pymdownx.details
+  - abbr
+  - pymdownx.arithmatex: {generic: true}
+  - pymdownx.snippets: {base_path: [docs/snippets], check_paths: true, auto_append: [glossary.md]}
+  - pymdownx.tabbed: {alternate_style: true}
   - toc: {permalink: true}
 
 nav:
   - Home: index.md
   - Install: install.md
+  - Learn: learn
+  - Guide:
+      - How Boitatá is organized: guide/organization.md
+      - Containers and Arrow: guide/containers.md
+      - fit, transform, predict: guide/estimators.md
+      - Saving models: guide/saving.md
+      - Which page do I need?: guide/finder.md
+      - Glossary: guide/glossary.md
   - Examples:
       - First steps: examples/01-first-steps
       - Data and geometry: examples/02-data-and-geometry
@@ -126,4 +153,6 @@ nav:
       - Geological modeling: examples/11-geological-modeling
       - Case studies: examples/12-case-studies
       - Multiple-point statistics: examples/13-multiple-point-statistics
+      - Workflows: examples/14-workflows
   - API: []
+  - Prototype: prototype/index.md

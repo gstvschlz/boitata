@@ -1,0 +1,25 @@
+<svg class="bt-svg" viewBox="0 0 520 260" role="img" aria-labelledby="demo-vg-t">
+<title id="demo-vg-t">A variogram rising from the nugget to the sill at the range</title>
+<line class="s-grid" x1="60" y1="210" x2="490" y2="210" stroke-width="1.5"/>
+<line class="s-grid" x1="60" y1="210" x2="60" y2="30" stroke-width="1.5"/>
+<line class="s-muted dash" x1="60" y1="70" x2="490" y2="70" stroke-width="1"/>
+<line class="s-muted dash" x1="330" y1="70" x2="330" y2="210" stroke-width="1"/>
+<path class="s-ember none a-draw" pathLength="1" stroke-width="3" d="M60 175 C 150 110, 250 75, 330 70 L 490 70"/>
+<g class="f-night">
+<circle class="a-pop" style="--d:.2s" cx="95" cy="168" r="4.5"/>
+<circle class="a-pop" style="--d:.35s" cx="140" cy="138" r="4.5"/>
+<circle class="a-pop" style="--d:.5s" cx="185" cy="112" r="4.5"/>
+<circle class="a-pop" style="--d:.65s" cx="230" cy="92" r="4.5"/>
+<circle class="a-pop" style="--d:.8s" cx="275" cy="80" r="4.5"/>
+<circle class="a-pop" style="--d:.95s" cx="320" cy="73" r="4.5"/>
+<circle class="a-pop" style="--d:1.1s" cx="365" cy="68" r="4.5"/>
+<circle class="a-pop" style="--d:1.25s" cx="410" cy="72" r="4.5"/>
+<circle class="a-pop" style="--d:1.4s" cx="455" cy="69" r="4.5"/>
+</g>
+<line class="s-flame a-fade" style="--d:1.4s" x1="60" y1="210" x2="60" y2="175" stroke-width="6"/>
+<text class="a-fade" style="--d:1.5s" x="68" y="198">nugget</text>
+<text class="a-fade" style="--d:1.6s" x="440" y="60">sill</text>
+<text class="a-fade" style="--d:1.7s" x="306" y="228">range</text>
+<text class="small" x="440" y="232">lag h (m)</text>
+<text class="math" x="22" y="40">γ(h)</text>
+</svg>

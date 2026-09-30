@@ -1,0 +1,168 @@
+/* Teaching components and the SVG figure contract. Themes restyle these through the --bt-* tokens. */
+
+:root {
+  --bt-ink: #17303F;
+  --bt-muted: #6B7C88;
+  --bt-grid: #D5DDE3;
+  --bt-paper: #FFFFFF;
+  --bt-night: #17303F;
+  --bt-ember: #C4411F;
+  --bt-flame: #FFB322;
+  --bt-ember-soft: rgba(196, 65, 31, .12);
+  --bt-flame-soft: rgba(255, 179, 34, .18);
+  --bt-night-soft: rgba(23, 48, 63, .08);
+  --bt-radius: .3rem;
+  --bt-figure-bg: var(--bt-paper);
+}
+
+[data-md-color-scheme="slate"] {
+  --bt-ink: #E6EDF2;
+  --bt-muted: #93A4B0;
+  --bt-grid: #2A3E4C;
+  --bt-paper: #0F1E28;
+  --bt-night: #A9C4D6;
+  --bt-ember: #FF7A4D;
+  --bt-flame: #FFC04D;
+  --bt-ember-soft: rgba(255, 122, 77, .16);
+  --bt-flame-soft: rgba(255, 192, 77, .16);
+  --bt-night-soft: rgba(169, 196, 214, .10);
+}
+
+/* ---------- Figures (inline SVG) ---------- */
+
+.md-typeset figure.bt-figure {
+  margin: 1.6em auto;
+  padding: 1rem;
+  background: var(--bt-figure-bg);
+  border: 1px solid var(--bt-grid);
+  border-radius: var(--bt-radius);
+  max-width: 100%;
+}
+.md-typeset figure.bt-figure svg { display: block; width: 100%; height: auto; max-height: 28rem; margin: 0 auto; }
+.md-typeset figure.bt-figure figcaption {
+  margin: .8em 0 0;
+  font-size: .72rem;
+  color: var(--bt-muted);
+  text-align: left;
+  max-width: none;
+}
+.md-typeset figure.bt-figure figcaption b { color: var(--bt-ink); }
+
+.bt-svg text { font-family: var(--md-text-font-family); font-size: 13px; fill: var(--bt-ink); }
+.bt-svg text.small { font-size: 11px; fill: var(--bt-muted); }
+.bt-svg text.math { font-family: "KaTeX_Math", "Times New Roman", serif; font-style: italic; font-size: 15px; }
+.bt-svg .f-ink { fill: var(--bt-ink); }      .bt-svg .s-ink { stroke: var(--bt-ink); }
+.bt-svg .f-muted { fill: var(--bt-muted); }  .bt-svg .s-muted { stroke: var(--bt-muted); }
+.bt-svg .f-grid { fill: var(--bt-grid); }    .bt-svg .s-grid { stroke: var(--bt-grid); }
+.bt-svg .f-paper { fill: var(--bt-paper); }  .bt-svg .s-paper { stroke: var(--bt-paper); }
+.bt-svg .f-night { fill: var(--bt-night); }  .bt-svg .s-night { stroke: var(--bt-night); }
+.bt-svg .f-ember { fill: var(--bt-ember); }  .bt-svg .s-ember { stroke: var(--bt-ember); }
+.bt-svg .f-flame { fill: var(--bt-flame); }  .bt-svg .s-flame { stroke: var(--bt-flame); }
+.bt-svg .f-ember-soft { fill: var(--bt-ember-soft); }
+.bt-svg .f-flame-soft { fill: var(--bt-flame-soft); }
+.bt-svg .f-night-soft { fill: var(--bt-night-soft); }
+.bt-svg .none { fill: none; }
+.bt-svg .dash { stroke-dasharray: 5 4; }
+
+/* Animations start when the figure scrolls into view (figures.js adds .in-view) and never run with reduced motion.
+   Stagger with style="--d: .4s". a-draw needs pathLength="1" on the element. */
+.bt-svg .a-draw { stroke-dasharray: 1; stroke-dashoffset: 1; }
+.bt-svg .a-fade, .bt-svg .a-pop, .bt-svg .a-grow, .bt-svg .a-slide { opacity: 0; }
+.bt-svg .a-pop, .bt-svg .a-grow { transform-box: fill-box; transform-origin: center; }
+.bt-svg .a-grow { transform-origin: bottom; }
+.in-view .bt-svg .a-draw { animation: bt-draw 1.2s ease-out var(--d, 0s) forwards; }
+.in-view .bt-svg .a-fade { animation: bt-fade .6s ease-out var(--d, 0s) forwards; }
+.in-view .bt-svg .a-pop { animation: bt-pop .5s cubic-bezier(.3, 1.4, .5, 1) var(--d, 0s) forwards; }
+.in-view .bt-svg .a-grow { animation: bt-grow .8s ease-out var(--d, 0s) forwards; }
+.in-view .bt-svg .a-slide { animation: bt-slide .7s ease-out var(--d, 0s) forwards; }
+.in-view .bt-svg .a-pulse { animation: bt-pulse 2.4s ease-in-out var(--d, 0s) infinite; transform-box: fill-box; transform-origin: center; }
+@keyframes bt-draw { to { stroke-dashoffset: 0; } }
+@keyframes bt-fade { to { opacity: 1; } }
+@keyframes bt-pop { from { opacity: 0; transform: scale(.2); } to { opacity: 1; transform: scale(1); } }
+@keyframes bt-grow { from { opacity: 1; transform: scaleY(0); } to { opacity: 1; transform: scaleY(1); } }
+@keyframes bt-slide { from { opacity: 0; transform: translateX(-12px); } to { opacity: 1; transform: none; } }
+@keyframes bt-pulse { 50% { opacity: .35; } }
+@media (prefers-reduced-motion: reduce) {
+  .bt-svg .a-draw { stroke-dasharray: none; stroke-dashoffset: 0; }
+  .bt-svg .a-fade, .bt-svg .a-pop, .bt-svg .a-grow, .bt-svg .a-slide { opacity: 1; }
+  .in-view .bt-svg * { animation: none !important; }
+}
+.md-typeset figure.bt-figure .bt-replay {
+  float: right; margin: -.4rem -.4rem 0 0; font-size: .65rem; color: var(--bt-muted);
+  background: none; border: 0; cursor: pointer;
+}
+
+/* ---------- Custom admonitions ----------
+   !!! learn "What you'll learn"   !!! key "Key idea"   !!! pitfall "Pitfall"   ??? math "The math"
+   ??? tryit "Try it" (nest ??? answer)   !!! check "Check before you move on"   !!! step "Step 1 — ..." */
+
+:root {
+  --bt-i-learn: url('data:image/svg+xml;charset=utf-8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 3 1 9l11 6 9-4.91V17h2V9M5 13.18v4L12 21l7-3.82v-4L12 17z"/></svg>');
+  --bt-i-key: url('data:image/svg+xml;charset=utf-8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 2a7 7 0 0 0-4 12.74V17a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1v-2.26A7 7 0 0 0 12 2M9 21a1 1 0 0 0 1 1h4a1 1 0 0 0 1-1v-1H9z"/></svg>');
+  --bt-i-pitfall: url('data:image/svg+xml;charset=utf-8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 14h-2V9h2m0 9h-2v-2h2M1 21h22L12 2z"/></svg>');
+  --bt-i-math: url('data:image/svg+xml;charset=utf-8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M18 4H6v2l6.5 6L6 18v2h12v-3h-7l5-5-5-5h7z"/></svg>');
+  --bt-i-tryit: url('data:image/svg+xml;charset=utf-8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20.7 7c-.3.4-.7.7-.7 1 0 .3.3.6.6 1 .5.5 1 .9.9 1.4 0 .5-.5 1-1 1.5L16.4 16 15 14.7l4.2-4.2-1-1-1.4 1.4L13 7.1l4-3.9c.4-.4 1-.4 1.4 0l2.3 2.4c.4.3.4 1 0 1.4M3 17.2l9.6-9.6 3.7 3.8L6.8 21H3z"/></svg>');
+  --bt-i-answer: url('data:image/svg+xml;charset=utf-8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 7 9 19l-5.5-5.5 1.41-1.41L9 16.17 19.59 5.59z"/></svg>');
+  --bt-i-check: url('data:image/svg+xml;charset=utf-8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m-9 14-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8z"/></svg>');
+  --bt-i-step: url('data:image/svg+xml;charset=utf-8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 12l1.41 1.41L11 7.83V20h2V7.83l5.58 5.59L20 12l-8-8z" transform="rotate(90 12 12)"/></svg>');
+}
+
+.md-typeset .admonition.learn, .md-typeset details.learn { border-color: var(--bt-night); }
+.md-typeset .admonition.key, .md-typeset details.key { border-color: var(--bt-flame); }
+.md-typeset .admonition.pitfall, .md-typeset details.pitfall { border-color: var(--bt-ember); }
+.md-typeset .admonition.math, .md-typeset details.math { border-color: var(--bt-muted); }
+.md-typeset .admonition.tryit, .md-typeset details.tryit { border-color: var(--bt-ember); }
+.md-typeset .admonition.answer, .md-typeset details.answer { border-color: var(--bt-muted); }
+.md-typeset .admonition.check, .md-typeset details.check { border-color: var(--bt-night); }
+.md-typeset .admonition.step, .md-typeset details.step { border-color: var(--bt-ember); }
+
+.md-typeset .learn > .admonition-title, .md-typeset .learn > summary { background-color: var(--bt-night-soft); }
+.md-typeset .key > .admonition-title, .md-typeset .key > summary { background-color: var(--bt-flame-soft); }
+.md-typeset .pitfall > .admonition-title, .md-typeset .pitfall > summary { background-color: var(--bt-ember-soft); }
+.md-typeset .math > .admonition-title, .md-typeset .math > summary { background-color: var(--bt-night-soft); }
+.md-typeset .tryit > .admonition-title, .md-typeset .tryit > summary { background-color: var(--bt-ember-soft); }
+.md-typeset .answer > .admonition-title, .md-typeset .answer > summary { background-color: var(--bt-night-soft); }
+.md-typeset .check > .admonition-title, .md-typeset .check > summary { background-color: var(--bt-night-soft); }
+.md-typeset .step > .admonition-title, .md-typeset .step > summary { background-color: var(--bt-ember-soft); }
+
+.md-typeset .learn > .admonition-title::before, .md-typeset .learn > summary::before { background-color: var(--bt-night); -webkit-mask-image: var(--bt-i-learn); mask-image: var(--bt-i-learn); }
+.md-typeset .key > .admonition-title::before, .md-typeset .key > summary::before { background-color: var(--bt-flame); -webkit-mask-image: var(--bt-i-key); mask-image: var(--bt-i-key); }
+.md-typeset .pitfall > .admonition-title::before, .md-typeset .pitfall > summary::before { background-color: var(--bt-ember); -webkit-mask-image: var(--bt-i-pitfall); mask-image: var(--bt-i-pitfall); }
+.md-typeset .math > .admonition-title::before, .md-typeset .math > summary::before { background-color: var(--bt-muted); -webkit-mask-image: var(--bt-i-math); mask-image: var(--bt-i-math); }
+.md-typeset .tryit > .admonition-title::before, .md-typeset .tryit > summary::before { background-color: var(--bt-ember); -webkit-mask-image: var(--bt-i-tryit); mask-image: var(--bt-i-tryit); }
+.md-typeset .answer > .admonition-title::before, .md-typeset .answer > summary::before { background-color: var(--bt-muted); -webkit-mask-image: var(--bt-i-answer); mask-image: var(--bt-i-answer); }
+.md-typeset .check > .admonition-title::before, .md-typeset .check > summary::before { background-color: var(--bt-night); -webkit-mask-image: var(--bt-i-check); mask-image: var(--bt-i-check); }
+.md-typeset .step > .admonition-title::before, .md-typeset .step > summary::before { background-color: var(--bt-ember); -webkit-mask-image: var(--bt-i-step); mask-image: var(--bt-i-step); }
+
+/* ---------- Layout components ---------- */
+
+/* Comparison table: <div class="bt-compare" markdown> | table | </div> */
+.md-typeset .bt-compare table:not([class]) { display: table; width: 100%; font-size: .72rem; }
+.md-typeset .bt-compare table:not([class]) th { background: var(--bt-night-soft); }
+.md-typeset .bt-compare table:not([class]) td:first-child { font-weight: 700; }
+
+/* API map card grid: <div class="grid cards bt-api-map" markdown> */
+.md-typeset .bt-api-map > ul > li { border-top: 3px solid var(--bt-ember); }
+.md-typeset .bt-api-map code { font-size: .7rem; }
+
+/* Chapter trail, injected by hooks.py on Learn pages */
+.md-typeset .bt-trail { display: flex; flex-wrap: wrap; gap: .3rem; margin: 0 0 1.4rem; padding: 0; list-style: none; font-size: .65rem; }
+.md-typeset .bt-trail li { margin: 0; }
+.md-typeset .bt-trail a, .md-typeset .bt-trail span {
+  display: inline-block; padding: .15rem .6rem; border-radius: 1rem;
+  border: 1px solid var(--bt-grid); color: var(--bt-muted);
+}
+.md-typeset .bt-trail .done a { border-color: var(--bt-night); color: var(--bt-night); }
+.md-typeset .bt-trail .here span { background: var(--bt-ember); border-color: var(--bt-ember); color: #fff; font-weight: 700; }
+
+/* "Used in examples" / see-also chips, injected by hooks.py on API pages */
+.md-typeset .bt-used-in { display: flex; flex-wrap: wrap; gap: .35rem; margin: .4rem 0 1.2rem; padding: 0; list-style: none; font-size: .65rem; }
+.md-typeset .bt-used-in li { margin: 0; }
+.md-typeset .bt-used-in a { display: inline-block; padding: .1rem .55rem; border-radius: var(--bt-radius); background: var(--bt-night-soft); }
+
+/* Start-here path on Home */
+.md-typeset .bt-path { counter-reset: step; display: grid; grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr)); gap: .8rem; margin: 1.5rem 0; padding: 0; list-style: none; }
+.md-typeset .bt-path > li { counter-increment: step; margin: 0; padding: .9rem 1rem; border: 1px solid var(--bt-grid); border-radius: var(--bt-radius); position: relative; }
+.md-typeset .bt-path > li::before { content: counter(step); display: inline-grid; place-items: center; width: 1.5rem; height: 1.5rem; margin-bottom: .4rem; border-radius: 50%; background: var(--bt-ember); color: #fff; font-weight: 700; font-size: .7rem; }
+
+abbr[title] { text-decoration: underline dotted var(--bt-muted); cursor: help; }
