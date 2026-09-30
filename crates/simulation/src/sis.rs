@@ -248,6 +248,7 @@ mod tests {
                 anisotropy: None,
                 high_grade: None,
                 soft: None,
+                calibration: None,
             },
             seed: 1,
         };
@@ -271,6 +272,7 @@ mod tests {
                 anisotropy: None,
                 high_grade: None,
                 soft: None,
+                calibration: None,
             },
             seed: 5,
         };

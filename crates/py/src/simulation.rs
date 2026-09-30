@@ -14,7 +14,7 @@ use crate::args::{
 };
 use crate::categorical::by_target;
 use crate::containers::PyBlockModel;
-use crate::estimation::{Label, Search, codes, fit_codes, labels, searches, targets};
+use crate::estimation::{Label, Search, codes, fit_codes, labels, plain_searches, targets};
 use crate::invalid;
 use crate::persist::{self, Columns, Found, Tabular};
 use crate::progress::with_progress;
@@ -675,7 +675,7 @@ impl Sgs {
     fn new(variogram: Variogram, search: &Bound<PyAny>, classes: usize) -> PyResult<Self> {
         Ok(Self {
             variogram: variogram.0,
-            search: searches(search)?,
+            search: plain_searches(search, "SGS")?,
             classes,
             domains: None,
             correlation: None,
@@ -1147,6 +1147,9 @@ impl TurningBands {
         search: Option<Search>,
         classes: usize,
     ) -> PyResult<Self> {
+        if let Some(s) = &search {
+            s.uncalibrated("TurningBands")?;
+        }
         Ok(Self {
             variogram: variogram.0,
             bands,

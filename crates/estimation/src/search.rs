@@ -46,6 +46,20 @@ pub struct Search {
     /// distance; without it domain boundaries are hard.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub soft: Option<Soft>,
+    /// Per-target sample count: the fewest samples from `min_samples` whose
+    /// kriging meets the calibration, `max_samples` when none does.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub calibration: Option<Calibration>,
+}
+
+/// A kriging quality a search is calibrated to reach per target.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Calibration {
+    /// Slope of regression of true on estimated values at least this.
+    Slope(#[serde(with = "boitata_core::nonfinite")] f64),
+    /// Kriging efficiency at least this.
+    Efficiency(#[serde(with = "boitata_core::nonfinite")] f64),
 }
 
 /// Soft domain boundaries: a sample of another domain informs a target only
@@ -143,6 +157,7 @@ impl Default for Search {
             anisotropy: None,
             high_grade: None,
             soft: None,
+            calibration: None,
         }
     }
 }
@@ -681,6 +696,33 @@ impl SearchTree {
         kept: Option<usize>,
     ) -> Vec<usize> {
         one_per_location(ordered, |i| self.locs[i], |i| self.domains[i], domain, kept)
+    }
+
+    /// `chosen` round-robin over the sectors around `target`, each sector in
+    /// selection order, so every leading part stays balanced; unchanged
+    /// unless the search is calibrated and balances octants. `local` is the
+    /// ellipsoid of [`SearchTree::neighbors_within`], if searched so.
+    pub fn balanced(
+        &self,
+        target: &Point,
+        local: Option<&Anisotropy>,
+        chosen: Vec<usize>,
+    ) -> Vec<usize> {
+        if !self.params.octant || self.params.calibration.is_none() {
+            return chosen;
+        }
+        let sectors = local.map_or(self.sectors, |a| Sectors::new(Some(a), self.sectors.planar));
+        let mut seen = [0usize; 8];
+        let mut ranked: Vec<(usize, usize)> = chosen
+            .into_iter()
+            .map(|i| {
+                let o = sectors.of(target, &self.locs[i]);
+                seen[o] += 1;
+                (seen[o], i)
+            })
+            .collect();
+        ranked.sort_by_key(|r| r.0);
+        ranked.into_iter().map(|r| r.1).collect()
     }
 
     /// Same selection as [`neighbors`] over the indexed samples.

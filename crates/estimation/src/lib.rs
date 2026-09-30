@@ -34,7 +34,7 @@ pub use batch::{
     by_pass, estimate_many, estimate_many_ext, estimate_many_with, k_fold_at, leave_one_out_at,
     leave_one_out_many, weight_declustering, weights_many,
 };
-pub use block::{Discretization, block_krige, block_krige_points};
+pub use block::{Discretization, block_covariances, block_krige, block_krige_points};
 pub use categorical::{CategoricalIndicator, CategoricalIndicatorSummary, correct_probabilities};
 pub use cokrige::{CoKind, CoSample, cokrige, collocated_cokrige, markov_collocated};
 pub use disjunctive::{DisjunctiveKriging, GaussianSample};
@@ -46,13 +46,14 @@ pub use indicator::{
 };
 pub use krige::{Estimate, Kind, krige};
 pub use kriging_algebra::{
-    DriftSpec, DualKriging, krige_bayesian, krige_factorial, krige_ordinary, krige_universal,
+    DriftSpec, DualKriging, Quality, calibrated_count, krige_bayesian, krige_calibrated,
+    krige_factorial, krige_ordinary, krige_universal, prefix_quality,
 };
 pub use multigaussian::Multigaussian;
 pub use neighborhood::{NeighborhoodStats, hole_distance, neighborhood_stats};
 pub use search::{
-    HighGrade, HighGradeMode, Search, Soft, SoftPair, neighborhood_groups, neighbors, neighbors_in,
-    same_neighborhood, take,
+    Calibration, HighGrade, HighGradeMode, Search, Soft, SoftPair, neighborhood_groups, neighbors,
+    neighbors_in, same_neighborhood, take,
 };
 pub use simple_interp::{
     InterpEstimate, InterpOptions, inverse_distance, inverse_distance_weights, local_least_squares,

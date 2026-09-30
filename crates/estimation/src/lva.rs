@@ -711,6 +711,7 @@ pub fn local_neighbors(
 ) -> Option<(Vec<usize>, Anisotropy)> {
     let aniso = local.anisotropy(i);
     let chosen = tree.neighbors_within(target, domain, &aniso).ok()?;
+    let chosen = tree.balanced(target, Some(&aniso), chosen);
     Some((chosen, aniso))
 }
 

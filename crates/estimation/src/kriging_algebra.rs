@@ -23,7 +23,8 @@
 
 use crate::Sample;
 use crate::error::{EstimError, Result};
-use crate::krige::Estimate;
+use crate::krige::{Estimate, Kind, krige};
+use crate::search::Calibration;
 use nalgebra::{DMatrix, DVector};
 use variogram::Variogram;
 
@@ -236,6 +237,133 @@ pub fn krige_universal(
         lagrange: sum_mu,
         support_variance: c0,
     })
+}
+
+/// Slope of regression and kriging efficiency of one kriging system, as
+/// [`Estimate::slope`] and [`Estimate::efficiency`] give them.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Quality {
+    pub slope: f64,
+    pub efficiency: f64,
+}
+
+impl Quality {
+    /// Whether this reaches `calibration`.
+    pub fn meets(&self, calibration: Calibration) -> bool {
+        match calibration {
+            Calibration::Slope(s) => self.slope >= s,
+            Calibration::Efficiency(e) => self.efficiency >= e,
+        }
+    }
+}
+
+/// Quality of kriging a target from each leading part of `samples`: entry
+/// `k` is for the first `k + 1`. `rhs` holds each sample's covariance with
+/// the target's support, `support_variance` is C(v, v), and `drift` gives
+/// the unbiasedness columns (none for simple kriging). One Cholesky
+/// factorization of the covariance matrix serves every leading part, whose
+/// factors are its leading blocks. None where a system is singular.
+pub fn prefix_quality(
+    samples: &[Sample],
+    vg: &Variogram,
+    rhs: &[f64],
+    drift: &DriftSpec,
+    support_variance: f64,
+) -> Vec<Option<Quality>> {
+    let (n, p) = (samples.len(), drift.p());
+    let c = DMatrix::from_fn(n, n, |i, j| {
+        vg.cov_points(&samples[i].loc, &samples[j].loc)
+            + if i == j {
+                samples[i].error_variance
+            } else {
+                0.0
+            }
+    });
+    let Some(chol) = c.cholesky() else {
+        return vec![None; n];
+    };
+    let y = chol
+        .l_dirty()
+        .solve_lower_triangular(&DVector::from_row_slice(rhs));
+    let yx = chol
+        .l_dirty()
+        .solve_lower_triangular(&DMatrix::from_fn(n, p, |i, l| drift.data[i][l]));
+    let (Some(y), Some(yx)) = (y, yx) else {
+        return vec![None; n];
+    };
+    let x0 = DVector::from_row_slice(&drift.target);
+    let (mut s, mut a, mut b) = (0.0, DMatrix::zeros(p, p), DVector::zeros(p));
+    (0..n)
+        .map(|k| {
+            let row = yx.row(k).transpose();
+            s += y[k] * y[k];
+            a += &row * row.transpose();
+            b += &row * y[k];
+            // λ = C⁻¹(c₀ − Xμ) with XᵀC⁻¹X μ = XᵀC⁻¹c₀ − x₀.
+            let (cov, mu) = if p == 0 {
+                (s, 0.0)
+            } else {
+                let f = a.clone().cholesky()?;
+                let d = f.l_dirty().diagonal();
+                if k + 1 < p || d.min() <= 1e-7 * d.max() {
+                    return None;
+                }
+                let mu = f.solve(&(&b - &x0));
+                (s - mu.dot(&b), mu.dot(&x0))
+            };
+            Some(Quality {
+                slope: cov / (cov - mu),
+                efficiency: (cov + mu) / support_variance,
+            })
+        })
+        .collect()
+}
+
+/// Number of samples to krige with from `quality` of each leading part (see
+/// [`prefix_quality`]): the fewest from `min_samples` that meet
+/// `calibration`, with true, or all of them with false.
+pub fn calibrated_count(
+    calibration: Calibration,
+    min_samples: usize,
+    quality: &[Option<Quality>],
+) -> (usize, bool) {
+    let from = min_samples.max(1);
+    quality
+        .iter()
+        .enumerate()
+        .skip(from - 1)
+        .find(|(_, q)| q.is_some_and(|q| q.meets(calibration)))
+        .map_or((quality.len(), false), |(k, _)| (k + 1, true))
+}
+
+/// [`crate::krige`] of `target` from the fewest leading `samples`, from
+/// `min_samples`, that meet `calibration`, or from all of them; with
+/// whether they meet it. Simple kriging has a slope of 1 by construction,
+/// so it only takes an efficiency.
+pub fn krige_calibrated(
+    kind: Kind,
+    target: &(f64, f64, f64),
+    samples: &[Sample],
+    vg: &Variogram,
+    calibration: Calibration,
+    min_samples: usize,
+) -> Result<(Estimate, bool)> {
+    let drift = match kind {
+        Kind::Simple { .. } if matches!(calibration, Calibration::Slope(_)) => {
+            return Err(EstimError::InvalidParameters(
+                "simple kriging has a slope of 1; calibrate it by efficiency".into(),
+            ));
+        }
+        Kind::Simple { .. } => DriftSpec::simple(samples.len()),
+        _ => DriftSpec::ordinary(samples.len()),
+    };
+    let rhs: Vec<f64> = samples
+        .iter()
+        .map(|s| vg.cov_points(&s.loc, target))
+        .collect();
+    let quality = prefix_quality(samples, vg, &rhs, &drift, vg.total_sill());
+    let (n, met) = calibrated_count(calibration, min_samples, &quality);
+    Ok((krige(kind, target, &samples[..n], vg)?, met))
 }
 
 /// Ordinary kriging via the drift algebra (`Σλ = 1`).
@@ -711,5 +839,135 @@ mod tests {
             full.value,
             ok.value
         );
+    }
+
+    fn unit(state: &mut u64) -> f64 {
+        *state = state
+            .wrapping_mul(6364136223846793005)
+            .wrapping_add(1442695040888963407);
+        (*state >> 11) as f64 / (1u64 << 53) as f64
+    }
+
+    /// `n` samples around the origin, nearest first, some with measurement error.
+    fn scattered(state: &mut u64, n: usize) -> Vec<Sample> {
+        let mut s: Vec<Sample> = (0..n)
+            .map(|i| Sample {
+                error_variance: if i % 5 == 0 { 0.05 } else { 0.0 },
+                ..Sample::new(
+                    (
+                        unit(state) * 100.0 - 50.0,
+                        unit(state) * 100.0 - 50.0,
+                        unit(state) * 20.0,
+                    ),
+                    unit(state) * 3.0,
+                )
+            })
+            .collect();
+        let d = |s: &Sample| s.loc.0.hypot(s.loc.1).hypot(s.loc.2);
+        s.sort_by(|a, b| d(a).total_cmp(&d(b)));
+        s
+    }
+
+    fn nested() -> Variogram {
+        Variogram {
+            nugget: 0.1,
+            structures: vec![
+                Structure::new(Model::Spherical, 0.6, 40.0),
+                Structure::new(Model::Exponential, 0.3, 120.0),
+            ],
+            anisotropy: None,
+        }
+    }
+
+    fn close(a: f64, b: f64) -> bool {
+        (a - b).abs() <= 1e-10 * (1.0 + a.abs().max(b.abs()))
+    }
+
+    #[test]
+    fn prefix_quality_matches_direct_solves() {
+        let vg = nested();
+        let t = (1.0, 2.0, 5.0);
+        let mut state = 17;
+        let s = scattered(&mut state, 24);
+        let rhs: Vec<f64> = s.iter().map(|x| vg.cov_points(&x.loc, &t)).collect();
+        let locs: Vec<_> = s.iter().map(|x| x.loc).collect();
+        let sill = vg.total_sill();
+        let ordinary = prefix_quality(&s, &vg, &rhs, &DriftSpec::ordinary(24), sill);
+        let simple = prefix_quality(&s, &vg, &rhs, &DriftSpec::simple(24), sill);
+        let linear = DriftSpec::polynomial(&locs, &t, 1);
+        let universal = prefix_quality(&s, &vg, &rhs, &linear, sill);
+        let disc = crate::Discretization {
+            nx: 3,
+            ny: 3,
+            nz: 2,
+        };
+        let pts = disc.points(&t, &(10.0, 10.0, 5.0));
+        let (brhs, cbb) = crate::block_covariances(&pts, &s, &vg);
+        let block = prefix_quality(&s, &vg, &brhs, &DriftSpec::ordinary(24), cbb);
+        for n in 1..=24 {
+            let p = &s[..n];
+            let ok = krige(Kind::Ordinary, &t, p, &vg).unwrap();
+            let q = ordinary[n - 1].unwrap();
+            assert!(close(q.slope, ok.slope()) && close(q.efficiency, ok.efficiency()));
+            let sk = krige(Kind::Simple { mean: 1.0 }, &t, p, &vg).unwrap();
+            let q = simple[n - 1].unwrap();
+            assert!(close(q.slope, 1.0) && close(q.efficiency, sk.efficiency()));
+            let bk = crate::block_krige_points(Kind::Ordinary, &pts, p, &vg).unwrap();
+            let q = block[n - 1].unwrap();
+            assert!(close(q.slope, bk.slope()) && close(q.efficiency, bk.efficiency()));
+            if n < 6 {
+                continue;
+            }
+            let uk_drift = DriftSpec::polynomial(&locs[..n], &t, 1);
+            let uk = krige_universal(&t, p, &uk_drift, &vg, None).unwrap();
+            let q = universal[n - 1].unwrap();
+            assert!(close(q.slope, uk.slope()), "{n} {} {}", q.slope, uk.slope());
+            assert!(close(q.efficiency, uk.efficiency()));
+        }
+        assert!(universal[1].is_none());
+    }
+
+    #[test]
+    fn calibrated_count_takes_the_fewest_that_meet_the_target() {
+        let vg = nested();
+        let mut state = 5;
+        for trial in 0..40 {
+            let s = scattered(&mut state, 20);
+            let t = (unit(&mut state) * 20.0, unit(&mut state) * 20.0, 10.0);
+            let rhs: Vec<f64> = s.iter().map(|x| vg.cov_points(&x.loc, &t)).collect();
+            let q = prefix_quality(&s, &vg, &rhs, &DriftSpec::ordinary(20), vg.total_sill());
+            let min = 1 + trial % 4;
+            for target in [
+                Calibration::Slope(0.8),
+                Calibration::Slope(0.95),
+                Calibration::Efficiency(0.3),
+                Calibration::Efficiency(0.99),
+            ] {
+                let (n, met) = calibrated_count(target, min, &q);
+                assert!(n >= min && n <= 20);
+                if met {
+                    assert!(q[n - 1].unwrap().meets(target));
+                    assert!((min..n).all(|k| !q[k - 1].unwrap().meets(target)));
+                } else {
+                    assert_eq!(n, 20);
+                    assert!(q[min - 1..].iter().all(|x| !x.unwrap().meets(target)));
+                }
+                let (e, m) = krige_calibrated(Kind::Ordinary, &t, &s, &vg, target, min).unwrap();
+                assert_eq!((e.n_used, m), (n, met));
+                assert!((e.weights.iter().sum::<f64>() - 1.0).abs() < 1e-10);
+            }
+        }
+    }
+
+    #[test]
+    fn simple_kriging_takes_no_slope_target() {
+        let vg = nested();
+        let d = data();
+        let t = (20.0, 30.0, 0.0);
+        let simple = Kind::Simple { mean: 2.0 };
+        assert!(krige_calibrated(simple, &t, &d, &vg, Calibration::Slope(0.9), 1).is_err());
+        let by_efficiency = Calibration::Efficiency(0.1);
+        let (e, _) = krige_calibrated(simple, &t, &d, &vg, by_efficiency, 1).unwrap();
+        assert!(e.efficiency() >= 0.1);
     }
 }

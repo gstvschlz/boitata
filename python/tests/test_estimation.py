@@ -289,6 +289,7 @@ def test_diagnostics_classification_and_smoothing():
         "support_variance",
         "estimate_variance",
         "max_samples_reached",
+        "target_met",
     ]
     assert np.all(d["slope"] > 0) and np.all(d["efficiency"] <= 1 + 1e-9)
     at_data = ok.predict(xy[:3], diagnostics=True)
@@ -425,6 +426,37 @@ def test_neighborhood_diagnostics():
     np.testing.assert_allclose(covariance / d["estimate_variance"], d["slope"], rtol=1e-12)
     idw = bt.InverseDistance(search).fit(coords, values).predict(coords[:3], diagnostics=True)
     assert np.isnan(idw["negative_weight_sum"]).all() and np.isnan(idw["lagrange"]).all()
+
+
+def test_calibrated_search_takes_the_fewest_samples_that_reach_the_target():
+    targets = rng.uniform(0, 100, (300, 2))
+    plain = bt.Search(radius=60, max_samples=24, min_samples=2)
+    calibrated = bt.Search(radius=60, max_samples=24, min_samples=2, target_slope=0.9)
+    assert (calibrated.target_slope, calibrated.target_efficiency) == (0.9, None)
+    assert bt.Search.from_json(calibrated.to_json()).target_slope == 0.9
+    full = bt.OrdinaryKriging(model, plain).fit(coords, values).predict(targets, diagnostics=True)
+    d = bt.OrdinaryKriging(model, calibrated).fit(coords, values).predict(targets, diagnostics=True)
+    assert np.isnan(full["target_met"]).all()
+    met = d["target_met"] == 1
+    assert met.any() and np.all(d["slope"][met] >= 0.9)
+    np.testing.assert_array_equal(d["n_samples"][~met], full["n_samples"][~met])
+    assert np.all(d["n_samples"] <= full["n_samples"]) and d["n_samples"].mean() < full["n_samples"].mean()
+    fewer = bt.OrdinaryKriging(model, bt.Search(radius=60, max_samples=24, min_samples=2, target_slope=0.5))
+    assert (
+        fewer.fit(coords, values).predict(targets, diagnostics=True)["n_samples"].mean()
+        < d["n_samples"].mean()
+    )
+    sk = bt.SimpleKriging(model, bt.Search(radius=60, target_efficiency=0.5), mean=1.0).fit(coords, values)
+    s = sk.predict(targets, diagnostics=True)
+    assert np.all(s["efficiency"][s["target_met"] == 1] >= 0.5 - 1e-12)
+    with pytest.raises(ValueError, match="at most one"):
+        bt.Search(radius=60, target_slope=0.9, target_efficiency=0.5)
+    with pytest.raises(ValueError, match="simple kriging"):
+        bt.SimpleKriging(model, calibrated, mean=1.0)
+    with pytest.raises(ValueError, match="target_slope"):
+        bt.InverseDistance(calibrated)
+    with pytest.raises(ValueError, match="target_slope"):
+        bt.SGS(model, calibrated)
 
 
 def test_multiple_indicator_kriging_distributions():

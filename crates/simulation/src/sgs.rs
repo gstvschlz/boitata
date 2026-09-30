@@ -750,6 +750,7 @@ pub(crate) mod tests {
                 anisotropy: None,
                 high_grade: None,
                 soft: None,
+                calibration: None,
             }],
             seed: 42,
         };
@@ -781,6 +782,7 @@ pub(crate) mod tests {
                 anisotropy: None,
                 high_grade: None,
                 soft: None,
+                calibration: None,
             }],
             seed: 7,
         };
@@ -811,6 +813,7 @@ pub(crate) mod tests {
                 anisotropy: None,
                 high_grade: None,
                 soft: None,
+                calibration: None,
             }],
             seed,
         };
@@ -915,6 +918,7 @@ pub(crate) mod tests {
                 anisotropy: None,
                 high_grade: None,
                 soft: None,
+                calibration: None,
             }],
             seed: 4,
         };
