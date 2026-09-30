@@ -140,15 +140,20 @@ impl Cokriging {
     }
 
     /// Estimates of `variable`; `collocated` maps a variable index to its
-    /// values at every target for collocated cokriging. `progress` shows a
+    /// values at every target, or to the column of `targets` holding them,
+    /// for collocated cokriging. `anisotropy` (a LocalAnisotropy) gives each
+    /// target its own search ellipsoid and the anisotropy of every structure
+    /// and cross term, taken from the nearest location. `progress` shows a
     /// `tqdm` bar.
-    #[pyo3(signature = (targets, *, variable=0, return_variance=false, collocated=None, progress=true))]
+    #[pyo3(signature = (targets, *, variable=0, return_variance=false, anisotropy=None, collocated=None, progress=true))]
+    #[allow(clippy::too_many_arguments)]
     fn predict<'py>(
         &self,
         py: Python<'py>,
         targets: &Bound<'py, PyAny>,
         variable: usize,
         return_variance: bool,
+        anisotropy: Option<PyRef<crate::lva::LocalAnisotropy>>,
         collocated: Option<HashMap<usize, Bound<'py, PyAny>>>,
         progress: bool,
     ) -> PyResult<Bound<'py, PyAny>> {
@@ -159,12 +164,13 @@ impl Cokriging {
         if variable >= self.model.nvar {
             return Err(invalid("variable index out of range"));
         }
+        let data = targets;
         let targets = targets_of(targets)?;
         let collocated: Vec<(usize, Vec<f64>)> = collocated
             .unwrap_or_default()
             .into_iter()
             .map(|(k, v)| {
-                let v = finite(&v, "collocated")?;
+                let v = finite(&column(Some(data), &v, "collocated")?, "collocated")?;
                 same_length(targets.len(), v.len(), "collocated")?;
                 Ok((k, v))
             })
@@ -174,28 +180,35 @@ impl Cokriging {
                 "cokriging does not clamp high grades; use mode drop",
             ));
         }
+        let total = Some(targets.len() as u64);
+        if let Some(field) = anisotropy {
+            let local = field.at_targets(&targets);
+            let results = with_progress(py, total, progress, |counter| {
+                estimation::lva::cokrige_many_local(
+                    &targets,
+                    variable,
+                    &local,
+                    co,
+                    &collocated,
+                    &self.search,
+                    &self.model,
+                    &self.kind,
+                    counter,
+                )
+            })?
+            .map_err(invalid)?;
+            return outputs(py, &results, return_variance);
+        }
         let metric = metric(self.model.anisotropy.clone());
         let tree = SearchTree::new(plain, &self.search, Some(&metric));
-        let total = Some(targets.len() as u64);
         let results: Vec<Option<Estimate>> = with_progress(py, total, progress, |counter| {
             targets
                 .par_iter()
                 .enumerate()
                 .map(|(i, t)| {
-                    let result = (|| {
-                        let near = nearby(t, &tree, co)?;
-                        if collocated.is_empty() {
-                            return estimation::cokrige(
-                                t,
-                                variable,
-                                &near,
-                                &self.model,
-                                &self.kind,
-                            )
-                            .ok();
-                        }
-                        let here: Vec<(usize, f64)> =
-                            collocated.iter().map(|(k, v)| (*k, v[i])).collect();
+                    let here: Vec<(usize, f64)> =
+                        collocated.iter().map(|(k, v)| (*k, v[i])).collect();
+                    let result = nearby(t, &tree, co).and_then(|near| {
                         estimation::collocated_cokrige(
                             t,
                             variable,
@@ -205,7 +218,7 @@ impl Cokriging {
                             &self.kind,
                         )
                         .ok()
-                    })();
+                    });
                     if let Some(p) = counter {
                         p.inc();
                     }

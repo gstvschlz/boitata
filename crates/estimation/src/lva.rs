@@ -5,10 +5,12 @@
 use boitata_core::{Geometry, angles_from_axes, block_frame};
 use nalgebra::{Matrix3, SymmetricEigen, Vector3};
 use rayon::prelude::*;
-use variogram::{Angles, Anisotropy, Variogram};
+use variogram::{Angles, Anisotropy, Coregionalization, Variogram};
 
 use crate::Sample;
+use crate::cokrige::{CoKind, CoSample, collocated_cokrige};
 use crate::error::{EstimError, Result};
+use crate::krige::Estimate;
 use crate::search::{Search, SearchTree};
 
 type Point = (f64, f64, f64);
@@ -680,6 +682,87 @@ pub fn local_parameters(
     LocalAnisotropy::from_axes(nodes.to_vec(), axes).with_scales(scales)
 }
 
+/// The isotropic tree of `samples` that [`local_neighbors`] searches for
+/// `targets`, one anisotropy of `local` each.
+pub fn local_tree(
+    targets: &[Point],
+    local: &LocalAnisotropy,
+    samples: &[Sample],
+    search: &Search,
+) -> Result<SearchTree> {
+    if local.len() != targets.len() {
+        return Err(invalid("one local anisotropy per target"));
+    }
+    let isotropic = Search {
+        anisotropy: None,
+        ..search.clone()
+    };
+    Ok(SearchTree::new(samples, &isotropic, None))
+}
+
+/// The samples of `tree` in the search ellipsoid of target `i`, oriented and
+/// scaled by `local.anisotropy(i)`, and that anisotropy; `None` with too few.
+pub fn local_neighbors(
+    tree: &SearchTree,
+    local: &LocalAnisotropy,
+    i: usize,
+    target: &Point,
+    domain: Option<u32>,
+) -> Option<(Vec<usize>, Anisotropy)> {
+    let aniso = local.anisotropy(i);
+    let chosen = tree.neighbors_within(target, domain, &aniso).ok()?;
+    Some((chosen, aniso))
+}
+
+/// Cokriging of `target_var` at `targets` as [`crate::cokrige`], or
+/// [`crate::collocated_cokrige`] with `collocated` (variable, one value per
+/// target), each target searching and modeling with `local[i]`: primary and
+/// secondaries share its ellipsoid (`search.radius` along the major axis),
+/// and every structure and cross term of `model` takes its anisotropy.
+#[allow(clippy::too_many_arguments)]
+pub fn cokrige_many_local(
+    targets: &[Point],
+    target_var: usize,
+    local: &LocalAnisotropy,
+    samples: &[CoSample],
+    collocated: &[(usize, Vec<f64>)],
+    search: &Search,
+    model: &Coregionalization,
+    kind: &CoKind,
+    progress: Option<&boitata_core::Progress>,
+) -> Result<Vec<Option<Estimate>>> {
+    if search.clamps() {
+        return Err(invalid("cokriging does not clamp high grades"));
+    }
+    if collocated.iter().any(|(_, v)| v.len() != targets.len()) {
+        return Err(invalid("one collocated value per target"));
+    }
+    let plain: Vec<Sample> = samples
+        .iter()
+        .map(|s| Sample::new(s.loc, s.value))
+        .collect();
+    let tree = local_tree(targets, local, &plain, search)?;
+    Ok(targets
+        .par_iter()
+        .enumerate()
+        .map(|(i, target)| {
+            let result = local_neighbors(&tree, local, i, target, None).and_then(|(chosen, a)| {
+                let near: Vec<CoSample> = chosen.iter().map(|&j| samples[j].clone()).collect();
+                let model = Coregionalization {
+                    anisotropy: Some(a),
+                    ..model.clone()
+                };
+                let here: Vec<(usize, f64)> = collocated.iter().map(|(k, v)| (*k, v[i])).collect();
+                collocated_cokrige(target, target_var, &near, &here, &model, kind).ok()
+            });
+            if let Some(p) = progress {
+                p.inc();
+            }
+            result
+        })
+        .collect())
+}
+
 /// As [`crate::estimate_many`], with target `i` using `local[i]` for its
 /// variogram and its search ellipsoid (`search.radius` along the major axis),
 /// and `domains` as there.
@@ -717,22 +800,12 @@ where
     F: Fn(&Point, &[Sample], &Variogram) -> Result<T> + Sync,
     T: Send,
 {
-    if local.len() != targets.len() {
-        return Err(invalid("one local anisotropy per target"));
-    }
-    let isotropic = Search {
-        anisotropy: None,
-        ..search.clone()
-    };
-    let tree = SearchTree::new(samples, &isotropic, None);
+    let tree = local_tree(targets, local, samples, search)?;
     Ok(targets
         .par_iter()
         .enumerate()
         .map(|(i, target)| {
-            let aniso = local.anisotropy(i);
-            let chosen = tree
-                .neighbors_within(target, domains.map(|d| d[i]), &aniso)
-                .ok()?;
+            let (chosen, aniso) = local_neighbors(&tree, local, i, target, domains.map(|d| d[i]))?;
             let selected = tree.take(target, Some(&aniso), &chosen, samples);
             let vg = Variogram {
                 anisotropy: Some(aniso),
@@ -1179,5 +1252,304 @@ mod tests {
         for (a, b) in ours.iter().zip(&reference) {
             assert!((a.as_ref().unwrap().value - b.as_ref().unwrap().value).abs() < 1e-9);
         }
+    }
+
+    fn cosamples() -> Vec<CoSample> {
+        (0..500)
+            .map(|i| {
+                let j = (i as f64 * 0.618).fract();
+                let (x, y) = ((i * 37 % 101) as f64 + j, (i * 53 % 97) as f64 + 0.3 * j);
+                let var = usize::from(i % 5 < 2);
+                let value = (x / 10.0).sin() + y / 50.0 + 0.5 * var as f64 * (y / 7.0).cos();
+                CoSample::new((x, y, 0.0), var, value)
+            })
+            .collect()
+    }
+
+    fn lmc(range: f64, cross: f64, aniso: Option<Anisotropy>) -> Coregionalization {
+        let mut m = Coregionalization::new(
+            vec![vec![0.0, 0.0], vec![0.0, 0.0]],
+            vec![
+                variogram::CoregStructure {
+                    model: Model::Spherical,
+                    range,
+                    sills: vec![vec![0.7, 0.6 * cross], vec![0.6 * cross, 0.8]],
+                },
+                variogram::CoregStructure {
+                    model: Model::Exponential,
+                    range: 2.0 * range,
+                    sills: vec![vec![0.3, 0.2 * cross], vec![0.2 * cross, 0.4]],
+                },
+            ],
+        )
+        .unwrap();
+        m.anisotropy = aniso;
+        m
+    }
+
+    fn grid_targets() -> Vec<Point> {
+        (0..100)
+            .map(|i| {
+                (
+                    (i % 10) as f64 * 9.5 + 0.3,
+                    (i / 10) as f64 * 9.5 + 0.7,
+                    0.0,
+                )
+            })
+            .collect()
+    }
+
+    fn varying_field(targets: &[Point]) -> LocalAnisotropy {
+        let n = targets.len();
+        LocalAnisotropy::new(
+            targets.to_vec(),
+            (0..n).map(|i| [(i * 37 % 180) as f64, 0.0, 0.0]).collect(),
+            vec![[0.4, 1.0]; n],
+        )
+        .unwrap()
+    }
+
+    fn cosearch(radius: f64, max_samples: usize) -> Search {
+        Search {
+            min_samples: 1,
+            max_samples,
+            radius,
+            ..Default::default()
+        }
+    }
+
+    fn plain(samples: &[CoSample]) -> Vec<Sample> {
+        samples
+            .iter()
+            .map(|s| Sample::new(s.loc, s.value))
+            .collect()
+    }
+
+    #[test]
+    fn local_cokriging_with_a_constant_field_is_global_cokriging() {
+        let samples = cosamples();
+        let targets = grid_targets();
+        let n = targets.len();
+        for (scale, kind) in [
+            (1.0, CoKind::Ordinary),
+            (1.5, CoKind::Ordinary),
+            (
+                1.5,
+                CoKind::Simple {
+                    means: vec![0.5, 0.8],
+                },
+            ),
+        ] {
+            let local = LocalAnisotropy::new(
+                targets.clone(),
+                vec![[30.0, 0.0, 0.0]; n],
+                vec![[0.4, 1.0]; n],
+            )
+            .unwrap();
+            let aniso = local.anisotropy(0);
+            let local = local.with_scales(vec![scale; n]).unwrap();
+            let ours = cokrige_many_local(
+                &targets,
+                0,
+                &local,
+                &samples,
+                &[],
+                &cosearch(40.0, 20),
+                &lmc(30.0, 1.0, None),
+                &kind,
+                None,
+            )
+            .unwrap();
+            let global = lmc(30.0 * scale, 1.0, Some(aniso.clone()));
+            let search = Search {
+                anisotropy: Some(aniso),
+                ..cosearch(40.0 * scale, 20)
+            };
+            let tree = SearchTree::new(&plain(&samples), &search, None);
+            for (t, e) in targets.iter().zip(&ours) {
+                let near: Vec<CoSample> = tree
+                    .neighbors(t)
+                    .unwrap()
+                    .iter()
+                    .map(|&j| samples[j].clone())
+                    .collect();
+                let want = crate::cokrige(t, 0, &near, &global, &kind).unwrap();
+                let got = e.as_ref().unwrap();
+                assert!((got.value - want.value).abs() < 1e-9);
+                assert!((got.variance - want.variance).abs() < 1e-9);
+            }
+        }
+    }
+
+    #[test]
+    fn local_ordinary_cokriging_weights_and_exactness() {
+        let samples = cosamples();
+        let mut targets = grid_targets();
+        let at_data: Vec<usize> = (0..samples.len())
+            .filter(|&i| samples[i].var == 0)
+            .take(5)
+            .collect();
+        targets.extend(at_data.iter().map(|&i| samples[i].loc));
+        let local = varying_field(&targets);
+        let search = cosearch(40.0, 20);
+        let tree = local_tree(&targets, &local, &plain(&samples), &search).unwrap();
+        let ours = cokrige_many_local(
+            &targets,
+            0,
+            &local,
+            &samples,
+            &[],
+            &search,
+            &lmc(30.0, 1.0, None),
+            &CoKind::Ordinary,
+            None,
+        )
+        .unwrap();
+        for (i, (t, e)) in targets.iter().zip(&ours).enumerate() {
+            let e = e.as_ref().unwrap();
+            let (chosen, _) = local_neighbors(&tree, &local, i, t, None).unwrap();
+            let sum = |var| -> f64 {
+                chosen
+                    .iter()
+                    .zip(&e.weights)
+                    .filter(|(j, _)| samples[**j].var == var)
+                    .map(|(_, w)| w)
+                    .sum()
+            };
+            assert!((sum(0) - 1.0).abs() < 1e-9 && sum(1).abs() < 1e-9);
+        }
+        for (e, &i) in ours[100..].iter().zip(&at_data) {
+            let e = e.as_ref().unwrap();
+            assert!((e.value - samples[i].value).abs() < 1e-9 && e.variance < 1e-9);
+        }
+    }
+
+    #[test]
+    fn local_cokriging_without_cross_terms_is_local_kriging_of_the_primary() {
+        let samples = cosamples();
+        let targets = grid_targets();
+        let local = varying_field(&targets);
+        let search = cosearch(25.0, 500);
+        let ours = cokrige_many_local(
+            &targets,
+            0,
+            &local,
+            &samples,
+            &[],
+            &search,
+            &lmc(30.0, 0.0, None),
+            &CoKind::Ordinary,
+            None,
+        )
+        .unwrap();
+        let primary: Vec<CoSample> = samples.iter().filter(|s| s.var == 0).cloned().collect();
+        let vg = Variogram {
+            nugget: 0.0,
+            structures: vec![
+                variogram::Structure {
+                    model: Model::Spherical,
+                    sill: 0.7,
+                    range: 30.0,
+                },
+                variogram::Structure {
+                    model: Model::Exponential,
+                    sill: 0.3,
+                    range: 60.0,
+                },
+            ],
+            anisotropy: None,
+        };
+        let ok = estimate_many_local(
+            &targets,
+            None,
+            &local,
+            &plain(&primary),
+            &search,
+            &vg,
+            |t, s, v| krige(Kind::Ordinary, t, s, v),
+        )
+        .unwrap();
+        for (a, b) in ours.iter().zip(&ok) {
+            let (a, b) = (a.as_ref().unwrap(), b.as_ref().unwrap());
+            assert!(
+                (a.value - b.value).abs() < 1e-9,
+                "{} vs {}",
+                a.value,
+                b.value
+            );
+            assert!((a.variance - b.variance).abs() < 1e-9);
+        }
+    }
+
+    #[test]
+    fn local_collocated_cokriging_appends_the_datum_at_the_target() {
+        let samples = cosamples();
+        let targets = grid_targets();
+        let local = varying_field(&targets);
+        let search = cosearch(25.0, 500);
+        let model = lmc(30.0, 1.0, None);
+        let secondary: Vec<f64> = (0..targets.len()).map(|i| (i as f64 / 9.0).sin()).collect();
+        let kind = CoKind::Simple {
+            means: vec![0.5, 0.8],
+        };
+        let ours = cokrige_many_local(
+            &targets,
+            0,
+            &local,
+            &samples,
+            &[(1, secondary.clone())],
+            &search,
+            &model,
+            &kind,
+            None,
+        )
+        .unwrap();
+        for (i, t) in targets.iter().enumerate() {
+            let mut appended = samples.clone();
+            appended.push(CoSample::new(*t, 1, secondary[i]));
+            let one = LocalAnisotropy::new(vec![*t], vec![local.angles[i]], vec![local.ratios[i]])
+                .unwrap();
+            let want =
+                cokrige_many_local(&[*t], 0, &one, &appended, &[], &search, &model, &kind, None)
+                    .unwrap();
+            let (got, want) = (ours[i].as_ref().unwrap(), want[0].as_ref().unwrap());
+            assert!((got.value - want.value).abs() < 1e-9);
+            assert!((got.variance - want.variance).abs() < 1e-9);
+        }
+    }
+
+    #[test]
+    fn local_cokriging_does_not_depend_on_the_thread_count() {
+        let samples = cosamples();
+        let targets = grid_targets();
+        let local = varying_field(&targets);
+        let secondary: Vec<f64> = (0..targets.len()).map(|i| (i as f64 / 9.0).sin()).collect();
+        let run = |threads| {
+            rayon::ThreadPoolBuilder::new()
+                .num_threads(threads)
+                .build()
+                .unwrap()
+                .install(|| {
+                    cokrige_many_local(
+                        &targets,
+                        0,
+                        &local,
+                        &samples,
+                        &[(1, secondary.clone())],
+                        &cosearch(30.0, 16),
+                        &lmc(30.0, 1.0, None),
+                        &CoKind::Ordinary,
+                        None,
+                    )
+                    .unwrap()
+                    .iter()
+                    .map(|e| {
+                        e.as_ref()
+                            .map(|e| (e.value.to_bits(), e.variance.to_bits()))
+                    })
+                    .collect::<Vec<_>>()
+                })
+        };
+        assert_eq!(run(1), run(8));
     }
 }

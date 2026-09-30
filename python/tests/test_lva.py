@@ -40,6 +40,29 @@ def test_uniform_field_equals_global_anisotropy():
     np.testing.assert_allclose(local, reference, atol=1e-9)
 
 
+def test_cokriging_with_a_uniform_field_equals_global_anisotropy():
+    coords = rng.uniform(0, 100, (200, 2))
+    values = np.sin(coords[:, 0] / 12) + coords[:, 1] / 40
+    secondary = values + rng.normal(0, 0.3, 200)
+    targets = rng.uniform(5, 95, (50, 2))
+    field = bt.LocalAnisotropy(targets, np.tile([35.0, 0.0, 0.0], (50, 1)), np.tile([0.3, 1.0], (50, 1)))
+    structures = [("spherical", 40.0, [[1.0, 0.7], [0.7, 1.0]])]
+    search = bt.Search(radius=20, max_samples=16)
+
+    def cokriging(**rotated):
+        lmc = bt.Coregionalization([[0.0, 0.0], [0.0, 0.0]], structures=structures, **rotated)
+        return bt.Cokriging(lmc, search).fit(
+            np.vstack([coords, coords]), np.r_[values, secondary], [0] * 200 + [1] * 200
+        )
+
+    at = bt.PointSet(targets, {"s": np.sin(targets[:, 0] / 12)})
+    local = cokriging().predict(at, anisotropy=field, collocated={1: "s"}, progress=False)
+    reference = cokriging(rotation=(35.0, 0.0, 0.0), ratios=(0.3, 1.0)).predict(
+        at, collocated={1: at["s"]}, progress=False
+    )
+    np.testing.assert_allclose(local, reference, atol=1e-9)
+
+
 def test_sgs_with_local_anisotropy():
     coords = rng.uniform(0, 40, (60, 2))
     values = rng.normal(size=60)

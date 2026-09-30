@@ -880,6 +880,23 @@ pub(crate) mod tests {
         for (x, y) in a.values.iter().zip(&b.values) {
             assert!((x - y).abs() < 1e-9, "{x} vs {y}");
         }
+        let at_nodes: Vec<f64> = grid
+            .iter()
+            .map(|p| (p.0 / 9.0).sin() + p.1 / 30.0)
+            .collect();
+        let secondary = Secondary::fit(&at_nodes, None, &[], Some(0.6)).unwrap();
+        let cosimulate = |vg, local| {
+            cosgs(
+                &data_locs, &data_vals, None, None, None, None, &grid, vg, &params, local,
+                &secondary, &at_nodes,
+            )
+            .unwrap()
+            .values
+        };
+        let (a, b) = (cosimulate(&base, Some(&local)), cosimulate(&global, None));
+        for (x, y) in a.iter().zip(&b) {
+            assert!((x - y).abs() < 1e-9, "{x} vs {y}");
+        }
     }
 
     #[test]
