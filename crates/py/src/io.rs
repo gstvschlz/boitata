@@ -177,8 +177,21 @@ fn read_parquet(py: Python, path: PathBuf, progress: bool) -> PyResult<Py<PyAny>
     })
 }
 
-/// Reads a `.obj`, `.stl` or `.dxf` mesh; DXF faces carry a `layer` column.
-/// `progress` shows a `tqdm` bar.
+/// Reads a `.obj`, `.stl` or `.dxf` mesh.
+///
+/// Parameters
+/// ----------
+/// path : str or Path
+///     The file. OBJ `g` groups become a face column `group` when the file
+///     has any. DXF reads `3DFACE`, polyface `POLYLINE` and `MESH` (level-0
+///     cage, ASCII files only) entities as triangles with a face column
+///     `layer`; `MESH` faces come last.
+/// progress : bool, default True
+///     Show a `tqdm` bar.
+///
+/// Returns
+/// -------
+/// Mesh
 #[pyfunction]
 #[pyo3(signature = (path, *, progress=true))]
 fn read_mesh(py: Python, path: PathBuf, progress: bool) -> PyResult<Mesh> {
@@ -189,21 +202,45 @@ fn read_mesh(py: Python, path: PathBuf, progress: bool) -> PyResult<Mesh> {
     Ok(Mesh::from_core(mesh))
 }
 
-/// Writes a `.obj`, `.stl` (binary unless `ascii`) or `.dxf` mesh. `progress`
-/// shows a `tqdm` bar.
+/// Writes a `.obj`, `.stl` or ASCII R2000 `.dxf` mesh.
+///
+/// Parameters
+/// ----------
+/// path : str or Path
+///     The file; its extension picks the format.
+/// mesh : Mesh
+///     The mesh. OBJ writes the face column `group` as `g` lines; DXF puts
+///     faces on the layer named by the face column `layer`, else `0`.
+/// ascii : bool, default False
+///     Write ASCII instead of binary STL.
+/// dxf_entity : {"3dface", "polyface"}, default "3dface"
+///     One `3DFACE` per triangle, or one polyface `POLYLINE` with shared
+///     vertices per layer, split past 32767 vertices or faces.
+/// progress : bool, default True
+///     Show a `tqdm` bar.
 #[pyfunction]
-#[pyo3(signature = (path, mesh, *, ascii=false, progress=true))]
+#[pyo3(signature = (path, mesh, *, ascii=false, dxf_entity="3dface", progress=true))]
 fn write_mesh(
     py: Python,
     path: PathBuf,
     mesh: PyRef<Mesh>,
     ascii: bool,
+    dxf_entity: &str,
     progress: bool,
 ) -> PyResult<()> {
+    let dxf_entity = match dxf_entity {
+        "3dface" => boitata_io::DxfEntity::Face3D,
+        "polyface" => boitata_io::DxfEntity::Polyface,
+        other => {
+            return Err(invalid(format!(
+                "dxf_entity must be '3dface' or 'polyface', got '{other}'"
+            )));
+        }
+    };
     let mesh = &mesh.mesh;
     let total = Some(mesh.triangles().len() as u64);
     with_progress(py, total, progress, |counter| {
-        boitata_io::write_mesh(path, mesh, ascii, counter)
+        boitata_io::write_mesh(path, mesh, ascii, dxf_entity, counter)
     })?
     .map_err(io_error)
 }

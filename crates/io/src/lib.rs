@@ -16,7 +16,7 @@ pub use error::{Error, Result};
 pub use geopackage::{Geometry, decode_geometry, encode_parts, encode_point};
 pub use geotiff::{read_geotiff, write_geotiff};
 pub use gslib::{read_gslib, write_gslib};
-pub use mesh::{read_mesh, write_mesh};
+pub use mesh::{DxfEntity, read_mesh, write_mesh};
 pub use parquet::{
     BlockChunks, BlockModelReader, BlockModelWriter, FileLayout, Stored, read_model, read_parquet,
     stream_map, write_block_model, write_model, write_parquet, write_parquet_batches, write_points,

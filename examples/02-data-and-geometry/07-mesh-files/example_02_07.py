@@ -58,18 +58,26 @@ save(fig, "veins")
 # %% [markdown]
 # Each format round-trips the vein. Binary STL stores single precision, so vertices can move by a fraction of a
 # millimeter at mine coordinates; these files were written in single precision and come back unchanged. DXF
-# writes 3D faces and reads them back with a `layer` column per triangle.
+# writes one 3D face per triangle, or with `dxf_entity="polyface"` polyface meshes that share vertices; both read
+# back with a `layer` column per triangle.
 
 # %%
 v1 = veins["V1"]
+files = {
+    "v1.stl": {},
+    "v1_ascii.stl": {"ascii": True},
+    "v1.obj": {},
+    "v1.dxf": {},
+    "v1_polyface.dxf": {"dxf_entity": "polyface"},
+}
 with tempfile.TemporaryDirectory() as folder:
-    for file, options in [("v1.stl", {}), ("v1_ascii.stl", {"ascii": True}), ("v1.obj", {}), ("v1.dxf", {})]:
+    for file, options in files.items():
         path = Path(folder) / file
         bt.write_mesh(path, v1, **options)
         back = bt.read_mesh(path)
         shift = np.abs(back.vertices[back.triangles] - v1.vertices[v1.triangles]).max()
         print(
-            f"{file:>12}: {path.stat().st_size / 1e6:5.1f} MB, {len(back.triangles)} triangles,"
+            f"{file:>15}: {path.stat().st_size / 1e6:5.1f} MB, {len(back.triangles)} triangles,"
             f" {back.volume:,.0f} m3, largest shift {shift * 1000:.3f} mm, columns {back.face_attributes.column_names}"
         )
 
