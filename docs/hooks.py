@@ -1,8 +1,6 @@
 import inspect
 import re
 
-from mkdocs.structure.files import File
-
 CHAPTER = re.compile(r"\]\(((?:\.\./)+(\d\d)-[\w-]+/(\d\d)-[\w-]+)/README\.md\)")
 SOURCE = re.compile(r"\]\((?:\.\./)+common\.py\)")
 SENTENCE = re.compile(r"(?<=\.)\s+(?=[A-Z`])")
@@ -63,6 +61,7 @@ def on_config(config, **kwargs):
 def on_files(files, config, **kwargs):
     """Generates the API pages, with summaries from the first docstring sentence."""
     import boitata
+    from mkdocs.structure.files import File
 
     for slug, title, names in sections():
         rows = ["| Name | Summary |", "| --- | --- |"]
