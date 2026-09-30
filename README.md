@@ -5,12 +5,12 @@
   </picture>
 </p>
 
-<h1 align="center">Boitatá</h1>
+<h1 align="center">boitatá</h1>
 
 <p align="center">
-  My Python tooling for day-to-day geostatistics.<br>
-  <a href="https://gstvschlz.github.io/boitata/">Documentation</a> ·
-  <a href="https://gstvschlz.github.io/boitata/examples/01-first-steps/">Examples</a> ·
+  my python tooling for day-to-day geostatistics.<br>
+  <a href="https://gstvschlz.github.io/boitata/">docs</a> ·
+  <a href="https://gstvschlz.github.io/boitata/examples/01-first-steps/">examples</a> ·
   <a href="https://gstvschlz.github.io/boitata/api/containers/">API</a>
 </p>
 
@@ -18,7 +18,9 @@
   <a href="https://codecov.io/github/gstvschlz/boitata"><img src="https://codecov.io/github/gstvschlz/boitata/graph/badge.svg?token=QHMHF8VFRG" alt="codecov"></a>
 </p>
 
-Boitatá holds the tools I use for resource work: drill hole checks, statistics, transforms, variograms, kriging, simulation and model checks. It runs from Python; the numerical core is Rust.
+> boitatá is a guardian spirit of mineral wealth and underground resources in Brazilian folklore.
+
+`boitatá` holds the tools I use for resource work: drill hole checks, statistics, transforms, variograms, kriging, simulation and model checks.
 
 ## Install
 
