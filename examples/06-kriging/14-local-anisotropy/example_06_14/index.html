@@ -15117,13 +15117,10 @@ a point cloud (<code>from_points</code>) or a wireframe (<code>from_mesh</code>)
 <span class="n">true_at_nodes</span> <span class="o">=</span> <span class="n">truth</span><span class="p">[</span><span class="n">nodes</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">]</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="n">nodes</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]</span>
 </code></pre></div>
 <p class="mkd-glr-script-out">Out:</p>
-<div class="mkd-glr-script-out-disp highlight"><pre><span></span><code>0it<span class="w"> </span><span class="o">[</span><span class="m">00</span>:00,<span class="w"> </span>?it/s<span class="o">]</span>
-1it<span class="w"> </span><span class="o">[</span><span class="m">00</span>:00,<span class="w"> </span><span class="m">1065</span>.63it/s<span class="o">]</span>
+<div class="bt-progress" style="--share: 100%"><span class="bt-progress-track"><span class="bt-progress-fill"></span></span><code>470/470 · 00:00</code></div>
 
+<div class="bt-progress" style="--share: 100%"><span class="bt-progress-track"><span class="bt-progress-fill"></span></span><code>78000/78000 · 00:00</code></div>
 
-0it<span class="w"> </span><span class="o">[</span><span class="m">00</span>:00,<span class="w"> </span>?it/s<span class="o">]</span>
-77it<span class="w"> </span><span class="o">[</span><span class="m">00</span>:00,<span class="w"> </span><span class="m">3020</span>.67it/s<span class="o">]</span>
-</code></pre></div>
 <!-- GENERATED FROM PYTHON SOURCE LINES 32-34 -->
 
 <p>The global model, fitted along N170° and across it as in <a href="../../../05-spatial-continuity/02-variogram-fitting/example_05_02/">variogram fitting</a>: two nested structures, the minor/major ratio set
@@ -15163,9 +15160,9 @@ The structure tensor sums gradients over 3 cells each side, and smoothing averag
 <span class="nb">print</span><span class="p">(</span><span class="s2">"azimuth percentiles (10, 50, 90):"</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">percentile</span><span class="p">(</span><span class="n">lva</span><span class="o">.</span><span class="n">angles</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">%</span> <span class="mi">180</span><span class="p">,</span> <span class="p">[</span><span class="mi">10</span><span class="p">,</span> <span class="mi">50</span><span class="p">,</span> <span class="mi">90</span><span class="p">])</span><span class="o">.</span><span class="n">round</span><span class="p">())</span>
 </code></pre></div>
 <p class="mkd-glr-script-out">Out:</p>
-<div class="mkd-glr-script-out-disp highlight"><pre><span></span><code><span class="w">  </span><span class="m">0</span>%<span class="p">|</span><span class="w">          </span><span class="p">|</span><span class="w"> </span><span class="m">0</span>/3120<span class="w"> </span><span class="o">[</span><span class="m">00</span>:00&lt;?,<span class="w"> </span>?it/s<span class="o">]</span>
-<span class="m">100</span>%<span class="p">|</span><span class="c1">##########| 3120/3120 [00:00&lt;00:00, 1195853.83it/s]</span>
-LocalAnisotropy<span class="o">(</span><span class="m">3120</span><span class="w"> </span>locations<span class="o">)</span>
+<div class="bt-progress" style="--share: 100%"><span class="bt-progress-track"><span class="bt-progress-fill"></span></span><code>3120/3120 · 00:00</code></div>
+
+<div class="mkd-glr-script-out-disp highlight"><pre><span></span><code>LocalAnisotropy<span class="o">(</span><span class="m">3120</span><span class="w"> </span>locations<span class="o">)</span>
 azimuth<span class="w"> </span>percentiles<span class="w"> </span><span class="o">(</span><span class="m">10</span>,<span class="w"> </span><span class="m">50</span>,<span class="w"> </span><span class="m">90</span><span class="o">)</span>:<span class="w"> </span><span class="o">[</span><span class="w"> </span><span class="m">17</span>.<span class="w"> </span><span class="m">113</span>.<span class="w"> </span><span class="m">172</span>.<span class="o">]</span>
 </code></pre></div>
 <!-- GENERATED FROM PYTHON SOURCE LINES 65-80 -->
@@ -15202,13 +15199,11 @@ azimuth<span class="w"> </span>percentiles<span class="w"> </span><span class="o
     <span class="p">)</span>
 </code></pre></div>
 <p class="mkd-glr-script-out">Out:</p>
-<div class="mkd-glr-script-out-disp highlight"><pre><span></span><code><span class="w">  </span><span class="m">0</span>%<span class="p">|</span><span class="w">          </span><span class="p">|</span><span class="w"> </span><span class="m">0</span>/3120<span class="w"> </span><span class="o">[</span><span class="m">00</span>:00&lt;?,<span class="w"> </span>?it/s<span class="o">]</span>
-<span class="m">100</span>%<span class="p">|</span><span class="c1">##########| 3120/3120 [00:00&lt;00:00, 964492.08it/s]</span>
+<div class="bt-progress" style="--share: 100%"><span class="bt-progress-track"><span class="bt-progress-fill"></span></span><code>3120/3120 · 00:00</code></div>
 
+<div class="bt-progress" style="--share: 100%"><span class="bt-progress-track"><span class="bt-progress-fill"></span></span><code>3120/3120 · 00:00</code></div>
 
-<span class="w">  </span><span class="m">0</span>%<span class="p">|</span><span class="w">          </span><span class="p">|</span><span class="w"> </span><span class="m">0</span>/3120<span class="w"> </span><span class="o">[</span><span class="m">00</span>:00&lt;?,<span class="w"> </span>?it/s<span class="o">]</span>
-<span class="m">100</span>%<span class="p">|</span><span class="c1">##########| 3120/3120 [00:00&lt;00:00, 563478.66it/s]</span>
-<span class="w"> </span>global<span class="w"> </span>N170°:<span class="w"> </span>RMSE<span class="w"> </span><span class="m">157</span>.3<span class="w"> </span>ppm,<span class="w"> </span>correlation<span class="w"> </span><span class="m">0</span>.780
+<div class="mkd-glr-script-out-disp highlight"><pre><span></span><code><span class="w"> </span>global<span class="w"> </span>N170°:<span class="w"> </span>RMSE<span class="w"> </span><span class="m">157</span>.3<span class="w"> </span>ppm,<span class="w"> </span>correlation<span class="w"> </span><span class="m">0</span>.780
 <span class="w">        </span>local:<span class="w"> </span>RMSE<span class="w"> </span><span class="m">148</span>.3<span class="w"> </span>ppm,<span class="w"> </span>correlation<span class="w"> </span><span class="m">0</span>.805
 </code></pre></div>
 <!-- GENERATED FROM PYTHON SOURCE LINES 95-107 -->
@@ -15257,14 +15252,11 @@ supplies the orientation and the ratios.</p>
 </code></pre></div>
 <p><img alt="SGS, global N170°, SGS, local anisotropy" class="mkd-glr-single-img" src="../images/mkd_glr_example_06_14_003.png" srcset="../images/mkd_glr_example_06_14_003.png" /></p>
 <p class="mkd-glr-script-out">Out:</p>
-<div class="mkd-glr-script-out-disp highlight"><pre><span></span><code><span class="w">  </span><span class="m">0</span>%<span class="p">|</span><span class="w">          </span><span class="p">|</span><span class="w"> </span><span class="m">0</span>/1<span class="w"> </span><span class="o">[</span><span class="m">00</span>:00&lt;?,<span class="w"> </span>?it/s<span class="o">]</span>
-<span class="m">100</span>%<span class="p">|</span><span class="c1">##########| 1/1 [00:00&lt;00:00, 12.32it/s]</span>
+<div class="bt-progress" style="--share: 100%"><span class="bt-progress-track"><span class="bt-progress-fill"></span></span><code>1/1 · 00:00</code></div>
 
+<div class="bt-progress" style="--share: 100%"><span class="bt-progress-track"><span class="bt-progress-fill"></span></span><code>1/1 · 00:00</code></div>
 
-<span class="w">  </span><span class="m">0</span>%<span class="p">|</span><span class="w">          </span><span class="p">|</span><span class="w"> </span><span class="m">0</span>/1<span class="w"> </span><span class="o">[</span><span class="m">00</span>:00&lt;?,<span class="w"> </span>?it/s<span class="o">]</span>
-<span class="m">100</span>%<span class="p">|</span><span class="c1">##########| 1/1 [00:00&lt;00:00, 12.10it/s]</span>
-</code></pre></div>
-<p><strong>Total running time of the script:</strong> ( 0 minutes  0.785 seconds)</p>
+<p><strong>Total running time of the script:</strong> ( 0 minutes  0.671 seconds)</p>
 <div id="download_links"></div>
 
 <p><a class="md-button center" href="../example_06_14.py"><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M256 32c0-17.7-14.3-32-32-32s-32 14.3-32 32v210.7l-41.4-41.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3l96 96c12.5 12.5 32.8 12.5 45.3 0l96-96c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L256 242.7zM64 320c-35.3 0-64 28.7-64 64v32c0 35.3 28.7 64 64 64h320c35.3 0 64-28.7 64-64v-32c0-35.3-28.7-64-64-64h-46.9l-56.6 56.6c-31.2 31.2-81.9 31.2-113.1 0L110.9 320zm304 56a24 24 0 1 1 0 48 24 24 0 1 1 0-48"/></svg></span> Download Python source code: example_06_14.py</a></p>

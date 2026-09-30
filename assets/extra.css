@@ -72,3 +72,29 @@
 
 [data-md-color-scheme="default"] .boitata-hero .logo-dark,
 [data-md-color-scheme="slate"] .boitata-hero .logo-light { display: none; }
+
+.md-typeset .bt-progress {
+  display: flex;
+  align-items: center;
+  gap: .8rem;
+  margin: .6rem 0;
+}
+.md-typeset .bt-progress code { background: none; padding: 0; color: var(--md-default-fg-color--light); white-space: nowrap; }
+.bt-progress-track {
+  flex: 1;
+  max-width: 24rem;
+  height: .45rem;
+  border-radius: .3rem;
+  background: var(--md-code-bg-color);
+  overflow: hidden;
+}
+.bt-progress-fill {
+  display: block;
+  height: 100%;
+  width: var(--share);
+  border-radius: inherit;
+  background: linear-gradient(90deg, #A8231B, #E5572A 45%, #FB9925 75%, #FFD43B);
+  animation: bt-fill 1.4s cubic-bezier(.3, .7, .3, 1) both;
+}
+@keyframes bt-fill { from { width: 0; } }
+@media (prefers-reduced-motion: reduce) { .bt-progress-fill { animation: none; } }

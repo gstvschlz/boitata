@@ -15113,13 +15113,10 @@ exhaustive Walker Lake grid gives the true point and block curves to check it ag
 <span class="n">weights</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">cell_declustering</span><span class="p">(</span><span class="n">samples</span><span class="p">,</span> <span class="s2">"V"</span><span class="p">,</span> <span class="n">sizes</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mf">2.5</span><span class="p">,</span> <span class="mf">102.5</span><span class="p">,</span> <span class="mf">2.5</span><span class="p">))</span><span class="o">.</span><span class="n">weights</span>
 </code></pre></div>
 <p class="mkd-glr-script-out">Out:</p>
-<div class="mkd-glr-script-out-disp highlight"><pre><span></span><code>0it<span class="w"> </span><span class="o">[</span><span class="m">00</span>:00,<span class="w"> </span>?it/s<span class="o">]</span>
-1it<span class="w"> </span><span class="o">[</span><span class="m">00</span>:00,<span class="w"> </span><span class="m">1076</span>.29it/s<span class="o">]</span>
+<div class="bt-progress" style="--share: 100%"><span class="bt-progress-track"><span class="bt-progress-fill"></span></span><code>470/470 · 00:00</code></div>
 
+<div class="bt-progress" style="--share: 100%"><span class="bt-progress-track"><span class="bt-progress-fill"></span></span><code>78000/78000 · 00:00</code></div>
 
-0it<span class="w"> </span><span class="o">[</span><span class="m">00</span>:00,<span class="w"> </span>?it/s<span class="o">]</span>
-77it<span class="w"> </span><span class="o">[</span><span class="m">00</span>:00,<span class="w"> </span><span class="m">3064</span>.24it/s<span class="o">]</span>
-</code></pre></div>
 <!-- GENERATED FROM PYTHON SOURCE LINES 29-31 -->
 
 <p>A Hermite anamorphosis models the declustered point distribution. The variogram of its Gaussian scores is fitted
@@ -15210,7 +15207,7 @@ above<span class="w"> </span><span class="m">800</span><span class="w"> </span>p
 rich tail in too far: above 500 ppm it keeps 13.3% of the blocks against a true 16.2%, above 800 ppm 1.0% against
 2.1%. The point curves run a few per cent high, since the declustered samples still overstate the rich grades.
 <a href="../../02-uniform-conditioning/example_09_02/">Uniform conditioning</a> and <a href="../../03-mik-localization/example_09_03/">MIK localization</a> carry block support down to panels; <a href="../../../08-stochastic-simulation/03-simulation-at-block-support/example_08_03/">simulation at block support</a> reaches it by simulation.</p>
-<p><strong>Total running time of the script:</strong> ( 0 minutes  0.192 seconds)</p>
+<p><strong>Total running time of the script:</strong> ( 0 minutes  0.187 seconds)</p>
 <div id="download_links"></div>
 
 <p><a class="md-button center" href="../example_09_01.py"><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M256 32c0-17.7-14.3-32-32-32s-32 14.3-32 32v210.7l-41.4-41.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3l96 96c12.5 12.5 32.8 12.5 45.3 0l96-96c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L256 242.7zM64 320c-35.3 0-64 28.7-64 64v32c0 35.3 28.7 64 64 64h320c35.3 0 64-28.7 64-64v-32c0-35.3-28.7-64-64-64h-46.9l-56.6 56.6c-31.2 31.2-81.9 31.2-113.1 0L110.9 320zm304 56a24 24 0 1 1 0 48 24 24 0 1 1 0-48"/></svg></span> Download Python source code: example_09_01.py</a></p>

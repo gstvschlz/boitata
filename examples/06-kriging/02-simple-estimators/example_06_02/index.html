@@ -15188,13 +15188,10 @@ to download the full example code</p>
 <span class="p">)</span>
 </code></pre></div>
 <p class="mkd-glr-script-out">Out:</p>
-<div class="mkd-glr-script-out-disp highlight"><pre><span></span><code>0it<span class="w"> </span><span class="o">[</span><span class="m">00</span>:00,<span class="w"> </span>?it/s<span class="o">]</span>
-1it<span class="w"> </span><span class="o">[</span><span class="m">00</span>:00,<span class="w"> </span><span class="m">1125</span>.08it/s<span class="o">]</span>
+<div class="bt-progress" style="--share: 100%"><span class="bt-progress-track"><span class="bt-progress-fill"></span></span><code>470/470 · 00:00</code></div>
 
+<div class="bt-progress" style="--share: 100%"><span class="bt-progress-track"><span class="bt-progress-fill"></span></span><code>78000/78000 · 00:00</code></div>
 
-0it<span class="w"> </span><span class="o">[</span><span class="m">00</span>:00,<span class="w"> </span>?it/s<span class="o">]</span>
-77it<span class="w"> </span><span class="o">[</span><span class="m">00</span>:00,<span class="w"> </span><span class="m">3238</span>.07it/s<span class="o">]</span>
-</code></pre></div>
 <!-- GENERATED FROM PYTHON SOURCE LINES 36-39 -->
 
 <p>All four share one search: up to 24 samples in an ellipse along the direction of greatest continuity. Nearest
@@ -15218,21 +15215,15 @@ Kriging, for reference, uses the variogram above.</p>
     <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">name</span><span class="si">:</span><span class="s2">&gt;17</span><span class="si">}</span><span class="s2">  </span><span class="si">{</span><span class="n">rmse</span><span class="si">:</span><span class="s2">5.1f</span><span class="si">}</span><span class="s2">  </span><span class="si">{</span><span class="n">corr</span><span class="si">:</span><span class="s2">.3f</span><span class="si">}</span><span class="s2">  </span><span class="si">{</span><span class="n">e</span><span class="p">[</span><span class="n">ok</span><span class="p">]</span><span class="o">.</span><span class="n">var</span><span class="p">()</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="n">true_at_nodes</span><span class="p">[</span><span class="n">ok</span><span class="p">]</span><span class="o">.</span><span class="n">var</span><span class="p">()</span><span class="si">:</span><span class="s2">.2f</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
 </code></pre></div>
 <p class="mkd-glr-script-out">Out:</p>
-<div class="mkd-glr-script-out-disp highlight"><pre><span></span><code><span class="w">  </span><span class="m">0</span>%<span class="p">|</span><span class="w">          </span><span class="p">|</span><span class="w"> </span><span class="m">0</span>/3120<span class="w"> </span><span class="o">[</span><span class="m">00</span>:00&lt;?,<span class="w"> </span>?it/s<span class="o">]</span>
-<span class="m">100</span>%<span class="p">|</span><span class="c1">##########| 3120/3120 [00:00&lt;00:00, 1446951.40it/s]</span>
+<div class="bt-progress" style="--share: 100%"><span class="bt-progress-track"><span class="bt-progress-fill"></span></span><code>3120/3120 · 00:00</code></div>
 
+<div class="bt-progress" style="--share: 100%"><span class="bt-progress-track"><span class="bt-progress-fill"></span></span><code>3120/3120 · 00:00</code></div>
 
-<span class="w">  </span><span class="m">0</span>%<span class="p">|</span><span class="w">          </span><span class="p">|</span><span class="w"> </span><span class="m">0</span>/3120<span class="w"> </span><span class="o">[</span><span class="m">00</span>:00&lt;?,<span class="w"> </span>?it/s<span class="o">]</span>
-<span class="m">100</span>%<span class="p">|</span><span class="c1">##########| 3120/3120 [00:00&lt;00:00, 1434578.87it/s]</span>
+<div class="bt-progress" style="--share: 100%"><span class="bt-progress-track"><span class="bt-progress-fill"></span></span><code>3120/3120 · 00:00</code></div>
 
+<div class="bt-progress" style="--share: 100%"><span class="bt-progress-track"><span class="bt-progress-fill"></span></span><code>3120/3120 · 00:00</code></div>
 
-<span class="w">  </span><span class="m">0</span>%<span class="p">|</span><span class="w">          </span><span class="p">|</span><span class="w"> </span><span class="m">0</span>/3120<span class="w"> </span><span class="o">[</span><span class="m">00</span>:00&lt;?,<span class="w"> </span>?it/s<span class="o">]</span>
-<span class="m">100</span>%<span class="p">|</span><span class="c1">##########| 3120/3120 [00:00&lt;00:00, 1679013.15it/s]</span>
-
-
-<span class="w">  </span><span class="m">0</span>%<span class="p">|</span><span class="w">          </span><span class="p">|</span><span class="w"> </span><span class="m">0</span>/3120<span class="w"> </span><span class="o">[</span><span class="m">00</span>:00&lt;?,<span class="w"> </span>?it/s<span class="o">]</span>
-<span class="m">100</span>%<span class="p">|</span><span class="c1">##########| 3120/3120 [00:00&lt;00:00, 1412589.43it/s]</span>
-<span class="w">           </span>method<span class="w">  </span>RMSE<span class="w">   </span>corr<span class="w">   </span>variance<span class="w"> </span>ratio
+<div class="mkd-glr-script-out-disp highlight"><pre><span></span><code><span class="w">           </span>method<span class="w">  </span>RMSE<span class="w">   </span>corr<span class="w">   </span>variance<span class="w"> </span>ratio
 <span class="w"> </span>nearest<span class="w"> </span>neighbor<span class="w">  </span><span class="m">178</span>.2<span class="w">  </span><span class="m">0</span>.739<span class="w">  </span><span class="m">0</span>.95
 <span class="w"> </span>inverse<span class="w"> </span>distance<span class="w">  </span><span class="m">166</span>.2<span class="w">  </span><span class="m">0</span>.777<span class="w">  </span><span class="m">0</span>.55
 <span class="w">   </span>moving<span class="w"> </span>average<span class="w">  </span><span class="m">231</span>.0<span class="w">  </span><span class="m">0</span>.586<span class="w">  </span><span class="m">0</span>.30
@@ -15312,7 +15303,7 @@ cutoff<span class="w"> </span><span class="m">600</span><span class="w"> </span>
 average nearly doubles the true tonnage, at 600 ppm it misses 45 % of it. Nearest neighbor follows the true tonnage
 closely because it keeps the variance of the data, yet its estimates are the wrong ones locally; the reliable
 grade-tonnage of selected blocks is a change-of-support question (the <a href="../../../09-recoverable-resources/01-discrete-gaussian-model/example_09_01/">discrete Gaussian model</a> and the pages after it).</p>
-<p><strong>Total running time of the script:</strong> ( 0 minutes  0.475 seconds)</p>
+<p><strong>Total running time of the script:</strong> ( 0 minutes  0.474 seconds)</p>
 <div id="download_links"></div>
 
 <p><a class="md-button center" href="../example_06_02.py"><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M256 32c0-17.7-14.3-32-32-32s-32 14.3-32 32v210.7l-41.4-41.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3l96 96c12.5 12.5 32.8 12.5 45.3 0l96-96c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L256 242.7zM64 320c-35.3 0-64 28.7-64 64v32c0 35.3 28.7 64 64 64h320c35.3 0 64-28.7 64-64v-32c0-35.3-28.7-64-64-64h-46.9l-56.6 56.6c-31.2 31.2-81.9 31.2-113.1 0L110.9 320zm304 56a24 24 0 1 1 0 48 24 24 0 1 1 0-48"/></svg></span> Download Python source code: example_06_02.py</a></p>
