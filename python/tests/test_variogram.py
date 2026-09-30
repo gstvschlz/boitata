@@ -1,5 +1,3 @@
-import sys
-
 import boitata as bt
 import numpy as np
 import pytest
@@ -250,21 +248,28 @@ def test_coregionalization_fit_with_fixed_anisotropy():
         bt.Coregionalization.fit(exp, directions=directions[:1])
 
 
-@pytest.mark.xfail(sys.platform == "linux", reason="drifts to a wrong azimuth on Linux, #383", strict=False)
-def test_coregionalization_fit_finds_the_anisotropy():
+azimuths = np.arange(0, 180, 22.5)
+directions = [(d, 0) for d in azimuths]
+
+
+def anisotropic_pair(rng):
     xy = np.stack(np.meshgrid(np.arange(0, 80, 2.0), np.arange(0, 80, 2.0)), -1).reshape(-1, 2)
     t = np.radians(30)
     major, minor = np.array([np.sin(t), np.cos(t)]), np.array([np.cos(t), -np.sin(t)])
     freq = rng.normal(size=(400, 1)) * major / 15 + rng.normal(size=(400, 1)) * minor / 5
     a = np.cos(xy @ freq.T + rng.uniform(0, 2 * np.pi, 400)).sum(1) / np.sqrt(200)
-    b = 10 * (a + 0.5 * rng.normal(size=len(a)))
-    azimuths = np.arange(0, 180, 22.5)
+    return xy, a, 10 * (a + 0.5 * rng.normal(size=len(a)))
 
+
+def directional_matrix(xy, a, b):
     def cell(u, v):
         return [bt.experimental_variogram(xy, u, 2, 40, azimuth=d, other=v) for d in azimuths]
 
-    exp = [[cell(a, None), cell(a, b)], [None, cell(b, None)]]
-    directions = [(d, 0) for d in azimuths]
+    return [[cell(a, None), cell(a, b)], [None, cell(b, None)]]
+
+
+def test_coregionalization_fit_finds_the_anisotropy():
+    exp = directional_matrix(*anisotropic_pair(rng))
     lmc = bt.Coregionalization.fit(exp, ["spherical", "spherical"], directions=directions)
     alone = bt.Variogram.fit_directional(exp[0][0], directions, ["spherical", "spherical"])
     assert lmc.rotation[0] == pytest.approx(alone.rotation[0], abs=5) and lmc.rotation[1:] == (0, 0)
@@ -275,6 +280,18 @@ def test_coregionalization_fit_finds_the_anisotropy():
         exp, directions=directions, rotation=[45.0, None, None], ratios=[(0.2, 0.5), None]
     )
     assert bounded.rotation[0] == 45 and 0.2 <= bounded.ratios[0] <= 0.5
+
+
+def test_coregionalization_fit_ignores_rounding_noise():
+    xy, a, b = anisotropic_pair(np.random.default_rng(11))
+    fits = []
+    for seed in range(6):
+        noise = np.random.default_rng(seed).normal(size=(2, len(a)))
+        exp = directional_matrix(xy, a * (1 + 1e-12 * noise[0]), b * (1 + 1e-12 * noise[1]))
+        fits.append(bt.Coregionalization.fit(exp, ["spherical", "spherical"], directions=directions))
+    for f in fits:
+        assert abs((f.rotation[0] - fits[0].rotation[0] + 90) % 180 - 90) < 1
+        assert f.ratios[0] < 1
 
 
 def test_variogram_sets_match_single_calls_and_feed_the_fit():

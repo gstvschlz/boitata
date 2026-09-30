@@ -553,7 +553,7 @@ fn descend<T>(
                     continue;
                 }
                 let e = eval(&cand);
-                if e.0 < cur.0 {
+                if e.0 < cur.0 - 1e-12 * cur.0.abs() {
                     cur = e;
                     x = cand;
                     improved = true;
@@ -1749,6 +1749,28 @@ mod tests {
         assert!(fit(&spec).structures[1].range <= 100.0);
         spec.structures[1].range = Some((50.0, 300.0));
         assert_recovers(&fit(&spec), &truth);
+    }
+
+    #[test]
+    fn descent_ignores_rounding_noise() {
+        let limits = [
+            None,
+            Some((0.0, 0.0)),
+            Some((0.0, 0.0)),
+            Some((1e-6, 1.0)),
+            Some((1.0, 1.0)),
+            Some((1.0, 100.0)),
+        ];
+        let eval = |x: &[f64]| {
+            let e = 1.0 + (x[3] - 0.5).powi(2) + (x[5] / 10.0 - 1.0).powi(2);
+            (e * (1.0 + 1e-15 * (1e3 * x[0]).sin()), ())
+        };
+        let (x, _) = descend(vec![30.0, 0.0, 0.0, 1.0, 1.0, 20.0], &limits, eval);
+        assert_eq!(x[0], 30.0);
+        assert!(
+            (x[3] - 0.5).abs() < 1e-3 && (x[5] - 10.0).abs() < 1e-2,
+            "{x:?}"
+        );
     }
 
     #[test]
