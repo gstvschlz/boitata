@@ -1678,6 +1678,71 @@ mod tests {
         }
     }
 
+    fn continuous(side: usize, shift: f64) -> TrainingImage {
+        let values: Vec<f64> = grades(side)
+            .continuous_values()
+            .unwrap()
+            .iter()
+            .map(|&v| f64::from(v) + shift)
+            .collect();
+        TrainingImage::continuous(&model([side, side, 1], values), "v").unwrap()
+    }
+
+    #[test]
+    fn each_zone_takes_its_values_from_its_continuous_image() {
+        let side = 48;
+        let snesim =
+            Snesim::zoned(vec![continuous(64, 0.0), continuous(64, 10.0)], params()).unwrap();
+        let zones: Vec<usize> = (0..side * side)
+            .map(|m| usize::from(m % side >= side / 2))
+            .collect();
+        let local = SnesimLocal {
+            zones: Some(&zones),
+            ..SnesimLocal::default()
+        };
+        let s = snesim
+            .simulate_values(&grid(side), None, local, 4, 7, &Keep::All, 0, None)
+            .unwrap();
+        for r in &s.realizations {
+            for (v, &z) in r.iter().zip(&zones) {
+                assert!((*v >= 10.0) == (z == 1), "value {v} in zone {z}");
+            }
+        }
+    }
+
+    #[test]
+    fn continuous_channels_follow_a_rotation_field() {
+        let side = 64;
+        let snesim = Snesim::new(continuous(120, 0.0), params()).unwrap();
+        let f = field(side * side, |m| {
+            (if m % side < side / 2 { 90.0 } else { 0.0 }, 1.0, 1.0)
+        });
+        let s = snesim
+            .simulate_values(
+                &grid(side),
+                None,
+                anisotropic(&f),
+                6,
+                7,
+                &Keep::All,
+                0,
+                None,
+            )
+            .unwrap();
+        let [west, east] = [(0, side / 2), (side / 2, side)].map(|(a, b)| {
+            let r = s.realizations.iter().map(|r| {
+                let codes: Vec<usize> = r.iter().map(|&v| usize::from(v >= 1.0)).collect();
+                runs(&codes, side, a, b)
+            });
+            let [x, y] = r.fold([0.0; 2], |t, v| [t[0] + v[0], t[1] + v[1]]);
+            x / y
+        });
+        assert!(
+            east > 1.4 && west < 0.6,
+            "x/y runs {west} west, {east} east"
+        );
+    }
+
     #[test]
     fn bad_cutoffs_are_refused() {
         let with = |c: Vec<f64>| {

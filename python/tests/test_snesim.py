@@ -220,3 +220,17 @@ def test_continuous_round_trip_simulates_bit_identically(tmp_path):
         back.simulate(grid, n=2, seed=3, keep=True, progress=False).realizations,
         s.simulate(grid, n=2, seed=3, keep=True, progress=False).realizations,
     )
+
+
+def test_continuous_zones_and_anisotropy_round_trip(tmp_path):
+    low, high = grades(), grades()
+    high = high.with_columns({"grade": high["grade"] + 10})
+    s = cs.SNESIM({"west": (low, "grade"), "east": (high, "grade")}, template_size=12, n_levels=1)
+    domains = np.where(grid.centroids[:, 0] < 20, "west", "east")
+    field = cs.LocalAnisotropy(grid.centroids, np.tile([45.0, 0, 0], (1600, 1)), np.ones((1600, 2)))
+    run = {"n": 2, "seed": 5, "keep": True, "domains": domains, "anisotropy": field, "progress": False}
+    r = s.simulate(grid, **run).realizations
+    np.testing.assert_array_equal(r >= 10, np.tile(domains == "east", (2, 1)))
+    s.to_parquet(tmp_path / "zoned.parquet")
+    back = cs.SNESIM.from_parquet(tmp_path / "zoned.parquet")
+    np.testing.assert_array_equal(back.simulate(grid, **run).realizations, r)

@@ -16,7 +16,7 @@ sys.path.insert(0, str(HERE.parents[1]))
 import ceres as cs
 import matplotlib.pyplot as plt
 import numpy as np
-from common import ACCENT, GRAY, HIGHLIGHT, INK, LIGHT, save
+from common import GRAY, HIGHLIGHT, INK, save
 from matplotlib.colors import ListedColormap
 
 ti = cs.datasets.strebelle()
@@ -74,7 +74,7 @@ for code, label in ((1, "sand"), (0, "shale")):
     )
 
 # %%
-codes = ListedColormap([LIGHT, ACCENT])
+codes = ListedColormap(["black", "white"])
 fig, axes = plt.subplots(1, 4, figsize=(15, 4), layout="constrained", width_ratios=[1, 1, 1, 0.9])
 for ax, img, title in (
     (axes[0], image, "Training image and data"),
@@ -82,17 +82,17 @@ for ax, img, title in (
 ):
     ax.imshow(img, origin="lower", cmap=codes, vmin=0, vmax=1, interpolation="nearest")
     ax.scatter(
-        *wells[:, :2].T, s=10, c=np.where(facies == 1, HIGHLIGHT, INK), edgecolors="white", linewidths=0.4
+        *wells[:, :2].T, s=10, c=np.where(facies == 1, "white", "black"), edgecolors=HIGHLIGHT, linewidths=0.9
     )
     ax.set_title(title)
-im = axes[2].imshow(p_sand, origin="lower", vmin=0, vmax=1)
+im = axes[2].imshow(p_sand, origin="lower", cmap="gray", vmin=0, vmax=1)
 axes[2].set_title("P(sand), 50 realizations")
 fig.colorbar(im, ax=axes[2], shrink=0.8, label="probability")
 for ax in axes[:3]:
     ax.set(xticks=[], yticks=[])
 fig.get_layout_engine().set(wspace=0.08)
 bins = np.linspace(0.26, 0.34, 17)
-for name, color in (("plain", GRAY), ("servo", ACCENT)):
+for name, color in (("plain", GRAY), ("servo", INK)):
     axes[3].hist(summaries[name].proportions[:, 1], bins, color=color, alpha=0.8, label=name)
 axes[3].axvline(sand, color=HIGHLIGHT, lw=1.4, label="image")
 axes[3].set(xlabel="share of sand per realization", ylabel="realizations", title="Proportions")

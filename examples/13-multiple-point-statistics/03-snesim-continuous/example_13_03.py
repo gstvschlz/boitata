@@ -18,7 +18,7 @@ sys.path.insert(0, str(HERE.parents[1]))
 import ceres as cs
 import matplotlib.pyplot as plt
 import numpy as np
-from common import ACCENT, GRAY, HIGHLIGHT, INK, LIGHT, save
+from common import GRAY, HIGHLIGHT, INK, LIGHT, save
 
 seismic = cs.datasets.f3_seismic()
 nx, ny, nz = seismic.count
@@ -105,10 +105,10 @@ for r in summary.realizations:
 ax.plot([], [], color=LIGHT, label="3 realizations")
 ax.plot(np.sort(image.ravel()), np.linspace(0, 1, image.size), color=INK, lw=1.4, label="training image")
 ax.plot(
-    np.sort(truth.ravel()), np.linspace(0, 1, truth.size), color=ACCENT, lw=1.4, ls="--", label="true section"
+    np.sort(truth.ravel()), np.linspace(0, 1, truth.size), color=GRAY, lw=1.4, ls="--", label="true section"
 )
 for q in np.quantile(image, [0.25, 0.5, 0.75]):
-    ax.axvline(q, color=GRAY, lw=0.6, ls=":")
+    ax.axvline(q, color=INK, lw=0.6, ls=":")
 ax.set(xlabel="amplitude", ylabel="cumulative probability", title="Histograms; dotted: class cutoffs")
 ax.legend(loc="lower right")
 save(fig, "histograms")

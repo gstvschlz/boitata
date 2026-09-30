@@ -18,7 +18,7 @@ sys.path.insert(0, str(HERE.parents[1]))
 import ceres as cs
 import matplotlib.pyplot as plt
 import numpy as np
-from common import ACCENT, INK, LIGHT, save
+from common import INK, save
 from matplotlib.colors import ListedColormap
 
 ti = cs.datasets.strebelle()
@@ -68,7 +68,7 @@ for levels in (0, 1, 2, 3):
 # than the image. The servosystem in the next page pulls it back.
 
 # %%
-codes = ListedColormap([LIGHT, ACCENT])
+codes = ListedColormap(["black", "white"])
 fig, axes = plt.subplots(1, 5, figsize=(15, 3.6), layout="constrained")
 panels = [(image, "Training image")] + [(realizations[k], f"n_levels={k}") for k in realizations]
 for ax, (img, title) in zip(axes, panels):
