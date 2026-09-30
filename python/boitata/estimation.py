@@ -199,9 +199,11 @@ class _Base:
             multiplier; 0 for simple kriging, NaN where undefined), ``max_samples_reached`` (1 where the
             search returned `max_samples`), ``n_other_domain`` (samples used from domains other than the
             target's), ``support_variance`` (the variance of the target's support, the sill for points and
-            sill minus the mean variogram within the block for blocks, nugget excluded) and
+            sill minus the mean variogram within the block for blocks, nugget excluded),
             ``estimate_variance`` (the variance of the estimator; the further below ``support_variance``,
-            the smoother the estimates). NaN where unestimated.
+            the smoother the estimates) and ``target_met`` (1 where the samples used reach the search's
+            `target_slope` or `target_efficiency`, 0 where even `max_samples` fall short, NaN without
+            one). NaN where unestimated.
         domains : array_like or label, optional
             Domain label of each target, or one label for all of them; required when fitted with domains.
             Targets of a domain without samples stay NaN.

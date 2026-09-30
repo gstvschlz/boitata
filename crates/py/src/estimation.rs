@@ -1,8 +1,8 @@
 use estimation::{
-    Discretization, DriftSpec, DualKriging, Estimate, HighGrade, HighGradeMode, InterpEstimate,
-    InterpOptions, Kind, NeighborhoodStats, Sample, Search as CoreSearch, Soft, SoftPair,
-    block_krige, by_pass, estimate_many_ext, estimate_many_with, k_fold_at, krige, krige_bayesian,
-    krige_factorial, krige_universal, leave_one_out_at,
+    Calibration, Discretization, DriftSpec, DualKriging, Estimate, HighGrade, HighGradeMode,
+    InterpEstimate, InterpOptions, Kind, NeighborhoodStats, Sample, Search as CoreSearch, Soft,
+    SoftPair, block_krige, by_pass, estimate_many_ext, estimate_many_with, k_fold_at, krige,
+    krige_bayesian, krige_factorial, krige_universal, leave_one_out_at,
 };
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -198,6 +198,11 @@ impl PyHighGrade {
 /// distance in the same ellipsoid: one distance for every pair of domains,
 /// or a dict `{(target_domain, sample_domain): distance}`, one way; pairs not
 /// listed are hard.
+/// `target_slope` or `target_efficiency` (at most one) calibrate the kriging
+/// estimators per target: each takes the fewest samples from `min_samples`
+/// whose slope of regression or kriging efficiency reaches it, and
+/// `max_samples` where none does. With `octant` the fewer samples are taken
+/// from the sectors in turn.
 #[derive(Serialize, Deserialize)]
 #[pyclass(module = "boitata", name = "Search", frozen, from_py_object)]
 #[derive(Clone)]
@@ -255,12 +260,24 @@ pub fn labels(obj: &Bound<PyAny>, n: Option<usize>) -> PyResult<Vec<Label>> {
 impl Search {
     /// The parameters of a search that has no soft boundaries, for `what`.
     pub fn plain(self, what: &str) -> PyResult<CoreSearch> {
+        self.uncalibrated(what)?;
         match self.soft {
             Some(_) => Err(invalid(format!(
                 "{what} does not take domains; Search.soft works with SGS, TurningBands and the kriging, \
                  inverse-distance, nearest-neighbor and interpolation estimators"
             ))),
             None => Ok(self.core),
+        }
+    }
+
+    /// An error unless the search is uncalibrated, for `what`.
+    pub fn uncalibrated(&self, what: &str) -> PyResult<()> {
+        match self.core.calibration {
+            Some(_) => Err(invalid(format!(
+                "{what} does not take target_slope or target_efficiency; they calibrate the \
+                 ordinary, simple, indicator, universal, external-drift and block kriging estimators"
+            ))),
+            None => Ok(()),
         }
     }
 
@@ -347,7 +364,7 @@ impl Search {
     }
 
     #[new]
-    #[pyo3(signature = (radius, *, max_samples=16, min_samples=1, octant=false, max_per_hole=None, rotation=None, ratios=None, high_grade=None, soft=None))]
+    #[pyo3(signature = (radius, *, max_samples=16, min_samples=1, octant=false, max_per_hole=None, rotation=None, ratios=None, high_grade=None, soft=None, target_slope=None, target_efficiency=None))]
     #[allow(clippy::too_many_arguments)]
     fn new(
         radius: f64,
@@ -359,7 +376,25 @@ impl Search {
         ratios: Option<(f64, f64)>,
         high_grade: Option<&Bound<PyAny>>,
         soft: Option<&Bound<PyAny>>,
+        target_slope: Option<f64>,
+        target_efficiency: Option<f64>,
     ) -> PyResult<Self> {
+        let calibration = match (target_slope, target_efficiency) {
+            (Some(_), Some(_)) => {
+                return Err(invalid(
+                    "give at most one of target_slope and target_efficiency",
+                ));
+            }
+            (Some(s), None) if !s.is_finite() || s <= 0.0 => {
+                return Err(invalid("target_slope must be finite and > 0"));
+            }
+            (None, Some(e)) if !e.is_finite() || e > 1.0 => {
+                return Err(invalid("target_efficiency must be finite and <= 1"));
+            }
+            (Some(s), None) => Some(Calibration::Slope(s)),
+            (None, Some(e)) => Some(Calibration::Efficiency(e)),
+            (None, None) => None,
+        };
         let high_grade = high_grade.map(PyHighGrade::of).transpose()?;
         if radius.is_nan() || radius <= 0.0 || max_samples == 0 || min_samples > max_samples {
             return Err(invalid(
@@ -383,6 +418,7 @@ impl Search {
                 },
                 high_grade,
                 soft: None,
+                calibration,
             },
         })
     }
@@ -443,6 +479,24 @@ impl Search {
                 d.into_any()
             }
         }))
+    }
+
+    /// Slope of regression the search is calibrated to; None when it is not.
+    #[getter]
+    fn target_slope(&self) -> Option<f64> {
+        match self.core.calibration? {
+            Calibration::Slope(s) => Some(s),
+            Calibration::Efficiency(_) => None,
+        }
+    }
+
+    /// Kriging efficiency the search is calibrated to; None when it is not.
+    #[getter]
+    fn target_efficiency(&self) -> Option<f64> {
+        match self.core.calibration? {
+            Calibration::Efficiency(e) => Some(e),
+            Calibration::Slope(_) => None,
+        }
     }
 
     /// Semi-major/major and minor/major ratios; None as for `rotation`.
@@ -552,6 +606,83 @@ impl Method {
         }
     }
 
+    /// An error when a search is calibrated and this method cannot be.
+    fn calibrates(&self, searches: &[Search]) -> PyResult<()> {
+        for s in searches {
+            match (self, s.core.calibration) {
+                (_, None) => {}
+                (Method::Kriging(Kind::Simple { .. }), Some(Calibration::Slope(_))) => {
+                    return Err(invalid(
+                        "simple kriging has a slope of regression of 1; calibrate it with target_efficiency",
+                    ));
+                }
+                (
+                    Method::Kriging(_)
+                    | Method::Universal(_)
+                    | Method::ExternalDrift { .. }
+                    | Method::Block { .. },
+                    _,
+                ) => {}
+                _ => s.uncalibrated("this estimator")?,
+            }
+        }
+        Ok(())
+    }
+
+    /// How many of the samples `s`, ordered by the search, to krige `t`
+    /// with under the calibration of `search`, and whether they meet it;
+    /// all of them and None without calibration. `external` holds the
+    /// external-drift rows of the samples and of the target.
+    fn calibrated(
+        &self,
+        search: &CoreSearch,
+        t: &Point,
+        s: &[Sample],
+        vg: Option<&CoreVariogram>,
+        external: Option<(&[Vec<f64>], &[f64])>,
+    ) -> (usize, Option<bool>) {
+        let (Some(calibration), Some(vg)) = (search.calibration, vg) else {
+            return (s.len(), None);
+        };
+        let locs = || s.iter().map(|s| s.loc).collect::<Vec<Point>>();
+        let rhs = || s.iter().map(|s| vg.cov_points(&s.loc, t)).collect();
+        let (rhs, drift, support) = match self {
+            Method::Kriging(Kind::Simple { .. }) => (rhs(), DriftSpec::simple(s.len()), None),
+            Method::Kriging(_) => (rhs(), DriftSpec::ordinary(s.len()), None),
+            Method::Universal(degree) => (rhs(), DriftSpec::polynomial(&locs(), t, *degree), None),
+            Method::ExternalDrift { degree, .. } => {
+                let drift = DriftSpec::polynomial(&locs(), t, *degree);
+                let drift = match external {
+                    Some((rows, at)) => drift.with_external(rows, at),
+                    None => drift,
+                };
+                (rhs(), drift, None)
+            }
+            Method::Block { size, disc } => {
+                let (rhs, cbb) = estimation::block_covariances(&disc.points(t, size), s, vg);
+                (rhs, DriftSpec::ordinary(s.len()), Some(cbb))
+            }
+            _ => return (s.len(), None),
+        };
+        let support = support.unwrap_or_else(|| vg.total_sill());
+        let quality = estimation::prefix_quality(s, vg, &rhs, &drift, support);
+        let (n, met) = estimation::calibrated_count(calibration, search.min_samples, &quality);
+        (n, Some(met))
+    }
+
+    /// [`Method::run`] on the samples of `s` that the calibration of
+    /// `search` keeps.
+    fn estimate(
+        &self,
+        search: &CoreSearch,
+        t: &Point,
+        s: &[Sample],
+        vg: Option<&CoreVariogram>,
+    ) -> estimation::Result<Used> {
+        let (n, met) = self.calibrated(search, t, s, vg, None);
+        used(t, &s[..n], self.run(t, &s[..n], vg), met)
+    }
+
     /// Whether the estimate is a weighted sum of the data, as `weights` needs.
     fn linear(&self) -> bool {
         !matches!(
@@ -627,13 +758,19 @@ pub fn outputs<'py>(
     Ok(PyTuple::new(py, [value, variance])?.into_any())
 }
 
-/// The estimate, statistics of the samples used and their domains.
-type Used = (Estimate, NeighborhoodStats, Vec<Option<u32>>);
+/// The estimate, statistics of the samples used, their domains and whether
+/// they meet the search's calibration.
+type Used = (Estimate, NeighborhoodStats, Vec<Option<u32>>, Option<bool>);
 
-fn used(t: &Point, s: &[Sample], e: estimation::Result<Estimate>) -> estimation::Result<Used> {
+fn used(
+    t: &Point,
+    s: &[Sample],
+    e: estimation::Result<Estimate>,
+    met: Option<bool>,
+) -> estimation::Result<Used> {
     e.map(|e| {
         let near = estimation::neighborhood_stats(t, s, s.len(), f64::INFINITY, None);
-        (e, near, s.iter().map(|s| s.domain).collect())
+        (e, near, s.iter().map(|s| s.domain).collect(), met)
     })
 }
 
@@ -647,7 +784,7 @@ fn diagnostics(
         floats(
             results
                 .iter()
-                .map(|r| r.as_ref().map_or(f64::NAN, |(p, (e, s, _))| f(*p, e, s)))
+                .map(|r| r.as_ref().map_or(f64::NAN, |(p, (e, s, ..))| f(*p, e, s)))
                 .collect(),
         )
     };
@@ -655,10 +792,17 @@ fn diagnostics(
         .iter()
         .enumerate()
         .map(|(i, r)| {
-            r.as_ref().map_or(f64::NAN, |(_, (_, _, used))| {
+            r.as_ref().map_or(f64::NAN, |(_, (_, _, used, _))| {
                 let own = domains.and_then(|d| d[i]);
                 used.iter().filter(|&&d| own.is_some() && d != own).count() as f64
             })
+        })
+        .collect();
+    let met = results
+        .iter()
+        .map(|r| match r {
+            Some((_, (.., Some(met)))) => f64::from(u8::from(*met)),
+            _ => f64::NAN,
         })
         .collect();
     let full = |p: usize, s: &NeighborhoodStats| s.n_within >= searches[p].max_samples;
@@ -686,6 +830,7 @@ fn diagnostics(
             "max_samples_reached",
             column(&|p, _, s| full(p, s) as u8 as f64),
         ),
+        ("target_met", floats(met)),
     ];
     Ok(Table(RecordBatch::try_from_iter(columns).map_err(invalid)?))
 }
@@ -773,6 +918,15 @@ pub fn searches(obj: &Bound<PyAny>) -> PyResult<Vec<Search>> {
     };
     if search.is_empty() {
         return Err(invalid("search needs at least one Search"));
+    }
+    Ok(search)
+}
+
+/// [`searches`] for `what`, which takes no calibration.
+pub fn plain_searches(obj: &Bound<PyAny>, what: &str) -> PyResult<Vec<Search>> {
+    let search = searches(obj)?;
+    for s in &search {
+        s.uncalibrated(what)?;
     }
     Ok(search)
 }
@@ -1006,6 +1160,7 @@ impl Estimator {
         if method.kriging() && variogram.is_none() {
             return Err(invalid("kriging needs a variogram"));
         }
+        method.calibrates(&search)?;
         Ok(Self {
             method,
             variogram: variogram.map(|v| v.0),
@@ -1082,7 +1237,12 @@ impl Estimator {
                         samples,
                         search,
                         vg,
-                        |t, s| self.method.weights(t, s, vg),
+                        |t, s| {
+                            let (n, _) = self.method.calibrated(search, t, s, vg, None);
+                            let mut w = self.method.weights(t, &s[..n], vg)?;
+                            w.resize(s.len(), 0.0);
+                            Ok(w)
+                        },
                     ))
                 })
             })
@@ -1213,14 +1373,15 @@ impl Estimator {
                             search,
                             vg,
                             |t, s, cov, e| {
+                                let (n, met) =
+                                    self.method.calibrated(search, t, s, vg, Some((cov, e)));
+                                let (s, cov) = (&s[..n], &cov[..n]);
                                 let locs: Vec<Point> = s.iter().map(|x| x.loc).collect();
                                 let drift =
                                     DriftSpec::polynomial(&locs, t, *degree).with_external(cov, e);
-                                used(
-                                    t,
-                                    s,
-                                    krige_universal(t, s, &drift, vg.expect("kriging"), None),
-                                )
+                                let kriged =
+                                    krige_universal(t, s, &drift, vg.expect("kriging"), None);
+                                used(t, s, kriged, met)
                             },
                             counter,
                         ))
@@ -1231,7 +1392,7 @@ impl Estimator {
                         samples,
                         search,
                         vg,
-                        |t, s| used(t, s, self.method.run(t, s, vg)),
+                        |t, s| self.method.estimate(search, t, s, vg),
                         counter,
                     )),
                     (Some(local), _) => estimation::lva::estimate_many_local_with(
@@ -1241,7 +1402,7 @@ impl Estimator {
                         samples,
                         search,
                         &base,
-                        |t, s, v| used(t, s, self.method.run(t, s, Some(v))),
+                        |t, s, v| self.method.estimate(search, t, s, Some(v)),
                         counter,
                     ),
                 }
@@ -1264,6 +1425,7 @@ impl Estimator {
     /// keeping the method, variogram, fitted samples and domains.
     fn with_search(&self, search: &Bound<PyAny>) -> PyResult<Self> {
         let search = searches(search)?;
+        self.method.calibrates(&search)?;
         if self.samples.is_some() {
             for s in &search {
                 s.resolve(self.domains.as_deref())?;
@@ -1333,12 +1495,16 @@ impl Estimator {
         let samples = self.fitted()?;
         let search = self.passes()?;
         let vg = self.variogram.as_ref();
-        let run = |t: &Point, s: &[Sample]| self.method.run(t, s, vg);
         let passes = py
             .detach(|| {
-                by_pass(samples.len(), &search, |search, remaining| match folds {
-                    None => Ok(leave_one_out_at(remaining, samples, search, vg, run)),
-                    Some(k) => k_fold_at(k, remaining, samples, search, vg, run),
+                by_pass(samples.len(), &search, |search, remaining| {
+                    let run = |t: &Point, s: &[Sample]| {
+                        self.method.estimate(search, t, s, vg).map(|u| u.0)
+                    };
+                    match folds {
+                        None => Ok(leave_one_out_at(remaining, samples, search, vg, run)),
+                        Some(k) => k_fold_at(k, remaining, samples, search, vg, run),
+                    }
                 })
             })
             .map_err(invalid)?;

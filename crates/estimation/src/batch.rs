@@ -50,6 +50,7 @@ where
         .enumerate()
         .map(|(i, target)| {
             let chosen = tree.neighbors_in(target, domains.map(|d| d[i])).ok()?;
+            let chosen = tree.balanced(target, None, chosen);
             let selected = tree.take(target, None, &chosen, samples);
             let result = estimator(target, &selected).ok();
             tick(progress, &result);
@@ -91,6 +92,7 @@ where
         .enumerate()
         .map(|(i, target)| {
             let chosen = tree.neighbors_in(target, domains.map(|d| d[i])).ok()?;
+            let chosen = tree.balanced(target, None, chosen);
             let selected = tree.take(target, None, &chosen, samples);
             let cov: Vec<Vec<f64>> = chosen.iter().map(|&j| covariates[j].clone()).collect();
             let result = estimator(target, &selected, &cov, &ext[i]).ok();
@@ -116,7 +118,7 @@ where
     targets
         .par_iter()
         .map(|target| {
-            let chosen = tree.neighbors_in(target, None).ok()?;
+            let chosen = tree.balanced(target, None, tree.neighbors_in(target, None).ok()?);
             let selected = tree.take(target, None, &chosen, samples);
             Some((chosen, weights(target, &selected).ok()?))
         })
@@ -219,6 +221,7 @@ where
             if chosen.len() < search.min_samples.max(1) {
                 return None;
             }
+            let chosen = tree.balanced(target, None, chosen);
             let selected = tree.take(target, None, &chosen, samples);
             estimator(target, &selected).ok()
         })
@@ -282,7 +285,8 @@ where
 mod tests {
     use super::*;
     use crate::krige::{Estimate, Kind, krige};
-    use crate::search::{HighGrade, HighGradeMode, Soft, SoftPair};
+    use crate::kriging_algebra::krige_calibrated;
+    use crate::search::{Calibration, HighGrade, HighGradeMode, Soft, SoftPair};
     use std::sync::atomic::{AtomicUsize, Ordering};
 
     type Point = (f64, f64, f64);
@@ -309,6 +313,7 @@ mod tests {
             anisotropy: None,
             high_grade: None,
             soft: None,
+            calibration: None,
         };
         let targets: Vec<_> = (0..400)
             .map(|i| ((i % 20) as f64 * 5.0, (i / 20) as f64 * 5.0, 0.0))
@@ -349,6 +354,7 @@ mod tests {
             anisotropy: None,
             high_grade: None,
             soft: None,
+            calibration: None,
         };
         let targets: Vec<_> = (0..50).map(|i| (i as f64 * 5.0, 0.0, 0.0)).collect();
         let at = |t: &Point, s: &[Sample]| krige(Kind::Ordinary, t, s, &vg);
@@ -387,6 +393,7 @@ mod tests {
             anisotropy: None,
             high_grade: None,
             soft: None,
+            calibration: None,
         };
         let ours = leave_one_out_many(&samples, &search, Some(&vg), |t, s| {
             krige(Kind::Ordinary, t, s, &vg)
@@ -495,6 +502,7 @@ mod tests {
             anisotropy: None,
             high_grade: None,
             soft: None,
+            calibration: None,
         };
         let targets: Vec<_> = samples.iter().map(|s| s.loc).collect();
         let out = estimate_many(&targets, None, &samples, &search, Some(&vg), |t, s| {
@@ -587,18 +595,14 @@ mod tests {
         assert!(filled[0] > 0 && filled[1] > 0, "{filled:?}");
     }
 
-    #[test]
-    fn more_samples_raise_the_slope_and_smooth_the_blocks() {
+    /// 400 samples over 200 × 200 of a Gaussian field with variogram `vg`.
+    fn gaussian(vg: &Variogram) -> Vec<Sample> {
         let mut state = 7u64;
         let mut next = || {
             state = state
                 .wrapping_mul(6364136223846793005)
                 .wrapping_add(1442695040888963407);
             (state >> 11) as f64 / (1u64 << 53) as f64
-        };
-        let vg = Variogram {
-            nugget: 0.2,
-            ..Variogram::single(Model::Spherical, 0.8, 60.0)
         };
         let locs: Vec<Point> = (0..400)
             .map(|_| (next() * 200.0, next() * 200.0, 0.0))
@@ -609,11 +613,142 @@ mod tests {
             (-2.0 * u.ln()).sqrt() * (std::f64::consts::TAU * v).cos()
         });
         let field = cov.cholesky().unwrap().l() * normals;
-        let samples: Vec<Sample> = locs
-            .iter()
+        locs.iter()
             .zip(&field)
             .map(|(&l, &z)| Sample::new(l, z))
+            .collect()
+    }
+
+    #[test]
+    fn a_higher_calibration_takes_more_samples_and_smooths() {
+        let vg = Variogram {
+            nugget: 0.2,
+            ..Variogram::single(Model::Spherical, 0.8, 60.0)
+        };
+        let samples = gaussian(&vg);
+        let targets: Vec<Point> = (0..900)
+            .map(|i| {
+                (
+                    3.0 + (i % 30) as f64 * 6.5,
+                    3.0 + (i / 30) as f64 * 6.5,
+                    0.0,
+                )
+            })
             .collect();
+        let run = |calibration: Option<Calibration>, octant: bool, threads: usize| {
+            let search = Search {
+                min_samples: 2,
+                max_samples: 24,
+                octant,
+                calibration,
+                ..Default::default()
+            };
+            rayon::ThreadPoolBuilder::new()
+                .num_threads(threads)
+                .build()
+                .unwrap()
+                .install(|| {
+                    estimate_many(&targets, None, &samples, &search, Some(&vg), |t, s| {
+                        match calibration {
+                            Some(c) => krige_calibrated(Kind::Ordinary, t, s, &vg, c, 2),
+                            None => Ok((krige(Kind::Ordinary, t, s, &vg)?, true)),
+                        }
+                    })
+                })
+                .into_iter()
+                .map(Option::unwrap)
+                .collect::<Vec<_>>()
+        };
+        let summary = |out: &[(Estimate, bool)]| {
+            let n = out.len() as f64;
+            let used = out.iter().map(|e| e.0.n_used as f64).sum::<f64>() / n;
+            let mean = out.iter().map(|e| e.0.value).sum::<f64>() / n;
+            let spread = out.iter().map(|e| (e.0.value - mean).powi(2)).sum::<f64>() / n;
+            (used, spread)
+        };
+        let values = |out: &[(Estimate, bool)]| -> Vec<(u64, bool)> {
+            out.iter().map(|e| (e.0.value.to_bits(), e.1)).collect()
+        };
+        for octant in [false, true] {
+            let runs: Vec<(f64, f64)> = [0.5, 0.7, 0.85]
+                .into_iter()
+                .map(|s| summary(&run(Some(Calibration::Slope(s)), octant, 4)))
+                .collect();
+            for pair in runs.windows(2) {
+                assert!(pair[1].0 > pair[0].0 && pair[1].1 < pair[0].1, "{runs:?}");
+            }
+            let c = Some(Calibration::Efficiency(0.6));
+            assert_eq!(values(&run(c, octant, 1)), values(&run(c, octant, 8)));
+            let out = run(c, octant, 3);
+            assert!(out.iter().any(|e| e.1) && out.iter().any(|e| !e.1));
+            assert!(octant || out.iter().all(|e| e.1 || e.0.n_used == 24));
+        }
+        let plain = values(&run(None, true, 4));
+        let direct = estimate_many(
+            &targets,
+            None,
+            &samples,
+            &Search {
+                min_samples: 2,
+                max_samples: 24,
+                octant: true,
+                ..Default::default()
+            },
+            Some(&vg),
+            |t, s| krige(Kind::Ordinary, t, s, &vg),
+        );
+        let direct: Vec<(u64, bool)> = direct
+            .into_iter()
+            .map(|e| (e.unwrap().value.to_bits(), true))
+            .collect();
+        assert_eq!(plain, direct);
+    }
+
+    #[test]
+    fn calibrated_octant_searches_take_the_sectors_in_turn() {
+        let samples: Vec<Sample> = (0..40)
+            .map(|i| {
+                let (r, a) = (1.0 + i as f64, i as f64 * 0.37);
+                Sample::new((r * a.cos(), r * a.sin(), 0.0), 0.0)
+            })
+            .collect();
+        let octant = Search {
+            min_samples: 1,
+            max_samples: 16,
+            octant: true,
+            ..Default::default()
+        };
+        let calibrated = Search {
+            calibration: Some(Calibration::Slope(0.9)),
+            ..octant.clone()
+        };
+        let t = (0.0, 0.0, 0.0);
+        let plain = SearchTree::new(&samples, &octant, None);
+        let chosen = plain.neighbors(&t).unwrap();
+        assert_eq!(plain.balanced(&t, None, chosen.clone()), chosen);
+        let tree = SearchTree::new(&samples, &calibrated, None);
+        let turns = tree.balanced(&t, None, tree.neighbors(&t).unwrap());
+        let mut sorted = turns.clone();
+        sorted.sort_unstable();
+        let mut expected = chosen.clone();
+        expected.sort_unstable();
+        assert_eq!(sorted, expected);
+        let quadrant = |i: usize| {
+            let (x, y, _) = samples[i].loc;
+            ((x >= 0.0) as usize) << 1 | (y >= 0.0) as usize
+        };
+        let mut first: Vec<usize> = turns[..4].iter().map(|&i| quadrant(i)).collect();
+        first.sort_unstable();
+        assert_eq!(first, [0, 1, 2, 3]);
+    }
+
+    #[test]
+    fn more_samples_raise_the_slope_and_smooth_the_blocks() {
+        let vg = Variogram {
+            nugget: 0.2,
+            ..Variogram::single(Model::Spherical, 0.8, 60.0)
+        };
+        let samples = gaussian(&vg);
         let blocks: Vec<Point> = (0..400)
             .map(|i| {
                 (

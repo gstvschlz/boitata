@@ -941,6 +941,7 @@ mod tests {
             anisotropy: None,
             high_grade: None,
             soft: None,
+            calibration: None,
         }
     }
 

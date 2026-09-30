@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::args::{self, Label, array1, column, optional_finite, pick, points, same_length};
 use crate::categories::{Categories, labels, refs};
-use crate::estimation::{Search, codes, sample_columns, samples_from, searches, targets};
+use crate::estimation::{Search, codes, plain_searches, sample_columns, samples_from, targets};
 use crate::indicator::{
     diagnostic_columns, diagnostics_table, push_diagnostics, restore_diagnostics,
 };
@@ -77,7 +77,7 @@ impl CategoricalIndicatorKriging {
         model.validate().map_err(invalid)?;
         Ok(Self {
             model,
-            search: searches(search)?,
+            search: plain_searches(search, "CategoricalIndicatorKriging")?,
             scheme,
             domains: None,
             samples: None,

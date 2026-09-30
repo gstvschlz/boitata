@@ -118,4 +118,64 @@ save(fig, "calibration")
 
 ![calibration](calibration.png)
 
+`calibrate_search` picks one search for every block. A search with `target_slope` (or `target_efficiency`)
+calibrates it block by block instead: each block takes the fewest samples, from `min_samples`, whose slope of
+regression reaches the target, and `max_samples` where none does; the diagnostics' `target_met` flags which.
+Well-informed blocks keep few samples and stay sharp, sparse ones gather more.
+
+<details><summary>Python</summary>
+
+```python
+print(f"{'target':>7} {'samples':>8} {'met':>6} {'true slope':>11} {'variance ratio':>15}")
+local = {}
+for target in (0.85, 0.9, 0.95):
+    calibrated = bt.Search(
+        radius=80,
+        max_samples=48,
+        min_samples=4,
+        rotation=model.rotation,
+        ratios=(0.5, 1.0),
+        target_slope=target,
+    )
+    d = kriging.with_search(calibrated).predict(blocks, diagnostics=True)
+    local[target] = d["n_samples"]
+    estimate = d["value"]
+    print(
+        f"{target:7.2f} {d['n_samples'].mean():8.1f} {np.mean(d['target_met'] == 1):6.0%}"
+        f" {np.polyfit(estimate, true_blocks, 1)[0]:11.2f} {estimate.var() / true_blocks.var():15.2f}"
+    )
+```
+
+</details>
+
+```text
+ target  samples    met  true slope  variance ratio
+   0.85      5.7    98%        0.95            0.87
+   0.90      8.4    92%        0.97            0.84
+   0.95     14.4    82%        1.00            0.78
+```
+
+A higher target takes more samples, raises the true slope and smooths more, as a larger fixed search does. At
+about the same mean count as a fixed search the calibrated one smooths a little less for a slightly lower slope,
+since the samples go where the drilling is sparse: the dense clusters keep the minimum, the edges and gaps
+take the most, and a few edge blocks fall short even at `max_samples`.
+
+<details><summary>Python</summary>
+
+```python
+fig, axes = plt.subplots(1, 3, figsize=(11, 4), layout="constrained")
+for ax, (target, n) in zip(axes, local.items(), strict=True):
+    image = ax.imshow(
+        n.reshape(30, 26), origin="lower", extent=(0, 260, 0, 300), vmin=4, vmax=48, cmap="viridis"
+    )
+    ax.plot(xy[:, 0], xy[:, 1], ".", color="white", ms=1)
+    ax.set(title=f"target_slope={target}", aspect="equal")
+fig.colorbar(image, ax=axes, shrink=0.8, label="samples per block")
+save(fig, "local")
+```
+
+</details>
+
+![local](local.png)
+
 Full script: [`example_06_07.py`](example_06_07.py)

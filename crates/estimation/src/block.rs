@@ -80,6 +80,32 @@ pub fn block_krige(
     block_krige_points(Kind::Ordinary, &disc.points(center, size), samples, vg)
 }
 
+/// Covariance of each sample with the block discretized by `pts`, and the
+/// block's own C(B, B).
+pub fn block_covariances(
+    pts: &[(f64, f64, f64)],
+    samples: &[Sample],
+    vg: &Variogram,
+) -> (Vec<f64>, f64) {
+    let np = pts.len() as f64;
+    let rhs = samples
+        .iter()
+        .map(|s| {
+            pts.iter()
+                .map(|p| vg.block_cov_points(&s.loc, p))
+                .sum::<f64>()
+                / np
+        })
+        .collect();
+    let mut cbb = 0.0;
+    for p in pts {
+        for q in pts {
+            cbb += vg.block_cov_points(p, q);
+        }
+    }
+    (rhs, cbb / (np * np))
+}
+
 /// Kriging of the mean over the block discretized by `pts`, in the form of
 /// `kind` as [`crate::krige`] applies it to points.
 pub fn block_krige_points(
@@ -94,28 +120,9 @@ pub fn block_krige_points(
     }
     let ordinary = !matches!(kind, Kind::Simple { .. });
     let dim = if ordinary { n + 1 } else { n };
-    let np = pts.len() as f64;
-
-    // Point-to-block average covariance for each sample (RHS) and block-to-block
-    // average covariance (for the variance term).
+    let (rhs, cbb) = block_covariances(pts, samples, vg);
     let mut b = DVector::<f64>::zeros(dim);
-    for i in 0..n {
-        let avg: f64 = pts
-            .iter()
-            .map(|p| vg.block_cov_points(&samples[i].loc, p))
-            .sum::<f64>()
-            / np;
-        b[i] = avg;
-    }
-
-    // Average block-to-block covariance C(B,B).
-    let mut cbb = 0.0;
-    for p in pts {
-        for q in pts {
-            cbb += vg.block_cov_points(p, q);
-        }
-    }
-    cbb /= np * np;
+    b.rows_mut(0, n).copy_from_slice(&rhs);
 
     let mut a = DMatrix::<f64>::zeros(dim, dim);
     for i in 0..n {
