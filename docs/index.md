@@ -102,10 +102,10 @@ Boitatá holds the tools I use for resource work: drill hole checks, statistics,
 
 ## Install
 
-Boitatá is not on PyPI yet. Install it from git (this builds the Rust core, so it needs Rust and a C compiler):
-
 ```bash
-pip install "boitata[all] @ git+https://github.com/gstvschlz/boitata"
+pip install "boitata[all]"
 ```
+
+Wheels for Linux, macOS and Windows, Python ≥ 3.11; no compiler needed.
 
 The [install page](install.md) covers uv, poetry, conda and pixi, wheels, extras and offline installs.

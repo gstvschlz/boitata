@@ -267,7 +267,7 @@ checksum = "3ded4057c258ba199e2d26386d3af3780957ecaee6c4ef4041c6b4b8b97c0b06"
 
 [[package]]
 name = "blocks"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "arrow-array",
  "arrow-select",
@@ -282,7 +282,7 @@ dependencies = [
 
 [[package]]
 name = "boitata-core"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "arrow-array",
  "arrow-cast",
@@ -298,7 +298,7 @@ dependencies = [
 
 [[package]]
 name = "boitata-io"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "arrow-array",
  "arrow-cast",
@@ -319,7 +319,7 @@ dependencies = [
 
 [[package]]
 name = "boitata-py"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "arrow-array",
  "arrow-cast",
@@ -482,7 +482,7 @@ checksum = "0c9ea0ac24bc397ab3c98583a3c9ba74fa56b09a4449bbe172b9b1ddb016027a"
 
 [[package]]
 name = "coda"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "thiserror",
 ]
@@ -627,7 +627,7 @@ dependencies = [
 
 [[package]]
 name = "drillholes"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "serde",
  "thiserror",
@@ -652,7 +652,7 @@ dependencies = [
 
 [[package]]
 name = "eda"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "kiddo",
  "rand 0.8.8",
@@ -729,7 +729,7 @@ dependencies = [
 
 [[package]]
 name = "estimation"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "arrow-array",
  "arrow-schema",
@@ -1112,7 +1112,7 @@ dependencies = [
 
 [[package]]
 name = "modeling"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "estimation",
  "nalgebra",
@@ -1909,7 +1909,7 @@ checksum = "e3a9fe34e3e7a50316060351f37187a3f546bce95496156754b601a5fa71b76e"
 
 [[package]]
 name = "simulation"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "arrow-array",
  "arrow-schema",
@@ -2077,7 +2077,7 @@ dependencies = [
 
 [[package]]
 name = "transforms"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "arrow-array",
  "arrow-schema",
@@ -2154,7 +2154,7 @@ dependencies = [
 
 [[package]]
 name = "variogram"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "boitata-core",
  "criterion",
