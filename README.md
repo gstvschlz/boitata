@@ -18,7 +18,7 @@
   <a href="https://codecov.io/github/gstvschlz/boitata"><img src="https://codecov.io/github/gstvschlz/boitata/graph/badge.svg?token=QHMHF8VFRG" alt="codecov"></a>
 </p>
 
-> boitatá is a guardian spirit of mineral wealth and underground resources in Brazilian folklore.
+> boitatá is a guardian spirit of underground resources in Brazilian folklore.
 
 `boitatá` holds the tools I use for resource work: drill hole checks, statistics, transforms, variograms, kriging, simulation and model checks.
 
