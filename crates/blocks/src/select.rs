@@ -10,6 +10,7 @@
 //! between 7800 and 7850" query.
 
 use boitata_core::Polylines;
+use serde::{Deserialize, Serialize};
 
 use crate::distance::point_in_polygon;
 use crate::error::{BlockModelError, Result};
@@ -50,14 +51,32 @@ pub fn ring_is_closed(vertices: &[[f64; 3]]) -> bool {
 /// optional RL (elevation) window. A point is selected when its XY projection
 /// lies inside a feature, an odd number of its rings, and its z lies inside
 /// the window.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(try_from = "Unchecked")]
 pub struct PolygonSelector {
     features: Vec<Vec<Vec<(f64, f64)>>>,
+    #[serde(skip)]
     lo: [f64; 2],
+    #[serde(skip)]
     hi: [f64; 2],
     /// Inclusive elevation window, when constrained.
     rl_min: Option<f64>,
     rl_max: Option<f64>,
+}
+
+#[derive(Deserialize)]
+struct Unchecked {
+    features: Vec<Vec<Vec<(f64, f64)>>>,
+    rl_min: Option<f64>,
+    rl_max: Option<f64>,
+}
+
+impl TryFrom<Unchecked> for PolygonSelector {
+    type Error = BlockModelError;
+
+    fn try_from(u: Unchecked) -> Result<Self> {
+        Self::with_features(u.features, u.rl_min, u.rl_max)
+    }
 }
 
 impl PolygonSelector {
@@ -189,6 +208,25 @@ mod tests {
         assert!(sel.contains([5.0, 5.0, 123.0])); // z unconstrained
         assert!(!sel.contains([15.0, 5.0, 0.0]));
         assert!(!sel.contains([-1.0, 5.0, 0.0]));
+    }
+
+    #[test]
+    fn json_round_trip_selects_the_same() {
+        let (outer, hole) = (square(0.0, 10.0, 0.0), square(4.0, 6.0, 0.0));
+        let sel = PolygonSelector::new(&[&outer, &hole], false, Some(0.0), None).unwrap();
+        let text = serde_json::to_string(&sel).unwrap();
+        let back: PolygonSelector = serde_json::from_str(&text).unwrap();
+        assert_eq!(back.bounds(), sel.bounds());
+        for p in [
+            [1.0, 1.0, 1.0],
+            [5.0, 5.0, 1.0],
+            [1.0, 1.0, -1.0],
+            [11.0, 1.0, 1.0],
+        ] {
+            assert_eq!(back.contains(p), sel.contains(p));
+        }
+        let inverted = text.replace(r#""rl_max":null"#, r#""rl_max":-1.0"#);
+        assert!(serde_json::from_str::<PolygonSelector>(&inverted).is_err());
     }
 
     #[test]

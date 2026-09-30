@@ -25,6 +25,7 @@ arrow-array.workspace = true
 [dev-dependencies]
 criterion.workspace = true
 arrow-schema.workspace = true
+serde_json.workspace = true
 
 [[bench]]
 name = "simulation"

@@ -13,11 +13,26 @@ use serde::{Deserialize, Serialize};
 /// `t_ii(h) = p_i + (1 − p_i)·e^{−h/r}` and `t_ij(h) = p_j·(1 − e^{−h/r})` for `i≠j`,
 /// where `p_j` are marginal proportions and `r` a correlation range. Rows sum to 1.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(try_from = "Unchecked")]
 pub struct Transiogram {
     /// Marginal category proportions (must sum to ~1).
     pub proportions: Vec<f64>,
     /// Correlation range (meters).
     pub range: f64,
+}
+
+#[derive(Deserialize)]
+struct Unchecked {
+    proportions: Vec<f64>,
+    range: f64,
+}
+
+impl TryFrom<Unchecked> for Transiogram {
+    type Error = VarioError;
+
+    fn try_from(u: Unchecked) -> Result<Self> {
+        Self::new(u.proportions, u.range)
+    }
 }
 
 impl Transiogram {
@@ -162,6 +177,16 @@ pub fn empirical_transiogram(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn json_round_trip_is_checked() {
+        let t = Transiogram::new(vec![0.5, 0.3, 0.2], 50.0).unwrap();
+        let back: Transiogram = serde_json::from_str(&serde_json::to_string(&t).unwrap()).unwrap();
+        assert_eq!(back.proportions, t.proportions);
+        assert_eq!(back.range, t.range);
+        let bad = r#"{"proportions":[0.5,0.3],"range":50.0}"#;
+        assert!(serde_json::from_str::<Transiogram>(bad).is_err());
+    }
 
     #[test]
     fn rows_sum_to_one() {

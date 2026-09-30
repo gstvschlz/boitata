@@ -11,6 +11,7 @@ use numpy::{IntoPyArray, PyArray1, PyReadonlyArray2};
 use pyo3::prelude::*;
 use pyo3::types::{IntoPyDict, PyDict, PyTuple};
 use rayon::prelude::*;
+use serde::{Deserialize, Serialize};
 
 use crate::args::{
     Point, array1, column, domain_codes, finite, floats, named, points, rows, same_length, texts,
@@ -400,11 +401,24 @@ impl Mesh {
 /// close implicitly, or a Polylines, whose closed parts are used. Inside means
 /// an odd number of rings of a feature hold the point, so a ring inside
 /// another is a hole; raw rings are one feature.
+#[derive(Serialize, Deserialize)]
 #[pyclass(module = "boitata", name = "PolygonSelector", frozen)]
 pub struct PolygonSelector(CoreSelector);
 
 #[pymethods]
 impl PolygonSelector {
+    /// JSON of the rings and the elevation window.
+    fn to_json(&self) -> PyResult<String> {
+        crate::persist::to_json(self)
+    }
+
+    /// Reads `to_json` output; raises InvalidInput on another class's JSON
+    /// or a newer format.
+    #[staticmethod]
+    fn from_json(text: &str) -> PyResult<Self> {
+        crate::persist::from_json(text)
+    }
+
     #[new]
     #[pyo3(signature = (rings, *, closed=false, z_min=None, z_max=None))]
     fn new(
@@ -460,6 +474,7 @@ impl PolygonSelector {
 ///     surface keeps x and y. By default ``u`` and ``v`` are x and y.
 /// extrapolate : bool, default False
 ///     Unfold points above or below the layer too, instead of giving NaN.
+#[derive(Serialize, Deserialize)]
 #[pyclass(module = "boitata", name = "Unfold", frozen)]
 pub struct Unfold(blocks::Unfold);
 
@@ -473,6 +488,18 @@ fn triples<'py>(py: Python<'py>, rows: Vec<[f64; 3]>) -> Bound<'py, PyAny> {
 
 #[pymethods]
 impl Unfold {
+    /// JSON of the surfaces and options.
+    fn to_json(&self) -> PyResult<String> {
+        crate::persist::to_json(self)
+    }
+
+    /// Reads `to_json` output; raises InvalidInput on another class's JSON
+    /// or a newer format.
+    #[staticmethod]
+    fn from_json(text: &str) -> PyResult<Self> {
+        crate::persist::from_json(text)
+    }
+
     #[new]
     #[pyo3(signature = (footwall, hangingwall, *, mode="proportional", reference=None, extrapolate=false))]
     fn new(
