@@ -1,10 +1,12 @@
 use std::path::PathBuf;
 
 use boitata_io::{CsvOptions, Nodata, Shapes};
+use numpy::PyArray2;
 use pyo3::prelude::*;
+use pyo3::types::PyBytes;
 
 use crate::blocks::Mesh;
-use crate::containers::{PyBlockModel, PyPointSet, PyPolylines};
+use crate::containers::{PyBlockModel, PyPointSet, PyPolylines, coords_array};
 use crate::progress::with_progress;
 use crate::table::{Table, to_batch, to_batches};
 use crate::{error, invalid};
@@ -263,6 +265,75 @@ fn write_shapefile(path: PathBuf, data: &Bound<PyAny>) -> PyResult<()> {
         .cast::<PyPointSet>()
         .map_err(|_| invalid("data must be a PointSet or Polylines"))?;
     boitata_io::write_shapefile(path, &points.get().0).map_err(io_error)
+}
+
+/// Decodes GeoPackage geometry blobs (None for null) into the WKB kind of each
+/// row (0 for null), the vertices, part offsets, and the row and closed flag
+/// of each part.
+#[pyfunction]
+#[allow(clippy::type_complexity)]
+fn _decode_geometries<'py>(
+    py: Python<'py>,
+    blobs: Vec<Option<Bound<'py, PyBytes>>>,
+) -> PyResult<(
+    Vec<u32>,
+    Bound<'py, PyArray2<f64>>,
+    Vec<usize>,
+    Vec<usize>,
+    Vec<bool>,
+)> {
+    let (mut kinds, mut vertices, mut offsets, mut rows, mut closed) =
+        (vec![], vec![], vec![0], vec![], vec![]);
+    for (row, blob) in blobs.iter().enumerate() {
+        let Some(blob) = blob else {
+            kinds.push(0);
+            continue;
+        };
+        let g = boitata_io::decode_geometry(blob.as_bytes()).map_err(io_error)?;
+        kinds.push(g.kind);
+        for (part, c) in g.parts {
+            vertices.extend(part);
+            offsets.push(vertices.len());
+            rows.push(row);
+            closed.push(c);
+        }
+    }
+    Ok((kinds, coords_array(py, &vertices), offsets, rows, closed))
+}
+
+/// GeoPackage geometry type name and one blob per point or feature (None for
+/// a feature without parts) of a PointSet or Polylines.
+#[pyfunction]
+fn _encode_geometries<'py>(
+    py: Python<'py>,
+    data: &Bound<'py, PyAny>,
+    srs_id: i32,
+) -> PyResult<(&'static str, Vec<Option<Bound<'py, PyBytes>>>)> {
+    if let Ok(points) = data.cast::<PyPointSet>() {
+        let blobs = points.get().0.coords().iter();
+        let blobs = blobs.map(|&p| Some(PyBytes::new(py, &boitata_io::encode_point(p, srs_id))));
+        return Ok(("POINT", blobs.collect()));
+    }
+    let lines = &data
+        .cast::<PyPolylines>()
+        .map_err(|_| invalid("data must be a PointSet or Polylines"))?
+        .get()
+        .0;
+    let polygon = lines.closed().iter().any(|&c| c);
+    if polygon && !lines.closed().iter().all(|&c| c) {
+        return Err(invalid("parts mix open and closed; split by `closed`"));
+    }
+    let blobs = (0..lines.len()).map(|f| {
+        let parts: Vec<&[[f64; 3]]> = lines.feature_parts(f).map(|p| lines.part(p)).collect();
+        (!parts.is_empty())
+            .then(|| PyBytes::new(py, &boitata_io::encode_parts(&parts, polygon, srs_id)))
+    });
+    let name = if polygon {
+        "MULTIPOLYGON"
+    } else {
+        "MULTILINESTRING"
+    };
+    Ok((name, blobs.collect()))
 }
 
 /// Reads a GeoTIFF raster as a 2D BlockModel.
@@ -557,6 +628,8 @@ pub fn register(m: &Bound<PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(write_mesh, m)?)?;
     m.add_function(wrap_pyfunction!(read_shapefile, m)?)?;
     m.add_function(wrap_pyfunction!(write_shapefile, m)?)?;
+    m.add_function(wrap_pyfunction!(_decode_geometries, m)?)?;
+    m.add_function(wrap_pyfunction!(_encode_geometries, m)?)?;
     m.add_function(wrap_pyfunction!(read_geotiff, m)?)?;
     m.add_function(wrap_pyfunction!(write_geotiff, m)?)?;
     m.add_function(wrap_pyfunction!(read_segy, m)?)?;

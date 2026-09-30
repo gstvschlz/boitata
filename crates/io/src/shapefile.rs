@@ -309,7 +309,7 @@ pub fn write_polylines_shapefile(path: impl AsRef<Path>, lines: &Polylines) -> R
 }
 
 /// Twice the signed xy area, positive counter-clockwise.
-fn area2(ring: &[[f64; 3]]) -> f64 {
+pub(crate) fn area2(ring: &[[f64; 3]]) -> f64 {
     let next = ring.iter().cycle().skip(1);
     ring.iter()
         .zip(next)
@@ -318,7 +318,7 @@ fn area2(ring: &[[f64; 3]]) -> f64 {
 }
 
 /// Whether `p` is inside `ring` in xy by even-odd crossing.
-fn inside(ring: &[[f64; 3]], p: [f64; 3]) -> bool {
+pub(crate) fn inside(ring: &[[f64; 3]], p: [f64; 3]) -> bool {
     let next = ring.iter().cycle().skip(1);
     ring.iter()
         .zip(next)

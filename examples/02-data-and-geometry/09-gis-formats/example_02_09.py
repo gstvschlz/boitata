@@ -1,9 +1,9 @@
 """
-# Shapefiles and GeoTIFF
+# Shapefiles, GeoPackage and GeoTIFF
 
-GIS software exchanges points, lines and polygons as shapefiles and rasters as GeoTIFF. `write_shapefile` and
-`write_geotiff` write a `PointSet`, `Polylines` or 2D `BlockModel` with its CRS; `read_shapefile` and
-`read_geotiff` return the same container.
+GIS software exchanges points, lines and polygons as shapefiles or GeoPackages and rasters as GeoTIFF.
+`write_shapefile`, `write_geopackage` and `write_geotiff` write a `PointSet`, `Polylines` or 2D `BlockModel` with
+its CRS; `read_shapefile`, `read_geopackage` and `read_geotiff` return the same container.
 """
 
 # %% [hidden]
@@ -60,6 +60,25 @@ survey = bt.Polylines(rows, attributes={"NORTHING": np.unique(north)})
 bt.write_shapefile(folder / "lines.shp", survey)
 lines = bt.read_shapefile(folder / "lines.shp")
 print(lines)
+
+# %% [markdown]
+# ## GeoPackage
+#
+# A GeoPackage is a single SQLite file holding many layers, with attribute names of any length and the CRS as an EPSG
+# code or WKT. `write_geopackage` adds a layer, or replaces the one of the same name; `read_geopackage` needs `layer=`
+# when the file holds more than one. Python's own `sqlite3` reads and writes the tables.
+
+# %%
+package = folder / "survey.gpkg"
+bt.write_geopackage(package, samples, layer="samples")
+bt.write_geopackage(package, boundary, layer="boundary")
+bt.write_geopackage(package, survey, layer="lines")
+points = bt.read_geopackage(package, layer="samples")
+print(points)
+print("same points:", np.array_equal(points.coords, samples.coords), "| CRS:", points.crs)
+print(
+    "same boundary area:", np.allclose(bt.read_geopackage(package, layer="boundary").area(), boundary.area())
+)
 
 # %% [markdown]
 # ## GeoTIFF
