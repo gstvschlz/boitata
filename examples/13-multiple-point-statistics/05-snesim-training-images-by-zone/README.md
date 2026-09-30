@@ -62,14 +62,14 @@ lenses: realizations 30.4% sand, image 30.2%
 <details><summary>Python</summary>
 
 ```python
-codes = ListedColormap(["black", "white"])
+codes = ListedColormap(["white", "black"])
 boundary = (domains == "lenses").reshape(n, n).astype(float)
 fig, axes = plt.subplots(1, 4, figsize=(15, 4), layout="constrained")
 panels = (
     (channels["facies"], "Image: channels", codes),
     (lenses["facies"], "Image: lenses", codes),
     (summary.realizations[0], "Realization 1", codes),
-    (summary.probabilities[:, 1], "P(sand), 20 realizations", "gray"),
+    (summary.probabilities[:, 1], "P(sand), 20 realizations", "gray_r"),
 )
 for ax, (values, title, cmap) in zip(axes, panels):
     im = ax.imshow(values.reshape(n, n), origin="lower", cmap=cmap, vmin=0, vmax=1, interpolation="nearest")

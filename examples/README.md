@@ -174,6 +174,11 @@ Worked examples with the Python API on open datasets from [gstvschlz/datasets](h
 | 3 | [Continuous SNESIM](13-multiple-point-statistics/03-snesim-continuous/README.md) | F3 seismic | `BlockModel`, `SNESIM` |
 | 4 | [Rotation and affinity](13-multiple-point-statistics/04-snesim-rotation-affinity/README.md) | Strebelle, F3 seismic | `BlockModel`, `LocalAnisotropy`, `SNESIM` |
 | 5 | [Several training images](13-multiple-point-statistics/05-snesim-training-images-by-zone/README.md) | Strebelle | `BlockModel`, `object_training_image`, `SNESIM` |
+| 6 | [Soft data in SNESIM](13-multiple-point-statistics/06-snesim-soft-data/README.md) | Strebelle | `BlockModel`, `SNESIM` |
+| 7 | [Training images and their consistency](13-multiple-point-statistics/07-training-images/README.md) | Strebelle | `BlockModel`, `object_training_image`, `training_image_consistency` |
+| 8 | [Image quilting](13-multiple-point-statistics/08-image-quilting/README.md) | Strebelle | `BlockModel`, `ImageQuilting` |
+| 9 | [Continuous image quilting](13-multiple-point-statistics/09-image-quilting-continuous/README.md) | F3 seismic | `BlockModel`, `ImageQuilting`, `SNESIM` |
+| 10 | [Seismic volumes](13-multiple-point-statistics/10-seismic-volumes/README.md) | F3 seismic | `read_segy`, `BlockModel`, `object_training_image`, `write_segy`, `ImageQuilting` |
 
 Each page alternates text, collapsed Python and its results. `mise run examples` reruns every script
 and rewrites the pages; `bt.datasets` downloads the data once and caches it. `render.py --index` writes this file.

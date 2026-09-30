@@ -1,0 +1,1 @@
+## Soft data in SNESIM
