@@ -185,3 +185,38 @@ def test_bad_domains_are_refused():
         cs.SNESIM({"a": ti})
     with pytest.raises(cs.InvalidInput, match="angle_step"):
         cs.SNESIM(ti, "facies", angle_step=0)
+
+
+def grades():
+    """A value peaking at the center of each channel of `ti`, over a background rising from 0 to 0.5 along x."""
+    x, y = ti.centroids[:, 0], ti.centroids[:, 1]
+    return ti.with_columns({"grade": np.where(ti["facies"] == 1, 1 + 2 * np.abs(np.sin(0.7 * y)), x / 160)})
+
+
+def test_continuous_images_simulate_values_and_reproduce_the_data():
+    image = grades()
+    rows = np.arange(0, 1600, 37)
+    values = np.linspace(0.0, 3.0, rows.size)
+    s = cs.SNESIM(image, "grade", template_size=20, n_levels=2)
+    assert not s.categorical
+    summary = s.fit(grid.centroids[rows], values).simulate(grid, n=4, seed=1, keep=True, progress=False)
+    assert isinstance(summary, cs.SimulationSummary)
+    np.testing.assert_allclose(summary.realizations[:, rows], np.tile(values, (4, 1)))
+    free = np.delete(summary.realizations, rows, axis=1)
+    assert np.isin(free.astype(np.float32), image["grade"].astype(np.float32)).all()
+    with pytest.raises(cs.InvalidInput, match="categorical training image"):
+        s.simulate(grid, n=1, soft=np.full((1600, 2), 0.5), progress=False)
+    with pytest.raises(cs.InvalidInput, match="strictly ascending"):
+        cs.SNESIM(image, "grade", cutoffs=[2.0, 1.0])
+
+
+def test_continuous_round_trip_simulates_bit_identically(tmp_path):
+    path = tmp_path / "snesim.parquet"
+    s = cs.SNESIM(grades(), "grade", template_size=12, n_levels=1, cutoffs=[0.2, 1.5, 2.5])
+    s.fit(grid.centroids[:30], np.linspace(0, 3, 30))
+    s.to_parquet(path)
+    back = cs.SNESIM.from_parquet(path)
+    np.testing.assert_array_equal(
+        back.simulate(grid, n=2, seed=3, keep=True, progress=False).realizations,
+        s.simulate(grid, n=2, seed=3, keep=True, progress=False).realizations,
+    )

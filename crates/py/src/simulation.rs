@@ -3046,8 +3046,8 @@ pub fn register(m: &Bound<PyModule>) -> PyResult<()> {
     Ok(())
 }
 
-/// SNESIM (Strebelle, 2002): categories simulated from the patterns of a
-/// training image.
+/// SNESIM (Strebelle, 2002): categories, or classes of values, simulated from
+/// the patterns of a training image.
 ///
 /// The patterns around each cell of the image are counted once into search
 /// trees, one per multigrid level and template class, on `simulate`. A node
@@ -3091,6 +3091,14 @@ pub fn register(m: &Bound<PyModule>) -> PyResult<()> {
 ///     template cell at distance ``r`` by about ``r * angle_step``. Each
 ///     distinct rounded (image, angles, affinity) is a template class with
 ///     search trees of its own; a wider step makes fewer.
+/// categorical : bool, optional
+///     Whether `column` holds codes or continuous values. By default it is
+///     categorical when every value is an integer from 0 to 254.
+/// cutoffs : sequence of float, optional
+///     Strictly ascending values cutting a continuous image into classes,
+///     which SNESIM simulates as categories; each simulated cell then takes
+///     a value drawn from those of its image in its class. By default the
+///     deciles of the image's values. Ignored for a categorical image.
 ///
 /// Examples
 /// --------
@@ -3104,19 +3112,23 @@ pub fn register(m: &Bound<PyModule>) -> PyResult<()> {
 #[pyclass(module = "ceres", name = "SNESIM")]
 pub struct Snesim {
     core: simulation::Snesim,
-    data: Option<(Vec<Point>, Vec<usize>)>,
+    /// Hard data: codes of a categorical image, else values.
+    data: Option<(Vec<Point>, Vec<f64>)>,
     /// The domain of each training image, when `ti` was a dict.
     zones: Option<Vec<Label>>,
 }
 
 /// What a SNESIM file keeps: the training image's codes, 255 without data,
-/// or those of each domain's image, and the parameters.
+/// or its values, NaN without data, or those of each domain's image, and the
+/// parameters.
 #[derive(Serialize, Deserialize)]
 struct SnesimState {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     ti_dims: Option<[usize; 3]>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     ti_codes: Option<Vec<u8>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    ti_values: Option<Vec<Option<f32>>>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     zone_images: Vec<ZoneImage>,
     #[serde(flatten)]
@@ -3127,16 +3139,27 @@ struct SnesimState {
 struct ZoneImage {
     zone: Label,
     dims: [usize; 3],
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     codes: Vec<u8>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    values: Option<Vec<Option<f32>>>,
 }
 
-/// A categorical image of `dims` from its `codes`, 255 without data.
-fn image_of_codes(dims: [usize; 3], codes: &[u8]) -> Result<simulation::TrainingImage, String> {
-    let values: Vec<Option<f64>> = codes
-        .iter()
-        .map(|&c| (c != simulation::NO_CODE).then_some(f64::from(c)))
-        .collect();
-    let column = std::sync::Arc::new(arrow_array::Float64Array::from(values));
+/// A categorical image of `dims` from its `codes`, 255 without data, or a
+/// continuous one from its `values`.
+fn image_of_codes(
+    dims: [usize; 3],
+    codes: &[u8],
+    values: Option<&[Option<f32>]>,
+) -> Result<simulation::TrainingImage, String> {
+    let cells: Vec<Option<f64>> = match values {
+        Some(v) => v.iter().map(|v| v.map(f64::from)).collect(),
+        None => codes
+            .iter()
+            .map(|&c| (c != simulation::NO_CODE).then_some(f64::from(c)))
+            .collect(),
+    };
+    let column = std::sync::Arc::new(arrow_array::Float64Array::from(cells));
     let batch = arrow_array::RecordBatch::try_from_iter([("code", column as _)])
         .map_err(|e| e.to_string())?;
     let geometry = ceres_core::Geometry {
@@ -3146,23 +3169,36 @@ fn image_of_codes(dims: [usize; 3], codes: &[u8]) -> Result<simulation::Training
         rotation: [0.0; 3],
     };
     let model = ceres_core::BlockModel::regular(geometry, batch).map_err(|e| e.to_string())?;
-    simulation::TrainingImage::categorical(&model, "code").map_err(|e| e.to_string())
+    match values {
+        Some(_) => simulation::TrainingImage::continuous(&model, "code"),
+        None => simulation::TrainingImage::categorical(&model, "code"),
+    }
+    .map_err(|e| e.to_string())
 }
 
 impl Serialize for Snesim {
     fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
-        let images = self.core.training_images();
+        let images = self
+            .core
+            .continuous_images()
+            .unwrap_or(self.core.training_images());
         let codes = |ti: &simulation::TrainingImage| ti.codes().unwrap_or_default().to_vec();
+        let values = |ti: &simulation::TrainingImage| {
+            ti.continuous_values()
+                .map(|v| v.iter().map(|&x| (!x.is_nan()).then_some(x)).collect())
+        };
         let state = match &self.zones {
             None => SnesimState {
                 ti_dims: Some(images[0].dims()),
                 ti_codes: Some(codes(&images[0])),
+                ti_values: values(&images[0]),
                 zone_images: Vec::new(),
                 params: self.core.params().clone(),
             },
             Some(zones) => SnesimState {
                 ti_dims: None,
                 ti_codes: None,
+                ti_values: None,
                 zone_images: zones
                     .iter()
                     .zip(images)
@@ -3170,6 +3206,7 @@ impl Serialize for Snesim {
                         zone: zone.clone(),
                         dims: ti.dims(),
                         codes: codes(ti),
+                        values: values(ti),
                     })
                     .collect(),
                 params: self.core.params().clone(),
@@ -3184,12 +3221,15 @@ impl<'de> Deserialize<'de> for Snesim {
         use serde::de::Error;
         let state = SnesimState::deserialize(d)?;
         let (images, zones) = match (state.ti_dims, state.ti_codes) {
-            (Some(dims), Some(codes)) => (vec![image_of_codes(dims, &codes)], None),
+            (Some(dims), Some(codes)) => (
+                vec![image_of_codes(dims, &codes, state.ti_values.as_deref())],
+                None,
+            ),
             _ => {
                 let images = state
                     .zone_images
                     .iter()
-                    .map(|z| image_of_codes(z.dims, &z.codes));
+                    .map(|z| image_of_codes(z.dims, &z.codes, z.values.as_deref()));
                 let zones = state.zone_images.iter().map(|z| z.zone.clone());
                 (images.collect(), Some(zones.collect()))
             }
@@ -3209,12 +3249,17 @@ impl<'de> Deserialize<'de> for Snesim {
 
 impl Tabular for Snesim {
     fn columns(&self) -> Option<Columns> {
-        self.data.as_ref().map(category_columns)
+        self.data.as_ref().map(|(locs, values)| {
+            let mut columns = persist::point_columns(locs.iter().copied());
+            columns.push(persist::column("value", values.iter().copied()));
+            columns
+        })
     }
 
     fn restore(&mut self, columns: Found) -> PyResult<()> {
-        let k = self.core.n_categories();
-        self.data = Some(categories_from(&columns, k)?);
+        let (locs, values) = (columns.points()?, columns.values("value")?);
+        same_length(locs.len(), values.len(), "value")?;
+        self.data = Some((locs, self.checked(values)?));
         Ok(())
     }
 }
@@ -3244,7 +3289,7 @@ impl Snesim {
     }
 
     #[new]
-    #[pyo3(signature = (ti, column=None, *, template_size=40, n_levels=3, min_replicates=10, target_proportions=None, servo=0.5, angle_step=10.0))]
+    #[pyo3(signature = (ti, column=None, *, template_size=40, n_levels=3, min_replicates=10, target_proportions=None, servo=0.5, angle_step=10.0, categorical=None, cutoffs=None))]
     #[allow(clippy::too_many_arguments)]
     fn new(
         ti: &Bound<PyAny>,
@@ -3255,9 +3300,18 @@ impl Snesim {
         target_proportions: Option<Vec<f64>>,
         servo: f64,
         angle_step: f64,
+        categorical: Option<bool>,
+        cutoffs: Option<Vec<f64>>,
     ) -> PyResult<Self> {
         let image = |model: &PyBlockModel, column: &str| {
-            simulation::TrainingImage::categorical(&model.0, column).map_err(err)
+            let model = &model.0;
+            match categorical {
+                Some(true) => simulation::TrainingImage::categorical(model, column),
+                Some(false) => simulation::TrainingImage::continuous(model, column),
+                None => simulation::TrainingImage::categorical(model, column)
+                    .or_else(|_| simulation::TrainingImage::continuous(model, column)),
+            }
+            .map_err(err)
         };
         let (images, zones) = match (ti.cast::<pyo3::types::PyDict>(), column) {
             (Ok(_), Some(_)) => {
@@ -3303,6 +3357,7 @@ impl Snesim {
             target_proportions,
             servo,
             angle_step,
+            cutoffs,
         };
         Ok(Self {
             core: simulation::Snesim::zoned(images, params).map_err(err)?,
@@ -3319,18 +3374,26 @@ impl Snesim {
         self.core.n_classes()
     }
 
-    /// Takes hard data: categories ``0..k`` of the training image at
-    /// `coords`. Each goes to the target cell holding it, several in one cell
-    /// to their most frequent category, and every realization reproduces it;
-    /// data outside the targets are ignored. Without `fit`, realizations are
-    /// unconditional.
+    /// Whether the training images hold codes rather than continuous values.
+    #[getter]
+    fn categorical(&self) -> bool {
+        !self.core.is_continuous()
+    }
+
+    /// Takes hard data: codes ``0..k`` of a categorical training image, or
+    /// values of a continuous one, at `coords`. Each goes to the target cell
+    /// holding it, several in one cell to their most frequent category or
+    /// class (a cell keeps the mean of the values in that class), and every
+    /// realization reproduces it; data outside the targets are ignored.
+    /// Without `fit`, realizations are unconditional.
     ///
     /// Parameters
     /// ----------
     /// coords : array_like, PointSet or BlockModel
     ///     Data locations, ``(n, 2)`` or ``(n, 3)``.
-    /// categories : array_like or str
-    ///     Category of each datum, or the column of `coords` holding them.
+    /// values : array_like or str
+    ///     Code or value of each datum, or the column of `coords` holding
+    ///     them.
     ///
     /// Returns
     /// -------
@@ -3339,19 +3402,12 @@ impl Snesim {
     fn fit<'py>(
         mut slf: PyRefMut<'py, Self>,
         coords: &Bound<PyAny>,
-        categories: &Bound<PyAny>,
+        values: &Bound<PyAny>,
     ) -> PyResult<PyRefMut<'py, Self>> {
-        let cats = self::categories(coords, categories)?;
+        let values = finite(&args::column(Some(coords), values, "values")?, "values")?;
         let locs = points(coords)?;
-        same_length(locs.len(), cats.len(), "categories")?;
-        let k = slf.core.n_categories();
-        if let Some(c) = cats.iter().find(|&&c| c >= k) {
-            return Err(invalid(format!(
-                "category {c} is not in the training image, whose codes are 0 to {}",
-                k - 1
-            )));
-        }
-        slf.data = Some((locs, cats));
+        same_length(locs.len(), values.len(), "values")?;
+        slf.data = Some((locs, slf.checked(values)?));
         Ok(slf)
     }
 
@@ -3403,17 +3459,20 @@ impl Snesim {
     ///
     /// Returns
     /// -------
-    /// CategoricalSummary
-    ///     Probabilities, most likely category and entropy per target.
+    /// CategoricalSummary or SimulationSummary
+    ///     Probabilities, most likely category and entropy per target for a
+    ///     categorical training image; mean and variance per target for a
+    ///     continuous one.
     ///
     /// Raises
     /// ------
     /// InvalidInput
     ///     If `targets` is not a regular or masked BlockModel, the search
     ///     trees would not fit in memory (widen `angle_step`, lower
-    ///     `template_size`), `soft` is not ``(n_targets, k)`` of non-negative
-    ///     values, some row mixing numbers and NaN or holding only zeros, or
-    ///     the domains do not match the training images.
+    ///     `template_size`), `soft` is given with a continuous image or is
+    ///     not ``(n_targets, k)`` of non-negative values, some row mixing
+    ///     numbers and NaN or holding only zeros, or the domains do not match
+    ///     the training images.
     #[pyo3(signature = (targets, *, n=100, seed=0, keep=None, soft=None, anisotropy=None, domains=None, domain_column=None, progress=true))]
     #[allow(clippy::too_many_arguments)]
     fn simulate(
@@ -3428,11 +3487,16 @@ impl Snesim {
         domains: Option<&Bound<PyAny>>,
         domain_column: Option<&str>,
         progress: bool,
-    ) -> PyResult<CategoricalSummary> {
+    ) -> PyResult<Py<PyAny>> {
         let lattice = lattice_of(targets)
             .ok_or_else(|| invalid("SNESIM simulates on a regular or masked BlockModel"))?;
         let keep = keep_arg(keep)?;
         let k = self.core.n_categories();
+        if soft.is_some() && self.core.is_continuous() {
+            return Err(invalid(
+                "soft probabilities need a categorical training image",
+            ));
+        }
         let soft = soft
             .map(|s| soft_rows(targets, s, lattice.len(), k))
             .transpose()?;
@@ -3442,16 +3506,36 @@ impl Snesim {
             .map(|a| Ok::<_, PyErr>(a.at_targets(&self::targets(targets)?)))
             .transpose()?;
         let memory = memory_budget(py)?;
-        let data = self.data.as_ref().map(|(l, c)| (&l[..], &c[..]));
-        with_progress(py, Some(n as u64), progress, |counter| {
+        let local = simulation::SnesimLocal {
+            zones: zones.as_deref(),
+            anisotropy: local.as_ref(),
+        };
+        if self.core.is_continuous() {
+            let data = self.data.as_ref().map(|(l, v)| (&l[..], &v[..]));
+            let summary = with_progress(py, Some(n as u64), progress, |counter| {
+                self.core
+                    .simulate_values(&lattice, data, local, n, seed, &keep, memory, counter)
+            })?
+            .map_err(err)?;
+            return Ok(Bound::new(py, SimulationSummary(summary))?
+                .into_any()
+                .unbind());
+        }
+        let codes: Option<Vec<usize>> = self
+            .data
+            .as_ref()
+            .map(|(_, v)| v.iter().map(|&c| c as usize).collect());
+        let data = self
+            .data
+            .as_ref()
+            .zip(codes.as_ref())
+            .map(|((l, _), c)| (&l[..], &c[..]));
+        let summary = with_progress(py, Some(n as u64), progress, |counter| {
             self.core.simulate(
                 &lattice,
                 data,
                 soft.as_deref(),
-                simulation::SnesimLocal {
-                    zones: zones.as_deref(),
-                    anisotropy: local.as_ref(),
-                },
+                local,
                 n,
                 seed,
                 &keep,
@@ -3459,22 +3543,44 @@ impl Snesim {
                 counter,
             )
         })?
-        .map(CategoricalSummary)
-        .map_err(err)
+        .map_err(err)?;
+        Ok(Bound::new(py, CategoricalSummary(summary))?
+            .into_any()
+            .unbind())
     }
 
     fn __repr__(&self) -> String {
         let p = self.core.params();
         format!(
-            "SNESIM(template_size={}, n_levels={}, fitted={})",
+            "SNESIM(template_size={}, n_levels={}, categorical={}, fitted={})",
             p.template_size,
             p.n_levels,
+            self.categorical(),
             self.data.is_some()
         )
     }
 }
 
 impl Snesim {
+    /// `values` as hard data: codes of the training image, else any finite
+    /// values.
+    fn checked(&self, values: Vec<f64>) -> PyResult<Vec<f64>> {
+        if self.core.is_continuous() {
+            return Ok(values);
+        }
+        let k = self.core.n_categories();
+        match values
+            .iter()
+            .find(|&&c| !(c >= 0.0 && c.fract() == 0.0 && c < k as f64))
+        {
+            Some(c) => Err(invalid(format!(
+                "category {c} is not in the training image, whose codes are 0 to {}",
+                k - 1
+            ))),
+            None => Ok(values),
+        }
+    }
+
     /// The training image of each of `n` targets from their `domains`, when
     /// `ti` was a dict.
     fn zones_of(&self, domains: Option<&Bound<PyAny>>, n: usize) -> PyResult<Option<Vec<usize>>> {
