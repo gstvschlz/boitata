@@ -2061,10 +2061,14 @@ class SNESIM:
         target_proportions: Sequence[float] | None = None,
         servo: float = 0.5,
         angle_step: float = 10.0,
+        categorical: bool | None = None,
+        cutoffs: Sequence[float] | None = None,
     ) -> None: ...
     @property
     def n_classes(self) -> int: ...
-    def fit(self, coords: ArrayLike | PointSet | BlockModel, categories: ArrayLike | Column) -> SNESIM: ...
+    @property
+    def categorical(self) -> bool: ...
+    def fit(self, coords: ArrayLike | PointSet | BlockModel, values: ArrayLike | Column) -> SNESIM: ...
     def simulate(
         self,
         targets: BlockModel,
@@ -2077,7 +2081,7 @@ class SNESIM:
         domains: Label | Labels | None = None,
         domain_column: str | None = None,
         progress: bool = True,
-    ) -> CategoricalSummary: ...
+    ) -> CategoricalSummary | SimulationSummary: ...
 
 # Image quilting.
 

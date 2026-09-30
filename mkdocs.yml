@@ -58,6 +58,7 @@ plugins:
         - examples/10-checking-models
         - examples/11-geological-modeling
         - examples/12-case-studies
+        - examples/13-multiple-point-statistics
       gallery_dirs:
         - docs/examples/01-first-steps
         - docs/examples/02-data-and-geometry
@@ -71,6 +72,7 @@ plugins:
         - docs/examples/10-checking-models
         - docs/examples/11-geological-modeling
         - docs/examples/12-case-studies
+        - docs/examples/13-multiple-point-statistics
       filename_pattern: example_\d\d_\d\d\.py$
       ignore_pattern: (render|common)\.py$
       within_subsection_order: FileNameSortKey
@@ -123,4 +125,5 @@ nav:
       - Checking models: examples/10-checking-models
       - Geological modeling: examples/11-geological-modeling
       - Case studies: examples/12-case-studies
+      - Multiple-point statistics: examples/13-multiple-point-statistics
   - API: []

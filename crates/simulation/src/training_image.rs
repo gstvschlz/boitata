@@ -161,6 +161,45 @@ impl TrainingImage {
     pub fn valid_positions(&self) -> &[u32] {
         &self.valid
     }
+
+    /// Categorical image of the classes `cutoffs` cut a continuous image
+    /// into: class `c` holds the values `v` with `c` cutoffs `<= v`. The
+    /// image has `cutoffs.len() + 1` categories, some possibly empty.
+    pub fn classes(&self, cutoffs: &[f64]) -> Result<Self> {
+        let Some(values) = self.continuous_values() else {
+            return Err(SimError::InvalidParameters(
+                "only a continuous training image is cut into classes".into(),
+            ));
+        };
+        if cutoffs.len() >= usize::from(NO_CODE) {
+            return Err(SimError::InvalidParameters(format!(
+                "{} cutoffs make more than {} classes",
+                cutoffs.len(),
+                NO_CODE
+            )));
+        }
+        let k = cutoffs.len() + 1;
+        let mut codes = vec![NO_CODE; values.len()];
+        let mut proportions = vec![0.0; k];
+        for &p in &self.valid {
+            let c = class_of(cutoffs, f64::from(values[p as usize]));
+            codes[p as usize] = c as u8;
+            proportions[c] += 1.0 / self.valid.len() as f64;
+        }
+        Ok(Self {
+            dims: self.dims,
+            values: TrainingValues::Categorical(codes),
+            proportions,
+            range: [0.0; 2],
+            valid: self.valid.clone(),
+        })
+    }
+}
+
+/// The class of `v` among classes cut by ascending `cutoffs`: how many are
+/// at or below it.
+pub fn class_of(cutoffs: &[f64], v: f64) -> usize {
+    cutoffs.partition_point(|&t| t <= v)
 }
 
 /// Makes several training images comparable: categorical images share one
