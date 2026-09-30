@@ -15,14 +15,14 @@ HERE = Path(__file__).parent if "__file__" in globals() else Path.cwd()
 sys.path.insert(0, str(HERE.parents[1]))
 
 # %%
-import ceres as cs
+import boitata as bt
 import matplotlib.pyplot as plt
 from common import save
 
-data = cs.datasets.phosphate_weathering_profile()
-intervals = cs.merge_intervals(data["assays"], data["horizons"])
-samples = cs.Drillholes(data["collars"], data["surveys"], intervals).samples()
-stats = cs.describe_by("P2O5_PCT", "HORIZON", data=samples)
+data = bt.datasets.phosphate_weathering_profile()
+intervals = bt.merge_intervals(data["assays"], data["horizons"])
+samples = bt.Drillholes(data["collars"], data["surveys"], intervals).samples()
+stats = bt.describe_by("P2O5_PCT", "HORIZON", data=samples)
 for name, n, mean in zip(stats["category"], stats["n"], stats["mean"], strict=True):
     print(f"{name:<5}{n:>6.0f} samples, mean P2O5 {mean:5.2f} %")
 length = samples["TO"] - samples["FROM"]
@@ -44,8 +44,8 @@ for ax, axis, width, label in zip(
     for name in horizons:
         horizon = samples.filter(samples["HORIZON"] == name)
         length = horizon["TO"] - horizon["FROM"]
-        swaths.append(cs.swath(horizon, "P2O5_PCT", width, axis=axis, weights=length))
-    cs.plot.swath(swaths, labels=horizons, ax=ax)
+        swaths.append(bt.swath(horizon, "P2O5_PCT", width, axis=axis, weights=length))
+    bt.plot.swath(swaths, labels=horizons, ax=ax)
     ax.set(title=f"P2O5 along {label.lower()}", xlabel=f"{label} (m)")
     ax.set_ylabel("")
     for name, swath in zip(horizons, swaths, strict=True):

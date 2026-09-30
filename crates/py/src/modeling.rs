@@ -56,7 +56,7 @@ impl Fitted {
 /// ratios : tuple of float, optional
 ///     Semi-major/major and minor/major range ratios for ``engine="rbf"``.
 #[derive(Serialize, Deserialize)]
-#[pyclass(module = "ceres", name = "ImplicitModel")]
+#[pyclass(module = "boitata", name = "ImplicitModel")]
 pub struct ImplicitModel {
     engine: String,
     kernel: String,
@@ -467,15 +467,15 @@ impl ImplicitModel {
         let fitted = self.fitted()?;
         let g = *model.0.geometry();
         let active = match model.0.layout() {
-            ceres_core::Layout::Regular => None,
-            ceres_core::Layout::Masked(index) => {
+            boitata_core::Layout::Regular => None,
+            boitata_core::Layout::Masked(index) => {
                 let mut on = vec![false; g.cells() as usize];
                 for &i in index {
                     on[i as usize] = true;
                 }
                 Some(on)
             }
-            ceres_core::Layout::SubBlocked { .. } => {
+            boitata_core::Layout::SubBlocked { .. } => {
                 return Err(invalid("isosurface needs a regular or masked BlockModel"));
             }
         };
@@ -498,7 +498,7 @@ impl ImplicitModel {
         let grid = ScalarGrid::blocks(g.size, g.count, &cells, active.as_deref(), isovalue, closed)
             .map_err(invalid)?;
         let mesh = py.detach(|| marching_tetrahedra(&grid, isovalue));
-        let frame = ceres_core::block_frame(g.rotation);
+        let frame = boitata_core::block_frame(g.rotation);
         let vertices: Vec<f64> = mesh
             .vertices
             .iter()

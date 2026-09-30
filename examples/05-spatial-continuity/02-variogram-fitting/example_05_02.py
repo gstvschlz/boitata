@@ -13,12 +13,12 @@ HERE = Path(__file__).parent if "__file__" in globals() else Path.cwd()
 sys.path.insert(0, str(HERE.parents[1]))
 
 # %%
-import ceres as cs
+import boitata as bt
 import matplotlib.pyplot as plt
 import numpy as np
 from common import ACCENT, GRAY, HIGHLIGHT, INK, save
 
-samples = cs.datasets.walker_lake()
+samples = bt.datasets.walker_lake()
 xy, v = samples.coords, samples["V"]
 lag, max_lag = 10.0, 120.0
 
@@ -27,7 +27,7 @@ lag, max_lag = 10.0, 120.0
 # The variogram map picks the major axis: the direction whose fitted range is longest.
 
 # %%
-vmap = cs.variogram_map(xy, v, lag, max_lag)
+vmap = bt.variogram_map(xy, v, lag, max_lag)
 angle = vmap.angles[np.nanargmax(vmap.ranges)]
 azimuth = (90 - np.degrees(angle)) % 180
 
@@ -37,8 +37,8 @@ azimuth = (90 - np.degrees(angle)) % 180
 # near the origin, where the nugget and the short ranges are decided.
 
 # %%
-major = cs.experimental_variogram(xy, v, lag, max_lag, azimuth=azimuth)
-minor = cs.experimental_variogram(xy, v, lag, max_lag, azimuth=azimuth + 90)
+major = bt.experimental_variogram(xy, v, lag, max_lag, azimuth=azimuth)
+minor = bt.experimental_variogram(xy, v, lag, max_lag, azimuth=azimuth + 90)
 weighting = "count/gamma"
 single = major.fit("spherical", weighting=weighting)
 along = major.fit(["spherical", "spherical"], weighting=weighting)
@@ -92,7 +92,7 @@ fig.colorbar(mesh, ax=a, shrink=0.7, label="γ / sample variance")
 
 b = fig.add_subplot(1, 2, 2)
 for exp, color, az, rng in ((major, ACCENT, azimuth, a_major), (minor, GRAY, azimuth + 90, a_minor)):
-    cs.plot.variogram(
+    bt.plot.variogram(
         exp, variogram=model, direction=(az, 0), ax=b, color=color, label=f"N{az % 360:.0f}° experimental"
     )
     b.axvline(rng, color=color, lw=0.8, ls=":")
@@ -116,8 +116,8 @@ save(fig, "variogram")
 
 # %%
 azimuths = np.arange(0, 180, 22.5)
-directional = [cs.experimental_variogram(xy, v, lag, max_lag, azimuth=a) for a in azimuths]
-joint = cs.Variogram.fit_directional(
+directional = [bt.experimental_variogram(xy, v, lag, max_lag, azimuth=a) for a in azimuths]
+joint = bt.Variogram.fit_directional(
     directional, [(a, 0) for a in azimuths], ["spherical", "spherical"], weighting=weighting
 )
 print(joint)
@@ -132,7 +132,7 @@ print(joint)
 fig, ax = plt.subplots(figsize=(6, 3.4), layout="constrained")
 origin = np.zeros((h.size, 3))
 for exp, color, az in ((major, ACCENT, azimuth), (minor, GRAY, azimuth + 90)):
-    cs.plot.variogram(
+    bt.plot.variogram(
         exp,
         variogram=model,
         direction=(az, 0),

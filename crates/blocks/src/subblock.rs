@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use arrow_array::{RecordBatch, RecordBatchOptions, StringArray, UInt64Array};
 use arrow_select::take::take;
-use ceres_core::{BlockModel, Geometry, Layout};
+use boitata_core::{BlockModel, Geometry, Layout};
 use nalgebra::{Matrix3, Vector3};
 use rayon::prelude::*;
 
@@ -45,7 +45,7 @@ struct Frame<'a> {
 
 impl<'a> Frame<'a> {
     fn new(g: &'a Geometry) -> Self {
-        let axes = ceres_core::block_frame(g.rotation).transpose();
+        let axes = boitata_core::block_frame(g.rotation).transpose();
         Self { g, axes }
     }
 
@@ -118,13 +118,13 @@ pub fn subblock(
         .iter()
         .map(|c| take(c, &owner, None))
         .collect::<std::result::Result<Vec<_>, _>>()
-        .map_err(ceres_core::Error::from)?;
+        .map_err(boitata_core::Error::from)?;
     let attributes = RecordBatch::try_new_with_options(
         model.attributes().schema(),
         columns,
         &RecordBatchOptions::new().with_row_count(Some(owner.len())),
     )
-    .map_err(ceres_core::Error::from)?;
+    .map_err(boitata_core::Error::from)?;
     let mut out = BlockModel::subblocked(g, parent, extents, Some(subgrid), attributes)?
         .with_column(column, Arc::new(StringArray::from(label)))?;
     out.crs.clone_from(&model.crs);
@@ -289,11 +289,11 @@ pub(crate) mod tests {
     use crate::solid::tests::cube;
     use arrow_array::cast::AsArray;
     use arrow_array::{ArrayRef, Float64Array};
-    use ceres_core::Mesh;
+    use boitata_core::Mesh;
 
     /// `count` cells a side of `size`, centered on the origin.
     fn grid(size: f64, count: usize, rotation: [f64; 3]) -> BlockModel {
-        let half = ceres_core::block_frame(rotation).transpose()
+        let half = boitata_core::block_frame(rotation).transpose()
             * nalgebra::Vector3::repeat(size * count as f64 / 2.0);
         let g = Geometry {
             origin: [-half.x, -half.y, -half.z],

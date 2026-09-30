@@ -176,4 +176,4 @@ Worked examples with the Python API on open datasets from [gstvschlz/datasets](h
 | 5 | [Several training images](13-multiple-point-statistics/05-snesim-training-images-by-zone/README.md) | Strebelle | `BlockModel`, `object_training_image`, `SNESIM` |
 
 Each page alternates text, collapsed Python and its results. `mise run examples` reruns every script
-and rewrites the pages; `cs.datasets` downloads the data once and caches it. `render.py --index` writes this file.
+and rewrites the pages; `bt.datasets` downloads the data once and caches it. `render.py --index` writes this file.

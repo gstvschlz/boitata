@@ -1,4 +1,4 @@
-import ceres as cs
+import boitata as bt
 import numpy as np
 import pytest
 
@@ -16,7 +16,7 @@ def test_gaussian_imputer_keeps_data_and_reproduces_correlation():
     data = full.copy()
     data[::3, 1] = np.nan
     data[1::7, 0] = np.nan
-    imputer = cs.GaussianImputer(seed=1).fit(data)
+    imputer = bt.GaussianImputer(seed=1).fit(data)
     assert imputer.correlation_[0, 1] == pytest.approx(0.8, abs=0.04)
     out = imputer.transform(data)
     seen = ~np.isnan(data)
@@ -26,7 +26,7 @@ def test_gaussian_imputer_keeps_data_and_reproduces_correlation():
     holed = ~seen.all(axis=1)
     assert np.corrcoef(np.log(out[holed]).T)[0, 1] == pytest.approx(0.8, abs=0.06)
     with pytest.raises(ValueError, match="< 2 values"):
-        cs.GaussianImputer().fit(np.column_stack([full[:, 0], np.full(2000, np.nan)]))
+        bt.GaussianImputer().fit(np.column_stack([full[:, 0], np.full(2000, np.nan)]))
 
 
 def test_spatial_imputer_follows_neighbors():
@@ -39,23 +39,23 @@ def test_spatial_imputer_follows_neighbors():
     data = full.copy()
     hidden = np.arange(400) % 2 == 0
     data[hidden, 1] = np.nan
-    spatial = cs.GaussianImputer(seed=3, spatial=cs.Variogram([("spherical", 1.0, 20.0)]))
+    spatial = bt.GaussianImputer(seed=3, spatial=bt.Variogram([("spherical", 1.0, 20.0)]))
     out = spatial.fit(data, coords=xy).transform(data)
     np.testing.assert_array_equal(out[~np.isnan(data)], data[~np.isnan(data)])
     np.testing.assert_array_equal(out, spatial.fit_transform(data, coords=xy))
-    plain = cs.GaussianImputer(seed=3).fit_transform(data)
+    plain = bt.GaussianImputer(seed=3).fit_transform(data)
     err = [np.sqrt(np.mean((o[hidden, 1] - full[hidden, 1]) ** 2)) for o in (out, plain)]
     assert err[0] < 0.8 * err[1]
-    nugget = cs.GaussianImputer(seed=3, spatial=cs.Variogram([], nugget=1.0)).fit(data, coords=xy)
+    nugget = bt.GaussianImputer(seed=3, spatial=bt.Variogram([], nugget=1.0)).fit(data, coords=xy)
     np.testing.assert_array_equal(nugget.transform(data), plain)
-    back = cs.GaussianImputer.from_json(spatial.to_json())
+    back = bt.GaussianImputer.from_json(spatial.to_json())
     np.testing.assert_array_equal(back.transform(data), out)
     with pytest.raises(ValueError, match="coords"):
-        cs.GaussianImputer(spatial=cs.Variogram([("spherical", 1.0, 20.0)])).fit(data)
+        bt.GaussianImputer(spatial=bt.Variogram([("spherical", 1.0, 20.0)])).fit(data)
 
 
 def test_normal_score_is_standard_and_invertible(skewed):
-    ns = cs.NormalScore()
+    ns = bt.NormalScore()
     y = ns.fit_transform(skewed)
     assert abs(y.mean()) < 0.01 and abs(y.std() - 1) < 0.02
     np.testing.assert_allclose(ns.inverse_transform(y), skewed, rtol=1e-12)
@@ -65,13 +65,13 @@ def test_normal_score_is_standard_and_invertible(skewed):
 @pytest.mark.parametrize(
     ("make", "args"),
     [
-        (lambda: cs.HermiteAnamorphosis(), lambda x, xy: (x[:, 0],)),
-        (lambda: cs.BoxCox(), lambda x, xy: (x[:, 0],)),
-        (lambda: cs.PPMT(iterations=5), lambda x, xy: (x,)),
-        (lambda: cs.PCA(), lambda x, xy: (x,)),
-        (lambda: cs.MAF(lag=10.0), lambda x, xy: (x, xy)),
-        (lambda: cs.StepwiseConditional(classes=5), lambda x, xy: (x,)),
-        (lambda: cs.GaussianImputer(seed=2), lambda x, xy: (np.where(np.eye(200, 2) > 0, np.nan, x),)),
+        (lambda: bt.HermiteAnamorphosis(), lambda x, xy: (x[:, 0],)),
+        (lambda: bt.BoxCox(), lambda x, xy: (x[:, 0],)),
+        (lambda: bt.PPMT(iterations=5), lambda x, xy: (x,)),
+        (lambda: bt.PCA(), lambda x, xy: (x,)),
+        (lambda: bt.MAF(lag=10.0), lambda x, xy: (x, xy)),
+        (lambda: bt.StepwiseConditional(classes=5), lambda x, xy: (x,)),
+        (lambda: bt.GaussianImputer(seed=2), lambda x, xy: (np.where(np.eye(200, 2) > 0, np.nan, x),)),
     ],
 )
 def test_fit_transform_is_fit_then_transform(make, args):
@@ -83,7 +83,7 @@ def test_fit_transform_is_fit_then_transform(make, args):
 def test_censored_normal_score_orders_between_uncensored_neighbors():
     values = np.array([0.5, 1.0, 3.0, 3.0, 3.0, 3.0, 3.0, 6.0, 8.0])
     censored = np.array([False, False, True, True, True, True, True, False, False])
-    scores = cs.NormalScore().fit_transform(values, censored=censored, seed=0)
+    scores = bt.NormalScore().fit_transform(values, censored=censored, seed=0)
     below, above = scores[:2].max(), scores[7:].min()
     assert (scores[2:7] > below).all() and (scores[2:7] < above).all()
 
@@ -99,8 +99,8 @@ def test_censored_normal_score_avoids_spurious_order_among_ties():
     censored = true < limit
     values = np.where(censored, limit, true)
 
-    naive = cs.NormalScore().fit_transform(values)
-    aware = cs.NormalScore().fit_transform(values, censored=censored, seed=0)
+    naive = bt.NormalScore().fit_transform(values)
+    aware = bt.NormalScore().fit_transform(values, censored=censored, seed=0)
     naive_corr = np.corrcoef(naive[censored], coord[censored])[0, 1]
     aware_corr = np.corrcoef(aware[censored], coord[censored])[0, 1]
     assert abs(naive_corr) > 0.9
@@ -111,76 +111,76 @@ def test_censored_normal_score_seed_is_reproducible():
     n = 500
     values = np.where(rng.uniform(size=n) < 0.4, 2.0, rng.lognormal(0.5, 0.7, n))
     censored = values == 2.0
-    a = cs.NormalScore().fit_transform(values, censored=censored, seed=5)
-    b = cs.NormalScore().fit_transform(values, censored=censored, seed=5)
+    a = bt.NormalScore().fit_transform(values, censored=censored, seed=5)
+    b = bt.NormalScore().fit_transform(values, censored=censored, seed=5)
     np.testing.assert_array_equal(a, b)
-    c = cs.NormalScore().fit_transform(values, censored=censored, seed=6)
+    c = bt.NormalScore().fit_transform(values, censored=censored, seed=6)
     assert not np.array_equal(a, c)
 
 
 def test_censored_none_matches_pre_censoring_behavior(skewed):
     censored = np.zeros(skewed.size, dtype=bool)
-    plain = cs.NormalScore().fit_transform(skewed)
-    explicit = cs.NormalScore().fit_transform(skewed, censored=censored, seed=3)
+    plain = bt.NormalScore().fit_transform(skewed)
+    explicit = bt.NormalScore().fit_transform(skewed, censored=censored, seed=3)
     np.testing.assert_array_equal(plain, explicit)
-    default = cs.NormalScore().fit_transform(skewed, censored=None)
+    default = bt.NormalScore().fit_transform(skewed, censored=None)
     np.testing.assert_array_equal(plain, default)
 
 
 def test_normal_score_requires_fit():
-    with pytest.raises(cs.InvalidInput):
-        cs.NormalScore().transform([1.0])
+    with pytest.raises(bt.InvalidInput):
+        bt.NormalScore().transform([1.0])
 
 
 def test_kernel_density_reference_keeps_bounds_and_mean(skewed):
     w = rng.uniform(0.5, 2.0, skewed.size)
-    free = cs.KernelDensity(bandwidth="scott").fit(skewed, weights=w)
+    free = bt.KernelDensity(bandwidth="scott").fit(skewed, weights=w)
     x = np.linspace(-10, 40, 200_001)
     f = free.pdf(x)
     assert np.trapezoid(f, x) == pytest.approx(1.0, abs=1e-6)
     assert np.trapezoid(x * f, x) == pytest.approx(np.average(skewed, weights=w), rel=1e-6)
-    bounded = cs.KernelDensity(lower=0.0).fit("v", weights="w", data={"v": skewed, "w": w})
-    logged = cs.KernelDensity(log=True, bandwidth=0.2).fit(skewed)
+    bounded = bt.KernelDensity(lower=0.0).fit("v", weights="w", data={"v": skewed, "w": w})
+    logged = bt.KernelDensity(log=True, bandwidth=0.2).fit(skewed)
     for kde in (bounded, logged):
         assert kde.pdf([-1.0, -1e-9]).max() == 0.0
         draws = kde.sample(10_000, seed=3)
         assert draws.min() >= 0.0
         np.testing.assert_array_equal(draws, kde.sample(10_000, seed=3))
-        ns = cs.NormalScore(reference=kde)
+        ns = bt.NormalScore(reference=kde)
         y = ns.fit_transform(skewed)
         np.testing.assert_allclose(ns.inverse_transform(y), skewed, rtol=1e-9)
         assert ns.inverse_transform([-9.0])[0] >= 0.0
     np.testing.assert_allclose(logged.cdf(logged.quantile([0.1, 0.9])), [0.1, 0.9], atol=1e-9)
-    with pytest.raises(cs.InvalidInput):
-        cs.NormalScore(reference=logged).fit(skewed, weights=w)
-    with pytest.raises(cs.InvalidInput):
-        cs.NormalScore(reference=logged).fit(skewed, censored=np.zeros(skewed.size, dtype=bool))
-    with pytest.raises(cs.InvalidInput):
-        cs.KernelDensity(bandwidth="wide")
-    with pytest.raises(cs.InvalidInput):
-        cs.NormalScore(reference=cs.KernelDensity())
+    with pytest.raises(bt.InvalidInput):
+        bt.NormalScore(reference=logged).fit(skewed, weights=w)
+    with pytest.raises(bt.InvalidInput):
+        bt.NormalScore(reference=logged).fit(skewed, censored=np.zeros(skewed.size, dtype=bool))
+    with pytest.raises(bt.InvalidInput):
+        bt.KernelDensity(bandwidth="wide")
+    with pytest.raises(bt.InvalidInput):
+        bt.NormalScore(reference=bt.KernelDensity())
 
 
 def test_gaussian_mixture_recovers_components_and_picks_their_count():
     a = rng.multivariate_normal([-4.0, 2.0], [[1.0, 0.6], [0.6, 1.0]], 600)
     b = rng.multivariate_normal([3.0, -1.0], [[0.25, 0.0], [0.0, 0.25]], 1400)
     data = np.vstack([a, b])
-    gm = cs.GaussianMixture(seed=1).fit(data)
+    gm = bt.GaussianMixture(seed=1).fit(data)
     assert list(gm.bic_) == [1, 2, 3, 4, 5, 6] and min(gm.bic_, key=gm.bic_.get) == 2
     order = np.argsort(gm.means_[:, 0])
     np.testing.assert_allclose(gm.proportions_[order], [0.3, 0.7], atol=0.02)
     np.testing.assert_allclose(gm.means_[order], [[-4.0, 2.0], [3.0, -1.0]], atol=0.12)
     assert gm.covariances_.shape == (2, 2, 2)
     assert (gm.predict(data[:600]) == order[0]).mean() > 0.99
-    again = cs.GaussianMixture(seed=1).fit(data)
+    again = bt.GaussianMixture(seed=1).fit(data)
     np.testing.assert_array_equal(gm.means_, again.means_)
     np.testing.assert_array_equal(gm.sample(50, seed=2), again.sample(50, seed=2))
-    one = cs.GaussianMixture(components=2).fit(data[:, 0])
+    one = bt.GaussianMixture(components=2).fit(data[:, 0])
     assert one.sample(10).shape == (10, 1)
-    y = cs.NormalScore(reference=one).fit_transform(data[:, 0])
+    y = bt.NormalScore(reference=one).fit_transform(data[:, 0])
     assert abs(y.mean()) < 0.05
-    with pytest.raises(cs.InvalidInput):
-        cs.NormalScore(reference=gm)
+    with pytest.raises(bt.InvalidInput):
+        bt.NormalScore(reference=gm)
 
 
 def test_gaussian_imputer_with_a_mixture_keeps_the_empty_corner_empty():
@@ -190,14 +190,14 @@ def test_gaussian_imputer_with_a_mixture_keeps_the_empty_corner_empty():
     holed = full.copy()
     holed[::3, 1] = np.nan
     corner = {
-        k: np.mean(np.all(cs.GaussianImputer(components=k, seed=0).fit_transform(holed)[::3] > 1.5, axis=1))
+        k: np.mean(np.all(bt.GaussianImputer(components=k, seed=0).fit_transform(holed)[::3] > 1.5, axis=1))
         for k in (1, None)
     }
     assert corner[None] < 0.5 * corner[1]
 
 
 def test_hermite_anamorphosis_moments_and_support(skewed):
-    anam = cs.HermiteAnamorphosis(degree=40).fit(skewed)
+    anam = bt.HermiteAnamorphosis(degree=40).fit(skewed)
     assert anam.mean_ == pytest.approx(skewed.mean(), rel=1e-6)
     assert anam.block(1.0).variance_ == pytest.approx(anam.variance_)
     assert anam.block(0.6).variance_ < anam.variance_
@@ -207,15 +207,15 @@ def test_hermite_anamorphosis_moments_and_support(skewed):
 
 
 def test_box_cox_zero_is_log(skewed):
-    bc = cs.BoxCox(lambda_=0.0).fit(skewed)
+    bc = bt.BoxCox(lambda_=0.0).fit(skewed)
     np.testing.assert_allclose(bc.transform(skewed), np.log(skewed))
     np.testing.assert_allclose(bc.inverse_transform(bc.transform(skewed)), skewed)
-    assert abs(cs.BoxCox().fit(skewed).lambda_) < 0.3
+    assert abs(bt.BoxCox().fit(skewed).lambda_) < 0.3
 
 
 def test_ppmt_decorrelates_and_inverts():
     x = rng.normal(size=(400, 2)) @ np.array([[1.0, 0.8], [0.0, 0.6]])
-    ppmt = cs.PPMT(seed=3).fit(x)
+    ppmt = bt.PPMT(seed=3).fit(x)
     g = ppmt.transform(x)
     assert abs(np.corrcoef(g.T)[0, 1]) < 0.1
     np.testing.assert_allclose(ppmt.inverse_transform(g), x, atol=1e-6)
@@ -223,28 +223,28 @@ def test_ppmt_decorrelates_and_inverts():
 
 def test_ppmt_marginal_step_with_weights_round_trips(skewed):
     x = np.column_stack([skewed, skewed * rng.lognormal(0, 0.3, len(skewed))])
-    ppmt = cs.PPMT(seed=3).fit(x, weights=rng.uniform(0.5, 1.5, len(x)))
+    ppmt = bt.PPMT(seed=3).fit(x, weights=rng.uniform(0.5, 1.5, len(x)))
     np.testing.assert_allclose(ppmt.inverse_transform(ppmt.transform(x)), x, atol=1e-6)
-    with pytest.raises(cs.InvalidInput):
-        cs.PPMT(marginal=False).fit(x, weights=np.ones(len(x)))
+    with pytest.raises(bt.InvalidInput):
+        bt.PPMT(marginal=False).fit(x, weights=np.ones(len(x)))
 
 
 def test_pca_scores_are_uncorrelated_by_decreasing_variance():
     x = rng.normal(size=(500, 3)) @ np.array([[2.0, 0.5, 0.0], [0.0, 1.0, 0.3], [0.0, 0.0, 0.2]])
-    pca = cs.PCA().fit(x)
+    pca = bt.PCA().fit(x)
     scores = pca.transform(x)
     np.testing.assert_allclose(np.cov(scores.T, bias=True), np.diag(pca.explained_variance_), atol=1e-10)
     assert np.all(np.diff(pca.explained_variance_) <= 0)
     assert pca.explained_variance_ratio_.sum() == pytest.approx(1.0)
     np.testing.assert_allclose(pca.inverse_transform(scores), x, atol=1e-10)
-    assert cs.PCA(standardize=True).fit(x).explained_variance_.sum() == pytest.approx(3.0)
+    assert bt.PCA(standardize=True).fit(x).explained_variance_.sum() == pytest.approx(3.0)
 
 
 def test_maf_factors_are_uncorrelated_at_lag():
     grid = np.array([(i, j) for j in range(30) for i in range(30)], float)
     smooth = np.sin(grid[:, 0] / 5) + np.cos(grid[:, 1] / 6)
     x = np.column_stack([smooth + 0.3 * rng.normal(size=900), smooth - rng.normal(size=900)])
-    maf = cs.MAF(lag=1.0, tolerance=0.01).fit(x, grid)
+    maf = bt.MAF(lag=1.0, tolerance=0.01).fit(x, grid)
     f = maf.transform(x)
     np.testing.assert_allclose(np.cov(f.T, bias=True), np.eye(2), atol=1e-10)
     right = np.flatnonzero(grid[:, 0] < 29)
@@ -257,19 +257,19 @@ def test_maf_factors_are_uncorrelated_at_lag():
 def test_stepwise_conditional_removes_nonlinear_dependence():
     u = rng.normal(size=3000)
     x = np.column_stack([u, u**2 + 0.3 * rng.normal(size=3000)])
-    sct = cs.StepwiseConditional(classes=30).fit(x)
+    sct = bt.StepwiseConditional(classes=30).fit(x)
     g = sct.transform(x)
     assert abs(np.corrcoef(g[:, 0], g[:, 1])[0, 1]) < 0.1
     assert abs(np.corrcoef(g[:, 0] ** 2, g[:, 1])[0, 1]) < 0.1
     assert abs(g.mean()) < 0.05 and abs(g.std() - 1) < 0.05
     np.testing.assert_allclose(sct.inverse_transform(g), x, atol=1e-10)
-    with pytest.raises(cs.InvalidInput):
+    with pytest.raises(bt.InvalidInput):
         sct.transform(x[:, :1])
     weights = np.where(x[:, 1] > 1, 3.0, 1.0)
-    g = cs.StepwiseConditional(classes=30).fit(x, weights=weights).transform(x)
+    g = bt.StepwiseConditional(classes=30).fit(x, weights=weights).transform(x)
     assert abs(np.average(g[:, 1], weights=weights)) < 0.05 and g[:, 1].mean() < -0.05
-    with pytest.raises(cs.InvalidInput):
-        cs.StepwiseConditional().fit(x, weights=weights[1:])
+    with pytest.raises(bt.InvalidInput):
+        bt.StepwiseConditional().fit(x, weights=weights[1:])
 
 
 def test_cell_declustering_downweights_clusters():
@@ -277,29 +277,29 @@ def test_cell_declustering_downweights_clusters():
     cluster = rng.uniform(0, 10, size=(50, 2))
     coords = np.vstack([grid, cluster])
     values = np.r_[np.zeros(len(grid)), np.ones(len(cluster))]
-    d = cs.cell_declustering(coords, values, sizes=np.arange(5.0, 50.0, 5.0))
+    d = bt.cell_declustering(coords, values, sizes=np.arange(5.0, 50.0, 5.0))
     assert d.mean < values.mean()
     assert d.weights.sum() == pytest.approx(len(values))
     assert len(d.sizes) == len(d.means) == 9
     assert d.mean == pytest.approx(d.means[list(d.sizes).index(d.cell_size)], rel=1e-12)
     assert d.mean == pytest.approx(np.average(values, weights=d.weights), rel=1e-12)
-    fixed = cs.cell_declustering(coords, values, cell_size=d.cell_size)
+    fixed = bt.cell_declustering(coords, values, cell_size=d.cell_size)
     np.testing.assert_allclose(fixed.weights, d.weights)
-    points = cs.PointSet(coords, {"v": values})
-    named = cs.cell_declustering(points, "v", sizes=np.arange(5.0, 50.0, 5.0))
+    points = bt.PointSet(coords, {"v": values})
+    named = bt.cell_declustering(points, "v", sizes=np.arange(5.0, 50.0, 5.0))
     np.testing.assert_array_equal(named.weights, d.weights)
     np.testing.assert_array_equal(
-        cs.polygon_declustering(points, "v", nodes=400).weights,
-        cs.polygon_declustering(coords, values, nodes=400).weights,
+        bt.polygon_declustering(points, "v", nodes=400).weights,
+        bt.polygon_declustering(coords, values, nodes=400).weights,
     )
 
 
 def test_detrend_removes_linear_trend():
     coords = rng.uniform(0, 100, size=(50, 2))
     values = 3.0 + 0.5 * coords[:, 0] - 0.2 * coords[:, 1]
-    trend, residuals = cs.detrend(coords, values, degree=1)
+    trend, residuals = bt.detrend(coords, values, degree=1)
     assert np.abs(residuals).max() < 1e-8
-    np.testing.assert_array_equal(cs.detrend(cs.PointSet(coords, {"v": values}), "v")[1], residuals)
+    np.testing.assert_array_equal(bt.detrend(bt.PointSet(coords, {"v": values}), "v")[1], residuals)
     np.testing.assert_allclose(trend.predict(coords), values, atol=1e-8)
 
 
@@ -308,58 +308,58 @@ def test_kernel_trend_picks_a_bandwidth_and_smooths_categories():
     coords = local.uniform(0, 100, size=(300, 2))
     smooth = np.sin(coords[:, 0] / 20.0)
     values = smooth + local.normal(0, 0.3, 300)
-    points = cs.PointSet(coords, {"v": values, "w": np.ones(300), "c": np.where(smooth > 0, "a", "b")})
-    trend, residuals = cs.detrend(points, "v", bandwidth=[2.0, 8.0, 50.0], weights="w")
+    points = bt.PointSet(coords, {"v": values, "w": np.ones(300), "c": np.where(smooth > 0, "a", "b")})
+    trend, residuals = bt.detrend(points, "v", bandwidth=[2.0, 8.0, 50.0], weights="w")
     assert trend.bandwidth == 8.0 and trend.degree is None and trend.coefficients is None
     assert trend.scores.argmin() == 1
     np.testing.assert_allclose(residuals, values - trend.predict(coords))
-    grid = cs.BlockModel((0, 0, 0), (5, 5, 1), (20, 20, 1))
+    grid = bt.BlockModel((0, 0, 0), (5, 5, 1), (20, 20, 1))
     assert trend.predict(grid).shape == (400,)
     assert np.isnan(trend.predict([[1e4, 1e4]]))[0]
 
-    categories, indicators = cs.detrend(points, "c", bandwidth=10.0, categorical=True)
+    categories, indicators = bt.detrend(points, "c", bandwidth=10.0, categorical=True)
     assert categories.categories == ["a", "b"]
     p = categories.predict(grid)
     total = np.asarray(p["a"]) + np.asarray(p["b"])
     np.testing.assert_allclose(total, 1.0)
     assert set(indicators.column_names) == {"a", "b"}
-    restored = cs.Trend.from_json(categories.to_json())
+    restored = bt.Trend.from_json(categories.to_json())
     np.testing.assert_array_equal(restored.predict(grid)["a"], p["a"])
     with pytest.raises(ValueError, match="bandwidth"):
-        cs.detrend(points, "v", weights="w")
+        bt.detrend(points, "v", weights="w")
 
 
 def test_normal_cdf_and_ppf_are_inverse():
     x = np.linspace(-3, 3, 13)
-    np.testing.assert_allclose(cs.normal_ppf(cs.normal_cdf(x)), x, atol=1e-6)
-    assert cs.normal_cdf([0.0])[0] == pytest.approx(0.5)
+    np.testing.assert_allclose(bt.normal_ppf(bt.normal_cdf(x)), x, atol=1e-6)
+    assert bt.normal_cdf([0.0])[0] == pytest.approx(0.5)
 
 
 def test_upscale_conserves_samples():
     coords = rng.uniform(0, 20, size=(100, 2))
-    centers, means, counts = cs.upscale(coords, np.ones(100), (10, 10, 1))
+    centers, means, counts = bt.upscale(coords, np.ones(100), (10, 10, 1))
     assert counts.sum() == 100 and np.allclose(means, 1.0)
     assert centers.shape[1] == 3
-    named = cs.upscale(cs.PointSet(coords, {"v": np.ones(100)}), "v", (10, 10, 1), origin=(0, 0, 0))
+    named = bt.upscale(bt.PointSet(coords, {"v": np.ones(100)}), "v", (10, 10, 1), origin=(0, 0, 0))
     np.testing.assert_array_equal(named[2], counts)
 
 
 def test_affine_correction_scales_variance(skewed):
-    out = cs.affine_correction(skewed, 0.5)
+    out = bt.affine_correction(skewed, 0.5)
     assert out.mean() == pytest.approx(skewed.mean())
     assert out.var() == pytest.approx(0.5 * skewed.var(), rel=1e-6)
 
 
 def test_uniform_conditioning_recovers_all_at_zero_cutoff(skewed):
-    anam = cs.HermiteAnamorphosis().fit(skewed)
-    uc = cs.UniformConditioning(anam, 0.8, r_panel=0.6)
+    anam = bt.HermiteAnamorphosis().fit(skewed)
+    uc = bt.UniformConditioning(anam, 0.8, r_panel=0.6)
     rec = uc.panel_recovery(float(skewed.mean()), [0.0])
     assert rec["tonnage"][0] == pytest.approx(1.0, abs=1e-6)
 
 
 def test_uniform_conditioning_with_r_panel_keeps_its_recoveries():
     values = np.random.default_rng(3).lognormal(0.0, 0.8, 400)
-    uc = cs.UniformConditioning(cs.HermiteAnamorphosis(degree=30).fit(values), 0.8, r_panel=0.6)
+    uc = bt.UniformConditioning(bt.HermiteAnamorphosis(degree=30).fit(values), 0.8, r_panel=0.6)
     rec = uc.panel_recovery(1.5, [0.5, 1.0, 2.0, 3.0])
     np.testing.assert_allclose(
         rec["tonnage"],
@@ -374,8 +374,8 @@ def test_uniform_conditioning_with_r_panel_keeps_its_recoveries():
 
 
 def uc_panels(skewed):
-    anam = cs.HermiteAnamorphosis(degree=30).fit(skewed)
-    panels = cs.BlockModel(origin=(0, 0), size=(50, 50), count=(4, 3))
+    anam = bt.HermiteAnamorphosis(degree=30).fit(skewed)
+    panels = bt.BlockModel(origin=(0, 0), size=(50, 50), count=(4, 3))
     grade = skewed.mean() * np.linspace(0.5, 1.8, 12)
     grade[5] = np.nan
     panels = panels.with_column("grade", grade).with_column("ev", anam.variance_ * np.linspace(0.2, 0.5, 12))
@@ -385,7 +385,7 @@ def uc_panels(skewed):
 
 def test_uniform_conditioning_localizes_band_means(skewed):
     anam, panels, smus = uc_panels(skewed)
-    uc = cs.UniformConditioning(anam, 0.8, r_panel=0.5)
+    uc = bt.UniformConditioning(anam, 0.8, r_panel=0.5)
     out = uc.localize(smus, "rank", panels, "grade", name="uc")
     owner, rank, local = smus["block"].astype(int), out["rank"], out["uc"]
     for p, g in enumerate(panels["grade"]):
@@ -404,7 +404,7 @@ def test_uniform_conditioning_localizes_band_means(skewed):
 
 def test_uniform_conditioning_per_panel_coefficient(skewed):
     anam, panels, smus = uc_panels(skewed)
-    uc = cs.UniformConditioning(anam, 0.8)
+    uc = bt.UniformConditioning(anam, 0.8)
     cutoffs = [0.5, 1.0, 2.0]
     curves = uc.grade_tonnage(panels, "grade", cutoffs, estimate_variance="ev")
     each = [
@@ -423,10 +423,10 @@ def test_uniform_conditioning_per_panel_coefficient(skewed):
     np.testing.assert_allclose(dense["mean_grade"], curves["mean_grade"], rtol=1e-12)
     out = uc.localize(smus, "rank", panels, "grade", estimate_variance="ev")
     assert out["localized"][smus["block"] == 0].mean() == pytest.approx(panels["grade"][0], rel=1e-9)
-    with pytest.raises(cs.InvalidInput):
+    with pytest.raises(bt.InvalidInput):
         uc.localize(smus, "rank", panels, "grade")
-    with pytest.raises(cs.InvalidInput):
-        cs.UniformConditioning(anam, 0.8, r_panel=0.5).grade_tonnage(
+    with pytest.raises(bt.InvalidInput):
+        bt.UniformConditioning(anam, 0.8, r_panel=0.5).grade_tonnage(
             panels, "grade", cutoffs, estimate_variance="ev"
         )
     with pytest.raises(KeyError):
@@ -435,13 +435,13 @@ def test_uniform_conditioning_per_panel_coefficient(skewed):
 
 def test_mean_grade_is_nan_above_an_empty_cutoff(skewed):
     anam, panels, _ = uc_panels(skewed)
-    uc = cs.UniformConditioning(anam, 0.8)
+    uc = bt.UniformConditioning(anam, 0.8)
     top = [0.5, 1e6]
     curves = [
         anam.grade_tonnage(top),
         uc.panel_recovery(1.0, top, estimate_variance=0.1),
         uc.grade_tonnage(panels, "grade", top, estimate_variance="ev"),
-        cs.grade_tonnage(skewed, top),
+        bt.grade_tonnage(skewed, top),
     ]
     for gt in curves:
         assert gt["tonnage"][1] == 0 and np.isnan(gt["mean_grade"][1])
@@ -450,40 +450,40 @@ def test_mean_grade_is_nan_above_an_empty_cutoff(skewed):
 
 def test_defaulted_transform_options_are_keyword_only(skewed):
     with pytest.raises(TypeError):
-        cs.NormalScore().fit(skewed, np.ones_like(skewed))
+        bt.NormalScore().fit(skewed, np.ones_like(skewed))
     with pytest.raises(TypeError):
-        cs.HermiteAnamorphosis(30)
+        bt.HermiteAnamorphosis(30)
     with pytest.raises(TypeError):
-        cs.PCA().fit_transform(np.column_stack([skewed, skewed]), np.ones_like(skewed))
+        bt.PCA().fit_transform(np.column_stack([skewed, skewed]), np.ones_like(skewed))
 
 
 def test_uniform_conditioning_needs_nested_ranked_blocks(skewed):
     anam, panels, smus = uc_panels(skewed)
-    uc = cs.UniformConditioning(anam, 0.8, r_panel=0.5)
-    shifted = cs.BlockModel(origin=(5, 0), size=(10, 10), count=(20, 15)).with_column("rank", np.zeros(300))
-    with pytest.raises(cs.InvalidInput):
+    uc = bt.UniformConditioning(anam, 0.8, r_panel=0.5)
+    shifted = bt.BlockModel(origin=(5, 0), size=(10, 10), count=(20, 15)).with_column("rank", np.zeros(300))
+    with pytest.raises(bt.InvalidInput):
         uc.localize(shifted, "rank", panels, "grade")
     rank = smus["rank"]
     rank[np.flatnonzero(smus["block"] == 0)[0]] = np.nan
-    with pytest.raises(cs.InvalidInput):
+    with pytest.raises(bt.InvalidInput):
         uc.localize(smus.with_column("rank", rank), "rank", panels, "grade")
 
 
 def test_normal_score_tails_bound_the_back_transform(skewed):
-    ns = cs.NormalScore().fit(skewed)
+    ns = bt.NormalScore().fit(skewed)
     back = ns.inverse_transform([-9.0, 9.0])
     assert back[0] == pytest.approx(skewed.min()) and back[1] == pytest.approx(skewed.max())
-    wide = cs.NormalScore(tails=(0.0, 100.0)).fit(skewed)
+    wide = bt.NormalScore(tails=(0.0, 100.0)).fit(skewed)
     low, high = wide.inverse_transform([-4.0, 4.0])
     assert 0.0 < low < skewed.min() and skewed.max() < high < 100.0
 
 
 def test_block_kriging_estimate_variance_feeds_uniform_conditioning(skewed):
-    anam = cs.HermiteAnamorphosis(degree=30).fit(skewed)
+    anam = bt.HermiteAnamorphosis(degree=30).fit(skewed)
     xy = rng.uniform(0, 200, (skewed.size, 2))
-    variogram = cs.Variogram([("spherical", anam.variance_, 80.0)])
-    panels = cs.BlockModel(origin=(0, 0), size=(50, 50), count=(4, 4))
-    kriging = cs.BlockKriging(variogram, cs.Search(radius=120, max_samples=16), size=(50, 50)).fit(xy, skewed)
+    variogram = bt.Variogram([("spherical", anam.variance_, 80.0)])
+    panels = bt.BlockModel(origin=(0, 0), size=(50, 50), count=(4, 4))
+    kriging = bt.BlockKriging(variogram, bt.Search(radius=120, max_samples=16), size=(50, 50)).fit(xy, skewed)
     d = kriging.predict(panels, diagnostics=True)
     np.testing.assert_allclose(
         d["estimate_variance"], d["support_variance"] - d["variance"] - 2 * d["lagrange"], rtol=1e-12
@@ -491,7 +491,7 @@ def test_block_kriging_estimate_variance_feeds_uniform_conditioning(skewed):
     panels = panels.with_column("V", d["value"]).with_column("ev", d["estimate_variance"])
     smus = panels.discretize(5)
     smus = smus.with_column("rank", rng.normal(size=len(smus)))
-    out = cs.UniformConditioning(anam, 0.9).localize(smus, "rank", panels, "V", estimate_variance="ev")
+    out = bt.UniformConditioning(anam, 0.9).localize(smus, "rank", panels, "V", estimate_variance="ev")
     means = np.bincount(smus["block"].astype(int), weights=out["localized"]) / 25
     np.testing.assert_allclose(means, d["value"], rtol=1e-9)
 
@@ -500,7 +500,7 @@ def test_despike_breaks_ties_consistently():
     x = np.arange(200.0)
     coords = np.column_stack([x, np.zeros(200)])
     values = np.where(x % 5 == 0, 0.1, np.where(x < 100, 0.5, 3.0) + rng.uniform(0, 0.4, 200))
-    out = cs.despike(coords, values, radii=[3.0, 10.0], seed=2)
+    out = bt.despike(coords, values, radii=[3.0, 10.0], seed=2)
     assert len(np.unique(out)) == 200
     untied = np.subtract.outer(values, values) != 0
     order = np.sign(np.subtract.outer(out, out)) == np.sign(np.subtract.outer(values, values))
@@ -508,31 +508,31 @@ def test_despike_breaks_ties_consistently():
     assert np.abs(out - values).max() < 1e-4
     tied = values == 0.1
     assert out[tied & (x < 100)].max() < out[tied & (x >= 100)].min()
-    np.testing.assert_array_equal(out, cs.despike(coords, values, radii=[3.0, 10.0], seed=2))
-    both = cs.despike(coords, np.column_stack([values, 2 * values]), radii=[3.0])
+    np.testing.assert_array_equal(out, bt.despike(coords, values, radii=[3.0, 10.0], seed=2))
+    both = bt.despike(coords, np.column_stack([values, 2 * values]), radii=[3.0])
     np.testing.assert_array_equal(np.argsort(both[:, 0]), np.argsort(both[:, 1]))
-    points = cs.PointSet(coords, {"a": values, "b": 2 * values})
-    table = cs.despike(points, ["a", "b"], radii=[3.0])
+    points = bt.PointSet(coords, {"a": values, "b": 2 * values})
+    table = bt.despike(points, ["a", "b"], radii=[3.0])
     np.testing.assert_array_equal(np.asarray(table["a"]), both[:, 0])
-    np.testing.assert_array_equal(cs.despike(points, "a"), cs.despike(coords, values))
+    np.testing.assert_array_equal(bt.despike(points, "a"), bt.despike(coords, values))
     with pytest.raises(ValueError):
-        cs.despike(coords, values[:10])
+        bt.despike(coords, values[:10])
 
 
 def test_spatial_bootstrap_widens_with_correlation():
     r = np.random.default_rng(4)
     coords = r.uniform(0, 100, (100, 2))
     values = r.lognormal(0.0, 0.5, 100)
-    nugget = cs.Variogram([], nugget=1.0)
-    table = cs.spatial_bootstrap(coords, values, nugget, n=1000, quantiles=[0.5], cutoffs=[1.0])
+    nugget = bt.Variogram([], nugget=1.0)
+    table = bt.spatial_bootstrap(coords, values, nugget, n=1000, quantiles=[0.5], cutoffs=[1.0])
     assert table.column_names == ["mean", "P50", "above 1"]
     np.testing.assert_allclose(np.std(table["mean"]), values.std() / 10, rtol=0.1)
-    long = cs.spatial_bootstrap(coords, values, cs.Variogram([("spherical", 1.0, 1e6)]), n=1000)
+    long = bt.spatial_bootstrap(coords, values, bt.Variogram([("spherical", 1.0, 1e6)]), n=1000)
     np.testing.assert_allclose(np.std(long["mean"]), values.std(), rtol=0.1)
-    points = cs.PointSet(coords, {"v": values, "w": np.ones(100)})
+    points = bt.PointSet(coords, {"v": values, "w": np.ones(100)})
     np.testing.assert_array_equal(
-        cs.spatial_bootstrap(points, "v", nugget, weights="w")["mean"],
-        cs.spatial_bootstrap(coords, values, nugget)["mean"],
+        bt.spatial_bootstrap(points, "v", nugget, weights="w")["mean"],
+        bt.spatial_bootstrap(coords, values, nugget)["mean"],
     )
     with pytest.raises(ValueError):
-        cs.spatial_bootstrap(coords, values, nugget, weights=np.zeros(100))
+        bt.spatial_bootstrap(coords, values, nugget, weights=np.zeros(100))

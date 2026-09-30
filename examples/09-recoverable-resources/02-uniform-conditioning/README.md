@@ -7,15 +7,15 @@ then places those blocks. The exhaustive Walker Lake grid gives the true 10 m bl
 <details><summary>Python</summary>
 
 ```python
-import ceres as cs
+import boitata as bt
 import matplotlib.pyplot as plt
 import numpy as np
 from common import GRAY, HIGHLIGHT, INK, save
 
-samples = cs.datasets.walker_lake()
-truth = cs.datasets.walker_lake_exhaustive()["V"].reshape(300, 260)
+samples = bt.datasets.walker_lake()
+truth = bt.datasets.walker_lake_exhaustive()["V"].reshape(300, 260)
 xy, v = samples.coords, samples["V"]
-weights = cs.cell_declustering(samples, "V", sizes=np.arange(2.5, 102.5, 2.5)).weights
+weights = bt.cell_declustering(samples, "V", sizes=np.arange(2.5, 102.5, 2.5)).weights
 size = 10
 true_smu = truth[:, :250].reshape(30, size, 25, size).mean(axis=(1, 3))
 ```
@@ -29,17 +29,17 @@ variogram of the grades, rescaled to the anamorphosis variance, kriges the panel
 <details><summary>Python</summary>
 
 ```python
-anam = cs.HermiteAnamorphosis(degree=40).fit(v, weights=weights)
+anam = bt.HermiteAnamorphosis(degree=40).fit(v, weights=weights)
 azimuths = (170, 260)
 directions = [(a, 0) for a in azimuths]
-scores = [cs.experimental_variogram(xy, anam.transform(v), 10, 120, azimuth=a) for a in azimuths]
-gaussian = cs.Variogram.fit_directional(scores, directions, rotation=[170, 0, 0])
-r, _ = cs.change_of_support(anam, gaussian, size=(size, size), discretization=(5, 5, 1))
+scores = [bt.experimental_variogram(xy, anam.transform(v), 10, 120, azimuth=a) for a in azimuths]
+gaussian = bt.Variogram.fit_directional(scores, directions, rotation=[170, 0, 0])
+r, _ = bt.change_of_support(anam, gaussian, size=(size, size), discretization=(5, 5, 1))
 
-grades = [cs.experimental_variogram(xy, v, 10, 120, azimuth=a) for a in azimuths]
-fitted = cs.Variogram.fit_directional(grades, directions, ["spherical", "spherical"], rotation=[170, 0, 0])
+grades = [bt.experimental_variogram(xy, v, 10, 120, azimuth=a) for a in azimuths]
+fitted = bt.Variogram.fit_directional(grades, directions, ["spherical", "spherical"], rotation=[170, 0, 0])
 scale = anam.variance_ / fitted.sill
-raw = cs.Variogram(
+raw = bt.Variogram(
     [(s.model, s.sill * scale, s.range) for s in fitted.structures],
     nugget=fitted.nugget * scale,
     rotation=fitted.rotation,
@@ -63,12 +63,12 @@ samples, which kriging smooths more, spreads its selective blocks wider.
 <details><summary>Python</summary>
 
 ```python
-search = cs.Search(radius=100, max_samples=24, min_samples=4)
-panels = cs.BlockModel(origin=(0.5, 0.5), size=(50, 50), count=(5, 6))
-kriged = cs.BlockKriging(raw, search, size=(50, 50), discretization=(5, 5, 1)).fit(xy, v)
+search = bt.Search(radius=100, max_samples=24, min_samples=4)
+panels = bt.BlockModel(origin=(0.5, 0.5), size=(50, 50), count=(5, 6))
+kriged = bt.BlockKriging(raw, search, size=(50, 50), discretization=(5, 5, 1)).fit(xy, v)
 d = kriged.predict(panels, diagnostics=True)
 panels = panels.with_columns({"V": d["value"], "estimate_variance": d["estimate_variance"]})
-uc = cs.UniformConditioning(anam, r_smu=r)
+uc = bt.UniformConditioning(anam, r_smu=r)
 cutoffs = np.linspace(0, 1000, 41)
 curves = uc.grade_tonnage(panels, "V", cutoffs, estimate_variance="estimate_variance")
 uc_tonnage, uc_grade = curves["tonnage"] / panels.volumes.sum(), curves["mean_grade"]
@@ -81,7 +81,7 @@ def empirical(values):
 
 
 smus = panels.discretize(5)
-direct = cs.BlockKriging(raw, search, size=(size, size), discretization=(5, 5, 1)).fit(xy, v).predict(smus)
+direct = bt.BlockKriging(raw, search, size=(size, size), discretization=(5, 5, 1)).fit(xy, v).predict(smus)
 true_curve, direct_curve = empirical(true_smu.ravel()), empirical(direct)
 for c in (300, 500, 800):
     k = np.searchsorted(cutoffs, c)

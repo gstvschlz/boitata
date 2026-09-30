@@ -16,8 +16,8 @@ use std::f64::consts::TAU;
 use std::sync::Arc;
 
 use arrow_array::{Float64Array, RecordBatch};
-use ceres_core::rng::realization_seed;
-use ceres_core::{BlockModel, Geometry, block_frame, rotation_matrix};
+use boitata_core::rng::realization_seed;
+use boitata_core::{BlockModel, Geometry, block_frame, rotation_matrix};
 use nalgebra::{Matrix3, Vector3};
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
@@ -111,7 +111,7 @@ pub fn object_training_image(
     seed: u64,
     column: &str,
 ) -> Result<BlockModel> {
-    let invalid = |e: ceres_core::Error| SimError::InvalidParameters(e.to_string());
+    let invalid = |e: boitata_core::Error| SimError::InvalidParameters(e.to_string());
     geometry.validate().map_err(invalid)?;
     if background == NO_CODE {
         return Err(SimError::InvalidParameters(format!(

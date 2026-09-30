@@ -8,7 +8,7 @@ use arrow_array::types::Float64Type;
 use arrow_array::{Array, ArrayRef, Float32Array, Float64Array, RecordBatch};
 use arrow_cast::cast;
 use arrow_schema::DataType;
-use ceres_core::{BlockModel, Geometry, Layout};
+use boitata_core::{BlockModel, Geometry, Layout};
 use regex::Regex;
 use tiff::TiffError;
 use tiff::decoder::{ChunkType, Decoder, DecodingResult, Limits};
@@ -484,7 +484,7 @@ mod tests {
     use tiff::encoder::compression::{CompressionAlgorithm, Deflate};
 
     fn dir(name: &str) -> std::path::PathBuf {
-        let dir = std::env::temp_dir().join(format!("ceres-geotiff-{name}"));
+        let dir = std::env::temp_dir().join(format!("boitata-geotiff-{name}"));
         std::fs::create_dir_all(&dir).unwrap();
         dir
     }

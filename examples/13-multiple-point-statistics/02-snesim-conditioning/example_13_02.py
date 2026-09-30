@@ -13,16 +13,16 @@ HERE = Path(__file__).parent if "__file__" in globals() else Path.cwd()
 sys.path.insert(0, str(HERE.parents[1]))
 
 # %%
-import ceres as cs
+import boitata as bt
 import matplotlib.pyplot as plt
 import numpy as np
 from common import GRAY, HIGHLIGHT, INK, save
 from matplotlib.colors import ListedColormap
 
-ti = cs.datasets.strebelle()
+ti = bt.datasets.strebelle()
 nx, ny = ti.count[:2]
 image = ti["facies"].reshape(ny, nx)
-grid = cs.BlockModel((0, 0), (1, 1), (nx, ny))
+grid = bt.BlockModel((0, 0), (1, 1), (nx, ny))
 
 
 # %% [markdown]
@@ -43,8 +43,8 @@ print(f"{facies.sum()} sand and {(facies == 0).sum()} shale data")
 
 # %%
 sand = image.mean()
-plain = cs.SNESIM(ti, "facies").fit(wells, facies)
-steered = cs.SNESIM(ti, "facies", target_proportions=[1 - sand, sand], servo=0.8).fit(wells, facies)
+plain = bt.SNESIM(ti, "facies").fit(wells, facies)
+steered = bt.SNESIM(ti, "facies", target_proportions=[1 - sand, sand], servo=0.8).fit(wells, facies)
 summaries = {
     name: s.simulate(grid, n=50, seed=3, keep=[0], progress=False)
     for name, s in [("plain", plain), ("servo", steered)]
@@ -101,5 +101,5 @@ save(fig, "conditioning")
 
 # %% [markdown]
 # Without targets the realizations drift above the image's share of sand, as in
-# [the multigrid page](../01-snesim-multigrid/README.md); the servosystem brings them back and narrows their spread.
+# [the multigrid page](../../13-multiple-point-statistics/01-snesim-multigrid/README.md); the servosystem brings them back and narrows their spread.
 # A strong servosystem costs some of the image's patterns, so keep `servo` as low as the proportions allow.

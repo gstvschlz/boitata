@@ -1,8 +1,8 @@
 """Example datasets, downloaded once from a pinned commit and checked by SHA-256.
 
-Files are cached under ``$CERES_DATA``, else the user cache directory
-(``%LOCALAPPDATA%/ceres`` on Windows, ``$XDG_CACHE_HOME/ceres`` or
-``~/.cache/ceres`` elsewhere). Coordinates are local metres (Jura: km) with no CRS, except F3 (EPSG:23031).
+Files are cached under ``$BOITATA_DATA``, else the user cache directory
+(``%LOCALAPPDATA%/boitata`` on Windows, ``$XDG_CACHE_HOME/boitata`` or
+``~/.cache/boitata`` elsewhere). Coordinates are local metres (Jura: km) with no CRS, except F3 (EPSG:23031).
 Synthetic datasets are CC BY 4.0; classic ones keep their original terms.
 """
 
@@ -16,8 +16,8 @@ from typing import TypedDict
 
 import numpy as np
 
-from ceres._ceres import BlockModel, Mesh, PointSet, Polylines, Table, read_csv, read_mesh, read_segy
-from ceres.errors import FileError, InvalidInput
+from boitata._boitata import BlockModel, Mesh, PointSet, Polylines, Table, read_csv, read_mesh, read_segy
+from boitata.errors import FileError, InvalidInput
 
 __all__ = [
     "coal_seam_thickness",
@@ -203,13 +203,13 @@ class PorphyryGeometallurgy(TypedDict, total=False):
 
 
 def _cache() -> Path:
-    if "CERES_DATA" in os.environ:
-        return Path(os.environ["CERES_DATA"])
+    if "BOITATA_DATA" in os.environ:
+        return Path(os.environ["BOITATA_DATA"])
     if sys.platform == "win32" and "LOCALAPPDATA" in os.environ:
         base = Path(os.environ["LOCALAPPDATA"])
     else:
         base = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache"))
-    return base / "ceres" / COMMIT[:12]
+    return base / "boitata" / COMMIT[:12]
 
 
 def _sha256(path: Path) -> str:

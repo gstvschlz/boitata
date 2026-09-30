@@ -7,7 +7,7 @@ chosen by a rule: a weighted quantile, a target fraction of metal removed, or a 
 <details><summary>Python</summary>
 
 ```python
-import ceres as cs
+import boitata as bt
 import matplotlib.pyplot as plt
 import numpy as np
 from common import ACCENT, GRAY, HIGHLIGHT, save
@@ -21,12 +21,12 @@ diamond holes and underground channels, composited to 1 m and declustered in 20 
 <details><summary>Python</summary>
 
 ```python
-data = cs.datasets.vein_gold_grade_control()
-intervals = cs.merge_intervals(data["assays"], data["lithology"])
-holes = cs.Drillholes(data["collars"], data["surveys"], intervals)
+data = bt.datasets.vein_gold_grade_control()
+intervals = bt.merge_intervals(data["assays"], data["lithology"])
+holes = bt.Drillholes(data["collars"], data["surveys"], intervals)
 composites = holes.composite(1.0, ["AU_GPT"], domain="LITH", categories=["VEIN"])
 quartz = composites.filter((composites["LITH"] == "QV") & ~np.isnan(composites["AU_GPT"]))
-weights = cs.cell_declustering(quartz, "AU_GPT", cell_size=20.0).weights
+weights = bt.cell_declustering(quartz, "AU_GPT", cell_size=20.0).weights
 quartz = quartz.with_column("w", weights)
 veins = sorted(set(quartz["VEIN"]))
 print(f"{len(quartz)} composites in {len(veins)} veins")
@@ -48,9 +48,9 @@ coefficient of variation is 1.5. `caps_` and `metal_removed_` are dicts by vein.
 
 ```python
 rules = {
-    "P99": cs.Capping(quantile=0.99),
-    "5 % metal": cs.Capping(metal_removed=0.05),
-    "CV 1.5": cs.Capping(cv=1.5),
+    "P99": bt.Capping(quantile=0.99),
+    "5 % metal": bt.Capping(metal_removed=0.05),
+    "CV 1.5": bt.Capping(cv=1.5),
 }
 for rule in rules.values():
     rule.fit("AU_GPT", domain_column="VEIN", weights="w", data=quartz)
@@ -84,9 +84,9 @@ fits the same caps, and its `metal_removed_` is the report's `1 - mean_capped / 
 
 ```python
 capping = rules["P99"]
-stats = cs.describe_by("AU_GPT", "VEIN", weights="w", quantiles=[0.99], data=quartz)
+stats = bt.describe_by("AU_GPT", "VEIN", weights="w", quantiles=[0.99], data=quartz)
 top = dict(zip(stats["category"][:-1], stats["P99"][:-1], strict=True))
-report = cs.capping_report("AU_GPT", top, domain_column="VEIN", weights="w", data=quartz)
+report = bt.capping_report("AU_GPT", top, domain_column="VEIN", weights="w", data=quartz)
 removed = 1 - report["mean_capped"] / report["mean"]
 print(f"{'vein':<5}{'P99':>8}{'fitted cap':>12}{'report (%)':>12}{'fitted (%)':>12}")
 for k, vein in enumerate(report["domain"][:-1]):
@@ -114,7 +114,7 @@ On a log-probability plot the dashed caps cut the last percent of each vein's ta
 fig, axes = plt.subplots(1, len(veins), figsize=(11, 3.4), layout="constrained", sharey=True)
 for ax, vein in zip(axes, veins, strict=True):
     keep = quartz["VEIN"] == vein
-    cs.plot.probability(
+    bt.plot.probability(
         quartz["AU_GPT"][keep],
         weights=weights[keep],
         log=True,
@@ -147,12 +147,12 @@ estimated from samples below the cap, which capping leaves unchanged.
 ```python
 v1 = quartz.filter(quartz["VEIN"] == "V1")
 v1 = v1.with_column("AU_CAPPED", capping.transform("AU_GPT", domain_column="VEIN", data=v1))
-blocks = cs.BlockModel.from_extents(data["vein_V1"], size=(5.0, 5.0, 5.0))
+blocks = bt.BlockModel.from_extents(data["vein_V1"], size=(5.0, 5.0, 5.0))
 targets = blocks.centroids[data["vein_V1"].contains(blocks.centroids)]
-model = cs.experimental_variogram(v1, "AU_CAPPED", 10.0, 150.0).fit("spherical")
-search = cs.Search(80.0, max_samples=24)
+model = bt.experimental_variogram(v1, "AU_CAPPED", 10.0, 150.0).fit("spherical")
+search = bt.Search(80.0, max_samples=24)
 kriged = {
-    column: cs.OrdinaryKriging(model, search).fit(v1, column).predict(targets)
+    column: bt.OrdinaryKriging(model, search).fit(v1, column).predict(targets)
     for column in ("AU_GPT", "AU_CAPPED")
 }
 for column, grades in kriged.items():
@@ -196,12 +196,12 @@ usual preparation for a Gaussian simulation. Fitted once, both apply to new samp
 <details><summary>Python</summary>
 
 ```python
-pipeline = cs.Capping(quantile=0.99)
+pipeline = bt.Capping(quantile=0.99)
 capped = pipeline.fit_transform("AU_GPT", domain_column="VEIN", weights="w", data=v1)
-scores = cs.NormalScore().fit(capped, weights=v1["w"])
+scores = bt.NormalScore().fit(capped, weights=v1["w"])
 new = np.array([0.5, 5.0, 50.0, 500.0])
 print(scores.transform(pipeline.transform(new, domains=["V1"] * 4)).round(3))
-restored = cs.Capping.from_json(pipeline.to_json())
+restored = bt.Capping.from_json(pipeline.to_json())
 print(restored.caps_ == pipeline.caps_)
 ```
 

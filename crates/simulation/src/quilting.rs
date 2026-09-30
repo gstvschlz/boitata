@@ -914,7 +914,7 @@ mod tests {
     use std::sync::Arc;
 
     use arrow_array::{Float64Array, RecordBatch};
-    use ceres_core::{BlockModel, Geometry};
+    use boitata_core::{BlockModel, Geometry};
 
     use super::*;
 

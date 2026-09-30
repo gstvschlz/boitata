@@ -7,13 +7,13 @@ soft one, where it changes gradually and samples on one side say something about
 <details><summary>Python</summary>
 
 ```python
-import ceres as cs
+import boitata as bt
 import matplotlib.pyplot as plt
 from common import save
 
-data = cs.datasets.nickel_laterite_profile()
-assays = cs.merge_intervals(data["assays"], data["horizons"])
-points = cs.Drillholes(data["collars"], data["surveys"], assays).samples()
+data = bt.datasets.nickel_laterite_profile()
+assays = bt.merge_intervals(data["assays"], data["horizons"])
+points = bt.Drillholes(data["collars"], data["surveys"], assays).samples()
 print(f"{len(points)} assays of 1 m in {len(data['collars'])} holes")
 ```
 
@@ -32,7 +32,7 @@ call runs on composites or on any points with hole ids and a domain column.
 ```python
 pairs = [("LIM", "SAP"), ("SAP", "BRK")]
 tables = {
-    (grade, inside): cs.contact(
+    (grade, inside): bt.contact(
         points,
         grade,
         domain_column="HORIZON",
@@ -52,7 +52,7 @@ for (grade, inside), table in tables.items():
 fig, axes = plt.subplots(2, 2, figsize=(10, 6.4))
 for ax, ((grade, inside), table) in zip(axes.flat, tables.items(), strict=True):
     outside = dict(pairs)[inside]
-    cs.plot.contact(table, labels=(inside, outside), ax=ax)
+    bt.plot.contact(table, labels=(inside, outside), ax=ax)
     ax.set(title=f"{grade.split('_')[0].title()}, {inside} over {outside}", xlabel="Distance to contact (m)")
     ax.set_ylabel(f"Mean {grade.split('_')[0].title()} (%)")
 fig.tight_layout()

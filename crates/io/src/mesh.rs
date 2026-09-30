@@ -6,7 +6,7 @@ use std::sync::Arc;
 use arrow_array::cast::AsArray;
 use arrow_array::{Array, StringArray};
 use arrow_schema::DataType;
-use ceres_core::{Mesh, Progress};
+use boitata_core::{Mesh, Progress};
 use dxf::entities::{Entity, EntityType, Face3D};
 use dxf::{Drawing, DxfError};
 
@@ -151,7 +151,7 @@ fn normal(c: [[f64; 3]; 3]) -> [f64; 3] {
 fn stl_bytes(mesh: &Mesh, ascii: bool, progress: Option<&Progress>) -> Vec<u8> {
     let n = mesh.triangles().len();
     if ascii {
-        let mut out = String::from("solid ceres\n");
+        let mut out = String::from("solid boitata\n");
         for t in 0..n {
             let c = mesh.corners(t);
             let [i, j, k] = normal(c).map(|x| x as f32);
@@ -164,11 +164,11 @@ fn stl_bytes(mesh: &Mesh, ascii: bool, progress: Option<&Progress>) -> Vec<u8> {
                 p.inc();
             }
         }
-        out.push_str("endsolid ceres\n");
+        out.push_str("endsolid boitata\n");
         return out.into_bytes();
     }
     let mut out = Vec::with_capacity(84 + 50 * n);
-    out.extend(b"ceres");
+    out.extend(b"boitata");
     out.resize(80, 0);
     out.extend((n as u32).to_le_bytes());
     for t in 0..n {
@@ -343,7 +343,8 @@ mod tests {
             ("t.stl", true),
             ("t.dxf", false),
         ] {
-            let path = std::env::temp_dir().join(format!("ceres-io-{}-{name}", std::process::id()));
+            let path =
+                std::env::temp_dir().join(format!("boitata-io-{}-{name}", std::process::id()));
             let progress = Progress::new(Some(4));
             write_mesh(&path, &m, ascii, Some(&progress)).unwrap();
             assert_eq!(progress.snapshot().0, 4);

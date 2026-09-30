@@ -6,7 +6,7 @@
 //! reproduce the panel's recovery at tonnage `k/n`. Each source (uniform
 //! conditioning, indicator kriging, realizations) supplies the band means.
 
-use ceres_core::{BlockModel, Layout, block_frame};
+use boitata_core::{BlockModel, Layout, block_frame};
 use nalgebra::Vector3;
 use rayon::prelude::*;
 
@@ -106,7 +106,7 @@ where
 pub(crate) mod tests {
     use super::*;
     use arrow_array::{RecordBatch, RecordBatchOptions};
-    use ceres_core::Geometry;
+    use boitata_core::Geometry;
 
     pub(crate) fn grid(origin: [f64; 3], size: f64, count: usize, rotation: f64) -> BlockModel {
         let g = Geometry {

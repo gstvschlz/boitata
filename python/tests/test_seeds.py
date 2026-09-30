@@ -3,7 +3,7 @@ import pathlib
 import subprocess
 import sys
 
-import ceres as cs
+import boitata as bt
 import numpy as np
 import pytest
 
@@ -12,36 +12,36 @@ coords = rng.uniform(0, 100, (40, 2))
 values = rng.lognormal(0, 0.6, 40)
 facies = (values > np.median(values)).astype(int)
 paired = np.c_[values, values**0.5 + rng.uniform(0, 0.1, 40)]
-v = cs.Variogram([("spherical", 1.0, 30.0)], nugget=0.1)
-search = cs.Search(radius=40, max_samples=8)
-grid = cs.BlockModel(origin=(0, 0), size=(10, 10), count=(10, 10))
-ti = cs.object_training_image(
-    cs.BlockModel((0, 0), (1, 1), (40, 40)),
+v = bt.Variogram([("spherical", 1.0, 30.0)], nugget=0.1)
+search = bt.Search(radius=40, max_samples=8)
+grid = bt.BlockModel(origin=(0, 0), size=(10, 10), count=(10, 10))
+ti = bt.object_training_image(
+    bt.BlockModel((0, 0), (1, 1), (40, 40)),
     [{"shape": "ellipsoid", "code": 1, "proportion": 0.3, "radii": (6.0, 3.0)}],
 )
 
 SIMULATORS = {
-    "sgs": lambda: cs.SGS(v, search).fit(coords, values),
-    "turning_bands": lambda: cs.TurningBands(v, bands=50).fit(coords, values),
-    "sis": lambda: cs.SIS([v, v], search).fit(coords, facies),
-    "plurigaussian": lambda: cs.Plurigaussian(v, proportions=[0.5, 0.5]).fit(coords, facies),
-    "multivariate": lambda: cs.MultivariateSimulation(
-        cs.PCA(), [cs.SGS(v, search), cs.TurningBands(v, bands=50)]
+    "sgs": lambda: bt.SGS(v, search).fit(coords, values),
+    "turning_bands": lambda: bt.TurningBands(v, bands=50).fit(coords, values),
+    "sis": lambda: bt.SIS([v, v], search).fit(coords, facies),
+    "plurigaussian": lambda: bt.Plurigaussian(v, proportions=[0.5, 0.5]).fit(coords, facies),
+    "multivariate": lambda: bt.MultivariateSimulation(
+        bt.PCA(), [bt.SGS(v, search), bt.TurningBands(v, bands=50)]
     ).fit(coords, paired),
-    "snesim": lambda: cs.SNESIM(ti, "facies", template_size=12, n_levels=1).fit(coords, facies),
+    "snesim": lambda: bt.SNESIM(ti, "facies", template_size=12, n_levels=1).fit(coords, facies),
 }
 
 # Image quilting.
 _x, _y = np.meshgrid(np.arange(40), np.arange(40))
-_ti = cs.BlockModel(
+_ti = bt.BlockModel(
     (0, 0), (1, 1), (40, 40), attributes={"f": (((_y - 4 * np.sin(_x / 5)) % 10) < 4).ravel() * 1.0}
 )
-SIMULATORS["image_quilting"] = lambda: cs.ImageQuilting(_ti, "f", patch_size=5).fit(coords, facies)
+SIMULATORS["image_quilting"] = lambda: bt.ImageQuilting(_ti, "f", patch_size=5).fit(coords, facies)
 
 
 def realizations(name, n, seed):
     if name == "bootstrap":
-        return cs.spatial_bootstrap(coords, values, v, n=n, seed=seed)["mean"][:, None]
+        return bt.spatial_bootstrap(coords, values, v, n=n, seed=seed)["mean"][:, None]
     s = SIMULATORS[name]().simulate(grid, n=n, seed=seed, keep=True)
     if isinstance(s, list):
         return np.hstack([x.realizations for x in s])

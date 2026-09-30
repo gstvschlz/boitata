@@ -1,4 +1,4 @@
-use ceres_core::{BlockModel, Layout, Mesh};
+use boitata_core::{BlockModel, Layout, Mesh};
 
 use crate::{BlockModelError, Result};
 
@@ -51,7 +51,7 @@ mod tests {
     use super::*;
     use crate::vertical_distance;
     use arrow_array::{ArrayRef, Float64Array};
-    use ceres_core::{Geometry, RecordBatch};
+    use boitata_core::{Geometry, RecordBatch};
     use std::sync::Arc;
 
     fn grid(count: [usize; 3], index: Option<Vec<u64>>) -> BlockModel {

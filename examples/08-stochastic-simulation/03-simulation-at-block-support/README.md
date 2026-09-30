@@ -8,15 +8,15 @@ their uncertainty, and, pooled inside panels, localized block grades. The exhaus
 <details><summary>Python</summary>
 
 ```python
-import ceres as cs
+import boitata as bt
 import matplotlib.pyplot as plt
 import numpy as np
 from common import ACCENT, GRAY, INK, save
 
-samples = cs.datasets.walker_lake()
-truth = cs.datasets.walker_lake_exhaustive()["V"].reshape(300, 260)
+samples = bt.datasets.walker_lake()
+truth = bt.datasets.walker_lake_exhaustive()["V"].reshape(300, 260)
 xy, v = samples.coords, samples["V"]
-weights = cs.cell_declustering(samples, "V", sizes=np.arange(2.5, 102.5, 2.5)).weights
+weights = bt.cell_declustering(samples, "V", sizes=np.arange(2.5, 102.5, 2.5)).weights
 size = 10
 ```
 
@@ -28,11 +28,11 @@ by its sill.
 <details><summary>Python</summary>
 
 ```python
-y = cs.NormalScore().fit(v, weights=weights).transform(v)
+y = bt.NormalScore().fit(v, weights=weights).transform(v)
 azimuths = (170, 260)
-experimental = [cs.experimental_variogram(xy, y, 10, 120, azimuth=a) for a in azimuths]
-fitted = cs.Variogram.fit_directional(experimental, [(a, 0) for a in azimuths], rotation=[170, 0, 0])
-gaussian = cs.Variogram(
+experimental = [bt.experimental_variogram(xy, y, 10, 120, azimuth=a) for a in azimuths]
+fitted = bt.Variogram.fit_directional(experimental, [(a, 0) for a in azimuths], rotation=[170, 0, 0])
+gaussian = bt.Variogram(
     [(s.model, s.sill / fitted.sill, s.range) for s in fitted.structures],
     nugget=fitted.nugget / fitted.sill,
     rotation=fitted.rotation,
@@ -62,9 +62,9 @@ def empirical(values):
     return tonnage, grade
 
 
-nodes = cs.BlockModel(origin=(0.5, 0.5), size=(2.5, 2.5), count=(104, 120))
-blocks = cs.BlockModel(origin=(0.5, 0.5), size=(size, size), count=(26, 30))
-sgs = cs.SGS(gaussian, cs.Search(radius=100, max_samples=24)).fit(xy, v, weights=weights)
+nodes = bt.BlockModel(origin=(0.5, 0.5), size=(2.5, 2.5), count=(104, 120))
+blocks = bt.BlockModel(origin=(0.5, 0.5), size=(size, size), count=(26, 30))
+sgs = bt.SGS(gaussian, bt.Search(radius=100, max_samples=24)).fit(xy, v, weights=weights)
 summary = sgs.simulate(nodes, n=30, seed=7, cutoffs=list(cutoffs), blocks=blocks)
 low, high = np.quantile(summary.realization_above, [0.1, 0.9], axis=0)
 true_block = empirical(truth.reshape(30, size, 26, size).mean(axis=(1, 3)).ravel())
@@ -103,19 +103,19 @@ ordinary block kriging receives the mean of chunk i. The kriging uses the grade 
 <details><summary>Python</summary>
 
 ```python
-grades = [cs.experimental_variogram(xy, v, 10, 120, azimuth=a) for a in azimuths]
-grade = cs.Variogram.fit_directional(
+grades = [bt.experimental_variogram(xy, v, 10, 120, azimuth=a) for a in azimuths]
+grade = bt.Variogram.fit_directional(
     grades, [(a, 0) for a in azimuths], ["spherical", "spherical"], rotation=[170, 0, 0]
 )
-panels = cs.BlockModel(origin=(0.5, 0.5), size=(50, 50), count=(5, 6))
+panels = bt.BlockModel(origin=(0.5, 0.5), size=(50, 50), count=(5, 6))
 smus = panels.discretize(5)
-search = cs.Search(radius=100, max_samples=24, min_samples=4)
-kriged = cs.BlockKriging(grade, search, size=(size, size), discretization=(5, 5, 1)).fit(xy, v).predict(smus)
+search = bt.Search(radius=100, max_samples=24, min_samples=4)
+kriged = bt.BlockKriging(grade, search, size=(size, size), discretization=(5, 5, 1)).fit(xy, v).predict(smus)
 smus = smus.with_column("kriged", kriged)
 
-west = cs.BlockModel(origin=(0.5, 0.5), size=(2.5, 2.5), count=(100, 120))
+west = bt.BlockModel(origin=(0.5, 0.5), size=(2.5, 2.5), count=(100, 120))
 ensemble = sgs.simulate(west, n=30, seed=11, blocks=smus, keep=True)
-localized = cs.localize(smus, "kriged", panels, ensemble.realizations)["localized"]
+localized = bt.localize(smus, "kriged", panels, ensemble.realizations)["localized"]
 true_smu = truth[:, :250].reshape(30, size, 25, size).mean(axis=(1, 3))
 for label, values in (("kriged", kriged), ("localized", localized)):
     print(

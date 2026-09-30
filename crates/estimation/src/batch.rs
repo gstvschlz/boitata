@@ -1,6 +1,6 @@
 //! Estimation over many targets.
 
-use ceres_core::Progress;
+use boitata_core::Progress;
 use rayon::prelude::*;
 use variogram::Variogram;
 

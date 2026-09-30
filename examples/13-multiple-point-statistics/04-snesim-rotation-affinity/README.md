@@ -7,22 +7,22 @@ affinity, so one image can serve a whole field of orientations.
 <details><summary>Python</summary>
 
 ```python
-import ceres as cs
+import boitata as bt
 import matplotlib.pyplot as plt
 import numpy as np
 from common import HIGHLIGHT, INK, save
 from matplotlib.colors import ListedColormap
 
-ti = cs.datasets.strebelle()
+ti = bt.datasets.strebelle()
 n = ti.count[0]
-grid = cs.BlockModel((0, 0), (1, 1), (n, n))
+grid = bt.BlockModel((0, 0), (1, 1), (n, n))
 xy = grid.centroids
 x, y = xy[:, 0], xy[:, 1]
 ```
 
 </details>
 
-`cs.LocalAnisotropy` holds, at each cell, the azimuth that turns the image's north, the ratios that shrink its X
+`bt.LocalAnisotropy` holds, at each cell, the azimuth that turns the image's north, the ratios that shrink its X
 (semi-major) and Z (minor) axes against its Y axis, and a scale that grows all three. At azimuth 0 and scale 1 the
 cells read the image as it is.
 
@@ -32,7 +32,7 @@ cells read the image as it is.
 def anisotropy(azimuth, semi=1.0, scale=1.0):
     azimuth, semi, scale = (np.broadcast_to(np.asarray(v, float), x.shape) for v in (azimuth, semi, scale))
     angles = np.column_stack([azimuth, np.zeros_like(x), np.zeros_like(x)])
-    return cs.LocalAnisotropy(xy, angles, np.column_stack([semi, np.ones_like(x)]), scales=scale)
+    return bt.LocalAnisotropy(xy, angles, np.column_stack([semi, np.ones_like(x)]), scales=scale)
 
 
 zones = (y > 170 - 0.3 * x).astype(int) + (y > 90 - 0.3 * x)
@@ -64,7 +64,7 @@ def runs_along_y(img):
     return np.mean(lengths)
 
 
-snesim = cs.SNESIM(ti, "facies")
+snesim = bt.SNESIM(ti, "facies")
 realizations = {}
 for title, (azimuth, semi, scale) in fields.items():
     summary = snesim.simulate(
@@ -119,26 +119,26 @@ keep their spacing, see only half as far into the stretched image.
 The channels cross the zone boundaries without a seam: a cell near a boundary sees neighbors simulated under the
 other zone's transform and continues them.
 
-Continuous images turn the same way. The F3 sections of [continuous SNESIM](../03-snesim-continuous/README.md)
+Continuous images turn the same way. The F3 sections of [continuous SNESIM](../../13-multiple-point-statistics/03-snesim-continuous/README.md)
 have nearly flat reflectors; an azimuth rising from -25° in the west to 25° in the east and back bends them into a
 fold. Here the cells are one trace by one sample, so an angle is measured in those units.
 
 <details><summary>Python</summary>
 
 ```python
-seismic = cs.datasets.f3_seismic()
+seismic = bt.datasets.f3_seismic()
 nx, ny, nz = seismic.count
 cube = seismic["amplitude"].astype(float).reshape(nz, ny, nx)[::-1]
 image = np.hstack([cube[:, j, :] for j in range(0, 45, 3)])
-sections = cs.BlockModel((0, 0), (1, 1), (image.shape[1], nz)).with_columns({"amplitude": image.ravel()})
+sections = bt.BlockModel((0, 0), (1, 1), (image.shape[1], nz)).with_columns({"amplitude": image.ravel()})
 width = 150
-section = cs.BlockModel((0, 0), (1, 1), (width, nz))
+section = bt.BlockModel((0, 0), (1, 1), (width, nz))
 along = section.centroids[:, 0]
 fold = -25 * np.cos(np.pi * along / width)
-field = cs.LocalAnisotropy(
+field = bt.LocalAnisotropy(
     section.centroids, np.column_stack([fold, 0 * fold, 0 * fold]), np.ones((along.size, 2))
 )
-continuous = cs.SNESIM(sections, "amplitude")
+continuous = bt.SNESIM(sections, "amplitude")
 flat = continuous.simulate(section, n=1, seed=2, keep=True, progress=False).realizations[0]
 folded = continuous.simulate(section, n=1, seed=2, keep=True, anisotropy=field, progress=False).realizations[
     0
@@ -167,7 +167,7 @@ save(fig, "fold")
 
 ![fold](fold.png)
 
-[Several training images](../05-snesim-training-images-by-zone/README.md) change the patterns themselves from zone
+[Several training images](../../13-multiple-point-statistics/05-snesim-training-images-by-zone/README.md) change the patterns themselves from zone
 to zone.
 
 Full script: [`example_13_04.py`](example_13_04.py)

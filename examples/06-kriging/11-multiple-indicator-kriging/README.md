@@ -6,18 +6,18 @@ Multiple indicator kriging (MIK) estimates the whole conditional distribution of
 <details><summary>Python</summary>
 
 ```python
-import ceres as cs
+import boitata as bt
 import matplotlib.pyplot as plt
 import numpy as np
 from common import ACCENT, GRAY, HIGHLIGHT, INK, save
 
-train = cs.datasets.jura()["prediction"]
-test = cs.datasets.jura()["validation"]
+train = bt.datasets.jura()["prediction"]
+test = bt.datasets.jura()["validation"]
 xy, cd = train.coords, train["Cd"]
 truth = test["Cd"]
 limit = 0.8
 lag, max_lag = 0.1, 1.5
-search = cs.Search(radius=1.5, max_samples=24, min_samples=4)
+search = bt.Search(radius=1.5, max_samples=24, min_samples=4)
 ```
 
 </details>
@@ -30,17 +30,17 @@ at the median solves one system per target instead. Ordinary kriging of Cd is th
 <details><summary>Python</summary>
 
 ```python
-weights = cs.cell_declustering(xy, cd).weights
+weights = bt.cell_declustering(xy, cd).weights
 deciles = np.quantile(cd, np.linspace(0.1, 0.9, 9))
 indicator_models = [
-    cs.experimental_variogram(xy, (cd <= t).astype(float), lag, max_lag).fit("spherical") for t in deciles
+    bt.experimental_variogram(xy, (cd <= t).astype(float), lag, max_lag).fit("spherical") for t in deciles
 ]
 summaries = {"cutoffs": [limit], "quantiles": [0.1, 0.5, 0.9]}
-mik = cs.MultipleIndicatorKriging(indicator_models, search, deciles, tails=(0.0, cd.max()))
+mik = bt.MultipleIndicatorKriging(indicator_models, search, deciles, tails=(0.0, cd.max()))
 by_mik = mik.fit(xy, cd, weights=weights).predict(test, **summaries)
-median = cs.MultipleIndicatorKriging(indicator_models[4], search, deciles, tails=(0.0, cd.max()))
+median = bt.MultipleIndicatorKriging(indicator_models[4], search, deciles, tails=(0.0, cd.max()))
 by_median = median.fit(xy, cd, weights=weights).predict(test, **summaries)
-ok = cs.OrdinaryKriging(cs.experimental_variogram(xy, cd, lag, max_lag).fit("spherical"), search).fit(
+ok = bt.OrdinaryKriging(bt.experimental_variogram(xy, cd, lag, max_lag).fit("spherical"), search).fit(
     train, "Cd"
 )
 
@@ -148,7 +148,7 @@ centroid already filters, so here the two stay close:
 <details><summary>Python</summary>
 
 ```python
-panels = cs.BlockModel(origin=(0.25, 0.0), size=(1.0, 1.0), count=(5, 6))
+panels = bt.BlockModel(origin=(0.25, 0.0), size=(1.0, 1.0), count=(5, 6))
 by_centroid = mik.predict(panels, cutoffs=[limit])
 by_panel = mik.predict(panels, cutoffs=[limit], discretization=(4, 4, 1))
 for name, s in (("centroids", by_centroid), ("1 km panels", by_panel)):

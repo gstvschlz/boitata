@@ -7,12 +7,12 @@ make.
 
 import numpy as np
 
-from ceres._ceres import correlation as _correlation
-from ceres._ceres import describe, normal_cdf, normal_ppf
-from ceres._ceres import swath as _swath
-from ceres._columns import column as _column
-from ceres._columns import stack as _stack
-from ceres.errors import InvalidInput
+from boitata._boitata import correlation as _correlation
+from boitata._boitata import describe, normal_cdf, normal_ppf
+from boitata._boitata import swath as _swath
+from boitata._columns import column as _column
+from boitata._columns import stack as _stack
+from boitata.errors import InvalidInput
 
 __all__ = [
     "boxplot",
@@ -60,7 +60,7 @@ def _axes(ax):
         import matplotlib.pyplot as plt
     except ImportError as e:
         raise ImportError(
-            "ceres.plot needs matplotlib: pip install 'ceres[plot]' or conda install -c conda-forge matplotlib"
+            "boitata.plot needs matplotlib: pip install 'boitata[plot]' or conda install -c conda-forge matplotlib"
         ) from e
     return plt.subplots()
 
@@ -690,7 +690,7 @@ def correlation(
     Parameters
     ----------
     data : array_like, mapping, Table, PointSet or BlockModel
-        ``(n, d)`` values, or named columns; each pair uses the rows where both are present, as ``ceres.correlation`` does.
+        ``(n, d)`` values, or named columns; each pair uses the rows where both are present, as ``boitata.correlation`` does.
     columns : list of str, optional
         Columns of `data` to draw, in order; default all of them.
     labels : list of str, optional
@@ -732,7 +732,7 @@ def declustering(result, *, naive=None, ax=None, **kwargs):
     Parameters
     ----------
     result : Declustering
-        Result of ``ceres.cell_declustering`` scanning cell sizes.
+        Result of ``boitata.cell_declustering`` scanning cell sizes.
     naive : float, optional
         Mean of the values without weights, drawn as a dotted line.
     **kwargs
@@ -838,7 +838,7 @@ def scatter_matrix(data, *, columns=None, labels=None, weights=None, log=False, 
     """Pairwise scatters of the columns of `data`, with their histograms on the diagonal.
 
     Each scatter is annotated with the Pearson (``r``) and rank correlation of its pair, weighted by `weights` and
-    over the rows where both values are present, as ``ceres.correlation`` computes them.
+    over the rows where both values are present, as ``boitata.correlation`` computes them.
 
     Parameters
     ----------
@@ -1301,7 +1301,7 @@ def swath(swaths, *, labels=None, y="mean", ax=None, **kwargs):
     Parameters
     ----------
     swaths : Table or list of Table
-        Results of ``ceres.swath``, e.g. composites and blocks with the same width.
+        Results of ``boitata.swath``, e.g. composites and blocks with the same width.
     labels : list of str, optional
         Legend entries.
     y : {"mean", "tonnage", "metal"}
@@ -1420,7 +1420,7 @@ def category_swath(
     categories : str or array_like
         Category (e.g. lithology) of each sample; its code, NaN for none, when `scheme` is given.
     width, azimuth, axis
-        Slices as in ``ceres.swath``: `width` along `azimuth` (degrees from north) or `axis` ("x", "y", "z").
+        Slices as in ``boitata.swath``: `width` along `azimuth` (degrees from north) or `axis` ("x", "y", "z").
     weights : str or array_like, optional
         Declustering weights or lengths.
     colors : sequence, optional
@@ -1707,7 +1707,7 @@ def paired_bias(bias, *, ax=None, **kwargs):
     Parameters
     ----------
     bias : Table
-        Result of ``ceres.paired_bias``.
+        Result of ``boitata.paired_bias``.
     **kwargs
         Passed to ``ax.plot``.
     """
@@ -1748,8 +1748,8 @@ def grade_tonnage(table, *, relative=False, ax=None, **kwargs):
     Parameters
     ----------
     table : Table or dict of str to Table
-        Result of ``ceres.grade_tonnage``, ``HermiteAnamorphosis.grade_tonnage``,
-        ``UniformConditioning.grade_tonnage`` or ``ceres.compare_models``; rows are split into curves by their
+        Result of ``boitata.grade_tonnage``, ``HermiteAnamorphosis.grade_tonnage``,
+        ``UniformConditioning.grade_tonnage`` or ``boitata.compare_models``; rows are split into curves by their
         ``model`` and ``category`` columns. A dict names several such tables.
     relative : bool
         Tonnage as a fraction of each curve's tonnage at its lowest cutoff, to compare samples with blocks.
@@ -1789,7 +1789,7 @@ def grade_tonnage(table, *, relative=False, ax=None, **kwargs):
 
 
 def _accuracy_curve(cv):
-    from ceres.estimation import IndicatorCrossValidation
+    from boitata.estimation import IndicatorCrossValidation
 
     if isinstance(cv, IndicatorCrossValidation):
         return cv
@@ -1898,7 +1898,7 @@ def contact(table, *, labels=("inside", "outside"), ax=None, **kwargs):
     Parameters
     ----------
     table : Table
-        Result of ``ceres.contact``; negative distances are inside.
+        Result of ``boitata.contact``; negative distances are inside.
     labels : tuple of str
         Names of the inside and outside domains, written on either side.
     **kwargs
@@ -1934,7 +1934,7 @@ def domain_change(table, *, value="tonnage", relative=False, fmt=None, ax=None, 
     Parameters
     ----------
     table : Table
-        Result of ``ceres.domain_change``.
+        Result of ``boitata.domain_change``.
     value : str
         Column to show: ``"tonnage"``, ``"metal"`` or ``"mean_grade"``.
     relative : bool
@@ -1981,7 +1981,7 @@ def transition_mds(table, *, ax=None, **kwargs):
     Parameters
     ----------
     table : Table
-        Result of ``ceres.transition_matrix``.
+        Result of ``boitata.transition_matrix``.
     **kwargs
         Passed to ``ax.scatter``.
     """

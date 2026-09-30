@@ -10,14 +10,14 @@ sulphide ones.
 <details><summary>Python</summary>
 
 ```python
-import ceres as cs
+import boitata as bt
 import matplotlib.pyplot as plt
 import numpy as np
 from common import HIGHLIGHT, INK, LIGHT, save
 
-lenses = cs.datasets.stacked_sulphide_lenses()
-intervals = cs.merge_intervals(lenses["assays"], lenses["lithology"])
-samples = cs.Drillholes(lenses["collars"], lenses["surveys"], intervals).samples()
+lenses = bt.datasets.stacked_sulphide_lenses()
+intervals = bt.merge_intervals(lenses["assays"], lenses["lithology"])
+samples = bt.Drillholes(lenses["collars"], lenses["surveys"], intervals).samples()
 density = np.asarray(samples["DENSITY"], float)
 sulphide = np.isin(np.asarray(samples["LITH"]), ["MS", "SMS", "STR"]) & ~np.isnan(samples["ZN_PCT"])
 columns = ["ZN_PCT", "PB_PCT", "CU_PCT", "AG_GPT", "AU_GPT", "DENSITY"]
@@ -42,12 +42,12 @@ the same hole. The imputer rescales its sill to one.
 <details><summary>Python</summary>
 
 ```python
-scores = cs.NormalScore().fit_transform(data[seen, 5])
-experimental = cs.experimental_variogram(xyz[seen], scores, 2.0, 40.0)
+scores = bt.NormalScore().fit_transform(data[seen, 5])
+experimental = bt.experimental_variogram(xyz[seen], scores, 2.0, 40.0)
 model = experimental.fit("spherical")
 nugget, (structure,) = model.nugget, model.structures
 print(f"nugget {nugget:.2f}, spherical sill {structure.sill:.2f}, range {structure.range:.1f} m")
-fig, ax = cs.plot.variogram(experimental, variogram=model)
+fig, ax = bt.plot.variogram(experimental, variogram=model)
 ax.set(title="Density normal scores")
 save(fig, "variogram")
 ```
@@ -73,8 +73,8 @@ tests = {
     "every other sample": np.isin(np.arange(len(data)), order[::2]),
 }
 imputers = {
-    "same sample": lambda seed, holed: cs.GaussianImputer(seed=seed).fit(holed),
-    "spatial": lambda seed, holed: cs.GaussianImputer(seed=seed, spatial=model).fit(holed, coords=xyz),
+    "same sample": lambda seed, holed: bt.GaussianImputer(seed=seed).fit(holed),
+    "spatial": lambda seed, holed: bt.GaussianImputer(seed=seed, spatial=model).fit(holed, coords=xyz),
 }
 draws = {}
 print(f"{'hidden':20}{'imputer':13}{'one draw':>9}{'mean':>7}{'sd':>6}")
@@ -144,11 +144,11 @@ samples, averaged over the draws, against the correlation fitted to the data:
 hidden = tests["every other sample"]
 holed = data.copy()
 holed[hidden, 5] = np.nan
-target = cs.GaussianImputer().fit(holed).correlation_[5]
-ns = [cs.NormalScore().fit(data[:, j]) for j in (0, 1, 3)]
+target = bt.GaussianImputer().fit(holed).correlation_[5]
+ns = [bt.NormalScore().fit(data[:, j]) for j in (0, 1, 3)]
 for name in imputers:
     d = draws["every other sample", name]
-    z = [cs.NormalScore().fit(data[seen, 5]).transform(x) for x in d]
+    z = [bt.NormalScore().fit(data[seen, 5]).transform(x) for x in d]
     r = [
         np.mean([np.corrcoef(n.transform(data[hidden, j]), zk)[0, 1] for zk in z])
         for n, j in zip(ns, (0, 1, 3))
@@ -167,7 +167,7 @@ fitted         0.80   0.79   0.81
 
 Both stay within 0.03 of the fitted correlations. Only the missing entries change; measured values are returned as they are. `transform` takes `coords=` for new
 samples and otherwise reuses those given to `fit`. A pure-nugget variogram gives exactly the draws of the
-non-spatial imputer, and `MultivariateSimulation.fit(..., impute=cs.GaussianImputer(spatial=model))` redraws the
+non-spatial imputer, and `MultivariateSimulation.fit(..., impute=bt.GaussianImputer(spatial=model))` redraws the
 gaps this way in every realization ([multivariate simulation](../../08-stochastic-simulation/06-multivariate-simulation/README.md)).
 
 The intrinsic model is the simplest spatial model with the fitted correlations: one correlogram for all variables.

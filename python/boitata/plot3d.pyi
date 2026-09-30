@@ -1,6 +1,6 @@
 from typing import Any, TypeAlias
 
-from ceres._ceres import BlockModel, Drillholes, Mesh, PointSet
+from boitata._boitata import BlockModel, Drillholes, Mesh, PointSet
 
 Container: TypeAlias = PointSet | Drillholes | BlockModel | Mesh
 

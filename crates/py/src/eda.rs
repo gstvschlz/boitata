@@ -4,7 +4,7 @@ use arrow_array::cast::AsArray;
 use arrow_array::types::Float64Type;
 use arrow_array::{ArrayRef, Float64Array, RecordBatch, StringArray, UInt64Array};
 use arrow_schema::DataType;
-use ceres_core::PointSet;
+use boitata_core::PointSet;
 use eda::{Along, Direction, Merge, Method};
 use pyo3::IntoPyObjectExt;
 use pyo3::prelude::*;
@@ -1163,7 +1163,7 @@ struct FittedCaps {
 ///     Fraction of the metal removed, ``1 - mean_capped / mean`` of
 ///     `capping_report`, likewise.
 #[derive(Serialize, Deserialize)]
-#[pyclass(module = "ceres", name = "Capping")]
+#[pyclass(module = "boitata", name = "Capping")]
 pub struct Capping {
     cap: Option<Given>,
     quantile: Option<f64>,

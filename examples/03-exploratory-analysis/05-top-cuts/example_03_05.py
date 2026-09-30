@@ -14,14 +14,14 @@ HERE = Path(__file__).parent if "__file__" in globals() else Path.cwd()
 sys.path.insert(0, str(HERE.parents[1]))
 
 # %%
-import ceres as cs
+import boitata as bt
 import matplotlib.pyplot as plt
 import numpy as np
 from common import ACCENT, save
 
-data = cs.datasets.vein_gold_grade_control()
-intervals = cs.merge_intervals(data["assays"], data["lithology"])
-holes = cs.Drillholes(data["collars"], data["surveys"], intervals)
+data = bt.datasets.vein_gold_grade_control()
+intervals = bt.merge_intervals(data["assays"], data["lithology"])
+holes = bt.Drillholes(data["collars"], data["surveys"], intervals)
 composites = holes.composite(1.0, ["AU_GPT"], domain="LITH", categories=["VEIN"])
 quartz = composites.filter((composites["LITH"] == "QV") & ~np.isnan(composites["AU_GPT"]))
 au = quartz["AU_GPT"]
@@ -31,7 +31,7 @@ print(f"{len(quartz)} composites of 1 m in quartz vein, mean Au {au.mean():.2f} 
 # Channels crowd the developed levels, so the composites are declustered first, in 20 m cells ([declustering](../../03-exploratory-analysis/03-declustering/README.md)).
 
 # %%
-weights = cs.cell_declustering(quartz, "AU_GPT", cell_size=20.0).weights
+weights = bt.cell_declustering(quartz, "AU_GPT", cell_size=20.0).weights
 print(f"declustered mean Au {np.average(au, weights=weights):.2f} g/t")
 
 # %% [markdown]
@@ -41,7 +41,7 @@ print(f"declustered mean Au {np.average(au, weights=weights):.2f} g/t")
 # the capped mean and CV.
 
 # %%
-caps = cs.capping("AU_GPT", weights=weights, data=quartz)
+caps = bt.capping("AU_GPT", weights=weights, data=quartz)
 print(f"{'cap':>7}{'above (%)':>11}{'metal (%)':>11}{'mean':>7}{'CV':>6}")
 for cap, above, metal, mean, cv in zip(*(caps[c] for c in caps.column_names), strict=True):
     print(f"{cap:>7.1f}{100 * above:>11.2f}{100 * metal:>11.1f}{mean:>7.2f}{cv:>6.2f}")
@@ -55,13 +55,13 @@ for cap, above, metal, mean, cv in zip(*(caps[c] for c in caps.column_names), st
 # P99 of the vein.
 
 # %%
-stats = cs.describe_by("AU_GPT", "VEIN", weights=weights, quantiles=[0.5, 0.99], data=quartz)
+stats = bt.describe_by("AU_GPT", "VEIN", weights=weights, quantiles=[0.5, 0.99], data=quartz)
 top = dict(zip(stats["category"][:-1], stats["P99"][:-1], strict=True))
 vein = quartz["VEIN"]
 fig, axes = plt.subplots(1, 2, figsize=(9, 3.8), layout="constrained", sharey=True)
 for ax, name in zip(axes, ["V1", "V2"], strict=True):
     keep = vein == name
-    cs.plot.probability(
+    bt.plot.probability(
         au[keep], weights=weights[keep], log=True, cap=top[name], fences=1.5, ax=ax, color=ACCENT, ms=2
     )
     ax.set(title=f"{name}, declustered", xlabel="Au (g/t)")
@@ -80,7 +80,7 @@ save(fig, "probability")
 # metal removed; the last row pools the veins.
 
 # %%
-report = cs.capping_report("AU_GPT", top, domain_column="VEIN", weights=weights, data=quartz)
+report = bt.capping_report("AU_GPT", top, domain_column="VEIN", weights=weights, data=quartz)
 columns = ["domain", "cap", "n", "n_capped", "mean", "mean_capped", "cv", "cv_capped"]
 print(
     f"{'vein':<5}{'cap':>7}{'n':>6}{'cut':>5}{'mean':>7}{'capped':>8}{'CV':>6}{'capped':>8}{'metal (%)':>11}"

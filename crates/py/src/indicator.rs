@@ -114,7 +114,7 @@ pub(crate) fn restore_diagnostics(found: &Found) -> PyResult<Option<IndicatorDia
 ///     threshold, up to the upper tail bound; the hyperbolic model needs a
 ///     last threshold > 0.
 #[derive(Serialize, Deserialize)]
-#[pyclass(module = "ceres", name = "MultipleIndicatorKriging")]
+#[pyclass(module = "boitata", name = "MultipleIndicatorKriging")]
 pub struct MultipleIndicatorKriging {
     model: MultipleIndicator,
     search: Vec<CoreSearch>,
@@ -321,7 +321,7 @@ impl MultipleIndicatorKriging {
             })
             .map_err(invalid)?;
         let actual = samples.iter().map(|s| s.value).collect();
-        py.import("ceres.estimation")?
+        py.import("boitata.estimation")?
             .getattr("IndicatorCrossValidation")?
             .call1((
                 array1(py, actual),
@@ -460,13 +460,13 @@ fn disc((nx, ny, nz): (usize, usize, usize)) -> Discretization {
 
 /// Discretization points of a block of `model` about its centroid.
 pub(crate) fn offsets(
-    model: &ceres_core::BlockModel,
+    model: &boitata_core::BlockModel,
     d: (usize, usize, usize),
 ) -> PyResult<Vec<(f64, f64, f64)>> {
     if d.0 == 0 || d.1 == 0 || d.2 == 0 {
         return Err(invalid("discretization must be positive"));
     }
-    if matches!(model.layout(), ceres_core::Layout::SubBlocked { .. }) {
+    if matches!(model.layout(), boitata_core::Layout::SubBlocked { .. }) {
         return Err(invalid(
             "discretization needs a regular or masked BlockModel",
         ));
@@ -505,7 +505,7 @@ impl Tabular for MultipleIndicatorKriging {
 /// Per-threshold, per-cutoff and per-quantile arrays have one row per
 /// target and one column per threshold, cutoff or quantile; NaN where
 /// unestimated.
-#[pyclass(module = "ceres", name = "IndicatorSummary", frozen)]
+#[pyclass(module = "boitata", name = "IndicatorSummary", frozen)]
 pub struct IndicatorSummary(pub(crate) CoreSummary);
 
 #[pymethods]

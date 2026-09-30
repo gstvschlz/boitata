@@ -1,5 +1,5 @@
 //! Parquet storage of tables and containers. Container geometry, layout and
-//! CRS are stored as JSON under the `ceres` key of the file's metadata, so
+//! CRS are stored as JSON under the `boitata` key of the file's metadata, so
 //! any Parquet reader still sees a plain table.
 
 use std::collections::HashMap;
@@ -12,7 +12,7 @@ use arrow_array::types::{Float64Type, UInt64Type};
 use arrow_array::{ArrayRef, Float64Array, RecordBatch, RecordBatchOptions, UInt64Array};
 use arrow_schema::{DataType, Field, Schema, SchemaRef};
 use arrow_select::concat::concat_batches;
-use ceres_core::{BlockModel, Geometry, Layout, PointSet, Polylines, Progress};
+use boitata_core::{BlockModel, Geometry, Layout, PointSet, Polylines, Progress};
 use parquet::arrow::arrow_reader::{ParquetRecordBatchReader, ParquetRecordBatchReaderBuilder};
 use parquet::arrow::arrow_writer::{
     ArrowColumnChunk, ArrowColumnWriter, ArrowLeafColumn, ArrowRowGroupWriterFactory,
@@ -28,16 +28,16 @@ use serde_json::{Value, json};
 
 use crate::{Error, Result};
 
-const KEY: &str = "ceres";
-const HIDDEN: &str = "__ceres_";
-const INDEX: &str = "__ceres_index";
+const KEY: &str = "boitata";
+const HIDDEN: &str = "__boitata_";
+const INDEX: &str = "__boitata_index";
 const EXTENT: [&str; 6] = [
-    "__ceres_u0",
-    "__ceres_v0",
-    "__ceres_w0",
-    "__ceres_u1",
-    "__ceres_v1",
-    "__ceres_w1",
+    "__boitata_u0",
+    "__boitata_v0",
+    "__boitata_w0",
+    "__boitata_u1",
+    "__boitata_v1",
+    "__boitata_w1",
 ];
 const ROW_GROUP: usize = 1 << 20;
 
@@ -510,7 +510,7 @@ fn read_table(path: &Path, progress: Option<&Progress>) -> Result<RecordBatch> {
 }
 
 /// Writes a fitted object: its arrays as `table`, its parameters as the JSON
-/// `meta` under the `ceres` key.
+/// `meta` under the `boitata` key.
 pub fn write_model(
     path: impl AsRef<Path>,
     table: &RecordBatch,
@@ -520,14 +520,14 @@ pub fn write_model(
     write(path.as_ref(), table, Some(meta), progress)
 }
 
-/// Table and `ceres` metadata of a file written by [`write_model`].
+/// Table and `boitata` metadata of a file written by [`write_model`].
 pub fn read_model(
     path: impl AsRef<Path>,
     progress: Option<&Progress>,
 ) -> Result<(RecordBatch, String)> {
     let table = read_table(path.as_ref(), progress)?;
     let meta = table.schema().metadata().get(KEY).cloned();
-    Ok((table, meta.ok_or_else(|| bad("no ceres metadata"))?))
+    Ok((table, meta.ok_or_else(|| bad("no boitata metadata"))?))
 }
 
 /// Reads a file written by any Parquet tool; files written from a container
@@ -747,7 +747,7 @@ mod tests {
     use arrow_array::StringArray;
 
     fn temp(name: &str) -> std::path::PathBuf {
-        std::env::temp_dir().join(format!("ceres-pq-{}-{name}", std::process::id()))
+        std::env::temp_dir().join(format!("boitata-pq-{}-{name}", std::process::id()))
     }
 
     fn attributes(n: usize) -> RecordBatch {

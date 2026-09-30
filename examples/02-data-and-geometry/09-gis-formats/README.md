@@ -9,12 +9,12 @@ GIS software exchanges points, lines and polygons as shapefiles and rasters as G
 ```python
 import tempfile
 
-import ceres as cs
+import boitata as bt
 import matplotlib.pyplot as plt
 import numpy as np
 from common import INK, map_axes, save
 
-data = cs.datasets.soil_geochemistry_survey()
+data = bt.datasets.soil_geochemistry_survey()
 samples, boundary, covariates = data["samples"], data["boundary"], data["covariates"]
 print(samples)
 print(boundary)
@@ -50,10 +50,10 @@ the counter-clockwise boundary comes back with its vertices in reverse order.
 
 ```python
 folder = Path(tempfile.mkdtemp())
-cs.write_shapefile(folder / "samples.shp", samples)
-cs.write_shapefile(folder / "boundary.shp", boundary)
+bt.write_shapefile(folder / "samples.shp", samples)
+bt.write_shapefile(folder / "boundary.shp", boundary)
 print(sorted(p.name for p in folder.glob("samples.*")))
-points, outline = cs.read_shapefile(folder / "samples.shp"), cs.read_shapefile(folder / "boundary.shp")
+points, outline = bt.read_shapefile(folder / "samples.shp"), bt.read_shapefile(folder / "boundary.shp")
 print("same points:", np.array_equal(points.coords, samples.coords))
 print(
     "same boundary, reversed:",
@@ -80,9 +80,9 @@ another ring of the same feature is a hole. Open parts are lines: the samples li
 ```python
 north = np.round(samples.coords[:, 1], -2)
 rows = [samples.coords[north == y][np.argsort(samples.coords[north == y, 0]), :2] for y in np.unique(north)]
-survey = cs.Polylines(rows, attributes={"NORTHING": np.unique(north)})
-cs.write_shapefile(folder / "lines.shp", survey)
-lines = cs.read_shapefile(folder / "lines.shp")
+survey = bt.Polylines(rows, attributes={"NORTHING": np.unique(north)})
+bt.write_shapefile(folder / "lines.shp", survey)
+lines = bt.read_shapefile(folder / "lines.shp")
 print(lines)
 ```
 
@@ -103,8 +103,8 @@ the lithology names are stored as the codes of a `Categories` scheme.
 <details><summary>Python</summary>
 
 ```python
-scheme = cs.Categories.from_values(covariates["LITHOLOGY"])
-numeric = cs.BlockModel(
+scheme = bt.Categories.from_values(covariates["LITHOLOGY"])
+numeric = bt.BlockModel(
     covariates.origin,
     covariates.size,
     covariates.count,
@@ -115,8 +115,8 @@ numeric = cs.BlockModel(
     },
 )
 inside = numeric.mask(covariates["INSIDE"] == 1)
-cs.write_geotiff(folder / "covariates.tif", inside)
-raster = cs.read_geotiff(folder / "covariates.tif")
+bt.write_geotiff(folder / "covariates.tif", inside)
+raster = bt.read_geotiff(folder / "covariates.tif")
 print(raster)
 print(f"{(folder / 'covariates.tif').stat().st_size / 1e6:.2f} MB")
 magnetics = raster["MAG_NT"]

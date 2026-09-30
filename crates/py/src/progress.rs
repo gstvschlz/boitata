@@ -5,7 +5,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
 use std::time::Duration;
 
-use ceres_core::Progress;
+use boitata_core::Progress;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 

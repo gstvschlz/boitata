@@ -7,7 +7,7 @@ gradient returns the dip.
 <details><summary>Python</summary>
 
 ```python
-import ceres as cs
+import boitata as bt
 import matplotlib.pyplot as plt
 import numpy as np
 from common import ACCENT, GRAY, HIGHLIGHT, INK, LIGHT, save
@@ -56,10 +56,10 @@ x = np.linspace(0, 600, 241)
 z = np.linspace(0, 200, 801)
 X, Z = np.meshgrid(x, z)
 probe = rng.uniform([0, 0], [600, 300], (400, 2))
-volume = cs.BlockModel(origin=(-5, -5, 0), size=(5, 5, 5), count=(122, 62, 40))
+volume = bt.BlockModel(origin=(-5, -5, 0), size=(5, 5, 5), count=(122, 62, 40))
 folds, depths = {}, {}
 for name, readings in fits.items():
-    folds[name] = cs.ImplicitModel(kernel="triharmonic").fit(above, [1.0], boundaries=picks, **readings)
+    folds[name] = bt.ImplicitModel(kernel="triharmonic").fit(above, [1.0], boundaries=picks, **readings)
     field = folds[name].predict(np.c_[X.ravel(), np.full(X.size, 150.0), Z.ravel()]).reshape(X.shape)
     depths[name] = z[np.argmin(np.abs(field), axis=0)]
     _, gradient = folds[name].predict(on_surface(probe), gradient=True)
@@ -113,7 +113,7 @@ dip = np.degrees(np.arccos(np.abs(gradient[:, 2]) / np.linalg.norm(gradient, axi
 direction = np.degrees(np.arctan2(gradient[:, 0], gradient[:, 1])) % 360
 truth_dip, truth_direction = true_dip(probe)
 fig, (a, b) = plt.subplots(1, 2, figsize=(9, 3.8), layout="constrained")
-cs.plot.scatter(truth_dip, dip, line=False, ax=a, color=ACCENT)
+bt.plot.scatter(truth_dip, dip, line=False, ax=a, color=ACCENT)
 a.set(xlabel="True dip (°)", ylabel="Modeled dip (°)", title="Dip from the gradient")
 b.hist(
     np.abs((direction - truth_direction + 180) % 360 - 180),

@@ -66,9 +66,9 @@ fn recoveries(r: &[Recovery]) -> PyResult<Table> {
 ///     few or clustered data still get smooth tails. Fit the reference with
 ///     the declustering weights; `fit` then takes no weights.
 #[derive(Serialize, Deserialize)]
-#[pyclass(module = "ceres", name = "NormalScore")]
+#[pyclass(module = "boitata", name = "NormalScore")]
 pub struct NormalScore {
-    #[serde(with = "ceres_core::nonfinite")]
+    #[serde(with = "boitata_core::nonfinite")]
     tails: Option<(f64, f64)>,
     reference: Option<Reference>,
     fitted: Option<CoreNormalScore>,
@@ -250,7 +250,7 @@ impl NormalScore {
 
 /// Gaussian anamorphosis expanded in Hermite polynomials.
 #[derive(Serialize, Deserialize)]
-#[pyclass(module = "ceres", name = "HermiteAnamorphosis")]
+#[pyclass(module = "boitata", name = "HermiteAnamorphosis")]
 pub struct Anamorphosis {
     degree: usize,
     fitted: Option<HermiteAnamorphosis>,
@@ -380,7 +380,7 @@ impl Anamorphosis {
 
 /// Box-Cox power transform; `lambda_=None` picks the least-skewed lambda.
 #[derive(Serialize, Deserialize)]
-#[pyclass(module = "ceres", name = "BoxCox")]
+#[pyclass(module = "boitata", name = "BoxCox")]
 pub struct BoxCox {
     requested: Option<f64>,
     lambda: Option<f64>,
@@ -461,7 +461,7 @@ impl BoxCox {
 
 /// Projection-pursuit multivariate transform to independent Gaussians.
 #[derive(Serialize, Deserialize)]
-#[pyclass(module = "ceres", name = "PPMT")]
+#[pyclass(module = "boitata", name = "PPMT")]
 pub struct Ppmt {
     params: PpmtParams,
     fitted: Option<CorePpmt>,
@@ -573,7 +573,7 @@ impl Ppmt {
 ///     Nearest samples, in the variogram's anisotropic distance, that each
 ///     draw conditions on; those beyond the range are left out.
 #[derive(Serialize, Deserialize)]
-#[pyclass(module = "ceres", name = "GaussianImputer")]
+#[pyclass(module = "boitata", name = "GaussianImputer")]
 pub struct GaussianImputer {
     components: Option<usize>,
     seed: u64,
@@ -778,7 +778,7 @@ fn variables(data: &Bound<PyAny>) -> PyResult<Vec<Vec<f64>>> {
 /// bandwidth_ : float
 ///     The fitted kernel width.
 #[derive(Serialize, Deserialize)]
-#[pyclass(module = "ceres", name = "KernelDensity")]
+#[pyclass(module = "boitata", name = "KernelDensity")]
 pub struct KernelDensity {
     bandwidth: transforms::Bandwidth,
     lower: Option<f64>,
@@ -936,7 +936,7 @@ impl KernelDensity {
 /// bic_ : dict
 ///     Bayesian information criterion by number of components fitted.
 #[derive(Serialize, Deserialize)]
-#[pyclass(module = "ceres", name = "GaussianMixture")]
+#[pyclass(module = "boitata", name = "GaussianMixture")]
 pub struct GaussianMixture {
     components: Option<usize>,
     max_components: usize,
@@ -1108,7 +1108,7 @@ fn table(data: &Bound<PyAny>, dim: usize) -> PyResult<Vec<Vec<f64>>> {
 /// Principal components of the covariance (`standardize=True`: correlation)
 /// matrix, by decreasing variance.
 #[derive(Serialize, Deserialize)]
-#[pyclass(module = "ceres", name = "PCA")]
+#[pyclass(module = "boitata", name = "PCA")]
 pub struct Pca {
     standardize: bool,
     fitted: Option<(CorePca, usize)>,
@@ -1206,7 +1206,7 @@ impl Pca {
 /// Min/max autocorrelation factors: uncorrelated at lag 0 and at `lag`, from
 /// most to least continuous. Pairs within `lag ± tolerance` (default `lag / 2`).
 #[derive(Serialize, Deserialize)]
-#[pyclass(module = "ceres", name = "MAF")]
+#[pyclass(module = "boitata", name = "MAF")]
 pub struct Maf {
     lag: f64,
     tolerance: Option<f64>,
@@ -1291,7 +1291,7 @@ impl Maf {
 /// Stepwise conditional transform: each variable normal-scored within the
 /// `classes` equal-probability classes of the variables before it.
 #[derive(Serialize, Deserialize)]
-#[pyclass(module = "ceres", name = "StepwiseConditional")]
+#[pyclass(module = "boitata", name = "StepwiseConditional")]
 pub struct StepwiseConditional {
     classes: usize,
     fitted: Option<CoreSct>,
@@ -1392,7 +1392,7 @@ impl StepwiseConditional {
 ///     A panel estimate more variable than the selective blocks takes
 ///     ``r_panel = r_smu``.
 #[derive(Serialize, Deserialize)]
-#[pyclass(module = "ceres", name = "UniformConditioning", frozen)]
+#[pyclass(module = "boitata", name = "UniformConditioning", frozen)]
 pub struct UniformConditioning(CoreUc);
 
 #[pymethods]
@@ -1648,7 +1648,7 @@ enum TrendModel {
 /// A trend in the coordinates, from `detrend`: a polynomial, or a smooth
 /// kernel average of the samples.
 #[derive(Serialize, Deserialize)]
-#[pyclass(module = "ceres", name = "Trend", frozen)]
+#[pyclass(module = "boitata", name = "Trend", frozen)]
 pub struct Trend(TrendModel);
 
 impl Trend {
@@ -1901,7 +1901,7 @@ fn detrend<'py>(
 
 /// Declustering weights (normalized to sum to n) and the declustered mean.
 #[derive(Serialize, Deserialize)]
-#[pyclass(module = "ceres", name = "Declustering", frozen)]
+#[pyclass(module = "boitata", name = "Declustering", frozen)]
 pub struct Declustering {
     #[pyo3(get)]
     mean: f64,

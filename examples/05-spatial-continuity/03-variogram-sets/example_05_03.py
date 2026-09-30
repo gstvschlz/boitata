@@ -2,7 +2,7 @@
 # Variogram sets
 
 `experimental_variograms` computes every direct and cross variogram of several variables in one call. The set it
-returns is indexed by variable pair, `Coregionalization.fit` takes it as it is, and `cs.plot.variograms` draws it as a
+returns is indexed by variable pair, `Coregionalization.fit` takes it as it is, and `bt.plot.variograms` draws it as a
 matrix of panels. On a regular grid the pairs are found by shifting cell indices instead of comparing every two
 samples, which makes variograms of exhaustive grids and simulated realizations cheap.
 """
@@ -15,11 +15,11 @@ HERE = Path(__file__).parent if "__file__" in globals() else Path.cwd()
 sys.path.insert(0, str(HERE.parents[1]))
 
 # %%
-import ceres as cs
+import boitata as bt
 import numpy as np
 from common import save
 
-train = cs.datasets.jura()["prediction"]
+train = bt.datasets.jura()["prediction"]
 metals = ["Cd", "Co", "Cr", "Cu", "Ni", "Pb", "Zn"]
 
 # %% [markdown]
@@ -27,7 +27,7 @@ metals = ["Cd", "Co", "Cr", "Cu", "Ni", "Pb", "Zn"]
 # and `vs[j, i]` are the same cross variogram, and variables can be named by column.
 
 # %%
-vs = cs.experimental_variograms(train, metals, 0.1, 1.5)
+vs = bt.experimental_variograms(train, metals, 0.1, 1.5)
 print(vs)
 print(f"Cd × Zn: {len(vs['Cd', 'Zn'].lags)} lags, {int(vs['Cd', 'Zn'].counts.sum()):,} pairs")
 
@@ -37,7 +37,7 @@ print(f"Cd × Zn: {len(vs['Cd', 'Zn'].lags)} lags, {int(vs['Cd', 'Zn'].counts.su
 # the correlations between the metals, close to those of the samples:
 
 # %%
-lmc = cs.Coregionalization.fit(vs, ["spherical", "spherical"])
+lmc = bt.Coregionalization.fit(vs, ["spherical", "spherical"])
 for name, matrix in [("nugget", lmc.nugget)] + [(f"{m} {a:.2f} km", s) for m, a, s in lmc.structures]:
     print(f"{name:18} smallest eigenvalue {np.linalg.eigvalsh(matrix)[0]:.2g}")
 sill = lmc.nugget + sum(s for _, _, s in lmc.structures)
@@ -52,7 +52,7 @@ print(f"largest |model - sample| correlation: {np.abs(model_corr - sample_corr)[
 # its own proportions.
 
 # %%
-fig, axes = cs.plot.variograms(vs, model=lmc)
+fig, axes = bt.plot.variograms(vs, model=lmc)
 for ax in axes.flat:
     ax.title.set_fontsize(8)
     ax.tick_params(labelsize=6)
@@ -67,9 +67,9 @@ save(fig, "jura")
 # direction, each one pass over the cells.
 
 # %%
-table = cs.datasets.walker_lake_exhaustive()
-grid = cs.BlockModel((0.5, 0.5), (1.0, 1.0), (260, 300), attributes={"V": table["V"], "U": table["U"]})
-axes_set = cs.experimental_variograms(
+table = bt.datasets.walker_lake_exhaustive()
+grid = bt.BlockModel((0.5, 0.5), (1.0, 1.0), (260, 300), attributes={"V": table["V"], "U": table["U"]})
+axes_set = bt.experimental_variograms(
     grid, ["V", "U"], 2.0, 60.0, directions=[(90.0, 0.0), (0.0, 0.0)], tolerance=0.5
 )
 east, north = axes_set["V", "V"]
@@ -80,11 +80,11 @@ print(f"V along x: {int(east.counts.sum()):,} pairs; along y: {int(north.counts.
 # checked here on a 60 × 60 m corner, small enough for the search:
 
 # %%
-corner = cs.BlockModel((0.5, 0.5), (1.0, 1.0), (60, 60))
+corner = bt.BlockModel((0.5, 0.5), (1.0, 1.0), (60, 60))
 rows = (np.arange(60)[:, None] * 260 + np.arange(60)).ravel()
 v = table["V"][rows]
-by_shift = cs.experimental_variogram(corner, v, 2.0, 30.0)
-by_search = cs.experimental_variogram(corner, v, 2.0, 30.0, method="pairs")
+by_shift = bt.experimental_variogram(corner, v, 2.0, 30.0)
+by_search = bt.experimental_variogram(corner, v, 2.0, 30.0, method="pairs")
 print(f"same pair counts: {np.array_equal(by_shift.counts, by_search.counts)}")
 print(f"largest relative difference in γ: {np.max(np.abs(by_shift.gammas / by_search.gammas - 1)):.1e}")
 
@@ -93,5 +93,5 @@ print(f"largest relative difference in γ: {np.max(np.abs(by_shift.gammas / by_s
 # checks it against the variogram model it was drawn from.
 
 # %%
-fig, axes = cs.plot.variograms(axes_set)
+fig, axes = bt.plot.variograms(axes_set)
 save(fig, "walker_lake")

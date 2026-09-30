@@ -1,4 +1,4 @@
-//! Spatial containers, rotations and geometry shared across ceres.
+//! Spatial containers, rotations and geometry shared across boitata.
 
 mod block_model;
 mod categories;

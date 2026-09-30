@@ -24,7 +24,7 @@
 
 use crate::error::Result;
 use crate::{is_inside_winding, require_closed, signed_solid_angle};
-use ceres_core::Mesh;
+use boitata_core::Mesh;
 use nalgebra::Vector3;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;

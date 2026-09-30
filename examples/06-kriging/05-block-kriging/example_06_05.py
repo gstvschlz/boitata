@@ -13,20 +13,20 @@ HERE = Path(__file__).parent if "__file__" in globals() else Path.cwd()
 sys.path.insert(0, str(HERE.parents[1]))
 
 # %%
-import ceres as cs
+import boitata as bt
 import matplotlib.pyplot as plt
 import numpy as np
 from common import ACCENT, GRAY, HIGHLIGHT, save
 
-samples = cs.datasets.walker_lake()
-truth = cs.datasets.walker_lake_exhaustive()["V"].reshape(300, 260)
+samples = bt.datasets.walker_lake()
+truth = bt.datasets.walker_lake_exhaustive()["V"].reshape(300, 260)
 
 azimuths = np.arange(0, 180, 22.5)
-directional = [cs.experimental_variogram(samples, "V", 10.0, 120.0, azimuth=a) for a in azimuths]
-model = cs.Variogram.fit_directional(
+directional = [bt.experimental_variogram(samples, "V", 10.0, 120.0, azimuth=a) for a in azimuths]
+model = bt.Variogram.fit_directional(
     directional, [(a, 0) for a in azimuths], ["spherical", "spherical"], weighting="count/gamma"
 )
-search = cs.Search(radius=80, max_samples=24, min_samples=4, rotation=model.rotation, ratios=(0.5, 1.0))
+search = bt.Search(radius=80, max_samples=24, min_samples=4, rotation=model.rotation, ratios=(0.5, 1.0))
 
 # %% [markdown]
 # `BlockKriging` averages the variogram between the samples and a grid of points inside each block,
@@ -34,9 +34,9 @@ search = cs.Search(radius=80, max_samples=24, min_samples=4, rotation=model.rota
 # exhaustive values in each 10 × 10 m block.
 
 # %%
-blocks = cs.BlockModel(origin=(0, 0), size=(10, 10), count=(26, 30))
-block = cs.BlockKriging(model, search, size=(10, 10), discretization=(5, 5, 1)).fit(samples, "V")
-point = cs.OrdinaryKriging(model, search).fit(samples, "V")
+blocks = bt.BlockModel(origin=(0, 0), size=(10, 10), count=(26, 30))
+block = bt.BlockKriging(model, search, size=(10, 10), discretization=(5, 5, 1)).fit(samples, "V")
+point = bt.OrdinaryKriging(model, search).fit(samples, "V")
 block_estimate, block_variance = block.predict(blocks, return_variance=True)
 point_estimate, point_variance = point.predict(blocks, return_variance=True)
 true_blocks = truth.reshape(30, 10, 26, 10).mean(axis=(1, 3)).ravel()
@@ -78,8 +78,8 @@ save(fig, "blocks")
 sizes = (5, 10, 20)
 rows = []
 for size in sizes:
-    grid = cs.BlockModel(origin=(0, 0), size=(size, size), count=(260 // size, 300 // size))
-    d = cs.BlockKriging(model, search, size=(size, size)).fit(samples, "V").predict(grid, diagnostics=True)
+    grid = bt.BlockModel(origin=(0, 0), size=(size, size), count=(260 // size, 300 // size))
+    d = bt.BlockKriging(model, search, size=(size, size)).fit(samples, "V").predict(grid, diagnostics=True)
     true = truth.reshape(300 // size, size, 260 // size, size).mean(axis=(1, 3)).ravel()
     rows.append(
         (

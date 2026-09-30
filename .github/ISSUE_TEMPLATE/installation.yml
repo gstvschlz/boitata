@@ -1,5 +1,5 @@
 name: Installation problem
-description: Report a failure to build, install or import ceres.
+description: Report a failure to build, install or import boitata.
 title: "BUG: <write a short title after the 'BUG: ' prefix>"
 labels: [bug, infra]
 
@@ -8,7 +8,7 @@ body:
   attributes:
     label: "Steps to reproduce:"
     description: >
-      The commands you ran, for example `pip install "ceresgeo[all]"`.
+      The commands you ran, for example `pip install "boitata[all]"`.
     render: shell
   validations:
     required: true
@@ -25,7 +25,7 @@ body:
   attributes:
     label: "Environment:"
     description: >
-      Operating system, Python version, how you installed ceres (pip, uv, conda,
+      Operating system, Python version, how you installed Boitatá (pip, uv, conda,
       pixi, ...), and your Rust version (`rustc --version`) if it built from source.
   validations:
     required: true

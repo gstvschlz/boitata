@@ -5,7 +5,7 @@ use blocks::{
     DomainMethod, Orientation, PolygonSelector as CoreSelector, ShellBlock, ShellFilter,
     ShellLimits, SolidTester, TriangleTree, extract_shell,
 };
-use ceres_core::Mesh as CoreMesh;
+use boitata_core::Mesh as CoreMesh;
 use numpy::ndarray::Array2;
 use numpy::{IntoPyArray, PyArray1, PyReadonlyArray2};
 use pyo3::prelude::*;
@@ -36,12 +36,12 @@ fn bools<'py>(py: Python<'py>, values: Vec<bool>) -> Bound<'py, PyAny> {
     PyArray1::from_vec(py, values).into_any()
 }
 
-fn core_error(e: ceres_core::Error) -> PyErr {
+fn core_error(e: boitata_core::Error) -> PyErr {
     invalid(e)
 }
 
 /// Triangulated surface or solid with per-vertex and per-face attributes.
-#[pyclass(module = "ceres", name = "Mesh", frozen)]
+#[pyclass(module = "boitata", name = "Mesh", frozen)]
 pub struct Mesh {
     pub mesh: CoreMesh,
     tester: Option<SolidTester>,
@@ -94,7 +94,7 @@ impl Mesh {
         Ok(blocks::Domain { region, label })
     }
 
-    fn with(&self, mesh: ceres_core::Result<CoreMesh>) -> PyResult<Self> {
+    fn with(&self, mesh: boitata_core::Result<CoreMesh>) -> PyResult<Self> {
         Ok(Self {
             mesh: mesh.map_err(core_error)?,
             tester: self.tester.clone(),
@@ -400,7 +400,7 @@ impl Mesh {
 /// close implicitly, or a Polylines, whose closed parts are used. Inside means
 /// an odd number of rings of a feature hold the point, so a ring inside
 /// another is a hole; raw rings are one feature.
-#[pyclass(module = "ceres", name = "PolygonSelector", frozen)]
+#[pyclass(module = "boitata", name = "PolygonSelector", frozen)]
 pub struct PolygonSelector(CoreSelector);
 
 #[pymethods]
@@ -460,7 +460,7 @@ impl PolygonSelector {
 ///     surface keeps x and y. By default ``u`` and ``v`` are x and y.
 /// extrapolate : bool, default False
 ///     Unfold points above or below the layer too, instead of giving NaN.
-#[pyclass(module = "ceres", name = "Unfold", frozen)]
+#[pyclass(module = "boitata", name = "Unfold", frozen)]
 pub struct Unfold(blocks::Unfold);
 
 fn triples<'py>(py: Python<'py>, rows: Vec<[f64; 3]>) -> Bound<'py, PyAny> {
@@ -774,7 +774,7 @@ fn block_shell<'py>(
         )?),
         None => None,
     };
-    let frame = ceres_core::block_frame(m.geometry().rotation);
+    let frame = boitata_core::block_frame(m.geometry().rotation);
     let axis = |i: usize| [frame[(i, 0)], frame[(i, 1)], frame[(i, 2)]];
     let orientation = Orientation::from_axes(axis(0), axis(1), axis(2)).map_err(err)?;
     let filter = ShellFilter {

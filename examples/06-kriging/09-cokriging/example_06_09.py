@@ -13,13 +13,13 @@ HERE = Path(__file__).parent if "__file__" in globals() else Path.cwd()
 sys.path.insert(0, str(HERE.parents[1]))
 
 # %%
-import ceres as cs
+import boitata as bt
 import matplotlib.pyplot as plt
 import numpy as np
 from common import ACCENT, GRAY, INK, save
 
-train = cs.datasets.jura()["prediction"]
-test = cs.datasets.jura()["validation"]
+train = bt.datasets.jura()["prediction"]
+test = bt.datasets.jura()["validation"]
 xy = train.coords
 cd, zn = train["Cd"], train["Zn"]
 lag, max_lag = 0.1, 1.5
@@ -32,14 +32,14 @@ lag, max_lag = 0.1, 1.5
 # %%
 experimentals = [
     [
-        cs.experimental_variogram(xy, cd, lag, max_lag),
-        cs.experimental_variogram(xy, cd, lag, max_lag, other=zn),
+        bt.experimental_variogram(xy, cd, lag, max_lag),
+        bt.experimental_variogram(xy, cd, lag, max_lag, other=zn),
     ],
-    [None, cs.experimental_variogram(xy, zn, lag, max_lag)],
+    [None, bt.experimental_variogram(xy, zn, lag, max_lag)],
 ]
-lmc = cs.Coregionalization.fit(experimentals, ["spherical", "spherical"])
-search = cs.Search(radius=1.5, max_samples=24, min_samples=4)
-ok = cs.OrdinaryKriging(experimentals[0][0].fit("spherical"), search).fit(train, "Cd")
+lmc = bt.Coregionalization.fit(experimentals, ["spherical", "spherical"])
+search = bt.Search(radius=1.5, max_samples=24, min_samples=4)
+ok = bt.OrdinaryKriging(experimentals[0][0].fit("spherical"), search).fit(train, "Cd")
 
 
 # %% [markdown]
@@ -47,7 +47,7 @@ ok = cs.OrdinaryKriging(experimentals[0][0].fit("spherical"), search).fit(train,
 # secondary value at the target itself, here Zn at each validation point:
 
 # %%
-ck = cs.Cokriging(lmc, search, means=[cd.mean(), zn.mean()])
+ck = bt.Cokriging(lmc, search, means=[cd.mean(), zn.mean()])
 ck.fit(np.vstack([xy, xy]), np.r_[cd, zn], [0] * len(cd) + [1] * len(zn))
 truth = test["Cd"]
 by_ok = ok.predict(test)

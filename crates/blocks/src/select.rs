@@ -9,7 +9,7 @@
 //! window when one is set. This is the standard "inside the pit outline
 //! between 7800 and 7850" query.
 
-use ceres_core::Polylines;
+use boitata_core::Polylines;
 
 use crate::distance::point_in_polygon;
 use crate::error::{BlockModelError, Result};

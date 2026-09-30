@@ -8,12 +8,12 @@ five traces, using other sections of the same survey as the training image.
 <details><summary>Python</summary>
 
 ```python
-import ceres as cs
+import boitata as bt
 import matplotlib.pyplot as plt
 import numpy as np
 from common import GRAY, HIGHLIGHT, INK, LIGHT, save
 
-seismic = cs.datasets.f3_seismic()
+seismic = bt.datasets.f3_seismic()
 nx, ny, nz = seismic.count
 cube = seismic["amplitude"].astype(float).reshape(nz, ny, nx)[::-1]  # time down: row 0 at 1600 ms
 print(f"{nx} x {ny} traces of {nz} samples, amplitude {cube.min():.0f} to {cube.max():.0f}")
@@ -35,8 +35,8 @@ the section share that size.
 ```python
 image = np.hstack([cube[:, j, :] for j in range(0, 30, 3)])
 truth = cube[:, 40, :]
-ti = cs.BlockModel((0, 1600), (25, 4), (image.shape[1], nz)).with_columns({"amplitude": image.ravel()})
-section = cs.BlockModel((0, 1600), (25, 4), (nx, nz))
+ti = bt.BlockModel((0, 1600), (25, 4), (image.shape[1], nz)).with_columns({"amplitude": image.ravel()})
+section = bt.BlockModel((0, 1600), (25, 4), (nx, nz))
 traces = [4, 13, 22, 31, 40]
 at_traces = np.zeros((nz, nx), bool)
 at_traces[:, traces] = True
@@ -52,7 +52,7 @@ classes there are too many arrangements, and most of the time a cell falls back 
 <details><summary>Python</summary>
 
 ```python
-snesim = cs.SNESIM(ti, "amplitude").fit(wells, values)
+snesim = bt.SNESIM(ti, "amplitude").fit(wells, values)
 print("cutoffs:", np.round(np.quantile(image, [0.25, 0.5, 0.75])))
 summary = snesim.simulate(section, n=50, seed=11, keep=range(3), progress=False)
 reals = summary.realizations.reshape(-1, nz, nx)
@@ -135,7 +135,7 @@ save(fig, "histograms")
 
 ![histograms](histograms.png)
 
-Categories are the usual case: see [the multigrid](../01-snesim-multigrid/README.md) and
-[conditioning](../02-snesim-conditioning/README.md).
+Categories are the usual case: see [the multigrid](../../13-multiple-point-statistics/01-snesim-multigrid/README.md) and
+[conditioning](../../13-multiple-point-statistics/02-snesim-conditioning/README.md).
 
 Full script: [`example_13_03.py`](example_13_03.py)

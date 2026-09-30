@@ -20,7 +20,7 @@ use crate::invalid;
 
 /// Columnar attribute table; exchanges data with pyarrow, polars and pandas
 /// through the Arrow PyCapsule interface.
-#[pyclass(module = "ceres", name = "Table", frozen)]
+#[pyclass(module = "boitata", name = "Table", frozen)]
 pub struct Table(pub RecordBatch);
 
 pub fn empty(rows: usize) -> RecordBatch {

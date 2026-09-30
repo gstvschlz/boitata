@@ -16,20 +16,20 @@ HERE = Path(__file__).parent if "__file__" in globals() else Path.cwd()
 sys.path.insert(0, str(HERE.parents[1]))
 
 # %%
-import ceres as cs
+import boitata as bt
 import matplotlib.pyplot as plt
 import numpy as np
 from common import ACCENT, GRAY, HIGHLIGHT, LIGHT, save
 
-data = cs.datasets.vein_gold_grade_control()
-intervals = cs.merge_intervals(data["assays"], data["lithology"])
-holes = cs.Drillholes(data["collars"], data["surveys"], intervals)
+data = bt.datasets.vein_gold_grade_control()
+intervals = bt.merge_intervals(data["assays"], data["lithology"])
+holes = bt.Drillholes(data["collars"], data["surveys"], intervals)
 composites = holes.composite(1.0, ["AU_GPT"], domain="LITH", categories=["VEIN"])
 v4 = composites.filter(
     (composites["LITH"] == "QV") & (composites["VEIN"] == "V4") & ~np.isnan(composites["AU_GPT"])
 )
 au = v4["AU_GPT"]
-weights = cs.cell_declustering(v4, "AU_GPT", cell_size=20.0).weights
+weights = bt.cell_declustering(v4, "AU_GPT", cell_size=20.0).weights
 print(
     f"{len(au)} composites of 1 m in vein V4, declustered mean Au {np.average(au, weights=weights):.2f} g/t"
 )
@@ -46,13 +46,13 @@ print(f"highest {np.sort(au)[-3:].round(1)} g/t")
 
 # %%
 references = {
-    "reflected at 0": cs.KernelDensity(lower=0.0).fit(au, weights=weights),
-    "log space": cs.KernelDensity(log=True).fit(au, weights=weights),
-    "log, width 0.3": cs.KernelDensity(log=True, bandwidth=0.3).fit(au, weights=weights),
+    "reflected at 0": bt.KernelDensity(lower=0.0).fit(au, weights=weights),
+    "log space": bt.KernelDensity(log=True).fit(au, weights=weights),
+    "log, width 0.3": bt.KernelDensity(log=True, bandwidth=0.3).fit(au, weights=weights),
 }
-transforms = {"empirical": cs.NormalScore(tails=(0.0, au.max())).fit(au, weights=weights)}
+transforms = {"empirical": bt.NormalScore(tails=(0.0, au.max())).fit(au, weights=weights)}
 for name, kde in references.items():
-    transforms[name] = cs.NormalScore(reference=kde).fit(au)
+    transforms[name] = bt.NormalScore(reference=kde).fit(au)
     print(
         f"{name:15} bandwidth {kde.bandwidth_:.2f}" + (" g/t" if name == "reflected at 0" else " (log units)")
     )
@@ -106,17 +106,17 @@ save(fig, "tails")
 # arms. With `components` left out, the count from 1 to 6 with the lowest Bayesian information criterion (BIC) is kept.
 
 # %%
-porphyry = cs.datasets.porphyry_geometallurgy(deposit=1)["synthetic_drillholes"]
+porphyry = bt.datasets.porphyry_geometallurgy(deposit=1)["synthetic_drillholes"]
 pair = np.log(np.column_stack([porphyry["calcosina"], porphyry["tenantita"]]))
 names = ["log chalcocite (%)", "log tennantite (%)"]
-mixture = cs.GaussianMixture(seed=0).fit(pair)
+mixture = bt.GaussianMixture(seed=0).fit(pair)
 print(f"{len(pair)} composites; BIC by number of components:")
 print("  " + ", ".join(f"{k}: {b:.0f}" for k, b in mixture.bic_.items()))
 print("proportions", mixture.proportions_.round(2))
 
 # %%
 reference = mixture.sample(len(pair), seed=1)
-single = cs.GaussianMixture(components=1).fit(pair).sample(len(pair), seed=1)
+single = bt.GaussianMixture(components=1).fit(pair).sample(len(pair), seed=1)
 fig, axes = plt.subplots(1, 3, figsize=(12, 3.8), layout="constrained", sharex=True, sharey=True)
 for ax, xy, title in zip(
     axes,
@@ -151,8 +151,8 @@ holed = pair.copy()
 holed[hidden, 1] = np.nan
 q80 = np.quantile(pair, 0.8, axis=0)
 imputed = {
-    "one Gaussian": cs.GaussianImputer(seed=0).fit(holed).transform(holed),
-    "mixture": cs.GaussianImputer(components=None, seed=0).fit(holed).transform(holed),
+    "one Gaussian": bt.GaussianImputer(seed=0).fit(holed).transform(holed),
+    "mixture": bt.GaussianImputer(components=None, seed=0).fit(holed).transform(holed),
 }
 print(f"{hidden.sum()} tennantite values hidden; both above their P80:")
 print(f"  truth {np.mean(np.all(pair[hidden] > q80, axis=1)):.3f}")

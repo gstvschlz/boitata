@@ -5,7 +5,7 @@ from typing import Any, Literal, TypeAlias, overload
 import numpy as np
 import numpy.typing as npt
 
-from ceres.estimation import CategoricalCrossValidation, IndicatorCrossValidation
+from boitata.estimation import CategoricalCrossValidation, IndicatorCrossValidation
 
 __version__: str
 

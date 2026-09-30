@@ -8,14 +8,14 @@ against also folding in `LIM` samples within the buffer of their nearest `SAP` s
 <details><summary>Python</summary>
 
 ```python
-import ceres as cs
+import boitata as bt
 import matplotlib.pyplot as plt
 import numpy as np
 from common import ACCENT, GRAY, save
 
-data = cs.datasets.nickel_laterite_profile()
-intervals = cs.merge_intervals(data["assays"], data["horizons"])
-samples = cs.Drillholes(data["collars"], data["surveys"], intervals).samples()
+data = bt.datasets.nickel_laterite_profile()
+intervals = bt.merge_intervals(data["assays"], data["horizons"])
+samples = bt.Drillholes(data["collars"], data["surveys"], intervals).samples()
 samples = samples.filter(np.isin(np.asarray(samples["HORIZON"]), ["LIM", "SAP"]))
 ```
 
@@ -29,7 +29,7 @@ ellipsoid.
 <details><summary>Python</summary>
 
 ```python
-added, stats = cs.soft_boundary(samples, "NI_PCT", domain_column="HORIZON", target="SAP", buffer=50.0)
+added, stats = bt.soft_boundary(samples, "NI_PCT", domain_column="HORIZON", target="SAP", buffer=50.0)
 print(f"{added.sum()} of {len(added)} LIM samples fall within 50 m of a SAP sample")
 for kind, n, mean, variance in zip(stats["kind"], stats["n"], stats["mean"], stats["variance"], strict=True):
     print(f"{kind:>4}: n={n:.0f}, mean={mean:.2f} % Ni, variance={variance:.3f}")

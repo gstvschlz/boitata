@@ -11,7 +11,7 @@ by eye, then reads a model back from centroids and from a file.
 ```python
 import tempfile
 
-import ceres as cs
+import boitata as bt
 import matplotlib.pyplot as plt
 import numpy as np
 from common import ACCENT, GRAY, HIGHLIGHT, INK, LIGHT, map_axes, save
@@ -35,7 +35,7 @@ from the origin along each axis.
 <details><summary>Python</summary>
 
 ```python
-model = cs.BlockModel(origin=(1000, 2000, 300), size=(10, 10, 5), count=(5, 4, 3))
+model = bt.BlockModel(origin=(1000, 2000, 300), size=(10, 10, 5), count=(5, 4, 3))
 print(model)
 print("first corner:  ", model.corners[0, 0])
 print("first centroid:", model.centroids[0])
@@ -136,7 +136,7 @@ point back into the grid.
 <details><summary>Python</summary>
 
 ```python
-rotated = cs.BlockModel(origin=(1000, 2000, 300), size=(10, 10, 5), count=(5, 4, 3), rotation=(30, 0, 0))
+rotated = bt.BlockModel(origin=(1000, 2000, 300), size=(10, 10, 5), count=(5, 4, 3), rotation=(30, 0, 0))
 corner = rotated.corners[0]
 axes = ((corner[[1, 2, 4]] - corner[0]) / np.array(rotated.size)[:, None]).T
 print("x axis", axes[:, 0].round(3), " y axis", axes[:, 1].round(3))
@@ -204,8 +204,8 @@ indices of the cells present, so row and cell index part ways: `index[row]` is t
 <details><summary>Python</summary>
 
 ```python
-grid = cs.BlockModel(origin=(0, 0), size=(10, 10), count=(20, 16))
-outline = cs.Polylines([[[25, 30], [150, 12], [190, 90], [120, 150], [40, 125]]], closed=True)
+grid = bt.BlockModel(origin=(0, 0), size=(10, 10), count=(20, 16))
+outline = bt.Polylines([[[25, 30], [150, 12], [190, 90], [120, 150], [40, 125]]], closed=True)
 domain = grid.mask(outline.contains(grid))
 print(domain)
 print("first rows hold cells", domain.index[:5].tolist())
@@ -277,7 +277,7 @@ extents = [
     [0, 0, 0, 1, 0.25, 1],
 ]
 cu = [0.4, 1.2, 0.9, 0.3, 0.5, 2.0]
-blocks = cs.BlockModel.subblocked(
+blocks = bt.BlockModel.subblocked(
     (0, 0), (10, 10), (3, 2), parents, extents, subgrid=(4, 4, 1), attributes={"cu": cu}
 )
 print(blocks)
@@ -287,7 +287,7 @@ print("per parent:", merged["cu"].round(2).tolist())
 
 fig, ax = plt.subplots(figsize=(4.6, 3.4), layout="constrained")
 draw(ax, blocks, color=ACCENT)
-draw(ax, cs.BlockModel(origin=(0, 0), size=(10, 10), count=(3, 2)), color="none", edge=GRAY, lw=1.2)
+draw(ax, bt.BlockModel(origin=(0, 0), size=(10, 10), count=(3, 2)), color="none", edge=GRAY, lw=1.2)
 for c, parent, value in zip(blocks.centroids, blocks.index, cu):
     ax.text(*c[:2], f"{parent}: {value}", ha="center", va="center", fontsize=7, color="white")
 map_axes(ax, "Sub-blocks in a 3 × 2 parent grid")
@@ -321,14 +321,14 @@ written as CSV.
 
 ```python
 folder = Path(tempfile.mkdtemp())
-cs.write_csv(folder / "domain.csv", domain, progress=False)
-table = cs.read_csv(folder / "domain.csv", progress=False)
+bt.write_csv(folder / "domain.csv", domain, progress=False)
+table = bt.read_csv(folder / "domain.csv", progress=False)
 xyz = np.column_stack([table["x"], table["y"], table["z"]])
 size = (10.0, 10.0, 1.0)
-box = cs.BlockModel.from_extents(xyz, size=size, buffer=np.array(size) / 2)
+box = bt.BlockModel.from_extents(xyz, size=size, buffer=np.array(size) / 2)
 cells = box.row_at(xyz).astype(np.uint64)
 order = np.argsort(cells)
-rebuilt = cs.BlockModel(
+rebuilt = bt.BlockModel(
     box.origin, size, box.count, index=cells[order], attributes={"cu": table["cu"][order]}
 )
 print(rebuilt)
@@ -372,8 +372,8 @@ CRS travel in the file metadata. The rotated grid, masked to its middle level, g
 
 ```python
 middle = rotated.with_column("cu", np.linspace(0.1, 3.0, len(rotated))).mask(k == 1)
-cs.write_parquet(folder / "middle.parquet", middle, progress=False)
-back = cs.read_parquet(folder / "middle.parquet", progress=False)
+bt.write_parquet(folder / "middle.parquet", middle, progress=False)
+back = bt.read_parquet(folder / "middle.parquet", progress=False)
 print(back)
 print("origin", back.origin, "rotation", back.rotation)
 print(

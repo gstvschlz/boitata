@@ -15,12 +15,12 @@ HERE = Path(__file__).parent if "__file__" in globals() else Path.cwd()
 sys.path.insert(0, str(HERE.parents[1]))
 
 # %%
-import ceres as cs
+import boitata as bt
 import matplotlib.pyplot as plt
 import numpy as np
 from common import GRAY, HIGHLIGHT, INK, LIGHT, save
 
-seismic = cs.datasets.f3_seismic()
+seismic = bt.datasets.f3_seismic()
 nx, ny, nz = seismic.count
 cube = seismic["amplitude"].astype(float).reshape(nz, ny, nx)[::-1]  # time down: row 0 at 1600 ms
 print(f"{nx} x {ny} traces of {nz} samples, amplitude {cube.min():.0f} to {cube.max():.0f}")
@@ -35,8 +35,8 @@ print(f"{nx} x {ny} traces of {nz} samples, amplitude {cube.min():.0f} to {cube.
 # %%
 image = np.hstack([cube[:, j, :] for j in range(0, 30, 3)])
 truth = cube[:, 40, :]
-ti = cs.BlockModel((0, 1600), (25, 4), (image.shape[1], nz)).with_columns({"amplitude": image.ravel()})
-section = cs.BlockModel((0, 1600), (25, 4), (nx, nz))
+ti = bt.BlockModel((0, 1600), (25, 4), (image.shape[1], nz)).with_columns({"amplitude": image.ravel()})
+section = bt.BlockModel((0, 1600), (25, 4), (nx, nz))
 traces = [4, 13, 22, 31, 40]
 at_traces = np.zeros((nz, nx), bool)
 at_traces[:, traces] = True
@@ -49,7 +49,7 @@ values = truth[at_traces]
 # classes there are too many arrangements, and most of the time a cell falls back to the class proportions.
 
 # %%
-snesim = cs.SNESIM(ti, "amplitude").fit(wells, values)
+snesim = bt.SNESIM(ti, "amplitude").fit(wells, values)
 print("cutoffs:", np.round(np.quantile(image, [0.25, 0.5, 0.75])))
 summary = snesim.simulate(section, n=50, seed=11, keep=range(3), progress=False)
 reals = summary.realizations.reshape(-1, nz, nx)
@@ -114,5 +114,5 @@ ax.legend(loc="lower right")
 save(fig, "histograms")
 
 # %% [markdown]
-# Categories are the usual case: see [the multigrid](../01-snesim-multigrid/README.md) and
-# [conditioning](../02-snesim-conditioning/README.md).
+# Categories are the usual case: see [the multigrid](../../13-multiple-point-statistics/01-snesim-multigrid/README.md) and
+# [conditioning](../../13-multiple-point-statistics/02-snesim-conditioning/README.md).

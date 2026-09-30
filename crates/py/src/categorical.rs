@@ -38,7 +38,7 @@ use crate::variogram::Variogram;
 ///     Names and colors of the categories: `fit` then takes labels, encoded
 ///     by it. Without it, `fit` takes codes ``0..k``.
 #[derive(Serialize, Deserialize)]
-#[pyclass(module = "ceres", name = "CategoricalIndicatorKriging")]
+#[pyclass(module = "boitata", name = "CategoricalIndicatorKriging")]
 pub struct CategoricalIndicatorKriging {
     model: CategoricalIndicator,
     search: Vec<Search>,
@@ -272,7 +272,7 @@ impl CategoricalIndicatorKriging {
             })
             .map_err(invalid)?;
         let actual = samples.iter().map(|s| s.value).collect();
-        py.import("ceres.estimation")?
+        py.import("boitata.estimation")?
             .getattr("CategoricalCrossValidation")?
             .call1((
                 array1(py, actual),
@@ -376,7 +376,7 @@ impl Tabular for CategoricalIndicatorKriging {
 
 /// Probability of each category at every target from categorical indicator
 /// kriging; NaN where unestimated.
-#[pyclass(module = "ceres", name = "CategoricalIndicatorSummary", frozen)]
+#[pyclass(module = "boitata", name = "CategoricalIndicatorSummary", frozen)]
 pub struct CategoricalIndicatorSummary {
     summary: CoreSummary,
     scheme: Option<Categories>,

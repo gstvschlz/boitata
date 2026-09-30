@@ -9,7 +9,7 @@ the horizons and assay Ni and Co every meter. First the geometry, then the grade
 ```python
 from itertools import pairwise
 
-import ceres as cs
+import boitata as bt
 import matplotlib.pyplot as plt
 import numpy as np
 from common import ACCENT, GRAY, HIGHLIGHT, INK, LIGHT, map_axes, save
@@ -25,7 +25,7 @@ is the collar's less the depth. Where a hole has no ferricrete, the limonite sta
 <details><summary>Python</summary>
 
 ```python
-data = cs.datasets.nickel_laterite_profile()
+data = bt.datasets.nickel_laterite_profile()
 collars, horizons = data["collars"], data["horizons"]
 holes = np.array(collars["HOLE_ID"], dtype=object)
 xy, surface = np.column_stack([collars["X"], collars["Y"]]), collars["Z"]
@@ -78,24 +78,24 @@ The bedrock elevation is kriged from the mesh holes alone, then compared with th
 
 ```python
 mesh_xy, mesh_z = xy[~infill], tops["BRK"][~infill]
-experimental = cs.experimental_variogram(mesh_xy, mesh_z, 50.0, 500.0)
-bedrock = cs.Variogram.fit(experimental, "spherical")
+experimental = bt.experimental_variogram(mesh_xy, mesh_z, 50.0, 500.0)
+bedrock = bt.Variogram.fit(experimental, "spherical")
 print(bedrock)
-search = cs.Search(radius=250, max_samples=16, min_samples=4)
-kriging = cs.OrdinaryKriging(bedrock, search).fit(mesh_xy, mesh_z)
+search = bt.Search(radius=250, max_samples=16, min_samples=4)
+kriging = bt.OrdinaryKriging(bedrock, search).fit(mesh_xy, mesh_z)
 error = kriging.predict(xy[infill]) - tops["BRK"][infill]
 naive = surface[infill] - depth[~infill].mean() - tops["BRK"][infill]
 print(f"kriged at the infill: mean error {error.mean():+.2f} m, RMSE {np.sqrt(np.mean(error**2)):.2f} m")
 print(f"topography less the mean depth: RMSE {np.sqrt(np.mean(naive**2)):.2f} m")
 
 fig, (a, b) = plt.subplots(1, 2, figsize=(9.2, 3.4), layout="constrained")
-cs.plot.variogram(experimental, variogram=bedrock, ax=a, color=ACCENT)
+bt.plot.variogram(experimental, variogram=bedrock, ax=a, color=ACCENT)
 a.set(xlabel="Lag distance (m)", ylabel="γ(h) (m²)", title="Bedrock elevation, 50 m mesh")
 for keep, lag, color, label in (
     (~infill, 50.0, ACCENT, "50 m mesh"),
     (infill, 12.5, HIGHLIGHT, "25 m infill"),
 ):
-    exp = cs.experimental_variogram(xy[keep], depth[keep], lag, 300.0)
+    exp = bt.experimental_variogram(xy[keep], depth[keep], lag, 300.0)
     b.plot(exp.lags, exp.gammas, "o-", color=color, ms=3, label=label)
 b.set(xlim=(0, 300), ylim=(0, None), xlabel="Lag distance (m)", ylabel="γ(h) (m²)", title="Depth to bedrock")
 b.legend(loc="lower right")
@@ -129,7 +129,7 @@ bedrock, saprolite, limonite, topography; above the topography nothing matches a
 <details><summary>Python</summary>
 
 ```python
-grid = cs.BlockModel((29987.5, 59987.5, 0), (25, 25, 1), (41, 29, 1))
+grid = bt.BlockModel((29987.5, 59987.5, 0), (25, 25, 1), (41, 29, 1))
 surfaces = {
     "topography": surface,
     "FERR": tops["FERR"] - tops["LIM"],
@@ -138,17 +138,17 @@ surfaces = {
 }
 kriged = {}
 for name, values in surfaces.items():
-    variogram = cs.Variogram.fit(cs.experimental_variogram(xy, values, 25.0, 400.0), "spherical")
-    kriged[name] = cs.OrdinaryKriging(variogram, search).fit(xy, values).predict(grid.centroids[:, :2])
+    variogram = bt.Variogram.fit(bt.experimental_variogram(xy, values, 25.0, 400.0), "spherical")
+    kriged[name] = bt.OrdinaryKriging(variogram, search).fit(xy, values).predict(grid.centroids[:, :2])
 lim = kriged["topography"] - kriged["FERR"].clip(0)
 sap = lim - kriged["LIM"].clip(0)
 print(f"saprolite at least {(sap - kriged['BRK']).min():.1f} m thick")
 grid = grid.with_columns({"topography": kriged["topography"], "LIM": lim, "SAP": sap, "BRK": kriged["BRK"]})
-contacts = {name: cs.grid_surface(grid, name) for name in ["BRK", "SAP", "LIM", "topography"]}
+contacts = {name: bt.grid_surface(grid, name) for name in ["BRK", "SAP", "LIM", "topography"]}
 bottom = np.floor(kriged["BRK"].min() / 5) * 5
 count = (40, 28, int(np.ceil((kriged["topography"].max() - bottom) / 5)))
 rules = [(mesh, "below", name) for mesh, name in zip(contacts.values(), ["BRK", "SAP", "LIM", "FERR"])]
-blocks = cs.BlockModel.from_meshes(
+blocks = bt.BlockModel.from_meshes(
     (30000, 60000, bottom), (25, 25, 5), count, rules, (1, 1, 10), column="HORIZON"
 )
 blocks = blocks.mask(np.array(blocks["HORIZON"], dtype=object) != "BRK")
@@ -180,8 +180,8 @@ the bedrock contact of its own hole.
 <details><summary>Python</summary>
 
 ```python
-intervals = cs.merge_intervals(data["assays"], horizons)
-drillholes = cs.Drillholes(collars, data["surveys"], intervals)
+intervals = bt.merge_intervals(data["assays"], horizons)
+drillholes = bt.Drillholes(collars, data["surveys"], intervals)
 composites = drillholes.composite(1.0, ["NI_PCT", "CO_PCT"], domain="HORIZON", residual="merge")
 unit, hole = (np.array(composites[c], dtype=object) for c in ("HORIZON", "HOLE_ID"))
 height = composites.coords[:, 2] - tops["BRK"][[row[h] for h in hole]]
@@ -194,14 +194,14 @@ for name in names:
         f"{co[keep].mean():7.3f}{co[keep].std() / co[keep].mean():6.2f}"
     )
 
-scheme = cs.Categories(names, colors=[HIGHLIGHT, ACCENT, GRAY, LIGHT])
+scheme = bt.Categories(names, colors=[HIGHLIGHT, ACCENT, GRAY, LIGHT])
 fig, axes = plt.subplots(1, 3, figsize=(11, 3.4), layout="constrained")
-cs.plot.boxplot(ni, scheme.encode(list(unit)), scheme=scheme, ax=axes[0])
+bt.plot.boxplot(ni, scheme.encode(list(unit)), scheme=scheme, ax=axes[0])
 axes[0].set(title="Ni by horizon", ylabel="Ni (%)")
-cs.plot.boxplot(co, scheme.encode(list(unit)), scheme=scheme, ax=axes[1])
+bt.plot.boxplot(co, scheme.encode(list(unit)), scheme=scheme, ax=axes[1])
 axes[1].set(title="Co by horizon", ylabel="Co (%)")
 bins = np.arange(-5, 41, 2.5)
-cs.plot.conditional(height, ni, bins=bins, ax=axes[2])
+bt.plot.conditional(height, ni, bins=bins, ax=axes[2])
 axes[2].axvline(0, color=INK, lw=1)
 axes[2].set(xlim=(-5, 40), xlabel="Height above bedrock (m)", ylabel="Ni (%)", title="Ni against height")
 save(fig, "grades")
@@ -241,9 +241,9 @@ for name in names[:3]:
     keep, into = unit == name, horizon == name
     for element, values in grades.items():
         v = composites[element][keep]
-        across = cs.experimental_variogram(flat[keep], v, 25.0, 300.0, azimuth=90, tolerance=20, bandwidth=5)
-        down = cs.experimental_variogram(flat[keep], v, 1.0, 10.0, holes=hole[keep])
-        model = cs.Variogram.fit_directional(
+        across = bt.experimental_variogram(flat[keep], v, 25.0, 300.0, azimuth=90, tolerance=20, bandwidth=5)
+        down = bt.experimental_variogram(flat[keep], v, 1.0, 10.0, holes=hole[keep])
+        model = bt.Variogram.fit_directional(
             [across, down],
             [(90, 0), (0, 90)],
             rotation=[90, 0, 0],
@@ -255,11 +255,11 @@ for name in names[:3]:
             f"{name:4} {element[:2]}: nugget {model.nugget / model.sill:.0%}, "
             f"{s.range:.0f} m across, {s.range * model.ratios[1]:.1f} m down"
         )
-        search = cs.Search(
+        search = bt.Search(
             radius=300, ratios=model.ratios, rotation=model.rotation, max_samples=24, max_per_hole=6
         )
         values[into] = (
-            cs.OrdinaryKriging(model, search).fit(flat[keep], v, holes=hole[keep]).predict(targets[into])
+            bt.OrdinaryKriging(model, search).fit(flat[keep], v, holes=hole[keep]).predict(targets[into])
         )
 blocks = blocks.with_columns(grades)
 print(f"{sum(np.isnan(g).sum() for g in grades.values())} values left unestimated")
@@ -288,14 +288,14 @@ at true scale, shows the horizons and the kriged Ni, with the contacts logged by
 ```python
 plane = ((30500, 60351, 340), 90, 90)
 near = np.abs(xy[:, 1] - 60351) < 12.5
-profile = cs.Categories(names[:3], colors=[HIGHLIGHT, ACCENT, GRAY])
+profile = bt.Categories(names[:3], colors=[HIGHLIGHT, ACCENT, GRAY])
 fig, axes = plt.subplots(2, 1, figsize=(10, 3.8), layout="constrained", sharex=True)
-cs.plot.section(
+bt.plot.section(
     blocks, profile.encode(list(horizon)), plane=plane, scheme=profile, colorbar=False, ax=axes[0]
 )
-cs.plot.section(blocks, "NI_PCT", plane=plane, colorbar=False, vmin=0, vmax=3, ax=axes[1])
+bt.plot.section(blocks, "NI_PCT", plane=plane, colorbar=False, vmin=0, vmax=3, ax=axes[1])
 fig.colorbar(axes[1].collections[0], ax=axes[1], shrink=0.9, label="Ni (%)")
-cs.plot.category_legend(profile, axes[0], loc="lower left", bbox_to_anchor=(1, 0), fontsize=8)
+bt.plot.category_legend(profile, axes[0], loc="lower left", bbox_to_anchor=(1, 0), fontsize=8)
 for ax, title in zip(axes, ("Horizons", "Kriged Ni"), strict=True):
     for name in names[1:]:
         ax.scatter(xy[near, 0], tops[name][near], s=30, marker="_", color=INK, lw=1)

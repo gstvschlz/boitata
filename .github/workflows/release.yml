@@ -9,7 +9,7 @@ on:
       - pyproject.toml
       - Cargo.*
       - crates/**
-      - python/ceres/**
+      - python/boitata/**
       - .github/**
 
 permissions:
@@ -46,7 +46,7 @@ jobs:
         run: |
           pipx run auditwheel show dist/*.whl
           unzip -q -d wheel dist/*.whl
-          readelf -d wheel/ceres/_ceres*.so | tee needed.txt
+          readelf -d wheel/boitata/_boitata*.so | tee needed.txt
           ! grep -i libpython needed.txt
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
@@ -71,7 +71,7 @@ jobs:
         with:
           path: dist
           merge-multiple: true
-      - run: gh release create "$GITHUB_REF_NAME" dist/* --title "ceres ${GITHUB_REF_NAME#v}" --notes-file notes.md --verify-tag
+      - run: gh release create "$GITHUB_REF_NAME" dist/* --title "Boitatá ${GITHUB_REF_NAME#v}" --notes-file notes.md --verify-tag
         env:
           GH_TOKEN: ${{ github.token }}
 

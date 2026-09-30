@@ -165,7 +165,7 @@ impl CategoricalIndicator {
         domains: Option<&[Option<u32>]>,
         searches: &[Search],
         local: Option<&LocalAnisotropy>,
-        progress: Option<&ceres_core::Progress>,
+        progress: Option<&boitata_core::Progress>,
     ) -> Result<CategoricalIndicatorSummary> {
         crate::search::unclamped(searches, "categorical kriging")?;
         let proportions = self.proportions(samples, weights)?;

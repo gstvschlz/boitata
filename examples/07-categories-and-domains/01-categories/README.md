@@ -7,12 +7,12 @@ shares, plots and later models all agree on them.
 <details><summary>Python</summary>
 
 ```python
-import ceres as cs
+import boitata as bt
 import matplotlib.pyplot as plt
 from common import save
 
-data = cs.datasets.tailings_reprocessing()
-logged = cs.Drillholes(data["collars"], data["surveys"], data["lithology"]).samples()
+data = bt.datasets.tailings_reprocessing()
+logged = bt.Drillholes(data["collars"], data["surveys"], data["lithology"]).samples()
 length = logged["TO"] - logged["FROM"]
 print(
     f"{len(logged)} intervals, {length.sum():.0f} m logged, {length.min():.2f} to {length.max():.1f} m long"
@@ -32,7 +32,7 @@ the shares by length are the ones that describe the facility.
 <details><summary>Python</summary>
 
 ```python
-lithology = cs.Categories(
+lithology = bt.Categories(
     ["CAP", "SAND", "SLIME", "CLAY"], colors=["#b8b8b8", "#d9b56c", "#5b7a99", "#7a4f35"]
 )
 codes = lithology.encode(logged["LITH"])
@@ -58,13 +58,13 @@ the unweighted ones as ticks; `plot.category_swath` stacks the shares per slice,
 
 ```python
 fig, axes = plt.subplots(1, 3, figsize=(12, 3.4), layout="constrained", width_ratios=[1, 1.4, 1.4])
-cs.plot.proportions(codes, weights=length, scheme=lithology, ax=axes[0])
+bt.plot.proportions(codes, weights=length, scheme=lithology, ax=axes[0])
 axes[0].set_title("Share of length")
 xyz = logged.coords
-cs.plot.category_swath(xyz, codes, 50.0, axis="y", weights=length, scheme=lithology, ax=axes[1])
+bt.plot.category_swath(xyz, codes, 50.0, axis="y", weights=length, scheme=lithology, ax=axes[1])
 axes[1].set(title="Along northing, 50 m slices", xlabel="Northing (m)")
 axes[1].get_legend().remove()
-cs.plot.category_swath(xyz, codes, 2.0, axis="z", weights=length, scheme=lithology, ax=axes[2])
+bt.plot.category_swath(xyz, codes, 2.0, axis="z", weights=length, scheme=lithology, ax=axes[2])
 axes[2].set(title="In elevation, 2 m slices", xlabel="Elevation (m)")
 save(fig, "categories")
 ```
@@ -83,7 +83,7 @@ sorted, and lumps the rest into `other`, last: here CAP, under 5 % of the length
 <details><summary>Python</summary>
 
 ```python
-found = cs.Categories.from_values(logged["LITH"], weights=length, min_share=0.05)
+found = bt.Categories.from_values(logged["LITH"], weights=length, min_share=0.05)
 print(found.names)
 ```
 

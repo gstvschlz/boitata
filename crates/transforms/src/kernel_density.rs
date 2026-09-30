@@ -33,7 +33,7 @@ pub struct KernelDensity {
     bandwidth: f64,
     log: bool,
     /// Bounds in kernel space (log units in log space), infinite when open.
-    #[serde(with = "ceres_core::nonfinite")]
+    #[serde(with = "boitata_core::nonfinite")]
     bounds: (f64, f64),
     /// Kernel mass inside the bounds, reflections included.
     mass: f64,

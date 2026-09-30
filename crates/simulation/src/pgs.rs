@@ -31,7 +31,7 @@ const ANY: (f64, f64) = (f64::NEG_INFINITY, f64::INFINITY);
 /// `(low, high]` interval of field `k`; fields past `bounds` are unbounded.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Region {
-    #[serde(with = "ceres_core::nonfinite")]
+    #[serde(with = "boitata_core::nonfinite")]
     pub bounds: Vec<(f64, f64)>,
     pub facies: usize,
 }
@@ -523,12 +523,12 @@ fn latent(
         let k = k as u64;
         let bounds: Vec<(f64, f64)> = intervals.iter().map(|b| b[k as usize]).collect();
         let g = GibbsParams {
-            seed: ceres_core::rng::realization_seed(params.seed, 2 * k),
+            seed: boitata_core::rng::realization_seed(params.seed, 2 * k),
             ..params.gibbs.clone()
         };
         let at_data = gibbs(data_locs, &bounds, vg, &g)?;
         let b = TurningBandsParams {
-            seed: ceres_core::rng::realization_seed(params.seed, 2 * k + 1),
+            seed: boitata_core::rng::realization_seed(params.seed, 2 * k + 1),
             ..params.bands.clone()
         };
         let field = conditional_gaussian_field(data_locs, &at_data, grid, vg, &b, &mut rng)?;

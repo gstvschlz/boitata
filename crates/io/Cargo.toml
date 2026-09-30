@@ -1,5 +1,5 @@
 [package]
-name = "ceres-io"
+name = "boitata-io"
 description = "Table and mesh readers and writers"
 version.workspace = true
 edition.workspace = true
@@ -13,7 +13,7 @@ arrow-cast.workspace = true
 arrow-csv.workspace = true
 arrow-schema.workspace = true
 arrow-select.workspace = true
-ceres-core.workspace = true
+boitata-core.workspace = true
 dxf.workspace = true
 parquet.workspace = true
 rayon.workspace = true

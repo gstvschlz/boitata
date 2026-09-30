@@ -271,13 +271,77 @@ version = "0.1.0"
 dependencies = [
  "arrow-array",
  "arrow-select",
- "ceres-core",
+ "boitata-core",
  "criterion",
  "kiddo",
  "nalgebra",
  "rayon",
  "serde",
  "thiserror",
+]
+
+[[package]]
+name = "boitata-core"
+version = "0.1.0"
+dependencies = [
+ "arrow-array",
+ "arrow-cast",
+ "arrow-ord",
+ "arrow-schema",
+ "arrow-select",
+ "nalgebra",
+ "proptest",
+ "serde",
+ "serde_json",
+ "thiserror",
+]
+
+[[package]]
+name = "boitata-io"
+version = "0.1.0"
+dependencies = [
+ "arrow-array",
+ "arrow-cast",
+ "arrow-csv",
+ "arrow-schema",
+ "arrow-select",
+ "boitata-core",
+ "criterion",
+ "dxf",
+ "parquet",
+ "rayon",
+ "regex",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "tiff",
+]
+
+[[package]]
+name = "boitata-py"
+version = "0.1.0"
+dependencies = [
+ "arrow-array",
+ "arrow-cast",
+ "arrow-schema",
+ "arrow-select",
+ "blocks",
+ "boitata-core",
+ "boitata-io",
+ "coda",
+ "drillholes",
+ "eda",
+ "estimation",
+ "modeling",
+ "numpy",
+ "pyo3",
+ "pyo3-arrow",
+ "rayon",
+ "serde",
+ "serde_json",
+ "simulation",
+ "transforms",
+ "variogram",
 ]
 
 [[package]]
@@ -326,70 +390,6 @@ dependencies = [
  "jobserver",
  "libc",
  "shlex",
-]
-
-[[package]]
-name = "ceres-core"
-version = "0.1.0"
-dependencies = [
- "arrow-array",
- "arrow-cast",
- "arrow-ord",
- "arrow-schema",
- "arrow-select",
- "nalgebra",
- "proptest",
- "serde",
- "serde_json",
- "thiserror",
-]
-
-[[package]]
-name = "ceres-io"
-version = "0.1.0"
-dependencies = [
- "arrow-array",
- "arrow-cast",
- "arrow-csv",
- "arrow-schema",
- "arrow-select",
- "ceres-core",
- "criterion",
- "dxf",
- "parquet",
- "rayon",
- "regex",
- "serde",
- "serde_json",
- "thiserror",
- "tiff",
-]
-
-[[package]]
-name = "ceres-py"
-version = "0.1.0"
-dependencies = [
- "arrow-array",
- "arrow-cast",
- "arrow-schema",
- "arrow-select",
- "blocks",
- "ceres-core",
- "ceres-io",
- "coda",
- "drillholes",
- "eda",
- "estimation",
- "modeling",
- "numpy",
- "pyo3",
- "pyo3-arrow",
- "rayon",
- "serde",
- "serde_json",
- "simulation",
- "transforms",
- "variogram",
 ]
 
 [[package]]
@@ -733,7 +733,7 @@ version = "0.1.0"
 dependencies = [
  "arrow-array",
  "arrow-schema",
- "ceres-core",
+ "boitata-core",
  "criterion",
  "nalgebra",
  "rayon",
@@ -1913,8 +1913,8 @@ version = "0.1.0"
 dependencies = [
  "arrow-array",
  "arrow-schema",
- "ceres-core",
- "ceres-io",
+ "boitata-core",
+ "boitata-io",
  "criterion",
  "estimation",
  "nalgebra",
@@ -2081,7 +2081,7 @@ version = "0.1.0"
 dependencies = [
  "arrow-array",
  "arrow-schema",
- "ceres-core",
+ "boitata-core",
  "kiddo",
  "libm",
  "nalgebra",
@@ -2156,7 +2156,7 @@ dependencies = [
 name = "variogram"
 version = "0.1.0"
 dependencies = [
- "ceres-core",
+ "boitata-core",
  "criterion",
  "nalgebra",
  "rand 0.8.8",

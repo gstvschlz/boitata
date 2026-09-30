@@ -528,7 +528,7 @@ mod tests {
 
     /// A seeded pseudo-random value in `[0, 1)`.
     fn noise(i: usize, seed: u64) -> f64 {
-        let h = ceres_core::rng::splitmix(i as u64 ^ seed.wrapping_mul(0x9e37_79b9));
+        let h = boitata_core::rng::splitmix(i as u64 ^ seed.wrapping_mul(0x9e37_79b9));
         (h >> 11) as f64 / (1u64 << 53) as f64
     }
 

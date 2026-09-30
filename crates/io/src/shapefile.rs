@@ -10,7 +10,7 @@ use arrow_array::{
 use arrow_cast::cast;
 use arrow_schema::{DataType, Field, Schema};
 use arrow_select::take::take_record_batch;
-use ceres_core::{PointSet, Polylines};
+use boitata_core::{PointSet, Polylines};
 
 use crate::{Error, Nodata, Result, is_nodata};
 
@@ -558,7 +558,7 @@ mod tests {
 
     #[test]
     fn round_trip_keeps_geometry_attributes_and_crs() {
-        let dir = std::env::temp_dir().join("ceres-shapefile-round-trip");
+        let dir = std::env::temp_dir().join("boitata-shapefile-round-trip");
         std::fs::create_dir_all(&dir).unwrap();
         let path = dir.join("points.shp");
         let points = sample();
@@ -591,7 +591,7 @@ mod tests {
     /// turned to that convention.
     #[test]
     fn polygons_and_lines_round_trip() {
-        let dir = std::env::temp_dir().join("ceres-shapefile-lines");
+        let dir = std::env::temp_dir().join("boitata-shapefile-lines");
         std::fs::create_dir_all(&dir).unwrap();
         let (pit, hole) = ([0., 10.], [4., 6.]);
         let square = |[a, b]: [f64; 2], z: f64| [[a, a, z], [a, b, z], [b, b, z], [b, a, z]];
@@ -631,7 +631,7 @@ mod tests {
 
     #[test]
     fn rejects_long_names_and_multipatches() {
-        let dir = std::env::temp_dir().join("ceres-shapefile-errors");
+        let dir = std::env::temp_dir().join("boitata-shapefile-errors");
         std::fs::create_dir_all(&dir).unwrap();
         let long = RecordBatch::try_from_iter([(
             "a_very_long_name",

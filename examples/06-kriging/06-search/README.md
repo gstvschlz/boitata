@@ -7,26 +7,26 @@ Ordinary kriging of Walker Lake `V`, checked against the exhaustive values.
 <details><summary>Python</summary>
 
 ```python
-import ceres as cs
+import boitata as bt
 import matplotlib.pyplot as plt
 import numpy as np
 from common import ACCENT, GRAY, HIGHLIGHT, INK, LIGHT, map_axes, save
 from matplotlib.colors import ListedColormap
 from matplotlib.patches import Circle, Ellipse
 
-samples = cs.datasets.walker_lake()
+samples = bt.datasets.walker_lake()
 xy, v = samples.coords, samples["V"]
-truth = cs.datasets.walker_lake_exhaustive()["V"].reshape(300, 260)
-grid = cs.BlockModel(origin=(0.5, 0.5), size=(5, 5), count=(52, 60))
+truth = bt.datasets.walker_lake_exhaustive()["V"].reshape(300, 260)
+grid = bt.BlockModel(origin=(0.5, 0.5), size=(5, 5), count=(52, 60))
 nodes = grid.centroids.astype(int)
 true_at_nodes = truth[nodes[:, 1] - 1, nodes[:, 0] - 1]
 
 azimuths = np.arange(0, 180, 22.5)
-directional = [cs.experimental_variogram(samples, "V", 10.0, 120.0, azimuth=a) for a in azimuths]
-model = cs.Variogram.fit_directional(
+directional = [bt.experimental_variogram(samples, "V", 10.0, 120.0, azimuth=a) for a in azimuths]
+model = bt.Variogram.fit_directional(
     directional, [(a, 0) for a in azimuths], ["spherical", "spherical"], weighting="count/gamma"
 )
-kriging = cs.OrdinaryKriging(model, cs.Search(radius=80)).fit(samples, "V")
+kriging = bt.OrdinaryKriging(model, bt.Search(radius=80)).fit(samples, "V")
 
 
 def rmse(estimate):
@@ -49,9 +49,9 @@ variogram, and swaps the search.
 ```python
 ellipse = {"rotation": model.rotation, "ratios": (0.5, 1.0)}
 searches = {
-    "circle": cs.Search(radius=80, max_samples=24, min_samples=4),
-    "ellipse": cs.Search(radius=80, max_samples=24, min_samples=4, **ellipse),
-    "ellipse, octants": cs.Search(radius=80, max_samples=24, min_samples=4, octant=True, **ellipse),
+    "circle": bt.Search(radius=80, max_samples=24, min_samples=4),
+    "ellipse": bt.Search(radius=80, max_samples=24, min_samples=4, **ellipse),
+    "ellipse, octants": bt.Search(radius=80, max_samples=24, min_samples=4, octant=True, **ellipse),
 }
 print(f"{'search':>16}  RMSE  samples  mean distance  cross-validation RMSE")
 for name, search in searches.items():
@@ -103,7 +103,7 @@ which classification uses.
 
 ```python
 search = searches["ellipse, octants"]
-passes = [cs.Search(radius=30, min_samples=8, max_samples=24, octant=True, **ellipse), search]
+passes = [bt.Search(radius=30, min_samples=8, max_samples=24, octant=True, **ellipse), search]
 d = kriging.with_search(passes).predict(grid, diagnostics=True)
 for p in (1, 2):
     s = d["pass"] == p
@@ -135,7 +135,7 @@ Pass-1 nodes have the higher slope of regression but also the larger errors: Wal
 print(f"{np.mean(v > 800):.0%} of the samples are above 800 ppm")
 free = kriging.with_search(search)
 capped = kriging.with_search(
-    cs.Search(radius=80, max_samples=24, min_samples=4, octant=True, high_grade=(800, 20), **ellipse)
+    bt.Search(radius=80, max_samples=24, min_samples=4, octant=True, high_grade=(800, 20), **ellipse)
 )
 before, after = free.predict(grid), capped.predict(grid)
 difference = after - before

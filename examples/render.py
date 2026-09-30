@@ -103,9 +103,9 @@ def summary(script: Path) -> tuple[str, str, str, str]:
                 datasets[dataset(path.value.split("/")[2])] = None
             continue
         base = node.value
-        if isinstance(base, ast.Name) and base.id == "cs":
+        if isinstance(base, ast.Name) and base.id == "bt":
             covers[node.attr] = None
-        elif isinstance(base, ast.Attribute) and isinstance(base.value, ast.Name) and base.value.id == "cs":
+        elif isinstance(base, ast.Attribute) and isinstance(base.value, ast.Name) and base.value.id == "bt":
             if base.attr == "datasets" and node.attr != "fetch":
                 datasets[dataset(node.attr)] = None
             elif base.attr in ("plot", "plot3d"):
@@ -145,7 +145,7 @@ def index() -> str:
     lines += [
         "",
         "Each page alternates text, collapsed Python and its results. `mise run examples` reruns every script",
-        "and rewrites the pages; `cs.datasets` downloads the data once and caches it. `render.py --index` writes this file.",
+        "and rewrites the pages; `bt.datasets` downloads the data once and caches it. `render.py --index` writes this file.",
     ]
     return "\n".join(lines) + "\n"
 

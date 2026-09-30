@@ -7,7 +7,7 @@
 //! spatial correlation this is the classical bootstrap; with correlation the
 //! resampled values cluster and the statistics spread more.
 
-use ceres_core::rng::realization_seed;
+use boitata_core::rng::realization_seed;
 use nalgebra::{DMatrix, DVector};
 use rand::SeedableRng;
 use rand::rngs::StdRng;

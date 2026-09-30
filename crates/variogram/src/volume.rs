@@ -17,7 +17,7 @@
 use nalgebra::{DMatrix, DVector, Matrix3, Vector3};
 use rayon::prelude::*;
 
-use ceres_core::{angles_from_axes, rotation_matrix};
+use boitata_core::{angles_from_axes, rotation_matrix};
 
 use crate::aniso::Angles;
 use crate::empirical::{Estimator, Experimental, LagBins, Moments, add, finalize, moments, scale};

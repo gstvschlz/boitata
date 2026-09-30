@@ -13,14 +13,14 @@ HERE = Path(__file__).parent if "__file__" in globals() else Path.cwd()
 sys.path.insert(0, str(HERE.parents[1]))
 
 # %%
-import ceres as cs
+import boitata as bt
 import matplotlib.pyplot as plt
 import numpy as np
 from common import GRAY, HIGHLIGHT, save
 
-train = cs.datasets.jura()["prediction"]
-test = cs.datasets.jura()["validation"]
-grid = cs.datasets.jura()["grid"]
+train = bt.datasets.jura()["prediction"]
+test = bt.datasets.jura()["validation"]
+grid = bt.datasets.jura()["grid"]
 xy, cd = train.coords, train["Cd"]
 limit = 0.8
 print(f"share of samples above {limit} mg/kg: {np.mean(cd > limit):.0%}")
@@ -31,9 +31,9 @@ print(f"share of samples above {limit} mg/kg: {np.mean(cd > limit):.0%}")
 # P(Cd ≤ threshold), so the exceedance is its complement.
 
 # %%
-indicator_model = cs.experimental_variogram(xy, (cd > limit).astype(float), 0.1, 1.5).fit("spherical")
-search = cs.Search(radius=1.5, max_samples=24, min_samples=4)
-ik = cs.IndicatorKriging(indicator_model, search, threshold=limit).fit(xy, cd)
+indicator_model = bt.experimental_variogram(xy, (cd > limit).astype(float), 0.1, 1.5).fit("spherical")
+search = bt.Search(radius=1.5, max_samples=24, min_samples=4)
+ik = bt.IndicatorKriging(indicator_model, search, threshold=limit).fit(xy, cd)
 p_exceed = 1 - ik.predict(grid)
 p_test = 1 - ik.predict(test)
 exceeds = test["Cd"] > limit

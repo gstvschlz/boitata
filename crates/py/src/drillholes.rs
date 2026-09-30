@@ -5,7 +5,7 @@ use arrow_array::cast::AsArray;
 use arrow_array::types::Float64Type;
 use arrow_array::{ArrayRef, BooleanArray, Float64Array, Int64Array, RecordBatch, StringArray};
 use arrow_schema::DataType;
-use ceres_core::PointSet;
+use boitata_core::PointSet;
 use drillholes::{
     Collar, CompositeParams, DesurveyMethod, DrillholeError, Residual, Run, RunRules,
     SurveyStation, WellborePoint, checks, composite_intervals, desurvey_wellbore, ore_runs,
@@ -50,7 +50,7 @@ fn number(batch: &RecordBatch, name: &str) -> PyResult<Vec<Option<f64>>> {
 /// each segment along each end's direction). Survey angles are `azimuth`
 /// (clockwise from north) and either `dip` (degrees below horizontal) or
 /// `inclination` (degrees from vertical); holes without survey are vertical.
-#[pyclass(module = "ceres", name = "Drillholes", frozen)]
+#[pyclass(module = "boitata", name = "Drillholes", frozen)]
 pub struct Drillholes {
     paths: BTreeMap<String, Vec<WellborePoint>>,
     hole: String,

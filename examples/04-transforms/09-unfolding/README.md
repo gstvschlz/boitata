@@ -8,7 +8,7 @@ saprolite of a nickel laterite, between the bedrock and the limonite above it.
 <details><summary>Python</summary>
 
 ```python
-import ceres as cs
+import boitata as bt
 import matplotlib.pyplot as plt
 import numpy as np
 from common import ACCENT, GRAY, HIGHLIGHT, INK, save
@@ -26,20 +26,20 @@ so the surfaces never cross. `grid_surface` turns each grid into a mesh.
 <details><summary>Python</summary>
 
 ```python
-data = cs.datasets.nickel_laterite_profile()
+data = bt.datasets.nickel_laterite_profile()
 collars, horizons = data["collars"], data["horizons"]
-holes = cs.Drillholes(collars, data["surveys"])
+holes = bt.Drillholes(collars, data["surveys"])
 sap = np.asarray(horizons["HORIZON"]) == "SAP"
 ids = list(np.asarray(horizons["HOLE_ID"], dtype=object)[sap])
 top, base = np.asarray(horizons["FROM"])[sap], np.asarray(horizons["TO"])[sap]
 contact = holes.at(ids, base)
 
-grid = cs.BlockModel(origin=(29975, 59975, 0), size=(10, 10, 1), count=(106, 76, 1))
-idw = cs.InverseDistance(cs.Search(radius=150, max_samples=12, min_samples=3))
+grid = bt.BlockModel(origin=(29975, 59975, 0), size=(10, 10, 1), count=(106, 76, 1))
+idw = bt.InverseDistance(bt.Search(radius=150, max_samples=12, min_samples=3))
 bedrock_z = idw.fit(contact[:, :2], contact[:, 2]).predict(grid)
 thickness = idw.fit(contact[:, :2], base - top).predict(grid)
-bedrock = cs.grid_surface(grid.with_column("z", bedrock_z), "z")
-limonite = cs.grid_surface(grid.with_column("z", bedrock_z + thickness), "z")
+bedrock = bt.grid_surface(grid.with_column("z", bedrock_z), "z")
+limonite = bt.grid_surface(grid.with_column("z", bedrock_z + thickness), "z")
 print(bedrock)
 print(
     f"bedrock {np.nanmin(bedrock_z):.0f} to {np.nanmax(bedrock_z):.0f} m, "
@@ -66,22 +66,22 @@ layer, and all but 1% of the others outside.
 <details><summary>Python</summary>
 
 ```python
-unfold = cs.Unfold(bedrock, limonite)
-logged = cs.Drillholes(collars, data["surveys"], horizons).samples()
+unfold = bt.Unfold(bedrock, limonite)
+logged = bt.Drillholes(collars, data["surveys"], horizons).samples()
 inside = ~np.isnan(unfold.transform(logged)[:, 2])
 is_sap = np.asarray(logged["HORIZON"]) == "SAP"
 print(
     f"in the layer: {inside[is_sap].mean():.1%} of saprolite intervals, {inside[~is_sap].mean():.1%} of others"
 )
 
-assays = cs.Drillholes(collars, data["surveys"], data["assays"]).samples()
+assays = bt.Drillholes(collars, data["surveys"], data["assays"]).samples()
 uvw = unfold.transform(assays)
 keep = ~np.isnan(uvw[:, 2]) & ~np.isnan(np.asarray(assays["NI_PCT"]))
 xyz, uvw = assays.coords[keep], uvw[keep]
 ni = np.asarray(assays["NI_PCT"])[keep]
 hole = np.asarray(assays["HOLE_ID"], dtype=object)[keep]
 print(f"{keep.sum()} assays in the saprolite, Ni {ni.mean():.2f} % mean")
-along = cs.Unfold(bedrock, limonite, reference="footwall").transform(xyz)
+along = bt.Unfold(bedrock, limonite, reference="footwall").transform(xyz)
 print(
     f"arc length along the bedrock minus plan distance: up to {np.max(along[:, 0] - xyz[:, 0]):.1f} m in u, "
     f"{np.max(along[:, 1] - xyz[:, 1]):.1f} m in v"
@@ -148,8 +148,8 @@ unfolded = uvw * [1, 1, depth]
 spaces = {"real": xyz, "unfolded": unfolded}
 fig, axes = plt.subplots(1, 2, figsize=(8, 3.4), layout="constrained")
 for (name, coords), color in zip(spaces.items(), [GRAY, ACCENT], strict=True):
-    along = cs.experimental_variogram(coords, ni, 25.0, 300.0, azimuth=0, tolerance=90, bandwidth=1.0)
-    across = cs.experimental_variogram(coords, ni, 1.0, 10.0, azimuth=0, dip=90, tolerance=10, bandwidth=2.0)
+    along = bt.experimental_variogram(coords, ni, 25.0, 300.0, azimuth=0, tolerance=90, bandwidth=1.0)
+    across = bt.experimental_variogram(coords, ni, 1.0, 10.0, azimuth=0, dip=90, tolerance=10, bandwidth=2.0)
     for ax, e in zip(axes, [along, across], strict=True):
         ax.plot(e.lags, e.gammas, "o-", color=color, ms=3, label=name)
     print(
@@ -184,9 +184,9 @@ changes across it; cross-validation on both coordinate sets tells which case a d
 <details><summary>Python</summary>
 
 ```python
-model = cs.Variogram([("spherical", 0.6 * ni.var(), 150.0)], nugget=0.25 * ni.var(), ratios=(1.0, 0.05))
-search = cs.Search(200.0, max_samples=24, ratios=(1.0, 0.05), max_per_hole=6)
-kriging = {name: cs.OrdinaryKriging(model, search).fit(c, ni, holes=hole) for name, c in spaces.items()}
+model = bt.Variogram([("spherical", 0.6 * ni.var(), 150.0)], nugget=0.25 * ni.var(), ratios=(1.0, 0.05))
+search = bt.Search(200.0, max_samples=24, ratios=(1.0, 0.05), max_per_hole=6)
+kriging = {name: bt.OrdinaryKriging(model, search).fit(c, ni, holes=hole) for name, c in spaces.items()}
 for name, k in kriging.items():
     cv = k.cross_validate(folds=10)
     print(f"{name:>8}: RMSE {cv.rmse:.3f} %, correlation {cv.correlation:.3f}")
@@ -208,7 +208,7 @@ onto the centroids. In section the estimates run in bands parallel to the contac
 <details><summary>Python</summary>
 
 ```python
-blocks = cs.BlockModel(origin=(29975, 59975, 300), size=(10, 10, 1), count=(106, 76, 80))
+blocks = bt.BlockModel(origin=(29975, 59975, 300), size=(10, 10, 1), count=(106, 76, 80))
 blocks = blocks.mask(~np.isnan(unfold.transform(blocks)[:, 2]))
 targets = unfold.transform(blocks)
 back = unfold.inverse(targets)
@@ -219,8 +219,8 @@ print(blocks)
 north = 60300.0
 plane = ((0, north, 0), 90, 90)
 fig, ax = plt.subplots(figsize=(10, 3), layout="constrained")
-cs.plot.section(blocks, "NI", plane=plane, resolution=1.0, ax=ax, vmin=0.5, vmax=3.0)
-cs.plot.slab(np.empty((0, 3)), plane=plane, thickness=10, meshes=[bedrock, limonite], color=INK, ax=ax)
+bt.plot.section(blocks, "NI", plane=plane, resolution=1.0, ax=ax, vmin=0.5, vmax=3.0)
+bt.plot.slab(np.empty((0, 3)), plane=plane, thickness=10, meshes=[bedrock, limonite], color=INK, ax=ax)
 ax.set(title=f"Ni kriged in unfolded space, northing {north:.0f} m, 5x vertical", xlim=(30000, 31000))
 ax.set_aspect(5)
 save(fig, "section")

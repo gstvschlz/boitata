@@ -10,7 +10,7 @@ use arrow_csv::reader::Format;
 use arrow_csv::{ReaderBuilder, WriterBuilder};
 use arrow_schema::{DataType, Field, Schema};
 use arrow_select::concat::concat_batches;
-use ceres_core::Progress;
+use boitata_core::Progress;
 use regex::Regex;
 
 use crate::{Nodata, Result, default_nodata, is_nodata};
@@ -132,7 +132,7 @@ mod tests {
     use arrow_array::Array;
 
     fn temp(name: &str, contents: &str) -> std::path::PathBuf {
-        let path = std::env::temp_dir().join(format!("ceres-io-{}-{name}", std::process::id()));
+        let path = std::env::temp_dir().join(format!("boitata-io-{}-{name}", std::process::id()));
         std::fs::write(&path, contents).unwrap();
         path
     }
@@ -198,7 +198,7 @@ mod tests {
     fn write_then_read_round_trips() {
         let path = temp("c.csv", "a,b\n1.5,x\n,y\n");
         let t = read_csv(&path, &CsvOptions::default(), None).unwrap();
-        let out = std::env::temp_dir().join(format!("ceres-io-{}-c-out.csv", std::process::id()));
+        let out = std::env::temp_dir().join(format!("boitata-io-{}-c-out.csv", std::process::id()));
         let progress = Progress::new(Some(t.num_rows() as u64));
         write_csv(&out, &t, Some(&progress)).unwrap();
         assert_eq!(progress.snapshot().0, t.num_rows() as u64);

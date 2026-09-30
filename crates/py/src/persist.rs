@@ -43,7 +43,7 @@ fn open(name: &str, text: &str) -> PyResult<Map<String, Value>> {
     match map.remove("format").and_then(|f| f.as_u64()) {
         Some(f) if f <= FORMAT => Ok(map),
         f => Err(invalid(format!(
-            "format {f:?} is not readable by this ceres (up to {FORMAT})"
+            "format {f:?} is not readable by this boitata (up to {FORMAT})"
         ))),
     }
 }
@@ -93,7 +93,7 @@ pub fn from_state<T: Tabular>(name: &str, meta: &str, columns: Option<Columns>) 
     Ok(value)
 }
 
-/// Arrays as Parquet columns, parameters as JSON under the `ceres` key.
+/// Arrays as Parquet columns, parameters as JSON under the `boitata` key.
 pub fn to_parquet<T: Tabular>(name: &str, value: &T, path: &Path) -> PyResult<()> {
     let (meta, columns) = state(name, value)?;
     let columns = columns.unwrap_or_default();
@@ -112,11 +112,11 @@ pub fn to_parquet<T: Tabular>(name: &str, value: &T, path: &Path) -> PyResult<()
         &RecordBatchOptions::new().with_row_count(Some(rows)),
     )
     .map_err(invalid)?;
-    ceres_io::write_model(path, &table, meta, None).map_err(io_error)
+    boitata_io::write_model(path, &table, meta, None).map_err(io_error)
 }
 
 pub fn from_parquet<T: Tabular>(name: &str, path: &Path) -> PyResult<T> {
-    let (table, meta) = ceres_io::read_model(path, None).map_err(io_error)?;
+    let (table, meta) = boitata_io::read_model(path, None).map_err(io_error)?;
     let columns = table
         .schema()
         .fields()

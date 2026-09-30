@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use arrow_array::{ArrayRef, Float32Array, RecordBatch};
-use ceres_core::{BlockModel, Geometry};
+use boitata_core::{BlockModel, Geometry};
 use criterion::{Criterion, Throughput, criterion_group, criterion_main};
 
 fn noise(i: u64) -> f32 {
@@ -32,12 +32,12 @@ fn bench(c: &mut Criterion) {
     };
     let model =
         BlockModel::regular(geometry, RecordBatch::try_from_iter(columns).unwrap()).unwrap();
-    let path = std::env::temp_dir().join(format!("ceres-bench-{}.parquet", std::process::id()));
+    let path = std::env::temp_dir().join(format!("boitata-bench-{}.parquet", std::process::id()));
     let mut group = c.benchmark_group("parquet");
     group.sample_size(10);
     group.throughput(Throughput::Elements((n * 15) as u64));
     group.bench_function("block model, 2M cells x 15 f32", |b| {
-        b.iter(|| ceres_io::write_block_model(&path, &model, None).unwrap())
+        b.iter(|| boitata_io::write_block_model(&path, &model, None).unwrap())
     });
     group.finish();
     println!(

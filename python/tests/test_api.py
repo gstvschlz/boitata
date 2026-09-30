@@ -1,7 +1,7 @@
 import inspect
 import re
 
-import ceres as cs
+import boitata as bt
 import numpy as np
 import pytest
 
@@ -39,7 +39,7 @@ MODEL_FITS = {"Variogram", "ExperimentalVariogram", "Coregionalization"}
 
 def public_callables():
     out = {}
-    for prefix, module in [("", cs), ("plot.", cs.plot), ("plot3d.", cs.plot3d)]:
+    for prefix, module in [("", bt), ("plot.", bt.plot), ("plot3d.", bt.plot3d)]:
         for name in module.__all__:
             obj = getattr(module, name)
             if inspect.ismodule(obj) or (inspect.isclass(obj) and issubclass(obj, Exception)):
@@ -137,68 +137,68 @@ coords = rng.uniform(0, 100, (60, 3))
 table = np.column_stack([values, values * rng.uniform(0.5, 1.5, 60)])
 grid = np.stack(np.meshgrid(np.arange(8.0), np.arange(8.0), [0.0]), -1).reshape(-1, 3)
 categories = (values > 0.8).astype(int) + (values > 1.5)
-model = cs.Variogram([("spherical", 1.0, 40.0)])
-search = cs.Search(60.0, max_samples=12)
+model = bt.Variogram([("spherical", 1.0, 40.0)])
+search = bt.Search(60.0, max_samples=12)
 
 
 def fits():
-    anam = cs.HermiteAnamorphosis(degree=10).fit(values)
+    anam = bt.HermiteAnamorphosis(degree=10).fit(values)
     square = np.array([[0, 0, 0], [100, 0, 0], [100, 100, 0], [0, 100, 0]])
-    walls = [cs.Mesh(square + [0, 0, z], [[0, 1, 2], [0, 2, 3]]) for z in (0, 100)]
-    lmc = cs.Coregionalization(
+    walls = [bt.Mesh(square + [0, 0, z], [[0, 1, 2], [0, 2, 3]]) for z in (0, 100)]
+    lmc = bt.Coregionalization(
         [[0.0, 0.0], [0.0, 0.0]], structures=[("spherical", 40.0, [[1.0, 0.5], [0.5, 1.0]])]
     )
     return [
-        (cs.OrdinaryKriging(model, search), (coords, values)),
-        (cs.SimpleKriging(model, search), (coords, values)),
-        (cs.IndicatorKriging(model, search, threshold=1.0), (coords, values)),
-        (cs.UniversalKriging(model, search), (coords, values)),
+        (bt.OrdinaryKriging(model, search), (coords, values)),
+        (bt.SimpleKriging(model, search), (coords, values)),
+        (bt.IndicatorKriging(model, search, threshold=1.0), (coords, values)),
+        (bt.UniversalKriging(model, search), (coords, values)),
         (
-            cs.ExternalDriftKriging(model, search, "drift"),
-            (cs.PointSet(coords, {"drift": coords[:, 0]}), values),
+            bt.ExternalDriftKriging(model, search, "drift"),
+            (bt.PointSet(coords, {"drift": coords[:, 0]}), values),
         ),
-        (cs.FactorialKriging(model, search, [0]), (coords, values)),
-        (cs.BlockKriging(model, search, (5.0, 5.0, 5.0)), (coords, values)),
-        (cs.BayesianKriging(model, search, [1.0], [0.5]), (coords, values)),
-        (cs.InverseDistance(search), (coords, values)),
-        (cs.NearestNeighbor(search), (coords, values)),
-        (cs.MovingAverage(search), (coords, values)),
-        (cs.MovingMedian(search), (coords, values)),
-        (cs.LocalLeastSquares(search), (coords, values)),
-        (cs.DualKriging(model), (coords, values)),
-        (cs.Cokriging(lmc, search), (coords, values, np.arange(60) % 2)),
-        (cs.DisjunctiveKriging(anam, model, search), (coords, values)),
-        (cs.MultipleIndicatorKriging(model, search, [0.8, 1.5]), (coords, values)),
-        (cs.MultigaussianKriging(model, search), (coords, values)),
-        (cs.CategoricalIndicatorKriging(model, search), (coords, categories)),
-        (cs.SGS(model, search), (coords, values)),
-        (cs.TurningBands(model, bands=20), (coords, values)),
-        (cs.SIS([model] * 3, search), (coords, categories)),
-        (cs.Plurigaussian(model, proportions=[0.4, 0.4, 0.2]), (coords, categories)),
+        (bt.FactorialKriging(model, search, [0]), (coords, values)),
+        (bt.BlockKriging(model, search, (5.0, 5.0, 5.0)), (coords, values)),
+        (bt.BayesianKriging(model, search, [1.0], [0.5]), (coords, values)),
+        (bt.InverseDistance(search), (coords, values)),
+        (bt.NearestNeighbor(search), (coords, values)),
+        (bt.MovingAverage(search), (coords, values)),
+        (bt.MovingMedian(search), (coords, values)),
+        (bt.LocalLeastSquares(search), (coords, values)),
+        (bt.DualKriging(model), (coords, values)),
+        (bt.Cokriging(lmc, search), (coords, values, np.arange(60) % 2)),
+        (bt.DisjunctiveKriging(anam, model, search), (coords, values)),
+        (bt.MultipleIndicatorKriging(model, search, [0.8, 1.5]), (coords, values)),
+        (bt.MultigaussianKriging(model, search), (coords, values)),
+        (bt.CategoricalIndicatorKriging(model, search), (coords, categories)),
+        (bt.SGS(model, search), (coords, values)),
+        (bt.TurningBands(model, bands=20), (coords, values)),
+        (bt.SIS([model] * 3, search), (coords, categories)),
+        (bt.Plurigaussian(model, proportions=[0.4, 0.4, 0.2]), (coords, categories)),
         (
-            cs.SNESIM(cs.object_training_image(cs.BlockModel((0, 0), (1, 1), (20, 20)), []), "facies"),
+            bt.SNESIM(bt.object_training_image(bt.BlockModel((0, 0), (1, 1), (20, 20)), []), "facies"),
             (coords, categories * 0),
         ),
         (
-            cs.ImageQuilting(
-                cs.BlockModel((0, 0), (1, 1), (8, 8), attributes={"f": np.arange(64.0) % 3}), "f"
+            bt.ImageQuilting(
+                bt.BlockModel((0, 0), (1, 1), (8, 8), attributes={"f": np.arange(64.0) % 3}), "f"
             ),
             (coords, categories),
         ),
-        (cs.MultivariateSimulation(cs.PCA(), [cs.SGS(model, search)] * 2), (coords, table)),
-        (cs.ImplicitModel(), (coords, values - values.mean())),
-        (cs.NormalScore(), (values,)),
-        (cs.Capping(quantile=0.99), (values,)),
-        (cs.HermiteAnamorphosis(degree=10), (values,)),
-        (cs.BoxCox(), (values,)),
-        (cs.PPMT(iterations=2), (table,)),
-        (cs.PCA(), (table,)),
-        (cs.MAF(lag=1.0, tolerance=0.01), (rng.normal(size=(64, 2)), grid)),
-        (cs.StepwiseConditional(classes=3), (table,)),
-        (cs.GaussianImputer(), (table,)),
-        (cs.KernelDensity(), (values,)),
-        (cs.GaussianMixture(components=2), (table,)),
-        (cs.Unfold(*walls), (coords,)),
+        (bt.MultivariateSimulation(bt.PCA(), [bt.SGS(model, search)] * 2), (coords, table)),
+        (bt.ImplicitModel(), (coords, values - values.mean())),
+        (bt.NormalScore(), (values,)),
+        (bt.Capping(quantile=0.99), (values,)),
+        (bt.HermiteAnamorphosis(degree=10), (values,)),
+        (bt.BoxCox(), (values,)),
+        (bt.PPMT(iterations=2), (table,)),
+        (bt.PCA(), (table,)),
+        (bt.MAF(lag=1.0, tolerance=0.01), (rng.normal(size=(64, 2)), grid)),
+        (bt.StepwiseConditional(classes=3), (table,)),
+        (bt.GaussianImputer(), (table,)),
+        (bt.KernelDensity(), (values,)),
+        (bt.GaussianMixture(components=2), (table,)),
+        (bt.Unfold(*walls), (coords,)),
     ]
 
 
@@ -216,12 +216,12 @@ def columns(result):
 
 
 def test_returned_columns_are_american():
-    points = cs.PointSet(coords, {"v": values, "rock": np.where(categories > 0, "a", "b")})
-    anam = cs.HermiteAnamorphosis(degree=10).fit(values)
-    ok = cs.OrdinaryKriging(model, search).fit(coords, values)
+    points = bt.PointSet(coords, {"v": values, "rock": np.where(categories > 0, "a", "b")})
+    anam = bt.HermiteAnamorphosis(degree=10).fit(values)
+    ok = bt.OrdinaryKriging(model, search).fit(coords, values)
     results = [
-        cs.swath(coords, values, 20.0, axis="x"),
-        cs.contact(
+        bt.swath(coords, values, 20.0, axis="x"),
+        bt.contact(
             points,
             "v",
             domain_column="rock",
@@ -231,16 +231,16 @@ def test_returned_columns_are_american():
             max_distance=50.0,
             bin=10.0,
         ),
-        cs.capping(values),
-        cs.capping_report("v", {"a": 2.0, "b": 2.0}, domain_column="rock", data=points),
-        cs.grade_tonnage(values, [0.5, 1.0]),
-        cs.describe(values),
-        cs.describe_by("v", "rock", data=points),
-        cs.neighborhood_stats(grid, coords, values),
+        bt.capping(values),
+        bt.capping_report("v", {"a": 2.0, "b": 2.0}, domain_column="rock", data=points),
+        bt.grade_tonnage(values, [0.5, 1.0]),
+        bt.describe(values),
+        bt.describe_by("v", "rock", data=points),
+        bt.neighborhood_stats(grid, coords, values),
         ok.predict(grid, diagnostics=True),
-        cs.global_bias(ok.predict(grid), values),
+        bt.global_bias(ok.predict(grid), values),
         anam.grade_tonnage([0.5, 1.0]),
-        cs.UniformConditioning(anam, 0.8, r_panel=0.6).panel_recovery(1.2, [0.5, 1.0]),
+        bt.UniformConditioning(anam, 0.8, r_panel=0.6).panel_recovery(1.2, [0.5, 1.0]),
     ]
     found = [c for r in results for c in columns(r) if BRITISH.search(c.lower())]
     assert found == []
@@ -252,29 +252,29 @@ def test_matrix_plots_draw_the_named_columns(name):
     import matplotlib.pyplot as plt
 
     w = rng.uniform(0.5, 2.0, 60)
-    points = cs.PointSet(coords, {"a": values, "w": w, "b": table[:, 1], "rock": ["x"] * 60})
-    f = getattr(cs.plot, name)
+    points = bt.PointSet(coords, {"a": values, "w": w, "b": table[:, 1], "rock": ["x"] * 60})
+    f = getattr(bt.plot, name)
     options = {} if name == "completeness" else {"weights": "w"}
     _, ax = f(points, columns=["a", "b"], **options)
     if name == "correlation":
-        np.testing.assert_allclose(ax.images[0].get_array(), cs.correlation(table, weights=w))
+        np.testing.assert_allclose(ax.images[0].get_array(), bt.correlation(table, weights=w))
         assert [t.get_text() for t in ax.get_xticklabels()] == ["a", "b"]
     elif name == "scatter_matrix":
         assert ax.shape == (2, 2) and ax[1, 0].get_xlabel() == "a" and ax[1, 1].get_xlabel() == "b"
-        r = cs.correlation(table, weights=w)
+        r = bt.correlation(table, weights=w)
         assert ax[1, 0].texts[0].get_text().startswith(f"r {r[1, 0]:.2f}")
     else:
         assert len(ax.patches) == 3
-    with pytest.raises(cs.MissingColumn):
+    with pytest.raises(bt.MissingColumn):
         f(points, columns=["a", "c"])
     plt.close("all")
 
 
 def test_categorical_probabilities_have_one_row_per_target():
     summaries = [
-        cs.SIS([model] * 3, search).fit(coords, categories).simulate(grid, n=2),
-        cs.Plurigaussian(model, proportions=[0.4, 0.4, 0.2]).fit(coords, categories).simulate(grid, n=2),
-        cs.CategoricalIndicatorKriging(model, search).fit(coords, categories).predict(grid),
+        bt.SIS([model] * 3, search).fit(coords, categories).simulate(grid, n=2),
+        bt.Plurigaussian(model, proportions=[0.4, 0.4, 0.2]).fit(coords, categories).simulate(grid, n=2),
+        bt.CategoricalIndicatorKriging(model, search).fit(coords, categories).predict(grid),
     ]
     assert [s.probabilities.shape for s in summaries] == [(len(grid), 3)] * 3
 
@@ -284,16 +284,16 @@ def test_continuous_summaries_have_one_row_per_target():
     options = {"cutoffs": [0.5, 1.0], "quantiles": [0.1, 0.5, 0.9]}
     thresholds = list(np.quantile(grades, [0.25, 0.5, 0.75, 0.9]))
     kriged = [
-        cs.MultipleIndicatorKriging(model, search, thresholds).fit(coords, grades).predict(grid, **options),
-        cs.MultigaussianKriging(model, search).fit(coords, grades).predict(grid, **options),
+        bt.MultipleIndicatorKriging(model, search, thresholds).fit(coords, grades).predict(grid, **options),
+        bt.MultigaussianKriging(model, search).fit(coords, grades).predict(grid, **options),
     ]
     for s in kriged:
         assert s.probability_above.shape == s.mean_above.shape == (len(grid), 2)
         assert s.quantile_values.shape == (len(grid), 3)
     assert kriged[0].cdf.shape == (len(grid), 4) and kriged[1].cdf.shape == (len(grid), 0)
     simulated = [
-        cs.SGS(model, search).fit(coords, grades).simulate(grid, n=3, keep=True, **options),
-        cs.TurningBands(model, bands=50).fit(coords, grades).simulate(grid, n=3, keep=True, **options),
+        bt.SGS(model, search).fit(coords, grades).simulate(grid, n=3, keep=True, **options),
+        bt.TurningBands(model, bands=50).fit(coords, grades).simulate(grid, n=3, keep=True, **options),
     ]
     for s in simulated:
         assert s.probability_above.shape == s.mean_above.shape == (len(grid), 2)

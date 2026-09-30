@@ -15,14 +15,14 @@ HERE = Path(__file__).parent if "__file__" in globals() else Path.cwd()
 sys.path.insert(0, str(HERE.parents[1]))
 
 # %%
-import ceres as cs
+import boitata as bt
 import matplotlib.pyplot as plt
 import numpy as np
 from common import ACCENT, GRAY, HIGHLIGHT, INK, save
 
-data = cs.datasets.nickel_laterite_profile()
-intervals = cs.merge_intervals(data["assays"], data["horizons"])
-samples = cs.Drillholes(data["collars"], data["surveys"], intervals).samples()
+data = bt.datasets.nickel_laterite_profile()
+intervals = bt.merge_intervals(data["assays"], data["horizons"])
+samples = bt.Drillholes(data["collars"], data["surveys"], intervals).samples()
 samples = samples.filter(np.isin(np.asarray(samples["HORIZON"]), ["LIM", "SAP"]))
 horizon = np.asarray(samples["HORIZON"])
 for name in ("LIM", "SAP"):
@@ -32,7 +32,7 @@ for name in ("LIM", "SAP"):
 
 
 def profile(points, values):
-    return cs.contact(
+    return bt.contact(
         points,
         values,
         domain_column="HORIZON",
@@ -52,7 +52,7 @@ observed = profile(samples, "NI_PCT")
 print("distance:", observed["distance"])
 print("mean Ni: ", observed["mean"].round(2))
 
-fig, ax = cs.plot.contact(observed, labels=("SAP", "LIM"))
+fig, ax = bt.plot.contact(observed, labels=("SAP", "LIM"))
 fig.set_size_inches(6, 3.4)
 ax.set(
     xlabel="Distance to the LIM/SAP contact along the hole (m)",
@@ -72,9 +72,9 @@ save(fig, "contact")
 # %%
 scores = np.empty(len(samples))
 for name in ("LIM", "SAP"):
-    scores[horizon == name] = cs.NormalScore().fit_transform(samples["NI_PCT"][horizon == name])
-down = cs.experimental_variogram(samples, scores, 1, 12, holes="HOLE_ID").fit("spherical")
-across = cs.experimental_variogram(samples, scores, 25, 250, azimuth=0, tolerance=22.5).fit(
+    scores[horizon == name] = bt.NormalScore().fit_transform(samples["NI_PCT"][horizon == name])
+down = bt.experimental_variogram(samples, scores, 1, 12, holes="HOLE_ID").fit("spherical")
+across = bt.experimental_variogram(samples, scores, 25, 250, azimuth=0, tolerance=22.5).fit(
     "spherical", nugget=down.nugget
 )
 model = across.with_anisotropy((0, 0, 0), (1.0, down.structures[0].range / across.structures[0].range))
@@ -96,14 +96,14 @@ print(f"{len(collars) - len(infill)} mesh holes, {len(infill)} infill holes held
 
 rules = {"hard": None, "soft both ways": 50.0, "soft, SAP from LIM": {("SAP", "LIM"): 50.0}}
 searches = {
-    name: cs.Search(200, max_samples=24, min_samples=4, max_per_hole=6, ratios=(1.0, 0.1), soft=soft)
+    name: bt.Search(200, max_samples=24, min_samples=4, max_per_hole=6, ratios=(1.0, 0.1), soft=soft)
     for name, soft in rules.items()
 }
 truth = check["NI_PCT"]
 check_horizon = np.asarray(check["HORIZON"])
 kriged = {}
 for name, search in searches.items():
-    ok = cs.OrdinaryKriging(model, search).fit(mesh, "NI_PCT", holes="HOLE_ID", domain_column="HORIZON")
+    ok = bt.OrdinaryKriging(model, search).fit(mesh, "NI_PCT", holes="HOLE_ID", domain_column="HORIZON")
     result = ok.predict(check, diagnostics=True, domain_column="HORIZON")
     kriged[name] = result["value"]
     error = result["value"] - truth
@@ -138,7 +138,7 @@ for name, values in kriged.items():
 # %%
 simulated = {}
 for name, search in searches.items():
-    sgs = cs.SGS(model, search).fit(mesh, "NI_PCT", holes="HOLE_ID", domain_column="HORIZON")
+    sgs = bt.SGS(model, search).fit(mesh, "NI_PCT", holes="HOLE_ID", domain_column="HORIZON")
     simulated[name] = sgs.simulate(check, n=20, seed=7, domain_column="HORIZON").mean
     print(f"{name:>18}:", means(simulated[name]))
 

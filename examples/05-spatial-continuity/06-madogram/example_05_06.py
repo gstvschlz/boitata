@@ -17,7 +17,7 @@ HERE = Path(__file__).parent if "__file__" in globals() else Path.cwd()
 sys.path.insert(0, str(HERE.parents[1]))
 
 # %%
-import ceres as cs
+import boitata as bt
 import matplotlib.pyplot as plt
 import numpy as np
 from common import ACCENT, GRAY, HIGHLIGHT, INK, save
@@ -26,9 +26,9 @@ from common import ACCENT, GRAY, HIGHLIGHT, INK, save
 # The 1 m quartz-vein composites of [top cuts](../../03-exploratory-analysis/05-top-cuts/README.md), gold in g/t, in vein V1:
 
 # %%
-data = cs.datasets.vein_gold_grade_control()
-intervals = cs.merge_intervals(data["assays"], data["lithology"])
-holes = cs.Drillholes(data["collars"], data["surveys"], intervals)
+data = bt.datasets.vein_gold_grade_control()
+intervals = bt.merge_intervals(data["assays"], data["lithology"])
+holes = bt.Drillholes(data["collars"], data["surveys"], intervals)
 composites = holes.composite(1.0, ["AU_GPT"], domain="LITH", categories=["VEIN"])
 vein = composites.filter(
     (composites["LITH"] == "QV") & (composites["VEIN"] == "V1") & ~np.isnan(composites["AU_GPT"])
@@ -52,7 +52,7 @@ lag, max_lag = 5.0, 80.0
 estimators = {"matheron": INK, "cressie-hawkins": GRAY, "madogram": ACCENT}
 fig, ax = plt.subplots(figsize=(6, 3.4), layout="constrained")
 for e, color in estimators.items():
-    curve = cs.experimental_variogram(vein, "AU_GPT", lag, max_lag, estimator=e)
+    curve = bt.experimental_variogram(vein, "AU_GPT", lag, max_lag, estimator=e)
     plateau = curve.gammas[curve.lags > 40].mean()
     ax.plot(curve.lags, curve.gammas / plateau, "o-", color=color, ms=3, lw=1, label=e)
 ax.set(xlabel="Lag (m)", ylabel="estimate / plateau", ylim=(0, 1.2))
@@ -69,8 +69,8 @@ save(fig, "estimators")
 keep = au < np.sort(au)[-5]
 trimmed = vein.filter(keep)
 for e in ("matheron", "madogram"):
-    full = cs.experimental_variogram(vein, "AU_GPT", lag, max_lag, estimator=e)
-    cut = cs.experimental_variogram(trimmed, "AU_GPT", lag, max_lag, estimator=e)
+    full = bt.experimental_variogram(vein, "AU_GPT", lag, max_lag, estimator=e)
+    cut = bt.experimental_variogram(trimmed, "AU_GPT", lag, max_lag, estimator=e)
     change = cut.gammas / full.gammas - 1
     print(
         f"{e:>9}: change without the top five, median {100 * np.median(change):.0f} %, "
@@ -87,9 +87,9 @@ for e in ("matheron", "madogram"):
 fig, ax = plt.subplots(figsize=(6, 3.4), layout="constrained")
 both = vein.with_column("log_au", np.log(au))
 for name, column, color in [("Au", "AU_GPT", HIGHLIGHT), ("log Au", "log_au", ACCENT)]:
-    madogram = cs.experimental_variogram(both, column, lag, max_lag, estimator="madogram")
-    variogram = cs.experimental_variogram(both, column, lag, max_lag)
-    ax.plot(madogram.lags, cs.dissemination(madogram, variogram), "o-", color=color, ms=3, lw=1, label=name)
+    madogram = bt.experimental_variogram(both, column, lag, max_lag, estimator="madogram")
+    variogram = bt.experimental_variogram(both, column, lag, max_lag)
+    ax.plot(madogram.lags, bt.dissemination(madogram, variogram), "o-", color=color, ms=3, lw=1, label=name)
 ax.axhline(1.0, color=GRAY, lw=0.8, ls="--")
 ax.set(xlabel="Lag (m)", ylabel="√π · M(h) / √γ(h)", ylim=(0, 1.2))
 ax.legend()

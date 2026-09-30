@@ -8,14 +8,14 @@ decide whether to estimate them together.
 <details><summary>Python</summary>
 
 ```python
-import ceres as cs
+import boitata as bt
 import matplotlib.pyplot as plt
 import numpy as np
 from common import save
 
-data = cs.datasets.iron_formation_plateau()
-intervals = cs.merge_intervals(data["assays"], data["lithology"])
-holes = cs.Drillholes(data["collars"], data["surveys"], intervals)
+data = bt.datasets.iron_formation_plateau()
+intervals = bt.merge_intervals(data["assays"], data["lithology"])
+holes = bt.Drillholes(data["collars"], data["surveys"], intervals)
 OXIDES = ["FE_PCT", "SIO2_PCT", "AL2O3_PCT", "P_PCT", "MN_PCT", "LOI_PCT"]
 composites = holes.composite(2.0, [*OXIDES, "DENSITY"], domain="LITH")
 lith = composites["LITH"]
@@ -42,11 +42,11 @@ correlation is the safer one on skewed grades.
 labels = ["Fe", "SiO₂", "Al₂O₃", "P", "Mn", "LOI"]
 fig, axes = plt.subplots(1, 2, figsize=(10, 4), layout="constrained")
 for ax, rock, name in zip(axes, [itabirite, hematite], ["Itabirite", "Hematite"], strict=True):
-    r = cs.correlation(rock, columns=OXIDES, method="spearman")
+    r = bt.correlation(rock, columns=OXIDES, method="spearman")
     print(
         f"{name}, Fe against", "  ".join(f"{c} {v:+.2f}" for c, v in zip(labels[1:], r[0, 1:], strict=True))
     )
-    cs.plot.correlation(rock, columns=OXIDES, labels=labels, method="spearman", colorbar=ax is axes[1], ax=ax)
+    bt.plot.correlation(rock, columns=OXIDES, labels=labels, method="spearman", colorbar=ax is axes[1], ax=ax)
     ax.set_title(f"{name}, Spearman")
 save(fig, "correlation")
 ```
@@ -76,7 +76,7 @@ on only part of the composites, and each panel uses those where both of its valu
 ```python
 columns = ["FE_PCT", "AL2O3_PCT", "LOI_PCT", "DENSITY"]
 print(f"density measured on {np.mean(~np.isnan(hematite['DENSITY'])):.0%} of the hematite composites")
-fig, axes = cs.plot.scatter_matrix(hematite, columns=columns, labels=["Fe", "Al₂O₃", "LOI", "Density"])
+fig, axes = bt.plot.scatter_matrix(hematite, columns=columns, labels=["Fe", "Al₂O₃", "LOI", "Density"])
 fig.suptitle("Hematite composites", x=0.02, ha="left", fontweight="bold", fontsize=10)
 save(fig, "scatter_matrix")
 ```
@@ -101,9 +101,9 @@ richest ore.
 
 ```python
 fig, (a, b) = plt.subplots(1, 2, figsize=(9, 3.4), layout="constrained")
-cs.plot.completeness(hematite, columns=columns, ax=a)
+bt.plot.completeness(hematite, columns=columns, ax=a)
 a.set_title("Hematite composites by columns present")
-cs.plot.conditional("FE_PCT", "AL2O3_PCT", data=hematite, ax=b)
+bt.plot.conditional("FE_PCT", "AL2O3_PCT", data=hematite, ax=b)
 b.set(title="Al₂O₃ given Fe, hematite", xlabel="Fe (%)", ylabel="Al₂O₃ (%)")
 b.legend(loc="upper right")
 save(fig, "completeness")
@@ -124,7 +124,7 @@ correlation. As the lag grows the cloud widens and the correlation drops, the mi
 ```python
 fig, axes = plt.subplots(1, 3, figsize=(10, 3.4), layout="constrained", sharey=True)
 for ax, lag in zip(axes, [2.0, 8.0, 32.0], strict=True):
-    head, tail, r = cs.h_scatter(itabirite, "FE_PCT", lag, 0.1 * lag)
+    head, tail, r = bt.h_scatter(itabirite, "FE_PCT", lag, 0.1 * lag)
     print(f"h = {lag:>3.0f} m: {len(head):>6} pairs, correlation {r:.2f}")
     ax.hexbin(tail, head, gridsize=30, bins="log", linewidths=0)
     ax.set(title=f"h = {lag:g} m, ρ = {r:.2f}", xlabel="Fe at x (%)", aspect="equal")

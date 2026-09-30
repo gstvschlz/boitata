@@ -1,7 +1,7 @@
 # High-grade restriction
 
 A rich sample informs every node its search reaches, so an isolated high value spreads its grade far beyond the
-ground it represents. `cs.HighGrade` restricts samples above a threshold beyond a distance: `mode="drop"` leaves them
+ground it represents. `bt.HighGrade` restricts samples above a threshold beyond a distance: `mode="drop"` leaves them
 out, `mode="clamp"` keeps them at the threshold, and ranges with a rotation give the restriction an ellipse of its
 own. Each search pass carries its own restriction. Block kriging of Walker Lake `V` in 5 m blocks, checked against the
 exhaustive block averages.
@@ -9,28 +9,28 @@ exhaustive block averages.
 <details><summary>Python</summary>
 
 ```python
-import ceres as cs
+import boitata as bt
 import matplotlib.pyplot as plt
 import numpy as np
 from common import ACCENT, GRAY, HIGHLIGHT, INK, LIGHT, save
 
-samples = cs.datasets.walker_lake()
+samples = bt.datasets.walker_lake()
 xy, v = samples.coords[:, :2], samples["V"]
-exhaustive = cs.datasets.walker_lake_exhaustive()["V"].reshape(300, 260)
-grid = cs.BlockModel(origin=(0.5, 0.5), size=(5, 5), count=(52, 60))
+exhaustive = bt.datasets.walker_lake_exhaustive()["V"].reshape(300, 260)
+grid = bt.BlockModel(origin=(0.5, 0.5), size=(5, 5), count=(52, 60))
 truth = exhaustive.reshape(60, 5, 52, 5).mean(axis=(1, 3)).ravel()
 
 azimuths = np.arange(0, 180, 22.5)
-directional = [cs.experimental_variogram(samples, "V", 10.0, 120.0, azimuth=a) for a in azimuths]
-model = cs.Variogram.fit_directional(
+directional = [bt.experimental_variogram(samples, "V", 10.0, 120.0, azimuth=a) for a in azimuths]
+model = bt.Variogram.fit_directional(
     directional, [(a, 0) for a in azimuths], ["spherical", "spherical"], weighting="count/gamma"
 )
-kriging = cs.BlockKriging(model, cs.Search(radius=80), (5, 5)).fit(samples, "V")
+kriging = bt.BlockKriging(model, bt.Search(radius=80), (5, 5)).fit(samples, "V")
 
 
 def search(high_grade=None, *, radius=80, min_samples=4):
     ellipse = {"rotation": model.rotation, "ratios": (0.5, 1.0)}
-    return cs.Search(
+    return bt.Search(
         radius=radius, max_samples=24, min_samples=min_samples, octant=True, high_grade=high_grade, **ellipse
     )
 ```
@@ -39,7 +39,7 @@ def search(high_grade=None, *, radius=80, min_samples=4):
 
 ## Four restrictions
 
-The threshold is 600 ppm, reached by almost a third of the samples, and the restricted distance 20 m. The tuple `(600, 20)` is shorthand for `cs.HighGrade(600, 20)`, which drops. Clamp
+The threshold is 600 ppm, reached by almost a third of the samples, and the restricted distance 20 m. The tuple `(600, 20)` is shorthand for `bt.HighGrade(600, 20)`, which drops. Clamp
 keeps the far rich samples at 600 ppm, so they still pull the node up, less. The ellipse restricts to 40 m along
 the continuity and 10 m across it. The passes restrict to 15 m in a tight first pass and to 30 m in the wide second,
 and are compared with the same passes unrestricted.
@@ -58,8 +58,8 @@ halo = (nearest > 20) & (nearest < 50)
 searches = {
     "none": search(),
     "drop": search((threshold, 20)),
-    "clamp": search(cs.HighGrade(threshold, 20, mode="clamp")),
-    "ellipse": search(cs.HighGrade(threshold, (40, 10, 10), rotation=model.rotation)),
+    "clamp": search(bt.HighGrade(threshold, 20, mode="clamp")),
+    "ellipse": search(bt.HighGrade(threshold, (40, 10, 10), rotation=model.rotation)),
     "passes, none": [search(radius=30, min_samples=8), search()],
     "passes": [search((threshold, 15), radius=30, min_samples=8), search((threshold, 30))],
 }

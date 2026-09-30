@@ -7,7 +7,7 @@
 use crate::Sample;
 use crate::error::{EstimError, Result};
 use crate::krige::{Estimate, Kind};
-use ceres_core::{Geometry, block_frame};
+use boitata_core::{Geometry, block_frame};
 use nalgebra::{DMatrix, DVector, Vector3};
 use serde::{Deserialize, Serialize};
 use variogram::Variogram;

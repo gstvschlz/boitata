@@ -7,21 +7,21 @@ Nearest neighbor, inverse distance and moving average estimate Walker Lake `V` w
 <details><summary>Python</summary>
 
 ```python
-import ceres as cs
+import boitata as bt
 import matplotlib.pyplot as plt
 import numpy as np
 from common import ACCENT, GRAY, HIGHLIGHT, INK, map_axes, save
 from matplotlib.colors import PowerNorm
 
-samples = cs.datasets.walker_lake()
-truth = cs.datasets.walker_lake_exhaustive()["V"].reshape(300, 260)
-grid = cs.BlockModel(origin=(0.5, 0.5), size=(5, 5), count=(52, 60))
+samples = bt.datasets.walker_lake()
+truth = bt.datasets.walker_lake_exhaustive()["V"].reshape(300, 260)
+grid = bt.BlockModel(origin=(0.5, 0.5), size=(5, 5), count=(52, 60))
 nodes = grid.centroids.astype(int)
 true_at_nodes = truth[nodes[:, 1] - 1, nodes[:, 0] - 1]
 
 azimuths = np.arange(0, 180, 22.5)
-directional = [cs.experimental_variogram(samples, "V", 10.0, 120.0, azimuth=a) for a in azimuths]
-model = cs.Variogram.fit_directional(
+directional = [bt.experimental_variogram(samples, "V", 10.0, 120.0, azimuth=a) for a in azimuths]
+model = bt.Variogram.fit_directional(
     directional, [(a, 0) for a in azimuths], ["spherical", "spherical"], weighting="count/gamma"
 )
 ```
@@ -35,12 +35,12 @@ Kriging, for reference, uses the variogram above.
 <details><summary>Python</summary>
 
 ```python
-search = cs.Search(radius=80, max_samples=24, min_samples=4, rotation=model.rotation, ratios=(0.5, 1.0))
+search = bt.Search(radius=80, max_samples=24, min_samples=4, rotation=model.rotation, ratios=(0.5, 1.0))
 methods = {
-    "nearest neighbor": cs.NearestNeighbor(search),
-    "inverse distance": cs.InverseDistance(search, power=2),
-    "moving average": cs.MovingAverage(search),
-    "ordinary kriging": cs.OrdinaryKriging(model, search),
+    "nearest neighbor": bt.NearestNeighbor(search),
+    "inverse distance": bt.InverseDistance(search, power=2),
+    "moving average": bt.MovingAverage(search),
+    "ordinary kriging": bt.OrdinaryKriging(model, search),
 }
 estimates = {name: m.fit(samples, "V").predict(grid) for name, m in methods.items()}
 print(f"{'method':>17}  RMSE   corr   variance ratio")
@@ -94,7 +94,7 @@ for every model of the same blocks, and their differences from a reference, here
 
 ```python
 cutoffs = np.arange(0, 1001, 50)
-table = cs.compare_models(grid, {"truth": true_at_nodes, **estimates}, cutoffs, reference="truth")
+table = bt.compare_models(grid, {"truth": true_at_nodes, **estimates}, cutoffs, reference="truth")
 for cutoff in (300, 600):
     rows = np.asarray(table["cutoff"]) == cutoff
     print(f"cutoff {cutoff} ppm")

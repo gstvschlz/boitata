@@ -8,13 +8,13 @@ simulates the coarse structure first, on every 2nd, 4th and 8th cell, and fills 
 <details><summary>Python</summary>
 
 ```python
-import ceres as cs
+import boitata as bt
 import matplotlib.pyplot as plt
 import numpy as np
 from common import INK, save
 from matplotlib.colors import ListedColormap
 
-ti = cs.datasets.strebelle()
+ti = bt.datasets.strebelle()
 nx, ny = ti.count[:2]
 image = ti["facies"].reshape(ny, nx)
 print(f"{nx} x {ny} cells, sand (code 1) in {image.mean():.1%} of them")
@@ -56,10 +56,10 @@ around it.
 <details><summary>Python</summary>
 
 ```python
-grid = cs.BlockModel((0, 0), (1, 1), (nx, ny))
+grid = bt.BlockModel((0, 0), (1, 1), (nx, ny))
 realizations = {}
 for levels in (0, 1, 2, 3):
-    summary = cs.SNESIM(ti, "facies", n_levels=levels).simulate(grid, n=20, seed=7, keep=True, progress=False)
+    summary = bt.SNESIM(ti, "facies", n_levels=levels).simulate(grid, n=20, seed=7, keep=True, progress=False)
     reals = summary.realizations.reshape(-1, ny, nx)
     realizations[levels] = reals[0]
     along = np.mean([runs(r, 0) for r in reals])
@@ -100,7 +100,7 @@ save(fig, "levels")
 
 ![levels](levels.png)
 
-[Conditioning SNESIM](../02-snesim-conditioning/README.md) honors hard data and steers the proportions, and
-[continuous SNESIM](../03-snesim-continuous/README.md) simulates values instead of codes.
+[Conditioning SNESIM](../../13-multiple-point-statistics/02-snesim-conditioning/README.md) honors hard data and steers the proportions, and
+[continuous SNESIM](../../13-multiple-point-statistics/03-snesim-continuous/README.md) simulates values instead of codes.
 
 Full script: [`example_13_01.py`](example_13_01.py)

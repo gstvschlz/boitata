@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use ceres_core::Mesh;
+use boitata_core::Mesh;
 use nalgebra::Vector3;
 
 use crate::{BlockModelError, Result};

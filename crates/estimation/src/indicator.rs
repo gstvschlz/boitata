@@ -12,7 +12,7 @@
 //! change of support, `m + √f·(z − m)`, with `f` the variance of the blocks
 //! within the panel over that of the points within it.
 
-use ceres_core::{BlockModel, Progress, block_frame};
+use boitata_core::{BlockModel, Progress, block_frame};
 use nalgebra::{Matrix3, Vector3};
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -1013,7 +1013,7 @@ mod tests {
         let variograms = [20.0, 40.0, 15.0]
             .map(|r| Variogram::single(Model::Spherical, 0.25, r))
             .to_vec();
-        let geometry = ceres_core::Geometry {
+        let geometry = boitata_core::Geometry {
             origin: [0.0; 3],
             size: [10.0, 6.0, 1.0],
             count: [1, 1, 1],
@@ -1225,7 +1225,7 @@ mod tests {
     }
 
     fn panels(rotation: f64) -> BlockModel {
-        let g = ceres_core::Geometry {
+        let g = boitata_core::Geometry {
             origin: [0.0; 3],
             size: [20.0, 20.0, 1.0],
             count: [5, 5, 1],

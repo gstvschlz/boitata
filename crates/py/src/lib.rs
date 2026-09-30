@@ -24,11 +24,11 @@ mod table;
 mod transforms;
 mod variogram;
 
-/// Raises `ceres.errors.<kind>`, a subclass of both `CeresError` and a builtin.
+/// Raises `boitata.errors.<kind>`, a subclass of both `BoitataError` and a builtin.
 pub(crate) fn error(kind: &str, message: impl ToString) -> PyErr {
     Python::attach(|py| {
         match py
-            .import("ceres.errors")
+            .import("boitata.errors")
             .and_then(|m| m.getattr(kind))
             .and_then(|c| Ok(c.cast_into::<PyType>()?))
         {
@@ -43,7 +43,7 @@ pub(crate) fn invalid(message: impl ToString) -> PyErr {
 }
 
 #[pymodule]
-fn _ceres(m: &Bound<PyModule>) -> PyResult<()> {
+fn _boitata(m: &Bound<PyModule>) -> PyResult<()> {
     m.add("__version__", env!("CARGO_PKG_VERSION"))?;
     m.add_class::<table::Table>()?;
     m.add_class::<containers::PyPointSet>()?;

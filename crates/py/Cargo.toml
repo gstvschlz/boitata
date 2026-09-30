@@ -1,5 +1,5 @@
 [package]
-name = "ceres-py"
+name = "boitata-py"
 description = "Python bindings"
 version.workspace = true
 edition.workspace = true
@@ -8,7 +8,7 @@ license.workspace = true
 publish.workspace = true
 
 [lib]
-name = "_ceres"
+name = "_boitata"
 crate-type = ["cdylib"]
 
 [dependencies]
@@ -17,8 +17,8 @@ arrow-cast.workspace = true
 arrow-schema.workspace = true
 arrow-select.workspace = true
 blocks.workspace = true
-ceres-core.workspace = true
-ceres-io.workspace = true
+boitata-core.workspace = true
+boitata-io.workspace = true
 coda.workspace = true
 drillholes.workspace = true
 eda.workspace = true

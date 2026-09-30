@@ -8,17 +8,17 @@ through PPMT and, for contrast, PCA.
 <details><summary>Python</summary>
 
 ```python
-import ceres as cs
+import boitata as bt
 import matplotlib.pyplot as plt
 import numpy as np
 from common import ACCENT, save
 
-data = cs.datasets.porphyry_geometallurgy(deposit=1)["synthetic_drillholes"]
+data = bt.datasets.porphyry_geometallurgy(deposit=1)["synthetic_drillholes"]
 coords = data.coords
 pair = np.log(np.column_stack([data["calcosina"], data["tenantita"]]))
 names = ["log chalcocite (%)", "log tennantite (%)"]
-logs = cs.PointSet(coords, {"chalcocite": pair[:, 0], "tennantite": pair[:, 1]})
-weights = cs.cell_declustering(coords, pair[:, 0], cell_size=50.0).weights
+logs = bt.PointSet(coords, {"chalcocite": pair[:, 0], "tennantite": pair[:, 1]})
+weights = bt.cell_declustering(coords, pair[:, 0], cell_size=50.0).weights
 print(f"{len(pair)} composites, correlation {np.corrcoef(pair.T)[0, 1]:.2f}")
 ```
 
@@ -37,15 +37,15 @@ of columns of a PointSet.
 ```python
 lo, hi = coords.min(axis=0), coords.max(axis=0)
 count = np.ceil((hi - lo) / (100, 100, 50)).astype(int)
-blocks = cs.BlockModel(origin=tuple(lo), size=(100, 100, 50), count=tuple(count))
-nodes = cs.BlockModel(origin=tuple(lo), size=(25, 25, 25), count=tuple(count * (4, 4, 2)))
-search = cs.Search(radius=250, max_samples=16)
+blocks = bt.BlockModel(origin=tuple(lo), size=(100, 100, 50), count=tuple(count))
+nodes = bt.BlockModel(origin=tuple(lo), size=(25, 25, 25), count=tuple(count * (4, 4, 2)))
+search = bt.Search(radius=250, max_samples=16)
 
 runs = {}
-for name, transform in {"PPMT": cs.PPMT(seed=7), "PCA": cs.PCA(standardize=True)}.items():
+for name, transform in {"PPMT": bt.PPMT(seed=7), "PCA": bt.PCA(standardize=True)}.items():
     f = transform.fit_transform(pair, weights=weights)
-    variograms = [cs.experimental_variogram(coords, f[:, j], 25.0, 300.0).fit("spherical") for j in range(2)]
-    simulation = cs.MultivariateSimulation(transform, [cs.TurningBands(v, search=search) for v in variograms])
+    variograms = [bt.experimental_variogram(coords, f[:, j], 25.0, 300.0).fit("spherical") for j in range(2)]
+    simulation = bt.MultivariateSimulation(transform, [bt.TurningBands(v, search=search) for v in variograms])
     runs[name] = simulation.fit(logs, ["chalcocite", "tennantite"], weights=weights)
 reals = {
     name: [s.realizations for s in sim.simulate(nodes, n=20, seed=1, keep=True)] for name, sim in runs.items()
@@ -163,12 +163,12 @@ complete composites.
 hidden = np.asarray(data["DHID"]) % 2 == 0
 holed = pair.copy()
 holed[hidden, 1] = np.nan
-f = cs.PPMT(seed=7).fit_transform(pair[~hidden], weights=weights[~hidden])
+f = bt.PPMT(seed=7).fit_transform(pair[~hidden], weights=weights[~hidden])
 variograms = [
-    cs.experimental_variogram(coords[~hidden], f[:, j], 25.0, 300.0).fit("spherical") for j in range(2)
+    bt.experimental_variogram(coords[~hidden], f[:, j], 25.0, 300.0).fit("spherical") for j in range(2)
 ]
-simulation = cs.MultivariateSimulation(
-    cs.PPMT(seed=7), [cs.TurningBands(v, search=search) for v in variograms]
+simulation = bt.MultivariateSimulation(
+    bt.PPMT(seed=7), [bt.TurningBands(v, search=search) for v in variograms]
 )
 simulation.fit(coords, holed, weights=weights, impute=True)
 a, b = (s.realizations for s in simulation.simulate(nodes, n=20, seed=1, keep=True))

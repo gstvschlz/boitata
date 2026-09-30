@@ -17,7 +17,7 @@ sys.path.insert(0, str(HERE.parents[1]))
 warnings.filterwarnings("ignore", ".*locations hold several samples")
 
 # %%
-import ceres as cs
+import boitata as bt
 import matplotlib.pyplot as plt
 import numpy as np
 from common import save
@@ -32,17 +32,17 @@ from common import save
 # and colors every plot below. Logged intervals are composited to 5 m, each taking the rock covering most of it.
 
 # %%
-data = cs.datasets.stacked_sulphide_lenses()
-drillholes = cs.Drillholes(data["collars"], data["surveys"], data["lithology"])
+data = bt.datasets.stacked_sulphide_lenses()
+drillholes = bt.Drillholes(data["collars"], data["surveys"], data["lithology"])
 composites = drillholes.composite(5.0, [], categories=["LITH"])
-scheme = cs.Categories(
+scheme = bt.Categories(
     ["OB", "HWS", "VCL", "SUL", "FWV"],
     mapping={"MS": "SUL", "SMS": "SUL", "STR": "SUL"},
     other="DYK",
     colors=["#d9d9d9", "#a9bfd3", "#8c8c8c", "#c05a28", "#1f4e79", "#e0c080"],
 )
 codes = scheme.encode(composites["LITH"])
-weights = cs.cell_declustering(composites, codes, cell_size=50.0).weights
+weights = bt.cell_declustering(composites, codes, cell_size=50.0).weights
 naive, declustered = scheme.shares(codes), scheme.shares(codes, weights=weights)
 print(f"{len(codes)} composites")
 print(f"{'':<5}{'naive':>7}{'declustered':>13}")
@@ -62,18 +62,18 @@ for name, a, b in zip(scheme.names, naive, declustered):
 # %%
 layers = (23.0, 55.0, 0.0)
 variograms = [
-    cs.Variogram([("spherical", 0.9, 400.0)], nugget=0.1, rotation=(0.0, 0.0, 0.0), ratios=(1.0, 0.05)),
-    cs.Variogram([("spherical", 0.9, 500.0)], nugget=0.1, rotation=layers, ratios=(0.8, 0.2)),
-    cs.Variogram([("spherical", 0.85, 400.0)], nugget=0.15, rotation=layers, ratios=(0.8, 0.2)),
-    cs.Variogram([("spherical", 0.8, 150.0)], nugget=0.2, rotation=layers, ratios=(0.8, 0.25)),
-    cs.Variogram([("spherical", 0.9, 500.0)], nugget=0.1, rotation=layers, ratios=(0.8, 0.2)),
-    cs.Variogram([("spherical", 0.7, 40.0)], nugget=0.3),
+    bt.Variogram([("spherical", 0.9, 400.0)], nugget=0.1, rotation=(0.0, 0.0, 0.0), ratios=(1.0, 0.05)),
+    bt.Variogram([("spherical", 0.9, 500.0)], nugget=0.1, rotation=layers, ratios=(0.8, 0.2)),
+    bt.Variogram([("spherical", 0.85, 400.0)], nugget=0.15, rotation=layers, ratios=(0.8, 0.2)),
+    bt.Variogram([("spherical", 0.8, 150.0)], nugget=0.2, rotation=layers, ratios=(0.8, 0.25)),
+    bt.Variogram([("spherical", 0.9, 500.0)], nugget=0.1, rotation=layers, ratios=(0.8, 0.2)),
+    bt.Variogram([("spherical", 0.7, 40.0)], nugget=0.3),
 ]
 passes = [
-    cs.Search(150.0, max_samples=24, max_per_hole=6, rotation=layers, ratios=(1.0, 0.4)),
-    cs.Search(300.0, max_samples=24, rotation=layers, ratios=(1.0, 0.4)),
+    bt.Search(150.0, max_samples=24, max_per_hole=6, rotation=layers, ratios=(1.0, 0.4)),
+    bt.Search(300.0, max_samples=24, rotation=layers, ratios=(1.0, 0.4)),
 ]
-cik = cs.CategoricalIndicatorKriging(variograms, passes, scheme=scheme)
+cik = bt.CategoricalIndicatorKriging(variograms, passes, scheme=scheme)
 cik.fit(composites, "LITH", weights=weights, holes="HOLE_ID")
 
 # %% [markdown]
@@ -87,7 +87,7 @@ center = np.array([12350.0, 29900.0, 0.0])
 across = np.array([np.sin(np.radians(113.0)), np.cos(np.radians(113.0)), 0.0])
 along = np.array([np.sin(np.radians(23.0)), np.cos(np.radians(23.0)), 0.0])
 origin = center - 600.0 * across - 5.0 * along + [0.0, 0.0, -400.0]
-section = cs.BlockModel(origin, (10.0, 10.0, 10.0), (120, 1, 80), rotation=(23.0, 0.0, 0.0))
+section = bt.BlockModel(origin, (10.0, 10.0, 10.0), (120, 1, 80), rotation=(23.0, 0.0, 0.0))
 topography = data["topography"]
 rows = topography.row_at(section.centroids[:, :2])
 section = section.mask((rows >= 0) & (section.centroids[:, 2] < topography["Z"][rows]))
@@ -114,7 +114,7 @@ section = section.with_columns({**columns, "most_likely": summary.most_likely, "
 # %%
 fig, axes = plt.subplots(2, 2, figsize=(11, 7.6), layout="constrained", sharex=True, sharey=True)
 for ax, name in zip(axes.flat, ["HWS", "VCL", "SUL", "FWV"]):
-    cs.plot.section(section, f"p_{name}", axis="y", index=0, vmin=0.0, vmax=1.0, colorbar=False, ax=ax)
+    bt.plot.section(section, f"p_{name}", axis="y", index=0, vmin=0.0, vmax=1.0, colorbar=False, ax=ax)
     ax.set_title(f"P({name})")
     ax.set_xlabel("Along the section (m)" if ax in axes[1] else "")
     ax.set_ylabel("Elevation (m)")
@@ -130,11 +130,11 @@ save(fig, "probabilities")
 
 # %%
 fig, axes = plt.subplots(1, 3, figsize=(17, 4.8), layout="constrained", sharey=True)
-cs.plot.section(section, "most_likely", axis="y", index=0, scheme=scheme, colorbar=False, ax=axes[0])
+bt.plot.section(section, "most_likely", axis="y", index=0, scheme=scheme, colorbar=False, ax=axes[0])
 axes[0].set_title("Most likely rock")
-cs.plot.section(section, "entropy", axis="y", index=0, vmin=0.0, vmax=1.0, cmap="Greys", ax=axes[1])
+bt.plot.section(section, "entropy", axis="y", index=0, vmin=0.0, vmax=1.0, cmap="Greys", ax=axes[1])
 axes[1].set_title("Entropy")
-cs.plot.uncertain("most_likely", "entropy", model=section, axis="y", index=0, scheme=scheme, ax=axes[2])
+bt.plot.uncertain("most_likely", "entropy", model=section, axis="y", index=0, scheme=scheme, ax=axes[2])
 axes[2].set_title("Most likely, faded by entropy")
 for ax, y in zip(axes, ["Elevation (m)", "", ""]):
     ax.set_xlabel("Along the section (m)")

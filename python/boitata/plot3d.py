@@ -8,7 +8,7 @@ from itertools import pairwise
 
 import numpy as np
 
-from ceres._ceres import BlockModel, Drillholes, Mesh, PointSet
+from boitata._boitata import BlockModel, Drillholes, Mesh, PointSet
 
 __all__ = ["plot", "slices", "to_pyvista"]
 
@@ -20,7 +20,7 @@ def _pyvista():
         import pyvista
     except ImportError as e:
         raise ImportError(
-            "ceres.plot3d needs pyvista: pip install 'ceres[3d]' or conda install -c conda-forge pyvista"
+            "boitata.plot3d needs pyvista: pip install 'boitata[3d]' or conda install -c conda-forge pyvista"
         ) from e
     return pyvista
 

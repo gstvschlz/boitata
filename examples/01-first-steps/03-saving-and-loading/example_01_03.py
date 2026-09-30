@@ -17,7 +17,7 @@ sys.path.insert(0, str(HERE.parents[1]))
 # %%
 import tempfile
 
-import ceres as cs
+import boitata as bt
 import matplotlib.pyplot as plt
 import numpy as np
 from common import map_axes, save
@@ -30,19 +30,19 @@ from common import map_axes, save
 # gives the estimate on a 5 m grid.
 
 # %%
-samples = cs.datasets.walker_lake()
-declustering = cs.cell_declustering(samples, "V", sizes=np.arange(2.5, 102.5, 2.5))
-capping = cs.Capping(quantile=0.99).fit("V", weights=declustering.weights, data=samples)
+samples = bt.datasets.walker_lake()
+declustering = bt.cell_declustering(samples, "V", sizes=np.arange(2.5, 102.5, 2.5))
+capping = bt.Capping(quantile=0.99).fit("V", weights=declustering.weights, data=samples)
 capped = capping.transform("V", data=samples)
-normal_score = cs.NormalScore().fit(capped, weights=declustering.weights)
+normal_score = bt.NormalScore().fit(capped, weights=declustering.weights)
 scores = normal_score.transform(capped)
-variogram = cs.Variogram.fit(
-    cs.experimental_variogram(samples, scores, 10.0, 120.0), ["spherical", "spherical"]
+variogram = bt.Variogram.fit(
+    bt.experimental_variogram(samples, scores, 10.0, 120.0), ["spherical", "spherical"]
 )
-search = cs.Search(radius=60, max_samples=24, min_samples=4)
+search = bt.Search(radius=60, max_samples=24, min_samples=4)
 
-grid = cs.BlockModel(origin=(2.5, 2.5), size=(5, 5), count=(52, 60))
-kriged = cs.SimpleKriging(variogram, search).fit(samples, scores).predict(grid, progress=False)
+grid = bt.BlockModel(origin=(2.5, 2.5), size=(5, 5), count=(52, 60))
+kriged = bt.SimpleKriging(variogram, search).fit(samples, scores).predict(grid, progress=False)
 estimate = normal_score.inverse_transform(kriged)
 print(f"cap: {capping.caps_:.0f} ppm | declustered mean: {declustering.mean:.1f} ppm")
 print(variogram)
@@ -82,20 +82,20 @@ print((folder / "search.json").read_text())
 
 
 def rerun(folder, samples):
-    capping = cs.Capping.from_json((folder / "capping.json").read_text())
-    normal_score = cs.NormalScore.from_json((folder / "normal_score.json").read_text())
-    variogram = cs.Variogram.from_json((folder / "variogram.json").read_text())
-    search = cs.Search.from_json((folder / "search.json").read_text())
+    capping = bt.Capping.from_json((folder / "capping.json").read_text())
+    normal_score = bt.NormalScore.from_json((folder / "normal_score.json").read_text())
+    variogram = bt.Variogram.from_json((folder / "variogram.json").read_text())
+    search = bt.Search.from_json((folder / "search.json").read_text())
     scores = normal_score.transform(capping.transform("V", data=samples))
-    grid = cs.BlockModel(origin=(2.5, 2.5), size=(5, 5), count=(52, 60))
-    kriged = cs.SimpleKriging(variogram, search).fit(samples, scores).predict(grid, progress=False)
+    grid = bt.BlockModel(origin=(2.5, 2.5), size=(5, 5), count=(52, 60))
+    kriged = bt.SimpleKriging(variogram, search).fit(samples, scores).predict(grid, progress=False)
     return normal_score.inverse_transform(kriged)
 
 
-again = rerun(folder, cs.datasets.walker_lake())
+again = rerun(folder, bt.datasets.walker_lake())
 assert np.array_equal(again, estimate)
 print("identical estimate:", np.array_equal(again, estimate))
-weights = cs.Declustering.from_json((folder / "declustering.json").read_text()).weights
+weights = bt.Declustering.from_json((folder / "declustering.json").read_text()).weights
 print(f"declustered mean from the saved weights: {np.average(capped, weights=weights):.1f} ppm (capped)")
 
 fig, ax = plt.subplots(figsize=(5, 5.2), layout="constrained")

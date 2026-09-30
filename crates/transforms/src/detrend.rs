@@ -128,7 +128,7 @@ fn project(matrix: &Matrix3<f64>, ratios: [f64; 2], p: &(f64, f64, f64)) -> [f64
 
 impl Frame {
     fn new(locations: &[(f64, f64, f64)], rotation: [f64; 3], ratios: [f64; 2]) -> Result<Self> {
-        let matrix = ceres_core::rotation_matrix(rotation[0], rotation[1], rotation[2]);
+        let matrix = boitata_core::rotation_matrix(rotation[0], rotation[1], rotation[2]);
         let points: Vec<[f64; 3]> = locations
             .iter()
             .map(|p| project(&matrix, ratios, p))

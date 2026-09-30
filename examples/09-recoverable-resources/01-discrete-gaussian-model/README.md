@@ -7,15 +7,15 @@ exhaustive Walker Lake grid gives the true point and block curves to check it ag
 <details><summary>Python</summary>
 
 ```python
-import ceres as cs
+import boitata as bt
 import matplotlib.pyplot as plt
 import numpy as np
 from common import ACCENT, GRAY, save
 
-samples = cs.datasets.walker_lake()
-truth = cs.datasets.walker_lake_exhaustive()["V"].reshape(300, 260)
+samples = bt.datasets.walker_lake()
+truth = bt.datasets.walker_lake_exhaustive()["V"].reshape(300, 260)
 xy, v = samples.coords, samples["V"]
-weights = cs.cell_declustering(samples, "V", sizes=np.arange(2.5, 102.5, 2.5)).weights
+weights = bt.cell_declustering(samples, "V", sizes=np.arange(2.5, 102.5, 2.5)).weights
 ```
 
 </details>
@@ -26,11 +26,11 @@ jointly along and across N170°, the major axis found in [variogram fitting](../
 <details><summary>Python</summary>
 
 ```python
-anam = cs.HermiteAnamorphosis(degree=40).fit(v, weights=weights)
+anam = bt.HermiteAnamorphosis(degree=40).fit(v, weights=weights)
 y = anam.transform(v)
 azimuths = (170, 260)
-experimental = [cs.experimental_variogram(xy, y, 10, 120, azimuth=a) for a in azimuths]
-gaussian = cs.Variogram.fit_directional(experimental, [(a, 0) for a in azimuths], rotation=[170, 0, 0])
+experimental = [bt.experimental_variogram(xy, y, 10, 120, azimuth=a) for a in azimuths]
+gaussian = bt.Variogram.fit_directional(experimental, [(a, 0) for a in azimuths], rotation=[170, 0, 0])
 print(gaussian)
 ```
 
@@ -47,7 +47,7 @@ coefficient r with the block anamorphosis. The variogram's sill does not matter;
 
 ```python
 size = 10
-r, block = cs.change_of_support(anam, gaussian, size=(size, size), discretization=(5, 5, 1))
+r, block = bt.change_of_support(anam, gaussian, size=(size, size), discretization=(5, 5, 1))
 blocks_true = truth.reshape(30, size, 26, size).mean(axis=(1, 3)).ravel()
 print(
     f"r = {r:.3f}; point variance {anam.variance_:.0f}, block {block.variance_:.0f}, true block {blocks_true.var():.0f}"

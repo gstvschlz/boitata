@@ -1,6 +1,6 @@
 import numpy as np
 
-from ceres.errors import InvalidInput, MissingColumn
+from boitata.errors import InvalidInput, MissingColumn
 
 
 def names(data):

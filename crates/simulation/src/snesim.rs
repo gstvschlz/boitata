@@ -17,8 +17,8 @@ mod tree;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, PoisonError};
 
-use ceres_core::rng::realization_seed;
-use ceres_core::{Geometry, Progress, block_frame};
+use boitata_core::rng::realization_seed;
+use boitata_core::{Geometry, Progress, block_frame};
 use estimation::lva::LocalAnisotropy;
 use nalgebra::{Matrix3, Vector3};
 use rand::rngs::StdRng;
@@ -1061,7 +1061,7 @@ mod tests {
     use std::sync::Arc as StdArc;
 
     use arrow_array::{Float64Array, RecordBatch};
-    use ceres_core::BlockModel;
+    use boitata_core::BlockModel;
 
     use super::*;
 

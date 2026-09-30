@@ -1,11 +1,11 @@
-# Contributing to ceres
+# Contributing to Boitatá
 
 Bug reports, fixes, examples and new features are welcome. Open an issue first for anything
 bigger than a small fix, so we can agree on the design before you write the code.
 
 ## Set up
 
-ceres uses [mise](https://mise.jdx.dev) to pin Python, uv, pixi and micromamba; Rust comes
+Boitatá uses [mise](https://mise.jdx.dev) to pin Python, uv, pixi and micromamba; Rust comes
 from `rust-toolchain.toml`. From a clone:
 
 ```sh
@@ -19,7 +19,7 @@ mise run test
   (the Rust tests, then builds the Python module and runs pytest). It must pass.
 - `mise run examples` reruns the scripts in `examples/` and rewrites their figures.
   Run it when you change an example.
-- `mise run compat` installs ceres with pip, uv, pixi and conda. Run it when you change
+- `mise run compat` installs Boitatá with pip, uv, pixi and conda. Run it when you change
   packaging or dependencies.
 
 Every feature ships in Rust and Python together: the binding, the `.pyi` stub, a NumPy
@@ -32,7 +32,7 @@ reproducing the histogram and variogram within a tolerance.
 - Link one issue per pull request, and keep each pull request to one change.
 - Write commit messages as [Conventional Commits](https://www.conventionalcommits.org)
   (`feat:`, `fix:`, `docs:` ...). The changelog comes from them.
-- Use public datasets in tests and examples (`cs.datasets`) or seeded synthetic data.
+- Use public datasets in tests and examples (`bt.datasets`) or seeded synthetic data.
   Don't commit client data or files over 1 MB.
 - Only open or documented file formats; no readers or writers for proprietary vendor formats.
 - Results must not depend on the number of threads.

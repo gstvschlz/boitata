@@ -7,7 +7,7 @@ clockwise from north) into a path, so any depth down a hole has coordinates.
 <details><summary>Python</summary>
 
 ```python
-import ceres as cs
+import boitata as bt
 import matplotlib.pyplot as plt
 import numpy as np
 from common import ACCENT, GRAY, LIGHT, map_axes, save
@@ -21,9 +21,9 @@ the deepest hole, `DD0027`, flattens from 55° to 46° and swings from azimuth 2
 <details><summary>Python</summary>
 
 ```python
-data = cs.datasets.stacked_sulphide_lenses()
+data = bt.datasets.stacked_sulphide_lenses()
 collar, survey = data["collars"], data["surveys"]
-dh = cs.Drillholes(collar, survey)
+dh = bt.Drillholes(collar, survey)
 paths = dh.paths()
 print(dh)
 last = np.flatnonzero(paths["HOLE_ID"] == "DD0027")[[0, 1, -2, -1]]
@@ -56,7 +56,7 @@ its collar direction, as if never surveyed:
 holes, length = list(collar["HOLE_ID"]), collar["LENGTH"]
 reference = dh.at(holes, length)
 collar_station = np.cumsum(survey["DEPTH"] == 0) - 1
-unsurveyed = cs.Table(
+unsurveyed = bt.Table(
     {
         "HOLE_ID": survey["HOLE_ID"],
         "DEPTH": survey["DEPTH"],
@@ -65,9 +65,9 @@ unsurveyed = cs.Table(
     }
 )
 alternatives = {
-    "tangential": cs.Drillholes(collar, survey, method="tangential"),
-    "balanced_tangential": cs.Drillholes(collar, survey, method="balanced_tangential"),
-    "collar direction only": cs.Drillholes(collar, unsurveyed),
+    "tangential": bt.Drillholes(collar, survey, method="tangential"),
+    "balanced_tangential": bt.Drillholes(collar, survey, method="balanced_tangential"),
+    "collar direction only": bt.Drillholes(collar, unsurveyed),
 }
 for name, other in alternatives.items():
     shift = np.linalg.norm(other.at(holes, length) - reference, axis=1)

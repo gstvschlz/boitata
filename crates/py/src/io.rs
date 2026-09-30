@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use ceres_io::{CsvOptions, Nodata, Shapes};
+use boitata_io::{CsvOptions, Nodata, Shapes};
 use pyo3::prelude::*;
 
 use crate::blocks::Mesh;
@@ -9,16 +9,16 @@ use crate::progress::with_progress;
 use crate::table::{Table, to_batch, to_batches};
 use crate::{error, invalid};
 
-pub(crate) fn io_error(e: ceres_io::Error) -> PyErr {
+pub(crate) fn io_error(e: boitata_io::Error) -> PyErr {
     match e {
-        ceres_io::Error::Io(e) => error("FileError", e),
+        boitata_io::Error::Io(e) => error("FileError", e),
         e => invalid(e),
     }
 }
 
 fn nodata(values: Option<Vec<Bound<PyAny>>>) -> PyResult<Vec<Nodata>> {
     let Some(values) = values else {
-        return Ok(ceres_io::default_nodata());
+        return Ok(boitata_io::default_nodata());
     };
     values
         .iter()
@@ -64,7 +64,7 @@ fn read_csv(
         nodata: self::nodata(nodata)?,
     };
     let batch = with_progress(py, None, progress, |counter| {
-        ceres_io::read_csv(path, &options, counter)
+        boitata_io::read_csv(path, &options, counter)
     })?
     .map_err(io_error)?;
     Ok(Table(batch))
@@ -77,7 +77,7 @@ fn write_csv(py: Python, path: PathBuf, table: &Bound<PyAny>, progress: bool) ->
     let batch = to_batch(table)?;
     let total = Some(batch.num_rows() as u64);
     with_progress(py, total, progress, |counter| {
-        ceres_io::write_csv(path, &batch, counter)
+        boitata_io::write_csv(path, &batch, counter)
     })?
     .map_err(io_error)
 }
@@ -94,7 +94,7 @@ fn read_gslib(
 ) -> PyResult<Table> {
     let nodata = self::nodata(nodata)?;
     let batch = with_progress(py, None, progress, |counter| {
-        ceres_io::read_gslib(path, &nodata, counter)
+        boitata_io::read_gslib(path, &nodata, counter)
     })?
     .map_err(io_error)?;
     Ok(Table(batch))
@@ -114,7 +114,7 @@ fn write_gslib(
     let batch = to_batch(table)?;
     let total = Some(batch.num_rows() as u64);
     with_progress(py, total, progress, |counter| {
-        ceres_io::write_gslib(path, &batch, nodata, counter)
+        boitata_io::write_gslib(path, &batch, nodata, counter)
     })?
     .map_err(io_error)
 }
@@ -130,7 +130,7 @@ fn write_parquet(py: Python, path: PathBuf, data: &Bound<PyAny>, progress: bool)
         let points = &points.get().0;
         let total = Some(points.len() as u64);
         return with_progress(py, total, progress, |counter| {
-            ceres_io::write_points(path, points, counter)
+            boitata_io::write_points(path, points, counter)
         })?
         .map_err(io_error);
     }
@@ -138,7 +138,7 @@ fn write_parquet(py: Python, path: PathBuf, data: &Bound<PyAny>, progress: bool)
         let lines = &lines.get().0;
         let total = Some(lines.len() as u64);
         return with_progress(py, total, progress, |counter| {
-            ceres_io::write_polylines(path, lines, counter)
+            boitata_io::write_polylines(path, lines, counter)
         })?
         .map_err(io_error);
     }
@@ -146,14 +146,14 @@ fn write_parquet(py: Python, path: PathBuf, data: &Bound<PyAny>, progress: bool)
         let model = &model.get().0;
         let total = Some(model.len() as u64);
         return with_progress(py, total, progress, |counter| {
-            ceres_io::write_block_model(path, model, counter)
+            boitata_io::write_block_model(path, model, counter)
         })?
         .map_err(io_error);
     }
     let (schema, batches) = to_batches(data)?;
     let total = Some(batches.iter().map(|b| b.num_rows() as u64).sum());
     with_progress(py, total, progress, |counter| {
-        ceres_io::write_parquet_batches(path, schema, &batches, counter)
+        boitata_io::write_parquet_batches(path, schema, &batches, counter)
     })?
     .map_err(io_error)
 }
@@ -164,14 +164,14 @@ fn write_parquet(py: Python, path: PathBuf, data: &Bound<PyAny>, progress: bool)
 #[pyo3(signature = (path, *, progress=true))]
 fn read_parquet(py: Python, path: PathBuf, progress: bool) -> PyResult<Py<PyAny>> {
     let stored = with_progress(py, None, progress, |counter| {
-        ceres_io::read_parquet(path, counter)
+        boitata_io::read_parquet(path, counter)
     })?
     .map_err(io_error)?;
     Ok(match stored {
-        ceres_io::Stored::Polylines(l) => Py::new(py, PyPolylines(l))?.into_any(),
-        ceres_io::Stored::Points(p) => PyPointSet(p).into_pyobject(py)?.into_any().unbind(),
-        ceres_io::Stored::Blocks(b) => PyBlockModel(b).into_pyobject(py)?.into_any().unbind(),
-        ceres_io::Stored::Table(t) => Table(t).into_pyobject(py)?.into_any().unbind(),
+        boitata_io::Stored::Polylines(l) => Py::new(py, PyPolylines(l))?.into_any(),
+        boitata_io::Stored::Points(p) => PyPointSet(p).into_pyobject(py)?.into_any().unbind(),
+        boitata_io::Stored::Blocks(b) => PyBlockModel(b).into_pyobject(py)?.into_any().unbind(),
+        boitata_io::Stored::Table(t) => Table(t).into_pyobject(py)?.into_any().unbind(),
     })
 }
 
@@ -181,7 +181,7 @@ fn read_parquet(py: Python, path: PathBuf, progress: bool) -> PyResult<Py<PyAny>
 #[pyo3(signature = (path, *, progress=true))]
 fn read_mesh(py: Python, path: PathBuf, progress: bool) -> PyResult<Mesh> {
     let mesh = with_progress(py, None, progress, |counter| {
-        ceres_io::read_mesh(path, counter)
+        boitata_io::read_mesh(path, counter)
     })?
     .map_err(io_error)?;
     Ok(Mesh::from_core(mesh))
@@ -201,7 +201,7 @@ fn write_mesh(
     let mesh = &mesh.mesh;
     let total = Some(mesh.triangles().len() as u64);
     with_progress(py, total, progress, |counter| {
-        ceres_io::write_mesh(path, mesh, ascii, counter)
+        boitata_io::write_mesh(path, mesh, ascii, counter)
     })?
     .map_err(io_error)
 }
@@ -233,7 +233,7 @@ fn read_shapefile(
     nodata: Option<Vec<Bound<PyAny>>>,
 ) -> PyResult<Py<PyAny>> {
     Ok(
-        match ceres_io::read_shapefile(path, &self::nodata(nodata)?).map_err(io_error)? {
+        match boitata_io::read_shapefile(path, &self::nodata(nodata)?).map_err(io_error)? {
             Shapes::Points(p) => Py::new(py, PyPointSet(p))?.into_any(),
             Shapes::Polylines(l) => Py::new(py, PyPolylines(l))?.into_any(),
         },
@@ -257,12 +257,12 @@ fn read_shapefile(
 #[pyfunction]
 fn write_shapefile(path: PathBuf, data: &Bound<PyAny>) -> PyResult<()> {
     if let Ok(lines) = data.cast::<PyPolylines>() {
-        return ceres_io::write_polylines_shapefile(path, &lines.get().0).map_err(io_error);
+        return boitata_io::write_polylines_shapefile(path, &lines.get().0).map_err(io_error);
     }
     let points = data
         .cast::<PyPointSet>()
         .map_err(|_| invalid("data must be a PointSet or Polylines"))?;
-    ceres_io::write_shapefile(path, &points.get().0).map_err(io_error)
+    boitata_io::write_shapefile(path, &points.get().0).map_err(io_error)
 }
 
 /// Reads a GeoTIFF raster as a 2D BlockModel.
@@ -289,7 +289,7 @@ fn write_shapefile(path: PathBuf, data: &Bound<PyAny>) -> PyResult<()> {
 #[pyo3(signature = (path, *, nodata=None))]
 fn read_geotiff(path: PathBuf, nodata: Option<f64>) -> PyResult<PyBlockModel> {
     Ok(PyBlockModel(
-        ceres_io::read_geotiff(path, nodata).map_err(io_error)?,
+        boitata_io::read_geotiff(path, nodata).map_err(io_error)?,
     ))
 }
 
@@ -317,7 +317,7 @@ fn read_geotiff(path: PathBuf, nodata: Option<f64>) -> PyResult<PyBlockModel> {
 #[pyfunction]
 #[pyo3(signature = (path, model, *, nodata=-9999.0))]
 fn write_geotiff(path: PathBuf, model: PyRef<PyBlockModel>, nodata: f64) -> PyResult<()> {
-    ceres_io::write_geotiff(path, &model.0, nodata).map_err(io_error)
+    boitata_io::write_geotiff(path, &model.0, nodata).map_err(io_error)
 }
 
 /// Reads a post-stack SEG-Y cube as a 3D BlockModel.
@@ -367,7 +367,7 @@ fn read_segy(
     y_byte: usize,
     nodata: Option<f64>,
 ) -> PyResult<PyBlockModel> {
-    let options = ceres_io::SegyOptions {
+    let options = boitata_io::SegyOptions {
         column: column.into(),
         inline_byte,
         crossline_byte,
@@ -376,7 +376,7 @@ fn read_segy(
         nodata,
     };
     Ok(PyBlockModel(
-        ceres_io::read_segy(path, &options).map_err(io_error)?,
+        boitata_io::read_segy(path, &options).map_err(io_error)?,
     ))
 }
 
@@ -411,19 +411,19 @@ fn write_segy(
     column: &str,
     nodata: f64,
 ) -> PyResult<()> {
-    ceres_io::write_segy(path, &model.0, column, nodata).map_err(io_error)
+    boitata_io::write_segy(path, &model.0, column, nodata).map_err(io_error)
 }
 
 /// A block model file read in chunks, for models larger than memory.
-#[pyclass(module = "ceres", name = "BlockModelFile", frozen)]
-pub struct BlockModelFile(ceres_io::BlockModelReader);
+#[pyclass(module = "boitata", name = "BlockModelFile", frozen)]
+pub struct BlockModelFile(boitata_io::BlockModelReader);
 
 #[pymethods]
 impl BlockModelFile {
     #[new]
     fn new(path: PathBuf) -> PyResult<Self> {
         Ok(Self(
-            ceres_io::BlockModelReader::open(path).map_err(io_error)?,
+            boitata_io::BlockModelReader::open(path).map_err(io_error)?,
         ))
     }
 
@@ -483,8 +483,8 @@ impl BlockModelFile {
     }
 }
 
-#[pyclass(module = "ceres", unsendable)]
-pub struct BlockChunkIterator(ceres_io::BlockChunks);
+#[pyclass(module = "boitata", unsendable)]
+pub struct BlockChunkIterator(boitata_io::BlockChunks);
 
 #[pymethods]
 impl BlockChunkIterator {
@@ -503,8 +503,8 @@ impl BlockChunkIterator {
 
 struct StreamError(PyErr);
 
-impl From<ceres_io::Error> for StreamError {
-    fn from(e: ceres_io::Error) -> Self {
+impl From<boitata_io::Error> for StreamError {
+    fn from(e: boitata_io::Error) -> Self {
         Self(io_error(e))
     }
 }
@@ -521,7 +521,7 @@ fn map_blocks(
     rows: usize,
     keep: bool,
 ) -> PyResult<()> {
-    ceres_io::stream_map::<StreamError>(path, out, rows, keep, |chunk| {
+    boitata_io::stream_map::<StreamError>(path, out, rows, keep, |chunk| {
         let columns = func
             .call1((PyBlockModel(chunk.clone()),))
             .and_then(|result| to_batch(&result))

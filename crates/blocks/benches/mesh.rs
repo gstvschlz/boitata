@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use arrow_array::{ArrayRef, Float64Array, RecordBatch};
 use blocks::{Domain, Region, SolidTester, TriangleTree, convex_hull, distance_to, subblock};
-use ceres_core::{BlockModel, Geometry, Mesh};
+use boitata_core::{BlockModel, Geometry, Mesh};
 use criterion::{Criterion, criterion_group, criterion_main};
 
 /// Closed lens: the hull of `n` points on an ellipsoid centered at height `z`.

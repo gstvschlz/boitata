@@ -15,7 +15,7 @@ HERE = Path(__file__).parent if "__file__" in globals() else Path.cwd()
 sys.path.insert(0, str(HERE.parents[1]))
 
 # %%
-import ceres as cs
+import boitata as bt
 import matplotlib.pyplot as plt
 import numpy as np
 from common import ACCENT, HIGHLIGHT, LIGHT, save
@@ -24,10 +24,10 @@ from common import ACCENT, HIGHLIGHT, LIGHT, save
 # The parent grid, 40 × 40 × 20 m around the lenses, comes from `BlockModel.from_extents` ([block model from extents](../../02-data-and-geometry/12-block-model-from-extents/README.md)).
 
 # %%
-data = cs.datasets.stacked_sulphide_lenses()
+data = bt.datasets.stacked_sulphide_lenses()
 lenses = [data[f"lens_{i}"] for i in (1, 2, 3)]
 names = ["lens 1", "lens 2", "lens 3"]
-parents = cs.BlockModel.from_extents(*lenses, size=(40, 40, 20), buffer=10, snap=True)
+parents = bt.BlockModel.from_extents(*lenses, size=(40, 40, 20), buffer=10, snap=True)
 print(parents)
 
 # %% [markdown]
@@ -83,7 +83,7 @@ for c, e, name in zip(subblocked.centroids[cut], subblocked.extents[cut], labels
             (c[0] - dx / 2, c[1] - dy / 2), dx, dy, facecolor=colors[name], edgecolor="white", lw=0.3
         )
     )
-cs.plot.slab(np.empty((0, 3)), plane=((0, 0, level), 90, 0), thickness=1, meshes=lenses, ax=ax)
+bt.plot.slab(np.empty((0, 3)), plane=((0, 0, level), 90, 0), thickness=1, meshes=lenses, ax=ax)
 x0, y0, _ = parents.origin
 nx, ny, _ = parents.count
 ax.vlines(x0 + size[0] * np.arange(nx + 1), y0, y0 + ny * size[1], color=LIGHT, lw=0.5, zorder=0)
@@ -101,10 +101,10 @@ save(fig, "subblocks")
 # surface. The grid is the parent grid raised to the highest point of the topography.
 
 # %%
-topography = cs.grid_surface(data["topography"], "Z")
+topography = bt.grid_surface(data["topography"], "Z")
 origin, count = parents.origin, np.array(parents.count)
 count[2] = np.ceil((np.nanmax(data["topography"]["Z"]) - origin[2]) / size[2])
-domain_model = cs.BlockModel.from_meshes(
+domain_model = bt.BlockModel.from_meshes(
     origin,
     size,
     count,
@@ -122,12 +122,12 @@ print(f"    total: {domain_model.volumes.sum():>13,.0f} m3 = grid {np.prod(size)
 # A vertical section across strike (the lenses strike N22.5°E) through the domain model, with the lens outlines:
 
 # %%
-scheme = cs.Categories(["air", "host rock", *names], colors=["#f4f7fa", LIGHT, ACCENT, "#6f9fc9", HIGHLIGHT])
+scheme = bt.Categories(["air", "host rock", *names], colors=["#f4f7fa", LIGHT, ACCENT, "#6f9fc9", HIGHLIGHT])
 center = np.mean([lens.vertices.mean(axis=0) for lens in lenses], axis=0)
 plane = (center, 112.5, 90)
 fig, ax = plt.subplots(figsize=(9, 6.5), layout="constrained")
-cs.plot.section(domain_model, scheme.encode(domain_model["domain"]), plane=plane, scheme=scheme, ax=ax)
-cs.plot.slab(np.empty((0, 3)), plane=plane, thickness=1, meshes=lenses, ax=ax)
+bt.plot.section(domain_model, scheme.encode(domain_model["domain"]), plane=plane, scheme=scheme, ax=ax)
+bt.plot.slab(np.empty((0, 3)), plane=plane, thickness=1, meshes=lenses, ax=ax)
 ax.set(title="Domain model, section across strike", xlabel="Across strike (m)")
 save(fig, "domains")
 
@@ -141,16 +141,16 @@ save(fig, "domains")
 # metal; `min_fraction` drops the thin edges and the metal in them.
 
 # %%
-holes = cs.Drillholes(data["collars"], data["surveys"], data["assays"])
+holes = bt.Drillholes(data["collars"], data["surveys"], data["assays"])
 composites = holes.composite(2.0, ["ZN_PCT"])
 xyz, zn = composites.coords, composites["ZN_PCT"]
-search = cs.Search(100, max_samples=12)
+search = bt.Search(100, max_samples=12)
 labels = np.array(subblocked["domain"])
 grade = np.full(len(subblocked), np.nan)
 for lens, name in zip(lenses, names):
     inside = lens.contains(xyz) & ~np.isnan(zn)
     on = labels == name
-    grade[on] = cs.InverseDistance(search).fit(xyz[inside], zn[inside]).predict(subblocked.centroids[on])
+    grade[on] = bt.InverseDistance(search).fit(xyz[inside], zn[inside]).predict(subblocked.centroids[on])
 subblocked = subblocked.with_column("zn", grade)
 metal = (subblocked.volumes * grade).sum()
 print(f"sub-blocks: {subblocked.volumes.sum():,.0f} m3 at {metal / subblocked.volumes.sum():.2f}% Zn")
@@ -171,7 +171,7 @@ for minimum in (0.0, 0.5):
 # %%
 is_ore = np.isin(np.array(domain_model["domain"]), names)
 domain_model = domain_model.with_column("ore", is_ore.astype(float))
-coarse = domain_model.regularize(cs.BlockModel(origin=origin, size=size, count=count))
+coarse = domain_model.regularize(bt.BlockModel(origin=origin, size=size, count=count))
 labeled = coarse.volumes[np.isin(np.array(coarse["domain"]), names)].sum()
 proportion = (coarse.volumes * coarse["fraction"] * coarse["ore"]).sum()
 print(f"lens sub-blocks {domain_model.volumes[is_ore].sum():,.0f} m3")

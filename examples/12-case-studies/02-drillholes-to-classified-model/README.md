@@ -10,7 +10,7 @@ and tonnes and metal per lens saved to Parquet.
 ```python
 import tempfile
 
-import ceres as cs
+import boitata as bt
 import matplotlib.pyplot as plt
 import numpy as np
 from common import ACCENT, GRAY, HIGHLIGHT, LIGHT, save
@@ -25,8 +25,8 @@ Collars, surveys and assays become desurveyed drill holes; each assay sits at th
 <details><summary>Python</summary>
 
 ```python
-data = cs.datasets.stacked_sulphide_lenses()
-drillholes = cs.Drillholes(data["collars"], data["surveys"], data["assays"])
+data = bt.datasets.stacked_sulphide_lenses()
+drillholes = bt.Drillholes(data["collars"], data["surveys"], data["assays"])
 samples = drillholes.samples()
 print(f"{len(drillholes)} holes, {len(samples)} assays")
 ```
@@ -53,7 +53,7 @@ lens = np.full(len(samples), "host", dtype=object)
 for name, mesh in lenses.items():
     lens[mesh.contains(samples.coords)] = name
 intervals = samples.with_columns({"LENS": list(lens)}).attributes
-drillholes = cs.Drillholes(data["collars"], data["surveys"], intervals)
+drillholes = bt.Drillholes(data["collars"], data["surveys"], intervals)
 composites = drillholes.composite(2.0, ["ZN_PCT", "DENSITY"], domain="LENS", residual="merge")
 composites = composites.filter(np.array(composites["LENS"], dtype=object) != "host")
 names = np.array(composites["LENS"], dtype=object)
@@ -87,23 +87,23 @@ weights = np.zeros(len(composites))
 for name in lenses:
     inside = names == name
     zn = composites["ZN_PCT"][inside]
-    declustering = cs.cell_declustering(composites.coords[inside], zn, sizes=np.arange(10, 105, 5))
+    declustering = bt.cell_declustering(composites.coords[inside], zn, sizes=np.arange(10, 105, 5))
     weights[inside] = declustering.weights / declustering.weights.mean()
     print(
         f"{name}: mean {zn.mean():.2f} % Zn, declustered {declustering.mean:.2f} % ({declustering.cell_size:.0f} m cells)"
     )
 composites = composites.with_column("weight", weights)
 
-caps = cs.capping("ZN_PCT", weights="weight", data=composites)
+caps = bt.capping("ZN_PCT", weights="weight", data=composites)
 for cap, fraction, removed in zip(caps["cap"], caps["fraction"], caps["metal_removed"], strict=True):
     print(f"cap {cap:5.1f} % Zn: {fraction:5.1%} of composites cut, {removed:5.1%} of the metal removed")
 
 fig, (a, b) = plt.subplots(1, 2, figsize=(9, 3.4), layout="constrained")
-cs.plot.histogram(
+bt.plot.histogram(
     "ZN_PCT", weights="weight", data=composites, bins=np.arange(0, 38, 2), ax=a, color=LIGHT, edgecolor=GRAY
 )
 a.set(xlabel="Zn (%)", title="Declustered histogram, three lenses")
-cs.plot.probability("ZN_PCT", weights="weight", data=composites, log=True, ax=b, color=ACCENT, ms=3)
+bt.plot.probability("ZN_PCT", weights="weight", data=composites, log=True, ax=b, color=ACCENT, ms=3)
 b.set(xlabel="Zn (%)", title="Probability plot")
 save(fig, "statistics")
 ```
@@ -137,19 +137,19 @@ sill.
 
 ```python
 one = composites.filter(names == "lens_1")
-grades = cs.experimental_variogram(one, "ZN_PCT", 10.0, 150.0)
+grades = bt.experimental_variogram(one, "ZN_PCT", 10.0, 150.0)
 variogram = grades.fit("spherical")
-scores = cs.NormalScore().fit(one["ZN_PCT"], weights=one["weight"])
-fitted = cs.experimental_variogram(one.coords, scores.transform(one["ZN_PCT"]), 10.0, 150.0).fit("spherical")
+scores = bt.NormalScore().fit(one["ZN_PCT"], weights=one["weight"])
+fitted = bt.experimental_variogram(one.coords, scores.transform(one["ZN_PCT"]), 10.0, 150.0).fit("spherical")
 structure = fitted.structures[0]
-gaussian = cs.Variogram(
+gaussian = bt.Variogram(
     [("spherical", structure.sill / fitted.sill, structure.range)], nugget=fitted.nugget / fitted.sill
 )
 for label, model in (("Zn", variogram), ("normal scores", gaussian)):
     s = model.structures[0]
     print(f"{label}: nugget {model.nugget:.2f}, spherical sill {s.sill:.2f}, range {s.range:.0f} m")
 
-fig, ax = cs.plot.variogram(grades, variogram=variogram, color=ACCENT)
+fig, ax = bt.plot.variogram(grades, variogram=variogram, color=ACCENT)
 ax.set(xlabel="Lag distance (m)", ylabel="γ(h), Zn (%²)", title="Zn variogram, lens 1")
 save(fig, "variogram")
 ```
@@ -175,7 +175,7 @@ low = np.min([m.bounds[0] for m in lenses.values()], axis=0)
 high = np.max([m.bounds[1] for m in lenses.values()], axis=0)
 origin = np.floor(low / 10) * 10
 count = [int(c) for c in np.ceil((high - origin) / 10)]
-blocks = cs.BlockModel.from_meshes(
+blocks = bt.BlockModel.from_meshes(
     origin, (10, 10, 10), count, [(mesh, "inside", name) for name, mesh in lenses.items()], 2, column="LENS"
 )
 block_lens = np.array(blocks["LENS"], dtype=object)
@@ -207,14 +207,14 @@ kriged the same way with the shape of the Zn variogram: kriging weights do not d
 ```python
 reach = variogram.structures[0].range
 passes = [
-    cs.Search(reach, max_samples=12, min_samples=6, max_per_hole=2),
-    cs.Search(2 * reach, max_samples=12, min_samples=4, max_per_hole=2),
-    cs.Search(250, max_samples=12, max_per_hole=2),
+    bt.Search(reach, max_samples=12, min_samples=6, max_per_hole=2),
+    bt.Search(2 * reach, max_samples=12, min_samples=4, max_per_hole=2),
+    bt.Search(250, max_samples=12, max_per_hole=2),
 ]
-zn = cs.OrdinaryKriging(variogram, passes).fit(composites, "ZN_PCT", holes="HOLE_ID", domain_column="LENS")
+zn = bt.OrdinaryKriging(variogram, passes).fit(composites, "ZN_PCT", holes="HOLE_ID", domain_column="LENS")
 kriged = zn.predict(blocks, diagnostics=True, domain_column="LENS")
 measured = composites.filter(np.isfinite(composites["DENSITY"]))
-density = cs.OrdinaryKriging(variogram, passes).fit(
+density = bt.OrdinaryKriging(variogram, passes).fit(
     measured, "DENSITY", holes="HOLE_ID", domain_column="LENS"
 )
 blocks = blocks.with_columns(
@@ -249,10 +249,10 @@ the simulation's search.
 <details><summary>Python</summary>
 
 ```python
-grid = cs.BlockModel(origin, (10, 10, 10), count)
+grid = bt.BlockModel(origin, (10, 10, 10), count)
 parents = grid.mask(np.isin(np.arange(len(grid)), blocks.index[block_lens == "lens_1"]))
 nodes = parents.discretize(2)
-sgs = cs.SGS(gaussian, passes[:2]).fit(one, "ZN_PCT", weights="weight", holes="HOLE_ID")
+sgs = bt.SGS(gaussian, passes[:2]).fit(one, "ZN_PCT", weights="weight", holes="HOLE_ID")
 summary = sgs.simulate(nodes, n=30, seed=1, cutoffs=[5.0], blocks=parents)
 low, high = np.quantile(summary.realization_above[:, 0], [0.1, 0.9])
 print(f"{len(parents)} parent blocks: P10 {low:.0%}, P90 {high:.0%} of them above 5 % Zn")
@@ -279,11 +279,11 @@ model, the other unbiased reference, and follow them along strike and down the l
 <details><summary>Python</summary>
 
 ```python
-nearest = cs.NearestNeighbor(cs.Search(250, max_samples=1)).fit(composites, "ZN_PCT", domain_column="LENS")
+nearest = bt.NearestNeighbor(bt.Search(250, max_samples=1)).fit(composites, "ZN_PCT", domain_column="LENS")
 blocks = blocks.with_column("nn", nearest.predict(blocks, domain_column="LENS"))
 for name in lenses:
     inside = block_lens == name
-    bias = cs.global_bias(
+    bias = bt.global_bias(
         blocks["zn"][inside],
         composites["ZN_PCT"][names == name],
         weights=blocks.volumes[inside],
@@ -298,17 +298,17 @@ for name in lenses:
 in_one = block_lens == "lens_1"
 fig, axes = plt.subplots(1, 2, figsize=(9, 3.4), layout="constrained")
 for ax, (axis, label) in zip(axes, (("y", "Northing (m)"), ("z", "Elevation (m)")), strict=True):
-    cs.plot.swath(
+    bt.plot.swath(
         [
-            cs.swath(one, "ZN_PCT", 40.0, axis=axis),
-            cs.swath(
+            bt.swath(one, "ZN_PCT", 40.0, axis=axis),
+            bt.swath(
                 blocks.centroids[in_one],
                 blocks["nn"][in_one],
                 40.0,
                 axis=axis,
                 weights=blocks.volumes[in_one],
             ),
-            cs.swath(
+            bt.swath(
                 blocks.centroids[in_one],
                 blocks["zn"][in_one],
                 40.0,
@@ -356,8 +356,8 @@ rules = [
     ("measured", {"pass": ("<=", 1), "slope": (">=", 0.6)}),
     ("indicated", {"pass": ("<=", 2), "slope": (">=", 0.3)}),
 ]
-classes = cs.classify(kriged, rules, default="inferred")
-categories = cs.Categories(["measured", "indicated", "inferred"], colors=[ACCENT, "#9ebad6", LIGHT])
+classes = bt.classify(kriged, rules, default="inferred")
+categories = bt.Categories(["measured", "indicated", "inferred"], colors=[ACCENT, "#9ebad6", LIGHT])
 blocks = blocks.with_column("class", categories.encode(classes))
 for name in categories.names:
     print(f"{name:>9}: {np.mean(classes == name):.0%} of blocks")
@@ -386,15 +386,15 @@ dip = np.degrees(np.arccos(pole[2]))
 print(f"lens 1 strikes {strike:03.0f}°, dips {dip:.0f}°")
 plane = (tuple(vertices.mean(axis=0)), strike, dip)
 fig, axes = plt.subplots(3, 1, figsize=(7, 10), layout="constrained", sharex=True)
-cs.plot.section(blocks, "zn", plane=plane, ax=axes[0], colorbar=False, vmin=0, vmax=12)
-cs.plot.section(parents, "p_above_5", plane=plane, ax=axes[1], colorbar=False, vmin=0, vmax=1)
-cs.plot.section(blocks, "class", plane=plane, ax=axes[2], colorbar=False, scheme=categories)
+bt.plot.section(blocks, "zn", plane=plane, ax=axes[0], colorbar=False, vmin=0, vmax=12)
+bt.plot.section(parents, "p_above_5", plane=plane, ax=axes[1], colorbar=False, vmin=0, vmax=1)
+bt.plot.section(blocks, "class", plane=plane, ax=axes[2], colorbar=False, scheme=categories)
 for ax in axes[:2]:
     fig.colorbar(ax.images[0], cax=ax.inset_axes([0.7, 1.04, 0.28, 0.04]), orientation="horizontal")
-cs.plot.category_legend(categories, axes[2], loc="lower right", bbox_to_anchor=(1, 1), ncol=3)
+bt.plot.category_legend(categories, axes[2], loc="lower right", bbox_to_anchor=(1, 1), ncol=3)
 titles = ("Kriged Zn (%)", "P(10 m block Zn > 5 %)", "Class")
 for ax, title in zip(axes, titles, strict=True):
-    cs.plot.slab(one, plane=plane, thickness=60, meshes=[lenses["lens_1"]], s=3, color=HIGHLIGHT, ax=ax)
+    bt.plot.slab(one, plane=plane, thickness=60, meshes=[lenses["lens_1"]], s=3, color=HIGHLIGHT, ax=ax)
     ax.set(title=title, aspect="equal")
 save(fig, "section")
 ```
@@ -417,7 +417,7 @@ above a 5 % Zn cutoff.
 ```python
 print(f"{'':20}{'kt':>8}{'Zn %':>7}{'kt Zn':>8}")
 for groups in (block_lens, classes):
-    table = cs.grade_tonnage(
+    table = bt.grade_tonnage(
         "zn", [0.0, 5.0], weights=blocks.volumes, density="density", categories=groups, data=blocks
     )
     for category, cutoff, tonnes, grade, metal in zip(
@@ -458,8 +458,8 @@ The model, sub-blocks, lens names, grades, classes and all, goes to Parquet and 
 ```python
 with tempfile.TemporaryDirectory() as folder:
     path = Path(folder) / "lenses.parquet"
-    cs.write_parquet(path, blocks)
-    stored = cs.read_parquet(path)
+    bt.write_parquet(path, blocks)
+    stored = bt.read_parquet(path)
 print(f"{len(stored)} blocks, columns {stored.attributes.column_names}")
 same = np.array_equal(stored.extents, blocks.extents) and np.array_equal(stored["zn"], blocks["zn"])
 print(f"same sub-blocks and Zn: {same}")

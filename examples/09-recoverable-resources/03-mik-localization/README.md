@@ -7,15 +7,15 @@ support, and ranked blocks share its bands. The exhaustive Walker Lake grid give
 <details><summary>Python</summary>
 
 ```python
-import ceres as cs
+import boitata as bt
 import matplotlib.pyplot as plt
 import numpy as np
 from common import ACCENT, GRAY, INK, save
 
-samples = cs.datasets.walker_lake()
-truth = cs.datasets.walker_lake_exhaustive()["V"].reshape(300, 260)
+samples = bt.datasets.walker_lake()
+truth = bt.datasets.walker_lake_exhaustive()["V"].reshape(300, 260)
 xy, v = samples.coords, samples["V"]
-weights = cs.cell_declustering(samples, "V", sizes=np.arange(2.5, 102.5, 2.5)).weights
+weights = bt.cell_declustering(samples, "V", sizes=np.arange(2.5, 102.5, 2.5)).weights
 size = 10
 true_smu = truth[:, :250].reshape(30, size, 25, size).mean(axis=(1, 3))
 ```
@@ -29,13 +29,13 @@ decile:
 
 ```python
 azimuths = (170, 260)
-experimental = [cs.experimental_variogram(xy, v, 10, 120, azimuth=a) for a in azimuths]
-grade = cs.Variogram.fit_directional(
+experimental = [bt.experimental_variogram(xy, v, 10, 120, azimuth=a) for a in azimuths]
+grade = bt.Variogram.fit_directional(
     experimental, [(a, 0) for a in azimuths], ["spherical", "spherical"], rotation=[170, 0, 0]
 )
 deciles = np.quantile(v, np.linspace(0.1, 0.9, 9))
 indicators = [
-    cs.experimental_variogram(xy, (v <= t).astype(float), 10, 120).fit("spherical") for t in deciles
+    bt.experimental_variogram(xy, (v <= t).astype(float), 10, 120).fit("spherical") for t in deciles
 ]
 print(grade)
 ```
@@ -54,12 +54,12 @@ variogram. The block ranked i receives the mean of the i-th of 25 equal-probabil
 <details><summary>Python</summary>
 
 ```python
-search = cs.Search(radius=100, max_samples=24, min_samples=4)
-panels = cs.BlockModel(origin=(0.5, 0.5), size=(50, 50), count=(5, 6))
+search = bt.Search(radius=100, max_samples=24, min_samples=4)
+panels = bt.BlockModel(origin=(0.5, 0.5), size=(50, 50), count=(5, 6))
 smus = panels.discretize(5)
-kriged = cs.BlockKriging(grade, search, size=(size, size), discretization=(5, 5, 1)).fit(xy, v).predict(smus)
+kriged = bt.BlockKriging(grade, search, size=(size, size), discretization=(5, 5, 1)).fit(xy, v).predict(smus)
 smus = smus.with_column("kriged", kriged)
-mik = cs.MultipleIndicatorKriging(indicators, search, deciles, tails=(0.0, v.max()))
+mik = bt.MultipleIndicatorKriging(indicators, search, deciles, tails=(0.0, v.max()))
 mik.fit(xy, v, weights=weights)
 localized = mik.localize(smus, "kriged", panels, variance_factor=grade)["localized"]
 for label, values in (("kriged", kriged), ("localized", localized)):

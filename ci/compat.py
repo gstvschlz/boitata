@@ -1,4 +1,4 @@
-"""Build ceres, install it into clean environments and run the Python tests there.
+"""Build boitata, install it into clean environments and run the Python tests there.
 
 Usage: python ci/compat.py [all | dist | venv | uv | pixi | conda]
 """
@@ -17,8 +17,8 @@ COMPAT = ROOT / ".compat"
 TESTS = ROOT / "python" / "tests"
 WIN = sys.platform == "win32"
 CHECK = (
-    "import ceres, pathlib, sys; p = pathlib.Path(ceres.__file__).resolve(); "
-    "print('ceres', ceres.__version__, 'from', p); "
+    "import boitata, pathlib, sys; p = pathlib.Path(boitata.__file__).resolve(); "
+    "print('boitata', boitata.__version__, 'from', p); "
     "sys.exit(p.is_relative_to(pathlib.Path(sys.argv[1]).resolve()))"
 )
 
@@ -71,7 +71,7 @@ def venv():
     env = fresh(COMPAT / "venv")
     run(sys.executable, "-m", "venv", env)
     python = venv_python(env)
-    run(python, "-m", "pip", "install", "-q", f"ceresgeo[all] @ {artifact('*.whl').as_uri()}", "pytest")
+    run(python, "-m", "pip", "install", "-q", f"boitata[all] @ {artifact('*.whl').as_uri()}", "pytest")
     pytest([python])
 
 
@@ -87,7 +87,7 @@ def uv():
         "-q",
         "--python",
         python,
-        f"ceresgeo[all] @ {artifact('*.whl').as_uri()}",
+        f"boitata[all] @ {artifact('*.whl').as_uri()}",
         "pytest",
     )
     pytest([python])
