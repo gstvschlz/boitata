@@ -63,7 +63,7 @@ pub struct SnesimParams {
     #[serde(default = "default_angle_step")]
     pub angle_step: f64,
     /// Ascending values cutting continuous training images into classes;
-    /// `None` takes the deciles of their values. Ignored for categorical
+    /// `None` takes the quartiles of their values. Ignored for categorical
     /// images.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cutoffs: Option<Vec<f64>>,
@@ -149,9 +149,16 @@ pub struct Snesim {
     trees: Mutex<Vec<(TemplateClass, Arc<Vec<SearchTree>>)>>,
     /// The continuous images the classes were cut from.
     sources: Option<Vec<TrainingImage>>,
-    /// Values of each class, `[image][class]`, then those of all images.
-    pools: Vec<Vec<Vec<f32>>>,
+    /// Cells `(image, position)` of each class, `[image][class]`, then those
+    /// of all images.
+    pools: Vec<Vec<Vec<(u32, u32)>>>,
 }
+
+/// Nearest neighbors a continuous node compares its value candidates on.
+const VALUE_NEIGHBORS: usize = 8;
+
+/// Random cells of its class a continuous node picks its value from.
+const VALUE_CANDIDATES: usize = 32;
 
 impl Snesim {
     pub fn new(ti: TrainingImage, params: SnesimParams) -> Result<Self> {
@@ -169,7 +176,7 @@ impl Snesim {
         let mut params = params;
         let (mut sources, mut pools) = (None, Vec::new());
         if !images[0].is_categorical() {
-            let cutoffs = params.cutoffs.take().unwrap_or_else(|| deciles(&images));
+            let cutoffs = params.cutoffs.take().unwrap_or_else(|| quartiles(&images));
             if cutoffs.iter().any(|c| !c.is_finite()) || cutoffs.windows(2).any(|w| w[0] >= w[1]) {
                 return bad(format!(
                     "cutoffs {cutoffs:?} must be finite and strictly ascending"
@@ -179,8 +186,12 @@ impl Snesim {
                 .iter()
                 .map(|t| t.classes(&cutoffs))
                 .collect::<Result<Vec<_>>>()?;
-            pools = images.iter().map(|t| pool(t, &cutoffs)).collect();
-            let all: Vec<Vec<f32>> = (0..=cutoffs.len())
+            pools = images
+                .iter()
+                .enumerate()
+                .map(|(i, t)| pool(i as u32, t, &cutoffs))
+                .collect();
+            let all: Vec<Vec<(u32, u32)>> = (0..=cutoffs.len())
                 .map(|c| pools.iter().flat_map(|p| p[c].iter().copied()).collect())
                 .collect();
             if let Some(c) = all.iter().position(Vec::is_empty) {
@@ -358,8 +369,9 @@ impl Snesim {
     /// Summary of `n` realizations of continuous training images, as
     /// [`Snesim::simulate`] without soft probabilities: each datum goes to
     /// its class, and a node with data keeps the mean of those in the class
-    /// it took. Every other node draws its value at random from the values
-    /// of its image in the class simulated there.
+    /// it took. Every other node takes the value of a cell of its image in
+    /// the class simulated there, the one of `VALUE_CANDIDATES` random cells
+    /// whose neighbors best match the values already around the node.
     #[allow(clippy::too_many_arguments)]
     pub fn simulate_values(
         &self,
@@ -410,32 +422,78 @@ impl Snesim {
             keep: keep.clone(),
             ..ContinuousOptions::default()
         };
-        let everywhere = &self.pools[self.pools.len() - 1];
+        let mut grid = vec![f64::NAN; lattice.len()];
+        for (g, (sum, k)) in grid.iter_mut().zip(&sums) {
+            if *k > 0 {
+                *g = sum / *k as f64;
+            }
+        }
         continuous(
             n,
             &options,
             |i| {
                 let seed = realization_seed(seed, i as u64);
                 let cats = self.realization(lattice, &hard, &skip, None, &classes, seed)?;
-                let mut rng = StdRng::seed_from_u64(realization_seed(seed, 2));
-                Ok(cats
-                    .iter()
-                    .enumerate()
-                    .map(|(m, &c)| match sums[m] {
-                        (sum, k) if k > 0 => sum / k as f64,
-                        _ => {
-                            let image = classes.images[classes.of_node[m] as usize];
-                            let pool = match &self.pools[image][c] {
-                                p if p.is_empty() => &everywhere[c],
-                                p => p,
-                            };
-                            f64::from(pool[rng.gen_range(0..pool.len())])
-                        }
-                    })
-                    .collect())
+                self.values(lattice, &cats, grid.clone(), &skip, &classes, seed)
             },
             progress,
         )
+    }
+
+    /// Values for the simulated classes `cats`, filling the nodes of `grid`
+    /// that `skip` leaves free in the order of the realization's path: each
+    /// takes the value of the cell, among `VALUE_CANDIDATES` drawn from its
+    /// image in its class, whose surroundings differ least from the values
+    /// already at the node's `VALUE_NEIGHBORS` nearest offsets.
+    fn values(
+        &self,
+        lattice: &Lattice,
+        cats: &[usize],
+        mut grid: Vec<f64>,
+        skip: &[bool],
+        classes: &Classes,
+        seed: u64,
+    ) -> Result<Vec<f64>> {
+        let (path, _) = multigrid_path(lattice, self.params.n_levels, seed, skip)?;
+        let sources = self.sources.as_deref().unwrap_or_default();
+        let everywhere = &self.pools[self.pools.len() - 1];
+        let near = &self.templates[0][..VALUE_NEIGHBORS.min(self.templates[0].len())];
+        let mut rng = StdRng::seed_from_u64(realization_seed(seed, 2));
+        let mut informed: Vec<([i32; 3], f64)> = Vec::with_capacity(near.len());
+        for &m in &path {
+            let (m, c) = (m as usize, cats[m as usize]);
+            let class = classes.of_node[m] as usize;
+            let pool = match &self.pools[classes.images[class]][c] {
+                p if p.is_empty() => &everywhere[c],
+                p => p,
+            };
+            informed.clear();
+            let offsets = image_offsets(near, &classes.matrices[class]);
+            informed.extend(near.iter().zip(offsets).filter_map(|(&d, o)| {
+                let v = grid[lattice.shifted(m, d)?];
+                (!v.is_nan()).then_some((o, v))
+            }));
+            let mut best = (f64::INFINITY, pool[0]);
+            for _ in 0..VALUE_CANDIDATES.min(pool.len()) {
+                let cell = pool[rng.gen_range(0..pool.len())];
+                let image = &sources[cell.0 as usize];
+                let cost: f64 = informed
+                    .iter()
+                    .map(|&(o, v)| match f64::from(value_at(image, cell.1, o)) {
+                        w if w.is_nan() => image.value_range().powi(2),
+                        w => (w - v).powi(2),
+                    })
+                    .sum();
+                if cost < best.0 {
+                    best = (cost, cell);
+                }
+                if informed.is_empty() {
+                    break;
+                }
+            }
+            grid[m] = f64::from(value_at(&sources[best.1.0 as usize], best.1.1, [0; 3]));
+        }
+        Ok(grid)
     }
 
     /// The template classes of the nodes of `lattice` with their trees, and
@@ -452,6 +510,7 @@ impl Snesim {
         let classes = Classes {
             of_node,
             images: classes.iter().map(|c| c.0).collect(),
+            matrices: classes.iter().map(|c| c.1).collect(),
             trees,
         };
         let mut skip = vec![false; lattice.len()];
@@ -797,15 +856,17 @@ impl Snesim {
 struct Classes {
     /// The class of each node.
     of_node: Vec<u32>,
+    /// Grid offsets to image offsets of each class.
+    matrices: Vec<[[f64; 3]; 3]>,
     /// The training image of each class.
     images: Vec<usize>,
     /// The trees of each class, one per level.
     trees: Vec<Arc<Vec<SearchTree>>>,
 }
 
-/// Cutoffs at the deciles of the values of continuous `images`, above the
-/// smallest.
-fn deciles(images: &[TrainingImage]) -> Vec<f64> {
+/// Cutoffs at the quartiles of the values of continuous `images`, above the
+/// smallest: few classes keep the data events frequent enough to count.
+fn quartiles(images: &[TrainingImage]) -> Vec<f64> {
     let mut all: Vec<f64> = images
         .iter()
         .flat_map(|t| {
@@ -816,23 +877,41 @@ fn deciles(images: &[TrainingImage]) -> Vec<f64> {
         })
         .collect();
     all.sort_by(f64::total_cmp);
-    let mut cutoffs: Vec<f64> = (1..10)
-        .map(|q| quantile_sorted(&all, f64::from(q) / 10.0))
+    let mut cutoffs: Vec<f64> = (1..4)
+        .map(|q| quantile_sorted(&all, f64::from(q) / 4.0))
         .filter(|&c| c > all[0])
         .collect();
     cutoffs.dedup();
     cutoffs
 }
 
-/// The valid values of continuous `image` in each class of `cutoffs`.
-fn pool(image: &TrainingImage, cutoffs: &[f64]) -> Vec<Vec<f32>> {
+/// The valid cells `(index, position)` of continuous `image` in each class
+/// of `cutoffs`.
+fn pool(index: u32, image: &TrainingImage, cutoffs: &[f64]) -> Vec<Vec<(u32, u32)>> {
     let values = image.continuous_values().unwrap_or_default();
     let mut pools = vec![Vec::new(); cutoffs.len() + 1];
     for &p in image.valid_positions() {
-        let v = values[p as usize];
-        pools[class_of(cutoffs, f64::from(v))].push(v);
+        let v = f64::from(values[p as usize]);
+        pools[class_of(cutoffs, v)].push((index, p));
     }
     pools
+}
+
+/// The value of `image` at `offset` from `position`; NaN off the image or
+/// its data.
+fn value_at(image: &TrainingImage, position: u32, offset: [i32; 3]) -> f32 {
+    let dims = image.dims();
+    let p = position as usize;
+    let ijk = [p % dims[0], p / dims[0] % dims[1], p / (dims[0] * dims[1])];
+    let mut at = 0;
+    for a in (0..3).rev() {
+        let c = ijk[a] as i64 + i64::from(offset[a]);
+        if !(0..dims[a] as i64).contains(&c) {
+            return f32::NAN;
+        }
+        at = at * dims[a] + c as usize;
+    }
+    image.continuous_values().map_or(f32::NAN, |v| v[at])
 }
 
 /// Grid offsets, in cells of `geometry`, to training-image offsets, for
@@ -1521,7 +1600,7 @@ mod tests {
                 .collect(),
         );
         let snesim = Snesim::new(image, params()).unwrap();
-        assert_eq!(snesim.params().cutoffs.as_ref().unwrap().len(), 9);
+        assert_eq!(snesim.params().cutoffs.as_ref().unwrap().len(), 3);
         let s = run_values(&snesim, 64, None, 6);
         let simulated = sorted(s.realizations.concat());
         let below = |v: &[f64], t: f64| v.partition_point(|&x| x < t) as f64 / v.len() as f64;

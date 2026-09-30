@@ -3096,9 +3096,12 @@ pub fn register(m: &Bound<PyModule>) -> PyResult<()> {
 ///     categorical when every value is an integer from 0 to 254.
 /// cutoffs : sequence of float, optional
 ///     Strictly ascending values cutting a continuous image into classes,
-///     which SNESIM simulates as categories; each simulated cell then takes
-///     a value drawn from those of its image in its class. By default the
-///     deciles of the image's values. Ignored for a categorical image.
+///     which SNESIM simulates as categories. Each simulated cell then takes
+///     the value of a cell of its image in its class: of 32 drawn at random,
+///     the one whose 8 nearest neighbors best match the values already
+///     simulated around it. By default the quartiles of the image's values;
+///     few classes keep the patterns frequent enough to count. Ignored for a
+///     categorical image.
 ///
 /// Examples
 /// --------
