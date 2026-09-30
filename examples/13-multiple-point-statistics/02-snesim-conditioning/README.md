@@ -127,7 +127,7 @@ save(fig, "conditioning")
 ![conditioning](conditioning.png)
 
 Without targets the realizations drift above the image's share of sand, as in
-[the multigrid page](../01-snesim-multigrid/README.md); the servosystem brings them back and narrows their spread.
+[the multigrid page](../../13-multiple-point-statistics/01-snesim-multigrid/README.md); the servosystem brings them back and narrows their spread.
 A strong servosystem costs some of the image's patterns, so keep `servo` as low as the proportions allow.
 
 Full script: [`example_13_02.py`](example_13_02.py)

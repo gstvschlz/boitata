@@ -106,7 +106,7 @@ save(fig, "rotation")
 # The channels cross the zone boundaries without a seam: a cell near a boundary sees neighbors simulated under the
 # other zone's transform and continues them.
 #
-# Continuous images turn the same way. The F3 sections of [continuous SNESIM](../03-snesim-continuous/README.md)
+# Continuous images turn the same way. The F3 sections of [continuous SNESIM](../../13-multiple-point-statistics/03-snesim-continuous/README.md)
 # have nearly flat reflectors; an azimuth rising from -25° in the west to 25° in the east and back bends them into a
 # fold. Here the cells are one trace by one sample, so an angle is measured in those units.
 
@@ -143,5 +143,5 @@ axes[2].set_xlabel("trace")
 save(fig, "fold")
 
 # %% [markdown]
-# [Several training images](../05-snesim-training-images-by-zone/README.md) change the patterns themselves from zone
+# [Several training images](../../13-multiple-point-statistics/05-snesim-training-images-by-zone/README.md) change the patterns themselves from zone
 # to zone.

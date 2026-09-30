@@ -114,5 +114,5 @@ ax.legend(loc="lower right")
 save(fig, "histograms")
 
 # %% [markdown]
-# Categories are the usual case: see [the multigrid](../01-snesim-multigrid/README.md) and
-# [conditioning](../02-snesim-conditioning/README.md).
+# Categories are the usual case: see [the multigrid](../../13-multiple-point-statistics/01-snesim-multigrid/README.md) and
+# [conditioning](../../13-multiple-point-statistics/02-snesim-conditioning/README.md).

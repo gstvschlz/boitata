@@ -80,5 +80,5 @@ for ax, (img, title) in zip(axes, panels):
 save(fig, "levels")
 
 # %% [markdown]
-# [Conditioning SNESIM](../02-snesim-conditioning/README.md) honors hard data and steers the proportions, and
-# [continuous SNESIM](../03-snesim-continuous/README.md) simulates values instead of codes.
+# [Conditioning SNESIM](../../13-multiple-point-statistics/02-snesim-conditioning/README.md) honors hard data and steers the proportions, and
+# [continuous SNESIM](../../13-multiple-point-statistics/03-snesim-continuous/README.md) simulates values instead of codes.
