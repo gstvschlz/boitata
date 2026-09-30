@@ -1,31 +1,32 @@
 @import url("https://fonts.googleapis.com/css2?family=Archivo:wght@700&display=swap");
 
 :root {
-  --boitata-blue: #3776AB;
-  --boitata-yellow: #FFD43B;
-  --boitata-navy: #1F3B57;
+  --boitata-night: #17303F;
+  --boitata-deep: #10202B;
+  --boitata-ember: #C4411F;
+  --boitata-flame: #FFB322;
   --boitata-mist: #F4F6F8;
 }
 
 [data-md-color-scheme="default"] {
-  --md-primary-fg-color: var(--boitata-navy);
-  --md-primary-fg-color--light: var(--boitata-blue);
-  --md-primary-fg-color--dark: #14263A;
-  --md-accent-fg-color: var(--boitata-blue);
-  --md-typeset-a-color: var(--boitata-blue);
-  --md-default-fg-color: var(--boitata-navy);
+  --md-primary-fg-color: var(--boitata-night);
+  --md-primary-fg-color--light: #2A4254;
+  --md-primary-fg-color--dark: var(--boitata-deep);
+  --md-accent-fg-color: var(--boitata-ember);
+  --md-typeset-a-color: var(--boitata-ember);
+  --md-default-fg-color: var(--boitata-night);
   --md-code-bg-color: var(--boitata-mist);
 }
 
 [data-md-color-scheme="slate"] {
-  --md-hue: 210;
-  --md-primary-fg-color: #14263A;
-  --md-primary-fg-color--light: #1F3B57;
-  --md-primary-fg-color--dark: #0E1B29;
-  --md-accent-fg-color: var(--boitata-yellow);
-  --md-typeset-a-color: #6FA3D0;
-  --md-default-bg-color: #0F1D2C;
-  --md-code-bg-color: #14263A;
+  --md-hue: 205;
+  --md-primary-fg-color: var(--boitata-deep);
+  --md-primary-fg-color--light: var(--boitata-night);
+  --md-primary-fg-color--dark: #0A161E;
+  --md-accent-fg-color: var(--boitata-flame);
+  --md-typeset-a-color: #FF9A5C;
+  --md-default-bg-color: #0C1820;
+  --md-code-bg-color: var(--boitata-deep);
 }
 
 .md-header__topic:first-child,
@@ -57,11 +58,16 @@
 
 .md-typeset .grid.cards .twemoji { color: var(--md-typeset-a-color); }
 
-[data-md-color-scheme="slate"] .md-typeset .md-button { color: #6FA3D0; }
+[data-md-color-scheme="default"] .md-typeset .md-button--primary {
+  background-color: var(--boitata-ember);
+  border-color: var(--boitata-ember);
+  color: #fff;
+}
+[data-md-color-scheme="slate"] .md-typeset .md-button { color: #FF9A5C; }
 [data-md-color-scheme="slate"] .md-typeset .md-button--primary {
-  background-color: var(--boitata-yellow);
-  border-color: var(--boitata-yellow);
-  color: #14263A;
+  background-color: var(--boitata-flame);
+  border-color: var(--boitata-flame);
+  color: var(--boitata-deep);
 }
 
 [data-md-color-scheme="default"] .boitata-hero .logo-dark,

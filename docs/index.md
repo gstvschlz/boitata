@@ -3,8 +3,8 @@ hide: [navigation, toc]
 ---
 
 <div class="boitata-hero" markdown>
-<img class="logo-light" src="assets/logo.svg" alt="">
-<img class="logo-dark" src="assets/logo-dark.svg" alt="">
+<img class="logo-light" src="assets/logo-animated.svg" alt="">
+<img class="logo-dark" src="assets/logo-animated-dark.svg" alt="">
 <div markdown>
 <h1>Boitatá</h1>
 
