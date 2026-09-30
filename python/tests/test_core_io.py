@@ -197,6 +197,25 @@ def test_mesh_files_round_trip(tmp_path):
         bt.read_mesh(tmp_path / "missing.obj")
 
 
+def test_mesh_dxf_polyface_and_obj_groups(tmp_path):
+    vertices = [[0, 0, 0], [1.5, 0, 0], [0, 1, 0], [0, 0, 1]]
+    tetra = bt.Mesh(vertices, [[0, 2, 1], [0, 1, 3], [0, 3, 2], [1, 2, 3]])
+    layered = tetra.with_face_column("layer", ["a", "a", "b", "b"])
+    bt.write_mesh(tmp_path / "p.dxf", layered, dxf_entity="polyface")
+    assert "AcDbPolyFaceMesh" in (tmp_path / "p.dxf").read_text()
+    back = bt.read_mesh(tmp_path / "p.dxf")
+    np.testing.assert_array_equal(back.vertices[back.triangles], tetra.vertices[tetra.triangles])
+    assert list(back.face_attributes["layer"]) == ["a", "a", "b", "b"]
+    with pytest.raises(ValueError):
+        bt.write_mesh(tmp_path / "p.dxf", tetra, dxf_entity="mesh")
+    bt.write_mesh(tmp_path / "plain.obj", tetra)
+    assert "group" not in bt.read_mesh(tmp_path / "plain.obj").face_attributes.column_names
+    grouped = tetra.with_face_column("group", ["lid", "side", "side", "lid"])
+    bt.write_mesh(tmp_path / "g.obj", grouped)
+    back = bt.read_mesh(tmp_path / "g.obj")
+    assert list(back.face_attributes["group"]) == ["lid", "side", "side", "lid"]
+
+
 def test_parquet_progress_does_not_change_output(tmp_path, capsys):
     points = bt.PointSet([[0, 0], [1, 1], [2, 2]], {"v": [1.0, 2.0, 3.0]})
     model = bt.BlockModel(origin=(0, 0), size=(1, 1), count=(3, 3), attributes={"v": np.arange(9.0)})
