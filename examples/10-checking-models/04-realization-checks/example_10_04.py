@@ -3,7 +3,7 @@
 
 Realizations are only as good as what they reproduce: the declustered histogram of the data, the variogram model they
 were drawn from and, with several variables, the correlations between them. `check_realizations` measures all three
-for every realization, and `cs.plot.histogram_reproduction`, `variogram_reproduction` and `correlation_reproduction`
+for every realization, and `bt.plot.histogram_reproduction`, `variogram_reproduction` and `correlation_reproduction`
 draw each as a band across realizations against its target. Realization variograms on a grid pair cells by index
 shifts, in parallel over realizations.
 """
@@ -16,7 +16,7 @@ HERE = Path(__file__).parent if "__file__" in globals() else Path.cwd()
 sys.path.insert(0, str(HERE.parents[1]))
 
 # %%
-import ceres as cs
+import boitata as bt
 import matplotlib.pyplot as plt
 import numpy as np
 from common import save
@@ -26,23 +26,23 @@ from common import save
 # and 50 SGS realizations on a 5 m grid.
 
 # %%
-samples = cs.datasets.walker_lake()
+samples = bt.datasets.walker_lake()
 xy, v = samples.coords, samples["V"]
-weights = cs.cell_declustering(xy, v, sizes=np.arange(2.5, 102.5, 2.5)).weights
-y = cs.NormalScore(tails=(0.0, v.max())).fit_transform(v, weights=weights)
+weights = bt.cell_declustering(xy, v, sizes=np.arange(2.5, 102.5, 2.5)).weights
+y = bt.NormalScore(tails=(0.0, v.max())).fit_transform(v, weights=weights)
 
 azimuth, lag, max_lag = 170.0, 10.0, 120.0
-major = cs.experimental_variogram(xy, y, lag, max_lag, azimuth=azimuth).fit("spherical")
-minor = cs.experimental_variogram(xy, y, lag, max_lag, azimuth=azimuth + 90).fit("spherical")
+major = bt.experimental_variogram(xy, y, lag, max_lag, azimuth=azimuth).fit("spherical")
+minor = bt.experimental_variogram(xy, y, lag, max_lag, azimuth=azimuth + 90).fit("spherical")
 total, a_major = major.sill, major.structures[0].range
-gaussian = cs.Variogram(
+gaussian = bt.Variogram(
     [("spherical", major.structures[0].sill / total, a_major)],
     nugget=major.nugget / total,
     rotation=(azimuth, 0, 0),
     ratios=(min(minor.structures[0].range / a_major, 1.0), 1.0),
 )
-grid = cs.BlockModel(origin=(0.5, 0.5), size=(5, 5), count=(52, 60))
-sgs = cs.SGS(gaussian, cs.Search(radius=100, max_samples=24)).fit(samples, "V", weights=weights)
+grid = bt.BlockModel(origin=(0.5, 0.5), size=(5, 5), count=(52, 60))
+sgs = bt.SGS(gaussian, bt.Search(radius=100, max_samples=24)).fit(samples, "V", weights=weights)
 summary = sgs.simulate(grid, n=50, seed=42, keep=True)
 
 # %% [markdown]
@@ -51,7 +51,7 @@ summary = sgs.simulate(grid, n=50, seed=42, keep=True)
 # data (realization 0) and for every realization:
 
 # %%
-check = cs.check_realizations(
+check = bt.check_realizations(
     grid, summary, samples, "V", weights=weights, variogram=gaussian, lag=lag, max_lag=max_lag
 )
 stats = check.statistics
@@ -67,9 +67,9 @@ for name in ["mean", "std", "P50", "P90"]:
 
 # %%
 fig, axes = plt.subplots(1, 3, figsize=(13, 3.8), layout="constrained")
-cs.plot.histogram_reproduction(check, ax=axes[0])
-cs.plot.histogram_reproduction(check, scores=True, ax=axes[1])
-cs.plot.variogram_reproduction(check, ax=axes[2])
+bt.plot.histogram_reproduction(check, ax=axes[0])
+bt.plot.histogram_reproduction(check, scores=True, ax=axes[1])
+bt.plot.variogram_reproduction(check, ax=axes[2])
 axes[0].set(xlim=(0, 1600), xlabel="V (ppm)", title="Histogram")
 axes[1].set(xlim=(-3, 3), title="Normal scores")
 axes[2].set(xlabel="Lag distance (m)", title="Variogram of normal scores")
@@ -82,24 +82,24 @@ save(fig, "walker_lake")
 # list of summaries, one per variable, the check adds each realization's correlation matrix.
 
 # %%
-data = cs.datasets.porphyry_geometallurgy(deposit=1)["synthetic_drillholes"]
+data = bt.datasets.porphyry_geometallurgy(deposit=1)["synthetic_drillholes"]
 coords = data.coords
 names = ["chalcocite", "tennantite"]
-logs = cs.PointSet(coords, {"chalcocite": np.log(data["calcosina"]), "tennantite": np.log(data["tenantita"])})
+logs = bt.PointSet(coords, {"chalcocite": np.log(data["calcosina"]), "tennantite": np.log(data["tenantita"])})
 pair = np.column_stack([logs[n] for n in names])
-weights = cs.cell_declustering(coords, pair[:, 0], cell_size=50.0).weights
+weights = bt.cell_declustering(coords, pair[:, 0], cell_size=50.0).weights
 
 lo, hi = coords.min(axis=0), coords.max(axis=0)
-nodes = cs.BlockModel(origin=tuple(lo), size=(25, 25, 25), count=tuple(np.ceil((hi - lo) / 25).astype(int)))
-ppmt = cs.PPMT(seed=7)
+nodes = bt.BlockModel(origin=tuple(lo), size=(25, 25, 25), count=tuple(np.ceil((hi - lo) / 25).astype(int)))
+ppmt = bt.PPMT(seed=7)
 factors = ppmt.fit_transform(pair, weights=weights)
 simulators = [
-    cs.TurningBands(cs.experimental_variogram(coords, f, 25.0, 300.0).fit("spherical")) for f in factors.T
+    bt.TurningBands(bt.experimental_variogram(coords, f, 25.0, 300.0).fit("spherical")) for f in factors.T
 ]
-simulation = cs.MultivariateSimulation(ppmt, simulators).fit(logs, names, weights=weights)
+simulation = bt.MultivariateSimulation(ppmt, simulators).fit(logs, names, weights=weights)
 reals = simulation.simulate(nodes, n=20, seed=1, keep=True)
 
-multi = cs.check_realizations(
+multi = bt.check_realizations(
     nodes, reals, logs, names, weights=weights, lag=25.0, max_lag=200.0, directions=[(0, 0), (90, 0), (0, 90)]
 )
 r = multi.correlations[:, 0, 1]
@@ -116,10 +116,10 @@ print(
 # %%
 fig, axes = plt.subplots(1, 4, figsize=(15, 3.6), layout="constrained")
 for ax, name in zip(axes, names):
-    cs.plot.histogram_reproduction(multi, variable=name, ax=ax)
+    bt.plot.histogram_reproduction(multi, variable=name, ax=ax)
     ax.set(xlabel=f"log {name} (%)", title=name.capitalize())
-cs.plot.variogram_reproduction(multi, variable="chalcocite", ax=axes[2])
+bt.plot.variogram_reproduction(multi, variable="chalcocite", ax=axes[2])
 axes[2].set(xlabel="Lag distance (m)", title="Chalcocite normal scores")
-cs.plot.correlation_reproduction(multi, ax=axes[3])
+bt.plot.correlation_reproduction(multi, ax=axes[3])
 axes[3].set_title("Correlation")
 save(fig, "porphyry")

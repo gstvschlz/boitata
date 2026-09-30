@@ -1,5 +1,5 @@
 use arrow_array::BooleanArray;
-use ceres_core::{BlockModel, Geometry, Layout, PointSet, Polylines};
+use boitata_core::{BlockModel, Geometry, Layout, PointSet, Polylines};
 use numpy::ndarray::{Array2, Array3};
 use numpy::{IntoPyArray, PyArray1, PyArray2, PyArray3, PyReadonlyArray1, PyReadonlyArray2};
 use pyo3::prelude::*;
@@ -67,12 +67,12 @@ fn triple<T: Copy>(values: Vec<T>, fill: T, what: &str) -> PyResult<[T; 3]> {
     }
 }
 
-fn core_error(e: ceres_core::Error) -> PyErr {
+fn core_error(e: boitata_core::Error) -> PyErr {
     invalid(e)
 }
 
 /// Scattered samples: coordinates plus an attribute table.
-#[pyclass(module = "ceres", name = "PointSet", frozen)]
+#[pyclass(module = "boitata", name = "PointSet", frozen)]
 pub struct PyPointSet(pub PointSet);
 
 #[pymethods]
@@ -259,7 +259,7 @@ enum Closed {
 /// attributes : table-like or dict of arrays, optional
 ///     One row per feature.
 /// crs : str, optional
-#[pyclass(module = "ceres", name = "Polylines", frozen)]
+#[pyclass(module = "boitata", name = "Polylines", frozen)]
 pub struct PyPolylines(pub Polylines);
 
 impl PyPolylines {
@@ -549,7 +549,7 @@ impl PyPolylines {
 }
 
 /// Regular or masked grid of blocks, 2D or 3D, optionally rotated.
-#[pyclass(module = "ceres", name = "BlockModel", frozen)]
+#[pyclass(module = "boitata", name = "BlockModel", frozen)]
 pub struct PyBlockModel(pub BlockModel);
 
 #[pymethods]
@@ -1007,7 +1007,7 @@ impl PyBlockModel {
 fn with_columns<T>(
     mut target: T,
     data: &Bound<PyAny>,
-    set: fn(&T, &str, arrow_array::ArrayRef) -> ceres_core::Result<T>,
+    set: fn(&T, &str, arrow_array::ArrayRef) -> boitata_core::Result<T>,
 ) -> PyResult<T> {
     let batch = to_batch(data)?;
     for (field, column) in batch.schema().fields().iter().zip(batch.columns()) {

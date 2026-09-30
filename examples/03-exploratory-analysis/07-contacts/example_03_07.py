@@ -14,13 +14,13 @@ HERE = Path(__file__).parent if "__file__" in globals() else Path.cwd()
 sys.path.insert(0, str(HERE.parents[1]))
 
 # %%
-import ceres as cs
+import boitata as bt
 import matplotlib.pyplot as plt
 from common import save
 
-data = cs.datasets.nickel_laterite_profile()
-assays = cs.merge_intervals(data["assays"], data["horizons"])
-points = cs.Drillholes(data["collars"], data["surveys"], assays).samples()
+data = bt.datasets.nickel_laterite_profile()
+assays = bt.merge_intervals(data["assays"], data["horizons"])
+points = bt.Drillholes(data["collars"], data["surveys"], assays).samples()
 print(f"{len(points)} assays of 1 m in {len(data['collars'])} holes")
 
 # %% [markdown]
@@ -31,7 +31,7 @@ print(f"{len(points)} assays of 1 m in {len(data['collars'])} holes")
 # %%
 pairs = [("LIM", "SAP"), ("SAP", "BRK")]
 tables = {
-    (grade, inside): cs.contact(
+    (grade, inside): bt.contact(
         points,
         grade,
         domain_column="HORIZON",
@@ -51,7 +51,7 @@ for (grade, inside), table in tables.items():
 fig, axes = plt.subplots(2, 2, figsize=(10, 6.4))
 for ax, ((grade, inside), table) in zip(axes.flat, tables.items(), strict=True):
     outside = dict(pairs)[inside]
-    cs.plot.contact(table, labels=(inside, outside), ax=ax)
+    bt.plot.contact(table, labels=(inside, outside), ax=ax)
     ax.set(title=f"{grade.split('_')[0].title()}, {inside} over {outside}", xlabel="Distance to contact (m)")
     ax.set_ylabel(f"Mean {grade.split('_')[0].title()} (%)")
 fig.tight_layout()

@@ -4,7 +4,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from ceres._ceres import (
+from boitata._boitata import (
     NormalScore,
     Table,
     _realization_variograms,
@@ -12,8 +12,8 @@ from ceres._ceres import (
     describe,
     experimental_variogram,
 )
-from ceres._columns import column
-from ceres.errors import InvalidInput
+from boitata._columns import column
+from boitata.errors import InvalidInput
 
 __all__ = ["RealizationCheck", "check_realizations"]
 

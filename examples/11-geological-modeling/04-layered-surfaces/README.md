@@ -8,7 +8,7 @@ place any sample in its layer.
 <details><summary>Python</summary>
 
 ```python
-import ceres as cs
+import boitata as bt
 import matplotlib.pyplot as plt
 import numpy as np
 from common import ACCENT, GRAY, HIGHLIGHT, INK, LIGHT, map_axes, save
@@ -25,9 +25,9 @@ the collars sit on the topography.
 <details><summary>Python</summary>
 
 ```python
-data = cs.datasets.phosphate_weathering_profile()
+data = bt.datasets.phosphate_weathering_profile()
 topography = data["topography"]
-ground = cs.grid_surface(topography, "Z")
+ground = bt.grid_surface(topography, "Z")
 collars = data["collars"]
 xyz = np.column_stack([collars["X"], collars["Y"], collars["Z"]])
 print(topography)
@@ -36,7 +36,7 @@ offset = ground.vertical_distance(xyz)
 print(f"collar minus topography: {offset.min():+.2f} to {offset.max():+.2f} m")
 
 fig, ax = plt.subplots(figsize=(7, 5), layout="constrained")
-cs.plot.section(topography, "Z", ax=ax, cmap="Greys_r", colorbar=False)
+bt.plot.section(topography, "Z", ax=ax, cmap="Greys_r", colorbar=False)
 ax.contour(
     topography.centroids[:, 0].reshape(191, 241),
     topography.centroids[:, 1].reshape(191, 241),
@@ -73,16 +73,16 @@ weights in every cell: their order holds and the surfaces never cross.
 
 ```python
 LAYERS = ["SOIL", "ALU", "OXI", "SAP"]
-holes = cs.Drillholes(collars, data["surveys"])
+holes = bt.Drillholes(collars, data["surveys"])
 horizons = data["horizons"]
 ids, names, to = np.array(horizons["HOLE_ID"]), np.array(horizons["HORIZON"]), np.asarray(horizons["TO"])
-idw = cs.InverseDistance(cs.Search(radius=400, max_samples=12, min_samples=3))
+idw = bt.InverseDistance(bt.Search(radius=400, max_samples=12, min_samples=3))
 bases, elevations = {}, {}
 for name in LAYERS:
     base = holes.at(list(ids[names == name]), to[names == name])
     depth = -ground.vertical_distance(base)
     elevations[name] = topography["Z"] - idw.fit(base[:, :2], depth).predict(topography)
-    bases[name] = cs.grid_surface(topography.with_column("base", elevations[name]), "base")
+    bases[name] = bt.grid_surface(topography.with_column("base", elevations[name]), "base")
     print(f"base of {name}: depth {np.median(depth):5.1f} m median, {bases[name]}")
 ```
 
@@ -107,7 +107,7 @@ for ax, name in zip(axes.flat, LAYERS, strict=True):
     points = np.column_stack([topography.centroids[:, :2], elevations[name]])
     thickness = -above[name].vertical_distance(points)
     print(f"{name:>4}: thickness {np.nanmin(thickness):5.1f} to {np.nanmax(thickness):5.1f} m")
-    cs.plot.section(topography, thickness, ax=ax, colorbar=False)
+    bt.plot.section(topography, thickness, ax=ax, colorbar=False)
     fig.colorbar(ax.collections[0], ax=ax, shrink=0.8, label="m")
     map_axes(ax, f"{name} thickness")
 for ax in axes.flat[1::2]:
@@ -134,8 +134,8 @@ the surfaces match the logged horizons, and they show where the phosphate is: th
 <details><summary>Python</summary>
 
 ```python
-assays = cs.Drillholes(collars, data["surveys"], data["assays"]).samples()
-logged = cs.Drillholes(collars, data["surveys"], horizons).samples()
+assays = bt.Drillholes(collars, data["surveys"], data["assays"]).samples()
+logged = bt.Drillholes(collars, data["surveys"], horizons).samples()
 
 
 def layer(points):
@@ -189,8 +189,8 @@ grid = ((60000, 22250, 950), (25, 25, 10), (80, 60, 30))
 stack = [ground, *(bases[n] for n in LAYERS)]
 from_bottom_up = [(mesh, "below", label) for mesh, label in zip(stack[::-1], ["ROCK", *LAYERS[::-1]])]
 from_top_down = [(ground, "above", "AIR"), *((bases[n], "above", n) for n in LAYERS)]
-from_bottom = cs.BlockModel.from_meshes(*grid, from_bottom_up, subgrid=(1, 1, 10))
-from_top = cs.BlockModel.from_meshes(*grid, from_top_down, subgrid=(1, 1, 10), fill="ROCK")
+from_bottom = bt.BlockModel.from_meshes(*grid, from_bottom_up, subgrid=(1, 1, 10))
+from_top = bt.BlockModel.from_meshes(*grid, from_top_down, subgrid=(1, 1, 10), fill="ROCK")
 print(from_bottom)
 for name in [*LAYERS, "ROCK"]:
     bottom = from_bottom.volumes[np.array(from_bottom["domain"]) == name].sum()
@@ -215,16 +215,16 @@ A true-scale east–west section shows the sub-cells following the surfaces:
 <details><summary>Python</summary>
 
 ```python
-scheme = cs.Categories([*LAYERS, "ROCK"], colors=["#e0c080", LIGHT, HIGHLIGHT, "#9ebad6", ACCENT])
+scheme = bt.Categories([*LAYERS, "ROCK"], colors=["#e0c080", LIGHT, HIGHLIGHT, "#9ebad6", ACCENT])
 codes = scheme.encode(from_bottom["domain"])
 north = 23000.0
 plane = ((0, north, 0), 90, 90)
 fig, ax = plt.subplots(figsize=(10, 3.4), layout="constrained")
-cs.plot.section(from_bottom, codes, plane=plane, resolution=1.0, scheme=scheme, ax=ax, colorbar=False)
-cs.plot.slab(np.empty((0, 3)), plane=plane, thickness=10, meshes=[ground, *bases.values()], color=INK, ax=ax)
+bt.plot.section(from_bottom, codes, plane=plane, resolution=1.0, scheme=scheme, ax=ax, colorbar=False)
+bt.plot.slab(np.empty((0, 3)), plane=plane, thickness=10, meshes=[ground, *bases.values()], color=INK, ax=ax)
 ax.set(xlim=(60600, 61400), ylim=(1020, 1200), title=f"Layers at northing {north:.0f} m, true scale")
 ax.set_aspect("equal")
-cs.plot.category_legend(scheme, ax, loc="upper left", bbox_to_anchor=(1, 1))
+bt.plot.category_legend(scheme, ax, loc="upper left", bbox_to_anchor=(1, 1))
 save(fig, "section")
 ```
 

@@ -13,20 +13,20 @@ HERE = Path(__file__).parent if "__file__" in globals() else Path.cwd()
 sys.path.insert(0, str(HERE.parents[1]))
 
 # %%
-import ceres as cs
+import boitata as bt
 import matplotlib.pyplot as plt
 import numpy as np
 from common import save
 
-samples = cs.datasets.walker_lake()
+samples = bt.datasets.walker_lake()
 xy, v = samples.coords, samples["V"]
 azimuths = np.arange(0, 180, 22.5)
-directional = [cs.experimental_variogram(xy, v, 10.0, 120.0, azimuth=a) for a in azimuths]
-model = cs.Variogram.fit_directional(
+directional = [bt.experimental_variogram(xy, v, 10.0, 120.0, azimuth=a) for a in azimuths]
+model = bt.Variogram.fit_directional(
     directional, [(a, 0) for a in azimuths], ["spherical", "spherical"], weighting="count/gamma"
 )
-search = cs.Search(radius=80, max_samples=24, min_samples=4, rotation=model.rotation, ratios=(0.5, 1.0))
-kriging = cs.OrdinaryKriging(model, search).fit(xy, v)
+search = bt.Search(radius=80, max_samples=24, min_samples=4, rotation=model.rotation, ratios=(0.5, 1.0))
+kriging = bt.OrdinaryKriging(model, search).fit(xy, v)
 
 
 # %% [markdown]
@@ -48,13 +48,13 @@ for folds in (None, 10, 5, 2):
 # %% [markdown]
 # Errors grow as folds get fewer: leave-one-out judges the model at the sample spacing, which in the clustered areas
 # is finer than most blocks see. A slope above 1 and a standardized squared error below 1 hold at every k: high
-# estimates slightly understate the samples, and the kriging variance is too large. `cs.plot.cross_validation`
+# estimates slightly understate the samples, and the kriging variance is too large. `bt.plot.cross_validation`
 # ([result plots](../../10-checking-models/06-result-plots/README.md)) draws a result as actual against estimate, with the regression line and these statistics:
 
 # %%
 fig, axes = plt.subplots(1, 2, figsize=(9, 4.2))
 for ax, name in zip(axes, ("leave-one-out", "2-fold"), strict=True):
-    cs.plot.cross_validation(results[name], ax=ax)
+    bt.plot.cross_validation(results[name], ax=ax)
     ax.set_title(name.capitalize())
 fig.tight_layout()
 save(fig, "cross_validation")

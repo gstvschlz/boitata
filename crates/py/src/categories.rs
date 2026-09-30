@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use arrow_array::{ArrayRef, Float64Array, RecordBatch};
-use ceres_core::Categories as Core;
+use boitata_core::Categories as Core;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 use serde::{Deserialize, Serialize};
@@ -29,7 +29,7 @@ use crate::table::Table;
 ///     always the last code.
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 #[serde(transparent)]
-#[pyclass(module = "ceres", name = "Categories", frozen, eq, from_py_object)]
+#[pyclass(module = "boitata", name = "Categories", frozen, eq, from_py_object)]
 pub struct Categories(pub Core);
 
 fn name(obj: Bound<PyAny>) -> PyResult<String> {

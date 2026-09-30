@@ -8,20 +8,20 @@ laterite horizons give the contacts.
 <details><summary>Python</summary>
 
 ```python
-import ceres as cs
+import boitata as bt
 import matplotlib.pyplot as plt
 import numpy as np
 from common import save
 
-samples = cs.datasets.walker_lake()
+samples = bt.datasets.walker_lake()
 xy, v = samples.coords, samples["V"]
 azimuths = np.arange(0, 180, 22.5)
-directional = [cs.experimental_variogram(xy, v, 10.0, 120.0, azimuth=a) for a in azimuths]
-model = cs.Variogram.fit_directional(
+directional = [bt.experimental_variogram(xy, v, 10.0, 120.0, azimuth=a) for a in azimuths]
+model = bt.Variogram.fit_directional(
     directional, [(a, 0) for a in azimuths], ["spherical", "spherical"], weighting="count/gamma"
 )
-search = cs.Search(radius=80, max_samples=24, min_samples=4, rotation=model.rotation, ratios=(0.5, 1.0))
-kriging = cs.OrdinaryKriging(model, search).fit(xy, v)
+search = bt.Search(radius=80, max_samples=24, min_samples=4, rotation=model.rotation, ratios=(0.5, 1.0))
+kriging = bt.OrdinaryKriging(model, search).fit(xy, v)
 cv = kriging.cross_validate()
 ```
 
@@ -42,11 +42,11 @@ narrow; the goodness statistic is 1 on the diagonal and penalizes narrow interva
 
 ```python
 fig, (a, b, c) = plt.subplots(1, 3, figsize=(13, 4.2))
-cs.plot.cross_validation(cv, ax=a)
+bt.plot.cross_validation(cv, ax=a)
 a.set_title("Actual against estimate")
-cs.plot.cross_validation(cv, kind="accuracy", ax=b)
+bt.plot.cross_validation(cv, kind="accuracy", ax=b)
 b.set_title("Accuracy of the kriging intervals")
-cs.plot.cross_validation(cv, kind="errors", coords=samples, ax=c)
+bt.plot.cross_validation(cv, kind="errors", coords=samples, ax=c)
 c.set_title("Errors")
 fig.tight_layout()
 save(fig, "cross_validation")
@@ -67,12 +67,12 @@ the curve follows the diagonal closely. Without `coords`, `kind="errors"` is a h
 
 ```python
 thresholds = np.quantile(v, [0.1, 0.25, 0.5, 0.75, 0.9])
-indicator = cs.MultipleIndicatorKriging(model, search, thresholds).fit(xy, v)
+indicator = bt.MultipleIndicatorKriging(model, search, thresholds).fit(xy, v)
 indicator_cv = indicator.cross_validate()
 fig, (a, b) = plt.subplots(1, 2, figsize=(9, 4.2))
-cs.plot.cross_validation(indicator_cv, kind="accuracy", ax=a)
+bt.plot.cross_validation(indicator_cv, kind="accuracy", ax=a)
 a.set_title("Accuracy of the indicator distributions")
-cs.plot.cross_validation(cv, kind="errors", ax=b)
+bt.plot.cross_validation(cv, kind="errors", ax=b)
 b.set_title("Errors of ordinary kriging")
 fig.tight_layout()
 save(fig, "indicator_accuracy")
@@ -84,7 +84,7 @@ save(fig, "indicator_accuracy")
 
 ## Grade-tonnage curves
 
-`grade_tonnage` takes the table of `ceres.grade_tonnage`, of an anamorphosis or of uniform conditioning, or of
+`grade_tonnage` takes the table of `boitata.grade_tonnage`, of an anamorphosis or of uniform conditioning, or of
 `compare_models`; a dict of tables, or a table with `model` or `category` columns, gives one color per curve.
 Tonnage is solid on the left axis, mean grade dashed on the right. With `relative=True` each curve's tonnage is a
 fraction of its tonnage at the lowest cutoff, so declustered samples and 10 × 10 m blocks share one axis. Kriged
@@ -96,19 +96,19 @@ narrows the distribution, kriging narrows it further.
 <details><summary>Python</summary>
 
 ```python
-blocks = cs.BlockModel(origin=(0.5, 0.5), size=(10, 10), count=(26, 30))
-block_kriging = cs.BlockKriging(model, search, size=(10, 10), discretization=(5, 5, 1)).fit(xy, v)
-truth = cs.datasets.walker_lake_exhaustive()["V"].reshape(300, 260)
+blocks = bt.BlockModel(origin=(0.5, 0.5), size=(10, 10), count=(26, 30))
+block_kriging = bt.BlockKriging(model, search, size=(10, 10), discretization=(5, 5, 1)).fit(xy, v)
+truth = bt.datasets.walker_lake_exhaustive()["V"].reshape(300, 260)
 blocks = blocks.with_columns(
     {"kriged": block_kriging.predict(blocks), "true": truth.reshape(30, 10, 26, 10).mean(axis=(1, 3)).ravel()}
 )
 cutoffs = np.arange(0, 1000, 25.0)
-weights = cs.cell_declustering(xy, v, cell_size=20.0).weights
+weights = bt.cell_declustering(xy, v, cell_size=20.0).weights
 curves = {
-    "samples": cs.grade_tonnage(v, cutoffs, weights=weights),
-    "blocks": cs.compare_models(blocks, ["kriged", "true"], cutoffs, reference="true"),
+    "samples": bt.grade_tonnage(v, cutoffs, weights=weights),
+    "blocks": bt.compare_models(blocks, ["kriged", "true"], cutoffs, reference="true"),
 }
-fig, ax = cs.plot.grade_tonnage(curves, relative=True)
+fig, ax = bt.plot.grade_tonnage(curves, relative=True)
 ax.set_title("Walker Lake V, declustered samples and 10 × 10 m blocks")
 save(fig, "grade_tonnage")
 ```
@@ -119,7 +119,7 @@ save(fig, "grade_tonnage")
 
 ## Contact analysis
 
-`ceres.contact` bins samples by distance along each hole to a contact between two domains, negative inside;
+`boitata.contact` bins samples by distance along each hole to a contact between two domains, negative inside;
 `plot.contact` draws the mean grade per bin on each side with the sample counts as light bars. A jump at zero
 means a hard contact, to estimate each domain from its own samples; a gradual change a soft one, to share samples
 across it. The 1 m nickel assays take the horizon logged over them. From limonite (LIM) into saprolite (SAP) Ni
@@ -129,12 +129,12 @@ bedrock (BRK) it falls from 2.2 to 0.3 % at once: a hard one.
 <details><summary>Python</summary>
 
 ```python
-data = cs.datasets.nickel_laterite_profile()
-assays = cs.merge_intervals(data["assays"], data["horizons"])
-points = cs.Drillholes(data["collars"], data["surveys"], assays).samples()
+data = bt.datasets.nickel_laterite_profile()
+assays = bt.merge_intervals(data["assays"], data["horizons"])
+points = bt.Drillholes(data["collars"], data["surveys"], assays).samples()
 fig, axes = plt.subplots(1, 2, figsize=(10, 3.8), sharey=True)
 for ax, (inside, outside) in zip(axes, [("LIM", "SAP"), ("SAP", "BRK")], strict=True):
-    table = cs.contact(
+    table = bt.contact(
         points,
         "NI_PCT",
         domain_column="HORIZON",
@@ -144,7 +144,7 @@ for ax, (inside, outside) in zip(axes, [("LIM", "SAP"), ("SAP", "BRK")], strict=
         max_distance=8.0,
         bin=1.0,
     )
-    cs.plot.contact(table, labels=(inside, outside), ax=ax)
+    bt.plot.contact(table, labels=(inside, outside), ax=ax)
     ax.set_title(f"{inside} over {outside}")
 axes[0].set_ylabel("Mean Ni (%)")
 axes[1].set_ylabel("")

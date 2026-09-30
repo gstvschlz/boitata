@@ -2,15 +2,15 @@
 hide: [navigation, toc]
 ---
 
-<div class="ceres-hero" markdown>
+<div class="boitata-hero" markdown>
 <img class="logo-light" src="assets/logo.svg" alt="">
 <img class="logo-dark" src="assets/logo-dark.svg" alt="">
 <div markdown>
-<h1>ceres</h1>
+<h1>Boitatá</h1>
 
 My Python tooling for day-to-day geostatistics.
 
-ceres holds the tools I use for resource work: drill hole checks, statistics, transforms, variograms, kriging, simulation and model checks. It runs from Python; the numerical core is Rust.
+Boitatá holds the tools I use for resource work: drill hole checks, statistics, transforms, variograms, kriging, simulation and model checks. It runs from Python; the numerical core is Rust.
 
 [Get started](#install){ .md-button .md-button--primary }
 [Examples](examples/01-first-steps/index.md){ .md-button }
@@ -102,10 +102,10 @@ ceres holds the tools I use for resource work: drill hole checks, statistics, tr
 
 ## Install
 
-ceres is not on PyPI yet. Install it from git (this builds the Rust core, so it needs Rust and a C compiler):
+Boitatá is not on PyPI yet. Install it from git (this builds the Rust core, so it needs Rust and a C compiler):
 
 ```bash
-pip install "ceres[all] @ git+https://github.com/gstvschlz/ceres"
+pip install "boitata[all] @ git+https://github.com/gstvschlz/boitata"
 ```
 
 The [install page](install.md) covers uv, poetry, conda and pixi, wheels, extras and offline installs.

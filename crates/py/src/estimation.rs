@@ -31,7 +31,7 @@ use crate::variogram::Variogram;
 /// or ranges `(major, semi, minor)` of an ellipsoid of its own, rotated by
 /// `rotation` (azimuth, dip, rake).
 #[derive(Serialize, Deserialize)]
-#[pyclass(module = "ceres", name = "HighGrade", frozen, from_py_object)]
+#[pyclass(module = "boitata", name = "HighGrade", frozen, from_py_object)]
 #[derive(Clone)]
 pub struct PyHighGrade(pub HighGrade);
 
@@ -199,7 +199,7 @@ impl PyHighGrade {
 /// or a dict `{(target_domain, sample_domain): distance}`, one way; pairs not
 /// listed are hard.
 #[derive(Serialize, Deserialize)]
-#[pyclass(module = "ceres", name = "Search", frozen, from_py_object)]
+#[pyclass(module = "boitata", name = "Search", frozen, from_py_object)]
 #[derive(Clone)]
 pub struct Search {
     #[serde(flatten)]
@@ -777,9 +777,9 @@ pub fn searches(obj: &Bound<PyAny>) -> PyResult<Vec<Search>> {
     Ok(search)
 }
 
-/// Shared engine behind the estimator classes in `ceres.estimation`.
+/// Shared engine behind the estimator classes in `boitata.estimation`.
 #[derive(Clone, Serialize, Deserialize)]
-#[pyclass(module = "ceres", name = "_Estimator", skip_from_py_object)]
+#[pyclass(module = "boitata", name = "_Estimator", skip_from_py_object)]
 pub struct Estimator {
     method: Method,
     variogram: Option<CoreVariogram>,
@@ -1044,7 +1044,7 @@ impl Estimator {
     }
 
     /// Weight declustering of `coords` over `targets`: see
-    /// `ceres.weight_declustering`.
+    /// `boitata.weight_declustering`.
     fn _declustering(
         &self,
         py: Python,
@@ -1368,7 +1368,7 @@ impl Estimator {
 
 /// Global dual kriging with a polynomial drift of `degree` (no search).
 #[derive(Serialize, Deserialize)]
-#[pyclass(module = "ceres", name = "DualKriging")]
+#[pyclass(module = "boitata", name = "DualKriging")]
 pub struct Dual {
     variogram: CoreVariogram,
     degree: usize,

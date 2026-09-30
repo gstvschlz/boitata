@@ -7,16 +7,16 @@ give a range scale and a ratio per region, and kriging takes them the same way i
 <details><summary>Python</summary>
 
 ```python
-import ceres as cs
+import boitata as bt
 import matplotlib.pyplot as plt
 import numpy as np
 from common import ACCENT, GRAY, HIGHLIGHT, map_axes, save
 from matplotlib.colors import PowerNorm
 
-samples = cs.datasets.walker_lake()
-truth = cs.datasets.walker_lake_exhaustive()["V"].reshape(300, 260)
+samples = bt.datasets.walker_lake()
+truth = bt.datasets.walker_lake_exhaustive()["V"].reshape(300, 260)
 xy, v = samples.coords, samples["V"]
-grid = cs.BlockModel(origin=(0.5, 0.5), size=(5, 5), count=(52, 60))
+grid = bt.BlockModel(origin=(0.5, 0.5), size=(5, 5), count=(52, 60))
 nodes = grid.centroids.astype(int)
 true_at_nodes = truth[nodes[:, 1] - 1, nodes[:, 0] - 1]
 ```
@@ -30,10 +30,10 @@ and local directions from the gradient of an isotropic guide estimate.
 
 ```python
 azimuth, lag, max_lag = 170.0, 10.0, 120.0
-along = cs.experimental_variogram(xy, v, lag, max_lag, azimuth=azimuth).fit(
+along = bt.experimental_variogram(xy, v, lag, max_lag, azimuth=azimuth).fit(
     ["spherical", "spherical"], weighting="count/gamma"
 )
-across = cs.experimental_variogram(xy, v, lag, max_lag, azimuth=azimuth + 90).fit(
+across = bt.experimental_variogram(xy, v, lag, max_lag, azimuth=azimuth + 90).fit(
     ["spherical", "spherical"],
     weighting="count/gamma",
     nugget=along.nugget,
@@ -42,9 +42,9 @@ across = cs.experimental_variogram(xy, v, lag, max_lag, azimuth=azimuth + 90).fi
 model = along.with_anisotropy(
     (azimuth, 0, 0), (across.structures[-1].range / along.structures[-1].range, 1.0)
 )
-isotropic = cs.Variogram([("spherical", model.sill - model.nugget, 30.0)], nugget=model.nugget)
-guide = cs.OrdinaryKriging(isotropic, cs.Search(radius=60, max_samples=16)).fit(xy, v).predict(grid)
-lva = cs.LocalAnisotropy.from_grid(
+isotropic = bt.Variogram([("spherical", model.sill - model.nugget, 30.0)], nugget=model.nugget)
+guide = bt.OrdinaryKriging(isotropic, bt.Search(radius=60, max_samples=16)).fit(xy, v).predict(grid)
+lva = bt.LocalAnisotropy.from_grid(
     grid.with_column("guide", guide), "guide", window=3, ratios=(0.3, 1.0)
 ).smooth(25.0)
 print(f"global ratio {model.ratios[0]:.2f}, ranges {[round(s.range) for s in model.structures]} m")
@@ -66,8 +66,8 @@ them everywhere and rises faster.
 <details><summary>Python</summary>
 
 ```python
-fixed = [cs.experimental_variogram(xy, v, lag, max_lag, azimuth=a) for a in (azimuth, azimuth + 90)]
-local = [cs.experimental_variogram(xy, v, lag, max_lag, azimuth=a, anisotropy=lva) for a in (0.0, 90.0)]
+fixed = [bt.experimental_variogram(xy, v, lag, max_lag, azimuth=a) for a in (azimuth, azimuth + 90)]
+local = [bt.experimental_variogram(xy, v, lag, max_lag, azimuth=a, anisotropy=lva) for a in (0.0, 90.0)]
 fig, ax = plt.subplots(figsize=(6.4, 4), layout="constrained")
 for exp, color, style, label in (
     (fixed[0], GRAY, "-", "N170°, fixed"),
@@ -94,7 +94,7 @@ global frame it gives back the global model (scale 1), in the local frames a lon
 ```python
 center = [[130.0, 150.0]]
 for name, field in (("global frame", None), ("local frames", lva)):
-    whole = cs.local_variogram_parameters(
+    whole = bt.local_variogram_parameters(
         xy, v, center, variogram=model, window=400.0, lag=lag, anisotropy=field
     )
     print(f"{name}: ratio {whole.ratios[0, 0]:.2f}, scale {whole.scales[0]:.2f}")
@@ -116,8 +116,8 @@ range of the model. The result is stored on the coarse grid like any other attri
 <details><summary>Python</summary>
 
 ```python
-coarse = cs.BlockModel(origin=(0, 0), size=(20, 20), count=(13, 15))
-fitted = cs.local_variogram_parameters(
+coarse = bt.BlockModel(origin=(0, 0), size=(20, 20), count=(13, 15))
+fitted = bt.local_variogram_parameters(
     xy, v, coarse, variogram=model, window=100.0, lag=lag, max_lag=60.0, anisotropy=lva
 ).smooth(60.0)
 coarse = coarse.with_column("scale", fitted.scales).with_column("ratio", fitted.ratios[:, 0])
@@ -160,9 +160,9 @@ against the exhaustive values at the nodes.
 <details><summary>Python</summary>
 
 ```python
-search = cs.Search(radius=100, max_samples=24, min_samples=1)
-ok = cs.OrdinaryKriging(model, search).fit(xy, v)
-scaled = cs.LocalAnisotropy(lva.coords, lva.angles, lva.ratios, scales=fitted.at(lva.coords).scales)
+search = bt.Search(radius=100, max_samples=24, min_samples=1)
+ok = bt.OrdinaryKriging(model, search).fit(xy, v)
+scaled = bt.LocalAnisotropy(lva.coords, lva.angles, lva.ratios, scales=fitted.at(lva.coords).scales)
 estimates = {
     f"global N{model.rotation[0]:.0f}°": ok.predict(grid),
     "local angles": ok.predict(grid, anisotropy=lva),

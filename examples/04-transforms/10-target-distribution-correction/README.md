@@ -10,7 +10,7 @@ correction to those a `check_realizations` shows outside a tolerance.
 <details><summary>Python</summary>
 
 ```python
-import ceres as cs
+import boitata as bt
 import matplotlib.pyplot as plt
 import numpy as np
 from common import map_axes, save
@@ -27,27 +27,27 @@ the histogram of the data unevenly: their means stray up to 12 % from the declus
 <details><summary>Python</summary>
 
 ```python
-samples = cs.datasets.walker_lake()
+samples = bt.datasets.walker_lake()
 xy, v = samples.coords, samples["V"]
-weights = cs.cell_declustering(xy, v, sizes=np.arange(2.5, 102.5, 2.5)).weights
-y = cs.NormalScore(tails=(0.0, v.max())).fit_transform(v, weights=weights)
+weights = bt.cell_declustering(xy, v, sizes=np.arange(2.5, 102.5, 2.5)).weights
+y = bt.NormalScore(tails=(0.0, v.max())).fit_transform(v, weights=weights)
 
 azimuth, lag, max_lag = 170.0, 10.0, 120.0
-major = cs.experimental_variogram(xy, y, lag, max_lag, azimuth=azimuth).fit("spherical")
-minor = cs.experimental_variogram(xy, y, lag, max_lag, azimuth=azimuth + 90).fit("spherical")
+major = bt.experimental_variogram(xy, y, lag, max_lag, azimuth=azimuth).fit("spherical")
+minor = bt.experimental_variogram(xy, y, lag, max_lag, azimuth=azimuth + 90).fit("spherical")
 total, a_major = major.sill, major.structures[0].range
-gaussian = cs.Variogram(
+gaussian = bt.Variogram(
     [("spherical", major.structures[0].sill / total, a_major)],
     nugget=major.nugget / total,
     rotation=(azimuth, 0, 0),
     ratios=(min(minor.structures[0].range / a_major, 1.0), 1.0),
 )
-grid = cs.BlockModel(origin=(0.5, 0.5), size=(5, 5), count=(52, 60))
-sgs = cs.SGS(gaussian, cs.Search(radius=100, max_samples=24)).fit(samples, "V", weights=weights)
+grid = bt.BlockModel(origin=(0.5, 0.5), size=(5, 5), count=(52, 60))
+sgs = bt.SGS(gaussian, bt.Search(radius=100, max_samples=24)).fit(samples, "V", weights=weights)
 summary = sgs.simulate(grid, n=20, seed=42, keep=True)
 reals = summary.realizations
 
-check = cs.check_realizations(grid, reals, samples, "V", weights=weights)
+check = bt.check_realizations(grid, reals, samples, "V", weights=weights)
 means = check.statistics["mean"]
 print(
     f"declustered mean {means[0]:.0f} ppm; realization means {means[1:].min():.0f} to {means[1:].max():.0f} ppm"
@@ -70,12 +70,12 @@ target but keeps some of the spread between realizations.
 <details><summary>Python</summary>
 
 ```python
-corrected = cs.correct_distribution(reals, v, weights=weights)
-half = cs.correct_distribution(reals, v, weights=weights, strength=0.5)
+corrected = bt.correct_distribution(reals, v, weights=weights)
+half = bt.correct_distribution(reals, v, weights=weights, strength=0.5)
 checks = {
     "SGS realizations": check,
-    "strength 0.5": cs.check_realizations(grid, half, samples, "V", weights=weights),
-    "strength 1": cs.check_realizations(grid, corrected, samples, "V", weights=weights),
+    "strength 0.5": bt.check_realizations(grid, half, samples, "V", weights=weights),
+    "strength 1": bt.check_realizations(grid, corrected, samples, "V", weights=weights),
 }
 for name, c in checks.items():
     m = c.statistics["mean"][1:]
@@ -85,7 +85,7 @@ print(f"order kept in every realization: {kept}")
 
 fig, axes = plt.subplots(1, 3, figsize=(13, 3.8), layout="constrained", sharey=True)
 for ax, (name, c) in zip(axes, checks.items()):
-    cs.plot.histogram_reproduction(c, ax=ax)
+    bt.plot.histogram_reproduction(c, ax=ax)
     ax.set(xlim=(0, 1200), xlabel="V (ppm)", title=name)
 for ax in axes[1:]:
     ax.set_ylabel("")
@@ -113,7 +113,7 @@ where they were.
 low = int(np.argmax(np.abs(means[1:] - means[0])))
 fig, axes = plt.subplots(1, 2, figsize=(10, 4.2), layout="constrained", sharey=True)
 for ax, values, title in zip(axes, [reals[low], corrected[low]], ["Realization", "Corrected"]):
-    cs.plot.section(grid, values, vmin=0, vmax=1200, colorbar=False, ax=ax)
+    bt.plot.section(grid, values, vmin=0, vmax=1200, colorbar=False, ax=ax)
     map_axes(ax, f"{title} {low + 1}, mean {values.mean():.0f} ppm")
 axes[1].set_ylabel("")
 fig.colorbar(axes[1].collections[0], ax=axes, label="V (ppm)", shrink=0.8)
@@ -134,8 +134,8 @@ set keeps its spread where the spread is plausible.
 
 ```python
 outside = np.flatnonzero(np.abs(means[1:] / means[0] - 1) > 0.05)
-selected = cs.correct_distribution(reals, v, weights=weights, realizations=outside)
-m = cs.check_realizations(grid, selected, samples, "V", weights=weights).statistics["mean"][1:]
+selected = bt.correct_distribution(reals, v, weights=weights, realizations=outside)
+m = bt.check_realizations(grid, selected, samples, "V", weights=weights).statistics["mean"][1:]
 print(f"{len(outside)} of {len(reals)} realizations corrected; means now {m.min():.0f} to {m.max():.0f} ppm")
 ```
 
@@ -154,8 +154,8 @@ the top values of each realization run past the highest sample.
 <details><summary>Python</summary>
 
 ```python
-kde = cs.KernelDensity(lower=0.0).fit(v, weights=weights)
-smooth = cs.correct_distribution(reals, kde)
+kde = bt.KernelDensity(lower=0.0).fit(v, weights=weights)
+smooth = bt.correct_distribution(reals, kde)
 print(f"highest datum {v.max():.0f} ppm; highest corrected value {corrected.max():.0f} ppm")
 print(f"highest value corrected to the kernel density {smooth.max():.0f} ppm")
 ```

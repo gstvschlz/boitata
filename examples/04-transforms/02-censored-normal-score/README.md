@@ -9,12 +9,12 @@ never supported, while every other value, and every tie at a different limit, ke
 <details><summary>Python</summary>
 
 ```python
-import ceres as cs
+import boitata as bt
 import matplotlib.pyplot as plt
 import numpy as np
 from common import ACCENT, GRAY, HIGHLIGHT, LIGHT, map_axes, save
 
-assays = cs.datasets.tailings_reprocessing()["assays"]
+assays = bt.datasets.tailings_reprocessing()["assays"]
 ok = ~np.isnan(assays["CN_WAD_PPM"])
 cn, bdl = assays["CN_WAD_PPM"][ok], assays["CN_WAD_BDL"][ok].astype(bool)
 print(f"{len(cn)} composites; {bdl.mean():.0%} below the {cn[bdl][0]:g} ppm detection limit")
@@ -45,7 +45,7 @@ detection and comparing each one's score with the one before it in that table sh
 <details><summary>Python</summary>
 
 ```python
-naive = cs.NormalScore().fit_transform(cn)
+naive = bt.NormalScore().fit_transform(cn)
 
 
 def rising_fraction(scores):
@@ -69,7 +69,7 @@ seed instead.
 <details><summary>Python</summary>
 
 ```python
-ns = cs.NormalScore()
+ns = bt.NormalScore()
 aware = ns.fit_transform(cn, censored=bdl, seed=0)
 print(
     f"censored=: {rising_fraction(aware):.0%} rising — a coin flip, as it should be for indistinguishable values"
@@ -127,24 +127,24 @@ neighbors along the sample sheet told it something real.
 <details><summary>Python</summary>
 
 ```python
-soil = cs.datasets.soil_geochemistry_survey()
+soil = bt.datasets.soil_geochemistry_survey()
 samples, covariates = soil["samples"], soil["covariates"]
 rows = covariates.row_at(samples.coords[:, :2])
 samples = samples.with_column("MAG_NT", covariates["MAG_NT"][rows]).with_column(
     "ELEVATION_M", covariates["ELEVATION_M"][rows]
 )
 au_bdl, as_bdl = samples["AU_BDL"].astype(bool), samples["AS_BDL"].astype(bool)
-au_ns, as_ns = cs.NormalScore(), cs.NormalScore()
+au_ns, as_ns = bt.NormalScore(), bt.NormalScore()
 au_scores = au_ns.fit_transform(samples["AU_PPB"], censored=au_bdl, seed=0)
 as_ns.fit_transform(samples["AS_PPM"], censored=as_bdl, seed=0)
 print(
     f"AU_PPB {au_bdl.mean():.0%} censored, AS_PPM {as_bdl.mean():.0%} censored; both normal-scored the same way"
 )
 
-model = cs.experimental_variogram(samples.coords, au_scores, 200.0, 2500.0).fit(["spherical"])
-search = cs.Search(radius=2500.0, max_samples=24, min_samples=4)
+model = bt.experimental_variogram(samples.coords, au_scores, 200.0, 2500.0).fit(["spherical"])
+search = bt.Search(radius=2500.0, max_samples=24, min_samples=4)
 edk = (
-    cs.ExternalDriftKriging(model, search, ["MAG_NT", "ELEVATION_M"])
+    bt.ExternalDriftKriging(model, search, ["MAG_NT", "ELEVATION_M"])
     .fit(samples, au_scores)
     .predict(covariates)
 )

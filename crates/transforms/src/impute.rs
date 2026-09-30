@@ -18,7 +18,7 @@
 use crate::error::{Result, TransformError};
 use crate::mixture::{GaussianMixture, conditional};
 use crate::normal_score::{NormalScoreTable, transform as normal_score};
-use ceres_core::rng::realization_seed;
+use boitata_core::rng::realization_seed;
 use kiddo::{ImmutableKdTree, SquaredEuclidean};
 use nalgebra::{DMatrix, DVector, Vector3};
 use rand::SeedableRng;

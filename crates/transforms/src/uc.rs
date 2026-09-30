@@ -36,7 +36,7 @@
 
 use std::borrow::Cow;
 
-use ceres_core::BlockModel;
+use boitata_core::BlockModel;
 use rayon::prelude::*;
 
 use crate::anamorphosis::{HermiteAnamorphosis, eval, eval_deriv};

@@ -6,7 +6,7 @@ run = "cargo build --workspace"
 
 [tasks.test]
 depends = ["py:build"]
-run = ["cargo test --workspace --exclude ceres-py", "uv run --no-sync pytest -q"]
+run = ["cargo test --workspace --exclude boitata-py", "uv run --no-sync pytest -q"]
 
 [tasks.lint]
 depends = ["py:sync"]

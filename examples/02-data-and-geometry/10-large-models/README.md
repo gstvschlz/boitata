@@ -11,7 +11,7 @@ import shutil
 import tempfile
 import time
 
-import ceres as cs
+import boitata as bt
 import matplotlib.pyplot as plt
 import numpy as np
 from common import HIGHLIGHT, save
@@ -26,14 +26,14 @@ composites take the domain of the block they fall in.
 <details><summary>Python</summary>
 
 ```python
-data = cs.datasets.iron_formation_plateau()
+data = bt.datasets.iron_formation_plateau()
 model = data["block_model"]
 DOMAINS = {"HF": "hematite", "HC": "hematite", "CG": "hematite", "IF": "itabirite", "IC": "itabirite"}
 coded = np.array([DOMAINS.get(c, "") for c in np.asarray(model["LITH"], dtype=object)], dtype=object)
 model = model.with_columns({"domain": coded}).mask(coded != "")
 coded = coded[coded != ""]
 
-holes = cs.Drillholes(data["collars"], data["surveys"], data["assays"])
+holes = bt.Drillholes(data["collars"], data["surveys"], data["assays"])
 composites = holes.composite(6.0, ["FE_PCT"])
 row = model.row_at(composites.coords)
 keep = (row >= 0) & ~np.isnan(composites["FE_PCT"])
@@ -60,13 +60,13 @@ present, written to Parquet. `BlockModelFile` opens it without reading the block
 
 ```python
 folder = Path(tempfile.mkdtemp())
-grid = cs.BlockModel.from_extents(model, size=(5, 5, 5), snap=True)
+grid = bt.BlockModel.from_extents(model, size=(5, 5, 5), snap=True)
 nx, ny, nz = grid.count
 plan = grid.centroids[: nx * ny]
 kept = [k * nx * ny + np.flatnonzero(model.row_at(plan + (0, 0, 5 * k)) >= 0) for k in range(nz)]
-blocks = cs.BlockModel(grid.origin, grid.size, grid.count, index=np.concatenate(kept).astype(np.uint64))
-cs.write_parquet(folder / "blocks.parquet", blocks)
-file = cs.BlockModelFile(folder / "blocks.parquet")
+blocks = bt.BlockModel(grid.origin, grid.size, grid.count, index=np.concatenate(kept).astype(np.uint64))
+bt.write_parquet(folder / "blocks.parquet", blocks)
+file = bt.BlockModelFile(folder / "blocks.parquet")
 size = (folder / "blocks.parquet").stat().st_size / 1e6
 print(f"grid {grid.count}: {len(file):,} of {len(grid):,} blocks of 5 m kept, {size:.0f} MB")
 ```
@@ -88,7 +88,7 @@ looked up in the 25 m model.
 ```python
 at_data, at_model = np.zeros(len(fe)), np.zeros(len(model))
 for name in ("hematite", "itabirite"):
-    trend, _ = cs.detrend(xyz[domain == name], fe[domain == name], bandwidth=400.0, ratios=(1.0, 0.2))
+    trend, _ = bt.detrend(xyz[domain == name], fe[domain == name], bandwidth=400.0, ratios=(1.0, 0.2))
     at_data[domain == name] = trend.predict(xyz[domain == name])
     at_model[coded == name] = trend.predict(model.centroids[coded == name])
 model = model.with_column("trend", at_model)
@@ -100,7 +100,7 @@ def attributes(chunk):
 
 
 start = time.perf_counter()
-cs.map_blocks(folder / "blocks.parquet", folder / "attributes.parquet", attributes)
+bt.map_blocks(folder / "blocks.parquet", folder / "attributes.parquet", attributes)
 print(f"domains and trend in {time.perf_counter() - start:.0f} s")
 print(f"trend at the composites: variance {at_data.var():.0f} of {fe.var():.0f} %²")
 ```
@@ -122,13 +122,13 @@ realization's global statistics. `keep=` writes chosen realizations beside the s
 <details><summary>Python</summary>
 
 ```python
-scores = cs.NormalScore().fit_transform(fe - at_data)
-fitted = cs.experimental_variogram(xyz, scores, 15.0, 300.0).fit("spherical")
+scores = bt.NormalScore().fit_transform(fe - at_data)
+fitted = bt.experimental_variogram(xyz, scores, 15.0, 300.0).fit("spherical")
 sill = fitted.nugget + fitted.structures[0].sill
 reach = fitted.structures[0].range
-gaussian = cs.Variogram([("spherical", fitted.structures[0].sill / sill, reach)], nugget=fitted.nugget / sill)
+gaussian = bt.Variogram([("spherical", fitted.structures[0].sill / sill, reach)], nugget=fitted.nugget / sill)
 print(f"residual scores: nugget {gaussian.nugget:.2f}, range {reach:.0f} m")
-bands = cs.TurningBands(gaussian, bands=100, search=cs.Search(radius=reach, max_samples=16))
+bands = bt.TurningBands(gaussian, bands=100, search=bt.Search(radius=reach, max_samples=16))
 bands.fit(xyz, fe, trend=at_data, domains=domain, holes=hole)
 
 start = time.perf_counter()
@@ -149,7 +149,7 @@ print(f"output {(folder / 'simulated.parquet').stat().st_size / 1e6:.0f} MB")
 first = np.concatenate(
     [
         c["realization_0"]
-        for c in cs.BlockModelFile(folder / "simulated.parquet").chunks(columns=["realization_0"])
+        for c in bt.BlockModelFile(folder / "simulated.parquet").chunks(columns=["realization_0"])
     ]
 )
 print(f"first realization: mean {first.mean():.2f} % Fe, as accumulated {result['realization_mean'][0]:.2f}")
@@ -172,7 +172,7 @@ read a chunk at a time, so their nodes never outgrow memory either.
 <details><summary>Python</summary>
 
 ```python
-cs.write_parquet(folder / "model.parquet", model)
+bt.write_parquet(folder / "model.parquet", model)
 start = time.perf_counter()
 panel = bands.simulate_to_parquet(
     folder / "model.parquet",
@@ -206,13 +206,13 @@ chunks, reading only the columns it needs, into a small model of its own.
 row = int(np.bincount(((xyz[:, 1] - grid.origin[1]) // 5).astype(int), minlength=ny).argmax())
 columns = ["mean", "p_above_60"]
 parts, index = {name: [] for name in columns}, []
-for chunk in cs.BlockModelFile(folder / "simulated.parquet").chunks(columns=columns):
+for chunk in bt.BlockModelFile(folder / "simulated.parquet").chunks(columns=columns):
     on = (chunk.index // nx) % ny == row
     index.append(chunk.index[on])
     for name in columns:
         parts[name].append(chunk[name][on])
 index = np.concatenate(index)
-section = cs.BlockModel(
+section = bt.BlockModel(
     (grid.origin[0], grid.origin[1] + 5 * row, grid.origin[2]),
     grid.size,
     (nx, 1, nz),
@@ -222,8 +222,8 @@ section = cs.BlockModel(
 north = grid.origin[1] + 5 * (row + 0.5)
 near = np.abs(xyz[:, 1] - north) < 5
 fig, axes = plt.subplots(2, 1, figsize=(9, 5.5), layout="constrained", sharex=True)
-cs.plot.section(section, "mean", axis="y", index=0, vmin=20, vmax=68, ax=axes[0])
-cs.plot.section(section, "p_above_60", axis="y", index=0, vmin=0, vmax=1, ax=axes[1])
+bt.plot.section(section, "mean", axis="y", index=0, vmin=20, vmax=68, ax=axes[0])
+bt.plot.section(section, "p_above_60", axis="y", index=0, vmin=0, vmax=1, ax=axes[1])
 for ax, title in zip(axes, (f"Mean of 10 simulations, Fe (%), {north:.0f} N", "P(Fe > 60 %)"), strict=True):
     ax.scatter(xyz[near, 0], xyz[near, 2], s=2, color=HIGHLIGHT, linewidths=0)
     ax.set(title=title, xlabel="Easting (m)", ylabel="Elevation (m)")

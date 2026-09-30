@@ -21,7 +21,7 @@ fn err(e: estimation::EstimError) -> PyErr {
 /// A scale multiplies every range of the variogram it is used with, and the
 /// search radius, at that location; `scales` defaults to 1, a constant or
 /// one per location.
-#[pyclass(module = "ceres", name = "LocalAnisotropy", frozen)]
+#[pyclass(module = "boitata", name = "LocalAnisotropy", frozen)]
 pub struct LocalAnisotropy(pub Core);
 
 impl LocalAnisotropy {

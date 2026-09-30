@@ -31,7 +31,7 @@ fn nearby<T: Clone>(target: &Point, tree: &SearchTree, items: &[T]) -> Option<Ve
 /// Cokriging of `variable` from samples of several variables under a linear
 /// model of coregionalization; `means` switches to simple cokriging.
 #[derive(Serialize, Deserialize)]
-#[pyclass(module = "ceres", name = "Cokriging")]
+#[pyclass(module = "boitata", name = "Cokriging")]
 pub struct Cokriging {
     model: CoreCoreg,
     search: CoreSearch,
@@ -224,7 +224,7 @@ fn targets_of(obj: &Bound<PyAny>) -> PyResult<Vec<Point>> {
 /// Disjunctive kriging: simple kriging of the Hermite factors of the Gaussian
 /// transform, giving local grades and proportions above cutoffs.
 #[derive(Serialize, Deserialize)]
-#[pyclass(module = "ceres", name = "DisjunctiveKriging")]
+#[pyclass(module = "boitata", name = "DisjunctiveKriging")]
 pub struct Disjunctive {
     engine: estimation::DisjunctiveKriging,
     variogram: CoreVariogram,

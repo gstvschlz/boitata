@@ -18,8 +18,8 @@ rand_distr.workspace = true
 variogram.workspace = true
 transforms.workspace = true
 estimation.workspace = true
-ceres-core.workspace = true
-ceres-io.workspace = true
+boitata-core.workspace = true
+boitata-io.workspace = true
 arrow-array.workspace = true
 
 [dev-dependencies]

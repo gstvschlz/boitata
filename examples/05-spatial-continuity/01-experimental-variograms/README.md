@@ -7,12 +7,12 @@ variograms along and across it, and other estimators, follow.
 <details><summary>Python</summary>
 
 ```python
-import ceres as cs
+import boitata as bt
 import matplotlib.pyplot as plt
 import numpy as np
 from common import ACCENT, GRAY, HIGHLIGHT, INK, save
 
-samples = cs.datasets.walker_lake()
+samples = bt.datasets.walker_lake()
 xy, v = samples.coords, samples["V"]
 lag, max_lag = 10.0, 120.0
 ```
@@ -25,7 +25,7 @@ with the longest range is the major axis.
 <details><summary>Python</summary>
 
 ```python
-vmap = cs.variogram_map(xy, v, lag, max_lag)
+vmap = bt.variogram_map(xy, v, lag, max_lag)
 angle = vmap.angles[np.nanargmax(vmap.ranges)]
 azimuth = (90 - np.degrees(angle)) % 180
 print(
@@ -45,9 +45,9 @@ distance, γ and pair count.
 <details><summary>Python</summary>
 
 ```python
-major = cs.experimental_variogram(xy, v, lag, max_lag, azimuth=azimuth)
-minor = cs.experimental_variogram(xy, v, lag, max_lag, azimuth=azimuth + 90)
-omni = cs.experimental_variogram(xy, v, lag, max_lag)
+major = bt.experimental_variogram(xy, v, lag, max_lag, azimuth=azimuth)
+minor = bt.experimental_variogram(xy, v, lag, max_lag, azimuth=azimuth + 90)
+omni = bt.experimental_variogram(xy, v, lag, max_lag)
 print(" lag   major   minor    omni  pairs(major)")
 for i in range(0, len(major.lags), 2):
     print(
@@ -94,7 +94,7 @@ fig.colorbar(mesh, ax=a, shrink=0.7, label="γ / sample variance")
 
 b = fig.add_subplot(1, 2, 2)
 for exp, color, name in ((major, ACCENT, f"N{azimuth:.0f}°"), (minor, GRAY, f"N{(azimuth + 90) % 180:.0f}°")):
-    cs.plot.variogram(exp, ax=b, color=color, label=name)
+    bt.plot.variogram(exp, ax=b, color=color, label=name)
 b.plot(omni.lags, omni.gammas, ":", color=INK, lw=1, label="omnidirectional")
 b.axhline(variance, color=INK, lw=0.8, ls="--")
 b.text(2, variance, "sample variance", va="bottom", color=INK, fontsize=8)
@@ -122,7 +122,7 @@ ignores the grade level and keeps its own scale.
 fig, ax = plt.subplots(figsize=(6, 3.4), layout="constrained")
 styles = {"matheron": "-", "covariance": "--", "correlogram": "-.", "pairwise-relative": ":"}
 for name, style in styles.items():
-    exp = cs.experimental_variogram(xy, v, lag, max_lag, azimuth=azimuth, estimator=name, standardize=True)
+    exp = bt.experimental_variogram(xy, v, lag, max_lag, azimuth=azimuth, estimator=name, standardize=True)
     ax.plot(exp.lags, exp.gammas, style, color=ACCENT if name == "matheron" else INK, label=name)
 ax.axhline(1, color=GRAY, lw=0.8)
 ax.set_xlim(0, max_lag)

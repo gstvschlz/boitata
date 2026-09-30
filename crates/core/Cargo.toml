@@ -1,5 +1,5 @@
 [package]
-name = "ceres-core"
+name = "boitata-core"
 description = "Spatial containers, rotations and shared geometry"
 version.workspace = true
 edition.workspace = true

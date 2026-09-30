@@ -2,7 +2,7 @@
 //! attribute, a point cloud or a mesh, and estimation that uses the local
 //! anisotropy of each target for both its variogram and its search.
 
-use ceres_core::{Geometry, angles_from_axes, block_frame};
+use boitata_core::{Geometry, angles_from_axes, block_frame};
 use nalgebra::{Matrix3, SymmetricEigen, Vector3};
 use rayon::prelude::*;
 use variogram::{Angles, Anisotropy, Variogram};
@@ -90,7 +90,7 @@ impl LocalAnisotropy {
     pub fn rotations(&self) -> Vec<Matrix3<f64>> {
         self.angles
             .iter()
-            .map(|&[a, d, r]| ceres_core::rotation_matrix(a, d, r))
+            .map(|&[a, d, r]| boitata_core::rotation_matrix(a, d, r))
             .collect()
     }
 
@@ -357,7 +357,7 @@ impl LocalAnisotropy {
         let axes: Vec<(Matrix3<f64>, Matrix3<f64>)> = (0..self.len())
             .map(|i| {
                 let [a, d, r] = self.angles[i];
-                let m = ceres_core::rotation_matrix(a, d, r);
+                let m = boitata_core::rotation_matrix(a, d, r);
                 let (major, semi) = (m.row(0).transpose(), m.row(1).transpose());
                 (major * major.transpose(), semi * semi.transpose())
             })
@@ -711,7 +711,7 @@ pub fn estimate_many_local_with<F, T>(
     search: &Search,
     vg: &Variogram,
     estimator: F,
-    progress: Option<&ceres_core::Progress>,
+    progress: Option<&boitata_core::Progress>,
 ) -> Result<Vec<Option<T>>>
 where
     F: Fn(&Point, &[Sample], &Variogram) -> Result<T> + Sync,
@@ -909,7 +909,7 @@ mod tests {
             let (a, b) = (u().max(1e-300), u());
             (-2.0 * a.ln()).sqrt() * (std::f64::consts::TAU * b).cos()
         };
-        let back = ceres_core::rotation_matrix(azimuth, 0.0, 0.0).transpose();
+        let back = boitata_core::rotation_matrix(azimuth, 0.0, 0.0).transpose();
         let k = 400;
         let waves: Vec<(Vector3<f64>, f64)> = (0..k)
             .map(|_| {

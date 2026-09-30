@@ -9,8 +9,8 @@ pub enum Error {
     #[error(transparent)]
     Parquet(#[from] parquet::errors::ParquetError),
     #[error(transparent)]
-    Container(#[from] ceres_core::Error),
-    #[error("invalid ceres metadata: {0}")]
+    Container(#[from] boitata_core::Error),
+    #[error("invalid boitata metadata: {0}")]
     Metadata(String),
     #[error("column `{0}` is not numeric")]
     NotNumeric(String),

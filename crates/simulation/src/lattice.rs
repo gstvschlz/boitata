@@ -1,7 +1,7 @@
 //! Simulation on a lattice: the cells of a regular or masked block model,
 //! one node each, a multigrid path over them and templates of cell offsets.
 
-use ceres_core::{BlockModel, Geometry, Layout, block_frame};
+use boitata_core::{BlockModel, Geometry, Layout, block_frame};
 use nalgebra::{Matrix3, Vector3};
 use rand::SeedableRng;
 use rand::rngs::StdRng;
@@ -139,7 +139,7 @@ pub fn multigrid_path(
         .into_par_iter()
         .map(|m| level(lattice.geometry().ijk(lattice.cell(m)), top) as u8)
         .collect();
-    let mut rng = StdRng::seed_from_u64(ceres_core::rng::splitmix(seed));
+    let mut rng = StdRng::seed_from_u64(boitata_core::rng::splitmix(seed));
     let mut path = Vec::with_capacity(n);
     for l in (0..=top).rev() {
         let start = path.len();

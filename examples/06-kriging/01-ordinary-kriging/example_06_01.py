@@ -13,22 +13,22 @@ HERE = Path(__file__).parent if "__file__" in globals() else Path.cwd()
 sys.path.insert(0, str(HERE.parents[1]))
 
 # %%
-import ceres as cs
+import boitata as bt
 import matplotlib.pyplot as plt
 import numpy as np
 from common import ACCENT, HIGHLIGHT, INK, map_axes, save
 from matplotlib.colors import PowerNorm
 
-samples = cs.datasets.walker_lake()
-truth = cs.datasets.walker_lake_exhaustive()["V"].reshape(300, 260)
+samples = bt.datasets.walker_lake()
+truth = bt.datasets.walker_lake_exhaustive()["V"].reshape(300, 260)
 
 # %% [markdown]
 # Two nested spherical structures fitted to experimental variograms in eight directions ([variogram fitting](../../05-spatial-continuity/02-variogram-fitting/README.md) explains the fit):
 
 # %%
 azimuths = np.arange(0, 180, 22.5)
-directional = [cs.experimental_variogram(samples, "V", 10.0, 120.0, azimuth=a) for a in azimuths]
-model = cs.Variogram.fit_directional(
+directional = [bt.experimental_variogram(samples, "V", 10.0, 120.0, azimuth=a) for a in azimuths]
+model = bt.Variogram.fit_directional(
     directional, [(a, 0) for a in azimuths], ["spherical", "spherical"], weighting="count/gamma"
 )
 print(model)
@@ -38,9 +38,9 @@ print(model)
 # `with_column` stores the results on the model.
 
 # %%
-grid = cs.BlockModel(origin=(0.5, 0.5), size=(5, 5), count=(52, 60))
-search = cs.Search(radius=100, max_samples=24, min_samples=4)
-ok = cs.OrdinaryKriging(model, search).fit(samples, "V")
+grid = bt.BlockModel(origin=(0.5, 0.5), size=(5, 5), count=(52, 60))
+search = bt.Search(radius=100, max_samples=24, min_samples=4)
+ok = bt.OrdinaryKriging(model, search).fit(samples, "V")
 estimate, variance = ok.predict(grid, return_variance=True)
 grid = grid.with_column("estimate", estimate).with_column("variance", variance)
 print(grid)
@@ -92,7 +92,7 @@ for ax, x, y, title in (
     (a, true_at_nodes, estimate, f"Estimates against the truth ({len(estimate):,} nodes)"),
     (b, cv.actual, cv.estimate, f"Cross-validation ({len(cv.actual)} samples)"),
 ):
-    cs.plot.scatter(x, y, ax=ax, s=4, color=ACCENT, alpha=0.4)
+    bt.plot.scatter(x, y, ax=ax, s=4, color=ACCENT, alpha=0.4)
     ax.set(xlim=(0, 1600), ylim=(0, 1600), xlabel="True V (ppm)", ylabel="Estimated V (ppm)")
     ax.set_aspect("equal")
     ax.set_title(title)

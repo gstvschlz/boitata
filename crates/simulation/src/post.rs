@@ -4,7 +4,7 @@
 //! Realizations are simulated in parallel batches and folded in realization
 //! order, so every summary is identical for any number of threads.
 
-use ceres_core::{BlockModel, Progress};
+use boitata_core::{BlockModel, Progress};
 use rayon::prelude::*;
 
 use crate::error::{Result, SimError};
@@ -827,14 +827,14 @@ mod tests {
     }
 
     fn grid(size: f64, count: usize) -> BlockModel {
-        let geometry = ceres_core::Geometry {
+        let geometry = boitata_core::Geometry {
             origin: [0.0; 3],
             size: [size, size, 1.0],
             count: [count, count, 1],
             rotation: [0.0; 3],
         };
         let rows = arrow_array::RecordBatchOptions::new().with_row_count(Some(count * count));
-        let empty = ceres_core::RecordBatch::try_new_with_options(
+        let empty = boitata_core::RecordBatch::try_new_with_options(
             std::sync::Arc::new(arrow_schema::Schema::empty()),
             vec![],
             &rows,

@@ -1,8 +1,8 @@
-site_name: ceres
+site_name: Boitatá
 site_description: My Python tooling for day-to-day geostatistics.
-site_url: https://gstvschlz.github.io/ceres/
-repo_url: https://github.com/gstvschlz/ceres
-repo_name: gstvschlz/ceres
+site_url: https://gstvschlz.github.io/boitata/
+repo_url: https://github.com/gstvschlz/boitata
+repo_name: gstvschlz/boitata
 edit_uri: ""
 
 theme:

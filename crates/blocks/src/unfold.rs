@@ -1,6 +1,6 @@
 //! Unfolding: coordinates in the frame of a layer between two surfaces.
 
-use ceres_core::Mesh;
+use boitata_core::Mesh;
 use rayon::prelude::*;
 
 use crate::{Result, Surface};

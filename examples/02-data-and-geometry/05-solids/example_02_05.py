@@ -14,7 +14,7 @@ HERE = Path(__file__).parent if "__file__" in globals() else Path.cwd()
 sys.path.insert(0, str(HERE.parents[1]))
 
 # %%
-import ceres as cs
+import boitata as bt
 import matplotlib.pyplot as plt
 import numpy as np
 from common import ACCENT, GRAY, HIGHLIGHT, LIGHT, save
@@ -25,7 +25,7 @@ from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 # that before anything relies on an inside; [mesh files](../../02-data-and-geometry/07-mesh-files/README.md) repairs meshes that fail it.
 
 # %%
-data = cs.datasets.stacked_sulphide_lenses()
+data = bt.datasets.stacked_sulphide_lenses()
 lenses = [data[f"lens_{i}"] for i in (1, 2, 3)]
 for i, lens in enumerate(lenses, 1):
     print(f"lens {i}: {lens}, {lens.analysis['boundary_edges']} boundary edges, {lens.volume:,.0f} m3")
@@ -35,7 +35,7 @@ for i, lens in enumerate(lenses, 1):
 # the ore:
 
 # %%
-holes = cs.Drillholes(data["collars"], data["surveys"], data["assays"])
+holes = bt.Drillholes(data["collars"], data["surveys"], data["assays"])
 composites = holes.composite(2.0, ["ZN_PCT"])
 xyz, zn = composites.coords, composites["ZN_PCT"]
 inside = np.array([lens.contains(xyz) for lens in lenses])
@@ -51,7 +51,7 @@ print(f"outside: {outside.sum()} composites, mean Zn {np.nanmean(zn[outside]):.2
 
 # %%
 size = (20, 20, 10)
-blocks = cs.BlockModel.from_extents(*lenses, size=size, buffer=10, snap=True)
+blocks = bt.BlockModel.from_extents(*lenses, size=size, buffer=10, snap=True)
 proportions = [lens.proportion(blocks, discretization=2) for lens in lenses]
 for i, (lens, p) in enumerate(zip(lenses, proportions), 1):
     print(f"lens {i}: mesh {lens.volume:,.0f} m3, blocks {p.sum() * np.prod(size):,.0f} m3")
@@ -77,9 +77,9 @@ center = np.mean([lens.vertices.mean(axis=0) for lens in lenses], axis=0)
 plane = (center, 112.5, 90)
 fig = plt.figure(figsize=(12, 5.5), layout="constrained")
 a = fig.add_subplot(1, 2, 1)
-cs.plot.section(blocks, "proportion", plane=plane, colorbar=False, vmin=0, vmax=1, cmap="Greys", ax=a)
-cs.plot.slab(xyz[outside], plane=plane, thickness=20, s=4, color=GRAY, label="composite outside", ax=a)
-cs.plot.slab(
+bt.plot.section(blocks, "proportion", plane=plane, colorbar=False, vmin=0, vmax=1, cmap="Greys", ax=a)
+bt.plot.slab(xyz[outside], plane=plane, thickness=20, s=4, color=GRAY, label="composite outside", ax=a)
+bt.plot.slab(
     xyz[~outside],
     plane=plane,
     thickness=20,
@@ -94,7 +94,7 @@ a.legend(loc="lower left", frameon=True, framealpha=0.9)
 fig.colorbar(a.images[0], ax=a, shrink=0.7, label="proportion of block inside")
 
 b = fig.add_subplot(1, 2, 2, projection="3d")
-shell = cs.block_shell(ore)
+shell = bt.block_shell(ore)
 b.add_collection3d(
     Poly3DCollection(shell.vertices[shell.triangles], facecolor=ACCENT, edgecolor="none", alpha=0.35)
 )

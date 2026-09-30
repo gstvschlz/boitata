@@ -9,7 +9,7 @@
 
 use arrow_array::cast::AsArray;
 use arrow_array::types::{Float32Type, Float64Type};
-use ceres_core::BlockModel;
+use boitata_core::BlockModel;
 
 use crate::error::{Result, SimError};
 use crate::lattice::Lattice;
@@ -295,7 +295,7 @@ mod tests {
     use std::sync::Arc;
 
     use arrow_array::{Float32Array, Float64Array, RecordBatch};
-    use ceres_core::Geometry;
+    use boitata_core::Geometry;
 
     use super::*;
 

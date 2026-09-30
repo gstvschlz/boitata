@@ -15,7 +15,7 @@ pub enum BlockModelError {
     DomainAssignmentFailed(String),
 
     #[error(transparent)]
-    Core(#[from] ceres_core::Error),
+    Core(#[from] boitata_core::Error),
 }
 
 pub type Result<T> = std::result::Result<T, BlockModelError>;

@@ -29,7 +29,7 @@ use crate::variogram::Variogram;
 ///     Lower and upper bounds of the back-transform, widened to cover the
 ///     data; the data minimum and maximum by default.
 #[derive(Serialize, Deserialize)]
-#[pyclass(module = "ceres", name = "MultigaussianKriging")]
+#[pyclass(module = "boitata", name = "MultigaussianKriging")]
 pub struct MultigaussianKriging {
     model: Multigaussian,
     search: Vec<CoreSearch>,
@@ -210,7 +210,7 @@ impl MultigaussianKriging {
             })
             .map_err(invalid)?;
         let actual = samples.iter().map(|s| s.value).collect();
-        py.import("ceres.estimation")?
+        py.import("boitata.estimation")?
             .getattr("IndicatorCrossValidation")?
             .call1((
                 array1(py, actual),

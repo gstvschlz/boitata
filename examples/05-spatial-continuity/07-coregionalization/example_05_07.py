@@ -13,12 +13,12 @@ HERE = Path(__file__).parent if "__file__" in globals() else Path.cwd()
 sys.path.insert(0, str(HERE.parents[1]))
 
 # %%
-import ceres as cs
+import boitata as bt
 import matplotlib.pyplot as plt
 import numpy as np
 from common import ACCENT, INK, save
 
-samples = cs.datasets.jura()["prediction"]
+samples = bt.datasets.jura()["prediction"]
 xy = samples.coords
 cd, zn = samples["Cd"], samples["Zn"]
 lag, max_lag = 0.1, 1.5
@@ -34,12 +34,12 @@ print(f"{len(cd)} samples, corr(Cd, Zn) {np.corrcoef(cd, zn)[0, 1]:.2f}")
 # %%
 experimentals = [
     [
-        cs.experimental_variogram(xy, cd, lag, max_lag),
-        cs.experimental_variogram(xy, cd, lag, max_lag, other=zn),
+        bt.experimental_variogram(xy, cd, lag, max_lag),
+        bt.experimental_variogram(xy, cd, lag, max_lag, other=zn),
     ],
-    [None, cs.experimental_variogram(xy, zn, lag, max_lag)],
+    [None, bt.experimental_variogram(xy, zn, lag, max_lag)],
 ]
-lmc = cs.Coregionalization.fit(experimentals, ["spherical", "spherical"])
+lmc = bt.Coregionalization.fit(experimentals, ["spherical", "spherical"])
 for name, matrix in [("nugget", lmc.nugget)] + [(f"{m} {a:.2f} km", s) for m, a, s in lmc.structures]:
     print(f"{name}: {np.round(matrix, 3).tolist()}, smallest eigenvalue {np.linalg.eigvalsh(matrix)[0]:.3g}")
 
@@ -59,7 +59,7 @@ panels = (
 )
 fig, axes = plt.subplots(1, 3, figsize=(10, 3.2), layout="constrained")
 for ax, (i, j, name, experimental) in zip(axes, panels):
-    cs.plot.variogram(experimental, ax=ax, color=ACCENT)
+    bt.plot.variogram(experimental, ax=ax, color=ACCENT)
     model = lmc.cross_covariance(i, j, origin, origin) - lmc.cross_covariance(i, j, origin, away)
     ax.plot(h, model, color=INK, lw=1)
     ax.set(title=name, xlabel="Lag (km)", ylabel="γ(h)" if i == j else "γ₁₂(h)")
@@ -75,10 +75,10 @@ azimuths = [0.0, 45.0, 90.0, 135.0]
 
 
 def directional(u, v=None):
-    return [cs.experimental_variogram(xy, u, lag, max_lag, azimuth=a, other=v) for a in azimuths]
+    return [bt.experimental_variogram(xy, u, lag, max_lag, azimuth=a, other=v) for a in azimuths]
 
 
-anisotropic = cs.Coregionalization.fit(
+anisotropic = bt.Coregionalization.fit(
     [[directional(cd), directional(cd, zn)], [None, directional(zn)]],
     ["spherical", "spherical"],
     directions=[(a, 0.0) for a in azimuths],

@@ -2,7 +2,7 @@
 
 A declustered mean is one number from a few hundred holes. How far off could it be? The classical bootstrap
 resamples the holes independently and answers σ/√n, but neighboring holes carry much the same information, so the
-true uncertainty is larger. `cs.spatial_bootstrap` resamples with the spatial correlation: each realization draws
+true uncertainty is larger. `bt.spatial_bootstrap` resamples with the spatial correlation: each realization draws
 unconditional Gaussian values at the holes with the normal-score variogram, turns them into ranks, and reads the ranks
 through the declustered distribution of the data. Nearby holes then get similar draws and the resampled mean spreads
 as far as the correlation allows.
@@ -10,16 +10,16 @@ as far as the correlation allows.
 <details><summary>Python</summary>
 
 ```python
-import ceres as cs
+import boitata as bt
 import matplotlib.pyplot as plt
 import numpy as np
 from common import ACCENT, GRAY, HIGHLIGHT, INK, LIGHT, save
 
-data = cs.datasets.coal_seam_thickness()
+data = bt.datasets.coal_seam_thickness()
 holes, grid = data["boreholes"], data["grid"]
 thickness = holes["THICKNESS_M"]
 xy = holes.coords[:, :2]
-weights = cs.cell_declustering(holes, "THICKNESS_M", sizes=np.arange(100.0, 3100.0, 100.0)).weights
+weights = bt.cell_declustering(holes, "THICKNESS_M", sizes=np.arange(100.0, 3100.0, 100.0)).weights
 mean = np.average(thickness, weights=weights)
 sd = np.sqrt(np.average((thickness - mean) ** 2, weights=weights))
 print(f"{len(holes)} holes, declustered mean {mean:.2f} m, standard deviation {sd:.2f} m")
@@ -32,23 +32,23 @@ print(f"{len(holes)} holes, declustered mean {mean:.2f} m, standard deviation {s
 ```
 
 The variogram that drives the resampling is the one of the normal scores. Thicknesses are logged to the centimeter
-and many repeat, so `cs.despike` breaks the ties first; the fitted variogram is then rescaled to a unit sill.
+and many repeat, so `bt.despike` breaks the ties first; the fitted variogram is then rescaled to a unit sill.
 
 <details><summary>Python</summary>
 
 ```python
-untied = cs.despike(holes, "THICKNESS_M", seed=0)
-scores = cs.NormalScore().fit_transform(untied, weights=weights)
-fitted = cs.Variogram.fit(cs.experimental_variogram(xy, scores, 250.0, 6000.0), "spherical")
+untied = bt.despike(holes, "THICKNESS_M", seed=0)
+scores = bt.NormalScore().fit_transform(untied, weights=weights)
+fitted = bt.Variogram.fit(bt.experimental_variogram(xy, scores, 250.0, 6000.0), "spherical")
 structure = fitted.structures[0]
-variogram = cs.Variogram(
+variogram = bt.Variogram(
     [("spherical", structure.sill / fitted.sill, structure.range)], nugget=fitted.nugget / fitted.sill
 )
 print(variogram)
 
-nugget = cs.Variogram([], nugget=1.0)
-independent = cs.spatial_bootstrap(holes, "THICKNESS_M", nugget, weights=weights, n=1000)
-spatial = cs.spatial_bootstrap(holes, "THICKNESS_M", variogram, weights=weights, n=1000)
+nugget = bt.Variogram([], nugget=1.0)
+independent = bt.spatial_bootstrap(holes, "THICKNESS_M", nugget, weights=weights, n=1000)
+spatial = bt.spatial_bootstrap(holes, "THICKNESS_M", variogram, weights=weights, n=1000)
 for name, table in (("independent", independent), ("spatial", spatial)):
     print(f"{name:>11}: standard deviation of the mean {np.std(table['mean']):.3f} m")
 print(f"        σ/√n: {sd / np.sqrt(len(holes)):.3f} m")
@@ -96,8 +96,8 @@ ranges = np.array([250.0, 500.0, 1000.0, 2000.0, 3000.0, 5000.0, 8000.0, 15000.0
 spreads = np.array(
     [
         np.std(
-            cs.spatial_bootstrap(
-                holes, "THICKNESS_M", cs.Variogram([("spherical", 1.0, r)]), weights=weights, n=400
+            bt.spatial_bootstrap(
+                holes, "THICKNESS_M", bt.Variogram([("spherical", 1.0, r)]), weights=weights, n=400
             )["mean"]
         )
         for r in ranges
@@ -150,7 +150,7 @@ than 2 m, the minimum mining height.
 area = np.sum(grid["INSIDE"] == 1) * 100.0 * 100.0
 density = 1.4
 for name, v in (("independent", nugget), ("spatial", variogram)):
-    table = cs.spatial_bootstrap(holes, "THICKNESS_M", v, weights=weights, n=1000, cutoffs=[2.0])
+    table = bt.spatial_bootstrap(holes, "THICKNESS_M", v, weights=weights, n=1000, cutoffs=[2.0])
     tonnes = np.asarray(table["mean"]) * area * density / 1e6
     p10, p50, p90 = np.quantile(tonnes, [0.1, 0.5, 0.9])
     above = np.quantile(table["above 2"], [0.1, 0.9])

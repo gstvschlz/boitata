@@ -17,7 +17,7 @@ use arrow_array::types::Float32Type;
 use arrow_array::{Array, ArrayRef, Float32Array, RecordBatch};
 use arrow_cast::cast;
 use arrow_schema::DataType;
-use ceres_core::{BlockModel, Geometry, Layout};
+use boitata_core::{BlockModel, Geometry, Layout};
 
 use crate::{Error, Result};
 
@@ -330,7 +330,7 @@ pub fn write_segy(
     };
 
     let mut lines = vec![String::new(); 40];
-    lines[0] = "CERES BLOCK MODEL AS SEG-Y".into();
+    lines[0] = "BOITATA BLOCK MODEL AS SEG-Y".into();
     lines[1] = format!("COLUMN {column}");
     lines[2] = format!("CRS {}", model.crs.as_deref().unwrap_or("UNKNOWN"));
     lines[3] = format!("INLINES 1-{nx} CROSSLINES 1-{ny} SAMPLES {nz}");
@@ -608,7 +608,7 @@ mod tests {
     use arrow_array::Array;
 
     fn temp(name: &str) -> PathBuf {
-        let dir = std::env::temp_dir().join(format!("ceres-segy-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("boitata-segy-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         dir.join(name)
     }

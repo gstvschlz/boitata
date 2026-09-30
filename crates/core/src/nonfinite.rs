@@ -1,4 +1,4 @@
-//! `#[serde(with = "ceres_core::nonfinite")]` for floats that may be NaN or
+//! `#[serde(with = "boitata_core::nonfinite")]` for floats that may be NaN or
 //! infinite, which JSON has no numbers for: they are written as the strings
 //! `"NaN"`, `"inf"` and `"-inf"`. Works on `f64` and on options, pairs and
 //! vectors of it.

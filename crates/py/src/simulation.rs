@@ -22,7 +22,7 @@ use crate::variogram::Variogram;
 
 fn err(e: simulation::SimError) -> PyErr {
     match e {
-        simulation::SimError::Io(ceres_io::Error::Io(e)) => crate::error("FileError", e),
+        simulation::SimError::Io(boitata_io::Error::Io(e)) => crate::error("FileError", e),
         e => invalid(e),
     }
 }
@@ -70,7 +70,7 @@ fn int_rows(rows: &[Vec<usize>]) -> Vec<Vec<i64>> {
 /// Uncertainty at every target from `n` realizations of a continuous
 /// variable. Per-cutoff and per-quantile arrays have one row per target and
 /// one column per cutoff or quantile.
-#[pyclass(module = "ceres", name = "SimulationSummary", frozen)]
+#[pyclass(module = "boitata", name = "SimulationSummary", frozen)]
 pub struct SimulationSummary(ContinuousSummary);
 
 #[pymethods]
@@ -184,7 +184,7 @@ impl SimulationSummary {
 }
 
 /// Uncertainty at every target from `n` realizations of categories.
-#[pyclass(module = "ceres", name = "CategoricalSummary", frozen)]
+#[pyclass(module = "boitata", name = "CategoricalSummary", frozen)]
 pub struct CategoricalSummary(CoreCategorical);
 
 #[pymethods]
@@ -406,7 +406,7 @@ fn file_column<'py>(
     rows: usize,
 ) -> PyResult<Bound<'py, PyAny>> {
     let io = |e| err(simulation::SimError::Io(e));
-    let reader = ceres_io::BlockModelReader::open(path).map_err(io)?;
+    let reader = boitata_io::BlockModelReader::open(path).map_err(io)?;
     if !reader.column_names().iter().any(|c| c == name) {
         return Err(crate::table::missing(name, reader.column_names().to_vec()));
     }
@@ -543,7 +543,7 @@ fn lattice_of(targets: &Bound<PyAny>) -> Option<simulation::Lattice> {
 /// Bytes a batch of realizations may take: 70 % of the memory free now.
 fn memory_budget(py: Python) -> PyResult<u64> {
     let free: u64 = py
-        .import("ceres._memory")?
+        .import("boitata._memory")?
         .getattr("available")?
         .call0()?
         .extract()?;
@@ -577,7 +577,7 @@ fn memory_budget(py: Python) -> PyResult<u64> {
 /// realization of the domains per realization of the grades, carry the
 /// uncertainty of the domains into the grades.
 #[derive(Serialize, Deserialize)]
-#[pyclass(module = "ceres", name = "SGS")]
+#[pyclass(module = "boitata", name = "SGS")]
 pub struct Sgs {
     variogram: CoreVariogram,
     #[serde(deserialize_with = "one_or_more")]
@@ -1023,7 +1023,7 @@ impl Sgs {
                 |k| {
                     let params = SgsParams {
                         search: search.clone(),
-                        seed: ceres_core::rng::realization_seed(seed, k as u64),
+                        seed: boitata_core::rng::realization_seed(seed, k as u64),
                     };
                     let domains = d.domains.as_deref().zip(of_realization(&nodes, k));
                     match &secondary {
@@ -1093,7 +1093,7 @@ fn one_or_more<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Vec<Search>, D:
 /// transformed through the node's domain; the node is back-transformed
 /// through its domain's transform.
 #[derive(Serialize, Deserialize)]
-#[pyclass(module = "ceres", name = "TurningBands")]
+#[pyclass(module = "boitata", name = "TurningBands")]
 pub struct TurningBands {
     variogram: CoreVariogram,
     bands: usize,
@@ -1353,7 +1353,7 @@ impl TurningBands {
         if discretization.contains(&0) {
             return Err(invalid("discretization must be positive"));
         }
-        let total = ceres_io::BlockModelReader::open(&path)
+        let total = boitata_io::BlockModelReader::open(&path)
             .map_err(|e| err(simulation::SimError::Io(e)))?
             .len();
         let blocks = if domains.is_some() { total } else { 0 };
@@ -1429,7 +1429,7 @@ pub(crate) fn categories(coords: &Bound<PyAny>, obj: &Bound<PyAny>) -> PyResult<
 /// Sequential indicator simulation of categories `0..k`, one indicator
 /// variogram per category.
 #[derive(Serialize, Deserialize)]
-#[pyclass(module = "ceres", name = "SIS")]
+#[pyclass(module = "boitata", name = "SIS")]
 pub struct Sis {
     variograms: Vec<CoreVariogram>,
     search: estimation::Search,
@@ -1565,7 +1565,7 @@ impl Sis {
                 |i| {
                     let params = SisParams {
                         search: self.search.clone(),
-                        seed: ceres_core::rng::realization_seed(seed, i as u64),
+                        seed: boitata_core::rng::realization_seed(seed, i as u64),
                     };
                     let holes = self.holes.as_deref();
                     simulation::sis(
@@ -1610,7 +1610,7 @@ impl Sis {
 ///     facies)`` of the fields' Gaussian values, one ``(low, high]`` per
 ///     field, unbounded past the last.
 #[derive(Serialize, Deserialize)]
-#[pyclass(module = "ceres", name = "Plurigaussian")]
+#[pyclass(module = "boitata", name = "Plurigaussian")]
 pub struct Plurigaussian {
     variograms: Vec<CoreVariogram>,
     rule: TruncationRule,
@@ -1897,7 +1897,7 @@ impl Plurigaussian {
                 &keep,
                 |i| {
                     let params = PgsParams {
-                        seed: ceres_core::rng::realization_seed(seed, i as u64),
+                        seed: boitata_core::rng::realization_seed(seed, i as u64),
                         ..Default::default()
                     };
                     let (vgs, rule) = (&self.variograms, &self.rule);
@@ -2486,13 +2486,13 @@ impl Tabular for Plurigaussian {
 #[derive(Serialize, Deserialize)]
 struct ContinuousMeta {
     n: usize,
-    #[serde(with = "ceres_core::nonfinite")]
+    #[serde(with = "boitata_core::nonfinite")]
     cutoffs: Vec<f64>,
-    #[serde(with = "ceres_core::nonfinite")]
+    #[serde(with = "boitata_core::nonfinite")]
     quantiles: Vec<f64>,
-    #[serde(with = "ceres_core::nonfinite")]
+    #[serde(with = "boitata_core::nonfinite")]
     realization_mean: Vec<f64>,
-    #[serde(with = "ceres_core::nonfinite")]
+    #[serde(with = "boitata_core::nonfinite")]
     realization_above: Vec<Vec<f64>>,
     kept: Vec<usize>,
 }
@@ -2585,7 +2585,7 @@ impl Tabular for SimulationSummary {
 struct CategoricalMeta {
     n: usize,
     categories: usize,
-    #[serde(with = "ceres_core::nonfinite")]
+    #[serde(with = "boitata_core::nonfinite")]
     proportions: Vec<Vec<f64>>,
     kept: Vec<usize>,
 }
@@ -2690,7 +2690,7 @@ struct Factors {
 /// simulators : sequence of SGS or TurningBands
 ///     One per factor, in factor order, each with the normal-score variogram
 ///     of its factor.
-#[pyclass(module = "ceres", name = "MultivariateSimulation")]
+#[pyclass(module = "boitata", name = "MultivariateSimulation")]
 pub struct MultivariateSimulation {
     transform: Py<PyAny>,
     factors: Vec<Factor>,
@@ -3112,7 +3112,7 @@ pub fn register(m: &Bound<PyModule>) -> PyResult<()> {
 /// ...       "azimuth": (80, 100), "amplitude": 6, "wavelength": 50}],
 /// ... )
 /// >>> summary = cs.SNESIM(ti, "facies", template_size=24).simulate(grid, n=4)
-#[pyclass(module = "ceres", name = "SNESIM")]
+#[pyclass(module = "boitata", name = "SNESIM")]
 pub struct Snesim {
     core: simulation::Snesim,
     /// Hard data: codes of a categorical image, else values.
@@ -3165,13 +3165,13 @@ fn image_of_codes(
     let column = std::sync::Arc::new(arrow_array::Float64Array::from(cells));
     let batch = arrow_array::RecordBatch::try_from_iter([("code", column as _)])
         .map_err(|e| e.to_string())?;
-    let geometry = ceres_core::Geometry {
+    let geometry = boitata_core::Geometry {
         origin: [0.0; 3],
         size: [1.0; 3],
         count: dims,
         rotation: [0.0; 3],
     };
-    let model = ceres_core::BlockModel::regular(geometry, batch).map_err(|e| e.to_string())?;
+    let model = boitata_core::BlockModel::regular(geometry, batch).map_err(|e| e.to_string())?;
     match values {
         Some(_) => simulation::TrainingImage::continuous(&model, "code"),
         None => simulation::TrainingImage::categorical(&model, "code"),
@@ -3736,7 +3736,7 @@ pub fn register_snesim(m: &Bound<PyModule>) -> PyResult<()> {
 /// >>> targets = cs.BlockModel((0, 0, 0), (1, 1, 1), (80, 80, 1))
 /// >>> summary = cs.ImageQuilting(ti, "facies", patch_size=20).simulate(targets, n=10)
 #[derive(Serialize, Deserialize)]
-#[pyclass(module = "ceres", name = "ImageQuilting")]
+#[pyclass(module = "boitata", name = "ImageQuilting")]
 pub struct ImageQuilting {
     patch_size: [usize; 3],
     overlap: Option<[usize; 3]>,
@@ -3807,7 +3807,7 @@ impl Tabular for ImageQuilting {
     }
 
     fn restore(&mut self, columns: Found) -> PyResult<()> {
-        let geometry = ceres_core::Geometry {
+        let geometry = boitata_core::Geometry {
             origin: [0.0; 3],
             size: [1.0; 3],
             count: self.ti_dims,
@@ -3818,7 +3818,7 @@ impl Tabular for ImageQuilting {
                 std::sync::Arc::new(arrow_array::Float64Array::from(columns.optional(name)?));
             let batch =
                 arrow_array::RecordBatch::try_from_iter([(name, array as _)]).map_err(invalid)?;
-            let model = ceres_core::BlockModel::regular(geometry, batch).map_err(invalid)?;
+            let model = boitata_core::BlockModel::regular(geometry, batch).map_err(invalid)?;
             match categorical {
                 true => simulation::TrainingImage::categorical(&model, name),
                 false => simulation::TrainingImage::continuous(&model, name),
@@ -3941,7 +3941,7 @@ impl ImageQuilting {
             .zip(&values)
             .map(|(p, &v)| ([p.0, p.1, p.2], v))
             .collect();
-        let one = simulation::Lattice::regular(ceres_core::Geometry {
+        let one = simulation::Lattice::regular(boitata_core::Geometry {
             origin: [0.0; 3],
             size: [1.0; 3],
             count: [1; 3],
@@ -4047,7 +4047,7 @@ impl ImageQuilting {
         let keep = keep_arg(keep)?;
         let realization = |i: usize| {
             quilting
-                .simulate(ceres_core::rng::realization_seed(seed, i as u64))
+                .simulate(boitata_core::rng::realization_seed(seed, i as u64))
                 .values
         };
         if self.categorical {

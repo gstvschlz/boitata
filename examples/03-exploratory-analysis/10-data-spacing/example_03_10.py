@@ -14,12 +14,12 @@ HERE = Path(__file__).parent if "__file__" in globals() else Path.cwd()
 sys.path.insert(0, str(HERE.parents[1]))
 
 # %%
-import ceres as cs
+import boitata as bt
 import matplotlib.pyplot as plt
 import numpy as np
 from common import ACCENT, GRAY, INK, map_axes, save
 
-data = cs.datasets.coal_seam_thickness()
+data = bt.datasets.coal_seam_thickness()
 holes, lease, grid = data["boreholes"], data["boundary"], data["grid"]
 print(f"{len(holes)} holes, {grid['INSIDE'].sum():.0f} cells of 100 m inside the lease")
 
@@ -32,7 +32,7 @@ print(f"{len(holes)} holes, {grid['INSIDE'].sum():.0f} cells of 100 m inside the
 # and at the edges.
 
 # %%
-spacing = cs.data_spacing(holes)
+spacing = bt.data_spacing(holes)
 print(f"nearest hole: median {np.median(spacing):.0f} m, P10 {np.percentile(spacing, 10):.0f} m, ", end="")
 print(f"P90 {np.percentile(spacing, 90):.0f} m")
 fig, (a, b) = plt.subplots(1, 2, figsize=(11, 4), layout="constrained", width_ratios=[1.5, 1])
@@ -40,7 +40,7 @@ drawn = a.scatter(*holes.coords[:, :2].T, c=spacing, s=14, edgecolors=INK, linew
 a.plot(*lease.vertices[:, :2].T, color=GRAY, lw=0.8)
 fig.colorbar(drawn, ax=a, shrink=0.8, label="Spacing (m)")
 map_axes(a, "Distance to the nearest hole")
-cs.plot.histogram(spacing, bins=np.arange(0, spacing.max() + 25, 25), stats=True, ax=b, color=ACCENT)
+bt.plot.histogram(spacing, bins=np.arange(0, spacing.max() + 25, 25), stats=True, ax=b, color=ACCENT)
 b.set(title="Spacing of the holes", xlabel="Spacing (m)")
 save(fig, "spacing")
 
@@ -54,7 +54,7 @@ save(fig, "spacing")
 # classification by spacing reads.
 
 # %%
-distance = cs.hole_distance(grid, holes, "ID", [1, 3])
+distance = bt.hole_distance(grid, holes, "ID", [1, 3])
 inside = grid["INSIDE"] == 1
 for k, n in enumerate([1, 3]):
     d = distance[inside, k]
@@ -63,7 +63,7 @@ top = np.percentile(distance[inside], 99)
 fig, axes = plt.subplots(1, 2, figsize=(11, 4), layout="constrained", sharey=True)
 for ax, k, n in zip(axes, [0, 1], [1, 3], strict=True):
     shown = np.where(inside, distance[:, k], np.nan)
-    cs.plot.section(grid, shown, axis="z", index=0, colorbar=False, vmin=0, vmax=top, ax=ax)
+    bt.plot.section(grid, shown, axis="z", index=0, colorbar=False, vmin=0, vmax=top, ax=ax)
     ax.plot(*lease.vertices[:, :2].T, color=GRAY, lw=0.8)
     ax.scatter(*holes.coords[:, :2].T, s=2, color=INK)
     map_axes(ax, "Distance to the nearest hole" if n == 1 else f"Mean distance to the {n} nearest holes")

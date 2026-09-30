@@ -1,6 +1,6 @@
 import pickle
 
-import ceres as cs
+import boitata as bt
 import numpy as np
 import pytest
 
@@ -12,64 +12,64 @@ grid = np.stack(np.meshgrid(np.arange(10.0), np.arange(10.0), [0.0]), -1).reshap
 
 
 def fitted():
-    anam = cs.HermiteAnamorphosis(degree=20).fit(values)
+    anam = bt.HermiteAnamorphosis(degree=20).fit(values)
     return [
         (
-            cs.NormalScore(tails=(0.0, np.inf)).fit(values),
+            bt.NormalScore(tails=(0.0, np.inf)).fit(values),
             lambda o: (o.transform(values), o.inverse_transform([-4.0, 0.0, 4.0])),
         ),
         (anam, lambda o: (o.transform(values), o.inverse_transform([-3.0, 0.0, 3.0]))),
         (
-            cs.Capping(cv=0.9).fit(values, domains=np.arange(300) % 3),
+            bt.Capping(cv=0.9).fit(values, domains=np.arange(300) % 3),
             lambda o: (o.transform(values, domains=np.arange(300) % 3), list(o.metal_removed_.values())),
         ),
         (
-            cs.Capping(cap={"x": 2.0}).fit(values, domains=np.where(values > 1, "x", "y")),
+            bt.Capping(cap={"x": 2.0}).fit(values, domains=np.where(values > 1, "x", "y")),
             lambda o: (o.transform(values, domains=["x"] * 300), list(o.caps_.values())),
         ),
-        (cs.BoxCox().fit(values), lambda o: (o.transform(values), o.inverse_transform([0.1, 1.0]))),
+        (bt.BoxCox().fit(values), lambda o: (o.transform(values), o.inverse_transform([0.1, 1.0]))),
         (
-            cs.PPMT(iterations=5, seed=4).fit(table),
+            bt.PPMT(iterations=5, seed=4).fit(table),
             lambda o: (o.transform(table), o.inverse_transform(table)),
         ),
         (
-            cs.GaussianImputer(seed=2).fit(np.where(table > 1.5, np.nan, table)),
+            bt.GaussianImputer(seed=2).fit(np.where(table > 1.5, np.nan, table)),
             lambda o: (o.transform(np.where(table > 1.5, np.nan, table)), o.correlation_),
         ),
         (
-            cs.GaussianImputer(components=2, seed=2).fit(np.where(table > 1.5, np.nan, table)),
+            bt.GaussianImputer(components=2, seed=2).fit(np.where(table > 1.5, np.nan, table)),
             lambda o: (o.transform(np.where(table > 1.5, np.nan, table)), o.correlation_),
         ),
         (
-            cs.KernelDensity(log=True, upper=50.0).fit(values),
+            bt.KernelDensity(log=True, upper=50.0).fit(values),
             lambda o: (o.pdf(values), o.quantile([0.01, 0.99]), o.sample(20, seed=1)),
         ),
         (
-            cs.GaussianMixture(max_components=3, seed=1).fit(table[:, :2]),
+            bt.GaussianMixture(max_components=3, seed=1).fit(table[:, :2]),
             lambda o: (o.pdf(table[:, :2]), o.sample(20), o.means_, o.covariances_, list(o.bic_.values())),
         ),
         (
-            cs.NormalScore(reference=cs.KernelDensity(lower=0.0).fit(values)).fit(values),
+            bt.NormalScore(reference=bt.KernelDensity(lower=0.0).fit(values)).fit(values),
             lambda o: (o.transform(values), o.inverse_transform([-6.0, 0.0, 6.0])),
         ),
-        (cs.PCA(standardize=True).fit(table), lambda o: (o.transform(table), o.inverse_transform(table))),
+        (bt.PCA(standardize=True).fit(table), lambda o: (o.transform(table), o.inverse_transform(table))),
         (
-            cs.MAF(lag=1.0, tolerance=0.01).fit(rng.normal(size=(100, 2)), grid),
+            bt.MAF(lag=1.0, tolerance=0.01).fit(rng.normal(size=(100, 2)), grid),
             lambda o: (o.transform(table[:, :2]),),
         ),
-        (cs.StepwiseConditional(classes=5).fit(table[:, :2]), lambda o: (o.transform(table[:, :2]),)),
+        (bt.StepwiseConditional(classes=5).fit(table[:, :2]), lambda o: (o.transform(table[:, :2]),)),
         (
-            cs.UniformConditioning(anam, 0.8, r_panel=0.6),
+            bt.UniformConditioning(anam, 0.8, r_panel=0.6),
             lambda o: (o.panel_recovery(1.2, [0.5, 1.0])["metal"], o.localized_grades(1.2, 8)),
         ),
-        (cs.detrend(coords, values, degree=2)[0], lambda o: (o.predict(coords),)),
+        (bt.detrend(coords, values, degree=2)[0], lambda o: (o.predict(coords),)),
         (
-            cs.detrend(coords, values, bandwidth=[5.0, 20.0], rotation=(30.0, 0.0, 0.0), ratios=(0.5, 1))[0],
+            bt.detrend(coords, values, bandwidth=[5.0, 20.0], rotation=(30.0, 0.0, 0.0), ratios=(0.5, 1))[0],
             lambda o: (o.predict(coords), o.scores),
         ),
-        (cs.cell_declustering(coords, values), lambda o: (o.weights, o.sizes, o.means, o.mean)),
+        (bt.cell_declustering(coords, values), lambda o: (o.weights, o.sizes, o.means, o.mean)),
         (
-            cs.Variogram(
+            bt.Variogram(
                 [("spherical", 0.7, 50.0)], nugget=0.1, rotation=(30.0, 10.0, 0.0), ratios=(0.5, 0.2)
             ),
             lambda o: (o.gamma_between(coords[:10], coords[10:20]),),
@@ -79,24 +79,24 @@ def fitted():
 
 def plain():
     return [
-        cs.Structure("exponential", 1.0, 30.0),
-        cs.Coregionalization(
+        bt.Structure("exponential", 1.0, 30.0),
+        bt.Coregionalization(
             [[0.1, 0.0], [0.0, 0.2]], structures=[("spherical", 40.0, [[1.0, 0.7], [0.7, 1.0]])]
         ),
-        cs.Search(np.inf, high_grade=(np.inf, 5.0), rotation=(10.0, 0.0, 0.0), ratios=(0.5, 0.5)),
-        cs.Search(30.0, soft={("MS", "SM"): 5.0, (1, True): np.inf}),
-        cs.Search(30.0, soft=np.inf),
-        cs.NormalScore(),
-        cs.Capping(quantile=0.99),
-        cs.HermiteAnamorphosis(),
-        cs.BoxCox(lambda_=0.3),
-        cs.PPMT(),
-        cs.GaussianImputer(),
-        cs.KernelDensity(bandwidth=0.3, lower=0.0),
-        cs.GaussianMixture(),
-        cs.PCA(),
-        cs.MAF(lag=2.0),
-        cs.StepwiseConditional(),
+        bt.Search(np.inf, high_grade=(np.inf, 5.0), rotation=(10.0, 0.0, 0.0), ratios=(0.5, 0.5)),
+        bt.Search(30.0, soft={("MS", "SM"): 5.0, (1, True): np.inf}),
+        bt.Search(30.0, soft=np.inf),
+        bt.NormalScore(),
+        bt.Capping(quantile=0.99),
+        bt.HermiteAnamorphosis(),
+        bt.BoxCox(lambda_=0.3),
+        bt.PPMT(),
+        bt.GaussianImputer(),
+        bt.KernelDensity(bandwidth=0.3, lower=0.0),
+        bt.GaussianMixture(),
+        bt.PCA(),
+        bt.MAF(lag=2.0),
+        bt.StepwiseConditional(),
     ]
 
 
@@ -120,55 +120,55 @@ def test_parameters_and_unfitted_objects_round_trip(obj):
 
 
 def test_search_keeps_infinite_radius():
-    assert cs.Search.from_json(cs.Search(np.inf).to_json()).radius == np.inf
+    assert bt.Search.from_json(bt.Search(np.inf).to_json()).radius == np.inf
 
 
 def test_envelope_is_checked():
-    text = cs.BoxCox(lambda_=0.5).to_json()
-    with pytest.raises(cs.InvalidInput, match="expected a PCA"):
-        cs.PCA.from_json(text)
-    with pytest.raises(cs.InvalidInput, match="format"):
-        cs.BoxCox.from_json(text.replace('"format":1', '"format":2'))
-    with pytest.raises(cs.InvalidInput):
-        cs.BoxCox.from_json("[1, 2]")
+    text = bt.BoxCox(lambda_=0.5).to_json()
+    with pytest.raises(bt.InvalidInput, match="expected a PCA"):
+        bt.PCA.from_json(text)
+    with pytest.raises(bt.InvalidInput, match="format"):
+        bt.BoxCox.from_json(text.replace('"format":1', '"format":2'))
+    with pytest.raises(bt.InvalidInput):
+        bt.BoxCox.from_json("[1, 2]")
 
 
-model = cs.Variogram([("spherical", 0.8, 40.0)], nugget=0.2)
-search = cs.Search(60.0, max_samples=12)
+model = bt.Variogram([("spherical", 0.8, 40.0)], nugget=0.2)
+search = bt.Search(60.0, max_samples=12)
 targets = rng.uniform(0, 100, (50, 3))
 holes = np.repeat(np.arange(30), 10)
 
 
 def estimators():
-    passes = [cs.Search(20.0, max_samples=8, max_per_hole=2), cs.Search(np.inf)]
-    anam = cs.HermiteAnamorphosis(degree=20).fit(values)
-    lmc = cs.Coregionalization(
+    passes = [bt.Search(20.0, max_samples=8, max_per_hole=2), bt.Search(np.inf)]
+    anam = bt.HermiteAnamorphosis(degree=20).fit(values)
+    lmc = bt.Coregionalization(
         [[0.1, 0.0], [0.0, 0.1]], structures=[("spherical", 40.0, [[1.0, 0.6], [0.6, 1.0]])]
     )
     return [
-        (cs.OrdinaryKriging(model, passes), {"holes": holes, "error_variance": np.full(300, 0.01)}),
-        (cs.SimpleKriging(model, search, mean=1.2), {}),
-        (cs.IndicatorKriging(model, search, threshold=1.0), {}),
-        (cs.UniversalKriging(model, search), {}),
-        (cs.FactorialKriging(model, search, [0], nugget=True), {}),
-        (cs.BlockKriging(model, search, size=(5.0, 5.0, 5.0)), {}),
-        (cs.BayesianKriging(model, search, [1.0], [0.5]), {}),
-        (cs.InverseDistance(search, power=3.0, variogram=model), {}),
-        (cs.NearestNeighbor(search), {}),
-        (cs.MovingAverage(search), {}),
-        (cs.MovingMedian(search), {}),
-        (cs.LocalLeastSquares(search), {}),
-        (cs.DualKriging(model, degree=1), {}),
-        (cs.Cokriging(lmc, search), {"variables": np.arange(300) % 2}),
-        (cs.DisjunctiveKriging(anam, model, search, order=10), {}),
+        (bt.OrdinaryKriging(model, passes), {"holes": holes, "error_variance": np.full(300, 0.01)}),
+        (bt.SimpleKriging(model, search, mean=1.2), {}),
+        (bt.IndicatorKriging(model, search, threshold=1.0), {}),
+        (bt.UniversalKriging(model, search), {}),
+        (bt.FactorialKriging(model, search, [0], nugget=True), {}),
+        (bt.BlockKriging(model, search, size=(5.0, 5.0, 5.0)), {}),
+        (bt.BayesianKriging(model, search, [1.0], [0.5]), {}),
+        (bt.InverseDistance(search, power=3.0, variogram=model), {}),
+        (bt.NearestNeighbor(search), {}),
+        (bt.MovingAverage(search), {}),
+        (bt.MovingMedian(search), {}),
+        (bt.LocalLeastSquares(search), {}),
+        (bt.DualKriging(model, degree=1), {}),
+        (bt.Cokriging(lmc, search), {"variables": np.arange(300) % 2}),
+        (bt.DisjunctiveKriging(anam, model, search, order=10), {}),
         (
-            cs.MultipleIndicatorKriging(
+            bt.MultipleIndicatorKriging(
                 [model, model], passes, [0.8, 1.5], tails=(0.0, 20.0), upper_tail=("power", 0.5)
             ),
             {"weights": np.linspace(1.0, 2.0, 300), "holes": holes},
         ),
         (
-            cs.MultigaussianKriging(model, passes, tails=(0.0, 20.0)),
+            bt.MultigaussianKriging(model, passes, tails=(0.0, 20.0)),
             {"weights": np.linspace(1.0, 2.0, 300), "holes": holes, "despike": True},
         ),
     ]
@@ -189,13 +189,13 @@ def indicator_arrays(s):
 
 
 def prediction(estimator):
-    if isinstance(estimator, cs.DisjunctiveKriging):
+    if isinstance(estimator, bt.DisjunctiveKriging):
         return estimator.predict(targets), estimator.predict_tonnage(targets, 1.0)
-    if isinstance(estimator, (cs.MultipleIndicatorKriging, cs.MultigaussianKriging)):
+    if isinstance(estimator, (bt.MultipleIndicatorKriging, bt.MultigaussianKriging)):
         return indicator_arrays(estimator.predict(targets, cutoffs=[1.0], quantiles=[0.5]))
-    if isinstance(estimator, cs.DualKriging):
+    if isinstance(estimator, bt.DualKriging):
         return (estimator.predict(targets),)
-    if isinstance(estimator, cs.Cokriging):
+    if isinstance(estimator, bt.Cokriging):
         return estimator.predict(targets, variable=1, return_variance=True)
     return estimator.predict(targets, return_variance=True)
 
@@ -218,47 +218,47 @@ def test_estimator_round_trip_predicts_bit_identically(estimator, extra, tmp_pat
 
 def test_estimator_with_domains_round_trips(tmp_path):
     path, zone = tmp_path / "ok.parquet", ["MS" if x < 50 else 7 for x in coords[:, 0]]
-    passes = [cs.Search(20.0, soft={("MS", 7): 6.0}), cs.Search(60.0, soft=np.inf)]
-    ok = cs.OrdinaryKriging(model, passes).fit(coords, values, domains=zone)
+    passes = [bt.Search(20.0, soft={("MS", 7): 6.0}), bt.Search(60.0, soft=np.inf)]
+    ok = bt.OrdinaryKriging(model, passes).fit(coords, values, domains=zone)
     ok.to_parquet(path)
-    back = cs.OrdinaryKriging.from_parquet(path)
+    back = bt.OrdinaryKriging.from_parquet(path)
     at = ["MS" if x < 50 else 7 for x in targets[:, 0]]
     a, b = (e.predict(targets, domains=at, diagnostics=True) for e in (back, ok))
     same([a[c] for c in a.column_names], [b[c] for c in b.column_names])
     same((back.cross_validate().estimate,), (ok.cross_validate().estimate,))
-    assert cs.read_parquet(path)["domain"].max() == 1
+    assert bt.read_parquet(path)["domain"].max() == 1
 
 
 def test_estimator_file_is_a_table_of_samples(tmp_path):
     path = tmp_path / "ok.parquet"
-    cs.OrdinaryKriging(model, search).fit(coords, values, holes=holes).to_parquet(path)
-    table = cs.read_parquet(path)
+    bt.OrdinaryKriging(model, search).fit(coords, values, holes=holes).to_parquet(path)
+    table = bt.read_parquet(path)
     assert table.column_names == ["x", "y", "z", "value", "hole", "error_variance", "domain"]
     assert table.num_rows == 300
-    with pytest.raises(cs.InvalidInput, match="expected a SimpleKriging"):
-        cs.SimpleKriging.from_parquet(path)
-    with pytest.raises(cs.FileError):
-        cs.OrdinaryKriging.from_parquet(tmp_path / "missing.parquet")
+    with pytest.raises(bt.InvalidInput, match="expected a SimpleKriging"):
+        bt.SimpleKriging.from_parquet(path)
+    with pytest.raises(bt.FileError):
+        bt.OrdinaryKriging.from_parquet(tmp_path / "missing.parquet")
 
 
-gaussian = cs.Variogram([("spherical", 1.0, 30.0)])
+gaussian = bt.Variogram([("spherical", 1.0, 30.0)])
 nodes = rng.uniform(0, 100, (40, 3))
 facies = (values > 0.8).astype(int) + (values > 1.5)
 
 
 def simulators():
-    near = cs.Search(40.0, max_samples=8)
+    near = bt.Search(40.0, max_samples=8)
     return [
         (
-            cs.SGS(gaussian, near),
+            bt.SGS(gaussian, near),
             {"values": values},
             {"cutoffs": [1.0, 2.0], "quantiles": [0.1, 0.9], "keep": True},
         ),
-        (cs.TurningBands(gaussian, bands=50, step=2.0), {"values": values}, {"cutoffs": [1.0]}),
-        (cs.SIS([gaussian] * 3, near), {"categories": facies}, {"keep": True}),
-        (cs.Plurigaussian(gaussian, proportions=[0.4, 0.4, 0.2]), {"categories": facies}, {}),
+        (bt.TurningBands(gaussian, bands=50, step=2.0), {"values": values}, {"cutoffs": [1.0]}),
+        (bt.SIS([gaussian] * 3, near), {"categories": facies}, {"keep": True}),
+        (bt.Plurigaussian(gaussian, proportions=[0.4, 0.4, 0.2]), {"categories": facies}, {}),
         (
-            cs.Plurigaussian([gaussian] * 2, proportions=[0.4, 0.4, 0.2], rule=(0, [0, (1, [1, 2])])),
+            bt.Plurigaussian([gaussian] * 2, proportions=[0.4, 0.4, 0.2], rule=(0, [0, (1, [1, 2])])),
             {"categories": facies, "proportions": west_to_east(coords)},
             {"proportions": west_to_east(nodes)},
         ),
@@ -271,7 +271,7 @@ def west_to_east(xyz):
 
 
 def summary_arrays(summary):
-    if isinstance(summary, cs.CategoricalSummary):
+    if isinstance(summary, bt.CategoricalSummary):
         names = ("n", "probabilities", "most_likely", "entropy", "proportions", "realizations")
     else:
         names = ("n", "mean", "variance", "cutoffs", "probability_above", "mean_above", "quantiles")
@@ -298,11 +298,11 @@ def test_simulator_round_trip_simulates_bit_identically(simulator, data, options
 
 def test_indicator_summary_round_trip(tmp_path):
     path = tmp_path / "summary.parquet"
-    mik = cs.MultipleIndicatorKriging(model, cs.Search(15.0), [0.8, 1.5]).fit(coords, values)
+    mik = bt.MultipleIndicatorKriging(model, bt.Search(15.0), [0.8, 1.5]).fit(coords, values)
     summary = mik.predict(targets, cutoffs=[1.0, 2.0], quantiles=[0.1, 0.9], diagnostics=True)
     assert np.isnan(summary.mean).any()
     summary.to_parquet(path)
-    for back in (cs.IndicatorSummary.from_parquet(path), pickle.loads(pickle.dumps(summary))):
+    for back in (bt.IndicatorSummary.from_parquet(path), pickle.loads(pickle.dumps(summary))):
         same(indicator_arrays(back), indicator_arrays(summary))
         names = summary.diagnostics.column_names
         assert back.diagnostics.column_names == names
@@ -311,21 +311,21 @@ def test_indicator_summary_round_trip(tmp_path):
 
 def test_categorical_indicator_kriging_round_trip(tmp_path):
     path = tmp_path / "cik.parquet"
-    scheme = cs.Categories(["low", "mid", "high"], colors=["C0", "C1", "C2"])
+    scheme = bt.Categories(["low", "mid", "high"], colors=["C0", "C1", "C2"])
     rock = np.array(["low", "mid", "high"])[np.digitize(values, [0.8, 1.5])]
     zone = np.where(coords[:, 0] < 50, "w", "e")
-    passes = [cs.Search(20.0, max_samples=8, soft={("w", "e"): 5.0}), cs.Search(np.inf)]
-    cik = cs.CategoricalIndicatorKriging([model] * 3, passes, simple=True, scheme=scheme)
+    passes = [bt.Search(20.0, max_samples=8, soft={("w", "e"): 5.0}), bt.Search(np.inf)]
+    cik = bt.CategoricalIndicatorKriging([model] * 3, passes, simple=True, scheme=scheme)
     cik.fit(coords, rock, weights=np.linspace(1.0, 2.0, 300), holes=holes, domains=zone)
     at = np.where(targets[:, 0] < 50, "w", "e")
     summary = cik.predict(targets, domains=at, diagnostics=True)
     cik.to_parquet(path)
-    for back in (cs.CategoricalIndicatorKriging.from_parquet(path), pickle.loads(pickle.dumps(cik))):
+    for back in (bt.CategoricalIndicatorKriging.from_parquet(path), pickle.loads(pickle.dumps(cik))):
         assert back.scheme == scheme
         same((back.predict(targets, domains=at).probabilities,), (summary.probabilities,))
         same((back.cross_validate(folds=5).probabilities,), (cik.cross_validate(folds=5).probabilities,))
     summary.to_parquet(path)
-    for back in (cs.CategoricalIndicatorSummary.from_parquet(path), pickle.loads(pickle.dumps(summary))):
+    for back in (bt.CategoricalIndicatorSummary.from_parquet(path), pickle.loads(pickle.dumps(summary))):
         names = ("probabilities", "most_likely", "entropy", "correction", "proportions")
         same([getattr(back, n) for n in names], [getattr(summary, n) for n in names])
         assert back.scheme == scheme and back.diagnostics.column_names == summary.diagnostics.column_names
@@ -346,15 +346,15 @@ shell = np.linalg.norm(coords - 50.0, axis=1) - 20.0
 def implicit_models():
     return [
         (
-            cs.ImplicitModel(rotation=(20.0, 0.0, 0.0), ratios=(1.0, 0.5)),
+            bt.ImplicitModel(rotation=(20.0, 0.0, 0.0), ratios=(1.0, 0.5)),
             {"coords": coords, "values": values, "cutoff": 1.0},
         ),
-        (cs.ImplicitModel(kernel="triharmonic"), structure),
+        (bt.ImplicitModel(kernel="triharmonic"), structure),
         (
-            cs.ImplicitModel(engine="kriging", variogram=gaussian, degree=0),
+            bt.ImplicitModel(engine="kriging", variogram=gaussian, degree=0),
             {"coords": coords[:50], "values": shell[:50]},
         ),
-        (cs.ImplicitModel(engine="gp", rotation=(10.0, 0.0, 0.0)), {"coords": coords, "values": shell}),
+        (bt.ImplicitModel(engine="gp", rotation=(10.0, 0.0, 0.0)), {"coords": coords, "values": shell}),
     ]
 
 
@@ -368,31 +368,31 @@ def field(implicit):
 def test_implicit_model_round_trip_evaluates_bit_identically(implicit, inputs, tmp_path):
     path = tmp_path / "implicit.parquet"
     implicit.to_parquet(path)
-    unfitted = pickle.loads(pickle.dumps(cs.ImplicitModel.from_parquet(path)))
-    with pytest.raises(cs.InvalidInput, match="not fitted"):
+    unfitted = pickle.loads(pickle.dumps(bt.ImplicitModel.from_parquet(path)))
+    with pytest.raises(bt.InvalidInput, match="not fitted"):
         unfitted.predict(targets)
     implicit.fit(**inputs)
     same(field(unfitted.fit(**inputs)), field(implicit))
     implicit.to_parquet(path)
-    for back in (cs.ImplicitModel.from_parquet(path), pickle.loads(pickle.dumps(implicit))):
+    for back in (bt.ImplicitModel.from_parquet(path), pickle.loads(pickle.dumps(implicit))):
         same(field(back), field(implicit))
 
 
 def test_implicit_model_file_is_a_table_of_constraints(tmp_path):
     path = tmp_path / "implicit.parquet"
-    cs.ImplicitModel(kernel="triharmonic").fit(**structure).to_parquet(path)
-    table = cs.read_parquet(path)
+    bt.ImplicitModel(kernel="triharmonic").fit(**structure).to_parquet(path)
+    table = bt.read_parquet(path)
     assert table.column_names == ["x", "y", "z", "value", "dip", "dip_direction", "plunge", "trend"]
     assert table.num_rows == 1 + 20 + 20 + 3
-    with pytest.raises(cs.InvalidInput, match="expected a LocalAnisotropy"):
-        cs.LocalAnisotropy.from_parquet(path)
+    with pytest.raises(bt.InvalidInput, match="expected a LocalAnisotropy"):
+        bt.LocalAnisotropy.from_parquet(path)
 
 
 def test_local_anisotropy_round_trip(tmp_path):
     path = tmp_path / "lva.parquet"
-    lva = cs.LocalAnisotropy.from_points(coords, k=15)
+    lva = bt.LocalAnisotropy.from_points(coords, k=15)
     lva.to_parquet(path)
-    assert cs.read_parquet(path).column_names[3:] == [
+    assert bt.read_parquet(path).column_names[3:] == [
         "azimuth",
         "dip",
         "rake",
@@ -400,9 +400,9 @@ def test_local_anisotropy_round_trip(tmp_path):
         "minor_ratio",
         "scale",
     ]
-    estimator = cs.OrdinaryKriging(model, search).fit(coords, values)
+    estimator = bt.OrdinaryKriging(model, search).fit(coords, values)
     expected = estimator.predict(targets, return_variance=True, anisotropy=lva)
-    for back in (cs.LocalAnisotropy.from_parquet(path), pickle.loads(pickle.dumps(lva))):
+    for back in (bt.LocalAnisotropy.from_parquet(path), pickle.loads(pickle.dumps(lva))):
         same(
             (back.coords, back.angles, back.ratios, back.scales),
             (lva.coords, lva.angles, lva.ratios, lva.scales),
@@ -412,12 +412,12 @@ def test_local_anisotropy_round_trip(tmp_path):
 
 def test_snesim_round_trip_simulates_bit_identically(tmp_path):
     path = tmp_path / "snesim.parquet"
-    grid = cs.BlockModel((0, 0), (1, 1), (30, 30))
+    grid = bt.BlockModel((0, 0), (1, 1), (30, 30))
     channels = {"shape": "channel", "code": 1, "proportion": 0.25, "width": 5.0, "azimuth": (80, 100)}
-    ti = cs.object_training_image(cs.BlockModel((0, 0), (1, 1), (60, 60)), [channels], seed=3)
-    snesim = cs.SNESIM(ti, "facies", template_size=12, n_levels=1, target_proportions=[0.7, 0.3])
+    ti = bt.object_training_image(bt.BlockModel((0, 0), (1, 1), (60, 60)), [channels], seed=3)
+    snesim = bt.SNESIM(ti, "facies", template_size=12, n_levels=1, target_proportions=[0.7, 0.3])
     snesim.to_parquet(path)
-    unfitted = cs.SNESIM.from_parquet(path)
+    unfitted = bt.SNESIM.from_parquet(path)
     same(
         summary_arrays(unfitted.simulate(grid, n=3, seed=4)),
         summary_arrays(snesim.simulate(grid, n=3, seed=4)),
@@ -425,7 +425,7 @@ def test_snesim_round_trip_simulates_bit_identically(tmp_path):
     snesim.fit(grid.centroids[:50], np.arange(50) % 2)
     snesim.to_parquet(path)
     summary = snesim.simulate(grid, n=3, seed=4, keep=True)
-    for back in (cs.SNESIM.from_parquet(path), pickle.loads(pickle.dumps(snesim))):
+    for back in (bt.SNESIM.from_parquet(path), pickle.loads(pickle.dumps(snesim))):
         same(summary_arrays(back.simulate(grid, n=3, seed=4, keep=True)), summary_arrays(summary))
 
 
@@ -436,12 +436,12 @@ def test_snesim_round_trip_simulates_bit_identically(tmp_path):
 def test_image_quilting_round_trip_simulates_bit_identically(categorical, tmp_path):
     x, y = np.meshgrid(np.arange(40), np.arange(40))
     image = ((y - 4 * np.sin(x / 5)) % 10 < 4) * 1.0 if categorical else np.sin(x / 5) * np.cos(y / 7)
-    ti = cs.BlockModel(
+    ti = bt.BlockModel(
         (0, 0), (1, 1), (40, 40), attributes={"v": image.ravel(), "s": (image + x / 40).ravel()}
     )
-    targets = cs.BlockModel((0, 0), (4, 4), (25, 25))
+    targets = bt.BlockModel((0, 0), (4, 4), (25, 25))
     data = {"values": facies % 2 if categorical else values}
-    simulator = cs.ImageQuilting(
+    simulator = bt.ImageQuilting(
         ti, "v", patch_size=8, n_best=4, secondary="s", secondary_weight=0.5, soft_weight=2.0
     )
     p1 = np.linspace(0, 1, 625)

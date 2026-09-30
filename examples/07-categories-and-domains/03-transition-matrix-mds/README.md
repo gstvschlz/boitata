@@ -2,14 +2,14 @@
 
 Which rock type follows which, going down a hole? `transition_matrix` tallies, for every composite, the class of
 composites one lag deeper in the same hole, into a `from`/`to` table shaped exactly like `domain_change`'s: rows
-the shallower rock, columns the deeper one, so `cs.plot.domain_change` draws it unmodified. `cs.plot.transition_mds`
+the shallower rock, columns the deeper one, so `bt.plot.domain_change` draws it unmodified. `bt.plot.transition_mds`
 turns the row frequencies into a dissimilarity and lays the rocks out in 2D by classical MDS, so ones that most
 often lie next to each other sit close together.
 
 <details><summary>Python</summary>
 
 ```python
-import ceres as cs
+import boitata as bt
 import numpy as np
 from common import save
 ```
@@ -24,18 +24,18 @@ the massive, semi-massive and stringer sulphides into one class.
 <details><summary>Python</summary>
 
 ```python
-data = cs.datasets.stacked_sulphide_lenses()
-intervals = cs.merge_intervals(data["assays"], data["lithology"])
-drillholes = cs.Drillholes(data["collars"], data["surveys"], intervals)
+data = bt.datasets.stacked_sulphide_lenses()
+intervals = bt.merge_intervals(data["assays"], data["lithology"])
+drillholes = bt.Drillholes(data["collars"], data["surveys"], intervals)
 composites = drillholes.composite(5.0, [], categories=["LITH"])
-scheme = cs.Categories(
+scheme = bt.Categories(
     ["OB", "HWS", "VCL", "SUL", "FWV"],
     mapping={"MS": "SUL", "SMS": "SUL", "STR": "SUL"},
     other="DYK",
     colors=["#d9d9d9", "#a9bfd3", "#8c8c8c", "#c05a28", "#1f4e79", "#e0c080"],
 )
 depth = (composites["from"] + composites["to"]) / 2
-table = cs.transition_matrix(depth, composites["LITH"], composites["HOLE_ID"], lag=5.0, scheme=scheme)
+table = bt.transition_matrix(depth, composites["LITH"], composites["HOLE_ID"], lag=5.0, scheme=scheme)
 print(f"{len(composites):,} composites, {int(np.sum(table['count'])):,} pairs 5 m apart")
 ```
 
@@ -53,7 +53,7 @@ staying in the same rock, is outlined and left blank.
 <details><summary>Python</summary>
 
 ```python
-fig, ax = cs.plot.domain_change(table, value="frequency", fmt="{:.0%}")
+fig, ax = bt.plot.domain_change(table, value="frequency", fmt="{:.0%}")
 ax.set(xlabel="Rock 5 m deeper", ylabel="Rock at a composite")
 save(fig, "matrix")
 ```
@@ -71,7 +71,7 @@ apart, matching how rarely either borders the others directly.
 <details><summary>Python</summary>
 
 ```python
-fig, ax = cs.plot.transition_mds(table)
+fig, ax = bt.plot.transition_mds(table)
 save(fig, "mds")
 ```
 

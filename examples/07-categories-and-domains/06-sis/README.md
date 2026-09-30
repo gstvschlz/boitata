@@ -9,7 +9,7 @@ simulating.
 <details><summary>Python</summary>
 
 ```python
-import ceres as cs
+import boitata as bt
 import matplotlib.pyplot as plt
 import numpy as np
 from common import ACCENT, GRAY, save
@@ -26,10 +26,10 @@ to 4 that SIS takes, and `shares` gives their proportions.
 <details><summary>Python</summary>
 
 ```python
-jura = cs.datasets.jura()
+jura = bt.datasets.jura()
 train, grid = jura["prediction"], jura["grid"]
 names = ["Argovian", "Kimmeridgian", "Sequanian", "Portlandian", "Quaternary"]
-rock_types = cs.Categories(names, colors=["#1f4e79", "#6f9fc9", "#c9d9ea", "#c05a28", "#8c8c8c"])
+rock_types = bt.Categories(names, colors=["#1f4e79", "#6f9fc9", "#c9d9ea", "#c05a28", "#8c8c8c"])
 rock = rock_types.encode(train["Rock"]).astype(int)
 true_rock = rock_types.encode(grid["Rock"]).astype(int)
 print(f"{len(rock)} samples, {len(true_rock)} grid nodes")
@@ -62,11 +62,11 @@ experimental, variograms = [], []
 for k in range(5):
     indicator = (rock == k).astype(float)
     if indicator.sum() >= 5:
-        experimental.append(cs.experimental_variogram(train.coords, indicator, 0.1, 1.5))
+        experimental.append(bt.experimental_variogram(train.coords, indicator, 0.1, 1.5))
         variograms.append(experimental[-1].fit("spherical"))
     else:
         experimental.append(None)
-        variograms.append(cs.Variogram([("spherical", indicator.var(), 0.5)]))
+        variograms.append(bt.Variogram([("spherical", indicator.var(), 0.5)]))
 for name, v in zip(names, variograms):
     s = v.structures[0]
     print(f"{name:<13}nugget {v.nugget:.3f}, sill {s.sill:.3f}, range {s.range:.2f} km")
@@ -110,7 +110,7 @@ save(fig, "variograms")
 <details><summary>Python</summary>
 
 ```python
-sis = cs.SIS(variograms, cs.Search(radius=1.5, max_samples=16)).fit(train, rock)
+sis = bt.SIS(variograms, bt.Search(radius=1.5, max_samples=16)).fit(train, rock)
 summary = sis.simulate(grid, n=20, seed=3, keep=True)
 maps = summary.realizations
 shares = np.array([rock_types.shares(m) for m in maps])
@@ -144,7 +144,7 @@ the most likely type matches at 64%; mean entropy 0.38
 <details><summary>Python</summary>
 
 ```python
-cmap, norm = cs.plot.category_colors(rock_types)
+cmap, norm = bt.plot.category_colors(rock_types)
 xy = grid.coords[:, :2].T
 fig, axes = plt.subplots(2, 3, figsize=(12, 9.5), layout="constrained")
 categorical = [(true_rock, "True rock types"), (maps[0], "Realization 1"), (maps[1], "Realization 2")]
@@ -163,7 +163,7 @@ for ax, values, title, label, color in (
 for ax in axes.flat:
     ax.set_aspect("equal")
     ax.set(xlabel="X (km)", ylabel="Y (km)")
-cs.plot.category_legend(rock_types, fig, loc="outside lower center", ncol=5)
+bt.plot.category_legend(rock_types, fig, loc="outside lower center", ncol=5)
 save(fig, "realizations")
 ```
 

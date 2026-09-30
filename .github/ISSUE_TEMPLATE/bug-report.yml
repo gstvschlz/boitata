@@ -8,7 +8,7 @@ body:
   attributes:
     value: >
       Thank you for reporting a bug. Please search the
-      [existing issues](https://github.com/gstvschlz/ceres/issues) first.
+      [existing issues](https://github.com/gstvschlz/boitata/issues) first.
 
 - type: textarea
   attributes:
@@ -22,9 +22,9 @@ body:
     label: "Reproduce the code example:"
     description: >
       A short, self-contained script we can run as-is. Use a dataset from
-      `cs.datasets` or small seeded synthetic data, not client data.
+      `bt.datasets` or small seeded synthetic data, not client data.
     placeholder: |
-      import ceres as cs
+      import boitata as bt
       << your code here >>
     render: python
   validations:
@@ -42,7 +42,7 @@ body:
   attributes:
     label: "Versions and platform:"
     description: >
-      Output of `import sys, platform, ceres; print(ceres.__version__, sys.version, platform.platform())`.
+      Output of `import sys, platform, boitata; print(boitata.__version__, sys.version, platform.platform())`.
   validations:
     required: true
 

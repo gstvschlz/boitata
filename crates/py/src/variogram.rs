@@ -1,4 +1,4 @@
-use ceres_core::{Geometry, Layout};
+use boitata_core::{Geometry, Layout};
 use numpy::IntoPyArray;
 use numpy::ndarray::Array3;
 use pyo3::prelude::*;
@@ -179,7 +179,7 @@ pub fn anisotropy(rotation: (f64, f64, f64), ratios: (f64, f64)) -> PyResult<Opt
 /// One nested structure: `sill` is the partial sill, `range` the range along
 /// the major axis.
 #[derive(Serialize, Deserialize)]
-#[pyclass(module = "ceres", name = "Structure", frozen, from_py_object)]
+#[pyclass(module = "boitata", name = "Structure", frozen, from_py_object)]
 #[derive(Clone)]
 pub struct Structure(pub CoreStructure);
 
@@ -256,7 +256,7 @@ fn structure(obj: &Bound<PyAny>) -> PyResult<CoreStructure> {
 /// (as in `LocalAnisotropy`) holds one per location; `ratios` are
 /// semi-major/major and minor/major range ratios.
 #[derive(Serialize, Deserialize)]
-#[pyclass(module = "ceres", name = "Variogram", frozen, from_py_object)]
+#[pyclass(module = "boitata", name = "Variogram", frozen, from_py_object)]
 #[derive(Clone)]
 pub struct Variogram(pub CoreVariogram);
 
@@ -482,7 +482,7 @@ impl Variogram {
 /// Lag centers, semivariances and pair counts; ``covariances`` holds C(h)
 /// for the covariance estimator, ρ(h) for the correlogram, and is None
 /// otherwise.
-#[pyclass(module = "ceres", name = "ExperimentalVariogram", frozen)]
+#[pyclass(module = "boitata", name = "ExperimentalVariogram", frozen)]
 pub struct ExperimentalVariogram(pub Experimental);
 
 #[pymethods]
@@ -824,7 +824,7 @@ fn dissemination<'py>(
 /// variogram for ``i == j``, else the cross-variogram, the same for
 /// ``(j, i)``. With ``directions`` each entry is a list, one per direction.
 /// `Coregionalization.fit` takes the set as it is, directions included.
-#[pyclass(module = "ceres", name = "VariogramSet", frozen)]
+#[pyclass(module = "boitata", name = "VariogramSet", frozen)]
 pub struct VariogramSet {
     entries: Vec<Vec<Option<Vec<Experimental>>>>,
     names: Vec<Option<String>>,
@@ -1013,7 +1013,7 @@ fn _realization_variograms(
 }
 
 /// γ on a plane as an angle × lag grid, with the fitted range per angle.
-#[pyclass(module = "ceres", name = "VariogramMap", frozen)]
+#[pyclass(module = "boitata", name = "VariogramMap", frozen)]
 pub struct VariogramMap {
     #[pyo3(get)]
     lags: Py<PyAny>,
@@ -1145,7 +1145,7 @@ fn matrix(
 ///     Major, semi-major and minor ranges.
 /// ratios : tuple of float
 ///     Semi-major and minor over major range, for ``Variogram(ratios=...)``.
-#[pyclass(module = "ceres", name = "VariogramVolume", frozen)]
+#[pyclass(module = "boitata", name = "VariogramVolume", frozen)]
 pub struct VariogramVolume {
     #[pyo3(get)]
     lags: Py<PyAny>,
@@ -1233,7 +1233,7 @@ fn variogram_volume(
             .unbind()
     };
     let a = &v.angles;
-    let frame = ceres_core::rotation_matrix(a.azimuth, a.dip, a.rake);
+    let frame = boitata_core::rotation_matrix(a.azimuth, a.dip, a.rake);
     let axes = frame
         .row_iter()
         .map(|row| {
@@ -1268,7 +1268,7 @@ fn variogram_volume(
 /// are symmetric positive semi-definite `nvar × nvar` matrices, else
 /// InvalidInput is raised. `rotation` and `ratios` are as in `Variogram`.
 #[derive(Serialize, Deserialize)]
-#[pyclass(module = "ceres", name = "Coregionalization", frozen)]
+#[pyclass(module = "boitata", name = "Coregionalization", frozen)]
 pub struct Coregionalization(pub CoreCoreg);
 
 #[pymethods]
@@ -1498,7 +1498,7 @@ impl Coregionalization {
 }
 
 /// Markov transiogram for categories with the given proportions.
-#[pyclass(module = "ceres", name = "Transiogram", frozen)]
+#[pyclass(module = "boitata", name = "Transiogram", frozen)]
 pub struct Transiogram(CoreTransiogram);
 
 #[pymethods]

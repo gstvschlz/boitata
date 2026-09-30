@@ -7,15 +7,15 @@ random path.
 <details><summary>Python</summary>
 
 ```python
-import ceres as cs
+import boitata as bt
 import matplotlib.pyplot as plt
 import numpy as np
 from common import GRAY, HIGHLIGHT, LIGHT, map_axes, save
 from matplotlib.colors import PowerNorm
 
-samples = cs.datasets.walker_lake()
+samples = bt.datasets.walker_lake()
 xy, v = samples.coords, samples["V"]
-grid = cs.BlockModel(origin=(0.5, 0.5), size=(5, 5), count=(52, 60))
+grid = bt.BlockModel(origin=(0.5, 0.5), size=(5, 5), count=(52, 60))
 ```
 
 </details>
@@ -26,13 +26,13 @@ across it, scaled to a unit sill:
 <details><summary>Python</summary>
 
 ```python
-weights = cs.cell_declustering(xy, v, sizes=np.arange(2.5, 102.5, 2.5)).weights
-y = cs.NormalScore(tails=(0.0, v.max())).fit_transform(v, weights=weights)
-major = cs.experimental_variogram(xy, y, 10.0, 120.0, azimuth=170).fit("spherical")
-minor = cs.experimental_variogram(xy, y, 10.0, 120.0, azimuth=260).fit("spherical")
+weights = bt.cell_declustering(xy, v, sizes=np.arange(2.5, 102.5, 2.5)).weights
+y = bt.NormalScore(tails=(0.0, v.max())).fit_transform(v, weights=weights)
+major = bt.experimental_variogram(xy, y, 10.0, 120.0, azimuth=170).fit("spherical")
+minor = bt.experimental_variogram(xy, y, 10.0, 120.0, azimuth=260).fit("spherical")
 (structure,) = major.structures
 ratio = min(minor.structures[0].range / structure.range, 1.0)
-gaussian = cs.Variogram(
+gaussian = bt.Variogram(
     [("spherical", structure.sill / major.sill, structure.range)],
     nugget=major.nugget / major.sill,
     rotation=(170, 0, 0),
@@ -52,8 +52,8 @@ Both methods normal-score the data, simulate and back-transform; `bands` sets ho
 <details><summary>Python</summary>
 
 ```python
-sgs = cs.SGS(gaussian, cs.Search(radius=100, max_samples=24)).fit(samples, "V", weights=weights)
-tb = cs.TurningBands(gaussian, bands=500).fit(samples, "V", weights=weights)
+sgs = bt.SGS(gaussian, bt.Search(radius=100, max_samples=24)).fit(samples, "V", weights=weights)
+tb = bt.TurningBands(gaussian, bands=500).fit(samples, "V", weights=weights)
 start = time.perf_counter()
 by_sgs = sgs.simulate(grid, n=20, seed=5, keep=True).realizations
 sgs_seconds = time.perf_counter() - start
@@ -109,8 +109,8 @@ h = np.linspace(0, 120, 200)
 fig, axes = plt.subplots(1, 2, figsize=(10, 3.8), layout="constrained", sharey=True)
 for ax, (name, reals) in zip(axes, (("SGS", by_sgs), ("Turning bands", by_tb))):
     for r in reals:
-        scores = cs.NormalScore().fit_transform(r)
-        exp = cs.experimental_variogram(grid.centroids, scores, 10.0, 120.0, azimuth=170)
+        scores = bt.NormalScore().fit_transform(r)
+        exp = bt.experimental_variogram(grid.centroids, scores, 10.0, 120.0, azimuth=170)
         ax.plot(exp.lags, exp.gammas, color=LIGHT, lw=0.8)
     ax.plot(h, gaussian.gamma(h), color=HIGHLIGHT, lw=1.4, label="model")
     ax.plot([], [], color=LIGHT, label="20 realizations")

@@ -8,16 +8,16 @@ a point cloud (`from_points`) or a wireframe (`from_mesh`).
 <details><summary>Python</summary>
 
 ```python
-import ceres as cs
+import boitata as bt
 import matplotlib.pyplot as plt
 import numpy as np
 from common import ACCENT, map_axes, save
 from matplotlib.colors import PowerNorm
 
-samples = cs.datasets.walker_lake()
-truth = cs.datasets.walker_lake_exhaustive()["V"].reshape(300, 260)
+samples = bt.datasets.walker_lake()
+truth = bt.datasets.walker_lake_exhaustive()["V"].reshape(300, 260)
 xy, v = samples.coords, samples["V"]
-grid = cs.BlockModel(origin=(0.5, 0.5), size=(5, 5), count=(52, 60))
+grid = bt.BlockModel(origin=(0.5, 0.5), size=(5, 5), count=(52, 60))
 nodes = grid.centroids.astype(int)
 true_at_nodes = truth[nodes[:, 1] - 1, nodes[:, 0] - 1]
 ```
@@ -31,10 +31,10 @@ by the long one.
 
 ```python
 azimuth, lag, max_lag = 170.0, 10.0, 120.0
-along = cs.experimental_variogram(xy, v, lag, max_lag, azimuth=azimuth).fit(
+along = bt.experimental_variogram(xy, v, lag, max_lag, azimuth=azimuth).fit(
     ["spherical", "spherical"], weighting="count/gamma"
 )
-across = cs.experimental_variogram(xy, v, lag, max_lag, azimuth=azimuth + 90).fit(
+across = bt.experimental_variogram(xy, v, lag, max_lag, azimuth=azimuth + 90).fit(
     ["spherical", "spherical"],
     weighting="count/gamma",
     nugget=along.nugget,
@@ -58,9 +58,9 @@ The structure tensor sums gradients over 3 cells each side, and smoothing averag
 <details><summary>Python</summary>
 
 ```python
-isotropic = cs.Variogram([("spherical", model.sill - model.nugget, 30.0)], nugget=model.nugget)
-guide = cs.OrdinaryKriging(isotropic, cs.Search(radius=60, max_samples=16)).fit(xy, v).predict(grid)
-lva = cs.LocalAnisotropy.from_grid(
+isotropic = bt.Variogram([("spherical", model.sill - model.nugget, 30.0)], nugget=model.nugget)
+guide = bt.OrdinaryKriging(isotropic, bt.Search(radius=60, max_samples=16)).fit(xy, v).predict(grid)
+lva = bt.LocalAnisotropy.from_grid(
     grid.with_column("guide", guide), "guide", window=3, ratios=(0.3, 1.0)
 ).smooth(25.0)
 print(lva)
@@ -88,7 +88,7 @@ ax.imshow(
     norm=PowerNorm(0.5, vmin=0, vmax=1200),
 )
 every = (nodes[:, 0] % 15 == 3) & (nodes[:, 1] % 15 == 3)
-cs.plot.directions(lva.at(grid.centroids[every]), ax=ax, scale=35, width=0.004, color=ACCENT)
+bt.plot.directions(lva.at(grid.centroids[every]), ax=ax, scale=35, width=0.004, color=ACCENT)
 map_axes(ax, "Local major direction over the guide estimate")
 save(fig, "field")
 ```
@@ -102,8 +102,8 @@ Same model, same search; only the orientation changes. Errors are against the ex
 <details><summary>Python</summary>
 
 ```python
-search = cs.Search(radius=100, max_samples=24, min_samples=4)
-ok = cs.OrdinaryKriging(model, search).fit(xy, v)
+search = bt.Search(radius=100, max_samples=24, min_samples=4)
+ok = bt.OrdinaryKriging(model, search).fit(xy, v)
 global_estimate = ok.predict(grid)
 local_estimate = ok.predict(grid, anisotropy=lva)
 for name, estimate in ((f"global N{model.rotation[0]:.0f}°", global_estimate), ("local", local_estimate)):
@@ -150,11 +150,11 @@ supplies the orientation and the ratios.
 <details><summary>Python</summary>
 
 ```python
-weights = cs.cell_declustering(xy, v, sizes=np.arange(2.5, 102.5, 2.5)).weights
-scores = cs.NormalScore().fit_transform(v, weights=weights)
-gaussian = cs.experimental_variogram(xy, scores, lag, max_lag, azimuth=azimuth).fit("spherical")
-sgs = cs.SGS(gaussian, cs.Search(radius=100, max_samples=24)).fit(xy, v, weights=weights)
-uniform = cs.LocalAnisotropy(np.zeros((1, 3)), [model.rotation], [model.ratios])
+weights = bt.cell_declustering(xy, v, sizes=np.arange(2.5, 102.5, 2.5)).weights
+scores = bt.NormalScore().fit_transform(v, weights=weights)
+gaussian = bt.experimental_variogram(xy, scores, lag, max_lag, azimuth=azimuth).fit("spherical")
+sgs = bt.SGS(gaussian, bt.Search(radius=100, max_samples=24)).fit(xy, v, weights=weights)
+uniform = bt.LocalAnisotropy(np.zeros((1, 3)), [model.rotation], [model.ratios])
 global_real = sgs.simulate(grid, n=1, seed=11, keep=True, anisotropy=uniform).realizations[0]
 local_real = sgs.simulate(grid, n=1, seed=11, keep=True, anisotropy=lva).realizations[0]
 

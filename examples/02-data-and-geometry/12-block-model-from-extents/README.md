@@ -9,13 +9,13 @@ a rotated one that follows the lenses, and finally only the blocks inside them.
 <details><summary>Python</summary>
 
 ```python
-import ceres as cs
+import boitata as bt
 import matplotlib.pyplot as plt
 import numpy as np
 from common import ACCENT, GRAY, LIGHT, map_axes, save
 
-data = cs.datasets.stacked_sulphide_lenses()
-holes = cs.Drillholes(data["collars"], data["surveys"], data["assays"])
+data = bt.datasets.stacked_sulphide_lenses()
+holes = bt.Drillholes(data["collars"], data["surveys"], data["assays"])
 lenses = [data[f"lens_{i}"] for i in (1, 2, 3)]
 size = (20, 20, 10)
 ```
@@ -28,8 +28,8 @@ is a quarter of it. `snap=True` puts both origins on multiples of the block size
 <details><summary>Python</summary>
 
 ```python
-drilled = cs.BlockModel.from_extents(holes, size=size, snap=True)
-around = cs.BlockModel.from_extents(*lenses, size=size, buffer=20, snap=True)
+drilled = bt.BlockModel.from_extents(holes, size=size, snap=True)
+around = bt.BlockModel.from_extents(*lenses, size=size, buffer=20, snap=True)
 for name, model in [("drill holes", drilled), ("lenses + 20 m", around)]:
     print(f"{name:14} origin {model.origin}  count {model.count}  {len(model):,} blocks")
 
@@ -70,7 +70,7 @@ across the lenses) needs far fewer blocks for the same buffer: the extents are m
 
 ```python
 rotation = (22.5, 0.0, 55.0)
-aligned = cs.BlockModel.from_extents(*lenses, size=size, buffer=20, rotation=rotation)
+aligned = bt.BlockModel.from_extents(*lenses, size=size, buffer=20, rotation=rotation)
 print(f"aligned        count {aligned.count}  {len(aligned):,} blocks ({len(aligned) / len(around):.0%})")
 ```
 

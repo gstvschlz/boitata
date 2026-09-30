@@ -4,21 +4,21 @@ Grade control asks where each hole is ore: the contiguous runs of samples above 
 length-weighted grade. Raw runs follow every sample, but a mine cannot dig a 1 m pod of ore or skip a 1 m band of
 waste. `Drillholes.runs` cleans them with three rules: internal dilution takes short waste bands into the ore around
 them, an edge skin adds waste on each side of every ore run, and a minimum mining length merges short runs into their
-neighbors. `cs.plot.strip_log` draws the result down a hole, beside the lithology and the grade.
+neighbors. `bt.plot.strip_log` draws the result down a hole, beside the lithology and the grade.
 
 <details><summary>Python</summary>
 
 ```python
-import ceres as cs
+import boitata as bt
 import matplotlib.pyplot as plt
 import numpy as np
 from common import ACCENT, GRAY, HIGHLIGHT, LIGHT, save
 
-data = cs.datasets.vein_gold_grade_control()
+data = bt.datasets.vein_gold_grade_control()
 kind = dict(zip(data["collars"]["HOLE_ID"], data["collars"]["TYPE"], strict=True))
-intervals = cs.merge_intervals(data["assays"], data["lithology"])
+intervals = bt.merge_intervals(data["assays"], data["lithology"])
 intervals = intervals.filter(np.array([kind[h] == "DD" for h in intervals["HOLE_ID"]]))
-holes = cs.Drillholes(data["collars"], data["surveys"], intervals)
+holes = bt.Drillholes(data["collars"], data["surveys"], intervals)
 length = np.asarray(intervals["TO"]) - np.asarray(intervals["FROM"])
 metal = np.nansum(np.asarray(intervals["AU_GPT"]) * length)
 print(f"{np.sum(length[~np.isnan(intervals['AU_GPT'])]):.0f} m of assayed core, {metal:.0f} g/t x m of gold")
@@ -116,12 +116,12 @@ assay, from zero at the left of its track to the highest assay of the holes draw
 
 ```python
 final = runs["+ minimum 2 m"]
-lith = cs.Categories(["AND", "BX", "QV", "RHY"], colors=[LIGHT, GRAY, HIGHLIGHT, "#f2e0c9"])
-vein = cs.Categories(["V1", "V2", "V3", "V4"])
+lith = bt.Categories(["AND", "BX", "QV", "RHY"], colors=[LIGHT, GRAY, HIGHLIGHT, "#f2e0c9"])
+vein = bt.Categories(["V1", "V2", "V3", "V4"])
 windows = {"UD0030": (150, 170), "UD0037": (258, 282), "UD0044": (114, 136)}
 fig, axes = plt.subplots(1, 3, figsize=(10, 4.8), layout="constrained")
 for ax, (hole, (top, bottom)) in zip(axes, windows.items(), strict=True):
-    cs.plot.strip_log(
+    bt.plot.strip_log(
         holes,
         hole,
         columns=["AU_GPT"],

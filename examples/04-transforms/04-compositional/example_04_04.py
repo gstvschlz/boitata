@@ -14,19 +14,19 @@ HERE = Path(__file__).parent if "__file__" in globals() else Path.cwd()
 sys.path.insert(0, str(HERE.parents[1]))
 
 # %%
-import ceres as cs
+import boitata as bt
 import matplotlib.pyplot as plt
 import numpy as np
 from common import ACCENT, GRAY, INK, save
 
-data = cs.datasets.porphyry_geometallurgy(deposit=1)["synthetic_drillholes"]
+data = bt.datasets.porphyry_geometallurgy(deposit=1)["synthetic_drillholes"]
 minerals = ["arcilla", "calcosina", "bornita", "calcopirita", "tenantita", "molibdenita", "pirita"]
 names = ["clay", "chalcocite", "bornite", "chalcopyrite", "tennantite", "molybdenite", "pyrite", "rest"]
 parts = np.column_stack([data[m] for m in minerals])
 parts = np.column_stack([parts, 100 - parts.sum(axis=1)])
 
 assert (parts > 0).all(), "log-ratios need positive parts"
-composition = cs.closure(parts, total=100)
+composition = bt.closure(parts, total=100)
 
 
 # %% [markdown]
@@ -35,10 +35,10 @@ composition = cs.closure(parts, total=100)
 # The way back must return every composition.
 
 # %%
-coords = cs.ilr(composition)
-ppmt = cs.PPMT(iterations=40, seed=7)
+coords = bt.ilr(composition)
+ppmt = bt.PPMT(iterations=40, seed=7)
 gauss = ppmt.fit_transform(coords)
-back = cs.ilr_inverse(ppmt.inverse_transform(gauss)) * 100
+back = bt.ilr_inverse(ppmt.inverse_transform(gauss)) * 100
 print(f"round trip max error {np.abs(back - composition).max():.2e} %")
 
 

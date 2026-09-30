@@ -7,7 +7,7 @@ so the grade maps carry that uncertainty too.
 <details><summary>Python</summary>
 
 ```python
-import ceres as cs
+import boitata as bt
 import matplotlib.pyplot as plt
 import numpy as np
 from common import save
@@ -23,10 +23,10 @@ indicator variograms fitted to the samples; Portlandian, with 3 samples, gets a 
 <details><summary>Python</summary>
 
 ```python
-jura = cs.datasets.jura()
+jura = bt.datasets.jura()
 train, grid = jura["prediction"], jura["grid"]
 names = ["Argovian", "Kimmeridgian", "Sequanian", "Portlandian", "Quaternary"]
-rock_types = cs.Categories(names)
+rock_types = bt.Categories(names)
 rock = rock_types.encode(train["Rock"]).astype(int)
 true_rock = rock_types.encode(grid["Rock"]).astype(int)
 
@@ -34,11 +34,11 @@ indicator_variograms = []
 for k in range(5):
     indicator = (rock == k).astype(float)
     if indicator.sum() >= 5:
-        fitted = cs.experimental_variogram(train.coords, indicator, 0.1, 1.5).fit("spherical")
+        fitted = bt.experimental_variogram(train.coords, indicator, 0.1, 1.5).fit("spherical")
     else:
-        fitted = cs.Variogram([("spherical", indicator.var(), 0.5)])
+        fitted = bt.Variogram([("spherical", indicator.var(), 0.5)])
     indicator_variograms.append(fitted)
-sis = cs.SIS(indicator_variograms, cs.Search(radius=1.5, max_samples=16)).fit(train, rock)
+sis = bt.SIS(indicator_variograms, bt.Search(radius=1.5, max_samples=16)).fit(train, rock)
 by_sis = sis.simulate(grid, n=10, seed=3, keep=True).realizations
 print(f"rock-type realizations: {by_sis.shape}")
 print(f"{'Co (ppm)':<14}{'samples':>8}{'mean':>7}")
@@ -71,9 +71,9 @@ the SIS realizations, which gives each Co realization its own rock-type map.
 co = train["Co"]
 co_scores = np.empty(len(co))
 for k in range(5):
-    co_scores[rock == k] = cs.NormalScore().fit_transform(co[rock == k])
-co_variogram = cs.experimental_variogram(train.coords, co_scores, 0.1, 1.5).fit("spherical")
-cobalt = cs.SGS(co_variogram, cs.Search(radius=1.5, max_samples=16)).fit(train, "Co", domains=rock)
+    co_scores[rock == k] = bt.NormalScore().fit_transform(co[rock == k])
+co_variogram = bt.experimental_variogram(train.coords, co_scores, 0.1, 1.5).fit("spherical")
+cobalt = bt.SGS(co_variogram, bt.Search(radius=1.5, max_samples=16)).fit(train, "Co", domains=rock)
 within_true = cobalt.simulate(grid, n=10, seed=3, keep=True, domains=true_rock).realizations
 within_sis = cobalt.simulate(grid, n=10, seed=3, keep=True, domains=by_sis).realizations
 

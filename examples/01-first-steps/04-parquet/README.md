@@ -9,7 +9,7 @@ table. Fitted estimators and categorical estimates are saved the same way.
 ```python
 import tempfile
 
-import ceres as cs
+import boitata as bt
 import matplotlib.pyplot as plt
 import numpy as np
 import polars as pl
@@ -24,14 +24,14 @@ the cells above 500 ppm are kept in a masked model.
 <details><summary>Python</summary>
 
 ```python
-samples = cs.datasets.walker_lake()
+samples = bt.datasets.walker_lake()
 azimuths = np.arange(0, 180, 22.5)
-directional = [cs.experimental_variogram(samples, "V", 10.0, 120.0, azimuth=a) for a in azimuths]
-model = cs.Variogram.fit_directional(
+directional = [bt.experimental_variogram(samples, "V", 10.0, 120.0, azimuth=a) for a in azimuths]
+model = bt.Variogram.fit_directional(
     directional, [(a, 0) for a in azimuths], ["spherical", "spherical"], weighting="count/gamma"
 )
-grid = cs.BlockModel(origin=(0.5, 0.5), size=(1, 1), count=(260, 300), crs="local grid")
-kriging = cs.OrdinaryKriging(model, cs.Search(radius=100, max_samples=24, min_samples=4)).fit(samples, "V")
+grid = bt.BlockModel(origin=(0.5, 0.5), size=(1, 1), count=(260, 300), crs="local grid")
+kriging = bt.OrdinaryKriging(model, bt.Search(radius=100, max_samples=24, min_samples=4)).fit(samples, "V")
 estimate, variance = kriging.predict(grid, return_variance=True)
 grid = grid.with_column("estimate", estimate).with_column("variance", variance)
 rich = grid.mask(grid["estimate"] > 500)
@@ -56,13 +56,13 @@ The masked model keeps 10273 of the 78000 cells; its cell index is stored with t
 
 ```python
 folder = Path(tempfile.mkdtemp())
-cs.write_parquet(folder / "grid.parquet", grid)
-cs.write_parquet(folder / "rich.parquet", rich)
-cs.write_csv(folder / "grid.csv", grid)
+bt.write_parquet(folder / "grid.parquet", grid)
+bt.write_parquet(folder / "rich.parquet", rich)
+bt.write_csv(folder / "grid.csv", grid)
 for name in ("grid.parquet", "rich.parquet", "grid.csv"):
     print(f"{name:>13}: {(folder / name).stat().st_size / 1e6:.2f} MB")
 
-back = cs.read_parquet(folder / "rich.parquet")
+back = bt.read_parquet(folder / "rich.parquet")
 print(back)
 print("same cells:", np.array_equal(back.index, rich.index), "| crs:", back.crs)
 ```
@@ -126,7 +126,7 @@ in the file metadata. The estimator read back predicts exactly the same values. 
 ```python
 kriging.to_parquet(folder / "kriging.parquet")
 print(pl.read_parquet(folder / "kriging.parquet").head(3))
-again = cs.OrdinaryKriging.from_parquet(folder / "kriging.parquet")
+again = bt.OrdinaryKriging.from_parquet(folder / "kriging.parquet")
 print("same estimates:", np.array_equal(again.predict(grid), estimate, equal_nan=True))
 ```
 
@@ -153,14 +153,14 @@ as JSON in the metadata.
 <details><summary>Python</summary>
 
 ```python
-scheme = cs.Categories(["T1", "T2"], mapping={1: "T1", 2: "T2"}, colors=[LIGHT, ACCENT])
-types = cs.CategoricalIndicatorKriging(
-    cs.Variogram([("spherical", 0.25, 60.0)]), cs.Search(radius=80, max_samples=16), scheme=scheme
+scheme = bt.Categories(["T1", "T2"], mapping={1: "T1", 2: "T2"}, colors=[LIGHT, ACCENT])
+types = bt.CategoricalIndicatorKriging(
+    bt.Variogram([("spherical", 0.25, 60.0)]), bt.Search(radius=80, max_samples=16), scheme=scheme
 ).fit(samples, "T")
-summary = types.predict(cs.BlockModel(origin=(2.5, 2.5), size=(5, 5), count=(52, 60)))
+summary = types.predict(bt.BlockModel(origin=(2.5, 2.5), size=(5, 5), count=(52, 60)))
 summary.to_parquet(folder / "types.parquet")
 print(pl.read_parquet(folder / "types.parquet").head(3))
-kept = cs.CategoricalIndicatorSummary.from_parquet(folder / "types.parquet")
+kept = bt.CategoricalIndicatorSummary.from_parquet(folder / "types.parquet")
 print(
     "same scheme:",
     kept.scheme == scheme,
@@ -195,14 +195,14 @@ from a long table with one row per vertex.
 ```python
 pit = [[60, 80], [60, 240], [200, 240], [200, 80]]
 core = [[110, 140], [150, 140], [150, 190], [110, 190]]
-pits = cs.Polylines([pit, core], closed=True, features=[0, 0], attributes={"name": ["pit"]}, crs="local grid")
-cs.write_parquet(folder / "pit.parquet", pits)
+pits = bt.Polylines([pit, core], closed=True, features=[0, 0], attributes={"name": ["pit"]}, crs="local grid")
+bt.write_parquet(folder / "pit.parquet", pits)
 print(pl.read_parquet(folder / "pit.parquet"))
-pits = cs.read_parquet(folder / "pit.parquet")
+pits = bt.read_parquet(folder / "pit.parquet")
 print(pits)
 
 vertices = pl.DataFrame({"ID": ["A-A'", "A-A'"], "X": [20.0, 240.0], "Y": [160.0, 160.0]})
-lines = cs.Polylines.from_table(vertices)
+lines = bt.Polylines.from_table(vertices)
 print(lines)
 
 fig, ax = plt.subplots(figsize=(5, 5.2), layout="constrained")

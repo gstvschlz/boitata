@@ -249,7 +249,7 @@ fn band_step(vg: &Variogram, params: &TurningBandsParams) -> f64 {
 
 /// A standard-normal draw fixed by `key` and the coordinates of `p`.
 fn white(key: u64, p: &(f64, f64, f64)) -> f64 {
-    let mix = ceres_core::rng::splitmix;
+    let mix = boitata_core::rng::splitmix;
     let h = [p.0, p.1, p.2]
         .iter()
         .fold(key, |h, v| mix(h ^ (v + 0.0).to_bits()));
@@ -540,7 +540,7 @@ pub fn conditional_gaussian_field(
 }
 
 /// `n` conditional turning-bands realizations (realization `k` seeded by
-/// [`ceres_core::rng::realization_seed`])
+/// [`boitata_core::rng::realization_seed`])
 /// prepared over a box, so they can be evaluated at any targets inside it —
 /// all at once or chunk by chunk, with the same values.
 ///
@@ -593,7 +593,7 @@ impl TurningBandsEnsemble {
         let hi = std::array::from_fn(|i| hi[i].max(dhi[i]));
         let layout = Layout::new(lo, hi, vg_nscore, params);
         let seeds: Vec<u64> = (0..n)
-            .map(|k| ceres_core::rng::realization_seed(params.seed, k as u64))
+            .map(|k| boitata_core::rng::realization_seed(params.seed, k as u64))
             .collect();
         let (bands, at_data) = layout.simulate(params, data_locs, &seeds);
         let data = data(data_locs, data_vals, holes, data_domains);
@@ -650,7 +650,7 @@ impl TurningBandsEnsemble {
         let hi = std::array::from_fn(|i| hi[i].max(dhi[i]));
         let seeds: Vec<u64> = seeds
             .iter()
-            .map(|&s| ceres_core::rng::realization_seed(s, 0))
+            .map(|&s| boitata_core::rng::realization_seed(s, 0))
             .collect();
         let (bands, at_data) =
             Layout::new(lo, hi, vg_nscore, params).simulate(params, data_locs, &seeds);
@@ -890,7 +890,7 @@ impl TurningBandsEnsemble {
         domains: Option<&[u32]>,
         trend: Option<&[f64]>,
         options: &ContinuousOptions,
-        progress: Option<&ceres_core::Progress>,
+        progress: Option<&boitata_core::Progress>,
     ) -> Result<ContinuousSummary> {
         continuous_batched(
             self.len(),
@@ -973,7 +973,7 @@ pub fn turning_bands_in(
 /// `domains` are the codes of the data and of every block, in file order;
 /// `trend` is the trend at the data, its number of classes and the input
 /// column holding it at the blocks. Each block is simulated at
-/// `discretization` nodes per axis, as [`ceres_core::BlockModel::discretize`],
+/// `discretization` nodes per axis, as [`boitata_core::BlockModel::discretize`],
 /// averaged by volume as in [`BlockSupport`]; `[1, 1, 1]` is its centroid.
 /// A node takes the domain and trend of its block.
 #[allow(clippy::too_many_arguments)]
@@ -992,9 +992,9 @@ pub fn turning_bands_to_parquet(
     options: &ContinuousOptions,
     rows: usize,
     discretization: [usize; 3],
-    progress: Option<&ceres_core::Progress>,
+    progress: Option<&boitata_core::Progress>,
 ) -> Result<GlobalSummary> {
-    let reader = ceres_io::BlockModelReader::open(&input)?;
+    let reader = boitata_io::BlockModelReader::open(&input)?;
     if domains.is_some_and(|d| d.1.len() != reader.len()) {
         return Err(SimError::InvalidParameters("one domain per block".into()));
     }
@@ -1010,7 +1010,7 @@ pub fn turning_bands_to_parquet(
     for chunk in reader.chunks(rows, Some(&[]))? {
         let nodes = chunk?
             .discretize(discretization)
-            .map_err(ceres_io::Error::from)?;
+            .map_err(boitata_io::Error::from)?;
         let (clo, chi) = bounds(&points(&nodes));
         lo = std::array::from_fn(|i| lo[i].min(clo[i]));
         hi = std::array::from_fn(|i| hi[i].max(chi[i]));
@@ -1028,7 +1028,7 @@ pub fn turning_bands_to_parquet(
         params,
         n,
     )?;
-    let writer = ceres_io::BlockModelWriter::create(
+    let writer = boitata_io::BlockModelWriter::create(
         output,
         *reader.geometry(),
         reader.layout(),
@@ -1041,7 +1041,7 @@ pub fn turning_bands_to_parquet(
     let rows = quantile_rows(rows, n, options.quantiles.len());
     let mut total = 0.0;
     std::thread::scope(|scope| -> Result<()> {
-        let (send, receive) = std::sync::mpsc::sync_channel::<ceres_core::BlockModel>(1);
+        let (send, receive) = std::sync::mpsc::sync_channel::<boitata_core::BlockModel>(1);
         let writing = scope.spawn(move || -> Result<()> {
             let mut writer = writer;
             for chunk in receive {
@@ -1106,7 +1106,7 @@ pub fn turning_bands_to_parquet(
                     );
                     out = out
                         .with_column(&name, std::sync::Arc::new(column))
-                        .map_err(ceres_io::Error::from)?;
+                        .map_err(boitata_io::Error::from)?;
                 }
                 if let Some(p) = progress {
                     p.inc_by(m as u64);
@@ -1131,14 +1131,14 @@ pub fn turning_bands_to_parquet(
 /// The simulation nodes of the rows of `chunk`, `n` per axis, the row of each
 /// and their averaging to the rows; the centroids when `n` is `[1, 1, 1]`.
 fn block_nodes(
-    chunk: &ceres_core::BlockModel,
+    chunk: &boitata_core::BlockModel,
     n: [usize; 3],
 ) -> Result<(Vec<(f64, f64, f64)>, Vec<usize>, Option<BlockSupport>)> {
     if n == [1, 1, 1] {
         return Ok((points(chunk), (0..chunk.len()).collect(), None));
     }
     use arrow_array::cast::AsArray;
-    let fine = chunk.discretize(n).map_err(ceres_io::Error::from)?;
+    let fine = chunk.discretize(n).map_err(boitata_io::Error::from)?;
     let owner = fine
         .attributes()
         .column_by_name("block")
@@ -1154,7 +1154,7 @@ fn block_nodes(
 }
 
 /// Column `name` of `chunk` as f64; nulls are an error.
-fn float_column(chunk: &ceres_core::BlockModel, name: &str) -> Result<Vec<f64>> {
+fn float_column(chunk: &boitata_core::BlockModel, name: &str) -> Result<Vec<f64>> {
     use arrow_array::cast::AsArray;
     use arrow_array::types::{Float32Type, Float64Type};
     let column = chunk
@@ -1189,7 +1189,7 @@ pub struct GlobalSummary {
     pub realization_above: Vec<Vec<f64>>,
 }
 
-fn points(model: &ceres_core::BlockModel) -> Vec<(f64, f64, f64)> {
+fn points(model: &boitata_core::BlockModel) -> Vec<(f64, f64, f64)> {
     model
         .centroids()
         .into_iter()
@@ -1437,7 +1437,7 @@ mod tests {
 
     #[test]
     fn streamed_summaries_equal_the_in_memory_ones() {
-        use ceres_core::{BlockModel, Geometry};
+        use boitata_core::{BlockModel, Geometry};
         let data_locs: Vec<_> = (0..40)
             .map(|i| {
                 (
@@ -1463,8 +1463,8 @@ mod tests {
         )
         .unwrap();
         let model = BlockModel::regular(geometry, empty).unwrap();
-        let input = std::env::temp_dir().join(format!("ceres-tb-{}.parquet", std::process::id()));
-        ceres_io::write_block_model(&input, &model, None).unwrap();
+        let input = std::env::temp_dir().join(format!("boitata-tb-{}.parquet", std::process::id()));
+        boitata_io::write_block_model(&input, &model, None).unwrap();
         let vg = Variogram::single(Model::Spherical, 1.0, 20.0);
         let params = TurningBandsParams {
             n_bands: 60,
@@ -1498,7 +1498,7 @@ mod tests {
             .unwrap();
             for rows in [7, 160] {
                 let output = input.with_extension(format!("{rows}.parquet"));
-                let bar = ceres_core::Progress::new(None);
+                let bar = boitata_core::Progress::new(None);
                 let global = turning_bands_to_parquet(
                     &input,
                     &output,
@@ -1518,7 +1518,8 @@ mod tests {
                 )
                 .unwrap();
                 assert_eq!(bar.snapshot().0, grid.len() as u64);
-                let ceres_io::Stored::Blocks(back) = ceres_io::read_parquet(&output, None).unwrap()
+                let boitata_io::Stored::Blocks(back) =
+                    boitata_io::read_parquet(&output, None).unwrap()
                 else {
                     panic!("expected a block model")
                 };
@@ -1566,7 +1567,7 @@ mod tests {
     #[test]
     fn streamed_blocks_average_the_discretized_realizations() {
         use arrow_array::cast::AsArray;
-        use ceres_core::{BlockModel, Geometry};
+        use boitata_core::{BlockModel, Geometry};
         let data_locs: Vec<_> = (0..30)
             .map(|i| ((i * 7 % 40) as f64 + 0.3, (i * 11 % 30) as f64 + 0.6, 1.0))
             .collect();
@@ -1590,8 +1591,8 @@ mod tests {
         .unwrap();
         let model = BlockModel::regular(geometry, columns).unwrap();
         let input =
-            std::env::temp_dir().join(format!("ceres-tb-blocks-{}.parquet", std::process::id()));
-        ceres_io::write_block_model(&input, &model, None).unwrap();
+            std::env::temp_dir().join(format!("boitata-tb-blocks-{}.parquet", std::process::id()));
+        boitata_io::write_block_model(&input, &model, None).unwrap();
         let vg = Variogram::single(Model::Spherical, 1.0, 20.0);
         let params = TurningBandsParams {
             n_bands: 60,
@@ -1656,7 +1657,8 @@ mod tests {
                         )
                     })
                     .unwrap();
-                let ceres_io::Stored::Blocks(back) = ceres_io::read_parquet(&output, None).unwrap()
+                let boitata_io::Stored::Blocks(back) =
+                    boitata_io::read_parquet(&output, None).unwrap()
                 else {
                     panic!("expected a block model")
                 };

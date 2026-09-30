@@ -9,7 +9,7 @@ Whether the model honors the composites is a `row_at` lookup away from `scatter`
 <details><summary>Python</summary>
 
 ```python
-import ceres as cs
+import boitata as bt
 import matplotlib.pyplot as plt
 import numpy as np
 from common import save
@@ -23,18 +23,18 @@ the lens.
 <details><summary>Python</summary>
 
 ```python
-data = cs.datasets.stacked_sulphide_lenses()
+data = bt.datasets.stacked_sulphide_lenses()
 lens = data["lens_2"]
-parents = cs.BlockModel.from_extents(lens, size=(40, 40, 20), buffer=10, snap=True)
+parents = bt.BlockModel.from_extents(lens, size=(40, 40, 20), buffer=10, snap=True)
 model = parents.subblock([(lens, "inside", "ore")], 4, fill="waste")
 
-holes = cs.Drillholes(data["collars"], data["surveys"], data["assays"])
+holes = bt.Drillholes(data["collars"], data["surveys"], data["assays"])
 composites = holes.composite(2.0, ["ZN_PCT"])
 xyz, zn = composites.coords, composites["ZN_PCT"]
 inside = lens.contains(xyz) & ~np.isnan(zn)
 ore = np.array(model["domain"]) == "ore"
 grade = np.full(len(model), np.nan)
-estimator = cs.InverseDistance(cs.Search(100, max_samples=12)).fit(xyz[inside], zn[inside])
+estimator = bt.InverseDistance(bt.Search(100, max_samples=12)).fit(xyz[inside], zn[inside])
 grade[ore] = estimator.predict(model.centroids[ore])
 model = model.with_column("zn", grade)
 ```
@@ -50,8 +50,8 @@ scale.
 ```python
 plane = (lens.vertices.mean(axis=0), 90, 90)
 fig, ax = plt.subplots(figsize=(9, 6), layout="constrained")
-cs.plot.section(model, "zn", plane=plane, cmap="viridis", vmin=0, vmax=8, ax=ax)
-cs.plot.slab(
+bt.plot.section(model, "zn", plane=plane, cmap="viridis", vmin=0, vmax=8, ax=ax)
+bt.plot.slab(
     composites,
     "ZN_PCT",
     plane=plane,
@@ -82,7 +82,7 @@ Adherence is a resubstitution test, not cross-validation: does the model honor t
 rows = model.row_at(xyz[inside])
 paired = rows >= 0
 fig, ax = plt.subplots(figsize=(5, 5), layout="constrained")
-cs.plot.scatter(zn[inside][paired], model["zn"][rows[paired]], ax=ax)
+bt.plot.scatter(zn[inside][paired], model["zn"][rows[paired]], ax=ax)
 ax.set(xlabel="composite Zn (%)", ylabel="block Zn (%)", title=f"Adherence, {paired.sum()} composites")
 save(fig, "adherence")
 ```

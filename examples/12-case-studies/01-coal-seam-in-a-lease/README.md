@@ -7,7 +7,7 @@ resource class, on a 100 m grid.
 <details><summary>Python</summary>
 
 ```python
-import ceres as cs
+import boitata as bt
 import matplotlib.pyplot as plt
 import numpy as np
 from common import ACCENT, GRAY, HIGHLIGHT, INK, LIGHT, map_axes, save
@@ -23,16 +23,16 @@ with testing each cell center against the polygon, so the lease is the masked gr
 <details><summary>Python</summary>
 
 ```python
-data = cs.datasets.coal_seam_thickness()
+data = bt.datasets.coal_seam_thickness()
 holes, grid = data["boreholes"], data["grid"]
 lease = data["boundary"].parts[0][:, :2]
 xy, thickness = holes.coords[:, :2], holes["THICKNESS_M"]
-inside = cs.point_in_polygon(grid.centroids[:, :2], lease)
+inside = bt.point_in_polygon(grid.centroids[:, :2], lease)
 print(f"{np.mean(inside == (grid['INSIDE'] == 1)):.1%} of cells agree with INSIDE")
 cells = grid.mask(inside)
 area = len(cells) * 100 * 100
 print(
-    f"{len(cells)} cells inside, {area / 1e6:.1f} km²; {cs.point_in_polygon(xy, lease).sum()} of {len(xy)} holes"
+    f"{len(cells)} cells inside, {area / 1e6:.1f} km²; {bt.point_in_polygon(xy, lease).sum()} of {len(xy)} holes"
 )
 
 fig, ax = plt.subplots(figsize=(7, 4.6), layout="constrained")
@@ -62,14 +62,14 @@ the inverse of the number of holes in its cell, and keeps the cell size that giv
 <details><summary>Python</summary>
 
 ```python
-declustering = cs.cell_declustering(xy, thickness, sizes=np.arange(100, 3100, 100))
+declustering = bt.cell_declustering(xy, thickness, sizes=np.arange(100, 3100, 100))
 weights = declustering.weights
 size = declustering.cell_size
 print(f"naive mean {thickness.mean():.2f} m, declustered {declustering.mean:.2f} m with {size:.0f} m cells")
 print(f"curve at {size:.0f} m: {declustering.means[declustering.sizes == size][0]:.2f} m")
 
 fig, ax = plt.subplots(figsize=(6, 3.4), layout="constrained")
-cs.plot.declustering(declustering, naive=thickness.mean(), ax=ax, color=ACCENT, lw=1.6)
+bt.plot.declustering(declustering, naive=thickness.mean(), ax=ax, color=ACCENT, lw=1.6)
 ax.set(xlabel="Cell size (m)", ylabel="Declustered mean (m)", title="Mean thickness against cell size")
 save(fig, "declustering")
 ```
@@ -96,23 +96,23 @@ fitted to them in eight directions at once.
 <details><summary>Python</summary>
 
 ```python
-trend, residuals = cs.detrend(xy, thickness, degree=1)
+trend, residuals = bt.detrend(xy, thickness, degree=1)
 print(
     f"trend: {trend.coefficients[1] * 1000:+.2f} m per km east, {trend.coefficients[2] * 1000:+.2f} m per km north"
 )
 azimuths = np.arange(0, 180, 22.5)
 lag, max_lag = 350.0, 7000.0
-directional = [cs.experimental_variogram(xy, residuals, lag, max_lag, azimuth=a) for a in azimuths]
-model = cs.Variogram.fit_directional(directional, [(a, 0) for a in azimuths], "spherical")
+directional = [bt.experimental_variogram(xy, residuals, lag, max_lag, azimuth=a) for a in azimuths]
+model = bt.Variogram.fit_directional(directional, [(a, 0) for a in azimuths], "spherical")
 azimuth, ratio = model.rotation[0], model.ratios[0]
 print(model)
 
 fig, ax = plt.subplots(figsize=(6, 3.4), layout="constrained")
-raw = cs.experimental_variogram(xy, thickness, lag, max_lag, azimuth=90)
+raw = bt.experimental_variogram(xy, thickness, lag, max_lag, azimuth=90)
 ax.plot(raw.lags, raw.gammas, "--", color=GRAY, lw=1.2, label="thickness, N90°")
 for a, color in ((azimuth, ACCENT), (azimuth + 90, HIGHLIGHT)):
-    experimental = cs.experimental_variogram(xy, residuals, lag, max_lag, azimuth=a)
-    cs.plot.variogram(
+    experimental = bt.experimental_variogram(xy, residuals, lag, max_lag, azimuth=a)
+    bt.plot.variogram(
         experimental,
         variogram=model,
         direction=(a, 0),
@@ -146,10 +146,10 @@ neighborhood. Both use the residual variogram and a search elongated like it.
 <details><summary>Python</summary>
 
 ```python
-search = cs.Search(radius=5000, rotation=(azimuth, 0, 0), ratios=(ratio, 1), max_samples=24, min_samples=4)
+search = bt.Search(radius=5000, rotation=(azimuth, 0, 0), ratios=(ratio, 1), max_samples=24, min_samples=4)
 estimators = {
-    "ordinary": cs.OrdinaryKriging(model, search),
-    "universal": cs.UniversalKriging(model, search, degree=1),
+    "ordinary": bt.OrdinaryKriging(model, search),
+    "universal": bt.UniversalKriging(model, search, degree=1),
 }
 estimates = {}
 for name, estimator in estimators.items():
@@ -166,11 +166,11 @@ print(f"universal - ordinary: {difference.min():+.2f} to {difference.max():+.2f}
 cells = cells.with_columns({**estimates, "difference": difference})
 fig, axes = plt.subplots(1, 3, figsize=(11, 3.4), layout="constrained")
 for ax, name in zip(axes[:2], estimates, strict=True):
-    cs.plot.section(cells, name, ax=ax, colorbar=False, vmin=0, vmax=4.5)
+    bt.plot.section(cells, name, ax=ax, colorbar=False, vmin=0, vmax=4.5)
     map_axes(ax, f"{name.capitalize()} kriging")
 fig.colorbar(axes[0].collections[0], ax=axes[:2], shrink=0.8, label="Thickness (m)")
 limit = np.abs(difference).max()
-cs.plot.section(cells, "difference", ax=axes[2], colorbar=False, cmap="RdBu", vmin=-limit, vmax=limit)
+bt.plot.section(cells, "difference", ax=axes[2], colorbar=False, cmap="RdBu", vmin=-limit, vmax=limit)
 fig.colorbar(axes[2].collections[0], ax=axes[2], shrink=0.8, label="Universal - ordinary (m)")
 map_axes(axes[2], "Difference")
 save(fig, "kriging")
@@ -194,18 +194,18 @@ holes.
 <details><summary>Python</summary>
 
 ```python
-samples = cs.PointSet(xy, {"thickness": thickness, "weight": weights})
+samples = bt.PointSet(xy, {"thickness": thickness, "weight": weights})
 swaths = [
-    cs.swath(samples, "thickness", 1000.0, axis="x", weights="weight"),
-    cs.swath(cells, "ordinary", 1000.0, axis="x"),
-    cs.swath(cells, "universal", 1000.0, axis="x"),
+    bt.swath(samples, "thickness", 1000.0, axis="x", weights="weight"),
+    bt.swath(cells, "ordinary", 1000.0, axis="x"),
+    bt.swath(cells, "universal", 1000.0, axis="x"),
 ]
 labels = ["declustered holes", "ordinary kriging", "universal kriging"]
 print(
     "easternmost km: " + ", ".join(f"{n} {s['mean'][-1]:.2f} m" for n, s in zip(labels, swaths, strict=True))
 )
 fig, ax = plt.subplots(figsize=(6, 3.4), layout="constrained")
-cs.plot.swath(swaths, labels=labels, ax=ax)
+bt.plot.swath(swaths, labels=labels, ax=ax)
 ax.set(xlabel="Easting (m)", ylabel="Thickness (m)", title="Swath by easting")
 save(fig, "swath")
 ```
@@ -258,18 +258,18 @@ unit sill.
 ```python
 plane = trend.predict(xy)
 pair = np.column_stack([plane, thickness])
-scores = cs.StepwiseConditional().fit(pair, weights=weights).transform(pair)[:, 1]
-directional = [cs.experimental_variogram(xy, scores, lag, max_lag, azimuth=a) for a in azimuths]
-fitted = cs.Variogram.fit_directional(directional, [(a, 0) for a in azimuths], "spherical")
+scores = bt.StepwiseConditional().fit(pair, weights=weights).transform(pair)[:, 1]
+directional = [bt.experimental_variogram(xy, scores, lag, max_lag, azimuth=a) for a in azimuths]
+fitted = bt.Variogram.fit_directional(directional, [(a, 0) for a in azimuths], "spherical")
 sill = fitted.sill
-gaussian = cs.Variogram(
+gaussian = bt.Variogram(
     [("spherical", fitted.structures[0].sill / sill, fitted.structures[0].range)],
     nugget=fitted.nugget / sill,
     rotation=fitted.rotation,
     ratios=fitted.ratios,
 )
 print(gaussian)
-sgs = cs.SGS(gaussian, search).fit(xy, thickness, weights=weights, trend=plane)
+sgs = bt.SGS(gaussian, search).fit(xy, thickness, weights=weights, trend=plane)
 summary = sgs.simulate(cells, n=100, seed=7, trend=trend.predict(cells.centroids))
 tonnes = summary.realization_mean * area * density
 p10, p50, p90 = np.quantile(tonnes, [0.1, 0.5, 0.9])
@@ -310,10 +310,10 @@ the regional grid, indicated; the rest inferred. A 3 × 3 majority filter remove
 <details><summary>Python</summary>
 
 ```python
-spacing = cs.data_spacing(xy, n=4, targets=cells)
+spacing = bt.data_spacing(xy, n=4, targets=cells)
 rules = [("measured", {"spacing": ("<=", 450)}), ("indicated", {"spacing": ("<=", 800)})]
-classes = cs.classify({"spacing": spacing}, rules, default="inferred")
-classes = cs.smooth_classes(cells, classes, window=(3, 3, 1))
+classes = bt.classify({"spacing": spacing}, rules, default="inferred")
+classes = bt.smooth_classes(cells, classes, window=(3, 3, 1))
 names = ["measured", "indicated", "inferred"]
 for name in names:
     kept = classes == name
@@ -322,12 +322,12 @@ for name in names:
         f"mean {estimates['universal'][kept].mean():.2f} m"
     )
 
-scheme = cs.Categories(names, colors=[ACCENT, "#9ebad6", LIGHT])
+scheme = bt.Categories(names, colors=[ACCENT, "#9ebad6", LIGHT])
 cells = cells.with_column("class", scheme.encode(classes))
 fig, ax = plt.subplots(figsize=(7, 4.6), layout="constrained")
-cs.plot.section(cells, "class", ax=ax, colorbar=False, scheme=scheme)
+bt.plot.section(cells, "class", ax=ax, colorbar=False, scheme=scheme)
 ax.scatter(*xy.T, s=3, color=INK)
-cs.plot.category_legend(scheme, ax, loc="upper right", fontsize=8)
+bt.plot.category_legend(scheme, ax, loc="upper right", fontsize=8)
 map_axes(ax, "Resource classes by drill spacing")
 save(fig, "classes")
 ```

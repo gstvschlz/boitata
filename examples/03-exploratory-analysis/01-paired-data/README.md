@@ -6,15 +6,15 @@ two sample the same grades? Samples of each type close to one another are paired
 <details><summary>Python</summary>
 
 ```python
-import ceres as cs
+import boitata as bt
 import matplotlib.pyplot as plt
 import numpy as np
 from common import ACCENT, GRAY, save
 
-data = cs.datasets.vein_gold_grade_control()
+data = bt.datasets.vein_gold_grade_control()
 collars = data["collars"]
-intervals = cs.merge_intervals(data["assays"], data["lithology"])
-holes = cs.Drillholes(collars, data["surveys"], intervals)
+intervals = bt.merge_intervals(data["assays"], data["lithology"])
+holes = bt.Drillholes(collars, data["surveys"], intervals)
 ```
 
 </details>
@@ -48,7 +48,7 @@ distances is a sampling bias, not a change of grade over space.
 <details><summary>Python</summary>
 
 ```python
-paired = cs.pairs(dd, ch, 20.0, values="AU_GPT")
+paired = bt.pairs(dd, ch, 20.0, values="AU_GPT")
 a, b = paired["value_a"], paired["value_b"]
 print(f"{len(paired)} pairs, mean Au DD {a.mean():.2f} g/t, CH {b.mean():.2f} g/t")
 print(f"median Au DD {np.median(a):.2f} g/t, CH {np.median(b):.2f} g/t")
@@ -57,7 +57,7 @@ for k in worst:
     print(f"  {paired['distance'][k]:4.1f} m apart: DD {a[k]:6.1f}, CH {b[k]:7.1f} g/t")
 rest = np.arange(len(paired)) != worst[0]
 print(f"without the first: mean Au DD {a[rest].mean():.2f} g/t, CH {b[rest].mean():.2f} g/t")
-bias = cs.paired_bias(paired, np.arange(0.0, 21.0, 5.0))
+bias = bt.paired_bias(paired, np.arange(0.0, 21.0, 5.0))
 for lo, hi, n, rel in zip(bias["from"], bias["to"], bias["n"], bias["bias"], strict=True):
     print(f"{lo:4.0f}-{hi:2.0f} m: {n:3.0f} pairs, bias of CH over DD {100 * rel:+5.0f} %")
 ```
@@ -87,11 +87,11 @@ grades that rests on a few extreme values needs a top cut ([top cuts](../../03-e
 
 ```python
 fig, axes = plt.subplots(1, 3, figsize=(11, 3.6), layout="constrained")
-cs.plot.paired_bias(bias, ax=axes[0], color=ACCENT)
+bt.plot.paired_bias(bias, ax=axes[0], color=ACCENT)
 axes[0].set(title="Bias of CH over DD", xlabel="Pairing distance (m)", ylabel="Bias (%)")
-cs.plot.qq(a, b, log=True, ax=axes[1], color=ACCENT)
+bt.plot.qq(a, b, log=True, ax=axes[1], color=ACCENT)
 axes[1].set(title="Q-Q, DD-CH pairs", xlabel="DD Au (g/t)", ylabel="CH Au (g/t)")
-cs.plot.scatter(a, b, line=False, ax=axes[2], color=GRAY, s=12)
+bt.plot.scatter(a, b, line=False, ax=axes[2], color=GRAY, s=12)
 axes[2].set(
     title="Scatter, DD-CH pairs", xscale="log", yscale="log", xlabel="DD Au (g/t)", ylabel="CH Au (g/t)"
 )

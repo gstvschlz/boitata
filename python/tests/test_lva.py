@@ -1,4 +1,4 @@
-import ceres as cs
+import boitata as bt
 import numpy as np
 import pytest
 
@@ -6,7 +6,7 @@ rng = np.random.default_rng(8)
 
 
 def layered(azimuth=30.0, n=40):
-    grid = cs.BlockModel(origin=(0, 0), size=(1, 1), count=(n, n))
+    grid = bt.BlockModel(origin=(0, 0), size=(1, 1), count=(n, n))
     xy = grid.centroids
     t = np.radians(azimuth)
     values = np.sin(0.3 * (xy[:, 0] * np.cos(t) - xy[:, 1] * np.sin(t)))
@@ -14,14 +14,14 @@ def layered(azimuth=30.0, n=40):
 
 
 def test_from_grid_follows_the_layers():
-    lva = cs.LocalAnisotropy.from_grid(layered(), "v", window=2)
+    lva = bt.LocalAnisotropy.from_grid(layered(), "v", window=2)
     azimuth = lva.angles[820, 0] % 180
     assert min(abs(azimuth - 30), 180 - abs(azimuth - 30)) < 1
     assert np.all(lva.ratios <= 1)
 
 
 def test_smooth_and_at():
-    lva = cs.LocalAnisotropy(np.zeros((1, 3)), [[40.0, 0.0, 0.0]], [[0.5, 1.0]])
+    lva = bt.LocalAnisotropy(np.zeros((1, 3)), [[40.0, 0.0, 0.0]], [[0.5, 1.0]])
     moved = lva.at([[10.0, 10.0], [20.0, 5.0]])
     np.testing.assert_allclose(moved.angles[:, 0], 40.0)
     assert len(moved.smooth(5.0)) == 2
@@ -31,12 +31,12 @@ def test_uniform_field_equals_global_anisotropy():
     coords = rng.uniform(0, 100, (200, 2))
     values = np.sin(coords[:, 0] / 12) + coords[:, 1] / 40
     targets = rng.uniform(5, 95, (50, 2))
-    search = cs.Search(radius=20, max_samples=500)
-    base = cs.Variogram([("spherical", 1.0, 40.0)])
-    field = cs.LocalAnisotropy(targets, np.tile([35.0, 0.0, 0.0], (50, 1)), np.tile([0.3, 1.0], (50, 1)))
-    local = cs.OrdinaryKriging(base, search).fit(coords, values).predict(targets, anisotropy=field)
+    search = bt.Search(radius=20, max_samples=500)
+    base = bt.Variogram([("spherical", 1.0, 40.0)])
+    field = bt.LocalAnisotropy(targets, np.tile([35.0, 0.0, 0.0], (50, 1)), np.tile([0.3, 1.0], (50, 1)))
+    local = bt.OrdinaryKriging(base, search).fit(coords, values).predict(targets, anisotropy=field)
     rotated = base.with_anisotropy((35.0, 0.0, 0.0), (0.3, 1.0))
-    reference = cs.OrdinaryKriging(rotated, search).fit(coords, values).predict(targets)
+    reference = bt.OrdinaryKriging(rotated, search).fit(coords, values).predict(targets)
     np.testing.assert_allclose(local, reference, atol=1e-9)
 
 
@@ -44,8 +44,8 @@ def test_sgs_with_local_anisotropy():
     coords = rng.uniform(0, 40, (60, 2))
     values = rng.normal(size=60)
     grid = layered()
-    lva = cs.LocalAnisotropy.from_grid(grid, "v", ratios=(0.3, 1.0))
-    sgs = cs.SGS(cs.Variogram([("spherical", 1.0, 15.0)]), cs.Search(radius=15, max_samples=12)).fit(
+    lva = bt.LocalAnisotropy.from_grid(grid, "v", ratios=(0.3, 1.0))
+    sgs = bt.SGS(bt.Variogram([("spherical", 1.0, 15.0)]), bt.Search(radius=15, max_samples=12)).fit(
         coords, values
     )
     reals = sgs.simulate(grid, n=2, seed=1, keep=True, anisotropy=lva).realizations
@@ -54,10 +54,10 @@ def test_sgs_with_local_anisotropy():
 
 def test_from_points_and_mesh():
     line = np.c_[np.arange(30.0), np.arange(30.0), rng.normal(0, 0.05, 30)]
-    lva = cs.LocalAnisotropy.from_points(line, k=8)
+    lva = bt.LocalAnisotropy.from_points(line, k=8)
     assert abs(lva.angles[15, 0] % 180 - 45) < 2
-    mesh = cs.Mesh([[0, 0, 0], [0, 10, 0], [10, 0, -10], [10, 10, -10]], [[0, 1, 2], [1, 3, 2]])
-    dip = cs.LocalAnisotropy.from_mesh(mesh, [[5, 5, -5]], major="dip")
+    mesh = bt.Mesh([[0, 0, 0], [0, 10, 0], [10, 0, -10], [10, 10, -10]], [[0, 1, 2], [1, 3, 2]])
+    dip = bt.LocalAnisotropy.from_mesh(mesh, [[5, 5, -5]], major="dip")
     assert dip.angles[0, 0] == pytest.approx(90) and dip.angles[0, 1] == pytest.approx(45)
 
 
@@ -83,13 +83,13 @@ def test_constant_scales_equal_a_longer_global_range():
     coords = rng.uniform(0, 100, (200, 2))
     values = np.sin(coords[:, 0] / 12) + coords[:, 1] / 40
     targets = rng.uniform(5, 95, (50, 2))
-    field = cs.LocalAnisotropy(
+    field = bt.LocalAnisotropy(
         targets, np.tile([35.0, 0.0, 0.0], (50, 1)), np.tile([0.3, 1.0], (50, 1)), scales=1.5
     )
-    base = cs.Variogram([("spherical", 1.0, 40.0)])
-    local = cs.OrdinaryKriging(base, cs.Search(radius=20, max_samples=12)).fit(coords, values)
-    longer = cs.Variogram([("spherical", 1.0, 60.0)], rotation=(35.0, 0.0, 0.0), ratios=(0.3, 1.0))
-    reference = cs.OrdinaryKriging(longer, cs.Search(radius=30, max_samples=12)).fit(coords, values)
+    base = bt.Variogram([("spherical", 1.0, 40.0)])
+    local = bt.OrdinaryKriging(base, bt.Search(radius=20, max_samples=12)).fit(coords, values)
+    longer = bt.Variogram([("spherical", 1.0, 60.0)], rotation=(35.0, 0.0, 0.0), ratios=(0.3, 1.0))
+    reference = bt.OrdinaryKriging(longer, bt.Search(radius=30, max_samples=12)).fit(coords, values)
     np.testing.assert_allclose(
         local.predict(targets, anisotropy=field), reference.predict(targets), atol=1e-9
     )
@@ -98,18 +98,18 @@ def test_constant_scales_equal_a_longer_global_range():
 
 def test_local_parameters_recover_each_region():
     xy, values = two_regions(6000)
-    vg = cs.Variogram([("gaussian", 0.99, 12.0)], nugget=0.01)
+    vg = bt.Variogram([("gaussian", 0.99, 12.0)], nugget=0.01)
     nodes = np.array([[x, y] for x in (25.0, 50.0, 75.0, 125.0, 150.0, 175.0) for y in (25.0, 50.0, 75.0)])
     west = nodes[:, 0] < 100
-    local = cs.local_variogram_parameters(xy, values, nodes, variogram=vg, window=25, lag=2, max_lag=15)
+    local = bt.local_variogram_parameters(xy, values, nodes, variogram=vg, window=25, lag=2, max_lag=15)
     for side, (azimuth, ratio, scale) in [(west, (30, 0.25, 20 / 12)), (~west, (120, 0.4, 8 / 12))]:
         d = np.median(local.angles[side, 0] % 180) - azimuth
         assert abs(d) < 10
         assert abs(np.median(local.ratios[side, 0]) - ratio) < 0.15
         assert np.median(local.scales[side]) == pytest.approx(scale, rel=0.2)
     angles = np.where(west, 30.0, 120.0)
-    field = cs.LocalAnisotropy(nodes, np.c_[angles, 0 * angles, 0 * angles], np.ones((len(nodes), 2)))
-    along = cs.local_variogram_parameters(xy, values, nodes, variogram=vg, window=25, lag=2, anisotropy=field)
+    field = bt.LocalAnisotropy(nodes, np.c_[angles, 0 * angles, 0 * angles], np.ones((len(nodes), 2)))
+    along = bt.local_variogram_parameters(xy, values, nodes, variogram=vg, window=25, lag=2, anisotropy=field)
     np.testing.assert_allclose(along.angles[:, 0] % 180, angles, atol=1e-6)
     assert np.median(along.scales[west]) == pytest.approx(20 / 12, rel=0.2)
     assert np.median(along.ratios[~west, 0]) == pytest.approx(0.4, abs=0.1)
@@ -117,10 +117,10 @@ def test_local_parameters_recover_each_region():
 
 def test_experimental_variogram_in_local_frames():
     xy, values = two_regions(400)
-    field = cs.LocalAnisotropy(xy, np.tile([30.0, 0.0, 0.0], (400, 1)), np.ones((400, 2)))
-    local = cs.experimental_variogram(xy, values, 3, 30, azimuth=10.0, anisotropy=field)
-    world = cs.experimental_variogram(xy, values, 3, 30, azimuth=40.0)
+    field = bt.LocalAnisotropy(xy, np.tile([30.0, 0.0, 0.0], (400, 1)), np.ones((400, 2)))
+    local = bt.experimental_variogram(xy, values, 3, 30, azimuth=10.0, anisotropy=field)
+    world = bt.experimental_variogram(xy, values, 3, 30, azimuth=40.0)
     np.testing.assert_array_equal(local.counts, world.counts)
     np.testing.assert_allclose(local.gammas, world.gammas, rtol=1e-12)
     with pytest.raises(ValueError):
-        cs.experimental_variogram(xy, values, 3, 30, anisotropy=field, holes=np.zeros(400))
+        bt.experimental_variogram(xy, values, 3, 30, anisotropy=field, holes=np.zeros(400))

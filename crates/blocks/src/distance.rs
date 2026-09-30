@@ -15,7 +15,7 @@
 //!   plan-view grid and interpolates the surface elevation under each point.
 
 use crate::{Aabb, BlockModelError, Result};
-use ceres_core::Mesh;
+use boitata_core::Mesh;
 use nalgebra::Vector3;
 use rayon::prelude::*;
 

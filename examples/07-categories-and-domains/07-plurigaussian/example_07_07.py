@@ -14,7 +14,7 @@ HERE = Path(__file__).parent if "__file__" in globals() else Path.cwd()
 sys.path.insert(0, str(HERE.parents[1]))
 
 # %%
-import ceres as cs
+import boitata as bt
 import matplotlib.pyplot as plt
 import numpy as np
 from common import ACCENT, GRAY, save
@@ -32,20 +32,20 @@ from common import ACCENT, GRAY, save
 # stage touches only the next. Both use a guessed latent variogram of 0.8 km.
 
 # %%
-jura = cs.datasets.jura()
+jura = bt.datasets.jura()
 train, grid = jura["prediction"], jura["grid"]
 names = ["Argovian", "Kimmeridgian", "Sequanian", "Portlandian", "Quaternary"]
-rock_types = cs.Categories(names, colors=["#1f4e79", "#6f9fc9", "#c9d9ea", "#c05a28", "#8c8c8c"])
+rock_types = bt.Categories(names, colors=["#1f4e79", "#6f9fc9", "#c9d9ea", "#c05a28", "#8c8c8c"])
 rock = rock_types.encode(train["Rock"]).astype(int)
 true_rock = rock_types.encode(grid["Rock"]).astype(int)
 proportions = rock_types.shares(rock)
 
-latent = cs.Variogram([("spherical", 1.0, 0.8)])
-ordered = cs.Plurigaussian(latent, proportions=proportions).fit(train, rock)
+latent = bt.Variogram([("spherical", 1.0, 0.8)])
+ordered = bt.Plurigaussian(latent, proportions=proportions).fit(train, rock)
 by_order = ordered.simulate(grid, n=1, seed=3, keep=True).realizations[0]
 stages = (1, [names.index(n) for n in ("Argovian", "Sequanian", "Kimmeridgian", "Portlandian")])
 rule = (0, [stages, names.index("Quaternary")])
-hierarchy = cs.Plurigaussian([latent, latent], proportions=proportions, rule=rule).fit(train, rock)
+hierarchy = bt.Plurigaussian([latent, latent], proportions=proportions, rule=rule).fit(train, rock)
 by_rule = hierarchy.simulate(grid, n=1, seed=3, keep=True).realizations[0]
 
 simulated = (("ordered", by_order), ("rule", by_rule))
@@ -56,7 +56,7 @@ for label, cats in simulated:
     print(f"{label}: {np.mean(cats == true_rock):.0%} of nodes match the true rock type")
 
 # %%
-cmap, norm = cs.plot.category_colors(rock_types)
+cmap, norm = bt.plot.category_colors(rock_types)
 xy = grid.coords[:, :2].T
 fig, axes = plt.subplots(1, 3, figsize=(12, 5.4), layout="constrained")
 panels = [(true_rock, "True rock types"), (by_order, "One field, ordered"), (by_rule, "Hierarchical rule")]
@@ -64,7 +64,7 @@ for ax, (cats, title) in zip(axes, panels):
     ax.scatter(*xy, c=cats, cmap=cmap, norm=norm, s=7, marker="s", linewidths=0)
     ax.set_aspect("equal")
     ax.set(title=title, xlabel="X (km)", ylabel="Y (km)")
-cs.plot.category_legend(rock_types, fig, loc="outside lower center", ncol=5)
+bt.plot.category_legend(rock_types, fig, loc="outside lower center", ncol=5)
 save(fig, "categories")
 
 # %% [markdown]
@@ -104,7 +104,7 @@ axes[1].scatter(*xy, c=by_local, cmap=cmap, norm=norm, s=7, marker="s", linewidt
 for ax, title in zip(axes, ("Local proportion of Argovian", "Hierarchical rule, local proportions")):
     ax.set_aspect("equal")
     ax.set(title=title, xlabel="X (km)", ylabel="Y (km)")
-cs.plot.category_legend(rock_types, fig, loc="outside lower center", ncol=5)
+bt.plot.category_legend(rock_types, fig, loc="outside lower center", ncol=5)
 save(fig, "local-proportions")
 
 # %% [markdown]
@@ -120,13 +120,13 @@ save(fig, "local-proportions")
 
 # %%
 experimental = [
-    cs.experimental_variogram(train.coords, (rock == k).astype(float), 0.1, 1.5)
+    bt.experimental_variogram(train.coords, (rock == k).astype(float), 0.1, 1.5)
     if names[k] != "Portlandian"
     else None
     for k in range(5)
 ]
-guessed = cs.Plurigaussian([latent, latent], proportions=proportions, rule=rule)
-fitted = cs.Plurigaussian([latent, latent], proportions=proportions, rule=rule).fit_variograms(experimental)
+guessed = bt.Plurigaussian([latent, latent], proportions=proportions, rule=rule)
+fitted = bt.Plurigaussian([latent, latent], proportions=proportions, rule=rule).fit_variograms(experimental)
 cover, stage = (v.structures[0].range for v in fitted.variograms)
 print(f"fitted latent ranges: {cover:.2f} km for the cover field, {stage:.2f} km for the stages field")
 fitted.fit(train.coords, rock, proportions=local_proportions(train.coords))

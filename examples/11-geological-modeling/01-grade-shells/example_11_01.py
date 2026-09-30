@@ -14,7 +14,7 @@ HERE = Path(__file__).parent if "__file__" in globals() else Path.cwd()
 sys.path.insert(0, str(HERE.parents[1]))
 
 # %%
-import ceres as cs
+import boitata as bt
 import matplotlib.pyplot as plt
 import numpy as np
 from common import ACCENT, GRAY, HIGHLIGHT, LIGHT, save
@@ -27,8 +27,8 @@ from common import ACCENT, GRAY, HIGHLIGHT, LIGHT, save
 # horizontal). A sparse Gaussian process (GP) smooths through the codes and learns its own ranges.
 
 # %%
-data = cs.datasets.iron_formation_plateau()
-holes = cs.Drillholes(data["collars"], data["surveys"], data["assays"])
+data = bt.datasets.iron_formation_plateau()
+holes = bt.Drillholes(data["collars"], data["surveys"], data["assays"])
 composites = holes.composite(12.0, ["FE_PCT"])
 fe = np.asarray(composites["FE_PCT"])
 xyz, fe = composites.coords[~np.isnan(fe)], fe[~np.isnan(fe)]
@@ -36,9 +36,9 @@ code = np.where(fe >= 60, 1.0, -1.0)
 print(f"{len(xyz)} composites, {(code > 0).sum()} at or above 60 % Fe")
 
 models = {
-    "RBF": cs.ImplicitModel("rbf", degree=0),
-    "RBF, flat": cs.ImplicitModel("rbf", degree=0, rotation=(0, 0, 0), ratios=(1, 0.2)),
-    "GP": cs.ImplicitModel("gp", degree=0),
+    "RBF": bt.ImplicitModel("rbf", degree=0),
+    "RBF, flat": bt.ImplicitModel("rbf", degree=0, rotation=(0, 0, 0), ratios=(1, 0.2)),
+    "GP": bt.ImplicitModel("gp", degree=0),
 }
 for name, model in models.items():
     model.fit(xyz, fe, cutoff=60)
@@ -85,8 +85,8 @@ for ax, (name, model) in zip(axes, models.items(), strict=True):
     ax.contour(x, z, field, levels=[0], colors=[ACCENT], linewidths=1.2)
     ax.plot(x[0], ground, color=GRAY, lw=0.8)
     style = {"plane": plane, "thickness": 50, "ax": ax}
-    cs.plot.slab(xyz[code < 0], s=6, color=GRAY, label="Fe < 60 %", meshes=solid, **style)
-    cs.plot.slab(xyz[code > 0], s=6, color=HIGHLIGHT, label="Fe ≥ 60 %", **style)
+    bt.plot.slab(xyz[code < 0], s=6, color=GRAY, label="Fe < 60 %", meshes=solid, **style)
+    bt.plot.slab(xyz[code > 0], s=6, color=HIGHLIGHT, label="Fe ≥ 60 %", **style)
     ax.set(title=f"{name}, northing {northing:.0f} m", xlim=(x[0, 0], x[0, -1]), ylim=(z[0, 0], z[-1, 0]))
     if ax is not axes[-1]:
         ax.set_xlabel("")

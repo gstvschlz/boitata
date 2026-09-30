@@ -9,7 +9,7 @@ where a soft boundary ([soft boundaries](../../06-kriging/13-soft-boundaries/REA
 <details><summary>Python</summary>
 
 ```python
-import ceres as cs
+import boitata as bt
 import matplotlib.pyplot as plt
 import numpy as np
 from common import save
@@ -27,37 +27,37 @@ volcanics on the left.
 <details><summary>Python</summary>
 
 ```python
-data = cs.datasets.stacked_sulphide_lenses()
-drillholes = cs.Drillholes(data["collars"], data["surveys"], data["lithology"])
+data = bt.datasets.stacked_sulphide_lenses()
+drillholes = bt.Drillholes(data["collars"], data["surveys"], data["lithology"])
 composites = drillholes.composite(5.0, [], categories=["LITH"])
-scheme = cs.Categories(
+scheme = bt.Categories(
     ["OB", "HWS", "VCL", "SUL", "FWV"],
     mapping={"MS": "SUL", "SMS": "SUL", "STR": "SUL"},
     other="DYK",
     colors=["#d9d9d9", "#a9bfd3", "#8c8c8c", "#c05a28", "#1f4e79", "#e0c080"],
 )
-weights = cs.cell_declustering(composites, scheme.encode(composites["LITH"]), cell_size=50.0).weights
+weights = bt.cell_declustering(composites, scheme.encode(composites["LITH"]), cell_size=50.0).weights
 layers = (23.0, 55.0, 0.0)
 variograms = [
-    cs.Variogram([("spherical", 0.9, 400.0)], nugget=0.1, rotation=(0.0, 0.0, 0.0), ratios=(1.0, 0.05)),
-    cs.Variogram([("spherical", 0.9, 500.0)], nugget=0.1, rotation=layers, ratios=(0.8, 0.2)),
-    cs.Variogram([("spherical", 0.85, 400.0)], nugget=0.15, rotation=layers, ratios=(0.8, 0.2)),
-    cs.Variogram([("spherical", 0.8, 150.0)], nugget=0.2, rotation=layers, ratios=(0.8, 0.25)),
-    cs.Variogram([("spherical", 0.9, 500.0)], nugget=0.1, rotation=layers, ratios=(0.8, 0.2)),
-    cs.Variogram([("spherical", 0.7, 40.0)], nugget=0.3),
+    bt.Variogram([("spherical", 0.9, 400.0)], nugget=0.1, rotation=(0.0, 0.0, 0.0), ratios=(1.0, 0.05)),
+    bt.Variogram([("spherical", 0.9, 500.0)], nugget=0.1, rotation=layers, ratios=(0.8, 0.2)),
+    bt.Variogram([("spherical", 0.85, 400.0)], nugget=0.15, rotation=layers, ratios=(0.8, 0.2)),
+    bt.Variogram([("spherical", 0.8, 150.0)], nugget=0.2, rotation=layers, ratios=(0.8, 0.25)),
+    bt.Variogram([("spherical", 0.9, 500.0)], nugget=0.1, rotation=layers, ratios=(0.8, 0.2)),
+    bt.Variogram([("spherical", 0.7, 40.0)], nugget=0.3),
 ]
 passes = [
-    cs.Search(150.0, max_samples=24, max_per_hole=6, rotation=layers, ratios=(1.0, 0.4)),
-    cs.Search(300.0, max_samples=24, rotation=layers, ratios=(1.0, 0.4)),
+    bt.Search(150.0, max_samples=24, max_per_hole=6, rotation=layers, ratios=(1.0, 0.4)),
+    bt.Search(300.0, max_samples=24, rotation=layers, ratios=(1.0, 0.4)),
 ]
-cik = cs.CategoricalIndicatorKriging(variograms, passes, scheme=scheme)
+cik = bt.CategoricalIndicatorKriging(variograms, passes, scheme=scheme)
 cik.fit(composites, "LITH", weights=weights, holes="HOLE_ID")
 
 center = np.array([12350.0, 29900.0, 0.0])
 across = np.array([np.sin(np.radians(113.0)), np.cos(np.radians(113.0)), 0.0])
 along = np.array([np.sin(np.radians(23.0)), np.cos(np.radians(23.0)), 0.0])
 origin = center - 600.0 * across - 5.0 * along + [0.0, 0.0, -400.0]
-section = cs.BlockModel(origin, (10.0, 10.0, 10.0), (120, 1, 80), rotation=(23.0, 0.0, 0.0))
+section = bt.BlockModel(origin, (10.0, 10.0, 10.0), (120, 1, 80), rotation=(23.0, 0.0, 0.0))
 topography = data["topography"]
 rows = topography.row_at(section.centroids[:, :2])
 section = section.mask((rows >= 0) & (section.centroids[:, 2] < topography["Z"][rows]))
@@ -84,7 +84,7 @@ here there are none. The minimum is five cells, 5000 m³. The total volume does 
 <details><summary>Python</summary>
 
 ```python
-section = section.with_columns({"clean": cs.remove_small_units(section, "rock", min_volume=5000.0)})
+section = section.with_columns({"clean": bt.remove_small_units(section, "rock", min_volume=5000.0)})
 volume = section.volumes
 changed = section["rock"] != section["clean"]
 print(f"{changed.sum()} cells change rock")
@@ -114,7 +114,7 @@ total volume kept: True
 ```python
 fig, axes = plt.subplots(1, 2, figsize=(13, 4.8), layout="constrained", sharey=True)
 for ax, column, title in zip(axes, ["rock", "clean"], ["Most likely rock", "Units under 5000 m³ removed"]):
-    cs.plot.section(section, column, axis="y", index=0, scheme=scheme, colorbar=False, ax=ax)
+    bt.plot.section(section, column, axis="y", index=0, scheme=scheme, colorbar=False, ax=ax)
     ax.set_title(title)
     ax.set_xlabel("Along the section (m)")
 axes[0].set_ylabel("Elevation (m)")
@@ -136,12 +136,12 @@ and the two blocks either side of a contact get the same distance.
 <details><summary>Python</summary>
 
 ```python
-to_sulphide = cs.contact_distance(section, "clean", target=scheme.names.index("SUL"))
-to_any = cs.contact_distance(section, "clean")
+to_sulphide = bt.contact_distance(section, "clean", target=scheme.names.index("SUL"))
+to_any = bt.contact_distance(section, "clean")
 fig, axes = plt.subplots(1, 2, figsize=(13, 4.8), layout="constrained", sharey=True)
-cs.plot.section(section, to_any, axis="y", index=0, vmin=0.0, vmax=100.0, cmap="Greys_r", ax=axes[0])
+bt.plot.section(section, to_any, axis="y", index=0, vmin=0.0, vmax=100.0, cmap="Greys_r", ax=axes[0])
 axes[0].set_title("Distance to any contact (m)")
-cs.plot.section(section, to_sulphide, axis="y", index=0, vmin=-50.0, vmax=50.0, cmap="RdBu", ax=axes[1])
+bt.plot.section(section, to_sulphide, axis="y", index=0, vmin=-50.0, vmax=50.0, cmap="RdBu", ax=axes[1])
 axes[1].set_title("Signed distance to the sulphides (m)")
 for ax in axes:
     ax.set_xlabel("Along the section (m)")
@@ -167,15 +167,15 @@ host.
 
 ```python
 sulphide = np.where(section["clean"] == scheme.names.index("SUL"), "SUL", "host")
-zone = cs.buffer_domains(section, sulphide, distance=15.0, target="SUL")
-zones = cs.Categories(["host", "contact", "SUL"], colors=["#d9d9d9", "#e0c080", "#c05a28"])
+zone = bt.buffer_domains(section, sulphide, distance=15.0, target="SUL")
+zones = bt.Categories(["host", "contact", "SUL"], colors=["#d9d9d9", "#e0c080", "#c05a28"])
 section = section.with_columns({"zone": zones.encode(zone)})
 for name in ("SUL", "host"):
     print(f"{name} cells in the buffer: {np.sum((zone == 'contact') & (sulphide == name))}")
 
 fig, ax = plt.subplots(figsize=(8, 4.8), layout="constrained")
-cs.plot.section(section, "zone", axis="y", index=0, scheme=zones, colorbar=False, ax=ax)
-cs.plot.category_legend(zones, ax=ax, loc="lower left")
+bt.plot.section(section, "zone", axis="y", index=0, scheme=zones, colorbar=False, ax=ax)
+bt.plot.category_legend(zones, ax=ax, loc="lower left")
 ax.set_title("A 15 m buffer on the sulphide contact")
 ax.set_xlabel("Along the section (m)")
 ax.set_ylabel("Elevation (m)")

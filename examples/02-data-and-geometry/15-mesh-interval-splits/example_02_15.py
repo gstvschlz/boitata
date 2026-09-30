@@ -15,16 +15,16 @@ HERE = Path(__file__).parent if "__file__" in globals() else Path.cwd()
 sys.path.insert(0, str(HERE.parents[1]))
 
 # %%
-import ceres as cs
+import boitata as bt
 import matplotlib.pyplot as plt
 import numpy as np
 from common import ACCENT, GRAY, save
 
 # %%
-data = cs.datasets.stacked_sulphide_lenses()
+data = bt.datasets.stacked_sulphide_lenses()
 lens = data["lens_1"]
 collar, survey, assay, lithology = data["collars"], data["surveys"], data["assays"], data["lithology"]
-holes = cs.Drillholes(collar, survey, assay)
+holes = bt.Drillholes(collar, survey, assay)
 crossings = holes.mesh_intervals(lens, step=0.5, tolerance=0.01)
 print(f"{crossings.num_rows} runs down {len(holes)} holes, {int(np.sum(crossings['INSIDE']))} inside lens 1")
 
@@ -41,22 +41,22 @@ boundary = {
     "TO": crossings["TO"],
     "DOMAIN": domain,
 }
-mesh_split = cs.merge_intervals(assay, boundary)
-mesh_comps = cs.Drillholes(collar, survey, mesh_split).composite(None, ["ZN_PCT"], domain="DOMAIN")
+mesh_split = bt.merge_intervals(assay, boundary)
+mesh_comps = bt.Drillholes(collar, survey, mesh_split).composite(None, ["ZN_PCT"], domain="DOMAIN")
 
 # %% [markdown]
 # [Contact surfaces](../../11-geological-modeling/02-contact-surfaces/README.md) domains the same holes from the logged lithology instead: `MS` and `SMS` intervals stand for a sulphide
 # lens. That pick is only as good as where the logger set the contact, and it does not tell the three lenses apart.
 
 # %%
-lith_split = cs.merge_intervals(assay, lithology)
+lith_split = bt.merge_intervals(assay, lithology)
 lith_domain = np.where(np.isin(np.asarray(lith_split["LITH"], dtype=object), ["MS", "SMS"]), "lens", "other")
 lith_table = {**{c: lith_split[c] for c in lith_split.column_names}, "DOMAIN": lith_domain}
-lith_comps = cs.Drillholes(collar, survey, lith_table).composite(None, ["ZN_PCT"], domain="DOMAIN")
+lith_comps = bt.Drillholes(collar, survey, lith_table).composite(None, ["ZN_PCT"], domain="DOMAIN")
 
 
 def grade_by_domain(comps):
-    stats = cs.describe_by("ZN_PCT", "DOMAIN", data=comps)
+    stats = bt.describe_by("ZN_PCT", "DOMAIN", data=comps)
     return dict(zip(stats["category"], stats["mean"])), dict(zip(stats["category"], stats["n"]))
 
 

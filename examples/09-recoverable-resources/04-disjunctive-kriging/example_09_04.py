@@ -14,15 +14,15 @@ HERE = Path(__file__).parent if "__file__" in globals() else Path.cwd()
 sys.path.insert(0, str(HERE.parents[1]))
 
 # %%
-import ceres as cs
+import boitata as bt
 import matplotlib.pyplot as plt
 import numpy as np
 from common import ACCENT, GRAY, HIGHLIGHT, INK, save
 
-samples = cs.datasets.walker_lake()
-truth = cs.datasets.walker_lake_exhaustive()["V"].reshape(300, 260)
+samples = bt.datasets.walker_lake()
+truth = bt.datasets.walker_lake_exhaustive()["V"].reshape(300, 260)
 xy, v = samples.coords, samples["V"]
-weights = cs.cell_declustering(samples, "V", sizes=np.arange(2.5, 102.5, 2.5)).weights
+weights = bt.cell_declustering(samples, "V", sizes=np.arange(2.5, 102.5, 2.5)).weights
 
 
 # %% [markdown]
@@ -30,11 +30,11 @@ weights = cs.cell_declustering(samples, "V", sizes=np.arange(2.5, 102.5, 2.5)).w
 # N170°, the major axis found in [variogram fitting](../../05-spatial-continuity/02-variogram-fitting/README.md):
 
 # %%
-anam = cs.HermiteAnamorphosis(degree=40).fit(v, weights=weights)
+anam = bt.HermiteAnamorphosis(degree=40).fit(v, weights=weights)
 y = anam.transform(v)
 azimuths = (170, 260)
-experimental = [cs.experimental_variogram(xy, y, 10, 120, azimuth=a) for a in azimuths]
-gaussian = cs.Variogram.fit_directional(experimental, [(a, 0) for a in azimuths], rotation=[170, 0, 0])
+experimental = [bt.experimental_variogram(xy, y, 10, 120, azimuth=a) for a in azimuths]
+gaussian = bt.Variogram.fit_directional(experimental, [(a, 0) for a in azimuths], rotation=[170, 0, 0])
 print(gaussian)
 
 
@@ -43,8 +43,8 @@ print(gaussian)
 # the diagonal:
 
 # %%
-grid = cs.BlockModel(origin=(0.5, 0.5), size=(5, 5), count=(52, 60))
-dk = cs.DisjunctiveKriging(anam, gaussian, cs.Search(radius=100, max_samples=24), order=20).fit(xy, v)
+grid = bt.BlockModel(origin=(0.5, 0.5), size=(5, 5), count=(52, 60))
+dk = bt.DisjunctiveKriging(anam, gaussian, bt.Search(radius=100, max_samples=24), order=20).fit(xy, v)
 cutoff = 500.0
 p = dk.predict_tonnage(grid, cutoff)
 nodes = grid.centroids.astype(int)

@@ -2,7 +2,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::num::NonZero;
 use std::ops::Range;
 
-use ceres_core::{BlockModel, Layout};
+use boitata_core::{BlockModel, Layout};
 use kiddo::{ImmutableKdTree, SquaredEuclidean};
 use rayon::prelude::*;
 
@@ -340,7 +340,7 @@ pub fn smooth_classes(
 mod tests {
     use super::*;
     use arrow_array::{ArrayRef, Float64Array, RecordBatch};
-    use ceres_core::Geometry;
+    use boitata_core::Geometry;
     use std::sync::Arc;
 
     fn geometry(count: [usize; 3]) -> Geometry {

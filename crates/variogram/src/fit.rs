@@ -7,7 +7,7 @@ use crate::empirical::Experimental;
 use crate::error::{Result, VarioError};
 use crate::model::{Model, Structure, shape};
 use crate::surface::unit_vector;
-use ceres_core::angles_from_axes;
+use boitata_core::angles_from_axes;
 use nalgebra::{DMatrix, Matrix3, SymmetricEigen, Vector3};
 use serde::{Deserialize, Serialize};
 

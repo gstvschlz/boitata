@@ -4,8 +4,8 @@
 
 use transforms::{Maf, Pca, Ppmt, StepwiseConditional};
 
-use ceres_core::Progress;
-use ceres_core::rng::realization_seed;
+use boitata_core::Progress;
+use boitata_core::rng::realization_seed;
 
 use crate::error::Result;
 use crate::post::{

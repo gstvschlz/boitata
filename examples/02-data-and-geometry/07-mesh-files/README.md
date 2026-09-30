@@ -10,7 +10,7 @@ broken into loose triangles and repaired.
 ```python
 import tempfile
 
-import ceres as cs
+import boitata as bt
 import matplotlib.pyplot as plt
 import numpy as np
 from common import save
@@ -18,7 +18,7 @@ from common import save
 
 </details>
 
-`cs.datasets.fetch` gives the local path of a dataset file. Reading welds corners repeated between triangles, as
+`bt.datasets.fetch` gives the local path of a dataset file. Reading welds corners repeated between triangles, as
 STL stores each triangle with its own three corners; the veins come back closed, with a volume and an area.
 
 <details><summary>Python</summary>
@@ -26,8 +26,8 @@ STL stores each triangle with its own three corners; the veins come back closed,
 ```python
 veins = {}
 for name in ("V1", "V2", "V3", "V4"):
-    path = cs.datasets.fetch(f"mining/3d/vein-gold-grade-control/vein_{name}.stl")
-    veins[name] = cs.read_mesh(path)
+    path = bt.datasets.fetch(f"mining/3d/vein-gold-grade-control/vein_{name}.stl")
+    veins[name] = bt.read_mesh(path)
     mesh = veins[name]
     print(f"{name}: {path.stat().st_size / 1e6:.1f} MB, {mesh}, {mesh.volume:,.0f} m3, {mesh.area:,.0f} m2")
 ```
@@ -52,7 +52,7 @@ planes = {
 }
 fig, axes = plt.subplots(1, 2, figsize=(8, 6), layout="constrained")
 for ax, (title, plane) in zip(axes, planes.items()):
-    cs.plot.slab(np.empty((0, 3)), plane=plane, thickness=1, meshes=list(veins.values()), ax=ax)
+    bt.plot.slab(np.empty((0, 3)), plane=plane, thickness=1, meshes=list(veins.values()), ax=ax)
     normal = np.array([0, 0, 1]) if plane[2] == 0 else np.array([0, 1, 0])
     along = [0, 1] if plane[2] == 0 else [0, 2]
     for name, mesh in veins.items():
@@ -79,8 +79,8 @@ v1 = veins["V1"]
 with tempfile.TemporaryDirectory() as folder:
     for file, options in [("v1.stl", {}), ("v1_ascii.stl", {"ascii": True}), ("v1.obj", {}), ("v1.dxf", {})]:
         path = Path(folder) / file
-        cs.write_mesh(path, v1, **options)
-        back = cs.read_mesh(path)
+        bt.write_mesh(path, v1, **options)
+        back = bt.read_mesh(path)
         shift = np.abs(back.vertices[back.triangles] - v1.vertices[v1.triangles]).max()
         print(
             f"{file:>12}: {path.stat().st_size / 1e6:5.1f} MB, {len(back.triangles)} triangles,"
@@ -113,7 +113,7 @@ corners = v1.vertices[v1.triangles] + rng.normal(0, 1e-5, (len(v1.triangles), 3,
 loose = np.arange(3 * len(v1.triangles)).reshape(-1, 3)
 flip = rng.random(len(loose)) < 0.5
 loose[flip] = loose[flip, ::-1]
-broken = cs.Mesh(corners.reshape(-1, 3), loose)
+broken = bt.Mesh(corners.reshape(-1, 3), loose)
 edges = np.linalg.norm(corners - np.roll(corners, 1, axis=1), axis=2)
 print(broken, broken.analysis)
 print(f"shortest edge {edges.min() * 1000:.1f} mm")

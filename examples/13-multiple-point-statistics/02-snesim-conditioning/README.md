@@ -6,16 +6,16 @@ servosystem pulls each realization towards target proportions.
 <details><summary>Python</summary>
 
 ```python
-import ceres as cs
+import boitata as bt
 import matplotlib.pyplot as plt
 import numpy as np
 from common import GRAY, HIGHLIGHT, INK, save
 from matplotlib.colors import ListedColormap
 
-ti = cs.datasets.strebelle()
+ti = bt.datasets.strebelle()
 nx, ny = ti.count[:2]
 image = ti["facies"].reshape(ny, nx)
-grid = cs.BlockModel((0, 0), (1, 1), (nx, ny))
+grid = bt.BlockModel((0, 0), (1, 1), (nx, ny))
 ```
 
 </details>
@@ -46,8 +46,8 @@ alone.
 
 ```python
 sand = image.mean()
-plain = cs.SNESIM(ti, "facies").fit(wells, facies)
-steered = cs.SNESIM(ti, "facies", target_proportions=[1 - sand, sand], servo=0.8).fit(wells, facies)
+plain = bt.SNESIM(ti, "facies").fit(wells, facies)
+steered = bt.SNESIM(ti, "facies", target_proportions=[1 - sand, sand], servo=0.8).fit(wells, facies)
 summaries = {
     name: s.simulate(grid, n=50, seed=3, keep=[0], progress=False)
     for name, s in [("plain", plain), ("servo", steered)]

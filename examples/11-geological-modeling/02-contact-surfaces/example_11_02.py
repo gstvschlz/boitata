@@ -14,13 +14,13 @@ HERE = Path(__file__).parent if "__file__" in globals() else Path.cwd()
 sys.path.insert(0, str(HERE.parents[1]))
 
 # %%
-import ceres as cs
+import boitata as bt
 import matplotlib.pyplot as plt
 import numpy as np
 from common import ACCENT, GRAY, HIGHLIGHT, INK, LIGHT, save
 
 # %%
-data = cs.datasets.stacked_sulphide_lenses()
+data = bt.datasets.stacked_sulphide_lenses()
 lens = data["lens_1"]
 print(f"lens 1: closed {lens.is_closed}, {lens.volume / 1e6:.2f} Mm3")
 
@@ -31,7 +31,7 @@ print(f"lens 1: closed {lens.is_closed}, {lens.volume / 1e6:.2f} Mm3")
 # outside, using the intervals next to a contact and a sparse subset of the others.
 
 # %%
-holes = cs.Drillholes(data["collars"], data["surveys"], data["lithology"])
+holes = bt.Drillholes(data["collars"], data["surveys"], data["lithology"])
 logged = holes.samples()
 xyz = logged.coords
 lo, hi = np.array(lens.bounds[0]) - 30, np.array(lens.bounds[1]) + 30
@@ -66,17 +66,17 @@ rotation, ratios = (22.5, 0, 60), (0.5, 0.1)
 
 
 def potential(covariance):
-    variogram = cs.Variogram([(covariance, 1.0, 200.0)], rotation=rotation, ratios=ratios)
-    return cs.ImplicitModel("kriging", variogram=variogram, degree=0)
+    variogram = bt.Variogram([(covariance, 1.0, 200.0)], rotation=rotation, ratios=ratios)
+    return bt.ImplicitModel("kriging", variogram=variogram, degree=0)
 
 
 models = {
     "kriging, cubic": potential("cubic"),
     "kriging": potential("spherical"),
-    "RBF": cs.ImplicitModel("rbf", degree=0, rotation=rotation, ratios=ratios),
-    "GP": cs.ImplicitModel("gp", degree=0, rotation=rotation),
+    "RBF": bt.ImplicitModel("rbf", degree=0, rotation=rotation, ratios=ratios),
+    "GP": bt.ImplicitModel("gp", degree=0, rotation=rotation),
 }
-cells = cs.BlockModel(origin=lo, size=(5, 5, 5), count=np.ceil((hi - lo) / 5).astype(int))
+cells = bt.BlockModel(origin=lo, size=(5, 5, 5), count=np.ceil((hi - lo) / 5).astype(int))
 solid = lens.contains(cells.centroids)
 for name, model in models.items():
     model.fit(points, code, boundaries=contacts)
@@ -109,9 +109,9 @@ for ax, (name, model) in zip(axes, models.items(), strict=True):
     ax.contourf(along, elevation, field, levels=[0, np.inf], colors=[LIGHT])
     ax.contour(along, elevation, field, levels=[0], colors=ACCENT, linewidths=1.2)
     style = {"plane": plane, "thickness": 20, "ax": ax}
-    cs.plot.slab(points[code < 0], s=4, color=GRAY, label="other rock", meshes=lens, **style)
-    cs.plot.slab(points[code > 0], s=6, color=HIGHLIGHT, label="lens 1", **style)
-    cs.plot.slab(contacts, s=14, marker="x", color=INK, linewidths=0.8, label="contact", **style)
+    bt.plot.slab(points[code < 0], s=4, color=GRAY, label="other rock", meshes=lens, **style)
+    bt.plot.slab(points[code > 0], s=6, color=HIGHLIGHT, label="lens 1", **style)
+    bt.plot.slab(contacts, s=14, marker="x", color=INK, linewidths=0.8, label="contact", **style)
     ax.set(title=name, xlabel="Toward 112.5° (m)", xlim=(along.min(), along.max()), ylim=(lo[2], hi[2]))
 for ax in axes[1:]:
     ax.set_ylabel("")

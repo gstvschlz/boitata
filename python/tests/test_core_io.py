@@ -1,7 +1,7 @@
 import math
 import sys
 
-import ceres as cs
+import boitata as bt
 import numpy as np
 import pytest
 
@@ -14,7 +14,7 @@ def samples(tmp_path):
 
 
 def test_read_csv_maps_nodata_to_null(samples):
-    table = cs.read_csv(samples)
+    table = bt.read_csv(samples)
     assert table.column_names == ["X", "Y", "au", "rock"]
     au = table["au"]
     assert au[0] == 0.5 and math.isnan(au[1])
@@ -22,28 +22,28 @@ def test_read_csv_maps_nodata_to_null(samples):
 
 
 def test_pointset_from_table_and_back(samples):
-    points = cs.PointSet.from_table(cs.read_csv(samples), crs="EPSG:32611")
+    points = bt.PointSet.from_table(bt.read_csv(samples), crs="EPSG:32611")
     np.testing.assert_array_equal(points.coords, [[1, 3, 0], [2, 4, 0]])
     assert len(points) == 2 and points.crs == "EPSG:32611"
     assert points.to_table().column_names == ["x", "y", "z", "au", "rock"]
 
 
 def test_pointset_accepts_2d_coords_and_dict():
-    points = cs.PointSet([[0, 0], [1, 1]], {"v": [1.0, np.nan]})
+    points = bt.PointSet([[0, 0], [1, 1]], {"v": [1.0, np.nan]})
     assert points.coords.shape == (2, 3)
     assert math.isnan(points["v"][1])
 
 
-def test_invalid_input_is_value_error_and_ceres_error():
-    with pytest.raises(cs.InvalidInput) as info:
-        cs.PointSet([[0, 0, 0]], {"v": [1.0, 2.0]})
-    assert isinstance(info.value, ValueError) and isinstance(info.value, cs.CeresError)
-    with pytest.raises(cs.FileError):
-        cs.read_csv("missing.csv")
+def test_invalid_input_is_value_error_and_boitata_error():
+    with pytest.raises(bt.InvalidInput) as info:
+        bt.PointSet([[0, 0, 0]], {"v": [1.0, 2.0]})
+    assert isinstance(info.value, ValueError) and isinstance(info.value, bt.BoitataError)
+    with pytest.raises(bt.FileError):
+        bt.read_csv("missing.csv")
 
 
 def test_blockmodel_rotation_mask_and_regular():
-    model = cs.BlockModel(
+    model = bt.BlockModel(
         origin=(100, 200),
         size=(10, 5),
         count=(3, 2),
@@ -61,156 +61,156 @@ def test_blockmodel_rotation_mask_and_regular():
 
 
 def test_discretize_keeps_each_node_in_its_block():
-    model = cs.BlockModel(origin=(100, 200, 0), size=(10, 5, 2), count=(3, 2, 2), rotation=(30, 20, 10))
+    model = bt.BlockModel(origin=(100, 200, 0), size=(10, 5, 2), count=(3, 2, 2), rotation=(30, 20, 10))
     masked = model.mask(np.arange(12) % 3 != 1)
     nodes = masked.discretize((2, 3, 2))
     assert len(nodes) == 12 * len(masked) and nodes.size == pytest.approx([5, 5 / 3, 1])
     block = nodes["block"].astype(int)
     np.testing.assert_allclose(np.bincount(block, nodes.volumes), masked.volumes)
     np.testing.assert_allclose(np.bincount(block, weights=nodes.centroids[:, 0]) / 12, masked.centroids[:, 0])
-    flat = cs.BlockModel(origin=(0, 0), size=(10, 10), count=(2, 2)).discretize(4)
+    flat = bt.BlockModel(origin=(0, 0), size=(10, 10), count=(2, 2)).discretize(4)
     assert flat.count == [8, 8, 1]
     parent = np.array([0, 0], dtype=np.uint64)
-    sub = cs.BlockModel.subblocked(
+    sub = bt.BlockModel.subblocked(
         (0, 0), (10, 10), (2, 2), parent, [[0, 0, 0, 0.3, 1, 1], [0.3, 0, 0, 1, 1, 1]]
     )
     np.testing.assert_allclose(
         np.bincount(sub.discretize(3)["block"].astype(int), sub.discretize(3).volumes), [30, 70]
     )
-    with pytest.raises(cs.InvalidInput):
+    with pytest.raises(bt.InvalidInput):
         model.discretize(0)
 
 
 def test_gslib_round_trip(tmp_path):
     source = tmp_path / "grid.dat"
     source.write_text("grid\n2\nau\ncu\n1 -999\n0.25 3\n")
-    table = cs.read_gslib(source)
-    cs.write_gslib(tmp_path / "out.dat", table, nodata=-1.0)
+    table = bt.read_gslib(source)
+    bt.write_gslib(tmp_path / "out.dat", table, nodata=-1.0)
     assert "-1" in (tmp_path / "out.dat").read_text().split()
-    back = cs.read_gslib(tmp_path / "out.dat", nodata=[-1])
+    back = bt.read_gslib(tmp_path / "out.dat", nodata=[-1])
     np.testing.assert_array_equal(back["cu"], table["cu"])
 
 
 def test_gslib_progress_does_not_change_output(tmp_path, capsys):
     source = tmp_path / "grid.dat"
     source.write_text("grid\n2\nau\ncu\n" + "1 -999\n0.25 3\n" * 500)
-    table = cs.read_gslib(source, progress=False)
+    table = bt.read_gslib(source, progress=False)
     assert capsys.readouterr().err == ""
-    cs.write_gslib(tmp_path / "on.dat", table, progress=True)
+    bt.write_gslib(tmp_path / "on.dat", table, progress=True)
     assert "100%" in capsys.readouterr().err
-    cs.write_gslib(tmp_path / "off.dat", table, progress=False)
+    bt.write_gslib(tmp_path / "off.dat", table, progress=False)
     assert (tmp_path / "on.dat").read_text() == (tmp_path / "off.dat").read_text()
-    on = cs.read_gslib(tmp_path / "on.dat", progress=True)
-    off = cs.read_gslib(tmp_path / "on.dat", progress=False)
+    on = bt.read_gslib(tmp_path / "on.dat", progress=True)
+    off = bt.read_gslib(tmp_path / "on.dat", progress=False)
     np.testing.assert_array_equal(on["cu"], off["cu"])
 
 
 def test_nodata_numbers_match_numerically_and_strings_as_tokens(tmp_path):
     path = tmp_path / "v.csv"
     path.write_text("v,rock\n-999.0,ox\n-999,none\n1,fr\n")
-    numeric = cs.read_csv(path, nodata=[-999, "none"])
+    numeric = bt.read_csv(path, nodata=[-999, "none"])
     assert np.isnan(numeric["v"][:2]).all() and list(numeric["rock"]) == ["ox", None, "fr"]
-    assert np.isnan(cs.read_csv(path, nodata=["-999"])["v"]).tolist() == [False, True, False]
+    assert np.isnan(bt.read_csv(path, nodata=["-999"])["v"]).tolist() == [False, True, False]
     with pytest.raises(TypeError):
-        cs.read_csv(path, [-999])
+        bt.read_csv(path, [-999])
     with pytest.raises(TypeError):
-        cs.write_gslib(path, cs.read_csv(path), -1.0)
+        bt.write_gslib(path, bt.read_csv(path), -1.0)
 
 
 def test_arrow_interop():
     pa = pytest.importorskip("pyarrow")
     pl = pytest.importorskip("polars")
     pytest.importorskip("pandas")
-    points = cs.PointSet([[0, 0], [1, 2]], {"v": [1.0, 2.0]})
+    points = bt.PointSet([[0, 0], [1, 2]], {"v": [1.0, 2.0]})
     assert pa.table(points).column_names == ["x", "y", "z", "v"]
     assert pl.DataFrame(points)["v"].to_list() == [1.0, 2.0]
-    back = cs.Table(pa.table({"a": [1.5, None]}))
+    back = bt.Table(pa.table({"a": [1.5, None]}))
     assert back.num_rows == 2 and math.isnan(back["a"][1])
     assert points.attributes.to_pandas()["v"].tolist() == [1.0, 2.0]
 
 
 def test_parquet_round_trips_containers(tmp_path):
-    points = cs.PointSet([[0, 0, 1], [1, 2, 3]], {"v": [1.0, np.nan]}, crs="EPSG:32611")
-    cs.write_parquet(tmp_path / "p.parquet", points)
-    back = cs.read_parquet(tmp_path / "p.parquet")
-    assert isinstance(back, cs.PointSet) and back.crs == "EPSG:32611"
+    points = bt.PointSet([[0, 0, 1], [1, 2, 3]], {"v": [1.0, np.nan]}, crs="EPSG:32611")
+    bt.write_parquet(tmp_path / "p.parquet", points)
+    back = bt.read_parquet(tmp_path / "p.parquet")
+    assert isinstance(back, bt.PointSet) and back.crs == "EPSG:32611"
     np.testing.assert_array_equal(back.coords, points.coords)
     assert math.isnan(back["v"][1])
 
-    model = cs.BlockModel(
+    model = bt.BlockModel(
         origin=(0, 0), size=(10, 10), count=(4, 3), rotation=(30, 0, 0), attributes={"g": np.arange(12.0)}
     )
     masked = model.mask(np.arange(12) % 5 == 0)
-    cs.write_parquet(tmp_path / "b.parquet", masked)
-    back = cs.read_parquet(tmp_path / "b.parquet")
-    assert isinstance(back, cs.BlockModel) and back.rotation == [30.0, 0.0, 0.0]
+    bt.write_parquet(tmp_path / "b.parquet", masked)
+    back = bt.read_parquet(tmp_path / "b.parquet")
+    assert isinstance(back, bt.BlockModel) and back.rotation == [30.0, 0.0, 0.0]
     np.testing.assert_array_equal(back.index, masked.index)
     np.testing.assert_array_equal(back["g"], masked["g"])
 
 
 def test_parquet_is_readable_by_other_tools(tmp_path):
     pl = pytest.importorskip("polars")
-    cs.write_parquet(
+    bt.write_parquet(
         tmp_path / "b.parquet",
-        cs.BlockModel(origin=(0, 0), size=(1, 1), count=(2, 2), attributes={"g": [1.0, 2, 3, 4]}),
+        bt.BlockModel(origin=(0, 0), size=(1, 1), count=(2, 2), attributes={"g": [1.0, 2, 3, 4]}),
     )
     assert pl.read_parquet(tmp_path / "b.parquet")["g"].to_list() == [1, 2, 3, 4]
-    assert isinstance(cs.read_parquet(tmp_path / "b.parquet"), cs.BlockModel)
+    assert isinstance(bt.read_parquet(tmp_path / "b.parquet"), bt.BlockModel)
 
 
 def test_subblocked_model(tmp_path):
     parent = np.array([0, 0, 3], dtype=np.uint64)
     extents = [[0, 0, 0, 0.5, 1, 1], [0.5, 0, 0, 1, 1, 1], [0, 0, 0, 1, 1, 1]]
-    model = cs.BlockModel.subblocked(
+    model = bt.BlockModel.subblocked(
         (0, 0), (10, 10), (2, 2), parent, extents, subgrid=(2, 1, 1), attributes={"g": [1.0, 3.0, 5.0]}
     )
     np.testing.assert_allclose(model.volumes, [50, 50, 100])
     np.testing.assert_allclose(model.centroids[1], [7.5, 5, 0.5])
     regular = model.to_regular()
     np.testing.assert_allclose(regular["g"][[0, 3]], [2.0, 5.0])
-    cs.write_parquet(tmp_path / "s.parquet", model)
-    back = cs.read_parquet(tmp_path / "s.parquet")
+    bt.write_parquet(tmp_path / "s.parquet", model)
+    back = bt.read_parquet(tmp_path / "s.parquet")
     np.testing.assert_allclose(back.extents, model.extents)
-    with pytest.raises(cs.InvalidInput):
-        cs.BlockModel.subblocked((0, 0), (10, 10), (2, 2), parent, extents, subgrid=(3, 1, 1))
+    with pytest.raises(bt.InvalidInput):
+        bt.BlockModel.subblocked((0, 0), (10, 10), (2, 2), parent, extents, subgrid=(3, 1, 1))
 
 
 def test_mesh_files_round_trip(tmp_path):
     vertices = [[0, 0, 0], [1.5, 0, 0], [0, 1, 0], [0, 0, 1]]
-    tetra = cs.Mesh(vertices, [[0, 2, 1], [0, 1, 3], [0, 3, 2], [1, 2, 3]])
+    tetra = bt.Mesh(vertices, [[0, 2, 1], [0, 1, 3], [0, 3, 2], [1, 2, 3]])
     tetra = tetra.with_face_column("layer", ["a", "a", "b", "b"])
     for name in ("m.obj", "m.stl", "m.dxf"):
-        cs.write_mesh(tmp_path / name, tetra)
-        back = cs.read_mesh(tmp_path / name)
+        bt.write_mesh(tmp_path / name, tetra)
+        back = bt.read_mesh(tmp_path / name)
         np.testing.assert_array_equal(back.vertices[back.triangles], tetra.vertices[tetra.triangles])
         assert back.is_closed and back.volume == pytest.approx(tetra.volume)
     assert list(back.face_attributes["layer"]) == ["a", "a", "b", "b"]
-    cs.write_mesh(tmp_path / "a.stl", tetra, ascii=True)
+    bt.write_mesh(tmp_path / "a.stl", tetra, ascii=True)
     assert (tmp_path / "a.stl").read_text().startswith("solid")
     np.testing.assert_array_equal(
-        cs.read_mesh(tmp_path / "a.stl").vertices, cs.read_mesh(tmp_path / "m.stl").vertices
+        bt.read_mesh(tmp_path / "a.stl").vertices, bt.read_mesh(tmp_path / "m.stl").vertices
     )
-    with pytest.raises(cs.InvalidInput):
-        cs.write_mesh(tmp_path / "m.ply", tetra)
-    with pytest.raises(cs.FileError):
-        cs.read_mesh(tmp_path / "missing.obj")
+    with pytest.raises(bt.InvalidInput):
+        bt.write_mesh(tmp_path / "m.ply", tetra)
+    with pytest.raises(bt.FileError):
+        bt.read_mesh(tmp_path / "missing.obj")
 
 
 def test_parquet_progress_does_not_change_output(tmp_path, capsys):
-    points = cs.PointSet([[0, 0], [1, 1], [2, 2]], {"v": [1.0, 2.0, 3.0]})
-    model = cs.BlockModel(origin=(0, 0), size=(1, 1), count=(3, 3), attributes={"v": np.arange(9.0)})
+    points = bt.PointSet([[0, 0], [1, 1], [2, 2]], {"v": [1.0, 2.0, 3.0]})
+    model = bt.BlockModel(origin=(0, 0), size=(1, 1), count=(3, 3), attributes={"v": np.arange(9.0)})
     masked = model.mask(np.arange(9) % 2 == 0)
-    for name, data in (("p", points), ("m", masked), ("t", cs.read_csv(_csv(tmp_path)))):
-        cs.write_parquet(tmp_path / f"{name}_on.parquet", data, progress=True)
+    for name, data in (("p", points), ("m", masked), ("t", bt.read_csv(_csv(tmp_path)))):
+        bt.write_parquet(tmp_path / f"{name}_on.parquet", data, progress=True)
         assert "100%" in capsys.readouterr().err
-        cs.write_parquet(tmp_path / f"{name}_off.parquet", data, progress=False)
+        bt.write_parquet(tmp_path / f"{name}_off.parquet", data, progress=False)
         assert capsys.readouterr().err == ""
         assert (tmp_path / f"{name}_on.parquet").read_bytes() == (
             tmp_path / f"{name}_off.parquet"
         ).read_bytes()
-        on = cs.read_parquet(tmp_path / f"{name}_on.parquet", progress=True)
+        on = bt.read_parquet(tmp_path / f"{name}_on.parquet", progress=True)
         assert capsys.readouterr().err
-        off = cs.read_parquet(tmp_path / f"{name}_on.parquet", progress=False)
+        off = bt.read_parquet(tmp_path / f"{name}_on.parquet", progress=False)
         np.testing.assert_array_equal(
             on["v"] if name != "t" else on["au"], off["v"] if name != "t" else off["au"]
         )
@@ -225,53 +225,53 @@ def _csv(tmp_path):
 def test_csv_progress_does_not_change_output(tmp_path, capsys):
     source = tmp_path / "in.csv"
     source.write_text("au,rock\n" + "0.5,ox\n-999,fr\n" * 500)
-    table = cs.read_csv(source, progress=False)
+    table = bt.read_csv(source, progress=False)
     assert capsys.readouterr().err == ""
-    cs.write_csv(tmp_path / "on.csv", table, progress=True)
+    bt.write_csv(tmp_path / "on.csv", table, progress=True)
     assert "100%" in capsys.readouterr().err
-    cs.write_csv(tmp_path / "off.csv", table, progress=False)
+    bt.write_csv(tmp_path / "off.csv", table, progress=False)
     assert (tmp_path / "on.csv").read_bytes() == (tmp_path / "off.csv").read_bytes()
-    on = cs.read_csv(tmp_path / "on.csv", progress=True)
+    on = bt.read_csv(tmp_path / "on.csv", progress=True)
     assert capsys.readouterr().err
     np.testing.assert_array_equal(on["au"], table["au"])
 
 
 def test_mesh_progress_does_not_change_output(tmp_path, capsys):
-    tetra = cs.Mesh(
+    tetra = bt.Mesh(
         [[0, 0, 0], [1, 0, 0], [0, 1, 0], [0, 0, 1]], [[0, 2, 1], [0, 1, 3], [0, 3, 2], [1, 2, 3]]
     )
     for name in ("m.obj", "m.stl", "m.dxf"):
-        cs.write_mesh(tmp_path / f"on_{name}", tetra, progress=True)
+        bt.write_mesh(tmp_path / f"on_{name}", tetra, progress=True)
         assert "100%" in capsys.readouterr().err
-        cs.write_mesh(tmp_path / f"off_{name}", tetra, progress=False)
+        bt.write_mesh(tmp_path / f"off_{name}", tetra, progress=False)
         assert capsys.readouterr().err == ""
-        on = cs.read_mesh(tmp_path / f"on_{name}", progress=True)
-        off = cs.read_mesh(tmp_path / f"on_{name}", progress=False)
+        on = bt.read_mesh(tmp_path / f"on_{name}", progress=True)
+        off = bt.read_mesh(tmp_path / f"on_{name}", progress=False)
         np.testing.assert_array_equal(on.vertices, off.vertices)
         if name != "m.dxf":
             assert (tmp_path / f"on_{name}").read_bytes() == (tmp_path / f"off_{name}").read_bytes()
 
 
 def test_shapefile_round_trip(tmp_path):
-    points = cs.PointSet(
+    points = bt.PointSet(
         [[500000.5, 7000000.25, 350.0], [500010.0, 7000020.0, -12.5]],
         {"au": [0.1 + 0.2, float("nan")], "rock": ["óxido", "fresh"]},
         crs='PROJCS["SIRGAS 2000 / UTM zone 22S"]',
     )
-    cs.write_shapefile(tmp_path / "collars.shp", points)
-    back = cs.read_shapefile(tmp_path / "collars.shp")
+    bt.write_shapefile(tmp_path / "collars.shp", points)
+    back = bt.read_shapefile(tmp_path / "collars.shp")
     np.testing.assert_array_equal(back.coords, points.coords)
     np.testing.assert_array_equal(back["au"], points["au"])
     assert list(back["rock"]) == list(points["rock"]) and back.crs == points.crs
-    with pytest.raises(cs.InvalidInput):
-        cs.write_shapefile(tmp_path / "long.shp", points.with_column("a_long_column", [1, 2]))
+    with pytest.raises(bt.InvalidInput):
+        bt.write_shapefile(tmp_path / "long.shp", points.with_column("a_long_column", [1, 2]))
 
 
 def test_polylines_parts_features_and_points():
     pit = [[0, 0], [10, 0], [10, 10], [0, 10]]
     hole = [[4, 4], [6, 4], [6, 6], [4, 6]]
     section = [[20, 0, 5], [30, 0, 5], [40, 5, 5]]
-    lines = cs.Polylines(
+    lines = bt.Polylines(
         [pit, hole, section],
         closed=[True, True, False],
         features=[0, 0, 1],
@@ -284,91 +284,91 @@ def test_polylines_parts_features_and_points():
     assert list(points["name"]) == ["pit"] * 8 + ["s1"] * 3
     assert points["part"].tolist() == [0] * 4 + [1] * 4 + [2] * 3
     assert lines.with_column("id", [1, 2])["id"].tolist() == [1, 2]
-    with pytest.raises(cs.InvalidInput):
-        cs.Polylines([pit[:2]], closed=True)
-    with pytest.raises(cs.InvalidInput):
-        cs.Polylines([pit, hole], features=[1, 1])
+    with pytest.raises(bt.InvalidInput):
+        bt.Polylines([pit[:2]], closed=True)
+    with pytest.raises(bt.InvalidInput):
+        bt.Polylines([pit, hole], features=[1, 1])
 
 
 def test_geotiff_round_trip(tmp_path):
     au = [0.1, float("nan"), 3.0, 4.0, 5.0, 6.0]
     cu = np.arange(6, dtype=np.float32)
-    grid = cs.BlockModel(
+    grid = bt.BlockModel(
         origin=(500000.0, 7000000.0),
         size=(2.5, 4.0),
         count=(3, 2),
         attributes={"au": au, "cu": cu},
         crs="EPSG:31982",
     )
-    cs.write_geotiff(tmp_path / "grid.tif", grid)
-    back = cs.read_geotiff(tmp_path / "grid.tif")
+    bt.write_geotiff(tmp_path / "grid.tif", grid)
+    back = bt.read_geotiff(tmp_path / "grid.tif")
     assert (back.origin, back.size, back.count, back.crs) == (grid.origin, grid.size, grid.count, grid.crs)
     np.testing.assert_array_equal(back["au"], grid["au"])
     np.testing.assert_array_equal(back["cu"], grid["cu"])
 
-    turned = cs.BlockModel(
+    turned = bt.BlockModel(
         origin=(10, 20), size=(1, 2), count=(4, 3), rotation=(30, 0, 0), attributes={"v": np.arange(12.0)}
     )
-    cs.write_geotiff(tmp_path / "turned.tif", turned)
-    back = cs.read_geotiff(tmp_path / "turned.tif")
+    bt.write_geotiff(tmp_path / "turned.tif", turned)
+    back = bt.read_geotiff(tmp_path / "turned.tif")
     np.testing.assert_allclose(back.centroids, turned.centroids)
     np.testing.assert_array_equal(back["v"], turned["v"])
-    assert np.isnan(cs.read_geotiff(tmp_path / "turned.tif", nodata=0)["v"][0])
+    assert np.isnan(bt.read_geotiff(tmp_path / "turned.tif", nodata=0)["v"][0])
 
-    with pytest.raises(cs.InvalidInput):
-        cs.write_geotiff(
-            tmp_path / "deep.tif", cs.BlockModel(origin=(0, 0, 0), size=(1, 1, 1), count=(2, 2, 2))
+    with pytest.raises(bt.InvalidInput):
+        bt.write_geotiff(
+            tmp_path / "deep.tif", bt.BlockModel(origin=(0, 0, 0), size=(1, 1, 1), count=(2, 2, 2))
         )
-    with pytest.raises(cs.InvalidInput):
-        cs.write_geotiff(tmp_path / "clash.tif", turned, nodata=5.0)
+    with pytest.raises(bt.InvalidInput):
+        bt.write_geotiff(tmp_path / "clash.tif", turned, nodata=5.0)
 
 
 def test_segy_round_trip(tmp_path):
     amplitude = np.arange(60, dtype=np.float32) - 20
     amplitude[[4, 31]] = np.nan
-    cube = cs.BlockModel(
+    cube = bt.BlockModel(
         origin=(500000.0, 7000000.0, -50.0),
         size=(25.0, 12.5, 4.0),
         count=(3, 4, 5),
         attributes={"amplitude": amplitude},
     )
-    cs.write_segy(tmp_path / "cube.sgy", cube, "amplitude", nodata=-999.0)
-    back = cs.read_segy(tmp_path / "cube.sgy", nodata=-999.0)
+    bt.write_segy(tmp_path / "cube.sgy", cube, "amplitude", nodata=-999.0)
+    back = bt.read_segy(tmp_path / "cube.sgy", nodata=-999.0)
     assert (back.size, back.count, back.rotation) == (cube.size, cube.count, cube.rotation)
     np.testing.assert_allclose(back.origin, cube.origin)
     np.testing.assert_array_equal(back["amplitude"], cube["amplitude"])
-    cs.write_segy(tmp_path / "again.sgy", back, "amplitude", nodata=-999.0)
-    again = cs.read_segy(tmp_path / "again.sgy", column="vp", nodata=-999.0)
+    bt.write_segy(tmp_path / "again.sgy", back, "amplitude", nodata=-999.0)
+    again = bt.read_segy(tmp_path / "again.sgy", column="vp", nodata=-999.0)
     np.testing.assert_allclose(again.centroids, back.centroids)
     np.testing.assert_array_equal(again["vp"], back["amplitude"])
 
-    turned = cs.BlockModel(origin=(0, 0, 0), size=(1, 1, 1), count=(2, 2, 2), rotation=(30, 10, 0))
-    with pytest.raises(cs.InvalidInput):
-        cs.write_segy(tmp_path / "dip.sgy", turned.with_column("v", np.zeros(8)), "v")
-    with pytest.raises(cs.InvalidInput):
-        cs.read_segy(tmp_path / "cube.sgy", x_byte=239)
+    turned = bt.BlockModel(origin=(0, 0, 0), size=(1, 1, 1), count=(2, 2, 2), rotation=(30, 10, 0))
+    with pytest.raises(bt.InvalidInput):
+        bt.write_segy(tmp_path / "dip.sgy", turned.with_column("v", np.zeros(8)), "v")
+    with pytest.raises(bt.InvalidInput):
+        bt.read_segy(tmp_path / "cube.sgy", x_byte=239)
 
 
 def test_polylines_shapefile_round_trip(tmp_path):
     pit = [[0, 0, 1], [0, 10, 1], [10, 10, 1], [10, 0, 1]]
     hole = [[4, 4, 2], [6, 4, 2], [6, 6, 2], [4, 6, 2]]
-    pits = cs.Polylines(
+    pits = bt.Polylines(
         [pit, hole], closed=True, features=[0, 0], attributes={"name": ["pit"]}, crs="EPSG:31982"
     )
-    cs.write_shapefile(tmp_path / "pit.shp", pits)
-    back = cs.read_shapefile(tmp_path / "pit.shp")
-    assert isinstance(back, cs.Polylines) and back.crs == pits.crs and list(back["name"]) == ["pit"]
+    bt.write_shapefile(tmp_path / "pit.shp", pits)
+    back = bt.read_shapefile(tmp_path / "pit.shp")
+    assert isinstance(back, bt.Polylines) and back.crs == pits.crs and list(back["name"]) == ["pit"]
     np.testing.assert_array_equal(back.vertices, pits.vertices)
     assert back.closed.tolist() == [True, True] and back.feature.tolist() == [0, 0]
-    with pytest.raises(cs.InvalidInput):
-        cs.write_shapefile(tmp_path / "mixed.shp", cs.Polylines([pit, hole[:2]], closed=[True, False]))
+    with pytest.raises(bt.InvalidInput):
+        bt.write_shapefile(tmp_path / "mixed.shp", bt.Polylines([pit, hole[:2]], closed=[True, False]))
 
 
 def test_polylines_arrow_long_table_and_parquet(tmp_path):
     pl = pytest.importorskip("polars")
     pit = [[0, 0, 1], [10, 0, 1], [10, 10, 1], [0, 10, 1]]
     hole = [[4, 4, 1], [6, 4, 1], [6, 6, 1], [4, 6, 1]]
-    pits = cs.Polylines(
+    pits = bt.Polylines(
         [pit, hole, pit[:3]], closed=True, features=[0, 0, 1], attributes={"ID": ["a", "b"]}, crs="EPSG:31982"
     )
     frame = pl.DataFrame(pits)
@@ -376,12 +376,12 @@ def test_polylines_arrow_long_table_and_parquet(tmp_path):
     assert frame["geometry"][0][1][0] == {"x": 4.0, "y": 4.0, "z": 1.0}
 
     long = pl.DataFrame(pits.to_points()).drop("feature").rename({"x": "X", "y": "Y"})
-    back = cs.Polylines.from_table(long, z="z", part="part", closed=True, crs=pits.crs)
+    back = bt.Polylines.from_table(long, z="z", part="part", closed=True, crs=pits.crs)
     assert pl.DataFrame(back).equals(frame) and back.crs == pits.crs
 
-    cs.write_parquet(tmp_path / "pits.parquet", pits)
-    back = cs.read_parquet(tmp_path / "pits.parquet")
-    assert isinstance(back, cs.Polylines) and back.crs == pits.crs
+    bt.write_parquet(tmp_path / "pits.parquet", pits)
+    back = bt.read_parquet(tmp_path / "pits.parquet")
+    assert isinstance(back, bt.Polylines) and back.crs == pits.crs
     assert pl.DataFrame(back).equals(frame)
 
 
@@ -396,7 +396,7 @@ def test_polylines_arrow_long_table_and_parquet(tmp_path):
 )
 def test_table_conversion_without_the_package_names_pip_and_conda(monkeypatch, method, missing, packages):
     monkeypatch.setitem(sys.modules, missing, None)
-    table = cs.PointSet(np.zeros((1, 3)), {"v": [1.0]}).attributes
+    table = bt.PointSet(np.zeros((1, 3)), {"v": [1.0]}).attributes
     hint = (
         f"Table.{method} needs {packages}: pip install {packages} or conda install -c conda-forge {packages}"
     )
@@ -407,12 +407,12 @@ def test_table_conversion_without_the_package_names_pip_and_conda(monkeypatch, m
 def test_write_parquet_keeps_float32(tmp_path):
     pq = pytest.importorskip("pyarrow.parquet")
     values = np.arange(10, dtype=np.float32)
-    cs.write_parquet(tmp_path / "t.parquet", {"v": values})
+    bt.write_parquet(tmp_path / "t.parquet", {"v": values})
     assert pq.read_schema(tmp_path / "t.parquet").field("v").type == "float"
-    np.testing.assert_array_equal(np.asarray(cs.read_parquet(tmp_path / "t.parquet")["v"]), values)
+    np.testing.assert_array_equal(np.asarray(bt.read_parquet(tmp_path / "t.parquet")["v"]), values)
 
 
 def test_write_parquet_keeps_nan_as_null(tmp_path):
     pq = pytest.importorskip("pyarrow.parquet")
-    cs.write_parquet(tmp_path / "t.parquet", {"v": np.array([1.0, np.nan], dtype=np.float32)})
+    bt.write_parquet(tmp_path / "t.parquet", {"v": np.array([1.0, np.nan], dtype=np.float32)})
     assert pq.read_table(tmp_path / "t.parquet")["v"].null_count == 1

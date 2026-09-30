@@ -1,5 +1,5 @@
 context:
-  name: ceresgeo
+  name: boitata
   version: "0.1.0"
 
 package:
@@ -8,7 +8,7 @@ package:
 
 source:
   # Switch to the GitHub tag archive once released (PyPI carries wheels only):
-  #   url: https://github.com/gstvschlz/ceres/archive/refs/tags/v${{ version }}.tar.gz
+  #   url: https://github.com/gstvschlz/boitata/archive/refs/tags/v${{ version }}.tar.gz
   #   sha256: ...
   path: ../..
 
@@ -46,8 +46,8 @@ requirements:
 tests:
   - python:
       imports:
-        - ceres
-        - ceres._ceres
+        - boitata
+        - boitata._boitata
       pip_check: true
       python_version: ${{ python_min }}.*
   - requirements:
@@ -56,8 +56,8 @@ tests:
         - python ${{ python_min }}.*
     script:
       - if: unix
-        then: abi3audit $SP_DIR/ceres/_ceres.abi3.so -s -v --assume-minimum-abi3 ${{ python_min }}
-        else: abi3audit %SP_DIR%\ceres\_ceres.pyd -s -v --assume-minimum-abi3 ${{ python_min }}
+        then: abi3audit $SP_DIR/boitata/_boitata.abi3.so -s -v --assume-minimum-abi3 ${{ python_min }}
+        else: abi3audit %SP_DIR%\boitata\_boitata.pyd -s -v --assume-minimum-abi3 ${{ python_min }}
   - files:
       recipe:
         - smoke.py
@@ -68,9 +68,9 @@ tests:
       - python smoke.py
 
 about:
-  homepage: https://github.com/gstvschlz/ceres
-  repository: https://github.com/gstvschlz/ceres
-  documentation: https://gstvschlz.github.io/ceres/
+  homepage: https://github.com/gstvschlz/boitata
+  repository: https://github.com/gstvschlz/boitata
+  documentation: https://gstvschlz.github.io/boitata/
   summary: Geostatistics in Rust with a Python interface
   license: MIT
   license_file:

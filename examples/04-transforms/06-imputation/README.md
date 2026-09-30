@@ -9,13 +9,13 @@ its row.
 <details><summary>Python</summary>
 
 ```python
-import ceres as cs
+import boitata as bt
 import matplotlib.pyplot as plt
 import numpy as np
 from common import ACCENT, GRAY, HIGHLIGHT, LIGHT, save
 
-lenses = cs.datasets.stacked_sulphide_lenses()
-samples = cs.merge_intervals(lenses["assays"], lenses["lithology"])
+lenses = bt.datasets.stacked_sulphide_lenses()
+samples = bt.merge_intervals(lenses["assays"], lenses["lithology"])
 sulphide = np.isin(np.asarray(samples["LITH"]), ["MS", "SMS", "STR"]) & ~np.isnan(samples["ZN_PCT"])
 columns = ["ZN_PCT", "PB_PCT", "CU_PCT", "AG_GPT", "AU_GPT", "DENSITY"]
 labels = ["Zn", "Pb", "Cu", "Ag", "Au", "density"]
@@ -39,7 +39,7 @@ carry more of their own randomness.
 <details><summary>Python</summary>
 
 ```python
-imputer = cs.GaussianImputer(seed=0).fit(data)
+imputer = bt.GaussianImputer(seed=0).fit(data)
 print("score correlation")
 print(" " * 8 + "".join(f"{n:>8}" for n in labels))
 for name, row in zip(labels, imputer.correlation_):
@@ -69,7 +69,7 @@ holes = np.asarray(samples["HOLE_ID"])[sulphide]
 test = ~missing[:, 5] & np.isin(holes, np.unique(holes)[::2])
 holed = data.copy()
 holed[test, 5] = np.nan
-draws = np.array([cs.GaussianImputer(seed=s).fit(holed).transform(holed)[test, 5] for s in range(50)])
+draws = np.array([bt.GaussianImputer(seed=s).fit(holed).transform(holed)[test, 5] for s in range(50)])
 truth = data[test, 5]
 qs = [0.1, 0.5, 0.9]
 print(f"{test.sum()} densities hidden")

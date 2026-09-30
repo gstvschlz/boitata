@@ -6,16 +6,16 @@ with the same cumulative probability, weighting samples by cell-declustering wei
 <details><summary>Python</summary>
 
 ```python
-import ceres as cs
+import boitata as bt
 import matplotlib.pyplot as plt
 import numpy as np
 from common import ACCENT, GRAY, HIGHLIGHT, INK, LIGHT, save
 
-samples = cs.datasets.walker_lake()
+samples = bt.datasets.walker_lake()
 v = samples["V"]
-w = cs.cell_declustering(samples, "V", sizes=np.arange(2.5, 102.5, 2.5)).weights
+w = bt.cell_declustering(samples, "V", sizes=np.arange(2.5, 102.5, 2.5)).weights
 
-ns = cs.NormalScore()
+ns = bt.NormalScore()
 y = ns.fit_transform(v, weights=w)
 mean = np.average(y, weights=w)
 sd = np.sqrt(np.average((y - mean) ** 2, weights=w))
@@ -46,7 +46,7 @@ a.step(v[order], cdf, where="post", color=ACCENT, lw=1.4)
 a.set_title("Declustered CDF of V")
 a.set_xlabel("V (ppm)")
 a.set_ylabel("Cumulative probability")
-b.plot(z, cs.normal_cdf(z), color=INK, lw=1.4)
+b.plot(z, bt.normal_cdf(z), color=INK, lw=1.4)
 b.set_title("Standard normal CDF")
 b.set_xlabel("Normal score")
 for ax, x in ((a, vp), (b, yp)):
@@ -101,16 +101,16 @@ save(fig, "histograms")
 
 ![histograms](histograms.png)
 
-On a probability scale, where a Gaussian is a straight line, `cs.plot.probability` shows V is not lognormal either
+On a probability scale, where a Gaussian is a straight line, `bt.plot.probability` shows V is not lognormal either
 while its scores are Gaussian by construction:
 
 <details><summary>Python</summary>
 
 ```python
 fig, (a, b) = plt.subplots(1, 2, figsize=(9, 3.4), layout="constrained")
-cs.plot.probability(v[v > 0], weights=w[v > 0], log=True, ax=a, color=ACCENT, ms=3)
+bt.plot.probability(v[v > 0], weights=w[v > 0], log=True, ax=a, color=ACCENT, ms=3)
 a.set(title="V (log scale)", xlabel="V (ppm)")
-cs.plot.probability(y, weights=w, ax=b, color=ACCENT, ms=3)
+bt.plot.probability(y, weights=w, ax=b, color=ACCENT, ms=3)
 b.set(title="Normal scores", xlabel="Normal score")
 save(fig, "probability")
 ```

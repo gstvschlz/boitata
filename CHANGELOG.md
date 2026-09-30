@@ -39,8 +39,8 @@
 - **py:** sub-blocked BlockModel, extents and volumes
 - **simulation:** [**breaking**] stream uncertainty summaries instead of returning realizations
 - **py:** implicit modelling bindings
-- **py:** ceres.datasets loader
-- **py:** ceres.plot on matplotlib
+- **py:** boitata.datasets loader
+- **py:** boitata.plot on matplotlib
 - EDA toolkit
 - **transforms:** PCA, MAF, stepwise conditional transform and PPMT pipeline
 - kriging efficiency, slope of regression and classification helpers

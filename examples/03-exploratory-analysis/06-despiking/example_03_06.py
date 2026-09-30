@@ -3,7 +3,7 @@
 
 Soil gold assays below the detection limit are all reported at 2 ppb, so four in ten samples share one value. A
 [normal-score transform](../../04-transforms/01-normal-score/README.md) cannot split that spike: the tied samples all get the same
-score. `cs.despike` breaks the ties by ranking each tied sample on the average rank of its neighbors, within growing
+score. `bt.despike` breaks the ties by ranking each tied sample on the average rank of its neighbors, within growing
 radii, with a seeded random draw as the last resort. Values move by tiny offsets only, so every untied sample keeps
 its rank.
 """
@@ -16,24 +16,24 @@ HERE = Path(__file__).parent if "__file__" in globals() else Path.cwd()
 sys.path.insert(0, str(HERE.parents[1]))
 
 # %%
-import ceres as cs
+import boitata as bt
 import matplotlib.pyplot as plt
 import numpy as np
 from common import ACCENT, GRAY, HIGHLIGHT, LIGHT, map_axes, save
 
-samples = cs.datasets.soil_geochemistry_survey()["samples"]
+samples = bt.datasets.soil_geochemistry_survey()["samples"]
 au = samples["AU_PPB"]
 limit = au.min()
 tied = au == limit
 print(f"{tied.sum()} of {len(au)} samples at the detection limit ({limit:g} ppb)")
 
-untied = cs.despike(samples, "AU_PPB", seed=0)
+untied = bt.despike(samples, "AU_PPB", seed=0)
 print(f"distinct values: {len(np.unique(au))} before, {len(np.unique(untied))} after")
 print(f"largest change: {np.abs(untied - au).max():.1e} ppb")
 
-ns = cs.NormalScore().fit(au)
+ns = bt.NormalScore().fit(au)
 spiked = ns.transform(au)
-scores = cs.NormalScore().fit_transform(untied)
+scores = bt.NormalScore().fit_transform(untied)
 
 
 # %% [markdown]
@@ -76,5 +76,5 @@ map_axes(ax, "Samples at the detection limit, colored by despiked score")
 save(fig, "map")
 
 # %% [markdown]
-# Several variables, such as gold and arsenic, can be despiked together with `cs.despike(samples, ["AU_PPB",
+# Several variables, such as gold and arsenic, can be despiked together with `bt.despike(samples, ["AU_PPB",
 # "AS_PPM"])`: samples tied in both are then ordered the same way in each.

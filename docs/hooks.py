@@ -59,15 +59,15 @@ def on_config(config, **kwargs):
 
 def on_files(files, config, **kwargs):
     """Generates the API pages, with summaries from the first docstring sentence."""
-    import ceres
+    import boitata
 
     for slug, title, names in sections():
         rows = ["| Name | Summary |", "| --- | --- |"]
         for name in names:
-            doc = inspect.getdoc(getattr(ceres, name)) or ""
+            doc = inspect.getdoc(getattr(boitata, name)) or ""
             summary = SENTENCE.split(" ".join(doc.split()), 1)[0].replace("|", "\\|")
             rows.append(f"| [`{name}`]({name}.md) | {summary} |")
-            page = f"::: ceres.{name}\n    options:\n      heading_level: 1\n"
+            page = f"::: boitata.{name}\n    options:\n      heading_level: 1\n"
             files.append(File.generated(config, f"api/{slug}/{name}.md", content=page))
         index = f"# {title}\n\n" + "\n".join(rows) + "\n"
         files.append(File.generated(config, f"api/{slug}/index.md", content=index))
@@ -77,4 +77,4 @@ def on_files(files, config, **kwargs):
 def on_page_markdown(markdown, page, **kwargs):
     """Points links between example pages at their gallery pages."""
     markdown = CHAPTER.sub(r"](\1/example_\2_\3.md)", markdown)
-    return SOURCE.sub("](https://github.com/gstvschlz/ceres/blob/main/examples/common.py)", markdown)
+    return SOURCE.sub("](https://github.com/gstvschlz/boitata/blob/main/examples/common.py)", markdown)

@@ -8,7 +8,7 @@ body:
   attributes:
     value: >
       Describe the geostatistics problem first, then the change you have in mind.
-      See [CONTRIBUTING.md](https://github.com/gstvschlz/ceres/blob/main/CONTRIBUTING.md)
+      See [CONTRIBUTING.md](https://github.com/gstvschlz/boitata/blob/main/CONTRIBUTING.md)
       if you want to implement it yourself.
 
 - type: textarea

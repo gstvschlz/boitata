@@ -30,7 +30,7 @@ pub use solid::{Aabb, BlockDomainRule, BlockSolid, SolidTester};
 pub use subblock::{Domain, Region, proportions, subblock};
 pub use unfold::{Reference, Unfold, UnfoldMode};
 
-use ceres_core::{Mesh, signed_solid_angle};
+use boitata_core::{Mesh, signed_solid_angle};
 use nalgebra::Vector3;
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};

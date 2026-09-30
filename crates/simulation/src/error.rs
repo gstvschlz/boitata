@@ -15,7 +15,7 @@ pub enum SimError {
     Transform(String),
 
     #[error(transparent)]
-    Io(#[from] ceres_io::Error),
+    Io(#[from] boitata_io::Error),
 }
 
 pub type Result<T> = std::result::Result<T, SimError>;

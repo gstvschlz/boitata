@@ -5,16 +5,16 @@ Far from the data, SGS draws from the global histogram, wherever it is. A trend 
 <details><summary>Python</summary>
 
 ```python
-import ceres as cs
+import boitata as bt
 import matplotlib.pyplot as plt
 import numpy as np
 from common import map_axes, save
 from matplotlib.colors import PowerNorm
 
-samples = cs.datasets.walker_lake()
+samples = bt.datasets.walker_lake()
 xy, v = samples.coords, samples["V"]
-weights = cs.cell_declustering(xy, v, sizes=np.arange(2.5, 102.5, 2.5)).weights
-grid = cs.BlockModel(origin=(0.5, 0.5), size=(5, 5), count=(52, 60))
+weights = bt.cell_declustering(xy, v, sizes=np.arange(2.5, 102.5, 2.5)).weights
+grid = bt.BlockModel(origin=(0.5, 0.5), size=(5, 5), count=(52, 60))
 ```
 
 </details>
@@ -26,7 +26,7 @@ BlockModel column.
 <details><summary>Python</summary>
 
 ```python
-window = cs.MovingAverage(cs.Search(radius=40, max_samples=200)).fit(xy, v)
+window = bt.MovingAverage(bt.Search(radius=40, max_samples=200)).fit(xy, v)
 trend = window.predict(xy)
 trended = grid.with_column("trend", window.predict(grid))
 ```
@@ -42,14 +42,14 @@ uses the variogram of global normal scores; both are scaled to a unit sill.
 
 ```python
 pair = np.column_stack([trend, v])
-scores = cs.StepwiseConditional(classes=8).fit(pair, weights=weights).transform(pair)[:, 1]
-y = cs.NormalScore(tails=(0.0, v.max())).fit_transform(v, weights=weights)
+scores = bt.StepwiseConditional(classes=8).fit(pair, weights=weights).transform(pair)[:, 1]
+y = bt.NormalScore(tails=(0.0, v.max())).fit_transform(v, weights=weights)
 
 
 def unit_sill(values):
-    fitted = cs.experimental_variogram(xy, values, 10.0, 150.0).fit("spherical")
+    fitted = bt.experimental_variogram(xy, values, 10.0, 150.0).fit("spherical")
     (structure,) = fitted.structures
-    return cs.Variogram(
+    return bt.Variogram(
         [("spherical", structure.sill / fitted.sill, structure.range)], nugget=fitted.nugget / fitted.sill
     )
 
@@ -57,10 +57,10 @@ def unit_sill(values):
 score_variogram, plain_variogram = unit_sill(scores), unit_sill(y)
 print(score_variogram, plain_variogram, sep="\n")
 
-search = cs.Search(radius=100, max_samples=24)
-with_trend = cs.SGS(score_variogram, search, classes=8).fit(xy, v, weights=weights, trend=trend)
+search = bt.Search(radius=100, max_samples=24)
+with_trend = bt.SGS(score_variogram, search, classes=8).fit(xy, v, weights=weights, trend=trend)
 by_trend = with_trend.simulate(trended, n=20, seed=5, keep=True, trend="trend").realizations
-plain = cs.SGS(plain_variogram, search).fit(xy, v, weights=weights)
+plain = bt.SGS(plain_variogram, search).fit(xy, v, weights=weights)
 by_sgs = plain.simulate(grid, n=20, seed=5, keep=True).realizations
 ```
 

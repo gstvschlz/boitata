@@ -4,7 +4,7 @@ use crate::error::{Result, VarioError};
 use nalgebra::{Matrix3, Vector3};
 use serde::{Deserialize, Serialize};
 
-pub use ceres_core::rotation_matrix;
+pub use boitata_core::rotation_matrix;
 
 /// Azimuth/dip/rake angles and anisotropic ranges.
 ///

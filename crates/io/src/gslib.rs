@@ -9,7 +9,7 @@ use arrow_array::types::Float64Type;
 use arrow_array::{Array, ArrayRef, Float64Array, RecordBatch, RecordBatchOptions};
 use arrow_cast::cast;
 use arrow_schema::{DataType, Field, Schema};
-use ceres_core::Progress;
+use boitata_core::Progress;
 
 use crate::{Error, Nodata, Result, is_nodata};
 
@@ -113,7 +113,7 @@ pub fn write_gslib(
     let title = schema
         .metadata()
         .get("title")
-        .map_or("ceres", String::as_str);
+        .map_or("boitata", String::as_str);
     writeln!(out, "{title}\n{}", columns.len())?;
     for field in schema.fields() {
         writeln!(out, "{}", field.name())?;
@@ -144,7 +144,7 @@ mod tests {
     use crate::default_nodata;
 
     fn temp(name: &str) -> std::path::PathBuf {
-        std::env::temp_dir().join(format!("ceres-io-{}-{name}", std::process::id()))
+        std::env::temp_dir().join(format!("boitata-io-{}-{name}", std::process::id()))
     }
 
     #[test]

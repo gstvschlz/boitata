@@ -16,12 +16,12 @@ HERE = Path(__file__).parent if "__file__" in globals() else Path.cwd()
 sys.path.insert(0, str(HERE.parents[1]))
 
 # %%
-import ceres as cs
+import boitata as bt
 import matplotlib.pyplot as plt
 import numpy as np
 from common import ACCENT, GRAY, save
 
-data = cs.datasets.porphyry_geometallurgy(deposit=1)["synthetic_drillholes"]
+data = bt.datasets.porphyry_geometallurgy(deposit=1)["synthetic_drillholes"]
 pair = np.log(np.column_stack([data["calcosina"], data["tenantita"]]))
 names = ["log chalcocite (%)", "log tennantite (%)"]
 print(f"{len(pair)} composites, correlation {np.corrcoef(pair.T)[0, 1]:.2f}")
@@ -35,10 +35,10 @@ print(f"{len(pair)} composites, correlation {np.corrcoef(pair.T)[0, 1]:.2f}")
 
 # %%
 transforms = {
-    "PCA": cs.PCA(standardize=True).fit(pair),
-    "MAF": cs.MAF(lag=5.0, tolerance=1.0).fit(pair, data.coords),
-    "SCT": cs.StepwiseConditional(classes=12).fit(pair),
-    "PPMT": cs.PPMT(seed=7).fit(pair),
+    "PCA": bt.PCA(standardize=True).fit(pair),
+    "MAF": bt.MAF(lag=5.0, tolerance=1.0).fit(pair, data.coords),
+    "SCT": bt.StepwiseConditional(classes=12).fit(pair),
+    "PPMT": bt.PPMT(seed=7).fit(pair),
 }
 factors = {name: t.transform(pair) for name, t in transforms.items()}
 

@@ -9,7 +9,7 @@ checked against the blastholes.
 <details><summary>Python</summary>
 
 ```python
-import ceres as cs
+import boitata as bt
 import matplotlib.pyplot as plt
 import numpy as np
 from common import ACCENT, GRAY, HIGHLIGHT, LIGHT, save
@@ -25,10 +25,10 @@ lithology of a composite is never a mixture.
 <details><summary>Python</summary>
 
 ```python
-data = cs.datasets.iron_formation_plateau()
+data = bt.datasets.iron_formation_plateau()
 grades = ["FE_PCT", "SIO2_PCT", "AL2O3_PCT", "P_PCT", "MN_PCT", "LOI_PCT"]
-intervals = cs.merge_intervals(data["assays"], data["lithology"])
-holes = cs.Drillholes(data["collars"], data["surveys"], intervals)
+intervals = bt.merge_intervals(data["assays"], data["lithology"])
+holes = bt.Drillholes(data["collars"], data["surveys"], intervals)
 composites = holes.composite(6.0, grades, domain="LITH", residual="merge")
 lith = np.asarray(composites["LITH"], dtype=object)
 values = np.column_stack([composites[g] for g in grades])
@@ -75,7 +75,7 @@ for code in ["HF", "HC", "IF", "IC", "MAF"]:
     print(f"{code:4} oxides total P1 {p1:5.1f}, P50 {p50:5.1f}, P99 {p99:5.1f} %")
 assert (parts > 0).all(), "log-ratios need positive parts"
 ore = np.isin(lith, ["HF", "HC", "IF", "IC"])
-r = cs.correlation(values[ore])
+r = bt.correlation(values[ore])
 print(
     f"ore composites: r(Fe, SiO2) = {r[0, 1]:.2f}, r(Fe, LOI) = {r[0, 5]:.2f}, r(Al2O3, LOI) = {r[2, 5]:.2f}"
 )
@@ -86,7 +86,7 @@ si = np.linspace(0, 100, 2)
 a.plot(si, (100 - si) / 1.4297, color=HIGHLIGHT, lw=1)
 a.text(52, 36, "Fe2O3 + SiO2 = 100 %", color=HIGHLIGHT, rotation=-33)
 a.set(xlabel="SiO2 (%)", ylabel="Fe (%)", title="Ore composites against the closure")
-cs.plot.correlation(values[ore], labels=[g.removesuffix("_PCT") for g in grades], ax=b)
+bt.plot.correlation(values[ore], labels=[g.removesuffix("_PCT") for g in grades], ax=b)
 b.set_title("Correlation of the ore composites")
 save(fig, "closure")
 ```
@@ -186,12 +186,12 @@ at_blocks = np.full((n, len(blocks), 7), np.nan)
 at_blastholes = np.full((n, len(blastholes), 7), np.nan)
 for name, codes in domains.items():
     use = near & np.isin(model_lith, codes)
-    xyz, coords = composites.coords[use], cs.ilr(cs.closure(parts[use]))
-    ppmt = cs.PPMT(seed=7)
+    xyz, coords = composites.coords[use], bt.ilr(bt.closure(parts[use]))
+    ppmt = bt.PPMT(seed=7)
     scores = ppmt.fit_transform(coords)
-    variograms = [cs.experimental_variogram(xyz, s, 25.0, 300.0).fit("spherical") for s in scores.T]
-    search = cs.Search(radius=300, max_samples=16)
-    simulation = cs.MultivariateSimulation(ppmt, [cs.TurningBands(v, search=search) for v in variograms]).fit(
+    variograms = [bt.experimental_variogram(xyz, s, 25.0, 300.0).fit("spherical") for s in scores.T]
+    search = bt.Search(radius=300, max_samples=16)
+    simulation = bt.MultivariateSimulation(ppmt, [bt.TurningBands(v, search=search) for v in variograms]).fit(
         xyz, coords
     )
     in_domain = block_domain[node_block] == name
@@ -199,7 +199,7 @@ for name, codes in domains.items():
     targets = np.vstack([nodes.centroids[in_domain], blastholes.coords[bh_in]])
     factors = simulation.simulate(targets, n=n, seed=1, keep=True)
     ilr = np.stack([f.realizations for f in factors], axis=-1)
-    oxides = 100 * cs.ilr_inverse(ilr.reshape(-1, 6)).reshape(n, len(targets), 7)
+    oxides = 100 * bt.ilr_inverse(ilr.reshape(-1, 6)).reshape(n, len(targets), 7)
     split = in_domain.sum()
     at_blastholes[:, bh_in] = oxides[:, split:]
     for k in range(7):
@@ -230,9 +230,9 @@ print(f"smallest simulated part: {at_blocks.min():.3f} %")
 use = near & np.isin(model_lith, domains["hematite"])
 alone = []
 for seed, (g, factor) in enumerate((("FE_PCT", 1.4297), ("SIO2_PCT", 1.0)), start=2):
-    ns = cs.NormalScore().fit_transform(composites[g][use])
-    variogram = cs.experimental_variogram(composites.coords[use], ns, 25.0, 300.0).fit("spherical")
-    bands = cs.TurningBands(variogram, search=search).fit(composites.coords[use], composites[g][use])
+    ns = bt.NormalScore().fit_transform(composites[g][use])
+    variogram = bt.experimental_variogram(composites.coords[use], ns, 25.0, 300.0).fit("spherical")
+    bands = bt.TurningBands(variogram, search=search).fit(composites.coords[use], composites[g][use])
     alone.append(
         factor
         * bands.simulate(
@@ -373,7 +373,7 @@ bench = int((678 - model.origin[2]) // model.size[2])
 blocks = blocks.with_column("fe", fe.mean(axis=0))
 on_bench = np.isclose(blastholes.coords[:, 2], 678)
 norm = plt.Normalize(30, 68)
-fig, ax = cs.plot.section(blocks, "fe", axis="z", index=bench, norm=norm, colorbar=False)
+fig, ax = bt.plot.section(blocks, "fe", axis="z", index=bench, norm=norm, colorbar=False)
 points = ax.scatter(
     *blastholes.coords[on_bench, :2].T,
     c=bh_fe[on_bench],

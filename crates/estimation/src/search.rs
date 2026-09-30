@@ -8,7 +8,7 @@
 use std::collections::HashMap;
 use std::collections::hash_map::Entry;
 
-use ceres_core::block_frame;
+use boitata_core::block_frame;
 use nalgebra::{Matrix3, Vector3};
 use serde::{Deserialize, Serialize};
 use variogram::aniso::euclidean;
@@ -29,7 +29,7 @@ pub struct Search {
     pub max_samples: usize,
     /// Search radius in the metric of the ellipsoid: meters along the major
     /// axis when the anisotropy ranges are ratios (major = 1).
-    #[serde(with = "ceres_core::nonfinite")]
+    #[serde(with = "boitata_core::nonfinite")]
     pub radius: f64,
     /// Maximum samples taken from any single drill hole (requires `Sample::hole`).
     pub max_per_hole: Option<usize>,
@@ -56,7 +56,7 @@ pub struct Search {
 #[serde(rename_all = "snake_case")]
 pub enum Soft<L = u32> {
     /// One distance for every pair of domains, both ways.
-    All(#[serde(with = "ceres_core::nonfinite")] f64),
+    All(#[serde(with = "boitata_core::nonfinite")] f64),
     /// Distances from a target's domain to a sample's domain, one way.
     Pairs(Vec<SoftPair<L>>),
 }
@@ -65,7 +65,7 @@ pub enum Soft<L = u32> {
 pub struct SoftPair<L = u32> {
     pub target: L,
     pub sample: L,
-    #[serde(with = "ceres_core::nonfinite")]
+    #[serde(with = "boitata_core::nonfinite")]
     pub distance: f64,
 }
 
@@ -90,9 +90,9 @@ impl<L: PartialEq> Soft<L> {
 /// scores.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HighGrade {
-    #[serde(with = "ceres_core::nonfinite")]
+    #[serde(with = "boitata_core::nonfinite")]
     pub threshold: f64,
-    #[serde(with = "ceres_core::nonfinite")]
+    #[serde(with = "boitata_core::nonfinite")]
     pub radius: f64,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub anisotropy: Option<Anisotropy>,

@@ -8,15 +8,15 @@ estimates for gold in vein V1, side by side, and the one to keep.
 <details><summary>Python</summary>
 
 ```python
-import ceres as cs
+import boitata as bt
 import matplotlib.pyplot as plt
 import numpy as np
 from common import ACCENT, GRAY, HIGHLIGHT, INK, save
 
-data = cs.datasets.vein_gold_grade_control()
+data = bt.datasets.vein_gold_grade_control()
 collars = data["collars"]
-intervals = cs.merge_intervals(data["assays"], data["lithology"])
-samples = cs.Drillholes(collars, data["surveys"], intervals).samples()
+intervals = bt.merge_intervals(data["assays"], data["lithology"])
+samples = bt.Drillholes(collars, data["surveys"], intervals).samples()
 kind = dict(zip(collars["HOLE_ID"], collars["TYPE"], strict=True))
 drilling = np.array([kind[h] for h in samples["HOLE_ID"]])
 keep = (samples["LITH"] == "QV") & (samples["VEIN"] == "V1") & (drilling == "CH")
@@ -70,7 +70,7 @@ zero, as in [downhole nugget](../../05-spatial-continuity/05-downhole-nugget/REA
 <details><summary>Python</summary>
 
 ```python
-downhole = cs.experimental_variogram(channels, "LOG_AU", 0.5, 3.0, holes="HOLE_ID")
+downhole = bt.experimental_variogram(channels, "LOG_AU", 0.5, 3.0, holes="HOLE_ID")
 estimates = {"downhole, extrapolated": downhole.nugget() / variance}
 for h, g, n in zip(downhole.lags[:3], downhole.gammas[:3] / variance, downhole.counts[:3], strict=True):
     print(f"{h:4.2f} m  γ/σ² {g:.2f}  {n:.0f} pairs")
@@ -95,7 +95,7 @@ of another channel within 5 m.
 <details><summary>Python</summary>
 
 ```python
-paired = cs.pairs(channels, channels, 5.0, values="LOG_AU", holes="HOLE_ID")
+paired = bt.pairs(channels, channels, 5.0, values="LOG_AU", holes="HOLE_ID")
 a, b = paired["value_a"], paired["value_b"]
 estimates["adjacent channels"] = 0.5 * np.mean((a - b) ** 2) / variance
 print(f"{len(paired)} pairs, mean distance {paired['distance'].mean():.1f} m")
@@ -125,7 +125,7 @@ directions = {
 }
 experimental, fitted = {}, {}
 for name, direction in directions.items():
-    experimental[name] = cs.experimental_variogram(channels, "LOG_AU", lag, max_lag, **direction)
+    experimental[name] = bt.experimental_variogram(channels, "LOG_AU", lag, max_lag, **direction)
     fitted[name] = experimental[name].fit(model)
     estimates[f"fitted, {name}"] = fitted[name].nugget / variance
     first = np.flatnonzero(experimental[name].counts >= 30)[0]

@@ -1,11 +1,11 @@
 import copyreg as _copyreg
 
-from ceres import _ceres, datasets, plot, plot3d  # noqa: F401
-from ceres._ceres import *
-from ceres._ceres import __version__  # noqa: F401
-from ceres.checks import *
-from ceres.errors import CeresError, FileError, InvalidInput, MissingColumn  # noqa: F401
-from ceres.estimation import *
+from boitata import _boitata, datasets, plot, plot3d  # noqa: F401
+from boitata._boitata import *
+from boitata._boitata import __version__  # noqa: F401
+from boitata.checks import *
+from boitata.errors import BoitataError, FileError, InvalidInput, MissingColumn  # noqa: F401
+from boitata.estimation import *
 
 __all__ = [
     name
@@ -29,6 +29,6 @@ def _reduce(obj):
     return _from_json, (type(obj), obj.to_json())
 
 
-for _cls in vars(_ceres).values():
+for _cls in vars(_boitata).values():
     if isinstance(_cls, type) and (hasattr(_cls, "from_json") or hasattr(_cls, "_from_state")):
         _copyreg.pickle(_cls, _reduce)

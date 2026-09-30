@@ -3,7 +3,7 @@ requires = ["maturin>=1.10,<2"]
 build-backend = "maturin"
 
 [project]
-name = "ceresgeo"
+name = "boitata"
 description = "My Python tooling for day-to-day geostatistics"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -35,10 +35,10 @@ plot = ["matplotlib>=3.8"]
 all = ["matplotlib>=3.8", "pandas>=2.2", "polars>=1.4", "pyarrow>=16", "pyvista>=0.45"]
 
 [project.urls]
-Homepage = "https://github.com/gstvschlz/ceres"
-Documentation = "https://gstvschlz.github.io/ceres/"
-Repository = "https://github.com/gstvschlz/ceres"
-Issues = "https://github.com/gstvschlz/ceres/issues"
+Homepage = "https://github.com/gstvschlz/boitata"
+Documentation = "https://gstvschlz.github.io/boitata/"
+Repository = "https://github.com/gstvschlz/boitata"
+Issues = "https://github.com/gstvschlz/boitata/issues"
 
 [dependency-groups]
 dev = [
@@ -57,7 +57,7 @@ dev = [
 
 [tool.maturin]
 manifest-path = "crates/py/Cargo.toml"
-module-name = "ceres._ceres"
+module-name = "boitata._boitata"
 python-source = "python"
 locked = true
 
@@ -70,7 +70,7 @@ addopts = "-m 'not slow'"
 markers = ["slow: downloads datasets"]
 
 [tool.coverage.run]
-source = ["ceres"]
+source = ["boitata"]
 
 [tool.ruff]
 line-length = 110

@@ -212,7 +212,7 @@ fn many(c: &mut Criterion) {
 /// against one along a random path.
 fn shared(c: &mut Criterion) {
     let (data, values, _) = inputs();
-    let geometry = ceres_core::Geometry {
+    let geometry = boitata_core::Geometry {
         origin: [0.0; 3],
         size: [0.2, 0.2, 1.0],
         count: [1000, 1000, 1],

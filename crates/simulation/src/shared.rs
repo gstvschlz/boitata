@@ -7,7 +7,7 @@
 
 use std::ops::Range;
 
-use ceres_core::rng::{gaussian, realization_seed};
+use boitata_core::rng::{gaussian, realization_seed};
 use estimation::Sample;
 use estimation::krige::{Kind, krige};
 use estimation::search::{Search, SearchTree};
@@ -462,7 +462,7 @@ pub fn shared_batch(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ceres_core::Geometry;
+    use boitata_core::Geometry;
     use variogram::model::Model;
 
     pub(crate) fn square(n: usize) -> Lattice {

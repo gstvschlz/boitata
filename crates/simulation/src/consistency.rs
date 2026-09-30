@@ -22,8 +22,8 @@
 //! `n_classes` classes cut at the quantiles of the hard data. The image is
 //! read in cell index space, one image cell per grid cell, as in a simulation.
 
-use ceres_core::Geometry;
-use ceres_core::rng::realization_seed;
+use boitata_core::Geometry;
+use boitata_core::rng::realization_seed;
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
 use rayon::prelude::*;
@@ -479,7 +479,7 @@ mod tests {
     use std::sync::Arc;
 
     use arrow_array::{Float64Array, RecordBatch};
-    use ceres_core::BlockModel;
+    use boitata_core::BlockModel;
 
     use super::*;
     use crate::objects::{ObjectSet, Param, Shape, object_training_image};

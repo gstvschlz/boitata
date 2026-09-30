@@ -1,4 +1,4 @@
-name: ceres
+name: boitata
 channels:
   - conda-forge
 dependencies:

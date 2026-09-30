@@ -1,15 +1,15 @@
 # Install
 
-ceres is published on PyPI as `ceresgeo` and imported as `ceres`. It ships as one `abi3` wheel per platform
+Boitatá is published on PyPI and imported as `boitata`. It ships as one `abi3` wheel per platform
 (Linux x86_64 and aarch64, macOS Intel and Apple silicon, Windows x64) that serves every Python from 3.11, so no
 compiler is needed.
 
 ```sh
-pip install "ceresgeo[all]"
+pip install "boitata[all]"
 ```
 
 ```python
-import ceres as cs
+import boitata as bt
 ```
 
 ## Environment managers
@@ -19,38 +19,38 @@ import ceres as cs
 ```sh
 python -m venv .venv
 source .venv/bin/activate          # Windows: .venv\Scripts\activate
-pip install "ceresgeo[all]"
+pip install "boitata[all]"
 ```
 
 ### uv
 
 ```sh
-uv add "ceresgeo[all]"            # in a uv project
-uv pip install "ceresgeo[all]"    # in any environment
+uv add "boitata[all]"            # in a uv project
+uv pip install "boitata[all]"    # in any environment
 ```
 
 ### poetry
 
 ```sh
-poetry add "ceresgeo[all]"
+poetry add "boitata[all]"
 ```
 
 ### conda or mamba
 
-Install the dependencies from conda-forge, then ceres with pip and `--no-deps`, so that pip leaves the conda
+Install the dependencies from conda-forge, then Boitatá with pip and `--no-deps`, so that pip leaves the conda
 packages alone.
 
 ```sh
 conda create -n geo -c conda-forge python numpy tqdm matplotlib pyvista polars pandas pyarrow pip
 conda activate geo
-pip install --no-deps ceresgeo
+pip install --no-deps boitata
 ```
 
 ### pixi
 
 ```sh
 pixi add python numpy tqdm matplotlib pyvista polars pandas pyarrow
-pixi add --pypi "ceresgeo[all]"
+pixi add --pypi "boitata[all]"
 ```
 
 ## Extras
@@ -61,8 +61,8 @@ missing package.
 | pip extra | Adds | conda-forge packages |
 |-----------|------|----------------------|
 | (none) | `numpy`, `tqdm` | `numpy tqdm` |
-| `plot` | `ceres.plot` | `matplotlib` (or `matplotlib-base`) |
-| `3d` | `ceres.plot3d` | `pyvista` |
+| `plot` | `boitata.plot` | `matplotlib` (or `matplotlib-base`) |
+| `3d` | `boitata.plot3d` | `pyvista` |
 | `all` | the above, and `to_polars`, `to_pandas`, `to_pyarrow` | `matplotlib pyvista polars pandas pyarrow` |
 
 ## Minimum versions
@@ -80,7 +80,7 @@ missing package.
 
 ## Headless 3D rendering
 
-`ceres.plot3d` renders with VTK, which needs OpenGL. On a Linux server or container without a display, either
+`boitata.plot3d` renders with VTK, which needs OpenGL. On a Linux server or container without a display, either
 install `mesalib` from conda-forge (or the system `libEGL`) and set `PYVISTA_OFF_SCREEN=true`, or run under a
 virtual display:
 
@@ -90,9 +90,9 @@ xvfb-run -a python script.py              # apt install xvfb
 
 ## Datasets
 
-`ceres.datasets` downloads files from raw.githubusercontent.com on first use, checks their SHA-256 and caches
-them in a folder per datasets commit under `%LOCALAPPDATA%\ceres` on Windows, and `$XDG_CACHE_HOME/ceres` or
-`~/.cache/ceres` elsewhere (macOS included). Set `CERES_DATA` to use a folder of your own instead; the files then
+`boitata.datasets` downloads files from raw.githubusercontent.com on first use, checks their SHA-256 and caches
+them in a folder per datasets commit under `%LOCALAPPDATA%\boitata` on Windows, and `$XDG_CACHE_HOME/boitata` or
+`~/.cache/boitata` elsewhere (macOS included). Set `BOITATA_DATA` to use a folder of your own instead; the files then
 sit directly in it.
 
 Downloads honour the standard `HTTPS_PROXY`, `HTTP_PROXY` and `NO_PROXY` variables (and the system proxy
@@ -104,15 +104,15 @@ On a connected machine with the same OS, architecture and Python, download the w
 index:
 
 ```sh
-pip download "ceresgeo[all]" -d wheels                                 # connected machine
-pip install --no-index --find-links wheels "ceresgeo[all]"             # offline machine
+pip download "boitata[all]" -d wheels                                 # connected machine
+pip install --no-index --find-links wheels "boitata[all]"             # offline machine
 ```
 
-For datasets, copy the commit folder of a filled cache and point `CERES_DATA` at it.
+For datasets, copy the commit folder of a filled cache and point `BOITATA_DATA` at it.
 
 ## Contributors
 
-Building ceres needs Rust ≥ 1.97 (pinned in `rust-toolchain.toml`) and a C compiler; `mise run build` compiles it
+Building Boitatá needs Rust ≥ 1.97 (pinned in `rust-toolchain.toml`) and a C compiler; `mise run build` compiles it
 into the development environment. `mise run compat` builds a wheel into `dist/`, installs it into fresh
 environments and runs the Python tests in each. `mise run compat <mode>` runs one mode; all but `dist` reuse what
 is already in `dist/`.

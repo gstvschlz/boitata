@@ -13,7 +13,7 @@ HERE = Path(__file__).parent if "__file__" in globals() else Path.cwd()
 sys.path.insert(0, str(HERE.parents[1]))
 
 # %%
-import ceres as cs
+import boitata as bt
 import matplotlib.pyplot as plt
 import numpy as np
 from common import ACCENT, GRAY, HIGHLIGHT, LIGHT, map_axes, save
@@ -23,7 +23,7 @@ from common import ACCENT, GRAY, HIGHLIGHT, LIGHT, map_axes, save
 # leans towards the infill. The targets are the 100 m cells inside the lease.
 
 # %%
-lease = cs.datasets.coal_seam_thickness()
+lease = bt.datasets.coal_seam_thickness()
 holes, grid = lease["boreholes"], lease["grid"]
 thickness = holes["THICKNESS_M"]
 xy = holes.coords[:, :2]
@@ -37,7 +37,7 @@ print(f"{len(holes)} holes, {len(cells)} cells, naive mean {thickness.mean():.2f
 # declustered mean, since the infill targets thick seam.
 
 # %%
-cell = cs.cell_declustering(holes, "THICKNESS_M")
+cell = bt.cell_declustering(holes, "THICKNESS_M")
 print(f"cell {cell.cell_size:.0f} m: mean {cell.mean:.2f} m")
 
 # %% [markdown]
@@ -49,16 +49,16 @@ print(f"cell {cell.cell_size:.0f} m: mean {cell.mean:.2f} m")
 # holes.
 
 # %%
-experimental = cs.experimental_variogram(holes, "THICKNESS_M", 300.0, 4000.0)
+experimental = bt.experimental_variogram(holes, "THICKNESS_M", 300.0, 4000.0)
 model = experimental.fit("spherical")
-search = cs.Search(radius=5000, max_samples=16)
+search = bt.Search(radius=5000, max_samples=16)
 methods = {
-    "nearest neighbor": cs.NearestNeighbor(search),
-    "inverse distance": cs.InverseDistance(search, power=2),
-    "ordinary kriging": cs.OrdinaryKriging(model, search),
+    "nearest neighbor": bt.NearestNeighbor(search),
+    "inverse distance": bt.InverseDistance(search, power=2),
+    "ordinary kriging": bt.OrdinaryKriging(model, search),
 }
 weights = {
-    name: cs.weight_declustering(holes, "THICKNESS_M", cells, estimator=m) for name, m in methods.items()
+    name: bt.weight_declustering(holes, "THICKNESS_M", cells, estimator=m) for name, m in methods.items()
 }
 for name, w in weights.items():
     print(f"{name}: mean {w.mean:.2f} m, weights {w.weights.min():.2f} to {w.weights.max():.2f}")

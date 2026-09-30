@@ -7,7 +7,7 @@
 
 use crate::aniso::euclidean;
 use crate::error::{Result, VarioError};
-use ceres_core::{Geometry, block_frame};
+use boitata_core::{Geometry, block_frame};
 use nalgebra::{Matrix3, Vector3};
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -171,7 +171,7 @@ pub fn dissemination(madogram: &Experimental, variogram: &Experimental) -> Resul
 /// As [`experimental`] over scattered points, with each pair's separation
 /// read in the local frame of its tail: `rotations[i]` takes world
 /// coordinates to the (major, semi-major, minor) axes at location `i`, as
-/// [`ceres_core::rotation_matrix`] does. `direction` is then relative to the
+/// [`boitata_core::rotation_matrix`] does. `direction` is then relative to the
 /// local axes: azimuth 0 is the major axis, azimuth 90 the semi-major, dip
 /// 90 the minor, so a cone follows a folded or rotating continuity.
 /// Distances are unchanged; with every rotation that of `(a, 0, 0)` the
@@ -192,7 +192,7 @@ pub fn experimental_local(
         ));
     }
     let scale = scale(values, estimator, standardize)?;
-    let back = ceres_core::rotation_matrix(0.0, 0.0, 0.0).transpose();
+    let back = boitata_core::rotation_matrix(0.0, 0.0, 0.0).transpose();
     let frames: Vec<Matrix3<f64>> = rotations.iter().map(|r| back * r).collect();
     let n_bins = ((bins.max_lag / bins.lag_width).ceil() as usize).max(1);
     let dir = direction.map(|d| (d, d.unit(), d.tolerance.to_radians().cos()));
@@ -879,7 +879,7 @@ mod tests {
             tolerance: 20.0,
             bandwidth: None,
         };
-        let rotations = vec![ceres_core::rotation_matrix(30.0, 0.0, 0.0); locs.len()];
+        let rotations = vec![boitata_core::rotation_matrix(30.0, 0.0, 0.0); locs.len()];
         let m = Estimator::Matheron;
         let local =
             experimental_local(&locs, &rotations, &vals, &bins, m, Some(&cone(15.0)), false)

@@ -14,17 +14,17 @@ HERE = Path(__file__).parent if "__file__" in globals() else Path.cwd()
 sys.path.insert(0, str(HERE.parents[1]))
 
 # %%
-import ceres as cs
+import boitata as bt
 import matplotlib.pyplot as plt
 import numpy as np
 from common import ACCENT, GRAY, INK, map_axes, save
 
-samples = cs.datasets.walker_lake()
-truth = cs.datasets.walker_lake_exhaustive()["V"].reshape(300, 260)
+samples = bt.datasets.walker_lake()
+truth = bt.datasets.walker_lake_exhaustive()["V"].reshape(300, 260)
 print(samples)
 
 # %% [markdown]
-# `cs.datasets` downloads a dataset once and caches it. The samples load as a `PointSet`: coordinates, plus one column
+# `bt.datasets` downloads a dataset once and caches it. The samples load as a `PointSet`: coordinates, plus one column
 # per variable. The exhaustive values stay aside until the checks at the end.
 #
 # ## Statistics
@@ -34,15 +34,15 @@ print(samples)
 # and keeps the cell size with the lowest mean ([declustering](../../03-exploratory-analysis/03-declustering/README.md)).
 
 # %%
-declustering = cs.cell_declustering(samples, "V", sizes=np.arange(2.5, 102.5, 2.5))
+declustering = bt.cell_declustering(samples, "V", sizes=np.arange(2.5, 102.5, 2.5))
 weights = declustering.weights
-naive, declustered = cs.describe(samples["V"]), cs.describe(samples["V"], weights=weights)
+naive, declustered = bt.describe(samples["V"]), bt.describe(samples["V"], weights=weights)
 print(f"declustering cell {declustering.cell_size:.1f} m")
 print(f"{'':12}{'mean':>6}{'CV':>6}{'P50':>6}{'P90':>6}{'max':>6}")
 for name, stats in (
     ("naive", naive),
     ("declustered", declustered),
-    ("exhaustive", cs.describe(truth.ravel())),
+    ("exhaustive", bt.describe(truth.ravel())),
 ):
     print(
         f"{name:<12}{stats['mean']:>6.0f}{stats['cv']:>6.2f}{stats['P50']:>6.0f}{stats['P90']:>6.0f}"
@@ -53,7 +53,7 @@ fig, (a, b) = plt.subplots(1, 2, figsize=(9.5, 4.2), layout="constrained")
 points = a.scatter(*samples.coords[:, :2].T, c=samples["V"], s=8, vmin=0, vmax=1500)
 map_axes(a, "Samples")
 fig.colorbar(points, ax=a, shrink=0.8, label="V (ppm)")
-cs.plot.histogram(samples["V"], weights=weights, bins=30, stats=True, ax=b, color=ACCENT)
+bt.plot.histogram(samples["V"], weights=weights, bins=30, stats=True, ax=b, color=ACCENT)
 b.set(title="Declustered histogram", xlabel="V (ppm)")
 save(fig, "samples")
 
@@ -68,7 +68,7 @@ save(fig, "samples")
 # [capping transform](../../04-transforms/03-capping-transform/README.md) compares the rules).
 
 # %%
-capping = cs.Capping(quantile=0.99).fit(samples["V"], weights=weights)
+capping = bt.Capping(quantile=0.99).fit(samples["V"], weights=weights)
 samples = samples.with_column("V_cut", capping.transform(samples["V"]))
 print(
     f"cap {capping.caps_:.0f} ppm: {(samples['V'] > capping.caps_).sum()} samples cut, "
@@ -86,8 +86,8 @@ print(
 
 # %%
 azimuths = np.arange(0, 180, 22.5)
-directional = [cs.experimental_variogram(samples, "V_cut", 10.0, 120.0, azimuth=a) for a in azimuths]
-model = cs.Variogram.fit_directional(
+directional = [bt.experimental_variogram(samples, "V_cut", 10.0, 120.0, azimuth=a) for a in azimuths]
+model = bt.Variogram.fit_directional(
     directional, [(a, 0) for a in azimuths], ["spherical", "spherical"], weighting="count/gamma"
 )
 print(model)
@@ -95,8 +95,8 @@ print(model)
 major = model.rotation[0]
 fig, ax = plt.subplots(figsize=(5.5, 3.6), layout="constrained")
 for azimuth, color in ((major, ACCENT), (major + 90, GRAY)):
-    experimental = cs.experimental_variogram(samples, "V_cut", 10.0, 120.0, azimuth=azimuth)
-    cs.plot.variogram(
+    experimental = bt.experimental_variogram(samples, "V_cut", 10.0, 120.0, azimuth=azimuth)
+    bt.plot.variogram(
         experimental,
         variogram=model,
         direction=(azimuth, 0),
@@ -120,9 +120,9 @@ save(fig, "variogram")
 # the true value at each node joins the model as a second column.
 
 # %%
-grid = cs.BlockModel(origin=(3, 3), size=(5, 5), count=(52, 60))
-search = cs.Search(radius=80, max_samples=24, min_samples=4, rotation=model.rotation, ratios=(0.5, 1.0))
-kriging = cs.OrdinaryKriging(model, search).fit(samples, "V_cut")
+grid = bt.BlockModel(origin=(3, 3), size=(5, 5), count=(52, 60))
+search = bt.Search(radius=80, max_samples=24, min_samples=4, rotation=model.rotation, ratios=(0.5, 1.0))
+kriging = bt.OrdinaryKriging(model, search).fit(samples, "V_cut")
 nodes = grid.centroids.astype(int)
 grid = grid.with_columns(
     {"estimate": kriging.predict(grid), "truth": truth[nodes[:, 1] - 1, nodes[:, 0] - 1]}
@@ -162,14 +162,14 @@ print(
 )
 
 fig, (a, b) = plt.subplots(1, 2, figsize=(10, 4), layout="constrained")
-cs.plot.cross_validation(cv, ax=a)
+bt.plot.cross_validation(cv, ax=a)
 a.set_title("Leave-one-out cross-validation")
 series = [
-    cs.swath(samples, "V_cut", 20.0, axis="y", weights=weights),
-    cs.swath(grid, "estimate", 20.0, axis="y"),
-    cs.swath(grid, "truth", 20.0, axis="y"),
+    bt.swath(samples, "V_cut", 20.0, axis="y", weights=weights),
+    bt.swath(grid, "estimate", 20.0, axis="y"),
+    bt.swath(grid, "truth", 20.0, axis="y"),
 ]
-cs.plot.swath(series, labels=["declustered samples", "estimate", "truth"], ax=b)
+bt.plot.swath(series, labels=["declustered samples", "estimate", "truth"], ax=b)
 for line, color in zip(b.lines, (GRAY, ACCENT, INK), strict=True):
     line.set_color(color)
 b.legend()

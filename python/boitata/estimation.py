@@ -5,9 +5,9 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from ceres._ceres import Declustering, Search, Table, Variogram, _Estimator
-from ceres._columns import column
-from ceres.errors import InvalidInput
+from boitata._boitata import Declustering, Search, Table, Variogram, _Estimator
+from boitata._columns import column
+from boitata.errors import InvalidInput
 
 __all__ = [
     "BayesianKriging",

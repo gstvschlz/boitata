@@ -14,15 +14,15 @@ HERE = Path(__file__).parent if "__file__" in globals() else Path.cwd()
 sys.path.insert(0, str(HERE.parents[1]))
 
 # %%
-import ceres as cs
+import boitata as bt
 import matplotlib.pyplot as plt
 import numpy as np
 from common import HIGHLIGHT, INK, save
 from matplotlib.colors import ListedColormap
 
-channels = cs.datasets.strebelle()
+channels = bt.datasets.strebelle()
 n = channels.count[0]
-grid = cs.BlockModel((0, 0), (1, 1), (n, n))
+grid = bt.BlockModel((0, 0), (1, 1), (n, n))
 
 
 # %% [markdown]
@@ -31,7 +31,7 @@ grid = cs.BlockModel((0, 0), (1, 1), (n, n))
 
 # %%
 lens = {"shape": "ellipsoid", "code": 1, "proportion": 0.3, "radii": (18, 5), "azimuth": (80, 100)}
-lenses = cs.object_training_image(grid, [lens], seed=4)
+lenses = bt.object_training_image(grid, [lens], seed=4)
 print(f"sand: channels {channels['facies'].mean():.1%}, lenses {lenses['facies'].mean():.1%}")
 
 
@@ -42,7 +42,7 @@ print(f"sand: channels {channels['facies'].mean():.1%}, lenses {lenses['facies']
 # %%
 x, y = grid.centroids[:, 0], grid.centroids[:, 1]
 domains = np.where(y > 150 - 0.2 * x, "lenses", "channels")
-snesim = cs.SNESIM({"channels": (channels, "facies"), "lenses": (lenses, "facies")})
+snesim = bt.SNESIM({"channels": (channels, "facies"), "lenses": (lenses, "facies")})
 summary = snesim.simulate(grid, n=20, seed=1, keep=[0], domains=domains, progress=False)
 for name, image in (("channels", channels), ("lenses", lenses)):
     share = summary.probabilities[domains == name, 1].mean()
