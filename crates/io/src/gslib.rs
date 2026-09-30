@@ -44,8 +44,12 @@ pub fn read_gslib(
         return Err(bad(line, "fewer column names than declared"));
     }
 
+    let rows: Vec<_> = lines.collect();
+    if let Some(p) = progress {
+        p.set_total(rows.len() as u64);
+    }
     let mut columns = vec![Vec::new(); count];
-    for (line, row) in lines {
+    for (line, row) in rows {
         let tokens: Vec<&str> = row.split_whitespace().collect();
         if tokens.len() < count {
             return Err(bad(

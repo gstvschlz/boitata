@@ -101,6 +101,7 @@ def test_gslib_progress_does_not_change_output(tmp_path, capsys):
     bt.write_gslib(tmp_path / "off.dat", table, progress=False)
     assert (tmp_path / "on.dat").read_text() == (tmp_path / "off.dat").read_text()
     on = bt.read_gslib(tmp_path / "on.dat", progress=True)
+    assert "1000/1000" in capsys.readouterr().err
     off = bt.read_gslib(tmp_path / "on.dat", progress=False)
     np.testing.assert_array_equal(on["cu"], off["cu"])
 
@@ -209,7 +210,7 @@ def test_parquet_progress_does_not_change_output(tmp_path, capsys):
             tmp_path / f"{name}_off.parquet"
         ).read_bytes()
         on = bt.read_parquet(tmp_path / f"{name}_on.parquet", progress=True)
-        assert capsys.readouterr().err
+        assert "100%" in capsys.readouterr().err
         off = bt.read_parquet(tmp_path / f"{name}_on.parquet", progress=False)
         np.testing.assert_array_equal(
             on["v"] if name != "t" else on["au"], off["v"] if name != "t" else off["au"]
@@ -232,7 +233,7 @@ def test_csv_progress_does_not_change_output(tmp_path, capsys):
     bt.write_csv(tmp_path / "off.csv", table, progress=False)
     assert (tmp_path / "on.csv").read_bytes() == (tmp_path / "off.csv").read_bytes()
     on = bt.read_csv(tmp_path / "on.csv", progress=True)
-    assert capsys.readouterr().err
+    assert "1000/1000" in capsys.readouterr().err
     np.testing.assert_array_equal(on["au"], table["au"])
 
 

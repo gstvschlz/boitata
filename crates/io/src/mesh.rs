@@ -80,6 +80,9 @@ fn weld(corners: &[[f64; 3]]) -> Result<Mesh> {
 fn parse_obj(text: &str, progress: Option<&Progress>) -> Result<Mesh> {
     let mut vertices = Vec::new();
     let mut triangles = Vec::new();
+    if let Some(p) = progress {
+        p.set_total(text.lines().count() as u64);
+    }
     for (n, line) in text.lines().enumerate() {
         let bad = |message: &str| Error::Format {
             line: n + 1,
@@ -189,6 +192,9 @@ fn parse_stl(bytes: &[u8], progress: Option<&Progress>) -> Result<Mesh> {
     let count = bytes
         .get(80..84)
         .map(|b| u32::from_le_bytes(b.try_into().expect("4 bytes")) as usize);
+    if let Some(p) = progress {
+        p.set_total(count.filter(|n| bytes.len() == 84 + 50 * n).unwrap_or(1) as u64);
+    }
     if count.is_some_and(|n| bytes.len() == 84 + 50 * n) {
         for record in bytes[84..].chunks_exact(50) {
             let f = |i: usize| f32::from_le_bytes(record[i..i + 4].try_into().expect("4")) as f64;
@@ -226,6 +232,9 @@ fn parse_stl(bytes: &[u8], progress: Option<&Progress>) -> Result<Mesh> {
 fn from_drawing(drawing: &Drawing, progress: Option<&Progress>) -> Result<Mesh> {
     let mut corners = Vec::new();
     let mut layers = Vec::new();
+    if let Some(p) = progress {
+        p.set_total(drawing.entities().count() as u64);
+    }
     for entity in drawing.entities() {
         if let EntityType::Face3D(f) = &entity.specific {
             let p = [
