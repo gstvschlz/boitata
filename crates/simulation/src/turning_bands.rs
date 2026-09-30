@@ -54,7 +54,7 @@ fn quantile_rows(rows: usize, n: usize, quantiles: usize) -> usize {
 }
 
 /// Turning-bands parameters.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct TurningBandsParams {
     /// Number of bands (lines). More bands → less striping; 300–1000 typical.
     pub n_bands: usize,

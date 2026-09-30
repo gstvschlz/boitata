@@ -13,7 +13,8 @@ use crate::post::{
 };
 
 /// A fitted transform from correlated variables to independent factors.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum Decorrelation {
     Pca(Pca),
     Maf(Maf),
@@ -246,6 +247,28 @@ mod tests {
             vb += w * (y - mb).powi(2);
         }
         c / (va * vb).sqrt()
+    }
+
+    #[test]
+    fn decorrelation_json_round_trip_is_bit_identical() {
+        let (_, data, weights) = samples();
+        let transforms = [
+            Decorrelation::Pca(Pca::fit(&data, Some(&weights), true).unwrap()),
+            Decorrelation::Ppmt(Ppmt::fit(&data, Some(&weights), &PpmtParams::default()).unwrap()),
+        ];
+        let bits = |rows: Vec<Vec<f64>>| {
+            rows.concat()
+                .into_iter()
+                .map(f64::to_bits)
+                .collect::<Vec<_>>()
+        };
+        for t in transforms {
+            let back: Decorrelation =
+                serde_json::from_str(&serde_json::to_string(&t).unwrap()).unwrap();
+            assert_eq!(bits(back.forward(&data)), bits(t.forward(&data)));
+            let factors = t.forward(&data);
+            assert_eq!(bits(back.back(&factors)), bits(t.back(&factors)));
+        }
     }
 
     #[test]

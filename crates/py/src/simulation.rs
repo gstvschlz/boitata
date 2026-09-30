@@ -2662,6 +2662,8 @@ impl Tabular for CategoricalSummary {
 /// about 10 MB each.
 const MULTIVARIATE_BATCH: usize = 8;
 
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 enum Factor {
     Sgs(CoreVariogram, Vec<estimation::Search>),
     Bands(CoreVariogram, Box<TurningBandsParams>),
@@ -2674,6 +2676,120 @@ struct Factors {
     weights: Option<Vec<f64>>,
     holes: Option<Vec<u32>>,
     imputed: Option<(transforms::GaussianImputer, Vec<Vec<f64>>)>,
+}
+
+/// The parameters of a MultivariateSimulation: its template's JSON, its
+/// factors and, once fitted, the fitted transforms.
+#[derive(Serialize, Deserialize)]
+struct MultivariateState<F, D, I> {
+    transform: serde_json::Value,
+    factors: F,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    decorrelation: Option<D>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    imputer: Option<I>,
+}
+
+impl Serialize for MultivariateSimulation {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        use serde::ser::Error;
+        let template =
+            Python::attach(|py| crate::transforms::decorrelation_json(self.transform.bind(py)))
+                .map_err(S::Error::custom)?;
+        let fitted = self.fitted.as_ref();
+        MultivariateState {
+            transform: serde_json::from_str(&template).map_err(S::Error::custom)?,
+            factors: &self.factors,
+            decorrelation: fitted.map(|f| &f.transform),
+            imputer: fitted.and_then(|f| f.imputed.as_ref().map(|i| &i.0)),
+        }
+        .serialize(s)
+    }
+}
+
+impl<'de> Deserialize<'de> for MultivariateSimulation {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        use serde::de::Error;
+        let state: MultivariateState<
+            Vec<Factor>,
+            simulation::Decorrelation,
+            transforms::GaussianImputer,
+        > = MultivariateState::deserialize(d)?;
+        if state.factors.is_empty() {
+            return Err(D::Error::custom("need one simulator per factor"));
+        }
+        let template = state.transform.to_string();
+        let transform =
+            Python::attach(|py| crate::transforms::decorrelation_from_json(py, &template))
+                .map_err(D::Error::custom)?;
+        let fitted = state.decorrelation.map(|transform| Factors {
+            transform,
+            locs: vec![],
+            columns: vec![],
+            weights: None,
+            holes: None,
+            imputed: state.imputer.map(|i| (i, vec![])),
+        });
+        Ok(Self {
+            transform,
+            factors: state.factors,
+            fitted,
+        })
+    }
+}
+
+impl Tabular for MultivariateSimulation {
+    fn columns(&self) -> Option<Columns> {
+        self.fitted.as_ref().map(|f| {
+            let n = f.locs.len();
+            let mut columns = persist::point_columns(f.locs.iter().copied());
+            match &f.imputed {
+                None => columns.extend(
+                    f.columns
+                        .iter()
+                        .enumerate()
+                        .map(|(j, c)| persist::column(&format!("factor_{j}"), c.iter().copied())),
+                ),
+                Some((_, data)) => columns.extend((0..self.factors.len()).map(|j| {
+                    let values = data.iter().map(|r| Some(r[j]).filter(|v| !v.is_nan()));
+                    (format!("variable_{j}"), values.collect())
+                })),
+            }
+            let weights = (0..n).map(|i| f.weights.as_ref().map(|w| w[i])).collect();
+            columns.push(("weight".into(), weights));
+            columns.push(hole_column(f.holes.as_deref(), n));
+            columns
+        })
+    }
+
+    fn restore(&mut self, found: Found) -> PyResult<()> {
+        let p = self.factors.len();
+        let f = self
+            .fitted
+            .as_mut()
+            .ok_or_else(|| invalid("fitted without a fitted transform"))?;
+        let locs = found.points()?;
+        match &mut f.imputed {
+            None => {
+                f.columns = (0..p)
+                    .map(|j| found.values(&format!("factor_{j}")))
+                    .collect::<PyResult<_>>()?;
+            }
+            Some((_, data)) => {
+                let columns = (0..p)
+                    .map(|j| found.optional(&format!("variable_{j}")))
+                    .collect::<PyResult<Vec<_>>>()?;
+                *data = (0..locs.len())
+                    .map(|i| columns.iter().map(|c| c[i].unwrap_or(f64::NAN)).collect())
+                    .collect();
+                f.columns = vec![vec![]; p];
+            }
+        }
+        f.weights = found.optional("weight")?.into_iter().collect();
+        f.holes = holes_from(&found, locs.len())?;
+        f.locs = locs;
+        Ok(())
+    }
 }
 
 /// Several correlated variables simulated through independent factors.
@@ -2699,6 +2815,28 @@ pub struct MultivariateSimulation {
 
 #[pymethods]
 impl MultivariateSimulation {
+    /// Writes arrays as Parquet columns and parameters as JSON in the file
+    /// metadata; `from_parquet` reads it back.
+    fn to_parquet(&self, path: std::path::PathBuf) -> PyResult<()> {
+        crate::persist::to_parquet(<Self as pyo3::PyClass>::NAME, self, &path)
+    }
+
+    /// Reads `to_parquet` output; raises InvalidInput on another class's file
+    /// or a newer format.
+    #[staticmethod]
+    fn from_parquet(path: std::path::PathBuf) -> PyResult<Self> {
+        crate::persist::from_parquet(<Self as pyo3::PyClass>::NAME, &path)
+    }
+
+    fn _state(&self) -> PyResult<(String, Option<crate::persist::Columns>)> {
+        crate::persist::state(<Self as pyo3::PyClass>::NAME, self)
+    }
+
+    #[staticmethod]
+    fn _from_state(meta: &str, columns: Option<crate::persist::Columns>) -> PyResult<Self> {
+        crate::persist::from_state(<Self as pyo3::PyClass>::NAME, meta, columns)
+    }
+
     #[new]
     fn new(transform: &Bound<PyAny>, simulators: Vec<Bound<PyAny>>) -> PyResult<Self> {
         if !crate::transforms::is_decorrelation(transform) {

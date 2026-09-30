@@ -1498,11 +1498,24 @@ impl Coregionalization {
 }
 
 /// Markov transiogram for categories with the given proportions.
+#[derive(Serialize, Deserialize)]
 #[pyclass(module = "boitata", name = "Transiogram", frozen)]
 pub struct Transiogram(CoreTransiogram);
 
 #[pymethods]
 impl Transiogram {
+    /// JSON of the model.
+    fn to_json(&self) -> PyResult<String> {
+        crate::persist::to_json(self)
+    }
+
+    /// Reads `to_json` output; raises InvalidInput on another class's JSON
+    /// or a newer format.
+    #[staticmethod]
+    fn from_json(text: &str) -> PyResult<Self> {
+        crate::persist::from_json(text)
+    }
+
     #[new]
     fn new(proportions: Vec<f64>, range: f64) -> PyResult<Self> {
         Ok(Self(CoreTransiogram::new(proportions, range).map_err(err)?))

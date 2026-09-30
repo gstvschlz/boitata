@@ -2330,6 +2330,40 @@ pub(crate) fn decorrelation(
     })
 }
 
+/// The `to_json` of a decorrelation template.
+pub(crate) fn decorrelation_json(transform: &Bound<PyAny>) -> PyResult<String> {
+    use crate::persist::to_json;
+    if let Ok(t) = transform.cast::<Pca>() {
+        to_json(&*t.borrow())
+    } else if let Ok(t) = transform.cast::<Maf>() {
+        to_json(&*t.borrow())
+    } else if let Ok(t) = transform.cast::<StepwiseConditional>() {
+        to_json(&*t.borrow())
+    } else if let Ok(t) = transform.cast::<Ppmt>() {
+        to_json(&*t.borrow())
+    } else {
+        Err(invalid(NOT_DECORRELATION))
+    }
+}
+
+/// A decorrelation template from its `to_json`.
+pub(crate) fn decorrelation_from_json(py: Python, text: &str) -> PyResult<Py<PyAny>> {
+    use crate::persist::from_json;
+    let value: serde_json::Value = serde_json::from_str(text).map_err(invalid)?;
+    let kind = value["type"].as_str().unwrap_or_default();
+    Ok(if kind == <Pca as pyo3::PyClass>::NAME {
+        Py::new(py, from_json::<Pca>(text)?)?.into_any()
+    } else if kind == <Maf as pyo3::PyClass>::NAME {
+        Py::new(py, from_json::<Maf>(text)?)?.into_any()
+    } else if kind == <StepwiseConditional as pyo3::PyClass>::NAME {
+        Py::new(py, from_json::<StepwiseConditional>(text)?)?.into_any()
+    } else if kind == <Ppmt as pyo3::PyClass>::NAME {
+        Py::new(py, from_json::<Ppmt>(text)?)?.into_any()
+    } else {
+        return Err(invalid(NOT_DECORRELATION));
+    })
+}
+
 pub(crate) const NOT_DECORRELATION: &str =
     "transform must be a PCA, MAF, StepwiseConditional or PPMT";
 

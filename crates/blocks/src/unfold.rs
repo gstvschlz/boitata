@@ -2,11 +2,13 @@
 
 use boitata_core::Mesh;
 use rayon::prelude::*;
+use serde::{Deserialize, Serialize};
 
-use crate::{Result, Surface};
+use crate::{BlockModelError, Result, Surface};
 
 /// What the third unfolded coordinate measures.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum UnfoldMode {
     /// 0 on the footwall, 1 on the hanging wall.
     Proportional,
@@ -17,7 +19,8 @@ pub enum UnfoldMode {
 }
 
 /// Surface along which the first two unfolded coordinates are arc lengths.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum Reference {
     Footwall,
     Hangingwall,
@@ -29,13 +32,60 @@ pub enum Reference {
 /// northing, or, with a reference surface, arc lengths along that surface in
 /// the x and y directions, measured from its south-west corner and offset so
 /// that a flat surface keeps x and y.
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(try_from = "Unchecked")]
 pub struct Unfold {
+    #[serde(skip)]
     footwall: Surface,
+    #[serde(skip)]
     hangingwall: Surface,
     mode: UnfoldMode,
+    #[serde(skip)]
     along: Option<ArcLength>,
     extrapolate: bool,
+    reference: Option<Reference>,
+    #[serde(rename = "footwall")]
+    footwall_mesh: Wall,
+    #[serde(rename = "hangingwall")]
+    hangingwall_mesh: Wall,
+}
+
+/// The mesh a surface was built from.
+#[derive(Clone, Serialize, Deserialize)]
+struct Wall {
+    vertices: Vec<[f64; 3]>,
+    triangles: Vec<[u32; 3]>,
+}
+
+impl Wall {
+    fn of(mesh: &Mesh) -> Self {
+        Self {
+            vertices: mesh.vertices().to_vec(),
+            triangles: mesh.triangles().to_vec(),
+        }
+    }
+
+    fn mesh(self) -> Result<Mesh> {
+        Ok(Mesh::new(self.vertices, self.triangles)?)
+    }
+}
+
+#[derive(Deserialize)]
+struct Unchecked {
+    mode: UnfoldMode,
+    extrapolate: bool,
+    reference: Option<Reference>,
+    footwall: Wall,
+    hangingwall: Wall,
+}
+
+impl TryFrom<Unchecked> for Unfold {
+    type Error = BlockModelError;
+
+    fn try_from(u: Unchecked) -> Result<Self> {
+        let (f, h) = (u.footwall.mesh()?, u.hangingwall.mesh()?);
+        Self::new(&f, &h, u.mode, u.reference, u.extrapolate)
+    }
 }
 
 impl Unfold {
@@ -46,6 +96,7 @@ impl Unfold {
         reference: Option<Reference>,
         extrapolate: bool,
     ) -> Result<Self> {
+        let (footwall_mesh, hangingwall_mesh) = (Wall::of(footwall), Wall::of(hangingwall));
         let footwall = Surface::new(footwall)?;
         let hangingwall = Surface::new(hangingwall)?;
         let along = reference.map(|r| {
@@ -60,6 +111,9 @@ impl Unfold {
             mode,
             along,
             extrapolate,
+            reference,
+            footwall_mesh,
+            hangingwall_mesh,
         })
     }
 
@@ -362,6 +416,41 @@ mod tests {
         for (p, q) in points.iter().zip(back) {
             assert!((0..3).all(|a| (p[a] - q[a]).abs() < 1e-6), "{p:?} {q:?}");
         }
+    }
+
+    #[test]
+    fn json_round_trip_is_bit_identical() {
+        let footwall = surface(21, 5.0, fold);
+        let hangingwall = surface(21, 5.0, |x, y| fold(x, y) + 9.0 + y / 30.0);
+        let unfold = Unfold::new(
+            &footwall,
+            &hangingwall,
+            UnfoldMode::Hangingwall,
+            Some(Reference::Footwall),
+            true,
+        )
+        .unwrap();
+        let text = serde_json::to_string(&unfold).unwrap();
+        let back: Unfold = serde_json::from_str(&text).unwrap();
+        assert_eq!(serde_json::to_string(&back).unwrap(), text);
+        let points: Vec<[f64; 3]> = (0..300)
+            .map(|k| {
+                let (x, y) = ((k % 23) as f64 * 4.3, (k / 23) as f64 * 7.1);
+                [x, y, fold(x, y) + (k % 11) as f64]
+            })
+            .collect();
+        let bits = |u: &Unfold| {
+            let t = u.transform(&points);
+            [u.inverse(&t), t]
+                .concat()
+                .into_iter()
+                .flatten()
+                .map(f64::to_bits)
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(bits(&back), bits(&unfold));
+        let empty = text.replacen(r#""triangles":[["#, r#""triangles":[],"x":[["#, 1);
+        assert!(serde_json::from_str::<Unfold>(&empty).is_err());
     }
 
     #[test]

@@ -464,3 +464,62 @@ def test_image_quilting_round_trip_simulates_bit_identically(categorical, tmp_pa
             summary_arrays(back.simulate(targets, n=3, seed=9, keep=True, progress=False, **given)),
             summary_arrays(summary),
         )
+
+
+def test_selector_transiogram_and_unfold_round_trip():
+    outer = np.array([[0, 0, 0], [10, 0, 0], [10, 10, 0], [0, 10, 0], [0, 0, 0]], float)
+    grid = bt.BlockModel(origin=(0, 0, 0), size=(10, 10, 1), count=(11, 11, 1))
+    fold = 20 * np.sin(grid.centroids[:, 0] / 40)
+    walls = [bt.grid_surface(grid.with_column("z", fold + dz), "z") for dz in (0, 10)]
+    points = np.c_[rng.uniform(-5, 110, (200, 2)), rng.uniform(-20, 30, 200)]
+    cases = [
+        (
+            bt.PolygonSelector([outer, outer[:4] / 2 + 3], closed=True, z_min=-1),
+            lambda o: (o.contains(points),),
+        ),
+        (bt.Transiogram([0.5, 0.3, 0.2], 40.0), lambda o: (o.matrix(0.0), o.matrix(25.0))),
+        (
+            bt.Unfold(*walls, mode="hangingwall", reference="footwall", extrapolate=True),
+            lambda o: (o.transform(points), o.inverse(o.transform(points))),
+        ),
+    ]
+    for obj, outputs in cases:
+        for back in (type(obj).from_json(obj.to_json()), pickle.loads(pickle.dumps(obj))):
+            assert type(back) is type(obj)
+            same(outputs(back), outputs(obj))
+            assert back.to_json() == obj.to_json()
+    with pytest.raises(bt.InvalidInput, match="sum to 1"):
+        bt.Transiogram.from_json(cases[1][0].to_json().replace("0.2", "0.4"))
+
+
+@pytest.mark.parametrize("impute", [None, True])
+def test_multivariate_simulation_round_trip_simulates_bit_identically(impute, tmp_path):
+    path = tmp_path / "multivariate.parquet"
+    data = table[:, :2].copy()
+    if impute:
+        data[:20, 1] = np.nan
+    near = bt.Search(40.0, max_samples=8)
+    mv = bt.MultivariateSimulation(
+        bt.PPMT(iterations=5, seed=4), [bt.SGS(gaussian, near), bt.TurningBands(gaussian, bands=50, step=2.0)]
+    )
+    fit = {"weights": np.linspace(1.0, 2.0, 300), "holes": holes, "impute": impute}
+    mv.to_parquet(path)
+    unfitted = bt.MultivariateSimulation.from_parquet(path)
+    with pytest.raises(bt.InvalidInput, match="not fitted"):
+        unfitted.simulate(nodes, n=2)
+    mv.fit(coords, data, **fit)
+    expected = [summary_arrays(s) for s in mv.simulate(nodes, n=4, seed=9, keep=True, progress=False)]
+
+    def check(sim):
+        got = sim.simulate(nodes, n=4, seed=9, keep=True, progress=False)
+        for a, b in zip(got, expected, strict=True):
+            same(summary_arrays(a), b)
+
+    check(unfitted.fit(coords, data, **fit))
+    mv.to_parquet(path)
+    for back in (bt.MultivariateSimulation.from_parquet(path), pickle.loads(pickle.dumps(mv))):
+        check(back)
+    names = ["x", "y", "z", *(["variable_0", "variable_1"] if impute else ["factor_0", "factor_1"])]
+    assert bt.read_parquet(path).column_names == [*names, "weight", "hole"]
+    with pytest.raises(bt.InvalidInput, match="expected a SGS"):
+        bt.SGS.from_parquet(path)
