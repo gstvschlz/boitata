@@ -15,12 +15,12 @@ HERE = Path(__file__).parent if "__file__" in globals() else Path.cwd()
 sys.path.insert(0, str(HERE.parents[1]))
 
 # %%
-import ceres as cs
+import boitata as bt
 import matplotlib.pyplot as plt
 import numpy as np
 from common import ACCENT, GRAY, INK, map_axes, save
 
-data = cs.datasets.coal_seam_thickness()
+data = bt.datasets.coal_seam_thickness()
 holes, lease = data["boreholes"], data["boundary"]
 thickness = holes["THICKNESS_M"]
 x, y = holes.coords[:, 0], holes.coords[:, 1]
@@ -42,14 +42,14 @@ save(fig, "holes")
 # The weights average 1.
 
 # %%
-cell = cs.cell_declustering(holes, "THICKNESS_M", sizes=np.arange(100.0, 3100.0, 100.0))
+cell = bt.cell_declustering(holes, "THICKNESS_M", sizes=np.arange(100.0, 3100.0, 100.0))
 print(
     f"cell size {cell.cell_size:.0f} m, declustered mean {np.average(thickness, weights=cell.weights):.2f} m"
 )
 print(f"scanned mean at that size {cell.means[cell.sizes == cell.cell_size][0]:.2f} m")
 
 fig, ax = plt.subplots(figsize=(6, 3.4), layout="constrained")
-cs.plot.declustering(cell, naive=thickness.mean(), ax=ax, color=ACCENT, lw=1.6)
+bt.plot.declustering(cell, naive=thickness.mean(), ax=ax, color=ACCENT, lw=1.6)
 ax.set(title="Declustered mean against cell size", xlabel="Cell size (m)", ylabel="Mean thickness (m)")
 save(fig, "cell_sizes")
 
@@ -67,7 +67,7 @@ save(fig, "cell_sizes")
 # lease.
 
 # %%
-polygon = cs.polygon_declustering(holes, "THICKNESS_M")
+polygon = bt.polygon_declustering(holes, "THICKNESS_M")
 print(f"polygonal declustered mean {np.average(thickness, weights=polygon.weights):.2f} m")
 fig, axes = plt.subplots(1, 2, figsize=(10, 3.6), layout="constrained", sharey=True)
 for ax, result, name in zip(axes, [cell, polygon], ["Cell", "Polygonal"], strict=True):

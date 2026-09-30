@@ -14,7 +14,7 @@ HERE = Path(__file__).parent if "__file__" in globals() else Path.cwd()
 sys.path.insert(0, str(HERE.parents[1]))
 
 # %%
-import ceres as cs
+import boitata as bt
 import matplotlib.pyplot as plt
 import numpy as np
 from common import ACCENT, GRAY, HIGHLIGHT, save
@@ -26,7 +26,7 @@ from common import ACCENT, GRAY, HIGHLIGHT, save
 # holes dipping against the rest. Each flagged check is listed with the holes it hit.
 
 # %%
-data = cs.datasets.stacked_sulphide_lenses(raw=True)
+data = bt.datasets.stacked_sulphide_lenses(raw=True)
 raw = {
     "collar": data["collars"],
     "survey": data["surveys"],
@@ -38,7 +38,7 @@ for name, table in raw.items():
 
 
 def check(t, show=True):
-    flags, summary, details = cs.check_drillholes(
+    flags, summary, details = bt.check_drillholes(
         t["collar"], t["survey"], {"assays": t["assays"], "lithology": t["lithology"]}, max_depth="LENGTH"
     )
     for table, name, rows, holes in zip(
@@ -110,7 +110,7 @@ print("mineralized, no assays:", sorted(mineralized - set(raw["assays"]["HOLE_ID
 
 # %%
 def replace(table, **columns):
-    return cs.Table({**{c: table[c] for c in table.column_names}, **columns})
+    return bt.Table({**{c: table[c] for c in table.column_names}, **columns})
 
 
 tables = dict(raw)
@@ -123,7 +123,7 @@ for h, d in zip(s["HOLE_ID"], s["DEPTH"]):
 tables["collar"] = replace(c, LENGTH=np.maximum(c["LENGTH"], [deepest.get(h, 0.0) for h in c["HOLE_ID"]]))
 
 flags, _ = check(tables, show=False)
-fixed, log = cs.fix_drillholes(flags, tables, dip_sign="negate", text_values="half")
+fixed, log = bt.fix_drillholes(flags, tables, dip_sign="negate", text_values="half")
 for table, name, action, rows in zip(log["table"], log["check"], log["action"], log["rows"]):
     if rows:
         print(f"{action:>10} {rows:3.0f} {table} rows flagged {name}")
@@ -145,7 +145,7 @@ def dd0116(table):
 collar = dd0116(fixed["collar"])
 fig, ax = plt.subplots(figsize=(4, 5.5), layout="constrained")
 for name, survey, color in (("as entered", raw["survey"], HIGHLIGHT), ("fixed", fixed["survey"], ACCENT)):
-    path = cs.Drillholes(collar, dd0116(survey)).paths()
+    path = bt.Drillholes(collar, dd0116(survey)).paths()
     ax.plot(path["x"], path["z"], color=color, lw=1.6, label=name)
 ax.axhline(collar["Z"][0], color=GRAY, lw=0.6, ls="--", label="collar elevation")
 ax.set_aspect("equal")

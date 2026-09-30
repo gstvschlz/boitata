@@ -16,7 +16,7 @@ HERE = Path(__file__).parent if "__file__" in globals() else Path.cwd()
 sys.path.insert(0, str(HERE.parents[1]))
 
 # %%
-import ceres as cs
+import boitata as bt
 import matplotlib.pyplot as plt
 import numpy as np
 from common import ACCENT, GRAY, HIGHLIGHT, INK, LIGHT, save
@@ -30,14 +30,14 @@ from matplotlib.colors import ListedColormap
 # its length and the angle between the hole and the lens give the true thickness.
 
 # %%
-data = cs.datasets.stacked_sulphide_lenses()
+data = bt.datasets.stacked_sulphide_lenses()
 lenses = {name: data[name] for name in ("lens_1", "lens_2", "lens_3")}
-samples = cs.Drillholes(data["collars"], data["surveys"], data["assays"]).samples()
+samples = bt.Drillholes(data["collars"], data["surveys"], data["assays"]).samples()
 lens = np.full(len(samples), "host", dtype=object)
 for name, mesh in lenses.items():
     lens[mesh.contains(samples.coords)] = name
 intervals = samples.with_columns({"LENS": list(lens)}).attributes
-drillholes = cs.Drillholes(data["collars"], data["surveys"], intervals)
+drillholes = bt.Drillholes(data["collars"], data["surveys"], intervals)
 composites = drillholes.composite(2.0, ["ZN_PCT"], domain="LENS", residual="merge")
 composites = composites.filter(np.isfinite(composites["ZN_PCT"]))
 ore = composites.filter(np.asarray(composites["LENS"], dtype=object) != "host")
@@ -72,13 +72,13 @@ print(
 # the nugget ([downhole nugget](../../05-spatial-continuity/05-downhole-nugget/README.md)).
 
 # %%
-volume = cs.variogram_volume(composites, np.log(composites["ZN_PCT"]), 15.0, 225.0, tolerance=15.0)
-downhole = cs.experimental_variogram(ore, "ZN_PCT", 2.0, 12.0, holes="HOLE_ID")
+volume = bt.variogram_volume(composites, np.log(composites["ZN_PCT"]), 15.0, 225.0, tolerance=15.0)
+downhole = bt.experimental_variogram(ore, "ZN_PCT", 2.0, 12.0, holes="HOLE_ID")
 experimentals = [
-    cs.experimental_variogram(ore, "ZN_PCT", 15.0, 150.0, azimuth=az, dip=dip, tolerance=20.0)
+    bt.experimental_variogram(ore, "ZN_PCT", 15.0, 150.0, azimuth=az, dip=dip, tolerance=20.0)
     for az, dip in volume.axes
 ]
-model = cs.Variogram.fit_directional(
+model = bt.Variogram.fit_directional(
     experimentals[:2],
     volume.axes[:2],
     "spherical",
@@ -99,7 +99,7 @@ fig, ax = plt.subplots(figsize=(6.4, 3.6), layout="constrained")
 for exp, direction, color, name, reach in zip(
     experimentals[:2], volume.axes[:2], (ACCENT, GRAY), ("major", "semi-major"), ranges[:2], strict=True
 ):
-    cs.plot.variogram(exp, variogram=model, direction=direction, ax=ax, color=color, label=name)
+    bt.plot.variogram(exp, variogram=model, direction=direction, ax=ax, color=color, label=name)
     for k, ls in ((1, "-"), (2, "--")):
         ax.axvline(k * reach, color=color, lw=0.8, ls=ls)
 ax.plot(downhole.lags, downhole.gammas, "o", color=HIGHLIGHT, ms=3, label="down the holes")
@@ -141,7 +141,7 @@ def unit(azimuth, dip):
 
 
 def frame(azimuth, dip):
-    """Section axes of `cs.plot.slab`: along `azimuth`, and up a plane dipping `dip`."""
+    """Section axes of `bt.plot.slab`: along `azimuth`, and up a plane dipping `dip`."""
     az, dip = np.radians(azimuth), np.radians(dip)
     u = np.array([np.sin(az), np.cos(az), 0.0])
     v = np.cos(dip) * np.array([-np.cos(az), np.sin(az), 0.0]) + np.array([0.0, 0.0, np.sin(dip)])
@@ -167,8 +167,8 @@ fig, axes = plt.subplots(1, 3, figsize=(12, 4.4), layout="constrained")
 for ax, (title, (azimuth, dip, xlabel)) in zip(axes, views.items(), strict=True):
     plane = (tuple(center), azimuth, dip)
     meshes = None if title == "Lens plane" else list(lenses.values())
-    cs.plot.slab(composites, plane=plane, thickness=40, meshes=meshes, s=2, color=LIGHT, ax=ax)
-    cs.plot.slab(ore.filter(one), plane=plane, thickness=40, s=3, color=GRAY, ax=ax)
+    bt.plot.slab(composites, plane=plane, thickness=40, meshes=meshes, s=2, color=LIGHT, ax=ax)
+    bt.plot.slab(ore.filter(one), plane=plane, thickness=40, s=3, color=GRAY, ax=ax)
     for k, color in ((1, ACCENT), (2, HIGHLIGHT)):
         ax.plot(
             *outline(center, k * ranges, azimuth, dip).T, color=color, lw=1.4, label=f"pass {k}: {k} × range"
@@ -195,24 +195,24 @@ save(fig, "ellipsoids")
 low = np.min([m.bounds[0] for m in lenses.values()], axis=0)
 high = np.max([m.bounds[1] for m in lenses.values()], axis=0)
 origin = np.floor(low / 10) * 10
-grid = cs.BlockModel(origin, (10, 10, 10), [int(c) for c in np.ceil((high - origin) / 10)])
+grid = bt.BlockModel(origin, (10, 10, 10), [int(c) for c in np.ceil((high - origin) / 10)])
 block_lens = np.full(len(grid), "", dtype=object)
 for name, mesh in lenses.items():
     block_lens[mesh.contains(grid.centroids)] = name
 inside = block_lens != ""
 blocks = grid.mask(inside).with_column("LENS", list(block_lens[inside]))
-kriging = cs.OrdinaryKriging(model, cs.Search(reach, **ellipsoid)).fit(
+kriging = bt.OrdinaryKriging(model, bt.Search(reach, **ellipsoid)).fit(
     ore, "ZN_PCT", holes="HOLE_ID", domain_column="LENS"
 )
-three = cs.hole_distance(
-    blocks, ore, "HOLE_ID", 3, search=cs.Search(reach, **ellipsoid), domain_column="LENS"
+three = bt.hole_distance(
+    blocks, ore, "HOLE_ID", 3, search=bt.Search(reach, **ellipsoid), domain_column="LENS"
 )
 print(f"{len(blocks)} blocks; {np.isfinite(three).mean():.0%} have three holes inside one range")
 
 options = {
-    "no cap": cs.Search(reach, min_samples=8, max_samples=16, **ellipsoid),
-    "3 per hole": cs.Search(reach, min_samples=8, max_samples=16, max_per_hole=3, **ellipsoid),
-    "3 per hole, octants": cs.Search(
+    "no cap": bt.Search(reach, min_samples=8, max_samples=16, **ellipsoid),
+    "3 per hole": bt.Search(reach, min_samples=8, max_samples=16, max_per_hole=3, **ellipsoid),
+    "3 per hole, octants": bt.Search(
         reach, min_samples=8, max_samples=16, max_per_hole=3, octant=True, **ellipsoid
     ),
 }
@@ -239,8 +239,8 @@ for name, search in options.items():
 
 # %%
 passes = [
-    cs.Search(reach, min_samples=8, max_samples=16, max_per_hole=3, **ellipsoid),
-    cs.Search(2 * reach, min_samples=4, max_samples=16, max_per_hole=3, **ellipsoid),
+    bt.Search(reach, min_samples=8, max_samples=16, max_per_hole=3, **ellipsoid),
+    bt.Search(2 * reach, min_samples=4, max_samples=16, max_per_hole=3, **ellipsoid),
 ]
 d = kriging.with_search(passes).predict(blocks, diagnostics=True, domain_column="LENS", progress=False)
 number = np.nan_to_num(d["pass"]).astype(int)
@@ -261,7 +261,7 @@ for name in lenses:
 blocks = blocks.with_columns({"pass": d["pass"], "n_samples": d["n_samples"]})
 plane = (tuple(center), dip_direction - 90, lens_dip)
 fig, (a, b) = plt.subplots(1, 2, figsize=(11, 4.4), layout="constrained")
-cs.plot.section(
+bt.plot.section(
     blocks,
     "pass",
     plane=plane,
@@ -280,10 +280,10 @@ a.legend(
     framealpha=0.9,
     frameon=True,
 )
-cs.plot.section(blocks, "n_samples", plane=plane, ax=b, colorbar=False, vmin=0, vmax=16)
+bt.plot.section(blocks, "n_samples", plane=plane, ax=b, colorbar=False, vmin=0, vmax=16)
 fig.colorbar(b.images[0], ax=b, shrink=0.8, label="Samples used")
 for ax, title in ((a, "Pass that estimated each block"), (b, "Samples per block")):
-    cs.plot.slab(pierce, plane=plane, thickness=60, meshes=[lenses["lens_1"]], s=6, color=INK, ax=ax)
+    bt.plot.slab(pierce, plane=plane, thickness=60, meshes=[lenses["lens_1"]], s=6, color=INK, ax=ax)
     ax.set(title=title, aspect="equal")
 save(fig, "passes")
 

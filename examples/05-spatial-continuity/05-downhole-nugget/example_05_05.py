@@ -13,14 +13,14 @@ HERE = Path(__file__).parent if "__file__" in globals() else Path.cwd()
 sys.path.insert(0, str(HERE.parents[1]))
 
 # %%
-import ceres as cs
+import boitata as bt
 import matplotlib.pyplot as plt
 import numpy as np
 from common import ACCENT, GRAY, HIGHLIGHT, save
 
-tables = cs.datasets.nickel_laterite_profile()
-intervals = cs.merge_intervals(tables["assays"], tables["horizons"])
-drillholes = cs.Drillholes(tables["collars"], tables["surveys"], intervals)
+tables = bt.datasets.nickel_laterite_profile()
+intervals = bt.merge_intervals(tables["assays"], tables["horizons"])
+drillholes = bt.Drillholes(tables["collars"], tables["surveys"], intervals)
 runs = drillholes.composite(None, ["NI_PCT"], domain="HORIZON")
 horizon, thickness = np.array(runs["HORIZON"]), np.array(runs["length"])
 for name in ["FERR", "LIM", "SAP", "BRK"]:
@@ -41,7 +41,7 @@ for length in lengths:
     horizon, ni = np.array(composites["HORIZON"]), composites["NI_PCT"]
     for name in horizons:
         keep = (horizon == name) & ~np.isnan(ni)
-        exp = cs.experimental_variogram(
+        exp = bt.experimental_variogram(
             composites.coords[keep],
             ni[keep],
             length,

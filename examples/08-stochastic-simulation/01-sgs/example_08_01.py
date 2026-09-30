@@ -13,14 +13,14 @@ HERE = Path(__file__).parent if "__file__" in globals() else Path.cwd()
 sys.path.insert(0, str(HERE.parents[1]))
 
 # %%
-import ceres as cs
+import boitata as bt
 import matplotlib.pyplot as plt
 import numpy as np
 from common import ACCENT, GRAY, HIGHLIGHT, INK, LIGHT, map_axes, save
 from matplotlib.colors import PowerNorm
 
-samples = cs.datasets.walker_lake()
-truth = cs.datasets.walker_lake_exhaustive()["V"].reshape(300, 260)
+samples = bt.datasets.walker_lake()
+truth = bt.datasets.walker_lake_exhaustive()["V"].reshape(300, 260)
 xy, v = samples.coords, samples["V"]
 azimuth = 170.0
 
@@ -30,16 +30,16 @@ azimuth = 170.0
 # N170°, the direction of greatest continuity ([variogram fitting](../../05-spatial-continuity/02-variogram-fitting/README.md)), and across it, scaled to a unit sill:
 
 # %%
-weights = cs.cell_declustering(xy, v, sizes=np.arange(2.5, 102.5, 2.5)).weights
-y = cs.NormalScore(tails=(0.0, v.max())).fit_transform(v, weights=weights)
+weights = bt.cell_declustering(xy, v, sizes=np.arange(2.5, 102.5, 2.5)).weights
+y = bt.NormalScore(tails=(0.0, v.max())).fit_transform(v, weights=weights)
 
 lag, max_lag = 10.0, 120.0
-major = cs.experimental_variogram(xy, y, lag, max_lag, azimuth=azimuth).fit("spherical")
-minor = cs.experimental_variogram(xy, y, lag, max_lag, azimuth=azimuth + 90).fit("spherical")
+major = bt.experimental_variogram(xy, y, lag, max_lag, azimuth=azimuth).fit("spherical")
+minor = bt.experimental_variogram(xy, y, lag, max_lag, azimuth=azimuth + 90).fit("spherical")
 total = major.sill
 a_major = major.structures[0].range
 ratio = min(minor.structures[0].range / a_major, 1.0)
-gaussian = cs.Variogram(
+gaussian = bt.Variogram(
     [("spherical", major.structures[0].sill / total, a_major)],
     nugget=major.nugget / total,
     rotation=(azimuth, 0, 0),
@@ -55,8 +55,8 @@ print(gaussian)
 # cutoffs. Realizations are kept only when asked for: here the first 20, to check them.
 
 # %%
-grid = cs.BlockModel(origin=(0.5, 0.5), size=(5, 5), count=(52, 60))
-sgs = cs.SGS(gaussian, cs.Search(radius=100, max_samples=24)).fit(samples, "V", weights=weights)
+grid = bt.BlockModel(origin=(0.5, 0.5), size=(5, 5), count=(52, 60))
+sgs = bt.SGS(gaussian, bt.Search(radius=100, max_samples=24)).fit(samples, "V", weights=weights)
 summary = sgs.simulate(grid, n=50, seed=42, cutoffs=[500.0], quantiles=[0.1, 0.9], keep=range(20))
 reals = summary.realizations
 etype = summary.mean
@@ -130,10 +130,10 @@ a.legend(loc="lower right")
 
 xyz = grid.centroids
 for r in reals:
-    scores = cs.NormalScore().fit_transform(r)
-    exp = cs.experimental_variogram(xyz, scores, lag, max_lag, azimuth=azimuth)
+    scores = bt.NormalScore().fit_transform(r)
+    exp = bt.experimental_variogram(xyz, scores, lag, max_lag, azimuth=azimuth)
     b.plot(exp.lags, exp.gammas, color=LIGHT, lw=0.8)
-data_exp = cs.experimental_variogram(xy, y, lag, max_lag, azimuth=azimuth)
+data_exp = bt.experimental_variogram(xy, y, lag, max_lag, azimuth=azimuth)
 b.plot(data_exp.lags, data_exp.gammas, "o", color=ACCENT, ms=4, label="normal scores of samples")
 h = np.linspace(0, max_lag, 200)
 b.plot(h, gaussian.gamma(h), color=HIGHLIGHT, lw=1.4, label="model")

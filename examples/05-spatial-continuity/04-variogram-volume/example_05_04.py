@@ -17,7 +17,7 @@ HERE = Path(__file__).parent if "__file__" in globals() else Path.cwd()
 sys.path.insert(0, str(HERE.parents[1]))
 
 # %%
-import ceres as cs
+import boitata as bt
 import matplotlib.pyplot as plt
 import numpy as np
 from common import ACCENT, GRAY, HIGHLIGHT, save
@@ -32,8 +32,8 @@ from common import ACCENT, GRAY, HIGHLIGHT, save
 # least spread.
 
 # %%
-data = cs.datasets.stacked_sulphide_lenses()
-holes = cs.Drillholes(data["collars"], data["surveys"], data["assays"])
+data = bt.datasets.stacked_sulphide_lenses()
+holes = bt.Drillholes(data["collars"], data["surveys"], data["assays"])
 composites = holes.composite(2.0, ["ZN_PCT"])
 composites = composites.filter(np.isfinite(composites["ZN_PCT"]))
 log_zn = np.log(composites["ZN_PCT"])
@@ -67,7 +67,7 @@ lens_pole /= np.linalg.norm(lens_pole)
 # averages in directions across the lenses and flattens the recovered dip.
 
 # %%
-volume = cs.variogram_volume(composites, log_zn, 15.0, 225.0, tolerance=15.0)
+volume = bt.variogram_volume(composites, log_zn, 15.0, 225.0, tolerance=15.0)
 print("rotation (azimuth, dip, rake):", np.round(volume.rotation, 1))
 print("ranges (major, semi, minor):  ", np.round(volume.ranges, 0))
 print("ratios:                       ", np.round(volume.ratios, 2))
@@ -88,14 +88,14 @@ print(f"minor axis to lens pole: {angle:.1f} degrees")
 #
 # ## Slices through the principal planes
 #
-# `cs.plot.variogram_volume` slices the cube through two principal axes and draws the range ellipse. In the plane
+# `bt.plot.variogram_volume` slices the cube through two principal axes and draws the range ellipse. In the plane
 # of the lenses γ climbs slowly; across them it climbs fast, then drops where the lag reaches the next lens.
 
 # %%
 fig, axes = plt.subplots(1, 3, figsize=(12, 4.2), sharey=True, layout="constrained")
 vmax = np.nanpercentile(volume.gammas, 98)
 for ax, name in zip(axes, ("major-semi", "major-minor", "semi-minor")):
-    cs.plot.variogram_volume(volume, plane=name, ax=ax, vmin=0, vmax=vmax)
+    bt.plot.variogram_volume(volume, plane=name, ax=ax, vmin=0, vmax=vmax)
     ax.set_title(name.replace("-", " and ") + " axes")
     ax.set_xlabel(ax.get_xlabel() + " (m)")
 axes[0].set_ylabel(axes[0].get_ylabel() + " (m)")
@@ -112,10 +112,10 @@ save(fig, "slices")
 
 # %%
 experimentals = [
-    cs.experimental_variogram(composites, log_zn, 15.0, 225.0, azimuth=az, dip=dip, tolerance=15.0)
+    bt.experimental_variogram(composites, log_zn, 15.0, 225.0, azimuth=az, dip=dip, tolerance=15.0)
     for az, dip in volume.axes
 ]
-model = cs.Variogram.fit_directional(
+model = bt.Variogram.fit_directional(
     experimentals, volume.axes, "spherical", rotation=volume.rotation, ratios=volume.ratios
 )
 structure = model.structures[0]
@@ -125,7 +125,7 @@ fig, ax = plt.subplots(figsize=(6.5, 4), layout="constrained")
 for exp, direction, color, name in zip(
     experimentals, volume.axes, (ACCENT, GRAY, HIGHLIGHT), ("major", "semi-major", "minor")
 ):
-    cs.plot.variogram(exp, variogram=model, direction=direction, ax=ax, color=color, label=name)
+    bt.plot.variogram(exp, variogram=model, direction=direction, ax=ax, color=color, label=name)
 ax.legend(loc="lower right")
 ax.set(xlabel="Lag distance (m)", ylabel="γ(h), log Zn", title="Along the principal axes")
 save(fig, "axes")

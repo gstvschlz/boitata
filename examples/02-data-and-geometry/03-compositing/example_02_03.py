@@ -14,7 +14,7 @@ HERE = Path(__file__).parent if "__file__" in globals() else Path.cwd()
 sys.path.insert(0, str(HERE.parents[1]))
 
 # %%
-import ceres as cs
+import boitata as bt
 import matplotlib.pyplot as plt
 import numpy as np
 from common import ACCENT, GRAY, LIGHT, save
@@ -24,11 +24,11 @@ from common import ACCENT, GRAY, LIGHT, save
 # carries its grades and its lithology; pieces outside the assayed zones have no grades.
 
 # %%
-data = cs.datasets.stacked_sulphide_lenses()
+data = bt.datasets.stacked_sulphide_lenses()
 collar, survey, assay, lithology = data["collars"], data["surveys"], data["assays"], data["lithology"]
 GRADES = ["ZN_PCT", "PB_PCT", "CU_PCT", "AG_GPT", "AU_GPT"]
-intervals = cs.merge_intervals(assay, lithology)
-dh = cs.Drillholes(collar, survey, intervals)
+intervals = bt.merge_intervals(assay, lithology)
+dh = bt.Drillholes(collar, survey, intervals)
 print(f"{assay.num_rows} assays + {lithology.num_rows} lithology intervals -> {intervals.num_rows} merged")
 print(dh)
 

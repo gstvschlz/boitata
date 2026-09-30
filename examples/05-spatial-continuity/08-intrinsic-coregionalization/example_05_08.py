@@ -17,12 +17,12 @@ HERE = Path(__file__).parent if "__file__" in globals() else Path.cwd()
 sys.path.insert(0, str(HERE.parents[1]))
 
 # %%
-import ceres as cs
+import boitata as bt
 import matplotlib.pyplot as plt
 import numpy as np
 from common import ACCENT, GRAY, INK, save
 
-jura = cs.datasets.jura()
+jura = bt.datasets.jura()
 train, test = jura["prediction"], jura["validation"]
 xy = train.coords
 cd, zn = train["Cd"], train["Zn"]
@@ -37,9 +37,9 @@ print(f"{len(cd)} samples, corr(Cd, Zn) {np.corrcoef(cd, zn)[0, 1]:.2f}")
 # nugget and two spherical structures, and one 2 x 2 sill matrix.
 
 # %%
-experimentals = cs.experimental_variograms(train, ["Cd", "Zn"], lag, max_lag)
-icm = cs.Coregionalization.fit(experimentals, ["spherical", "spherical"], intrinsic=True)
-lmc = cs.Coregionalization.fit(experimentals, ["spherical", "spherical"])
+experimentals = bt.experimental_variograms(train, ["Cd", "Zn"], lag, max_lag)
+icm = bt.Coregionalization.fit(experimentals, ["spherical", "spherical"], intrinsic=True)
+lmc = bt.Coregionalization.fit(experimentals, ["spherical", "spherical"])
 
 
 def sill(model):
@@ -71,7 +71,7 @@ away = np.c_[h, np.zeros((h.size, 2))]
 panels = ((0, 0, "Cd"), (1, 1, "Zn"), (0, 1, "Cd × Zn"))
 fig, axes = plt.subplots(1, 3, figsize=(10, 3.2), layout="constrained")
 for ax, (i, j, name) in zip(axes, panels):
-    cs.plot.variogram(experimentals[i, j], ax=ax, color=GRAY)
+    bt.plot.variogram(experimentals[i, j], ax=ax, color=GRAY)
     for model, color, label in [(icm, ACCENT, "intrinsic"), (lmc, INK, "full LMC")]:
         gamma = model.cross_covariance(i, j, origin, origin) - model.cross_covariance(i, j, origin, away)
         ax.plot(h, gamma, color=color, lw=1, label=label)
@@ -86,10 +86,10 @@ save(fig, "variograms")
 # there, as in [cokriging](../../06-kriging/09-cokriging/README.md). With the correlation this similar, the simpler model predicts as well:
 
 # %%
-search = cs.Search(radius=1.5, max_samples=24, min_samples=4)
+search = bt.Search(radius=1.5, max_samples=24, min_samples=4)
 truth = test["Cd"]
 for name, model in [("intrinsic", icm), ("full LMC", lmc)]:
-    ck = cs.Cokriging(model, search, means=[cd.mean(), zn.mean()])
+    ck = bt.Cokriging(model, search, means=[cd.mean(), zn.mean()])
     ck.fit(np.vstack([xy, xy]), np.r_[cd, zn], [0] * len(cd) + [1] * len(zn))
     estimate = ck.predict(test, collocated={1: test["Zn"]})
     print(f"{name:>10}: validation RMSE {np.sqrt(np.mean((estimate - truth) ** 2)):.3f} mg/kg")
@@ -102,8 +102,8 @@ for name, model in [("intrinsic", icm), ("full LMC", lmc)]:
 
 # %%
 metals = ["Cd", "Co", "Cr", "Cu", "Ni", "Pb", "Zn"]
-seven = cs.Coregionalization.fit(
-    cs.experimental_variograms(train, metals, lag, max_lag), ["spherical", "spherical"], intrinsic=True
+seven = bt.Coregionalization.fit(
+    bt.experimental_variograms(train, metals, lag, max_lag), ["spherical", "spherical"], intrinsic=True
 )
 c = sill(seven)
 corr = c / np.sqrt(np.outer(np.diag(c), np.diag(c)))

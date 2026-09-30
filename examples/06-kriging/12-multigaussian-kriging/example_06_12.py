@@ -15,14 +15,14 @@ HERE = Path(__file__).parent if "__file__" in globals() else Path.cwd()
 sys.path.insert(0, str(HERE.parents[1]))
 
 # %%
-import ceres as cs
+import boitata as bt
 import matplotlib.pyplot as plt
 import numpy as np
 from common import ACCENT, INK, map_axes, save
 from matplotlib.colors import PowerNorm
 
-samples = cs.datasets.walker_lake()
-truth = cs.datasets.walker_lake_exhaustive()["V"].reshape(300, 260)
+samples = bt.datasets.walker_lake()
+truth = bt.datasets.walker_lake_exhaustive()["V"].reshape(300, 260)
 xy, v = samples.coords, samples["V"]
 azimuth = 170.0
 
@@ -36,15 +36,15 @@ azimuth = 170.0
 # the conditional Gaussian.
 
 # %%
-weights = cs.cell_declustering(xy, v, sizes=np.arange(2.5, 102.5, 2.5)).weights
+weights = bt.cell_declustering(xy, v, sizes=np.arange(2.5, 102.5, 2.5)).weights
 print(f"{np.sum(v == 0)} samples at 0 ppm")
-y = cs.NormalScore().fit_transform(cs.despike(xy, v), weights=weights)
+y = bt.NormalScore().fit_transform(bt.despike(xy, v), weights=weights)
 
 lag, max_lag = 10.0, 120.0
-major = cs.experimental_variogram(xy, y, lag, max_lag, azimuth=azimuth).fit("spherical")
-minor = cs.experimental_variogram(xy, y, lag, max_lag, azimuth=azimuth + 90).fit("spherical")
+major = bt.experimental_variogram(xy, y, lag, max_lag, azimuth=azimuth).fit("spherical")
+minor = bt.experimental_variogram(xy, y, lag, max_lag, azimuth=azimuth + 90).fit("spherical")
 a_major = major.structures[0].range
-gaussian = cs.Variogram(
+gaussian = bt.Variogram(
     [("spherical", major.structures[0].sill / major.sill, a_major)],
     nugget=major.nugget / major.sill,
     rotation=(azimuth, 0, 0),
@@ -60,8 +60,8 @@ print(gaussian)
 # to 0 and the largest sample.
 
 # %%
-grid = cs.BlockModel(origin=(0.5, 0.5), size=(5, 5), count=(52, 60))
-mg = cs.MultigaussianKriging(gaussian, cs.Search(radius=100, max_samples=24), tails=(0.0, v.max()))
+grid = bt.BlockModel(origin=(0.5, 0.5), size=(5, 5), count=(52, 60))
+mg = bt.MultigaussianKriging(gaussian, bt.Search(radius=100, max_samples=24), tails=(0.0, v.max()))
 mg.fit(samples, "V", weights=weights, despike=True)
 summary = mg.predict(grid, cutoffs=[500.0], quantiles=[0.1, 0.9])
 etype, (p10, p90), p500 = summary.mean, summary.quantile_values.T, summary.probability_above[:, 0]
@@ -105,7 +105,7 @@ save(fig, "maps")
 # panel above the cutoff, compared here with the share of the 400 exhaustive values in each panel.
 
 # %%
-panels = cs.BlockModel(origin=(0.0, 0.0), size=(20, 20), count=(13, 15))
+panels = bt.BlockModel(origin=(0.0, 0.0), size=(20, 20), count=(13, 15))
 blocks = mg.predict(panels, cutoffs=[500.0], discretization=(4, 4, 1))
 cells = truth.reshape(15, 20, 13, 20)
 true_share = (cells > 500).mean(axis=(1, 3)).ravel()
@@ -114,9 +114,9 @@ print(f"panel means: r {np.corrcoef(blocks.mean, true_mean)[0, 1]:.2f}")
 print(f"panel shares above 500 ppm: r {np.corrcoef(blocks.probability_above[:, 0], true_share)[0, 1]:.2f}")
 
 fig, (a, b) = plt.subplots(1, 2, figsize=(9, 4), layout="constrained")
-cs.plot.scatter(true_at_nodes, etype, ax=a, s=4, color=ACCENT, alpha=0.4)
+bt.plot.scatter(true_at_nodes, etype, ax=a, s=4, color=ACCENT, alpha=0.4)
 a.set(xlim=(0, 1600), ylim=(0, 1600), xlabel="True V (ppm)", ylabel="E-type (ppm)", title="Points")
-cs.plot.scatter(true_share, blocks.probability_above[:, 0], ax=b, s=10, color=ACCENT)
+bt.plot.scatter(true_share, blocks.probability_above[:, 0], ax=b, s=10, color=ACCENT)
 b.set(xlabel="True share above 500 ppm", ylabel="P(V > 500 ppm)", title="20 m panels")
 for ax in (a, b):
     ax.set_aspect("equal")

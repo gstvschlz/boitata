@@ -14,7 +14,7 @@ HERE = Path(__file__).parent if "__file__" in globals() else Path.cwd()
 sys.path.insert(0, str(HERE.parents[1]))
 
 # %%
-import ceres as cs
+import boitata as bt
 import matplotlib.pyplot as plt
 import numpy as np
 from common import ACCENT, GRAY, HIGHLIGHT, INK, map_axes, save
@@ -24,9 +24,9 @@ from common import ACCENT, GRAY, HIGHLIGHT, INK, map_axes, save
 # coal. Cell declustering weights correct that; the trend then averages the holes with these weights.
 
 # %%
-data = cs.datasets.coal_seam_thickness()
+data = bt.datasets.coal_seam_thickness()
 holes, grid, lease = data["boreholes"], data["grid"], data["boundary"]
-weights = cs.cell_declustering(holes, "THICKNESS_M", cell_size=500.0).weights
+weights = bt.cell_declustering(holes, "THICKNESS_M", cell_size=500.0).weights
 thickness = holes["THICKNESS_M"]
 print(
     f"{len(holes)} holes, mean {thickness.mean():.2f} m, declustered {np.average(thickness, weights=weights):.2f} m"
@@ -57,7 +57,7 @@ def image(ax, values, **kwargs):
 fig, axes = plt.subplots(1, 3, figsize=(11, 3.2), sharey=True)
 norm = plt.Normalize(0.5, 5.0)
 for ax, bandwidth in zip(axes, (150.0, 400.0, 1500.0)):
-    trend, _ = cs.detrend(holes, "THICKNESS_M", bandwidth=bandwidth, weights=weights)
+    trend, _ = bt.detrend(holes, "THICKNESS_M", bandwidth=bandwidth, weights=weights)
     shown = image(ax, trend.predict(grid), norm=norm)
     map_axes(ax, f"Bandwidth {bandwidth:.0f} m")
 for ax in axes[1:]:
@@ -74,7 +74,7 @@ save(fig, "bandwidths")
 
 # %%
 candidates = [100, 150, 200, 300, 400, 600, 800, 1200, 1600, 2400]
-trend, residuals = cs.detrend(holes, "THICKNESS_M", bandwidth=candidates, weights=weights)
+trend, residuals = bt.detrend(holes, "THICKNESS_M", bandwidth=candidates, weights=weights)
 print(f"chosen bandwidth {trend.bandwidth:.0f} m")
 
 fig, (left, right) = plt.subplots(1, 2, figsize=(10, 3.4), gridspec_kw={"width_ratios": [1, 1.3]})
@@ -129,7 +129,7 @@ save(fig, "residuals")
 # proportions, one column per category, each in [0, 1] and summing to 1 at every cell.
 
 # %%
-categories, _ = cs.detrend(holes, "CATEGORY", bandwidth=candidates, weights=weights, categorical=True)
+categories, _ = bt.detrend(holes, "CATEGORY", bandwidth=candidates, weights=weights, categorical=True)
 proportions = categories.predict(grid)
 total = sum(np.asarray(proportions[name]) for name in categories.categories)
 print(

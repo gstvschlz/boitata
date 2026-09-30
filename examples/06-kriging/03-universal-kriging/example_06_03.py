@@ -14,12 +14,12 @@ HERE = Path(__file__).parent if "__file__" in globals() else Path.cwd()
 sys.path.insert(0, str(HERE.parents[1]))
 
 # %%
-import ceres as cs
+import boitata as bt
 import matplotlib.pyplot as plt
 import numpy as np
 from common import ACCENT, GRAY, HIGHLIGHT, INK, map_axes, save
 
-data = cs.datasets.coal_seam_thickness()
+data = bt.datasets.coal_seam_thickness()
 holes, grid, lease = data["boreholes"], data["grid"], data["boundary"]
 inside = np.asarray(grid["INSIDE"]) == 1
 
@@ -29,7 +29,7 @@ inside = np.asarray(grid["INSIDE"]) == 1
 # A plane fitted by least squares: `coefficients` are the constant, then the x, y and z slopes.
 
 # %%
-trend, residuals = cs.detrend(holes, "THICKNESS_M", degree=1)
+trend, residuals = bt.detrend(holes, "THICKNESS_M", degree=1)
 constant, per_x, per_y, _ = trend.coefficients
 print(f"thickness = {constant:.2f} {per_x * 1000:+.3f} m/km east {per_y * 1000:+.3f} m/km north")
 print(f"variance {holes['THICKNESS_M'].var():.2f} m², of the residuals {residuals.var():.2f} m²")
@@ -39,15 +39,15 @@ print(f"variance {holes['THICKNESS_M'].var():.2f} m², of the residuals {residua
 # takes the residual variogram, since the drift is estimated with the weights.
 
 # %%
-raw = cs.experimental_variogram(holes, "THICKNESS_M", 250.0, 4000.0)
-detrended = cs.experimental_variogram(holes.coords, residuals, 250.0, 4000.0)
+raw = bt.experimental_variogram(holes, "THICKNESS_M", 250.0, 4000.0)
+detrended = bt.experimental_variogram(holes.coords, residuals, 250.0, 4000.0)
 model = raw.fit("spherical")
 residual_model = detrended.fit("spherical")
 print(model, residual_model, sep="\n")
 
 fig, ax = plt.subplots(figsize=(5.5, 3.6), layout="constrained")
-cs.plot.variogram(raw, variogram=model, ax=ax, color=GRAY, label="thickness")
-cs.plot.variogram(detrended, variogram=residual_model, ax=ax, color=ACCENT, label="residuals")
+bt.plot.variogram(raw, variogram=model, ax=ax, color=GRAY, label="thickness")
+bt.plot.variogram(detrended, variogram=residual_model, ax=ax, color=ACCENT, label="residuals")
 ax.set_title("Variograms with and without the drift")
 ax.set_xlabel("Lag (m)")
 ax.legend()
@@ -59,9 +59,9 @@ save(fig, "variograms")
 # Universal kriging with a linear drift against ordinary kriging, same search:
 
 # %%
-search = cs.Search(radius=6000, max_samples=32, min_samples=12)
-ordinary = cs.OrdinaryKriging(model, search).fit(holes, "THICKNESS_M")
-universal = cs.UniversalKriging(residual_model, search, degree=1).fit(holes, "THICKNESS_M")
+search = bt.Search(radius=6000, max_samples=32, min_samples=12)
+ordinary = bt.OrdinaryKriging(model, search).fit(holes, "THICKNESS_M")
+universal = bt.UniversalKriging(residual_model, search, degree=1).fit(holes, "THICKNESS_M")
 ok, uk = ordinary.predict(grid), universal.predict(grid)
 difference = uk - ok
 print(f"inside the lease: mean |UK - OK| {np.nanmean(np.abs(difference[inside])):.3f} m")

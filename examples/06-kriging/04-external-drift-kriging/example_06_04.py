@@ -15,12 +15,12 @@ HERE = Path(__file__).parent if "__file__" in globals() else Path.cwd()
 sys.path.insert(0, str(HERE.parents[1]))
 
 # %%
-import ceres as cs
+import boitata as bt
 import matplotlib.pyplot as plt
 import numpy as np
 from common import ACCENT, INK, map_axes, save
 
-data = cs.datasets.soil_geochemistry_survey()
+data = bt.datasets.soil_geochemistry_survey()
 samples, covariates = data["samples"], data["covariates"]
 
 # %% [markdown]
@@ -42,8 +42,8 @@ print(
 
 # %%
 xy, cu = samples.coords, samples["CU_PPM"]
-model = cs.experimental_variogram(xy, cu, 200.0, 2500.0).fit(["spherical"], weighting="count/gamma")
-search = cs.Search(radius=2000.0, max_samples=24, min_samples=4)
+model = bt.experimental_variogram(xy, cu, 200.0, 2500.0).fit(["spherical"], weighting="count/gamma")
+search = bt.Search(radius=2000.0, max_samples=24, min_samples=4)
 print(model)
 
 # %% [markdown]
@@ -52,9 +52,9 @@ print(model)
 
 # %%
 inside = covariates["INSIDE"] == 1
-ok = cs.OrdinaryKriging(model, search).fit(samples, "CU_PPM").predict(covariates)
+ok = bt.OrdinaryKriging(model, search).fit(samples, "CU_PPM").predict(covariates)
 edk = (
-    cs.ExternalDriftKriging(model, search, ["MAG_NT", "ELEVATION_M"])
+    bt.ExternalDriftKriging(model, search, ["MAG_NT", "ELEVATION_M"])
     .fit(samples, "CU_PPM")
     .predict(covariates)
 )

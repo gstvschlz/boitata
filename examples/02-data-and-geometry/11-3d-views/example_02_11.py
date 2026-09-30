@@ -1,8 +1,8 @@
 """
 # 3D views
 
-`cs.plot3d` turns drill holes, points, meshes and block models into pyvista datasets and draws them
-(``pip install ceres[3d]``). Here three stacked sulphide lenses are shown with the holes that cut them, their zinc
+`bt.plot3d` turns drill holes, points, meshes and block models into pyvista datasets and draws them
+(``pip install boitata[3d]``). Here three stacked sulphide lenses are shown with the holes that cut them, their zinc
 composites, a sub-blocked model of the lenses and a slice through a model rotated with them. Each scene renders
 off-screen to an image.
 """
@@ -15,7 +15,7 @@ HERE = Path(__file__).parent if "__file__" in globals() else Path.cwd()
 sys.path.insert(0, str(HERE.parents[1]))
 
 # %%
-import ceres as cs
+import boitata as bt
 import matplotlib.pyplot as plt
 import numpy as np
 import pyvista as pv
@@ -44,8 +44,8 @@ def show(plotter, title, view=(0.8, -0.6, 0.6)):
 # zinc, the others left gray.
 
 # %%
-data = cs.datasets.stacked_sulphide_lenses()
-holes = cs.Drillholes(data["collars"], data["surveys"], data["assays"])
+data = bt.datasets.stacked_sulphide_lenses()
+holes = bt.Drillholes(data["collars"], data["surveys"], data["assays"])
 lenses = [data[f"lens_{i}"] for i in (1, 2, 3)]
 composites = holes.composite(2.0, ["ZN_PCT"])
 composites = composites.filter(~np.isnan(composites["ZN_PCT"]))
@@ -55,15 +55,15 @@ print(f"{len(holes.holes)} holes, {len(composites):,} composites of 2 m, {ore.su
 lo = np.min([lens.bounds[0] for lens in lenses], axis=0) - 50
 hi = np.max([lens.bounds[1] for lens in lenses], axis=0) + 50
 box = [lo[0], hi[0], lo[1], hi[1], lo[2], hi[2]]
-traces = cs.plot3d.to_pyvista(holes).clip_box(box, invert=False)
+traces = bt.plot3d.to_pyvista(holes).clip_box(box, invert=False)
 near = np.all((composites.coords > lo) & (composites.coords < hi), axis=1)
 
 plotter = pv.Plotter(window_size=(1400, 900))
-cs.plot3d.plot(traces, plotter=plotter, color=GRAY, line_width=1, opacity=0.3)
-cs.plot3d.plot(composites.filter(near & ~ore), plotter=plotter, color=LIGHT, point_size=2)
-cs.plot3d.plot(composites.filter(ore), values="ZN_PCT", plotter=plotter, point_size=5, **STYLE)
+bt.plot3d.plot(traces, plotter=plotter, color=GRAY, line_width=1, opacity=0.3)
+bt.plot3d.plot(composites.filter(near & ~ore), plotter=plotter, color=LIGHT, point_size=2)
+bt.plot3d.plot(composites.filter(ore), values="ZN_PCT", plotter=plotter, point_size=5, **STYLE)
 for lens in lenses:
-    cs.plot3d.plot(lens, plotter=plotter, color=LIGHT, opacity=0.25)
+    bt.plot3d.plot(lens, plotter=plotter, color=LIGHT, opacity=0.25)
 save(show(plotter, "Drill holes, Zn composites and the three lenses"), "holes")
 
 # %% [markdown]
@@ -74,8 +74,8 @@ save(show(plotter, "Drill holes, Zn composites and the three lenses"), "holes")
 # %%
 rotation = (22.5, 0.0, 55.0)
 size = (20, 20, 10)
-frame = cs.BlockModel.from_extents(*lenses, size=size, buffer=20, rotation=rotation)
-blocks = cs.BlockModel.from_meshes(
+frame = bt.BlockModel.from_extents(*lenses, size=size, buffer=20, rotation=rotation)
+blocks = bt.BlockModel.from_meshes(
     frame.origin,
     size,
     frame.count,
@@ -85,15 +85,15 @@ blocks = cs.BlockModel.from_meshes(
     rotation=rotation,
 )
 blocks = blocks.mask(np.asarray(blocks["domain"], dtype=object) != "host")
-search = cs.Search(radius=100, min_samples=1, max_samples=12)
-idw = cs.InverseDistance(search, power=2).fit(composites.coords[ore], composites["ZN_PCT"][ore])
+search = bt.Search(radius=100, min_samples=1, max_samples=12)
+idw = bt.InverseDistance(search, power=2).fit(composites.coords[ore], composites["ZN_PCT"][ore])
 blocks = blocks.with_column("zn", idw.predict(blocks))
 solid = sum(lens.volume for lens in lenses)
 print(f"{len(blocks):,} sub-blocks, {blocks.volumes.sum() / 1e6:.2f} Mm3 for {solid / 1e6:.2f} Mm3 of lens")
 
 plotter = pv.Plotter(window_size=(1400, 900))
-cs.plot3d.plot(blocks, values="zn", plotter=plotter, **STYLE)
-cs.plot3d.plot(traces, plotter=plotter, color=GRAY, line_width=1, opacity=0.4)
+bt.plot3d.plot(blocks, values="zn", plotter=plotter, **STYLE)
+bt.plot3d.plot(traces, plotter=plotter, color=GRAY, line_width=1, opacity=0.4)
 save(show(plotter, "Sub-blocks of the lenses, colored by Zn"), "subblocks")
 
 # %% [markdown]
@@ -103,15 +103,15 @@ save(show(plotter, "Sub-blocks of the lenses, colored by Zn"), "subblocks")
 # section where the three lenses are the high-grade bands. Blocks with no composite within 100 m stay empty.
 
 # %%
-everywhere = cs.InverseDistance(search, power=2).fit(composites.coords, composites["ZN_PCT"])
+everywhere = bt.InverseDistance(search, power=2).fit(composites.coords, composites["ZN_PCT"])
 rotated = frame.with_column("zn", everywhere.predict(frame))
 estimated = np.isfinite(rotated["zn"]).mean()
 print(f"rotated grid {frame.count}: {estimated:.0%} of {len(frame):,} blocks estimated")
-grid = cs.plot3d.to_pyvista(rotated)
+grid = bt.plot3d.to_pyvista(rotated)
 strike = np.radians(rotation[0])
 section = grid.slice(normal=(np.sin(strike), np.cos(strike), 0), origin=grid.center)
 plotter = pv.Plotter(window_size=(1400, 900))
-cs.plot3d.plot(section, values="zn", plotter=plotter, nan_opacity=0, **STYLE)
+bt.plot3d.plot(section, values="zn", plotter=plotter, nan_opacity=0, **STYLE)
 for lens in lenses:
-    cs.plot3d.plot(lens, plotter=plotter, color=LIGHT, opacity=0.2)
+    bt.plot3d.plot(lens, plotter=plotter, color=LIGHT, opacity=0.2)
 save(show(plotter, "Dip section through a grid rotated with the lenses", view=(0.5, 1, 0.15)), "section")

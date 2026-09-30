@@ -14,12 +14,12 @@ HERE = Path(__file__).parent if "__file__" in globals() else Path.cwd()
 sys.path.insert(0, str(HERE.parents[1]))
 
 # %%
-import ceres as cs
+import boitata as bt
 import matplotlib.pyplot as plt
 import numpy as np
 from common import ACCENT, GRAY, HIGHLIGHT, map_axes, save
 
-raw = cs.datasets.stacked_sulphide_lenses(raw=True)
+raw = bt.datasets.stacked_sulphide_lenses(raw=True)
 collars = raw["collars"]
 names, counts = np.unique(collars["HOLE_ID"], return_counts=True)
 print(f"{len(collars)} collars, {len(names)} hole ids, repeated: {', '.join(names[counts > 1])}")
@@ -32,7 +32,7 @@ print(f"{len(collars)} collars, {len(names)} hole ids, repeated: {', '.join(name
 
 # %%
 xyz = np.column_stack([collars["X"], collars["Y"], collars["Z"]])
-close, group_collars = cs.duplicates(xyz, tolerance=5.0)
+close, group_collars = bt.duplicates(xyz, tolerance=5.0)
 for k, spread in zip(close["group"], close["spread"], strict=True):
     print(f"{' and '.join(collars['HOLE_ID'][group_collars == k])}: {spread:.1f} m apart")
 for name in names[counts > 1]:
@@ -58,11 +58,11 @@ def number(text):
 
 
 assays = raw["assays"]
-assays = cs.Table({**{c: assays[c] for c in ("HOLE_ID", "FROM", "TO")}, "ZN_PCT": number(assays["ZN_PCT"])})
+assays = bt.Table({**{c: assays[c] for c in ("HOLE_ID", "FROM", "TO")}, "ZN_PCT": number(assays["ZN_PCT"])})
 tables = {"collar": collars, "survey": raw["surveys"], "assays": assays}
-flags, _, _ = cs.check_drillholes(collars, raw["surveys"], {"assays": assays}, max_depth="LENGTH")
-fixed, _ = cs.fix_drillholes(flags, tables, overlaps="keep")
-samples = cs.Drillholes(fixed["collar"], fixed["survey"], fixed["assays"]).samples()
+flags, _, _ = bt.check_drillholes(collars, raw["surveys"], {"assays": assays}, max_depth="LENGTH")
+fixed, _ = bt.fix_drillholes(flags, tables, overlaps="keep")
+samples = bt.Drillholes(fixed["collar"], fixed["survey"], fixed["assays"]).samples()
 print(f"{len(samples)} samples at their midpoints")
 
 # %% [markdown]
@@ -70,7 +70,7 @@ print(f"{len(samples)} samples at their midpoints")
 # entered twice, with grades within 10 % of each other.
 
 # %%
-report, group = cs.duplicates(samples, tolerance=0.0)
+report, group = bt.duplicates(samples, tolerance=0.0)
 zn, hole = samples["ZN_PCT"], samples["HOLE_ID"]
 depth = (samples["FROM"] + samples["TO"]) / 2
 for k in report["group"]:
@@ -106,7 +106,7 @@ save(fig, "duplicates")
 # largest value.
 
 # %%
-merged = cs.duplicates(samples, merge="mean")
+merged = bt.duplicates(samples, merge="mean")
 twins = merged["n"] > 1
 means = ", ".join(f"{v:.3f}" for v in merged["ZN_PCT"][twins])
 print(f"{len(merged)} samples, {int(twins.sum())} of them merged pairs, Zn {means} %")

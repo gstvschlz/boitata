@@ -17,22 +17,22 @@ HERE = Path(__file__).parent if "__file__" in globals() else Path.cwd()
 sys.path.insert(0, str(HERE.parents[1]))
 
 # %%
-import ceres as cs
+import boitata as bt
 import matplotlib.pyplot as plt
 import numpy as np
 from common import ACCENT, GRAY, HIGHLIGHT, save
 
-samples = cs.datasets.jura()["prediction"]
+samples = bt.datasets.jura()["prediction"]
 xy = samples.coords
 lag, max_lag = 0.1, 1.5
 
 
 def unit_sill(values):
     """Spherical model of the normal scores of `values`, scaled to a unit sill."""
-    scores = cs.NormalScore().fit_transform(values)
-    fitted = cs.experimental_variogram(xy, scores, lag, max_lag).fit("spherical")
+    scores = bt.NormalScore().fit_transform(values)
+    fitted = bt.experimental_variogram(xy, scores, lag, max_lag).fit("spherical")
     s = fitted.structures[0]
-    return cs.Variogram([("spherical", s.sill / fitted.sill, s.range)], nugget=fitted.nugget / fitted.sill)
+    return bt.Variogram([("spherical", s.sill / fitted.sill, s.range)], nugget=fitted.nugget / fitted.sill)
 
 
 print(f"{len(xy)} samples, correlation of Co and Ni {np.corrcoef(samples['Co'], samples['Ni'])[0, 1]:.2f}")
@@ -43,13 +43,13 @@ print(f"{len(xy)} samples, correlation of Co and Ni {np.corrcoef(samples['Co'], 
 # and fits the correlation of the Co and Ni scores:
 
 # %%
-nodes = cs.BlockModel(origin=(0.6, 0.55), size=(0.05, 0.05), count=(87, 103))
-search = cs.Search(radius=1.5, max_samples=24)
+nodes = bt.BlockModel(origin=(0.6, 0.55), size=(0.05, 0.05), count=(87, 103))
+search = bt.Search(radius=1.5, max_samples=24)
 ni_model = unit_sill(samples["Ni"])
-ni = cs.SGS(ni_model, search).fit(samples, "Ni").simulate(nodes, n=20, seed=1, keep=True)
+ni = bt.SGS(ni_model, search).fit(samples, "Ni").simulate(nodes, n=20, seed=1, keep=True)
 model = unit_sill(samples["Co"])
-alone = cs.SGS(model, search).fit(samples, "Co").simulate(nodes, n=20, seed=100, keep=True)
-cosgs = cs.SGS(model, search).fit(samples, "Co", secondary="Ni")
+alone = bt.SGS(model, search).fit(samples, "Co").simulate(nodes, n=20, seed=100, keep=True)
+cosgs = bt.SGS(model, search).fit(samples, "Co", secondary="Ni")
 with_ni = cosgs.simulate(nodes, n=20, seed=100, secondary=ni.realizations, keep=True)
 print(f"correlation of Co and Ni scores at the samples: {cosgs.correlation:.2f}")
 
@@ -60,7 +60,7 @@ print(f"correlation of Co and Ni scores at the samples: {cosgs.correlation:.2f}"
 
 # %%
 checks = {
-    name: cs.check_realizations(
+    name: bt.check_realizations(
         nodes, [ni, co], samples, ["Ni", "Co"], variogram=[ni_model, model], lag=lag, max_lag=max_lag
     )
     for name, co in [("alone", alone), ("with Ni", with_ni)]
@@ -92,9 +92,9 @@ save(fig, "maps")
 # %%
 fig, axes = plt.subplots(1, 3, figsize=(13, 3.8), layout="constrained")
 check = checks["with Ni"]
-cs.plot.histogram_reproduction(check, variable="Co", ax=axes[0])
+bt.plot.histogram_reproduction(check, variable="Co", ax=axes[0])
 axes[0].set(xlabel="Co (mg/kg)", title="Histogram of Co with Ni")
-cs.plot.variogram_reproduction(check, variable="Co", ax=axes[1])
+bt.plot.variogram_reproduction(check, variable="Co", ax=axes[1])
 axes[1].set(xlabel="Lag distance (km)", title="Variogram of Co scores with Ni")
 for x, (name, c) in enumerate(checks.items()):
     r = c.correlations[:, 0, 1]
