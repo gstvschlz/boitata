@@ -15,3 +15,4 @@ dependencies:
   - polars>=1.4
   - pyarrow>=16
   - pyvista>=0.45
+  - ipywidgets>=8

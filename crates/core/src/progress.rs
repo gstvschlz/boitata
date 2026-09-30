@@ -3,18 +3,25 @@
 
 use std::sync::atomic::{AtomicU64, Ordering};
 
-/// Units of work done; `total` is `None` when unknown upfront.
+/// Units of work done; the total is `None` until known. A reader that learns
+/// its size only after opening the file sets it with `set_total`.
 pub struct Progress {
     done: AtomicU64,
-    total: Option<u64>,
+    total: AtomicU64,
 }
+
+const UNKNOWN: u64 = u64::MAX;
 
 impl Progress {
     pub fn new(total: Option<u64>) -> Self {
         Self {
             done: AtomicU64::new(0),
-            total,
+            total: AtomicU64::new(total.unwrap_or(UNKNOWN)),
         }
+    }
+
+    pub fn set_total(&self, total: u64) {
+        self.total.store(total, Ordering::Relaxed);
     }
 
     pub fn inc(&self) {
@@ -26,7 +33,11 @@ impl Progress {
     }
 
     pub fn snapshot(&self) -> (u64, Option<u64>) {
-        (self.done.load(Ordering::Relaxed), self.total)
+        let total = self.total.load(Ordering::Relaxed);
+        (
+            self.done.load(Ordering::Relaxed),
+            (total != UNKNOWN).then_some(total),
+        )
     }
 }
 
@@ -57,5 +68,7 @@ mod tests {
         progress.inc_by(7);
         progress.inc_by(3);
         assert_eq!(progress.snapshot(), (10, None));
+        progress.set_total(12);
+        assert_eq!(progress.snapshot(), (10, Some(12)));
     }
 }

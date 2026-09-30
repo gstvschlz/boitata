@@ -498,6 +498,9 @@ fn decode(
 fn read_table(path: &Path, progress: Option<&Progress>) -> Result<RecordBatch> {
     let builder = ParquetRecordBatchReaderBuilder::try_new(File::open(path)?)?;
     let schema = builder.schema().clone();
+    if let Some(p) = progress {
+        p.set_total(builder.metadata().file_metadata().num_rows() as u64);
+    }
     let mut batches = Vec::new();
     for batch in builder.with_batch_size(ROW_GROUP).build()? {
         let batch = batch?;

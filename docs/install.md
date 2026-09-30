@@ -63,7 +63,7 @@ missing package.
 | (none) | `numpy`, `tqdm` | `numpy tqdm` |
 | `plot` | `boitata.plot` | `matplotlib` (or `matplotlib-base`) |
 | `3d` | `boitata.plot3d` | `pyvista` |
-| `all` | the above, and `to_polars`, `to_pandas`, `to_pyarrow` | `matplotlib pyvista polars pandas pyarrow` |
+| `all` | the above, `to_polars`, `to_pandas`, `to_pyarrow`, and progress bars drawn as notebook widgets | `matplotlib pyvista polars pandas pyarrow ipywidgets` |
 
 ## Minimum versions
 
@@ -77,6 +77,7 @@ missing package.
 | polars | 1.4 |
 | pandas | 2.2 |
 | pyarrow | 16 |
+| ipywidgets | 8 |
 
 ## Headless 3D rendering
 

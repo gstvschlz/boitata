@@ -1,5 +1,5 @@
 use std::fs::File;
-use std::io::{BufReader, BufWriter, Seek};
+use std::io::{BufReader, BufWriter, Read, Seek};
 use std::path::Path;
 use std::sync::Arc;
 
@@ -34,7 +34,7 @@ impl Default for CsvOptions {
 const CHUNK: usize = 1 << 16;
 
 /// Reads a headed CSV. Integer and all-null columns become `Float64`.
-/// `progress` is ticked once per batch read; the total is not known upfront.
+/// `progress` is ticked per row; its total is the file's line count less the header.
 pub fn read_csv(
     path: impl AsRef<Path>,
     options: &CsvOptions,
@@ -44,6 +44,9 @@ pub fn read_csv(
         .with_header(true)
         .with_delimiter(options.delimiter)
         .with_null_regex(nodata_regex(&options.nodata)?);
+    if let Some(p) = progress {
+        p.set_total(line_count(File::open(&path)?)?.saturating_sub(1));
+    }
     let mut file = BufReader::new(File::open(path)?);
     let (inferred, _) = format.infer_schema(&mut file, None)?;
     file.rewind()?;
@@ -62,10 +65,11 @@ pub fn read_csv(
         .with_format(format)
         .build(file)?
     {
-        batches.push(batch?);
+        let batch = batch?;
         if let Some(p) = progress {
-            p.inc();
+            p.inc_by(batch.num_rows() as u64);
         }
+        batches.push(batch);
     }
     let table = concat_batches(&schema, &batches)?;
     let columns = table
@@ -88,6 +92,18 @@ pub fn read_csv(
         })
         .collect();
     Ok(RecordBatch::try_new(schema, columns)?)
+}
+
+fn line_count(mut file: File) -> Result<u64> {
+    let (mut lines, mut last, mut buf) = (0, b'\n', vec![0; 1 << 16]);
+    loop {
+        let n = file.read(&mut buf)?;
+        if n == 0 {
+            return Ok(lines + u64::from(last != b'\n'));
+        }
+        lines += buf[..n].iter().filter(|&&b| b == b'\n').count() as u64;
+        last = buf[n - 1];
+    }
 }
 
 /// Writes a headed CSV; nulls are written as empty cells. `progress` is ticked

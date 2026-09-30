@@ -1,11 +1,12 @@
 import inspect
 import re
 
-from mkdocs.structure.files import File
-
 CHAPTER = re.compile(r"\]\(((?:\.\./)+(\d\d)-[\w-]+/(\d\d)-[\w-]+)/README\.md\)")
 SOURCE = re.compile(r"\]\((?:\.\./)+common\.py\)")
 SENTENCE = re.compile(r"(?<=\.)\s+(?=[A-Z`])")
+FENCE = "```{.shell .mkd-glr-script-out-disp }"
+OUTPUT = re.compile(re.escape(FENCE) + r"\n(.*?)```", re.DOTALL)
+TQDM = re.compile(r"(\d+)/(\d+) \[(\d+:\d\d)|(\d+)it \[(\d+:\d\d)")
 
 API = """
 containers: Containers and I/O
@@ -60,6 +61,7 @@ def on_config(config, **kwargs):
 def on_files(files, config, **kwargs):
     """Generates the API pages, with summaries from the first docstring sentence."""
     import boitata
+    from mkdocs.structure.files import File
 
     for slug, title, names in sections():
         rows = ["| Name | Summary |", "| --- | --- |"]
@@ -75,6 +77,41 @@ def on_files(files, config, **kwargs):
 
 
 def on_page_markdown(markdown, page, **kwargs):
-    """Points links between example pages at their gallery pages."""
+    """Points links between example pages at their gallery pages and draws captured progress bars."""
+    markdown = OUTPUT.sub(progress_bars, markdown)
     markdown = CHAPTER.sub(r"](\1/example_\2_\3.md)", markdown)
     return SOURCE.sub("](https://github.com/gstvschlz/boitata/blob/main/examples/common.py)", markdown)
+
+
+def progress_bars(block):
+    """Replaces each captured tqdm bar, whose states arrive one per line, with its last state drawn filling."""
+    parts, text, bar = [], [], None
+
+    def flush():
+        nonlocal bar
+        if bar:
+            done, total, elapsed, count, count_elapsed = bar
+            label = f"{done}/{total}" if total else count
+            share = min(100, 100 * int(done) // max(int(total), 1)) if total else 100
+            parts.append(
+                f'<div class="bt-progress" style="--share: {share}%"><span class="bt-progress-track">'
+                f'<span class="bt-progress-fill"></span></span><code>{label} · {elapsed or count_elapsed}</code></div>'
+            )
+            bar = None
+        if "".join(text).strip():
+            parts.append(FENCE + "\n" + "\n".join(text).strip("\n") + "\n```")
+        text.clear()
+
+    for line in block[1].split("\n"):
+        state = TQDM.findall(line)
+        if not state:
+            if bar and line.strip():
+                flush()
+            text.append(line)
+            continue
+        if (state[-1][0] or state[-1][3]) == "0" or text and "".join(text).strip():
+            flush()
+        text.clear()
+        bar = state[-1]
+    flush()
+    return "\n\n".join(parts)
