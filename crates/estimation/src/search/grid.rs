@@ -105,6 +105,11 @@ fn side(lo: &[f64; 3], hi: &[f64; 3], n: usize) -> f64 {
     h
 }
 
+/// Squared distance between two points, as every search compares them.
+pub(super) fn d2(p: &[f64; 3], q: &[f64; 3]) -> f64 {
+    (p[0] - q[0]).powi(2) + (p[1] - q[1]).powi(2) + (p[2] - q[2]).powi(2)
+}
+
 /// Hands the heap's candidates closer than `bound` to `visit`, nearest
 /// first; true when `visit` asks to stop.
 fn release(heap: &mut Heap, bound: f64, visit: &mut impl FnMut(f64, usize) -> bool) -> bool {
@@ -277,7 +282,7 @@ impl Grid {
         let packed = &self.entries[self.start[id] as usize..self.start[id + 1] as usize];
         work(packed.len() + self.added[id].len());
         for e in packed.iter().chain(&self.added[id]) {
-            let d2 = (e.p[0] - q[0]).powi(2) + (e.p[1] - q[1]).powi(2) + (e.p[2] - q[2]).powi(2);
+            let d2 = d2(&e.p, q);
             if d2 <= radius2 {
                 heap.push(Reverse((d2.to_bits(), e.i)));
             }
@@ -300,10 +305,6 @@ mod tests {
         (0..n)
             .map(|_| std::array::from_fn(|d| next() * scale[d]))
             .collect()
-    }
-
-    fn d2(p: &[f64; 3], q: &[f64; 3]) -> f64 {
-        (p[0] - q[0]).powi(2) + (p[1] - q[1]).powi(2) + (p[2] - q[2]).powi(2)
     }
 
     fn brute(points: &[[f64; 3]], q: &[f64; 3], radius2: f64) -> Vec<(u64, usize)> {

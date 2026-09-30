@@ -11,14 +11,13 @@ use std::collections::hash_map::Entry;
 use boitata_core::block_frame;
 use nalgebra::{Matrix3, Vector3};
 use serde::{Deserialize, Serialize};
-use variogram::aniso::euclidean;
 use variogram::{Angles, Anisotropy, Variogram};
 
 use crate::Sample;
 use crate::error::{EstimError, Result};
 
 mod grid;
-use grid::Grid;
+use grid::{Grid, d2};
 
 type Point = (f64, f64, f64);
 
@@ -224,13 +223,13 @@ pub fn take(
     params: &Search,
     vg: Option<&Variogram>,
 ) -> Vec<Sample> {
-    let aniso = metric(params, vg);
+    let space = Space::new(metric(params, vg), samples.iter().map(|s| &s.loc));
     chosen
         .iter()
         .map(|&i| {
             let mut s = samples[i].clone();
             if params.clamps() {
-                let d = aniso.map_or_else(|| euclidean(target, &s.loc), |a| a.lag(target, &s.loc));
+                let d = space.distance(target, &s.loc);
                 if let Some(t) = params.cap(target, &s.loc, s.value, d) {
                     s.value = t;
                 }
@@ -479,19 +478,16 @@ pub fn neighbors_in(
     vg: Option<&Variogram>,
 ) -> Result<Vec<usize>> {
     let aniso = metric(params, vg);
+    let space = Space::new(aniso, samples.iter().map(|s| &s.loc));
+    let query = space.project(target);
+    let radius2 = params.radius * params.radius;
     let mut cand: Vec<(usize, f64)> = samples
         .iter()
         .enumerate()
-        .map(|(i, s)| {
-            let d = match aniso {
-                Some(a) => a.lag(target, &s.loc),
-                None => euclidean(target, &s.loc),
-            };
-            (i, d)
-        })
-        .filter(|&(i, d)| {
+        .map(|(i, s)| (i, d2(&space.project(&s.loc), &query)))
+        .filter(|&(i, d2)| {
             let s = &samples[i];
-            d <= params.radius && params.admits(target, domain, &s.loc, s.value, s.domain, d)
+            d2 <= radius2 && params.admits(target, domain, &s.loc, s.value, s.domain, d2.sqrt())
         })
         .collect();
     cand.sort_by(|a, b| a.1.total_cmp(&b.1));
@@ -522,7 +518,7 @@ pub fn neighbors_in(
 /// of cells visited nearest first. Samples can be added after construction.
 pub struct SearchTree {
     index: Grid,
-    frame: Matrix3<f64>,
+    space: Space,
     points: Vec<[f64; 3]>,
     locs: Vec<Point>,
     holes: Vec<Option<u32>>,
@@ -532,9 +528,47 @@ pub struct SearchTree {
     sectors: Sectors,
 }
 
-fn project(frame: &Matrix3<f64>, p: &Point) -> [f64; 3] {
-    let q = frame * Vector3::new(p.0, p.1, p.2);
-    [q.x, q.y, q.z]
+/// The search ellipsoid's frame, applied to offsets from `origin`, the first
+/// finite sample location, so large coordinates cancel exactly before the
+/// rotation. The scan and the tree measure every distance here.
+#[derive(Clone, Copy)]
+struct Space {
+    frame: Matrix3<f64>,
+    origin: Option<Point>,
+}
+
+impl Space {
+    fn new<'a>(aniso: Option<&Anisotropy>, locs: impl IntoIterator<Item = &'a Point>) -> Self {
+        let mut space = Self {
+            frame: aniso.map_or_else(Matrix3::identity, Anisotropy::matrix),
+            origin: None,
+        };
+        for p in locs {
+            if space.anchor(p) {
+                break;
+            }
+        }
+        space
+    }
+
+    /// Takes `p` as the origin if there is none and it is finite; true once
+    /// there is an origin.
+    fn anchor(&mut self, p: &Point) -> bool {
+        if self.origin.is_none() && [p.0, p.1, p.2].iter().all(|v| v.is_finite()) {
+            self.origin = Some(*p);
+        }
+        self.origin.is_some()
+    }
+
+    fn project(&self, p: &Point) -> [f64; 3] {
+        let o = self.origin.unwrap_or_default();
+        let q = self.frame * Vector3::new(p.0 - o.0, p.1 - o.1, p.2 - o.2);
+        [q.x, q.y, q.z]
+    }
+
+    fn distance(&self, a: &Point, b: &Point) -> f64 {
+        d2(&self.project(a), &self.project(b)).sqrt()
+    }
 }
 
 #[cfg(test)]
@@ -551,13 +585,13 @@ fn work(_n: usize) {
 impl SearchTree {
     pub fn new(samples: &[Sample], params: &Search, vg: Option<&Variogram>) -> Self {
         let aniso = metric(params, vg);
-        let frame = aniso.map_or_else(Matrix3::identity, Anisotropy::matrix);
         let locs: Vec<Point> = samples.iter().map(|s| s.loc).collect();
+        let space = Space::new(aniso, &locs);
         let sectors = Sectors::new(aniso, planar(locs.iter()));
-        let points: Vec<[f64; 3]> = locs.iter().map(|p| project(&frame, p)).collect();
+        let points: Vec<[f64; 3]> = locs.iter().map(|p| space.project(p)).collect();
         Self {
             index: Grid::new(&points),
-            frame,
+            space,
             points,
             locs,
             holes: samples.iter().map(|s| s.hole).collect(),
@@ -569,7 +603,7 @@ impl SearchTree {
     }
 
     fn project(&self, p: &Point) -> [f64; 3] {
-        project(&self.frame, p)
+        self.space.project(p)
     }
 
     /// Adds a sample; its index is the number of samples before it.
@@ -577,6 +611,7 @@ impl SearchTree {
         if let Some(first) = self.locs.first() {
             self.sectors.planar &= first.2 == sample.loc.2;
         }
+        self.space.anchor(&sample.loc);
         let point = self.project(&sample.loc);
         self.points.push(point);
         self.locs.push(sample.loc);
@@ -589,13 +624,13 @@ impl SearchTree {
     /// Linear map to the isotropic search space: the search distance
     /// between two points is the norm of their difference mapped by it.
     pub fn frame(&self) -> &Matrix3<f64> {
-        &self.frame
+        &self.space.frame
     }
 
-    /// Distance from `a` to `b` in the search ellipsoid, up to rounding.
+    /// Distance from `a` to `b` in the search ellipsoid, as the search
+    /// measures it.
     pub fn distance(&self, a: &Point, b: &Point) -> f64 {
-        let (p, q) = (self.project(a), self.project(b));
-        (0..3).map(|d| (p[d] - q[d]).powi(2)).sum::<f64>().sqrt()
+        self.space.distance(a, b)
     }
 
     pub fn len(&self) -> usize {
@@ -1025,6 +1060,69 @@ mod tests {
                         tree.neighbors_in(&t, d).ok(),
                         neighbors_in(&t, d, &samples, p, None).ok()
                     );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn tree_matches_the_scan_among_ties_far_from_the_origin() {
+        let (x0, y0, z0) = (612_345.0, 7_654_321.0, 850.0);
+        let samples: Vec<Sample> = (0..9 * 9 * 12)
+            .map(|i| {
+                let (a, b, c) = (i % 9, i / 9 % 9, i / 81);
+                let loc = (
+                    x0 + a as f64 * 10.0,
+                    y0 + b as f64 * 10.0,
+                    z0 - c as f64 * 2.5,
+                );
+                s(loc.0, loc.1, loc.2, 0.0, Some((i % 81) as u32))
+            })
+            .collect();
+        let ellipsoid = |azimuth, dip| {
+            Anisotropy::new(Angles {
+                azimuth,
+                dip,
+                rake: 0.0,
+                major: 1.0,
+                semi: 0.5,
+                minor: 0.25,
+            })
+            .unwrap()
+        };
+        let ellipsoids = [
+            None,
+            Some(ellipsoid(0.0, 0.0)),
+            Some(ellipsoid(90.0, 0.0)),
+            Some(ellipsoid(45.0, 30.0)),
+        ];
+        for anisotropy in ellipsoids {
+            for (octant, max_per_hole) in [
+                (false, None),
+                (true, None),
+                (false, Some(2)),
+                (true, Some(3)),
+            ] {
+                for radius in [10.0, 20.0, 25.0, 40.0] {
+                    let p = Search {
+                        octant,
+                        max_per_hole,
+                        anisotropy: anisotropy.clone(),
+                        ..params(1, 16, radius)
+                    };
+                    let tree = SearchTree::new(&samples, &p, None);
+                    for k in 0..80 {
+                        let t = (
+                            x0 + (k % 9) as f64 * 5.0,
+                            y0 + (k / 9) as f64 * 10.0,
+                            z0 - (k % 5) as f64 * 5.0,
+                        );
+                        assert_eq!(
+                            tree.neighbors(&t).ok(),
+                            neighbors(&t, &samples, &p, None).ok(),
+                            "{t:?} {p:?}"
+                        );
+                    }
                 }
             }
         }
