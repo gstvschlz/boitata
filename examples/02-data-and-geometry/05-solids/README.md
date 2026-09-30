@@ -16,7 +16,7 @@ from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 
 </details>
 
-A solid needs a closed mesh: no boundary edges, every edge shared by two triangles. `Mesh.analysis` checks
+A solid needs a closed mesh: no boundary edges, every edge shared by two triangles. `Mesh.validate` checks
 that before anything relies on an inside; [mesh files](../../02-data-and-geometry/07-mesh-files/README.md) repairs meshes that fail it.
 
 <details><summary>Python</summary>
@@ -25,7 +25,9 @@ that before anything relies on an inside; [mesh files](../../02-data-and-geometr
 data = bt.datasets.stacked_sulphide_lenses()
 lenses = [data[f"lens_{i}"] for i in (1, 2, 3)]
 for i, lens in enumerate(lenses, 1):
-    print(f"lens {i}: {lens}, {lens.analysis['boundary_edges']} boundary edges, {lens.volume:,.0f} m3")
+    print(
+        f"lens {i}: {lens}, {lens.validate().summary['boundary_edges']} boundary edges, {lens.volume:,.0f} m3"
+    )
 ```
 
 </details>
