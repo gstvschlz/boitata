@@ -1,5 +1,5 @@
 class BoitataError(Exception):
-    """Base class of every error raised by boitata."""
+    """Base class of every error raised by Boitatá."""
 
 
 class InvalidInput(BoitataError, ValueError):
