@@ -168,10 +168,25 @@ def test_block_shell_of_a_single_block():
 def test_mesh_topology():
     assert cube.is_closed and cube.volume == pytest.approx(1000) and cube.area == pytest.approx(600)
     square = bt.Mesh([[0, 0, 0], [1, 0, 0], [1, 1, 0], [0, 1, 0]], [[0, 1, 2], [0, 2, 3]], crs="EPSG:32722")
-    assert square.analysis["boundary_edges"] == 4 and not square.is_closed and square.crs == "EPSG:32722"
+    assert (
+        square.validate().summary["boundary_edges"] == 4
+        and not square.is_closed
+        and square.crs == "EPSG:32722"
+    )
     assert "open, 4 boundary edges" in repr(square) and "closed" in repr(cube)
     fin = bt.Mesh([[0, 0, 0], [1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1]], [[0, 1, 2], [0, 1, 3], [0, 1, 4]])
-    assert fin.analysis["non_manifold_edges"] == 1
+    report = fin.validate()
+    assert report.summary["non_manifold_edges"] == 1 and report.summary["shells"] == 1
+    problems = report.problems
+    assert list(problems["kind"]) == ["boundary_edge"] * 6 + ["non_manifold_edge"]
+    assert [problems[c][-1] for c in ("face", "vertex", "edge")] == [0, 0, 0] and np.isnan(
+        problems["other"][-1]
+    )
+    doubled = bt.Mesh(np.vstack([cube.vertices, cube.vertices[:1] + 1e-9]), cube.triangles)
+    assert doubled.validate().summary["duplicate_vertices"] == 0
+    assert doubled.validate(tolerance=1e-6).problems["other"].tolist() == [0]
+    with pytest.raises(bt.errors.InvalidInput):
+        cube.validate(tolerance=-1)
     for call in (
         lambda: square.volume,
         lambda: square.contains([[0.5, 0.5, 0]]),

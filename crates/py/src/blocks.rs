@@ -1,6 +1,6 @@
 use std::sync::{Arc, OnceLock};
 
-use arrow_array::{ArrayRef, Float64Array, StringArray};
+use arrow_array::{ArrayRef, Float64Array, Int64Array, RecordBatch, StringArray};
 use blocks::{
     DomainMethod, Orientation, PolygonSelector as CoreSelector, ShellBlock, ShellFilter,
     ShellLimits, SolidTester, TriangleTree, extract_shell,
@@ -183,16 +183,24 @@ impl Mesh {
         self.mesh.is_closed()
     }
 
-    /// Degenerate triangles, boundary and non-manifold edges, and closure.
-    #[getter]
-    fn analysis<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
-        let a = self.mesh.analysis();
-        let d = PyDict::new(py);
-        d.set_item("degenerate_triangles", a.degenerate_triangles)?;
-        d.set_item("boundary_edges", a.boundary_edges)?;
-        d.set_item("non_manifold_edges", a.non_manifold_edges)?;
-        d.set_item("is_closed", a.is_closed)?;
-        Ok(d)
+    /// Everything that keeps the mesh from being a clean closed solid.
+    ///
+    /// Parameters
+    /// ----------
+    /// tolerance : float, default 0.0
+    ///     A vertex within this distance of an earlier vertex is a duplicate;
+    ///     0 finds exact duplicates only.
+    ///
+    /// Returns
+    /// -------
+    /// MeshReport
+    ///     Counts in ``summary`` and one row per problem in ``problems``.
+    ///     Degenerate faces are left out of the edge, vertex and shell checks.
+    #[pyo3(signature = (*, tolerance=0.0))]
+    fn validate(&self, py: Python, tolerance: f64) -> PyResult<MeshReport> {
+        py.detach(|| self.mesh.validate(tolerance))
+            .map(MeshReport)
+            .map_err(core_error)
     }
 
     #[getter]
@@ -382,16 +390,85 @@ impl Mesh {
     }
 
     fn __repr__(&self) -> String {
-        let a = self.mesh.analysis();
         format!(
             "Mesh({} vertices, {} triangles, {})",
             self.mesh.vertices().len(),
             self.mesh.triangles().len(),
-            if a.is_closed {
+            if self.mesh.is_closed() {
                 "closed".to_string()
             } else {
-                format!("open, {} boundary edges", a.boundary_edges)
+                format!("open, {} boundary edges", self.mesh.boundary_edges())
             }
+        )
+    }
+}
+
+/// Problems found by `Mesh.validate`.
+#[pyclass(module = "boitata", name = "MeshReport", frozen)]
+pub struct MeshReport(boitata_core::MeshReport);
+
+#[pymethods]
+impl MeshReport {
+    /// Counts of ``degenerate_faces``, ``duplicate_faces`` (same corners as
+    /// an earlier face), ``duplicate_vertices``, ``boundary_edges`` (of one
+    /// face), ``non_manifold_edges`` (of three or more),
+    /// ``non_manifold_vertices`` (whose faces form separate fans),
+    /// ``inconsistent_edges`` (whose two faces run them the same way),
+    /// ``shells`` (pieces connected through shared edges) and
+    /// ``inward_shells`` (closed shells wound against their nesting: a
+    /// cavity should wind inward, anything else outward), and ``is_closed``.
+    #[getter]
+    fn summary<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
+        let s = &self.0.summary;
+        let d = PyDict::new(py);
+        d.set_item("degenerate_faces", s.degenerate_faces)?;
+        d.set_item("duplicate_faces", s.duplicate_faces)?;
+        d.set_item("duplicate_vertices", s.duplicate_vertices)?;
+        d.set_item("boundary_edges", s.boundary_edges)?;
+        d.set_item("non_manifold_edges", s.non_manifold_edges)?;
+        d.set_item("non_manifold_vertices", s.non_manifold_vertices)?;
+        d.set_item("inconsistent_edges", s.inconsistent_edges)?;
+        d.set_item("shells", s.shells)?;
+        d.set_item("inward_shells", s.inward_shells)?;
+        d.set_item("is_closed", s.is_closed)?;
+        Ok(d)
+    }
+
+    /// One row per problem, ordered by ``kind``: ``degenerate_face``,
+    /// ``duplicate_face``, ``duplicate_vertex``, ``boundary_edge``,
+    /// ``non_manifold_edge``, ``non_manifold_vertex``,
+    /// ``inconsistent_winding``, ``inward_shell``. ``face``, ``vertex``,
+    /// ``edge`` and ``other`` are null where they do not apply. An edge
+    /// problem gives a ``face`` holding the edge, the local ``edge`` (from
+    /// corner ``edge`` to corner ``(edge + 1) % 3``) and its first
+    /// ``vertex``. ``other`` is the earlier face or vertex a duplicate
+    /// repeats, or the other face of an inconsistent edge; an inward shell
+    /// gives its first face.
+    #[getter]
+    fn problems(&self) -> PyResult<Table> {
+        let p = &self.0.problems;
+        let ids = |f: fn(&boitata_core::MeshProblem) -> Option<u32>| -> ArrayRef {
+            Arc::new(Int64Array::from_iter(p.iter().map(|q| f(q).map(i64::from))))
+        };
+        let kinds: Vec<&str> = p.iter().map(|q| q.kind.name()).collect();
+        RecordBatch::try_from_iter([
+            ("kind", Arc::new(StringArray::from(kinds)) as ArrayRef),
+            ("face", ids(|q| q.face)),
+            ("vertex", ids(|q| q.vertex)),
+            ("edge", ids(|q| q.edge.map(u32::from))),
+            ("other", ids(|q| q.other)),
+        ])
+        .map(Table)
+        .map_err(invalid)
+    }
+
+    fn __repr__(&self) -> String {
+        let s = &self.0.summary;
+        format!(
+            "MeshReport({} problems, {} shells, {})",
+            self.0.problems.len(),
+            s.shells,
+            if s.is_closed { "closed" } else { "open" }
         )
     }
 }
@@ -1028,6 +1105,7 @@ pub fn register(m: &Bound<PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(contact_distance, m)?)?;
     m.add_function(wrap_pyfunction!(buffer_domains, m)?)?;
     m.add_class::<Mesh>()?;
+    m.add_class::<MeshReport>()?;
     m.add_class::<PolygonSelector>()?;
     m.add_class::<Unfold>()?;
     m.add_function(wrap_pyfunction!(point_in_polygon, m)?)?;

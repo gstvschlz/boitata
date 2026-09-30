@@ -15,7 +15,7 @@ pub use arrow_array::RecordBatch;
 pub use block_model::{BlockModel, Geometry, Layout};
 pub use categories::Categories;
 pub use error::{Error, Result};
-pub use mesh::{Mesh, MeshAnalysis, signed_solid_angle};
+pub use mesh::{Mesh, MeshProblem, MeshProblemKind, MeshReport, MeshSummary, signed_solid_angle};
 pub use points::PointSet;
 pub use polylines::Polylines;
 pub use progress::Progress;

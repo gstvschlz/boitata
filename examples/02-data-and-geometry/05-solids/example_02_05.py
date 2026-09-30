@@ -21,14 +21,16 @@ from common import ACCENT, GRAY, HIGHLIGHT, LIGHT, save
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 
 # %% [markdown]
-# A solid needs a closed mesh: no boundary edges, every edge shared by two triangles. `Mesh.analysis` checks
+# A solid needs a closed mesh: no boundary edges, every edge shared by two triangles. `Mesh.validate` checks
 # that before anything relies on an inside; [mesh files](../../02-data-and-geometry/07-mesh-files/README.md) repairs meshes that fail it.
 
 # %%
 data = bt.datasets.stacked_sulphide_lenses()
 lenses = [data[f"lens_{i}"] for i in (1, 2, 3)]
 for i, lens in enumerate(lenses, 1):
-    print(f"lens {i}: {lens}, {lens.analysis['boundary_edges']} boundary edges, {lens.volume:,.0f} m3")
+    print(
+        f"lens {i}: {lens}, {lens.validate().summary['boundary_edges']} boundary edges, {lens.volume:,.0f} m3"
+    )
 
 # %% [markdown]
 # `contains` tests points by generalized winding number. Of the 2 m zinc composites, those inside a lens carry
