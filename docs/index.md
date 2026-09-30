@@ -92,6 +92,12 @@ ceres holds the tools I use for resource work: drill hole checks, statistics, tr
 
     Four deposits, each from raw tables to a result.
 
+-   :material-texture-box: **[Multiple-point statistics](examples/13-multiple-point-statistics/index.md)**
+
+    ---
+
+    SNESIM on categories and on continuous values, with its multigrid and hard data.
+
 </div>
 
 ## Install

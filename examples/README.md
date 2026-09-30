@@ -165,5 +165,13 @@ Worked examples with the Python API on open datasets from [gstvschlz/datasets](h
 | 3 | [Iron ore: several grades, one closure, reconciled](12-case-studies/03-iron-ore-multivariate/README.md) | Iron formation plateau | Composites by lithology; One closure; Ore domains of the model; Log-ratios, PPMT and simulation; Do the blocks still close?; Reconciliation with the blastholes; A bench in plan |
 | 4 | [A laterite profile: horizons, then grades](12-case-studies/04-laterite-profile/README.md) | Nickel laterite profile | Horizon contacts; Is the 50 m mesh enough?; A layered block model; Ni and Co by horizon; Grades into the blocks; Tonnes and grade by horizon |
 
+## Multiple-point statistics
+
+| # | Example | Dataset | Covers |
+|---|---|---|---|
+| 1 | [SNESIM and its multigrid](13-multiple-point-statistics/01-snesim-multigrid/README.md) | Strebelle | `BlockModel`, `SNESIM` |
+| 2 | [Conditioning SNESIM](13-multiple-point-statistics/02-snesim-conditioning/README.md) | Strebelle | `BlockModel`, `SNESIM` |
+| 3 | [Continuous SNESIM](13-multiple-point-statistics/03-snesim-continuous/README.md) | F3 seismic | `BlockModel`, `SNESIM` |
+
 Each page alternates text, collapsed Python and its results. `mise run examples` reruns every script
 and rewrites the pages; `cs.datasets` downloads the data once and caches it. `render.py --index` writes this file.
