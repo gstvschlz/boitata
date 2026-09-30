@@ -1,4 +1,4 @@
-"""Build boitata, install it into clean environments and run the Python tests there.
+"""Build Boitatá, install it into clean environments and run the Python tests there.
 
 Usage: python ci/compat.py [all | dist | venv | uv | pixi | conda]
 """
