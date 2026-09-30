@@ -16,6 +16,8 @@ pub enum Error {
     NotNumeric(String),
     #[error("invalid mesh file: {0}")]
     Mesh(String),
+    #[error("GeoPackage: {0}")]
+    GeoPackage(String),
     #[error("GeoTIFF: {0}")]
     GeoTiff(String),
     #[error("SEG-Y: {0}")]

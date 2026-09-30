@@ -6,12 +6,13 @@ from boitata._boitata import __version__  # noqa: F401
 from boitata.checks import *
 from boitata.errors import BoitataError, FileError, InvalidInput, MissingColumn  # noqa: F401
 from boitata.estimation import *
+from boitata.geopackage import *
 
 __all__ = [
     name
     for name in dir()
     if not name.startswith("_")
-    and name not in ("checks", "errors", "estimation", "datasets", "plot", "plot3d")
+    and name not in ("checks", "errors", "estimation", "geopackage", "datasets", "plot", "plot3d")
 ]
 
 
