@@ -1,6 +1,69 @@
 # Changelog
 
-## 0.1.0 - 2026-09-26
+## 0.2.0 - 2026-09-30
+
+### Features
+
+- **io:** read SEG-Y cubes into block models
+- **io:** write block models as SEG-Y
+- **py:** bind read_segy and write_segy
+- **simulation:** training images from block model columns
+- **simulation:** object-based training images
+- **py:** bind object_training_image
+- **datasets:** Strebelle training image and an F3 seismic crop
+- **simulation:** consistency of a training image with the hard data
+- **py:** bind training_image_consistency
+- **simulation:** SNESIM with search trees, multigrid and servosystem
+- **py:** bind SNESIM
+- **simulation:** seam cuts for image quilting
+- **simulation:** image quilting
+- **py:** bind ImageQuilting
+- **simulation:** soft probabilities in SNESIM
+- **py:** SNESIM.simulate takes soft probabilities
+- **simulation:** FFT correlations for image-quilting patch costs
+- **simulation:** FFT path, soft and secondary data in image quilting
+- **py:** soft and secondary data in ImageQuilting
+- **simulation:** local anisotropy and per-zone training images in SNESIM
+- **py:** SNESIM takes anisotropy and a training image per domain
+- **simulation:** continuous training images in SNESIM through value classes
+- **py:** SNESIM simulates continuous training images
+- **simulation:** continuous SNESIM takes values that match their neighbors, quartile classes by default
+- progress bars know their total and render as widgets in notebooks and filling bars on the docs site
+
+### Performance
+
+- **simulation:** bench image-quilting costs by FFT and direct scan
+
+### Refactor
+
+- **simulation:** let closed name the probabilities it checks
+- [**breaking**] rename ceres to boitata
+
+### Documentation
+
+- add Codecov badge to README
+- **examples:** multiple-point statistics chapter with SNESIM multigrid, conditioning and continuous pages
+- **examples:** SNESIM rotation, affinity and training images by zone; black and white figures
+- **examples:** sub-gallery headers and chapter-style links for multiple-point statistics
+- Boitatá identity with a b-shaped voxel serpent logo, animated README mark and fire palette
+- kriging-node serpent as the logo, animated on the README and site hero
+- name Boitatá in prose docstrings
+- README logo from a relative path so it renders while the repo is private
+- README.md changes
+- README.md changes
+
+### CI
+
+- run pytest with coverage and upload to Codecov
+- run pytest under a virtual display for VTK
+
+### Tests
+
+- xfail the coregionalization azimuth check on Linux
+- **py:** ImageQuilting.fit returns self
+- **simulation:** continuous SNESIM with a training image per zone and local anisotropy
+- **docs:** import mkdocs only where the hook needs it, so the hook test runs without it
+## 0.1.0 - 2026-09-29
 
 ### Features
 
@@ -39,8 +102,8 @@
 - **py:** sub-blocked BlockModel, extents and volumes
 - **simulation:** [**breaking**] stream uncertainty summaries instead of returning realizations
 - **py:** implicit modelling bindings
-- **py:** boitata.datasets loader
-- **py:** boitata.plot on matplotlib
+- **py:** ceres.datasets loader
+- **py:** ceres.plot on matplotlib
 - EDA toolkit
 - **transforms:** PCA, MAF, stepwise conditional transform and PPMT pipeline
 - kriging efficiency, slope of regression and classification helpers
@@ -116,6 +179,64 @@
 - **core:** Categories value object for named category codes
 - **io:** Polylines as nested Arrow and Parquet
 - **py:** category colours, legends and scheme= on section, slab and boxplot
+- **datasets:** [**breaking**] mining datasets and HOLE_ID default
+- **plot:** grade-tonnage, cross-validation and contact plots
+- **plot:** keep the grade-tonnage legend clear of the curves
+- **plot:** result plots gallery page
+- **transforms:** smooth kernel trend with automatic bandwidth
+- **transforms:** spatial despiking of tied values
+- **estimation:** categorical indicator kriging
+- **estimation:** declustering weights from estimation weights
+- **core:** block models sized from data extents
+- **estimation:** multigaussian kriging
+- **variogram:** variogram sets and grid index shifts
+- **transforms:** capping transform with caps fitted per domain
+- **drillholes:** checks for dip sign, ID mismatches and text values
+- **blocks:** smooth classes on sub-blocked models by volume
+- **py:** with_column accepts text arrays
+- **variogram:** downhole variogram restricted to a direction
+- **simulation:** realization checks against histogram, variogram and correlations
+- **variogram:** variogram volume and principal axes of continuity
+- **core:** Polylines containment, distance and area; selectors honor holes
+- **transforms:** spatial bootstrap of global statistics
+- **simulation:** collocated cosimulation with a secondary variable in SGS
+- **transforms:** kernel density and Gaussian mixture references for normal scores
+- **simulation:** local category proportions for SIS
+- **transforms:** spatial imputation conditioned on nearby samples
+- **blocks:** remove small units, contact distance and buffer domains
+- **blocks:** unfold coordinates between two bounding surfaces
+- **drillholes:** ore and waste runs with mining rules, strip logs
+- **variogram:** local variogram parameters and variograms along local directions
+- **variogram:** intrinsic coregionalization and madogram with dissemination
+- **estimation:** high-grade clamp mode and restriction ellipse
+- **simulation:** correct realizations to a target distribution
+- **eda:** domain change tables
+- **drillholes:** split intervals where they cross a mesh
+- **estimation:** external drift kriging
+- **plot:** stepped sections and hole traces
+- **eda:** along-hole transition matrix and MDS plot
+- **eda:** soft-boundary sample statistics
+- **transforms:** censored normal-score transform
+- **core:** add BlockModel::corners for true block-edge rendering
+- **py:** expose BlockModel.corners
+- **plot:** section() draws true block edges when axis-aligned
+- **simulation:** keep selected realizations
+- **py:** keep= selects realizations
+- **estimation:** grid of cells visited nearest first
+- **simulation:** stream kept realizations to parquet, encoding while the next chunk simulates
+- **estimation:** group searches that select the same neighbors
+- **simulation:** lattice, multigrid path and offset templates
+- **simulation:** SGS along a shared multigrid path
+- **simulation:** shared-path domains, trend, passes, cosimulation and batches
+- **py:** SGS path and batch options
+- **io:** tqdm progress bar for GSLIB read and write
+- **modeling:** tqdm progress bar for ImplicitModel predict and isosurface
+- **io:** tqdm progress bar for CSV and mesh read and write
+- **estimation:** tqdm progress bar for kriging predict
+- **io:** tqdm progress bar for Parquet read and write
+- **estimation:** tqdm progress bar for indicator and categorical predict
+- **estimation:** tqdm progress bar for cokriging and disjunctive predict
+- **simulation:** tqdm progress bar on every simulator
 
 ### Fixes
 
@@ -135,12 +256,41 @@
 - **estimation:** one sample per location across domains
 - **simulation:** honour max_per_hole in SGS, TurningBands and SIS
 - **py:** install hints for pip and conda
+- **docs:** tutorial scripts named tutorial_NN.py
+- **plot:** uncertain with category schemes
+- **drillholes:** [**breaking**] outputs keep the hole column name
+- **estimation:** octants follow the search ellipse, quadrants in 2D
+- **examples:** tutorial 04 reads the HOLE_ID column
+- **core:** repair keeps cavities wound inward
+- **core:** Categories encodes numeric labels consistently
+- **modeling:** isosurface honors masked models
+- **transforms:** average cell declustering weights over origin offsets
+- **eda:** contact bins stop at max_distance
+- **simulation:** turning bands honors the nugget
+- **core:** Mesh repr works for open meshes
+- **blocks:** deterministic majority domains and NaN-safe vertical distance
+- **examples:** topic 72 text encoding
+- **simulation:** [**breaking**] realization seeds from a mixer
+- **plot:** keep the true horizontal sign on y sections (#361)
 
 ### Performance
 
 - **transforms:** kd-tree pair search for MAF
 - **simulation:** benchmark turning-bands phases on a million nodes
 - **simulation:** parallel batches within one SGS realization
+- **variogram:** grid sweep in fixed chunks
+- **blocks:** fast mesh sub-blocking
+- **simulation:** reuse turning-band factorizations across realizations
+- **blocks:** fast mesh distance
+- **estimation:** stack Cholesky kriging kernel
+- **estimation:** krige on the stack kernel up to 64 samples
+- **io:** byte-stream-split floats, no float dictionaries
+- **io:** encode parquet row groups and columns in parallel
+- **estimation:** search a grid instead of a k-d tree
+- **py:** write_parquet releases the GIL and keeps float32
+- **simulation:** condition a batch of turning-bands realizations with one search
+- **simulation:** sweep bands over a tile, bench many realizations, exact f64 quantiles
+- **simulation:** batch the turning-bands factors of a multivariate simulation
 
 ### Refactor
 
@@ -157,6 +307,10 @@
 - **eda:** [**breaking**] column names for pairs and statistics
 - **py:** [**breaking**] keyword-only transform weights and NaN mean grade above an empty cutoff
 - **plot:** [**breaking**] plot signatures
+- **simulation:** [**breaking**] categorical probabilities as (targets, categories)
+- **estimation:** [**breaking**] per-target rows in continuous summaries
+- **estimation:** stream the neighbor selection
+- rename realizations= to keep=
 
 ### Documentation
 
@@ -206,10 +360,97 @@
 - **api:** list GaussianImputer
 - **examples:** list the downhole nugget in chapter 3
 - subblock logo, brand palette and landing page
+- **examples:** [**breaking**] tutorials and topics galleries
+- **examples:** smooth trend topic
+- **examples:** despiking topic
+- **examples:** categorical indicator kriging topic
+- **examples:** weight declustering topic
+- **examples:** split variography into topics 18-20
+- **examples:** block model from extents topic
+- **examples:** split change of support into topics 32-35 and 37
+- **examples:** split Jura estimation into topics 21, 27, 28 and 29
+- **examples:** standalone Walker estimation topics 22-26
+- **examples:** tutorial 2 on stacked sulphide lenses
+- **examples:** regenerate index
+- **examples:** tutorial 1, a coal seam in a lease
+- **examples:** iron ore multivariate tutorial
+- **examples:** tutorial 03 script named tutorial_03.py
+- **examples:** regenerate index
+- **examples:** transforms topics 14-17 and multivariate simulation 43
+- **examples:** check drill holes, desurvey and compositing topics
+- **examples:** re-render data topics
+- **examples:** drop gallery log filter
+- **examples:** duplicates, paired data, statistics by domain, declustering and top cuts topics
+- **examples:** re-render topics 5 and 6
+- **examples:** soft boundaries topic on the nickel laterite; standalone local anisotropy
+- install page for pip, uv, conda and pixi
+- **examples:** split validation into topics 44-48
+- **examples:** link multigaussian topic to topic 29
+- **examples:** grade shells, contact surfaces and structural data topics 52-54
+- **examples:** laterite profile tutorial
+- **examples:** layered surfaces and polygons topics
+- **examples:** split solids into topics 49 solids, 50 sub-blocks and 51 mesh files
+- **examples:** keep open meshes out of gallery backreferences
+- **examples:** lens meshes arrive closed
+- **examples:** contacts, swaths, categories, data spacing and correlations topics
+- **examples:** index topics 9 to 13
+- **examples:** split simulation into topics 36, 38 and 39
+- **examples:** point topic 42 to multivariate simulation in topic 43
+- **examples:** split parquet topic into parquet and GIS formats pages
+- **examples:** gallery header for GIS formats page
+- **examples:** gallery header for capping topic
+- **examples:** capping topic on the quartz veins of topic 8
+- **examples:** explain why the high-grade restriction raises nodes in topic 26
+- **examples:** large models on the iron formation, 3D views on the sulphide lenses
+- **examples:** re-render topics 59 and 60
+- **examples:** split categorical simulation into topics 40 sis, 41 plurigaussian and 42 grades in simulated rocks
+- **examples:** topic 4 unpacks the check details
+- **examples:** re-render pages using cell declustering
+- **examples:** re-render topic 38 with the nugget reproduced
+- **examples:** re-render realization checks after rebase
+- **examples:** re-render mesh topics with the open-mesh repr
+- **simulation:** a kernel trend streamed to simulate_to_parquet must be filled beyond its data
+- **examples:** closed lens meshes, faded most-likely panel, default turning-band step, high-grade solid described
+- **examples:** re-render tutorials 02 and 03
+- **examples:** re-render topic 68 and the index
+- **examples:** tidy the spatial bootstrap page
+- **examples:** index topic 75
+- **examples:** re-render the gallery, match prose to the printed numbers, section headers
+- **examples:** re-render topic 17 figures
+- **examples:** re-render spatial imputation after rebase
+- **examples:** topic 79 runs and strip logs
+- **examples:** re-render the gallery after the seed and summary changes
+- **examples:** topics 81 intrinsic coregionalization and 82 madogram
+- **examples:** topic 83 high-grade restriction
+- add a contributing guide and issue forms
+- **examples:** topic 93 section validation plates
+- **examples:** stream a kept realization in topic 59
+- **examples:** SGS along a shared path
+- **examples:** re-render section galleries after true-edge sections (#363)
+- **examples:** group examples into 12 categories
+- **examples:** name scripts example_CC_NN.py so gallery file names stay unique
+- personal README tone and one API page per object
+- API summaries from the first docstring sentence
+- point README examples link at first steps
+- **examples:** add a quick tour and move the Parquet page to slot 4
+- **examples:** saving and loading value objects
+- **examples:** add a block models guide
+- **examples:** nugget inference page
+- **examples:** from variogram to search plan
+- **examples:** fix search-plan page links for the docs site
+- **examples:** fix parquet link on saving page
 
 ### Build
 
 - **py:** package metadata for PyPI and conda-forge
+- draft conda-forge recipe
+- environment.yml, pixi.toml and compatibility script
+- **datasets:** pin closed lens meshes
+
+### CI
+
+- build wheels and GitHub releases
+- publish wheels to PyPI as ceresgeo
 
 ### Tests
 
@@ -217,3 +458,7 @@
 - **simulation:** deterministic guard for the planar-grid search case
 - **py:** API convention checks
 - **py:** pass with only numpy installed
+- guard against double-encoded text
+- **simulation:** categorical probabilities as (targets, categories)
+- **plot:** check section colors on the block collection
+- **estimation:** benchmark searches among drill holes
