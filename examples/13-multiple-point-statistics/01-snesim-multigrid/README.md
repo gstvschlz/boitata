@@ -11,7 +11,7 @@ simulates the coarse structure first, on every 2nd, 4th and 8th cell, and fills 
 import ceres as cs
 import matplotlib.pyplot as plt
 import numpy as np
-from common import ACCENT, INK, LIGHT, save
+from common import INK, save
 from matplotlib.colors import ListedColormap
 
 ti = cs.datasets.strebelle()
@@ -84,7 +84,7 @@ than the image. The servosystem in the next page pulls it back.
 <details><summary>Python</summary>
 
 ```python
-codes = ListedColormap([LIGHT, ACCENT])
+codes = ListedColormap(["black", "white"])
 fig, axes = plt.subplots(1, 5, figsize=(15, 3.6), layout="constrained")
 panels = [(image, "Training image")] + [(realizations[k], f"n_levels={k}") for k in realizations]
 for ax, (img, title) in zip(axes, panels):
