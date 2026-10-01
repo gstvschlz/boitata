@@ -1,1 +1,1 @@
-## Spatial bootstrap
+## spatial bootstrap

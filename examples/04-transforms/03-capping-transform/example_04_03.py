@@ -1,9 +1,9 @@
 """
-# Capping transform
+# capping transform
 
-`Capping` makes the top cut a pipeline step: `fit` chooses a cap per domain from the data, `transform` clips values
-to it, and the fitted caps travel with the object to new data, to JSON and to pickle. The cap is either given or
-chosen by a rule: a weighted quantile, a target fraction of metal removed, or a target coefficient of variation.
+`Capping` makes the top cut a pipeline step: `fit` chooses a cap per domain from the data, `transform` clips values to
+it, and the fitted caps travel with the object to new data, to JSON and to pickle. you either give the cap or let a
+rule choose it: a weighted quantile, a target fraction of metal removed, or a target coefficient of variation.
 """
 
 # %% [hidden]
@@ -20,8 +20,8 @@ import numpy as np
 from common import ACCENT, GRAY, HIGHLIGHT, save
 
 # %% [markdown]
-# The quartz-vein composites of [top cuts](../../03-exploratory-analysis/05-top-cuts/README.md): gold in four veins, V1 to V4, sampled by
-# diamond holes and underground channels, composited to 1 m and declustered in 20 m cells.
+# the quartz-vein composites of [top cuts](../../03-exploratory-analysis/05-top-cuts/README.md): gold in four veins, V1
+# to V4, sampled by diamond holes and underground channels, composited to 1 m and declustered in 20 m cells.
 
 # %%
 data = bt.datasets.vein_gold_grade_control()
@@ -35,10 +35,10 @@ veins = sorted(set(quartz["VEIN"]))
 print(f"{len(quartz)} composites in {len(veins)} veins")
 
 # %% [markdown]
-# ## One cap per vein
+# ## one cap per vein
 #
-# Each rule is fitted per vein on the declustered composites. The quantile rule caps at the declustered P99; the
-# metal rule finds the cap that removes 5 % of each vein's metal; the CV rule the largest cap whose capped
+# each rule fits per vein on the declustered composites. the quantile rule caps at the declustered P99, the metal rule
+# finds the cap that removes 5 % of the metal of each vein, and the CV rule finds the largest cap whose capped
 # coefficient of variation is 1.5. `caps_` and `metal_removed_` are dicts by vein.
 
 # %%
@@ -55,15 +55,16 @@ for vein in veins:
     print(f"{vein:<6}{row}")
 
 # %% [markdown]
-# The rules disagree most where the tail is longest. V1 and V2 lose 11 and 15 % of their metal at the P99;
-# holding the loss to 5 % lifts their caps to 161 and 592 g/t, the latter just under V2's extreme channels. In the
-# small veins the P99 barely cuts: it is the maximum of V3. A CV of 1.5 caps V1 and V2 near 50 g/t and costs them
-# 17 to 19 % of their metal.
+# the rules disagree most where the tail is longest. V1 and V2 lose 11 and 15 % of their metal at the P99; holding the
+# loss to 5 % lifts their caps to 161 and 592 g/t, the latter just under the extreme channels of V2. in the small veins
+# the P99 barely cuts: it is the maximum of V3. a CV of 1.5 caps V1 and V2 near 50 g/t and costs them 17 to 19 % of
+# their metal.
 #
-# ## The same numbers as [top cuts](../../03-exploratory-analysis/05-top-cuts/README.md)
+# ## the same numbers as [top cuts](../../03-exploratory-analysis/05-top-cuts/README.md)
 #
-# [Top cuts](../../03-exploratory-analysis/05-top-cuts/README.md) read each vein's declustered P99 off `describe_by` and passed it to `capping_report`. The quantile rule
-# fits the same caps, and its `metal_removed_` is the report's `1 - mean_capped / mean`.
+# [top cuts](../../03-exploratory-analysis/05-top-cuts/README.md) read the declustered P99 of each vein off
+# `describe_by` and passed it to `capping_report`. the quantile rule fits the same caps, and its `metal_removed_` is the
+# `1 - mean_capped / mean` of the report.
 
 # %%
 capping = rules["P99"]
@@ -79,7 +80,7 @@ for k, vein in enumerate(report["domain"][:-1]):
     )
 
 # %% [markdown]
-# On a log-probability plot the dashed caps cut the last percent of each vein's tail.
+# on a log-probability plot the dashed caps cut the last percent of the tail of each vein.
 
 # %%
 fig, axes = plt.subplots(1, len(veins), figsize=(11, 3.4), layout="constrained", sharey=True)
@@ -101,13 +102,13 @@ for ax in axes[1:]:
 save(fig, "probability")
 
 # %% [markdown]
-# ## Capped kriging
+# ## capped kriging
 #
-# The capped grades feed the estimate as any other column. Blocks of 5 m inside the V1 solid are kriged from the
-# raw and from the capped composites of V1 with one variogram and search. The extreme channels no longer spread
-# their grade over their neighborhood: the richest blocks drop below the diagonal while the low-grade ones stay on
-# it. The blocks lose 5 % of their mean grade, against 11 % for the declustered composites: most blocks are
-# estimated from samples below the cap, which capping leaves unchanged.
+# the capped grades feed the estimate as any other column. ordinary kriging estimates 5 m blocks inside the V1 solid
+# from the raw and from the capped composites of V1, with one variogram and search. the extreme channels no longer
+# spread their grade over their neighborhood: the richest blocks drop below the diagonal and the low-grade ones stay on
+# it. the blocks lose 5 % of their mean grade, against 11 % for the declustered composites, because most blocks draw on
+# samples below the cap, which capping leaves unchanged.
 
 # %%
 v1 = quartz.filter(quartz["VEIN"] == "V1")
@@ -137,11 +138,11 @@ ax.legend(loc="lower right")
 save(fig, "kriged")
 
 # %% [markdown]
-# ## In a pipeline
+# ## in a pipeline
 #
-# `Capping` has `fit`, `transform` and `fit_transform` like `NormalScore`, so the two chain: cap, then score, the
-# usual preparation for a Gaussian simulation. Fitted once, both apply to new samples: 500 g/t is capped to
-# 81 g/t before scoring, so its score is that of the cap. The fitted caps round-trip through JSON and pickle.
+# `Capping` has `fit`, `transform` and `fit_transform` like `NormalScore`, so the two chain: cap, then score, the usual
+# preparation for a gaussian simulation. fitted once, both apply to new samples: a 500 g/t sample is capped to 81 g/t
+# before scoring, so its score is that of the cap. the fitted caps round-trip through JSON and pickle.
 
 # %%
 pipeline = bt.Capping(quantile=0.99)

@@ -1,9 +1,9 @@
-# Saving and loading
+# saving and loading
 
-Models, transforms and searches save to JSON: `to_json` returns a string and the class's `from_json` builds the
-object back from it. A fitted transform keeps what it learned, so the loaded copy transforms new values the same
-way. Containers and fitted estimators hold columns and go to Parquet instead
-([storing containers in Parquet](../../01-first-steps/04-parquet/README.md)).
+models, transforms and searches save to JSON: `to_json` returns a string and the class's `from_json` builds the
+object back from it. a fitted transform keeps what it learned, so the loaded copy transforms new values the same
+way. containers and fitted estimators hold columns and go to parquet instead
+([storing containers in parquet](../../01-first-steps/04-parquet/README.md)).
 
 <details><summary>Python</summary>
 
@@ -18,10 +18,10 @@ from common import map_axes, save
 
 </details>
 
-## A small workflow
+## a small workflow
 
-Walker Lake `V` goes through five fitted pieces: cell declustering weights, a cap at the declustered P99, a
-normal-score transform, a variogram of the scores and a search. Simple kriging of the scores, back-transformed,
+walker lake `V` goes through five fitted pieces: cell declustering weights, a cap at the declustered P99, a
+normal-score transform, a variogram of the scores and a search. simple kriging of the scores, back-transformed,
 gives the estimate on a 5 m grid.
 
 <details><summary>Python</summary>
@@ -52,11 +52,11 @@ cap: 982 ppm | declustered mean: 290.7 ppm
 Variogram(nugget=0.3052597668357192, structures=[Structure("spherical", sill=0.501613916596432, range=39.9400880709822), Structure("spherical", sill=0.32454526508977327, range=63.403682315084254)], rotation=(0.0, 0.0, 0.0), ratios=(1.0, 1.0))
 ```
 
-## Saving
+## saving
 
-Each piece goes to its own file. The declustering file stores one weight per sample in the order of `samples`,
-and the normal-score file stores the fitted transform table; both grow with the data, while the cap, the
-variogram and the search take a few hundred bytes.
+each piece goes to its own file. the declustering file stores one weight per sample in the order of `samples`,
+and the normal-score file stores the fitted transform table. both grow with the data; the cap, the variogram and
+the search take a few hundred bytes.
 
 <details><summary>Python</summary>
 
@@ -86,14 +86,14 @@ print((folder / "search.json").read_text())
 {"type":"Search","format":1,"min_samples":4,"max_samples":24,"radius":60.0,"max_per_hole":null,"octant":false,"anisotropy":null,"high_grade":null}
 ```
 
-The files are plain JSON with a `type` and a `format` number, so a reader of another type or a newer format
-raises `InvalidInput` in place of loading the wrong object.
+the files are plain JSON with a `type` and a `format` number. a reader of another type or a newer format raises
+`InvalidInput` instead of loading the wrong object.
 
-## Loading and rerunning
+## loading and rerunning
 
-`rerun` sees only the folder and the samples. It reads the cap, the normal-score table, the variogram and the
-search, applies them in the same order and returns the estimate. The weights stay out: the fitted cap and table
-already carry them. They come back separately, for declustered statistics in a report.
+`rerun` sees only the folder and the samples. it reads the cap, the normal-score table, the variogram and the
+search, applies them in the same order and returns the estimate. it skips the weights, since the fitted cap and
+table already carry them. you load the weights separately for declustered statistics in a report.
 
 <details><summary>Python</summary>
 
@@ -133,11 +133,11 @@ declustered mean from the saved weights: 288.8 ppm (capped)
 
 ![estimate](estimate.png)
 
-The rerun matches bit for bit: JSON writes each float with enough digits to read back the same number.
+the rerun matches bit for bit, because JSON writes each float with enough digits to read back the same number.
 
-The same pair exists on `Structure`, `Coregionalization`, `HighGrade`, `Categories`, `Trend` and the other
+the same pair exists on `Structure`, `Coregionalization`, `HighGrade`, `Categories`, `Trend` and the other
 transforms (`HermiteAnamorphosis`, `BoxCox`, `PPMT`, `PCA`, `MAF`, `StepwiseConditional`, `UniformConditioning`,
-`GaussianImputer`, `KernelDensity`, `GaussianMixture`). These objects also pickle, through the same JSON.
-A fitted estimator such as the `SimpleKriging` above carries its samples, so it saves with `to_parquet`.
+`GaussianImputer`, `KernelDensity`, `GaussianMixture`). these objects also pickle, through the same JSON.
+a fitted estimator such as the `SimpleKriging` above carries its samples, so it saves with `to_parquet`.
 
 Full script: [`example_01_03.py`](example_01_03.py)

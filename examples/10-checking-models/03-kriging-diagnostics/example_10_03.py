@@ -1,8 +1,8 @@
 """
-# Kriging diagnostics
+# kriging diagnostics
 
-Block kriging of Walker Lake `V` on 10 × 10 m blocks with `diagnostics=True`: kriging efficiency and slope of
-regression per block, then the neighborhood behind each estimate. The exhaustive grid checks what they predict.
+block kriging of walker lake `V` on 10 × 10 m blocks with `diagnostics=True`: kriging efficiency and slope of
+regression per block, then the neighborhood behind each estimate. the exhaustive grid checks what they predict.
 """
 
 # %% [hidden]
@@ -36,11 +36,11 @@ shape, extent = (30, 26), (0.5, 260.5, 0.5, 300.5)
 
 
 # %% [markdown]
-# ## Efficiency and slope
+# ## efficiency and slope
 #
-# Kriging efficiency compares the block variance with the kriging variance: 1 for a perfectly known block, 0 or less
-# for one no better known than the global mean. The slope of regression of true on estimated grades is 1 when
-# estimates are conditionally unbiased; below 1, high estimates overstate and low ones understate the truth. Both
+# kriging efficiency compares the block variance with the kriging variance: 1 for a block known without error, 0 or
+# less for one no better known than the global mean. the slope of regression of true on estimated grades is 1 when
+# estimates are conditionally unbiased; below 1, high estimates overstate and low ones understate the truth. both
 # fall away from the samples:
 
 # %%
@@ -56,9 +56,9 @@ fig.colorbar(im, ax=axes, shrink=0.8)
 save(fig, "diagnostics")
 
 # %% [markdown]
-# The truth checks both. Globally, the regression of true on estimated block grades has a slope close to the mean
-# predicted slope. Blocks with efficiency of 0.7 or more are clearly closer to the truth; below that efficiency
-# separates them poorly, one reason classification also uses sample spacing ([classification](../../10-checking-models/05-classification/README.md)).
+# the truth checks both. over all blocks, the regression of true on estimated block grades has a slope close to the
+# mean predicted slope. blocks with efficiency of 0.7 or more sit closer to the truth; below 0.7, efficiency separates
+# them poorly, one reason classification also uses sample spacing ([classification](../../10-checking-models/05-classification/README.md)).
 
 # %%
 observed = np.polyfit(d["value"], true_blocks, 1)[0]
@@ -72,13 +72,13 @@ for g, label in enumerate(("efficiency < 0.5", "0.5 to 0.7", ">= 0.7")):
 
 
 # %% [markdown]
-# ## Neighborhood
+# ## neighborhood
 #
-# The other diagnostics say why a block is weak. `mean_distance` is the mean distance to the samples used, and
+# the other diagnostics explain why a block is weak. `mean_distance` is the mean distance to the samples used, and
 # `max_samples_reached` flags searches that stopped at 24 samples before the ellipse ran out: those blocks sit in
 # denser data and have the higher slope. `negative_weight_sum` adds the weights below zero, which samples screened
-# by closer ones receive. `lagrange` (the Lagrange multiplier) and `n_holes` (distinct drill holes used; each Walker
-# Lake sample is its own) complete the set.
+# by closer ones receive. `lagrange` (the lagrange multiplier) and `n_holes` (distinct drill holes used; each walker
+# lake sample is its own) complete the set.
 
 # %%
 full = d["max_samples_reached"] == 1
@@ -98,9 +98,9 @@ for g, label in enumerate(("below -0.05", "-0.05 to -0.03", "above -0.03")):
 print(f"{np.sum(d['value'] < 0)} negative estimates")
 
 # %% [markdown]
-# Negative weights are strongest in and around the dense clusters of the west, where close samples screen the
-# others. Those blocks lie in high grades, and they overstate the truth by about four times as much as the rest,
-# although their errors are no larger; no estimate goes below zero.
+# negative weights are strongest in and around the dense clusters of the west, where close samples screen the
+# others. those blocks lie in high grades and overstate the truth by about four times as much as the rest, with
+# errors no larger; no estimate goes below zero.
 
 # %%
 fig, axes = plt.subplots(1, 2, figsize=(9, 4.6), layout="constrained")

@@ -1,1 +1,1 @@
-## Sequential Gaussian simulation
+## sequential gaussian simulation

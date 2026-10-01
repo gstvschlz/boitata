@@ -1,9 +1,9 @@
 """
-# Shapefiles, GeoPackage and GeoTIFF
+# shapefiles, geopackage and GeoTIFF
 
-GIS software exchanges points, lines and polygons as shapefiles or GeoPackages and rasters as GeoTIFF.
+GIS software exchanges points, lines and polygons as shapefiles or geopackages, and rasters as GeoTIFF.
 `write_shapefile`, `write_geopackage` and `write_geotiff` write a `PointSet`, `Polylines` or 2D `BlockModel` with
-its CRS; `read_shapefile`, `read_geopackage` and `read_geotiff` return the same container.
+its CRS. `read_shapefile`, `read_geopackage` and `read_geotiff` return the same container.
 """
 
 # %% [hidden]
@@ -28,10 +28,10 @@ print(boundary)
 print(covariates)
 
 # %% [markdown]
-# ## Shapefiles
+# ## shapefiles
 #
 # `write_shapefile` stores the coordinates, the attributes (names of at most 10 characters) and, when the container
-# has one, the CRS in a `.prj`. Points and polylines go to separate files. The format wants outer rings clockwise, so
+# has one, the CRS in a `.prj`. points and polylines go to separate files. the format wants outer rings clockwise, so
 # the counter-clockwise boundary comes back with its vertices in reverse order.
 
 # %%
@@ -49,8 +49,8 @@ print(
 )
 
 # %% [markdown]
-# A `Polylines` feature is made of parts; a closed part is a ring whose last vertex joins the first, and a ring inside
-# another ring of the same feature is a hole. Open parts are lines: the samples lie on east-west survey lines about
+# a `Polylines` feature is made of parts. a closed part is a ring whose last vertex joins the first, and a ring inside
+# another ring of the same feature is a hole. open parts are lines: the samples lie on east-west survey lines about
 # 200 m apart, and each line, joined sample to sample, goes to a line shapefile.
 
 # %%
@@ -62,11 +62,11 @@ lines = bt.read_shapefile(folder / "lines.shp")
 print(lines)
 
 # %% [markdown]
-# ## GeoPackage
+# ## geopackage
 #
-# A GeoPackage is a single SQLite file holding many layers, with attribute names of any length and the CRS as an EPSG
-# code or WKT. `write_geopackage` adds a layer, or replaces the one of the same name; `read_geopackage` needs `layer=`
-# when the file holds more than one. Python's own `sqlite3` reads and writes the tables.
+# a geopackage is a single SQLite file holding many layers, with attribute names of any length and the CRS as an EPSG
+# code or WKT. `write_geopackage` adds a layer, or replaces the one of the same name. `read_geopackage` needs `layer=`
+# when the file holds more than one. python's own `sqlite3` reads and writes the tables.
 
 # %%
 package = folder / "survey.gpkg"
@@ -84,9 +84,9 @@ print(
 # ## GeoTIFF
 #
 # `write_geotiff` writes each column of a 2D grid as a band, nulls as the `nodata` value and the CRS in the
-# GeoKeys, so GIS software opens it as a georeferenced raster. Rotated grids are supported, and a masked model is
-# written with nodata in its absent cells: here only the cells inside the survey area are kept. Bands are numbers, so
-# the lithology names are stored as the codes of a `Categories` scheme.
+# geokeys, so GIS software opens it as a georeferenced raster. it handles rotated grids, and writes a masked model
+# with nodata in its absent cells: here only the cells inside the survey area remain. bands hold numbers, so the
+# lithology names go in as the codes of a `Categories` scheme.
 
 # %%
 scheme = bt.Categories.from_values(covariates["LITHOLOGY"])
@@ -114,7 +114,7 @@ for name, n in zip(scheme.names, np.bincount(raster["LITHOLOGY"][present].astype
     print(f"{name:>16}: {n} cells")
 
 # %% [markdown]
-# The raster comes back as a regular grid: the 2407 cells outside the survey area are null in every band.
+# the raster comes back as a regular grid: the 2407 cells outside the survey area are null in every band.
 
 # %%
 nx, ny = raster.count[:2]

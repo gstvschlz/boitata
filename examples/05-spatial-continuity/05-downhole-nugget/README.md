@@ -1,7 +1,7 @@
-# Downhole nugget
+# downhole nugget
 
-Along a hole samples sit one sample length apart, far closer than any two holes, so the downhole variogram shows the
-nugget best. Here Ni of a nickel laterite, sampled at 1 m down 448 vertical holes, horizon by horizon.
+along a hole, samples sit one sample length apart, far closer than any two holes, so the downhole variogram shows the
+nugget best. the data: Ni of a nickel laterite, sampled at 1 m down 448 vertical holes, horizon by horizon.
 
 <details><summary>Python</summary>
 
@@ -29,9 +29,9 @@ SAP   mean thickness  10.9 m
 BRK   mean thickness   3.5 m
 ```
 
-A downhole variogram needs several lags inside one horizon, so only the limonite `LIM` and the saprolite `SAP` are
+a downhole variogram needs several lags inside one horizon, and only the limonite `LIM` and the saprolite `SAP` are
 thick enough. `holes=` keeps only pairs down the same hole; lag `k` gathers pairs about `k` composite lengths apart.
-`nugget()` extrapolates a line through the first three lags to zero. Composites never cross a horizon, and each
+`nugget()` extrapolates a line through the first three lags to zero. composites never cross a horizon, and each
 horizon gets its own variogram, standardized by its variance, at three composite lengths.
 
 <details><summary>Python</summary>
@@ -69,10 +69,10 @@ nugget / variance
 2.0 m    0.35   0.20
 ```
 
-At 1 m the limonite carries a fifth of its Ni variance in the nugget, the saprolite about a seventh; 1.5 m composites
-give nearly the same. At 2 m the first three lags span 6 m, most of the limonite's 7.4 m, the line reaches zero
-across the bend of the variogram and the nugget comes out larger in both horizons. The shortest composites give the
-nugget to carry into the fits between holes, whose closest spacing is 25 m.
+at 1 m the limonite carries a fifth of its Ni variance in the nugget, the saprolite about a seventh; 1.5 m composites
+give nearly the same. at 2 m the first three lags span 6 m, most of the limonite's 7.4 m. the line then reaches zero
+across the bend of the variogram, and the nugget comes out larger in both horizons. carry the nugget of the shortest
+composites into the fits between holes, whose closest spacing is 25 m.
 
 <details><summary>Python</summary>
 

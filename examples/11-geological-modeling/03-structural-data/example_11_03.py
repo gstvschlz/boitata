@@ -1,8 +1,8 @@
 """
-# Structural data
+# structural data
 
-Drill holes give contacts at a few places; mapping and oriented core give the orientation of the surface at many
-more. A synthetic fold shows what plane and lineation readings add to an implicit model, and how the field's
+drill holes give contacts at a few places; mapping and oriented core give the orientation of the surface at many
+more. a synthetic fold shows what plane and lineation readings add to an implicit model, and how the field's
 gradient returns the dip.
 """
 
@@ -20,11 +20,11 @@ import numpy as np
 from common import ACCENT, GRAY, HIGHLIGHT, INK, LIGHT, save
 
 # %% [markdown]
-# The fold, `z = 100 + 30 sin(2πx / 400)` with its axis north–south, is known exactly. Five holes pierce it, twelve
-# outcrops spread along it give its dip and dip direction, and fold-axis lineations (plunge 0, trend 0) are measured
-# at six other places. Planes and lineations need the triharmonic kernel; one point above the surface sets which
-# side is positive. `isosurface` extracts each modeled surface as a mesh, and `Mesh.vertical_distance` gives how far
-# above it 400 points on the true surface lie: the elevation error over the whole fold.
+# the fold, `z = 100 + 30 sin(2πx / 400)` with its axis north-south, is known without error. five holes pierce it,
+# twelve outcrops along it give its dip and dip direction, and six other places give fold-axis lineations (plunge 0,
+# trend 0). planes and lineations need the triharmonic kernel; one point above the surface sets which side is
+# positive. `isosurface` extracts each modeled surface as a mesh, and `Mesh.vertical_distance` gives how far above it
+# 400 points on the true surface lie: the elevation error over the whole fold.
 
 # %%
 rng = np.random.default_rng(4)
@@ -74,8 +74,8 @@ for name, readings in fits.items():
     )
 
 # %% [markdown]
-# Twelve planes bring the surface from 14 m to 2 m of the truth (median) and the dip from 7° to under 2°. With
-# only four planes, the lineations add the direction of the fold axis and improve both.
+# twelve planes bring the surface from 14 m to 2 m of the truth (median) and the dip from 7° to under 2°. with four
+# planes, the lineations add the direction of the fold axis and improve both.
 
 # %%
 fig, ax = plt.subplots(figsize=(10, 3.6), layout="constrained")
@@ -90,8 +90,8 @@ ax.legend(ncol=2, loc="lower left", fontsize=8)
 save(fig, "fold")
 
 # %% [markdown]
-# The gradient of the field is normal to the surface, so `predict(..., gradient=True)` returns the modeled dip and
-# dip direction anywhere, here against the truth at the 400 probe points of the twelve-plane model:
+# the gradient of the field is normal to the surface, so `predict(..., gradient=True)` returns the modeled dip and
+# dip direction at any point, here against the truth at the 400 probe points of the twelve-plane model:
 
 # %%
 _, gradient = folds["5 holes, 12 planes"].predict(on_surface(probe), gradient=True)

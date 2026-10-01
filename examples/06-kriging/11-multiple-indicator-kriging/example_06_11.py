@@ -1,8 +1,8 @@
 """
-# Multiple indicator kriging
+# multiple indicator kriging
 
-Jura: 259 soil samples of heavy metals (mg/kg, coordinates in km) and 100 validation samples withheld from estimation.
-Multiple indicator kriging (MIK) estimates the whole conditional distribution of Cd at each target.
+jura: 259 soil samples of heavy metals (mg/kg, coordinates in km) and 100 validation samples withheld from estimation.
+multiple indicator kriging (MIK) estimates the whole conditional distribution of Cd at each target.
 """
 
 # %% [hidden]
@@ -28,10 +28,10 @@ search = bt.Search(radius=1.5, max_samples=24, min_samples=4)
 
 
 # %% [markdown]
-# MIK kriges the indicators at the deciles of Cd and assembles the conditional distribution at each target: kriged
-# probabilities are corrected to rise from 0 to 1, and between thresholds the distribution follows the declustered
-# data. One indicator variogram per threshold lets low and high values have their own continuity; a single variogram
-# at the median solves one system per target instead. Ordinary kriging of Cd is the reference.
+# MIK kriges the indicators at the deciles of Cd and assembles the conditional distribution at each target. it corrects
+# the kriged probabilities to rise from 0 to 1, and between thresholds the distribution follows the declustered data.
+# one indicator variogram per threshold gives low and high values their own continuity; a single variogram at the median
+# solves one system per target instead. ordinary kriging of Cd is the reference.
 
 # %%
 weights = bt.cell_declustering(xy, cd).weights
@@ -66,8 +66,8 @@ print(f"validation points inside their 10-90% interval: {inside:.0%}")
 
 
 # %% [markdown]
-# The E-type estimate, the mean of each distribution, has a lower error than ordinary kriging, and the median-indicator
-# shortcut gives most of that gain back. The distributions also carry the uncertainty: those at the lowest and highest
+# the E-type estimate, the mean of each distribution, has a lower error than ordinary kriging, and the median-indicator
+# shortcut gives most of that gain back. the distributions also carry the uncertainty: those at the lowest and highest
 # validation estimates sit on either side of the declustered global one:
 
 # %%
@@ -92,10 +92,10 @@ save(fig, "distributions")
 
 
 # %% [markdown]
-# Cross-validation re-estimates each sample's distribution from the others. Besides the error of the E-type mean, it
-# scores the distributions: the Brier score of each threshold's probability, and the accuracy plot, the share of
-# samples inside their own symmetric p-probability interval. Points on or above the diagonal are accurate, and the
-# goodness statistic falls from 1 as the curve strays from it, twice as fast below. The diagnostics of `predict` count
+# cross-validation re-estimates each sample's distribution from the others. besides the error of the E-type mean, it
+# scores the distributions with the brier score of each threshold's probability and with the accuracy plot, the share of
+# samples inside their own symmetric p-probability interval. points on or above the diagonal are accurate, and the
+# goodness statistic falls from 1 as the curve strays from it, twice as fast below. the diagnostics of `predict` count
 # the thresholds whose kriged probabilities broke the order relations at each target:
 
 # %%
@@ -119,11 +119,11 @@ save(fig, "accuracy")
 
 
 # %% [markdown]
-# At a panel centroid the distribution describes Cd at that one point. Kriging the indicators over the panel instead,
-# `discretization=(4, 4, 1)`, gives the distribution of the point values within it, and `localize` takes the same
-# argument. Each panel probability averages those of the points inside, so panels differ a little less and the order
-# relations need less correction. Within 1 km the indicator variograms rise mostly at the nugget, which kriging at a
-# centroid already filters, so here the two stay close:
+# at a panel centroid the distribution describes Cd at that one point. kriging the indicators over the panel instead,
+# with `discretization=(4, 4, 1)`, gives the distribution of the point values within it, and `localize` takes the same
+# argument. each panel probability averages those of the points inside, so panels differ a little less and the order
+# relations need less correction. within 1 km the indicator variograms rise mostly at the nugget, which kriging at a
+# centroid already filters, so the two stay close here:
 
 # %%
 panels = bt.BlockModel(origin=(0.25, 0.0), size=(1.0, 1.0), count=(5, 6))

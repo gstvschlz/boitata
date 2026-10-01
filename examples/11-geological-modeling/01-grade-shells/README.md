@@ -1,8 +1,8 @@
-# Grade shells
+# grade shells
 
-An implicit model fits a scalar field to the data and takes a surface as one of its level sets, instead of
-digitizing outlines section by section. Here a Fe ≥ 60 % shell of the iron formation plateau is modeled from the
-drill-hole composites and compared with the supplied `high_grade.stl` solid.
+an implicit model fits a scalar field to the data and takes a surface as one of its level sets, so you skip
+digitizing outlines section by section. here the drill-hole composites of the iron formation plateau give a
+Fe ≥ 60 % shell, compared with the supplied `high_grade.stl` solid.
 
 <details><summary>Python</summary>
 
@@ -15,11 +15,11 @@ from common import ACCENT, GRAY, HIGHLIGHT, LIGHT, save
 
 </details>
 
-With `cutoff=60` each composite is coded +1 at or above the cutoff and −1 below, so the shell is the zero level of
-the field. A radial basis function (RBF) interpolates the codes exactly by solving one dense system, whose cost
-grows with the cube of the sample count, so 12 m composites keep it to a few thousand samples. The plateau's
+with `cutoff=60` each composite gets the code +1 at or above the cutoff and −1 below, so the shell is the zero level
+of the field. a radial basis function (RBF) interpolates the codes exactly by solving one dense system, whose cost
+grows with the cube of the sample count, so 12 m composites keep it to a few thousand samples. the plateau's
 layers are flat, so a second RBF shrinks distances across them (`ratios`: vertical ranges a fifth of the
-horizontal). A sparse Gaussian process (GP) smooths through the codes and learns its own ranges.
+horizontal). a sparse gaussian process (GP) smooths through the codes and learns its own ranges.
 
 <details><summary>Python</summary>
 
@@ -53,9 +53,9 @@ RBF, flat: 100.0% of composites on their side
 GP ranges [744, 1475, 262] m
 ```
 
-Each field is evaluated on the supplied block model, 25 × 25 × 12 m blocks below topography, and compared with
-the solid: the volume of the shell, the share of the solid it covers and the share of its own volume outside the
-solid. The solid is scored on the composites too.
+each field goes onto the supplied block model, 25 × 25 × 12 m blocks below topography, and against the solid: the
+volume of the shell, the share of the solid it covers and the share of its own volume outside the solid. the
+composites score the solid too.
 
 <details><summary>Python</summary>
 
@@ -82,11 +82,11 @@ RBF, flat:  67.4 Mm3, covers 65% of the solid, 29% outside it
        GP:  47.7 Mm3, covers 50% of the solid, 23% outside it
 ```
 
-Both RBFs honor every code, yet they cover only 56 % and 65 % of the solid, and the solid itself leaves 8.6 % of
-the composites on the wrong side: a cutoff on Fe and a solid interpreted around the shallow friable hematite are
-not the same surface. Flattening the RBF adds a tenth of the solid at no cost in spill. The GP explains an eighth
-of the codes as noise and returns a smooth sheet. On an east–west section through the high-grade composites, at true scale,
-with the trace of the solid in black and topography as a thin line:
+both RBFs honor each code, yet they cover only 56 % and 65 % of the solid, and the solid leaves 8.6 % of the
+composites on the wrong side: a cutoff on Fe and a solid interpreted around the shallow friable hematite are two
+different surfaces. flattening the RBF adds a tenth of the solid at no cost in spill. the GP explains an eighth of
+the codes as noise and returns a smooth sheet. on an east-west section through the high-grade composites, at true
+scale, with the trace of the solid in black and topography as a thin line:
 
 <details><summary>Python</summary>
 
@@ -118,11 +118,11 @@ save(fig, "section")
 
 ![section](section.png)
 
-The isotropic RBF grows a round body around one deep high-grade composite; the flat one keeps it a
-thin pod, as the solid does. `isosurface` triangulates the zero level at the centroids of the block model and
-treats blocks outside its mask, here those above topography, as outside the shell. With `closed=True` the shell
-is capped where it leaves the blocks, at the grid's faces and under topography, so it bounds a volume close to
-that of the blocks inside.
+the isotropic RBF grows a round body around one deep high-grade composite; the flat one keeps it a thin pod, as
+the solid does. `isosurface` triangulates the zero level at the centroids of the block model and treats blocks
+outside its mask, here those above topography, as outside the shell. with `closed=True` it caps the shell where it
+leaves the blocks, at the grid's faces and under topography, so the shell bounds a volume close to that of the
+blocks inside.
 
 <details><summary>Python</summary>
 

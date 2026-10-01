@@ -1,8 +1,8 @@
 """
-# Continuous image quilting
+# continuous image quilting
 
-Quilting copies values as readily as codes: a mismatch is the squared difference over the squared value range of
-the training image, and no classes are needed. The example fills the seismic section of
+quilting copies values as it copies codes: a mismatch is the squared difference over the squared value range of the
+training image, with no classes. here quilting fills the seismic section of
 [continuous SNESIM](../../13-multiple-point-statistics/03-snesim-continuous/README.md) between the same five traces.
 """
 
@@ -34,9 +34,8 @@ values = truth[at_traces]
 
 
 # %% [markdown]
-# Fifty realizations with patches 9 and 25 cells square, against SNESIM on the same data. The traces are 9 apart, so
-# a 9-cell patch always holds one, and the choice of each patch weighs the trace in it five times as much as its
-# overlap.
+# fifty realizations with patches 9 and 25 cells square, against SNESIM on the same data. the traces are 9 apart, so
+# each 9-cell patch holds one, and the choice of each patch weighs the trace in it five times as much as its overlap.
 
 
 # %%
@@ -62,11 +61,11 @@ for name, summary in summaries.items():
 
 
 # %% [markdown]
-# Small patches follow the traces closely, and a single realization is nearer the truth than SNESIM's, since every
-# value between two traces arrives with the reflector around it rather than cell by cell. With 25-cell patches one
-# patch spans three traces and cannot match them all: the traces stand out as stripes the patch around them does not
-# continue. SNESIM is rougher than either, cell by cell. The seams of the small patches show as steps in the
-# reflectors. The means of 50 are about as good for the small patches and SNESIM: what the traces fix, both keep.
+# small patches follow the traces, and a single realization is nearer the truth than SNESIM's, since each value
+# between two traces arrives with the reflector around it instead of cell by cell. a 25-cell patch spans three traces
+# and cannot match them all: the traces stand out as stripes the patch around them fails to continue. SNESIM, cell by
+# cell, is rougher than either. the seams of the small patches show as steps in the reflectors. the means of 50 are
+# about as good for the small patches and SNESIM, since both keep what the traces fix.
 
 # %%
 extent = (0, nx * 25, 1600 + nz * 4, 1600)
@@ -92,5 +91,5 @@ fig.colorbar(im, ax=axes, shrink=0.8, label="amplitude")
 save(fig, "sections")
 
 # %% [markdown]
-# [Seismic volumes](../../13-multiple-point-statistics/10-seismic-volumes/README.md) reads and writes SEG-Y and uses
+# [seismic volumes](../../13-multiple-point-statistics/10-seismic-volumes/README.md) reads and writes SEG-Y and uses
 # seismic as secondary data for quilting.

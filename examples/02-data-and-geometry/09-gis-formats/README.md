@@ -1,8 +1,8 @@
-# Shapefiles and GeoTIFF
+# shapefiles, geopackage and GeoTIFF
 
-GIS software exchanges points, lines and polygons as shapefiles and rasters as GeoTIFF. `write_shapefile` and
-`write_geotiff` write a `PointSet`, `Polylines` or 2D `BlockModel` with its CRS; `read_shapefile` and
-`read_geotiff` return the same container.
+GIS software exchanges points, lines and polygons as shapefiles or geopackages, and rasters as GeoTIFF.
+`write_shapefile`, `write_geopackage` and `write_geotiff` write a `PointSet`, `Polylines` or 2D `BlockModel` with
+its CRS. `read_shapefile`, `read_geopackage` and `read_geotiff` return the same container.
 
 <details><summary>Python</summary>
 
@@ -40,10 +40,10 @@ BlockModel(regular, 9600 of 9600 cells, count [120, 80, 1], size [50.0, 50.0, 1.
   INSIDE: Float64
 ```
 
-## Shapefiles
+## shapefiles
 
 `write_shapefile` stores the coordinates, the attributes (names of at most 10 characters) and, when the container
-has one, the CRS in a `.prj`. Points and polylines go to separate files. The format wants outer rings clockwise, so
+has one, the CRS in a `.prj`. points and polylines go to separate files. the format wants outer rings clockwise, so
 the counter-clockwise boundary comes back with its vertices in reverse order.
 
 <details><summary>Python</summary>
@@ -71,8 +71,8 @@ same points: True
 same boundary, reversed: True | closed: [ True]
 ```
 
-A `Polylines` feature is made of parts; a closed part is a ring whose last vertex joins the first, and a ring inside
-another ring of the same feature is a hole. Open parts are lines: the samples lie on east-west survey lines about
+a `Polylines` feature is made of parts. a closed part is a ring whose last vertex joins the first, and a ring inside
+another ring of the same feature is a hole. open parts are lines: the samples lie on east-west survey lines about
 200 m apart, and each line, joined sample to sample, goes to a line shapefile.
 
 <details><summary>Python</summary>
@@ -93,12 +93,48 @@ Polylines(14 features, 14 parts, crs: none)
   NORTHING: Float64
 ```
 
+## geopackage
+
+a geopackage is a single SQLite file holding many layers, with attribute names of any length and the CRS as an EPSG
+code or WKT. `write_geopackage` adds a layer, or replaces the one of the same name. `read_geopackage` needs `layer=`
+when the file holds more than one. python's own `sqlite3` reads and writes the tables.
+
+<details><summary>Python</summary>
+
+```python
+package = folder / "survey.gpkg"
+bt.write_geopackage(package, samples, layer="samples")
+bt.write_geopackage(package, boundary, layer="boundary")
+bt.write_geopackage(package, survey, layer="lines")
+points = bt.read_geopackage(package, layer="samples")
+print(points)
+print("same points:", np.array_equal(points.coords, samples.coords), "| CRS:", points.crs)
+print(
+    "same boundary area:", np.allclose(bt.read_geopackage(package, layer="boundary").area(), boundary.area())
+)
+```
+
+</details>
+
+```text
+PointSet(1227 points, crs: none)
+  ID: Float64
+  CU_PPM: Float64
+  ZN_PPM: Float64
+  AU_PPB: Float64
+  AS_PPM: Float64
+  AU_BDL: Float64
+  AS_BDL: Float64
+same points: True | CRS: None
+same boundary area: True
+```
+
 ## GeoTIFF
 
 `write_geotiff` writes each column of a 2D grid as a band, nulls as the `nodata` value and the CRS in the
-GeoKeys, so GIS software opens it as a georeferenced raster. Rotated grids are supported, and a masked model is
-written with nodata in its absent cells: here only the cells inside the survey area are kept. Bands are numbers, so
-the lithology names are stored as the codes of a `Categories` scheme.
+geokeys, so GIS software opens it as a georeferenced raster. it handles rotated grids, and writes a masked model
+with nodata in its absent cells: here only the cells inside the survey area remain. bands hold numbers, so the
+lithology names go in as the codes of a `Categories` scheme.
 
 <details><summary>Python</summary>
 
@@ -143,7 +179,7 @@ same origin: True | cells with data: 7193 of 9600
     METASEDIMENT: 1942 cells
 ```
 
-The raster comes back as a regular grid: the 2407 cells outside the survey area are null in every band.
+the raster comes back as a regular grid: the 2407 cells outside the survey area are null in every band.
 
 <details><summary>Python</summary>
 

@@ -1,1 +1,1 @@
-## Training images and their consistency
+## training images and their consistency

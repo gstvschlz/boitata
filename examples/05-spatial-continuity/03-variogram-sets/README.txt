@@ -1,1 +1,1 @@
-## Variogram sets
+## variogram sets

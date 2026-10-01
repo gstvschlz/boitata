@@ -1,1 +1,1 @@
-## Coregionalization
+## coregionalization

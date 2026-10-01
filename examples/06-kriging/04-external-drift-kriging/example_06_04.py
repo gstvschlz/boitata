@@ -1,10 +1,10 @@
 """
-# External drift kriging
+# external drift kriging
 
-Copper grades from the soil geochemistry survey (the dataset of [despiking](../../03-exploratory-analysis/06-despiking/README.md)) correlate weakly with the magnetics and
-elevation of the covariates grid. `ExternalDriftKriging` drapes those covariates onto the samples and krige's
-copper with them as an extra drift, in one system with the usual constant term; compared here with plain
-ordinary kriging on the same grid.
+copper grades from the soil geochemistry survey (the dataset of
+[despiking](../../03-exploratory-analysis/06-despiking/README.md)) correlate weakly with the magnetics and elevation of
+the covariates grid. `ExternalDriftKriging` drapes those covariates onto the samples and kriges copper with them as an
+extra drift, in one system with the usual constant term. ordinary kriging on the same grid is the comparison.
 """
 
 # %% [hidden]
@@ -24,8 +24,8 @@ data = bt.datasets.soil_geochemistry_survey()
 samples, covariates = data["samples"], data["covariates"]
 
 # %% [markdown]
-# `BlockModel.row_at` finds the cell under each sample; fancy-indexing the grid's columns at those rows drapes
-# `MAG_NT` and `ELEVATION_M` onto the samples as two new columns.
+# `BlockModel.row_at` finds the cell under each sample; fancy-indexing the grid's columns at those rows drapes `MAG_NT`
+# and `ELEVATION_M` onto the samples as two new columns.
 
 # %%
 rows = covariates.row_at(samples.coords[:, :2])
@@ -38,7 +38,7 @@ print(
 )
 
 # %% [markdown]
-# A single spherical structure fitted to the omnidirectional experimental variogram of copper.
+# a single spherical structure fitted to the omnidirectional experimental variogram of copper.
 
 # %%
 xy, cu = samples.coords, samples["CU_PPM"]
@@ -47,8 +47,8 @@ search = bt.Search(radius=2000.0, max_samples=24, min_samples=4)
 print(model)
 
 # %% [markdown]
-# `ExternalDriftKriging` takes the drift column names at `fit` (read off `samples`) and again at `predict` (read
-# off `covariates`, which already carries them); `OrdinaryKriging` ignores the covariates entirely.
+# `ExternalDriftKriging` takes the drift column names at `fit` (read off `samples`) and again at `predict` (read off
+# `covariates`, which already carries them); `OrdinaryKriging` ignores the covariates.
 
 # %%
 inside = covariates["INSIDE"] == 1
@@ -63,9 +63,9 @@ print(f"mean: ordinary {np.nanmean(ok):.1f}, external drift {np.nanmean(edk):.1f
 print(f"correlation between the two maps: {np.corrcoef(ok[inside], edk[inside])[0, 1]:.3f}")
 
 # %% [markdown]
-# The two maps agree where covariates are flat, and pull apart where magnetics or elevation depart from the
-# neighborhood mean: the drift nudges the estimate up in high-magnetics, high-elevation ground even far from
-# any sample, something ordinary kriging's constant mean cannot do.
+# the two maps agree where covariates are flat and pull apart where magnetics or elevation depart from the neighborhood
+# mean. the drift nudges the estimate up in high-magnetics, high-elevation ground even far from any sample, which
+# ordinary kriging's constant mean cannot do.
 
 # %%
 nx, ny = covariates.count[0], covariates.count[1]
@@ -87,5 +87,5 @@ fig.colorbar(d, ax=diff, shrink=0.8, label="Δ Cu (ppm)")
 save(fig, "maps")
 
 # %% [markdown]
-# `cross_validate` and weight declustering are not wired up for external-drift kriging yet: each held-out point or
-# target would need its own covariate row, which those two do not carry through.
+# `cross_validate` and weight declustering do not support external-drift kriging yet: each held-out point or target
+# would need its own covariate row, which those two do not carry through.

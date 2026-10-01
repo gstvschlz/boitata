@@ -1,11 +1,10 @@
-# Madogram
+# madogram
 
-The madogram is half the mean absolute difference between values a lag apart, M(h) = Σ |z(x) − z(x + h)| / 2N,
-where the variogram averages squared differences. It is in the units of the data and a single extreme pair moves it
-far less, so its shape stays readable on skewed grades whose variogram the outliers make erratic. For Gaussian
-increments M(h) = √(γ(h)/π), and `dissemination` measures how far the data are from that: √π · M(h) / √γ(h) is 1 for
-Gaussian increments and drops below 1 when a few large differences carry γ, the signature of high grades scattered in
-isolated samples.
+the madogram is half the mean absolute difference between values a lag apart, M(h) = Σ |z(x) − z(x + h)| / 2N, where the
+variogram averages squared differences. it is in the units of the data, and a single extreme pair moves it far less, so
+its shape stays readable on skewed grades whose variogram the outliers make erratic. for gaussian increments
+M(h) = √(γ(h)/π). `dissemination` measures the departure from that: √π · M(h) / √γ(h) is 1 for gaussian increments and
+drops below 1 when a few large differences carry γ, the signature of high grades scattered in isolated samples.
 
 <details><summary>Python</summary>
 
@@ -18,7 +17,8 @@ from common import ACCENT, GRAY, HIGHLIGHT, INK, save
 
 </details>
 
-The 1 m quartz-vein composites of [top cuts](../../03-exploratory-analysis/05-top-cuts/README.md), gold in g/t, in vein V1:
+the 1 m quartz-vein composites of [top cuts](../../03-exploratory-analysis/05-top-cuts/README.md), gold in g/t, in
+vein V1:
 
 <details><summary>Python</summary>
 
@@ -42,13 +42,13 @@ print(
 3659 composites, mean 9.43 g/t, CV 2.72, max 521 g/t
 ```
 
-## Three estimators
+## three estimators
 
-The classical variogram, the madogram and, for comparison, the robust `"cressie-hawkins"` estimator, all
-omnidirectional with 5 m lags. The three are in different units, so each is divided by its mean beyond 40 m, its
-plateau. All three level off near 25 m. Beyond, the classical variogram zigzags with the few pairs that hold the
-highest grades, while the madogram stays flat. The madogram starts higher because it scales like the square root of
-γ: for Gaussian increments, a madogram at 0.73 of its plateau matches a variogram at 0.73² = 0.53 of its sill.
+the plot draws the classical variogram, the madogram and the robust `"cressie-hawkins"` estimator, all omnidirectional
+with 5 m lags. their units differ, so each is divided by its mean beyond 40 m, its plateau. all three level off near
+25 m. beyond, the classical variogram zigzags with the few pairs that hold the highest grades, while the madogram
+stays flat. the madogram starts higher because it scales like the square root of γ: for gaussian increments, a
+madogram at 0.73 of its plateau matches a variogram at 0.73² = 0.53 of its sill.
 
 <details><summary>Python</summary>
 
@@ -69,9 +69,9 @@ save(fig, "estimators")
 
 ![estimators](estimators.png)
 
-## Outliers
+## outliers
 
-Drop the five highest composites, 0.14 % of the data, and recompute. The variogram loses 40 % at every lag, the
+drop the five highest composites, 0.14 % of the data, and recompute. the variogram loses 40 % at every lag, the
 madogram 10 %:
 
 <details><summary>Python</summary>
@@ -96,10 +96,10 @@ for e in ("matheron", "madogram"):
  madogram: change without the top five, median -10 %, range -11 to -9 %
 ```
 
-## Dissemination
+## dissemination
 
-`dissemination` takes a madogram and a classical variogram computed with the same arguments. On the gold it sits
-well below 1 at every lag. The logarithm of the grades, closer to Gaussian, brings it near 1:
+`dissemination` takes a madogram and a classical variogram computed with the same arguments. on the gold it sits well
+below 1 at every lag. the logarithm of the grades, closer to gaussian, brings it near 1:
 
 <details><summary>Python</summary>
 

@@ -1,9 +1,9 @@
 """
-# Search
+# search
 
-The search decides which samples inform each node: an ellipse along the continuity, octants against clustering,
-passes that relax the search where the first finds too few samples, and a high-grade restriction on rich samples.
-Ordinary kriging of Walker Lake `V`, checked against the exhaustive values.
+the search decides which samples inform each node. it has an ellipse along the continuity, octants against clustering,
+passes that relax the search where the first finds too few samples, and a high-grade restriction on rich samples. the
+example kriges walker lake `V` by ordinary kriging and checks it against the exhaustive values.
 """
 
 # %% [hidden]
@@ -42,13 +42,13 @@ def rmse(estimate):
 
 
 # %% [markdown]
-# ## Ellipse and octants
+# ## ellipse and octants
 #
-# `radius` is the major semi-axis; `rotation` orients the ellipse like a variogram, and `ratios` shrink the other
-# axes. `octant=True` takes at most `max_samples / 8` samples from each octant around the node, split along the
-# axes of the ellipse, so a dense cluster on one side cannot fill the neighborhood. With 2D data the sectors are the
-# ellipse's four quadrants, drawn below, with `max_samples / 4` each. `with_search` keeps the fitted samples and the
-# variogram, and swaps the search.
+# `radius` is the major semi-axis; `rotation` orients the ellipse like a variogram, and `ratios` shrink the other axes.
+# `octant=True` takes at most `max_samples / 8` samples from each octant around the node, split along the axes of the
+# ellipse, so a dense cluster on one side cannot fill the neighborhood. with 2D data the sectors are the ellipse's four
+# quadrants, drawn below, with `max_samples / 4` each. `with_search` keeps the fitted samples and the variogram and
+# swaps the search.
 
 # %%
 ellipse = {"rotation": model.rotation, "ratios": (0.5, 1.0)}
@@ -81,16 +81,16 @@ ax.legend(loc="upper right", framealpha=0.9, frameon=True)
 save(fig, "shapes")
 
 # %% [markdown]
-# The three searches give almost the same accuracy. The ellipse reaches closer samples along the continuity, and the
-# quadrants keep about 21 of the 24 samples, fewer only where one side of a node is empty: kriging already gives far and redundant samples little
-# weight, so the search matters more for speed, for extrapolation and for limiting negative weights than for the
-# estimate at well-informed nodes.
+# the three searches give almost the same accuracy. the ellipse reaches closer samples along the continuity, and the
+# quadrants keep about 21 of the 24 samples, fewer only where one side of a node is empty. kriging already gives far and
+# redundant samples little weight, so the search matters more for speed, extrapolation and limiting negative weights
+# than for the estimate at well-informed nodes.
 #
-# ## Passes
+# ## passes
 #
-# A list of searches runs as passes: nodes the first leaves unestimated go to the next, and `diagnostics` reports the
-# pass behind each. A first pass wanting eight samples within 30 m labels the nodes by how well they are informed,
-# which classification uses.
+# a list of searches runs as passes: nodes the first leaves unestimated go to the next, and `diagnostics` reports the
+# pass behind each. a first pass wanting eight samples within 30 m labels the nodes by how well they are informed, which
+# classification uses.
 
 # %%
 search = searches["ellipse, octants"]
@@ -105,10 +105,10 @@ for p in (1, 2):
 print(f"RMSE of all nodes {rmse(d['value']):.1f} ppm")
 
 # %% [markdown]
-# Pass-1 nodes have the higher slope of regression but also the larger errors: Walker Lake was sampled densely where
+# pass-1 nodes have the higher slope of regression and also the larger errors. the walker lake drilling is densest where
 # `V` is high and variable, so the best-informed nodes are also the hardest ones.
 #
-# ## High-grade restriction
+# ## high-grade restriction
 #
 # `high_grade=(800, 20)` keeps samples above 800 ppm from informing nodes more than 20 m away.
 
@@ -165,8 +165,8 @@ fig.colorbar(im, ax=b, shrink=0.8, label="ppm")
 save(fig, "passes")
 
 # %% [markdown]
-# Around isolated rich samples the restriction lowers the estimates where kriging overestimates most, and brings the
-# mean error of those nodes to zero. Inside the dense cluster of rich samples it raises them instead. There the rich
+# around isolated rich samples the restriction lowers the estimates where kriging overestimates most, and brings the
+# mean error of those nodes to zero. inside the dense cluster of rich samples it raises them instead. there the rich
 # samples 20 to 30 m away sit behind closer samples that screen them, so ordinary kriging gives them small negative
-# weights, and dropping a negative weight on a high value raises the estimate. The restriction suits isolated high
-# values; over all samples the cross-validation mean error barely moves.
+# weights, and dropping a negative weight on a high value raises the estimate. the restriction suits isolated high
+# values; over all samples the cross-validation mean error changes little.

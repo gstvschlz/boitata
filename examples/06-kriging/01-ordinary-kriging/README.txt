@@ -1,1 +1,1 @@
-## Ordinary kriging
+## ordinary kriging

@@ -1,1 +1,1 @@
-## Locally varying anisotropy
+## locally varying anisotropy

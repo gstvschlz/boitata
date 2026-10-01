@@ -1,7 +1,7 @@
-# Desurveying drill holes
+# desurveying drill holes
 
-The stacked sulphide lenses: 244 diamond holes up to 958 m long, which flatten and swing clockwise as they deepen,
-and 45 short RC holes. Desurveying turns each collar and its survey stations (depth, dip positive down, azimuth
+the stacked sulphide lenses: 244 diamond holes up to 958 m long, which flatten and swing clockwise as they deepen,
+and 45 short RC holes. desurveying turns each collar and its survey stations (depth, dip positive down, azimuth
 clockwise from north) into a path, so any depth down a hole has coordinates.
 
 <details><summary>Python</summary>
@@ -15,7 +15,7 @@ from common import ACCENT, GRAY, LIGHT, map_axes, save
 
 </details>
 
-`Drillholes` desurveys every hole from its collar and survey. `paths` gives the position of each survey station;
+`Drillholes` desurveys each hole from its collar and survey. `paths` gives the position of each survey station.
 the deepest hole, `DD0027`, flattens from 55° to 46° and swings from azimuth 290° to 296° on its way down:
 
 <details><summary>Python</summary>
@@ -45,9 +45,9 @@ Drillholes(289 holes, 0 intervals)
  958.1 m  dip 45.68  azimuth 296.29  ->  x  12137.9  y  29482.0  z -332.7
 ```
 
-Between stations the path depends on the method. Minimum curvature, the default, bends along a circular arc;
-tangential holds each station's direction down to the next; balanced tangential gives half of each segment to each
-end. `at` places any depth on the path, here the end of every hole. Next to them is a hole drilled straight from
+between stations the path depends on the method. minimum curvature, the default, bends along a circular arc.
+tangential holds each station's direction down to the next, and balanced tangential gives half of each segment to
+each end. `at` places any depth on the path, here the end of each hole. the plot adds a hole drilled straight from
 its collar direction, as if never surveyed:
 
 <details><summary>Python</summary>
@@ -84,8 +84,8 @@ for name, other in alternatives.items():
 collar direction only: end of hole  17.181 m from minimum curvature (median), 130.097 m max
 ```
 
-With stations every 30 m, tangential ends at most 4.2 m from minimum curvature and balanced tangential within
-about 1 cm; ignoring the survey puts a hole's end up to 130 m away. Both gaps grow with depth:
+with stations every 30 m, tangential ends at most 4.2 m from minimum curvature and balanced tangential within
+about 1 cm. ignoring the survey puts a hole's end up to 130 m away. both gaps grow with depth:
 
 <details><summary>Python</summary>
 
@@ -106,7 +106,7 @@ save(fig, "divergence")
 
 ![divergence](divergence.png)
 
-`at` also places logged contacts. The top of the first sulphide (`MS`, `SMS` or `STR`) down each hole traces the
+`at` also places logged contacts. the top of the first sulphide (`MS`, `SMS` or `STR`) down each hole traces the
 hanging wall of the upper lens, which deepens to the east-southeast:
 
 <details><summary>Python</summary>

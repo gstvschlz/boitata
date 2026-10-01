@@ -1,8 +1,8 @@
-# Experimental variograms
+# experimental variograms
 
-The experimental variogram γ(h) is half the mean squared difference of `V` between samples a lag h apart. The
-variogram map computes it in every horizontal direction and finds the direction of greatest continuity; directional
-variograms along and across it, and other estimators, follow.
+the experimental variogram γ(h) is half the mean squared difference of `V` between samples a lag h apart. the variogram
+map computes it in every horizontal direction and finds the direction of greatest continuity. directional variograms
+along and across that direction follow, then other estimators.
 
 <details><summary>Python</summary>
 
@@ -19,8 +19,8 @@ lag, max_lag = 10.0, 120.0
 
 </details>
 
-The variogram map bins pairs by lag and direction, 36 sectors over 180°, and fits a range in each; the direction
-with the longest range is the major axis.
+the variogram map bins pairs by lag and direction, 36 sectors over 180°, and fits a range in each. the direction with
+the longest range is the major axis.
 
 <details><summary>Python</summary>
 
@@ -39,7 +39,7 @@ print(
 major axis N170°, range 80 m; shortest 24 m
 ```
 
-Directional variograms keep pairs within `tolerance` (22.5° by default) of an azimuth. Each lag reports its mean
+directional variograms keep pairs within `tolerance` (22.5° by default) of an azimuth. each lag reports its mean
 distance, γ and pair count.
 
 <details><summary>Python</summary>
@@ -70,9 +70,9 @@ print(f"sample variance {variance:.0f}")
 sample variance 89738
 ```
 
-Across the major axis γ passes the sample variance by 25 m. Along it γ is seven tenths of the variance at 25 m and
-reaches it only by 65 m. The omnidirectional variogram averages the two and hides the anisotropy. The first lag
-holds few pairs, and every fit near the origin leans on it.
+across the major axis γ passes the sample variance by 25 m. along it γ is seven tenths of the variance at 25 m and
+reaches the variance at 65 m. the omnidirectional variogram averages the two and hides the anisotropy. the first lag
+holds few pairs, and any fit near the origin leans on it.
 
 <details><summary>Python</summary>
 
@@ -111,10 +111,10 @@ save(fig, "variogram")
 
 ![variogram](variogram.png)
 
-Other estimators along the major axis. `standardize=True` divides the classical and covariance estimates by the
-sample variance, the correlogram's scale. Covariance and correlogram use each lag's own head and tail means and
-level off below 1 here. The pairwise-relative variogram scales every squared difference by the pair mean: it
-ignores the grade level and keeps its own scale.
+other estimators along the major axis. `standardize=True` divides the classical and covariance estimates by the sample
+variance, the correlogram's scale. covariance and correlogram use each lag's own head and tail means and level off
+below 1 here. the pairwise-relative variogram scales each squared difference by the pair mean, so it ignores the grade
+level and keeps its own scale.
 
 <details><summary>Python</summary>
 

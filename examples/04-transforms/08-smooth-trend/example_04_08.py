@@ -1,7 +1,7 @@
 """
-# Smooth trend
+# smooth trend
 
-A moving-window trend: at each location, the declustered average of the boreholes under a Gaussian kernel. Maps of
+a moving-window trend: at each location, the declustered average of the boreholes under a gaussian kernel. maps of
 seam thickness for several bandwidths, the bandwidth chosen by leave-one-out error, the residuals, and the local
 proportions of the mining categories.
 """
@@ -20,8 +20,8 @@ import numpy as np
 from common import ACCENT, GRAY, HIGHLIGHT, INK, map_axes, save
 
 # %% [markdown]
-# The coal seam was drilled on a regular mesh, then infilled where it is thick, so the boreholes over-represent thick
-# coal. Cell declustering weights correct that; the trend then averages the holes with these weights.
+# the coal seam was drilled on a regular mesh, then infilled where it is thick, so the boreholes over-represent thick
+# coal. cell declustering weights correct that, and the trend averages the holes with these weights.
 
 # %%
 data = bt.datasets.coal_seam_thickness()
@@ -47,11 +47,11 @@ def image(ax, values, **kwargs):
 
 
 # %% [markdown]
-# ## Bandwidth
+# ## bandwidth
 #
-# `detrend` with a `bandwidth` fits a smooth trend instead of a polynomial. The bandwidth is the standard deviation of
-# the kernel: a small one follows every hole, a large one keeps only the regional shape. `rotation` and `ratios`, as
-# for a variogram, make the kernel anisotropic.
+# `detrend` with a `bandwidth` fits a smooth trend instead of a polynomial. the bandwidth is the standard deviation of
+# the kernel: a small one follows every hole, a large one keeps only the regional shape. `rotation` and `ratios`, as for
+# a variogram, make the kernel anisotropic.
 
 # %%
 fig, axes = plt.subplots(1, 3, figsize=(11, 3.2), sharey=True)
@@ -66,11 +66,11 @@ fig.colorbar(shown, ax=axes, label="Thickness trend (m)", shrink=0.8)
 save(fig, "bandwidths")
 
 # %% [markdown]
-# ## Automatic choice
+# ## automatic choice
 #
-# Given several bandwidths, `detrend` keeps the one with the least leave-one-out error: each hole is compared with the
-# trend of the other holes, and the squared differences are averaged with the declustering weights. Too small a
-# bandwidth chases noise, too large a one misses the shape. Noisier data get a larger bandwidth.
+# given several bandwidths, `detrend` keeps the one with the least leave-one-out error: it compares each hole with the
+# trend of the other holes and averages the squared differences with the declustering weights. too small a bandwidth
+# chases noise, and too large a one misses the shape. noisier data get a larger bandwidth.
 
 # %%
 candidates = [100, 150, 200, 300, 400, 600, 800, 1200, 1600, 2400]
@@ -92,11 +92,11 @@ fig.colorbar(shown, ax=right, label="Thickness (m)", shrink=0.8)
 save(fig, "automatic")
 
 # %% [markdown]
-# ## Residuals
+# ## residuals
 #
-# The residuals, thickness minus trend at the holes, keep the short-scale variation. They center on zero and are only
-# weakly correlated with the trend, but their spread grows with it: thick coal varies more, a proportional effect.
-# Normal-scoring within classes of the trend, as `SGS` does with a trend, removes both.
+# the residuals, thickness minus trend at the holes, keep the short-scale variation. they center on zero and correlate
+# weakly with the trend, but their spread grows with it: thick coal varies more, a proportional effect. normal-scoring
+# within classes of the trend, as `SGS` does with a trend, removes both.
 
 # %%
 at_holes = trend.predict(holes)
@@ -119,13 +119,14 @@ right.set_title("Residual against trend")
 save(fig, "residuals")
 
 # %% [markdown]
-# The trend at the holes and at the cells can feed a simulation directly ([SGS](../../08-stochastic-simulation/01-sgs/README.md)):
-# `SGS.fit(holes, "THICKNESS_M", trend=trend.predict(holes))` then `simulate(grid, trend=trend.predict(grid))`
-# simulates the thickness conditioned on the local trend. Cells beyond four bandwidths of every hole have no trend (NaN) and are left out first.
+# the trend at the holes and at the cells can feed a simulation
+# ([SGS](../../08-stochastic-simulation/01-sgs/README.md)): `SGS.fit(holes, "THICKNESS_M", trend=trend.predict(holes))`
+# then `simulate(grid, trend=trend.predict(grid))` simulates the thickness conditioned on the local trend. cells beyond
+# four bandwidths of every hole have no trend (NaN), so drop them first.
 #
-# ## Category proportions
+# ## category proportions
 #
-# With `categorical=True` the indicator of each category is smoothed instead. The trend is then a Table of local
+# with `categorical=True`, `detrend` smooths the indicator of each category instead. the trend is then a table of local
 # proportions, one column per category, each in [0, 1] and summing to 1 at every cell.
 
 # %%

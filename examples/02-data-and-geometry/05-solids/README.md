@@ -1,8 +1,8 @@
-# Solids
+# solids
 
-A closed triangle mesh bounds a domain. `Mesh.contains` flags the samples inside it, `Mesh.proportion` measures
+a closed triangle mesh bounds a domain. `Mesh.contains` flags the samples inside it, `Mesh.proportion` measures
 how much of each block it fills, `BlockModel.mask` keeps the blocks that count as inside and `block_shell` draws
-them. Here the three stacked sulphide lenses are the solids.
+them. here the three stacked sulphide lenses are the solids.
 
 <details><summary>Python</summary>
 
@@ -16,8 +16,8 @@ from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 
 </details>
 
-A solid needs a closed mesh: no boundary edges, every edge shared by two triangles. `Mesh.validate` checks
-that before anything relies on an inside; [mesh files](../../02-data-and-geometry/07-mesh-files/README.md) repairs meshes that fail it.
+a solid needs a closed mesh: no boundary edges, each edge shared by two triangles. run `Mesh.validate` before you
+rely on an inside. [mesh files](../../02-data-and-geometry/07-mesh-files/README.md) repairs meshes that fail it.
 
 <details><summary>Python</summary>
 
@@ -38,7 +38,7 @@ lens 2: Mesh(12962 vertices, 25920 triangles, closed), 0 boundary edges, 1,901,0
 lens 3: Mesh(13034 vertices, 26064 triangles, closed), 0 boundary edges, 1,652,929 m3
 ```
 
-`contains` tests points by generalized winding number. Of the 2 m zinc composites, those inside a lens carry
+`contains` tests points by generalized winding number. of the 2 m zinc composites, those inside a lens carry
 the ore:
 
 <details><summary>Python</summary>
@@ -63,9 +63,9 @@ lens 3:  252 composites, mean Zn 6.02%
 outside: 12177 composites, mean Zn 0.08%
 ```
 
-A 20 × 20 × 10 m model around the lenses comes from `BlockModel.from_extents` ([block model from extents](../../02-data-and-geometry/12-block-model-from-extents/README.md)). `proportion` settles
-blocks no triangle passes through with one centroid test and samples `discretization`³ points in the others,
-here 8. Summed over the blocks, the proportions give back each lens's volume to within 1 %.
+`BlockModel.from_extents` builds a 20 × 20 × 10 m model around the lenses ([block model from extents](../../02-data-and-geometry/12-block-model-from-extents/README.md)). `proportion` settles
+blocks that no triangle passes through with one centroid test and samples `discretization`³ points in the others,
+here 8. summed over the blocks, the proportions give back each lens's volume to within 1 %.
 
 <details><summary>Python</summary>
 
@@ -86,8 +86,8 @@ lens 2: mesh 1,901,081 m3, blocks 1,884,000 m3
 lens 3: mesh 1,652,929 m3, blocks 1,652,500 m3
 ```
 
-`mask` keeps the blocks more than half inside a lens. The lenses are thin next to the blocks, so many blocks
-they cross are less than half filled, and the kept blocks hold under two thirds of the lens volume; [sub-blocks](../../02-data-and-geometry/06-sub-blocks/README.md)
+`mask` keeps the blocks more than half inside a lens. the lenses are thin next to the blocks, so many blocks
+they cross are less than half filled, and the kept blocks hold under two thirds of the lens volume. [sub-blocks](../../02-data-and-geometry/06-sub-blocks/README.md)
 sub-blocks the edges instead.
 
 <details><summary>Python</summary>
@@ -105,7 +105,7 @@ print(f"lenses: {sum(lens.volume for lens in lenses):,.0f} m3")
 lenses: 6,342,276 m3
 ```
 
-A vertical section across strike (the lenses strike N22.5°E) shows the block proportions with the lens
+a vertical section across strike (the lenses strike N22.5°E) shows the block proportions with the lens
 outlines and the composites within 10 m of the section. `block_shell` turns the masked blocks into the mesh of
 their outer faces, drawn in 3D over the lens surfaces.
 

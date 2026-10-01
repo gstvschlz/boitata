@@ -1,11 +1,11 @@
 """
-# Section validation plates
+# section validation plates
 
-A block model earns trust one section at a time: true block edges (not a resampled raster, so a sub-blocked
-model shows its real geometry), the estimate on those blocks, the lens it was built from and the drillhole
-composites it was built on, all on one plate and one color scale. `section` draws true edges whenever the cut is
-normal to one of the model's own axes; `slab` overlays the lens trace and the composites on the same plane.
-Whether the model honors the composites is a `row_at` lookup away from `scatter`.
+you check a block model one section at a time: true block edges (so a sub-blocked model shows its real geometry
+instead of a resampled raster), the estimate on those blocks, the lens behind it and its drillhole composites, all
+on one plate and one color scale. `section` draws true edges whenever the cut is normal to one of the model's own
+axes; `slab` overlays the lens trace and the composites on the same plane. a `row_at` lookup and `scatter` show
+whether the model honors the composites.
 """
 
 # %% [hidden]
@@ -22,7 +22,7 @@ import numpy as np
 from common import save
 
 # %% [markdown]
-# Sub-block the parent grid to one lens ([sub-blocks](../../02-data-and-geometry/06-sub-blocks/README.md)), then estimate Zn on the sub-blocks from the composites inside
+# sub-block the parent grid to one lens ([sub-blocks](../../02-data-and-geometry/06-sub-blocks/README.md)), then estimate Zn on the sub-blocks from the composites inside
 # the lens.
 
 # %%
@@ -42,9 +42,8 @@ grade[ore] = estimator.predict(model.centroids[ore])
 model = model.with_column("zn", grade)
 
 # %% [markdown]
-# `section` draws true block edges whenever the cut is normal to one of the model's own axes, here an east-west
-# plane. `slab` overlays the lens trace and the composites within 25 m of that same `plane`, on the same color
-# scale.
+# here the cut is an east-west plane, normal to one of the model's axes, so `section` draws true block edges. `slab`
+# overlays the lens trace and the composites within 25 m of that same `plane`, on the same color scale.
 
 # %%
 plane = (lens.vertices.mean(axis=0), 90, 90)
@@ -66,10 +65,11 @@ ax.set(title="East-west section: sub-block edges, lens trace, composites")
 save(fig, "section")
 
 # %% [markdown]
-# ## Adherence
+# ## adherence
 #
-# Adherence is a resubstitution test, not cross-validation: does the model honor the holes it was built from?
-# `row_at` finds the sub-block holding each composite and `scatter` gives the 1:1 line and the regression slope.
+# adherence is a resubstitution test: it asks whether the model honors the holes it came from, which cross-validation
+# leaves aside. `row_at` finds the sub-block holding each composite, and `scatter` gives the 1:1 line and the
+# regression slope.
 
 # %%
 rows = model.row_at(xyz[inside])

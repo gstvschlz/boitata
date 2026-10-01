@@ -1,7 +1,7 @@
-# Block kriging
+# block kriging
 
-Block kriging estimates the average of `V` over a block, not its value at the center. On Walker Lake the true block
-averages are known, so block and point estimates can both be checked against them, for several block sizes.
+block kriging estimates the average of `V` over a block instead of its value at the center. walker lake's true block
+averages are known, so you can check block and point estimates against them for several block sizes.
 
 <details><summary>Python</summary>
 
@@ -24,9 +24,9 @@ search = bt.Search(radius=80, max_samples=24, min_samples=4, rotation=model.rota
 
 </details>
 
-`BlockKriging` averages the variogram between the samples and a grid of points inside each block,
-`discretization` of them along x, y and z. Its targets are block centers. The truth is the mean of the 100
-exhaustive values in each 10 × 10 m block.
+`BlockKriging` averages the variogram between the samples and a grid of points inside each block, `discretization` of
+them along x, y and z. its targets are block centers. the truth is the mean of the 100 exhaustive values in each 10 ×
+10 m block.
 
 <details><summary>Python</summary>
 
@@ -54,10 +54,11 @@ point kriging: RMSE 105.8 ppm, mean kriging variance 54073
 actual mean squared error of block kriging 10303
 ```
 
-The two estimates are close, and block kriging is slightly more accurate against the block averages. The larger
-difference is in the variance: point kriging reports the error of predicting one point, nugget included, while
-block kriging reports the error of predicting the block mean, a third of it here. The actual mean squared error of
-the block estimates, 10 303, is below even that, as the model's variance was pessimistic in [ordinary kriging](../../06-kriging/01-ordinary-kriging/README.md) too.
+the two estimates are close, and block kriging is a little more accurate against the block averages. the larger
+difference is in the variance: point kriging reports the error of predicting one point, nugget included, while block
+kriging reports the error of predicting the block mean, a third of it here. the actual mean squared error of the block
+estimates, 10 303, is below even that, as the model's variance was pessimistic in
+[ordinary kriging](../../06-kriging/01-ordinary-kriging/README.md) too.
 
 <details><summary>Python</summary>
 
@@ -79,9 +80,9 @@ save(fig, "blocks")
 
 ![blocks](blocks.png)
 
-## Block size
+## block size
 
-Larger blocks average more of the short-scale variation away. `diagnostics` reports `support_variance`, the variance
+larger blocks average more of the short-scale variation away. `diagnostics` reports `support_variance`, the variance
 of true block values the model predicts (sill minus the mean variogram within the block, nugget excluded), and
 `estimate_variance`, the variance of the estimates it predicts.
 
@@ -124,16 +125,15 @@ save(fig, "sizes")
 
 ```text
  5 m blocks: variance of estimates  37470 (model  43577), of true blocks  52287 (model  67472)
-10 m blocks: variance of estimates  35212 (model  40356), of true blocks  46694 (model  57129)
+10 m blocks: variance of estimates  35207 (model  40355), of true blocks  46694 (model  57129)
 20 m blocks: variance of estimates  30203 (model  34703), of true blocks  37617 (model  41648)
 ```
 
 ![sizes](sizes.png)
 
-The variance of true block values falls with block size, from 52 287 for 5 m blocks to 37 617 for 20 m blocks,
-and the estimates stay below it at every size: kriging smooths, so selecting blocks on the estimates misclassifies
-some of them. The gap narrows as the blocks grow, which is one reason not to estimate blocks much smaller than the
-data spacing. The model overstates both variances, the true one most for small blocks, but gets their order
-and trend right.
+the variance of true block values falls with block size, from 52 287 for 5 m blocks to 37 617 for 20 m blocks, and the
+estimates stay below it at every size. kriging smooths, so selecting blocks on the estimates misclassifies some of
+them. the gap narrows as the blocks grow, one reason not to estimate blocks much smaller than the data spacing. the
+model overstates both variances, the true one most for small blocks, but gets their order and trend right.
 
 Full script: [`example_06_05.py`](example_06_05.py)

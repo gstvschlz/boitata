@@ -1,10 +1,10 @@
 """
-# Image quilting
+# image quilting
 
-Image quilting copies whole patches of the training image instead of one cell at a time. Patches overlap along a
-raster path; each is drawn among the `n_best` positions of the image that best match what the grid already holds
-under it, and joins its neighbors along the seam where the two differ least. It is fast, and a patch keeps the
-image's patterns intact up to its own size.
+image quilting copies whole patches of the training image instead of one cell at a time. patches overlap along a
+raster path. quilting draws each patch among the `n_best` positions of the image that best match what the grid
+already holds under it, and joins it to its neighbors along the seam where the two differ least. it is fast, and a
+patch keeps the image's patterns intact up to its own size.
 """
 
 # %% [hidden]
@@ -40,7 +40,7 @@ print(
 
 
 # %% [markdown]
-# `patch_size` sets how much of the image travels in one piece, and the overlap is a sixth of it by default. Twenty
+# `patch_size` sets how much of the image travels in one piece, and the overlap is a sixth of it by default. twenty
 # realizations for each of three sizes:
 
 # %%
@@ -58,8 +58,8 @@ for size in (10, 30, 60):
 
 
 # %% [markdown]
-# Small patches cut the channels at their seams. At 30 cells the runs along Y are already the image's; at 60 the
-# realizations are the image cut and reassembled, with fewer seams but also less variety between them.
+# small patches cut the channels at their seams. at 30 cells the runs along Y match the image's; at 60 the
+# realizations are the image cut and reassembled, with fewer seams and less variety between them.
 
 # %%
 codes = ListedColormap(["white", "black"])
@@ -80,12 +80,12 @@ save(fig, "patches")
 
 
 # %% [markdown]
-# Hard data weigh `data_weight` times a mismatched overlap cell when a patch is chosen and are never pasted over, so
-# they hold in every realization. Soft probabilities add `soft_weight` times the mean of `1 - P(c)` over the patch,
-# `c` the code the patch puts in each cell. A patch can come from anywhere in the image, so the truth here is the
-# image mirrored east to west: the same patterns, none of them in the same place. 100 of its cells serve as hard
-# data, as in [conditioning SNESIM](../../13-multiple-point-statistics/02-snesim-conditioning/README.md), and it is
-# smoothed into soft data as in [soft data in SNESIM](../../13-multiple-point-statistics/06-snesim-soft-data/README.md):
+# when quilting chooses a patch, each hard datum weighs `data_weight` times a mismatched overlap cell, and no patch
+# pastes over it, so hard data hold in all realizations. soft probabilities add `soft_weight` times the mean of
+# `1 - P(c)` over the patch, `c` the code the patch puts in each cell. a patch can come from anywhere in the image, so
+# the truth here is the image mirrored east to west: the same patterns, none of them in the same place. 100 of its
+# cells serve as hard data, as in [conditioning SNESIM](../../13-multiple-point-statistics/02-snesim-conditioning/README.md), and smoothing turns it into
+# soft data as in [soft data in SNESIM](../../13-multiple-point-statistics/06-snesim-soft-data/README.md):
 
 # %%
 truth = image[:, ::-1]
@@ -108,9 +108,9 @@ for name, summary in (("hard data", with_data), ("soft data", with_soft)):
 
 
 # %% [markdown]
-# A hundred scattered cells hardly move a patch cut to fit its overlap, so they change little beyond their own cells.
-# The soft map covers every cell, and the patches follow it. A map this sharp with `soft_weight=5` leaves the
-# realizations little room to differ: P(sand) is nearly 0 or 1, gray only at a few seams. Lower the weight when the
+# a hundred scattered cells barely move a patch cut to fit its overlap, so they change little beyond their own cells.
+# the soft map covers each cell, and the patches follow it. a map this sharp with `soft_weight=5` leaves the
+# realizations little room to differ: P(sand) is near 0 or 1, gray only at a few seams. lower the weight when the
 # soft data are less certain than the patterns.
 
 # %%
@@ -132,5 +132,5 @@ fig.colorbar(im, ax=axes[3], shrink=0.8, label="probability")
 save(fig, "conditioning")
 
 # %% [markdown]
-# [Continuous quilting](../../13-multiple-point-statistics/09-image-quilting-continuous/README.md) copies values
+# [continuous quilting](../../13-multiple-point-statistics/09-image-quilting-continuous/README.md) copies values
 # instead of codes.

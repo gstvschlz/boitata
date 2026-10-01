@@ -1,8 +1,8 @@
-# Layered surfaces
+# layered surfaces
 
-A phosphate deposit weathered in place: 251 vertical holes log five horizons from the top, soil (`SOIL`), aluminous
+a phosphate deposit weathered in place: 251 vertical holes log five horizons from the top, soil (`SOIL`), aluminous
 laterite (`ALU`), oxidized ore (`OXI`), saprolite (`SAP`) and fresh rock (`ROCK`), under topography gridded at 10 m.
-Each horizon base becomes a surface, the surfaces stack into a layered block model, and vertical distances to them
+each horizon base becomes a surface, the surfaces stack into a layered block model, and vertical distances to them
 place any sample in its layer.
 
 <details><summary>Python</summary>
@@ -16,9 +16,9 @@ from common import ACCENT, GRAY, HIGHLIGHT, INK, LIGHT, map_axes, save
 
 </details>
 
-## Topography as a surface
+## topography as a surface
 
-Gridded elevations are a 2D `BlockModel` with a `Z` column; `grid_surface` triangulates them through the block
+gridded elevations are a 2D `BlockModel` with a `Z` column; `grid_surface` triangulates them through the block
 centers. `Mesh.vertical_distance` is a point's elevation minus the surface's at the same easting and northing:
 the collars sit on the topography.
 
@@ -62,12 +62,12 @@ collar minus topography: -0.06 to +0.06 m
 
 ![topography](topography.png)
 
-## Horizon bases
+## horizon bases
 
-The base of each horizon is found at its `TO` depth along the hole. Rather than interpolating the contact
-elevations, which follow the topography, the depth below ground is interpolated, by inverse distance on the 10 m
-grid, and subtracted from the topography. Every hole logs all five horizons, so the four depths get the same
-weights in every cell: their order holds and the surfaces never cross.
+each horizon's base lies at its `TO` depth along the hole. the contact elevations follow the topography, so the
+page interpolates the depth below ground instead, by inverse distance on the 10 m grid, and subtracts it from the
+topography. each hole logs all five horizons, so the four depths get the same weights in each cell: their order
+holds and the surfaces never cross.
 
 <details><summary>Python</summary>
 
@@ -95,8 +95,8 @@ base of OXI: depth  48.5 m median, Mesh(45940 vertices, 91035 triangles, open, 8
 base of SAP: depth  69.2 m median, Mesh(45948 vertices, 91050 triangles, open, 844 boundary edges)
 ```
 
-Cells beyond 400 m of a hole are left out of the surfaces. The thickness of a horizon is the vertical distance from
-its base, at each cell center, up to the surface above it; a cell with no base elevation gets NaN.
+the surfaces leave out cells beyond 400 m of a hole. the thickness of a horizon is the vertical distance from its
+base, at each cell center, up to the surface above it; a cell with no base elevation gets NaN.
 
 <details><summary>Python</summary>
 
@@ -126,10 +126,10 @@ SOIL: thickness   0.5 to   4.7 m
 
 ![thickness](thickness.png)
 
-## Samples by layer
+## samples by layer
 
-A sample is in the first layer, from the top, whose base lies below it. At the assay midpoints, the layers from
-the surfaces match the logged horizons, and they show where the phosphate is: the oxidized horizon.
+a sample belongs to the first layer, from the top, whose base lies below it. at the assay midpoints, the layers
+from the surfaces match the logged horizons and show where the phosphate is: the oxidized horizon.
 
 <details><summary>Python</summary>
 
@@ -173,13 +173,13 @@ ROCK:  1316 assays, P2O5  5.09 %
 
 ![profile](profile.png)
 
-## A layered block model
+## a layered block model
 
 `BlockModel.from_meshes` labels sub-cells with the first `(mesh, rule, label)` domain that holds their center.
-Listed from the bottom, each horizon lies `"below"` its base's upper neighbor: fresh rock below the base of `SAP`,
-saprolite below the base of `OXI`, and so on up to soil below the ground; air is in no domain and is dropped.
-Listed from the top with `"above"`, each horizon lies above its own base, with fresh rock as the `fill`; the air,
-above the ground, comes first. Over the drilled area and down to 950 m, on 25 m blocks split into 1 m sub-cells in
+listed from the bottom, each horizon lies `"below"` its base's upper neighbor: fresh rock below the base of `SAP`,
+saprolite below the base of `OXI`, and so on up to soil below the ground; air falls in no domain and drops out.
+listed from the top with `"above"`, each horizon lies above its own base, with fresh rock as the `fill`; the air,
+above the ground, comes first. over the drilled area and down to 950 m, on 25 m blocks split into 1 m sub-cells in
 elevation, both give the same volumes.
 
 <details><summary>Python</summary>
@@ -210,7 +210,7 @@ SOIL:    8.17 Mm3 from the bottom,    8.17 Mm3 from the top
 ROCK:  367.98 Mm3 from the bottom,  367.98 Mm3 from the top
 ```
 
-A true-scale east–west section shows the sub-cells following the surfaces:
+a true-scale east-west section shows the sub-cells following the surfaces:
 
 <details><summary>Python</summary>
 

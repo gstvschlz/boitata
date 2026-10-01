@@ -1,10 +1,11 @@
 """
-# Locally varying anisotropy
+# locally varying anisotropy
 
-Walker Lake's high-`V` bodies bend: one global direction (N170° in [variogram fitting](../../05-spatial-continuity/02-variogram-fitting/README.md)) fits
-some of them and crosses others. Locally varying anisotropy (LVA) gives every location its own orientation, used for
-both the variogram and the search. The orientation field can come from a gridded attribute (`from_grid`, used here),
-a point cloud (`from_points`) or a wireframe (`from_mesh`).
+walker lake's high-`V` bodies bend, so one global direction (N170° in
+[variogram fitting](../../05-spatial-continuity/02-variogram-fitting/README.md)) fits some of them and crosses others.
+locally varying anisotropy (LVA) gives every location its own orientation for both the variogram and the search. the
+orientation field can come from a gridded attribute (`from_grid`, used here), a point cloud (`from_points`) or a
+wireframe (`from_mesh`).
 """
 
 # %% [hidden]
@@ -29,8 +30,9 @@ nodes = grid.centroids.astype(int)
 true_at_nodes = truth[nodes[:, 1] - 1, nodes[:, 0] - 1]
 
 # %% [markdown]
-# The global model, fitted along N170° and across it as in [variogram fitting](../../05-spatial-continuity/02-variogram-fitting/README.md): two nested structures, the minor/major ratio set
-# by the long one.
+# the global model, fitted along N170° and across it as in
+# [variogram fitting](../../05-spatial-continuity/02-variogram-fitting/README.md): two nested structures, with the long
+# one setting the minor/major ratio.
 
 # %%
 azimuth, lag, max_lag = 170.0, 10.0, 120.0
@@ -49,8 +51,8 @@ model = along.with_anisotropy(
 print(model)
 
 # %% [markdown]
-# A quick isotropic estimate outlines the bodies; the gradient of that map gives the orientation of least change.
-# The structure tensor sums gradients over 3 cells each side, and smoothing averages orientations within 25 m.
+# a quick isotropic estimate outlines the bodies, and the gradient of that map gives the orientation of least change.
+# the structure tensor sums gradients over 3 cells each side, and smoothing averages orientations within 25 m.
 
 # %%
 isotropic = bt.Variogram([("spherical", model.sill - model.nugget, 30.0)], nugget=model.nugget)
@@ -78,7 +80,7 @@ map_axes(ax, "Local major direction over the guide estimate")
 save(fig, "field")
 
 # %% [markdown]
-# Same model, same search; only the orientation changes. Errors are against the exhaustive values at the nodes.
+# same model, same search; only the orientation changes. errors are against the exhaustive values at the nodes.
 
 # %%
 search = bt.Search(radius=100, max_samples=24, min_samples=4)
@@ -105,13 +107,13 @@ fig.colorbar(im, ax=axes, shrink=0.8, label="V (ppm)")
 save(fig, "kriging")
 
 # %% [markdown]
-# Local orientations lower the error and keep the north-eastern bodies elongated east-west, where the global
-# direction crosses them.
+# local orientations lower the error and keep the north-eastern bodies elongated east-west, where the global direction
+# crosses them.
 
 # %% [markdown]
-# Simulation takes the same field: each node's variogram and search follow the local direction, so continuity bends
-# with the bodies instead of crossing them. The normal-score variogram is fitted along the major axis; the field
-# supplies the orientation and the ratios.
+# simulation takes the same field: each node's variogram and search follow the local direction, so continuity bends with
+# the bodies instead of crossing them. the normal-score variogram is fitted along the major axis; the field supplies the
+# orientation and the ratios.
 
 # %%
 weights = bt.cell_declustering(xy, v, sizes=np.arange(2.5, 102.5, 2.5)).weights

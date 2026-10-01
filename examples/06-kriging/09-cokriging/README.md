@@ -1,6 +1,6 @@
-# Cokriging
+# cokriging
 
-Jura: 259 soil samples of heavy metals (mg/kg, coordinates in km) and 100 validation samples withheld from estimation.
+jura: 259 soil samples of heavy metals (mg/kg, coordinates in km) and 100 validation samples withheld from estimation.
 Cd correlates with Zn, and Zn is also known at the validation points, which suits collocated cokriging.
 
 <details><summary>Python</summary>
@@ -20,8 +20,9 @@ lag, max_lag = 0.1, 1.5
 
 </details>
 
-A linear model of coregionalization with two spherical structures, fitted to the Cd and Zn variograms and their
-cross-variogram ([coregionalization](../../05-spatial-continuity/07-coregionalization/README.md) shows the fit), and an ordinary kriging of Cd alone for comparison:
+a linear model of coregionalization with two spherical structures, fitted to the Cd and Zn variograms and their
+cross-variogram ([coregionalization](../../05-spatial-continuity/07-coregionalization/README.md) shows the fit), and
+an ordinary kriging of Cd alone for comparison:
 
 <details><summary>Python</summary>
 
@@ -40,8 +41,8 @@ ok = bt.OrdinaryKriging(experimentals[0][0].fit("spherical"), search).fit(train,
 
 </details>
 
-Cokriging takes the samples of both variables with a variable index each. Collocated cokriging also uses the
-secondary value at the target itself, here Zn at each validation point:
+cokriging takes the samples of both variables with a variable index each. collocated cokriging also uses the secondary
+value at the target itself, here Zn at each validation point:
 
 <details><summary>Python</summary>
 
@@ -70,7 +71,7 @@ validation RMSE: ordinary kriging 0.777, collocated cokriging 0.689 mg/kg
 variance of estimates: ordinary kriging 0.211, cokriging 0.531, true 0.477
 ```
 
-Using Zn at the target lowers the error and removes the smoothing that flattens ordinary kriging:
+using Zn at the target lowers the error and removes the smoothing that flattens ordinary kriging:
 
 <details><summary>Python</summary>
 
@@ -93,11 +94,11 @@ save(fig, "validation")
 
 ![validation](validation.png)
 
-## Locally varying anisotropy
+## locally varying anisotropy
 
-`anisotropy=` takes a [LocalAnisotropy](../../06-kriging/14-local-anisotropy/README.md) as ordinary kriging does: each target
-searches its own ellipse, shared by Cd and Zn, and every structure and cross term of the model turns with it. Here
-the directions follow the gradient of the ordinary kriging map of Cd, with semi-major ranges half the major.
+`anisotropy=` takes a [LocalAnisotropy](../../06-kriging/14-local-anisotropy/README.md) as ordinary kriging does: each
+target searches its own ellipse, shared by Cd and Zn, and every structure and cross term of the model turns with it.
+here the directions follow the gradient of the ordinary kriging map of Cd, with semi-major ranges half the major.
 `collocated` also takes a column of the targets by name:
 
 <details><summary>Python</summary>

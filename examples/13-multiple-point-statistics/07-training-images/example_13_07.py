@@ -1,8 +1,8 @@
 """
-# Training images and their consistency
+# training images and their consistency
 
-A training image is a geological hypothesis drawn as a grid. `bt.object_training_image` draws one from channels and
-ellipsoids, and `bt.training_image_consistency` asks whether the hard data could have been drilled through it.
+a training image is a geological hypothesis drawn as a grid. `bt.object_training_image` draws one from channels and
+ellipsoids, and `bt.training_image_consistency` tests whether the hard data could come from holes drilled through it.
 """
 
 # %% [hidden]
@@ -25,9 +25,9 @@ grid = bt.BlockModel((0, 0), (1, 1), (n, n))
 
 
 # %% [markdown]
-# Three object-based candidates on a grid the size of Strebelle, each about 30 % sand. Sizes and angles given as a
-# `(min, max)` range are drawn for each object: sinuous channels 8 cells wide trending north, and lenses 36 by 10
-# cells lying north-south or east-west.
+# three object-based candidates on a grid the size of strebelle, each about 30 % sand. sizes and angles given as a
+# `(min, max)` range get a fresh draw for each object: sinuous channels 8 cells wide trending north, and lenses 36 by
+# 10 cells lying north-south or east-west.
 
 # %%
 channel = {"shape": "channel", "width": 8, "azimuth": (-20, 20), "amplitude": 12, "wavelength": 120}
@@ -46,10 +46,10 @@ for name, image in candidates.items():
 
 
 # %% [markdown]
-# The data are four holes through Strebelle, drilled north along its channels. On a 2D grid the test follows Y by
-# default: it counts the patterns of 4 consecutive cells down the holes, compares their frequencies with those of
-# the image by their Jensen-Shannon divergence, and repeats the comparison for 200 sets of holes of the same lengths
-# drilled at random through the image itself. The p-value is the share of those at least as divergent as the data.
+# the data are four holes through strebelle, drilled north along its channels. on a 2D grid the test follows Y by
+# default. it counts the patterns of 4 consecutive cells down the holes and compares their frequencies with those of
+# the image by their jensen-shannon divergence. it repeats the comparison for 200 sets of holes of the same lengths
+# drilled at random through the image itself; the p-value is the share of those at least as divergent as the data.
 
 # %%
 columns = [30, 90, 150, 210]
@@ -68,10 +68,10 @@ for name, check in checks.items():
 
 
 # %% [markdown]
-# Strebelle, the image the holes came from, passes, and so do the channels. East-west lenses fail: down a hole they
-# are 10 cells thick, where the channels run on for dozens of cells. North-south lenses pass though they are no
-# channels, since along the holes they look like them. One axis tests thickness, order and proportions, not the
-# shape or orientation of bodies; that needs the geologist.
+# strebelle, the image the holes came from, passes, and so do the channels. east-west lenses fail: down a hole they
+# are 10 cells thick, where the channels run on for dozens of cells. north-south lenses pass though they are no
+# channels, since along the holes they look like them. one axis tests thickness, order and proportions; the shape and
+# orientation of bodies need the geologist.
 
 # %%
 codes = ListedColormap(["white", "black"])
@@ -89,7 +89,7 @@ for ax, (name, image) in zip(axes, panels):
 save(fig, "candidates")
 
 # %% [markdown]
-# A candidate that passes can still be wrong: these channels bunch in the east, which no hole along Y can see. One
+# a candidate that passes can still be wrong: these channels bunch in the east, which no hole along Y can see. one
 # that fails holds patterns the wells rule out.
-# [Several training images](../../13-multiple-point-statistics/05-snesim-training-images-by-zone/README.md) combines
+# [several training images](../../13-multiple-point-statistics/05-snesim-training-images-by-zone/README.md) combines
 # candidates by domain.

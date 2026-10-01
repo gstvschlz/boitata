@@ -1,7 +1,7 @@
-# Indicator kriging
+# indicator kriging
 
-Jura: 259 soil samples of heavy metals (mg/kg, coordinates in km) and 100 validation samples withheld from estimation.
-Indicator kriging maps the probability that Cd exceeds 0.8 mg/kg, the Swiss guide value.
+jura: 259 soil samples of heavy metals (mg/kg, coordinates in km) and 100 validation samples withheld from estimation.
+indicator kriging maps the probability that Cd exceeds 0.8 mg/kg, the swiss guide value.
 
 <details><summary>Python</summary>
 
@@ -25,7 +25,7 @@ print(f"share of samples above {limit} mg/kg: {np.mean(cd > limit):.0%}")
 share of samples above 0.8 mg/kg: 66%
 ```
 
-The indicator is 1 where Cd is above the threshold and 0 below; its variogram is fitted like any other. IK estimates
+the indicator is 1 where Cd is above the threshold and 0 below, and you fit its variogram like any other. IK estimates
 P(Cd ≤ threshold), so the exceedance is its complement.
 
 <details><summary>Python</summary>
@@ -49,7 +49,7 @@ print(
 validation: mean P(Cd > 0.8) 0.75 where true exceedance, 0.62 elsewhere
 ```
 
-Most of the area exceeds 0.8 mg/kg, so the map separates clean zones rather than hot spots:
+most of the area exceeds 0.8 mg/kg, and the map picks out the clean zones:
 
 <details><summary>Python</summary>
 

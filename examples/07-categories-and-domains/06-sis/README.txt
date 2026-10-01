@@ -1,1 +1,1 @@
-## Sequential indicator simulation
+## sequential indicator simulation

@@ -1,8 +1,8 @@
 """
-# Classification
+# classification
 
-Resource classes for the blocks of a coal lease, first from the spacing of the boreholes alone, then from the kriging
-diagnostics of seam thickness together with the spacing: `classify` applies rules in order, `smooth_classes`
+resource classes for the blocks of a coal lease, first from the spacing of the boreholes alone, then from the kriging
+diagnostics of seam thickness together with the spacing. `classify` applies rules in order, and `smooth_classes`
 absorbs isolated blocks into their surroundings.
 """
 
@@ -27,10 +27,10 @@ print(f"{len(holes)} boreholes, {len(blocks.centroids)} blocks of 100 × 100 m i
 
 
 # %% [markdown]
-# ## By data spacing
+# ## by data spacing
 #
-# `data_spacing` measures from each block to its `n`th nearest borehole. On a square mesh of spacing `s`, the 4th
-# nearest hole lies at about `s`, so `n=4` reads as the local drilling mesh. Rules apply in order and the first that
+# `data_spacing` measures from each block to its `n`th nearest borehole. on a square mesh of spacing `s`, the 4th
+# nearest hole lies at about `s`, so `n=4` reads as the local drilling mesh. rules apply in order and the first that
 # holds wins; blocks where none holds get the default.
 
 # %%
@@ -43,10 +43,10 @@ print(
 
 
 # %% [markdown]
-# ## By kriging diagnostics
+# ## by kriging diagnostics
 #
-# Block kriging with `diagnostics=True` gives each block its slope of regression and kriging efficiency ([kriging diagnostics](../../10-checking-models/03-kriging-diagnostics/README.md)).
-# The rules add the spacing, so a block needs both a well-conditioned estimate and nearby holes.
+# block kriging with `diagnostics=True` gives each block its slope of regression and kriging efficiency ([kriging diagnostics](../../10-checking-models/03-kriging-diagnostics/README.md)).
+# the rules add the spacing, so a block needs a well-conditioned estimate and nearby holes.
 
 # %%
 azimuths = np.arange(0, 180, 45.0)
@@ -67,9 +67,9 @@ by_kriging = bt.classify(criteria, rules, default="inferred")
 
 
 # %% [markdown]
-# ## Smoothing
+# ## smoothing
 #
-# A 3 × 3 majority filter absorbs isolated blocks into their surroundings; cells outside the lease do not vote.
+# a 3 × 3 majority filter absorbs isolated blocks into their surroundings; cells outside the lease do not vote.
 
 # %%
 smoothed = bt.smooth_classes(blocks, by_kriging, window=(3, 3, 1))
@@ -81,10 +81,10 @@ for name in names:
 print(f"{np.mean(smoothed != by_kriging):.1%} of blocks change class in smoothing")
 
 # %% [markdown]
-# Both classifications put about a third of the blocks in measured. Spacing alone leaves ragged patches around the
-# infill and hardly any inferred; the kriging diagnostics also see the geometry of the data, so blocks along the lease
-# edge, with holes on one side only, drop to inferred (7.7 % of the lease). The filter changes 2.8 % of the blocks,
-# mostly single blocks and thin fringes.
+# both classifications put about a third of the blocks in measured. spacing alone leaves ragged patches around the
+# infill and few blocks in inferred. the kriging diagnostics also see the geometry of the data, so blocks along the
+# lease edge, with holes on one side only, drop to inferred (7.7 % of the lease). the filter changes 2.8 % of the
+# blocks, most of them single blocks and thin fringes.
 
 # %%
 resource_classes = bt.Categories(names, colors=[ACCENT, "#9ebad6", LIGHT])

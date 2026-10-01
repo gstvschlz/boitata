@@ -1,7 +1,7 @@
 """
-# Conditioning SNESIM
+# conditioning SNESIM
 
-Hard data fix the category of their cells in every realization, and the patterns around them decide the rest. A
+hard data fix the category of their cells in all realizations, and the patterns around them decide the rest. a
 servosystem pulls each realization towards target proportions.
 """
 
@@ -36,10 +36,10 @@ print(f"{facies.sum()} sand and {(facies == 0).sum()} shale data")
 
 
 # %% [markdown]
-# Fifty realizations, once without targets and once with the image's proportions as targets. `servo` sets how hard
+# fifty realizations, once without targets and once with the image's proportions as targets. `servo` sets how hard
 # the servosystem pulls: a cell draws from its pattern probability plus `servo / (1 - servo)` times the gap between
-# the target and the share simulated so far. Where every matching pattern holds one category, it leaves the cell
-# alone.
+# the target and the share simulated so far. where all matching patterns hold one category, the servosystem leaves
+# the cell alone.
 
 # %%
 sand = image.mean()
@@ -58,9 +58,9 @@ print(f"hard data reproduced in every realization: {reproduced}")
 
 
 # %% [markdown]
-# The data steer the channels around them, not just their own cell: within 3 cells of a sand datum, sand is twice
-# as likely as on average, and near a shale datum half as likely. The image itself is more decided there, since
-# the data only steer the patterns, which still choose where each channel goes:
+# the data steer the channels around them as well as their own cell: within 3 cells of a sand datum, sand is twice
+# as likely as on average, and near a shale datum half as likely. the image itself is more decided there, since the
+# data steer the patterns and the patterns still choose where each channel goes:
 
 # %%
 p_sand = summaries["servo"].probabilities[:, 1].reshape(ny, nx)
@@ -100,6 +100,6 @@ axes[3].legend()
 save(fig, "conditioning")
 
 # %% [markdown]
-# Without targets the realizations drift above the image's share of sand, as in
+# without targets the realizations drift above the image's share of sand, as in
 # [the multigrid page](../../13-multiple-point-statistics/01-snesim-multigrid/README.md); the servosystem brings them back and narrows their spread.
-# A strong servosystem costs some of the image's patterns, so keep `servo` as low as the proportions allow.
+# a strong servosystem costs some of the image's patterns, so keep `servo` as low as the proportions allow.

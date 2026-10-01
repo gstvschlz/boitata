@@ -1,1 +1,1 @@
-## Continuous SNESIM
+## continuous SNESIM

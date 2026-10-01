@@ -1,10 +1,10 @@
 # SGS along a shared path
 
-On a block model, SGS runs every realization along one multigrid path: coarse cells first, then finer ones. A node's
-neighbors and kriging weights then depend on the path alone, so they are found once for a batch of realizations and
-reused by all of them; only the noise differs. `path="random"` draws a new path per realization instead, as points
-and sub-blocked models need. Both reproduce the histogram and the variogram; the shared path is faster the more
-realizations and nodes there are. Realizations do not depend on `batch`, the number simulated together, which by
+on a block model, SGS runs all realizations along one multigrid path: coarse cells first, then finer ones. a node's
+neighbors and kriging weights then depend on the path alone, so SGS finds them once per batch of realizations and
+reuses them; only the noise differs. `path="random"` draws a new path per realization instead, as points and
+sub-blocked models need. both reproduce the histogram and the variogram, and the shared path gains speed as
+realizations and nodes grow. `batch`, the number simulated together, leaves the realizations unchanged and by
 default fills 70 % of the free memory.
 
 <details><summary>Python</summary>
@@ -18,7 +18,7 @@ from common import save
 
 </details>
 
-Walker Lake V, simulated as in [realization checks](../../10-checking-models/04-realization-checks/README.md) on a 1 m grid of 260 × 300 cells: declustered normal scores and their
+walker lake V, simulated as in [realization checks](../../10-checking-models/04-realization-checks/README.md) on a 1 m grid of 260 × 300 cells: declustered normal scores and their
 variogram along N170° and across it.
 
 <details><summary>Python</summary>
@@ -45,7 +45,7 @@ sgs = bt.SGS(gaussian, bt.Search(radius=100, max_samples=24)).fit(samples, "V", 
 
 </details>
 
-Twenty realizations along each kind of path, timed:
+twenty realizations along each kind of path, timed:
 
 <details><summary>Python</summary>
 
@@ -63,10 +63,11 @@ for path in ["shared", "random"]:
 
 ```text
 shared path:  0.11 s for 20 realizations of 78,000 nodes
-random path:  1.00 s for 20 realizations of 78,000 nodes
+random path:  1.46 s for 20 realizations of 78,000 nodes
 ```
 
-`batch` changes memory and speed, not the realizations: one at a time gives the same grades as all together.
+`batch` changes memory and speed and leaves the realizations alone: one at a time gives the same grades as all
+together.
 
 <details><summary>Python</summary>
 
@@ -82,7 +83,7 @@ print("batch=1 equals batch=4:", np.array_equal(one.realizations, together.reali
 batch=1 equals batch=4: True
 ```
 
-Both paths reproduce the declustered histogram and the variogram model along N170°; the bands overlap.
+both paths reproduce the declustered histogram and the variogram model along N170°; the bands overlap.
 
 <details><summary>Python</summary>
 

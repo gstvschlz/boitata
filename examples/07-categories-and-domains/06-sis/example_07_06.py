@@ -1,10 +1,10 @@
 """
-# Sequential indicator simulation
+# sequential indicator simulation
 
-Sequential indicator simulation (SIS) draws categories. Visiting the nodes along a random path, it krigs the indicator
-of every category from its own variogram, using the samples and the nodes already drawn, and draws a category from
-those probabilities. Each realization is one possible rock-type map; over many realizations, the frequency of each
-category at a node is its probability. [Categorical indicator kriging](../../07-categories-and-domains/05-categorical-indicator-kriging/README.md) estimates such probabilities directly, without
+sequential indicator simulation (SIS) draws categories. it visits the nodes along a random path, krigs the indicator
+of each category with its own variogram from the samples and the nodes already drawn, and draws a category from
+those probabilities. each realization is one possible rock-type map; over many realizations, the frequency of each
+category at a node is its probability. [categorical indicator kriging](../../07-categories-and-domains/05-categorical-indicator-kriging/README.md) estimates such probabilities without
 simulating.
 """
 
@@ -22,10 +22,10 @@ import numpy as np
 from common import ACCENT, GRAY, save
 
 # %% [markdown]
-# ## Rock types
+# ## rock types
 #
-# Jura's rock types are known everywhere on the prediction grid, so simulated maps can be compared with the real
-# geology. A `Categories` scheme names the five types and gives each a color: `encode` turns labels into the codes 0
+# jura's rock types are known at each node of the prediction grid, so you can compare simulated maps with the real
+# geology. a `Categories` scheme names the five types and gives each a color: `encode` turns labels into the codes 0
 # to 4 that SIS takes, and `shares` gives their proportions.
 
 # %%
@@ -41,9 +41,9 @@ for k, name in enumerate(names):
     print(f"{name:<13}{np.sum(rock == k):8d}{np.mean(rock == k):7.2f}{np.mean(true_rock == k):11.2f}")
 
 # %% [markdown]
-# ## Indicator variograms
+# ## indicator variograms
 #
-# Each rock type gets the variogram of its indicator, 1 inside the type and 0 outside. Portlandian has too few
+# each rock type gets the variogram of its indicator, 1 inside the type and 0 outside. portlandian has too few
 # samples for an experimental variogram, so it gets a short spherical model with the indicator's variance as sill.
 
 # %%
@@ -73,11 +73,11 @@ axes[0].legend(loc="lower right")
 save(fig, "variograms")
 
 # %% [markdown]
-# ## Realizations
+# ## realizations
 #
 # `simulate` returns a summary over `n` realizations: `probabilities` holds each type's frequency, one row per node,
-# `most_likely` the most frequent type and `entropy`, scaled to [0, 1], how evenly the realizations disagree.
-# `keep=True` keeps the maps themselves.
+# `most_likely` the most frequent type, and `entropy`, scaled to [0, 1], how evenly the realizations disagree.
+# `keep=True` keeps the maps.
 
 # %%
 sis = bt.SIS(variograms, bt.Search(radius=1.5, max_samples=16)).fit(train, rock)
@@ -121,9 +121,9 @@ bt.plot.category_legend(rock_types, fig, loc="outside lower center", ncol=5)
 save(fig, "realizations")
 
 # %% [markdown]
-# Each realization matches the true rock type at 53 % to 60 % of the nodes, and two realizations differ wherever the
-# samples leave room. The proportions drift from the samples: Kimmeridgian, whose indicator has the longest range,
-# grows to 0.44 on average against 0.33 in the samples, while Argovian and Portlandian shrink; none recovers
-# Portlandian's 5 % of the area from 3 of 259 samples. The most likely type matches at 64 %, more than any
-# realization, but it is a smooth estimate rather than a possible map. Entropy is highest at the contacts and far
-# from the samples.
+# each realization matches the true rock type at 53 % to 60 % of the nodes, and two realizations differ wherever the
+# samples leave room. the proportions drift from the samples: kimmeridgian, whose indicator has the longest range,
+# grows to 0.44 on average against 0.33 in the samples, while argovian and portlandian shrink. no realization
+# recovers portlandian's 5 % of the area from 3 of 259 samples. the most likely type matches at 64 %, more than any
+# realization, though it is a smooth estimate and no possible map looks like it. entropy peaks at the contacts and
+# far from the samples.

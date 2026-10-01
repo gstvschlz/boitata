@@ -1,7 +1,7 @@
-# Paired data
+# paired data
 
-Four gold veins drilled from surface by diamond holes (DD) and sampled underground by horizontal channels (CH). Do the
-two sample the same grades? Samples of each type close to one another are paired and their grades compared.
+four gold veins drilled from surface by diamond holes (DD) and sampled underground by horizontal channels (CH). do the
+two sample the same grades? pair samples of each type that lie close to one another and compare their grades.
 
 <details><summary>Python</summary>
 
@@ -19,8 +19,8 @@ holes = bt.Drillholes(collars, data["surveys"], intervals)
 
 </details>
 
-Channel samples are shorter than core samples, so each type is composited to one composite per vein intercept
-(`composite(None, ..., domain="LITH")`) and only the quartz vein (QV) intercepts are kept: both then measure the
+channel samples are shorter than core samples, so each type is composited to one composite per vein intercept
+(`composite(None, ..., domain="LITH")`), keeping only the quartz vein (QV) intercepts. both types then measure the
 grade across the vein.
 
 <details><summary>Python</summary>
@@ -41,9 +41,9 @@ print(f"{len(dd)} DD and {len(ch)} CH vein intercepts")
 206 DD and 2456 CH vein intercepts
 ```
 
-`pairs` finds, for each DD intercept, the nearest CH intercept within 20 m, each intercept in at most one pair and
-the closest pairs first. `paired_bias` compares the paired means per bin of pairing distance: a bias read at short
-distances is a sampling bias, not a change of grade over space.
+`pairs` finds, for each DD intercept, the nearest CH intercept within 20 m, with each intercept in at most one pair
+and the closest pairs first. `paired_bias` compares the paired means per bin of pairing distance. a bias at short
+distances comes from sampling, since the grade has no room to change over space.
 
 <details><summary>Python</summary>
 
@@ -77,11 +77,11 @@ without the first: mean Au DD 9.61 g/t, CH 8.07 g/t
   15-20 m:   4 pairs, bias of CH over DD   -70 %
 ```
 
-One channel at 1192 g/t, paired with a DD intercept of 3.5 g/t, triples the CH mean on its own; without it the
-paired means differ by less than 2 g/t, and the medians by less than 0.4 g/t. The bias swings from bin to bin with
-the few pairs in each, so there is no sign of a systematic difference between the two sampling methods. The pairs
-are a warning instead: the Q-Q plot follows the 1:1 line but for its last few quantiles, and a mean of gold
-grades that rests on a few extreme values needs a top cut ([top cuts](../../03-exploratory-analysis/05-top-cuts/README.md)).
+one channel at 1192 g/t, paired with a DD intercept of 3.5 g/t, triples the CH mean on its own. without it the paired
+means differ by less than 2 g/t, and the medians by less than 0.4 g/t. the bias swings from bin to bin with the few
+pairs in each, so the two sampling methods show no systematic difference. the pairs carry a warning instead: the Q-Q
+plot follows the 1:1 line except for its last few quantiles, and a mean of gold grades that rests on a few extreme
+values needs a top cut ([top cuts](../../03-exploratory-analysis/05-top-cuts/README.md)).
 
 <details><summary>Python</summary>
 

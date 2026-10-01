@@ -1,7 +1,9 @@
-# Variogram fitting
+# variogram fitting
 
-An anisotropic nested spherical model of `V`, fitted to directional experimental variograms along and across the
-direction of greatest continuity ([experimental variograms](../../05-spatial-continuity/01-experimental-variograms/README.md) builds them), then to all directions at once with `fit_directional`.
+you fit an anisotropic nested spherical model of `V` to directional experimental variograms along and across the
+direction of greatest continuity
+([experimental variograms](../../05-spatial-continuity/01-experimental-variograms/README.md) builds them), then to all
+directions at once with `fit_directional`.
 
 <details><summary>Python</summary>
 
@@ -18,7 +20,7 @@ lag, max_lag = 10.0, 120.0
 
 </details>
 
-The variogram map picks the major axis: the direction whose fitted range is longest.
+the variogram map picks the major axis, the direction with the longest fitted range.
 
 <details><summary>Python</summary>
 
@@ -30,8 +32,8 @@ azimuth = (90 - np.degrees(angle)) % 180
 
 </details>
 
-Fit along and across the major axis. Weighting each lag by N(h)/γ(h)² lets the few short-lag pairs steer the fit
-near the origin, where the nugget and the short ranges are decided.
+fit along and across the major axis. weighting each lag by N(h)/γ(h)² lets the few short-lag pairs steer the fit near
+the origin, where the nugget and the short ranges are decided.
 
 <details><summary>Python</summary>
 
@@ -52,14 +54,14 @@ Variogram(nugget=14993.35122178715, structures=[Structure("spherical", sill=2526
 Variogram(nugget=23378.007796960097, structures=[Structure("spherical", sill=0, range=2.5), Structure("spherical", sill=68505.76265942639, range=23.87806723833898)], rotation=(0.0, 0.0, 0.0), ratios=(1.0, 1.0))
 ```
 
-Along the major axis γ climbs to two thirds of the sill within 25 m, then keeps rising slowly to about 80 m: two
-scales of continuity. One structure (dashed below) splits the difference, overshoots the first lags and puts a third
-of the sill in the nugget. Two nested spherical structures follow both scales and halve the nugget. Across the axis
-the short structure takes no sill: γ reaches the sill by 25 m, and one structure is all those data support.
+along the major axis γ climbs to two thirds of the sill within 25 m, then rises slowly to about 80 m: two scales of
+continuity. one structure (dashed below) splits the difference, overshoots the first lags and puts a third of the sill
+in the nugget. two nested spherical structures follow both scales and halve the nugget. across the axis the short
+structure takes no sill: γ reaches the sill by 25 m, and the data support one structure.
 
-The structures share one anisotropy. Fitting the minor direction with the nugget and sills fixed at their major-axis
-values moves only its ranges; the long structure, with two thirds of the sill, sets the minor/major ratio.
-`rotation` is azimuth, dip, rake in degrees; `ratios` are semi-major/major and minor/major ranges.
+the structures share one anisotropy. fitting the minor direction with the nugget and sills fixed at their major-axis
+values moves only its ranges; the long structure, with two thirds of the sill, sets the minor/major ratio. `rotation`
+is azimuth, dip, rake in degrees; `ratios` are semi-major/major and minor/major ranges.
 
 <details><summary>Python</summary>
 
@@ -80,7 +82,7 @@ Variogram(nugget=14993.35122178715, structures=[Structure("spherical", sill=2526
 Variogram(nugget=14993.35122178715, structures=[Structure("spherical", sill=25261.581155025888, range=19.578360959734756), Structure("spherical", sill=53364.6905008533, range=80.65434681410247)], rotation=(170.0, 0.0, 0.0), ratios=(0.33066526059466755, 1.0))
 ```
 
-The ellipse on the map is the model range in each direction:
+the ellipse on the map is the model range in each direction:
 
 <details><summary>Python</summary>
 
@@ -129,8 +131,8 @@ save(fig, "variogram")
 
 ![variogram](variogram.png)
 
-`Variogram.fit_directional` fits one anisotropic model to experimental variograms in many directions at once:
-azimuth, range ratio, ranges, sills and nugget together, the ranges along the major axis. The directions here are
+`Variogram.fit_directional` fits one anisotropic model to experimental variograms in many directions at once: azimuth,
+range ratio, ranges, sills and nugget together, with the ranges along the major axis. the directions here are
 horizontal, every 22.5°, so the fit is 2D: dip, rake and the minor/major ratio stay 0, 0 and 1.
 
 <details><summary>Python</summary>
@@ -147,13 +149,13 @@ print(joint)
 </details>
 
 ```text
-Variogram(nugget=16458.274347134982, structures=[Structure("spherical", sill=39532.52873902907, range=36.61764354287077), Structure("spherical", sill=39110.92894638225, range=115)], rotation=(161.46018248305683, 0.0, 0.0), ratios=(0.33583539147294017, 1.0))
+Variogram(nugget=16458.263904055566, structures=[Structure("spherical", sill=39532.539054973735, range=36.61762520915539), Structure("spherical", sill=39110.929672733, range=115)], rotation=(161.46015029654865, 0.0, 0.0), ratios=(0.33583545063941, 1.0))
 ```
 
-The joint fit puts the major axis at N161°, nine degrees off the map's pick, with the same one-third ratio; its long
-range stops at 115 m, the largest lag, where free ranges are capped unless `ranges` bounds them. It spreads its
-effort over all eight directions, so it fits the major and minor axes worse than the fits made along them: the
-dashed curves fall below the short lags on both.
+the joint fit puts the major axis at N161°, nine degrees off the map's pick, with the same one-third ratio. its long
+range stops at 115 m, the largest lag, where free ranges are capped unless `ranges` bounds them. spread over all eight
+directions, it fits the major and minor axes worse than the fits made along them: the dashed curves fall below the
+short lags on both.
 
 <details><summary>Python</summary>
 

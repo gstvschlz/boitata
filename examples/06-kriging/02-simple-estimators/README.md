@@ -1,8 +1,8 @@
-# Simple estimators
+# simple estimators
 
-Nearest neighbor, inverse distance and moving average estimate Walker Lake `V` without a variogram. From the same
-470 samples and neighborhood as ordinary kriging, they are checked against the exhaustive values, and
-`compare_models` sets their grade-tonnage curves against the truth.
+nearest neighbor, inverse distance and moving average estimate walker lake `V` without a variogram. they use the same
+470 samples and neighborhood as ordinary kriging and are checked against the exhaustive values; `compare_models` sets
+their grade-tonnage curves against the truth.
 
 <details><summary>Python</summary>
 
@@ -28,9 +28,9 @@ model = bt.Variogram.fit_directional(
 
 </details>
 
-All four share one search: up to 24 samples in an ellipse along the direction of greatest continuity. Nearest
-neighbor takes the closest sample, inverse distance weights by 1/d², moving average weights all neighbors equally.
-Kriging, for reference, uses the variogram above.
+all four share one search: up to 24 samples in an ellipse along the direction of greatest continuity. nearest neighbor
+takes the closest sample, inverse distance weights by 1/d², and moving average weights all neighbors equally. kriging,
+the reference, uses the variogram above.
 
 <details><summary>Python</summary>
 
@@ -55,16 +55,16 @@ for name, e in estimates.items():
 
 ```text
            method  RMSE   corr   variance ratio
- nearest neighbor  178.2  0.739  0.95
+ nearest neighbor  178.5  0.739  0.95
  inverse distance  166.2  0.777  0.55
    moving average  231.0  0.586  0.30
  ordinary kriging  155.1  0.786  0.62
 ```
 
-Nearest neighbor keeps almost all the variance but places it poorly: a patchwork of polygons around the samples.
-Moving average smooths the most and is the least accurate, since distant samples weigh as much as close ones.
-Inverse distance sits between them and comes close to kriging, which is the most accurate here; kriging also gives
-a variance per estimate and accounts for clustered samples, which inverse distance does not.
+nearest neighbor keeps almost all the variance but places it poorly, as a patchwork of polygons around the samples.
+moving average smooths the most and is the least accurate, since distant samples weigh as much as close ones. inverse
+distance sits between them and comes close to kriging, the most accurate here. kriging also gives a variance per
+estimate and accounts for clustered samples, which inverse distance does not.
 
 <details><summary>Python</summary>
 
@@ -85,9 +85,9 @@ save(fig, "methods")
 
 ![methods](methods.png)
 
-## Grade-tonnage
+## grade-tonnage
 
-Smoothing shows in selection. `compare_models` computes, for each cutoff, the tonnage, mean grade and metal above it
+smoothing shows in selection. for each cutoff, `compare_models` computes the tonnage, mean grade and metal above it
 for every model of the same blocks, and their differences from a reference, here the truth at the nodes.
 
 <details><summary>Python</summary>
@@ -139,9 +139,11 @@ cutoff 600 ppm
 
 ![grade_tonnage](grade_tonnage.png)
 
-Smooth estimates put too much of the area above a low cutoff and too little above a high one: at 300 ppm moving
-average nearly doubles the true tonnage, at 600 ppm it misses 45 % of it. Nearest neighbor follows the true tonnage
-closely because it keeps the variance of the data, yet its estimates are the wrong ones locally; the reliable
-grade-tonnage of selected blocks is a change-of-support question (the [discrete Gaussian model](../../09-recoverable-resources/01-discrete-gaussian-model/README.md) and the pages after it).
+smooth estimates put too much of the area above a low cutoff and too little above a high one: at 300 ppm moving
+average nearly doubles the true tonnage, and at 600 ppm it misses 45 % of it. nearest neighbor follows the true
+tonnage because it keeps the variance of the data, yet its local estimates are wrong. a reliable grade-tonnage of
+selected blocks needs a change of support (the
+[discrete gaussian model](../../09-recoverable-resources/01-discrete-gaussian-model/README.md) and the pages after
+it).
 
 Full script: [`example_06_02.py`](example_06_02.py)

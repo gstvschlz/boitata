@@ -1,8 +1,8 @@
-# Several training images
+# several training images
 
-When the geology changes across a model, one image cannot hold every pattern. SNESIM takes a training image per
-domain, `{domain: (model, column)}`, and `simulate` picks each cell's image from its domain. The images share one set
-of codes, so a code means the same everywhere.
+if the geology changes across a model, one image cannot hold all its patterns. SNESIM takes a training image per
+domain, `{domain: (model, column)}`, and `simulate` picks each cell's image from its domain. the images share one set
+of codes, so a code means the same in each domain.
 
 <details><summary>Python</summary>
 
@@ -20,8 +20,8 @@ grid = bt.BlockModel((0, 0), (1, 1), (n, n))
 
 </details>
 
-The second image is built from objects: sand lenses about 36 by 10 cells, lying east-west, over 30 % of a grid the size
-of Strebelle.
+objects build the second image: sand lenses about 36 by 10 cells, lying east-west, over 30 % of a grid the size of
+strebelle.
 
 <details><summary>Python</summary>
 
@@ -37,7 +37,7 @@ print(f"sand: channels {channels['facies'].mean():.1%}, lenses {lenses['facies']
 sand: channels 27.7%, lenses 30.2%
 ```
 
-Two domains split by a line dipping east: channels in the south, lenses in the north. Twenty realizations, with the
+a line dipping east splits two domains: channels in the south, lenses in the north. twenty realizations, with the
 sand share of each domain against its image:
 
 <details><summary>Python</summary>
@@ -86,9 +86,9 @@ save(fig, "zones")
 
 ![zones](zones.png)
 
-The boundary stays visible as a line: a cell next to it reads neighbors from both sides, which joins a channel to a
-lens where they meet, but the change of pattern itself is abrupt. The images may differ in size but not in kind: a
-dict of continuous images works the same way, each domain drawing its values from its own image. Hard data,
+the boundary stays visible as a line. a cell next to it reads neighbors from both sides, which joins a channel to a
+lens where they meet, but the change of pattern is abrupt. the images may differ in size and must share a kind: a
+dict of continuous images works the same way, each domain drawing its values from its own image. hard data,
 `anisotropy` and `target_proportions` combine with domains as without them.
 
 Full script: [`example_13_05.py`](example_13_05.py)

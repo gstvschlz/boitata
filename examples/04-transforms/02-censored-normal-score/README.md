@@ -1,10 +1,10 @@
-# Censored normal-score transform
+# censored normal-score transform
 
-Cyanide (WAD) in the tailings reprocessing dataset is reported below its detection limit for 46 % of samples: those
-cells hold the limit itself, flagged by `CN_WAD_BDL`. A plain normal-score transform sorts the data by value; ties at
-the limit then break by whichever order the assay sheet happens to list them in, an artifact of nothing. `fit(...,
-censored=...)` shuffles each such tie with a seed instead, so the below-detection scores carry no order the data
-never supported, while every other value, and every tie at a different limit, keeps its exact rank.
+in the tailings reprocessing dataset, 46 % of the cyanide (WAD) samples are below the detection limit: those cells
+hold the limit itself, flagged by `CN_WAD_BDL`. a plain normal-score transform sorts the data by value, so the ties at
+the limit break in the order of the assay sheet. `fit(..., censored=...)` shuffles each such tie with a seed instead.
+the below-detection scores then carry no order, and every other value, including ties at a different limit, keeps its
+exact rank.
 
 <details><summary>Python</summary>
 
@@ -36,11 +36,11 @@ save(fig, "histogram")
 
 ![histogram](histogram.png)
 
-## A tie broken by row order is still a tie
+## a tie broken by row order is still a tie
 
-`NormalScore().fit(cn)`, ignoring the flag, sorts the below-detection composites by value; since they are all
-equal, the stable sort leaves them in the order the assay table lists them. Restricting to composites below
-detection and comparing each one's score with the one before it in that table shows the artifact directly.
+`NormalScore().fit(cn)` ignores the flag and sorts the below-detection composites by value. they are all equal, so the
+stable sort leaves them in the order of the assay table. compare the score of each composite below detection with the
+one before it in that table to see the artifact.
 
 <details><summary>Python</summary>
 
@@ -62,9 +62,8 @@ print(f"naive: {rising_fraction(naive):.0%} of consecutive below-detection rows 
 naive: 100% of consecutive below-detection rows have a rising score
 ```
 
-Essentially every consecutive pair rises: the transform has quietly asserted that cyanide increases down the
-assay sheet within the censored group, which the data says nothing about. `censored=` shuffles the tie with a
-seed instead.
+almost every consecutive pair rises: the transform asserts that cyanide increases down the assay sheet within the
+censored group, and the data say nothing about that. `censored=` shuffles the tie with a seed instead.
 
 <details><summary>Python</summary>
 
@@ -92,12 +91,12 @@ censored=: 51% rising — a coin flip, as it should be for indistinguishable val
 
 ![ties](ties.png)
 
-## Order is otherwise untouched
+## order is otherwise untouched
 
-Values above and below the limit, and ties at any other value, keep exactly the ranks `NormalScore` without
-`censored` would give them; back-transforming a censored fit's own scores round-trips to the reported data, limit
-values included, since nothing below the limit is invented — that needs a `reference` distribution instead, which
-`censored` cannot be combined with.
+values above and below the limit, and ties at any other value, keep the ranks that `NormalScore` gives them without
+`censored`. the scores of a censored fit back-transform to the reported data, limit values included, since the
+transform invents nothing below the limit. inventing values there needs a `reference` distribution, which you cannot
+combine with `censored`.
 
 <details><summary>Python</summary>
 
@@ -117,12 +116,11 @@ lowest score above the limit exceeds every below-detection score: True
 round-trips to the reported data: True
 ```
 
-## Composing with external drift kriging
+## composing with external drift kriging
 
-The soil geochemistry survey ([external drift kriging](../../06-kriging/04-external-drift-kriging/README.md)) censors gold and arsenic too.
-Normal-scoring `AU_PPB` and `AS_PPM` with their own `_BDL` flags, then kriging the gold score with magnetics and
-elevation as external drift, composes both features: the map below never treats a detection limit as if its
-neighbors along the sample sheet told it something real.
+the soil geochemistry survey ([external drift kriging](../../06-kriging/04-external-drift-kriging/README.md)) censors
+gold and arsenic too. normal-score `AU_PPB` and `AS_PPM` with their own `_BDL` flags, then krige the gold score with
+magnetics and elevation as external drift. the map below never reads an order into the samples at a detection limit.
 
 <details><summary>Python</summary>
 

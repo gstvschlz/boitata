@@ -1,11 +1,11 @@
 """
-# Along-hole transition matrix and MDS
+# along-hole transition matrix and MDS
 
-Which rock type follows which, going down a hole? `transition_matrix` tallies, for every composite, the class of
-composites one lag deeper in the same hole, into a `from`/`to` table shaped exactly like `domain_change`'s: rows
-the shallower rock, columns the deeper one, so `bt.plot.domain_change` draws it unmodified. `bt.plot.transition_mds`
-turns the row frequencies into a dissimilarity and lays the rocks out in 2D by classical MDS, so ones that most
-often lie next to each other sit close together.
+`transition_matrix` counts which rock type follows which down a hole. for each composite it tallies the class of the
+composites one lag deeper in the same hole, into a `from`/`to` table shaped like `domain_change`'s: rows the shallower
+rock, columns the deeper one, so `bt.plot.domain_change` draws it unmodified. `bt.plot.transition_mds` turns the row
+frequencies into a dissimilarity and lays the rocks out in 2D by classical MDS, so rocks that often touch sit close
+together.
 """
 
 # %% [hidden]
@@ -21,7 +21,7 @@ import numpy as np
 from common import save
 
 # %% [markdown]
-# ## Composites and their rock type
+# ## composites and their rock type
 #
 # 5 m composites of the stacked sulphide lenses, majority lithology only (as in [domain cleanup](../../02-data-and-geometry/14-domain-cleanup/README.md)); the scheme groups
 # the massive, semi-massive and stringer sulphides into one class.
@@ -42,10 +42,10 @@ table = bt.transition_matrix(depth, composites["LITH"], composites["HOLE_ID"], l
 print(f"{len(composites):,} composites, {int(np.sum(table['count'])):,} pairs 5 m apart")
 
 # %% [markdown]
-# ## The matrix, reused from `domain_change`
+# ## the matrix, reused from `domain_change`
 #
-# `frequency` is each rock's row already turned into shares, so the matrix plot needs no `relative=`: the diagonal,
-# staying in the same rock, is outlined and left blank.
+# `frequency` holds each rock's row as shares, so the matrix plot needs no `relative=`. the diagonal (staying in the
+# same rock) is outlined and left blank.
 
 # %%
 fig, ax = bt.plot.domain_change(table, value="frequency", fmt="{:.0%}")
@@ -55,9 +55,9 @@ save(fig, "matrix")
 # %% [markdown]
 # ## MDS: who sits next to whom
 #
-# `1 - (freq + freq.T) / 2` turned into a 2D layout by classical MDS: the volcaniclastic sits right next to the
-# sulphides it directly overlies, overburden and hanging wall cluster on their own, and the footwall and dyke sit
-# apart, matching how rarely either borders the others directly.
+# classical MDS turns `1 - (freq + freq.T) / 2` into a 2D layout. the volcaniclastic sits next to the sulphides it
+# overlies, overburden and hanging wall cluster on their own, and the footwall and dyke sit apart, since either
+# rarely borders the others.
 
 # %%
 fig, ax = bt.plot.transition_mds(table)

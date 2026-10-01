@@ -1,10 +1,10 @@
 """
-# Nugget inference
+# nugget inference
 
-The nugget is the jump of the variogram at the origin, and no pair of samples sits at zero distance to measure it.
-Each way of reading it looks from a different distance and direction: extrapolating the first lags down a hole,
-comparing the closest samples of neighboring holes, or fitting a model to the variogram between holes. Five such
-estimates for gold in vein V1, side by side, and the one to keep.
+the nugget is the jump of the variogram at the origin, and no pair of samples sits at zero distance to measure it. each
+way of reading it looks from a different distance and direction: extrapolating the first lags down a hole, comparing the
+closest samples of neighboring holes, or fitting a model to the variogram between holes. five such estimates for gold in
+vein V1 sit side by side, followed by the one to keep.
 """
 
 # %% [hidden]
@@ -36,13 +36,13 @@ print(
 )
 
 # %% [markdown]
-# Every estimate below uses the same samples: the channel assays of the V1 quartz, about 0.5 m long, uncomposited, so
-# that support does not differ between them. Gold grades are skewed and a few extreme pairs make a raw variogram erratic
-# ([madogram](../../05-spatial-continuity/06-madogram/README.md)); the log of the grades, closer to Gaussian, gives
-# steadier ones, so the nuggets here are those of log Au, each divided by the variance of the samples.
+# every estimate uses the same samples: the channel assays of the V1 quartz, about 0.5 m long and uncomposited, so
+# support does not differ between them. gold grades are skewed, and a few extreme pairs make a raw variogram erratic
+# ([madogram](../../05-spatial-continuity/06-madogram/README.md)). the log of the grades, closer to gaussian, gives
+# steadier variograms, so the nuggets here are those of log Au, each divided by the variance of the samples.
 #
-# The channels run across the vein on levels 20 m apart, about one channel every 3 m along each drive. That spacing
-# sets what each estimate can see. The vein's orientation, from the samples' best-fit plane:
+# the channels run across the vein on levels 20 m apart, about one channel every 3 m along each drive. that spacing sets
+# what each estimate can see. the vein's orientation, from the samples' best-fit plane:
 
 # %%
 centered = channels.coords - channels.coords.mean(axis=0)
@@ -54,11 +54,11 @@ strike = (dip_direction - 90) % 360
 print(f"V1 strikes {strike:03.0f}° and dips {dip:.0f}° towards {dip_direction:03.0f}°")
 
 # %% [markdown]
-# ## Down the channels
+# ## down the channels
 #
-# A channel is a short horizontal hole across the vein. With `holes=`, only pairs within one channel count, so the
-# first lags sit at one, two and three sample lengths; `nugget()` draws a line through the first three and reads it at
-# zero, as in [downhole nugget](../../05-spatial-continuity/05-downhole-nugget/README.md).
+# a channel is a short horizontal hole across the vein. with `holes=`, only pairs within one channel count, so the first
+# lags sit at one, two and three sample lengths. `nugget()` draws a line through the first three and reads it at zero,
+# as in [downhole nugget](../../05-spatial-continuity/05-downhole-nugget/README.md).
 
 # %%
 downhole = bt.experimental_variogram(channels, "LOG_AU", 0.5, 3.0, holes="HOLE_ID")
@@ -67,13 +67,13 @@ for h, g, n in zip(downhole.lags[:3], downhole.gammas[:3] / variance, downhole.c
     print(f"{h:4.2f} m  γ/σ² {g:.2f}  {n:.0f} pairs")
 
 # %% [markdown]
-# ## Neighboring channels
+# ## neighboring channels
 #
-# Half the mean squared difference of paired samples is the variogram at the pairing distance. Field duplicates, two
-# samples split from one interval, would put that distance at zero and measure the sampling and assay error alone;
-# these data hold none ([duplicates](../../02-data-and-geometry/04-duplicates/README.md) finds only records entered
-# twice). The next closest pairs are the samples of adjacent channels: `pairs` takes, for each sample, the nearest one
-# of another channel within 5 m.
+# half the mean squared difference of paired samples is the variogram at the pairing distance. field duplicates, two
+# samples split from one interval, would put that distance at zero and measure the sampling and assay error alone. these
+# data hold none ([duplicates](../../02-data-and-geometry/04-duplicates/README.md) finds only records entered twice).
+# the next closest pairs are the samples of adjacent channels: `pairs` takes, for each sample, the nearest one of
+# another channel within 5 m.
 
 # %%
 paired = bt.pairs(channels, channels, 5.0, values="LOG_AU", holes="HOLE_ID")
@@ -82,12 +82,12 @@ estimates["adjacent channels"] = 0.5 * np.mean((a - b) ** 2) / variance
 print(f"{len(paired)} pairs, mean distance {paired['distance'].mean():.1f} m")
 
 # %% [markdown]
-# ## Fitted between channels
+# ## fitted between channels
 #
-# The usual route: experimental variograms with 3 m lags, fitted with two nested spherical structures and a free
-# nugget. The omnidirectional variogram pools all pairs; the directional ones follow the drives along strike and the
-# dip of the vein, across the levels. Each lag is labeled by the center of its bin, so the first one along strike, at
-# 1.5 m, holds the adjacent channels 2.5 to 3 m apart.
+# the usual route fits experimental variograms with 3 m lags, using two nested spherical structures and a free nugget.
+# the omnidirectional variogram pools all pairs; the directional ones follow the drives along strike and the dip of the
+# vein, across the levels. each lag carries the label of its bin center, so the first one along strike, at 1.5 m, holds
+# the adjacent channels 2.5 to 3 m apart.
 
 # %%
 lag, max_lag, model = 3.0, 60.0, ["spherical", "spherical"]
@@ -107,7 +107,7 @@ for name, direction in directions.items():
     )
 
 # %% [markdown]
-# ## Side by side
+# ## side by side
 
 # %%
 print(f"{'estimate':28}{'nugget / variance':>18}")
@@ -156,30 +156,30 @@ b.set_title("Five estimates")
 save(fig, "nuggets")
 
 # %% [markdown]
-# ## Why they differ
+# ## why they differ
 #
-# The estimates run from 0.38 to 0.73 of the variance, all from the same samples. They differ in the distance each
-# one reads from. Down the channels the first lag sits at 0.5 m; adjacent channels lie 2.9 m apart along strike; down
-# the dip the closest pairs are a level apart, 20 m. Whatever structure the variogram has between zero and the first
-# lag lands in the nugget, so an estimate that starts further out comes out higher. The down-dip fit has no pair
-# closer than 18 m and puts most of its sill in the nugget. The omnidirectional variogram pools pairs across the vein,
-# where log Au changes fast, with pairs along strike, where it changes slowly; its fit sits above both directions.
+# the estimates run from 0.38 to 0.73 of the variance, all from the same samples, because each one reads from a
+# different distance. down the channels the first lag sits at 0.5 m; adjacent channels lie 2.9 m apart along strike;
+# down the dip the closest pairs are a level apart, 20 m. any structure the variogram has between zero and the first lag
+# lands in the nugget, so an estimate that starts farther out comes out higher. the down-dip fit has no pair closer than
+# 18 m and puts most of its sill in the nugget. the omnidirectional variogram pools pairs across the vein, where log Au
+# changes fast, with pairs along strike, where it changes slowly, and its fit sits above both directions.
 #
-# Two sources share the nugget and none of these estimates can split them: sampling and assay error, which only
-# duplicates measure, and geology below the 0.5 m sample, the free gold and quartz textures inside one interval. Both
-# shrink as the support grows. The values here hold for 0.5 m samples; 1 m composites would show a smaller nugget
+# two sources share the nugget, and none of these estimates can split them: sampling and assay error, which only
+# duplicates measure, and geology below the 0.5 m sample, the free gold and quartz textures inside one interval. both
+# shrink as the support grows. the values here hold for 0.5 m samples; 1 m composites would show a smaller nugget
 # ([downhole nugget](../../05-spatial-continuity/05-downhole-nugget/README.md) follows that effect with composite
 # length).
 #
-# ## The choice
+# ## the choice
 #
-# Take the downhole extrapolation, 0.38 of the variance. It reads the shortest lags, with thousands of pairs at each,
-# and the nugget has no direction, so the direction with the shortest lags sees it best. The adjacent channels give
-# 0.41, an upper bound, since their pairs include 2.9 m of structure along strike; the two agree, so the line did not
-# undershoot. The along-strike fit gives 0.43. The omnidirectional and down-dip fits start beyond the short-scale
+# take the downhole extrapolation, 0.38 of the variance. it reads the shortest lags, with thousands of pairs at each,
+# and the nugget has no direction, so the direction with the shortest lags sees it best. the adjacent channels give
+# 0.41, an upper bound, since their pairs include 2.9 m of structure along strike. the two agree, so the line did not
+# undershoot. the along-strike fit gives 0.43. the omnidirectional and down-dip fits start beyond the short-scale
 # structure and overstate the nugget.
 #
-# The choice goes into the model as a fixed `nugget=`. Along strike, the refit with the nugget held at 0.38 follows the
+# the choice goes into the model as a fixed `nugget=`. along strike, the refit with the nugget held at 0.38 follows the
 # points almost as well as the free fit, its short structure taking up the difference:
 
 # %%

@@ -1,8 +1,9 @@
-# Data spacing
+# data spacing
 
-A coal seam drilled on a regular mesh, then infilled where the seam is thick. How far apart are the holes, and how far
-is each part of the lease from the drilling? Spacing measured at the holes describes the drilling; distance measured
-from every cell of a grid is the usual basis for resource classification ([classification](../../10-checking-models/05-classification/README.md)).
+a coal seam drilled on a regular mesh, then infilled where the seam is thick. how far apart are the holes, and how far
+is each part of the lease from the drilling? spacing measured at the holes describes the drilling. distance measured
+from every cell of a grid is the usual basis for resource classification
+([classification](../../10-checking-models/05-classification/README.md)).
 
 <details><summary>Python</summary>
 
@@ -23,12 +24,12 @@ print(f"{len(holes)} holes, {grid['INSIDE'].sum():.0f} cells of 100 m inside the
 295 holes, 7162 cells of 100 m inside the lease
 ```
 
-## Spacing between holes
+## spacing between holes
 
-`data_spacing` gives the distance from each point to its nearest neighbor, or the mean over its `n` nearest; with
-`targets=` it measures from other locations, and `horizontal=True` measures in plan, for 3D data. The spread is wide:
-a tenth of the holes have a neighbor within 90 m, in the infill clusters, and a tenth none within 526 m, on the mesh
-and at the edges.
+`data_spacing` gives the distance from each point to its nearest neighbor, or the mean over its `n` nearest. with
+`targets=` it measures from other locations, and `horizontal=True` measures in plan for 3D data. the spread is wide: a
+tenth of the holes have a neighbor within 90 m, in the infill clusters, and a tenth have none within 526 m, on the
+mesh and at the edges.
 
 <details><summary>Python</summary>
 
@@ -54,13 +55,12 @@ nearest hole: median 237 m, P10 90 m, P90 526 m
 
 ![spacing](spacing.png)
 
-## Distance from the lease to the holes
+## distance from the lease to the holes
 
-`hole_distance` measures from any targets, here the grid cells, the mean distance to the `n` nearest holes, one
-column per `n`. It counts each hole once, at its nearest sample, so a hole with many samples down its length does
-not pass for several holes; here each hole is one point. The distance to the nearest hole says whether a cell is
-drilled at all; the mean over three holes also asks whether it is surrounded by drilling, which is what a
-classification by spacing reads.
+`hole_distance` measures, from any targets (here the grid cells), the mean distance to the `n` nearest holes, one
+column per `n`. it counts each hole once, at its nearest sample, so a hole with many samples down its length counts as
+one hole; here each hole is one point. the distance to the nearest hole says whether a cell is drilled at all. the
+mean over three holes also asks whether drilling surrounds the cell, which is what a classification by spacing reads.
 
 <details><summary>Python</summary>
 
@@ -92,9 +92,10 @@ save(fig, "distance")
 
 ![distance](distance.png)
 
-Half the lease lies within 233 m of a hole, but the mean distance to three holes has a median of 376 m: a cell next
-to one isolated hole looks well drilled by the first measure and not by the second. The gaps between the mesh lines
-and the edges of the lease, up to 923 m from three holes, stand out on the right. [Classification](../../10-checking-models/05-classification/README.md) turns these distances
-into measured, indicated and inferred classes.
+half the lease lies within 233 m of a hole, but the mean distance to three holes has a median of 376 m: a cell next to
+one isolated hole looks well drilled by the first measure and poorly drilled by the second. the gaps between the mesh
+lines and the edges of the lease, up to 923 m from three holes, stand out on the right.
+[classification](../../10-checking-models/05-classification/README.md) turns these distances into measured, indicated
+and inferred classes.
 
 Full script: [`example_03_10.py`](example_03_10.py)

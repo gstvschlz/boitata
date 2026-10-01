@@ -1,10 +1,10 @@
-# Block models
+# block models
 
-A `BlockModel` is a grid of boxes, the blocks, with one attribute row per block. Three numbers per axis define
-the grid: origin, block size and block count, plus three angles when it is rotated. The blocks come in
-three layouts. A regular model holds every cell of the grid, a masked model a subset of them, and a
-sub-blocked model splits some cells into smaller boxes. This page builds each one on small grids you can count
-by eye, then reads a model back from centroids and from a file.
+a `BlockModel` is a grid of boxes, the blocks, with one attribute row per block. three numbers per axis define
+the grid (origin, block size and block count), plus three angles when it is rotated. the blocks come in three
+layouts: a regular model holds every cell of the grid, a masked model a subset of them, and a sub-blocked model
+splits some cells into smaller boxes. you build each one here on grids small enough to count by eye, then read a
+model back from centroids and from a file.
 
 <details><summary>Python</summary>
 
@@ -26,11 +26,11 @@ def draw(ax, model, color=LIGHT, edge="white", **style):
 
 </details>
 
-## A regular grid
+## a regular grid
 
-The grid below has 5 × 4 × 3 blocks of 10 × 10 × 5 m. Its origin is the outer corner of the first block, the
-one with the smallest x, y and z, and not that block's center. The first centroid sits half a block
-from the origin along each axis.
+the grid has 5 × 4 × 3 blocks of 10 × 10 × 5 m. its origin is the outer corner of the first block (the one with
+the smallest x, y and z), not that block's center. the first centroid sits half a block from the origin along
+each axis.
 
 <details><summary>Python</summary>
 
@@ -49,10 +49,10 @@ first corner:   [1000. 2000.  300.]
 first centroid: [1005.  2005.   302.5]
 ```
 
-## Cell index, (i, j, k) and centroid
+## cell index, (i, j, k) and centroid
 
-Each cell has a linear index that runs along x first, then y, then z: n = i + nx (j + ny k). A regular model
-stores its rows in that order and stores no coordinates, so row n is cell n. Integer division takes an index
+each cell has a linear index that runs along x first, then y, then z: n = i + nx (j + ny k). a regular model
+stores its rows in that order and stores no coordinates, so row n is cell n. integer division takes an index
 back to (i, j, k), and the centroid is the origin plus (i + ½, j + ½, k + ½) blocks.
 
 <details><summary>Python</summary>
@@ -75,8 +75,8 @@ same centroids as the model: True
 back to the index: True
 ```
 
-Going from a point to its cell reverses the last step: subtract the origin, divide by the block size and round
-down. `row_at` does this for you and returns -1 for a point outside the grid.
+to go from a point to its cell, reverse the last step: subtract the origin, divide by the block size and round
+down. `row_at` does this and returns -1 for a point outside the grid.
 
 <details><summary>Python</summary>
 
@@ -96,8 +96,8 @@ index:     [27, 59, 30]
 row_at:    [27, 59, -1]
 ```
 
-The third point lies east of the last column, so its i of 5 is out of range and `row_at` gives -1. The middle
-level (k = 1) in plan, each cell labeled with its index and (i, j), and the first point:
+the third point lies east of the last column, so its i of 5 is out of range and `row_at` gives -1. the plan shows
+the middle level (k = 1), each cell labeled with its index and (i, j), and the first point:
 
 <details><summary>Python</summary>
 
@@ -125,11 +125,11 @@ save(fig, "indices")
 
 ![indices](indices.png)
 
-## A rotated grid
+## a rotated grid
 
-`rotation` takes azimuth, dip and rake in degrees, and the grid turns about its origin. With an azimuth of 30°
-the y axis of the grid points N30°E and the x axis N120°E. The rows of `corners` give those axes: vertex 1, 2
-and 4 of a block sit one block length from vertex 0 along x, y and z. Written as the columns of a matrix, the axes
+`rotation` takes azimuth, dip and rake in degrees, and the grid turns about its origin. with an azimuth of 30°
+the y axis of the grid points N30°E and the x axis N120°E. the rows of `corners` give those axes: vertices 1, 2
+and 4 of a block sit one block length from vertex 0 along x, y and z. written as the columns of a matrix, the axes
 carry a position in the grid (i + ½, j + ½, k + ½ blocks) to the world, and the transposed matrix carries a world
 point back into the grid.
 
@@ -163,7 +163,7 @@ same centroids: True
 point in cell [2, 2, 1] index 32 row_at [32]
 ```
 
-The same level of the rotated grid, with the grid axes drawn from the origin. Indices keep their order in the
+the same level of the rotated grid, with the grid axes drawn from the origin. indices keep their order in the
 grid frame, so cell 20 stays at the origin corner whatever the rotation:
 
 <details><summary>Python</summary>
@@ -191,15 +191,15 @@ save(fig, "rotated")
 
 ![rotated](rotated.png)
 
-To size a rotated grid on data rather than choose its origin and count by hand, see
+to size a rotated grid on data instead of choosing its origin and count by hand, see
 [block model from extents](../../02-data-and-geometry/12-block-model-from-extents/README.md).
 
-## Masked layout
+## masked layout
 
-A masked model keeps some cells of the grid and drops the rest. It stores the geometry once and the sorted
-indices of the cells present, so row and cell index part ways: `index[row]` is the cell. Here a 2D grid of
-20 × 16 blocks of 10 m keeps the cells whose centroid falls inside a domain outline. A 2D grid has one level,
-`nz = 1`, and its blocks take a unit height.
+a masked model keeps some cells of the grid and drops the rest. it stores the geometry once and the sorted
+indices of the cells present, so row and cell index part ways: `index[row]` is the cell. here a 2D grid of
+20 × 16 blocks of 10 m keeps the cells whose centroid falls inside a domain outline. a 2D grid has one level
+(`nz = 1`), and its blocks take a unit height.
 
 <details><summary>Python</summary>
 
@@ -225,7 +225,7 @@ first rows hold cells [33, 34, 46, 47, 48]
 rows [28, -1] -> cell 86 | in the full grid: [86, 0]
 ```
 
-The second point falls in cell 0, which the mask dropped, so the masked model returns -1 where the full grid
+the second point falls in cell 0, which the mask dropped, so the masked model returns -1 where the full grid
 returns row 0. `to_regular` puts every cell back and leaves the dropped ones null.
 
 <details><summary>Python</summary>
@@ -254,14 +254,14 @@ BlockModel(regular, 320 of 320 cells, count [20, 16, 1], size [10.0, 10.0, 1.0],
 
 ![masked](masked.png)
 
-Masking suits models that fill a fraction of their grid, such as one domain in a large box; the
+masking suits models that fill a fraction of their grid, such as one domain in a large box. the
 [models larger than memory](../../02-data-and-geometry/10-large-models/README.md) page builds one level by level.
 
-## Sub-blocked layout
+## sub-blocked layout
 
-A sub-blocked model keeps a parent grid and gives each row a parent cell and an extent inside it, as fractions of
-the parent from 0 to 1: minimum u, v, w, then maximum u, v, w. A parent can hold one row, whole or partial, or
-several smaller boxes. With `subgrid=(4, 4, 1)` every fraction must fall on quarters of a parent. Below, cell 0
+a sub-blocked model keeps a parent grid and gives each row a parent cell and an extent inside it, as fractions of
+the parent from 0 to 1: minimum u, v, w, then maximum u, v, w. a parent can hold one row, whole or partial, or
+several smaller boxes. with `subgrid=(4, 4, 1)` each fraction must fall on quarters of a parent. here cell 0
 stays whole, cell 1 splits into four quarters and cell 4 keeps only its southern quarter.
 
 <details><summary>Python</summary>
@@ -305,16 +305,16 @@ per parent: [0.4, 0.72, nan, nan, 2.0, nan]
 
 ![subblocks](subblocks.png)
 
-`to_regular` merged each parent back into one row: floats become area-weighted means (1.2, 0.9, 0.3 and 0.5
-average to 0.72 in cell 1), and cell 4 keeps the 2.0 of its only sub-block. Cells 2, 3 and 5 hold no sub-block
-and stay null. Sub-blocks usually come from solids and surfaces, not from a hand-written list; the
+`to_regular` merged each parent back into one row. floats become area-weighted means (1.2, 0.9, 0.3 and 0.5
+average to 0.72 in cell 1), and cell 4 keeps the 2.0 of its only sub-block. cells 2, 3 and 5 hold no sub-block
+and stay null. in practice sub-blocks come from solids and surfaces; the
 [sub-blocks](../../02-data-and-geometry/06-sub-blocks/README.md) page builds them from meshes and regularizes them.
 
-## A model from centroids
+## a model from centroids
 
-Block models often arrive as a table of centroids and attributes, one row per block, with the block size known
-from elsewhere. `from_extents` with a buffer of half a block recovers the grid, since the outer centroids lie half a
-block inside it, and `row_at` gives each centroid its cell. The table here comes from the masked domain above,
+block models often arrive as a table of centroids and attributes, one row per block, with the block size known
+from elsewhere. the outer centroids lie half a block inside the grid, so `from_extents` with a buffer of half a
+block recovers it, and `row_at` gives each centroid its cell. the table here is the masked domain from above,
 written as CSV.
 
 <details><summary>Python</summary>
@@ -343,8 +343,8 @@ BlockModel(masked, 159 of 224 cells, count [16, 14, 1], size [10.0, 10.0, 1.0], 
 origin [30.0, 10.0, 0.0] count [16, 14, 1]
 ```
 
-The domain spans fewer cells than the grid it came from, so the rebuilt grid is smaller and starts elsewhere
-(origin 30, 10 instead of 0, 0), and its indices differ. The blocks coincide: same centroids, same values.
+the domain spans fewer cells than the grid it came from, so the rebuilt grid is smaller, starts elsewhere
+(origin 30, 10 instead of 0, 0) and numbers its cells differently. the blocks coincide: same centroids, same values.
 
 <details><summary>Python</summary>
 
@@ -360,13 +360,13 @@ same centroids: True
 same values:    True
 ```
 
-Without the known block size, the smallest gap between distinct centroid coordinates along each axis gives it,
-provided at least two neighboring blocks share a row.
+without a known block size, take the smallest gap between distinct centroid coordinates along each axis, as long
+as at least two neighboring blocks share a row.
 
-## Round trip to a file
+## round trip to a file
 
-CSV kept only centroids and attributes. Parquet keeps the whole model: geometry, rotation, layout, index and
-CRS travel in the file metadata. The rotated grid, masked to its middle level, goes out and comes back unchanged.
+CSV kept only centroids and attributes. parquet keeps the whole model: geometry, rotation, layout, index and
+CRS travel in the file metadata. the rotated grid, masked to its middle level, goes out and comes back unchanged.
 
 <details><summary>Python</summary>
 
@@ -393,7 +393,7 @@ origin [1000.0, 2000.0, 300.0] rotation [30.0, 0.0, 0.0]
 same cells: True | same cu: True
 ```
 
-[Storing containers in Parquet](../../01-first-steps/04-parquet/README.md) covers the file format, reading a model
+[storing containers in parquet](../../01-first-steps/04-parquet/README.md) covers the file format, reading a model
 with polars, and models of other layouts.
 
 Full script: [`example_01_02.py`](example_01_02.py)

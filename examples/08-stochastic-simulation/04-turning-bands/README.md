@@ -1,7 +1,7 @@
-# Turning bands
+# turning bands
 
-Turning bands sums many one-dimensional processes along random lines into an unconditional Gaussian field, then
-conditions it to the data by kriging the residuals. It draws the same kind of realizations as SGS ([sequential Gaussian simulation](../../08-stochastic-simulation/01-sgs/README.md)) without a
+turning bands sums many one-dimensional processes along random lines into an unconditional gaussian field, then
+conditions it to the data by kriging the residuals. it draws the same kind of realizations as SGS ([sequential gaussian simulation](../../08-stochastic-simulation/01-sgs/README.md)) without a
 random path.
 
 <details><summary>Python</summary>
@@ -20,7 +20,7 @@ grid = bt.BlockModel(origin=(0.5, 0.5), size=(5, 5), count=(52, 60))
 
 </details>
 
-Declustered normal scores and their variogram along N170°, the direction of greatest continuity ([variogram fitting](../../05-spatial-continuity/02-variogram-fitting/README.md)), and
+declustered normal scores and their variogram along N170°, the direction of greatest continuity ([variogram fitting](../../05-spatial-continuity/02-variogram-fitting/README.md)), and
 across it, scaled to a unit sill:
 
 <details><summary>Python</summary>
@@ -47,7 +47,7 @@ print(gaussian)
 Variogram(nugget=0.3315861183518779, structures=[Structure("spherical", sill=0.6684138816481222, range=82.43111673409601)], rotation=(170.0, 0.0, 0.0), ratios=(0.42564072265384956, 1.0))
 ```
 
-Both methods normal-score the data, simulate and back-transform; `bands` sets how many lines turning bands sums.
+both methods normal-score the data, simulate and back-transform; `bands` sets how many lines turning bands sums.
 
 <details><summary>Python</summary>
 
@@ -69,11 +69,11 @@ for name, reals, seconds in (("SGS", by_sgs, sgs_seconds), ("turning bands", by_
 </details>
 
 ```text
-          SGS: 20 realizations in 0.02 s, mean 300 ppm, variance 71089 ppm²
-turning bands: 20 realizations in 0.07 s, mean 295 ppm, variance 69673 ppm²
+          SGS: 20 realizations in 0.01 s, mean 300 ppm, variance 71089 ppm²
+turning bands: 20 realizations in 0.06 s, mean 295 ppm, variance 69672 ppm²
 ```
 
-Both follow the same high-grade trends, with the same short-scale scatter:
+both follow the same high-grade trends, with the same short-scale scatter:
 
 <details><summary>Python</summary>
 
@@ -99,7 +99,7 @@ save(fig, "realizations")
 
 ![realizations](realizations.png)
 
-Along the major axis both follow the model, from its nugget at the first lags to the sill at its range. Turning bands
+along the major axis both follow the model, from its nugget at the first lags to the sill at its range. turning bands
 simulates the nugget as independent noise at each node, since the bands carry only the structures:
 
 <details><summary>Python</summary>

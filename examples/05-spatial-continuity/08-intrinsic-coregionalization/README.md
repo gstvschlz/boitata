@@ -1,10 +1,10 @@
-# Intrinsic coregionalization
+# intrinsic coregionalization
 
-An intrinsic coregionalization is the simplest multivariate variogram model: every direct and cross variogram is the
-same normalized shape, one set of structures, ranges and anisotropy, scaled by one entry of a covariance matrix. The
-correlation between two variables is then the same at every lag. `Coregionalization.fit(..., intrinsic=True)` fits
-the shape to the pooled direct variograms, each divided by its sill, then the positive semi-definite covariance
-matrix; `Coregionalization.intrinsic` builds one from a variogram and a matrix. Either way the result is an ordinary
+an intrinsic coregionalization is the simplest multivariate variogram model: every direct and cross variogram has the
+same normalized shape (one set of structures, ranges and anisotropy) scaled by one entry of a covariance matrix. the
+correlation between two variables is then the same at every lag. `Coregionalization.fit(..., intrinsic=True)` fits the
+shape to the pooled direct variograms, each divided by its sill, then fits the positive semi-definite covariance matrix.
+`Coregionalization.intrinsic` builds one from a variogram and a matrix. either way the result is an ordinary
 `Coregionalization`, so cokriging and cosimulation take it unchanged.
 
 <details><summary>Python</summary>
@@ -31,9 +31,10 @@ print(f"{len(cd)} samples, corr(Cd, Zn) {np.corrcoef(cd, zn)[0, 1]:.2f}")
 
 ## Cd and Zn
 
-The Jura soil samples of [coregionalization](../../05-spatial-continuity/07-coregionalization/README.md) (mg/kg, coordinates in km). `experimental_variograms` computes both variograms
-and the cross-variogram as a `VariogramSet`, which the fit takes as it is. The intrinsic model has one shape, a
-nugget and two spherical structures, and one 2 x 2 sill matrix.
+the data are the jura soil samples of [coregionalization](../../05-spatial-continuity/07-coregionalization/README.md)
+(mg/kg, coordinates in km). `experimental_variograms` computes both variograms and the cross-variogram as a
+`VariogramSet`, which the fit takes as it is. the intrinsic model has one shape (a nugget and two spherical
+structures) and one 2 x 2 sill matrix.
 
 <details><summary>Python</summary>
 
@@ -68,10 +69,11 @@ full LMC: sills Cd 0.828, Zn 923, correlation 0.64
   share of the Cd / Zn sill: nugget 0 / 0 %, spherical 0.15 km 83 / 53 %, spherical 1.47 km 17 / 47 %
 ```
 
-The full linear model of coregionalization of [coregionalization](../../05-spatial-continuity/07-coregionalization/README.md) gives each variable its own mix of the shared structures:
-Cd puts 83 % of its sill in the short structure, Zn 53 %. The intrinsic model gives both the same 68 %, a
-compromise, and one correlation, 0.64, at every lag. The total sills and the correlation hardly differ between the
-two models, so the curves meet at large lags; at short lags the intrinsic model is too smooth for Cd and too rough
+the full linear model of coregionalization of
+[coregionalization](../../05-spatial-continuity/07-coregionalization/README.md) gives each variable its own mix of the
+shared structures: Cd puts 83 % of its sill in the short structure, Zn 53 %. the intrinsic model gives both the same
+68 %, a compromise, and one correlation, 0.64, at every lag. the total sills and the correlation differ little between
+the two models, so the curves meet at large lags. at short lags the intrinsic model is too smooth for Cd and too rough
 for Zn:
 
 <details><summary>Python</summary>
@@ -96,10 +98,11 @@ save(fig, "variograms")
 
 ![variograms](variograms.png)
 
-## Cokriging with either model
+## cokriging with either model
 
-Both models go to `Cokriging` the same way. Collocated cokriging of Cd at the 100 validation samples, with Zn known
-there, as in [cokriging](../../06-kriging/09-cokriging/README.md). With the correlation this similar, the simpler model predicts as well:
+both models go to `Cokriging` the same way. the test kriges Cd at the 100 validation samples by collocated cokriging,
+with Zn known there, as in [cokriging](../../06-kriging/09-cokriging/README.md). with correlations this close, the
+simpler model predicts as well:
 
 <details><summary>Python</summary>
 
@@ -120,10 +123,10 @@ for name, model in [("intrinsic", icm), ("full LMC", lmc)]:
   full LMC: validation RMSE 0.689 mg/kg
 ```
 
-## Seven metals
+## seven metals
 
-The intrinsic model grows with the number of variables only through its covariance matrix: seven metals need one
-shape and 28 matrix entries, fitted in one pass. Its correlations are the ones the model implies at every lag:
+the intrinsic model grows with the number of variables only through its covariance matrix: seven metals need one shape
+and 28 matrix entries, fitted in one pass. its correlations hold at every lag:
 
 <details><summary>Python</summary>
 

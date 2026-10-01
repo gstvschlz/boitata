@@ -1,10 +1,10 @@
-# Spatial bootstrap
+# spatial bootstrap
 
-A declustered mean is one number from a few hundred holes. How far off could it be? The classical bootstrap
-resamples the holes independently and answers σ/√n, but neighboring holes carry much the same information, so the
-true uncertainty is larger. `bt.spatial_bootstrap` resamples with the spatial correlation: each realization draws
-unconditional Gaussian values at the holes with the normal-score variogram, turns them into ranks, and reads the ranks
-through the declustered distribution of the data. Nearby holes then get similar draws and the resampled mean spreads
+a declustered mean is one number from a few hundred holes. how far off could it be? the classical bootstrap resamples
+the holes independently and answers σ/√n, but neighboring holes carry much the same information, so the true
+uncertainty is larger. `bt.spatial_bootstrap` resamples with the spatial correlation. each realization draws
+unconditional gaussian values at the holes with the normal-score variogram, turns them into ranks, and reads the ranks
+through the declustered distribution of the data. nearby holes then get similar draws, and the resampled mean spreads
 as far as the correlation allows.
 
 <details><summary>Python</summary>
@@ -31,8 +31,8 @@ print(f"{len(holes)} holes, declustered mean {mean:.2f} m, standard deviation {s
 295 holes, declustered mean 1.91 m, standard deviation 0.83 m
 ```
 
-The variogram that drives the resampling is the one of the normal scores. Thicknesses are logged to the centimeter
-and many repeat, so `bt.despike` breaks the ties first; the fitted variogram is then rescaled to a unit sill.
+the resampling runs on the variogram of the normal scores. thicknesses are logged to the centimeter and many repeat,
+so `bt.despike` breaks the ties first; the fitted variogram is then rescaled to a unit sill.
 
 <details><summary>Python</summary>
 
@@ -63,8 +63,8 @@ independent: standard deviation of the mean 0.048 m
         σ/√n: 0.048 m
 ```
 
-A pure-nugget variogram makes every draw independent, which is the classical bootstrap: its spread matches σ/√n.
-With the fitted variogram, whose range is about 3 km over an 11 × 7 km lease, the spread is four times wider:
+a pure-nugget variogram makes every draw independent, which gives the classical bootstrap: its spread matches σ/√n.
+with the fitted variogram, whose range is about 3 km over an 11 × 7 km lease, the spread is four times wider:
 
 <details><summary>Python</summary>
 
@@ -84,10 +84,10 @@ save(fig, "means")
 
 ![means](means.png)
 
-## Range and effective number of holes
+## range and effective number of holes
 
-The spread grows with the range. Written as an effective number of independent holes, (σ / spread)², the 295
-holes count as about a dozen at the fitted range of 3 km, and as one once the range spans the whole lease.
+the spread grows with the range. as an effective number of independent holes, (σ / spread)², the 295 holes count as
+about a dozen at the fitted range of 3 km, and as one once the range spans the whole lease.
 
 <details><summary>Python</summary>
 
@@ -138,11 +138,11 @@ range   50000 m: spread 0.844 m, effective holes 1
 
 ![ranges](ranges.png)
 
-## Tonnage uncertainty
+## tonnage uncertainty
 
-The lease covers the cells flagged `INSIDE`; at 1.4 t/m³ each realization of the mean thickness gives a tonnage.
-The table also returns quantiles and proportions above cutoffs per realization, here the share of the seam thicker
-than 2 m, the minimum mining height.
+the lease covers the cells flagged `INSIDE`; at 1.4 t/m³ each realization of the mean thickness gives a tonnage. the
+table also returns quantiles and proportions above cutoffs per realization, here the share of the seam thicker than 2
+m, the minimum mining height.
 
 <details><summary>Python</summary>
 
@@ -167,8 +167,8 @@ independent: P10 185 Mt, P50 191 Mt, P90 198 Mt; thicker than 2 m 34% to 41%
     spatial: P10 167 Mt, P50 190 Mt, P90 219 Mt; thicker than 2 m 25% to 50%
 ```
 
-Independent resampling promises the tonnage within a few percent; with the spatial correlation the P10–P90 range
-is four times wider. That is the uncertainty in the global mean from the holes alone, before any estimate or
-simulation: a lower bound on what a resource can claim, and a guide to whether more holes pay.
+independent resampling promises the tonnage within a few percent; with the spatial correlation the P10 to P90 range is
+four times wider. that range is the uncertainty in the global mean from the holes alone, before any estimate or
+simulation. it sets a lower bound on what a resource can claim and tells you whether more holes would pay.
 
 Full script: [`example_03_12.py`](example_03_12.py)

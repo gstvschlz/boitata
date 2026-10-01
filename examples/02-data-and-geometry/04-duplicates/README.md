@@ -1,8 +1,8 @@
-# Duplicates
+# duplicates
 
-Collars entered twice, holes collared next to each other and samples assayed twice put several records at one place,
+collars entered twice, holes collared next to each other and samples assayed twice put several records at one place,
 and kriging cannot weight two samples at the same location. `duplicates` groups the samples closer than a tolerance
-and merges each group. The raw tables of the stacked sulphide lenses carry such errors on purpose.
+and merges each group. the raw tables of the stacked sulphide lenses carry such errors on purpose.
 
 <details><summary>Python</summary>
 
@@ -24,10 +24,10 @@ print(f"{len(collars)} collars, {len(names)} hole ids, repeated: {', '.join(name
 290 collars, 288 hole ids, repeated: DD0058, DD0067
 ```
 
-## Collars
+## collars
 
-A repeated id is not always a repeated location. `duplicates` on the collar coordinates groups the collars within
-5 m of one another, transitively, and gives each group's first collar and its spread.
+a repeated id can sit at two locations. `duplicates` on the collar coordinates groups the collars within 5 m of
+one another, transitively, and gives each group's first collar and its spread.
 
 <details><summary>Python</summary>
 
@@ -50,15 +50,15 @@ DD0058 twice: 0 m apart
 DD0067 twice: 290 m apart
 ```
 
-DD0058 is one row entered twice: drop one. DD0067 names two collars 290 m apart, an id clash rather than a
-duplicate, which `check_drillholes` flags ([checking drill holes](../../02-data-and-geometry/01-check-drillholes/README.md)). DD0187 and RC0043 are two holes collared 2.7 m apart at
-different dips, not a duplicate: nearby holes of two drilling types are [paired data](../../03-exploratory-analysis/01-paired-data/README.md).
+DD0058 is one row entered twice: drop one. DD0067 names two collars 290 m apart, an id clash that `check_drillholes`
+flags ([checking drill holes](../../02-data-and-geometry/01-check-drillholes/README.md)). DD0187 and RC0043 are two holes collared 2.7 m apart at
+different dips. nearby holes of two drilling types are [paired data](../../03-exploratory-analysis/01-paired-data/README.md).
 
-## Samples
+## samples
 
-The grades of the raw assays are text, with `NS`, `<0.01` and `-999` among the numbers: anything that is not a plain
-number is read as missing here. The other planted errors are fixed with the default rules of [checking drill holes](../../02-data-and-geometry/01-check-drillholes/README.md), except
-overlaps, which are kept so that the samples entered twice survive.
+the grades of the raw assays are text, with `NS`, `<0.01` and `-999` among the numbers. here anything other than a
+plain number reads as missing. the default rules of [checking drill holes](../../02-data-and-geometry/01-check-drillholes/README.md) fix the other planted errors, except
+overlaps, which stay so that the samples entered twice survive.
 
 <details><summary>Python</summary>
 
@@ -82,8 +82,8 @@ print(f"{len(samples)} samples at their midpoints")
 16779 samples at their midpoints
 ```
 
-With a tolerance of 0, only samples at exactly the same location are grouped: three intervals of DD0162 were
-entered twice, with grades within 10 % of each other.
+with a tolerance of 0, only samples at the same location are grouped: three intervals of DD0162 were entered twice,
+with grades within 10 % of each other.
 
 <details><summary>Python</summary>
 
@@ -128,10 +128,9 @@ DD0162 at 613.8 m: Zn 0.086 and 0.082 %
 
 ![duplicates](duplicates.png)
 
-A tolerance of a meter or two would also group neighbors along a hole, short intervals on both sides of a contact
-that are not duplicates. `merge="mean"` replaces each group by one sample at its first location with the mean
-grade, and the `n` column counts the samples behind each row; `"first"` keeps the first entry instead, `"max"` the
-largest value.
+a tolerance of a meter or two would also group neighbors along a hole, such as short intervals on both sides of a
+contact. `merge="mean"` replaces each group by one sample at its first location with the mean grade, and the `n`
+column counts the samples behind each row. `"first"` keeps the first entry instead, and `"max"` the largest value.
 
 <details><summary>Python</summary>
 

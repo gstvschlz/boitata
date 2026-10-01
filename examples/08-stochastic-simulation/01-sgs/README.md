@@ -1,6 +1,6 @@
-# Sequential Gaussian simulation
+# sequential gaussian simulation
 
-Kriging gives one smooth map. Simulation draws many maps that each honor the samples, the declustered histogram and
+kriging gives one smooth map. simulation draws many maps, each honoring the samples, the declustered histogram and
 the variogram; together they measure uncertainty.
 
 <details><summary>Python</summary>
@@ -20,7 +20,7 @@ azimuth = 170.0
 
 </details>
 
-Normal scores with declustering weights, tails bounded to 0 and the largest sample, and their variogram along
+normal scores with declustering weights, tails bounded to 0 and the largest sample, and their variogram along
 N170°, the direction of greatest continuity ([variogram fitting](../../05-spatial-continuity/02-variogram-fitting/README.md)), and across it, scaled to a unit sill:
 
 <details><summary>Python</summary>
@@ -50,10 +50,10 @@ print(gaussian)
 Variogram(nugget=0.3315861183518779, structures=[Structure("spherical", sill=0.6684138816481222, range=82.43111673409601)], rotation=(170.0, 0.0, 0.0), ratios=(0.42564072265384956, 1.0))
 ```
 
-SGS normal-scores the data itself, simulates along a random path and back-transforms. 50 realizations, the same on
-any number of threads. `simulate` returns a summary accumulated while it runs: the mean, variance and quantiles at
-every node, the probability and mean above each cutoff, and each realization's global mean and share above the
-cutoffs. Realizations are kept only when asked for: here the first 20, to check them.
+SGS normal-scores the data, simulates along a random path and back-transforms. the 50 realizations come out the
+same on any number of threads. `simulate` returns a summary accumulated while it runs: the mean, variance and
+quantiles at each node, the probability and mean above each cutoff, and each realization's global mean and share
+above the cutoffs. it keeps realizations only on request: here the first 20, to check them.
 
 <details><summary>Python</summary>
 
@@ -82,7 +82,7 @@ realization variance 70844, true 62312
 area above 500 ppm: P10 20.6%, P90 24.6%, true 18.9%
 ```
 
-Each realization looks like the truth; their mean is smooth like kriging and their spread measures uncertainty.
+each realization looks like the truth; their mean is smooth like kriging, and their spread measures uncertainty.
 
 <details><summary>Python</summary>
 
@@ -122,7 +122,7 @@ save(fig, "maps")
 
 ![maps](maps.png)
 
-Each realization reproduces the declustered histogram and the model variogram:
+each realization reproduces the declustered histogram and the model variogram:
 
 <details><summary>Python</summary>
 
@@ -166,7 +166,7 @@ save(fig, "reproduction")
 
 ![reproduction](reproduction.png)
 
-[Simulation at block support](../../08-stochastic-simulation/03-simulation-at-block-support/README.md) targets blocks, [turning bands](../../08-stochastic-simulation/04-turning-bands/README.md) draws realizations another way, and [simulation with a trend](../../08-stochastic-simulation/05-simulation-with-trend/README.md) steers them with a
+[simulation at block support](../../08-stochastic-simulation/03-simulation-at-block-support/README.md) targets blocks, [turning bands](../../08-stochastic-simulation/04-turning-bands/README.md) draws realizations another way, and [simulation with a trend](../../08-stochastic-simulation/05-simulation-with-trend/README.md) steers them with a
 trend.
 
 Full script: [`example_08_01.py`](example_08_01.py)

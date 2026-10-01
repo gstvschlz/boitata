@@ -1,7 +1,7 @@
 """
-# Sequential Gaussian simulation
+# sequential gaussian simulation
 
-Kriging gives one smooth map. Simulation draws many maps that each honor the samples, the declustered histogram and
+kriging gives one smooth map. simulation draws many maps, each honoring the samples, the declustered histogram and
 the variogram; together they measure uncertainty.
 """
 
@@ -26,7 +26,7 @@ azimuth = 170.0
 
 
 # %% [markdown]
-# Normal scores with declustering weights, tails bounded to 0 and the largest sample, and their variogram along
+# normal scores with declustering weights, tails bounded to 0 and the largest sample, and their variogram along
 # N170°, the direction of greatest continuity ([variogram fitting](../../05-spatial-continuity/02-variogram-fitting/README.md)), and across it, scaled to a unit sill:
 
 # %%
@@ -49,10 +49,10 @@ print(gaussian)
 
 
 # %% [markdown]
-# SGS normal-scores the data itself, simulates along a random path and back-transforms. 50 realizations, the same on
-# any number of threads. `simulate` returns a summary accumulated while it runs: the mean, variance and quantiles at
-# every node, the probability and mean above each cutoff, and each realization's global mean and share above the
-# cutoffs. Realizations are kept only when asked for: here the first 20, to check them.
+# SGS normal-scores the data, simulates along a random path and back-transforms. the 50 realizations come out the
+# same on any number of threads. `simulate` returns a summary accumulated while it runs: the mean, variance and
+# quantiles at each node, the probability and mean above each cutoff, and each realization's global mean and share
+# above the cutoffs. it keeps realizations only on request: here the first 20, to check them.
 
 # %%
 grid = bt.BlockModel(origin=(0.5, 0.5), size=(5, 5), count=(52, 60))
@@ -72,7 +72,7 @@ print(f"area above 500 ppm: P10 {low:.1%}, P90 {high:.1%}, true {np.mean(true_at
 
 
 # %% [markdown]
-# Each realization looks like the truth; their mean is smooth like kriging and their spread measures uncertainty.
+# each realization looks like the truth; their mean is smooth like kriging, and their spread measures uncertainty.
 
 # %%
 shape = (60, 52)
@@ -107,7 +107,7 @@ save(fig, "maps")
 
 
 # %% [markdown]
-# Each realization reproduces the declustered histogram and the model variogram:
+# each realization reproduces the declustered histogram and the model variogram:
 
 # %%
 fig, (a, b) = plt.subplots(1, 2, figsize=(10, 3.8), layout="constrained")
@@ -145,5 +145,5 @@ b.legend(loc="lower right")
 save(fig, "reproduction")
 
 # %% [markdown]
-# [Simulation at block support](../../08-stochastic-simulation/03-simulation-at-block-support/README.md) targets blocks, [turning bands](../../08-stochastic-simulation/04-turning-bands/README.md) draws realizations another way, and [simulation with a trend](../../08-stochastic-simulation/05-simulation-with-trend/README.md) steers them with a
+# [simulation at block support](../../08-stochastic-simulation/03-simulation-at-block-support/README.md) targets blocks, [turning bands](../../08-stochastic-simulation/04-turning-bands/README.md) draws realizations another way, and [simulation with a trend](../../08-stochastic-simulation/05-simulation-with-trend/README.md) steers them with a
 # trend.
