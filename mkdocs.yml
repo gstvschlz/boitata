@@ -1,5 +1,5 @@
-site_name: Boitatá
-site_description: My Python tooling for day-to-day geostatistics.
+site_name: boitatá
+site_description: my python tooling for day-to-day geostatistics.
 site_url: https://gstvschlz.github.io/boitata/
 repo_url: https://github.com/gstvschlz/boitata
 repo_name: gstvschlz/boitata
@@ -10,7 +10,7 @@ theme:
   logo: assets/logo-dark.svg
   favicon: assets/favicon.svg
   font:
-    text: IBM Plex Sans
+    text: Inter Tight
     code: IBM Plex Mono
   icon:
     repo: fontawesome/brands/github
@@ -37,11 +37,11 @@ theme:
 extra_css:
   - assets/extra.css
   - assets/components.css
-  - assets/themes/themes.css
+  - assets/swiss.css
   - https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css
 
 extra_javascript:
-  - assets/theme-switcher.js
+  - assets/figures.js
   - https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js
   - https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js
   - assets/katex-init.js

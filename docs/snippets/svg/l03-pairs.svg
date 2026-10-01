@@ -1,0 +1,43 @@
+<svg class="bt-svg" viewBox="0 0 640 320" role="img" aria-labelledby="l03-pairs-t">
+<title id="l03-pairs-t">Every pair of samples separated by roughly the same vector h contributes to one point of the variogram</title>
+<g class="f-muted">
+<circle cx="95" cy="60" r="4"/>
+<circle cx="230" cy="110" r="4"/>
+<circle cx="300" cy="290" r="4"/>
+<circle cx="410" cy="280" r="4"/>
+<circle cx="480" cy="70" r="4"/>
+<circle cx="520" cy="250" r="4"/>
+<circle cx="40" cy="130" r="4"/>
+<circle cx="390" cy="30" r="4"/>
+</g>
+<line class="s-ember a-draw" pathLength="1" style="--d:0.20s" x1="70" y1="210" x2="136" y2="177" stroke-width="2"/>
+<circle class="f-night" cx="70" cy="210" r="4.5"/>
+<circle class="f-night" cx="136" cy="177" r="4.5"/>
+<line class="s-ember a-draw" pathLength="1" style="--d:0.45s" x1="120" y1="120" x2="177" y2="94" stroke-width="2"/>
+<circle class="f-night" cx="120" cy="120" r="4.5"/>
+<circle class="f-night" cx="177" cy="94" r="4.5"/>
+<line class="s-ember a-draw" pathLength="1" style="--d:0.70s" x1="200" y1="250" x2="264" y2="225" stroke-width="2"/>
+<circle class="f-night" cx="200" cy="250" r="4.5"/>
+<circle class="f-night" cx="264" cy="225" r="4.5"/>
+<line class="s-ember a-draw" pathLength="1" style="--d:0.95s" x1="260" y1="160" x2="319" y2="126" stroke-width="2"/>
+<circle class="f-night" cx="260" cy="160" r="4.5"/>
+<circle class="f-night" cx="319" cy="126" r="4.5"/>
+<line class="s-ember a-draw" pathLength="1" style="--d:1.20s" x1="330" y1="90" x2="397" y2="62" stroke-width="2"/>
+<circle class="f-night" cx="330" cy="90" r="4.5"/>
+<circle class="f-night" cx="397" cy="62" r="4.5"/>
+<line class="s-ember a-draw" pathLength="1" style="--d:1.45s" x1="360" y1="230" x2="420" y2="195" stroke-width="2"/>
+<circle class="f-night" cx="360" cy="230" r="4.5"/>
+<circle class="f-night" cx="420" cy="195" r="4.5"/>
+<line class="s-ember a-draw" pathLength="1" style="--d:1.70s" x1="440" y1="150" x2="505" y2="123" stroke-width="2"/>
+<circle class="f-night" cx="440" cy="150" r="4.5"/>
+<circle class="f-night" cx="505" cy="123" r="4.5"/>
+<line class="s-ember a-draw" pathLength="1" style="--d:1.95s" x1="170" y1="70" x2="228" y2="41" stroke-width="2"/>
+<circle class="f-night" cx="170" cy="70" r="4.5"/>
+<circle class="f-night" cx="228" cy="41" r="4.5"/>
+<rect class="f-paper s-grid" x="548" y="20" width="84" height="80" rx="6" stroke-width="1"/>
+<line class="s-ember" x1="560" y1="80" x2="622" y2="50" stroke-width="2.5"/>
+<circle class="f-ember" cx="622" cy="50" r="3.5"/>
+<text class="math" x="582" y="44">h</text>
+<text class="small" x="556" y="96">lag vector</text>
+<text class="small" x="20" y="310">each segment is one pair: a tail sample and a head sample about h apart</text>
+</svg>

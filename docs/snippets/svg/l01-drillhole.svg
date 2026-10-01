@@ -1,0 +1,40 @@
+<svg class="bt-svg" viewBox="0 0 640 290" role="img" aria-labelledby="l01-drillhole-t">
+<title id="l01-drillhole-t">A drill hole in section: collar, survey stations whose dip flattens with depth, and sampled intervals</title>
+<line class="s-muted" x1="30" y1="60" x2="620" y2="60" stroke-width="1.5"/>
+<text x="560" y="52" class="small">ground</text>
+<path class="s-ink none a-draw" pathLength="1" stroke-width="2.5" d="M110 60 C 150 150, 220 225, 420 270"/>
+<circle class="f-flame a-pop" cx="110" cy="60" r="6"/>
+<text x="40" y="38">collar</text>
+<text x="40" y="52" class="small">x, y, z of the hole top</text>
+<g class="a-fade" style="--d:0.8s">
+<circle class="f-night" cx="147.2" cy="124.5" r="4.5"/>
+<line class="s-night" x1="147.2" y1="124.5" x2="162.8" y2="145.2" stroke-width="1.5"/>
+<text x="55.2" y="129.5" class="small">dip 53°</text>
+</g>
+<g class="a-fade" style="--d:1.1s">
+<circle class="f-night" cx="205" cy="181.9" r="4.5"/>
+<line class="s-night" x1="205" y1="181.9" x2="225.8" y2="197.5" stroke-width="1.5"/>
+<text x="113" y="186.9" class="small">dip 37°</text>
+</g>
+<g class="a-fade" style="--d:1.4s">
+<circle class="f-night" cx="292.8" cy="230.9" r="4.5"/>
+<line class="s-night" x1="292.8" y1="230.9" x2="316.8" y2="240.9" stroke-width="1.5"/>
+<text x="200.8" y="235.9" class="small">dip 23°</text>
+</g>
+<circle class="f-night" cx="46" cy="258" r="4.5"/>
+<text x="58" y="263">survey stations</text>
+<text x="58" y="279" class="small">depth, dip, azimuth</text>
+<path class="s-flame none a-fade" style="--d:1.80s" stroke-width="10" d="M314.8 239.5 L 317.7 240.6 L 320.7 241.7 L 323.7 242.8 L 326.7 243.8 L 329.8 244.9 L 332.9 245.9 L 336 247"/>
+<line class="s-paper" x1="336" y1="240" x2="336" y2="254" stroke-width="1.5"/>
+<path class="s-ember none a-fade" style="--d:1.95s" stroke-width="9" d="M336 247 L 339.1 248 L 342.3 249 L 345.5 250.1 L 348.7 251.1 L 352 252.1 L 355.3 253.1 L 358.6 254.1"/>
+<line class="s-paper" x1="358.6" y1="247.1" x2="358.6" y2="261.1" stroke-width="1.5"/>
+<path class="s-ember none a-fade" style="--d:2.10s" stroke-width="8" d="M358.6 254.1 L 361.9 255.1 L 365.3 256.1 L 368.7 257 L 372.1 258 L 375.6 259 L 379.1 259.9 L 382.6 260.8"/>
+<line class="s-paper" x1="382.6" y1="253.8" x2="382.6" y2="267.8" stroke-width="1.5"/>
+<path class="s-flame none a-fade" style="--d:2.25s" stroke-width="7" d="M382.6 260.8 L 386.2 261.8 L 389.8 262.7 L 393.4 263.6 L 397 264.6 L 400.7 265.5 L 404.4 266.4 L 408.2 267.3"/>
+<line class="s-paper" x1="408.2" y1="260.3" x2="408.2" y2="274.3" stroke-width="1.5"/>
+<text x="440" y="224">intervals</text>
+<text x="440" y="240" class="small">from, to, grade</text>
+<text class="math a-fade" style="--d:2.4s" x="440" y="130">depth → (x, y, z)</text>
+<text class="small a-fade" style="--d:2.4s" x="440" y="150">desurvey: follow the hole from</text>
+<text class="small a-fade" style="--d:2.4s" x="440" y="165">the collar through each station</text>
+</svg>

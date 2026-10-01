@@ -1,0 +1,44 @@
+<svg class="bt-svg" viewBox="0 0 600 360" role="img" aria-labelledby="g-block-grid-t">
+<title id="g-block-grid-t">A block model of four by three square blocks, turned 30 degrees clockwise from north about its origin corner, with its rows numbered x first</title>
+<line class="s-muted" x1="540" y1="130" x2="540" y2="62" stroke-width="1.5"/>
+<path class="f-muted" d="M534 72 L540 58 L546 72 Z"/>
+<text x="540" y="48" text-anchor="middle">N</text>
+<line class="s-muted dash" x1="150" y1="230" x2="150" y2="110" stroke-width="1"/>
+<g transform="translate(150 230) rotate(30)">
+<rect class="f-grid s-grid a-fade" style="--d:.2s" x="0" y="-150" width="200" height="150" stroke-width="1"/>
+<rect class="f-night-soft s-night a-pop" style="--d:.5s" x="0" y="-150" width="200" height="150" stroke-width="2"/>
+<rect class="f-flame-soft a-fade" style="--d:1.1s" x="0" y="-50" width="50" height="50"/>
+<path class="s-night none" stroke-width="1" d="M50 0 V-150 M100 0 V-150 M150 0 V-150 M0 -50 H200 M0 -100 H200"/>
+<g class="a-fade" style="--d:1.3s">
+<text class="small" x="25" y="-21" text-anchor="middle">0</text>
+<text class="small" x="75" y="-21" text-anchor="middle">1</text>
+<text class="small" x="125" y="-21" text-anchor="middle">2</text>
+<text class="small" x="175" y="-21" text-anchor="middle">3</text>
+<text class="small" x="25" y="-71" text-anchor="middle">4</text>
+<text class="small" x="75" y="-71" text-anchor="middle">5</text>
+<text class="small" x="125" y="-71" text-anchor="middle">6</text>
+<text class="small" x="175" y="-71" text-anchor="middle">7</text>
+<text class="small" x="25" y="-121" text-anchor="middle">8</text>
+<text class="small" x="75" y="-121" text-anchor="middle">9</text>
+<text class="small" x="125" y="-121" text-anchor="middle">10</text>
+<text class="small" x="175" y="-121" text-anchor="middle">11</text>
+</g>
+<g class="a-fade" style="--d:1.6s">
+<path class="s-ember none" stroke-width="1.5" d="M0 8 V16 M0 12 H50 M50 8 V16"/>
+<text class="small" x="25" y="30" text-anchor="middle">size x</text>
+<text class="small" x="140" y="30" text-anchor="middle">count x = 4</text>
+<path class="s-ember none" stroke-width="1.5" d="M-8 0 H-16 M-12 0 V-50 M-8 -50 H-16"/>
+<text class="small" x="-22" y="-25" text-anchor="middle" transform="rotate(-90 -22 -25)">size y</text>
+<text class="small" x="-22" y="-105" text-anchor="middle" transform="rotate(-90 -22 -105)">count y = 3</text>
+<text class="math" x="212" y="5">x</text>
+<text class="math" x="-4" y="-160">y</text>
+</g>
+</g>
+<path class="s-ember none a-draw" style="--d:2s" pathLength="1" stroke-width="2" d="M150 170 A60 60 0 0 1 180 178.04"/>
+<text class="small a-fade" style="--d:2.3s" x="143" y="160" text-anchor="end">rotation 30°</text>
+<circle class="f-ember a-pop" style="--d:.8s" cx="150" cy="230" r="5"/>
+<text class="a-fade" style="--d:.9s" x="138" y="250" text-anchor="end">origin</text>
+<text class="small a-fade" style="--d:.9s" x="138" y="266" text-anchor="end">corner of block 0</text>
+<text class="small a-fade" style="--d:1.4s" x="410" y="286">row order: x fastest,</text>
+<text class="small a-fade" style="--d:1.4s" x="410" y="302">then y, then z</text>
+</svg>

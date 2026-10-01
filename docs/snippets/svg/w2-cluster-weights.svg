@@ -1,0 +1,35 @@
+<svg class="bt-svg" viewBox="0 0 690 260" role="img" aria-labelledby="w2-cw-t">
+<title id="w2-cw-t">Weights given to one lone sample and a cluster of four samples by inverse distance and by ordinary kriging</title>
+<rect class="f-grid s-muted" x="199" y="119" width="22" height="22" stroke-width="1"/>
+<text class="small" x="178" y="164">block</text>
+<g class="s-muted dash" stroke-width="1">
+<line x1="210" y1="130" x2="122" y2="130"/>
+<line x1="210" y1="130" x2="298" y2="130"/>
+<line x1="210" y1="130" x2="306.8" y2="116.8"/>
+<line x1="210" y1="130" x2="306.8" y2="143.2"/>
+<line x1="210" y1="130" x2="315.6" y2="130"/>
+</g>
+<circle class="f-night a-pop" style="--d:.1s" cx="122" cy="130" r="5"/>
+<g class="f-ember">
+<circle class="a-pop" style="--d:.3s" cx="298" cy="130" r="5"/>
+<circle class="a-pop" style="--d:.4s" cx="306.8" cy="116.8" r="5"/>
+<circle class="a-pop" style="--d:.5s" cx="306.8" cy="143.2" r="5"/>
+<circle class="a-pop" style="--d:.6s" cx="315.6" cy="130" r="5"/>
+</g>
+<text x="84" y="110">one sample</text>
+<text x="240" y="100">four clustered samples</text>
+<line class="s-ink" x1="40" y1="222" x2="84" y2="222" stroke-width="2"/>
+<text class="small" x="40" y="240">20 m</text>
+<text x="420" y="60">Inverse distance, power 2</text>
+<rect class="f-night a-grow" style="--d:.8s" x="420" y="70" width="55.7" height="30"/>
+<rect class="f-ember a-grow" style="--d:.9s" x="475.7" y="70" width="184.3" height="30"/>
+<text class="f-paper a-fade" style="--d:1.2s" x="428" y="90">0.23</text>
+<text class="f-paper a-fade" style="--d:1.2s" x="600" y="90">0.77</text>
+<text x="420" y="150">Ordinary kriging</text>
+<rect class="f-night a-grow" style="--d:1.2s" x="420" y="160" width="109.7" height="30"/>
+<rect class="f-ember a-grow" style="--d:1.3s" x="529.7" y="160" width="130.3" height="30"/>
+<text class="f-paper a-fade" style="--d:1.6s" x="428" y="180">0.46</text>
+<text class="f-paper a-fade" style="--d:1.6s" x="600" y="180">0.54</text>
+<text class="small" x="420" y="214">weight on the one sample, then on the cluster;</text>
+<text class="small" x="420" y="230">colors match the samples on the map</text>
+</svg>

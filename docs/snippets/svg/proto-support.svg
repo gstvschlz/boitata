@@ -1,0 +1,60 @@
+<svg class="bt-svg" viewBox="0 0 620 300" role="img" aria-labelledby="proto-support-t">
+<title id="proto-support-t">Histograms of point values and of 10 m block averages from the same field: equal means, narrower spread for blocks</title>
+<line class="s-grid" x1="40" y1="240" x2="290" y2="240" stroke-width="1.5"/>
+<rect class="f-night a-grow" style="--d:0.00s" x="41.0" y="204.5" width="10.5" height="35.5"/>
+<rect class="f-night a-grow" style="--d:0.05s" x="53.5" y="108.6" width="10.5" height="131.4"/>
+<rect class="f-night a-grow" style="--d:0.10s" x="66.0" y="95.4" width="10.5" height="144.6"/>
+<rect class="f-night a-grow" style="--d:0.15s" x="78.5" y="117.6" width="10.5" height="122.4"/>
+<rect class="f-night a-grow" style="--d:0.20s" x="91.0" y="145.2" width="10.5" height="94.8"/>
+<rect class="f-night a-grow" style="--d:0.25s" x="103.5" y="168.1" width="10.5" height="71.9"/>
+<rect class="f-night a-grow" style="--d:0.30s" x="116.0" y="183.9" width="10.5" height="56.1"/>
+<rect class="f-night a-grow" style="--d:0.35s" x="128.5" y="197.4" width="10.5" height="42.6"/>
+<rect class="f-night a-grow" style="--d:0.40s" x="141.0" y="206.6" width="10.5" height="33.4"/>
+<rect class="f-night a-grow" style="--d:0.45s" x="153.5" y="214.1" width="10.5" height="25.9"/>
+<rect class="f-night a-grow" style="--d:0.50s" x="166.0" y="219.5" width="10.5" height="20.5"/>
+<rect class="f-night a-grow" style="--d:0.55s" x="178.5" y="223.8" width="10.5" height="16.2"/>
+<rect class="f-night a-grow" style="--d:0.60s" x="191.0" y="226.9" width="10.5" height="13.1"/>
+<rect class="f-night a-grow" style="--d:0.65s" x="203.5" y="229.6" width="10.5" height="10.4"/>
+<rect class="f-night a-grow" style="--d:0.70s" x="216.0" y="231.6" width="10.5" height="8.4"/>
+<rect class="f-night a-grow" style="--d:0.75s" x="228.5" y="233.0" width="10.5" height="7.0"/>
+<rect class="f-night a-grow" style="--d:0.80s" x="241.0" y="234.2" width="10.5" height="5.8"/>
+<rect class="f-night a-grow" style="--d:0.85s" x="253.5" y="235.0" width="10.5" height="5.0"/>
+<rect class="f-night a-grow" style="--d:0.90s" x="266.0" y="236.2" width="10.5" height="3.8"/>
+<rect class="f-night a-grow" style="--d:0.95s" x="278.5" y="236.6" width="10.5" height="3.4"/>
+<line class="s-flame a-fade" style="--d:1.2s" x1="110.1" y1="246" x2="110.1" y2="60" stroke-width="2.5"/>
+<text class="small a-fade" style="--d:1.3s" x="115.1" y="68">mean</text>
+<text x="40" y="30">1 m points</text>
+<text class="small" x="37.0" y="258">0</text>
+<text class="small" x="87.0" y="258">1</text>
+<text class="small" x="137.0" y="258">2</text>
+<text class="small" x="187.0" y="258">3</text>
+<text class="small" x="237.0" y="258">4</text>
+<text class="small" x="287.0" y="258">5</text>
+<line class="s-grid" x1="340" y1="240" x2="590" y2="240" stroke-width="1.5"/>
+<rect class="f-ember a-grow" style="--d:0.05s" x="353.5" y="233.6" width="10.5" height="6.4"/>
+<rect class="f-ember a-grow" style="--d:0.10s" x="366.0" y="171.8" width="10.5" height="68.2"/>
+<rect class="f-ember a-grow" style="--d:0.15s" x="378.5" y="85.5" width="10.5" height="154.5"/>
+<rect class="f-ember a-grow" style="--d:0.20s" x="391.0" y="70.0" width="10.5" height="170.0"/>
+<rect class="f-ember a-grow" style="--d:0.25s" x="403.5" y="87.1" width="10.5" height="152.9"/>
+<rect class="f-ember a-grow" style="--d:0.30s" x="416.0" y="135.5" width="10.5" height="104.5"/>
+<rect class="f-ember a-grow" style="--d:0.35s" x="428.5" y="161.7" width="10.5" height="78.3"/>
+<rect class="f-ember a-grow" style="--d:0.40s" x="441.0" y="194.7" width="10.5" height="45.3"/>
+<rect class="f-ember a-grow" style="--d:0.45s" x="453.5" y="213.4" width="10.5" height="26.6"/>
+<rect class="f-ember a-grow" style="--d:0.50s" x="466.0" y="221.9" width="10.5" height="18.1"/>
+<rect class="f-ember a-grow" style="--d:0.55s" x="478.5" y="227.7" width="10.5" height="12.3"/>
+<rect class="f-ember a-grow" style="--d:0.60s" x="491.0" y="234.7" width="10.5" height="5.3"/>
+<rect class="f-ember a-grow" style="--d:0.65s" x="503.5" y="235.2" width="10.5" height="4.8"/>
+<rect class="f-ember a-grow" style="--d:0.70s" x="516.0" y="236.8" width="10.5" height="3.2"/>
+<rect class="f-ember a-grow" style="--d:0.75s" x="528.5" y="239.5" width="10.5" height="0.5"/>
+<rect class="f-ember a-grow" style="--d:0.80s" x="541.0" y="238.9" width="10.5" height="1.1"/>
+<line class="s-flame a-fade" style="--d:1.2s" x1="410.1" y1="246" x2="410.1" y2="60" stroke-width="2.5"/>
+<text class="small a-fade" style="--d:1.3s" x="415.1" y="68">mean</text>
+<text x="340" y="30">10 m blocks</text>
+<text class="small" x="337.0" y="258">0</text>
+<text class="small" x="387.0" y="258">1</text>
+<text class="small" x="437.0" y="258">2</text>
+<text class="small" x="487.0" y="258">3</text>
+<text class="small" x="537.0" y="258">4</text>
+<text class="small" x="587.0" y="258">5</text>
+<text class="small" x="260" y="292">grade (g/t)</text>
+</svg>

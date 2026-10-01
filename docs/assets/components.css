@@ -2,7 +2,7 @@
 
 :root {
   --bt-ink: #17303F;
-  --bt-muted: #6B7C88;
+  --bt-muted: #5A6B77;
   --bt-grid: #D5DDE3;
   --bt-paper: #FFFFFF;
   --bt-night: #17303F;
@@ -15,18 +15,6 @@
   --bt-figure-bg: var(--bt-paper);
 }
 
-[data-md-color-scheme="slate"] {
-  --bt-ink: #E6EDF2;
-  --bt-muted: #93A4B0;
-  --bt-grid: #2A3E4C;
-  --bt-paper: #0F1E28;
-  --bt-night: #A9C4D6;
-  --bt-ember: #FF7A4D;
-  --bt-flame: #FFC04D;
-  --bt-ember-soft: rgba(255, 122, 77, .16);
-  --bt-flame-soft: rgba(255, 192, 77, .16);
-  --bt-night-soft: rgba(169, 196, 214, .10);
-}
 
 /* ---------- Figures (inline SVG) ---------- */
 
@@ -166,3 +154,16 @@
 .md-typeset .bt-path > li::before { content: counter(step); display: inline-grid; place-items: center; width: 1.5rem; height: 1.5rem; margin-bottom: .4rem; border-radius: 50%; background: var(--bt-ember); color: #fff; font-weight: 700; font-size: .7rem; }
 
 abbr[title] { text-decoration: underline dotted var(--bt-muted); cursor: help; }
+
+[data-md-color-scheme="slate"] .md-typeset .bt-trail .here span { color: var(--boitata-deep, #10202B); }
+
+/* See also */
+:root { --bt-i-seealso: url('data:image/svg+xml;charset=utf-8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7a5 5 0 0 0 0 10h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1M8 13h8v-2H8zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4a5 5 0 0 0 0-10"/></svg>'); }
+.md-typeset .admonition.seealso, .md-typeset details.seealso { border-color: var(--bt-night); }
+.md-typeset .seealso > .admonition-title, .md-typeset .seealso > summary { background-color: var(--bt-night-soft); }
+.md-typeset .seealso > .admonition-title::before, .md-typeset .seealso > summary::before { background-color: var(--bt-night); -webkit-mask-image: var(--bt-i-seealso); mask-image: var(--bt-i-seealso); }
+
+/* Generated glossary */
+.md-typeset dl dt[id] { margin-top: 1em; font-weight: 700; color: var(--bt-ink); scroll-margin-top: 4rem; }
+.md-typeset dl dt[id]:target { color: var(--bt-ember); }
+.md-typeset dl dd { margin-left: 1.2em; }

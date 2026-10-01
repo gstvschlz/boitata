@@ -1,0 +1,58 @@
+<svg class="bt-svg" viewBox="0 0 720 330" role="img" aria-labelledby="g-lifecycle-t">
+<title id="g-lifecycle-t">The life of an estimator and of a transform: built with options, fitted to data, then asked for results; a transform can also map results back</title>
+<text x="20" y="38">Estimators</text>
+<g class="a-fade" style="--d:.1s">
+<rect class="f-flame-soft s-flame" x="20" y="52" width="170" height="80" rx="6" stroke-width="1.5"/>
+<text x="105" y="76" text-anchor="middle">configured</text>
+<text class="small" x="105" y="98" text-anchor="middle">OrdinaryKriging(</text>
+<text class="small" x="105" y="113" text-anchor="middle">variogram, search)</text>
+</g>
+<path class="s-ink none a-draw" style="--d:.5s" pathLength="1" stroke-width="1.6" d="M190 92 H268"/>
+<path class="f-ink a-fade" style="--d:.9s" d="M266 86 L276 92 L266 98 Z"/>
+<text class="a-fade" style="--d:.7s" x="232" y="84" text-anchor="middle">fit</text>
+<text class="small a-fade" style="--d:.7s" x="232" y="110" text-anchor="middle">samples</text>
+<g class="a-fade" style="--d:1s">
+<rect class="f-ember-soft s-ember" x="276" y="52" width="170" height="80" rx="6" stroke-width="1.5"/>
+<text x="361" y="76" text-anchor="middle">fitted</text>
+<text class="small" x="361" y="98" text-anchor="middle">holds the samples;</text>
+<text class="small" x="361" y="113" text-anchor="middle">fit returns the object</text>
+</g>
+<path class="s-ink none a-draw" style="--d:1.4s" pathLength="1" stroke-width="1.6" d="M446 92 H522"/>
+<path class="f-ink a-fade" style="--d:1.8s" d="M520 86 L530 92 L520 98 Z"/>
+<text class="a-fade" style="--d:1.6s" x="488" y="84" text-anchor="middle">predict</text>
+<text class="small a-fade" style="--d:1.6s" x="488" y="110" text-anchor="middle">targets</text>
+<g class="a-fade" style="--d:1.9s">
+<rect class="f-night-soft s-night" x="530" y="52" width="170" height="80" rx="6" stroke-width="1.5"/>
+<text x="615" y="76" text-anchor="middle">results</text>
+<text class="small" x="615" y="98" text-anchor="middle">one value per target,</text>
+<text class="small" x="615" y="113" text-anchor="middle">NaN where unestimated</text>
+</g>
+<text x="20" y="182" class="a-fade" style="--d:2.2s">Transforms</text>
+<g class="a-fade" style="--d:2.3s">
+<rect class="f-flame-soft s-flame" x="20" y="196" width="170" height="80" rx="6" stroke-width="1.5"/>
+<text x="105" y="220" text-anchor="middle">configured</text>
+<text class="small" x="105" y="242" text-anchor="middle">NormalScore()</text>
+</g>
+<path class="s-ink none a-draw" style="--d:2.6s" pathLength="1" stroke-width="1.6" d="M190 236 H268"/>
+<path class="f-ink a-fade" style="--d:3s" d="M266 230 L276 236 L266 242 Z"/>
+<text class="a-fade" style="--d:2.8s" x="232" y="228" text-anchor="middle">fit</text>
+<text class="small a-fade" style="--d:2.8s" x="232" y="254" text-anchor="middle">values</text>
+<g class="a-fade" style="--d:3.1s">
+<rect class="f-ember-soft s-ember" x="276" y="196" width="170" height="80" rx="6" stroke-width="1.5"/>
+<text x="361" y="220" text-anchor="middle">fitted</text>
+<text class="small" x="361" y="242" text-anchor="middle">holds the value-to-score</text>
+<text class="small" x="361" y="257" text-anchor="middle">table it learned</text>
+</g>
+<path class="s-ink none a-draw" style="--d:3.4s" pathLength="1" stroke-width="1.6" d="M446 236 H522"/>
+<path class="f-ink a-fade" style="--d:3.8s" d="M520 230 L530 236 L520 242 Z"/>
+<text class="a-fade" style="--d:3.6s" x="488" y="228" text-anchor="middle">transform</text>
+<text class="small a-fade" style="--d:3.6s" x="488" y="254" text-anchor="middle">values</text>
+<g class="a-fade" style="--d:3.9s">
+<rect class="f-night-soft s-night" x="530" y="196" width="170" height="80" rx="6" stroke-width="1.5"/>
+<text x="615" y="220" text-anchor="middle">scores</text>
+<text class="small" x="615" y="242" text-anchor="middle">one score per value</text>
+</g>
+<path class="s-ember none dash a-draw" style="--d:4.2s" pathLength="1" stroke-width="1.6" d="M615 276 C 615 314, 361 314, 361 286"/>
+<path class="f-ember a-fade" style="--d:4.8s" d="M355 288 L361 278 L367 288 Z"/>
+<text class="small a-fade" style="--d:4.6s" x="488" y="324" text-anchor="middle">inverse_transform: scores back to values</text>
+</svg>

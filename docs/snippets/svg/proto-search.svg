@@ -1,0 +1,91 @@
+<svg class="bt-svg" viewBox="0 0 600 350" role="img" aria-labelledby="proto-search-t">
+<title id="proto-search-t">A search ellipse, twice as long as it is wide, oriented at azimuth 30 degrees: only the samples inside it inform the target</title>
+<ellipse class="f-flame-soft s-ember a-draw" pathLength="1" stroke-width="2.5" cx="300" cy="175" rx="120" ry="60" transform="rotate(-60 300 175)"/>
+<line class="s-muted dash" x1="240.0" y1="278.9" x2="360.0" y2="71.1" stroke-width="1"/>
+<line class="s-muted dash" x1="300" y1="175" x2="352.0" y2="205.0" stroke-width="1"/>
+<line class="s-muted dash" x1="300" y1="175" x2="300" y2="25" stroke-width="1"/>
+<path class="s-ink none a-draw" pathLength="1" style="--d:.9s" stroke-width="1.5" d="M300 120 A55 55 0 0 1 327.5 127.4"/>
+<text class="small a-fade" style="--d:1.2s" x="216" y="124">azimuth 30°</text>
+<text class="small" x="296" y="19">N</text>
+<g class="f-muted">
+<circle cx="365" cy="290" r="3.5"/>
+<circle cx="443" cy="95" r="3.5"/>
+<circle cx="196" cy="283" r="3.5"/>
+<circle cx="43" cy="268" r="3.5"/>
+<circle cx="454" cy="166" r="3.5"/>
+<circle cx="198" cy="111" r="3.5"/>
+<circle cx="173" cy="159" r="3.5"/>
+<circle cx="558" cy="260" r="3.5"/>
+<circle cx="364" cy="317" r="3.5"/>
+<circle cx="152" cy="76" r="3.5"/>
+<circle cx="359" cy="43" r="3.5"/>
+<circle cx="59" cy="179" r="3.5"/>
+<circle cx="282" cy="296" r="3.5"/>
+<circle cx="367" cy="179" r="3.5"/>
+<circle cx="46" cy="86" r="3.5"/>
+<circle cx="400" cy="88" r="3.5"/>
+<circle cx="232" cy="31" r="3.5"/>
+<circle cx="472" cy="75" r="3.5"/>
+<circle cx="179" cy="285" r="3.5"/>
+<circle cx="305" cy="276" r="3.5"/>
+<circle cx="373" cy="245" r="3.5"/>
+<circle cx="88" cy="187" r="3.5"/>
+<circle cx="71" cy="142" r="3.5"/>
+<circle cx="208" cy="74" r="3.5"/>
+<circle cx="464" cy="140" r="3.5"/>
+<circle cx="549" cy="201" r="3.5"/>
+<circle cx="355" cy="215" r="3.5"/>
+<circle cx="269" cy="99" r="3.5"/>
+<circle cx="249" cy="58" r="3.5"/>
+<circle cx="543" cy="92" r="3.5"/>
+<circle cx="389" cy="117" r="3.5"/>
+<circle cx="495" cy="222" r="3.5"/>
+<circle cx="108" cy="275" r="3.5"/>
+<circle cx="531" cy="292" r="3.5"/>
+<circle cx="140" cy="299" r="3.5"/>
+<circle cx="60" cy="284" r="3.5"/>
+<circle cx="208" cy="248" r="3.5"/>
+<circle cx="53" cy="138" r="3.5"/>
+<circle cx="56" cy="66" r="3.5"/>
+<circle cx="543" cy="221" r="3.5"/>
+<circle cx="494" cy="130" r="3.5"/>
+<circle cx="225" cy="181" r="3.5"/>
+<circle cx="438" cy="294" r="3.5"/>
+<circle cx="119" cy="301" r="3.5"/>
+<circle cx="43" cy="248" r="3.5"/>
+<circle cx="47" cy="212" r="3.5"/>
+<circle cx="417" cy="96" r="3.5"/>
+<circle cx="143" cy="135" r="3.5"/>
+<circle cx="217" cy="109" r="3.5"/>
+<circle cx="535" cy="159" r="3.5"/>
+<circle cx="550" cy="180" r="3.5"/>
+<circle cx="426" cy="198" r="3.5"/>
+<circle cx="262" cy="285" r="3.5"/>
+<circle cx="310" cy="306" r="3.5"/>
+<circle cx="171" cy="264" r="3.5"/>
+<circle cx="392" cy="238" r="3.5"/>
+<circle cx="213" cy="145" r="3.5"/>
+<circle cx="146" cy="45" r="3.5"/>
+<circle cx="199" cy="309" r="3.5"/>
+<circle cx="437" cy="266" r="3.5"/>
+<circle cx="420" cy="63" r="3.5"/>
+<circle cx="515" cy="263" r="3.5"/>
+</g>
+<g class="f-ember">
+<circle class="a-pop" style="--d:1.20s" cx="302" cy="191" r="5"/>
+<circle class="a-pop" style="--d:1.32s" cx="298" cy="102" r="5"/>
+<circle class="a-pop" style="--d:1.44s" cx="228" cy="203" r="5"/>
+<circle class="a-pop" style="--d:1.56s" cx="336" cy="72" r="5"/>
+<circle class="a-pop" style="--d:1.68s" cx="336" cy="139" r="5"/>
+<circle class="a-pop" style="--d:1.80s" cx="283" cy="189" r="5"/>
+<circle class="a-pop" style="--d:1.92s" cx="263" cy="182" r="5"/>
+<circle class="a-pop" style="--d:2.04s" cx="258" cy="266" r="5"/>
+<circle class="a-pop" style="--d:2.16s" cx="282" cy="212" r="5"/>
+<circle class="a-pop" style="--d:2.28s" cx="370" cy="83" r="5"/>
+</g>
+<rect class="f-night a-pulse" x="294" y="169" width="12" height="12"/>
+<text class="a-fade" style="--d:1s" x="347" y="59">120 m</text>
+<text class="a-fade" style="--d:1s" x="361" y="216">60 m</text>
+<text class="small" x="312" y="197">target</text>
+<text class="small" x="20" y="340">10 of 72 samples inside the ellipse</text>
+</svg>

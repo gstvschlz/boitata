@@ -6,19 +6,55 @@ hide: [navigation, toc]
 <img class="logo-light" src="assets/logo-animated.svg" alt="">
 <img class="logo-dark" src="assets/logo-animated-dark.svg" alt="">
 <div markdown>
-<h1>Boitatá</h1>
+<h1>boitatá</h1>
 
-My Python tooling for day-to-day geostatistics.
+my python tooling for day-to-day geostatistics.
 
-Boitatá holds the tools I use for resource work: drill hole checks, statistics, transforms, variograms, kriging, simulation and model checks. It runs from Python; the numerical core is Rust.
+boitatá holds the tools I use for resource work: drill hole checks, statistics, transforms, variograms, kriging, simulation and model checks.
 
-[Get started](#install){ .md-button .md-button--primary }
-[Examples](examples/01-first-steps/index.md){ .md-button }
-[API reference](api/containers/index.md){ .md-button }
+[get started](#start-here){ .md-button .md-button--primary }
+[examples](examples/01-first-steps/index.md){ .md-button }
+[api reference](api/containers/index.md){ .md-button }
 </div>
 </div>
+
+## start here
+
+<ol class="bt-path" markdown>
+<li markdown="block">**[Install](#install)**
+
+One `pip install "boitata[all]"` away;
+</li>
+<li markdown="block">**[Learning track](learn/01-samples-and-support/learn_01.md)**
+
+What a sample stands for, before any hands-on.
+</li>
+<li markdown="block">**[Quick tour](examples/01-first-steps/01-quick-tour/example_01_01.md)**
+
+Samples to a checked estimate in one page of code.
+</li>
+<li markdown="block">**[Workflows](examples/14-workflows/index.md)**
+
+Whole problems, from the question to the decision.
+</li>
+</ol>
+
+## plethora of modules for you to explore
 
 <div class="grid cards" markdown>
+
+-   :material-school-outline: **[Learn](learn/index.md)**
+
+    ---
+
+    Six chapters of geostatistics from the ground up, each with diagrams and runnable code.
+
+-   :material-sitemap-outline: **[Guide](guide/organization.md)**
+
+    ---
+
+    How the library is organized, so you can guess your way around it, and [which page answers your question](guide/finder.md).
+
 
 -   :material-rocket-launch-outline: **[First steps](examples/01-first-steps/index.md)**
 
@@ -99,13 +135,3 @@ Boitatá holds the tools I use for resource work: drill hole checks, statistics,
     SNESIM on categories and on continuous values, with its multigrid and hard data.
 
 </div>
-
-## Install
-
-```bash
-pip install "boitata[all]"
-```
-
-Wheels for Linux, macOS and Windows, Python ≥ 3.11; no compiler needed.
-
-The [install page](install.md) covers uv, poetry, conda and pixi, wheels, extras and offline installs.

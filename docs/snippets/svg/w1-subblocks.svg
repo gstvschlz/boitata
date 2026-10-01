@@ -1,0 +1,38 @@
+<svg class="bt-svg" viewBox="0 0 680 240" role="img" aria-labelledby="w1-subblocks-t">
+<title id="w1-subblocks-t">A parent block the contact crosses is split into sub-cells; parents it misses stay whole</title>
+<rect class="f-ember-soft s-ember" x="30" y="40" width="160" height="160" stroke-width="2"/>
+<rect class="f-ember-soft s-ember a-pop" style="--d:0.30s" x="190" y="40" width="80" height="40" stroke-width="1"/>
+<rect class="f-paper s-muted a-pop" style="--d:0.38s" x="270" y="40" width="80" height="40" stroke-width="1"/>
+<rect class="f-ember-soft s-ember a-pop" style="--d:0.46s" x="190" y="80" width="80" height="40" stroke-width="1"/>
+<rect class="f-paper s-muted a-pop" style="--d:0.54s" x="270" y="80" width="80" height="40" stroke-width="1"/>
+<rect class="f-ember-soft s-ember a-pop" style="--d:0.62s" x="190" y="120" width="80" height="40" stroke-width="1"/>
+<rect class="f-paper s-muted a-pop" style="--d:0.70s" x="270" y="120" width="80" height="40" stroke-width="1"/>
+<rect class="f-ember-soft s-ember a-pop" style="--d:0.78s" x="190" y="160" width="40" height="40" stroke-width="1"/>
+<rect class="f-paper s-muted a-pop" style="--d:0.86s" x="230" y="160" width="120" height="40" stroke-width="1"/>
+<circle class="f-ink" cx="210" cy="60" r="2"/>
+<circle class="f-ink" cx="250" cy="60" r="2"/>
+<circle class="f-ink" cx="290" cy="60" r="2"/>
+<circle class="f-ink" cx="330" cy="60" r="2"/>
+<circle class="f-ink" cx="210" cy="100" r="2"/>
+<circle class="f-ink" cx="250" cy="100" r="2"/>
+<circle class="f-ink" cx="290" cy="100" r="2"/>
+<circle class="f-ink" cx="330" cy="100" r="2"/>
+<circle class="f-ink" cx="210" cy="140" r="2"/>
+<circle class="f-ink" cx="250" cy="140" r="2"/>
+<circle class="f-ink" cx="290" cy="140" r="2"/>
+<circle class="f-ink" cx="330" cy="140" r="2"/>
+<circle class="f-ink" cx="210" cy="180" r="2"/>
+<circle class="f-ink" cx="250" cy="180" r="2"/>
+<circle class="f-ink" cx="290" cy="180" r="2"/>
+<circle class="f-ink" cx="330" cy="180" r="2"/>
+<rect class="none s-ink" x="190" y="40" width="160" height="160" stroke-width="2"/>
+<rect class="f-paper s-ink" x="350" y="40" width="160" height="160" stroke-width="2"/>
+<line class="s-ember a-draw" pathLength="1" x1="289.2" y1="30" x2="234.8" y2="210" stroke-width="3"/>
+<text x="38" y="228">whole: inside</text>
+<text x="198" y="228">split 4 × 4, rows merged</text>
+<text x="358" y="228">whole: outside</text>
+<text class="small" x="297.2" y="26">contact</text>
+<text class="small" x="524" y="60">Each sub-cell takes</text>
+<text class="small" x="524" y="78">the domain at its</text>
+<text class="small" x="524" y="96">center (dot).</text>
+</svg>

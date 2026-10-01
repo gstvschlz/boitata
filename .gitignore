@@ -11,3 +11,4 @@ __pycache__/
 /.compat/
 pixi.lock
 /docs/learn/
+/learn/**/*.png

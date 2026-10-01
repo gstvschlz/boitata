@@ -23,7 +23,7 @@ Worked examples with the Python API on open datasets from [gstvschlz/datasets](h
 | 6 | [Sub-blocks](02-data-and-geometry/06-sub-blocks/README.md) | Stacked sulphide lenses | `BlockModel`, `plot.slab`, `grid_surface`, `Categories`, `plot.section`, `Drillholes`, `Search`, `InverseDistance` |
 | 7 | [Mesh files](02-data-and-geometry/07-mesh-files/README.md) | Vein gold grade control | `read_mesh`, `plot.slab`, `write_mesh`, `Mesh` |
 | 8 | [Polygons](02-data-and-geometry/08-polygons/README.md) | Coal seam thickness | `point_in_polygon`, `polygon_distance`, `plot.section`, `assign_domain`, `Categories`, `plot.category_colors`, `plot.category_legend`, `Polylines`, `PolygonSelector` |
-| 9 | [Shapefiles and GeoTIFF](02-data-and-geometry/09-gis-formats/README.md) | Soil geochemistry survey | `write_shapefile`, `read_shapefile`, `Polylines`, `Categories`, `BlockModel`, `write_geotiff`, `read_geotiff` |
+| 9 | [Shapefiles, GeoPackage and GeoTIFF](02-data-and-geometry/09-gis-formats/README.md) | Soil geochemistry survey | `write_shapefile`, `read_shapefile`, `Polylines`, `write_geopackage`, `read_geopackage`, `Categories`, `BlockModel`, `write_geotiff`, `read_geotiff` |
 | 10 | [Models larger than memory](02-data-and-geometry/10-large-models/README.md) | Iron formation plateau | `Drillholes`, `BlockModel`, `write_parquet`, `BlockModelFile`, `detrend`, `map_blocks`, `NormalScore`, `experimental_variogram`, `Variogram`, `TurningBands`, `Search`, `plot.section` |
 | 11 | [3D views](02-data-and-geometry/11-3d-views/README.md) | Stacked sulphide lenses | `Drillholes`, `plot3d.to_pyvista`, `plot3d.plot`, `BlockModel`, `Search`, `InverseDistance` |
 | 12 | [Block model from extents](02-data-and-geometry/12-block-model-from-extents/README.md) | Stacked sulphide lenses | `Drillholes`, `BlockModel` |
@@ -94,7 +94,7 @@ Worked examples with the Python API on open datasets from [gstvschlz/datasets](h
 | 6 | [Search](06-kriging/06-search/README.md) | Walker Lake | `BlockModel`, `experimental_variogram`, `Variogram`, `OrdinaryKriging`, `Search` |
 | 7 | [Search calibration](06-kriging/07-search-calibration/README.md) | Walker Lake | `experimental_variogram`, `Variogram`, `cell_declustering`, `BlockModel`, `Search`, `BlockKriging`, `HermiteAnamorphosis`, `calibrate_search` |
 | 8 | [High-grade restriction](06-kriging/08-high-grade-restriction/README.md) | Walker Lake | `BlockModel`, `experimental_variogram`, `Variogram`, `BlockKriging`, `Search`, `HighGrade` |
-| 9 | [Cokriging](06-kriging/09-cokriging/README.md) | Jura | `experimental_variogram`, `Coregionalization`, `Search`, `OrdinaryKriging`, `Cokriging` |
+| 9 | [Cokriging](06-kriging/09-cokriging/README.md) | Jura | `experimental_variogram`, `Coregionalization`, `Search`, `OrdinaryKriging`, `Cokriging`, `BlockModel`, `LocalAnisotropy` |
 | 10 | [Indicator kriging](06-kriging/10-indicator-kriging/README.md) | Jura | `experimental_variogram`, `Search`, `IndicatorKriging` |
 | 11 | [Multiple indicator kriging](06-kriging/11-multiple-indicator-kriging/README.md) | Jura | `Search`, `cell_declustering`, `experimental_variogram`, `MultipleIndicatorKriging`, `OrdinaryKriging`, `BlockModel` |
 | 12 | [Multigaussian kriging](06-kriging/12-multigaussian-kriging/README.md) | Walker Lake | `cell_declustering`, `NormalScore`, `despike`, `experimental_variogram`, `Variogram`, `BlockModel`, `MultigaussianKriging`, `Search`, `plot.scatter` |
@@ -179,6 +179,17 @@ Worked examples with the Python API on open datasets from [gstvschlz/datasets](h
 | 8 | [Image quilting](13-multiple-point-statistics/08-image-quilting/README.md) | Strebelle | `BlockModel`, `ImageQuilting` |
 | 9 | [Continuous image quilting](13-multiple-point-statistics/09-image-quilting-continuous/README.md) | F3 seismic | `BlockModel`, `ImageQuilting`, `SNESIM` |
 | 10 | [Seismic volumes](13-multiple-point-statistics/10-seismic-volumes/README.md) | F3 seismic | `read_segy`, `BlockModel`, `object_training_image`, `write_segy`, `ImageQuilting` |
+
+## Workflows
+
+| # | Example | Dataset | Covers |
+|---|---|---|---|
+| 1 | [Flag solid proportions in a block model](14-workflows/01-solid-proportions/README.md) | Vein gold grade control | `BlockModel`, `plot.section`, `Categories`, `plot.slab` |
+| 2 | [Sub-block a model from solids](14-workflows/02-sub-blocks-from-solids/README.md) | Vein gold grade control | `BlockModel`, `Categories`, `plot.section`, `plot.slab`, `plot.category_legend` |
+| 3 | [Find and fix degenerate solids](14-workflows/03-degenerate-solids/README.md) | Stacked sulphide lenses | `Mesh` |
+| 4 | [Audit drill holes before modeling](14-workflows/04-drillhole-audit/README.md) | Stacked sulphide lenses | `check_drillholes`, `Table`, `fix_drillholes` |
+| 5 | [Compare two estimates of one deposit](14-workflows/05-compare-two-estimates/README.md) | Walker Lake | `cell_declustering`, `experimental_variogram`, `Variogram`, `Search`, `BlockKriging`, `InverseDistance`, `BlockModel`, `global_bias`, `swath`, `plot.swath`, `compare_models`, `OrdinaryKriging` |
+| 6 | [Grade–tonnage curves and the change in contained metal](14-workflows/06-grade-tonnage-and-metal/README.md) | Walker Lake | `experimental_variogram`, `Variogram`, `Search`, `BlockKriging`, `InverseDistance`, `BlockModel`, `grade_tonnage`, `compare_models`, `plot.grade_tonnage` |
 
 Each page alternates text, collapsed Python and its results. `mise run examples` reruns every script
 and rewrites the pages; `bt.datasets` downloads the data once and caches it. `render.py --index` writes this file.

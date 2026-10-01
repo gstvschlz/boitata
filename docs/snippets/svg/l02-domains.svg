@@ -1,0 +1,54 @@
+<svg class="bt-svg" viewBox="0 0 640 290" role="img" aria-labelledby="l02-domains-t">
+<title id="l02-domains-t">Two populations, host rock and ore, pooled into one histogram with two peaks</title>
+<line class="s-grid" x1="30" y1="130" x2="290" y2="130" stroke-width="1.5"/>
+<text x="30" y="30">host rock</text>
+<rect class="f-night-soft s-night a-grow" style="--d:0.06s" stroke-width=".8" x="56" y="127.9" width="8.7" height="2.1"/>
+<rect class="f-night-soft s-night a-grow" style="--d:0.08s" stroke-width=".8" x="64.7" y="121.3" width="8.7" height="8.7"/>
+<rect class="f-night-soft s-night a-grow" style="--d:0.10s" stroke-width=".8" x="73.3" y="103.7" width="8.7" height="26.3"/>
+<rect class="f-night-soft s-night a-grow" style="--d:0.12s" stroke-width=".8" x="82" y="71.7" width="8.7" height="58.3"/>
+<rect class="f-night-soft s-night a-grow" style="--d:0.14s" stroke-width=".8" x="90.7" y="36.2" width="8.7" height="93.8"/>
+<rect class="f-night-soft s-night a-grow" style="--d:0.16s" stroke-width=".8" x="99.3" y="20" width="8.7" height="110"/>
+<rect class="f-night-soft s-night a-grow" style="--d:0.18s" stroke-width=".8" x="108" y="36.2" width="8.7" height="93.8"/>
+<rect class="f-night-soft s-night a-grow" style="--d:0.20s" stroke-width=".8" x="116.7" y="71.7" width="8.7" height="58.3"/>
+<rect class="f-night-soft s-night a-grow" style="--d:0.22s" stroke-width=".8" x="125.3" y="103.7" width="8.7" height="26.3"/>
+<rect class="f-night-soft s-night a-grow" style="--d:0.24s" stroke-width=".8" x="134" y="121.3" width="8.7" height="8.7"/>
+<rect class="f-night-soft s-night a-grow" style="--d:0.26s" stroke-width=".8" x="142.7" y="127.9" width="8.7" height="2.1"/>
+<line class="s-grid" x1="30" y1="270" x2="290" y2="270" stroke-width="1.5"/>
+<text x="30" y="170">ore lens</text>
+<rect class="f-flame-soft s-ember a-grow" style="--d:0.70s" stroke-width=".8" x="160" y="267.2" width="8.7" height="2.8"/>
+<rect class="f-flame-soft s-ember a-grow" style="--d:0.72s" stroke-width=".8" x="168.7" y="257.6" width="8.7" height="12.4"/>
+<rect class="f-flame-soft s-ember a-grow" style="--d:0.74s" stroke-width=".8" x="177.3" y="233.9" width="8.7" height="36.1"/>
+<rect class="f-flame-soft s-ember a-grow" style="--d:0.76s" stroke-width=".8" x="186" y="201.3" width="8.7" height="68.7"/>
+<rect class="f-flame-soft s-ember a-grow" style="--d:0.78s" stroke-width=".8" x="194.7" y="184.9" width="8.7" height="85.1"/>
+<rect class="f-flame-soft s-ember a-grow" style="--d:0.80s" stroke-width=".8" x="203.3" y="201.3" width="8.7" height="68.7"/>
+<rect class="f-flame-soft s-ember a-grow" style="--d:0.82s" stroke-width=".8" x="212" y="233.9" width="8.7" height="36.1"/>
+<rect class="f-flame-soft s-ember a-grow" style="--d:0.84s" stroke-width=".8" x="220.7" y="257.6" width="8.7" height="12.4"/>
+<rect class="f-flame-soft s-ember a-grow" style="--d:0.86s" stroke-width=".8" x="229.3" y="267.2" width="8.7" height="2.8"/>
+<line class="s-grid" x1="350" y1="200" x2="610" y2="200" stroke-width="1.5"/>
+<text x="350" y="70">pooled</text>
+<text x="350" y="86" class="small">two peaks: two populations</text>
+<rect class="f-night-soft s-night a-grow" style="--d:1.06s" stroke-width=".8" x="376" y="197.9" width="8.7" height="2.1"/>
+<rect class="f-night-soft s-night a-grow" style="--d:1.08s" stroke-width=".8" x="384.7" y="191.3" width="8.7" height="8.7"/>
+<rect class="f-night-soft s-night a-grow" style="--d:1.10s" stroke-width=".8" x="393.3" y="173.7" width="8.7" height="26.3"/>
+<rect class="f-night-soft s-night a-grow" style="--d:1.12s" stroke-width=".8" x="402" y="141.7" width="8.7" height="58.3"/>
+<rect class="f-night-soft s-night a-grow" style="--d:1.14s" stroke-width=".8" x="410.7" y="106.2" width="8.7" height="93.8"/>
+<rect class="f-night-soft s-night a-grow" style="--d:1.16s" stroke-width=".8" x="419.3" y="90" width="8.7" height="110"/>
+<rect class="f-night-soft s-night a-grow" style="--d:1.18s" stroke-width=".8" x="428" y="106.2" width="8.7" height="93.8"/>
+<rect class="f-night-soft s-night a-grow" style="--d:1.20s" stroke-width=".8" x="436.7" y="141.7" width="8.7" height="58.3"/>
+<rect class="f-night-soft s-night a-grow" style="--d:1.22s" stroke-width=".8" x="445.3" y="173.7" width="8.7" height="26.3"/>
+<rect class="f-night-soft s-night a-grow" style="--d:1.24s" stroke-width=".8" x="454" y="191.3" width="8.7" height="8.7"/>
+<rect class="f-night-soft s-night a-grow" style="--d:1.26s" stroke-width=".8" x="462.7" y="197.9" width="8.7" height="2.1"/>
+<rect class="f-flame-soft s-ember a-grow" style="--d:1.30s" stroke-width=".8" x="480" y="197.2" width="8.7" height="2.8"/>
+<rect class="f-flame-soft s-ember a-grow" style="--d:1.32s" stroke-width=".8" x="488.7" y="187.6" width="8.7" height="12.4"/>
+<rect class="f-flame-soft s-ember a-grow" style="--d:1.34s" stroke-width=".8" x="497.3" y="163.9" width="8.7" height="36.1"/>
+<rect class="f-flame-soft s-ember a-grow" style="--d:1.36s" stroke-width=".8" x="506" y="131.3" width="8.7" height="68.7"/>
+<rect class="f-flame-soft s-ember a-grow" style="--d:1.38s" stroke-width=".8" x="514.7" y="114.9" width="8.7" height="85.1"/>
+<rect class="f-flame-soft s-ember a-grow" style="--d:1.40s" stroke-width=".8" x="523.3" y="131.3" width="8.7" height="68.7"/>
+<rect class="f-flame-soft s-ember a-grow" style="--d:1.42s" stroke-width=".8" x="532" y="163.9" width="8.7" height="36.1"/>
+<rect class="f-flame-soft s-ember a-grow" style="--d:1.44s" stroke-width=".8" x="540.7" y="187.6" width="8.7" height="12.4"/>
+<rect class="f-flame-soft s-ember a-grow" style="--d:1.46s" stroke-width=".8" x="549.3" y="197.2" width="8.7" height="2.8"/>
+<path class="s-muted none a-draw" style="--d:.8s" pathLength="1" stroke-width="1.5" d="M295 90 C 320 100, 330 130, 345 150"/>
+<path class="s-muted none a-draw" style="--d:.8s" pathLength="1" stroke-width="1.5" d="M295 230 C 320 220, 330 200, 345 185"/>
+<text x="350" y="218" class="small">low</text>
+<text x="610" y="218" class="small" text-anchor="end">high grade (log scale)</text>
+</svg>

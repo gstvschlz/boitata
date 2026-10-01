@@ -1,0 +1,40 @@
+<svg class="bt-svg" viewBox="0 0 640 300" role="img" aria-labelledby="w1-proportion-t">
+<title id="w1-proportion-t">A vein crossing a block; 7 of its 16 discretization points fall inside</title>
+<rect class="f-paper s-grid" x="40" y="30" width="80" height="80" stroke-width="1.5"/>
+<rect class="f-paper s-grid" x="40" y="110" width="80" height="80" stroke-width="1.5"/>
+<rect class="f-paper s-grid" x="40" y="190" width="80" height="80" stroke-width="1.5"/>
+<rect class="f-paper s-grid" x="120" y="30" width="80" height="80" stroke-width="1.5"/>
+<rect class="f-paper s-grid" x="120" y="110" width="80" height="80" stroke-width="1.5"/>
+<rect class="f-paper s-grid" x="120" y="190" width="80" height="80" stroke-width="1.5"/>
+<rect class="f-paper s-grid" x="200" y="30" width="80" height="80" stroke-width="1.5"/>
+<rect class="f-paper s-grid" x="200" y="110" width="80" height="80" stroke-width="1.5"/>
+<rect class="f-paper s-grid" x="200" y="190" width="80" height="80" stroke-width="1.5"/>
+<clipPath id="w1-proportion-clip"><rect x="40" y="30" width="240" height="240"/></clipPath>
+<polygon class="f-ember-soft s-ember a-fade" points="40,252 280,36 280,76 40,292" stroke-width="1.5" clip-path="url(#w1-proportion-clip)"/>
+<circle class="f-muted a-pop" style="--d:0.40s" cx="130" cy="120" r="4.5"/>
+<circle class="f-muted a-pop" style="--d:0.45s" cx="130" cy="140" r="4.5"/>
+<circle class="f-muted a-pop" style="--d:0.50s" cx="130" cy="160" r="4.5"/>
+<circle class="f-ember a-pop" style="--d:0.55s" cx="130" cy="180" r="4.5"/>
+<circle class="f-muted a-pop" style="--d:0.60s" cx="150" cy="120" r="4.5"/>
+<circle class="f-muted a-pop" style="--d:0.65s" cx="150" cy="140" r="4.5"/>
+<circle class="f-ember a-pop" style="--d:0.70s" cx="150" cy="160" r="4.5"/>
+<circle class="f-ember a-pop" style="--d:0.75s" cx="150" cy="180" r="4.5"/>
+<circle class="f-muted a-pop" style="--d:0.80s" cx="170" cy="120" r="4.5"/>
+<circle class="f-ember a-pop" style="--d:0.85s" cx="170" cy="140" r="4.5"/>
+<circle class="f-ember a-pop" style="--d:0.90s" cx="170" cy="160" r="4.5"/>
+<circle class="f-muted a-pop" style="--d:0.95s" cx="170" cy="180" r="4.5"/>
+<circle class="f-ember a-pop" style="--d:1.00s" cx="190" cy="120" r="4.5"/>
+<circle class="f-ember a-pop" style="--d:1.05s" cx="190" cy="140" r="4.5"/>
+<circle class="f-muted a-pop" style="--d:1.10s" cx="190" cy="160" r="4.5"/>
+<circle class="f-muted a-pop" style="--d:1.15s" cx="190" cy="180" r="4.5"/>
+<rect class="none s-ink" x="120" y="110" width="80" height="80" stroke-width="2.5"/>
+<circle class="f-night a-fade" style="--d:1.3s" cx="80" cy="70" r="3"/>
+<circle class="f-night a-fade" style="--d:1.3s" cx="240" cy="230" r="3"/>
+<text x="320" y="80">Center block: 4 × 4 points</text>
+<text class="a-fade" style="--d:1.3s" x="320" y="108">7 of 16 inside the vein</text>
+<text class="math a-fade" style="--d:1.5s" x="320" y="140">proportion = 7/16 = 0.438</text>
+<text class="small" x="320" y="200">Dots: blocks the surface misses are</text>
+<text class="small" x="320" y="218">settled by their centroid alone.</text>
+<text class="small" x="320" y="236">Every block the surface crosses gets</text>
+<text class="small" x="320" y="254">a point grid; the outlined one is shown.</text>
+</svg>

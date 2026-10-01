@@ -1,0 +1,23 @@
+<svg class="bt-svg" viewBox="0 0 640 250" role="img" aria-labelledby="l02-normal-score-t">
+<title id="l02-normal-score-t">The normal-score transform maps a grade to the standard normal score with the same cumulative probability</title>
+<line class="s-grid" x1="40" y1="220" x2="290" y2="220" stroke-width="1.5"/>
+<line class="s-grid" x1="40" y1="220" x2="40" y2="40" stroke-width="1.5"/>
+<line class="s-grid" x1="350" y1="220" x2="600" y2="220" stroke-width="1.5"/>
+<line class="s-grid" x1="350" y1="220" x2="350" y2="40" stroke-width="1.5"/>
+<path class="s-night none a-draw" pathLength="1" stroke-width="2.5" d="M40.4 220 L 43.6 219.8 L 46.7 218.1 L 49.9 213.9 L 53.1 207.5 L 56.2 199.8 L 59.4 191.2 L 62.5 182.4 L 65.7 173.6 L 68.9 165.1 L 72 157 L 75.2 149.3 L 78.3 142.1 L 81.5 135.4 L 84.6 129.2 L 87.8 123.4 L 91 118.1 L 94.1 113.2 L 97.3 108.7 L 100.4 104.6 L 103.6 100.7 L 106.8 97.2 L 109.9 94 L 113.1 91 L 116.2 88.3 L 119.4 85.7 L 122.6 83.4 L 125.7 81.2 L 128.9 79.2 L 132 77.4 L 135.2 75.6 L 138.4 74.1 L 141.5 72.6 L 144.7 71.2 L 147.8 69.9 L 151 68.8 L 154.2 67.7 L 157.3 66.6 L 160.5 65.7 L 163.6 64.8 L 166.8 64 L 169.9 63.2 L 173.1 62.5 L 176.3 61.8 L 179.4 61.1 L 182.6 60.5 L 185.7 60 L 188.9 59.5 L 192.1 59 L 195.2 58.5 L 198.4 58.1 L 201.5 57.7 L 204.7 57.3 L 207.9 56.9 L 211 56.6 L 214.2 56.3 L 217.3 56 L 220.5 55.7 L 223.7 55.4 L 226.8 55.2 L 230 54.9 L 233.1 54.7 L 236.3 54.5 L 239.5 54.3 L 242.6 54.1 L 245.8 53.9 L 248.9 53.7 L 252.1 53.6 L 255.2 53.4 L 258.4 53.3 L 261.6 53.1 L 264.7 53 L 267.9 52.9 L 271 52.7 L 274.2 52.6 L 277.4 52.5 L 280.5 52.4 L 283.7 52.3 L 286.8 52.2 L 290 52.1"/>
+<path class="s-night none a-draw" style="--d:.3s" pathLength="1" stroke-width="2.5" d="M350 219.8 L 353.2 219.7 L 356.3 219.6 L 359.5 219.5 L 362.7 219.4 L 365.8 219.3 L 369 219.1 L 372.2 218.8 L 375.3 218.6 L 378.5 218.3 L 381.6 217.9 L 384.8 217.4 L 388 216.9 L 391.1 216.2 L 394.3 215.5 L 397.5 214.7 L 400.6 213.7 L 403.8 212.6 L 407 211.3 L 410.1 209.8 L 413.3 208.2 L 416.5 206.4 L 419.6 204.4 L 422.8 202.1 L 425.9 199.7 L 429.1 197 L 432.3 194.1 L 435.4 190.9 L 438.6 187.5 L 441.8 183.9 L 444.9 180 L 448.1 175.9 L 451.3 171.6 L 454.4 167.2 L 457.6 162.5 L 460.8 157.7 L 463.9 152.8 L 467.1 147.8 L 470.3 142.7 L 473.4 137.6 L 476.6 132.4 L 479.7 127.3 L 482.9 122.2 L 486.1 117.2 L 489.2 112.3 L 492.4 107.5 L 495.6 102.8 L 498.7 98.4 L 501.9 94.1 L 505.1 90 L 508.2 86.1 L 511.4 82.5 L 514.6 79.1 L 517.7 75.9 L 520.9 73 L 524.1 70.3 L 527.2 67.9 L 530.4 65.6 L 533.5 63.6 L 536.7 61.8 L 539.9 60.2 L 543 58.7 L 546.2 57.4 L 549.4 56.3 L 552.5 55.3 L 555.7 54.5 L 558.9 53.8 L 562 53.1 L 565.2 52.6 L 568.4 52.1 L 571.5 51.7 L 574.7 51.4 L 577.8 51.2 L 581 50.9 L 584.2 50.7 L 587.3 50.6 L 590.5 50.5 L 593.7 50.4 L 596.8 50.3 L 600 50.2"/>
+<line class="s-ember a-draw" style="--d:1.2s" pathLength="1" x1="111.5" y1="220" x2="111.5" y2="92.5" stroke-width="1.8"/>
+<line class="s-ember a-draw" style="--d:1.6s" pathLength="1" x1="111.5" y1="92.5" x2="503.1" y2="92.5" stroke-width="1.8"/>
+<line class="s-ember a-draw" style="--d:2.0s" pathLength="1" x1="503.1" y1="92.5" x2="503.1" y2="220" stroke-width="1.8"/>
+<circle class="f-ember a-pop" style="--d:2.4s" cx="503.1" cy="220" r="5"/>
+<circle class="f-ember a-pop" style="--d:1.0s" cx="111.5" cy="220" r="5"/>
+<text x="190" y="84.5" class="small">cumulative probability 0.75</text>
+<text x="40" y="240" class="small">grade</text>
+<text x="350" y="240" class="small">normal score</text>
+<text x="475" y="240" class="small" text-anchor="middle">0</text>
+<text x="509.1" y="214" class="small">0.67</text>
+<text x="40" y="30">skewed grades</text>
+<text x="350" y="30">standard normal</text>
+<text x="10" y="54" class="small">1</text>
+<text x="10" y="224" class="small">0</text>
+</svg>

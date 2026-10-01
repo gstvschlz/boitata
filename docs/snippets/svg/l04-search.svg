@@ -1,0 +1,53 @@
+<svg class="bt-svg" viewBox="0 0 640 330" role="img" aria-labelledby="l04-search-t">
+<title id="l04-search-t">A search ellipse along the direction of continuity, split into quadrants, keeping the two closest samples in each</title>
+<ellipse class="f-night-soft s-night a-draw" pathLength="1" stroke-width="2" cx="220" cy="165" rx="136.0" ry="68.0" transform="rotate(71.46 220 165)"/>
+<line class="s-muted dash a-fade" style="--d:.8s" x1="176.8" y1="36.1" x2="263.2" y2="293.9" stroke-width="1"/>
+<line class="s-muted dash a-fade" style="--d:.8s" x1="284.5" y1="143.4" x2="155.5" y2="186.6" stroke-width="1"/>
+<circle class="f-grid" cx="100.3" cy="241.1" r="3.5"/>
+<circle class="f-grid" cx="307.1" cy="141.3" r="3.5"/>
+<circle class="f-grid" cx="102.7" cy="184.3" r="3.5"/>
+<circle class="f-ember a-pop" style="--d:1.56s" cx="213.9" cy="263.3" r="5.5"/>
+<circle class="f-grid" cx="287.8" cy="276.6" r="3.5"/>
+<circle class="f-ember a-pop" style="--d:1.80s" cx="188.6" cy="160.2" r="5.5"/>
+<circle class="f-ember a-pop" style="--d:1.92s" cx="200.0" cy="139.9" r="5.5"/>
+<circle class="f-grid" cx="288.7" cy="33.1" r="3.5"/>
+<circle class="f-night" cx="157.6" cy="122.1" r="3.5"/>
+<circle class="f-ember a-pop" style="--d:2.28s" cx="276.7" cy="224.9" r="5.5"/>
+<circle class="f-grid" cx="75.9" cy="28.2" r="3.5"/>
+<circle class="f-grid" cx="161.7" cy="218.8" r="3.5"/>
+<circle class="f-grid" cx="333.2" cy="140.4" r="3.5"/>
+<circle class="f-night" cx="211.7" cy="86.0" r="3.5"/>
+<circle class="f-grid" cx="84.3" cy="105.2" r="3.5"/>
+<circle class="f-grid" cx="183.7" cy="283.2" r="3.5"/>
+<circle class="f-grid" cx="266.4" cy="40.3" r="3.5"/>
+<circle class="f-grid" cx="135.4" cy="127.4" r="3.5"/>
+<circle class="f-night" cx="161.7" cy="95.1" r="3.5"/>
+<circle class="f-ember a-pop" style="--d:2.28s" cx="284.2" cy="246.3" r="5.5"/>
+<circle class="f-grid" cx="315.3" cy="119.4" r="3.5"/>
+<circle class="f-grid" cx="272.8" cy="72.5" r="3.5"/>
+<circle class="f-ember a-pop" style="--d:1.44s" cx="199.4" cy="90.2" r="5.5"/>
+<circle class="f-grid" cx="329.4" cy="279.9" r="3.5"/>
+<circle class="f-grid" cx="321.1" cy="195.7" r="3.5"/>
+<circle class="f-ember a-pop" style="--d:1.80s" cx="214.1" cy="267.2" r="5.5"/>
+<circle class="f-night" cx="248.0" cy="111.4" r="3.5"/>
+<circle class="f-night" cx="263.3" cy="119.6" r="3.5"/>
+<circle class="f-night" cx="249.4" cy="115.1" r="3.5"/>
+<circle class="f-ember a-pop" style="--d:2.28s" cx="232.0" cy="110.4" r="5.5"/>
+<circle class="f-night" cx="262.4" cy="134.1" r="3.5"/>
+<circle class="f-night" cx="258.0" cy="127.2" r="3.5"/>
+<circle class="f-night" cx="265.1" cy="138.1" r="3.5"/>
+<circle class="f-night" cx="248.1" cy="110.2" r="3.5"/>
+<circle class="f-night" cx="269.2" cy="139.4" r="3.5"/>
+<line class="s-ember" x1="214" y1="159" x2="226" y2="171" stroke-width="2.5"/>
+<line class="s-ember" x1="214" y1="171" x2="226" y2="159" stroke-width="2.5"/>
+<text class="small" x="271.2" y="297.9">radius 80 m along N161°</text>
+<text x="420" y="70">max_samples = 8</text>
+<text x="420" y="92">octant=True: at most 2</text>
+<text x="420" y="110">per sector (quadrants in 2D)</text>
+<circle class="f-ember" cx="426" cy="150" r="5.5"/>
+<text class="small" x="440" y="154">used</text>
+<circle class="f-night" cx="426" cy="174" r="3.5"/>
+<text class="small" x="440" y="178">inside, not needed</text>
+<circle class="f-grid" cx="426" cy="198" r="3.5"/>
+<text class="small" x="440" y="202">outside the ellipse</text>
+</svg>

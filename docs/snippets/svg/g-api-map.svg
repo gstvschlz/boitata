@@ -1,0 +1,80 @@
+<svg class="bt-svg" viewBox="0 0 720 470" role="img" aria-labelledby="g-api-map-t">
+<title id="g-api-map-t">Boitatá in five layers: loaders bring data into containers; functions, value objects and estimators work on the containers; plots and files take the results out; a Rust core does the computing</title>
+<g class="a-fade" style="--d:0s">
+<text class="small" x="16" y="47">1 · get data</text>
+<rect class="f-paper s-muted" x="130" y="20" width="267" height="46" rx="6" stroke-width="1.5"/>
+<text x="263.5" y="40" text-anchor="middle">bt.datasets</text>
+<text class="small" x="263.5" y="57" text-anchor="middle">downloaded once, cached, checksummed</text>
+<rect class="f-paper s-muted" x="413" y="20" width="267" height="46" rx="6" stroke-width="1.5"/>
+<text x="546.5" y="40" text-anchor="middle">read_csv · read_parquet · read_mesh</text>
+<text class="small" x="546.5" y="57" text-anchor="middle">open formats; sentinels such as -999 become null</text>
+</g>
+<path class="s-muted none a-draw" style="--d:.5s" pathLength="1" stroke-width="1.5" d="M405 66 V88"/>
+<path class="f-muted a-fade" style="--d:.8s" d="M400 86 L405 94 L410 86 Z"/>
+<g class="a-fade" style="--d:.7s">
+<text class="small" x="16" y="134">2 · hold data</text>
+<rect class="f-night-soft s-night" x="130" y="96" width="550" height="80" rx="6" stroke-width="2"/>
+<text x="145" y="113">Containers</text>
+<rect class="f-paper s-night" x="145" y="122" width="80" height="28" rx="4" stroke-width="1.2"/>
+<text x="185" y="141" text-anchor="middle">Table</text>
+<rect class="f-paper s-night" x="233" y="122" width="80" height="28" rx="4" stroke-width="1.2"/>
+<text x="273" y="141" text-anchor="middle">PointSet</text>
+<rect class="f-paper s-night" x="321" y="122" width="80" height="28" rx="4" stroke-width="1.2"/>
+<text x="361" y="141" text-anchor="middle">Drillholes</text>
+<rect class="f-paper s-night" x="409" y="122" width="80" height="28" rx="4" stroke-width="1.2"/>
+<text x="449" y="141" text-anchor="middle">BlockModel</text>
+<rect class="f-paper s-night" x="497" y="122" width="80" height="28" rx="4" stroke-width="1.2"/>
+<text x="537" y="141" text-anchor="middle">Mesh</text>
+<rect class="f-paper s-night" x="585" y="122" width="80" height="28" rx="4" stroke-width="1.2"/>
+<text x="625" y="141" text-anchor="middle">Polylines</text>
+<text class="small" x="405" y="167" text-anchor="middle">Arrow columns · null for missing · with_column returns a new container</text>
+</g>
+<path class="s-muted none a-draw" style="--d:1.2s" pathLength="1" stroke-width="1.5" d="M217 176 V198"/>
+<path class="f-muted a-fade" style="--d:1.5s" d="M212 196 L217 204 L222 196 Z"/>
+<path class="s-muted none a-draw" style="--d:1.2s" pathLength="1" stroke-width="1.5" d="M593 176 V198"/>
+<path class="f-muted a-fade" style="--d:1.5s" d="M588 196 L593 204 L598 196 Z"/>
+<g class="a-fade" style="--d:1.4s">
+<text class="small" x="16" y="256">3 · work</text>
+<rect class="f-paper s-muted" x="130" y="206" width="174" height="96" rx="6" stroke-width="1.5"/>
+<text x="217" y="228" text-anchor="middle">Functions</text>
+<text class="small" x="217" y="250" text-anchor="middle">describe, swath,</text>
+<text class="small" x="217" y="265" text-anchor="middle">experimental_variogram</text>
+<text class="small" x="217" y="290" text-anchor="middle">summarize and measure</text>
+<rect class="f-flame-soft s-flame" x="318" y="206" width="174" height="96" rx="6" stroke-width="1.5"/>
+<text x="405" y="228" text-anchor="middle">Value objects</text>
+<text class="small" x="405" y="250" text-anchor="middle">Variogram, Structure,</text>
+<text class="small" x="405" y="265" text-anchor="middle">Search, Categories</text>
+<text class="small" x="405" y="290" text-anchor="middle">describe a model</text>
+<rect class="f-ember-soft s-ember" x="506" y="206" width="174" height="96" rx="6" stroke-width="1.5"/>
+<text x="593" y="228" text-anchor="middle">Estimators, transforms</text>
+<text class="small" x="593" y="250" text-anchor="middle">NormalScore, SGS,</text>
+<text class="small" x="593" y="265" text-anchor="middle">OrdinaryKriging</text>
+<text class="small" x="593" y="290" text-anchor="middle">fit, then transform or predict</text>
+</g>
+<path class="s-muted none a-draw" style="--d:1.9s" pathLength="1" stroke-width="1.5" d="M304 254 H312"/>
+<path class="f-muted a-fade" style="--d:2.1s" d="M311 249 L318 254 L311 259 Z"/>
+<path class="s-muted none a-draw" style="--d:2.1s" pathLength="1" stroke-width="1.5" d="M492 254 H500"/>
+<path class="f-muted a-fade" style="--d:2.3s" d="M499 249 L506 254 L499 259 Z"/>
+<path class="s-ember none dash a-draw" style="--d:2.4s" pathLength="1" stroke-width="1.8" d="M680 254 H700 V136 H688"/>
+<path class="f-ember a-fade" style="--d:2.9s" d="M689 131 L680 136 L689 141 Z"/>
+<text class="small a-fade" style="--d:2.9s" x="714" y="195" transform="rotate(-90 714 195)" text-anchor="middle">with_column</text>
+<path class="s-muted none a-draw" style="--d:2.6s" pathLength="1" stroke-width="1.5" d="M263 302 V324"/>
+<path class="f-muted a-fade" style="--d:2.9s" d="M258 322 L263 330 L268 322 Z"/>
+<path class="s-muted none a-draw" style="--d:2.6s" pathLength="1" stroke-width="1.5" d="M546 302 V324"/>
+<path class="f-muted a-fade" style="--d:2.9s" d="M541 322 L546 330 L551 322 Z"/>
+<g class="a-fade" style="--d:2.8s">
+<text class="small" x="16" y="358">4 · show, keep</text>
+<rect class="f-paper s-muted" x="130" y="332" width="267" height="46" rx="6" stroke-width="1.5"/>
+<text x="263.5" y="352" text-anchor="middle">bt.plot</text>
+<text class="small" x="263.5" y="369" text-anchor="middle">matplotlib; returns fig, ax; accepts ax=</text>
+<rect class="f-paper s-muted" x="413" y="332" width="267" height="46" rx="6" stroke-width="1.5"/>
+<text x="546.5" y="352" text-anchor="middle">write_parquet · to_json</text>
+<text class="small" x="546.5" y="369" text-anchor="middle">Parquet for containers, JSON for models</text>
+</g>
+<g class="a-fade" style="--d:3.3s">
+<text class="small" x="16" y="430">5 · compute</text>
+<rect class="f-night-soft s-night dash" x="130" y="400" width="550" height="54" rx="6" stroke-width="1.5"/>
+<text x="405" y="422" text-anchor="middle">Rust core: f64 kernels, kd-tree search, rayon threads</text>
+<text class="small" x="405" y="442" text-anchor="middle">under the containers, functions and estimators · same result for any thread count</text>
+</g>
+</svg>

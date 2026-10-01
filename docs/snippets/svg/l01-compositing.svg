@@ -1,0 +1,55 @@
+<svg class="bt-svg" viewBox="0 0 640 250" role="img" aria-labelledby="l01-compositing-t">
+<title id="l01-compositing-t">Irregular assays combined into 2 m composites, weighted by sampled length and cut at a contact</title>
+<text x="60" y="30" class="small">assays, as sampled</text>
+<rect class="f-flame-soft s-paper" x="60" y="40" width="60" height="36" stroke-width="1.5"/>
+<text x="90" y="63" text-anchor="middle">3</text>
+<rect class="f-flame s-paper" x="120" y="40" width="40" height="36" stroke-width="1.5"/>
+<text x="140" y="63" text-anchor="middle">5.5</text>
+<rect class="f-flame s-paper" x="160" y="40" width="50" height="36" stroke-width="1.5"/>
+<text x="185" y="63" text-anchor="middle">8</text>
+<rect class="f-flame s-paper" x="210" y="40" width="75" height="36" stroke-width="1.5"/>
+<text x="247.5" y="63" text-anchor="middle">6</text>
+<rect class="f-paper s-muted dash" x="285" y="40" width="35" height="36" stroke-width="1"/>
+<text x="302.5" y="96" text-anchor="middle" class="small">not sampled</text>
+<rect class="f-flame-soft s-paper" x="320" y="40" width="40" height="36" stroke-width="1.5"/>
+<text x="340" y="63" text-anchor="middle">2</text>
+<rect class="f-grid s-paper" x="360" y="40" width="75" height="36" stroke-width="1.5"/>
+<text x="397.5" y="63" text-anchor="middle">0.5</text>
+<rect class="f-grid s-paper" x="435" y="40" width="25" height="36" stroke-width="1.5"/>
+<text x="447.5" y="63" text-anchor="middle">0.3</text>
+<rect class="f-grid s-paper" x="460" y="40" width="50" height="36" stroke-width="1.5"/>
+<text x="485" y="63" text-anchor="middle">0.2</text>
+<rect class="f-grid s-paper" x="510" y="40" width="50" height="36" stroke-width="1.5"/>
+<text x="535" y="63" text-anchor="middle">0.4</text>
+<line class="s-ink" x1="360" y1="30" x2="360" y2="172" stroke-width="2"/>
+<text x="366" y="30" class="small">contact</text>
+<text x="60" y="124" class="small">2 m composites</text>
+<g class="a-slide" style="--d:0.30s">
+<rect class="f-flame-soft s-paper" x="60" y="134" width="100" height="36" stroke-width="2"/>
+<text x="110" y="157" text-anchor="middle">4</text>
+</g>
+<g class="a-slide" style="--d:0.65s">
+<rect class="f-flame s-paper" x="160" y="134" width="100" height="36" stroke-width="2"/>
+<text x="210" y="157" text-anchor="middle">7</text>
+</g>
+<g class="a-slide" style="--d:1.00s">
+<rect class="f-flame-soft s-paper" x="260" y="134" width="100" height="36" stroke-width="2"/>
+<text x="310" y="157" text-anchor="middle">3.5</text>
+</g>
+<text x="310" y="188" text-anchor="middle" class="small">over 1.3 m sampled</text>
+<g class="a-slide" style="--d:1.35s">
+<rect class="f-grid s-paper" x="360" y="134" width="100" height="36" stroke-width="2"/>
+<text x="410" y="157" text-anchor="middle">0.45</text>
+</g>
+<g class="a-slide" style="--d:1.70s">
+<rect class="f-grid s-paper" x="460" y="134" width="100" height="36" stroke-width="2"/>
+<text x="510" y="157" text-anchor="middle">0.3</text>
+</g>
+<text x="60" y="212" text-anchor="middle" class="small">0 m</text>
+<text x="160" y="212" text-anchor="middle" class="small">2 m</text>
+<text x="260" y="212" text-anchor="middle" class="small">4 m</text>
+<text x="360" y="212" text-anchor="middle" class="small">6 m</text>
+<text x="460" y="212" text-anchor="middle" class="small">8 m</text>
+<text x="560" y="212" text-anchor="middle" class="small">10 m</text>
+<text x="60" y="240" class="small">metal (grade × sampled length): assays 28.1, composites 28.1</text>
+</svg>
