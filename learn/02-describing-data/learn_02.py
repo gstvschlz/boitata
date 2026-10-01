@@ -173,7 +173,8 @@ gold_holes = bt.Drillholes(
 composites = gold_holes.composite(1.0, ["AU_GPT"], domain="LITH")
 quartz = composites.filter((np.array(composites["LITH"]) == "QV") & ~np.isnan(composites["AU_GPT"]))
 au = quartz["AU_GPT"]
-au_weights = bt.cell_declustering(quartz, "AU_GPT", cell_size=20.0).weights
+cell_size = 20.0  # @param {type:"slider", min:5, max:100, step:5}
+au_weights = bt.cell_declustering(quartz, "AU_GPT", cell_size=cell_size).weights
 raw = bt.describe(au, weights=au_weights)
 print(f"{len(quartz)} composites; declustered mean {raw['mean']:.2f} g/t, CV {raw['cv']:.2f}")
 print(f"largest five: {np.round(np.sort(au)[::-1][:5], 0)}")

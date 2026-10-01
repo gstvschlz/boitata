@@ -110,7 +110,7 @@ print(grid.centroids[:2])
 data = bt.datasets.stacked_sulphide_lenses()
 collars, surveys, assays, lithology = data["collars"], data["surveys"], data["assays"], data["lithology"]
 print(f"{collars.num_rows} collars, {surveys.num_rows} survey stations, {assays.num_rows} assays")
-hole = "DD0027"
+hole = "DD0027"  # @param {type:"string"}
 row = np.flatnonzero(np.array(collars["HOLE_ID"]) == hole)[0]
 print(f"collar: X {collars['X'][row]:.1f}  Y {collars['Y'][row]:.1f}  Z {collars['Z'][row]:.1f}")
 for i in np.flatnonzero(np.array(surveys["HOLE_ID"]) == hole)[[0, 1, 2, -1]]:

@@ -221,7 +221,9 @@ print(gaussian)
 
 # %%
 sgs = bt.SGS(gaussian, bt.Search(radius=100, max_samples=24)).fit(samples, "V", weights=weights)
-summary = sgs.simulate(grid, n=50, seed=42, cutoffs=[cutoff], keep=range(20))
+n_realizations = 50  # @param {type:"slider", min:20, max:200, step:10}
+seed = 42  # @param {type:"integer"}
+summary = sgs.simulate(grid, n=n_realizations, seed=seed, cutoffs=[cutoff], keep=range(20))
 reals = summary.realizations
 print(f"{summary.n} realizations; kept array has shape {reals.shape}")
 print(
@@ -257,9 +259,9 @@ save(fig, "realizations")
 # seed gives new ones:
 
 # %%
-again = sgs.simulate(grid, n=3, seed=42, keep=True).realizations
+again = sgs.simulate(grid, n=3, seed=seed, keep=True).realizations
 other = sgs.simulate(grid, n=3, seed=7, keep=True).realizations
-print(f"seed 42 again, same three maps: {np.array_equal(again, reals[:3])}")
+print(f"seed {seed} again, same three maps: {np.array_equal(again, reals[:3])}")
 print(f"seed 7, nodes that differ: {np.mean(other != again):.0%}")
 
 # %% [markdown]

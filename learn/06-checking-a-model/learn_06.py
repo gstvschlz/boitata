@@ -63,8 +63,9 @@ def search(max_samples):
     )
 
 
+max_samples = 24  # @param {type:"slider", min:4, max:64, step:4}
 blocks = bt.BlockModel(origin=(0.5, 0.5), size=(10, 10), count=(26, 30))
-kriging = bt.BlockKriging(model, search(24), size=(10, 10), discretization=(5, 5, 1)).fit(xy, v)
+kriging = bt.BlockKriging(model, search(max_samples), size=(10, 10), discretization=(5, 5, 1)).fit(xy, v)
 d = kriging.predict(blocks, diagnostics=True)
 true_blocks = truth.reshape(30, 10, 26, 10).mean(axis=(1, 3)).ravel()
 kriged = blocks.with_columns({"value": d["value"], "truth": true_blocks})
@@ -106,7 +107,7 @@ print(f"true blocks {true_blocks.mean():.1f} ppm")
 # kriging variances with the summary statistics:
 
 # %%
-point = bt.OrdinaryKriging(model, search(24)).fit(xy, v)
+point = bt.OrdinaryKriging(model, search(max_samples)).fit(xy, v)
 results = {}
 for folds in (None, 10, 5):
     name = "leave-one-out" if folds is None else f"{folds}-fold"
