@@ -1,1 +1,1 @@
-## Paired data
+## paired data

@@ -1,9 +1,9 @@
 """
-# Disjunctive kriging
+# disjunctive kriging
 
-Disjunctive kriging estimates, at each node, any function of the grade from kriged Hermite factors of a Gaussian
-anamorphosis; here, the probability that V exceeds a cutoff. The exhaustive Walker Lake grid shows where the grade
-truly exceeds it.
+disjunctive kriging estimates, at each node, any function of the grade from kriged hermite factors of a gaussian
+anamorphosis; here, the probability that V exceeds a cutoff. the exhaustive walker lake grid shows where the grade
+exceeds it.
 """
 
 # %% [hidden]
@@ -26,7 +26,7 @@ weights = bt.cell_declustering(samples, "V", sizes=np.arange(2.5, 102.5, 2.5)).w
 
 
 # %% [markdown]
-# A Hermite anamorphosis of the declustered samples, and the variogram of its Gaussian scores fitted along and across
+# a hermite anamorphosis of the declustered samples, and the variogram of its gaussian scores fitted along and across
 # N170°, the major axis found in [variogram fitting](../../05-spatial-continuity/02-variogram-fitting/README.md):
 
 # %%
@@ -39,8 +39,8 @@ print(gaussian)
 
 
 # %% [markdown]
-# `predict_tonnage` gives P(V > cutoff) on a 5 m grid. Binned against the truth, a calibrated estimate would sit on
-# the diagonal:
+# `predict_tonnage` gives P(V > cutoff) on a 5 m grid. binned against the truth, a calibrated estimate would sit on the
+# diagonal:
 
 # %%
 grid = bt.BlockModel(origin=(0.5, 0.5), size=(5, 5), count=(52, 60))
@@ -90,6 +90,6 @@ save(fig, "disjunctive")
 
 
 # %% [markdown]
-# On average the estimate says 23.1% of the nodes exceed 500 ppm; 18.9% do. The error sits in the low bins, which hold
-# most nodes: where it predicts 0.1 to 0.4, half to two thirds of that is observed. From 0.5 to 0.9 it turns the other way:
-# more nodes exceed the cutoff than it predicts.
+# on average the estimate says 23.1% of the nodes exceed 500 ppm; 18.9% do. the error sits in the low bins, which hold
+# most nodes: where it predicts 0.1 to 0.4, you observe half to two thirds of that. from 0.5 to 0.9 the error reverses,
+# and more nodes exceed the cutoff than it predicts.

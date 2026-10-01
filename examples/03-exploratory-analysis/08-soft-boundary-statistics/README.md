@@ -1,9 +1,10 @@
-# Soft-boundary statistics
+# soft-boundary statistics
 
-`contact()` ([contacts](../../03-exploratory-analysis/07-contacts/README.md)) showed nickel tapering into the LIM/SAP contact rather than stepping at it: a gradational,
-soft boundary. [Soft boundaries](../../06-kriging/13-soft-boundaries/README.md) opens `SAP`'s search to `LIM` samples within 50 m rather than restricting it to `SAP`
-alone. `soft_boundary()` puts a number on what that buffer draws in: `SAP` statistics computed alone (hard)
-against also folding in `LIM` samples within the buffer of their nearest `SAP` sample (soft).
+`contact()` ([contacts](../../03-exploratory-analysis/07-contacts/README.md)) showed nickel tapering into the LIM/SAP
+contact without a step: a gradational, soft boundary. [soft boundaries](../../06-kriging/13-soft-boundaries/README.md)
+opens the search of `SAP` to `LIM` samples within 50 m. `soft_boundary()` measures what that buffer draws in: `SAP`
+statistics computed alone (hard) against statistics that also fold in `LIM` samples within the buffer of their nearest
+`SAP` sample (soft).
 
 <details><summary>Python</summary>
 
@@ -21,10 +22,9 @@ samples = samples.filter(np.isin(np.asarray(samples["HORIZON"]), ["LIM", "SAP"])
 
 </details>
 
-`contact` put Ni at 1.10 % just outside the LIM/SAP contact and 1.32 % just inside, still climbing several meters
-into the saprolite rather than stepping there. That gradation is why [soft boundaries](../../06-kriging/13-soft-boundaries/README.md) opens `SAP`'s search to `LIM` within
-50 m instead of restricting it to `SAP` alone; here, straight 3-D distance rather than the search's flattened
-ellipsoid.
+`contact` put Ni at 1.10 % just outside the LIM/SAP contact and 1.32 % just inside, still climbing several meters into
+the saprolite. that gradation is why [soft boundaries](../../06-kriging/13-soft-boundaries/README.md) opens the search
+of `SAP` to `LIM` within 50 m. this page uses straight 3D distance in place of the flattened ellipsoid of the search.
 
 <details><summary>Python</summary>
 
@@ -43,15 +43,15 @@ hard: n=4901, mean=1.81 % Ni, variance=0.822
 soft: n=8235, mean=1.51 % Ni, variance=0.714
 ```
 
-Every `LIM` sample sits within 50 m, straight-line, of some `SAP` sample: the holes are on a 50 m mesh (25 m
-infill), so this isotropic buffer folds the whole of `LIM` in, and `SAP`'s soft row becomes the pooled statistics
-of both horizons. That is the ceiling on what opening the boundary at 50 m could do: `SAP`'s mean falls from
-1.81 % (hard, its own 4901 samples) to 1.51 % Ni once all 3334 `LIM` samples join it (variance falls too, from
-0.82 to 0.71, though the CV rises since the mean moves further than the spread). The search's anisotropic
-ellipsoid is far tighter, reaching only about 5 m up or down at 50 m across, so the shift kriging actually sees
-is local and much smaller: [soft boundaries](../../06-kriging/13-soft-boundaries/README.md) found 1.55 % against 1.28 % held out in the last meter of `SAP` hardened,
-1.34 % opened one way. `soft_boundary` bounds the dilution a distance-only buffer would risk and shows why the
-search measures it in the fitted ellipsoid, not straight-line.
+every `LIM` sample sits within 50 m, straight-line, of some `SAP` sample. the holes are on a 50 m mesh (25 m infill),
+so this isotropic buffer folds in the whole of `LIM`, and the soft row of `SAP` becomes the pooled statistics of both
+horizons. that is the most that opening the boundary at 50 m could do: the mean of `SAP` falls from 1.81 % Ni (hard,
+its own 4901 samples) to 1.51 % once all 3334 `LIM` samples join it. the variance falls too, from 0.82 to 0.71, though
+the CV rises since the mean moves further than the spread. the anisotropic ellipsoid of the search is far tighter,
+reaching only about 5 m up or down at 50 m across, so the shift that kriging sees is local and much smaller:
+[soft boundaries](../../06-kriging/13-soft-boundaries/README.md) found 1.55 % against 1.28 % held out in the last
+meter of `SAP` hardened, and 1.34 % opened one way. `soft_boundary` bounds the dilution that a distance-only buffer
+would risk, which is why the search measures distance in the fitted ellipsoid.
 
 <details><summary>Python</summary>
 

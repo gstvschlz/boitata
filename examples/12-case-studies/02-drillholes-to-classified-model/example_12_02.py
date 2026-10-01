@@ -91,7 +91,7 @@ save(fig, "statistics")
 
 # %% [markdown]
 # Declustering lowers every lens mean, most in lens 1. The top 1 % of composites, above 18.9 % Zn, holds 0.9 % of
-# the metal, and the probability plot shows no break in the upper tail: the grades are left uncapped.
+# the metal, and the probability plot shows no break in the upper tail: leave the grades uncapped.
 
 # %% [markdown]
 # ## Zn variogram of lens 1
@@ -194,8 +194,8 @@ print(f"mean {summary.mean.mean():.2f} % Zn; blocks above 5 % in more than 90 % 
 
 # %% [markdown]
 # In eight realizations out of ten, between 42 and 51 % of the parent blocks exceed 5 % Zn, yet only 1 % of them do
-# so in more than 90 % of the realizations: at this drill spacing hardly any single block is a sure thing, even
-# though the share of ore across the lens is well known.
+# so in more than 90 % of the realizations: at this drill spacing few single blocks are certain ore, although the
+# share of ore across the lens is well known.
 #
 # ## Validation
 #

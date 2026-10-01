@@ -1,8 +1,8 @@
 """
-# Quick tour
+# quick tour
 
-One pass from samples to a checked estimate. Walker Lake has 470 samples of `V` (ppm) over a 260 × 300 m area, and
-an exhaustive grid of 78 000 values over the same area to hold the estimate against. Each step fits in one cell and
+one pass from samples to a checked estimate. walker lake has 470 samples of `V` (ppm) over a 260 × 300 m area, and
+an exhaustive grid of 78 000 values over the same area to check the estimate against. each step fits in one cell and
 links to the page that covers it in full.
 """
 
@@ -24,14 +24,14 @@ truth = bt.datasets.walker_lake_exhaustive()["V"].reshape(300, 260)
 print(samples)
 
 # %% [markdown]
-# `bt.datasets` downloads a dataset once and caches it. The samples load as a `PointSet`: coordinates, plus one column
-# per variable. The exhaustive values stay aside until the checks at the end.
+# `bt.datasets` downloads a dataset once and caches it. the samples load as a `PointSet`: coordinates, plus one column
+# per variable. the exhaustive values wait for the checks at the end.
 #
-# ## Statistics
+# ## statistics
 #
-# A first campaign sampled a 20 m grid and later ones infilled the rich zones, so the plain mean of the samples
-# overstates the area. Cell declustering gives each sample a weight inversely proportional to the samples in its cell
-# and keeps the cell size with the lowest mean ([declustering](../../03-exploratory-analysis/03-declustering/README.md)).
+# a first campaign sampled a 20 m grid and later ones infilled the rich zones, so the plain mean of the samples
+# overstates the area. cell declustering weights each sample by the inverse of the sample count in its cell and keeps
+# the cell size with the lowest mean ([declustering](../../03-exploratory-analysis/03-declustering/README.md)).
 
 # %%
 declustering = bt.cell_declustering(samples, "V", sizes=np.arange(2.5, 102.5, 2.5))
@@ -58,11 +58,11 @@ b.set(title="Declustered histogram", xlabel="V (ppm)")
 save(fig, "samples")
 
 # %% [markdown]
-# Declustering takes the mean from 435 to 291 ppm, 13 ppm above the exhaustive mean, and brings the median and P90
-# close to the true ones. The histogram is skewed to the right, with a peak of near-zero values and a thin tail up to
+# declustering takes the mean from 435 to 291 ppm, 13 ppm above the exhaustive mean, and brings the median and P90
+# close to the true ones. the histogram is skewed to the right, with a peak of near-zero values and a thin tail up to
 # 1528 ppm.
 #
-# ## Top cut
+# ## top cut
 #
 # `Capping` clips the grades at a cap chosen from the data, here the declustered P99 ([top cuts](../../03-exploratory-analysis/05-top-cuts/README.md) chooses a cap, and
 # [capping transform](../../04-transforms/03-capping-transform/README.md) compares the rules).
@@ -76,12 +76,12 @@ print(
 )
 
 # %% [markdown]
-# The cap trims less than 1 % of the metal: V has no erratic tail, and the capped column `V_cut` carries on.
+# the cap trims less than 1 % of the metal, since V has no erratic tail. the later steps use the capped column `V_cut`.
 #
-# ## Variogram
+# ## variogram
 #
-# `experimental_variogram` computes γ(h) along one azimuth. `Variogram.fit_directional` fits one model, two
-# spherical structures with a nugget, to eight directions at once and finds the direction of greatest continuity
+# `experimental_variogram` computes γ(h) along one azimuth. `Variogram.fit_directional` fits one model (two
+# spherical structures with a nugget) to eight directions at once and finds the direction of greatest continuity
 # ([experimental variograms](../../05-spatial-continuity/01-experimental-variograms/README.md), [variogram fitting](../../05-spatial-continuity/02-variogram-fitting/README.md)).
 
 # %%
@@ -109,14 +109,14 @@ ax.legend(loc="lower right")
 save(fig, "variogram")
 
 # %% [markdown]
-# V is most continuous along N159°, with a range of 115 m; across it the range drops to about 40 m (the ratio of
-# 0.34). The nugget holds a tenth of the sill.
+# V is most continuous along N159°, with a range of 115 m. across it the range drops to about 40 m (a ratio of
+# 0.34). the nugget holds a tenth of the sill.
 #
-# ## Kriging
+# ## kriging
 #
-# Ordinary kriging estimates V on a 5 m grid from up to 24 samples in an ellipse aligned with the variogram. `fit`
+# ordinary kriging estimates V on a 5 m grid from up to 24 samples in an ellipse aligned with the variogram. `fit`
 # takes the samples and the column, `predict` a `BlockModel`, and `with_columns` stores the results on the model
-# ([ordinary kriging](../../06-kriging/01-ordinary-kriging/README.md), [search](../../06-kriging/06-search/README.md)). The grid nodes fall on points of the exhaustive grid, so
+# ([ordinary kriging](../../06-kriging/01-ordinary-kriging/README.md), [search](../../06-kriging/06-search/README.md)). the grid nodes fall on points of the exhaustive grid, so
 # the true value at each node joins the model as a second column.
 
 # %%
@@ -139,13 +139,13 @@ fig.colorbar(image, ax=axes, shrink=0.8, label="V (ppm)")
 save(fig, "estimate")
 
 # %% [markdown]
-# The estimate draws the NNW-trending rich zones of the truth, smoothed: kriging averages samples, so it misses the
+# the estimate draws the NNW-trending rich zones of the truth, smoothed. kriging averages samples, so it misses the
 # short-scale highs and lows.
 #
-# ## Checks
+# ## checks
 #
-# Leave-one-out cross-validation re-estimates each sample from the others ([cross-validation](../../10-checking-models/02-cross-validation/README.md)). A swath compares
-# mean grades slice by slice for the declustered samples, the estimate and here the truth ([model checks](../../10-checking-models/01-model-checks/README.md),
+# leave-one-out cross-validation re-estimates each sample from the others ([cross-validation](../../10-checking-models/02-cross-validation/README.md)). a swath compares
+# mean grades slice by slice for the declustered samples, the estimate and the truth ([model checks](../../10-checking-models/01-model-checks/README.md),
 # [swaths](../../03-exploratory-analysis/09-swaths/README.md)).
 
 # %%
@@ -177,7 +177,7 @@ b.set(title="Swath along northing, 20 m slices", xlabel="Northing (m)", ylabel="
 save(fig, "checks")
 
 # %% [markdown]
-# The slope of 1.04 shows no conditional bias. Cross-validation, with an RMSE of 179 ppm, and the truth, with 154 ppm,
-# give errors of the same size. The estimate follows the swath of the truth and flattens its peaks. Its mean matches
-# the declustered samples and sits 4 % above the truth, a bias that no check against the samples can detect.
-# [Storing containers in Parquet](../../01-first-steps/04-parquet/README.md) saves a grid like this one to a file.
+# the slope of 1.04 shows no conditional bias. cross-validation (RMSE 179 ppm) and the truth (RMSE 154 ppm) give
+# errors of the same size. the estimate follows the swath of the truth and flattens its peaks. its mean matches the
+# declustered samples and sits 4 % above the truth, a bias that no check against the samples can detect.
+# [storing containers in parquet](../../01-first-steps/04-parquet/README.md) saves a grid like this one to a file.

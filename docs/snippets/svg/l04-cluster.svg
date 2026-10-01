@@ -1,0 +1,41 @@
+<svg class="bt-svg" viewBox="0 0 640 300" role="img" aria-labelledby="l04-cluster-t">
+<title id="l04-cluster-t">Weights of a lone sample and a cluster of four, by the two methods</title>
+<line class="s-grid" x1="320" y1="20" x2="320" y2="280" stroke-width="1"/>
+<text x="90" y="30">inverse distance</text>
+<circle class="f-night-soft s-night a-pop" style="--d:0.30s" cx="50.0" cy="160.0" r="10.0" stroke-width="1.5"/>
+<circle class="f-night" cx="50.0" cy="160.0" r="2.5"/>
+<text class="small a-fade" style="--d:0.30s" x="34.0" y="186.0">+0.21</text>
+<circle class="f-night-soft s-night a-pop" style="--d:0.50s" cx="250.0" cy="190.0" r="9.6" stroke-width="1.5"/>
+<circle class="f-night" cx="250.0" cy="190.0" r="2.5"/>
+<text class="small a-fade" style="--d:0.50s" x="266.0" y="194.0">+0.19</text>
+<circle class="f-night-soft s-night a-pop" style="--d:0.70s" cx="250.0" cy="170.0" r="10.0" stroke-width="1.5"/>
+<circle class="f-night" cx="250.0" cy="170.0" r="2.5"/>
+<text class="small a-fade" style="--d:0.70s" x="266.0" y="174.0">+0.21</text>
+<circle class="f-night-soft s-night a-pop" style="--d:0.90s" cx="250.0" cy="150.0" r="10.0" stroke-width="1.5"/>
+<circle class="f-night" cx="250.0" cy="150.0" r="2.5"/>
+<text class="small a-fade" style="--d:0.90s" x="266.0" y="154.0">+0.21</text>
+<circle class="f-night-soft s-night a-pop" style="--d:1.10s" cx="250.0" cy="130.0" r="9.6" stroke-width="1.5"/>
+<circle class="f-night" cx="250.0" cy="130.0" r="2.5"/>
+<text class="small a-fade" style="--d:1.10s" x="266.0" y="134.0">+0.19</text>
+<line class="s-ember" x1="144" y1="154" x2="156" y2="166" stroke-width="2.5"/>
+<line class="s-ember" x1="144" y1="166" x2="156" y2="154" stroke-width="2.5"/>
+<text x="410" y="30">ordinary kriging</text>
+<circle class="f-night-soft s-night a-pop" style="--d:1.20s" cx="370.0" cy="160.0" r="15.0" stroke-width="1.5"/>
+<circle class="f-night" cx="370.0" cy="160.0" r="2.5"/>
+<text class="small a-fade" style="--d:1.20s" x="354.0" y="191.0">+0.46</text>
+<circle class="f-night-soft s-night a-pop" style="--d:1.40s" cx="570.0" cy="190.0" r="9.6" stroke-width="1.5"/>
+<circle class="f-night" cx="570.0" cy="190.0" r="2.5"/>
+<text class="small a-fade" style="--d:1.40s" x="586.0" y="194.0">+0.19</text>
+<circle class="f-night-soft s-night a-pop" style="--d:1.60s" cx="570.0" cy="170.0" r="6.1" stroke-width="1.5"/>
+<circle class="f-night" cx="570.0" cy="170.0" r="2.5"/>
+<text class="small a-fade" style="--d:1.60s" x="586.0" y="174.0">+0.08</text>
+<circle class="f-night-soft s-night a-pop" style="--d:1.80s" cx="570.0" cy="150.0" r="6.1" stroke-width="1.5"/>
+<circle class="f-night" cx="570.0" cy="150.0" r="2.5"/>
+<text class="small a-fade" style="--d:1.80s" x="586.0" y="154.0">+0.08</text>
+<circle class="f-night-soft s-night a-pop" style="--d:2.00s" cx="570.0" cy="130.0" r="9.6" stroke-width="1.5"/>
+<circle class="f-night" cx="570.0" cy="130.0" r="2.5"/>
+<text class="small a-fade" style="--d:2.00s" x="586.0" y="134.0">+0.19</text>
+<line class="s-ember" x1="464" y1="154" x2="476" y2="166" stroke-width="2.5"/>
+<line class="s-ember" x1="464" y1="166" x2="476" y2="154" stroke-width="2.5"/>
+<text class="small" x="20" y="292">× target · circle area proportional to the weight · dashed outline: negative weight</text>
+</svg>

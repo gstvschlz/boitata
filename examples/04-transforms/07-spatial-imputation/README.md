@@ -1,11 +1,11 @@
-# Spatial imputation
+# spatial imputation
 
-`GaussianImputer` ([imputation](../../04-transforms/06-imputation/README.md)) draws a missing value from the other variables of the same sample. With `spatial=`, it
-also draws from nearby samples: the normal scores follow an intrinsic model, in which every variable and every pair
-of variables share one correlogram scaled by the score covariance, and the samples are visited along a random path,
-each missing score drawn by simple cokriging from its own row and from the nearest samples, those already imputed
-included. Here density in the stacked sulphide lenses, missing in 91% of all samples and in about half of the
-sulphide ones.
+`GaussianImputer` ([imputation](../../04-transforms/06-imputation/README.md)) draws a missing value from the other
+variables of the same sample. with `spatial=`, it also draws from nearby samples. the normal scores follow an
+intrinsic model, in which every variable and every pair of variables share one correlogram scaled by the score
+covariance. the imputer visits the samples along a random path and draws each missing score by simple cokriging from
+its own row and from the nearest samples, those already imputed included. the variable here is density in the stacked
+sulphide lenses, missing in 91% of all samples and in about half of the sulphide ones.
 
 <details><summary>Python</summary>
 
@@ -35,9 +35,9 @@ density missing in 91% of 17848 samples
 3358 sulphide samples, density measured in 1535
 ```
 
-The spatial model is the variogram of the density normal scores, on 2 m lags: a small nugget and a range of about
-16 m, shorter than the spacing between holes, so the information comes mostly from the samples above and below in
-the same hole. The imputer rescales its sill to one.
+the spatial model is the variogram of the density normal scores, on 2 m lags: a small nugget and a range of about 16
+m, shorter than the spacing between holes, so most of the information comes from the samples above and below in the
+same hole. the imputer rescales its sill to one.
 
 <details><summary>Python</summary>
 
@@ -60,9 +60,10 @@ nugget 0.07, spherical sill 1.12, range 16.5 m
 
 ![variogram](variogram.png)
 
-Two checks hide measured densities and score the imputed ones against the truth: every other hole, as in [imputation](../../04-transforms/06-imputation/README.md),
-and every other measured sample, which leaves the neighbors in the same hole. Each imputer runs with 10 seeds; the
-error of one draw and of the mean of the draws are root-mean-square.
+two checks hide measured densities and score the imputed ones against the truth: every other hole, as in
+[imputation](../../04-transforms/06-imputation/README.md), and every other measured sample, which leaves the neighbors
+in the same hole. each imputer runs with 10 seeds, and both the error of one draw and that of the mean of the draws
+are root-mean-square.
 
 <details><summary>Python</summary>
 
@@ -102,9 +103,9 @@ every other sample  spatial          0.156  0.121  0.37
 every other sample  truth                          0.36
 ```
 
-Across holes, the neighbors add almost nothing: the hidden holes lie beyond the range of the variogram. Within
+across holes the neighbors add almost nothing, since the hidden holes lie beyond the range of the variogram. within
 holes, one spatial draw errs by 0.16 t/m³ against 0.22 from the same sample alone, and both keep the spread of the
-truth. Along one hole, the spatial draws follow the level of the measured densities around them.
+truth. along one hole, the spatial draws follow the level of the measured densities around them.
 
 <details><summary>Python</summary>
 
@@ -135,7 +136,7 @@ save(fig, "downhole")
 
 ![downhole](downhole.png)
 
-The draws also keep the correlations. The normal-score correlation of density with Zn, Pb and Ag over the hidden
+the draws also keep the correlations. the normal-score correlation of density with Zn, Pb and Ag over the hidden
 samples, averaged over the draws, against the correlation fitted to the data:
 
 <details><summary>Python</summary>
@@ -165,12 +166,13 @@ spatial        0.83   0.81   0.84
 fitted         0.80   0.79   0.81
 ```
 
-Both stay within 0.03 of the fitted correlations. Only the missing entries change; measured values are returned as they are. `transform` takes `coords=` for new
-samples and otherwise reuses those given to `fit`. A pure-nugget variogram gives exactly the draws of the
-non-spatial imputer, and `MultivariateSimulation.fit(..., impute=bt.GaussianImputer(spatial=model))` redraws the
-gaps this way in every realization ([multivariate simulation](../../08-stochastic-simulation/06-multivariate-simulation/README.md)).
+both stay within 0.03 of the fitted correlations. only the missing entries change, and the imputer returns measured
+values as they are. `transform` takes `coords=` for new samples and otherwise reuses those given to `fit`. a
+pure-nugget variogram gives the same draws as the non-spatial imputer, and `MultivariateSimulation.fit(...,
+impute=bt.GaussianImputer(spatial=model))` redraws the gaps this way in every realization
+([multivariate simulation](../../08-stochastic-simulation/06-multivariate-simulation/README.md)).
 
-The intrinsic model is the simplest spatial model with the fitted correlations: one correlogram for all variables.
-Here it comes from density, the variable being imputed; grades with a different continuity borrow it too.
+the intrinsic model is the simplest spatial model with the fitted correlations: one correlogram for all variables.
+here it comes from density, the variable being imputed, and grades with a different continuity borrow it too.
 
 Full script: [`example_04_07.py`](example_04_07.py)

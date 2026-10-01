@@ -1,0 +1,83 @@
+<svg class="bt-svg" viewBox="0 0 680 340" role="img" aria-labelledby="l06-swath-t">
+<title id="l06-swath-t">A swath plot cuts the model into slices and compares the mean of model and samples in each</title>
+<ellipse class="f-ember-soft" cx="170.0" cy="102.5" rx="88" ry="63"/>
+<ellipse class="f-ember-soft" cx="414.4" cy="72.5" rx="73" ry="52"/>
+<rect class="s-grid none" x="40" y="20" width="520" height="150" stroke-width="1.5"/>
+<circle class="f-muted" cx="213.6" cy="165.2" r="2.5"/>
+<circle class="f-muted" cx="209.5" cy="136.6" r="2.5"/>
+<circle class="f-muted" cx="484.7" cy="79.3" r="2.5"/>
+<circle class="f-muted" cx="269" cy="76.7" r="2.5"/>
+<circle class="f-muted" cx="103.8" cy="92" r="2.5"/>
+<circle class="f-muted" cx="170.9" cy="60" r="2.5"/>
+<circle class="f-muted" cx="142.6" cy="50.9" r="2.5"/>
+<circle class="f-muted" cx="456.7" cy="83.9" r="2.5"/>
+<circle class="f-muted" cx="178.2" cy="108.1" r="2.5"/>
+<circle class="f-muted" cx="352.1" cy="116.1" r="2.5"/>
+<circle class="f-muted" cx="505.3" cy="44.6" r="2.5"/>
+<circle class="f-muted" cx="235.8" cy="64" r="2.5"/>
+<circle class="f-muted" cx="58.8" cy="49.1" r="2.5"/>
+<circle class="f-muted" cx="247.4" cy="79.6" r="2.5"/>
+<circle class="f-muted" cx="358.3" cy="88.1" r="2.5"/>
+<circle class="f-muted" cx="353.6" cy="55.1" r="2.5"/>
+<circle class="f-muted" cx="117.3" cy="70.4" r="2.5"/>
+<circle class="f-muted" cx="98.4" cy="75.7" r="2.5"/>
+<circle class="f-muted" cx="280.1" cy="126.5" r="2.5"/>
+<circle class="f-muted" cx="483.2" cy="30.5" r="2.5"/>
+<circle class="f-muted" cx="527.7" cy="126.7" r="2.5"/>
+<circle class="f-muted" cx="544" cy="40.1" r="2.5"/>
+<circle class="f-muted" cx="237.6" cy="95.3" r="2.5"/>
+<circle class="f-muted" cx="423.4" cy="67.8" r="2.5"/>
+<circle class="f-muted" cx="275" cy="62.8" r="2.5"/>
+<circle class="f-muted" cx="274.6" cy="96.4" r="2.5"/>
+<circle class="f-muted" cx="332.5" cy="124.4" r="2.5"/>
+<circle class="f-muted" cx="171.1" cy="113.8" r="2.5"/>
+<circle class="f-muted" cx="95.4" cy="111" r="2.5"/>
+<circle class="f-muted" cx="279.6" cy="42.4" r="2.5"/>
+<circle class="f-muted" cx="178.5" cy="32.3" r="2.5"/>
+<circle class="f-muted" cx="236.3" cy="81.1" r="2.5"/>
+<circle class="f-muted" cx="294.4" cy="33.1" r="2.5"/>
+<circle class="f-muted" cx="407.7" cy="68.9" r="2.5"/>
+<circle class="f-muted" cx="191.1" cy="151.4" r="2.5"/>
+<circle class="f-muted" cx="350.5" cy="117.8" r="2.5"/>
+<circle class="f-muted" cx="315.7" cy="54.1" r="2.5"/>
+<circle class="f-muted" cx="125.7" cy="49.5" r="2.5"/>
+<circle class="f-muted" cx="220.5" cy="47.5" r="2.5"/>
+<circle class="f-muted" cx="288.9" cy="162.3" r="2.5"/>
+<line class="s-grid" x1="40" y1="310" x2="560" y2="310" stroke-width="1.5"/>
+<line class="s-grid" x1="40" y1="310" x2="40" y2="200" stroke-width="1.5"/>
+<rect class="f-night-soft s-muted a-fade" style="--d:0.00s" x="41" y="21" width="63" height="148" stroke-width=".8"/>
+<circle class="f-night a-pop" style="--d:0.20s" cx="72.5" cy="278.9" r="4.5"/>
+<circle class="f-ember a-pop" style="--d:0.30s" cx="72.5" cy="267.1" r="4.5"/>
+<rect class="f-night-soft s-muted a-fade" style="--d:0.35s" x="106" y="21" width="63" height="148" stroke-width=".8"/>
+<circle class="f-night a-pop" style="--d:0.55s" cx="137.5" cy="242.4" r="4.5"/>
+<circle class="f-ember a-pop" style="--d:0.65s" cx="137.5" cy="264.6" r="4.5"/>
+<rect class="f-night-soft s-muted a-fade" style="--d:0.70s" x="171" y="21" width="63" height="148" stroke-width=".8"/>
+<circle class="f-night a-pop" style="--d:0.90s" cx="202.5" cy="240.9" r="4.5"/>
+<circle class="f-ember a-pop" style="--d:1.00s" cx="202.5" cy="236.2" r="4.5"/>
+<rect class="f-night-soft s-muted a-fade" style="--d:1.05s" x="236" y="21" width="63" height="148" stroke-width=".8"/>
+<circle class="f-night a-pop" style="--d:1.25s" cx="267.5" cy="278.1" r="4.5"/>
+<circle class="f-ember a-pop" style="--d:1.35s" cx="267.5" cy="273.4" r="4.5"/>
+<rect class="f-night-soft s-muted a-fade" style="--d:1.40s" x="301" y="21" width="63" height="148" stroke-width=".8"/>
+<circle class="f-night a-pop" style="--d:1.60s" cx="332.5" cy="280.8" r="4.5"/>
+<circle class="f-ember a-pop" style="--d:1.70s" cx="332.5" cy="277.4" r="4.5"/>
+<rect class="f-night-soft s-muted a-fade" style="--d:1.75s" x="366" y="21" width="63" height="148" stroke-width=".8"/>
+<circle class="f-night a-pop" style="--d:1.95s" cx="397.5" cy="258" r="4.5"/>
+<circle class="f-ember a-pop" style="--d:2.05s" cx="397.5" cy="210" r="4.5"/>
+<rect class="f-night-soft s-muted a-fade" style="--d:2.10s" x="431" y="21" width="63" height="148" stroke-width=".8"/>
+<circle class="f-night a-pop" style="--d:2.30s" cx="462.5" cy="270.7" r="4.5"/>
+<circle class="f-ember a-pop" style="--d:2.40s" cx="462.5" cy="265.6" r="4.5"/>
+<rect class="f-night-soft s-muted a-fade" style="--d:2.45s" x="496" y="21" width="63" height="148" stroke-width=".8"/>
+<circle class="f-night a-pop" style="--d:2.65s" cx="527.5" cy="284.7" r="4.5"/>
+<circle class="f-ember a-pop" style="--d:2.75s" cx="527.5" cy="284.6" r="4.5"/>
+<path class="s-night none a-draw" style="--d:2.8s" pathLength="1" stroke-width="2" d="M72.5 278.9 L137.5 242.4 L202.5 240.9 L267.5 278.1 L332.5 280.8 L397.5 258 L462.5 270.7 L527.5 284.7"/>
+<text class="small" x="568" y="34">plan view</text>
+<text class="small" x="568" y="50">slices along</text>
+<text class="small" x="568" y="64">easting</text>
+<text class="small" x="568" y="214">mean per slice</text>
+<text class="a-fade" style="--d:3s" x="568" y="240">model</text>
+<circle class="f-night" cx="630" cy="236" r="4.5"/>
+<text class="a-fade" style="--d:3s" x="568" y="262">samples</text>
+<circle class="f-ember" cx="630" cy="258" r="4.5"/>
+<text class="small" x="40" y="328">easting</text>
+<text class="small" x="46" y="204">mean grade</text>
+</svg>

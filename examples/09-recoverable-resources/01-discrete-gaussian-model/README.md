@@ -1,8 +1,8 @@
-# Discrete Gaussian model
+# discrete gaussian model
 
-Mining selects blocks, not points. Block grades vary less than point grades, so a point histogram misstates the
-tonnage above cutoffs. The discrete Gaussian model shrinks a Hermite anamorphosis of the points to block support; the
-exhaustive Walker Lake grid gives the true point and block curves to check it against.
+mining selects blocks. block grades vary less than point grades, so a point histogram misstates the tonnage above
+cutoffs. the discrete gaussian model shrinks a hermite anamorphosis of the points to block support, and the exhaustive
+walker lake grid gives the true point and block curves to check it against.
 
 <details><summary>Python</summary>
 
@@ -20,8 +20,9 @@ weights = bt.cell_declustering(samples, "V", sizes=np.arange(2.5, 102.5, 2.5)).w
 
 </details>
 
-A Hermite anamorphosis models the declustered point distribution. The variogram of its Gaussian scores is fitted
-jointly along and across N170°, the major axis found in [variogram fitting](../../05-spatial-continuity/02-variogram-fitting/README.md):
+a hermite anamorphosis models the declustered point distribution. the variogram of its gaussian scores is fitted
+jointly along and across N170°, the major axis found in
+[variogram fitting](../../05-spatial-continuity/02-variogram-fitting/README.md):
 
 <details><summary>Python</summary>
 
@@ -37,11 +38,11 @@ print(gaussian)
 </details>
 
 ```text
-Variogram(nugget=0.3880893922398883, structures=[Structure("spherical", sill=0.6541305202954576, range=95.35462791604381)], rotation=(170.0, 0.0, 0.0), ratios=(0.3490856607382125, 1.0))
+Variogram(nugget=0.3880895785084983, structures=[Structure("spherical", sill=0.6541303654567798, range=95.35466468171232)], rotation=(170.0, 0.0, 0.0), ratios=(0.3490856295281619, 1.0))
 ```
 
-`change_of_support` averages the Gaussian correlogram over a 10 × 10 m block and returns the change-of-support
-coefficient r with the block anamorphosis. The variogram's sill does not matter; only its correlogram does.
+`change_of_support` averages the gaussian correlogram over a 10 × 10 m block and returns the change-of-support
+coefficient r with the block anamorphosis. only the correlogram matters, so the sill of the variogram has no effect.
 
 <details><summary>Python</summary>
 
@@ -60,7 +61,7 @@ print(
 r = 0.725; point variance 64974, block 32652, true block 46694
 ```
 
-Grade-tonnage curves, model against truth:
+grade-tonnage curves, model against truth:
 
 <details><summary>Python</summary>
 
@@ -117,9 +118,12 @@ above 800 ppm: points 4.3% (true 3.9%), blocks 1.0% (true 2.1%)
 
 ![grade-tonnage](grade-tonnage.png)
 
-The model shrinks the point variance of 64 974 to 32 652 for 10 m blocks, below the true 46 694, so it pulls the
-rich tail in too far: above 500 ppm it keeps 13.3% of the blocks against a true 16.2%, above 800 ppm 1.0% against
-2.1%. The point curves run a few per cent high, since the declustered samples still overstate the rich grades.
-[Uniform conditioning](../../09-recoverable-resources/02-uniform-conditioning/README.md) and [MIK localization](../../09-recoverable-resources/03-mik-localization/README.md) carry block support down to panels; [simulation at block support](../../08-stochastic-simulation/03-simulation-at-block-support/README.md) reaches it by simulation.
+the model shrinks the point variance of 64 974 to 32 652 for 10 m blocks, below the true 46 694, so it pulls the rich
+tail in too far: above 500 ppm it keeps 13.3% of the blocks against a true 16.2%, above 800 ppm 1.0% against 2.1%. the
+point curves run a few percent high, since the declustered samples still overstate the rich grades.
+[uniform conditioning](../../09-recoverable-resources/02-uniform-conditioning/README.md) and
+[MIK localization](../../09-recoverable-resources/03-mik-localization/README.md) carry block support down to panels;
+[simulation at block support](../../08-stochastic-simulation/03-simulation-at-block-support/README.md) reaches it by
+simulation.
 
 Full script: [`example_09_01.py`](example_09_01.py)

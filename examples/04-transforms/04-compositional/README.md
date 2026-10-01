@@ -1,8 +1,8 @@
-# Compositional data
+# compositional data
 
-Porphyry 1 geometallurgical samples: seven minerals in % plus the remainder, a composition summing to 100.
-Raising one part lowers the others, so raw correlations mix geology with the constant-sum constraint, and
-estimating parts independently can break the total.
+porphyry 1 geometallurgical samples: seven minerals in % plus the remainder, a composition summing to 100. raising one
+part lowers the others, so raw correlations mix geology with the constant-sum constraint, and estimating parts
+independently can break the total.
 
 <details><summary>Python</summary>
 
@@ -24,9 +24,9 @@ composition = bt.closure(parts, total=100)
 
 </details>
 
-The isometric log-ratio (ILR) maps each composition to 7 unconstrained coordinates; the projection-pursuit
-multivariate transform (PPMT) turns those into independent standard Gaussians, ready for independent simulation.
-The way back must return every composition.
+the isometric log-ratio (ILR) maps each composition to 7 unconstrained coordinates. the projection-pursuit
+multivariate transform (PPMT) turns those into independent standard gaussians, ready for independent simulation. the
+way back must return every composition.
 
 <details><summary>Python</summary>
 
@@ -44,7 +44,7 @@ print(f"round trip max error {np.abs(back - composition).max():.2e} %")
 round trip max error 1.88e-12 %
 ```
 
-Correlations at each stage:
+correlations at each stage:
 
 <details><summary>Python</summary>
 
@@ -71,7 +71,7 @@ save(fig, "correlations")
 
 ![correlations](correlations.png)
 
-Two parts before, two Gaussian coordinates after:
+two parts before, two gaussian coordinates after:
 
 <details><summary>Python</summary>
 

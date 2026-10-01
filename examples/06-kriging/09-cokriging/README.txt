@@ -1,1 +1,1 @@
-## Cokriging
+## cokriging

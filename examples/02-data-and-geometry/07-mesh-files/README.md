@@ -1,9 +1,9 @@
-# Mesh files
+# mesh files
 
 `read_mesh` and `write_mesh` handle OBJ, STL (binary or ASCII) and DXF, chosen by the file extension.
-`Mesh.validate` reports what keeps a mesh from being a solid, and `Mesh.repair` fixes what it can. Here the four
-gold veins of the grade-control dataset are read from their STL files, written back in every format, and one is
-broken into loose triangles and repaired.
+`Mesh.validate` reports what keeps a mesh from being a solid, and `Mesh.repair` fixes what it can. you read the
+four gold veins of the grade-control dataset from their STL files, write them back in each format, then break one
+into loose triangles and repair it.
 
 <details><summary>Python</summary>
 
@@ -18,8 +18,8 @@ from common import save
 
 </details>
 
-`bt.datasets.fetch` gives the local path of a dataset file. Reading welds corners repeated between triangles, as
-STL stores each triangle with its own three corners; the veins come back closed, with a volume and an area.
+`bt.datasets.fetch` gives the local path of a dataset file. STL stores each triangle with its own three corners,
+so reading welds the repeated corners. the veins come back closed, with a volume and an area.
 
 <details><summary>Python</summary>
 
@@ -41,7 +41,7 @@ V3: 0.9 MB, Mesh(8823 vertices, 17642 triangles, closed), 179,815 m3, 374,375 m2
 V4: 0.3 MB, Mesh(3494 vertices, 6984 triangles, closed), 55,521 m3, 154,643 m2
 ```
 
-The veins in plan at 700 m and on an east–west section at northing 15 000 m:
+the veins in plan at 700 m and on an east-west section at northing 15 000 m:
 
 <details><summary>Python</summary>
 
@@ -68,9 +68,9 @@ save(fig, "veins")
 
 ![veins](veins.png)
 
-Each format round-trips the vein. Binary STL stores single precision, so vertices can move by a fraction of a
-millimeter at mine coordinates; these files were written in single precision and come back unchanged. DXF
-writes one 3D face per triangle, or with `dxf_entity="polyface"` polyface meshes that share vertices; both read
+each format round-trips the vein. binary STL stores single precision, so vertices can move by a fraction of a
+millimeter at mine coordinates. these files were written in single precision and come back unchanged. DXF
+writes one 3D face per triangle, or with `dxf_entity="polyface"` polyface meshes that share vertices. both read
 back with a `layer` column per triangle.
 
 <details><summary>Python</summary>
@@ -106,12 +106,12 @@ with tempfile.TemporaryDirectory() as folder:
 v1_polyface.dxf:  12.1 MB, 53894 triangles, 658,570 m3, largest shift 0.000 mm, columns ['layer']
 ```
 
-## Repair
+## repair
 
-A solid from elsewhere can arrive as loose triangles: each with its own copy of its corners, rounded
-differently, and wound either way. It shares no edges, so it is not closed and has no volume. Here V1 is broken
+a solid from elsewhere can arrive as loose triangles, each with its own copy of its corners, rounded
+differently and wound either way. such a mesh shares no edges, so it is open and has no volume. here V1 is broken
 that way, with corners moved by about 0.01 mm. `repair` welds corners within `tolerance`, drops degenerate and
-repeated triangles, and winds each piece consistently, outward where it is closed. The tolerance has to exceed
+repeated triangles, and winds each piece consistently, outward where it is closed. the tolerance has to exceed
 the rounding and stay below the shortest edge, or welding collapses triangles and opens new holes:
 
 <details><summary>Python</summary>

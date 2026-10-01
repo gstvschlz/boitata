@@ -1,0 +1,26 @@
+<svg class="bt-svg" viewBox="0 0 680 200" role="img" aria-labelledby="w1-majority-t">
+<title id="w1-majority-t">A thin vein fills under half of every block it crosses, so a majority rule labels them all waste</title>
+<rect class="f-paper s-grid" x="30" y="40" width="90" height="90" stroke-width="1.5"/>
+<rect class="f-paper s-grid" x="120" y="40" width="90" height="90" stroke-width="1.5"/>
+<rect class="f-paper s-grid" x="210" y="40" width="90" height="90" stroke-width="1.5"/>
+<rect class="f-paper s-grid" x="300" y="40" width="90" height="90" stroke-width="1.5"/>
+<rect class="f-paper s-grid" x="390" y="40" width="90" height="90" stroke-width="1.5"/>
+<rect class="f-paper s-grid" x="480" y="40" width="90" height="90" stroke-width="1.5"/>
+<clipPath id="w1-majority-clip"><rect x="30" y="40" width="540" height="90"/></clipPath>
+<polygon class="f-ember-soft s-ember a-fade" points="30,56 570,93.8 570,115.8 30,78" stroke-width="1.5" clip-path="url(#w1-majority-clip)"/>
+<text class="a-fade" style="--d:0.5s" x="59" y="152">0.24</text>
+<text class="small a-fade" style="--d:1.3s" x="58" y="180">waste</text>
+<text class="a-fade" style="--d:0.6s" x="149" y="152">0.24</text>
+<text class="small a-fade" style="--d:1.4s" x="148" y="180">waste</text>
+<text class="a-fade" style="--d:0.7s" x="239" y="152">0.24</text>
+<text class="small a-fade" style="--d:1.5s" x="238" y="180">waste</text>
+<text class="a-fade" style="--d:0.8s" x="329" y="152">0.24</text>
+<text class="small a-fade" style="--d:1.6s" x="328" y="180">waste</text>
+<text class="a-fade" style="--d:0.9s" x="419" y="152">0.24</text>
+<text class="small a-fade" style="--d:1.7s" x="418" y="180">waste</text>
+<text class="a-fade" style="--d:1.0s" x="509" y="152">0.24</text>
+<text class="small a-fade" style="--d:1.8s" x="508" y="180">waste</text>
+<text class="small" x="582" y="152">proportion</text>
+<text class="small" x="582" y="180">majority</text>
+<text x="30" y="26">A vein thinner than half a block: every proportion is below 0.5</text>
+</svg>

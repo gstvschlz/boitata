@@ -1,1 +1,1 @@
-## Plurigaussian simulation
+## plurigaussian simulation

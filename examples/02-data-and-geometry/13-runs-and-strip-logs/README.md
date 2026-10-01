@@ -1,9 +1,9 @@
-# Runs and strip logs
+# runs and strip logs
 
-Grade control asks where each hole is ore: the contiguous runs of samples above a cutoff, from and to, with their
-length-weighted grade. Raw runs follow every sample, but a mine cannot dig a 1 m pod of ore or skip a 1 m band of
+grade control asks where each hole is ore: the contiguous runs of samples above a cutoff, from and to, with their
+length-weighted grade. raw runs follow each sample, but a mine cannot dig a 1 m pod of ore or skip a 1 m band of
 waste. `Drillholes.runs` cleans them with three rules: internal dilution takes short waste bands into the ore around
-them, an edge skin adds waste on each side of every ore run, and a minimum mining length merges short runs into their
+them, an edge skin adds waste on each side of each ore run, and a minimum mining length merges short runs into their
 neighbors. `bt.plot.strip_log` draws the result down a hole, beside the lithology and the grade.
 
 <details><summary>Python</summary>
@@ -30,12 +30,12 @@ print(f"{np.sum(length[~np.isnan(intervals['AU_GPT'])]):.0f} m of assayed core, 
 40830 m of assayed core, 5367 g/t x m of gold
 ```
 
-## Runs above a cutoff
+## runs above a cutoff
 
-At 0.5 g/t every assay is ore or waste, and each change of flag down a hole starts a new run. Each rule then takes
+at 0.5 g/t each assay is ore or waste, and each change of flag down a hole starts a new run. each rule then takes
 the runs of the previous line: up to 3 m of internal dilution, a skin of 0.5 m at each edge, a minimum length of
-2 m. The runs of a hole partition its assays, so Σ grade × length over all runs gives back the assay metal for
-every rule; only the share that lands in ore changes.
+2 m. the runs of a hole partition its assays, so Σ grade × length over all runs gives back the assay metal for
+each rule. only the share that lands in ore changes.
 
 <details><summary>Python</summary>
 
@@ -68,14 +68,14 @@ raw                   337      811     5.11        77.2% -9.1e-13
 + minimum 2 m         230     1144     3.65        77.9%  0.0e+00
 ```
 
-Dilution joins raw runs into fewer, longer ones at a lower grade while the metal in ore barely moves: the waste it
-takes in is lean. The edge skins add a meter of waste to every run, which is where most of the tonnage grows; a
-1 m pod that reaches 2 m with its skins then survives the minimum length. The minimum length drops the pods that
-stay shorter, and fills the waste gaps shorter than 2 m.
+dilution joins raw runs into fewer, longer ones at a lower grade, and the metal in ore barely moves because the
+waste it takes in is lean. the edge skins add a meter of waste to each run, where most of the tonnage grows. a 1 m
+pod that reaches 2 m with its skins then survives the minimum length. the minimum length drops the pods that stay
+shorter and fills the waste gaps shorter than 2 m.
 
-## Internal dilution by hand
+## internal dilution by hand
 
-Hole UD0030 cuts vein V1 as 1 m of ore, 2 m of waste, then 2 m of ore:
+hole UD0030 cuts vein V1 as 1 m of ore, 2 m of waste, then 2 m of ore:
 
 <details><summary>Python</summary>
 
@@ -104,12 +104,12 @@ by hand: 2.382 g/t over 5.00 m
 runs:    2.382 g/t over 5.00 m
 ```
 
-The waste band spans 2 m, within the 3 m allowed, and the three runs together grade 2.38 g/t, above the cutoff: the
-rule takes it in. Had the combined grade fallen below 0.5 g/t, the two ore runs would have stayed apart.
+the waste band spans 2 m, within the 3 m allowed, and the three runs together grade 2.38 g/t, above the cutoff, so
+the rule takes it in. had the combined grade fallen below 0.5 g/t, the two ore runs would have stayed apart.
 
-## Strip logs
+## strip logs
 
-Three holes through the veins, each with its lithology, vein, gold and final ore runs. Gold is drawn as a step per
+three holes through the veins, each with its lithology, vein, gold and final ore runs. gold is drawn as a step per
 assay, from zero at the left of its track to the highest assay of the holes drawn at the right.
 
 <details><summary>Python</summary>
@@ -143,13 +143,13 @@ save(fig, "strip_logs")
 
 ![strip_logs](strip_logs.png)
 
-Each ore run covers the quartz vein and the gold-bearing breccia around it, with the lean assays between them
-taken in as internal dilution. In UD0044 veins V4 and V2 touch and one intercept spans both. The shading starts half
+each ore run covers the quartz vein and the gold-bearing breccia around it, with the lean assays between them
+taken in as internal dilution. in UD0044 veins V4 and V2 touch and one intercept spans both. the shading starts half
 a meter above the first ore assay and ends half a meter below the last: the skins.
 
-## Ore intercepts
+## ore intercepts
 
-Each ore run of the final line is one intercept: its length and grade against those of the raw runs, and the five
+each ore run of the final line is one intercept: its length and grade against those of the raw runs, and the five
 with the most metal.
 
 <details><summary>Python</summary>
@@ -191,15 +191,15 @@ UD0059    182.25  193.25  11.0   14.71
 
 ![intercepts](intercepts.png)
 
-No raw intercept is shorter than one assay, and every final one spans at least 2 m. The pods under 1 m are gone or
-grown by their skins to 2 m and more; at 3 m, a column of intercepts marks the 2 m pods with their two skins. The
-skins cost grade: a lean pod diluted by 1 m of waste can end below the cutoff, and those intercepts are worth a
+no raw intercept is shorter than one assay, and each final one spans at least 2 m. the pods under 1 m are gone or
+grown by their skins to 2 m and more. at 3 m, a column of intercepts marks the 2 m pods with their two skins. the
+skins cost grade: a lean pod diluted by 1 m of waste can end below the cutoff, and those intercepts deserve a
 second look before they go to the mine plan.
 
-## Runs of a category
+## runs of a category
 
-With `category=` and `ore=` the flag comes from a column instead of a cutoff: here the quartz vein. The same rules
-apply; without a cutoff, internal dilution would take in any short band. Here only the minimum length applies.
+with `category=` and `ore=` the flag comes from a column instead of a cutoff, here the quartz vein. the same rules
+apply, but without a cutoff internal dilution would take in any short band, so only the minimum length applies.
 
 <details><summary>Python</summary>
 
@@ -220,7 +220,7 @@ minimum 0 m: 206 quartz vein runs, 436 m at 7.80 g/t
 minimum 2 m: 93 quartz vein runs, 308 m at 7.88 g/t
 ```
 
-Half of the quartz vein runs are thinner than 2 m. At a 2 m minimum they fall to waste, and the rest takes in the
+half of the quartz vein runs are thinner than 2 m. at a 2 m minimum they fall to waste, and the rest take in the
 thin waste bands between vein runs: fewer, thicker runs, at about the same grade.
 
 Full script: [`example_02_13.py`](example_02_13.py)

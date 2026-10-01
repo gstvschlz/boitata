@@ -1,0 +1,53 @@
+<svg class="bt-svg" viewBox="0 0 640 280" role="img" aria-labelledby="l01-clustering-t">
+<title id="l01-clustering-t">Preferential sampling: a regular grid plus infill holes clustered in the rich zone</title>
+<ellipse class="f-flame-soft" cx="400" cy="120" rx="95" ry="55" transform="rotate(-20 400 120)"/>
+<text x="440" y="202" class="small">rich zone</text>
+<rect class="none s-muted" x="40" y="30" width="560" height="180" stroke-width="1"/>
+<circle class="f-night" cx="80" cy="60" r="4.5"/>
+<circle class="f-night" cx="80" cy="110" r="4.5"/>
+<circle class="f-night" cx="80" cy="160" r="4.5"/>
+<circle class="f-night" cx="150" cy="60" r="4.5"/>
+<circle class="f-night" cx="150" cy="110" r="4.5"/>
+<circle class="f-night" cx="150" cy="160" r="4.5"/>
+<circle class="f-night" cx="220" cy="60" r="4.5"/>
+<circle class="f-night" cx="220" cy="110" r="4.5"/>
+<circle class="f-night" cx="220" cy="160" r="4.5"/>
+<circle class="f-night" cx="290" cy="60" r="4.5"/>
+<circle class="f-night" cx="290" cy="110" r="4.5"/>
+<circle class="f-night" cx="290" cy="160" r="4.5"/>
+<circle class="f-night" cx="360" cy="60" r="4.5"/>
+<circle class="f-night" cx="360" cy="110" r="4.5"/>
+<circle class="f-night" cx="360" cy="160" r="4.5"/>
+<circle class="f-night" cx="430" cy="60" r="4.5"/>
+<circle class="f-night" cx="430" cy="110" r="4.5"/>
+<circle class="f-night" cx="430" cy="160" r="4.5"/>
+<circle class="f-night" cx="500" cy="60" r="4.5"/>
+<circle class="f-night" cx="500" cy="110" r="4.5"/>
+<circle class="f-night" cx="500" cy="160" r="4.5"/>
+<circle class="f-night" cx="570" cy="60" r="4.5"/>
+<circle class="f-night" cx="570" cy="110" r="4.5"/>
+<circle class="f-night" cx="570" cy="160" r="4.5"/>
+<circle class="f-ember a-pop" style="--d:0.30s" cx="457.2" cy="132.3" r="4.5"/>
+<circle class="f-ember a-pop" style="--d:0.36s" cx="322.9" cy="110" r="4.5"/>
+<circle class="f-ember a-pop" style="--d:0.42s" cx="396" cy="69" r="4.5"/>
+<circle class="f-ember a-pop" style="--d:0.48s" cx="379.3" cy="122.5" r="4.5"/>
+<circle class="f-ember a-pop" style="--d:0.54s" cx="359" cy="142.3" r="4.5"/>
+<circle class="f-ember a-pop" style="--d:0.60s" cx="437.3" cy="88.9" r="4.5"/>
+<circle class="f-ember a-pop" style="--d:0.66s" cx="361.7" cy="92.1" r="4.5"/>
+<circle class="f-ember a-pop" style="--d:0.72s" cx="474.4" cy="132.8" r="4.5"/>
+<circle class="f-ember a-pop" style="--d:0.78s" cx="394.5" cy="161" r="4.5"/>
+<circle class="f-ember a-pop" style="--d:0.84s" cx="310.8" cy="151" r="4.5"/>
+<circle class="f-ember a-pop" style="--d:0.90s" cx="466.5" cy="104.1" r="4.5"/>
+<circle class="f-ember a-pop" style="--d:0.96s" cx="470.5" cy="86.3" r="4.5"/>
+<circle class="f-ember a-pop" style="--d:1.02s" cx="411.7" cy="104.9" r="4.5"/>
+<circle class="f-ember a-pop" style="--d:1.08s" cx="421.5" cy="74.5" r="4.5"/>
+<circle class="f-ember a-pop" style="--d:1.14s" cx="339.3" cy="157" r="4.5"/>
+<circle class="f-ember a-pop" style="--d:1.20s" cx="466.7" cy="70.3" r="4.5"/>
+<circle class="f-ember a-pop" style="--d:1.26s" cx="345.6" cy="173.8" r="4.5"/>
+<circle class="f-ember a-pop" style="--d:1.32s" cx="345.6" cy="126.7" r="4.5"/>
+<circle class="f-night" cx="50" cy="236" r="4.5"/>
+<text x="60" y="241" class="small">first campaign: regular grid</text>
+<circle class="f-ember" cx="250" cy="236" r="4.5"/>
+<text x="260" y="241" class="small">infill: only in the rich zone</text>
+<text class="a-fade" style="--d:1.6s" x="40" y="268">The rich zone covers 16% of the area and holds 23 of 42 samples (55%).</text>
+</svg>

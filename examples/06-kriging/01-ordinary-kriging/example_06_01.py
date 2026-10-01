@@ -1,8 +1,8 @@
 """
-# Ordinary kriging
+# ordinary kriging
 
-Ordinary kriging of Walker Lake `V` on a 5 m grid, with its kriging variance, checked against the exhaustive values
-and by leave-one-out cross-validation.
+ordinary kriging of walker lake `V` on a 5 m grid, with its kriging variance, checked against the exhaustive values and
+by leave-one-out cross-validation.
 """
 
 # %% [hidden]
@@ -23,7 +23,8 @@ samples = bt.datasets.walker_lake()
 truth = bt.datasets.walker_lake_exhaustive()["V"].reshape(300, 260)
 
 # %% [markdown]
-# Two nested spherical structures fitted to experimental variograms in eight directions ([variogram fitting](../../05-spatial-continuity/02-variogram-fitting/README.md) explains the fit):
+# two nested spherical structures fitted to experimental variograms in eight directions
+# ([variogram fitting](../../05-spatial-continuity/02-variogram-fitting/README.md) explains the fit):
 
 # %%
 azimuths = np.arange(0, 180, 22.5)
@@ -34,8 +35,8 @@ model = bt.Variogram.fit_directional(
 print(model)
 
 # %% [markdown]
-# Up to 24 samples within 100 m. `predict` accepts a `BlockModel`, a `PointSet` or an array of coordinates;
-# `with_column` stores the results on the model.
+# the search takes up to 24 samples within 100 m. `predict` accepts a `BlockModel`, a `PointSet` or an array of
+# coordinates; `with_column` stores the results on the model.
 
 # %%
 grid = bt.BlockModel(origin=(0.5, 0.5), size=(5, 5), count=(52, 60))
@@ -46,7 +47,7 @@ grid = grid.with_column("estimate", estimate).with_column("variance", variance)
 print(grid)
 
 # %% [markdown]
-# Compare with the true values at the grid nodes, and re-estimate every sample with itself left out:
+# compare with the true values at the grid nodes, and re-estimate every sample with itself left out:
 
 # %%
 nodes = grid.centroids.astype(int)
@@ -60,7 +61,7 @@ print(
 )
 
 # %% [markdown]
-# The kriging standard deviation depends only on the data layout and the model: low near samples, high in gaps.
+# the kriging standard deviation depends only on the data layout and the model: low near samples, high in gaps.
 
 # %%
 shape = (60, 52)
@@ -82,9 +83,9 @@ fig.colorbar(sd, ax=axes[2], shrink=0.8, label="ppm")
 save(fig, "maps")
 
 # %% [markdown]
-# Kriging is smooth: the estimates vary less than the truth, a variance of 38 000 against 62 000 at the nodes.
-# Cross-validation shows no conditional bias (the slope of actual on estimate is near 1), and a mean error² / variance
-# of 0.71 means the model's variance is somewhat pessimistic here.
+# kriging smooths: the estimates vary less than the truth, a variance of 38 000 against 62 000 at the nodes.
+# cross-validation shows no conditional bias (the slope of actual on estimate is near 1). a mean error² / variance of
+# 0.71 means the model's variance runs high here.
 
 # %%
 fig, (a, b) = plt.subplots(1, 2, figsize=(9, 4), layout="constrained")
@@ -100,6 +101,7 @@ for ax, x, y, title in (
 save(fig, "validation")
 
 # %% [markdown]
-# The neighborhood search is a k-d tree and nodes are kriged in parallel, so large grids stay fast: every 1 m node of
-# the area, 78 000 targets, takes about half a second. [Simple estimators](../../06-kriging/02-simple-estimators/README.md) compares cheaper methods, [search](../../06-kriging/06-search/README.md) refines the
-# search.
+# the neighborhood search is a k-d tree and nodes are kriged in parallel, so large grids stay fast: every 1 m node of
+# the area, 78 000 targets, takes about half a second.
+# [simple estimators](../../06-kriging/02-simple-estimators/README.md) compares cheaper methods, and
+# [search](../../06-kriging/06-search/README.md) refines the search.

@@ -1,0 +1,37 @@
+<svg class="bt-svg" viewBox="0 0 640 260" role="img" aria-labelledby="l02-top-cut-t">
+<title id="l02-top-cut-t">A top cut clips the three largest of 24 sorted values at a cap and removes the metal above it</title>
+<line class="s-grid" x1="50" y1="230" x2="482" y2="230" stroke-width="1.5"/>
+<rect class="f-night-soft s-night" stroke-width=".8" x="52" y="227.3" width="14" height="2.7"/>
+<rect class="f-night-soft s-night" stroke-width=".8" x="70" y="226.2" width="14" height="3.8"/>
+<rect class="f-night-soft s-night" stroke-width=".8" x="88" y="222.8" width="14" height="7.2"/>
+<rect class="f-night-soft s-night" stroke-width=".8" x="106" y="221.3" width="14" height="8.7"/>
+<rect class="f-night-soft s-night" stroke-width=".8" x="124" y="219.9" width="14" height="10.1"/>
+<rect class="f-night-soft s-night" stroke-width=".8" x="142" y="219.7" width="14" height="10.3"/>
+<rect class="f-night-soft s-night" stroke-width=".8" x="160" y="218.3" width="14" height="11.7"/>
+<rect class="f-night-soft s-night" stroke-width=".8" x="178" y="217.3" width="14" height="12.7"/>
+<rect class="f-night-soft s-night" stroke-width=".8" x="196" y="216.1" width="14" height="13.9"/>
+<rect class="f-night-soft s-night" stroke-width=".8" x="214" y="215.3" width="14" height="14.7"/>
+<rect class="f-night-soft s-night" stroke-width=".8" x="232" y="215.1" width="14" height="14.9"/>
+<rect class="f-night-soft s-night" stroke-width=".8" x="250" y="214.5" width="14" height="15.5"/>
+<rect class="f-night-soft s-night" stroke-width=".8" x="268" y="213.9" width="14" height="16.1"/>
+<rect class="f-night-soft s-night" stroke-width=".8" x="286" y="212.3" width="14" height="17.7"/>
+<rect class="f-night-soft s-night" stroke-width=".8" x="304" y="204.6" width="14" height="25.4"/>
+<rect class="f-night-soft s-night" stroke-width=".8" x="322" y="202.9" width="14" height="27.1"/>
+<rect class="f-night-soft s-night" stroke-width=".8" x="340" y="199.8" width="14" height="30.2"/>
+<rect class="f-night-soft s-night" stroke-width=".8" x="358" y="196.3" width="14" height="33.7"/>
+<rect class="f-night-soft s-night" stroke-width=".8" x="376" y="196.1" width="14" height="33.9"/>
+<rect class="f-night-soft s-night" stroke-width=".8" x="394" y="194" width="14" height="36"/>
+<rect class="f-night-soft s-night" stroke-width=".8" x="412" y="191" width="14" height="39"/>
+<rect class="f-night-soft s-night" stroke-width=".8" x="430" y="177.6" width="14" height="52.4"/>
+<rect class="f-ember-soft s-ember dash a-fade" style="--d:1.2s" stroke-width="1" x="430" y="171.9" width="14" height="5.8"/>
+<rect class="f-night-soft s-night" stroke-width=".8" x="448" y="177.6" width="14" height="52.4"/>
+<rect class="f-ember-soft s-ember dash a-fade" style="--d:1.2s" stroke-width="1" x="448" y="163.5" width="14" height="14.2"/>
+<rect class="f-night-soft s-night" stroke-width=".8" x="466" y="177.6" width="14" height="52.4"/>
+<rect class="f-ember-soft s-ember dash a-fade" style="--d:1.2s" stroke-width="1" x="466" y="50" width="14" height="127.6"/>
+<line class="s-ember a-draw" style="--d:.4s" pathLength="1" x1="40" y1="177.6" x2="492" y2="177.6" stroke-width="2"/>
+<text x="50" y="169.6">cap</text>
+<text class="a-fade" style="--d:1.4s" x="498" y="60">metal above the cap:</text>
+<text class="a-fade" style="--d:1.4s" x="498" y="78">21% of the total</text>
+<text class="small a-fade" style="--d:1.4s" x="498" y="100">from 3 of 24 values</text>
+<text x="50" y="250" class="small">24 values, sorted</text>
+</svg>

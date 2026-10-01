@@ -1,0 +1,47 @@
+<svg class="bt-svg" viewBox="0 0 680 330" role="img" aria-labelledby="w2-tr-t">
+<title id="w2-tr-t">Triage of a drill hole flag: accept it, fix it by rule, fix it by hand from evidence, or exclude the hole and query the geologist</title>
+<rect class="f-night s-night" x="40" y="14" width="260" height="36" rx="6"/>
+<text class="f-paper" x="58" y="37">A flagged record</text>
+<rect class="f-paper s-muted a-fade" style="--d:.2s" x="40" y="80" width="260" height="36" rx="6" stroke-width="1.2"/>
+<text class="a-fade" style="--d:.2s" x="52" y="103">Real and expected?</text>
+<rect class="f-paper s-muted a-fade" style="--d:.6s" x="40" y="146" width="260" height="36" rx="6" stroke-width="1.2"/>
+<text class="a-fade" style="--d:.6s" x="52" y="169">Do the tables give the value?</text>
+<rect class="f-paper s-muted a-fade" style="--d:1s" x="40" y="212" width="260" height="36" rx="6" stroke-width="1.2"/>
+<text class="a-fade" style="--d:1s" x="52" y="235">Does another table give evidence?</text>
+<rect class="f-flame-soft s-flame a-pop" style="--d:1.4s" x="40" y="278" width="260" height="36" rx="6" stroke-width="1.2"/>
+<text class="a-pop" style="--d:1.4s" x="52" y="301">Exclude it, query the geologist</text>
+<rect class="f-night-soft s-night a-pop" style="--d:.4s" x="400" y="80" width="250" height="36" rx="6" stroke-width="1.2"/>
+<text class="a-pop" style="--d:.4s" x="414" y="103">Accept it and write down why</text>
+<rect class="f-night-soft s-night a-pop" style="--d:.8s" x="400" y="146" width="250" height="36" rx="6" stroke-width="1.2"/>
+<text class="a-pop" style="--d:.8s" x="414" y="169">Named rule in fix_drillholes</text>
+<rect class="f-ember-soft s-ember a-pop" style="--d:1.2s" x="400" y="212" width="250" height="36" rx="6" stroke-width="1.2"/>
+<text class="a-pop" style="--d:1.2s" x="414" y="235">Fix by hand, reason in the code</text>
+<g class="s-muted" stroke-width="1.5">
+<line x1="170" y1="50" x2="170" y2="74"/>
+<line class="a-fade" style="--d:.5s" x1="170" y1="116" x2="170" y2="140"/>
+<line class="a-fade" style="--d:.9s" x1="170" y1="182" x2="170" y2="206"/>
+<line class="a-fade" style="--d:1.3s" x1="170" y1="248" x2="170" y2="272"/>
+<line class="a-fade" style="--d:.3s" x1="300" y1="98" x2="394" y2="98"/>
+<line class="a-fade" style="--d:.7s" x1="300" y1="164" x2="394" y2="164"/>
+<line class="a-fade" style="--d:1.1s" x1="300" y1="230" x2="394" y2="230"/>
+</g>
+<g class="f-muted">
+<polygon points="170,80 165,72 175,72"/>
+<polygon class="a-fade" style="--d:.5s" points="170,146 165,138 175,138"/>
+<polygon class="a-fade" style="--d:.9s" points="170,212 165,204 175,204"/>
+<polygon class="a-fade" style="--d:1.3s" points="170,278 165,270 175,270"/>
+<polygon class="a-fade" style="--d:.3s" points="400,98 392,93 392,103"/>
+<polygon class="a-fade" style="--d:.7s" points="400,164 392,159 392,169"/>
+<polygon class="a-fade" style="--d:1.1s" points="400,230 392,225 392,235"/>
+</g>
+<text class="small a-fade" style="--d:.3s" x="336" y="92">yes</text>
+<text class="small a-fade" style="--d:.7s" x="336" y="158">yes</text>
+<text class="small a-fade" style="--d:1.1s" x="336" y="224">yes</text>
+<text class="small a-fade" style="--d:.5s" x="178" y="133">no</text>
+<text class="small a-fade" style="--d:.9s" x="178" y="199">no</text>
+<text class="small a-fade" style="--d:1.3s" x="178" y="265">no</text>
+<text class="small" x="414" y="130">RC gaps, holes never sent to the lab</text>
+<text class="small" x="414" y="196">ids, sentinels, dip sign, duplicates</text>
+<text class="small" x="414" y="262">collar length, swapped FROM and TO</text>
+<text class="small" x="314" y="301">DD0111 without collar, DD0151 without survey</text>
+</svg>

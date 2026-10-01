@@ -1,1 +1,1 @@
-## Multigaussian kriging
+## multigaussian kriging

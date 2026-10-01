@@ -1,9 +1,9 @@
 """
-# Universal kriging
+# universal kriging
 
-The coal seam thins to the east. `detrend` fits that drift as a `Trend`; universal kriging estimates the thickness
-with the drift re-fitted in every neighborhood, using the variogram of the residuals. Inside the drilled lease it
-agrees with ordinary kriging; beyond the last holes it keeps following the drift.
+the coal seam thins to the east. `detrend` fits that drift as a `Trend`. universal kriging estimates the thickness with
+the drift re-fitted in every neighborhood, using the variogram of the residuals. inside the drilled lease it agrees with
+ordinary kriging; beyond the last holes it keeps following the drift.
 """
 
 # %% [hidden]
@@ -24,9 +24,9 @@ holes, grid, lease = data["boreholes"], data["grid"], data["boundary"]
 inside = np.asarray(grid["INSIDE"]) == 1
 
 # %% [markdown]
-# ## Trend
+# ## trend
 #
-# A plane fitted by least squares: `coefficients` are the constant, then the x, y and z slopes.
+# a plane fitted by least squares: `coefficients` are the constant, then the x, y and z slopes.
 
 # %%
 trend, residuals = bt.detrend(holes, "THICKNESS_M", degree=1)
@@ -35,8 +35,8 @@ print(f"thickness = {constant:.2f} {per_x * 1000:+.3f} m/km east {per_y * 1000:+
 print(f"variance {holes['THICKNESS_M'].var():.2f} m², of the residuals {residuals.var():.2f} m²")
 
 # %% [markdown]
-# The drift inflates the variogram of the thickness at long lags; the residuals level off lower. Universal kriging
-# takes the residual variogram, since the drift is estimated with the weights.
+# the drift inflates the variogram of the thickness at long lags, and the residuals level off lower. universal kriging
+# takes the residual variogram, since the weights estimate the drift.
 
 # %%
 raw = bt.experimental_variogram(holes, "THICKNESS_M", 250.0, 4000.0)
@@ -54,9 +54,9 @@ ax.legend()
 save(fig, "variograms")
 
 # %% [markdown]
-# ## Estimates
+# ## estimates
 #
-# Universal kriging with a linear drift against ordinary kriging, same search:
+# universal kriging with a linear drift against ordinary kriging, same search:
 
 # %%
 search = bt.Search(radius=6000, max_samples=32, min_samples=12)
@@ -100,13 +100,13 @@ for ax in axes[1:]:
 save(fig, "maps")
 
 # %% [markdown]
-# Where holes surround a cell, the local drift and the local mean give nearly the same estimate, and the two
-# cross-validations are equally good. The differences sit at the edges of the lease, where the neighbors lie on one
+# where holes surround a cell, the local drift and the local mean give nearly the same estimate, and the two
+# cross-validations are equally good. the differences sit at the edges of the lease, where the neighbors lie on one
 # side: universal kriging is thicker in the thick west corner and thinner in the thin northeast.
 #
-# ## Beyond the data
+# ## beyond the data
 #
-# Along an east-west line through the middle of the lease, extended past the last holes:
+# along an east-west line through the middle of the lease, extended past the last holes:
 
 # %%
 x = np.arange(20000.0, 36001.0, 100.0)
@@ -134,8 +134,7 @@ ax.legend(ncols=2)
 save(fig, "profile")
 
 # %% [markdown]
-# Past the last hole ordinary kriging levels off at the mean of its neighbors, about 1.4 m, while universal kriging
-# carries the thinning on, down to 0.66 m at 36 km against 0.56 m for the trend. Whether that is right is a
-# geological call, not a statistical one. The local drift is fitted from the neighbors, so universal kriging needs
-# a wider search than ordinary kriging: with a few one-sided samples the drift is poorly determined and its
-# extrapolation erratic.
+# past the last hole ordinary kriging levels off at the mean of its neighbors, about 1.4 m, while universal kriging
+# carries the thinning on, down to 0.66 m at 36 km against 0.56 m for the trend. whether that is right is a geological
+# call. universal kriging fits the local drift from the neighbors, so it needs a wider search than ordinary kriging:
+# with a few one-sided samples the drift is poorly determined and its extrapolation erratic.

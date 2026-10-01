@@ -1,0 +1,25 @@
+<svg class="bt-svg" viewBox="0 0 660 190" role="img" aria-labelledby="l05-summary-t">
+<title id="l05-summary-t">Ten simulated values at one node summarized by their mean and the fraction above a cutoff</title>
+<line class="s-grid" x1="60" y1="120" x2="620" y2="120" stroke-width="1.5"/>
+<line class="s-flame dash" x1="340" y1="50" x2="340" y2="136" stroke-width="1.5"/>
+<text class="small" x="346" y="60">cutoff 500</text>
+<circle class="f-night a-pop" style="--d:0.00s" cx="256" cy="106" r="7"/>
+<circle class="f-night a-pop" style="--d:0.12s" cx="177.6" cy="106" r="7"/>
+<circle class="f-flame a-pop" style="--d:0.24s" cx="496.8" cy="106" r="7"/>
+<circle class="f-night a-pop" style="--d:0.36s" cx="295.2" cy="106" r="7"/>
+<circle class="f-night a-pop" style="--d:0.48s" cx="323.2" cy="106" r="7"/>
+<circle class="f-night a-pop" style="--d:0.60s" cx="205.6" cy="106" r="7"/>
+<circle class="f-flame a-pop" style="--d:0.72s" cx="401.6" cy="106" r="7"/>
+<circle class="f-flame a-pop" style="--d:0.84s" cx="362.4" cy="106" r="7"/>
+<circle class="f-night a-pop" style="--d:0.96s" cx="233.6" cy="106" r="7"/>
+<circle class="f-night a-pop" style="--d:1.08s" cx="127.2" cy="106" r="7"/>
+<path class="f-ink a-pop" style="--d:1.4s" d="M287.9 124 l-8 14 h16 Z"/>
+<text class="a-fade" style="--d:1.5s" x="287.9" y="158" text-anchor="middle">E-type mean 407</text>
+<text class="a-fade" style="--d:1.7s" x="485.6" y="158" text-anchor="middle">3 of 10 above: P = 0.3</text>
+<text class="small" x="60" y="180" text-anchor="middle">0</text>
+<text class="small" x="200" y="180" text-anchor="middle">250</text>
+<text class="small" x="340" y="180" text-anchor="middle">500</text>
+<text class="small" x="480" y="180" text-anchor="middle">750</text>
+<text class="small" x="620" y="180" text-anchor="middle">1000</text>
+<text class="small" x="60" y="50">one node, ten realizations (ppm)</text>
+</svg>

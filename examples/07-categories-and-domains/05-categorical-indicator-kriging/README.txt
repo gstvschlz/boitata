@@ -1,1 +1,1 @@
-## Categorical indicator kriging
+## categorical indicator kriging

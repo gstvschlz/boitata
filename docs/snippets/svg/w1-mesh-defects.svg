@@ -1,0 +1,37 @@
+<svg class="bt-svg" viewBox="0 0 690 206" role="img" aria-labelledby="w1-mesh-defects-t">
+<title id="w1-mesh-defects-t">Five mesh defects: boundary edge, non-manifold edge, inconsistent winding, degenerate face, duplicate face</title>
+<text x="14" y="176">boundary edge</text>
+<text class="small" x="14" y="194">a hole</text>
+<text x="150" y="176">non-manifold edge</text>
+<text class="small" x="150" y="194">a fin</text>
+<text x="286" y="176">inconsistent winding</text>
+<text class="small" x="286" y="194">a flipped face</text>
+<text x="422" y="176">degenerate face</text>
+<text class="small" x="422" y="194">no area</text>
+<text x="558" y="176">duplicate face</text>
+<text class="small" x="558" y="194">same corners twice</text>
+<polygon class="f-night-soft s-night" points="72,90 122,90 97,133.3" stroke-width="1"/>
+<polygon class="f-night-soft s-night" points="72,90 47,133.3 22,90" stroke-width="1"/>
+<polygon class="f-night-soft s-night" points="72,90 22,90 47,46.7" stroke-width="1"/>
+<polygon class="f-night-soft s-night" points="72,90 47,46.7 97,46.7" stroke-width="1"/>
+<polygon class="f-night-soft s-night" points="72,90 97,46.7 122,90" stroke-width="1"/>
+<line class="s-ember a-fade" style="--d:0.2s" x1="97" y1="133.3" x2="47" y2="133.3" stroke-width="3"/>
+<line class="s-ember a-fade" style="--d:0.2s" x1="72" y1="90" x2="97" y2="133.3" stroke-width="3"/>
+<line class="s-ember a-fade" style="--d:0.2s" x1="72" y1="90" x2="47" y2="133.3" stroke-width="3"/>
+<polygon class="f-night-soft s-night" points="174,110 250,110 204,150" stroke-width="1"/>
+<polygon class="f-night-soft s-night" points="174,110 250,110 220,75" stroke-width="1"/>
+<polygon class="f-flame-soft s-ember a-pop" points="174,110 250,110 196,30" style="--d:0.5s" stroke-width="1"/>
+<line class="s-ember a-fade" style="--d:0.5s" x1="174" y1="110" x2="250" y2="110" stroke-width="3"/>
+<polygon class="f-night-soft s-night" points="348,40 348,140 298,90" stroke-width="1"/>
+<polygon class="f-ember-soft s-night" points="348,40 348,140 398,90" stroke-width="1"/>
+<line class="s-ember a-fade" style="--d:0.8s" x1="341" y1="60" x2="341" y2="118" stroke-width="2"/>
+<polygon class="f-ember a-fade" points="336,112 346,112 341,124" style="--d:0.8s"/>
+<line class="s-ember a-fade" style="--d:0.8s" x1="355" y1="60" x2="355" y2="118" stroke-width="2"/>
+<polygon class="f-ember a-fade" points="350,112 360,112 355,124" style="--d:0.8s"/>
+<line class="s-ember a-fade" style="--d:1.1s" x1="436" y1="120" x2="536" y2="70" stroke-width="3"/>
+<circle class="f-ink" cx="436" cy="120" r="4"/>
+<circle class="f-ink" cx="486" cy="95" r="4"/>
+<circle class="f-ink" cx="536" cy="70" r="4"/>
+<polygon class="f-night-soft s-night" points="572,135 662,135 612,45" stroke-width="1"/>
+<polygon class="none s-ember dash a-fade" points="578,129 668,129 618,39" style="--d:1.4s" stroke-width="2"/>
+</svg>

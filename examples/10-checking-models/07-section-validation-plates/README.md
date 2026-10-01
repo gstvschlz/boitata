@@ -1,10 +1,10 @@
-# Section validation plates
+# section validation plates
 
-A block model earns trust one section at a time: true block edges (not a resampled raster, so a sub-blocked
-model shows its real geometry), the estimate on those blocks, the lens it was built from and the drillhole
-composites it was built on, all on one plate and one color scale. `section` draws true edges whenever the cut is
-normal to one of the model's own axes; `slab` overlays the lens trace and the composites on the same plane.
-Whether the model honors the composites is a `row_at` lookup away from `scatter`.
+you check a block model one section at a time: true block edges (so a sub-blocked model shows its real geometry
+instead of a resampled raster), the estimate on those blocks, the lens behind it and its drillhole composites, all
+on one plate and one color scale. `section` draws true edges whenever the cut is normal to one of the model's own
+axes; `slab` overlays the lens trace and the composites on the same plane. a `row_at` lookup and `scatter` show
+whether the model honors the composites.
 
 <details><summary>Python</summary>
 
@@ -17,7 +17,7 @@ from common import save
 
 </details>
 
-Sub-block the parent grid to one lens ([sub-blocks](../../02-data-and-geometry/06-sub-blocks/README.md)), then estimate Zn on the sub-blocks from the composites inside
+sub-block the parent grid to one lens ([sub-blocks](../../02-data-and-geometry/06-sub-blocks/README.md)), then estimate Zn on the sub-blocks from the composites inside
 the lens.
 
 <details><summary>Python</summary>
@@ -41,9 +41,8 @@ model = model.with_column("zn", grade)
 
 </details>
 
-`section` draws true block edges whenever the cut is normal to one of the model's own axes, here an east-west
-plane. `slab` overlays the lens trace and the composites within 25 m of that same `plane`, on the same color
-scale.
+here the cut is an east-west plane, normal to one of the model's axes, so `section` draws true block edges. `slab`
+overlays the lens trace and the composites within 25 m of that same `plane`, on the same color scale.
 
 <details><summary>Python</summary>
 
@@ -71,10 +70,11 @@ save(fig, "section")
 
 ![section](section.png)
 
-## Adherence
+## adherence
 
-Adherence is a resubstitution test, not cross-validation: does the model honor the holes it was built from?
-`row_at` finds the sub-block holding each composite and `scatter` gives the 1:1 line and the regression slope.
+adherence is a resubstitution test: it asks whether the model honors the holes it came from, which cross-validation
+leaves aside. `row_at` finds the sub-block holding each composite, and `scatter` gives the 1:1 line and the
+regression slope.
 
 <details><summary>Python</summary>
 

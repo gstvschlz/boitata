@@ -2,9 +2,9 @@
 # 3D views
 
 `bt.plot3d` turns drill holes, points, meshes and block models into pyvista datasets and draws them
-(``pip install boitata[3d]``). Here three stacked sulphide lenses are shown with the holes that cut them, their zinc
-composites, a sub-blocked model of the lenses and a slice through a model rotated with them. Each scene renders
-off-screen to an image.
+(``pip install boitata[3d]``). the scenes show three stacked sulphide lenses with the holes that cut them, their
+zinc composites, a sub-blocked model of the lenses and a slice through a model rotated with them. each scene
+renders off-screen to an image.
 """
 
 # %% [hidden]
@@ -39,9 +39,9 @@ def show(plotter, title, view=(0.8, -0.6, 0.6)):
 
 
 # %% [markdown]
-# A `Drillholes` becomes one polyline per hole through its desurveyed stations, a `PointSet` points, a `Mesh`
-# triangles. The holes are clipped to the box around the lenses; the composites inside the lenses are colored by
-# zinc, the others left gray.
+# a `Drillholes` becomes one polyline per hole through its desurveyed stations, a `PointSet` points, a `Mesh`
+# triangles. the holes are clipped to the box around the lenses. zinc colors the composites inside the lenses, and
+# the others stay gray.
 
 # %%
 data = bt.datasets.stacked_sulphide_lenses()
@@ -68,7 +68,7 @@ save(show(plotter, "Drill holes, Zn composites and the three lenses"), "holes")
 
 # %% [markdown]
 # `from_meshes` sub-blocks a grid rotated with the lenses ([block model from extents](../../02-data-and-geometry/12-block-model-from-extents/README.md)) against the solids, and inverse distance fills
-# the sub-blocks with the zinc of the composites inside the lenses. A masked or sub-blocked model becomes one
+# the sub-blocks with the zinc of the composites inside the lenses. a masked or sub-blocked model becomes one
 # hexahedron per row, at its parent's rotation.
 
 # %%
@@ -97,10 +97,10 @@ bt.plot3d.plot(traces, plotter=plotter, color=GRAY, line_width=1, opacity=0.4)
 save(show(plotter, "Sub-blocks of the lenses, colored by Zn"), "subblocks")
 
 # %% [markdown]
-# A regular model keeps its geometry implicit: `to_pyvista` returns an image grid oriented by the model's rotation.
-# `slices` cuts it through its center along the world axes; any pyvista cut works too. Filled with the
+# a regular model keeps its geometry implicit: `to_pyvista` returns an image grid oriented by the model's rotation.
+# `slices` cuts it through its center along the world axes, and any pyvista cut works too. filled with the
 # inverse-distance zinc of all composites, the rotated grid is cut here across strike, through its center: a dip
-# section where the three lenses are the high-grade bands. Blocks with no composite within 100 m stay empty.
+# section where the three lenses are the high-grade bands. blocks with no composite within 100 m stay empty.
 
 # %%
 everywhere = bt.InverseDistance(search, power=2).fit(composites.coords, composites["ZN_PCT"])

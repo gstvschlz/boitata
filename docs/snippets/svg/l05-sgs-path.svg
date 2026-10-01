@@ -1,0 +1,51 @@
+<svg class="bt-svg" viewBox="0 0 680 290" role="img" aria-labelledby="l05-sgs-path-t">
+<title id="l05-sgs-path-t">Sequential Gaussian simulation visits grid nodes in random order, kriges each and draws its value</title>
+<line class="s-grid" x1="40" y1="40" x2="40" y2="260" stroke-width="1"/>
+<line class="s-grid" x1="84" y1="40" x2="84" y2="260" stroke-width="1"/>
+<line class="s-grid" x1="128" y1="40" x2="128" y2="260" stroke-width="1"/>
+<line class="s-grid" x1="172" y1="40" x2="172" y2="260" stroke-width="1"/>
+<line class="s-grid" x1="216" y1="40" x2="216" y2="260" stroke-width="1"/>
+<line class="s-grid" x1="260" y1="40" x2="260" y2="260" stroke-width="1"/>
+<line class="s-grid" x1="304" y1="40" x2="304" y2="260" stroke-width="1"/>
+<line class="s-grid" x1="40" y1="40" x2="304" y2="40" stroke-width="1"/>
+<line class="s-grid" x1="40" y1="84" x2="304" y2="84" stroke-width="1"/>
+<line class="s-grid" x1="40" y1="128" x2="304" y2="128" stroke-width="1"/>
+<line class="s-grid" x1="40" y1="172" x2="304" y2="172" stroke-width="1"/>
+<line class="s-grid" x1="40" y1="216" x2="304" y2="216" stroke-width="1"/>
+<line class="s-grid" x1="40" y1="260" x2="304" y2="260" stroke-width="1"/>
+<circle class="f-ember" cx="106" cy="59.8" r="5.5"/>
+<circle class="f-ember" cx="229.2" cy="101.6" r="5.5"/>
+<circle class="f-ember" cx="145.6" cy="194" r="5.5"/>
+<circle class="f-ember" cx="268.8" cy="229.2" r="5.5"/>
+<g class="a-pop" style="--d:0.3s"><rect class="f-paper" x="175.0" y="87.0" width="38" height="38" rx="4"/><rect class="f-night-soft s-night" x="175.0" y="87.0" width="38" height="38" rx="4" stroke-width="1.5"/></g>
+<text class="a-fade" style="--d:0.3s" x="194" y="111" text-anchor="middle">1</text>
+<g class="a-pop" style="--d:1.4s"><rect class="f-paper" x="87.0" y="175.0" width="38" height="38" rx="4"/><rect class="f-night-soft s-night" x="87.0" y="175.0" width="38" height="38" rx="4" stroke-width="1.5"/></g>
+<text class="a-fade" style="--d:1.4s" x="106" y="199" text-anchor="middle">2</text>
+<circle class="s-muted none a-fade" style="--d:2.1s" cx="150" cy="150" r="101" stroke-width="1.2"/>
+<path class="s-muted none a-draw" style="--d:2.2s" pathLength="1" stroke-width="1.2" d="M145.6 194 L150 150"/>
+<path class="s-muted none a-draw" style="--d:2.2s" pathLength="1" stroke-width="1.2" d="M106 59.8 L150 150"/>
+<path class="s-muted none a-draw" style="--d:2.2s" pathLength="1" stroke-width="1.2" d="M194 106 L150 150"/>
+<path class="s-muted none a-draw" style="--d:2.2s" pathLength="1" stroke-width="1.2" d="M106 194 L150 150"/>
+<g class="a-pop" style="--d:2.5s"><rect class="f-paper" x="131.0" y="131.0" width="38" height="38" rx="4"/><rect class="f-night-soft s-night" x="131.0" y="131.0" width="38" height="38" rx="4" stroke-width="1.5"/></g>
+<text class="a-fade" style="--d:2.5s" x="150" y="155" text-anchor="middle">3</text>
+<g class="a-pop" style="--d:3.6s"><rect class="f-paper" x="263.0" y="131.0" width="38" height="38" rx="4"/><rect class="f-night-soft s-night" x="263.0" y="131.0" width="38" height="38" rx="4" stroke-width="1.5"/></g>
+<text class="a-fade" style="--d:3.6s" x="282" y="155" text-anchor="middle">4</text>
+<g class="a-pop" style="--d:4.7s"><rect class="f-paper" x="43.0" y="43.0" width="38" height="38" rx="4"/><rect class="f-night-soft s-night" x="43.0" y="43.0" width="38" height="38" rx="4" stroke-width="1.5"/></g>
+<text class="a-fade" style="--d:4.7s" x="62" y="67" text-anchor="middle">5</text>
+<g class="a-pop" style="--d:5.8s"><rect class="f-paper" x="219.0" y="219.0" width="38" height="38" rx="4"/><rect class="f-night-soft s-night" x="219.0" y="219.0" width="38" height="38" rx="4" stroke-width="1.5"/></g>
+<text class="a-fade" style="--d:5.8s" x="238" y="243" text-anchor="middle">6</text>
+<text class="small" x="40" y="282">dots: samples; numbers: order of the random path</text>
+<text class="a-slide" style="--d:0.20s" x="340" y="50">1  Visit the next node on the random path</text>
+<text class="a-slide" style="--d:0.45s" x="340" y="76">2  Krige it from samples and earlier nodes</text>
+<text class="a-slide" style="--d:0.70s" x="340" y="102">3  Draw a value from that Gaussian</text>
+<text class="a-slide" style="--d:0.95s" x="340" y="128">4  Keep the value as data; go to 1</text>
+<line class="s-grid" x1="360" y1="250" x2="640" y2="250" stroke-width="1.5"/>
+<path class="s-night none" stroke-width="2" d="M360 250 L362.4 250 L364.7 250 L367.1 250 L369.4 250 L371.8 250 L374.1 250 L376.5 250 L378.8 250 L381.2 250 L383.5 250 L385.9 250 L388.2 250 L390.6 250 L392.9 250 L395.3 250 L397.6 250 L400 250 L402.4 250 L404.7 249.9 L407.1 249.9 L409.4 249.9 L411.8 249.9 L414.1 249.8 L416.5 249.8 L418.8 249.7 L421.2 249.6 L423.5 249.5 L425.9 249.4 L428.2 249.3 L430.6 249.1 L432.9 248.8 L435.3 248.5 L437.6 248.2 L440 247.8 L442.4 247.3 L444.7 246.7 L447.1 246 L449.4 245.2 L451.8 244.2 L454.1 243.1 L456.5 241.9 L458.8 240.5 L461.2 238.9 L463.5 237.1 L465.9 235.1 L468.2 233 L470.6 230.6 L472.9 228 L475.3 225.2 L477.6 222.2 L480 219 L482.4 215.6 L484.7 212.2 L487.1 208.6 L489.4 204.9 L491.8 201.2 L494.1 197.5 L496.5 193.9 L498.8 190.3 L501.2 186.9 L503.5 183.7 L505.9 180.7 L508.2 178 L510.6 175.7 L512.9 173.7 L515.3 172.1 L517.6 170.9 L520 170.2 L522.4 170 L524.7 170.2 L527.1 170.9 L529.4 172 L531.8 173.6 L534.1 175.6 L536.5 177.9 L538.8 180.6 L541.2 183.6 L543.5 186.8 L545.9 190.2 L548.2 193.7 L550.6 197.4 L552.9 201.1 L555.3 204.8 L557.6 208.4 L560 212 L562.4 215.5 L564.7 218.9 L567.1 222 L569.4 225 L571.8 227.9 L574.1 230.5 L576.5 232.9 L578.8 235.1 L581.2 237 L583.5 238.8 L585.9 240.4 L588.2 241.9 L590.6 243.1 L592.9 244.2 L595.3 245.1 L597.6 246 L600 246.7 L602.4 247.2 L604.7 247.7 L607.1 248.2 L609.4 248.5 L611.8 248.8 L614.1 249.1 L616.5 249.2 L618.8 249.4 L621.2 249.5 L623.5 249.6 L625.9 249.7 L628.2 249.8 L630.6 249.8 L632.9 249.9 L635.3 249.9 L637.6 249.9 L640 249.9"/>
+<line class="s-muted dash" x1="522.4" y1="250" x2="522.4" y2="164" stroke-width="1"/>
+<text class="small" x="526.4" y="160">kriged mean</text>
+<text class="small" x="360" y="180">spread from the</text>
+<text class="small" x="360" y="194">kriging variance</text>
+<circle class="f-flame a-pop" style="--d:1.4s" cx="550.1" cy="250" r="6"/>
+<text class="small a-fade" style="--d:1.5s" x="560.1" y="268">random draw</text>
+<text class="small" x="360" y="268">normal score</text>
+</svg>

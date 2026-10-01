@@ -1,1 +1,1 @@
-## Kriging diagnostics
+## kriging diagnostics

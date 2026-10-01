@@ -1,7 +1,7 @@
-# Rotation and affinity
+# rotation and affinity
 
-A training image has one direction and one scale; a deposit rarely keeps either. `anisotropy` turns and stretches the
-patterns cell by cell without touching the image: each cell reads its neighbors through its own angles and
+a training image has one direction and one scale; a deposit rarely keeps either. `anisotropy` turns and stretches the
+patterns cell by cell and leaves the image as it is: each cell reads its neighbors through its own angles and
 affinity, so one image can serve a whole field of orientations.
 
 <details><summary>Python</summary>
@@ -22,8 +22,8 @@ x, y = xy[:, 0], xy[:, 1]
 
 </details>
 
-`bt.LocalAnisotropy` holds, at each cell, the azimuth that turns the image's north, the ratios that shrink its X
-(semi-major) and Z (minor) axes against its Y axis, and a scale that grows all three. At azimuth 0 and scale 1 the
+at each cell, `bt.LocalAnisotropy` holds the azimuth that turns the image's north, the ratios that shrink its X
+(semi-major) and Z (minor) axes against its Y axis, and a scale that grows all three. at azimuth 0 and scale 1 the
 cells read the image as it is.
 
 <details><summary>Python</summary>
@@ -51,10 +51,10 @@ fields = {
 
 </details>
 
-"Twice as long" doubles the scale and halves the X ratio, so the channels double in length and keep their width.
-The three zones, split by two lines dipping east: the south enlarged 1.5 times, the middle turned 60°, the north
-turned -30° with channels half as wide. Angles are rounded to `angle_step` (10° by default), and each distinct
-rounded transform gets search trees of its own.
+"twice as long" doubles the scale and halves the X ratio, so the channels double in length and keep their width.
+two lines dipping east split three zones: the south enlarged 1.5 times, the middle turned 60°, the north turned
+-30° with channels half as wide. SNESIM rounds angles to `angle_step` (10° by default), and each distinct rounded
+transform gets search trees of its own.
 
 <details><summary>Python</summary>
 
@@ -112,16 +112,16 @@ save(fig, "rotation")
 
 ![rotation](rotation.png)
 
-Turned 45°, a channel crosses the Y runs diagonally, so they shorten. Twice as long lengthens the runs from 18 to 22
-cells rather than doubling them: a doubled channel reaches past the grid template, and the coarse levels, which
+turned 45°, a channel crosses the Y runs on the diagonal, so they shorten. twice as long lengthens the runs from 18
+to 22 cells instead of doubling them: a doubled channel reaches past the grid template, and the coarse levels, which
 keep their spacing, see only half as far into the stretched image.
 
-The channels cross the zone boundaries without a seam: a cell near a boundary sees neighbors simulated under the
+the channels cross the zone boundaries without a seam: a cell near a boundary sees neighbors simulated under the
 other zone's transform and continues them.
 
-Continuous images turn the same way. The F3 sections of [continuous SNESIM](../../13-multiple-point-statistics/03-snesim-continuous/README.md)
+continuous images turn the same way. the F3 sections of [continuous SNESIM](../../13-multiple-point-statistics/03-snesim-continuous/README.md)
 have nearly flat reflectors; an azimuth rising from -25° in the west to 25° in the east and back bends them into a
-fold. Here the cells are one trace by one sample, so an angle is measured in those units.
+fold. here the cells are one trace by one sample, so angles follow those units.
 
 <details><summary>Python</summary>
 
@@ -167,7 +167,7 @@ save(fig, "fold")
 
 ![fold](fold.png)
 
-[Several training images](../../13-multiple-point-statistics/05-snesim-training-images-by-zone/README.md) change the patterns themselves from zone
+[several training images](../../13-multiple-point-statistics/05-snesim-training-images-by-zone/README.md) change the patterns themselves from zone
 to zone.
 
 Full script: [`example_13_04.py`](example_13_04.py)

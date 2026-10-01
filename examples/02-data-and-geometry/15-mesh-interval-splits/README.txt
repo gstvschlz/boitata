@@ -1,1 +1,1 @@
-## Mesh-crossing interval splits
+## mesh-crossing interval splits

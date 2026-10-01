@@ -1,0 +1,48 @@
+<svg class="bt-svg" viewBox="0 0 700 270" role="img" aria-labelledby="w2-ie-t">
+<title id="w2-ie-t">A drill hole log along depth showing a gap, an overlap, an inverted interval and intervals past the recorded hole length</title>
+<line class="s-ink" x1="40" y1="170" x2="680" y2="170" stroke-width="2"/>
+<g class="f-night-soft s-night" stroke-width="1.2">
+<rect class="a-fade" style="--d:.1s" x="40" y="110" width="80" height="36"/>
+<rect class="a-fade" style="--d:.2s" x="120" y="110" width="80" height="36"/>
+<rect class="a-fade" style="--d:.3s" x="240" y="110" width="80" height="36"/>
+<rect class="a-fade" style="--d:.5s" x="380" y="110" width="80" height="36"/>
+</g>
+<rect class="f-flame-soft s-flame a-pop" style="--d:.7s" x="300" y="98" width="80" height="36" stroke-width="1.2"/>
+<rect class="f-flame a-fade" style="--d:.9s" x="300" y="110" width="20" height="24"/>
+<rect class="f-paper s-ember dash a-fade" style="--d:1.1s" x="460" y="110" width="80" height="36" stroke-width="1.5"/>
+<path class="s-ember none a-draw" style="--d:1.2s" pathLength="1" d="M532 128 L470 128" stroke-width="2"/>
+<polygon class="f-ember a-fade" style="--d:1.8s" points="466,128 476,122 476,134"/>
+<line class="s-ink dash" x1="540" y1="40" x2="540" y2="200" stroke-width="1.2"/>
+<g class="f-ember-soft s-ember" stroke-width="1.2">
+<rect class="a-fade" style="--d:1.5s" x="540" y="110" width="80" height="36"/>
+</g>
+<rect class="none s-muted dash a-fade" style="--d:.4s" x="200" y="110" width="40" height="36" stroke-width="1"/>
+<text class="a-fade" style="--d:.4s" x="200" y="100">gap</text>
+<text class="a-fade" style="--d:.9s" x="300" y="88">overlap</text>
+<text class="a-fade" style="--d:1.3s" x="455" y="100">inverted</text>
+<text class="small a-fade" style="--d:1.3s" x="436" y="164">FROM 25, TO 21</text>
+<text x="546" y="54">collar LENGTH</text>
+<text class="a-fade" style="--d:1.6s" x="546" y="100">past depth</text>
+<g class="s-muted" stroke-width="1">
+<line x1="40" y1="170" x2="40" y2="176"/>
+<line x1="120" y1="170" x2="120" y2="176"/>
+<line x1="200" y1="170" x2="200" y2="176"/>
+<line x1="280" y1="170" x2="280" y2="176"/>
+<line x1="360" y1="170" x2="360" y2="176"/>
+<line x1="440" y1="170" x2="440" y2="176"/>
+<line x1="520" y1="170" x2="520" y2="176"/>
+<line x1="600" y1="170" x2="600" y2="176"/>
+<line x1="680" y1="170" x2="680" y2="176"/>
+</g>
+<text class="small" x="36" y="192">0</text>
+<text class="small" x="116" y="192">4</text>
+<text class="small" x="196" y="192">8</text>
+<text class="small" x="274" y="192">12</text>
+<text class="small" x="354" y="192">16</text>
+<text class="small" x="434" y="192">20</text>
+<text class="small" x="514" y="192">24</text>
+<text class="small" x="594" y="192">28</text>
+<text class="small" x="674" y="192">32</text>
+<text class="small" x="40" y="222">depth along the hole, from the collar (m)</text>
+<text class="small" x="40" y="250">each box is one sample, drawn from its FROM to its TO</text>
+</svg>

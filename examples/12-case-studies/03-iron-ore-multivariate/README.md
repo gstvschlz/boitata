@@ -1,10 +1,10 @@
 # Iron ore: several grades, one closure, reconciled
 
 An iron formation plateau: 187 diamond holes assayed for Fe, SiO2, Al2O3, P, Mn and loss on ignition, a block model
-of 25 × 25 × 12 m coded by lithology, and grade-control blastholes over three 12 m benches. The grades are not free
-to vary on their own: as oxides they fill almost the whole sample, so more iron means less silica. Here the six
-grades are simulated together through log-ratios so that every simulated block still adds up, and the result is
-checked against the blastholes.
+of 25 × 25 × 12 m coded by lithology, and grade-control blastholes over three 12 m benches. The grades cannot vary
+on their own: as oxides they fill almost the whole sample, so more iron means less silica. You simulate the six
+grades together through log-ratios, so every simulated block still adds up, and check the result against the
+blastholes.
 
 <details><summary>Python</summary>
 
@@ -140,8 +140,8 @@ print(f"{len(blocks)} blocks: " + ", ".join(f"{n} {np.sum(block_domain == n)}" f
 ```
 
 The block model carries the lithology at each block center, and at 25 m it often disagrees with the logging: a
-6 m composite of logged hematite may sit in an itabirite block. Composites are therefore assigned to the domain of
-the block they fall in, so each domain carries the mixture its blocks will be mined as. Only those within 100 m of
+6 m composite of logged hematite may sit in an itabirite block. Each composite therefore takes the domain of the
+block it falls in, so each domain carries the mixture its blocks will be mined as. Only those within 100 m of
 the blasthole area and 30 m of the benches inform the simulation: the plateau is weathered from the top, and deeper
 ore of the same code is leaner.
 
@@ -358,13 +358,13 @@ blastholes still carries their analytical error and short-scale variation, so it
 itself would.
 
 Blocks rank well (r 0.81), but the blasthole means spread 1.70 times as far as the simulated means: with holes
-100 m apart, the model cannot place the 25 m contrasts between hematite and itabirite that grade control sees. That
-gap is what blastholes are drilled to close.
+100 m apart, the model cannot place the 25 m contrasts between hematite and itabirite that grade control sees. Grade
+control drills blastholes to close that gap.
 
 ## A bench in plan
 
 The middle bench, 672 to 684 m: the mean of the simulated block Fe, with the blastholes on the same color scale.
-The low-grade itabirite band the blastholes trace to the north-east is in the model, only wider and less sharp.
+The low-grade itabirite band the blastholes trace to the north-east is in the model, wider and less sharp.
 
 <details><summary>Python</summary>
 

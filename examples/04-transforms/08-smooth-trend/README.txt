@@ -1,1 +1,1 @@
-## Smooth trend
+## smooth trend

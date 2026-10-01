@@ -1,0 +1,32 @@
+<svg class="bt-svg" viewBox="0 0 640 330" role="img" aria-labelledby="l04-prob-t">
+<title id="l04-prob-t">The estimation problem: an unknown value at a target, surrounded by samples of known value</title>
+<line class="s-muted a-draw" pathLength="1" style="--d:0.30s" x1="201.0" y1="98.0" x2="287.1" y2="160.6" stroke-width="1.2"/>
+<line class="s-muted a-draw" pathLength="1" style="--d:0.42s" x1="201.0" y1="260.0" x2="288.2" y2="180.8" stroke-width="1.2"/>
+<line class="s-muted a-draw" pathLength="1" style="--d:0.54s" x1="399.0" y1="71.0" x2="311.3" y2="158.7" stroke-width="1.2"/>
+<line class="s-muted a-draw" pathLength="1" style="--d:0.66s" x1="399.0" y1="269.0" x2="311.3" y2="181.3" stroke-width="1.2"/>
+<line class="s-muted a-draw" pathLength="1" style="--d:0.78s" x1="174.0" y1="269.0" x2="287.4" y2="179.9" stroke-width="1.2"/>
+<line class="s-muted a-draw" pathLength="1" style="--d:0.90s" x1="111.0" y1="161.0" x2="284.0" y2="169.2" stroke-width="1.2"/>
+<line class="s-muted a-draw" pathLength="1" style="--d:1.02s" x1="120.0" y1="98.0" x2="285.1" y2="164.1" stroke-width="1.2"/>
+<circle class="f-night" cx="201.0" cy="98.0" r="6"/>
+<text x="191.0" y="103.0" text-anchor="end">11</text>
+<circle class="f-night" cx="201.0" cy="260.0" r="6"/>
+<text x="211.0" y="265.0" text-anchor="start">156</text>
+<circle class="f-night" cx="399.0" cy="71.0" r="6"/>
+<text x="409.0" y="76.0" text-anchor="start">3</text>
+<circle class="f-night" cx="399.0" cy="269.0" r="6"/>
+<text x="409.0" y="274.0" text-anchor="start">22</text>
+<circle class="f-night" cx="174.0" cy="269.0" r="6"/>
+<text x="164.0" y="274.0" text-anchor="end">317</text>
+<circle class="f-night" cx="111.0" cy="161.0" r="6"/>
+<text x="101.0" y="166.0" text-anchor="end">184</text>
+<circle class="f-night" cx="120.0" cy="98.0" r="6"/>
+<text x="110.0" y="103.0" text-anchor="end">245</text>
+<circle class="f-ember-soft s-ember a-pulse" cx="300" cy="170" r="14" stroke-width="2"/>
+<text x="295" y="175">?</text>
+<text class="math" x="430" y="60">z* = λ₁z₁ + λ₂z₂ + … + λₙzₙ</text>
+<text class="small" x="430" y="84">each weight λ says how much</text>
+<text class="small" x="430" y="100">one sample counts</text>
+<line class="s-ink" x1="40" y1="300" x2="130" y2="300" stroke-width="2"/>
+<text class="small" x="40" y="318">10 m</text>
+<text class="small" x="430" y="300">V in ppm at seven Walker Lake samples</text>
+</svg>

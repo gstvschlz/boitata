@@ -1,9 +1,9 @@
-# Categorical indicator kriging
+# categorical indicator kriging
 
-Logged rock types are categories, not grades. Categorical indicator kriging estimates, at each target, the
-probability of every category: each category's indicator (1 inside it, 0 outside) is kriged with its own
-variogram, and the probabilities are then clipped to [0, 1] and rescaled to sum 1. The most likely category is a
-rock-type model, and the entropy of the probabilities says where that model is uncertain.
+logged rock types are categories. categorical indicator kriging estimates the probability of each category at each
+target: it krigs each category's indicator (1 inside it, 0 outside) with its own variogram, then clips the
+probabilities to [0, 1] and rescales them to sum 1. the most likely category is a rock-type model, and the entropy of
+the probabilities marks where that model is uncertain.
 
 <details><summary>Python</summary>
 
@@ -16,13 +16,13 @@ from common import save
 
 </details>
 
-## Rock types
+## rock types
 
-The stacked sulphide lenses are drilled towards the west-northwest across a stratigraphy that strikes 023° and
-dips about 55° to the east-southeast: footwall volcanics (`FWV`), volcaniclastics (`VCL`) and hanging-wall
-sediments (`HWS`) under overburden (`OB`). The three sulphide codes are lumped into `SUL`, and dykes are kept apart.
-A `Categories` scheme holds the names, the lumping and the colors; it encodes the logged codes for the estimator
-and colors every plot below. Logged intervals are composited to 5 m, each taking the rock covering most of it.
+the holes into the stacked sulphide lenses point west-northwest, across a stratigraphy that strikes 023° and dips
+about 55° to the east-southeast: footwall volcanics (`FWV`), volcaniclastics (`VCL`) and hanging-wall sediments
+(`HWS`) under overburden (`OB`). the scheme lumps the three sulphide codes into `SUL` and keeps dykes apart. a
+`Categories` scheme holds the names, the lumping and the colors; it encodes the logged codes for the estimator and
+colors each plot. the logged intervals become 5 m composites, each taking the rock covering most of it.
 
 <details><summary>Python</summary>
 
@@ -58,14 +58,14 @@ FWV    0.127        0.156
 DYK    0.006        0.006
 ```
 
-## Variograms and the estimate
+## variograms and the estimate
 
-Each category gets an indicator variogram, here chosen from the geology rather than fitted ([variogram fitting](../../05-spatial-continuity/02-variogram-fitting/README.md) fits them):
+each category gets an indicator variogram chosen from the geology ([variogram fitting](../../05-spatial-continuity/02-variogram-fitting/README.md) fits them instead):
 the layers are continuous along strike and down dip and short across, the sulphides form smaller lenses, the
-overburden is a flat blanket and the dykes are short in every direction. Only the shape of each variogram
-matters, since each indicator is kriged on its own. The search follows the layering in two passes. Ordinary
-kriging takes each indicator's mean from the samples found, so away from the holes the probabilities follow the
-nearest layers; `simple=True` would pull them towards the declustered proportions instead, which the weights set.
+overburden is a flat blanket and the dykes are short in all directions. each indicator is kriged on its own, so
+only the shape of each variogram matters. the search follows the layering in two passes. ordinary kriging takes
+each indicator's mean from the samples found, so away from the holes the probabilities follow the nearest layers;
+`simple=True` would pull them towards the declustered proportions, which the weights set.
 
 <details><summary>Python</summary>
 
@@ -89,10 +89,10 @@ cik.fit(composites, "LITH", weights=weights, holes="HOLE_ID")
 
 </details>
 
-The targets are the cells of a vertical section across strike, one cell thick, through the middle of the drilling;
-cells above the topography are dropped. `predict` returns a summary: `probabilities` has one row per target and
-one column per category, `most_likely` holds category codes (NaN where the search found too few samples), and
-`diagnostics` is a Table of the search and of the correction.
+the targets are the cells of a vertical section across strike, one cell thick, through the middle of the drilling,
+without the cells above the topography. `predict` returns a summary: `probabilities` has one row per target and one
+column per category, `most_likely` holds category codes (NaN where the search found too few samples), and
+`diagnostics` is a `Table` of the search and of the correction.
 
 <details><summary>Python</summary>
 
@@ -128,10 +128,10 @@ rows sum to 1: True
 correction: 24% of the cells had a category kriged outside [0, 1]; mean size 0.041
 ```
 
-## Probability maps
+## probability maps
 
-Each category's probability is high where its samples are and fades across its contacts; the sulphides, rare
-and short-ranged, stand out only near the holes that cut them.
+each category's probability is high near its samples and fades across its contacts. the sulphides, rare and
+short-ranged, stand out only near the holes that cut them.
 
 <details><summary>Python</summary>
 
@@ -150,11 +150,11 @@ save(fig, "probabilities")
 
 ![probabilities](probabilities.png)
 
-## Most likely rock and its uncertainty
+## most likely rock and its uncertainty
 
-The most likely category is drawn in the scheme's colors. Entropy, scaled to [0, 1], is 0 where one category is
-certain and 1 where all are equally likely: it is highest along the contacts and far from the holes. The last
-panel draws both at once: the most likely rock fades towards white as its entropy rises.
+the most likely category takes the scheme's colors. entropy, scaled to [0, 1], is 0 where one category is certain
+and 1 where all are equally likely; it peaks along the contacts and far from the holes. the last panel draws both:
+the most likely rock fades towards white as its entropy rises.
 
 <details><summary>Python</summary>
 
@@ -176,12 +176,12 @@ save(fig, "most-likely")
 
 ![most-likely](most-likely.png)
 
-## Checks
+## checks
 
-Splitting the holes into 5 folds and re-estimating each fold's composites from the others scores the probabilities
-with the Brier score, the mean squared difference between a category's probability and its indicator: 0 is
-perfect, and always forecasting the declustered proportion `p` scores `p (1 − p)`. The layers beat that baseline
-by far, the thin sulphides barely do, and the dykes, cutting across everything, do not.
+split the holes into 5 folds and re-estimate each fold's composites from the others, then score the probabilities
+with the brier score: the mean squared difference between a category's probability and its indicator. 0 is perfect,
+and forecasting the declustered proportion `p` everywhere scores `p (1 − p)`. the layers beat that baseline by far,
+the thin sulphides barely beat it, and the dykes, which cut across all the layers, fail to.
 
 <details><summary>Python</summary>
 

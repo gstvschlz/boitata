@@ -1,1 +1,1 @@
-## Runs and strip logs
+## runs and strip logs

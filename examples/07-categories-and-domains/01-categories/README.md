@@ -1,8 +1,8 @@
-# Categories
+# categories
 
-A tailings storage facility drilled by 107 sonic holes, logged as cover (CAP), sand (SAND), slimes (SLIME) and the clay
-of the original ground (CLAY). A `Categories` scheme fixes the order, names and colors of the codes once, so that
-shares, plots and later models all agree on them.
+107 sonic holes drill a tailings storage facility and log it as cover (CAP), sand (SAND), slimes (SLIME) and the clay
+of the original ground (CLAY). a `Categories` scheme fixes the order, names and colors of the codes once, so shares,
+plots and later models agree on them.
 
 <details><summary>Python</summary>
 
@@ -25,9 +25,9 @@ print(
 3724 intervals, 1707 m logged, 0.05 to 5.8 m long
 ```
 
-`encode` turns the logged names into integer codes in the order of the scheme, NaN for a name it does not know, and
-`shares` gives the proportion of each code, by count or weighted. The intervals differ in length a hundredfold, so
-the shares by length are the ones that describe the facility.
+`encode` turns the logged names into integer codes in the order of the scheme, NaN for an unknown name. `shares`
+gives the proportion of each code, by count or weighted. interval lengths differ a hundredfold, so the shares by
+length describe the facility.
 
 <details><summary>Python</summary>
 
@@ -50,8 +50,8 @@ SLIME  47.7% of intervals  38.6% of length
 CLAY    2.9% of intervals  11.0% of length
 ```
 
-SLIME is logged as often as SAND but in thinner intervals, and the few CLAY intervals are long: by length, SLIME falls
-from 47.7 % to 38.6 % and CLAY rises from 2.9 % to 11.0 %. `plot.proportions` draws the weighted shares as bars,
+SLIME appears as often as SAND in thinner intervals, and the few CLAY intervals are long. by length, SLIME falls
+from 47.7 % to 38.6 % and CLAY rises from 2.9 % to 11.0 %. `plot.proportions` draws the weighted shares as bars and
 the unweighted ones as ticks; `plot.category_swath` stacks the shares per slice, as `swath` does for a grade.
 
 <details><summary>Python</summary>
@@ -73,11 +73,10 @@ save(fig, "categories")
 
 ![categories](categories.png)
 
-The facility sorts its tailings: sand dominates the north and slimes the south, where the fines settled, while
-clay sits at the base and cover on top. A reprocessing plan that treats sand and slimes apart would model the two as
-separate domains.
+sand dominates the north and slimes the south, where the fines settled; clay sits at the base and cover on top. a
+reprocessing plan that treats sand and slimes apart would model them as separate domains.
 
-A scheme can also be read off the data. `Categories.from_values` keeps the names above `min_share` of the weight,
+you can also read a scheme off the data. `Categories.from_values` keeps the names above `min_share` of the weight,
 sorted, and lumps the rest into `other`, last: here CAP, under 5 % of the length.
 
 <details><summary>Python</summary>

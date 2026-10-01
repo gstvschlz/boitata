@@ -1,7 +1,7 @@
-# Declustering
+# declustering
 
-A coal seam drilled on a regular mesh, then infilled where the seam is thick. The infill holes over-represent thick
-coal, so the plain mean of the boreholes overstates the thickness of the seam. Declustering weights each hole by the
+a coal seam drilled on a regular mesh, then infilled where the seam is thick. the infill holes over-represent thick
+coal, so the plain mean of the boreholes overstates the thickness of the seam. declustering weights each hole by the
 area it stands for: cell declustering by the number of holes sharing its cell, polygonal declustering by the area
 nearer to it than to any other hole.
 
@@ -35,12 +35,12 @@ save(fig, "holes")
 
 ![holes](holes.png)
 
-## Cell declustering
+## cell declustering
 
-Each hole gets the inverse of the number of holes in its cell. Too small a cell holds one hole and changes nothing;
-too large a cell holds the whole lease. In between, when infill is where values are high, the declustered mean dips:
-`cell_declustering` scans cell sizes, averages each over 25 grid origins, and keeps the size with the lowest mean.
-The weights average 1.
+each hole gets the inverse of the number of holes in its cell. too small a cell holds one hole and changes nothing;
+too large a cell holds the whole lease. in between, when the infill targets high values, the declustered mean dips.
+`cell_declustering` scans cell sizes, averages each over 25 grid origins, and keeps the size with the lowest mean. the
+weights average 1.
 
 <details><summary>Python</summary>
 
@@ -66,16 +66,16 @@ scanned mean at that size 1.91 m
 
 ![cell_sizes](cell_sizes.png)
 
-The mean falls from 100 m cells, which hold about one hole each, to a flat minimum between 700 and 900 m, then
-rises slowly as the cells grow to hold mesh and infill holes alike. The choice of cell size is a judgment: the
-minimum is only a guide when the infill is known to target high values, as here. The curve averages 25 grid
-origins, while the weights returned come from one origin at the corner of the data, so their mean, the dot, sits
-a little above the curve.
+the mean falls from 100 m cells, which hold about one hole each, to a flat minimum between 700 and 900 m. it then
+rises slowly as the cells grow to hold mesh and infill holes alike. choosing the cell size is a judgment, and the
+minimum guides it only when you know the infill targets high values, as here. the curve averages 25 grid origins,
+while the returned weights come from one origin at the corner of the data, so their mean (the dot) sits a little above
+the curve.
 
-## Polygonal declustering
+## polygonal declustering
 
 `polygon_declustering` weights each hole by the area of the grid nodes nearest to it, over the bounding box of the
-holes. It needs no cell size, but the holes on the edge take all the area out to the box, and a box is not the
+holes. it needs no cell size, but the holes on the edge take all the area out to the box, and the box differs from the
 lease.
 
 <details><summary>Python</summary>
@@ -102,9 +102,9 @@ polygonal declustered mean 1.95 m
 
 ![weights](weights.png)
 
-Both methods give the infill holes small weights and the sparse mesh large ones, and agree on the declustered mean.
-The largest polygonal weights sit on the edge of the drilling, where the box reaches past the lease. The declustered
-histograms shift toward thin coal.
+both methods give the infill holes small weights and the sparse mesh large ones, and they agree on the declustered
+mean. the largest polygonal weights sit on the edge of the drilling, where the box reaches past the lease. the
+declustered histograms shift toward thin coal.
 
 <details><summary>Python</summary>
 
@@ -131,8 +131,8 @@ save(fig, "histograms")
 
 ![histograms](histograms.png)
 
-These weights describe the data: histograms, statistics per domain, top cuts and the target of a normal score
-transform. Declustering weights derived from estimation weights, what each hole contributes to estimating the whole
-lease, are the subject of [weight declustering](../../03-exploratory-analysis/04-weight-declustering/README.md).
+these weights describe the data: histograms, statistics per domain, top cuts and the target of a normal-score
+transform. [weight declustering](../../03-exploratory-analysis/04-weight-declustering/README.md) derives declustering
+weights from estimation weights, from what each hole contributes to estimating the whole lease.
 
 Full script: [`example_03_03.py`](example_03_03.py)

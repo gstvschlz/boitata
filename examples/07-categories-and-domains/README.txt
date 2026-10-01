@@ -1,3 +1,3 @@
-# Categories and domains
+# categories and domains
 
-Rock types and other categories: how they alternate down a hole, their proportions and probabilities, simulated layouts, and the grades inside them.
+rock types and other categories: how they alternate down a hole, their proportions and probabilities, simulated layouts, and the grades inside them.

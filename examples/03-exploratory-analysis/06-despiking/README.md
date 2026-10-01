@@ -1,10 +1,10 @@
-# Despiking
+# despiking
 
-Soil gold assays below the detection limit are all reported at 2 ppb, so four in ten samples share one value. A
-[normal-score transform](../../04-transforms/01-normal-score/README.md) cannot split that spike: the tied samples all get the same
-score. `bt.despike` breaks the ties by ranking each tied sample on the average rank of its neighbors, within growing
-radii, with a seeded random draw as the last resort. Values move by tiny offsets only, so every untied sample keeps
-its rank.
+soil gold assays below the detection limit are all reported at 2 ppb, so four in ten samples share one value. a
+[normal-score transform](../../04-transforms/01-normal-score/README.md) cannot split that spike, since the tied
+samples all get the same score. `bt.despike` breaks the ties by ranking each tied sample on the average rank of its
+neighbors within growing radii, with a seeded random draw as the last resort. values move by tiny offsets, so every
+untied sample keeps its rank.
 
 <details><summary>Python</summary>
 
@@ -37,8 +37,8 @@ distinct values: 174 before, 1227 after
 largest change: 6.5e-05 ppb
 ```
 
-Without despiking, every sample at the limit takes the mean score of the tie. After despiking, the tied samples
-spread over the lower tail in the order of their neighborhoods:
+without despiking, every sample at the limit takes the mean score of the tie. after despiking, the tied samples spread
+over the lower tail in the order of their neighborhoods:
 
 <details><summary>Python</summary>
 
@@ -69,7 +69,7 @@ save(fig, "histograms")
 
 ![histograms](histograms.png)
 
-The ranking follows the neighborhoods: samples at the limit near high gold get the higher scores of the tie.
+the ranking follows the neighborhoods: samples at the limit near high gold get the higher scores of the tie.
 
 <details><summary>Python</summary>
 
@@ -87,7 +87,7 @@ save(fig, "map")
 
 ![map](map.png)
 
-Several variables, such as gold and arsenic, can be despiked together with `bt.despike(samples, ["AU_PPB",
-"AS_PPM"])`: samples tied in both are then ordered the same way in each.
+`bt.despike(samples, ["AU_PPB", "AS_PPM"])` despikes several variables together, such as gold and arsenic, and orders
+samples tied in both the same way in each.
 
 Full script: [`example_03_06.py`](example_03_06.py)

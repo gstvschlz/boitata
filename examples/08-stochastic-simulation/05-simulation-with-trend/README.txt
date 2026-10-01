@@ -1,1 +1,1 @@
-## Simulation with a trend
+## simulation with a trend

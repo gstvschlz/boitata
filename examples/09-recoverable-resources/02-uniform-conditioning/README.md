@@ -1,8 +1,8 @@
-# Uniform conditioning
+# uniform conditioning
 
-Kriged panels are too large to mine selectively, and kriged selective blocks are too smooth. Uniform conditioning
-takes each panel's kriged grade and returns the grade-tonnage curve of the selective blocks inside it; localization
-then places those blocks. The exhaustive Walker Lake grid gives the true 10 m blocks to check against.
+kriged panels are too large to mine selectively, and kriged selective blocks are too smooth. uniform conditioning
+takes the kriged grade of each panel and returns the grade-tonnage curve of the selective blocks inside it;
+localization then places those blocks. the exhaustive walker lake grid gives the true 10 m blocks to check against.
 
 <details><summary>Python</summary>
 
@@ -22,9 +22,11 @@ true_smu = truth[:, :250].reshape(30, size, 25, size).mean(axis=(1, 3))
 
 </details>
 
-Two models, both fitted along and across N170°, the major axis found in [variogram fitting](../../05-spatial-continuity/02-variogram-fitting/README.md): the variogram of the Gaussian
-scores of a Hermite anamorphosis sets the change-of-support coefficient r of 10 m blocks ([discrete Gaussian model](../../09-recoverable-resources/01-discrete-gaussian-model/README.md)), and the
-variogram of the grades, rescaled to the anamorphosis variance, kriges the panels.
+two models, both fitted along and across N170°, the major axis found in
+[variogram fitting](../../05-spatial-continuity/02-variogram-fitting/README.md). the variogram of the gaussian scores
+of a hermite anamorphosis sets the change-of-support coefficient r of 10 m blocks
+([discrete gaussian model](../../09-recoverable-resources/01-discrete-gaussian-model/README.md)). the variogram of the
+grades, rescaled to the anamorphosis variance, kriges the panels.
 
 <details><summary>Python</summary>
 
@@ -53,12 +55,12 @@ print(raw)
 
 ```text
 r = 0.725
-Variogram(nugget=16180.287820160911, structures=[Structure("spherical", sill=14864.257344019225, range=35.64044049883205), Structure("spherical", sill=33929.07121816696, range=79.3306247959381)], rotation=(170.0, 0.0, 0.0), ratios=(0.3439680551606079, 1.0))
+Variogram(nugget=16180.280562737755, structures=[Structure("spherical", sill=14864.277854678605, range=35.64043704679606), Structure("spherical", sill=33929.057964930726, range=79.33065065479494)], rotation=(170.0, 0.0, 0.0), ratios=(0.343967906520505, 1.0))
 ```
 
-Ordinary block kriging of 50 × 50 m panels over the western 250 m. Its diagnostics give each panel the variance of
-its estimate, which sets the panel's own change-of-support coefficient: a panel estimated from few or distant
-samples, which kriging smooths more, spreads its selective blocks wider.
+ordinary block kriging of 50 × 50 m panels over the western 250 m. its diagnostics give each panel the variance of its
+estimate, which sets the change-of-support coefficient of that panel: kriging smooths a panel estimated from few or
+distant samples more, so its selective blocks spread wider.
 
 <details><summary>Python</summary>
 
@@ -118,13 +120,13 @@ above 800 ppm: uniform conditioning 1.1%, kriged blocks 2.3%, true 2.1%
 
 ![uniform-conditioning](uniform-conditioning.png)
 
-At 500 ppm uniform conditioning keeps 15.6% of the blocks against a true 16.8%, where the smoothed kriged blocks
-keep 13.6%. At 300 ppm it overstates the tonnage by a few per cent, as kriging does, and at 800 ppm, where few
-blocks remain, it thins the rich tail to 1.1% against a true 2.1%.
+at 500 ppm uniform conditioning keeps 15.6% of the blocks against a true 16.8%; the smoothed kriged blocks keep 13.6%.
+at 300 ppm it overstates the tonnage by a few percent, as kriging does. at 800 ppm, where few blocks remain, it thins
+the rich tail to 1.1% against a true 2.1%.
 
-Uniform conditioning says how much of each panel is ore, not where. Localization places it: inside each panel the
-25 blocks of `panels.discretize(5)` are ranked by their direct kriging, and the block ranked i receives the mean
-of the i-th of 25 equal-probability bands of the panel's block distribution. Every panel keeps its grade, and its
+uniform conditioning says how much of each panel is ore, but not where. localization places it: inside each panel, the
+25 blocks of `panels.discretize(5)` are ranked by their direct kriging, and the block ranked i receives the mean of
+the i-th of 25 equal-probability bands of the block distribution of the panel. each panel keeps its grade, and its
 blocks reproduce its grade-tonnage curve:
 
 <details><summary>Python</summary>
@@ -165,9 +167,9 @@ true blocks: variance 47350
 
 ![localized](localized.png)
 
-The localized blocks spread as the model says blocks should, and it says too little here: variance 35 465 against
-the true 47 350. Block by block they match the truth less well than kriging does (correlation 0.80 against 0.89),
-since the ranking inside a panel is only as good as the kriging that sets it; what localization keeps is each
-panel's grade and its tonnage above every cutoff.
+the localized blocks spread as the model says blocks should, and the model says too little here: variance 35 465
+against the true 47 350. block by block they match the truth less well than kriging (correlation 0.80 against 0.89),
+since the ranking inside a panel is only as good as the kriging that sets it. localization keeps the grade of each
+panel and its tonnage above every cutoff.
 
 Full script: [`example_09_02.py`](example_09_02.py)

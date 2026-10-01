@@ -1,5 +1,5 @@
 """
-# Hole traces with deviation flags
+# hole traces with deviation flags
 
 `bt.plot.holes` generalizes the single hand-rolled trace of [checking drill holes](../../02-data-and-geometry/01-check-drillholes/README.md) (one hole, `ax.plot(path["x"], path["z"])`) to any
 set of holes at once: grouped by hole, one line each, labeled, in plan or projected on a section, with extra points
@@ -20,11 +20,11 @@ import numpy as np
 from common import save
 
 # %% [markdown]
-# ## The flagged stations
+# ## the flagged stations
 #
-# `check_drillholes` ([checking drill holes](../../02-data-and-geometry/01-check-drillholes/README.md)) flags two survey stations of `DD0197`, where the azimuth flips and back. Their
-# positions come from `Drillholes.at`, at the flagged stations' measured depths; `bt.plot.holes` itself knows
-# nothing about deviation, only about points to mark.
+# `check_drillholes` ([checking drill holes](../../02-data-and-geometry/01-check-drillholes/README.md)) flags two survey stations of `DD0197`, where the azimuth flips and back. their
+# positions come from `Drillholes.at`, at the measured depths of the flagged stations. `bt.plot.holes` knows nothing
+# about deviation; it takes the points to mark.
 
 # %%
 data = bt.datasets.stacked_sulphide_lenses(raw=True)
@@ -41,10 +41,10 @@ drillholes = bt.Drillholes(collar, survey)
 marked = drillholes.at(list(flagged_holes), flagged_depths)
 
 # %% [markdown]
-# ## Plan and section
+# ## plan and section
 #
-# The holes within 40 m of `DD0197`'s collar, in plan view and on a section across strike (113°, as in [contact surfaces](../../11-geological-modeling/02-contact-surfaces/README.md),
-# [domain cleanup](../../02-data-and-geometry/14-domain-cleanup/README.md) and [domain change tables](../../07-categories-and-domains/02-domain-change-tables/README.md)) through it: one call each, instead of one `ax.plot` per hole.
+# the holes within 40 m of `DD0197`'s collar, in plan view and on a section across strike (113°, as in [contact surfaces](../../11-geological-modeling/02-contact-surfaces/README.md),
+# [domain cleanup](../../02-data-and-geometry/14-domain-cleanup/README.md) and [domain change tables](../../07-categories-and-domains/02-domain-change-tables/README.md)) through it. each view takes one call instead of one `ax.plot` per hole.
 
 # %%
 at_dd0197 = np.asarray(collar["HOLE_ID"]) == "DD0197"

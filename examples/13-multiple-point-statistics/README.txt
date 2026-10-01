@@ -1,3 +1,3 @@
-# Multiple-point statistics
+# multiple-point statistics
 
-Simulate from the patterns of a training image instead of a variogram: categories, and values cut into classes.
+simulate from the patterns of a training image in place of a variogram, for categories and for values cut into classes.

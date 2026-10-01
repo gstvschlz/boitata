@@ -1,10 +1,10 @@
 """
-# Sub-blocks
+# sub-blocks
 
-Whole blocks misstate the volume of a thin solid ([solids](../../02-data-and-geometry/05-solids/README.md)). A sub-blocked model splits the blocks a mesh cuts
+whole blocks misstate the volume of a thin solid ([solids](../../02-data-and-geometry/05-solids/README.md)). a sub-blocked model splits the blocks a mesh cuts
 into smaller cells and keeps the others whole. `subblock` does this on an existing grid, `BlockModel.from_meshes`
 builds the model from meshes in one call, and `regularize` moves columns from sub-blocks to any other grid of
-the same rotation. Here the three stacked sulphide lenses and the topography are the meshes.
+the same rotation. here the three stacked sulphide lenses and the topography are the meshes.
 """
 
 # %% [hidden]
@@ -21,7 +21,7 @@ import numpy as np
 from common import ACCENT, HIGHLIGHT, LIGHT, save
 
 # %% [markdown]
-# The parent grid, 40 × 40 × 20 m around the lenses, comes from `BlockModel.from_extents` ([block model from extents](../../02-data-and-geometry/12-block-model-from-extents/README.md)).
+# `BlockModel.from_extents` builds the parent grid, 40 × 40 × 20 m around the lenses ([block model from extents](../../02-data-and-geometry/12-block-model-from-extents/README.md)).
 
 # %%
 data = bt.datasets.stacked_sulphide_lenses()
@@ -32,11 +32,11 @@ print(parents)
 
 # %% [markdown]
 # `subblock` takes `(mesh, rule, label)` domains in priority order and a sub-grid of `n` cells per parent edge.
-# Each sub-cell of a block a mesh cuts takes the label of the first domain holding its center, and the sub-cells
-# of a block merge along x, then y. Blocks no mesh cuts stay whole; without `fill`, cells outside every domain are
-# dropped. Counting centers gets each lens's volume nearly right at any sub-grid, as errors on either side cancel.
-# What a finer sub-grid shrinks is the volume in the wrong place: sub-block volume outside its lens plus lens
-# volume outside its sub-blocks, measured with `Mesh.proportion`.
+# each sub-cell of a block a mesh cuts takes the label of the first domain holding its center, and the sub-cells
+# of a block merge along x, then y. blocks no mesh cuts stay whole. without `fill`, cells outside all domains are
+# dropped. counting centers gets each lens's volume nearly right at any sub-grid, as errors on either side cancel.
+# a finer sub-grid shrinks the volume in the wrong place: sub-block volume outside its lens plus lens volume
+# outside its sub-blocks, measured with `Mesh.proportion`.
 
 # %%
 domains = [(lens, "inside", name) for lens, name in zip(lenses, names)]
@@ -63,9 +63,10 @@ print(subblocked)
 print(f"whole parents: {(subblocked.extents == [0, 0, 0, 1, 1, 1]).all(axis=1).sum()}")
 
 # %% [markdown]
-# Each sub-block stores its parent cell and its extent as fractions of that cell (`extents`: min x, y, z, then
-# max x, y, z). The lenses are thinner than a 40 m parent, so the surface cuts every parent they reach and no
-# lens block stays whole. On one bench, the sub-blocks in the parent grid, with the lens outlines at mid-bench:
+# each sub-block stores its parent cell and its extent as fractions of that cell (`extents`: min x, y, z, then
+# max x, y, z). the lenses are thinner than a 40 m parent, so the surface cuts each parent they reach and no
+# lens block stays whole. the plan shows one bench, the sub-blocks in the parent grid and the lens outlines at
+# mid-bench:
 
 # %%
 size = np.array(parents.size)
@@ -92,13 +93,13 @@ ax.set(title=f"Bench at {level:.0f} m: sub-blocks of lens 1 (dark) and 2 (light)
 save(fig, "subblocks")
 
 # %% [markdown]
-# ## A domain model from meshes
+# ## a domain model from meshes
 #
-# `BlockModel.from_meshes` builds the grid and sub-blocks it in one call. Besides `"inside"` a solid, a domain
-# can be `"below"` or `"above"` a surface such as topography; `fill` labels what no domain holds. Topography
-# usually comes as a grid of elevations, a 2D `BlockModel` with an elevation column; `grid_surface` triangulates
-# it through the cell centers. The lenses come first, so they win over the host rock that also lies below the
-# surface. The grid is the parent grid raised to the highest point of the topography.
+# `BlockModel.from_meshes` builds the grid and sub-blocks it in one call. besides `"inside"` a solid, a domain
+# can be `"below"` or `"above"` a surface such as topography, and `fill` labels what no domain holds. topography
+# often comes as a grid of elevations, a 2D `BlockModel` with an elevation column, and `grid_surface` triangulates
+# it through the cell centers. the lenses come first, so they win over the host rock that also lies below the
+# surface. the grid is the parent grid raised to the highest point of the topography.
 
 # %%
 topography = bt.grid_surface(data["topography"], "Z")
@@ -119,7 +120,7 @@ for name in [*names, "host rock", "air"]:
 print(f"    total: {domain_model.volumes.sum():>13,.0f} m3 = grid {np.prod(size) * count.prod():,.0f} m3")
 
 # %% [markdown]
-# A vertical section across strike (the lenses strike N22.5°E) through the domain model, with the lens outlines:
+# a vertical section across strike (the lenses strike N22.5°E) through the domain model, with the lens outlines:
 
 # %%
 scheme = bt.Categories(["air", "host rock", *names], colors=["#f4f7fa", LIGHT, ACCENT, "#6f9fc9", HIGHLIGHT])
@@ -132,13 +133,13 @@ ax.set(title="Domain model, section across strike", xlabel="Across strike (m)")
 save(fig, "domains")
 
 # %% [markdown]
-# ## Regularizing
+# ## regularizing
 #
 # `regularize` moves columns between any two models of the same rotation by the volume each pair of blocks
-# shares: floats as volume-weighted means, labels by the value filling the most volume. Here the lens sub-blocks
+# shares: floats as volume-weighted means, labels by the value filling the most volume. here the lens sub-blocks
 # take an inverse-distance Zn grade from the 2 m composites inside their own lens, then go back to the 40 m
 # parents. `fraction` is how much of each parent the sub-blocks fill, so volume × fraction × grade keeps the
-# metal; `min_fraction` drops the thin edges and the metal in them.
+# metal. `min_fraction` drops the thin edges and the metal in them.
 
 # %%
 holes = bt.Drillholes(data["collars"], data["surveys"], data["assays"])
@@ -164,8 +165,8 @@ for minimum in (0.0, 0.5):
     )
 
 # %% [markdown]
-# A label keeps only the value that fills most of a block. The lenses fill few 40 m blocks by more than half,
-# so the regularized label keeps a fraction of their volume; an indicator column averages to a proportion per
+# a label keeps only the value that fills most of a block. the lenses fill few 40 m blocks by more than half,
+# so the regularized label keeps a fraction of their volume. an indicator column averages to a proportion per
 # block instead and keeps all of it.
 
 # %%

@@ -1,6 +1,7 @@
-# Simulation with a trend
+# simulation with a trend
 
-Far from the data, SGS draws from the global histogram, wherever it is. A trend known everywhere can steer it instead.
+far from the data, SGS draws from the global histogram at any location. a trend known at all nodes can steer it
+instead.
 
 <details><summary>Python</summary>
 
@@ -19,9 +20,9 @@ grid = bt.BlockModel(origin=(0.5, 0.5), size=(5, 5), count=(52, 60))
 
 </details>
 
-Here the trend is a moving-window average of V within 40 m, built with an existing estimator; any model or estimate
+here the trend is a moving-window average of V within 40 m, built with an existing estimator; any model or estimate
 would do. `trend=` gives it at the data to `fit` and at the nodes to `simulate`, as an array or the name of a
-BlockModel column.
+`BlockModel` column.
 
 <details><summary>Python</summary>
 
@@ -33,10 +34,10 @@ trended = grid.with_column("trend", window.predict(grid))
 
 </details>
 
-The data are normal-scored within 8 equal-probability classes of the trend, the stepwise conditional transform of
-[multivariate transforms](../../04-transforms/05-multivariate-transforms/README.md) on (trend, V), which leaves scores independent of the trend. Those scores are simulated with their own
-variogram, and every node is back-transformed with the histogram of its trend class. Plain SGS, for comparison,
-uses the variogram of global normal scores; both are scaled to a unit sill.
+SGS normal-scores the data within 8 equal-probability classes of the trend: the stepwise conditional transform of
+[multivariate transforms](../../04-transforms/05-multivariate-transforms/README.md) on (trend, V), which leaves scores independent of the trend. it simulates those scores with their own
+variogram and back-transforms each node with the histogram of its trend class. plain SGS, for comparison, uses the
+variogram of global normal scores; both variograms have a unit sill.
 
 <details><summary>Python</summary>
 
@@ -122,8 +123,8 @@ save(fig, "trend")
 
 ![trend](trend.png)
 
-Plain SGS already follows the trend where data are dense, but pulls the low-trend quarter up towards the global
-mean; with the trend, each quarter keeps the declustered mean of its data, and the realizations correlate with the
-trend about as much as the data do.
+plain SGS follows the trend where data are dense, but pulls the low-trend quarter up towards the global mean. with
+the trend, each quarter keeps the declustered mean of its data, and the realizations correlate with the trend about
+as much as the data do.
 
 Full script: [`example_08_05.py`](example_08_05.py)

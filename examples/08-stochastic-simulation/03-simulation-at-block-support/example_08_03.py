@@ -1,10 +1,9 @@
 """
-# Simulation at block support
+# simulation at block support
 
-Simulation reaches block support by averaging: each realization on fine nodes is averaged over the nodes of every
-selective block, so no change-of-support model is needed. The realizations give block grade-tonnage curves with
-their uncertainty, and, pooled inside panels, localized block grades. The exhaustive Walker Lake grid gives the true
-10 m blocks.
+simulation reaches block support by averaging each realization on fine nodes over the nodes of each selective block,
+with no change-of-support model. the realizations give block grade-tonnage curves with their uncertainty and, pooled
+inside panels, localized block grades. the exhaustive walker lake grid gives the true 10 m blocks.
 """
 
 # %% [hidden]
@@ -46,7 +45,7 @@ print(gaussian)
 
 
 # %% [markdown]
-# Thirty realizations on 2.5 m nodes. `blocks=` averages each over the 16 nodes of every 10 × 10 m block before
+# thirty realizations on 2.5 m nodes. `blocks=` averages each over the 16 nodes of each 10 × 10 m block before
 # summarizing, so `cutoffs=` gives one block tonnage curve per realization:
 
 # %%
@@ -82,13 +81,13 @@ save(fig, "simulated-blocks")
 
 
 # %% [markdown]
-# The band holds the true curve at every cutoff; at 300 ppm the truth sits at its lower edge.
+# the band holds the true curve at each cutoff; at 300 ppm the truth sits at its lower edge.
 
 
 # %% [markdown]
-# Localization pools the realizations panel by panel. Over the western 250 m, each 50 × 50 m panel holds 25 blocks;
+# localization pools the realizations panel by panel. over the western 250 m, each 50 × 50 m panel holds 25 blocks.
 # 25 blocks × 30 realizations give 750 values, sorted and cut into 25 chunks of 30, and the block ranked i by
-# ordinary block kriging receives the mean of chunk i. The kriging uses the grade variogram, fitted like the one above.
+# ordinary block kriging receives the mean of chunk i. the kriging uses the grade variogram, fitted like the one above.
 
 # %%
 grades = [bt.experimental_variogram(xy, v, 10, 120, azimuth=a) for a in azimuths]
@@ -136,7 +135,7 @@ save(fig, "localized-simulation")
 
 
 # %% [markdown]
-# Each panel keeps the mean of its realizations, and its blocks the spread the simulation gives them: variance 41 411,
-# between kriging's 35 064 and the true 47 350, with a correlation to the truth of 0.86 against kriging's 0.89. No
-# change-of-support model is involved; what the pooling returns is only as good as the realizations. [Uniform conditioning](../../09-recoverable-resources/02-uniform-conditioning/README.md) and [MIK localization](../../09-recoverable-resources/03-mik-localization/README.md)
+# each panel keeps the mean of its realizations, and its blocks the spread the simulation gives them: variance 41 411,
+# between kriging's 35 064 and the true 47 350, with a correlation to the truth of 0.86 against kriging's 0.89. the
+# pooling uses no change-of-support model, so its result depends on the realizations alone. [uniform conditioning](../../09-recoverable-resources/02-uniform-conditioning/README.md) and [MIK localization](../../09-recoverable-resources/03-mik-localization/README.md)
 # localize the same panels from a change-of-support model.

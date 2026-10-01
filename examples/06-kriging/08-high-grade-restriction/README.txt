@@ -1,1 +1,1 @@
-## High-grade restriction
+## high-grade restriction

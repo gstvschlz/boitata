@@ -1,6 +1,6 @@
-# Coregionalization
+# coregionalization
 
-Jura: 259 soil samples of heavy metals (mg/kg, coordinates in km). Cd correlates with Zn; a linear model of
+jura: 259 soil samples of heavy metals (mg/kg, coordinates in km). Cd correlates with Zn, and a linear model of
 coregionalization (LMC) describes both variograms and their cross-variogram with one set of structures.
 
 <details><summary>Python</summary>
@@ -24,10 +24,10 @@ print(f"{len(cd)} samples, corr(Cd, Zn) {np.corrcoef(cd, zn)[0, 1]:.2f}")
 259 samples, corr(Cd, Zn) 0.67
 ```
 
-The cross-variogram is the half mean product of the Cd and Zn increments between co-located samples. The LMC is
-fitted to the two variograms and the cross-variogram together. The variables share the structures, a nugget and two
-spherical ranges, and each structure's sill matrix stays positive semi-definite: its smallest eigenvalue is never
-negative. The short structure takes the place of the nugget, which fits to zero.
+the cross-variogram is half the mean product of the Cd and Zn increments between co-located samples. the LMC fits the
+two variograms and the cross-variogram together. the variables share the structures, a nugget and two spherical
+ranges, and each structure's sill matrix stays positive semi-definite: its smallest eigenvalue is never negative. the
+short structure takes the place of the nugget, which fits to zero.
 
 <details><summary>Python</summary>
 
@@ -52,7 +52,7 @@ spherical 0.15 km: [[0.69, 11.146], [11.146, 485.455]], smallest eigenvalue 0.43
 spherical 1.47 km: [[0.138, 6.658], [6.658, 437.931]], smallest eigenvalue 0.0368
 ```
 
-Each curve is the fitted LMC's C(0) − C(h), and the three experimental variograms follow the shared short and long
+each curve is the fitted LMC's C(0) − C(h). the three experimental variograms follow the shared short and long
 structures in their own proportions:
 
 <details><summary>Python</summary>
@@ -79,8 +79,8 @@ save(fig, "variograms")
 
 ![variograms](variograms.png)
 
-Given directional variograms, the fit also finds the anisotropy the structures share: the angles and range ratios
-are searched together with the sill matrices. Cd and Zn are most continuous along a north-west to south-east axis.
+given directional variograms, the fit also finds the anisotropy the structures share, searching the angles and range
+ratios together with the sill matrices. Cd and Zn are most continuous along a north-west to south-east axis.
 
 <details><summary>Python</summary>
 

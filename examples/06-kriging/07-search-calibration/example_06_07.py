@@ -1,8 +1,8 @@
 """
-# Search calibration
+# search calibration
 
-`calibrate_search` scores candidate searches for block kriging of Walker Lake `V` on 10 × 10 m blocks, keeping the
-variogram and samples. It picks no winner; the exhaustive grid checks every score.
+`calibrate_search` scores candidate searches for block kriging of walker lake `V` on 10 × 10 m blocks, keeping the
+variogram and samples. it picks no winner, and the exhaustive grid checks every score.
 """
 
 # %% [hidden]
@@ -35,11 +35,13 @@ true_blocks = truth.reshape(30, 10, 26, 10).mean(axis=(1, 3)).ravel()
 
 
 # %% [markdown]
-# Each candidate re-estimates the blocks and is scored: the variance of the estimates against the block variance
+# each candidate re-estimates the blocks and gets scores for the variance of the estimates against the block variance
 # (sill minus the mean variogram within a block, nugget excluded), slope and efficiency (mean and 10th percentile),
-# negative weights, the share of blocks each pass fills, declustered cross-validation at the samples ([cross-validation](../../10-checking-models/02-cross-validation/README.md)), and
-# the global bias. With cutoffs and a Hermite anamorphosis it adds tonnage and metal above each cutoff over those of
-# the discrete Gaussian model's block distribution ([discrete Gaussian model](../../09-recoverable-resources/01-discrete-gaussian-model/README.md)). Here the candidates differ only in `max_samples`.
+# negative weights, the share of blocks each pass fills, declustered cross-validation at the samples
+# ([cross-validation](../../10-checking-models/02-cross-validation/README.md)), and the global bias. with cutoffs and a
+# hermite anamorphosis it adds tonnage and metal above each cutoff, against those of the discrete gaussian model's block
+# distribution ([discrete gaussian model](../../09-recoverable-resources/01-discrete-gaussian-model/README.md)). here
+# the candidates differ only in `max_samples`.
 
 # %%
 counts = (4, 8, 12, 16, 24, 32, 48)
@@ -70,12 +72,11 @@ for i, n in enumerate(counts):
     print(f"{n:7d}" + "".join(f"{x:7.2f}" for x in row) + f"{scores['negative_weight_sum'][i]:9.3f}")
 
 # %% [markdown]
-# Every score moves with the truth. More samples raise the slope, and the cross-validation slope follows the true
-# one closely; the mean predicted slope sits lower. Estimates grow smoother, so the variance ratio falls and fewer
-# blocks clear 500 ppm. The true variance ratio sits higher because the blocks of this 260 × 300 m area vary less
-# than the sill implies, and the discrete Gaussian reference puts about 7 % fewer blocks above 500 ppm than the
-# truth. Past 16 to 24 samples the slope barely rises while the negative weights keep growing, and that trade-off
-# is the user's to settle.
+# every score moves with the truth. more samples raise the slope, and the cross-validation slope follows the true one;
+# the mean predicted slope sits lower. estimates grow smoother, so the variance ratio falls and fewer blocks clear 500
+# ppm. the true variance ratio sits higher because the blocks of this 260 × 300 m area vary less than the sill implies,
+# and the discrete gaussian reference puts about 7 % fewer blocks above 500 ppm than the truth. past 16 to 24 samples
+# the slope rises little while the negative weights keep growing; you settle that trade-off.
 
 # %%
 fig, axes = plt.subplots(1, 3, figsize=(11, 3.4), layout="constrained")
@@ -102,10 +103,10 @@ for ax, (title, lines, key) in zip(axes, panels, strict=True):
 save(fig, "calibration")
 
 # %% [markdown]
-# `calibrate_search` picks one search for every block. A search with `target_slope` (or `target_efficiency`)
-# calibrates it block by block instead: each block takes the fewest samples, from `min_samples`, whose slope of
-# regression reaches the target, and `max_samples` where none does; the diagnostics' `target_met` flags which.
-# Well-informed blocks keep few samples and stay sharp, sparse ones gather more.
+# `calibrate_search` picks one search for every block. a search with `target_slope` (or `target_efficiency`) calibrates
+# block by block instead: each block takes the fewest samples, from `min_samples` up, whose slope of regression reaches
+# the target, and `max_samples` where none does. the diagnostics' `target_met` flags which. well-informed blocks keep
+# few samples and stay sharp, and sparse ones gather more.
 
 # %%
 print(f"{'target':>7} {'samples':>8} {'met':>6} {'true slope':>11} {'variance ratio':>15}")
@@ -128,10 +129,10 @@ for target in (0.85, 0.9, 0.95):
     )
 
 # %% [markdown]
-# A higher target takes more samples, raises the true slope and smooths more, as a larger fixed search does. At
-# about the same mean count as a fixed search the calibrated one smooths a little less for a slightly lower slope,
-# since the samples go where the drilling is sparse: the dense clusters keep the minimum, the edges and gaps
-# take the most, and a few edge blocks fall short even at `max_samples`.
+# a higher target takes more samples, raises the true slope and smooths more, as a larger fixed search does. at about
+# the same mean count as a fixed search, the calibrated one smooths a little less for a slightly lower slope. it sends
+# the samples where the drilling is sparse: the dense clusters keep the minimum, the edges and gaps take the most, and a
+# few edge blocks fall short even at `max_samples`.
 
 # %%
 fig, axes = plt.subplots(1, 3, figsize=(11, 4), layout="constrained")

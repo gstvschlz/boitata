@@ -1,8 +1,8 @@
 # A coal seam in a lease
 
 How many tonnes of coal lie in a lease, and how sure is that number? 295 boreholes measure the seam thickness: a
-regional grid of about 700 m, plus infill drilled where the seam is thick. From the lease polygon to tonnes by
-resource class, on a 100 m grid.
+regional grid of about 700 m, plus infill drilled where the seam is thick. You go from the lease polygon to tonnes
+by resource class on a 100 m grid.
 
 <details><summary>Python</summary>
 
@@ -89,9 +89,9 @@ the infill inflates the plain mean by about 0.3 m.
 
 ## An anisotropic variogram
 
-Thickness falls to the east. The variogram along the fall keeps climbing past the sill: part of it is the trend,
-not spatial correlation. The residuals from a plane fitted to the thickness level off; one anisotropic model is
-fitted to them in eight directions at once.
+Thickness falls to the east. The variogram along the fall keeps climbing past the sill, and the trend causes part
+of that climb. The residuals from a plane fitted to the thickness level off; you fit one anisotropic model to them
+in eight directions at once.
 
 <details><summary>Python</summary>
 
@@ -130,7 +130,7 @@ save(fig, "variogram")
 
 ```text
 trend: -0.16 m per km east, -0.10 m per km north
-Variogram(nugget=0.36028840942557544, structures=[Structure("spherical", sill=0.3250414961207941, range=4038.375199326654)], rotation=(63.29553184412498, 0.0, 0.0), ratios=(0.2695620655270083, 1.0))
+Variogram(nugget=0.36028891520809164, structures=[Structure("spherical", sill=0.3250410112495912, range=4038.395920926705)], rotation=(63.29552111528892, 0.0, 0.0), ratios=(0.2695603732169465, 1.0))
 ```
 
 ![variogram](variogram.png)
@@ -219,13 +219,13 @@ easternmost km: declustered holes 1.16 m, ordinary kriging 1.47 m, universal kri
 ![swath](swath.png)
 
 Both smooth the holes, as kriging does. In the easternmost kilometer, where the holes average 1.16 m, universal
-kriging gives 1.39 m and ordinary kriging 1.47 m: the plane carries the thinning into the edge cells. Universal
-kriging is kept for the tonnes.
+kriging gives 1.39 m and ordinary kriging 1.47 m: the plane carries the thinning into the edge cells. Keep
+universal kriging for the tonnes.
 
 ## Volume and tonnes
 
-Each cell holds its kriged thickness over 100 × 100 m. An in-situ density of 1.4 t/m³, typical of bituminous coal,
-is assumed: the dataset has none.
+Each cell holds its kriged thickness over 100 × 100 m. The dataset has no density, so assume 1.4 t/m³ in situ,
+typical of bituminous coal.
 
 <details><summary>Python</summary>
 
@@ -290,7 +290,7 @@ save(fig, "tonnes")
 </details>
 
 ```text
-Variogram(nugget=0.32547257276727426, structures=[Structure("spherical", sill=0.6745274272327257, range=3908.50043827286)], rotation=(60.754957940474014, 0.0, 0.0), ratios=(0.3059102706452142, 1.0))
+Variogram(nugget=0.3254728460107622, structures=[Structure("spherical", sill=0.6745271539892377, range=3908.4989240025343)], rotation=(60.7549914680867, 0.0, 0.0), ratios=(0.30591074358169207, 1.0))
 total: P10 185.4 Mt, P50 189.4 Mt, P90 192.6 Mt; kriged 189.4 Mt
 P10-P90 spread ±1.9% of P50
 ```

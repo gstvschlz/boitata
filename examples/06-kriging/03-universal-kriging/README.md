@@ -1,8 +1,8 @@
-# Universal kriging
+# universal kriging
 
-The coal seam thins to the east. `detrend` fits that drift as a `Trend`; universal kriging estimates the thickness
-with the drift re-fitted in every neighborhood, using the variogram of the residuals. Inside the drilled lease it
-agrees with ordinary kriging; beyond the last holes it keeps following the drift.
+the coal seam thins to the east. `detrend` fits that drift as a `Trend`. universal kriging estimates the thickness with
+the drift re-fitted in every neighborhood, using the variogram of the residuals. inside the drilled lease it agrees with
+ordinary kriging; beyond the last holes it keeps following the drift.
 
 <details><summary>Python</summary>
 
@@ -19,9 +19,9 @@ inside = np.asarray(grid["INSIDE"]) == 1
 
 </details>
 
-## Trend
+## trend
 
-A plane fitted by least squares: `coefficients` are the constant, then the x, y and z slopes.
+a plane fitted by least squares: `coefficients` are the constant, then the x, y and z slopes.
 
 <details><summary>Python</summary>
 
@@ -39,8 +39,8 @@ thickness = 11.54 -0.161 m/km east -0.096 m/km north
 variance 0.93 m², of the residuals 0.66 m²
 ```
 
-The drift inflates the variogram of the thickness at long lags; the residuals level off lower. Universal kriging
-takes the residual variogram, since the drift is estimated with the weights.
+the drift inflates the variogram of the thickness at long lags, and the residuals level off lower. universal kriging
+takes the residual variogram, since the weights estimate the drift.
 
 <details><summary>Python</summary>
 
@@ -69,9 +69,9 @@ Variogram(nugget=0.35259576488935374, structures=[Structure("spherical", sill=0.
 
 ![variograms](variograms.png)
 
-## Estimates
+## estimates
 
-Universal kriging with a linear drift against ordinary kriging, same search:
+universal kriging with a linear drift against ordinary kriging, same search:
 
 <details><summary>Python</summary>
 
@@ -132,13 +132,13 @@ save(fig, "maps")
 
 ![maps](maps.png)
 
-Where holes surround a cell, the local drift and the local mean give nearly the same estimate, and the two
-cross-validations are equally good. The differences sit at the edges of the lease, where the neighbors lie on one
+where holes surround a cell, the local drift and the local mean give nearly the same estimate, and the two
+cross-validations are equally good. the differences sit at the edges of the lease, where the neighbors lie on one
 side: universal kriging is thicker in the thick west corner and thinner in the thin northeast.
 
-## Beyond the data
+## beyond the data
 
-Along an east-west line through the middle of the lease, extended past the last holes:
+along an east-west line through the middle of the lease, extended past the last holes:
 
 <details><summary>Python</summary>
 
@@ -179,10 +179,9 @@ x = 36000: ordinary 1.37 m, universal 0.66 m, trend 0.56 m
 
 ![profile](profile.png)
 
-Past the last hole ordinary kriging levels off at the mean of its neighbors, about 1.4 m, while universal kriging
-carries the thinning on, down to 0.66 m at 36 km against 0.56 m for the trend. Whether that is right is a
-geological call, not a statistical one. The local drift is fitted from the neighbors, so universal kriging needs
-a wider search than ordinary kriging: with a few one-sided samples the drift is poorly determined and its
-extrapolation erratic.
+past the last hole ordinary kriging levels off at the mean of its neighbors, about 1.4 m, while universal kriging
+carries the thinning on, down to 0.66 m at 36 km against 0.56 m for the trend. whether that is right is a geological
+call. universal kriging fits the local drift from the neighbors, so it needs a wider search than ordinary kriging:
+with a few one-sided samples the drift is poorly determined and its extrapolation erratic.
 
 Full script: [`example_06_03.py`](example_06_03.py)

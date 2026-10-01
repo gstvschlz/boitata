@@ -1,1 +1,1 @@
-## Experimental variograms
+## experimental variograms

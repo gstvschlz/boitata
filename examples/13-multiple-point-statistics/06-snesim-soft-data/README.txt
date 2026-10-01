@@ -1,1 +1,1 @@
-## Soft data in SNESIM
+## soft data in SNESIM

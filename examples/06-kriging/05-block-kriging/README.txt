@@ -1,1 +1,1 @@
-## Block kriging
+## block kriging

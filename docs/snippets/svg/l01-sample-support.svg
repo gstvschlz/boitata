@@ -1,0 +1,24 @@
+<svg class="bt-svg" viewBox="0 0 640 285" role="img" aria-labelledby="l01-sample-support-t">
+<title id="l01-sample-support-t">Three supports: a point, a 2 m composite along a drill hole and a 20 by 20 by 10 m block</title>
+<line class="s-grid" x1="40" y1="110" x2="180" y2="110" stroke-width="1"/>
+<line class="s-grid" x1="110" y1="40" x2="110" y2="180" stroke-width="1"/>
+<circle class="f-flame a-pop" style="--d:.1s" cx="110" cy="110" r="5"/>
+<text x="120" y="100" class="small">(x, y, z)</text>
+<text x="110" y="208" text-anchor="middle">point</text>
+<text x="110" y="226" text-anchor="middle" class="small">a soil or pulp sample</text>
+<line class="s-muted" x1="250" y1="40" x2="390" y2="180" stroke-width="3"/>
+<line class="s-flame a-fade" style="--d:.5s" x1="300" y1="90" x2="340" y2="130" stroke-width="14"/>
+<text x="352" y="118" class="small">2 m</text>
+<text x="320" y="208" text-anchor="middle">composite</text>
+<text x="320" y="226" text-anchor="middle" class="small">a length of drill core</text>
+<g class="a-pop" style="--d:.9s">
+<polygon class="f-flame-soft s-ember" stroke-width="1.2" points="530,60 573.3,85 530,110 486.7,85"/>
+<polygon class="f-ember-soft s-ember" stroke-width="1.2" points="486.7,85 530,110 530,135 486.7,110"/>
+<polygon class="f-flame s-ember" stroke-width="1.2" points="530,110 573.3,85 573.3,110 530,135"/>
+</g>
+<text x="530" y="208" text-anchor="middle">block</text>
+<text x="530" y="226" text-anchor="middle" class="small">20 × 20 × 10 m of ground</text>
+<line class="s-muted a-draw" style="--d:1.3s" pathLength="1" x1="60" y1="252" x2="580" y2="252" stroke-width="1.5"/>
+<path class="f-muted a-fade" style="--d:2.2s" d="M580 252 l-9 -5 v10 z"/>
+<text x="320" y="274" text-anchor="middle" class="small">larger support: the same mean, a narrower spread of values</text>
+</svg>

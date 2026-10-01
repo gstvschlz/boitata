@@ -1,11 +1,11 @@
-# Target distribution correction
+# target distribution correction
 
-Each realization of a simulation reproduces the declustered histogram of its data only on average: over a small
-domain, or with a variogram range large against it, single realizations drift high or low. `correct_distribution`
-maps each realization rank for rank onto a target distribution, the declustered data or a fitted reference such as a
-`KernelDensity`, so every realization takes the target histogram exactly while its values keep their order, and so
-their spatial pattern. A `strength` below 1 moves the values only part of the way; `realizations=` limits the
-correction to those a `check_realizations` shows outside a tolerance.
+each realization of a simulation reproduces the declustered histogram of its data only on average. over a small
+domain, or with a variogram range large against it, single realizations drift high or low. `correct_distribution` maps
+each realization rank for rank onto a target distribution, the declustered data or a fitted reference such as a
+`KernelDensity`. every realization then takes the target histogram exactly, and its values keep their order and so
+their spatial pattern. a `strength` below 1 moves the values only part of the way; `realizations=` limits the
+correction to those that `check_realizations` shows outside a tolerance.
 
 <details><summary>Python</summary>
 
@@ -18,11 +18,12 @@ from common import map_axes, save
 
 </details>
 
-## Realizations that drift
+## realizations that drift
 
-Walker Lake V simulated as in [realization checks](../../10-checking-models/04-realization-checks/README.md): declustered normal scores, their variogram along N170° and across it, and
-20 SGS realizations on a 5 m grid. The field is only a few variogram ranges across, so each realization samples
-the histogram of the data unevenly: their means stray up to 12 % from the declustered mean.
+walker lake V simulated as in [realization checks](../../10-checking-models/04-realization-checks/README.md):
+declustered normal scores, their variogram along N170° and across it, and 20 SGS realizations on a 5 m grid. the field
+is only a few variogram ranges across, so each realization samples the histogram of the data unevenly: their means
+stray up to 12 % from the declustered mean.
 
 <details><summary>Python</summary>
 
@@ -60,12 +61,12 @@ print(
 declustered mean 291 ppm; realization means 274 to 322 ppm
 ```
 
-## Correcting to the declustered data
+## correcting to the declustered data
 
-With the data as the reference, the value ranked `i` of the `m` values of a realization goes to the declustered
-quantile at `(i + 0.5) / m`. Every corrected realization then has the declustered distribution of the data, and the
+with the data as the reference, the value ranked `i` of the `m` values of a realization goes to the declustered
+quantile at `(i + 0.5) / m`. every corrected realization then has the declustered distribution of the data, and the
 band of realization CDFs collapses onto it. `strength=0.5` moves each value half way: the band narrows around the
-target but keeps some of the spread between realizations.
+target and keeps some of the spread between realizations.
 
 <details><summary>Python</summary>
 
@@ -103,8 +104,8 @@ order kept in every realization: True
 
 ![histograms](histograms.png)
 
-The correction changes values, not their order: a corrected realization is the same map with its grades
-restretched. The realization furthest from the declustered mean, below, shifts as a whole; its highs and lows stay
+the correction changes values and keeps their order: a corrected realization is the same map with its grades
+restretched. the realization furthest from the declustered mean, below, shifts as a whole, and its highs and lows stay
 where they were.
 
 <details><summary>Python</summary>
@@ -124,11 +125,11 @@ save(fig, "maps")
 
 ![maps](maps.png)
 
-## Only the realizations out of tolerance
+## only the realizations out of tolerance
 
-A realization whose mean lies within 5 % of the declustered mean is fine as it stands. `realizations=` takes the
-indices to correct, here those `check_realizations` puts outside that band; the others come back unchanged, so the
-set keeps its spread where the spread is plausible.
+a realization whose mean lies within 5 % of the declustered mean can stay as it is. `realizations=` takes the indices
+to correct, here those that `check_realizations` puts outside that band. the others come back unchanged, so the set
+keeps its spread where the spread is plausible.
 
 <details><summary>Python</summary>
 
@@ -145,11 +146,12 @@ print(f"{len(outside)} of {len(reals)} realizations corrected; means now {m.min(
 7 of 20 realizations corrected; means now 283 to 302 ppm
 ```
 
-## A smooth reference
+## a smooth reference
 
-The declustered data stop at their highest value, and a corrected realization with it. A `KernelDensity` fitted
-with the declustering weights and reflected at 0 ([reference distributions](../../03-exploratory-analysis/13-reference-distributions/README.md)) has a tail beyond the data; as the reference, it lets
-the top values of each realization run past the highest sample.
+the declustered data stop at their highest value, and so does a realization corrected to them. a `KernelDensity`
+fitted with the declustering weights and reflected at 0
+([reference distributions](../../03-exploratory-analysis/13-reference-distributions/README.md)) has a tail beyond the
+data. as the reference, it lets the top values of each realization run past the highest sample.
 
 <details><summary>Python</summary>
 

@@ -1,8 +1,8 @@
 """
-# Seismic volumes
+# seismic volumes
 
-`bt.read_segy` reads a post-stack SEG-Y cube into a 3D BlockModel, one trace per column of cells, and
-`bt.write_segy` writes one back. Seismic covers the whole volume where wells are few, so it makes the secondary
+`bt.read_segy` reads a post-stack SEG-Y cube into a 3D `BlockModel`, one trace per column of cells, and
+`bt.write_segy` writes one back. seismic covers the whole volume where wells are few, so it serves as the secondary
 variable that steers image quilting between them.
 """
 
@@ -31,10 +31,10 @@ print(f"first sample at {-(cube.origin[2] + (nz - 0.5) * cube.size[2]):.0f} ms, 
 
 
 # %% [markdown]
-# Inline and crossline numbers come from trace-header bytes 189 and 193 and the CDP coordinates from bytes 181 and
+# inline and crossline numbers come from trace-header bytes 189 and 193 and the CDP coordinates from bytes 181 and
 # 185, the SEG-Y revision 1 places; `inline_byte`, `crossline_byte`, `x_byte` and `y_byte` move them for files that
-# put them elsewhere. The file does not state its CRS, so the cube has none; `bt.datasets.f3_seismic()` sets it.
-# z is minus the two-way time, so a time slice is a z layer, and the first sample is the top cell.
+# put them elsewhere. the file states no CRS, so the cube has none; `bt.datasets.f3_seismic()` sets it. z is minus the
+# two-way time, so a time slice is a z layer, and the first sample is the top cell.
 
 # %%
 amplitude = cube["amplitude"].reshape(nz, ny, nx)[::-1]  # row 0 at the first sample
@@ -56,11 +56,10 @@ save(fig, "cube")
 
 
 # %% [markdown]
-# Quilting with seismic needs a training image that carries both: facies and the seismic they would produce. A
-# section 200 traces wide and 80 samples deep, of sand lenses 50 by 8 cells in shale, and its synthetic seismic:
-# sand has a lower acoustic impedance, each change of impedance down a trace makes a reflection, and a Ricker wavelet
-# blurs the reflections into amplitude. The truth is another section drawn the same way, and only its seismic is
-# known.
+# quilting with seismic needs a training image that carries both facies and the seismic they would produce: here a
+# section 200 traces wide and 80 samples deep, of sand lenses 50 by 8 cells in shale, and its synthetic seismic. sand
+# has a lower acoustic impedance, each change of impedance down a trace makes a reflection, and a ricker wavelet blurs
+# the reflections into amplitude. the truth is another section drawn the same way, and you know only its seismic.
 
 # %%
 width, depth = 200, 80
@@ -83,8 +82,8 @@ truth = bt.object_training_image(section, [lens], seed=2)["facies"].reshape(dept
 
 
 # %% [markdown]
-# The truth's seismic arrives as a SEG-Y file. `write_segy` takes a 3D model, one trace per (x, y) column: here one
-# crossline of 200 traces 12.5 m apart, sampled every 4 ms from 1600 ms. Read back, it is the same to float32.
+# the truth's seismic arrives as a SEG-Y file. `write_segy` takes a 3D model, one trace per (x, y) column: here one
+# crossline of 200 traces 12.5 m apart, sampled every 4 ms from 1600 ms. read back, it matches to float32.
 
 # %%
 survey = bt.BlockModel((0, 0, -1598 - 4 * depth), (12.5, 12.5, 4), (width, 1, depth))
@@ -98,10 +97,10 @@ secondary = back["seismic"].reshape(depth, width)[::-1].ravel()
 
 
 # %% [markdown]
-# Twenty realizations of the truth without and with the seismic. With `secondary`, a patch is chosen by how well the
-# image's seismic under it matches the target's, `secondary_weight` times the mean squared difference over the squared
-# range, beside its overlap. The score is the mean probability each realization gives the true facies of a cell: 0.58
-# for random draws at the image's proportions.
+# twenty realizations of the truth without and with the seismic. with `secondary`, quilting also chooses a patch by
+# how well the image's seismic under it matches the target's: `secondary_weight` times the mean squared difference
+# over the squared range, beside its overlap. the score is the mean probability each realization gives the true
+# facies of a cell: 0.58 for random draws at the image's proportions.
 
 
 # %%
@@ -123,9 +122,9 @@ for name, summary in (("without seismic", blind), ("with seismic", steered)):
 
 
 # %% [markdown]
-# The seismic places the lenses. An isolated lens is found in nearly every realization; where lenses stack a few
-# samples apart, their reflections overlap, several arrangements of patches fit the same seismic, and the probability
-# of sand stays gray.
+# the seismic places the lenses. nearly all realizations find an isolated lens. where lenses stack a few samples
+# apart, their reflections overlap, several arrangements of patches fit the same seismic, and the probability of sand
+# stays gray.
 
 # %%
 codes = ListedColormap(["white", "black"])
@@ -152,6 +151,6 @@ fig.colorbar(im, ax=axes[3, 1], location="left", shrink=0.8, label="probability"
 save(fig, "quilting")
 
 # %% [markdown]
-# Hard data and soft probabilities combine with the secondary variable, each with its own weight; see
-# [image quilting](../../13-multiple-point-statistics/08-image-quilting/README.md). A 3D training image and target
-# work the same way, with patches joined by graph cuts instead of boundary cuts.
+# hard data and soft probabilities combine with the secondary variable, each with its own weight; see
+# [image quilting](../../13-multiple-point-statistics/08-image-quilting/README.md). a 3D training image and target
+# work the same way, with graph cuts joining the patches instead of boundary cuts.

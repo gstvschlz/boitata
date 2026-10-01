@@ -1,9 +1,9 @@
-# Mesh-crossing interval splits
+# mesh-crossing interval splits
 
-An assay interval rarely starts or ends exactly at a geological contact: a logger picks the nearest sample
-boundary, not the true crossing. `Drillholes.mesh_intervals` walks each hole's desurveyed path against a closed
-`Mesh` and returns the exact depths where it crosses the surface, ready to `merge_intervals` with the assays so a
-composite can be domained hard at the mesh instead of at a logged pick.
+an assay interval rarely starts or ends at a geological contact, since a logger picks the nearest sample boundary
+instead of the true crossing. `Drillholes.mesh_intervals` walks each hole's desurveyed path against a closed
+`Mesh` and returns the exact depths where it crosses the surface. you `merge_intervals` them with the assays, so
+a composite takes its hard domain from the mesh instead of a logged pick.
 
 <details><summary>Python</summary>
 
@@ -34,8 +34,8 @@ print(f"{crossings.num_rows} runs down {len(holes)} holes, {int(np.sum(crossings
 ```
 
 `mesh_intervals` samples each hole's path every `step` and bisects to `tolerance` wherever it crosses the mesh, so
-every depth down every hole falls in exactly one run of `INSIDE`. Its columns match `merge_intervals`'s own
-defaults, so it splits the assays at those depths with no renaming.
+each depth down each hole falls in one run of `INSIDE`. its columns match the defaults of `merge_intervals`, so it
+splits the assays at those depths with no renaming.
 
 <details><summary>Python</summary>
 
@@ -53,8 +53,8 @@ mesh_comps = bt.Drillholes(collar, survey, mesh_split).composite(None, ["ZN_PCT"
 
 </details>
 
-[Contact surfaces](../../11-geological-modeling/02-contact-surfaces/README.md) domains the same holes from the logged lithology instead: `MS` and `SMS` intervals stand for a sulphide
-lens. That pick is only as good as where the logger set the contact, and it does not tell the three lenses apart.
+[contact surfaces](../../11-geological-modeling/02-contact-surfaces/README.md) domains the same holes from the logged lithology instead: `MS` and `SMS` intervals stand for a sulphide
+lens. that pick is only as good as where the logger set the contact, and it cannot tell the three lenses apart.
 
 <details><summary>Python</summary>
 
@@ -83,8 +83,8 @@ print(f"logged lithology: lens mean Zn {lith_mean['lens']:.2f}%, n={lith_n['lens
 logged lithology: lens mean Zn 5.52%, n=180
 ```
 
-The lithology domain leaks in sulphide picked in the other two lenses and, since it is not corrected to the
-solid, some contacts sit a sample or two off the true one; both pull its lens grade away from the mesh's.
+the lithology domain takes in sulphide picked in the other two lenses. nothing corrects it to the solid, so some
+contacts sit a sample or two off the true one. both effects pull its lens grade away from the mesh's.
 
 <details><summary>Python</summary>
 

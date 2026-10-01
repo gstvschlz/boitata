@@ -1,3 +1,3 @@
-# First steps
+# first steps
 
-Short pages to get going with Boitatá, such as storing its containers and reading them back.
+short pages to get going with boitatá, such as storing its containers and reading them back.

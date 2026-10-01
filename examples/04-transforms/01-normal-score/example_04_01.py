@@ -1,8 +1,9 @@
 """
-# Normal-score transform
+# normal-score transform
 
-Gaussian methods need a standard normal variable. The normal-score transform maps each value to the Gaussian score
-with the same cumulative probability, weighting samples by cell-declustering weights ([declustering](../../03-exploratory-analysis/03-declustering/README.md)).
+gaussian methods need a standard normal variable. the normal-score transform maps each value to the gaussian score
+with the same cumulative probability, weighting samples by cell-declustering weights
+([declustering](../../03-exploratory-analysis/03-declustering/README.md)).
 """
 
 # %% [hidden]
@@ -31,7 +32,7 @@ print(f"back-transform max error {np.abs(ns.inverse_transform(y) - v).max():.1e}
 
 
 # %% [markdown]
-# Each value takes the score with the same cumulative probability:
+# each value takes the score with the same cumulative probability:
 
 # %%
 order = np.argsort(v)
@@ -65,7 +66,7 @@ save(fig, "quantile-mapping")
 
 
 # %% [markdown]
-# The skewed histogram of `V` becomes a standard Gaussian:
+# the skewed histogram of `V` becomes a standard gaussian:
 
 # %%
 fig, (a, b) = plt.subplots(1, 2, figsize=(9, 3.4), layout="constrained")
@@ -91,8 +92,8 @@ b.legend()
 save(fig, "histograms")
 
 # %% [markdown]
-# On a probability scale, where a Gaussian is a straight line, `bt.plot.probability` shows V is not lognormal either
-# while its scores are Gaussian by construction:
+# on a probability scale a gaussian plots as a straight line. `bt.plot.probability` shows that V is not lognormal
+# either, while its scores are gaussian by construction:
 
 # %%
 fig, (a, b) = plt.subplots(1, 2, figsize=(9, 3.4), layout="constrained")
@@ -103,10 +104,10 @@ b.set(title="Normal scores", xlabel="Normal score")
 save(fig, "probability")
 
 # %% [markdown]
-# The weighted scores have mean 0 and standard deviation 1, and the back-transform returns every sample exactly.
+# the weighted scores have mean 0 and standard deviation 1, and the back-transform returns every sample exactly.
 #
-# Only the samples at 0 ppm tie. `fit_transform` scores each sample by its rank, so tied samples spread in file
-# order; `transform` maps the tied value to one score:
+# only the samples at 0 ppm tie. `fit_transform` scores each sample by its rank, so tied samples spread in file order;
+# `transform` maps the tied value to one score:
 
 # %%
 zero = v == 0
@@ -115,5 +116,6 @@ print(f"fit_transform: scores {y[zero].min():.2f} to {y[zero].max():.2f}")
 print(f"transform: {np.unique(ns.transform(v[zero]))[0]:.2f} for all")
 
 # %% [markdown]
-# Neither order means anything. For a large spike, such as assays at a detection limit, [despiking](../../03-exploratory-analysis/06-despiking/README.md) breaks the ties by
-# the neighborhood of each sample before the transform.
+# neither order means anything. for a large spike, such as assays at a detection limit,
+# [despiking](../../03-exploratory-analysis/06-despiking/README.md) breaks the ties by the neighborhood of each sample
+# before the transform.

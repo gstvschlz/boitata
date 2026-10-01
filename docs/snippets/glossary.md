@@ -1,0 +1,7 @@
+--8<-- "glossary/core.md"
+--8<-- "glossary/learn-a.md"
+--8<-- "glossary/learn-b.md"
+--8<-- "glossary/learn-c.md"
+--8<-- "glossary/guide.md"
+--8<-- "glossary/workflows-a.md"
+--8<-- "glossary/workflows-b.md"

@@ -3,7 +3,7 @@
 
 Weathering has turned an ultramafic bedrock into a blanket a few tens of meters thick: ferricrete at surface,
 limonite, saprolite, then fresh rock. 448 vertical holes, on a 50 m mesh with a 25 m infill in the middle, log
-the horizons and assay Ni and Co every meter. First the geometry, then the grades, then the tonnes.
+the horizons and assay Ni and Co every meter. You model the geometry first, then the grades and the tonnes.
 """
 
 # %% [hidden]
@@ -63,7 +63,7 @@ save(fig, "contacts")
 #
 # ## Is the 50 m mesh enough?
 #
-# The bedrock elevation is kriged from the mesh holes alone, then compared with the contacts logged by the infill.
+# Krige the bedrock elevation from the mesh holes alone, then compare it with the contacts logged by the infill.
 
 # %%
 mesh_xy, mesh_z = xy[~infill], tops["BRK"][~infill]
@@ -91,8 +91,8 @@ b.legend(loc="lower right")
 save(fig, "bedrock")
 
 # %% [markdown]
-# The elevation variogram climbs steadily over the whole area: the bedrock follows the topography. Kriged from the
-# mesh, it misses the infill contacts by 5.25 m RMSE, hardly better than the topography less the mean depth,
+# The elevation variogram keeps climbing over the whole area: the bedrock follows the topography. Kriged from the
+# mesh, it misses the infill contacts by 5.25 m RMSE, little better than the topography less the mean depth,
 # 5.55 m. The depth to bedrock shows why: on the 50 m mesh its variogram is flat from the first lag, pure nugget,
 # while the infill resolves a structure shorter than 50 m. The pockets and ridges of fresh rock are narrower than
 # the mesh; only the infill sees them.
@@ -135,7 +135,7 @@ for name in names[:3]:
 print(f"{len(blocks)} blocks and sub-blocks")
 
 # %% [markdown]
-# The kriged saprolite never thins below 1.9 m, so the separately kriged bedrock never cuts into the limonite. The
+# The kriged saprolite never thins below 1.9 m, so the bedrock, kriged on its own, never cuts into the limonite. The
 # volumes match the logged thicknesses over the 0.7 km² of the model: 1.49 Mm³ of ferricrete, 5.47 of limonite and
 # 7.64 of saprolite.
 #
@@ -175,11 +175,11 @@ save(fig, "grades")
 # Each horizon has its own grades. Ni rises down the profile, from 0.36 % in the ferricrete to 1.08 % in the
 # limonite and 1.81 % in the saprolite, then falls to 0.29 % in fresh rock. Co peaks in the limonite, at 0.117 %,
 # three times the saprolite's. Against the height above bedrock, Ni is richest in the first meters above fresh rock
-# and fades upwards: the profile, not the elevation, orders the grades.
+# and fades upwards: the grades follow position in the profile more than elevation.
 #
 # ## Grades into the blocks
 #
-# So each horizon is kriged in flattened coordinates: easting, northing and height above the bedrock surface, for
+# Krige each horizon in flattened coordinates: easting, northing and height above the bedrock surface, for
 # composites and blocks alike (`vertical_distance` gives the blocks' heights). Every horizon and element gets its
 # own variogram, fitted along the east–west drill rows and down the holes at once; composites of one horizon inform
 # only its blocks.
@@ -243,7 +243,7 @@ save(fig, "section")
 # %% [markdown]
 # ## Tonnes and grade by horizon
 #
-# The dataset measures no density. Typical dry densities of laterite are assumed: 2.2 t/m³ for the ferricrete,
+# The dataset measures no density, so assume typical dry densities of laterite: 2.2 t/m³ for the ferricrete,
 # 1.5 for the limonite and 1.6 for the saprolite. Tonnes are block volume × density; each horizon is reported whole
 # and above 1.5 % Ni.
 

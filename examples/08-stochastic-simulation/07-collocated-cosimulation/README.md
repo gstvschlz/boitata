@@ -1,11 +1,11 @@
-# Collocated cosimulation
+# collocated cosimulation
 
-SGS of a grade conditioned on a second variable known at every node: an exhaustive covariate, or a realization of
-another grade simulated first. Each node is drawn from the collocated simple cokriging of its normal score from its
-neighbors and the secondary score at the node itself, with the cross-covariance taken as the correlation of the
-scores times the primary covariance, so no cross-variogram is needed. `SGS.fit` takes the secondary at the data and
-fits that correlation; `simulate` takes the secondary at the nodes, one row per realization for simulated
-secondaries. Here Jura Co, cosimulated realization by realization with simulated Ni, against Co simulated alone.
+SGS can condition a grade on a second variable known at each node: an exhaustive covariate, or a realization of
+another grade simulated first. it draws each node from the collocated simple cokriging of its normal score from its
+neighbors and the secondary score at the node itself. the cross-covariance is the correlation of the scores times
+the primary covariance, so you need no cross-variogram. `SGS.fit` takes the secondary at the data and fits that
+correlation; `simulate` takes the secondary at the nodes, one row per realization for simulated secondaries. here
+jura Co, cosimulated realization by realization with simulated Ni, against Co simulated alone.
 
 <details><summary>Python</summary>
 
@@ -37,9 +37,9 @@ print(f"{len(xy)} samples, correlation of Co and Ni {np.corrcoef(samples['Co'], 
 259 samples, correlation of Co and Ni 0.75
 ```
 
-Ni is simulated first, 20 realizations on 50 m nodes. Co is then simulated twice with the same seeds: alone, and
-with row ``k`` of the Ni realizations as the secondary of realization ``k``. `fit` normal-scores Ni at the samples
-and fits the correlation of the Co and Ni scores:
+SGS simulates Ni first, 20 realizations on 50 m nodes, then Co twice with the same seeds: alone, and with row ``k``
+of the Ni realizations as the secondary of realization ``k``. `fit` normal-scores Ni at the samples and fits the
+correlation of the Co and Ni scores:
 
 <details><summary>Python</summary>
 
@@ -61,8 +61,8 @@ print(f"correlation of Co and Ni scores at the samples: {cosgs.correlation:.2f}"
 correlation of Co and Ni scores at the samples: 0.71
 ```
 
-Simulated alone, Co keeps its histogram and variogram but forgets Ni: away from the samples the two vary
-independently and their correlation over the nodes falls to near zero. Cosimulated, each realization of Co
+simulated alone, Co keeps its histogram and variogram but forgets Ni: away from the samples the two vary
+independently, and their correlation over the nodes falls to near zero. cosimulated, each realization of Co
 follows its own Ni realization and the correlation comes back:
 
 <details><summary>Python</summary>
@@ -109,8 +109,8 @@ save(fig, "maps")
 
 ![maps](maps.png)
 
-The cosimulated Co still reproduces its own histogram and variogram, the [realization checks](../../10-checking-models/04-realization-checks/README.md), while its correlation
-with Ni, 0.69 to 0.84 across realizations, brackets the samples' 0.75; simulated alone, Co keeps little of it.
+the cosimulated Co still reproduces its own histogram and variogram (the [realization checks](../../10-checking-models/04-realization-checks/README.md)), and its correlation
+with Ni, 0.69 to 0.84 across realizations, brackets the samples' 0.75. simulated alone, Co keeps little of it.
 
 <details><summary>Python</summary>
 

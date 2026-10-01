@@ -1,10 +1,10 @@
-# Multivariate transforms
+# multivariate transforms
 
-Cosimulating correlated grades is simpler on independent factors: simulate each factor alone, then transform
-back. Four transforms reach independence to different degrees. PCA and min/max autocorrelation factors (MAF) are
-linear rotations: they remove correlation but not curved dependence. The stepwise conditional transform (SCT)
-and the projection-pursuit multivariate transform (PPMT) are nonlinear and Gaussian by construction. Simulating the
-factors is [multivariate simulation](../../08-stochastic-simulation/06-multivariate-simulation/README.md).
+cosimulating correlated grades is simpler on independent factors: simulate each factor alone, then transform back.
+four transforms reach independence to different degrees. PCA and min/max autocorrelation factors (MAF) are linear
+rotations, which remove correlation and leave curved dependence. the stepwise conditional transform (SCT) and the
+projection-pursuit multivariate transform (PPMT) are nonlinear and gaussian by construction.
+[multivariate simulation](../../08-stochastic-simulation/06-multivariate-simulation/README.md) simulates the factors.
 
 <details><summary>Python</summary>
 
@@ -26,10 +26,10 @@ print(f"{len(pair)} composites, correlation {np.corrcoef(pair.T)[0, 1]:.2f}")
 6817 composites, correlation 0.19
 ```
 
-PCA rotates onto the eigenvectors of the correlation matrix. MAF rotates the sphered data onto the eigenvectors of
-its variogram matrix at one lag (5 m, the composite length), so the factors are also uncorrelated at that lag, most
-continuous first. SCT normal-scores the second variable within classes of the first; PPMT normal-scores each
-variable, then Gaussianizes the least Gaussian projections in turn.
+PCA rotates onto the eigenvectors of the correlation matrix. MAF rotates the sphered data onto the eigenvectors of its
+variogram matrix at one lag (5 m, the composite length), so the factors are also uncorrelated at that lag, most
+continuous first. SCT normal-scores the second variable within classes of the first; PPMT normal-scores each variable,
+then gaussianizes the least gaussian projections in turn.
 
 <details><summary>Python</summary>
 
@@ -65,7 +65,7 @@ PCA explained variance ratio: [0.595 0.405]
 MAF variogram of each factor at 5 m: [0.087 0.106]
 ```
 
-The data and the four sets of factors. Linear factors are uncorrelated but keep the L-shaped cloud of two mineral
+the data and the four sets of factors. linear factors are uncorrelated but keep the L-shaped cloud of two mineral
 associations; the nonlinear ones fill the standard bivariate normal.
 
 <details><summary>Python</summary>
@@ -87,8 +87,8 @@ save(fig, "factors")
 
 ![factors](factors.png)
 
-Every transform returns the data exactly and leaves uncorrelated factors. PCA and MAF keep some dependence
-(r(f1², f2) of 0.07 and −0.08) and MAF a skewed second factor (0.88); SCT and PPMT bring both to about 0, so their
-factors can be simulated one at a time without losing the shape of the cloud.
+every transform returns the data exactly and leaves uncorrelated factors. PCA and MAF keep some dependence (r(f1², f2)
+of 0.07 and −0.08), and MAF leaves a skewed second factor (0.88). SCT and PPMT bring both to about 0, so you can
+simulate their factors one at a time and keep the shape of the cloud.
 
 Full script: [`example_04_05.py`](example_04_05.py)

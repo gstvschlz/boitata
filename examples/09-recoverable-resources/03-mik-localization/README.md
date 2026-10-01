@@ -1,8 +1,8 @@
 # MIK localization
 
-Multiple indicator kriging reaches the selective blocks inside a panel without a Gaussian model. Kriged at each
-panel centroid, its conditional distribution describes point grades; an affine correction shrinks it to block
-support, and ranked blocks share its bands. The exhaustive Walker Lake grid gives the true 10 m blocks.
+multiple indicator kriging reaches the selective blocks inside a panel without a gaussian model. kriged at each panel
+centroid, its conditional distribution describes point grades; an affine correction shrinks it to block support, and
+ranked blocks share its bands. the exhaustive walker lake grid gives the true 10 m blocks.
 
 <details><summary>Python</summary>
 
@@ -22,8 +22,9 @@ true_smu = truth[:, :250].reshape(30, size, 25, size).mean(axis=(1, 3))
 
 </details>
 
-The grade variogram, fitted along and across N170° ([variogram fitting](../../05-spatial-continuity/02-variogram-fitting/README.md)), and one omnidirectional indicator variogram at each
-decile:
+the grade variogram, fitted along and across N170°
+([variogram fitting](../../05-spatial-continuity/02-variogram-fitting/README.md)), and one omnidirectional indicator
+variogram at each decile:
 
 <details><summary>Python</summary>
 
@@ -43,13 +44,13 @@ print(grade)
 </details>
 
 ```text
-Variogram(nugget=23074.121724005312, structures=[Structure("spherical", sill=21197.378384424104, range=35.64044049883205), Structure("spherical", sill=48385.01811413661, range=79.3306247959381)], rotation=(170.0, 0.0, 0.0), ratios=(0.3439680551606079, 1.0))
+Variogram(nugget=23074.111587443243, structures=[Structure("spherical", sill=21197.40782959466, range=35.64043704679606), Structure("spherical", sill=48384.99966079545, range=79.33065065479494)], rotation=(170.0, 0.0, 0.0), ratios=(0.343967906520505, 1.0))
 ```
 
-The 50 × 50 m panels over the western 250 m hold 25 blocks of 10 m each, ranked by their ordinary block kriging.
+the 50 × 50 m panels over the western 250 m hold 25 blocks of 10 m each, ranked by their ordinary block kriging.
 `localize` kriges the indicators at each panel centroid and shrinks the distribution about its mean by the variance
-factor f, the variance of 10 m blocks within a panel over that of points within it, computed here from the grade
-variogram. The block ranked i receives the mean of the i-th of 25 equal-probability bands.
+factor f: the variance of 10 m blocks within a panel over that of points within it, computed here from the grade
+variogram. the block ranked i receives the mean of the i-th of 25 equal-probability bands.
 
 <details><summary>Python</summary>
 
@@ -77,7 +78,7 @@ localized: variance 54348, correlation with truth 0.82
 true blocks: variance 47350
 ```
 
-Grade-tonnage of the three sets of blocks:
+grade-tonnage of the three sets of blocks:
 
 <details><summary>Python</summary>
 
@@ -131,10 +132,11 @@ above 800 ppm: localized 3.2%, kriged 2.3%, true 2.1%
 
 ![localized-mik](localized-mik.png)
 
-The localized blocks spread wider than the true ones (variance 54 348 against 47 350) where kriging smooths them to
-35 064, and they follow the truth block by block a little less well than kriging (correlation 0.82 against 0.89).
-The affine correction keeps the shape of each point distribution, so its long upper tail survives the shrinking:
-at 500 ppm the localized blocks put 23.3% above cutoff against a true 16.8%, overshooting as much as kriging falls
-short. [Uniform conditioning](../../09-recoverable-resources/02-uniform-conditioning/README.md) localizes the same panels from a Gaussian model instead.
+the localized blocks spread wider than the true ones (variance 54 348 against 47 350), while kriging smooths them to
+35 064. block by block they follow the truth a little less well than kriging (correlation 0.82 against 0.89). the
+affine correction keeps the shape of each point distribution, so its long upper tail survives the shrinking: at 500
+ppm the localized blocks put 23.3% above cutoff against a true 16.8%, overshooting by as much as kriging falls short.
+[uniform conditioning](../../09-recoverable-resources/02-uniform-conditioning/README.md) localizes the same panels
+from a gaussian model.
 
 Full script: [`example_09_03.py`](example_09_03.py)

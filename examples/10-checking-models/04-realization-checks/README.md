@@ -1,10 +1,10 @@
-# Realization checks
+# realization checks
 
-Realizations are only as good as what they reproduce: the declustered histogram of the data, the variogram model they
-were drawn from and, with several variables, the correlations between them. `check_realizations` measures all three
-for every realization, and `bt.plot.histogram_reproduction`, `variogram_reproduction` and `correlation_reproduction`
-draw each as a band across realizations against its target. Realization variograms on a grid pair cells by index
-shifts, in parallel over realizations.
+realizations should reproduce the declustered histogram of the data, the variogram model behind them and, with
+several variables, the correlations between them. `check_realizations` measures all three for each realization, and
+`bt.plot.histogram_reproduction`, `variogram_reproduction` and `correlation_reproduction` draw each as a band across
+realizations against its target. on a grid, realization variograms pair cells by index shifts, in parallel over
+realizations.
 
 <details><summary>Python</summary>
 
@@ -17,7 +17,7 @@ from common import save
 
 </details>
 
-Walker Lake V, simulated as in [sequential Gaussian simulation](../../08-stochastic-simulation/01-sgs/README.md): declustered normal scores, their variogram along N170° and across it,
+walker lake V, simulated as in [sequential gaussian simulation](../../08-stochastic-simulation/01-sgs/README.md): declustered normal scores, their variogram along N170° and across it,
 and 50 SGS realizations on a 5 m grid.
 
 <details><summary>Python</summary>
@@ -45,9 +45,9 @@ summary = sgs.simulate(grid, n=50, seed=42, keep=True)
 
 </details>
 
-One call checks them all. Given the model, the variograms run along its azimuth and across it, in the normal scores
-of the declustered data, the units the model is in. `statistics` holds what `describe` gives for the declustered
-data (realization 0) and for every realization:
+one call checks them all. given the model, the variograms run along its azimuth and across it, in the normal scores
+of the declustered data (the units of the model). `statistics` holds what `describe` gives for the declustered
+data (realization 0) and for each realization:
 
 <details><summary>Python</summary>
 
@@ -70,10 +70,10 @@ P50   data    235   realizations    192 to    284
 P90   data    636   realizations    616 to    702
 ```
 
-The realizations' distributions straddle the declustered data's in grades and in normal scores, save the step at
-the lowest scores, where every realization value of 0 ppm shares one score. Their variograms
-follow the model along and across N170° up to its ranges; beyond them the realizations wander around the sill, as
-single 260 × 300 m fields must, and the band shows how far.
+the realizations' distributions straddle the declustered data's in grades and in normal scores, except for the step
+at the lowest scores, where all realization values of 0 ppm share one score. their variograms follow the model
+along and across N170° up to its ranges. beyond them the realizations wander around the sill, as single
+260 × 300 m fields must, and the band shows how far.
 
 <details><summary>Python</summary>
 
@@ -92,9 +92,9 @@ save(fig, "walker_lake")
 
 ![walker_lake](walker_lake.png)
 
-## Several variables
+## several variables
 
-Log chalcocite and log tennantite of porphyry 1, cosimulated through PPMT by turning bands as in [multivariate simulation](../../08-stochastic-simulation/06-multivariate-simulation/README.md). With a
+log chalcocite and log tennantite of porphyry 1, cosimulated through PPMT by turning bands as in [multivariate simulation](../../08-stochastic-simulation/06-multivariate-simulation/README.md). given a
 list of summaries, one per variable, the check adds each realization's correlation matrix.
 
 <details><summary>Python</summary>
@@ -133,9 +133,9 @@ print(
 32,130 nodes; correlation data 0.25, realizations 0.22 to 0.30
 ```
 
-Both declustered histograms and the correlation are reproduced; the variograms are not. The factors were simulated
-with omnidirectional models, so the realizations are nearly isotropic and smoother than the data, which are more
-continuous down the holes than across them. The check points at the next step: directional factor variograms.
+the realizations reproduce both declustered histograms and the correlation, and miss the variograms. the factors
+came from omnidirectional models, so the realizations are nearly isotropic and smoother than the data, which are
+more continuous down the holes than across them. the next step would be directional factor variograms.
 
 <details><summary>Python</summary>
 

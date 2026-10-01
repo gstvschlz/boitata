@@ -1,1 +1,1 @@
-## Image quilting
+## image quilting
