@@ -19,50 +19,50 @@ OUTPUT = re.compile(re.escape(FENCE) + r"\n(.*?)```", re.DOTALL)
 TQDM = re.compile(r"(\d+)/(\d+) \[(\d+:\d\d)|(\d+)it \[(\d+:\d\d)")
 
 API = """
-containers: Containers and I/O
+containers: containers and I/O
     Table PointSet BlockModel BlockModelFile Mesh MeshReport Polylines convex_hull grid_surface
     read_csv write_csv read_gslib write_gslib read_parquet write_parquet read_mesh write_mesh
     read_segy write_segy read_shapefile write_shapefile read_geopackage write_geopackage
     read_geotiff write_geotiff
-datasets: Datasets and plots
+datasets: datasets and plots
     datasets plot plot3d
-drillholes: Drillholes and domains
+drillholes: drill holes and domains
     Drillholes merge_intervals check_drillholes fix_drillholes duplicates hole_distance
     PolygonSelector point_in_polygon polygon_distance assign_domain block_shell contact_distance
     buffer_domains remove_small_units smooth_classes map_blocks domain_change transition_matrix
     vertical_proportions combine_proportions
-eda: Exploratory analysis
+eda: exploratory analysis
     Categories describe describe_by correlation swath contact soft_boundary capping capping_report
     despike data_spacing spatial_bootstrap paired_bias
-transforms: Transforms
+transforms: transforms
     NormalScore Capping HermiteAnamorphosis BoxCox PPMT PCA MAF StepwiseConditional GaussianImputer
     Declustering cell_declustering polygon_declustering weight_declustering Trend detrend Unfold
     correct_distribution affine_correction indirect_lognormal_correction normal_cdf normal_ppf
     GaussianMixture KernelDensity
-compositional: Compositional data
+compositional: compositional data
     closure alr alr_inverse clr clr_inverse ilr ilr_inverse aitchison_distance
-variography: Variography
+variography: variography
     Structure Variogram ExperimentalVariogram experimental_variogram dissemination
     VariogramSet experimental_variograms VariogramMap variogram_map h_scatter pairs
     Coregionalization Transiogram experimental_transiogram VariogramVolume variogram_volume
     local_variogram_parameters LocalAnisotropy
-estimation: Estimation
+estimation: estimation
     Search calibrate_search neighborhood_stats HighGrade OrdinaryKriging SimpleKriging BlockKriging
     UniversalKriging ExternalDriftKriging FactorialKriging DualKriging BayesianKriging Cokriging
     IndicatorKriging MultipleIndicatorKriging CategoricalIndicatorKriging MultigaussianKriging
     InverseDistance NearestNeighbor MovingAverage MovingMedian LocalLeastSquares
-recoverable: Recoverable resources
+recoverable: recoverable resources
     UniformConditioning DisjunctiveKriging change_of_support upscale downscale
-simulation: Simulation
+simulation: simulation
     SGS TurningBands MultivariateSimulation SIS Plurigaussian SimulationSummary CategoricalSummary
     IndicatorSummary CategoricalIndicatorSummary check_realizations RealizationCheck
     gibbs localize object_training_image training_image_consistency SNESIM ImageQuilting
-modeling: Modeling
+modeling: modeling
     ImplicitModel
-validation: Checking models
+validation: checking models
     CrossValidation IndicatorCrossValidation CategoricalCrossValidation validate_model global_bias
     block_correlation compare_models grade_tonnage classify
-errors: Errors
+errors: errors
     BoitataError InvalidInput MissingColumn FileError
 """
 
@@ -78,7 +78,7 @@ def sections():
 def on_config(config, **kwargs):
     """Builds the API nav: an overview page and one page per object in each section."""
     nav = [
-        {title: [{"Overview": f"api/{slug}/index.md"}] + [{name: f"api/{slug}/{name}.md"} for name in names]}
+        {title: [{"overview": f"api/{slug}/index.md"}] + [{name: f"api/{slug}/{name}.md"} for name in names]}
         for slug, title, names in sections()
     ]
     config["nav"] = [
@@ -94,7 +94,7 @@ def on_files(files, config, **kwargs):
 
     uses = used_in([name for _, _, names in sections() for name in names], script_pages(ROOT))
     for slug, title, names in sections():
-        rows = ["| Name | Summary | Used in |", "| --- | --- | --- |"]
+        rows = ["| name | summary | used in |", "| --- | --- | --- |"]
         for name in names:
             doc = inspect.getdoc(getattr(boitata, name)) or ""
             summary = SENTENCE.split(" ".join(doc.split()), 1)[0].replace("|", "\\|")
@@ -183,7 +183,7 @@ def used_in_chips(links, cap=8):
     chips = "\n".join(
         f'<li markdown="span">[{html.escape(title)}](../../{uri})</li>' for uri, title in links[:cap]
     )
-    return f'\n**Used in**\n\n<ul class="bt-used-in" markdown="1">\n{chips}\n</ul>\n'
+    return f'\n**used in**\n\n<ul class="bt-used-in" markdown="1">\n{chips}\n</ul>\n'
 
 
 def glossary(terms):
@@ -194,8 +194,8 @@ def glossary(terms):
         f"<dd>{CODE.sub(CODE_HTML, html.escape(text))}</dd>\n"
         for key, (term, text) in sorted(unique.items())
     )
-    intro = "Short definitions of the terms used across these pages. Elsewhere, hover a dotted term to see its definition."
-    return f"# Glossary\n\n{intro}\n\n<dl>\n{rows}</dl>\n"
+    intro = "short definitions of the terms these pages use. elsewhere, hover a dotted term to see its definition."
+    return f"# glossary\n\n{intro}\n\n<dl>\n{rows}</dl>\n"
 
 
 def progress_bars(block):

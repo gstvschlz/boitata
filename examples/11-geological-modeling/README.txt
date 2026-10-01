@@ -1,3 +1,3 @@
-# Geological modeling
+# geological modeling
 
-Build grade shells, contact surfaces and layered horizons from drill holes and structural readings.
+build grade shells, contact surfaces and layered horizons from drill holes and structural readings.

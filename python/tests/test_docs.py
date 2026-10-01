@@ -78,6 +78,6 @@ def test_used_in_finds_calls_and_chips_prefer_the_first_pages(hooks):
 
 def test_glossary_is_sorted_deduplicated_raw_html(hooks):
     out = hooks.glossary([("sill", "The `plateau`."), ("Nugget", "Short <scale>."), ("sill", "Again.")])
-    assert out.startswith("# Glossary\n") and out.index(">Nugget<") < out.index(">sill<")
+    assert out.startswith("# glossary\n") and out.index(">Nugget<") < out.index(">sill<")
     assert '<dt id="sill">' in out and "<code>plateau</code>" in out and "&lt;scale&gt;" in out
     assert out.count("<dt") == 2 and "Again." not in out

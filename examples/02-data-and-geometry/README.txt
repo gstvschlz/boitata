@@ -1,3 +1,3 @@
-# Data and geometry
+# data and geometry
 
-Drill holes from collars to composites, block models, solids, meshes and GIS files, and the plots that put them in space.
+drill holes from collars to composites, block models, solids, meshes and GIS files, and the plots that put them in space.

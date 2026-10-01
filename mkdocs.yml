@@ -129,29 +129,29 @@ markdown_extensions:
   - toc: {permalink: true}
 
 nav:
-  - Home: index.md
-  - Install: install.md
-  - Learn: learn
-  - Guide:
-      - How Boitatá is organized: guide/organization.md
-      - Containers and Arrow: guide/containers.md
+  - home: index.md
+  - install: install.md
+  - learn: learn
+  - guide:
+      - how boitatá is organized: guide/organization.md
+      - containers and arrow: guide/containers.md
       - fit, transform, predict: guide/estimators.md
-      - Saving models: guide/saving.md
-      - Which page do I need?: guide/finder.md
-      - Glossary: guide/glossary.md
-  - Examples:
-      - First steps: examples/01-first-steps
-      - Data and geometry: examples/02-data-and-geometry
-      - Exploratory analysis: examples/03-exploratory-analysis
-      - Transforms: examples/04-transforms
-      - Spatial continuity: examples/05-spatial-continuity
-      - Kriging: examples/06-kriging
-      - Categories and domains: examples/07-categories-and-domains
-      - Stochastic simulation: examples/08-stochastic-simulation
-      - Recoverable resources: examples/09-recoverable-resources
-      - Checking models: examples/10-checking-models
-      - Geological modeling: examples/11-geological-modeling
-      - Case studies: examples/12-case-studies
-      - Multiple-point statistics: examples/13-multiple-point-statistics
-      - Workflows: examples/14-workflows
+      - saving models: guide/saving.md
+      - which page do i need?: guide/finder.md
+      - glossary: guide/glossary.md
+  - examples:
+      - first steps: examples/01-first-steps
+      - data and geometry: examples/02-data-and-geometry
+      - exploratory analysis: examples/03-exploratory-analysis
+      - transforms: examples/04-transforms
+      - spatial continuity: examples/05-spatial-continuity
+      - kriging: examples/06-kriging
+      - categories and domains: examples/07-categories-and-domains
+      - stochastic simulation: examples/08-stochastic-simulation
+      - recoverable resources: examples/09-recoverable-resources
+      - checking models: examples/10-checking-models
+      - geological modeling: examples/11-geological-modeling
+      - case studies: examples/12-case-studies
+      - multiple-point statistics: examples/13-multiple-point-statistics
+      - workflows: examples/14-workflows
   - API: []
