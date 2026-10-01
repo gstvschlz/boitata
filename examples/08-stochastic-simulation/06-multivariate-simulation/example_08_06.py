@@ -1,10 +1,10 @@
 """
-# Multivariate simulation
+# multivariate simulation
 
-`MultivariateSimulation` cosimulates correlated grades through independent factors: it fits a multivariate
-transform ([multivariate transforms](../../04-transforms/05-multivariate-transforms/README.md)), simulates each factor on its own with its own variogram and seed, and back-transforms every
-realization at the nodes, before any averaging to blocks. Here log chalcocite and log tennantite of porphyry 1,
-through PPMT and, for contrast, PCA.
+`MultivariateSimulation` cosimulates correlated grades through independent factors. it fits a multivariate
+transform ([multivariate transforms](../../04-transforms/05-multivariate-transforms/README.md)), simulates each factor with its own variogram and seed, and back-transforms each
+realization at the nodes, before any averaging to blocks. the grades here are log chalcocite and log tennantite of
+porphyry 1, through PPMT and, for contrast, PCA.
 """
 
 # %% [hidden]
@@ -30,9 +30,9 @@ print(f"{len(pair)} composites, correlation {np.corrcoef(pair.T)[0, 1]:.2f}")
 
 
 # %% [markdown]
-# Each factor gets the omnidirectional variogram of its scores; turning bands simulate 20 realizations on 25 m nodes.
-# Statistics of the data are declustered with 50 m cells. `fit` takes the variables as an array or, as here, as names
-# of columns of a PointSet.
+# each factor gets the omnidirectional variogram of its scores; turning bands simulate 20 realizations on 25 m nodes.
+# 50 m cells decluster the statistics of the data. `fit` takes the variables as an array or, as here, as column names
+# of a `PointSet`.
 
 # %%
 lo, hi = coords.min(axis=0), coords.max(axis=0)
@@ -54,9 +54,9 @@ print(f"{len(nodes.centroids)} nodes, 20 realizations")
 
 
 # %% [markdown]
-# Both keep the correlation, the only dependence a linear rotation carries. PPMT also keeps the declustered
-# histograms and honors the composites; PCA factors are not Gaussian, so simulating them as if they were shortens
-# the upper tail of chalcocite and sends high chalcocite and high tennantite together twice as often.
+# both keep the correlation, the only dependence a linear rotation carries. PPMT also keeps the declustered
+# histograms and honors the composites. PCA factors depart from gaussian, so simulating them as gaussian shortens
+# the upper tail of chalcocite and puts high chalcocite with high tennantite twice as often.
 
 
 # %%
@@ -92,7 +92,7 @@ print(f"PPMT at 500 composites: largest departure from the data {error:.1e}")
 
 
 # %% [markdown]
-# One realization of each: PPMT rebuilds the L-shaped cloud of the data; PCA spreads a rotated square over it,
+# one realization of each: PPMT rebuilds the L-shaped cloud of the data; PCA spreads a rotated square over it,
 # reaching below the lowest assays and into the corner the data leave empty.
 
 # %%
@@ -109,8 +109,8 @@ save(fig, "simulated")
 
 
 # %% [markdown]
-# At block support, `blocks=` averages each realization after the back-transform; averaging the factors instead would
-# give other values, since the transform is not linear. Here 100 × 100 × 50 m blocks.
+# at block support, `blocks=` averages each realization after the back-transform. the transform is nonlinear, so
+# averaging the factors would give other values. the blocks here are 100 × 100 × 50 m.
 
 # %%
 by_block = runs["PPMT"].simulate(nodes, n=20, seed=1, keep=True, blocks=blocks)
@@ -122,11 +122,11 @@ for j, s in enumerate(by_block):
 
 
 # %% [markdown]
-# ## Missing variables
+# ## missing variables
 #
-# When a variable is missing in some composites, `fit(..., impute=True)` fills them with a fresh draw of
-# `GaussianImputer` ([imputation](../../04-transforms/06-imputation/README.md)) in every realization, so the uncertainty of the missing values reaches the
-# realizations. Here tennantite is hidden in every other hole; the transform and the factor variograms come from the
+# if a variable is missing in some composites, `fit(..., impute=True)` fills them with a fresh draw of
+# `GaussianImputer` ([imputation](../../04-transforms/06-imputation/README.md)) in each realization, so the uncertainty of the missing values reaches the
+# realizations. here every other hole hides its tennantite; the transform and the factor variograms come from the
 # complete composites.
 
 # %%

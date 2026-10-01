@@ -1,8 +1,10 @@
 """
-# Variogram fitting
+# variogram fitting
 
-An anisotropic nested spherical model of `V`, fitted to directional experimental variograms along and across the
-direction of greatest continuity ([experimental variograms](../../05-spatial-continuity/01-experimental-variograms/README.md) builds them), then to all directions at once with `fit_directional`.
+you fit an anisotropic nested spherical model of `V` to directional experimental variograms along and across the
+direction of greatest continuity
+([experimental variograms](../../05-spatial-continuity/01-experimental-variograms/README.md) builds them), then to all
+directions at once with `fit_directional`.
 """
 
 # %% [hidden]
@@ -24,7 +26,7 @@ lag, max_lag = 10.0, 120.0
 
 
 # %% [markdown]
-# The variogram map picks the major axis: the direction whose fitted range is longest.
+# the variogram map picks the major axis, the direction with the longest fitted range.
 
 # %%
 vmap = bt.variogram_map(xy, v, lag, max_lag)
@@ -33,8 +35,8 @@ azimuth = (90 - np.degrees(angle)) % 180
 
 
 # %% [markdown]
-# Fit along and across the major axis. Weighting each lag by N(h)/γ(h)² lets the few short-lag pairs steer the fit
-# near the origin, where the nugget and the short ranges are decided.
+# fit along and across the major axis. weighting each lag by N(h)/γ(h)² lets the few short-lag pairs steer the fit near
+# the origin, where the nugget and the short ranges are decided.
 
 # %%
 major = bt.experimental_variogram(xy, v, lag, max_lag, azimuth=azimuth)
@@ -46,14 +48,14 @@ print(single, along, minor.fit(["spherical", "spherical"], weighting=weighting),
 
 
 # %% [markdown]
-# Along the major axis γ climbs to two thirds of the sill within 25 m, then keeps rising slowly to about 80 m: two
-# scales of continuity. One structure (dashed below) splits the difference, overshoots the first lags and puts a third
-# of the sill in the nugget. Two nested spherical structures follow both scales and halve the nugget. Across the axis
-# the short structure takes no sill: γ reaches the sill by 25 m, and one structure is all those data support.
+# along the major axis γ climbs to two thirds of the sill within 25 m, then rises slowly to about 80 m: two scales of
+# continuity. one structure (dashed below) splits the difference, overshoots the first lags and puts a third of the sill
+# in the nugget. two nested spherical structures follow both scales and halve the nugget. across the axis the short
+# structure takes no sill: γ reaches the sill by 25 m, and the data support one structure.
 #
-# The structures share one anisotropy. Fitting the minor direction with the nugget and sills fixed at their major-axis
-# values moves only its ranges; the long structure, with two thirds of the sill, sets the minor/major ratio.
-# `rotation` is azimuth, dip, rake in degrees; `ratios` are semi-major/major and minor/major ranges.
+# the structures share one anisotropy. fitting the minor direction with the nugget and sills fixed at their major-axis
+# values moves only its ranges; the long structure, with two thirds of the sill, sets the minor/major ratio. `rotation`
+# is azimuth, dip, rake in degrees; `ratios` are semi-major/major and minor/major ranges.
 
 # %%
 sills = [s.sill for s in along.structures]
@@ -66,7 +68,7 @@ print(model)
 
 
 # %% [markdown]
-# The ellipse on the map is the model range in each direction:
+# the ellipse on the map is the model range in each direction:
 
 # %%
 variance = v.var()
@@ -110,8 +112,8 @@ save(fig, "variogram")
 
 
 # %% [markdown]
-# `Variogram.fit_directional` fits one anisotropic model to experimental variograms in many directions at once:
-# azimuth, range ratio, ranges, sills and nugget together, the ranges along the major axis. The directions here are
+# `Variogram.fit_directional` fits one anisotropic model to experimental variograms in many directions at once: azimuth,
+# range ratio, ranges, sills and nugget together, with the ranges along the major axis. the directions here are
 # horizontal, every 22.5°, so the fit is 2D: dip, rake and the minor/major ratio stay 0, 0 and 1.
 
 # %%
@@ -124,10 +126,10 @@ print(joint)
 
 
 # %% [markdown]
-# The joint fit puts the major axis at N161°, nine degrees off the map's pick, with the same one-third ratio; its long
-# range stops at 115 m, the largest lag, where free ranges are capped unless `ranges` bounds them. It spreads its
-# effort over all eight directions, so it fits the major and minor axes worse than the fits made along them: the
-# dashed curves fall below the short lags on both.
+# the joint fit puts the major axis at N161°, nine degrees off the map's pick, with the same one-third ratio. its long
+# range stops at 115 m, the largest lag, where free ranges are capped unless `ranges` bounds them. spread over all eight
+# directions, it fits the major and minor axes worse than the fits made along them: the dashed curves fall below the
+# short lags on both.
 # %%
 fig, ax = plt.subplots(figsize=(6, 3.4), layout="constrained")
 origin = np.zeros((h.size, 3))

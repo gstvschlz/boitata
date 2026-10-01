@@ -1,8 +1,8 @@
 """
-# Model checks
+# model checks
 
-Block kriging of Walker Lake `V` on 10 × 10 m blocks, checked against the declustered samples: the global bias,
-distributions side by side with `validate_model`, and swaths of grade and metal along easting and northing. The
+block kriging of walker lake `V` on 10 × 10 m blocks, checked against the declustered samples: the global bias,
+distributions side by side with `validate_model`, and swaths of grade and metal along easting and northing. the
 exhaustive grid gives the true blocks as a reference.
 """
 
@@ -37,9 +37,9 @@ kriged = blocks.with_columns({"value": kriging.predict(blocks), "truth": true_bl
 
 
 # %% [markdown]
-# ## Global bias
+# ## global bias
 #
-# The mean of the blocks against the declustered mean of the samples. Blocks of equal size weigh the same; with
+# the mean of the blocks against the declustered mean of the samples. blocks of equal size weigh the same; for
 # volumes or tonnages, pass them as `weights`.
 
 # %%
@@ -51,10 +51,10 @@ print(
 
 
 # %% [markdown]
-# ## Distributions
+# ## distributions
 #
 # `validate_model` sets the blocks against the samples, naive and declustered, with the true blocks as a reference.
-# Differences are relative to the declustered samples.
+# differences are relative to the declustered samples.
 
 # %%
 table = bt.validate_model(kriged, "value", samples, "V", weights=weights, reference="truth")
@@ -68,13 +68,13 @@ for row in zip(
     )
 
 # %% [markdown]
-# The blocks reproduce the declustered mean within 0.3 %; both sit about 5 % above the truth, which no check against
-# the samples can see. Being 10 × 10 m averages smoothed by kriging, the blocks have a much smaller variance; the true
-# blocks sit in between, since averaging over a block alone already removes part of the sample
-# variance. Their cumulative distributions show the same smoothing: the blocks have fewer low and high grades than
-# the true blocks, the declustered samples more. `bt.plot.grade_tonnage` draws the same comparison as tonnage and
-# grade above cutoff ([result plots](../../10-checking-models/06-result-plots/README.md)). Swaths of metal, grade × area per 20 m slice of easting, show where the estimate
-# puts the metal; they add up to the metal of the whole model.
+# the blocks reproduce the declustered mean within 0.3 %. both sit about 5 % above the truth, a bias no check against
+# the samples can see. the blocks are 10 × 10 m averages smoothed by kriging, so their variance is much smaller. the
+# true blocks sit in between, since averaging over a block removes part of the sample variance. the cumulative
+# distributions show the same smoothing: the blocks have fewer low and high grades than the true blocks, the
+# declustered samples more. `bt.plot.grade_tonnage` draws the same comparison as tonnage and grade above cutoff
+# ([result plots](../../10-checking-models/06-result-plots/README.md)). swaths of metal, grade × area per 20 m slice of easting, show where the estimate puts the metal;
+# they add up to the metal of the whole model.
 
 # %%
 fig, axes = plt.subplots(1, 2, figsize=(10, 3.6), layout="constrained")
@@ -92,11 +92,11 @@ save(fig, "distributions")
 
 
 # %% [markdown]
-# ## Swaths
+# ## swaths
 #
-# Local bias shows in swaths: mean grade in 20 m slices along easting and northing, for the blocks, the declustered
-# samples and the truth. Blocks track the truth slice by slice and are smoother than the samples, whose slice means
-# scatter where few samples fall.
+# swaths reveal local bias: mean grade in 20 m slices along easting and northing, for the blocks, the declustered
+# samples and the truth. the blocks track the truth slice by slice and are smoother than the samples, whose slice
+# means scatter where few samples fall.
 
 # %%
 fig, axes = plt.subplots(1, 2, figsize=(10, 3.6), layout="constrained")

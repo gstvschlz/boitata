@@ -1,12 +1,12 @@
 """
-# Variogram volume
+# variogram volume
 
-A variogram map shows γ on one plane; in 3D the plane of best continuity is itself unknown. `variogram_volume`
-bins every pair by its lag vector into a cube of cells, the 3D variogram map, and reads the principal axes of
-continuity from a few hundred directions spread over the sphere. In each direction it finds the lag where γ reaches
-half the sill; under geometric anisotropy these lags trace an ellipsoid with the axes and ratios of the range
-ellipsoid. Its rotation and ratios go straight into `Variogram`. Here the axes are recovered from Zn composites
-across three stacked sulphide lenses and compared with the orientation of the lens solids.
+a variogram map shows γ on one plane; in 3D the plane of best continuity is itself unknown. `variogram_volume` bins
+every pair by its lag vector into a cube of cells, the 3D variogram map, and reads the principal axes of continuity from
+a few hundred directions spread over the sphere. in each direction it finds the lag where γ reaches half the sill. under
+geometric anisotropy these lags trace an ellipsoid with the axes and ratios of the range ellipsoid, and its rotation and
+ratios go straight into `Variogram`. the axes here come from Zn composites across three stacked sulfide lenses, compared
+with the orientation of the lens solids.
 """
 
 # %% [hidden]
@@ -23,13 +23,12 @@ import numpy as np
 from common import ACCENT, GRAY, HIGHLIGHT, save
 
 # %% [markdown]
-# ## Composites and the lens orientation
+# ## composites and the lens orientation
 #
-# Zn is high in the lenses and low in the rock around them, so the lenses are what is continuous. A composite
-# set inside the lenses alone would say little about their orientation: a lens is a few meters thick, so every
-# pair across it is a downhole pair. All 2 m composites are kept, and Zn is taken in logarithms to tame its
-# skew. The orientation of each lens solid is the plane through its vertices, whose pole is the direction of
-# least spread.
+# Zn is high in the lenses and low in the rock around them, so the lenses are the continuous bodies. composites inside
+# the lenses alone would say little about their orientation: a lens is a few meters thick, so every pair across it is a
+# downhole pair. the example keeps all 2 m composites and takes Zn in logarithms to tame its skew. the orientation of
+# each lens solid is the plane through its vertices, whose pole is the direction of least spread.
 
 # %%
 data = bt.datasets.stacked_sulphide_lenses()
@@ -61,10 +60,10 @@ lens_pole = np.mean(poles, axis=0)
 lens_pole /= np.linalg.norm(lens_pole)
 
 # %% [markdown]
-# ## The volume and its axes
+# ## the volume and its axes
 #
-# Lags of 15 m reach 225 m on each axis. Each direction sums the pairs within 15 degrees of it; a wider cone
-# averages in directions across the lenses and flattens the recovered dip.
+# lags of 15 m reach 225 m on each axis. each direction sums the pairs within 15 degrees of it; a wider cone averages in
+# directions across the lenses and flattens the recovered dip.
 
 # %%
 volume = bt.variogram_volume(composites, log_zn, 15.0, 225.0, tolerance=15.0)
@@ -83,13 +82,13 @@ print(f"mean lens plane:                        dips {lens_dip:.0f} towards {len
 print(f"minor axis to lens pole: {angle:.1f} degrees")
 
 # %% [markdown]
-# The major axis runs along strike, nearly horizontal; the semi-major axis runs down dip; the minor axis is
-# within a few degrees of the pole of the lenses. The plane of best continuity is the lens plane.
+# the major axis runs along strike, nearly horizontal; the semi-major axis runs down dip; the minor axis lies within a
+# few degrees of the pole of the lenses. the plane of best continuity is the lens plane.
 #
-# ## Slices through the principal planes
+# ## slices through the principal planes
 #
-# `bt.plot.variogram_volume` slices the cube through two principal axes and draws the range ellipse. In the plane
-# of the lenses γ climbs slowly; across them it climbs fast, then drops where the lag reaches the next lens.
+# `bt.plot.variogram_volume` slices the cube through two principal axes and draws the range ellipse. in the plane of the
+# lenses γ climbs slowly. across them it climbs fast, then drops where the lag reaches the next lens.
 
 # %%
 fig, axes = plt.subplots(1, 3, figsize=(12, 4.2), sharey=True, layout="constrained")
@@ -103,12 +102,11 @@ fig.colorbar(axes[0].collections[0], ax=axes, label="γ, log Zn", shrink=0.85)
 save(fig, "slices")
 
 # %% [markdown]
-# ## From the volume to a model
+# ## from the volume to a model
 #
-# Experimental variograms along the three axes, with the rotation and ratios held at the volume's values, leave
-# `Variogram.fit_directional` only the nugget, sill and range to find. Across the lenses γ reaches the sill near
-# 90 m and then falls back, as pairs 130 m apart land in the next lens: a hole effect the single structure
-# ignores.
+# with the rotation and ratios held at the volume's values, experimental variograms along the three axes leave
+# `Variogram.fit_directional` only the nugget, sill and range to find. across the lenses γ reaches the sill near 90 m
+# and then falls back, as pairs 130 m apart land in the next lens: a hole effect the single structure ignores.
 
 # %%
 experimentals = [

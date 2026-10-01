@@ -1,9 +1,9 @@
 """
-# Local proportions
+# local proportions
 
-Category proportions that vary in space: a vertical proportion curve, areal proportion maps, and their product as
-proportions in 3D that sum to 1 in every cell. Fed to `SIS` as `proportions=`, they keep each lithology where the
-data say it belongs; `check_realizations` then compares realizations with and without them.
+category proportions can vary in space: a vertical proportion curve, areal proportion maps, and their product as 3D
+proportions that sum to 1 in every cell. passed to `SIS` as `proportions=`, they keep each lithology where the data
+put it; `check_realizations` then compares realizations with and without them.
 """
 
 # %% [hidden]
@@ -20,9 +20,9 @@ import numpy as np
 from common import INK, map_axes, save
 
 # %% [markdown]
-# The tailings of [categories](../../07-categories-and-domains/01-categories/README.md), as a first campaign would see them: every third of the 107 sonic holes, composited to
-# 1 m, each composite taking the lithology that covers most of it. Clay is the foundation under the tailings, sand
-# settled in the north and slimes in the south. The facility sits on rolling ground, so the height of a composite
+# the tailings of [categories](../../07-categories-and-domains/01-categories/README.md), as a first campaign would see them: every third of the 107 sonic holes, composited to
+# 1 m, each composite taking the lithology that covers most of it. clay forms the foundation under the tailings, sand
+# settled in the north and slimes in the south. the facility sits on rolling ground, so the height of a composite
 # above the original ground orders the layers better than its elevation.
 
 # %%
@@ -40,12 +40,12 @@ weights = bt.cell_declustering(xyz[:, :2], height, cell_size=100.0).weights
 print(f"{len(composites)} composites, {height.min():.1f} to {height.max():.1f} m above the original ground")
 
 # %% [markdown]
-# ## Vertical proportion curve
+# ## vertical proportion curve
 #
 # `vertical_proportions` takes the weighted share of each category in slices of height, here 1 m slices of the
-# height above the original ground, passed as `elevation`. The declustering weights keep densely drilled parts from
-# dominating, and `scheme` fixes the order and names. The result is a Table: one row per slice, with its center,
-# its weight and one column per category.
+# height above the original ground, passed as `elevation`. the declustering weights keep densely drilled parts from
+# dominating, and `scheme` fixes the order and names. the result is a `Table` with one row per slice: its center, its
+# weight and one column per category.
 
 # %%
 curve = bt.vertical_proportions(
@@ -65,15 +65,15 @@ bt.plot.category_legend(scheme, ax, loc="upper left", bbox_to_anchor=(1.01, 1))
 save(fig, "vertical")
 
 # %% [markdown]
-# Clay fills the metres under the original ground; sand and slimes share the tailings, and the cap shows up at the
-# heights where the facility's top happens to be. The cap is a cover, tied to the surface rather than to the base,
-# so a depth below the surface would suit it better.
+# clay fills the meters under the original ground; sand and slimes share the tailings, and the cap appears at the
+# heights the facility's top reaches. the cap is a cover tied to the surface, so a depth below the surface would suit
+# it better than a height above the base.
 #
-# ## Areal proportion maps
+# ## areal proportion maps
 #
-# The areal proportions are `detrend` with `categorical=True` in plan: the declustered average of each category's
-# indicator under a Gaussian kernel, the bandwidth chosen by leave-one-out error. With `scheme` its columns follow
-# the curve's.
+# `detrend` with `categorical=True` in plan gives the areal proportions: the declustered average of each category's
+# indicator under a gaussian kernel, with the bandwidth chosen by leave-one-out error. with `scheme`, its columns
+# follow the curve's.
 
 # %%
 areal, _ = bt.detrend(
@@ -104,15 +104,15 @@ fig.colorbar(shown, ax=axes, label="Areal proportion", shrink=0.8)
 save(fig, "areal")
 
 # %% [markdown]
-# Sand dominates the north and slimes the south; clay, under the whole facility, is even.
+# sand dominates the north and slimes the south; clay, under the whole facility, is even.
 #
-# ## Proportions in 3D
+# ## proportions in 3D
 #
-# The model is a BlockModel of 20 × 20 × 1 m cells from 3 m under the original ground to the tailings surface.
-# `combine_proportions` multiplies, in each cell, the curve at the cell's height by the areal proportions at its
-# position, divides by the global proportions (the curve's weighted mean) and rescales to sum 1. Where the areal map
-# equals the global proportions the curve comes back unchanged; where it has more sand, every height above the clay
-# gets more sand. The same call gives the proportions at the composites.
+# the model is a `BlockModel` of 20 × 20 × 1 m cells from 3 m under the original ground to the tailings surface.
+# in each cell, `combine_proportions` multiplies the curve at the cell's height by the areal proportions at its
+# position, divides by the global proportions (the curve's weighted mean) and rescales to sum 1. where the areal map
+# equals the global proportions, the curve comes back unchanged; where it has more sand, each height above the clay
+# gets more sand. the same call gives the proportions at the composites.
 
 # %%
 plan20 = bt.BlockModel(origin=(4945.0, 1945.0), size=(20.0, 20.0), count=(41, 28))
@@ -138,10 +138,10 @@ print(
 # %% [markdown]
 # ## SIS with and without local proportions
 #
-# One indicator variogram per category, spherical with a sill of p(1 − p), 150 m across and 4 m vertically. Plain
-# `SIS` krigs each indicator by ordinary kriging from its neighbors. Given `proportions=` at `fit` and `simulate`,
-# a Table or an (n, k) array, it krigs the indicator minus its local proportion by simple kriging instead, so each
-# node is drawn towards the proportions of its own cell.
+# each category gets one spherical indicator variogram with a sill of p(1 − p), 150 m across and 4 m vertical. plain
+# `SIS` krigs each indicator by ordinary kriging from its neighbors. given `proportions=` at `fit` and `simulate`, as
+# a `Table` or an (n, k) array, it krigs the indicator minus its local proportion by simple kriging instead, which
+# pulls each node towards the proportions of its own cell.
 
 # %%
 shares = scheme.shares(codes, weights=weights)
@@ -155,7 +155,7 @@ runs = {
 }
 
 # %% [markdown]
-# A north-south section through the middle of the facility shows the difference. Far from the holes, plain SIS
+# a north-south section through the middle of the facility shows the difference. far from the holes, plain SIS
 # falls back on the global proportions and scatters clay through the tailings; with local proportions the clay stays
 # at the base, where the curve puts it.
 
@@ -172,12 +172,12 @@ bt.plot.category_legend(scheme, fig, loc="outside right upper")
 save(fig, "sections")
 
 # %% [markdown]
-# ## Checks
+# ## checks
 #
-# `check_realizations` ([realization checks](../../10-checking-models/04-realization-checks/README.md)) compares the category proportions of every realization with the declustered
-# data's. Both runs come within five points of them, the local one with more cap, which the curve spreads over every
-# height the facility's top reaches. The global shares hide where each category went; the share of clay among the
-# cells of each metre of height does not, and only the run with local proportions follows the curve.
+# `check_realizations` ([realization checks](../../10-checking-models/04-realization-checks/README.md)) compares the category proportions of each realization with the declustered
+# data's. both runs come within five points of them, the local one with more cap, which the curve spreads over each
+# height the facility's top reaches. the global shares hide where each category went. the share of clay in each meter
+# of height shows it, and only the run with local proportions follows the curve.
 
 # %%
 fig, axes = plt.subplots(1, 3, figsize=(12, 3.8), layout="constrained")

@@ -1,11 +1,11 @@
 """
-# Block model from extents
+# block model from extents
 
 `BlockModel.from_extents` sizes a grid from what it must cover: drill holes, meshes, points, lines or
-another grid. It measures the bounding box along the grid axes (rotated, if a rotation is given), adds a
+another grid. it measures the bounding box along the grid axes (rotated, if you give a rotation), adds a
 buffer, and can snap the origin to a multiple of the block size so that grids built from different data line
-up. Here three stacked sulphide lenses get a model from the drill holes, a tighter one from the lens solids,
-a rotated one that follows the lenses, and finally only the blocks inside them.
+up. here three stacked sulphide lenses get a model from the drill holes, a tighter one from the lens solids,
+a rotated one that follows the lenses, and one with only the blocks inside them.
 """
 
 # %% [hidden]
@@ -27,8 +27,8 @@ lenses = [data[f"lens_{i}"] for i in (1, 2, 3)]
 size = (20, 20, 10)
 
 # %% [markdown]
-# A model around every hole covers the whole drilled volume; one around the lens solids plus a 20 m buffer
-# is a quarter of it. `snap=True` puts both origins on multiples of the block size, so their blocks coincide.
+# a model around all holes covers the whole drilled volume. one around the lens solids plus a 20 m buffer is a
+# quarter of it. `snap=True` puts both origins on multiples of the block size, so their blocks coincide.
 
 # %%
 drilled = bt.BlockModel.from_extents(holes, size=size, snap=True)
@@ -57,8 +57,8 @@ map_axes(ax, "Plan: drill holes (light), lenses (gray) and the two models")
 save(fig, "extents")
 
 # %% [markdown]
-# The lenses strike about N22.5E and dip about 55 degrees. A grid rotated with them (y along strike, z
-# across the lenses) needs far fewer blocks for the same buffer: the extents are measured along its axes.
+# the lenses strike about N22.5E and dip about 55 degrees. a grid rotated with them (y along strike, z
+# across the lenses) needs far fewer blocks for the same buffer, because the extents are measured along its axes.
 
 # %%
 rotation = (22.5, 0.0, 55.0)
@@ -66,7 +66,7 @@ aligned = bt.BlockModel.from_extents(*lenses, size=size, buffer=20, rotation=rot
 print(f"aligned        count {aligned.count}  {len(aligned):,} blocks ({len(aligned) / len(around):.0%})")
 
 # %% [markdown]
-# Keeping only the blocks whose centroid falls inside a lens is `mask` with `Mesh.contains`:
+# to keep only the blocks whose centroid falls inside a lens, use `mask` with `Mesh.contains`:
 
 # %%
 inside = np.any([lens.contains(aligned.centroids) for lens in lenses], axis=0)

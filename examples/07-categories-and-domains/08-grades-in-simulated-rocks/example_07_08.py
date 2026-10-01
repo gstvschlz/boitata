@@ -1,7 +1,7 @@
 """
-# Grades in simulated rock types
+# grades in simulated rock types
 
-A grade simulated within a fixed rock-type model ignores the uncertainty of the contacts. Given one rock-type
+a grade simulated within a fixed rock-type model ignores the uncertainty of the contacts. given one rock-type
 realization per grade realization, SGS simulates realization k of the grade within realization k of the rock types,
 so the grade maps carry that uncertainty too.
 """
@@ -20,10 +20,10 @@ import numpy as np
 from common import save
 
 # %% [markdown]
-# ## Rock types
+# ## rock types
 #
-# Jura's rock types are known everywhere on the prediction grid. SIS ([sequential indicator simulation](../../07-categories-and-domains/06-sis/README.md)) draws 10 rock-type realizations from
-# indicator variograms fitted to the samples; Portlandian, with 3 samples, gets a guessed one.
+# jura's rock types are known at each node of the prediction grid. SIS ([sequential indicator simulation](../../07-categories-and-domains/06-sis/README.md)) draws 10 rock-type realizations from
+# indicator variograms fitted to the samples; portlandian, with 3 samples, gets a guessed one.
 
 # %%
 jura = bt.datasets.jura()
@@ -49,12 +49,12 @@ for k, name in enumerate(names):
     print(f"{name:<14}{np.sum(rock == k):8d}{train['Co'][rock == k].mean():7.2f}")
 
 # %% [markdown]
-# ## Grades within the rock types
+# ## grades within the rock types
 #
-# Fitted with `domains`, SGS normal-scores Co within each rock type, so the lean Argovian keeps its own distribution.
-# The variogram is fitted here to scores computed per rock type the same way. At `simulate`, `domains` is either one
-# row of labels, here the true rock types, which holds the domains fixed, or an array of shape `(n, targets)`, here
-# the SIS realizations, which gives each Co realization its own rock-type map.
+# fitted with `domains`, SGS normal-scores Co within each rock type, so the lean argovian keeps its own distribution.
+# the variogram here fits scores computed per rock type the same way. at `simulate`, `domains` takes one of two forms.
+# one row of labels (here the true rock types) holds the domains fixed; an array of shape `(n, targets)` (here the SIS
+# realizations) gives each Co realization its own rock-type map.
 
 # %%
 co = train["Co"]
@@ -94,7 +94,7 @@ for ax, (image, title, label, top) in zip(axes, panels):
 save(fig, "grades-in-rock-types")
 
 # %% [markdown]
-# Within the true rock types Co drops sharply at every Argovian contact, and averages 5.45 ppm on Argovian. Within
-# the SIS rock types the contacts move from one realization to the next, so the lean Argovian Co spreads over its
-# uncertain margin: the true Argovian averages 7.20 ppm, and where SIS is unsure of Argovian, a third of the nodes,
-# the spread of Co across realizations is 2.87 ppm against 2.07 ppm with the domains fixed.
+# within the true rock types, Co drops at each argovian contact and averages 5.45 ppm on argovian. within the SIS rock
+# types the contacts move from one realization to the next, so the lean argovian Co spreads over its uncertain margin:
+# the true argovian averages 7.20 ppm. where SIS is unsure of argovian (a third of the nodes), the spread of Co across
+# realizations is 2.87 ppm against 2.07 ppm with the domains fixed.

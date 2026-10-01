@@ -1,9 +1,9 @@
 """
-# Plurigaussian simulation
+# plurigaussian simulation
 
-Plurigaussian simulation (PGS) draws categories by truncating Gaussian fields: thresholds set by the proportions cut
-each field into categories, and a rule says which categories may touch. Where SIS ([sequential indicator simulation](../../07-categories-and-domains/06-sis/README.md)) gives each category
-its own indicator variogram, PGS controls the contacts between categories.
+plurigaussian simulation (PGS) draws categories by truncating gaussian fields: thresholds set by the proportions cut
+each field into categories, and a rule says which categories may touch. SIS ([sequential indicator simulation](../../07-categories-and-domains/06-sis/README.md)) gives each category
+its own indicator variogram; PGS controls the contacts between categories.
 """
 
 # %% [hidden]
@@ -20,16 +20,16 @@ import numpy as np
 from common import ACCENT, GRAY, save
 
 # %% [markdown]
-# ## Rules
+# ## rules
 #
-# Jura's rock types are known everywhere on the prediction grid, so simulated maps can be compared with the real
-# geology. A `Categories` scheme names the rock types and gives each a color: `encode` turns labels into the codes 0
+# jura's rock types are known at each node of the prediction grid, so you can compare simulated maps with the real
+# geology. a `Categories` scheme names the rock types and gives each a color: `encode` turns labels into the codes 0
 # to 4 that the simulations take, and `shares` gives their proportions.
 #
-# With one Gaussian field, the thresholds order the types, so each type touches only its neighbors in the order. A
-# hierarchical `rule` truncates several fields in turn: here the first sets Quaternary cover apart from the Jurassic,
-# and the second orders the Jurassic stages from Argovian to Portlandian, so the cover may touch every stage but each
-# stage touches only the next. Both use a guessed latent variogram of 0.8 km.
+# with one gaussian field, the thresholds order the types, so each type touches only its neighbors in the order. a
+# hierarchical `rule` truncates several fields in turn: here the first sets quaternary cover apart from the jurassic,
+# and the second orders the jurassic stages from argovian to portlandian. the cover may then touch any stage, and each
+# stage touches only the next. both use a guessed latent variogram of 0.8 km.
 
 # %%
 jura = bt.datasets.jura()
@@ -68,18 +68,18 @@ bt.plot.category_legend(rock_types, fig, loc="outside lower center", ncol=5)
 save(fig, "categories")
 
 # %% [markdown]
-# The single field keeps roughly to the sample proportions, but only allows contacts between neighbors in the order, so
-# Portlandian appears as specks along every Sequanian-Quaternary contact. The hierarchical rule puts Portlandian next
-# to Kimmeridgian and under the cover, as in the true map, and matches 51 % of the nodes against 37 %. Neither
-# recovers Portlandian's 5 % of the area from 3 of 259 samples.
+# the single field keeps close to the sample proportions but allows contacts only between neighbors in the order, so
+# portlandian appears as specks along each sequanian-quaternary contact. the hierarchical rule puts portlandian next
+# to kimmeridgian and under the cover, as in the true map, and matches 51 % of the nodes against 37 %. neither
+# recovers portlandian's 5 % of the area from 3 of 259 samples.
 
 # %% [markdown]
-# ## Local proportions
+# ## local proportions
 #
-# Proportions need not be global. Given local proportions at the samples at `fit` and at the nodes at `simulate`,
-# the rule's thresholds follow them, so each rock type is likelier where its samples cluster. Here they are the rock
-# types of the samples averaged with Gaussian weights of 300 m, shrunk towards the global proportions where samples
-# are sparse. The probabilities from [categorical indicator kriging](../../07-categories-and-domains/05-categorical-indicator-kriging/README.md) could serve as well.
+# given local proportions at the samples at `fit` and at the nodes at `simulate`, the rule's thresholds follow them,
+# so each rock type is likelier where its samples cluster. here the local proportions average the rock types of the
+# samples with gaussian weights of 300 m and shrink towards the global proportions where samples are sparse. the
+# probabilities from [categorical indicator kriging](../../07-categories-and-domains/05-categorical-indicator-kriging/README.md) could serve as well.
 
 # %%
 onehot = np.eye(5)[rock]
@@ -108,15 +108,15 @@ bt.plot.category_legend(rock_types, fig, loc="outside lower center", ncol=5)
 save(fig, "local-proportions")
 
 # %% [markdown]
-# With local proportions, Argovian keeps to the north-west and the south where its samples are, and the realization
+# with local proportions, argovian keeps to the north-west and the south, near its samples, and the realization
 # matches the true rock type at 57 % of the nodes, against 51 % with global proportions.
 
 # %% [markdown]
-# ## Latent variograms
+# ## latent variograms
 #
-# The latent variograms so far were guesses. Each rock type's indicator variogram follows from the rule and the
-# latent variograms, so `fit_variograms` rescales the latent ranges until those implied variograms match the
-# experimental ones; Portlandian, with 3 samples, is left out.
+# the latent variograms so far were guesses. the rule and the latent variograms imply each rock type's indicator
+# variogram, so `fit_variograms` rescales the latent ranges until the implied variograms match the experimental ones.
+# the fit leaves out portlandian, with 3 samples.
 
 # %%
 experimental = [
@@ -148,6 +148,6 @@ axes[0].legend(loc="lower right")
 save(fig, "latent-variograms")
 
 # %% [markdown]
-# The fitted cover field is short (0.49 km) and the stages field long (1.87 km), so the stages form broad bands that
-# the cover patches over; with 0.8 km on both, the stages varied too fast. The fitted variograms follow the
-# experimental points of every rock type and bring the match to 59 %.
+# the fitted cover field is short (0.49 km) and the stages field long (1.87 km), so the stages form broad bands that
+# the cover patches over; with 0.8 km on both, the stages varied too fast. the fitted variograms follow the
+# experimental points of each rock type and bring the match to 59 %.

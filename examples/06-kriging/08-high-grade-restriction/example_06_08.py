@@ -1,10 +1,10 @@
 """
-# High-grade restriction
+# high-grade restriction
 
-A rich sample informs every node its search reaches, so an isolated high value spreads its grade far beyond the
-ground it represents. `bt.HighGrade` restricts samples above a threshold beyond a distance: `mode="drop"` leaves them
-out, `mode="clamp"` keeps them at the threshold, and ranges with a rotation give the restriction an ellipse of its
-own. Each search pass carries its own restriction. Block kriging of Walker Lake `V` in 5 m blocks, checked against the
+a rich sample informs every node its search reaches, so an isolated high value spreads its grade far beyond the ground
+it represents. `bt.HighGrade` restricts samples above a threshold beyond a distance: `mode="drop"` leaves them out,
+`mode="clamp"` keeps them at the threshold, and ranges with a rotation give the restriction its own ellipse. each search
+pass carries its own restriction. the example block-kriges walker lake `V` in 5 m blocks and checks it against the
 exhaustive block averages.
 """
 
@@ -43,15 +43,16 @@ def search(high_grade=None, *, radius=80, min_samples=4):
 
 
 # %% [markdown]
-# ## Four restrictions
+# ## four restrictions
 #
-# The threshold is 600 ppm, reached by almost a third of the samples, and the restricted distance 20 m. The tuple `(600, 20)` is shorthand for `bt.HighGrade(600, 20)`, which drops. Clamp
-# keeps the far rich samples at 600 ppm, so they still pull the node up, less. The ellipse restricts to 40 m along
-# the continuity and 10 m across it. The passes restrict to 15 m in a tight first pass and to 30 m in the wide second,
-# and are compared with the same passes unrestricted.
+# the threshold is 600 ppm, reached by almost a third of the samples, and the restricted distance is 20 m. the tuple
+# `(600, 20)` is shorthand for `bt.HighGrade(600, 20)`, which drops. clamp keeps the far rich samples at 600 ppm, so
+# they still pull the node up, by less. the ellipse restricts to 40 m along the continuity and 10 m across it. the
+# passes restrict to 15 m in a tight first pass and to 30 m in the wide second, compared with the same passes
+# unrestricted.
 #
-# Blocks 20 to 50 m from the nearest rich sample are its halo: beyond the restricted distance, within the search.
-# That is where an unrestricted estimate spreads rich values, and where the restriction acts.
+# blocks 20 to 50 m from the nearest rich sample form its halo: beyond the restricted distance, within the search. there
+# an unrestricted estimate spreads rich values, and there the restriction acts.
 
 # %%
 threshold = 600
@@ -81,14 +82,14 @@ for name, s in searches.items():
     )
 
 # %% [markdown]
-# Unrestricted, the halo blocks are overestimated by 16 ppm on average. Dropping the rich samples beyond 20 m takes a
-# third of that off, and clamp lands between the two, as it must: a far rich sample enters at 600 ppm instead of its
-# grade or not at all. The ellipse, which lets rich samples reach twice as far along the continuity, does almost as
-# well as the circle. The restricted passes correct as much as the single restricted search.
+# unrestricted, the halo blocks are overestimated by 16 ppm on average. dropping the rich samples beyond 20 m takes a
+# third of that off, and clamp lands between the two, as it must: a far rich sample enters at 600 ppm instead of at its
+# grade or not at all. the ellipse, which lets rich samples reach twice as far along the continuity, does almost as well
+# as the circle. the restricted passes correct as much as the single restricted search.
 #
-# ## Metal above cutoff
+# ## metal above cutoff
 #
-# Metal above a cutoff, the sum of the block grades above it, relative to the exhaustive truth.
+# metal above a cutoff is the sum of the block grades above it, here relative to the exhaustive truth.
 
 # %%
 fig, (a, b) = plt.subplots(1, 2, figsize=(8.8, 3.6), layout="constrained")
@@ -112,12 +113,12 @@ b.spines["left"].set_color(LIGHT)
 save(fig, "modes")
 
 # %% [markdown]
-# At low cutoffs the unrestricted estimate puts slightly too much metal, and dropping brings it closest to the
-# truth. From 400 ppm up every estimate falls about a fifth short: that is the smoothing of kriging, which no
-# restriction cures. Above 650 ppm the restriction even adds metal. Inside dense clusters of rich samples, ordinary
-# kriging gives the screened far ones small negative weights ([search](../../06-kriging/06-search/README.md)); dropping a negative weight on a high value
-# raises the estimate, and clamping, which swaps it for a negative weight on the lower threshold, raises it too.
+# at low cutoffs the unrestricted estimate puts a little too much metal, and dropping brings it closest to the truth.
+# from 400 ppm up every estimate falls about a fifth short: that is the smoothing of kriging, which no restriction
+# cures. above 650 ppm the restriction even adds metal. inside dense clusters of rich samples, ordinary kriging gives
+# the screened far ones small negative weights ([search](../../06-kriging/06-search/README.md)). dropping a negative
+# weight on a high value raises the estimate, and clamping, which swaps it for a negative weight on the lower threshold,
+# raises it too.
 #
-# The cross-validation mean error follows none of this closely: the samples sit in the clusters, where the
-# restriction acts through those negative weights, not in the halos. The truth, or a simulated one, is the better
-# judge of a restriction.
+# the cross-validation mean error follows little of this: the samples sit in the clusters, where the restriction acts
+# through those negative weights, and not in the halos. judge a restriction against the truth, or a simulated one.

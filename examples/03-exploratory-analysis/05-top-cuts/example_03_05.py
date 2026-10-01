@@ -1,9 +1,9 @@
 """
-# Top cuts
+# top cuts
 
-Gold in four quartz veins, V1 to V4, sampled by diamond holes and underground channels. A handful of extreme assays
-carry much of the metal, and one of them next to a block would lend it its grade. Capping the grades at a top cut
-limits their influence; the question is where to cut and what it costs in metal.
+gold in four quartz veins, V1 to V4, sampled by diamond holes and underground channels. a handful of extreme assays
+carry much of the metal, and one of them next to a block would lend it its grade. capping the grades at a top cut
+limits their influence. you need to decide where to cut and how much metal the cut costs.
 """
 
 # %% [hidden]
@@ -28,17 +28,18 @@ au = quartz["AU_GPT"]
 print(f"{len(quartz)} composites of 1 m in quartz vein, mean Au {au.mean():.2f} g/t, max {au.max():.0f} g/t")
 
 # %% [markdown]
-# Channels crowd the developed levels, so the composites are declustered first, in 20 m cells ([declustering](../../03-exploratory-analysis/03-declustering/README.md)).
+# channels crowd the developed levels, so the composites are first declustered in 20 m cells
+# ([declustering](../../03-exploratory-analysis/03-declustering/README.md)).
 
 # %%
 weights = bt.cell_declustering(quartz, "AU_GPT", cell_size=20.0).weights
 print(f"declustered mean Au {np.average(au, weights=weights):.2f} g/t")
 
 # %% [markdown]
-# ## How much metal sits in the tail
+# ## how much metal sits in the tail
 #
-# `capping` tries caps at high quantiles and reports, for each, the share of weight above it, the metal removed and
-# the capped mean and CV.
+# `capping` tries caps at high quantiles and reports, for each, the share of weight above it, the metal removed, and the
+# capped mean and CV.
 
 # %%
 caps = bt.capping("AU_GPT", weights=weights, data=quartz)
@@ -47,12 +48,12 @@ for cap, above, metal, mean, cv in zip(*(caps[c] for c in caps.column_names), st
     print(f"{cap:>7.1f}{100 * above:>11.2f}{100 * metal:>11.1f}{mean:>7.2f}{cv:>6.2f}")
 
 # %% [markdown]
-# The top 1 % of the weight holds 11.5 % of the metal, the top 10 % holds 36.5 %. The CV climbs from 1.07 at the
-# lowest cap to 2.34 at the highest: the tail, not the body, makes gold grades erratic.
+# the top 1 % of the weight holds 11.5 % of the metal, and the top 10 % holds 36.5 %. the CV climbs from 1.07 at the
+# lowest cap to 2.34 at the highest: the tail makes gold grades erratic.
 #
-# The log-probability plot shows where the tail breaks away from the body of the distribution. The dotted Tukey
-# fences sit 1.5 interquartile ranges beyond the quartiles of log Au; the dashed line is a cap at the declustered
-# P99 of the vein.
+# the log-probability plot shows where the tail breaks away from the body of the distribution. the dotted tukey fences
+# sit 1.5 interquartile ranges beyond the quartiles of log Au, and the dashed line is a cap at the declustered P99 of
+# the vein.
 
 # %%
 stats = bt.describe_by("AU_GPT", "VEIN", weights=weights, quantiles=[0.5, 0.99], data=quartz)
@@ -70,14 +71,14 @@ axes[1].set_ylabel("")
 save(fig, "probability")
 
 # %% [markdown]
-# Both veins plot near a straight line, a lognormal body, up to about P99; above it the points thin out, with the
-# 1192 g/t channel alone at the top of V2. The upper fences, near 110 g/t, agree with a cap around P99.
+# both veins plot near a straight line (a lognormal body) up to about P99. above it the points thin out, with the 1192
+# g/t channel alone at the top of V2. the upper fences, near 110 g/t, agree with a cap around P99.
 
 # %% [markdown]
-# ## One cap per vein
+# ## one cap per vein
 #
-# `capping_report` applies one cap per domain and compares the declustered statistics before and after, with the
-# metal removed; the last row pools the veins.
+# `capping_report` applies one cap per domain and compares the declustered statistics before and after, with the metal
+# removed; the last row pools the veins.
 
 # %%
 report = bt.capping_report("AU_GPT", top, domain_column="VEIN", weights=weights, data=quartz)
@@ -93,7 +94,6 @@ for name, c, n, cut, mean, capped, cv, cv_capped in zip(*(report[k] for k in col
     )
 
 # %% [markdown]
-# The caps cut 47 composites in V1 and 23 in V2, and remove 10.8 % and 15.4 % of their metal; pooled, 11.1 % of the
-# metal goes and the CV falls from 3.22 to 1.78. V3 and V4 hold about a hundred composites each, too few for a P99 to
-# mean much: in V3 it is the maximum and cuts nothing. A small domain is better capped with the cap of a similar,
-# larger one.
+# the caps cut 47 composites in V1 and 23 in V2, and remove 10.8 % and 15.4 % of their metal. pooled, the veins lose
+# 11.1 % of the metal and the CV falls from 3.22 to 1.78. V3 and V4 hold about a hundred composites each, too few for a
+# P99 to mean much: in V3 it is the maximum and cuts nothing. cap a small domain with the cap of a similar, larger one.

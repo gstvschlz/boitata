@@ -1,10 +1,10 @@
 """
-# Mesh files
+# mesh files
 
 `read_mesh` and `write_mesh` handle OBJ, STL (binary or ASCII) and DXF, chosen by the file extension.
-`Mesh.analysis` reports what keeps a mesh from being a solid, and `Mesh.repair` fixes what it can. Here the four
-gold veins of the grade-control dataset are read from their STL files, written back in every format, and one is
-broken into loose triangles and repaired.
+`Mesh.validate` reports what keeps a mesh from being a solid, and `Mesh.repair` fixes what it can. you read the
+four gold veins of the grade-control dataset from their STL files, write them back in each format, then break one
+into loose triangles and repair it.
 """
 
 # %% [hidden]
@@ -23,8 +23,8 @@ import numpy as np
 from common import save
 
 # %% [markdown]
-# `bt.datasets.fetch` gives the local path of a dataset file. Reading welds corners repeated between triangles, as
-# STL stores each triangle with its own three corners; the veins come back closed, with a volume and an area.
+# `bt.datasets.fetch` gives the local path of a dataset file. STL stores each triangle with its own three corners,
+# so reading welds the repeated corners. the veins come back closed, with a volume and an area.
 
 # %%
 veins = {}
@@ -35,7 +35,7 @@ for name in ("V1", "V2", "V3", "V4"):
     print(f"{name}: {path.stat().st_size / 1e6:.1f} MB, {mesh}, {mesh.volume:,.0f} m3, {mesh.area:,.0f} m2")
 
 # %% [markdown]
-# The veins in plan at 700 m and on an east–west section at northing 15 000 m:
+# the veins in plan at 700 m and on an east-west section at northing 15 000 m:
 
 # %%
 planes = {
@@ -56,30 +56,38 @@ for ax, (title, plane) in zip(axes, planes.items()):
 save(fig, "veins")
 
 # %% [markdown]
-# Each format round-trips the vein. Binary STL stores single precision, so vertices can move by a fraction of a
-# millimeter at mine coordinates; these files were written in single precision and come back unchanged. DXF
-# writes 3D faces and reads them back with a `layer` column per triangle.
+# each format round-trips the vein. binary STL stores single precision, so vertices can move by a fraction of a
+# millimeter at mine coordinates. these files were written in single precision and come back unchanged. DXF
+# writes one 3D face per triangle, or with `dxf_entity="polyface"` polyface meshes that share vertices. both read
+# back with a `layer` column per triangle.
 
 # %%
 v1 = veins["V1"]
+files = {
+    "v1.stl": {},
+    "v1_ascii.stl": {"ascii": True},
+    "v1.obj": {},
+    "v1.dxf": {},
+    "v1_polyface.dxf": {"dxf_entity": "polyface"},
+}
 with tempfile.TemporaryDirectory() as folder:
-    for file, options in [("v1.stl", {}), ("v1_ascii.stl", {"ascii": True}), ("v1.obj", {}), ("v1.dxf", {})]:
+    for file, options in files.items():
         path = Path(folder) / file
         bt.write_mesh(path, v1, **options)
         back = bt.read_mesh(path)
         shift = np.abs(back.vertices[back.triangles] - v1.vertices[v1.triangles]).max()
         print(
-            f"{file:>12}: {path.stat().st_size / 1e6:5.1f} MB, {len(back.triangles)} triangles,"
+            f"{file:>15}: {path.stat().st_size / 1e6:5.1f} MB, {len(back.triangles)} triangles,"
             f" {back.volume:,.0f} m3, largest shift {shift * 1000:.3f} mm, columns {back.face_attributes.column_names}"
         )
 
 # %% [markdown]
-# ## Repair
+# ## repair
 #
-# A solid from elsewhere can arrive as loose triangles: each with its own copy of its corners, rounded
-# differently, and wound either way. It shares no edges, so it is not closed and has no volume. Here V1 is broken
+# a solid from elsewhere can arrive as loose triangles, each with its own copy of its corners, rounded
+# differently and wound either way. such a mesh shares no edges, so it is open and has no volume. here V1 is broken
 # that way, with corners moved by about 0.01 mm. `repair` welds corners within `tolerance`, drops degenerate and
-# repeated triangles, and winds each piece consistently, outward where it is closed. The tolerance has to exceed
+# repeated triangles, and winds each piece consistently, outward where it is closed. the tolerance has to exceed
 # the rounding and stay below the shortest edge, or welding collapses triangles and opens new holes:
 
 # %%
@@ -90,7 +98,7 @@ flip = rng.random(len(loose)) < 0.5
 loose[flip] = loose[flip, ::-1]
 broken = bt.Mesh(corners.reshape(-1, 3), loose)
 edges = np.linalg.norm(corners - np.roll(corners, 1, axis=1), axis=2)
-print(broken, broken.analysis)
+print(broken, broken.validate().summary)
 print(f"shortest edge {edges.min() * 1000:.1f} mm")
 for tolerance in (1e-6, 1e-4, 5e-3):
     attempt = broken.repair(tolerance=tolerance)

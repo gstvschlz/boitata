@@ -1,9 +1,9 @@
 """
-# Several training images
+# several training images
 
-When the geology changes across a model, one image cannot hold every pattern. SNESIM takes a training image per
-domain, `{domain: (model, column)}`, and `simulate` picks each cell's image from its domain. The images share one set
-of codes, so a code means the same everywhere.
+if the geology changes across a model, one image cannot hold all its patterns. SNESIM takes a training image per
+domain, `{domain: (model, column)}`, and `simulate` picks each cell's image from its domain. the images share one set
+of codes, so a code means the same in each domain.
 """
 
 # %% [hidden]
@@ -26,8 +26,8 @@ grid = bt.BlockModel((0, 0), (1, 1), (n, n))
 
 
 # %% [markdown]
-# The second image is built from objects: sand lenses about 36 by 10 cells, lying east-west, over 30 % of a grid the size
-# of Strebelle.
+# objects build the second image: sand lenses about 36 by 10 cells, lying east-west, over 30 % of a grid the size of
+# strebelle.
 
 # %%
 lens = {"shape": "ellipsoid", "code": 1, "proportion": 0.3, "radii": (18, 5), "azimuth": (80, 100)}
@@ -36,7 +36,7 @@ print(f"sand: channels {channels['facies'].mean():.1%}, lenses {lenses['facies']
 
 
 # %% [markdown]
-# Two domains split by a line dipping east: channels in the south, lenses in the north. Twenty realizations, with the
+# a line dipping east splits two domains: channels in the south, lenses in the north. twenty realizations, with the
 # sand share of each domain against its image:
 
 # %%
@@ -49,14 +49,14 @@ for name, image in (("channels", channels), ("lenses", lenses)):
     print(f"{name}: realizations {share:.1%} sand, image {image['facies'].mean():.1%}")
 
 # %%
-codes = ListedColormap(["black", "white"])
+codes = ListedColormap(["white", "black"])
 boundary = (domains == "lenses").reshape(n, n).astype(float)
 fig, axes = plt.subplots(1, 4, figsize=(15, 4), layout="constrained")
 panels = (
     (channels["facies"], "Image: channels", codes),
     (lenses["facies"], "Image: lenses", codes),
     (summary.realizations[0], "Realization 1", codes),
-    (summary.probabilities[:, 1], "P(sand), 20 realizations", "gray"),
+    (summary.probabilities[:, 1], "P(sand), 20 realizations", "gray_r"),
 )
 for ax, (values, title, cmap) in zip(axes, panels):
     im = ax.imshow(values.reshape(n, n), origin="lower", cmap=cmap, vmin=0, vmax=1, interpolation="nearest")
@@ -69,7 +69,7 @@ fig.colorbar(im, ax=axes[3], shrink=0.8, label="probability")
 save(fig, "zones")
 
 # %% [markdown]
-# The boundary stays visible as a line: a cell next to it reads neighbors from both sides, which joins a channel to a
-# lens where they meet, but the change of pattern itself is abrupt. The images may differ in size but not in kind: a
-# dict of continuous images works the same way, each domain drawing its values from its own image. Hard data,
+# the boundary stays visible as a line. a cell next to it reads neighbors from both sides, which joins a channel to a
+# lens where they meet, but the change of pattern is abrupt. the images may differ in size and must share a kind: a
+# dict of continuous images works the same way, each domain drawing its values from its own image. hard data,
 # `anisotropy` and `target_proportions` combine with domains as without them.

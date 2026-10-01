@@ -1,9 +1,9 @@
 """
-# Models larger than memory
+# models larger than memory
 
-A block model can stay in a Parquet file and be processed a chunk at a time, so its size is limited by the disk, not
-by memory. Here the iron ore of an iron formation plateau is simulated on 5 m blocks, millions of them, by domain and
-around a trend, without ever holding more than a million blocks.
+a block model can stay in a parquet file and be processed a chunk at a time, so the disk limits its size instead
+of memory. here you simulate the iron ore of an iron formation plateau on millions of 5 m blocks, by domain and
+around a trend, without holding more than a million blocks at once.
 """
 
 # %% [hidden]
@@ -24,8 +24,8 @@ import numpy as np
 from common import HIGHLIGHT, save
 
 # %% [markdown]
-# The dataset's block model codes each 25 × 25 × 12 m block with a lithology. Two ore domains group them: hematite
-# (friable, compact and canga) and itabirite (friable and compact); laterite and mafic dykes are left out. The 6 m
+# the dataset's block model codes each 25 × 25 × 12 m block with a lithology. two ore domains group them: hematite
+# (friable, compact and canga) and itabirite (friable and compact). laterite and mafic dykes stay out. the 6 m
 # composites take the domain of the block they fall in.
 
 # %%
@@ -48,9 +48,9 @@ for name in ("hematite", "itabirite"):
     print(f"{name:10} {count:6,} blocks of 25 m, {inside.sum():5} composites")
 
 # %% [markdown]
-# `from_extents` sizes a 5 m grid on the block model ([block model from extents](../../02-data-and-geometry/12-block-model-from-extents/README.md)). Only the blocks whose center falls in an ore block
-# are kept, found one level at a time; they are a masked model, the grid geometry plus the sorted index of the cells
-# present, written to Parquet. `BlockModelFile` opens it without reading the blocks.
+# `from_extents` sizes a 5 m grid on the block model ([block model from extents](../../02-data-and-geometry/12-block-model-from-extents/README.md)). the model keeps only the blocks whose
+# center falls in an ore block, found one level at a time. they form a masked model (the grid geometry plus the
+# sorted index of the cells present), written to parquet. `BlockModelFile` opens it without reading the blocks.
 
 # %%
 folder = Path(tempfile.mkdtemp())
@@ -65,11 +65,11 @@ size = (folder / "blocks.parquet").stat().st_size / 1e6
 print(f"grid {grid.count}: {len(file):,} of {len(grid):,} blocks of 5 m kept, {size:.0f} MB")
 
 # %% [markdown]
-# The plateau is weathered from the top, so within a domain iron still drifts with position. A smooth trend per
-# domain ([smooth trend](../../04-transforms/08-smooth-trend/README.md)), with a 400 m kernel flattened to 80 m vertically, takes that out, and the residuals are
-# simulated. The trend is smooth enough to be evaluated on the 25 m blocks. `map_blocks` streams the file through any
-# function of a chunk and writes the columns it returns next to the input's: here each block's domain and trend,
-# looked up in the 25 m model.
+# weathering acts from the top of the plateau, so within a domain iron still drifts with position. a smooth trend per
+# domain ([smooth trend](../../04-transforms/08-smooth-trend/README.md)), with a 400 m kernel flattened to 80 m vertically, takes that out, and you
+# simulate the residuals. the trend is smooth enough to evaluate on the 25 m blocks. `map_blocks` streams the file
+# through any function of a chunk and writes the columns it returns next to the input's: here each block's domain
+# and trend, looked up in the 25 m model.
 
 # %%
 at_data, at_model = np.zeros(len(fe)), np.zeros(len(model))
@@ -91,12 +91,12 @@ print(f"domains and trend in {time.perf_counter() - start:.0f} s")
 print(f"trend at the composites: variance {at_data.var():.0f} of {fe.var():.0f} %²")
 
 # %% [markdown]
-# Turning bands simulates every realization's bands once over the model's extent, then evaluates and conditions
-# them chunk by chunk. Fitted with the domains and the trend at the data, each domain gets its own normal-score
-# transform of the residuals; `simulate_to_parquet` then reads each block's domain and trend from the columns named
-# by `domain_column` and `trend`. It writes the same summary `simulate` would return for the whole model, plus each
-# realization's global statistics. `keep=` writes chosen realizations beside the summary, here the first, as
-# `realization_0`.
+# turning bands simulates the bands of each realization once over the model's extent, then evaluates and
+# conditions them chunk by chunk. fitted with the domains and the trend at the data, each domain gets its own
+# normal-score transform of the residuals. `simulate_to_parquet` then reads each block's domain and trend from the
+# columns named by `domain_column` and `trend`. it writes the same summary `simulate` would return for the whole
+# model, plus the global statistics of each realization. `keep=` writes chosen realizations beside the summary, here
+# the first, as `realization_0`.
 
 # %%
 scores = bt.NormalScore().fit_transform(fe - at_data)
@@ -132,10 +132,10 @@ first = np.concatenate(
 print(f"first realization: mean {first.mean():.2f} % Fe, as accumulated {result['realization_mean'][0]:.2f}")
 
 # %% [markdown]
-# Mining selects the 25 × 25 × 12 m blocks, not 5 m ones. With `discretization`, each block of a file is simulated
-# at nodes, here 3 × 3 × 2, and the realizations are averaged over the block, as
-# `simulate(model.discretize(...), blocks=model)` would; a node takes its block's domain and trend. The blocks are
-# read a chunk at a time, so their nodes never outgrow memory either.
+# mining selects 25 × 25 × 12 m blocks. with `discretization`, each block of a file is simulated at nodes, here
+# 3 × 3 × 2, and the realizations are averaged over the block, as `simulate(model.discretize(...), blocks=model)`
+# would do. a node takes its block's domain and trend. the blocks load a chunk at a time, so their nodes stay within
+# memory too.
 
 # %%
 bt.write_parquet(folder / "model.parquet", model)
@@ -155,10 +155,10 @@ low, high = np.quantile(panel["realization_above"][:, 0], [0.1, 0.9])
 print(f"{len(model):,} blocks of 25 m in {seconds:.0f} s; above 60 % Fe: P10 {low:.1%}, P90 {high:.1%}")
 
 # %% [markdown]
-# Averaging smooths the highs: about 15 % of the 25 m blocks pass 60 % Fe, against 22 % of the 5 m blocks.
+# averaging smooths the highs: about 15 % of the 25 m blocks pass 60 % Fe, against 22 % of the 5 m blocks.
 #
-# The output is too big to want in memory, so the east–west section with the most composites is collected from the
-# chunks, reading only the columns it needs, into a small model of its own.
+# the output is too big for memory, so you collect the east-west section with the most composites from the chunks,
+# reading only the columns it needs, into a small model of its own.
 
 # %%
 row = int(np.bincount(((xyz[:, 1] - grid.origin[1]) // 5).astype(int), minlength=ny).argmax())

@@ -1,9 +1,8 @@
 """
-# Contact surfaces
+# contact surfaces
 
-A geological unit is modeled from where the drill holes cross its contacts. Here lens 1 of the stacked sulphide
-lenses is modeled from its logged contacts with three engines, and each model is scored against the supplied
-`lens_1.stl` solid.
+you can model a geological unit from where the drill holes cross its contacts. here three engines model lens 1 of
+the stacked sulphide lenses from its logged contacts, and the supplied `lens_1.stl` solid scores each model.
 """
 
 # %% [hidden]
@@ -25,10 +24,10 @@ lens = data["lens_1"]
 print(f"lens 1: closed {lens.is_closed}, {lens.volume / 1e6:.2f} Mm3")
 
 # %% [markdown]
-# The logs say `MS` or `SMS` for all three lenses; the intervals of lens 1 are those whose middle lies in its
-# solid. Every change between lens 1 and other rock down a hole is a contact; `Drillholes.at` places it in space from
-# the desurveyed path. The field is pinned to 0 at the contacts, +1 at the middle of each lens interval and −1
-# outside, using the intervals next to a contact and a sparse subset of the others.
+# the logs say `MS` or `SMS` for all three lenses; the intervals of lens 1 are those whose middle lies in its solid.
+# each change between lens 1 and other rock down a hole is a contact, and `Drillholes.at` places it in space from the
+# desurveyed path. the codes pin the field to 0 at the contacts, +1 at the middle of each lens interval and −1
+# outside, from the intervals next to a contact and a sparse subset of the others.
 
 # %%
 holes = bt.Drillholes(data["collars"], data["surveys"], data["lithology"])
@@ -54,12 +53,11 @@ print(
 )
 
 # %% [markdown]
-# The lens strikes N22.5°E and dips 60° to the east-southeast, so the anisotropy axes run along strike, down dip and
-# across the lens (`rotation` azimuth 22.5, dip 0, rake 60). The `kriging` engine is a potential field: dual
-# kriging with a covariance, here of 200 m along strike, 100 m down dip and 20 m across (`ratios` 0.5 and 0.1). The
-# RBF takes the same anisotropy; the Gaussian process (GP) learns its own ranges along the `rotation` axes. Each
-# model's lens is compared with the solid on 5 m cells: the share of the solid it covers, and of its own volume that
-# lies outside the solid.
+# the lens strikes N22.5°E and dips 60° to the east-southeast, so the anisotropy axes run along strike, down dip and
+# across the lens (`rotation` azimuth 22.5, dip 0, rake 60). the `kriging` engine is a potential field: dual kriging
+# with a covariance, here of 200 m along strike, 100 m down dip and 20 m across (`ratios` 0.5 and 0.1). the RBF takes
+# the same anisotropy; the gaussian process (GP) learns its own ranges along the `rotation` axes. on 5 m cells, each
+# model's lens meets the solid: the share of the solid it covers, and the share of its own volume outside the solid.
 
 # %%
 rotation, ratios = (22.5, 0, 60), (0.5, 0.1)
@@ -89,11 +87,11 @@ for name, model in models.items():
 print(f"GP ranges {[round(r) for r in models['GP'].report['lengthscales']]} m")
 
 # %% [markdown]
-# Kriging with a spherical covariance and the RBF honor every contact and agree with the solid on all but a thin
-# rind. The cubic covariance, smooth at the origin, overshoots between codes a few meters apart and swells the lens.
-# The GP explains a sixth of the codes as noise and stretches its ranges along strike and down dip far beyond the
-# window, so its lens is a slab that leaves the solid at both ends. On a vertical section down the dip, with the
-# trace of the solid in black:
+# kriging with a spherical covariance and the RBF honor each contact and agree with the solid except for a thin rind.
+# the cubic covariance, smooth at the origin, overshoots between codes a few meters apart and swells the lens. the GP
+# explains a sixth of the codes as noise and stretches its ranges along strike and down dip far beyond the window,
+# so its lens is a slab that leaves the solid at both ends. on a vertical section down the dip, with the trace of the
+# solid in black:
 
 # %%
 center = lens.vertices.mean(axis=0)
@@ -120,4 +118,4 @@ save(fig, "section")
 
 # %% [markdown]
 # `isosurface(cells, closed=True)` turns a field into a solid mesh, which `BlockModel.from_meshes` and `subblock`
-# turn into a domain model (see [sub-blocks](../../02-data-and-geometry/06-sub-blocks/README.md)). Plane and lineation readings are in [structural data](../../11-geological-modeling/03-structural-data/README.md).
+# turn into a domain model (see [sub-blocks](../../02-data-and-geometry/06-sub-blocks/README.md)). [structural data](../../11-geological-modeling/03-structural-data/README.md) adds plane and lineation readings.

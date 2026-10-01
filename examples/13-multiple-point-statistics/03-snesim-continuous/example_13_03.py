@@ -1,10 +1,10 @@
 """
-# Continuous SNESIM
+# continuous SNESIM
 
-SNESIM counts patterns of categories, so a continuous variable is first cut into a few classes. SNESIM simulates the
+SNESIM counts patterns of categories, so it first cuts a continuous variable into a few classes. it simulates the
 classes, then each cell takes a value from a cell of the training image in its class: of 32 drawn at random, the
-one whose neighbors best match the values already simulated around it. The example fills a seismic section between
-five traces, using other sections of the same survey as the training image.
+one whose neighbors best match the values already simulated around it. here SNESIM fills a seismic section between
+five traces, with other sections of the same survey as the training image.
 """
 
 # %% [hidden]
@@ -27,10 +27,10 @@ print(f"{nx} x {ny} traces of {nz} samples, amplitude {cube.min():.0f} to {cube.
 
 
 # %% [markdown]
-# A section is 45 traces by 51 samples. One section holds few patterns, so the training image lays ten sections side by
-# side, every third one from the first. The section to simulate lies 13 sections past the last of them, and five
-# of its traces, 225 m apart, are the hard data. Cells are 25 m by 4 ms; patterns are read cell by cell, so the image and
-# the section share that size.
+# a section is 45 traces by 51 samples. one section holds few patterns, so the training image lays ten sections side
+# by side, every third one from the first. the section to simulate lies 13 sections past the last of them, and five
+# of its traces, 225 m apart, are the hard data. cells are 25 m by 4 ms; SNESIM reads patterns cell by cell, so the
+# image and the section share that size.
 
 # %%
 image = np.hstack([cube[:, j, :] for j in range(0, 30, 3)])
@@ -45,8 +45,8 @@ values = truth[at_traces]
 
 
 # %% [markdown]
-# The default cutoffs are the image's quartiles: four classes keep the patterns frequent enough to count. With ten
-# classes there are too many arrangements, and most of the time a cell falls back to the class proportions.
+# the default cutoffs are the image's quartiles: four classes keep the patterns frequent enough to count. ten classes
+# give too many arrangements, and most cells fall back to the class proportions.
 
 # %%
 snesim = bt.SNESIM(ti, "amplitude").fit(wells, values)
@@ -62,9 +62,9 @@ print(
 
 
 # %% [markdown]
-# Each realization carries the main reflectors from trace to trace, but it is rougher than the seismic: the patterns
-# are those of four classes, and within a class a value only matches its 8 nearest neighbors. The mean of 50 keeps
-# what the traces fix and smooths the rest.
+# each realization carries the main reflectors from trace to trace, but it is rougher than the seismic: the patterns
+# come from four classes, and within a class a value matches only its 8 nearest neighbors. the mean of 50 keeps what
+# the traces fix and smooths the rest.
 
 # %%
 extent = (0, nx * 25, 1600 + nz * 4, 1600)
@@ -95,8 +95,8 @@ save(fig, "sections")
 
 
 # %% [markdown]
-# Every value comes from the image, yet the realizations follow the true section's histogram more closely than the
-# image's: the five traces, a tenth of the section, carry its proportions of each class into the patterns around them.
+# each value comes from the image, yet the realizations follow the true section's histogram closer than the image's:
+# the five traces, a tenth of the section, carry its proportions of each class into the patterns around them.
 
 # %%
 fig, ax = plt.subplots(figsize=(6, 3.8), layout="constrained")
@@ -114,5 +114,5 @@ ax.legend(loc="lower right")
 save(fig, "histograms")
 
 # %% [markdown]
-# Categories are the usual case: see [the multigrid](../../13-multiple-point-statistics/01-snesim-multigrid/README.md) and
+# categories are the usual case: see [the multigrid](../../13-multiple-point-statistics/01-snesim-multigrid/README.md) and
 # [conditioning](../../13-multiple-point-statistics/02-snesim-conditioning/README.md).

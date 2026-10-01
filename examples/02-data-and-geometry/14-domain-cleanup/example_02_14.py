@@ -1,9 +1,9 @@
 """
-# Domain cleanup
+# domain cleanup
 
-A rock-type model estimated or simulated block by block carries specks: single blocks or small clusters of one
+a rock-type model estimated or simulated block by block carries specks: single blocks or small clusters of one
 rock inside another, too small to mine or to model apart. `remove_small_units` finds the connected units of each
-rock and gives every unit below a minimum volume to the rock around it. `contact_distance` then measures how far each
+rock and gives each unit below a minimum volume to the rock around it. `contact_distance` then measures how far each
 block is from a contact, and `buffer_domains` labels the blocks within a given distance of one: the transition zone
 where a soft boundary ([soft boundaries](../../06-kriging/13-soft-boundaries/README.md)) lets samples cross.
 """
@@ -24,11 +24,11 @@ import numpy as np
 from common import save
 
 # %% [markdown]
-# ## A speckled rock model
+# ## a speckled rock model
 #
-# The most likely rock from [categorical indicator kriging](../../07-categories-and-domains/05-categorical-indicator-kriging/README.md) of the logged rock types of the stacked sulphide
-# lenses on a vertical section across strike, cells of 10 m, one cell thick. Cells the search left unestimated are
-# dropped. Choosing the most likely rock cell by cell leaves specks, such as the sulphide cells inside the footwall
+# the most likely rock from [categorical indicator kriging](../../07-categories-and-domains/05-categorical-indicator-kriging/README.md) of the logged rock types of the stacked sulphide
+# lenses on a vertical section across strike, cells of 10 m, one cell thick. cells the search left unestimated are
+# dropped. choosing the most likely rock cell by cell leaves specks, such as the sulphide cells inside the footwall
 # volcanics on the left.
 
 # %%
@@ -72,13 +72,14 @@ section = section.with_columns({"rock": most_likely[~np.isnan(most_likely)]})
 print(f"{len(section)} cells of {section.volumes[0]:.0f} m³")
 
 # %% [markdown]
-# ## Removing the specks
+# ## removing the specks
 #
-# A unit is a set of blocks of one rock joined through shared faces (`connectivity=6`, here the four neighbors in
-# the section) or also through edges and corners (`connectivity=26`). Units are taken smallest first; each goes to
-# the rock with the most volume among the blocks touching it, and merges with the units of that rock. A unit left
-# below the minimum is one with no neighbor to join, walled in by absent cells or, with `domains=`, by other domains;
-# here there are none. The minimum is five cells, 5000 m³. The total volume does not change, only its split.
+# a unit is a set of blocks of one rock joined through shared faces (`connectivity=6`, here the four neighbors in
+# the section) or also through edges and corners (`connectivity=26`). units go smallest first. each goes to the
+# rock with the most volume among the blocks touching it and merges with the units of that rock. a unit stays below
+# the minimum only when it has no neighbor to join, walled in by absent cells or, with `domains=`, by other domains;
+# here there are none. the minimum is five cells, 5000 m³. the total volume stays the same and only its split
+# changes.
 
 # %%
 section = section.with_columns({"clean": bt.remove_small_units(section, "rock", min_volume=5000.0)})
@@ -102,11 +103,11 @@ axes[1].set_ylabel("")
 save(fig, "cleanup")
 
 # %% [markdown]
-# ## Distance to the contacts
+# ## distance to the contacts
 #
 # `contact_distance` gives each block the distance from its centroid to the nearest block centroid of another rock,
-# or with `target=`, of that rock. Blocks of the target get the distance to the nearest block outside it, negative
-# by default, so the field is signed across the target's contact. Distances are exact in any layout and rotation,
+# or with `target=`, of that rock. blocks of the target get the distance to the nearest block outside it, negative
+# by default, so the field is signed across the target's contact. distances are exact in any layout and rotation,
 # and the two blocks either side of a contact get the same distance.
 
 # %%
@@ -124,14 +125,14 @@ axes[1].set_ylabel("")
 save(fig, "distances")
 
 # %% [markdown]
-# ## Contact buffers
+# ## contact buffers
 #
-# `buffer_domains` relabels every block within `distance` of a contact as `label`, here the blocks within 15 m of
-# the sulphide contact: those sharing a face or an edge with a block across it. Both sides of a contact read the
-# same distance, so the buffer takes one ring of blocks inside the sulphides and one outside; the host ring is the
-# longer one, as it wraps the lenses, and the thinnest lenses fall inside the buffer whole. The buffer is a domain
-# of its own for statistics, or the zone in which a soft boundary shares samples between the sulphides and their
-# host.
+# `buffer_domains` relabels each block within `distance` of a contact as `label`, here the blocks within 15 m of
+# the sulphide contact: those sharing a face or an edge with a block across it. both sides of a contact read the
+# same distance, so the buffer takes one ring of blocks inside the sulphides and one outside. the host ring is the
+# longer one, as it wraps the lenses, and the thinnest lenses fall inside the buffer whole. you can treat the buffer
+# as a domain of its own for statistics, or as the zone in which a soft boundary shares samples between the
+# sulphides and their host.
 
 # %%
 sulphide = np.where(section["clean"] == scheme.names.index("SUL"), "SUL", "host")

@@ -1,10 +1,10 @@
 """
 # SNESIM and its multigrid
 
-SNESIM copies patterns rather than a variogram. It counts, once, every arrangement of categories the training image
-holds around a cell, and a simulated cell draws its category from the counts of the arrangement around it. The
-template it reads is small, a few cells across, so on its own it cannot see a channel 100 cells long. The multigrid
-simulates the coarse structure first, on every 2nd, 4th and 8th cell, and fills in the rest afterwards.
+SNESIM copies patterns instead of a variogram. it counts, once, each arrangement of categories the training image
+holds around a cell, and a simulated cell draws its category from the counts of the arrangement around it. the
+template it reads spans a few cells, too small to see a channel 100 cells long. the multigrid simulates the coarse
+structure first, on every 2nd, 4th and 8th cell, and fills in the rest afterwards.
 """
 
 # %% [hidden]
@@ -28,7 +28,7 @@ print(f"{nx} x {ny} cells, sand (code 1) in {image.mean():.1%} of them")
 
 
 # %% [markdown]
-# The channels run along Y. The mean length of the runs of sand along Y measures how far a channel carries; across,
+# the channels run along Y. the mean length of the runs of sand along Y measures how far a channel carries; across,
 # along X, it measures its width.
 
 
@@ -44,10 +44,9 @@ print(f"training image: sand runs {runs(image, 0):.1f} cells along Y, {runs(imag
 
 
 # %% [markdown]
-# Twenty realizations for each number of coarse levels, from none to three, on a grid the size of the image. Each
-# level halves the spacing, so `n_levels=3` starts on every eighth cell. Half of a coarse template stays next to the
-# cell and half spreads over the level's spacing, so the template reaches farther without losing sight of the cells
-# around it.
+# twenty realizations for each number of coarse levels, from none to three, on a grid the size of the image. each
+# level halves the spacing, so `n_levels=3` starts on every eighth cell. half of a coarse template stays next to the
+# cell and half spreads over the level's spacing, so the template reaches farther and still sees the cells around it.
 
 # %%
 grid = bt.BlockModel((0, 0), (1, 1), (nx, ny))
@@ -62,13 +61,13 @@ for levels in (0, 1, 2, 3):
 
 
 # %% [markdown]
-# Without levels the channels break into short pieces. Each level lengthens them, and three reach most of the
-# image's length. The coarse templates also shift the proportions: near its edges the image has no room for a
+# without levels the channels break into short pieces. each level lengthens them, and three reach most of the
+# image's length. the coarse templates also shift the proportions: near its edges the image has no room for a
 # template 16 cells wide, and the cells far from the edges hold more sand, so the realizations end up with more sand
-# than the image. The servosystem in the next page pulls it back.
+# than the image. the servosystem in the next page pulls it back.
 
 # %%
-codes = ListedColormap(["black", "white"])
+codes = ListedColormap(["white", "black"])
 fig, axes = plt.subplots(1, 5, figsize=(15, 3.6), layout="constrained")
 panels = [(image, "Training image")] + [(realizations[k], f"n_levels={k}") for k in realizations]
 for ax, (img, title) in zip(axes, panels):
@@ -80,5 +79,5 @@ for ax, (img, title) in zip(axes, panels):
 save(fig, "levels")
 
 # %% [markdown]
-# [Conditioning SNESIM](../../13-multiple-point-statistics/02-snesim-conditioning/README.md) honors hard data and steers the proportions, and
+# [conditioning SNESIM](../../13-multiple-point-statistics/02-snesim-conditioning/README.md) honors hard data and steers the proportions, and
 # [continuous SNESIM](../../13-multiple-point-statistics/03-snesim-continuous/README.md) simulates values instead of codes.

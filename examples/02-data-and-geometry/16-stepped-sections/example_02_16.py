@@ -1,9 +1,9 @@
 """
-# Stepped sections
+# stepped sections
 
 `bt.plot.fence` slices a block model on several parallel planes stepped along a corridor, all sharing one color
-scale: a fence of cross sections through the stacked sulphide lenses, replacing the hand-rolled `plt.subplots` loop
-of the maps in [target distribution correction](../../04-transforms/10-target-distribution-correction/README.md) with a single call.
+scale. it draws a fence of cross sections through the stacked sulphide lenses in one call, where the maps in
+[target distribution correction](../../04-transforms/10-target-distribution-correction/README.md) used a hand-rolled `plt.subplots` loop.
 """
 
 # %% [hidden]
@@ -20,9 +20,9 @@ import numpy as np
 from common import save
 
 # %% [markdown]
-# ## A grade model across the lenses
+# ## a grade model across the lenses
 #
-# Zinc kriged from the 5 m composites (as in [domain change tables](../../07-categories-and-domains/02-domain-change-tables/README.md)) onto a block model spanning the deposit, cells of 20 m,
+# zinc kriged from the 5 m composites (as in [domain change tables](../../07-categories-and-domains/02-domain-change-tables/README.md)) onto a block model spanning the deposit, cells of 20 m,
 # masked to the topography.
 
 # %%
@@ -49,11 +49,11 @@ model = model.mask(~np.isnan(kriged)).with_columns({"ZN_PCT": kriged[~np.isnan(k
 print(f"{len(model):,} blocks of 20 m")
 
 # %% [markdown]
-# ## The old way: a manual loop
+# ## the old way: a manual loop
 #
-# [Target distribution correction](../../04-transforms/10-target-distribution-correction/README.md) drew its two maps by hand: `plt.subplots(1, n, sharey=True)`, one `bt.plot.section(..., colorbar=False,
+# [target distribution correction](../../04-transforms/10-target-distribution-correction/README.md) drew its two maps by hand: `plt.subplots(1, n, sharey=True)`, one `bt.plot.section(..., colorbar=False,
 # ax=ax)` per panel, `vmin`/`vmax` matched by hand across them, and one `fig.colorbar` at the end reading the last
-# panel's image. The same recipe, repeated for five sections stepped 125 m apart along strike:
+# panel's image. the same recipe, repeated for five sections stepped 125 m apart along strike:
 
 # %%
 positions = [center + t * along for t in np.linspace(-250.0, 250.0, 5)]
@@ -68,8 +68,8 @@ save(fig, "manual")
 # %% [markdown]
 # ## `bt.plot.fence`
 #
-# The same five sections in one call: `azimuth` and `dip` shared by every panel, and `vmin`/`vmax` found across
-# all of them unless given, as `section` takes them.
+# the same five sections in one call. all panels share `azimuth` and `dip`, and `fence` finds `vmin`/`vmax` across
+# them unless you give them, as `section` takes them.
 
 # %%
 fig, axes = bt.plot.fence(model, "ZN_PCT", positions, azimuth=113.0, dip=90.0)

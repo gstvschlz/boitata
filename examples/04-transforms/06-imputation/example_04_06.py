@@ -1,11 +1,10 @@
 """
-# Imputation
+# imputation
 
-Not every sample is assayed for every variable. In the stacked sulphide lenses, density was measured on about half
-of the diamond core from the sulphide units and never on RC chips, and the RC holes were not assayed for gold. The
-grades Zn, Pb, Cu and Ag are complete. `GaussianImputer` fills the gaps: it normal-scores each variable on its own
-values, fits the correlation of the scores to all rows, and draws each missing score given the scores present in
-its row.
+not every sample is assayed for every variable. in the stacked sulphide lenses, density was measured on about half of
+the diamond core from the sulphide units and never on RC chips, and the RC holes have no gold assays. the grades Zn,
+Pb, Cu and Ag are complete. `GaussianImputer` fills the gaps: it normal-scores each variable on its own values, fits
+the correlation of the scores to all rows, and draws each missing score given the scores present in its row.
 """
 
 # %% [hidden]
@@ -35,8 +34,8 @@ print(
 
 
 # %% [markdown]
-# The scores of density follow Zn, Pb and Ag closely; gold is weakly tied to the others, so its drawn values will
-# carry more of their own randomness.
+# the scores of density follow Zn, Pb and Ag closely. gold is weakly tied to the others, so its drawn values carry more
+# of their own randomness.
 
 # %%
 imputer = bt.GaussianImputer(seed=0).fit(data)
@@ -47,7 +46,7 @@ for name, row in zip(labels, imputer.correlation_):
 
 
 # %% [markdown]
-# To check the method, hide the measured density of every other hole, impute it, and compare with the truth: one draw,
+# to check the method, hide the measured density of every other hole, impute it, and compare with the truth: one draw,
 # and the mean of 50 draws with different seeds, close to the conditional mean.
 
 # %%
@@ -74,12 +73,12 @@ save(fig, "check")
 
 
 # %% [markdown]
-# One draw keeps the spread of the hidden densities (sd 0.37 against 0.36), with a root-mean-square error of
-# 0.21 t/m³. The mean of 50 draws cuts the error to 0.13 but narrows the spread to 0.32, like any prediction. Draws
-# suit simulation and tonnage uncertainty; the mean suits a single best value per sample.
+# one draw keeps the spread of the hidden densities (sd 0.37 against 0.36), with a root-mean-square error of 0.21 t/m³.
+# the mean of 50 draws cuts the error to 0.13 but narrows the spread to 0.32, like any prediction. draws suit simulation
+# and tonnage uncertainty; the mean suits a single best value per sample.
 #
-# Filling every gap with one draw: imputed densities follow the trend of the measured ones against zinc, with the same
-# scatter.
+# one draw fills every gap below. the imputed densities follow the trend of the measured ones against zinc, with the
+# same scatter.
 
 # %%
 filled = imputer.transform(data)
@@ -96,6 +95,7 @@ print(f"density mean {np.nanmean(data[:, 5]):.3f} measured, {filled[:, 5].mean()
 
 
 # %% [markdown]
-# The imputer assumes the missing values behave like the measured ones with the same grades. That holds for density
-# here, measured on part of the same core; gold in RC chips borrows its relation to the base metals from the diamond
-# holes. `MultivariateSimulation.fit(..., impute=True)` redraws the gaps in every realization ([multivariate simulation](../../08-stochastic-simulation/06-multivariate-simulation/README.md)).
+# the imputer assumes that missing values behave like measured ones with the same grades. that holds for density here,
+# measured on part of the same core; gold in RC chips borrows its relation to the base metals from the diamond holes.
+# `MultivariateSimulation.fit(..., impute=True)` redraws the gaps in every realization
+# ([multivariate simulation](../../08-stochastic-simulation/06-multivariate-simulation/README.md)).

@@ -2,8 +2,8 @@
 # A coal seam in a lease
 
 How many tonnes of coal lie in a lease, and how sure is that number? 295 boreholes measure the seam thickness: a
-regional grid of about 700 m, plus infill drilled where the seam is thick. From the lease polygon to tonnes by
-resource class, on a 100 m grid.
+regional grid of about 700 m, plus infill drilled where the seam is thick. You go from the lease polygon to tonnes
+by resource class on a 100 m grid.
 """
 
 # %% [hidden]
@@ -72,9 +72,9 @@ save(fig, "declustering")
 #
 # ## An anisotropic variogram
 #
-# Thickness falls to the east. The variogram along the fall keeps climbing past the sill: part of it is the trend,
-# not spatial correlation. The residuals from a plane fitted to the thickness level off; one anisotropic model is
-# fitted to them in eight directions at once.
+# Thickness falls to the east. The variogram along the fall keeps climbing past the sill, and the trend causes part
+# of that climb. The residuals from a plane fitted to the thickness level off; you fit one anisotropic model to them
+# in eight directions at once.
 
 # %%
 trend, residuals = bt.detrend(xy, thickness, degree=1)
@@ -169,14 +169,14 @@ save(fig, "swath")
 
 # %% [markdown]
 # Both smooth the holes, as kriging does. In the easternmost kilometer, where the holes average 1.16 m, universal
-# kriging gives 1.39 m and ordinary kriging 1.47 m: the plane carries the thinning into the edge cells. Universal
-# kriging is kept for the tonnes.
+# kriging gives 1.39 m and ordinary kriging 1.47 m: the plane carries the thinning into the edge cells. Keep
+# universal kriging for the tonnes.
 
 # %% [markdown]
 # ## Volume and tonnes
 #
-# Each cell holds its kriged thickness over 100 × 100 m. An in-situ density of 1.4 t/m³, typical of bituminous coal,
-# is assumed: the dataset has none.
+# Each cell holds its kriged thickness over 100 × 100 m. The dataset has no density, so assume 1.4 t/m³ in situ,
+# typical of bituminous coal.
 
 # %%
 density = 1.4
