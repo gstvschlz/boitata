@@ -129,11 +129,12 @@ save(fig, "h_scatter")
 # the formula above, computed by hand.
 
 # %%
-omni = bt.experimental_variogram(samples, "V", 10.0, 120.0)
+lag_size = 10.0  # @param {type:"slider", min:2, max:30, step:1}
+omni = bt.experimental_variogram(samples, "V", lag_size, 120.0)
 print(" lag  pairs  gamma")
 for lag, count, gamma in zip(omni.lags, omni.counts, omni.gammas):
     print(f"{lag:4.0f} {count:6.0f} {gamma:6.0f}")
-first = distance < 10
+first = distance < lag_size
 by_hand = 0.5 * np.mean((v[i[first]] - v[j[first]]) ** 2)
 assert np.isclose(by_hand, omni.gammas[0]) and first.sum() == omni.counts[0]
 

@@ -45,6 +45,10 @@ micromamba = "2.9"
 depends = ["py:build"]
 run = "uv run --no-sync python examples/render.py"
 
+[tasks.notebooks]
+depends = ["py:sync"]
+run = "uv run --no-sync python examples/notebooks.py"
+
 [tasks.docs]
 depends = ["py:build"]
 run = "uv run --no-sync mkdocs serve"

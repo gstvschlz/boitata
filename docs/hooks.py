@@ -16,6 +16,10 @@ SOURCE = re.compile(r"\]\((?:\.\./)+common\.py\)")
 SENTENCE = re.compile(r"(?<=\.)\s+(?=[A-Z`])")
 FENCE = "```{.shell .mkd-glr-script-out-disp }"
 OUTPUT = re.compile(re.escape(FENCE) + r"\n(.*?)```", re.DOTALL)
+COLAB = (
+    "[![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)]"
+    "(https://colab.research.google.com/github/gstvschlz/boitata/blob/main/notebooks/learn_{}.ipynb)"
+)
 TQDM = re.compile(r"(\d+)/(\d+) \[(\d+:\d\d)|(\d+)it \[(\d+:\d\d)")
 
 API = """
@@ -121,7 +125,9 @@ def on_page_markdown(markdown, page, **kwargs):
     elif uri.startswith(("learn/", "guide/")):
         page.meta["search"] = {"boost": 2}
     if match := LEARN_PAGE.match(uri):
-        markdown = HEADING.sub(lambda h: h[0] + "\n\n" + trail(chapters(ROOT), match[1]), markdown, count=1)
+        markdown = HEADING.sub(
+            lambda h: f"{h[0]}\n\n{COLAB.format(match[1])}\n\n{trail(chapters(ROOT), match[1])}", markdown, count=1
+        )
     markdown = OUTPUT.sub(progress_bars, markdown)
     markdown = CHAPTER.sub(r"](\1/example_\2_\3.md)", markdown)
     return SOURCE.sub("](https://github.com/gstvschlz/boitata/blob/main/examples/common.py)", markdown)

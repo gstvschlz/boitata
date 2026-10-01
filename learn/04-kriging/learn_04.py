@@ -174,7 +174,11 @@ for name, coords in layouts.items():
 # transforms' `fit`/`transform`. The cell reads all 470 weights at the point (100, 180) m of Figure 1.
 
 # %%
-search = bt.Search(radius=80, max_samples=24, min_samples=4, rotation=model.rotation, ratios=(0.5, 1.0))
+radius = 80  # @param {type:"slider", min:20, max:200, step:10}
+max_samples = 24  # @param {type:"slider", min:4, max:64, step:4}
+search = bt.Search(
+    radius=radius, max_samples=max_samples, min_samples=4, rotation=model.rotation, ratios=(0.5, 1.0)
+)
 kriging = bt.OrdinaryKriging(model, search).fit(samples, "V")
 target = (100.0, 180.0)
 w = weights(bt.OrdinaryKriging(model, search), xy, target)
