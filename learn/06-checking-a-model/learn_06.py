@@ -1,9 +1,9 @@
 """
 # Checking a model
 
-A block model is a claim about ground nobody has sampled. Before anyone plans a mine on it, test the claim: does it
-reproduce the data's mean, how large are its errors where you can measure them, are high estimates too high, does it
-follow the data slice by slice, and does it put the right tonnage above a cutoff?
+A block model is a claim about ground nobody has sampled. Test the claim before anyone plans a mine on it. Check
+that it reproduces the data's mean, measure its errors where you can, look for high estimates that run too high,
+follow it slice by slice against the data, and test its tonnage above a cutoff.
 """
 
 # %% [markdown]
@@ -22,14 +22,14 @@ follow the data slice by slice, and does it put the right tonnage above a cutoff
 #
 # ## A model is a claim to test
 #
-# Every check below compares the model with something independent of it: the declustered samples, samples the
-# estimate never saw, or averages over slices of the deposit. In a real project you never know the truth, so these
-# comparisons are all you have. Walker Lake also has the exhaustive truth, which lets this chapter show how well each
-# check predicts the real error.
+# Each check compares the model with something independent of it: the declustered samples, samples the estimate
+# never saw, or averages over slices of the deposit. In a real project you never know the truth, so these comparisons
+# are all you have. Walker Lake also has the exhaustive truth, so you can see how well each check predicts the real
+# error.
 #
-# The model under test is block kriging of `V` on 10 × 10 m blocks, 780 of them, using the variogram and an
-# anisotropic search from [chapter 4](../04-kriging/learn_04.md). `diagnostics=True` returns, with each estimate, the
-# measures of conditional bias used later.
+# The model under test is block kriging of `V` on 780 blocks of 10 × 10 m, with the variogram and an anisotropic
+# search from [chapter 4](../04-kriging/learn_04.md). `diagnostics=True` returns, with each estimate, the measures of
+# conditional bias used later.
 
 # %% [hidden]
 import sys
@@ -73,9 +73,8 @@ print(f"{len(true_blocks)} blocks estimated")
 # %% [markdown]
 # ## Global mean
 #
-# The first check is the simplest: the mean of the blocks against the mean of the data. Compare with the declustered
-# mean. The samples cluster in high-grade areas, so their plain average overstates the deposit, and a model that
-# matched it would be biased high.
+# The simplest check compares the mean of the blocks with the declustered mean of the data. The samples cluster in
+# high-grade areas, so their plain average overstates the deposit, and a model that matched it would be biased high.
 
 # %%
 bias = bt.global_bias(kriged["value"], v, data_weights=weights)
@@ -85,17 +84,17 @@ print(f"true blocks {true_blocks.mean():.1f} ppm")
 
 # %% [markdown]
 # The blocks average 291.7 ppm against a declustered 290.7 ppm, a bias of +0.3 %. The naive mean, 435.3 ppm, would
-# have flagged a false 33 % underestimate. Both the blocks and the declustered samples sit above the true 278.0 ppm:
-# this check measures agreement with the data, and it cannot see an error that the declustering weights share. A
-# difference of a few percent is common; a larger one points at a search that reaches into another domain, a
-# variogram with the wrong anisotropy, or declustering that needs another look.
+# have flagged a false 33 % underestimate. Both the blocks and the declustered samples sit above the true 278.0 ppm.
+# This check measures agreement with the data, so it cannot see an error that the declustering weights share. A
+# difference of a few percent is common. A larger one points at a search that reaches into another domain, a
+# variogram with the wrong anisotropy or declustering that needs another look.
 #
 # ## Cross-validation
 #
 # Cross-validation measures errors where you know the answer: at the samples. Leave-one-out cross-validation hides
-# one sample, estimates its location from the others with the same variogram and search, and records the error. It
-# repeats this for every sample (Figure 1). K-fold cross-validation hides a whole fold at a time, one in `k` of the
-# samples, so each estimate sees data a fraction `1/k` sparser.
+# one sample, estimates its location from the others with the same variogram and search, and records the error, for
+# every sample in turn (Figure 1). K-fold cross-validation hides a whole fold at a time, one in `k` of the samples,
+# so each estimate sees data a fraction `1/k` sparser.
 #
 # <figure class="bt-figure">
 # --8<-- "svg/l06-cross-validation.svg"
@@ -103,8 +102,8 @@ print(f"true blocks {true_blocks.mean():.1f} ppm")
 # (left); repeating this for every sample gives a cloud of actual against estimated values (right).</figcaption>
 # </figure>
 #
-# Every point estimator in Boitatá has `cross_validate`, which returns the actual values, the estimates and the
-# kriging variances together with the summary statistics:
+# Each point estimator in Boitatá has `cross_validate`, which returns the actual values, the estimates and the
+# kriging variances with the summary statistics:
 
 # %%
 point = bt.OrdinaryKriging(model, search(24)).fit(xy, v)
@@ -132,7 +131,7 @@ for folds in (None, 10, 5):
 #
 # </div>
 #
-# The slope of 1.03 says leave-one-out estimates are free of conditional bias. The last statistic, 0.71, says the
+# A slope of 1.03 means the leave-one-out estimates are free of conditional bias. The last statistic, 0.71, means the
 # kriging variance is about 40 % larger than the squared errors it should predict, so intervals built from it are too
 # wide. Errors grow as the folds get fewer: the RMSE rises from 185.4 ppm with leave-one-out to 193.2 ppm with five
 # folds, because each estimate loses more of its neighbors. Leave-one-out judges the model at the sample spacing,
@@ -144,8 +143,8 @@ for folds in (None, 10, 5):
 #     \text{SSE} = \frac{1}{n}\sum_i \frac{e_i^2}{\sigma^2_i}. \]
 #     The slope is \(b\) in the least-squares line \(z = a + b\, z^*\): actual value regressed on estimate.
 #
-# `bt.plot.cross_validation` draws the scatter with its regression line and statistics, and with `kind="errors"` and
-# the sample coordinates it maps where the errors fall:
+# `bt.plot.cross_validation` draws the scatter with its regression line and statistics. With `kind="errors"` and the
+# sample coordinates, it maps the errors:
 
 # %%
 fig, (a, b) = plt.subplots(1, 2, figsize=(10, 4.2))
@@ -164,10 +163,10 @@ save(fig, "cross_validation")
 #
 # ## Conditional bias
 #
-# An estimate can be right on average and still wrong for the blocks that matter. Plot the true value against the
-# estimate and fit a line (Figure 2). If the slope of that line is below 1, blocks estimated high are on average lower
-# in reality, and blocks estimated low are higher. That is conditional bias, and it hurts at a cutoff: the blocks
-# selected as ore carry less metal than the model promised.
+# An estimate can be right on average and wrong for the blocks that matter. Plot the true value against the estimate
+# and fit a line (Figure 2). If its slope is below 1, blocks estimated high are lower in reality on average, and
+# blocks estimated low are higher. That is conditional bias, and it hurts at a cutoff: the blocks selected as ore
+# carry less metal than the model promised.
 #
 # <figure class="bt-figure">
 # --8<-- "svg/l06-conditional-bias.svg"
@@ -176,8 +175,8 @@ save(fig, "cross_validation")
 # </figure>
 #
 # Kriging predicts this slope for each block from the variogram and the data layout, without knowing the truth.
-# It also predicts the kriging efficiency: how much of the block's variance the estimate resolves, 1 for a perfectly
-# known block and 0 for one known no better than the global mean.
+# It also predicts the kriging efficiency, the share of the block's variance the estimate resolves: 1 for a block
+# known without error and 0 for one known no better than the global mean.
 #
 # ??? math "The math"
 #     With \(Z\) the true block value and \(Z^*\) its estimate, the slope of regression and the kriging efficiency are
@@ -186,8 +185,8 @@ save(fig, "cross_validation")
 #     where \(\sigma^2_{\text{block}}\) is the variance of true blocks and \(\sigma^2_K\) the kriging variance
 #     (Krige, 1996).
 #
-# Few samples per block give noisy, conditionally biased estimates; more samples raise the slope and smooth the
-# estimates. Compare a search of 4 samples with the one of 24, against the truth:
+# Few samples per block give noisy, conditionally biased estimates. More samples raise the slope and smooth the
+# estimates. Compare a search of 4 samples with the one of 24 against the truth:
 
 # %%
 for n in (4, 24):
@@ -202,10 +201,10 @@ for n in (4, 24):
 
 # %% [markdown]
 # With 4 samples the true slope is 0.93, and the top tenth of the blocks is estimated at 723 ppm where the truth
-# holds 687 ppm, a 5 % overstatement in exactly the blocks a mine would take. With 24 samples the slope is 1.02 and the
-# top tenth is estimated at 695 ppm for a true 692 ppm. The predicted mean slope moves the same way, from 0.84 to 0.96,
-# and sits below the truth in both. The maps show where it falls: slope and efficiency are high among the samples and
-# drop in the gaps.
+# holds 687 ppm, a 5 % overstatement in the blocks a mine would take. With 24 samples the slope is 1.02 and the top
+# tenth is estimated at 695 ppm for a true 692 ppm. The predicted mean slope moves the same way, from 0.84 to 0.96,
+# and sits below the truth in both cases. In the maps, slope and efficiency are high among the samples and drop in
+# the gaps.
 
 # %%
 shape, extent = (30, 26), (0.5, 260.5, 0.5, 300.5)
@@ -223,10 +222,10 @@ save(fig, "diagnostics")
 # %% [markdown]
 # ## Swath plots
 #
-# The global mean can hide local bias: too high in the north and too low in the south still averages out. A swath
-# plot cuts the model into slices along one direction and compares the mean of the blocks with the mean of the
-# declustered samples in each slice (Figure 3). Build one per principal direction, easting and northing here, and add
-# elevation in 3D.
+# The global mean can hide local bias: a model too high in the north and too low in the south still averages out. A
+# swath plot cuts the model into slices along one direction and compares the mean of the blocks with the mean of the
+# declustered samples in each slice (Figure 3). Build one per principal direction (easting and northing here, plus
+# elevation in 3D).
 #
 # <figure class="bt-figure">
 # --8<-- "svg/l06-swath.svg"
@@ -261,17 +260,16 @@ print(
 # %% [markdown]
 # The blocks follow the samples slice by slice, smoother than the sample means, which jump where few samples fall.
 # Against the truth, the widest gap in a 20 m slice is 70 ppm along easting and 52 ppm along northing. The easting gap
-# sits at the eastern edge, where the declustered samples overstate the truth as much as the blocks do: the model
-# followed its data, and no check against the data can see that error. Look for runs: several slices in a row on the same side of the samples point at a trend the model misses, often near the
-# edge of the data.
+# sits at the eastern edge, where the declustered samples overstate the truth as much as the blocks do. The model
+# followed its data, and no check against the data can see that error. Look for runs: several slices in a row on the
+# same side of the samples point at a trend the model misses, often near the edge of the data.
 #
 # ## Sections
 #
-# Numbers summarize; a picture of the model with the data on it shows what they miss. Plot the blocks and the
-# samples on one color scale. Samples should sit on blocks of similar color, high-grade trends should run the way
-# the geology does, and no artifacts should appear, such as stripes along the search ellipse or blotches around
-# single high samples. In 3D, do the same on sections and plans through the model; `bt.plot.section` and
-# `bt.plot.slab` draw them.
+# A picture of the model with the data on it shows what the summary numbers miss. Plot the blocks and the samples on
+# one color scale. Samples should sit on blocks of similar color, and high-grade trends should run the way the geology
+# does. Watch for artifacts such as stripes along the search ellipse or blotches around single high samples. In 3D,
+# do the same on sections and plans through the model with `bt.plot.section` and `bt.plot.slab`.
 
 # %%
 norm = PowerNorm(0.5, vmin=0, vmax=1500)
@@ -287,9 +285,9 @@ save(fig, "plan")
 # ## Grade-tonnage curves
 #
 # A grade-tonnage curve gives, for each cutoff, the tonnage above it and the mean grade of that tonnage. It is the
-# check closest to money, and the one smoothing distorts most. A smoothed model has fewer very low and very high
-# blocks than reality (Figure 4). Below the mean, a cutoff then keeps too much tonnage; above it, too little, at a
-# grade that depends on how the smoothing reshaped the tail.
+# check closest to money and the one smoothing distorts most. A smoothed model has fewer very low and very high blocks
+# than reality (Figure 4). A cutoff below the mean then keeps too much tonnage, and one above the mean keeps too
+# little, at a grade that depends on how the smoothing reshaped the tail.
 #
 # <figure class="bt-figure">
 # --8<-- "svg/l06-grade-tonnage.svg"
@@ -323,21 +321,21 @@ for c in (300.0, 500.0):
 # %% [markdown]
 # At 300 ppm, near the mean, the kriged blocks put 41.9 % of the area above cutoff against a true 40.1 %, at 462 ppm
 # instead of 494 ppm. At 500 ppm they put 12.8 % against 16.2 %. The samples sit farther out than either, because a
-# 10 × 10 m block averages out part of the point-scale variability: compare blocks with blocks, and samples only after
-# a change of support. With real data there are no true blocks. The reference is then a model that has the right
-# variability at block support: simulation averaged to blocks ([chapter 5](../05-simulation/learn_05.md)) or a
-# change-of-support model of the declustered histogram.
+# 10 × 10 m block averages out part of the point-scale variability. Compare blocks with blocks, and samples only after
+# a change of support. With real data you have no true blocks, so the reference is a model with the right variability
+# at block support: simulation averaged to blocks ([chapter 5](../05-simulation/learn_05.md)) or a change-of-support
+# model of the declustered histogram.
 #
 # !!! pitfall "Pitfall"
 #     A model can pass every check above and still give the wrong tonnage above a high cutoff. The global mean,
-#     cross-validation and swaths all look at averages, and smoothing preserves averages. Test the tonnage at the
-#     cutoffs that matter against a reference with the right variability.
+#     cross-validation and swaths look at averages, and smoothing preserves averages. Test the tonnage at the cutoffs
+#     that matter against a reference with the right variability.
 #
 # ## Resource classification
 #
 # Classification turns these checks into confidence labels for reporting: measured, indicated or inferred, in
 # decreasing order of confidence. Reporting codes leave the rules to a competent person, who usually combines drill
-# spacing, geological continuity and the kriging diagnostics above. `bt.classify` applies rules in order, the first
+# spacing, geological continuity and the kriging diagnostics above. `bt.classify` applies rules in order. The first
 # rule that holds wins, and blocks where none holds get the default:
 
 # %%
@@ -358,10 +356,10 @@ for name in ("measured", "indicated", "inferred"):
 # %% [markdown]
 # Measured blocks, 29.9 % of the area, are estimated within 1 % of their true mean and have the smallest errors,
 # an RMSE of 83.6 ppm, although they hold the highest grades. Inferred blocks lie in the gaps and at the edges, in
-# lower grades: their RMSE of 95.7 ppm looks modest, yet their mean is overstated by a fifth, 190 ppm against 157 ppm.
-# Errors in ppm follow grade as well as confidence, so rank confidence by the diagnostics and the drill spacing.
-# The [classification example](../../examples/10-checking-models/05-classification/example_10_05.md)
-# adds drill spacing and smooths the classes into coherent zones.
+# lower grades. Their RMSE of 95.7 ppm looks modest, yet their mean is overstated by a fifth, 190 ppm against
+# 157 ppm. Errors in ppm follow grade as well as confidence, so rank confidence by the diagnostics and the drill
+# spacing. The [classification example](../../examples/10-checking-models/05-classification/example_10_05.md) adds
+# drill spacing and smooths the classes into coherent zones.
 #
 # !!! check "Check before you move on"
 #     - Why compare the model's mean with the declustered mean and not the plain sample mean?

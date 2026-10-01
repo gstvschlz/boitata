@@ -1,10 +1,9 @@
 """
 # Samples and support
 
-Geostatistics starts from a set of measurements taken at known places. Before you compute a single statistic, you
-need to know what each number stands for: where it was taken and how much rock it represents. This chapter follows
-samples from the drill hole to the block, and shows on real data why the volume behind a value changes its
-statistics.
+Geostatistics starts from measurements taken at known places. Before you compute a statistic, you need to know
+where each value was taken and how much rock it represents. This chapter follows samples from the drill hole to the
+block and measures, on real data, how the volume behind a value changes its statistics.
 """
 
 # %% [hidden]
@@ -48,8 +47,8 @@ sys.path.insert(0, str(HERE.parents[1] / "examples"))
 # Boitatá keeps samples in its own containers: `PointSet` for scattered samples, `Drillholes` for holes with
 # intervals, and `BlockModel` for grids of blocks. Each container stores the geometry once (coordinates, a grid
 # definition, a rotation) and the variables as named columns. The columns are Apache Arrow arrays, so a container
-# hands them to NumPy, polars or pandas without copying, and every algorithm in the library can read the geometry
-# without you passing it again.
+# hands them to NumPy, polars or pandas without copying. Algorithms read the geometry from the container, so you
+# pass it once.
 #
 # `bt.datasets.walker_lake()` downloads the samples once, caches them, and returns a `PointSet`:
 
@@ -69,7 +68,7 @@ print(samples["V"][:3])
 # algorithm works in 3D, and a 2D dataset is a flat 3D one. Indexing by name returns a column as a NumPy array.
 #
 # Not every sample has every variable. A missing value is an Arrow null, never a sentinel number such as -999 that
-# could slip into an average. NumPy shows nulls as NaN; polars counts them directly:
+# could slip into an average. NumPy shows nulls as NaN; polars counts them:
 
 # %%
 u = samples["U"]
@@ -91,7 +90,7 @@ print(grid.centroids[:2])
 # %% [markdown]
 # ## Drill holes
 #
-# Most samples in mining come from drill holes. A drill hole is described by three tables (Figure 2):
+# Most samples in mining come from drill holes. Three tables describe a drill hole (Figure 2):
 #
 # - the **collar**: where the hole starts, as x, y, z;
 # - the **survey**: the direction of the hole, measured at stations down the hole as depth, dip and azimuth;
@@ -104,8 +103,8 @@ print(grid.centroids[:2])
 # deepen.</figcaption>
 # </figure>
 #
-# A drill hole bends. Desurveying reconstructs its path from the collar through each survey station, so that any
-# depth down the hole has coordinates. The stacked sulphide lenses dataset has 289 holes:
+# A drill hole bends. Desurveying reconstructs its path from the collar through each survey station, so any depth
+# down the hole has coordinates. The stacked sulphide lenses dataset has 289 holes:
 
 # %%
 data = bt.datasets.stacked_sulphide_lenses()
@@ -164,10 +163,10 @@ save(fig, "holes")
 # missing, not as zero. The metal, grade × length, is the same before and after.</figcaption>
 # </figure>
 #
-# Two rules keep compositing honest. A composite never averages across a geological contact, because the grade on
-# each side belongs to a different population. And unsampled core stays missing: reading it as zero dilutes the
-# grade. `composite(2.0, ..., domain="LITH")` applies both rules and returns a `PointSet` of composites located at
-# their midpoints.
+# Two rules keep compositing honest. A composite never averages across a geological contact, because the grades on
+# each side belong to different populations. Unsampled core stays missing: reading it as zero dilutes the grade.
+# `composite(2.0, ..., domain="LITH")` applies both rules and returns a `PointSet` of composites located at their
+# midpoints.
 
 # %%
 length = assays["TO"] - assays["FROM"]
@@ -182,8 +181,8 @@ print(f"Zn metal: assays {metal_assays:.1f}, composites {metal_composites:.1f}")
 assert abs(metal_composites / metal_assays - 1) < 1e-9
 
 # %% [markdown]
-# The 16 995 assays become 13 602 composites of 2 m. The check at the end is the one to keep in any compositing
-# script: zinc metal, grade × sampled length summed over all intervals, is 15 710.3 before and after. Compositing
+# The 16 995 assays become 13 602 composites of 2 m. Keep the final check in any compositing script:
+# zinc metal, grade × sampled length summed over all intervals, is 15 710.3 before and after. Compositing
 # moves metal between intervals; it must not create or lose any.
 #
 # !!! pitfall "Pitfall"
@@ -193,9 +192,9 @@ assert abs(metal_composites / metal_assays - 1) < 1e-9
 #
 # ## Support and the volume-variance effect
 #
-# Average values over larger volumes and the mean stays the same, because every block averages the same values.
-# The variance falls, because averaging cancels highs against lows. The
-# larger the support, the narrower the histogram. This is the volume-variance effect (Figure 4).
+# Average values over larger volumes and the mean stays the same, because the blocks together hold the same
+# values. The variance falls, because averaging cancels highs against lows: the larger the support, the narrower
+# the histogram. This is the volume-variance effect (Figure 4).
 #
 # <figure class="bt-figure">
 # --8<-- "svg/l01-volume-variance.svg"
@@ -203,7 +202,7 @@ assert abs(metal_composites / metal_assays - 1) < 1e-9
 # the variance and the share of values above 500 ppm both fall as the blocks grow.</figcaption>
 # </figure>
 #
-# You can see it down the holes first. Composite the massive sulphide (`MS`) zone at 1, 2, 4 and 8 m and compare the
+# Start down the holes. Composite the massive sulphide (`MS`) zone at 1, 2, 4 and 8 m and compare the
 # zinc grades, weighting each composite by its sampled length:
 
 # %%
@@ -219,7 +218,7 @@ for size in (1.0, 2.0, 4.0, 8.0):
 # The mean zinc grade stays at 8.93 % for every length. The variance falls from 29.9 %² at 1 m to 16.1 %² at 8 m.
 #
 # Walker Lake lets you watch the same effect in two dimensions, with the truth in hand. Besides the 470 samples,
-# the dataset has an exhaustive grid: 78 000 values, one per square meter. `row_at` tells which block each value
+# the dataset has an exhaustive grid: 78 000 values, one per square meter. `row_at` returns the block each value
 # falls in, and `np.bincount` averages the values per block:
 
 # %%
@@ -249,11 +248,11 @@ save(fig, "support")
 # Every block size gives a mean of 278 ppm. The variance falls from 62 422 ppm² for 1 m cells to 37 617 ppm² for
 # 20 m blocks, and the histogram loses its spike near zero and its tail above 1000 ppm.
 #
-# The last column is the one a mine cares about. Suppose rock above 500 ppm is ore. On 1 m cells, 18.8 % of the
+# The last column matters most to a mine. Suppose rock above 500 ppm is ore. On 1 m cells, 18.8 % of the
 # area is ore; on 20 m blocks, 11.3 % is. A mine that selects ore in 20 m blocks cannot recover the 18.8 % that
-# the small-scale data suggest. Resource estimates must therefore state the support they report on, and
-# chapters 4 and 5 return to this: kriging estimates block averages, and simulation lets you average to any support
-# you choose.
+# the small-scale data suggest. A resource estimate must therefore state its
+# support. Chapters 4 and 5 return to this: kriging estimates block averages, and simulation lets you average to any
+# support you choose.
 #
 # ??? math "The math"
 #     The average of \(n\) independent values with variance \(\sigma^2\) has variance \(\sigma^2 / n\). Grades

@@ -1,9 +1,9 @@
 """
 # Describing data
 
-Before you model a variable in space, describe it: how its values spread, where the extremes are, how the rock
-types differ, and how the variables move together. This chapter computes these statistics on real datasets and
-shows the corrections they need when samples cluster, when a few values dominate, and when populations mix.
+Before you model a variable in space, describe it: how its values spread, where the extremes are, how rock types
+differ and how variables move together. This chapter computes these statistics on real datasets and corrects them
+for clustered samples, extreme values and mixed populations.
 """
 
 # %% [hidden]
@@ -18,7 +18,7 @@ sys.path.insert(0, str(HERE.parents[1] / "examples"))
 #     - Read a histogram through its mean, variance, coefficient of variation and skewness.
 #     - Correct statistics for clustered samples with cell declustering.
 #     - Find extreme values and cap them without losing track of the metal.
-#     - Split the data into domains, and why pooled statistics mislead.
+#     - Split the data into domains, and see why pooled statistics mislead.
 #     - Measure how two variables move together.
 #     - Preview the normal-score transform used by simulation.
 #
@@ -74,7 +74,7 @@ save(fig, "histogram")
 # %% [markdown]
 # The 470 samples of `V` have a mean of 435 ppm, a standard deviation of 300 ppm and a CV of 0.69. The median
 # (`P50`) is 424 ppm, close to the mean, and the skewness is a mild 0.46. Chapter 1 showed that these samples
-# crowd into the rich zones. The next section shows how much that crowding distorts every number in this list.
+# crowd into the rich zones, and that crowding distorts every number above.
 #
 # ??? math "The math"
 #     With weights \(w_i\) summing to 1 (equal weights are \(w_i = 1/n\)):
@@ -141,7 +141,7 @@ print(
 # falls faster than the standard deviation.
 #
 # !!! key "Key idea"
-#     Declustering weights let clustered samples speak for the whole area. Use them for every global statistic:
+#     Declustering weights make clustered samples represent the whole area. Use them for every global statistic:
 #     histograms, statistics by domain, top cuts and the normal-score transform.
 #
 # !!! pitfall "Pitfall"
@@ -162,8 +162,8 @@ print(
 # the metal removed, here 21 % of the total from 3 of 24 values.</figcaption>
 # </figure>
 #
-# The vein gold dataset holds four quartz veins drilled by holes and sampled by underground channels. The 1 m
-# composites inside the veins, declustered in 20 m cells because channels crowd the developed levels:
+# The vein gold dataset holds four quartz veins drilled by holes and sampled by underground channels. Take the 1 m
+# composites inside the veins and decluster them in 20 m cells, because channels crowd the developed levels:
 
 # %%
 gold = bt.datasets.vein_gold_grade_control()
@@ -204,9 +204,9 @@ save(fig, "probability")
 # %% [markdown]
 # A cap at the declustered 99th percentile, 81.4 g/t, cuts 67 composites and removes 11.5 % of the metal: the mean
 # falls from 8.33 to 7.38 g/t and the CV from 3.22 to 1.74. `Capping` follows the
-# transform pattern of the library: `fit` learns the cap from the data, `transform` applies it to any values.
+# library's transform pattern: `fit` learns the cap from the data, `transform` applies it to any values.
 #
-# The probability plot helps choose the cap. On a log scale, a lognormal distribution plots as a straight line.
+# Use the probability plot to choose the cap. On a log scale, a lognormal distribution plots as a straight line.
 # These composites follow one line from about 0.1 g/t to beyond the cap, and the single 1192 g/t composite stands
 # apart at the top.
 #
@@ -226,8 +226,8 @@ save(fig, "probability")
 # show that the pooled data come from two populations.</figcaption>
 # </figure>
 #
-# `bt.describe_by` computes the same statistics per category. The stacked sulphide lenses, composited to 2 m within
-# each lithology as in chapter 1:
+# `bt.describe_by` computes the same statistics per category. Apply it to the stacked sulphide lenses,
+# composited to 2 m within each lithology as in chapter 1:
 
 # %%
 lenses = bt.datasets.stacked_sulphide_lenses()
@@ -250,7 +250,7 @@ save(fig, "domains")
 # zone (`STR`) and 0.05 to 0.06 % in the host rocks. Within each lithology the CV lies between 0.55 and 0.68;
 # pooled, it is 3.57. Mixing the populations creates the pooled spread.
 #
-# Domains matter beyond statistics. A variogram, a kriging estimate or a simulation assumes one population
+# Domains also constrain estimation. A variogram, a kriging estimate or a simulation assumes one population
 # throughout. Estimate the lenses and the host rock together and the high grades of `MS` leak into the waste around
 # it. Estimate each domain with its own samples, and treat the contacts as boundaries.
 #
@@ -292,7 +292,7 @@ print(f"U above 3000 ppm: {(u[both] > 3000).sum()} samples")
 # ## A first look at the normal-score transform
 #
 # Simulation methods such as sequential Gaussian simulation assume a standard normal variable: mean 0, variance
-# 1, symmetric, with the bell-shaped histogram. Grades are rarely like that. The normal-score transform maps each
+# 1, symmetric, with a bell-shaped histogram. Grades are rarely like that. The normal-score transform maps each
 # value to the standard normal score with the same cumulative probability (Figure 5). A value at the 75th
 # percentile of the grades becomes 0.67, the 75th percentile of the standard normal.
 #

@@ -2,8 +2,8 @@
 # Spatial continuity
 
 Two samples taken a meter apart tend to carry similar grades; two samples a kilometer apart may have nothing in
-common. The variogram measures how fast that resemblance fades with distance and direction, and every estimate and
-simulation in the later chapters reads it.
+common. The variogram measures how fast that resemblance fades with distance and direction, and the estimates and
+simulations of later chapters depend on it.
 
 !!! learn "What you'll learn"
     - How pairs of samples at a lag h show spatial continuity, first in an h-scatterplot, then in the variogram.
@@ -36,7 +36,7 @@ sys.path.insert(0, str(HERE.parents[1] / "examples"))
 # by 35 ppm, the pair 60 m apart by 401 ppm.</figcaption>
 # </figure>
 #
-# One pair proves nothing, so geostatistics looks at all of them. The chapter works on the 470 Walker Lake samples of
+# One pair proves nothing, so you look at all of them. This chapter uses the 470 Walker Lake samples of
 # `V`, in ppm, over a 260 × 300 m area; the last line of the cell reads the three values of Figure 1 from the
 # exhaustive data.
 
@@ -115,8 +115,8 @@ save(fig, "h_scatter")
 #
 # Scattered samples do not sit at exact multiples of h, so each lag collects pairs within tolerances (Figure 3).
 # The **lag tolerance** is half the lag spacing: with `lag=10`, the first class holds pairs from 0 to 10 m, the
-# second from 10 to 20 m. In a given `azimuth`, the **angular tolerance** (`tolerance`, 22.5° by default) opens a cone around the
-# direction, and the optional `bandwidth` caps its width far from the tail.
+# second from 10 to 20 m. For a given `azimuth`, the **angular tolerance** (`tolerance`, 22.5° by default) opens a cone
+# around the direction, and the optional `bandwidth` caps its width far from the tail.
 #
 # <figure class="bt-figure">
 # --8<-- "svg/l03-tolerance.svg"
@@ -156,7 +156,7 @@ assert np.isclose(by_hand, omni.gammas[0]) and first.sum() == omni.counts[0]
 # from a short list of shapes known to be valid (Figure 4). The **spherical** model rises in a near-straight line
 # and reaches the sill exactly at the range. The **exponential** model rises faster at the start and approaches the
 # sill without reaching it; its practical range is where it reaches 95 % of the sill. The **Gaussian** model starts
-# flat, which describes very smooth variables such as topography or thickness.
+# flat and suits smooth variables such as topography or thickness.
 #
 # <figure class="bt-figure">
 # --8<-- "svg/l03-models.svg"
@@ -292,11 +292,11 @@ assert bt.Variogram.from_json(text).gamma([10.0, 50.0]).tolist() == model.gamma(
 # %% [markdown]
 # ## Why the model must be valid
 #
-# Why not join the experimental points with straight lines and skip the fitting? Kriging combines samples with
+# You cannot join the experimental points with straight lines and skip the fitting. Kriging combines samples with
 # weights, and the variance of any weighted combination must come out positive. The covariance matrix built from the
 # model has to be **positive definite** for every sample layout, and only some functions guarantee that.
 #
-# A straight line from zero to the sill looks harmless and is valid along a line, but not in 2D. The cell builds the
+# A straight line from zero to the sill looks harmless. It is valid along a line and invalid in 2D. The cell builds the
 # covariance of a 15 × 15 grid of points from that line, and from a spherical model with the same range, and prints
 # the smallest eigenvalue of each matrix. A negative eigenvalue means some combination of the points has a negative
 # variance.

@@ -1,9 +1,9 @@
 """
 # Simulation
 
-Kriging gives the single best guess at every node, and the best guess is smooth. Questions about extremes, such as
-how much ground lies above a cutoff, need maps that vary as much as the real deposit. Simulation draws many such maps,
-each consistent with the samples, and reads uncertainty from their differences.
+Kriging gives the best guess at every node, and the best guess is smooth. Questions about extremes, such as how much
+ground lies above a cutoff, need maps that vary as much as the real deposit. Simulation draws many such maps, each
+consistent with the samples, and you read the uncertainty from their differences.
 """
 
 # %% [markdown]
@@ -13,7 +13,7 @@ each consistent with the samples, and reads uncertainty from their differences.
 #     - How the normal-score transform and its inverse move values to and from a Gaussian scale.
 #     - How sequential Gaussian simulation (SGS) builds a realization one node at a time.
 #     - How a seed makes simulation reproducible, and how to check that realizations honor the data.
-#     - How to summarize realizations: the E-type mean, the probability above a cutoff, and the spread.
+#     - How to summarize realizations by the E-type mean, the probability above a cutoff and the spread.
 #
 #     **Prerequisites:** [kriging](../04-kriging/learn_04.md), including the kriging variance, and the variogram
 #     from [spatial continuity](../03-spatial-continuity/learn_03.md). Declustering comes from
@@ -22,9 +22,9 @@ each consistent with the samples, and reads uncertainty from their differences.
 # ## Kriging is too smooth for some questions
 #
 # Kriging weighs nearby samples to minimize the expected error at each node. Between samples it pulls the estimate
-# toward a local average, so a kriged profile runs through the samples and flattens in between (Figure 1). That is
-# what you want for a best local guess. It is wrong for any question about how often the true value is high or low:
-# the kriged profile crosses the cutoff less often than the truth.
+# toward a local average, so a kriged profile runs through the samples and flattens in between (Figure 1). That suits
+# a best local guess. It fails for questions about how often the true value is high or low, because the kriged
+# profile crosses the cutoff less often than the truth.
 #
 # <figure class="bt-figure">
 # --8<-- "svg/l05-smoothing.svg"
@@ -33,8 +33,8 @@ each consistent with the samples, and reads uncertainty from their differences.
 # exceeds it (shaded).</figcaption>
 # </figure>
 #
-# Walker Lake lets you measure this, because the exhaustive data set gives the true value of `V` at every node. Load
-# the 470 samples, the truth on a 5 m grid of 3,120 nodes, and krige with the variogram from
+# The exhaustive Walker Lake data set gives the true value of `V` at every node, so you can measure this. Load the 470
+# samples and the truth on a 5 m grid of 3,120 nodes, then krige with the variogram from
 # [chapter 4](../04-kriging/learn_04.md):
 
 # %% [hidden]
@@ -75,8 +75,8 @@ print(
 # %% [markdown]
 # The kriged map has a standard deviation of 196 ppm against 250 ppm for the truth, and its highest node reaches
 # 1,316 ppm where the truth reaches 1,610 ppm. Above a 500 ppm cutoff, kriging reports 13.1 % of the area and the truth
-# holds 18.9 %: a mine plan built on the kriged map would miss almost a third of the ground above cutoff. The
-# cumulative distributions show the squeeze. Kriging has fewer low values and fewer high values than the truth.
+# holds 18.9 %. A mine plan built on the kriged map would miss almost a third of the ground above cutoff. The
+# cumulative distributions show the squeeze: kriging has fewer low and fewer high values than the truth.
 
 # %%
 fig, ax = plt.subplots(figsize=(6, 3.6), layout="constrained")
@@ -91,15 +91,15 @@ save(fig, "smoothing")
 
 # %% [markdown]
 # The same smoothing hides connectivity. A kriged map joins high-grade patches into broad, gentle highs, so it
-# overstates how far a rich zone runs and understates how abruptly it ends. Any answer that depends on the spread of
-# values or on their arrangement needs a map with the right amount of variability.
+# overstates how far a rich zone runs and understates how sharply it ends. Answers that depend on the spread of values
+# or on their arrangement need a map with the right variability.
 #
 # ## Realizations
 #
-# A realization is one map that honors the samples at their locations, reproduces the histogram of the data and
-# reproduces the variogram. Many different maps meet those three conditions. Each one is a plausible version of the
-# deposit, as rough as the truth, and none is more likely than another. Average many of them and the roughness cancels:
-# the average approaches the kriged map (Figure 2).
+# A realization is one map that honors the samples at their locations and reproduces the histogram and the variogram
+# of the data. Many different maps meet those conditions. Each is a plausible version of the deposit, as rough as the
+# truth, and none is more likely than another. If you average many of them, the roughness cancels and the average
+# approaches the kriged map (Figure 2).
 #
 # <figure class="bt-figure">
 # --8<-- "svg/l05-realizations.svg"
@@ -115,10 +115,10 @@ save(fig, "smoothing")
 # ## The normal-score transform
 #
 # SGS works with Gaussian values, whose conditional distribution kriging describes fully by a mean and a variance.
-# Grades are rarely Gaussian: Walker Lake `V` is skewed, with 22 samples at exactly 0 ppm. The normal-score transform
-# fixes this. It sorts the data, gives each value its cumulative probability, and replaces the value with the
-# standard Gaussian score that has the same cumulative probability (Figure 3). The back-transform runs the same
-# arrows in reverse, from a score to a value in ppm.
+# Grades are rarely Gaussian: Walker Lake `V` is skewed, with 22 samples at 0 ppm. The normal-score transform sorts
+# the data, gives each value its cumulative probability and replaces the value with the standard Gaussian score at
+# the same cumulative probability (Figure 3). The back-transform follows the same arrows in reverse, from a score to a
+# value in ppm.
 #
 # <figure class="bt-figure">
 # --8<-- "svg/l05-normal-score.svg"
@@ -128,7 +128,7 @@ save(fig, "smoothing")
 # </figure>
 #
 # `NormalScore` follows the fit/transform pattern of the other transforms: `fit` learns the table of values and
-# scores, `transform` applies it, and `inverse_transform` goes back. Fit it with declustering weights so the table
+# scores, `transform` applies it and `inverse_transform` goes back. Fit it with declustering weights so the table
 # describes the whole area, with clustered samples down-weighted. `tails` sets the values the back-transform reaches at
 # the extreme scores, here 0 and the largest sample.
 
@@ -149,8 +149,8 @@ print(f"largest round-trip error: {np.abs(score.inverse_transform(y) - v).max():
 # %% [markdown]
 # The scores have a declustered mean of 0.00 and variance of 0.97, close to the standard Gaussian. A score of 0, the
 # median, maps back to 235 ppm, and the cutoff of 500 ppm sits at a score of 0.80. The round trip returns every sample
-# exactly. The spike at the left of the score histogram holds the zeros: tied values must share one score, so the
-# 9 % of declustered weight at 0 ppm cannot spread into a Gaussian tail.
+# unchanged. The spike at the left of the score histogram holds the zeros: tied values share one score, so the 9 % of
+# declustered weight at 0 ppm cannot spread into a Gaussian tail.
 
 # %%
 fig, (a, b) = plt.subplots(1, 2, figsize=(9, 3.4), layout="constrained")
@@ -165,10 +165,10 @@ save(fig, "normal_scores")
 #     With \(F\) the declustered cumulative distribution of the data and \(G\) the standard Gaussian cumulative
 #     distribution, the transform and its inverse are
 #     \[ y = G^{-1}\big(F(z)\big), \qquad z = F^{-1}\big(G(y)\big). \]
-#     Both are monotonic, so the order of values is kept: the highest sample gets the highest score.
+#     Both are monotonic, so they keep the order of values: the highest sample gets the highest score.
 #
-# SGS needs the variogram of the scores, not of the raw values. Fit it along N170°, the direction of greatest
-# continuity, and across it, then scale it to a sill of 1, the variance of a standard Gaussian:
+# SGS needs the variogram of the scores. Fit it along N170°, the direction of greatest continuity, and across it, then
+# scale it to a sill of 1, the variance of a standard Gaussian:
 
 # %%
 azimuth, lag, max_lag = 170.0, 10.0, 120.0
@@ -197,7 +197,7 @@ print(gaussian)
 # 3. adds the node and its new score to the conditioning data.
 #
 # The third step carries the variogram. A node simulated early becomes data for its neighbors, so nearby nodes end up
-# correlated as the model says. When every node has a score, the back-transform returns them to ppm.
+# correlated as the model prescribes. Once every node has a score, the back-transform returns the scores to ppm.
 #
 # <figure class="bt-figure">
 # --8<-- "svg/l05-sgs-path.svg"
@@ -210,14 +210,14 @@ print(gaussian)
 #     At node \(u\), simple kriging of the scores gives the mean \(y^*_{SK}(u)\) and variance
 #     \(\sigma^2_{SK}(u)\). SGS draws
 #     \[ y(u) = y^*_{SK}(u) + \sigma_{SK}(u)\, w, \qquad w \sim \mathcal{N}(0, 1). \]
-#     For a multivariate Gaussian field this is exactly the conditional distribution at \(u\) given everything
+#     For a multivariate Gaussian field this is the exact conditional distribution at \(u\) given everything
 #     simulated so far, so each realization is a draw from the joint distribution (Deutsch and Journel, 1998).
 #
 # `SGS` takes the Gaussian variogram and a search. Its `fit` receives the raw samples and the declustering weights:
 # it builds the normal-score transform itself, so you pass values in ppm and get realizations in ppm. `simulate`
-# returns a `SimulationSummary`, built while the realizations run. Realizations themselves are kept only if you ask
-# with `keep`, because a large grid times hundreds of realizations quickly fills memory. Here 50 realizations run, and
-# the first 20 are kept for checking.
+# returns a `SimulationSummary`, built while the realizations run. It keeps realizations only if you ask with `keep`,
+# because hundreds of realizations of a large grid fill memory. The cell runs 50 realizations and keeps the first 20
+# for checking.
 
 # %%
 sgs = bt.SGS(gaussian, bt.Search(radius=100, max_samples=24)).fit(samples, "V", weights=weights)
@@ -230,8 +230,8 @@ print(
 
 # %% [markdown]
 # Each realization has a standard deviation between 258 and 273 ppm, against 196 ppm for kriging and 250 ppm for the
-# truth. The maps look like the truth in texture: the high-grade trend runs north-northwest, with sharp local
-# contrasts that kriging erases. They differ from each other wherever samples are sparse.
+# truth. The maps share the texture of the truth: the high-grade trend runs north-northwest, with sharp local contrasts
+# that kriging erases. They differ from each other where samples are sparse.
 
 # %%
 shape, extent = (60, 52), (0.5, 260.5, 0.5, 300.5)
@@ -252,9 +252,9 @@ save(fig, "realizations")
 # ## Seeds and reproducibility
 #
 # The random draws come from a random-number generator started from a seed. Boitatá derives one seed per realization
-# from the seed you pass, and runs realizations in parallel. Realization 7 therefore depends only on the user seed and
-# its own number, never on which thread ran it or how many threads exist. Run the same call twice and you get the same
-# maps; change the seed and you get new ones:
+# from the seed you pass and runs realizations in parallel. Realization 7 depends only on the user seed and its own
+# number, never on which thread ran it or how many threads exist. The same call twice gives the same maps, and a new
+# seed gives new ones:
 
 # %%
 again = sgs.simulate(grid, n=3, seed=42, keep=True).realizations
@@ -263,19 +263,19 @@ print(f"seed 42 again, same three maps: {np.array_equal(again, reals[:3])}")
 print(f"seed 7, nodes that differ: {np.mean(other != again):.0%}")
 
 # %% [markdown]
-# The first three realizations of the seed 42 run repeat to the last digit, even though this call asked for 3
-# realizations and the first asked for 50. Seed 7 changes 97 % of the nodes; almost all of the rest back-transform
-# to 0 ppm in both runs, the value that holds 9 % of the declustered data.
+# The first three realizations of the seed 42 run repeat to the last digit, although this call asked for 3
+# realizations and the first asked for 50. Seed 7 changes 97 % of the nodes. Almost all of the rest back-transform to
+# 0 ppm in both runs, the value that holds 9 % of the declustered data.
 #
 # !!! pitfall "Pitfall"
-#     Record the seed with the results. Without it, nobody can reproduce a resource figure drawn from simulation,
-#     including you next month.
+#     Record the seed with the results. Without it, you cannot reproduce a resource figure drawn from simulation next
+#     month, and neither can anyone else.
 #
 # ## Check the realizations
 #
-# A realization is only useful if it reproduces what it was built to reproduce. `check_realizations` compares every
-# kept realization with the declustered data: quantiles in ppm and in scores, and experimental variograms along the
-# model's axes against the model.
+# A realization is useful only if it reproduces the data statistics it was built from. `check_realizations` compares
+# every kept realization with the declustered data: quantiles in ppm and in scores, and experimental variograms along
+# the model's axes against the model.
 
 # %%
 check = bt.check_realizations(
@@ -289,11 +289,11 @@ for name in ["mean", "std", "P90"]:
     )
 
 # %% [markdown]
-# The declustered data have a mean of 291 ppm; the realization means range from 274 to 322 ppm around it. The
-# realizations' 90th percentiles, 635 to 687 ppm, bracket the data's 636 ppm, and their standard deviations, 258 to
-# 273 ppm, sit just above the data's 255 ppm. The variograms follow the model up
-# to its range along and across N170°, then scatter around the sill. A single 260 × 300 m field cannot settle
-# exactly on the sill, and the band shows how far it wanders.
+# The declustered data have a mean of 291 ppm, and the realization means range from 274 to 322 ppm around it. The
+# realizations' 90th percentiles, 635 to 687 ppm, bracket the data's 636 ppm. Their standard deviations, 258 to
+# 273 ppm, sit just above the data's 255 ppm. The variograms follow the model up to its range along and across N170°,
+# then scatter around the sill. A single 260 × 300 m field cannot settle on the sill, and the band shows how far it
+# wanders.
 
 # %%
 fig, (a, b) = plt.subplots(1, 2, figsize=(10, 3.8), layout="constrained")
@@ -306,9 +306,9 @@ save(fig, "reproduction")
 # %% [markdown]
 # ## Summarize across realizations
 #
-# The payoff comes when you compute a result on every realization and look at the spread. At a single node, the
-# realizations give a distribution of possible values. Its mean is the E-type estimate; the fraction of realizations
-# above a cutoff is the probability of exceeding it (Figure 5).
+# Compute a result on every realization and look at its spread. At a single node, the realizations give a
+# distribution of possible values. Its mean is the E-type estimate, and the fraction of realizations above a cutoff is
+# the probability of exceeding it (Figure 5).
 #
 # <figure class="bt-figure">
 # --8<-- "svg/l05-summary.svg"
@@ -316,9 +316,9 @@ save(fig, "reproduction")
 # exceed the cutoff, so the probability above the cutoff is 0.3.</figcaption>
 # </figure>
 #
-# `SimulationSummary` accumulates these while SGS runs, so they cover all 50 realizations, not only the 20 kept:
-# `mean` (E-type), `std`, `probability_above` for each cutoff passed to `simulate`, and, per realization,
-# `realization_above`, the share of nodes above each cutoff.
+# `SimulationSummary` accumulates these while SGS runs, so they cover all 50 realizations, including the 30 it did not
+# keep. It holds `mean` (E-type), `std`, `probability_above` for each cutoff passed to `simulate` and, per
+# realization, `realization_above`, the share of nodes above each cutoff.
 
 # %%
 etype, spread, p_above = summary.mean, summary.std, summary.probability_above[:, 0]
@@ -331,13 +331,13 @@ print(f"standard deviation of the E-type map: {etype.std():.0f} ppm")
 print(f"mean: declustered samples {np.average(v, weights=weights):.0f} ppm, truth {true_v.mean():.0f} ppm")
 
 # %% [markdown]
-# The E-type map is smooth, with a standard deviation of 186 ppm, and applying the cutoff to it gives 13.1 % of the
-# area, the same as kriging. The realizations give a range instead: between 20.7 % (P10) and 24.5 % (P90) of the area
-# lies above 500 ppm. The true 18.9 % falls just below that range. The realizations reproduce the declustered
-# histogram, and that histogram has a mean of 291 ppm against 276 ppm for the truth, so they inherit its excess of high
-# values. Simulation measures uncertainty given the data and the model; it cannot correct a biased histogram.
+# The E-type map is smooth, with a standard deviation of 186 ppm, and the cutoff applied to it gives 13.1 % of the
+# area, the same as kriging. The realizations give a range: between 20.7 % (P10) and 24.5 % (P90) of the area lies
+# above 500 ppm. The true 18.9 % falls just below that range. The realizations reproduce the declustered histogram,
+# whose mean is 291 ppm against 276 ppm for the truth, so they inherit its excess of high values. Simulation measures
+# uncertainty given the data and the model, and it cannot correct a biased histogram.
 #
-# The probability map is the practical output. Its bright areas are high grade in almost every realization; the
+# The probability map is the practical output. Its bright areas are high grade in almost every realization, and the
 # outlined true areas above 500 ppm sit mostly inside them. The spread map is highest in the high-grade zone and
 # lowest in the low-grade trough to its east, since skewed grades vary most where they are high.
 
@@ -364,7 +364,7 @@ save(fig, "summaries")
 
 # %% [markdown]
 # !!! pitfall "Pitfall"
-#     The E-type map is an estimate, as smooth as kriging. Never apply a cutoff to it, or to any average of
+#     The E-type map is an estimate, as smooth as kriging. Do not apply a cutoff to it, or to any average of
 #     realizations, to predict tonnage. Apply the cutoff to each realization, then summarize the results.
 #
 # !!! check "Check before you move on"

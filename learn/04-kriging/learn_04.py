@@ -1,15 +1,15 @@
 """
 # Kriging
 
-You have samples at a few hundred locations and need a value everywhere else: at every node of a grid, or for every
-block of a mine plan. Kriging computes each unknown value as a weighted average of nearby samples, with weights
-chosen from the variogram of [chapter 3](../03-spatial-continuity/learn_03.md).
+You have samples at a few hundred locations and need a value at every node of a grid or every block of a mine plan.
+Kriging computes each unknown value as a weighted average of nearby samples, with weights taken from the variogram
+of [chapter 3](../03-spatial-continuity/learn_03.md).
 
 !!! learn "What you'll learn"
     - What makes a weighted average a good estimator, and how kriging differs from inverse distance.
     - What ordinary kriging minimizes, and why its weights sum to one.
     - How the screen and declustering effects shape the weights, and where negative weights come from.
-    - What the kriging variance measures, and what it ignores.
+    - What the kriging variance measures and what it ignores.
     - How the search neighborhood, point and block kriging, and smoothing affect the result.
 
     **Prerequisites:** [Describing data](../02-describing-data/learn_02.md) (mean, variance, declustering) and
@@ -27,8 +27,8 @@ sys.path.insert(0, str(HERE.parents[1] / "examples"))
 # ## The estimation problem
 #
 # Figure 1 shows the problem at one location of the Walker Lake area. Seven samples lie within 22 m of the target,
-# with values from 3 to 317 ppm. Any sensible estimate is a weighted average of them, and the whole question is the
-# weights.
+# with values from 3 to 317 ppm. A sensible estimate is a weighted average of them, so the question is how to choose
+# the weights.
 #
 # <figure class="bt-figure">
 # --8<-- "svg/l04-problem.svg"
@@ -36,13 +36,12 @@ sys.path.insert(0, str(HERE.parents[1] / "examples"))
 # z* multiplies each value by a weight λ and adds them up.</figcaption>
 # </figure>
 #
-# Two simple rules come to mind. Give every sample the same weight, and a far sample counts as much as a near one.
-# Weight each sample by the inverse of its squared distance, **inverse distance**, and near samples count more, but
-# the rule sees only distances: it ignores the variogram, and it ignores where the samples sit relative to each
-# other.
+# Two simple rules exist. Equal weights let a far sample count as much as a near one. Weights proportional to the
+# inverse squared distance (**inverse distance**) favor near samples, but the rule sees only distances: it ignores
+# the variogram and where the samples sit relative to each other.
 #
 # The chapter uses the 470 Walker Lake samples and the anisotropic model fitted in chapter 3. The exhaustive data
-# give the true value at every node, so you can check each claim below against the truth. The last line of the cell
+# give the true value at every node, so you can check each claim against the truth. The last line of the cell
 # describes the seven samples of Figure 1.
 
 # %%
@@ -77,12 +76,12 @@ print(
 # 2. **Best**: among unbiased weighted averages, the one with the smallest error variance.
 #
 # The variogram makes the second condition computable. It gives the expected squared difference between any two
-# samples, and between each sample and the target, so the error variance of any set of weights can be written down
-# and minimized before a single value is known.
+# samples, and between each sample and the target, so you can write the error variance of any set of weights and
+# minimize it before you know a single value.
 #
 # **Ordinary kriging** assumes the mean is constant near the target but unknown. Unbiasedness then requires the
 # weights to sum to one: if every sample value rose by 10 ppm, the estimate should rise by 10 ppm too. Minimizing the
-# error variance under that constraint gives a small linear system, one equation per sample plus one for the
+# error variance under that constraint gives a small linear system with one equation per sample plus one for the
 # constraint.
 #
 # ??? math "The math"
@@ -108,9 +107,9 @@ print(
 #
 # ## Screening and declustering
 #
-# Two layouts show what the system does that inverse distance cannot. The helper below reads each weight
-# from a fitted estimator: set one sample to 1 and the rest to 0, and the estimate equals that sample's weight. Both
-# layouts use an isotropic spherical model with a 60 m range and no nugget.
+# Two layouts show what the system does that inverse distance cannot. The helper reads each weight from a fitted
+# estimator: set one sample to 1 and the rest to 0, and the estimate equals that sample's weight. Both layouts use an
+# isotropic spherical model with a 60 m range and no nugget.
 
 
 # %%
@@ -136,9 +135,8 @@ for name, coords in layouts.items():
 
 # %% [markdown]
 # In the first layout, one sample sits 22 m east of the target, directly behind another at 10 m (Figure 2). Inverse
-# distance gives it 0.11, by its distance alone. Kriging recognizes that the nearer sample already carries the
-# information from that side and gives the hidden one −0.06. This is the **screen effect**: a sample shields the
-# samples behind it.
+# distance gives it 0.11 from its distance alone. In kriging, the nearer sample already carries the information from
+# that side, and the hidden one gets −0.06. This is the **screen effect**: a sample shields the samples behind it.
 #
 # <figure class="bt-figure">
 # --8<-- "svg/l04-screen.svg"
@@ -149,8 +147,8 @@ for name, coords in layouts.items():
 #
 # In the second layout, one sample lies 20 m west of the target and a cluster of four lies 20 m east (Figure 3). All
 # five are about equally far, so inverse distance gives each about 0.2 and the cluster 0.8 in total. The four
-# clustered samples repeat much the same information, and kriging treats them almost as one: the lone sample gets
-# 0.46 and the cluster 0.54. This is the **declustering effect**, the local version of the declustering weights of
+# clustered samples repeat the same information, and kriging treats them almost as one: the lone sample gets 0.46 and
+# the cluster 0.54. This is the **declustering effect**, the local version of the declustering weights of
 # chapter 2.
 #
 # <figure class="bt-figure">
@@ -165,14 +163,14 @@ for name, coords in layouts.items():
 #     themselves. That last part screens hidden samples and declusters redundant ones.
 #
 # Negative weights come with the screen effect. They are legitimate, and small ones do no harm. Large negative
-# weights on high values can push an estimate below zero, which is why the search section below limits the number
-# of samples and why a nugget helps.
+# weights on high values can push an estimate below zero. A limit on the number of samples (see the search section)
+# and a nugget both reduce them.
 #
 # ## Weights at a real node
 #
 # Back to Walker Lake. A `Search` describes the neighborhood: an ellipse with an 80 m major radius along the
 # model's major axis, half as wide across it, and up to 24 samples. `OrdinaryKriging(model, search)` builds the
-# estimator, `fit` stores the samples, and `predict` estimates at targets, the same fit-then-apply shape as the
+# estimator, `fit` stores the samples and `predict` estimates at targets, the same fit-then-apply shape as the
 # transforms' `fit`/`transform`. The cell reads all 470 weights at the point (100, 180) m of Figure 1.
 
 # %%
@@ -192,8 +190,7 @@ print(
 # %% [markdown]
 # The search picks 24 samples and the weights sum to one, as the constraint demands. Two weights are negative, the
 # lowest −0.003, and the weighted sum of the values reproduces the estimate of 76.8 ppm. The next cell rebuilds the
-# system of the math box from `model.gamma_between` and solves it with NumPy: the weights agree to machine
-# precision.
+# system of the math box from `model.gamma_between` and solves it with NumPy. The weights agree to machine precision.
 
 # %%
 n = used.sum()
@@ -222,15 +219,15 @@ for handle in legend.legend_handles:
 save(fig, "weights")
 
 # %% [markdown]
-# The largest weights sit along the major axis, north and south of the target, where the variogram says samples
-# stay alike over long distances. The tight group of samples west of the target shares little weight between
-# its members: the declustering effect again.
+# The largest weights sit along the major axis, north and south of the target, where the variogram keeps samples
+# alike over long distances. The tight group west of the target shares little weight among its members: the
+# declustering effect again.
 #
 # ## A whole grid
 #
 # `predict` also accepts a `BlockModel` and returns one value per cell. `with_column` returns a new block model with
-# the values attached. The cell kriges a 5 m grid, runs inverse
-# distance through the same search, and compares both with the truth at the nodes.
+# the values attached. The cell kriges a 5 m grid, runs inverse distance through the same search and compares both
+# with the truth at the nodes.
 
 # %%
 grid = bt.BlockModel(origin=(0.5, 0.5), size=(5, 5), count=(52, 60))
@@ -250,14 +247,14 @@ for name in ("ok", "idw"):
 # %% [markdown]
 # Kriging misses the truth by 155.1 ppm on average (root mean squared error), inverse distance by 166.2 ppm. The
 # difference is modest because both use the same anisotropic search. Both sets of estimates also vary less than the
-# truth, a point the last section returns to.
+# truth (see the last section).
 #
 # ## The kriging variance
 #
-# Kriging returns an error variance with every estimate (`return_variance=True`). The math box shows its formula
-# holds only variogram values: it depends on the geometry of samples and target, and on the model, never on the
-# sample values. The cell replaces `V` by random numbers and gets the same variances. It also compares the kriging
-# standard deviation with the actual error at each node.
+# Kriging returns an error variance with every estimate (`return_variance=True`). Its formula in the math box holds
+# only variogram values: it depends on the model and on the geometry of samples and target, never on the sample
+# values. The cell replaces `V` by random numbers and gets the same variances. It also compares the kriging standard
+# deviation with the actual error at each node.
 
 # %%
 noise = np.random.default_rng(0).normal(size=len(v))
@@ -282,20 +279,20 @@ fig.colorbar(sd, ax=axes[2], shrink=0.8, label="ppm")
 save(fig, "maps")
 
 # %% [markdown]
-# The standard deviation map follows the sampling: low in the infill clusters, high between sample lines and at
-# the edges. Its
-# correlation with the actual error is −0.01. Walker Lake was sampled most densely where `V` is high and erratic, so
-# the nodes with the lowest kriging variance are among the hardest to estimate, and the variance cannot know that.
+# The standard deviation map follows the sampling: low in the infill clusters, high between sample lines and at the
+# edges. Its correlation with the actual error is −0.01. The Walker Lake survey sampled most densely where `V` is high
+# and erratic, so the nodes with the lowest kriging variance are among the hardest to estimate. The variance cannot
+# know that.
 #
 # !!! pitfall "Pitfall: reading the kriging variance as a local error bar"
-#     The kriging variance ranks data configurations: well informed against poorly informed. It does not see a
-#     high-grade zone that varies more than a low-grade one. For local uncertainty that depends on the values, use
+#     The kriging variance ranks data configurations from well informed to poorly informed. It does not see that a
+#     high-grade zone varies more than a low-grade one. For local uncertainty that depends on the values, use
 #     simulation ([chapter 5](../05-simulation/learn_05.md)).
 #
 # ## The search neighborhood
 #
-# Kriging with every sample for every node would be slow and would put small, unstable weights on distant samples.
-# The `Search` value object limits each node to a neighborhood (Figure 4):
+# Kriging every node with every sample would be slow and would put small, unstable weights on distant samples. The
+# `Search` value object limits each node to a neighborhood (Figure 4):
 #
 # - `radius`, `rotation` and `ratios` define an ellipse, usually aligned with the variogram's anisotropy;
 # - `max_samples` and `min_samples` bound the count; nodes with fewer than `min_samples` stay unestimated (NaN);
@@ -309,10 +306,10 @@ save(fig, "maps")
 # still get their share.</figcaption>
 # </figure>
 #
-# A search is plain data: it holds no samples, serializes to JSON, and one search can serve several estimators. The
-# cell varies `max_samples` and measures the variance of the estimates and the **slope of regression** of the true
-# values on the estimates: 1 means an estimate of 500 ppm is right on average, below 1 means high estimates are too
-# high and low ones too low.
+# A search is plain data: it holds no samples, serializes to JSON and can serve several estimators. The cell varies
+# `max_samples` and measures the variance of the estimates and the **slope of regression** of the true values on the
+# estimates. A slope of 1 means an estimate of 500 ppm is right on average. Below 1, high estimates are too high and
+# low ones too low.
 
 
 # %%
@@ -329,18 +326,18 @@ for m in (4, 8, 24, 48):
     print(f"{m:12d}  {e.var():21.0f}  {slope(e):5.2f}  {rmse:5.1f}")
 
 # %% [markdown]
-# With 4 samples the estimates vary more (44 123 ppm²) but the slope is 0.93: high estimates overshoot. From 24
-# samples on the slope reaches 1.00 and the estimates settle at a variance of about 38 300. The RMSE stays between
-# 154.7 and 155.7 ppm across the four searches. A small search keeps more of the variability; a larger one removes conditional bias.
-# That trade-off drives the choice of search, and [search](../../examples/06-kriging/06-search/example_06_06.md)
-# explores it further.
+# With 4 samples the estimates vary more (44 123 ppm²), but the slope is 0.93: high estimates overshoot. From 24
+# samples on, the slope reaches 1.00 and the variance of the estimates settles near 38 300. The RMSE stays between
+# 154.7 and 155.7 ppm across the four searches. A small search keeps more of the variability, and a larger one
+# removes conditional bias. That trade-off drives the choice of search;
+# [search](../../examples/06-kriging/06-search/example_06_06.md) explores it further.
 #
 # ## Points and blocks
 #
 # So far each target was a point. Mining selects blocks, and the grade of a 10 × 10 m block is the average of the
 # grades inside it. **Block kriging** estimates that average directly: `BlockKriging` averages the variogram between
-# each sample and a grid of points discretizing the block. Its kriging variance is smaller, because an average over a
-# block is easier to predict than one point in it.
+# each sample and a grid of points that discretizes the block. Its kriging variance is smaller, because the average
+# over a block is easier to predict than the value at one point in it.
 
 # %%
 blocks = bt.BlockModel(origin=(0, 0), size=(10, 10), count=(26, 30))
@@ -359,8 +356,8 @@ for name, e, var in (("point", point_estimate, point_variance), ("block", block_
 #
 # ## Smoothing and conditional bias
 #
-# A weighted average cannot swing as wide as the values it averages. Kriged maps are smoother than reality: here the
-# estimates have a variance of 38 359 ppm² against 62 312 for the truth at the nodes. Figure 5 shows the effect
+# A weighted average cannot swing as wide as the values it averages, so kriged maps are smoother than reality. Here
+# the estimates have a variance of 38 359 ppm² against 62 312 for the truth at the nodes. Figure 5 shows the effect
 # along one line: the kriged profile follows the trend and misses the peaks and troughs.
 #
 # <figure class="bt-figure">
@@ -370,8 +367,8 @@ for name, e, var in (("point", point_estimate, point_variance), ("block", block_
 # </figure>
 #
 # Smoothing and conditional bias are separate properties. The next figure plots the true value against the estimate
-# at every node. A slope of one says that, among nodes estimated at 500 ppm, the average true value is 500 ppm, so
-# selecting on the estimates is fair.
+# at every node. With a slope of one, nodes estimated at 500 ppm average 500 ppm in truth, so selection on the
+# estimates is fair.
 
 # %%
 fig, ax = plt.subplots(figsize=(4.8, 4.6), layout="constrained")
@@ -392,8 +389,8 @@ print(
 
 # %% [markdown]
 # The measured slope is 1.00, and `predict(..., diagnostics=True)` reports the slope the model expects at each node,
-# 0.96 on average, without seeing the truth. Kriging with a good neighborhood is conditionally unbiased, and the
-# price is smoothing: the right average at each node, and too few extreme values across the map. A tonnage above a
+# 0.96 on average, without seeing the truth. Kriging with a good neighborhood is conditionally unbiased, and you pay
+# for it with smoothing: the right average at each node, too few extreme values across the map. A tonnage above a
 # high cutoff read from these estimates would be too low. [Chapter 5](../05-simulation/learn_05.md) restores the
 # variability with simulation, and [chapter 6](../06-checking-a-model/learn_06.md) checks both properties on a
 # finished model without the truth.
