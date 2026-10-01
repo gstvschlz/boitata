@@ -271,15 +271,6 @@ print(f"seed 7, nodes that differ: {np.mean(other != again):.0%}")
 #     Record the seed with the results. Without it, nobody can reproduce a resource figure drawn from simulation,
 #     including you next month.
 #
-# ??? tryit "Try it"
-#     Boitatá sets the number of threads from the environment variable `RAYON_NUM_THREADS`. Save the seed 42
-#     realizations with `np.save`, restart Python with `RAYON_NUM_THREADS=1`, simulate again and compare. Do the
-#     single-threaded maps match?
-#
-#     ??? answer "Answer"
-#         Yes, bit for bit. Each realization draws from its own seed and every reduction runs in a fixed order, so
-#         the thread count changes the run time and nothing else.
-#
 # ## Check the realizations
 #
 # A realization is only useful if it reproduces what it was built to reproduce. `check_realizations` compares every
@@ -375,14 +366,6 @@ save(fig, "summaries")
 # !!! pitfall "Pitfall"
 #     The E-type map is an estimate, as smooth as kriging. Never apply a cutoff to it, or to any average of
 #     realizations, to predict tonnage. Apply the cutoff to each realization, then summarize the results.
-#
-# ??? tryit "Try it"
-#     Run `simulate` with `n=5` and plot `summary.mean`. How does it compare with the E-type map of 50?
-#
-#     ??? answer "Answer"
-#         It is patchier. Five draws do not average out the random variation at each node, so the E-type map
-#         still shows part of each realization's texture. The E-type mean and the probabilities settle as `n`
-#         grows, which is why resource studies run tens to hundreds of realizations.
 #
 # !!! check "Check before you move on"
 #     - Why does the kriged map put less area above a high cutoff than the truth?

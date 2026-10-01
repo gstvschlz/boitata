@@ -144,15 +144,6 @@ print(
 #     Declustering weights let clustered samples speak for the whole area. Use them for every global statistic:
 #     histograms, statistics by domain, top cuts and the normal-score transform.
 #
-# ??? tryit "Try it"
-#     Decluster with a fixed 5 m cell, `bt.cell_declustering(samples, "V", cell_size=5.0)`, and compute the
-#     weighted mean. How far does it move from the naive 435 ppm, and why?
-#
-#     ??? answer "Answer"
-#         The mean is 425 ppm, only 10 ppm below the naive mean. Half of the clustered samples sit within 4.2 m
-#         of their nearest neighbor, so most 5 m cells hold a single sample and most weights stay near 1: the
-#         median weight is 1.04.
-#
 # !!! pitfall "Pitfall"
 #     The lowest declustered mean is the right target only when the clusters sit on high values. If the infill
 #     targeted low values, the right cell size would maximize the mean. Look at the sample map before you trust
@@ -297,15 +288,6 @@ print(f"U above 3000 ppm: {(u[both] > 3000).sum()} samples")
 # coefficient is 0.55 and the Spearman coefficient 0.76. The gap comes from the tail of `U`: six samples above
 # 3000 ppm sit far from any straight line, and Pearson pays for them. In the massive sulphide, zinc and lead reach a
 # Pearson coefficient of 0.81: the two metals rise together.
-#
-# ??? tryit "Try it"
-#     Compute the Pearson coefficient of `np.log1p(v[both])` against `np.log1p(u[both])`. Would you expect it to
-#     be closer to 0.55 or to 0.76?
-#
-#     ??? answer "Answer"
-#         It is 0.78, next to the rank coefficient. The log shrinks the tail of `U`, so the extreme pairs stop
-#         dominating the Pearson coefficient. The Spearman coefficient stays at 0.76: an increasing transform,
-#         log included, leaves the ranks unchanged.
 #
 # ## A first look at the normal-score transform
 #

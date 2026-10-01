@@ -192,16 +192,6 @@ save(fig, "shapes")
 # `fit` returns a `Variogram`, a value object: a nugget, a list of `Structure`s (shape, sill, range) and an
 # anisotropy. It holds no data and no state, so you can print it, compare it, or pass it to any estimator.
 #
-# ??? tryit "Try it"
-#     Fit `omni` with two nested spherical structures, `omni.fit(["spherical", "spherical"], weighting="count/gamma")`.
-#     Does the nugget go up or down compared with the single spherical fit?
-#
-#     ??? answer "Answer"
-#         It goes down, from 31 036 to 22 271 ppm². A short second structure absorbs part of the rise over the
-#         first 10 to 20 m that a single structure had to put into the nugget.
-#         [Variogram fitting](../../examples/05-spatial-continuity/02-variogram-fitting/example_05_02.md)
-#         shows the same effect along the major axis, where the nested fit halves the nugget.
-#
 # ## Anisotropy
 #
 # Walker Lake `V` follows elongated, north-northwest trending bodies. Along them grades stay similar over long
@@ -327,15 +317,6 @@ for name, covariance in (("straight line to the sill", straight), ("spherical", 
 # !!! pitfall "Pitfall: a model that fits the points but not the physics"
 #     A curve through every experimental point is a worse model than a smooth valid one that misses a few. Invalid
 #     models give negative kriging variances and unstable weights, and the damage shows only downstream.
-#
-# ??? tryit "Try it"
-#     Compute the directional variogram along the major axis with `tolerance=10.0` instead of the default 22.5°.
-#     What happens to the pair counts, and to γ?
-#
-#     ??? answer "Answer"
-#         Each lag keeps fewer than half its pairs: the first falls from 101 to 45. γ follows the same curve within
-#         its scatter, so the 22.5° cone did not blur the direction here, and the narrow cone costs pairs for no
-#         gain. Narrow the cone only when directions close to each other show different variograms.
 #
 # !!! check "Check before you move on"
 #     - Why is the experimental variogram divided by two, and what does it approach at large lags?

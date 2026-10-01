@@ -264,14 +264,6 @@ save(fig, "support")
 #     block. The variogram, which measures how values differ with distance, is the subject of
 #     [chapter 3](../03-spatial-continuity/learn_03.md).
 #
-# ??? tryit "Try it"
-#     Before looking at the table, guess the variance of 10 m blocks: closer to the 5 m value or to the 20 m value?
-#     Then find the share of 10 m blocks above 500 ppm in the output.
-#
-#     ??? answer "Answer"
-#         The variance of 10 m blocks is 46 694 ppm², closer to the 5 m value (52 287) than to the 20 m value
-#         (37 617), and 16.2 % of the blocks lie above 500 ppm.
-#
 # !!! pitfall "Pitfall"
 #     Statistics on different supports do not mix. Do not compare the histogram of 1 m assays with that of a
 #     20 m block model and call the difference a bias: part of it is the volume-variance effect.

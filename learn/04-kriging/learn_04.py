@@ -168,15 +168,6 @@ for name, coords in layouts.items():
 # weights on high values can push an estimate below zero, which is why the search section below limits the number
 # of samples and why a nugget helps.
 #
-# ??? tryit "Try it"
-#     Rebuild `toy` with a nugget: `bt.Variogram([("spherical", 0.7, 60.0)], nugget=0.3)`, and recompute the
-#     screen layout. What happens to the weight of the screened sample?
-#
-#     ??? answer "Answer"
-#         It becomes positive, about 0.11, close to the inverse distance weight. A nugget adds unstructured noise
-#         to every sample, so no sample can fully stand in for another, and the weights spread out toward equal
-#         values. With a pure nugget model kriging gives every sample the same weight.
-#
 # ## Weights at a real node
 #
 # Back to Walker Lake. A `Search` describes the neighborhood: an ellipse with an 80 m major radius along the
@@ -406,16 +397,6 @@ print(
 # high cutoff read from these estimates would be too low. [Chapter 5](../05-simulation/learn_05.md) restores the
 # variability with simulation, and [chapter 6](../06-checking-a-model/learn_06.md) checks both properties on a
 # finished model without the truth.
-#
-# ??? tryit "Try it"
-#     Krige the grid with a pure nugget model of the same sill, `bt.Variogram([], nugget=model.sill)`, and the same
-#     search. Compare the estimates with `bt.MovingAverage(search)`, and the RMSE with the 155.1 ppm of the fitted
-#     model.
-#
-#     ??? answer "Answer"
-#         The estimates equal the moving average to within 10⁻¹² ppm: without spatial structure, every sample in
-#         the neighborhood gets the same weight. The RMSE rises to 231.0 ppm and the variance of the estimates
-#         falls to 18 845 ppm². The structured part of the variogram accounts for the gain over a plain average.
 #
 # !!! check "Check before you move on"
 #     - Why do ordinary kriging weights sum to one?

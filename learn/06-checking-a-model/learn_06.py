@@ -363,21 +363,6 @@ for name in ("measured", "indicated", "inferred"):
 # The [classification example](../../examples/10-checking-models/05-classification/example_10_05.md)
 # adds drill spacing and smooths the classes into coherent zones.
 #
-# ??? tryit "Try it"
-#     Rerun the cross-validation with `folds=2`. How do the RMSE and the slope change, and why?
-#
-#     ??? answer "Answer"
-#         The RMSE grows again, since each estimate now works with half the samples. The slope stays close to 1:
-#         the variogram and search still fit, the data are just sparser.
-#
-# ??? tryit "Try it"
-#     Replace `search(24)` with `search(4)` in the block kriging at the top and rerun the grade-tonnage cell. Which
-#     way does the kriged curve move at 500 ppm?
-#
-#     ??? answer "Answer"
-#         Toward the truth in tonnage: fewer samples smooth less, so more blocks clear 500 ppm. The price is the
-#         conditional bias measured above, a lower slope and overstated high blocks.
-#
 # !!! check "Check before you move on"
 #     - Why compare the model's mean with the declustered mean and not the plain sample mean?
 #     - What do a cross-validation slope below 1 and an error² / variance below 1 each tell you?

@@ -82,15 +82,13 @@
 
 /* ---------- Custom admonitions ----------
    !!! learn "What you'll learn"   !!! key "Key idea"   !!! pitfall "Pitfall"   ??? math "The math"
-   ??? tryit "Try it" (nest ??? answer)   !!! check "Check before you move on"   !!! step "Step 1 — ..." */
+   !!! check "Check before you move on"   !!! step "Step 1 — ..." */
 
 :root {
   --bt-i-learn: url('data:image/svg+xml;charset=utf-8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 3 1 9l11 6 9-4.91V17h2V9M5 13.18v4L12 21l7-3.82v-4L12 17z"/></svg>');
   --bt-i-key: url('data:image/svg+xml;charset=utf-8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 2a7 7 0 0 0-4 12.74V17a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1v-2.26A7 7 0 0 0 12 2M9 21a1 1 0 0 0 1 1h4a1 1 0 0 0 1-1v-1H9z"/></svg>');
   --bt-i-pitfall: url('data:image/svg+xml;charset=utf-8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 14h-2V9h2m0 9h-2v-2h2M1 21h22L12 2z"/></svg>');
   --bt-i-math: url('data:image/svg+xml;charset=utf-8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M18 4H6v2l6.5 6L6 18v2h12v-3h-7l5-5-5-5h7z"/></svg>');
-  --bt-i-tryit: url('data:image/svg+xml;charset=utf-8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20.7 7c-.3.4-.7.7-.7 1 0 .3.3.6.6 1 .5.5 1 .9.9 1.4 0 .5-.5 1-1 1.5L16.4 16 15 14.7l4.2-4.2-1-1-1.4 1.4L13 7.1l4-3.9c.4-.4 1-.4 1.4 0l2.3 2.4c.4.3.4 1 0 1.4M3 17.2l9.6-9.6 3.7 3.8L6.8 21H3z"/></svg>');
-  --bt-i-answer: url('data:image/svg+xml;charset=utf-8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 7 9 19l-5.5-5.5 1.41-1.41L9 16.17 19.59 5.59z"/></svg>');
   --bt-i-check: url('data:image/svg+xml;charset=utf-8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m-9 14-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8z"/></svg>');
   --bt-i-step: url('data:image/svg+xml;charset=utf-8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 12l1.41 1.41L11 7.83V20h2V7.83l5.58 5.59L20 12l-8-8z" transform="rotate(90 12 12)"/></svg>');
 }
@@ -99,8 +97,6 @@
 .md-typeset .admonition.key, .md-typeset details.key { border-color: var(--bt-flame); }
 .md-typeset .admonition.pitfall, .md-typeset details.pitfall { border-color: var(--bt-ember); }
 .md-typeset .admonition.math, .md-typeset details.math { border-color: var(--bt-muted); }
-.md-typeset .admonition.tryit, .md-typeset details.tryit { border-color: var(--bt-ember); }
-.md-typeset .admonition.answer, .md-typeset details.answer { border-color: var(--bt-muted); }
 .md-typeset .admonition.check, .md-typeset details.check { border-color: var(--bt-night); }
 .md-typeset .admonition.step, .md-typeset details.step { border-color: var(--bt-ember); }
 
@@ -108,8 +104,6 @@
 .md-typeset .key > .admonition-title, .md-typeset .key > summary { background-color: var(--bt-flame-soft); }
 .md-typeset .pitfall > .admonition-title, .md-typeset .pitfall > summary { background-color: var(--bt-ember-soft); }
 .md-typeset .math > .admonition-title, .md-typeset .math > summary { background-color: var(--bt-night-soft); }
-.md-typeset .tryit > .admonition-title, .md-typeset .tryit > summary { background-color: var(--bt-ember-soft); }
-.md-typeset .answer > .admonition-title, .md-typeset .answer > summary { background-color: var(--bt-night-soft); }
 .md-typeset .check > .admonition-title, .md-typeset .check > summary { background-color: var(--bt-night-soft); }
 .md-typeset .step > .admonition-title, .md-typeset .step > summary { background-color: var(--bt-ember-soft); }
 
@@ -117,8 +111,6 @@
 .md-typeset .key > .admonition-title::before, .md-typeset .key > summary::before { background-color: var(--bt-flame); -webkit-mask-image: var(--bt-i-key); mask-image: var(--bt-i-key); }
 .md-typeset .pitfall > .admonition-title::before, .md-typeset .pitfall > summary::before { background-color: var(--bt-ember); -webkit-mask-image: var(--bt-i-pitfall); mask-image: var(--bt-i-pitfall); }
 .md-typeset .math > .admonition-title::before, .md-typeset .math > summary::before { background-color: var(--bt-muted); -webkit-mask-image: var(--bt-i-math); mask-image: var(--bt-i-math); }
-.md-typeset .tryit > .admonition-title::before, .md-typeset .tryit > summary::before { background-color: var(--bt-ember); -webkit-mask-image: var(--bt-i-tryit); mask-image: var(--bt-i-tryit); }
-.md-typeset .answer > .admonition-title::before, .md-typeset .answer > summary::before { background-color: var(--bt-muted); -webkit-mask-image: var(--bt-i-answer); mask-image: var(--bt-i-answer); }
 .md-typeset .check > .admonition-title::before, .md-typeset .check > summary::before { background-color: var(--bt-night); -webkit-mask-image: var(--bt-i-check); mask-image: var(--bt-i-check); }
 .md-typeset .step > .admonition-title::before, .md-typeset .step > summary::before { background-color: var(--bt-ember); -webkit-mask-image: var(--bt-i-step); mask-image: var(--bt-i-step); }
 
