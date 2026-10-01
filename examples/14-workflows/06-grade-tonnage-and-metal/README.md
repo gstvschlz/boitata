@@ -2,9 +2,9 @@
 
 [Compare two estimates](../../14-workflows/05-compare-two-estimates/README.md) chose the ordinary kriging over the inverse distance
 model of Walker Lake. Management asks the next question: how much metal does that decision remove from the
-resource? This tutorial builds grade–tonnage curves for both models and for the true blocks, reports tonnes,
-grade and metal at a set of cutoffs, states the change in contained metal at the reporting cutoff, and checks that
-the metal adds up.
+resource? You build grade–tonnage curves for both models and for the true blocks, report tonnes, grade and metal
+at a set of cutoffs, state the change in contained metal at the reporting cutoff, and check that the metal adds
+up.
 
 <details><summary>Python</summary>
 
@@ -75,7 +75,7 @@ BlockModel(regular, 780 of 780 cells, count [26, 30, 1], size [10.0, 10.0, 10.0]
 The true blocks are the averages of the exhaustive grid over each block. A real deposit has no such column; here
 it shows which model reports the right tonnes.
 
-!!! step "Step 1 — One grade–tonnage curve"
+!!! step "Step 1: One grade–tonnage curve"
     For a cutoff \(c\), the tonnage is the sum of the tonnes of the blocks with grade ≥ \(c\), the mean grade is
     their tonne-weighted average, and the metal is tonnage × mean grade. `grade_tonnage` computes this for a list
     of cutoffs. `data=blocks` lets it read the column by name and use each block's volume as its weight;
@@ -107,7 +107,7 @@ cutoff 400 ppm: 0.464 Mt at 568.8 ppm = 264.1 t of metal
     \[ T(c) = \sum_{z_i \ge c} t_i, \qquad M(c) = \sum_{z_i \ge c} t_i z_i, \qquad \bar z(c) = M(c) / T(c). \]
     At \(c = 0\) the metal is the whole model's, \(\sum_i t_i z_i\).
 
-!!! step "Step 2 — All three models on one set of cutoffs"
+!!! step "Step 2: All three models on one set of cutoffs"
     `compare_models` repeats `grade_tonnage` for several columns of one block model (a dict names each one) and
     adds each model's difference from a `reference`. The true blocks are the reference here, to see which model
     is closer.
@@ -182,8 +182,8 @@ well.</figcaption>
     a smooth model lifts waste blocks over the cutoff, adding tonnes and diluting the grade. Above a high cutoff, it pulls the rich blocks down under it and loses tonnes. Tonnage and grade move in
     opposite directions at low cutoffs, so the error in metal is smaller than the error in tonnes.
 
-!!! step "Step 3 — Draw the curves"
-    `bt.plot.grade_tonnage` draws the `compare_models` table directly: tonnage solid on the left axis, mean grade
+!!! step "Step 3: Draw the curves"
+    `bt.plot.grade_tonnage` draws the `compare_models` table: tonnage solid on the left axis, mean grade
     dashed on the right, one color per model. Metal above cutoff is a third curve worth its own panel.
 
 <details><summary>Python</summary>
@@ -206,7 +206,7 @@ save(fig, "grade_tonnage")
 
 ![grade_tonnage](grade_tonnage.png)
 
-!!! step "Step 4 — The change in contained metal at the reporting cutoff"
+!!! step "Step 4: The change in contained metal at the reporting cutoff"
     The resource is reported above 200 ppm (the dashed line). Replacing the inverse distance model by the
     kriging changes the reported numbers as follows.
 
@@ -233,12 +233,12 @@ mean_grade: inverse distance    403.1, kriging    388.3 ppm, change    -14.8 ppm
 
 Switching to kriging removes 218.7 kt (−13.9 %), 14.8 ppm of grade (−3.7 %) and 108.2 t of metal (−17.1 %).
 Kriging's 525.2 t is still 4.2 % above the true 504.0 t; inverse distance was 25.7 % above it. At cutoff 0, where
-no block is selected out, inverse distance already holds 19.7 % more metal than the truth, against 4.9 % for
+no block is selected out, inverse distance holds 19.7 % more metal than the truth, against 4.9 % for
 kriging: most of its excess is the clustering bias of the previous tutorial.
 
 !!! pitfall "Pitfall: quoting only the tonnage change"
     "Kriging loses 13.9 % of the tonnes" is not the metal change, which is 17.1 % here. Tonnage alone can
-    even get the sign wrong: at 300 ppm kriging reports 4.5 % more tonnes than the truth but 2.2 % less metal.
+    get the sign wrong: at 300 ppm kriging reports 4.5 % more tonnes than the truth but 2.2 % less metal.
     Report tonnes, grade and metal together, each in absolute and relative terms.
 
 !!! check "Check before you move on"

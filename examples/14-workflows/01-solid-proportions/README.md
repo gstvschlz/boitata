@@ -1,9 +1,9 @@
 # Flag solid proportions in a block model
 
-A grade-control model of 5 m blocks has to carry four gold veins, modeled as solids, that are one to two meters
-thick. Most blocks a vein reaches are only partly inside it. This tutorial measures how much of each block lies
-inside each vein, flags the partial blocks, compares a single domain label per block with keeping the
-proportions, and checks that the volume in the blocks adds back up to the volume of each solid.
+A grade-control model of 5 m blocks has to carry four gold veins, modeled as solids one to two meters thick.
+Most blocks a vein reaches lie partly inside it. You measure the fraction of each block inside each vein, flag the
+partial blocks, compare one domain label per block with stored proportions, and check that the volume in the
+blocks adds back up to the volume of each solid.
 
 <details><summary>Python</summary>
 
@@ -27,8 +27,8 @@ from common import ACCENT, GRAY, HIGHLIGHT, save
 
 ## The data
 
-The four veins of the vein-gold grade-control dataset. Each is a closed solid, the first thing to confirm
-([find and fix degenerate solids](../../14-workflows/03-degenerate-solids/README.md) shows what to do when one is not). Twice
+The vein-gold grade-control dataset holds four veins. Confirm first that each is a closed solid
+([find and fix degenerate solids](../../14-workflows/03-degenerate-solids/README.md) covers one that is not). Twice
 the volume over the surface area gives a vein's mean thickness.
 
 <details><summary>Python</summary>
@@ -51,7 +51,7 @@ V3: MeshReport(0 problems, 1 shells, closed),   179,815 m3, mean thickness 1.0 m
 V4: MeshReport(0 problems, 1 shells, closed),    55,521 m3, mean thickness 0.7 m
 ```
 
-!!! step "Step 1 — Build the block model"
+!!! step "Step 1: Build the block model"
     `BlockModel.from_extents` sizes a grid of 5 m blocks around the veins with a 10 m buffer, its origin snapped
     to a multiple of the block size.
 
@@ -70,9 +70,9 @@ print(model)
 BlockModel(regular, 1060200 of 1060200 cells, count [62, 171, 100], size [5.0, 5.0, 5.0], rotation [0.0, 0.0, 0.0])
 ```
 
-!!! step "Step 2 — Measure the proportion of each block inside each vein"
+!!! step "Step 2: Measure the proportion of each block inside each vein"
     `proportion` returns one number per block between 0 and 1. Blocks the surface does not cross are settled by
-    their centroid alone: wholly inside or wholly outside. Blocks it crosses get a grid of `discretization`
+    their centroid: all inside or all outside. Blocks it crosses get a grid of `discretization`
     points per axis, 4 by default, and the proportion is the fraction of those points inside the solid.
 
 <figure class="bt-figure">
@@ -96,7 +96,7 @@ print(f"{(total > 0).sum():,} of {len(model):,} blocks touch a vein")
 38,938 of 1,060,200 blocks touch a vein
 ```
 
-!!! step "Step 3 — Flag outside, partial and full blocks"
+!!! step "Step 3: Flag outside, partial and full blocks"
     A block is partial when its proportion is above 0 and below 1. The veins are thinner than the blocks, so
     almost every block they touch is partial.
 
@@ -118,9 +118,8 @@ print(f"largest proportion {total.max():.2f}")
 largest proportion 1.09
 ```
 
-A total above 1 means two veins claim the same space. Blocks where two or more veins have a proportion hold
-every overlap; discretizing them into 10 × 10 × 10 points of 0.5 m and testing each point against every vein
-measures it.
+A total above 1 means two veins overlap. Every overlap lies in blocks where two or more veins have a proportion.
+To measure it, discretize those blocks into 10 × 10 × 10 points of 0.5 m and test each point against every vein.
 
 <details><summary>Python</summary>
 
@@ -168,7 +167,7 @@ print(f"largest total after the priority: {net.sum(axis=0).max():.2f}")
 largest total after the priority: 1.00
 ```
 
-!!! step "Step 4 — One label per block, or proportions?"
+!!! step "Step 4: One label per block, or proportions?"
     A block model often carries one domain per block: the vein filling most of the block, if veins fill at least
     half of it. That rule suits solids much thicker than the blocks. The alternative keeps the four proportion
     columns and weights every block by them.
@@ -244,7 +243,7 @@ save(fig, "plan")
 
 !!! check "Check before you move on: the volume balance"
     Summed over the blocks, block volume × proportion must give back each solid's own volume. The difference
-    comes from discretization, and it should be small. V4 has given its shared space to the other veins, so its
+    comes from discretization and should be small. V4 has given its shared space to the other veins, so its
     proportions add up to its volume minus the overlaps. Across the veins, the proportions give back the volume
     of their union.
 
@@ -277,8 +276,8 @@ V4: blocks    53,361 m3, expected    53,474 m3, difference -0.21%
 all: blocks 1,033,614 m3, union 1,033,944 m3, difference -0.03%
 ```
 
-A finer `discretization` shrinks the difference; the default of 4 already gives back each vein to a fraction of
-a percent.
+A finer `discretization` shrinks the difference. The default of 4 gives back each vein to within a fraction of a
+percent.
 
 <details><summary>Python</summary>
 

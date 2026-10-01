@@ -1,10 +1,10 @@
 # Find and fix degenerate solids
 
 A solid that arrives from another program or from hand editing can look whole on screen and still be broken:
-a hole a few triangles wide, a patch wound inside out, a stray triangle hanging off an edge. Every calculation
-that asks "is this point inside?" or "how much volume?" depends on the solid being closed and consistently
-wound. This tutorial damages a clean solid in five typical ways, finds each defect with `Mesh.validate`, repairs
-what `Mesh.repair` can, fixes the rest by hand, and checks the result against the original.
+a hole a few triangles wide, a patch wound inside out, a stray triangle hanging off an edge. Inside tests and
+volumes need a closed, consistently wound solid. You damage a clean solid in five typical ways, find each defect
+with `Mesh.validate`, repair what `Mesh.repair` can, fix the rest by hand, and check the result against the
+original.
 
 <details><summary>Python</summary>
 
@@ -127,7 +127,7 @@ volume: invalid geometry: volume needs a closed mesh
 contains: mesh is not closed; this needs a solid
 ```
 
-The flipped patch alone leaves the mesh closed, so nothing refuses it. Its volume is wrong, and so is the inside
+The flipped patch alone leaves the mesh closed, so neither call raises. Its volume is wrong, and so is the inside
 test near the patch. Twenty thousand random points in the lens's bounding box show it:
 
 <details><summary>Python</summary>
@@ -161,7 +161,7 @@ volume 1,704,246 m3 against 1,901,081 m3 (-10.4%)
     `is_closed` checks only the edges. A closed mesh with a flipped patch passes it and gives a volume
     that looks plausible. Read `inconsistent_edges` and `inward_shells` in the report before trusting a volume.
 
-!!! step "Step 1 — Validate"
+!!! step "Step 1: Validate"
     `validate` counts each kind of problem in `summary` and lists them in `problems`, a table with one row per
     problem. Edge problems name a triangle (`face`) holding the edge, the edge's first corner (`edge`, 0 to 2)
     and its first vertex. `other` is the earlier face a duplicate repeats, or the other face of a flipped edge.
@@ -208,7 +208,7 @@ Five defects give 266 rows. The edges of the repeated triangles become non-manif
 more triangles. The fin adds a non-manifold edge where it meets the lens and two boundary edges along its free
 sides. The flipped patch shows only along its rim, where flipped and unflipped triangles meet.
 
-!!! step "Step 2 — Locate the problems"
+!!! step "Step 2: Locate the problems"
     Each row's `face` gives a place: the center of that triangle. Plotted on the lens by kind, the rows fall into
     the five places the damage went in.
 
@@ -242,7 +242,7 @@ save(fig, "problems")
 
 ![problems](problems.png)
 
-!!! step "Step 3 — Repair what can be repaired automatically"
+!!! step "Step 3: Repair what can be repaired automatically"
     `repair` drops degenerate and repeated triangles and rewinds each connected piece consistently, outward for
     a closed piece. With `tolerance` it also welds vertices closer than that distance, which fixes a solid read as
     loose triangles ([mesh files](../../02-data-and-geometry/07-mesh-files/README.md)). It does not delete
@@ -264,7 +264,7 @@ Mesh(12955 vertices, 25883 triangles, open, 26 boundary edges)
 {'boundary_edges': 26, 'non_manifold_edges': 1, 'shells': 1}
 ```
 
-!!! step "Step 4 — Fix the rest by hand"
+!!! step "Step 4: Fix the rest by hand"
     The one non-manifold edge left is where the fin meets the lens. Of the three triangles on that edge, the fin
     is the one that also has boundary edges; deleting it and repairing again drops its unused tip vertex. The
     boundary edges left then run around the hole. Fanning a triangle from each of them to the mean of their

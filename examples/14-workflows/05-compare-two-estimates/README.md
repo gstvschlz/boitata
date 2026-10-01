@@ -1,10 +1,10 @@
 # Compare two estimates of one deposit
 
 Two block models of the same deposit reach your desk: an ordinary kriging built by the resource geologist and an
-inverse distance model built quickly for a scoping study. They disagree, and only one can be reported. This
-tutorial compares them the way a reviewer would, with only the samples as evidence (global means, a difference
-map, block against block, swaths, cross-validation), decides which to keep, and then checks the decision against
-the true grades, which Walker Lake happens to have.
+inverse distance model built fast for a scoping study. They disagree, and you can report only one. You
+compare them as a reviewer would, with the samples as the only evidence (global means, a difference map, block
+against block, swaths, cross-validation), decide which to keep, and then check the decision against the true
+grades, which Walker Lake provides.
 
 <details><summary>Python</summary>
 
@@ -51,7 +51,7 @@ print(
 470 samples: naive mean 435.3 ppm, declustered mean 290.7 ppm
 ```
 
-!!! step "Step 1 — Rebuild both estimates on the same blocks"
+!!! step "Step 1: Rebuild both estimates on the same blocks"
     Compare like with like, so that only the method differs: one block model of 10 × 10 m
     blocks, one search (up to 24 samples in an ellipse along the direction of greatest continuity), one set of
     samples. The kriging uses the variogram fitted in [ordinary kriging](../../06-kriging/01-ordinary-kriging/README.md)
@@ -85,7 +85,7 @@ BlockModel(regular, 780 of 780 cells, count [26, 30, 1], size [10.0, 10.0, 1.0],
 unestimated blocks: kriging 0, inverse distance 0
 ```
 
-!!! step "Step 2 — Global means against the declustered samples"
+!!! step "Step 2: Global means against the declustered samples"
     An unbiased model reproduces the declustered mean. `global_bias` compares the block mean with the weighted
     sample mean.
 
@@ -113,10 +113,10 @@ explanation before anything else.
 !!! pitfall "Pitfall: checking against the naive mean"
     Against the naive sample mean of 435.3 ppm, inverse distance (332.9 ppm) looks closer than kriging
     (291.7 ppm), and a reviewer might conclude it "honors the data better". The naive mean counts every sample
-    in the high-grade clusters at full weight, which is the same error inverse distance makes. Always compare with
-    the declustered mean.
+    in the high-grade clusters at full weight, which is the same error inverse distance makes. Compare with the
+    declustered mean.
 
-The reason is in how each method weighs a cluster. Inverse distance looks only at the distance from the block to
+The two methods weigh a cluster differently. Inverse distance looks only at the distance from the block to
 each sample. Kriging also looks at the distances between samples: four samples a few meters apart carry little
 more information than one, so they share the weight one sample would get.
 
@@ -128,7 +128,7 @@ variogram, 100 m range, nugget 20 % of the sill) gives it 0.54, about as much as
 clusters sit on high grades, inverse distance pulls the estimates up.</figcaption>
 </figure>
 
-!!! step "Step 3 — Map the difference"
+!!! step "Step 3: Map the difference"
     A difference map (inverse distance minus kriging, per block) shows where the models disagree. Plot it on a
     diverging scale centered on zero, with the samples on top.
 
@@ -174,7 +174,7 @@ Inverse distance is higher in 77 % of the blocks, by 41.2 ppm on average. The la
 edges of the dense clusters, where a block's search reaches a few isolated samples and many clustered ones, the
 case Figure 1 draws.
 
-!!! step "Step 4 — Block against block"
+!!! step "Step 4: Block against block"
     A scatter of one model against the other, block by block, separates a shift (points off the 1:1 line on
     one side) from scatter (points spread around it).
 
@@ -214,7 +214,7 @@ blocks kriged below 400 ppm, inverse distance puts 82 % higher, by 49.7 ppm on a
 it puts 71 % lower. Inverse distance lifts the low-grade blocks whose neighborhoods reach into a high-grade
 cluster.
 
-!!! step "Step 5 — Swaths against the declustered samples"
+!!! step "Step 5: Swaths against the declustered samples"
     A swath plot averages the blocks and the samples in slices (here 20 m) along one axis. It shows where along
     the deposit each model departs from the data.
 
@@ -243,7 +243,7 @@ save(fig, "swaths")
 Kriging follows the declustered samples slice by slice. Inverse distance runs above both over most of the
 deposit, so its bias is not a local artifact.
 
-!!! step "Step 6 — Tonnage and grade above cutoffs"
+!!! step "Step 6: Tonnage and grade above cutoffs"
     `compare_models` takes the block model, the columns to compare and a list of cutoffs, and returns for each
     cutoff and model the tonnage, mean grade and metal above it, plus each one's difference from a `reference`
     model. Without a density each block weighs its volume (here its area, 100 m²).
@@ -279,7 +279,7 @@ cutoff model  area above (m²)  mean V  area diff  grade diff
 The shift carries into selection: at 200 ppm inverse distance reports 16.2 % more area above cutoff than
 kriging, at a 3.8 % higher grade. The next tutorial turns this into tonnes and metal.
 
-!!! step "Step 7 — Cross-validation"
+!!! step "Step 7: Cross-validation"
     Leave-one-out cross-validation re-estimates each sample from its neighbors with itself left out. A small mean
     error, a low RMSE and a slope of actual on estimate near 1 mark the better estimator.
 
@@ -351,7 +351,7 @@ Keep the kriging. Every check made from the samples alone pointed the same way:
 
 </div>
 
-The cause is known: inverse distance ignores sample clustering, so the scoping model is biased high wherever
+Inverse distance ignores sample clustering, so the scoping model is biased high wherever
 a block's neighborhood includes a dense cluster of high-grade drilling. [Grade–tonnage curves and the change in contained metal](../../14-workflows/06-grade-tonnage-and-metal/README.md)
 turns this difference into tonnes, grade and metal at a cutoff.
 

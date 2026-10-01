@@ -3,8 +3,8 @@
 The previous tutorial kept vein proportions on 5 m blocks. Many models instead need one domain per cell, for
 example to estimate grade inside each vein with its own samples. With 10 m parent blocks and veins one to two
 meters thick, a label per parent block puts most of the vein volume in the wrong place. Sub-blocking splits the
-parents a vein surface crosses into smaller cells, so the labels follow the contacts. This tutorial compares the
-volume the parents capture, the volume sub-blocks of several sizes capture, and the volume of the solids.
+parents a vein surface crosses into smaller cells, so the labels follow the contacts. You compare the volume the
+parents capture and the volume sub-blocks of several sizes capture with the volume of the solids.
 
 <details><summary>Python</summary>
 
@@ -49,7 +49,7 @@ BlockModel(regular, 140352 of 140352 cells, count [32, 86, 51], size [10.0, 10.0
 veins: 1,035,991 m3
 ```
 
-!!! step "Step 1 — Sub-block against the solids"
+!!! step "Step 1: Sub-block against the solids"
     `subblock` takes `(mesh, "inside", label)` domains in priority order and `n`, the sub-cells per parent edge.
     Every parent a vein surface crosses is split into n × n × n sub-cells; each sub-cell takes the label of the
     first domain holding its center, and neighboring sub-cells with one label merge into larger sub-blocks.
@@ -83,7 +83,7 @@ n = 8 : 152,906 blocks, smallest 1.95312 m3
 n = 16: 679,610 blocks, smallest 0.244141 m3
 ```
 
-!!! step "Step 2 — Measure captured and misplaced volume"
+!!! step "Step 2: Measure captured and misplaced volume"
     The volume labeled as a vein can match the solid while sitting in the wrong place: a block labeled V1 that is
     mostly outside V1 is offset by vein volume in blocks left unlabeled. The misplaced volume adds the two:
     labeled volume outside the vein, plus vein volume outside its labeled blocks. `Mesh.proportion` on the
@@ -134,7 +134,7 @@ is mostly such slivers.
     of a contact, and the errors cancel in the total. Measure the misplaced volume, or compare a section with
     the solid outlines.
 
-!!! step "Step 3 — Look at a section"
+!!! step "Step 3: Look at a section"
     A vertical east–west section across V1 and V4 at northing 15 000.3 m, with the vein outlines. The northing
     falls between sub-cell faces, so the section cuts each cell once.
 
@@ -163,7 +163,7 @@ save(fig, "section")
 ![section](section.png)
 
 !!! check "Check before you move on"
-    Sub-blocks must tile their parents: no parent holds more sub-block volume than its own. And each vein's
+    Sub-blocks must tile their parents: no parent holds more sub-block volume than its own. Each vein's
     labeled volume at `n = 16` should match its solid to within a percent.
 
 <details><summary>Python</summary>
@@ -198,7 +198,7 @@ The largest parent holds 648 m³ of vein sub-blocks, under its 1000 m³. V1 to V
 
 Size the sub-cell from the thinnest solid. The veins are 0.7 to 2 m thick, so `n = 16` gives 0.625 m sub-cells,
 about half the thickness of V2 and V3. It needs 679,610 blocks against 152,906 at `n = 8`, and it misplaces 17 %
-of the vein volume against 40 %. The labels then follow the contacts closely enough to select samples and
+of the vein volume against 40 %. The labels then follow the contacts close enough to select samples and
 estimate each vein apart. For tonnage, also store each sub-block's proportion inside its vein, as in the
 [previous tutorial](../../14-workflows/01-solid-proportions/README.md), so the volume balances without the slivers.
 

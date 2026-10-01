@@ -3,9 +3,9 @@
 
 A project hands you its drill hole database: collars, downhole surveys, assays and lithology, exported from the
 logging software. Every later step (desurveying, compositing, variograms, estimation) trusts these tables. One
-wrong dip moves a hole under the wrong lens; one `-999` read as a grade drags an ore intercept to zero. This
-tutorial audits the tables, decides for each problem whether to fix it, drop it or ask the geologist, and checks
-again until no unexplained flag is left.
+wrong dip moves a hole under the wrong lens; one `-999` read as a grade drags an ore intercept to zero. You audit
+the tables, decide for each problem whether to fix it, drop it or ask the geologist, and check again until no
+unexplained flag is left.
 """
 
 # %% [hidden]
@@ -28,7 +28,7 @@ from common import ACCENT, GRAY, save
 #     - How to prove the audit is finished: a second check where every remaining flag is explained.
 #
 #     Prerequisites: what collar, survey and interval tables hold. [Checking drill holes](../../02-data-and-geometry/01-check-drillholes/README.md)
-#     lists every check this tutorial meets; this page is about the decisions.
+#     lists every check used here; this page covers the decisions.
 #
 # ## The data
 #
@@ -57,7 +57,7 @@ for name, table in raw.items():
 # recorded length.</figcaption>
 # </figure>
 #
-# !!! step "Step 1 — Run every check at once"
+# !!! step "Step 1: Run every check at once"
 #     `check_drillholes` takes the collar, the survey and a dict of interval tables and returns three tables:
 #     `flags` (one boolean column per check, one row per record), a `summary` (rows and holes hit per check) and
 #     `details` (the value behind each flag and its suggested replacement). `max_depth="LENGTH"` names the collar
@@ -98,7 +98,7 @@ for table, name, rows in zip(summary["table"], summary["check"], summary["rows"]
 # the geologist.</figcaption>
 # </figure>
 #
-# !!! step "Step 2 — Look at the evidence behind the ambiguous flags"
+# !!! step "Step 2: Look at the evidence behind the ambiguous flags"
 #     Four flags have no obvious answer. `DD0067` has two collars with different coordinates; `DD0055` has
 #     samples below its recorded length; one `DD0100` assay is inverted; `DD0197` has a survey station whose
 #     azimuth jumps. The other tables of each hole say which entry to trust.
@@ -160,10 +160,10 @@ print(f"  length-weighted Zn without it:            {np.average(zn[valid], weigh
 
 # %% [markdown]
 # One sentinel turns a 3.07 % zinc intercept into −139.9 %. A negative grade is easy to spot; a `-99` in a column of
-# values near 100 is not. Boitatá's readers map sentinels to null by default (`nodata=`); the raw tables are
-# read with `nodata=[]` to keep the problem visible.
+# values near 100 is not. Boitatá's readers map sentinels to null by default (`nodata=`); this page reads the raw
+# tables with `nodata=[]` to keep the problem visible.
 #
-# !!! step "Step 3 — Fix by hand what needs evidence"
+# !!! step "Step 3: Fix by hand what needs evidence"
 #     The manual fixes come first, so the rules in step 4 see corrected tables. Each hand fix is one line of code,
 #     so the next person can rerun and review the audit. Trailing spaces are stripped from all
 #     ids here: the collar `'DD0104 '` is the odd one, and a rename rule would copy its space into three tables.
@@ -190,7 +190,7 @@ tables["collar"] = replace(c, LENGTH=np.where(dd0055, s["DEPTH"][rows_of(s, "DD0
 tables = {name: t.filter(~rows_of(t, "DD0151")) for name, t in tables.items()}
 
 # %% [markdown]
-# !!! step "Step 4 — Apply the rules"
+# !!! step "Step 4: Apply the rules"
 #     `fix_drillholes` takes the flags of the corrected tables and applies one named rule per check. The defaults
 #     drop duplicates, flipped survey stations and rows of holes without a collar, rename ids to their collar
 #     (`'dd0062'` → `'DD0062'`), keep the first of two overlapping intervals and set sentinels to null. Two rules are
