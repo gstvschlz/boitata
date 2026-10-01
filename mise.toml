@@ -46,7 +46,7 @@ depends = ["py:build"]
 run = "uv run --no-sync python examples/render.py"
 
 [tasks.notebooks]
-depends = ["py:sync"]
+depends = ["py:build"]
 run = "uv run --no-sync python examples/notebooks.py"
 
 [tasks.docs]
