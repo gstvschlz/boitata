@@ -127,8 +127,10 @@ def test_envelope_is_checked():
     text = bt.BoxCox(lambda_=0.5).to_json()
     with pytest.raises(bt.InvalidInput, match="expected a PCA"):
         bt.PCA.from_json(text)
-    with pytest.raises(bt.InvalidInput, match="format"):
+    with pytest.raises(bt.InvalidInput, match=r"^format 2 is newer"):
         bt.BoxCox.from_json(text.replace('"format":1', '"format":2'))
+    with pytest.raises(bt.InvalidInput, match="missing or invalid format"):
+        bt.BoxCox.from_json(text.replace('"format":1', '"format":"x"'))
     with pytest.raises(bt.InvalidInput):
         bt.BoxCox.from_json("[1, 2]")
 
