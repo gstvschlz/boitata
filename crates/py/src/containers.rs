@@ -3,7 +3,7 @@ use boitata_core::{BlockModel, Geometry, Layout, PointSet, Polylines};
 use numpy::ndarray::{Array2, Array3};
 use numpy::{IntoPyArray, PyArray1, PyArray2, PyArray3, PyReadonlyArray1, PyReadonlyArray2};
 use pyo3::prelude::*;
-use pyo3::types::{PyCapsule, PyTuple};
+use pyo3::types::{PyCapsule, PyDict, PyTuple};
 use pyo3_arrow::error::PyArrowResult;
 use rayon::prelude::*;
 
@@ -139,6 +139,28 @@ impl PyPointSet {
             data,
             PointSet::with_column,
         )?))
+    }
+
+    /// Units of the attributes that have one; see `Table.units`.
+    #[getter]
+    fn units<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
+        crate::table::units(py, self.0.attributes())
+    }
+
+    /// New point set with the units of `units`, column name to unit; None removes one.
+    fn with_units(
+        &self,
+        units: std::collections::HashMap<String, Option<String>>,
+    ) -> PyResult<Self> {
+        let table = crate::table::with_units(self.0.attributes(), units)?;
+        Ok(Self(self.0.with_attributes(table).map_err(core_error)?))
+    }
+
+    /// New point set with `column` converted to unit `to`; see `Table.convert_units`.
+    #[pyo3(signature = (column, *, to))]
+    fn convert_units(&self, column: &str, to: &str) -> PyResult<Self> {
+        let table = crate::table::convert_units(self.0.attributes(), column, to)?;
+        Ok(Self(self.0.with_attributes(table).map_err(core_error)?))
     }
 
     /// New point set with `table` as the attributes, one row per point.
@@ -370,6 +392,28 @@ impl PyPolylines {
     fn with_column(&self, name: &str, values: &Bound<PyAny>) -> PyResult<Self> {
         let column = crate::blocks::attribute(values, self.0.len())?;
         Ok(Self(self.0.with_column(name, column).map_err(core_error)?))
+    }
+
+    /// Units of the attributes that have one; see `Table.units`.
+    #[getter]
+    fn units<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
+        crate::table::units(py, self.0.attributes())
+    }
+
+    /// New polylines with the units of `units`, column name to unit; None removes one.
+    fn with_units(
+        &self,
+        units: std::collections::HashMap<String, Option<String>>,
+    ) -> PyResult<Self> {
+        let table = crate::table::with_units(self.0.attributes(), units)?;
+        Ok(Self(self.0.with_attributes(table).map_err(core_error)?))
+    }
+
+    /// New polylines with `column` converted to unit `to`; see `Table.convert_units`.
+    #[pyo3(signature = (column, *, to))]
+    fn convert_units(&self, column: &str, to: &str) -> PyResult<Self> {
+        let table = crate::table::convert_units(self.0.attributes(), column, to)?;
+        Ok(Self(self.0.with_attributes(table).map_err(core_error)?))
     }
 
     /// New polylines with `table` as the attributes, one row per feature.
@@ -749,6 +793,28 @@ impl PyBlockModel {
     #[getter]
     fn attributes(&self) -> Table {
         Table(self.0.attributes().clone())
+    }
+
+    /// Units of the attributes that have one; see `Table.units`.
+    #[getter]
+    fn units<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
+        crate::table::units(py, self.0.attributes())
+    }
+
+    /// New model with the units of `units`, column name to unit; None removes one.
+    fn with_units(
+        &self,
+        units: std::collections::HashMap<String, Option<String>>,
+    ) -> PyResult<Self> {
+        let table = crate::table::with_units(self.0.attributes(), units)?;
+        Ok(Self(self.0.with_attributes(table).map_err(core_error)?))
+    }
+
+    /// New model with `column` converted to unit `to`; see `Table.convert_units`.
+    #[pyo3(signature = (column, *, to))]
+    fn convert_units(&self, column: &str, to: &str) -> PyResult<Self> {
+        let table = crate::table::convert_units(self.0.attributes(), column, to)?;
+        Ok(Self(self.0.with_attributes(table).map_err(core_error)?))
     }
 
     /// New model with `table` as the attributes, one row per block.

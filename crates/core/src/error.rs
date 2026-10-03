@@ -12,6 +12,8 @@ pub enum Error {
     Categories(String),
     #[error("{0}")]
     UnknownLabels(String),
+    #[error("{0}")]
+    Units(String),
     #[error(transparent)]
     Arrow(#[from] arrow_schema::ArrowError),
 }

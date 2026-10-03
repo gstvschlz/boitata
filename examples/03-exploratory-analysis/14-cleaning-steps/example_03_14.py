@@ -16,7 +16,6 @@ sys.path.insert(0, str(HERE.parents[1]))
 
 # %%
 import boitata as bt
-import matplotlib.pyplot as plt
 import numpy as np
 from common import ACCENT, save
 
@@ -47,13 +46,21 @@ for g in grades:
     print(f"{g:7} {np.isnan(v).sum():5} null, mean {np.nanmean(v):.3f}")
 
 # %% [markdown]
-# the cleaned zinc grades span three orders of magnitude; `Log10` puts them on a scale where the populations separate.
+# units live in the column metadata and survive Parquet. `convert_units` rescales a column and relabels its unit; here
+# gold goes from g/t to ppb. plots label their axes with the unit.
 
 # %%
-log_zn = bt.Log10("zn_pct").transform(assays)["zn_pct"]
-fig, ax = plt.subplots(figsize=(6, 3.4), layout="constrained")
-ax.hist(log_zn[np.isfinite(log_zn)], bins=60, color=ACCENT)
-ax.set(title="Cleaned zinc assays", xlabel="log10 Zn (%)", ylabel="Intervals")
+assays = assays.with_units({"zn_pct": "%", "pb_pct": "%", "cu_pct": "%", "ag_gpt": "g/t", "au_gpt": "g/t"})
+assays = assays.convert_units("au_gpt", to="ppb")
+print(assays.units)
+print(f"mean gold {np.nanmean(assays['au_gpt']):.0f} ppb")
+
+# %% [markdown]
+# the zinc grades span three orders of magnitude; on a log axis their two populations separate.
+
+# %%
+fig, ax = bt.plot.histogram("zn_pct", data=assays, log=True, bins=60, color=ACCENT)
+ax.set_title("Cleaned zinc assays")
 save(fig, "zinc")
 
 # %% [markdown]

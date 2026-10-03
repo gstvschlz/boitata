@@ -10,6 +10,7 @@ mod polylines;
 mod progress;
 pub mod rng;
 mod rotation;
+pub mod units;
 
 pub use arrow_array::RecordBatch;
 pub use block_model::{BlockModel, Geometry, Layout};

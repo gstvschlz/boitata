@@ -18,6 +18,31 @@ use pyo3_arrow::input::AnyRecordBatch;
 
 use crate::invalid;
 
+/// The units of `batch`'s columns that have one.
+pub fn units<'py>(py: Python<'py>, batch: &RecordBatch) -> PyResult<Bound<'py, PyDict>> {
+    let dict = PyDict::new(py);
+    for (name, unit) in boitata_core::units::units(batch) {
+        dict.set_item(name, unit)?;
+    }
+    Ok(dict)
+}
+
+/// `batch` with the units of `units` set; None removes one.
+pub fn with_units(
+    batch: &RecordBatch,
+    units: std::collections::HashMap<String, Option<String>>,
+) -> PyResult<RecordBatch> {
+    let mut batch = batch.clone();
+    for (name, unit) in units {
+        batch = boitata_core::units::with_unit(&batch, &name, unit.as_deref()).map_err(invalid)?;
+    }
+    Ok(batch)
+}
+
+pub fn convert_units(batch: &RecordBatch, column: &str, to: &str) -> PyResult<RecordBatch> {
+    boitata_core::units::convert_units(batch, column, to).map_err(invalid)
+}
+
 /// Columnar attribute table; exchanges data with pyarrow, polars and pandas
 /// through the Arrow PyCapsule interface.
 #[pyclass(module = "boitata", name = "Table", frozen)]
@@ -241,6 +266,31 @@ impl Table {
 
     fn __getitem__<'py>(&self, py: Python<'py>, name: &str) -> PyResult<Bound<'py, PyAny>> {
         column(py, &self.0, name)
+    }
+
+    /// Units of the columns that have one, kept in the Arrow field metadata
+    /// and through Parquet.
+    #[getter(units)]
+    fn units_<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
+        units(py, &self.0)
+    }
+
+    /// New table with the units of `units`, column name to unit; None
+    /// removes one. Replacing a column's values drops its unit.
+    #[pyo3(name = "with_units")]
+    fn with_units_(
+        &self,
+        units: std::collections::HashMap<String, Option<String>>,
+    ) -> PyResult<Self> {
+        Ok(Self(with_units(&self.0, units)?))
+    }
+
+    /// New table with `column` converted to unit `to`: grades (ppb, ppm, g/t,
+    /// %, oz/t as troy ounces per short ton), lengths (m, ft) or densities
+    /// (t/m3, g/cm3). The column must have a unit.
+    #[pyo3(name = "convert_units", signature = (column, *, to))]
+    fn convert_units_(&self, column: &str, to: &str) -> PyResult<Self> {
+        Ok(Self(convert_units(&self.0, column, to)?))
     }
 
     /// Rows where `mask` is true.

@@ -132,6 +132,7 @@ def histogram(values, *, weights=None, bins=40, log=False, stats=False, data=Non
         Passed to ``ax.hist``.
     """
     fig, ax = _axes(ax)
+    _axis_names(ax, data, x=values)
     values, weights = _column(data, values), _weights(data, weights)
     if stats:
         _stats(ax, [(values, weights)], [None], "upper right")
@@ -181,6 +182,7 @@ def probability(values, *, weights=None, log=False, cap=None, fences=None, data=
     ticks = np.array([0.001, 0.01, 0.05, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95, 0.99, 0.999])
     ticks = ticks[(ticks >= p[0]) & (ticks <= p[-1])]
     ax.set_yticks(normal_ppf(ticks), [f"{100 * t:g}" for t in ticks])
+    _axis_names(ax, data, x=values)
     ax.set_ylabel("Cumulative probability (%)")
     if cap is not None:
         ax.axvline(cap, color="0.5", lw=0.8, ls="--", label=f"cap {cap:.3g}")
@@ -221,6 +223,7 @@ def cdf(values, *, weights=None, labels=None, log=False, stats=False, data=None,
     """
     fig, ax = _axes(ax)
     if isinstance(values, str) or np.ndim(values[0]) == 0:
+        _axis_names(ax, data, x=values)
         values, weights = [values], [_weights(data, weights)]
     values = [_column(data, v) for v in values]
     weights = [_weights(data, None)] * len(values) if weights is None else [_column(data, w) for w in weights]
@@ -662,6 +665,7 @@ def scatter(x, y, *, line=True, data=None, ax=None, **kwargs):
     of `data`.
     """
     fig, ax = _axes(ax)
+    _axis_names(ax, data, x=x, y=y)
     x, y = np.asarray(_column(data, x, "x"), dtype=float), np.asarray(_column(data, y, "y"), dtype=float)
     ok = np.isfinite(x) & np.isfinite(y)
     x, y = x[ok], y[ok]
@@ -779,6 +783,7 @@ def conditional(x, y, *, bins=10, weights=None, log=False, data=None, ax=None, *
         Passed to ``ax.scatter``.
     """
     fig, ax = _axes(ax)
+    _axis_names(ax, data, x=x, y=y)
     x, y = np.asarray(_column(data, x, "x"), dtype=float), np.asarray(_column(data, y, "y"), dtype=float)
     weights = _weights(data, weights)
     w = np.ones_like(x) if weights is None else np.asarray(weights, dtype=float)
@@ -963,7 +968,7 @@ def section(
         (image,), extent = _image(ax, model, [values], axis, index, plane, resolution)
         _scheme_colors(scheme, kwargs)
         mappable = ax.imshow(image, origin="lower", extent=extent, **kwargs)
-    _key(fig, ax, mappable, values, colorbar, scheme)
+    _key(fig, ax, mappable, _name(model, values), colorbar, scheme)
     return fig, ax
 
 
@@ -1090,7 +1095,7 @@ def fence(
     ]
     for ax in axes[1:]:
         ax.set_ylabel("")
-    _key(fig, axes[-1], ims[-1], values, colorbar, scheme)
+    _key(fig, axes[-1], ims[-1], _name(model, values), colorbar, scheme)
     return fig, axes
 
 
@@ -1101,11 +1106,27 @@ def _scheme_colors(scheme, kwargs):
         kwargs.setdefault("norm", norm)
 
 
-def _key(fig, ax, mappable, values, colorbar, scheme):
+def _name(data, column):
+    """`column` and its unit in `data`, as an axis label; empty unless `column` names a column."""
+    if not isinstance(column, str):
+        return ""
+    unit = getattr(data, "units", {}).get(column)
+    return f"{column} ({unit})" if unit else column
+
+
+def _axis_names(ax, data, x=None, y=None):
+    """Labels the axes with the columns `x` and `y` name, if they name one."""
+    if _name(data, x):
+        ax.set_xlabel(_name(data, x))
+    if _name(data, y):
+        ax.set_ylabel(_name(data, y))
+
+
+def _key(fig, ax, mappable, label, colorbar, scheme):
     if not colorbar:
         return
     if scheme is None:
-        fig.colorbar(mappable, ax=ax, shrink=0.8, label=values if isinstance(values, str) else None)
+        fig.colorbar(mappable, ax=ax, shrink=0.8, label=label or None)
     else:
         category_legend(scheme, ax, loc="upper left", bbox_to_anchor=(1.01, 1))
 
@@ -1225,7 +1246,7 @@ def slab(
     kwargs.setdefault("s", 6)
     drawn = ax.scatter(xy[:, 0], xy[:, 1], **kwargs)
     if values is not None:
-        _key(fig, ax, drawn, values, colorbar, scheme)
+        _key(fig, ax, drawn, _name(points, values), colorbar, scheme)
 
     if labels is not None:
         names = np.asarray(labels, dtype=object)[near]
