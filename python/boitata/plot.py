@@ -1867,8 +1867,10 @@ def grade_tonnage(table, *, relative=False, ax=None, **kwargs):
     ----------
     table : Table or dict of str to Table
         Result of ``boitata.grade_tonnage``, ``HermiteAnamorphosis.grade_tonnage``,
-        ``UniformConditioning.grade_tonnage`` or ``boitata.compare_models``; rows are split into curves by their
-        ``model`` and ``category`` columns. A dict names several such tables.
+        ``UniformConditioning.grade_tonnage``, ``boitata.compare_models`` or ``SimulationSummary.grade_tonnage``;
+        rows are split into curves by their ``model`` and ``category`` columns. A dict names several such tables.
+        With a ``probability`` column, each curve is drawn at the probability nearest 0.5, in a band between the
+        lowest and highest.
     relative : bool
         Tonnage as a fraction of each curve's tonnage at its lowest cutoff, to compare samples with blocks.
     **kwargs
@@ -1886,18 +1888,37 @@ def grade_tonnage(table, *, relative=False, ax=None, **kwargs):
         Line2D([], [], color="0.3", label="Tonnage"),
         Line2D([], [], color="0.3", ls="--", label="Mean grade"),
     ]
+    band = None
     for i, (label, t, rows) in enumerate(curves):
-        cutoff = np.asarray(t["cutoff"], dtype=float)[rows]
-        order = np.argsort(cutoff, kind="stable")
-        rows, cutoff = rows[order], cutoff[order]
-        tonnage = np.asarray(t["tonnage"], dtype=float)[rows]
-        if relative:
-            tonnage = tonnage / tonnage[0]
         color = colors[i % len(colors)]
-        ax.plot(cutoff, tonnage, color=color, **kwargs)
-        grade.plot(cutoff, np.asarray(t["mean_grade"], dtype=float)[rows], color=color, ls="--", **kwargs)
+        probability = (
+            np.asarray(t["probability"], dtype=float)[rows] if "probability" in t.column_names else None
+        )
+        levels = [None] if probability is None else np.unique(probability)
+        middle = None if probability is None else levels[np.argmin(np.abs(levels - 0.5))]
+
+        def curve(level, t=t, rows=rows, probability=probability):
+            r = rows if level is None else rows[probability == level]
+            cutoff = np.asarray(t["cutoff"], dtype=float)[r]
+            order = np.argsort(cutoff, kind="stable")
+            tonnage = np.asarray(t["tonnage"], dtype=float)[r][order]
+            return cutoff[order], tonnage, np.asarray(t["mean_grade"], dtype=float)[r][order]
+
+        cutoff, tonnage, mean_grade = curve(middle)
+        scale = tonnage[0] if relative else 1.0
+        ax.plot(cutoff, tonnage / scale, color=color, **kwargs)
+        grade.plot(cutoff, mean_grade, color=color, ls="--", **kwargs)
+        if probability is not None and len(levels) > 1:
+            (_, t_lo, g_lo), (_, t_hi, g_hi) = curve(levels[0]), curve(levels[-1])
+            ax.fill_between(cutoff, t_lo / scale, t_hi / scale, color=color, alpha=0.2, lw=0)
+            grade.fill_between(cutoff, g_lo, g_hi, color=color, alpha=0.1, lw=0)
+            band = (levels[0], levels[-1])
         if label is not None:
             handles.append(Line2D([], [], color=color, lw=6, label=label))
+    if band is not None:
+        handles.append(
+            Line2D([], [], color="0.3", lw=6, alpha=0.25, label=f"P{100 * band[0]:g} to P{100 * band[1]:g}")
+        )
     ax.set_xlabel("Cutoff")
     ax.set_ylabel("Tonnage fraction" if relative else "Tonnage")
     ax.set_ylim(bottom=0)

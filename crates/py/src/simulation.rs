@@ -1,3 +1,6 @@
+use std::sync::Arc;
+
+use arrow_array::{ArrayRef, Float64Array, RecordBatch, StringArray};
 use numpy::ndarray::Array2;
 use numpy::{IntoPyArray, PyArray1, PyArray2};
 use pyo3::prelude::*;
@@ -18,6 +21,7 @@ use crate::estimation::{Label, Search, codes, fit_codes, labels, plain_searches,
 use crate::invalid;
 use crate::persist::{self, Columns, Found, Tabular};
 use crate::progress::with_progress;
+use crate::table::Table;
 use crate::variogram::Variogram;
 
 fn err(e: simulation::SimError) -> PyErr {
@@ -43,6 +47,71 @@ fn matrix<'py, T: numpy::Element + Copy>(
 }
 
 /// `keep=`: False, True or 0-based realization indices.
+/// Grade–tonnage options of a continuous `simulate`, on `support`: the
+/// blocks when simulating to them, else the targets. Tonnes per row from
+/// `density` (a number, array or column) times the row's block volume, 1 per
+/// point, or `tonnage` per row; one curve per text label of `categories`,
+/// ascending, besides the curve over all rows.
+fn tonnage_options(
+    support: &Bound<PyAny>,
+    rows: usize,
+    cutoffs: Option<Vec<f64>>,
+    density: Option<&Bound<PyAny>>,
+    tonnage: Option<&Bound<PyAny>>,
+    categories: Option<&Bound<PyAny>>,
+) -> PyResult<Option<simulation::post::TonnageOptions>> {
+    let Some(cutoffs) = cutoffs else {
+        if density.is_some() || tonnage.is_some() || categories.is_some() {
+            return Err(invalid(
+                "density, tonnage and categories go with grade_tonnage_cutoffs",
+            ));
+        }
+        return Ok(None);
+    };
+    let tonnes = match (density, tonnage) {
+        (Some(d), None) => {
+            let volumes = support
+                .cast::<PyBlockModel>()
+                .map_or_else(|_| vec![1.0; rows], |m| m.get().0.volumes());
+            let d = crate::args::per_row(Some(support), d, rows, "density")?;
+            volumes.iter().zip(d).map(|(v, d)| v * d).collect()
+        }
+        (None, Some(t)) => crate::args::per_row(Some(support), t, rows, "tonnage")?,
+        _ => return Err(invalid("give one of density or tonnage")),
+    };
+    let (names, categories) = match categories {
+        Some(c) => {
+            let labels = crate::args::texts(
+                &crate::args::column(Some(support), c, "categories")?,
+                "categories",
+            )?;
+            crate::args::same_length(rows, labels.len(), "categories")?;
+            let names: Vec<String> = labels
+                .iter()
+                .flatten()
+                .cloned()
+                .collect::<std::collections::BTreeSet<_>>()
+                .into_iter()
+                .collect();
+            let codes = labels
+                .iter()
+                .map(|l| {
+                    l.as_ref()
+                        .map(|l| names.binary_search(l).expect("a name") as u32)
+                })
+                .collect();
+            (names, Some(codes))
+        }
+        None => (vec![], None),
+    };
+    Ok(Some(simulation::post::TonnageOptions {
+        cutoffs,
+        tonnes,
+        categories,
+        names,
+    }))
+}
+
 fn keep_arg(keep: Option<&Bound<PyAny>>) -> PyResult<simulation::Keep> {
     let Some(keep) = keep else {
         return Ok(simulation::Keep::None);
@@ -117,6 +186,57 @@ impl SimulationSummary {
     #[getter]
     fn std<'py>(&self, py: Python<'py>) -> Bound<'py, PyArray1<f64>> {
         array1(py, self.0.variance.iter().map(|v| v.sqrt()).collect())
+    }
+
+    /// Grade–tonnage curves across realizations, from a `simulate` run with
+    /// `grade_tonnage_cutoffs`.
+    ///
+    /// Parameters
+    /// ----------
+    /// probabilities : sequence of float, default (0.1, 0.5, 0.9)
+    ///
+    /// Returns
+    /// -------
+    /// Table
+    ///     ``category`` (``all`` for all targets), ``cutoff``,
+    ///     ``probability``, and the quantiles of ``tonnage``, ``metal`` and
+    ///     ``mean_grade`` above the cutoff across realizations, each taken
+    ///     on its own: the P50 tonnage and the P50 grade may come from
+    ///     different realizations. ``mean_grade`` skips realizations with
+    ///     no tonnes above the cutoff.
+    #[pyo3(signature = (*, probabilities=vec![0.1, 0.5, 0.9]))]
+    fn grade_tonnage(&self, probabilities: Vec<f64>) -> PyResult<Table> {
+        let t = self.0.grade_tonnage.as_ref().ok_or_else(|| {
+            invalid("no grade-tonnage curves; simulate with grade_tonnage_cutoffs=")
+        })?;
+        let rows = t.quantiles(&probabilities).map_err(invalid)?;
+        let floats = |f: fn(&simulation::post::TonnageQuantile) -> f64| -> ArrayRef {
+            Arc::new(Float64Array::from(rows.iter().map(f).collect::<Vec<_>>()))
+        };
+        let groups: StringArray = rows
+            .iter()
+            .map(|r| {
+                Some(r.group.map_or_else(
+                    || "all".to_string(),
+                    |g| {
+                        t.names
+                            .get(g as usize)
+                            .cloned()
+                            .unwrap_or_else(|| g.to_string())
+                    },
+                ))
+            })
+            .collect();
+        let batch = RecordBatch::try_from_iter([
+            ("category", Arc::new(groups) as ArrayRef),
+            ("cutoff", floats(|r| r.cutoff)),
+            ("probability", floats(|r| r.probability)),
+            ("tonnage", floats(|r| r.tonnage)),
+            ("metal", floats(|r| r.metal)),
+            ("mean_grade", floats(|r| r.mean_grade)),
+        ])
+        .map_err(invalid)?;
+        Ok(Table(batch))
     }
 
     /// Coefficient of variation across realizations, `std / mean`; NaN
@@ -930,9 +1050,15 @@ impl Sgs {
     /// `batch`, on a shared path, is the number of realizations simulated
     /// together, by default as many as fit in 70 % of the free memory; a run
     /// whose quantiles and kept realizations alone exceed that memory
-    /// raises InvalidInput. Realizations do not depend on `batch`. `progress`
-    /// shows a `tqdm` bar over the realizations.
-    #[pyo3(signature = (targets, *, n=100, seed=0, cutoffs=vec![], quantiles=vec![], keep=None, anisotropy=None, blocks=None, trend=None, domains=None, domain_column=None, secondary=None, path=None, batch=None, progress=true))]
+    /// raises InvalidInput. Realizations do not depend on `batch`.
+    /// `grade_tonnage_cutoffs` accumulates, per realization, the tonnes, metal
+    /// and mean grade of the summary rows (the blocks when given) at or above
+    /// each cutoff, as `grade_tonnage` counts them: tonnes from `density`, a
+    /// number, array or column, times each row's block volume (1 per point),
+    /// or `tonnage` per row; one curve per `categories` label besides all
+    /// rows. `SimulationSummary.grade_tonnage` reads them. `progress` shows a
+    /// `tqdm` bar over the realizations.
+    #[pyo3(signature = (targets, *, n=100, seed=0, cutoffs=vec![], quantiles=vec![], keep=None, anisotropy=None, blocks=None, trend=None, domains=None, domain_column=None, secondary=None, path=None, batch=None, grade_tonnage_cutoffs=None, density=None, tonnage=None, categories=None, progress=true))]
     #[allow(clippy::too_many_arguments)]
     fn simulate(
         &self,
@@ -951,6 +1077,10 @@ impl Sgs {
         secondary: Option<&Bound<PyAny>>,
         path: Option<&str>,
         batch: Option<usize>,
+        grade_tonnage_cutoffs: Option<Vec<f64>>,
+        density: Option<&Bound<PyAny>>,
+        tonnage: Option<&Bound<PyAny>>,
+        categories: Option<&Bound<PyAny>>,
         progress: bool,
     ) -> PyResult<SimulationSummary> {
         let d = self.data.as_ref().ok_or_else(not_fitted)?;
@@ -1005,12 +1135,26 @@ impl Sgs {
                 nodes,
                 classes: self.classes,
             });
+        let holder = match &blocks {
+            Some(b) => b.into_pyobject(py)?.to_owned().into_any(),
+            None => targets.clone(),
+        };
+        let rows = blocks.as_ref().map_or(count, |b| b.0.len());
+        let gt = tonnage_options(
+            &holder,
+            rows,
+            grade_tonnage_cutoffs,
+            density,
+            tonnage,
+            categories,
+        )?;
         let support = support(targets, &grid, blocks)?;
         let local = anisotropy.map(|a| a.at_targets(&grid));
         let options = ContinuousOptions {
             cutoffs,
             quantiles,
             keep: keep_arg(keep)?,
+            tonnage: gt,
         };
         if let Some(lattice) = lattice {
             let kept = options.keep.kept(n).len();
@@ -1279,7 +1423,7 @@ impl TurningBands {
     /// realization ``k`` of the grades the domains of row ``k``;
     /// `domain_column` and `progress` as in `SGS.simulate`.
     #[allow(clippy::too_many_arguments)]
-    #[pyo3(signature = (targets, *, n=100, seed=0, cutoffs=vec![], quantiles=vec![], keep=None, blocks=None, trend=None, domains=None, domain_column=None, progress=true))]
+    #[pyo3(signature = (targets, *, n=100, seed=0, cutoffs=vec![], quantiles=vec![], keep=None, blocks=None, trend=None, domains=None, domain_column=None, grade_tonnage_cutoffs=None, density=None, tonnage=None, categories=None, progress=true))]
     fn simulate(
         &self,
         py: Python,
@@ -1293,6 +1437,10 @@ impl TurningBands {
         trend: Option<&Bound<PyAny>>,
         domains: Option<&Bound<PyAny>>,
         domain_column: Option<&str>,
+        grade_tonnage_cutoffs: Option<Vec<f64>>,
+        density: Option<&Bound<PyAny>>,
+        tonnage: Option<&Bound<PyAny>>,
+        categories: Option<&Bound<PyAny>>,
         progress: bool,
     ) -> PyResult<SimulationSummary> {
         let d = self.data.as_ref().ok_or_else(not_fitted)?;
@@ -1302,11 +1450,25 @@ impl TurningBands {
         let nodes = realization_domains(fitted, domains.as_ref(), grid.len(), n, "simulate")?;
         let at_nodes = trend_at(d, targets, grid.len(), trend)?;
         let params = self.params(seed, self.resolved()?);
+        let holder = match &blocks {
+            Some(b) => b.into_pyobject(py)?.to_owned().into_any(),
+            None => targets.clone(),
+        };
+        let rows = blocks.as_ref().map_or(grid.len(), |b| b.0.len());
+        let gt = tonnage_options(
+            &holder,
+            rows,
+            grade_tonnage_cutoffs,
+            density,
+            tonnage,
+            categories,
+        )?;
         let support = support(targets, &grid, blocks)?;
         let options = ContinuousOptions {
             cutoffs,
             quantiles,
             keep: keep_arg(keep)?,
+            tonnage: gt,
         };
         let (lo, hi) = simulation::bounds(&grid);
         with_progress(py, Some(n as u64), progress, |counter| {
@@ -1419,6 +1581,7 @@ impl TurningBands {
             cutoffs,
             quantiles,
             keep: keep_arg(keep)?,
+            tonnage: None,
         };
         let global = with_progress(py, Some(total as u64), progress, |counter| {
             simulation::turning_bands_to_parquet(
@@ -2551,6 +2714,18 @@ struct ContinuousMeta {
     #[serde(with = "boitata_core::nonfinite")]
     realization_above: Vec<Vec<f64>>,
     kept: Vec<usize>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    grade_tonnage: Option<TonnageMeta>,
+}
+
+/// [`simulation::post::RealizedTonnage`] in the file metadata.
+#[derive(Serialize, Deserialize)]
+struct TonnageMeta {
+    cutoffs: Vec<f64>,
+    groups: Vec<Option<u32>>,
+    names: Vec<String>,
+    tonnage: Vec<Vec<Vec<f64>>>,
+    metal: Vec<Vec<Vec<f64>>>,
 }
 
 impl Serialize for SimulationSummary {
@@ -2563,6 +2738,13 @@ impl Serialize for SimulationSummary {
             realization_mean: c.realization_mean.clone(),
             realization_above: c.realization_above.clone(),
             kept: c.kept.clone(),
+            grade_tonnage: c.grade_tonnage.as_ref().map(|t| TonnageMeta {
+                cutoffs: t.cutoffs.clone(),
+                groups: t.groups.clone(),
+                names: t.names.clone(),
+                tonnage: t.tonnage.clone(),
+                metal: t.metal.clone(),
+            }),
         }
         .serialize(s)
     }
@@ -2592,6 +2774,13 @@ impl<'de> Deserialize<'de> for SimulationSummary {
             realization_above: m.realization_above,
             kept: m.kept,
             realizations: vec![],
+            grade_tonnage: m.grade_tonnage.map(|t| simulation::post::RealizedTonnage {
+                cutoffs: t.cutoffs,
+                groups: t.groups,
+                names: t.names,
+                tonnage: t.tonnage,
+                metal: t.metal,
+            }),
         }))
     }
 }
@@ -3098,6 +3287,7 @@ impl MultivariateSimulation {
             cutoffs,
             quantiles,
             keep: keep_arg(keep)?,
+            tonnage: None,
         };
         let bands_only = !grid.is_empty()
             && self.factors.iter().all(|factor| {
