@@ -199,6 +199,7 @@ def fits():
         (bt.KernelDensity(), (values,)),
         (bt.GaussianMixture(components=2), (table,)),
         (bt.Unfold(*walls), (coords,)),
+        (bt.Pipeline([("ns", bt.NormalScore(), "v")]), ({"v": values},)),
     ]
 
 

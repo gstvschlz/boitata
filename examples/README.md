@@ -65,6 +65,7 @@ Worked examples with the Python API on open datasets from [gstvschlz/datasets](h
 | 8 | [Smooth trend](04-transforms/08-smooth-trend/README.md) | Coal seam thickness | `cell_declustering`, `detrend` |
 | 9 | [Unfolding](04-transforms/09-unfolding/README.md) | Nickel laterite profile | `Drillholes`, `BlockModel`, `InverseDistance`, `Search`, `grid_surface`, `Unfold`, `experimental_variogram`, `Variogram`, `OrdinaryKriging`, `plot.section`, `plot.slab` |
 | 10 | [Target distribution correction](04-transforms/10-target-distribution-correction/README.md) | Walker Lake | `cell_declustering`, `NormalScore`, `experimental_variogram`, `Variogram`, `BlockModel`, `SGS`, `Search`, `check_realizations`, `correct_distribution`, `plot.histogram_reproduction`, `plot.section`, `KernelDensity` |
+| 11 | [Pipeline](04-transforms/11-pipeline/README.md) | Walker Lake | `cell_declustering`, `Pipeline`, `Capping`, `NormalScore`, `PPMT` |
 
 ## Spatial continuity
 
