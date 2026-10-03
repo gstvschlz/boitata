@@ -505,3 +505,34 @@ def test_category_runs_and_bad_input():
         dh.runs("AU")
     with pytest.raises(bt.InvalidInput):
         dh.runs("AU", cutoff=1.0, min_length=-1.0)
+
+
+def test_snap_to_surface_moves_collars_and_their_holes():
+    collar = {
+        "HOLE_ID": ["a", "b", "c"],
+        "X": [5.0, 15.0, 500.0],
+        "Y": [5.0, 12.0, 500.0],
+        "Z": [90.0, 120.0, 0.0],
+    }
+    survey = {
+        "HOLE_ID": ["a", "b", "c"],
+        "DEPTH": [0.0, 0.0, 0.0],
+        "AZIMUTH": [0.0, 45.0, 0.0],
+        "DIP": [90.0, 60.0, 90.0],
+    }
+    holes = bt.Drillholes(collar, survey)
+    ground = bt.BlockModel((0, 0), (1, 1), (30, 30))
+    ground = ground.with_column("elevation", 100 + 0.5 * ground.centroids[:, 0])
+    with pytest.warns(UserWarning, match="1 holes lie off the surface.*c"):
+        moved, report = bt.snap_to_surface(holes, ground, column="elevation")
+    assert report["hole"].tolist() == ["a", "b", "c"]
+    np.testing.assert_allclose(report["z_after"][:2], [102.5, 107.5])
+    np.testing.assert_allclose(report["shift"][:2], [12.5, -12.5])
+    assert np.isnan(report["shift"][2]) and report["z_after"][2] == 0.0
+    before, after = holes.at(["b", "b"], [0.0, 40.0]), moved.at(["b", "b"], [0.0, 40.0])
+    np.testing.assert_allclose(after - before, [[0, 0, -12.5]] * 2)
+    mesh = bt.grid_surface(ground, "elevation")
+    with pytest.warns(UserWarning):
+        assert bt.snap_to_surface(holes, mesh)[1]["shift"][0] == pytest.approx(12.5)
+    with pytest.raises(bt.InvalidInput, match="needs column"):
+        bt.snap_to_surface(holes, ground)

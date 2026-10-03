@@ -97,4 +97,31 @@ other residuals above 2 m: 5
 
 ![topography](topography.png)
 
+## snapping collars to the surface
+
+`snap_to_surface` moves each collar onto a surface, here the surveyed topography grid, and every hole moves with its
+collar. the report gives each hole's shift: the mistyped collar comes down 10 m, and the others move by the small gap
+between each collar and the gridded surface.
+
+<details><summary>Python</summary>
+
+```python
+table = data["collars"]
+collar = {c: np.asarray(table[c]) for c in table.column_names}
+collar["Z"] = typo[:, 2]
+holes = bt.Drillholes(collar, data["surveys"])
+snapped, report = bt.snap_to_surface(holes, truth, column="Z")
+shift = np.asarray(report["shift"])
+worst = np.argmax(np.abs(shift))
+print(
+    f"{report['hole'][worst]} moved {shift[worst]:+.2f} m; the other holes within {np.sort(np.abs(shift))[-2]:.2f} m"
+)
+```
+
+</details>
+
+```text
+DD0101 moved -10.02 m; the other holes within 0.09 m
+```
+
 Full script: [`example_02_19.py`](example_02_19.py)

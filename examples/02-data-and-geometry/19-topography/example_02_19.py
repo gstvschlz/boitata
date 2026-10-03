@@ -71,3 +71,22 @@ ax.scatter(*collars.coords[:, :2].T, s=4, color="0.2")
 ax.scatter(*typo[checked.flagged, :2].T, s=60, facecolors="none", edgecolors=HIGHLIGHT, linewidths=1.5)
 map_axes(ax, "Topography from collars, the mistyped collar circled")
 save(fig, "topography")
+
+# %% [markdown]
+# ## snapping collars to the surface
+#
+# `snap_to_surface` moves each collar onto a surface, here the surveyed topography grid, and every hole moves with its
+# collar. the report gives each hole's shift: the mistyped collar comes down 10 m, and the others move by the small gap
+# between each collar and the gridded surface.
+
+# %%
+table = data["collars"]
+collar = {c: np.asarray(table[c]) for c in table.column_names}
+collar["Z"] = typo[:, 2]
+holes = bt.Drillholes(collar, data["surveys"])
+snapped, report = bt.snap_to_surface(holes, truth, column="Z")
+shift = np.asarray(report["shift"])
+worst = np.argmax(np.abs(shift))
+print(
+    f"{report['hole'][worst]} moved {shift[worst]:+.2f} m; the other holes within {np.sort(np.abs(shift))[-2]:.2f} m"
+)

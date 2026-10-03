@@ -634,8 +634,44 @@ impl<'a> CompositeBuilder<'a> {
     }
 }
 
+/// `path` moved vertically so its collar, the first point, sits at
+/// `elevation`, and the shift. Depths are measured from the collar, so every
+/// point moves with it.
+pub fn snap_collar(path: &[WellborePoint], elevation: f64) -> (Vec<WellborePoint>, f64) {
+    let shift = path.first().map_or(0.0, |c| elevation - c.elev);
+    let moved = path
+        .iter()
+        .map(|p| WellborePoint {
+            elev: p.elev + shift,
+            ..p.clone()
+        })
+        .collect();
+    (moved, shift)
+}
+
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn snapping_moves_the_whole_path() {
+        let path: Vec<WellborePoint> = (0..3)
+            .map(|k| WellborePoint {
+                measured_depth: 10.0 * k as f64,
+                east: 1.0,
+                north: 2.0 + k as f64,
+                elev: 100.0 - 9.0 * k as f64,
+            })
+            .collect();
+        let (moved, shift) = snap_collar(&path, 104.5);
+        assert_eq!(shift, 4.5);
+        assert_eq!(moved[0].elev, 104.5);
+        for (a, b) in path.iter().zip(&moved) {
+            assert_eq!(
+                (b.elev - a.elev, b.measured_depth, b.north),
+                (4.5, a.measured_depth, a.north)
+            );
+        }
+    }
+
     use super::*;
 
     fn hole(stations: &[(f64, f64, f64)]) -> Vec<WellborePoint> {

@@ -33,7 +33,7 @@ Worked examples with the Python API on open datasets from [gstvschlz/datasets](h
 | 16 | [Stepped sections](02-data-and-geometry/16-stepped-sections/README.md) | Stacked sulphide lenses | `merge_intervals`, `Drillholes`, `Variogram`, `Search`, `BlockModel`, `OrdinaryKriging`, `plot.section`, `plot.fence` |
 | 17 | [Hole traces with deviation flags](02-data-and-geometry/17-hole-traces/README.md) | Stacked sulphide lenses | `check_drillholes`, `Drillholes`, `plot.holes` |
 | 18 | [Outlines](02-data-and-geometry/18-outlines/README.md) | Stacked sulphide lenses | `data_spacing`, `outline`, `Polylines` |
-| 19 | [Topography from points](02-data-and-geometry/19-topography/README.md) | Stacked sulphide lenses | `topography`, `Topography`, `plot.section` |
+| 19 | [Topography from points](02-data-and-geometry/19-topography/README.md) | Stacked sulphide lenses | `topography`, `Topography`, `plot.section`, `Drillholes`, `snap_to_surface` |
 
 ## Exploratory analysis
 

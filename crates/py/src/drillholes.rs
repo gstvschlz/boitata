@@ -1622,7 +1622,93 @@ fn null_sentinels(batch: &RecordBatch, flags: &RecordBatch, name: &str) -> PyRes
     RecordBatch::try_new(Arc::new(schema), columns).map_err(invalid)
 }
 
+/// Moves each collar's elevation onto a surface; the hole moves with it.
+///
+/// Parameters
+/// ----------
+/// drillholes : Drillholes
+/// surface : Mesh or BlockModel
+///     A surface such as topography; where it overlaps itself in plan, the
+///     highest elevation counts. A 2D block model's cell centers, lifted to
+///     `column`, make the surface, as in `grid_surface`.
+/// column : str, optional
+///     Elevation column of a block model surface.
+///
+/// Returns
+/// -------
+/// drillholes : Drillholes
+///     A copy with every hole shifted vertically by its collar's offset.
+/// report : Table
+///     ``hole``, ``z_before``, ``z_after`` and ``shift`` per hole. Holes the
+///     surface does not cover keep their elevation, with a null shift, and
+///     a ``UserWarning`` names them.
+#[pyfunction]
+#[pyo3(signature = (drillholes, surface, *, column=None))]
+fn snap_to_surface(
+    py: Python,
+    drillholes: PyRef<Drillholes>,
+    surface: &Bound<PyAny>,
+    column: Option<&str>,
+) -> PyResult<(Drillholes, Table)> {
+    let mesh = if let Ok(m) = surface.cast::<Mesh>() {
+        m.get().mesh.clone()
+    } else if let Ok(model) = surface.cast::<crate::containers::PyBlockModel>() {
+        let column = column.ok_or_else(|| invalid("a block model surface needs column="))?;
+        let m = &model.get().0;
+        let z = crate::args::floats(&crate::table::column(py, m.attributes(), column)?, "column")?;
+        let z: Vec<Option<f64>> = z.into_iter().map(|v| (!v.is_nan()).then_some(v)).collect();
+        blocks::grid_surface(m, &z).map_err(invalid)?
+    } else {
+        return Err(invalid("surface must be a Mesh or a 2D BlockModel"));
+    };
+    let surface = blocks::Surface::new(&mesh).map_err(invalid)?;
+    let (mut paths, mut holes, mut before, mut after, mut shifts, mut off) =
+        (BTreeMap::new(), vec![], vec![], vec![], vec![], vec![]);
+    for (hole, path) in &drillholes.paths {
+        let collar = path.first().map(|c| (c.east, c.north, c.elev));
+        let elevation = collar.and_then(|(x, y, _)| surface.elevation(x, y));
+        let (path, shift) = match elevation {
+            Some(e) => {
+                let (moved, shift) = drillholes::snap_collar(path, e);
+                (moved, Some(shift))
+            }
+            None => {
+                off.push(hole.clone());
+                (path.clone(), None)
+            }
+        };
+        holes.push(hole.clone());
+        before.push(collar.map(|c| c.2));
+        after.push(path.first().map(|c| c.elev));
+        shifts.push(shift);
+        paths.insert(hole.clone(), path);
+    }
+    if !off.is_empty() {
+        let message = format!(
+            "{} holes lie off the surface and keep their elevation: {}",
+            off.len(),
+            off.join(", ")
+        );
+        let category = py.get_type::<pyo3::exceptions::PyUserWarning>();
+        PyErr::warn(py, &category, &std::ffi::CString::new(message)?, 1)?;
+    }
+    let report = RecordBatch::try_from_iter([
+        ("hole", Arc::new(StringArray::from(holes)) as ArrayRef),
+        ("z_before", Arc::new(Float64Array::from(before))),
+        ("z_after", Arc::new(Float64Array::from(after))),
+        ("shift", Arc::new(Float64Array::from(shifts))),
+    ])
+    .map_err(invalid)?;
+    let moved = Drillholes {
+        paths,
+        hole: drillholes.hole.clone(),
+        intervals: drillholes.intervals.clone(),
+    };
+    Ok((moved, Table(report)))
+}
+
 pub fn register(m: &Bound<PyModule>) -> PyResult<()> {
+    m.add_function(wrap_pyfunction!(snap_to_surface, m)?)?;
     m.add_class::<Drillholes>()?;
     m.add_function(wrap_pyfunction!(merge_intervals, m)?)?;
     m.add_function(wrap_pyfunction!(check_drillholes, m)?)?;
