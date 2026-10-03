@@ -141,6 +141,15 @@ impl PyPointSet {
         )?))
     }
 
+    /// New point set with `table` as the attributes, one row per point.
+    fn with_attributes(&self, table: &Bound<PyAny>) -> PyResult<Self> {
+        Ok(Self(
+            self.0
+                .with_attributes(to_batch(table)?)
+                .map_err(core_error)?,
+        ))
+    }
+
     /// Points where `mask` is true.
     fn filter(&self, mask: PyReadonlyArray1<bool>) -> PyResult<Self> {
         let mask = mask.as_array().to_vec();
@@ -361,6 +370,15 @@ impl PyPolylines {
     fn with_column(&self, name: &str, values: &Bound<PyAny>) -> PyResult<Self> {
         let column = crate::blocks::attribute(values, self.0.len())?;
         Ok(Self(self.0.with_column(name, column).map_err(core_error)?))
+    }
+
+    /// New polylines with `table` as the attributes, one row per feature.
+    fn with_attributes(&self, table: &Bound<PyAny>) -> PyResult<Self> {
+        Ok(Self(
+            self.0
+                .with_attributes(to_batch(table)?)
+                .map_err(core_error)?,
+        ))
     }
 
     /// One point per vertex with ``feature`` and ``part`` indices and the
@@ -731,6 +749,15 @@ impl PyBlockModel {
     #[getter]
     fn attributes(&self) -> Table {
         Table(self.0.attributes().clone())
+    }
+
+    /// New model with `table` as the attributes, one row per block.
+    fn with_attributes(&self, table: &Bound<PyAny>) -> PyResult<Self> {
+        Ok(Self(
+            self.0
+                .with_attributes(to_batch(table)?)
+                .map_err(core_error)?,
+        ))
     }
 
     /// Keeps rows where `keep` is true; the result is masked.

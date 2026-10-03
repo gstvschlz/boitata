@@ -189,6 +189,15 @@ impl Polylines {
         })
     }
 
+    /// The same features with other attributes, one row per feature.
+    pub fn with_attributes(&self, attributes: RecordBatch) -> Result<Self> {
+        check_rows(self.len(), &attributes)?;
+        Ok(Self {
+            attributes,
+            ..self.clone()
+        })
+    }
+
     /// Indices of the closed parts of feature `f`.
     pub fn rings(&self, f: usize) -> impl Iterator<Item = usize> + '_ {
         self.feature_parts(f).filter(|&p| self.closed[p])

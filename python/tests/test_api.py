@@ -200,6 +200,23 @@ def fits():
         (bt.GaussianMixture(components=2), (table,)),
         (bt.Unfold(*walls), (coords,)),
         (bt.Pipeline([("ns", bt.NormalScore(), "v")]), ({"v": values},)),
+        *(
+            (step, ({"v": values},))
+            for step in (
+                bt.RenameColumns(case="upper"),
+                bt.Clip(upper=1.0),
+                bt.FillNull(0.0),
+                bt.Replace({1.0: 2.0}),
+                bt.ToNull(-99),
+                bt.NormalizeText(),
+                bt.DropNull(),
+                bt.Scale("v", 2.0),
+                bt.Log("v"),
+                bt.Log10("v"),
+                bt.ToNumber("v"),
+            )
+        ),
+        (bt.DropDuplicates(), (bt.PointSet(coords),)),
     ]
 
 

@@ -56,7 +56,7 @@ def test_pipeline_refuses_other_columns_and_bad_steps():
     with pytest.raises(bt.InvalidInput, match="not fitted"):
         pipe.transform(points)
     pipe.fit(points)
-    with pytest.raises(bt.MissingColumn, match="no column 'cu'"):
+    with pytest.raises(bt.MissingColumn, match='no column "cu"'):
         pipe.transform({"au": au})
     with pytest.raises(bt.InvalidInput, match="distinct"):
         bt.Pipeline([("a", bt.BoxCox(), "au"), ("a", bt.BoxCox(), "cu")])

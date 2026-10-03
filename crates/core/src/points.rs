@@ -89,6 +89,15 @@ impl PointSet {
             ..self.clone()
         })
     }
+
+    /// The same points with other attributes, one row per point.
+    pub fn with_attributes(&self, attributes: RecordBatch) -> Result<Self> {
+        check_rows(self.len(), &attributes)?;
+        Ok(Self {
+            attributes,
+            ..self.clone()
+        })
+    }
 }
 
 fn coordinate(table: &RecordBatch, name: &str) -> Result<Float64Array> {
