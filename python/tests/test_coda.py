@@ -96,3 +96,20 @@ def test_compositional_statistics():
     log_ratio = np.log(parts[:, 0] / parts[:, 1])
     assert t[0, 1] == pytest.approx(log_ratio.var()) and t.shape == (4, 4)
     assert bt.total_variance(parts) == pytest.approx(bt.clr(parts).var(axis=0).sum())
+
+
+def test_ternary_and_biplot_draw():
+    import matplotlib
+
+    matplotlib.use("Agg")
+    data = dict(zip(["cu", "pb", "zn", "rest"], parts.T, strict=True))
+    _, ax = bt.plot.ternary(data, parts=["cu", "pb", "zn"])
+    points = ax.collections[0].get_offsets()
+    sub = bt.closure(parts[:, :3])
+    np.testing.assert_allclose(points[:, 0], sub[:, 1] + sub[:, 2] / 2)
+    assert [t.get_text() for t in ax.texts] == ["cu", "pb", "zn"]
+    with pytest.raises(bt.InvalidInput, match="3 parts"):
+        bt.plot.ternary(parts)
+    _, ax = bt.plot.biplot(data)
+    assert [t.get_text() for t in ax.texts if t.get_text()] == ["cu", "pb", "zn", "rest"]
+    assert ax.get_xlabel().startswith("PC1")
