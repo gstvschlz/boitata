@@ -135,7 +135,7 @@ impl Geometry {
                 bound(a, f64::min) - buffer[a],
                 bound(a, f64::max) + buffer[a],
             );
-            let slack = if rotated {
+            let slack = if rotated && buffer[a] < 1e-9 * (1.0 + lo.abs().max(hi.abs())) {
                 1e-9 * (1.0 + lo.abs().max(hi.abs()))
             } else {
                 0.0
@@ -172,7 +172,7 @@ impl Geometry {
             let cells = offsets
                 .iter()
                 .map(|p| (p[a] / size[a]).floor() + 1.0)
-                .fold((end[a] - start[a]) / size[a], f64::max)
+                .fold((end[a] - start[a]) / size[a] * (1.0 - 1e-9), f64::max)
                 .ceil();
             geometry.count[a] = cells.clamp(1.0, 1e12) as usize;
         }
@@ -853,6 +853,33 @@ mod tests {
         )
         .unwrap();
         assert!(unrotated.cells() > g.cells());
+    }
+
+    #[test]
+    fn extents_rebuild_a_rotated_grid_from_its_centroids() {
+        let rotation = [35.0, 20.0, 10.0];
+        let to_world = block_frame(rotation).transpose();
+        let origin = Vector3::new(1000.0, 5000.0, 300.0);
+        let mut centroids = Vec::new();
+        for k in 0..3 {
+            for j in 0..4 {
+                for i in 0..5 {
+                    let local = Vector3::new(i as f64 + 0.5, j as f64 + 0.5, k as f64 + 0.5) * 10.0;
+                    centroids.push((origin + to_world * local).into());
+                }
+            }
+        }
+        let g = Geometry::from_extents(
+            &centroids,
+            [10.0, 10.0],
+            Some(10.0),
+            [5.0; 3],
+            rotation,
+            [0.0; 3],
+        )
+        .unwrap();
+        assert_eq!(g.count, [5, 4, 3]);
+        assert!((Vector3::from(g.origin) - origin).norm() < 1e-9);
     }
 
     #[test]
