@@ -119,6 +119,46 @@ impl SimulationSummary {
         array1(py, self.0.variance.iter().map(|v| v.sqrt()).collect())
     }
 
+    /// Coefficient of variation across realizations, `std / mean`; NaN
+    /// where the mean is 0.
+    #[getter]
+    fn cv<'py>(&self, py: Python<'py>) -> Bound<'py, PyArray1<f64>> {
+        array1(py, self.0.cv())
+    }
+
+    /// Relative error per target: half the central `confidence` interval
+    /// over its center, ``(q_hi - q_lo) / (2 * center)``.
+    ///
+    /// Parameters
+    /// ----------
+    /// confidence : float, default 0.9
+    ///     Probability within the interval; 0.9 reads the 0.05 and 0.95
+    ///     quantiles, which `quantiles=` must have requested.
+    /// center : {"mean", "median"}
+    ///     The median needs the 0.5 quantile too.
+    ///
+    /// Returns
+    /// -------
+    /// ndarray
+    ///     NaN where the center is 0.
+    #[pyo3(signature = (*, confidence=0.9, center="mean"))]
+    fn relative_error<'py>(
+        &self,
+        py: Python<'py>,
+        confidence: f64,
+        center: &str,
+    ) -> PyResult<Bound<'py, PyArray1<f64>>> {
+        let center = match center {
+            "mean" => simulation::post::Center::Mean,
+            "median" => simulation::post::Center::Median,
+            _ => return Err(invalid("center must be 'mean' or 'median'")),
+        };
+        Ok(array1(
+            py,
+            self.0.relative_error(confidence, center).map_err(invalid)?,
+        ))
+    }
+
     #[getter]
     fn cutoffs(&self) -> Vec<f64> {
         self.0.cutoffs.clone()
@@ -226,6 +266,19 @@ impl CategoricalSummary {
     #[getter]
     fn most_likely<'py>(&self, py: Python<'py>) -> Bound<'py, PyArray1<i64>> {
         PyArray1::from_vec(py, self.0.most_likely.iter().map(|&c| c as i64).collect())
+    }
+
+    /// Least probable category per target among those a realization took;
+    /// ties go to the lowest. -1 where one category takes every realization.
+    #[getter]
+    fn least_likely<'py>(&self, py: Python<'py>) -> Bound<'py, PyArray1<i64>> {
+        let codes = self
+            .0
+            .least_likely()
+            .iter()
+            .map(|c| c.map_or(-1, |c| c as i64))
+            .collect();
+        PyArray1::from_vec(py, codes)
     }
 
     /// Entropy of the probabilities scaled to [0, 1]: 0 where every

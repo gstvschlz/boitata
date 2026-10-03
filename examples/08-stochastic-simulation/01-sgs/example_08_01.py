@@ -52,12 +52,14 @@ print(gaussian)
 # SGS normal-scores the data, simulates along a random path and back-transforms. the 50 realizations come out the
 # same on any number of threads. `simulate` returns a summary accumulated while it runs: the mean, variance and
 # quantiles at each node, the probability and mean above each cutoff, and each realization's global mean and share
-# above the cutoffs. it keeps realizations only on request: here the first 20, to check them.
+# above the cutoffs. `cv` and `relative_error` derive from these: the spread over the mean, and half the central 90 %
+# interval over the mean, read from the 0.05 and 0.95 quantiles. it keeps realizations only on request: here the first
+# 20, to check them.
 
 # %%
 grid = bt.BlockModel(origin=(0.5, 0.5), size=(5, 5), count=(52, 60))
 sgs = bt.SGS(gaussian, bt.Search(radius=100, max_samples=24)).fit(samples, "V", weights=weights)
-summary = sgs.simulate(grid, n=50, seed=42, cutoffs=[500.0], quantiles=[0.1, 0.9], keep=range(20))
+summary = sgs.simulate(grid, n=50, seed=42, cutoffs=[500.0], quantiles=[0.05, 0.95], keep=range(20))
 reals = summary.realizations
 etype = summary.mean
 p500 = summary.probability_above[:, 0]
@@ -69,6 +71,10 @@ print(f"realization means {means.min():.0f}-{means.max():.0f}, true {true_at_nod
 print(f"realization variance {reals.var(axis=1).mean():.0f}, true {true_at_nodes.var():.0f}")
 low, high = np.quantile(summary.realization_above[:, 0], [0.1, 0.9])
 print(f"area above 500 ppm: P10 {low:.1%}, P90 {high:.1%}, true {np.mean(true_at_nodes > 500):.1%}")
+error = summary.relative_error(confidence=0.9)
+print(
+    f"median cv {np.nanmedian(summary.cv):.2f}; nodes within ±50 % at 90 % confidence: {np.mean(error < 0.5):.0%}"
+)
 
 
 # %% [markdown]

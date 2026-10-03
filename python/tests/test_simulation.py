@@ -37,6 +37,27 @@ def test_sgs_summary_matches_its_realizations():
     assert sgs.simulate(grid, n=2, seed=3).realizations is None
 
 
+def test_derived_summary_statistics():
+    sgs = bt.SGS(gaussian, bt.Search(radius=40, max_samples=12)).fit(coords, values)
+    s = sgs.simulate(grid, n=30, seed=4, quantiles=[0.05, 0.5, 0.95], keep=True)
+    reals = s.realizations
+    np.testing.assert_allclose(s.cv, reals.std(axis=0) / reals.mean(axis=0), rtol=1e-9)
+    lo, mid, hi = s.quantile_values.T
+    np.testing.assert_allclose(s.relative_error(), (hi - lo) / (2 * s.mean))
+    np.testing.assert_allclose(s.relative_error(center="median"), (hi - lo) / (2 * mid))
+    with pytest.raises(bt.InvalidInput, match="needs quantiles 0.1, 0.9"):
+        s.relative_error(confidence=0.8)
+    facies = np.random.default_rng(9).choice(3, 60, p=[0.2, 0.3, 0.5])
+    pgs = bt.Plurigaussian(gaussian, proportions=[0.2, 0.3, 0.5]).fit(coords, facies)
+    c = pgs.simulate(grid, n=8, seed=2)
+    p, least = c.probabilities, c.least_likely
+    seen = (p > 0).sum(axis=1)
+    assert (least[seen < 2] == -1).all()
+    rows = np.flatnonzero(seen >= 2)
+    masked = np.where(p[rows] > 0, p[rows], np.inf)
+    np.testing.assert_array_equal(least[rows], masked.argmin(axis=1))
+
+
 def test_block_support_averages_each_realization():
     sgs = bt.SGS(gaussian, bt.Search(radius=40, max_samples=12)).fit(coords, values)
     blocks = bt.BlockModel(origin=(0, 0), size=(20, 20), count=(5, 5))
