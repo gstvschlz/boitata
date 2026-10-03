@@ -32,6 +32,7 @@ Worked examples with the Python API on open datasets from [gstvschlz/datasets](h
 | 15 | [Mesh-crossing interval splits](02-data-and-geometry/15-mesh-interval-splits/README.md) | Stacked sulphide lenses | `Drillholes`, `merge_intervals`, `describe_by` |
 | 16 | [Stepped sections](02-data-and-geometry/16-stepped-sections/README.md) | Stacked sulphide lenses | `merge_intervals`, `Drillholes`, `Variogram`, `Search`, `BlockModel`, `OrdinaryKriging`, `plot.section`, `plot.fence` |
 | 17 | [Hole traces with deviation flags](02-data-and-geometry/17-hole-traces/README.md) | Stacked sulphide lenses | `check_drillholes`, `Drillholes`, `plot.holes` |
+| 18 | [Outlines](02-data-and-geometry/18-outlines/README.md) | Stacked sulphide lenses | `data_spacing`, `outline`, `Polylines` |
 
 ## Exploratory analysis
 

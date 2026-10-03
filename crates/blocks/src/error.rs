@@ -14,6 +14,9 @@ pub enum BlockModelError {
     #[error("Domain assignment failed: {0}")]
     DomainAssignmentFailed(String),
 
+    #[error("{0}")]
+    Outline(String),
+
     #[error(transparent)]
     Core(#[from] boitata_core::Error),
 }

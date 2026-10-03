@@ -8,6 +8,7 @@ mod distance;
 mod error;
 mod grid;
 mod hull;
+mod outline;
 mod select;
 mod shell;
 mod solid;
@@ -21,6 +22,7 @@ pub use distance::{
 pub use error::{BlockModelError, Result};
 pub use grid::grid_surface;
 pub use hull::convex_hull;
+pub use outline::{Hull, Plane, outline};
 pub use select::{PolygonSelector, ring_is_closed};
 pub use shell::{
     BlockSubset, Orientation, ShellBlock, ShellFilter, ShellLimits, ShellMesh, Slab,
