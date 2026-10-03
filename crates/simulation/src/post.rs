@@ -97,6 +97,89 @@ pub struct ContinuousOptions {
     pub quantiles: Vec<f64>,
     /// Realizations to return beside the statistics.
     pub keep: Keep,
+    /// Grade–tonnage curves to accumulate per realization.
+    pub tonnage: Option<TonnageOptions>,
+}
+
+/// Grade–tonnage curves of each realization: tonnes, metal and mean grade
+/// of the targets at or above each cutoff, as `grade_tonnage` counts them.
+#[derive(Debug, Clone, Default)]
+pub struct TonnageOptions {
+    pub cutoffs: Vec<f64>,
+    /// Tonnes of each target.
+    pub tonnes: Vec<f64>,
+    /// Category code of each target, or `None` outside every category; a
+    /// curve per category besides the curve over all targets.
+    pub categories: Option<Vec<Option<u32>>>,
+    /// Name of each category code.
+    pub names: Vec<String>,
+}
+
+/// Per-realization grade–tonnage curves, `[group][cutoff][realization]`;
+/// groups are the categories ascending, then all targets (`None`).
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct RealizedTonnage {
+    pub cutoffs: Vec<f64>,
+    pub groups: Vec<Option<u32>>,
+    /// Name of each category code.
+    pub names: Vec<String>,
+    pub tonnage: Vec<Vec<Vec<f64>>>,
+    pub metal: Vec<Vec<Vec<f64>>>,
+}
+
+/// One row of [`RealizedTonnage::quantiles`].
+#[derive(Debug, Clone, PartialEq)]
+pub struct TonnageQuantile {
+    pub group: Option<u32>,
+    pub cutoff: f64,
+    pub probability: f64,
+    pub tonnage: f64,
+    pub metal: f64,
+    pub mean_grade: f64,
+}
+
+impl RealizedTonnage {
+    /// Each quantity's quantile across realizations at each group, cutoff
+    /// and probability, taken independently: the P50 tonnage and the P50
+    /// grade may come from different realizations.
+    pub fn quantiles(&self, probabilities: &[f64]) -> Result<Vec<TonnageQuantile>> {
+        if probabilities.iter().any(|p| !(0.0..=1.0).contains(p)) {
+            return Err(SimError::InvalidParameters(
+                "probabilities must be in [0, 1]".into(),
+            ));
+        }
+        let at = |values: &[f64], p: f64| {
+            let mut v: Vec<f64> = values.iter().copied().filter(|x| !x.is_nan()).collect();
+            v.sort_by(f64::total_cmp);
+            if v.is_empty() {
+                f64::NAN
+            } else {
+                quantile_sorted(&v, p)
+            }
+        };
+        let mut rows = vec![];
+        for (g, &group) in self.groups.iter().enumerate() {
+            for (c, &cutoff) in self.cutoffs.iter().enumerate() {
+                let (t, m) = (&self.tonnage[g][c], &self.metal[g][c]);
+                let grade: Vec<f64> = t
+                    .iter()
+                    .zip(m)
+                    .map(|(t, m)| if *t > 0.0 { m / t } else { f64::NAN })
+                    .collect();
+                for &probability in probabilities {
+                    rows.push(TonnageQuantile {
+                        group,
+                        cutoff,
+                        probability,
+                        tonnage: at(t, probability),
+                        metal: at(m, probability),
+                        mean_grade: at(&grade, probability),
+                    });
+                }
+            }
+        }
+        Ok(rows)
+    }
 }
 
 /// Per-target and per-realization summary of a continuous ensemble. Per-cutoff
@@ -122,6 +205,8 @@ pub struct ContinuousSummary {
     pub kept: Vec<usize>,
     /// The kept realizations, one row per entry of `kept`.
     pub realizations: Vec<Vec<f64>>,
+    /// Grade–tonnage curves per realization, when requested.
+    pub grade_tonnage: Option<RealizedTonnage>,
 }
 
 /// Center of [`ContinuousSummary::relative_error`].
@@ -359,6 +444,44 @@ impl<'a> Accumulator<'a> {
             ));
         }
         let nc = options.cutoffs.len();
+        let grade_tonnage = options.tonnage.as_ref().map(|t| {
+            let mut groups: Vec<Option<u32>> = t
+                .categories
+                .iter()
+                .flatten()
+                .flatten()
+                .copied()
+                .collect::<std::collections::BTreeSet<_>>()
+                .into_iter()
+                .map(Some)
+                .collect();
+            groups.push(None);
+            let empty = vec![vec![Vec::with_capacity(n); t.cutoffs.len()]; groups.len()];
+            RealizedTonnage {
+                cutoffs: t.cutoffs.clone(),
+                groups,
+                names: t.names.clone(),
+                tonnage: empty.clone(),
+                metal: empty,
+            }
+        });
+        if let Some(t) = &options.tonnage {
+            if t.cutoffs.iter().any(|c| c.is_nan())
+                || t.tonnes.iter().any(|w| w.is_nan() || *w < 0.0)
+            {
+                return Err(SimError::InvalidParameters(
+                    "cutoffs must not be NaN and tonnes must be non-negative".into(),
+                ));
+            }
+            if t.categories
+                .as_ref()
+                .is_some_and(|c| c.len() != t.tonnes.len())
+            {
+                return Err(SimError::InvalidParameters(
+                    "one category per target".into(),
+                ));
+            }
+        }
         Ok(Self {
             options,
             targets: None,
@@ -381,6 +504,7 @@ impl<'a> Accumulator<'a> {
                 realization_above: vec![Vec::with_capacity(n); nc],
                 kept: options.keep.kept(n),
                 realizations: vec![],
+                grade_tonnage,
             },
         })
     }
@@ -415,6 +539,36 @@ impl<'a> Accumulator<'a> {
                 }
             }
             self.out.realization_above[c].push(count as f64 / m.max(1) as f64);
+        }
+        if let (Some(t), Some(out)) = (&self.options.tonnage, &mut self.out.grade_tonnage) {
+            if t.tonnes.len() != m {
+                return Err(SimError::InvalidParameters(format!(
+                    "{} tonnes for {m} targets",
+                    t.tonnes.len()
+                )));
+            }
+            let nc = t.cutoffs.len();
+            let all = out.groups.len() - 1;
+            let mut sums = vec![vec![(0.0, 0.0); nc]; out.groups.len()];
+            for (i, &v) in values.iter().enumerate() {
+                let group = t.categories.as_ref().and_then(|c| c[i]).map(|code| {
+                    out.groups[..all]
+                        .binary_search(&Some(code))
+                        .expect("a known category")
+                });
+                for (c, _) in t.cutoffs.iter().enumerate().filter(|(_, c)| v >= **c) {
+                    for g in [Some(all), group].into_iter().flatten() {
+                        sums[g][c].0 += t.tonnes[i];
+                        sums[g][c].1 += t.tonnes[i] * v;
+                    }
+                }
+            }
+            for (g, row) in sums.iter().enumerate() {
+                for (c, &(tonnes, metal)) in row.iter().enumerate() {
+                    out.tonnage[g][c].push(tonnes);
+                    out.metal[g][c].push(metal);
+                }
+            }
         }
         self.out
             .realization_mean
@@ -831,6 +985,7 @@ mod tests {
             cutoffs: vec![5.0],
             quantiles: vec![0.5],
             keep: Keep::All,
+            tonnage: None,
         };
         let one = continuous(7, &options, fake, None).unwrap();
         let batched = continuous_in_batches(
@@ -853,6 +1008,7 @@ mod tests {
             cutoffs: vec![4.5],
             quantiles: vec![0.1, 0.5, 0.9],
             keep: Keep::All,
+            tonnage: None,
         };
         let s = continuous(23, &options, fake, None).unwrap();
         let reals = s.realizations;
@@ -879,6 +1035,7 @@ mod tests {
             cutoffs: vec![3.0, 7.0],
             quantiles: vec![0.5],
             keep: Keep::None,
+            tonnage: None,
         };
         let one = with_threads(1, || continuous(37, &options, fake, None).unwrap());
         let many = with_threads(6, || continuous(37, &options, fake, None).unwrap());
@@ -925,6 +1082,44 @@ mod tests {
         assert!((median[0] - (q(2) - q(0)) / (2.0 * q(1))).abs() < 1e-12);
         let err = s.relative_error(0.8, Center::Mean).unwrap_err().to_string();
         assert!(err.contains("0.1, 0.9"), "{err}");
+    }
+
+    #[test]
+    fn grade_tonnage_per_realization_and_category() {
+        // Realization k scales the grades [1, 2, 3, 4] by k + 1.
+        let options = ContinuousOptions {
+            tonnage: Some(TonnageOptions {
+                cutoffs: vec![0.0, 2.5],
+                tonnes: vec![10.0, 20.0, 30.0, 40.0],
+                categories: Some(vec![Some(7), Some(3), Some(7), None]),
+                names: vec![],
+            }),
+            ..Default::default()
+        };
+        let grades = |k: usize| (1..=4).map(|g| (g * (k + 1)) as f64).collect::<Vec<_>>();
+        let s = continuous(3, &options, |k| Ok(grades(k)), None).unwrap();
+        let t = s.grade_tonnage.as_ref().unwrap();
+        assert_eq!(t.groups, vec![Some(3), Some(7), None]);
+        // All targets, cutoff 2.5: realization 0 keeps grades 3 and 4.
+        assert_eq!(t.tonnage[2][1], vec![70.0, 90.0, 100.0]);
+        assert_eq!(t.metal[2][1], vec![250.0, 580.0, 900.0]);
+        assert_eq!(t.tonnage[1][0], vec![40.0; 3]);
+        let rows = t.quantiles(&[0.5]).unwrap();
+        let all = rows
+            .iter()
+            .find(|r| r.group.is_none() && r.cutoff == 2.5)
+            .unwrap();
+        assert_eq!((all.tonnage, all.metal), (90.0, t.metal[2][1][1]));
+        assert!((all.mean_grade - t.metal[2][1][1] / 90.0).abs() < 1e-12);
+        let bad = TonnageOptions {
+            tonnes: vec![1.0],
+            ..options.tonnage.clone().unwrap()
+        };
+        let bad = ContinuousOptions {
+            tonnage: Some(bad),
+            ..Default::default()
+        };
+        assert!(continuous(1, &bad, |k| Ok(grades(k)), None).is_err());
     }
 
     #[test]
@@ -1162,6 +1357,7 @@ mod tests {
             cutoffs: vec![0.2, 0.7],
             quantiles: vec![0.1, 0.5, 0.9],
             keep: Keep::All,
+            tonnage: None,
         };
         let whole = continuous(23, &options, fake, None).unwrap();
         for batch in [1, 4, 23, 100] {

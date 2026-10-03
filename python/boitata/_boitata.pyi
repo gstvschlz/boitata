@@ -1098,6 +1098,10 @@ class SGS:
         secondary: ArrayLike | Column | None = None,
         path: Literal["shared", "random"] | None = None,
         batch: int | None = None,
+        grade_tonnage_cutoffs: Sequence[float] | None = None,
+        density: float | ArrayLike | Column | None = None,
+        tonnage: ArrayLike | Column | None = None,
+        categories: Labels | Column | None = None,
         progress: bool = True,
     ) -> SimulationSummary: ...
 
@@ -1138,6 +1142,10 @@ class TurningBands:
         trend: ArrayLike | Column | None = None,
         domains: Label | Sequence[Label] | ArrayLike | None = None,
         domain_column: Column | None = None,
+        grade_tonnage_cutoffs: Sequence[float] | None = None,
+        density: float | ArrayLike | Column | None = None,
+        tonnage: ArrayLike | Column | None = None,
+        categories: Labels | Column | None = None,
         progress: bool = True,
     ) -> SimulationSummary: ...
     def simulate_to_parquet(
@@ -1263,6 +1271,7 @@ class SimulationSummary:
     def variance(self) -> npt.NDArray[np.float64]: ...
     @property
     def std(self) -> npt.NDArray[np.float64]: ...
+    def grade_tonnage(self, *, probabilities: Sequence[float] = (0.1, 0.5, 0.9)) -> Table: ...
     @property
     def cv(self) -> npt.NDArray[np.float64]: ...
     def relative_error(

@@ -58,6 +58,50 @@ def test_derived_summary_statistics():
     np.testing.assert_array_equal(least[rows], masked.argmin(axis=1))
 
 
+def test_grade_tonnage_of_a_constant_ensemble_is_the_data_curve():
+    sgs = bt.SGS(gaussian, bt.Search(radius=40, max_samples=12)).fit(coords, values)
+    domain = np.where(coords[:, 0] < 50, "west", "east")
+    points = bt.PointSet(coords, {"d": np.full(60, 2.7), "domain": domain})
+    cuts = [0.5, 1.0, 2.0]
+    s = sgs.simulate(points, n=5, seed=1, grade_tonnage_cutoffs=cuts, density="d", categories="domain")
+    curves = s.grade_tonnage(probabilities=[0.5])
+    expected = bt.grade_tonnage(values, cuts, density=2.7, categories=domain)
+    assert curves["category"].tolist() == expected["category"].tolist()
+    for q in ("tonnage", "metal", "mean_grade"):
+        np.testing.assert_allclose(curves[q], expected[q], rtol=1e-9)
+
+
+def test_grade_tonnage_uncertainty_on_blocks(tmp_path):
+    sgs = bt.SGS(gaussian, bt.Search(radius=40, max_samples=12)).fit(coords, values)
+    blocks = bt.BlockModel(origin=(0, 0), size=(20, 20), count=(5, 5))
+    s = sgs.simulate(
+        grid, n=20, seed=2, keep=True, blocks=blocks, grade_tonnage_cutoffs=[0.0, 1.0], density=2.5
+    )
+    reals = s.realizations
+    above = reals >= 1.0
+    tonnes = 2.5 * 400.0 * above.sum(axis=1)
+    curves = s.grade_tonnage(probabilities=[0.1, 0.5, 0.9])
+    rows = (curves["cutoff"] == 1.0) & (curves["category"] == "all")
+    np.testing.assert_allclose(curves["tonnage"][rows], np.quantile(tonnes, [0.1, 0.5, 0.9]))
+    np.testing.assert_allclose(
+        curves["tonnage"][(curves["cutoff"] == 0.0) & (curves["probability"] == 0.5)], 2.5 * 400 * 25
+    )
+    s.to_parquet(tmp_path / "s.parquet")
+    again = bt.SimulationSummary.from_parquet(tmp_path / "s.parquet")
+    np.testing.assert_array_equal(again.grade_tonnage()["metal"], s.grade_tonnage()["metal"])
+    import matplotlib
+
+    matplotlib.use("Agg")
+    _, ax = bt.plot.grade_tonnage(curves)
+    assert len(ax.lines) == 1 and len(ax.collections) == 1
+    with pytest.raises(bt.InvalidInput, match="one of density or tonnage"):
+        sgs.simulate(grid, n=1, grade_tonnage_cutoffs=[1.0])
+    with pytest.raises(bt.InvalidInput, match="go with grade_tonnage_cutoffs"):
+        sgs.simulate(grid, n=1, density=2.5)
+    with pytest.raises(bt.InvalidInput, match="no grade-tonnage"):
+        sgs.simulate(grid, n=1).grade_tonnage()
+
+
 def test_block_support_averages_each_realization():
     sgs = bt.SGS(gaussian, bt.Search(radius=40, max_samples=12)).fit(coords, values)
     blocks = bt.BlockModel(origin=(0, 0), size=(20, 20), count=(5, 5))
