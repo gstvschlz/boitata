@@ -24,6 +24,39 @@ composition = bt.closure(parts, total=100)
 
 </details>
 
+the arithmetic mean of each part ignores the constraint; the center, the closed geometric mean, is the mean of the
+compositions in log-ratio terms. the variation matrix holds the variance of the log-ratio of each pair of parts: a
+small entry means the two parts keep a near-constant ratio. its sum over 2D, the total variance, measures the spread
+of the whole composition.
+
+<details><summary>Python</summary>
+
+```python
+center = 100 * bt.composition_center(composition)
+variation = bt.variation_matrix(composition)
+i, j = np.unravel_index(np.argmax(variation), variation.shape)
+k, m = min(((a, b) for a in range(8) for b in range(a)), key=lambda p: variation[p])
+for n, mean, c in zip(names, composition.mean(axis=0), center, strict=True):
+    print(f"{n:13} mean {mean:6.2f} %, center {c:6.2f} %")
+print(f"total variance {bt.total_variance(composition):.2f}")
+print(f"most variable ratio {names[i]}/{names[j]}, least variable {names[k]}/{names[m]}")
+```
+
+</details>
+
+```text
+clay          mean   3.63 %, center   1.31 %
+chalcocite    mean   0.06 %, center   0.01 %
+bornite       mean   0.15 %, center   0.01 %
+chalcopyrite  mean   0.84 %, center   0.44 %
+tennantite    mean   0.01 %, center   0.00 %
+molybdenite   mean   0.01 %, center   0.01 %
+pyrite        mean   1.75 %, center   0.20 %
+rest          mean  93.55 %, center  98.02 %
+total variance 22.50
+most variable ratio bornite/pyrite, least variable molybdenite/chalcopyrite
+```
+
 the isometric log-ratio (ILR) maps each composition to 7 unconstrained coordinates, the balances. a sequential binary
 partition chooses them: the copper sulphides against the other parts, chalcocite and bornite against chalcopyrite and
 tennantite, and so on, each row of signs splitting one group of the row before it in two. `ILR` replaces the part
