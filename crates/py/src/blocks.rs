@@ -1099,7 +1099,35 @@ fn buffer_domains<'py>(
     )
 }
 
+/// Rings outlining one group of points; `bt.outline` groups and wraps them.
+#[pyfunction]
+#[pyo3(signature = (coords, *, max_edge=None, buffer=0.0, plane=None))]
+fn _outline<'py>(
+    py: Python<'py>,
+    coords: &Bound<PyAny>,
+    max_edge: Option<f64>,
+    buffer: f64,
+    plane: Option<(f64, f64)>,
+) -> PyResult<Vec<Bound<'py, PyAny>>> {
+    let points = crate::containers::coords_arg(coords)?;
+    let hull = max_edge.map_or(blocks::Hull::Convex, blocks::Hull::Concave);
+    let plane = plane.map_or(blocks::Plane::Plan, |(azimuth, dip)| {
+        blocks::Plane::Dipping { azimuth, dip }
+    });
+    let rings = py
+        .detach(|| blocks::outline(&points, hull, buffer, plane))
+        .map_err(err)?;
+    Ok(rings
+        .iter()
+        .map(|r| {
+            let rows: Vec<Vec<f64>> = r.iter().map(|p| p.to_vec()).collect();
+            crate::args::array2(py, &rows).into_any()
+        })
+        .collect())
+}
+
 pub fn register(m: &Bound<PyModule>) -> PyResult<()> {
+    m.add_function(wrap_pyfunction!(_outline, m)?)?;
     m.add_function(wrap_pyfunction!(smooth_classes, m)?)?;
     m.add_function(wrap_pyfunction!(remove_small_units, m)?)?;
     m.add_function(wrap_pyfunction!(contact_distance, m)?)?;

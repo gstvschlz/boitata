@@ -12,7 +12,9 @@ publish = false
 [workspace.dependencies]
 parquet = { version = "59", default-features = false, features = ["arrow", "zstd"] }
 criterion = "0.8"
+delaunator = "1.1"
 dxf = "0.6"
+i_overlay = "9"
 kiddo = "6"
 numpy = "0.29"
 pyo3 = { version = "0.29", features = ["abi3-py311"] }
