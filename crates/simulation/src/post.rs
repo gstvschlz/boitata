@@ -124,6 +124,70 @@ pub struct ContinuousSummary {
     pub realizations: Vec<Vec<f64>>,
 }
 
+/// Center of [`ContinuousSummary::relative_error`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Center {
+    Mean,
+    Median,
+}
+
+impl ContinuousSummary {
+    /// Coefficient of variation across realizations, the standard deviation
+    /// over the mean; NaN where the mean is 0.
+    pub fn cv(&self) -> Vec<f64> {
+        self.mean
+            .iter()
+            .zip(&self.variance)
+            .map(|(m, v)| if *m == 0.0 { f64::NAN } else { v.sqrt() / m })
+            .collect()
+    }
+
+    /// Half the central `confidence` interval over the mean or median,
+    /// `(q_hi - q_lo) / (2 × center)`, from the stored quantiles; NaN where
+    /// the center is 0. Errors naming the quantiles to request when absent.
+    pub fn relative_error(&self, confidence: f64, center: Center) -> Result<Vec<f64>> {
+        if !(confidence > 0.0 && confidence < 1.0) {
+            return Err(SimError::InvalidParameters(
+                "confidence must be in (0, 1)".into(),
+            ));
+        }
+        let (lo, hi) = ((1.0 - confidence) / 2.0, (1.0 + confidence) / 2.0);
+        let mut needed = vec![lo, hi];
+        if center == Center::Median {
+            needed.push(0.5);
+        }
+        let find = |q: f64| self.quantiles.iter().position(|x| (x - q).abs() < 1e-9);
+        let missing: Vec<String> = needed
+            .iter()
+            .filter(|q| find(**q).is_none())
+            .map(|q| format!("{}", (q * 1e9).round() / 1e9))
+            .collect();
+        if !missing.is_empty() {
+            return Err(SimError::InvalidParameters(format!(
+                "relative error at confidence {confidence} needs quantiles {}; add them to quantiles=",
+                missing.join(", ")
+            )));
+        }
+        let (lo, hi) = (
+            &self.quantile_values[find(lo).unwrap()],
+            &self.quantile_values[find(hi).unwrap()],
+        );
+        let middle = match center {
+            Center::Mean => &self.mean,
+            Center::Median => &self.quantile_values[find(0.5).unwrap()],
+        };
+        Ok((0..middle.len())
+            .map(|i| {
+                if middle[i] == 0.0 {
+                    f64::NAN
+                } else {
+                    (hi[i] - lo[i]) / (2.0 * middle[i])
+                }
+            })
+            .collect())
+    }
+}
+
 /// Summarizes `n` realizations of a continuous variable; `simulate(k)` returns
 /// realization `k` over the same targets every time.
 pub fn continuous(
@@ -431,6 +495,24 @@ pub struct CategoricalSummary {
     pub kept: Vec<usize>,
     /// The kept realizations, one row per entry of `kept`.
     pub realizations: Vec<Vec<usize>>,
+}
+
+impl CategoricalSummary {
+    /// Least probable category per target among those some realization
+    /// took; ties go to the lowest. None where one category takes them all.
+    pub fn least_likely(&self) -> Vec<Option<usize>> {
+        let k = self.probabilities.len();
+        (0..self.most_likely.len())
+            .map(|i| {
+                let seen: Vec<usize> = (0..k).filter(|&c| self.probabilities[c][i] > 0.0).collect();
+                if seen.len() < 2 {
+                    return None;
+                }
+                seen.into_iter()
+                    .min_by(|&a, &b| self.probabilities[a][i].total_cmp(&self.probabilities[b][i]))
+            })
+            .collect()
+    }
 }
 
 /// Summarizes `n` realizations of categories `0..k`.
@@ -824,6 +906,33 @@ mod tests {
         assert_eq!(s.entropy[0], 0.0);
         assert!(s.entropy[1] > 0.9 && s.entropy[1] <= 1.0);
         assert_eq!(s.proportions.len(), 10);
+    }
+
+    #[test]
+    fn derived_statistics() {
+        // Target 0 takes 1..=20, target 1 is constant 0.
+        let options = ContinuousOptions {
+            quantiles: vec![0.05, 0.5, 0.95],
+            ..Default::default()
+        };
+        let s = continuous(20, &options, |k| Ok(vec![k as f64 + 1.0, 0.0]), None).unwrap();
+        let cv = s.cv();
+        assert!((cv[0] - s.variance[0].sqrt() / 10.5).abs() < 1e-12 && cv[1].is_nan());
+        let q = |j: usize| s.quantile_values[j][0];
+        let mean = s.relative_error(0.9, Center::Mean).unwrap();
+        assert!((mean[0] - (q(2) - q(0)) / 21.0).abs() < 1e-12 && mean[1].is_nan());
+        let median = s.relative_error(0.9, Center::Median).unwrap();
+        assert!((median[0] - (q(2) - q(0)) / (2.0 * q(1))).abs() < 1e-12);
+        let err = s.relative_error(0.8, Center::Mean).unwrap_err().to_string();
+        assert!(err.contains("0.1, 0.9"), "{err}");
+    }
+
+    #[test]
+    fn least_likely_skips_categories_never_drawn() {
+        // Target 0: always 0; target 1: 0, 1, 1, 2; target 2: 1 and 2 tied.
+        let draws = [[0, 0, 1], [0, 1, 2], [0, 1, 1], [0, 2, 2]];
+        let s = categorical(4, 3, &Keep::None, |k| Ok(draws[k].to_vec()), None).unwrap();
+        assert_eq!(s.least_likely(), vec![None, Some(0), Some(1)]);
     }
 
     fn grid(size: f64, count: usize) -> BlockModel {
