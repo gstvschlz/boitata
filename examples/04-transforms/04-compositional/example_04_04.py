@@ -30,6 +30,23 @@ composition = bt.closure(parts, total=100)
 
 
 # %% [markdown]
+# the arithmetic mean of each part ignores the constraint; the center, the closed geometric mean, is the mean of the
+# compositions in log-ratio terms. the variation matrix holds the variance of the log-ratio of each pair of parts: a
+# small entry means the two parts keep a near-constant ratio. its sum over 2D, the total variance, measures the spread
+# of the whole composition.
+
+# %%
+center = 100 * bt.composition_center(composition)
+variation = bt.variation_matrix(composition)
+i, j = np.unravel_index(np.argmax(variation), variation.shape)
+k, m = min(((a, b) for a in range(8) for b in range(a)), key=lambda p: variation[p])
+for n, mean, c in zip(names, composition.mean(axis=0), center, strict=True):
+    print(f"{n:13} mean {mean:6.2f} %, center {c:6.2f} %")
+print(f"total variance {bt.total_variance(composition):.2f}")
+print(f"most variable ratio {names[i]}/{names[j]}, least variable {names[k]}/{names[m]}")
+
+
+# %% [markdown]
 # the isometric log-ratio (ILR) maps each composition to 7 unconstrained coordinates, the balances. a sequential binary
 # partition chooses them: the copper sulphides against the other parts, chalcocite and bornite against chalcopyrite and
 # tennantite, and so on, each row of signs splitting one group of the row before it in two. `ILR` replaces the part

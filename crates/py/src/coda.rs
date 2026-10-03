@@ -1,6 +1,6 @@
 use pyo3::prelude::*;
 
-use crate::args::{array1, array2, rows, same_length};
+use crate::args::{array1, array2, floats, optional_finite, rows, same_length};
 use crate::invalid;
 
 fn by_row<'py>(
@@ -137,6 +137,132 @@ fn aitchison_distance<'py>(
     Ok(array1(py, d).into_any())
 }
 
+/// Each row of `parts` with the values below their detection limit replaced
+/// multiplicatively: each becomes `fraction × detection_limit`, and the
+/// detected parts of the row shrink by one factor, so the row keeps its
+/// total and the ratios between detected parts.
+///
+/// Parameters
+/// ----------
+/// parts : array_like
+///     ``(n, D)`` non-negative parts; zeros count as below any positive limit.
+/// detection_limit : float or array_like
+///     One limit, or one per part.
+/// fraction : float, default 0.65
+///     Share of the limit a value below it takes.
+#[pyfunction]
+#[pyo3(signature = (parts, *, detection_limit, fraction=0.65))]
+fn replace_below_detection<'py>(
+    py: Python<'py>,
+    parts: &Bound<PyAny>,
+    detection_limit: &Bound<PyAny>,
+    fraction: f64,
+) -> PyResult<Bound<'py, PyAny>> {
+    let rows = rows(parts, "parts")?;
+    let d = rows.first().map_or(0, Vec::len);
+    let limits = match detection_limit.extract::<f64>() {
+        Ok(l) => vec![l; d],
+        Err(_) => floats(detection_limit, "detection_limit")?,
+    };
+    let out = rows
+        .iter()
+        .map(|r| coda::replace_below_detection(r, &limits, fraction))
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(invalid)?;
+    Ok(array2(py, &out).into_any())
+}
+
+/// Perturbation, the simplex sum: the closed product of paired rows.
+#[pyfunction]
+fn perturbation<'py>(
+    py: Python<'py>,
+    a: &Bound<PyAny>,
+    b: &Bound<PyAny>,
+) -> PyResult<Bound<'py, PyAny>> {
+    let (a, b) = (rows(a, "a")?, rows(b, "b")?);
+    same_length(a.len(), b.len(), "b")?;
+    let out = a
+        .iter()
+        .zip(&b)
+        .map(|(a, b)| coda::perturbation(a, b))
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(invalid)?;
+    Ok(array2(py, &out).into_any())
+}
+
+/// Powering, the simplex scaling: each closed row to the power `alpha`.
+#[pyfunction]
+fn powering<'py>(py: Python<'py>, parts: &Bound<PyAny>, alpha: f64) -> PyResult<Bound<'py, PyAny>> {
+    by_row(py, parts, |x| coda::powering(x, alpha))
+}
+
+/// Aitchison inner product of paired rows: the dot product of their clr
+/// coordinates.
+#[pyfunction]
+fn aitchison_inner_product<'py>(
+    py: Python<'py>,
+    a: &Bound<PyAny>,
+    b: &Bound<PyAny>,
+) -> PyResult<Bound<'py, PyAny>> {
+    let (a, b) = (rows(a, "a")?, rows(b, "b")?);
+    same_length(a.len(), b.len(), "b")?;
+    let out = a
+        .iter()
+        .zip(&b)
+        .map(|(a, b)| coda::aitchison_inner_product(a, b))
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(invalid)?;
+    Ok(array1(py, out).into_any())
+}
+
+/// Aitchison norm of each row: the length of its clr coordinates.
+#[pyfunction]
+fn aitchison_norm<'py>(py: Python<'py>, parts: &Bound<PyAny>) -> PyResult<Bound<'py, PyAny>> {
+    let out = rows(parts, "parts")?
+        .iter()
+        .map(|r| coda::aitchison_norm(r))
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(invalid)?;
+    Ok(array1(py, out).into_any())
+}
+
+/// Center of the compositions: the closed, weighted geometric mean of each
+/// part, closed to sum 1.
+#[pyfunction]
+#[pyo3(signature = (parts, *, weights=None))]
+fn composition_center<'py>(
+    py: Python<'py>,
+    parts: &Bound<PyAny>,
+    weights: Option<&Bound<PyAny>>,
+) -> PyResult<Bound<'py, PyAny>> {
+    let w = optional_finite(weights, "weights")?;
+    let c = coda::center(&rows(parts, "parts")?, w.as_deref()).map_err(invalid)?;
+    Ok(array1(py, c).into_any())
+}
+
+/// Variation matrix: the weighted variance of ``ln(x_i / x_j)`` for each
+/// pair of parts; ``(D, D)``, symmetric, zero on the diagonal.
+#[pyfunction]
+#[pyo3(signature = (parts, *, weights=None))]
+fn variation_matrix<'py>(
+    py: Python<'py>,
+    parts: &Bound<PyAny>,
+    weights: Option<&Bound<PyAny>>,
+) -> PyResult<Bound<'py, PyAny>> {
+    let w = optional_finite(weights, "weights")?;
+    let t = coda::variation_matrix(&rows(parts, "parts")?, w.as_deref()).map_err(invalid)?;
+    Ok(array2(py, &t).into_any())
+}
+
+/// Total variance of the compositions: the variation matrix summed over
+/// ``2D``, equal to the summed variances of the clr coordinates.
+#[pyfunction]
+#[pyo3(signature = (parts, *, weights=None))]
+fn total_variance(parts: &Bound<PyAny>, weights: Option<&Bound<PyAny>>) -> PyResult<f64> {
+    let w = optional_finite(weights, "weights")?;
+    coda::total_variance(&rows(parts, "parts")?, w.as_deref()).map_err(invalid)
+}
+
 pub fn register(m: &Bound<PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(closure, m)?)?;
     m.add_function(wrap_pyfunction!(clr, m)?)?;
@@ -147,5 +273,13 @@ pub fn register(m: &Bound<PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(ilr_inverse, m)?)?;
     m.add_function(wrap_pyfunction!(aitchison_distance, m)?)?;
     m.add_function(wrap_pyfunction!(partition_basis, m)?)?;
+    m.add_function(wrap_pyfunction!(replace_below_detection, m)?)?;
+    m.add_function(wrap_pyfunction!(perturbation, m)?)?;
+    m.add_function(wrap_pyfunction!(powering, m)?)?;
+    m.add_function(wrap_pyfunction!(aitchison_inner_product, m)?)?;
+    m.add_function(wrap_pyfunction!(aitchison_norm, m)?)?;
+    m.add_function(wrap_pyfunction!(composition_center, m)?)?;
+    m.add_function(wrap_pyfunction!(variation_matrix, m)?)?;
+    m.add_function(wrap_pyfunction!(total_variance, m)?)?;
     Ok(())
 }
