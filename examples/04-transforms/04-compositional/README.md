@@ -147,4 +147,23 @@ save(fig, "scatter")
 
 ![scatter](scatter.png)
 
+a ternary diagram shows three parts closed to 100 %, a subcomposition: here the three main sulphides. the clr biplot
+shows all eight parts at once. ray length is the spread of a part's clr coordinate, and the distance between two tips
+is the spread of their log-ratio, so parts whose tips nearly touch keep a near-constant ratio.
+
+<details><summary>Python</summary>
+
+```python
+fig, (a, b) = plt.subplots(1, 2, figsize=(11, 4.8), layout="constrained")
+bt.plot.ternary(samples, parts=["chalcocite", "chalcopyrite", "pyrite"], s=3, alpha=0.3, ax=a)
+a.set_title("Sulphide subcomposition")
+bt.plot.biplot(samples, parts=names, s=2, alpha=0.3, ax=b)
+b.set_title("clr biplot")
+save(fig, "simplex")
+```
+
+</details>
+
+![simplex](simplex.png)
+
 Full script: [`example_04_04.py`](example_04_04.py)

@@ -7,6 +7,8 @@ make.
 
 import numpy as np
 
+from boitata._boitata import closure as _closure
+from boitata._boitata import clr as _clr
 from boitata._boitata import correlation as _correlation
 from boitata._boitata import describe, normal_cdf, normal_ppf
 from boitata._boitata import swath as _swath
@@ -15,6 +17,7 @@ from boitata._columns import stack as _stack
 from boitata.errors import InvalidInput
 
 __all__ = [
+    "biplot",
     "boxplot",
     "category_colors",
     "category_legend",
@@ -44,6 +47,7 @@ __all__ = [
     "slab",
     "strip_log",
     "swath",
+    "ternary",
     "transition_mds",
     "uncertain",
     "variogram",
@@ -683,6 +687,99 @@ def scatter(x, y, *, line=True, data=None, ax=None, **kwargs):
             lw=1.2,
             label=f"slope {slope:.2f}",
         )
+    return fig, ax
+
+
+def ternary(data, *, parts=None, labels=None, grid=True, ax=None, **kwargs):
+    """Compositions of three parts as points in an equilateral triangle, each vertex a pure part.
+
+    Parameters
+    ----------
+    data : array_like, mapping, Table, PointSet or BlockModel
+        ``(n, 3)`` parts, or a container holding the `parts` columns. Each row is closed before plotting, so the
+        parts may be any three of a larger composition (a subcomposition).
+    parts : list of 3 str, optional
+        Columns of `data`, in vertex order: bottom left, bottom right, top.
+    labels : list of 3 str, optional
+        Vertex labels; default the part names.
+    grid : bool
+        Draw lines at every 20 % of each part.
+    **kwargs
+        Passed to ``ax.scatter``.
+    """
+    fig, ax = _axes(ax)
+    x, labels = _stack(data, labels, parts)
+    if x.shape[1] != 3:
+        raise InvalidInput(f"a ternary diagram needs 3 parts, got {x.shape[1]}")
+    ok = np.isfinite(x).all(axis=1) & (x >= 0).all(axis=1) & (x.sum(axis=1) > 0)
+    x = x[ok] / x[ok].sum(axis=1, keepdims=True)
+    corners = np.array([[0.0, 0.0], [1.0, 0.0], [0.5, np.sqrt(3) / 2]])
+    if grid:
+        for t in (0.2, 0.4, 0.6, 0.8):
+            for i in range(3):
+                a, b = corners[(i + 1) % 3], corners[(i + 2) % 3]
+                ends = t * corners[i] + (1 - t) * np.array([a, b])
+                ax.plot(*ends.T, color="0.88", lw=0.6, zorder=0)
+    ax.plot(*np.vstack([corners, corners[:1]]).T, color="0.3", lw=0.8)
+    kwargs.setdefault("s", 6)
+    kwargs.setdefault("color", _accent())
+    ax.scatter(*(x @ corners).T, **kwargs)
+    for corner, label, offset in zip(corners, labels, ((-6, -12), (6, -12), (0, 6)), strict=True):
+        ha = {-6: "right", 6: "left", 0: "center"}[offset[0]]
+        ax.annotate(label, corner, xytext=offset, textcoords="offset points", ha=ha)
+    ax.set_aspect("equal")
+    ax.set_axis_off()
+    return fig, ax
+
+
+def biplot(data, *, parts=None, labels=None, ax=None, **kwargs):
+    """Covariance biplot of the clr coordinates: samples as points, parts as rays from the origin.
+
+    Ray length is the standard deviation of a part's clr coordinate; the distance between two ray tips is the standard
+    deviation of the log-ratio of the two parts, so tips close together mark parts in near-constant proportion. The
+    axes are the first two principal components, labeled with the share of total variance they hold.
+
+    Parameters
+    ----------
+    data : array_like, mapping, Table, PointSet or BlockModel
+        ``(n, D)`` positive parts, or a container holding the `parts` columns; rows with a missing part are skipped.
+    parts : list of str, optional
+        Columns of `data`; default all of them.
+    labels : list of str, optional
+        Ray labels; default the part names.
+    **kwargs
+        Passed to ``ax.scatter``.
+    """
+    fig, ax = _axes(ax)
+    x, labels = _stack(data, labels, parts)
+    x = x[np.isfinite(x).all(axis=1)]
+    z = _clr(_closure(x))
+    z -= z.mean(axis=0)
+    u, s, vt = np.linalg.svd(z, full_matrices=False)
+    n = len(z)
+    share = s**2 / (s**2).sum()
+    kwargs.setdefault("s", 4)
+    kwargs.setdefault("color", "0.7")
+    ax.scatter(*(u[:, :2] * np.sqrt(n - 1)).T, **kwargs)
+    rays = vt[:2].T * s[:2] / np.sqrt(n - 1)
+    for (dx, dy), label in zip(rays, labels, strict=True):
+        ax.annotate("", (dx, dy), (0, 0), arrowprops={"arrowstyle": "->", "color": _accent(), "lw": 1.2})
+        ax.annotate(
+            label,
+            (dx, dy),
+            xytext=(4 * np.sign(dx), 4 * np.sign(dy)),
+            textcoords="offset points",
+            ha="left" if dx >= 0 else "right",
+            va="bottom" if dy >= 0 else "top",
+            color=_accent(),
+        )
+    ax.update_datalim(1.15 * rays)
+    ax.autoscale_view()
+    ax.axhline(0, color="0.85", lw=0.6, zorder=0)
+    ax.axvline(0, color="0.85", lw=0.6, zorder=0)
+    ax.set_xlabel(f"PC1 ({100 * share[0]:.0f} % of variance)")
+    ax.set_ylabel(f"PC2 ({100 * share[1]:.0f} % of variance)")
+    ax.set_aspect("equal", adjustable="datalim")
     return fig, ax
 
 
