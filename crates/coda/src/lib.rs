@@ -116,6 +116,111 @@ pub fn ilr_inv(coords: &[f64]) -> Result<Vec<f64>> {
     clr_inv(&clr_vec)
 }
 
+/// Additive log-ratio against part `reference`: `ln(x_i / x_r)` for `i ≠ r`.
+pub fn alr_with(parts: &[f64], reference: usize) -> Result<Vec<f64>> {
+    let x = closure(parts, 1.0)?;
+    if x.len() < 2 || reference >= x.len() {
+        return Err(CodaError::InvalidParameters(format!(
+            "reference {reference} is not one of {} parts",
+            x.len()
+        )));
+    }
+    let r = x[reference];
+    Ok((0..x.len())
+        .filter(|&i| i != reference)
+        .map(|i| (x[i] / r).ln())
+        .collect())
+}
+
+/// Inverse of [`alr_with`]: the closed composition, part `reference` restored.
+pub fn alr_with_inv(coords: &[f64], reference: usize) -> Result<Vec<f64>> {
+    if reference > coords.len() {
+        return Err(CodaError::InvalidParameters(format!(
+            "reference {reference} is not one of {} parts",
+            coords.len() + 1
+        )));
+    }
+    let mut clr = coords.to_vec();
+    clr.insert(reference, 0.0);
+    clr_inv(&clr)
+}
+
+/// Orthonormal clr basis, one row of `D` weights per balance, from a
+/// sequential binary partition: `D - 1` rows of signs, `1` for the parts in
+/// the numerator, `-1` in the denominator and `0` outside the balance.
+pub fn partition_basis(signs: &[Vec<i8>]) -> Result<Vec<Vec<f64>>> {
+    let d = signs.first().map_or(0, Vec::len);
+    if d < 2 || signs.len() != d - 1 || signs.iter().any(|r| r.len() != d) {
+        return Err(CodaError::InvalidParameters(
+            "a partition of D parts has D - 1 rows of D signs".into(),
+        ));
+    }
+    let basis: Vec<Vec<f64>> = signs
+        .iter()
+        .map(|row| {
+            let r = row.iter().filter(|&&s| s == 1).count() as f64;
+            let s = row.iter().filter(|&&s| s == -1).count() as f64;
+            if r == 0.0 || s == 0.0 || row.iter().any(|v| !(-1..=1).contains(v)) {
+                return Err(CodaError::InvalidParameters(
+                    "each balance needs signs 1, -1 or 0, with at least one 1 and one -1".into(),
+                ));
+            }
+            let k = (r * s / (r + s)).sqrt();
+            Ok(row
+                .iter()
+                .map(|&v| match v {
+                    1 => k / r,
+                    -1 => -k / s,
+                    _ => 0.0,
+                })
+                .collect())
+        })
+        .collect::<Result<_>>()?;
+    for (i, a) in basis.iter().enumerate() {
+        for b in &basis[..i] {
+            if dot(a, b).abs() > 1e-9 {
+                return Err(CodaError::InvalidParameters(
+                    "the signs are not a sequential binary partition: balances overlap".into(),
+                ));
+            }
+        }
+    }
+    Ok(basis)
+}
+
+/// Isometric log-ratio coordinates on `basis` (see [`partition_basis`]).
+pub fn ilr_with(parts: &[f64], basis: &[Vec<f64>]) -> Result<Vec<f64>> {
+    if basis.iter().any(|b| b.len() != parts.len()) {
+        return Err(CodaError::InvalidParameters(format!(
+            "the basis has {} parts, the composition {}",
+            basis.first().map_or(0, Vec::len),
+            parts.len()
+        )));
+    }
+    let y = clr(parts)?;
+    Ok(basis.iter().map(|b| dot(&y, b)).collect())
+}
+
+/// Inverse of [`ilr_with`].
+pub fn ilr_with_inv(coords: &[f64], basis: &[Vec<f64>]) -> Result<Vec<f64>> {
+    let d = basis.first().map_or(0, Vec::len);
+    if coords.len() != basis.len() || d == 0 {
+        return Err(CodaError::InvalidParameters(format!(
+            "expected {} coordinates, got {}",
+            basis.len(),
+            coords.len()
+        )));
+    }
+    let y: Vec<f64> = (0..d)
+        .map(|j| coords.iter().zip(basis).map(|(c, b)| c * b[j]).sum())
+        .collect();
+    clr_inv(&y)
+}
+
+fn dot(a: &[f64], b: &[f64]) -> f64 {
+    a.iter().zip(b).map(|(x, y)| x * y).sum()
+}
+
 /// Aitchison distance between two compositions (Euclidean distance in CLR space).
 pub fn aitchison_distance(a: &[f64], b: &[f64]) -> Result<f64> {
     if a.len() != b.len() {
@@ -192,6 +297,43 @@ mod tests {
             (ilr_dist - aitch).abs() < 1e-9,
             "ilr {ilr_dist} aitch {aitch}"
         );
+    }
+
+    #[test]
+    fn alr_with_any_reference_round_trips() {
+        let x = closure(&[3.0, 1.0, 6.0, 2.0], 1.0).unwrap();
+        for r in 0..4 {
+            let y = alr_with(&x, r).unwrap();
+            assert!(approx(&alr_with_inv(&y, r).unwrap(), &x, 1e-12));
+        }
+        assert!(approx(&alr_with(&x, 3).unwrap(), &alr(&x).unwrap(), 1e-12));
+        assert!(alr_with(&x, 4).is_err());
+    }
+
+    #[test]
+    fn partition_balances_are_orthonormal_and_invert() {
+        let signs = vec![vec![1, 1, -1, -1], vec![1, -1, 0, 0], vec![0, 0, 1, -1]];
+        let basis = partition_basis(&signs).unwrap();
+        for (i, a) in basis.iter().enumerate() {
+            for (j, b) in basis.iter().enumerate() {
+                assert!((dot(a, b) - f64::from(u8::from(i == j))).abs() < 1e-12);
+            }
+            assert!(a.iter().sum::<f64>().abs() < 1e-12);
+        }
+        let x = closure(&[2.0, 5.0, 1.0, 3.0], 1.0).unwrap();
+        let y = ilr_with(&x, &basis).unwrap();
+        assert!(approx(&ilr_with_inv(&y, &basis).unwrap(), &x, 1e-12));
+        // The first balance is the log-ratio of the geometric means, scaled.
+        let g = |a: f64, b: f64| (a * b).sqrt();
+        let first = (2.0f64 * 2.0 / 4.0).sqrt() * (g(x[0], x[1]) / g(x[2], x[3])).ln();
+        assert!((y[0] - first).abs() < 1e-12);
+    }
+
+    #[test]
+    fn partition_rejects_overlapping_or_short_signs() {
+        assert!(partition_basis(&[vec![1, -1, 0], vec![1, 0, -1]]).is_err());
+        assert!(partition_basis(&[vec![1, 1, 0], vec![1, -1, 0]]).is_err());
+        assert!(partition_basis(&[vec![1, -1, 0]]).is_err());
     }
 
     #[test]

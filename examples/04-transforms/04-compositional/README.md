@@ -24,24 +24,45 @@ composition = bt.closure(parts, total=100)
 
 </details>
 
-the isometric log-ratio (ILR) maps each composition to 7 unconstrained coordinates. the projection-pursuit
-multivariate transform (PPMT) turns those into independent standard gaussians, ready for independent simulation. the
-way back must return every composition.
+the isometric log-ratio (ILR) maps each composition to 7 unconstrained coordinates, the balances. a sequential binary
+partition chooses them: the copper sulphides against the other parts, chalcocite and bornite against chalcopyrite and
+tennantite, and so on, each row of signs splitting one group of the row before it in two. `ILR` replaces the part
+columns with the balances; the projection-pursuit multivariate transform (PPMT) then turns those into independent
+standard gaussians, ready for independent simulation. the way back must return every composition.
 
 <details><summary>Python</summary>
 
 ```python
-coords = bt.ilr(composition)
-ppmt = bt.PPMT(iterations=40, seed=7)
-gauss = ppmt.fit_transform(coords)
-back = bt.ilr_inverse(ppmt.inverse_transform(gauss)) * 100
-print(f"round trip max error {np.abs(back - composition).max():.2e} %")
+samples = bt.PointSet(data.coords, dict(zip(names, composition.T, strict=True)))
+#        clay  cc  bn  cp  tn  mo  py rest
+signs = [
+    [-1, 1, 1, 1, 1, -1, -1, -1],  # copper sulphides | the rest
+    [0, 1, 1, -1, -1, 0, 0, 0],  # chalcocite, bornite | chalcopyrite, tennantite
+    [0, 1, -1, 0, 0, 0, 0, 0],  # chalcocite | bornite
+    [0, 0, 0, 1, -1, 0, 0, 0],  # chalcopyrite | tennantite
+    [1, 0, 0, 0, 0, -1, -1, 1],  # clay, rest | molybdenite, pyrite
+    [1, 0, 0, 0, 0, 0, 0, -1],  # clay | rest
+    [0, 0, 0, 0, 0, 1, -1, 0],  # molybdenite | pyrite
+]
+balances = [f"ilr_{i + 1}" for i in range(7)]
+pipe = bt.Pipeline(
+    [
+        ("ilr", bt.ILR(parts=names, basis=signs, total=100)),
+        ("ppmt", bt.PPMT(iterations=40, seed=7), balances),
+    ]
+)
+gaussian = pipe.fit_transform(samples)
+back = pipe.inverse_transform(gaussian)
+error = max(np.abs(back[n] - samples[n]).max() for n in names)
+print(f"round trip max error {error:.2e} %")
+coords = np.column_stack([pipe.named_steps["ilr"].transform(samples)[b] for b in balances])
+gauss = np.column_stack([gaussian[b] for b in balances])
 ```
 
 </details>
 
 ```text
-round trip max error 1.88e-12 %
+round trip max error 3.11e-12 %
 ```
 
 correlations at each stage:

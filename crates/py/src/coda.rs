@@ -34,26 +34,89 @@ fn clr_inverse<'py>(py: Python<'py>, coords: &Bound<PyAny>) -> PyResult<Bound<'p
     by_row(py, coords, coda::clr_inv)
 }
 
-/// Additive log-ratio against the last part.
+/// Additive log-ratio against part `reference` (default the last).
 #[pyfunction]
-fn alr<'py>(py: Python<'py>, parts: &Bound<PyAny>) -> PyResult<Bound<'py, PyAny>> {
-    by_row(py, parts, coda::alr)
+#[pyo3(signature = (parts, *, reference=None))]
+fn alr<'py>(
+    py: Python<'py>,
+    parts: &Bound<PyAny>,
+    reference: Option<usize>,
+) -> PyResult<Bound<'py, PyAny>> {
+    match reference {
+        Some(r) => by_row(py, parts, |x| coda::alr_with(x, r)),
+        None => by_row(py, parts, coda::alr),
+    }
 }
 
 #[pyfunction]
-fn alr_inverse<'py>(py: Python<'py>, coords: &Bound<PyAny>) -> PyResult<Bound<'py, PyAny>> {
-    by_row(py, coords, coda::alr_inv)
+#[pyo3(signature = (coords, *, reference=None))]
+fn alr_inverse<'py>(
+    py: Python<'py>,
+    coords: &Bound<PyAny>,
+    reference: Option<usize>,
+) -> PyResult<Bound<'py, PyAny>> {
+    match reference {
+        Some(r) => by_row(py, coords, |y| coda::alr_with_inv(y, r)),
+        None => by_row(py, coords, coda::alr_inv),
+    }
 }
 
-/// Isometric log-ratio; `D` parts give `D - 1` coordinates.
+/// Isometric log-ratio; `D` parts give `D - 1` coordinates, on `basis` (from
+/// `partition_basis`) or the default pivot balances.
 #[pyfunction]
-fn ilr<'py>(py: Python<'py>, parts: &Bound<PyAny>) -> PyResult<Bound<'py, PyAny>> {
-    by_row(py, parts, coda::ilr)
+#[pyo3(signature = (parts, *, basis=None))]
+fn ilr<'py>(
+    py: Python<'py>,
+    parts: &Bound<PyAny>,
+    basis: Option<&Bound<PyAny>>,
+) -> PyResult<Bound<'py, PyAny>> {
+    match basis {
+        Some(b) => {
+            let b = rows(b, "basis")?;
+            by_row(py, parts, |x| coda::ilr_with(x, &b))
+        }
+        None => by_row(py, parts, coda::ilr),
+    }
 }
 
 #[pyfunction]
-fn ilr_inverse<'py>(py: Python<'py>, coords: &Bound<PyAny>) -> PyResult<Bound<'py, PyAny>> {
-    by_row(py, coords, coda::ilr_inv)
+#[pyo3(signature = (coords, *, basis=None))]
+fn ilr_inverse<'py>(
+    py: Python<'py>,
+    coords: &Bound<PyAny>,
+    basis: Option<&Bound<PyAny>>,
+) -> PyResult<Bound<'py, PyAny>> {
+    match basis {
+        Some(b) => {
+            let b = rows(b, "basis")?;
+            by_row(py, coords, |y| coda::ilr_with_inv(y, &b))
+        }
+        None => by_row(py, coords, coda::ilr_inv),
+    }
+}
+
+/// Orthonormal balances of a sequential binary partition, as the `basis` of
+/// `ilr`.
+///
+/// Parameters
+/// ----------
+/// signs : array_like of int
+///     ``(D - 1, D)``: each row a balance, 1 for the parts in its numerator,
+///     -1 in its denominator, 0 outside it. Each row splits one group of the
+///     rows before it in two (the first row all parts).
+///
+/// Returns
+/// -------
+/// ndarray
+///     ``(D - 1, D)`` clr weights, one orthonormal row per balance.
+///
+/// Raises
+/// ------
+/// InvalidInput
+///     If the rows do not form a sequential binary partition.
+#[pyfunction]
+fn partition_basis<'py>(py: Python<'py>, signs: Vec<Vec<i8>>) -> PyResult<Bound<'py, PyAny>> {
+    Ok(array2(py, &coda::partition_basis(&signs).map_err(invalid)?).into_any())
 }
 
 /// Aitchison distance between paired rows of `a` and `b`.
@@ -83,5 +146,6 @@ pub fn register(m: &Bound<PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(ilr, m)?)?;
     m.add_function(wrap_pyfunction!(ilr_inverse, m)?)?;
     m.add_function(wrap_pyfunction!(aitchison_distance, m)?)?;
+    m.add_function(wrap_pyfunction!(partition_basis, m)?)?;
     Ok(())
 }
