@@ -14,8 +14,8 @@ use arrow_array::types::Float64Type;
 use arrow_array::{ArrayRef, Float64Array, RecordBatch};
 
 use crate::args::{
-    Point, array1, array2, bools, column, finite, floats, optional_finite, per_row, points,
-    points_array, rows, same_length, triple,
+    Point, array1, array2, bools, column, column_names, finite, floats, named, optional_finite,
+    per_row, points, points_array, rows, same_length, triple,
 };
 use crate::containers::PyBlockModel;
 use crate::invalid;
@@ -27,6 +27,45 @@ fn err(e: transforms::TransformError) -> PyErr {
 
 fn not_fitted(name: &str) -> PyErr {
     invalid(format!("{name} is not fitted; call fit first"))
+}
+
+/// Finite values: `arg`, or the column of `data` it names.
+fn one(data: Option<&Bound<PyAny>>, arg: &Bound<PyAny>, what: &str) -> PyResult<Vec<f64>> {
+    finite(&column(data, arg, what)?, what)
+}
+
+/// Finite weights, or their column in `data`; `n` of them when known.
+fn weights_arg(
+    data: Option<&Bound<PyAny>>,
+    weights: Option<&Bound<PyAny>>,
+    n: impl Into<Option<usize>>,
+) -> PyResult<Option<Vec<f64>>> {
+    let Some(w) = weights else { return Ok(None) };
+    let w = one(data, w, "weights")?;
+    if let Some(n) = n.into() {
+        same_length(n, w.len(), "weights")?;
+    }
+    Ok(Some(w))
+}
+
+/// Rows of `data`: an `(n, d)` array, or the `columns` (default all) of a
+/// container, Table or mapping.
+fn matrix(data: &Bound<PyAny>, columns: Option<Vec<String>>) -> PyResult<Vec<Vec<f64>>> {
+    let names = match columns {
+        Some(c) => c,
+        None => match column_names(data) {
+            Ok(c) => c,
+            Err(_) => return rows(data, "data"),
+        },
+    };
+    let columns = names
+        .iter()
+        .map(|c| finite(&named(Some(data), c, "columns")?, c))
+        .collect::<PyResult<Vec<_>>>()?;
+    let n = columns.first().map_or(0, Vec::len);
+    Ok((0..n)
+        .map(|i| columns.iter().map(|c| c[i]).collect())
+        .collect())
 }
 
 fn map<'py>(py: Python<'py>, values: Vec<f64>, f: impl Fn(f64) -> f64) -> Bound<'py, PyAny> {
@@ -149,12 +188,13 @@ impl NormalScore {
     ///
     /// Parameters
     /// ----------
-    /// values : array_like
-    ///     Sample values, in the units to transform.
-    /// weights : array_like, optional
+    /// values : array_like or str
+    ///     Sample values, in the units to transform, or their column in
+    ///     `data`.
+    /// weights : array_like or str, optional
     ///     Declustering weights; refused together with `reference`, whose own
     ///     `fit` takes them instead.
-    /// censored : array_like of bool, optional
+    /// censored : array_like of bool or str, optional
     ///     Marks values reported at their detection limit rather than
     ///     measured exactly (those cells still hold the limit as their
     ///     numeric value). Values keep their exact rank against every
@@ -165,20 +205,22 @@ impl NormalScore {
     ///     `reference`.
     /// seed : int, default 0
     ///     Seed for breaking ties among `censored` values at the same limit.
-    #[pyo3(signature = (values, *, weights=None, censored=None, seed=0))]
+    /// data : PointSet, Drillholes, BlockModel, Table or mapping, optional
+    ///     Holds the columns named by the other arguments.
+    #[pyo3(signature = (values, *, weights=None, censored=None, seed=0, data=None))]
     fn fit<'py>(
         mut slf: PyRefMut<'py, Self>,
         values: &Bound<PyAny>,
         weights: Option<&Bound<PyAny>>,
         censored: Option<&Bound<PyAny>>,
         seed: u64,
+        data: Option<&Bound<PyAny>>,
     ) -> PyResult<PyRefMut<'py, Self>> {
-        let values = finite(values, "values")?;
-        let weights = optional_finite(weights, "weights")?;
-        if let Some(w) = &weights {
-            same_length(values.len(), w.len(), "weights")?;
-        }
-        let censored = censored.map(|c| bools(c, "censored")).transpose()?;
+        let values = one(data, values, "values")?;
+        let weights = weights_arg(data, weights, values.len())?;
+        let censored = censored
+            .map(|c| bools(&column(data, c, "censored")?, "censored"))
+            .transpose()?;
         if let Some(c) = &censored {
             same_length(values.len(), c.len(), "censored")?;
         }
@@ -206,35 +248,40 @@ impl NormalScore {
     }
 
     /// Scores of the fitted values, exact per rank.
-    #[pyo3(signature = (values, *, weights=None, censored=None, seed=0))]
+    #[pyo3(signature = (values, *, weights=None, censored=None, seed=0, data=None))]
     fn fit_transform<'py>(
         slf: PyRefMut<'py, Self>,
         values: &Bound<PyAny>,
         weights: Option<&Bound<PyAny>>,
         censored: Option<&Bound<PyAny>>,
         seed: u64,
+        data: Option<&Bound<PyAny>>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let py = slf.py();
-        let slf = Self::fit(slf, values, weights, censored, seed)?;
+        let slf = Self::fit(slf, values, weights, censored, seed, data)?;
         Ok(array1(py, slf.fitted()?.scores.clone()).into_any())
     }
 
+    #[pyo3(signature = (values, *, data=None))]
     fn transform<'py>(
         &self,
         py: Python<'py>,
         values: &Bound<PyAny>,
+        data: Option<&Bound<PyAny>>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let table = &self.fitted()?.table;
-        Ok(map(py, finite(values, "values")?, |v| table.forward(v)))
+        Ok(map(py, one(data, values, "values")?, |v| table.forward(v)))
     }
 
+    #[pyo3(signature = (scores, *, data=None))]
     fn inverse_transform<'py>(
         &self,
         py: Python<'py>,
         scores: &Bound<PyAny>,
+        data: Option<&Bound<PyAny>>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let table = &self.fitted()?.table;
-        Ok(map(py, finite(scores, "scores")?, |y| table.back(y)))
+        Ok(map(py, one(data, scores, "scores")?, |y| table.back(y)))
     }
 
     /// Transformation table: sorted values and their scores.
@@ -298,47 +345,54 @@ impl Anamorphosis {
         }
     }
 
-    #[pyo3(signature = (values, *, weights=None))]
+    /// `values` and `weights` may name columns of `data`.
+    #[pyo3(signature = (values, *, weights=None, data=None))]
     fn fit<'py>(
         mut slf: PyRefMut<'py, Self>,
         values: &Bound<PyAny>,
         weights: Option<&Bound<PyAny>>,
+        data: Option<&Bound<PyAny>>,
     ) -> PyResult<PyRefMut<'py, Self>> {
-        let values = finite(values, "values")?;
-        let weights = optional_finite(weights, "weights")?;
+        let values = one(data, values, "values")?;
+        let weights = weights_arg(data, weights, values.len())?;
         let a = HermiteAnamorphosis::fit(&values, weights.as_deref(), slf.degree).map_err(err)?;
         slf.fitted = Some(a);
         Ok(slf)
     }
 
-    #[pyo3(signature = (values, *, weights=None))]
+    #[pyo3(signature = (values, *, weights=None, data=None))]
     fn fit_transform<'py>(
         slf: PyRefMut<'py, Self>,
         values: &Bound<'py, PyAny>,
         weights: Option<&Bound<PyAny>>,
+        data: Option<&Bound<PyAny>>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let py = slf.py();
-        Self::fit(slf, values, weights)?.transform(py, values)
+        Self::fit(slf, values, weights, data)?.transform(py, values, data)
     }
 
     /// Raw values to Gaussian scores.
+    #[pyo3(signature = (values, *, data=None))]
     fn transform<'py>(
         &self,
         py: Python<'py>,
         values: &Bound<PyAny>,
+        data: Option<&Bound<PyAny>>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let a = self.fitted()?;
-        Ok(map(py, finite(values, "values")?, |z| a.forward(z)))
+        Ok(map(py, one(data, values, "values")?, |z| a.forward(z)))
     }
 
     /// Gaussian scores to raw values.
+    #[pyo3(signature = (scores, *, data=None))]
     fn inverse_transform<'py>(
         &self,
         py: Python<'py>,
         scores: &Bound<PyAny>,
+        data: Option<&Bound<PyAny>>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let a = self.fitted()?;
-        Ok(map(py, finite(scores, "scores")?, |y| a.back(y)))
+        Ok(map(py, one(data, scores, "scores")?, |y| a.back(y)))
     }
 
     #[getter]
@@ -409,11 +463,14 @@ impl BoxCox {
         }
     }
 
+    /// `values` may name a column of `data`.
+    #[pyo3(signature = (values, *, data=None))]
     fn fit<'py>(
         mut slf: PyRefMut<'py, Self>,
         values: &Bound<PyAny>,
+        data: Option<&Bound<PyAny>>,
     ) -> PyResult<PyRefMut<'py, Self>> {
-        let values = finite(values, "values")?;
+        let values = one(data, values, "values")?;
         let lambda = match slf.requested {
             Some(l) => l,
             None => {
@@ -425,12 +482,14 @@ impl BoxCox {
         Ok(slf)
     }
 
+    #[pyo3(signature = (values, *, data=None))]
     fn fit_transform<'py>(
         slf: PyRefMut<'py, Self>,
         values: &Bound<'py, PyAny>,
+        data: Option<&Bound<PyAny>>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let py = slf.py();
-        Self::fit(slf, values)?.transform(py, values)
+        Self::fit(slf, values, data)?.transform(py, values, data)
     }
 
     #[getter]
@@ -438,22 +497,27 @@ impl BoxCox {
         self.lambda.ok_or_else(|| not_fitted("BoxCox"))
     }
 
+    #[pyo3(signature = (values, *, data=None))]
     fn transform<'py>(
         &self,
         py: Python<'py>,
         values: &Bound<PyAny>,
+        data: Option<&Bound<PyAny>>,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let out = transforms::box_cox(&finite(values, "values")?, self.lambda_()?).map_err(err)?;
+        let out =
+            transforms::box_cox(&one(data, values, "values")?, self.lambda_()?).map_err(err)?;
         Ok(array1(py, out).into_any())
     }
 
+    #[pyo3(signature = (values, *, data=None))]
     fn inverse_transform<'py>(
         &self,
         py: Python<'py>,
         values: &Bound<PyAny>,
+        data: Option<&Bound<PyAny>>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let lambda = self.lambda_()?;
-        Ok(map(py, finite(values, "values")?, |y| {
+        Ok(map(py, one(data, values, "values")?, |y| {
             transforms::box_cox_inverse(y, lambda)
         }))
     }
@@ -502,41 +566,59 @@ impl Ppmt {
         }
     }
 
-    /// `data` is `(n, d)`; `weights` (e.g. declustering) shape the marginal scores.
-    #[pyo3(signature = (data, *, weights=None))]
+    /// `data` is `(n, d)`, or a container whose `columns` (default all) are
+    /// the variables; `weights` (e.g. declustering, or their column) shape
+    /// the marginal scores.
+    #[pyo3(signature = (data, *, columns=None, weights=None))]
     fn fit<'py>(
         mut slf: PyRefMut<'py, Self>,
         data: &Bound<PyAny>,
+        columns: Option<Vec<String>>,
         weights: Option<&Bound<PyAny>>,
     ) -> PyResult<PyRefMut<'py, Self>> {
-        let data = rows(data, "data")?;
-        let weights = optional_finite(weights, "weights")?;
+        let weights = weights_arg(Some(data), weights, None)?;
+        let data = matrix(data, columns)?;
+        if let Some(w) = &weights {
+            same_length(data.len(), w.len(), "weights")?;
+        }
         slf.fitted = Some(CorePpmt::fit(&data, weights.as_deref(), &slf.params).map_err(err)?);
         Ok(slf)
     }
 
-    #[pyo3(signature = (data, *, weights=None))]
+    #[pyo3(signature = (data, *, columns=None, weights=None))]
     fn fit_transform<'py>(
         slf: PyRefMut<'py, Self>,
         data: &Bound<'py, PyAny>,
+        columns: Option<Vec<String>>,
         weights: Option<&Bound<PyAny>>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let py = slf.py();
-        Self::fit(slf, data, weights)?.transform(py, data)
+        Self::fit(slf, data, columns.clone(), weights)?.transform(py, data, columns)
     }
 
-    fn transform<'py>(&self, py: Python<'py>, data: &Bound<PyAny>) -> PyResult<Bound<'py, PyAny>> {
+    #[pyo3(signature = (data, *, columns=None))]
+    fn transform<'py>(
+        &self,
+        py: Python<'py>,
+        data: &Bound<PyAny>,
+        columns: Option<Vec<String>>,
+    ) -> PyResult<Bound<'py, PyAny>> {
         let fitted = self.fitted()?;
-        Ok(array2(py, &fitted.forward(&table(data, fitted.dim())?)).into_any())
+        let data = table_of(matrix(data, columns)?, fitted.dim())?;
+        Ok(array2(py, &fitted.forward(&data)).into_any())
     }
 
+    /// `columns` name the score columns when `data` is a container.
+    #[pyo3(signature = (data, *, columns=None))]
     fn inverse_transform<'py>(
         &self,
         py: Python<'py>,
         data: &Bound<PyAny>,
+        columns: Option<Vec<String>>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let fitted = self.fitted()?;
-        Ok(array2(py, &fitted.back(&table(data, fitted.dim())?)).into_any())
+        let data = table_of(matrix(data, columns)?, fitted.dim())?;
+        Ok(array2(py, &fitted.back(&data)).into_any())
     }
 }
 
@@ -1095,7 +1177,10 @@ impl GaussianMixture {
 
 /// Finite `(n, dim)` rows.
 fn table(data: &Bound<PyAny>, dim: usize) -> PyResult<Vec<Vec<f64>>> {
-    let data = rows(data, "data")?;
+    table_of(rows(data, "data")?, dim)
+}
+
+fn table_of(data: Vec<Vec<f64>>, dim: usize) -> PyResult<Vec<Vec<f64>>> {
     if data.iter().any(|r| r.len() != dim) {
         return Err(invalid(format!("data must have {dim} columns")));
     }

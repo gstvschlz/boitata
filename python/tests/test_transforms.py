@@ -229,6 +229,44 @@ def test_ppmt_marginal_step_with_weights_round_trips(skewed):
         bt.PPMT(marginal=False).fit(x, weights=np.ones(len(x)))
 
 
+def test_transforms_take_column_names(skewed):
+    n = len(skewed)
+    w = rng.uniform(0.5, 1.5, n)
+    cu = skewed * rng.lognormal(0, 0.3, n)
+    points = bt.PointSet(rng.uniform(0, 100, (n, 3)), {"au": skewed, "cu": cu, "w": w})
+    for make, kw in (
+        (bt.NormalScore, {"weights": "w"}),
+        (bt.HermiteAnamorphosis, {"weights": "w"}),
+        (bt.BoxCox, {}),
+    ):
+        by_name = make().fit("au", data=points, **kw)
+        by_array = make().fit(skewed, **{k: w for k in kw})
+        y = by_name.transform("au", data=points)
+        np.testing.assert_array_equal(y, by_array.transform(skewed))
+        np.testing.assert_array_equal(y, make().fit_transform("au", data=points, **kw))
+        scores = points.with_column("y", y)
+        np.testing.assert_array_equal(
+            by_name.inverse_transform("y", data=scores), by_array.inverse_transform(y)
+        )
+    ppmt = bt.PPMT(seed=3).fit(points, columns=["au", "cu"], weights="w")
+    g = ppmt.transform(points, columns=["au", "cu"])
+    np.testing.assert_array_equal(
+        g,
+        bt.PPMT(seed=3)
+        .fit(np.column_stack([skewed, cu]), weights=w)
+        .transform(np.column_stack([skewed, cu])),
+    )
+    np.testing.assert_array_equal(g, bt.PPMT(seed=3).fit_transform(points, columns=["au", "cu"], weights="w"))
+    scores = points.with_columns({"g0": g[:, 0], "g1": g[:, 1]})
+    np.testing.assert_allclose(
+        ppmt.inverse_transform(scores, columns=["g0", "g1"]), np.column_stack([skewed, cu])
+    )
+    with pytest.raises(bt.MissingColumn, match='no column "ag"'):
+        bt.NormalScore().fit("ag", data=points)
+    with pytest.raises(bt.InvalidInput, match="needs a container"):
+        bt.BoxCox().fit("au")
+
+
 def test_pca_scores_are_uncorrelated_by_decreasing_variance():
     x = rng.normal(size=(500, 3)) @ np.array([[2.0, 0.5, 0.0], [0.0, 1.0, 0.3], [0.0, 0.0, 0.2]])
     pca = bt.PCA().fit(x)
