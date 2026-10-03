@@ -42,9 +42,10 @@ fn open(name: &str, text: &str) -> PyResult<Map<String, Value>> {
     }
     match map.remove("format").and_then(|f| f.as_u64()) {
         Some(f) if f <= FORMAT => Ok(map),
-        f => Err(invalid(format!(
-            "format {f:?} is not readable by this boitata (up to {FORMAT})"
+        Some(f) => Err(invalid(format!(
+            "format {f} is newer than this boitata reads (up to {FORMAT}); upgrade boitata"
         ))),
+        None => Err(invalid("missing or invalid format number")),
     }
 }
 
