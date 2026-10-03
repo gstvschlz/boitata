@@ -217,6 +217,7 @@ def fits():
             )
         ),
         (bt.DropDuplicates(), (bt.PointSet(coords),)),
+        *((cls(), (bt.closure(table),)) for cls in (bt.ALR, bt.CLR, bt.ILR)),
     ]
 
 

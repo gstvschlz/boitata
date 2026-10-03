@@ -4,6 +4,7 @@ from boitata import _boitata, datasets, plot, plot3d  # noqa: F401
 from boitata._boitata import *
 from boitata._boitata import __version__  # noqa: F401
 from boitata.checks import *
+from boitata.compositions import *
 from boitata.errors import BoitataError, FileError, InvalidInput, MissingColumn  # noqa: F401
 from boitata.estimation import *
 from boitata.geopackage import *
@@ -15,7 +16,18 @@ __all__ = [
     for name in dir()
     if not name.startswith("_")
     and name
-    not in ("checks", "errors", "estimation", "geopackage", "pipeline", "steps", "datasets", "plot", "plot3d")
+    not in (
+        "checks",
+        "compositions",
+        "errors",
+        "estimation",
+        "geopackage",
+        "pipeline",
+        "steps",
+        "datasets",
+        "plot",
+        "plot3d",
+    )
 ]
 
 
