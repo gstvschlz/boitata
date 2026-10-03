@@ -8,12 +8,14 @@ from boitata.errors import BoitataError, FileError, InvalidInput, MissingColumn 
 from boitata.estimation import *
 from boitata.geopackage import *
 from boitata.pipeline import *
+from boitata.steps import *
 
 __all__ = [
     name
     for name in dir()
     if not name.startswith("_")
-    and name not in ("checks", "errors", "estimation", "geopackage", "pipeline", "datasets", "plot", "plot3d")
+    and name
+    not in ("checks", "errors", "estimation", "geopackage", "pipeline", "steps", "datasets", "plot", "plot3d")
 ]
 
 
