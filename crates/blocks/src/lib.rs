@@ -13,6 +13,7 @@ mod select;
 mod shell;
 mod solid;
 mod subblock;
+mod tin;
 mod unfold;
 pub use classes::{MinSize, contact_distance, remove_small_units, smooth_classes};
 pub use distance::{
@@ -30,6 +31,7 @@ pub use shell::{
 };
 pub use solid::{Aabb, BlockDomainRule, BlockSolid, SolidTester};
 pub use subblock::{Domain, Region, proportions, subblock};
+pub use tin::{tin, tin_residuals};
 pub use unfold::{Reference, Unfold, UnfoldMode};
 
 use boitata_core::{Mesh, signed_solid_angle};

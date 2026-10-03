@@ -1099,6 +1099,21 @@ fn buffer_domains<'py>(
     )
 }
 
+/// Delaunay surface through points in plan; `bt.topography` wraps it.
+#[pyfunction]
+fn _tin(coords: &Bound<PyAny>) -> PyResult<Mesh> {
+    let points = crate::containers::coords_arg(coords)?;
+    blocks::tin(&points).map(Mesh::from_core).map_err(err)
+}
+
+/// Leave-one-out residuals of the Delaunay surface; `bt.topography` wraps it.
+#[pyfunction]
+fn _tin_residuals<'py>(py: Python<'py>, coords: &Bound<PyAny>) -> PyResult<Bound<'py, PyAny>> {
+    let points = crate::containers::coords_arg(coords)?;
+    let r = py.detach(|| blocks::tin_residuals(&points)).map_err(err)?;
+    Ok(crate::args::array1(py, r).into_any())
+}
+
 /// Rings outlining one group of points; `bt.outline` groups and wraps them.
 #[pyfunction]
 #[pyo3(signature = (coords, *, max_edge=None, buffer=0.0, plane=None))]
@@ -1128,6 +1143,8 @@ fn _outline<'py>(
 
 pub fn register(m: &Bound<PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(_outline, m)?)?;
+    m.add_function(wrap_pyfunction!(_tin, m)?)?;
+    m.add_function(wrap_pyfunction!(_tin_residuals, m)?)?;
     m.add_function(wrap_pyfunction!(smooth_classes, m)?)?;
     m.add_function(wrap_pyfunction!(remove_small_units, m)?)?;
     m.add_function(wrap_pyfunction!(contact_distance, m)?)?;
