@@ -104,3 +104,29 @@ axes[2].set(xlim=(-0.6, 1.6), xticks=[0, 1], xticklabels=["Co alone", "Co with N
 axes[2].set(ylabel="Correlation of Co and Ni", title="Correlation, one point per realization")
 axes[2].legend(loc="lower right")
 save(fig, "checks")
+
+# %% [markdown]
+# [DSS](../08-direct-sequential-simulation/README.md) takes the same `secondary` and `correlation` arguments. it
+# kriges the grades of Co with their own variogram, standardizes Co and Ni by their declustered means and standard
+# deviations instead of normal-scoring them, and cokriges each node in those units. the node is then drawn from the
+# histogram of Co with the cokriged mean and variance. `DSS.fit` fits the correlation of the grades:
+
+# %%
+import warnings
+
+fitted = bt.experimental_variogram(xy, samples["Co"], lag, max_lag).fit("spherical")
+grades = bt.Variogram(
+    [("spherical", fitted.structures[0].sill, fitted.structures[0].range)], nugget=fitted.nugget
+)
+codss = bt.DSS(grades, search).fit(samples, "Co", secondary="Ni")
+with warnings.catch_warnings():
+    warnings.simplefilter("ignore")
+    dss_with_ni = codss.simulate(nodes, n=20, seed=100, secondary=ni.realizations, keep=True)
+r = [np.corrcoef(co, n)[0, 1] for co, n in zip(dss_with_ni.realizations, ni.realizations)]
+print(f"correlation of Co and Ni grades at the samples: {codss.correlation:.2f}")
+print(f"co-DSS: correlation of Co and Ni over the nodes {min(r):.2f} to {max(r):.2f}")
+
+# %% [markdown]
+# the co-DSS realizations follow their Ni realizations as closely as the cosimulated SGS ones: their correlation with
+# Ni brackets the samples' 0.75. the block above silences the warning on nodes DSS draws from the nearest reachable
+# mean and variance.

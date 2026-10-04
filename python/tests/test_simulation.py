@@ -957,6 +957,42 @@ def test_cosimulation_takes_a_secondary_realization_per_realization(tmp_path):
             call()
 
 
+def test_collocated_dss_follows_the_secondary(tmp_path):
+    model, nodes, secondary, rows, points = _cosimulation_case()
+    s = secondary[0]
+    search = bt.Search(radius=30, max_samples=16)
+    dss = bt.DSS(model, search).fit(points, "v", secondary="s")
+    assert dss.correlation == pytest.approx(np.corrcoef(points["v"], points["s"])[0, 1])
+    reals = dss.simulate(nodes, n=10, seed=1, secondary=s, keep=True).realizations
+    np.testing.assert_array_equal(reals[:, rows], np.tile(points["v"], (10, 1)))
+    got = np.mean([np.corrcoef(r, s)[0, 1] for r in reals])
+    assert got == pytest.approx(dss.correlation, abs=0.15)
+
+    plain = bt.DSS(model, search).fit(points, "v").simulate(nodes, n=2, seed=1, keep=True)
+    zero = bt.DSS(model, search).fit(points, "v", secondary="s", correlation=0.0)
+    assert zero.correlation == 0.0
+    same = zero.simulate(nodes, n=2, seed=1, secondary=secondary, keep=True).realizations
+    np.testing.assert_array_equal(same, plain.realizations)
+
+    both = dss.simulate(nodes, n=2, seed=4, secondary=secondary, keep=True).realizations
+    second = dss.simulate(nodes, n=2, seed=4, secondary=secondary[[1, 1]], keep=True).realizations
+    np.testing.assert_array_equal(both[1], second[1])
+    dss.to_parquet(tmp_path / "codss.parquet")
+    loaded = bt.DSS.from_parquet(tmp_path / "codss.parquet")
+    assert loaded.correlation == dss.correlation
+    again = loaded.simulate(nodes, n=2, seed=4, secondary=secondary, keep=True).realizations
+    np.testing.assert_array_equal(again, both)
+    for call in [
+        lambda: dss.simulate(nodes, n=2),
+        lambda: dss.simulate(nodes, n=3, secondary=secondary),
+        lambda: bt.DSS(model, search).fit(points, "v").simulate(nodes, n=1, secondary=s),
+        lambda: bt.DSS(model, search).fit(points, "v", correlation=0.5),
+        lambda: bt.DSS(model, search).fit(points, "v", secondary="s", correlation=1.5),
+    ]:
+        with pytest.raises(ValueError):
+            call()
+
+
 def test_correct_distribution_matches_the_target_and_keeps_ranks():
     rng = np.random.default_rng(11)
     reals = rng.normal(size=(4, 250))
