@@ -3,11 +3,14 @@
 `bt.plot3d.Scene` stacks layers in one 3D view. layers colored by the same variable share its color map and range,
 so a composite and the blocks around it show one grade in one color, and null values never draw, in any style.
 `show()` opens the scene: trame in Jupyter, a native window from a script, and an interactive page with
-`show(browser=True)`. here each scene renders off-screen to an image.
+`show(browser=True)`. `screenshot` writes the current view to a PNG at any multiple of the window's resolution,
+with an optional transparent background; here each scene renders off-screen at twice its window size.
 
 <details><summary>Python</summary>
 
 ```python
+import tempfile
+
 import boitata as bt
 import matplotlib.pyplot as plt
 import numpy as np
@@ -21,10 +24,10 @@ BAR = {"vertical": True, "height": 0.5, "position_x": 0.85, "position_y": 0.25}
 def image(scene, title, view=(0.8, -0.6, 0.6)):
     """Renders a scene into a matplotlib figure."""
     scene.view_vector(view)
-    pixels = scene.screenshot(return_img=True, window_size=(1400, 900))
+    path = scene.screenshot(Path(tempfile.mkdtemp()) / "scene.png", scale=2)
     scene.close()
     fig, ax = plt.subplots(figsize=(8, 5.2), layout="constrained")
-    ax.imshow(pixels)
+    ax.imshow(plt.imread(path))
     ax.set_axis_off()
     ax.set_title(title)
     return fig
@@ -54,7 +57,7 @@ near = np.all(
     axis=1,
 )
 
-scene = bt.plot3d.Scene(window_size=(1400, 900))
+scene = bt.plot3d.Scene(window_size=(700, 450))
 scene.add(
     composites.filter(near), "ZN_PCT", point_size=4, clim=(0, 10), scalar_bar_args={"title": "Zn (%)", **BAR}
 )
@@ -97,7 +100,7 @@ blocks = bt.BlockModel.from_meshes(
 blocks = blocks.mask(np.asarray(blocks["domain"], dtype=object) != "host")
 blocks = blocks.with_column("lens", blocks["domain"])
 
-scene = bt.plot3d.Scene(window_size=(1400, 900))
+scene = bt.plot3d.Scene(window_size=(700, 450))
 scene.add(blocks, "lens", style="wireframe", opacity=0.3, scalar_bar_args={"title": "", **BAR})
 scene.add(composites, "lens", point_size=5)
 print(f"{len(blocks):,} sub-blocks, {(names != '').sum():,} of {len(composites):,} composites in a lens")

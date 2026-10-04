@@ -221,7 +221,7 @@ class Scene:
     Attributes
     ----------
     plotter : pyvista.Plotter
-        Attributes the scene does not have are looked up on it (``screenshot``, ``view_vector``, ...).
+        Attributes the scene does not have are looked up on it (``view_vector``, ``close``, ...).
     colors : dict of str to pyvista.LookupTable
         Color map and range of each variable, shared by every layer it colors.
     """
@@ -372,7 +372,7 @@ class Scene:
         browser : bool, default False
             Writes the scene to an interactive HTML page with trame and opens it in the web browser.
         **kwargs
-            Passed to ``plotter.show``.
+            Passed to ``plotter.show``; ``auto_close`` defaults to False, so `screenshot` works after ``q``.
 
         Returns
         -------
@@ -380,13 +380,36 @@ class Scene:
             The HTML page when `browser`, else what ``plotter.show`` returns.
         """
         if not browser:
-            return self.plotter.show(**kwargs)
+            return self.plotter.show(**{"auto_close": False, **kwargs})
         path = Path(tempfile.mkdtemp()) / "scene.html"
         try:
             getattr(self.plotter, "trame", self.plotter).export_html(path)
         except ImportError as e:
             raise ImportError("Scene.show(browser=True) needs trame: pip install 'pyvista[jupyter]'") from e
         webbrowser.open(path.as_uri())
+        return path
+
+    def screenshot(self, path, *, scale=1, transparent=False):
+        """Writes the scene's current view to an image.
+
+        Works off-screen, while a trame view is open, and after the native window of `show` is closed with ``q``;
+        its close button destroys the window, so take screenshots before.
+
+        Parameters
+        ----------
+        path : str or pathlib.Path
+            Image file; ``.png`` keeps transparency.
+        scale : int, default 1
+            Resolution multiplier on the window size.
+        transparent : bool, default False
+            Transparent background.
+
+        Returns
+        -------
+        pathlib.Path
+        """
+        path = Path(path)
+        self.plotter.screenshot(path, transparent_background=transparent, return_img=False, scale=scale)
         return path
 
 

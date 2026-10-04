@@ -116,7 +116,7 @@ def test_plots_render_off_screen(pv):
     plotter = bt.plot3d.slices(model, values="v")
     bt.plot3d.plot(bt.PointSet(model.centroids, {"v": model["v"]}), values="v", plotter=plotter)
     assert sum(isinstance(a, pv.Actor) for a in plotter.renderer.actors.values()) == 2
-    image = plotter.screenshot(return_img=True)
+    image = plotter.plotter.screenshot(return_img=True)
     plotter.close()
     assert image.ndim == 3 and image.std() > 0
     with pytest.raises(TypeError):
@@ -167,7 +167,7 @@ def test_scene_shares_one_color_map_and_range_per_variable(pv):
     scene.add(points(g=np.array([-5.0, 20])), "g", clim=(0, 10))
     scene.add(points(g=np.array([-5.0, 30])), "g")
     assert scene.colors["g"].scalar_range == (0, 10)
-    image = scene.screenshot(return_img=True)
+    image = scene.plotter.screenshot(return_img=True)
     scene.close()
     assert image.std() > 0
 
@@ -186,7 +186,7 @@ def test_scene_colors_meshes_by_vertex_or_face_on_the_range_of_points(pv):
     assert by_vertex.n_points == 3 and by_vertex.n_cells == 1
     assert by_face.n_cells == 3 and list(by_face.cell_data["rock"]) == [0, 1, 0]
     assert dots.n_points == 4 and scene.colors["g"].scalar_range == (0, 9)
-    image = scene.screenshot(return_img=True)
+    image = scene.plotter.screenshot(return_img=True)
     scene.close()
     assert image.std() > 0
 
@@ -252,7 +252,7 @@ def test_volume_fills_each_valid_block_and_hides_nulls(pv):
     scene.add(model, "rock", style="volume")
     rock = volumes(scene, pv)[1].mapper.dataset.point_data["rock"]
     assert sorted(set(rock[rock >= 0])) == [0, 1] and scene.colors["rock"].GetNumberOfAnnotatedValues() == 2
-    assert scene.screenshot(return_img=True).std() > 0
+    assert scene.plotter.screenshot(return_img=True).std() > 0
     scene.close()
     with pytest.raises(ValueError, match="to_regular"):
         bt.plot3d.Scene(off_screen=True).add(model.mask(np.isfinite(v)), "v", style="volume")
@@ -269,3 +269,16 @@ def test_volume_above_gpu_memory_draws_coarse_while_moving(pv, monkeypatch):
         window.Render()
         assert pv.wrap(mapper.GetInput()).n_points == points and mapper.GetRequestedRenderMode() == mode
     scene.close()
+
+
+def test_screenshot_scales_and_keeps_a_transparent_background(pv, tmp_path):
+    from PIL import Image
+
+    scene = bt.plot3d.Scene(off_screen=True, window_size=(120, 80))
+    scene.add(bt.PointSet(np.eye(3), {"g": [1.0, 2, 3]}), "g")
+    plain = scene.screenshot(tmp_path / "plain.png")
+    clear = scene.screenshot(str(tmp_path / "clear.png"), scale=2, transparent=True)
+    scene.close()
+    assert plain.is_file() and Image.open(plain).size == (120, 80)
+    rgba = np.asarray(Image.open(clear))
+    assert rgba.shape == (160, 240, 4) and rgba[0, 0, 3] == rgba[-1, -1, 3] == 0 and rgba[..., 3].max() == 255
