@@ -61,7 +61,7 @@ missing package.
 |-----------|------|----------------------|
 | (none) | `numpy`, `tqdm` | `numpy tqdm` |
 | `plot` | `boitata.plot` | `matplotlib` (or `matplotlib-base`) |
-| `3d` | `boitata.plot3d` | `pyvista` |
+| `3d` | `boitata.plot3d`; `Scene.show` uses trame in Jupyter and the browser when pyvista's `jupyter` extra is installed | `pyvista` |
 | `all` | the above, `to_polars`, `to_pandas`, `to_pyarrow`, and progress bars drawn as notebook widgets | `matplotlib pyvista polars pandas pyarrow ipywidgets` |
 
 ## minimum versions

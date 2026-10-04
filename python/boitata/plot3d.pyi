@@ -1,11 +1,25 @@
-from typing import Any, TypeAlias
+from pathlib import Path
+from typing import Any, Literal, Self, TypeAlias
 
 from boitata._boitata import BlockModel, Drillholes, Mesh, PointSet
 
 Container: TypeAlias = PointSet | Drillholes | BlockModel | Mesh
+Style: TypeAlias = Literal["surface", "wireframe", "points", "points_gaussian"]
+
+class Scene:
+    plotter: Any
+    colors: dict[str, Any]
+    def __init__(self, *, plotter: Any = None, **kwargs: Any) -> None: ...
+    def __getattr__(self, name: str) -> Any: ...
+    def add(
+        self, data: Container | Any, values: str | None = None, *, style: Style | None = None, **kwargs: Any
+    ) -> Self: ...
+    def show(self, *, browser: bool = False, **kwargs: Any) -> Path | Any: ...
 
 def to_pyvista(data: Container) -> Any: ...
-def plot(data: Container | Any, values: str | None = None, *, plotter: Any = None, **kwargs: Any) -> Any: ...
+def plot(
+    data: Container | Any, values: str | None = None, *, plotter: Scene | Any = None, **kwargs: Any
+) -> Scene: ...
 def slices(
     model: BlockModel,
     values: str | None = None,
@@ -13,6 +27,6 @@ def slices(
     x: float | None = None,
     y: float | None = None,
     z: float | None = None,
-    plotter: Any = None,
+    plotter: Scene | Any = None,
     **kwargs: Any,
-) -> Any: ...
+) -> Scene: ...

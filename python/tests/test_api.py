@@ -28,11 +28,18 @@ POSITIONAL_DEFAULTS = {
     ("plot.slab", "values"),
     ("plot3d.plot", "values"),
     ("plot3d.slices", "values"),
+    ("plot3d.Scene.add", "values"),
 }
 # `domains` without `domain_column`: none.
 DOMAINS_EXEMPT = set()
-# Not plots: color and legend helpers, and the conversion to pyvista.
-NOT_PLOTS = {"plot.category_colors", "plot.category_legend", "plot3d.to_pyvista"}
+# Not plots: color and legend helpers, the conversion to pyvista, and the methods of a scene.
+NOT_PLOTS = {
+    "plot.category_colors",
+    "plot.category_legend",
+    "plot3d.to_pyvista",
+    "plot3d.Scene.add",
+    "plot3d.Scene.show",
+}
 # `fit` building a new model from experimental variograms, not fitting the object in place.
 MODEL_FITS = {"Variogram", "ExperimentalVariogram", "Coregionalization"}
 

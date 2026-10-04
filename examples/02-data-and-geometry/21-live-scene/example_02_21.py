@@ -1,0 +1,98 @@
+"""
+# live scene
+
+`bt.plot3d.Scene` stacks layers in one 3D view. layers colored by the same variable share its color map and range,
+so a composite and the blocks around it show one grade in one color, and null values never draw, in any style.
+`show()` opens the scene: trame in Jupyter, a native window from a script, and an interactive page with
+`show(browser=True)`. here each scene renders off-screen to an image.
+"""
+
+# %% [hidden]
+import sys
+from pathlib import Path
+
+HERE = Path(__file__).parent if "__file__" in globals() else Path.cwd()
+sys.path.insert(0, str(HERE.parents[1]))
+
+# %%
+import boitata as bt
+import matplotlib.pyplot as plt
+import numpy as np
+import pyvista as pv
+from common import LIGHT, save
+
+pv.OFF_SCREEN = True
+BAR = {"vertical": True, "height": 0.5, "position_x": 0.85, "position_y": 0.25}
+
+
+def image(scene, title, view=(0.8, -0.6, 0.6)):
+    """Renders a scene into a matplotlib figure."""
+    scene.view_vector(view)
+    pixels = scene.screenshot(return_img=True, window_size=(1400, 900))
+    scene.close()
+    fig, ax = plt.subplots(figsize=(8, 5.2), layout="constrained")
+    ax.imshow(pixels)
+    ax.set_axis_off()
+    ax.set_title(title)
+    return fig
+
+
+# %% [markdown]
+# zinc composites of the stacked sulphide lenses inform a grid rotated with them, by inverse distance within 60 m.
+# both layers carry `ZN_PCT`, so they share one color bar. without `clim` its range would run from the lowest to the
+# highest value of any layer; here the first layer fixes it at 0 to 10 % and the later ones follow. `slices`, a
+# shortcut that adds three cuts through the model to the scene, leaves holes at the blocks with no composite in
+# reach, which are null.
+
+# %%
+data = bt.datasets.stacked_sulphide_lenses()
+holes = bt.Drillholes(data["collars"], data["surveys"], data["assays"])
+lenses = [data[f"lens_{i}"] for i in (1, 2, 3)]
+composites = holes.composite(2.0, ["ZN_PCT"])
+grid = bt.BlockModel.from_extents(*lenses, size=(20, 20, 10), buffer=20, rotation=(22.5, 0.0, 55.0))
+search = bt.Search(radius=60, min_samples=1, max_samples=12)
+idw = bt.InverseDistance(search, power=2).fit(composites.coords, composites["ZN_PCT"])
+grid = grid.with_column("ZN_PCT", idw.predict(grid))
+near = np.all(
+    (composites.coords > grid.centroids.min(axis=0)) & (composites.coords < grid.centroids.max(axis=0)),
+    axis=1,
+)
+
+scene = bt.plot3d.Scene(window_size=(1400, 900))
+scene.add(
+    composites.filter(near), "ZN_PCT", point_size=4, clim=(0, 10), scalar_bar_args={"title": "Zn (%)", **BAR}
+)
+bt.plot3d.slices(grid, "ZN_PCT", plotter=scene)
+for lens in lenses:
+    scene.add(lens, style="wireframe", color=LIGHT, opacity=0.15)
+print(f"{np.isnan(grid['ZN_PCT']).mean():.0%} of {len(grid):,} blocks null")
+print(f"Zn range of every layer: {scene.colors['ZN_PCT'].scalar_range} %")
+save(image(scene, "Zn composites and three cuts through the grid, on one scale"), "grade")
+
+# %% [markdown]
+# text columns share a category list the same way. each composite inside a lens takes its name, the others stay null
+# and do not draw; the sub-blocks of the lenses carry the same names in `domain`, here renamed `lens` so both layers
+# color by one variable and every lens keeps its color across them.
+
+# %%
+inside = [lens.contains(composites.coords) for lens in lenses]
+names = np.select(inside, [f"lens {i}" for i in (1, 2, 3)], "")
+composites = composites.with_column("lens", [n or None for n in names])
+blocks = bt.BlockModel.from_meshes(
+    grid.origin,
+    grid.size,
+    grid.count,
+    [(lens, "inside", f"lens {i}") for i, lens in enumerate(lenses, 1)],
+    subgrid=2,
+    fill="host",
+    rotation=tuple(grid.rotation),
+)
+blocks = blocks.mask(np.asarray(blocks["domain"], dtype=object) != "host")
+blocks = blocks.with_column("lens", blocks["domain"])
+
+scene = bt.plot3d.Scene(window_size=(1400, 900))
+scene.add(blocks, "lens", style="wireframe", opacity=0.3, scalar_bar_args={"title": "", **BAR})
+scene.add(composites, "lens", point_size=5)
+print(f"{len(blocks):,} sub-blocks, {(names != '').sum():,} of {len(composites):,} composites in a lens")
+print(f"categories: {list(scene.colors['lens'].annotations.values())}")
+save(image(scene, "Lens of each composite and sub-block, one color per lens"), "lenses")
