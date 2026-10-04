@@ -21,7 +21,7 @@ BAR = {"vertical": True, "height": 0.5, "position_x": 0.85, "position_y": 0.25}
 def image(scene, title, view=(0.8, -0.6, 0.6)):
     """Renders a scene into a matplotlib figure."""
     scene.view_vector(view)
-    pixels = scene.screenshot(return_img=True, window_size=(1400, 900))
+    pixels = scene.plotter.screenshot(return_img=True, window_size=(1400, 900))
     scene.close()
     fig, ax = plt.subplots(figsize=(8, 5.2), layout="constrained")
     ax.imshow(pixels)

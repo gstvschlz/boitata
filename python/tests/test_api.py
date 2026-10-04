@@ -39,6 +39,7 @@ NOT_PLOTS = {
     "plot3d.to_pyvista",
     "plot3d.Scene.add",
     "plot3d.Scene.show",
+    "plot3d.Scene.screenshot",
 }
 # `fit` building a new model from experimental variograms, not fitting the object in place.
 MODEL_FITS = {"Variogram", "ExperimentalVariogram", "Coregionalization"}
