@@ -65,7 +65,7 @@ BlockModel(regular, 3120 of 3120 cells, count [52, 60, 1], size [5.0, 5.0, 1.0],
 
 the names follow a few rules, so you can often write a call you have not seen before.
 
-- **full names.** `OrdinaryKriging`, `NormalScore`, `experimental_variogram`. only standard acronyms stay short: SGS, SIS, PCA, MAF, CRS.
+- **full names.** `OrdinaryKriging`, `NormalScore`, `experimental_variogram`. only standard acronyms stay short: SGS, DSS, SIS, PCA, MAF, CRS.
 - **the same argument names everywhere.** `coords` for locations, `values` for the variable, `targets` for where to estimate, `weights`, `categories`, `domains` or `domain_column`, `seed`, `search`, `variogram`. ranges come as `(major, semi-major, minor)`; a `rotation` is one `(azimuth, dip, rake)` triple in degrees, with azimuth clockwise from north and dip positive down.
 - **a column name stands for a column.** where a function takes one value per row, you can pass the column name and the container: `kriging.fit(samples, "V")`, or `bt.describe("V", data=samples)` for calls that take the values first.
 - **options are keyword-only.** you must name every argument that has a default, so `bt.Search(60, 24)` fails and `bt.Search(radius=60, max_samples=24)` works:
@@ -165,7 +165,7 @@ the numerical work runs in rust, in double precision. kriging runs in parallel o
 
     ---
 
-    `SGS`, `TurningBands`, `SIS`, `Plurigaussian`, `SNESIM`
+    `SGS`, `DSS`, `TurningBands`, `SIS`, `Plurigaussian`, `SNESIM`
 
 -   **[modeling](../api/modeling/index.md)**
 

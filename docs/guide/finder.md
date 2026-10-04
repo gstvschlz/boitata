@@ -128,7 +128,7 @@ find your question and follow the link. **learn** pages explain an idea from scr
 
 | question | read |
 | --- | --- |
-| i want many equally likely grade maps. | [sequential gaussian simulation](../examples/08-stochastic-simulation/01-sgs/example_08_01.md), [turning bands](../examples/08-stochastic-simulation/04-turning-bands/example_08_04.md) |
+| i want many equally likely grade maps. | [sequential gaussian simulation](../examples/08-stochastic-simulation/01-sgs/example_08_01.md), [turning bands](../examples/08-stochastic-simulation/04-turning-bands/example_08_04.md), [direct sequential simulation](../examples/08-stochastic-simulation/08-direct-sequential-simulation/example_08_08.md) |
 | my grid is large and simulation is slow. | [SGS along a shared path](../examples/08-stochastic-simulation/02-sgs-shared-path/example_08_02.md) |
 | i need simulated values at block size. | [simulation at block support](../examples/08-stochastic-simulation/03-simulation-at-block-support/example_08_03.md) |
 | several grades must stay correlated. | [multivariate simulation](../examples/08-stochastic-simulation/06-multivariate-simulation/example_08_06.md), [collocated cosimulation](../examples/08-stochastic-simulation/07-collocated-cosimulation/example_08_07.md) |

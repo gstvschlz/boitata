@@ -22,6 +22,7 @@ ti = bt.object_training_image(
 
 SIMULATORS = {
     "sgs": lambda: bt.SGS(v, search).fit(coords, values),
+    "dss": lambda: bt.DSS(v, search).fit(coords, values),
     "turning_bands": lambda: bt.TurningBands(v, bands=50).fit(coords, values),
     "sis": lambda: bt.SIS([v, v], search).fit(coords, facies),
     "plurigaussian": lambda: bt.Plurigaussian(v, proportions=[0.5, 0.5]).fit(coords, facies),

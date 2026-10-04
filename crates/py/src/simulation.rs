@@ -1261,6 +1261,324 @@ impl Sgs {
     }
 }
 
+/// Direct sequential simulation: SGS in data units, with no normal-score
+/// transform of the kriged field.
+///
+/// Each node is simple kriged from the raw values of its neighbors, with
+/// its domain's declustered mean as the known mean. `variogram` is the
+/// variogram of the values: within each domain its nugget and sills are
+/// rescaled so that the total sill equals the domain's declustered
+/// variance, keeping its shape and relative nugget. The node is then drawn
+/// from the domain's declustered histogram, as the back-transform of a
+/// Gaussian ``m + s·z`` whose back-transformed mean and variance are the
+/// kriged ones. A kriged pair that no such draw reaches, such as a mean
+/// beyond the data or a large variance near the tails, takes the nearest
+/// reachable pair; `simulate` warns with the fraction of such nodes.
+/// Each draw matches the kriged mean and variance, not the shape of the
+/// histogram: on skewed grades with a large nugget, low means take wide
+/// draws and the realizations hold too many extreme grades, which
+/// `correct_distribution` maps back to the histogram.
+///
+/// `search` is a Search, or a sequence of them as passes, as in SGS. With
+/// `domains` at `fit`, Search.soft lets the raw grades of other domains
+/// inform a node within the soft distance, and `high_grade` compares
+/// grades with its threshold, kriging a clamped neighbor as the threshold.
+#[derive(Serialize, Deserialize)]
+#[pyclass(module = "boitata", name = "DSS")]
+pub struct Dss {
+    variogram: CoreVariogram,
+    search: Vec<Search>,
+    /// Labels of the fitted domains, indexed by code.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    domains: Option<Vec<Label>>,
+    #[serde(skip)]
+    data: Option<Data>,
+}
+
+#[pymethods]
+impl Dss {
+    /// Writes arrays as Parquet columns and parameters as JSON in the file
+    /// metadata; `from_parquet` reads it back.
+    fn to_parquet(&self, path: std::path::PathBuf) -> PyResult<()> {
+        crate::persist::to_parquet(<Self as pyo3::PyClass>::NAME, self, &path)
+    }
+
+    /// Reads `to_parquet` output; raises InvalidInput on another class's file
+    /// or a newer format.
+    #[staticmethod]
+    fn from_parquet(path: std::path::PathBuf) -> PyResult<Self> {
+        crate::persist::from_parquet(<Self as pyo3::PyClass>::NAME, &path)
+    }
+
+    fn _state(&self) -> PyResult<(String, Option<crate::persist::Columns>)> {
+        crate::persist::state(<Self as pyo3::PyClass>::NAME, self)
+    }
+
+    #[staticmethod]
+    fn _from_state(meta: &str, columns: Option<crate::persist::Columns>) -> PyResult<Self> {
+        crate::persist::from_state(<Self as pyo3::PyClass>::NAME, meta, columns)
+    }
+
+    #[new]
+    fn new(variogram: Variogram, search: &Bound<PyAny>) -> PyResult<Self> {
+        let sill = variogram.0.total_sill();
+        if !(sill.is_finite() && sill > 0.0 && variogram.0.is_stationary()) {
+            return Err(invalid("DSS needs a variogram with a finite positive sill"));
+        }
+        Ok(Self {
+            variogram: variogram.0,
+            search: plain_searches(search, "DSS")?,
+            domains: None,
+            data: None,
+        })
+    }
+
+    /// The search pass of every target, as in SGS.passes.
+    ///
+    /// Parameters
+    /// ----------
+    /// targets : array_like or BlockModel
+    /// anisotropy : LocalAnisotropy, optional
+    ///     As in `simulate`.
+    /// domains : array_like or label, optional
+    ///     As in `simulate`.
+    /// domain_column : str, optional
+    ///     As in `simulate`.
+    ///
+    /// Returns
+    /// -------
+    /// ndarray
+    ///     The pass, 1-based; NaN where no search finds enough data, and
+    ///     `simulate` uses the last.
+    #[pyo3(signature = (targets, *, anisotropy=None, domains=None, domain_column=None))]
+    fn passes<'py>(
+        &self,
+        py: Python<'py>,
+        targets: &Bound<PyAny>,
+        anisotropy: Option<PyRef<crate::lva::LocalAnisotropy>>,
+        domains: Option<&Bound<PyAny>>,
+        domain_column: Option<&str>,
+    ) -> PyResult<Bound<'py, PyArray1<f64>>> {
+        let d = self.data.as_ref().ok_or_else(not_fitted)?;
+        let grid = self::targets(targets)?;
+        let domains = domain_arg(targets, domains, domain_column)?;
+        let nodes = node_domains(
+            self.domains.as_deref(),
+            domains.as_ref(),
+            grid.len(),
+            "passes",
+        )?;
+        let search = resolved(&self.search, self.domains.as_deref())?;
+        let local = anisotropy.map(|a| a.at_targets(&grid));
+        let passes = py
+            .detach(|| {
+                simulation::sgs_passes(
+                    &d.locs,
+                    &d.values,
+                    d.holes.as_deref(),
+                    zoned(d, &nodes),
+                    &grid,
+                    &self.variogram,
+                    &search,
+                    local.as_ref(),
+                )
+            })
+            .map_err(err)?;
+        let passes = passes
+            .into_iter()
+            .map(|p| p.map_or(f64::NAN, |p| (p + 1) as f64));
+        Ok(array1(py, passes.collect()))
+    }
+
+    /// Takes the conditioning data. Samples sharing a location keep the
+    /// first, with a warning naming their `holes`.
+    ///
+    /// Parameters
+    /// ----------
+    /// coords : array_like, shape (n, 2) or (n, 3), PointSet or BlockModel
+    /// values : array_like, shape (n,), or str
+    ///     Values, or the column of `coords` holding them; so for `weights`
+    ///     and `holes`.
+    /// weights : array_like or str, optional
+    ///     Declustering weights, for each domain's histogram, mean and
+    ///     variance.
+    /// holes : array_like or str, optional
+    ///     Drill-hole ids or names, for `max_per_hole`.
+    /// domains : array_like or label, optional
+    ///     Domain label of each sample, or one label for all: strings,
+    ///     numbers or booleans. Each domain has its own histogram, mean and
+    ///     rescaled variogram.
+    /// domain_column : str, optional
+    ///     The column of `coords` holding the domains, instead of `domains`.
+    ///
+    /// Raises
+    /// ------
+    /// InvalidInput
+    ///     If the values of a domain do not vary, a Search.soft names a
+    ///     domain without samples or has no `domains` to work on, or both
+    ///     `domains` and `domain_column` are given.
+    #[pyo3(signature = (coords, values, *, weights=None, holes=None, domains=None, domain_column=None))]
+    fn fit<'py>(
+        mut slf: PyRefMut<'py, Self>,
+        coords: &Bound<PyAny>,
+        values: &Bound<PyAny>,
+        weights: Option<&Bound<PyAny>>,
+        holes: Option<&Bound<PyAny>>,
+        domains: Option<&Bound<PyAny>>,
+        domain_column: Option<&str>,
+    ) -> PyResult<PyRefMut<'py, Self>> {
+        let (d, fitted) = data(
+            coords,
+            values,
+            weights,
+            holes,
+            None,
+            domains,
+            domain_column,
+            None,
+            classes(),
+            &slf.search,
+        )?;
+        slf.data = Some(d);
+        slf.domains = fitted;
+        Ok(slf)
+    }
+
+    /// Summary of `n` realizations at `targets`, each seeded from `seed` and
+    /// its index.
+    ///
+    /// Parameters
+    /// ----------
+    /// targets : array_like or BlockModel
+    /// n : int, default 100
+    /// seed : int, default 0
+    /// cutoffs : sequence of float, optional
+    ///     Grades for the probability and mean above.
+    /// quantiles : sequence of float, optional
+    ///     Probabilities for the values at quantiles.
+    /// keep : bool or sequence of int, default False
+    ///     Keep all realizations, or those indices, as an
+    ///     ``(n, targets)`` array.
+    /// anisotropy : LocalAnisotropy, optional
+    ///     Orients each node's variogram and search.
+    /// blocks : BlockModel, optional
+    ///     Coarser blocks each realization is averaged to, weighted by node
+    ///     volume, and summarized at; nodes outside every block are
+    ///     ignored and a block holding no node is an error.
+    /// domains : array_like or label, optional
+    ///     Needed when fitted with domains: labels of the targets, one label
+    ///     for all, or an ``(n, targets)`` array of simulated domains,
+    ///     realization ``k`` of the grades simulated within row ``k``. A
+    ///     target in a domain without samples raises InvalidInput.
+    /// domain_column : str, optional
+    ///     The column of PointSet or BlockModel targets holding the domains.
+    /// grade_tonnage_cutoffs, density, tonnage, categories : optional
+    ///     Grade–tonnage curves per realization, as in SGS.simulate.
+    /// progress : bool, default True
+    ///     Show a `tqdm` bar over the realizations.
+    ///
+    /// Returns
+    /// -------
+    /// SimulationSummary
+    ///
+    /// Warns
+    /// -----
+    /// UserWarning
+    ///     With the fraction of nodes whose kriged mean and variance no draw
+    ///     from the histogram reaches, drawn from the nearest reachable pair.
+    #[pyo3(signature = (targets, *, n=100, seed=0, cutoffs=vec![], quantiles=vec![], keep=None, anisotropy=None, blocks=None, domains=None, domain_column=None, grade_tonnage_cutoffs=None, density=None, tonnage=None, categories=None, progress=true))]
+    #[allow(clippy::too_many_arguments)]
+    fn simulate(
+        &self,
+        py: Python,
+        targets: &Bound<PyAny>,
+        n: usize,
+        seed: u64,
+        cutoffs: Vec<f64>,
+        quantiles: Vec<f64>,
+        keep: Option<&Bound<PyAny>>,
+        anisotropy: Option<PyRef<crate::lva::LocalAnisotropy>>,
+        blocks: Option<PyRef<PyBlockModel>>,
+        domains: Option<&Bound<PyAny>>,
+        domain_column: Option<&str>,
+        grade_tonnage_cutoffs: Option<Vec<f64>>,
+        density: Option<&Bound<PyAny>>,
+        tonnage: Option<&Bound<PyAny>>,
+        categories: Option<&Bound<PyAny>>,
+        progress: bool,
+    ) -> PyResult<SimulationSummary> {
+        let d = self.data.as_ref().ok_or_else(not_fitted)?;
+        let grid = self::targets(targets)?;
+        let fitted = self.domains.as_deref();
+        let domains = domain_arg(targets, domains, domain_column)?;
+        let nodes = realization_domains(fitted, domains.as_ref(), grid.len(), n, "simulate")?;
+        let search = resolved(&self.search, fitted)?;
+        let holder = match &blocks {
+            Some(b) => b.into_pyobject(py)?.to_owned().into_any(),
+            None => targets.clone(),
+        };
+        let rows = blocks.as_ref().map_or(grid.len(), |b| b.0.len());
+        let gt = tonnage_options(
+            &holder,
+            rows,
+            grade_tonnage_cutoffs,
+            density,
+            tonnage,
+            categories,
+        )?;
+        let support = support(targets, &grid, blocks)?;
+        let local = anisotropy.map(|a| a.at_targets(&grid));
+        let options = ContinuousOptions {
+            cutoffs,
+            quantiles,
+            keep: keep_arg(keep)?,
+            tonnage: gt,
+        };
+        let clamped = std::sync::atomic::AtomicUsize::new(0);
+        let simulated = std::sync::atomic::AtomicUsize::new(0);
+        let summary = with_progress(py, Some(n as u64), progress, |counter| {
+            simulation::continuous(
+                n,
+                &options,
+                |k| {
+                    let params = SgsParams {
+                        search: search.clone(),
+                        seed: boitata_core::rng::realization_seed(seed, k as u64),
+                    };
+                    let r = simulation::dss_in(
+                        &d.locs,
+                        &d.values,
+                        d.weights.as_deref(),
+                        d.holes.as_deref(),
+                        d.domains.as_deref().zip(of_realization(&nodes, k)),
+                        &grid,
+                        &self.variogram,
+                        &params,
+                        local.as_ref(),
+                    )?;
+                    clamped.fetch_add(r.clamped, std::sync::atomic::Ordering::Relaxed);
+                    let done = r.values.iter().filter(|v| !v.is_nan()).count();
+                    simulated.fetch_add(done, std::sync::atomic::Ordering::Relaxed);
+                    averaged(&support, r.values)
+                },
+                counter,
+            )
+        })?
+        .map_err(err)?;
+        let clamped = clamped.into_inner();
+        if clamped > 0 {
+            let share = 100.0 * clamped as f64 / simulated.into_inner() as f64;
+            let message = format!(
+                "{share:.2}% of simulated nodes had a kriged mean and variance no draw reaches; \
+                 drew them from the nearest reachable pair"
+            );
+            let category = py.get_type::<pyo3::exceptions::PyUserWarning>();
+            PyErr::warn(py, &category, &std::ffi::CString::new(message)?, 1)?;
+        }
+        Ok(SimulationSummary(summary))
+    }
+}
+
 /// The domains of the data and of `nodes`, when fitted with them.
 fn zoned<'a>(d: &'a Data, nodes: &'a Option<Vec<u32>>) -> Option<simulation::Domains<'a>> {
     d.domains.as_deref().zip(nodes.as_deref())
@@ -2638,6 +2956,17 @@ impl Tabular for Sgs {
     }
 }
 
+impl Tabular for Dss {
+    fn columns(&self) -> Option<Columns> {
+        self.data.as_ref().map(data_columns)
+    }
+
+    fn restore(&mut self, columns: Found) -> PyResult<()> {
+        self.data = Some(data_from(&columns, classes(), self.domains.as_deref())?);
+        Ok(())
+    }
+}
+
 impl Tabular for TurningBands {
     fn columns(&self) -> Option<Columns> {
         self.data.as_ref().map(data_columns)
@@ -3417,6 +3746,7 @@ impl MultivariateSimulation {
 pub fn register(m: &Bound<PyModule>) -> PyResult<()> {
     m.add_class::<MultivariateSimulation>()?;
     m.add_class::<Sgs>()?;
+    m.add_class::<Dss>()?;
     m.add_class::<TurningBands>()?;
     m.add_class::<Sis>()?;
     m.add_class::<Plurigaussian>()?;

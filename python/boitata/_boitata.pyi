@@ -1105,6 +1105,49 @@ class SGS:
         progress: bool = True,
     ) -> SimulationSummary: ...
 
+class DSS:
+    def to_parquet(self, path: Path) -> None: ...
+    @staticmethod
+    def from_parquet(path: Path) -> DSS: ...
+    def __init__(self, variogram: Variogram, search: Search | Sequence[Search]) -> None: ...
+    def fit(
+        self,
+        coords: ArrayLike | PointSet | BlockModel,
+        values: ArrayLike | Column,
+        *,
+        weights: ArrayLike | Column | None = None,
+        holes: Holes | Column | None = None,
+        domains: Label | Sequence[Label] | ArrayLike | None = None,
+        domain_column: Column | None = None,
+    ) -> DSS: ...
+    def passes(
+        self,
+        targets: Any,
+        *,
+        anisotropy: LocalAnisotropy | None = None,
+        domains: Label | Sequence[Label] | ArrayLike | None = None,
+        domain_column: Column | None = None,
+    ) -> npt.NDArray[np.float64]: ...
+    def simulate(
+        self,
+        targets: Any,
+        *,
+        n: int = 100,
+        seed: int = 0,
+        cutoffs: Sequence[float] = (),
+        quantiles: Sequence[float] = (),
+        keep: bool | Sequence[int] = False,
+        anisotropy: LocalAnisotropy | None = None,
+        blocks: BlockModel | None = None,
+        domains: Label | Sequence[Label] | ArrayLike | None = None,
+        domain_column: Column | None = None,
+        grade_tonnage_cutoffs: Sequence[float] | None = None,
+        density: float | ArrayLike | Column | None = None,
+        tonnage: ArrayLike | Column | None = None,
+        categories: Labels | Column | None = None,
+        progress: bool = True,
+    ) -> SimulationSummary: ...
+
 class TurningBands:
     def to_parquet(self, path: Path) -> None: ...
     @staticmethod
