@@ -3,7 +3,7 @@ use estimation::Search;
 use rand::SeedableRng;
 use rand::rngs::StdRng;
 use simulation::{
-    Bands, SgsParams, TurningBandsEnsemble, TurningBandsParams, bounds, sgs, turning_bands,
+    Bands, SgsParams, TurningBandsEnsemble, TurningBandsParams, bounds, dss_in, sgs, turning_bands,
 };
 use std::hint::black_box;
 use variogram::{Model, Variogram};
@@ -44,6 +44,20 @@ fn bench(c: &mut Criterion) {
             seed: 1,
         };
         b.iter(|| black_box(sgs(&data, &values, None, None, &grid, &vg, &params, None).unwrap()))
+    });
+    group.bench_function("DSS", |b| {
+        let params = SgsParams {
+            search: vec![Search {
+                min_samples: 1,
+                max_samples: 24,
+                radius: 60.0,
+                ..Default::default()
+            }],
+            seed: 1,
+        };
+        b.iter(|| {
+            black_box(dss_in(&data, &values, None, None, None, &grid, &vg, &params, None).unwrap())
+        })
     });
     group.bench_function("turning bands", |b| {
         let params = TurningBandsParams::default();

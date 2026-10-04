@@ -2,6 +2,7 @@
 //!
 //! Modules:
 //! - [`sgs`]  — Sequential Gaussian Simulation (continuous variables)
+//! - [`dss`]  — Direct Sequential Simulation (continuous variables, data units)
 //! - [`sis`]  — Sequential Indicator Simulation (categorical facies)
 //! - [`training_image`] — block model columns as training images
 //! - [`objects`] — object-based training images: channels and ellipsoids
@@ -17,6 +18,7 @@
 mod conditioning;
 pub mod consistency;
 pub mod correct;
+pub mod dss;
 pub mod error;
 pub mod gibbs;
 pub mod lattice;
@@ -33,6 +35,7 @@ pub mod turning_bands;
 
 pub use consistency::{Consistency, ConsistencyParams, consistency};
 pub use correct::{Empirical, correct_distribution};
+pub use dss::{DssRealization, dss_in};
 pub use error::{Result, SimError};
 pub use gibbs::{GibbsParams, gibbs};
 pub use lattice::{Lattice, Template, default_levels, multigrid_path};
