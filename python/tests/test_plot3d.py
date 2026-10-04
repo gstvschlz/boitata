@@ -172,6 +172,25 @@ def test_scene_shares_one_color_map_and_range_per_variable(pv):
     assert image.std() > 0
 
 
+def test_scene_colors_meshes_by_vertex_or_face_on_the_range_of_points(pv):
+    vertices = np.array([[0, 0, 0], [1, 0, 0], [0, 1, 0], [0, 0, 1.0]])
+    triangles = np.array([[0, 2, 1], [0, 1, 3], [0, 3, 2], [1, 2, 3]])
+    solid = (
+        bt.Mesh(vertices, triangles)
+        .with_vertex_column("g", [1.0, 2, 3, np.nan])
+        .with_face_column("rock", ["a", "b", None, "a"])
+    )
+    points = bt.PointSet(vertices + 2, {"g": [0.0, 5, 6, 9]})
+    scene = bt.plot3d.Scene(off_screen=True).add(solid, "g").add(solid, "rock", opacity=0.5).add(points, "g")
+    by_vertex, by_face, dots = (drawn(m, pv) for m in layers(scene, pv))
+    assert by_vertex.n_points == 3 and by_vertex.n_cells == 1
+    assert by_face.n_cells == 3 and list(by_face.cell_data["rock"]) == [0, 1, 0]
+    assert dots.n_points == 4 and scene.colors["g"].scalar_range == (0, 9)
+    image = scene.screenshot(return_img=True)
+    scene.close()
+    assert image.std() > 0
+
+
 def test_scene_opens_a_page_in_the_browser(pv, monkeypatch):
     pytest.importorskip("trame_pyvista")
     opened = []
