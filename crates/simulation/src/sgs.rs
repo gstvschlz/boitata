@@ -392,7 +392,7 @@ fn simulate(
 /// a neighbor's value in kriging units, the simple-kriging model of a
 /// domain, and a node's (kriging units, data units) draw from its kriged
 /// mean and variance, or from the marginal, given one standard normal `z`.
-trait Space: Sync {
+pub(crate) trait Space: Sync {
     /// `value` at `trend`, of another domain or capped, kriged in `domain`.
     fn neighbor(&self, value: f64, trend: f64, domain: Option<u32>) -> f64;
     fn variogram(&self, domain: Option<u32>) -> &Variogram;
@@ -478,7 +478,7 @@ impl Space for Gaussian<'_> {
 
 /// Checks the inputs of [`sequential`] and returns the holes of the data.
 #[allow(clippy::too_many_arguments)]
-fn inputs(
+pub(crate) fn inputs(
     data_locs: &[(f64, f64, f64)],
     data_vals: &[f64],
     data_holes: Option<&[u32]>,
@@ -517,7 +517,7 @@ fn inputs(
 /// The sequential loop over checked [`inputs`]: `scores` are the data in
 /// kriging units, and `vg` orients the search.
 #[allow(clippy::too_many_arguments)]
-fn sequential(
+pub(crate) fn sequential(
     space: &impl Space,
     scores: Vec<f64>,
     data_locs: &[(f64, f64, f64)],

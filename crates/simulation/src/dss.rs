@@ -1,0 +1,516 @@
+//! Direct sequential simulation (DSS).
+//!
+//! The sequential loop of [`crate::sgs`] in data units: each node is simple
+//! kriged from raw neighbors with its domain's declustered mean and the
+//! variogram rescaled to the domain's declustered variance, then drawn from
+//! the domain's declustered histogram through a Gaussian `m + s·z`, whose
+//! back-transform has the kriged mean and variance (a lookup table over
+//! `(m, s)`). A kriged pair no draw can reach takes the nearest reachable
+//! one, and is counted.
+
+use crate::error::{Result, SimError};
+use crate::sgs::{Domains, SgsParams, Space, Transform, Transforms, inputs, sequential};
+use estimation::lva::LocalAnisotropy;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use transforms::weighted_mean_variance;
+use variogram::{Structure, Variogram};
+
+/// One DSS realization over the simulation grid.
+#[derive(Debug, Clone)]
+pub struct DssRealization {
+    /// Simulated values, one per grid node (same order as `grid`).
+    pub values: Vec<f64>,
+    /// Nodes whose kriged mean and variance no draw reaches, drawn from the
+    /// nearest reachable pair.
+    pub clamped: usize,
+}
+
+const MEANS: usize = 161;
+const SPREADS: usize = 41;
+
+fn gaussian_mean(i: usize) -> f64 {
+    -4.0 + 8.0 * i as f64 / (MEANS - 1) as f64
+}
+
+fn spread(j: usize) -> f64 {
+    2.0 * j as f64 / (SPREADS - 1) as f64
+}
+
+fn lerp(a: f64, b: f64, t: f64) -> f64 {
+    a + (b - a) * t
+}
+
+/// Scores at which the back-transform is tabulated for the lookup: from
+/// `-REACH` to `REACH` by `STEP`.
+const STEP: f64 = 0.01;
+const REACH: f64 = 16.0;
+
+/// Mean and variance of `back(m + s·Z)`, `Z` standard normal, over a grid of
+/// `m` in [-4, 4] and `s` in [0, 2], row by row of `s`. The expectations
+/// are Gaussian-weighted sums of the back-transform tabulated every `STEP`
+/// over ±8 `s`: a quadrature over few nodes misses the kinks of the
+/// piecewise-linear back-transform by a few percent.
+struct Lookup {
+    means: Vec<f64>,
+    variances: Vec<f64>,
+}
+
+impl Lookup {
+    fn new(transform: &Transform) -> Self {
+        let last = (2.0 * REACH / STEP).round() as isize;
+        let back: Vec<f64> = (0..=last)
+            .map(|k| transform.back(-REACH + k as f64 * STEP, 0.0))
+            .collect();
+        let mut means = Vec::with_capacity(MEANS * SPREADS);
+        let mut variances = Vec::with_capacity(MEANS * SPREADS);
+        for j in 0..SPREADS {
+            let s = spread(j);
+            let reach = (8.0 * s / STEP).ceil() as isize;
+            let kernel: Vec<f64> = (-reach..=reach)
+                .map(|d| (-0.5 * (d as f64 * STEP / s).powi(2)).exp())
+                .collect();
+            for i in 0..MEANS {
+                let c = ((gaussian_mean(i) + REACH) / STEP).round() as isize;
+                let center = back[c as usize];
+                if s == 0.0 {
+                    means.push(center);
+                    variances.push(0.0);
+                    continue;
+                }
+                let (mut total, mut first, mut second) = (0.0, 0.0, 0.0);
+                for k in (c - reach).max(0)..=(c + reach).min(last) {
+                    let (w, d) = (kernel[(k - c + reach) as usize], back[k as usize] - center);
+                    total += w;
+                    first += w * d;
+                    second += w * d * d;
+                }
+                let (first, second) = (first / total, second / total);
+                means.push(center + first);
+                variances.push((second - first * first).max(0.0));
+            }
+        }
+        Self { means, variances }
+    }
+
+    /// The `m` of row `j` whose mean is `mean`, and the variance there.
+    fn hit(&self, j: usize, mean: f64) -> Option<(f64, f64)> {
+        let row = j * MEANS..(j + 1) * MEANS;
+        let (means, variances) = (&self.means[row.clone()], &self.variances[row]);
+        if !(means[0]..=means[MEANS - 1]).contains(&mean) {
+            return None;
+        }
+        let i = means.partition_point(|&x| x < mean).clamp(1, MEANS - 1);
+        let width = means[i] - means[i - 1];
+        let t = if width > 0.0 {
+            ((mean - means[i - 1]) / width).clamp(0.0, 1.0)
+        } else {
+            0.0
+        };
+        Some((
+            lerp(gaussian_mean(i - 1), gaussian_mean(i), t),
+            lerp(variances[i - 1], variances[i], t),
+        ))
+    }
+
+    /// `(m, s, clamped)` such that `back(m + s·Z)` has `mean` and `variance`.
+    fn query(&self, mean: f64, variance: f64) -> (f64, f64, bool) {
+        let Some((m, v)) = self.hit(0, mean) else {
+            let m = if mean < self.means[0] { -4.0 } else { 4.0 };
+            return (m, 0.0, true);
+        };
+        let mut previous = (m, 0.0, v);
+        for j in 1..SPREADS {
+            let Some((m, v)) = self.hit(j, mean) else {
+                break;
+            };
+            if v >= variance {
+                let (m0, s0, v0) = previous;
+                // On the standard deviation, about linear in `s`.
+                let t = ((variance.sqrt() - v0.sqrt()) / (v.sqrt() - v0.sqrt())).clamp(0.0, 1.0);
+                return (lerp(m0, m, t), lerp(s0, spread(j), t), false);
+            }
+            previous = (m, spread(j), v);
+        }
+        (previous.0, previous.1, true)
+    }
+}
+
+struct Domain {
+    transform: Transform,
+    lookup: Lookup,
+    vg: Variogram,
+    mean: f64,
+}
+
+/// Raw values kriged with each domain's mean and rescaled variogram, drawn
+/// through its lookup.
+struct DssSpace {
+    domains: Vec<Option<Domain>>,
+    clamped: AtomicUsize,
+}
+
+impl DssSpace {
+    fn domain(&self, domain: Option<u32>) -> &Domain {
+        self.domains[domain.unwrap_or(0) as usize]
+            .as_ref()
+            .expect("checked")
+    }
+}
+
+impl Space for DssSpace {
+    fn neighbor(&self, value: f64, _: f64, _: Option<u32>) -> f64 {
+        value
+    }
+
+    fn variogram(&self, domain: Option<u32>) -> &Variogram {
+        &self.domain(domain).vg
+    }
+
+    fn mean(&self, domain: Option<u32>) -> f64 {
+        self.domain(domain).mean
+    }
+
+    fn draw(
+        &self,
+        mean: f64,
+        variance: f64,
+        _: usize,
+        domain: Option<u32>,
+        _: f64,
+        z: f64,
+    ) -> (f64, f64) {
+        let d = self.domain(domain);
+        let (m, s, clamped) = d.lookup.query(mean, variance);
+        if clamped {
+            self.clamped.fetch_add(1, Ordering::Relaxed);
+        }
+        let value = d.transform.back(m + s * z, 0.0);
+        (value, value)
+    }
+
+    fn marginal(&self, _: usize, domain: Option<u32>, _: f64, z: f64) -> (f64, f64) {
+        let value = self.domain(domain).transform.back(z, 0.0);
+        (value, value)
+    }
+}
+
+/// One DSS realization, with `domains` as in [`crate::sgs_in`].
+///
+/// `vg` is the variogram of the values; within each domain its nugget and
+/// sills are rescaled so the total sill is the domain's declustered
+/// variance (by `data_weights`), and nodes are simple kriged with the
+/// domain's declustered mean.
+#[allow(clippy::too_many_arguments)]
+pub fn dss_in(
+    data_locs: &[(f64, f64, f64)],
+    data_vals: &[f64],
+    data_weights: Option<&[f64]>,
+    data_holes: Option<&[u32]>,
+    domains: Option<Domains>,
+    grid: &[(f64, f64, f64)],
+    vg: &Variogram,
+    params: &SgsParams,
+    local: Option<&LocalAnisotropy>,
+) -> Result<DssRealization> {
+    let sill = vg.total_sill();
+    if !(sill.is_finite() && sill > 0.0 && vg.is_stationary()) {
+        return Err(SimError::InvalidParameters(
+            "the variogram needs a finite positive sill".into(),
+        ));
+    }
+    let holes = inputs(
+        data_locs, data_vals, data_holes, domains, None, grid, params, local,
+    )?;
+    let codes = domains.map(|d| d.0);
+    let fitted = Transforms::fit(data_vals, data_weights, codes, None)?;
+    let domains_fit = fitted
+        .domains
+        .into_iter()
+        .enumerate()
+        .map(|(k, transform)| {
+            let Some(transform) = transform else {
+                return Ok(None);
+            };
+            let rows: Vec<usize> = (0..data_vals.len())
+                .filter(|&i| codes.map_or(0, |c| c[i] as usize) == k)
+                .collect();
+            let pick = |v: &[f64]| rows.iter().map(|&i| v[i]).collect::<Vec<_>>();
+            let (mean, variance) =
+                weighted_mean_variance(&pick(data_vals), data_weights.map(pick).as_deref())
+                    .map_err(|e| SimError::Transform(e.to_string()))?;
+            if variance <= 0.0 {
+                return Err(SimError::InsufficientData(format!(
+                    "the values of domain {k} do not vary"
+                )));
+            }
+            let f = variance / sill;
+            let vg = Variogram {
+                nugget: vg.nugget * f,
+                structures: vg
+                    .structures
+                    .iter()
+                    .map(|s| Structure {
+                        sill: s.sill * f,
+                        ..*s
+                    })
+                    .collect(),
+                anisotropy: vg.anisotropy.clone(),
+            };
+            Ok(Some(Domain {
+                lookup: Lookup::new(&transform),
+                transform,
+                vg,
+                mean,
+            }))
+        })
+        .collect::<Result<Vec<_>>>()?;
+    let space = DssSpace {
+        domains: domains_fit,
+        clamped: AtomicUsize::new(0),
+    };
+    let realization = sequential(
+        &space,
+        data_vals.to_vec(),
+        data_locs,
+        data_vals,
+        holes,
+        domains,
+        None,
+        grid,
+        vg,
+        params,
+        local,
+        None,
+        |_, _, _, _| {},
+    )?;
+    Ok(DssRealization {
+        values: realization.values,
+        clamped: space.clamped.into_inner(),
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use estimation::search::Search;
+    use rand::rngs::StdRng;
+    use rand::{Rng, SeedableRng};
+    use rand_distr::{Distribution, Normal};
+    use transforms::probit;
+    use variogram::Model;
+
+    fn moments(v: &[f64]) -> (f64, f64) {
+        let n = v.len() as f64;
+        let mean = v.iter().sum::<f64>() / n;
+        (mean, v.iter().map(|x| (x - mean).powi(2)).sum::<f64>() / n)
+    }
+
+    #[test]
+    fn lookup_draws_have_the_queried_mean_and_variance() {
+        let mut rng = StdRng::seed_from_u64(5);
+        let normal = Normal::new(0.0_f64, 0.8).unwrap();
+        let values: Vec<f64> = (0..500).map(|_| normal.sample(&mut rng).exp()).collect();
+        let transform = Transforms::fit(&values, None, None, None)
+            .unwrap()
+            .domains
+            .remove(0)
+            .unwrap();
+        let lookup = Lookup::new(&transform);
+        let (mean, variance) = moments(&values);
+        // Stratified standard normal draws, so the check is the lookup's
+        // error and not the sampling error of a skewed variance.
+        let n = 20_000;
+        let z: Vec<f64> = (0..n)
+            .map(|k| probit((k as f64 + 0.5) / n as f64))
+            .collect();
+        for (mu, var) in [
+            (mean, 0.5 * variance),
+            (0.6 * mean, 0.2 * variance),
+            (1.5 * mean, variance),
+            (mean, 0.02 * variance),
+        ] {
+            let (m, s, clamped) = lookup.query(mu, var);
+            assert!(!clamped, "({mu}, {var})");
+            let draws: Vec<f64> = z.iter().map(|z| transform.back(m + s * z, 0.0)).collect();
+            let (got_mean, got_var) = moments(&draws);
+            assert!((got_mean / mu - 1.0).abs() < 0.02, "{got_mean} vs {mu}");
+            assert!((got_var / var - 1.0).abs() < 0.02, "{got_var} vs {var}");
+        }
+        let (lo, hi) = values
+            .iter()
+            .fold((f64::MAX, f64::MIN), |(a, b), &v| (a.min(v), b.max(v)));
+        for (mu, var) in [
+            (2.0 * hi, variance),
+            (mean, 100.0 * variance),
+            (lo, variance),
+        ] {
+            let (m, s, clamped) = lookup.query(mu, var);
+            assert!(clamped, "({mu}, {var})");
+            assert!(
+                z.iter()
+                    .map(|z| transform.back(m + s * z, 0.0))
+                    .all(|v| (lo..=hi).contains(&v))
+            );
+        }
+    }
+
+    struct Field {
+        grid: Vec<(f64, f64, f64)>,
+        data: Vec<usize>,
+        values: Vec<f64>,
+    }
+
+    /// A lognormal field, `exp(0.5·Y)` with `Y` a spectral Gaussian field of
+    /// Gaussian covariance (scale 10), on a 50 × 50 grid of spacing 2,
+    /// sampled every fifth node.
+    fn field() -> Field {
+        let grid: Vec<_> = (0..2500)
+            .map(|i| ((i % 50) as f64 * 2.0, (i / 50) as f64 * 2.0, 0.0))
+            .collect();
+        let mut rng = StdRng::seed_from_u64(11);
+        let frequency = Normal::new(0.0_f64, 1.0 / 10.0).unwrap();
+        let waves: Vec<(f64, f64, f64)> = (0..300)
+            .map(|_| {
+                (
+                    frequency.sample(&mut rng),
+                    frequency.sample(&mut rng),
+                    rng.gen_range(0.0..std::f64::consts::TAU),
+                )
+            })
+            .collect();
+        let gaussian = |p: &(f64, f64, f64)| {
+            (2.0 / waves.len() as f64).sqrt()
+                * waves
+                    .iter()
+                    .map(|(u, v, phase)| (u * p.0 + v * p.1 + phase).cos())
+                    .sum::<f64>()
+        };
+        let data: Vec<usize> = (0..grid.len())
+            .filter(|i| i % 5 == 2 && i / 50 % 5 == 2)
+            .collect();
+        let values = data
+            .iter()
+            .map(|&i| (0.5 * gaussian(&grid[i])).exp())
+            .collect();
+        Field { grid, data, values }
+    }
+
+    fn search() -> SgsParams {
+        SgsParams {
+            search: vec![Search {
+                min_samples: 1,
+                max_samples: 16,
+                radius: 60.0,
+                ..Default::default()
+            }],
+            seed: 0,
+        }
+    }
+
+    /// The covariance of the field: Gaussian of practical range √6 · 10.
+    fn vg() -> Variogram {
+        Variogram {
+            nugget: 0.02,
+            ..Variogram::single(Model::Gaussian, 0.98, 24.5)
+        }
+    }
+
+    #[test]
+    fn dss_honors_data_histogram_and_variogram() {
+        let f = field();
+        let locs: Vec<_> = f.data.iter().map(|&i| f.grid[i]).collect();
+        let transform = Transforms::fit(&f.values, None, None, None)
+            .unwrap()
+            .domains
+            .remove(0)
+            .unwrap();
+        let (mean, variance) = moments(&f.values);
+        let model = |h: f64| vg().gamma(h) * variance / vg().total_sill();
+        let probabilities = [0.1, 0.5, 0.9];
+        let lags = [2, 5, 10];
+        let n = 50;
+        let (mut quantiles, mut gammas, mut simulated) = ([0.0; 3], [0.0; 3], (0.0, 0.0));
+        for seed in 0..n {
+            let params = SgsParams { seed, ..search() };
+            let r = dss_in(
+                &locs,
+                &f.values,
+                None,
+                None,
+                None,
+                &f.grid,
+                &vg(),
+                &params,
+                None,
+            )
+            .unwrap();
+            for (&i, &v) in f.data.iter().zip(&f.values) {
+                assert_eq!(r.values[i], v);
+            }
+            let (m, v) = moments(&r.values);
+            simulated = (simulated.0 + m / n as f64, simulated.1 + v / n as f64);
+            let mut sorted = r.values.clone();
+            sorted.sort_by(f64::total_cmp);
+            for (q, p) in quantiles.iter_mut().zip(probabilities) {
+                *q += sorted[(p * sorted.len() as f64) as usize] / n as f64;
+            }
+            for (g, lag) in gammas.iter_mut().zip(lags) {
+                let (mut sum, mut pairs) = (0.0, 0);
+                for y in 0..50 {
+                    for x in 0..50 - lag {
+                        for (a, b) in [
+                            (y * 50 + x, y * 50 + x + lag),
+                            (x * 50 + y, (x + lag) * 50 + y),
+                        ] {
+                            sum += 0.5 * (r.values[a] - r.values[b]).powi(2);
+                            pairs += 1;
+                        }
+                    }
+                }
+                *g += sum / pairs as f64 / n as f64;
+            }
+        }
+        assert!((simulated.0 / mean - 1.0).abs() < 0.02, "{simulated:?}");
+        assert!((simulated.1 / variance - 1.0).abs() < 0.05, "{simulated:?}");
+        // DSS reproduces the mean and variance, the histogram only
+        // approximately: the kriged means, averages of skewed data, are less
+        // skewed than the data, and pull the median toward the mean (+7 %
+        // here, P10 -6 %, P90 -2 %).
+        for (q, p) in quantiles.iter().zip(probabilities) {
+            let target = transform.back(probit(p), 0.0);
+            assert!((q / target - 1.0).abs() < 0.1, "P{p}: {q} vs {target}");
+        }
+        for (g, lag) in gammas.iter().zip(lags) {
+            let target = model(2.0 * lag as f64);
+            assert!((g / target - 1.0).abs() < 0.1, "lag {lag}: {g} vs {target}");
+        }
+    }
+
+    #[test]
+    fn realizations_follow_the_seed_not_threads() {
+        let f = field();
+        let locs: Vec<_> = f.data.iter().map(|&i| f.grid[i]).collect();
+        let codes: Vec<u32> = locs.iter().map(|p| u32::from(p.0 > 50.0)).collect();
+        let nodes: Vec<u32> = f.grid.iter().map(|p| u32::from(p.0 > 50.0)).collect();
+        let weights: Vec<f64> = (0..locs.len()).map(|i| 1.0 + (i % 3) as f64).collect();
+        let run = |threads| {
+            let pool = rayon::ThreadPoolBuilder::new().num_threads(threads);
+            pool.build().unwrap().install(|| {
+                let r = dss_in(
+                    &locs,
+                    &f.values,
+                    Some(&weights),
+                    None,
+                    Some((&codes, &nodes)),
+                    &f.grid,
+                    &vg(),
+                    &search(),
+                    None,
+                )
+                .unwrap();
+                (r.values, r.clamped)
+            })
+        };
+        assert_eq!(run(1), run(4));
+    }
+}
