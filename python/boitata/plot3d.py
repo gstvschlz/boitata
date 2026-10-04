@@ -122,19 +122,23 @@ def _(data: PointSet):
     return to_pyvista(data), {"render_points_as_spheres": True, "point_size": 6}
 
 
+def _traces(data):
+    if data.interval_columns is None:
+        return to_pyvista(data)
+    table = data.samples().attributes
+    hole, start, end = data.interval_columns
+    holes = list(table[hole])
+    ends = np.hstack([data.at(holes, table[start]), data.at(holes, table[end])]).reshape(-1, 3)
+    segments = np.arange(len(ends)).reshape(-1, 2)
+    lines = _pyvista().PolyData(ends, lines=np.c_[np.full(len(segments), 2), segments].ravel())
+    for name, values in _columns(table):
+        lines.cell_data[name] = values
+    return lines
+
+
 @_layer.register
 def _(data: Drillholes, *, radius=None):
-    if data.interval_columns is None:
-        lines = to_pyvista(data)
-    else:
-        table = data.samples().attributes
-        hole, start, end = data.interval_columns
-        holes = list(table[hole])
-        ends = np.hstack([data.at(holes, table[start]), data.at(holes, table[end])]).reshape(-1, 3)
-        segments = np.arange(len(ends)).reshape(-1, 2)
-        lines = _pyvista().PolyData(ends, lines=np.c_[np.full(len(segments), 2), segments].ravel())
-        for name, values in _columns(table):
-            lines.cell_data[name] = values
+    lines = _traces(data)
     return lines.tube(radius=lines.length / 400 if radius is None else radius), {}
 
 
@@ -187,23 +191,57 @@ def _volume(pv, mesh, values):
     return grid, (null, lo, hi)
 
 
-def _detail(pv, renderer, mapper, full, values):
-    """Above the GPU memory budget, a coarse copy of `full` draws while the camera moves, `full` once it stops."""
+def _memory(mapper, values):
+    """Share of the GPU memory budget a volume takes."""
     budget = mapper.GetMaxMemoryInBytes() * mapper.GetMaxMemoryFraction()
-    step = int(np.ceil((full.point_data[values].nbytes / budget) ** (1 / 3)))
-    if step <= 1:
-        return
-    cube = full.point_data[values].reshape(full.dimensions, order="F")[::step, ::step, ::step]
-    coarse = _image(pv, cube, full.origin, np.multiply(full.spacing, step), full.direction_matrix, values)
-    window = renderer.GetRenderWindow
+    return mapper.dataset.point_data[values].nbytes / budget
 
-    def switch(*_):
-        moving = window().GetDesiredUpdateRate() >= mapper.GetInteractiveUpdateRate()
-        mapper.SetInputData(coarse if moving else full)
-        mapper.SetRequestedRenderMode(mapper.GPURenderMode if moving else mapper.RayCastRenderMode)
 
-    switch()
-    renderer.AddObserver("StartEvent", switch)
+def _points_only(mesh):
+    return isinstance(mesh, _pyvista().PolyData) and mesh.n_verts == mesh.n_cells
+
+
+def _cheap(pv, data, mesh, values, fraction):
+    """About `fraction` of a layer's geometry, and the ``add_mesh`` options that draw it, or None to keep it."""
+    if isinstance(data, Drillholes):
+        return _traces(data), {}
+    if isinstance(mesh, pv.ImageData) and (values is None or _on_cells(mesh, values)):
+        shape = np.subtract(mesh.dimensions, 1)
+        step = np.where(shape > 1, int(np.ceil(fraction ** (-1 / max((shape > 1).sum(), 1)))), 1)
+        out = pv.ImageData(
+            dimensions=-(-shape // step) + 1,
+            spacing=np.multiply(mesh.spacing, step),
+            origin=mesh.origin,
+            direction_matrix=mesh.direction_matrix,
+        )
+        every = tuple(slice(None, None, s) for s in step)
+        for name, field in mesh.cell_data.items():
+            out.cell_data[name] = field.reshape(shape, order="F")[every].ravel(order="F")
+        return out, {}
+    if not isinstance(mesh, pv.PolyData) or _points_only(mesh):
+        n = mesh.n_points if _points_only(mesh) else mesh.n_cells
+        keep = np.sort(np.random.default_rng(0).choice(n, max(round(fraction * n), 1), replace=False))
+        if not _points_only(mesh):
+            return mesh.extract_cells(keep), {}
+        out = pv.PolyData(mesh.points[keep])
+        for name, field in mesh.point_data.items():
+            out.point_data[name] = field[keep]
+        return out, {"render_points_as_spheres": False}
+    from vtkmodules.vtkFiltersCore import vtkQuadricClustering
+
+    alg = vtkQuadricClustering()
+    alg.SetInputData(mesh)
+    alg.CopyCellDataOn()
+    alg.UseInputPointsOn()
+    alg.SetNumberOfDivisions(*[max(int(np.sqrt(fraction * mesh.n_cells / 2)), 2)] * 3)
+    alg.Update()
+    out = pv.wrap(alg.GetOutput())
+    if out.n_cells and values in mesh.point_data and not _text(mesh.point_data[values]):
+        out = out.sample(mesh)
+    return (out, {}) if out.n_cells and (values is None or values in out.array_names) else (None, {})
+
+
+_BUDGET = 1_000_000
 
 
 _SCENES = weakref.WeakKeyDictionary()
@@ -216,6 +254,15 @@ class Scene:
     ----------
     plotter : pyvista.Plotter, optional
         Plotter to draw into; a new one by default.
+    motion_quality : {"auto", "full"} or float, default "auto"
+        What draws while the camera moves (dragged or zoomed): ``"full"`` every layer as it is; ``"auto"`` a cheaper
+        copy of each layer of more than a million cells or points (a volume also when it exceeds GPU memory); a
+        number in (0, 1] a cheaper copy of every layer with about that fraction of its geometry. Once the camera
+        stops, the layers draw in full again. Each copy is built the first time the camera moves and kept: a
+        regular block model takes every n-th block along each axis, points a fixed random subset drawn flat,
+        other cells (masked or sub-blocked models) a fixed random subset, drill holes lines in place of tubes,
+        surfaces a decimated copy; each keeps its layer's colors and leaves nulls out. Takes effect in the native window and in trame with server
+        rendering; client rendering (vtk.js, ``show(browser=True)``) draws the full layers.
     **kwargs
         Passed to ``pyvista.Plotter`` when `plotter` is not given (e.g. ``window_size``, ``off_screen``).
 
@@ -225,9 +272,11 @@ class Scene:
         Attributes the scene does not have are looked up on it (``view_vector``, ``close``, ...).
     colors : dict of str to pyvista.LookupTable
         Color map and range of each variable, shared by every layer it colors.
+    motion_quality : {"auto", "full"} or float
+        As the parameter; setting it drops the cheaper copies built so far.
     """
 
-    def __init__(self, *, plotter=None, **kwargs):
+    def __init__(self, *, plotter=None, motion_quality="auto", **kwargs):
         self.plotter = _pyvista().Plotter(**kwargs) if plotter is None else plotter
         self.colors = {}
         self._categories = {}
@@ -238,12 +287,64 @@ class Scene:
         self._layers = []
         self._cuts = []
         self._plane = None
+        self._sources = []
+        self._fast = {}
+        self.motion_quality = motion_quality
+        self.plotter.renderer.AddObserver("StartEvent", self._move)
         _SCENES[self.plotter] = self
 
     def __getattr__(self, name):
         if name == "plotter":
             raise AttributeError(name)
         return getattr(self.plotter, name)
+
+    @property
+    def motion_quality(self):
+        return self._quality
+
+    @motion_quality.setter
+    def motion_quality(self, value):
+        number = isinstance(value, int | float) and not isinstance(value, bool)
+        if value not in ("auto", "full") and not (number and 0 < value <= 1):
+            raise ValueError(f"motion_quality must be 'auto', 'full' or a number in (0, 1], got {value!r}")
+        for fast in self._fast.values():
+            if fast is not None:
+                self.plotter.remove_actor(fast, render=False)
+                for props in self._volumes.values():
+                    props[:] = [v for v in props if v[0] is not fast.prop]
+        for *_, actor in self._layers:
+            if actor is not None:
+                actor.SetVisibility(self._plane is None)
+        self._fast = {}
+        self._quality = value
+
+    def _move(self, renderer, _):
+        moving = self._plane is None and renderer.GetRenderWindow().GetDesiredUpdateRate() >= 1
+        for i, layer in enumerate(self._layers):
+            if moving and i not in self._fast:
+                self._fast[i] = self._degrade(self._sources[i], *layer)
+            fast = self._fast.get(i)
+            if fast is not None:
+                fast.SetVisibility(moving)
+                if self._plane is None:
+                    layer[-1].SetVisibility(not moving)
+
+    def _degrade(self, data, mesh, flat, values, style, kwargs, actor):
+        if actor is None or self.motion_quality == "full":
+            return None
+        fraction = self.motion_quality
+        if fraction == "auto":
+            size = mesh.n_points if _points_only(mesh) else mesh.n_cells
+            share = _memory(actor.mapper, values) if style == "volume" else 0
+            fraction = min(1, _BUDGET / max(size, 1), 1 / share if share else 1)
+        if fraction >= 1:
+            return None
+        cheap, options = _cheap(_pyvista(), data, mesh, values, fraction)
+        if cheap is None:
+            return None
+        options = {**kwargs, **options, "render": False, "reset_camera": False, "show_scalar_bar": False}
+        options.pop("name", None)
+        return self._draw(cheap, values, style, options)
 
     def add(self, data, values=None, *, style=None, radius=None, labels=False, **kwargs):
         """Adds a layer.
@@ -258,7 +359,7 @@ class Scene:
         style : {"surface", "wireframe", "points", "points_gaussian", "volume"}, optional
             How cells are drawn; a `PointSet` draws its points as spheres. ``"volume"`` renders a regular block
             model colored by `values` on the GPU, each block a uniform cube; a model too large for GPU memory draws
-            a coarser copy while the camera moves and the full one once it stops.
+            on the CPU once the camera stops (see `motion_quality` for while it moves).
         radius : float, optional
             `Drillholes` only: radius of their tubes, 1/400 of the diagonal of their bounds by default. All holes form
             one tube mesh: a tube per interval with the interval columns as cell data, or per hole through its
@@ -288,6 +389,7 @@ class Scene:
         kwargs = {**defaults, **kwargs}
         actor = self._draw(mesh, values, style, dict(kwargs))
         self._layers.append((mesh, flat, values, style, kwargs, actor))
+        self._sources.append(data)
         if labels:
             self.plotter.add_point_labels(*_collars(data), shape=None, show_points=False, always_visible=True)
         return self
@@ -321,7 +423,8 @@ class Scene:
         )
         actor.prop.interpolation_type = "nearest"
         actor.mapper.SetInterpolationModeToNearestNeighbor()
-        _detail(pv, self.plotter.renderer, actor.mapper, actor.mapper.dataset, values)
+        if _memory(actor.mapper, values) > 1:
+            actor.mapper.SetRequestedRenderMode(actor.mapper.RayCastRenderMode)
         self._volumes.setdefault(values, []).append((actor.prop, opacity, *span))
         self._paint(values)
         return actor

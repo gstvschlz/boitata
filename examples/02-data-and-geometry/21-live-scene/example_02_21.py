@@ -117,3 +117,31 @@ for lens in lenses:
     scene.add(lens, style="wireframe", color=LIGHT, opacity=0.1)
 print(f"{len(fence_holes.holes)} of {len(holes.holes)} holes, {len(fence_holes.samples()):,} intervals")
 save(image(scene, "Zn assays down a fence of holes, one tube mesh", view=(1, -0.2, 0.3)), "holes")
+
+# %% [markdown]
+# while the camera moves, `motion_quality` swaps each layer for a cheaper copy and draws it in full again once the
+# camera stops. `"auto"`, the default, only does so above a million cells or points; a number asks for about that
+# fraction of every layer's geometry. here a tenth: the blocks above 2 % Zn thin to a fixed random tenth of
+# them, the composites likewise as flat points, the assay tubes become lines. off-screen, a render at the interactive
+# update rate stands in for a drag. the swap needs the camera events of the native window or of trame's server
+# rendering; trame's client rendering (vtk.js) and `show(browser=True)` always draw the full layers.
+
+# %%
+scene = bt.plot3d.Scene(window_size=(700, 450), motion_quality=0.1)
+blocks = grid.mask(np.nan_to_num(grid["ZN_PCT"]) > 2)
+scene.add(blocks, "ZN_PCT", clim=(0, 10), opacity=0.4, scalar_bar_args={"title": "Zn (%)", **BAR})
+scene.add(composites.filter(near), "ZN_PCT", point_size=4)
+scene.add(holes, "ZN_PCT", radius=3)
+scene.view_vector((0.8, -0.6, 0.6))
+scene.camera.zoom(1.5)
+frames = {}
+for state, rate in (("stopped", 0.0001), ("moving", 15.0)):
+    scene.ren_win.SetDesiredUpdateRate(rate)
+    frames[state] = scene.plotter.screenshot(return_img=True, scale=2)
+scene.close()
+fig, axes = plt.subplots(1, 2, figsize=(11, 3.6), layout="constrained")
+for ax, (state, pixels) in zip(axes, frames.items(), strict=True):
+    ax.imshow(pixels)
+    ax.set_axis_off()
+    ax.set_title(f"Camera {state}")
+save(fig, "motion")
