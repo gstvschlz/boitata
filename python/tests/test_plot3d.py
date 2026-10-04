@@ -199,3 +199,32 @@ def test_scene_opens_a_page_in_the_browser(pv, monkeypatch):
     path = scene.show(browser=True)
     scene.close()
     assert opened == [path.as_uri()] and path.stat().st_size > 0
+
+
+def test_drillholes_render_as_one_tube_mesh_without_null_intervals(pv, monkeypatch):
+    collar = {"HOLE_ID": ["a", "b", "c"], "X": [0.0, 50, 100], "Y": [0.0, 0, 0], "Z": [100.0, 100, 100]}
+    survey = {"HOLE_ID": ["a", "b", "c"], "DEPTH": [0.0, 0, 0], "AZIMUTH": [0.0, 0, 0], "DIP": [90.0, 90, 90]}
+    intervals = {
+        "HOLE_ID": ["a", "a", "b", "b", "c"],
+        "FROM": [0.0, 10, 0, 10, 0],
+        "TO": [10.0, 20, 10, 20, 30],
+        "CU": [1.0, np.nan, 2, 3, 4],
+    }
+    dh = bt.Drillholes(collar, survey, intervals)
+    scene = bt.plot3d.Scene(off_screen=True)
+    labels = []
+    monkeypatch.setattr(scene.plotter, "add_point_labels", lambda *a, **k: labels.append(a))
+    scene.add(dh, "CU", radius=1.0, labels=True)
+    (mapper,) = layers(scene, pv)
+    tubes = drawn(mapper, pv)
+    assert sorted(np.unique(tubes.cell_data["CU"])) == [1, 2, 3, 4]
+    np.testing.assert_allclose(tubes.bounds[4:], [70, 100], atol=0.1)
+    assert tubes.points[np.abs(tubes.points[:, 0]) < 2, 2].min() == pytest.approx(90)
+    ((collars, names),) = labels
+    np.testing.assert_allclose(collars, [[0, 0, 100], [50, 0, 100], [100, 0, 100]])
+    assert names == ["a", "b", "c"]
+    scene.close()
+    survey = {key: values * 2 for key, values in survey.items()} | {"DEPTH": [0.0] * 3 + [30.0] * 3}
+    traces = bt.plot3d.Scene(off_screen=True).add(bt.Drillholes(collar, survey), radius=1.0)
+    np.testing.assert_allclose(drawn(layers(traces, pv)[0], pv).bounds, [-1, 101, -1, 1, 70, 100], atol=0.01)
+    traces.close()

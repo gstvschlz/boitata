@@ -121,6 +121,29 @@ def _(data: PointSet):
     return to_pyvista(data), {"render_points_as_spheres": True, "point_size": 6}
 
 
+@_layer.register
+def _(data: Drillholes, *, radius=None):
+    if data.interval_columns is None:
+        lines = to_pyvista(data)
+    else:
+        table = data.samples().attributes
+        hole, start, end = data.interval_columns
+        holes = list(table[hole])
+        ends = np.hstack([data.at(holes, table[start]), data.at(holes, table[end])]).reshape(-1, 3)
+        segments = np.arange(len(ends)).reshape(-1, 2)
+        lines = _pyvista().PolyData(ends, lines=np.c_[np.full(len(segments), 2), segments].ravel())
+        for name, values in _columns(table):
+            lines.cell_data[name] = values
+    return lines.tube(radius=lines.length / 400 if radius is None else radius), {}
+
+
+def _collars(data):
+    paths = data.paths()
+    hole = np.asarray(paths[paths.column_names[0]])
+    first = np.r_[True, hole[1:] != hole[:-1]]
+    return np.c_[paths["x"], paths["y"], paths["z"]][first], hole[first].tolist()
+
+
 def _text(field):
     return field.dtype.kind in "OUS"
 
@@ -174,7 +197,7 @@ class Scene:
             raise AttributeError(name)
         return getattr(self.plotter, name)
 
-    def add(self, data, values=None, *, style=None, **kwargs):
+    def add(self, data, values=None, *, style=None, radius=None, labels=False, **kwargs):
         """Adds a layer.
 
         Parameters
@@ -186,6 +209,12 @@ class Scene:
             are left out. Numbers share one range over every layer the variable colors, text one category list.
         style : {"surface", "wireframe", "points", "points_gaussian"}, optional
             How cells are drawn; a `PointSet` draws its points as spheres.
+        radius : float, optional
+            `Drillholes` only: radius of their tubes, 1/400 of the diagonal of their bounds by default. All holes form
+            one tube mesh: a tube per interval with the interval columns as cell data, or per hole through its
+            desurveyed stations when there are no intervals.
+        labels : bool, default False
+            `Drillholes` only: writes each hole's name at its collar.
         **kwargs
             Passed to ``plotter.add_mesh``. ``cmap`` sets the variable's color map and ``clim`` fixes its range for
             every layer; the first ``scalar_bar_args`` given for a variable style its one color bar.
@@ -195,7 +224,7 @@ class Scene:
         Scene
             This scene, to chain calls.
         """
-        mesh, defaults = _layer(data)
+        mesh, defaults = _layer(data, **({} if radius is None else {"radius": radius}))
         if isinstance(mesh, _pyvista().MultiBlock):
             mesh = mesh.combine()
         if values is not None:
@@ -205,13 +234,15 @@ class Scene:
             mesh, kwargs["cmap"] = self._color(
                 mesh, values, kwargs.pop("cmap", None), kwargs.pop("clim", None)
             )
-            labels = {"n_labels": 0} if values in self._categories else {}
-            bar = {"title": values, **labels, **kwargs.get("scalar_bar_args", {})}
+            ticks = {"n_labels": 0} if values in self._categories else {}
+            bar = {"title": values, **ticks, **kwargs.get("scalar_bar_args", {})}
             kwargs["scalar_bar_args"] = dict(self._bars.setdefault(values, bar))
         actor = self.plotter.add_mesh(mesh, scalars=values, style=style, **{**defaults, **kwargs})
         if values is not None:
             actor.mapper.SetUseLookupTableScalarRange(True)
             self.colors[values].scalar_range = self._ranges[values]
+        if labels:
+            self.plotter.add_point_labels(*_collars(data), shape=None, show_points=False, always_visible=True)
         return self
 
     def _color(self, mesh, values, cmap, clim):
