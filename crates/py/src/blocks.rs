@@ -340,12 +340,27 @@ impl Mesh {
     ///     winds outward; inside an odd number it is a cavity and winds
     ///     inward, so the volume is outer minus cavities. Kept vertices and
     ///     triangles keep their order and attributes. Repairing it again
-    ///     changes nothing.
+    ///     changes nothing. Crossing faces stay; ``validate`` reports them.
     #[pyo3(signature = (*, tolerance=0.0))]
     fn repair(&self, py: Python, tolerance: f64) -> PyResult<Self> {
         let mesh = py
             .detach(|| self.mesh.repair(tolerance))
             .map_err(core_error)?;
+        Ok(Self::from_core(mesh))
+    }
+
+    /// Closes each hole with a fan of triangles from its first vertex.
+    ///
+    /// Returns
+    /// -------
+    /// Mesh
+    ///     A new mesh with the fans appended, wound like the faces around
+    ///     each hole, with null face attributes. A hole is a loop of boundary
+    ///     edges; a loop through a vertex that starts two boundary edges
+    ///     stays open. A fan suits small, nearly planar, convex holes; others
+    ///     can come out folded, so validate the result.
+    fn fill_holes(&self, py: Python) -> PyResult<Self> {
+        let mesh = py.detach(|| self.mesh.fill_holes()).map_err(core_error)?;
         Ok(Self::from_core(mesh))
     }
 
@@ -416,7 +431,9 @@ impl MeshReport {
     /// ``inconsistent_edges`` (whose two faces run them the same way),
     /// ``shells`` (pieces connected through shared edges) and
     /// ``inward_shells`` (closed shells wound against their nesting: a
-    /// cavity should wind inward, anything else outward), and ``is_closed``.
+    /// cavity should wind inward, anything else outward),
+    /// ``self_intersections`` (pairs of faces crossing without sharing an
+    /// edge) and ``is_closed``.
     #[getter]
     fn summary<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
         let s = &self.0.summary;
@@ -430,6 +447,7 @@ impl MeshReport {
         d.set_item("inconsistent_edges", s.inconsistent_edges)?;
         d.set_item("shells", s.shells)?;
         d.set_item("inward_shells", s.inward_shells)?;
+        d.set_item("self_intersections", s.self_intersections)?;
         d.set_item("is_closed", s.is_closed)?;
         Ok(d)
     }
@@ -437,12 +455,14 @@ impl MeshReport {
     /// One row per problem, ordered by ``kind``: ``degenerate_face``,
     /// ``duplicate_face``, ``duplicate_vertex``, ``boundary_edge``,
     /// ``non_manifold_edge``, ``non_manifold_vertex``,
-    /// ``inconsistent_winding``, ``inward_shell``. ``face``, ``vertex``,
+    /// ``inconsistent_winding``, ``inward_shell``, ``self_intersection``.
+    /// ``face``, ``vertex``,
     /// ``edge`` and ``other`` are null where they do not apply. An edge
     /// problem gives a ``face`` holding the edge, the local ``edge`` (from
     /// corner ``edge`` to corner ``(edge + 1) % 3``) and its first
     /// ``vertex``. ``other`` is the earlier face or vertex a duplicate
-    /// repeats, or the other face of an inconsistent edge; an inward shell
+    /// repeats, the other face of an inconsistent edge, or the earlier face
+    /// of a crossing pair; an inward shell
     /// gives its first face.
     #[getter]
     fn problems(&self) -> PyResult<Table> {
