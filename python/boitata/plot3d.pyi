@@ -21,6 +21,24 @@ class Scene:
         labels: bool = False,
         **kwargs: Any,
     ) -> Self: ...
+    def section(
+        self,
+        origin: tuple[float, float, float] | Any | None,
+        *,
+        azimuth: float = 90.0,
+        dip: float = 90.0,
+        width: float | None = None,
+    ) -> Self: ...
+    def section_widget(
+        self,
+        *,
+        origin: tuple[float, float, float] | Any | None = None,
+        azimuth: float = 90.0,
+        dip: float = 90.0,
+        width: float | None = None,
+        **kwargs: Any,
+    ) -> Self: ...
+    def view_section(self) -> Self: ...
     def show(self, *, browser: bool = False, **kwargs: Any) -> Path | Any: ...
     def screenshot(self, path: str | Path, *, scale: int = 1, transparent: bool = False) -> Path: ...
 

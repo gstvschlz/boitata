@@ -40,6 +40,9 @@ NOT_PLOTS = {
     "plot3d.Scene.add",
     "plot3d.Scene.show",
     "plot3d.Scene.screenshot",
+    "plot3d.Scene.section",
+    "plot3d.Scene.section_widget",
+    "plot3d.Scene.view_section",
 }
 # `fit` building a new model from experimental variograms, not fitting the object in place.
 MODEL_FITS = {"Variogram", "ExperimentalVariogram", "Coregionalization"}
