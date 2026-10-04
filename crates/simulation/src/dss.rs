@@ -147,12 +147,12 @@ struct Domain {
 
 /// Raw values kriged with each domain's mean and rescaled variogram, drawn
 /// through its lookup.
-struct DssSpace {
-    domains: Vec<Option<Domain>>,
+struct DssSpace<'a> {
+    domains: &'a [Option<Domain>],
     clamped: AtomicUsize,
 }
 
-impl DssSpace {
+impl DssSpace<'_> {
     fn domain(&self, domain: Option<u32>) -> &Domain {
         self.domains[domain.unwrap_or(0) as usize]
             .as_ref()
@@ -160,7 +160,7 @@ impl DssSpace {
     }
 }
 
-impl Space for DssSpace {
+impl Space for DssSpace<'_> {
     fn neighbor(&self, value: f64, _: f64, _: Option<u32>) -> f64 {
         value
     }
@@ -197,12 +197,165 @@ impl Space for DssSpace {
     }
 }
 
-/// One DSS realization, with `domains` as in [`crate::sgs_in`].
-///
-/// `vg` is the variogram of the values; within each domain its nugget and
-/// sills are rescaled so the total sill is the domain's declustered
-/// variance (by `data_weights`), and nodes are simple kriged with the
-/// domain's declustered mean.
+/// DSS fitted to its data: each domain's declustered histogram, lookup
+/// table, mean and rescaled variogram, built once for any number of
+/// realizations.
+pub struct Dss<'a> {
+    data_locs: &'a [(f64, f64, f64)],
+    data_vals: &'a [f64],
+    data_holes: Option<&'a [u32]>,
+    data_domains: Option<&'a [u32]>,
+    vg: &'a Variogram,
+    /// By domain code; `None` for a domain without data or whose values do
+    /// not vary, an error only once a node falls in it.
+    domains: Vec<Option<Domain>>,
+}
+
+impl<'a> Dss<'a> {
+    /// Fitted to the data, with `data_domains` the domain code of each
+    /// datum.
+    ///
+    /// `vg` is the variogram of the values; within each domain its nugget
+    /// and sills are rescaled so the total sill is the domain's declustered
+    /// variance (by `data_weights`), and nodes are simple kriged with the
+    /// domain's declustered mean.
+    pub fn new(
+        data_locs: &'a [(f64, f64, f64)],
+        data_vals: &'a [f64],
+        data_weights: Option<&[f64]>,
+        data_holes: Option<&'a [u32]>,
+        data_domains: Option<&'a [u32]>,
+        vg: &'a Variogram,
+    ) -> Result<Self> {
+        let sill = vg.total_sill();
+        if !(sill.is_finite() && sill > 0.0 && vg.is_stationary()) {
+            return Err(SimError::InvalidParameters(
+                "the variogram needs a finite positive sill".into(),
+            ));
+        }
+        if let Some(v) = data_vals.iter().find(|v| !v.is_finite()) {
+            return Err(SimError::InvalidParameters(format!(
+                "data value {v} is not finite"
+            )));
+        }
+        let fitted = Transforms::fit(data_vals, data_weights, data_domains, None)?;
+        let domains = fitted
+            .domains
+            .into_iter()
+            .enumerate()
+            .map(|(k, transform)| {
+                let Some(transform) = transform else {
+                    return Ok(None);
+                };
+                let rows: Vec<usize> = (0..data_vals.len())
+                    .filter(|&i| data_domains.map_or(0, |c| c[i] as usize) == k)
+                    .collect();
+                let pick = |v: &[f64]| rows.iter().map(|&i| v[i]).collect::<Vec<_>>();
+                let (mean, variance) =
+                    weighted_mean_variance(&pick(data_vals), data_weights.map(pick).as_deref())
+                        .map_err(|e| SimError::Transform(e.to_string()))?;
+                if variance <= 0.0 {
+                    return Ok(None);
+                }
+                let f = variance / sill;
+                let vg = Variogram {
+                    nugget: vg.nugget * f,
+                    structures: vg
+                        .structures
+                        .iter()
+                        .map(|s| Structure {
+                            sill: s.sill * f,
+                            ..*s
+                        })
+                        .collect(),
+                    anisotropy: vg.anisotropy.clone(),
+                };
+                Ok(Some(Domain {
+                    lookup: Lookup::new(&transform),
+                    transform,
+                    vg,
+                    mean,
+                }))
+            })
+            .collect::<Result<Vec<_>>>()?;
+        Ok(Self {
+            data_locs,
+            data_vals,
+            data_holes,
+            data_domains,
+            vg,
+            domains,
+        })
+    }
+
+    /// One realization over `grid`, with `node_domains` the domain code of
+    /// each node when fitted with domains (see [`crate::sgs_in`]).
+    pub fn simulate(
+        &self,
+        node_domains: Option<&[u32]>,
+        grid: &[(f64, f64, f64)],
+        params: &SgsParams,
+        local: Option<&LocalAnisotropy>,
+    ) -> Result<DssRealization> {
+        let domains = match (self.data_domains, node_domains) {
+            (Some(d), Some(n)) => Some((d, n)),
+            (None, None) => None,
+            _ => {
+                return Err(SimError::InvalidParameters(
+                    "domains at both the data and the nodes, or neither".into(),
+                ));
+            }
+        };
+        let holes = inputs(
+            self.data_locs,
+            self.data_vals,
+            self.data_holes,
+            domains,
+            None,
+            grid,
+            params,
+            local,
+        )?;
+        let flat = match node_domains {
+            None => (!grid.is_empty() && self.domains[0].is_none()).then_some(0),
+            Some(n) => n
+                .iter()
+                .copied()
+                .find(|&c| self.domains[c as usize].is_none()),
+        };
+        if let Some(k) = flat {
+            return Err(SimError::InsufficientData(format!(
+                "the values of domain {k} do not vary"
+            )));
+        }
+        let space = DssSpace {
+            domains: &self.domains,
+            clamped: AtomicUsize::new(0),
+        };
+        let realization = sequential(
+            &space,
+            self.data_vals.to_vec(),
+            self.data_locs,
+            self.data_vals,
+            holes,
+            domains,
+            None,
+            grid,
+            self.vg,
+            params,
+            local,
+            None,
+            |_, _, _, _| {},
+        )?;
+        Ok(DssRealization {
+            values: realization.values,
+            clamped: space.clamped.into_inner(),
+        })
+    }
+}
+
+/// One DSS realization, with `domains` as in [`crate::sgs_in`]: [`Dss::new`]
+/// then [`Dss::simulate`]. Several realizations share one [`Dss`].
 #[allow(clippy::too_many_arguments)]
 pub fn dss_in(
     data_locs: &[(f64, f64, f64)],
@@ -215,90 +368,15 @@ pub fn dss_in(
     params: &SgsParams,
     local: Option<&LocalAnisotropy>,
 ) -> Result<DssRealization> {
-    let sill = vg.total_sill();
-    if !(sill.is_finite() && sill > 0.0 && vg.is_stationary()) {
-        return Err(SimError::InvalidParameters(
-            "the variogram needs a finite positive sill".into(),
-        ));
-    }
-    let holes = inputs(
-        data_locs, data_vals, data_holes, domains, None, grid, params, local,
-    )?;
-    let codes = domains.map(|d| d.0);
-    let fitted = Transforms::fit(data_vals, data_weights, codes, None)?;
-    let mut simulated = vec![domains.is_none(); fitted.domains.len()];
-    for &c in domains.map_or(&[][..], |d| d.1) {
-        if let Some(s) = simulated.get_mut(c as usize) {
-            *s = true;
-        }
-    }
-    let domains_fit = fitted
-        .domains
-        .into_iter()
-        .enumerate()
-        .map(|(k, transform)| {
-            let Some(transform) = transform else {
-                return Ok(None);
-            };
-            if !simulated[k] {
-                return Ok(None);
-            }
-            let rows: Vec<usize> = (0..data_vals.len())
-                .filter(|&i| codes.map_or(0, |c| c[i] as usize) == k)
-                .collect();
-            let pick = |v: &[f64]| rows.iter().map(|&i| v[i]).collect::<Vec<_>>();
-            let (mean, variance) =
-                weighted_mean_variance(&pick(data_vals), data_weights.map(pick).as_deref())
-                    .map_err(|e| SimError::Transform(e.to_string()))?;
-            if variance <= 0.0 {
-                return Err(SimError::InsufficientData(format!(
-                    "the values of domain {k} do not vary"
-                )));
-            }
-            let f = variance / sill;
-            let vg = Variogram {
-                nugget: vg.nugget * f,
-                structures: vg
-                    .structures
-                    .iter()
-                    .map(|s| Structure {
-                        sill: s.sill * f,
-                        ..*s
-                    })
-                    .collect(),
-                anisotropy: vg.anisotropy.clone(),
-            };
-            Ok(Some(Domain {
-                lookup: Lookup::new(&transform),
-                transform,
-                vg,
-                mean,
-            }))
-        })
-        .collect::<Result<Vec<_>>>()?;
-    let space = DssSpace {
-        domains: domains_fit,
-        clamped: AtomicUsize::new(0),
-    };
-    let realization = sequential(
-        &space,
-        data_vals.to_vec(),
+    Dss::new(
         data_locs,
         data_vals,
-        holes,
-        domains,
-        None,
-        grid,
+        data_weights,
+        data_holes,
+        domains.map(|d| d.0),
         vg,
-        params,
-        local,
-        None,
-        |_, _, _, _| {},
-    )?;
-    Ok(DssRealization {
-        values: realization.values,
-        clamped: space.clamped.into_inner(),
-    })
+    )?
+    .simulate(domains.map(|d| d.1), grid, params, local)
 }
 
 #[cfg(test)]
@@ -563,5 +641,39 @@ mod tests {
             })
         };
         assert_eq!(run(1), run(4));
+    }
+
+    #[test]
+    fn realizations_match_their_snapshot() {
+        use crate::sgs::tests::{vg, zoned, zoned_grid, zoned_search};
+        let z = zoned();
+        let (grid, nodes, _) = zoned_grid();
+        let params = SgsParams {
+            search: zoned_search(Some(estimation::Soft::All(8.0))),
+            seed: 17,
+        };
+        let r = dss_in(
+            &z.locs,
+            &z.vals,
+            Some(&z.weights),
+            Some(&z.holes),
+            Some((&z.codes, &nodes)),
+            &grid,
+            &vg(),
+            &params,
+            None,
+        )
+        .unwrap();
+        // Sum and index-weighted sum: robust to the platform's last bits.
+        let got = r
+            .values
+            .iter()
+            .enumerate()
+            .fold([0.0, 0.0], |[s, m], (i, x)| [s + x, m + (i + 1) as f64 * x]);
+        let want = [6148.831983024331, 2472068.620560976];
+        for (g, w) in got.iter().zip(want) {
+            assert!((g - w).abs() <= 1e-9 * w.abs(), "{got:?}");
+        }
+        assert_eq!(r.clamped, 74);
     }
 }
