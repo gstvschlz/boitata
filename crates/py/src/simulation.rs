@@ -1274,6 +1274,10 @@ impl Sgs {
 /// kriged ones. A kriged pair that no such draw reaches, such as a mean
 /// beyond the data or a large variance near the tails, takes the nearest
 /// reachable pair; `simulate` warns with the fraction of such nodes.
+/// Each draw matches the kriged mean and variance, not the shape of the
+/// histogram: on skewed grades with a large nugget, low means take wide
+/// draws and the realizations hold too many extreme grades, which
+/// `correct_distribution` maps back to the histogram.
 ///
 /// `search` is a Search, or a sequence of them as passes, as in SGS. With
 /// `domains` at `fit`, Search.soft lets the raw grades of other domains
@@ -1531,6 +1535,7 @@ impl Dss {
             tonnage: gt,
         };
         let clamped = std::sync::atomic::AtomicUsize::new(0);
+        let simulated = std::sync::atomic::AtomicUsize::new(0);
         let summary = with_progress(py, Some(n as u64), progress, |counter| {
             simulation::continuous(
                 n,
@@ -1552,6 +1557,8 @@ impl Dss {
                         local.as_ref(),
                     )?;
                     clamped.fetch_add(r.clamped, std::sync::atomic::Ordering::Relaxed);
+                    let done = r.values.iter().filter(|v| !v.is_nan()).count();
+                    simulated.fetch_add(done, std::sync::atomic::Ordering::Relaxed);
                     averaged(&support, r.values)
                 },
                 counter,
@@ -1560,7 +1567,7 @@ impl Dss {
         .map_err(err)?;
         let clamped = clamped.into_inner();
         if clamped > 0 {
-            let share = 100.0 * clamped as f64 / (n * grid.len()) as f64;
+            let share = 100.0 * clamped as f64 / simulated.into_inner() as f64;
             let message = format!(
                 "{share:.2}% of simulated nodes had a kriged mean and variance no draw reaches; \
                  drew them from the nearest reachable pair"

@@ -62,6 +62,12 @@ print(f"normal scores: {gaussian}\ngrades:        {raw}")
 # back-transform of a gaussian whose transformed mean and variance equal the kriged ones. near the tails, or where
 # kriging extrapolates beyond the data, no such draw exists; DSS takes the nearest reachable pair and warns with the
 # share of nodes it moved. both simulators run 30 realizations from the same seed.
+#
+# each DSS draw matches its kriged mean and variance, but the histogram of a realization need not match the data. V is
+# skewed, with 9% of the declustered samples at 0 ppm, and its variogram has a 35% nugget, so the kriging variance
+# stays large where the kriged mean is low. the only draws with a low mean and a large variance put most of their
+# weight at 0 ppm and the rest at high grades. `correct_distribution` maps each realization, rank by rank, onto the
+# declustered histogram.
 
 # %%
 grid = bt.BlockModel(origin=(0.5, 0.5), size=(5, 5), count=(52, 60))
@@ -73,25 +79,27 @@ with warnings.catch_warnings(record=True) as caught:
 for warning in caught:
     print(warning.message)
 sgs = bt.SGS(gaussian, search).fit(samples, "V", weights=weights).simulate(grid, **options)
+corrected = bt.correct_distribution(dss, v, weights=weights)
 
 nodes = grid.centroids.astype(int)
 true_at_nodes = truth[nodes[:, 1] - 1, nodes[:, 0] - 1]
-for name, s in (("DSS", dss), ("SGS", sgs)):
-    reals = s.realizations
+for name, reals in (("DSS", dss.realizations), ("corrected DSS", corrected), ("SGS", sgs.realizations)):
     print(
         f"{name}: mean {reals.mean():.0f}, variance {reals.var(axis=1).mean():.0f}, "
-        f"area above 500 ppm {np.mean(reals > 500):.1%}"
+        f"at 0 ppm {np.mean(reals <= 0):.1%}, above 500 ppm {np.mean(reals > 500):.1%}"
     )
 print(
     f"true: mean {true_at_nodes.mean():.0f}, variance {true_at_nodes.var():.0f}, "
-    f"area above 500 ppm {np.mean(true_at_nodes > 500):.1%}"
+    f"at 0 ppm {np.mean(true_at_nodes <= 0):.1%}, above 500 ppm {np.mean(true_at_nodes > 500):.1%}"
 )
 
 
 # %% [markdown]
-# the DSS realization puts the high grades where the SGS one does. its low-grade areas form wider patches at the
-# lowest grades: where the kriged mean falls below anything the histogram reaches, DSS takes the bottom of the
-# histogram. the means of 30 realizations agree.
+# DSS puts 19% of the nodes at 0 ppm, twice the declustered share, in wide patches across the low-grade areas. after
+# the correction, realization 1 keeps the same pattern of high and low grades with 9% at 0 ppm. the DSS and SGS
+# realizations average about 300 ppm with a variance near 72,000 ppm², above the declustered 291 ppm and 65,006 ppm²:
+# the grid nodes near the clustered high-grade samples copy them. the corrected realizations take the declustered mean
+# and variance exactly.
 
 # %%
 shape = (60, 52)
@@ -105,8 +113,8 @@ for ax, image, title in (
     (axes[0, 0], true_at_nodes, "True V at grid nodes"),
     (axes[0, 1], dss.realizations[0], "DSS realization 1"),
     (axes[0, 2], sgs.realizations[0], "SGS realization 1"),
-    (axes[1, 1], dss.mean, "Mean of 30 DSS realizations"),
-    (axes[1, 2], sgs.mean, "Mean of 30 SGS realizations"),
+    (axes[1, 1], corrected[0], "DSS realization 1, corrected"),
+    (axes[1, 2], dss.mean, "Mean of 30 DSS realizations"),
 ):
     im = ax.imshow(image.reshape(shape), origin="lower", extent=extent, norm=norm)
     map_axes(ax, title)
@@ -115,22 +123,27 @@ save(fig, "maps")
 
 
 # %% [markdown]
-# SGS reproduces the declustered histogram. DSS draws too many of the lowest grades: these are the nodes the warning
-# counted. on V, the DSS realizations follow their model, rescaled to the declustered variance (dashed). the SGS
-# realizations come as close, because on walker lake the variograms of the scores and of V have about the same shape.
-# the samples sit above both curves since they cluster in the high grades.
+# the corrected DSS and the SGS realizations follow the declustered histogram. the variograms of the corrected DSS
+# realizations level off at the declustered variance (dashed) and run slightly below the model of V at short lags.
+# before the correction they level off about 10% above that sill, as their variance does, and the SGS realizations do
+# the same. the samples sit above every curve since they cluster in the high grades.
 
 # %%
-fig, axes = plt.subplots(1, 3, figsize=(13, 3.8), layout="constrained")
+fig, axes = plt.subplots(2, 2, figsize=(11, 8), layout="constrained")
 order = np.argsort(v)
 h = np.linspace(0, max_lag, 200)
 data_exp = bt.experimental_variogram(xy, v, lag, max_lag, azimuth=azimuth)
-for ax, name, s, color in ((axes[1], "DSS", dss, ACCENT), (axes[2], "SGS", sgs, HIGHLIGHT)):
-    for r in s.realizations:
-        axes[0].plot(np.sort(r), np.linspace(0, 1, r.size), color=color, lw=0.5, alpha=0.25)
+sets = (
+    (axes[0, 1], "DSS", dss.realizations, ACCENT),
+    (axes[1, 1], "SGS", sgs.realizations, GRAY),
+    (axes[1, 0], "corrected DSS", corrected, HIGHLIGHT),
+)
+for ax, name, reals, color in sets:
+    for r in reals:
+        axes[0, 0].plot(np.sort(r), np.linspace(0, 1, r.size), color=color, lw=0.5, alpha=0.25)
         exp = bt.experimental_variogram(grid.centroids, r, lag, max_lag, azimuth=azimuth)
         ax.plot(exp.lags, exp.gammas / 1e3, color=LIGHT, lw=0.8)
-    axes[0].plot([], [], color=color, label=f"30 {name} realizations")
+    axes[0, 0].plot([], [], color=color, label=f"30 {name} realizations")
     ax.plot([], [], color=LIGHT, label=f"30 {name} realizations")
     ax.plot(data_exp.lags, data_exp.gammas / 1e3, "o", color=INK, ms=4, label="samples")
     ax.plot(h, variance * raw.gamma(h) / 1e3, color=color, lw=1.4, label="model of V")
@@ -138,7 +151,7 @@ for ax, name, s, color in ((axes[1], "DSS", dss, ACCENT), (axes[2], "SGS", sgs, 
     ax.set(xlim=(0, max_lag), ylim=(0, 1.6 * variance / 1e3), xlabel="Lag distance (m)")
     ax.set(ylabel="γ(h) of V (10³ ppm²)", title=f"{name} variogram of V, N{azimuth:.0f}°")
     ax.legend(loc="lower right")
-axes[0].step(
+axes[0, 0].step(
     v[order],
     np.cumsum(weights[order]) / weights.sum(),
     color=INK,
@@ -146,8 +159,10 @@ axes[0].step(
     where="post",
     label="declustered samples",
 )
-axes[0].set(xlim=(0, 1600), xlabel="V (ppm)", ylabel="Cumulative probability", title="Histogram reproduction")
-axes[0].legend(loc="lower right")
+axes[0, 0].set(
+    xlim=(0, 1600), xlabel="V (ppm)", ylabel="Cumulative probability", title="Histogram reproduction"
+)
+axes[0, 0].legend(loc="lower right")
 save(fig, "reproduction")
 
 # %% [markdown]

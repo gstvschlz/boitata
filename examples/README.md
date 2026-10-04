@@ -134,7 +134,7 @@ Worked examples with the Python API on open datasets from [gstvschlz/datasets](h
 | 5 | [Simulation with a trend](08-stochastic-simulation/05-simulation-with-trend/README.md) | Walker Lake | `cell_declustering`, `BlockModel`, `MovingAverage`, `Search`, `StepwiseConditional`, `NormalScore`, `experimental_variogram`, `Variogram`, `SGS` |
 | 6 | [Multivariate simulation](08-stochastic-simulation/06-multivariate-simulation/README.md) | Porphyry geometallurgy | `PointSet`, `cell_declustering`, `BlockModel`, `Search`, `PPMT`, `PCA`, `experimental_variogram`, `MultivariateSimulation`, `TurningBands` |
 | 7 | [Collocated cosimulation](08-stochastic-simulation/07-collocated-cosimulation/README.md) | Jura | `NormalScore`, `experimental_variogram`, `Variogram`, `BlockModel`, `Search`, `SGS`, `check_realizations`, `plot.histogram_reproduction`, `plot.variogram_reproduction` |
-| 8 | [Direct sequential simulation](08-stochastic-simulation/08-direct-sequential-simulation/README.md) | Walker Lake | `cell_declustering`, `NormalScore`, `experimental_variogram`, `Variogram`, `BlockModel`, `Search`, `DSS`, `SGS` |
+| 8 | [Direct sequential simulation](08-stochastic-simulation/08-direct-sequential-simulation/README.md) | Walker Lake | `cell_declustering`, `NormalScore`, `experimental_variogram`, `Variogram`, `BlockModel`, `Search`, `DSS`, `SGS`, `correct_distribution` |
 
 ## Recoverable resources
 
