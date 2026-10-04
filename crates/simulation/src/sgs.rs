@@ -494,6 +494,11 @@ pub(crate) fn inputs(
     if data_locs.is_empty() {
         return Err(SimError::InsufficientData("no conditioning data".into()));
     }
+    if let Some(v) = data_vals.iter().find(|v| !v.is_finite()) {
+        return Err(SimError::InvalidParameters(format!(
+            "data value {v} is not finite"
+        )));
+    }
     if params.search.is_empty() {
         return Err(SimError::InvalidParameters(
             "need at least one search".into(),

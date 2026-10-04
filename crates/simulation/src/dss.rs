@@ -125,6 +125,9 @@ impl Lookup {
             };
             if v >= variance {
                 let (m0, s0, v0) = previous;
+                if variance <= v0 {
+                    return (m0, s0, false);
+                }
                 // On the standard deviation, about linear in `s`.
                 let t = ((variance.sqrt() - v0.sqrt()) / (v.sqrt() - v0.sqrt())).clamp(0.0, 1.0);
                 return (lerp(m0, m, t), lerp(s0, spread(j), t), false);
@@ -223,6 +226,12 @@ pub fn dss_in(
     )?;
     let codes = domains.map(|d| d.0);
     let fitted = Transforms::fit(data_vals, data_weights, codes, None)?;
+    let mut simulated = vec![domains.is_none(); fitted.domains.len()];
+    for &c in domains.map_or(&[][..], |d| d.1) {
+        if let Some(s) = simulated.get_mut(c as usize) {
+            *s = true;
+        }
+    }
     let domains_fit = fitted
         .domains
         .into_iter()
@@ -231,6 +240,9 @@ pub fn dss_in(
             let Some(transform) = transform else {
                 return Ok(None);
             };
+            if !simulated[k] {
+                return Ok(None);
+            }
             let rows: Vec<usize> = (0..data_vals.len())
                 .filter(|&i| codes.map_or(0, |c| c[i] as usize) == k)
                 .collect();
@@ -484,6 +496,45 @@ mod tests {
             let target = model(2.0 * lag as f64);
             assert!((g / target - 1.0).abs() < 0.1, "lag {lag}: {g} vs {target}");
         }
+    }
+
+    #[test]
+    fn tied_data_rare_domains_and_nan_are_handled() {
+        let mut values = vec![1.0; 60];
+        values.extend((0..40).map(|i| 2.0 + i as f64));
+        let transform = Transforms::fit(&values, None, None, None)
+            .unwrap()
+            .domains
+            .remove(0)
+            .unwrap();
+        let (m, s, _) = Lookup::new(&transform).query(1.0, 0.0);
+        assert!(m.is_finite() && s.is_finite());
+
+        let f = field();
+        let mut locs: Vec<_> = f.data.iter().map(|&i| f.grid[i]).collect();
+        let mut vals = f.values.clone();
+        locs.push((1.0, 1.0, 0.0));
+        vals.push(3.0);
+        let codes: Vec<u32> = (0..vals.len())
+            .map(|i| u32::from(i + 1 == vals.len()))
+            .collect();
+        let nodes = vec![0; f.grid.len()];
+        let run = |vals: &[f64]| {
+            dss_in(
+                &locs,
+                vals,
+                None,
+                None,
+                Some((&codes, &nodes)),
+                &f.grid,
+                &vg(),
+                &search(),
+                None,
+            )
+        };
+        assert!(run(&vals).is_ok());
+        vals[0] = f64::NAN;
+        assert!(run(&vals).is_err());
     }
 
     #[test]
