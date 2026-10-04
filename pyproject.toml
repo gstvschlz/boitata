@@ -67,7 +67,7 @@ package = false
 [tool.pytest.ini_options]
 testpaths = ["python/tests"]
 addopts = "-m 'not slow'"
-markers = ["slow: downloads datasets"]
+markers = ["slow: downloads datasets or runs benchmarks"]
 
 [tool.coverage.run]
 source = ["boitata"]

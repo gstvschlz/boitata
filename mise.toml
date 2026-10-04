@@ -49,6 +49,10 @@ run = "uv run --no-sync python examples/render.py"
 depends = ["py:build"]
 run = "uv run --no-sync python examples/notebooks.py"
 
+[tasks.bench-viewer]
+depends = ["py:build"]
+run = "uv run --no-sync python ci/bench_viewer.py"
+
 [tasks.docs]
 depends = ["py:build"]
 run = "uv run --no-sync mkdocs serve"
