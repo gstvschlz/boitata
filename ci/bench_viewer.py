@@ -1,9 +1,9 @@
 """Frame rate and GPU memory of `bt.plot3d.Scene` layers on synthetic block models and drill holes.
 
 Each case runs in its own process: build the layer, render once, then orbit the camera off-screen at the
-interactive update rate (so volumes draw their coarse copy, as while dragging). GPU memory is the dedicated
-memory of the case's process on Windows (performance counters), elsewhere the rise in ``nvidia-smi`` device
-memory over the case, "n/a" without either.
+interactive update rate, as while dragging: ``fps`` with the scene's default ``motion_quality="auto"``,
+``fps_full`` again with ``"full"``. GPU memory is the dedicated memory of the case's process on Windows (performance
+counters), elsewhere the rise in ``nvidia-smi`` device memory over the case, "n/a" without either.
 
 Usage: python ci/bench_viewer.py [--sizes 1e5,1e6,1e7] [--holes 1000,10000] [--frames 60] [--csv out.csv]
 """
@@ -27,7 +27,7 @@ CASES = [
     ("points", None),
     ("holes", None),
 ]
-COLUMNS = ["kind", "style", "size", "cells", "build_s", "first_frame_s", "fps", "gpu_mib"]
+COLUMNS = ["kind", "style", "size", "cells", "build_s", "first_frame_s", "fps", "fps_full", "gpu_mib"]
 
 
 def gpu_mib():
@@ -109,14 +109,20 @@ def case(kind, style, size, frames, seed):
     window.WaitForCompletion()
     first = time.perf_counter() - t
     window.SetDesiredUpdateRate(15.0)
-    camera = scene.plotter.camera
-    t = time.perf_counter()
-    for _ in range(frames):
-        camera.Azimuth(360 / frames)
+
+    def orbit():
         window.Render()
-        window.WaitForCompletion()
-    fps = frames / (time.perf_counter() - t)
+        t = time.perf_counter()
+        for _ in range(frames):
+            scene.plotter.camera.Azimuth(360 / frames)
+            window.Render()
+            window.WaitForCompletion()
+        return frames / (time.perf_counter() - t)
+
+    fps = orbit()
     used = gpu_mib()
+    scene.motion_quality = "full"
+    fps_full = orbit()
     cells = sum(mesh.n_cells for mesh, *_ in scene._layers)
     scene.close()
     return {
@@ -127,6 +133,7 @@ def case(kind, style, size, frames, seed):
         "build_s": round(build, 3),
         "first_frame_s": round(first, 3),
         "fps": round(fps, 1),
+        "fps_full": round(fps_full, 1),
         "gpu_mib": "n/a" if used is None else round(used - (base or 0)),
     }
 

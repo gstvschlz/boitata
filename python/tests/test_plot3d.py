@@ -260,16 +260,93 @@ def test_volume_fills_each_valid_block_and_hides_nulls(pv):
         bt.plot3d.Scene(off_screen=True).add(model.mask(np.isfinite(v)), "v", style="volume")
 
 
+def interact(scene, moving):
+    style = scene.iren.interactor.GetInteractorStyle()
+    style.StartRotate() if moving else style.EndRotate()
+    scene.ren_win.Render()
+
+
 def test_volume_above_gpu_memory_draws_coarse_while_moving(pv, monkeypatch):
     monkeypatch.setattr(pv.SmartVolumeMapper, "GetMaxMemoryInBytes", lambda self: 100)
     model = bt.BlockModel(**GRID, attributes={"v": np.arange(24.0)})
     scene = bt.plot3d.Scene(off_screen=True).add(model, "v", style="volume")
-    mapper = volumes(scene, pv)[0].mapper
-    window = scene.ren_win
-    for rate, points, mode in ((30.0, 18, mapper.GPURenderMode), (0.0001, 120, mapper.RayCastRenderMode)):
-        window.SetDesiredUpdateRate(rate)
-        window.Render()
-        assert pv.wrap(mapper.GetInput()).n_points == points and mapper.GetRequestedRenderMode() == mode
+    (full,) = volumes(scene, pv)
+    assert full.mapper.GetRequestedRenderMode() == full.mapper.RayCastRenderMode
+    interact(scene, True)
+    coarse = scene._fast[0]
+    assert coarse.GetVisibility() and not full.GetVisibility() and len(volumes(scene, pv)) == 2
+    assert coarse.mapper.dataset.n_points < full.mapper.dataset.n_points
+    assert coarse.mapper.lookup_table is scene.colors["v"]
+    interact(scene, False)
+    assert full.GetVisibility() and not coarse.GetVisibility()
+    scene.close()
+
+
+def test_motion_quality_draws_a_cheaper_copy_of_every_layer_while_moving(pv):
+    v = np.where(np.arange(512) % 7 == 0, np.nan, np.arange(512.0))
+    model = bt.BlockModel(
+        (0.0, 0, 0), (1.0, 1, 1), (8, 8, 8), attributes={"v": v, "rock": ["a", "b", None, "c"] * 128}
+    )
+    points = bt.PointSet(rng.uniform(0, 8, (400, 3)), {"v": rng.uniform(0, 600, 400)})
+    collar = {"HOLE_ID": ["a", "b"], "X": [2.0, 6], "Y": [4.0, 4], "Z": [8.0, 8]}
+    survey = {"HOLE_ID": ["a", "b"], "DEPTH": [0.0, 0], "AZIMUTH": [0.0, 0], "DIP": [90.0, 90]}
+    intervals = {"HOLE_ID": ["a", "a", "b"], "FROM": [0.0, 2, 0], "TO": [2.0, 4, 6], "v": [1.0, np.nan, 3]}
+    holes = bt.Drillholes(collar, survey, intervals)
+    shell = pv.Sphere(radius=3, center=(4, 4, 4), theta_resolution=60, phi_resolution=60)
+    shell.point_data["v"] = shell.points[:, 2] * 50
+    scene = bt.plot3d.Scene(off_screen=True, motion_quality=0.25)
+    scene.add(model, "v").add(model.mask(np.isfinite(v)), "rock", style="wireframe").add(points, "v")
+    scene.add(holes, "v", radius=0.2).add(shell, "v", opacity=0.5)
+    full = [actor for *_, actor in scene._layers]
+    interact(scene, True)
+    fast = [scene._fast[i] for i in range(5)]
+    assert not any(a.GetVisibility() for a in full) and all(a.GetVisibility() for a in fast)
+    for a, b in zip(full, fast, strict=True):
+        assert drawn(b.mapper, pv).n_cells < 0.5 * drawn(a.mapper, pv).n_cells
+    blocks, rocks, dots, lines, surface = (drawn(a.mapper, pv) for a in fast)
+    assert blocks.n_cells <= 64 and np.isfinite(blocks.cell_data["v"]).all()
+    assert set(rocks.cell_data["rock"]) <= {0, 1, 2} and fast[1].prop.style == "Wireframe"
+    assert dots.n_points == 100 and not fast[2].prop.render_points_as_spheres
+    assert lines.n_cells == 2 and sorted(lines.cell_data["v"]) == [1, 3]
+    assert np.isfinite(surface.point_data["v"]).all() and fast[4].prop.opacity == 0.5
+    assert all(a.mapper.lookup_table is scene.colors["v"] for i, a in enumerate(fast) if i != 1)
+    assert fast[1].mapper.lookup_table is scene.colors["rock"] and len(scene.scalar_bars) == 2
+    interact(scene, False)
+    assert all(a.GetVisibility() for a in full) and not any(a.GetVisibility() for a in fast)
+    assert scene.plotter.screenshot(return_img=True).std() > 0
+    scene.close()
+
+
+def test_motion_quality_auto_degrades_only_layers_above_the_budget(pv, monkeypatch):
+    scene = bt.plot3d.Scene(off_screen=True).add(
+        bt.PointSet(rng.uniform(0, 1, (100, 3)), {"g": np.arange(100.0)}), "g"
+    )
+    interact(scene, True)
+    assert scene._fast == {0: None} and len(layers(scene, pv)) == 1
+    monkeypatch.setattr(bt.plot3d, "_BUDGET", 50)
+    scene.motion_quality = "auto"
+    interact(scene, True)
+    assert drawn(scene._fast[0].mapper, pv).n_points == 50
+    scene.motion_quality = "full"
+    interact(scene, True)
+    assert scene._fast == {0: None} and len(layers(scene, pv)) == 1 and scene._layers[0][-1].GetVisibility()
+    for bad in (0, 1.5, "fast", True):
+        with pytest.raises(ValueError, match="motion_quality"):
+            scene.motion_quality = bad
+    scene.close()
+
+
+def test_motion_quality_leaves_sections_alone(pv):
+    scene = section_scene(pv)
+    scene.motion_quality = 0.5
+    interact(scene, True)
+    scene.section((0.0, 1, 0), width=10)
+    interact(scene, True)
+    hidden = [a for *_, a in scene._layers] + [a for a in scene._fast.values() if a is not None]
+    assert not any(a.GetVisibility() for a in hidden) and all(a.GetVisibility() for a in scene._cuts)
+    scene.section(None)
+    interact(scene, False)
+    assert all(a.GetVisibility() for *_, a in scene._layers)
     scene.close()
 
 

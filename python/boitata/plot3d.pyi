@@ -9,7 +9,10 @@ Style: TypeAlias = Literal["surface", "wireframe", "points", "points_gaussian", 
 class Scene:
     plotter: Any
     colors: dict[str, Any]
-    def __init__(self, *, plotter: Any = None, **kwargs: Any) -> None: ...
+    motion_quality: Literal["auto", "full"] | float
+    def __init__(
+        self, *, plotter: Any = None, motion_quality: Literal["auto", "full"] | float = "auto", **kwargs: Any
+    ) -> None: ...
     def __getattr__(self, name: str) -> Any: ...
     def add(
         self,
