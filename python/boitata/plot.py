@@ -1024,13 +1024,19 @@ def section(
     axis="z",
     index=None,
     plane=None,
+    origin=None,
+    azimuth=90.0,
+    dip=90.0,
+    holes=None,
+    width=None,
     resolution=None,
     colorbar=True,
     scheme=None,
     ax=None,
     **kwargs,
 ):
-    """Slice of a block model across `axis` at cell `index` (default: the middle), or on any `plane`.
+    """Slice of a block model across `axis` at cell `index` (default: the middle), or on any plane, at true scale,
+    with the drill holes near it projected on top.
 
     Parameters
     ----------
@@ -1047,6 +1053,16 @@ def section(
     plane : tuple, optional
         ``(center, azimuth, dip)`` as in `slab`; replaces `axis` and `index`. The model is sampled on a raster in
         section coordinates.
+    origin : array_like, optional
+        ``(x, y, z)`` point on the plane; with `azimuth` and `dip`, the same as ``plane=(origin, azimuth, dip)``.
+    azimuth, dip : float
+        Bearing of the section line and dip of the plane through `origin`, in degrees (90 and 90: a vertical
+        east-west section).
+    holes : Drillholes, optional
+        Traces within `width` of the plane, clipped to that slab, projected and labeled at their shallowest point
+        in it.
+    width : float, optional
+        Full width of the slab around the plane that keeps `holes`; default the largest block edge.
     resolution : float, optional
         Raster step on `plane`; default half the smallest block edge.
     colorbar : bool
@@ -1057,6 +1073,8 @@ def section(
         Passed to ``ax.imshow`` (e.g. ``cmap``, ``norm``, ``vmin``).
     """
     fig, ax = _axes(ax)
+    if origin is not None:
+        plane = (origin, azimuth, dip)
     resolved = plane if plane is not None else _axis_plane(model, axis, index)
     k = _aligned_axis(model, resolved)
     if k is not None:
@@ -1065,8 +1083,25 @@ def section(
         (image,), extent = _image(ax, model, [values], axis, index, plane, resolution)
         _scheme_colors(scheme, kwargs)
         mappable = ax.imshow(image, origin="lower", extent=extent, **kwargs)
+    if holes is not None:
+        _traces(ax, holes, resolved, max(model.size) if width is None else width)
     _key(fig, ax, mappable, _name(model, values), colorbar, scheme)
     return fig, ax
+
+
+def _traces(ax, holes, plane, width):
+    from matplotlib.collections import LineCollection
+
+    center, u, v, n = _frame(plane)
+    paths = holes.paths()
+    ids = np.asarray(paths[paths.column_names[0]], dtype=object)
+    xyz = np.column_stack([np.asarray(paths[c], dtype=float) for c in "xyz"])
+    for name in dict.fromkeys(ids):
+        segments = _clip([xyz[ids == name]], center, n, width / 2) @ np.c_[u, v]
+        if len(segments):
+            ax.add_collection(LineCollection(segments, colors="tab:red", linewidths=1.2, label=str(name)))
+            ax.annotate(str(name), segments[0, 0], xytext=(3, 3), textcoords="offset points", fontsize=7)
+    ax.autoscale_view()
 
 
 def _block_axes(rotation):
@@ -1112,7 +1147,9 @@ def _blocks(ax, model, values, plane, k, scheme, kwargs):
     others = [a for a in range(3) if a != k]
     face = [sum(bit << others[i] for i, bit in enumerate(bits)) for bits in ((0, 0), (0, 1), (1, 1), (1, 0))]
     faces = corners[keep][:, face, :] @ np.c_[u, v]
-    values = np.asarray(_column(model, values), dtype=float)[keep]
+    values = np.asarray(_column(model, values), dtype=float)
+    keep &= np.isfinite(values)
+    values = values[keep]
     _scheme_colors(scheme, kwargs)
     kwargs.setdefault("linewidths", 0)
     vmin, vmax = kwargs.pop("vmin", None), kwargs.pop("vmax", None)
