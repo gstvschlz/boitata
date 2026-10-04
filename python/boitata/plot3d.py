@@ -15,6 +15,7 @@ from pathlib import Path
 import numpy as np
 
 from boitata._boitata import BlockModel, Drillholes, Mesh, PointSet
+from boitata.plot import _angles_for_normal, _frame
 
 __all__ = ["Scene", "plot", "slices", "to_pyvista"]
 
@@ -234,6 +235,9 @@ class Scene:
         self._pinned = set()
         self._bars = {}
         self._volumes = {}
+        self._layers = []
+        self._cuts = []
+        self._plane = None
         _SCENES[self.plotter] = self
 
     def __getattr__(self, name):
@@ -272,17 +276,29 @@ class Scene:
         Scene
             This scene, to chain calls.
         """
+        pv = _pyvista()
         mesh, defaults = _layer(data, **({} if radius is None else {"radius": radius}))
-        if isinstance(mesh, _pyvista().MultiBlock):
+        if isinstance(mesh, pv.MultiBlock):
             mesh = mesh.combine()
-        volume = style == "volume"
-        if volume and values is None:
+        if style == "volume" and values is None:
             raise ValueError("style='volume' needs values")
+        flat = isinstance(data, PointSet | Drillholes) or (
+            isinstance(mesh, pv.PolyData) and mesh.n_faces == 0
+        )
+        kwargs = {**defaults, **kwargs}
+        actor = self._draw(mesh, values, style, dict(kwargs))
+        self._layers.append((mesh, flat, values, style, kwargs, actor))
+        if labels:
+            self.plotter.add_point_labels(*_collars(data), shape=None, show_points=False, always_visible=True)
+        return self
+
+    def _draw(self, mesh, values, style, kwargs):
+        volume = style == "volume"
         if values is not None:
             if not volume:
                 mesh = _drop_nulls(mesh, values)
             if mesh.n_points == 0 or not _valid(mesh.get_array(values)).any():
-                return self
+                return None
             mesh, kwargs["cmap"] = self._color(
                 mesh, values, kwargs.pop("cmap", None), kwargs.pop("clim", None)
             )
@@ -290,15 +306,12 @@ class Scene:
             bar = {"title": values, **ticks, **kwargs.get("scalar_bar_args", {})}
             kwargs["scalar_bar_args"] = dict(self._bars.setdefault(values, bar))
         if volume:
-            self._volume(mesh, values, **kwargs)
-            return self
-        actor = self.plotter.add_mesh(mesh, scalars=values, style=style, **{**defaults, **kwargs})
+            return self._volume(mesh, values, **kwargs)
+        actor = self.plotter.add_mesh(mesh, scalars=values, style=style, **kwargs)
         if values is not None:
             actor.mapper.SetUseLookupTableScalarRange(True)
             self._paint(values)
-        if labels:
-            self.plotter.add_point_labels(*_collars(data), shape=None, show_points=False, always_visible=True)
-        return self
+        return actor
 
     def _volume(self, mesh, values, *, opacity="linear", **kwargs):
         pv = _pyvista()
@@ -311,6 +324,7 @@ class Scene:
         _detail(pv, self.plotter.renderer, actor.mapper, actor.mapper.dataset, values)
         self._volumes.setdefault(values, []).append((actor.prop, opacity, *span))
         self._paint(values)
+        return actor
 
     def _paint(self, values):
         from vtkmodules.vtkCommonDataModel import vtkPiecewiseFunction
@@ -337,6 +351,99 @@ class Scene:
                 shape.AddPoint(x, float(np.interp(x, ramp, alpha)))
             prop.SetColor(color)
             prop.SetScalarOpacity(shape)
+
+    def section(self, origin, *, azimuth=90.0, dip=90.0, width=None):
+        """Cuts every layer with a plane, in place of the layers and of the previous section.
+
+        Surfaces and solids show their intersection with the plane; points and drill holes within `width` of it
+        are clipped to that slab and projected onto it. Each piece keeps its layer's variable and style.
+
+        Parameters
+        ----------
+        origin : array_like or None
+            ``(x, y, z)`` point on the plane; None removes the section and shows the layers again.
+        azimuth, dip : float
+            Bearing of the section line and dip of the plane, in degrees (90 and 90: a vertical east-west
+            section, dip 0: a plan).
+        width : float, optional
+            Full width of the slab that keeps points and drill holes; default a twentieth of the scene's diagonal.
+
+        Returns
+        -------
+        Scene
+            This scene, to chain calls.
+        """
+        for actor in self._cuts:
+            self.plotter.remove_actor(actor, render=False)
+        self._cuts = []
+        self._plane = None if origin is None else (origin, azimuth, dip)
+        for *_, actor in self._layers:
+            if actor is not None:
+                actor.SetVisibility(origin is None)
+        if origin is None:
+            return self
+        center, _, _, n = _frame(self._plane)
+        half = (self._extent()[1] / 20 if width is None else width) / 2
+        for mesh, flat, values, style, kwargs, _ in self._layers:
+            if flat:
+                cut = mesh.clip(normal=n, origin=center + half * n).clip(normal=-n, origin=center - half * n)
+                cut.points = cut.points - np.outer((cut.points - center) @ n, n)
+            else:
+                cut = mesh.slice(normal=n, origin=center)
+            if style == "volume":
+                style, kwargs = None, {k: v for k, v in kwargs.items() if k != "opacity"}
+            if cut.n_points:
+                actor = self._draw(cut, values, style, dict(kwargs))
+                self._cuts += [actor] if actor is not None else []
+        return self
+
+    def section_widget(self, *, origin=None, azimuth=90.0, dip=90.0, width=None, **kwargs):
+        """Interactive plane that calls `section` each time it is moved.
+
+        Parameters
+        ----------
+        origin : array_like, optional
+            Starting point on the plane; default the center of the layers.
+        azimuth, dip, width : float
+            As in `section`.
+        **kwargs
+            Passed to ``plotter.add_plane_widget``.
+
+        Returns
+        -------
+        Scene
+            This scene, to chain calls.
+        """
+        center, _, _, n = _frame((self._extent()[0] if origin is None else origin, azimuth, dip))
+
+        def move(normal, point):
+            a, d = _angles_for_normal(np.asarray(normal, dtype=float))
+            self.section(point, azimuth=a, dip=d, width=width)
+
+        self.plotter.add_plane_widget(move, normal=n, origin=center, **kwargs)
+        return self
+
+    def view_section(self):
+        """Orthographic view normal to the section plane, strike to the right and up dip upward.
+
+        Returns
+        -------
+        Scene
+            This scene, to chain calls.
+        """
+        if self._plane is None:
+            raise RuntimeError("no section: call Scene.section first")
+        center, _, v, n = _frame(self._plane)
+        self.plotter.enable_parallel_projection()
+        self.plotter.camera_position = [center + n, center, v]
+        self.plotter.reset_camera()
+        return self
+
+    def _extent(self):
+        """Center and diagonal of the bounds of every layer."""
+        bounds = np.array([mesh.bounds for mesh, *_ in self._layers]).reshape(-1, 3, 2)
+        lo, hi = bounds[..., 0].min(axis=0), bounds[..., 1].max(axis=0)
+        return (lo + hi) / 2, float(np.linalg.norm(hi - lo))
 
     def _color(self, mesh, values, cmap, clim):
         pv = _pyvista()

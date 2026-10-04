@@ -282,3 +282,64 @@ def test_screenshot_scales_and_keeps_a_transparent_background(pv, tmp_path):
     assert plain.is_file() and Image.open(plain).size == (120, 80)
     rgba = np.asarray(Image.open(clear))
     assert rgba.shape == (160, 240, 4) and rgba[0, 0, 3] == rgba[-1, -1, 3] == 0 and rgba[..., 3].max() == 255
+
+
+def section_scene(pv):
+    collar = {"HOLE_ID": ["a", "b"], "X": [5.0, 5], "Y": [0.0, 30], "Z": [20.0, 20]}
+    survey = {"HOLE_ID": ["a", "b"], "DEPTH": [0.0, 0], "AZIMUTH": [0.0, 0], "DIP": [90.0, 90]}
+    holes = bt.Drillholes(collar, survey, {"HOLE_ID": ["a", "b"], "FROM": [0.0, 0], "TO": [30.0, 30]})
+    model = bt.BlockModel((-20.0, -20, -20), (5.0, 5, 5), (8, 8, 8), attributes={"v": np.arange(512.0)})
+    points = bt.PointSet([[0.0, 1, 0], [0, -3, 0], [0, 9, 0]], {"v": [1.0, 2, 3]})
+    scene = bt.plot3d.Scene(off_screen=True)
+    return (
+        scene.add(model, "v")
+        .add(holes, radius=0.5)
+        .add(points, "v")
+        .add(pv.Sphere(radius=10), style="wireframe")
+    )
+
+
+def test_section_cuts_every_layer_and_projects_holes_within_width(pv):
+    scene = section_scene(pv).section((0.0, 1, 0), width=10)
+    scene.render()
+    blocks, holes, points, sphere = (drawn(a.mapper, pv) or pv.wrap(a.mapper.GetInput()) for a in scene._cuts)
+    assert not any(a.GetVisibility() for *_, a in scene._layers)
+    np.testing.assert_allclose(blocks.points[:, 1], 1, atol=1e-9)
+    assert blocks.n_cells == 64 and np.isfinite(blocks.cell_data["v"]).all()
+    np.testing.assert_allclose(holes.points[:, 1], 1, atol=1e-9)
+    np.testing.assert_allclose(holes.bounds[:2], (4.5, 5.5), atol=0.01)
+    np.testing.assert_allclose(holes.bounds[4:], (-10, 20), atol=0.01)
+    np.testing.assert_allclose(points.points, [[0, 1, 0], [0, 1, 0]], atol=1e-9)
+    np.testing.assert_allclose(np.linalg.norm(sphere.points[:, ::2], axis=1), np.sqrt(99), rtol=0.02)
+    assert scene.section(None)._cuts == [] and all(a.GetVisibility() for *_, a in scene._layers)
+    scene.close()
+
+
+def test_view_section_looks_normal_to_the_plane_in_parallel(pv):
+    scene = section_scene(pv)
+    with pytest.raises(RuntimeError):
+        scene.view_section()
+    scene.section((0.0, 0, 0), azimuth=30, dip=60).view_section()
+    camera = scene.camera
+    direction = np.subtract(camera.focal_point, camera.position)
+    normal = bt.plot._frame(((0, 0, 0), 30, 60))[3]
+    assert camera.parallel_projection
+    np.testing.assert_allclose(direction / np.linalg.norm(direction), -normal, atol=1e-9)
+    assert scene.plotter.screenshot(return_img=True).std() > 0
+    scene.close()
+
+
+def test_section_widget_cuts_through_the_center(pv):
+    scene = section_scene(pv).section_widget(azimuth=0, dip=90)
+    assert len(scene._cuts) == 3
+    np.testing.assert_allclose(scene._plane[0], scene._extent()[0], atol=1e-9)
+    assert abs(scene._plane[1]) % 180 == 0 and scene._plane[2] == 90
+    scene.close()
+
+
+def test_section_cuts_a_volume_as_a_surface(pv):
+    model = bt.BlockModel(**GRID, attributes={"v": np.arange(24.0)})
+    scene = bt.plot3d.Scene(off_screen=True).add(model, "v", style="volume", opacity="sigmoid")
+    (cut,) = scene.section(model.centroids.mean(axis=0), azimuth=0, dip=0)._cuts
+    assert isinstance(cut, pv.Actor) and cut.mapper.lookup_table is scene.colors["v"]
+    scene.close()

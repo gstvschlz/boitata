@@ -38,6 +38,7 @@ Worked examples with the Python API on open datasets from [gstvschlz/datasets](h
 | 21 | [Live scene](02-data-and-geometry/21-live-scene/README.md) | Stacked sulphide lenses | `Drillholes`, `BlockModel`, `Search`, `InverseDistance`, `plot3d.Scene`, `plot3d.slices` |
 | 22 | [Meshes and points in a scene](02-data-and-geometry/22-meshes-and-points/README.md) | Stacked sulphide lenses | `Drillholes`, `PointSet`, `topography`, `plot3d.Scene` |
 | 23 | [Block model volumes](02-data-and-geometry/23-block-volumes/README.md) | Stacked sulphide lenses | `Drillholes`, `BlockModel`, `Search`, `InverseDistance`, `plot3d.Scene` |
+| 24 | [Interactive sections](02-data-and-geometry/24-interactive-sections/README.md) | Stacked sulphide lenses | `Drillholes`, `BlockModel`, `Search`, `InverseDistance`, `plot3d.Scene` |
 
 ## Exploratory analysis
 
