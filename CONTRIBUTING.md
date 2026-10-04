@@ -21,6 +21,9 @@ mise run test
   Run it when you change an example.
 - `mise run compat` installs Boitatá with pip, uv, pixi and conda. Run it when you change
   packaging or dependencies.
+- `mise run bench-viewer` measures frame rate and GPU memory of `bt.plot3d` on large block
+  models and drill holes (`--sizes 1e5 --csv out.csv` to narrow it). Run it when you change
+  the 3D viewer.
 
 Every feature ships in Rust and Python together: the binding, the `.pyi` stub, a NumPy
 docstring and an example. A new algorithm also needs a theory check we can rerun, for

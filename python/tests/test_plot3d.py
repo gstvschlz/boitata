@@ -1,5 +1,7 @@
+import csv
 import subprocess
 import sys
+from pathlib import Path
 
 import boitata as bt
 import numpy as np
@@ -343,3 +345,13 @@ def test_section_cuts_a_volume_as_a_surface(pv):
     (cut,) = scene.section(model.centroids.mean(axis=0), azimuth=0, dip=0)._cuts
     assert isinstance(cut, pv.Actor) and cut.mapper.lookup_table is scene.colors["v"]
     scene.close()
+
+
+@pytest.mark.slow
+def test_viewer_benchmark_runs(pv, tmp_path):
+    script = Path(__file__).parents[2] / "ci" / "bench_viewer.py"
+    out = tmp_path / "bench.csv"
+    cmd = [sys.executable, script, "--sizes", "1e3", "--holes", "10", "--frames", "3", "--csv", out]
+    subprocess.run(cmd, check=True, timeout=300)
+    rows = list(csv.DictReader(out.open()))
+    assert len(rows) == 6 and all(float(row["fps"]) > 0 for row in rows)
