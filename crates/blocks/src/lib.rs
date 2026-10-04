@@ -6,6 +6,7 @@
 mod classes;
 mod distance;
 mod error;
+mod faces;
 mod grid;
 mod hull;
 mod outline;
@@ -21,6 +22,7 @@ pub use distance::{
     polygon_signed_distance, signed_distance_to, vertical_distance,
 };
 pub use error::{BlockModelError, Result};
+pub use faces::{OuterFaces, outer_faces};
 pub use grid::grid_surface;
 pub use hull::convex_hull;
 pub use outline::{Hull, Plane, outline};
