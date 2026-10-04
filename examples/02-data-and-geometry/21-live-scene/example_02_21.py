@@ -121,8 +121,8 @@ save(image(scene, "Zn assays down a fence of holes, one tube mesh", view=(1, -0.
 # %% [markdown]
 # while the camera moves, `motion_quality` swaps each layer for a cheaper copy and draws it in full again once the
 # camera stops. `"auto"`, the default, only does so above a million cells or points; a number asks for about that
-# fraction of every layer's geometry. here a tenth: the blocks above 2 % Zn thin to a fixed random tenth of
-# them, the composites likewise as flat points, the assay tubes become lines. off-screen, a render at the interactive
+# fraction of every layer's geometry. here a tenth: the outer faces of the blocks above 2 % Zn thin to a fixed random
+# tenth, the composites likewise as flat points, the assay tubes become lines. off-screen, a render at the interactive
 # update rate stands in for a drag. the swap needs the camera events of the native window or of trame's server
 # rendering; trame's client rendering (vtk.js) and `show(browser=True)` always draw the full layers.
 

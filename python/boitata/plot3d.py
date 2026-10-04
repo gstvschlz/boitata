@@ -296,7 +296,7 @@ class Scene:
         number in (0, 1] a cheaper copy of every layer with about that fraction of its geometry. Once the camera
         stops, the layers draw in full again. Each copy is built the first time the camera moves and kept: a
         regular block model takes every n-th block along each axis, points a fixed random subset drawn flat,
-        other cells (masked or sub-blocked models) a fixed random subset, drill holes lines in place of tubes,
+        other cells and the faces of masked or sub-blocked models a fixed random subset, drill holes lines in place of tubes,
         surfaces a decimated copy; each keeps its layer's colors and leaves nulls out. Takes effect in the native window and in trame with server
         rendering; client rendering (vtk.js, ``show(browser=True)``) draws the full layers.
     **kwargs
@@ -368,6 +368,9 @@ class Scene:
     def _degrade(self, data, mesh, flat, values, style, kwargs, actor):
         if actor is None or self.motion_quality == "full":
             return None
+        if isinstance(mesh, _Solid):
+            faces = actor.mapper.GetInputAlgorithm().GetInputDataObject(0, 0)
+            mesh = _pyvista().wrap(faces).cast_to_unstructured_grid()
         fraction = self.motion_quality
         if fraction == "auto":
             size = mesh.n_points if _points_only(mesh) else mesh.n_cells
