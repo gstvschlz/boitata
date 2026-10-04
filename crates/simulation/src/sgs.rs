@@ -355,8 +355,139 @@ fn simulate(
     local: Option<&LocalAnisotropy>,
     collocated: Option<(&[f64], f64)>,
     batch: Option<usize>,
-    mut used: impl FnMut(usize, &[usize], &[Sample], &[Sample]),
+    used: impl FnMut(usize, &[usize], &[Sample], &[Sample]),
 ) -> Result<Realization> {
+    let holes = inputs(
+        data_locs, data_vals, data_holes, domains, trend, grid, params, local,
+    )?;
+    let fitted = Transforms::fit(
+        data_vals,
+        data_weights,
+        domains.map(|d| d.0),
+        trend.map(|t| (t.data, t.classes)),
+    )?;
+    let space = Gaussian {
+        transforms: fitted.domains,
+        vg: vg_nscore,
+        collocated,
+    };
+    sequential(
+        &space,
+        fitted.scores,
+        data_locs,
+        data_vals,
+        holes,
+        domains,
+        trend,
+        grid,
+        vg_nscore,
+        params,
+        local,
+        batch,
+        used,
+    )
+}
+
+/// The steps of the sequential loop that depend on the variable's units:
+/// a neighbor's value in kriging units, the simple-kriging model of a
+/// domain, and a node's (kriging units, data units) draw from its kriged
+/// mean and variance, or from the marginal, given one standard normal `z`.
+trait Space: Sync {
+    /// `value` at `trend`, of another domain or capped, kriged in `domain`.
+    fn neighbor(&self, value: f64, trend: f64, domain: Option<u32>) -> f64;
+    fn variogram(&self, domain: Option<u32>) -> &Variogram;
+    fn mean(&self, domain: Option<u32>) -> f64;
+    fn draw(
+        &self,
+        mean: f64,
+        variance: f64,
+        node: usize,
+        domain: Option<u32>,
+        trend: f64,
+        z: f64,
+    ) -> (f64, f64);
+    fn marginal(&self, node: usize, domain: Option<u32>, trend: f64, z: f64) -> (f64, f64);
+}
+
+/// Normal scores of each domain, cokriged with a collocated secondary.
+struct Gaussian<'a> {
+    transforms: Vec<Option<Transform>>,
+    vg: &'a Variogram,
+    collocated: Option<(&'a [f64], f64)>,
+}
+
+impl Gaussian<'_> {
+    fn transform(&self, domain: Option<u32>) -> &Transform {
+        self.transforms[domain.unwrap_or(0) as usize]
+            .as_ref()
+            .expect("checked")
+    }
+
+    fn cokriged(&self, mean: f64, variance: f64, node: usize) -> (f64, f64) {
+        match self.collocated {
+            Some((scores, rho)) => estimation::markov_collocated(
+                mean,
+                variance,
+                self.vg.total_sill(),
+                rho,
+                scores[node],
+            ),
+            None => (mean, variance),
+        }
+    }
+}
+
+impl Space for Gaussian<'_> {
+    fn neighbor(&self, value: f64, trend: f64, domain: Option<u32>) -> f64 {
+        self.transform(domain).forward(value, trend)
+    }
+
+    fn variogram(&self, _: Option<u32>) -> &Variogram {
+        self.vg
+    }
+
+    fn mean(&self, _: Option<u32>) -> f64 {
+        0.0
+    }
+
+    fn draw(
+        &self,
+        mean: f64,
+        variance: f64,
+        node: usize,
+        domain: Option<u32>,
+        trend: f64,
+        z: f64,
+    ) -> (f64, f64) {
+        let (mean, variance) = self.cokriged(mean, variance, node);
+        let score = mean + variance.sqrt() * z;
+        (score, self.transform(domain).back(score, trend))
+    }
+
+    fn marginal(&self, node: usize, domain: Option<u32>, trend: f64, z: f64) -> (f64, f64) {
+        let score = match self.collocated {
+            Some(_) => {
+                let (mean, variance) = self.cokriged(0.0, self.vg.total_sill(), node);
+                mean + variance.sqrt() * z
+            }
+            None => z,
+        };
+        (score, self.transform(domain).back(score, trend))
+    }
+}
+
+/// Checks the inputs of [`sequential`] and returns the holes of the data.
+#[allow(clippy::too_many_arguments)]
+fn inputs(
+    data_locs: &[(f64, f64, f64)],
+    data_vals: &[f64],
+    data_holes: Option<&[u32]>,
+    domains: Option<Domains>,
+    trend: Option<Trend>,
+    grid: &[(f64, f64, f64)],
+    params: &SgsParams,
+    local: Option<&LocalAnisotropy>,
+) -> Result<Vec<Option<u32>>> {
     if data_locs.len() != data_vals.len() {
         return Err(SimError::InvalidParameters("data length mismatch".into()));
     }
@@ -380,33 +511,41 @@ fn simulate(
             "one local anisotropy per grid node".into(),
         ));
     }
+    Ok(holes)
+}
 
-    // 1. Normal-score transform within each domain.
-    let fitted = Transforms::fit(
-        data_vals,
-        data_weights,
-        domains.map(|d| d.0),
-        trend.map(|t| (t.data, t.classes)),
-    )?;
+/// The sequential loop over checked [`inputs`]: `scores` are the data in
+/// kriging units, and `vg` orients the search.
+#[allow(clippy::too_many_arguments)]
+fn sequential(
+    space: &impl Space,
+    scores: Vec<f64>,
+    data_locs: &[(f64, f64, f64)],
+    data_vals: &[f64],
+    holes: Vec<Option<u32>>,
+    domains: Option<Domains>,
+    trend: Option<Trend>,
+    grid: &[(f64, f64, f64)],
+    vg: &Variogram,
+    params: &SgsParams,
+    local: Option<&LocalAnisotropy>,
+    batch: Option<usize>,
+    mut used: impl FnMut(usize, &[usize], &[Sample], &[Sample]),
+) -> Result<Realization> {
     if grid.is_empty() {
         return Ok(Realization { values: vec![] });
     }
-    let transform = |domain: Option<u32>| {
-        fitted.domains[domain.unwrap_or(0) as usize]
-            .as_ref()
-            .expect("checked")
-    };
     let node_trend = |node: usize| trend.map_or(0.0, |t| t.nodes[node]);
 
     let samples = data(data_locs, data_vals, holes, domains.map(|d| d.0));
     let trees: Vec<SearchTree> = params
         .search
         .iter()
-        .map(|s| tree(&samples, s, vg_nscore, local))
+        .map(|s| tree(&samples, s, vg, local))
         .collect();
     let mut known = Known {
         samples,
-        scores: fitted.scores.clone(),
+        scores,
         trends: trend.map_or_else(|| vec![0.0; data_locs.len()], |t| t.data.to_vec()),
         trees,
     };
@@ -424,7 +563,7 @@ fn simulate(
     let mut path: Vec<usize> = (0..grid.len()).collect();
     path.shuffle(&mut rng);
 
-    // 3. Kriging from neighbors (simple kriging, mean 0 in Gaussian space).
+    // 3. Simple kriging from neighbors, in kriging units.
     let step = |known: &Known, node: usize, earlier: Option<&[usize]>| -> Option<Result<Step>> {
         let target = grid[node];
         let domain = domains.map(|d| d.1[node]);
@@ -469,22 +608,24 @@ fn simulate(
                     tree.cap(&target, aniso.as_ref(), k),
                     known.samples[k].domain == domain,
                 ) {
-                    (Some(t), _) => transform(domain).forward(t, known.trends[k]),
+                    (Some(t), _) => space.neighbor(t, known.trends[k], domain),
                     (None, true) => known.scores[k],
                     (None, false) => {
-                        transform(domain).forward(known.samples[k].value, known.trends[k])
+                        space.neighbor(known.samples[k].value, known.trends[k], domain)
                     }
                 },
                 ..known.samples[k].clone()
             })
             .collect();
+        let vg = space.variogram(domain);
         let vg_node = aniso.map(|a| Variogram {
             anisotropy: Some(a),
-            ..vg_nscore.clone()
+            ..vg.clone()
         });
-        let vg = vg_node.as_ref().unwrap_or(vg_nscore);
+        let vg = vg_node.as_ref().unwrap_or(vg);
+        let mean = space.mean(domain);
         Some(
-            krige(Kind::Simple { mean: 0.0 }, &target, &selected, vg)
+            krige(Kind::Simple { mean }, &target, &selected, vg)
                 .map_err(|e| SimError::Estimation(e.to_string()))
                 .map(|est| Step::Kriged {
                     idx,
@@ -495,13 +636,6 @@ fn simulate(
         )
     };
 
-    let sill = vg_nscore.total_sill();
-    let cokriged = |mean: f64, variance: f64, node: usize| match collocated {
-        Some((scores, rho)) => {
-            estimation::markov_collocated(mean, variance, sill, rho, scores[node])
-        }
-        None => (mean, variance),
-    };
     let normal = Normal::new(0.0, 1.0).unwrap();
     let mut values = vec![f64::NAN; grid.len()];
     let most = params
@@ -528,7 +662,8 @@ fn simulate(
             let s = s
                 .or_else(|| step(&known, node, None))
                 .expect("never stale alone")?;
-            let score = match s {
+            let domain = domains.map(|d| d.1[node]);
+            let (score, value) = match s {
                 // A node on a datum takes its value and is not added again.
                 Step::Datum(value) => {
                     values[node] = value;
@@ -541,22 +676,16 @@ fn simulate(
                     variance,
                 } => {
                     used(node, &idx, &known.samples, &selected);
-                    let (mean, variance) = cokriged(mean, variance, node);
-                    mean + variance.sqrt() * normal.sample(&mut rng)
+                    let z = normal.sample(&mut rng);
+                    space.draw(mean, variance, node, domain, node_trend(node), z)
                 }
-                // No neighbors found: draw from the marginal (standard normal).
-                Step::Marginal => match collocated {
-                    Some(_) => {
-                        let (mean, variance) = cokriged(0.0, sill, node);
-                        mean + variance.sqrt() * normal.sample(&mut rng)
-                    }
-                    None => normal.sample(&mut rng),
-                },
+                Step::Marginal => {
+                    let z = normal.sample(&mut rng);
+                    space.marginal(node, domain, node_trend(node), z)
+                }
             };
 
-            // 4. Back-transform and add the node to the conditioning set.
-            let domain = domains.map(|d| d.1[node]);
-            let value = transform(domain).back(score, node_trend(node));
+            // 4. Add the node to the conditioning set.
             values[node] = value;
             let sample = Sample {
                 loc: grid[node],
@@ -1812,6 +1941,79 @@ pub(crate) mod tests {
                 }
                 assert_ne!(sequential, run(8, None, 4));
             }
+        }
+    }
+
+    #[test]
+    fn realizations_match_their_snapshot() {
+        let z = zoned();
+        let (grid, nodes, node_trend) = zoned_grid();
+        let domains = Some((&z.codes[..], &nodes[..]));
+        let trend = Trend {
+            data: &z.trend,
+            nodes: &node_trend,
+            classes: 3,
+        };
+        let soft = zoned_search(Some(estimation::Soft::All(8.0)));
+        let clamped: Vec<Search> = soft.iter().map(clamp).collect();
+        let secondary: Vec<f64> = grid
+            .iter()
+            .map(|p| (p.0 / 9.0).sin() + p.1 / 30.0)
+            .collect();
+        let table = Secondary::fit(&secondary, None, &[], Some(0.6)).unwrap();
+        // Sum and index-weighted sum: robust to the platform's last bits.
+        let moments = |v: Vec<f64>| {
+            v.iter()
+                .enumerate()
+                .fold([0.0, 0.0], |[s, m], (i, x)| [s + x, m + (i + 1) as f64 * x])
+        };
+        let got: Vec<[f64; 2]> = [(soft, Some(trend)), (clamped, None)]
+            .into_iter()
+            .flat_map(|(search, trend)| {
+                let params = SgsParams { search, seed: 17 };
+                let run = |co: bool| {
+                    let (w, h) = (Some(&z.weights[..]), Some(&z.holes[..]));
+                    let r = match co {
+                        false => sgs_in(
+                            &z.locs,
+                            &z.vals,
+                            w,
+                            h,
+                            domains,
+                            trend,
+                            &grid,
+                            &vg(),
+                            &params,
+                            None,
+                        ),
+                        true => cosgs(
+                            &z.locs,
+                            &z.vals,
+                            w,
+                            h,
+                            domains,
+                            trend,
+                            &grid,
+                            &vg(),
+                            &params,
+                            None,
+                            &table,
+                            &secondary,
+                        ),
+                    };
+                    moments(r.unwrap().values)
+                };
+                [run(false), run(true)]
+            })
+            .collect();
+        let want = [
+            [6000.95017630096, 2486771.3538404712],
+            [6436.115144979901, 2818534.7153081438],
+            [5627.291251397307, 2199756.153071155],
+            [6424.8616635194185, 2668078.8242201437],
+        ];
+        for (g, w) in got.iter().flatten().zip(want.iter().flatten()) {
+            assert!((g - w).abs() <= 1e-9 * w.abs(), "{got:?}");
         }
     }
 
