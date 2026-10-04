@@ -4,7 +4,7 @@ from typing import Any, Literal, Self, TypeAlias
 from boitata._boitata import BlockModel, Drillholes, Mesh, PointSet
 
 Container: TypeAlias = PointSet | Drillholes | BlockModel | Mesh
-Style: TypeAlias = Literal["surface", "wireframe", "points", "points_gaussian"]
+Style: TypeAlias = Literal["surface", "wireframe", "points", "points_gaussian", "volume"]
 
 class Scene:
     plotter: Any

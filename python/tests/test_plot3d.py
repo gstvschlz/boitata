@@ -228,3 +228,44 @@ def test_drillholes_render_as_one_tube_mesh_without_null_intervals(pv, monkeypat
     traces = bt.plot3d.Scene(off_screen=True).add(bt.Drillholes(collar, survey), radius=1.0)
     np.testing.assert_allclose(drawn(layers(traces, pv)[0], pv).bounds, [-1, 101, -1, 1, 70, 100], atol=0.01)
     traces.close()
+
+
+def volumes(scene, pv):
+    return [a for a in scene.renderer.actors.values() if isinstance(a, pv.Volume)]
+
+
+def test_volume_fills_each_valid_block_and_hides_nulls(pv):
+    v = np.where(np.arange(24) % 4 == 0, np.nan, np.arange(24.0))
+    model = bt.BlockModel(**GRID, attributes={"v": v, "rock": ["a", None, "b"] * 8})
+    scene = bt.plot3d.Scene(off_screen=True).add(model, "v", style="volume", opacity=1.0)
+    scene.add(bt.PointSet(model.centroids, {"v": v - 10}), "v")
+    (actor,) = volumes(scene, pv)
+    grid = actor.mapper.dataset
+    assert isinstance(grid, pv.ImageData) and grid.dimensions == (6, 5, 4)
+    field = grid.point_data["v"]
+    valid = field > field.min()
+    np.testing.assert_allclose(grid.points[valid], model.centroids[np.isfinite(v)], atol=1e-4)
+    shape = actor.prop.GetScalarOpacity()
+    assert shape.GetValue(field.min()) == 0 and all(shape.GetValue(x) == 1 for x in field[valid])
+    assert actor.mapper.lookup_table is scene.colors["v"] and scene.colors["v"].scalar_range == (-9, 23)
+    assert actor.prop.GetRGBTransferFunction().GetRange() == pytest.approx((-9, 23), abs=1)
+    scene.add(model, "rock", style="volume")
+    rock = volumes(scene, pv)[1].mapper.dataset.point_data["rock"]
+    assert sorted(set(rock[rock >= 0])) == [0, 1] and scene.colors["rock"].GetNumberOfAnnotatedValues() == 2
+    assert scene.screenshot(return_img=True).std() > 0
+    scene.close()
+    with pytest.raises(ValueError, match="to_regular"):
+        bt.plot3d.Scene(off_screen=True).add(model.mask(np.isfinite(v)), "v", style="volume")
+
+
+def test_volume_above_gpu_memory_draws_coarse_while_moving(pv, monkeypatch):
+    monkeypatch.setattr(pv.SmartVolumeMapper, "GetMaxMemoryInBytes", lambda self: 100)
+    model = bt.BlockModel(**GRID, attributes={"v": np.arange(24.0)})
+    scene = bt.plot3d.Scene(off_screen=True).add(model, "v", style="volume")
+    mapper = volumes(scene, pv)[0].mapper
+    window = scene.ren_win
+    for rate, points, mode in ((30.0, 18, mapper.GPURenderMode), (0.0001, 120, mapper.RayCastRenderMode)):
+        window.SetDesiredUpdateRate(rate)
+        window.Render()
+        assert pv.wrap(mapper.GetInput()).n_points == points and mapper.GetRequestedRenderMode() == mode
+    scene.close()
