@@ -579,3 +579,19 @@ def test_axis_sections_keep_true_signs_in_a_right_handed_view(rotation):
         np.testing.assert_allclose([xy[:, 0].min(), xy[:, 0].max()], [(c @ right).min(), (c @ right).max()])
         np.testing.assert_allclose([xy[:, 1].min(), xy[:, 1].max()], [(c @ up).min(), (c @ up).max()])
         assert ax.get_xlim()[0] < ax.get_xlim()[1] and ax.get_ylim()[0] < ax.get_ylim()[1]
+
+
+def test_section_through_a_plane_cuts_its_blocks_and_keeps_holes_within_width():
+    bm = bt.BlockModel(origin=(0, 0, 0), size=(10, 10, 5), count=(4, 3, 2))
+    g = np.arange(24.0)
+    g[5] = np.nan
+    bm = bm.with_column("g", g)
+    c = {"HOLE_ID": ["A", "B"], "X": [15.0, 25.0], "Y": [16.0, 40.0], "Z": [20.0, 20.0]}
+    s = {"HOLE_ID": ["A", "B"], "DEPTH": [0.0, 0.0], "AZIMUTH": [0.0, 0.0], "DIP": [90.0, 90.0]}
+    dh = bt.Drillholes(c, s, {"HOLE_ID": ["A", "B"], "FROM": [0.0, 0.0], "TO": [30.0, 30.0]})
+    _, ax = bt.plot.section(bm, "g", origin=(20, 15, 5), azimuth=90, dip=90, holes=dh, width=10)
+    blocks, *traces = ax.collections
+    np.testing.assert_allclose(sorted(blocks.get_array()), [4, 6, 7, 16, 17, 18, 19])
+    assert [t.get_label() for t in traces] == ["A"] and [t.get_text() for t in ax.texts] == ["A"]
+    np.testing.assert_allclose(traces[0].get_segments()[0][:, 0], 15)
+    assert ax.get_xlabel() == "Easting (m)" and ax.get_ylabel() == "Elevation (m)"
