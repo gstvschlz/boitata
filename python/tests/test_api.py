@@ -183,6 +183,7 @@ def fits():
         (bt.MultigaussianKriging(model, search), (coords, values)),
         (bt.CategoricalIndicatorKriging(model, search), (coords, categories)),
         (bt.SGS(model, search), (coords, values)),
+        (bt.DSS(model, search), (coords, values)),
         (bt.TurningBands(model, bands=20), (coords, values)),
         (bt.SIS([model] * 3, search), (coords, categories)),
         (bt.Plurigaussian(model, proportions=[0.4, 0.4, 0.2]), (coords, categories)),

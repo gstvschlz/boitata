@@ -593,6 +593,61 @@ def test_sgs_domains_errors_and_persistence(tmp_path):
         bt.SGS(gaussian, soft).fit(xyz, grades, domains="MS")
 
 
+def test_dss_is_reproducible_and_honors_data():
+    dss = bt.DSS(gaussian, bt.Search(radius=40, max_samples=12)).fit(coords, values)
+    s = dss.simulate(grid, n=3, seed=7, keep=True, cutoffs=[1.0], quantiles=[0.5])
+    assert s.realizations.shape == (3, 400) and s.probability_above.shape == (400, 1)
+    np.testing.assert_array_equal(s.realizations, dss.simulate(grid, n=3, seed=7, keep=True).realizations)
+    assert values.min() <= s.realizations.min() and s.realizations.max() <= values.max()
+    at_data = dss.simulate(coords[:5], n=4, seed=1)
+    np.testing.assert_allclose(at_data.mean, values[:5])
+    np.testing.assert_allclose(at_data.variance, 0, atol=1e-12)
+    np.testing.assert_array_equal(dss.passes(grid), np.ones(400))
+
+
+def test_each_dss_domain_keeps_its_own_declustered_mean_and_range():
+    xyz, grades, _, weights, zone, _, _ = zoned_holes()
+    far = np.column_stack([1e4 + 100.0 * np.arange(40), np.full(40, 1e4), np.zeros(40)])
+    labels = np.repeat(["MS", "SM"], 20)
+    dss = bt.DSS(gaussian, bt.Search(np.inf, max_samples=8)).fit(xyz, grades, weights=weights, domains=zone)
+    s = dss.simulate(far, n=200, seed=3, domains=labels, keep=True)
+    for name in ("MS", "SM"):
+        mine = grades[zone == name]
+        want = np.average(mine, weights=weights[zone == name])
+        assert s.mean[labels == name].mean() == pytest.approx(want, rel=0.1)
+        reals = s.realizations[:, labels == name]
+        assert mine.min() <= reals.min() and reals.max() <= mine.max()
+
+
+def test_dss_warns_with_the_clamped_fraction():
+    smooth = bt.Variogram([("gaussian", 1.0, 200.0)])
+    dss = bt.DSS(smooth, bt.Search(radius=60, max_samples=16)).fit(coords, values)
+    with pytest.warns(UserWarning, match=r"\d+\.\d+% of simulated nodes"):
+        dss.simulate(grid, n=2, seed=1)
+    with pytest.raises(bt.InvalidInput, match="positive sill"):
+        bt.DSS(bt.Variogram([("power", 1.0, 1.5)]), bt.Search(radius=40))
+    with pytest.raises(bt.InvalidInput, match="not fitted"):
+        bt.DSS(gaussian, bt.Search(radius=40)).simulate(grid, n=1)
+
+
+def test_dss_domains_persist(tmp_path):
+    xyz, grades, holes, weights, zone, targets, _ = zoned_holes()
+    soft = bt.Search(30.0, max_samples=12, soft={("MS", "SM"): 8.0})
+    dss = bt.DSS(gaussian, soft).fit(xyz, grades, weights=weights, holes=holes, domains=zone)
+    labels = np.where(targets[:, 0] < 40, "MS", "SM")
+
+    def run(model):
+        return model.simulate(targets, n=2, seed=5, keep=True, domains=labels).realizations
+
+    dss.to_parquet(tmp_path / "dss.parquet")
+    for again in (bt.DSS.from_parquet(tmp_path / "dss.parquet"), pickle.loads(pickle.dumps(dss))):
+        np.testing.assert_array_equal(run(again), run(dss))
+    with pytest.raises(bt.InvalidInput, match='expected a SGS, found "DSS"'):
+        bt.SGS.from_parquet(tmp_path / "dss.parquet")
+    with pytest.raises(bt.InvalidInput, match="simulate needs domains"):
+        dss.simulate(targets, n=1)
+
+
 def test_sgs_domains_with_a_trend():
     xyz, grades, holes, weights, zone, targets, passes = zoned_holes()
     trend, at = xyz[:, 1] / 100, targets[:, 1] / 100

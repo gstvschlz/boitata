@@ -58,7 +58,7 @@ estimation: estimation
 recoverable: recoverable resources
     UniformConditioning DisjunctiveKriging change_of_support upscale downscale
 simulation: simulation
-    SGS TurningBands MultivariateSimulation SIS Plurigaussian SimulationSummary CategoricalSummary
+    SGS DSS TurningBands MultivariateSimulation SIS Plurigaussian SimulationSummary CategoricalSummary
     IndicatorSummary CategoricalIndicatorSummary check_realizations RealizationCheck
     gibbs localize object_training_image training_image_consistency SNESIM ImageQuilting
 modeling: modeling

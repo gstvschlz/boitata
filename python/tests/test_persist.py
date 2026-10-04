@@ -256,6 +256,7 @@ def simulators():
             {"values": values},
             {"cutoffs": [1.0, 2.0], "quantiles": [0.1, 0.9], "keep": True},
         ),
+        (bt.DSS(gaussian, near), {"values": values}, {"quantiles": [0.5], "keep": True}),
         (bt.TurningBands(gaussian, bands=50, step=2.0), {"values": values}, {"cutoffs": [1.0]}),
         (bt.SIS([gaussian] * 3, near), {"categories": facies}, {"keep": True}),
         (bt.Plurigaussian(gaussian, proportions=[0.4, 0.4, 0.2]), {"categories": facies}, {}),
