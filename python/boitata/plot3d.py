@@ -8,13 +8,13 @@ when given, else to a new one, and return the scene.
 import tempfile
 import weakref
 import webbrowser
-from functools import singledispatch
+from functools import cached_property, singledispatch
 from itertools import pairwise
 from pathlib import Path
 
 import numpy as np
 
-from boitata._boitata import BlockModel, Drillholes, Mesh, PointSet
+from boitata._boitata import BlockModel, Drillholes, Mesh, PointSet, _outer_faces
 from boitata.plot import _angles_for_normal, _frame
 
 __all__ = ["Scene", "plot", "slices", "to_pyvista"]
@@ -43,12 +43,13 @@ def _axes(rotation):
     return np.array([-m[1], m[0], m[2]])
 
 
+def _column(values):
+    return np.where(values == None, "", values).astype(str) if values.dtype == object else values
+
+
 def _columns(table):
     for name in table.column_names:
-        values = table[name]
-        if values.dtype == object:
-            values = np.where(values == None, "", values).astype(str)
-        yield name, values
+        yield name, _column(table[name])
 
 
 def _blocks(pv, model):
@@ -68,6 +69,36 @@ def _blocks(pv, model):
     points = origin + ((ijk[:, None] + fraction) * size).reshape(-1, 3) @ axes
     cells = np.arange(len(points)).reshape(-1, 8)
     return pv.UnstructuredGrid({pv.CellType.HEXAHEDRON: cells}, points)
+
+
+class _Solid:
+    """Masked or sub-blocked model drawn as its outer faces; `cells`, its hexahedra, are built on the first cut."""
+
+    def __init__(self, model):
+        self.model = model
+        self.n_cells = len(model)
+
+    @cached_property
+    def cells(self):
+        return to_pyvista(self.model)
+
+    @property
+    def bounds(self):
+        return self.cells.bounds
+
+    def slice(self, **kwargs):
+        return self.cells.slice(**kwargs)
+
+    def faces(self, values):
+        """Faces between a block and an empty cell or the grid's edge, a null of `values` counting as empty."""
+        table = self.model.attributes
+        name = values if values is not None else next(iter(table.column_names), None)
+        field = None if name is None else _column(table[name])
+        points, quads, rows = _outer_faces(self.model, None if values is None else _valid(field))
+        out = _pyvista().PolyData.from_regular_faces(points, quads)
+        if name is not None:
+            out.cell_data[name] = field[rows]
+        return out
 
 
 def to_pyvista(data):
@@ -115,6 +146,11 @@ def to_pyvista(data):
 def _layer(data):
     """pyvista dataset of `data` and its ``add_mesh`` defaults; each data type registers its own."""
     return (data, {}) if isinstance(data, _pyvista().DataObject) else (to_pyvista(data), {})
+
+
+@_layer.register
+def _(data: BlockModel):
+    return (to_pyvista(data) if data.index is None else _Solid(data)), {}
 
 
 @_layer.register
@@ -260,7 +296,7 @@ class Scene:
         number in (0, 1] a cheaper copy of every layer with about that fraction of its geometry. Once the camera
         stops, the layers draw in full again. Each copy is built the first time the camera moves and kept: a
         regular block model takes every n-th block along each axis, points a fixed random subset drawn flat,
-        other cells (masked or sub-blocked models) a fixed random subset, drill holes lines in place of tubes,
+        other cells and the faces of masked or sub-blocked models a fixed random subset, drill holes lines in place of tubes,
         surfaces a decimated copy; each keeps its layer's colors and leaves nulls out. Takes effect in the native window and in trame with server
         rendering; client rendering (vtk.js, ``show(browser=True)``) draws the full layers.
     **kwargs
@@ -332,6 +368,9 @@ class Scene:
     def _degrade(self, data, mesh, flat, values, style, kwargs, actor):
         if actor is None or self.motion_quality == "full":
             return None
+        if isinstance(mesh, _Solid):
+            faces = actor.mapper.GetInputAlgorithm().GetInputDataObject(0, 0)
+            mesh = _pyvista().wrap(faces).cast_to_unstructured_grid()
         fraction = self.motion_quality
         if fraction == "auto":
             size = mesh.n_points if _points_only(mesh) else mesh.n_cells
@@ -357,7 +396,9 @@ class Scene:
             Attribute that colors it. Its null rows never render: null points, cells, and the cells of null points
             are left out. Numbers share one range over every layer the variable colors, text one category list.
         style : {"surface", "wireframe", "points", "points_gaussian", "volume"}, optional
-            How cells are drawn; a `PointSet` draws its points as spheres. ``"volume"`` renders a regular block
+            How cells are drawn; a `PointSet` draws its points as spheres. A masked or sub-blocked `BlockModel`
+            draws as surface or wireframe only the faces between its blocks and empty cells, so a translucent one
+            shows its outer shell; a section still cuts its blocks. ``"volume"`` renders a regular block
             model colored by `values` on the GPU, each block a uniform cube; a model too large for GPU memory draws
             on the CPU once the camera stops (see `motion_quality` for while it moves).
         radius : float, optional
@@ -395,6 +436,8 @@ class Scene:
         return self
 
     def _draw(self, mesh, values, style, kwargs):
+        if isinstance(mesh, _Solid):
+            mesh = mesh.faces(values) if style in (None, "surface", "wireframe") else mesh.cells
         volume = style == "volume"
         if values is not None:
             if not volume:

@@ -79,6 +79,66 @@ def test_sub_blocks_match_centroids_and_volumes(pv):
     np.testing.assert_array_equal(grid.cell_data["v"], [1, 2, 3, 4])
 
 
+def outer_faces(pv, model, values="v"):
+    scene = bt.plot3d.Scene(off_screen=True).add(model, values)
+    ((solid, *_, actor),) = scene._layers
+    scene.close()
+    return solid, drawn(actor.mapper, pv)
+
+
+def test_solid_masked_cube_draws_its_outer_faces_only(pv):
+    n = 4
+    model = bt.BlockModel((0.0, 0, 0), (1.0, 2, 3), (n, n, n), rotation=(30.0, 20, 10))
+    centre = 1 + n + n * n
+    v = np.arange(n**3.0)
+    solid, faces = outer_faces(pv, model.with_column("v", v).mask(np.ones(n**3, dtype=bool)))
+    assert faces.n_cells == 6 * n**2 and faces.area == pytest.approx(22 * n**2)
+    np.testing.assert_allclose(faces.bounds, solid.cells.bounds, atol=1e-9)
+    np.testing.assert_allclose(solid.bounds, solid.cells.bounds, atol=1e-9)
+    v[centre] = np.nan
+    _, hollow = outer_faces(pv, model.with_column("v", v).mask(np.ones(n**3, dtype=bool)))
+    assert hollow.n_cells == 6 * n**2 + 6 and np.isfinite(hollow.cell_data["v"]).all()
+    pair, faces = outer_faces(pv, model.with_column("v", v).mask(np.arange(n**3) < 2))
+    assert faces.n_cells == 10
+    normals = faces.compute_normals(cell_normals=True, point_normals=False).cell_data["Normals"]
+    outward = faces.cell_centers().points - pair.model.centroids.mean(axis=0)
+    assert (np.einsum("ij,ij->i", normals, outward) > 0).all()
+
+
+def test_sub_blocks_draw_faces_not_shared_whole(pv):
+    n = 3
+    parent = np.repeat(np.arange(n**3, dtype=np.uint64), 2)
+    extents = np.tile([[0, 0, 0, 0.5, 1, 1], [0.5, 0, 0, 1, 1, 1]], (n**3, 1))
+    rock = ["a", "b"] * n**3
+    grid = {"origin": (0.0, 0, 0), "size": (1.0, 1, 1), "count": (n, n, n), "rotation": (30.0, 0, 0)}
+    model = bt.BlockModel.subblocked(**grid, parent=parent, extents=extents, attributes={"rock": rock})
+    _, faces = outer_faces(pv, model, "rock")
+    assert faces.n_cells == 2 * n * n + 2 * 2 * (2 * n * n)
+    assert set(faces.cell_data["rock"]) == {0, 1}
+    free = bt.BlockModel.subblocked(
+        (0.0, 0, 0),
+        (1.0, 1, 1),
+        (2, 1, 1),
+        parent=np.array([0, 1, 1], dtype=np.uint64),
+        extents=[[0, 0, 0, 1, 1, 1], [0, 0, 0, 1, 0.3, 1], [0, 0.3, 0, 1, 1, 1]],
+        attributes={"v": [1.0, 2, 3]},
+    )
+    _, faces = outer_faces(pv, free)
+    assert faces.n_cells == 16 and faces.area == pytest.approx(10 + 2)
+
+
+def test_masked_model_cuts_its_cells_and_draws_points_from_them(pv):
+    model = bt.BlockModel((0.0, 0, 0), (1.0, 1, 1), (4, 3, 2), attributes={"v": np.arange(24.0)})
+    model = model.mask(np.arange(24) != 5)
+    scene = bt.plot3d.Scene(off_screen=True).add(model, "v").add(model, "v", style="points")
+    assert drawn(scene._layers[1][-1].mapper, pv).n_points == 8 * 23
+    (cut, _) = scene.section(model.centroids[0], azimuth=0, dip=0)._cuts
+    assert drawn(cut.mapper, pv).n_cells == 11
+    empty = model.with_column("v", np.full(23, np.nan))
+    assert scene.add(empty, "v")._layers[-1][-1] is None
+    scene.close()
+
+
 def test_mesh_keeps_triangles_bounds_and_attributes(pv):
     vertices = np.array([[0, 0, 0], [1, 0, 0], [0, 1, 0], [0, 0, 1.0]])
     triangles = np.array([[0, 2, 1], [0, 1, 3], [0, 3, 2], [1, 2, 3]])

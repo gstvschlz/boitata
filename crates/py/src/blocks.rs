@@ -932,6 +932,30 @@ fn block_shell<'py>(
     Ok(Mesh::from_core(mesh))
 }
 
+/// Outer faces of the rows of `model` where `keep` is true; `plot3d` draws them.
+#[pyfunction]
+#[pyo3(signature = (model, keep=None))]
+fn _outer_faces<'py>(
+    py: Python<'py>,
+    model: PyRef<PyBlockModel>,
+    keep: Option<numpy::PyReadonlyArray1<bool>>,
+) -> PyResult<(Bound<'py, PyAny>, Bound<'py, PyAny>, Bound<'py, PyAny>)> {
+    let keep = keep.map(|k| k.as_array().to_vec());
+    let m = &model.0;
+    let f = py
+        .detach(|| blocks::outer_faces(m, keep.as_deref()))
+        .map_err(err)?;
+    let points = Array2::from_shape_vec((f.points.len(), 3), f.points.into_flattened())
+        .expect("three coordinates")
+        .into_pyarray(py)
+        .into_any();
+    let quads = Array2::from_shape_vec((f.quads.len(), 4), f.quads.into_flattened())
+        .expect("four corners")
+        .into_pyarray(py)
+        .into_any();
+    Ok((points, quads, f.rows.into_pyarray(py).into_any()))
+}
+
 /// Majority filter of block `classes` over a `window` of parent cells, repeated
 /// `iterations` times; ties keep a block's class and absent cells do not vote.
 /// Blocks vote with their volume, so in a sub-blocked model each sub-block
@@ -1164,6 +1188,7 @@ fn _outline<'py>(
 pub fn register(m: &Bound<PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(_outline, m)?)?;
     m.add_function(wrap_pyfunction!(_tin, m)?)?;
+    m.add_function(wrap_pyfunction!(_outer_faces, m)?)?;
     m.add_function(wrap_pyfunction!(_tin_residuals, m)?)?;
     m.add_function(wrap_pyfunction!(smooth_classes, m)?)?;
     m.add_function(wrap_pyfunction!(remove_small_units, m)?)?;
