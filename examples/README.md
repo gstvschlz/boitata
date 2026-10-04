@@ -36,6 +36,7 @@ Worked examples with the Python API on open datasets from [gstvschlz/datasets](h
 | 19 | [Topography from points](02-data-and-geometry/19-topography/README.md) | Stacked sulphide lenses | `topography`, `Topography`, `plot.section`, `Drillholes`, `snap_to_surface` |
 | 20 | [Sections with holes](02-data-and-geometry/20-sections-with-holes/README.md) | Stacked sulphide lenses | `merge_intervals`, `Drillholes`, `Variogram`, `Search`, `BlockModel`, `OrdinaryKriging`, `plot.section` |
 | 21 | [Live scene](02-data-and-geometry/21-live-scene/README.md) | Stacked sulphide lenses | `Drillholes`, `BlockModel`, `Search`, `InverseDistance`, `plot3d.Scene`, `plot3d.slices` |
+| 22 | [Meshes and points in a scene](02-data-and-geometry/22-meshes-and-points/README.md) | Stacked sulphide lenses | `Drillholes`, `PointSet`, `topography`, `plot3d.Scene` |
 
 ## Exploratory analysis
 
