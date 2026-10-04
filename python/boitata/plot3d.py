@@ -1,16 +1,22 @@
 """3D views on pyvista (the ``3d`` extra).
 
-`to_pyvista` converts a container to a pyvista dataset with its attributes as point or cell data; the plotting
-functions add it to `plotter` when given, else to a new one, and return the plotter.
+`to_pyvista` converts a container to a pyvista dataset with its attributes as point or cell data. A `Scene` holds
+layers that share one color map and range per variable; `plot` and `slices` add a layer to the scene of `plotter`
+when given, else to a new one, and return the scene.
 """
 
+import tempfile
+import weakref
+import webbrowser
+from functools import singledispatch
 from itertools import pairwise
+from pathlib import Path
 
 import numpy as np
 
 from boitata._boitata import BlockModel, Drillholes, Mesh, PointSet
 
-__all__ = ["plot", "slices", "to_pyvista"]
+__all__ = ["Scene", "plot", "slices", "to_pyvista"]
 
 _HEX = np.array([[0, 0, 0], [1, 0, 0], [1, 1, 0], [0, 1, 0], [0, 0, 1], [1, 0, 1], [1, 1, 1], [0, 1, 1]])
 
@@ -104,8 +110,166 @@ def to_pyvista(data):
     return out
 
 
-def _plotter(plotter):
-    return _pyvista().Plotter() if plotter is None else plotter
+@singledispatch
+def _layer(data):
+    """pyvista dataset of `data` and its ``add_mesh`` defaults; each data type registers its own."""
+    return (data, {}) if isinstance(data, _pyvista().DataObject) else (to_pyvista(data), {})
+
+
+@_layer.register
+def _(data: PointSet):
+    return to_pyvista(data), {"render_points_as_spheres": True, "point_size": 6}
+
+
+def _text(field):
+    return field.dtype.kind in "OUS"
+
+
+def _on_cells(mesh, values):
+    return mesh.get_array_association(values).name == "CELL"
+
+
+def _drop_nulls(mesh, values):
+    field = mesh.get_array(values)
+    keep = field != "" if _text(field) else np.isfinite(field)
+    if keep.all():
+        return mesh
+    if _on_cells(mesh, values):
+        return mesh.extract_cells(keep)
+    return mesh.extract_points(keep, adjacent_cells=False)
+
+
+_SCENES = weakref.WeakKeyDictionary()
+
+
+class Scene:
+    """Live 3D scene: layers colored by a variable share its color map and range.
+
+    Parameters
+    ----------
+    plotter : pyvista.Plotter, optional
+        Plotter to draw into; a new one by default.
+    **kwargs
+        Passed to ``pyvista.Plotter`` when `plotter` is not given (e.g. ``window_size``, ``off_screen``).
+
+    Attributes
+    ----------
+    plotter : pyvista.Plotter
+        Attributes the scene does not have are looked up on it (``screenshot``, ``view_vector``, ...).
+    colors : dict of str to pyvista.LookupTable
+        Color map and range of each variable, shared by every layer it colors.
+    """
+
+    def __init__(self, *, plotter=None, **kwargs):
+        self.plotter = _pyvista().Plotter(**kwargs) if plotter is None else plotter
+        self.colors = {}
+        self._categories = {}
+        self._ranges = {}
+        self._pinned = set()
+        self._bars = {}
+        _SCENES[self.plotter] = self
+
+    def __getattr__(self, name):
+        if name == "plotter":
+            raise AttributeError(name)
+        return getattr(self.plotter, name)
+
+    def add(self, data, values=None, *, style=None, **kwargs):
+        """Adds a layer.
+
+        Parameters
+        ----------
+        data : PointSet, Drillholes, BlockModel, Mesh or pyvista.DataObject
+            What to draw; containers go through `to_pyvista`.
+        values : str, optional
+            Attribute that colors it. Its null rows never render: null points, cells, and the cells of null points
+            are left out. Numbers share one range over every layer the variable colors, text one category list.
+        style : {"surface", "wireframe", "points", "points_gaussian"}, optional
+            How cells are drawn; a `PointSet` draws its points as spheres.
+        **kwargs
+            Passed to ``plotter.add_mesh``. ``cmap`` sets the variable's color map and ``clim`` fixes its range for
+            every layer; the first ``scalar_bar_args`` given for a variable style its one color bar.
+
+        Returns
+        -------
+        Scene
+            This scene, to chain calls.
+        """
+        mesh, defaults = _layer(data)
+        if isinstance(mesh, _pyvista().MultiBlock):
+            mesh = mesh.combine()
+        if values is not None:
+            mesh = _drop_nulls(mesh, values)
+            if mesh.n_points == 0:
+                return self
+            mesh, kwargs["cmap"] = self._color(
+                mesh, values, kwargs.pop("cmap", None), kwargs.pop("clim", None)
+            )
+            labels = {"n_labels": 0} if values in self._categories else {}
+            bar = {"title": values, **labels, **kwargs.get("scalar_bar_args", {})}
+            kwargs["scalar_bar_args"] = dict(self._bars.setdefault(values, bar))
+        actor = self.plotter.add_mesh(mesh, scalars=values, style=style, **{**defaults, **kwargs})
+        if values is not None:
+            actor.mapper.SetUseLookupTableScalarRange(True)
+            self.colors[values].scalar_range = self._ranges[values]
+        return self
+
+    def _color(self, mesh, values, cmap, clim):
+        pv = _pyvista()
+        field = mesh.get_array(values)
+        lut = self.colors.get(values)
+        if lut is None:
+            lut = self.colors[values] = pv.LookupTable(cmap or pv.global_theme.cmap)
+        elif cmap is not None:
+            lut.cmap = cmap
+        if _text(field):
+            names = self._categories.setdefault(values, [])
+            names += sorted(set(field.tolist()) - set(names))
+            code = {name: i for i, name in enumerate(names)}
+            codes = np.array([code[v] for v in field.tolist()], dtype=float)
+            mesh = mesh.copy(deep=False)
+            (mesh.cell_data if _on_cells(mesh, values) else mesh.point_data)[values] = codes
+            lut.apply_cmap(lut.cmap, len(names))
+            lut.annotations = dict(enumerate(names))
+            self._ranges[values] = (-0.5, len(names) - 0.5)
+        elif clim is not None:
+            self._pinned.add(values)
+            self._ranges[values] = tuple(clim)
+        elif values not in self._pinned:
+            lo, hi = self._ranges.get(values, (np.inf, -np.inf))
+            self._ranges[values] = (min(lo, float(field.min())), max(hi, float(field.max())))
+        return mesh, lut
+
+    def show(self, *, browser=False, **kwargs):
+        """Opens the scene: trame in Jupyter, a native window otherwise, or the browser.
+
+        Parameters
+        ----------
+        browser : bool, default False
+            Writes the scene to an interactive HTML page with trame and opens it in the web browser.
+        **kwargs
+            Passed to ``plotter.show``.
+
+        Returns
+        -------
+        pathlib.Path or None
+            The HTML page when `browser`, else what ``plotter.show`` returns.
+        """
+        if not browser:
+            return self.plotter.show(**kwargs)
+        path = Path(tempfile.mkdtemp()) / "scene.html"
+        try:
+            getattr(self.plotter, "trame", self.plotter).export_html(path)
+        except ImportError as e:
+            raise ImportError("Scene.show(browser=True) needs trame: pip install 'pyvista[jupyter]'") from e
+        webbrowser.open(path.as_uri())
+        return path
+
+
+def _scene(plotter):
+    if isinstance(plotter, Scene):
+        return plotter
+    return (_SCENES.get(plotter) if plotter is not None else None) or Scene(plotter=plotter)
 
 
 def plot(data, values=None, *, plotter=None, **kwargs):
@@ -116,23 +280,17 @@ def plot(data, values=None, *, plotter=None, **kwargs):
     data : PointSet, Drillholes, BlockModel, Mesh or pyvista.DataObject
         What to draw; containers go through `to_pyvista`.
     values : str, optional
-        Attribute that colors it.
-    plotter : pyvista.Plotter, optional
+        Attribute that colors it; its nulls never render.
+    plotter : Scene or pyvista.Plotter, optional
         Scene to add to; a new one by default.
     **kwargs
-        Passed to ``plotter.add_mesh``; points are drawn as spheres unless set otherwise.
+        Passed to `Scene.add`.
 
     Returns
     -------
-    pyvista.Plotter
+    Scene
     """
-    plotter = _plotter(plotter)
-    mesh = data if isinstance(data, _pyvista().DataObject) else to_pyvista(data)
-    if isinstance(data, PointSet):
-        kwargs.setdefault("render_points_as_spheres", True)
-        kwargs.setdefault("point_size", 6)
-    plotter.add_mesh(mesh, scalars=values, **kwargs)
-    return plotter
+    return _scene(plotter).add(data, values, **kwargs)
 
 
 def slices(model, values=None, *, x=None, y=None, z=None, plotter=None, **kwargs):
@@ -143,19 +301,19 @@ def slices(model, values=None, *, x=None, y=None, z=None, plotter=None, **kwargs
     model : BlockModel
         Block model to cut.
     values : str, optional
-        Attribute that colors the slices.
+        Attribute that colors the slices; its nulls never render.
     x, y, z : float, optional
         World coordinates the slices pass through; the model's center by default.
-    plotter : pyvista.Plotter, optional
+    plotter : Scene or pyvista.Plotter, optional
         Scene to add to; a new one by default.
     **kwargs
-        Passed to ``plotter.add_mesh``.
+        Passed to `Scene.add`.
 
     Returns
     -------
-    pyvista.Plotter
+    Scene
     """
     mesh = to_pyvista(model)
     center = mesh.center
     at = [center[a] if v is None else v for a, v in enumerate((x, y, z))]
-    return plot(mesh.slice_orthogonal(x=at[0], y=at[1], z=at[2]), values=values, plotter=plotter, **kwargs)
+    return plot(mesh.slice_orthogonal(x=at[0], y=at[1], z=at[2]), values, plotter=plotter, **kwargs)

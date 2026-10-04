@@ -121,3 +121,62 @@ def test_plots_render_off_screen(pv):
     assert image.ndim == 3 and image.std() > 0
     with pytest.raises(TypeError):
         bt.plot3d.to_pyvista(np.zeros(3))
+
+
+def layers(scene, pv):
+    scene.render()
+    return [a.mapper for a in scene.renderer.actors.values() if isinstance(a, pv.Actor)]
+
+
+def drawn(mapper, pv):
+    return pv.wrap(mapper.GetInputAlgorithm().GetInputDataObject(0, 0))
+
+
+def test_scene_never_renders_nulls_in_any_style(pv):
+    v = np.where(np.arange(24) % 4 == 0, np.nan, np.arange(24.0))
+    model = bt.BlockModel(**GRID, attributes={"v": v})
+    points = bt.PointSet(model.centroids, {"v": v, "rock": ["a", None, "b", "c"] * 6})
+    for style in ("surface", "wireframe", "points"):
+        scene = bt.plot3d.Scene(off_screen=True).add(model, "v", style=style).add(points, "rock", style=style)
+        blocks, dots = (drawn(m, pv) for m in layers(scene, pv))
+        assert blocks.n_cells == 18 and np.isfinite(blocks.cell_data["v"]).all()
+        assert dots.n_points == 18
+        scene.close()
+    empty = bt.plot3d.Scene(off_screen=True).add(model.mask(np.isnan(v)), "v")
+    assert layers(empty, pv) == []
+
+
+def test_scene_shares_one_color_map_and_range_per_variable(pv):
+    def points(**columns):
+        n = len(next(iter(columns.values())))
+        return bt.PointSet(rng.uniform(0, 1, (n, 3)), columns)
+
+    scene = bt.plot3d.Scene(off_screen=True)
+    scene.add(points(g=np.array([1.0, 2, 3, 4, np.nan])), "g", cmap="cividis")
+    scene.add(points(g=np.array([0.0, 5, 6, 7, 8])), "g")
+    scene.add(points(r=["b", "a", "b"]), "r")
+    scene.add(points(r=["c", "a", None]), "r")
+    mappers = layers(scene, pv)
+    assert all(m.lookup_table is scene.colors["g"] for m in mappers[:2])
+    assert all(m.lookup_table is scene.colors["r"] for m in mappers[2:])
+    assert scene.colors["g"].scalar_range == (0, 8) and scene.colors["g"].cmap.name == "cividis"
+    assert scene.colors["r"].annotations == {0: "a", 1: "b", 2: "c"} and len(scene.scalar_bars) == 2
+    np.testing.assert_array_equal(drawn(mappers[3], pv).point_data["r"], [2, 0])
+    bt.plot3d.plot(points(g=np.array([-1.0, 9])), "g", plotter=scene.plotter)
+    assert scene.colors["g"].scalar_range == (-1, 9)
+    scene.add(points(g=np.array([-5.0, 20])), "g", clim=(0, 10))
+    scene.add(points(g=np.array([-5.0, 30])), "g")
+    assert scene.colors["g"].scalar_range == (0, 10)
+    image = scene.screenshot(return_img=True)
+    scene.close()
+    assert image.std() > 0
+
+
+def test_scene_opens_a_page_in_the_browser(pv, monkeypatch):
+    pytest.importorskip("trame_pyvista")
+    opened = []
+    monkeypatch.setattr("webbrowser.open", opened.append)
+    scene = bt.plot3d.Scene(off_screen=True).add(bt.PointSet(np.eye(3), {"g": [1.0, 2, 3]}), "g")
+    path = scene.show(browser=True)
+    scene.close()
+    assert opened == [path.as_uri()] and path.stat().st_size > 0
