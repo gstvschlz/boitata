@@ -12,7 +12,14 @@ class Scene:
     def __init__(self, *, plotter: Any = None, **kwargs: Any) -> None: ...
     def __getattr__(self, name: str) -> Any: ...
     def add(
-        self, data: Container | Any, values: str | None = None, *, style: Style | None = None, **kwargs: Any
+        self,
+        data: Container | Any,
+        values: str | None = None,
+        *,
+        style: Style | None = None,
+        radius: float | None = None,
+        labels: bool = False,
+        **kwargs: Any,
     ) -> Self: ...
     def show(self, *, browser: bool = False, **kwargs: Any) -> Path | Any: ...
 

@@ -96,3 +96,21 @@ scene.add(composites, "lens", point_size=5)
 print(f"{len(blocks):,} sub-blocks, {(names != '').sum():,} of {len(composites):,} composites in a lens")
 print(f"categories: {list(scene.colors['lens'].annotations.values())}")
 save(image(scene, "Lens of each composite and sub-block, one color per lens"), "lenses")
+
+# %% [markdown]
+# drill holes draw as one tube mesh, a tube per assay interval carrying the interval columns; unassayed ground has
+# no interval and leaves a gap, as would a null `ZN_PCT`. holes without intervals draw their traces instead.
+# `radius` sets the tube radius in meters and `labels=True` names each hole at its collar. here the holes collared
+# within 30 m of a north-south line through the middle: thin traces with their names, thick assays on top.
+
+# %%
+x = np.asarray(data["collars"]["X"])
+fence = data["collars"].filter(np.abs(x - np.median(x)) < 30)
+fence_holes = bt.Drillholes(fence, data["surveys"], data["assays"])
+scene = bt.plot3d.Scene(window_size=(1400, 900))
+scene.add(bt.Drillholes(fence, data["surveys"]), radius=1, labels=True, color=LIGHT)
+scene.add(fence_holes, "ZN_PCT", radius=4, clim=(0, 5), scalar_bar_args={"title": "Zn (%)", **BAR})
+for lens in lenses:
+    scene.add(lens, style="wireframe", color=LIGHT, opacity=0.1)
+print(f"{len(fence_holes.holes)} of {len(holes.holes)} holes, {len(fence_holes.samples()):,} intervals")
+save(image(scene, "Zn assays down a fence of holes, one tube mesh", view=(1, -0.2, 0.3)), "holes")
