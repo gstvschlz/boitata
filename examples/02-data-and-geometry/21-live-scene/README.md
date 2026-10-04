@@ -114,4 +114,4 @@ categories: ['lens 1', 'lens 2', 'lens 3']
 
 ![lenses](lenses.png)
 
-Full script: [`example_02_20.py`](example_02_20.py)
+Full script: [`example_02_21.py`](example_02_21.py)

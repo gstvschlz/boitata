@@ -40,7 +40,7 @@ find your question and follow the link. **learn** pages explain an idea from scr
 | i have a lease boundary or pit outline. | [polygons](../examples/02-data-and-geometry/08-polygons/example_02_08.md) |
 | i need to read or write OBJ, STL, DXF, shapefiles or GeoTIFF. | [mesh files](../examples/02-data-and-geometry/07-mesh-files/example_02_07.md), [GIS formats](../examples/02-data-and-geometry/09-gis-formats/example_02_09.md) |
 | my block model does not fit in memory. | [models larger than memory](../examples/02-data-and-geometry/10-large-models/example_02_10.md) |
-| i want to see holes and blocks in 3D or on sections. | [3D views](../examples/02-data-and-geometry/11-3d-views/example_02_11.md), [stepped sections](../examples/02-data-and-geometry/16-stepped-sections/example_02_16.md), [hole traces](../examples/02-data-and-geometry/17-hole-traces/example_02_17.md) |
+| i want to see holes and blocks in 3D or on sections. | [3D views](../examples/02-data-and-geometry/11-3d-views/example_02_11.md), [stepped sections](../examples/02-data-and-geometry/16-stepped-sections/example_02_16.md), [hole traces](../examples/02-data-and-geometry/17-hole-traces/example_02_17.md), [sections with holes](../examples/02-data-and-geometry/20-sections-with-holes/example_02_20.md), [live scene](../examples/02-data-and-geometry/21-live-scene/example_02_21.md) |
 
 </div>
 
