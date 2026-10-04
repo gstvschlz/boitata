@@ -35,7 +35,7 @@ pub mod turning_bands;
 
 pub use consistency::{Consistency, ConsistencyParams, consistency};
 pub use correct::{Empirical, correct_distribution};
-pub use dss::{DssRealization, dss_in};
+pub use dss::{Dss, DssRealization, dss_in};
 pub use error::{Result, SimError};
 pub use gibbs::{GibbsParams, gibbs};
 pub use lattice::{Lattice, Template, default_levels, multigrid_path};

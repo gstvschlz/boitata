@@ -1536,6 +1536,15 @@ impl Dss {
         };
         let clamped = std::sync::atomic::AtomicUsize::new(0);
         let simulated = std::sync::atomic::AtomicUsize::new(0);
+        let dss = simulation::Dss::new(
+            &d.locs,
+            &d.values,
+            d.weights.as_deref(),
+            d.holes.as_deref(),
+            d.domains.as_deref(),
+            &self.variogram,
+        )
+        .map_err(err)?;
         let summary = with_progress(py, Some(n as u64), progress, |counter| {
             simulation::continuous(
                 n,
@@ -1545,17 +1554,8 @@ impl Dss {
                         search: search.clone(),
                         seed: boitata_core::rng::realization_seed(seed, k as u64),
                     };
-                    let r = simulation::dss_in(
-                        &d.locs,
-                        &d.values,
-                        d.weights.as_deref(),
-                        d.holes.as_deref(),
-                        d.domains.as_deref().zip(of_realization(&nodes, k)),
-                        &grid,
-                        &self.variogram,
-                        &params,
-                        local.as_ref(),
-                    )?;
+                    let r =
+                        dss.simulate(of_realization(&nodes, k), &grid, &params, local.as_ref())?;
                     clamped.fetch_add(r.clamped, std::sync::atomic::Ordering::Relaxed);
                     let done = r.values.iter().filter(|v| !v.is_nan()).count();
                     simulated.fetch_add(done, std::sync::atomic::Ordering::Relaxed);
