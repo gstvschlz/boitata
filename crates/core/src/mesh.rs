@@ -40,6 +40,9 @@ pub enum MeshProblemKind {
     /// Closed shell wound against its nesting: inward outside cavities, or
     /// outward as a cavity.
     InwardShell,
+    /// Face crossing an earlier face it shares no edge with. Coplanar
+    /// overlaps and faces touching at a point or along an edge do not count.
+    SelfIntersection,
 }
 
 impl MeshProblemKind {
@@ -53,6 +56,7 @@ impl MeshProblemKind {
             Self::NonManifoldVertex => "non_manifold_vertex",
             Self::InconsistentWinding => "inconsistent_winding",
             Self::InwardShell => "inward_shell",
+            Self::SelfIntersection => "self_intersection",
         }
     }
 }
@@ -60,7 +64,8 @@ impl MeshProblemKind {
 /// One defect. Edge problems give a `face` holding the edge, its local
 /// `edge` (corner `edge` to corner `(edge + 1) % 3`) and its first `vertex`.
 /// `other` is the earlier face or vertex a duplicate repeats, or the other
-/// face of an inconsistent edge. An inward shell gives its first face.
+/// face of an inconsistent edge, or the earlier face of a crossing pair. An
+/// inward shell gives its first face.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct MeshProblem {
     pub kind: MeshProblemKind,
@@ -84,6 +89,8 @@ pub struct MeshSummary {
     /// Pieces connected through shared edges.
     pub shells: usize,
     pub inward_shells: usize,
+    /// Pairs of crossing faces.
+    pub self_intersections: usize,
     /// At least one valid face and every edge shared by exactly two.
     pub is_closed: bool,
 }
@@ -269,6 +276,70 @@ fn misoriented(vertices: &[[f64; 3]], shells: &[Vec<[u32; 3]>]) -> Vec<bool> {
         .collect()
 }
 
+fn dot(a: [f64; 3], b: [f64; 3]) -> f64 {
+    a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
+}
+
+/// Whether segment `p`-`q` passes through the interior of triangle `t`,
+/// excluding its ends, the triangle's edges and segments in its plane.
+fn pierces(p: [f64; 3], q: [f64; 3], [a, b, c]: [[f64; 3]; 3]) -> bool {
+    const EPS: f64 = 1e-9;
+    let n = cross(sub(b, a), sub(c, a));
+    let (dp, dq) = (dot(n, sub(p, a)), dot(n, sub(q, a)));
+    if dp * dq >= 0.0 {
+        return false;
+    }
+    let s = dp / (dp - dq);
+    if s <= EPS || s >= 1.0 - EPS {
+        return false;
+    }
+    let x = [0, 1, 2].map(|k| p[k] + s * (q[k] - p[k]));
+    let nn = dot(n, n);
+    [(a, b), (b, c), (c, a)]
+        .iter()
+        .all(|&(u, v)| dot(cross(sub(v, u), sub(x, u)), n) > EPS * nn)
+}
+
+/// Pairs `(earlier, later)` of valid faces sharing at most one vertex whose
+/// interiors cross: two triangles cross when an edge of one pierces the
+/// other. Candidates come from a sweep over x-sorted bounding boxes.
+fn crossings(vertices: &[[f64; 3]], triangles: &[[u32; 3]], valid: &[bool]) -> Vec<(usize, usize)> {
+    let corners = |f: usize| triangles[f].map(|i| vertices[i as usize]);
+    let boxes: Vec<[[f64; 3]; 2]> = (0..triangles.len())
+        .map(|f| {
+            let c = corners(f);
+            let lo = [0, 1, 2].map(|k| c[0][k].min(c[1][k]).min(c[2][k]));
+            let hi = [0, 1, 2].map(|k| c[0][k].max(c[1][k]).max(c[2][k]));
+            [lo, hi]
+        })
+        .collect();
+    let mut order: Vec<usize> = (0..triangles.len()).filter(|&f| valid[f]).collect();
+    order.sort_by(|&f, &g| boxes[f][0][0].total_cmp(&boxes[g][0][0]).then(f.cmp(&g)));
+    let through = |e: [[f64; 3]; 3], t| (0..3).any(|k| pierces(e[k], e[(k + 1) % 3], t));
+    let mut pairs = vec![];
+    for (n, &f) in order.iter().enumerate() {
+        for &g in &order[n + 1..] {
+            if boxes[g][0][0] > boxes[f][1][0] {
+                break;
+            }
+            let apart =
+                (1..3).any(|k| boxes[g][0][k] > boxes[f][1][k] || boxes[f][0][k] > boxes[g][1][k]);
+            let shared = triangles[f]
+                .iter()
+                .filter(|i| triangles[g].contains(i))
+                .count();
+            if apart || shared > 1 {
+                continue;
+            }
+            let (cf, cg) = (corners(f), corners(g));
+            if through(cf, cg) || through(cg, cf) {
+                pairs.push((f.min(g), f.max(g)));
+            }
+        }
+    }
+    pairs
+}
+
 fn root(parent: &mut [usize], mut i: usize) -> usize {
     while parent[i] != i {
         parent[i] = parent[parent[i]];
@@ -403,7 +474,13 @@ fn validate(vertices: &[[f64; 3]], triangles: &[[u32; 3]], tolerance: f64) -> Me
             problems.push(problem(InwardShell, Some(s[0]), None));
         }
     }
-    problems.sort_by_key(|p| (p.kind, p.face, p.vertex, p.edge));
+    for (f, g) in crossings(vertices, triangles, &valid) {
+        problems.push(MeshProblem {
+            other: Some(f as u32),
+            ..problem(SelfIntersection, Some(g), None)
+        });
+    }
+    problems.sort_by_key(|p| (p.kind, p.face, p.vertex, p.edge, p.other));
 
     let count = |kind| problems.iter().filter(|p| p.kind == kind).count();
     let (boundary_edges, non_manifold_edges) = (count(BoundaryEdge), count(NonManifoldEdge));
@@ -417,6 +494,7 @@ fn validate(vertices: &[[f64; 3]], triangles: &[[u32; 3]], tolerance: f64) -> Me
         inconsistent_edges: count(InconsistentWinding),
         shells: shells.len(),
         inward_shells: count(InwardShell),
+        self_intersections: count(SelfIntersection),
         is_closed: valid.contains(&true) && boundary_edges == 0 && non_manifold_edges == 0,
     };
     MeshReport { summary, problems }
@@ -485,7 +563,7 @@ impl Mesh {
         })
     }
 
-    /// Degenerate, duplicate, edge, vertex and orientation problems.
+    /// Degenerate, duplicate, edge, vertex, orientation and crossing problems.
     /// `tolerance` is the distance within which a vertex duplicates an
     /// earlier one.
     pub fn validate(&self, tolerance: f64) -> Result<MeshReport> {
@@ -527,7 +605,7 @@ impl Mesh {
     /// each connected piece wound consistently. A closed piece inside an even
     /// number of other closed pieces winds outward; inside an odd number it is
     /// a cavity and winds inward. Kept vertices and triangles keep their order
-    /// and attributes.
+    /// and attributes. Crossing faces are left as they are.
     pub fn repair(&self, tolerance: f64) -> Result<Self> {
         check_tolerance(tolerance)?;
         let first = weld(&self.vertices, tolerance);
@@ -611,6 +689,70 @@ impl Mesh {
         let mut mesh = Self::new(vertices, triangles)?;
         mesh.vertex_attributes = take_rows(&self.vertex_attributes, used)?;
         mesh.face_attributes = take_rows(&self.face_attributes, faces)?;
+        mesh.crs = self.crs.clone();
+        Ok(mesh)
+    }
+
+    /// Copy with each hole closed by a fan of triangles from its first
+    /// vertex, wound like the faces around it. A hole is a loop of boundary
+    /// edges; a loop through a vertex that starts two boundary edges stays
+    /// open. New faces come last with null attributes. A fan suits small,
+    /// nearly planar, convex holes; others can come out folded.
+    pub fn fill_holes(&self) -> Result<Self> {
+        let valid: Vec<[u32; 3]> = self
+            .triangles
+            .iter()
+            .copied()
+            .filter(|&t| !degenerate(&self.vertices, t))
+            .collect();
+        let mut count: HashMap<(u32, u32), usize> = HashMap::new();
+        for (i, j) in valid.iter().flat_map(|&t| directed(t)) {
+            *count.entry((i.min(j), i.max(j))).or_default() += 1;
+        }
+        let boundary: Vec<(u32, u32)> = valid
+            .iter()
+            .flat_map(|&t| directed(t))
+            .filter(|&(i, j)| count[&(i.min(j), i.max(j))] == 1)
+            .collect();
+        let mut next: HashMap<u32, Vec<u32>> = HashMap::new();
+        for &(i, j) in &boundary {
+            next.entry(i).or_default().push(j);
+        }
+        let mut seen = HashSet::new();
+        let mut triangles = self.triangles.clone();
+        for &(start, _) in &boundary {
+            if !seen.insert(start) {
+                continue;
+            }
+            let mut ring = vec![start];
+            let closed = loop {
+                let &[w] = &next[ring.last().expect("ring")][..] else {
+                    break false;
+                };
+                if w == start {
+                    break true;
+                }
+                if !seen.insert(w) || !next.contains_key(&w) {
+                    break false;
+                }
+                ring.push(w);
+            };
+            if closed && ring.len() >= 3 {
+                triangles.extend(ring.windows(2).skip(1).map(|w| [start, w[1], w[0]]));
+            }
+        }
+        let n = self.triangles.len() as u32;
+        let rows: Vec<Option<u32>> = (0..triangles.len() as u32)
+            .map(|f| (f < n).then_some(f))
+            .collect();
+        let face_attributes = match self.face_attributes.num_columns() {
+            0 => empty(rows.len()),
+            _ => take_record_batch(&self.face_attributes, &UInt32Array::from(rows))
+                .map_err(|e| Error::Geometry(e.to_string()))?,
+        };
+        let mut mesh = Self::new(self.vertices.clone(), triangles)?;
+        mesh.vertex_attributes = self.vertex_attributes.clone();
+        mesh.face_attributes = face_attributes;
         mesh.crs = self.crs.clone();
         Ok(mesh)
     }
@@ -909,6 +1051,126 @@ mod tests {
             kinds(&bad, 0.0),
             vec![(MeshProblemKind::InwardShell, Some(12), None)]
         );
+    }
+
+    /// Theory check: a cube missing one square side has the 4 edges of that
+    /// square open; a flipped triangle gives its 3 edges inconsistent winding
+    /// and repair winds it back.
+    #[test]
+    fn missing_side_opens_four_edges_and_flipped_face_repairs() {
+        let c = cube();
+        let r = mesh(c.vertices(), &c.triangles()[2..])
+            .validate(0.0)
+            .unwrap();
+        assert_eq!((r.summary.boundary_edges, r.summary.is_closed), (4, false));
+        let faces: ArrayRef = Arc::new(Float64Array::from_iter_values((2..12).map(f64::from)));
+        let open = mesh(c.vertices(), &c.triangles()[2..])
+            .with_face_column("face", faces)
+            .unwrap();
+        let filled = open.fill_holes().unwrap();
+        assert_eq!(filled.triangles().len(), 12);
+        assert!(filled.validate(0.0).unwrap().problems.is_empty());
+        assert!((filled.volume().unwrap() - 1.0).abs() < 1e-12);
+        assert_eq!(filled.face_attributes().column(0).null_count(), 2);
+        assert_eq!(filled.fill_holes().unwrap().triangles(), filled.triangles());
+        let mut t = c.triangles().to_vec();
+        t[7].swap(0, 1);
+        let flipped = mesh(c.vertices(), &t);
+        assert_eq!(flipped.validate(0.0).unwrap().summary.inconsistent_edges, 3);
+        let fixed = flipped.repair(0.0).unwrap();
+        assert!(fixed.validate(0.0).unwrap().problems.is_empty());
+        assert_eq!(fixed.triangles()[7], [6, 7, 3]);
+        assert!((fixed.volume().unwrap() - 1.0).abs() < 1e-12);
+    }
+
+    fn two_cubes(shift: [f64; 3]) -> Mesh {
+        let c = cube();
+        let mut v = c.vertices().to_vec();
+        v.extend(
+            c.vertices()
+                .iter()
+                .map(|p| [0, 1, 2].map(|k| p[k] + shift[k])),
+        );
+        let mut t = c.triangles().to_vec();
+        t.extend(c.triangles().iter().map(|f| f.map(|i| i + 8)));
+        mesh(&v, &t)
+    }
+
+    #[test]
+    fn crossing_triangles_are_one_self_intersection() {
+        let m = mesh(
+            &[
+                [0., 0., 0.],
+                [2., 0., 0.],
+                [0., 2., 0.],
+                [0.5, 0.5, -1.],
+                [0.5, 0.5, 1.],
+                [3., 3., 0.5],
+            ],
+            &[[0, 1, 2], [3, 4, 5]],
+        );
+        let r = m.validate(0.0).unwrap();
+        assert_eq!(r.summary.self_intersections, 1);
+        assert_eq!(
+            r.problems.last(),
+            Some(&MeshProblem {
+                kind: MeshProblemKind::SelfIntersection,
+                face: Some(1),
+                vertex: None,
+                edge: None,
+                other: Some(0),
+            })
+        );
+        let touching = mesh(m.vertices(), &[[0, 1, 2], [0, 4, 5]]);
+        assert!(
+            touching
+                .validate(0.0)
+                .unwrap()
+                .problems
+                .iter()
+                .all(|p| p.kind != MeshProblemKind::SelfIntersection)
+        );
+    }
+
+    #[test]
+    fn overlapping_cubes_cross_and_repair_keeps_the_crossing() {
+        let m = two_cubes([0.5, 0.25, 0.25]);
+        let s = m.validate(0.0).unwrap().summary;
+        assert!(s.self_intersections > 0 && s.is_closed);
+        let again = m.repair(0.0).unwrap().validate(0.0).unwrap().summary;
+        assert_eq!(again.self_intersections, s.self_intersections);
+        assert_eq!(
+            two_cubes([2.0, 0.0, 0.0])
+                .validate(0.0)
+                .unwrap()
+                .summary
+                .self_intersections,
+            0
+        );
+    }
+
+    proptest::proptest! {
+        /// A rotated, shifted cube stays clean; two cubes cross only while
+        /// they overlap.
+        #[test]
+        fn crossings_follow_overlap(
+            angles in proptest::array::uniform3(-3.0..3.0f64),
+            offset in proptest::array::uniform3(-1e3..1e3f64),
+            shift in 0.1..1.9f64,
+        ) {
+            let r = nalgebra::Rotation3::from_euler_angles(angles[0], angles[1], angles[2]);
+            let pair = two_cubes([shift, 0.3, 0.2]);
+            let moved: Vec<[f64; 3]> = pair
+                .vertices()
+                .iter()
+                .map(|&p| (r * Vector3::from(p)).into())
+                .map(|p: [f64; 3]| [0, 1, 2].map(|k| p[k] + offset[k]))
+                .collect();
+            let s = mesh(&moved, pair.triangles()).validate(0.0).unwrap().summary;
+            proptest::prop_assert_eq!(s.self_intersections > 0, shift < 1.0);
+            let one = mesh(&moved, &pair.triangles()[..12]).validate(0.0).unwrap();
+            proptest::prop_assert!(one.problems.is_empty());
+        }
     }
 
     #[test]
