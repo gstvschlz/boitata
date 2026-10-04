@@ -152,14 +152,57 @@ def _on_cells(mesh, values):
     return mesh.get_array_association(values).name == "CELL"
 
 
+def _valid(field):
+    return field != "" if _text(field) else np.isfinite(field)
+
+
 def _drop_nulls(mesh, values):
-    field = mesh.get_array(values)
-    keep = field != "" if _text(field) else np.isfinite(field)
+    keep = _valid(mesh.get_array(values))
     if keep.all():
         return mesh
     if _on_cells(mesh, values):
         return mesh.extract_cells(keep)
     return mesh.extract_points(keep, adjacent_cells=False)
+
+
+def _image(pv, cube, origin, spacing, axes, values):
+    out = pv.ImageData(dimensions=cube.shape, spacing=spacing, origin=origin, direction_matrix=axes)
+    out.point_data[values] = cube.ravel(order="F")
+    return out
+
+
+def _volume(pv, mesh, values):
+    """Block centers as points padded by one null layer, so nearest interpolation fills each block to its faces."""
+    if not isinstance(mesh, pv.ImageData) or not _on_cells(mesh, values):
+        raise ValueError("style='volume' needs a regular block model; BlockModel.to_regular makes one")
+    field = mesh.cell_data[values]
+    keep = np.isfinite(field)
+    lo, hi = float(field[keep].min()), float(field[keep].max())
+    null = lo - max(hi - lo, 1.0)
+    cube = np.where(keep, field, null).astype(np.float32).reshape(np.subtract(mesh.dimensions, 1), order="F")
+    axes = np.asarray(mesh.direction_matrix)
+    origin = mesh.origin - axes @ np.multiply(mesh.spacing, 0.5)
+    grid = _image(pv, np.pad(cube, 1, constant_values=null), origin, mesh.spacing, axes, values)
+    return grid, (null, lo, hi)
+
+
+def _detail(pv, renderer, mapper, full, values):
+    """Above the GPU memory budget, a coarse copy of `full` draws while the camera moves, `full` once it stops."""
+    budget = mapper.GetMaxMemoryInBytes() * mapper.GetMaxMemoryFraction()
+    step = int(np.ceil((full.point_data[values].nbytes / budget) ** (1 / 3)))
+    if step <= 1:
+        return
+    cube = full.point_data[values].reshape(full.dimensions, order="F")[::step, ::step, ::step]
+    coarse = _image(pv, cube, full.origin, np.multiply(full.spacing, step), full.direction_matrix, values)
+    window = renderer.GetRenderWindow
+
+    def switch(*_):
+        moving = window().GetDesiredUpdateRate() >= mapper.GetInteractiveUpdateRate()
+        mapper.SetInputData(coarse if moving else full)
+        mapper.SetRequestedRenderMode(mapper.GPURenderMode if moving else mapper.RayCastRenderMode)
+
+    switch()
+    renderer.AddObserver("StartEvent", switch)
 
 
 _SCENES = weakref.WeakKeyDictionary()
@@ -190,6 +233,7 @@ class Scene:
         self._ranges = {}
         self._pinned = set()
         self._bars = {}
+        self._volumes = {}
         _SCENES[self.plotter] = self
 
     def __getattr__(self, name):
@@ -207,8 +251,10 @@ class Scene:
         values : str, optional
             Attribute that colors it. Its null rows never render: null points, cells, and the cells of null points
             are left out. Numbers share one range over every layer the variable colors, text one category list.
-        style : {"surface", "wireframe", "points", "points_gaussian"}, optional
-            How cells are drawn; a `PointSet` draws its points as spheres.
+        style : {"surface", "wireframe", "points", "points_gaussian", "volume"}, optional
+            How cells are drawn; a `PointSet` draws its points as spheres. ``"volume"`` renders a regular block
+            model colored by `values` on the GPU, each block a uniform cube; a model too large for GPU memory draws
+            a coarser copy while the camera moves and the full one once it stops.
         radius : float, optional
             `Drillholes` only: radius of their tubes, 1/400 of the diagonal of their bounds by default. All holes form
             one tube mesh: a tube per interval with the interval columns as cell data, or per hole through its
@@ -216,8 +262,10 @@ class Scene:
         labels : bool, default False
             `Drillholes` only: writes each hole's name at its collar.
         **kwargs
-            Passed to ``plotter.add_mesh``. ``cmap`` sets the variable's color map and ``clim`` fixes its range for
-            every layer; the first ``scalar_bar_args`` given for a variable style its one color bar.
+            Passed to ``plotter.add_mesh``, or ``plotter.add_volume`` for a volume. ``cmap`` sets the variable's
+            color map and ``clim`` fixes its range for every layer; the first ``scalar_bar_args`` given for a
+            variable style its one color bar. A volume's ``opacity`` is a number or a named ramp over the range
+            (``"linear"`` by default, ``"sigmoid"``, ``"geom_r"``, ...).
 
         Returns
         -------
@@ -227,9 +275,13 @@ class Scene:
         mesh, defaults = _layer(data, **({} if radius is None else {"radius": radius}))
         if isinstance(mesh, _pyvista().MultiBlock):
             mesh = mesh.combine()
+        volume = style == "volume"
+        if volume and values is None:
+            raise ValueError("style='volume' needs values")
         if values is not None:
-            mesh = _drop_nulls(mesh, values)
-            if mesh.n_points == 0:
+            if not volume:
+                mesh = _drop_nulls(mesh, values)
+            if mesh.n_points == 0 or not _valid(mesh.get_array(values)).any():
                 return self
             mesh, kwargs["cmap"] = self._color(
                 mesh, values, kwargs.pop("cmap", None), kwargs.pop("clim", None)
@@ -237,13 +289,54 @@ class Scene:
             ticks = {"n_labels": 0} if values in self._categories else {}
             bar = {"title": values, **ticks, **kwargs.get("scalar_bar_args", {})}
             kwargs["scalar_bar_args"] = dict(self._bars.setdefault(values, bar))
+        if volume:
+            self._volume(mesh, values, **kwargs)
+            return self
         actor = self.plotter.add_mesh(mesh, scalars=values, style=style, **{**defaults, **kwargs})
         if values is not None:
             actor.mapper.SetUseLookupTableScalarRange(True)
-            self.colors[values].scalar_range = self._ranges[values]
+            self._paint(values)
         if labels:
             self.plotter.add_point_labels(*_collars(data), shape=None, show_points=False, always_visible=True)
         return self
+
+    def _volume(self, mesh, values, *, opacity="linear", **kwargs):
+        pv = _pyvista()
+        grid, span = _volume(pv, mesh, values)
+        actor = self.plotter.add_volume(
+            grid, scalars=values, clim=self._ranges[values], mapper="smart", **kwargs
+        )
+        actor.prop.interpolation_type = "nearest"
+        actor.mapper.SetInterpolationModeToNearestNeighbor()
+        _detail(pv, self.plotter.renderer, actor.mapper, actor.mapper.dataset, values)
+        self._volumes.setdefault(values, []).append((actor.prop, opacity, *span))
+        self._paint(values)
+
+    def _paint(self, values):
+        from vtkmodules.vtkCommonDataModel import vtkPiecewiseFunction
+        from vtkmodules.vtkRenderingCore import vtkColorTransferFunction
+
+        pv = _pyvista()
+        lut = self.colors[values]
+        lut.scalar_range = lo, hi = self._ranges[values]
+        n = lut.n_values
+        ramp = np.linspace(lo, hi, 256)
+        for prop, opacity, null, low, high in self._volumes.get(values, ()):
+            color = vtkColorTransferFunction()
+            for x in lo + (np.arange(n) + 0.5) * (hi - lo) / n:
+                color.AddRGBPoint(x, *lut.map_value(x, opacity=False))
+            alpha = (
+                pv.opacity_transfer_function(opacity, 256) / 255
+                if isinstance(opacity, str)
+                else [opacity] * 256
+            )
+            shape = vtkPiecewiseFunction()
+            shape.AddPoint(null, 0.0)
+            shape.AddPoint((null + low) / 2, 0.0)
+            for x in np.linspace(low, high, 64):
+                shape.AddPoint(x, float(np.interp(x, ramp, alpha)))
+            prop.SetColor(color)
+            prop.SetScalarOpacity(shape)
 
     def _color(self, mesh, values, cmap, clim):
         pv = _pyvista()
@@ -255,9 +348,9 @@ class Scene:
             lut.cmap = cmap
         if _text(field):
             names = self._categories.setdefault(values, [])
-            names += sorted(set(field.tolist()) - set(names))
+            names += sorted(set(field.tolist()) - set(names) - {""})
             code = {name: i for i, name in enumerate(names)}
-            codes = np.array([code[v] for v in field.tolist()], dtype=float)
+            codes = np.array([code.get(v, np.nan) for v in field.tolist()], dtype=float)
             mesh = mesh.copy(deep=False)
             (mesh.cell_data if _on_cells(mesh, values) else mesh.point_data)[values] = codes
             lut.apply_cmap(lut.cmap, len(names))
@@ -268,7 +361,7 @@ class Scene:
             self._ranges[values] = tuple(clim)
         elif values not in self._pinned:
             lo, hi = self._ranges.get(values, (np.inf, -np.inf))
-            self._ranges[values] = (min(lo, float(field.min())), max(hi, float(field.max())))
+            self._ranges[values] = (min(lo, float(np.nanmin(field))), max(hi, float(np.nanmax(field))))
         return mesh, lut
 
     def show(self, *, browser=False, **kwargs):
