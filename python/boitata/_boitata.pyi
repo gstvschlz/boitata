@@ -1110,6 +1110,8 @@ class DSS:
     @staticmethod
     def from_parquet(path: Path) -> DSS: ...
     def __init__(self, variogram: Variogram, search: Search | Sequence[Search]) -> None: ...
+    @property
+    def correlation(self) -> float | None: ...
     def fit(
         self,
         coords: ArrayLike | PointSet | BlockModel,
@@ -1119,6 +1121,8 @@ class DSS:
         holes: Holes | Column | None = None,
         domains: Label | Sequence[Label] | ArrayLike | None = None,
         domain_column: Column | None = None,
+        secondary: ArrayLike | Column | None = None,
+        correlation: float | None = None,
     ) -> DSS: ...
     def passes(
         self,
@@ -1141,6 +1145,7 @@ class DSS:
         blocks: BlockModel | None = None,
         domains: Label | Sequence[Label] | ArrayLike | None = None,
         domain_column: Column | None = None,
+        secondary: ArrayLike | Column | None = None,
         grade_tonnage_cutoffs: Sequence[float] | None = None,
         density: float | ArrayLike | Column | None = None,
         tonnage: ArrayLike | Column | None = None,

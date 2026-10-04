@@ -769,8 +769,7 @@ pub struct Sgs {
 }
 
 impl Sgs {
-    /// The secondary variable at the targets, one row shared by every
-    /// realization or one per realization, and its transform, when fitted
+    /// The secondary variable at the targets and its transform, when fitted
     /// with one.
     fn secondary_at(
         &self,
@@ -780,43 +779,58 @@ impl Sgs {
         n: usize,
         secondary: Option<&Bound<PyAny>>,
     ) -> PyResult<Option<(simulation::Secondary, Vec<Vec<f64>>)>> {
-        let (at_data, secondary) = match (&d.secondary, secondary) {
-            (None, None) => return Ok(None),
-            (Some(a), Some(s)) => (a, args::column(Some(targets), s, "secondary")?),
-            (Some(_), None) => {
-                return Err(invalid(
-                    "fitted with a secondary; give secondary at the targets",
-                ));
-            }
-            (None, Some(_)) => {
-                return Err(invalid("secondary at the targets needs secondary at fit"));
-            }
+        let Some((at_data, rows)) = secondary_rows(d, targets, nodes, n, secondary)? else {
+            return Ok(None);
         };
-        let array = secondary
-            .py()
-            .import("numpy")?
-            .call_method1("asarray", (&secondary, "float64"))?;
-        let rows = match array.getattr("ndim")?.extract::<usize>()? {
-            2 => args::rows(&array, "secondary")?,
-            _ => vec![args::floats(&array, "secondary")?],
-        };
-        if rows.len() != 1 && rows.len() != n {
-            return Err(invalid(format!(
-                "secondary: expected {n} realizations, got {}",
-                rows.len()
-            )));
-        }
-        for row in &rows {
-            same_length(nodes, row.len(), "secondary")?;
-            if row.iter().any(|v| !v.is_finite()) {
-                return Err(invalid("secondary must be finite at every target"));
-            }
-        }
         let fitted =
             simulation::Secondary::fit(at_data, d.weights.as_deref(), &[], self.correlation)
                 .map_err(err)?;
         Ok(Some((fitted, rows)))
     }
+}
+
+/// The secondary variable at the data and at the targets, one row shared by
+/// every realization or one per realization, when fitted with one.
+fn secondary_rows<'a>(
+    d: &'a Data,
+    targets: &Bound<PyAny>,
+    nodes: usize,
+    n: usize,
+    secondary: Option<&Bound<PyAny>>,
+) -> PyResult<Option<(&'a [f64], Vec<Vec<f64>>)>> {
+    let (at_data, secondary) = match (&d.secondary, secondary) {
+        (None, None) => return Ok(None),
+        (Some(a), Some(s)) => (a, args::column(Some(targets), s, "secondary")?),
+        (Some(_), None) => {
+            return Err(invalid(
+                "fitted with a secondary; give secondary at the targets",
+            ));
+        }
+        (None, Some(_)) => {
+            return Err(invalid("secondary at the targets needs secondary at fit"));
+        }
+    };
+    let array = secondary
+        .py()
+        .import("numpy")?
+        .call_method1("asarray", (&secondary, "float64"))?;
+    let rows = match array.getattr("ndim")?.extract::<usize>()? {
+        2 => args::rows(&array, "secondary")?,
+        _ => vec![args::floats(&array, "secondary")?],
+    };
+    if rows.len() != 1 && rows.len() != n {
+        return Err(invalid(format!(
+            "secondary: expected {n} realizations, got {}",
+            rows.len()
+        )));
+    }
+    for row in &rows {
+        same_length(nodes, row.len(), "secondary")?;
+        if row.iter().any(|v| !v.is_finite()) {
+            return Err(invalid("secondary must be finite at every target"));
+        }
+    }
+    Ok(Some((at_data, rows)))
 }
 
 #[pymethods]
@@ -1291,6 +1305,10 @@ pub struct Dss {
     /// Labels of the fitted domains, indexed by code.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     domains: Option<Vec<Label>>,
+    /// Correlation of the standardized primary and secondary, when fitted
+    /// with a secondary variable.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    correlation: Option<f64>,
     #[serde(skip)]
     data: Option<Data>,
 }
@@ -1329,8 +1347,16 @@ impl Dss {
             variogram: variogram.0,
             search: plain_searches(search, "DSS")?,
             domains: None,
+            correlation: None,
             data: None,
         })
+    }
+
+    /// Correlation of the standardized primary and secondary used in
+    /// collocated co-DSS; None when fitted without `secondary`.
+    #[getter]
+    fn correlation(&self) -> Option<f64> {
+        self.correlation
     }
 
     /// The search pass of every target, as in SGS.passes.
@@ -1410,14 +1436,31 @@ impl Dss {
     ///     rescaled variogram.
     /// domain_column : str, optional
     ///     The column of `coords` holding the domains, instead of `domains`.
+    /// secondary : array_like or str, optional
+    ///     A secondary variable at the data, for collocated co-DSS:
+    ///     `simulate` then needs it at every target. Each node's kriged
+    ///     mean and variance become those of the collocated simple
+    ///     cokriging, in standardized units, of its neighbors and the
+    ///     secondary at the node, under the Markov model (the
+    ///     cross-covariance is `correlation` times the primary
+    ///     covariance), and the node is drawn from the histogram with that
+    ///     mean and variance. The primary is standardized by its domain's
+    ///     declustered mean and variance, the secondary by its own at the
+    ///     data.
+    /// correlation : float, optional
+    ///     Correlation of the standardized primary and secondary, in
+    ///     [-1, 1]; by default their weighted correlation at the data. 0
+    ///     simulates as without `secondary`.
     ///
     /// Raises
     /// ------
     /// InvalidInput
     ///     If the values of a domain do not vary, a Search.soft names a
-    ///     domain without samples or has no `domains` to work on, or both
-    ///     `domains` and `domain_column` are given.
-    #[pyo3(signature = (coords, values, *, weights=None, holes=None, domains=None, domain_column=None))]
+    ///     domain without samples or has no `domains` to work on, both
+    ///     `domains` and `domain_column` are given, or `correlation` comes
+    ///     without `secondary` or outside [-1, 1].
+    #[pyo3(signature = (coords, values, *, weights=None, holes=None, domains=None, domain_column=None, secondary=None, correlation=None))]
+    #[allow(clippy::too_many_arguments)]
     fn fit<'py>(
         mut slf: PyRefMut<'py, Self>,
         coords: &Bound<PyAny>,
@@ -1426,7 +1469,12 @@ impl Dss {
         holes: Option<&Bound<PyAny>>,
         domains: Option<&Bound<PyAny>>,
         domain_column: Option<&str>,
+        secondary: Option<&Bound<PyAny>>,
+        correlation: Option<f64>,
     ) -> PyResult<PyRefMut<'py, Self>> {
+        if correlation.is_some() && secondary.is_none() {
+            return Err(invalid("correlation needs secondary"));
+        }
         let (d, fitted) = data(
             coords,
             values,
@@ -1435,10 +1483,25 @@ impl Dss {
             None,
             domains,
             domain_column,
-            None,
+            secondary,
             classes(),
             &slf.search,
         )?;
+        slf.correlation = match &d.secondary {
+            None => None,
+            Some(s) => {
+                let dss = simulation::Dss::new(
+                    &d.locs,
+                    &d.values,
+                    d.weights.as_deref(),
+                    d.holes.as_deref(),
+                    d.domains.as_deref(),
+                    &slf.variogram,
+                )
+                .map_err(err)?;
+                Some(dss.secondary(s, correlation).map_err(err)?.correlation)
+            }
+        };
         slf.data = Some(d);
         slf.domains = fitted;
         Ok(slf)
@@ -1472,6 +1535,12 @@ impl Dss {
     ///     target in a domain without samples raises InvalidInput.
     /// domain_column : str, optional
     ///     The column of PointSet or BlockModel targets holding the domains.
+    /// secondary : array_like or str, optional
+    ///     Needed when fitted with one: the secondary variable at the
+    ///     targets, the name of a column of PointSet or BlockModel targets,
+    ///     or an ``(n, targets)`` array such as the `realizations` of a
+    ///     simulation of the secondary, realization ``k`` then cosimulated
+    ///     with row ``k``.
     /// grade_tonnage_cutoffs, density, tonnage, categories : optional
     ///     Grade–tonnage curves per realization, as in SGS.simulate.
     /// progress : bool, default True
@@ -1486,7 +1555,7 @@ impl Dss {
     /// UserWarning
     ///     With the fraction of nodes whose kriged mean and variance no draw
     ///     from the histogram reaches, drawn from the nearest reachable pair.
-    #[pyo3(signature = (targets, *, n=100, seed=0, cutoffs=vec![], quantiles=vec![], keep=None, anisotropy=None, blocks=None, domains=None, domain_column=None, grade_tonnage_cutoffs=None, density=None, tonnage=None, categories=None, progress=true))]
+    #[pyo3(signature = (targets, *, n=100, seed=0, cutoffs=vec![], quantiles=vec![], keep=None, anisotropy=None, blocks=None, domains=None, domain_column=None, secondary=None, grade_tonnage_cutoffs=None, density=None, tonnage=None, categories=None, progress=true))]
     #[allow(clippy::too_many_arguments)]
     fn simulate(
         &self,
@@ -1501,6 +1570,7 @@ impl Dss {
         blocks: Option<PyRef<PyBlockModel>>,
         domains: Option<&Bound<PyAny>>,
         domain_column: Option<&str>,
+        secondary: Option<&Bound<PyAny>>,
         grade_tonnage_cutoffs: Option<Vec<f64>>,
         density: Option<&Bound<PyAny>>,
         tonnage: Option<&Bound<PyAny>>,
@@ -1545,6 +1615,13 @@ impl Dss {
             &self.variogram,
         )
         .map_err(err)?;
+        let secondary = match secondary_rows(d, targets, grid.len(), n, secondary)? {
+            None => None,
+            Some((at_data, rows)) => {
+                let fitted = dss.secondary(at_data, self.correlation).map_err(err)?;
+                Some((fitted, rows))
+            }
+        };
         let summary = with_progress(py, Some(n as u64), progress, |counter| {
             simulation::continuous(
                 n,
@@ -1554,8 +1631,18 @@ impl Dss {
                         search: search.clone(),
                         seed: boitata_core::rng::realization_seed(seed, k as u64),
                     };
-                    let r =
-                        dss.simulate(of_realization(&nodes, k), &grid, &params, local.as_ref())?;
+                    let nodes = of_realization(&nodes, k);
+                    let r = match &secondary {
+                        None => dss.simulate(nodes, &grid, &params, local.as_ref()),
+                        Some((fitted, rows)) => dss.cosimulate(
+                            nodes,
+                            &grid,
+                            &params,
+                            local.as_ref(),
+                            fitted,
+                            &rows[k % rows.len()],
+                        ),
+                    }?;
                     clamped.fetch_add(r.clamped, std::sync::atomic::Ordering::Relaxed);
                     let done = r.values.iter().filter(|v| !v.is_nan()).count();
                     simulated.fetch_add(done, std::sync::atomic::Ordering::Relaxed);

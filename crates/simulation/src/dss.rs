@@ -145,10 +145,12 @@ struct Domain {
     mean: f64,
 }
 
-/// Raw values kriged with each domain's mean and rescaled variogram, drawn
-/// through its lookup.
+/// Raw values kriged with each domain's mean and rescaled variogram,
+/// cokriged with a collocated secondary, drawn through its lookup.
 struct DssSpace<'a> {
     domains: &'a [Option<Domain>],
+    /// Standardized secondary at each node and its correlation.
+    collocated: Option<(&'a [f64], f64)>,
     clamped: AtomicUsize,
 }
 
@@ -157,6 +159,33 @@ impl DssSpace<'_> {
         self.domains[domain.unwrap_or(0) as usize]
             .as_ref()
             .expect("checked")
+    }
+
+    /// Kriged `mean` and `variance` cokriged with the secondary at `node`,
+    /// in the domain's standardized units.
+    fn cokriged(&self, d: &Domain, mean: f64, variance: f64, node: usize) -> (f64, f64) {
+        let Some((secondary, rho)) = self.collocated else {
+            return (mean, variance);
+        };
+        let sill = d.vg.total_sill();
+        let sd = sill.sqrt();
+        let (m, v) = estimation::markov_collocated(
+            (mean - d.mean) / sd,
+            variance / sill,
+            1.0,
+            rho,
+            secondary[node],
+        );
+        (d.mean + sd * m, sill * v)
+    }
+
+    fn drawn(&self, d: &Domain, mean: f64, variance: f64, z: f64) -> (f64, f64) {
+        let (m, s, clamped) = d.lookup.query(mean, variance);
+        if clamped {
+            self.clamped.fetch_add(1, Ordering::Relaxed);
+        }
+        let value = d.transform.back(m + s * z, 0.0);
+        (value, value)
     }
 }
 
@@ -177,23 +206,41 @@ impl Space for DssSpace<'_> {
         &self,
         mean: f64,
         variance: f64,
-        _: usize,
+        node: usize,
         domain: Option<u32>,
         _: f64,
         z: f64,
     ) -> (f64, f64) {
         let d = self.domain(domain);
-        let (m, s, clamped) = d.lookup.query(mean, variance);
-        if clamped {
-            self.clamped.fetch_add(1, Ordering::Relaxed);
-        }
-        let value = d.transform.back(m + s * z, 0.0);
-        (value, value)
+        let (mean, variance) = self.cokriged(d, mean, variance, node);
+        self.drawn(d, mean, variance, z)
     }
 
-    fn marginal(&self, _: usize, domain: Option<u32>, _: f64, z: f64) -> (f64, f64) {
-        let value = self.domain(domain).transform.back(z, 0.0);
-        (value, value)
+    fn marginal(&self, node: usize, domain: Option<u32>, _: f64, z: f64) -> (f64, f64) {
+        let d = self.domain(domain);
+        if self.collocated.is_none() {
+            let value = d.transform.back(z, 0.0);
+            return (value, value);
+        }
+        let (mean, variance) = self.cokriged(d, d.mean, d.vg.total_sill(), node);
+        self.drawn(d, mean, variance, z)
+    }
+}
+
+/// A secondary variable for collocated co-DSS: its declustered mean and
+/// standard deviation at the data, which standardize it, and its
+/// correlation with the primary.
+#[derive(Debug, Clone)]
+pub struct DssSecondary {
+    mean: f64,
+    sd: f64,
+    pub correlation: f64,
+}
+
+impl DssSecondary {
+    /// The secondary `value` in standardized units.
+    pub fn standardize(&self, value: f64) -> f64 {
+        (value - self.mean) / self.sd
     }
 }
 
@@ -203,6 +250,7 @@ impl Space for DssSpace<'_> {
 pub struct Dss<'a> {
     data_locs: &'a [(f64, f64, f64)],
     data_vals: &'a [f64],
+    data_weights: Option<&'a [f64]>,
     data_holes: Option<&'a [u32]>,
     data_domains: Option<&'a [u32]>,
     vg: &'a Variogram,
@@ -222,7 +270,7 @@ impl<'a> Dss<'a> {
     pub fn new(
         data_locs: &'a [(f64, f64, f64)],
         data_vals: &'a [f64],
-        data_weights: Option<&[f64]>,
+        data_weights: Option<&'a [f64]>,
         data_holes: Option<&'a [u32]>,
         data_domains: Option<&'a [u32]>,
         vg: &'a Variogram,
@@ -281,6 +329,7 @@ impl<'a> Dss<'a> {
         Ok(Self {
             data_locs,
             data_vals,
+            data_weights,
             data_holes,
             data_domains,
             vg,
@@ -296,6 +345,101 @@ impl<'a> Dss<'a> {
         grid: &[(f64, f64, f64)],
         params: &SgsParams,
         local: Option<&LocalAnisotropy>,
+    ) -> Result<DssRealization> {
+        self.realization(node_domains, grid, params, local, None)
+    }
+
+    /// The secondary variable `at_data`, one value per datum, standardized
+    /// by its mean and standard deviation declustered by the data weights;
+    /// `correlation`, in [-1, 1], or else the weighted correlation of the
+    /// secondary with the primary standardized within each domain.
+    pub fn secondary(&self, at_data: &[f64], correlation: Option<f64>) -> Result<DssSecondary> {
+        if at_data.len() != self.data_vals.len() {
+            return Err(SimError::InvalidParameters(
+                "one secondary value per datum".into(),
+            ));
+        }
+        if at_data.iter().any(|v| !v.is_finite()) {
+            return Err(SimError::InvalidParameters(
+                "the secondary must be finite at every datum".into(),
+            ));
+        }
+        let (mean, variance) = weighted_mean_variance(at_data, self.data_weights)
+            .map_err(|e| SimError::Transform(e.to_string()))?;
+        if variance <= 0.0 {
+            return Err(SimError::InsufficientData(
+                "the secondary does not vary at the data".into(),
+            ));
+        }
+        let correlation = correlation.unwrap_or_else(|| {
+            let (mut primary, mut secondary, mut weights) = (vec![], vec![], vec![]);
+            for (i, (&v, &s)) in self.data_vals.iter().zip(at_data).enumerate() {
+                let code = self.data_domains.map_or(0, |c| c[i] as usize);
+                if let Some(d) = &self.domains[code] {
+                    primary.push((v - d.mean) / d.vg.total_sill().sqrt());
+                    secondary.push(s);
+                    weights.push(self.data_weights.map_or(1.0, |w| w[i]));
+                }
+            }
+            crate::sgs::pearson(&primary, &secondary, Some(&weights))
+        });
+        if !(-1.0..=1.0).contains(&correlation) {
+            return Err(SimError::InvalidParameters(format!(
+                "correlation {correlation} outside [-1, 1]"
+            )));
+        }
+        Ok(DssSecondary {
+            mean,
+            sd: variance.sqrt(),
+            correlation,
+        })
+    }
+
+    /// As [`Dss::simulate`], cosimulated with a `secondary` known at every
+    /// node, `at_nodes` in its units: each node's kriged mean and variance
+    /// are those of the collocated simple cokriging, in standardized units,
+    /// of its neighbors and the secondary at the node under the Markov
+    /// model, the cross-covariance the correlation times the primary's.
+    /// A zero correlation is plain DSS.
+    pub fn cosimulate(
+        &self,
+        node_domains: Option<&[u32]>,
+        grid: &[(f64, f64, f64)],
+        params: &SgsParams,
+        local: Option<&LocalAnisotropy>,
+        secondary: &DssSecondary,
+        at_nodes: &[f64],
+    ) -> Result<DssRealization> {
+        if at_nodes.len() != grid.len() {
+            return Err(SimError::InvalidParameters(
+                "one secondary value per node".into(),
+            ));
+        }
+        if at_nodes.iter().any(|v| !v.is_finite()) {
+            return Err(SimError::InvalidParameters(
+                "the secondary must be finite at every node".into(),
+            ));
+        }
+        if secondary.correlation == 0.0 {
+            return self.simulate(node_domains, grid, params, local);
+        }
+        let scores: Vec<f64> = at_nodes.iter().map(|&v| secondary.standardize(v)).collect();
+        self.realization(
+            node_domains,
+            grid,
+            params,
+            local,
+            Some((&scores, secondary.correlation)),
+        )
+    }
+
+    fn realization(
+        &self,
+        node_domains: Option<&[u32]>,
+        grid: &[(f64, f64, f64)],
+        params: &SgsParams,
+        local: Option<&LocalAnisotropy>,
+        collocated: Option<(&[f64], f64)>,
     ) -> Result<DssRealization> {
         let domains = match (self.data_domains, node_domains) {
             (Some(d), Some(n)) => Some((d, n)),
@@ -330,6 +474,7 @@ impl<'a> Dss<'a> {
         }
         let space = DssSpace {
             domains: &self.domains,
+            collocated,
             clamped: AtomicUsize::new(0),
         };
         let realization = sequential(
@@ -450,14 +595,16 @@ mod tests {
         values: Vec<f64>,
     }
 
-    /// A lognormal field, `exp(0.5·Y)` with `Y` a spectral Gaussian field of
-    /// Gaussian covariance (scale 10), on a 50 × 50 grid of spacing 2,
-    /// sampled every fifth node.
-    fn field() -> Field {
-        let grid: Vec<_> = (0..2500)
+    fn grid() -> Vec<(f64, f64, f64)> {
+        (0..2500)
             .map(|i| ((i % 50) as f64 * 2.0, (i / 50) as f64 * 2.0, 0.0))
-            .collect();
-        let mut rng = StdRng::seed_from_u64(11);
+            .collect()
+    }
+
+    /// A standard Gaussian field of Gaussian covariance (scale 10) at the
+    /// nodes of [`grid`], a sum of random waves.
+    fn spectral(seed: u64) -> Vec<f64> {
+        let mut rng = StdRng::seed_from_u64(seed);
         let frequency = Normal::new(0.0_f64, 1.0 / 10.0).unwrap();
         let waves: Vec<(f64, f64, f64)> = (0..300)
             .map(|_| {
@@ -468,21 +615,31 @@ mod tests {
                 )
             })
             .collect();
-        let gaussian = |p: &(f64, f64, f64)| {
-            (2.0 / waves.len() as f64).sqrt()
-                * waves
-                    .iter()
-                    .map(|(u, v, phase)| (u * p.0 + v * p.1 + phase).cos())
-                    .sum::<f64>()
-        };
-        let data: Vec<usize> = (0..grid.len())
+        grid()
+            .iter()
+            .map(|p| {
+                (2.0 / waves.len() as f64).sqrt()
+                    * waves
+                        .iter()
+                        .map(|(u, v, phase)| (u * p.0 + v * p.1 + phase).cos())
+                        .sum::<f64>()
+            })
+            .collect()
+    }
+
+    /// A lognormal field, `exp(0.5·Y)` with `Y` a [`spectral`] field, on a
+    /// 50 × 50 grid of spacing 2, sampled every fifth node.
+    fn field() -> Field {
+        let gaussian = spectral(11);
+        let data: Vec<usize> = (0..2500)
             .filter(|i| i % 5 == 2 && i / 50 % 5 == 2)
             .collect();
-        let values = data
-            .iter()
-            .map(|&i| (0.5 * gaussian(&grid[i])).exp())
-            .collect();
-        Field { grid, data, values }
+        let values = data.iter().map(|&i| (0.5 * gaussian[i]).exp()).collect();
+        Field {
+            grid: grid(),
+            data,
+            values,
+        }
     }
 
     fn search() -> SgsParams {
@@ -675,5 +832,61 @@ mod tests {
             assert!((g - w).abs() <= 1e-9 * w.abs(), "{got:?}");
         }
         assert_eq!(r.clamped, 74);
+    }
+
+    fn correlation(a: &[f64], b: &[f64]) -> f64 {
+        crate::sgs::pearson(a, b, None)
+    }
+
+    #[test]
+    fn codss_follows_the_secondary_and_zero_correlation_is_dss() {
+        let f = field();
+        let locs: Vec<_> = f.data.iter().map(|&i| f.grid[i]).collect();
+        // A secondary of the same covariance, correlated 0.8 with `Y`.
+        let (y, other) = (spectral(11), spectral(12));
+        let secondary: Vec<f64> = y
+            .iter()
+            .zip(&other)
+            .map(|(a, b)| 10.0 + 2.0 * (0.8 * a + 0.6 * b))
+            .collect();
+        let at_data: Vec<f64> = f.data.iter().map(|&i| secondary[i]).collect();
+        let model = vg();
+        let dss = Dss::new(&locs, &f.values, None, None, None, &model).unwrap();
+        let fitted = dss.secondary(&at_data, None).unwrap();
+        let target = correlation(&f.values, &at_data);
+        assert!((fitted.correlation - target).abs() < 1e-12);
+        let n = 20;
+        let mut simulated = 0.0;
+        for seed in 0..n {
+            let params = SgsParams { seed, ..search() };
+            let r = dss
+                .cosimulate(None, &f.grid, &params, None, &fitted, &secondary)
+                .unwrap();
+            for (&i, &v) in f.data.iter().zip(&f.values) {
+                assert_eq!(r.values[i], v);
+            }
+            simulated += correlation(&r.values, &secondary) / n as f64;
+        }
+        assert!((simulated - target).abs() < 0.08, "{simulated} vs {target}");
+
+        let zero = dss.secondary(&at_data, Some(0.0)).unwrap();
+        let params = SgsParams {
+            seed: 3,
+            ..search()
+        };
+        let plain = dss.simulate(None, &f.grid, &params, None).unwrap();
+        let co = dss
+            .cosimulate(None, &f.grid, &params, None, &zero, &secondary)
+            .unwrap();
+        assert_eq!(plain.values, co.values);
+
+        assert!(dss.secondary(&at_data[1..], None).is_err());
+        assert!(dss.secondary(&at_data, Some(1.2)).is_err());
+        assert!(dss.secondary(&vec![1.0; at_data.len()], None).is_err());
+        let short = &secondary[1..];
+        assert!(
+            dss.cosimulate(None, &f.grid, &params, None, &fitted, short)
+                .is_err()
+        );
     }
 }
