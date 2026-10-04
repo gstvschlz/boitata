@@ -187,6 +187,17 @@ def test_mesh_topology():
     assert doubled.validate(tolerance=1e-6).problems["other"].tolist() == [0]
     with pytest.raises(bt.errors.InvalidInput):
         cube.validate(tolerance=-1)
+    assert cube.validate().summary["self_intersections"] == 0
+    pair = bt.Mesh(
+        np.vstack([cube.vertices, cube.vertices + [-5, 3, 4]]),
+        np.vstack([cube.triangles, cube.triangles + 8]),
+    )
+    crossing = pair.validate()
+    assert crossing.summary["self_intersections"] > 0 and crossing.summary["is_closed"]
+    assert set(crossing.problems["kind"]) == {"self_intersection"}
+    open_cube = bt.Mesh(cube.vertices, cube.triangles[2:])
+    assert open_cube.validate().summary["boundary_edges"] == 4
+    assert open_cube.fill_holes().volume == pytest.approx(1000)
     for call in (
         lambda: square.volume,
         lambda: square.contains([[0.5, 0.5, 0]]),
