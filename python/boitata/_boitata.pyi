@@ -1296,7 +1296,7 @@ class TurningBands:
         *,
         n: int = 100,
         seed: int = 0,
-        cutoffs: Sequence[float] = (),
+        cutoffs: Sequence[float | str] | None = None,
         quantiles: Sequence[float] = (),
         keep: bool | Sequence[int] = False,
         rows: int = 1_000_000,

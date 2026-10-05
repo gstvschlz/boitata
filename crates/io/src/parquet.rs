@@ -253,6 +253,7 @@ pub struct BlockModelWriter {
     geometry: Geometry,
     layout: FileLayout,
     rows: u64,
+    units: Vec<(String, String)>,
 }
 
 impl BlockModelWriter {
@@ -287,7 +288,14 @@ impl BlockModelWriter {
             geometry,
             layout,
             rows: 0,
+            units: vec![],
         })
+    }
+
+    /// Records the unit of each named column, as in `units`.
+    pub fn with_units(mut self, units: Vec<(String, String)>) -> Self {
+        self.units = units;
+        self
     }
 
     /// Records `unit` as the length unit of the coordinates.
@@ -339,7 +347,13 @@ impl BlockModelWriter {
                 }
             }
         }
-        let table = chunk.attributes();
+        let mut table = chunk.attributes().clone();
+        for (name, unit) in &self.units {
+            if table.schema().column_with_name(name).is_some() {
+                table = boitata_core::units::with_unit_unchecked(&table, name, Some(unit))?;
+            }
+        }
+        let table = &table;
         let mut fields: Vec<_> = table.schema().fields().iter().cloned().collect();
         let mut columns = table.columns().to_vec();
         for (name, column) in extra {
