@@ -101,7 +101,8 @@ indicated    68.5%    64.5%    65.0%
 
 spacing alone puts the infill, 22 % of the blocks, in measured, and the lease edge beyond the last holes in
 inferred. the kriging diagnostics also see how the holes surround a block: measured grows to 27 % and joins the
-infill patches, while blocks along the edge, with holes on one side only, stay inferred (8.1 % of the lease). the filter changes 1.7 % of the blocks, most of them single blocks and thin fringes.
+infill patches, while blocks along the edge, with holes on one side only, stay inferred (8.1 % of the lease). the
+filter changes 1.7 % of the blocks, most of them single blocks and thin fringes.
 
 <details><summary>Python</summary>
 

@@ -1,9 +1,9 @@
 # data spacing
 
 the equivalent data spacing (cabral pinto and deutsch, 2017) is the spacing of a square grid of holes that would put
-as much data around a location as the real drilling does. it reads in meters whatever the layout: a cell on a 700 m
-grid scores about 700 m, and so does a cell with one cluster of holes on one side and none on the other. it is the
-usual basis for resource classification ([classification](../../10-checking-models/05-classification/README.md)).
+as much data around a location as the real drilling does. it reads in meters whatever the layout: a cell inside a
+square grid of 700 m scores about 700 m, and a cell among irregular holes scores the square grid they are worth. it is
+the usual basis for resource classification ([classification](../../10-checking-models/05-classification/README.md)).
 
 <details><summary>Python</summary>
 
@@ -61,7 +61,7 @@ spacing in the lease: median 535 m, P10 391 m, P90 655 m
 
 ![plan](plan.png)
 
-the infill clusters read 200 to 400 m and the regional mesh 550 to 700 m, close to its nominal 700 m. the measure
+the infill clusters read 200 to 400 m and the regional mesh 550 to 700 m. the measure
 averages over the 4 to 11 nearest holes, so it changes smoothly across the edge of the infill rather than jumping
 at it.
 
@@ -71,8 +71,8 @@ an iron formation cut by 187 diamond holes, about 100 m apart. with a `search`, 
 inside its ellipsoid: `sqrt(V / (c n))`, with `V` the volume of the ellipsoid, `n` the samples inside it around the
 block and `c` their length. `n c` is the length of hole inside `V`, so `V / (n c)` is the plan area per hole for
 vertical holes. a `Drillholes` stands for its interval midpoints, and `c` defaults to the median interval length;
-for composites in a `PointSet`, pass `composite_length=`. the ellipsoid here is 150 m across the layer's plane and
-30 m thick, so it follows the flat formation.
+for composites in a `PointSet`, pass `composite_length=`. the ellipsoid here reaches 150 m in plan and 30 m
+vertically, so it follows the flat formation.
 
 <details><summary>Python</summary>
 
@@ -116,7 +116,7 @@ for ax, values, title in (
         formation, values, axis="y", index=40, colorbar=False, vmin=50, vmax=250, ax=ax, holes=drillholes
     )
     ax.set(title=title, xlabel="Easting (m)")
-axes[0].set_ylabel("Elevation (m)")
+axes[1].set_ylabel("")
 fig.colorbar(axes[1].collections[0], ax=axes, shrink=0.9, extend="max", label="Spacing (m)")
 save(fig, "section")
 ```

@@ -1773,7 +1773,7 @@ fn pairs(
 ///     Hole of each sample, or its column in `data`; the plan form then
 ///     counts each hole once, at its nearest sample.
 /// n : int or sequence of int
-///     Neighbor ranks of the plan form, averaged.
+///     Neighbor ranks of the plan form, averaged; default 4 to 10.
 /// hull : bool
 ///     Null targets outside the plan convex hull of `data`.
 ///

@@ -605,3 +605,15 @@ def test_section_through_a_plane_cuts_its_blocks_and_keeps_holes_within_width():
     assert [t.get_label() for t in traces] == ["A"] and [t.get_text() for t in ax.texts] == ["A"]
     np.testing.assert_allclose(traces[0].get_segments()[0][:, 0], 15)
     assert ax.get_xlabel() == "Easting (m)" and ax.get_ylabel() == "Elevation (m)"
+
+
+def test_section_keeps_each_block_at_its_place_when_values_hold_nan():
+    bm = bt.BlockModel(origin=(0, 0, 0), size=(10, 10, 10), count=(3, 2, 1))
+    g = np.arange(6.0)
+    g[1] = np.nan
+    _, ax = bt.plot.section(bm, g, axis="z")
+    blocks = ax.collections[0]
+    centers = np.array([p.vertices[:4].mean(axis=0) for p in blocks.get_paths()])
+    index = (centers[:, 0] // 10) + 3 * (centers[:, 1] // 10)
+    np.testing.assert_array_equal(blocks.get_array(), index)
+    assert len(index) == 5
