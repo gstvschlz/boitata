@@ -111,6 +111,9 @@ pub struct NormalScore {
     tails: Option<(f64, f64)>,
     reference: Option<Reference>,
     fitted: Option<CoreNormalScore>,
+    /// Unit of the fitted values, restored by `inverse_transform`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    unit: Option<String>,
 }
 
 /// A fitted reference distribution of `NormalScore`.
@@ -181,6 +184,7 @@ impl NormalScore {
             tails,
             reference: reference.map(Reference::extract).transpose()?,
             fitted: None,
+            unit: None,
         })
     }
 
@@ -216,6 +220,7 @@ impl NormalScore {
         seed: u64,
         data: Option<&Bound<PyAny>>,
     ) -> PyResult<PyRefMut<'py, Self>> {
+        let unit = crate::units::of(values, data)?;
         let values = one(data, values, "values")?;
         let weights = weights_arg(data, weights, values.len())?;
         let censored = censored
@@ -244,6 +249,7 @@ impl NormalScore {
             ns.table = ns.table.with_tails(lower, upper);
         }
         slf.fitted = Some(ns);
+        slf.unit = unit;
         Ok(slf)
     }
 
@@ -281,7 +287,8 @@ impl NormalScore {
         data: Option<&Bound<PyAny>>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let table = &self.fitted()?.table;
-        Ok(map(py, one(data, scores, "scores")?, |y| table.back(y)))
+        let values = map(py, one(data, scores, "scores")?, |y| table.back(y));
+        crate::units::tag(values, self.unit.as_deref())
     }
 
     /// Transformation table: sorted values and their scores.

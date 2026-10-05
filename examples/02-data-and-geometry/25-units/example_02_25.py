@@ -77,3 +77,28 @@ fig, ax = bt.plot.histogram("AG", data=silver)
 ax.set_title("silver grades, converted to oz/t")
 save(fig, "histogram")
 plt.show()
+
+# %% [markdown]
+# ## units through a workflow
+#
+# a column read from a container is a `UnitArray`: a numpy array that remembers its unit. composites keep the unit of
+# the assays, an estimator fitted on a column estimates in its unit, and the kriging variance comes out in its square.
+# `with_column` stores the unit with the new column.
+
+# %%
+data = bt.datasets.stacked_sulphide_lenses()
+holes = bt.Drillholes(data["collars"], data["surveys"], data["assays"].with_units({"ZN_PCT": "%"}))
+composites = holes.composite(2.0, ["ZN_PCT"])
+grid = bt.BlockModel.from_extents(data["lens_1"], size=(10, 10, 5), buffer=20, rotation=(22.5, 0.0, 55.0))
+kriging = bt.OrdinaryKriging(bt.Variogram([("spherical", 1.0, 60.0)]), bt.Search(radius=60, max_samples=12))
+estimate, variance = kriging.fit(composites, "ZN_PCT").predict(grid, return_variance=True, progress=False)
+print(f"estimate in {estimate.unit}, variance in {variance.unit}")
+grid = grid.with_column("ZN", estimate)
+print(grid.units)
+
+# %% [markdown]
+# arithmetic drops the unit, since the result may be in another one. give it back with `unit=`.
+
+# %%
+grid = grid.with_column("ZN_PPM", estimate * 1e4, unit="ppm")
+print(grid.units)

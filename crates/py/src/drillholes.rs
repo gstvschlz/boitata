@@ -462,6 +462,17 @@ impl Drillholes {
             columns.push((name.clone(), Arc::new(StringArray::from_iter(values))));
         }
         let attributes = RecordBatch::try_from_iter(columns).map_err(invalid)?;
+        let units = self
+            .intervals
+            .as_ref()
+            .map(|(t, ..)| boitata_core::units::units(t))
+            .unwrap_or_default();
+        let grade_units: Vec<(&str, Option<&str>)> = units
+            .iter()
+            .filter(|(name, _)| grades.contains(name))
+            .map(|(name, unit)| (name.as_str(), Some(unit.as_str())))
+            .collect();
+        let attributes = crate::units::label(attributes, &grade_units)?;
         Ok(PyPointSet(
             PointSet::new(coords, attributes).map_err(invalid)?,
         ))

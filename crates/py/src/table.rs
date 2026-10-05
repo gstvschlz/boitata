@@ -155,6 +155,7 @@ pub fn to_batch(data: &Bound<PyAny>) -> PyResult<RecordBatch> {
     if let Ok(dict) = data.cast::<PyDict>() {
         let np = data.py().import("numpy")?;
         let mut columns = Vec::with_capacity(dict.len());
+        let mut units = Vec::new();
         for (name, values) in dict.iter() {
             let array = np.call_method1("asarray", (&values,))?;
             let kind: String = array.getattr("dtype")?.getattr("kind")?.extract()?;
@@ -178,7 +179,7 @@ pub fn to_batch(data: &Bound<PyAny>) -> PyResult<RecordBatch> {
                     "float64"
                 };
                 let array = np
-                    .call_method1("asarray", (values, wide))
+                    .call_method1("asarray", (&values, wide))
                     .map_err(|_| not_numeric())?;
                 let has_nan: bool = np
                     .call_method1("isnan", (&array,))
@@ -211,9 +212,18 @@ pub fn to_batch(data: &Bound<PyAny>) -> PyResult<RecordBatch> {
                     }
                 }
             };
-            columns.push((name.extract::<String>()?, column));
+            let name = name.extract::<String>()?;
+            if let Some(u) = crate::units::of(&values, None)? {
+                units.push((name.clone(), u));
+            }
+            columns.push((name, column));
         }
-        return RecordBatch::try_from_iter(columns).map_err(invalid);
+        let mut batch = RecordBatch::try_from_iter(columns).map_err(invalid)?;
+        for (name, unit) in units {
+            batch = boitata_core::units::with_unit_unchecked(&batch, &name, Some(&unit))
+                .map_err(invalid)?;
+        }
+        return Ok(batch);
     }
     let table = data
         .extract::<AnyRecordBatch>()
@@ -275,7 +285,8 @@ pub fn column<'py>(
             .iter()
             .map(|v| v.unwrap_or(f64::NAN))
             .collect();
-        return Ok(PyArray1::from_vec(py, values).into_any());
+        let unit = boitata_core::units::unit(batch, name).map_err(invalid)?;
+        return crate::units::tag(PyArray1::from_vec(py, values).into_any(), unit.as_deref());
     }
     let text = arrow_cast::cast(array, &DataType::Utf8).map_err(invalid)?;
     let items: Vec<Option<&str>> = text.as_string::<i32>().iter().collect();

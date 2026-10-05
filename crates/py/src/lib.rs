@@ -23,6 +23,7 @@ mod progress;
 mod simulation;
 mod table;
 mod transforms;
+mod units;
 mod variogram;
 
 /// Raises `boitata.errors.<kind>`, a subclass of both `BoitataError` and a builtin.

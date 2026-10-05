@@ -19,6 +19,7 @@ from boitata._boitata import (
     point_in_polygon,
 )
 from boitata._columns import column
+from boitata._units import squared, tag, unit_of
 from boitata.errors import InvalidInput
 
 __all__ = [
@@ -46,6 +47,15 @@ __all__ = [
 ]
 
 Searches = Search | Sequence[Search]
+
+
+def _labelled(table, units):
+    """`table` with the `units` that are known; a unit not understood stays off."""
+    known = {k: v for k, v in units.items() if v is not None and k in table.column_names}
+    try:
+        return table.with_units(known)
+    except InvalidInput:
+        return table
 
 
 @dataclass(frozen=True)
@@ -146,8 +156,17 @@ class CategoricalCrossValidation:
 
 
 class _Base:
+    # Unit of the estimates when it is not the unit of the values, as for probabilities.
+    _estimate_unit = None
+
     def __init__(self, method: str, search: Searches, variogram: Variogram | None = None, **options):
         self._engine = _Estimator(method, search, variogram, **options)
+
+    @property
+    def unit(self) -> str | None:
+        """Unit of the estimates: that of the fitted values, ``ratio`` for probabilities; None if unknown."""
+        values = getattr(self, "_unit", None)
+        return values if values is None or self._estimate_unit is None else self._estimate_unit
 
     def fit(self, coords, values, *, holes=None, error_variance=None, domains=None, domain_column=None):
         """Stores the samples. Samples sharing a location keep the first one, with a warning naming their holes.
@@ -158,6 +177,7 @@ class _Base:
             Sample locations, ``(n, 2)`` or ``(n, 3)``, or a container whose columns `values`, `holes`,
             `error_variance` and `domain_column` may name.
         values : array_like or str
+            Sample values, or their column in `coords`; their unit, if any, becomes the unit of the estimates.
         holes : array_like or str, optional
             Drill-hole ids or names, for `max_per_hole` and the ``n_holes`` diagnostic.
         error_variance : array_like or str, optional
@@ -174,6 +194,7 @@ class _Base:
         domain_column : str, optional
             The column of `coords` holding the domains; instead of `domains`.
         """
+        self._unit = unit_of(values, coords)
         self._engine.fit(
             coords,
             values,
@@ -224,8 +245,13 @@ class _Base:
             The column of `targets` holding their domains; instead of `domains`.
         progress : bool, default True
             Show a `tqdm` progress bar.
+
+        Returns
+        -------
+        ndarray, tuple of ndarray or Table
+            Estimates in `unit`, variances in its square.
         """
-        return self._engine.predict(
+        out = self._engine.predict(
             targets,
             return_variance=return_variance,
             anisotropy=anisotropy,
@@ -234,6 +260,12 @@ class _Base:
             domain_column=domain_column,
             progress=progress,
         )
+        unit = self.unit
+        if diagnostics:
+            return _labelled(out, {"value": unit, "variance": squared(unit)})
+        if return_variance:
+            return tag(out[0], unit), tag(out[1], squared(unit))
+        return tag(out, unit)
 
     def cross_validate(self, *, folds: int | None = None) -> CrossValidation:
         """Re-estimates every sample from the others, through the same search passes.
@@ -248,7 +280,12 @@ class _Base:
             domains; each held-out sample is estimated in its own domain.
         """
         estimate, variance = self._engine.cross_validate(folds=folds)
-        return CrossValidation(self._engine.values, estimate, variance)
+        unit = self.unit
+        return CrossValidation(
+            tag(self._engine.values, getattr(self, "_unit", None)),
+            tag(estimate, unit),
+            tag(variance, squared(unit)),
+        )
 
     def with_search(self, search: Searches):
         """A copy of the estimator, fitted samples included, with `search` in place of its searches.
@@ -260,6 +297,7 @@ class _Base:
         """
         estimator = type(self).__new__(type(self))
         estimator._engine = self._engine.with_search(search)
+        estimator._unit = getattr(self, "_unit", None)
         return estimator
 
     def to_parquet(self, path) -> None:
@@ -305,6 +343,8 @@ class SimpleKriging(_Base):
 
 class IndicatorKriging(_Base):
     """Ordinary kriging of the indicator `value <= threshold`; estimates are probabilities."""
+
+    _estimate_unit = "ratio"
 
     def __init__(self, variogram: Variogram, search: Searches, threshold: float):
         super().__init__("indicator", search, variogram, threshold=threshold)
