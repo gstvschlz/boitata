@@ -536,3 +536,34 @@ def test_snap_to_surface_moves_collars_and_their_holes():
         assert bt.snap_to_surface(holes, mesh)[1]["shift"][0] == pytest.approx(12.5)
     with pytest.raises(bt.InvalidInput, match="needs column"):
         bt.snap_to_surface(holes, ground)
+
+
+def test_planned_drillholes_cover_the_model_and_composite():
+    model = bt.BlockModel((0, 0, -50), (10, 10, 10), (10, 10, 4))
+    ground = bt.BlockModel((-50, -50), (10, 10), (30, 30))
+    ground = ground.with_column("Z", 5 + 0.1 * ground.centroids[:, 0])
+    plan = bt.planned_drillholes(model, 25.0, topography=bt.grid_surface(ground, "Z"))
+    assert len(plan) == 25 and plan.holes[0] == "P0001"
+    collars = plan.at(plan.holes, np.zeros(len(plan)))
+    np.testing.assert_allclose(collars[:, 2], 5 + 0.1 * collars[:, 0], atol=1e-9)
+    assert sorted(set(np.round(collars[:, 0], 9))) == [5, 30, 55, 80, 105]
+    lengths = plan.samples()["TO"]
+    np.testing.assert_allclose(plan.at(plan.holes, lengths)[:, 2], -50, atol=1e-9)
+    composites = plan.composite(5.0, [])
+    assert composites["length"].max() == pytest.approx(5.0)
+    assert composites["length"].sum() == pytest.approx(lengths.sum())
+
+
+def test_planned_drillholes_rotated_inclined_and_bad_input():
+    points = np.array([[0.0, 0.0, -10.0], [100.0, 0.0, -30.0]])
+    plan = bt.planned_drillholes(points, (30.0, 10.0), rotation=90.0, azimuth=90.0, dip=60.0)
+    collars = plan.at(plan.holes, np.zeros(len(plan)))
+    np.testing.assert_allclose(collars, [[0, 0, -10], [90, 0, -10]], atol=1e-9)
+    np.testing.assert_allclose(plan.at(plan.holes, plan.samples()["TO"])[:, 2], -30, atol=1e-9)
+    mesh = bt.Mesh([[500, 500, 0], [600, 500, 0], [500, 600, 0]], [[0, 1, 2]])
+    with pytest.warns(UserWarning, match="2 collars lie off"):
+        bt.planned_drillholes(points, 30.0, topography=mesh)
+    with pytest.raises(bt.InvalidInput):
+        bt.planned_drillholes(points, -1.0)
+    with pytest.raises(bt.InvalidInput):
+        bt.planned_drillholes(points, 10.0, dip=0.0)

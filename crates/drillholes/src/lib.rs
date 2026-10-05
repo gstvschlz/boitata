@@ -7,6 +7,8 @@
 pub mod checks;
 mod error;
 pub use error::{DrillholeError, Result};
+mod plan;
+pub use plan::{PlanGrid, planned_holes};
 mod runs;
 pub use runs::{Run, RunRules, ore_runs};
 

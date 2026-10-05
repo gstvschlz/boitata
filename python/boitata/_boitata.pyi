@@ -1661,6 +1661,16 @@ class Drillholes:
 def snap_to_surface(
     drillholes: Drillholes, surface: Mesh | BlockModel, *, column: str | None = None
 ) -> tuple[Drillholes, Table]: ...
+def planned_drillholes(
+    targets: BlockModel | PointSet | ArrayLike,
+    spacing: float | tuple[float, float],
+    *,
+    rotation: float = 0.0,
+    azimuth: float = 0.0,
+    dip: float = 90.0,
+    topography: Mesh | None = None,
+    offset: tuple[float, float] = (0.0, 0.0),
+) -> Drillholes: ...
 def closure(parts: ArrayLike, *, total: float = 1.0) -> npt.NDArray[np.float64]: ...
 def clr(parts: ArrayLike) -> npt.NDArray[np.float64]: ...
 def clr_inverse(coords: ArrayLike) -> npt.NDArray[np.float64]: ...
