@@ -1176,3 +1176,24 @@ def test_object_training_image_rejects_bad_sets():
     ]:
         with pytest.raises(bt.InvalidInput):
             bt.object_training_image(tpl, [bad])
+
+
+def test_select_realizations_picks_one_medoid_per_cluster():
+    rng = np.random.default_rng(2)
+    centers = np.repeat([0.0, 5.0, 20.0], [8, 5, 3])
+    reals = centers[:, None] + rng.normal(scale=0.1, size=(16, 30))
+    reals[4, 7] = np.nan
+    picked = bt.select_realizations(reals, 3, seed=4)
+    assert picked.dtype == np.int64
+    np.testing.assert_array_equal(centers[picked], [0.0, 5.0, 20.0])
+    np.testing.assert_array_equal(picked, bt.select_realizations(reals, 3, seed=4))
+    sgs = bt.SGS(gaussian, bt.Search(radius=40, max_samples=12)).fit(coords, values)
+    s = sgs.simulate(grid, n=6, seed=1, keep=True)
+    np.testing.assert_array_equal(bt.select_realizations(s, 2), bt.select_realizations(s.realizations, 2))
+    for call in [
+        lambda: bt.select_realizations(reals, 0),
+        lambda: bt.select_realizations(reals, 17),
+        lambda: bt.select_realizations(sgs.simulate(grid, n=2, seed=1), 1),
+    ]:
+        with pytest.raises(ValueError):
+            call()

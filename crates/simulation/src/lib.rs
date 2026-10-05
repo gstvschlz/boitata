@@ -26,6 +26,7 @@ pub mod multivariate;
 pub mod objects;
 pub mod pgs;
 pub mod post;
+pub mod select;
 pub mod sgs;
 pub mod shared;
 pub mod sis;
@@ -49,6 +50,7 @@ pub use post::{
     continuous, continuous_batched, continuous_in_batches, continuous_many,
     continuous_many_batched, localize, quantile_sorted,
 };
+pub use select::select_realizations;
 pub use sgs::{
     Domains, Realization, Secondary, SgsParams, Transform, Transforms, Trend, cosgs, sgs, sgs_in,
     sgs_passes,
