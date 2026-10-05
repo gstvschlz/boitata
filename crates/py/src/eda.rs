@@ -692,7 +692,7 @@ fn compare_models(
 fn swath(
     coords: &Bound<PyAny>,
     values: &Bound<PyAny>,
-    width: f64,
+    width: crate::units::Quantity,
     azimuth: Option<f64>,
     axis: Option<&str>,
     weights: Option<&Bound<PyAny>>,
@@ -711,6 +711,7 @@ fn swath(
     let grade = crate::units::of(values, Some(coords))?;
     let tonnes = tonnes_unit(Some(coords), weights, density)?;
     let length = crate::units::length_of(coords)?;
+    let width = width.to(length.as_deref(), "width")?;
     let values = floats(&column(Some(coords), values, "values")?, "values")?;
     let n = values.len();
     let w = weights_or_volumes(Some(coords), weights, n)?;
@@ -1206,6 +1207,18 @@ enum Given {
     PerDomain(Vec<(Label, f64)>),
 }
 
+/// A cap as given: a number, or text such as "20 g/t".
+fn cap_value(obj: &Bound<PyAny>, unit: &mut Option<String>) -> PyResult<f64> {
+    let (v, u) = crate::units::given(obj, "cap")?;
+    if let Some(u) = u {
+        if unit.as_ref().is_some_and(|known| *known != u) {
+            return Err(invalid("give every cap in one unit"));
+        }
+        *unit = Some(u);
+    }
+    Ok(v)
+}
+
 #[derive(Serialize, Deserialize)]
 struct FittedCaps {
     domains: Option<Vec<Label>>,
@@ -1247,6 +1260,9 @@ pub struct Capping {
     quantile: Option<f64>,
     metal_removed: Option<f64>,
     cv: Option<f64>,
+    /// Unit of caps given as text; they are converted to the values' at fit.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    cap_unit: Option<String>,
     fitted: Option<FittedCaps>,
 }
 
@@ -1275,6 +1291,18 @@ impl Capping {
         weights: Option<&Bound<PyAny>>,
         data: Option<&Bound<PyAny>>,
     ) -> PyResult<(Vec<f64>, Vec<u32>)> {
+        let scale = match &self.cap_unit {
+            None => 1.0,
+            Some(u) => match crate::units::of(values, data)? {
+                Some(to) => boitata_core::units::conversion(u, &to)
+                    .map_err(|e| invalid(format!("cap: {e}")))?,
+                None => {
+                    return Err(invalid(format!(
+                        "the caps are in {u}, but the values have no unit to convert them to"
+                    )));
+                }
+            },
+        };
         let values = floats(&column(data, values, "values")?, "values")?;
         let n = values.len();
         let (labels, codes) = match (domains, domain_column) {
@@ -1290,7 +1318,7 @@ impl Capping {
             eda::fit_caps(&values, &codes, w.as_deref(), r(x)).map_err(invalid)
         };
         let caps = match (&self.cap, self.quantile, self.metal_removed, self.cv) {
-            (Some(Given::One(c)), ..) => vec![*c; k],
+            (Some(Given::One(c)), ..) => vec![*c * scale; k],
             (Some(Given::PerDomain(given)), ..) => {
                 let labels = labels
                     .as_ref()
@@ -1301,7 +1329,7 @@ impl Capping {
                         .iter()
                         .position(|x| x == l)
                         .ok_or_else(|| invalid(format!("no value in domain {l}")))?;
-                    caps[i] = *c;
+                    caps[i] = *c * scale;
                 }
                 caps
             }
@@ -1374,6 +1402,7 @@ impl Capping {
         if given.iter().filter(|g| **g).count() != 1 {
             return Err(invalid("give one of cap, quantile, metal_removed or cv"));
         }
+        let mut cap_unit = None;
         let cap = match cap {
             None => None,
             Some(c) => match c.cast::<PyDict>() {
@@ -1382,11 +1411,11 @@ impl Capping {
                         .map(|(k, v)| {
                             let l = crate::args::label(&k)?
                                 .ok_or_else(|| invalid(format!("invalid domain {k}")))?;
-                            Ok((l, v.extract()?))
+                            Ok((l, cap_value(&v, &mut cap_unit)?))
                         })
                         .collect::<PyResult<_>>()?,
                 )),
-                Err(_) => Some(Given::One(c.extract()?)),
+                Err(_) => Some(Given::One(cap_value(c, &mut cap_unit)?)),
             },
         };
         let finite = |c: &f64| c.is_finite();
@@ -1403,6 +1432,7 @@ impl Capping {
             quantile,
             metal_removed,
             cv,
+            cap_unit,
             fitted: None,
         })
     }

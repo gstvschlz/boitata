@@ -2171,11 +2171,15 @@ pub fn declustering(w: Weights, sizes: Vec<f64>, means: Vec<f64>) -> Declusterin
 fn cell_declustering(
     coords: &Bound<PyAny>,
     values: &Bound<PyAny>,
-    cell_size: Option<f64>,
+    cell_size: Option<crate::units::Quantity>,
     sizes: Option<&Bound<PyAny>>,
     offsets: usize,
     minimize: bool,
 ) -> PyResult<Declustering> {
+    let length = crate::units::length_of(coords)?;
+    let cell_size = cell_size
+        .map(|c| c.to(length.as_deref(), "cell_size"))
+        .transpose()?;
     let (locs, values) = samples(coords, values)?;
     if let Some(size) = cell_size {
         let w =
@@ -2186,7 +2190,7 @@ fn cell_declustering(
         (m.0.min(p.0), m.1.min(p.1), m.2.min(p.2))
     });
     let sizes = match sizes {
-        Some(s) => finite(s, "sizes")?,
+        Some(s) => crate::units::values(s, length.as_deref(), "sizes")?,
         None => {
             let extent = locs.iter().fold(0.0_f64, |e, p| {
                 e.max(p.0 - origin.0)

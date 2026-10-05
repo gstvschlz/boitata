@@ -219,7 +219,7 @@ class BlockModel:
     @staticmethod
     def from_extents(
         *objects: PointSet | Drillholes | Mesh | Polylines | BlockModel | ArrayLike,
-        size: Sequence[float | None],
+        size: Sequence[float | str | None],
         buffer: float | Sequence[float] = 0.0,
         rotation: tuple[float, float, float] | None = None,
         snap: bool | float | Sequence[float] = False,
@@ -321,7 +321,7 @@ class Capping:
     def __init__(
         self,
         *,
-        cap: float | Mapping[int | str, float] | None = None,
+        cap: float | str | Mapping[int | str, float | str] | None = None,
         quantile: float | None = None,
         metal_removed: float | None = None,
         cv: float | None = None,
@@ -637,7 +637,7 @@ def cell_declustering(
     coords: ArrayLike | PointSet | BlockModel,
     values: ArrayLike | Column,
     *,
-    cell_size: float | None = None,
+    cell_size: float | str | None = None,
     sizes: ArrayLike | None = None,
     offsets: int = 25,
     minimize: bool = True,
@@ -1577,7 +1577,7 @@ class MultipleIndicatorKriging:
         self,
         targets: Any,
         *,
-        cutoffs: Sequence[float] = (),
+        cutoffs: Sequence[float | str] | None = None,
         quantiles: Sequence[float] = (),
         anisotropy: LocalAnisotropy | None = None,
         diagnostics: bool = False,
@@ -1620,7 +1620,7 @@ class MultigaussianKriging:
         self,
         targets: Any,
         *,
-        cutoffs: Sequence[float] = (),
+        cutoffs: Sequence[float | str] | None = None,
         quantiles: Sequence[float] = (),
         discretization: tuple[int, int, int] | None = None,
         diagnostics: bool = False,
@@ -1762,9 +1762,9 @@ class Drillholes:
         cutoff: float | str | None = None,
         category: str | None = None,
         ore: Sequence[str] = (),
-        min_length: float = 0.0,
-        max_dilution: float = 0.0,
-        edge: float = 0.0,
+        min_length: float | str = 0.0,
+        max_dilution: float | str = 0.0,
+        edge: float | str = 0.0,
     ) -> Table: ...
     def mesh_intervals(self, mesh: Mesh, *, step: float = 1.0, tolerance: float = 0.01) -> Table: ...
     def __len__(self) -> int: ...
@@ -2221,7 +2221,7 @@ def capping_report(
 def swath(
     coords: PointSet | BlockModel | ArrayLike,
     values: ArrayLike | Column,
-    width: float,
+    width: float | str,
     *,
     azimuth: float | None = None,
     axis: str | None = None,

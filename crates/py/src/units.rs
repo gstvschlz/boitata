@@ -54,6 +54,38 @@ pub fn check_against(own: Option<&str>, other: &Bound<PyAny>, names: (&str, &str
         .map_err(invalid)
 }
 
+/// A number in the unit of the data, or text such as "150 ft" or "0.5 g/t".
+#[derive(FromPyObject)]
+pub enum Quantity {
+    Number(f64),
+    Text(String),
+}
+
+impl Quantity {
+    /// The number, and the unit text gives it.
+    pub fn split(&self, what: &str) -> PyResult<(f64, Option<String>)> {
+        match self {
+            Self::Number(v) => Ok((*v, None)),
+            Self::Text(t) => boitata_core::units::quantity(t)
+                .map(|(v, u)| (v, Some(u)))
+                .map_err(|e| invalid(format!("{what}: {e}"))),
+        }
+    }
+
+    /// The number in `unit`; text needs `unit` known.
+    pub fn to(&self, unit: Option<&str>, what: &str) -> PyResult<f64> {
+        match (self.split(what)?, unit) {
+            ((v, None), _) => Ok(v),
+            ((v, Some(from)), Some(to)) => boitata_core::units::conversion(&from, to)
+                .map(|k| v * k)
+                .map_err(|e| invalid(format!("{what}: {e}"))),
+            ((_, Some(from)), None) => Err(invalid(format!(
+                "{what} is in {from}, but the data have no unit to convert it to; declare theirs"
+            ))),
+        }
+    }
+}
+
 /// Whether `obj` is text holding a quantity such as "2.7 t/m3", rather than
 /// a column name.
 pub fn is_quantity(obj: &Bound<PyAny>) -> bool {

@@ -1132,13 +1132,27 @@ impl PyBlockModel {
     #[pyo3(signature = (*objects, size, buffer=PerAxis::One(0.0), rotation=None, snap=Snap::Flag(false), crs=None, length_unit=None))]
     fn from_extents(
         objects: &Bound<PyTuple>,
-        size: Vec<Option<f64>>,
+        size: Vec<Option<crate::units::Quantity>>,
         buffer: PerAxis,
         rotation: Option<(f64, f64, f64)>,
         snap: Snap,
         crs: Option<String>,
         length_unit: Option<String>,
     ) -> PyResult<Self> {
+        let split = size
+            .iter()
+            .map(|s| s.as_ref().map(|q| q.split("size")).transpose())
+            .collect::<PyResult<Vec<_>>>()?;
+        let text = split.iter().flatten().find_map(|(_, u)| u.clone());
+        let length_unit = crate::table::length_unit(length_unit.or(text))?;
+        let size = size
+            .iter()
+            .map(|s| {
+                s.as_ref()
+                    .map(|q| q.to(length_unit.as_deref(), "size"))
+                    .transpose()
+            })
+            .collect::<PyResult<Vec<_>>>()?;
         let (xy, dz) = match size[..] {
             [Some(x), Some(y)] => ([x, y], None),
             [Some(x), Some(y), dz] => ([x, y], dz),
@@ -1159,7 +1173,7 @@ impl PyBlockModel {
         let mut model =
             BlockModel::regular(geometry, empty(geometry.cells() as usize)).map_err(core_error)?;
         model.crs = crs;
-        model.length_unit = crate::table::length_unit(length_unit)?;
+        model.length_unit = length_unit;
         Ok(Self(model))
     }
 
