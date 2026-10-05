@@ -270,3 +270,70 @@ def test_drillholes_carry_their_length_unit():
         holes.length_unit == "ft" and composites.length_unit == "ft" and holes.samples().length_unit == "ft"
     )
     assert composites.units == {"from": "ft", "to": "ft", "length": "ft", "AU_length": "ft"}
+
+
+def _model(grade_unit):
+    model = bt.BlockModel((0, 0, 0), (10, 10, 5), (4, 4, 1), length_unit="m")
+    au = np.linspace(0.5, 4.0, len(model))
+    return model.with_column("au", au, unit=grade_unit).with_column(
+        "dens", np.full(len(model), 2.7), unit="t/m3"
+    )
+
+
+def test_grade_tonnage_balances_metal_in_auto_scaled_units():
+    """Theory check: Σ volume × density × grade equals the metal column converted back to grams."""
+    model = _model("g/t")
+    gt = bt.grade_tonnage("au", [0.0, 2.0], data=model, density="dens")
+    assert gt.units == {"cutoff": "g/t", "tonnage": "kt", "mean_grade": "g/t", "metal": "kg metal"}
+    metal = gt.convert_units("metal", to="g metal")["metal"]
+    expected = np.sum(model.volumes * model["dens"] * model["au"])
+    assert metal[0] == pytest.approx(expected, rel=1e-12)
+    assert gt.convert_units("tonnage", to="t")["tonnage"][0] == pytest.approx(16 * 500 * 2.7)
+    with pytest.raises(bt.InvalidInput, match="cannot convert metal"):
+        gt.convert_units("metal", to="t")
+    bare = bt.grade_tonnage("au", [0.0], data=model, density=2.7)
+    assert bare.units == {"cutoff": "g/t", "mean_grade": "g/t"}
+    assert bare["tonnage"][0] == pytest.approx(16 * 500 * 2.7)
+
+
+def test_metal_reads_in_the_units_of_its_grade():
+    gold = bt.grade_tonnage("au", [0.0], data=_model("oz/t"), density="dens")
+    assert gold.units["metal"] == "koz metal"
+    copper = bt.grade_tonnage("au", [0.0], data=_model("%"), density="dens")
+    assert copper.units["metal"] == "t metal"
+    model = _model("g/t").with_column("other", np.linspace(0.4, 3.0, 16), unit="g/t")
+    compared = bt.compare_models(model, ["au", "other"], [0.0], density="dens")
+    assert compared.units["tonnage_diff"] == "ratio" and compared.units["metal"] == "kg metal"
+
+
+def test_recoveries_and_simulated_curves_carry_units():
+    hermite = bt.HermiteAnamorphosis(degree=12).fit(samples["au"])
+    recovery = hermite.grade_tonnage([0.5, 1.0])
+    assert recovery.units == {
+        "cutoff": "g/t",
+        "tonnage": "ratio",
+        "mean_grade": "g/t",
+        "metal": "g/t",
+        "benefit": "g/t",
+    }
+    assert hermite.inverse_transform([0.0]).unit == "g/t"
+    data = bt.PointSet(samples.coords, samples.attributes, length_unit="m")
+    blocks = bt.BlockModel((0, 0, 0), (20, 20, 5), (5, 5, 1), length_unit="m")
+    summary = (
+        bt.SGS(variogram, search)
+        .fit(data, "au")
+        .simulate(
+            blocks.with_column("dens", np.full(25, 2.7), unit="t/m3"),
+            n=4,
+            seed=2,
+            grade_tonnage_cutoffs=[0.0, 1.0],
+            density="dens",
+            progress=False,
+        )
+    )
+    curves = summary.grade_tonnage()
+    assert (curves.units["tonnage"], curves.units["metal"], curves.units["probability"]) == (
+        "kt",
+        "kg metal",
+        "ratio",
+    )

@@ -83,6 +83,56 @@ pub fn set(
     }
 }
 
+/// `batch`, a grade–tonnage table, with units: `cutoff` and `mean_grade` in
+/// `grade`, `tonnage` (computed in `tonnes`) rescaled to t, kt or Mt and
+/// `metal` to the metal units of `grade`, each to read best; the `ratios`
+/// columns in `ratio`. A unit not known, or not a mass for `tonnes` or a
+/// grade for `grade`, leaves its columns as computed.
+pub fn grade_tonnage(
+    batch: RecordBatch,
+    tonnes: Option<&str>,
+    grade: Option<&str>,
+    ratios: &[&str],
+) -> PyResult<RecordBatch> {
+    use boitata_core::units::{TONNAGE, metal_units, parse};
+    let kind = |unit: &str, like: &str| matches!((parse(unit), parse(like)), (Ok(a), Ok(b)) if a.dimension() == b.dimension());
+    let grade = grade.filter(|g| kind(g, "%"));
+    let tonnes = tonnes.filter(|t| kind(t, "t"));
+    let mut named: Vec<(&str, Option<&str>)> = ratios.iter().map(|r| (*r, Some("ratio"))).collect();
+    named.extend([("cutoff", grade), ("mean_grade", grade)]);
+    let present: Vec<(&str, Option<&str>)> = named
+        .into_iter()
+        .filter(|(n, _)| batch.schema().column_with_name(n).is_some())
+        .collect();
+    let mut batch = label(batch, &present)?;
+    if let Some(t) = tonnes {
+        batch = rescale(batch, "tonnage", t, &TONNAGE)?;
+        if let Some(g) = grade {
+            batch = rescale(batch, "metal", &format!("({t})*({g})"), &metal_units(g))?;
+        }
+    }
+    Ok(batch)
+}
+
+/// `batch` with column `name`, in `unit`, converted to the unit of `family`
+/// it reads best in.
+fn rescale(batch: RecordBatch, name: &str, unit: &str, family: &[&str]) -> PyResult<RecordBatch> {
+    use arrow_array::cast::AsArray;
+    use arrow_array::types::Float64Type;
+    let Some(column) = batch.column_by_name(name) else {
+        return Ok(batch);
+    };
+    let values = arrow_cast::cast(column, &arrow_schema::DataType::Float64).map_err(invalid)?;
+    let values: Vec<f64> = values
+        .as_primitive::<Float64Type>()
+        .iter()
+        .flatten()
+        .collect();
+    let (to, _) = boitata_core::units::autoscale(&values, unit, family).map_err(invalid)?;
+    let tagged = with_unit_unchecked(&batch, name, Some(unit)).map_err(invalid)?;
+    boitata_core::units::convert_units(&tagged, name, &to).map_err(invalid)
+}
+
 /// `batch` with the units of `columns`, column name to unit, as inherited.
 pub fn label(batch: RecordBatch, columns: &[(&str, Option<&str>)]) -> PyResult<RecordBatch> {
     let mut batch = batch;
