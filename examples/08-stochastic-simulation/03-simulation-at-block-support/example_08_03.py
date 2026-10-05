@@ -112,7 +112,7 @@ for label, volumes in (
 
 # %% [markdown]
 # `tolerances=` adds each row's precision, the share of realizations within ±15 % of its mean; a common criterion
-# for measured resources asks that share to reach 90 %. `validate` sets the summary against the true blocks. `covered`
+# for measured resources asks that share to reach 90 %. `validate` compares the summary with the true blocks. `covered`
 # marks a block whose true grade lies within the maximum expected error (MEE) of its mean, the relative error at 90 %
 # confidence, and `cutoff=` flags blocks classified as ore while waste in truth (type 1) and the reverse (type 2).
 

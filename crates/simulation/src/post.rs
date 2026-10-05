@@ -209,7 +209,8 @@ pub struct ContinuousSummary {
     pub quantile_values: Vec<Vec<f64>>,
     pub tolerances: Vec<f64>,
     /// Fraction of realizations within `r × |mean|` of the mean,
-    /// `P(|Z − mean| ≤ r |mean|)`, for each tolerance `r`.
+    /// `P(|Z − mean| ≤ r |mean|)`, for each tolerance `r`; NaN where the
+    /// mean is 0 or NaN.
     pub precision: Vec<Vec<f64>>,
     /// Mean of each realization over all targets.
     pub realization_mean: Vec<f64>,
@@ -726,6 +727,9 @@ impl<'a> Accumulator<'a> {
                     let center = out.mean[i];
                     let quantiles = options.quantiles.iter().map(|&q| quantile_sorted(&col, q));
                     let precision = options.tolerances.iter().map(|&r| {
+                        if center == 0.0 || center.is_nan() {
+                            return f64::NAN;
+                        }
                         let within = col
                             .iter()
                             .filter(|&&v| (v - center).abs() <= r * center.abs())
@@ -1975,6 +1979,9 @@ mod tests {
             continuous(300, &options, |k| Ok(gaussian(k, &m, &s)), None)
         });
         assert_eq!(one.unwrap().precision, many.unwrap().precision);
+        let flat = continuous(5, &options, |_| Ok(vec![0.0, f64::NAN, 1.0]), None).unwrap();
+        assert!(flat.precision[0][0].is_nan() && flat.precision[0][1].is_nan());
+        assert_eq!(flat.precision[0][2], 1.0);
         let bad = ContinuousOptions {
             tolerances: vec![-0.1],
             ..Default::default()

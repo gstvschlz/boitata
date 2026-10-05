@@ -307,7 +307,7 @@ impl SimulationSummary {
     /// of the mean, ``P(|Z - mean| <= r |mean|)``, for each tolerance ``r``
     /// of `simulate(tolerances=)`. With ``r = 0.15``, a row whose precision
     /// reaches 0.9 meets the common ±15 % at 90 % confidence criterion for
-    /// measured resources.
+    /// measured resources. NaN where the mean is 0 or NaN.
     #[getter]
     fn precision<'py>(&self, py: Python<'py>) -> Bound<'py, PyArray2<f64>> {
         by_target(py, &self.0.precision, self.0.mean.len())
@@ -331,13 +331,15 @@ impl SimulationSummary {
     ///     which `simulate(cutoffs=)` must have requested, is at least
     ///     `probability`.
     /// probability : float, default 0.5
+    ///     Probability above `cutoff` from which a row is ore.
     ///
     /// Returns
     /// -------
     /// Table
     ///     ``truth``, ``mean``, ``error`` (``(mean - truth) / truth``,
     ///     positive where the mean overestimates, NaN where the truth is
-    ///     0), ``covered`` (``|truth - mean| / |mean|`` within the MEE), and
+    ///     0), ``covered`` (``|truth - mean| / |mean|`` within the MEE, false
+    ///     where the truth or the MEE is NaN), and
     ///     with `cutoff`, ``type_1`` (classified ore while the truth is at or
     ///     below the cutoff) and ``type_2`` (classified waste while the truth
     ///     is above it). One row per summary row.
@@ -1287,8 +1289,8 @@ impl Sgs {
     /// a label per row or a column name, such as the period of a mine plan,
     /// summarizes the mean of each distinct label instead, weighted by
     /// volume, or by tonnes with `grade_tonnage_cutoffs` so that grade times
-    /// tonnes is the metal, one row per label in ``numpy.unique`` order (numbers before text),
-    /// named by `SimulationSummary.groups`; null labels belong to none, NaN
+    /// tonnes is the metal, one row per label in ``numpy.unique`` order
+    /// (numbers before text), named by `SimulationSummary.groups`; null labels belong to none, NaN
     /// values are left out, and `grade_tonnage_cutoffs` counts each volume
     /// with its rows' tonnes.
     /// Give one of `window` or `groups`. `trend`, needed when fitted with
