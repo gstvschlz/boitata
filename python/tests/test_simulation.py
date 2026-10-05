@@ -172,6 +172,79 @@ def test_windows_and_groups_summarize_each_realization(make, tmp_path):
     assert total["tonnage"][total["category"] == "all"][0] == pytest.approx(2.0 * 25 * 400)
 
 
+@pytest.mark.parametrize(
+    "make",
+    [
+        lambda: bt.SGS(gaussian, bt.Search(radius=40, max_samples=12)),
+        lambda: bt.DSS(bt.Variogram([("spherical", 0.4, 30.0)]), bt.Search(radius=40, max_samples=12)),
+        lambda: bt.TurningBands(gaussian, bands=100, step=1.0),
+    ],
+)
+@pytest.mark.filterwarnings("ignore:.*no draw reaches")
+def test_precision_counts_realizations_near_the_mean(make, tmp_path):
+    sim = make().fit(coords, values)
+    period = np.arange(400) % 3
+    for rows in ({}, {"groups": period}, {"window": (15, 10)}):
+        s = sim.simulate(grid, n=12, seed=2, keep=True, tolerances=[0.1, 0.3], progress=False, **rows)
+        reals, mean = s.realizations, s.mean
+        expected = np.stack(
+            [(np.abs(reals - mean) <= r * np.abs(mean)).mean(axis=0) for r in (0.1, 0.3)], axis=1
+        )
+        assert s.tolerances == [0.1, 0.3] and s.precision.shape == (len(mean), 2)
+        np.testing.assert_array_equal(s.precision, expected)
+    s.to_parquet(tmp_path / "s.parquet")
+    for again in (bt.SimulationSummary.from_parquet(tmp_path / "s.parquet"), pickle.loads(pickle.dumps(s))):
+        assert again.tolerances == s.tolerances
+        np.testing.assert_array_equal(again.precision, s.precision)
+    plain = sim.simulate(grid, n=2, progress=False)
+    assert plain.tolerances == [] and plain.precision.shape == (400, 0)
+
+
+def test_validate_against_a_truth():
+    sgs = bt.SGS(gaussian, bt.Search(radius=40, max_samples=12)).fit(coords, values)
+    s = sgs.simulate(grid, n=30, seed=1, cutoffs=[1.0], quantiles=[0.05, 0.95], progress=False)
+    truth = sgs.simulate(grid, n=1, seed=99, keep=True, progress=False).realizations[0]
+    t = s.validate(truth, cutoff=1.0)
+    assert t.column_names == ["truth", "mean", "error", "covered", "type_1", "type_2"]
+    np.testing.assert_allclose(t["error"], (s.mean - truth) / truth)
+    mee = s.relative_error(confidence=0.9)
+    np.testing.assert_array_equal(t["covered"], np.abs(truth - s.mean) / np.abs(s.mean) <= np.abs(mee))
+    ore = s.probability_above[:, 0] >= 0.5
+    np.testing.assert_array_equal(t["type_1"], ore & (truth <= 1.0))
+    np.testing.assert_array_equal(t["type_2"], ~ore & (truth > 1.0))
+    by_name = s.validate("truth", data=grid.with_column("truth", truth))
+    assert by_name.column_names == ["truth", "mean", "error", "covered"]
+    np.testing.assert_array_equal(by_name["covered"], t["covered"])
+
+    with pytest.raises(bt.InvalidInput, match="needs quantiles 0.1, 0.9"):
+        s.validate(truth, confidence=0.8)
+    with pytest.raises(bt.InvalidInput, match="cutoffs="):
+        s.validate(truth, cutoff=2.0)
+    with pytest.raises(bt.InvalidInput, match="3 truth values for 400 rows"):
+        s.validate(truth[:3])
+
+
+def test_group_grade_is_tonnage_weighted():
+    sgs = bt.SGS(gaussian, bt.Search(radius=40, max_samples=12)).fit(coords, values)
+    nodes = sgs.simulate(grid, n=4, seed=3, keep=True, progress=False).realizations
+    period = np.arange(400) % 3
+    density = 1.5 + (np.arange(400) % 7) * 0.4
+    g = sgs.simulate(
+        grid.with_column("density", density),
+        n=4,
+        seed=3,
+        keep=True,
+        groups=period,
+        grade_tonnage_cutoffs=[0.0],
+        density="density",
+        progress=False,
+    )
+    for p in range(3):
+        rows = period == p
+        metal = (nodes[:, rows] * density[rows]).sum(axis=1)
+        np.testing.assert_allclose(g.realizations[:, p] * density[rows].sum(), metal, rtol=1e-12)
+
+
 def test_windows_over_blocks_points_and_bad_arguments():
     sgs = bt.SGS(gaussian, bt.Search(radius=40, max_samples=12)).fit(coords, values)
     blocks = bt.BlockModel(origin=(0, 0), size=(20, 20), count=(5, 5))

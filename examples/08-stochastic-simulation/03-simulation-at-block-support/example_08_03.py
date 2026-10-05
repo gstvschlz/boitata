@@ -111,6 +111,28 @@ for label, volumes in (
 
 
 # %% [markdown]
+# `tolerances=` adds each row's precision, the share of realizations within ±15 % of its mean; a common criterion
+# for measured resources asks that share to reach 90 %. `validate` sets the summary against the true blocks. `covered`
+# marks a block whose true grade lies within the maximum expected error (MEE) of its mean, the relative error at 90 %
+# confidence, and `cutoff=` flags blocks classified as ore while waste in truth (type 1) and the reverse (type 2).
+
+# %%
+true_blocks = truth.reshape(30, size, 26, size).mean(axis=(1, 3)).ravel()
+checked = sgs.simulate(
+    nodes, n=30, seed=7, blocks=blocks, cutoffs=[500], quantiles=[0.05, 0.95], tolerances=[0.15]
+)
+table = checked.validate(true_blocks, cutoff=500)
+print(f"precision at ±15 % reaching 90 %: {np.mean(checked.precision[:, 0] >= 0.9):.1%} of blocks")
+print(f"truth within the MEE: {np.mean(table['covered']):.1%} of blocks")
+print(f"at 500 ppm: type 1 {np.mean(table['type_1']):.1%}, type 2 {np.mean(table['type_2']):.1%} of blocks")
+
+
+# %% [markdown]
+# single 10 m blocks almost never meet ±15 % at 90 %. the truth lies within the MEE for 80 % of blocks, short of the
+# nominal 90 %, and 7 % of blocks fall on the wrong side of 500 ppm.
+
+
+# %% [markdown]
 # localization pools the realizations panel by panel. over the western 250 m, each 50 × 50 m panel holds 25 blocks.
 # 25 blocks × 30 realizations give 750 values, sorted and cut into 25 chunks of 30, and the block ranked i by
 # ordinary block kriging receives the mean of chunk i. the kriging uses the grade variogram, fitted like the one above.

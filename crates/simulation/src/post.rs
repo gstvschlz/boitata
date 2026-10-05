@@ -99,6 +99,16 @@ pub struct ContinuousOptions {
     pub keep: Keep,
     /// Grade–tonnage curves to accumulate per realization.
     pub tonnage: Option<TonnageOptions>,
+    /// Relative tolerances `r` of [`ContinuousSummary::precision`]; like
+    /// quantiles, they hold every value.
+    pub tolerances: Vec<f64>,
+}
+
+impl ContinuousOptions {
+    /// Whether every realization is held until the summary is finished.
+    pub fn stores(&self) -> bool {
+        !self.quantiles.is_empty() || !self.tolerances.is_empty()
+    }
 }
 
 /// Grade–tonnage curves of each realization: tonnes, metal and mean grade
@@ -197,6 +207,10 @@ pub struct ContinuousSummary {
     pub mean_above: Vec<Vec<f64>>,
     pub quantiles: Vec<f64>,
     pub quantile_values: Vec<Vec<f64>>,
+    pub tolerances: Vec<f64>,
+    /// Fraction of realizations within `r × |mean|` of the mean,
+    /// `P(|Z − mean| ≤ r |mean|)`, for each tolerance `r`.
+    pub precision: Vec<Vec<f64>>,
     /// Mean of each realization over all targets.
     pub realization_mean: Vec<f64>,
     /// Fraction of targets above each cutoff in each realization.
@@ -271,6 +285,86 @@ impl ContinuousSummary {
             })
             .collect())
     }
+
+    /// Checks the summary against `truth`, one value per row. `cutoff`,
+    /// `(cutoff, probability)`, classifies a row as ore where the fraction of
+    /// realizations above the cutoff, which must be one of `cutoffs`, is at
+    /// least `probability`.
+    pub fn validate(
+        &self,
+        truth: &[f64],
+        confidence: f64,
+        cutoff: Option<(f64, f64)>,
+    ) -> Result<Validation> {
+        if truth.len() != self.mean.len() {
+            return Err(SimError::InvalidParameters(format!(
+                "{} truth values for {} rows",
+                truth.len(),
+                self.mean.len()
+            )));
+        }
+        let mee = self.relative_error(confidence, Center::Mean)?;
+        let (m, t) = (&self.mean, truth);
+        let error = (0..t.len())
+            .map(|i| {
+                if t[i] == 0.0 {
+                    f64::NAN
+                } else {
+                    (m[i] - t[i]) / t[i]
+                }
+            })
+            .collect();
+        let covered = (0..t.len())
+            .map(|i| (t[i] - m[i]).abs() / m[i].abs() <= mee[i].abs())
+            .collect();
+        let (mut type_1, mut type_2) = (None, None);
+        if let Some((cut, probability)) = cutoff {
+            if !(0.0..=1.0).contains(&probability) {
+                return Err(SimError::InvalidParameters(
+                    "probability must be in [0, 1]".into(),
+                ));
+            }
+            let c = self
+                .cutoffs
+                .iter()
+                .position(|x| (x - cut).abs() <= 1e-9 * cut.abs().max(1.0))
+                .ok_or_else(|| {
+                    SimError::InvalidParameters(format!(
+                        "validate at cutoff {cut} needs its probability above; add {cut} to cutoffs= in simulate"
+                    ))
+                })?;
+            let ore: Vec<bool> = self.probability_above[c]
+                .iter()
+                .map(|&p| p >= probability)
+                .collect();
+            type_1 = Some((0..t.len()).map(|i| ore[i] && t[i] <= cut).collect());
+            type_2 = Some((0..t.len()).map(|i| !ore[i] && t[i] > cut).collect());
+        }
+        Ok(Validation {
+            truth: truth.to_vec(),
+            mean: m.clone(),
+            error,
+            covered,
+            type_1,
+            type_2,
+        })
+    }
+}
+
+/// [`ContinuousSummary::validate`] per row.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Validation {
+    pub truth: Vec<f64>,
+    pub mean: Vec<f64>,
+    /// `(mean − truth) / truth`, positive where the mean overestimates; NaN
+    /// where the truth is 0.
+    pub error: Vec<f64>,
+    /// `|truth − mean| / |mean|` within the relative error at the confidence.
+    pub covered: Vec<bool>,
+    /// Classified ore while the truth is at or below the cutoff.
+    pub type_1: Option<Vec<bool>>,
+    /// Classified waste while the truth is above the cutoff.
+    pub type_2: Option<Vec<bool>>,
 }
 
 /// Summarizes `n` realizations of a continuous variable; `simulate(k)` returns
@@ -443,6 +537,15 @@ impl<'a> Accumulator<'a> {
                 "quantiles must be in [0, 1]".into(),
             ));
         }
+        if options
+            .tolerances
+            .iter()
+            .any(|r| !(r.is_finite() && *r >= 0.0))
+        {
+            return Err(SimError::InvalidParameters(
+                "tolerances must be finite and non-negative".into(),
+            ));
+        }
         let nc = options.cutoffs.len();
         let grade_tonnage = options.tonnage.as_ref().map(|t| {
             let mut groups: Vec<Option<u32>> = t
@@ -500,6 +603,8 @@ impl<'a> Accumulator<'a> {
                 mean_above: vec![],
                 quantiles: options.quantiles.clone(),
                 quantile_values: vec![],
+                tolerances: options.tolerances.clone(),
+                precision: vec![],
                 realization_mean: Vec::with_capacity(n),
                 realization_above: vec![Vec::with_capacity(n); nc],
                 kept: options.keep.kept(n),
@@ -573,7 +678,7 @@ impl<'a> Accumulator<'a> {
         self.out
             .realization_mean
             .push(values.iter().sum::<f64>() / m.max(1) as f64);
-        if !self.options.quantiles.is_empty() {
+        if self.options.stores() {
             self.stored.extend_from_slice(&values);
         }
         if self.options.keep.keeps(index) {
@@ -611,22 +716,32 @@ impl<'a> Accumulator<'a> {
                     .collect()
             })
             .collect();
-        if !options.quantiles.is_empty() {
+        if options.stores() {
+            let (nq, nt) = (options.quantiles.len(), options.tolerances.len());
             let columns: Vec<Vec<f64>> = (0..m)
                 .into_par_iter()
                 .map(|i| {
                     let mut col: Vec<f64> = (0..n).map(|r| stored[r * m + i]).collect();
                     col.sort_by(f64::total_cmp);
-                    options
-                        .quantiles
-                        .iter()
-                        .map(|&q| quantile_sorted(&col, q))
-                        .collect()
+                    let center = out.mean[i];
+                    let quantiles = options.quantiles.iter().map(|&q| quantile_sorted(&col, q));
+                    let precision = options.tolerances.iter().map(|&r| {
+                        let within = col
+                            .iter()
+                            .filter(|&&v| (v - center).abs() <= r * center.abs())
+                            .count();
+                        within as f64 / n as f64
+                    });
+                    quantiles.chain(precision).collect()
                 })
                 .collect();
-            out.quantile_values = (0..options.quantiles.len())
-                .map(|q| columns.iter().map(|c| c[q]).collect())
-                .collect();
+            let rows = |range: std::ops::Range<usize>| -> Vec<Vec<f64>> {
+                range
+                    .map(|q| columns.iter().map(|c| c[q]).collect())
+                    .collect()
+            };
+            out.quantile_values = rows(0..nq);
+            out.precision = rows(nq..nq + nt);
         }
         out
     }
@@ -790,10 +905,19 @@ impl BlockSupport {
     }
 
     /// Volumes `0..groups` of the rows, `None` for a row in none, such as
-    /// the periods of a mine plan; NaN values are left out of the means.
-    /// Every volume must hold a row.
-    pub fn groups(group: Vec<Option<usize>>, volumes: Option<&[f64]>) -> Result<Self> {
-        let volume = node_volumes(group.len(), volumes)?;
+    /// the periods of a mine plan, each row weighted by `weights` (its volume,
+    /// or its tonnes so that grade × tonnes is the metal), equal when `None`;
+    /// NaN values are left out of the means. Every volume must hold a row.
+    pub fn groups(group: Vec<Option<usize>>, weights: Option<&[f64]>) -> Result<Self> {
+        let volume = weights.map_or_else(|| vec![1.0; group.len()], <[f64]>::to_vec);
+        if volume.len() != group.len() {
+            return Err(SimError::InvalidParameters("one weight per row".into()));
+        }
+        if volume.iter().any(|w| !(w.is_finite() && *w >= 0.0)) {
+            return Err(SimError::InvalidParameters(
+                "group weights must be finite and non-negative".into(),
+            ));
+        }
         let groups = group.iter().flatten().max().map_or(0, |g| g + 1);
         Self::assigned(group, volume, groups, true)
     }
@@ -1243,6 +1367,7 @@ mod tests {
             quantiles: vec![0.5],
             keep: Keep::All,
             tonnage: None,
+            tolerances: vec![],
         };
         let one = continuous(7, &options, fake, None).unwrap();
         let batched = continuous_in_batches(
@@ -1266,6 +1391,7 @@ mod tests {
             quantiles: vec![0.1, 0.5, 0.9],
             keep: Keep::All,
             tonnage: None,
+            tolerances: vec![],
         };
         let s = continuous(23, &options, fake, None).unwrap();
         let reals = s.realizations;
@@ -1293,6 +1419,7 @@ mod tests {
             quantiles: vec![0.5],
             keep: Keep::None,
             tonnage: None,
+            tolerances: vec![],
         };
         let one = with_threads(1, || continuous(37, &options, fake, None).unwrap());
         let many = with_threads(6, || continuous(37, &options, fake, None).unwrap());
@@ -1615,6 +1742,7 @@ mod tests {
             quantiles: vec![0.1, 0.5, 0.9],
             keep: Keep::All,
             tonnage: None,
+            tolerances: vec![],
         };
         let whole = continuous(23, &options, fake, None).unwrap();
         for batch in [1, 4, 23, 100] {
@@ -1779,6 +1907,7 @@ mod tests {
             quantiles: vec![0.1, 0.5, 0.9],
             keep: Keep::All,
             tonnage: None,
+            tolerances: vec![],
         };
         type Rows<'a> = Box<dyn Fn(usize) -> Result<Vec<f64>> + Sync + 'a>;
         let reductions: [Rows; 2] = [
@@ -1807,6 +1936,120 @@ mod tests {
             assert_eq!(one.variance, many.variance);
             assert_eq!(one.quantile_values, many.quantile_values);
         }
+    }
+
+    /// Realization `k` of rows N(m, s²), seeded by `k` alone.
+    fn gaussian(k: usize, m: &[f64], s: &[f64]) -> Vec<f64> {
+        use rand::{Rng, SeedableRng};
+        let mut rng = rand::rngs::StdRng::seed_from_u64(1000 + k as u64);
+        m.iter()
+            .zip(s)
+            .map(|(m, s)| m + s * rng.sample::<f64, _>(rand_distr::StandardNormal))
+            .collect()
+    }
+
+    #[test]
+    fn precision_of_gaussian_realizations_is_analytic() {
+        let m = [10.0, 10.0, 5.0, 20.0, 2.0];
+        let s = [1.0, 2.0, 1.5, 3.0, 1.0];
+        let options = ContinuousOptions {
+            tolerances: vec![0.05, 0.15, 0.3],
+            ..Default::default()
+        };
+        let summary = continuous(4000, &options, |k| Ok(gaussian(k, &m, &s)), None).unwrap();
+        assert!(summary.quantile_values.is_empty());
+        for (t, &r) in options.tolerances.iter().enumerate() {
+            for i in 0..m.len() {
+                let analytic = 2.0 * transforms::phi(r * m[i] / s[i]) - 1.0;
+                let got = summary.precision[t][i];
+                assert!(
+                    (got - analytic).abs() < 0.03,
+                    "r {r}, row {i}: {got} vs {analytic}"
+                );
+            }
+        }
+        let one = with_threads(1, || {
+            continuous(300, &options, |k| Ok(gaussian(k, &m, &s)), None)
+        });
+        let many = with_threads(6, || {
+            continuous(300, &options, |k| Ok(gaussian(k, &m, &s)), None)
+        });
+        assert_eq!(one.unwrap().precision, many.unwrap().precision);
+        let bad = ContinuousOptions {
+            tolerances: vec![-0.1],
+            ..Default::default()
+        };
+        assert!(continuous(3, &bad, fake, None).is_err());
+    }
+
+    #[test]
+    fn coverage_is_near_nominal_when_the_truth_is_one_more_draw() {
+        let rows = 2000;
+        let m: Vec<f64> = (0..rows).map(|i| 5.0 + (i % 13) as f64).collect();
+        let s: Vec<f64> = (0..rows).map(|i| 0.5 + (i % 7) as f64 * 0.3).collect();
+        let options = ContinuousOptions {
+            quantiles: vec![0.05, 0.95],
+            ..Default::default()
+        };
+        let run = || continuous(200, &options, |k| Ok(gaussian(k, &m, &s)), None).unwrap();
+        let summary = run();
+        let truth = gaussian(999_999, &m, &s);
+        let v = summary.validate(&truth, 0.9, None).unwrap();
+        let share = v.covered.iter().filter(|&&c| c).count() as f64 / rows as f64;
+        assert!((share - 0.9).abs() < 0.03, "coverage {share}");
+        let many = with_threads(6, || run().validate(&truth, 0.9, None).unwrap());
+        assert_eq!(
+            with_threads(1, || run().validate(&truth, 0.9, None).unwrap()),
+            many
+        );
+    }
+
+    #[test]
+    fn validation_errors_and_misclassification() {
+        // Row 0 always 2, row 1 always 0.5, row 2 takes 1..=20.
+        let options = ContinuousOptions {
+            cutoffs: vec![1.0],
+            quantiles: vec![0.05, 0.95],
+            ..Default::default()
+        };
+        let s = continuous(20, &options, |k| Ok(vec![2.0, 0.5, k as f64 + 1.0]), None).unwrap();
+        let v = s.validate(&[0.5, 2.0, 0.0], 0.9, Some((1.0, 0.5))).unwrap();
+        assert_eq!(v.error[..2], [3.0, -0.75]);
+        assert!(v.error[2].is_nan());
+        assert_eq!(v.covered, [false, false, false]);
+        assert_eq!(v.type_1, Some(vec![true, false, true]));
+        assert_eq!(v.type_2, Some(vec![false, true, false]));
+        let exact = s.validate(&[2.0, 0.5, 10.5], 0.9, None).unwrap();
+        assert_eq!((exact.covered, exact.type_1), (vec![true; 3], None));
+        let err = |r: Result<Validation>| r.unwrap_err().to_string();
+        assert!(err(s.validate(&[1.0], 0.9, None)).contains("1 truth values for 3 rows"));
+        assert!(err(s.validate(&[1.0; 3], 0.8, None)).contains("0.1, 0.9"));
+        assert!(err(s.validate(&[1.0; 3], 0.9, Some((2.0, 0.5)))).contains("cutoffs="));
+        assert!(err(s.validate(&[1.0; 3], 0.9, Some((1.0, 1.5)))).contains("probability"));
+    }
+
+    #[test]
+    fn tonnage_weighted_groups_keep_the_metal() {
+        let ids: Vec<Option<usize>> = (0..30).map(|i| (i % 6 != 5).then_some(i % 3)).collect();
+        let tonnes: Vec<f64> = (0..30)
+            .map(|i| (1.0 + (i % 4) as f64) * (2.0 + (i % 5) as f64))
+            .collect();
+        let groups = BlockSupport::groups(ids.clone(), Some(&tonnes)).unwrap();
+        let total = groups.total(&tonnes).unwrap();
+        for k in 0..5 {
+            let grade: Vec<f64> = (0..30)
+                .map(|i| ((i * 7 + k * 3) % 11) as f64 + 0.5)
+                .collect();
+            let mean = groups.mean(&grade).unwrap();
+            for g in 0..3 {
+                let metal: f64 = (0..30)
+                    .filter(|&i| ids[i] == Some(g))
+                    .map(|i| tonnes[i] * grade[i])
+                    .sum();
+                assert!((mean[g] * total[g] - metal).abs() < 1e-9 * metal);
+            }
+        }
+        assert!(BlockSupport::groups(ids, Some(&[-1.0; 30])).is_err());
     }
 
     #[test]

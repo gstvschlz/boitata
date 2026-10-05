@@ -299,6 +299,84 @@ impl SimulationSummary {
     }
 
     #[getter]
+    fn tolerances(&self) -> Vec<f64> {
+        self.0.tolerances.clone()
+    }
+
+    /// `(targets, tolerances)` fraction of realizations within ``r * |mean|``
+    /// of the mean, ``P(|Z - mean| <= r |mean|)``, for each tolerance ``r``
+    /// of `simulate(tolerances=)`. With ``r = 0.15``, a row whose precision
+    /// reaches 0.9 meets the common ±15 % at 90 % confidence criterion for
+    /// measured resources.
+    #[getter]
+    fn precision<'py>(&self, py: Python<'py>) -> Bound<'py, PyArray2<f64>> {
+        by_target(py, &self.0.precision, self.0.mean.len())
+    }
+
+    /// Checks the summary against a known truth, such as a reference
+    /// realization the data were sampled from.
+    ///
+    /// Parameters
+    /// ----------
+    /// truth : array_like or str
+    ///     True value of each summary row, or the column of `data` holding it.
+    /// data : PointSet or BlockModel, optional
+    ///     Container whose column `truth` names.
+    /// confidence : float, default 0.9
+    ///     Confidence of the maximum expected error (MEE, after Koppe),
+    ///     `relative_error` at this confidence; needs the matching
+    ///     quantiles, 0.05 and 0.95 for 0.9.
+    /// cutoff : float, optional
+    ///     Classifies each row as ore where the probability above `cutoff`,
+    ///     which `simulate(cutoffs=)` must have requested, is at least
+    ///     `probability`.
+    /// probability : float, default 0.5
+    ///
+    /// Returns
+    /// -------
+    /// Table
+    ///     ``truth``, ``mean``, ``error`` (``(mean - truth) / truth``,
+    ///     positive where the mean overestimates, NaN where the truth is
+    ///     0), ``covered`` (``|truth - mean| / |mean|`` within the MEE), and
+    ///     with `cutoff`, ``type_1`` (classified ore while the truth is at or
+    ///     below the cutoff) and ``type_2`` (classified waste while the truth
+    ///     is above it). One row per summary row.
+    ///
+    /// Raises
+    /// ------
+    /// InvalidInput
+    ///     If the quantiles or the cutoff were not requested, or `truth` has
+    ///     the wrong length.
+    #[pyo3(signature = (truth, *, data=None, confidence=0.9, cutoff=None, probability=0.5))]
+    fn validate(
+        &self,
+        truth: &Bound<PyAny>,
+        data: Option<&Bound<PyAny>>,
+        confidence: f64,
+        cutoff: Option<f64>,
+        probability: f64,
+    ) -> PyResult<Table> {
+        let truth = floats(&args::column(data, truth, "truth")?, "truth")?;
+        let v = self
+            .0
+            .validate(&truth, confidence, cutoff.map(|c| (c, probability)))
+            .map_err(invalid)?;
+        let float = |v: Vec<f64>| -> ArrayRef { Arc::new(Float64Array::from(v)) };
+        let flag = |v: Vec<bool>| -> ArrayRef { Arc::new(arrow_array::BooleanArray::from(v)) };
+        let mut columns = vec![
+            ("truth", float(v.truth)),
+            ("mean", float(v.mean)),
+            ("error", float(v.error)),
+            ("covered", flag(v.covered)),
+        ];
+        if let (Some(t1), Some(t2)) = (v.type_1, v.type_2) {
+            columns.push(("type_1", flag(t1)));
+            columns.push(("type_2", flag(t2)));
+        }
+        Ok(Table(RecordBatch::try_from_iter(columns).map_err(invalid)?))
+    }
+
+    #[getter]
     fn cutoffs(&self) -> Vec<f64> {
         self.0.cutoffs.clone()
     }
@@ -556,8 +634,11 @@ fn summary_rows(
     let (groups, labels) = match groups {
         Some(g) => {
             let (codes, labels) = group_codes(&holder, g, rows)?;
-            let volumes = model.map(|m| m.get().0.volumes());
-            let groups = BlockSupport::groups(codes, volumes.as_deref()).map_err(err)?;
+            let weights = match &gt {
+                Some(t) => Some(t.tonnes.clone()),
+                None => model.map(|m| m.get().0.volumes()),
+            };
+            let groups = BlockSupport::groups(codes, weights.as_deref()).map_err(err)?;
             (Some(groups), Some(labels))
         }
         None => (None, None),
@@ -1204,8 +1285,9 @@ impl Sgs {
     /// by volume and leave out NaN. Regular and masked models use
     /// summed-area tables, so the cost does not grow with the box. `groups`,
     /// a label per row or a column name, such as the period of a mine plan,
-    /// summarizes the volume-weighted mean of each distinct label instead,
-    /// one row per label in ``numpy.unique`` order (numbers before text),
+    /// summarizes the mean of each distinct label instead, weighted by
+    /// volume, or by tonnes with `grade_tonnage_cutoffs` so that grade times
+    /// tonnes is the metal, one row per label in ``numpy.unique`` order (numbers before text),
     /// named by `SimulationSummary.groups`; null labels belong to none, NaN
     /// values are left out, and `grade_tonnage_cutoffs` counts each volume
     /// with its rows' tonnes.
@@ -1234,16 +1316,19 @@ impl Sgs {
     /// default then uses; "shared" raises InvalidInput where it cannot run.
     /// `batch`, on a shared path, is the number of realizations simulated
     /// together, by default as many as fit in 70 % of the free memory; a run
-    /// whose quantiles and kept realizations alone exceed that memory
+    /// whose quantiles, tolerances and kept realizations alone exceed that memory
     /// raises InvalidInput. Realizations do not depend on `batch`.
     /// `grade_tonnage_cutoffs` accumulates, per realization, the tonnes, metal
     /// and mean grade of the summary rows (the blocks when given) at or above
     /// each cutoff, as `grade_tonnage` counts them: tonnes from `density`, a
     /// number, array or column, times each row's block volume (1 per point),
     /// or `tonnage` per row; one curve per `categories` label besides all
-    /// rows. `SimulationSummary.grade_tonnage` reads them. `progress` shows a
+    /// rows. `SimulationSummary.grade_tonnage` reads them. `tolerances`, such
+    /// as ``(0.15,)``, gives `SimulationSummary.precision`, the fraction of
+    /// realizations within ``r * |mean|`` of the mean for each tolerance
+    /// ``r``; like `quantiles`, it holds every value. `progress` shows a
     /// `tqdm` bar over the realizations.
-    #[pyo3(signature = (targets, *, n=100, seed=0, cutoffs=vec![], quantiles=vec![], keep=None, anisotropy=None, blocks=None, window=None, groups=None, trend=None, domains=None, domain_column=None, secondary=None, path=None, batch=None, grade_tonnage_cutoffs=None, density=None, tonnage=None, categories=None, progress=true))]
+    #[pyo3(signature = (targets, *, n=100, seed=0, cutoffs=vec![], quantiles=vec![], tolerances=vec![], keep=None, anisotropy=None, blocks=None, window=None, groups=None, trend=None, domains=None, domain_column=None, secondary=None, path=None, batch=None, grade_tonnage_cutoffs=None, density=None, tonnage=None, categories=None, progress=true))]
     #[allow(clippy::too_many_arguments)]
     fn simulate(
         &self,
@@ -1253,6 +1338,7 @@ impl Sgs {
         seed: u64,
         cutoffs: Vec<f64>,
         quantiles: Vec<f64>,
+        tolerances: Vec<f64>,
         keep: Option<&Bound<PyAny>>,
         anisotropy: Option<PyRef<crate::lva::LocalAnisotropy>>,
         blocks: Option<PyRef<PyBlockModel>>,
@@ -1341,6 +1427,7 @@ impl Sgs {
             quantiles,
             keep: keep_arg(keep)?,
             tonnage: gt,
+            tolerances,
         };
         if let Some(lattice) = lattice {
             let kept = options.keep.kept(n).len();
@@ -1349,7 +1436,7 @@ impl Sgs {
                 lattice.len(),
                 n,
                 options.cutoffs.len(),
-                !options.quantiles.is_empty(),
+                options.stores(),
                 kept,
                 budget,
             )
@@ -1691,6 +1778,9 @@ impl Dss {
     ///     Grades for the probability and mean above.
     /// quantiles : sequence of float, optional
     ///     Probabilities for the values at quantiles.
+    /// tolerances : sequence of float, optional
+    ///     Relative tolerances for `SimulationSummary.precision`, as in
+    ///     SGS.simulate.
     /// keep : bool or sequence of int, default False
     ///     Keep all realizations, or those indices, as an
     ///     ``(n, targets)`` array.
@@ -1734,7 +1824,7 @@ impl Dss {
     /// UserWarning
     ///     With the fraction of nodes whose kriged mean and variance no draw
     ///     from the histogram reaches, drawn from the nearest reachable pair.
-    #[pyo3(signature = (targets, *, n=100, seed=0, cutoffs=vec![], quantiles=vec![], keep=None, anisotropy=None, blocks=None, window=None, groups=None, domains=None, domain_column=None, secondary=None, grade_tonnage_cutoffs=None, density=None, tonnage=None, categories=None, progress=true))]
+    #[pyo3(signature = (targets, *, n=100, seed=0, cutoffs=vec![], quantiles=vec![], tolerances=vec![], keep=None, anisotropy=None, blocks=None, window=None, groups=None, domains=None, domain_column=None, secondary=None, grade_tonnage_cutoffs=None, density=None, tonnage=None, categories=None, progress=true))]
     #[allow(clippy::too_many_arguments)]
     fn simulate(
         &self,
@@ -1744,6 +1834,7 @@ impl Dss {
         seed: u64,
         cutoffs: Vec<f64>,
         quantiles: Vec<f64>,
+        tolerances: Vec<f64>,
         keep: Option<&Bound<PyAny>>,
         anisotropy: Option<PyRef<crate::lva::LocalAnisotropy>>,
         blocks: Option<PyRef<PyBlockModel>>,
@@ -1783,6 +1874,7 @@ impl Dss {
             quantiles,
             keep: keep_arg(keep)?,
             tonnage: gt,
+            tolerances,
         };
         let clamped = std::sync::atomic::AtomicUsize::new(0);
         let simulated = std::sync::atomic::AtomicUsize::new(0);
@@ -2008,7 +2100,7 @@ impl TurningBands {
     /// realization ``k`` of the grades the domains of row ``k``;
     /// `domain_column` and `progress` as in `SGS.simulate`.
     #[allow(clippy::too_many_arguments)]
-    #[pyo3(signature = (targets, *, n=100, seed=0, cutoffs=vec![], quantiles=vec![], keep=None, blocks=None, window=None, groups=None, trend=None, domains=None, domain_column=None, grade_tonnage_cutoffs=None, density=None, tonnage=None, categories=None, progress=true))]
+    #[pyo3(signature = (targets, *, n=100, seed=0, cutoffs=vec![], quantiles=vec![], tolerances=vec![], keep=None, blocks=None, window=None, groups=None, trend=None, domains=None, domain_column=None, grade_tonnage_cutoffs=None, density=None, tonnage=None, categories=None, progress=true))]
     fn simulate(
         &self,
         py: Python,
@@ -2017,6 +2109,7 @@ impl TurningBands {
         seed: u64,
         cutoffs: Vec<f64>,
         quantiles: Vec<f64>,
+        tolerances: Vec<f64>,
         keep: Option<&Bound<PyAny>>,
         blocks: Option<PyRef<PyBlockModel>>,
         window: Option<Vec<f64>>,
@@ -2055,6 +2148,7 @@ impl TurningBands {
             quantiles,
             keep: keep_arg(keep)?,
             tonnage: gt,
+            tolerances,
         };
         let (lo, hi) = simulation::bounds(&grid);
         with_progress(py, Some(n as u64), progress, |counter| {
@@ -2168,6 +2262,7 @@ impl TurningBands {
             quantiles,
             keep: keep_arg(keep)?,
             tonnage: None,
+            tolerances: vec![],
         };
         let global = with_progress(py, Some(total as u64), progress, |counter| {
             simulation::turning_bands_to_parquet(
@@ -3374,6 +3469,8 @@ struct ContinuousMeta {
     cutoffs: Vec<f64>,
     #[serde(with = "boitata_core::nonfinite")]
     quantiles: Vec<f64>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    tolerances: Vec<f64>,
     #[serde(with = "boitata_core::nonfinite")]
     realization_mean: Vec<f64>,
     #[serde(with = "boitata_core::nonfinite")]
@@ -3402,6 +3499,7 @@ impl Serialize for SimulationSummary {
             n: c.n,
             cutoffs: c.cutoffs.clone(),
             quantiles: c.quantiles.clone(),
+            tolerances: c.tolerances.clone(),
             realization_mean: c.realization_mean.clone(),
             realization_above: c.realization_above.clone(),
             kept: c.kept.clone(),
@@ -3439,6 +3537,8 @@ impl<'de> Deserialize<'de> for SimulationSummary {
                 mean_above: vec![],
                 quantiles: m.quantiles,
                 quantile_values: vec![],
+                tolerances: m.tolerances,
+                precision: vec![],
                 realization_mean: m.realization_mean,
                 realization_above: m.realization_above,
                 kept: m.kept,
@@ -3471,6 +3571,9 @@ impl Tabular for SimulationSummary {
         for (q, values) in c.quantiles.iter().zip(&c.quantile_values) {
             out.push(column(format!("q{q}"), values));
         }
+        for (r, values) in c.tolerances.iter().zip(&c.precision) {
+            out.push(column(format!("precision_{r}"), values));
+        }
         for (k, r) in c.kept.iter().zip(&c.realizations) {
             out.push(column(format!("realization_{k}"), r));
         }
@@ -3492,6 +3595,12 @@ impl Tabular for SimulationSummary {
                 .collect(),
         )?;
         c.quantile_values = each(c.quantiles.iter().map(|q| format!("q{q}")).collect())?;
+        c.precision = each(
+            c.tolerances
+                .iter()
+                .map(|r| format!("precision_{r}"))
+                .collect(),
+        )?;
         c.realizations = each(c.kept.iter().map(|k| format!("realization_{k}")).collect())?;
         if let Some(g) = &self.1 {
             same_length(self.0.mean.len(), g.len(), "groups")?;
@@ -3962,6 +4071,7 @@ impl MultivariateSimulation {
             quantiles,
             keep: keep_arg(keep)?,
             tonnage: None,
+            tolerances: vec![],
         };
         let bands_only = !grid.is_empty()
             && self.factors.iter().all(|factor| {

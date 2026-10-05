@@ -1089,6 +1089,7 @@ class SGS:
         seed: int = 0,
         cutoffs: Sequence[float] = (),
         quantiles: Sequence[float] = (),
+        tolerances: Sequence[float] = (),
         keep: bool | Sequence[int] = False,
         anisotropy: LocalAnisotropy | None = None,
         blocks: BlockModel | None = None,
@@ -1142,6 +1143,7 @@ class DSS:
         seed: int = 0,
         cutoffs: Sequence[float] = (),
         quantiles: Sequence[float] = (),
+        tolerances: Sequence[float] = (),
         keep: bool | Sequence[int] = False,
         anisotropy: LocalAnisotropy | None = None,
         blocks: BlockModel | None = None,
@@ -1189,6 +1191,7 @@ class TurningBands:
         seed: int = 0,
         cutoffs: Sequence[float] = (),
         quantiles: Sequence[float] = (),
+        tolerances: Sequence[float] = (),
         keep: bool | Sequence[int] = False,
         blocks: BlockModel | None = None,
         window: tuple[float, float] | tuple[float, float, float] | None = None,
@@ -1333,6 +1336,19 @@ class SimulationSummary:
     def relative_error(
         self, *, confidence: float = 0.9, center: Literal["mean", "median"] = "mean"
     ) -> npt.NDArray[np.float64]: ...
+    @property
+    def tolerances(self) -> list[float]: ...
+    @property
+    def precision(self) -> npt.NDArray[np.float64]: ...
+    def validate(
+        self,
+        truth: ArrayLike | Column,
+        *,
+        data: PointSet | BlockModel | None = None,
+        confidence: float = 0.9,
+        cutoff: float | None = None,
+        probability: float = 0.5,
+    ) -> Table: ...
     @property
     def cutoffs(self) -> list[float]: ...
     @property
