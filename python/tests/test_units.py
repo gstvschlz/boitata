@@ -406,3 +406,77 @@ def test_drilling_costs_and_budgets_take_currencies():
         _costs("1 MBRL", "120 USD/m", "m")
     with pytest.raises(bt.InvalidInput, match="give the candidates a length_unit"):
         _costs(None, "120 USD/m", None)
+
+
+def test_every_estimator_takes_the_unit_of_its_values():
+    au = samples["au"]
+    lmc = bt.Coregionalization(
+        [[0.0, 0.0], [0.0, 0.0]], structures=[("spherical", 40.0, [[1.0, 0.5], [0.5, 1.0]])]
+    )
+    variables = samples.with_column("var", np.arange(len(samples)) % 2)
+    estimate, var = (
+        bt.Cokriging(lmc, search)
+        .fit(variables, "au", "var")
+        .predict(grid, return_variance=True, progress=False)
+    )
+    assert (estimate.unit, var.unit) == ("g/t", "(g/t)^2")
+    hermite = bt.HermiteAnamorphosis(degree=10).fit(au)
+    dk = bt.DisjunctiveKriging(hermite, variogram, search).fit(samples, "au")
+    assert dk.predict(grid, progress=False).unit == "g/t"
+    assert dk.predict_tonnage(grid, 1.0, progress=False).unit == "ratio"
+    mik = bt.MultipleIndicatorKriging(variogram, search, [0.8, 1.5]).fit(samples, "au")
+    summary = mik.predict(grid, cutoffs=[1.0], quantiles=[0.5], progress=False)
+    assert (summary.mean.unit, summary.variance.unit, summary.quantile_values.unit) == (
+        "g/t",
+        "(g/t)^2",
+        "g/t",
+    )
+    smus = bt.BlockModel((0, 0, 0), (10, 10, 1), (10, 10, 1)).with_column("rank", np.arange(100.0))
+    assert mik.localize(smus, "rank", grid).units["localized"] == "g/t"
+    mg = bt.MultigaussianKriging(variogram, search).fit(samples, "au").predict(grid)
+    assert mg.mean.unit == "g/t"
+    assert bt.DualKriging(variogram).fit(samples, "au").predict(grid.centroids).unit == "g/t"
+
+
+def test_saved_estimators_keep_their_units(tmp_path):
+    data = bt.PointSet(samples.coords, samples.attributes, length_unit="m")
+    feet = bt.OrdinaryKriging(
+        bt.Variogram([("spherical", 0.25, f"{40 / FT} ft")]),
+        bt.Search(radius=f"{60 / FT} ft", max_samples=12),
+    ).fit(data, "au")
+    feet.to_parquet(tmp_path / "ok.parquet")
+    back = bt.OrdinaryKriging.from_parquet(tmp_path / "ok.parquet")
+    targets = bt.BlockModel((0, 0, 0), (20, 20, 1), (5, 5, 1), length_unit="m")
+    restored = back.predict(targets, progress=False)
+    assert restored.unit == "g/t"
+    np.testing.assert_array_equal(restored, feet.predict(targets, progress=False))
+
+
+def test_transforms_restore_units_and_conditioning_keeps_them():
+    table = bt.Table({"cu": samples["au"] * 0.1, "zn": samples["au"] * 0.3}).with_units(
+        {"cu": "%", "zn": "%"}
+    )
+    for transform in [bt.PCA(), bt.StepwiseConditional(), bt.PPMT(iterations=3)]:
+        fitted = transform.fit(table)
+        assert fitted.inverse_transform(fitted.transform(table)).unit == "%"
+    mixed = table.with_units({"zn": "ppm"})
+    assert not hasattr(bt.PCA().fit(mixed).inverse_transform(np.zeros((1, 2))), "unit")
+    box = bt.BoxCox().fit(samples["au"])
+    assert box.inverse_transform(box.transform(samples["au"])).unit == "g/t"
+    hermite = bt.HermiteAnamorphosis(degree=10).fit(samples["au"])
+    panels = grid.with_column("au", np.full(len(grid), 1.2), unit="g/t").with_column(
+        "dens", np.full(len(grid), 2.7), unit="t/m3"
+    )
+    panels = bt.BlockModel((0, 0, 0), (20, 20, 1), (5, 5, 1), length_unit="m", attributes=panels.attributes)
+    uc = bt.UniformConditioning(hermite, 0.8, r_panel=0.6)
+    curve = uc.grade_tonnage(panels, "au", ["0.5 g/t", "1 g/t"], density="dens")
+    assert (curve.units["tonnage"], curve.units["metal"], curve.units["cutoff"]) == ("kt", "kg metal", "g/t")
+    smus = bt.BlockModel((0, 0, 0), (10, 10, 1), (10, 10, 1)).with_column("rank", np.arange(100.0))
+    assert uc.localize(smus, "rank", panels, "au").units["localized"] == "g/t"
+
+
+def test_multivariate_simulation_carries_each_variable_unit():
+    table = samples.with_columns({"cu": samples["au"] * 0.1}).with_units({"cu": "%"})
+    sim = bt.MultivariateSimulation(bt.PCA(), [bt.SGS(variogram, search)] * 2).fit(table, ["au", "cu"])
+    au, cu = sim.simulate(grid, n=2, seed=1, progress=False)
+    assert (au.mean.unit, cu.mean.unit) == ("g/t", "%")

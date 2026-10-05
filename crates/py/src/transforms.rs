@@ -48,6 +48,31 @@ fn weights_arg(
     Ok(Some(w))
 }
 
+/// The unit the `columns` (default all) of `data` share; None when they
+/// differ, or `data` is an array.
+fn matrix_unit(data: &Bound<PyAny>, columns: Option<&[String]>) -> PyResult<Option<String>> {
+    let names = match columns {
+        Some(c) => c.to_vec(),
+        None => match column_names(data) {
+            Ok(c) => c,
+            Err(_) => return Ok(None),
+        },
+    };
+    let mut units = names.iter().map(|n| {
+        let name = pyo3::types::PyString::new(data.py(), n);
+        crate::units::of(&name, Some(data))
+    });
+    let Some(first) = units.next().transpose()?.flatten() else {
+        return Ok(None);
+    };
+    for unit in units {
+        if unit?.as_deref() != Some(first.as_str()) {
+            return Ok(None);
+        }
+    }
+    Ok(Some(first))
+}
+
 /// Rows of `data`: an `(n, d)` array, or the `columns` (default all) of a
 /// container, Table or mapping.
 fn matrix(data: &Bound<PyAny>, columns: Option<Vec<String>>) -> PyResult<Vec<Vec<f64>>> {
@@ -468,6 +493,9 @@ impl Anamorphosis {
 pub struct BoxCox {
     requested: Option<f64>,
     lambda: Option<f64>,
+    /// Unit of the fitted values, restored by `inverse_transform`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    unit: Option<String>,
 }
 
 #[pymethods]
@@ -490,6 +518,7 @@ impl BoxCox {
         Self {
             requested: lambda_,
             lambda: lambda_,
+            unit: None,
         }
     }
 
@@ -500,6 +529,7 @@ impl BoxCox {
         values: &Bound<PyAny>,
         data: Option<&Bound<PyAny>>,
     ) -> PyResult<PyRefMut<'py, Self>> {
+        slf.unit = crate::units::of(values, data)?;
         let values = one(data, values, "values")?;
         let lambda = match slf.requested {
             Some(l) => l,
@@ -547,9 +577,10 @@ impl BoxCox {
         data: Option<&Bound<PyAny>>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let lambda = self.lambda_()?;
-        Ok(map(py, one(data, values, "values")?, |y| {
+        let values = map(py, one(data, values, "values")?, |y| {
             transforms::box_cox_inverse(y, lambda)
-        }))
+        });
+        crate::units::tag(values, self.unit.as_deref())
     }
 }
 
@@ -559,6 +590,9 @@ impl BoxCox {
 pub struct Ppmt {
     params: PpmtParams,
     fitted: Option<CorePpmt>,
+    /// Unit of the fitted values, restored by `inverse_transform`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    unit: Option<String>,
 }
 
 impl Ppmt {
@@ -593,6 +627,7 @@ impl Ppmt {
                 marginal,
             },
             fitted: None,
+            unit: None,
         }
     }
 
@@ -606,6 +641,7 @@ impl Ppmt {
         columns: Option<Vec<String>>,
         weights: Option<&Bound<PyAny>>,
     ) -> PyResult<PyRefMut<'py, Self>> {
+        slf.unit = matrix_unit(data, columns.as_deref())?;
         let weights = weights_arg(Some(data), weights, None)?;
         let data = matrix(data, columns)?;
         if let Some(w) = &weights {
@@ -648,7 +684,10 @@ impl Ppmt {
     ) -> PyResult<Bound<'py, PyAny>> {
         let fitted = self.fitted()?;
         let data = table_of(matrix(data, columns)?, fitted.dim())?;
-        Ok(array2(py, &fitted.back(&data)).into_any())
+        crate::units::tag(
+            array2(py, &fitted.back(&data)).into_any(),
+            self.unit.as_deref(),
+        )
     }
 }
 
@@ -1227,6 +1266,9 @@ fn table_of(data: Vec<Vec<f64>>, dim: usize) -> PyResult<Vec<Vec<f64>>> {
 pub struct Pca {
     standardize: bool,
     fitted: Option<(CorePca, usize)>,
+    /// Unit of the fitted values, restored by `inverse_transform`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    unit: Option<String>,
 }
 
 impl Pca {
@@ -1255,6 +1297,7 @@ impl Pca {
         Self {
             standardize,
             fitted: None,
+            unit: None,
         }
     }
 
@@ -1265,6 +1308,7 @@ impl Pca {
         data: &Bound<PyAny>,
         weights: Option<&Bound<PyAny>>,
     ) -> PyResult<PyRefMut<'py, Self>> {
+        slf.unit = matrix_unit(data, None)?;
         let data = rows(data, "data")?;
         let weights = optional_finite(weights, "weights")?;
         let pca = CorePca::fit(&data, weights.as_deref(), slf.standardize).map_err(err)?;
@@ -1293,7 +1337,8 @@ impl Pca {
         data: &Bound<PyAny>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let (pca, dim) = self.fitted()?;
-        Ok(array2(py, &pca.back(&table(data, *dim)?)).into_any())
+        let values = array2(py, &pca.back(&table(data, *dim)?)).into_any();
+        crate::units::tag(values, self.unit.as_deref())
     }
 
     /// Unit eigenvectors as rows.
@@ -1326,6 +1371,9 @@ pub struct Maf {
     lag: f64,
     tolerance: Option<f64>,
     fitted: Option<(CoreMaf, usize)>,
+    /// Unit of the fitted values, restored by `inverse_transform`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    unit: Option<String>,
 }
 
 impl Maf {
@@ -1355,6 +1403,7 @@ impl Maf {
             lag,
             tolerance,
             fitted: None,
+            unit: None,
         }
     }
 
@@ -1364,6 +1413,7 @@ impl Maf {
         data: &Bound<PyAny>,
         coords: &Bound<PyAny>,
     ) -> PyResult<PyRefMut<'py, Self>> {
+        slf.unit = matrix_unit(data, None)?;
         let (data, locs) = (rows(data, "data")?, points(coords)?);
         same_length(data.len(), locs.len(), "coords")?;
         let tolerance = slf.tolerance.unwrap_or(slf.lag / 2.0);
@@ -1392,7 +1442,8 @@ impl Maf {
         data: &Bound<PyAny>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let (maf, dim) = self.fitted()?;
-        Ok(array2(py, &maf.back(&table(data, *dim)?)).into_any())
+        let values = array2(py, &maf.back(&table(data, *dim)?)).into_any();
+        crate::units::tag(values, self.unit.as_deref())
     }
 
     /// Semivariogram of each factor at `lag`, increasing.
@@ -1410,6 +1461,9 @@ impl Maf {
 pub struct StepwiseConditional {
     classes: usize,
     fitted: Option<CoreSct>,
+    /// Unit of the fitted values, restored by `inverse_transform`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    unit: Option<String>,
 }
 
 impl StepwiseConditional {
@@ -1440,6 +1494,7 @@ impl StepwiseConditional {
         Self {
             classes,
             fitted: None,
+            unit: None,
         }
     }
 
@@ -1457,6 +1512,7 @@ impl StepwiseConditional {
         data: &Bound<PyAny>,
         weights: Option<&Bound<PyAny>>,
     ) -> PyResult<PyRefMut<'py, Self>> {
+        slf.unit = matrix_unit(data, None)?;
         let data = rows(data, "data")?;
         let weights = optional_finite(weights, "weights")?;
         slf.fitted = Some(CoreSct::fit(&data, weights.as_deref(), slf.classes).map_err(err)?);
@@ -1484,7 +1540,8 @@ impl StepwiseConditional {
         data: &Bound<PyAny>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let fitted = self.fitted()?;
-        Ok(array2(py, &fitted.back(&table(data, fitted.dim())?)).into_any())
+        let values = array2(py, &fitted.back(&table(data, fitted.dim())?)).into_any();
+        crate::units::tag(values, self.unit.as_deref())
     }
 }
 
@@ -1629,7 +1686,17 @@ impl UniformConditioning {
         estimate_variance: Option<&str>,
         density: Option<&Bound<PyAny>>,
     ) -> PyResult<Table> {
-        let cutoffs = finite(cutoffs, "cutoffs")?;
+        let grade_unit = boitata_core::units::unit(panels.borrow().0.attributes(), grade)
+            .ok()
+            .flatten();
+        let cutoffs = crate::units::values(cutoffs, grade_unit.as_deref(), "cutoffs")?;
+        let length = crate::units::length_of(panels.as_any())?;
+        let tonnes = match density {
+            Some(d) => length
+                .zip(crate::units::of(d, Some(panels.as_any()))?)
+                .map(|(l, d)| format!("({l})^3*({d})")),
+            None => None,
+        };
         let model = panels.borrow();
         let (grade, variance) = panel_columns(&model, grade, estimate_variance)?;
         let density = match density {
@@ -1657,7 +1724,16 @@ impl UniformConditioning {
                 benefit,
             })
             .collect();
-        recoveries(&global, None)
+        // Tonnes here, not the proportion `recoveries` labels.
+        let table = recoveries(&global, None)?;
+        let table =
+            boitata_core::units::with_unit_unchecked(&table.0, "tonnage", None).map_err(invalid)?;
+        Ok(Table(crate::units::grade_tonnage(
+            table,
+            tonnes.as_deref(),
+            grade_unit.as_deref(),
+            &[],
+        )?))
     }
 
     /// Localized grades of the selective blocks nested in the panels.
@@ -1708,6 +1784,9 @@ impl UniformConditioning {
         estimate_variance: Option<&str>,
         name: &str,
     ) -> PyResult<PyBlockModel> {
+        let grade_unit = boitata_core::units::unit(panels.0.attributes(), grade)
+            .ok()
+            .flatten();
         let (values, variance) = panel_columns(&panels, grade, estimate_variance)?;
         let rank = nullable(&smus, ranking)?;
         let (panel_model, smu_model) = (&panels.0, &smus.0);
@@ -1718,10 +1797,14 @@ impl UniformConditioning {
             })
             .map_err(err)?;
         let column: Float64Array = out.into_iter().collect();
+        let model = smus
+            .0
+            .with_column(name, Arc::new(column))
+            .map_err(invalid)?;
+        let attributes =
+            crate::units::label(model.attributes().clone(), &[(name, grade_unit.as_deref())])?;
         Ok(PyBlockModel(
-            smus.0
-                .with_column(name, Arc::new(column))
-                .map_err(invalid)?,
+            model.with_attributes(attributes).map_err(invalid)?,
         ))
     }
 }

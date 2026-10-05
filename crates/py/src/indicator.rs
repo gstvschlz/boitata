@@ -120,6 +120,9 @@ pub struct MultipleIndicatorKriging {
     search: Vec<CoreSearch>,
     #[serde(skip)]
     samples: Option<(Vec<Sample>, Option<Vec<f64>>)>,
+    /// Unit of the fitted values.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    unit: Option<String>,
 }
 
 #[pymethods]
@@ -170,6 +173,7 @@ impl MultipleIndicatorKriging {
                 .map(|s| s.plain("MultipleIndicatorKriging"))
                 .collect::<PyResult<_>>()?,
             samples: None,
+            unit: None,
         })
     }
 
@@ -196,6 +200,7 @@ impl MultipleIndicatorKriging {
         holes: Option<&Bound<PyAny>>,
     ) -> PyResult<PyRefMut<'py, Self>> {
         let data = Some(coords);
+        slf.unit = crate::units::of(values, Some(coords))?;
         let locs = points(coords)?;
         let values = finite(&column(data, values, "values")?, "values")?;
         same_length(locs.len(), values.len(), "values")?;
@@ -285,10 +290,13 @@ impl MultipleIndicatorKriging {
             )
         })?
         .map(|s| {
-            IndicatorSummary(CoreSummary {
-                diagnostics: s.diagnostics.filter(|_| diagnostics),
-                ..s
-            })
+            IndicatorSummary(
+                CoreSummary {
+                    diagnostics: s.diagnostics.filter(|_| diagnostics),
+                    ..s
+                },
+                self.unit.clone(),
+            )
         })
         .map_err(invalid)
     }
@@ -419,10 +427,14 @@ impl MultipleIndicatorKriging {
             })
             .map_err(invalid)?;
         let column: arrow_array::Float64Array = out.into_iter().collect();
+        let model = smus
+            .0
+            .with_column(name, std::sync::Arc::new(column))
+            .map_err(invalid)?;
+        let attributes =
+            crate::units::label(model.attributes().clone(), &[(name, self.unit.as_deref())])?;
         Ok(PyBlockModel(
-            smus.0
-                .with_column(name, std::sync::Arc::new(column))
-                .map_err(invalid)?,
+            model.with_attributes(attributes).map_err(invalid)?,
         ))
     }
 
@@ -506,7 +518,7 @@ impl Tabular for MultipleIndicatorKriging {
 /// target and one column per threshold, cutoff or quantile; NaN where
 /// unestimated.
 #[pyclass(module = "boitata", name = "IndicatorSummary", frozen)]
-pub struct IndicatorSummary(pub(crate) CoreSummary);
+pub struct IndicatorSummary(pub(crate) CoreSummary, pub(crate) Option<String>);
 
 #[pymethods]
 impl IndicatorSummary {
@@ -534,19 +546,28 @@ impl IndicatorSummary {
 
     /// Mean of the conditional distribution (E-type estimate).
     #[getter]
-    fn mean<'py>(&self, py: Python<'py>) -> Bound<'py, PyArray1<f64>> {
-        array1(py, self.0.mean.clone())
+    fn mean<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        crate::units::tag(
+            array1(py, self.0.mean.clone()).into_any(),
+            self.1.as_deref(),
+        )
     }
 
     /// Variance of the conditional distribution.
     #[getter]
-    fn variance<'py>(&self, py: Python<'py>) -> Bound<'py, PyArray1<f64>> {
-        array1(py, self.0.variance.clone())
+    fn variance<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        crate::units::tag(
+            array1(py, self.0.variance.clone()).into_any(),
+            crate::units::squared(self.1.as_deref()).as_deref(),
+        )
     }
 
     #[getter]
-    fn std<'py>(&self, py: Python<'py>) -> Bound<'py, PyArray1<f64>> {
-        array1(py, self.0.variance.iter().map(|v| v.sqrt()).collect())
+    fn std<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        crate::units::tag(
+            array1(py, self.0.variance.iter().map(|v| v.sqrt()).collect()).into_any(),
+            self.1.as_deref(),
+        )
     }
 
     #[getter]
@@ -579,8 +600,11 @@ impl IndicatorSummary {
 
     /// `(targets, cutoffs)` mean above each cutoff; NaN where nothing is above it.
     #[getter]
-    fn mean_above<'py>(&self, py: Python<'py>) -> Bound<'py, PyArray2<f64>> {
-        by_target(py, &self.0.mean_above, self.0.mean.len())
+    fn mean_above<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        crate::units::tag(
+            by_target(py, &self.0.mean_above, self.0.mean.len()).into_any(),
+            self.1.as_deref(),
+        )
     }
 
     #[getter]
@@ -590,8 +614,11 @@ impl IndicatorSummary {
 
     /// `(targets, quantiles)` values at each requested quantile.
     #[getter]
-    fn quantile_values<'py>(&self, py: Python<'py>) -> Bound<'py, PyArray2<f64>> {
-        by_target(py, &self.0.quantile_values, self.0.mean.len())
+    fn quantile_values<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        crate::units::tag(
+            by_target(py, &self.0.quantile_values, self.0.mean.len()).into_any(),
+            self.1.as_deref(),
+        )
     }
 
     /// Per-target Table when predicted with ``diagnostics=True``, else None:
@@ -626,6 +653,8 @@ struct SummaryMeta {
     thresholds: Vec<f64>,
     cutoffs: Vec<f64>,
     quantiles: Vec<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    unit: Option<String>,
 }
 
 impl Serialize for IndicatorSummary {
@@ -634,6 +663,7 @@ impl Serialize for IndicatorSummary {
             thresholds: self.0.thresholds.clone(),
             cutoffs: self.0.cutoffs.clone(),
             quantiles: self.0.quantiles.clone(),
+            unit: self.1.clone(),
         }
         .serialize(s)
     }
@@ -642,12 +672,15 @@ impl Serialize for IndicatorSummary {
 impl<'de> Deserialize<'de> for IndicatorSummary {
     fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
         let m = SummaryMeta::deserialize(d)?;
-        Ok(Self(CoreSummary {
-            thresholds: m.thresholds,
-            cutoffs: m.cutoffs,
-            quantiles: m.quantiles,
-            ..Default::default()
-        }))
+        Ok(Self(
+            CoreSummary {
+                thresholds: m.thresholds,
+                cutoffs: m.cutoffs,
+                quantiles: m.quantiles,
+                ..Default::default()
+            },
+            m.unit,
+        ))
     }
 }
 

@@ -998,6 +998,10 @@ pub struct Estimator {
     /// every other method.
     #[serde(default)]
     drift_data: Vec<Vec<f64>>,
+    /// Units the Python layer records at fit: of the values, of the sample
+    /// coordinates, and of the lengths of the search and variogram.
+    #[serde(default)]
+    units: (Option<String>, Option<String>, Option<String>),
     #[serde(skip)]
     samples: Option<Vec<Sample>>,
 }
@@ -1245,6 +1249,7 @@ impl Estimator {
             search,
             domains: None,
             drift_data: vec![],
+            units: Default::default(),
             samples: None,
         })
     }
@@ -1548,6 +1553,15 @@ impl Estimator {
             .map(Some)
     }
 
+    fn _set_units(&mut self, unit: Option<String>, coords: Option<String>, length: Option<String>) {
+        self.units = (unit, coords, length);
+    }
+
+    #[getter]
+    fn _units(&self) -> (Option<String>, Option<String>, Option<String>) {
+        self.units.clone()
+    }
+
     /// Values of the fitted samples, after dropping shared locations.
     #[getter]
     fn values<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
@@ -1618,6 +1632,9 @@ impl Estimator {
 pub struct Dual {
     variogram: CoreVariogram,
     degree: usize,
+    /// Unit of the fitted values.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    unit: Option<String>,
     #[serde(skip)]
     samples: Option<Vec<Sample>>,
 }
@@ -1630,6 +1647,7 @@ impl Dual {
         Self {
             variogram: variogram.0,
             degree,
+            unit: None,
             samples: None,
         }
     }
@@ -1639,6 +1657,7 @@ impl Dual {
         coords: &Bound<PyAny>,
         values: &Bound<PyAny>,
     ) -> PyResult<PyRefMut<'py, Self>> {
+        slf.unit = crate::units::of(values, Some(coords))?;
         let locs = points(coords)?;
         let values = finite(&column(Some(coords), values, "values")?, "values")?;
         same_length(locs.len(), values.len(), "values")?;
@@ -1661,7 +1680,7 @@ impl Dual {
             .iter()
             .map(|t| dual.estimate(t))
             .collect();
-        Ok(array1(py, values).into_any())
+        crate::units::tag(array1(py, values).into_any(), self.unit.as_deref())
     }
 
     /// Writes samples as Parquet columns and parameters as JSON in the file

@@ -38,6 +38,9 @@ pub struct Cokriging {
     kind: CoKind,
     #[serde(skip)]
     samples: Option<(Vec<Sample>, Vec<CoSample>)>,
+    /// Unit of the fitted values.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    unit: Option<String>,
 }
 
 #[pymethods]
@@ -82,6 +85,7 @@ impl Cokriging {
             search: search.plain("Cokriging")?,
             kind,
             samples: None,
+            unit: None,
         })
     }
 
@@ -97,6 +101,7 @@ impl Cokriging {
         holes: Option<&Bound<PyAny>>,
     ) -> PyResult<PyRefMut<'py, Self>> {
         let data = Some(coords);
+        slf.unit = crate::units::of(values, Some(coords))?;
         let locs = points(coords)?;
         let values = finite(&column(data, values, "values")?, "values")?;
         same_length(locs.len(), values.len(), "values")?;
@@ -197,7 +202,8 @@ impl Cokriging {
                 )
             })?
             .map_err(invalid)?;
-            return outputs(py, &results, return_variance);
+            let out = outputs(py, &results, return_variance)?;
+            return crate::units::tag_estimates(out, self.unit.as_deref());
         }
         let metric = metric(self.model.anisotropy.clone());
         let tree = SearchTree::new(plain, &self.search, Some(&metric));
@@ -226,7 +232,8 @@ impl Cokriging {
                 })
                 .collect()
         })?;
-        outputs(py, &results, return_variance)
+        let out = outputs(py, &results, return_variance)?;
+        crate::units::tag_estimates(out, self.unit.as_deref())
     }
 }
 
@@ -245,6 +252,9 @@ pub struct Disjunctive {
     order: usize,
     #[serde(skip)]
     samples: Option<(Vec<Sample>, Vec<GaussianSample>)>,
+    /// Unit of the fitted values.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    unit: Option<String>,
 }
 
 impl Disjunctive {
@@ -326,6 +336,7 @@ impl Disjunctive {
             search: search.plain("DisjunctiveKriging")?,
             order,
             samples: None,
+            unit: None,
         })
     }
 
@@ -336,6 +347,7 @@ impl Disjunctive {
         coords: &Bound<PyAny>,
         values: &Bound<PyAny>,
     ) -> PyResult<PyRefMut<'py, Self>> {
+        slf.unit = crate::units::of(values, Some(coords))?;
         let locs = points(coords)?;
         let values = finite(&column(Some(coords), values, "values")?, "values")?;
 
@@ -373,7 +385,7 @@ impl Disjunctive {
             .iter()
             .map(|f| f.as_ref().map_or(f64::NAN, |f| self.engine.grade(f)))
             .collect();
-        Ok(array1(py, grades).into_any())
+        crate::units::tag(array1(py, grades).into_any(), self.unit.as_deref())
     }
 
     /// Local proportion above `cutoff`. `progress` shows a `tqdm` bar.
@@ -393,7 +405,7 @@ impl Disjunctive {
                     .map_or(f64::NAN, |f| self.engine.tonnage(f, cutoff))
             })
             .collect();
-        Ok(array1(py, t).into_any())
+        crate::units::tag(array1(py, t).into_any(), Some("ratio"))
     }
 }
 
