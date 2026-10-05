@@ -123,9 +123,13 @@ the assays, an estimator fitted on a column estimates in its unit, and the krigi
 
 ```python
 data = bt.datasets.stacked_sulphide_lenses()
-holes = bt.Drillholes(data["collars"], data["surveys"], data["assays"].with_units({"ZN_PCT": "%"}))
+holes = bt.Drillholes(
+    data["collars"], data["surveys"], data["assays"].with_units({"ZN_PCT": "%"}), length_unit="m"
+)
 composites = holes.composite(2.0, ["ZN_PCT"])
-grid = bt.BlockModel.from_extents(data["lens_1"], size=(10, 10, 5), buffer=20, rotation=(22.5, 0.0, 55.0))
+grid = bt.BlockModel.from_extents(
+    data["lens_1"], size=(10, 10, 5), buffer=20, rotation=(22.5, 0.0, 55.0), length_unit="m"
+)
 kriging = bt.OrdinaryKriging(bt.Variogram([("spherical", 1.0, 60.0)]), bt.Search(radius=60, max_samples=12))
 estimate, variance = kriging.fit(composites, "ZN_PCT").predict(grid, return_variance=True, progress=False)
 print(f"estimate in {estimate.unit}, variance in {variance.unit}")
@@ -153,6 +157,34 @@ print(grid.units)
 
 ```text
 {'ZN': '%', 'ZN_PPM': 'ppm'}
+```
+
+## lengths
+
+containers carry the length unit of their coordinates, and so do a `Search` and a `Variogram`. an estimator fitted
+with parameters in feet on data in metres converts the coordinates, so the estimate is the one the same lengths in
+metres give. containers in different units refuse to meet; `to_length_unit` converts one.
+
+<details><summary>Python</summary>
+
+```python
+feet = bt.OrdinaryKriging(
+    bt.Variogram([("spherical", 1.0, 60.0 / 0.3048)], length_unit="ft"),
+    bt.Search(radius=60.0 / 0.3048, max_samples=12, length_unit="ft"),
+)
+in_feet = feet.fit(composites, "ZN_PCT").predict(grid, progress=False)
+print(f"largest difference from the estimate in metres: {np.nanmax(np.abs(in_feet - estimate)):.1e} %")
+try:
+    kriging.predict(grid.to_length_unit("ft"), progress=False)
+except bt.InvalidInput as error:
+    print(error)
+```
+
+</details>
+
+```text
+largest difference from the estimate in metres: 1.6e-11 %
+samples are in m and targets in ft; convert one with to_length_unit('m')
 ```
 
 Full script: [`example_02_25.py`](example_02_25.py)

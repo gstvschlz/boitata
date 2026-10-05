@@ -118,11 +118,12 @@ pub fn attribute(values: &Bound<PyAny>, rows: usize) -> PyResult<ArrayRef> {
 impl Mesh {
     /// `vertices` is `(n, 3)`, `triangles` `(m, 3)` vertex indices.
     #[new]
-    #[pyo3(signature = (vertices, triangles, *, crs=None))]
+    #[pyo3(signature = (vertices, triangles, *, crs=None, length_unit=None))]
     fn new(
         vertices: &Bound<PyAny>,
         triangles: &Bound<PyAny>,
         crs: Option<String>,
+        length_unit: Option<String>,
     ) -> PyResult<Self> {
         let vertices = coords_arg(vertices)?;
         let triangles: PyReadonlyArray2<i64> = triangles
@@ -143,6 +144,7 @@ impl Mesh {
             .collect::<PyResult<Vec<_>>>()?;
         let mut mesh = CoreMesh::new(vertices, triangles).map_err(core_error)?;
         mesh.crs = crs;
+        mesh.length_unit = crate::table::length_unit(length_unit)?;
         Ok(Self::from_core(mesh))
     }
 
@@ -175,6 +177,33 @@ impl Mesh {
     #[getter]
     fn crs(&self) -> Option<String> {
         self.mesh.crs.clone()
+    }
+
+    /// Unit of the coordinates, such as ``m`` or ``ft``; None when not declared.
+    #[getter]
+    fn length_unit(&self) -> Option<String> {
+        self.mesh.length_unit.clone()
+    }
+
+    /// A copy with the coordinates converted to `unit`, the new length unit.
+    ///
+    /// Parameters
+    /// ----------
+    /// unit : str
+    ///     A length unit, such as ``m`` or ``ft``.
+    /// crs : str, optional
+    ///     The CRS of the converted coordinates; required when the
+    ///     coordinates have a CRS, which a change of unit changes.
+    ///
+    /// Raises
+    /// ------
+    /// InvalidInput
+    ///     Without a length unit to convert from, or with a CRS and no `crs`.
+    #[pyo3(signature = (unit, *, crs=None))]
+    fn to_length_unit(&self, unit: &str, crs: Option<String>) -> PyResult<Self> {
+        Ok(Self::from_core(
+            self.mesh.to_length_unit(unit, crs).map_err(invalid)?,
+        ))
     }
 
     /// Every edge shared by exactly two non-degenerate triangles.
@@ -238,6 +267,11 @@ impl Mesh {
 
     /// Whether each point is inside, by generalized winding number.
     fn contains<'py>(&self, py: Python<'py>, points: &Bound<PyAny>) -> PyResult<Bound<'py, PyAny>> {
+        crate::units::check_against(
+            self.mesh.length_unit.as_deref(),
+            points,
+            ("mesh vertices", "points"),
+        )?;
         let pts = self::points(points)?;
         let solid = self.solid()?;
         let inside = py.detach(|| {
@@ -270,6 +304,11 @@ impl Mesh {
         points: &Bound<PyAny>,
         signed: bool,
     ) -> PyResult<Bound<'py, PyAny>> {
+        crate::units::check_against(
+            self.mesh.length_unit.as_deref(),
+            points,
+            ("mesh vertices", "points"),
+        )?;
         let pts = self::points(points)?;
         let tree = py.detach(|| {
             self.tree
@@ -313,6 +352,11 @@ impl Mesh {
         py: Python<'py>,
         points: &Bound<PyAny>,
     ) -> PyResult<Bound<'py, PyAny>> {
+        crate::units::check_against(
+            self.mesh.length_unit.as_deref(),
+            points,
+            ("mesh vertices", "points"),
+        )?;
         let pts: Vec<Point> = coords_or_nan(points)?
             .into_iter()
             .map(|[x, y, z]| (x, y, z))
@@ -376,6 +420,11 @@ impl Mesh {
         size: Option<[f64; 3]>,
         discretization: Discretization,
     ) -> PyResult<Bound<'py, PyAny>> {
+        crate::units::check_against(
+            self.mesh.length_unit.as_deref(),
+            targets,
+            ("mesh vertices", "targets"),
+        )?;
         let solid = self.solid()?;
         let discretization = match discretization {
             Discretization::All(n) => [n; 3],
@@ -807,6 +856,20 @@ fn assign_domain<'py>(
     mesh: Option<PyRef<Mesh>>,
     n: usize,
 ) -> PyResult<Bound<'py, PyTuple>> {
+    if let Some(m) = &mesh {
+        crate::units::check_against(
+            m.mesh.length_unit.as_deref(),
+            targets,
+            ("mesh vertices", "targets"),
+        )?;
+    }
+    if let Some(c) = coords {
+        crate::units::check_against(
+            crate::units::length_of(c)?.as_deref(),
+            targets,
+            ("samples", "targets"),
+        )?;
+    }
     let method = match method {
         "nearest" => DomainMethod::Nearest,
         "majority" => DomainMethod::MajorityVote,

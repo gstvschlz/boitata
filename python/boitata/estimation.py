@@ -13,6 +13,7 @@ from boitata._boitata import (
     Search,
     Table,
     Variogram,
+    _conversion,
     _DrillholePlan,
     _Estimator,
     assign_domain,
@@ -47,6 +48,26 @@ __all__ = [
 ]
 
 Searches = Search | Sequence[Search]
+
+
+def _parameters_unit(search, variogram_unit):
+    """The length unit the searches and the variogram declare; they must agree."""
+    searches = search if isinstance(search, list | tuple) else [search]
+    units = {u for u in [*(s.length_unit for s in searches), variogram_unit] if u}
+    if len(units) > 1:
+        raise InvalidInput(
+            f"the variogram and search lengths are in {' and '.join(sorted(units))}; give them one"
+        )
+    return units.pop() if units else None
+
+
+def _moved(coords, unit, data_unit):
+    """`coords`, a container or an array in `data_unit`, in `unit` instead; as is when either is unknown."""
+    if unit is None or data_unit is None or unit == data_unit:
+        return coords
+    if hasattr(coords, "to_length_unit"):
+        return coords.to_length_unit(unit, crs=coords.crs)
+    return np.asarray(coords, dtype=float) * _conversion(data_unit, unit)
 
 
 def _labelled(table, units):
@@ -161,6 +182,8 @@ class _Base:
 
     def __init__(self, method: str, search: Searches, variogram: Variogram | None = None, **options):
         self._engine = _Estimator(method, search, variogram, **options)
+        self._variogram_unit = getattr(variogram, "length_unit", None)
+        self._length_unit = _parameters_unit(search, self._variogram_unit)
 
     @property
     def unit(self) -> str | None:
@@ -195,8 +218,9 @@ class _Base:
             The column of `coords` holding the domains; instead of `domains`.
         """
         self._unit = unit_of(values, coords)
+        self._coords_unit = getattr(coords, "length_unit", None)
         self._engine.fit(
-            coords,
+            _moved(coords, getattr(self, "_length_unit", None), self._coords_unit),
             values,
             holes=holes,
             error_variance=error_variance,
@@ -251,8 +275,13 @@ class _Base:
         ndarray, tuple of ndarray or Table
             Estimates in `unit`, variances in its square.
         """
+        data_unit, target_unit = getattr(self, "_coords_unit", None), getattr(targets, "length_unit", None)
+        if data_unit and target_unit and data_unit != target_unit:
+            raise InvalidInput(
+                f"samples are in {data_unit} and targets in {target_unit}; convert one with to_length_unit('{data_unit}')"
+            )
         out = self._engine.predict(
-            targets,
+            _moved(targets, getattr(self, "_length_unit", None), target_unit or data_unit),
             return_variance=return_variance,
             anisotropy=anisotropy,
             diagnostics=diagnostics,
@@ -298,6 +327,11 @@ class _Base:
         estimator = type(self).__new__(type(self))
         estimator._engine = self._engine.with_search(search)
         estimator._unit = getattr(self, "_unit", None)
+        estimator._coords_unit = getattr(self, "_coords_unit", None)
+        estimator._variogram_unit = getattr(self, "_variogram_unit", None)
+        estimator._length_unit = _parameters_unit(search, estimator._variogram_unit)
+        if estimator._length_unit != getattr(self, "_length_unit", None):
+            raise InvalidInput("with_search needs a search in the length unit of the fitted samples")
         return estimator
 
     def to_parquet(self, path) -> None:

@@ -380,8 +380,9 @@ def variogram(experimental, *, variogram=None, direction=None, ax=None, **kwargs
         ax.axhline(variogram.sill, color="0.5", lw=0.8, ls="--")
     ax.set_xlim(left=0)
     ax.set_ylim(bottom=0)
-    ax.set_xlabel("Lag distance")
-    ax.set_ylabel("γ(h)")
+    length, unit = experimental.length_unit, experimental.unit
+    ax.set_xlabel(f"Lag distance ({length})" if length else "Lag distance")
+    ax.set_ylabel(f"γ(h) ({unit})²" if unit else "γ(h)")
     return fig, ax
 
 

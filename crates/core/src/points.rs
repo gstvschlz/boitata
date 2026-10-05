@@ -14,15 +14,30 @@ pub struct PointSet {
     coords: Vec<[f64; 3]>,
     attributes: RecordBatch,
     pub crs: Option<String>,
+    /// Unit of the coordinates, such as `m` or `ft`; None when not declared.
+    pub length_unit: Option<String>,
 }
 
 impl PointSet {
+    /// The points with coordinates converted to `unit`, which becomes the length
+    /// unit; `crs` names their CRS, required when they had one.
+    pub fn to_length_unit(&self, unit: &str, crs: Option<String>) -> Result<Self> {
+        let (k, crs) =
+            crate::units::rescale(self.length_unit.as_deref(), self.crs.as_deref(), unit, crs)?;
+        let mut out = self.clone();
+        out.coords.iter_mut().flatten().for_each(|v| *v *= k);
+        out.crs = crs;
+        out.length_unit = Some(unit.into());
+        Ok(out)
+    }
+
     pub fn new(coords: Vec<[f64; 3]>, attributes: RecordBatch) -> Result<Self> {
         check_rows(coords.len(), &attributes)?;
         Ok(Self {
             coords,
             attributes,
             crs: None,
+            length_unit: None,
         })
     }
 

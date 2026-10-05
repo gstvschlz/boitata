@@ -508,6 +508,7 @@ impl ImplicitModel {
             .collect();
         let mut mesh = Mesh::build(&vertices, &mesh.triangles)?;
         mesh.crs = model.0.crs.clone();
+        mesh.length_unit = model.0.length_unit.clone();
         Ok(Mesh::from_core(mesh))
     }
 

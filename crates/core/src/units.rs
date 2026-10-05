@@ -355,6 +355,51 @@ pub fn conversion(from: &str, to: &str) -> Result<f64> {
     scale((from, &parse(from)?), (to, &parse(to)?))
 }
 
+/// Errors unless `unit` is a length, as coordinates need.
+pub fn check_length(unit: &str) -> Result<()> {
+    let parsed = parse(unit)?;
+    if parsed.dimension != Dimension::of(Axis::Length) {
+        return Err(Error::Units(format!(
+            "coordinates need a length unit such as m or ft, got {} ({unit})",
+            parsed.dimension
+        )));
+    }
+    Ok(())
+}
+
+/// The factor taking coordinates in `from` to `unit`, and the CRS they then
+/// have: `crs` must name it when the coordinates had one.
+pub fn rescale(
+    from: Option<&str>,
+    old_crs: Option<&str>,
+    unit: &str,
+    crs: Option<String>,
+) -> Result<(f64, Option<String>)> {
+    check_length(unit)?;
+    let from = from.ok_or_else(|| {
+        Error::Units("declare the length unit of the coordinates before converting them".into())
+    })?;
+    if let (Some(old), None) = (old_crs, &crs) {
+        return Err(Error::Units(format!(
+            "the coordinates are in CRS {old}; give their CRS in {unit} as crs="
+        )));
+    }
+    Ok((conversion(from, unit)?, crs))
+}
+
+/// Errors when `a` and `b` (what each holds, such as "samples" and
+/// "targets") both declare a length unit and they differ; an undeclared one
+/// matches any.
+pub fn same_length_unit(a: (&str, Option<&str>), b: (&str, Option<&str>)) -> Result<()> {
+    match (a.1, b.1) {
+        (Some(x), Some(y)) if x != y => Err(Error::Units(format!(
+            "{} are in {x} and {} in {y}; convert one with to_length_unit('{x}')",
+            a.0, b.0
+        ))),
+        _ => Ok(()),
+    }
+}
+
 /// The unit of column `name`, if it has one.
 pub fn unit(table: &RecordBatch, name: &str) -> Result<Option<String>> {
     let schema = table.schema();

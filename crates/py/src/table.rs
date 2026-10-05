@@ -45,6 +45,21 @@ pub fn convert_units(batch: &RecordBatch, column: &str, to: &str) -> PyResult<Re
 }
 
 static DEFAULT_UNITS: Mutex<BTreeMap<String, String>> = Mutex::new(BTreeMap::new());
+static DEFAULT_LENGTH: Mutex<Option<String>> = Mutex::new(None);
+
+/// `given`, or the project's length unit, checked to be a length.
+pub fn length_unit(given: Option<String>) -> PyResult<Option<String>> {
+    let unit = given.or_else(|| {
+        DEFAULT_LENGTH
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .clone()
+    });
+    if let Some(u) = &unit {
+        boitata_core::units::check_length(u).map_err(invalid)?;
+    }
+    Ok(unit)
+}
 
 fn default_units() -> BTreeMap<String, String> {
     DEFAULT_UNITS
@@ -73,21 +88,32 @@ pub fn fill_units(
     Ok(batch)
 }
 
-/// Sets project-wide column units: readers and constructors give column
-/// `name` the unit `columns[name]` when it has none.
+/// Sets project-wide units: readers and constructors give column `name` the
+/// unit `columns[name]` when it has none, and coordinates the unit `length`
+/// when they have none.
 ///
 /// Parameters
 /// ----------
 /// columns : dict of str to str or None, optional
 ///     Column name to unit, merged into the current defaults; None removes a
 ///     default.
+/// length : str, optional
+///     Length unit of coordinates, such as ``m`` or ``ft``; None leaves the
+///     current one.
 ///
 /// See Also
 /// --------
 /// units : The same, for a ``with`` block.
 #[pyfunction]
-#[pyo3(signature = (*, columns=None))]
-pub fn set_units(columns: Option<HashMap<String, Option<String>>>) -> PyResult<()> {
+#[pyo3(signature = (*, columns=None, length=None))]
+pub fn set_units(
+    columns: Option<HashMap<String, Option<String>>>,
+    length: Option<String>,
+) -> PyResult<()> {
+    if let Some(u) = length {
+        boitata_core::units::check_length(&u).map_err(invalid)?;
+        *DEFAULT_LENGTH.lock().unwrap_or_else(|e| e.into_inner()) = Some(u);
+    }
     let mut defaults = DEFAULT_UNITS.lock().unwrap_or_else(|e| e.into_inner());
     for (name, unit) in columns.into_iter().flatten() {
         match unit {
@@ -104,17 +130,28 @@ pub fn set_units(columns: Option<HashMap<String, Option<String>>>) -> PyResult<(
 }
 
 #[pyfunction]
-fn _unit_defaults() -> BTreeMap<String, String> {
-    default_units()
+fn _unit_defaults() -> (BTreeMap<String, String>, Option<String>) {
+    let length = DEFAULT_LENGTH
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .clone();
+    (default_units(), length)
 }
 
 #[pyfunction]
-fn _restore_unit_defaults(columns: BTreeMap<String, String>) {
+fn _restore_unit_defaults(columns: BTreeMap<String, String>, length: Option<String>) {
     *DEFAULT_UNITS.lock().unwrap_or_else(|e| e.into_inner()) = columns;
+    *DEFAULT_LENGTH.lock().unwrap_or_else(|e| e.into_inner()) = length;
+}
+
+#[pyfunction]
+fn _conversion(from: &str, to: &str) -> PyResult<f64> {
+    boitata_core::units::conversion(from, to).map_err(invalid)
 }
 
 pub fn register(m: &Bound<PyModule>) -> PyResult<()> {
     m.add_class::<Table>()?;
+    m.add_function(wrap_pyfunction!(_conversion, m)?)?;
     m.add_function(wrap_pyfunction!(set_units, m)?)?;
     m.add_function(wrap_pyfunction!(_unit_defaults, m)?)?;
     m.add_function(wrap_pyfunction!(_restore_unit_defaults, m)?)?;

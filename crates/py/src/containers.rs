@@ -78,11 +78,12 @@ pub struct PyPointSet(pub PointSet);
 #[pymethods]
 impl PyPointSet {
     #[new]
-    #[pyo3(signature = (coords, attributes=None, *, crs=None))]
+    #[pyo3(signature = (coords, attributes=None, *, crs=None, length_unit=None))]
     fn new(
         coords: &Bound<PyAny>,
         attributes: Option<&Bound<PyAny>>,
         crs: Option<String>,
+        length_unit: Option<String>,
     ) -> PyResult<Self> {
         let coords = coords_arg(coords)?;
         let attributes = match attributes {
@@ -91,22 +92,25 @@ impl PyPointSet {
         };
         let mut points = PointSet::new(coords, attributes).map_err(core_error)?;
         points.crs = crs;
+        points.length_unit = crate::table::length_unit(length_unit)?;
         Ok(Self(points))
     }
 
     /// Splits coordinate columns out of an Arrow-compatible table.
     #[staticmethod]
-    #[pyo3(signature = (table, *, x="X", y="Y", z=None, crs=None))]
+    #[pyo3(signature = (table, *, x="X", y="Y", z=None, crs=None, length_unit=None))]
     fn from_table(
         table: &Bound<PyAny>,
         x: &str,
         y: &str,
         z: Option<&str>,
         crs: Option<String>,
+        length_unit: Option<String>,
     ) -> PyResult<Self> {
         let table = fill_units(to_batch(table)?, None)?;
         let mut points = PointSet::from_table(&table, x, y, z).map_err(core_error)?;
         points.crs = crs;
+        points.length_unit = crate::table::length_unit(length_unit)?;
         Ok(Self(points))
     }
 
@@ -124,6 +128,31 @@ impl PyPointSet {
     #[getter]
     fn crs(&self) -> Option<String> {
         self.0.crs.clone()
+    }
+
+    /// Unit of the coordinates, such as ``m`` or ``ft``; None when not declared.
+    #[getter]
+    fn length_unit(&self) -> Option<String> {
+        self.0.length_unit.clone()
+    }
+
+    /// A copy with the coordinates converted to `unit`, the new length unit.
+    ///
+    /// Parameters
+    /// ----------
+    /// unit : str
+    ///     A length unit, such as ``m`` or ``ft``.
+    /// crs : str, optional
+    ///     The CRS of the converted coordinates; required when the
+    ///     coordinates have a CRS, which a change of unit changes.
+    ///
+    /// Raises
+    /// ------
+    /// InvalidInput
+    ///     Without a length unit to convert from, or with a CRS and no `crs`.
+    #[pyo3(signature = (unit, *, crs=None))]
+    fn to_length_unit(&self, unit: &str, crs: Option<String>) -> PyResult<Self> {
+        Ok(Self(self.0.to_length_unit(unit, crs).map_err(invalid)?))
     }
 
     /// New point set with the attribute `name` added or replaced: numbers (NaN
@@ -192,6 +221,7 @@ impl PyPointSet {
                 .map_err(invalid)?;
         let mut points = PointSet::new(coords, attributes).map_err(core_error)?;
         points.crs = self.0.crs.clone();
+        points.length_unit = self.0.length_unit.clone();
         Ok(Self(points))
     }
 
@@ -316,13 +346,14 @@ impl PyPolylines {
 #[pymethods]
 impl PyPolylines {
     #[new]
-    #[pyo3(signature = (parts, *, closed=Closed::All(false), features=None, attributes=None, crs=None))]
+    #[pyo3(signature = (parts, *, closed=Closed::All(false), features=None, attributes=None, crs=None, length_unit=None))]
     fn new(
         parts: Vec<Bound<PyAny>>,
         closed: Closed,
         features: Option<Vec<i64>>,
         attributes: Option<&Bound<PyAny>>,
         crs: Option<String>,
+        length_unit: Option<String>,
     ) -> PyResult<Self> {
         let mut vertices = vec![];
         let mut offsets = vec![0u32];
@@ -355,6 +386,7 @@ impl PyPolylines {
         let mut lines =
             Polylines::new(vertices, offsets, features, closed, attributes).map_err(core_error)?;
         lines.crs = crs;
+        lines.length_unit = crate::table::length_unit(length_unit)?;
         Ok(Self(lines))
     }
 
@@ -393,6 +425,31 @@ impl PyPolylines {
     #[getter]
     fn crs(&self) -> Option<String> {
         self.0.crs.clone()
+    }
+
+    /// Unit of the coordinates, such as ``m`` or ``ft``; None when not declared.
+    #[getter]
+    fn length_unit(&self) -> Option<String> {
+        self.0.length_unit.clone()
+    }
+
+    /// A copy with the coordinates converted to `unit`, the new length unit.
+    ///
+    /// Parameters
+    /// ----------
+    /// unit : str
+    ///     A length unit, such as ``m`` or ``ft``.
+    /// crs : str, optional
+    ///     The CRS of the converted coordinates; required when the
+    ///     coordinates have a CRS, which a change of unit changes.
+    ///
+    /// Raises
+    /// ------
+    /// InvalidInput
+    ///     Without a length unit to convert from, or with a CRS and no `crs`.
+    #[pyo3(signature = (unit, *, crs=None))]
+    fn to_length_unit(&self, unit: &str, crs: Option<String>) -> PyResult<Self> {
+        Ok(Self(self.0.to_length_unit(unit, crs).map_err(invalid)?))
     }
 
     /// New polylines with the per-feature attribute `name` added or replaced,
@@ -463,6 +520,11 @@ impl PyPolylines {
         points: &Bound<PyAny>,
         feature: Option<i64>,
     ) -> PyResult<Bound<'py, PyArray1<bool>>> {
+        crate::units::check_against(
+            self.0.length_unit.as_deref(),
+            points,
+            ("polyline vertices", "points"),
+        )?;
         let feature = self.feature_index(feature)?;
         let xy = coords_arg(points)?;
         let inside = py.detach(|| {
@@ -483,6 +545,11 @@ impl PyPolylines {
         py: Python<'py>,
         points: &Bound<PyAny>,
     ) -> PyResult<Bound<'py, PyArray1<i64>>> {
+        crate::units::check_against(
+            self.0.length_unit.as_deref(),
+            points,
+            ("polyline vertices", "points"),
+        )?;
         let xy = coords_arg(points)?;
         let found = py.detach(|| {
             xy.par_iter()
@@ -514,6 +581,11 @@ impl PyPolylines {
         feature: Option<i64>,
         signed: bool,
     ) -> PyResult<Bound<'py, PyArray1<f64>>> {
+        crate::units::check_against(
+            self.0.length_unit.as_deref(),
+            points,
+            ("polyline vertices", "points"),
+        )?;
         let feature = self.feature_index(feature)?;
         let xy = coords_arg(points)?;
         let d: Option<Vec<f64>> = py.detach(|| {
@@ -585,7 +657,7 @@ impl PyPolylines {
     ///     ``feature`` column included, come from each feature's first row;
     ///     the coordinate and ``part`` columns are dropped.
     #[staticmethod]
-    #[pyo3(signature = (table, *, feature="ID", x="X", y="Y", z=None, part=None, closed=false, crs=None))]
+    #[pyo3(signature = (table, *, feature="ID", x="X", y="Y", z=None, part=None, closed=false, crs=None, length_unit=None))]
     #[allow(clippy::too_many_arguments)]
     fn from_table(
         table: &Bound<PyAny>,
@@ -596,11 +668,13 @@ impl PyPolylines {
         part: Option<&str>,
         closed: bool,
         crs: Option<String>,
+        length_unit: Option<String>,
     ) -> PyResult<Self> {
         let table = fill_units(to_batch(table)?, None)?;
         let mut lines =
             Polylines::from_table(&table, feature, x, y, z, part, closed).map_err(core_error)?;
         lines.crs = crs;
+        lines.length_unit = crate::table::length_unit(length_unit)?;
         Ok(Self(lines))
     }
 
@@ -630,7 +704,8 @@ impl PyBlockModel {
     /// `origin` is the corner of the first cell; `rotation` is azimuth, dip,
     /// rake in degrees. Pass `index` (sorted cell indices) for a masked model.
     #[new]
-    #[pyo3(signature = (origin, size, count, *, rotation=(0.0, 0.0, 0.0), attributes=None, index=None, crs=None))]
+    #[pyo3(signature = (origin, size, count, *, rotation=(0.0, 0.0, 0.0), attributes=None, index=None, crs=None, length_unit=None))]
+    #[allow(clippy::too_many_arguments)]
     fn new(
         origin: Vec<f64>,
         size: Vec<f64>,
@@ -639,6 +714,7 @@ impl PyBlockModel {
         attributes: Option<&Bound<PyAny>>,
         index: Option<PyReadonlyArray1<u64>>,
         crs: Option<String>,
+        length_unit: Option<String>,
     ) -> PyResult<Self> {
         let geometry = Geometry {
             origin: triple(origin, 0.0, "origin")?,
@@ -662,6 +738,7 @@ impl PyBlockModel {
         }
         .map_err(core_error)?;
         model.crs = crs;
+        model.length_unit = crate::table::length_unit(length_unit)?;
         Ok(Self(model))
     }
 
@@ -688,6 +765,31 @@ impl PyBlockModel {
     #[getter]
     fn crs(&self) -> Option<String> {
         self.0.crs.clone()
+    }
+
+    /// Unit of the coordinates, such as ``m`` or ``ft``; None when not declared.
+    #[getter]
+    fn length_unit(&self) -> Option<String> {
+        self.0.length_unit.clone()
+    }
+
+    /// A copy with the coordinates converted to `unit`, the new length unit.
+    ///
+    /// Parameters
+    /// ----------
+    /// unit : str
+    ///     A length unit, such as ``m`` or ``ft``.
+    /// crs : str, optional
+    ///     The CRS of the converted coordinates; required when the
+    ///     coordinates have a CRS, which a change of unit changes.
+    ///
+    /// Raises
+    /// ------
+    /// InvalidInput
+    ///     Without a length unit to convert from, or with a CRS and no `crs`.
+    #[pyo3(signature = (unit, *, crs=None))]
+    fn to_length_unit(&self, unit: &str, crs: Option<String>) -> PyResult<Self> {
+        Ok(Self(self.0.to_length_unit(unit, crs).map_err(invalid)?))
     }
 
     /// Parent cell index of each row (masked or sub-blocked), or `None` when regular.
@@ -723,7 +825,7 @@ impl PyBlockModel {
     /// `(n, 6)` extent as fractions of that cell; `subgrid` (e.g. `(4, 4, 8)`)
     /// requires corners on that subdivision.
     #[staticmethod]
-    #[pyo3(signature = (origin, size, count, parent, extents, *, rotation=(0.0, 0.0, 0.0), subgrid=None, attributes=None, crs=None))]
+    #[pyo3(signature = (origin, size, count, parent, extents, *, rotation=(0.0, 0.0, 0.0), subgrid=None, attributes=None, crs=None, length_unit=None))]
     #[allow(clippy::too_many_arguments)]
     fn subblocked(
         origin: Vec<f64>,
@@ -735,6 +837,7 @@ impl PyBlockModel {
         subgrid: Option<[u32; 3]>,
         attributes: Option<&Bound<PyAny>>,
         crs: Option<String>,
+        length_unit: Option<String>,
     ) -> PyResult<Self> {
         let geometry = Geometry {
             origin: triple(origin, 0.0, "origin")?,
@@ -757,6 +860,7 @@ impl PyBlockModel {
         let mut model = BlockModel::subblocked(geometry, parent, extent, subgrid, attributes)
             .map_err(core_error)?;
         model.crs = crs;
+        model.length_unit = crate::table::length_unit(length_unit)?;
         Ok(Self(model))
     }
 
@@ -978,7 +1082,7 @@ impl PyBlockModel {
     /// Sub-blocked model of the grid ``origin``, ``size``, ``count`` and
     /// ``rotation`` from prioritized meshes; see `subblock`.
     #[staticmethod]
-    #[pyo3(signature = (origin, size, count, meshes, subgrid, *, rotation=(0.0, 0.0, 0.0), column="domain", fill=None, crs=None))]
+    #[pyo3(signature = (origin, size, count, meshes, subgrid, *, rotation=(0.0, 0.0, 0.0), column="domain", fill=None, crs=None, length_unit=None))]
     #[allow(clippy::too_many_arguments)]
     fn from_meshes(
         py: Python,
@@ -991,8 +1095,9 @@ impl PyBlockModel {
         column: &str,
         fill: Option<&str>,
         crs: Option<String>,
+        length_unit: Option<String>,
     ) -> PyResult<Self> {
-        let grid = Self::new(origin, size, count, rotation, None, None, crs)?;
+        let grid = Self::new(origin, size, count, rotation, None, None, crs, length_unit)?;
         grid.subblock(py, meshes, subgrid, column, fill)
     }
 
@@ -1024,7 +1129,7 @@ impl PyBlockModel {
     ///     A regular model without attributes, with the fewest blocks along
     ///     each axis that hold every point.
     #[staticmethod]
-    #[pyo3(signature = (*objects, size, buffer=PerAxis::One(0.0), rotation=None, snap=Snap::Flag(false), crs=None))]
+    #[pyo3(signature = (*objects, size, buffer=PerAxis::One(0.0), rotation=None, snap=Snap::Flag(false), crs=None, length_unit=None))]
     fn from_extents(
         objects: &Bound<PyTuple>,
         size: Vec<Option<f64>>,
@@ -1032,6 +1137,7 @@ impl PyBlockModel {
         rotation: Option<(f64, f64, f64)>,
         snap: Snap,
         crs: Option<String>,
+        length_unit: Option<String>,
     ) -> PyResult<Self> {
         let (xy, dz) = match size[..] {
             [Some(x), Some(y)] => ([x, y], None),
@@ -1053,6 +1159,7 @@ impl PyBlockModel {
         let mut model =
             BlockModel::regular(geometry, empty(geometry.cells() as usize)).map_err(core_error)?;
         model.crs = crs;
+        model.length_unit = crate::table::length_unit(length_unit)?;
         Ok(Self(model))
     }
 

@@ -128,6 +128,7 @@ pub fn subblock(
     let mut out = BlockModel::subblocked(g, parent, extents, Some(subgrid), attributes)?
         .with_column(column, Arc::new(StringArray::from(label)))?;
     out.crs.clone_from(&model.crs);
+    out.length_unit.clone_from(&model.length_unit);
     Ok(out)
 }
 

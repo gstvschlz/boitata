@@ -64,13 +64,15 @@ def squared(unit):
 
 
 @contextmanager
-def units(*, columns=None):
+def units(*, columns=None, length=None):
     """Project units for a ``with`` block, restored on exit.
 
     Parameters
     ----------
     columns : dict of str to str or None, optional
         Column name to unit, as in `set_units`.
+    length : str, optional
+        Length unit of coordinates, as in `set_units`.
 
     Examples
     --------
@@ -81,7 +83,7 @@ def units(*, columns=None):
     """
     saved = _boitata._unit_defaults()
     try:
-        _boitata.set_units(columns=columns)
+        _boitata.set_units(columns=columns, length=length)
         yield
     finally:
-        _boitata._restore_unit_defaults(saved)
+        _boitata._restore_unit_defaults(*saved)

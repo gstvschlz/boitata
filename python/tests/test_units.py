@@ -165,3 +165,108 @@ def test_regularize_and_composites_keep_units():
     intervals = bt.Table({"HOLE_ID": ["A", "A"], "FROM": [0.0, 1.0], "TO": [1.0, 2.0], "AU": [1.0, 3.0]})
     holes = bt.Drillholes(collar, survey, intervals.with_units({"AU": "g/t"}))
     assert holes.composite(2.0, ["AU"]).units == {"AU": "g/t"}
+
+
+FT = 0.3048
+
+
+def test_containers_declare_convert_and_store_length_units(tmp_path):
+    m = bt.PointSet([[0.0, 0.0, 0.0], [10.0, 0.0, 0.0]], length_unit="m")
+    ft = m.to_length_unit("ft")
+    assert ft.length_unit == "ft"
+    np.testing.assert_allclose(ft.coords[1], [10 / FT, 0, 0])
+    bt.write_parquet(tmp_path / "p.parquet", ft)
+    assert bt.read_parquet(tmp_path / "p.parquet", progress=False).length_unit == "ft"
+    model = bt.BlockModel((0, 0, 0), (10, 10, 5), (2, 2, 1), length_unit="m", crs="EPSG:31982")
+    with pytest.raises(bt.InvalidInput, match="give their CRS in ft"):
+        model.to_length_unit("ft")
+    moved = model.to_length_unit("ft", crs="local")
+    np.testing.assert_allclose(moved.size, [10 / FT, 10 / FT, 5 / FT])
+    bt.write_parquet(tmp_path / "b.parquet", moved)
+    assert bt.read_parquet(tmp_path / "b.parquet", progress=False).length_unit == "ft"
+    with pytest.raises(bt.InvalidInput, match="declare the length unit"):
+        bt.PointSet([[0.0, 0.0, 0.0]]).to_length_unit("m")
+    with pytest.raises(bt.InvalidInput, match="need a length unit"):
+        bt.PointSet([[0.0, 0.0, 0.0]], length_unit="g/t")
+    with bt.units(length="ft"):
+        assert bt.PointSet([[0.0, 0.0, 0.0]]).length_unit == "ft"
+        assert bt.read_parquet(tmp_path / "p.parquet", progress=False).length_unit == "ft"
+    assert bt.PointSet([[0.0, 0.0, 0.0]]).length_unit is None
+
+
+def test_kriging_with_parameters_in_feet_matches_kriging_in_metres():
+    """Theory check: lengths in another unit change no estimate once converted."""
+    data = bt.PointSet(samples.coords, samples.attributes, length_unit="m")
+    targets = bt.BlockModel((0, 0, 0), (20, 20, 1), (5, 5, 1), length_unit="m")
+    metres = bt.OrdinaryKriging(variogram, search).fit(data, "au").predict(targets, progress=False)
+    in_feet = bt.Variogram([("spherical", 0.25, 40.0 / FT)], length_unit="ft")
+    search_feet = bt.Search(radius=60 / FT, max_samples=12, length_unit="ft")
+    feet = bt.OrdinaryKriging(in_feet, search_feet).fit(data, "au").predict(targets, progress=False)
+    np.testing.assert_allclose(feet, metres, rtol=1e-10)
+    with pytest.raises(bt.InvalidInput, match="samples are in m and targets in ft"):
+        bt.OrdinaryKriging(variogram, search).fit(data, "au").predict(
+            targets.to_length_unit("ft"), progress=False
+        )
+    with pytest.raises(bt.InvalidInput, match="give them one"):
+        bt.OrdinaryKriging(in_feet, bt.Search(radius=60, length_unit="m"))
+    # Coordinates without a unit are taken as they are, in the unit of the parameters.
+    undeclared = bt.OrdinaryKriging(in_feet, search_feet).fit(samples.coords, samples["au"])
+    assert np.isfinite(undeclared.predict(targets.centroids, progress=False)).any()
+
+
+def test_variograms_carry_length_and_value_units():
+    data = bt.PointSet(samples.coords, samples.attributes, length_unit="m")
+    experimental = bt.experimental_variogram(data, "au", 10.0, 60.0)
+    assert (experimental.length_unit, experimental.unit) == ("m", "g/t")
+    fitted = bt.Variogram.fit(experimental)
+    assert (fitted.length_unit, fitted.unit) == ("m", "g/t")
+    back = bt.Variogram.from_json(fitted.to_json())
+    assert (back.length_unit, back.unit) == ("m", "g/t")
+    assert bt.Variogram.from_json(variogram.to_json()).length_unit is None
+    _, ax = bt.plot.variogram(experimental, variogram=fitted)
+    assert (ax.get_xlabel(), ax.get_ylabel()) == ("Lag distance (m)", "γ(h) (g/t)²")
+
+
+def test_containers_in_different_units_do_not_meet():
+    data = bt.PointSet(samples.coords, samples.attributes, length_unit="m")
+    sgs = bt.SGS(variogram, search).fit(data, "au")
+    feet_grid = bt.BlockModel((0, 0, 0), (20, 20, 1), (5, 5, 1), length_unit="ft")
+    with pytest.raises(bt.InvalidInput, match="samples are in m and targets in ft"):
+        sgs.simulate(feet_grid, n=1, seed=1, progress=False)
+    with pytest.raises(bt.InvalidInput, match="variogram and search lengths are in ft and samples in m"):
+        bt.SGS(bt.Variogram([("spherical", 1.0, 30.0)], length_unit="ft"), search).fit(data, "au")
+    fine = bt.BlockModel((0, 0, 0), (10, 10, 1), (4, 4, 1), length_unit="m").with_column("v", np.ones(16))
+    with pytest.raises(bt.InvalidInput, match="source blocks are in m and target blocks in ft"):
+        fine.regularize(feet_grid)
+    cube = bt.Mesh(
+        [[0, 0, 0], [1, 0, 0], [1, 1, 0], [0, 1, 0], [0, 0, 1], [1, 0, 1], [1, 1, 1], [0, 1, 1]],
+        [
+            [0, 2, 1],
+            [0, 3, 2],
+            [4, 5, 6],
+            [4, 6, 7],
+            [0, 1, 5],
+            [0, 5, 4],
+            [1, 2, 6],
+            [1, 6, 5],
+            [2, 3, 7],
+            [2, 7, 6],
+            [3, 0, 4],
+            [3, 4, 7],
+        ],
+        length_unit="ft",
+    )
+    with pytest.raises(bt.InvalidInput, match="mesh vertices are in ft and points in m"):
+        cube.contains(data)
+
+
+def test_drillholes_carry_their_length_unit():
+    collar = {"HOLE_ID": ["A"], "X": [0.0], "Y": [0.0], "Z": [0.0]}
+    survey = {"HOLE_ID": ["A"], "DEPTH": [0.0], "AZIMUTH": [0.0], "DIP": [90.0]}
+    intervals = {"HOLE_ID": ["A", "A"], "FROM": [0.0, 1.0], "TO": [1.0, 2.0], "AU": [1.0, 3.0]}
+    holes = bt.Drillholes(collar, survey, intervals, length_unit="ft")
+    composites = holes.composite(2.0, ["AU"])
+    assert (
+        holes.length_unit == "ft" and composites.length_unit == "ft" and holes.samples().length_unit == "ft"
+    )
+    assert composites.units == {"from": "ft", "to": "ft", "length": "ft", "AU_length": "ft"}

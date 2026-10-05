@@ -256,28 +256,94 @@ fn structure(obj: &Bound<PyAny>) -> PyResult<CoreStructure> {
 /// (as in `LocalAnisotropy`) holds one per location; `ratios` are
 /// semi-major/major and minor/major range ratios.
 #[derive(Serialize, Deserialize)]
+#[serde(from = "VariogramRepr", into = "VariogramRepr")]
 #[pyclass(module = "boitata", name = "Variogram", frozen, from_py_object)]
 #[derive(Clone)]
-pub struct Variogram(pub CoreVariogram);
+pub struct Variogram(pub CoreVariogram, pub Units);
+
+/// The length unit of lags and ranges and the unit of the values of a
+/// variogram, both optional.
+#[derive(Clone, Default, Serialize, Deserialize)]
+pub struct Units {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub length_unit: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub unit: Option<String>,
+}
+
+impl Units {
+    /// The units of samples at `coords` with `values`.
+    pub fn of(coords: &Bound<PyAny>, values: &Bound<PyAny>) -> PyResult<Self> {
+        Ok(Self {
+            length_unit: crate::units::length_of(coords)?,
+            unit: crate::units::of(values, Some(coords))?,
+        })
+    }
+}
+
+#[derive(Serialize, Deserialize)]
+struct VariogramRepr {
+    #[serde(flatten)]
+    variogram: CoreVariogram,
+    #[serde(flatten)]
+    units: Units,
+}
+
+impl From<VariogramRepr> for Variogram {
+    fn from(r: VariogramRepr) -> Self {
+        Self(r.variogram, r.units)
+    }
+}
+
+impl From<Variogram> for VariogramRepr {
+    fn from(v: Variogram) -> Self {
+        Self {
+            variogram: v.0,
+            units: v.1,
+        }
+    }
+}
 
 #[pymethods]
 impl Variogram {
     #[new]
-    #[pyo3(signature = (structures, *, nugget=0.0,rotation=(0.0, 0.0, 0.0), ratios=(1.0, 1.0)))]
+    #[pyo3(signature = (structures, *, nugget=0.0,rotation=(0.0, 0.0, 0.0), ratios=(1.0, 1.0), length_unit=None))]
     fn new(
         structures: Vec<Bound<PyAny>>,
         nugget: f64,
         rotation: (f64, f64, f64),
         ratios: (f64, f64),
+        length_unit: Option<String>,
     ) -> PyResult<Self> {
         if nugget < 0.0 {
             return Err(invalid("nugget must be >= 0"));
         }
-        Ok(Self(CoreVariogram {
-            nugget,
-            structures: structures.iter().map(structure).collect::<PyResult<_>>()?,
-            anisotropy: anisotropy(rotation, ratios)?,
-        }))
+        if let Some(u) = &length_unit {
+            boitata_core::units::check_length(u).map_err(invalid)?;
+        }
+        Ok(Self(
+            CoreVariogram {
+                nugget,
+                structures: structures.iter().map(structure).collect::<PyResult<_>>()?,
+                anisotropy: anisotropy(rotation, ratios)?,
+            },
+            Units {
+                length_unit,
+                unit: None,
+            },
+        ))
+    }
+
+    /// Length unit of the lags and ranges; None when not declared.
+    #[getter]
+    fn length_unit(&self) -> Option<String> {
+        self.1.length_unit.clone()
+    }
+
+    /// Unit of the values; semivariances and sills are in its square.
+    #[getter]
+    fn unit(&self) -> Option<String> {
+        self.1.unit.clone()
     }
 
     /// Weighted least-squares fit of a nugget plus one to three nested structures.
@@ -316,7 +382,7 @@ impl Variogram {
         let spec = nested(model, nugget, sills, ranges)?;
         let fitted =
             fit_nested(&experimental.0, &spec, self::weighting(weighting)?).map_err(err)?;
-        Ok(Self(fitted.variogram))
+        Ok(Self(fitted.variogram, experimental.1.clone()))
     }
 
     /// One anisotropic model fitted jointly to experimental variograms in
@@ -382,7 +448,11 @@ impl Variogram {
             self::weighting(weighting)?,
         )
         .map_err(err)?;
-        Ok(Self(fitted.variogram))
+        let units = experimentals
+            .first()
+            .map(|e| e.1.clone())
+            .unwrap_or_default();
+        Ok(Self(fitted.variogram, units))
     }
 
     /// Same structures with a new anisotropy.
@@ -390,7 +460,7 @@ impl Variogram {
     fn with_anisotropy(&self, rotation: (f64, f64, f64), ratios: (f64, f64)) -> PyResult<Self> {
         let mut v = self.0.clone();
         v.anisotropy = anisotropy(rotation, ratios)?;
-        Ok(Self(v))
+        Ok(Self(v, self.1.clone()))
     }
 
     #[getter]
@@ -483,10 +553,22 @@ impl Variogram {
 /// for the covariance estimator, ρ(h) for the correlogram, and is None
 /// otherwise.
 #[pyclass(module = "boitata", name = "ExperimentalVariogram", frozen)]
-pub struct ExperimentalVariogram(pub Experimental);
+pub struct ExperimentalVariogram(pub Experimental, pub Units);
 
 #[pymethods]
 impl ExperimentalVariogram {
+    /// Length unit of the lags and ranges; None when not declared.
+    #[getter]
+    fn length_unit(&self) -> Option<String> {
+        self.1.length_unit.clone()
+    }
+
+    /// Unit of the values; semivariances and sills are in its square.
+    #[getter]
+    fn unit(&self) -> Option<String> {
+        self.1.unit.clone()
+    }
+
     #[getter]
     fn lags<'py>(&self, py: Python<'py>) -> Bound<'py, PyAny> {
         array1(py, self.0.lags.clone()).into_any()
@@ -685,6 +767,7 @@ fn experimental_variogram(
     method: Option<&str>,
     anisotropy: Option<PyRef<crate::lva::LocalAnisotropy>>,
 ) -> PyResult<ExperimentalVariogram> {
+    let units = Units::of(coords, values)?;
     let (bins, estimator) = (bins(lag, max_lag)?, self::estimator(estimator)?);
     if let Some(field) = anisotropy {
         if holes.is_some() || other.is_some() || other_coords.is_some() {
@@ -711,7 +794,7 @@ fn experimental_variogram(
             standardize,
         )
         .map_err(err)?;
-        return Ok(ExperimentalVariogram(exp));
+        return Ok(ExperimentalVariogram(exp, units));
     }
     if holes.is_some() || other_coords.is_some() {
         if method == Some("grid") {
@@ -736,7 +819,7 @@ fn experimental_variogram(
             let dir = direction.as_ref();
             let exp = downhole(&locs, &values, &holes, &bins, estimator, dir, standardize)
                 .map_err(err)?;
-            return Ok(ExperimentalVariogram(exp));
+            return Ok(ExperimentalVariogram(exp, units));
         }
         let (Some(at), Some(other)) = (other_coords, other) else {
             return Err(invalid("other_coords needs other"));
@@ -753,7 +836,7 @@ fn experimental_variogram(
             standardize,
         )
         .map_err(err)?;
-        return Ok(ExperimentalVariogram(exp));
+        return Ok(ExperimentalVariogram(exp, units));
     }
     let values = finite(&column(Some(coords), values, "values")?, "values")?;
     let locs = locations(coords, method)?;
@@ -785,7 +868,7 @@ fn experimental_variogram(
         }
     }
     .map_err(err)?;
-    Ok(ExperimentalVariogram(exp))
+    Ok(ExperimentalVariogram(exp, units))
 }
 
 /// Degree of dissemination per lag, ``√π · M(h) / √γ(h)``.
@@ -829,6 +912,7 @@ pub struct VariogramSet {
     entries: Vec<Vec<Option<Vec<Experimental>>>>,
     names: Vec<Option<String>>,
     directions: Option<Vec<(f64, f64)>>,
+    units: Units,
 }
 
 impl VariogramSet {
@@ -875,7 +959,8 @@ impl VariogramSet {
         let entry = self.entries[i.min(j)][i.max(j)]
             .as_ref()
             .expect("upper triangle");
-        let wrap = |e: &Experimental| Bound::new(py, ExperimentalVariogram(e.clone()));
+        let wrap =
+            |e: &Experimental| Bound::new(py, ExperimentalVariogram(e.clone(), self.units.clone()));
         if self.directions.is_none() {
             return Ok(wrap(&entry[0])?.into_any());
         }
@@ -963,6 +1048,10 @@ fn experimental_variograms(
         entries,
         names: values.iter().map(|v| v.extract().ok()).collect(),
         directions,
+        units: Units {
+            length_unit: crate::units::length_of(coords)?,
+            unit: None,
+        },
     })
 }
 
@@ -1008,7 +1097,11 @@ fn _realization_variograms(
         experimental_realizations(locs.support(), &rows, &bins, m, &cones, false).map_err(err)?;
     Ok(out
         .into_iter()
-        .map(|r| r.into_iter().map(ExperimentalVariogram).collect())
+        .map(|r| {
+            r.into_iter()
+                .map(|e| ExperimentalVariogram(e, Default::default()))
+                .collect()
+        })
         .collect())
 }
 
