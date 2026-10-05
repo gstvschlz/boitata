@@ -16,6 +16,7 @@ from boitata._boitata import (
     _conversion,
     _DrillholePlan,
     _Estimator,
+    _quantity,
     assign_domain,
     point_in_polygon,
 )
@@ -61,6 +62,13 @@ def _parameters_unit(search, variogram_unit):
     return units.pop() if units else None
 
 
+def _undeclared(search, variogram):
+    """What, of the searches and the variogram, declares no length unit."""
+    searches = search if isinstance(search, list | tuple) else [search]
+    out = ["a search"] if any(s.length_unit is None for s in searches) else []
+    return out + (["the variogram"] if variogram is not None and variogram.length_unit is None else [])
+
+
 def _moved(coords, unit, data_unit):
     """`coords`, a container or an array in `data_unit`, in `unit` instead; as is when either is unknown."""
     if unit is None or data_unit is None or unit == data_unit:
@@ -68,6 +76,27 @@ def _moved(coords, unit, data_unit):
     if hasattr(coords, "to_length_unit"):
         return coords.to_length_unit(unit, crs=coords.crs)
     return np.asarray(coords, dtype=float) * _conversion(data_unit, unit)
+
+
+def _costs(budget, cost_per_meter, length_unit):
+    """`budget` and `cost_per_meter` as numbers, texts such as ``"2 MUSD"`` and ``"120 USD/m"`` converted so a hole
+    costs its length times `cost_per_meter` in the unit of `budget`."""
+    cost = length_unit
+    if isinstance(cost_per_meter, str):
+        cost_per_meter, unit = _quantity(cost_per_meter)
+        if length_unit is None:
+            raise InvalidInput(f"cost_per_meter is in {unit}; give the candidates a length_unit")
+        cost = f"({unit})*({length_unit})"
+    elif cost_per_meter is not None:
+        cost = None
+    if isinstance(budget, str):
+        budget, unit = _quantity(budget)
+        if cost is None:
+            raise InvalidInput(
+                f"budget is in {unit}, but the cost of a hole has no unit; give cost_per_meter one"
+            )
+        budget *= _conversion(unit, cost)
+    return budget, cost_per_meter
 
 
 def _labelled(table, units):
@@ -184,6 +213,7 @@ class _Base:
         self._engine = _Estimator(method, search, variogram, **options)
         self._variogram_unit = getattr(variogram, "length_unit", None)
         self._length_unit = _parameters_unit(search, self._variogram_unit)
+        self._undeclared = _undeclared(search, variogram)
 
     @property
     def unit(self) -> str | None:
@@ -219,6 +249,13 @@ class _Base:
         """
         self._unit = unit_of(values, coords)
         self._coords_unit = getattr(coords, "length_unit", None)
+        length = getattr(self, "_length_unit", None)
+        moving = length and self._coords_unit and length != self._coords_unit
+        if moving and getattr(self, "_undeclared", None):
+            raise InvalidInput(
+                f"the samples are in {self._coords_unit} and lengths given in {length}, but "
+                f"{' and '.join(self._undeclared)} declare no length unit; give them length_unit"
+            )
         self._engine.fit(
             _moved(coords, getattr(self, "_length_unit", None), self._coords_unit),
             values,
@@ -380,8 +417,24 @@ class IndicatorKriging(_Base):
 
     _estimate_unit = "ratio"
 
-    def __init__(self, variogram: Variogram, search: Searches, threshold: float):
-        super().__init__("indicator", search, variogram, threshold=threshold)
+    def __init__(self, variogram: Variogram, search: Searches, threshold: float | str):
+        """`threshold` is in the unit of the values, or text such as ``"1 g/t"`` converted to it at `fit`."""
+        self._threshold, self._parameters = threshold, (search, variogram)
+        super().__init__(
+            "indicator", search, variogram, threshold=0.0 if isinstance(threshold, str) else threshold
+        )
+
+    def fit(self, coords, values, **kwargs):
+        if isinstance(getattr(self, "_threshold", None), str):
+            value, unit = _quantity(self._threshold)
+            data = unit_of(values, coords)
+            if data is None:
+                raise InvalidInput(f"threshold is in {unit}, but the values have no unit to convert it to")
+            search, variogram = self._parameters
+            self._engine = _Estimator(
+                "indicator", search, variogram, threshold=value * _conversion(unit, data)
+            )
+        return super().fit(coords, values, **kwargs)
 
 
 class UniversalKriging(_Base):
@@ -785,10 +838,11 @@ class DrillholePlan:
         objectives skip blocks of weight 0.
     n_holes : int, optional
         Most holes in a plan.
-    budget : float, optional
-        Most total cost of a plan.
-    cost_per_meter : float, optional
-        Cost of a hole per meter of its length; without it a hole costs its length, so `budget` is in meters.
+    budget : float or str, optional
+        Most total cost of a plan, or text such as ``"2 MUSD"`` or ``"5000 m"`` converted to the cost of a hole.
+    cost_per_meter : float or str, optional
+        Cost of a hole per meter of its length, or text such as ``"120 USD/m"`` with candidates in a `length_unit`;
+        without it a hole costs its length, so `budget` is in meters. Currencies never convert into each other.
     min_spacing : float
         Least distance in plan between the collars of two holes of a plan.
     exclude : array_like, Polylines, Mesh or a sequence of them, optional
@@ -823,8 +877,8 @@ class DrillholePlan:
         rules=None,
         weights=None,
         n_holes: int | None = None,
-        budget: float | None = None,
-        cost_per_meter: float | None = None,
+        budget: float | str | None = None,
+        cost_per_meter: float | str | None = None,
         min_spacing: float = 0.0,
         exclude=None,
         composite_length: float | None = None,
@@ -870,6 +924,7 @@ class DrillholePlan:
         self._collars = candidates.at(self._holes, np.zeros(len(self._holes)))
         self._length = np.array([paths["depth"][names == h].max() for h in self._holes])
         self._azimuth, self._dip = _directions(paths, names, self._holes)
+        budget, cost_per_meter = _costs(budget, cost_per_meter, candidates.length_unit)
         self._n_holes, self._budget = n_holes, budget
         self._cost = self._length * (1.0 if cost_per_meter is None else float(cost_per_meter))
         excluded = np.zeros(len(self._holes), dtype=bool)

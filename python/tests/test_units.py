@@ -337,3 +337,72 @@ def test_recoveries_and_simulated_curves_carry_units():
         "kg metal",
         "ratio",
     )
+
+
+def test_parameters_take_text_with_units():
+    """Theory check: a parameter in another unit gives the result of its value converted."""
+    data = bt.PointSet(samples.coords, samples.attributes, length_unit="m")
+    targets = bt.BlockModel((0, 0, 0), (20, 20, 1), (5, 5, 1), length_unit="m")
+    metres = bt.OrdinaryKriging(variogram, search).fit(data, "au").predict(targets, progress=False)
+    feet_variogram = bt.Variogram([("spherical", 0.25, f"{40 / FT} ft")])
+    feet_search = bt.Search(radius=f"{60 / FT} ft", max_samples=12)
+    assert (feet_variogram.length_unit, feet_search.length_unit) == ("ft", "ft")
+    feet = bt.OrdinaryKriging(feet_variogram, feet_search).fit(data, "au").predict(targets, progress=False)
+    np.testing.assert_allclose(feet, metres, rtol=1e-10)
+    with pytest.raises(bt.InvalidInput, match="the variogram declare no length unit"):
+        bt.OrdinaryKriging(variogram, feet_search).fit(data, "au")
+    ppb = samples.convert_units("au", to="ppb")
+    model = _model("g/t")
+    assert (
+        bt.grade_tonnage("au", ["1 g/t"], data=model)["tonnage"][0]
+        == bt.grade_tonnage("au", [1.0], data=model)["tonnage"][0]
+    )
+    assert bt.grade_tonnage("au", ["1000 ppb"], data=model)["mean_grade"][0] == pytest.approx(
+        bt.grade_tonnage("au", [1.0], data=model)["mean_grade"][0]
+    )
+    dense = bt.grade_tonnage("au", [0.0], data=model, density="2.7 t/m3")
+    assert dense.units["tonnage"] == "kt"
+    with pytest.raises(bt.InvalidInput, match="cutoffs: cannot convert length"):
+        bt.grade_tonnage("au", ["1 m"], data=model)
+    with pytest.raises(bt.InvalidInput, match="the data have no unit"):
+        bt.grade_tonnage([1.0, 2.0], ["1 g/t"])
+    ik = bt.IndicatorKriging(variogram, search, threshold="1000 ppb").fit(samples, "au")
+    same = bt.IndicatorKriging(variogram, search, threshold=1.0).fit(samples, "au")
+    np.testing.assert_array_equal(ik.predict(grid, progress=False), same.predict(grid, progress=False))
+    assert (
+        bt.IndicatorKriging(variogram, search, threshold="1 g/t")
+        .fit(ppb, "au")
+        .predict(grid, progress=False)
+        .unit
+        == "ratio"
+    )
+    experimental = bt.experimental_variogram(data, "au", "10 m", f"{60 / FT} ft")
+    assert experimental.lags.max() < 60
+    sgs = bt.SGS(variogram, search).fit(samples, "au")
+    s = sgs.simulate(grid, n=2, seed=1, cutoffs=["1000 ppb"], progress=False)
+    np.testing.assert_array_equal(
+        s.probability_above, sgs.simulate(grid, n=2, seed=1, cutoffs=[1.0], progress=False).probability_above
+    )
+
+
+def test_drillhole_parameters_take_text_with_units():
+    collar = {"HOLE_ID": ["A"], "X": [0.0], "Y": [0.0], "Z": [0.0]}
+    survey = {"HOLE_ID": ["A"], "DEPTH": [0.0], "AZIMUTH": [0.0], "DIP": [90.0]}
+    intervals = bt.Table(
+        {"HOLE_ID": ["A"] * 4, "FROM": [0.0, 1, 2, 3], "TO": [1.0, 2, 3, 4], "AU": [1.0, 3, 0.1, 2]}
+    )
+    holes = bt.Drillholes(collar, survey, intervals.with_units({"AU": "g/t"}), length_unit="m")
+    assert len(holes.composite(f"{2 / FT} ft", ["AU"])) == len(holes.composite(2.0, ["AU"])) == 2
+    assert holes.runs("AU", cutoff="1000 ppb").to_polars().equals(holes.runs("AU", cutoff=1.0).to_polars())
+
+
+def test_drilling_costs_and_budgets_take_currencies():
+    from boitata.estimation import _costs
+
+    assert _costs("2 MUSD", "120 USD/m", "m") == (pytest.approx(2e6), 120.0)
+    assert _costs("2 MUSD", "120 USD/ft", "m")[0] == pytest.approx(2e6 * FT)
+    assert _costs("5000 ft", None, "m") == (pytest.approx(5000 * FT), None)
+    with pytest.raises(bt.InvalidInput, match="cannot convert BRL"):
+        _costs("1 MBRL", "120 USD/m", "m")
+    with pytest.raises(bt.InvalidInput, match="give the candidates a length_unit"):
+        _costs(None, "120 USD/m", None)

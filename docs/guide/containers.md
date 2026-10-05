@@ -61,7 +61,9 @@ if a file marks missing values some other way, pass `nodata=`. it replaces the d
 
 ## units
 
-a column can carry a unit. `read_csv` reads one from a header such as `Au [g/t]` or `Au (g/t)`, `units=` gives one to a column the file leaves bare, and `bt.set_units(columns={"Au": "g/t"})` declares them once for a project. `with_units` sets them by hand, and `convert_units` rescales a column within its kind. grades, ratios, metal, ore mass and each currency are separate kinds, so converting `%` to `ratio%` or `kg metal` to `t` raises `InvalidInput`. the [units example](../examples/02-data-and-geometry/25-units/example_02_25.md) walks through them.
+a column can carry a unit. `read_csv` reads one from a header such as `Au [g/t]` or `Au (g/t)`, `units=` gives one to a column the file leaves bare, and `bt.set_units(columns={"Au": "g/t"})` declares them once for a project. `with_units` sets them by hand, and `convert_units` rescales a column within its kind. grades, ratios, metal, ore mass and each currency are separate kinds, so converting `%` to `ratio%` or `kg metal` to `t` raises `InvalidInput`. coordinates carry a `length_unit` too, and `to_length_unit` converts them.
+
+a parameter takes a number in the unit of the data, or text such as `"150 ft"` or `"0.5 g/t"` converted to it: the `Search` radius, `Variogram` ranges, `experimental_variogram` lags, `composite` lengths, cutoffs of `grade_tonnage`, `compare_models`, `runs` and the simulations, the `IndicatorKriging` threshold, densities such as `"2.7 t/m3"`, and the `DrillholePlan` budget and cost per meter (`"2 MUSD"`, `"120 USD/m"`). the [units example](../examples/02-data-and-geometry/25-units/example_02_25.md) walks through them.
 
 !!! pitfall "pitfall"
     statistics such as `describe` skip nulls, but estimators, transforms and variograms refuse them: `fit` raises `InvalidInput: values must be finite; drop missing values first`. keep the rows that have a value before you fit:

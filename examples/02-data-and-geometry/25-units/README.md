@@ -217,4 +217,26 @@ shape: (3, 4)
 └────────┴──────────┴────────────┴────────────┘
 ```
 
+## parameters with units
+
+a parameter takes a number in the unit of the data, or text with its own unit. a cutoff in ppm on grades in percent
+and a search radius in feet both convert.
+
+<details><summary>Python</summary>
+
+```python
+in_ppm = bt.grade_tonnage("ZN", ["20000 ppm"], data=grid, density="DENSITY")
+in_percent = bt.grade_tonnage("ZN", [2.0], data=grid, density="DENSITY")
+print(in_ppm["tonnage"], in_percent["tonnage"])
+search = bt.Search(radius="200 ft", max_samples=12)
+print(search.radius, search.length_unit)
+```
+
+</details>
+
+```text
+[15.33725] [15.33725]
+200.0 ft
+```
+
 Full script: [`example_02_25.py`](example_02_25.py)

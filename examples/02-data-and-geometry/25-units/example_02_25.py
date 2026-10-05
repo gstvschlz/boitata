@@ -137,3 +137,16 @@ grid = grid.with_column("DENSITY", np.full(len(grid), 3.1), unit="t/m3")
 curve = bt.grade_tonnage("ZN", [0.0, 2.0, 4.0], data=grid, density="DENSITY")
 print(curve.units)
 print(curve.to_polars())
+
+# %% [markdown]
+# ## parameters with units
+#
+# a parameter takes a number in the unit of the data, or text with its own unit. a cutoff in ppm on grades in percent
+# and a search radius in feet both convert.
+
+# %%
+in_ppm = bt.grade_tonnage("ZN", ["20000 ppm"], data=grid, density="DENSITY")
+in_percent = bt.grade_tonnage("ZN", [2.0], data=grid, density="DENSITY")
+print(in_ppm["tonnage"], in_percent["tonnage"])
+search = bt.Search(radius="200 ft", max_samples=12)
+print(search.radius, search.length_unit)

@@ -191,7 +191,8 @@ fn describe_by(
 /// values : array_like or str
 ///     Grades, or their column in `data`; NaN is skipped.
 /// cutoffs : array_like
-///     Cutoff grades; ``-inf`` keeps everything.
+///     Cutoff grades in the unit of the values, or texts such as
+///     ``"0.5 g/t"``; ``-inf`` keeps everything.
 /// weights : array_like or str, optional
 ///     Volume or declustering weight of each value; default the volumes of a
 ///     BlockModel `data`, else 1.
@@ -229,7 +230,7 @@ fn grade_tonnage(
     let n = values.len();
     let w = weights_or_volumes(data, weights, n)?;
     let density = optional_per_row(data, density, n, "density")?;
-    let cutoffs = floats(cutoffs, "cutoffs")?;
+    let cutoffs = crate::units::values(cutoffs, grade.as_deref(), "cutoffs")?;
     let (names, rows) = match categories {
         None => {
             let r = eda::grade_tonnage(&values, w.as_deref(), density.as_deref(), &cutoffs);
@@ -567,7 +568,8 @@ fn block_tonnes(
 ///     Columns of `model` holding the grades of each model, or model names to
 ///     columns or grades; NaN is skipped.
 /// cutoffs : array_like
-///     Cutoff grades; ``-inf`` keeps everything.
+///     Cutoff grades in the unit of the values, or texts such as
+///     ``"0.5 g/t"``; ``-inf`` keeps everything.
 /// categories : array_like or str, optional
 ///     Category (e.g. class or domain) of each block, int or str, or its column.
 /// reference : str, optional
@@ -624,12 +626,14 @@ fn compare_models(
         .map(|c| self::categories(&column(Some(model), c, "categories")?, n))
         .transpose()?
         .unwrap_or_default();
+    let grade = grade_units.first().cloned().flatten();
+    let grade = grade.filter(|g| grade_units.iter().all(|u| u.as_deref() == Some(g.as_str())));
     let slices: Vec<&[f64]> = grades.iter().map(Vec::as_slice).collect();
     let rows = eda::compare_models(
         &slices,
         categories.map(|_| &codes[..]),
         Some(&tonnes),
-        &floats(cutoffs, "cutoffs")?,
+        &crate::units::values(cutoffs, grade.as_deref(), "cutoffs")?,
         reference,
     )
     .map_err(invalid)?;
@@ -646,8 +650,6 @@ fn compare_models(
     columns.push(("tonnage_diff".into(), col(|r| r.tonnage_diff)));
     columns.push(("grade_diff".into(), col(|r| r.grade_diff)));
     columns.push(("metal_diff".into(), col(|r| r.metal_diff)));
-    let grade = grade_units.first().cloned().flatten();
-    let grade = grade.filter(|g| grade_units.iter().all(|u| u.as_deref() == Some(g.as_str())));
     let keyed: Vec<(Option<u32>, ())> = rows.iter().map(|r| (r.category, ())).collect();
     let batch = table("category", &names, &keyed, columns)?.0;
     let ratios = ["tonnage_diff", "grade_diff", "metal_diff"];

@@ -291,9 +291,9 @@ impl Drillholes {
     ///
     /// Parameters
     /// ----------
-    /// length : float or None
-    ///     Composite length in meters; None gives one composite per run of
-    ///     `domain`.
+    /// length : float, str or None
+    ///     Composite length in the length unit of the holes, or text such as
+    ///     ``"2 m"``; None gives one composite per run of `domain`.
     /// grades : sequence of str
     ///     Numeric columns, averaged over the length that carries a value.
     /// domain : str, optional
@@ -320,7 +320,7 @@ impl Drillholes {
     fn composite(
         &self,
         py: Python,
-        length: Option<f64>,
+        length: Option<&Bound<PyAny>>,
         grades: Vec<String>,
         domain: Option<&str>,
         intervals: Option<&Bound<PyAny>>,
@@ -328,6 +328,9 @@ impl Drillholes {
         min_fraction: f64,
         categories: Vec<String>,
     ) -> PyResult<PyPointSet> {
+        let length = length
+            .map(|l| crate::units::value(l, self.length_unit.as_deref(), "length"))
+            .transpose()?;
         let residual = match residual {
             "keep" => Residual::Keep,
             "drop" => Residual::Drop,
@@ -541,13 +544,20 @@ impl Drillholes {
         &self,
         py: Python,
         grade: Option<&str>,
-        cutoff: Option<f64>,
+        cutoff: Option<&Bound<PyAny>>,
         category: Option<&str>,
         ore: Vec<String>,
         min_length: f64,
         max_dilution: f64,
         edge: f64,
     ) -> PyResult<Table> {
+        let grade_unit = match (grade, &self.intervals) {
+            (Some(g), Some((t, ..))) => boitata_core::units::unit(t, g).ok().flatten(),
+            _ => None,
+        };
+        let cutoff = cutoff
+            .map(|c| crate::units::value(c, grade_unit.as_deref(), "cutoff"))
+            .transpose()?;
         if cutoff.is_some_and(|c| !c.is_finite()) {
             return Err(invalid("cutoff must be a finite number"));
         }

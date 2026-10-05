@@ -6,10 +6,13 @@ use pyo3::prelude::*;
 
 use crate::invalid;
 
-/// The unit of `values`: its `unit` attribute, or the unit of the column of
-/// `data` it names.
+/// The unit of `values`: its `unit` attribute, the unit of a quantity such
+/// as "2.7 t/m3", or the unit of the column of `data` it names.
 pub fn of(values: &Bound<PyAny>, data: Option<&Bound<PyAny>>) -> PyResult<Option<String>> {
     if let Ok(name) = values.extract::<String>() {
+        if let Ok((_, unit)) = boitata_core::units::quantity(&name) {
+            return Ok(Some(unit));
+        }
         let Some(units) = data.and_then(|d| d.getattr("units").ok()) else {
             return Ok(None);
         };
@@ -49,6 +52,55 @@ pub fn common_length(units: impl IntoIterator<Item = Option<String>>) -> PyResul
 pub fn check_against(own: Option<&str>, other: &Bound<PyAny>, names: (&str, &str)) -> PyResult<()> {
     boitata_core::units::same_length_unit((names.0, own), (names.1, length_of(other)?.as_deref()))
         .map_err(invalid)
+}
+
+/// Whether `obj` is text holding a quantity such as "2.7 t/m3", rather than
+/// a column name.
+pub fn is_quantity(obj: &Bound<PyAny>) -> bool {
+    obj.extract::<String>()
+        .is_ok_and(|t| boitata_core::units::quantity(&t).is_ok())
+}
+
+/// `obj`, a number or text such as "150 ft", and the unit the text gives;
+/// for parameters whose unit is their own.
+pub fn given(obj: &Bound<PyAny>, what: &str) -> PyResult<(f64, Option<String>)> {
+    if let Ok(v) = obj.extract::<f64>() {
+        return Ok((v, None));
+    }
+    let text: String = obj
+        .extract()
+        .map_err(|_| invalid(format!("{what} must be a number or text such as '150 ft'")))?;
+    let (v, u) =
+        boitata_core::units::quantity(&text).map_err(|e| invalid(format!("{what}: {e}")))?;
+    Ok((v, Some(u)))
+}
+
+/// `obj`, a number in `unit` or text such as "150 ft", as a number in
+/// `unit`; text needs `unit` known.
+pub fn value(obj: &Bound<PyAny>, unit: Option<&str>, what: &str) -> PyResult<f64> {
+    match (given(obj, what)?, unit) {
+        ((v, None), _) => Ok(v),
+        ((v, Some(from)), Some(to)) => boitata_core::units::conversion(&from, to)
+            .map(|k| v * k)
+            .map_err(|e| invalid(format!("{what}: {e}"))),
+        ((_, Some(from)), None) => Err(invalid(format!(
+            "{what} is in {from}, but the data have no unit to convert it to; declare theirs"
+        ))),
+    }
+}
+
+/// As [`value`], for each item of `obj`.
+pub fn values(obj: &Bound<PyAny>, unit: Option<&str>, what: &str) -> PyResult<Vec<f64>> {
+    if let Ok(v) = obj.extract::<Vec<f64>>() {
+        return Ok(v);
+    }
+    if obj.extract::<String>().is_ok() {
+        return Ok(vec![value(obj, unit, what)?]);
+    }
+    obj.try_iter()
+        .map_err(|_| invalid(format!("{what} must be numbers or texts such as '0.5 g/t'")))?
+        .map(|item| value(&item?, unit, what))
+        .collect()
 }
 
 /// `array` tagged with `unit`, or `array` itself without one.
