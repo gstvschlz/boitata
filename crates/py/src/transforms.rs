@@ -72,7 +72,9 @@ fn map<'py>(py: Python<'py>, values: Vec<f64>, f: impl Fn(f64) -> f64) -> Bound<
     array1(py, values.into_iter().map(f).collect()).into_any()
 }
 
-fn recoveries(r: &[Recovery]) -> PyResult<Table> {
+/// Recoveries as a table: `tonnage` a proportion, the other columns in the
+/// unit of the grades when known.
+fn recoveries(r: &[Recovery], grade: Option<&str>) -> PyResult<Table> {
     let col = |f: fn(&Recovery) -> f64| -> ArrayRef {
         Arc::new(
             r.iter()
@@ -87,7 +89,15 @@ fn recoveries(r: &[Recovery]) -> PyResult<Table> {
         ("metal", col(|r| r.metal)),
         ("benefit", col(|r| r.benefit)),
     ];
-    Ok(Table(RecordBatch::try_from_iter(columns).map_err(invalid)?))
+    let batch = RecordBatch::try_from_iter(columns).map_err(invalid)?;
+    let units = [
+        ("tonnage", Some("ratio")),
+        ("cutoff", grade),
+        ("mean_grade", grade),
+        ("metal", grade),
+        ("benefit", grade),
+    ];
+    Ok(Table(crate::units::label(batch, &units)?))
 }
 
 /// Normal-score transform through the (weighted) empirical CDF, or through a
@@ -308,6 +318,9 @@ impl NormalScore {
 pub struct Anamorphosis {
     degree: usize,
     fitted: Option<HermiteAnamorphosis>,
+    /// Unit of the fitted values.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    unit: Option<String>,
 }
 
 impl Anamorphosis {
@@ -325,6 +338,7 @@ impl Anamorphosis {
         Self {
             degree: a.degree(),
             fitted: Some(a),
+            unit: None,
         }
     }
 }
@@ -349,6 +363,7 @@ impl Anamorphosis {
         Self {
             degree,
             fitted: None,
+            unit: None,
         }
     }
 
@@ -360,6 +375,7 @@ impl Anamorphosis {
         weights: Option<&Bound<PyAny>>,
         data: Option<&Bound<PyAny>>,
     ) -> PyResult<PyRefMut<'py, Self>> {
+        slf.unit = crate::units::of(values, data)?;
         let values = one(data, values, "values")?;
         let weights = weights_arg(data, weights, values.len())?;
         let a = HermiteAnamorphosis::fit(&values, weights.as_deref(), slf.degree).map_err(err)?;
@@ -399,7 +415,8 @@ impl Anamorphosis {
         data: Option<&Bound<PyAny>>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let a = self.fitted()?;
-        Ok(map(py, one(data, scores, "scores")?, |y| a.back(y)))
+        let values = map(py, one(data, scores, "scores")?, |y| a.back(y));
+        crate::units::tag(values, self.unit.as_deref())
     }
 
     #[getter]
@@ -422,7 +439,10 @@ impl Anamorphosis {
         if !(r > 0.0 && r <= 1.0) {
             return Err(invalid("r must be in (0, 1]"));
         }
-        Ok(Self::from_inner(self.fitted()?.block(r)))
+        Ok(Self {
+            unit: self.unit.clone(),
+            ..Self::from_inner(self.fitted()?.block(r))
+        })
     }
 
     /// Recoveries above each cutoff, as proportions of the whole.
@@ -435,7 +455,10 @@ impl Anamorphosis {
     ///     ``metal - cutoff × tonnage``.
     fn grade_tonnage(&self, cutoffs: &Bound<PyAny>) -> PyResult<Table> {
         let cutoffs = finite(cutoffs, "cutoffs")?;
-        recoveries(&transforms::grade_tonnage(self.fitted()?, &cutoffs))
+        recoveries(
+            &transforms::grade_tonnage(self.fitted()?, &cutoffs),
+            self.unit.as_deref(),
+        )
     }
 }
 
@@ -1541,7 +1564,7 @@ impl UniformConditioning {
             .0
             .panel_recovery(panel_grade, estimate_variance, &cutoffs)
             .map_err(err)?;
-        recoveries(&r)
+        recoveries(&r, None)
     }
 
     /// Grades of the selective blocks of one panel, ascending.
@@ -1634,7 +1657,7 @@ impl UniformConditioning {
                 benefit,
             })
             .collect();
-        recoveries(&global)
+        recoveries(&global, None)
     }
 
     /// Localized grades of the selective blocks nested in the panels.

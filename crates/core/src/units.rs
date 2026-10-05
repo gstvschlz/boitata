@@ -355,6 +355,41 @@ pub fn conversion(from: &str, to: &str) -> Result<f64> {
     scale((from, &parse(from)?), (to, &parse(to)?))
 }
 
+/// The units a mass of ore reads in, smallest first.
+pub const TONNAGE: [&str; 3] = ["t", "kt", "Mt"];
+
+/// The units the metal of ore with grades in `grade` reads in, smallest
+/// first: troy ounces for `oz/t`, pounds for `lb/st`, tonnes for `%`.
+pub fn metal_units(grade: &str) -> [&'static str; 3] {
+    match grade.trim() {
+        "oz/t" => ["oz metal", "koz metal", "Moz metal"],
+        "lb/st" => ["lb metal", "klb metal", "Mlb metal"],
+        "%" => ["kg metal", "t metal", "kt metal"],
+        _ => ["g metal", "kg metal", "t metal"],
+    }
+}
+
+/// The unit of `family` (smallest first) that `values`, in `unit`, read
+/// best in: the largest where the median non-zero magnitude is at least 1.
+/// Returns it with the factor taking the values there.
+pub fn autoscale(values: &[f64], unit: &str, family: &[&str]) -> Result<(String, f64)> {
+    let mut magnitudes: Vec<f64> = values
+        .iter()
+        .map(|v| v.abs())
+        .filter(|v| v.is_finite() && *v > 0.0)
+        .collect();
+    magnitudes.sort_by(f64::total_cmp);
+    let median = magnitudes.get(magnitudes.len() / 2).copied().unwrap_or(0.0);
+    let mut best = (family[0].to_string(), conversion(unit, family[0])?);
+    for to in &family[1..] {
+        let factor = conversion(unit, to)?;
+        if median * factor >= 1.0 {
+            best = (to.to_string(), factor);
+        }
+    }
+    Ok(best)
+}
+
 /// Errors unless `unit` is a length, as coordinates need.
 pub fn check_length(unit: &str) -> Result<()> {
     let parsed = parse(unit)?;
@@ -515,6 +550,20 @@ mod tests {
         assert!(same(&(&u("t/m3") / &u("g/cm3")), &u("ratio")));
         assert!(same(&u("(g/t)^2"), &(&u("g/t") * &u("g/t"))));
         assert!(same(&u("m²"), &u("m^2")) && same(&u("m^-1"), &(&u("m") / &u("m2"))));
+    }
+
+    #[test]
+    fn autoscale_picks_the_largest_unit_the_values_reach() {
+        let (unit, k) = autoscale(&[2.0e6, 3.0e6, 0.0], "t", &TONNAGE).unwrap();
+        assert_eq!((unit.as_str(), k), ("Mt", 1e-6));
+        let (unit, _) = autoscale(&[500.0], "t", &TONNAGE).unwrap();
+        assert_eq!(unit, "t");
+        let tonnes_times_grade = "t*(oz/t)";
+        let (unit, k) = autoscale(&[3.2e6], tonnes_times_grade, &metal_units("oz/t")).unwrap();
+        assert_eq!(unit, "Moz metal");
+        assert!((3.2e6 * k - 3.2e6 * TROY_OUNCE / SHORT_TON / (TROY_OUNCE * 1e6)).abs() < 1e-12);
+        assert_eq!(autoscale(&[], "t", &TONNAGE).unwrap().0, "t");
+        assert!(autoscale(&[1.0], "m", &TONNAGE).is_err());
     }
 
     #[test]

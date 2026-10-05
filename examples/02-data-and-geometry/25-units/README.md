@@ -187,4 +187,34 @@ largest difference from the estimate in metres: 1.6e-11 %
 samples are in m and targets in ft; convert one with to_length_unit('m')
 ```
 
+## tonnage and metal
+
+with the block size in metres and a density in `t/m3`, `grade_tonnage` knows that tonnage is a mass: it reads in
+t, kt or Mt and metal in the units of the grade's metal, whichever reads best. metal never converts to ore tonnes.
+
+<details><summary>Python</summary>
+
+```python
+grid = grid.with_column("DENSITY", np.full(len(grid), 3.1), unit="t/m3")
+curve = bt.grade_tonnage("ZN", [0.0, 2.0, 4.0], data=grid, density="DENSITY")
+print(curve.units)
+print(curve.to_polars())
+```
+
+</details>
+
+```text
+{'cutoff': '%', 'tonnage': 'Mt', 'mean_grade': '%', 'metal': 'kt metal'}
+shape: (3, 4)
+┌────────┬──────────┬────────────┬────────────┐
+│ cutoff ┆ tonnage  ┆ mean_grade ┆ metal      │
+│ ---    ┆ ---      ┆ ---        ┆ ---        │
+│ f64    ┆ f64      ┆ f64        ┆ f64        │
+╞════════╪══════════╪════════════╪════════════╡
+│ 0.0    ┆ 77.4876  ┆ 1.107841   ┆ 858.439493 │
+│ 2.0    ┆ 15.33725 ┆ 4.341728   ┆ 665.90172  │
+│ 4.0    ┆ 6.83705  ┆ 6.166689   ┆ 421.619582 │
+└────────┴──────────┴────────────┴────────────┘
+```
+
 Full script: [`example_02_25.py`](example_02_25.py)

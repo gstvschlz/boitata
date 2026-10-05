@@ -125,3 +125,15 @@ try:
     kriging.predict(grid.to_length_unit("ft"), progress=False)
 except bt.InvalidInput as error:
     print(error)
+
+# %% [markdown]
+# ## tonnage and metal
+#
+# with the block size in metres and a density in `t/m3`, `grade_tonnage` knows that tonnage is a mass: it reads in
+# t, kt or Mt and metal in the units of the grade's metal, whichever reads best. metal never converts to ore tonnes.
+
+# %%
+grid = grid.with_column("DENSITY", np.full(len(grid), 3.1), unit="t/m3")
+curve = bt.grade_tonnage("ZN", [0.0, 2.0, 4.0], data=grid, density="DENSITY")
+print(curve.units)
+print(curve.to_polars())

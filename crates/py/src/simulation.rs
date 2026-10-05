@@ -46,6 +46,29 @@ fn matrix<'py, T: numpy::Element + Copy>(
         .into_pyarray(py)
 }
 
+/// Unit of the tonnes per row of a `simulate` grade–tonnage: that of
+/// `tonnage`, or the volume of the blocks times that of `density`; None when
+/// either is unknown.
+fn tonnes_unit(
+    targets: &Bound<PyAny>,
+    blocks: Option<&PyBlockModel>,
+    density: Option<&Bound<PyAny>>,
+    tonnage: Option<&Bound<PyAny>>,
+) -> PyResult<Option<String>> {
+    if let Some(t) = tonnage {
+        return crate::units::of(t, Some(targets));
+    }
+    let Some(d) = density else { return Ok(None) };
+    let length = match blocks {
+        Some(b) => b.0.length_unit.clone(),
+        None if targets.cast::<PyBlockModel>().is_ok() => crate::units::length_of(targets)?,
+        None => None,
+    };
+    Ok(length
+        .zip(crate::units::of(d, Some(targets))?)
+        .map(|(l, d)| format!("({l})^3*({d})")))
+}
+
 /// `keep=`: False, True or 0-based realization indices.
 /// Grade–tonnage options of a continuous `simulate`, on `support`: the
 /// blocks when simulating to them, else the targets. Tonnes per row from
@@ -140,7 +163,13 @@ fn int_rows(rows: &[Vec<usize>]) -> Vec<Vec<i64>> {
 /// variable. Per-cutoff and per-quantile arrays have one row per target and
 /// one column per cutoff or quantile.
 #[pyclass(module = "boitata", name = "SimulationSummary", frozen)]
-pub struct SimulationSummary(ContinuousSummary, Option<Vec<args::Label>>, Option<String>);
+pub struct SimulationSummary(
+    ContinuousSummary,
+    Option<Vec<args::Label>>,
+    Option<String>,
+    /// Unit of the tonnes per row of the grade–tonnage curves.
+    Option<String>,
+);
 
 /// The length unit `variogram` and `searches` declare; they must agree.
 fn parameters_unit(
@@ -154,7 +183,7 @@ fn parameters_unit(
 
 impl From<ContinuousSummary> for SimulationSummary {
     fn from(summary: ContinuousSummary) -> Self {
-        Self(summary, None, None)
+        Self(summary, None, None, None)
     }
 }
 
@@ -274,6 +303,12 @@ impl SimulationSummary {
             ("mean_grade", floats(|r| r.mean_grade)),
         ])
         .map_err(invalid)?;
+        let batch = crate::units::grade_tonnage(
+            batch,
+            self.3.as_deref(),
+            self.2.as_deref(),
+            &["probability"],
+        )?;
         Ok(Table(batch))
     }
 
@@ -1471,6 +1506,7 @@ impl Sgs {
                 nodes,
                 classes: self.classes,
             });
+        let tonnes = tonnes_unit(targets, blocks.as_deref(), density, tonnage)?;
         let (upscale, gt) = summary_rows(
             py,
             targets,
@@ -1546,7 +1582,9 @@ impl Sgs {
                     counter,
                 )
             })?
-            .map(|s| SimulationSummary(s, upscale.labels.clone(), self.unit.clone()))
+            .map(|s| {
+                SimulationSummary(s, upscale.labels.clone(), self.unit.clone(), tonnes.clone())
+            })
             .map_err(err);
         }
         with_progress(py, Some(n as u64), progress, |counter| {
@@ -1592,7 +1630,7 @@ impl Sgs {
                 counter,
             )
         })?
-        .map(|s| SimulationSummary(s, upscale.labels.clone(), self.unit.clone()))
+        .map(|s| SimulationSummary(s, upscale.labels.clone(), self.unit.clone(), tonnes.clone()))
         .map_err(err)
     }
 }
@@ -1946,6 +1984,7 @@ impl Dss {
         let domains = domain_arg(targets, domains, domain_column)?;
         let nodes = realization_domains(fitted, domains.as_ref(), grid.len(), n, "simulate")?;
         let search = resolved(&self.search, fitted)?;
+        let tonnes = tonnes_unit(targets, blocks.as_deref(), density, tonnage)?;
         let (upscale, gt) = summary_rows(
             py,
             targets,
@@ -2029,6 +2068,7 @@ impl Dss {
             summary,
             upscale.labels,
             self.unit.clone(),
+            tonnes,
         ))
     }
 }
@@ -2253,6 +2293,7 @@ impl TurningBands {
         let nodes = realization_domains(fitted, domains.as_ref(), grid.len(), n, "simulate")?;
         let at_nodes = trend_at(d, targets, grid.len(), trend)?;
         let params = self.params(seed, self.resolved()?);
+        let tonnes = tonnes_unit(targets, blocks.as_deref(), density, tonnage)?;
         let (upscale, gt) = summary_rows(
             py,
             targets,
@@ -2307,7 +2348,7 @@ impl TurningBands {
                 counter,
             )
         })?
-        .map(|s| SimulationSummary(s, upscale.labels.clone(), self.unit.clone()))
+        .map(|s| SimulationSummary(s, upscale.labels.clone(), self.unit.clone(), tonnes.clone()))
         .map_err(err)
     }
 
@@ -3663,6 +3704,8 @@ struct ContinuousMeta {
     groups: Option<Vec<args::Label>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     unit: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    tonnes: Option<String>,
 }
 
 /// [`simulation::post::RealizedTonnage`] in the file metadata.
@@ -3695,6 +3738,7 @@ impl Serialize for SimulationSummary {
             }),
             groups: self.1.clone(),
             unit: self.2.clone(),
+            tonnes: self.3.clone(),
         }
         .serialize(s)
     }
@@ -3737,6 +3781,7 @@ impl<'de> Deserialize<'de> for SimulationSummary {
             },
             m.groups,
             m.unit,
+            m.tonnes,
         ))
     }
 }

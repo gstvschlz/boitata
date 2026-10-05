@@ -208,7 +208,11 @@ fn describe_by(
 /// Table
 ///     ``category`` (with `categories`: sorted, then ``"all"``), ``cutoff``,
 ///     ``tonnage``, ``mean_grade`` (null when nothing is above) and ``metal``
-///     (tonnage × mean grade).
+///     (tonnage × mean grade). Cutoffs and grades take the unit of `values`;
+///     when the volumes (block model `length_unit` or `weights`) and the
+///     `density` have units, ``tonnage`` reads in t, kt or Mt and ``metal`` in
+///     the metal units of the grade (``kg metal``, ``koz metal``, ...), each
+///     scaled to read best.
 #[pyfunction]
 #[pyo3(signature = (values, cutoffs, *, weights=None, density=None, categories=None, data=None))]
 fn grade_tonnage(
@@ -219,6 +223,8 @@ fn grade_tonnage(
     categories: Option<&Bound<PyAny>>,
     data: Option<&Bound<PyAny>>,
 ) -> PyResult<Table> {
+    let grade = crate::units::of(values, data)?;
+    let tonnes = tonnes_unit(data, weights, density)?;
     let values = floats(&column(data, values, "values")?, "values")?;
     let n = values.len();
     let w = weights_or_volumes(data, weights, n)?;
@@ -242,10 +248,34 @@ fn grade_tonnage(
         .flat_map(|(c, r)| r.iter().map(move |t| (*c, t)))
         .collect();
     let columns = tonnage_columns(flat.iter().map(|r| r.1));
-    if categories.is_none() {
-        return Ok(Table(RecordBatch::try_from_iter(columns).map_err(invalid)?));
-    }
-    table("category", &names, &flat, columns)
+    let batch = match categories {
+        None => RecordBatch::try_from_iter(columns).map_err(invalid)?,
+        Some(_) => table("category", &names, &flat, columns)?.0,
+    };
+    let batch = crate::units::grade_tonnage(batch, tonnes.as_deref(), grade.as_deref(), &[])?;
+    Ok(Table(batch))
+}
+
+/// Unit of the tonnes `weights × density` stand for: the volume of the
+/// blocks of a BlockModel `data` (or the unit of `weights`) times the unit of
+/// `density`; None when either is unknown.
+fn tonnes_unit(
+    data: Option<&Bound<PyAny>>,
+    weights: Option<&Bound<PyAny>>,
+    density: Option<&Bound<PyAny>>,
+) -> PyResult<Option<String>> {
+    let volume = match (weights, data) {
+        (Some(w), _) => crate::units::of(w, data)?,
+        (None, Some(d)) if d.cast::<PyBlockModel>().is_ok() => {
+            crate::units::length_of(d)?.map(|l| format!("({l})^3"))
+        }
+        _ => None,
+    };
+    let density = density
+        .map(|d| crate::units::of(d, data))
+        .transpose()?
+        .flatten();
+    Ok(volume.zip(density).map(|(v, d)| format!("({v})*({d})")))
 }
 
 /// Codes of `classes` as a scheme reads them: numbers are its codes (NaN for
@@ -562,6 +592,8 @@ fn compare_models(
     reference: Option<&str>,
     density: Option<&Bound<PyAny>>,
 ) -> PyResult<Table> {
+    let tonnes_unit = tonnes_unit(Some(model), None, density)?;
+    let mut grade_units = Vec::new();
     let (n, tonnes) = block_tonnes(model, density)?;
     let items = match columns.hasattr("items")? {
         true => columns.call_method0("items")?,
@@ -576,6 +608,7 @@ fn compare_models(
                 Ok(name) => (name, item),
                 Err(_) => item.extract()?,
             };
+            grade_units.push(crate::units::of(&grades, Some(model))?);
             let grades = per_row(Some(model), &grades, n, &name)?;
             Ok((name, grades))
         })
@@ -613,8 +646,14 @@ fn compare_models(
     columns.push(("tonnage_diff".into(), col(|r| r.tonnage_diff)));
     columns.push(("grade_diff".into(), col(|r| r.grade_diff)));
     columns.push(("metal_diff".into(), col(|r| r.metal_diff)));
+    let grade = grade_units.first().cloned().flatten();
+    let grade = grade.filter(|g| grade_units.iter().all(|u| u.as_deref() == Some(g.as_str())));
     let keyed: Vec<(Option<u32>, ())> = rows.iter().map(|r| (r.category, ())).collect();
-    table("category", &names, &keyed, columns)
+    let batch = table("category", &names, &keyed, columns)?.0;
+    let ratios = ["tonnage_diff", "grade_diff", "metal_diff"];
+    let batch =
+        crate::units::grade_tonnage(batch, tonnes_unit.as_deref(), grade.as_deref(), &ratios)?;
+    Ok(Table(batch))
 }
 
 /// Mean of `values` per slice of `width` along `azimuth` (degrees from north)
