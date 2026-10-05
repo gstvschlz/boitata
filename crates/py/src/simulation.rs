@@ -2939,7 +2939,7 @@ fn correct_distribution<'py>(
 /// ----------
 /// realizations : SimulationSummary or array_like
 ///     A summary simulated with ``keep=``, or ``(n_realizations, targets)``
-///     values. Targets that are NaN in any realization are ignored.
+///     values. Targets that are not finite in any realization are ignored.
 /// n : int
 ///     Number of realizations to select, 1 to the number of realizations.
 /// seed : int
@@ -2954,8 +2954,8 @@ fn correct_distribution<'py>(
 /// Raises
 /// ------
 /// InvalidInput
-///     If a summary holds no realizations, `n` is out of range, or no target
-///     is finite in every realization.
+///     If a summary holds no realizations, `n` is out of range, no target
+///     is finite in every realization, or the distances overflow.
 ///
 /// Examples
 /// --------

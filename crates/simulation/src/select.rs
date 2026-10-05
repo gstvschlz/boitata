@@ -45,6 +45,11 @@ pub fn select_realizations(realizations: &[Vec<f64>], n: usize, seed: u64) -> Re
             })
         })
         .collect();
+    if d.iter().any(|v| !v.is_finite()) {
+        return Err(SimError::InvalidParameters(
+            "distances between realizations overflow; rescale the values".into(),
+        ));
+    }
     let mut medoids = start(&d, m, n, seed);
     swap(&d, m, &mut medoids);
     let mut size = vec![0usize; n];
@@ -201,6 +206,7 @@ mod tests {
         assert!(select_realizations(&reals, 3, 0).is_err());
         assert!(select_realizations(&[vec![1.0], vec![]], 1, 0).is_err());
         assert!(select_realizations(&[vec![f64::NAN], vec![1.0]], 1, 0).is_err());
+        assert!(select_realizations(&[vec![1e200], vec![-1e200]], 1, 0).is_err());
         assert!(select_realizations(&reals, 1, 0).is_ok());
     }
 }
