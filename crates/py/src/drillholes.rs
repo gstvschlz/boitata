@@ -12,6 +12,8 @@ use drillholes::{
     position_at,
 };
 use pyo3::prelude::*;
+
+use crate::units::Quantity;
 use pyo3::types::PyDict;
 use rayon::prelude::*;
 
@@ -536,8 +538,8 @@ impl Drillholes {
     ///     Hole (named as in the constructor), `from`, `to`, `length` (sampled
     ///     length), the grade, and `ore`, one row per run down each hole.
     #[pyo3(signature = (
-        grade, *, cutoff=None, category=None, ore=vec![], min_length=0.0, max_dilution=0.0,
-        edge=0.0
+        grade, *, cutoff=None, category=None, ore=vec![], min_length=Quantity::Number(0.0),
+        max_dilution=Quantity::Number(0.0), edge=Quantity::Number(0.0)
     ))]
     #[allow(clippy::too_many_arguments)]
     fn runs(
@@ -547,10 +549,14 @@ impl Drillholes {
         cutoff: Option<&Bound<PyAny>>,
         category: Option<&str>,
         ore: Vec<String>,
-        min_length: f64,
-        max_dilution: f64,
-        edge: f64,
+        min_length: Quantity,
+        max_dilution: Quantity,
+        edge: Quantity,
     ) -> PyResult<Table> {
+        let length = self.length_unit.as_deref();
+        let min_length = min_length.to(length, "min_length")?;
+        let max_dilution = max_dilution.to(length, "max_dilution")?;
+        let edge = edge.to(length, "edge")?;
         let grade_unit = match (grade, &self.intervals) {
             (Some(g), Some((t, ..))) => boitata_core::units::unit(t, g).ok().flatten(),
             _ => None,

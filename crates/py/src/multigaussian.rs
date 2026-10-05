@@ -145,16 +145,20 @@ impl MultigaussianKriging {
     /// IndicatorSummary
     ///     No thresholds; ``correction`` is 0. NaN where the search found too
     ///     few samples.
-    #[pyo3(signature = (targets, *, cutoffs=vec![], quantiles=vec![], discretization=None, diagnostics=false))]
+    #[pyo3(signature = (targets, *, cutoffs=None, quantiles=vec![], discretization=None, diagnostics=false))]
     fn predict(
         &self,
         py: Python,
         targets: &Bound<PyAny>,
-        cutoffs: Vec<f64>,
+        cutoffs: Option<&Bound<PyAny>>,
         quantiles: Vec<f64>,
         discretization: Option<(usize, usize, usize)>,
         diagnostics: bool,
     ) -> PyResult<IndicatorSummary> {
+        let cutoffs = cutoffs
+            .map(|c| crate::units::values(c, self.unit.as_deref(), "cutoffs"))
+            .transpose()?
+            .unwrap_or_default();
         let (samples, weights) = self.fitted()?;
         let block = match discretization {
             None => None,

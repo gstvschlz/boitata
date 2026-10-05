@@ -250,19 +250,23 @@ impl MultipleIndicatorKriging {
     /// -------
     /// IndicatorSummary
     ///     NaN where the search found too few samples.
-    #[pyo3(signature = (targets, *, cutoffs=vec![], quantiles=vec![], anisotropy=None, diagnostics=false, discretization=None, progress=true))]
+    #[pyo3(signature = (targets, *, cutoffs=None, quantiles=vec![], anisotropy=None, diagnostics=false, discretization=None, progress=true))]
     #[allow(clippy::too_many_arguments)]
     fn predict(
         &self,
         py: Python,
         targets: &Bound<PyAny>,
-        cutoffs: Vec<f64>,
+        cutoffs: Option<&Bound<PyAny>>,
         quantiles: Vec<f64>,
         anisotropy: Option<PyRef<crate::lva::LocalAnisotropy>>,
         diagnostics: bool,
         discretization: Option<(usize, usize, usize)>,
         progress: bool,
     ) -> PyResult<IndicatorSummary> {
+        let cutoffs = cutoffs
+            .map(|c| crate::units::values(c, self.unit.as_deref(), "cutoffs"))
+            .transpose()?
+            .unwrap_or_default();
         let (samples, weights) = self.fitted()?;
         let block = match discretization {
             None => None,

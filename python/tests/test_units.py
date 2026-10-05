@@ -511,3 +511,39 @@ def test_gis_readers_take_the_project_length_unit(tmp_path):
     with bt.units(length="ft"):
         assert bt.read_shapefile(tmp_path / "p.shp").length_unit == "ft"
     assert bt.read_shapefile(tmp_path / "p.shp", length_unit="m").length_unit == "m"
+
+
+def test_remaining_parameters_take_text_with_units():
+    ppb = samples.convert_units("au", to="ppb")
+    capped = bt.Capping(cap="2 g/t").fit(ppb["au"]).transform(ppb["au"])
+    assert capped.max() == pytest.approx(2000.0) and capped.unit == "ppb"
+    with pytest.raises(bt.InvalidInput, match="no unit to convert them"):
+        bt.Capping(cap="2 g/t").fit(np.asarray(ppb["au"]))
+    data = bt.PointSet(samples.coords, samples.attributes, length_unit="m")
+    np.testing.assert_allclose(
+        bt.swath(data, "au", f"{20 / FT} ft", axis="x")["mean"], bt.swath(data, "au", 20.0, axis="x")["mean"]
+    )
+    np.testing.assert_allclose(
+        bt.cell_declustering(data, "au", cell_size=f"{25 / FT} ft").weights,
+        bt.cell_declustering(data, "au", cell_size=25.0).weights,
+    )
+    model = bt.BlockModel.from_extents(data, size=("10 ft", "10 ft"))
+    assert model.length_unit == "ft"
+    in_metres = bt.BlockModel.from_extents(data, size=(f"{10 * FT} m", 10 * FT), length_unit="m")
+    np.testing.assert_allclose(in_metres.size[:2], [10 * FT, 10 * FT])
+    mik = bt.MultipleIndicatorKriging(variogram, search, [0.8, 1.5]).fit(samples, "au")
+    np.testing.assert_array_equal(
+        mik.predict(grid, cutoffs=["1000 ppb"], progress=False).probability_above,
+        mik.predict(grid, cutoffs=[1.0], progress=False).probability_above,
+    )
+    collar = {"HOLE_ID": ["A"], "X": [0.0], "Y": [0.0], "Z": [0.0]}
+    survey = {"HOLE_ID": ["A"], "DEPTH": [0.0], "AZIMUTH": [0.0], "DIP": [90.0]}
+    intervals = bt.Table(
+        {"HOLE_ID": ["A"] * 4, "FROM": [0.0, 1, 2, 3], "TO": [1.0, 2, 3, 4], "AU": [1.0, 3, 0.1, 2]}
+    )
+    holes = bt.Drillholes(collar, survey, intervals.with_units({"AU": "g/t"}), length_unit="m")
+    assert (
+        holes.runs("AU", cutoff=1.0, max_dilution=f"{1 / FT} ft")
+        .to_polars()
+        .equals(holes.runs("AU", cutoff=1.0, max_dilution=1.0).to_polars())
+    )
