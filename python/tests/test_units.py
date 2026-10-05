@@ -547,3 +547,28 @@ def test_remaining_parameters_take_text_with_units():
         .to_polars()
         .equals(holes.runs("AU", cutoff=1.0, max_dilution=1.0).to_polars())
     )
+
+
+def test_streamed_simulation_writes_its_units(tmp_path):
+    blocks = bt.BlockModel((0, 0, 0), (20, 20, 1), (5, 5, 1), length_unit="m")
+    bt.write_parquet(tmp_path / "in.parquet", blocks)
+    tb = bt.TurningBands(variogram, bands=20).fit(samples, "au")
+    tb.simulate_to_parquet(
+        tmp_path / "in.parquet",
+        tmp_path / "out.parquet",
+        n=2,
+        cutoffs=["1000 ppb"],
+        quantiles=[0.5],
+        keep=True,
+    )
+    out = bt.read_parquet(tmp_path / "out.parquet", progress=False)
+    assert out.units == {
+        "mean": "g/t",
+        "variance": "(g/t)^2",
+        "p_above_1": "ratio",
+        "mean_above_1": "g/t",
+        "q0.5": "g/t",
+        "realization_0": "g/t",
+        "realization_1": "g/t",
+    }
+    assert out.length_unit == "m"

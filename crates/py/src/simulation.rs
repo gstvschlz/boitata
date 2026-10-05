@@ -2419,7 +2419,7 @@ impl TurningBands {
     ///     ``simulate(model.discretize(discretization), blocks=model)``;
     ///     default the centroid. A node takes its block's domain and trend.
     #[allow(clippy::too_many_arguments)]
-    #[pyo3(signature = (path, out, *, n=100, seed=0, cutoffs=vec![], quantiles=vec![], keep=None, rows=1_000_000, domains=None, domain_column=None, trend=None, discretization=None, progress=true))]
+    #[pyo3(signature = (path, out, *, n=100, seed=0, cutoffs=None, quantiles=vec![], keep=None, rows=1_000_000, domains=None, domain_column=None, trend=None, discretization=None, progress=true))]
     fn simulate_to_parquet<'py>(
         &self,
         py: Python<'py>,
@@ -2427,7 +2427,7 @@ impl TurningBands {
         out: std::path::PathBuf,
         n: usize,
         seed: u64,
-        cutoffs: Vec<f64>,
+        cutoffs: Option<&Bound<PyAny>>,
         quantiles: Vec<f64>,
         keep: Option<&Bound<PyAny>>,
         rows: usize,
@@ -2437,6 +2437,11 @@ impl TurningBands {
         discretization: Option<(usize, usize, usize)>,
         progress: bool,
     ) -> PyResult<Bound<'py, pyo3::types::PyDict>> {
+        let unit = self.unit.as_deref();
+        let cutoffs = cutoffs
+            .map(|c| crate::units::values(c, unit, "cutoffs"))
+            .transpose()?
+            .unwrap_or_default();
         let domains = match (domains, domain_column) {
             (Some(_), Some(_)) => return Err(invalid("give one of domains or domain_column")),
             (None, Some(c)) => Some(file_column(py, &path, c, rows)?),
@@ -2460,6 +2465,18 @@ impl TurningBands {
         let blocks = if domains.is_some() { total } else { 0 };
         let nodes = node_domains(self.domains.as_deref(), domains, blocks, method)?;
         let params = self.params(seed, self.resolved()?);
+        let mut units = Vec::new();
+        if let Some(u) = unit {
+            let square = format!("({u})^2");
+            units.push(("mean".to_string(), u.to_string()));
+            units.push(("variance".to_string(), square));
+            for c in &cutoffs {
+                units.push((format!("mean_above_{c}"), u.to_string()));
+                units.push((format!("p_above_{c}"), "ratio".to_string()));
+            }
+            units.extend(quantiles.iter().map(|q| (format!("q{q}"), u.to_string())));
+            units.extend((0..n).map(|k| (format!("realization_{k}"), u.to_string())));
+        }
         let options = ContinuousOptions {
             cutoffs,
             quantiles,
@@ -2486,6 +2503,7 @@ impl TurningBands {
                 &options,
                 rows,
                 discretization,
+                &units,
                 counter,
             )
         })?

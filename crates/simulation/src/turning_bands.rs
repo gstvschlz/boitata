@@ -992,6 +992,7 @@ pub fn turning_bands_to_parquet(
     options: &ContinuousOptions,
     rows: usize,
     discretization: [usize; 3],
+    units: &[(String, String)],
     progress: Option<&boitata_core::Progress>,
 ) -> Result<GlobalSummary> {
     let reader = boitata_io::BlockModelReader::open(&input)?;
@@ -1034,7 +1035,8 @@ pub fn turning_bands_to_parquet(
         reader.layout(),
         reader.crs(),
     )?
-    .with_length_unit(reader.length_unit());
+    .with_length_unit(reader.length_unit())
+    .with_units(units.to_vec());
     let mut global = GlobalSummary {
         realization_mean: vec![0.0; n],
         realization_above: vec![vec![0.0; n]; options.cutoffs.len()],
@@ -1517,6 +1519,7 @@ mod tests {
                     &options,
                     rows,
                     [1, 1, 1],
+                    &[],
                     Some(&bar),
                 )
                 .unwrap();
@@ -1562,6 +1565,7 @@ mod tests {
             &options,
             7,
             [1, 1, 1],
+            &[],
             None,
         );
         assert!(r.is_err());
@@ -1658,6 +1662,7 @@ mod tests {
                             &options,
                             rows,
                             n,
+                            &[],
                             None,
                         )
                     })
@@ -1692,6 +1697,7 @@ mod tests {
             &options,
             4,
             n,
+            &[],
             None,
         );
         assert!(missing.is_err());
