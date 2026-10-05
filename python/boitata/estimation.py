@@ -670,10 +670,10 @@ class DrillholePlan:
     composites in any search pass; only those are re-kriged to evaluate it, and its cached gain is dropped only
     when a change of plan touches them. Results do not depend on the number of threads.
 
-    With `domains`, each block is kriged from the samples of its domain, and of others within `Search` ``soft``,
-    as `predict` does; blocks of a domain without samples stay unestimated until a hole brings it some. A
-    composite of `data` or of a candidate takes the domain of the block it falls in, or of the nearest target
-    outside the blocks or when the targets are points.
+    With domains, each block is kriged from the samples of its domain, and of others within `Search` ``soft``,
+    as `predict` does; blocks of a domain without samples stay unestimated until a hole brings it some. The
+    composites of `data` keep their logged domains; a candidate's composites, which have no log, take the domain
+    of the block they fall in, or of the nearest target outside the blocks or when the targets are points.
 
     Parameters
     ----------
@@ -723,10 +723,14 @@ class DrillholePlan:
     composite_length : float, optional
         Length of the composites of the candidates, and of `data` when Drillholes, and ``c`` of
         ``data_spacing``; by default the median interval length of `data`, which then must be Drillholes.
-    domains : array_like or label, optional
-        Domain label of each target, or one label for all of them, as in `predict`.
-    domain_column : str, optional
-        The column of `targets` holding their domains; instead of `domains`.
+    domains : array_like, label or tuple, optional
+        Domain label of each target, or one label for all of them, as in `predict`; or
+        ``(target_domains, data_domains)``, the second one label per composite of `data`. Without data
+        domains, the composites of `data` are labeled as the candidates'.
+    domain_column : str or tuple of str, optional
+        The column of `targets` and `data` holding their domains, or one name for each,
+        ``(target_column, data_column)``, as in `hole_distance`; instead of `domains`. A Drillholes `data`
+        takes it from its intervals and composites without crossing it.
 
     Raises
     ------
@@ -751,7 +755,7 @@ class DrillholePlan:
         exclude=None,
         composite_length: float | None = None,
         domains=None,
-        domain_column: str | None = None,
+        domain_column: str | tuple[str, str] | None = None,
     ):
         if not isinstance(candidates, Drillholes):
             raise InvalidInput("candidates must be Drillholes")
@@ -761,12 +765,24 @@ class DrillholePlan:
             _, start, end = data.interval_columns
             intervals = data.samples()
             composite_length = float(np.median(intervals[end] - intervals[start]))
+        if domain_column is not None and domains is not None:
+            raise InvalidInput("give one of domains or domain_column")
+        target_column, data_column = (
+            domain_column if isinstance(domain_column, tuple) else (domain_column,) * 2
+        )
+        logged = None
+        if isinstance(domains, tuple):
+            domains, logged = domains
+        elif target_column is not None:
+            domains = column(targets, target_column, "domain_column")
         data_holes = None
         if isinstance(data, Drillholes):
-            composited = data.composite(composite_length, [])
+            composited = data.composite(composite_length, [], domain=data_column)
             hole = composited[data.interval_columns[0]].astype(str)
             data, data_holes = composited.coords, np.unique(hole, return_inverse=True)[1].tolist()
+            logged = logged if data_column is None else composited[data_column]
         elif hasattr(data, "coords"):
+            logged = logged if data_column is None else column(data, data_column, "domain_column")
             data = data.coords
         data = np.asarray(data, dtype=float).reshape(-1, np.shape(data)[-1] if np.size(data) else 3)
         if data.shape[1] == 2:
@@ -790,11 +806,9 @@ class DrillholePlan:
                 excluded |= point_in_polygon(self._collars[:, :2], zone)
         if isinstance(weights, str):
             weights = column(targets, weights, "weights")
-        if domain_column is not None:
-            if domains is not None:
-                raise InvalidInput("give one of domains or domain_column")
-            domains = column(targets, domain_column, "domain_column")
         labels, rule_of = None, None
+        if domains is None and logged is not None:
+            raise InvalidInput("domains of the data need domains of the targets")
         if domains is not None:
             centroids = targets.centroids if hasattr(targets, "centroids") else None
             points = centroids if centroids is not None else getattr(targets, "coords", targets)
@@ -802,8 +816,12 @@ class DrillholePlan:
             domains = np.asarray(domains, dtype=object)
             if domains.ndim == 0:
                 domains = np.full(len(points), domains.item(), dtype=object)
-            located = np.vstack([data, composites.coords])
-            labels = np.concatenate([domains, _located(targets, points, domains, located)]).tolist()
+            if logged is None:
+                logged = _located(targets, points, domains, data)
+            elif len(logged) != len(data):
+                raise InvalidInput(f"{len(logged)} data domains for {len(data)} composites")
+            located = _located(targets, points, domains, composites.coords)
+            labels = np.concatenate([domains, np.asarray(logged, dtype=object), located]).tolist()
         if isinstance(rules, dict) and not callable(objective):
             if domains is None:
                 raise InvalidInput("rules by domain need domains")

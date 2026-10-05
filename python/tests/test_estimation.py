@@ -1210,8 +1210,28 @@ def zones(points):
     return np.where((x >= 145) & (y >= 145), "dry", np.where(x < 80, "west", "east")).astype(object)
 
 
-@pytest.mark.parametrize("soft", [None, 10.0])
-def test_drillhole_plan_domains_equal_a_full_kriging_run(soft):
+def logged(blocks, name):
+    """Holes 55 m apart, logged west of x = 82 although the blocks' contact is at x = 80."""
+    planned = bt.planned_drillholes(blocks, 55.0, offset=(20.0, 20.0))
+    collars = planned.at(planned.holes, np.zeros(len(planned)))
+    holes = np.repeat(planned.holes, 8)
+    zone = np.where(np.repeat(collars[:, 0], 8) < 82, "west", "east")
+    zone = np.where((np.repeat(collars[:, 0], 8) >= 145) & (np.repeat(collars[:, 1], 8) >= 145), "dry", zone)
+    depth = np.tile(np.arange(8) * 5.0, len(planned))
+    return bt.Drillholes(
+        {"HOLE_ID": planned.holes, "X": collars[:, 0], "Y": collars[:, 1], "Z": collars[:, 2]},
+        {
+            "HOLE_ID": planned.holes,
+            "DEPTH": np.zeros(len(planned)),
+            "AZIMUTH": np.zeros(len(planned)),
+            "DIP": np.full(len(planned), 90.0),
+        },
+        {"HOLE_ID": holes, "FROM": depth, "TO": depth + 5.0, name: zone},
+    )
+
+
+@pytest.mark.parametrize("soft, form", [(None, "zone"), (10.0, ("zone", "LOG"))])
+def test_drillhole_plan_domains_equal_a_full_kriging_run(soft, form):
     vg = bt.Variogram([("spherical", 1.0, 80.0)], nugget=0.1)
     passes = [
         bt.Search(20.0, max_samples=12, min_samples=3, soft=soft),
@@ -1223,11 +1243,13 @@ def test_drillhole_plan_domains_equal_a_full_kriging_run(soft):
     }
     blocks = bt.BlockModel(origin=(0, 0, -40), size=(10, 10, 10), count=(16, 16, 4))
     candidates = bt.planned_drillholes(blocks, 20.0)
-    data = bt.planned_drillholes(blocks, 55.0, offset=(20.0, 20.0))
+    data_column = form if isinstance(form, str) else form[1]
+    data = logged(blocks, data_column)
     estimator = bt.BlockKriging(vg, passes, (10, 10, 10), discretization=(2, 2, 2))
     labels = zones(blocks.centroids)
+    blocks = blocks.with_column("zone", labels.astype(str))
     plan = bt.DrillholePlan(
-        candidates, estimator, blocks, data=data, rules=rules, domains=labels, composite_length=5.0
+        candidates, estimator, blocks, data=data, rules=rules, domain_column=form, composite_length=5.0
     )
     dry = labels == "dry"
     assert np.isnan(plan.metrics([])["variance"][dry]).all()
@@ -1241,11 +1263,13 @@ def test_drillhole_plan_domains_equal_a_full_kriging_run(soft):
         assert gains[c] == pytest.approx(plan.score([40, c]) - base, abs=1e-9)
     selected = [corner, 7, 40]
     got = plan.metrics(selected)
-    old, new = data.composite(5.0, []), candidates.composite(5.0, [])
+    old, new = data.composite(5.0, [], domain=data_column), candidates.composite(5.0, [])
+    assert (old[data_column] != zones(old.coords)).any()
     chosen = np.isin(new["HOLE_ID"], [plan.holes[i] for i in selected])
     coords = np.vstack([old.coords, new.coords[chosen]])
     holes = np.concatenate([old["HOLE_ID"], np.char.add("new", new["HOLE_ID"][chosen].astype(str))])
-    estimator.fit(coords, np.zeros(len(coords)), holes=holes, domains=zones(coords))
+    domains = np.concatenate([old[data_column], zones(new.coords[chosen])]).astype(str)
+    estimator.fit(coords, np.zeros(len(coords)), holes=holes, domains=domains)
     want = estimator.predict(blocks, diagnostics=True, domains=labels, progress=False)
     assert not np.isnan(want["variance"][dry]).all()
     for name in ("variance", "slope", "efficiency", "n_samples", "n_holes"):
