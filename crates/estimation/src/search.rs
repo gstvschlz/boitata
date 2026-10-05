@@ -818,9 +818,14 @@ impl SearchTree {
         found
     }
 
-    /// As [`SearchTree::neighbors`] with `extra` added after the indexed
+    /// As [`SearchTree::neighbors_in`] with `extra` added after the indexed
     /// samples, numbered from [`SearchTree::len`], without adding them.
-    pub fn neighbors_plus(&self, target: &Point, extra: &[Sample]) -> Result<Vec<usize>> {
+    pub fn neighbors_plus(
+        &self,
+        target: &Point,
+        domain: Option<u32>,
+        extra: &[Sample],
+    ) -> Result<Vec<usize>> {
         let params = &self.params;
         let n = self.len();
         if n + extra.len() == 0 || params.max_samples == 0 {
@@ -853,10 +858,17 @@ impl SearchTree {
             ..self.sectors
         };
         let offer = |group: &mut Vec<usize>, d2: f64, selector: &mut Selector| {
-            group.drain(..).any(|i| {
-                let (loc, hole, value, domain) = sample(i);
-                params.admits(target, None, &loc, value, domain, d2.sqrt())
-                    && selector.offer(i, &loc, hole)
+            let admitted: Vec<usize> = group
+                .drain(..)
+                .filter(|&i| {
+                    let (loc, _, value, of) = sample(i);
+                    params.admits(target, domain, &loc, value, of, d2.sqrt())
+                })
+                .collect();
+            let kept = one_per_location(admitted, |i| sample(i).0, |i| sample(i).3, domain, None);
+            kept.into_iter().any(|i| {
+                let (loc, hole, ..) = sample(i);
+                selector.offer(i, &loc, hole)
             })
         };
         let push = |d2: f64, i: usize, state: &mut (Vec<usize>, f64, Selector)| {

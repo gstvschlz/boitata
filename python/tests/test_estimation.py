@@ -1203,3 +1203,55 @@ def test_drillhole_plan_constraints():
         drilling(objective="classification")
     with pytest.raises(bt.InvalidInput, match="slope"):
         drilling(objective="classification", rules=[("a", {"spacing": ("<", 1.0)})])
+
+
+def zones(points):
+    x, y = points[:, 0], points[:, 1]
+    return np.where((x >= 145) & (y >= 145), "dry", np.where(x < 80, "west", "east")).astype(object)
+
+
+@pytest.mark.parametrize("soft", [None, 10.0])
+def test_drillhole_plan_domains_equal_a_full_kriging_run(soft):
+    vg = bt.Variogram([("spherical", 1.0, 80.0)], nugget=0.1)
+    passes = [
+        bt.Search(20.0, max_samples=12, min_samples=3, soft=soft),
+        bt.Search(30.0, min_samples=3, soft=soft),
+    ]
+    rules = {
+        "west": [("measured", {"slope": (">=", 0.7)})],
+        None: [("measured", {"data_spacing": ("<=", 25.0)}), ("indicated", {"variance": ("<=", 0.9)})],
+    }
+    blocks = bt.BlockModel(origin=(0, 0, -40), size=(10, 10, 10), count=(16, 16, 4))
+    candidates = bt.planned_drillholes(blocks, 20.0)
+    data = bt.planned_drillholes(blocks, 55.0, offset=(20.0, 20.0))
+    estimator = bt.BlockKriging(vg, passes, (10, 10, 10), discretization=(2, 2, 2))
+    labels = zones(blocks.centroids)
+    plan = bt.DrillholePlan(
+        candidates, estimator, blocks, data=data, rules=rules, domains=labels, composite_length=5.0
+    )
+    dry = labels == "dry"
+    assert np.isnan(plan.metrics([])["variance"][dry]).all()
+    corner = int(np.flatnonzero(zones(plan.collars) == "dry")[0])
+    for selected in ([], [corner], [corner, 40], [40, 7]):
+        plan.gains(selected)
+    gains = plan.gains([40])
+    feasible = plan.feasible([40])
+    base = plan.score([40])
+    for c in np.flatnonzero(feasible)[::7].tolist() + [corner]:
+        assert gains[c] == pytest.approx(plan.score([40, c]) - base, abs=1e-9)
+    selected = [corner, 7, 40]
+    got = plan.metrics(selected)
+    old, new = data.composite(5.0, []), candidates.composite(5.0, [])
+    chosen = np.isin(new["HOLE_ID"], [plan.holes[i] for i in selected])
+    coords = np.vstack([old.coords, new.coords[chosen]])
+    holes = np.concatenate([old["HOLE_ID"], np.char.add("new", new["HOLE_ID"][chosen].astype(str))])
+    estimator.fit(coords, np.zeros(len(coords)), holes=holes, domains=zones(coords))
+    want = estimator.predict(blocks, diagnostics=True, domains=labels, progress=False)
+    assert not np.isnan(want["variance"][dry]).all()
+    for name in ("variance", "slope", "efficiency", "n_samples", "n_holes"):
+        np.testing.assert_allclose(got[name], want[name], rtol=0, atol=1e-10, err_msg=name)
+    with pytest.warns(UserWarning):
+        spacing = bt.data_spacing(blocks, coords, passes[0], composite_length=5.0)
+    np.testing.assert_allclose(got["data_spacing"], spacing, rtol=1e-12)
+    with pytest.raises(bt.InvalidInput, match="domains"):
+        bt.DrillholePlan(candidates, estimator, blocks, data=data, objective="variance", composite_length=5.0)

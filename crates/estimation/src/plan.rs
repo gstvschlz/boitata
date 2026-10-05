@@ -5,7 +5,9 @@
 //! so sample values never enter. A candidate's composites can only enter the
 //! search of the blocks within the search radius of them, its reach, so
 //! adding or removing a hole re-kriges those blocks alone, and a cached gain
-//! stays valid until a change touches its reach.
+//! stays valid until a change touches its reach. With domains, a target of
+//! a domain without samples stays unestimated, so a hole bringing a domain
+//! its first samples reaches every target of that domain.
 
 use std::collections::BTreeSet;
 
@@ -48,13 +50,31 @@ impl Kriging {
             Some((size, disc)) => block_covariances(&disc.points(t, size), &[], &self.variogram).1,
         }
     }
+
+    /// The ellipsoid of the data spacing: the first pass's radius and own
+    /// anisotropy, as `data_spacing` reads a Search.
+    fn spacing(&self) -> Search {
+        let first = &self.passes[0];
+        Search {
+            radius: first.radius,
+            anisotropy: first.anisotropy.clone(),
+            ..Default::default()
+        }
+    }
 }
 
 /// Names of the [`Metrics`] fields, in [`Metrics::get`] order.
-pub const METRICS: [&str; 5] = ["variance", "slope", "efficiency", "n_samples", "n_holes"];
+pub const METRICS: [&str; 6] = [
+    "variance",
+    "slope",
+    "efficiency",
+    "n_samples",
+    "n_holes",
+    "data_spacing",
+];
 
-/// Kriging metrics of one target, as `predict(..., diagnostics=True)`
-/// reports them; NaN when unestimated.
+/// Metrics of one target: kriging metrics as `predict(..., diagnostics=True)`
+/// reports them, NaN when unestimated, and the data spacing.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Metrics {
     pub variance: f64,
@@ -63,6 +83,11 @@ pub struct Metrics {
     pub n_samples: f64,
     /// Distinct holes among the samples used; untagged samples count one each.
     pub n_holes: f64,
+    /// Equivalent spacing sqrt(V / (c n)) of Cabral Pinto and Deutsch
+    /// (2017): V the volume of the first search pass's ellipsoid (radius
+    /// and the Search's own anisotropy), n the samples inside it around the
+    /// target, of any domain, and c the composite length; NaN when n is 0.
+    pub data_spacing: f64,
 }
 
 impl Metrics {
@@ -72,6 +97,7 @@ impl Metrics {
         efficiency: f64::NAN,
         n_samples: f64::NAN,
         n_holes: f64::NAN,
+        data_spacing: f64::NAN,
     };
 
     fn of(e: &Estimate, used: &[Sample]) -> Self {
@@ -86,6 +112,7 @@ impl Metrics {
             efficiency: e.efficiency(),
             n_samples: e.n_used as f64,
             n_holes: n_holes as f64,
+            data_spacing: f64::NAN,
         }
     }
 
@@ -96,22 +123,23 @@ impl Metrics {
             self.efficiency,
             self.n_samples,
             self.n_holes,
+            self.data_spacing,
         ][k]
     }
 
     /// As the built-in objectives read it: an unestimated target has the
-    /// variance of its support, `support`, and zero for the rest.
+    /// variance of its support, `support`, and zero slope, efficiency and
+    /// counts; a target without samples in its ellipsoid an infinite spacing.
     fn filled(&self, support: f64) -> Self {
-        match self.variance.is_nan() {
-            true => Self {
-                variance: support,
-                slope: 0.0,
-                efficiency: 0.0,
-                n_samples: 0.0,
-                n_holes: 0.0,
-            },
-            false => *self,
+        let mut m = *self;
+        if m.variance.is_nan() {
+            (m.variance, m.slope, m.efficiency) = (support, 0.0, 0.0);
+            (m.n_samples, m.n_holes) = (0.0, 0.0);
         }
+        if m.data_spacing.is_nan() {
+            m.data_spacing = f64::INFINITY;
+        }
+        m
     }
 }
 
@@ -142,21 +170,29 @@ pub struct Condition {
     pub threshold: f64,
 }
 
+/// Classes in priority order, best first, each the conditions a target
+/// must all meet; targets meeting none are below the last.
+pub type Rules = Vec<Vec<Condition>>;
+
 /// Per-target score g(metrics), summed over the targets; both built-ins are
 /// 0 with the data alone and weighted per target.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Objective {
     /// w (σ²₀ − σ²) / C(v, v), σ²₀ with the data alone.
     Variance,
-    /// Classes by rules in priority order, best first, each the conditions a
-    /// target must all meet; targets meeting none are below the last. A
-    /// target scores w × its progress towards the class above its class
-    /// with the data alone, and 0 when that class is the best. Condition j
-    /// gives p_j = 1 when met, 0 when met with the data alone but no
-    /// longer, and otherwise clip((m − m₀) / (t − m₀), 0, 1) for metric m,
-    /// m₀ with the data alone and threshold t. With P the mean p_j, progress
-    /// is (P − P₀) / (1 − P₀): 1 exactly when the target reaches the class.
-    Classification(Vec<Vec<Condition>>),
+    /// Targets classed by `rules[of[b]]`, all by `rules[0]` without `of`;
+    /// a target whose `of` is None scores 0. A target scores w × its
+    /// progress towards the class above its class with the data alone, and
+    /// 0 when that class is the best. Condition j gives p_j = 1 when met, 0
+    /// when met with the data alone but no longer, and otherwise
+    /// clip((m − m₀) / (t − m₀), 0, 1) for metric m, m₀ with the data alone
+    /// and threshold t, 0 where that is undefined. With P the mean p_j,
+    /// progress is (P − P₀) / (1 − P₀): 1 exactly when the target reaches
+    /// the class.
+    Classification {
+        rules: Vec<Rules>,
+        of: Option<Vec<Option<usize>>>,
+    },
     /// Scores from the caller, as [`Scorer`].
     Custom,
 }
@@ -169,10 +205,22 @@ pub type Scorer<'a> = &'a mut dyn FnMut(&[u32], &[Metrics]) -> Result<Vec<f64>>;
 #[derive(Debug, Clone)]
 pub struct Candidate {
     pub composites: Vec<Point>,
+    /// Domain code of each composite, or empty without domains.
+    pub domains: Vec<u32>,
     pub collar: Point,
     pub cost: f64,
     /// Left out by an exclusion zone.
     pub excluded: bool,
+}
+
+/// Where to krige: `weights` 1 by default; `domains`, one code per target,
+/// confine each to the samples of its domain and of others within the
+/// search's soft distance.
+#[derive(Debug, Clone, Default)]
+pub struct Targets {
+    pub points: Vec<Point>,
+    pub weights: Option<Vec<f64>>,
+    pub domains: Option<Vec<u32>>,
 }
 
 /// Limits on a plan; holes closer than `min_spacing` (horizontal distance
@@ -188,29 +236,39 @@ pub struct Constraints {
 /// and the gains of adding each candidate cached.
 pub struct Plan {
     kriging: Kriging,
+    composite_length: f64,
     data: Vec<Sample>,
     holes: Vec<Vec<Sample>>,
     candidates: Vec<Candidate>,
     constraints: Constraints,
     targets: Vec<Point>,
+    domains: Option<Vec<u32>>,
+    /// Targets of each domain code.
+    members: Vec<Vec<u32>>,
+    /// Domain codes of each candidate's composites, distinct.
+    brings: Vec<Vec<u32>>,
     weights: Vec<f64>,
     support: Vec<f64>,
     objective: Objective,
     baseline: Vec<Metrics>,
     /// Class of each target with the data alone, for classification.
-    class: Vec<usize>,
+    class: Vec<Option<usize>>,
     /// Targets whose score can change: weighted and, for classification,
-    /// below the best class.
+    /// classed below the best class.
     active: Vec<bool>,
     reach: Vec<Vec<u32>>,
     state: State,
 }
 
-/// The current selection, sorted, and what it caches.
+/// A selection, sorted, its samples and search trees; for the current
+/// selection also what it caches.
 struct State {
     selected: Vec<usize>,
     samples: Vec<Sample>,
     trees: Vec<SearchTree>,
+    spacing: SearchTree,
+    /// Samples of each domain code.
+    counts: Vec<usize>,
     current: Vec<Metrics>,
     /// Score of each target with the selection; None before scoring.
     scores: Option<Vec<f64>>,
@@ -234,17 +292,24 @@ fn planar<'a>(mut locs: impl Iterator<Item = &'a Point>) -> bool {
     locs.all(|p| Some(p.2) == z)
 }
 
+fn merged(mut a: Vec<u32>, b: impl IntoIterator<Item = u32>) -> Vec<u32> {
+    a.extend(b);
+    a.sort_unstable();
+    a.dedup();
+    a
+}
+
 impl Plan {
-    /// A plan over `targets` from `data`, whose values are ignored; with
-    /// `weights` per target, 1 by default.
+    /// A plan over `targets` from `data`, whose values are ignored; the
+    /// candidates' composites are `composite_length` long.
     pub fn new(
         kriging: Kriging,
         data: Vec<Sample>,
         candidates: Vec<Candidate>,
-        targets: Vec<Point>,
-        weights: Option<Vec<f64>>,
+        targets: Targets,
         objective: Objective,
         constraints: Constraints,
+        composite_length: f64,
     ) -> Result<Self> {
         let passes = &kriging.passes;
         if passes.is_empty() {
@@ -256,6 +321,14 @@ impl Plan {
         if passes.iter().any(|s| s.calibration.is_some()) {
             return invalid("calibrated searches are not supported for planning");
         }
+        if !(composite_length.is_finite() && composite_length > 0.0) {
+            return invalid("composite_length must be finite and > 0");
+        }
+        let Targets {
+            points: targets,
+            weights,
+            domains,
+        } = targets;
         let composites = || candidates.iter().flat_map(|c| &c.composites);
         let points = data.iter().map(|s| &s.loc).chain(composites());
         if !points.chain(&targets).all(finite) || !candidates.iter().all(|c| finite(&c.collar)) {
@@ -286,22 +359,50 @@ impl Plan {
         if budget.is_some_and(|b| !(b.is_finite() && b >= 0.0)) {
             return invalid("budget must be finite and >= 0");
         }
-        let weights = weights.unwrap_or_else(|| vec![1.0; targets.len()]);
-        if weights.len() != targets.len() {
-            return invalid(format!(
-                "{} weights for {} targets",
-                weights.len(),
-                targets.len()
-            ));
+        let n = targets.len();
+        let weights = weights.unwrap_or_else(|| vec![1.0; n]);
+        if weights.len() != n {
+            return invalid(format!("{} weights for {n} targets", weights.len()));
         }
         if weights.iter().any(|w| !(w.is_finite() && *w >= 0.0)) {
             return invalid("weights must be finite and >= 0");
         }
-        if let Objective::Classification(rules) = &objective {
-            let bad = |c: &Condition| c.metric >= METRICS.len() || !c.threshold.is_finite();
-            if rules.is_empty() || rules.iter().flatten().any(bad) {
-                return invalid("classification needs rules on known metrics, thresholds finite");
+        let tagged = data.iter().all(|s| s.domain.is_some())
+            && candidates
+                .iter()
+                .all(|c| c.domains.len() == c.composites.len());
+        match &domains {
+            Some(d) if d.len() != n || !tagged => {
+                return invalid("domains need one code per target, sample and composite");
             }
+            None if data.iter().any(|s| s.domain.is_some())
+                || candidates.iter().any(|c| !c.domains.is_empty()) =>
+            {
+                return invalid("samples carry domains; the targets need them too");
+            }
+            _ => {}
+        }
+        if let Objective::Classification { rules, of } = &objective {
+            let bad = |c: &Condition| c.metric >= METRICS.len() || !c.threshold.is_finite();
+            let sets = rules.len();
+            let unknown = of
+                .as_ref()
+                .is_some_and(|of| of.len() != n || of.iter().flatten().any(|&k| k >= sets));
+            if sets == 0 || rules.iter().any(Vec::is_empty) || unknown {
+                return invalid("classification needs rules for the targets");
+            }
+            if rules.iter().flatten().flatten().any(bad) {
+                return invalid("rules need known metrics and finite thresholds");
+            }
+        }
+        let codes = domains.iter().flatten().copied();
+        let codes = codes
+            .chain(data.iter().filter_map(|s| s.domain))
+            .chain(candidates.iter().flat_map(|c| c.domains.iter().copied()));
+        let n_domains = codes.max().map_or(0, |d| d as usize + 1);
+        let mut members = vec![vec![]; n_domains];
+        for (b, &d) in domains.iter().flatten().enumerate() {
+            members[d as usize].push(b as u32);
         }
         let tags = data
             .iter()
@@ -313,72 +414,104 @@ impl Plan {
             .enumerate()
             .map(|(c, cand)| {
                 let hole = tags + c as u32;
-                let at = |&p| Sample::with_hole(p, 0.0, hole);
-                cand.composites.iter().map(at).collect()
+                let at = |(k, &p)| Sample {
+                    domain: cand.domains.get(k).copied(),
+                    ..Sample::with_hole(p, 0.0, hole)
+                };
+                cand.composites.iter().enumerate().map(at).collect()
             })
+            .collect();
+        let brings = candidates
+            .iter()
+            .map(|c| merged(c.domains.clone(), []))
             .collect();
         let data: Vec<Sample> = data
             .into_iter()
             .map(|s| Sample { value: 0.0, ..s })
             .collect();
         let support: Vec<f64> = targets.par_iter().map(|t| kriging.support(t)).collect();
-        let samples = data.clone();
-        let trees = Self::trees(&kriging, &samples);
         let mut plan = Self {
             data,
             holes,
             candidates,
             constraints,
+            domains,
+            members,
+            brings,
             weights,
             support,
             objective,
+            composite_length,
             baseline: vec![],
             class: vec![],
             active: vec![],
             reach: vec![],
             state: State {
                 selected: vec![],
-                samples,
-                trees,
+                samples: vec![],
+                trees: vec![],
+                spacing: SearchTree::new(&[], &Search::default(), None),
+                counts: vec![],
                 current: vec![],
                 scores: None,
-                stale: vec![],
+                stale: vec![false; n],
                 gains: vec![],
                 origin: None,
             },
             targets,
             kriging,
         };
-        let all: Vec<u32> = (0..plan.targets.len() as u32).collect();
+        let state = plan.state_of(vec![]);
+        plan.state = State {
+            stale: vec![false; n],
+            gains: vec![None; plan.candidates.len()],
+            ..state
+        };
+        let all: Vec<u32> = (0..n as u32).collect();
         plan.baseline = plan.evaluate(&plan.state, &all, &[]);
         plan.state.current = plan.baseline.clone();
-        plan.state.stale = vec![false; plan.targets.len()];
-        plan.state.gains = vec![None; plan.candidates.len()];
         plan.class = plan.classes();
         plan.active = plan.actives();
         plan.reach = plan.reaches();
         Ok(plan)
     }
 
-    fn trees(kriging: &Kriging, samples: &[Sample]) -> Vec<SearchTree> {
-        let vg = Some(&kriging.variogram);
-        kriging
-            .passes
+    /// Samples and search trees of `selected`, sorted, with nothing cached.
+    fn state_of(&self, selected: Vec<usize>) -> State {
+        let samples = self.samples(&selected);
+        let vg = Some(&self.kriging.variogram);
+        let trees = self.kriging.passes.iter();
+        let trees = trees.map(|s| SearchTree::new(&samples, s, vg)).collect();
+        let mut counts = vec![0; self.members.len()];
+        samples
             .iter()
-            .map(|s| SearchTree::new(samples, s, vg))
-            .collect()
+            .filter_map(|s| s.domain)
+            .for_each(|d| counts[d as usize] += 1);
+        State {
+            selected,
+            trees,
+            spacing: SearchTree::new(&samples, &self.kriging.spacing(), None),
+            samples,
+            counts,
+            current: vec![],
+            scores: None,
+            stale: vec![],
+            gains: vec![],
+            origin: None,
+        }
     }
 
-    fn classes(&self) -> Vec<usize> {
-        let Objective::Classification(rules) = &self.objective else {
+    fn classes(&self) -> Vec<Option<usize>> {
+        let Objective::Classification { rules, of } = &self.objective else {
             return vec![];
         };
         (0..self.targets.len())
             .map(|b| {
+                let set = &rules[of.as_ref().map_or(Some(0), |of| of[b])?];
                 let m = self.baseline[b].filled(self.support[b]);
                 let meets =
                     |r: &Vec<Condition>| r.iter().all(|c| c.op.holds(m.get(c.metric), c.threshold));
-                rules.iter().position(meets).unwrap_or(rules.len())
+                Some(set.iter().position(meets).unwrap_or(set.len()))
             })
             .collect()
     }
@@ -388,34 +521,48 @@ impl Plan {
             .map(|b| match &self.objective {
                 Objective::Custom => true,
                 Objective::Variance => self.weights[b] != 0.0 && self.support[b] > 0.0,
-                Objective::Classification(_) => self.weights[b] != 0.0 && self.class[b] > 0,
+                Objective::Classification { .. } => {
+                    self.weights[b] != 0.0 && self.class[b].is_some_and(|k| k > 0)
+                }
             })
             .collect()
     }
 
-    /// Targets each candidate's composites reach in any search pass.
+    /// Targets each candidate's composites reach in any search pass or in
+    /// the ellipsoid of the data spacing.
     fn reaches(&self) -> Vec<Vec<u32>> {
         let vg = Some(&self.kriging.variogram);
         let nodes: Vec<Sample> = self.targets.iter().map(|&t| Sample::new(t, 0.0)).collect();
-        let trees: Vec<(SearchTree, f64)> = self
-            .kriging
-            .passes
-            .iter()
-            .map(|s| (SearchTree::new(&nodes, s, vg), s.radius * (1.0 + 1e-9)))
+        let spacing = self.kriging.spacing();
+        let searches = self.kriging.passes.iter().map(|s| (s, vg));
+        let trees: Vec<(SearchTree, f64)> = searches
+            .chain([(&spacing, None)])
+            .map(|(s, vg)| (SearchTree::new(&nodes, s, vg), s.radius * (1.0 + 1e-9)))
             .collect();
         self.holes
             .par_iter()
             .map(|hole| {
-                let mut reach: Vec<u32> = trees
+                let reach = trees
                     .iter()
                     .flat_map(|(tree, r)| hole.iter().flat_map(|s| tree.within(&s.loc, *r)))
-                    .map(|b| b as u32)
-                    .collect();
-                reach.sort_unstable();
-                reach.dedup();
-                reach
+                    .map(|b| b as u32);
+                merged(vec![], reach)
             })
             .collect()
+    }
+
+    /// Targets of the domains `codes` that have no samples in `state`.
+    fn opened(&self, state: &State, codes: &[u32]) -> Vec<u32> {
+        codes
+            .iter()
+            .filter(|&&d| state.counts[d as usize] == 0)
+            .flat_map(|&d| self.members[d as usize].iter().copied())
+            .collect()
+    }
+
+    /// Targets candidate `c` changes when added to, or removed from, `state`.
+    fn reach_in(&self, state: &State, c: usize) -> Vec<u32> {
+        merged(self.reach[c].clone(), self.opened(state, &self.brings[c]))
     }
 
     /// Metrics of `blocks` with the samples of `state` and then `extra`.
@@ -428,9 +575,14 @@ impl Plan {
 
     fn metrics_at(&self, state: &State, b: usize, extra: &[Sample]) -> Metrics {
         let t = &self.targets[b];
+        let data_spacing = self.spacing_at(state, t, extra);
+        let domain = self.domains.as_ref().map(|d| d[b]);
+        let present = domain.is_none_or(|d| {
+            state.counts[d as usize] > 0 || extra.iter().any(|s| s.domain == Some(d))
+        });
         let n = state.samples.len();
-        for tree in &state.trees {
-            let Ok(chosen) = tree.neighbors_plus(t, extra) else {
+        for tree in state.trees.iter().filter(|_| present) {
+            let Ok(chosen) = tree.neighbors_plus(t, domain, extra) else {
                 continue;
             };
             let used: Vec<Sample> = chosen
@@ -441,10 +593,35 @@ impl Plan {
                 })
                 .collect();
             if let Ok(e) = self.kriging.krige(t, &used) {
-                return Metrics::of(&e, &used);
+                return Metrics {
+                    data_spacing,
+                    ..Metrics::of(&e, &used)
+                };
             }
         }
-        Metrics::UNESTIMATED
+        Metrics {
+            data_spacing,
+            ..Metrics::UNESTIMATED
+        }
+    }
+
+    fn spacing_at(&self, state: &State, t: &Point, extra: &[Sample]) -> f64 {
+        let search = &self.kriging.passes[0];
+        let r = search.radius;
+        if !(r.is_finite() && r > 0.0) {
+            return f64::NAN;
+        }
+        let tree = &state.spacing;
+        let inside = tree.within(t, r).len();
+        let more = extra.iter().filter(|s| tree.distance(t, &s.loc) <= r);
+        let count = inside + more.count();
+        let axes = search.anisotropy.as_ref();
+        let axes = axes.map_or(1.0, |a| a.angles.major * a.angles.semi * a.angles.minor);
+        let volume = 4.0 / 3.0 * std::f64::consts::PI * r.powi(3) * axes;
+        match count {
+            0 => f64::NAN,
+            n => (volume / (self.composite_length * n as f64)).sqrt(),
+        }
     }
 
     /// Built-in score of target `b` with metrics `m`.
@@ -456,7 +633,11 @@ impl Plan {
         let (m, m0) = (m.filled(cvv), self.baseline[b].filled(cvv));
         match &self.objective {
             Objective::Variance => w * (m0.variance - m.variance) / cvv,
-            Objective::Classification(rules) => w * progress(&rules[self.class[b] - 1], &m0, &m),
+            Objective::Classification { rules, of } => {
+                let set = &rules[of.as_ref().map_or(0, |of| of[b].expect("active"))];
+                let class = self.class[b].expect("active");
+                w * progress(&set[class - 1], &m0, &m)
+            }
             Objective::Custom => 0.0,
         }
     }
@@ -517,30 +698,40 @@ impl Plan {
         }
         let old: BTreeSet<usize> = self.state.selected.iter().copied().collect();
         let new: BTreeSet<usize> = selected.iter().copied().collect();
+        let next = self.state_of(selected);
+        let flipped: Vec<u32> = (0..self.members.len() as u32)
+            .filter(|&d| (self.state.counts[d as usize] == 0) != (next.counts[d as usize] == 0))
+            .collect();
         let mut touched = vec![false; self.targets.len()];
-        for &c in old.symmetric_difference(&new) {
-            self.reach[c]
-                .iter()
-                .for_each(|&b| touched[b as usize] = true);
-            self.state.gains[c] = None;
+        let changed = old.symmetric_difference(&new).copied();
+        let opened = flipped.iter().flat_map(|&d| &self.members[d as usize]);
+        for &b in changed.clone().flat_map(|c| &self.reach[c]).chain(opened) {
+            touched[b as usize] = true;
         }
         let blocks: Vec<u32> = (0..self.targets.len() as u32)
             .filter(|&b| touched[b as usize])
             .collect();
-        self.state.samples = self.samples(&selected);
-        self.state.trees = Self::trees(&self.kriging, &self.state.samples);
-        self.state.selected = selected;
-        let fresh = self.evaluate(&self.state, &blocks, &[]);
-        for (&b, m) in blocks.iter().zip(fresh) {
-            self.state.current[b as usize] = m;
-            self.state.stale[b as usize] = true;
+        let fresh = self.evaluate(&next, &blocks, &[]);
+        let state = &mut self.state;
+        (state.selected, state.samples, state.trees) = (next.selected, next.samples, next.trees);
+        (state.spacing, state.counts) = (next.spacing, next.counts);
+        for c in changed {
+            state.gains[c] = None;
         }
-        let (reach, active) = (&self.reach, &self.active);
+        for (&b, m) in blocks.iter().zip(fresh) {
+            state.current[b as usize] = m;
+            state.stale[b as usize] = true;
+        }
+        let (reach, active, brings) = (&self.reach, &self.active, &self.brings);
         let stale: Vec<bool> = reach
             .par_iter()
-            .map(|r| r.iter().any(|&b| touched[b as usize] && active[b as usize]))
+            .zip(brings)
+            .map(|(r, d)| {
+                r.iter().any(|&b| touched[b as usize] && active[b as usize])
+                    || d.iter().any(|d| flipped.contains(d))
+            })
             .collect();
-        for (gain, stale) in self.state.gains.iter_mut().zip(stale) {
+        for (gain, stale) in state.gains.iter_mut().zip(stale) {
             if stale {
                 *gain = None;
             }
@@ -567,7 +758,7 @@ impl Plan {
         }
     }
 
-    /// Kriging metrics of every target with the composites of `selected`.
+    /// Metrics of every target with the composites of `selected`.
     pub fn metrics(&mut self, selected: &[usize]) -> Result<Vec<Metrics>> {
         self.update(selected)?;
         Ok(self.state.current.clone())
@@ -667,7 +858,7 @@ impl Plan {
         let state = &self.state;
         let current: Vec<Metrics> = blocks.iter().map(|&b| state.current[b as usize]).collect();
         let reach = |c: usize| -> Vec<u32> {
-            let all = self.reach[c].iter().copied();
+            let all = self.reach_in(state, c).into_iter();
             all.filter(|&b| self.active[b as usize]).collect()
         };
         let with = |c: usize, b: u32| self.metrics_at(state, b as usize, &self.holes[c]);
@@ -719,18 +910,8 @@ impl Plan {
             .par_iter()
             .map(|&s| {
                 let others: Vec<usize> = kept.iter().copied().filter(|&k| k != s).collect();
-                let samples = self.samples(&others);
-                let state = State {
-                    selected: others,
-                    trees: Self::trees(&self.kriging, &samples),
-                    samples,
-                    current: vec![],
-                    scores: None,
-                    stale: vec![],
-                    gains: vec![],
-                    origin: None,
-                };
-                let r = self.reach[s].clone();
+                let state = self.state_of(others);
+                let r = self.reach_in(&state, s);
                 let m = r
                     .iter()
                     .map(|&b| self.metrics_at(&state, b as usize, &[]))
@@ -876,30 +1057,18 @@ mod tests {
         (0..6).map(|k| (x, y, -2.5 - 5.0 * k as f64)).collect()
     }
 
-    /// Scattered data in holes, a grid of candidates and targets.
-    fn case(block: bool, passes: Vec<Search>, objective: Objective) -> Plan {
-        let mut u = lcg(7);
-        let data: Vec<Sample> = (0..25)
-            .flat_map(|h| {
-                let (x, y) = (u() * 200.0, u() * 200.0);
-                let v = u();
-                hole(x, y)
-                    .into_iter()
-                    .map(move |p| Sample::with_hole(p, v, h))
-            })
-            .collect();
-        let candidates = (0..64)
-            .map(|i| {
-                let (x, y) = (12.5 + 25.0 * (i % 8) as f64, 12.5 + 25.0 * (i / 8) as f64);
-                Candidate {
-                    composites: hole(x, y),
-                    collar: (x, y, 0.0),
-                    cost: 30.0,
-                    excluded: i == 9,
-                }
-            })
-            .collect();
-        let targets = (0..20 * 20 * 3)
+    /// Domain of a location in the two-domain case: west and east of x =
+    /// 100, and a north-east corner without data.
+    fn domain_at(p: &Point) -> u32 {
+        match (p.0 >= 150.0 && p.1 >= 150.0, p.0 < 100.0) {
+            (true, _) => 2,
+            (_, true) => 0,
+            _ => 1,
+        }
+    }
+
+    fn grid() -> Vec<Point> {
+        (0..20 * 20 * 3)
             .map(|i| {
                 let (x, y, z) = (i % 20, (i / 20) % 20, i / 400);
                 (
@@ -908,20 +1077,59 @@ mod tests {
                     -5.0 - 10.0 * z as f64,
                 )
             })
+            .collect()
+    }
+
+    /// Scattered data in holes, a grid of candidates and targets.
+    fn case(block: bool, passes: Vec<Search>, objective: Objective) -> Plan {
+        build(block, passes, objective, false)
+    }
+
+    fn build(block: bool, passes: Vec<Search>, objective: Objective, domains: bool) -> Plan {
+        let mut u = lcg(7);
+        let tag = |p: &Point| domains.then(|| domain_at(p));
+        let data: Vec<Sample> = (0..25)
+            .flat_map(|h| {
+                let (x, y) = (u() * 200.0, u() * 200.0);
+                let v = u();
+                hole(x, y).into_iter().map(move |p| Sample {
+                    domain: tag(&p),
+                    ..Sample::with_hole(p, v, h)
+                })
+            })
+            .filter(|s| !(domains && s.domain == Some(2)))
             .collect();
-        let weights = (0..1200).map(|i| (i % 3) as f64).collect();
+        let candidates = (0..64)
+            .map(|i| {
+                let (x, y) = (12.5 + 25.0 * (i % 8) as f64, 12.5 + 25.0 * (i / 8) as f64);
+                let composites = hole(x, y);
+                Candidate {
+                    domains: composites.iter().filter_map(tag).collect(),
+                    composites,
+                    collar: (x, y, 0.0),
+                    cost: 30.0,
+                    excluded: i == 9,
+                }
+            })
+            .collect();
+        let points = grid();
+        let targets = Targets {
+            domains: domains.then(|| points.iter().map(domain_at).collect()),
+            weights: Some((0..1200).map(|i| (i % 3) as f64).collect()),
+            points,
+        };
         Plan::new(
             kriging(block, passes),
             data,
             candidates,
             targets,
-            Some(weights),
             objective,
             Constraints {
                 n_holes: Some(5),
                 budget: Some(120.0),
                 min_spacing: 30.0,
             },
+            5.0,
         )
         .unwrap()
     }
@@ -932,25 +1140,42 @@ mod tests {
             op,
             threshold,
         };
-        Objective::Classification(vec![
-            vec![c(1, Op::GreaterEqual, 0.8), c(4, Op::GreaterEqual, 3.0)],
-            vec![c(1, Op::GreaterEqual, 0.5)],
-            vec![c(0, Op::LessEqual, 0.9)],
-        ])
+        Objective::Classification {
+            rules: vec![vec![
+                vec![c(1, Op::GreaterEqual, 0.8), c(4, Op::GreaterEqual, 3.0)],
+                vec![c(1, Op::GreaterEqual, 0.5), c(5, Op::LessEqual, 30.0)],
+                vec![c(0, Op::LessEqual, 0.9)],
+            ]],
+            of: None,
+        }
     }
 
     /// Metrics of a fresh kriging run, as `predict` does it, with the
-    /// composites of `selected` appended to the data in sorted order.
+    /// composites of `selected` appended to the data in sorted order;
+    /// targets of a domain without samples are left out, and the data
+    /// spacing counts samples by brute force.
     fn rerun(plan: &Plan, selected: &[usize]) -> Vec<Metrics> {
         let mut sorted = selected.to_vec();
         sorted.sort_unstable();
         let samples = plan.samples(&sorted);
         let k = &plan.kriging;
-        let found = crate::by_pass(plan.targets.len(), &k.passes, |search, remaining| {
-            let at: Vec<Point> = remaining.iter().map(|&i| plan.targets[i]).collect();
+        let known: Vec<usize> = (0..plan.targets.len())
+            .filter(|&b| {
+                plan.domains
+                    .as_ref()
+                    .is_none_or(|d| samples.iter().any(|s| s.domain == Some(d[b])))
+            })
+            .collect();
+        let found = crate::by_pass(known.len(), &k.passes, |search, remaining| {
+            let rows: Vec<usize> = remaining.iter().map(|&i| known[i]).collect();
+            let at: Vec<Point> = rows.iter().map(|&i| plan.targets[i]).collect();
+            let codes: Option<Vec<u32>> = plan
+                .domains
+                .as_ref()
+                .map(|d| rows.iter().map(|&i| d[i]).collect());
             Ok(crate::estimate_many(
                 &at,
-                None,
+                codes.as_deref(),
                 &samples,
                 search,
                 Some(&k.variogram),
@@ -958,10 +1183,24 @@ mod tests {
             ))
         })
         .unwrap();
-        found
-            .into_iter()
-            .map(|r| r.map_or(Metrics::UNESTIMATED, |r| r.1))
-            .collect()
+        let mut out = vec![Metrics::UNESTIMATED; plan.targets.len()];
+        for (&b, r) in known.iter().zip(found) {
+            out[b] = r.map_or(Metrics::UNESTIMATED, |r| r.1);
+        }
+        let r = k.passes[0].radius;
+        let volume = 4.0 / 3.0 * std::f64::consts::PI * r.powi(3);
+        for (m, t) in out.iter_mut().zip(&plan.targets) {
+            let d = |p: &Point| {
+                ((p.0 - t.0).powi(2) + (p.1 - t.1).powi(2) + (p.2 - t.2).powi(2)).sqrt()
+            };
+            let n = samples.iter().filter(|s| d(&s.loc) <= r).count();
+            m.data_spacing = if n == 0 {
+                f64::NAN
+            } else {
+                (volume / (5.0 * n as f64)).sqrt()
+            };
+        }
+        out
     }
 
     fn same(a: &[Metrics], b: &[Metrics]) {
@@ -1013,6 +1252,75 @@ mod tests {
     }
 
     #[test]
+    fn domains_and_soft_boundaries_match_a_full_rerun() {
+        let c = |metric, op, threshold| Condition {
+            metric,
+            op,
+            threshold,
+        };
+        let by_domain = Objective::Classification {
+            rules: vec![
+                vec![vec![c(1, Op::GreaterEqual, 0.7)]],
+                vec![
+                    vec![c(5, Op::LessEqual, 25.0)],
+                    vec![c(0, Op::LessEqual, 0.9)],
+                ],
+            ],
+            of: Some(
+                grid()
+                    .iter()
+                    .map(|p| [Some(0), Some(1), None][domain_at(p) as usize])
+                    .collect(),
+            ),
+        };
+        for (soft, objective) in [(None, rules()), (Some(crate::Soft::All(12.0)), by_domain)] {
+            let passes = [search(25.0, 12), search(45.0, 16)]
+                .map(|s| Search {
+                    soft: soft.clone(),
+                    ..s
+                })
+                .to_vec();
+            let mut plan = build(true, passes, objective, true);
+            let corner: Vec<usize> = (0..1200)
+                .filter(|&b| plan.domains.as_ref().unwrap()[b] == 2)
+                .collect();
+            assert!(!corner.is_empty());
+            assert!(corner.iter().all(|&b| plan.baseline[b].variance.is_nan()));
+            let mut selected = vec![];
+            for step in [vec![63], vec![63, 20], vec![20], vec![20, 7, 54]] {
+                plan.gains(&selected, None).unwrap();
+                selected = step;
+                same(&plan.metrics(&selected).unwrap(), &rerun(&plan, &selected));
+            }
+            let m = plan.metrics(&[63]).unwrap();
+            assert!(corner.iter().any(|&b| !m[b].variance.is_nan()));
+            let gains = plan.gains(&[20], None).unwrap();
+            let mut fresh = case_like(&plan);
+            let base = fresh.score(&[20], None).unwrap();
+            for c in 0..64 {
+                if gains[c].is_finite() {
+                    let score = fresh.score(&[20, c], None).unwrap();
+                    assert!((gains[c] - (score - base)).abs() < 1e-9, "{c}");
+                }
+            }
+            assert!(gains[63] > 0.0 || gains[54] > 0.0);
+            let loss = plan.loss(&[63, 20], None).unwrap();
+            let both = fresh.score(&[63, 20], None).unwrap();
+            assert!((loss[0] - (both - base)).abs() < 1e-9);
+        }
+    }
+
+    /// A fresh plan with the set-up of `plan`.
+    fn case_like(plan: &Plan) -> Plan {
+        build(
+            plan.kriging.block.is_some(),
+            plan.kriging.passes.clone(),
+            plan.objective.clone(),
+            plan.domains.is_some(),
+        )
+    }
+
+    #[test]
     fn neighbors_plus_matches_indexing_the_extra_samples() {
         let plan = case(false, vec![search(60.0, 10)], Objective::Variance);
         let extra = &plan.holes[27];
@@ -1020,7 +1328,10 @@ mod tests {
         let tree = SearchTree::new(&plan.data, &plan.kriging.passes[0], None);
         let full = SearchTree::new(&all, &plan.kriging.passes[0], None);
         for t in &plan.targets {
-            assert_eq!(tree.neighbors_plus(t, extra).ok(), full.neighbors(t).ok());
+            assert_eq!(
+                tree.neighbors_plus(t, None, extra).ok(),
+                full.neighbors(t).ok()
+            );
         }
     }
 

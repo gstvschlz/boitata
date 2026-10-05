@@ -223,7 +223,7 @@ fn label(obj: &Bound<PyAny>) -> PyResult<Label> {
     })
 }
 
-fn key(label: &Label) -> String {
+pub fn key(label: &Label) -> String {
     label.to_string()
 }
 
@@ -1034,11 +1034,12 @@ impl Estimator {
         self.search.iter().map(|s| s.resolve(domains)).collect()
     }
 
-    /// The kriging a drilling plan evaluates with this estimator.
-    pub fn planning(&self) -> PyResult<estimation::plan::Kriging> {
-        if self.domains.is_some() {
+    /// The kriging a drilling plan evaluates with this estimator, its soft
+    /// boundaries coded by the plan's `domains` labels.
+    pub fn planning(&self, domains: Option<&[Label]>) -> PyResult<estimation::plan::Kriging> {
+        if self.domains.is_some() && domains.is_none() {
             return Err(invalid(
-                "DrillholePlan needs an estimator fitted without domains",
+                "fitted with domains; DrillholePlan needs domains too",
             ));
         }
         let (kind, block) = match &self.method {
@@ -1050,11 +1051,12 @@ impl Estimator {
                 ));
             }
         };
+        let passes = self.search.iter().map(|s| s.resolve(domains));
         Ok(estimation::plan::Kriging {
             kind,
             block,
             variogram: self.variogram.clone().expect("kriging carries a variogram"),
-            passes: self.passes()?,
+            passes: passes.collect::<PyResult<_>>()?,
         })
     }
 }

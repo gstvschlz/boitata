@@ -2,14 +2,14 @@ use std::sync::Arc;
 
 use arrow_array::{ArrayRef, Float64Array, Int64Array, RecordBatch};
 use estimation::plan::{
-    Candidate, Condition, Constraints, METRICS, Metrics, Objective, Op, Plan, Scorer,
+    Candidate, Condition, Constraints, METRICS, Metrics, Objective, Op, Plan, Scorer, Targets,
 };
 use estimation::{EstimError, Sample};
 use numpy::PyArray1;
 use pyo3::prelude::*;
 
 use crate::args::{self, Point, array1};
-use crate::estimation::Estimator;
+use crate::estimation::{Estimator, Label, key};
 use crate::invalid;
 use crate::table::Table;
 
@@ -92,7 +92,8 @@ impl DrillholePlan {
     #[new]
     #[pyo3(signature = (
         estimator, targets, data, data_holes, composites, owner, collars, costs, excluded,
-        objective, rules, weights, n_holes, budget, min_spacing
+        objective, rules, rule_of, weights, n_holes, budget, min_spacing, domains,
+        composite_length
     ))]
     #[allow(clippy::too_many_arguments)]
     fn new(
@@ -107,24 +108,52 @@ impl DrillholePlan {
         costs: Vec<f64>,
         excluded: Vec<bool>,
         objective: &Bound<PyAny>,
-        rules: Option<Vec<Vec<(String, String, f64)>>>,
+        rules: Option<Vec<Vec<Vec<(String, String, f64)>>>>,
+        rule_of: Option<Vec<Option<usize>>>,
         weights: Option<&Bound<PyAny>>,
         n_holes: Option<usize>,
         budget: Option<f64>,
         min_spacing: f64,
+        domains: Option<&Bound<PyAny>>,
+        composite_length: f64,
     ) -> PyResult<Self> {
-        let kriging = estimator.planning()?;
-        let targets = crate::estimation::targets(targets)?;
+        let points = crate::estimation::targets(targets)?;
         let locs = args::points(data)?;
+        let composites = args::points(composites)?;
         if let Some(h) = &data_holes {
             args::same_length(locs.len(), h.len(), "data_holes")?;
         }
+        args::same_length(composites.len(), owner.len(), "owner")?;
+        let (n, m) = (points.len(), locs.len());
+        let (labels, codes) = match domains {
+            None => (None, None),
+            Some(d) => {
+                let all = crate::estimation::labels(d, Some(n + m + composites.len()))?;
+                let mut fitted: Vec<Label> = vec![];
+                let mut index = std::collections::HashMap::new();
+                let codes: Vec<u32> = all
+                    .into_iter()
+                    .map(|l| {
+                        *index.entry(key(&l)).or_insert_with(|| {
+                            fitted.push(l);
+                            fitted.len() as u32 - 1
+                        })
+                    })
+                    .collect();
+                (Some(fitted), Some(codes))
+            }
+        };
+        let kriging = estimator.planning(labels.as_deref())?;
+        let code = |i: usize| codes.as_ref().map(|c| c[i]);
         let data = locs
             .into_iter()
             .enumerate()
-            .map(|(i, p)| match &data_holes {
-                Some(h) => Sample::with_hole(p, 0.0, h[i]),
-                None => Sample::new(p, 0.0),
+            .map(|(i, p)| Sample {
+                domain: code(n + i),
+                ..match &data_holes {
+                    Some(h) => Sample::with_hole(p, 0.0, h[i]),
+                    None => Sample::new(p, 0.0),
+                }
             })
             .collect();
         let collars: Vec<Point> = args::points(collars)?;
@@ -136,42 +165,46 @@ impl DrillholePlan {
             .zip(excluded)
             .map(|((&collar, cost), excluded)| Candidate {
                 composites: vec![],
+                domains: vec![],
                 collar,
                 cost,
                 excluded,
             })
             .collect();
-        let composites = args::points(composites)?;
-        args::same_length(composites.len(), owner.len(), "owner")?;
-        for (p, c) in composites.into_iter().zip(owner) {
-            candidates
+        for (k, (p, c)) in composites.into_iter().zip(owner).enumerate() {
+            let candidate = candidates
                 .get_mut(c)
-                .ok_or_else(|| invalid("composite of an unknown candidate"))?
-                .composites
-                .push(p);
+                .ok_or_else(|| invalid("composite of an unknown candidate"))?;
+            candidate.composites.push(p);
+            candidate.domains.extend(code(n + m + k));
         }
+        let condition = |(name, o, threshold): (String, String, f64)| {
+            let metric = METRICS.iter().position(|m| *m == name).ok_or_else(|| {
+                invalid(format!(
+                    "rules use {name:?}; use one of {}",
+                    METRICS.join(", ")
+                ))
+            })?;
+            Ok(Condition {
+                metric,
+                op: op(&o)?,
+                threshold,
+            })
+        };
         let (objective, custom) = match objective.extract::<String>() {
             Ok(name) => match (name.as_str(), rules) {
                 ("variance", _) => (Objective::Variance, None),
                 ("classification", Some(rules)) => {
-                    let condition = |(name, o, threshold): (String, String, f64)| {
-                        let metric = METRICS.iter().position(|m| *m == name).ok_or_else(|| {
-                            invalid(format!(
-                                "rules use {name:?}; use one of {}",
-                                METRICS.join(", ")
-                            ))
-                        })?;
-                        Ok(Condition {
-                            metric,
-                            op: op(&o)?,
-                            threshold,
-                        })
-                    };
                     let rules = rules
                         .into_iter()
-                        .map(|r| r.into_iter().map(condition).collect())
+                        .map(|set| {
+                            set.into_iter()
+                                .map(|r| r.into_iter().map(condition).collect())
+                                .collect()
+                        })
                         .collect::<PyResult<_>>()?;
-                    (Objective::Classification(rules), None)
+                    let of = rule_of;
+                    (Objective::Classification { rules, of }, None)
                 }
                 ("classification", None) => {
                     return Err(invalid("the classification objective needs rules"));
@@ -187,7 +220,11 @@ impl DrillholePlan {
             }
             Err(_) => return Err(invalid("objective must be a name or a callable")),
         };
-        let weights = args::optional_finite(weights, "weights")?;
+        let targets = Targets {
+            points,
+            weights: args::optional_finite(weights, "weights")?,
+            domains: codes.map(|c| c[..n].to_vec()),
+        };
         let constraints = Constraints {
             n_holes,
             budget,
@@ -200,9 +237,9 @@ impl DrillholePlan {
                     data,
                     candidates,
                     targets,
-                    weights,
                     objective,
                     constraints,
+                    composite_length,
                 )
             })
             .map_err(invalid)?;

@@ -215,7 +215,7 @@ fn constrained(c: &mut Criterion) {
 
 /// 10 000 blocks of 10 m, 2 025 candidate holes 11 m apart, 100 drilled.
 fn plan(c: &mut Criterion) {
-    use estimation::plan::{Candidate, Constraints, Kriging, Objective, Plan};
+    use estimation::plan::{Candidate, Constraints, Kriging, Objective, Plan, Targets};
     let hole = |x: f64, y: f64| -> Vec<(f64, f64, f64)> {
         (0..8).map(|k| (x, y, -2.5 - 5.0 * k as f64)).collect()
     };
@@ -232,6 +232,7 @@ fn plan(c: &mut Criterion) {
             let (x, y) = ((i % 45) as f64 * 11.0 + 6.0, (i / 45) as f64 * 11.0 + 6.0);
             Candidate {
                 composites: hole(x, y),
+                domains: vec![],
                 collar: (x, y, 0.0),
                 cost: 40.0,
                 excluded: false,
@@ -271,10 +272,13 @@ fn plan(c: &mut Criterion) {
             kriging.clone(),
             data.clone(),
             candidates.clone(),
-            targets.clone(),
-            None,
+            Targets {
+                points: targets.clone(),
+                ..Default::default()
+            },
             Objective::Variance,
             Constraints::default(),
+            5.0,
         )
         .unwrap()
     };

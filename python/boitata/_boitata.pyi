@@ -988,11 +988,14 @@ class _DrillholePlan:
         costs: Sequence[float],
         excluded: Sequence[bool],
         objective: str | Callable[[Table], ArrayLike],
-        rules: Sequence[Sequence[tuple[str, str, float]]] | None,
+        rules: Sequence[Sequence[Sequence[tuple[str, str, float]]]] | None,
+        rule_of: Sequence[int | None] | None,
         weights: ArrayLike | None,
         n_holes: int | None,
         budget: float | None,
         min_spacing: float,
+        domains: Sequence[Label] | None,
+        composite_length: float,
     ) -> None: ...
     def score(self, selected: Sequence[int]) -> float: ...
     def gains(self, selected: Sequence[int]) -> npt.NDArray[np.float64]: ...
