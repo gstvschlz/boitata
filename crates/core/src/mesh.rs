@@ -18,6 +18,8 @@ pub struct Mesh {
     boundary_edges: usize,
     closed: bool,
     pub crs: Option<String>,
+    /// Unit of the coordinates, such as `m` or `ft`; None when not declared.
+    pub length_unit: Option<String>,
 }
 
 /// What [`Mesh::validate`] found.
@@ -501,6 +503,18 @@ fn validate(vertices: &[[f64; 3]], triangles: &[[u32; 3]], tolerance: f64) -> Me
 }
 
 impl Mesh {
+    /// The mesh with coordinates converted to `unit`, which becomes the length
+    /// unit; `crs` names their CRS, required when they had one.
+    pub fn to_length_unit(&self, unit: &str, crs: Option<String>) -> Result<Self> {
+        let (k, crs) =
+            crate::units::rescale(self.length_unit.as_deref(), self.crs.as_deref(), unit, crs)?;
+        let mut out = self.clone();
+        out.vertices.iter_mut().flatten().for_each(|v| *v *= k);
+        out.crs = crs;
+        out.length_unit = Some(unit.into());
+        Ok(out)
+    }
+
     /// Checks that vertices are finite and triangles index them.
     pub fn new(vertices: Vec<[f64; 3]>, triangles: Vec<[u32; 3]>) -> Result<Self> {
         if vertices.iter().flatten().any(|v| !v.is_finite()) {
@@ -524,6 +538,7 @@ impl Mesh {
             vertices,
             triangles,
             crs: None,
+            length_unit: None,
         })
     }
 
@@ -690,6 +705,7 @@ impl Mesh {
         mesh.vertex_attributes = take_rows(&self.vertex_attributes, used)?;
         mesh.face_attributes = take_rows(&self.face_attributes, faces)?;
         mesh.crs = self.crs.clone();
+        mesh.length_unit = self.length_unit.clone();
         Ok(mesh)
     }
 
@@ -754,6 +770,7 @@ impl Mesh {
         mesh.vertex_attributes = self.vertex_attributes.clone();
         mesh.face_attributes = face_attributes;
         mesh.crs = self.crs.clone();
+        mesh.length_unit = self.length_unit.clone();
         Ok(mesh)
     }
 

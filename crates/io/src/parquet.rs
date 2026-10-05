@@ -200,7 +200,7 @@ pub fn write_points(
     points: &PointSet,
     progress: Option<&Progress>,
 ) -> Result<()> {
-    let meta = json!({ "kind": "points", "crs": points.crs });
+    let meta = json!({ "kind": "points", "crs": points.crs, "length_unit": points.length_unit });
     write(
         path.as_ref(),
         &points.to_table()?,
@@ -215,7 +215,7 @@ pub fn write_polylines(
     lines: &Polylines,
     progress: Option<&Progress>,
 ) -> Result<()> {
-    let meta = json!({ "kind": "polylines", "crs": lines.crs });
+    let meta = json!({ "kind": "polylines", "crs": lines.crs, "length_unit": lines.length_unit });
     write(
         path.as_ref(),
         &lines.to_table()?,
@@ -288,6 +288,12 @@ impl BlockModelWriter {
             layout,
             rows: 0,
         })
+    }
+
+    /// Records `unit` as the length unit of the coordinates.
+    pub fn with_length_unit(mut self, unit: Option<&str>) -> Self {
+        self.meta["length_unit"] = json!(unit);
+        self
     }
 
     /// Appends the rows of `chunk`, which must share the file's geometry; a
@@ -393,7 +399,8 @@ pub fn write_block_model(
         *model.geometry(),
         FileLayout::of(model),
         model.crs.as_deref(),
-    )?;
+    )?
+    .with_length_unit(model.length_unit.as_deref());
     writer.write_ticking(model, progress)?;
     writer.finish()
 }
@@ -543,6 +550,7 @@ pub fn read_parquet(path: impl AsRef<Path>, progress: Option<&Progress>) -> Resu
     };
     let meta: Value = serde_json::from_str(meta).map_err(|e| bad(e.to_string()))?;
     let crs = meta["crs"].as_str().map(str::to_string);
+    let length_unit = meta["length_unit"].as_str().map(str::to_string);
     let mut metadata: HashMap<String, String> = schema.metadata().clone();
     metadata.remove(KEY);
     let plain = || {
@@ -559,21 +567,20 @@ pub fn read_parquet(path: impl AsRef<Path>, progress: Option<&Progress>) -> Resu
         Some("points") => {
             let mut points = PointSet::from_table(&plain()?, "x", "y", Some("z"))?;
             points.crs = crs;
+            points.length_unit = length_unit;
             Ok(Stored::Points(points))
         }
         Some("polylines") => {
             let mut lines = Polylines::from_nested(&plain()?)?;
             lines.crs = crs;
+            lines.length_unit = length_unit;
             Ok(Stored::Polylines(lines))
         }
-        Some("block_model") => Ok(Stored::Blocks(decode(
-            geometry(&meta)?,
-            file_layout(&meta)?,
-            crs,
-            &table,
-            0,
-            true,
-        )?)),
+        Some("block_model") => {
+            let mut model = decode(geometry(&meta)?, file_layout(&meta)?, crs, &table, 0, true)?;
+            model.length_unit = length_unit;
+            Ok(Stored::Blocks(model))
+        }
         None => Ok(Stored::Table(table)),
         other => Err(bad(format!("unknown kind {other:?}"))),
     }
@@ -586,6 +593,7 @@ pub struct BlockModelReader {
     geometry: Geometry,
     layout: FileLayout,
     crs: Option<String>,
+    length_unit: Option<String>,
     rows: usize,
     columns: Vec<String>,
 }
@@ -607,6 +615,7 @@ impl BlockModelReader {
             geometry: geometry(&meta)?,
             layout,
             crs: meta["crs"].as_str().map(str::to_string),
+            length_unit: meta["length_unit"].as_str().map(str::to_string),
             rows: builder.metadata().file_metadata().num_rows() as usize,
             columns: builder
                 .schema()
@@ -629,6 +638,10 @@ impl BlockModelReader {
 
     pub fn crs(&self) -> Option<&str> {
         self.crs.as_deref()
+    }
+
+    pub fn length_unit(&self) -> Option<&str> {
+        self.length_unit.as_deref()
     }
 
     pub fn len(&self) -> usize {
@@ -680,6 +693,7 @@ impl BlockModelReader {
             geometry: self.geometry,
             layout: self.layout,
             crs: self.crs.clone(),
+            length_unit: self.length_unit.clone(),
             offset: 0,
         })
     }
@@ -691,6 +705,7 @@ pub struct BlockChunks {
     geometry: Geometry,
     layout: FileLayout,
     crs: Option<String>,
+    length_unit: Option<String>,
     offset: usize,
 }
 
@@ -704,14 +719,20 @@ impl Iterator for BlockChunks {
         };
         let offset = self.offset;
         self.offset += batch.num_rows();
-        Some(decode(
-            self.geometry,
-            self.layout,
-            self.crs.clone(),
-            &batch,
-            offset,
-            false,
-        ))
+        Some(
+            decode(
+                self.geometry,
+                self.layout,
+                self.crs.clone(),
+                &batch,
+                offset,
+                false,
+            )
+            .map(|mut model| {
+                model.length_unit.clone_from(&self.length_unit);
+                model
+            }),
+        )
     }
 }
 
@@ -726,7 +747,8 @@ pub fn stream_map<E: From<Error>>(
 ) -> std::result::Result<(), E> {
     let reader = BlockModelReader::open(input)?;
     let mut writer =
-        BlockModelWriter::create(output, *reader.geometry(), reader.layout(), reader.crs())?;
+        BlockModelWriter::create(output, *reader.geometry(), reader.layout(), reader.crs())?
+            .with_length_unit(reader.length_unit());
     for chunk in reader.chunks(rows, None)? {
         let chunk = chunk?;
         let mut out = if keep {

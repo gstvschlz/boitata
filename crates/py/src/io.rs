@@ -177,31 +177,40 @@ fn write_parquet(py: Python, path: PathBuf, data: &Bound<PyAny>, progress: bool)
 /// Reads Parquet as the PointSet, BlockModel or Polylines it was written
 /// from, or a Table. `units` gives columns their units as in `read_csv`;
 /// units stored in the file are kept as written, even when not understood.
-/// `progress` shows a `tqdm` bar.
+/// `length_unit` is the unit of coordinates the file does not give one, by
+/// default that of `set_units`. `progress` shows a `tqdm` bar.
 #[pyfunction]
-#[pyo3(signature = (path, *, units=None, progress=true))]
+#[pyo3(signature = (path, *, units=None, length_unit=None, progress=true))]
 fn read_parquet(
     py: Python,
     path: PathBuf,
     units: Option<HashMap<String, String>>,
+    length_unit: Option<String>,
     progress: bool,
 ) -> PyResult<Py<PyAny>> {
     let fill = |batch: &RecordBatch| fill_units(batch.clone(), units.as_ref());
+    let length = |stored: Option<String>| match stored {
+        Some(u) => Ok(Some(u)),
+        None => crate::table::length_unit(length_unit.clone()),
+    };
     let stored = with_progress(py, None, progress, |counter| {
         boitata_io::read_parquet(path, counter)
     })?
     .map_err(io_error)?;
     Ok(match stored {
         boitata_io::Stored::Polylines(l) => {
-            let l = l.with_attributes(fill(l.attributes())?).map_err(invalid)?;
+            let mut l = l.with_attributes(fill(l.attributes())?).map_err(invalid)?;
+            l.length_unit = length(l.length_unit)?;
             Py::new(py, PyPolylines(l))?.into_any()
         }
         boitata_io::Stored::Points(p) => {
-            let p = p.with_attributes(fill(p.attributes())?).map_err(invalid)?;
+            let mut p = p.with_attributes(fill(p.attributes())?).map_err(invalid)?;
+            p.length_unit = length(p.length_unit)?;
             PyPointSet(p).into_pyobject(py)?.into_any().unbind()
         }
         boitata_io::Stored::Blocks(b) => {
-            let b = b.with_attributes(fill(b.attributes())?).map_err(invalid)?;
+            let mut b = b.with_attributes(fill(b.attributes())?).map_err(invalid)?;
+            b.length_unit = length(b.length_unit)?;
             PyBlockModel(b).into_pyobject(py)?.into_any().unbind()
         }
         boitata_io::Stored::Table(t) => Table(fill(&t)?).into_pyobject(py)?.into_any().unbind(),
@@ -224,12 +233,18 @@ fn read_parquet(
 /// -------
 /// Mesh
 #[pyfunction]
-#[pyo3(signature = (path, *, progress=true))]
-fn read_mesh(py: Python, path: PathBuf, progress: bool) -> PyResult<Mesh> {
-    let mesh = with_progress(py, None, progress, |counter| {
+#[pyo3(signature = (path, *, length_unit=None, progress=true))]
+fn read_mesh(
+    py: Python,
+    path: PathBuf,
+    length_unit: Option<String>,
+    progress: bool,
+) -> PyResult<Mesh> {
+    let mut mesh = with_progress(py, None, progress, |counter| {
         boitata_io::read_mesh(path, counter)
     })?
     .map_err(io_error)?;
+    mesh.length_unit = crate::table::length_unit(length_unit)?;
     Ok(Mesh::from_core(mesh))
 }
 

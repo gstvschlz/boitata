@@ -1033,7 +1033,8 @@ pub fn turning_bands_to_parquet(
         *reader.geometry(),
         reader.layout(),
         reader.crs(),
-    )?;
+    )?
+    .with_length_unit(reader.length_unit());
     let mut global = GlobalSummary {
         realization_mean: vec![0.0; n],
         realization_above: vec![vec![0.0; n]; options.cutoffs.len()],

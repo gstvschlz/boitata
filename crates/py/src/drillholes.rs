@@ -55,6 +55,7 @@ pub struct Drillholes {
     paths: BTreeMap<String, Vec<WellborePoint>>,
     hole: String,
     intervals: Option<(RecordBatch, String, String, String)>,
+    length_unit: Option<String>,
 }
 
 #[pymethods]
@@ -63,7 +64,7 @@ impl Drillholes {
     #[pyo3(signature = (
         collar, survey, intervals=None, *, hole="HOLE_ID", x="X", y="Y", z="Z", at="DEPTH",
         azimuth="AZIMUTH", dip=Some("DIP"), inclination=None, from_="FROM", to="TO",
-        method="minimum_curvature"
+        method="minimum_curvature", length_unit=None
     ))]
     #[allow(clippy::too_many_arguments)]
     fn new(
@@ -82,6 +83,7 @@ impl Drillholes {
         from_: &str,
         to: &str,
         method: &str,
+        length_unit: Option<String>,
     ) -> PyResult<Self> {
         let method = match method {
             "minimum_curvature" => DesurveyMethod::MinimumCurvature,
@@ -186,7 +188,15 @@ impl Drillholes {
             paths: paths.map_err(invalid)?,
             hole: hole.to_string(),
             intervals,
+            length_unit: crate::table::length_unit(length_unit)?,
         })
+    }
+
+    /// Unit of the coordinates and depths, such as ``m`` or ``ft``; None
+    /// when not declared.
+    #[getter]
+    fn length_unit(&self) -> Option<String> {
+        self.length_unit.clone()
     }
 
     #[getter]
@@ -267,9 +277,9 @@ impl Drillholes {
         }
         let keep = arrow_array::UInt64Array::from(keep);
         let attributes = arrow_select::take::take_record_batch(batch, &keep).map_err(invalid)?;
-        Ok(PyPointSet(
-            PointSet::new(coords, attributes).map_err(invalid)?,
-        ))
+        let mut points = PointSet::new(coords, attributes).map_err(invalid)?;
+        points.length_unit.clone_from(&self.length_unit);
+        Ok(PyPointSet(points))
     }
 
     /// Length-weighted composites, never crossing a change of `domain` and
@@ -467,15 +477,25 @@ impl Drillholes {
             .as_ref()
             .map(|(t, ..)| boitata_core::units::units(t))
             .unwrap_or_default();
+        let lengths: Vec<String> = ["from", "to", "length"]
+            .into_iter()
+            .map(String::from)
+            .chain(grades.iter().map(|g| format!("{g}_length")))
+            .collect();
         let grade_units: Vec<(&str, Option<&str>)> = units
             .iter()
             .filter(|(name, _)| grades.contains(name))
             .map(|(name, unit)| (name.as_str(), Some(unit.as_str())))
+            .chain(
+                lengths
+                    .iter()
+                    .map(|n| (n.as_str(), self.length_unit.as_deref())),
+            )
             .collect();
         let attributes = crate::units::label(attributes, &grade_units)?;
-        Ok(PyPointSet(
-            PointSet::new(coords, attributes).map_err(invalid)?,
-        ))
+        let mut points = PointSet::new(coords, attributes).map_err(invalid)?;
+        points.length_unit.clone_from(&self.length_unit);
+        Ok(PyPointSet(points))
     }
 
     /// Ore and waste runs down each hole: contiguous intervals above `cutoff`
@@ -1714,6 +1734,7 @@ fn snap_to_surface(
         paths,
         hole: drillholes.hole.clone(),
         intervals: drillholes.intervals.clone(),
+        length_unit: drillholes.length_unit.clone(),
     };
     Ok((moved, Table(report)))
 }
@@ -1835,6 +1856,7 @@ fn planned_drillholes(
         paths: holes.into_iter().collect(),
         hole: "HOLE_ID".into(),
         intervals: Some((intervals, "HOLE_ID".into(), "FROM".into(), "TO".into())),
+        length_unit: crate::table::length_unit(None)?,
     })
 }
 

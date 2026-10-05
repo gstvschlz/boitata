@@ -209,9 +209,27 @@ pub struct BlockModel {
     layout: Layout,
     attributes: RecordBatch,
     pub crs: Option<String>,
+    /// Unit of the coordinates, such as `m` or `ft`; None when not declared.
+    pub length_unit: Option<String>,
 }
 
 impl BlockModel {
+    /// The model with coordinates converted to `unit`, which becomes the length
+    /// unit; `crs` names their CRS, required when they had one.
+    pub fn to_length_unit(&self, unit: &str, crs: Option<String>) -> Result<Self> {
+        let (k, crs) =
+            crate::units::rescale(self.length_unit.as_deref(), self.crs.as_deref(), unit, crs)?;
+        let mut out = self.clone();
+        out.geometry
+            .origin
+            .iter_mut()
+            .chain(&mut out.geometry.size)
+            .for_each(|v| *v *= k);
+        out.crs = crs;
+        out.length_unit = Some(unit.into());
+        Ok(out)
+    }
+
     pub fn regular(geometry: Geometry, attributes: RecordBatch) -> Result<Self> {
         geometry.validate()?;
         check_rows(rows(geometry.cells())?, &attributes)?;
@@ -220,6 +238,7 @@ impl BlockModel {
             layout: Layout::Regular,
             attributes,
             crs: None,
+            length_unit: None,
         })
     }
 
@@ -239,6 +258,7 @@ impl BlockModel {
             layout: Layout::Masked(index),
             attributes,
             crs: None,
+            length_unit: None,
         })
     }
 
@@ -292,6 +312,7 @@ impl BlockModel {
             },
             attributes,
             crs: None,
+            length_unit: None,
         })
     }
 
@@ -473,6 +494,7 @@ impl BlockModel {
             }
             let mut model = Self::subblocked(self.geometry, parents, extents, grid, block(owner)?)?;
             model.crs.clone_from(&self.crs);
+            model.length_unit.clone_from(&self.length_unit);
             return Ok(model);
         }
         let g = &self.geometry;
@@ -505,6 +527,7 @@ impl BlockModel {
         let (index, owner) = nodes.into_iter().unzip();
         let mut model = Self::masked(fine, index, block(owner)?)?;
         model.crs.clone_from(&self.crs);
+        model.length_unit.clone_from(&self.length_unit);
         Ok(model)
     }
 
@@ -632,6 +655,10 @@ impl BlockModel {
         {
             return Err(Error::Geometry("models must share the CRS".into()));
         }
+        crate::units::same_length_unit(
+            ("source blocks", self.length_unit.as_deref()),
+            ("target blocks", target.length_unit.as_deref()),
+        )?;
         let shift = block_frame(s.rotation) * Vector3::from_fn(|a, _| t.origin[a] - s.origin[a]);
         let source = self.boxes();
         Ok(target

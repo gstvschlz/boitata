@@ -20,6 +20,37 @@ pub fn of(values: &Bound<PyAny>, data: Option<&Bound<PyAny>>) -> PyResult<Option
         .and_then(|u| u.extract::<String>().ok()))
 }
 
+/// The length unit of the coordinates `obj` holds, if a container declares one.
+pub fn length_of(obj: &Bound<PyAny>) -> PyResult<Option<String>> {
+    Ok(obj
+        .getattr_opt("length_unit")?
+        .and_then(|u| u.extract::<String>().ok()))
+}
+
+/// The one length unit among `units`, None when none declares one; errors
+/// when two differ.
+pub fn common_length(units: impl IntoIterator<Item = Option<String>>) -> PyResult<Option<String>> {
+    let mut found: Option<String> = None;
+    for unit in units.into_iter().flatten() {
+        match &found {
+            Some(f) if *f != unit => {
+                return Err(invalid(format!(
+                    "the variogram and search lengths are in {f} and {unit}; give them one length unit"
+                )));
+            }
+            _ => found = Some(unit),
+        }
+    }
+    Ok(found)
+}
+
+/// Errors when `other`, a container, declares another length unit than
+/// `own`; `names` say what each holds.
+pub fn check_against(own: Option<&str>, other: &Bound<PyAny>, names: (&str, &str)) -> PyResult<()> {
+    boitata_core::units::same_length_unit((names.0, own), (names.1, length_of(other)?.as_deref()))
+        .map_err(invalid)
+}
+
 /// `array` tagged with `unit`, or `array` itself without one.
 pub fn tag<'py>(array: Bound<'py, PyAny>, unit: Option<&str>) -> PyResult<Bound<'py, PyAny>> {
     match unit {

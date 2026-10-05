@@ -25,6 +25,8 @@ pub struct Polylines {
     closed: Vec<bool>,
     attributes: RecordBatch,
     pub crs: Option<String>,
+    /// Unit of the coordinates, such as `m` or `ft`; None when not declared.
+    pub length_unit: Option<String>,
 }
 
 fn check_offsets(offsets: &[u32], end: usize, what: &str) -> Result<()> {
@@ -107,6 +109,18 @@ fn ring_area(ring: &[[f64; 3]]) -> f64 {
 }
 
 impl Polylines {
+    /// The polylines with coordinates converted to `unit`, which becomes the length
+    /// unit; `crs` names their CRS, required when they had one.
+    pub fn to_length_unit(&self, unit: &str, crs: Option<String>) -> Result<Self> {
+        let (k, crs) =
+            crate::units::rescale(self.length_unit.as_deref(), self.crs.as_deref(), unit, crs)?;
+        let mut out = self.clone();
+        out.vertices.iter_mut().flatten().for_each(|v| *v *= k);
+        out.crs = crs;
+        out.length_unit = Some(unit.into());
+        Ok(out)
+    }
+
     /// `parts` offsets into `vertices` (one more than the parts), `features`
     /// offsets into the parts (one more than the features), `closed` one flag
     /// per part and `attributes` one row per feature.
@@ -144,6 +158,7 @@ impl Polylines {
             closed,
             attributes,
             crs: None,
+            length_unit: None,
         })
     }
 
@@ -442,6 +457,7 @@ impl Polylines {
         )?;
         let mut points = PointSet::new(self.vertices.clone(), table)?;
         points.crs = self.crs.clone();
+        points.length_unit = self.length_unit.clone();
         Ok(points)
     }
 }

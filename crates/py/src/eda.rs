@@ -1663,6 +1663,7 @@ fn duplicates<'py>(
     let coords = keep.iter().map(|&i| coords[i as usize]).collect();
     let mut merged = PointSet::new(coords, attributes).map_err(invalid)?;
     merged.crs = set.crs.clone();
+    merged.length_unit = set.length_unit.clone();
     PyPointSet(merged).into_bound_py_any(py)
 }
 

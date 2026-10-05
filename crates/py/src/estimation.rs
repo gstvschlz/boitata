@@ -216,6 +216,9 @@ pub struct Search {
     pub core: CoreSearch,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     soft: Option<Soft<Label>>,
+    /// Length unit of the radius; None when not declared.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub length_unit: Option<String>,
 }
 
 pub use crate::args::Label;
@@ -369,7 +372,7 @@ impl Search {
     }
 
     #[new]
-    #[pyo3(signature = (radius, *, max_samples=16, min_samples=1, octant=false, sectors=None, max_per_sector=None, max_per_hole=None, rotation=None, ratios=None, high_grade=None, soft=None, target_slope=None, target_efficiency=None))]
+    #[pyo3(signature = (radius, *, max_samples=16, min_samples=1, octant=false, sectors=None, max_per_sector=None, max_per_hole=None, rotation=None, ratios=None, high_grade=None, soft=None, target_slope=None, target_efficiency=None, length_unit=None))]
     #[allow(clippy::too_many_arguments)]
     fn new(
         radius: f64,
@@ -385,7 +388,11 @@ impl Search {
         soft: Option<&Bound<PyAny>>,
         target_slope: Option<f64>,
         target_efficiency: Option<f64>,
+        length_unit: Option<String>,
     ) -> PyResult<Self> {
+        if let Some(u) = &length_unit {
+            boitata_core::units::check_length(u).map_err(invalid)?;
+        }
         let calibration = match (target_slope, target_efficiency) {
             (Some(_), Some(_)) => {
                 return Err(invalid(
@@ -417,6 +424,7 @@ impl Search {
         });
         let search = Self {
             soft: soft.map(self::soft).transpose()?,
+            length_unit,
             core: CoreSearch {
                 min_samples,
                 max_samples,
@@ -446,6 +454,13 @@ impl Search {
     #[getter]
     fn radius(&self) -> f64 {
         self.core.radius
+    }
+
+    /// Length unit of the radius and of the variogram's ranges used with it;
+    /// None when not declared.
+    #[getter]
+    fn length_unit(&self) -> Option<String> {
+        self.length_unit.clone()
     }
 
     #[getter]
@@ -1512,7 +1527,9 @@ impl Estimator {
 
     #[getter]
     fn variogram(&self) -> Option<Variogram> {
-        self.variogram.clone().map(Variogram)
+        self.variogram
+            .clone()
+            .map(|v| Variogram(v, Default::default()))
     }
 
     /// Domain label of each fitted sample, after dropping shared locations;

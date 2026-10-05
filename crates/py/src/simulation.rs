@@ -142,6 +142,16 @@ fn int_rows(rows: &[Vec<usize>]) -> Vec<Vec<i64>> {
 #[pyclass(module = "boitata", name = "SimulationSummary", frozen)]
 pub struct SimulationSummary(ContinuousSummary, Option<Vec<args::Label>>, Option<String>);
 
+/// The length unit `variogram` and `searches` declare; they must agree.
+fn parameters_unit(
+    variogram: &Variogram,
+    searches: &[crate::estimation::Search],
+) -> PyResult<Option<String>> {
+    let units = std::iter::once(variogram.1.length_unit.clone())
+        .chain(searches.iter().map(|s| s.length_unit.clone()));
+    crate::units::common_length(units)
+}
+
 impl From<ContinuousSummary> for SimulationSummary {
     fn from(summary: ContinuousSummary) -> Self {
         Self(summary, None, None)
@@ -1032,6 +1042,12 @@ pub struct Sgs {
     /// Unit of the fitted values, carried by the summaries.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     unit: Option<String>,
+    /// Length unit of the variogram and search.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    length_unit: Option<String>,
+    /// Length unit of the fitted coordinates.
+    #[serde(skip)]
+    coords_unit: Option<String>,
 }
 
 impl Sgs {
@@ -1126,7 +1142,10 @@ impl Sgs {
     #[new]
     #[pyo3(signature = (variogram, search, *, classes=10))]
     fn new(variogram: Variogram, search: &Bound<PyAny>, classes: usize) -> PyResult<Self> {
+        let length_unit = parameters_unit(&variogram, &crate::estimation::searches(search)?)?;
         Ok(Self {
+            length_unit,
+            coords_unit: None,
             variogram: variogram.0,
             search: plain_searches(search, "SGS")?,
             classes,
@@ -1266,6 +1285,15 @@ impl Sgs {
             return Err(invalid("correlation needs secondary"));
         }
         slf.unit = crate::units::of(values, Some(coords))?;
+        slf.coords_unit = crate::units::length_of(coords)?;
+        boitata_core::units::same_length_unit(
+            (
+                "the variogram and search lengths",
+                slf.length_unit.as_deref(),
+            ),
+            ("samples", slf.coords_unit.as_deref()),
+        )
+        .map_err(invalid)?;
         let (d, fitted) = data(
             coords,
             values,
@@ -1387,6 +1415,11 @@ impl Sgs {
         progress: bool,
     ) -> PyResult<SimulationSummary> {
         let d = self.data.as_ref().ok_or_else(not_fitted)?;
+        boitata_core::units::same_length_unit(
+            ("samples", self.coords_unit.as_deref()),
+            ("targets", crate::units::length_of(targets)?.as_deref()),
+        )
+        .map_err(invalid)?;
         if !matches!(path, None | Some("shared" | "random")) {
             return Err(invalid(format!(
                 "path must be 'shared' or 'random', got {:?}",
@@ -1603,6 +1636,12 @@ pub struct Dss {
     /// Unit of the fitted values, carried by the summaries.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     unit: Option<String>,
+    /// Length unit of the variogram and search.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    length_unit: Option<String>,
+    /// Length unit of the fitted coordinates.
+    #[serde(skip)]
+    coords_unit: Option<String>,
 }
 
 #[pymethods]
@@ -1635,7 +1674,10 @@ impl Dss {
         if !(sill.is_finite() && sill > 0.0 && variogram.0.is_stationary()) {
             return Err(invalid("DSS needs a variogram with a finite positive sill"));
         }
+        let length_unit = parameters_unit(&variogram, &crate::estimation::searches(search)?)?;
         Ok(Self {
+            length_unit,
+            coords_unit: None,
             variogram: variogram.0,
             search: plain_searches(search, "DSS")?,
             domains: None,
@@ -1769,6 +1811,15 @@ impl Dss {
             return Err(invalid("correlation needs secondary"));
         }
         slf.unit = crate::units::of(values, Some(coords))?;
+        slf.coords_unit = crate::units::length_of(coords)?;
+        boitata_core::units::same_length_unit(
+            (
+                "the variogram and search lengths",
+                slf.length_unit.as_deref(),
+            ),
+            ("samples", slf.coords_unit.as_deref()),
+        )
+        .map_err(invalid)?;
         let (d, fitted) = data(
             coords,
             values,
@@ -1885,6 +1936,11 @@ impl Dss {
         progress: bool,
     ) -> PyResult<SimulationSummary> {
         let d = self.data.as_ref().ok_or_else(not_fitted)?;
+        boitata_core::units::same_length_unit(
+            ("samples", self.coords_unit.as_deref()),
+            ("targets", crate::units::length_of(targets)?.as_deref()),
+        )
+        .map_err(invalid)?;
         let grid = self::targets(targets)?;
         let fitted = self.domains.as_deref();
         let domains = domain_arg(targets, domains, domain_column)?;
@@ -2022,6 +2078,12 @@ pub struct TurningBands {
     /// Unit of the fitted values, carried by the summaries.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     unit: Option<String>,
+    /// Length unit of the variogram and search.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    length_unit: Option<String>,
+    /// Length unit of the fitted coordinates.
+    #[serde(skip)]
+    coords_unit: Option<String>,
 }
 
 #[pymethods]
@@ -2066,7 +2128,10 @@ impl TurningBands {
         if let Some(s) = &search {
             s.uncalibrated("TurningBands")?;
         }
+        let length_unit = parameters_unit(&variogram, search.as_slice())?;
         Ok(Self {
+            length_unit,
+            coords_unit: None,
             variogram: variogram.0,
             bands,
             step,
@@ -2120,6 +2185,15 @@ impl TurningBands {
         domain_column: Option<&str>,
     ) -> PyResult<PyRefMut<'py, Self>> {
         slf.unit = crate::units::of(values, Some(coords))?;
+        slf.coords_unit = crate::units::length_of(coords)?;
+        boitata_core::units::same_length_unit(
+            (
+                "the variogram and search lengths",
+                slf.length_unit.as_deref(),
+            ),
+            ("samples", slf.coords_unit.as_deref()),
+        )
+        .map_err(invalid)?;
         let (d, fitted) = data(
             coords,
             values,
@@ -2168,6 +2242,11 @@ impl TurningBands {
         progress: bool,
     ) -> PyResult<SimulationSummary> {
         let d = self.data.as_ref().ok_or_else(not_fitted)?;
+        boitata_core::units::same_length_unit(
+            ("samples", self.coords_unit.as_deref()),
+            ("targets", crate::units::length_of(targets)?.as_deref()),
+        )
+        .map_err(invalid)?;
         let grid = self::targets(targets)?;
         let fitted = self.domains.as_deref();
         let domains = domain_arg(targets, domains, domain_column)?;
@@ -2702,7 +2781,10 @@ impl Plurigaussian {
     /// The latent fields' variograms.
     #[getter]
     fn variograms(&self) -> Vec<Variogram> {
-        self.variograms.iter().cloned().map(Variogram).collect()
+        self.variograms
+            .iter()
+            .map(|v| Variogram(v.clone(), Default::default()))
+            .collect()
     }
 
     /// Rescales the ranges of each latent variogram, keeping its structures
@@ -3146,6 +3228,7 @@ fn object_training_image(
         .detach(|| simulation::object_training_image(geometry, &sets, background, seed, column))
         .map_err(err)?;
     model.crs = grid.0.crs.clone();
+    model.length_unit = grid.0.length_unit.clone();
     Ok(PyBlockModel(model))
 }
 

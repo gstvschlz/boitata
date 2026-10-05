@@ -43,6 +43,7 @@ pub fn grid_surface(model: &BlockModel, elevation: &[Option<f64>]) -> Result<Mes
     }
     let mut mesh = Mesh::new(vertices, triangles)?;
     mesh.crs = model.crs.clone();
+    mesh.length_unit = model.length_unit.clone();
     Ok(mesh)
 }
 
