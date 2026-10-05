@@ -1843,7 +1843,118 @@ fn paired_bias(pairs: &Bound<PyAny>, bins: &Bound<PyAny>) -> PyResult<Table> {
     Ok(Table(batch))
 }
 
+/// Uncertainty quantiles and the share within a threshold per bin of data spacing.
+///
+/// Parameters
+/// ----------
+/// spacing : array_like or str
+///     Data spacing per row (e.g. `data_spacing`), or its column in `data`.
+/// uncertainty : array_like or str
+///     Uncertainty per row (e.g. relative error), or its column in `data`.
+/// bins : int or array_like, optional
+///     Number of equal bins over the spacing range, or bin edges; default
+///     Freedman–Diaconis widths.
+/// quantiles : sequence of float
+///     Probabilities of the uncertainty quantiles.
+/// threshold : float
+///     Uncertainty counted in ``share``.
+/// min_count : int
+///     Bins with fewer rows are dropped.
+/// data : PointSet, BlockModel, Table or dict, optional
+///     Where column names are looked up.
+///
+/// Returns
+/// -------
+/// Table
+///     One row per bin: ``spacing`` (mean in the bin), ``n``, one column per
+///     quantile named ``P50``, ``P90``, ..., non-decreasing in spacing, and
+///     ``share``, the fraction of rows with uncertainty at or below
+///     `threshold`. Rows with a null or NaN are skipped.
+#[pyfunction]
+#[pyo3(signature = (spacing, uncertainty, *, bins=None, quantiles=vec![0.5, 0.9], threshold=0.15, min_count=8, data=None))]
+fn uncertainty_curve(
+    spacing: &Bound<PyAny>,
+    uncertainty: &Bound<PyAny>,
+    bins: Option<&Bound<PyAny>>,
+    quantiles: Vec<f64>,
+    threshold: f64,
+    min_count: usize,
+    data: Option<&Bound<PyAny>>,
+) -> PyResult<Table> {
+    let s = floats(&column(data, spacing, "spacing")?, "spacing")?;
+    let u = floats(&column(data, uncertainty, "uncertainty")?, "uncertainty")?;
+    let bins = match bins {
+        None => eda::Bins::Auto,
+        Some(b) => match b.extract::<usize>() {
+            Ok(k) => eda::Bins::Count(k),
+            Err(_) => eda::Bins::Edges(floats(b, "bins")?),
+        },
+    };
+    let rows =
+        eda::uncertainty_curve(&s, &u, &bins, &quantiles, threshold, min_count).map_err(invalid)?;
+    let mut columns: Vec<(String, ArrayRef)> = vec![
+        ("spacing".into(), nullable(rows.iter().map(|r| r.spacing))),
+        (
+            "n".into(),
+            Arc::new(UInt64Array::from_iter_values(
+                rows.iter().map(|r| r.n as u64),
+            )),
+        ),
+    ];
+    for (k, p) in quantiles.iter().enumerate() {
+        columns.push((
+            quantile_name(*p),
+            nullable(rows.iter().map(|r| r.quantiles[k])),
+        ));
+    }
+    columns.push(("share".into(), nullable(rows.iter().map(|r| r.share))));
+    Ok(Table(RecordBatch::try_from_iter(columns).map_err(invalid)?))
+}
+
+/// Largest data spacing whose uncertainty still meets a threshold.
+///
+/// Parameters
+/// ----------
+/// curve : Table
+///     Result of `uncertainty_curve`, or any table with ``spacing`` and
+///     `column`, sorted by spacing.
+/// column : str
+///     Uncertainty column of `curve`.
+/// threshold : float
+///     Acceptable uncertainty.
+///
+/// Returns
+/// -------
+/// float
+///     Spacing interpolated linearly between the last row at or below
+///     `threshold` and the first above it; NaN when the first row is already
+///     above. When the curve never rises above, the largest spacing, with a
+///     warning that the required spacing lies beyond the tested range.
+#[pyfunction]
+#[pyo3(signature = (curve, *, column="P90", threshold=0.15))]
+fn required_spacing(curve: &Bound<PyAny>, column: &str, threshold: f64) -> PyResult<f64> {
+    let get = |name: &str| -> PyResult<Vec<f64>> {
+        let c = curve
+            .get_item(name)
+            .map_err(|_| invalid(format!("curve needs a '{name}' column")))?;
+        floats(&c, name)
+    };
+    let (spacing, beyond) = eda::required_spacing(&get("spacing")?, &get(column)?, threshold);
+    if beyond {
+        let py = curve.py();
+        let message = format!(
+            "{column} stays at or below {threshold} up to the largest spacing {spacing}; \
+             the required spacing lies beyond the tested range"
+        );
+        let category = py.get_type::<pyo3::exceptions::PyUserWarning>();
+        PyErr::warn(py, &category, &std::ffi::CString::new(message)?, 1)?;
+    }
+    Ok(spacing)
+}
+
 pub fn register(m: &Bound<PyModule>) -> PyResult<()> {
+    m.add_function(wrap_pyfunction!(uncertainty_curve, m)?)?;
+    m.add_function(wrap_pyfunction!(required_spacing, m)?)?;
     m.add_function(wrap_pyfunction!(pairs, m)?)?;
     m.add_function(wrap_pyfunction!(data_spacing, m)?)?;
     m.add_function(wrap_pyfunction!(paired_bias, m)?)?;

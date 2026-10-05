@@ -189,6 +189,16 @@ def test_paired_bias_draws_bias_and_counts():
     np.testing.assert_allclose(ax.lines[-1].get_ydata(), 20.0)
 
 
+def test_uncertainty_curve_draws_quantiles_threshold_and_required_spacing():
+    spacing = rng.uniform(5, 30, 500)
+    curve = bt.uncertainty_curve(spacing, 0.01 * spacing, bins=5)
+    required = bt.required_spacing(curve)
+    _, ax = bt.plot.uncertainty_curve(curve, required=required)
+    np.testing.assert_allclose(ax.lines[0].get_ydata(), curve["P50"])
+    assert ax.lines[1].get_linestyle() == "--"
+    assert ax.lines[-1].get_xdata()[0] == required
+
+
 def test_uncertain_fades_to_white():
     values = np.array([[0.0, 1.0], [1.0, np.nan]])
     uncertainty = np.array([[0.0, 1.0], [0.5, 0.0]])

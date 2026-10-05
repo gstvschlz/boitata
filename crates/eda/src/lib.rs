@@ -1209,6 +1209,142 @@ pub fn paired_bias(distance: &[f64], a: &[f64], b: &[f64], edges: &[f64]) -> Res
         .collect())
 }
 
+/// Spacing bins of [`uncertainty_curve`].
+#[derive(Debug, Clone)]
+pub enum Bins {
+    /// Freedman–Diaconis width over the spacing range.
+    Auto,
+    /// Equal-width bins over the spacing range.
+    Count(usize),
+    Edges(Vec<f64>),
+}
+
+/// One spacing bin `[from, to)` (the last closed) of [`uncertainty_curve`].
+#[derive(Debug, Clone)]
+pub struct CurveBin {
+    /// Mean spacing in the bin.
+    pub spacing: f64,
+    pub n: usize,
+    /// Uncertainty quantiles, non-decreasing from bin to bin.
+    pub quantiles: Vec<f64>,
+    /// Share of uncertainty at or below the threshold.
+    pub share: f64,
+}
+
+fn edges_of(x: &[f64], bins: &Bins) -> Result<Vec<f64>> {
+    let (lo, hi) = x
+        .iter()
+        .fold((f64::INFINITY, f64::NEG_INFINITY), |(a, b), &v| {
+            (a.min(v), b.max(v))
+        });
+    let hi = if hi > lo { hi } else { lo + 1.0 };
+    let count = match bins {
+        Bins::Edges(e) => return Ok(e.clone()),
+        Bins::Count(0) => return invalid("bins must be positive"),
+        Bins::Count(k) => *k,
+        Bins::Auto => {
+            let q = quantiles_of(x, &vec![1.0; x.len()], &[0.25, 0.75])?;
+            let width = 2.0 * (q[1] - q[0]) / (x.len() as f64).cbrt();
+            if width > 0.0 {
+                ((hi - lo) / width).ceil().clamp(1.0, x.len() as f64) as usize
+            } else {
+                1
+            }
+        }
+    };
+    Ok((0..=count)
+        .map(|i| lo + (hi - lo) * i as f64 / count as f64)
+        .collect())
+}
+
+/// Uncertainty quantiles at `probabilities` and the share at or below
+/// `threshold` per bin of `spacing`; pairs with a non-finite value are skipped,
+/// bins with fewer than `min_count` pairs dropped, and each quantile is made
+/// non-decreasing in spacing by a running maximum.
+pub fn uncertainty_curve(
+    spacing: &[f64],
+    uncertainty: &[f64],
+    bins: &Bins,
+    probabilities: &[f64],
+    threshold: f64,
+    min_count: usize,
+) -> Result<Vec<CurveBin>> {
+    if spacing.len() != uncertainty.len() {
+        return invalid(format!(
+            "expected {} uncertainty values, got {}",
+            spacing.len(),
+            uncertainty.len()
+        ));
+    }
+    if !threshold.is_finite() {
+        return invalid("threshold must be finite");
+    }
+    if probabilities.iter().any(|p| !(0.0..=1.0).contains(p)) {
+        return invalid("probabilities must be in [0, 1]");
+    }
+    let (x, y): (Vec<f64>, Vec<f64>) = spacing
+        .iter()
+        .zip(uncertainty)
+        .filter(|(s, u)| s.is_finite() && u.is_finite())
+        .unzip();
+    if x.is_empty() {
+        return invalid("no finite spacing and uncertainty pairs");
+    }
+    let edges = edges_of(&x, bins)?;
+    if edges.len() < 2 || !edges.iter().all(|e| e.is_finite()) || !edges.is_sorted_by(|a, b| a < b)
+    {
+        return invalid("edges must be at least 2 finite increasing values");
+    }
+    let last = edges.len() - 2;
+    let mut members = vec![Vec::new(); last + 1];
+    for (i, &s) in x.iter().enumerate() {
+        if edges[0] <= s && s <= edges[last + 1] {
+            members[(edges.partition_point(|&e| e <= s) - 1).min(last)].push(i);
+        }
+    }
+    let mut curve = Vec::new();
+    let mut top = vec![f64::NEG_INFINITY; probabilities.len()];
+    for m in members.into_iter().filter(|m| m.len() >= min_count.max(1)) {
+        let n = m.len();
+        let u: Vec<f64> = m.iter().map(|&i| y[i]).collect();
+        let mut quantiles = quantiles_of(&u, &vec![1.0; n], probabilities)?;
+        for (q, t) in quantiles.iter_mut().zip(&mut top) {
+            *t = t.max(*q);
+            *q = *t;
+        }
+        curve.push(CurveBin {
+            spacing: m.iter().map(|&i| x[i]).sum::<f64>() / n as f64,
+            n,
+            quantiles,
+            share: u.iter().filter(|&&v| v <= threshold).count() as f64 / n as f64,
+        });
+    }
+    Ok(curve)
+}
+
+/// Largest spacing whose `values` still meet `threshold`: linear between the
+/// two points around the first rise above it; NaN when the first point is
+/// already above. When the curve never rises above, the last spacing and
+/// `true`, as the required spacing lies beyond the tested range. Points with
+/// a NaN are skipped.
+pub fn required_spacing(spacing: &[f64], values: &[f64], threshold: f64) -> (f64, bool) {
+    let points: Vec<(f64, f64)> = spacing
+        .iter()
+        .zip(values)
+        .filter(|(s, v)| !s.is_nan() && !v.is_nan())
+        .map(|(&s, &v)| (s, v))
+        .collect();
+    let crossing = match points.iter().position(|&(_, v)| v > threshold) {
+        None => return points.last().map_or((f64::NAN, false), |p| (p.0, true)),
+        Some(0) => f64::NAN,
+        Some(j) => {
+            let ((x0, y0), (x1, y1)) = (points[j - 1], points[j]);
+            x0 + (threshold - y0) / (y1 - y0) * (x1 - x0)
+        }
+    };
+    (crossing, false)
+}
+
 /// One cell of [`domain_change`]: the blocks of class `from` in the first
 /// model and `to` in the second.
 #[derive(Debug, Clone, PartialEq)]
@@ -1985,5 +2121,44 @@ mod tests {
             pairs(&a, &b, 2.0, Some(nan), None, true).unwrap(),
             vec![(0, 0, 1.0)]
         );
+    }
+
+    #[test]
+    fn required_spacing_interpolates_a_linear_curve() {
+        let s: Vec<f64> = (0..10).map(|i| 5.0 + 2.0 * f64::from(i)).collect();
+        let u: Vec<f64> = s.iter().map(|s| 0.01 * s).collect();
+        let (r, beyond) = required_spacing(&s, &u, 0.15);
+        assert!((r - 15.0).abs() < 1e-12 && !beyond);
+        assert!((required_spacing(&s, &u, 0.1).0 - 10.0).abs() < 1e-12);
+        assert_eq!(required_spacing(&s, &u, 1.0), (23.0, true));
+        let (r, beyond) = required_spacing(&s, &u, 0.0);
+        assert!(r.is_nan() && !beyond);
+        assert!(required_spacing(&[], &[], 0.1).0.is_nan());
+    }
+
+    #[test]
+    fn uncertainty_curve_bins_and_forces_monotone_quantiles() {
+        let mut spacing = Vec::new();
+        let mut uncertainty = Vec::new();
+        for (k, &level) in [0.1, 0.3, 0.2, 0.4].iter().enumerate() {
+            for i in 0..10 {
+                spacing.push(10.0 * k as f64 + 1.0 + 0.1 * f64::from(i));
+                uncertainty.push(level);
+            }
+        }
+        spacing.extend([35.0, f64::NAN, 1.0]);
+        uncertainty.extend([0.9, 0.5, f64::NAN]);
+        let edges = Bins::Edges(vec![0.0, 10.0, 20.0, 30.0, 40.0]);
+        let c = uncertainty_curve(&spacing, &uncertainty, &edges, &[0.5], 0.25, 8).unwrap();
+        let q: Vec<f64> = c.iter().map(|b| b.quantiles[0]).collect();
+        assert_eq!(q, [0.1, 0.3, 0.3, 0.4]);
+        assert_eq!(c.iter().map(|b| b.n).collect::<Vec<_>>(), [10, 10, 10, 11]);
+        assert_eq!(c[0].share, 1.0);
+        assert_eq!(c[1].share, 0.0);
+        assert!((c[0].spacing - 1.45).abs() < 1e-12);
+        let sparse = uncertainty_curve(&spacing, &uncertainty, &edges, &[0.5], 0.25, 11).unwrap();
+        assert_eq!(sparse.len(), 1);
+        let auto = uncertainty_curve(&spacing, &uncertainty, &Bins::Auto, &[0.5], 0.25, 1).unwrap();
+        assert_eq!(auto.iter().map(|b| b.n).sum::<usize>(), 41);
     }
 }
