@@ -140,7 +140,7 @@ def topography(points, *, cell, estimator=None, extent=None, clip=None, max_resi
     if coords.ndim != 2 or coords.shape[1] != 3:
         raise InvalidInput("points must be a PointSet or (n, 3) coordinates")
     if clip is None:
-        spacing = float(np.median(_boitata.data_spacing(coords, horizontal=True)))
+        spacing = float(np.nanmedian(_boitata.data_spacing(coords, coords, None)))
         clip = outline(coords, method="concave", max_edge=3 * spacing, buffer=spacing)
     elif clip is False:
         clip = None

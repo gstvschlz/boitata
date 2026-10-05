@@ -303,15 +303,15 @@ The assumed density weighs more: 0.1 t/m³ either way moves the total more than 
 
 ## Classification by data spacing
 
-The distance from a cell to its fourth nearest hole measures the drilling around it: inside a square grid of
-spacing s it lies between 0.71 s and s. Cells within 450 m of four holes, the infill, are measured; within 800 m,
-the regional grid, indicated; the rest inferred. A 3 × 3 majority filter removes isolated cells.
+The equivalent spacing of a cell is the spacing of a square grid of holes that would put as much drilling around
+it; on a square grid of spacing s it reads about s. Cells at 450 m or less, the infill, are measured; at 700 m or
+less, the regional grid, indicated; the rest inferred. A 3 × 3 majority filter removes isolated cells.
 
 <details><summary>Python</summary>
 
 ```python
-spacing = bt.data_spacing(xy, n=4, targets=cells)
-rules = [("measured", {"spacing": ("<=", 450)}), ("indicated", {"spacing": ("<=", 800)})]
+spacing = bt.data_spacing(cells, xy, None)
+rules = [("measured", {"spacing": ("<=", 450)}), ("indicated", {"spacing": ("<=", 700)})]
 classes = bt.classify({"spacing": spacing}, rules, default="inferred")
 classes = bt.smooth_classes(cells, classes, window=(3, 3, 1))
 names = ["measured", "indicated", "inferred"]
@@ -335,15 +335,15 @@ save(fig, "classes")
 </details>
 
 ```text
- measured: 20.0% of the lease,  51.4 Mt, mean 2.57 m
-indicated: 73.4% of the lease, 129.0 Mt, mean 1.75 m
- inferred:  6.6% of the lease,   8.9 Mt, mean 1.36 m
+ measured: 21.9% of the lease,  57.4 Mt, mean 2.62 m
+indicated: 68.9% of the lease, 118.9 Mt, mean 1.72 m
+ inferred:  9.2% of the lease,  13.0 Mt, mean 1.41 m
 ```
 
 ![classes](classes.png)
 
-Measured cells, a fifth of the lease, sit on the infill where the seam is thickest, 2.57 m on average, and hold
-51.4 Mt. Indicated cells cover the regional grid, 129.0 Mt; inferred ones, 8.9 Mt, lie at the edges of the lease
+Measured cells, a fifth of the lease, sit on the infill where the seam is thickest, 2.62 m on average, and hold
+57.4 Mt. Indicated cells cover the regional grid, 118.9 Mt; inferred ones, 13.0 Mt, lie at the edges of the lease
 beyond the last holes, and where the regional grid has gaps. Spacing ignores the variogram; [classification](../../10-checking-models/05-classification/README.md) classifies
 from the kriging itself.
 

@@ -21,7 +21,7 @@ from common import ACCENT, GRAY, HIGHLIGHT, map_axes, save
 
 table = bt.datasets.stacked_sulphide_lenses()["collars"]
 collars = bt.PointSet.from_table(table)
-spacing = np.median(bt.data_spacing(collars))
+spacing = np.nanmedian(bt.data_spacing(collars, collars, None))
 print(f"{len(collars)} collars, median spacing {spacing:.0f} m")
 
 # %% [markdown]

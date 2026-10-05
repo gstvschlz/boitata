@@ -1747,46 +1747,142 @@ fn pairs(
     Ok(Table(RecordBatch::try_from_iter(columns).map_err(invalid)?))
 }
 
-/// Data spacing: the distance to the `n`th nearest sample.
+/// Equivalent data spacing (Cabral Pinto & Deutsch, 2017).
+///
+/// With a `search`, ``sqrt(V / (c n))``: ``V`` the volume of the search
+/// ellipsoid, ``n`` the composites inside it around the target and ``c`` the
+/// composite length. Without, the plan form: the mean over `n` of
+/// ``sqrt(pi r^2 / n)``, ``r`` the mean plan distance to the ``n``-th and
+/// ``n + 1``-th nearest samples. Holes on a square grid of spacing ``s`` give
+/// about ``s`` in both forms.
 ///
 /// Parameters
 /// ----------
-/// coords : PointSet or array_like
-///     Samples, or their ``(n, 2)`` or ``(n, 3)`` coordinates.
-/// n : int
-///     Rank of the neighbor; on a square grid of spacing ``s`` seen in plan,
-///     ``n=4`` gives ``s``.
-/// targets : array_like, PointSet or BlockModel, optional
-///     Locations to measure from, e.g. block centroids; default each sample,
-///     not counting itself.
-/// horizontal : bool
-///     Measure in plan, ignoring elevation.
+/// targets : array_like, PointSet or BlockModel
+///     Locations to measure at, e.g. block centroids.
+/// data : Drillholes, PointSet or array_like
+///     Composites, or their ``(n, 2)`` or ``(n, 3)`` coordinates; a
+///     Drillholes stands for its interval midpoints.
+/// search : Search or None
+///     Ellipsoid of the volume form, from its radius, rotation and ratios;
+///     None for the plan form.
+/// composite_length : float, optional
+///     ``c``; default the median interval length of a Drillholes `data`.
+///     Required for other `data` with a `search`.
+/// holes : array_like or str, optional
+///     Hole of each sample, or its column in `data`; the plan form then
+///     counts each hole once, at its nearest sample.
+/// n : int or sequence of int
+///     Neighbor ranks of the plan form, averaged.
+/// hull : bool
+///     Null targets outside the plan convex hull of `data`.
 ///
 /// Returns
 /// -------
 /// ndarray
-///     One distance per target, ``inf`` when there are fewer than `n` samples.
+///     One spacing per target; NaN where the ellipsoid holds no composite,
+///     fewer than ``n + 1`` samples or holes exist, or outside the hull.
+///
+/// Warns
+/// -----
+/// UserWarning
+///     When most targets have fewer than 4 composites inside the ellipsoid:
+///     enlarge the search.
 #[pyfunction]
-#[pyo3(signature = (coords, *, n=1, targets=None, horizontal=false))]
+#[pyo3(signature = (targets, data, search, *, composite_length=None, holes=None, n=None, hull=false))]
+#[allow(clippy::too_many_arguments)]
 fn data_spacing<'py>(
     py: Python<'py>,
-    coords: &Bound<PyAny>,
-    n: usize,
-    targets: Option<&Bound<PyAny>>,
-    horizontal: bool,
+    targets: &Bound<'py, PyAny>,
+    data: &Bound<'py, PyAny>,
+    search: Option<crate::estimation::Search>,
+    composite_length: Option<f64>,
+    holes: Option<&Bound<'py, PyAny>>,
+    n: Option<&Bound<'py, PyAny>>,
+    hull: bool,
 ) -> PyResult<Bound<'py, PyAny>> {
-    let coords = coords_arg(coords)?;
-    let targets = targets
-        .map(|t| -> PyResult<Vec<[f64; 3]>> {
-            Ok(crate::estimation::targets(t)?
-                .into_iter()
-                .map(|(x, y, z)| [x, y, z])
-                .collect())
-        })
-        .transpose()?;
-    let d = py
-        .detach(|| eda::spacing(&coords, targets.as_deref(), n, horizontal))
+    let targets: Vec<[f64; 3]> = crate::estimation::targets(targets)?
+        .into_iter()
+        .map(|(x, y, z)| [x, y, z])
+        .collect();
+    let (data, intervals) = if let Ok(dh) = data.cast::<crate::drillholes::Drillholes>() {
+        let points = dh.call_method0("samples")?;
+        let (_, from, to): (String, String, String) = dh.getattr("interval_columns")?.extract()?;
+        let length = |name: &str| floats(&named(Some(&points), name, "intervals")?, "intervals");
+        let mut lengths: Vec<f64> = (length(&to)?.iter().zip(length(&from)?))
+            .map(|(t, f)| t - f)
+            .filter(|l| l.is_finite())
+            .collect();
+        lengths.sort_by(f64::total_cmp);
+        let k = lengths.len();
+        let median = (k > 0).then(|| (lengths[(k - 1) / 2] + lengths[k / 2]) / 2.0);
+        (points, median)
+    } else {
+        (data.clone(), None)
+    };
+    let coords = coords_arg(&data)?;
+    let codes = match holes {
+        Some(h) => crate::args::holes(Some(&column(Some(&data), h, "holes")?), coords.len())?
+            .map(|(_, codes)| codes),
+        None => None,
+    };
+    let ns: Vec<usize> = match n {
+        None => (4..=10).collect(),
+        Some(n) => n
+            .extract::<usize>()
+            .map(|n| vec![n])
+            .or_else(|_| n.extract())
+            .map_err(|_| invalid("n must be an int or a sequence of int"))?,
+    };
+    let volume = match &search {
+        Some(s) => {
+            let c = composite_length.or(intervals).ok_or_else(|| {
+                invalid("composite_length is required unless data is a Drillholes")
+            })?;
+            let anisotropy = s.core.anisotropy.as_ref();
+            Some((anisotropy, s.core.radius, c))
+        }
+        None => None,
+    };
+    let how = match volume {
+        Some((anisotropy, radius, composite_length)) => eda::Spacing::Volume {
+            anisotropy,
+            radius,
+            composite_length,
+        },
+        None => eda::Spacing::Plan(&ns),
+    };
+    let mut d = py
+        .detach(|| eda::spacing(&coords, &targets, how, codes.as_deref()))
         .map_err(invalid)?;
+    let mut inside = vec![true; targets.len()];
+    if hull {
+        let rings = blocks::outline(&coords, blocks::Hull::Convex, 0.0, blocks::Plane::Plan)
+            .map_err(invalid)?;
+        let ring: Vec<(f64, f64)> = rings[0].iter().map(|p| (p[0], p[1])).collect();
+        for ((d, t), inside) in d.iter_mut().zip(&targets).zip(&mut inside) {
+            *inside = blocks::point_in_polygon((t[0], t[1]), &ring);
+            if !*inside {
+                *d = f64::NAN;
+            }
+        }
+    }
+    if let Some((anisotropy, radius, c)) = volume {
+        let v = eda::ellipsoid_volume(anisotropy, radius);
+        let counted = inside.iter().filter(|i| **i).count();
+        let sparse = d
+            .iter()
+            .zip(&inside)
+            .filter(|(d, i)| **i && (d.is_nan() || (v / (c * **d * **d)).round() < 4.0))
+            .count();
+        if 2 * sparse > counted {
+            let message = format!(
+                "{sparse} of {counted} targets have fewer than 4 composites inside the search; enlarge it"
+            );
+            let category = py.get_type::<pyo3::exceptions::PyUserWarning>();
+            PyErr::warn(py, &category, &std::ffi::CString::new(message)?, 1)?;
+        }
+    }
     Ok(array1(py, d).into_any())
 }
 

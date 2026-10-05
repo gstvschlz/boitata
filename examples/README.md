@@ -53,7 +53,7 @@ Worked examples with the Python API on open datasets from [gstvschlz/datasets](h
 | 7 | [Contacts](03-exploratory-analysis/07-contacts/README.md) | Nickel laterite profile | `merge_intervals`, `Drillholes`, `contact`, `plot.contact` |
 | 8 | [Soft-boundary statistics](03-exploratory-analysis/08-soft-boundary-statistics/README.md) | Nickel laterite profile | `merge_intervals`, `Drillholes`, `soft_boundary` |
 | 9 | [Swaths](03-exploratory-analysis/09-swaths/README.md) | Phosphate weathering profile | `merge_intervals`, `Drillholes`, `describe_by`, `swath`, `plot.swath` |
-| 10 | [Data spacing](03-exploratory-analysis/10-data-spacing/README.md) | Coal seam thickness | `data_spacing`, `plot.histogram`, `hole_distance`, `plot.section` |
+| 10 | [Data spacing](03-exploratory-analysis/10-data-spacing/README.md) | Coal seam thickness, Iron formation plateau | `data_spacing`, `plot.section`, `plot.histogram`, `Drillholes` |
 | 11 | [Correlations](03-exploratory-analysis/11-correlations/README.md) | Iron formation plateau | `merge_intervals`, `Drillholes`, `correlation`, `plot.correlation`, `plot.scatter_matrix`, `plot.completeness`, `plot.conditional`, `h_scatter` |
 | 12 | [Spatial bootstrap](03-exploratory-analysis/12-spatial-bootstrap/README.md) | Coal seam thickness | `cell_declustering`, `despike`, `NormalScore`, `Variogram`, `experimental_variogram`, `spatial_bootstrap` |
 | 13 | [Reference distributions](03-exploratory-analysis/13-reference-distributions/README.md) | Vein gold grade control, Porphyry geometallurgy | `merge_intervals`, `Drillholes`, `cell_declustering`, `KernelDensity`, `NormalScore`, `GaussianMixture`, `GaussianImputer` |

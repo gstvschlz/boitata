@@ -14,14 +14,14 @@ from common import ACCENT, GRAY, HIGHLIGHT, map_axes, save
 
 table = bt.datasets.stacked_sulphide_lenses()["collars"]
 collars = bt.PointSet.from_table(table)
-spacing = np.median(bt.data_spacing(collars))
+spacing = np.nanmedian(bt.data_spacing(collars, collars, None))
 print(f"{len(collars)} collars, median spacing {spacing:.0f} m")
 ```
 
 </details>
 
 ```text
-289 collars, median spacing 32 m
+289 collars, median spacing 55 m
 ```
 
 a concave outline erodes the convex hull from its longest boundary edge inward. `max_edge` stops it: boundary edges
@@ -56,8 +56,8 @@ save(fig, "outlines")
 
 ```text
 convex            0.94 km²
-concave           0.68 km²
-concave + buffer  0.86 km²
+concave           0.78 km²
+concave + buffer  1.03 km²
 ```
 
 ![outlines](outlines.png)
@@ -76,8 +76,8 @@ for label, area in zip(programs.attributes["TYPE"], programs.area(), strict=True
 </details>
 
 ```text
-DD: 0.67 km²
-RC: 0.02 km²
+DD: 0.78 km²
+RC: 0.03 km²
 ```
 
 Full script: [`example_02_18.py`](example_02_18.py)

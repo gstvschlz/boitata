@@ -38,7 +38,7 @@ def test_column_takes_a_name_or_an_array():
 
 
 def test_containers_are_coordinates():
-    assert np.array_equal(bt.data_spacing(points), bt.data_spacing(xyz))
+    assert np.array_equal(bt.data_spacing(points, points, None), bt.data_spacing(xyz, xyz, None))
     grade = np.arange(6.0)
     by_model = bt.swath(model, grade, 10.0, axis="x")
     assert np.array_equal(by_model["mean"], bt.swath(model.centroids, grade, 10.0, axis="x")["mean"])
@@ -141,7 +141,7 @@ def test_defaulted_options_are_keyword_only():
         lambda: bt.h_scatter(xyz, v, 1.0, 0.5, 90.0),
         lambda: bt.correlation(xyz, None),
         lambda: bt.duplicates(xyz, 0.5),
-        lambda: bt.data_spacing(xyz, 2),
+        lambda: bt.data_spacing(xyz, xyz, None, 2),
         lambda: bt.pairs(xyz, xyz, 1.0, "v"),
         lambda: bt.contact(xyz, v, rock, rock, "ox", "fr", 1.0, 1.0),
     ):
