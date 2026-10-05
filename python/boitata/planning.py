@@ -147,7 +147,7 @@ class _Moves:
 
     def _move(self, problem, current, contribution, rng, near):
         """`current` with one hole moved, or None when the picked hole has nowhere to go."""
-        weights = contribution.max() + contribution.min() - contribution + 1e-9
+        weights = np.maximum(contribution.max() + contribution.min() - contribution, 0) + 1e-9
         k = int(rng.choice(len(current), p=weights / weights.sum()))
         rest = current[:k] + current[k + 1 :]
         allowed = problem.feasible(rest)
@@ -167,8 +167,8 @@ class ModifiedRandomSearch(_Moves):
     """Random search of local moves that keeps a move only when it raises the objective.
 
     Each iteration drops hole ``i`` of the plan with probability proportional to
-    ``max(C) + min(C) - C_i``, ``C`` the contributions (`DrillholePlan.loss`) of the plan's holes, so weak holes
-    move most often, and puts a feasible candidate in its place: one within `radius` of the dropped collar, or
+    ``max(C) + min(C) - C_i`` (0 where that is negative), ``C`` the contributions (`DrillholePlan.loss`) of the
+    plan's holes, so weak holes move most often, and puts a feasible candidate in its place: one within `radius` of the dropped collar, or
     with probability `jump` any feasible candidate.
 
     Parameters
@@ -259,9 +259,7 @@ class Annealing(_Moves):
             if new is not None:
                 value = problem.score(new)
                 if value >= score or rng.random() < math.exp((value - score) / t):
-                    if value != score:
-                        contribution = problem.loss(new)
-                    current, score = new, value
+                    current, score, contribution = new, value, problem.loss(new)
                     if score > top:
                         best, top = current, score
             t *= cooling

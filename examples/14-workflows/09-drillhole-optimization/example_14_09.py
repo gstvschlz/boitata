@@ -4,8 +4,9 @@
 The quarterly windows of Walker Lake fall into classes by their maximum expected error (MEE): measured when a
 40 × 40 m window meets ±15 % at 90 % confidence, indicated when only the 80 × 80 m window around it does. Ten
 infill holes should move as many indicated windows as possible to measured. You state that goal as an objective
-over candidate collars, let four searches and one of your own choose the holes, and drill the plans on simulated
-truths against random plans of ten holes.
+over candidate collars, two ways: from a learning curve, and with the built-in objective on kriging metrics. Four
+searches and one of your own choose the holes, and you drill the plans on simulated truths against random plans of
+ten holes.
 """
 
 # %% [hidden]
@@ -24,11 +25,12 @@ import matplotlib.pyplot as plt
 import numpy as np
 from common import ACCENT, GRAY, HIGHLIGHT, INK, LIGHT, map_axes, save
 from matplotlib.colors import ListedColormap
+from numpy.lib.stride_tricks import sliding_window_view
 
 # %% [markdown]
 # !!! learn "What you'll learn"
-#     - How `DrillholePlan` turns a drilling goal into an objective over candidate holes, here a custom one built
-#       from a learning curve.
+#     - How `DrillholePlan` turns a drilling goal into an objective over candidate holes: a custom one built
+#       from a learning curve, or the built-in ``objective="classification"`` on kriging metrics.
 #     - How the built-in searches `Greedy`, `Swap`, `ModifiedRandomSearch` and `Annealing` compare, and how to
 #       plug in a search of your own.
 #     - How to check a plan by virtual drilling with `spacing_study(plans=...)` against random plans.
@@ -74,10 +76,11 @@ def inside(side):
 
 # %% [markdown]
 # !!! step "Step 1: Classify the windows today"
-#     One simulation of 100 realizations gives the MEE of every window. An 8 m panel is ore when the mean grade
-#     of its 40 × 40 m window reaches 300 ppm; an ore panel is measured when its quarterly MEE is at most 15 %,
-#     and indicated when the yearly window of the 16 m panel holding it meets 15 % instead. The indicated panels
-#     are the targets.
+#     One simulation of 100 realizations gives the MEE of every window. An 8 m panel is ore when, averaged over
+#     the realizations, at least half the 2 m nodes of its 40 × 40 m window exceed 300 ppm: the mean over its
+#     window of each node's probability above 300 ppm, which `simulate(cutoffs=[300])` gives, reaches 0.5. An
+#     ore panel is measured when its quarterly MEE is at most 15 %, and indicated when the yearly window of the
+#     16 m panel holding it meets 15 % instead. The indicated panels are the targets.
 
 # %%
 today = {
@@ -98,13 +101,16 @@ column, row = ((centroids[:, :2] - 1) // 16).astype(int).T
 has_year = row < 1480 // 80
 year_index = np.where(has_year, row * (1280 // 80) + column, 0)
 year = np.where(has_year & inside(80)[year_index], today[80].relative_error()[year_index], np.inf)
-ore = inside(40) & (today[40].mean >= 300)
+above = tb.simulate(nodes, n=100, seed=11, cutoffs=[300], progress=False).probability_above[:, 0]
+share = sliding_window_view(above.reshape(150, 130), (20, 20)).mean(axis=(2, 3))
+first = np.clip(4 * ((centroids[:, :2] - 1) // 8).astype(int) - 8, 0, np.array(share.shape)[::-1] - 1)
+ore = inside(40) & (share[first[:, 1], first[:, 0]] >= 0.5)
 classes = np.where(~ore, 0, np.where(quarter <= 0.15, 3, np.where(year <= 0.15, 2, 1)))
 target = np.flatnonzero(classes == 2)
 print("panels: waste {}, inferred {}, indicated {}, measured {}".format(*np.bincount(classes, minlength=4)))
 
 # %% [markdown]
-# Of the 1,184 panels, 474 hold ore: 226 inferred, 101 indicated and 147 measured.
+# Of the 1,184 panels, 381 hold ore: 152 inferred, 83 indicated and 146 measured.
 #
 # !!! step "Step 2: An objective from the learning curve"
 #     A new hole lowers the data spacing around it, and the learning curve says how much MEE that buys. The data
@@ -219,9 +225,9 @@ for name, search in searches.items():
     print(f"{name:14s}  {plan.score(chosen[name]):9.2f}  {converted:21d}  {seconds:7.2f}")
 
 # %% [markdown]
-# The greedy plan scores 40.85 and converts 17 panels by the learning curve; annealing reaches 41.05, so greedy
-# gets 99.5 % of it. Swap and the random search stop at 40.96 from the greedy start. The ranking scores 22.11:
-# its ten holes crowd one gap, and each one adds little once its neighbors are drilled.
+# The greedy plan scores 35.44 and converts 16 panels by the learning curve. Swap raises it to 36.14, the best
+# of the five, so greedy gets 98 % of it; the random search reaches 36.12 and annealing 36.08. The ranking
+# scores 19.31: its ten holes crowd one gap, and each one adds little once its neighbors are drilled.
 #
 # !!! step "Step 5: Seeds"
 #     The random searches depend on their seed. Five seeds of each show how far the result moves.
@@ -232,17 +238,64 @@ for name, kind in (("random search", bt.ModifiedRandomSearch), ("annealing", bt.
     print(f"{name}: objective {min(values):.2f} to {max(values):.2f} over seeds 0 to 4")
 
 # %% [markdown]
-# Every seed of the random search ends at the swap plan, 40.96. Annealing ends between 40.97 and 41.07: worse
-# moves let it leave that plan, and the best of five seeds gains 0.5 % over greedy.
+# The random search ends between 35.73 and 36.14 and annealing between 36.04 and 36.10. No seed beats the swap
+# plan: on this objective, 4,000 random moves buy nothing over a deterministic exchange that runs in a tenth of a
+# second.
 #
-# !!! step "Step 6: The plan and its drilling order"
+# !!! step "Step 6: The built-in objective"
+#     The learning curve is one way to forecast MEE. `DrillholePlan` ships another: ``objective="classification"``
+#     re-kriges the targets with the new holes and scores each one's progress towards the class above it under
+#     `classify` rules on kriging metrics. Here the metric is the kriging variance of the normal scores on the
+#     8 m panel, with a 50 m search of 16 samples. The thresholds come from today's classes: the measured
+#     threshold is the variance of the 146th lowest ore panel, so as many ore panels pass it as are measured by
+#     MEE, and likewise for indicated. `Swap` from the greedy plan, the default search, picks the holes.
+
+# %%
+kriging = bt.BlockKriging(gaussian, bt.Search(radius=50, max_samples=16), (8, 8)).fit(xy, scores)
+variance = np.asarray(kriging.predict(centroids[ore], diagnostics=True, progress=False)["variance"])
+counts = np.bincount(classes[ore], minlength=4)
+measured_at, indicated_at = np.sort(variance)[[counts[3] - 1, counts[3] + counts[2] - 1]]
+rules = [("measured", {"variance": ("<=", measured_at)}), ("indicated", {"variance": ("<=", indicated_at)})]
+by_kriging = bt.classify({"variance": variance}, rules, default="inferred")
+by_mee = np.array(["waste", "inferred", "indicated", "measured"])[classes[ore]]
+print(f"variance thresholds: measured {measured_at:.3f}, indicated {indicated_at:.3f}")
+for label in ("measured", "indicated", "inferred"):
+    both = np.sum((by_kriging == label) & (by_mee == label))
+    print(f"{label:9s}: {both} of {np.sum(by_mee == label)} MEE panels get the same class from kriging")
+classified = bt.DrillholePlan(
+    candidates,
+    kriging,
+    centroids[target],
+    data=xy,
+    rules=rules,
+    n_holes=10,
+    composite_length=4 * radius / 3,
+    exclude=circles,
+)
+start = time.perf_counter()
+tables["kriging"] = classified.optimize()
+seconds = time.perf_counter() - start
+chosen["kriging"] = [plan.holes.index(h) for h in tables["kriging"]["HOLE_ID"]]
+print(f"kriging objective {tables['kriging']['CUMULATIVE'][-1]:.2f} in {seconds:.1f} s")
+print("plan       kriging objective  learning-curve objective")
+for name in ("ranking", "swap", "kriging"):
+    print(f"{name:9s}  {classified.score(chosen[name]):17.2f}  {plan.score(chosen[name]):24.2f}")
+
+# %% [markdown]
+# The thresholds land at variances of 0.077 and 0.101. Kriging gives 115 of the 146 measured panels the same
+# class, but only 20 of the 83 indicated ones: the variance of an 8 m panel cannot see the 80 × 80 m window
+# that makes a panel indicated, so it ranks the indicated and inferred panels alike. The two objectives
+# disagree on the plans. The kriging plan scores 54.56 on its own objective, twice the swap plan's 26.90, and
+# 31.83 by the learning curve, against 36.14 for swap.
+#
+# !!! step "Step 7: The plan and its drilling order"
 #     Each table lists the holes in drilling order: the hole of largest gain first, then the largest gain given
 #     the holes above it. ``GAIN`` is that marginal gain, ``CUMULATIVE`` the objective so far and
 #     ``CONTRIBUTION`` the objective lost if the hole leaves the final plan. The order holds whatever search
 #     chose the plan, so you can stop drilling early and keep the best prefix.
 
 # %%
-best = tables["annealing"]
+best = tables["swap"]
 print("order  hole    east  north   gain  cumulative  contribution")
 for r in range(best.num_rows):
     print(
@@ -254,8 +307,8 @@ colors = ListedColormap([LIGHT, "#e3b5a0", "#f1d27a", "#9cc59a"])
 image = np.full(len(centroids), np.nan)
 image[ore] = classes[ore]
 image[~ore] = 0
-fig, axes = plt.subplots(1, 2, figsize=(10, 5.6), layout="constrained")
-for ax, name in zip(axes, ("ranking", "annealing"), strict=True):
+fig, axes = plt.subplots(1, 3, figsize=(13, 5.4), layout="constrained")
+for ax, name in zip(axes, ("ranking", "swap", "kriging"), strict=True):
     ax.imshow(
         image.reshape(37, 32), origin="lower", extent=(1, 257, 1, 297), cmap=colors, vmin=-0.5, vmax=3.5
     )
@@ -266,17 +319,19 @@ for ax, name in zip(axes, ("ranking", "annealing"), strict=True):
         ax.annotate(
             f"{k:.0f}", (x, y), (5, 4), textcoords="offset points", fontsize=8, color=INK, weight="bold"
         )
-    map_axes(ax, f"{name}: objective {holes['CUMULATIVE'][-1]:.1f}")
+    map_axes(ax, f"{name}: {plan.score(chosen[name]):.1f} by the learning curve")
 handles = [plt.Rectangle((0, 0), 1, 1, color=colors(k)) for k in range(4)]
 fig.legend(handles, ["waste", "inferred", "indicated", "measured"], loc="outside lower center", ncol=4)
 save(fig, "plans")
 
 # %% [markdown]
-# The annealing plan spreads its holes over five indicated areas, two or three per area. The first hole gains
-# 7.76; the last, 2.51. Hole 2 gains 5.54 when it goes in second but loses 4.14 when it leaves the full plan:
-# holes 1 and 6 lie within 30 m of it and share its panels. The ranking puts all ten holes into one gap in the south-west, 5 m apart.
+# The swap plan puts its holes into four indicated areas of the western body, two to four per area. The first
+# hole gains 7.22; the last, 2.00. Hole 2 gains 5.95 when it goes in second but loses 4.14 when it leaves the
+# full plan; holes 1, 5 and 6 lie within 30 m of it and share its panels. The ranking puts all ten holes into
+# one gap in the south, 5 m apart. The kriging plan spreads them wider, with two in the indicated pocket of the
+# eastern body.
 #
-# !!! step "Step 7: Drill the plans on simulated truths"
+# !!! step "Step 8: Drill the plans on simulated truths"
 #     The objective is a forecast. `spacing_study(plans=...)` checks it: it draws ten truths conditioned to
 #     today's data, reads each truth at a plan's holes, refits the simulator on the existing samples plus those
 #     holes (`existing=True`), simulates 100 realizations and returns the quarterly MEE of every panel. A target
@@ -353,21 +408,27 @@ ax.set(ylabel="Indicated panels converted", title="Virtual drilling over ten tru
 save(fig, "validation")
 
 # %% [markdown]
-# A random plan converts 8.1 of the 101 targets in the median, and the best of twenty 9.9. The four searches
-# convert 10.1 to 11.4, all above the best random plan, and differ by less than the spread over truths: annealing
-# converts 5 on one truth and 16 on another. Greedy, at 99.5 % of the annealing objective, converts 11.4 and
-# annealing 10.8.
+# A random plan converts 7.5 of the 83 targets in the median, and the best of twenty 9.0. The four searches on
+# the learning curve convert 8.7 to 11.1: swap 11.1, greedy 10.9, the random search 9.8 and annealing 8.7.
+# Annealing scores within 0.2 % of swap on the objective and converts no more than the best random plan, so
+# differences that small in the objective say nothing about the ground. The spread over truths is wider still:
+# the swap plan converts 5 on one truth and 21 on another.
 #
-# The ranking converts 14.7, the most of all, although its objective is half the others'. Its ten holes sit 5 m
-# apart, denser than any part of the deposit today. The learning curve stops at 8.8 m, the densest bin, and the
-# objective reads any spacing below it as that bin's MEE of 12.5 %, so it pays nothing for the extra holes of a
-# cluster. Virtual drilling pays for them: ten holes in one gap bring several 40 × 40 m windows close to the
+# The kriging plan converts 9.9, about one panel less than the swap plan, with 7 to 15 over the truths. On this
+# deposit the learning-curve plan converts a little more, but with ten truths virtual drilling cannot separate
+# the two.
+#
+# The ranking converts 13.9, the most of all, although both objectives rate it lowest. Its ten holes sit 5 m
+# apart, denser than any part of the deposit today. The learning curve stops at 8.8 m, its densest bin, and the
+# objective reads any spacing below it as that bin's MEE of 12.5 %, so it pays nothing for the extra holes of
+# a cluster. Virtual drilling pays for them: ten holes in one gap bring several 40 × 40 m windows close to the
 # densest data there is.
 #
 # !!! key "Key idea"
-#     The searches agree within half a percent on this objective, and virtual drilling cannot tell their plans
-#     apart. The objective decides where the holes go. A learning curve only knows the spacings the deposit
-#     already has, so check a plan by drilling simulated truths before you trust its forecast.
+#     The searches agree within 2 % on the learning-curve objective, and virtual drilling cannot tell their
+#     plans apart. The objective decides where the holes go, and neither objective here foresaw that a tight
+#     cluster converts most. A learning curve only knows the spacings the deposit already has, and kriging rules only know the
+#     metric they threshold, so check a plan by drilling simulated truths before you trust its forecast.
 #
 # !!! check "Check before you move on"
 #     `Swap` stops at a local optimum: no single exchange improves it. On small problems it often matches the
@@ -377,8 +438,8 @@ save(fig, "validation")
 #
 # ## The decision
 #
-# Take the greedy plan: it runs in a fraction of a second, reaches 99.5 % of the annealing objective and converts
-# 11.4 targets on the truths, against 8.1 for a random plan. Before drilling, revise the objective: the cluster
-# of the ranking converts more, so a learning curve that reaches below 8.8 m, from virtual grids as on
-# [the virtual-grid page](../../14-workflows/07-drillhole-spacing-virtual-grids/README.md), would reward a cluster
-# as virtual drilling does.
+# Take the swap plan on the learning-curve objective: `optimize` finds it in a tenth of a second, no random
+# search beats it, and it converts 11.1 targets on the truths against 7.5 for a random plan. Before drilling,
+# revise the objective: the cluster of the ranking converts more, so a learning curve that reaches below 8.8 m,
+# from virtual grids as on [the virtual-grid page](../../14-workflows/07-drillhole-spacing-virtual-grids/README.md),
+# would reward a cluster as virtual drilling does.

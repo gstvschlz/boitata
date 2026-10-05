@@ -1372,3 +1372,15 @@ def test_budget_and_count_limit_the_plan():
     counted = small_plan(n_holes=2)
     assert counted.optimize().num_rows == 2
     assert counted.optimize(0).num_rows == 0
+
+
+def test_random_searches_take_negative_contributions():
+    class Corner:
+        def search(self, problem, n):
+            return list(range(n))
+
+    plan = small_plan(objective=lambda m: -np.nan_to_num(np.asarray(m["n_samples"], dtype=float)))
+    loss = plan.loss(list(range(3)))
+    assert loss.max() + loss.min() < 0
+    for kind in (bt.ModifiedRandomSearch, bt.Annealing):
+        assert plan.optimize(3, search=kind(iterations=20, radius=30.0, start=Corner())).num_rows == 3
