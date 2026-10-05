@@ -1281,3 +1281,94 @@ def test_drillhole_plan_domains_equal_a_full_kriging_run(soft, form):
     np.testing.assert_allclose(got["data_spacing"], spacing, rtol=1e-12)
     with pytest.raises(bt.InvalidInput, match="domains"):
         bt.DrillholePlan(candidates, estimator, blocks, data=data, objective="variance", composite_length=5.0)
+
+
+def small_plan(**options):
+    """49 candidates whose kriging neighborhoods overlap, so the greedy plan of 3 holes is not the best."""
+    blocks = bt.BlockModel(origin=(0, 0, -20), size=(10, 10, 10), count=(14, 14, 2))
+    candidates = bt.planned_drillholes(blocks, 22.0)
+    data = bt.planned_drillholes(blocks, 50.0, offset=(7.0, 9.0))
+    vg = bt.Variogram([("spherical", 1.0, 60.0)], nugget=0.1)
+    estimator = bt.OrdinaryKriging(vg, bt.Search(60.0, max_samples=12, min_samples=3))
+    rules = [("measured", {"slope": (">=", 0.7)}), ("indicated", {"slope": (">=", 0.4)})]
+    options = {"rules": rules, "weights": np.arange(392) % 3 * 1.0, "composite_length": 5.0} | options
+    return bt.DrillholePlan(candidates, estimator, blocks, data=data, **options)
+
+
+def chosen(plan, table):
+    return sorted(plan.holes.index(h) for h in table["HOLE_ID"])
+
+
+def test_swap_from_greedy_finds_the_brute_force_optimum():
+    import itertools
+
+    plan = small_plan()
+    best = max(plan.score(list(c)) for c in itertools.combinations(range(len(plan.holes)), 3))
+    greedy = plan.score(chosen(plan, plan.optimize(3, search=bt.Greedy())))
+    swap = plan.optimize(3)
+    assert greedy < best - 1
+    assert plan.score(chosen(plan, swap)) == pytest.approx(best, abs=1e-9)
+    assert swap["CUMULATIVE"][-1] == pytest.approx(best, abs=1e-9)
+    assert swap.column_names == [
+        "ORDER", "HOLE_ID", "X", "Y", "Z", "AZIMUTH", "DIP", "LENGTH", "COST", "GAIN", "CUMULATIVE", "CONTRIBUTION",
+    ]  # fmt: skip
+    np.testing.assert_array_equal(swap["ORDER"], [1, 2, 3])
+    order = [plan.holes.index(h) for h in swap["HOLE_ID"]]
+    assert swap["GAIN"][0] == pytest.approx(plan.gains([])[order].max())
+    np.testing.assert_allclose(swap["CONTRIBUTION"], plan.loss(order))
+    np.testing.assert_allclose(swap["DIP"], 90.0)
+    assert repr(bt.Swap()) == "Swap(start=Greedy(), candidates=None)"
+
+
+@pytest.mark.parametrize("kind", [bt.ModifiedRandomSearch, bt.Annealing])
+def test_random_searches_are_seeded_and_keep_their_start(kind):
+    plan = small_plan(objective="variance")
+    start = plan.score(chosen(plan, plan.optimize(4, search=bt.Greedy())))
+    runs = [
+        chosen(plan, plan.optimize(4, search=kind(iterations=150, radius=30.0, seed=s))) for s in (5, 5, 6)
+    ]
+    assert runs[0] == runs[1]
+    assert all(plan.score(r) >= start - 1e-9 for r in runs)
+    with pytest.raises(bt.InvalidInput, match="jump"):
+        kind(jump=2.0)
+
+
+def test_annealing_from_a_poor_start_climbs():
+    class Corner:
+        def search(self, problem, n):
+            return list(range(n))
+
+    plan = small_plan(objective="variance")
+    corner = plan.score(list(range(3)))
+    found = plan.optimize(3, search=bt.Annealing(iterations=300, radius=30.0, start=Corner()))
+    assert plan.score(chosen(plan, found)) > corner + 1
+
+
+def test_user_search_runs_through_optimize():
+    class Ranking:
+        def search(self, problem, n):
+            gains = problem.gains([])
+            return [int(i) for i in np.argsort(-gains, kind="stable")[:n]]
+
+    plan = small_plan()
+    assert isinstance(Ranking(), bt.DrillholeSearch)
+    table = plan.optimize(3, search=Ranking())
+    assert chosen(plan, table) == sorted(np.argsort(-plan.gains([]), kind="stable")[:3].tolist())
+    with pytest.raises(bt.InvalidInput, match="search"):
+        plan.optimize(3, search=object())
+    with pytest.raises(bt.InvalidInput, match="repeated"):
+        plan.optimize(3, search=type("Twice", (), {"search": lambda self, p, n: [1, 1]})())
+    spaced = small_plan(min_spacing=30.0)
+    with pytest.raises(bt.InvalidInput, match="constraints"):
+        spaced.optimize(2, search=type("Close", (), {"search": lambda self, p, n: [0, 1]})())
+
+
+def test_budget_and_count_limit_the_plan():
+    plan = small_plan(objective="variance", budget=50.0, cost_per_meter=1.0)
+    assert plan.n_holes is None and plan.budget == 50.0
+    for search in (bt.Greedy(), bt.Swap(), bt.Annealing(iterations=100, radius=30.0)):
+        table = plan.optimize(search=search)
+        assert 0 < table.num_rows and table["COST"].sum() <= 50.0
+    counted = small_plan(n_holes=2)
+    assert counted.optimize().num_rows == 2
+    assert counted.optimize(0).num_rows == 0

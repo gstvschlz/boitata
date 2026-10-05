@@ -9,6 +9,7 @@ from boitata.errors import BoitataError, FileError, InvalidInput, MissingColumn 
 from boitata.estimation import *
 from boitata.geopackage import *
 from boitata.pipeline import *
+from boitata.planning import *
 from boitata.spacing import *
 from boitata.spatial import *
 from boitata.steps import *

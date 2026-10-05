@@ -795,6 +795,8 @@ class DrillholePlan:
         names = paths[paths.column_names[0]]
         self._collars = candidates.at(self._holes, np.zeros(len(self._holes)))
         self._length = np.array([paths["depth"][names == h].max() for h in self._holes])
+        self._azimuth, self._dip = _directions(paths, names, self._holes)
+        self._n_holes, self._budget = n_holes, budget
         self._cost = self._length * (1.0 if cost_per_meter is None else float(cost_per_meter))
         excluded = np.zeros(len(self._holes), dtype=bool)
         zones = [] if exclude is None else [exclude] if _is_zone(exclude) else list(exclude)
@@ -874,6 +876,16 @@ class DrillholePlan:
         """Cost of each candidate: its length times `cost_per_meter`, or its length."""
         return self._cost.copy()
 
+    @property
+    def n_holes(self) -> int | None:
+        """Most holes in a plan, or None."""
+        return self._n_holes
+
+    @property
+    def budget(self) -> float | None:
+        """Most total cost of a plan, or None."""
+        return self._budget
+
     def score(self, selected) -> float:
         """The objective with the holes `selected`; 0 for none.
 
@@ -946,6 +958,92 @@ class DrillholePlan:
             and ``c`` `composite_length`; NaN where it holds none.
         """
         return self._engine.metrics(_indices(selected))
+
+    def optimize(self, n: int | None = None, *, search=None) -> Table:
+        """Chooses the holes to drill with `search`, and ranks them.
+
+        Parameters
+        ----------
+        n : int, optional
+            Most holes to choose; by default `n_holes`, or no limit but the budget and the other constraints.
+        search : DrillholeSearch, optional
+            Any object with a ``search(problem, n)`` method returning candidate indices; ``Swap(start=Greedy())``
+            by default.
+
+        Returns
+        -------
+        Table
+            One row per chosen hole, in drilling order: ``ORDER`` (from 1), ``HOLE_ID``, the collar ``X``, ``Y``,
+            ``Z``, ``AZIMUTH`` and ``DIP`` at the collar, ``LENGTH``, ``COST``, ``GAIN`` (the gain in the objective
+            from adding the hole after those above it), ``CUMULATIVE`` (the objective with the holes up to it)
+            and ``CONTRIBUTION`` (the loss in the objective from removing the hole from the chosen plan). The
+            order is greedy within the chosen plan: each row is the hole of largest gain among those left, so
+            drilling stops early with the best prefix, whatever search chose the plan.
+
+        Raises
+        ------
+        InvalidInput
+            If `search` has no ``search`` method, or returns repeated or unknown indices, more than `n` holes,
+            or a plan that breaks the constraints.
+
+        Examples
+        --------
+        >>> table = plan.optimize(10, search=bt.Annealing(seed=1))
+        """
+        from boitata.planning import Greedy, Swap
+
+        search = Swap(start=Greedy()) if search is None else search
+        if not callable(getattr(search, "search", None)):
+            raise InvalidInput("search must have a search(problem, n) method")
+        if n is None:
+            n = self._n_holes if self._n_holes is not None else len(self._holes)
+        if isinstance(n, bool) or not isinstance(n, (int, np.integer)) or n < 0:
+            raise InvalidInput("n must be an integer >= 0")
+        chosen = _indices(search.search(self, int(n)))
+        if len(set(chosen)) != len(chosen) or (chosen and max(chosen) >= len(self._holes)):
+            raise InvalidInput("the search returned repeated or unknown candidate indices")
+        if len(chosen) > n:
+            raise InvalidInput(f"the search returned {len(chosen)} holes for n = {n}")
+        order, gain, left = [], [], chosen
+        while left:
+            gains = self.gains(order)[left]
+            k = int(np.argmax(gains))
+            if not np.isfinite(gains[k]):
+                raise InvalidInput("the search returned a plan that breaks the constraints")
+            order.append(left[k])
+            gain.append(gains[k])
+            left = left[:k] + left[k + 1 :]
+        rows = np.array(order, dtype=int)
+        return Table(
+            {
+                "ORDER": np.arange(1.0, len(order) + 1),
+                "HOLE_ID": np.array([self._holes[i] for i in order], dtype=object),
+                "X": self._collars[rows, 0],
+                "Y": self._collars[rows, 1],
+                "Z": self._collars[rows, 2],
+                "AZIMUTH": self._azimuth[rows],
+                "DIP": self._dip[rows],
+                "LENGTH": self._length[rows],
+                "COST": self._cost[rows],
+                "GAIN": np.array(gain, dtype=float),
+                "CUMULATIVE": np.cumsum(gain, dtype=float),
+                "CONTRIBUTION": np.asarray(self.loss(order), dtype=float) if order else np.zeros(0),
+            }
+        )
+
+
+def _directions(paths, names, holes):
+    """Azimuth and dip of each hole's first path segment, in degrees; dip positive down."""
+    first = {}
+    for row, name in enumerate(names.tolist()):
+        first.setdefault(name, row)
+    start = np.array([first[h] for h in holes])
+    xyz = np.column_stack([paths[c] for c in ("x", "y", "z")])
+    step = xyz[np.minimum(start + 1, len(xyz) - 1)] - xyz[start]
+    length = np.linalg.norm(step, axis=1)
+    with np.errstate(invalid="ignore", divide="ignore"):
+        dip = np.degrees(np.arcsin(-step[:, 2] / length))
+    return np.degrees(np.arctan2(step[:, 0], step[:, 1])) % 360, dip
 
 
 def _is_zone(obj) -> bool:
