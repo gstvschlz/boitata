@@ -155,14 +155,10 @@ def spacing_study(
         for name, spacing, holes in named
     ]
 
-    run = {"n": max(indices) + 1, "seed": seed, "keep": indices, "progress": False}
-    at_nodes = _kept(simulator.simulate(targets, **run), indices)
+    truth = simulator.simulate(targets, n=max(indices) + 1, seed=seed, keep=indices, progress=False)
+    at_nodes = _kept(truth, indices)
     rows = {"blocks": blocks, "window": window, "groups": groups}
-    if any(v is not None for v in rows.values()):
-        summary = simulator.simulate(targets, **run, **rows)
-        at_rows, labels = _kept(summary, indices), summary.groups
-    else:
-        at_rows, labels = at_nodes, None
+    at_rows, labels = _boitata._summary_rows(targets, at_nodes, **rows)
 
     out = {}
     with tqdm(total=len(samples) * len(indices), disable=not progress) as bar:
