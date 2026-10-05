@@ -352,18 +352,43 @@ def test_duplicates_report_group_ids_and_merge():
             bad()
 
 
-def test_data_spacing_on_a_square_grid():
-    g = np.arange(0.0, 100.0, 10.0)
+def test_data_spacing_of_a_square_grid_is_its_spacing():
+    g = np.arange(0.0, 500.0, 25.0)
     xy = np.array([(x, y) for x in g for y in g])
-    xyz = np.c_[xy, rng.uniform(0, 30, len(xy))]
-    interior = np.all((xy > 5) & (xy < 85), axis=1)
-    np.testing.assert_allclose(bt.data_spacing(xyz, n=4, horizontal=True)[interior], 10.0)
-    assert np.all(bt.data_spacing(xyz) >= bt.data_spacing(xyz, horizontal=True))
-    bm = bt.BlockModel(origin=(40.0, 40.0), size=(10.0, 10.0), count=(1, 1))
-    assert bt.data_spacing(xy, n=4, targets=bm, horizontal=True)[0] == pytest.approx(np.sqrt(50))
-    assert np.isinf(bt.data_spacing(xy[:2], n=2)).all()
+    hole = np.repeat(np.arange(len(xy)), 50)
+    composites = np.c_[np.repeat(xy, 50, axis=0), np.tile(np.arange(1.0, 100.0, 2.0), len(xy))]
+    targets = np.c_[rng.uniform(150, 350, (100, 2)), np.full(100, 50.0)]
+    volume = bt.data_spacing(targets, composites, bt.Search(60.0), composite_length=2.0)
+    assert np.mean(volume) == pytest.approx(25.0, rel=0.03)
+    plan = bt.data_spacing(targets, composites, None, holes=hole)
+    np.testing.assert_array_equal(plan, bt.data_spacing(targets, xy, None))
+    assert np.mean(plan) == pytest.approx(25.0, rel=0.05)
+    data = bt.PointSet(composites, {"hole": hole})
+    np.testing.assert_array_equal(bt.data_spacing(targets, data, None, holes="hole"), plan)
+    bm = bt.BlockModel(origin=(-50.0, 100.0), size=(50.0, 50.0), count=(2, 1))
+    assert np.isnan(bt.data_spacing(bm, xy, None, hull=True)).tolist() == [True, False]
+    assert np.isnan(bt.data_spacing(targets, xy[:5], None)).all()
+    with pytest.warns(UserWarning, match="fewer than 4 composites"):
+        bt.data_spacing(targets, composites, bt.Search(5.0), composite_length=2.0)
+    with pytest.raises(bt.InvalidInput, match="composite_length"):
+        bt.data_spacing(targets, composites, bt.Search(60.0))
     with pytest.raises(bt.InvalidInput):
-        bt.data_spacing(xy, n=0)
+        bt.data_spacing(targets, xy, None, n=0)
+
+
+def test_data_spacing_takes_the_composite_length_of_drillholes():
+    collar = {"HOLE_ID": ["a", "b"], "X": [0.0, 30.0], "Y": [0.0, 0.0], "Z": [0.0, 0.0]}
+    survey = {"HOLE_ID": ["a", "b"], "DEPTH": [0.0, 0.0], "AZIMUTH": [0.0, 0.0], "DIP": [90.0, 90.0]}
+    edges = np.arange(0.0, 41.0, 4.0)
+    intervals = {
+        "HOLE_ID": ["a"] * 10 + ["b"] * 10,
+        "FROM": np.tile(edges[:-1], 2),
+        "TO": np.tile(edges[1:], 2),
+    }
+    dh = bt.Drillholes(collar, survey, intervals)
+    at = np.array([[0.0, 0.0, -20.0]])
+    given = bt.data_spacing(at, dh.samples(), bt.Search(15.0), composite_length=4.0)
+    assert bt.data_spacing(at, dh, bt.Search(15.0)) == pytest.approx(given)
 
 
 def test_domain_change_margins_and_metal():

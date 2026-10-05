@@ -1147,9 +1147,9 @@ def _blocks(ax, model, values, plane, k, scheme, kwargs):
         raise InvalidInput("the plane misses the block model")
     others = [a for a in range(3) if a != k]
     face = [sum(bit << others[i] for i, bit in enumerate(bits)) for bits in ((0, 0), (0, 1), (1, 1), (1, 0))]
-    faces = corners[keep][:, face, :] @ np.c_[u, v]
     values = np.asarray(_column(model, values), dtype=float)
     keep &= np.isfinite(values)
+    faces = corners[keep][:, face, :] @ np.c_[u, v]
     values = values[keep]
     _scheme_colors(scheme, kwargs)
     kwargs.setdefault("linewidths", 0)

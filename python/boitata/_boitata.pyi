@@ -2185,11 +2185,14 @@ def uncertainty_curve(
 ) -> Table: ...
 def required_spacing(curve: Table, *, column: str = "P90", threshold: float = 0.15) -> float: ...
 def data_spacing(
-    coords: PointSet | ArrayLike,
+    targets: ArrayLike | PointSet | BlockModel,
+    data: Drillholes | PointSet | ArrayLike,
+    search: Search | None,
     *,
-    n: int = 1,
-    targets: Any | None = None,
-    horizontal: bool = False,
+    composite_length: float | None = None,
+    holes: Holes | Column | None = None,
+    n: int | Sequence[int] = ...,
+    hull: bool = False,
 ) -> npt.NDArray[np.float64]: ...
 def validate_model(
     model: BlockModel,

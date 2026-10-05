@@ -1120,41 +1120,154 @@ pub fn pairs(
     Ok(out.into_iter().map(|(d, i, j)| (i, j, d)).collect())
 }
 
-/// Distance from each of `targets` (default: each sample, itself left out) to
-/// its `n`th nearest sample, in plan with `horizontal`; infinite when there
-/// are fewer samples.
+/// How [`spacing`] measures the drilling around a target.
+#[derive(Debug, Clone, Copy)]
+pub enum Spacing<'a> {
+    /// Composites of length `composite_length` inside the ellipsoid of
+    /// `radius` in the metric of `anisotropy` (a sphere without it).
+    Volume {
+        anisotropy: Option<&'a variogram::Anisotropy>,
+        radius: f64,
+        composite_length: f64,
+    },
+    /// Plan distances to the `n`th and `n + 1`th nearest samples, per `n`.
+    Plan(&'a [usize]),
+}
+
+/// Volume of the ellipsoid of `radius` in the metric of `anisotropy`.
+pub fn ellipsoid_volume(anisotropy: Option<&variogram::Anisotropy>, radius: f64) -> f64 {
+    let axes = anisotropy.map_or(1.0, |a| a.angles.major * a.angles.semi * a.angles.minor);
+    4.0 / 3.0 * std::f64::consts::PI * radius.powi(3) * axes
+}
+
+/// Equivalent data spacing at each target (Cabral Pinto & Deutsch, 2017).
+/// [`Spacing::Volume`] gives `sqrt(V / (c n))`, with `n` the samples inside
+/// the ellipsoid of volume `V` around the target and `c` the composite length.
+/// [`Spacing::Plan`] gives the mean over `n` of `sqrt(pi r^2 / n)`, with `r`
+/// the mean plan distance to the `n`th and `n + 1`th nearest samples, or to
+/// holes with `holes` (one code per sample, a hole at its nearest sample).
+/// NaN where the ellipsoid is empty or fewer than `n + 1` are found.
 pub fn spacing(
-    coords: &[[f64; 3]],
-    targets: Option<&[[f64; 3]]>,
-    n: usize,
-    horizontal: bool,
+    data: &[[f64; 3]],
+    targets: &[[f64; 3]],
+    how: Spacing,
+    holes: Option<&[u32]>,
 ) -> Result<Vec<f64>> {
-    if n == 0 {
-        return invalid("n must be at least 1");
-    }
-    let at = targets.unwrap_or(coords);
-    if coords.iter().chain(at).flatten().any(|v| !v.is_finite()) {
+    if data.iter().chain(targets).flatten().any(|v| !v.is_finite()) {
         return invalid("coordinates must be finite");
     }
-    let flat = |p: &[f64; 3]| if horizontal { [p[0], p[1], 0.0] } else { *p };
-    let k = n + usize::from(targets.is_none());
-    if coords.len() < k {
-        return Ok(vec![f64::INFINITY; at.len()]);
+    if holes.is_some_and(|h| h.len() != data.len()) {
+        return invalid("holes need one code per sample");
     }
-    let points: Vec<[f64; 3]> = coords.iter().map(flat).collect();
-    let tree = ImmutableKdTree::<f64, 3>::new_from_slice(&points)
-        .map_err(|e| EdaError::InvalidInput(format!("{e:?}")))?;
-    let k = std::num::NonZero::new(k).expect("n >= 1");
-    Ok(at
-        .par_iter()
-        .map(|p| {
-            let found = tree
-                .query(&flat(p))
-                .nearest_n::<SquaredEuclidean<f64>>(k)
-                .execute();
-            found.last().map_or(f64::INFINITY, |r| r.distance.sqrt())
-        })
-        .collect())
+    let origin = data.first().copied().unwrap_or_default();
+    match how {
+        Spacing::Volume {
+            anisotropy,
+            radius,
+            composite_length,
+        } => {
+            if !(radius > 0.0 && radius.is_finite()) {
+                return invalid("radius must be finite and > 0");
+            }
+            if !(composite_length > 0.0 && composite_length.is_finite()) {
+                return invalid("composite_length must be finite and > 0");
+            }
+            if holes.is_some() {
+                return invalid("holes apply to the plan form only");
+            }
+            if data.is_empty() {
+                return Ok(vec![f64::NAN; targets.len()]);
+            }
+            let frame = anisotropy.map(variogram::Anisotropy::matrix);
+            let local = |p: &[f64; 3]| {
+                let d = [0, 1, 2].map(|k| p[k] - origin[k]);
+                frame.map_or(d, |m| {
+                    [0, 1, 2].map(|r| (0..3).map(|c| m[(r, c)] * d[c]).sum())
+                })
+            };
+            let points: Vec<[f64; 3]> = data.iter().map(local).collect();
+            let tree = ImmutableKdTree::<f64, 3>::new_from_slice(&points)
+                .map_err(|e| EdaError::InvalidInput(format!("{e:?}")))?;
+            let volume = ellipsoid_volume(anisotropy, radius);
+            Ok(targets
+                .par_iter()
+                .map(|t| {
+                    let n = tree
+                        .query(&local(t))
+                        .within::<SquaredEuclidean<f64>>(radius * radius)
+                        .execute()
+                        .len();
+                    if n == 0 {
+                        f64::NAN
+                    } else {
+                        (volume / (composite_length * n as f64)).sqrt()
+                    }
+                })
+                .collect())
+        }
+        Spacing::Plan(ns) => {
+            if ns.is_empty() || ns.contains(&0) {
+                return invalid("n must be at least 1");
+            }
+            let want = ns.iter().max().expect("not empty") + 1;
+            if data.is_empty() {
+                return Ok(vec![f64::NAN; targets.len()]);
+            }
+            let flat = |p: &[f64; 3]| [p[0] - origin[0], p[1] - origin[1], 0.0];
+            let points: Vec<[f64; 3]> = data.iter().map(flat).collect();
+            let tree = ImmutableKdTree::<f64, 3>::new_from_slice(&points)
+                .map_err(|e| EdaError::InvalidInput(format!("{e:?}")))?;
+            Ok(targets
+                .par_iter()
+                .map(|t| {
+                    let d = nearest(&tree, &flat(t), want, holes, data.len());
+                    if d.len() < want {
+                        return f64::NAN;
+                    }
+                    let total: f64 = ns
+                        .iter()
+                        .map(|&n| {
+                            let r = (d[n - 1] + d[n]) / 2.0;
+                            (std::f64::consts::PI * r * r / n as f64).sqrt()
+                        })
+                        .sum();
+                    total / ns.len() as f64
+                })
+                .collect())
+        }
+    }
+}
+
+/// Sorted distances to the `want` nearest of `total` samples, or with `holes`
+/// to the nearest sample of each of the `want` nearest holes; fewer if short.
+fn nearest(
+    tree: &ImmutableKdTree<f64, 3>,
+    at: &[f64; 3],
+    want: usize,
+    holes: Option<&[u32]>,
+    total: usize,
+) -> Vec<f64> {
+    let mut k = want.min(total);
+    loop {
+        let found = tree
+            .query(at)
+            .nearest_n::<SquaredEuclidean<f64>>(std::num::NonZero::new(k).expect("data not empty"))
+            .execute();
+        let Some(holes) = holes else {
+            return found.iter().map(|r| r.distance.sqrt()).collect();
+        };
+        let mut seen = std::collections::HashSet::new();
+        let d: Vec<f64> = found
+            .iter()
+            .filter(|r| seen.insert(holes[r.item as usize]))
+            .map(|r| r.distance.sqrt())
+            .take(want)
+            .collect();
+        if d.len() == want || k == total {
+            return d;
+        }
+        k = (2 * k).min(total);
+    }
 }
 
 /// Paired values in one bin `[from, to)` of pairing distance, the last bin
@@ -2070,36 +2183,58 @@ mod tests {
     }
 
     #[test]
-    fn spacing_on_a_square_grid() {
+    fn equivalent_spacing_of_a_square_grid_is_its_spacing() {
         use rand::{Rng, SeedableRng};
+        let (s, c) = (25.0, 2.0);
+        let hole: Vec<[f64; 3]> = (0..21 * 21)
+            .map(|k| [s * (k % 21) as f64, s * (k / 21) as f64, 0.0])
+            .collect();
+        let (mut data, mut codes) = (vec![], vec![]);
+        for (h, p) in hole.iter().enumerate() {
+            for i in 0..100 {
+                data.push([p[0], p[1], c * (i as f64 + 0.5)]);
+                codes.push(h as u32);
+            }
+        }
         let mut rng = rand::rngs::StdRng::seed_from_u64(3);
-        let coords: Vec<[f64; 3]> = (0..100)
-            .map(|k| {
+        let targets: Vec<[f64; 3]> = (0..400)
+            .map(|_| {
                 [
-                    10.0 * (k % 10) as f64,
-                    10.0 * (k / 10) as f64,
-                    rng.gen_range(0.0..30.0),
+                    rng.gen_range(7.0 * s..13.0 * s),
+                    rng.gen_range(7.0 * s..13.0 * s),
+                    rng.gen_range(80.0..120.0),
                 ]
             })
             .collect();
-        let interior: Vec<usize> = (0..100)
-            .filter(|k| (1..9).contains(&(k % 10)) && (1..9).contains(&(k / 10)))
-            .collect();
-        let plan = |n| spacing(&coords, None, n, true).unwrap();
-        let (four, five) = (plan(4), plan(5));
-        for &i in &interior {
-            assert!(close(four[i], 10.0) && close(five[i], 200f64.sqrt()));
-        }
-        let full = spacing(&coords, None, 1, false).unwrap();
-        assert!(full.iter().zip(plan(1)).all(|(d, h)| *d >= h - 1e-9));
-        let center = [[45.0, 45.0, 1e6]];
-        let d = spacing(&coords, Some(&center), 4, true).unwrap();
-        assert!(close(d[0], 50f64.sqrt()));
+        let mean = |d: Vec<f64>| d.iter().sum::<f64>() / d.len() as f64;
+        let volume = Spacing::Volume {
+            anisotropy: None,
+            radius: 3.0 * s,
+            composite_length: c,
+        };
+        let ds = mean(spacing(&data, &targets, volume, None).unwrap());
+        assert!((ds / s - 1.0).abs() < 0.02, "volume {ds}");
+        let ns: Vec<usize> = (4..11).collect();
+        let plan = spacing(&data, &targets, Spacing::Plan(&ns), Some(&codes)).unwrap();
+        assert!((mean(plan.clone()) / s - 1.0).abs() < 0.05, "plan");
         assert_eq!(
-            spacing(&coords[..3], None, 3, false).unwrap(),
-            [f64::INFINITY; 3]
+            plan,
+            spacing(&hole, &targets, Spacing::Plan(&ns), None).unwrap()
         );
-        assert!(spacing(&coords, None, 0, false).is_err());
+        let each = spacing(&data, &targets, Spacing::Plan(&ns), None).unwrap();
+        assert!(mean(each) < s / 2.0);
+        let few = spacing(&hole[..5], &targets[..1], Spacing::Plan(&ns), None).unwrap();
+        assert!(few[0].is_nan());
+        assert!(spacing(&hole, &targets, Spacing::Plan(&[0]), None).is_err());
+        assert!(spacing(&data, &targets, volume, Some(&codes)).is_err());
+        let threads = |n| {
+            rayon::ThreadPoolBuilder::new()
+                .num_threads(n)
+                .build()
+                .unwrap()
+                .install(|| spacing(&data, &targets, volume, None).unwrap())
+        };
+        assert_eq!(threads(1), threads(4));
     }
 
     #[test]

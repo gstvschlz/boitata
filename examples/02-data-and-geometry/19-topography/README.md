@@ -41,8 +41,8 @@ print(
 </details>
 
 ```text
-grid 61 x 68 cells of 20 m, 48% inside the outline
-against the true surface: mean +0.38 m, 90% within 0.69 m
+grid 63 x 70 cells of 20 m, 50% inside the outline
+against the true surface: mean -0.18 m, 90% within 0.50 m
 ```
 
 each collar's residual is its elevation minus the surface through the other collars. the default threshold, 3 robust
