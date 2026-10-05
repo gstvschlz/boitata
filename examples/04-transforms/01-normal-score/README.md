@@ -15,9 +15,10 @@ from common import ACCENT, GRAY, HIGHLIGHT, INK, LIGHT, save
 samples = bt.datasets.walker_lake()
 v = samples["V"]
 w = bt.cell_declustering(samples, "V", sizes=np.arange(2.5, 102.5, 2.5)).weights
+samples = samples.with_column("w", w)
 
 ns = bt.NormalScore()
-y = ns.fit_transform(v, weights=w)
+y = ns.fit_transform("V", weights="w", data=samples)
 mean = np.average(y, weights=w)
 sd = np.sqrt(np.average((y - mean) ** 2, weights=w))
 print(f"scores: weighted mean {mean:.3f}, sd {sd:.3f}")
