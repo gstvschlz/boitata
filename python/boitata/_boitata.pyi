@@ -2155,6 +2155,17 @@ def pairs(
     holes: Column | tuple[Holes | Column, Holes | Column] | None = None,
 ) -> Table: ...
 def paired_bias(pairs: Table, bins: int | ArrayLike) -> Table: ...
+def uncertainty_curve(
+    spacing: ArrayLike | Column,
+    uncertainty: ArrayLike | Column,
+    *,
+    bins: int | ArrayLike | None = None,
+    quantiles: Sequence[float] = (0.5, 0.9),
+    threshold: float = 0.15,
+    min_count: int = 8,
+    data: Data | None = None,
+) -> Table: ...
+def required_spacing(curve: Table, *, column: str = "q0.9", threshold: float = 0.15) -> float: ...
 def data_spacing(
     coords: PointSet | ArrayLike,
     *,

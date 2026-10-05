@@ -50,6 +50,7 @@ __all__ = [
     "ternary",
     "transition_mds",
     "uncertain",
+    "uncertainty_curve",
     "variogram",
     "variogram_reproduction",
     "variogram_volume",
@@ -1880,6 +1881,47 @@ def paired_bias(bias, *, ax=None, **kwargs):
     ax.set_xlim(lo[0], hi[-1])
     ax.set_xlabel("Pairing distance")
     ax.set_ylabel("Bias of b over a (%)")
+    return fig, ax
+
+
+def uncertainty_curve(curve, *, threshold=0.15, required=None, ax=None):
+    """Uncertainty quantiles against data spacing, the share within `threshold` on the right axis.
+
+    Parameters
+    ----------
+    curve : Table
+        Result of ``boitata.uncertainty_curve``; its ``q...`` columns are drawn, the first solid, the rest dashed.
+    threshold : float
+        Acceptable uncertainty, drawn as a horizontal line.
+    required : float, optional
+        Required spacing, e.g. from ``boitata.required_spacing``, marked on the threshold line.
+    """
+    fig, ax = _axes(ax)
+    spacing = np.asarray(curve["spacing"])
+    share = ax.twinx()
+    share.plot(spacing, curve["share"], color="0.6", lw=1)
+    share.set_ylim(0, 1)
+    share.set_ylabel(f"Share at or below {threshold:g}", color="0.5")
+    share.tick_params(axis="y", colors="0.5")
+    ax.set_zorder(share.get_zorder() + 1)
+    ax.patch.set_visible(False)
+    color = _accent()
+    names = [n for n in curve.column_names if n.startswith("q")]
+    for k, name in enumerate(names):
+        ax.plot(
+            spacing,
+            curve[name],
+            color=color,
+            ls="-" if k == 0 else "--",
+            marker="o",
+            label=f"P{100 * float(name[1:]):g}",
+        )
+    ax.axhline(threshold, color="0.5", lw=0.8, ls="--")
+    if required is not None and np.isfinite(required):
+        ax.plot([required], [threshold], "v", color="0.2", label=f"required {required:.3g}")
+    ax.set_xlabel("Data spacing")
+    ax.set_ylabel("Uncertainty")
+    ax.legend()
     return fig, ax
 
 
