@@ -1707,7 +1707,128 @@ fn snap_to_surface(
     Ok((moved, Table(report)))
 }
 
+/// Straight holes on a regular collar grid over `targets`, for drilling
+/// plans and spacing studies.
+///
+/// Grid nodes start at the footprint's lowest (along, across) corner, shifted
+/// by `offset`. A node becomes a collar when a target lies within half a
+/// cell of the hole collared there at the top of the targets; collars then
+/// slide along their hole to `topography`, so inclined holes keep their
+/// targets. Each hole runs down to the bottom of the targets.
+///
+/// Parameters
+/// ----------
+/// targets : BlockModel, PointSet or array of shape (n, 3)
+///     Ground to drill; a block model spans its blocks' full height.
+/// spacing : float or (float, float)
+///     Collar spacing, or (along, across) spacing.
+/// rotation : float
+///     Azimuth of the along axis, degrees clockwise from north.
+/// azimuth, dip : float
+///     Hole direction in degrees; dip is positive down, 90 vertical.
+/// topography : Mesh, optional
+///     Surface the collars sit on; collars off it stay at the targets' top,
+///     with a ``UserWarning``.
+/// offset : (float, float)
+///     (along, across) shift of the grid, in meters.
+///
+/// Returns
+/// -------
+/// Drillholes
+///     Holes ``P0001``, ``P0002``, ... with one interval each, ``FROM`` 0 to
+///     ``TO`` the hole length, so ``composite(length, [])`` cuts them into
+///     composites. Holes collared at or below the bottom are left out.
+#[pyfunction]
+#[pyo3(signature = (
+    targets, spacing, *, rotation=0.0, azimuth=0.0, dip=90.0, topography=None, offset=(0.0, 0.0)
+))]
+#[allow(clippy::too_many_arguments)]
+fn planned_drillholes(
+    py: Python,
+    targets: &Bound<PyAny>,
+    spacing: &Bound<PyAny>,
+    rotation: f64,
+    azimuth: f64,
+    dip: f64,
+    topography: Option<PyRef<Mesh>>,
+    offset: (f64, f64),
+) -> PyResult<Drillholes> {
+    let spacing = match spacing.extract::<f64>() {
+        Ok(s) => [s, s],
+        Err(_) => spacing
+            .extract::<[f64; 2]>()
+            .map_err(|_| invalid("spacing must be a number or (along, across)"))?,
+    };
+    let points = crate::containers::coords_arg(targets)?;
+    let heights: Vec<f64> = match targets.cast::<crate::containers::PyBlockModel>() {
+        Ok(model) => model
+            .get()
+            .0
+            .corners()
+            .iter()
+            .flatten()
+            .map(|c| c[2])
+            .collect(),
+        Err(_) => points.iter().map(|p| p[2]).collect(),
+    };
+    if heights.is_empty() {
+        return Err(invalid("targets are empty"));
+    }
+    let top = heights.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+    let bottom = heights.iter().copied().fold(f64::INFINITY, f64::min);
+    let surface = topography
+        .map(|m| blocks::Surface::new(&m.mesh))
+        .transpose()
+        .map_err(invalid)?;
+    let grid = drillholes::PlanGrid {
+        spacing,
+        rotation,
+        azimuth,
+        dip,
+        offset: [offset.0, offset.1],
+    };
+    let ground = |x, y| surface.as_ref()?.elevation(x, y);
+    let holes = drillholes::planned_holes(&points, top, bottom, &grid, ground).map_err(invalid)?;
+    if holes.is_empty() {
+        return Err(invalid(
+            "no hole reaches below its collar; targets need height or topography above them",
+        ));
+    }
+    let off = match &surface {
+        Some(s) => holes
+            .iter()
+            .filter(|h| s.elevation(h.1[0].east, h.1[0].north).is_none())
+            .count(),
+        None => 0,
+    };
+    if off > 0 {
+        let message = format!("{off} collars lie off the topography and stay at the targets' top");
+        let category = py.get_type::<pyo3::exceptions::PyUserWarning>();
+        PyErr::warn(py, &category, &std::ffi::CString::new(message)?, 1)?;
+    }
+    let intervals = RecordBatch::try_from_iter([
+        (
+            "HOLE_ID",
+            Arc::new(StringArray::from_iter_values(holes.iter().map(|h| &h.0))) as ArrayRef,
+        ),
+        ("FROM", Arc::new(Float64Array::from(vec![0.0; holes.len()]))),
+        (
+            "TO",
+            Arc::new(Float64Array::from_iter_values(
+                holes.iter().map(|h| h.1[1].measured_depth),
+            )),
+        ),
+    ])
+    .map_err(invalid)?;
+    Ok(Drillholes {
+        paths: holes.into_iter().collect(),
+        hole: "HOLE_ID".into(),
+        intervals: Some((intervals, "HOLE_ID".into(), "FROM".into(), "TO".into())),
+    })
+}
+
 pub fn register(m: &Bound<PyModule>) -> PyResult<()> {
+    m.add_function(wrap_pyfunction!(planned_drillholes, m)?)?;
     m.add_function(wrap_pyfunction!(snap_to_surface, m)?)?;
     m.add_class::<Drillholes>()?;
     m.add_function(wrap_pyfunction!(merge_intervals, m)?)?;
