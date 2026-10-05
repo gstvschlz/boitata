@@ -5,7 +5,19 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from boitata._boitata import Declustering, Search, Table, Variogram, _Estimator
+from boitata._boitata import (
+    BlockModel,
+    Declustering,
+    Drillholes,
+    Mesh,
+    Search,
+    Table,
+    Variogram,
+    _DrillholePlan,
+    _Estimator,
+    assign_domain,
+    point_in_polygon,
+)
 from boitata._columns import column
 from boitata.errors import InvalidInput
 
@@ -14,6 +26,7 @@ __all__ = [
     "BlockKriging",
     "CategoricalCrossValidation",
     "CrossValidation",
+    "DrillholePlan",
     "ExternalDriftKriging",
     "FactorialKriging",
     "IndicatorCrossValidation",
@@ -644,3 +657,321 @@ def classify(criteria, rules, *, default="unclassified", domains=None, domain_co
             out[hit] = label
             free &= ~hit
     return out.astype(str)
+
+
+class DrillholePlan:
+    """Candidate drill holes scored by the kriging metrics they would bring to target blocks.
+
+    The problem half of drillhole optimization: it scores sets of candidates, given by index into
+    ``candidates.holes``, and leaves the choice of set to a search. Kriging variance, slope and efficiency
+    depend on sample locations only, so only the locations of `data` matter. Each block is kriged as
+    ``estimator.predict(targets, diagnostics=True)`` would after fitting `data` plus the composites of the
+    selected holes, in candidate order. A candidate reaches the blocks within the search radius of its
+    composites in any search pass; only those are re-kriged to evaluate it, and its cached gain is dropped only
+    when a change of plan touches them. Results do not depend on the number of threads.
+
+    With domains, each block is kriged from the samples of its domain, and of others within `Search` ``soft``,
+    as `predict` does; blocks of a domain without samples stay unestimated until a hole brings it some. The
+    composites of `data` keep their logged domains; a candidate's composites, which have no log, take the domain
+    of the block they fall in, or of the nearest target outside the blocks or when the targets are points.
+
+    Parameters
+    ----------
+    candidates : Drillholes
+        Holes that could be drilled, e.g. from `planned_drillholes`; they need intervals to composite.
+    estimator : OrdinaryKriging, SimpleKriging, IndicatorKriging or BlockKriging
+        Its variogram, search passes and support; fitted or not. Its fitted samples are not used, and when
+        fitted with domains `domains` is required. Searches with a high-grade restriction or a target slope or
+        efficiency are refused.
+    targets : BlockModel, PointSet or array_like
+        Where to krige: block centroids or points.
+    data : Drillholes, PointSet or array_like
+        Existing samples. Drillholes are composited at `composite_length` and keep their holes for
+        `max_per_hole`; points count as untagged samples. Values are unused.
+    objective : {"classification", "variance"} or callable
+        The score of a plan is the sum over blocks of a score g(metrics), minus that sum with `data` alone.
+        ``"classification"`` scores a block by its progress towards the class above its current one under
+        `rules`. Each condition of that class gives 1 when met, 0 when met today but no longer, and otherwise
+        ``clip((m - m0) / (threshold - m0), 0, 1)`` with ``m0`` today's metric; with ``P`` their mean and
+        ``P0`` today's, the block scores ``weight * (P - P0) / (1 - P0)``, which is ``weight`` exactly when it
+        reaches the class; ``clip`` gives 0 where its ratio is undefined, as from an infinite ``m0``. Blocks
+        already in the best class, or without rules, score 0. ``"variance"`` scores
+        ``weight * (variance0 - variance) / support_variance``. Both built-ins read an unestimated block as
+        variance equal to its support variance and 0 for slope, efficiency and counts, and a NaN
+        ``data_spacing`` as infinite. A callable takes a Table as
+        `metrics` returns it, for some of the blocks, and returns one finite score per row; it is called at
+        most once per `score`, `gains` or `loss`, on the rows of every block that call needs.
+    rules : sequence of (str, dict), or dict of domain to such a sequence, optional
+        As in `classify`, best class first: ``(label, {metric: (op, threshold)})`` with metrics among
+        ``variance``, ``slope``, ``efficiency``, ``n_samples``, ``n_holes`` and ``data_spacing``; required for
+        ``"classification"``. With `domains`, a dict gives each domain its own rules; the ``None`` key covers
+        domains not listed, and blocks of other domains score 0.
+    weights : array_like or str, optional
+        Weight of each block, >= 0, or the column of `targets` holding them; 1 by default. The built-in
+        objectives skip blocks of weight 0.
+    n_holes : int, optional
+        Most holes in a plan.
+    budget : float, optional
+        Most total cost of a plan.
+    cost_per_meter : float, optional
+        Cost of a hole per meter of its length; without it a hole costs its length, so `budget` is in meters.
+    min_spacing : float
+        Least distance in plan between the collars of two holes of a plan.
+    exclude : array_like, Polylines, Mesh or a sequence of them, optional
+        Zones candidates may not enter: polygons (``(n, 2)`` or ``(n, 3)`` vertices, or Polylines) hold
+        collars in plan, closed meshes hold collars and composites.
+    composite_length : float, optional
+        Length of the composites of the candidates, and of `data` when Drillholes, and ``c`` of
+        ``data_spacing``; by default the median interval length of `data`, which then must be Drillholes.
+    domains : array_like, label or tuple, optional
+        Domain label of each target, or one label for all of them, as in `predict`; or
+        ``(target_domains, data_domains)``, the second one label per composite of `data`. Without data
+        domains, the composites of `data` are labeled as the candidates'.
+    domain_column : str or tuple of str, optional
+        The column of `targets` and `data` holding their domains, or one name for each,
+        ``(target_column, data_column)``, as in `hole_distance`; instead of `domains`. A Drillholes `data`
+        takes it from its intervals and composites without crossing it.
+
+    Raises
+    ------
+    InvalidInput
+        If an input is missing or malformed, or the estimator is not supported.
+    """
+
+    def __init__(
+        self,
+        candidates: Drillholes,
+        estimator,
+        targets,
+        *,
+        data,
+        objective="classification",
+        rules=None,
+        weights=None,
+        n_holes: int | None = None,
+        budget: float | None = None,
+        cost_per_meter: float | None = None,
+        min_spacing: float = 0.0,
+        exclude=None,
+        composite_length: float | None = None,
+        domains=None,
+        domain_column: str | tuple[str, str] | None = None,
+    ):
+        if not isinstance(candidates, Drillholes):
+            raise InvalidInput("candidates must be Drillholes")
+        if composite_length is None:
+            if not isinstance(data, Drillholes) or data.interval_columns is None:
+                raise InvalidInput("composite_length is required unless data are Drillholes with intervals")
+            _, start, end = data.interval_columns
+            intervals = data.samples()
+            composite_length = float(np.median(intervals[end] - intervals[start]))
+        if domain_column is not None and domains is not None:
+            raise InvalidInput("give one of domains or domain_column")
+        target_column, data_column = (
+            domain_column if isinstance(domain_column, tuple) else (domain_column,) * 2
+        )
+        logged = None
+        if isinstance(domains, tuple):
+            domains, logged = domains
+        elif target_column is not None:
+            domains = column(targets, target_column, "domain_column")
+        data_holes = None
+        if isinstance(data, Drillholes):
+            composited = data.composite(composite_length, [], domain=data_column)
+            hole = composited[data.interval_columns[0]].astype(str)
+            data, data_holes = composited.coords, np.unique(hole, return_inverse=True)[1].tolist()
+            logged = logged if data_column is None else composited[data_column]
+        elif hasattr(data, "coords"):
+            logged = logged if data_column is None else column(data, data_column, "domain_column")
+            data = data.coords
+        data = np.asarray(data, dtype=float).reshape(-1, np.shape(data)[-1] if np.size(data) else 3)
+        if data.shape[1] == 2:
+            data = np.column_stack([data, np.zeros(len(data))])
+        self._holes = candidates.holes
+        composites = candidates.composite(composite_length, [])
+        index = {h: i for i, h in enumerate(self._holes)}
+        owner = np.array([index[h] for h in composites[candidates.interval_columns[0]]], dtype=int)
+        paths = candidates.paths()
+        names = paths[paths.column_names[0]]
+        self._collars = candidates.at(self._holes, np.zeros(len(self._holes)))
+        self._length = np.array([paths["depth"][names == h].max() for h in self._holes])
+        self._cost = self._length * (1.0 if cost_per_meter is None else float(cost_per_meter))
+        excluded = np.zeros(len(self._holes), dtype=bool)
+        zones = [] if exclude is None else [exclude] if _is_zone(exclude) else list(exclude)
+        for zone in zones:
+            if isinstance(zone, Mesh):
+                excluded |= zone.contains(self._collars)
+                excluded[owner[zone.contains(composites.coords)]] = True
+            else:
+                excluded |= point_in_polygon(self._collars[:, :2], zone)
+        if isinstance(weights, str):
+            weights = column(targets, weights, "weights")
+        labels, rule_of = None, None
+        if domains is None and logged is not None:
+            raise InvalidInput("domains of the data need domains of the targets")
+        if domains is not None:
+            centroids = targets.centroids if hasattr(targets, "centroids") else None
+            points = centroids if centroids is not None else getattr(targets, "coords", targets)
+            points = np.asarray(points, dtype=float)
+            domains = np.asarray(domains, dtype=object)
+            if domains.ndim == 0:
+                domains = np.full(len(points), domains.item(), dtype=object)
+            if logged is None:
+                logged = _located(targets, points, domains, data)
+            elif len(logged) != len(data):
+                raise InvalidInput(f"{len(logged)} data domains for {len(data)} composites")
+            located = _located(targets, points, domains, composites.coords)
+            labels = np.concatenate([domains, np.asarray(logged, dtype=object), located]).tolist()
+        if isinstance(rules, dict) and not callable(objective):
+            if domains is None:
+                raise InvalidInput("rules by domain need domains")
+            keys = list(rules)
+            rule_of = [None] * len(domains)
+            for i, label in enumerate(domains.tolist()):
+                k = keys.index(label) if label in keys else keys.index(None) if None in keys else None
+                rule_of[i] = k
+            rules = [_rules(rules[k]) for k in keys]
+        elif rules is not None and not callable(objective):
+            rules = [_rules(rules)]
+        self._engine = _DrillholePlan(
+            estimator._engine,
+            targets,
+            data,
+            data_holes,
+            composites.coords,
+            owner.tolist(),
+            self._collars,
+            self._cost.tolist(),
+            excluded.tolist(),
+            objective,
+            None if callable(objective) else rules,
+            rule_of,
+            weights,
+            n_holes,
+            budget,
+            float(min_spacing),
+            labels,
+            float(composite_length),
+        )
+
+    @property
+    def holes(self) -> list[str]:
+        """Candidate names; plans index into them."""
+        return list(self._holes)
+
+    @property
+    def collars(self) -> np.ndarray:
+        """``(n, 3)`` collar of each candidate."""
+        return self._collars.copy()
+
+    @property
+    def length(self) -> np.ndarray:
+        """Length of each candidate in meters."""
+        return self._length.copy()
+
+    @property
+    def cost(self) -> np.ndarray:
+        """Cost of each candidate: its length times `cost_per_meter`, or its length."""
+        return self._cost.copy()
+
+    def score(self, selected) -> float:
+        """The objective with the holes `selected`; 0 for none.
+
+        Parameters
+        ----------
+        selected : sequence of int
+            Distinct candidate indices.
+        """
+        return self._engine.score(_indices(selected))
+
+    def gains(self, selected) -> np.ndarray:
+        """Gain in the objective from adding each candidate to `selected`.
+
+        Parameters
+        ----------
+        selected : sequence of int
+
+        Returns
+        -------
+        ndarray
+            One gain per candidate, ``-inf`` where `feasible` is False, so ``argmax`` picks a feasible hole.
+        """
+        return self._engine.gains(_indices(selected))
+
+    def loss(self, selected) -> np.ndarray:
+        """Loss in the objective from removing each of `selected`, in its order.
+
+        Parameters
+        ----------
+        selected : sequence of int
+        """
+        return self._engine.loss(_indices(selected))
+
+    def feasible(self, selected) -> np.ndarray:
+        """Whether each candidate could join `selected`: not selected, outside `exclude`, within `n_holes` and
+        `budget`, and at least `min_spacing` from every selected collar.
+
+        Parameters
+        ----------
+        selected : sequence of int
+        """
+        return self._engine.feasible(_indices(selected))
+
+    def neighbors(self, i: int, radius: float) -> np.ndarray:
+        """Candidates other than `i` whose collars lie within `radius` of its collar in plan, in index order.
+
+        Parameters
+        ----------
+        i : int
+        radius : float
+        """
+        return self._engine.neighbors(int(i), float(radius))
+
+    def metrics(self, selected) -> Table:
+        """Kriging metrics of every block with the holes `selected`.
+
+        Parameters
+        ----------
+        selected : sequence of int
+
+        Returns
+        -------
+        Table
+            ``block`` (index into `targets`), ``variance``, ``slope``, ``efficiency``, ``n_samples`` and
+            ``n_holes`` as ``predict(..., diagnostics=True)`` gives them (NaN where unestimated),
+            ``data_spacing``, ``support_variance`` and ``weight``. ``data_spacing`` is
+            ``data_spacing(targets, samples, search, composite_length=composite_length)`` with the first search
+            pass of the estimator: ``sqrt(V / (c n))``, ``V`` the volume of that Search's ellipsoid (its radius
+            and its own rotation and ratios, not the variogram's), ``n`` the samples of any domain inside it
+            and ``c`` `composite_length`; NaN where it holds none.
+        """
+        return self._engine.metrics(_indices(selected))
+
+
+def _is_zone(obj) -> bool:
+    return isinstance(obj, Mesh) or hasattr(obj, "parts") or np.ndim(obj) == 2
+
+
+def _indices(selected) -> list[int]:
+    indices = np.asarray(selected).ravel()
+    if indices.size and (indices.dtype.kind not in "iu" or indices.min() < 0):
+        raise InvalidInput("selected must be candidate indices >= 0")
+    return indices.astype(int).tolist()
+
+
+def _located(targets, points, domains, located):
+    """Domain of the target block each of `located` falls in, or of the nearest target."""
+    out = np.empty(len(located), dtype=object)
+    rows = targets.row_at(located) if isinstance(targets, BlockModel) else np.full(len(located), -1)
+    inside = rows >= 0
+    out[inside] = domains[rows[inside]]
+    if (~inside).any():
+        codes, index = np.unique(domains.astype(str), return_inverse=True)
+        first = {c: domains[np.flatnonzero(index == k)[0]] for k, c in enumerate(codes)}
+        nearest, _ = assign_domain(located[~inside], coords=points, domains=index.astype(str))
+        out[~inside] = [first[codes[int(k)]] for k in nearest]
+    return out
+
+
+def _rules(rules):
+    return [[(name, op, float(t)) for name, (op, t) in conditions.items()] for _, conditions in rules]
