@@ -334,10 +334,15 @@ impl Plan {
         if !points.chain(&targets).all(finite) || !candidates.iter().all(|c| finite(&c.collar)) {
             return invalid("coordinates must be finite");
         }
-        let flat = planar(data.iter().map(|s| &s.loc));
-        if passes.iter().any(|s| s.octant)
-            && flat != planar(data.iter().map(|s| &s.loc).chain(composites()))
-        {
+        let flat = planar(data.iter().map(|s| &s.loc).chain(composites()));
+        let mixed = match data.is_empty() {
+            false => planar(data.iter().map(|s| &s.loc)) != flat,
+            true => {
+                let one = |c: &Candidate| !c.composites.is_empty() && planar(c.composites.iter());
+                !flat && candidates.iter().any(one)
+            }
+        };
+        if passes.iter().any(|s| s.octant) && mixed {
             return invalid(
                 "an octant search on data at one elevation turns to quadrants; give data in 3D",
             );
@@ -468,7 +473,7 @@ impl Plan {
             ..state
         };
         let all: Vec<u32> = (0..n as u32).collect();
-        plan.baseline = plan.evaluate(&plan.state, &all, &[]);
+        plan.baseline = plan.evaluate(&plan.state, &all);
         plan.state.current = plan.baseline.clone();
         plan.class = plan.classes();
         plan.active = plan.actives();
@@ -565,15 +570,24 @@ impl Plan {
         merged(self.reach[c].clone(), self.opened(state, &self.brings[c]))
     }
 
-    /// Metrics of `blocks` with the samples of `state` and then `extra`.
-    fn evaluate(&self, state: &State, blocks: &[u32], extra: &[Sample]) -> Vec<Metrics> {
+    /// Metrics of `blocks` with the samples of `state`.
+    fn evaluate(&self, state: &State, blocks: &[u32]) -> Vec<Metrics> {
         blocks
             .par_iter()
-            .map(|&b| self.metrics_at(state, b as usize, extra))
+            .map(|&b| self.metrics_at(state, b as usize, &[], 0))
             .collect()
     }
 
-    fn metrics_at(&self, state: &State, b: usize, extra: &[Sample]) -> Metrics {
+    /// Index in the samples of `state` at which the composites of candidate
+    /// `c` would sit once added.
+    fn slot(&self, state: &State, c: usize) -> usize {
+        let before = state.selected.iter().take_while(|&&s| s < c);
+        self.data.len() + before.map(|&s| self.holes[s].len()).sum::<usize>()
+    }
+
+    /// Metrics of target `b` with the samples of `state` and `extra` inserted
+    /// before sample `at`, as [`SearchTree::neighbors_plus`] ranks them.
+    fn metrics_at(&self, state: &State, b: usize, extra: &[Sample], at: usize) -> Metrics {
         let t = &self.targets[b];
         let data_spacing = self.spacing_at(state, t, extra);
         let domain = self.domains.as_ref().map(|d| d[b]);
@@ -582,7 +596,7 @@ impl Plan {
         });
         let n = state.samples.len();
         for tree in state.trees.iter().filter(|_| present) {
-            let Ok(chosen) = tree.neighbors_plus(t, domain, extra) else {
+            let Ok(chosen) = tree.neighbors_plus(t, domain, extra, at) else {
                 continue;
             };
             let used: Vec<Sample> = chosen
@@ -611,10 +625,7 @@ impl Plan {
         if !(r.is_finite() && r > 0.0) {
             return f64::NAN;
         }
-        let tree = &state.spacing;
-        let inside = tree.within(t, r).len();
-        let more = extra.iter().filter(|s| tree.distance(t, &s.loc) <= r);
-        let count = inside + more.count();
+        let count = state.spacing.count_plus(t, r, extra);
         let axes = search.anisotropy.as_ref();
         let axes = axes.map_or(1.0, |a| a.angles.major * a.angles.semi * a.angles.minor);
         let volume = 4.0 / 3.0 * std::f64::consts::PI * r.powi(3) * axes;
@@ -711,7 +722,7 @@ impl Plan {
         let blocks: Vec<u32> = (0..self.targets.len() as u32)
             .filter(|&b| touched[b as usize])
             .collect();
-        let fresh = self.evaluate(&next, &blocks, &[]);
+        let fresh = self.evaluate(&next, &blocks);
         let state = &mut self.state;
         (state.selected, state.samples, state.trees) = (next.selected, next.samples, next.trees);
         (state.spacing, state.counts) = (next.spacing, next.counts);
@@ -723,12 +734,16 @@ impl Plan {
             state.stale[b as usize] = true;
         }
         let (reach, active, brings) = (&self.reach, &self.active, &self.brings);
+        let hit = |b: &u32| touched[*b as usize] && active[*b as usize];
+        // A hole opening an empty domain reaches all its targets.
+        let empty: Vec<bool> = (0..self.members.len())
+            .map(|d| state.counts[d] == 0 && self.members[d].iter().any(hit))
+            .collect();
         let stale: Vec<bool> = reach
             .par_iter()
             .zip(brings)
             .map(|(r, d)| {
-                r.iter().any(|&b| touched[b as usize] && active[b as usize])
-                    || d.iter().any(|d| flipped.contains(d))
+                r.iter().any(hit) || d.iter().any(|d| flipped.contains(d) || empty[*d as usize])
             })
             .collect();
         for (gain, stale) in state.gains.iter_mut().zip(stale) {
@@ -861,7 +876,9 @@ impl Plan {
             let all = self.reach_in(state, c).into_iter();
             all.filter(|&b| self.active[b as usize]).collect()
         };
-        let with = |c: usize, b: u32| self.metrics_at(state, b as usize, &self.holes[c]);
+        let with = |c: usize, b: u32| {
+            self.metrics_at(state, b as usize, &self.holes[c], self.slot(state, c))
+        };
         if self.objective != Objective::Custom {
             let fresh = wanted
                 .par_iter()
@@ -914,7 +931,7 @@ impl Plan {
                 let r = self.reach_in(&state, s);
                 let m = r
                     .iter()
-                    .map(|&b| self.metrics_at(&state, b as usize, &[]))
+                    .map(|&b| self.metrics_at(&state, b as usize, &[], 0))
                     .collect();
                 (r, m)
             })
@@ -1329,9 +1346,31 @@ mod tests {
         let full = SearchTree::new(&all, &plan.kriging.passes[0], None);
         for t in &plan.targets {
             assert_eq!(
-                tree.neighbors_plus(t, None, extra).ok(),
+                tree.neighbors_plus(t, None, extra, plan.data.len()).ok(),
                 full.neighbors(t).ok()
             );
+        }
+        let plan = tied(Objective::Variance, false, 6, None);
+        let (d, extra) = (plan.data.len(), &plan.holes[0]);
+        let ordered = |a: usize, b: usize| -> Vec<Sample> {
+            let holes = plan.holes[a].iter().chain(&plan.holes[b]);
+            plan.data.iter().chain(holes).cloned().collect()
+        };
+        let base: Vec<Sample> = plan.data.iter().chain(&plan.holes[1]).cloned().collect();
+        for search in &plan.kriging.passes {
+            let tree = SearchTree::new(&base, search, None);
+            let full = SearchTree::new(&ordered(0, 1), search, None);
+            let n = base.len();
+            let renumber = |i: usize| match i {
+                i if i < d => i,
+                i if i < n => i + extra.len(),
+                i => i - n + d,
+            };
+            for t in &plan.targets {
+                let plus = tree.neighbors_plus(t, None, extra, d).ok();
+                let plus = plus.map(|c| c.into_iter().map(renumber).collect::<Vec<_>>());
+                assert_eq!(plus, full.neighbors(t).ok());
+            }
         }
     }
 
@@ -1494,5 +1533,154 @@ mod tests {
         assert_eq!(progress(&rule, &start, &m(0.9, 4.0)), 1.0);
         assert_eq!(progress(&rule, &start, &m(0.9, 2.0)), 0.0);
         assert!((progress(&rule, &m(0.4, 1.0), &m(0.6, 2.0)) - 0.5).abs() < 1e-12);
+    }
+
+    /// Candidates and targets on grids offset so that many composites tie in
+    /// distance, an octant search capped per hole, then a wider pass.
+    fn tied(
+        objective: Objective,
+        domains: bool,
+        holes: usize,
+        passes: Option<Vec<Search>>,
+    ) -> Plan {
+        let mut u = lcg(11);
+        let tag = |p: &Point| domains.then(|| domain_at(p));
+        let data: Vec<Sample> = (0..holes as u32)
+            .flat_map(|h| {
+                let (x, y) = (u() * 200.0, u() * 200.0);
+                hole(x, y).into_iter().map(move |p| Sample {
+                    domain: tag(&p),
+                    ..Sample::with_hole(p, 0.0, h)
+                })
+            })
+            .filter(|s| !(domains && s.domain == Some(2)))
+            .collect();
+        let candidates = (0..64)
+            .map(|i| {
+                let (x, y) = (12.5 + 25.0 * (i % 8) as f64, 12.5 + 25.0 * (i / 8) as f64);
+                let composites = hole(x, y);
+                Candidate {
+                    domains: composites.iter().filter_map(tag).collect(),
+                    composites,
+                    collar: (x, y, 0.0),
+                    cost: 30.0,
+                    excluded: false,
+                }
+            })
+            .collect();
+        let points: Vec<Point> = (0..200)
+            .map(|i| {
+                let (x, y, z) = (i % 10, (i / 10) % 10, i / 100);
+                (
+                    5.0 + 20.0 * x as f64,
+                    5.0 + 20.0 * y as f64,
+                    -5.0 - 10.0 * z as f64,
+                )
+            })
+            .collect();
+        let soft = domains.then_some(crate::Soft::All(30.0));
+        let passes = passes.unwrap_or_else(|| {
+            vec![
+                Search {
+                    min_samples: 3,
+                    max_samples: 6,
+                    radius: 30.0,
+                    octant: true,
+                    max_per_hole: Some(2),
+                    soft: soft.clone(),
+                    ..Default::default()
+                },
+                Search {
+                    min_samples: 2,
+                    max_samples: 10,
+                    radius: 55.0,
+                    soft,
+                    ..Default::default()
+                },
+            ]
+        });
+        let targets = Targets {
+            domains: domains.then(|| points.iter().map(domain_at).collect()),
+            weights: Some((0..200).map(|i| 1.0 + (i % 2) as f64).collect()),
+            points,
+        };
+        Plan::new(
+            kriging(false, passes),
+            data,
+            candidates,
+            targets,
+            objective,
+            Constraints::default(),
+            5.0,
+        )
+        .unwrap()
+    }
+
+    /// Objective with `selected` from a full re-run, without any cache.
+    fn brute(plan: &Plan, selected: &[usize]) -> f64 {
+        let m = rerun(plan, selected);
+        (0..m.len()).map(|b| plan.builtin(b, &m[b])).sum()
+    }
+
+    #[test]
+    fn cached_gains_equal_brute_force_over_random_moves() {
+        for (objective, domains, holes) in [
+            (Objective::Variance, false, 6),
+            (rules(), true, 6),
+            (rules(), false, 0),
+        ] {
+            let mut plan = tied(objective, domains, holes, None);
+            let mut u = lcg(5 + holes as u64);
+            let mut pick = |n: usize| ((u() * n as f64) as usize).min(n - 1);
+            let mut selected: Vec<usize> = vec![];
+            for step in 0..14 {
+                if !selected.is_empty() && (step % 3 == 2 || selected.len() > 5) {
+                    selected.remove(pick(selected.len()));
+                } else {
+                    let free: Vec<usize> = (0..64).filter(|c| !selected.contains(c)).collect();
+                    selected.push(free[pick(free.len())]);
+                }
+                let gains = plan.gains(&selected, None).unwrap();
+                let base = brute(&plan, &selected);
+                let score = plan.score(&selected, None).unwrap();
+                assert!((score - base).abs() < 1e-9, "{step}: {score} {base}");
+                let corner = [54, 55, 62, 63];
+                let checked: Vec<usize> = (0..8).map(|_| pick(64)).collect();
+                for c in checked.into_iter().chain(corner) {
+                    if selected.contains(&c) {
+                        assert_eq!(gains[c], f64::NEG_INFINITY);
+                        continue;
+                    }
+                    let with: Vec<usize> = selected.iter().copied().chain([c]).collect();
+                    let gain = brute(&plan, &with) - base;
+                    assert!(
+                        (gains[c] - gain).abs() < 1e-9,
+                        "{step} {c}: {} {gain}",
+                        gains[c]
+                    );
+                }
+            }
+        }
+    }
+
+    /// Hole 61 is soft data for a corner target that hole 55 opens but
+    /// does not reach, so adding 61 changes the gain of 55.
+    #[test]
+    fn opening_gains_drop_when_their_domain_changes_beyond_reach() {
+        let pass = Search {
+            min_samples: 1,
+            max_samples: 6,
+            radius: 30.0,
+            soft: Some(crate::Soft::All(30.0)),
+            ..Default::default()
+        };
+        let mut plan = tied(rules(), true, 6, Some(vec![pass]));
+        let b = plan.targets.iter().position(|t| *t == (165.0, 185.0, -5.0));
+        let b = b.unwrap() as u32;
+        assert!(!plan.reach[55].contains(&b) && plan.reach[61].contains(&b));
+        plan.gains(&[], None).unwrap();
+        let gains = plan.gains(&[61], None).unwrap();
+        let gain = brute(&plan, &[61, 55]) - brute(&plan, &[61]);
+        assert!((gains[55] - gain).abs() < 1e-9, "{} {gain}", gains[55]);
     }
 }

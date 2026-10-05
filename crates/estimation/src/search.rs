@@ -818,27 +818,52 @@ impl SearchTree {
         found
     }
 
-    /// As [`SearchTree::neighbors_in`] with `extra` added after the indexed
-    /// samples, numbered from [`SearchTree::len`], without adding them.
+    /// The search space of a tree indexing `extra` too: an empty tree takes
+    /// its origin from them, as one built from them would.
+    fn space_plus(&self, extra: &[Sample]) -> Space {
+        let mut space = self.space;
+        extra.iter().any(|s| space.anchor(&s.loc));
+        space
+    }
+
+    /// Number of the indexed samples and of `extra` within `radius` of
+    /// `target`, as [`SearchTree::within`] counts them in a tree indexing
+    /// `extra` too.
+    pub fn count_plus(&self, target: &Point, radius: f64, extra: &[Sample]) -> usize {
+        let space = self.space_plus(extra);
+        let query = space.project(target);
+        let more = extra
+            .iter()
+            .filter(|s| d2(&space.project(&s.loc), &query) <= radius * radius);
+        self.within(target, radius).len() + more.count()
+    }
+
+    /// As [`SearchTree::neighbors_in`] with `extra` added without indexing
+    /// them: numbered from [`SearchTree::len`], they rank at equal distance
+    /// as if inserted before indexed sample `at`, so the selection equals
+    /// that of a tree built with them there.
     pub fn neighbors_plus(
         &self,
         target: &Point,
         domain: Option<u32>,
         extra: &[Sample],
+        at: usize,
     ) -> Result<Vec<usize>> {
         let params = &self.params;
         let n = self.len();
         if n + extra.len() == 0 || params.max_samples == 0 {
             return enough(vec![], params);
         }
-        let query = self.project(target);
+        let space = self.space_plus(extra);
+        let query = space.project(target);
         let radius2 = params.radius * params.radius;
-        let mut pending: Vec<(u64, usize)> = extra
+        let shift = |i: usize| if i < at { i } else { i + extra.len() };
+        let mut pending: Vec<(u64, usize, usize)> = extra
             .iter()
             .enumerate()
-            .map(|(j, s)| (d2(&self.project(&s.loc), &query), n + j))
+            .map(|(j, s)| (d2(&space.project(&s.loc), &query), j))
             .filter(|&(d, _)| d <= radius2)
-            .map(|(d, i)| (d.to_bits(), i))
+            .map(|(d, j)| (d.to_bits(), at + j, n + j))
             .collect();
         pending.sort_unstable();
         let sample = |i: usize| match i < n {
@@ -884,8 +909,8 @@ impl SearchTree {
         let mut pending = pending.into_iter().peekable();
         let mut full = false;
         self.index.nearest(&query, radius2, |d2, i| {
-            while let Some(&(bits, j)) = pending.peek()
-                && (bits, j) < (d2.to_bits(), i)
+            while let Some(&(bits, rank, j)) = pending.peek()
+                && (bits, rank) < (d2.to_bits(), shift(i))
             {
                 pending.next();
                 if push(f64::from_bits(bits), j, &mut state) {
@@ -897,7 +922,7 @@ impl SearchTree {
             full
         });
         if !full {
-            full = pending.any(|(bits, j)| push(f64::from_bits(bits), j, &mut state));
+            full = pending.any(|(bits, _, j)| push(f64::from_bits(bits), j, &mut state));
         }
         let (mut group, at, mut selector) = state;
         if !full {
