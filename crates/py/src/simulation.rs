@@ -140,7 +140,13 @@ fn int_rows(rows: &[Vec<usize>]) -> Vec<Vec<i64>> {
 /// variable. Per-cutoff and per-quantile arrays have one row per target and
 /// one column per cutoff or quantile.
 #[pyclass(module = "boitata", name = "SimulationSummary", frozen)]
-pub struct SimulationSummary(ContinuousSummary);
+pub struct SimulationSummary(ContinuousSummary, Option<Vec<args::Label>>);
+
+impl From<ContinuousSummary> for SimulationSummary {
+    fn from(summary: ContinuousSummary) -> Self {
+        Self(summary, None)
+    }
+}
 
 #[pymethods]
 impl SimulationSummary {
@@ -169,6 +175,19 @@ impl SimulationSummary {
     #[getter]
     fn n(&self) -> usize {
         self.0.n
+    }
+
+    /// Label of each row from `groups=`, in row order; None without it.
+    #[getter]
+    fn groups<'py>(&self, py: Python<'py>) -> PyResult<Option<Vec<Bound<'py, PyAny>>>> {
+        self.1
+            .as_ref()
+            .map(|g| {
+                g.iter()
+                    .map(|l| crate::estimation::py_label(py, l))
+                    .collect()
+            })
+            .transpose()
     }
 
     /// Mean of the realizations (E-type estimate).
@@ -474,6 +493,8 @@ struct Rows {
     blocks: Option<BlockSupport>,
     window: Option<simulation::Window>,
     groups: Option<BlockSupport>,
+    /// Label of each `groups` volume.
+    labels: Option<Vec<args::Label>>,
 }
 
 impl Rows {
@@ -532,13 +553,15 @@ fn summary_rows(
             .map_err(err)
         })
         .transpose()?;
-    let groups = groups
-        .map(|g| {
-            let codes = group_codes(&holder, g, rows)?;
+    let (groups, labels) = match groups {
+        Some(g) => {
+            let (codes, labels) = group_codes(&holder, g, rows)?;
             let volumes = model.map(|m| m.get().0.volumes());
-            BlockSupport::groups(codes, volumes.as_deref()).map_err(err)
-        })
-        .transpose()?;
+            let groups = BlockSupport::groups(codes, volumes.as_deref()).map_err(err)?;
+            (Some(groups), Some(labels))
+        }
+        None => (None, None),
+    };
     if let (Some(g), Some(t)) = (&groups, &mut gt) {
         if t.categories.is_some() {
             return Err(invalid("categories do not go with groups"));
@@ -549,17 +572,18 @@ fn summary_rows(
         blocks: support(targets, grid, blocks)?,
         window,
         groups,
+        labels,
     };
     Ok((rows, gt))
 }
 
-/// Code of each row's `groups` label, the labels sorted, numbers before
-/// text; None for a null label.
+/// Code of each row's `groups` label, None for a null label, and the
+/// distinct labels sorted, numbers before text.
 fn group_codes(
     holder: &Bound<PyAny>,
     arg: &Bound<PyAny>,
     rows: usize,
-) -> PyResult<Vec<Option<usize>>> {
+) -> PyResult<(Vec<Option<usize>>, Vec<args::Label>)> {
     let column = args::column(Some(holder), arg, "groups")?;
     let column = match column.hasattr("to_pylist")? {
         true => column.call_method0("to_pylist")?,
@@ -585,19 +609,20 @@ fn group_codes(
     let order = |a: &(i32, f64, String), b: &(i32, f64, String)| {
         a.0.cmp(&b.0).then(a.1.total_cmp(&b.1)).then(a.2.cmp(&b.2))
     };
-    let mut distinct: Vec<_> = labels.iter().flatten().map(key).collect();
-    distinct.sort_by(order);
-    distinct.dedup();
-    Ok(labels
+    let mut distinct: Vec<_> = labels.iter().flatten().map(|l| (key(l), l)).collect();
+    distinct.sort_by(|a, b| order(&a.0, &b.0));
+    distinct.dedup_by(|a, b| a.0 == b.0);
+    let codes = labels
         .iter()
         .map(|l| {
             l.as_ref().map(|l| {
                 distinct
-                    .binary_search_by(|d| order(d, &key(l)))
+                    .binary_search_by(|d| order(&d.0, &key(l)))
                     .expect("a label")
             })
         })
-        .collect())
+        .collect();
+    Ok((codes, distinct.into_iter().map(|d| d.1.clone()).collect()))
 }
 
 fn majority(
@@ -1180,9 +1205,10 @@ impl Sgs {
     /// summed-area tables, so the cost does not grow with the box. `groups`,
     /// a label per row or a column name, such as the period of a mine plan,
     /// summarizes the volume-weighted mean of each distinct label instead,
-    /// one row per label in ``numpy.unique`` order (numbers before text);
-    /// null labels belong to none, NaN values are left out, and
-    /// `grade_tonnage_cutoffs` counts each volume with its rows' tonnes.
+    /// one row per label in ``numpy.unique`` order (numbers before text),
+    /// named by `SimulationSummary.groups`; null labels belong to none, NaN
+    /// values are left out, and `grade_tonnage_cutoffs` counts each volume
+    /// with its rows' tonnes.
     /// Give one of `window` or `groups`. `trend`, needed when fitted with
     /// one, is the trend at the targets: an array, or the name of a column
     /// of PointSet or BlockModel targets; each node is back-transformed
@@ -1370,7 +1396,7 @@ impl Sgs {
                     counter,
                 )
             })?
-            .map(SimulationSummary)
+            .map(|s| SimulationSummary(s, upscale.labels.clone()))
             .map_err(err);
         }
         with_progress(py, Some(n as u64), progress, |counter| {
@@ -1416,7 +1442,7 @@ impl Sgs {
                 counter,
             )
         })?
-        .map(SimulationSummary)
+        .map(|s| SimulationSummary(s, upscale.labels.clone()))
         .map_err(err)
     }
 }
@@ -1816,7 +1842,7 @@ impl Dss {
             let category = py.get_type::<pyo3::exceptions::PyUserWarning>();
             PyErr::warn(py, &category, &std::ffi::CString::new(message)?, 1)?;
         }
-        Ok(SimulationSummary(summary))
+        Ok(SimulationSummary(summary, upscale.labels))
     }
 }
 
@@ -2064,7 +2090,7 @@ impl TurningBands {
                 counter,
             )
         })?
-        .map(SimulationSummary)
+        .map(|s| SimulationSummary(s, upscale.labels.clone()))
         .map_err(err)
     }
 
@@ -3355,6 +3381,8 @@ struct ContinuousMeta {
     kept: Vec<usize>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     grade_tonnage: Option<TonnageMeta>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    groups: Option<Vec<args::Label>>,
 }
 
 /// [`simulation::post::RealizedTonnage`] in the file metadata.
@@ -3384,6 +3412,7 @@ impl Serialize for SimulationSummary {
                 tonnage: t.tonnage.clone(),
                 metal: t.metal.clone(),
             }),
+            groups: self.1.clone(),
         }
         .serialize(s)
     }
@@ -3400,27 +3429,30 @@ impl<'de> Deserialize<'de> for SimulationSummary {
                 "per-realization arrays need n values",
             ));
         }
-        Ok(Self(ContinuousSummary {
-            n: m.n,
-            mean: vec![],
-            variance: vec![],
-            cutoffs: m.cutoffs,
-            probability_above: vec![],
-            mean_above: vec![],
-            quantiles: m.quantiles,
-            quantile_values: vec![],
-            realization_mean: m.realization_mean,
-            realization_above: m.realization_above,
-            kept: m.kept,
-            realizations: vec![],
-            grade_tonnage: m.grade_tonnage.map(|t| simulation::post::RealizedTonnage {
-                cutoffs: t.cutoffs,
-                groups: t.groups,
-                names: t.names,
-                tonnage: t.tonnage,
-                metal: t.metal,
-            }),
-        }))
+        Ok(Self(
+            ContinuousSummary {
+                n: m.n,
+                mean: vec![],
+                variance: vec![],
+                cutoffs: m.cutoffs,
+                probability_above: vec![],
+                mean_above: vec![],
+                quantiles: m.quantiles,
+                quantile_values: vec![],
+                realization_mean: m.realization_mean,
+                realization_above: m.realization_above,
+                kept: m.kept,
+                realizations: vec![],
+                grade_tonnage: m.grade_tonnage.map(|t| simulation::post::RealizedTonnage {
+                    cutoffs: t.cutoffs,
+                    groups: t.groups,
+                    names: t.names,
+                    tonnage: t.tonnage,
+                    metal: t.metal,
+                }),
+            },
+            m.groups,
+        ))
     }
 }
 
@@ -3461,6 +3493,9 @@ impl Tabular for SimulationSummary {
         )?;
         c.quantile_values = each(c.quantiles.iter().map(|q| format!("q{q}")).collect())?;
         c.realizations = each(c.kept.iter().map(|k| format!("realization_{k}")).collect())?;
+        if let Some(g) = &self.1 {
+            same_length(self.0.mean.len(), g.len(), "groups")?;
+        }
         Ok(())
     }
 }
@@ -4040,7 +4075,7 @@ impl MultivariateSimulation {
                 counter,
             )
         })?
-        .map(|s| s.into_iter().map(SimulationSummary).collect())
+        .map(|s| s.into_iter().map(SimulationSummary::from).collect())
         .map_err(err)
     }
 
@@ -4545,7 +4580,7 @@ impl Snesim {
                     .simulate_values(&lattice, data, local, n, seed, &keep, memory, counter)
             })?
             .map_err(err)?;
-            return Ok(Bound::new(py, SimulationSummary(summary))?
+            return Ok(Bound::new(py, SimulationSummary::from(summary))?
                 .into_any()
                 .unbind());
         }
@@ -5099,7 +5134,7 @@ impl ImageQuilting {
             simulation::continuous(n, &options, |i| Ok(realization(i)), counter)
         })?
         .map_err(err)?;
-        Ok(Bound::new(py, SimulationSummary(summary))?
+        Ok(Bound::new(py, SimulationSummary::from(summary))?
             .into_any()
             .unbind())
     }

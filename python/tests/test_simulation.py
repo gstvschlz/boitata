@@ -136,7 +136,7 @@ def _box_mean(xy, reals, half):
     ],
 )
 @pytest.mark.filterwarnings("ignore:.*no draw reaches")
-def test_windows_and_groups_summarize_each_realization(make):
+def test_windows_and_groups_summarize_each_realization(make, tmp_path):
     sim = make().fit(coords, values)
     nodes = sim.simulate(grid, n=5, seed=2, keep=True, progress=False).realizations
     xy = grid.centroids[:, :2]
@@ -145,6 +145,7 @@ def test_windows_and_groups_summarize_each_realization(make):
     np.testing.assert_allclose(s.realizations, expected, rtol=1e-9)
     np.testing.assert_allclose(s.mean, expected.mean(axis=0), rtol=1e-9)
     np.testing.assert_allclose(s.quantile_values[:, 0], np.median(expected, axis=0), rtol=1e-9)
+    assert s.groups is None
 
     period = np.array(["b", "a", "c", "a"])[(xy[:, 0] // 25).astype(int)]
     with_period = grid.with_column("period", period)
@@ -162,6 +163,11 @@ def test_windows_and_groups_summarize_each_realization(make):
     expected = np.stack([nodes[:, period == p].mean(axis=1) for p in labels], axis=1)
     np.testing.assert_allclose(g.realizations, expected, rtol=1e-9)
     np.testing.assert_allclose(g.variance, expected.var(axis=0), atol=1e-9)
+    assert g.groups == ["a", "b", "c"]
+    g.to_parquet(tmp_path / "g.parquet")
+    for again in (bt.SimulationSummary.from_parquet(tmp_path / "g.parquet"), pickle.loads(pickle.dumps(g))):
+        assert again.groups == g.groups
+        np.testing.assert_array_equal(again.realizations, g.realizations)
     total = g.grade_tonnage(probabilities=[0.5])
     assert total["tonnage"][total["category"] == "all"][0] == pytest.approx(2.0 * 25 * 400)
 
@@ -182,6 +188,7 @@ def test_windows_over_blocks_points_and_bad_arguments():
     np.testing.assert_allclose(
         s.realizations, np.stack([raw[:, ids == i].mean(axis=1) for i in range(3)], axis=1)
     )
+    assert s.groups == [0, 1, 2]
 
     with pytest.raises(bt.InvalidInput, match="one of window or groups"):
         sgs.simulate(grid, n=1, window=(10, 10), groups=np.zeros(400))
