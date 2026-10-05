@@ -1,8 +1,9 @@
 use estimation::{
     Calibration, Discretization, DriftSpec, DualKriging, Estimate, HighGrade, HighGradeMode,
-    InterpEstimate, InterpOptions, Kind, NeighborhoodStats, Sample, Search as CoreSearch, Soft,
-    SoftPair, block_krige, by_pass, estimate_many_ext, estimate_many_with, k_fold_at, krige,
-    krige_bayesian, krige_factorial, krige_universal, leave_one_out_at,
+    InterpEstimate, InterpOptions, Kind, NeighborhoodStats, PlaneSectors, Sample,
+    Search as CoreSearch, Soft, SoftPair, block_krige, by_pass, estimate_many_ext,
+    estimate_many_with, k_fold_at, krige, krige_bayesian, krige_factorial, krige_universal,
+    leave_one_out_at,
 };
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -187,6 +188,10 @@ impl PyHighGrade {
 /// `octant` takes at most `max_samples / 8` samples from each octant around
 /// the target, split along the ellipsoid's axes; with 2D data (one elevation)
 /// the sectors are the ellipse's four quadrants, `max_samples / 4` each.
+/// `sectors` instead splits the plane of the ellipsoid's major and
+/// semi-major axes into that many equal angles, the first starting at the
+/// major axis, and takes at most `max_per_sector` samples from each
+/// (`max_samples / sectors` rounded up by default).
 /// `high_grade`, a HighGrade or `(threshold, radius)`, restricts samples
 /// above `threshold` to targets within `radius`, measured in the same
 /// ellipsoid unless the HighGrade has its own, in estimation and
@@ -364,13 +369,15 @@ impl Search {
     }
 
     #[new]
-    #[pyo3(signature = (radius, *, max_samples=16, min_samples=1, octant=false, max_per_hole=None, rotation=None, ratios=None, high_grade=None, soft=None, target_slope=None, target_efficiency=None))]
+    #[pyo3(signature = (radius, *, max_samples=16, min_samples=1, octant=false, sectors=None, max_per_sector=None, max_per_hole=None, rotation=None, ratios=None, high_grade=None, soft=None, target_slope=None, target_efficiency=None))]
     #[allow(clippy::too_many_arguments)]
     fn new(
         radius: f64,
         max_samples: usize,
         min_samples: usize,
         octant: bool,
+        sectors: Option<usize>,
+        max_per_sector: Option<usize>,
         max_per_hole: Option<usize>,
         rotation: Option<(f64, f64, f64)>,
         ratios: Option<(f64, f64)>,
@@ -401,7 +408,14 @@ impl Search {
                 "need radius > 0 and 1 <= min_samples <= max_samples",
             ));
         }
-        Ok(Self {
+        if max_per_sector.is_some() && sectors.is_none() {
+            return Err(invalid("max_per_sector needs sectors"));
+        }
+        let sectors = sectors.map(|count| PlaneSectors {
+            count,
+            max_per_sector: max_per_sector.unwrap_or(max_samples.div_ceil(count.max(1))),
+        });
+        let search = Self {
             soft: soft.map(self::soft).transpose()?,
             core: CoreSearch {
                 min_samples,
@@ -409,6 +423,7 @@ impl Search {
                 radius,
                 max_per_hole,
                 octant,
+                sectors,
                 anisotropy: match (rotation, ratios) {
                     (None, None) => None,
                     (rotation, ratios) => crate::variogram::anisotropy(
@@ -420,7 +435,12 @@ impl Search {
                 soft: None,
                 calibration,
             },
-        })
+        };
+        search
+            .core
+            .check_sectors()
+            .map_err(|e| invalid(e.to_string()))?;
+        Ok(search)
     }
 
     #[getter]
@@ -441,6 +461,17 @@ impl Search {
     #[getter]
     fn octant(&self) -> bool {
         self.core.octant
+    }
+
+    /// Number of angular sectors in the major / semi-major plane; None without.
+    #[getter]
+    fn sectors(&self) -> Option<usize> {
+        self.core.sectors.map(|s| s.count)
+    }
+
+    #[getter]
+    fn max_per_sector(&self) -> Option<usize> {
+        self.core.sectors.map(|s| s.max_per_sector)
     }
 
     #[getter]
@@ -508,8 +539,12 @@ impl Search {
 
     fn __repr__(&self) -> String {
         format!(
-            "Search(radius={}, max_samples={}, min_samples={}, octant={})",
-            self.core.radius, self.core.max_samples, self.core.min_samples, self.core.octant
+            "Search(radius={}, max_samples={}, min_samples={}, octant={}, sectors={:?})",
+            self.core.radius,
+            self.core.max_samples,
+            self.core.min_samples,
+            self.core.octant,
+            self.sectors()
         )
     }
 }

@@ -2,7 +2,7 @@
 //!
 //! Selects the samples used to estimate a target location, honoring an
 //! anisotropic search ellipsoid, min/max sample counts, a per-hole cap, and
-//! optional octant balancing. [`SearchTree`] answers the same query as
+//! optional balancing over octants or angular sectors. [`SearchTree`] answers the same query as
 //! [`neighbors`] from a grid of cells visited nearest first.
 
 use std::collections::HashMap;
@@ -35,6 +35,11 @@ pub struct Search {
     /// Balance samples across the octants of the search ellipsoid around the
     /// target, or its quadrants when the data are 2D (one elevation).
     pub octant: bool,
+    /// Balance samples across equal angular sectors in the plane of the
+    /// search ellipsoid's major and semi-major axes, the first starting at
+    /// the major axis; exclusive with `octant`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sectors: Option<PlaneSectors>,
     /// Search ellipsoid; without it the variogram's anisotropy is used.
     #[serde(default)]
     pub anisotropy: Option<Anisotropy>,
@@ -49,6 +54,14 @@ pub struct Search {
     /// kriging meets the calibration, `max_samples` when none does.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub calibration: Option<Calibration>,
+}
+
+/// Angular sectors in the plane of the search ellipsoid's major and
+/// semi-major axes, each holding at most `max_per_sector` samples.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PlaneSectors {
+    pub count: usize,
+    pub max_per_sector: usize,
 }
 
 /// A kriging quality a search is calibrated to reach per target.
@@ -153,6 +166,7 @@ impl Default for Search {
             radius: f64::INFINITY,
             max_per_hole: None,
             octant: false,
+            sectors: None,
             anisotropy: None,
             high_grade: None,
             soft: None,
@@ -162,6 +176,27 @@ impl Default for Search {
 }
 
 impl Search {
+    /// Whether the search balances samples over octants or sectors.
+    pub fn balances(&self) -> bool {
+        self.octant || self.sectors.is_some()
+    }
+
+    /// An error unless the sector settings are consistent.
+    pub fn check_sectors(&self) -> Result<()> {
+        match self.sectors {
+            Some(_) if self.octant => Err(EstimError::InvalidParameters(
+                "give octant or sectors, not both".into(),
+            )),
+            Some(PlaneSectors {
+                count,
+                max_per_sector,
+            }) if count < 2 || max_per_sector == 0 => Err(EstimError::InvalidParameters(
+                "sectors need count >= 2 and max_per_sector >= 1".into(),
+            )),
+            _ => Ok(()),
+        }
+    }
+
     /// Whether a sample of `value` and `domain` at `loc`, `distance` from a
     /// target of domain `target_domain`, may inform it under the high-grade
     /// and soft-boundary rules.
@@ -263,6 +298,7 @@ pub fn same_neighborhood(
         && a.radius == b.radius
         && a.max_per_hole == b.max_per_hole
         && a.octant == b.octant
+        && a.sectors == b.sectors
         && a.soft == b.soft
         && metric(a, va).map(|m| &m.angles) == metric(b, vb).map(|m| &m.angles)
 }
@@ -284,33 +320,48 @@ pub fn neighborhood_groups(searches: &[(&Search, Option<&Variogram>)]) -> Vec<Ve
 }
 
 /// Sectors around a target: octants split by the axes of the search
-/// ellipsoid, or quadrants split by its horizontal axes when the data are 2D.
+/// ellipsoid, or quadrants split by its horizontal axes when the data are 2D,
+/// or `plane` equal angular sectors in its major / semi-major plane.
 #[derive(Clone, Copy)]
 struct Sectors {
     axes: Matrix3<f64>,
     planar: bool,
+    plane: Option<usize>,
 }
 
 impl Sectors {
     /// Axes of `aniso` as (x, y, z) at zero rotation, so an unrotated
     /// ellipsoid splits along the coordinate axes.
-    fn new(aniso: Option<&Anisotropy>, planar: bool) -> Self {
+    fn new(aniso: Option<&Anisotropy>, planar: bool, params: &Search) -> Self {
         let axes = aniso.map_or_else(Matrix3::identity, |a| {
             let Angles {
                 azimuth, dip, rake, ..
             } = a.angles;
             block_frame([azimuth, dip, rake])
         });
-        Self { axes, planar }
+        Self {
+            axes,
+            planar,
+            plane: params.sectors.map(|p| p.count),
+        }
     }
 
     fn count(&self) -> usize {
-        if self.planar { 4 } else { 8 }
+        match self.plane {
+            Some(n) => n,
+            None if self.planar => 4,
+            None => 8,
+        }
     }
 
     /// Sector (0..count) of `s` around `target`.
     fn of(&self, target: &Point, s: &Point) -> usize {
         let d = self.axes * Vector3::new(s.0 - target.0, s.1 - target.1, s.2 - target.2);
+        if let Some(n) = self.plane {
+            // block_frame puts the major axis on y and the semi-major on -x
+            let turn = (-d.x).atan2(d.y).rem_euclid(std::f64::consts::TAU);
+            return ((turn / std::f64::consts::TAU * n as f64) as usize).min(n - 1);
+        }
         let [bx, by, bz] = [d.x, d.y, d.z].map(|v| (v >= 0.0) as usize);
         if self.planar {
             (bx << 1) | by
@@ -333,8 +384,8 @@ struct Selector<'a> {
     sectors: &'a Sectors,
     chosen: Vec<usize>,
     per_hole: Vec<(u32, usize)>,
-    per_octant: [usize; 8],
-    octant_cap: usize,
+    per_sector: Vec<usize>,
+    sector_cap: usize,
 }
 
 impl<'a> Selector<'a> {
@@ -345,11 +396,18 @@ impl<'a> Selector<'a> {
             sectors,
             chosen: Vec::with_capacity(params.max_samples),
             per_hole: vec![],
-            per_octant: [0; 8],
-            octant_cap: if params.octant {
-                params.max_samples.div_ceil(sectors.count())
-            } else {
-                usize::MAX
+            per_sector: vec![
+                0;
+                if params.balances() {
+                    sectors.count()
+                } else {
+                    0
+                }
+            ],
+            sector_cap: match (params.sectors, params.octant) {
+                (Some(p), _) => p.max_per_sector,
+                (None, true) => params.max_samples.div_ceil(sectors.count()),
+                (None, false) => usize::MAX,
             },
         }
     }
@@ -369,12 +427,12 @@ impl<'a> Selector<'a> {
         {
             return false;
         }
-        if self.params.octant {
+        if self.params.balances() {
             let o = self.sectors.of(self.target, loc);
-            if self.per_octant[o] >= self.octant_cap {
+            if self.per_sector[o] >= self.sector_cap {
                 return false;
             }
-            self.per_octant[o] += 1;
+            self.per_sector[o] += 1;
         }
         match (hole, seen) {
             (Some(_), Some(k)) => self.per_hole[k].1 += 1,
@@ -501,6 +559,7 @@ pub fn neighbors_in(
     let sectors = Sectors::new(
         aniso,
         params.octant && planar(samples.iter().map(|s| &s.loc)),
+        params,
     );
     let chosen = select(
         target,
@@ -587,7 +646,7 @@ impl SearchTree {
         let aniso = metric(params, vg);
         let locs: Vec<Point> = samples.iter().map(|s| s.loc).collect();
         let space = Space::new(aniso, &locs);
-        let sectors = Sectors::new(aniso, planar(locs.iter()));
+        let sectors = Sectors::new(aniso, planar(locs.iter()), params);
         let points: Vec<[f64; 3]> = locs.iter().map(|p| space.project(p)).collect();
         Self {
             index: Grid::new(&points),
@@ -668,7 +727,7 @@ impl SearchTree {
             .collect();
         found.sort_by(|a, b| a.0.total_cmp(&b.0).then(a.1.cmp(&b.1)));
         let ordered = self.one_per_location(found.into_iter().map(|f| f.1), domain, None);
-        let sectors = Sectors::new(Some(local), self.sectors.planar);
+        let sectors = Sectors::new(Some(local), self.sectors.planar, params);
         let chosen = select(
             target,
             ordered,
@@ -735,7 +794,7 @@ impl SearchTree {
 
     /// `chosen` round-robin over the sectors around `target`, each sector in
     /// selection order, so every leading part stays balanced; unchanged
-    /// unless the search is calibrated and balances octants. `local` is the
+    /// unless the search is calibrated and balances octants or sectors. `local` is the
     /// ellipsoid of [`SearchTree::neighbors_within`], if searched so.
     pub fn balanced(
         &self,
@@ -743,11 +802,13 @@ impl SearchTree {
         local: Option<&Anisotropy>,
         chosen: Vec<usize>,
     ) -> Vec<usize> {
-        if !self.params.octant || self.params.calibration.is_none() {
+        if !self.params.balances() || self.params.calibration.is_none() {
             return chosen;
         }
-        let sectors = local.map_or(self.sectors, |a| Sectors::new(Some(a), self.sectors.planar));
-        let mut seen = [0usize; 8];
+        let sectors = local.map_or(self.sectors, |a| {
+            Sectors::new(Some(a), self.sectors.planar, &self.params)
+        });
+        let mut seen = vec![0usize; sectors.count()];
         let mut ranked: Vec<(usize, usize)> = chosen
             .into_iter()
             .map(|i| {
@@ -1331,7 +1392,7 @@ mod tests {
         };
         let o = (0.0, 0.0, 0.0);
         for planar in [false, true] {
-            let sectors = Sectors::new(Some(&ellipse(30.0)), planar);
+            let sectors = Sectors::new(Some(&ellipse(30.0)), planar, &Search::default());
             let z = if planar { 0.0 } else { 1.0 };
             let quadrants = [(-1.0, -1.0), (-1.0, 1.0), (1.0, -1.0), (1.0, 1.0)];
             let got =
@@ -1389,7 +1450,11 @@ mod tests {
         })
         .unwrap();
         let t = (0.0, 0.0, 0.0);
-        for sectors in [Sectors::new(None, false), Sectors::new(Some(&zero), false)] {
+        let p = Search::default();
+        for sectors in [
+            Sectors::new(None, false, &p),
+            Sectors::new(Some(&zero), false, &p),
+        ] {
             for i in 0..125 {
                 let p = (
                     (i % 5 - 2) as f64,
@@ -1430,6 +1495,98 @@ mod tests {
         };
         let one = run(1);
         assert_eq!(one, run(4));
+    }
+
+    fn sectored(count: usize, max_per_sector: usize) -> Search {
+        Search {
+            sectors: Some(PlaneSectors {
+                count,
+                max_per_sector,
+            }),
+            ..params(1, 100, 100.0)
+        }
+    }
+
+    #[test]
+    fn plane_sectors_turn_from_the_major_axis_and_ignore_the_minor() {
+        let (sa, ca) = 30f64.to_radians().sin_cos();
+        let at = |along: f64, across: f64, z: f64| {
+            (along * sa + across * ca, along * ca - across * sa, z)
+        };
+        let sectors = Sectors::new(Some(&ellipse(30.0)), false, &sectored(6, 1));
+        let o = (0.0, 0.0, 0.0);
+        for z in [-3.0, 0.0, 3.0] {
+            let got: Vec<usize> = (0..6)
+                .map(|k| {
+                    let (s, c) = (30.0 + 60.0 * k as f64).to_radians().sin_cos();
+                    sectors.of(&o, &at(c, s, z))
+                })
+                .collect();
+            // sector centres, turning one way or the other from the major axis
+            let ahead: Vec<usize> = (0..6).collect();
+            let back: Vec<usize> = (0..6).rev().collect();
+            assert!(got == ahead || got == back, "{got:?}");
+        }
+    }
+
+    #[test]
+    fn plane_sectors_cap_each_sector_with_the_nearest() {
+        let samples: Vec<Sample> = (0..4)
+            .flat_map(|q| {
+                let (s, c) = (45.0 + 90.0 * q as f64).to_radians().sin_cos();
+                (1..=3).map(move |r| (r as f64 * s, r as f64 * c))
+            })
+            .map(|(x, y)| s(x, y, 0.0, 0.0, None))
+            .collect();
+        let p = sectored(4, 2);
+        let o = (0.1, -0.05, 0.0);
+        let mut got = neighbors(&o, &samples, &p, None).unwrap();
+        got.sort();
+        assert_eq!(got, vec![0, 1, 3, 4, 6, 7, 9, 10]);
+        let mut tree = SearchTree::new(&samples, &p, None).neighbors(&o).unwrap();
+        tree.sort();
+        assert_eq!(tree, got);
+    }
+
+    #[test]
+    fn plane_sectors_exclude_octants_and_need_two() {
+        assert!(sectored(4, 2).check_sectors().is_ok());
+        assert!(sectored(1, 2).check_sectors().is_err());
+        assert!(sectored(4, 0).check_sectors().is_err());
+        let both = Search {
+            octant: true,
+            ..sectored(4, 2)
+        };
+        assert!(both.check_sectors().is_err());
+    }
+
+    #[test]
+    fn plane_sector_tree_matches_the_scan() {
+        let samples: Vec<Sample> = (0..3000)
+            .map(|i| {
+                s(
+                    (i * 37 % 211) as f64,
+                    (i * 53 % 197) as f64,
+                    (i * 11 % 23) as f64,
+                    0.0,
+                    Some((i % 300) as u32),
+                )
+            })
+            .collect();
+        for (count, cap) in [(4, 3), (6, 2), (8, 4), (12, 1)] {
+            let p = Search {
+                anisotropy: Some(ellipse(40.0)),
+                max_per_hole: Some(2),
+                ..sectored(count, cap)
+            };
+            let tree = SearchTree::new(&samples, &p, None);
+            for i in 0..200 {
+                let t = ((i % 20) as f64 * 9.3, (i / 20) as f64 * 17.1, 7.5);
+                let scan = neighbors(&t, &samples, &p, None).ok();
+                assert_eq!(tree.neighbors(&t).ok(), scan);
+                assert!(scan.is_some_and(|c| c.len() <= count * cap));
+            }
+        }
     }
 
     #[test]

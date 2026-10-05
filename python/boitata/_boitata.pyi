@@ -944,6 +944,8 @@ class Search:
         max_samples: int = 16,
         min_samples: int = 1,
         octant: bool = False,
+        sectors: int | None = None,
+        max_per_sector: int | None = None,
         max_per_hole: int | None = None,
         rotation: tuple[float, float, float] | None = None,
         ratios: tuple[float, float] | None = None,
@@ -960,6 +962,10 @@ class Search:
     def min_samples(self) -> int: ...
     @property
     def octant(self) -> bool: ...
+    @property
+    def sectors(self) -> int | None: ...
+    @property
+    def max_per_sector(self) -> int | None: ...
     @property
     def max_per_hole(self) -> int | None: ...
     @property

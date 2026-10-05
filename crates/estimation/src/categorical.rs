@@ -315,6 +315,7 @@ mod tests {
             radius,
             max_per_hole: None,
             octant: false,
+            sectors: None,
             anisotropy: None,
             high_grade: None,
             soft: None,
