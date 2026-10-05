@@ -419,8 +419,8 @@ pub fn shared_unsupported(
     if per_realization_domains {
         return Some("simulated domains");
     }
-    if search.iter().any(|s| s.octant) {
-        return Some("octant searches");
+    if search.iter().any(|s| s.balances()) {
+        return Some("octant or sector searches");
     }
     if search.iter().any(|s| s.high_grade.is_some()) {
         return Some("high-grade restrictions");
@@ -656,7 +656,7 @@ mod tests {
         };
         assert_eq!(
             shared_unsupported(&[plain.clone(), octant], false, false),
-            Some("octant searches")
+            Some("octant or sector searches")
         );
         let hg = Search {
             high_grade: Some(estimation::HighGrade::new(5.0, 10.0)),

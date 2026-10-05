@@ -772,6 +772,32 @@ def test_search_getters():
     assert bt.Search(radius=50, soft=pairs).soft == pairs
 
 
+def test_plane_sectors():
+    s = bt.Search(radius=50, max_samples=24, sectors=6)
+    assert (s.sectors, s.max_per_sector, bt.Search(radius=50).sectors) == (6, 4, None)
+    for bad in (
+        {"sectors": 1},
+        {"sectors": 4, "octant": True},
+        {"max_per_sector": 2},
+        {"sectors": 4, "max_per_sector": 0},
+    ):
+        with pytest.raises(bt.InvalidInput):
+            bt.Search(radius=50, **bad)
+    rng = np.random.default_rng(7)
+    xyz = rng.uniform(0, 100, (400, 3))
+    values = rng.normal(size=400)
+    model = bt.Variogram([("spherical", 1.0, 40.0)])
+    search = bt.Search(
+        radius=60, max_samples=48, sectors=4, max_per_sector=3, rotation=(30, 0, 0), ratios=(0.5, 0.2)
+    )
+    d = (
+        bt.OrdinaryKriging(model, search)
+        .fit(xyz, values)
+        .predict(rng.uniform(20, 80, (50, 3)), diagnostics=True)
+    )
+    assert np.all(np.asarray(d["n_samples"]) <= 12)
+
+
 def test_with_search_keeps_samples_and_domains():
     passes = [search, bt.Search(radius=200, max_samples=4)]
     ok = bt.OrdinaryKriging(model, passes).fit(coords, values)
