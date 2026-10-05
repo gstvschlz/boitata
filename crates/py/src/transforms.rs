@@ -2242,6 +2242,7 @@ fn despike<'py>(
     radii: Option<Vec<f64>>,
     seed: u64,
 ) -> PyResult<Bound<'py, PyAny>> {
+    let unit = crate::units::of(values, Some(coords))?;
     let locs = points(coords)?;
     let names = match values.is_instance_of::<pyo3::types::PyString>() {
         true => None,
@@ -2281,7 +2282,17 @@ fn despike<'py>(
             .iter()
             .zip(out)
             .map(|(n, c)| (n.as_str(), Arc::new(Float64Array::from(c)) as ArrayRef));
-        let table = Table(RecordBatch::try_from_iter(columns).map_err(invalid)?);
+        let batch = RecordBatch::try_from_iter(columns).map_err(invalid)?;
+        let units = names
+            .iter()
+            .map(|n| crate::units::of(&pyo3::types::PyString::new(py, n), Some(coords)))
+            .collect::<PyResult<Vec<_>>>()?;
+        let named: Vec<(&str, Option<&str>)> = names
+            .iter()
+            .zip(&units)
+            .map(|(n, u)| (n.as_str(), u.as_deref()))
+            .collect();
+        let table = Table(crate::units::label(batch, &named)?);
         return Ok(Bound::new(py, table)?.into_any());
     }
     if matrix {
@@ -2290,7 +2301,8 @@ fn despike<'py>(
             .collect();
         return Ok(array2(py, &rows).into_any());
     }
-    Ok(array1(py, out.into_iter().next().unwrap_or_default()).into_any())
+    let values = array1(py, out.into_iter().next().unwrap_or_default()).into_any();
+    crate::units::tag(values, unit.as_deref())
 }
 
 /// Uncertainty in global statistics of spatially correlated data.
@@ -2329,7 +2341,7 @@ fn despike<'py>(
 ///     One row per realization: ``mean``, then the quantile and proportion
 ///     columns.
 #[pyfunction]
-#[pyo3(signature = (coords, values, variogram, *, weights=None, n=100, seed=0, quantiles=vec![], cutoffs=vec![]))]
+#[pyo3(signature = (coords, values, variogram, *, weights=None, n=100, seed=0, quantiles=vec![], cutoffs=None))]
 #[allow(clippy::too_many_arguments)]
 fn spatial_bootstrap(
     coords: &Bound<PyAny>,
@@ -2339,8 +2351,13 @@ fn spatial_bootstrap(
     n: usize,
     seed: u64,
     quantiles: Vec<f64>,
-    cutoffs: Vec<f64>,
+    cutoffs: Option<&Bound<PyAny>>,
 ) -> PyResult<Table> {
+    let unit = crate::units::of(values, Some(coords))?;
+    let cutoffs = cutoffs
+        .map(|c| crate::units::values(c, unit.as_deref(), "cutoffs"))
+        .transpose()?
+        .unwrap_or_default();
     let locs = points(coords)?;
     let values = finite(&column(Some(coords), values, "values")?, "values")?;
     same_length(locs.len(), values.len(), "values")?;
@@ -2368,7 +2385,21 @@ fn spatial_bootstrap(
         let a = b.above.iter().map(|a| a[j]).collect();
         columns.push((format!("above {c}"), f(a)));
     }
-    Ok(Table(RecordBatch::try_from_iter(columns).map_err(invalid)?))
+    let batch = RecordBatch::try_from_iter(columns).map_err(invalid)?;
+    let names: Vec<String> = batch
+        .schema()
+        .fields()
+        .iter()
+        .map(|f| f.name().clone())
+        .collect();
+    let units: Vec<(&str, Option<&str>)> = names
+        .iter()
+        .map(|n| match n.starts_with("above ") {
+            true => (n.as_str(), Some("ratio")),
+            false => (n.as_str(), unit.as_deref()),
+        })
+        .collect();
+    Ok(Table(crate::units::label(batch, &units)?))
 }
 
 /// Polygonal (nearest-neighbor area) declustering on a `nodes`-cell grid.
