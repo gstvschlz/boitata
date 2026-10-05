@@ -65,6 +65,7 @@ def public_callables():
                     attr.startswith("_")
                     or isinstance(static, property)
                     or type(static).__name__ == "getset_descriptor"
+                    or hasattr(np.ndarray, attr)
                 ):
                     continue
                 if callable(getattr(obj, attr)):

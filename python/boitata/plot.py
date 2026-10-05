@@ -1242,9 +1242,10 @@ def _scheme_colors(scheme, kwargs):
 
 
 def _name(data, column):
-    """`column` and its unit in `data`, as an axis label; empty unless `column` names a column."""
+    """`column` and its unit in `data`, as an axis label; the unit alone for an array that carries one."""
     if not isinstance(column, str):
-        return ""
+        unit = getattr(column, "unit", None)
+        return f"({unit})" if isinstance(unit, str) else ""
     unit = getattr(data, "units", {}).get(column)
     return f"{column} ({unit})" if unit else column
 

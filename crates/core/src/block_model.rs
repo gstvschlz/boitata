@@ -575,7 +575,14 @@ impl BlockModel {
         }
         let (mut columns, fraction) = self.transfer(target, min_fraction)?;
         columns.push(("fraction".into(), Arc::new(Float64Array::from(fraction))));
-        target.with_columns(columns)
+        let out = target.with_columns(columns)?;
+        let mut attributes = out.attributes.clone();
+        let units = crate::units::units(&self.attributes);
+        let fraction = [("fraction".to_string(), "ratio".to_string())];
+        for (name, unit) in units.iter().chain(&fraction) {
+            attributes = crate::units::with_unit_unchecked(&attributes, name, Some(unit))?;
+        }
+        out.with_attributes(attributes)
     }
 
     fn with_columns(&self, columns: Vec<(String, ArrayRef)>) -> Result<Self> {

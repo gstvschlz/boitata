@@ -1,4 +1,4 @@
-use arrow_array::BooleanArray;
+use arrow_array::{BooleanArray, RecordBatch};
 use boitata_core::{BlockModel, Geometry, Layout, PointSet, Polylines};
 use numpy::ndarray::{Array2, Array3};
 use numpy::{IntoPyArray, PyArray1, PyArray2, PyArray3, PyReadonlyArray1, PyReadonlyArray2};
@@ -127,10 +127,14 @@ impl PyPointSet {
     }
 
     /// New point set with the attribute `name` added or replaced: numbers (NaN
-    /// is null) or text (None is null).
-    fn with_column(&self, name: &str, values: &Bound<PyAny>) -> PyResult<Self> {
+    /// is null) or text (None is null). The column takes `unit`, or else the
+    /// unit `values` carries.
+    #[pyo3(signature = (name, values, *, unit=None))]
+    fn with_column(&self, name: &str, values: &Bound<PyAny>, unit: Option<&str>) -> PyResult<Self> {
         let column = crate::blocks::attribute(values, self.0.len())?;
-        Ok(Self(self.0.with_column(name, column).map_err(core_error)?))
+        let out = self.0.with_column(name, column).map_err(core_error)?;
+        let attributes = crate::units::set(out.attributes(), name, values, unit)?;
+        Ok(Self(out.with_attributes(attributes).map_err(core_error)?))
     }
 
     /// New point set with the columns of `data`, a dict or table, added or replaced.
@@ -139,6 +143,8 @@ impl PyPointSet {
             self.0.clone(),
             data,
             PointSet::with_column,
+            PointSet::attributes,
+            PointSet::with_attributes,
         )?))
     }
 
@@ -389,10 +395,14 @@ impl PyPolylines {
         self.0.crs.clone()
     }
 
-    /// New polylines with the per-feature attribute `name` added or replaced.
-    fn with_column(&self, name: &str, values: &Bound<PyAny>) -> PyResult<Self> {
+    /// New polylines with the per-feature attribute `name` added or replaced,
+    /// in `unit` or else the unit `values` carries.
+    #[pyo3(signature = (name, values, *, unit=None))]
+    fn with_column(&self, name: &str, values: &Bound<PyAny>, unit: Option<&str>) -> PyResult<Self> {
         let column = crate::blocks::attribute(values, self.0.len())?;
-        Ok(Self(self.0.with_column(name, column).map_err(core_error)?))
+        let out = self.0.with_column(name, column).map_err(core_error)?;
+        let attributes = crate::units::set(out.attributes(), name, values, unit)?;
+        Ok(Self(out.with_attributes(attributes).map_err(core_error)?))
     }
 
     /// Units of the attributes that have one; see `Table.units`.
@@ -834,10 +844,14 @@ impl PyBlockModel {
     }
 
     /// New model with the attribute `name` added or replaced: numbers (NaN is
-    /// null) or text (None is null).
-    fn with_column(&self, name: &str, values: &Bound<PyAny>) -> PyResult<Self> {
+    /// null) or text (None is null). The column takes `unit`, or else the unit
+    /// `values` carries.
+    #[pyo3(signature = (name, values, *, unit=None))]
+    fn with_column(&self, name: &str, values: &Bound<PyAny>, unit: Option<&str>) -> PyResult<Self> {
         let column = crate::blocks::attribute(values, self.0.len())?;
-        Ok(Self(self.0.with_column(name, column).map_err(core_error)?))
+        let out = self.0.with_column(name, column).map_err(core_error)?;
+        let attributes = crate::units::set(out.attributes(), name, values, unit)?;
+        Ok(Self(out.with_attributes(attributes).map_err(core_error)?))
     }
 
     /// New model with the columns of `data`, a dict or table, added or replaced.
@@ -846,6 +860,8 @@ impl PyBlockModel {
             self.0.clone(),
             data,
             BlockModel::with_column,
+            BlockModel::attributes,
+            BlockModel::with_attributes,
         )?))
     }
 
@@ -1102,12 +1118,20 @@ fn with_columns<T>(
     mut target: T,
     data: &Bound<PyAny>,
     set: fn(&T, &str, arrow_array::ArrayRef) -> boitata_core::Result<T>,
+    attributes: fn(&T) -> &RecordBatch,
+    with_attributes: fn(&T, RecordBatch) -> boitata_core::Result<T>,
 ) -> PyResult<T> {
     let batch = to_batch(data)?;
     for (field, column) in batch.schema().fields().iter().zip(batch.columns()) {
         target = set(&target, field.name(), column.clone()).map_err(core_error)?;
     }
-    Ok(target)
+    let units = boitata_core::units::units(&batch);
+    let named: Vec<(&str, Option<&str>)> = units
+        .iter()
+        .map(|(n, u)| (n.as_str(), Some(u.as_str())))
+        .collect();
+    let labelled = crate::units::label(attributes(&target).clone(), &named)?;
+    with_attributes(&target, labelled).map_err(core_error)
 }
 
 pub fn float_column(values: &Bound<PyAny>, rows: usize) -> PyResult<arrow_array::ArrayRef> {

@@ -140,11 +140,11 @@ fn int_rows(rows: &[Vec<usize>]) -> Vec<Vec<i64>> {
 /// variable. Per-cutoff and per-quantile arrays have one row per target and
 /// one column per cutoff or quantile.
 #[pyclass(module = "boitata", name = "SimulationSummary", frozen)]
-pub struct SimulationSummary(ContinuousSummary, Option<Vec<args::Label>>);
+pub struct SimulationSummary(ContinuousSummary, Option<Vec<args::Label>>, Option<String>);
 
 impl From<ContinuousSummary> for SimulationSummary {
     fn from(summary: ContinuousSummary) -> Self {
-        Self(summary, None)
+        Self(summary, None, None)
     }
 }
 
@@ -192,19 +192,28 @@ impl SimulationSummary {
 
     /// Mean of the realizations (E-type estimate).
     #[getter]
-    fn mean<'py>(&self, py: Python<'py>) -> Bound<'py, PyArray1<f64>> {
-        array1(py, self.0.mean.clone())
+    fn mean<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        crate::units::tag(
+            array1(py, self.0.mean.clone()).into_any(),
+            self.2.as_deref(),
+        )
     }
 
     /// Variance across realizations.
     #[getter]
-    fn variance<'py>(&self, py: Python<'py>) -> Bound<'py, PyArray1<f64>> {
-        array1(py, self.0.variance.clone())
+    fn variance<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        crate::units::tag(
+            array1(py, self.0.variance.clone()).into_any(),
+            crate::units::squared(self.2.as_deref()).as_deref(),
+        )
     }
 
     #[getter]
-    fn std<'py>(&self, py: Python<'py>) -> Bound<'py, PyArray1<f64>> {
-        array1(py, self.0.variance.iter().map(|v| v.sqrt()).collect())
+    fn std<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        crate::units::tag(
+            array1(py, self.0.variance.iter().map(|v| v.sqrt()).collect()).into_any(),
+            self.2.as_deref(),
+        )
     }
 
     /// Grade–tonnage curves across realizations, from a `simulate` run with
@@ -392,8 +401,11 @@ impl SimulationSummary {
     /// `(targets, cutoffs)` mean of the values above each cutoff; NaN where
     /// no realization is above it.
     #[getter]
-    fn mean_above<'py>(&self, py: Python<'py>) -> Bound<'py, PyArray2<f64>> {
-        by_target(py, &self.0.mean_above, self.0.mean.len())
+    fn mean_above<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        crate::units::tag(
+            by_target(py, &self.0.mean_above, self.0.mean.len()).into_any(),
+            self.2.as_deref(),
+        )
     }
 
     #[getter]
@@ -403,14 +415,20 @@ impl SimulationSummary {
 
     /// `(targets, quantiles)` values at each requested quantile.
     #[getter]
-    fn quantile_values<'py>(&self, py: Python<'py>) -> Bound<'py, PyArray2<f64>> {
-        by_target(py, &self.0.quantile_values, self.0.mean.len())
+    fn quantile_values<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        crate::units::tag(
+            by_target(py, &self.0.quantile_values, self.0.mean.len()).into_any(),
+            self.2.as_deref(),
+        )
     }
 
     /// Mean of each realization over all targets, `(n,)`.
     #[getter]
-    fn realization_mean<'py>(&self, py: Python<'py>) -> Bound<'py, PyArray1<f64>> {
-        array1(py, self.0.realization_mean.clone())
+    fn realization_mean<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        crate::units::tag(
+            array1(py, self.0.realization_mean.clone()).into_any(),
+            self.2.as_deref(),
+        )
     }
 
     /// `(n, cutoffs)` fraction of targets above each cutoff in each realization.
@@ -427,8 +445,13 @@ impl SimulationSummary {
 
     /// `(len(kept), targets)` kept realizations; None when none were kept.
     #[getter]
-    fn realizations<'py>(&self, py: Python<'py>) -> Option<Bound<'py, PyArray2<f64>>> {
-        (!self.0.kept.is_empty()).then(|| matrix(py, &self.0.realizations, self.0.mean.len()))
+    fn realizations<'py>(&self, py: Python<'py>) -> PyResult<Option<Bound<'py, PyAny>>> {
+        (!self.0.kept.is_empty())
+            .then(|| {
+                let kept = matrix(py, &self.0.realizations, self.0.mean.len()).into_any();
+                crate::units::tag(kept, self.2.as_deref())
+            })
+            .transpose()
     }
 
     fn __repr__(&self) -> String {
@@ -1006,6 +1029,9 @@ pub struct Sgs {
     correlation: Option<f64>,
     #[serde(skip)]
     data: Option<Data>,
+    /// Unit of the fitted values, carried by the summaries.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    unit: Option<String>,
 }
 
 impl Sgs {
@@ -1107,6 +1133,7 @@ impl Sgs {
             domains: None,
             correlation: None,
             data: None,
+            unit: None,
         })
     }
 
@@ -1238,6 +1265,7 @@ impl Sgs {
         if correlation.is_some() && secondary.is_none() {
             return Err(invalid("correlation needs secondary"));
         }
+        slf.unit = crate::units::of(values, Some(coords))?;
         let (d, fitted) = data(
             coords,
             values,
@@ -1485,7 +1513,7 @@ impl Sgs {
                     counter,
                 )
             })?
-            .map(|s| SimulationSummary(s, upscale.labels.clone()))
+            .map(|s| SimulationSummary(s, upscale.labels.clone(), self.unit.clone()))
             .map_err(err);
         }
         with_progress(py, Some(n as u64), progress, |counter| {
@@ -1531,7 +1559,7 @@ impl Sgs {
                 counter,
             )
         })?
-        .map(|s| SimulationSummary(s, upscale.labels.clone()))
+        .map(|s| SimulationSummary(s, upscale.labels.clone(), self.unit.clone()))
         .map_err(err)
     }
 }
@@ -1572,6 +1600,9 @@ pub struct Dss {
     correlation: Option<f64>,
     #[serde(skip)]
     data: Option<Data>,
+    /// Unit of the fitted values, carried by the summaries.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    unit: Option<String>,
 }
 
 #[pymethods]
@@ -1610,6 +1641,7 @@ impl Dss {
             domains: None,
             correlation: None,
             data: None,
+            unit: None,
         })
     }
 
@@ -1736,6 +1768,7 @@ impl Dss {
         if correlation.is_some() && secondary.is_none() {
             return Err(invalid("correlation needs secondary"));
         }
+        slf.unit = crate::units::of(values, Some(coords))?;
         let (d, fitted) = data(
             coords,
             values,
@@ -1936,7 +1969,11 @@ impl Dss {
             let category = py.get_type::<pyo3::exceptions::PyUserWarning>();
             PyErr::warn(py, &category, &std::ffi::CString::new(message)?, 1)?;
         }
-        Ok(SimulationSummary(summary, upscale.labels))
+        Ok(SimulationSummary(
+            summary,
+            upscale.labels,
+            self.unit.clone(),
+        ))
     }
 }
 
@@ -1982,6 +2019,9 @@ pub struct TurningBands {
     domains: Option<Vec<Label>>,
     #[serde(skip)]
     data: Option<Data>,
+    /// Unit of the fitted values, carried by the summaries.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    unit: Option<String>,
 }
 
 #[pymethods]
@@ -2034,6 +2074,7 @@ impl TurningBands {
             classes,
             domains: None,
             data: None,
+            unit: None,
         })
     }
 
@@ -2078,6 +2119,7 @@ impl TurningBands {
         domains: Option<&Bound<PyAny>>,
         domain_column: Option<&str>,
     ) -> PyResult<PyRefMut<'py, Self>> {
+        slf.unit = crate::units::of(values, Some(coords))?;
         let (d, fitted) = data(
             coords,
             values,
@@ -2186,7 +2228,7 @@ impl TurningBands {
                 counter,
             )
         })?
-        .map(|s| SimulationSummary(s, upscale.labels.clone()))
+        .map(|s| SimulationSummary(s, upscale.labels.clone(), self.unit.clone()))
         .map_err(err)
     }
 
@@ -3536,6 +3578,8 @@ struct ContinuousMeta {
     grade_tonnage: Option<TonnageMeta>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     groups: Option<Vec<args::Label>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    unit: Option<String>,
 }
 
 /// [`simulation::post::RealizedTonnage`] in the file metadata.
@@ -3567,6 +3611,7 @@ impl Serialize for SimulationSummary {
                 metal: t.metal.clone(),
             }),
             groups: self.1.clone(),
+            unit: self.2.clone(),
         }
         .serialize(s)
     }
@@ -3608,6 +3653,7 @@ impl<'de> Deserialize<'de> for SimulationSummary {
                 }),
             },
             m.groups,
+            m.unit,
         ))
     }
 }

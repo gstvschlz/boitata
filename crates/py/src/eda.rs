@@ -1368,8 +1368,10 @@ impl Capping {
         weights: Option<&Bound<PyAny>>,
         data: Option<&Bound<PyAny>>,
     ) -> PyResult<Bound<'py, PyAny>> {
+        let unit = crate::units::of(values, data)?;
         let (values, codes) = self.fit_codes(values, domains, domain_column, weights, data)?;
-        Ok(array1(py, eda::cap_values(&values, &codes, &self.caps()?)).into_any())
+        let capped = array1(py, eda::cap_values(&values, &codes, &self.caps()?)).into_any();
+        crate::units::tag(capped, unit.as_deref())
     }
 
     /// `values` clipped to the cap of their domain; values of a domain not
@@ -1383,6 +1385,7 @@ impl Capping {
         domain_column: Option<&str>,
         data: Option<&Bound<PyAny>>,
     ) -> PyResult<Bound<'py, PyAny>> {
+        let unit = crate::units::of(values, data)?;
         let values = floats(&column(data, values, "values")?, "values")?;
         let n = values.len();
         let mut caps = self.caps()?;
@@ -1399,7 +1402,8 @@ impl Capping {
                 codes.into_iter().map(|c| c.unwrap_or(unknown)).collect()
             }
         };
-        Ok(array1(py, eda::cap_values(&values, &codes, &caps)).into_any())
+        let capped = array1(py, eda::cap_values(&values, &codes, &caps)).into_any();
+        crate::units::tag(capped, unit.as_deref())
     }
 
     #[getter]

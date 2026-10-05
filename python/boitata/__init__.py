@@ -3,7 +3,7 @@ import copyreg as _copyreg
 from boitata import _boitata, datasets, plot, plot3d  # noqa: F401
 from boitata._boitata import *
 from boitata._boitata import __version__  # noqa: F401
-from boitata._units import units  # noqa: F401
+from boitata._units import UnitArray, units  # noqa: F401
 from boitata.checks import *
 from boitata.compositions import *
 from boitata.errors import BoitataError, FileError, InvalidInput, MissingColumn  # noqa: F401
