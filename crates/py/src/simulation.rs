@@ -1421,7 +1421,7 @@ impl Sgs {
     /// realizations within ``r * |mean|`` of the mean for each tolerance
     /// ``r``; like `quantiles`, it holds every value. `progress` shows a
     /// `tqdm` bar over the realizations.
-    #[pyo3(signature = (targets, *, n=100, seed=0, cutoffs=vec![], quantiles=vec![], tolerances=vec![], keep=None, anisotropy=None, blocks=None, window=None, groups=None, trend=None, domains=None, domain_column=None, secondary=None, path=None, batch=None, grade_tonnage_cutoffs=None, density=None, tonnage=None, categories=None, progress=true))]
+    #[pyo3(signature = (targets, *, n=100, seed=0, cutoffs=None, quantiles=vec![], tolerances=vec![], keep=None, anisotropy=None, blocks=None, window=None, groups=None, trend=None, domains=None, domain_column=None, secondary=None, path=None, batch=None, grade_tonnage_cutoffs=None, density=None, tonnage=None, categories=None, progress=true))]
     #[allow(clippy::too_many_arguments)]
     fn simulate(
         &self,
@@ -1429,7 +1429,7 @@ impl Sgs {
         targets: &Bound<PyAny>,
         n: usize,
         seed: u64,
-        cutoffs: Vec<f64>,
+        cutoffs: Option<&Bound<PyAny>>,
         quantiles: Vec<f64>,
         tolerances: Vec<f64>,
         keep: Option<&Bound<PyAny>>,
@@ -1443,12 +1443,20 @@ impl Sgs {
         secondary: Option<&Bound<PyAny>>,
         path: Option<&str>,
         batch: Option<usize>,
-        grade_tonnage_cutoffs: Option<Vec<f64>>,
+        grade_tonnage_cutoffs: Option<&Bound<PyAny>>,
         density: Option<&Bound<PyAny>>,
         tonnage: Option<&Bound<PyAny>>,
         categories: Option<&Bound<PyAny>>,
         progress: bool,
     ) -> PyResult<SimulationSummary> {
+        let grade = self.unit.as_deref();
+        let cutoffs = cutoffs
+            .map(|c| crate::units::values(c, grade, "cutoffs"))
+            .transpose()?
+            .unwrap_or_default();
+        let grade_tonnage_cutoffs = grade_tonnage_cutoffs
+            .map(|c| crate::units::values(c, grade, "grade_tonnage_cutoffs"))
+            .transpose()?;
         let d = self.data.as_ref().ok_or_else(not_fitted)?;
         boitata_core::units::same_length_unit(
             ("samples", self.coords_unit.as_deref()),
@@ -1898,8 +1906,9 @@ impl Dss {
     /// targets : array_like or BlockModel
     /// n : int, default 100
     /// seed : int, default 0
-    /// cutoffs : sequence of float, optional
-    ///     Grades for the probability and mean above.
+    /// cutoffs : sequence of float or str, optional
+    ///     Grades for the probability and mean above, in the unit of the
+    ///     values or as text such as ``"0.5 g/t"``.
     /// quantiles : sequence of float, optional
     ///     Probabilities for the values at quantiles.
     /// tolerances : sequence of float, optional
@@ -1948,7 +1957,7 @@ impl Dss {
     /// UserWarning
     ///     With the fraction of nodes whose kriged mean and variance no draw
     ///     from the histogram reaches, drawn from the nearest reachable pair.
-    #[pyo3(signature = (targets, *, n=100, seed=0, cutoffs=vec![], quantiles=vec![], tolerances=vec![], keep=None, anisotropy=None, blocks=None, window=None, groups=None, domains=None, domain_column=None, secondary=None, grade_tonnage_cutoffs=None, density=None, tonnage=None, categories=None, progress=true))]
+    #[pyo3(signature = (targets, *, n=100, seed=0, cutoffs=None, quantiles=vec![], tolerances=vec![], keep=None, anisotropy=None, blocks=None, window=None, groups=None, domains=None, domain_column=None, secondary=None, grade_tonnage_cutoffs=None, density=None, tonnage=None, categories=None, progress=true))]
     #[allow(clippy::too_many_arguments)]
     fn simulate(
         &self,
@@ -1956,7 +1965,7 @@ impl Dss {
         targets: &Bound<PyAny>,
         n: usize,
         seed: u64,
-        cutoffs: Vec<f64>,
+        cutoffs: Option<&Bound<PyAny>>,
         quantiles: Vec<f64>,
         tolerances: Vec<f64>,
         keep: Option<&Bound<PyAny>>,
@@ -1967,12 +1976,20 @@ impl Dss {
         domains: Option<&Bound<PyAny>>,
         domain_column: Option<&str>,
         secondary: Option<&Bound<PyAny>>,
-        grade_tonnage_cutoffs: Option<Vec<f64>>,
+        grade_tonnage_cutoffs: Option<&Bound<PyAny>>,
         density: Option<&Bound<PyAny>>,
         tonnage: Option<&Bound<PyAny>>,
         categories: Option<&Bound<PyAny>>,
         progress: bool,
     ) -> PyResult<SimulationSummary> {
+        let grade = self.unit.as_deref();
+        let cutoffs = cutoffs
+            .map(|c| crate::units::values(c, grade, "cutoffs"))
+            .transpose()?
+            .unwrap_or_default();
+        let grade_tonnage_cutoffs = grade_tonnage_cutoffs
+            .map(|c| crate::units::values(c, grade, "grade_tonnage_cutoffs"))
+            .transpose()?;
         let d = self.data.as_ref().ok_or_else(not_fitted)?;
         boitata_core::units::same_length_unit(
             ("samples", self.coords_unit.as_deref()),
@@ -2258,14 +2275,14 @@ impl TurningBands {
     /// realization ``k`` of the grades the domains of row ``k``;
     /// `domain_column` and `progress` as in `SGS.simulate`.
     #[allow(clippy::too_many_arguments)]
-    #[pyo3(signature = (targets, *, n=100, seed=0, cutoffs=vec![], quantiles=vec![], tolerances=vec![], keep=None, blocks=None, window=None, groups=None, trend=None, domains=None, domain_column=None, grade_tonnage_cutoffs=None, density=None, tonnage=None, categories=None, progress=true))]
+    #[pyo3(signature = (targets, *, n=100, seed=0, cutoffs=None, quantiles=vec![], tolerances=vec![], keep=None, blocks=None, window=None, groups=None, trend=None, domains=None, domain_column=None, grade_tonnage_cutoffs=None, density=None, tonnage=None, categories=None, progress=true))]
     fn simulate(
         &self,
         py: Python,
         targets: &Bound<PyAny>,
         n: usize,
         seed: u64,
-        cutoffs: Vec<f64>,
+        cutoffs: Option<&Bound<PyAny>>,
         quantiles: Vec<f64>,
         tolerances: Vec<f64>,
         keep: Option<&Bound<PyAny>>,
@@ -2275,12 +2292,20 @@ impl TurningBands {
         trend: Option<&Bound<PyAny>>,
         domains: Option<&Bound<PyAny>>,
         domain_column: Option<&str>,
-        grade_tonnage_cutoffs: Option<Vec<f64>>,
+        grade_tonnage_cutoffs: Option<&Bound<PyAny>>,
         density: Option<&Bound<PyAny>>,
         tonnage: Option<&Bound<PyAny>>,
         categories: Option<&Bound<PyAny>>,
         progress: bool,
     ) -> PyResult<SimulationSummary> {
+        let grade = self.unit.as_deref();
+        let cutoffs = cutoffs
+            .map(|c| crate::units::values(c, grade, "cutoffs"))
+            .transpose()?
+            .unwrap_or_default();
+        let grade_tonnage_cutoffs = grade_tonnage_cutoffs
+            .map(|c| crate::units::values(c, grade, "grade_tonnage_cutoffs"))
+            .transpose()?;
         let d = self.data.as_ref().ok_or_else(not_fitted)?;
         boitata_core::units::same_length_unit(
             ("samples", self.coords_unit.as_deref()),

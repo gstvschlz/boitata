@@ -149,9 +149,15 @@ fn _conversion(from: &str, to: &str) -> PyResult<f64> {
     boitata_core::units::conversion(from, to).map_err(invalid)
 }
 
+#[pyfunction]
+fn _quantity(text: &str) -> PyResult<(f64, String)> {
+    boitata_core::units::quantity(text).map_err(invalid)
+}
+
 pub fn register(m: &Bound<PyModule>) -> PyResult<()> {
     m.add_class::<Table>()?;
     m.add_function(wrap_pyfunction!(_conversion, m)?)?;
+    m.add_function(wrap_pyfunction!(_quantity, m)?)?;
     m.add_function(wrap_pyfunction!(set_units, m)?)?;
     m.add_function(wrap_pyfunction!(_unit_defaults, m)?)?;
     m.add_function(wrap_pyfunction!(_restore_unit_defaults, m)?)?;

@@ -241,14 +241,16 @@ impl Structure {
     }
 }
 
-fn structure(obj: &Bound<PyAny>) -> PyResult<CoreStructure> {
+/// A structure, and the length unit its range was given in.
+fn structure(obj: &Bound<PyAny>) -> PyResult<(CoreStructure, Option<String>)> {
     if let Ok(s) = obj.extract::<Structure>() {
-        return Ok(s.0);
+        return Ok((s.0, None));
     }
-    let (name, sill, range): (String, f64, f64) = obj
+    let (name, sill, range): (String, f64, Bound<PyAny>) = obj
         .extract()
         .map_err(|_| invalid("structures are Structure or (model, sill, range) tuples"))?;
-    Ok(Structure::new(&name, sill, range, None, None)?.0)
+    let (range, unit) = crate::units::given(&range, "range")?;
+    Ok((Structure::new(&name, sill, range, None, None)?.0, unit))
 }
 
 /// Nugget plus nested structures sharing one anisotropy. `rotation` is one
@@ -318,13 +320,20 @@ impl Variogram {
         if nugget < 0.0 {
             return Err(invalid("nugget must be >= 0"));
         }
+        let (structures, units): (Vec<_>, Vec<_>) = structures
+            .iter()
+            .map(structure)
+            .collect::<PyResult<Vec<_>>>()?
+            .into_iter()
+            .unzip();
+        let length_unit = crate::units::common_length(std::iter::once(length_unit).chain(units))?;
         if let Some(u) = &length_unit {
             boitata_core::units::check_length(u).map_err(invalid)?;
         }
         Ok(Self(
             CoreVariogram {
                 nugget,
-                structures: structures.iter().map(structure).collect::<PyResult<_>>()?,
+                structures,
                 anisotropy: anisotropy(rotation, ratios)?,
             },
             Units {
@@ -693,8 +702,9 @@ fn locations(coords: &Bound<PyAny>, method: Option<&str>) -> PyResult<Locations>
 /// values : array_like, shape (n,), or str
 ///     Values, or the column of ``coords`` holding them; so are ``other``
 ///     (of ``other_coords`` when given) and ``holes``.
-/// lag, max_lag : float
-///     Lag-bin width and largest pair distance.
+/// lag, max_lag : float or str
+///     Lag-bin width and largest pair distance, in the length unit of
+///     `coords` or as text such as ``"10 m"``.
 /// azimuth, dip, tolerance : float
 ///     Direction and cone half-angle in degrees; omnidirectional when
 ///     ``azimuth`` is None.
@@ -753,12 +763,12 @@ fn locations(coords: &Bound<PyAny>, method: Option<&str>) -> PyResult<Locations>
 fn experimental_variogram(
     coords: &Bound<PyAny>,
     values: &Bound<PyAny>,
-    lag: f64,
-    max_lag: f64,
+    lag: &Bound<PyAny>,
+    max_lag: &Bound<PyAny>,
     azimuth: Option<f64>,
     dip: f64,
     tolerance: f64,
-    bandwidth: Option<f64>,
+    bandwidth: Option<&Bound<PyAny>>,
     estimator: &str,
     standardize: bool,
     other: Option<&Bound<PyAny>>,
@@ -768,6 +778,12 @@ fn experimental_variogram(
     anisotropy: Option<PyRef<crate::lva::LocalAnisotropy>>,
 ) -> PyResult<ExperimentalVariogram> {
     let units = Units::of(coords, values)?;
+    let length = units.length_unit.as_deref();
+    let lag = crate::units::value(lag, length, "lag")?;
+    let max_lag = crate::units::value(max_lag, length, "max_lag")?;
+    let bandwidth = bandwidth
+        .map(|b| crate::units::value(b, length, "bandwidth"))
+        .transpose()?;
     let (bins, estimator) = (bins(lag, max_lag)?, self::estimator(estimator)?);
     if let Some(field) = anisotropy {
         if holes.is_some() || other.is_some() || other_coords.is_some() {

@@ -375,7 +375,7 @@ impl Search {
     #[pyo3(signature = (radius, *, max_samples=16, min_samples=1, octant=false, sectors=None, max_per_sector=None, max_per_hole=None, rotation=None, ratios=None, high_grade=None, soft=None, target_slope=None, target_efficiency=None, length_unit=None))]
     #[allow(clippy::too_many_arguments)]
     fn new(
-        radius: f64,
+        radius: &Bound<PyAny>,
         max_samples: usize,
         min_samples: usize,
         octant: bool,
@@ -390,6 +390,8 @@ impl Search {
         target_efficiency: Option<f64>,
         length_unit: Option<String>,
     ) -> PyResult<Self> {
+        let (radius, unit) = crate::units::given(radius, "radius")?;
+        let length_unit = crate::units::common_length([length_unit, unit])?;
         if let Some(u) = &length_unit {
             boitata_core::units::check_length(u).map_err(invalid)?;
         }

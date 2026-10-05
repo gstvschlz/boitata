@@ -110,6 +110,9 @@ pub fn per_row(
     if let Ok(x) = arg.extract::<f64>() {
         return Ok(vec![x; n]);
     }
+    if crate::units::is_quantity(arg) {
+        return Ok(vec![crate::units::given(arg, what)?.0; n]);
+    }
     let values = floats(&column(data, arg, what)?, what)?;
     same_length(n, values.len(), what)?;
     Ok(values)

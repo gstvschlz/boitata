@@ -355,6 +355,32 @@ pub fn conversion(from: &str, to: &str) -> Result<f64> {
     scale((from, &parse(from)?), (to, &parse(to)?))
 }
 
+/// A number and its unit from text such as `150 ft`, `0.5 g/t` or `2.7t/m3`.
+pub fn quantity(text: &str) -> Result<(f64, String)> {
+    let text = text.trim();
+    let split = text
+        .char_indices()
+        .find(|&(i, c)| {
+            !(c.is_ascii_digit()
+                || c == '.'
+                || (matches!(c, '+' | '-') && (i == 0 || text[..i].ends_with(['e', 'E'])))
+                || (matches!(c, 'e' | 'E')
+                    && text[i + 1..]
+                        .starts_with(|d: char| d.is_ascii_digit() || d == '-' || d == '+')))
+        })
+        .map_or(text.len(), |(i, _)| i);
+    let (number, unit) = text.split_at(split);
+    let value: f64 = number
+        .parse()
+        .map_err(|_| Error::Units(format!("`{text}` is not a number followed by a unit")))?;
+    let unit = unit.trim();
+    if unit.is_empty() {
+        return Err(Error::Units(format!("`{text}` has no unit")));
+    }
+    parse(unit)?;
+    Ok((value, unit.to_string()))
+}
+
 /// The units a mass of ore reads in, smallest first.
 pub const TONNAGE: [&str; 3] = ["t", "kt", "Mt"];
 
@@ -550,6 +576,18 @@ mod tests {
         assert!(same(&(&u("t/m3") / &u("g/cm3")), &u("ratio")));
         assert!(same(&u("(g/t)^2"), &(&u("g/t") * &u("g/t"))));
         assert!(same(&u("m²"), &u("m^2")) && same(&u("m^-1"), &(&u("m") / &u("m2"))));
+    }
+
+    #[test]
+    fn quantities_split_number_and_unit() {
+        assert_eq!(quantity("150 ft").unwrap(), (150.0, "ft".into()));
+        assert_eq!(quantity(" 0.5 g/t ").unwrap(), (0.5, "g/t".into()));
+        assert_eq!(quantity("2.7t/m3").unwrap(), (2.7, "t/m3".into()));
+        assert_eq!(quantity("-1.5e3 USD").unwrap(), (-1500.0, "USD".into()));
+        assert_eq!(quantity("2 Moz metal").unwrap(), (2.0, "Moz metal".into()));
+        for bad in ["ft", "150", "1.2.3 m", "5 furlong"] {
+            assert!(quantity(bad).is_err(), "{bad}");
+        }
     }
 
     #[test]
