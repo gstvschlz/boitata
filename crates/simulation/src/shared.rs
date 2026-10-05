@@ -451,7 +451,7 @@ pub fn shared_batch(
     let each = 4 * nodes.max(1);
     if fixed + each > budget {
         return Err(SimError::InvalidParameters(format!(
-            "this run needs about {:.1} GB for {nodes} nodes with one realization in flight, above the {:.1} GB budget; drop quantiles, keep fewer realizations or simulate fewer nodes",
+            "this run needs about {:.1} GB for {nodes} nodes with one realization in flight, above the {:.1} GB budget; drop quantiles and tolerances, keep fewer realizations or simulate fewer nodes",
             (fixed + each) as f64 / 1e9,
             budget as f64 / 1e9,
         )));

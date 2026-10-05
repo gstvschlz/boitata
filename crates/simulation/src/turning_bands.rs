@@ -1475,6 +1475,7 @@ mod tests {
             quantiles: vec![0.5],
             keep: Keep::Indices(vec![1, 4]),
             tonnage: None,
+            tolerances: vec![],
         };
         let grid = points(&model);
         let (lo, hi) = bounds(&grid);
@@ -1604,6 +1605,7 @@ mod tests {
             quantiles: vec![0.5],
             keep: Keep::None,
             tonnage: None,
+            tolerances: vec![],
         };
         let n = [2, 3, 1];
         let fine = model.discretize(n).unwrap();
