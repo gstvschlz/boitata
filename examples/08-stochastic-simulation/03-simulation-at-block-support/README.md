@@ -97,6 +97,37 @@ above 800 ppm: P10 1.8%, P90 2.6%, true 2.1%
 
 the band holds the true curve at each cutoff; at 300 ppm the truth sits at its lower edge.
 
+a mine plan reads uncertainty over production volumes. `groups=` labels each block with its volume, here six 50 m
+strips of northing standing for periods, and summarizes each realization's mean per period, one row per label.
+`window=` gives each block the mean of the 50 × 50 m box centred on it, the boxes overlapping. both stream like
+`blocks=` and feed the same summaries, here the relative error at 90 % confidence: half the P5–P95 interval over the
+mean.
+
+<details><summary>Python</summary>
+
+```python
+periods = blocks.centroids[:, 1] // 50
+for label, volumes in (
+    ("blocks", {}),
+    ("periods", {"groups": periods}),
+    ("50 m windows", {"window": (50, 50)}),
+):
+    error = sgs.simulate(
+        nodes, n=30, seed=7, blocks=blocks, quantiles=[0.05, 0.95], **volumes
+    ).relative_error()
+    print(f"{label}: {len(error)} rows, median relative error {np.median(error):.1%}")
+```
+
+</details>
+
+```text
+blocks: 780 rows, median relative error 58.8%
+periods: 6 rows, median relative error 11.0%
+50 m windows: 780 rows, median relative error 24.1%
+```
+
+the median error falls from 59 % on single blocks to 24 % on 50 m windows and 11 % on periods of 130 blocks.
+
 localization pools the realizations panel by panel. over the western 250 m, each 50 × 50 m panel holds 25 blocks.
 25 blocks × 30 realizations give 750 values, sorted and cut into 25 chunks of 30, and the block ranked i by
 ordinary block kriging receives the mean of chunk i. the kriging uses the grade variogram, fitted like the one above.
