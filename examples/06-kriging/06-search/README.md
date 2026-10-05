@@ -41,8 +41,10 @@ def rmse(estimate):
 `radius` is the major semi-axis; `rotation` orients the ellipse like a variogram, and `ratios` shrink the other axes.
 `octant=True` takes at most `max_samples / 8` samples from each octant around the node, split along the axes of the
 ellipse, so a dense cluster on one side cannot fill the neighborhood. with 2D data the sectors are the ellipse's four
-quadrants, drawn below, with `max_samples / 4` each. `with_search` keeps the fitted samples and the variogram and
-swaps the search.
+quadrants, drawn below, with `max_samples / 4` each. `sectors=n` splits the plane of the major and semi-major axes
+into `n` equal angles instead, the first starting at the major axis, with `max_per_sector` samples each; it suits
+thin tabular bodies, where the octants above and below the plane stay empty. `with_search` keeps the fitted samples
+and the variogram and swaps the search.
 
 <details><summary>Python</summary>
 
@@ -52,6 +54,9 @@ searches = {
     "circle": bt.Search(radius=80, max_samples=24, min_samples=4),
     "ellipse": bt.Search(radius=80, max_samples=24, min_samples=4, **ellipse),
     "ellipse, octants": bt.Search(radius=80, max_samples=24, min_samples=4, octant=True, **ellipse),
+    "ellipse, 6 sectors": bt.Search(
+        radius=80, max_samples=24, min_samples=4, sectors=6, max_per_sector=4, **ellipse
+    ),
 }
 print(f"{'search':>16}  RMSE  samples  mean distance  cross-validation RMSE")
 for name, search in searches.items():
@@ -84,6 +89,7 @@ save(fig, "shapes")
           circle  154.8   21.4       31.0 m         185.5
          ellipse  155.1   23.5       29.5 m         185.4
 ellipse, octants  154.8   20.7       29.5 m         185.1
+ellipse, 6 sectors  154.5   19.4       27.7 m         184.3
 ```
 
 ![shapes](shapes.png)

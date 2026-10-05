@@ -39,7 +39,7 @@ Worked examples with the Python API on open datasets from [gstvschlz/datasets](h
 | 22 | [meshes and points in a scene](02-data-and-geometry/22-meshes-and-points/README.md) | Stacked sulphide lenses | `Drillholes`, `PointSet`, `topography`, `plot3d.Scene` |
 | 23 | [block model volumes](02-data-and-geometry/23-block-volumes/README.md) | Stacked sulphide lenses | `Drillholes`, `BlockModel`, `Search`, `InverseDistance`, `plot3d.Scene` |
 | 24 | [interactive sections](02-data-and-geometry/24-interactive-sections/README.md) | Stacked sulphide lenses | `Drillholes`, `BlockModel`, `Search`, `InverseDistance`, `plot3d.Scene` |
-| 25 | [units](02-data-and-geometry/25-units/README.md) | Stacked sulphide lenses | `write_csv`, `Table`, `units`, `InvalidInput`, `plot.histogram` |
+| 25 | [units](02-data-and-geometry/25-units/README.md) | Stacked sulphide lenses | `write_csv`, `Table`, `units`, `InvalidInput`, `plot.histogram`, `Drillholes`, `BlockModel`, `OrdinaryKriging`, `Variogram`, `Search`, `grade_tonnage`, `MultipleIndicatorKriging`, `Capping`, `validate_model` |
 
 ## exploratory analysis
 

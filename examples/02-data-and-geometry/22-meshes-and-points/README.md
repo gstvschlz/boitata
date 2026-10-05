@@ -69,7 +69,7 @@ save(image(scene, "Topography by elevation, the three lenses and their Zn compos
 </details>
 
 ```text
-topography: 289 vertices, 534 triangles
+topography: 289 vertices, 562 triangles
 1,135 composites inside a lens, 0 of them null
 ```
 

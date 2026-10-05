@@ -150,3 +150,28 @@ in_percent = bt.grade_tonnage("ZN", [2.0], data=grid, density="DENSITY")
 print(in_ppm["tonnage"], in_percent["tonnage"])
 search = bt.Search(radius="200 ft", max_samples=12)
 print(search.radius, search.length_unit)
+
+# %% [markdown]
+# ## other estimators and checks
+#
+# multiple-indicator kriging, like the other estimators, keeps the unit of the values: its means and quantiles are in
+# percent, and a cutoff can be given in ppm. a cap can be given in another unit too.
+
+# %%
+mik = bt.MultipleIndicatorKriging(
+    bt.Variogram([("spherical", 0.2, 60.0)]), bt.Search(radius=60, max_samples=12), [1.0, 3.0, 6.0]
+)
+summary = mik.fit(composites, "ZN_PCT").predict(grid, cutoffs=["30000 ppm"], quantiles=[0.5], progress=False)
+print(f"mean in {summary.mean.unit}, median in {summary.quantile_values.unit}")
+capped = bt.Capping(cap="150000 ppm").fit(composites["ZN_PCT"]).transform(composites["ZN_PCT"])
+print(f"largest capped grade: {np.nanmax(capped):.1f} {capped.unit}")
+
+# %% [markdown]
+# a validation compares blocks and samples in one unit. composites in ppm against a model in percent are converted
+# first, so both means read in percent rather than one in ppm.
+
+# %%
+in_ppm = composites.convert_units("ZN_PCT", to="ppm")
+validation = bt.validate_model(grid, "ZN", in_ppm, "ZN_PCT", density="DENSITY")
+print(validation.units["mean"])
+print(validation.to_polars().select("source", "n", "mean", "mean_diff"))

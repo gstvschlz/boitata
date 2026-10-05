@@ -46,7 +46,7 @@ for name, vein in zip(names, veins):
 
 ```text
 V1: MeshReport(0 problems, 1 shells, closed),   658,570 m3, mean thickness 2.0 m
-V2: MeshReport(0 problems, 1 shells, closed),   142,085 m3, mean thickness 1.0 m
+V2: MeshReport(3 problems, 1 shells, closed),   142,085 m3, mean thickness 1.0 m
 V3: MeshReport(0 problems, 1 shells, closed),   179,815 m3, mean thickness 1.0 m
 V4: MeshReport(0 problems, 1 shells, closed),    55,521 m3, mean thickness 0.7 m
 ```
