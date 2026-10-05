@@ -10,7 +10,7 @@ use arrow_csv::reader::Format;
 use arrow_csv::{ReaderBuilder, WriterBuilder};
 use arrow_schema::{DataType, Field, Schema};
 use arrow_select::concat::concat_batches;
-use boitata_core::Progress;
+use boitata_core::{Progress, units};
 use regex::Regex;
 
 use crate::{Nodata, Result, default_nodata, is_nodata};
@@ -91,7 +91,47 @@ pub fn read_csv(
             }
         })
         .collect();
-    Ok(RecordBatch::try_new(schema, columns)?)
+    header_units(RecordBatch::try_new(schema, columns)?)
+}
+
+/// Splits headers such as `au [g/t]` or `au (g/t)` into column `au` with unit
+/// `g/t`; a bracket that is not a unit stays in the name.
+fn header_units(table: RecordBatch) -> Result<RecordBatch> {
+    let header = Regex::new(r"^(.+?)\s*(?:\[([^\[\]]+)\]|\(([^()]+)\))\s*$")?;
+    let mut found = Vec::new();
+    let fields: Vec<Field> = table
+        .schema()
+        .fields()
+        .iter()
+        .map(|f| {
+            let split = header.captures(f.name()).and_then(|c| {
+                let unit = c.get(2).or(c.get(3))?.as_str().trim().to_string();
+                units::parse(&unit).ok()?;
+                Some((c[1].to_string(), unit))
+            });
+            match split {
+                Some((name, unit)) => {
+                    found.push((name.clone(), unit));
+                    f.as_ref().clone().with_name(name)
+                }
+                None => f.as_ref().clone(),
+            }
+        })
+        .collect();
+    let mut names: Vec<&String> = fields.iter().map(Field::name).collect();
+    names.sort();
+    if let Some(w) = names.windows(2).find(|w| w[0] == w[1]) {
+        return Err(boitata_core::Error::Units(format!(
+            "two columns read as `{}` once their units are split off",
+            w[0]
+        ))
+        .into());
+    }
+    let mut table = RecordBatch::try_new(Arc::new(Schema::new(fields)), table.columns().to_vec())?;
+    for (name, unit) in found {
+        table = units::with_unit(&table, &name, Some(&unit))?;
+    }
+    Ok(table)
 }
 
 fn line_count(mut file: File) -> Result<u64> {
@@ -173,6 +213,28 @@ mod tests {
             .as_primitive::<Float64Type>();
         assert_eq!(au.iter().collect::<Vec<_>>(), [None, Some(0.3), None]);
         assert_eq!(t.column_by_name("rock").unwrap().null_count(), 1);
+    }
+
+    #[test]
+    fn header_units_are_split_off_when_they_parse() {
+        let path = temp(
+            "u.csv",
+            "hole (DDH),au [g/t],cu (%),dens (t/m3),note (field)\nA,1,2,2.7,x\n",
+        );
+        let t = read_csv(&path, &CsvOptions::default(), None).unwrap();
+        let names: Vec<String> = t
+            .schema()
+            .fields()
+            .iter()
+            .map(|f| f.name().clone())
+            .collect();
+        assert_eq!(names, ["hole (DDH)", "au", "cu", "dens", "note (field)"]);
+        assert_eq!(
+            units::units(&t),
+            [("au", "g/t"), ("cu", "%"), ("dens", "t/m3")].map(|(a, b)| (a.into(), b.into()))
+        );
+        let path = temp("d.csv", "au [g/t],au\n1,2\n");
+        assert!(read_csv(&path, &CsvOptions::default(), None).is_err());
     }
 
     #[test]

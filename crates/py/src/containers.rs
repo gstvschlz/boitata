@@ -8,7 +8,7 @@ use pyo3_arrow::error::PyArrowResult;
 use rayon::prelude::*;
 
 use crate::invalid;
-use crate::table::{Table, arrow_c_stream, column, describe, empty, to_batch};
+use crate::table::{Table, arrow_c_stream, column, describe, empty, fill_units, to_batch};
 
 /// `(n, 2)` or `(n, 3)` array-like to xyz rows, 2D with z = 0; the coords
 /// of a PointSet or the centroids of a BlockModel.
@@ -86,7 +86,7 @@ impl PyPointSet {
     ) -> PyResult<Self> {
         let coords = coords_arg(coords)?;
         let attributes = match attributes {
-            Some(a) => to_batch(a)?,
+            Some(a) => fill_units(to_batch(a)?, None)?,
             None => empty(coords.len()),
         };
         let mut points = PointSet::new(coords, attributes).map_err(core_error)?;
@@ -104,7 +104,8 @@ impl PyPointSet {
         z: Option<&str>,
         crs: Option<String>,
     ) -> PyResult<Self> {
-        let mut points = PointSet::from_table(&to_batch(table)?, x, y, z).map_err(core_error)?;
+        let table = fill_units(to_batch(table)?, None)?;
+        let mut points = PointSet::from_table(&table, x, y, z).map_err(core_error)?;
         points.crs = crs;
         Ok(Self(points))
     }
@@ -333,7 +334,7 @@ impl PyPolylines {
             return Err(invalid("features must be non-decreasing from 0"));
         }
         let attributes = match attributes {
-            Some(a) => to_batch(a)?,
+            Some(a) => fill_units(to_batch(a)?, None)?,
             None => empty(features.last().map_or(0, |&f| f as usize + 1)),
         };
         let count = attributes.num_rows() as i64;
@@ -586,7 +587,7 @@ impl PyPolylines {
         closed: bool,
         crs: Option<String>,
     ) -> PyResult<Self> {
-        let table = to_batch(table)?;
+        let table = fill_units(to_batch(table)?, None)?;
         let mut lines =
             Polylines::from_table(&table, feature, x, y, z, part, closed).map_err(core_error)?;
         lines.crs = crs;
@@ -642,7 +643,7 @@ impl PyBlockModel {
             None => geometry.cells() as usize,
         };
         let attributes = match attributes {
-            Some(a) => to_batch(a)?,
+            Some(a) => fill_units(to_batch(a)?, None)?,
             None => empty(rows),
         };
         let mut model = match index {
@@ -740,7 +741,7 @@ impl PyBlockModel {
             })
             .collect::<PyResult<Vec<_>>>()?;
         let attributes = match attributes {
-            Some(a) => to_batch(a)?,
+            Some(a) => fill_units(to_batch(a)?, None)?,
             None => empty(parent.len()),
         };
         let mut model = BlockModel::subblocked(geometry, parent, extent, subgrid, attributes)

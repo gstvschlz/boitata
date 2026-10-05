@@ -232,11 +232,20 @@ class BlockModel:
     def __arrow_c_stream__(self, requested_schema: object | None = None) -> object: ...
 
 def read_csv(
-    path: Path, *, nodata: Sequence[float | str] | None = None, delimiter: str = ",", progress: bool = True
+    path: Path,
+    *,
+    nodata: Sequence[float | str] | None = None,
+    delimiter: str = ",",
+    units: Mapping[str, str] | None = None,
+    progress: bool = True,
 ) -> Table: ...
 def write_csv(path: Path, table: TableLike, *, progress: bool = True) -> None: ...
 def read_gslib(
-    path: Path, *, nodata: Sequence[float | str] | None = None, progress: bool = True
+    path: Path,
+    *,
+    nodata: Sequence[float | str] | None = None,
+    units: Mapping[str, str] | None = None,
+    progress: bool = True,
 ) -> Table: ...
 def write_gslib(path: Path, table: TableLike, *, nodata: float = -999.0, progress: bool = True) -> None: ...
 
@@ -1971,7 +1980,10 @@ class ImplicitModel:
 def write_parquet(
     path: Path, data: PointSet | BlockModel | Polylines | TableLike, *, progress: bool = True
 ) -> None: ...
-def read_parquet(path: Path, *, progress: bool = True) -> PointSet | BlockModel | Polylines | Table: ...
+def read_parquet(
+    path: Path, *, units: Mapping[str, str] | None = None, progress: bool = True
+) -> PointSet | BlockModel | Polylines | Table: ...
+def set_units(*, columns: Mapping[str, str | None] | None = None) -> None: ...
 
 class BlockModelFile:
     def __init__(self, path: Path) -> None: ...

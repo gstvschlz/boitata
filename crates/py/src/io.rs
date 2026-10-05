@@ -1,4 +1,7 @@
+use std::collections::HashMap;
 use std::path::PathBuf;
+
+use arrow_array::RecordBatch;
 
 use boitata_io::{CsvOptions, Nodata, Shapes};
 use numpy::PyArray2;
@@ -8,7 +11,7 @@ use pyo3::types::PyBytes;
 use crate::blocks::Mesh;
 use crate::containers::{PyBlockModel, PyPointSet, PyPolylines, coords_array};
 use crate::progress::with_progress;
-use crate::table::{Table, to_batch, to_batches};
+use crate::table::{Table, fill_units, to_batch, to_batches};
 use crate::{error, invalid};
 
 pub(crate) fn io_error(e: boitata_io::Error) -> PyErr {
@@ -47,15 +50,24 @@ fn nodata(values: Option<Vec<Bound<PyAny>>>) -> PyResult<Vec<Nodata>> {
 ///     are always null.
 /// delimiter : str, default ","
 ///     Single-byte field separator.
+/// units : dict of str to str, optional
+///     Column name to unit for columns that have none; the defaults of
+///     `set_units` fill the rest.
 /// progress : bool, default True
 ///     Show a `tqdm` progress bar.
+///
+/// Notes
+/// -----
+/// A header such as ``au [g/t]`` or ``au (g/t)`` reads as column ``au`` with
+/// unit ``g/t`` when the bracket holds a unit.
 #[pyfunction]
-#[pyo3(signature = (path, *, nodata=None, delimiter=",", progress=true))]
+#[pyo3(signature = (path, *, nodata=None, delimiter=",", units=None, progress=true))]
 fn read_csv(
     py: Python,
     path: PathBuf,
     nodata: Option<Vec<Bound<PyAny>>>,
     delimiter: &str,
+    units: Option<HashMap<String, String>>,
     progress: bool,
 ) -> PyResult<Table> {
     let &[delimiter] = delimiter.as_bytes() else {
@@ -69,7 +81,7 @@ fn read_csv(
         boitata_io::read_csv(path, &options, counter)
     })?
     .map_err(io_error)?;
-    Ok(Table(batch))
+    Ok(Table(fill_units(batch, units.as_ref())?))
 }
 
 /// Writes a headed CSV. `progress` shows a `tqdm` bar.
@@ -85,13 +97,15 @@ fn write_csv(py: Python, path: PathBuf, table: &Bound<PyAny>, progress: bool) ->
 }
 
 /// Reads a GSLIB file; the title is kept in the schema metadata and
-/// `nodata` values, as in `read_csv`, become null. `progress` shows a `tqdm` bar.
+/// `nodata` values, as in `read_csv`, become null. `units` gives columns their
+/// units as in `read_csv`. `progress` shows a `tqdm` bar.
 #[pyfunction]
-#[pyo3(signature = (path, *, nodata=None, progress=true))]
+#[pyo3(signature = (path, *, nodata=None, units=None, progress=true))]
 fn read_gslib(
     py: Python,
     path: PathBuf,
     nodata: Option<Vec<Bound<PyAny>>>,
+    units: Option<HashMap<String, String>>,
     progress: bool,
 ) -> PyResult<Table> {
     let nodata = self::nodata(nodata)?;
@@ -99,7 +113,7 @@ fn read_gslib(
         boitata_io::read_gslib(path, &nodata, counter)
     })?
     .map_err(io_error)?;
-    Ok(Table(batch))
+    Ok(Table(fill_units(batch, units.as_ref())?))
 }
 
 /// Writes numeric columns as GSLIB; nulls are written as `nodata`. `progress`
@@ -161,19 +175,36 @@ fn write_parquet(py: Python, path: PathBuf, data: &Bound<PyAny>, progress: bool)
 }
 
 /// Reads Parquet as the PointSet, BlockModel or Polylines it was written
-/// from, or a Table. `progress` shows a `tqdm` bar.
+/// from, or a Table. `units` gives columns their units as in `read_csv`;
+/// units stored in the file are kept as written, even when not understood.
+/// `progress` shows a `tqdm` bar.
 #[pyfunction]
-#[pyo3(signature = (path, *, progress=true))]
-fn read_parquet(py: Python, path: PathBuf, progress: bool) -> PyResult<Py<PyAny>> {
+#[pyo3(signature = (path, *, units=None, progress=true))]
+fn read_parquet(
+    py: Python,
+    path: PathBuf,
+    units: Option<HashMap<String, String>>,
+    progress: bool,
+) -> PyResult<Py<PyAny>> {
+    let fill = |batch: &RecordBatch| fill_units(batch.clone(), units.as_ref());
     let stored = with_progress(py, None, progress, |counter| {
         boitata_io::read_parquet(path, counter)
     })?
     .map_err(io_error)?;
     Ok(match stored {
-        boitata_io::Stored::Polylines(l) => Py::new(py, PyPolylines(l))?.into_any(),
-        boitata_io::Stored::Points(p) => PyPointSet(p).into_pyobject(py)?.into_any().unbind(),
-        boitata_io::Stored::Blocks(b) => PyBlockModel(b).into_pyobject(py)?.into_any().unbind(),
-        boitata_io::Stored::Table(t) => Table(t).into_pyobject(py)?.into_any().unbind(),
+        boitata_io::Stored::Polylines(l) => {
+            let l = l.with_attributes(fill(l.attributes())?).map_err(invalid)?;
+            Py::new(py, PyPolylines(l))?.into_any()
+        }
+        boitata_io::Stored::Points(p) => {
+            let p = p.with_attributes(fill(p.attributes())?).map_err(invalid)?;
+            PyPointSet(p).into_pyobject(py)?.into_any().unbind()
+        }
+        boitata_io::Stored::Blocks(b) => {
+            let b = b.with_attributes(fill(b.attributes())?).map_err(invalid)?;
+            PyBlockModel(b).into_pyobject(py)?.into_any().unbind()
+        }
+        boitata_io::Stored::Table(t) => Table(fill(&t)?).into_pyobject(py)?.into_any().unbind(),
     })
 }
 
