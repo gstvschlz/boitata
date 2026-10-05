@@ -140,7 +140,13 @@ fn int_rows(rows: &[Vec<usize>]) -> Vec<Vec<i64>> {
 /// variable. Per-cutoff and per-quantile arrays have one row per target and
 /// one column per cutoff or quantile.
 #[pyclass(module = "boitata", name = "SimulationSummary", frozen)]
-pub struct SimulationSummary(ContinuousSummary);
+pub struct SimulationSummary(ContinuousSummary, Option<Vec<args::Label>>);
+
+impl From<ContinuousSummary> for SimulationSummary {
+    fn from(summary: ContinuousSummary) -> Self {
+        Self(summary, None)
+    }
+}
 
 #[pymethods]
 impl SimulationSummary {
@@ -169,6 +175,19 @@ impl SimulationSummary {
     #[getter]
     fn n(&self) -> usize {
         self.0.n
+    }
+
+    /// Label of each row from `groups=`, in row order; None without it.
+    #[getter]
+    fn groups<'py>(&self, py: Python<'py>) -> PyResult<Option<Vec<Bound<'py, PyAny>>>> {
+        self.1
+            .as_ref()
+            .map(|g| {
+                g.iter()
+                    .map(|l| crate::estimation::py_label(py, l))
+                    .collect()
+            })
+            .transpose()
     }
 
     /// Mean of the realizations (E-type estimate).
@@ -466,6 +485,144 @@ fn averaged(support: &Option<BlockSupport>, values: Vec<f64>) -> simulation::Res
         Some(s) => s.mean(&values),
         None => Ok(values),
     }
+}
+
+/// What a continuous `simulate` summarizes: the targets or `blocks`, then
+/// the box averages of `window` or the volumes of `groups`.
+struct Rows {
+    blocks: Option<BlockSupport>,
+    window: Option<simulation::Window>,
+    groups: Option<BlockSupport>,
+    /// Label of each `groups` volume.
+    labels: Option<Vec<args::Label>>,
+}
+
+impl Rows {
+    fn of(&self, values: Vec<f64>) -> simulation::Result<Vec<f64>> {
+        let values = averaged(&self.blocks, values)?;
+        match (&self.window, &self.groups) {
+            (Some(w), _) => w.mean(&values),
+            (_, Some(g)) => g.mean(&values),
+            _ => Ok(values),
+        }
+    }
+}
+
+/// The [`Rows`] of a continuous `simulate` over `count` targets at `grid`
+/// (empty only for BlockModel targets without `blocks`), and its
+/// grade–tonnage options; `window`, `groups` and the tonnage arguments
+/// describe the blocks when given, else the targets.
+#[allow(clippy::too_many_arguments)]
+fn summary_rows(
+    py: Python,
+    targets: &Bound<PyAny>,
+    grid: &[Point],
+    count: usize,
+    blocks: Option<PyRef<PyBlockModel>>,
+    window: Option<Vec<f64>>,
+    groups: Option<&Bound<PyAny>>,
+    grade_tonnage_cutoffs: Option<Vec<f64>>,
+    density: Option<&Bound<PyAny>>,
+    tonnage: Option<&Bound<PyAny>>,
+    categories: Option<&Bound<PyAny>>,
+) -> PyResult<(Rows, Option<simulation::post::TonnageOptions>)> {
+    if window.is_some() && groups.is_some() {
+        return Err(invalid("give one of window or groups"));
+    }
+    let holder = match &blocks {
+        Some(b) => b.into_pyobject(py)?.to_owned().into_any(),
+        None => targets.clone(),
+    };
+    let rows = blocks.as_ref().map_or(count, |b| b.0.len());
+    let mut gt = tonnage_options(
+        &holder,
+        rows,
+        grade_tonnage_cutoffs,
+        density,
+        tonnage,
+        categories,
+    )?;
+    let model = holder.cast::<PyBlockModel>().ok();
+    let window = window
+        .map(|w| {
+            let (x, y, z) = args::triple(w, 0.0, "window")?;
+            match &model {
+                Some(m) => simulation::Window::model(&m.get().0, [x, y, z]),
+                None => simulation::Window::points(grid, [x, y, z]),
+            }
+            .map_err(err)
+        })
+        .transpose()?;
+    let (groups, labels) = match groups {
+        Some(g) => {
+            let (codes, labels) = group_codes(&holder, g, rows)?;
+            let volumes = model.map(|m| m.get().0.volumes());
+            let groups = BlockSupport::groups(codes, volumes.as_deref()).map_err(err)?;
+            (Some(groups), Some(labels))
+        }
+        None => (None, None),
+    };
+    if let (Some(g), Some(t)) = (&groups, &mut gt) {
+        if t.categories.is_some() {
+            return Err(invalid("categories do not go with groups"));
+        }
+        t.tonnes = g.total(&t.tonnes).map_err(err)?;
+    }
+    let rows = Rows {
+        blocks: support(targets, grid, blocks)?,
+        window,
+        groups,
+        labels,
+    };
+    Ok((rows, gt))
+}
+
+/// Code of each row's `groups` label, None for a null label, and the
+/// distinct labels sorted, numbers before text.
+fn group_codes(
+    holder: &Bound<PyAny>,
+    arg: &Bound<PyAny>,
+    rows: usize,
+) -> PyResult<(Vec<Option<usize>>, Vec<args::Label>)> {
+    let column = args::column(Some(holder), arg, "groups")?;
+    let column = match column.hasattr("to_pylist")? {
+        true => column.call_method0("to_pylist")?,
+        false => column,
+    };
+    if column.is_instance_of::<pyo3::types::PyString>() {
+        return Err(invalid(
+            "groups must be a sequence of labels or a column name",
+        ));
+    }
+    let labels = column
+        .try_iter()
+        .map_err(|_| invalid("groups must be a sequence of labels or a column name"))?
+        .map(|item| args::label(&item?))
+        .collect::<PyResult<Vec<_>>>()?;
+    same_length(rows, labels.len(), "groups")?;
+    let key = |l: &args::Label| match l {
+        args::Label::Number(n) => (0, n.as_f64().unwrap_or_default(), String::new()),
+        args::Label::Bool(b) => (0, f64::from(u8::from(*b)), String::new()),
+        args::Label::String(s) => (1, 0.0, s.clone()),
+        other => (1, 0.0, other.to_string()),
+    };
+    let order = |a: &(i32, f64, String), b: &(i32, f64, String)| {
+        a.0.cmp(&b.0).then(a.1.total_cmp(&b.1)).then(a.2.cmp(&b.2))
+    };
+    let mut distinct: Vec<_> = labels.iter().flatten().map(|l| (key(l), l)).collect();
+    distinct.sort_by(|a, b| order(&a.0, &b.0));
+    distinct.dedup_by(|a, b| a.0 == b.0);
+    let codes = labels
+        .iter()
+        .map(|l| {
+            l.as_ref().map(|l| {
+                distinct
+                    .binary_search_by(|d| order(&d.0, &key(l)))
+                    .expect("a label")
+            })
+        })
+        .collect();
+    Ok((codes, distinct.into_iter().map(|d| d.1.clone()).collect()))
 }
 
 fn majority(
@@ -1039,9 +1196,23 @@ impl Sgs {
     /// With `blocks` (a coarser BlockModel), each realization is averaged to
     /// its blocks, weighted by node volume, and summarized at block support;
     /// nodes outside every block are ignored and a block holding no node is
-    /// an error. `trend`, needed when fitted with one, is the trend at the
-    /// targets: an array, or the name of a column of PointSet or BlockModel targets; each
-    /// node is back-transformed within its trend class before any averaging.
+    /// an error. `window`, ``(dx, dy)`` or ``(dx, dy, dz)`` (dz 0 when
+    /// left out), gives each row (the blocks when given, else the targets)
+    /// the average of the rows whose centre lies in the box of that size
+    /// centred on it, along the model axes of a BlockModel or the world axes
+    /// of points; boxes overlap, stop at the edge of the rows, weigh rows
+    /// by volume and leave out NaN. Regular and masked models use
+    /// summed-area tables, so the cost does not grow with the box. `groups`,
+    /// a label per row or a column name, such as the period of a mine plan,
+    /// summarizes the volume-weighted mean of each distinct label instead,
+    /// one row per label in ``numpy.unique`` order (numbers before text),
+    /// named by `SimulationSummary.groups`; null labels belong to none, NaN
+    /// values are left out, and `grade_tonnage_cutoffs` counts each volume
+    /// with its rows' tonnes.
+    /// Give one of `window` or `groups`. `trend`, needed when fitted with
+    /// one, is the trend at the targets: an array, or the name of a column
+    /// of PointSet or BlockModel targets; each node is back-transformed
+    /// within its trend class before any averaging.
     /// `domains`, needed when fitted with them, labels the targets, or is one
     /// label for all; a target in a domain without samples raises
     /// InvalidInput. Simulated domains, an ``(n, targets)`` array such as
@@ -1072,7 +1243,7 @@ impl Sgs {
     /// or `tonnage` per row; one curve per `categories` label besides all
     /// rows. `SimulationSummary.grade_tonnage` reads them. `progress` shows a
     /// `tqdm` bar over the realizations.
-    #[pyo3(signature = (targets, *, n=100, seed=0, cutoffs=vec![], quantiles=vec![], keep=None, anisotropy=None, blocks=None, trend=None, domains=None, domain_column=None, secondary=None, path=None, batch=None, grade_tonnage_cutoffs=None, density=None, tonnage=None, categories=None, progress=true))]
+    #[pyo3(signature = (targets, *, n=100, seed=0, cutoffs=vec![], quantiles=vec![], keep=None, anisotropy=None, blocks=None, window=None, groups=None, trend=None, domains=None, domain_column=None, secondary=None, path=None, batch=None, grade_tonnage_cutoffs=None, density=None, tonnage=None, categories=None, progress=true))]
     #[allow(clippy::too_many_arguments)]
     fn simulate(
         &self,
@@ -1085,6 +1256,8 @@ impl Sgs {
         keep: Option<&Bound<PyAny>>,
         anisotropy: Option<PyRef<crate::lva::LocalAnisotropy>>,
         blocks: Option<PyRef<PyBlockModel>>,
+        window: Option<Vec<f64>>,
+        groups: Option<&Bound<PyAny>>,
         trend: Option<&Bound<PyAny>>,
         domains: Option<&Bound<PyAny>>,
         domain_column: Option<&str>,
@@ -1149,20 +1322,19 @@ impl Sgs {
                 nodes,
                 classes: self.classes,
             });
-        let holder = match &blocks {
-            Some(b) => b.into_pyobject(py)?.to_owned().into_any(),
-            None => targets.clone(),
-        };
-        let rows = blocks.as_ref().map_or(count, |b| b.0.len());
-        let gt = tonnage_options(
-            &holder,
-            rows,
+        let (upscale, gt) = summary_rows(
+            py,
+            targets,
+            &grid,
+            count,
+            blocks,
+            window,
+            groups,
             grade_tonnage_cutoffs,
             density,
             tonnage,
             categories,
         )?;
-        let support = support(targets, &grid, blocks)?;
         let local = anisotropy.map(|a| a.at_targets(&grid));
         let options = ContinuousOptions {
             cutoffs,
@@ -1220,11 +1392,11 @@ impl Sgs {
                             collocated.as_ref(),
                         )
                     },
-                    |b, i| averaged(&support, b.realization(i)),
+                    |b, i| upscale.of(b.realization(i)),
                     counter,
                 )
             })?
-            .map(SimulationSummary)
+            .map(|s| SimulationSummary(s, upscale.labels.clone()))
             .map_err(err);
         }
         with_progress(py, Some(n as u64), progress, |counter| {
@@ -1265,12 +1437,12 @@ impl Sgs {
                             &rows[k % rows.len()],
                         ),
                     }
-                    .and_then(|r| averaged(&support, r.values))
+                    .and_then(|r| upscale.of(r.values))
                 },
                 counter,
             )
         })?
-        .map(SimulationSummary)
+        .map(|s| SimulationSummary(s, upscale.labels.clone()))
         .map_err(err)
     }
 }
@@ -1528,6 +1700,13 @@ impl Dss {
     ///     Coarser blocks each realization is averaged to, weighted by node
     ///     volume, and summarized at; nodes outside every block are
     ///     ignored and a block holding no node is an error.
+    /// window : tuple of float, optional
+    ///     ``(dx, dy, dz)`` box centred on each row (the blocks when given,
+    ///     else the targets), summarized at the average of the rows whose
+    ///     centre it holds, as in SGS.simulate.
+    /// groups : array_like or str, optional
+    ///     Label of each row, or a column name: one summary row per
+    ///     distinct label, in ``numpy.unique`` order, as in SGS.simulate.
     /// domains : array_like or label, optional
     ///     Needed when fitted with domains: labels of the targets, one label
     ///     for all, or an ``(n, targets)`` array of simulated domains,
@@ -1555,7 +1734,7 @@ impl Dss {
     /// UserWarning
     ///     With the fraction of nodes whose kriged mean and variance no draw
     ///     from the histogram reaches, drawn from the nearest reachable pair.
-    #[pyo3(signature = (targets, *, n=100, seed=0, cutoffs=vec![], quantiles=vec![], keep=None, anisotropy=None, blocks=None, domains=None, domain_column=None, secondary=None, grade_tonnage_cutoffs=None, density=None, tonnage=None, categories=None, progress=true))]
+    #[pyo3(signature = (targets, *, n=100, seed=0, cutoffs=vec![], quantiles=vec![], keep=None, anisotropy=None, blocks=None, window=None, groups=None, domains=None, domain_column=None, secondary=None, grade_tonnage_cutoffs=None, density=None, tonnage=None, categories=None, progress=true))]
     #[allow(clippy::too_many_arguments)]
     fn simulate(
         &self,
@@ -1568,6 +1747,8 @@ impl Dss {
         keep: Option<&Bound<PyAny>>,
         anisotropy: Option<PyRef<crate::lva::LocalAnisotropy>>,
         blocks: Option<PyRef<PyBlockModel>>,
+        window: Option<Vec<f64>>,
+        groups: Option<&Bound<PyAny>>,
         domains: Option<&Bound<PyAny>>,
         domain_column: Option<&str>,
         secondary: Option<&Bound<PyAny>>,
@@ -1583,20 +1764,19 @@ impl Dss {
         let domains = domain_arg(targets, domains, domain_column)?;
         let nodes = realization_domains(fitted, domains.as_ref(), grid.len(), n, "simulate")?;
         let search = resolved(&self.search, fitted)?;
-        let holder = match &blocks {
-            Some(b) => b.into_pyobject(py)?.to_owned().into_any(),
-            None => targets.clone(),
-        };
-        let rows = blocks.as_ref().map_or(grid.len(), |b| b.0.len());
-        let gt = tonnage_options(
-            &holder,
-            rows,
+        let (upscale, gt) = summary_rows(
+            py,
+            targets,
+            &grid,
+            grid.len(),
+            blocks,
+            window,
+            groups,
             grade_tonnage_cutoffs,
             density,
             tonnage,
             categories,
         )?;
-        let support = support(targets, &grid, blocks)?;
         let local = anisotropy.map(|a| a.at_targets(&grid));
         let options = ContinuousOptions {
             cutoffs,
@@ -1646,7 +1826,7 @@ impl Dss {
                     clamped.fetch_add(r.clamped, std::sync::atomic::Ordering::Relaxed);
                     let done = r.values.iter().filter(|v| !v.is_nan()).count();
                     simulated.fetch_add(done, std::sync::atomic::Ordering::Relaxed);
-                    averaged(&support, r.values)
+                    upscale.of(r.values)
                 },
                 counter,
             )
@@ -1662,7 +1842,7 @@ impl Dss {
             let category = py.get_type::<pyo3::exceptions::PyUserWarning>();
             PyErr::warn(py, &category, &std::ffi::CString::new(message)?, 1)?;
         }
-        Ok(SimulationSummary(summary))
+        Ok(SimulationSummary(summary, upscale.labels))
     }
 }
 
@@ -1828,7 +2008,7 @@ impl TurningBands {
     /// realization ``k`` of the grades the domains of row ``k``;
     /// `domain_column` and `progress` as in `SGS.simulate`.
     #[allow(clippy::too_many_arguments)]
-    #[pyo3(signature = (targets, *, n=100, seed=0, cutoffs=vec![], quantiles=vec![], keep=None, blocks=None, trend=None, domains=None, domain_column=None, grade_tonnage_cutoffs=None, density=None, tonnage=None, categories=None, progress=true))]
+    #[pyo3(signature = (targets, *, n=100, seed=0, cutoffs=vec![], quantiles=vec![], keep=None, blocks=None, window=None, groups=None, trend=None, domains=None, domain_column=None, grade_tonnage_cutoffs=None, density=None, tonnage=None, categories=None, progress=true))]
     fn simulate(
         &self,
         py: Python,
@@ -1839,6 +2019,8 @@ impl TurningBands {
         quantiles: Vec<f64>,
         keep: Option<&Bound<PyAny>>,
         blocks: Option<PyRef<PyBlockModel>>,
+        window: Option<Vec<f64>>,
+        groups: Option<&Bound<PyAny>>,
         trend: Option<&Bound<PyAny>>,
         domains: Option<&Bound<PyAny>>,
         domain_column: Option<&str>,
@@ -1855,20 +2037,19 @@ impl TurningBands {
         let nodes = realization_domains(fitted, domains.as_ref(), grid.len(), n, "simulate")?;
         let at_nodes = trend_at(d, targets, grid.len(), trend)?;
         let params = self.params(seed, self.resolved()?);
-        let holder = match &blocks {
-            Some(b) => b.into_pyobject(py)?.to_owned().into_any(),
-            None => targets.clone(),
-        };
-        let rows = blocks.as_ref().map_or(grid.len(), |b| b.0.len());
-        let gt = tonnage_options(
-            &holder,
-            rows,
+        let (upscale, gt) = summary_rows(
+            py,
+            targets,
+            &grid,
+            grid.len(),
+            blocks,
+            window,
+            groups,
             grade_tonnage_cutoffs,
             density,
             tonnage,
             categories,
         )?;
-        let support = support(targets, &grid, blocks)?;
         let options = ContinuousOptions {
             cutoffs,
             quantiles,
@@ -1903,13 +2084,13 @@ impl TurningBands {
                             at_nodes.as_deref(),
                         )?
                         .into_iter()
-                        .map(|r| averaged(&support, r))
+                        .map(|r| upscale.of(r))
                         .collect()
                 },
                 counter,
             )
         })?
-        .map(SimulationSummary)
+        .map(|s| SimulationSummary(s, upscale.labels.clone()))
         .map_err(err)
     }
 
@@ -3200,6 +3381,8 @@ struct ContinuousMeta {
     kept: Vec<usize>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     grade_tonnage: Option<TonnageMeta>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    groups: Option<Vec<args::Label>>,
 }
 
 /// [`simulation::post::RealizedTonnage`] in the file metadata.
@@ -3229,6 +3412,7 @@ impl Serialize for SimulationSummary {
                 tonnage: t.tonnage.clone(),
                 metal: t.metal.clone(),
             }),
+            groups: self.1.clone(),
         }
         .serialize(s)
     }
@@ -3245,27 +3429,30 @@ impl<'de> Deserialize<'de> for SimulationSummary {
                 "per-realization arrays need n values",
             ));
         }
-        Ok(Self(ContinuousSummary {
-            n: m.n,
-            mean: vec![],
-            variance: vec![],
-            cutoffs: m.cutoffs,
-            probability_above: vec![],
-            mean_above: vec![],
-            quantiles: m.quantiles,
-            quantile_values: vec![],
-            realization_mean: m.realization_mean,
-            realization_above: m.realization_above,
-            kept: m.kept,
-            realizations: vec![],
-            grade_tonnage: m.grade_tonnage.map(|t| simulation::post::RealizedTonnage {
-                cutoffs: t.cutoffs,
-                groups: t.groups,
-                names: t.names,
-                tonnage: t.tonnage,
-                metal: t.metal,
-            }),
-        }))
+        Ok(Self(
+            ContinuousSummary {
+                n: m.n,
+                mean: vec![],
+                variance: vec![],
+                cutoffs: m.cutoffs,
+                probability_above: vec![],
+                mean_above: vec![],
+                quantiles: m.quantiles,
+                quantile_values: vec![],
+                realization_mean: m.realization_mean,
+                realization_above: m.realization_above,
+                kept: m.kept,
+                realizations: vec![],
+                grade_tonnage: m.grade_tonnage.map(|t| simulation::post::RealizedTonnage {
+                    cutoffs: t.cutoffs,
+                    groups: t.groups,
+                    names: t.names,
+                    tonnage: t.tonnage,
+                    metal: t.metal,
+                }),
+            },
+            m.groups,
+        ))
     }
 }
 
@@ -3306,6 +3493,9 @@ impl Tabular for SimulationSummary {
         )?;
         c.quantile_values = each(c.quantiles.iter().map(|q| format!("q{q}")).collect())?;
         c.realizations = each(c.kept.iter().map(|k| format!("realization_{k}")).collect())?;
+        if let Some(g) = &self.1 {
+            same_length(self.0.mean.len(), g.len(), "groups")?;
+        }
         Ok(())
     }
 }
@@ -3885,7 +4075,7 @@ impl MultivariateSimulation {
                 counter,
             )
         })?
-        .map(|s| s.into_iter().map(SimulationSummary).collect())
+        .map(|s| s.into_iter().map(SimulationSummary::from).collect())
         .map_err(err)
     }
 
@@ -4390,7 +4580,7 @@ impl Snesim {
                     .simulate_values(&lattice, data, local, n, seed, &keep, memory, counter)
             })?
             .map_err(err)?;
-            return Ok(Bound::new(py, SimulationSummary(summary))?
+            return Ok(Bound::new(py, SimulationSummary::from(summary))?
                 .into_any()
                 .unbind());
         }
@@ -4944,7 +5134,7 @@ impl ImageQuilting {
             simulation::continuous(n, &options, |i| Ok(realization(i)), counter)
         })?
         .map_err(err)?;
-        Ok(Bound::new(py, SimulationSummary(summary))?
+        Ok(Bound::new(py, SimulationSummary::from(summary))?
             .into_any()
             .unbind())
     }

@@ -757,6 +757,21 @@ pub struct BlockSupport {
     block: Vec<Option<usize>>,
     volume: Vec<f64>,
     blocks: usize,
+    /// NaN values are left out of the means.
+    skip_nan: bool,
+}
+
+fn node_volumes(n: usize, volumes: Option<&[f64]>) -> Result<Vec<f64>> {
+    let volume = volumes.map_or_else(|| vec![1.0; n], <[f64]>::to_vec);
+    if volume.len() != n {
+        return Err(SimError::InvalidParameters("one volume per node".into()));
+    }
+    if volume.iter().any(|v| !(v.is_finite() && *v > 0.0)) {
+        return Err(SimError::InvalidParameters(
+            "node volumes must be positive".into(),
+        ));
+    }
+    Ok(volume)
 }
 
 impl BlockSupport {
@@ -766,20 +781,30 @@ impl BlockSupport {
         volumes: Option<&[f64]>,
         blocks: &BlockModel,
     ) -> Result<Self> {
-        let volume = volumes.map_or_else(|| vec![1.0; nodes.len()], <[f64]>::to_vec);
-        if volume.len() != nodes.len() {
-            return Err(SimError::InvalidParameters("one volume per node".into()));
-        }
-        if volume.iter().any(|v| !(v.is_finite() && *v > 0.0)) {
-            return Err(SimError::InvalidParameters(
-                "node volumes must be positive".into(),
-            ));
-        }
+        let volume = node_volumes(nodes.len(), volumes)?;
         let block: Vec<Option<usize>> = nodes
             .par_iter()
             .map(|&(x, y, z)| blocks.row_at([x, y, z]))
             .collect();
-        let mut held = vec![false; blocks.len()];
+        Self::assigned(block, volume, blocks.len(), false)
+    }
+
+    /// Volumes `0..groups` of the rows, `None` for a row in none, such as
+    /// the periods of a mine plan; NaN values are left out of the means.
+    /// Every volume must hold a row.
+    pub fn groups(group: Vec<Option<usize>>, volumes: Option<&[f64]>) -> Result<Self> {
+        let volume = node_volumes(group.len(), volumes)?;
+        let groups = group.iter().flatten().max().map_or(0, |g| g + 1);
+        Self::assigned(group, volume, groups, true)
+    }
+
+    fn assigned(
+        block: Vec<Option<usize>>,
+        volume: Vec<f64>,
+        blocks: usize,
+        skip_nan: bool,
+    ) -> Result<Self> {
+        let mut held = vec![false; blocks];
         block.iter().flatten().for_each(|&b| held[b] = true);
         if let Some(empty) = held.iter().position(|h| !h) {
             return Err(SimError::InvalidParameters(format!(
@@ -789,8 +814,30 @@ impl BlockSupport {
         Ok(Self {
             block,
             volume,
-            blocks: blocks.len(),
+            blocks,
+            skip_nan,
         })
+    }
+
+    /// Number of blocks or volumes.
+    pub fn len(&self) -> usize {
+        self.blocks
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.blocks == 0
+    }
+
+    /// Sum of `values` in each block, such as the tonnes of a volume.
+    pub fn total(&self, values: &[f64]) -> Result<Vec<f64>> {
+        self.check(values.len())?;
+        let mut sum = vec![0.0; self.blocks];
+        for (b, v) in self.block.iter().zip(values) {
+            if let Some(b) = *b {
+                sum[b] += v;
+            }
+        }
+        Ok(sum)
     }
 
     fn check(&self, n: usize) -> Result<()> {
@@ -808,7 +855,9 @@ impl BlockSupport {
         self.check(values.len())?;
         let mut sum = vec![(0.0, 0.0); self.blocks];
         for ((b, v), w) in self.block.iter().zip(values).zip(&self.volume) {
-            if let Some(b) = *b {
+            if let Some(b) = *b
+                && !(self.skip_nan && v.is_nan())
+            {
                 sum[b].0 += w * v;
                 sum[b].1 += w;
             }
@@ -840,6 +889,214 @@ impl BlockSupport {
                     .unwrap_or(0)
             })
             .collect())
+    }
+}
+
+/// Average of each row over the box of `size` centred on it, along the axes
+/// of a block model or the world axes of points: the rows whose centre lies
+/// in the box, faces included, weighted by volume, NaN values left out; NaN
+/// where the box holds no value. Boxes overlap and stop at the edge of the
+/// rows. Regular and masked models use summed-area tables, O(cells) per
+/// realization whatever the size; points and sub-blocks list each box's
+/// rows once.
+#[derive(Debug, Clone)]
+pub struct Window(WindowKind);
+
+#[derive(Debug, Clone)]
+enum WindowKind {
+    Lattice {
+        geometry: boitata_core::Geometry,
+        /// Parent cell of each row of a masked model.
+        cells: Option<Vec<u64>>,
+        half: [usize; 3],
+    },
+    /// Rows in the box of row `i`: `members[start[i]..start[i + 1]]`.
+    Lists {
+        start: Vec<usize>,
+        members: Vec<usize>,
+        volume: Vec<f64>,
+    },
+}
+
+impl Window {
+    /// Over the rows of `model`, the box along its axes.
+    pub fn model(model: &BlockModel, size: [f64; 3]) -> Result<Self> {
+        check_size(size)?;
+        let g = *model.geometry();
+        let cells = match model.layout() {
+            boitata_core::Layout::Regular => None,
+            boitata_core::Layout::Masked(index) => Some(index.clone()),
+            boitata_core::Layout::SubBlocked { .. } => {
+                let frame = boitata_core::block_frame(g.rotation);
+                let local: Vec<[f64; 3]> = model
+                    .centroids()
+                    .iter()
+                    .map(|p| {
+                        let v = frame * nalgebra::Vector3::from_fn(|a, _| p[a] - g.origin[a]);
+                        [v.x, v.y, v.z]
+                    })
+                    .collect();
+                return Ok(Self::lists(&local, model.volumes(), size));
+            }
+        };
+        let half = [0, 1, 2].map(|a| (size[a] / (2.0 * g.size[a]) + 1e-9).floor() as usize);
+        Ok(Self(WindowKind::Lattice {
+            geometry: g,
+            cells,
+            half,
+        }))
+    }
+
+    /// Over `points` of equal volume, the box along the world axes.
+    pub fn points(points: &[(f64, f64, f64)], size: [f64; 3]) -> Result<Self> {
+        check_size(size)?;
+        let at: Vec<[f64; 3]> = points.iter().map(|&(x, y, z)| [x, y, z]).collect();
+        Ok(Self::lists(&at, vec![1.0; at.len()], size))
+    }
+
+    fn lists(at: &[[f64; 3]], volume: Vec<f64>, size: [f64; 3]) -> Self {
+        let width = size.map(|s| if s > 0.0 { s } else { 1.0 });
+        let bin = |p: &[f64; 3]| [0, 1, 2].map(|a| (p[a] / width[a]).floor() as i64);
+        let mut bins: std::collections::HashMap<[i64; 3], Vec<usize>> = Default::default();
+        for (i, p) in at.iter().enumerate() {
+            bins.entry(bin(p)).or_default().push(i);
+        }
+        let inside = |p: &[f64; 3], q: &[f64; 3]| {
+            (0..3).all(|a| (p[a] - q[a]).abs() <= size[a] / 2.0 * (1.0 + 1e-9))
+        };
+        let lists: Vec<Vec<usize>> = at
+            .par_iter()
+            .map(|p| {
+                let b = bin(p);
+                let mut list = vec![];
+                for d in 0..27 {
+                    let key = [b[0] + d % 3 - 1, b[1] + d / 3 % 3 - 1, b[2] + d / 9 - 1];
+                    if let Some(rows) = bins.get(&key) {
+                        list.extend(rows.iter().filter(|&&j| inside(p, &at[j])));
+                    }
+                }
+                list.sort_unstable();
+                list
+            })
+            .collect();
+        let mut start = Vec::with_capacity(at.len() + 1);
+        start.push(0);
+        for l in &lists {
+            start.push(start.last().unwrap() + l.len());
+        }
+        Self(WindowKind::Lists {
+            start,
+            members: lists.concat(),
+            volume,
+        })
+    }
+
+    /// Number of rows.
+    pub fn len(&self) -> usize {
+        match &self.0 {
+            WindowKind::Lattice {
+                geometry, cells, ..
+            } => cells.as_ref().map_or(geometry.cells() as usize, Vec::len),
+            WindowKind::Lists { volume, .. } => volume.len(),
+        }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    /// The box average of `values`, one per row.
+    pub fn mean(&self, values: &[f64]) -> Result<Vec<f64>> {
+        if values.len() != self.len() {
+            return Err(SimError::InvalidParameters(
+                "one value per row needed".into(),
+            ));
+        }
+        let ratio = |s: f64, w: f64| if w > 0.0 { s / w } else { f64::NAN };
+        match &self.0 {
+            WindowKind::Lists {
+                start,
+                members,
+                volume,
+            } => Ok((0..values.len())
+                .map(|i| {
+                    let (mut s, mut w) = (0.0, 0.0);
+                    for &j in &members[start[i]..start[i + 1]] {
+                        if !values[j].is_nan() {
+                            s += volume[j] * values[j];
+                            w += volume[j];
+                        }
+                    }
+                    ratio(s, w)
+                })
+                .collect()),
+            WindowKind::Lattice {
+                geometry,
+                cells,
+                half,
+            } => {
+                let [nx, ny, nz] = geometry.count;
+                let (px, py) = (nx + 1, ny + 1);
+                let at = |i: usize, j: usize, k: usize| i + px * (j + py * k);
+                let cell = |row: usize| cells.as_ref().map_or(row as u64, |c| c[row]);
+                let mut t = vec![(0.0, 0.0); px * py * (nz + 1)];
+                for (row, &v) in values.iter().enumerate() {
+                    if !v.is_nan() {
+                        let [i, j, k] = geometry.ijk(cell(row));
+                        t[at(i + 1, j + 1, k + 1)] = (v, 1.0);
+                    }
+                }
+                let mut add = |to: usize, from: usize| {
+                    t[to].0 += t[from].0;
+                    t[to].1 += t[from].1;
+                };
+                for k in 1..=nz {
+                    for j in 1..=ny {
+                        for i in 1..=nx {
+                            add(at(i, j, k), at(i - 1, j, k));
+                        }
+                        for i in 1..=nx {
+                            add(at(i, j, k), at(i, j - 1, k));
+                        }
+                    }
+                    for j in 1..=ny {
+                        for i in 1..=nx {
+                            add(at(i, j, k), at(i, j, k - 1));
+                        }
+                    }
+                }
+                Ok((0..values.len())
+                    .map(|row| {
+                        let ijk = geometry.ijk(cell(row));
+                        let lo = [0, 1, 2].map(|a| ijk[a].saturating_sub(half[a]));
+                        let hi = [0, 1, 2].map(|a| (ijk[a] + half[a] + 1).min(geometry.count[a]));
+                        let (mut s, mut w) = (0.0, 0.0);
+                        for c in 0..8 {
+                            let pick = |a: usize| if c >> a & 1 == 1 { hi[a] } else { lo[a] };
+                            let sign = if (c as u32).count_ones() % 2 == 1 {
+                                -1.0
+                            } else {
+                                1.0
+                            };
+                            let (cs, cw) = t[at(pick(0), pick(1), pick(2))];
+                            s -= sign * cs;
+                            w -= sign * cw;
+                        }
+                        ratio(s, w)
+                    })
+                    .collect())
+            }
+        }
+    }
+}
+
+fn check_size(size: [f64; 3]) -> Result<()> {
+    if size.iter().all(|s| s.is_finite() && *s >= 0.0) {
+        Ok(())
+    } else {
+        Err(SimError::InvalidParameters(
+            "window sizes must be finite and non-negative".into(),
+        ))
     }
 }
 
@@ -1371,6 +1628,185 @@ mod tests {
             assert_eq!(s.realizations, whole.realizations);
         }
         assert!(continuous_batched(3, &options, 4, |_| Ok(vec![]), None).is_err());
+    }
+
+    fn model3(index: Option<Vec<u64>>) -> BlockModel {
+        let geometry = boitata_core::Geometry {
+            origin: [10.0, -4.0, 2.0],
+            size: [2.0, 3.0, 1.5],
+            count: [7, 5, 4],
+            rotation: [30.0, 10.0, 0.0],
+        };
+        let n = index.as_ref().map_or(140, Vec::len);
+        let rows = arrow_array::RecordBatchOptions::new().with_row_count(Some(n));
+        let empty = boitata_core::RecordBatch::try_new_with_options(
+            std::sync::Arc::new(arrow_schema::Schema::empty()),
+            vec![],
+            &rows,
+        )
+        .unwrap();
+        match index {
+            None => BlockModel::regular(geometry, empty).unwrap(),
+            Some(i) => BlockModel::masked(geometry, i, empty).unwrap(),
+        }
+    }
+
+    fn field(k: usize, n: usize) -> Vec<f64> {
+        (0..n)
+            .map(|i| match (i * 13 + k * 5) % 17 {
+                0 => f64::NAN,
+                v => v as f64 + 0.25 * k as f64,
+            })
+            .collect()
+    }
+
+    /// Mean of the non-NaN values of the cells within `size / 2` of each row.
+    fn brute_window(model: &BlockModel, size: [f64; 3], values: &[f64]) -> Vec<f64> {
+        let g = model.geometry();
+        let ijk: Vec<[usize; 3]> = (0..model.len())
+            .map(|r| g.ijk(model.parent_index(r)))
+            .collect();
+        ijk.iter()
+            .map(|a| {
+                let (mut s, mut w) = (0.0, 0.0);
+                for (b, v) in ijk.iter().zip(values) {
+                    let near = (0..3).all(|x| {
+                        (a[x] as f64 - b[x] as f64).abs() * g.size[x] <= size[x] / 2.0 + 1e-9
+                    });
+                    if near && !v.is_nan() {
+                        (s, w) = (s + v, w + 1.0);
+                    }
+                }
+                if w > 0.0 { s / w } else { f64::NAN }
+            })
+            .collect()
+    }
+
+    fn close(a: &[f64], b: &[f64]) {
+        assert_eq!(a.len(), b.len());
+        for (x, y) in a.iter().zip(b) {
+            assert!(
+                (x.is_nan() && y.is_nan()) || (x - y).abs() < 1e-9,
+                "{x} vs {y}"
+            );
+        }
+    }
+
+    #[test]
+    fn window_equals_the_brute_force_box_average() {
+        let masked = model3(Some((0..140).filter(|i| i % 3 != 1).collect()));
+        for model in [model3(None), masked] {
+            for size in [[0.0, 0.0, 0.0], [4.0, 6.0, 3.0], [5.0, 9.5, 0.0], [99.0; 3]] {
+                let values = field(1, model.len());
+                let window = Window::model(&model, size).unwrap();
+                close(
+                    &window.mean(&values).unwrap(),
+                    &brute_window(&model, size, &values),
+                );
+            }
+        }
+        // Points at the centroids of the unrotated grid take the same boxes.
+        let mut flat = model3(None);
+        flat = BlockModel::regular(
+            boitata_core::Geometry {
+                rotation: [0.0; 3],
+                ..*flat.geometry()
+            },
+            flat.attributes().clone(),
+        )
+        .unwrap();
+        let values = field(2, 140);
+        let size = [4.0, 6.0, 3.0];
+        let points = Window::points(&nodes(&flat), size).unwrap();
+        close(
+            &points.mean(&values).unwrap(),
+            &Window::model(&flat, size).unwrap().mean(&values).unwrap(),
+        );
+        // Whole-cell sub-blocks of the rotated model take the lattice's boxes.
+        let rotated = model3(None);
+        let sub = BlockModel::subblocked(
+            *rotated.geometry(),
+            (0..140).collect(),
+            vec![[0.0, 0.0, 0.0, 1.0, 1.0, 1.0]; 140],
+            None,
+            rotated.attributes().clone(),
+        )
+        .unwrap();
+        close(
+            &Window::model(&sub, size).unwrap().mean(&values).unwrap(),
+            &Window::model(&rotated, size)
+                .unwrap()
+                .mean(&values)
+                .unwrap(),
+        );
+        assert!(Window::model(&flat, [1.0, -1.0, 1.0]).is_err());
+        assert!(points.mean(&values[1..]).is_err());
+    }
+
+    #[test]
+    fn groups_equal_per_id_means() {
+        let ids: Vec<Option<usize>> = (0..40).map(|i| (i % 7 != 3).then_some(i % 4)).collect();
+        let volumes: Vec<f64> = (0..40).map(|i| 1.0 + (i % 5) as f64).collect();
+        let groups = BlockSupport::groups(ids.clone(), Some(&volumes)).unwrap();
+        assert_eq!(groups.len(), 4);
+        let values = field(3, 40);
+        let means = groups.mean(&values).unwrap();
+        for (g, mean) in means.iter().enumerate() {
+            let (mut s, mut w) = (0.0, 0.0);
+            for i in (0..40).filter(|&i| ids[i] == Some(g) && !values[i].is_nan()) {
+                (s, w) = (s + volumes[i] * values[i], w + volumes[i]);
+            }
+            assert!((mean - s / w).abs() < 1e-12);
+        }
+        let tonnes = groups.total(&volumes).unwrap();
+        assert_eq!(
+            tonnes.iter().sum::<f64>(),
+            (0..40)
+                .filter(|i| i % 7 != 3)
+                .map(|i| volumes[i])
+                .sum::<f64>()
+        );
+        assert!(BlockSupport::groups(vec![Some(0), Some(2)], None).is_err());
+    }
+
+    #[test]
+    fn windowed_and_grouped_summaries_stream_as_kept_realizations() {
+        let model = model3(None);
+        let window = Window::model(&model, [4.0, 6.0, 3.0]).unwrap();
+        let groups = BlockSupport::groups((0..140).map(|i| Some(i / 35)).collect(), None).unwrap();
+        let options = ContinuousOptions {
+            cutoffs: vec![8.0],
+            quantiles: vec![0.1, 0.5, 0.9],
+            keep: Keep::All,
+            tonnage: None,
+        };
+        type Rows<'a> = Box<dyn Fn(usize) -> Result<Vec<f64>> + Sync + 'a>;
+        let reductions: [Rows; 2] = [
+            Box::new(|k| window.mean(&field(k, 140))),
+            Box::new(|k| groups.mean(&field(k, 140))),
+        ];
+        for simulate in reductions {
+            let s = continuous(21, &options, &simulate, None).unwrap();
+            let reals = &s.realizations;
+            for (k, r) in reals.iter().enumerate() {
+                assert_eq!(r, &simulate(k).unwrap());
+            }
+            for i in 0..reals[0].len() {
+                let mut col: Vec<f64> = reals.iter().map(|r| r[i]).collect();
+                let mean = col.iter().sum::<f64>() / 21.0;
+                let var = col.iter().map(|v| (v - mean).powi(2)).sum::<f64>() / 21.0;
+                assert!((s.mean[i] - mean).abs() < 1e-9 && (s.variance[i] - var).abs() < 1e-9);
+                let above = col.iter().filter(|&&v| v > 8.0).count() as f64 / 21.0;
+                assert_eq!(s.probability_above[0][i], above);
+                col.sort_by(f64::total_cmp);
+                assert_eq!(s.quantile_values[2][i], quantile_sorted(&col, 0.9));
+            }
+            let one = with_threads(1, || continuous(21, &options, &simulate, None).unwrap());
+            let many = with_threads(5, || continuous(21, &options, &simulate, None).unwrap());
+            assert_eq!(one.mean, many.mean);
+            assert_eq!(one.variance, many.variance);
+            assert_eq!(one.quantile_values, many.quantile_values);
+        }
     }
 
     #[test]

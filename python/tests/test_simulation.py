@@ -122,6 +122,93 @@ def test_block_support_averages_each_realization():
     assert c.realizations.shape == (3, 25) and c.probabilities.shape == (25, 2)
 
 
+def _box_mean(xy, reals, half):
+    near = (np.abs(xy[:, None, :] - xy[None, :, :]) <= half + 1e-9).all(axis=2)
+    return reals @ near.T / near.sum(axis=1)
+
+
+@pytest.mark.parametrize(
+    "make",
+    [
+        lambda: bt.SGS(gaussian, bt.Search(radius=40, max_samples=12)),
+        lambda: bt.DSS(bt.Variogram([("spherical", 0.4, 30.0)]), bt.Search(radius=40, max_samples=12)),
+        lambda: bt.TurningBands(gaussian, bands=100, step=1.0),
+    ],
+)
+@pytest.mark.filterwarnings("ignore:.*no draw reaches")
+def test_windows_and_groups_summarize_each_realization(make, tmp_path):
+    sim = make().fit(coords, values)
+    nodes = sim.simulate(grid, n=5, seed=2, keep=True, progress=False).realizations
+    xy = grid.centroids[:, :2]
+    s = sim.simulate(grid, n=5, seed=2, keep=True, quantiles=[0.5], window=(15, 10), progress=False)
+    expected = _box_mean(xy, nodes, np.array([7.5, 5.0]))
+    np.testing.assert_allclose(s.realizations, expected, rtol=1e-9)
+    np.testing.assert_allclose(s.mean, expected.mean(axis=0), rtol=1e-9)
+    np.testing.assert_allclose(s.quantile_values[:, 0], np.median(expected, axis=0), rtol=1e-9)
+    assert s.groups is None
+
+    period = np.array(["b", "a", "c", "a"])[(xy[:, 0] // 25).astype(int)]
+    with_period = grid.with_column("period", period)
+    g = sim.simulate(
+        with_period,
+        n=5,
+        seed=2,
+        keep=True,
+        groups="period",
+        grade_tonnage_cutoffs=[0.0],
+        density=2.0,
+        progress=False,
+    )
+    labels = np.unique(period)
+    expected = np.stack([nodes[:, period == p].mean(axis=1) for p in labels], axis=1)
+    np.testing.assert_allclose(g.realizations, expected, rtol=1e-9)
+    np.testing.assert_allclose(g.variance, expected.var(axis=0), atol=1e-9)
+    assert g.groups == ["a", "b", "c"]
+    g.to_parquet(tmp_path / "g.parquet")
+    for again in (bt.SimulationSummary.from_parquet(tmp_path / "g.parquet"), pickle.loads(pickle.dumps(g))):
+        assert again.groups == g.groups
+        np.testing.assert_array_equal(again.realizations, g.realizations)
+    total = g.grade_tonnage(probabilities=[0.5])
+    assert total["tonnage"][total["category"] == "all"][0] == pytest.approx(2.0 * 25 * 400)
+
+
+def test_windows_over_blocks_points_and_bad_arguments():
+    sgs = bt.SGS(gaussian, bt.Search(radius=40, max_samples=12)).fit(coords, values)
+    blocks = bt.BlockModel(origin=(0, 0), size=(20, 20), count=(5, 5))
+    on_blocks = sgs.simulate(grid, n=3, seed=1, keep=True, blocks=blocks, progress=False).realizations
+    s = sgs.simulate(grid, n=3, seed=1, keep=True, blocks=blocks, window=(40, 40, 0), progress=False)
+    np.testing.assert_allclose(s.realizations, _box_mean(blocks.centroids[:, :2], on_blocks, 20.0), rtol=1e-9)
+
+    points = rng.uniform(0, 100, (50, 2))
+    raw = sgs.simulate(points, n=3, seed=1, keep=True, progress=False).realizations
+    s = sgs.simulate(points, n=3, seed=1, keep=True, window=(30, 30), progress=False)
+    np.testing.assert_allclose(s.realizations, _box_mean(points, raw, 15.0), rtol=1e-9)
+    ids = np.arange(50) % 3
+    s = sgs.simulate(points, n=3, seed=1, keep=True, groups=ids, progress=False)
+    np.testing.assert_allclose(
+        s.realizations, np.stack([raw[:, ids == i].mean(axis=1) for i in range(3)], axis=1)
+    )
+    assert s.groups == [0, 1, 2]
+
+    with pytest.raises(bt.InvalidInput, match="one of window or groups"):
+        sgs.simulate(grid, n=1, window=(10, 10), groups=np.zeros(400))
+    with pytest.raises(bt.InvalidInput, match="categories do not go with groups"):
+        sgs.simulate(
+            grid,
+            n=1,
+            groups=np.zeros(400),
+            grade_tonnage_cutoffs=[0.0],
+            density=1.0,
+            categories=np.zeros(400),
+        )
+    with pytest.raises(bt.InvalidInput, match="2 or 3 values"):
+        sgs.simulate(grid, n=1, window=(10,))
+    with pytest.raises(bt.InvalidInput, match="non-negative"):
+        sgs.simulate(grid, n=1, window=(10, -1))
+    with pytest.raises(ValueError):
+        sgs.simulate(grid, n=1, groups=np.zeros(3))
+
+
 def test_localize_realizations_within_panels():
     sgs = bt.SGS(gaussian, bt.Search(radius=40, max_samples=12)).fit(coords, values)
     panels = bt.BlockModel(origin=(0, 0), size=(50, 50), count=(2, 2))

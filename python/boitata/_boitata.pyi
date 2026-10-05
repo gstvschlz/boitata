@@ -1092,6 +1092,8 @@ class SGS:
         keep: bool | Sequence[int] = False,
         anisotropy: LocalAnisotropy | None = None,
         blocks: BlockModel | None = None,
+        window: tuple[float, float] | tuple[float, float, float] | None = None,
+        groups: Labels | Column | None = None,
         trend: ArrayLike | Column | None = None,
         domains: Label | Sequence[Label] | ArrayLike | None = None,
         domain_column: Column | None = None,
@@ -1143,6 +1145,8 @@ class DSS:
         keep: bool | Sequence[int] = False,
         anisotropy: LocalAnisotropy | None = None,
         blocks: BlockModel | None = None,
+        window: tuple[float, float] | tuple[float, float, float] | None = None,
+        groups: Labels | Column | None = None,
         domains: Label | Sequence[Label] | ArrayLike | None = None,
         domain_column: Column | None = None,
         secondary: ArrayLike | Column | None = None,
@@ -1187,6 +1191,8 @@ class TurningBands:
         quantiles: Sequence[float] = (),
         keep: bool | Sequence[int] = False,
         blocks: BlockModel | None = None,
+        window: tuple[float, float] | tuple[float, float, float] | None = None,
+        groups: Labels | Column | None = None,
         trend: ArrayLike | Column | None = None,
         domains: Label | Sequence[Label] | ArrayLike | None = None,
         domain_column: Column | None = None,
@@ -1313,6 +1319,8 @@ class SimulationSummary:
     def from_parquet(path: Path) -> SimulationSummary: ...
     @property
     def n(self) -> int: ...
+    @property
+    def groups(self) -> list[Label] | None: ...
     @property
     def mean(self) -> npt.NDArray[np.float64]: ...
     @property

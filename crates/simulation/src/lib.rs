@@ -46,8 +46,8 @@ pub use pgs::{
     Hierarchy, PgsParams, Region, TruncationRule, fit_latent, plurigaussian, plurigaussian_local,
 };
 pub use post::{
-    BlockSupport, CategoricalSummary, ContinuousOptions, ContinuousSummary, Keep, categorical,
-    continuous, continuous_batched, continuous_in_batches, continuous_many,
+    BlockSupport, CategoricalSummary, ContinuousOptions, ContinuousSummary, Keep, Window,
+    categorical, continuous, continuous_batched, continuous_in_batches, continuous_many,
     continuous_many_batched, localize, quantile_sorted,
 };
 pub use select::select_realizations;
