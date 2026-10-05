@@ -708,6 +708,9 @@ fn swath(
         ),
         _ => return Err(invalid("give one of azimuth or axis")),
     };
+    let grade = crate::units::of(values, Some(coords))?;
+    let tonnes = tonnes_unit(Some(coords), weights, density)?;
+    let length = crate::units::length_of(coords)?;
     let values = floats(&column(Some(coords), values, "values")?, "values")?;
     let n = values.len();
     let w = weights_or_volumes(Some(coords), weights, n)?;
@@ -733,7 +736,13 @@ fn swath(
         ("tonnage", f(p.tonnage)),
         ("metal", f(p.metal)),
     ];
-    Ok(Table(RecordBatch::try_from_iter(columns).map_err(invalid)?))
+    let batch = RecordBatch::try_from_iter(columns).map_err(invalid)?;
+    let batch = crate::units::label(
+        batch,
+        &[("center", length.as_deref()), ("mean", grade.as_deref())],
+    )?;
+    let batch = crate::units::grade_tonnage(batch, tonnes.as_deref(), grade.as_deref(), &[])?;
+    Ok(Table(batch))
 }
 
 /// Statistics of a block model against the data it was estimated from, per
@@ -783,9 +792,20 @@ fn validate_model(
     density: Option<&Bound<PyAny>>,
     reference: Option<&Bound<PyAny>>,
 ) -> PyResult<Table> {
+    let tonnes_unit = tonnes_unit(Some(model), None, density)?;
+    let grade_unit = crate::units::of(grade, Some(model))?;
+    let data_unit = crate::units::of(values, Some(data))?;
+    // Samples in another grade unit than the model are compared in the model's.
+    let to_model = match (&data_unit, &grade_unit) {
+        (Some(d), Some(g)) => boitata_core::units::conversion(d, g).map_err(invalid)?,
+        _ => 1.0,
+    };
     let (n, tonnes) = block_tonnes(model, density)?;
     let grades = per_row(Some(model), grade, n, "grade")?;
-    let values = floats(&column(Some(data), values, "values")?, "values")?;
+    let values: Vec<f64> = floats(&column(Some(data), values, "values")?, "values")?
+        .into_iter()
+        .map(|v| v * to_model)
+        .collect();
     let w = optional_per_row(Some(data), weights, values.len(), "weights")?;
     let reference = optional_per_row(Some(model), reference, n, "reference")?;
     let (names, codes) = match domain_column {
@@ -842,7 +862,24 @@ fn validate_model(
     columns.push(("mean_diff".into(), col(&|r| r.mean_diff)));
     columns.push(("variance_ratio".into(), col(&|r| r.variance_ratio)));
     let keyed: Vec<(Option<u32>, ())> = rows.iter().map(|r| (r.domain, ())).collect();
-    table("domain", &names, &keyed, columns)
+    let batch = table("domain", &names, &keyed, columns)?.0;
+    let grade = grade_unit.or(data_unit);
+    let variance = crate::units::squared(grade.as_deref());
+    let mut units = vec![
+        ("mean", grade.as_deref()),
+        ("variance", variance.as_deref()),
+        ("cv", Some("ratio")),
+        ("mean_diff", Some("ratio")),
+        ("variance_ratio", Some("ratio")),
+    ];
+    units.extend(["P10", "P50", "P90"].map(|p| (p, grade.as_deref())));
+    let batch = crate::units::label(batch, &units)?;
+    Ok(Table(crate::units::grade_tonnage(
+        batch,
+        tonnes_unit.as_deref(),
+        None,
+        &[],
+    )?))
 }
 
 /// Mean of `values` against signed distance to the `inside`/`outside` contact

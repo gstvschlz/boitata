@@ -409,10 +409,22 @@ impl SimulationSummary {
         truth: &Bound<PyAny>,
         data: Option<&Bound<PyAny>>,
         confidence: f64,
-        cutoff: Option<f64>,
+        cutoff: Option<&Bound<PyAny>>,
         probability: f64,
     ) -> PyResult<Table> {
-        let truth = floats(&args::column(data, truth, "truth")?, "truth")?;
+        let unit = self.2.as_deref();
+        let cutoff = cutoff
+            .map(|c| crate::units::value(c, unit, "cutoff"))
+            .transpose()?;
+        // Truth in another unit than the summary is compared in the summary's.
+        let to_summary = match (crate::units::of(truth, data)?, unit) {
+            (Some(t), Some(u)) => boitata_core::units::conversion(&t, u).map_err(invalid)?,
+            _ => 1.0,
+        };
+        let truth: Vec<f64> = floats(&args::column(data, truth, "truth")?, "truth")?
+            .into_iter()
+            .map(|v| v * to_summary)
+            .collect();
         let v = self
             .0
             .validate(&truth, confidence, cutoff.map(|c| (c, probability)))
@@ -429,7 +441,9 @@ impl SimulationSummary {
             columns.push(("type_1", flag(t1)));
             columns.push(("type_2", flag(t2)));
         }
-        Ok(Table(RecordBatch::try_from_iter(columns).map_err(invalid)?))
+        let batch = RecordBatch::try_from_iter(columns).map_err(invalid)?;
+        let units = [("truth", unit), ("mean", unit), ("error", Some("ratio"))];
+        Ok(Table(crate::units::label(batch, &units)?))
     }
 
     #[getter]

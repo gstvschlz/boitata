@@ -480,3 +480,34 @@ def test_multivariate_simulation_carries_each_variable_unit():
     sim = bt.MultivariateSimulation(bt.PCA(), [bt.SGS(variogram, search)] * 2).fit(table, ["au", "cu"])
     au, cu = sim.simulate(grid, n=2, seed=1, progress=False)
     assert (au.mean.unit, cu.mean.unit) == ("g/t", "%")
+
+
+def test_tables_carry_units_and_compare_in_one_unit():
+    model = _model("g/t")
+    swath = bt.swath(model, "au", 10.0, axis="x", density="dens")
+    assert swath.units["center"] == "m" and swath.units["mean"] == "g/t" and swath.units["tonnage"] == "kt"
+    points = bt.PointSet(model.centroids, {"au": model["au"] * 1000}).with_units({"au": "ppb"})
+    validation = bt.validate_model(model, "au", points, "au", density="dens")
+    rows = validation.to_polars()
+    model_mean = rows.filter(rows["source"] == "model")["mean"][0]
+    naive_mean = rows.filter(rows["source"] == "naive")["mean"][0]
+    assert naive_mean == pytest.approx(model_mean)
+    assert validation.units["mean"] == "g/t" and validation.units["mean_diff"] == "ratio"
+    boot = bt.spatial_bootstrap(samples, "au", variogram, n=5, quantiles=[0.5], cutoffs=["1000 ppb"])
+    assert boot.units["mean"] == "g/t" and boot.units["above 1"] == "ratio"
+    despiked = bt.despike(samples, "au")
+    assert despiked.unit == "g/t"
+    sgs = bt.SGS(variogram, search).fit(samples, "au")
+    summary = sgs.simulate(samples, n=3, seed=1, cutoffs=[1.0], quantiles=[0.05, 0.95], progress=False)
+    truth = bt.Table({"t": samples["au"] * 1000}).with_units({"t": "ppb"})
+    checked = summary.validate("t", data=truth, cutoff="1000 ppb", confidence=0.9)
+    assert checked.units["truth"] == "g/t"
+    np.testing.assert_allclose(checked["truth"], samples["au"])
+
+
+def test_gis_readers_take_the_project_length_unit(tmp_path):
+    points = bt.PointSet([[0.0, 0.0, 0.0], [1.0, 2.0, 3.0]], {"v": [1.0, 2.0]})
+    bt.write_shapefile(tmp_path / "p.shp", points)
+    with bt.units(length="ft"):
+        assert bt.read_shapefile(tmp_path / "p.shp").length_unit == "ft"
+    assert bt.read_shapefile(tmp_path / "p.shp", length_unit="m").length_unit == "m"

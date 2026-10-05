@@ -670,7 +670,7 @@ def spatial_bootstrap(
     n: int = 100,
     seed: int = 0,
     quantiles: Sequence[float] = (),
-    cutoffs: Sequence[float] = (),
+    cutoffs: Sequence[float | str] | None = None,
 ) -> Table: ...
 def affine_correction(
     values: ArrayLike, f: float, *, weights: ArrayLike | None = None
@@ -1430,7 +1430,7 @@ class SimulationSummary:
         *,
         data: PointSet | BlockModel | None = None,
         confidence: float = 0.9,
-        cutoff: float | None = None,
+        cutoff: float | str | None = None,
         probability: float = 0.5,
     ) -> Table: ...
     @property
@@ -2078,7 +2078,9 @@ def write_mesh(
     dxf_entity: Literal["3dface", "polyface"] = "3dface",
     progress: bool = True,
 ) -> None: ...
-def read_geotiff(path: Path, *, nodata: float | None = None) -> BlockModel: ...
+def read_geotiff(
+    path: Path, *, nodata: float | None = None, length_unit: str | None = None
+) -> BlockModel: ...
 def write_geotiff(path: Path, model: BlockModel, *, nodata: float = -9999.0) -> None: ...
 def read_segy(
     path: Path,
@@ -2089,9 +2091,12 @@ def read_segy(
     x_byte: int = 181,
     y_byte: int = 185,
     nodata: float | None = None,
+    length_unit: str | None = None,
 ) -> BlockModel: ...
 def write_segy(path: Path, model: BlockModel, column: str, *, nodata: float = 0.0) -> None: ...
-def read_shapefile(path: Path, *, nodata: Sequence[float | str] | None = None) -> PointSet | Polylines: ...
+def read_shapefile(
+    path: Path, *, nodata: Sequence[float | str] | None = None, length_unit: str | None = None
+) -> PointSet | Polylines: ...
 def write_shapefile(path: Path, data: PointSet | Polylines) -> None: ...
 def _decode_geometries(
     blobs: Sequence[bytes | None],

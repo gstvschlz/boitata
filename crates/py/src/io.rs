@@ -311,16 +311,24 @@ fn write_mesh(
 ///     Numeric fields are float64, logical fields bool, the rest text. The
 ///     `.prj` text is the CRS.
 #[pyfunction]
-#[pyo3(signature = (path, *, nodata=None))]
+#[pyo3(signature = (path, *, nodata=None, length_unit=None))]
 fn read_shapefile(
     py: Python,
     path: PathBuf,
     nodata: Option<Vec<Bound<PyAny>>>,
+    length_unit: Option<String>,
 ) -> PyResult<Py<PyAny>> {
+    let length_unit = crate::table::length_unit(length_unit)?;
     Ok(
         match boitata_io::read_shapefile(path, &self::nodata(nodata)?).map_err(io_error)? {
-            Shapes::Points(p) => Py::new(py, PyPointSet(p))?.into_any(),
-            Shapes::Polylines(l) => Py::new(py, PyPolylines(l))?.into_any(),
+            Shapes::Points(mut p) => {
+                p.length_unit = length_unit;
+                Py::new(py, PyPointSet(p))?.into_any()
+            }
+            Shapes::Polylines(mut l) => {
+                l.length_unit = length_unit;
+                Py::new(py, PyPolylines(l))?.into_any()
+            }
         },
     )
 }
@@ -440,11 +448,15 @@ fn _encode_geometries<'py>(
 ///     centers fall on the tie points of pixel-is-point rasters. An EPSG code
 ///     in the GeoKeys becomes the CRS `"EPSG:<code>"`, otherwise the citation.
 #[pyfunction]
-#[pyo3(signature = (path, *, nodata=None))]
-fn read_geotiff(path: PathBuf, nodata: Option<f64>) -> PyResult<PyBlockModel> {
-    Ok(PyBlockModel(
-        boitata_io::read_geotiff(path, nodata).map_err(io_error)?,
-    ))
+#[pyo3(signature = (path, *, nodata=None, length_unit=None))]
+fn read_geotiff(
+    path: PathBuf,
+    nodata: Option<f64>,
+    length_unit: Option<String>,
+) -> PyResult<PyBlockModel> {
+    let mut model = boitata_io::read_geotiff(path, nodata).map_err(io_error)?;
+    model.length_unit = crate::table::length_unit(length_unit)?;
+    Ok(PyBlockModel(model))
 }
 
 /// Writes a 2D BlockModel as a deflate-compressed GeoTIFF.
@@ -510,8 +522,9 @@ fn write_geotiff(path: PathBuf, model: PyRef<PyBlockModel>, nodata: f64) -> PyRe
 #[pyfunction]
 #[pyo3(signature = (
     path, *, column="amplitude", inline_byte=189, crossline_byte=193, x_byte=181,
-    y_byte=185, nodata=None
+    y_byte=185, nodata=None, length_unit=None
 ))]
+#[allow(clippy::too_many_arguments)]
 fn read_segy(
     path: PathBuf,
     column: &str,
@@ -520,6 +533,7 @@ fn read_segy(
     x_byte: usize,
     y_byte: usize,
     nodata: Option<f64>,
+    length_unit: Option<String>,
 ) -> PyResult<PyBlockModel> {
     let options = boitata_io::SegyOptions {
         column: column.into(),
@@ -529,9 +543,9 @@ fn read_segy(
         y_byte,
         nodata,
     };
-    Ok(PyBlockModel(
-        boitata_io::read_segy(path, &options).map_err(io_error)?,
-    ))
+    let mut model = boitata_io::read_segy(path, &options).map_err(io_error)?;
+    model.length_unit = crate::table::length_unit(length_unit)?;
+    Ok(PyBlockModel(model))
 }
 
 /// Writes one column of a BlockModel as SEG-Y revision 1.
