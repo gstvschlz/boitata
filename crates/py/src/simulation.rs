@@ -2923,6 +2923,74 @@ fn correct_distribution<'py>(
     })
 }
 
+/// Representative realizations by k-medoids, e.g. the truths of a drill hole
+/// spacing study.
+///
+/// Realizations are compared by the Euclidean distance between their values
+/// (block or panel grades, one column per target). A seeded k-medoids++ start
+/// is refined by PAM swaps until no exchange of a medoid for another
+/// realization lowers the total distance of every realization to its nearest
+/// medoid. Each medoid is a simulated realization standing for its cluster,
+/// so a few medoids span the range of outcomes that a random draw of the same
+/// size may miss. Distances are computed in parallel, identically on any
+/// number of threads.
+///
+/// Parameters
+/// ----------
+/// realizations : SimulationSummary or array_like
+///     A summary simulated with ``keep=``, or ``(n_realizations, targets)``
+///     values. Targets that are not finite in any realization are ignored.
+/// n : int
+///     Number of realizations to select, 1 to the number of realizations.
+/// seed : int
+///     Seed of the k-medoids++ start.
+///
+/// Returns
+/// -------
+/// ndarray
+///     ``(n,)`` row indices of the medoids (positions in ``kept`` for a
+///     summary), by cluster size, largest first, ties by index.
+///
+/// Raises
+/// ------
+/// InvalidInput
+///     If a summary holds no realizations, `n` is out of range, no target
+///     is finite in every realization, or the distances overflow.
+///
+/// Examples
+/// --------
+/// >>> truths = bt.select_realizations(summary, 5, seed=1)
+/// >>> summary.realizations[truths].shape
+/// (5, 400)
+#[pyfunction]
+#[pyo3(signature = (realizations, n, *, seed=0))]
+fn select_realizations<'py>(
+    py: Python<'py>,
+    realizations: &Bound<'py, PyAny>,
+    n: usize,
+    seed: u64,
+) -> PyResult<Bound<'py, PyArray1<i64>>> {
+    let reals = if let Ok(s) = realizations.cast::<SimulationSummary>() {
+        let s = s.get();
+        if s.0.kept.is_empty() {
+            return Err(invalid(
+                "the summary holds no realizations; simulate with keep=",
+            ));
+        }
+        s.0.realizations.clone()
+    } else {
+        rows(realizations, "realizations")?
+    };
+    let picked = py
+        .detach(|| simulation::select_realizations(&reals, n, seed))
+        .map_err(err)?;
+    Ok(picked
+        .into_iter()
+        .map(|i| i as i64)
+        .collect::<Vec<_>>()
+        .into_pyarray(py))
+}
+
 fn data_columns(d: &Data) -> Columns {
     let mut columns = persist::point_columns(d.locs.iter().copied());
     columns.push(persist::column("value", d.values.iter().copied()));
@@ -3841,6 +3909,7 @@ pub fn register(m: &Bound<PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(localize, m)?)?;
     m.add_function(wrap_pyfunction!(object_training_image, m)?)?;
     m.add_function(wrap_pyfunction!(correct_distribution, m)?)?;
+    m.add_function(wrap_pyfunction!(select_realizations, m)?)?;
     m.add_class::<SimulationSummary>()?;
     m.add_class::<CategoricalSummary>()?;
     m.add_class::<ImageQuilting>()?;

@@ -61,6 +61,7 @@ simulation: simulation
     SGS DSS TurningBands MultivariateSimulation SIS Plurigaussian SimulationSummary CategoricalSummary
     IndicatorSummary CategoricalIndicatorSummary check_realizations RealizationCheck
     gibbs localize object_training_image training_image_consistency SNESIM ImageQuilting
+    select_realizations
 modeling: modeling
     ImplicitModel
 validation: checking models

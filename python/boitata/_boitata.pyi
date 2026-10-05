@@ -1395,6 +1395,9 @@ def correct_distribution(
     strength: float = 1.0,
     realizations: Sequence[int] | None = None,
 ) -> npt.NDArray[np.float64]: ...
+def select_realizations(
+    realizations: SimulationSummary | ArrayLike, n: int, *, seed: int = 0
+) -> npt.NDArray[np.int64]: ...
 
 class Cokriging:
     def to_parquet(self, path: Path) -> None: ...
