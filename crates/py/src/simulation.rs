@@ -3971,6 +3971,8 @@ struct MultivariateState<F, D, I> {
     decorrelation: Option<D>,
     #[serde(skip_serializing_if = "Option::is_none")]
     imputer: Option<I>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    units: Vec<Option<String>>,
 }
 
 impl Serialize for MultivariateSimulation {
@@ -3985,6 +3987,7 @@ impl Serialize for MultivariateSimulation {
             factors: &self.factors,
             decorrelation: fitted.map(|f| &f.transform),
             imputer: fitted.and_then(|f| f.imputed.as_ref().map(|i| &i.0)),
+            units: self.units.clone(),
         }
         .serialize(s)
     }
@@ -4017,6 +4020,7 @@ impl<'de> Deserialize<'de> for MultivariateSimulation {
             transform,
             factors: state.factors,
             fitted,
+            units: state.units,
         })
     }
 }
@@ -4094,6 +4098,8 @@ pub struct MultivariateSimulation {
     transform: Py<PyAny>,
     factors: Vec<Factor>,
     fitted: Option<Factors>,
+    /// Unit of each fitted variable, carried by its summary.
+    units: Vec<Option<String>>,
 }
 
 #[pymethods]
@@ -4155,6 +4161,7 @@ impl MultivariateSimulation {
             transform: transform.clone().unbind(),
             factors,
             fitted: None,
+            units: vec![],
         })
     }
 
@@ -4203,6 +4210,13 @@ impl MultivariateSimulation {
             },
         };
         let impute = template.is_some();
+        slf.units = match data.extract::<Vec<String>>() {
+            Ok(names) => names
+                .iter()
+                .map(|n| crate::units::of(&pyo3::types::PyString::new(py, n), Some(coords)))
+                .collect::<PyResult<_>>()?,
+            Err(_) => vec![],
+        };
         let data = match data.extract::<Vec<String>>() {
             Ok(names) => {
                 let columns = names
@@ -4440,7 +4454,15 @@ impl MultivariateSimulation {
                 counter,
             )
         })?
-        .map(|s| s.into_iter().map(SimulationSummary::from).collect())
+        .map(|s| {
+            s.into_iter()
+                .enumerate()
+                .map(|(j, s)| {
+                    let unit = self.units.get(j).cloned().flatten();
+                    SimulationSummary(s, None, unit, None)
+                })
+                .collect()
+        })
         .map_err(err)
     }
 

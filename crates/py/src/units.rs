@@ -115,6 +115,25 @@ pub fn tag<'py>(array: Bound<'py, PyAny>, unit: Option<&str>) -> PyResult<Bound<
     }
 }
 
+/// `out` of an estimator, estimates or `(estimates, variances)`, tagged
+/// with `unit` and its square.
+pub fn tag_estimates<'py>(
+    out: Bound<'py, PyAny>,
+    unit: Option<&str>,
+) -> PyResult<Bound<'py, PyAny>> {
+    if unit.is_none() {
+        return Ok(out);
+    }
+    if let Ok(pair) = out.cast::<pyo3::types::PyTuple>()
+        && pair.len() == 2
+    {
+        let estimates = tag(pair.get_item(0)?, unit)?;
+        let variances = tag(pair.get_item(1)?, squared(unit).as_deref())?;
+        return Ok(pyo3::types::PyTuple::new(out.py(), [estimates, variances])?.into_any());
+    }
+    tag(out, unit)
+}
+
 /// The unit of a variance of values in `unit`.
 pub fn squared(unit: Option<&str>) -> Option<String> {
     unit.map(|u| format!("({u})^2"))
@@ -160,7 +179,16 @@ pub fn grade_tonnage(
     if let Some(t) = tonnes {
         batch = rescale(batch, "tonnage", t, &TONNAGE)?;
         if let Some(g) = grade {
-            batch = rescale(batch, "metal", &format!("({t})*({g})"), &metal_units(g))?;
+            let raw = format!("({t})*({g})");
+            batch = rescale(batch, "metal", &raw, &metal_units(g))?;
+            if let (Some(to), Some(_)) = (
+                boitata_core::units::unit(&batch, "metal").ok().flatten(),
+                batch.column_by_name("benefit"),
+            ) {
+                let tagged = with_unit_unchecked(&batch, "benefit", Some(&raw)).map_err(invalid)?;
+                batch =
+                    boitata_core::units::convert_units(&tagged, "benefit", &to).map_err(invalid)?;
+            }
         }
     }
     Ok(batch)

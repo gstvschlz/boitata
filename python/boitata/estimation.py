@@ -256,8 +256,9 @@ class _Base:
                 f"the samples are in {self._coords_unit} and lengths given in {length}, but "
                 f"{' and '.join(self._undeclared)} declare no length unit; give them length_unit"
             )
+        self._engine._set_units(self._unit, self._coords_unit, length)
         self._engine.fit(
-            _moved(coords, getattr(self, "_length_unit", None), self._coords_unit),
+            _moved(coords, length, self._coords_unit),
             values,
             holes=holes,
             error_variance=error_variance,
@@ -395,6 +396,7 @@ class _Base:
         """
         estimator = cls.__new__(cls)
         estimator._engine = _Estimator.from_parquet(path, cls.__name__)
+        estimator._unit, estimator._coords_unit, estimator._length_unit = estimator._engine._units
         return estimator
 
 

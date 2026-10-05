@@ -35,6 +35,9 @@ pub struct MultigaussianKriging {
     search: Vec<CoreSearch>,
     #[serde(skip)]
     samples: Option<(Vec<Sample>, Option<Vec<f64>>)>,
+    /// Unit of the fitted values.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    unit: Option<String>,
 }
 
 #[pymethods]
@@ -58,6 +61,7 @@ impl MultigaussianKriging {
                 .map(|s| s.plain("MultigaussianKriging"))
                 .collect::<PyResult<_>>()?,
             samples: None,
+            unit: None,
         })
     }
 
@@ -88,6 +92,7 @@ impl MultigaussianKriging {
         despike: bool,
     ) -> PyResult<PyRefMut<'py, Self>> {
         let data = Some(coords);
+        slf.unit = crate::units::of(values, Some(coords))?;
         let locs = points(coords)?;
         let mut values = finite(&column(data, values, "values")?, "values")?;
         same_length(locs.len(), values.len(), "values")?;
@@ -173,10 +178,13 @@ impl MultigaussianKriging {
             )
         })
         .map(|s| {
-            IndicatorSummary(CoreSummary {
-                diagnostics: s.diagnostics.filter(|_| diagnostics),
-                ..s
-            })
+            IndicatorSummary(
+                CoreSummary {
+                    diagnostics: s.diagnostics.filter(|_| diagnostics),
+                    ..s
+                },
+                self.unit.clone(),
+            )
         })
         .map_err(invalid)
     }
