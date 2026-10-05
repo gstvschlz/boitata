@@ -953,7 +953,10 @@ def _is_zone(obj) -> bool:
 
 
 def _indices(selected) -> list[int]:
-    return np.asarray(selected, dtype=int).ravel().tolist()
+    indices = np.asarray(selected).ravel()
+    if indices.size and (indices.dtype.kind not in "iu" or indices.min() < 0):
+        raise InvalidInput("selected must be candidate indices >= 0")
+    return indices.astype(int).tolist()
 
 
 def _located(targets, points, domains, located):

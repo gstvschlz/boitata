@@ -1199,6 +1199,8 @@ def test_drillhole_plan_constraints():
     assert not plan.feasible([i, int(np.flatnonzero(~inside)[-1])]).any()
     with pytest.raises(bt.InvalidInput, match="repeat"):
         plan.score([i, i])
+    with pytest.raises(bt.InvalidInput, match="indices"):
+        plan.gains([-1])
     with pytest.raises(bt.InvalidInput, match="rules"):
         drilling(objective="classification")
     with pytest.raises(bt.InvalidInput, match="slope"):
