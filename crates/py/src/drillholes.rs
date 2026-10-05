@@ -1713,7 +1713,8 @@ fn snap_to_surface(
 /// Grid nodes start at the footprint's lowest (along, across) corner, shifted
 /// by `offset`. A node becomes a collar when a target lies within half a
 /// cell of the hole collared there at the top of the targets; collars then
-/// move to `topography`. Each hole runs down to the bottom of the targets.
+/// slide along their hole to `topography`, so inclined holes keep their
+/// targets. Each hole runs down to the bottom of the targets.
 ///
 /// Parameters
 /// ----------
@@ -1786,13 +1787,20 @@ fn planned_drillholes(
         dip,
         offset: [offset.0, offset.1],
     };
-    let mut off = 0;
-    let holes = drillholes::planned_holes(&points, top, bottom, &grid, |x, y| {
-        let z = surface.as_ref()?.elevation(x, y);
-        off += usize::from(z.is_none());
-        z
-    })
-    .map_err(invalid)?;
+    let ground = |x, y| surface.as_ref()?.elevation(x, y);
+    let holes = drillholes::planned_holes(&points, top, bottom, &grid, ground).map_err(invalid)?;
+    if holes.is_empty() {
+        return Err(invalid(
+            "no hole reaches below its collar; targets need height or topography above them",
+        ));
+    }
+    let off = match &surface {
+        Some(s) => holes
+            .iter()
+            .filter(|h| s.elevation(h.1[0].east, h.1[0].north).is_none())
+            .count(),
+        None => 0,
+    };
     if off > 0 {
         let message = format!("{off} collars lie off the topography and stay at the targets' top");
         let category = py.get_type::<pyo3::exceptions::PyUserWarning>();

@@ -567,3 +567,5 @@ def test_planned_drillholes_rotated_inclined_and_bad_input():
         bt.planned_drillholes(points, -1.0)
     with pytest.raises(bt.InvalidInput):
         bt.planned_drillholes(points, 10.0, dip=0.0)
+    with pytest.raises(bt.InvalidInput, match="no hole reaches"):
+        bt.planned_drillholes(points[:, :2], 10.0)

@@ -26,9 +26,13 @@ pub struct PlanGrid {
 ///    `offset`, every `spacing`; each pierce point claims its nearest node,
 ///    so a node becomes a collar when a target lies within half a cell of
 ///    its hole.
-/// 3. The collar takes the elevation `ground(x, y)`, or `top` where that is
-///    None, and the hole runs down to the elevation `bottom`. Holes collared
-///    at or below `bottom` are dropped.
+/// 3. The collar slides along the hole line through the node at `top` to
+///    where it meets `ground`, found by fixed-point iteration on the
+///    elevation, so inclined holes still pass through their node. Where the
+///    iteration leaves the ground or does not converge (ground steeper
+///    than the hole), the collar stays above the node at `ground(x, y)`, or
+///    at `top` where that is None. The hole runs down to the elevation
+///    `bottom`; holes collared at or below `bottom` are dropped.
 pub fn planned_holes(
     targets: &[[f64; 3]],
     top: f64,
@@ -88,8 +92,8 @@ pub fn planned_holes(
             corner[0] + i as f64 * grid.spacing[0],
             corner[1] + j as f64 * grid.spacing[1],
         );
-        let (x, y) = (u * along[0] + v * across[0], u * along[1] + v * across[1]);
-        let z = ground(x, y).unwrap_or(top);
+        let node = [u * along[0] + v * across[0], u * along[1] + v * across[1]];
+        let [x, y, z] = collar(node, top, reach * a.sin(), reach * a.cos(), &mut ground);
         let length = (z - bottom) / d.sin();
         if length <= 0.0 {
             continue;
@@ -106,6 +110,30 @@ pub fn planned_holes(
         ));
     }
     Ok(holes)
+}
+
+/// Where the hole through `node` at elevation `top` meets `ground`; the hole
+/// advances `(dx, dy)` horizontally per unit of depth.
+fn collar(
+    node: [f64; 2],
+    top: f64,
+    dx: f64,
+    dy: f64,
+    ground: &mut impl FnMut(f64, f64) -> Option<f64>,
+) -> [f64; 3] {
+    let Some(start) = ground(node[0], node[1]) else {
+        return [node[0], node[1], top];
+    };
+    let mut z = start;
+    for _ in 0..500 {
+        let (x, y) = (node[0] - (z - top) * dx, node[1] - (z - top) * dy);
+        let Some(next) = ground(x, y) else { break };
+        if (next - z).abs() < 1e-9 {
+            return [x, y, z];
+        }
+        z = next;
+    }
+    [node[0], node[1], start]
 }
 
 #[cfg(test)]
@@ -176,5 +204,25 @@ mod tests {
             assert!((path[1].measured_depth - length).abs() < 1e-9);
         }
         assert!(planned_holes(&targets(&g), 0.0, -1.0, &grid(0.0, 0.0), |_, _| None).is_err());
+    }
+
+    #[test]
+    fn inclined_collars_slide_up_the_hole_onto_the_ground() {
+        let g = grid(30.0, 60.0);
+        let plane = |x: f64, y: f64| 20.0 + 0.1 * x - 0.05 * y;
+        let flat = planned_holes(&targets(&g), -10.0, -40.0, &g, |_, _| None).unwrap();
+        let holes =
+            planned_holes(&targets(&g), -10.0, -40.0, &g, |x, y| Some(plane(x, y))).unwrap();
+        assert_eq!(holes.len(), flat.len());
+        let sin = 60f64.to_radians().sin();
+        for ((_, path), (_, node)) in holes.iter().zip(&flat) {
+            let (collar, end) = (&path[0], &path[1]);
+            assert!((collar.elev - plane(collar.east, collar.north)).abs() < 1e-6);
+            let f = (collar.elev + 10.0) / sin / end.measured_depth;
+            let east = collar.east + f * (end.east - collar.east);
+            let north = collar.north + f * (end.north - collar.north);
+            assert!((east - node[0].east).abs() < 1e-6 && (north - node[0].north).abs() < 1e-6);
+            assert!((end.elev + 40.0).abs() < 1e-9);
+        }
     }
 }
