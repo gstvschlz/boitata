@@ -417,15 +417,16 @@ def test_uncertainty_curve_bins_spacing_and_finds_the_required_spacing():
     error = 0.01 * spacing * rng.uniform(0.5, 1.5, 2000)
     t = bt.Table({"ds": np.r_[spacing, np.nan], "mee": np.r_[error, 0.1]})
     curve = bt.uncertainty_curve("ds", "mee", bins=np.arange(5, 31, 5.0), data=t)
-    assert curve.column_names == ["spacing", "n", "q0.5", "q0.9", "share"]
+    assert curve.column_names == ["spacing", "n", "P50", "P90", "share"]
     assert curve["n"].sum() == 2000
-    for q in ("q0.5", "q0.9"):
+    for q in ("P50", "P90"):
         assert np.all(np.diff(curve[q]) >= 0)
-    assert np.all(curve["q0.9"] >= curve["q0.5"])
+    assert np.all(curve["P90"] >= curve["P50"])
     np.testing.assert_allclose(curve["share"][0], (error <= 0.15)[spacing < 10].mean())
     required = bt.required_spacing(curve, threshold=0.15)
     assert curve["spacing"][0] < required < curve["spacing"][-1]
-    assert np.isnan(bt.required_spacing(curve, column="q0.5", threshold=1.0))
+    with pytest.warns(UserWarning, match="beyond the tested range"):
+        assert bt.required_spacing(curve, column="P50", threshold=1.0) == curve["spacing"][-1]
     assert len(bt.uncertainty_curve(spacing, error)) > 1
     assert len(bt.uncertainty_curve(spacing, error, bins=3, min_count=10_000)) == 0
     with pytest.raises(bt.InvalidInput):
@@ -433,8 +434,11 @@ def test_uncertainty_curve_bins_spacing_and_finds_the_required_spacing():
 
 
 def test_required_spacing_interpolates_a_linear_curve():
-    curve = bt.Table({"spacing": [10.0, 20.0, 30.0], "q0.9": [0.1, 0.2, 0.3]})
+    curve = bt.Table({"spacing": [10.0, 20.0, 30.0], "P90": [0.1, 0.2, 0.3]})
     assert bt.required_spacing(curve) == pytest.approx(15.0)
-    assert bt.required_spacing(curve, threshold=0.05) == 10.0
+    assert bt.required_spacing(curve, threshold=0.1) == 10.0
+    assert np.isnan(bt.required_spacing(curve, threshold=0.05))
+    with pytest.warns(UserWarning):
+        assert bt.required_spacing(curve, threshold=0.3) == 30.0
     with pytest.raises(bt.InvalidInput):
-        bt.required_spacing(curve, column="q0.5")
+        bt.required_spacing(curve, column="P50")

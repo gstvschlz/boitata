@@ -1246,7 +1246,7 @@ fn edges_of(x: &[f64], bins: &Bins) -> Result<Vec<f64>> {
             let q = quantiles_of(x, &vec![1.0; x.len()], &[0.25, 0.75])?;
             let width = 2.0 * (q[1] - q[0]) / (x.len() as f64).cbrt();
             if width > 0.0 {
-                ((hi - lo) / width).ceil().max(1.0) as usize
+                ((hi - lo) / width).ceil().clamp(1.0, x.len() as f64) as usize
             } else {
                 1
             }
@@ -1322,24 +1322,27 @@ pub fn uncertainty_curve(
     Ok(curve)
 }
 
-/// Spacing where `values` first rise above `threshold`, linear between the
-/// two points around the crossing; the first spacing when the curve starts
-/// above, NaN when it never rises above. Points with a NaN are skipped.
-pub fn required_spacing(spacing: &[f64], values: &[f64], threshold: f64) -> f64 {
+/// Largest spacing whose `values` still meet `threshold`: linear between the
+/// two points around the first rise above it; NaN when the first point is
+/// already above. When the curve never rises above, the last spacing and
+/// `true`, as the required spacing lies beyond the tested range. Points with
+/// a NaN are skipped.
+pub fn required_spacing(spacing: &[f64], values: &[f64], threshold: f64) -> (f64, bool) {
     let points: Vec<(f64, f64)> = spacing
         .iter()
         .zip(values)
         .filter(|(s, v)| !s.is_nan() && !v.is_nan())
         .map(|(&s, &v)| (s, v))
         .collect();
-    match points.iter().position(|&(_, v)| v > threshold) {
-        None => f64::NAN,
-        Some(0) => points[0].0,
+    let crossing = match points.iter().position(|&(_, v)| v > threshold) {
+        None => return points.last().map_or((f64::NAN, false), |p| (p.0, true)),
+        Some(0) => f64::NAN,
         Some(j) => {
             let ((x0, y0), (x1, y1)) = (points[j - 1], points[j]);
             x0 + (threshold - y0) / (y1 - y0) * (x1 - x0)
         }
-    }
+    };
+    (crossing, false)
 }
 
 /// One cell of [`domain_change`]: the blocks of class `from` in the first
@@ -2124,10 +2127,13 @@ mod tests {
     fn required_spacing_interpolates_a_linear_curve() {
         let s: Vec<f64> = (0..10).map(|i| 5.0 + 2.0 * f64::from(i)).collect();
         let u: Vec<f64> = s.iter().map(|s| 0.01 * s).collect();
-        assert!((required_spacing(&s, &u, 0.15) - 15.0).abs() < 1e-12);
-        assert!((required_spacing(&s, &u, 0.1) - 10.0).abs() < 1e-12);
-        assert!(required_spacing(&s, &u, 1.0).is_nan());
-        assert_eq!(required_spacing(&s, &u, 0.0), 5.0);
+        let (r, beyond) = required_spacing(&s, &u, 0.15);
+        assert!((r - 15.0).abs() < 1e-12 && !beyond);
+        assert!((required_spacing(&s, &u, 0.1).0 - 10.0).abs() < 1e-12);
+        assert_eq!(required_spacing(&s, &u, 1.0), (23.0, true));
+        let (r, beyond) = required_spacing(&s, &u, 0.0);
+        assert!(r.is_nan() && !beyond);
+        assert!(required_spacing(&[], &[], 0.1).0.is_nan());
     }
 
     #[test]

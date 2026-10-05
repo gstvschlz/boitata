@@ -1890,7 +1890,7 @@ def uncertainty_curve(curve, *, threshold=0.15, required=None, ax=None):
     Parameters
     ----------
     curve : Table
-        Result of ``boitata.uncertainty_curve``; its ``q...`` columns are drawn, the first solid, the rest dashed.
+        Result of ``boitata.uncertainty_curve``; its ``P...`` columns are drawn, the first solid, the rest dashed.
     threshold : float
         Acceptable uncertainty, drawn as a horizontal line.
     required : float, optional
@@ -1906,7 +1906,7 @@ def uncertainty_curve(curve, *, threshold=0.15, required=None, ax=None):
     ax.set_zorder(share.get_zorder() + 1)
     ax.patch.set_visible(False)
     color = _accent()
-    names = [n for n in curve.column_names if n.startswith("q")]
+    names = [n for n in curve.column_names if n.startswith("P")]
     for k, name in enumerate(names):
         ax.plot(
             spacing,
@@ -1914,7 +1914,7 @@ def uncertainty_curve(curve, *, threshold=0.15, required=None, ax=None):
             color=color,
             ls="-" if k == 0 else "--",
             marker="o",
-            label=f"P{100 * float(name[1:]):g}",
+            label=name,
         )
     ax.axhline(threshold, color="0.5", lw=0.8, ls="--")
     if required is not None and np.isfinite(required):

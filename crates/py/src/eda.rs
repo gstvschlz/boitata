@@ -1867,7 +1867,7 @@ fn paired_bias(pairs: &Bound<PyAny>, bins: &Bound<PyAny>) -> PyResult<Table> {
 /// -------
 /// Table
 ///     One row per bin: ``spacing`` (mean in the bin), ``n``, one column per
-///     quantile named ``q0.5``, ``q0.9``, ..., non-decreasing in spacing, and
+///     quantile named ``P50``, ``P90``, ..., non-decreasing in spacing, and
 ///     ``share``, the fraction of rows with uncertainty at or below
 ///     `threshold`. Rows with a null or NaN are skipped.
 #[pyfunction]
@@ -1903,7 +1903,7 @@ fn uncertainty_curve(
     ];
     for (k, p) in quantiles.iter().enumerate() {
         columns.push((
-            format!("q{p}"),
+            quantile_name(*p),
             nullable(rows.iter().map(|r| r.quantiles[k])),
         ));
     }
@@ -1911,7 +1911,7 @@ fn uncertainty_curve(
     Ok(Table(RecordBatch::try_from_iter(columns).map_err(invalid)?))
 }
 
-/// Spacing where an uncertainty curve first rises above a threshold.
+/// Largest data spacing whose uncertainty still meets a threshold.
 ///
 /// Parameters
 /// ----------
@@ -1927,10 +1927,11 @@ fn uncertainty_curve(
 /// -------
 /// float
 ///     Spacing interpolated linearly between the last row at or below
-///     `threshold` and the first above it; the first spacing when the curve
-///     starts above, NaN when it never rises above.
+///     `threshold` and the first above it; NaN when the first row is already
+///     above. When the curve never rises above, the largest spacing, with a
+///     warning that the required spacing lies beyond the tested range.
 #[pyfunction]
-#[pyo3(signature = (curve, *, column="q0.9", threshold=0.15))]
+#[pyo3(signature = (curve, *, column="P90", threshold=0.15))]
 fn required_spacing(curve: &Bound<PyAny>, column: &str, threshold: f64) -> PyResult<f64> {
     let get = |name: &str| -> PyResult<Vec<f64>> {
         let c = curve
@@ -1938,11 +1939,17 @@ fn required_spacing(curve: &Bound<PyAny>, column: &str, threshold: f64) -> PyRes
             .map_err(|_| invalid(format!("curve needs a '{name}' column")))?;
         floats(&c, name)
     };
-    Ok(eda::required_spacing(
-        &get("spacing")?,
-        &get(column)?,
-        threshold,
-    ))
+    let (spacing, beyond) = eda::required_spacing(&get("spacing")?, &get(column)?, threshold);
+    if beyond {
+        let py = curve.py();
+        let message = format!(
+            "{column} stays at or below {threshold} up to the largest spacing {spacing}; \
+             the required spacing lies beyond the tested range"
+        );
+        let category = py.get_type::<pyo3::exceptions::PyUserWarning>();
+        PyErr::warn(py, &category, &std::ffi::CString::new(message)?, 1)?;
+    }
+    Ok(spacing)
 }
 
 pub fn register(m: &Bound<PyModule>) -> PyResult<()> {

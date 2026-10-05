@@ -194,7 +194,7 @@ def test_uncertainty_curve_draws_quantiles_threshold_and_required_spacing():
     curve = bt.uncertainty_curve(spacing, 0.01 * spacing, bins=5)
     required = bt.required_spacing(curve)
     _, ax = bt.plot.uncertainty_curve(curve, required=required)
-    np.testing.assert_allclose(ax.lines[0].get_ydata(), curve["q0.5"])
+    np.testing.assert_allclose(ax.lines[0].get_ydata(), curve["P50"])
     assert ax.lines[1].get_linestyle() == "--"
     assert ax.lines[-1].get_xdata()[0] == required
 
