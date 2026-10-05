@@ -3269,6 +3269,60 @@ fn select_realizations<'py>(
         .into_pyarray(py))
 }
 
+/// The seed of realization `k` of a run seeded with `seed`.
+#[pyfunction]
+fn _realization_seed(seed: u64, k: u64) -> u64 {
+    boitata_core::rng::realization_seed(seed, k)
+}
+
+/// `realizations` at `targets`, one per row, averaged to the summary rows of
+/// `blocks`, `window` or `groups` as `simulate` does, and the `groups` labels.
+#[pyfunction]
+#[pyo3(signature = (targets, realizations, *, blocks=None, window=None, groups=None))]
+#[allow(clippy::type_complexity)]
+fn _summary_rows<'py>(
+    py: Python<'py>,
+    targets: &Bound<'py, PyAny>,
+    realizations: numpy::PyReadonlyArray2<f64>,
+    blocks: Option<PyRef<PyBlockModel>>,
+    window: Option<Vec<f64>>,
+    groups: Option<&Bound<'py, PyAny>>,
+) -> PyResult<(Bound<'py, PyArray2<f64>>, Option<Vec<Bound<'py, PyAny>>>)> {
+    let grid = self::targets(targets)?;
+    let realizations = realizations.as_array();
+    same_length(grid.len(), realizations.ncols(), "realizations")?;
+    let (rows, _) = summary_rows(
+        py,
+        targets,
+        &grid,
+        grid.len(),
+        blocks,
+        window,
+        groups,
+        None,
+        None,
+        None,
+        None,
+    )?;
+    let averaged = realizations
+        .rows()
+        .into_iter()
+        .map(|r| rows.of(r.to_vec()))
+        .collect::<simulation::Result<Vec<_>>>()
+        .map_err(err)?;
+    let width = averaged.first().map_or(0, Vec::len);
+    let labels = rows
+        .labels
+        .as_ref()
+        .map(|g| {
+            g.iter()
+                .map(|l| crate::estimation::py_label(py, l))
+                .collect()
+        })
+        .transpose()?;
+    Ok((matrix(py, &averaged, width), labels))
+}
+
 fn data_columns(d: &Data) -> Columns {
     let mut columns = persist::point_columns(d.locs.iter().copied());
     columns.push(persist::column("value", d.values.iter().copied()));
@@ -4212,6 +4266,8 @@ pub fn register(m: &Bound<PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(object_training_image, m)?)?;
     m.add_function(wrap_pyfunction!(correct_distribution, m)?)?;
     m.add_function(wrap_pyfunction!(select_realizations, m)?)?;
+    m.add_function(wrap_pyfunction!(_realization_seed, m)?)?;
+    m.add_function(wrap_pyfunction!(_summary_rows, m)?)?;
     m.add_class::<SimulationSummary>()?;
     m.add_class::<CategoricalSummary>()?;
     m.add_class::<ImageQuilting>()?;

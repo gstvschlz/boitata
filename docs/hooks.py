@@ -34,7 +34,7 @@ drillholes: drill holes and domains
     Drillholes merge_intervals check_drillholes fix_drillholes duplicates hole_distance
     PolygonSelector point_in_polygon polygon_distance assign_domain block_shell contact_distance
     buffer_domains remove_small_units smooth_classes map_blocks domain_change transition_matrix
-    vertical_proportions combine_proportions
+    vertical_proportions combine_proportions planned_drillholes snap_to_surface
 eda: exploratory analysis
     Categories describe describe_by correlation swath contact soft_boundary capping capping_report
     despike data_spacing spatial_bootstrap paired_bias
@@ -67,6 +67,7 @@ modeling: modeling
 validation: checking models
     CrossValidation IndicatorCrossValidation CategoricalCrossValidation validate_model global_bias
     block_correlation compare_models grade_tonnage classify uncertainty_curve required_spacing
+    spacing_study
 errors: errors
     BoitataError InvalidInput MissingColumn FileError
 """
