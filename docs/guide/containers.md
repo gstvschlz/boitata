@@ -59,6 +59,10 @@ the `-999` became a null: `NaN` in the numpy array, `null` in polars. a missing 
 
 if a file marks missing values some other way, pass `nodata=`. it replaces the default list, so `nodata=[-1]` reads `-1` as null and keeps `-999` as a number.
 
+## units
+
+a column can carry a unit. `read_csv` reads one from a header such as `Au [g/t]` or `Au (g/t)`, `units=` gives one to a column the file leaves bare, and `bt.set_units(columns={"Au": "g/t"})` declares them once for a project. `with_units` sets them by hand, and `convert_units` rescales a column within its kind. grades, ratios, metal, ore mass and each currency are separate kinds, so converting `%` to `ratio%` or `kg metal` to `t` raises `InvalidInput`. the [units example](../examples/02-data-and-geometry/25-units/example_02_25.md) walks through them.
+
 !!! pitfall "pitfall"
     statistics such as `describe` skip nulls, but estimators, transforms and variograms refuse them: `fit` raises `InvalidInput: values must be finite; drop missing values first`. keep the rows that have a value before you fit:
 

@@ -46,7 +46,7 @@ pub(crate) fn invalid(message: impl ToString) -> PyErr {
 #[pymodule]
 fn _boitata(m: &Bound<PyModule>) -> PyResult<()> {
     m.add("__version__", env!("CARGO_PKG_VERSION"))?;
-    m.add_class::<table::Table>()?;
+    table::register(m)?;
     m.add_class::<containers::PyPointSet>()?;
     m.add_class::<containers::PyPolylines>()?;
     m.add_class::<containers::PyBlockModel>()?;

@@ -1,4 +1,5 @@
-use std::sync::Arc;
+use std::collections::{BTreeMap, HashMap};
+use std::sync::{Arc, Mutex};
 
 use arrow_array::cast::AsArray;
 use arrow_array::types::Float64Type;
@@ -41,6 +42,83 @@ pub fn with_units(
 
 pub fn convert_units(batch: &RecordBatch, column: &str, to: &str) -> PyResult<RecordBatch> {
     boitata_core::units::convert_units(batch, column, to).map_err(invalid)
+}
+
+static DEFAULT_UNITS: Mutex<BTreeMap<String, String>> = Mutex::new(BTreeMap::new());
+
+fn default_units() -> BTreeMap<String, String> {
+    DEFAULT_UNITS
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .clone()
+}
+
+/// `batch` with the units of `explicit`, then the project defaults, given to
+/// columns that have none.
+pub fn fill_units(
+    mut batch: RecordBatch,
+    explicit: Option<&HashMap<String, String>>,
+) -> PyResult<RecordBatch> {
+    let defaults = default_units();
+    let given = explicit.into_iter().flatten().chain(&defaults);
+    for (name, unit) in given {
+        if batch.schema().column_with_name(name).is_some()
+            && boitata_core::units::unit(&batch, name)
+                .map_err(invalid)?
+                .is_none()
+        {
+            batch = boitata_core::units::with_unit(&batch, name, Some(unit)).map_err(invalid)?;
+        }
+    }
+    Ok(batch)
+}
+
+/// Sets project-wide column units: readers and constructors give column
+/// `name` the unit `columns[name]` when it has none.
+///
+/// Parameters
+/// ----------
+/// columns : dict of str to str or None, optional
+///     Column name to unit, merged into the current defaults; None removes a
+///     default.
+///
+/// See Also
+/// --------
+/// units : The same, for a ``with`` block.
+#[pyfunction]
+#[pyo3(signature = (*, columns=None))]
+pub fn set_units(columns: Option<HashMap<String, Option<String>>>) -> PyResult<()> {
+    let mut defaults = DEFAULT_UNITS.lock().unwrap_or_else(|e| e.into_inner());
+    for (name, unit) in columns.into_iter().flatten() {
+        match unit {
+            Some(u) => {
+                boitata_core::units::parse(&u).map_err(invalid)?;
+                defaults.insert(name, u);
+            }
+            None => {
+                defaults.remove(&name);
+            }
+        }
+    }
+    Ok(())
+}
+
+#[pyfunction]
+fn _unit_defaults() -> BTreeMap<String, String> {
+    default_units()
+}
+
+#[pyfunction]
+fn _restore_unit_defaults(columns: BTreeMap<String, String>) {
+    *DEFAULT_UNITS.lock().unwrap_or_else(|e| e.into_inner()) = columns;
+}
+
+pub fn register(m: &Bound<PyModule>) -> PyResult<()> {
+    m.add_class::<Table>()?;
+    m.add_function(wrap_pyfunction!(set_units, m)?)?;
+    m.add_function(wrap_pyfunction!(_unit_defaults, m)?)?;
+    m.add_function(wrap_pyfunction!(_restore_unit_defaults, m)?)?;
+    Ok(())
 }
 
 /// Columnar attribute table; exchanges data with pyarrow, polars and pandas
@@ -252,7 +330,7 @@ pub fn describe(batch: &RecordBatch) -> String {
 impl Table {
     #[new]
     fn new(data: &Bound<PyAny>) -> PyResult<Self> {
-        Ok(Self(to_batch(data)?))
+        Ok(Self(fill_units(to_batch(data)?, None)?))
     }
 
     #[getter]
@@ -282,6 +360,14 @@ impl Table {
 
     /// New table with the units of `units`, column name to unit; None
     /// removes one. Replacing a column's values drops its unit.
+    ///
+    /// A unit combines lengths (m, cm, km, ft, ...), masses (t, kt, Mt, g,
+    /// kg, oz troy, lb, st short ton), grades (g/t, ppm, ppb, %, kg/t, oz/t
+    /// as troy ounces per short ton, lb/st), ratios (ratio, ratio%), angles
+    /// (deg, rad) and currencies (USD, BRL, EUR, CAD, AUD, with k and M)
+    /// with ``*``, ``/``, ``^n`` and parentheses: ``t/m3``, ``USD/m``,
+    /// ``(g/t)^2``. ``kg metal`` is a mass of metal, never of ore. An unknown
+    /// unit raises `InvalidInput`.
     #[pyo3(name = "with_units")]
     fn with_units_(
         &self,
@@ -290,9 +376,9 @@ impl Table {
         Ok(Self(with_units(&self.0, units)?))
     }
 
-    /// New table with `column` converted to unit `to`: grades (ppb, ppm, g/t,
-    /// %, oz/t as troy ounces per short ton), lengths (m, ft) or densities
-    /// (t/m3, g/cm3). The column must have a unit.
+    /// New table with `column` converted to unit `to`, a unit of the same
+    /// kind (see `with_units`): a grade never converts to a ratio, nor metal
+    /// to ore mass, nor one currency to another. The column must have a unit.
     #[pyo3(name = "convert_units", signature = (column, *, to))]
     fn convert_units_(&self, column: &str, to: &str) -> PyResult<Self> {
         Ok(Self(convert_units(&self.0, column, to)?))
