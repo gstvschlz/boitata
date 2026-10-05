@@ -291,8 +291,12 @@ reference = bt.spacing_study(
 reference = reference.filter(inside(40)[np.asarray(reference["row"], dtype=int)])
 plan = np.asarray(reference["plan"])
 for name in plans:
+    meets = reference["mee"][plan == name] <= 0.15
+    truth_of = reference["realization"][plan == name]
+    per_truth = [np.mean(meets[truth_of == k]) for k in range(10)]
     print(
-        f"holes between nodes, {name} m: {np.mean(reference['mee'][plan == name] <= 0.15):.1%} of quarterly windows"
+        f"holes between nodes, {name} m: {meets.mean():.1%} of quarterly windows; per truth "
+        f"{min(per_truth):.1%} to {max(per_truth):.1%}, standard deviation {np.std(per_truth, ddof=1):.1%}"
     )
 ```
 
@@ -301,15 +305,17 @@ for name in plans:
 ```text
 40 m windows covered: 86.8%
 80 m windows covered: 86.0%
-holes between nodes, 5 m: 84.5% of quarterly windows
-holes between nodes, 10 m: 21.8% of quarterly windows
+holes between nodes, 5 m: 84.5% of quarterly windows; per truth 78.4% to 90.6%, standard deviation 4.1%
+holes between nodes, 10 m: 21.8% of quarterly windows; per truth 13.3% to 26.0%, standard deviation 3.7%
 ```
 
 The MEE covers the truth in 86.8 % of the quarterly windows and 86.0 % of the yearly ones, a little short of
 90 %. With the holes between nodes, 84.5 % of the quarterly windows meet ±15 % at 5 m and 21.8 % at 10 m,
-against the reference's 83.6 % and 24.2 %. Three truths and 50 realizations move these shares by a few points
-from run to run, so the two studies agree. The grids of Step 2 put holes on node centres, and they score
-89.1 % at 5 m: a node that holds a sample keeps its value in every realization, which narrows its window.
+against the reference's 83.6 % and 24.2 %. The share changes from truth to truth: at 10 m one truth scores
+13.3 %, another 26.0 %, a standard deviation of 3.7 points. The reference averaged three truths, so its share
+carries a standard error of about 2 points, and gaps of 0.9 and 2.4 points lie within Monte-Carlo noise.
+The grids of Step 2 put holes on node centres, and they score 89.1 % at 5 m:
+a node that holds a sample keeps its value in every realization, which narrows its window.
 
 ## The decision
 

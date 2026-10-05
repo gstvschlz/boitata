@@ -107,7 +107,7 @@ map_axes(ax, "Data spacing, n = 4 to 10")
 save(fig, "spacing_map")
 
 # %% [markdown]
-# The median node lies 15.6 m from its share of the data; the infilled high-grade areas read under 8 m and the
+# The median data spacing is 15.6 m; the infilled high-grade areas read under 8 m and the
 # edges over 22 m.
 #
 # !!! step "Step 2: Uncertainty of every window"
