@@ -86,6 +86,11 @@ pub fn to_batch(data: &Bound<PyAny>) -> PyResult<RecordBatch> {
                     .extract()
                     .map_err(|_| invalid(format!("column {name} is not a 1-D array of text")))?;
                 Arc::new(arrow_array::StringArray::from(text))
+            } else if kind == "b" {
+                let flags: Vec<bool> = array.call_method0("tolist")?.extract().map_err(|_| {
+                    invalid(format!("column {name} is not a 1-D array of booleans"))
+                })?;
+                Arc::new(arrow_array::BooleanArray::from(flags))
             } else {
                 let not_numeric = || invalid(format!("column {name} is not a 1-D numeric array"));
                 let dtype: String = array.getattr("dtype")?.getattr("name")?.extract()?;

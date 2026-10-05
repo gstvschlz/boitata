@@ -3269,6 +3269,12 @@ fn select_realizations<'py>(
         .into_pyarray(py))
 }
 
+/// The seed of realization `k` of a run seeded with `seed`.
+#[pyfunction]
+fn _realization_seed(seed: u64, k: u64) -> u64 {
+    boitata_core::rng::realization_seed(seed, k)
+}
+
 fn data_columns(d: &Data) -> Columns {
     let mut columns = persist::point_columns(d.locs.iter().copied());
     columns.push(persist::column("value", d.values.iter().copied()));
@@ -4212,6 +4218,7 @@ pub fn register(m: &Bound<PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(object_training_image, m)?)?;
     m.add_function(wrap_pyfunction!(correct_distribution, m)?)?;
     m.add_function(wrap_pyfunction!(select_realizations, m)?)?;
+    m.add_function(wrap_pyfunction!(_realization_seed, m)?)?;
     m.add_class::<SimulationSummary>()?;
     m.add_class::<CategoricalSummary>()?;
     m.add_class::<ImageQuilting>()?;

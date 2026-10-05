@@ -1,5 +1,9 @@
 import json
+import os
+import pathlib
 import pickle
+import subprocess
+import sys
 
 import boitata as bt
 import numpy as np
@@ -1357,3 +1361,95 @@ def test_select_realizations_picks_one_medoid_per_cluster():
     ]:
         with pytest.raises(ValueError):
             call()
+
+
+def _study(**options):
+    sgs = bt.SGS(gaussian, bt.Search(radius=40, max_samples=12)).fit(coords, values)
+    options = {
+        "truths": 3,
+        "n": 20,
+        "window": (20, 20),
+        "composite_length": np.inf,
+        "progress": False,
+        **options,
+    }
+    return bt.spacing_study(sgs, grid, **options)
+
+
+def test_spacing_study_mee_grows_with_spacing():
+    study = _study(spacings=[10, 20, 40])
+    assert study.column_names == [
+        "plan",
+        "spacing",
+        "realization",
+        "row",
+        "truth",
+        "mean",
+        "mee",
+        "cv",
+        "precision_0.15",
+        "error",
+        "covered",
+    ]
+    plan, mee = np.asarray(study["plan"]), study["mee"]
+    medians = [np.median(mee[plan == p]) for p in ("10", "20", "40")]
+    assert medians == sorted(medians) and medians[0] < 0.5 * medians[-1]
+    np.testing.assert_array_equal(np.unique(study["spacing"]), [10, 20, 40])
+    assert study["covered"].dtype == bool and study.num_rows == 3 * 3 * 400
+
+
+def test_spacing_study_plans_equal_spacings_and_truth_indices():
+    by_spacing = _study(spacings=[(10, 20)], truths=[4, 1])
+    plan = bt.planned_drillholes(grid, (10, 20))
+    by_plan = _study(plans={"grid": plan}, truths=[4, 1])
+    for name in by_spacing.column_names[2:]:
+        np.testing.assert_array_equal(by_spacing[name], by_plan[name], err_msg=name)
+    assert set(by_plan["plan"]) == {"grid"} and np.isnan(by_plan["spacing"]).all()
+    assert set(by_spacing["plan"]) == {"10x20"} and by_spacing["spacing"][0] == pytest.approx(np.sqrt(200))
+    sgs = bt.SGS(gaussian, bt.Search(radius=40, max_samples=12)).fit(coords, values)
+    truth = sgs.simulate(grid, n=5, seed=0, keep=[4], window=(20, 20), progress=False).realizations[0]
+    np.testing.assert_array_equal(by_plan["truth"][:400], truth)
+    np.testing.assert_array_equal(by_plan["realization"], np.repeat([4.0, 1.0], 400))
+
+
+def test_spacing_study_groups_existing_and_sampling_error():
+    period = np.arange(400) % 3
+    study = _study(spacings=[20], window=None, groups=period, existing=True, sampling_error=0.1)
+    np.testing.assert_array_equal(study["row"], np.tile([0, 1, 2], 3))
+    exact = _study(spacings=[20], window=None, groups=period, existing=True)
+    assert not np.array_equal(study["mean"], exact["mean"])
+    np.testing.assert_array_equal(study["truth"], exact["truth"])
+
+
+def test_spacing_study_rejects_bad_input():
+    sgs = bt.SGS(gaussian, bt.Search(radius=40, max_samples=12))
+    plan = bt.planned_drillholes(grid, 20.0)
+    for call, match in [
+        (lambda: _study(), "one of spacings or plans"),
+        (lambda: _study(spacings=[10], plans={"a": plan}), "one of spacings or plans"),
+        (lambda: _study(plans={"a": plan}, dip=60.0), "go with spacings"),
+        (lambda: _study(spacings=[10], quantiles=(0.1, 0.95)), "symmetric"),
+        (lambda: _study(spacings=[10], truths=[1, 1]), "distinct"),
+        (lambda: _study(spacings=[10], composite_length=None), "composite_length"),
+        (lambda: bt.spacing_study(sgs, grid, spacings=[10]), "not fitted"),
+        (lambda: bt.spacing_study(sgs.fit(coords, values), grid.centroids, spacings=[10]), "BlockModel"),
+    ]:
+        with pytest.raises(bt.InvalidInput, match=match):
+            call()
+
+
+def test_spacing_study_ignores_the_thread_count(tmp_path):
+    here = _study(spacings=[10, 25], sampling_error=0.05)
+    script = (
+        "import sys, numpy as np; sys.path.insert(0, sys.argv[1]); import test_simulation as t; "
+        "s = t._study(spacings=[10, 25], sampling_error=0.05); "
+        "np.savez(sys.argv[2], **{c: np.asarray(s[c], dtype=float) for c in s.column_names[1:]})"
+    )
+    out = tmp_path / "one.npz"
+    env = {**os.environ, "RAYON_NUM_THREADS": "1"}
+    subprocess.run(
+        [sys.executable, "-c", script, str(pathlib.Path(__file__).parent), str(out)], env=env, check=True
+    )
+    with np.load(out) as one:
+        for name in here.column_names[1:]:
+            np.testing.assert_array_equal(np.asarray(here[name], dtype=float), one[name], err_msg=name)
