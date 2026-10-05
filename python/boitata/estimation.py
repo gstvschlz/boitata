@@ -5,7 +5,17 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from boitata._boitata import Declustering, Search, Table, Variogram, _Estimator
+from boitata._boitata import (
+    Declustering,
+    Drillholes,
+    Mesh,
+    Search,
+    Table,
+    Variogram,
+    _DrillholePlan,
+    _Estimator,
+    point_in_polygon,
+)
 from boitata._columns import column
 from boitata.errors import InvalidInput
 
@@ -14,6 +24,7 @@ __all__ = [
     "BlockKriging",
     "CategoricalCrossValidation",
     "CrossValidation",
+    "DrillholePlan",
     "ExternalDriftKriging",
     "FactorialKriging",
     "IndicatorCrossValidation",
@@ -644,3 +655,238 @@ def classify(criteria, rules, *, default="unclassified", domains=None, domain_co
             out[hit] = label
             free &= ~hit
     return out.astype(str)
+
+
+class DrillholePlan:
+    """Candidate drill holes scored by the kriging metrics they would bring to target blocks.
+
+    The problem half of drillhole optimization: it scores sets of candidates, given by index into
+    ``candidates.holes``, and leaves the choice of set to a search. Kriging variance, slope and efficiency
+    depend on sample locations only, so only the locations of `data` matter. Each block is kriged as
+    ``estimator.predict(targets, diagnostics=True)`` would after fitting `data` plus the composites of the
+    selected holes, in candidate order. A candidate reaches the blocks within the search radius of its
+    composites in any search pass; only those are re-kriged to evaluate it, and its cached gain is dropped only
+    when a change of plan touches them. Results do not depend on the number of threads.
+
+    Parameters
+    ----------
+    candidates : Drillholes
+        Holes that could be drilled, e.g. from `planned_drillholes`; they need intervals to composite.
+    estimator : OrdinaryKriging, SimpleKriging, IndicatorKriging or BlockKriging
+        Its variogram, search passes and support; fitted or not, without domains. Searches with a high-grade
+        restriction or a target slope or efficiency are refused.
+    targets : BlockModel, PointSet or array_like
+        Where to krige: block centroids or points.
+    data : Drillholes, PointSet or array_like
+        Existing samples. Drillholes are composited at `composite_length` and keep their holes for
+        `max_per_hole`; points count as untagged samples. Values are unused.
+    objective : {"classification", "variance"} or callable
+        The score of a plan is the sum over blocks of a score g(metrics), minus that sum with `data` alone.
+        ``"classification"`` scores a block by its progress towards the class above its current one under
+        `rules`. Each condition of that class gives 1 when met, 0 when met today but no longer, and otherwise
+        ``clip((m - m0) / (threshold - m0), 0, 1)`` with ``m0`` today's metric; with ``P`` their mean and
+        ``P0`` today's, the block scores ``weight * (P - P0) / (1 - P0)``, which is ``weight`` exactly when it
+        reaches the class. Blocks already in the best class score 0. ``"variance"`` scores
+        ``weight * (variance0 - variance) / support_variance``. Both built-ins read an unestimated block as
+        variance equal to its support variance and 0 for the other metrics. A callable takes a Table as
+        `metrics` returns it, for some of the blocks, and returns one finite score per row; it is called at
+        most once per `score`, `gains` or `loss`, on the rows of every block that call needs.
+    rules : sequence of (str, dict), optional
+        As in `classify`, best class first: ``(label, {metric: (op, threshold)})`` with metrics among
+        ``variance``, ``slope``, ``efficiency``, ``n_samples`` and ``n_holes``; required for
+        ``"classification"``.
+    weights : array_like or str, optional
+        Weight of each block, >= 0, or the column of `targets` holding them; 1 by default. The built-in
+        objectives skip blocks of weight 0.
+    n_holes : int, optional
+        Most holes in a plan.
+    budget : float, optional
+        Most total cost of a plan.
+    cost_per_meter : float, optional
+        Cost of a hole per meter of its length; without it a hole costs its length, so `budget` is in meters.
+    min_spacing : float
+        Least distance in plan between the collars of two holes of a plan.
+    exclude : array_like, Polylines, Mesh or a sequence of them, optional
+        Zones candidates may not enter: polygons (``(n, 2)`` or ``(n, 3)`` vertices, or Polylines) hold
+        collars in plan, closed meshes hold collars and composites.
+    composite_length : float, optional
+        Length of the composites of the candidates, and of `data` when Drillholes; by default the median
+        interval length of `data`, which then must be Drillholes.
+
+    Raises
+    ------
+    InvalidInput
+        If an input is missing or malformed, or the estimator is not supported.
+    """
+
+    def __init__(
+        self,
+        candidates: Drillholes,
+        estimator,
+        targets,
+        *,
+        data,
+        objective="classification",
+        rules=None,
+        weights=None,
+        n_holes: int | None = None,
+        budget: float | None = None,
+        cost_per_meter: float | None = None,
+        min_spacing: float = 0.0,
+        exclude=None,
+        composite_length: float | None = None,
+    ):
+        if not isinstance(candidates, Drillholes):
+            raise InvalidInput("candidates must be Drillholes")
+        if composite_length is None:
+            if not isinstance(data, Drillholes) or data.interval_columns is None:
+                raise InvalidInput("composite_length is required unless data are Drillholes with intervals")
+            _, start, end = data.interval_columns
+            intervals = data.samples()
+            composite_length = float(np.median(intervals[end] - intervals[start]))
+        data_holes = None
+        if isinstance(data, Drillholes):
+            composited = data.composite(composite_length, [])
+            hole = composited[data.interval_columns[0]].astype(str)
+            data, data_holes = composited.coords, np.unique(hole, return_inverse=True)[1].tolist()
+        elif hasattr(data, "coords"):
+            data = data.coords
+        self._holes = candidates.holes
+        composites = candidates.composite(composite_length, [])
+        index = {h: i for i, h in enumerate(self._holes)}
+        owner = np.array([index[h] for h in composites[candidates.interval_columns[0]]], dtype=int)
+        paths = candidates.paths()
+        names = paths[paths.column_names[0]]
+        self._collars = candidates.at(self._holes, np.zeros(len(self._holes)))
+        self._length = np.array([paths["depth"][names == h].max() for h in self._holes])
+        self._cost = self._length * (1.0 if cost_per_meter is None else float(cost_per_meter))
+        excluded = np.zeros(len(self._holes), dtype=bool)
+        zones = [] if exclude is None else [exclude] if _is_zone(exclude) else list(exclude)
+        for zone in zones:
+            if isinstance(zone, Mesh):
+                excluded |= zone.contains(self._collars)
+                excluded[owner[zone.contains(composites.coords)]] = True
+            else:
+                excluded |= point_in_polygon(self._collars[:, :2], zone)
+        if isinstance(weights, str):
+            weights = column(targets, weights, "weights")
+        self._engine = _DrillholePlan(
+            estimator._engine,
+            targets,
+            data,
+            data_holes,
+            composites.coords,
+            owner.tolist(),
+            self._collars,
+            self._cost.tolist(),
+            excluded.tolist(),
+            objective,
+            None if rules is None or callable(objective) else _rules(rules),
+            weights,
+            n_holes,
+            budget,
+            float(min_spacing),
+        )
+
+    @property
+    def holes(self) -> list[str]:
+        """Candidate names; plans index into them."""
+        return list(self._holes)
+
+    @property
+    def collars(self) -> np.ndarray:
+        """``(n, 3)`` collar of each candidate."""
+        return self._collars.copy()
+
+    @property
+    def length(self) -> np.ndarray:
+        """Length of each candidate in meters."""
+        return self._length.copy()
+
+    @property
+    def cost(self) -> np.ndarray:
+        """Cost of each candidate: its length times `cost_per_meter`, or its length."""
+        return self._cost.copy()
+
+    def score(self, selected) -> float:
+        """The objective with the holes `selected`; 0 for none.
+
+        Parameters
+        ----------
+        selected : sequence of int
+            Distinct candidate indices.
+        """
+        return self._engine.score(_indices(selected))
+
+    def gains(self, selected) -> np.ndarray:
+        """Gain in the objective from adding each candidate to `selected`.
+
+        Parameters
+        ----------
+        selected : sequence of int
+
+        Returns
+        -------
+        ndarray
+            One gain per candidate, ``-inf`` where `feasible` is False, so ``argmax`` picks a feasible hole.
+        """
+        return self._engine.gains(_indices(selected))
+
+    def loss(self, selected) -> np.ndarray:
+        """Loss in the objective from removing each of `selected`, in its order.
+
+        Parameters
+        ----------
+        selected : sequence of int
+        """
+        return self._engine.loss(_indices(selected))
+
+    def feasible(self, selected) -> np.ndarray:
+        """Whether each candidate could join `selected`: not selected, outside `exclude`, within `n_holes` and
+        `budget`, and at least `min_spacing` from every selected collar.
+
+        Parameters
+        ----------
+        selected : sequence of int
+        """
+        return self._engine.feasible(_indices(selected))
+
+    def neighbors(self, i: int, radius: float) -> np.ndarray:
+        """Candidates other than `i` whose collars lie within `radius` of its collar in plan, in index order.
+
+        Parameters
+        ----------
+        i : int
+        radius : float
+        """
+        return self._engine.neighbors(int(i), float(radius))
+
+    def metrics(self, selected) -> Table:
+        """Kriging metrics of every block with the holes `selected`.
+
+        Parameters
+        ----------
+        selected : sequence of int
+
+        Returns
+        -------
+        Table
+            ``block`` (index into `targets`), ``variance``, ``slope``, ``efficiency``, ``n_samples`` and
+            ``n_holes`` as ``predict(..., diagnostics=True)`` gives them (NaN where unestimated),
+            ``support_variance`` and ``weight``.
+        """
+        return self._engine.metrics(_indices(selected))
+
+
+def _is_zone(obj) -> bool:
+    return isinstance(obj, Mesh) or hasattr(obj, "parts") or np.ndim(obj) == 2
+
+
+def _indices(selected) -> list[int]:
+    return np.asarray(selected, dtype=int).ravel().tolist()
+
+
+def _rules(rules):
+    if isinstance(rules, dict):
+        raise InvalidInput("rules by domain are not supported for planning")
+    return [[(name, op, float(t)) for name, (op, t) in conditions.items()] for _, conditions in rules]

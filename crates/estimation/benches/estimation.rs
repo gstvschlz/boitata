@@ -213,5 +213,93 @@ fn constrained(c: &mut Criterion) {
     group.finish();
 }
 
-criterion_group!(benches, bench, growth, kriging, systems, constrained);
+/// 10 000 blocks of 10 m, 2 025 candidate holes 11 m apart, 100 drilled.
+fn plan(c: &mut Criterion) {
+    use estimation::plan::{Candidate, Constraints, Kriging, Objective, Plan};
+    let hole = |x: f64, y: f64| -> Vec<(f64, f64, f64)> {
+        (0..8).map(|k| (x, y, -2.5 - 5.0 * k as f64)).collect()
+    };
+    let data: Vec<Sample> = (0..100u32)
+        .flat_map(|h| {
+            let (x, y) = ((h % 10) as f64 * 50.0 + 20.0, (h / 10) as f64 * 50.0 + 20.0);
+            hole(x, y)
+                .into_iter()
+                .map(move |p| Sample::with_hole(p, 0.0, h))
+        })
+        .collect();
+    let candidates: Vec<Candidate> = (0..2025)
+        .map(|i| {
+            let (x, y) = ((i % 45) as f64 * 11.0 + 6.0, (i / 45) as f64 * 11.0 + 6.0);
+            Candidate {
+                composites: hole(x, y),
+                collar: (x, y, 0.0),
+                cost: 40.0,
+                excluded: false,
+            }
+        })
+        .collect();
+    let targets: Vec<(f64, f64, f64)> = (0..10_000)
+        .map(|i| {
+            let (x, y, z) = (i % 50, i / 50 % 50, i / 2500);
+            (
+                5.0 + 10.0 * x as f64,
+                5.0 + 10.0 * y as f64,
+                -5.0 - 10.0 * z as f64,
+            )
+        })
+        .collect();
+    let kriging = Kriging {
+        kind: estimation::Kind::Ordinary,
+        block: Some((
+            (10.0, 10.0, 10.0),
+            estimation::Discretization {
+                nx: 2,
+                ny: 2,
+                nz: 1,
+            },
+        )),
+        variogram: variogram::Variogram::single(variogram::Model::Spherical, 1.0, 80.0),
+        passes: vec![Search {
+            min_samples: 4,
+            max_samples: 16,
+            radius: 40.0,
+            ..Default::default()
+        }],
+    };
+    let new = || {
+        Plan::new(
+            kriging.clone(),
+            data.clone(),
+            candidates.clone(),
+            targets.clone(),
+            None,
+            Objective::Variance,
+            Constraints::default(),
+        )
+        .unwrap()
+    };
+    let mut group = c.benchmark_group("plan of 2 025 holes over 10 000 blocks");
+    group.sample_size(10);
+    group.bench_function("gains", |b| {
+        b.iter_batched(
+            new,
+            |mut p| black_box(p.gains(&[], None).unwrap()),
+            criterion::BatchSize::LargeInput,
+        )
+    });
+    group.bench_function("gains after one more hole", |b| {
+        b.iter_batched(
+            || {
+                let mut p = new();
+                p.gains(&[], None).unwrap();
+                p
+            },
+            |mut p| black_box(p.gains(&[1000], None).unwrap()),
+            criterion::BatchSize::LargeInput,
+        )
+    });
+    group.finish();
+}
+
+criterion_group!(benches, bench, growth, kriging, systems, constrained, plan);
 criterion_main!(benches);

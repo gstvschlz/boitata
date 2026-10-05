@@ -1033,6 +1033,30 @@ impl Estimator {
         let domains = self.domains.as_deref();
         self.search.iter().map(|s| s.resolve(domains)).collect()
     }
+
+    /// The kriging a drilling plan evaluates with this estimator.
+    pub fn planning(&self) -> PyResult<estimation::plan::Kriging> {
+        if self.domains.is_some() {
+            return Err(invalid(
+                "DrillholePlan needs an estimator fitted without domains",
+            ));
+        }
+        let (kind, block) = match &self.method {
+            Method::Kriging(kind) => (*kind, None),
+            Method::Block { size, disc } => (Kind::Ordinary, Some((*size, *disc))),
+            _ => {
+                return Err(invalid(
+                    "DrillholePlan needs ordinary, simple, indicator or block kriging",
+                ));
+            }
+        };
+        Ok(estimation::plan::Kriging {
+            kind,
+            block,
+            variogram: self.variogram.clone().expect("kriging carries a variogram"),
+            passes: self.passes()?,
+        })
+    }
 }
 
 /// The distinct labels of `obj`, one label or one per sample, and each

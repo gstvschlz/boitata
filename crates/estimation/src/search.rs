@@ -806,6 +806,94 @@ impl SearchTree {
         enough(selector.chosen, params)
     }
 
+    /// Indices of the indexed samples within `radius` of `target` in the
+    /// search ellipsoid, by increasing distance.
+    pub fn within(&self, target: &Point, radius: f64) -> Vec<usize> {
+        let mut found = vec![];
+        self.index
+            .nearest(&self.project(target), radius * radius, |_, i| {
+                found.push(i);
+                false
+            });
+        found
+    }
+
+    /// As [`SearchTree::neighbors`] with `extra` added after the indexed
+    /// samples, numbered from [`SearchTree::len`], without adding them.
+    pub fn neighbors_plus(&self, target: &Point, extra: &[Sample]) -> Result<Vec<usize>> {
+        let params = &self.params;
+        let n = self.len();
+        if n + extra.len() == 0 || params.max_samples == 0 {
+            return enough(vec![], params);
+        }
+        let query = self.project(target);
+        let radius2 = params.radius * params.radius;
+        let mut pending: Vec<(u64, usize)> = extra
+            .iter()
+            .enumerate()
+            .map(|(j, s)| (d2(&self.project(&s.loc), &query), n + j))
+            .filter(|&(d, _)| d <= radius2)
+            .map(|(d, i)| (d.to_bits(), i))
+            .collect();
+        pending.sort_unstable();
+        let sample = |i: usize| match i < n {
+            true => (self.locs[i], self.holes[i], self.values[i], self.domains[i]),
+            false => {
+                let s = &extra[i - n];
+                (s.loc, s.hole, s.value, s.domain)
+            }
+        };
+        let z = self
+            .locs
+            .first()
+            .or(extra.first().map(|s| &s.loc))
+            .map(|p| p.2);
+        let sectors = Sectors {
+            planar: self.sectors.planar && extra.iter().all(|s| Some(s.loc.2) == z),
+            ..self.sectors
+        };
+        let offer = |group: &mut Vec<usize>, d2: f64, selector: &mut Selector| {
+            group.drain(..).any(|i| {
+                let (loc, hole, value, domain) = sample(i);
+                params.admits(target, None, &loc, value, domain, d2.sqrt())
+                    && selector.offer(i, &loc, hole)
+            })
+        };
+        let push = |d2: f64, i: usize, state: &mut (Vec<usize>, f64, Selector)| {
+            let (group, at, selector) = state;
+            if d2 != *at && !group.is_empty() && offer(group, *at, selector) {
+                return true;
+            }
+            *at = d2;
+            group.push(i);
+            false
+        };
+        let mut state = (vec![], f64::NAN, Selector::new(target, params, &sectors));
+        let mut pending = pending.into_iter().peekable();
+        let mut full = false;
+        self.index.nearest(&query, radius2, |d2, i| {
+            while let Some(&(bits, j)) = pending.peek()
+                && (bits, j) < (d2.to_bits(), i)
+            {
+                pending.next();
+                if push(f64::from_bits(bits), j, &mut state) {
+                    full = true;
+                    return true;
+                }
+            }
+            full = push(d2, i, &mut state);
+            full
+        });
+        if !full {
+            full = pending.any(|(bits, j)| push(f64::from_bits(bits), j, &mut state));
+        }
+        let (mut group, at, mut selector) = state;
+        if !full {
+            offer(&mut group, at, &mut selector);
+        }
+        enough(selector.chosen, params)
+    }
+
     /// Offers the samples of `group`, all at squared distance `d2`, that the
     /// search admits, one per location; true once the selection is full.
     fn offer(

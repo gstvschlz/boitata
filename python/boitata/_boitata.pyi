@@ -975,6 +975,32 @@ class Search:
     @property
     def target_efficiency(self) -> float | None: ...
 
+class _DrillholePlan:
+    def __init__(
+        self,
+        estimator: _Estimator,
+        targets: Any,
+        data: ArrayLike,
+        data_holes: Sequence[int] | None,
+        composites: ArrayLike,
+        owner: Sequence[int],
+        collars: ArrayLike,
+        costs: Sequence[float],
+        excluded: Sequence[bool],
+        objective: str | Callable[[Table], ArrayLike],
+        rules: Sequence[Sequence[tuple[str, str, float]]] | None,
+        weights: ArrayLike | None,
+        n_holes: int | None,
+        budget: float | None,
+        min_spacing: float,
+    ) -> None: ...
+    def score(self, selected: Sequence[int]) -> float: ...
+    def gains(self, selected: Sequence[int]) -> npt.NDArray[np.float64]: ...
+    def loss(self, selected: Sequence[int]) -> npt.NDArray[np.float64]: ...
+    def feasible(self, selected: Sequence[int]) -> npt.NDArray[np.bool_]: ...
+    def neighbors(self, i: int, radius: float) -> npt.NDArray[np.int64]: ...
+    def metrics(self, selected: Sequence[int]) -> Table: ...
+
 class _Estimator:
     def to_parquet(self, path: Path, name: str) -> None: ...
     @staticmethod
