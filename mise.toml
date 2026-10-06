@@ -5,24 +5,45 @@ _.path = ["~/.cargo/bin"]
 run = "cargo build --workspace"
 
 [tasks.test]
-depends = ["py:build"]
-run = ["cargo test --workspace --exclude boitata-py", "uv run --no-sync pytest -q"]
+depends = ["py:build", "py:browsers"]
+run = ["cargo test --workspace --exclude boitata-py", "uv run --no-sync pytest -q", { task = "js:test" }]
 
 [tasks.lint]
-depends = ["py:sync"]
+depends = ["py:sync", "js:install"]
 run = [
   "cargo fmt --all --check",
   "cargo clippy --workspace --all-targets -- -D warnings",
   "uv run --no-sync ruff check python examples ci",
   "uv run --no-sync ruff format --check python examples ci",
+  "npm --prefix js/viewer run check",
 ]
 
 [tasks."py:sync"]
 run = "uv sync -q --inexact"
 
 [tasks."py:build"]
-depends = ["py:sync"]
+depends = ["py:sync", "js:build"]
 run = "uv run --no-sync maturin develop -q --uv --release"
+
+[tasks."py:browsers"]
+depends = ["py:sync"]
+run = "uv run --no-sync playwright install chromium"
+
+[tasks."js:install"]
+dir = "js/viewer"
+sources = ["package.json", "package-lock.json"]
+outputs = ["node_modules/.package-lock.json"]
+run = "npm ci --no-audit --no-fund"
+
+[tasks."js:build"]
+depends = ["js:install"]
+dir = "js/viewer"
+run = "npm run build"
+
+[tasks."js:test"]
+depends = ["js:install"]
+dir = "js/viewer"
+run = "npm test"
 
 [tasks.verify]
 depends = ["lint", "test"]
@@ -40,6 +61,7 @@ git-cliff = "2.13"
 python = "3.13"
 uv = "0.12"
 micromamba = "2.9"
+node = "24"
 
 [tasks.examples]
 depends = ["py:build"]

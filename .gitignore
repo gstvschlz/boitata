@@ -12,3 +12,5 @@ __pycache__/
 pixi.lock
 /docs/learn/
 /learn/**/*.png
+/python/boitata/_viewer.js
+node_modules/
