@@ -4,6 +4,7 @@ import { f32, u32 } from "../buffers";
 import { filterArray, type LayerFilter, writeFilter } from "../filter";
 import { stratifiedOrder, subsetCount } from "../motion";
 import { colorAt, kept, type Paint } from "../paint";
+import { pickArray } from "../pick";
 import { HALO_ORDER, pointMaterial, setOpacity } from "../shaders";
 import type { Buffers, ColumnSpec, LayerSpec } from "../types";
 import type { Representation } from "./index";
@@ -29,6 +30,7 @@ function sprites(positions: Float32Array, layer: LayerSpec, filter: LayerFilter,
   const dots = new THREE.Points(geometry, material);
   outline.frustumCulled = dots.frustumCulled = false;
   outline.renderOrder = HALO_ORDER;
+  outline.userData.halo = true;
   dots.renderOrder = HALO_ORDER + 1;
   const object = new THREE.Group().add(outline, dots);
   let drawn = 0;
@@ -42,9 +44,11 @@ function sprites(positions: Float32Array, layer: LayerSpec, filter: LayerFilter,
       const p = xyz.array as Float32Array;
       const c = colors.array as Uint8Array;
       const f = filterArray(geometry, n, filter.slots, false);
+      const rows = pickArray(geometry, n, false);
       let j = 0;
       for (const i of order) {
         if (!kept(paint, i)) continue;
+        rows[j] = index("face", i);
         p.set(positions.subarray(3 * i, 3 * i + 3), 3 * j);
         colorAt(paint, i, c, 3 * j);
         if (f) writeFilter(filter.slots, f, 4 * j, (on) => index(on, i));

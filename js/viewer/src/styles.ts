@@ -119,4 +119,24 @@ export const CSS = /* css */ `
 .btv-sweep { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
 .btv-sweep line { stroke: var(--btv-accent); stroke-width: 2; stroke-dasharray: 6 4; }
 .btv-sweep text { fill: var(--btv-text); font-size: 11px; paint-order: stroke; stroke: var(--btv-bg); stroke-width: 3px; }
+.btv-card { position: absolute; z-index: 2; min-width: 190px; max-width: 300px; max-height: calc(100% - 16px);
+  overflow-y: auto; background: var(--btv-panel); border: 1px solid var(--btv-border); border-radius: 6px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, .14); user-select: text; }
+.btv-card[hidden] { display: none; }
+.btv-card-head { display: flex; align-items: center; gap: 4px; padding: 4px 4px 4px 10px; font-weight: 600;
+  border-bottom: 1px solid var(--btv-border); }
+.btv-card dl { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 2px 14px; margin: 0; padding: 6px 10px 8px; }
+.btv-card dt { color: var(--btv-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 140px; }
+.btv-card dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; overflow: hidden; text-overflow: ellipsis;
+  white-space: nowrap; }
+.btv-help { left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 3; max-width: 340px; }
+.btv-help dt { max-width: none; }
+.btv-help dd { text-align: left; white-space: normal; color: var(--btv-text); }
+.btv-help kbd { font: 11px/1.4 ui-monospace, SFMono-Regular, Consolas, monospace; padding: 0 5px; color: var(--btv-text);
+  background: var(--btv-raised); border: 1px solid var(--btv-border); border-radius: 3px; }
+.btv-root:focus-visible::after { content: ""; position: absolute; inset: 0; pointer-events: none;
+  border: 2px solid var(--btv-accent); opacity: .6; }
+.btv-root:fullscreen { width: 100%; height: 100% !important; }
+.btv-icon[aria-disabled=true] { opacity: .35; cursor: not-allowed; }
+.btv-card hr { grid-column: 1 / -1; width: 100%; margin: 3px 0; border: 0; border-top: 1px solid var(--btv-border); }
 `;

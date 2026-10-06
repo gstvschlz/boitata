@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { LineMaterial } from "three/examples/jsm/lines/LineMaterial.js";
 import { COLLAPSE, FILTER_GLSL, type FilterUniforms } from "./filter";
+import { PICK_FRAGMENT, PICK_PASS, PICK_VERTEX } from "./pick";
 import { MAX_SEGMENTS, SECTION_GLSL, sectionUniforms } from "./section";
 
 /** Uniforms every material shares; the viewer updates them once per frame. */
@@ -13,6 +14,10 @@ export const shared = {
   uResolution: { value: new THREE.Vector2(1, 1) },
   /** Theme accent, which outlines where a section cuts a surface. */
   uAccent: { value: new THREE.Color(1, 0.4, 0.3) },
+  /** 1 while the id pass renders: every material writes its layer and row instead of its color. */
+  uPicking: { value: 0 },
+  /** How far toward the camera surfaces draw, in meters, so they win over the blocks built from them. */
+  uSurfaceBias: { value: 0 },
 };
 
 /** Width of the halo around thin marks, in CSS pixels on each side. */
@@ -28,6 +33,8 @@ export interface Cut {
   caps?: boolean;
   /** Outline where the slab's faces cross the surface, in the theme accent. */
   outline?: boolean;
+  /** Draw `shared.uSurfaceBias` meters nearer the camera, along each vertex's line of sight. */
+  bias?: boolean;
 }
 
 /**
@@ -39,17 +46,28 @@ export interface Cut {
  */
 export function shadedMaterial(instanced: boolean, opacity: number, filter: FilterUniforms, cut: Cut = {}): THREE.ShaderMaterial {
   const material = new THREE.ShaderMaterial({
-    uniforms: { ...filter, ...sectionUniforms, uLight: shared.uLight, uAccent: shared.uAccent, uOpacity: { value: opacity } },
+    uniforms: {
+      ...filter,
+      ...sectionUniforms,
+      uLight: shared.uLight,
+      uAccent: shared.uAccent,
+      uPicking: shared.uPicking,
+      uSurfaceBias: shared.uSurfaceBias,
+      uOpacity: { value: opacity },
+    },
     vertexColors: !instanced,
     side: THREE.DoubleSide,
     defines: {
       ...(cut.whole ? { SECTION_WHOLE: "" } : {}),
       ...(cut.caps ? { SECTION_CAPS: "" } : {}),
       ...(cut.outline ? { SECTION_OUTLINE: "" } : {}),
+      ...(cut.bias ? { SURFACE_BIAS: "" } : {}),
     },
     vertexShader: /* glsl */ `
       ${FILTER_GLSL}
       ${SECTION_GLSL}
+      ${PICK_VERTEX}
+      uniform float uSurfaceBias;
       attribute vec4 aFilter;
       varying vec3 vColor;
       varying vec3 vNormal;
@@ -66,6 +84,7 @@ export function shadedMaterial(instanced: boolean, opacity: number, filter: Filt
           mat4 m = modelMatrix;
           vColor = color;
         #endif
+        ${PICK_PASS}
         vec4 world = m * vec4(position, 1.0);
         vWorld = world.xyz;
         #ifdef USE_INSTANCING
@@ -74,7 +93,11 @@ export function shadedMaterial(instanced: boolean, opacity: number, filter: Filt
           vRef = world.xyz;
         #endif
         vNormal = sectionTurn(mat3(m) * normal, vRef);
-        gl_Position = projectionMatrix * viewMatrix * vec4(sectionPlace(world.xyz, vRef), 1.0);
+        vec4 view = viewMatrix * vec4(sectionPlace(world.xyz, vRef), 1.0);
+        #ifdef SURFACE_BIAS
+          view.xyz *= max(0.05, 1.0 - uSurfaceBias / max(length(view.xyz), 1e-6));
+        #endif
+        gl_Position = projectionMatrix * view;
         vLocal = position;
         vEyeLocal = vec3(0.0);
         #ifdef SECTION_CAPS
@@ -90,6 +113,7 @@ export function shadedMaterial(instanced: boolean, opacity: number, filter: Filt
       }`,
     fragmentShader: /* glsl */ `
       ${SECTION_GLSL}
+      ${PICK_FRAGMENT}
       uniform mat4 projectionMatrix;
       uniform vec3 uLight;
       uniform vec3 uAccent;
@@ -139,7 +163,7 @@ export function shadedMaterial(instanced: boolean, opacity: number, filter: Filt
             if (t > 1.0) discard;
             vec4 clip = projectionMatrix * viewMatrix * vec4(sectionPlace(eye + t * dir, vRef), 1.0);
             gl_FragDepth = 0.5 * clip.z / clip.w + 0.5;
-            gl_FragColor = vec4(vColor, uOpacity);
+            gl_FragColor = uPicking > 0.5 ? pickColor() : vec4(vColor, uOpacity);
             return;
           }
           gl_FragDepth = gl_FragCoord.z;
@@ -147,6 +171,10 @@ export function shadedMaterial(instanced: boolean, opacity: number, filter: Filt
         #ifndef SECTION_WHOLE
           if (!sectionKeep(vWorld)) discard;
         #endif
+        if (uPicking > 0.5) {
+          gl_FragColor = pickColor();
+          return;
+        }
         #ifdef SECTION_OUTLINE
           float edge = uSecCount > 0 ? sectionEdge(vWorld) : 1e30;
           float band = 1.5 * fwidth(edge);
@@ -174,6 +202,7 @@ export function pointMaterial(size: number, opacity: number, filter: FilterUnifo
       ...sectionUniforms,
       uPixelRatio: shared.uPixelRatio,
       uHalo: shared.uHalo,
+      uPicking: shared.uPicking,
       uSize: { value: size + (halo ? 2 * HALO : 0) },
       uOpacity: { value: opacity },
     },
@@ -181,12 +210,14 @@ export function pointMaterial(size: number, opacity: number, filter: FilterUnifo
     vertexShader: /* glsl */ `
       ${FILTER_GLSL}
       ${SECTION_GLSL}
+      ${PICK_VERTEX}
       attribute vec4 aFilter;
       uniform float uPixelRatio;
       uniform float uSize;
       varying vec3 vColor;
       void main() {
         vColor = color;
+        ${PICK_PASS}
         gl_PointSize = uSize * uPixelRatio;
         vec3 world = (modelMatrix * vec4(position, 1.0)).xyz;
         gl_Position = projectionMatrix * viewMatrix * vec4(sectionPlace(world, world), 1.0);
@@ -196,11 +227,16 @@ export function pointMaterial(size: number, opacity: number, filter: FilterUnifo
         }
       }`,
     fragmentShader: /* glsl */ `
+      ${PICK_FRAGMENT}
       uniform vec3 uHalo;
       uniform float uOpacity;
       varying vec3 vColor;
       void main() {
         if (length(gl_PointCoord - 0.5) > 0.5) discard;
+        if (uPicking > 0.5) {
+          gl_FragColor = pickColor();
+          return;
+        }
         gl_FragColor = vec4(${halo ? "uHalo" : "vColor"}, uOpacity);
       }`,
   });
@@ -223,6 +259,7 @@ export function boxEdgeMaterial(axes: number[][], width: number, opacity: number
       ...sectionUniforms,
       uAxes: { value: new THREE.Matrix3().set(u[0], v[0], w[0], u[1], v[1], w[1], u[2], v[2], w[2]) },
       uResolution: shared.uResolution,
+      uPicking: shared.uPicking,
       uWidth: { value: width },
       uOpacity: { value: opacity },
     },
@@ -230,6 +267,7 @@ export function boxEdgeMaterial(axes: number[][], width: number, opacity: number
     vertexShader: /* glsl */ `
       ${FILTER_GLSL}
       ${SECTION_GLSL}
+      ${PICK_VERTEX}
       attribute vec4 aFilter;
       uniform mat3 uAxes;
       uniform vec2 uResolution;
@@ -244,6 +282,7 @@ export function boxEdgeMaterial(axes: number[][], width: number, opacity: number
       varying vec3 vWorld;
       void main() {
         vColor = iColor;
+        ${PICK_PASS}
         vec3 wa = (modelMatrix * vec4(iCenter + uAxes * (aStart * iSize), 1.0)).xyz;
         vec3 wb = (modelMatrix * vec4(iCenter + uAxes * (aEnd * iSize), 1.0)).xyz;
         vWorld = aCorner.x < 0.5 ? wa : wb;
@@ -258,22 +297,26 @@ export function boxEdgeMaterial(axes: number[][], width: number, opacity: number
       }`,
     fragmentShader: /* glsl */ `
       ${SECTION_GLSL}
+      ${PICK_FRAGMENT}
       uniform float uOpacity;
       varying vec3 vColor;
       varying vec3 vWorld;
       void main() {
         if (!sectionKeep(vWorld)) discard;
-        gl_FragColor = vec4(vColor, uOpacity);
+        gl_FragColor = uPicking > 0.5 ? pickColor() : vec4(vColor, uOpacity);
       }`,
   });
   setOpacity(material, opacity);
   return material;
 }
 
-/** Instanced boxes that only write depth, so an opaque wireframe hides the edges behind it; filtered like the edges. */
+/**
+ * Instanced boxes that only write depth, so an opaque wireframe hides the edges behind it; filtered like the edges.
+ * The id pass lets them write color, so a click on a face picks its block.
+ */
 export function depthMaterial(filter: FilterUniforms): THREE.ShaderMaterial {
-  return new THREE.ShaderMaterial({
-    uniforms: { ...filter, ...sectionUniforms },
+  const material = new THREE.ShaderMaterial({
+    uniforms: { ...filter, ...sectionUniforms, uPicking: shared.uPicking },
     colorWrite: false,
     polygonOffset: true,
     polygonOffsetFactor: 1,
@@ -281,9 +324,11 @@ export function depthMaterial(filter: FilterUniforms): THREE.ShaderMaterial {
     vertexShader: /* glsl */ `
       ${FILTER_GLSL}
       ${SECTION_GLSL}
+      ${PICK_VERTEX}
       attribute vec4 aFilter;
       varying vec3 vWorld;
       void main() {
+        ${PICK_PASS}
         mat4 m = modelMatrix * instanceMatrix;
         vWorld = (m * vec4(position, 1.0)).xyz;
         gl_Position = projectionMatrix * viewMatrix * vec4(sectionPlace(vWorld, m[3].xyz), 1.0);
@@ -291,12 +336,15 @@ export function depthMaterial(filter: FilterUniforms): THREE.ShaderMaterial {
       }`,
     fragmentShader: /* glsl */ `
       ${SECTION_GLSL}
+      ${PICK_FRAGMENT}
       varying vec3 vWorld;
       void main() {
         if (!sectionKeep(vWorld)) discard;
-        gl_FragColor = vec4(0.0);
+        gl_FragColor = uPicking > 0.5 ? pickColor() : vec4(0.0);
       }`,
   });
+  material.userData.pickColor = true;
+  return material;
 }
 
 /**
@@ -309,18 +357,24 @@ export function lineMaterial(
   paired = false,
 ): LineMaterial {
   const material = new LineMaterial(params);
-  Object.assign(material.uniforms, filter, sectionUniforms);
+  Object.assign(material.uniforms, filter, sectionUniforms, { uPicking: shared.uPicking });
   const test = paired ? "filterPass2(aFilter, aFilter2)" : "filterPass(aFilter)";
   const place = (end: string) =>
     `vec4 ${end} = viewMatrix * vec4(sectionPlace((modelMatrix * vec4(instance${end[0].toUpperCase()}${end.slice(1)}, 1.0)).xyz, secMid), 1.0);`;
   material.vertexShader = material.vertexShader
-    .replace("void main() {", `${FILTER_GLSL}\n${SECTION_GLSL}\nattribute vec4 aFilter;\nattribute vec4 aFilter2;\nvoid main() {`)
+    .replace(
+      "void main() {",
+      `${FILTER_GLSL}\n${SECTION_GLSL}\n${PICK_VERTEX}\nattribute vec4 aFilter;\nattribute vec4 aFilter2;\nvoid main() {\n${PICK_PASS}`,
+    )
     .replace(
       "vec4 start = modelViewMatrix * vec4( instanceStart, 1.0 );",
       `vec3 secMid = (modelMatrix * vec4(0.5 * (instanceStart + instanceEnd), 1.0)).xyz;\n${place("start")}`,
     )
     .replace("vec4 end = modelViewMatrix * vec4( instanceEnd, 1.0 );", place("end"))
     .replace("#include <fog_vertex>", `#include <fog_vertex>\nif (!${test} || !sectionKeep(secMid)) ${COLLAPSE}`);
+  material.fragmentShader = material.fragmentShader
+    .replace("void main() {", `${PICK_FRAGMENT}\nvoid main() {`)
+    .replace(/}\s*$/, "if (uPicking > 0.5) gl_FragColor = pickColor();\n}");
   return material;
 }
 

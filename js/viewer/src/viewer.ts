@@ -39,6 +39,8 @@ import {
   toState,
 } from "./filter";
 import { columnPaint, type Paint, solidPaint, type Scale } from "./paint";
+import { type Action, keyAction, SHORTCUTS } from "./keys";
+import { formatValue, type Hit, isClick, nearestHit, PICK_RADIUS, round7 } from "./pick";
 import { type Renderer, webgl } from "./renderer";
 import {
   buildSection,
@@ -51,9 +53,10 @@ import {
   type SectionState,
   snap45,
   traces,
+  unfold,
   writeSection,
 } from "./section";
-import { shared } from "./shaders";
+import { HALO_ORDER, shared } from "./shaders";
 import { CSS } from "./styles";
 import { resolveTheme, type Theme, type ThemeSpec, themeBase, withBase } from "./theme";
 import { formatRange } from "./ticks";
@@ -116,6 +119,14 @@ interface Variable {
   label: string | null;
 }
 
+/** A picked element as Python reads it: real-world position, values by column, null for nulls. */
+export interface PickState {
+  layer: string;
+  row: number;
+  values: Record<string, number | string | null>;
+  position: [number, number, number];
+}
+
 export interface MountOptions {
   /** Fill the host's height instead of the scene's `height`. */
   fill?: boolean;
@@ -127,6 +138,8 @@ export interface MountOptions {
   section?: SectionState | Record<string, never>;
   /** Called after the user cuts, edits, unfolds or clears the section; empty when cleared. */
   onSection?: (section: SectionState | Record<string, never>) => void;
+  /** Called after a click picks an element, or dismisses the pick with an empty object. */
+  onPick?: (picked: PickState | Record<string, never>) => void;
 }
 
 export class Viewer {
@@ -191,6 +204,24 @@ export class Viewer {
   };
   private emitTimer: ReturnType<typeof setTimeout> | undefined;
 
+  private surfaceBias = 0;
+  private clickAt: XY | null = null;
+  private picked: PickState | null = null;
+  private card = document.createElement("div");
+  private help = document.createElement("div");
+  private fullButton: HTMLButtonElement;
+  private helpButton = iconButton("keyboard", "Keyboard shortcuts (?)", () => this.toggleHelp());
+  private highlight = new THREE.Group();
+  private highlightLines = new LineMaterial({
+    linewidth: 2.5,
+    polygonOffset: true,
+    polygonOffsetFactor: -2,
+    polygonOffsetUnits: -8,
+  });
+  private highlightRim = new LineMaterial({ linewidth: 8, transparent: true, depthWrite: false });
+  private highlightOver = new LineMaterial({ linewidth: 2.5, depthTest: false, transparent: true });
+  private highlightRing = ringMaterial();
+
   constructor(
     host: HTMLElement,
     private spec: SceneSpec,
@@ -226,8 +257,9 @@ export class Viewer {
     this.gizmo = new Gizmo((snap) => this.snap(snap));
     this.themeSpec = spec.theme;
 
-    this.layers = spec.layers.map((layer) => {
+    this.layers = spec.layers.map((layer, index) => {
       const filter = new LayerFilter();
+      filter.uniforms.uLayer.value = index;
       const l: Layer = {
         spec: { ...layer },
         rep: null as unknown as Representation,
@@ -249,21 +281,39 @@ export class Viewer {
       this.scene.add(l.rep.object);
       return l;
     });
+    this.surfaceBias = surfaceBias(spec.layers, buffers);
     for (const [name, v] of Object.entries(spec.variables)) {
       this.variables.set(name, { cmap: v.cmap ?? DEFAULT_COLORMAP, clim: v.clim ?? null, label: v.label ?? null });
     }
 
     this.outline.renderOrder = 10;
-    this.scene.add(this.outline);
+    this.scene.add(this.outline, this.highlight);
     this.sweep.setAttribute("class", "btv-sweep");
     this.bars.className = "btv-bars";
-    this.root.append(this.axes.overlay, this.sweep, this.bars, this.gizmo.el);
-    this.reopen = iconButton("layers", "Show panel (h)", () => this.togglePanel());
+    this.card.className = "btv-card";
+    this.card.hidden = true;
+    this.help.className = "btv-card btv-help";
+    this.help.hidden = true;
+    this.root.append(this.axes.overlay, this.sweep, this.bars, this.gizmo.el, this.card);
+    this.reopen = iconButton("layers", "Show panel (H)", () => this.togglePanel());
     this.reopen.classList.add("btv-open");
     this.reopen.hidden = true;
-    this.themeButton = iconButton("moon", "Switch theme (t)", () => this.toggleTheme());
+    this.themeButton = iconButton("moon", "Switch theme (T)", () => this.toggleTheme());
+    this.fullButton = iconButton("maximize", "Fullscreen", () => void this.toggleFullscreen());
+    if (!document.fullscreenEnabled) this.fullscreenOff();
+    const fullscreen = () => this.fullscreenChanged();
+    document.addEventListener("fullscreenchange", fullscreen);
+    this.cleanup.push(() => document.removeEventListener("fullscreenchange", fullscreen));
     this.buildPanel();
-    this.root.append(this.panel, this.reopen);
+    this.root.append(this.panel, this.reopen, this.help);
+    this.root.addEventListener(
+      "pointerdown",
+      (e) => {
+        const path = e.composedPath();
+        if (!this.help.hidden && !path.includes(this.help) && !path.includes(this.helpButton)) this.toggleHelp(false);
+      },
+      { capture: true },
+    );
 
     this.applyTheme(true);
     this.box = visibleBox(this.layers);
@@ -297,7 +347,9 @@ export class Viewer {
     clearTimeout(this.measureTimer);
     clearTimeout(this.emitTimer);
     this.clearOutline();
-    for (const m of [this.outlineLines, this.outlineEdges, this.outlineDots]) m.dispose();
+    this.clearHighlight();
+    for (const m of [this.outlineLines, this.outlineEdges, this.outlineDots, this.highlightLines, this.highlightRim, this.highlightOver, this.highlightRing])
+      m.dispose();
     this.controls.dispose();
     this.layers.forEach((l) => {
       l.rep.dispose();
@@ -327,10 +379,6 @@ export class Viewer {
         this.controls.update();
       }
     }
-    writeSection(this.drawing ? null : this.cutSection, !!this.cut?.unfolded);
-    shared.uAccent.value.set(this.theme.accent);
-    this.outlineLines.resolution.set(this.width, this.height);
-    this.outlineEdges.resolution.set(this.width, this.height);
     if (this.refit) {
       const t = Math.min(1, (performance.now() - this.refit.start) / REFIT_MS);
       const eased = 1 - (1 - t) ** 3;
@@ -349,14 +397,24 @@ export class Viewer {
       }
       this.lastMove = now;
     }
+    this.shareUniforms();
+    this.axes.update(this.camera, this.width, this.height);
+    this.gizmo.update(this.camera);
+    this.renderer.render(this.scene, this.camera);
+  }
+
+  /** Writes this viewer's state into the uniforms its materials share with any other viewer on the page. */
+  private shareUniforms(): void {
+    writeSection(this.drawing ? null : this.cutSection, !!this.cut?.unfolded);
+    shared.uAccent.value.set(this.theme.accent);
+    for (const m of [this.outlineLines, this.outlineEdges, this.highlightLines, this.highlightRim, this.highlightOver])
+      m.resolution.set(this.width, this.height);
     const forward = this.camera.getWorldDirection(new THREE.Vector3());
     shared.uLight.value.copy(forward.negate().add(new THREE.Vector3(0, 0, 0.3))).normalize();
     shared.uPixelRatio.value = this.pixelRatio;
     shared.uResolution.value.set(this.width, this.height);
+    shared.uSurfaceBias.value = this.surfaceBias;
     for (const layer of this.layers) layer.rep.frame?.(this.width, this.height);
-    this.axes.update(this.camera, this.width, this.height);
-    this.gizmo.update(this.camera);
-    this.renderer.render(this.scene, this.camera);
   }
 
   private resize(): void {
@@ -504,6 +562,7 @@ export class Viewer {
   /** Redraws a layer in another representation, keeping its color, range, opacity, filter and visibility. */
   setRepresentation(layer: Layer, name: string): void {
     if (name === layer.spec.representation || !representations(layer.spec.kind).includes(name)) return;
+    this.dismiss();
     this.scene.remove(layer.rep.object);
     layer.rep.dispose();
     layer.spec.representation = name;
@@ -528,6 +587,7 @@ export class Viewer {
 
   /** Sets a layer's conditions: their columns go into its buffers, so it repaints. */
   setConditions(layer: Layer, conditions: Condition[], emit = true): void {
+    this.dismiss();
     this.setSlots(layer, conditions);
     this.paint(layer);
     this.refitBox();
@@ -538,6 +598,7 @@ export class Viewer {
 
   /** A bound or category changed: new uniforms now, counts and bounds once the edits pause. */
   private filterEdited(layer: Layer): void {
+    this.dismiss();
     layer.filter.update();
     this.requestRender();
     this.dirty.add(layer);
@@ -659,6 +720,7 @@ export class Viewer {
   }
 
   private toggleLayer(layer: Layer, solo: boolean): void {
+    this.dismiss();
     if (solo) {
       const alone = this.layers.every((l) => l.visible === (l === layer));
       for (const l of this.layers) this.setVisible(l, alone || l === layer);
@@ -682,7 +744,8 @@ export class Viewer {
     this.renderer.setBackground(t.background);
     shared.uHalo.value.set(t.halo);
     shared.uAccent.value.set(t.accent);
-    for (const m of [this.outlineLines, this.outlineEdges, this.outlineDots]) m.color.set(t.accent);
+    for (const m of [this.outlineLines, this.outlineEdges, this.outlineDots, this.highlightLines, this.highlightRim, this.highlightOver])
+      m.color.set(t.accent);
     this.axes.setTheme(t);
     this.gizmo.setTheme(t);
     setIcon(this.themeButton, t.dark ? "sun" : "moon");
@@ -709,9 +772,11 @@ export class Viewer {
     head.append(
       brand,
       this.themeButton,
-      iconButton("fit", "Fit view (f)", () => this.fit()),
+      iconButton("fit", "Fit view (R)", () => this.fit()),
+      this.fullButton,
       iconButton("camera", "Screenshot", () => (this.shotMenu.hidden = !this.shotMenu.hidden)),
-      iconButton("hide", "Hide panel (h)", () => this.togglePanel()),
+      this.helpButton,
+      iconButton("hide", "Hide panel (H)", () => this.togglePanel()),
     );
     this.buildShotMenu();
     this.body.className = "btv-body";
@@ -1386,13 +1451,14 @@ export class Viewer {
 
   /** Rebuilds the section from the cut, width and dip, with its axes, box and outline. */
   private applySection(): void {
+    this.dismiss();
     const c = this.cut;
     this.cutSection = c ? buildSection(c.points, c.z, this.sectionWidth(), this.cutDip) : null;
     if (!this.cutSection) this.cut = null;
     if (this.cut?.unfolded) {
       const unit = /\(([^)]*)\)$/.exec(this.spec.axes[0])?.[1];
       const suffix = unit ? ` (${unit})` : "";
-      this.axes.setFrame([0, 0, this.spec.origin[2]], [`Distance${suffix}`, `Offset${suffix}`, this.spec.axes[2]]);
+      this.axes.setFrame([0, 0, this.spec.origin[2]], [`Distance${suffix}`, `Offset${suffix}`, `Elevation${suffix}`]);
     } else this.axes.setFrame(this.spec.origin, this.spec.axes);
     this.refitBox();
     this.drawOutline();
@@ -1604,7 +1670,10 @@ export class Viewer {
       this.press = at;
       return;
     }
-    if (!e.shiftKey || this.cut?.unfolded) return;
+    if (!e.shiftKey || this.cut?.unfolded) {
+      this.clickAt = at;
+      return;
+    }
     e.preventDefault();
     e.stopImmediatePropagation();
     this.renderer.canvas.setPointerCapture(e.pointerId);
@@ -1625,6 +1694,9 @@ export class Viewer {
 
   private pointerUp(e: PointerEvent): void {
     const at = this.screen(e);
+    const click = isClick(this.clickAt, at, CLICK_PX);
+    this.clickAt = null;
+    if (click && !this.drawing && !this.quick) return this.pick(at);
     if (this.quick) {
       const { from } = this.quick;
       this.endQuick();
@@ -1639,9 +1711,9 @@ export class Viewer {
     this.press = null;
   }
 
-  /** The width under the mouse wheel while cutting or drawing, or with Shift held; Ctrl+wheel still zooms. */
+  /** The wheel zooms; Shift+wheel sets the width while cutting or drawing, or of the section there is. */
   private wheel(e: WheelEvent): void {
-    if (e.ctrlKey || !(this.quick || this.drawing || e.shiftKey)) return;
+    if (e.ctrlKey || !e.shiftKey || !(this.quick || this.drawing || this.cut)) return;
     e.preventDefault();
     e.stopImmediatePropagation();
     const delta = e.deltaY || e.deltaX;
@@ -1692,13 +1764,13 @@ export class Viewer {
       tools.appendChild(b);
     };
     const c = this.cut;
-    tool("draw", this.drawing ? "Cut along the polyline (Enter)" : "Draw a polyline section (d)", !!this.drawing, true, () =>
+    tool("draw", this.drawing ? "Cut along the polyline (Enter)" : "Draw a section (S)", !!this.drawing, true, () =>
       this.toggleDrawing(),
     );
-    tool(c?.unfolded ? "fold" : "unfold", c?.unfolded ? "Fold back (u)" : "Unfold (u)", !!c?.unfolded, !!c && !this.drawing, () =>
+    tool(c?.unfolded ? "fold" : "unfold", c?.unfolded ? "Fold back (U)" : "Unfold (U)", !!c?.unfolded, !!c && !this.drawing, () =>
       this.toggleUnfolded(),
     );
-    tool("clear", this.drawing ? "Cancel drawing (Esc)" : "Clear the section (c)", false, !!c || !!this.drawing, () =>
+    tool("clear", this.drawing ? "Cancel drawing (Esc)" : "Clear the section (X)", false, !!c || !!this.drawing, () =>
       this.clearSection(),
     );
     const pair = (title: string, slider: [number, number, number], set: (slider: number | null, typed: number | null) => void) => {
@@ -1754,43 +1826,328 @@ export class Viewer {
     const s = this.cutSection;
     if (d) {
       const n = d.points.length;
-      hint.textContent = `${n} point${n === 1 ? "" : "s"}. Click to add, Shift locks 45°, wheel sets the width, Backspace undoes, Enter cuts, Esc cancels.`;
+      hint.textContent = `${n} point${n === 1 ? "" : "s"}. Click to add, Shift locks 45°, Shift+wheel sets the width, Backspace undoes, Enter cuts, Esc cancels.`;
     } else if (s && this.cut) {
       const n = s.segments.length + 1;
-      hint.textContent = `${n} points, ${formatLength(s.length)} long. u ${this.cut.unfolded ? "folds back" : "unfolds"}, c clears.`;
-    } else hint.textContent = "Shift-drag across the view for a straight cut, or draw a polyline (d).";
+      hint.textContent = `${n} points, ${formatLength(s.length)} long. Shift+wheel sets the width, U ${this.cut.unfolded ? "folds back" : "unfolds"}, X clears.`;
+    } else hint.textContent = "Shift-drag across the view for a straight cut (Shift+wheel sets its width), or draw a polyline (S).";
+  }
+
+  // ---- picking ----
+
+  /** The element under CSS pixel `at`, from an id pass drawn for this click in full detail; null for none. */
+  private hitAt(at: XY): Hit | null {
+    this.settle.stop();
+    this.shareUniforms();
+    const hidden: THREE.Object3D[] = [];
+    const hide = (o: THREE.Object3D) => {
+      if (!o.visible) return;
+      o.visible = false;
+      hidden.push(o);
+    };
+    [this.axes.group, this.outline, this.highlight].forEach(hide);
+    const saved: [THREE.Material, THREE.Blending, boolean][] = [];
+    this.scene.traverse((o) => {
+      if (o.userData.halo) hide(o);
+      const m = (o as THREE.Mesh).material;
+      if (!m || Array.isArray(m)) return;
+      saved.push([m, m.blending, m.colorWrite]);
+      m.blending = THREE.NoBlending;
+      if (m.userData.pickColor) m.colorWrite = true;
+    });
+    shared.uPicking.value = 1;
+    shared.uPixelRatio.value = 1;
+    const w = this.renderer.pick(this.scene, this.camera, at[0], at[1], PICK_RADIUS);
+    shared.uPicking.value = 0;
+    shared.uPixelRatio.value = this.pixelRatio;
+    for (const [m, blending, colorWrite] of saved.reverse()) {
+      m.blending = blending;
+      m.colorWrite = colorWrite;
+    }
+    hidden.forEach((o) => (o.visible = true));
+    this.requestRender();
+    return nearestHit(w.pixels, w.width, w.height, w.x, w.y);
+  }
+
+  /** Inspects the element under CSS pixel `at`: its card, its highlight, and Python's `picked`; empty space dismisses. */
+  pick(at: XY): void {
+    const hit = this.hitAt(at);
+    const layer = hit ? this.layers[hit.layer] : undefined;
+    if (!hit || !layer) return this.dismiss();
+    const element = this.inspect(layer, hit.row, at);
+    this.picked = element.state;
+    this.drawHighlight(element);
+    this.showCard(layer.spec.name, element.card, at);
+    this.options.onPick?.(element.state);
+  }
+
+  /** Closes the card and drops the highlight and the pick. */
+  dismiss(): void {
+    if (!this.picked) return;
+    this.picked = null;
+    this.card.hidden = true;
+    this.clearHighlight();
+    this.requestRender();
+    this.options.onPick?.({});
+  }
+
+  /** The last pick as Python reads it; null without one. */
+  pickState(): PickState | null {
+    return this.picked;
+  }
+
+  /** Where a local point draws: moved with its segment's stretch (that of `ref`) when the section is unfolded. */
+  private place(p: Vec3, ref: Vec3 = p): Vec3 {
+    return this.cut?.unfolded && this.cutSection ? unfold(this.cutSection, p, ref) : p;
+  }
+
+  /**
+   * A picked row's values, real-world position and card lines, and its highlight in the accent: a ring around its
+   * position, which keeps a small element easy to find, and the edges of a block or a mesh triangle, a rim under a
+   * drill-hole interval drawn as lines, or its axis over tubes. A mesh row is a triangle; its vertex columns are
+   * read at the corner nearest the click.
+   */
+  private inspect(layer: Layer, row: number, at: XY): Inspected {
+    const { kind, geometry, representation: rep } = layer.spec;
+    const xyz = (a: Float32Array, i: number): Vec3 => [a[3 * i], a[3 * i + 1], a[3 * i + 2]];
+    const out: Inspected = { state: null as unknown as PickState, card: [], lines: [], rings: [], rim: 0, over: false };
+    const extra: [string, string][] = [];
+    let position: Vec3;
+    let vertex = row;
+    if (kind === "blocks") {
+      const sizes = f32(this.buffers, geometry.sizes);
+      position = xyz(f32(this.buffers, geometry.centers), row);
+      const size = xyz(sizes, row);
+      if (rep !== "points")
+        for (const p of boxEdges(position, size, (layer.spec.axes ?? IDENTITY) as Vec3[])) out.lines.push(...this.place(p, position));
+      extra.push(["Block size", size.map((v) => formatValue(v)).join(" × ")]);
+    } else if (kind === "drillholes") {
+      position = xyz(f32(this.buffers, geometry.midpoints), row);
+      if (rep !== "points") {
+        const ends = f32(this.buffers, geometry.positions);
+        const rows = u32(this.buffers, geometry.rows);
+        for (let i = 0; i < rows.length; i++) {
+          if (rows[i] !== row) continue;
+          const [a, b] = [xyz(ends, 2 * i), xyz(ends, 2 * i + 1)];
+          const mid: Vec3 = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2];
+          out.lines.push(...this.place(a, mid), ...this.place(b, mid));
+        }
+        if (rep === "lines") out.rim = (layer.spec.lineWidth ?? 2.5) + 6;
+        else out.over = true;
+      }
+    } else if (kind === "points") {
+      position = xyz(f32(this.buffers, geometry.positions), row);
+    } else {
+      const points = f32(this.buffers, geometry.positions);
+      const triangles = u32(this.buffers, geometry.triangles);
+      const corners = [0, 1, 2].map((k) => triangles[3 * row + k]);
+      const screen = corners.map((v) => this.toScreen(this.place(xyz(points, v))));
+      const nearest = screen.reduce((best, s, k) => (dist2(s, at) < dist2(screen[best], at) ? k : best), 0);
+      vertex = corners[nearest];
+      position = xyz(points, vertex);
+      if (rep !== "points") {
+        const v = corners.map((c) => this.place(xyz(points, c)));
+        out.lines.push(...v[0], ...v[1], ...v[1], ...v[2], ...v[2], ...v[0]);
+        if (!this.cut?.unfolded) position = this.onTriangle(at, v) ?? position;
+      }
+    }
+    out.rings.push(...this.place(position));
+
+    const values: PickState["values"] = {};
+    for (const c of layer.spec.columns) {
+      const data = this.columnData(layer, c);
+      const v = data[c.on === "vertex" ? vertex : row];
+      values[c.name] = c.type === "text" ? (c.categories?.[v] ?? null) : Number.isFinite(v) ? round7(v) : null;
+    }
+    const o = this.spec.origin;
+    const world: [number, number, number] = [position[0] + o[0], position[1] + o[1], position[2] + o[2]];
+    out.state = { layer: layer.spec.name, row, values, position: world };
+
+    const holes = layer.spec.holes;
+    const own = new Set(holes ? [holes.hole, holes.from, holes.to] : []);
+    if (holes) {
+      const depths = geometry.depths ? f32(this.buffers, geometry.depths) : null;
+      out.card.push([
+        ["Hole", formatValue(values[holes.hole])],
+        ["From", formatValue(depths ? round7(depths[2 * row]) : null)],
+        ["To", formatValue(depths ? round7(depths[2 * row + 1]) : null)],
+      ]);
+    }
+    const columns = layer.spec.columns.filter((c) => !own.has(c.name));
+    if (columns.length) out.card.push(columns.map((c) => [c.name, formatValue(values[c.name])]));
+    out.card.push([...this.spec.axes.map((title, k): [string, string] => [title, world[k].toFixed(2)]), ...extra]);
+    return out;
+  }
+
+  private toScreen(p: Vec3): XY {
+    const v = new THREE.Vector3(...p).project(this.camera);
+    return [((v.x + 1) / 2) * this.width, ((1 - v.y) / 2) * this.height];
+  }
+
+  /** Where the ray under CSS pixel `at` meets the plane of triangle `v`; null when it runs parallel. */
+  private onTriangle(at: XY, v: Vec3[]): Vec3 | null {
+    const { origin, direction } = this.ray(at);
+    const plane = new THREE.Plane().setFromCoplanarPoints(...(v.map((p) => new THREE.Vector3(...p)) as [THREE.Vector3, THREE.Vector3, THREE.Vector3]));
+    const hit = new THREE.Ray(new THREE.Vector3(...origin), new THREE.Vector3(...direction)).intersectPlane(plane, new THREE.Vector3());
+    return hit ? (hit.toArray() as Vec3) : null;
+  }
+
+  private clearHighlight(): void {
+    for (const child of this.highlight.children) (child as THREE.Mesh).geometry.dispose();
+    this.highlight.clear();
+  }
+
+  private drawHighlight(element: Inspected): void {
+    this.clearHighlight();
+    if (element.lines.length) {
+      const material = element.rim ? this.highlightRim : element.over ? this.highlightOver : this.highlightLines;
+      if (element.rim) this.highlightRim.linewidth = element.rim;
+      const line = new LineSegments2(new LineSegmentsGeometry().setPositions(element.lines), material);
+      line.frustumCulled = false;
+      line.renderOrder = element.rim ? HALO_ORDER + 0.5 : 12;
+      this.highlight.add(line);
+    }
+    if (element.rings.length) {
+      const g = new THREE.BufferGeometry();
+      g.setAttribute("position", new THREE.Float32BufferAttribute(element.rings, 3));
+      const ring = new THREE.Points(g, this.highlightRing);
+      ring.frustumCulled = false;
+      ring.renderOrder = 12;
+      this.highlight.add(ring);
+    }
+    this.requestRender();
+  }
+
+  /** The inspect card beside the click, kept inside the view: the layer's name, then groups of lines. */
+  private showCard(name: string, groups: [string, string][][], at: XY): void {
+    const head = document.createElement("div");
+    head.className = "btv-card-head";
+    const title = document.createElement("span");
+    title.className = "btv-name";
+    title.textContent = title.title = name;
+    head.append(title, iconButton("x", "Close (Esc)", () => this.dismiss()));
+    const list = document.createElement("dl");
+    groups.forEach((lines, g) => {
+      if (g) list.appendChild(document.createElement("hr"));
+      for (const [key, value] of lines) {
+        const dt = document.createElement("dt");
+        const dd = document.createElement("dd");
+        dt.textContent = dt.title = key;
+        dd.textContent = dd.title = value;
+        list.append(dt, dd);
+      }
+    });
+    this.card.replaceChildren(head, list);
+    this.card.hidden = false;
+    const w = this.card.offsetWidth;
+    const h = this.card.offsetHeight;
+    const gap = 14;
+    let x = at[0] + gap;
+    if (x + w > this.width - 8) x = at[0] - gap - w;
+    let y = at[1] + gap;
+    if (y + h > this.height - 8) y = this.height - 8 - h;
+    this.card.style.left = `${Math.max(8, x)}px`;
+    this.card.style.top = `${Math.max(8, y)}px`;
   }
 
   // ---- keys and screenshots ----
 
   private key(e: KeyboardEvent): void {
     const target = e.composedPath()[0] as HTMLElement;
-    if (e.ctrlKey || e.metaKey || e.altKey || /^(INPUT|SELECT|TEXTAREA)$/.test(target?.tagName ?? "")) return;
-    const drawing = this.drawing;
-    const action = {
-      f: () => this.fit(),
-      h: () => this.togglePanel(),
-      t: () => this.toggleTheme(),
-      d: () => this.toggleDrawing(),
-      u: () => this.toggleUnfolded(),
-      c: () => this.clearSection(),
-      enter: drawing ? () => this.finishDrawing() : undefined,
-      escape: drawing ? () => this.endDrawing() : this.quick ? () => this.endQuick() : undefined,
-      backspace: drawing ? () => this.undoVertex() : undefined,
-      shift: drawing ? () => this.setShift(true) : undefined,
-    }[e.key.toLowerCase()];
+    const inField = /^(INPUT|SELECT|TEXTAREA)$/.test(target?.tagName ?? "");
+    const cancellable = !!(this.drawing || this.quick || this.picked || !this.help.hidden);
+    const action = keyAction(e, inField, { drawing: !!this.drawing, cancellable });
     if (!action) return;
     e.preventDefault();
     e.stopPropagation();
-    action();
+    this.act(action);
   }
 
-  /** The current view as a PNG blob at `scale`, with color bars, labels and gizmo, and the panel if asked. */
-  async screenshot(scale: number, panel: boolean): Promise<Blob> {
+  act(action: Action): void {
+    ({
+      fit: () => this.fit(),
+      plan: () => this.setView(0, 90),
+      draw: () => this.toggleDrawing(),
+      finish: () => this.finishDrawing(),
+      undo: () => this.undoVertex(),
+      lock: () => this.setShift(true),
+      unfold: () => this.toggleUnfolded(),
+      clear: () => this.clearSection(),
+      panel: () => this.togglePanel(),
+      theme: () => this.toggleTheme(),
+      help: () => this.toggleHelp(),
+      cancel: () => {
+        if (this.drawing) this.endDrawing();
+        else if (this.quick) this.endQuick();
+        else if (!this.help.hidden) this.toggleHelp(false);
+        else this.dismiss();
+      },
+    })[action]();
+  }
+
+  /** Shows or hides the card listing the keyboard shortcuts. */
+  toggleHelp(show = this.help.hidden): void {
+    if (!this.help.childElementCount) {
+      const head = document.createElement("div");
+      head.className = "btv-card-head";
+      const title = document.createElement("span");
+      title.className = "btv-name";
+      title.textContent = "Keyboard shortcuts";
+      head.append(title, iconButton("x", "Close (Esc)", () => this.toggleHelp(false)));
+      const list = document.createElement("dl");
+      for (const [key, text] of SHORTCUTS) {
+        const dt = document.createElement("dt");
+        const kbd = document.createElement("kbd");
+        kbd.textContent = key;
+        dt.appendChild(kbd);
+        const dd = document.createElement("dd");
+        dd.textContent = text;
+        list.append(dt, dd);
+      }
+      this.help.append(head, list);
+    }
+    this.help.hidden = !show;
+  }
+
+  /** Enters or leaves fullscreen; where the page forbids it, the button says so and stays off. */
+  private async toggleFullscreen(): Promise<void> {
+    if (this.fullButton.getAttribute("aria-disabled") === "true") return;
+    try {
+      if (document.fullscreenElement) await document.exitFullscreen();
+      else await this.root.requestFullscreen();
+    } catch {
+      this.fullscreenOff();
+    }
+  }
+
+  private fullscreenOff(): void {
+    this.fullButton.setAttribute("aria-disabled", "true");
+    this.fullButton.setAttribute("aria-label", "Fullscreen is unavailable");
+    this.fullButton.title = "Fullscreen is unavailable: the page embedding the viewer does not allow it";
+  }
+
+  private fullscreenChanged(): void {
+    const on = this.root.matches(":fullscreen");
+    setIcon(this.fullButton, on ? "minimize" : "maximize");
+    this.fullButton.title = on ? "Leave fullscreen (Esc)" : "Fullscreen";
+    this.fullButton.setAttribute("aria-label", this.fullButton.title);
+  }
+
+  /** Resolves once camera glides and box refits have ended and the last requested frame is drawn. */
+  async idle(): Promise<void> {
+    while (this.tween || this.refit || this.pending) await new Promise((r) => requestAnimationFrame(r));
+  }
+
+  /**
+   * The current view as a PNG blob at `scale`, in full detail, with color bars, labels and gizmo, the panel if
+   * asked, on a transparent background if asked. The screenshot button and Python both take it.
+   */
+  async screenshot(scale: number, panel: boolean, transparent = false): Promise<Blob> {
     this.settle.stop();
+    await this.idle();
     this.frame();
     shared.uPixelRatio.value = scale;
-    const canvas = this.renderer.snapshot(this.scene, this.camera, scale);
+    const canvas = this.renderer.snapshot(this.scene, this.camera, scale, transparent);
     shared.uPixelRatio.value = this.pixelRatio;
     this.requestRender();
     const ratio = canvas.width / this.width;
@@ -1851,6 +2208,71 @@ export class Viewer {
     a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   }
+}
+
+/** What a pick shows: Python's payload, the card's groups of lines, and the highlight in local coordinates. */
+interface Inspected {
+  state: PickState;
+  card: [string, string][][];
+  lines: number[];
+  rings: number[];
+  /** Width of the rim drawn under picked lines, in CSS pixels; 0 for none. */
+  rim: number;
+  /** Whether the lines draw over everything, as the axis of a tube does. */
+  over: boolean;
+}
+
+const IDENTITY: Vec3[] = [
+  [1, 0, 0],
+  [0, 1, 0],
+  [0, 0, 1],
+];
+
+/**
+ * How far mesh surfaces draw toward the camera: half the largest block side of the scene, the most a block built
+ * from a surface strays from it, so the surface shows over such blocks instead of in stripes between them.
+ */
+function surfaceBias(layers: LayerSpec[], buffers: Buffers): number {
+  let side = 0;
+  for (const layer of layers) {
+    if (layer.kind !== "blocks") continue;
+    const sizes = f32(buffers, layer.geometry.sizes);
+    for (let i = 0; i < sizes.length; i++) if (sizes[i] > side) side = sizes[i];
+  }
+  return side / 2;
+}
+
+const dist2 = (a: XY, b: XY) => (a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2;
+
+/** End points of the 12 edges of a box at `center`, `size` along each of `axes`. */
+function boxEdges(center: Vec3, size: Vec3, axes: Vec3[]): Vec3[] {
+  const corner = (c: number): Vec3 =>
+    [0, 1, 2].map((d) => center[d] + [0, 1, 2].reduce((s, k) => s + (((c >> k) & 1) - 0.5) * size[k] * axes[k][d], 0)) as Vec3;
+  const out: Vec3[] = [];
+  for (let a = 0; a < 3; a++) for (let c = 0; c < 8; c++) if (!((c >> a) & 1)) out.push(corner(c), corner(c | (1 << a)));
+  return out;
+}
+
+/** An accent ring of a fixed screen size around picked points, drawn over everything. */
+function ringMaterial(): THREE.ShaderMaterial {
+  return new THREE.ShaderMaterial({
+    uniforms: { uAccent: shared.uAccent, uPixelRatio: shared.uPixelRatio },
+    depthTest: false,
+    transparent: true,
+    vertexShader: /* glsl */ `
+      uniform float uPixelRatio;
+      void main() {
+        gl_PointSize = 22.0 * uPixelRatio;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }`,
+    fragmentShader: /* glsl */ `
+      uniform vec3 uAccent;
+      void main() {
+        float r = 2.0 * length(gl_PointCoord - 0.5);
+        if (r > 1.0 || r < 0.75) discard;
+        gl_FragColor = vec4(uAccent, 1.0);
+      }`,
+  });
 }
 
 function label(text: string): HTMLLabelElement {

@@ -4,6 +4,7 @@ import { f32 } from "../buffers";
 import { filterArray, type LayerFilter, writeFilter } from "../filter";
 import { stratifiedOrder, subsetCount } from "../motion";
 import { colorAt, kept, type Paint } from "../paint";
+import { pickArray } from "../pick";
 import { setOpacity, shadedMaterial } from "../shaders";
 import type { Buffers, LayerSpec } from "../types";
 import type { Representation } from "./index";
@@ -33,9 +34,11 @@ export function spheres(layer: LayerSpec, buffers: Buffers, filter: LayerFilter)
       const m = mesh.instanceMatrix.array as Float32Array;
       const c = colors.array as Uint8Array;
       const f = filterArray(mesh.geometry, n, filter.slots, true);
+      const rows = pickArray(mesh.geometry, n, true);
       let j = 0;
       for (const i of order) {
         if (!kept(paint, i)) continue;
+        rows[j] = i;
         const o = 16 * j;
         m.fill(0, o, o + 16);
         m[o] = m[o + 5] = m[o + 10] = radius;

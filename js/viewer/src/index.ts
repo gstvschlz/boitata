@@ -2,7 +2,16 @@ import { own } from "./buffers";
 import type { FilterState } from "./filter";
 import type { SectionState } from "./section";
 import type { Buffers, SceneSpec } from "./types";
-import { type MountOptions, Viewer } from "./viewer";
+import { type MountOptions, type PickState, Viewer } from "./viewer";
+
+/** A screenshot Python asks the widget for; the answer carries the PNG as a binary buffer. */
+interface ShotRequest {
+  type: "screenshot";
+  id: number;
+  scale: number;
+  panel: boolean;
+  transparent: boolean;
+}
 
 interface Model {
   get(name: "spec"): SceneSpec;
@@ -11,12 +20,19 @@ interface Model {
   get(name: "section"): SectionState | Record<string, never> | undefined;
   set(name: "filters", value: Record<string, FilterState>): void;
   set(name: "section", value: SectionState | Record<string, never>): void;
+  set(name: "picked", value: PickState | Record<string, never>): void;
   save_changes(): void;
+  send(content: object, callbacks?: unknown, buffers?: ArrayBuffer[]): void;
+  on(event: "msg:custom", callback: (msg: ShotRequest) => void): void;
   on(event: string, callback: () => void): void;
+  off(event: "msg:custom", callback: (msg: ShotRequest) => void): void;
   off(event: string, callback: () => void): void;
 }
 
-/** anywidget entry point; the filters and the section sync both ways with Python. */
+/**
+ * anywidget entry point; the filters and the section sync both ways with Python, the pick one way. The view tells
+ * Python it is shown, so screenshots ask it, and answers their requests through `Viewer.screenshot`.
+ */
 function render({ model, el }: { model: Model; el: HTMLElement }): () => void {
   const raw = model.get("buffers");
   const buffers: Buffers = {};
@@ -32,14 +48,29 @@ function render({ model, el }: { model: Model; el: HTMLElement }): () => void {
       model.set("section", section);
       model.save_changes();
     },
+    onPick(picked) {
+      model.set("picked", picked);
+      model.save_changes();
+    },
   });
   const filters = () => viewer.setFilters(model.get("filters") ?? {});
   const section = () => viewer.setSection(model.get("section") ?? {});
+  const message = (msg: ShotRequest) => {
+    if (msg?.type !== "screenshot") return;
+    viewer
+      .screenshot(msg.scale, msg.panel, msg.transparent)
+      .then(async (blob) => model.send({ type: "screenshot", id: msg.id }, undefined, [await blob.arrayBuffer()]))
+      .catch((e: unknown) => model.send({ type: "screenshot", id: msg.id, error: String(e) }));
+  };
   model.on("change:filters", filters);
   model.on("change:section", section);
+  model.on("msg:custom", message);
+  model.send({ type: "view", shown: true });
   return () => {
     model.off("change:filters", filters);
     model.off("change:section", section);
+    model.off("msg:custom", message);
+    model.send({ type: "view", shown: false });
     viewer.dispose();
   };
 }
