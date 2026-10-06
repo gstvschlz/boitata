@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.4.3 - 2026-10-06
+
+### Features
+
+- **plot3d:** three.js viewer core in a private module
+- **plot3d:** representations and motion quality in the three.js viewer
+- **plot3d:** per-layer attribute filter on the GPU in the three.js viewer
+- **plot3d:** section maker with straight and polyline cuts in the three.js viewer
+- **plot3d:** click to inspect, screenshots, fullscreen and shortcuts in the three.js viewer
+- **estimation:** [**breaking**] remove DrillholePlan and the drill-hole search strategies
+- **plot3d:** [**breaking**] three.js viewer replaces pyvista
+
+### Documentation
+
+- use the bt alias in simulation docstring examples
 ## 0.4.2 - 2026-10-06
 
 ### Features
