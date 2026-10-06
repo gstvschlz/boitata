@@ -55,7 +55,7 @@ function boxes(b: Blocks, material: THREE.Material, colored: boolean) {
 /** Blocks as instanced boxes along the model's axes, each scaled to its own (sub-)block size. */
 export function cells(layer: LayerSpec, buffers: Buffers, filter: LayerFilter): Representation {
   const b = blocks(layer, buffers);
-  const material = shadedMaterial(true, layer.opacity, filter.uniforms);
+  const material = shadedMaterial(true, layer.opacity, filter.uniforms, { caps: true });
   const { mesh, colors } = boxes(b, material, true);
   let drawn = 0;
 

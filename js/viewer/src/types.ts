@@ -1,4 +1,5 @@
 import type { FilterState } from "./filter";
+import type { SectionState } from "./section";
 import type { ThemeSpec } from "./theme";
 
 export type Kind = "drillholes" | "points" | "mesh" | "blocks";
@@ -54,6 +55,8 @@ export interface SceneSpec {
   motion?: "auto" | "full" | number;
   variables: Record<string, VariableSpec>;
   layers: LayerSpec[];
+  /** Section to start with, in real-world coordinates; empty for none. */
+  section?: SectionState | Record<string, never>;
 }
 
 export type Buffers = Record<string, ArrayBuffer>;

@@ -17,7 +17,7 @@ export function spheres(layer: LayerSpec, buffers: Buffers, filter: LayerFilter)
   const box = boxOf(positions);
   const radius = layer.radius ?? Math.max(diagonal(box) * RADIUS_SHARE, 1e-6);
   const order = stratifiedOrder(positions, n);
-  const material = shadedMaterial(true, layer.opacity, filter.uniforms);
+  const material = shadedMaterial(true, layer.opacity, filter.uniforms, { whole: true });
   const mesh = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(1, 2), material, Math.max(n, 1));
   mesh.frustumCulled = false;
   mesh.count = 0;

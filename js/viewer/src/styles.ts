@@ -112,4 +112,11 @@ export const CSS = /* css */ `
 .btv-bar { pointer-events: auto; cursor: grab; touch-action: none; }
 .btv-bar.btv-moved { position: absolute; }
 .btv-bar svg { display: block; }
+.btv-icon:disabled { opacity: .35; cursor: default; pointer-events: none; }
+.btv-pair input[type=range] { flex: 1; min-width: 0; }
+.btv-settings .btv-pair input[type=number] { width: 64px; flex: none; }
+.btv-hint { grid-column: 1 / -1; }
+.btv-sweep { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
+.btv-sweep line { stroke: var(--btv-accent); stroke-width: 2; stroke-dasharray: 6 4; }
+.btv-sweep text { fill: var(--btv-text); font-size: 11px; paint-order: stroke; stroke: var(--btv-bg); stroke-width: 3px; }
 `;

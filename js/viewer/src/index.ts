@@ -1,5 +1,6 @@
 import { own } from "./buffers";
 import type { FilterState } from "./filter";
+import type { SectionState } from "./section";
 import type { Buffers, SceneSpec } from "./types";
 import { type MountOptions, Viewer } from "./viewer";
 
@@ -7,13 +8,15 @@ interface Model {
   get(name: "spec"): SceneSpec;
   get(name: "buffers"): Record<string, ArrayBuffer | ArrayBufferView>;
   get(name: "filters"): Record<string, FilterState> | undefined;
+  get(name: "section"): SectionState | Record<string, never> | undefined;
   set(name: "filters", value: Record<string, FilterState>): void;
+  set(name: "section", value: SectionState | Record<string, never>): void;
   save_changes(): void;
   on(event: string, callback: () => void): void;
   off(event: string, callback: () => void): void;
 }
 
-/** anywidget entry point; the filters sync both ways with Python. */
+/** anywidget entry point; the filters and the section sync both ways with Python. */
 function render({ model, el }: { model: Model; el: HTMLElement }): () => void {
   const raw = model.get("buffers");
   const buffers: Buffers = {};
@@ -24,11 +27,19 @@ function render({ model, el }: { model: Model; el: HTMLElement }): () => void {
       model.set("filters", filters);
       model.save_changes();
     },
+    section: model.get("section") ?? {},
+    onSection(section) {
+      model.set("section", section);
+      model.save_changes();
+    },
   });
-  const changed = () => viewer.setFilters(model.get("filters") ?? {});
-  model.on("change:filters", changed);
+  const filters = () => viewer.setFilters(model.get("filters") ?? {});
+  const section = () => viewer.setSection(model.get("section") ?? {});
+  model.on("change:filters", filters);
+  model.on("change:section", section);
   return () => {
-    model.off("change:filters", changed);
+    model.off("change:filters", filters);
+    model.off("change:section", section);
     viewer.dispose();
   };
 }

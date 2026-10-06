@@ -92,7 +92,7 @@ export function lines(layer: LayerSpec, buffers: Buffers, filter: LayerFilter): 
 export function tubes(layer: LayerSpec, buffers: Buffers, filter: LayerFilter): Representation {
   const s = segments(layer, buffers);
   const radius = layer.radius ?? Math.max(diagonal(s.box) * RADIUS_SHARE, 1e-6);
-  const material = shadedMaterial(true, layer.opacity, filter.uniforms);
+  const material = shadedMaterial(true, layer.opacity, filter.uniforms, { whole: true });
   const mesh = new THREE.InstancedMesh(new THREE.CylinderGeometry(1, 1, 1, SIDES), material, Math.max(s.n, 1));
   mesh.frustumCulled = false;
   mesh.count = 0;

@@ -18,7 +18,7 @@ export function surface(layer: LayerSpec, buffers: Buffers, filter: LayerFilter)
   const positions = f32(buffers, layer.geometry.positions);
   const triangles = u32(buffers, layer.geometry.triangles);
   const nt = triangles.length / 3;
-  const material = shadedMaterial(false, layer.opacity, filter.uniforms);
+  const material = shadedMaterial(false, layer.opacity, filter.uniforms, { outline: true });
   const object = new THREE.Mesh(new THREE.BufferGeometry(), material);
   object.frustumCulled = false;
   object.renderOrder = 1;
