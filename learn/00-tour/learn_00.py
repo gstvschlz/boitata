@@ -197,107 +197,137 @@ print(f"host rock: {np.nanmean(host):.2f} % Zn over {np.isfinite(host).sum():,} 
 # Zinc reaches 8 to 10 % inside each lens and drops toward the contact; across it, the host averages 0.07 %. The
 # contacts are hard, so host composites must not inform the lenses, and each lens gets its own estimate.
 #
+# ## A sparse grid of mining blocks
+#
+# Kriged sub-blocks give the metal in place. A mine digs fixed blocks, the selective mining units (SMUs), here
+# cubes of 5 m on a regular grid that runs from below the lenses up to the highest collar. You drop the cells above
+# the collar topography and keep every cell a lens touches; `Mesh.proportion` gives the share of each cell inside
+# each lens. The collars give no surface outside the drilled outline, so cells there stay. The masked model stores
+# the kept rows alone
+# ([block models from extents](../../examples/02-data-and-geometry/12-block-model-from-extents/example_02_12.md)).
+
+# %%
+summit = [[*lenses["lens_1"].vertices.mean(axis=0)[:2], collars.coords[:, 2].max()]]
+grid = bt.BlockModel.from_extents(*lenses.values(), summit, size=(5, 5, 5), buffer=5, snap=True)
+centers = grid.centroids
+below = ~(centers[:, 2] >= ground.grid["z"][ground.grid.row_at(centers[:, :2])])
+cells = grid.mask(below)
+shares = np.array([mesh.proportion(cells) for mesh in lenses.values()])
+touched = shares.sum(axis=0) > 0
+shares = shares[:, touched]
+smus = cells.mask(touched).with_columns(
+    {
+        "LENS": list(np.array(list(lenses))[shares.argmax(axis=0)]),
+        "fraction": np.minimum(shares.sum(axis=0), 1.0),
+    }
+)
+inside = (smus["fraction"] * smus.volumes).sum()
+solid = sum(mesh.volume for mesh in lenses.values())
+print(f"{len(grid):,} cells in the grid, {below.sum():,} below ground, {len(smus):,} touch a lens")
+print(
+    f"{np.mean(smus['fraction'] == 1):.0%} of them lie wholly inside; lens volume {inside / 1e6:.2f} Mm³ of {solid / 1e6:.2f}"
+)
+assert abs(inside / solid - 1) < 0.01
+
+# %% [markdown]
+# Two thirds of the SMUs only graze a lens and carry their share; together they hold the lens volume to within 1 %.
+#
 # ## Kriging
 #
-# Ordinary kriging runs in three search passes. The first wants six composites within the variogram range, at most
-# two per hole; blocks it leaves go to a pass at twice the range, and the last pass reaches every block.
-# `domain_column="LENS"` keeps each lens to its own composites. Density, measured on fewer samples, is kriged the
-# same way, so tonnes follow the rock ([kriging](../04-kriging/learn_04.md)).
+# Ordinary kriging runs in two search passes, on the sub-blocks and on the SMUs. The first wants six composites
+# within the variogram range, at most two per hole. The second reaches every remaining block: its radius is the
+# largest distance from any block to the nearest composite of its lens. `domain_column="LENS"` keeps each lens to its
+# own composites. Density, measured on fewer samples, is kriged the same way, so tonnes follow the rock
+# ([kriging](../04-kriging/learn_04.md)).
 
 # %%
 reach = variogram.structures[0].range
+closest = bt.OrdinaryKriging(variogram, bt.Search(1000, max_samples=1)).fit(
+    ore, "ZN_PCT", domain_column="LENS"
+)
+far = max(
+    np.max(closest.predict(m, diagnostics=True, domain_column="LENS")["mean_distance"])
+    for m in (blocks, smus)
+)
 passes = [
     bt.Search(reach, max_samples=12, min_samples=6, max_per_hole=2),
-    bt.Search(2 * reach, max_samples=12, min_samples=4, max_per_hole=2),
-    bt.Search(300, max_samples=12, max_per_hole=2),
+    bt.Search(10 * np.ceil(far / 10), max_samples=12, max_per_hole=2),
 ]
+print(f"pass 2 radius {passes[1].radius:.0f} m")
 zn = bt.OrdinaryKriging(variogram, passes).fit(ore, "ZN_PCT", holes="HOLE_ID", domain_column="LENS")
-kriged = zn.predict(blocks, diagnostics=True, domain_column="LENS")
 measured = ore.filter(np.isfinite(ore["DENSITY"]))
 density = bt.OrdinaryKriging(variogram, passes).fit(
     measured, "DENSITY", holes="HOLE_ID", domain_column="LENS"
 )
+kriged = zn.predict(blocks, diagnostics=True, domain_column="LENS")
 blocks = blocks.with_columns(
     {"zn": kriged["value"], "density": density.predict(blocks, domain_column="LENS"), "pass": kriged["pass"]}
 )
-for p in (1, 2, 3):
-    print(f"pass {p}: {np.mean(kriged['pass'] == p):.0%} of blocks")
+smus = smus.with_columns(
+    {"zn": zn.predict(smus, domain_column="LENS"), "density": density.predict(smus, domain_column="LENS")}
+)
+for model in (blocks, smus):
+    assert np.isfinite(model["zn"]).all() and np.isfinite(model["density"]).all()
+for p in (1, 2):
+    print(f"pass {p}: {np.mean(kriged['pass'] == p):.0%} of sub-blocks")
 
 # %% [markdown]
-# ## A sparse grid of mining blocks
+# Every sub-block and every SMU gets a grade and a density.
 #
-# Kriged sub-blocks give the metal in place. A mine digs fixed blocks, the selective mining units (SMUs), here
-# cubes of 5 m on a regular grid over the lenses. You keep the cells whose center lies below the collar topography
-# and inside a lens. The masked model stores those rows alone
-# ([block models from extents](../../examples/02-data-and-geometry/12-block-model-from-extents/example_02_12.md)).
+# A mine digs a whole SMU, host rock included, so each SMU's grade is diluted: the lens grade on its lens share, the
+# host composites' mean grade and density on the rest.
 
 # %%
-grid = bt.BlockModel.from_extents(*lenses.values(), size=(5, 5, 5), buffer=5, snap=True)
-centers = grid.centroids
-below = centers[:, 2] < ground.grid["z"][ground.grid.row_at(centers[:, :2])]
-smu_lens = np.full(len(grid), "", dtype=object)
-for name, mesh in lenses.items():
-    smu_lens[below & mesh.contains(centers)] = name
-keep = smu_lens != ""
-smus = grid.mask(keep).with_column("LENS", list(smu_lens[keep]))
-print(f"{len(grid):,} cells in the grid, {below.sum():,} below ground, {len(smus):,} SMUs kept")
-print(
-    f"SMUs: {smus.volumes.sum() / 1e6:.2f} Mm³ against {sum(m.volume for m in lenses.values()) / 1e6:.2f} Mm³ of lens"
+host = composites.filter(names == "host")
+host_zn, host_density = np.nanmean(host["ZN_PCT"]), np.nanmean(host["DENSITY"])
+f = smus["fraction"]
+smus = smus.with_columns(
+    {
+        "zn_diluted": f * smus["zn"] + (1 - f) * host_zn,
+        "density_diluted": f * smus["density"] + (1 - f) * host_density,
+    }
 )
+print(f"host: {host_zn:.2f} % Zn, {host_density:.2f} t/m³")
 
 # %% [markdown]
-# Selecting by block center trims 3.5 % of the lens volume: thin edges where no center falls inside are lost, a first
-# taste of dilution and ore loss at this block size.
-#
 # ## Turning bands
 #
 # A kriged SMU is too smooth to say how much ore lies above a cutoff. Turning bands draws 50 realizations of zinc,
-# each lens from its own data, on eight nodes per SMU; `blocks=` averages each realization over its SMU, and
-# `grade_tonnage_cutoffs=` builds a grade-tonnage curve per realization while it streams
-# ([turning bands](../../examples/08-stochastic-simulation/04-turning-bands/example_08_04.md),
+# each lens from its own data, on eight nodes per SMU, and `blocks=` averages each realization over its SMU. Each
+# realization is then diluted like the kriged grades, and the probability that an SMU exceeds 5 % Zn counts the
+# realizations above it ([turning bands](../../examples/08-stochastic-simulation/04-turning-bands/example_08_04.md),
 # [simulation](../05-simulation/learn_05.md)).
 
 # %%
-smus = smus.with_column("density", density.predict(smus, domain_column="LENS"))
 nodes = smus.discretize(2)
 parent = np.asarray(nodes["block"], dtype=np.int64)
 nodes = nodes.with_column("LENS", list(np.asarray(smus["LENS"], dtype=object)[parent]))
 tb = bt.TurningBands(gaussian, search=passes[1]).fit(
     ore, "ZN_PCT", weights="weight", holes="HOLE_ID", domain_column="LENS"
 )
-cutoffs = list(np.arange(0.0, 12.5, 0.5))
 start = time.perf_counter()
-summary = tb.simulate(
-    nodes,
-    n=50,
-    seed=7,
-    blocks=smus,
-    domain_column="LENS",
-    cutoffs=[5.0],
-    grade_tonnage_cutoffs=cutoffs,
-    density=smus["density"],
-    keep=[0],
-)
+summary = tb.simulate(nodes, n=50, seed=7, blocks=smus, domain_column="LENS", keep=True)
 print(f"{summary.n} realizations on {len(nodes):,} nodes in {time.perf_counter() - start:.0f} s")
+realizations = f * summary.realizations + (1 - f) * host_zn
 smus = smus.with_columns(
     {
         "etype": summary.mean,
-        "realization": summary.realizations[0],
-        "p_above_5": summary.probability_above[:, 0],
+        "realization": realizations[0],
+        "p_above_5": 100 * np.mean(realizations > 5.0, axis=0),
     }
 )
 
 # %% [markdown]
-# A dip section across the three lenses compares the kriged sub-blocks with one realization on the SMUs and the
-# probability that an SMU exceeds 5 % Zn.
+# A dip section across the three lenses compares the kriged sub-blocks with one diluted realization on the SMUs and
+# the probability, in percent, that an SMU exceeds 5 % Zn.
 
 # %%
 center = np.mean([mesh.vertices.mean(axis=0) for mesh in lenses.values()], axis=0)
 plane = (tuple(center), 111.0, 90.0)
 panels = [
     (blocks, "zn", "Kriged Zn (%), sub-blocks", {"vmin": 0, "vmax": 12}),
-    (smus, "realization", "Zn (%), one realization, SMUs", {"vmin": 0, "vmax": 12}),
-    (smus, "p_above_5", "P(SMU Zn > 5 %)", {"vmin": 0, "vmax": 1, "cmap": "magma"}),
+    (smus, "realization", "Diluted Zn (%), one realization, SMUs", {"vmin": 0, "vmax": 12}),
+    (smus, "p_above_5", "P(SMU Zn > 5 %) (%)", {"vmin": 0, "vmax": 100, "cmap": "magma"}),
 ]
 fig, axes = plt.subplots(1, 3, figsize=(13, 5), layout="constrained", sharey=True)
 for ax, (model, column, title, style) in zip(axes, panels, strict=True):
@@ -312,13 +342,17 @@ save(fig, "sections")
 # ## Validation
 #
 # An estimate should keep the declustered mean of its data. Nearest neighbor, which copies the closest composite
-# into each block, is a second unbiased reference, and the E-type, the mean of the realizations, a third. A swath
-# plot follows all four along strike ([checking a model](../06-checking-a-model/learn_06.md)).
+# into each block, is a second unbiased reference, and the E-type, the mean of the undiluted realizations weighted
+# by each SMU's lens volume, a third. A swath plot follows all four along strike
+# ([checking a model](../06-checking-a-model/learn_06.md)).
 
 # %%
-nearest = bt.NearestNeighbor(bt.Search(300, max_samples=1)).fit(ore, "ZN_PCT", domain_column="LENS")
+nearest = bt.NearestNeighbor(bt.Search(passes[1].radius, max_samples=1)).fit(
+    ore, "ZN_PCT", domain_column="LENS"
+)
 blocks = blocks.with_column("nn", nearest.predict(blocks, domain_column="LENS"))
 smu_names = np.asarray(smus["LENS"], dtype=object)
+lens_volume = f * smus.volumes
 for name in lenses:
     inside = block_lens == name
     bias = bt.global_bias(
@@ -328,9 +362,10 @@ for name in lenses:
         data_weights=weights[ore_names == name],
     )
     nn = np.average(blocks["nn"][inside], weights=blocks.volumes[inside])
+    etype = np.average(smus["etype"][smu_names == name], weights=lens_volume[smu_names == name])
     print(
         f"{name}: declustered {bias['data_mean']:.2f}, kriged {bias['estimate_mean']:.2f}, "
-        f"nearest neighbor {nn:.2f}, E-type {smus['etype'][smu_names == name].mean():.2f} % Zn"
+        f"nearest neighbor {nn:.2f}, E-type {etype:.2f} % Zn"
     )
 
 fig, ax = plt.subplots(figsize=(8, 3.6), layout="constrained")
@@ -339,7 +374,7 @@ bt.plot.swath(
         bt.swath(ore, "ZN_PCT", 50.0, azimuth=21.0, weights="weight"),
         bt.swath(blocks, "nn", 50.0, azimuth=21.0, weights=blocks.volumes),
         bt.swath(blocks, "zn", 50.0, azimuth=21.0, weights=blocks.volumes),
-        bt.swath(smus, "etype", 50.0, azimuth=21.0),
+        bt.swath(smus, "etype", 50.0, azimuth=21.0, weights=lens_volume),
     ],
     labels=["declustered composites", "nearest neighbor", "kriged", "turning bands E-type"],
     ax=ax,
@@ -351,18 +386,19 @@ ax.set(xlabel="Distance along strike, N021° (m)", ylabel="Zn (%)", title="Swath
 save(fig, "swath")
 
 # %% [markdown]
-# Kriging and the E-type sit within 0.3 % Zn of the declustered composites in every lens. Nearest neighbor runs
+# Kriging and the E-type sit within 0.25 % Zn of the declustered composites in every lens. Nearest neighbor runs
 # 0.4 to 0.7 % lower in lenses 2 and 3, the two with the fewest composites.
 #
 # Simulated values must also reproduce the histogram and the variogram of the data. `check_realizations` compares
-# 20 more realizations, drawn at the SMU centers so that their support matches the composites', with the
-# declustered data along strike and down dip
+# 20 more realizations, drawn at the centers of the SMUs wholly inside a lens so that their support matches the
+# composites', with the declustered data along strike and down dip
 # ([realization checks](../../examples/10-checking-models/04-realization-checks/example_10_04.md)).
 
 # %%
-points = tb.simulate(smus, n=20, seed=8, domain_column="LENS", keep=True)
+cores = smus.mask(f == 1)
+points = tb.simulate(cores, n=20, seed=8, domain_column="LENS", keep=True)
 check = bt.check_realizations(
-    smus,
+    cores,
     points,
     ore,
     "ZN_PCT",
@@ -382,57 +418,83 @@ save(fig, "reproduction")
 # %% [markdown]
 # ## Grade and tonnage
 #
-# Tonnes are volume times kriged density. Kriging predicts more tonnes at low cutoffs and fewer at high cutoffs than
-# the SMUs can deliver, because its blocks vary less than real 5 m blocks. The simulated curve carries its own
-# uncertainty, the band between the 10th and 90th percentile realizations
+# Tonnes are volume times density. The in-situ curve comes from the kriged sub-blocks; the two SMU curves add
+# dilution and the 5 m selectivity. Kriged SMUs vary less than real ones, so kriging predicts more tonnes at low
+# cutoffs and fewer at high cutoffs than the mine can deliver. The simulated curve carries its own uncertainty, the
+# band between the 10th and 90th percentile realizations
 # ([recoverable resources](../../examples/09-recoverable-resources/index.md)).
 
 # %%
-kriged_gt = bt.grade_tonnage("zn", cutoffs, weights=blocks.volumes, density="density", data=blocks)
-simulated_gt = summary.grade_tonnage()
-fig, ax = plt.subplots(figsize=(7, 4), layout="constrained")
-bt.plot.grade_tonnage({"kriged sub-blocks": kriged_gt, "turning bands, 5 m SMUs": simulated_gt}, ax=ax)
-ax.set(xlabel="Zn cutoff (%)", ylabel="Tonnes above cutoff")
+cutoffs = np.arange(0.0, 12.5, 0.5)
+tonnes = smus.volumes * smus["density_diluted"]
+curves = {
+    "kriged sub-blocks, in situ": bt.grade_tonnage(
+        "zn", cutoffs, weights=blocks.volumes, density="density", data=blocks
+    ),
+    "kriged SMUs, diluted": bt.grade_tonnage(smus["zn_diluted"], cutoffs, weights=tonnes),
+}
+per_realization = np.array(
+    [
+        [(tonnes * (r >= c)).sum() for c in cutoffs] + [(tonnes * r * (r >= c)).sum() for c in cutoffs]
+        for r in realizations
+    ]
+)
+p10, p50, p90 = np.quantile(per_realization, [0.1, 0.5, 0.9], axis=0)
+fig, ax = plt.subplots(figsize=(7.5, 4.2), layout="constrained")
+for (label, table), color in zip(curves.items(), (GRAY, ACCENT), strict=True):
+    ax.plot(table["cutoff"], np.asarray(table["tonnage"]) / 1e6, color=color, label=label)
+n = len(cutoffs)
+ax.fill_between(cutoffs, p10[:n] / 1e6, p90[:n] / 1e6, color=HIGHLIGHT, alpha=0.25, lw=0)
+ax.plot(cutoffs, p50[:n] / 1e6, color=HIGHLIGHT, label="turning bands SMUs, diluted (P10–P90)")
+ax.set(xlabel="Zn cutoff (%)", ylabel="Mt above cutoff", title="Tonnage above cutoff")
+ax.legend()
 save(fig, "grade_tonnage")
 
-at = np.asarray(kriged_gt["cutoff"]) == 5.0
-print(
-    f"kriged, above 5 % Zn: {kriged_gt['tonnage'][at][0] / 1e6:.1f} Mt at {kriged_gt['mean_grade'][at][0]:.2f} % Zn"
-)
-at = np.asarray(simulated_gt["cutoff"]) == 5.0
-for p, tonnes, grade in zip(
-    *(np.asarray(simulated_gt[c])[at] for c in ("probability", "tonnage", "mean_grade")), strict=True
-):
-    print(f"simulated P{p * 100:.0f}, above 5 % Zn: {tonnes / 1e6:.1f} Mt at {grade:.2f} % Zn")
+at = int(np.flatnonzero(cutoffs == 5.0)[0])
+for label, table in curves.items():
+    print(f"{label}, above 5 % Zn: {table['tonnage'][at] / 1e6:.1f} Mt at {table['mean_grade'][at]:.2f} % Zn")
+for p, row in (("P10", p10), ("P50", p50), ("P90", p90)):
+    print(f"simulated {p}, above 5 % Zn: {row[at] / 1e6:.1f} Mt at {row[n + at] / row[at]:.2f} % Zn")
 
 # %% [markdown]
-# Above 5 % Zn, kriging reports 11.3 Mt at 6.94 %; the SMUs deliver 9.2 to 10.0 Mt at 7.7 to 7.9 %, less ore at a
-# higher grade.
+# Above 5 % Zn the sub-blocks hold 11.2 Mt at 6.83 % in situ. Mined as whole SMUs, kriging reports 8.8 Mt at
+# 6.83 % and the realizations 8.1 to 8.7 Mt at 7.5 to 7.7 %: dilution costs about a fifth of the ore, and the
+# simulated SMUs, which vary as much as real ones, select less of it at a higher grade.
 #
 # ## In 3D
 #
-# `bt.plot3d` draws containers on pyvista: the collar topography, the hole traces, the lens wireframes, and the
-# SMUs more likely than not above 5 % Zn. Drag to rotate; in Colab the view runs in the browser
-# ([3D views](../../examples/02-data-and-geometry/11-3d-views/example_02_11.md)).
+# `bt.plot3d` draws containers on pyvista. The scene holds the collar topography, the drill holes, the lens
+# wireframes and every SMU, colored by its probability above 5 % Zn ([3D views](../../examples/02-data-and-geometry/11-3d-views/example_02_11.md),
+# [interactive sections](../../examples/02-data-and-geometry/24-interactive-sections/example_02_24.md)):
+#
+# - drag to turn, scroll to zoom; while the camera moves, large layers draw a lighter copy;
+# - the checkboxes at the top left show or hide each layer;
+# - `d` or the *draw* button switches to a plan view: click to add the vertices of a section line, hold Shift to lock
+#   a segment to a multiple of 45°, and press Enter or *draw* again to cut the scene along it;
+# - `u` or *unfold* lays the cut out as one section, `c` or *clear* removes it.
+#
+# In Colab the scene renders on the notebook's machine and streams to the browser.
 
 # %%
 low = np.min([mesh.bounds[0] for mesh in lenses.values()], axis=0) - 40
 high = np.max([mesh.bounds[1] for mesh in lenses.values()], axis=0) + 40
 traces = bt.plot3d.to_pyvista(holes).clip_box([low[0], high[0], low[1], high[1], low[2], 450], invert=False)
-scene = bt.plot3d.plot(ground.mesh, color=LIGHT, opacity=0.4)
-scene.add(traces, color=GRAY, line_width=1, opacity=0.6)
-for mesh in lenses.values():
-    scene.add(mesh, color=LIGHT, opacity=0.2)
+scene = bt.plot3d.Scene(window_size=(1200, 800))
+scene.add(ground.mesh, name="topography", color=LIGHT, opacity=0.4)
+scene.add(traces, name="drill holes", color=GRAY, line_width=1, opacity=0.6)
+for name, mesh in lenses.items():
+    scene.add(mesh, name=name.replace("_", " "), color=LIGHT, opacity=0.2)
 scene.add(
-    smus.mask(smus["p_above_5"] > 0.5),
+    smus,
     "p_above_5",
+    name="SMUs",
     cmap="magma",
-    clim=(0.5, 1.0),
-    scalar_bar_args={"title": "P(SMU Zn > 5 %)"},
+    clim=(0, 100),
+    scalar_bar_args={"title": "P(SMU Zn > 5 %) (%)"},
 )
-scene.plotter.view_vector((1.0, -0.7, 0.3))
-scene.plotter.camera.zoom(1.5)
-scene.show()
+scene.view_vector((1.0, -0.7, 0.3))
+scene.camera.zoom(1.4)
+scene.layer_toggles().section_drawer(width=20).show()
 
 # %% [hidden]
 image = scene.plotter.screenshot(return_img=True, window_size=(1400, 900))

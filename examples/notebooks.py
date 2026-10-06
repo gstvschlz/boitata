@@ -27,7 +27,7 @@ if importlib.util.find_spec("boitata") is None:
 if importlib.util.find_spec("common") is None:
     urllib.request.urlretrieve("{RAW}examples/common.py", "common.py")"""
 SETUP_3D = (
-    SETUP.replace('"boitata[plot]>=0.3"', '"boitata[all]>=0.4" "pyvista[jupyter]<0.49"')
+    SETUP.replace('"boitata[plot]>=0.3"', '"boitata[all]>=0.4.1" "pyvista[jupyter]<0.49"')
     + """
 
 import pyvista as pv
