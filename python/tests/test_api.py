@@ -1,5 +1,7 @@
 import inspect
 import re
+import subprocess
+import sys
 
 import boitata as bt
 import numpy as np
@@ -127,6 +129,12 @@ def test_domains_come_with_domain_column():
         and name not in DOMAINS_EXEMPT
     ]
     assert found == []
+
+
+def test_no_progress_bars():
+    assert [name for name, obj in CALLABLES.items() if "progress" in {p.name for p in parameters(obj)}] == []
+    code = "import sys, boitata; assert 'tqdm' not in sys.modules"
+    subprocess.run([sys.executable, "-c", code], check=True)
 
 
 def test_plots_take_keyword_only_axes():

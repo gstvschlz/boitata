@@ -40,7 +40,7 @@ install the dependencies from conda-forge, then boitatá with pip and `--no-deps
 alone.
 
 ```sh
-conda create -n geo -c conda-forge python numpy tqdm matplotlib pyvista polars pandas pyarrow pip
+conda create -n geo -c conda-forge python numpy matplotlib pyvista polars pandas pyarrow pip
 conda activate geo
 pip install --no-deps boitata
 ```
@@ -48,21 +48,21 @@ pip install --no-deps boitata
 ### pixi
 
 ```sh
-pixi add python numpy tqdm matplotlib pyvista polars pandas pyarrow
+pixi add python numpy matplotlib pyvista polars pandas pyarrow
 pixi add --pypi "boitata[all]"
 ```
 
 ## extras
 
-numpy and tqdm are the only required dependencies. boitatá imports the others on first use, and the error names the
+numpy is the only required dependency. boitatá imports the others on first use, and the error names the
 missing package.
 
 | pip extra | adds | conda-forge packages |
 |-----------|------|----------------------|
-| (none) | `numpy`, `tqdm` | `numpy tqdm` |
+| (none) | `numpy` | `numpy` |
 | `plot` | `boitata.plot` | `matplotlib` (or `matplotlib-base`) |
 | `3d` | `boitata.plot3d`; `Scene.show` uses trame in Jupyter and the browser when pyvista's `jupyter` extra is installed | `pyvista` |
-| `all` | the above, `to_polars`, `to_pandas`, `to_pyarrow`, and progress bars drawn as notebook widgets | `matplotlib pyvista polars pandas pyarrow ipywidgets` |
+| `all` | the above, and `to_polars`, `to_pandas`, `to_pyarrow` | `matplotlib pyvista polars pandas pyarrow` |
 
 ## minimum versions
 
@@ -70,13 +70,11 @@ missing package.
 |---------|---------|
 | python | 3.11 |
 | numpy | 1.26 (1.x and 2.x both work) |
-| tqdm | 4.66 |
 | matplotlib | 3.8 |
 | pyvista | 0.45 |
 | polars | 1.4 |
 | pandas | 2.2 |
 | pyarrow | 16 |
-| ipywidgets | 8 |
 
 ## headless 3D rendering
 

@@ -7,7 +7,6 @@ mod mesh;
 pub mod nonfinite;
 mod points;
 mod polylines;
-mod progress;
 pub mod rng;
 mod rotation;
 pub mod units;
@@ -19,7 +18,6 @@ pub use error::{Error, Result};
 pub use mesh::{Mesh, MeshProblem, MeshProblemKind, MeshReport, MeshSummary, signed_solid_angle};
 pub use points::PointSet;
 pub use polylines::Polylines;
-pub use progress::Progress;
 pub use rotation::{angles_from_axes, block_frame, rotation_matrix};
 
 fn check_rows(expected: usize, table: &RecordBatch) -> Result<()> {

@@ -12,7 +12,7 @@
 //! change of support, `m + √f·(z − m)`, with `f` the variance of the blocks
 //! within the panel over that of the points within it.
 
-use boitata_core::{BlockModel, Progress, block_frame};
+use boitata_core::{BlockModel, block_frame};
 use nalgebra::{Matrix3, Vector3};
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -20,11 +20,11 @@ use transforms::TransformError;
 use variogram::Variogram;
 
 use crate::Sample;
-use crate::batch::{by_pass, estimate_many_with, k_fold_at, leave_one_out_at};
+use crate::batch::{by_pass, estimate_many, k_fold_at, leave_one_out_at};
 use crate::block::{Discretization, block_krige_points};
 use crate::error::{EstimError, Result};
 use crate::krige::{Kind, krige};
-use crate::lva::{LocalAnisotropy, estimate_many_local_with};
+use crate::lva::{LocalAnisotropy, estimate_many_local};
 use crate::neighborhood::{NeighborhoodStats, neighborhood_stats};
 use crate::search::Search;
 
@@ -447,25 +447,6 @@ impl MultipleIndicator {
         cutoffs: &[f64],
         quantiles: &[f64],
     ) -> Result<IndicatorSummary> {
-        self.predict_with_progress(
-            samples, weights, targets, block, searches, local, cutoffs, quantiles, None,
-        )
-    }
-
-    /// As [`Self::predict`], ticking `progress` for each target estimated.
-    #[allow(clippy::too_many_arguments)]
-    pub fn predict_with_progress(
-        &self,
-        samples: &[Sample],
-        weights: Option<&[f64]>,
-        targets: &[Point],
-        block: Option<&[Point]>,
-        searches: &[Search],
-        local: Option<&LocalAnisotropy>,
-        cutoffs: &[f64],
-        quantiles: &[f64],
-        progress: Option<&Progress>,
-    ) -> Result<IndicatorSummary> {
         self.validate()?;
         if cutoffs.iter().any(|c| !c.is_finite()) {
             return Err(invalid("cutoffs must be finite"));
@@ -485,7 +466,6 @@ impl MultipleIndicator {
                 let near = neighborhood_stats(t, s, s.len(), f64::INFINITY, None);
                 (self.conditional(&global, &raw, cutoffs, quantiles), near)
             },
-            progress,
         )?;
         let diagnostics = diagnostics(&results, searches, |c: &Conditional| c.violations);
         let conditionals = results.into_iter().map(|r| r.map(|(_, (c, _))| c));
@@ -565,7 +545,6 @@ impl MultipleIndicator {
         searches: &[Search],
         local: Option<&LocalAnisotropy>,
         finish: impl Fn(&Point, &[Sample], Vec<f64>) -> T + Sync,
-        progress: Option<&Progress>,
     ) -> Result<Vec<Option<(usize, T)>>> {
         indicator_targets(
             targets,
@@ -575,7 +554,6 @@ impl MultipleIndicator {
             local,
             self.search_variogram(),
             |t, s, o| Ok(finish(t, s, self.kriged(t, s, global, o, block)?)),
-            progress,
         )
     }
 
@@ -649,7 +627,6 @@ impl MultipleIndicator {
             searches,
             None,
             |_, _, r| r,
-            None,
         )?;
         transforms::localize::localize(panels, smus, ranking, |p, n| {
             Ok(raw[p].as_ref().map(|(_, raw)| {
@@ -779,7 +756,6 @@ pub(crate) fn indicator_targets<T: Send>(
     local: Option<&LocalAnisotropy>,
     vg: &Variogram,
     at_target: impl Fn(&Point, &[Sample], Option<&Variogram>) -> Result<T> + Sync,
-    progress: Option<&Progress>,
 ) -> Result<Vec<Option<(usize, T)>>> {
     let known: Vec<usize> = (0..targets.len())
         .filter(|&i| domains.is_none_or(|d| d[i].is_some()))
@@ -790,25 +766,19 @@ pub(crate) fn indicator_targets<T: Send>(
         let codes: Option<Vec<u32>> = domains.map(|d| rows.iter().filter_map(|&i| d[i]).collect());
         let codes = codes.as_deref();
         match local {
-            None => Ok(estimate_many_with(
+            None => Ok(estimate_many(
                 &at,
                 codes,
                 samples,
                 search,
                 Some(vg),
                 |t, s| at_target(t, s, None),
-                progress,
             )),
-            Some(l) => estimate_many_local_with(
-                &at,
-                codes,
-                &l.at(&at),
-                samples,
-                search,
-                vg,
-                |t, s, v| at_target(t, s, Some(v)),
-                progress,
-            ),
+            Some(l) => {
+                estimate_many_local(&at, codes, &l.at(&at), samples, search, vg, |t, s, v| {
+                    at_target(t, s, Some(v))
+                })
+            }
         }
     })?;
     let mut out: Vec<_> = (0..targets.len()).map(|_| None).collect();
@@ -1316,7 +1286,6 @@ mod tests {
                 &[search(60.0)],
                 None,
                 |_, _, r| r,
-                None,
             )
             .unwrap();
         (global, raw.into_iter().map(|r| r.unwrap().1).collect())

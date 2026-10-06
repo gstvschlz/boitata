@@ -17,7 +17,6 @@ folder = Path(tempfile.mkdtemp())
 bt.write_csv(
     folder / "assays.csv",
     bt.Table({"ZN (%)": assays["ZN_PCT"], "AG [g/t]": assays["AG_GPT"], "DENSITY": assays["DENSITY"]}),
-    progress=False,
 )
 ```
 
@@ -31,7 +30,7 @@ says nothing takes its unit from `units=`.
 <details><summary>Python</summary>
 
 ```python
-table = bt.read_csv(folder / "assays.csv", units={"DENSITY": "t/m3"}, progress=False)
+table = bt.read_csv(folder / "assays.csv", units={"DENSITY": "t/m3"})
 print(table.column_names)
 print(table.units)
 ```
@@ -51,7 +50,7 @@ for one block.
 
 ```python
 with bt.units(columns={"DENSITY": "t/m3"}):
-    print(bt.read_csv(folder / "assays.csv", progress=False).units)
+    print(bt.read_csv(folder / "assays.csv").units)
 ```
 
 </details>
@@ -131,7 +130,7 @@ grid = bt.BlockModel.from_extents(
     data["lens_1"], size=(10, 10, 5), buffer=20, rotation=(22.5, 0.0, 55.0), length_unit="m"
 )
 kriging = bt.OrdinaryKriging(bt.Variogram([("spherical", 1.0, 60.0)]), bt.Search(radius=60, max_samples=12))
-estimate, variance = kriging.fit(composites, "ZN_PCT").predict(grid, return_variance=True, progress=False)
+estimate, variance = kriging.fit(composites, "ZN_PCT").predict(grid, return_variance=True)
 print(f"estimate in {estimate.unit}, variance in {variance.unit}")
 grid = grid.with_column("ZN", estimate)
 print(grid.units)
@@ -172,10 +171,10 @@ feet = bt.OrdinaryKriging(
     bt.Variogram([("spherical", 1.0, 60.0 / 0.3048)], length_unit="ft"),
     bt.Search(radius=60.0 / 0.3048, max_samples=12, length_unit="ft"),
 )
-in_feet = feet.fit(composites, "ZN_PCT").predict(grid, progress=False)
+in_feet = feet.fit(composites, "ZN_PCT").predict(grid)
 print(f"largest difference from the estimate in metres: {np.nanmax(np.abs(in_feet - estimate)):.1e} %")
 try:
-    kriging.predict(grid.to_length_unit("ft"), progress=False)
+    kriging.predict(grid.to_length_unit("ft"))
 except bt.InvalidInput as error:
     print(error)
 ```
@@ -250,7 +249,7 @@ percent, and a cutoff can be given in ppm. a cap can be given in another unit to
 mik = bt.MultipleIndicatorKriging(
     bt.Variogram([("spherical", 0.2, 60.0)]), bt.Search(radius=60, max_samples=12), [1.0, 3.0, 6.0]
 )
-summary = mik.fit(composites, "ZN_PCT").predict(grid, cutoffs=["30000 ppm"], quantiles=[0.5], progress=False)
+summary = mik.fit(composites, "ZN_PCT").predict(grid, cutoffs=["30000 ppm"], quantiles=[0.5])
 print(f"mean in {summary.mean.unit}, median in {summary.quantile_values.unit}")
 capped = bt.Capping(cap="150000 ppm").fit(composites["ZN_PCT"]).transform(composites["ZN_PCT"])
 print(f"largest capped grade: {np.nanmax(capped):.1f} {capped.unit}")

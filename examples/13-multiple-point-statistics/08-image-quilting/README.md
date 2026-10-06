@@ -46,9 +46,7 @@ realizations for each of three sizes:
 ```python
 realizations = {}
 for size in (10, 30, 60):
-    summary = bt.ImageQuilting(ti, "facies", patch_size=size).simulate(
-        grid, n=20, seed=7, keep=True, progress=False
-    )
+    summary = bt.ImageQuilting(ti, "facies", patch_size=size).simulate(grid, n=20, seed=7, keep=True)
     reals = summary.realizations.reshape(-1, ny, nx)
     realizations[size] = reals[0]
     along = np.mean([runs(r, 0) for r in reals])
@@ -107,14 +105,14 @@ rows = np.random.default_rng(0).choice(nx * ny, size=100, replace=False)
 wells = grid.centroids[rows]
 facies = truth.ravel()[rows].astype(int)
 hard = bt.ImageQuilting(ti, "facies", patch_size=30).fit(wells, facies)
-with_data = hard.simulate(grid, n=20, seed=3, keep=True, progress=False)
+with_data = hard.simulate(grid, n=20, seed=3, keep=True)
 print(f"hard data reproduced: {(with_data.realizations[:, rows] == facies).all()}")
 
 kernel = np.ones(11) / 11
 p_soft = np.apply_along_axis(np.convolve, 1, truth, kernel, "same")
 p_soft = np.clip(np.apply_along_axis(np.convolve, 0, p_soft, kernel, "same"), 0.02, 0.98).ravel()
 with_soft = bt.ImageQuilting(ti, "facies", patch_size=30, soft_weight=5.0).simulate(
-    grid, n=20, seed=3, keep=[0], soft=np.column_stack([1 - p_soft, p_soft]), progress=False
+    grid, n=20, seed=3, keep=[0], soft=np.column_stack([1 - p_soft, p_soft])
 )
 for name, summary in (("hard data", with_data), ("soft data", with_soft)):
     hits = (summary.realizations[0] == truth.ravel()).mean()

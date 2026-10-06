@@ -890,15 +890,10 @@ impl TurningBandsEnsemble {
         domains: Option<&[u32]>,
         trend: Option<&[f64]>,
         options: &ContinuousOptions,
-        progress: Option<&boitata_core::Progress>,
     ) -> Result<ContinuousSummary> {
-        continuous_batched(
-            self.len(),
-            options,
-            self.batch(targets.len()),
-            |ks| self.realizations(ks, targets, |_| domains, trend),
-            progress,
-        )
+        continuous_batched(self.len(), options, self.batch(targets.len()), |ks| {
+            self.realizations(ks, targets, |_| domains, trend)
+        })
     }
 }
 
@@ -993,7 +988,6 @@ pub fn turning_bands_to_parquet(
     rows: usize,
     discretization: [usize; 3],
     units: &[(String, String)],
-    progress: Option<&boitata_core::Progress>,
 ) -> Result<GlobalSummary> {
     let reader = boitata_io::BlockModelReader::open(&input)?;
     if domains.is_some_and(|d| d.1.len() != reader.len()) {
@@ -1066,22 +1060,16 @@ pub fn turning_bands_to_parquet(
                         Ok::<_, SimError>(owner.iter().map(|&b| at[b]).collect())
                     })
                     .transpose()?;
-                let s = continuous_batched(
-                    n,
-                    options,
-                    ensemble.batch(nodes.len()),
-                    |ks| {
-                        ensemble
-                            .realizations(ks, &nodes, |_| codes.as_deref(), at_nodes.as_deref())?
-                            .into_iter()
-                            .map(|r| match &support {
-                                Some(s) => s.mean(&r),
-                                None => Ok(r),
-                            })
-                            .collect()
-                    },
-                    None,
-                )?;
+                let s = continuous_batched(n, options, ensemble.batch(nodes.len()), |ks| {
+                    ensemble
+                        .realizations(ks, &nodes, |_| codes.as_deref(), at_nodes.as_deref())?
+                        .into_iter()
+                        .map(|r| match &support {
+                            Some(s) => s.mean(&r),
+                            None => Ok(r),
+                        })
+                        .collect()
+                })?;
                 let m = chunk.len() as f64;
                 total += m;
                 for k in 0..n {
@@ -1110,9 +1098,6 @@ pub fn turning_bands_to_parquet(
                     out = out
                         .with_column(&name, std::sync::Arc::new(column))
                         .map_err(boitata_io::Error::from)?;
-                }
-                if let Some(p) = progress {
-                    p.inc_by(m as u64);
                 }
                 if send.send(out).is_err() {
                     break;
@@ -1467,7 +1452,7 @@ mod tests {
         .unwrap();
         let model = BlockModel::regular(geometry, empty).unwrap();
         let input = std::env::temp_dir().join(format!("boitata-tb-{}.parquet", std::process::id()));
-        boitata_io::write_block_model(&input, &model, None).unwrap();
+        boitata_io::write_block_model(&input, &model).unwrap();
         let vg = Variogram::single(Model::Spherical, 1.0, 20.0);
         let params = TurningBandsParams {
             n_bands: 60,
@@ -1499,11 +1484,10 @@ mod tests {
                 6,
             )
             .unwrap()
-            .summary(&grid, domains.map(|d| d.1), None, &options, None)
+            .summary(&grid, domains.map(|d| d.1), None, &options)
             .unwrap();
             for rows in [7, 160] {
                 let output = input.with_extension(format!("{rows}.parquet"));
-                let bar = boitata_core::Progress::new(None);
                 let global = turning_bands_to_parquet(
                     &input,
                     &output,
@@ -1520,12 +1504,9 @@ mod tests {
                     rows,
                     [1, 1, 1],
                     &[],
-                    Some(&bar),
                 )
                 .unwrap();
-                assert_eq!(bar.snapshot().0, grid.len() as u64);
-                let boitata_io::Stored::Blocks(back) =
-                    boitata_io::read_parquet(&output, None).unwrap()
+                let boitata_io::Stored::Blocks(back) = boitata_io::read_parquet(&output).unwrap()
                 else {
                     panic!("expected a block model")
                 };
@@ -1566,7 +1547,6 @@ mod tests {
             7,
             [1, 1, 1],
             &[],
-            None,
         );
         assert!(r.is_err());
     }
@@ -1599,7 +1579,7 @@ mod tests {
         let model = BlockModel::regular(geometry, columns).unwrap();
         let input =
             std::env::temp_dir().join(format!("boitata-tb-blocks-{}.parquet", std::process::id()));
-        boitata_io::write_block_model(&input, &model, None).unwrap();
+        boitata_io::write_block_model(&input, &model).unwrap();
         let vg = Variogram::single(Model::Spherical, 1.0, 20.0);
         let params = TurningBandsParams {
             n_bands: 60,
@@ -1630,15 +1610,10 @@ mod tests {
                 &data_locs, &data_vals, None, None, None, data_trend, lo, hi, &vg, &params, 5,
             )
             .unwrap();
-            let whole = continuous(
-                5,
-                &options,
-                |k| {
-                    let at = trended.then_some(&at_nodes[..]);
-                    support.mean(&ensemble.realization(k, &nodes, None, at)?)
-                },
-                None,
-            )
+            let whole = continuous(5, &options, |k| {
+                let at = trended.then_some(&at_nodes[..]);
+                support.mean(&ensemble.realization(k, &nodes, None, at)?)
+            })
             .unwrap();
             let stream = |rows: usize, threads: usize| {
                 let output = input.with_extension(format!("{rows}-{threads}-{trended}.parquet"));
@@ -1663,12 +1638,10 @@ mod tests {
                             rows,
                             n,
                             &[],
-                            None,
                         )
                     })
                     .unwrap();
-                let boitata_io::Stored::Blocks(back) =
-                    boitata_io::read_parquet(&output, None).unwrap()
+                let boitata_io::Stored::Blocks(back) = boitata_io::read_parquet(&output).unwrap()
                 else {
                     panic!("expected a block model")
                 };
@@ -1698,7 +1671,6 @@ mod tests {
             4,
             n,
             &[],
-            None,
         );
         assert!(missing.is_err());
     }

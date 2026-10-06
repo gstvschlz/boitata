@@ -56,10 +56,8 @@ def test_cokriging_with_a_uniform_field_equals_global_anisotropy():
         )
 
     at = bt.PointSet(targets, {"s": np.sin(targets[:, 0] / 12)})
-    local = cokriging().predict(at, anisotropy=field, collocated={1: "s"}, progress=False)
-    reference = cokriging(rotation=(35.0, 0.0, 0.0), ratios=(0.3, 1.0)).predict(
-        at, collocated={1: at["s"]}, progress=False
-    )
+    local = cokriging().predict(at, anisotropy=field, collocated={1: "s"})
+    reference = cokriging(rotation=(35.0, 0.0, 0.0), ratios=(0.3, 1.0)).predict(at, collocated={1: at["s"]})
     np.testing.assert_allclose(local, reference, atol=1e-9)
 
 

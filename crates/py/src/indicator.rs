@@ -17,7 +17,6 @@ use crate::containers::PyBlockModel;
 use crate::estimation::{sample_columns, samples_from, searches, targets};
 use crate::invalid;
 use crate::persist::{self, Columns, Found, Tabular};
-use crate::progress::with_progress;
 use crate::table::Table;
 use crate::transforms::nullable;
 use crate::variogram::Variogram;
@@ -243,14 +242,12 @@ impl MultipleIndicatorKriging {
     ///     Points per axis of each block of a BlockModel `targets`: the
     ///     indicators are kriged over the block, giving the distribution of
     ///     the point values within it rather than at its centroid.
-    /// progress : bool, default True
-    ///     Show a `tqdm` progress bar.
     ///
     /// Returns
     /// -------
     /// IndicatorSummary
     ///     NaN where the search found too few samples.
-    #[pyo3(signature = (targets, *, cutoffs=None, quantiles=vec![], anisotropy=None, diagnostics=false, discretization=None, progress=true))]
+    #[pyo3(signature = (targets, *, cutoffs=None, quantiles=vec![], anisotropy=None, diagnostics=false, discretization=None))]
     #[allow(clippy::too_many_arguments)]
     fn predict(
         &self,
@@ -261,7 +258,6 @@ impl MultipleIndicatorKriging {
         anisotropy: Option<PyRef<crate::lva::LocalAnisotropy>>,
         diagnostics: bool,
         discretization: Option<(usize, usize, usize)>,
-        progress: bool,
     ) -> PyResult<IndicatorSummary> {
         let cutoffs = cutoffs
             .map(|c| crate::units::values(c, self.unit.as_deref(), "cutoffs"))
@@ -279,9 +275,8 @@ impl MultipleIndicatorKriging {
         };
         let targets = self::targets(targets)?;
         let local = anisotropy.map(|a| a.at_targets(&targets));
-        let total = Some(targets.len() as u64);
-        with_progress(py, total, progress, |counter| {
-            self.model.predict_with_progress(
+        py.detach(|| {
+            self.model.predict(
                 samples,
                 weights.as_deref(),
                 &targets,
@@ -290,9 +285,8 @@ impl MultipleIndicatorKriging {
                 local.as_ref(),
                 &cutoffs,
                 &quantiles,
-                counter,
             )
-        })?
+        })
         .map(|s| {
             IndicatorSummary(
                 CoreSummary {

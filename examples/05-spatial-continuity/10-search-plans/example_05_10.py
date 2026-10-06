@@ -218,7 +218,7 @@ options = {
 }
 print(f"{'first pass':>20} {'blocks':>7} {'samples':>8} {'holes':>6} {'slope':>6}")
 for name, search in options.items():
-    d = kriging.with_search(search).predict(blocks, diagnostics=True, domain_column="LENS", progress=False)
+    d = kriging.with_search(search).predict(blocks, diagnostics=True, domain_column="LENS")
     filled = np.isfinite(d["value"])
     print(
         f"{name:>20} {filled.mean():7.0%} {np.mean(d['n_samples'][filled]):8.1f}"
@@ -241,7 +241,7 @@ passes = [
     bt.Search(reach, min_samples=8, max_samples=16, max_per_hole=3, **ellipsoid),
     bt.Search(2 * reach, min_samples=4, max_samples=16, max_per_hole=3, **ellipsoid),
 ]
-d = kriging.with_search(passes).predict(blocks, diagnostics=True, domain_column="LENS", progress=False)
+d = kriging.with_search(passes).predict(blocks, diagnostics=True, domain_column="LENS")
 number = np.nan_to_num(d["pass"]).astype(int)
 assert (d["n_holes"][number == 1] >= 3).all(), "pass 1 needs three holes"
 print(f"{'pass':>4} {'blocks':>7} {'share':>6} {'samples':>8} {'holes':>6} {'distance':>9} {'slope':>6}")

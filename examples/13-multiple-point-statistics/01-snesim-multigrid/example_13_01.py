@@ -52,7 +52,7 @@ print(f"training image: sand runs {runs(image, 0):.1f} cells along Y, {runs(imag
 grid = bt.BlockModel((0, 0), (1, 1), (nx, ny))
 realizations = {}
 for levels in (0, 1, 2, 3):
-    summary = bt.SNESIM(ti, "facies", n_levels=levels).simulate(grid, n=20, seed=7, keep=True, progress=False)
+    summary = bt.SNESIM(ti, "facies", n_levels=levels).simulate(grid, n=20, seed=7, keep=True)
     reals = summary.realizations.reshape(-1, ny, nx)
     realizations[levels] = reals[0]
     along = np.mean([runs(r, 0) for r in reals])

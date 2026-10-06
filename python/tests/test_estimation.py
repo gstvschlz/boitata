@@ -1086,53 +1086,6 @@ def test_weight_declustering_downweights_clusters_and_shares_duplicates():
         bt.weight_declustering(grid, grid[:, 0], targets, estimator=bt.MovingMedian(search))
 
 
-def test_predict_progress_shows_a_bar_without_changing_output(capsys):
-    ok = bt.OrdinaryKriging(model, search).fit(coords, values)
-    targets = np.vstack([coords, [[500.0, 500.0]]])
-    off = ok.predict(targets, progress=False)
-    assert capsys.readouterr().err == ""
-    on = ok.predict(targets, progress=True)
-    assert "100%" in capsys.readouterr().err
-    np.testing.assert_array_equal(on, off)
-
-
-def test_indicator_predict_progress_shows_a_bar_without_changing_output(capsys):
-    grades = values - values.min() + 0.1
-    mik = bt.MultipleIndicatorKriging(model, search, list(np.quantile(grades, [0.3, 0.6]))).fit(
-        coords, grades
-    )
-    field = bt.LocalAnisotropy(coords[:5], np.zeros((5, 3)), np.ones((5, 2)))
-    for options in ({}, {"anisotropy": field}):
-        off = mik.predict(coords, cutoffs=[1.0], progress=False, **options)
-        assert capsys.readouterr().err == ""
-        on = mik.predict(coords, cutoffs=[1.0], progress=True, **options)
-        assert "100%" in capsys.readouterr().err
-        np.testing.assert_array_equal(on.cdf, off.cdf)
-        np.testing.assert_array_equal(on.probability_above, off.probability_above)
-
-
-def test_cokriging_and_disjunctive_progress_show_a_bar_without_changing_output(capsys):
-    lmc = bt.Coregionalization(
-        [[0.0, 0.0], [0.0, 0.0]], structures=[("spherical", 40.0, [[1.0, 0.7], [0.7, 1.0]])]
-    )
-    ck = bt.Cokriging(lmc, search).fit(coords, values, [0] * len(values))
-    grades = np.exp(values / 2)
-    dk = bt.DisjunctiveKriging(bt.HermiteAnamorphosis().fit(grades), model, search, order=15).fit(
-        coords, grades
-    )
-    targets = np.vstack([coords[:40], [[500.0, 500.0]]])
-    for call in (
-        lambda **k: ck.predict(targets, **k),
-        lambda **k: dk.predict(targets, **k),
-        lambda **k: dk.predict_tonnage(targets, 1.0, **k),
-    ):
-        off = call(progress=False)
-        assert capsys.readouterr().err == ""
-        on = call(progress=True)
-        assert "100%" in capsys.readouterr().err
-        np.testing.assert_array_equal(on, off)
-
-
 def drilling(**options):
     blocks = bt.BlockModel(origin=(0, 0, -40), size=(10, 10, 10), count=(16, 16, 4))
     blocks = blocks.with_column("w", np.arange(len(blocks.centroids)) % 3 * 1.0)
@@ -1161,7 +1114,7 @@ def test_drillhole_plan_metrics_equal_a_full_kriging_run(kind):
     coords = np.vstack([old.coords, new.coords[chosen]])
     holes = np.concatenate([old["HOLE_ID"], np.char.add("new", new["HOLE_ID"][chosen].astype(str))])
     estimator.fit(coords, np.zeros(len(coords)), holes=holes)
-    want = estimator.predict(blocks, diagnostics=True, progress=False)
+    want = estimator.predict(blocks, diagnostics=True)
     assert np.isnan(want["variance"]).any() and not np.isnan(want["variance"]).all()
     for name in ("variance", "slope", "efficiency", "n_samples", "n_holes"):
         np.testing.assert_allclose(got[name], want[name], rtol=0, atol=1e-10, err_msg=name)
@@ -1298,7 +1251,7 @@ def test_drillhole_plan_domains_equal_a_full_kriging_run(soft, form):
     holes = np.concatenate([old["HOLE_ID"], np.char.add("new", new["HOLE_ID"][chosen].astype(str))])
     domains = np.concatenate([old[data_column], zones(new.coords[chosen])]).astype(str)
     estimator.fit(coords, np.zeros(len(coords)), holes=holes, domains=domains)
-    want = estimator.predict(blocks, diagnostics=True, domains=labels, progress=False)
+    want = estimator.predict(blocks, diagnostics=True, domains=labels)
     assert not np.isnan(want["variance"][dry]).all()
     for name in ("variance", "slope", "efficiency", "n_samples", "n_holes"):
         np.testing.assert_allclose(got[name], want[name], rtol=0, atol=1e-10, err_msg=name)

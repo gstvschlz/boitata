@@ -12,7 +12,7 @@ use arrow_array::types::{Float64Type, UInt64Type};
 use arrow_array::{ArrayRef, Float64Array, RecordBatch, RecordBatchOptions, UInt64Array};
 use arrow_schema::{DataType, Field, Schema, SchemaRef};
 use arrow_select::concat::concat_batches;
-use boitata_core::{BlockModel, Geometry, Layout, PointSet, Polylines, Progress};
+use boitata_core::{BlockModel, Geometry, Layout, PointSet, Polylines};
 use parquet::arrow::arrow_reader::{ParquetRecordBatchReader, ParquetRecordBatchReaderBuilder};
 use parquet::arrow::arrow_writer::{
     ArrowColumnChunk, ArrowColumnWriter, ArrowLeafColumn, ArrowRowGroupWriterFactory,
@@ -98,7 +98,7 @@ impl Encoder {
 
     /// Appends `batch` as row groups, encoding up to one row group per
     /// thread at a time.
-    fn write(&mut self, batch: &RecordBatch, progress: Option<&Progress>) -> Result<()> {
+    fn write(&mut self, batch: &RecordBatch) -> Result<()> {
         let rows = batch.num_rows();
         let starts: Vec<usize> = (0..rows).step_by(self.group.max(1)).collect();
         for wave in starts.chunks(rayon::current_num_threads().max(1)) {
@@ -133,10 +133,6 @@ impl Encoder {
                 }
                 group.close()?;
             }
-            if let Some(p) = progress {
-                let done: usize = wave.iter().map(|&s| self.group.min(rows - s)).sum();
-                p.inc_by(done as u64);
-            }
         }
         Ok(())
     }
@@ -147,12 +143,7 @@ impl Encoder {
     }
 }
 
-fn write(
-    path: &Path,
-    table: &RecordBatch,
-    meta: Option<String>,
-    progress: Option<&Progress>,
-) -> Result<()> {
+fn write(path: &Path, table: &RecordBatch, meta: Option<String>) -> Result<()> {
     let mut metadata = table.schema().metadata().clone();
     if let Some(meta) = meta {
         metadata.insert(KEY.into(), meta);
@@ -167,17 +158,13 @@ fn write(
         &RecordBatchOptions::new().with_row_count(Some(table.num_rows())),
     )?;
     let mut encoder = Encoder::create(File::create(path)?, schema, ROW_GROUP)?;
-    encoder.write(&batch, progress)?;
+    encoder.write(&batch)?;
     encoder.finish()
 }
 
 /// Writes a plain table.
-pub fn write_parquet(
-    path: impl AsRef<Path>,
-    table: &RecordBatch,
-    progress: Option<&Progress>,
-) -> Result<()> {
-    write(path.as_ref(), table, None, progress)
+pub fn write_parquet(path: impl AsRef<Path>, table: &RecordBatch) -> Result<()> {
+    write(path.as_ref(), table, None)
 }
 
 /// Writes a plain table given as batches of one schema.
@@ -185,43 +172,24 @@ pub fn write_parquet_batches(
     path: impl AsRef<Path>,
     schema: SchemaRef,
     batches: &[RecordBatch],
-    progress: Option<&Progress>,
 ) -> Result<()> {
     let mut encoder = Encoder::create(File::create(path)?, schema, ROW_GROUP)?;
     for batch in batches {
-        encoder.write(batch, progress)?;
+        encoder.write(batch)?;
     }
     encoder.finish()
 }
 
 /// Writes points as `x`, `y`, `z` and their attributes.
-pub fn write_points(
-    path: impl AsRef<Path>,
-    points: &PointSet,
-    progress: Option<&Progress>,
-) -> Result<()> {
+pub fn write_points(path: impl AsRef<Path>, points: &PointSet) -> Result<()> {
     let meta = json!({ "kind": "points", "crs": points.crs, "length_unit": points.length_unit });
-    write(
-        path.as_ref(),
-        &points.to_table()?,
-        Some(meta.to_string()),
-        progress,
-    )
+    write(path.as_ref(), &points.to_table()?, Some(meta.to_string()))
 }
 
 /// Writes polylines one row per feature, as [`Polylines::to_table`].
-pub fn write_polylines(
-    path: impl AsRef<Path>,
-    lines: &Polylines,
-    progress: Option<&Progress>,
-) -> Result<()> {
+pub fn write_polylines(path: impl AsRef<Path>, lines: &Polylines) -> Result<()> {
     let meta = json!({ "kind": "polylines", "crs": lines.crs, "length_unit": lines.length_unit });
-    write(
-        path.as_ref(),
-        &lines.to_table()?,
-        Some(meta.to_string()),
-        progress,
-    )
+    write(path.as_ref(), &lines.to_table()?, Some(meta.to_string()))
 }
 
 /// How a block model file stores its rows; the same for every chunk.
@@ -307,10 +275,6 @@ impl BlockModelWriter {
     /// Appends the rows of `chunk`, which must share the file's geometry; a
     /// regular file takes its cells in index order.
     pub fn write(&mut self, chunk: &BlockModel) -> Result<()> {
-        self.write_ticking(chunk, None)
-    }
-
-    fn write_ticking(&mut self, chunk: &BlockModel, progress: Option<&Progress>) -> Result<()> {
         if chunk.geometry() != &self.geometry {
             return Err(bad("chunk geometry differs from the file's"));
         }
@@ -376,10 +340,7 @@ impl BlockModelWriter {
             let file = self.file.take().expect("a file until the first chunk");
             self.writer = Some(Encoder::create(file, schema, ROW_GROUP)?);
         }
-        self.writer
-            .as_mut()
-            .expect("created above")
-            .write(&batch, progress)?;
+        self.writer.as_mut().expect("created above").write(&batch)?;
         self.rows += n as u64;
         Ok(())
     }
@@ -401,13 +362,8 @@ impl BlockModelWriter {
 }
 
 /// Writes a block model's attributes, with its cell index when masked and its
-/// parent index and extents when sub-blocked. `progress` is ticked per row
-/// group written.
-pub fn write_block_model(
-    path: impl AsRef<Path>,
-    model: &BlockModel,
-    progress: Option<&Progress>,
-) -> Result<()> {
+/// parent index and extents when sub-blocked.
+pub fn write_block_model(path: impl AsRef<Path>, model: &BlockModel) -> Result<()> {
     let mut writer = BlockModelWriter::create(
         path,
         *model.geometry(),
@@ -415,7 +371,7 @@ pub fn write_block_model(
         model.crs.as_deref(),
     )?
     .with_length_unit(model.length_unit.as_deref());
-    writer.write_ticking(model, progress)?;
+    writer.write(model)?;
     writer.finish()
 }
 
@@ -516,48 +472,33 @@ fn decode(
     Ok(model)
 }
 
-fn read_table(path: &Path, progress: Option<&Progress>) -> Result<RecordBatch> {
+fn read_table(path: &Path) -> Result<RecordBatch> {
     let builder = ParquetRecordBatchReaderBuilder::try_new(File::open(path)?)?;
     let schema = builder.schema().clone();
-    if let Some(p) = progress {
-        p.set_total(builder.metadata().file_metadata().num_rows() as u64);
-    }
-    let mut batches = Vec::new();
-    for batch in builder.with_batch_size(ROW_GROUP).build()? {
-        let batch = batch?;
-        if let Some(p) = progress {
-            p.inc_by(batch.num_rows() as u64);
-        }
-        batches.push(batch);
-    }
+    let batches = builder
+        .with_batch_size(ROW_GROUP)
+        .build()?
+        .collect::<std::result::Result<Vec<_>, _>>()?;
     Ok(concat_batches(&schema, &batches)?)
 }
 
 /// Writes a fitted object: its arrays as `table`, its parameters as the JSON
 /// `meta` under the `boitata` key.
-pub fn write_model(
-    path: impl AsRef<Path>,
-    table: &RecordBatch,
-    meta: String,
-    progress: Option<&Progress>,
-) -> Result<()> {
-    write(path.as_ref(), table, Some(meta), progress)
+pub fn write_model(path: impl AsRef<Path>, table: &RecordBatch, meta: String) -> Result<()> {
+    write(path.as_ref(), table, Some(meta))
 }
 
 /// Table and `boitata` metadata of a file written by [`write_model`].
-pub fn read_model(
-    path: impl AsRef<Path>,
-    progress: Option<&Progress>,
-) -> Result<(RecordBatch, String)> {
-    let table = read_table(path.as_ref(), progress)?;
+pub fn read_model(path: impl AsRef<Path>) -> Result<(RecordBatch, String)> {
+    let table = read_table(path.as_ref())?;
     let meta = table.schema().metadata().get(KEY).cloned();
     Ok((table, meta.ok_or_else(|| bad("no boitata metadata"))?))
 }
 
 /// Reads a file written by any Parquet tool; files written from a container
 /// come back as that container, others (e.g. fitted models) as a table.
-pub fn read_parquet(path: impl AsRef<Path>, progress: Option<&Progress>) -> Result<Stored> {
-    let table = read_table(path.as_ref(), progress)?;
+pub fn read_parquet(path: impl AsRef<Path>) -> Result<Stored> {
+    let table = read_table(path.as_ref())?;
     let schema = table.schema();
     let Some(meta) = schema.metadata().get(KEY) else {
         return Ok(Stored::Table(table));
@@ -812,7 +753,7 @@ mod tests {
         use parquet::basic::Encoding;
         use parquet::file::reader::{FileReader, SerializedFileReader};
         let path = temp("encodings.parquet");
-        write_parquet(&path, &attributes(64), None).unwrap();
+        write_parquet(&path, &attributes(64)).unwrap();
         let reader = SerializedFileReader::new(File::open(&path).unwrap()).unwrap();
         let group = reader.metadata().row_group(0);
         let encodings = |i: usize| group.column(i).encodings().collect::<Vec<Encoding>>();
@@ -841,8 +782,8 @@ mod tests {
             pool.install(|| {
                 let mut encoder =
                     Encoder::create(File::create(&path).unwrap(), batch.schema(), 1000).unwrap();
-                encoder.write(&batch.slice(0, 2500), None).unwrap();
-                encoder.write(&batch.slice(2500, 2000), None).unwrap();
+                encoder.write(&batch.slice(0, 2500)).unwrap();
+                encoder.write(&batch.slice(2500, 2000)).unwrap();
                 encoder.finish().unwrap();
             });
             let bytes = std::fs::read(&path).unwrap();
@@ -853,7 +794,7 @@ mod tests {
         assert_eq!(one, bytes(8));
         let path = temp("threads-back.parquet");
         std::fs::write(&path, &one).unwrap();
-        let Stored::Table(back) = read_parquet(&path, None).unwrap() else {
+        let Stored::Table(back) = read_parquet(&path).unwrap() else {
             panic!("expected a table")
         };
         assert_eq!(back.columns(), batch.columns());
@@ -864,14 +805,11 @@ mod tests {
     fn model_round_trip() {
         let path = temp("model.parquet");
         let meta = r#"{"type":"X","format":1}"#.to_string();
-        write_model(&path, &attributes(4), meta.clone(), None).unwrap();
-        let (table, back) = read_model(&path, None).unwrap();
+        write_model(&path, &attributes(4), meta.clone()).unwrap();
+        let (table, back) = read_model(&path).unwrap();
         assert_eq!(back, meta);
         assert_eq!(table.columns(), attributes(4).columns());
-        assert!(matches!(
-            read_parquet(&path, None).unwrap(),
-            Stored::Table(_)
-        ));
+        assert!(matches!(read_parquet(&path).unwrap(), Stored::Table(_)));
         std::fs::remove_file(path).unwrap();
     }
 
@@ -883,8 +821,8 @@ mod tests {
         )
         .unwrap();
         points.crs = Some("EPSG:32611".into());
-        write_points(temp("p.parquet"), &points, None).unwrap();
-        let Stored::Points(back) = read_parquet(temp("p.parquet"), None).unwrap() else {
+        write_points(temp("p.parquet"), &points).unwrap();
+        let Stored::Points(back) = read_parquet(temp("p.parquet")).unwrap() else {
             panic!("expected points")
         };
         assert_eq!(back.coords(), points.coords());
@@ -913,8 +851,8 @@ mod tests {
         )
         .unwrap();
         lines.crs = Some("EPSG:31982".into());
-        write_polylines(temp("l.parquet"), &lines, None).unwrap();
-        let Stored::Polylines(back) = read_parquet(temp("l.parquet"), None).unwrap() else {
+        write_polylines(temp("l.parquet"), &lines).unwrap();
+        let Stored::Polylines(back) = read_parquet(temp("l.parquet")).unwrap() else {
             panic!("expected polylines")
         };
         assert_eq!(back.to_table().unwrap(), lines.to_table().unwrap());
@@ -931,8 +869,8 @@ mod tests {
             rotation: [30.0, 0.0, 0.0],
         };
         let model = BlockModel::masked(geometry, vec![1, 5, 22], attributes(3)).unwrap();
-        write_block_model(temp("b.parquet"), &model, None).unwrap();
-        let Stored::Blocks(back) = read_parquet(temp("b.parquet"), None).unwrap() else {
+        write_block_model(temp("b.parquet"), &model).unwrap();
+        let Stored::Blocks(back) = read_parquet(temp("b.parquet")).unwrap() else {
             panic!("expected a block model")
         };
         assert_eq!(back.geometry(), model.geometry());
@@ -961,8 +899,8 @@ mod tests {
             attributes(3),
         )
         .unwrap();
-        write_block_model(temp("s.parquet"), &model, None).unwrap();
-        let Stored::Blocks(back) = read_parquet(temp("s.parquet"), None).unwrap() else {
+        write_block_model(temp("s.parquet"), &model).unwrap();
+        let Stored::Blocks(back) = read_parquet(temp("s.parquet")).unwrap() else {
             panic!("expected a block model")
         };
         assert_eq!(back.layout(), model.layout());
@@ -978,8 +916,8 @@ mod tests {
             rotation: [0.0; 3],
         };
         let model = BlockModel::regular(geometry, attributes(6).project(&[]).unwrap()).unwrap();
-        write_block_model(temp("e.parquet"), &model, None).unwrap();
-        let Stored::Blocks(back) = read_parquet(temp("e.parquet"), None).unwrap() else {
+        write_block_model(temp("e.parquet"), &model).unwrap();
+        let Stored::Blocks(back) = read_parquet(temp("e.parquet")).unwrap() else {
             panic!("expected a block model")
         };
         assert_eq!((back.len(), back.attributes().num_columns()), (6, 0));
@@ -988,20 +926,10 @@ mod tests {
 
     #[test]
     fn plain_tables_stay_tables() {
-        write_parquet(temp("t.parquet"), &attributes(5), None).unwrap();
+        write_parquet(temp("t.parquet"), &attributes(5)).unwrap();
         assert!(
-            matches!(read_parquet(temp("t.parquet"), None).unwrap(), Stored::Table(t) if t.num_rows() == 5)
+            matches!(read_parquet(temp("t.parquet")).unwrap(), Stored::Table(t) if t.num_rows() == 5)
         );
-    }
-
-    #[test]
-    fn writes_and_reads_tick_every_row() {
-        let write = Progress::new(Some(5));
-        write_parquet(temp("g.parquet"), &attributes(5), Some(&write)).unwrap();
-        assert_eq!(write.snapshot().0, 5);
-        let read = Progress::new(None);
-        read_parquet(temp("g.parquet"), Some(&read)).unwrap();
-        assert_eq!(read.snapshot().0, 5);
     }
 
     fn models() -> Vec<BlockModel> {
@@ -1024,7 +952,7 @@ mod tests {
     fn chunks_cover_the_file_in_order() {
         for (k, model) in models().into_iter().enumerate() {
             let path = temp(&format!("c{k}.parquet"));
-            write_block_model(&path, &model, None).unwrap();
+            write_block_model(&path, &model).unwrap();
             let reader = BlockModelReader::open(&path).unwrap();
             assert_eq!(reader.len(), model.len());
             assert_eq!(reader.column_names(), ["au", "rock"]);
@@ -1063,13 +991,13 @@ mod tests {
                 temp(&format!("m{k}.parquet")),
                 temp(&format!("o{k}.parquet")),
             );
-            write_block_model(&input, &model, None).unwrap();
+            write_block_model(&input, &model).unwrap();
             stream_map::<Error>(&input, &output, 3, false, |chunk| {
                 let x = Float64Array::from_iter_values(chunk.centroids().iter().map(|c| c[0]));
                 Ok(vec![("x".into(), Arc::new(x) as ArrayRef)])
             })
             .unwrap();
-            let Stored::Blocks(back) = read_parquet(&output, None).unwrap() else {
+            let Stored::Blocks(back) = read_parquet(&output).unwrap() else {
                 panic!("expected a block model")
             };
             assert_eq!(back.layout(), model.layout());

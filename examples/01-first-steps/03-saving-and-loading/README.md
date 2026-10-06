@@ -39,7 +39,7 @@ variogram = bt.Variogram.fit(
 search = bt.Search(radius=60, max_samples=24, min_samples=4)
 
 grid = bt.BlockModel(origin=(2.5, 2.5), size=(5, 5), count=(52, 60))
-kriged = bt.SimpleKriging(variogram, search).fit(samples, scores).predict(grid, progress=False)
+kriged = bt.SimpleKriging(variogram, search).fit(samples, scores).predict(grid)
 estimate = normal_score.inverse_transform(kriged)
 print(f"cap: {capping.caps_:.0f} ppm | declustered mean: {declustering.mean:.1f} ppm")
 print(variogram)
@@ -105,7 +105,7 @@ def rerun(folder, samples):
     search = bt.Search.from_json((folder / "search.json").read_text())
     scores = normal_score.transform(capping.transform("V", data=samples))
     grid = bt.BlockModel(origin=(2.5, 2.5), size=(5, 5), count=(52, 60))
-    kriged = bt.SimpleKriging(variogram, search).fit(samples, scores).predict(grid, progress=False)
+    kriged = bt.SimpleKriging(variogram, search).fit(samples, scores).predict(grid)
     return normal_score.inverse_transform(kriged)
 
 

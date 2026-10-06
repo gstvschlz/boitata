@@ -20,7 +20,6 @@ use crate::containers::PyBlockModel;
 use crate::estimation::{Label, Search, codes, fit_codes, labels, plain_searches, targets};
 use crate::invalid;
 use crate::persist::{self, Columns, Found, Tabular};
-use crate::progress::with_progress;
 use crate::table::Table;
 use crate::variogram::Variogram;
 
@@ -1433,9 +1432,8 @@ impl Sgs {
     /// rows. `SimulationSummary.grade_tonnage` reads them. `tolerances`, such
     /// as ``(0.15,)``, gives `SimulationSummary.precision`, the fraction of
     /// realizations within ``r * |mean|`` of the mean for each tolerance
-    /// ``r``; like `quantiles`, it holds every value. `progress` shows a
-    /// `tqdm` bar over the realizations.
-    #[pyo3(signature = (targets, *, n=100, seed=0, cutoffs=None, quantiles=vec![], tolerances=vec![], keep=None, anisotropy=None, blocks=None, window=None, groups=None, trend=None, domains=None, domain_column=None, secondary=None, path=None, batch=None, grade_tonnage_cutoffs=None, density=None, tonnage=None, categories=None, progress=true))]
+    /// ``r``; like `quantiles`, it holds every value.
+    #[pyo3(signature = (targets, *, n=100, seed=0, cutoffs=None, quantiles=vec![], tolerances=vec![], keep=None, anisotropy=None, blocks=None, window=None, groups=None, trend=None, domains=None, domain_column=None, secondary=None, path=None, batch=None, grade_tonnage_cutoffs=None, density=None, tonnage=None, categories=None))]
     #[allow(clippy::too_many_arguments)]
     fn simulate(
         &self,
@@ -1461,7 +1459,6 @@ impl Sgs {
         density: Option<&Bound<PyAny>>,
         tonnage: Option<&Bound<PyAny>>,
         categories: Option<&Bound<PyAny>>,
-        progress: bool,
     ) -> PyResult<SimulationSummary> {
         let grade = self.unit.as_deref();
         let cutoffs = cutoffs
@@ -1577,81 +1574,76 @@ impl Sgs {
                 levels: None,
                 seed,
             };
-            return with_progress(py, Some(n as u64), progress, |counter| {
-                let collocated = rows.as_deref().map(|scores| simulation::Collocated {
-                    scores,
-                    correlation,
-                });
-                simulation::continuous_in_batches(
-                    n,
-                    &options,
-                    batch,
-                    |range| {
-                        simulation::sgs_shared(
-                            &d.locs,
-                            &d.values,
-                            d.weights.as_deref(),
-                            d.holes.as_deref(),
-                            d.domains.as_deref().zip(of_realization(&nodes, 0)),
-                            trend,
-                            &self.variogram,
-                            &shared,
-                            range,
-                            collocated.as_ref(),
-                        )
-                    },
-                    |b, i| upscale.of(b.realization(i)),
-                    counter,
-                )
-            })?
-            .map(|s| {
-                SimulationSummary(s, upscale.labels.clone(), self.unit.clone(), tonnes.clone())
-            })
-            .map_err(err);
+            return py
+                .detach(|| {
+                    let collocated = rows.as_deref().map(|scores| simulation::Collocated {
+                        scores,
+                        correlation,
+                    });
+                    simulation::continuous_in_batches(
+                        n,
+                        &options,
+                        batch,
+                        |range| {
+                            simulation::sgs_shared(
+                                &d.locs,
+                                &d.values,
+                                d.weights.as_deref(),
+                                d.holes.as_deref(),
+                                d.domains.as_deref().zip(of_realization(&nodes, 0)),
+                                trend,
+                                &self.variogram,
+                                &shared,
+                                range,
+                                collocated.as_ref(),
+                            )
+                        },
+                        |b, i| upscale.of(b.realization(i)),
+                    )
+                })
+                .map(|s| {
+                    SimulationSummary(s, upscale.labels.clone(), self.unit.clone(), tonnes.clone())
+                })
+                .map_err(err);
         }
-        with_progress(py, Some(n as u64), progress, |counter| {
-            simulation::continuous(
-                n,
-                &options,
-                |k| {
-                    let params = SgsParams {
-                        search: search.clone(),
-                        seed: boitata_core::rng::realization_seed(seed, k as u64),
-                    };
-                    let domains = d.domains.as_deref().zip(of_realization(&nodes, k));
-                    match &secondary {
-                        None => simulation::sgs_in(
-                            &d.locs,
-                            &d.values,
-                            d.weights.as_deref(),
-                            d.holes.as_deref(),
-                            domains,
-                            trend,
-                            &grid,
-                            &self.variogram,
-                            &params,
-                            local.as_ref(),
-                        ),
-                        Some((fitted, rows)) => simulation::cosgs(
-                            &d.locs,
-                            &d.values,
-                            d.weights.as_deref(),
-                            d.holes.as_deref(),
-                            domains,
-                            trend,
-                            &grid,
-                            &self.variogram,
-                            &params,
-                            local.as_ref(),
-                            fitted,
-                            &rows[k % rows.len()],
-                        ),
-                    }
-                    .and_then(|r| upscale.of(r.values))
-                },
-                counter,
-            )
-        })?
+        py.detach(|| {
+            simulation::continuous(n, &options, |k| {
+                let params = SgsParams {
+                    search: search.clone(),
+                    seed: boitata_core::rng::realization_seed(seed, k as u64),
+                };
+                let domains = d.domains.as_deref().zip(of_realization(&nodes, k));
+                match &secondary {
+                    None => simulation::sgs_in(
+                        &d.locs,
+                        &d.values,
+                        d.weights.as_deref(),
+                        d.holes.as_deref(),
+                        domains,
+                        trend,
+                        &grid,
+                        &self.variogram,
+                        &params,
+                        local.as_ref(),
+                    ),
+                    Some((fitted, rows)) => simulation::cosgs(
+                        &d.locs,
+                        &d.values,
+                        d.weights.as_deref(),
+                        d.holes.as_deref(),
+                        domains,
+                        trend,
+                        &grid,
+                        &self.variogram,
+                        &params,
+                        local.as_ref(),
+                        fitted,
+                        &rows[k % rows.len()],
+                    ),
+                }
+                .and_then(|r| upscale.of(r.values))
+            })
+        })
         .map(|s| SimulationSummary(s, upscale.labels.clone(), self.unit.clone(), tonnes.clone()))
         .map_err(err)
     }
@@ -1959,8 +1951,6 @@ impl Dss {
     ///     with row ``k``.
     /// grade_tonnage_cutoffs, density, tonnage, categories : optional
     ///     Grade–tonnage curves per realization, as in SGS.simulate.
-    /// progress : bool, default True
-    ///     Show a `tqdm` bar over the realizations.
     ///
     /// Returns
     /// -------
@@ -1971,7 +1961,7 @@ impl Dss {
     /// UserWarning
     ///     With the fraction of nodes whose kriged mean and variance no draw
     ///     from the histogram reaches, drawn from the nearest reachable pair.
-    #[pyo3(signature = (targets, *, n=100, seed=0, cutoffs=None, quantiles=vec![], tolerances=vec![], keep=None, anisotropy=None, blocks=None, window=None, groups=None, domains=None, domain_column=None, secondary=None, grade_tonnage_cutoffs=None, density=None, tonnage=None, categories=None, progress=true))]
+    #[pyo3(signature = (targets, *, n=100, seed=0, cutoffs=None, quantiles=vec![], tolerances=vec![], keep=None, anisotropy=None, blocks=None, window=None, groups=None, domains=None, domain_column=None, secondary=None, grade_tonnage_cutoffs=None, density=None, tonnage=None, categories=None))]
     #[allow(clippy::too_many_arguments)]
     fn simulate(
         &self,
@@ -1994,7 +1984,6 @@ impl Dss {
         density: Option<&Bound<PyAny>>,
         tonnage: Option<&Bound<PyAny>>,
         categories: Option<&Bound<PyAny>>,
-        progress: bool,
     ) -> PyResult<SimulationSummary> {
         let grade = self.unit.as_deref();
         let cutoffs = cutoffs
@@ -2055,11 +2044,9 @@ impl Dss {
                 Some((fitted, rows))
             }
         };
-        let summary = with_progress(py, Some(n as u64), progress, |counter| {
-            simulation::continuous(
-                n,
-                &options,
-                |k| {
+        let summary = py
+            .detach(|| {
+                simulation::continuous(n, &options, |k| {
                     let params = SgsParams {
                         search: search.clone(),
                         seed: boitata_core::rng::realization_seed(seed, k as u64),
@@ -2080,11 +2067,9 @@ impl Dss {
                     let done = r.values.iter().filter(|v| !v.is_nan()).count();
                     simulated.fetch_add(done, std::sync::atomic::Ordering::Relaxed);
                     upscale.of(r.values)
-                },
-                counter,
-            )
-        })?
-        .map_err(err)?;
+                })
+            })
+            .map_err(err)?;
         let clamped = clamped.into_inner();
         if clamped > 0 {
             let share = 100.0 * clamped as f64 / simulated.into_inner() as f64;
@@ -2287,9 +2272,9 @@ impl TurningBands {
     /// label for all; a target in a domain without samples raises
     /// InvalidInput. Simulated domains, an ``(n, targets)`` array, give
     /// realization ``k`` of the grades the domains of row ``k``;
-    /// `domain_column` and `progress` as in `SGS.simulate`.
+    /// `domain_column` as in `SGS.simulate`.
     #[allow(clippy::too_many_arguments)]
-    #[pyo3(signature = (targets, *, n=100, seed=0, cutoffs=None, quantiles=vec![], tolerances=vec![], keep=None, blocks=None, window=None, groups=None, trend=None, domains=None, domain_column=None, grade_tonnage_cutoffs=None, density=None, tonnage=None, categories=None, progress=true))]
+    #[pyo3(signature = (targets, *, n=100, seed=0, cutoffs=None, quantiles=vec![], tolerances=vec![], keep=None, blocks=None, window=None, groups=None, trend=None, domains=None, domain_column=None, grade_tonnage_cutoffs=None, density=None, tonnage=None, categories=None))]
     fn simulate(
         &self,
         py: Python,
@@ -2310,7 +2295,6 @@ impl TurningBands {
         density: Option<&Bound<PyAny>>,
         tonnage: Option<&Bound<PyAny>>,
         categories: Option<&Bound<PyAny>>,
-        progress: bool,
     ) -> PyResult<SimulationSummary> {
         let grade = self.unit.as_deref();
         let cutoffs = cutoffs
@@ -2354,7 +2338,7 @@ impl TurningBands {
             tolerances,
         };
         let (lo, hi) = simulation::bounds(&grid);
-        with_progress(py, Some(n as u64), progress, |counter| {
+        py.detach(|| {
             let ensemble = simulation::TurningBandsEnsemble::new(
                 &d.locs,
                 &d.values,
@@ -2368,25 +2352,19 @@ impl TurningBands {
                 &params,
                 n,
             )?;
-            simulation::continuous_batched(
-                n,
-                &options,
-                ensemble.batch(grid.len()),
-                |ks| {
-                    ensemble
-                        .realizations(
-                            ks,
-                            &grid,
-                            |k| of_realization(&nodes, k),
-                            at_nodes.as_deref(),
-                        )?
-                        .into_iter()
-                        .map(|r| upscale.of(r))
-                        .collect()
-                },
-                counter,
-            )
-        })?
+            simulation::continuous_batched(n, &options, ensemble.batch(grid.len()), |ks| {
+                ensemble
+                    .realizations(
+                        ks,
+                        &grid,
+                        |k| of_realization(&nodes, k),
+                        at_nodes.as_deref(),
+                    )?
+                    .into_iter()
+                    .map(|r| upscale.of(r))
+                    .collect()
+            })
+        })
         .map(|s| SimulationSummary(s, upscale.labels.clone(), self.unit.clone(), tonnes.clone()))
         .map_err(err)
     }
@@ -2419,7 +2397,7 @@ impl TurningBands {
     ///     ``simulate(model.discretize(discretization), blocks=model)``;
     ///     default the centroid. A node takes its block's domain and trend.
     #[allow(clippy::too_many_arguments)]
-    #[pyo3(signature = (path, out, *, n=100, seed=0, cutoffs=None, quantiles=vec![], keep=None, rows=1_000_000, domains=None, domain_column=None, trend=None, discretization=None, progress=true))]
+    #[pyo3(signature = (path, out, *, n=100, seed=0, cutoffs=None, quantiles=vec![], keep=None, rows=1_000_000, domains=None, domain_column=None, trend=None, discretization=None))]
     fn simulate_to_parquet<'py>(
         &self,
         py: Python<'py>,
@@ -2435,7 +2413,6 @@ impl TurningBands {
         domain_column: Option<&str>,
         trend: Option<String>,
         discretization: Option<(usize, usize, usize)>,
-        progress: bool,
     ) -> PyResult<Bound<'py, pyo3::types::PyDict>> {
         let unit = self.unit.as_deref();
         let cutoffs = cutoffs
@@ -2484,30 +2461,30 @@ impl TurningBands {
             tonnage: None,
             tolerances: vec![],
         };
-        let global = with_progress(py, Some(total as u64), progress, |counter| {
-            simulation::turning_bands_to_parquet(
-                path,
-                out,
-                &d.locs,
-                &d.values,
-                d.weights.as_deref(),
-                d.holes.as_deref(),
-                zoned(d, &nodes),
-                d.trend
-                    .as_deref()
-                    .zip(trend.as_deref())
-                    .map(|(t, column)| (t, self.classes, column)),
-                &self.variogram,
-                &params,
-                n,
-                &options,
-                rows,
-                discretization,
-                &units,
-                counter,
-            )
-        })?
-        .map_err(err)?;
+        let global = py
+            .detach(|| {
+                simulation::turning_bands_to_parquet(
+                    path,
+                    out,
+                    &d.locs,
+                    &d.values,
+                    d.weights.as_deref(),
+                    d.holes.as_deref(),
+                    zoned(d, &nodes),
+                    d.trend
+                        .as_deref()
+                        .zip(trend.as_deref())
+                        .map(|(t, column)| (t, self.classes, column)),
+                    &self.variogram,
+                    &params,
+                    n,
+                    &options,
+                    rows,
+                    discretization,
+                    &units,
+                )
+            })
+            .map_err(err)?;
         let result = pyo3::types::PyDict::new(py);
         result.set_item("realization_mean", array1(py, global.realization_mean))?;
         result.set_item(
@@ -2650,7 +2627,7 @@ impl Sis {
     /// node volume, ties to the smallest, as in `BlockModel.regularize`; blocks as in
     /// `SGS.simulate`. `proportions`, shape ``(targets, k)``, are the local
     /// category proportions at the targets, when `fit` had them at the samples.
-    #[pyo3(signature = (targets, *, n=100, seed=0, keep=None, blocks=None, proportions=None, progress=true))]
+    #[pyo3(signature = (targets, *, n=100, seed=0, keep=None, blocks=None, proportions=None))]
     #[allow(clippy::too_many_arguments)]
     fn simulate(
         &self,
@@ -2661,7 +2638,6 @@ impl Sis {
         keep: Option<&Bound<PyAny>>,
         blocks: Option<PyRef<PyBlockModel>>,
         proportions: Option<&Bound<PyAny>>,
-        progress: bool,
     ) -> PyResult<CategoricalSummary> {
         let (locs, cats) = self.data.as_ref().ok_or_else(not_fitted)?;
         let grid = self::targets(targets)?;
@@ -2678,32 +2654,26 @@ impl Sis {
         let local = self.local.as_deref().zip(at_grid.as_deref());
         let support = support(targets, &grid, blocks)?;
         let keep = keep_arg(keep)?;
-        with_progress(py, Some(n as u64), progress, |counter| {
-            simulation::categorical(
-                n,
-                k,
-                &keep,
-                |i| {
-                    let params = SisParams {
-                        search: self.search.clone(),
-                        seed: boitata_core::rng::realization_seed(seed, i as u64),
-                    };
-                    let holes = self.holes.as_deref();
-                    simulation::sis(
-                        locs,
-                        cats,
-                        holes,
-                        &grid,
-                        k,
-                        &self.variograms,
-                        &params,
-                        local,
-                    )
-                    .and_then(|r| majority(&support, r.categories, k))
-                },
-                counter,
-            )
-        })?
+        py.detach(|| {
+            simulation::categorical(n, k, &keep, |i| {
+                let params = SisParams {
+                    search: self.search.clone(),
+                    seed: boitata_core::rng::realization_seed(seed, i as u64),
+                };
+                let holes = self.holes.as_deref();
+                simulation::sis(
+                    locs,
+                    cats,
+                    holes,
+                    &grid,
+                    k,
+                    &self.variograms,
+                    &params,
+                    local,
+                )
+                .and_then(|r| majority(&support, r.categories, k))
+            })
+        })
         .map(CategoricalSummary)
         .map_err(err)
     }
@@ -2987,7 +2957,7 @@ impl Plurigaussian {
     /// Summary of `n` realizations; same options as `SIS.simulate`, and
     /// `proportions` of shape ``(targets, k)``, the local facies proportions
     /// at the targets, when `fit` had them at the samples.
-    #[pyo3(signature = (targets, *, n=100, seed=0, keep=None, blocks=None, proportions=None, progress=true))]
+    #[pyo3(signature = (targets, *, n=100, seed=0, keep=None, blocks=None, proportions=None))]
     #[allow(clippy::too_many_arguments)]
     fn simulate(
         &self,
@@ -2998,7 +2968,6 @@ impl Plurigaussian {
         keep: Option<&Bound<PyAny>>,
         blocks: Option<PyRef<PyBlockModel>>,
         proportions: Option<&Bound<PyAny>>,
-        progress: bool,
     ) -> PyResult<CategoricalSummary> {
         let (locs, facies) = self.data.as_ref().ok_or_else(not_fitted)?;
         let grid = self::targets(targets)?;
@@ -3014,28 +2983,22 @@ impl Plurigaussian {
         let support = support(targets, &grid, blocks)?;
         let k = self.facies();
         let keep = keep_arg(keep)?;
-        with_progress(py, Some(n as u64), progress, |counter| {
-            simulation::categorical(
-                n,
-                k,
-                &keep,
-                |i| {
-                    let params = PgsParams {
-                        seed: boitata_core::rng::realization_seed(seed, i as u64),
-                        ..Default::default()
-                    };
-                    let (vgs, rule) = (&self.variograms, &self.rule);
-                    match (&local, &self.hierarchy) {
-                        (Some((at_data, at_grid)), Some(tree)) => simulation::plurigaussian_local(
-                            locs, facies, &grid, vgs, tree, at_data, at_grid, &params,
-                        ),
-                        _ => simulation::plurigaussian(locs, facies, &grid, vgs, rule, &params),
-                    }
-                    .and_then(|f| majority(&support, f, k))
-                },
-                counter,
-            )
-        })?
+        py.detach(|| {
+            simulation::categorical(n, k, &keep, |i| {
+                let params = PgsParams {
+                    seed: boitata_core::rng::realization_seed(seed, i as u64),
+                    ..Default::default()
+                };
+                let (vgs, rule) = (&self.variograms, &self.rule);
+                match (&local, &self.hierarchy) {
+                    (Some((at_data, at_grid)), Some(tree)) => simulation::plurigaussian_local(
+                        locs, facies, &grid, vgs, tree, at_data, at_grid, &params,
+                    ),
+                    _ => simulation::plurigaussian(locs, facies, &grid, vgs, rule, &params),
+                }
+                .and_then(|f| majority(&support, f, k))
+            })
+        })
         .map(CategoricalSummary)
         .map_err(err)
     }
@@ -4343,9 +4306,7 @@ impl MultivariateSimulation {
     /// -------
     /// list of SimulationSummary
     ///     One per variable, in column order.
-    ///
-    /// `progress` shows a `tqdm` bar over the realizations.
-    #[pyo3(signature = (targets, *, n=100, seed=0, cutoffs=vec![], quantiles=vec![], keep=None, anisotropy=None, blocks=None, progress=true))]
+    #[pyo3(signature = (targets, *, n=100, seed=0, cutoffs=vec![], quantiles=vec![], keep=None, anisotropy=None, blocks=None))]
     #[allow(clippy::too_many_arguments)]
     fn simulate(
         &self,
@@ -4358,7 +4319,6 @@ impl MultivariateSimulation {
         keep: Option<&Bound<PyAny>>,
         anisotropy: Option<PyRef<crate::lva::LocalAnisotropy>>,
         blocks: Option<PyRef<PyBlockModel>>,
-        progress: bool,
     ) -> PyResult<Vec<SimulationSummary>> {
         let f = self.fitted.as_ref().ok_or_else(not_fitted)?;
         let grid = self::targets(targets)?;
@@ -4379,7 +4339,7 @@ impl MultivariateSimulation {
                 matches!(factor, Factor::Bands(_, params)
                     if f.imputed.is_none() || params.search.high_grade.is_none())
             });
-        with_progress(py, Some(n as u64), progress, |counter| {
+        py.detach(|| {
             if bands_only {
                 let p = self.factors.len();
                 let (lo, hi) = simulation::bounds(&grid);
@@ -4429,7 +4389,6 @@ impl MultivariateSimulation {
                         )?
                         .realizations(0..ks.len(), &grid, |_| None, None)
                     },
-                    counter,
                 );
             }
             simulation::multivariate(
@@ -4483,9 +4442,8 @@ impl MultivariateSimulation {
                     }
                     .values)
                 },
-                counter,
             )
-        })?
+        })
         .map(|s| {
             s.into_iter()
                 .enumerate()
@@ -4938,8 +4896,6 @@ impl Snesim {
     ///     dict; every domain needs an image.
     /// domain_column : str, optional
     ///     Column of `targets` holding the domains, instead of `domains`.
-    /// progress : bool, default True
-    ///     Show a progress bar.
     ///
     /// Returns
     /// -------
@@ -4957,7 +4913,7 @@ impl Snesim {
     ///     not ``(n_targets, k)`` of non-negative values, some row mixing
     ///     numbers and NaN or holding only zeros, or the domains do not match
     ///     the training images.
-    #[pyo3(signature = (targets, *, n=100, seed=0, keep=None, soft=None, anisotropy=None, domains=None, domain_column=None, progress=true))]
+    #[pyo3(signature = (targets, *, n=100, seed=0, keep=None, soft=None, anisotropy=None, domains=None, domain_column=None))]
     #[allow(clippy::too_many_arguments)]
     fn simulate(
         &self,
@@ -4970,7 +4926,6 @@ impl Snesim {
         anisotropy: Option<PyRef<crate::lva::LocalAnisotropy>>,
         domains: Option<&Bound<PyAny>>,
         domain_column: Option<&str>,
-        progress: bool,
     ) -> PyResult<Py<PyAny>> {
         let lattice = lattice_of(targets)
             .ok_or_else(|| invalid("SNESIM simulates on a regular or masked BlockModel"))?;
@@ -4996,11 +4951,12 @@ impl Snesim {
         };
         if self.core.is_continuous() {
             let data = self.data.as_ref().map(|(l, v)| (&l[..], &v[..]));
-            let summary = with_progress(py, Some(n as u64), progress, |counter| {
-                self.core
-                    .simulate_values(&lattice, data, local, n, seed, &keep, memory, counter)
-            })?
-            .map_err(err)?;
+            let summary = py
+                .detach(|| {
+                    self.core
+                        .simulate_values(&lattice, data, local, n, seed, &keep, memory)
+                })
+                .map_err(err)?;
             return Ok(Bound::new(py, SimulationSummary::from(summary))?
                 .into_any()
                 .unbind());
@@ -5014,20 +4970,20 @@ impl Snesim {
             .as_ref()
             .zip(codes.as_ref())
             .map(|((l, _), c)| (&l[..], &c[..]));
-        let summary = with_progress(py, Some(n as u64), progress, |counter| {
-            self.core.simulate(
-                &lattice,
-                data,
-                soft.as_deref(),
-                local,
-                n,
-                seed,
-                &keep,
-                memory,
-                counter,
-            )
-        })?
-        .map_err(err)?;
+        let summary = py
+            .detach(|| {
+                self.core.simulate(
+                    &lattice,
+                    data,
+                    soft.as_deref(),
+                    local,
+                    n,
+                    seed,
+                    &keep,
+                    memory,
+                )
+            })
+            .map_err(err)?;
         Ok(Bound::new(py, CategoricalSummary(summary))?
             .into_any()
             .unbind())
@@ -5452,13 +5408,12 @@ impl ImageQuilting {
     ///     The secondary variable at the targets, as a column of `targets` or
     ///     an array; null where unknown. Needed exactly when the simulator was
     ///     built with `secondary`.
-    /// progress : bool, default True
     ///
     /// Returns
     /// -------
     /// CategoricalSummary or SimulationSummary
     ///     Categorical for a categorical training image, else continuous.
-    #[pyo3(signature = (targets, *, n=100, seed=0, keep=None, soft=None, secondary=None, progress=true))]
+    #[pyo3(signature = (targets, *, n=100, seed=0, keep=None, soft=None, secondary=None))]
     #[allow(clippy::too_many_arguments)]
     fn simulate(
         &self,
@@ -5469,7 +5424,6 @@ impl ImageQuilting {
         keep: Option<&Bound<PyAny>>,
         soft: Option<&Bound<PyAny>>,
         secondary: Option<&Bound<PyAny>>,
-        progress: bool,
     ) -> PyResult<Py<PyAny>> {
         let model = targets
             .cast::<PyBlockModel>()
@@ -5533,16 +5487,13 @@ impl ImageQuilting {
         };
         if self.categorical {
             let k = ti.n_categories();
-            let summary = with_progress(py, Some(n as u64), progress, |counter| {
-                simulation::categorical(
-                    n,
-                    k,
-                    &keep,
-                    |i| Ok(realization(i).into_iter().map(|c| c as usize).collect()),
-                    counter,
-                )
-            })?
-            .map_err(err)?;
+            let summary = py
+                .detach(|| {
+                    simulation::categorical(n, k, &keep, |i| {
+                        Ok(realization(i).into_iter().map(|c| c as usize).collect())
+                    })
+                })
+                .map_err(err)?;
             return Ok(Bound::new(py, CategoricalSummary(summary))?
                 .into_any()
                 .unbind());
@@ -5551,10 +5502,9 @@ impl ImageQuilting {
             keep,
             ..Default::default()
         };
-        let summary = with_progress(py, Some(n as u64), progress, |counter| {
-            simulation::continuous(n, &options, |i| Ok(realization(i)), counter)
-        })?
-        .map_err(err)?;
+        let summary = py
+            .detach(|| simulation::continuous(n, &options, |i| Ok(realization(i))))
+            .map_err(err)?;
         Ok(Bound::new(py, SimulationSummary::from(summary))?
             .into_any()
             .unbind())

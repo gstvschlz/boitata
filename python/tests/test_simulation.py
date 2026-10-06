@@ -142,9 +142,9 @@ def _box_mean(xy, reals, half):
 @pytest.mark.filterwarnings("ignore:.*no draw reaches")
 def test_windows_and_groups_summarize_each_realization(make, tmp_path):
     sim = make().fit(coords, values)
-    nodes = sim.simulate(grid, n=5, seed=2, keep=True, progress=False).realizations
+    nodes = sim.simulate(grid, n=5, seed=2, keep=True).realizations
     xy = grid.centroids[:, :2]
-    s = sim.simulate(grid, n=5, seed=2, keep=True, quantiles=[0.5], window=(15, 10), progress=False)
+    s = sim.simulate(grid, n=5, seed=2, keep=True, quantiles=[0.5], window=(15, 10))
     expected = _box_mean(xy, nodes, np.array([7.5, 5.0]))
     np.testing.assert_allclose(s.realizations, expected, rtol=1e-9)
     np.testing.assert_allclose(s.mean, expected.mean(axis=0), rtol=1e-9)
@@ -161,7 +161,6 @@ def test_windows_and_groups_summarize_each_realization(make, tmp_path):
         groups="period",
         grade_tonnage_cutoffs=[0.0],
         density=2.0,
-        progress=False,
     )
     labels = np.unique(period)
     expected = np.stack([nodes[:, period == p].mean(axis=1) for p in labels], axis=1)
@@ -189,7 +188,7 @@ def test_precision_counts_realizations_near_the_mean(make, tmp_path):
     sim = make().fit(coords, values)
     period = np.arange(400) % 3
     for rows in ({}, {"groups": period}, {"window": (15, 10)}):
-        s = sim.simulate(grid, n=12, seed=2, keep=True, tolerances=[0.1, 0.3], progress=False, **rows)
+        s = sim.simulate(grid, n=12, seed=2, keep=True, tolerances=[0.1, 0.3], **rows)
         reals, mean = s.realizations, s.mean
         expected = np.stack(
             [(np.abs(reals - mean) <= r * np.abs(mean)).mean(axis=0) for r in (0.1, 0.3)], axis=1
@@ -200,14 +199,14 @@ def test_precision_counts_realizations_near_the_mean(make, tmp_path):
     for again in (bt.SimulationSummary.from_parquet(tmp_path / "s.parquet"), pickle.loads(pickle.dumps(s))):
         assert again.tolerances == s.tolerances
         np.testing.assert_array_equal(again.precision, s.precision)
-    plain = sim.simulate(grid, n=2, progress=False)
+    plain = sim.simulate(grid, n=2)
     assert plain.tolerances == [] and plain.precision.shape == (400, 0)
 
 
 def test_validate_against_a_truth():
     sgs = bt.SGS(gaussian, bt.Search(radius=40, max_samples=12)).fit(coords, values)
-    s = sgs.simulate(grid, n=30, seed=1, cutoffs=[1.0], quantiles=[0.05, 0.95], progress=False)
-    truth = sgs.simulate(grid, n=1, seed=99, keep=True, progress=False).realizations[0]
+    s = sgs.simulate(grid, n=30, seed=1, cutoffs=[1.0], quantiles=[0.05, 0.95])
+    truth = sgs.simulate(grid, n=1, seed=99, keep=True).realizations[0]
     t = s.validate(truth, cutoff=1.0)
     assert t.column_names == ["truth", "mean", "error", "covered", "type_1", "type_2"]
     np.testing.assert_allclose(t["error"], (s.mean - truth) / truth)
@@ -230,7 +229,7 @@ def test_validate_against_a_truth():
 
 def test_group_grade_is_tonnage_weighted():
     sgs = bt.SGS(gaussian, bt.Search(radius=40, max_samples=12)).fit(coords, values)
-    nodes = sgs.simulate(grid, n=4, seed=3, keep=True, progress=False).realizations
+    nodes = sgs.simulate(grid, n=4, seed=3, keep=True).realizations
     period = np.arange(400) % 3
     density = 1.5 + (np.arange(400) % 7) * 0.4
     g = sgs.simulate(
@@ -241,7 +240,6 @@ def test_group_grade_is_tonnage_weighted():
         groups=period,
         grade_tonnage_cutoffs=[0.0],
         density="density",
-        progress=False,
     )
     for p in range(3):
         rows = period == p
@@ -252,16 +250,16 @@ def test_group_grade_is_tonnage_weighted():
 def test_windows_over_blocks_points_and_bad_arguments():
     sgs = bt.SGS(gaussian, bt.Search(radius=40, max_samples=12)).fit(coords, values)
     blocks = bt.BlockModel(origin=(0, 0), size=(20, 20), count=(5, 5))
-    on_blocks = sgs.simulate(grid, n=3, seed=1, keep=True, blocks=blocks, progress=False).realizations
-    s = sgs.simulate(grid, n=3, seed=1, keep=True, blocks=blocks, window=(40, 40, 0), progress=False)
+    on_blocks = sgs.simulate(grid, n=3, seed=1, keep=True, blocks=blocks).realizations
+    s = sgs.simulate(grid, n=3, seed=1, keep=True, blocks=blocks, window=(40, 40, 0))
     np.testing.assert_allclose(s.realizations, _box_mean(blocks.centroids[:, :2], on_blocks, 20.0), rtol=1e-9)
 
     points = rng.uniform(0, 100, (50, 2))
-    raw = sgs.simulate(points, n=3, seed=1, keep=True, progress=False).realizations
-    s = sgs.simulate(points, n=3, seed=1, keep=True, window=(30, 30), progress=False)
+    raw = sgs.simulate(points, n=3, seed=1, keep=True).realizations
+    s = sgs.simulate(points, n=3, seed=1, keep=True, window=(30, 30))
     np.testing.assert_allclose(s.realizations, _box_mean(points, raw, 15.0), rtol=1e-9)
     ids = np.arange(50) % 3
-    s = sgs.simulate(points, n=3, seed=1, keep=True, groups=ids, progress=False)
+    s = sgs.simulate(points, n=3, seed=1, keep=True, groups=ids)
     np.testing.assert_allclose(
         s.realizations, np.stack([raw[:, ids == i].mean(axis=1) for i in range(3)], axis=1)
     )
@@ -1284,33 +1282,6 @@ def test_available_memory_is_a_positive_size():
     assert _memory.available() > 2**20
 
 
-def test_progress_bar_shows_only_when_asked_and_changes_nothing(capsys):
-    sgs, blocks = _shared_case()
-    on = sgs.simulate(blocks, n=4, seed=3, keep=True, progress=True)
-    assert "100%" in capsys.readouterr().err
-    off = sgs.simulate(blocks, n=4, seed=3, keep=True, progress=False)
-    assert capsys.readouterr().err == ""
-    np.testing.assert_array_equal(on.realizations, off.realizations)
-    on = sgs.simulate(coords[:20], n=3, seed=3, keep=True, progress=True)
-    off = sgs.simulate(coords[:20], n=3, seed=3, keep=True, progress=False)
-    np.testing.assert_array_equal(on.realizations, off.realizations)
-    capsys.readouterr()
-
-
-def test_every_simulator_accepts_progress():
-    tb = bt.TurningBands(gaussian, bands=50, step=1.0).fit(coords, values)
-    np.testing.assert_array_equal(
-        tb.simulate(grid, n=3, seed=1, keep=True, progress=True).realizations,
-        tb.simulate(grid, n=3, seed=1, keep=True, progress=False).realizations,
-    )
-    cats = (values > np.median(values)).astype(int)
-    sis = bt.SIS([gaussian, gaussian], bt.Search(radius=40, max_samples=12)).fit(coords, cats)
-    np.testing.assert_array_equal(
-        sis.simulate(grid, n=3, seed=1, keep=True, progress=True).realizations,
-        sis.simulate(grid, n=3, seed=1, keep=True, progress=False).realizations,
-    )
-
-
 CHANNELS = {"shape": "channel", "code": 1, "proportion": 0.25, "width": 8.0, "azimuth": (-10, 10)}
 LOBES = {"shape": "ellipsoid", "code": 2, "proportion": 0.1, "radii": (6.0, 3.0)}
 
@@ -1370,7 +1341,6 @@ def _study(**options):
         "n": 20,
         "window": (20, 20),
         "composite_length": np.inf,
-        "progress": False,
         **options,
     }
     return bt.spacing_study(sgs, grid, **options)
@@ -1407,7 +1377,7 @@ def test_spacing_study_plans_equal_spacings_and_truth_indices():
     assert set(by_plan["plan"]) == {"grid"} and np.isnan(by_plan["spacing"]).all()
     assert set(by_spacing["plan"]) == {"10x20"} and by_spacing["spacing"][0] == pytest.approx(np.sqrt(200))
     sgs = bt.SGS(gaussian, bt.Search(radius=40, max_samples=12)).fit(coords, values)
-    truth = sgs.simulate(grid, n=5, seed=0, keep=[4], window=(20, 20), progress=False).realizations[0]
+    truth = sgs.simulate(grid, n=5, seed=0, keep=[4], window=(20, 20)).realizations[0]
     np.testing.assert_array_equal(by_plan["truth"][:400], truth)
     np.testing.assert_array_equal(by_plan["realization"], np.repeat([4.0, 1.0], 400))
 

@@ -105,7 +105,7 @@ here the directions follow the gradient of the ordinary kriging map of Cd, with 
 
 ```python
 grid = bt.BlockModel(origin=(0.3, 0.4), size=(0.1, 0.1), count=(47, 54))
-guide = grid.with_column("Cd", ok.predict(grid, progress=False))
+guide = grid.with_column("Cd", ok.predict(grid))
 lva = bt.LocalAnisotropy.from_grid(guide, "Cd", window=3, ratios=(0.5, 1.0)).smooth(0.5)
 by_lva = ck.predict(test, anisotropy=lva, collocated={1: "Zn"})
 print(

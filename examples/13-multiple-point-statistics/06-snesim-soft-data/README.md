@@ -54,8 +54,8 @@ overrules the patterns.
 ```python
 snesim = bt.SNESIM(ti, "facies")
 summaries = {
-    "patterns only": snesim.simulate(grid, n=20, seed=5, keep=[0], progress=False),
-    "with soft data": snesim.simulate(grid, n=20, seed=5, keep=[0], soft=soft, progress=False),
+    "patterns only": snesim.simulate(grid, n=20, seed=5, keep=[0]),
+    "with soft data": snesim.simulate(grid, n=20, seed=5, keep=[0], soft=soft),
 }
 for name, summary in summaries.items():
     p_sand = summary.probabilities[:, 1]

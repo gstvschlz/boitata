@@ -18,7 +18,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex, PoisonError};
 
 use boitata_core::rng::realization_seed;
-use boitata_core::{Geometry, Progress, block_frame};
+use boitata_core::{Geometry, block_frame};
 use estimation::lva::LocalAnisotropy;
 use nalgebra::{Matrix3, Vector3};
 use rand::rngs::StdRng;
@@ -338,7 +338,6 @@ impl Snesim {
         seed: u64,
         keep: &Keep,
         memory: u64,
-        progress: Option<&Progress>,
     ) -> Result<CategoricalSummary> {
         if self.is_continuous() {
             return Err(SimError::InvalidParameters(
@@ -348,22 +347,16 @@ impl Snesim {
         let hard = self.snap(lattice, data)?;
         let soft = soft.map(|rows| self.soft(lattice, rows)).transpose()?;
         let (classes, skip) = self.prepare(lattice, local, memory, &hard)?;
-        categorical(
-            n,
-            self.n_categories(),
-            keep,
-            |i| {
-                self.realization(
-                    lattice,
-                    &hard,
-                    &skip,
-                    soft.as_deref(),
-                    &classes,
-                    realization_seed(seed, i as u64),
-                )
-            },
-            progress,
-        )
+        categorical(n, self.n_categories(), keep, |i| {
+            self.realization(
+                lattice,
+                &hard,
+                &skip,
+                soft.as_deref(),
+                &classes,
+                realization_seed(seed, i as u64),
+            )
+        })
     }
 
     /// Summary of `n` realizations of continuous training images, as
@@ -382,7 +375,6 @@ impl Snesim {
         seed: u64,
         keep: &Keep,
         memory: u64,
-        progress: Option<&Progress>,
     ) -> Result<ContinuousSummary> {
         let cutoffs = match (&self.params.cutoffs, self.is_continuous()) {
             (Some(c), true) => c,
@@ -428,16 +420,11 @@ impl Snesim {
                 *g = sum / *k as f64;
             }
         }
-        continuous(
-            n,
-            &options,
-            |i| {
-                let seed = realization_seed(seed, i as u64);
-                let cats = self.realization(lattice, &hard, &skip, None, &classes, seed)?;
-                self.values(lattice, &cats, grid.clone(), &skip, &classes, seed)
-            },
-            progress,
-        )
+        continuous(n, &options, |i| {
+            let seed = realization_seed(seed, i as u64);
+            let cats = self.realization(lattice, &hard, &skip, None, &classes, seed)?;
+            self.values(lattice, &cats, grid.clone(), &skip, &classes, seed)
+        })
     }
 
     /// Values for the simulated classes `cats`, filling the nodes of `grid`
@@ -1122,7 +1109,6 @@ mod tests {
                 7,
                 &Keep::All,
                 0,
-                None,
             )
             .unwrap()
     }
@@ -1299,7 +1285,6 @@ mod tests {
                 0,
                 &Keep::None,
                 1000,
-                None,
             )
             .unwrap_err()
             .to_string();
@@ -1315,8 +1300,7 @@ mod tests {
                     1,
                     0,
                     &Keep::None,
-                    0,
-                    None
+                    0
                 )
                 .is_ok()
         );
@@ -1355,7 +1339,6 @@ mod tests {
                 7,
                 &Keep::All,
                 0,
-                None,
             )
             .unwrap()
     }
@@ -1427,7 +1410,6 @@ mod tests {
                 7,
                 &Keep::All,
                 0,
-                None,
             )
             .unwrap();
         for r in &s.realizations {
@@ -1484,7 +1466,6 @@ mod tests {
                     0,
                     &Keep::None,
                     0,
-                    None,
                 )
                 .unwrap_err()
                 .to_string()
@@ -1583,7 +1564,6 @@ mod tests {
                 7,
                 &Keep::All,
                 0,
-                None,
             )
             .unwrap()
     }
@@ -1623,24 +1603,14 @@ mod tests {
                     1,
                     0,
                     &Keep::None,
-                    0,
-                    None
+                    0
                 )
                 .is_err()
         );
         assert!(
             Snesim::new(ti(16), params())
                 .unwrap()
-                .simulate_values(
-                    &grid(8),
-                    None,
-                    SnesimLocal::default(),
-                    1,
-                    0,
-                    &Keep::None,
-                    0,
-                    None
-                )
+                .simulate_values(&grid(8), None, SnesimLocal::default(), 1, 0, &Keep::None, 0)
                 .is_err()
         );
     }
@@ -1701,7 +1671,7 @@ mod tests {
             ..SnesimLocal::default()
         };
         let s = snesim
-            .simulate_values(&grid(side), None, local, 4, 7, &Keep::All, 0, None)
+            .simulate_values(&grid(side), None, local, 4, 7, &Keep::All, 0)
             .unwrap();
         for r in &s.realizations {
             for (v, &z) in r.iter().zip(&zones) {
@@ -1718,16 +1688,7 @@ mod tests {
             (if m % side < side / 2 { 90.0 } else { 0.0 }, 1.0, 1.0)
         });
         let s = snesim
-            .simulate_values(
-                &grid(side),
-                None,
-                anisotropic(&f),
-                6,
-                7,
-                &Keep::All,
-                0,
-                None,
-            )
+            .simulate_values(&grid(side), None, anisotropic(&f), 6, 7, &Keep::All, 0)
             .unwrap();
         let [west, east] = [(0, side / 2), (side / 2, side)].map(|(a, b)| {
             let r = s.realizations.iter().map(|r| {
@@ -1774,7 +1735,7 @@ mod tests {
 
     fn turned(snesim: &Snesim, side: usize, local: SnesimLocal, n: usize) -> CategoricalSummary {
         snesim
-            .simulate(&grid(side), None, None, local, n, 7, &Keep::All, 0, None)
+            .simulate(&grid(side), None, None, local, n, 7, &Keep::All, 0)
             .unwrap()
     }
 
@@ -1945,7 +1906,7 @@ mod tests {
                 zones: Some(zones),
                 ..SnesimLocal::default()
             };
-            let e = snesim.simulate(&grid(4), None, None, local, 1, 0, &Keep::None, 0, None);
+            let e = snesim.simulate(&grid(4), None, None, local, 1, 0, &Keep::None, 0);
             e.unwrap_err().to_string()
         };
         assert!(bad(&[0; 3]).contains("one zone per target, 16"));
@@ -1963,17 +1924,7 @@ mod tests {
             let snesim = Snesim::new(ti(48), p).unwrap();
             let run = |memory| {
                 let local = anisotropic(&f);
-                snesim.simulate(
-                    &grid(40),
-                    None,
-                    None,
-                    local,
-                    1,
-                    0,
-                    &Keep::None,
-                    memory,
-                    None,
-                )
+                snesim.simulate(&grid(40), None, None, local, 1, 0, &Keep::None, memory)
             };
             run(memory).map(|_| snesim.n_classes())
         };
@@ -2008,7 +1959,7 @@ mod tests {
                 .unwrap();
             pool.install(|| {
                 snesim
-                    .simulate(&grid(40), data, None, local, 4, 7, &Keep::All, 0, None)
+                    .simulate(&grid(40), data, None, local, 4, 7, &Keep::All, 0)
                     .unwrap()
                     .realizations
             })

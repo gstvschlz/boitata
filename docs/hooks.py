@@ -14,13 +14,10 @@ CODE_HTML = r"<code>\1</code>"
 CHAPTER = re.compile(r"\]\(((?:\.\./)+(\d\d)-[\w-]+/(\d\d)-[\w-]+)/README\.md\)")
 SOURCE = re.compile(r"\]\((?:\.\./)+common\.py\)")
 SENTENCE = re.compile(r"(?<=\.)\s+(?=[A-Z`])")
-FENCE = "```{.shell .mkd-glr-script-out-disp }"
-OUTPUT = re.compile(re.escape(FENCE) + r"\n(.*?)```", re.DOTALL)
 COLAB = (
     "[![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)]"
     "(https://colab.research.google.com/github/gstvschlz/boitata/blob/main/notebooks/learn_{}.ipynb)"
 )
-TQDM = re.compile(r"(\d+)/(\d+) \[(\d+:\d\d)|(\d+)it \[(\d+:\d\d)")
 
 API = """
 containers: containers and I/O
@@ -121,8 +118,7 @@ def on_files(files, config, **kwargs):
 
 
 def on_page_markdown(markdown, page, **kwargs):
-    """Points links between example pages at their gallery pages, draws captured progress bars, adds the Learn trail
-    and tunes search."""
+    """Points links between example pages at their gallery pages, adds the Learn trail and tunes search."""
     uri = page.file.src_uri
     if uri.endswith("mg_execution_times.md"):
         page.meta["search"] = {"exclude": True}
@@ -132,7 +128,6 @@ def on_page_markdown(markdown, page, **kwargs):
         markdown = HEADING.sub(
             lambda h: f"{h[0]}\n\n{COLAB.format(match[1])}\n\n{trail(chapters(ROOT), match[1])}", markdown, count=1
         )
-    markdown = OUTPUT.sub(progress_bars, markdown)
     markdown = CHAPTER.sub(r"](\1/example_\2_\3.md)", markdown)
     return SOURCE.sub("](https://github.com/gstvschlz/boitata/blob/main/examples/common.py)", markdown)
 
@@ -206,37 +201,3 @@ def glossary(terms):
     )
     intro = "short definitions of the terms these pages use. elsewhere, hover a dotted term to see its definition."
     return f"# glossary\n\n{intro}\n\n<dl>\n{rows}</dl>\n"
-
-
-def progress_bars(block):
-    """Replaces each captured tqdm bar, whose states arrive one per line, with its last state drawn filling."""
-    parts, text, bar = [], [], None
-
-    def flush():
-        nonlocal bar
-        if bar:
-            done, total, elapsed, count, count_elapsed = bar
-            label = f"{done}/{total}" if total else count
-            share = min(100, 100 * int(done) // max(int(total), 1)) if total else 100
-            parts.append(
-                f'<div class="bt-progress" style="--share: {share}%"><span class="bt-progress-track">'
-                f'<span class="bt-progress-fill"></span></span><code>{label} · {elapsed or count_elapsed}</code></div>'
-            )
-            bar = None
-        if "".join(text).strip():
-            parts.append(FENCE + "\n" + "\n".join(text).strip("\n") + "\n```")
-        text.clear()
-
-    for line in block[1].split("\n"):
-        state = TQDM.findall(line)
-        if not state:
-            if bar and line.strip():
-                flush()
-            text.append(line)
-            continue
-        if (state[-1][0] or state[-1][3]) == "0" or text and "".join(text).strip():
-            flush()
-        text.clear()
-        bar = state[-1]
-    flush()
-    return "\n\n".join(parts)

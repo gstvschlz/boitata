@@ -6,7 +6,6 @@ from collections.abc import Mapping, Sequence
 
 import numpy as np
 from numpy.typing import ArrayLike
-from tqdm.auto import tqdm
 
 from boitata import _boitata
 from boitata.errors import InvalidInput
@@ -35,7 +34,6 @@ def spacing_study(
     composite_length: float | None = None,
     quantiles: tuple[float, float] = (0.05, 0.95),
     tolerances: Sequence[float] = (0.15,),
-    progress: bool = True,
 ) -> "_boitata.Table":
     """Uncertainty of the summary rows after drilling each plan, on simulated truths (virtual drilling).
 
@@ -86,8 +84,6 @@ def spacing_study(
         Symmetric quantiles whose half-width over the mean is the MEE; (0.05, 0.95) gives 90 % confidence.
     tolerances : sequence of float
         Relative tolerances of the precision columns.
-    progress : bool
-        Show a `tqdm` bar over the (plan, truth) pairs.
 
     Returns
     -------
@@ -113,7 +109,7 @@ def spacing_study(
 
     Examples
     --------
-    >>> study = bt.spacing_study(sim, nodes, spacings=[10, 20], truths=3, window=(40, 40), progress=False)
+    >>> study = bt.spacing_study(sim, nodes, spacings=[10, 20], truths=3, window=(40, 40))
     >>> curve = bt.uncertainty_curve("spacing", "mee", data=study)
     """
     if not isinstance(simulator, (_boitata.SGS, _boitata.DSS, _boitata.TurningBands)):
@@ -155,53 +151,50 @@ def spacing_study(
         for name, spacing, holes in named
     ]
 
-    truth = simulator.simulate(targets, n=max(indices) + 1, seed=seed, keep=indices, progress=False)
+    truth = simulator.simulate(targets, n=max(indices) + 1, seed=seed, keep=indices)
     at_nodes = _kept(truth, indices)
     rows = {"blocks": blocks, "window": window, "groups": groups}
     at_rows, labels = _boitata._summary_rows(targets, at_nodes, **rows)
 
     out = {}
-    with tqdm(total=len(samples) * len(indices), disable=not progress) as bar:
-        for i, (name, spacing, coords, ids, hit) in enumerate(samples):
-            for j, k in enumerate(indices):
-                pair = _boitata._realization_seed(_boitata._realization_seed(seed, k), i + 1)
-                z = at_nodes[j][hit]
-                if sampling_error > 0:
-                    z = z * (1 + np.random.default_rng(pair).standard_normal(len(z)) * sampling_error)
-                ok = np.isfinite(z)
-                xyz, values, holes = coords[ok], z[ok], ids[ok]
-                if existing:
-                    xyz = np.vstack([data["coords"], xyz])
-                    values = np.concatenate([data["values"], values])
-                    holes = np.concatenate([data["holes"], holes])
-                refit = copy.copy(simulator).fit(xyz, values, holes=holes)
-                s = refit.simulate(
-                    targets,
-                    n=n,
-                    seed=pair,
-                    quantiles=[lo, hi],
-                    tolerances=list(tolerances),
-                    progress=False,
-                    **rows,
-                )
-                check = s.validate(at_rows[j], confidence=hi - lo)
-                m = len(s.mean)
-                columns = {
-                    "plan": [name] * m,
-                    "spacing": np.full(m, spacing),
-                    "realization": np.full(m, float(k)),
-                    "row": labels if labels is not None else np.arange(m, dtype=float),
-                    "truth": check["truth"],
-                    "mean": check["mean"],
-                    "mee": s.relative_error(confidence=hi - lo),
-                    "cv": s.cv,
-                    **{f"precision_{r:g}": s.precision[:, t] for t, r in enumerate(tolerances)},
-                    "error": check["error"],
-                    "covered": check["covered"],
-                }
-                for key, value in columns.items():
-                    out.setdefault(key, []).append(np.asarray(value, dtype=object if key == "plan" else None))
-                bar.update()
+    for i, (name, spacing, coords, ids, hit) in enumerate(samples):
+        for j, k in enumerate(indices):
+            pair = _boitata._realization_seed(_boitata._realization_seed(seed, k), i + 1)
+            z = at_nodes[j][hit]
+            if sampling_error > 0:
+                z = z * (1 + np.random.default_rng(pair).standard_normal(len(z)) * sampling_error)
+            ok = np.isfinite(z)
+            xyz, values, holes = coords[ok], z[ok], ids[ok]
+            if existing:
+                xyz = np.vstack([data["coords"], xyz])
+                values = np.concatenate([data["values"], values])
+                holes = np.concatenate([data["holes"], holes])
+            refit = copy.copy(simulator).fit(xyz, values, holes=holes)
+            s = refit.simulate(
+                targets,
+                n=n,
+                seed=pair,
+                quantiles=[lo, hi],
+                tolerances=list(tolerances),
+                **rows,
+            )
+            check = s.validate(at_rows[j], confidence=hi - lo)
+            m = len(s.mean)
+            columns = {
+                "plan": [name] * m,
+                "spacing": np.full(m, spacing),
+                "realization": np.full(m, float(k)),
+                "row": labels if labels is not None else np.arange(m, dtype=float),
+                "truth": check["truth"],
+                "mean": check["mean"],
+                "mee": s.relative_error(confidence=hi - lo),
+                "cv": s.cv,
+                **{f"precision_{r:g}": s.precision[:, t] for t, r in enumerate(tolerances)},
+                "error": check["error"],
+                "covered": check["covered"],
+            }
+            for key, value in columns.items():
+                out.setdefault(key, []).append(np.asarray(value, dtype=object if key == "plan" else None))
     return _boitata.Table({key: np.concatenate(parts) for key, parts in out.items()})
 
 

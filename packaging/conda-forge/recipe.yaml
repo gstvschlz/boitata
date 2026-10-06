@@ -41,7 +41,6 @@ requirements:
   run:
     - python >=${{ python_min }}
     - numpy >=1.26
-    - tqdm >=4.66
 
 tests:
   - python:
