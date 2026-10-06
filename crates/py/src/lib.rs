@@ -18,7 +18,6 @@ mod lva;
 mod modeling;
 mod multigaussian;
 mod persist;
-mod plan;
 mod simulation;
 mod table;
 mod transforms;
@@ -68,6 +67,5 @@ fn _boitata(m: &Bound<PyModule>) -> PyResult<()> {
     categorical::register(m)?;
     multigaussian::register(m)?;
     consistency::register(m)?;
-    plan::register(m)?;
     Ok(())
 }

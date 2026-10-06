@@ -229,7 +229,7 @@ fn label(obj: &Bound<PyAny>) -> PyResult<Label> {
     })
 }
 
-pub fn key(label: &Label) -> String {
+fn key(label: &Label) -> String {
     label.to_string()
 }
 
@@ -1086,32 +1086,6 @@ impl Estimator {
     fn passes(&self) -> PyResult<Vec<CoreSearch>> {
         let domains = self.domains.as_deref();
         self.search.iter().map(|s| s.resolve(domains)).collect()
-    }
-
-    /// The kriging a drilling plan evaluates with this estimator, its soft
-    /// boundaries coded by the plan's `domains` labels.
-    pub fn planning(&self, domains: Option<&[Label]>) -> PyResult<estimation::plan::Kriging> {
-        if self.domains.is_some() && domains.is_none() {
-            return Err(invalid(
-                "fitted with domains; DrillholePlan needs domains too",
-            ));
-        }
-        let (kind, block) = match &self.method {
-            Method::Kriging(kind) => (*kind, None),
-            Method::Block { size, disc } => (Kind::Ordinary, Some((*size, *disc))),
-            _ => {
-                return Err(invalid(
-                    "DrillholePlan needs ordinary, simple, indicator or block kriging",
-                ));
-            }
-        };
-        let passes = self.search.iter().map(|s| s.resolve(domains));
-        Ok(estimation::plan::Kriging {
-            kind,
-            block,
-            variogram: self.variogram.clone().expect("kriging carries a variogram"),
-            passes: passes.collect::<PyResult<_>>()?,
-        })
     }
 }
 
