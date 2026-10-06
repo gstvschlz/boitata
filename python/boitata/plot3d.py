@@ -5,6 +5,7 @@ layers that share one color map and range per variable; `plot` and `slices` add 
 when given, else to a new one, and return the scene.
 """
 
+import sys
 import tempfile
 import weakref
 import webbrowser
@@ -277,7 +278,63 @@ def _cheap(pv, data, mesh, values, fraction):
     return (out, {}) if out.n_cells and (values is None or values in out.array_names) else (None, {})
 
 
-_BUDGET = 1_000_000
+_BUDGET = 50_000
+_KINDS = {
+    "block models": "block model",
+    "drill holes": "drill holes",
+    "surfaces": "surface",
+    "points": "points",
+}
+
+
+def _kind(data, mesh):
+    """Group of a layer in `Scene.layer_toggles`."""
+    pv = _pyvista()
+    if isinstance(data, BlockModel) or isinstance(mesh, _Solid | pv.ImageData | pv.UnstructuredGrid):
+        return "block models"
+    if isinstance(data, Drillholes):
+        return "drill holes"
+    if isinstance(data, PointSet) or _points_only(mesh):
+        return "points"
+    return "surfaces"
+
+
+def _segments(points):
+    """Vertical plane of each segment of an xy polyline: start, along-segment unit vector, length, chainage."""
+    xy = np.asarray(points, dtype=float)
+    if xy.ndim != 2 or len(xy) < 2 or xy.shape[1] not in (2, 3):
+        raise ValueError(f"points must be (n, 2) or (n, 3) with n >= 2, got shape {xy.shape}")
+    xy = xy[:, :2]
+    steps = np.diff(xy, axis=0)
+    lengths = np.hypot(*steps.T)
+    keep = lengths > 0
+    if not keep.any():
+        raise ValueError("points must not all coincide")
+    chainage = np.r_[0.0, np.cumsum(lengths[keep])[:-1]]
+    return [
+        (np.r_[start, 0.0], np.r_[step / length, 0.0], length, at)
+        for start, step, length, at in zip(xy[:-1][keep], steps[keep], lengths[keep], chainage, strict=True)
+    ]
+
+
+def _snap(start, end):
+    """`end` moved onto the nearest bearing from `start` that is a multiple of 45°, keeping its projection."""
+    step = np.subtract(end, start)
+    bearing = np.radians(np.round(np.degrees(np.arctan2(step[0], step[1])) / 45) * 45)
+    direction = np.array([np.sin(bearing), np.cos(bearing)])
+    return np.asarray(start, dtype=float) + max(step @ direction, 0.0) * direction
+
+
+def _colab_iframe(viewer, src, **kwargs):
+    """Embeds a trame view through Colab's proxy of the kernel's ports."""
+    from urllib.parse import urlsplit
+
+    from google.colab import output
+
+    url = urlsplit(src)
+    height = str(kwargs.get("height", "600px"))
+    height = int(height[:-2]) if height.endswith("px") else 600
+    output.serve_kernel_port_as_iframe(url.port, path=f"{url.path}?{url.query}", height=height)
 
 
 _SCENES = weakref.WeakKeyDictionary()
@@ -292,7 +349,7 @@ class Scene:
         Plotter to draw into; a new one by default.
     motion_quality : {"auto", "full"} or float, default "auto"
         What draws while the camera moves (dragged or zoomed): ``"full"`` every layer as it is; ``"auto"`` a cheaper
-        copy of each layer of more than a million cells or points (a volume also when it exceeds GPU memory); a
+        copy of about 50 000 cells or points of each larger layer (a volume also when it exceeds GPU memory); a
         number in (0, 1] a cheaper copy of every layer with about that fraction of its geometry. Once the camera
         stops, the layers draw in full again. Each copy is built the first time the camera moves and kept: a
         regular block model takes every n-th block along each axis, points a fixed random subset drawn flat,
@@ -325,6 +382,14 @@ class Scene:
         self._plane = None
         self._sources = []
         self._fast = {}
+        self._names = []
+        self._kinds = []
+        self._hidden = set()
+        self._path = None
+        self._pieces = []
+        self._width = None
+        self._unfolded = False
+        self._drawer = None
         self.motion_quality = motion_quality
         self.plotter.renderer.AddObserver("StartEvent", self._move)
         _SCENES[self.plotter] = self
@@ -348,9 +413,9 @@ class Scene:
                 self.plotter.remove_actor(fast, render=False)
                 for props in self._volumes.values():
                     props[:] = [v for v in props if v[0] is not fast.prop]
-        for *_, actor in self._layers:
+        for i, (*_, actor) in enumerate(self._layers):
             if actor is not None:
-                actor.SetVisibility(self._plane is None)
+                actor.SetVisibility(self._plane is None and i not in self._hidden)
         self._fast = {}
         self._quality = value
 
@@ -361,9 +426,10 @@ class Scene:
                 self._fast[i] = self._degrade(self._sources[i], *layer)
             fast = self._fast.get(i)
             if fast is not None:
-                fast.SetVisibility(moving)
+                shown = i not in self._hidden
+                fast.SetVisibility(moving and shown)
                 if self._plane is None:
-                    layer[-1].SetVisibility(not moving)
+                    layer[-1].SetVisibility(not moving and shown)
 
     def _degrade(self, data, mesh, flat, values, style, kwargs, actor):
         if actor is None or self.motion_quality == "full":
@@ -385,7 +451,7 @@ class Scene:
         options.pop("name", None)
         return self._draw(cheap, values, style, options)
 
-    def add(self, data, values=None, *, style=None, radius=None, labels=False, **kwargs):
+    def add(self, data, values=None, *, name=None, style=None, radius=None, labels=False, **kwargs):
         """Adds a layer.
 
         Parameters
@@ -395,6 +461,8 @@ class Scene:
         values : str, optional
             Attribute that colors it. Its null rows never render: null points, cells, and the cells of null points
             are left out. Numbers share one range over every layer the variable colors, text one category list.
+        name : str, optional
+            Label of the layer in `layer_toggles`; default its kind and number, e.g. ``"surface 2"``.
         style : {"surface", "wireframe", "points", "points_gaussian", "volume"}, optional
             How cells are drawn; a `PointSet` draws its points as spheres. A masked or sub-blocked `BlockModel`
             draws as surface or wireframe only the faces between its blocks and empty cells, so a translucent one
@@ -429,8 +497,11 @@ class Scene:
         )
         kwargs = {**defaults, **kwargs}
         actor = self._draw(mesh, values, style, dict(kwargs))
+        kind = _kind(data, mesh)
         self._layers.append((mesh, flat, values, style, kwargs, actor))
         self._sources.append(data)
+        self._kinds.append(kind)
+        self._names.append(name or f"{_KINDS[kind]} {self._kinds.count(kind)}")
         if labels:
             self.plotter.add_point_labels(*_collars(data), shape=None, show_points=False, always_visible=True)
         return self
@@ -498,16 +569,22 @@ class Scene:
             prop.SetColor(color)
             prop.SetScalarOpacity(shape)
 
-    def section(self, origin, *, azimuth=90.0, dip=90.0, width=None):
-        """Cuts every layer with a plane, in place of the layers and of the previous section.
+    def section(self, origin=None, *, points=None, azimuth=90.0, dip=90.0, width=None):
+        """Cuts every shown layer with a plane or a vertical stepped curtain, in place of the layers and of the
+        previous section.
 
         Surfaces and solids show their intersection with the plane; points and drill holes within `width` of it
-        are clipped to that slab and projected onto it. Each piece keeps its layer's variable and style.
+        are clipped to that slab and projected onto it. Each piece keeps its layer's variable and style. Layers
+        hidden with `layer_toggles` are left out.
 
         Parameters
         ----------
         origin : array_like or None
-            ``(x, y, z)`` point on the plane; None removes the section and shows the layers again.
+            ``(x, y, z)`` point on the plane; None, without `points`, removes the section and shows the layers
+            again.
+        points : array_like, optional
+            ``(n, 2)`` or ``(n, 3)`` vertices of a polyline in plan, in place of `origin`, `azimuth` and `dip`:
+            each segment cuts on the vertical plane through it, between its two ends.
         azimuth, dip : float
             Bearing of the section line and dip of the plane, in degrees (90 and 90: a vertical east-west
             section, dip 0: a plan).
@@ -519,29 +596,55 @@ class Scene:
         Scene
             This scene, to chain calls.
         """
+        segments = None if points is None else _segments(points)
         for actor in self._cuts:
             self.plotter.remove_actor(actor, render=False)
         self._cuts = []
-        self._plane = None if origin is None else (origin, azimuth, dip)
-        for *_, actor in self._layers:
+        self._pieces = []
+        self._unfolded = False
+        self._width = width
+        self._path = None if segments is None else np.asarray(points, dtype=float)[:, :2]
+        self._plane = None if origin is None and segments is None else (origin, azimuth, dip)
+        for i, (*_, actor) in enumerate(self._layers):
             if actor is not None:
-                actor.SetVisibility(origin is None)
-        if origin is None:
+                actor.SetVisibility(self._plane is None and i not in self._hidden)
+        if self._plane is None:
             return self
-        center, _, _, n = _frame(self._plane)
         half = (self._extent()[1] / 20 if width is None else width) / 2
-        for mesh, flat, values, style, kwargs, _ in self._layers:
-            if flat:
-                cut = mesh.clip(normal=n, origin=center + half * n).clip(normal=-n, origin=center - half * n)
-                cut.points = cut.points - np.outer((cut.points - center) @ n, n)
-            else:
-                cut = mesh.slice(normal=n, origin=center)
+        if segments is None:
+            center, _, _, n = _frame(self._plane)
+            planes = [(center, n, None, None, 0.0)]
+        else:
+            planes = [
+                (start, np.array([u[1], -u[0], 0.0]), u, length, at) for start, u, length, at in segments
+            ]
+        for i, (mesh, flat, values, style, kwargs, _) in enumerate(self._layers):
+            if i in self._hidden:
+                continue
             if style == "volume":
                 style, kwargs = None, {k: v for k, v in kwargs.items() if k != "opacity"}
-            if cut.n_points:
-                actor = self._draw(cut, values, style, dict(kwargs))
-                self._cuts += [actor] if actor is not None else []
+            for center, n, u, length, at in planes:
+                if flat:
+                    cut = mesh.clip(normal=n, origin=center + half * n).clip(
+                        normal=-n, origin=center - half * n
+                    )
+                    cut.points = cut.points - np.outer((cut.points - center) @ n, n)
+                else:
+                    cut = mesh.slice(normal=n, origin=center)
+                if u is not None and cut.n_points:
+                    cut = cut.clip(normal=-u, origin=center).clip(normal=u, origin=center + length * u)
+                if cut.n_points:
+                    self._pieces.append((cut, center, u, at, values, style, kwargs))
+        self._show_pieces(self._pieces)
         return self
+
+    def _show_pieces(self, pieces):
+        for actor in self._cuts:
+            self.plotter.remove_actor(actor, render=False)
+        self._cuts = []
+        for cut, *_, values, style, kwargs in pieces:
+            actor = self._draw(cut, values, style, dict(kwargs))
+            self._cuts += [actor] if actor is not None else []
 
     def section_widget(self, *, origin=None, azimuth=90.0, dip=90.0, width=None, **kwargs):
         """Interactive plane that calls `section` each time it is moved.
@@ -570,7 +673,9 @@ class Scene:
         return self
 
     def view_section(self):
-        """Orthographic view normal to the section plane, strike to the right and up dip upward.
+        """Orthographic view normal to the section plane, strike to the right and up dip upward. A stepped curtain
+        is first unfolded: each segment's pieces are laid along the first segment's plane at their distance along
+        the polyline, so the whole curtain reads as one true-scale section.
 
         Returns
         -------
@@ -579,11 +684,206 @@ class Scene:
         """
         if self._plane is None:
             raise RuntimeError("no section: call Scene.section first")
-        center, _, v, n = _frame(self._plane)
+        if self._path is None:
+            center, _, v, n = _frame(self._plane)
+        else:
+            first = _segments(self._path)[0]
+            start, u0 = first[0], first[1]
+            pieces = []
+            for cut, center, u, at, *rest in self._pieces:
+                flat = cut.copy()
+                along = at + (flat.points[:, :2] - center[:2]) @ u[:2]
+                flat.points = np.c_[start[:2] + np.outer(along, u0[:2]), flat.points[:, 2]]
+                pieces.append((flat, center, u, at, *rest))
+            self._show_pieces(pieces)
+            self._unfolded = True
+            total = sum(length for _, _, length, _ in _segments(self._path))
+            z = self._extent()[0][2]
+            center, v, n = (
+                start + total / 2 * u0 + [0, 0, z],
+                np.array([0.0, 0.0, 1.0]),
+                np.array([u0[1], -u0[0], 0]),
+            )
         self.plotter.enable_parallel_projection()
         self.plotter.camera_position = [center + n, center, v]
         self.plotter.reset_camera()
         return self
+
+    def section_drawer(self, *, width=None):
+        """Draws stepped sections with the mouse.
+
+        ``d`` (or the *draw* button) switches to a plan view; each left click adds a vertex, held Shift locks the
+        new segment to a multiple of 45° from north, and Enter, a double click or the button again cuts the scene
+        along the polyline with `section` and returns to the 3D view. Esc cancels, ``c`` (or *clear*) removes the
+        section and ``u`` (or *unfold*) toggles the unfolded view of `view_section`. The buttons sit at the bottom
+        left, for viewers that do not pass keys on, such as trame in a browser.
+
+        Parameters
+        ----------
+        width : float, optional
+            As in `section`.
+
+        Returns
+        -------
+        Scene
+            This scene, to chain calls.
+        """
+        self._drawer = {"width": width, "points": [], "on": False, "camera": None, "line": None}
+        plotter = self.plotter
+        for key, action in (
+            ("d", self._draw_toggle),
+            ("Return", self._draw_finish),
+            ("Escape", self._draw_cancel),
+        ):
+            plotter.add_key_event(key, action)
+        plotter.add_key_event("c", lambda: self._clear())
+        plotter.add_key_event("u", self._unfold_toggle)
+        if plotter.iren is not None:
+            interactor = plotter.iren.interactor
+            self._click = interactor.AddObserver("LeftButtonPressEvent", self._draw_click, 10.0)
+        buttons = (("draw", self._draw_toggle), ("unfold", self._unfold_toggle), ("clear", self._clear))
+        for k, (label, action) in enumerate(buttons):
+            self._button(label, action, (10 + 90 * k, 10))
+        return self
+
+    def _button(self, label, action, position, size=20):
+        def press(_):
+            action()
+            widget.GetRepresentation().SetState(int(label == "draw" and self._drawer["on"]))
+
+        widget = self.plotter.add_checkbox_button_widget(press, value=False, position=position, size=size)
+        self.plotter.add_text(label, position=(position[0] + size + 6, position[1] + 2), font_size=9)
+
+    def _clear(self):
+        self.section(None)
+        self.plotter.render()
+
+    def _unfold_toggle(self):
+        if self._plane is None:
+            return
+        if self._unfolded:
+            self._show_pieces(self._pieces)
+            self._unfolded = False
+        else:
+            self.view_section()
+        self.plotter.render()
+
+    def _draw_toggle(self):
+        (self._draw_finish if self._drawer["on"] else self._draw_start)()
+
+    def _draw_start(self):
+        plotter, drawer = self.plotter, self._drawer
+        drawer.update(on=True, points=[], camera=(plotter.camera_position, plotter.parallel_projection))
+        center, diagonal = self._extent()
+        plotter.enable_parallel_projection()
+        plotter.camera_position = [center + [0, 0, diagonal], center, (0, 1, 0)]
+        plotter.reset_camera()
+        plotter.render()
+
+    def _draw_end(self):
+        plotter, drawer = self.plotter, self._drawer
+        if drawer["line"] is not None:
+            plotter.remove_actor(drawer["line"], render=False)
+        position, parallel = drawer["camera"]
+        plotter.camera_position = position
+        (plotter.enable_parallel_projection if parallel else plotter.disable_parallel_projection)()
+        drawer.update(on=False, line=None)
+        points, drawer["points"] = drawer["points"], []
+        return points
+
+    def _draw_finish(self):
+        if not self._drawer["on"]:
+            return
+        points = self._draw_end()
+        if len(points) > 1:
+            self.section(points=points, width=self._drawer["width"])
+        self.plotter.render()
+
+    def _draw_cancel(self):
+        if self._drawer["on"]:
+            self._draw_end()
+            self.plotter.render()
+
+    def _draw_click(self, interactor, _):
+        drawer = self._drawer
+        if not drawer["on"]:
+            return
+        interactor.GetCommand(self._click).SetAbortFlag(1)
+        if interactor.GetRepeatCount():
+            self._draw_finish()
+            return
+        renderer = self.plotter.renderer
+        renderer.SetDisplayPoint(*interactor.GetEventPosition(), 0)
+        renderer.DisplayToWorld()
+        x, y, _, w = renderer.GetWorldPoint()
+        point = np.array([x, y]) / w
+        points = drawer["points"]
+        if points and interactor.GetShiftKey():
+            point = _snap(points[-1], point)
+        points.append(point)
+        if drawer["line"] is not None:
+            self.plotter.remove_actor(drawer["line"], render=False)
+        z = self._extent()[0][2] + self._extent()[1]
+        vertices = np.c_[np.array(points), np.full(len(points), z)]
+        line = _pyvista().lines_from_points(vertices) if len(points) > 1 else _pyvista().PolyData(vertices)
+        drawer["line"] = self.plotter.add_mesh(
+            line,
+            color="#c05a28",
+            line_width=3,
+            point_size=8,
+            render_points_as_spheres=True,
+            reset_camera=False,
+        )
+        self.plotter.render()
+
+    def layer_toggles(self, *, size=18):
+        """A checkbox per layer at the top left, under the name of its kind, that shows or hides it and its cuts.
+
+        Parameters
+        ----------
+        size : int
+            Checkbox size in pixels.
+
+        Returns
+        -------
+        Scene
+            This scene, to chain calls.
+        """
+        plotter = self.plotter
+        y = plotter.window_size[1] - 30
+        for kind in _KINDS:
+            rows = [i for i, k in enumerate(self._kinds) if k == kind]
+            if not rows:
+                continue
+            plotter.add_text(kind, position=(10, y), font_size=9)
+            y -= size + 8
+            for i in rows:
+                plotter.add_checkbox_button_widget(
+                    lambda on, i=i: self._toggle(i, on),
+                    value=i not in self._hidden,
+                    position=(10, y),
+                    size=size,
+                )
+                plotter.add_text(self._names[i], position=(16 + size, y + 2), font_size=8)
+                y -= size + 6
+            y -= 6
+        return self
+
+    def _toggle(self, i, on):
+        (self._hidden.discard if on else self._hidden.add)(i)
+        actor, fast = self._layers[i][-1], self._fast.get(i)
+        if fast is not None:
+            fast.SetVisibility(False)
+        if self._plane is None:
+            if actor is not None:
+                actor.SetVisibility(on)
+        else:
+            unfolded = self._unfolded
+            origin, azimuth, dip = self._plane
+            self.section(origin, points=self._path, azimuth=azimuth, dip=dip, width=self._width)
+            if unfolded:
+                self.view_section()
+        self.plotter.render()
 
     def _extent(self):
         """Center and diagonal of the bounds of every layer."""
@@ -620,6 +920,10 @@ class Scene:
     def show(self, *, browser=False, **kwargs):
         """Opens the scene: trame in Jupyter, a native window otherwise, or the browser.
 
+        In Google Colab the scene renders on the kernel with trame and streams through Colab's port proxy, so
+        `section_drawer`, `layer_toggles` and `motion_quality` work there too; without trame it falls back to a
+        static view that only turns and zooms.
+
         Parameters
         ----------
         browser : bool, default False
@@ -632,6 +936,17 @@ class Scene:
         pathlib.Path or None
             The HTML page when `browser`, else what ``plotter.show`` returns.
         """
+        if not browser and "google.colab" in sys.modules and "jupyter_backend" not in kwargs:
+            try:
+                return self.plotter.show(
+                    jupyter_backend="server",
+                    jupyter_kwargs={"handler": _colab_iframe},
+                    auto_close=False,
+                    **kwargs,
+                )
+            except ImportError:
+                print("the 3D tools need trame (pip install 'boitata[3d]'); showing a static view")
+                return self.plotter.show(jupyter_backend="html", auto_close=False, **kwargs)
         if not browser:
             return self.plotter.show(**{"auto_close": False, **kwargs})
         path = Path(tempfile.mkdtemp()) / "scene.html"

@@ -492,3 +492,84 @@ def test_viewer_benchmark_runs(pv, tmp_path):
     subprocess.run(cmd, check=True, timeout=300)
     rows = list(csv.DictReader(out.open()))
     assert len(rows) == 6 and all(float(row["fps"]) > 0 for row in rows)
+
+
+def test_layers_get_names_and_kinds(pv):
+    scene = section_scene(pv).add(pv.Sphere(), name="lens")
+    assert scene._names == ["block model 1", "drill holes 1", "points 1", "surface 1", "lens"]
+    assert scene._kinds == ["block models", "drill holes", "points", "surfaces", "surfaces"]
+    scene.close()
+
+
+def test_motion_quality_auto_degrades_a_layer_above_50k_cells(pv):
+    model = bt.BlockModel((0.0, 0, 0), (1.0, 1, 1), (40, 40, 40), attributes={"v": np.arange(64000.0)})
+    scene = bt.plot3d.Scene(off_screen=True).add(model, "v")
+    interact(scene, True)
+    assert drawn(scene._fast[0].mapper, pv).n_cells < 64000
+    scene.close()
+
+
+def test_section_along_a_polyline_cuts_each_segment_between_its_ends(pv):
+    scene = section_scene(pv).section(points=[(-15, -15), (15, -15), (15, 15)], width=4)
+    assert len(scene._pieces) >= 2
+    for cut, center, u, at, *_ in scene._pieces:
+        offset = cut.points[:, :2] - center[:2]
+        along = offset @ u[:2]
+        np.testing.assert_allclose(offset @ [u[1], -u[0]], 0, atol=1e-6)
+        assert along.min() >= -1e-6 and along.max() <= 30 + 1e-6 and at in (0, 30)
+    holes = [cut for cut, *_ in scene._pieces if cut.n_points and np.allclose(cut.points[:, 0], 5, atol=1)]
+    assert not holes
+    with pytest.raises(ValueError, match="points"):
+        scene.section(points=[(0, 0)])
+    scene.close()
+
+
+def test_view_section_unfolds_a_polyline_onto_the_first_segment(pv):
+    scene = section_scene(pv).section(points=[(-15, -15), (15, -15), (15, 15)]).view_section()
+    assert scene._unfolded and scene.camera.parallel_projection
+    for actor in scene._cuts:
+        points = (drawn(actor.mapper, pv) or pv.wrap(actor.mapper.GetInput())).points
+        np.testing.assert_allclose(points[:, 1], -15, atol=1e-6)
+        assert points[:, 0].min() >= -15 - 1e-6 and points[:, 0].max() <= 45 + 1e-6
+    scene.close()
+
+
+def test_toggles_hide_a_layer_and_its_cuts(pv):
+    scene = section_scene(pv).layer_toggles()
+    scene._toggle(0, False)
+    assert not scene._layers[0][-1].GetVisibility()
+    interact(scene, False)
+    assert not scene._layers[0][-1].GetVisibility()
+    scene.section((0.0, 1, 0), width=10)
+    assert len(scene._cuts) == 3 and all(cut.n_cells != 64 for cut, *_ in scene._pieces)
+    scene._toggle(0, True)
+    assert len(scene._cuts) == 4
+    scene.section(None)
+    assert all(a.GetVisibility() for *_, a in scene._layers)
+    scene.close()
+
+
+def test_drawer_clicks_snap_with_shift_and_enter_cuts(pv):
+    scene = section_scene(pv).section_drawer(width=4)
+    scene._draw_start()
+    assert scene._drawer["on"] and scene.camera.parallel_projection
+    interactor = scene.iren.interactor
+    width, height = scene.window_size
+    for x, y, shift in ((0.3, 0.3, 0), (0.7, 0.35, 1), (0.7, 0.7, 0)):
+        interactor.SetEventPosition(int(x * width), int(y * height))
+        interactor.SetShiftKey(shift)
+        interactor.InvokeEvent("LeftButtonPressEvent")
+    a, b, _ = scene._drawer["points"]
+    np.testing.assert_allclose(b[1], a[1], atol=1e-9)
+    scene._draw_finish()
+    assert not scene._drawer["on"] and scene._path is not None and len(scene._path) == 3
+    assert not scene.camera.parallel_projection and scene._cuts
+    scene._clear()
+    assert scene._plane is None
+    scene.close()
+
+
+def test_snap_keeps_45_degree_bearings():
+    np.testing.assert_allclose(bt.plot3d._snap([0, 0], [10, 1]), [10, 0], atol=1e-9)
+    np.testing.assert_allclose(bt.plot3d._snap([0, 0], [5, 6]), [5.5, 5.5], atol=1e-9)
+    np.testing.assert_allclose(bt.plot3d._snap([1, 1], [1, -9]), [1, -9], atol=1e-9)
