@@ -55,7 +55,7 @@ def spacing_study(
         Collar spacings, each one value or ``(along, across)``; the holes come from `planned_drillholes` with
         `rotation`, `azimuth`, `dip` and `topography`. Give one of `spacings` or `plans`.
     plans : dict of str to Drillholes, optional
-        Named drilling plans with intervals, such as candidate holes chosen by an optimizer.
+        Named drilling plans with intervals, such as an irregular infill pattern or a plan from another tool.
     rotation, azimuth, dip : float
         Collar grid rotation and hole direction, in degrees, as in `planned_drillholes`; only with `spacings`.
     topography : Mesh, optional

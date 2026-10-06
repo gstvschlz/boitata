@@ -65,8 +65,6 @@ validation: checking models
     CrossValidation IndicatorCrossValidation CategoricalCrossValidation validate_model global_bias
     block_correlation compare_models grade_tonnage classify uncertainty_curve required_spacing
     spacing_study
-planning: drilling plans
-    DrillholePlan DrillholeSearch Greedy Swap ModifiedRandomSearch Annealing
 errors: errors
     BoitataError InvalidInput MissingColumn FileError
 """

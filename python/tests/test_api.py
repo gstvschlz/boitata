@@ -20,7 +20,6 @@ POSITIONAL_DEFAULTS = {
     ("check_drillholes", "survey"),
     ("check_drillholes", "intervals"),
     ("ImplicitModel", "engine"),
-    ("DrillholePlan.optimize", "n"),
     ("SNESIM", "column"),
     ("ImplicitModel.fit", "coords"),
     ("ImplicitModel.fit", "values"),

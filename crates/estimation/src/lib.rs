@@ -26,7 +26,6 @@ pub mod kriging_algebra;
 pub mod lva;
 pub mod multigaussian;
 pub mod neighborhood;
-pub mod plan;
 pub mod search;
 pub mod simple_interp;
 pub mod validate;
