@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.4.1 - 2026-10-06
+
+### Features
+
+- **plot3d:** polyline sections, section drawer, layer toggles and trame in colab
+
+### Fixes
+
+- **learn:** keep pyvista below 0.49 in colab, whose IPython lacks guarded_eval
+
+### Documentation
+
+- **examples:** render the polyline curtain in interactive sections
+- **learn:** tour estimates every SMU a lens touches, diluted, with an interactive scene
+
+### CI
+
+- run the colab tour in colab's runtime image
 ## 0.4.0 - 2026-10-06
 
 ### Features
