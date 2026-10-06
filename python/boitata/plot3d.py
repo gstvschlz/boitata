@@ -392,7 +392,7 @@ def _capture(page, width, height, scale, panel, transparent):
         try:
             tab = browser.new_page(viewport={"width": width, "height": height})
             tab.goto(page.as_uri())
-            tab.wait_for_function("window.scene !== undefined", timeout=120_000)
+            tab.wait_for_function("typeof window.scene?.screenshot === 'function'", timeout=120_000)
             return base64.b64decode(tab.evaluate(_SHOOT, [scale, panel, transparent]))
         finally:
             browser.close()
