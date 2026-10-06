@@ -14,7 +14,7 @@ from matplotlib.colors import ListedColormap
 
 ti = bt.datasets.strebelle()
 nx, ny = ti.count[:2]
-image = ti["facies"].reshape(ny, nx)
+image = ti.grid("facies")[0]
 grid = bt.BlockModel((0, 0), (1, 1), (nx, ny))
 ```
 
@@ -74,7 +74,7 @@ data steer the patterns and the patterns still choose where each channel goes:
 <details><summary>Python</summary>
 
 ```python
-p_sand = summaries["servo"].probabilities[:, 1].reshape(ny, nx)
+p_sand = grid.grid(summaries["servo"].probabilities[:, 1])[0]
 yy, xx = np.mgrid[:ny, :nx]
 for code, label in ((1, "sand"), (0, "shale")):
     near = np.zeros((ny, nx), bool)
@@ -99,7 +99,7 @@ codes = ListedColormap(["white", "black"])
 fig, axes = plt.subplots(1, 4, figsize=(15, 4), layout="constrained", width_ratios=[1, 1, 1, 0.9])
 for ax, img, title in (
     (axes[0], image, "Training image and data"),
-    (axes[1], summaries["servo"].realizations[0].reshape(ny, nx), "Realization 1"),
+    (axes[1], grid.grid(summaries["servo"].realizations[0])[0], "Realization 1"),
 ):
     ax.imshow(img, origin="lower", cmap=codes, vmin=0, vmax=1, interpolation="nearest")
     ax.scatter(

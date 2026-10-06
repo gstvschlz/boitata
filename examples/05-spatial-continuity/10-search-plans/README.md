@@ -30,17 +30,17 @@ crosses a lens in one intercept; its length and the angle between the hole and t
 ```python
 data = bt.datasets.stacked_sulphide_lenses()
 lenses = {name: data[name] for name in ("lens_1", "lens_2", "lens_3")}
-samples = bt.Drillholes(data["collars"], data["surveys"], data["assays"]).samples()
+samples = bt.Drillholes.from_tables(data).samples()
 lens = np.full(len(samples), "host", dtype=object)
 for name, mesh in lenses.items():
     lens[mesh.contains(samples.coords)] = name
 intervals = samples.with_columns({"LENS": list(lens)}).attributes
 drillholes = bt.Drillholes(data["collars"], data["surveys"], intervals)
 composites = drillholes.composite(2.0, ["ZN_PCT"], domain="LENS", residual="merge")
-composites = composites.filter(np.isfinite(composites["ZN_PCT"]))
-ore = composites.filter(np.asarray(composites["LENS"], dtype=object) != "host")
-ore_holes = np.asarray(ore["HOLE_ID"], dtype=object)
-one = np.asarray(ore["LENS"], dtype=object) == "lens_1"
+composites = composites.drop_null("ZN_PCT")
+ore = composites.filter(composites["LENS"] != "host")
+ore_holes = ore["HOLE_ID"]
+one = ore["LENS"] == "lens_1"
 
 pole = np.linalg.eigh(np.cov(lenses["lens_1"].coords.T))[1][:, 0]
 pole *= np.sign(pole[2])
@@ -298,7 +298,7 @@ for p in (1, 2):
     )
 print(f"unestimated: {np.sum(number == 0)} blocks")
 for name in lenses:
-    s = np.asarray(blocks["LENS"], dtype=object) == name
+    s = blocks["LENS"] == name
     print(f"{name}: {np.mean(number[s] == 1):.0%} of {s.sum()} blocks in pass 1")
 ```
 

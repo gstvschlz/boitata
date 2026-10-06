@@ -17,7 +17,7 @@ ti = bt.datasets.strebelle()
 n = ti.count[0]
 grid = bt.BlockModel((0, 0), (1, 1), (n, n))
 xy = grid.coords
-x, y = xy[:, 0], xy[:, 1]
+x, y = grid.x, grid.y
 ```
 
 </details>
@@ -68,7 +68,7 @@ snesim = bt.SNESIM(ti, "facies")
 realizations = {}
 for title, (azimuth, semi, scale) in fields.items():
     summary = snesim.simulate(grid, n=1, seed=3, keep=True, anisotropy=anisotropy(azimuth, semi, scale))
-    realizations[title] = summary.realizations[0].reshape(n, n)
+    realizations[title] = grid.grid(summary.realizations[0])[0]
     print(
         f"{title}: template classes {snesim.n_classes}, sand runs {runs_along_y(realizations[title]):.1f} cells along Y"
     )
@@ -91,13 +91,13 @@ codes = ListedColormap(["white", "black"])
 fig, axes = plt.subplots(2, 5, figsize=(15, 6.4), layout="constrained")
 for ax, (title, (azimuth, semi, scale)) in zip(axes[0], fields.items()):
     im = ax.imshow(
-        np.broadcast_to(azimuth, x.shape).reshape(n, n), origin="lower", cmap="gray", vmin=-90, vmax=90
+        grid.grid(np.broadcast_to(azimuth, x.shape))[0], origin="lower", cmap="gray", vmin=-90, vmax=90
     )
     ax.set_title(title)
 for ax, (title, img) in zip(axes[1], realizations.items()):
     ax.imshow(img, origin="lower", cmap=codes, vmin=0, vmax=1, interpolation="nearest")
 for ax in (axes[0, 4], axes[1, 4]):
-    ax.contour(zones.reshape(n, n), levels=[0.5, 1.5], colors=HIGHLIGHT, linewidths=1.2)
+    ax.contour(grid.grid(zones)[0], levels=[0.5, 1.5], colors=HIGHLIGHT, linewidths=1.2)
 for ax in axes.flat:
     ax.set(xticks=[], yticks=[])
     for side in ax.spines.values():
@@ -126,12 +126,12 @@ fold. here the cells are one trace by one sample, so angles follow those units.
 ```python
 seismic = bt.datasets.f3_seismic()
 nx, ny, nz = seismic.count
-cube = seismic["amplitude"].astype(float).reshape(nz, ny, nx)[::-1]
+cube = seismic.grid("amplitude")[::-1]
 image = np.hstack([cube[:, j, :] for j in range(0, 45, 3)])
 sections = bt.BlockModel((0, 0), (1, 1), (image.shape[1], nz)).with_columns({"amplitude": image.ravel()})
 width = 150
 section = bt.BlockModel((0, 0), (1, 1), (width, nz))
-along = section.coords[:, 0]
+along = section.x
 fold = -25 * np.cos(np.pi * along / width)
 field = bt.LocalAnisotropy(
     section.coords, np.column_stack([fold, 0 * fold, 0 * fold]), np.ones((along.size, 2))
@@ -150,8 +150,8 @@ style = {"cmap": "gray", "vmin": -8000, "vmax": 8000, "aspect": "auto", "interpo
 fig, axes = plt.subplots(3, 1, figsize=(10, 7), layout="constrained", sharex=True)
 for ax, img, title in (
     (axes[0], image[:, :width], "Training image (first sections)"),
-    (axes[1], flat.reshape(nz, width), "Realization as the image"),
-    (axes[2], folded.reshape(nz, width), "Realization with the fold field"),
+    (axes[1], section.grid(flat)[0], "Realization as the image"),
+    (axes[2], section.grid(folded)[0], "Realization with the fold field"),
 ):
     ax.imshow(img, **style)
     ax.set(title=title, ylabel="sample")

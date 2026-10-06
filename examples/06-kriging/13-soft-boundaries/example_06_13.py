@@ -23,8 +23,8 @@ from common import ACCENT, GRAY, HIGHLIGHT, INK, save
 data = bt.datasets.nickel_laterite_profile()
 intervals = bt.merge_intervals(data["assays"], data["horizons"])
 samples = bt.Drillholes(data["collars"], data["surveys"], intervals).samples()
-samples = samples.filter(np.isin(np.asarray(samples["HORIZON"]), ["LIM", "SAP"]))
-horizon = np.asarray(samples["HORIZON"])
+samples = samples.filter(np.isin(samples["HORIZON"], ["LIM", "SAP"]))
+horizon = samples["HORIZON"]
 for name in ("LIM", "SAP"):
     print(
         f"{name}: {np.sum(horizon == name)} samples of 1 m, mean {samples['NI_PCT'][horizon == name].mean():.2f} % Ni"
@@ -89,8 +89,8 @@ print(model)
 # %%
 collars = data["collars"]
 offset = [np.abs((collars[axis] + 25) % 50 - 25) for axis in ("X", "Y")]
-infill = np.asarray(collars["HOLE_ID"])[(offset[0] > 12) | (offset[1] > 12)]
-held_out = np.isin(np.asarray(samples["HOLE_ID"]), infill)
+infill = collars["HOLE_ID"][(offset[0] > 12) | (offset[1] > 12)]
+held_out = np.isin(samples["HOLE_ID"], infill)
 mesh, check = samples.filter(~held_out), samples.filter(held_out)
 print(f"{len(collars) - len(infill)} mesh holes, {len(infill)} infill holes held out")
 
@@ -100,7 +100,7 @@ searches = {
     for name, soft in rules.items()
 }
 truth = check["NI_PCT"]
-check_horizon = np.asarray(check["HORIZON"])
+check_horizon = check["HORIZON"]
 kriged = {}
 for name, search in searches.items():
     ok = bt.OrdinaryKriging(model, search).fit(mesh, "NI_PCT", holes="HOLE_ID", domain_column="HORIZON")

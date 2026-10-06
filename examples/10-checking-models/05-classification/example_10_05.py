@@ -21,7 +21,7 @@ from common import ACCENT, GRAY, INK, LIGHT, save
 
 data = bt.datasets.coal_seam_thickness()
 holes, grid, lease = data["boreholes"], data["grid"], data["boundary"]
-blocks = grid.filter(np.asarray(grid["INSIDE"]) == 1)
+blocks = grid.filter(grid["INSIDE"] == 1)
 xy, thickness = holes.coords, holes["THICKNESS_M"]
 print(f"{len(holes)} boreholes, {len(blocks.coords)} blocks of 100 × 100 m inside the lease")
 
@@ -87,20 +87,19 @@ print(f"{np.mean(smoothed != by_kriging):.1%} of blocks change class in smoothin
 # %%
 resource_classes = bt.Categories(names, colors=[ACCENT, "#9ebad6", LIGHT])
 cmap, norm = bt.plot.category_colors(resource_classes)
-nx, ny, _ = grid.count
-x0, y0, _ = grid.origin
-extent = (x0, x0 + nx * grid.size[0], y0, y0 + ny * grid.size[1])
+(x0, y0, _), (x1, y1, _) = grid.bounds
+extent = (x0, x1, y0, y1)
 fig, axes = plt.subplots(1, 3, figsize=(12, 3.8), layout="constrained")
 for ax, classes, title in (
     (axes[0], by_spacing, "Data spacing"),
     (axes[1], by_kriging, "Slope, efficiency and spacing"),
     (axes[2], smoothed, "After a 3 × 3 majority filter"),
 ):
-    image = np.full(nx * ny, np.nan)
-    image[blocks.index] = resource_classes.encode(classes)
-    ax.imshow(image.reshape(ny, nx), origin="lower", extent=extent, cmap=cmap, norm=norm)
+    ax.imshow(
+        blocks.grid(resource_classes.encode(classes))[0], origin="lower", extent=extent, cmap=cmap, norm=norm
+    )
     ax.plot(*lease.coords[:, :2].T, color=INK, lw=0.6)
-    ax.scatter(xy[:, 0], xy[:, 1], s=2, color=GRAY, linewidths=0)
+    ax.scatter(holes.x, holes.y, s=2, color=GRAY, linewidths=0)
     ax.set(title=title, aspect="equal", xticks=[], yticks=[])
 bt.plot.category_legend(resource_classes, fig, loc="outside lower center", ncol=3)
 save(fig, "classes")

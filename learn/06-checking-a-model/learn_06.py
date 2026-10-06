@@ -196,7 +196,7 @@ for n in (4, 24):
     top = estimate > np.quantile(estimate, 0.9)
     print(
         f"{n:2d} samples: predicted slope {np.nanmean(dn['slope']):.2f}, true slope "
-        f"{np.polyfit(estimate, true_blocks, 1)[0]:.2f}, efficiency {np.nanmean(dn['efficiency']):.2f}, "
+        f"{bt.compare(estimate, true_blocks)['slope']:.2f}, efficiency {np.nanmean(dn['efficiency']):.2f}, "
         f"top 10 % of blocks {estimate[top].mean():.0f} ppm estimated vs {true_blocks[top].mean():.0f} true"
     )
 
@@ -208,14 +208,14 @@ for n in (4, 24):
 # the gaps.
 
 # %%
-shape, extent = (30, 26), (0.5, 260.5, 0.5, 300.5)
+extent = (0.5, 260.5, 0.5, 300.5)
 fig, axes = plt.subplots(1, 2, figsize=(9, 4.6), layout="constrained")
 for ax, key, title in (
     (axes[0], "slope", "Slope of regression"),
     (axes[1], "efficiency", "Kriging efficiency"),
 ):
-    im = ax.imshow(d[key].reshape(shape), origin="lower", extent=extent, vmin=0, vmax=1)
-    ax.scatter(xy[:, 0], xy[:, 1], s=2, color=GRAY, linewidths=0)
+    im = ax.imshow(blocks.grid(d[key])[0], origin="lower", extent=extent, vmin=0, vmax=1)
+    ax.scatter(samples.x, samples.y, s=2, color=GRAY, linewidths=0)
     map_axes(ax, title)
 fig.colorbar(im, ax=axes, shrink=0.8)
 save(fig, "diagnostics")
@@ -247,7 +247,7 @@ for ax, axis, label in ((axes[0], "x", "Easting (m)"), (axes[1], "y", "Northing 
         bt.swath(kriged, "value", 20.0, axis=axis),
         bt.swath(kriged, "truth", 20.0, axis=axis),
     ]
-    gaps[axis] = np.abs(np.asarray(series[1]["mean"]) - np.asarray(series[2]["mean"])).max()
+    gaps[axis] = np.abs(series[1]["mean"] - series[2]["mean"]).max()
     bt.plot.swath(series, labels=["declustered samples", "blocks", "truth"], ax=ax)
     for line, color in zip(ax.lines, (GRAY, ACCENT, INK), strict=True):
         line.set_color(color)
@@ -276,9 +276,9 @@ print(
 norm = PowerNorm(0.5, vmin=0, vmax=1500)
 fig, axes = plt.subplots(1, 2, figsize=(10, 4.8), layout="constrained")
 for ax, image, title in ((axes[0], d["value"], "Blocks and samples"), (axes[1], true_blocks, "True blocks")):
-    im = ax.imshow(image.reshape(shape), origin="lower", extent=extent, norm=norm)
+    im = ax.imshow(blocks.grid(image)[0], origin="lower", extent=extent, norm=norm)
     map_axes(ax, title)
-axes[0].scatter(xy[:, 0], xy[:, 1], c=v, s=10, norm=norm, edgecolors="white", linewidths=0.3)
+axes[0].scatter(samples.x, samples.y, c=v, s=10, norm=norm, edgecolors="white", linewidths=0.3)
 fig.colorbar(im, ax=axes, shrink=0.8, label="V (ppm)")
 save(fig, "plan")
 
@@ -348,7 +348,7 @@ rules = [
 classes = bt.classify(criteria, rules, default="inferred")
 for name in ("measured", "indicated", "inferred"):
     k = classes == name
-    error = np.sqrt(np.mean((d["value"][k] - true_blocks[k]) ** 2))
+    error = bt.compare(d["value"][k], true_blocks[k])["rmse"]
     print(
         f"{name:>9}: {k.mean():5.1%} of blocks, mean {d['value'][k].mean():3.0f} ppm estimated vs "
         f"{true_blocks[k].mean():3.0f} true, RMSE {error:5.1f} ppm"

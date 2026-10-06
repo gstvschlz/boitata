@@ -67,9 +67,9 @@ fig, ax = plt.subplots(figsize=(7, 4.6), layout="constrained")
 bt.plot.section(grid, np.where(inside, -distance, np.nan), ax=ax, colorbar=False, cmap="Greys")
 fig.colorbar(ax.collections[0], ax=ax, shrink=0.8, label="Distance inside the boundary (m)")
 ax.contour(
-    centers[:, 0].reshape(90, 120),
-    centers[:, 1].reshape(90, 120),
-    distance.reshape(90, 120),
+    grid.grid(grid.x)[0],
+    grid.grid(grid.y)[0],
+    grid.grid(distance)[0],
     levels=[-200],
     colors=HIGHLIGHT,
     linewidths=1,
@@ -206,9 +206,9 @@ fig, (a, b) = plt.subplots(1, 2, figsize=(10, 3.8), sharey=True, layout="constra
 bt.plot.section(grid, kept.astype(float), ax=a, colorbar=False, cmap="Greys", vmin=0, vmax=2)
 bt.plot.section(grid, np.where(kept, -signed, np.nan), ax=b, colorbar=False, cmap="Greys")
 b.contour(
-    centers[:, 0].reshape(90, 120),
-    centers[:, 1].reshape(90, 120),
-    signed.reshape(90, 120),
+    grid.grid(grid.x)[0],
+    grid.grid(grid.y)[0],
+    grid.grid(signed)[0],
     levels=[-200],
     colors=HIGHLIGHT,
     linewidths=1,

@@ -76,7 +76,7 @@ gaussian = pipe.fit_transform(samples)
 back = pipe.inverse_transform(gaussian)
 error = max(np.abs(back[n] - samples[n]).max() for n in names)
 print(f"round trip max error {error:.2e} %")
-coords = np.column_stack([pipe.named_steps["ilr"].transform(samples)[b] for b in balances])
+ilr = pipe.named_steps["ilr"].transform(samples)
 gauss = np.column_stack([gaussian[b] for b in balances])
 
 
@@ -87,9 +87,9 @@ gauss = np.column_stack([gaussian[b] for b in balances])
 cmap = "cividis"
 fig, axes = plt.subplots(1, 3, figsize=(13, 4.4), layout="constrained")
 panels = [
-    (np.corrcoef(composition.T), names, "Raw percentages"),
-    (np.corrcoef(coords.T), [f"ilr{i + 1}" for i in range(coords.shape[1])], "ILR coordinates"),
-    (np.corrcoef(gauss.T), [f"g{i + 1}" for i in range(gauss.shape[1])], "After PPMT"),
+    (bt.correlation(composition), names, "Raw percentages"),
+    (bt.correlation(ilr, columns=balances), [f"ilr{i + 1}" for i in range(len(balances))], "ILR coordinates"),
+    (bt.correlation(gaussian, columns=balances), [f"g{i + 1}" for i in range(len(balances))], "After PPMT"),
 ]
 for ax, (corr, labels, title) in zip(axes, panels):
     image = ax.imshow(corr, cmap=cmap, vmin=-1, vmax=1)

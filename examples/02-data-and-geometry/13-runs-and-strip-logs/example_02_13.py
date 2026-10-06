@@ -26,8 +26,8 @@ kind = dict(zip(data["collars"]["HOLE_ID"], data["collars"]["TYPE"], strict=True
 intervals = bt.merge_intervals(data["assays"], data["lithology"])
 intervals = intervals.filter(np.array([kind[h] == "DD" for h in intervals["HOLE_ID"]]))
 holes = bt.Drillholes(data["collars"], data["surveys"], intervals)
-length = np.asarray(intervals["TO"]) - np.asarray(intervals["FROM"])
-metal = np.nansum(np.asarray(intervals["AU_GPT"]) * length)
+length = intervals["TO"] - intervals["FROM"]
+metal = np.nansum(intervals["AU_GPT"] * length)
 print(f"{np.sum(length[~np.isnan(intervals['AU_GPT'])]):.0f} m of assayed core, {metal:.0f} g/t x m of gold")
 
 # %% [markdown]
@@ -49,7 +49,7 @@ rules = {
 runs = {name: holes.runs("AU_GPT", cutoff=CUTOFF, **kw) for name, kw in rules.items()}
 print(f"{'':16}{'ore runs':>9}{'ore (m)':>9}{'Au (g/t)':>9}{'metal in ore':>13}{'balance':>9}")
 for name, r in runs.items():
-    ore, L, au = np.asarray(r["ore"]), r["length"], r["AU_GPT"]
+    ore, L, au = r["ore"], r["length"], r["AU_GPT"]
     total = np.dot(L, au)
     print(
         f"{name:16}{ore.sum():9}{L[ore].sum():9.0f}{np.dot(L[ore], au[ore]) / L[ore].sum():9.2f}"
@@ -68,7 +68,7 @@ for name, r in runs.items():
 
 # %%
 raw = runs["raw"]
-near = (np.asarray(raw["HOLE_ID"]) == "UD0030") & (raw["from"] > 157) & (raw["to"] < 164)
+near = (raw["HOLE_ID"] == "UD0030") & (raw["from"] > 157) & (raw["to"] < 164)
 for f, t, au, ore in zip(
     raw["from"][near], raw["to"][near], raw["AU_GPT"][near], raw["ore"][near], strict=True
 ):
@@ -76,7 +76,7 @@ for f, t, au, ore in zip(
 L = (raw["to"] - raw["from"])[near]
 by_hand = np.dot(L, raw["AU_GPT"][near]) / L.sum()
 diluted = runs["+ dilution 3 m"]
-row = np.flatnonzero((np.asarray(diluted["HOLE_ID"]) == "UD0030") & (diluted["from"] == 158.25))[0]
+row = np.flatnonzero((diluted["HOLE_ID"] == "UD0030") & (diluted["from"] == 158.25))[0]
 print(f"by hand: {by_hand:.3f} g/t over {L.sum():.2f} m")
 print(f"runs:    {diluted['AU_GPT'][row]:.3f} g/t over {diluted['length'][row]:.2f} m")
 
@@ -127,14 +127,14 @@ save(fig, "strip_logs")
 fig, ax = plt.subplots(figsize=(6, 4), layout="constrained")
 for name, color, marker in [("raw", GRAY, "o"), ("+ minimum 2 m", ACCENT, "s")]:
     r = runs[name]
-    ore = np.asarray(r["ore"])
+    ore = r["ore"]
     ax.scatter(r["to"][ore] - r["from"][ore], r["AU_GPT"][ore], s=12, color=color, marker=marker, label=name)
 ax.axhline(CUTOFF, color=GRAY, lw=0.6, ls=":")
 ax.set(xscale="log", yscale="log", xlabel="Intercept length (m)", ylabel="Au (g/t)")
 ax.legend()
 save(fig, "intercepts")
 
-ore = np.asarray(final["ore"])
+ore = final["ore"]
 below = ore & (final["AU_GPT"] < CUTOFF)
 print(f"{below.sum()} final intercepts grade below {CUTOFF} g/t")
 top = np.argsort(-(final["length"] * final["AU_GPT"])[ore])[:5]
@@ -159,7 +159,7 @@ for k in np.flatnonzero(ore)[top]:
 # %%
 for min_length in [0.0, 2.0]:
     qv = holes.runs("AU_GPT", category="LITH", ore=["QV"], min_length=min_length)
-    ore = np.asarray(qv["ore"])
+    ore = qv["ore"]
     L, au = qv["length"][ore], qv["AU_GPT"][ore]
     print(
         f"minimum {min_length:.0f} m: {ore.sum()} quartz vein runs, {L.sum():.0f} m at {np.dot(L, au) / L.sum():.2f} g/t"

@@ -26,17 +26,15 @@ layer's filter panel edits it while viewing.
 
 ```python
 data = bt.datasets.stacked_sulphide_lenses()
-holes = bt.Drillholes(data["collars"], data["surveys"], data["assays"])
+holes = bt.Drillholes.from_tables(data)
 lenses = [data[f"lens_{i}"] for i in (1, 2, 3)]
 composites = holes.composite(2.0, ["ZN_PCT"])
 grid = bt.BlockModel.from_extents(*lenses, size=(20, 20, 10), buffer=20, rotation=(22.5, 0.0, 55.0))
 search = bt.Search(radius=60, min_samples=1, max_samples=12)
-idw = bt.InverseDistance(search, power=2).fit(composites.coords, composites["ZN_PCT"])
+idw = bt.InverseDistance(search, power=2).fit(composites, "ZN_PCT")
 grid = grid.with_column("ZN_PCT", idw.predict(grid))
-near = np.all(
-    (composites.coords > grid.coords.min(axis=0)) & (composites.coords < grid.coords.max(axis=0)),
-    axis=1,
-)
+lo, hi = grid.bounds
+near = np.all((composites.coords > lo) & (composites.coords < hi), axis=1)
 
 scene = bt.plot3d.Scene()
 scene.add(composites.filter(near), "ZN_PCT", name="composites", point_size=4, clim=(0, 10), label="Zn (%)")
@@ -77,7 +75,7 @@ blocks = bt.BlockModel.from_meshes(
     fill="host",
     rotation=tuple(grid.rotation),
 )
-blocks = blocks.filter(np.asarray(blocks["domain"], dtype=object) != "host")
+blocks = blocks.filter(blocks["domain"] != "host")
 blocks = blocks.with_column("lens", blocks["domain"])
 
 scene = bt.plot3d.Scene()
@@ -104,7 +102,7 @@ within 30 m of a north-south line through the middle: thin gray traces, thick as
 <details><summary>Python</summary>
 
 ```python
-x = np.asarray(data["collars"]["X"])
+x = data["collars"]["X"]
 fence = data["collars"].filter(np.abs(x - np.median(x)) < 30)
 fence_holes = bt.Drillholes(fence, data["surveys"], data["assays"])
 scene = bt.plot3d.Scene()

@@ -17,7 +17,7 @@ from common import ACCENT, GRAY, save
 data = bt.datasets.nickel_laterite_profile()
 intervals = bt.merge_intervals(data["assays"], data["horizons"])
 samples = bt.Drillholes(data["collars"], data["surveys"], intervals).samples()
-samples = samples.filter(np.isin(np.asarray(samples["HORIZON"]), ["LIM", "SAP"]))
+samples = samples.filter(np.isin(samples["HORIZON"], ["LIM", "SAP"]))
 ```
 
 </details>

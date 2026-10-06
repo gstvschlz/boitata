@@ -6,7 +6,7 @@ Worked examples with the Python API on open datasets from [gstvschlz/datasets](h
 
 | # | Example | Dataset | Covers |
 |---|---|---|---|
-| 1 | [quick tour](01-first-steps/01-quick-tour/README.md) | Walker Lake | `cell_declustering`, `describe`, `plot.histogram`, `Capping`, `experimental_variogram`, `Variogram`, `plot.variogram`, `BlockModel`, `Search`, `OrdinaryKriging`, `plot.cross_validation`, `swath`, `plot.swath` |
+| 1 | [quick tour](01-first-steps/01-quick-tour/README.md) | Walker Lake | `cell_declustering`, `describe`, `plot.histogram`, `Capping`, `experimental_variogram`, `Variogram`, `plot.variogram`, `BlockModel`, `Search`, `OrdinaryKriging`, `compare`, `plot.cross_validation`, `swath`, `plot.swath` |
 | 2 | [block models](01-first-steps/02-block-models/README.md) | Synthetic | `BlockModel`, `Polylines`, `write_csv`, `write_parquet`, `read_parquet` |
 | 3 | [saving and loading](01-first-steps/03-saving-and-loading/README.md) | Walker Lake | `cell_declustering`, `Capping`, `NormalScore`, `Variogram`, `experimental_variogram`, `Search`, `BlockModel`, `SimpleKriging`, `Declustering` |
 | 4 | [storing containers in parquet](01-first-steps/04-parquet/README.md) | Walker Lake | `experimental_variogram`, `Variogram`, `BlockModel`, `OrdinaryKriging`, `Search`, `write_parquet`, `write_csv`, `read_parquet`, `Categories`, `CategoricalIndicatorKriging`, `CategoricalIndicatorSummary`, `Polylines` |
@@ -24,7 +24,7 @@ Worked examples with the Python API on open datasets from [gstvschlz/datasets](h
 | 7 | [mesh files](02-data-and-geometry/07-mesh-files/README.md) | Vein gold grade control | `read_mesh`, `plot.slab`, `write_mesh`, `Mesh` |
 | 8 | [polygons](02-data-and-geometry/08-polygons/README.md) | Coal seam thickness | `point_in_polygon`, `polygon_distance`, `plot.section`, `assign_domain`, `Categories`, `plot.category_colors`, `plot.category_legend`, `Polylines`, `PolygonSelector` |
 | 9 | [shapefiles, geopackage and GeoTIFF](02-data-and-geometry/09-gis-formats/README.md) | Soil geochemistry survey | `write_shapefile`, `read_shapefile`, `Polylines`, `write_geopackage`, `read_geopackage`, `Categories`, `BlockModel`, `write_geotiff`, `read_geotiff` |
-| 10 | [models larger than memory](02-data-and-geometry/10-large-models/README.md) | Iron formation plateau | `Drillholes`, `BlockModel`, `write_parquet`, `BlockModelFile`, `detrend`, `map_blocks`, `NormalScore`, `experimental_variogram`, `Variogram`, `TurningBands`, `Search`, `plot.section` |
+| 10 | [models larger than memory](02-data-and-geometry/10-large-models/README.md) | Iron formation plateau | `Drillholes`, `BlockModel`, `write_parquet`, `BlockModelFile`, `detrend`, `map_blocks`, `NormalScore`, `experimental_variogram`, `TurningBands`, `Search`, `plot.section` |
 | 11 | [3D views](02-data-and-geometry/11-3d-views/README.md) | Stacked sulphide lenses | `Drillholes`, `plot3d.Scene`, `BlockModel`, `Search`, `InverseDistance` |
 | 12 | [block model from extents](02-data-and-geometry/12-block-model-from-extents/README.md) | Stacked sulphide lenses | `Drillholes`, `BlockModel` |
 | 13 | [runs and strip logs](02-data-and-geometry/13-runs-and-strip-logs/README.md) | Vein gold grade control | `merge_intervals`, `Drillholes`, `Categories`, `plot.strip_log` |
@@ -56,7 +56,7 @@ Worked examples with the Python API on open datasets from [gstvschlz/datasets](h
 | 9 | [swaths](03-exploratory-analysis/09-swaths/README.md) | Phosphate weathering profile | `merge_intervals`, `Drillholes`, `describe_by`, `swath`, `plot.swath` |
 | 10 | [data spacing](03-exploratory-analysis/10-data-spacing/README.md) | Coal seam thickness, Iron formation plateau | `data_spacing`, `plot.section`, `plot.histogram`, `Drillholes`, `Search` |
 | 11 | [correlations](03-exploratory-analysis/11-correlations/README.md) | Iron formation plateau | `merge_intervals`, `Drillholes`, `correlation`, `plot.correlation`, `plot.scatter_matrix`, `plot.completeness`, `plot.conditional`, `h_scatter` |
-| 12 | [spatial bootstrap](03-exploratory-analysis/12-spatial-bootstrap/README.md) | Coal seam thickness | `cell_declustering`, `despike`, `NormalScore`, `Variogram`, `experimental_variogram`, `spatial_bootstrap` |
+| 12 | [spatial bootstrap](03-exploratory-analysis/12-spatial-bootstrap/README.md) | Coal seam thickness | `cell_declustering`, `describe`, `despike`, `NormalScore`, `Variogram`, `experimental_variogram`, `spatial_bootstrap` |
 | 13 | [reference distributions](03-exploratory-analysis/13-reference-distributions/README.md) | Vein gold grade control, Porphyry geometallurgy | `merge_intervals`, `Drillholes`, `cell_declustering`, `KernelDensity`, `NormalScore`, `GaussianMixture`, `GaussianImputer` |
 | 14 | [cleaning steps](03-exploratory-analysis/14-cleaning-steps/README.md) | Stacked sulphide lenses | `Pipeline`, `RenameColumns`, `ToNull`, `Replace`, `ToNumber`, `DropNull`, `plot.histogram` |
 
@@ -64,13 +64,13 @@ Worked examples with the Python API on open datasets from [gstvschlz/datasets](h
 
 | # | Example | Dataset | Covers |
 |---|---|---|---|
-| 1 | [normal-score transform](04-transforms/01-normal-score/README.md) | Walker Lake | `cell_declustering`, `NormalScore`, `normal_cdf`, `plot.probability` |
+| 1 | [normal-score transform](04-transforms/01-normal-score/README.md) | Walker Lake | `cell_declustering`, `NormalScore`, `describe`, `normal_cdf`, `plot.probability` |
 | 2 | [censored normal-score transform](04-transforms/02-censored-normal-score/README.md) | Tailings reprocessing, Soil geochemistry survey | `NormalScore`, `experimental_variogram`, `Search`, `ExternalDriftKriging` |
 | 3 | [capping transform](04-transforms/03-capping-transform/README.md) | Vein gold grade control | `merge_intervals`, `Drillholes`, `cell_declustering`, `Capping`, `describe_by`, `capping_report`, `plot.probability`, `BlockModel`, `experimental_variogram`, `Search`, `OrdinaryKriging`, `NormalScore` |
-| 4 | [compositional data](04-transforms/04-compositional/README.md) | Porphyry geometallurgy | `closure`, `composition_center`, `variation_matrix`, `total_variance`, `PointSet`, `Pipeline`, `ILR`, `PPMT`, `plot.ternary`, `plot.biplot` |
+| 4 | [compositional data](04-transforms/04-compositional/README.md) | Porphyry geometallurgy | `closure`, `composition_center`, `variation_matrix`, `total_variance`, `PointSet`, `Pipeline`, `ILR`, `PPMT`, `correlation`, `plot.ternary`, `plot.biplot` |
 | 5 | [multivariate transforms](04-transforms/05-multivariate-transforms/README.md) | Porphyry geometallurgy | `PCA`, `MAF`, `StepwiseConditional`, `PPMT` |
-| 6 | [imputation](04-transforms/06-imputation/README.md) | Stacked sulphide lenses | `merge_intervals`, `GaussianImputer` |
-| 7 | [spatial imputation](04-transforms/07-spatial-imputation/README.md) | Stacked sulphide lenses | `merge_intervals`, `Drillholes`, `NormalScore`, `experimental_variogram`, `plot.variogram`, `GaussianImputer` |
+| 6 | [imputation](04-transforms/06-imputation/README.md) | Stacked sulphide lenses | `merge_intervals`, `GaussianImputer`, `compare` |
+| 7 | [spatial imputation](04-transforms/07-spatial-imputation/README.md) | Stacked sulphide lenses | `merge_intervals`, `Drillholes`, `NormalScore`, `experimental_variogram`, `plot.variogram`, `GaussianImputer`, `compare` |
 | 8 | [smooth trend](04-transforms/08-smooth-trend/README.md) | Coal seam thickness | `cell_declustering`, `detrend` |
 | 9 | [unfolding](04-transforms/09-unfolding/README.md) | Nickel laterite profile | `Drillholes`, `BlockModel`, `InverseDistance`, `Search`, `grid_surface`, `Unfold`, `experimental_variogram`, `Variogram`, `OrdinaryKriging`, `plot.section`, `plot.slab` |
 | 10 | [target distribution correction](04-transforms/10-target-distribution-correction/README.md) | Walker Lake | `cell_declustering`, `NormalScore`, `experimental_variogram`, `Variogram`, `BlockModel`, `SGS`, `Search`, `check_realizations`, `correct_distribution`, `plot.histogram_reproduction`, `plot.section`, `KernelDensity` |
@@ -82,13 +82,13 @@ Worked examples with the Python API on open datasets from [gstvschlz/datasets](h
 |---|---|---|---|
 | 1 | [experimental variograms](05-spatial-continuity/01-experimental-variograms/README.md) | Walker Lake | `variogram_map`, `experimental_variogram`, `plot.variogram` |
 | 2 | [variogram fitting](05-spatial-continuity/02-variogram-fitting/README.md) | Walker Lake | `variogram_map`, `experimental_variogram`, `plot.variogram`, `Variogram` |
-| 3 | [variogram sets](05-spatial-continuity/03-variogram-sets/README.md) | Jura, Walker Lake | `experimental_variograms`, `Coregionalization`, `plot.variograms`, `BlockModel`, `experimental_variogram` |
+| 3 | [variogram sets](05-spatial-continuity/03-variogram-sets/README.md) | Jura, Walker Lake | `experimental_variograms`, `Coregionalization`, `correlation`, `plot.variograms`, `BlockModel`, `experimental_variogram` |
 | 4 | [variogram volume](05-spatial-continuity/04-variogram-volume/README.md) | Stacked sulphide lenses | `Drillholes`, `variogram_volume`, `plot.variogram_volume`, `experimental_variogram`, `Variogram`, `plot.variogram` |
 | 5 | [downhole nugget](05-spatial-continuity/05-downhole-nugget/README.md) | Nickel laterite profile | `merge_intervals`, `Drillholes`, `experimental_variogram` |
 | 6 | [madogram](05-spatial-continuity/06-madogram/README.md) | Vein gold grade control | `merge_intervals`, `Drillholes`, `experimental_variogram`, `dissemination` |
 | 7 | [coregionalization](05-spatial-continuity/07-coregionalization/README.md) | Jura | `experimental_variogram`, `Coregionalization`, `plot.variogram` |
-| 8 | [intrinsic coregionalization](05-spatial-continuity/08-intrinsic-coregionalization/README.md) | Jura | `experimental_variograms`, `Coregionalization`, `plot.variogram`, `Search`, `Cokriging` |
-| 9 | [local variogram parameters](05-spatial-continuity/09-local-variogram-parameters/README.md) | Walker Lake | `BlockModel`, `experimental_variogram`, `Variogram`, `OrdinaryKriging`, `Search`, `LocalAnisotropy`, `local_variogram_parameters` |
+| 8 | [intrinsic coregionalization](05-spatial-continuity/08-intrinsic-coregionalization/README.md) | Jura | `experimental_variograms`, `Coregionalization`, `plot.variogram`, `Search`, `Cokriging`, `compare` |
+| 9 | [local variogram parameters](05-spatial-continuity/09-local-variogram-parameters/README.md) | Walker Lake | `BlockModel`, `experimental_variogram`, `Variogram`, `OrdinaryKriging`, `Search`, `LocalAnisotropy`, `local_variogram_parameters`, `compare` |
 | 10 | [from variogram to search plan](05-spatial-continuity/10-search-plans/README.md) | Stacked sulphide lenses | `Drillholes`, `variogram_volume`, `experimental_variogram`, `Variogram`, `plot.variogram`, `plot.slab`, `BlockModel`, `OrdinaryKriging`, `Search`, `hole_distance`, `plot.section` |
 | 11 | [nugget inference](05-spatial-continuity/11-nugget-inference/README.md) | Vein gold grade control | `merge_intervals`, `Drillholes`, `experimental_variogram`, `pairs` |
 
@@ -97,19 +97,19 @@ Worked examples with the Python API on open datasets from [gstvschlz/datasets](h
 | # | Example | Dataset | Covers |
 |---|---|---|---|
 | 1 | [ordinary kriging](06-kriging/01-ordinary-kriging/README.md) | Walker Lake | `experimental_variogram`, `Variogram`, `BlockModel`, `Search`, `OrdinaryKriging`, `plot.scatter` |
-| 2 | [simple estimators](06-kriging/02-simple-estimators/README.md) | Walker Lake | `BlockModel`, `experimental_variogram`, `Variogram`, `Search`, `NearestNeighbor`, `InverseDistance`, `MovingAverage`, `OrdinaryKriging`, `compare_models` |
+| 2 | [simple estimators](06-kriging/02-simple-estimators/README.md) | Walker Lake | `BlockModel`, `experimental_variogram`, `Variogram`, `Search`, `NearestNeighbor`, `InverseDistance`, `MovingAverage`, `OrdinaryKriging`, `compare`, `compare_models` |
 | 3 | [universal kriging](06-kriging/03-universal-kriging/README.md) | Coal seam thickness | `detrend`, `experimental_variogram`, `plot.variogram`, `Search`, `OrdinaryKriging`, `UniversalKriging` |
 | 4 | [external drift kriging](06-kriging/04-external-drift-kriging/README.md) | Soil geochemistry survey | `experimental_variogram`, `Search`, `OrdinaryKriging`, `ExternalDriftKriging` |
-| 5 | [block kriging](06-kriging/05-block-kriging/README.md) | Walker Lake | `experimental_variogram`, `Variogram`, `Search`, `BlockModel`, `BlockKriging`, `OrdinaryKriging` |
-| 6 | [search](06-kriging/06-search/README.md) | Walker Lake | `BlockModel`, `experimental_variogram`, `Variogram`, `OrdinaryKriging`, `Search` |
-| 7 | [search calibration](06-kriging/07-search-calibration/README.md) | Walker Lake | `experimental_variogram`, `Variogram`, `cell_declustering`, `BlockModel`, `Search`, `BlockKriging`, `HermiteAnamorphosis`, `calibrate_search` |
-| 8 | [high-grade restriction](06-kriging/08-high-grade-restriction/README.md) | Walker Lake | `BlockModel`, `experimental_variogram`, `Variogram`, `BlockKriging`, `Search`, `HighGrade` |
-| 9 | [cokriging](06-kriging/09-cokriging/README.md) | Jura | `experimental_variogram`, `Coregionalization`, `Search`, `OrdinaryKriging`, `Cokriging`, `BlockModel`, `LocalAnisotropy` |
+| 5 | [block kriging](06-kriging/05-block-kriging/README.md) | Walker Lake | `experimental_variogram`, `Variogram`, `Search`, `BlockModel`, `BlockKriging`, `OrdinaryKriging`, `compare` |
+| 6 | [search](06-kriging/06-search/README.md) | Walker Lake | `BlockModel`, `experimental_variogram`, `Variogram`, `OrdinaryKriging`, `Search`, `compare` |
+| 7 | [search calibration](06-kriging/07-search-calibration/README.md) | Walker Lake | `experimental_variogram`, `Variogram`, `cell_declustering`, `BlockModel`, `Search`, `BlockKriging`, `HermiteAnamorphosis`, `calibrate_search`, `compare` |
+| 8 | [high-grade restriction](06-kriging/08-high-grade-restriction/README.md) | Walker Lake | `BlockModel`, `experimental_variogram`, `Variogram`, `BlockKriging`, `Search`, `HighGrade`, `compare` |
+| 9 | [cokriging](06-kriging/09-cokriging/README.md) | Jura | `experimental_variogram`, `Coregionalization`, `Search`, `OrdinaryKriging`, `Cokriging`, `compare`, `BlockModel`, `LocalAnisotropy` |
 | 10 | [indicator kriging](06-kriging/10-indicator-kriging/README.md) | Jura | `experimental_variogram`, `Search`, `IndicatorKriging` |
-| 11 | [multiple indicator kriging](06-kriging/11-multiple-indicator-kriging/README.md) | Jura | `Search`, `cell_declustering`, `experimental_variogram`, `MultipleIndicatorKriging`, `OrdinaryKriging`, `BlockModel` |
-| 12 | [multigaussian kriging](06-kriging/12-multigaussian-kriging/README.md) | Walker Lake | `cell_declustering`, `NormalScore`, `despike`, `experimental_variogram`, `Variogram`, `BlockModel`, `MultigaussianKriging`, `Search`, `plot.scatter` |
+| 11 | [multiple indicator kriging](06-kriging/11-multiple-indicator-kriging/README.md) | Jura | `Search`, `cell_declustering`, `experimental_variogram`, `MultipleIndicatorKriging`, `OrdinaryKriging`, `compare`, `BlockModel` |
+| 12 | [multigaussian kriging](06-kriging/12-multigaussian-kriging/README.md) | Walker Lake | `cell_declustering`, `NormalScore`, `despike`, `experimental_variogram`, `BlockModel`, `MultigaussianKriging`, `Search`, `compare`, `plot.scatter` |
 | 13 | [soft boundaries](06-kriging/13-soft-boundaries/README.md) | Nickel laterite profile | `merge_intervals`, `Drillholes`, `contact`, `plot.contact`, `NormalScore`, `experimental_variogram`, `Search`, `OrdinaryKriging`, `SGS` |
-| 14 | [locally varying anisotropy](06-kriging/14-local-anisotropy/README.md) | Walker Lake | `BlockModel`, `experimental_variogram`, `Variogram`, `OrdinaryKriging`, `Search`, `LocalAnisotropy`, `plot.directions`, `cell_declustering`, `NormalScore`, `SGS` |
+| 14 | [locally varying anisotropy](06-kriging/14-local-anisotropy/README.md) | Walker Lake | `BlockModel`, `experimental_variogram`, `Variogram`, `OrdinaryKriging`, `Search`, `LocalAnisotropy`, `plot.directions`, `compare`, `cell_declustering`, `NormalScore`, `SGS` |
 
 ## categories and domains
 
@@ -128,22 +128,22 @@ Worked examples with the Python API on open datasets from [gstvschlz/datasets](h
 
 | # | Example | Dataset | Covers |
 |---|---|---|---|
-| 1 | [sequential gaussian simulation](08-stochastic-simulation/01-sgs/README.md) | Walker Lake | `cell_declustering`, `NormalScore`, `experimental_variogram`, `Variogram`, `BlockModel`, `SGS`, `Search` |
-| 2 | [SGS along a shared path](08-stochastic-simulation/02-sgs-shared-path/README.md) | Walker Lake | `cell_declustering`, `NormalScore`, `experimental_variogram`, `Variogram`, `BlockModel`, `SGS`, `Search`, `check_realizations`, `plot.histogram_reproduction`, `plot.variogram_reproduction` |
-| 3 | [simulation at block support](08-stochastic-simulation/03-simulation-at-block-support/README.md) | Walker Lake | `cell_declustering`, `NormalScore`, `experimental_variogram`, `Variogram`, `BlockModel`, `SGS`, `Search`, `plot.grade_tonnage`, `BlockKriging`, `localize` |
-| 4 | [turning bands](08-stochastic-simulation/04-turning-bands/README.md) | Walker Lake | `BlockModel`, `cell_declustering`, `NormalScore`, `experimental_variogram`, `Variogram`, `SGS`, `Search`, `TurningBands` |
-| 5 | [simulation with a trend](08-stochastic-simulation/05-simulation-with-trend/README.md) | Walker Lake | `cell_declustering`, `BlockModel`, `MovingAverage`, `Search`, `StepwiseConditional`, `NormalScore`, `experimental_variogram`, `Variogram`, `SGS` |
+| 1 | [sequential gaussian simulation](08-stochastic-simulation/01-sgs/README.md) | Walker Lake | `cell_declustering`, `NormalScore`, `experimental_variogram`, `BlockModel`, `SGS`, `Search` |
+| 2 | [SGS along a shared path](08-stochastic-simulation/02-sgs-shared-path/README.md) | Walker Lake | `cell_declustering`, `NormalScore`, `experimental_variogram`, `BlockModel`, `SGS`, `Search`, `check_realizations`, `plot.histogram_reproduction`, `plot.variogram_reproduction` |
+| 3 | [simulation at block support](08-stochastic-simulation/03-simulation-at-block-support/README.md) | Walker Lake | `cell_declustering`, `NormalScore`, `experimental_variogram`, `Variogram`, `BlockModel`, `SGS`, `Search`, `plot.grade_tonnage`, `BlockKriging`, `localize`, `compare` |
+| 4 | [turning bands](08-stochastic-simulation/04-turning-bands/README.md) | Walker Lake | `BlockModel`, `cell_declustering`, `NormalScore`, `experimental_variogram`, `SGS`, `Search`, `TurningBands` |
+| 5 | [simulation with a trend](08-stochastic-simulation/05-simulation-with-trend/README.md) | Walker Lake | `cell_declustering`, `BlockModel`, `MovingAverage`, `Search`, `StepwiseConditional`, `NormalScore`, `experimental_variogram`, `SGS` |
 | 6 | [multivariate simulation](08-stochastic-simulation/06-multivariate-simulation/README.md) | Porphyry geometallurgy | `PointSet`, `cell_declustering`, `BlockModel`, `Search`, `PPMT`, `PCA`, `experimental_variogram`, `MultivariateSimulation`, `TurningBands` |
-| 7 | [collocated cosimulation](08-stochastic-simulation/07-collocated-cosimulation/README.md) | Jura | `NormalScore`, `experimental_variogram`, `Variogram`, `BlockModel`, `Search`, `SGS`, `check_realizations`, `plot.histogram_reproduction`, `plot.variogram_reproduction`, `DSS` |
-| 8 | [direct sequential simulation](08-stochastic-simulation/08-direct-sequential-simulation/README.md) | Walker Lake | `cell_declustering`, `NormalScore`, `experimental_variogram`, `Variogram`, `BlockModel`, `Search`, `DSS`, `SGS`, `correct_distribution` |
+| 7 | [collocated cosimulation](08-stochastic-simulation/07-collocated-cosimulation/README.md) | Jura | `NormalScore`, `experimental_variogram`, `BlockModel`, `Search`, `SGS`, `check_realizations`, `plot.histogram_reproduction`, `plot.variogram_reproduction`, `Variogram`, `DSS` |
+| 8 | [direct sequential simulation](08-stochastic-simulation/08-direct-sequential-simulation/README.md) | Walker Lake | `cell_declustering`, `describe`, `NormalScore`, `experimental_variogram`, `BlockModel`, `Search`, `DSS`, `SGS`, `correct_distribution` |
 
 ## recoverable resources
 
 | # | Example | Dataset | Covers |
 |---|---|---|---|
 | 1 | [discrete gaussian model](09-recoverable-resources/01-discrete-gaussian-model/README.md) | Walker Lake | `cell_declustering`, `HermiteAnamorphosis`, `experimental_variogram`, `Variogram`, `change_of_support` |
-| 2 | [uniform conditioning](09-recoverable-resources/02-uniform-conditioning/README.md) | Walker Lake | `cell_declustering`, `HermiteAnamorphosis`, `experimental_variogram`, `Variogram`, `change_of_support`, `Search`, `BlockModel`, `BlockKriging`, `UniformConditioning` |
-| 3 | [MIK localization](09-recoverable-resources/03-mik-localization/README.md) | Walker Lake | `cell_declustering`, `experimental_variogram`, `Variogram`, `Search`, `BlockModel`, `BlockKriging`, `MultipleIndicatorKriging` |
+| 2 | [uniform conditioning](09-recoverable-resources/02-uniform-conditioning/README.md) | Walker Lake | `cell_declustering`, `HermiteAnamorphosis`, `experimental_variogram`, `Variogram`, `change_of_support`, `Search`, `BlockModel`, `BlockKriging`, `UniformConditioning`, `compare` |
+| 3 | [MIK localization](09-recoverable-resources/03-mik-localization/README.md) | Walker Lake | `cell_declustering`, `experimental_variogram`, `Variogram`, `Search`, `BlockModel`, `BlockKriging`, `MultipleIndicatorKriging`, `compare` |
 | 4 | [disjunctive kriging](09-recoverable-resources/04-disjunctive-kriging/README.md) | Walker Lake | `cell_declustering`, `HermiteAnamorphosis`, `experimental_variogram`, `Variogram`, `BlockModel`, `DisjunctiveKriging`, `Search` |
 
 ## checking models
@@ -152,7 +152,7 @@ Worked examples with the Python API on open datasets from [gstvschlz/datasets](h
 |---|---|---|---|
 | 1 | [model checks](10-checking-models/01-model-checks/README.md) | Walker Lake | `experimental_variogram`, `Variogram`, `cell_declustering`, `BlockModel`, `Search`, `BlockKriging`, `global_bias`, `validate_model`, `plot.cdf`, `swath`, `plot.swath` |
 | 2 | [cross-validation](10-checking-models/02-cross-validation/README.md) | Walker Lake | `experimental_variogram`, `Variogram`, `Search`, `OrdinaryKriging`, `plot.cross_validation` |
-| 3 | [kriging diagnostics](10-checking-models/03-kriging-diagnostics/README.md) | Walker Lake | `experimental_variogram`, `Variogram`, `BlockModel`, `Search`, `BlockKriging` |
+| 3 | [kriging diagnostics](10-checking-models/03-kriging-diagnostics/README.md) | Walker Lake | `experimental_variogram`, `Variogram`, `BlockModel`, `Search`, `BlockKriging`, `compare` |
 | 4 | [realization checks](10-checking-models/04-realization-checks/README.md) | Walker Lake, Porphyry geometallurgy | `cell_declustering`, `NormalScore`, `experimental_variogram`, `Variogram`, `BlockModel`, `SGS`, `Search`, `check_realizations`, `plot.histogram_reproduction`, `plot.variogram_reproduction`, `PointSet`, `PPMT`, `TurningBands`, `MultivariateSimulation`, `plot.correlation_reproduction` |
 | 5 | [classification](10-checking-models/05-classification/README.md) | Coal seam thickness | `data_spacing`, `classify`, `experimental_variogram`, `Variogram`, `Search`, `BlockKriging`, `smooth_classes`, `Categories`, `plot.category_colors`, `plot.category_legend` |
 | 6 | [result plots](10-checking-models/06-result-plots/README.md) | Walker Lake, Nickel laterite profile | `experimental_variogram`, `Variogram`, `Search`, `OrdinaryKriging`, `plot.cross_validation`, `MultipleIndicatorKriging`, `BlockModel`, `BlockKriging`, `cell_declustering`, `grade_tonnage`, `compare_models`, `plot.grade_tonnage`, `merge_intervals`, `Drillholes`, `contact`, `plot.contact` |
@@ -182,13 +182,13 @@ Worked examples with the Python API on open datasets from [gstvschlz/datasets](h
 |---|---|---|---|
 | 1 | [SNESIM and its multigrid](13-multiple-point-statistics/01-snesim-multigrid/README.md) | Strebelle | `BlockModel`, `SNESIM` |
 | 2 | [conditioning SNESIM](13-multiple-point-statistics/02-snesim-conditioning/README.md) | Strebelle | `BlockModel`, `SNESIM` |
-| 3 | [continuous SNESIM](13-multiple-point-statistics/03-snesim-continuous/README.md) | F3 seismic | `BlockModel`, `SNESIM` |
+| 3 | [continuous SNESIM](13-multiple-point-statistics/03-snesim-continuous/README.md) | F3 seismic | `BlockModel`, `SNESIM`, `compare` |
 | 4 | [rotation and affinity](13-multiple-point-statistics/04-snesim-rotation-affinity/README.md) | Strebelle, F3 seismic | `BlockModel`, `LocalAnisotropy`, `SNESIM` |
 | 5 | [several training images](13-multiple-point-statistics/05-snesim-training-images-by-zone/README.md) | Strebelle | `BlockModel`, `object_training_image`, `SNESIM` |
 | 6 | [soft data in SNESIM](13-multiple-point-statistics/06-snesim-soft-data/README.md) | Strebelle | `BlockModel`, `SNESIM` |
 | 7 | [training images and their consistency](13-multiple-point-statistics/07-training-images/README.md) | Strebelle | `BlockModel`, `object_training_image`, `training_image_consistency` |
 | 8 | [image quilting](13-multiple-point-statistics/08-image-quilting/README.md) | Strebelle | `BlockModel`, `ImageQuilting` |
-| 9 | [continuous image quilting](13-multiple-point-statistics/09-image-quilting-continuous/README.md) | F3 seismic | `BlockModel`, `ImageQuilting`, `SNESIM` |
+| 9 | [continuous image quilting](13-multiple-point-statistics/09-image-quilting-continuous/README.md) | F3 seismic | `BlockModel`, `compare`, `ImageQuilting`, `SNESIM` |
 | 10 | [seismic volumes](13-multiple-point-statistics/10-seismic-volumes/README.md) | F3 seismic | `read_segy`, `BlockModel`, `object_training_image`, `write_segy`, `ImageQuilting` |
 
 ## Workflows
@@ -199,7 +199,7 @@ Worked examples with the Python API on open datasets from [gstvschlz/datasets](h
 | 2 | [Sub-block a model from solids](14-workflows/02-sub-blocks-from-solids/README.md) | Vein gold grade control | `BlockModel`, `Categories`, `plot.section`, `plot.slab`, `plot.category_legend` |
 | 3 | [Find and fix degenerate solids](14-workflows/03-degenerate-solids/README.md) | Stacked sulphide lenses | `Mesh` |
 | 4 | [Audit drill holes before modeling](14-workflows/04-drillhole-audit/README.md) | Stacked sulphide lenses | `check_drillholes`, `Table`, `fix_drillholes` |
-| 5 | [Compare two estimates of one deposit](14-workflows/05-compare-two-estimates/README.md) | Walker Lake | `cell_declustering`, `experimental_variogram`, `Variogram`, `Search`, `BlockKriging`, `InverseDistance`, `BlockModel`, `global_bias`, `swath`, `plot.swath`, `compare_models`, `OrdinaryKriging` |
+| 5 | [Compare two estimates of one deposit](14-workflows/05-compare-two-estimates/README.md) | Walker Lake | `cell_declustering`, `describe`, `experimental_variogram`, `Variogram`, `Search`, `BlockKriging`, `InverseDistance`, `BlockModel`, `global_bias`, `swath`, `plot.swath`, `compare_models`, `OrdinaryKriging`, `compare` |
 | 6 | [Grade–tonnage curves and the change in contained metal](14-workflows/06-grade-tonnage-and-metal/README.md) | Walker Lake | `experimental_variogram`, `Variogram`, `Search`, `BlockKriging`, `InverseDistance`, `BlockModel`, `grade_tonnage`, `compare_models`, `plot.grade_tonnage` |
 | 7 | [Drill-hole spacing from virtual grids](14-workflows/07-drillhole-spacing-virtual-grids/README.md) | Walker Lake | `cell_declustering`, `NormalScore`, `experimental_variogram`, `Variogram`, `BlockModel`, `TurningBands`, `Search`, `select_realizations`, `spacing_study`, `uncertainty_curve`, `required_spacing`, `plot.uncertainty_curve`, `planned_drillholes` |
 | 8 | [Drill-hole spacing from a learning curve](14-workflows/08-drillhole-spacing-learning-curve/README.md) | Walker Lake | `cell_declustering`, `NormalScore`, `experimental_variogram`, `Variogram`, `BlockModel`, `TurningBands`, `Search`, `data_spacing`, `uncertainty_curve`, `required_spacing`, `spacing_study` |

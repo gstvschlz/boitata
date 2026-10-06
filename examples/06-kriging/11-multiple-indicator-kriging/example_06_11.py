@@ -50,7 +50,7 @@ ok = bt.OrdinaryKriging(bt.experimental_variogram(xy, cd, lag, max_lag).fit("sph
 
 
 def rmse(e):
-    return float(np.sqrt(np.mean((e - truth) ** 2)))
+    return bt.compare(e, truth)["rmse"]
 
 
 exceeds = truth > limit

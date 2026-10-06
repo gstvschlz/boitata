@@ -21,7 +21,7 @@ from common import HIGHLIGHT, save
 
 seismic = bt.datasets.f3_seismic()
 nx, ny, nz = seismic.count
-cube = seismic["amplitude"].astype(float).reshape(nz, ny, nx)[::-1]  # time down: row 0 at 1600 ms
+cube = seismic.grid("amplitude")[::-1]  # time down: row 0 at 1600 ms
 image = np.hstack([cube[:, j, :] for j in range(0, 30, 3)])
 truth = cube[:, 40, :]
 ti = bt.BlockModel((0, 1600), (25, 4), (image.shape[1], nz)).with_columns({"amplitude": image.ravel()})
@@ -40,7 +40,7 @@ values = truth[at_traces]
 
 # %%
 def correlation(a, b):
-    return np.corrcoef(np.ravel(a), np.ravel(b))[0, 1]
+    return bt.compare(np.ravel(a), np.ravel(b))["correlation"]
 
 
 summaries = {
@@ -77,7 +77,7 @@ style = {
 }
 fig, axes = plt.subplots(1, 4, figsize=(15, 4), layout="constrained", sharey=True)
 panels = [(truth, "True section and traces")] + [
-    (s.realizations[0].reshape(nz, nx), f"Realization 1, {name}") for name, s in summaries.items()
+    (section.grid(s.realizations[0])[0], f"Realization 1, {name}") for name, s in summaries.items()
 ]
 for ax, (img, title) in zip(axes, panels):
     im = ax.imshow(img, **style)

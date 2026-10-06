@@ -33,7 +33,7 @@ from common import ACCENT, GRAY, HIGHLIGHT, INK, LIGHT, map_axes, save, show
 
 # %%
 data = bt.datasets.stacked_sulphide_lenses()
-holes = bt.Drillholes(data["collars"], data["surveys"], data["assays"])
+holes = bt.Drillholes.from_tables(data)
 collars = bt.PointSet.from_table(data["collars"], z="Z")
 ground = bt.topography(collars, cell=20.0)
 print(f"{len(holes)} holes, {len(data['assays']):,} assays, {ground.flagged.sum()} collars flagged")
@@ -60,9 +60,9 @@ for name, mesh in lenses.items():
     lens[mesh.contains(samples.coords)] = name
 holes = bt.Drillholes(data["collars"], data["surveys"], samples.with_column("LENS", list(lens)).attributes)
 composites = holes.composite(2.0, ["ZN_PCT", "DENSITY"], domain="LENS", residual="merge")
-names = np.array(composites["LENS"], dtype=object)
+names = composites["LENS"]
 ore = composites.filter(names != "host")
-ore_names = names[names != "host"]
+ore_names = ore["LENS"]
 print(f"{len(composites):,} composites of 2 m, {len(ore):,} inside a lens")
 
 # %% [markdown]
@@ -85,7 +85,7 @@ blocks = bt.BlockModel.from_meshes(
     rotation=rotation,
     column="LENS",
 )
-block_lens = np.array(blocks["LENS"], dtype=object)
+block_lens = blocks["LENS"]
 for name, mesh in lenses.items():
     inside = block_lens == name
     print(
@@ -103,12 +103,11 @@ for name, mesh in lenses.items():
 weights = np.zeros(len(ore))
 for name in lenses:
     inside = ore_names == name
-    declustering = bt.cell_declustering(
-        ore.coords[inside], ore["ZN_PCT"][inside], sizes=np.arange(10, 105, 5)
-    )
+    part = ore.filter(inside)
+    declustering = bt.cell_declustering(part, "ZN_PCT", sizes=np.arange(10, 105, 5))
     weights[inside] = declustering.weights / declustering.weights.mean()
     print(
-        f"{name}: {inside.sum()} composites, mean {ore['ZN_PCT'][inside].mean():.2f} % Zn, "
+        f"{name}: {inside.sum()} composites, mean {part['ZN_PCT'].mean():.2f} % Zn, "
         f"declustered {declustering.mean:.2f} %"
     )
 ore = ore.with_column("weight", weights)
@@ -140,9 +139,7 @@ for name in lenses:
     inside = ore_names == name
     scores[inside] = bt.NormalScore().fit_transform(ore["ZN_PCT"][inside], weights=weights[inside])
 fitted = bt.experimental_variogram(one, scores[ore_names == "lens_1"], 10.0, 150.0).fit("spherical")
-gaussian = bt.Variogram(
-    [(s.model, s.sill / fitted.sill, s.range) for s in fitted.structures], nugget=fitted.nugget / fitted.sill
-)
+gaussian = fitted.standardized()
 for label, model in (("Zn", variogram), ("normal scores", gaussian)):
     s = model.structures[0]
     print(f"{label}: nugget {model.nugget:.2f}, spherical sill {s.sill:.2f}, range {s.range:.0f} m")
@@ -204,10 +201,9 @@ print(f"host rock: {np.nanmean(host):.2f} % Zn over {np.isfinite(host).sum():,} 
 # ([block models from extents](../../examples/02-data-and-geometry/12-block-model-from-extents/example_02_12.md)).
 
 # %%
-summit = [[*lenses["lens_1"].coords.mean(axis=0)[:2], collars.coords[:, 2].max()]]
+summit = [[*lenses["lens_1"].coords.mean(axis=0)[:2], collars.z.max()]]
 grid = bt.BlockModel.from_extents(*lenses.values(), summit, size=(5, 5, 5), buffer=5, snap=True)
-centers = grid.coords
-below = ~(centers[:, 2] >= ground.grid["z"][ground.grid.row_at(centers[:, :2])])
+below = ~(grid.z >= ground.grid.sample(grid.coords[:, :2], "z"))
 cells = grid.filter(below)
 shares = np.array([mesh.proportion(cells) for mesh in lenses.values()])
 touched = shares.sum(axis=0) > 0
@@ -252,7 +248,7 @@ passes = [
 ]
 print(f"pass 2 radius {passes[1].radius:.0f} m")
 zn = bt.OrdinaryKriging(variogram, passes).fit(ore, "ZN_PCT", holes="HOLE_ID", domain_column="LENS")
-measured = ore.filter(np.isfinite(ore["DENSITY"]))
+measured = ore.drop_null("DENSITY")
 density = bt.OrdinaryKriging(variogram, passes).fit(
     measured, "DENSITY", holes="HOLE_ID", domain_column="LENS"
 )
@@ -298,7 +294,7 @@ print(f"host: {host_zn:.2f} % Zn, {host_density:.2f} t/m³")
 # %%
 nodes = smus.discretize(2)
 parent = np.asarray(nodes["block"], dtype=np.int64)
-nodes = nodes.with_column("LENS", list(np.asarray(smus["LENS"], dtype=object)[parent]))
+nodes = nodes.with_column("LENS", list(smus["LENS"][parent]))
 tb = bt.TurningBands(gaussian, search=passes[1]).fit(
     ore, "ZN_PCT", weights="weight", holes="HOLE_ID", domain_column="LENS"
 )
@@ -348,7 +344,7 @@ nearest = bt.NearestNeighbor(bt.Search(passes[1].radius, max_samples=1)).fit(
     ore, "ZN_PCT", domain_column="LENS"
 )
 blocks = blocks.with_column("nn", nearest.predict(blocks, domain_column="LENS"))
-smu_names = np.asarray(smus["LENS"], dtype=object)
+smu_names = smus["LENS"]
 lens_volume = f * smus.volumes
 for name in lenses:
     inside = block_lens == name
@@ -439,7 +435,7 @@ per_realization = np.array(
 p10, p50, p90 = np.quantile(per_realization, [0.1, 0.5, 0.9], axis=0)
 fig, ax = plt.subplots(figsize=(7.5, 4.2), layout="constrained")
 for (label, table), color in zip(curves.items(), (GRAY, ACCENT), strict=True):
-    ax.plot(table["cutoff"], np.asarray(table["tonnage"]) / 1e6, color=color, label=label)
+    ax.plot(table["cutoff"], table["tonnage"] / 1e6, color=color, label=label)
 n = len(cutoffs)
 ax.fill_between(cutoffs, p10[:n] / 1e6, p90[:n] / 1e6, color=HIGHLIGHT, alpha=0.25, lw=0)
 ax.plot(cutoffs, p50[:n] / 1e6, color=HIGHLIGHT, label="turning bands SMUs, diluted (P10–P90)")

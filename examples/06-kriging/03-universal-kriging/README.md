@@ -14,7 +14,7 @@ from common import ACCENT, GRAY, HIGHLIGHT, INK, map_axes, save
 
 data = bt.datasets.coal_seam_thickness()
 holes, grid, lease = data["boreholes"], data["grid"], data["boundary"]
-inside = np.asarray(grid["INSIDE"]) == 1
+inside = grid["INSIDE"] == 1
 ```
 
 </details>
@@ -98,13 +98,12 @@ universal cross-validation: ME -0.002  RMSE 0.599  slope 1.02
 <details><summary>Python</summary>
 
 ```python
-nx, ny, _ = grid.count
-x0, y0, _ = grid.origin
-extent = (x0, x0 + nx * grid.size[0], y0, y0 + ny * grid.size[1])
+low, high = grid.bounds
+extent = (low[0], high[0], low[1], high[1])
 
 
 def image(ax, values, **kwargs):
-    values = np.where(inside, values, np.nan).reshape(ny, nx)
+    values = grid.grid(np.where(inside, values, np.nan))[0]
     shown = ax.imshow(values, origin="lower", extent=extent, **kwargs)
     ax.plot(*lease.coords[:, :2].T, color=INK, lw=0.6)
     return shown
@@ -145,8 +144,8 @@ along an east-west line through the middle of the lease, extended past the last 
 ```python
 x = np.arange(20000.0, 36001.0, 100.0)
 line = np.column_stack([x, np.full_like(x, 54000.0)])
-near = np.abs(holes.coords[:, 1] - 54000.0) < 500
-print(f"easternmost hole at {holes.coords[:, 0].max():.0f} m")
+near = np.abs(holes.y - 54000.0) < 500
+print(f"easternmost hole at {holes.x.max():.0f} m")
 profile = {
     "ordinary": ordinary.predict(line),
     "universal": universal.predict(line),
@@ -157,11 +156,11 @@ for at in (32000, 34000, 36000):
     print(f"x = {at}: " + ", ".join(f"{k} {v[i]:.2f} m" for k, v in profile.items()))
 
 fig, ax = plt.subplots(figsize=(8, 3.4), layout="constrained")
-ax.scatter(holes.coords[near, 0], holes["THICKNESS_M"][near], s=8, color=GRAY, label="holes within 500 m")
+ax.scatter(holes.x[near], holes["THICKNESS_M"][near], s=8, color=GRAY, label="holes within 500 m")
 ax.plot(x, profile["trend"], color=INK, ls="--", lw=1, label="trend")
 ax.plot(x, profile["ordinary"], color=ACCENT, label="ordinary kriging")
 ax.plot(x, profile["universal"], color=HIGHLIGHT, label="universal kriging")
-ax.axvline(holes.coords[:, 0].max(), color=GRAY, lw=0.8, ls=":")
+ax.axvline(holes.x.max(), color=GRAY, lw=0.8, ls=":")
 ax.set(xlabel="Easting (m)", ylabel="Thickness (m)")
 ax.set_title("Profile at northing 54 000 m")
 ax.legend(ncols=2)

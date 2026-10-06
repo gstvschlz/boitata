@@ -30,10 +30,10 @@ from common import ACCENT, GRAY, HIGHLIGHT, INK, LIGHT, map_axes, save
 # %%
 data = bt.datasets.nickel_laterite_profile()
 collars, horizons = data["collars"], data["horizons"]
-holes = np.array(collars["HOLE_ID"], dtype=object)
+holes = collars["HOLE_ID"]
 xy, surface = np.column_stack([collars["X"], collars["Y"]]), collars["Z"]
 names = ["FERR", "LIM", "SAP", "BRK"]
-logged, logged_hole = (np.array(horizons[c], dtype=object) for c in ("HORIZON", "HOLE_ID"))
+logged, logged_hole = horizons["HORIZON"], horizons["HOLE_ID"]
 row = {h: i for i, h in enumerate(holes)}
 tops = {name: surface.copy() for name in names}
 for name in names[1:]:
@@ -72,10 +72,10 @@ bedrock = bt.Variogram.fit(experimental, "spherical")
 print(bedrock)
 search = bt.Search(radius=250, max_samples=16, min_samples=4)
 kriging = bt.OrdinaryKriging(bedrock, search).fit(mesh_xy, mesh_z)
-error = kriging.predict(xy[infill]) - tops["BRK"][infill]
-naive = surface[infill] - depth[~infill].mean() - tops["BRK"][infill]
-print(f"kriged at the infill: mean error {error.mean():+.2f} m, RMSE {np.sqrt(np.mean(error**2)):.2f} m")
-print(f"topography less the mean depth: RMSE {np.sqrt(np.mean(naive**2)):.2f} m")
+error = bt.compare(kriging.predict(xy[infill]), tops["BRK"][infill])
+naive = bt.compare(surface[infill] - depth[~infill].mean(), tops["BRK"][infill])
+print(f"kriged at the infill: mean error {error['mean_error']:+.2f} m, RMSE {error['rmse']:.2f} m")
+print(f"topography less the mean depth: RMSE {naive['rmse']:.2f} m")
 
 fig, (a, b) = plt.subplots(1, 2, figsize=(9.2, 3.4), layout="constrained")
 bt.plot.variogram(experimental, variogram=bedrock, ax=a, color=ACCENT)
@@ -128,8 +128,8 @@ rules = [(mesh, "below", name) for mesh, name in zip(contacts.values(), ["BRK", 
 blocks = bt.BlockModel.from_meshes(
     (30000, 60000, bottom), (25, 25, 5), count, rules, (1, 1, 10), column="HORIZON"
 )
-blocks = blocks.filter(np.array(blocks["HORIZON"], dtype=object) != "BRK")
-horizon = np.array(blocks["HORIZON"], dtype=object)
+blocks = blocks.filter(blocks["HORIZON"] != "BRK")
+horizon = blocks["HORIZON"]
 for name in names[:3]:
     print(f"{name}: {blocks.volumes[horizon == name].sum() / 1e6:.2f} Mm³")
 print(f"{len(blocks)} blocks and sub-blocks")
@@ -148,8 +148,8 @@ print(f"{len(blocks)} blocks and sub-blocks")
 intervals = bt.merge_intervals(data["assays"], horizons)
 drillholes = bt.Drillholes(collars, data["surveys"], intervals)
 composites = drillholes.composite(1.0, ["NI_PCT", "CO_PCT"], domain="HORIZON", residual="merge")
-unit, hole = (np.array(composites[c], dtype=object) for c in ("HORIZON", "HOLE_ID"))
-height = composites.coords[:, 2] - tops["BRK"][[row[h] for h in hole]]
+unit, hole = composites["HORIZON"], composites["HOLE_ID"]
+height = composites.z - tops["BRK"][[row[h] for h in hole]]
 ni, co = composites["NI_PCT"], composites["CO_PCT"]
 print(f"{'':5}{'n':>6}{'Ni %':>7}{'CV':>6}{'Co %':>7}{'CV':>6}")
 for name in names:

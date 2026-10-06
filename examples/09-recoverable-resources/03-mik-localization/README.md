@@ -64,9 +64,8 @@ mik = bt.MultipleIndicatorKriging(indicators, search, deciles, tails=(0.0, v.max
 mik.fit(xy, v, weights=weights)
 localized = mik.localize(smus, "kriged", panels, variance_factor=grade)["localized"]
 for label, values in (("kriged", kriged), ("localized", localized)):
-    print(
-        f"{label}: variance {values.var():.0f}, correlation with truth {np.corrcoef(values, true_smu.ravel())[0, 1]:.2f}"
-    )
+    r = bt.compare(values, true_smu.ravel())["correlation"]
+    print(f"{label}: variance {values.var():.0f}, correlation with truth {r:.2f}")
 print(f"true blocks: variance {true_smu.var():.0f}")
 ```
 

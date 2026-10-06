@@ -21,7 +21,7 @@ import numpy as np
 from common import ACCENT, save
 
 samples = bt.datasets.walker_lake()
-samples = samples.filter(~np.isnan(samples["U"]))
+samples = samples.drop_null("U")
 w = bt.cell_declustering(samples, "V", sizes=np.arange(2.5, 102.5, 2.5)).weights
 samples = samples.with_column("w", w)
 

@@ -19,15 +19,14 @@ samples, covariates = data["samples"], data["covariates"]
 
 </details>
 
-`BlockModel.row_at` finds the cell under each sample; fancy-indexing the grid's columns at those rows drapes `MAG_NT`
-and `ELEVATION_M` onto the samples as two new columns.
+`BlockModel.sample` reads the cell under each sample, draping `MAG_NT` and `ELEVATION_M` onto the samples as two new
+columns.
 
 <details><summary>Python</summary>
 
 ```python
-rows = covariates.row_at(samples.coords[:, :2])
-samples = samples.with_column("MAG_NT", covariates["MAG_NT"][rows]).with_column(
-    "ELEVATION_M", covariates["ELEVATION_M"][rows]
+samples = samples.with_columns(
+    {c: covariates.sample(samples.coords[:, :2], c) for c in ("MAG_NT", "ELEVATION_M")}
 )
 print(
     f"correlation with Cu: magnetics {np.corrcoef(samples['CU_PPM'], samples['MAG_NT'])[0, 1]:.2f}, "
@@ -90,20 +89,18 @@ ordinary kriging's constant mean cannot do.
 <details><summary>Python</summary>
 
 ```python
-nx, ny = covariates.count[0], covariates.count[1]
-ox, oy = covariates.origin[0], covariates.origin[1]
-sx, sy = covariates.size[0], covariates.size[1]
-shape, extent = (ny, nx), (ox, ox + sx * nx, oy, oy + sy * ny)
+low, high = covariates.bounds
+extent = (low[0], high[0], low[1], high[1])
 vmax = np.nanpercentile(np.r_[ok, edk], 98)
 fig, axes = plt.subplots(1, 3, figsize=(13, 4.2), layout="constrained")
 for ax, image, title in ((axes[0], ok, "Ordinary kriging"), (axes[1], edk, "External drift kriging")):
-    im = ax.imshow(image.reshape(shape), origin="lower", extent=extent, vmin=0, vmax=vmax)
-    ax.scatter(samples.coords[:, 0], samples.coords[:, 1], s=2, color=INK, linewidths=0)
+    im = ax.imshow(covariates.grid(image)[0], origin="lower", extent=extent, vmin=0, vmax=vmax)
+    ax.scatter(samples.x, samples.y, s=2, color=INK, linewidths=0)
     map_axes(ax, title)
 fig.colorbar(im, ax=axes[:2], shrink=0.8, label="Cu (ppm)")
 diff = ax = axes[2]
-d = ax.imshow((edk - ok).reshape(shape), origin="lower", extent=extent, cmap="RdBu_r", vmin=-15, vmax=15)
-ax.scatter(samples.coords[:, 0], samples.coords[:, 1], s=2, color=ACCENT, linewidths=0)
+d = ax.imshow(covariates.grid(edk - ok)[0], origin="lower", extent=extent, cmap="RdBu_r", vmin=-15, vmax=15)
+ax.scatter(samples.x, samples.y, s=2, color=ACCENT, linewidths=0)
 map_axes(ax, "External drift − ordinary")
 fig.colorbar(d, ax=diff, shrink=0.8, label="Δ Cu (ppm)")
 save(fig, "maps")

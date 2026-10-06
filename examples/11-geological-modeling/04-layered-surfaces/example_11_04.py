@@ -41,9 +41,9 @@ print(f"collar minus topography: {offset.min():+.2f} to {offset.max():+.2f} m")
 fig, ax = plt.subplots(figsize=(7, 5), layout="constrained")
 bt.plot.section(topography, "Z", ax=ax, cmap="Greys_r", colorbar=False)
 ax.contour(
-    topography.coords[:, 0].reshape(191, 241),
-    topography.coords[:, 1].reshape(191, 241),
-    np.asarray(topography["Z"]).reshape(191, 241),
+    topography.grid(topography.x)[0],
+    topography.grid(topography.y)[0],
+    topography.grid("Z")[0],
     levels=np.arange(1080, 1240, 20),
     colors=INK,
     linewidths=0.4,
@@ -63,9 +63,9 @@ save(fig, "topography")
 
 # %%
 LAYERS = ["SOIL", "ALU", "OXI", "SAP"]
-holes = bt.Drillholes(collars, data["surveys"])
+holes = bt.Drillholes.from_tables(data, intervals=None)
 horizons = data["horizons"]
-ids, names, to = np.array(horizons["HOLE_ID"]), np.array(horizons["HORIZON"]), np.asarray(horizons["TO"])
+ids, names, to = horizons["HOLE_ID"], horizons["HORIZON"], horizons["TO"]
 idw = bt.InverseDistance(bt.Search(radius=400, max_samples=12, min_samples=3))
 bases, elevations = {}, {}
 for name in LAYERS:
@@ -100,8 +100,8 @@ save(fig, "thickness")
 # from the surfaces match the logged horizons and show where the phosphate is: the oxidized horizon.
 
 # %%
-assays = bt.Drillholes(collars, data["surveys"], data["assays"]).samples()
-logged = bt.Drillholes(collars, data["surveys"], horizons).samples()
+assays = bt.Drillholes.from_tables(data).samples()
+logged = bt.Drillholes.from_tables(data, intervals="horizons").samples()
 
 
 def layer(points):
@@ -113,7 +113,7 @@ def layer(points):
 
 print(f"horizon midpoints in their logged layer: {np.mean(layer(logged.coords) == logged['HORIZON']):.1%}")
 by_layer = layer(assays.coords)
-p2o5 = np.asarray(assays["P2O5_PCT"])
+p2o5 = assays["P2O5_PCT"]
 for name in [*LAYERS, "ROCK"]:
     print(f"{name:>4}: {np.sum(by_layer == name):5} assays, P2O5 {np.nanmean(p2o5[by_layer == name]):5.2f} %")
 
@@ -144,8 +144,8 @@ from_bottom = bt.BlockModel.from_meshes(*grid, from_bottom_up, subgrid=(1, 1, 10
 from_top = bt.BlockModel.from_meshes(*grid, from_top_down, subgrid=(1, 1, 10), fill="ROCK")
 print(from_bottom)
 for name in [*LAYERS, "ROCK"]:
-    bottom = from_bottom.volumes[np.array(from_bottom["domain"]) == name].sum()
-    top = from_top.volumes[np.array(from_top["domain"]) == name].sum()
+    bottom = from_bottom.volumes[from_bottom["domain"] == name].sum()
+    top = from_top.volumes[from_top["domain"] == name].sum()
     print(f"{name:>4}: {bottom / 1e6:7.2f} Mm3 from the bottom, {top / 1e6:7.2f} Mm3 from the top")
 
 # %% [markdown]

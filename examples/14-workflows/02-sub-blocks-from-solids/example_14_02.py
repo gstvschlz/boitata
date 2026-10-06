@@ -76,7 +76,7 @@ for n, model in models.items():
 
 # %%
 def volumes(model):
-    labels = np.array(model["domain"])
+    labels = model["domain"]
     captured = misplaced = 0.0
     for vein, name in zip(veins, names):
         part = model.filter(labels == name)
@@ -137,7 +137,7 @@ fine = models[16]
 per_parent = np.bincount(fine.index.astype(np.int64), weights=fine.volumes)
 print(f"largest volume in one parent: {per_parent.max():g} m3 of {np.prod(parents.size):g} m3")
 assert per_parent.max() <= np.prod(parents.size) + 1e-6
-labels = np.array(fine["domain"])
+labels = fine["domain"]
 for vein, name in zip(veins, names):
     labeled = fine.volumes[labels == name].sum()
     print(

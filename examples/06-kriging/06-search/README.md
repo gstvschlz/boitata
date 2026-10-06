@@ -30,8 +30,7 @@ kriging = bt.OrdinaryKriging(model, bt.Search(radius=80)).fit(samples, "V")
 
 
 def rmse(estimate):
-    ok = ~np.isnan(estimate)
-    return np.sqrt(np.mean((estimate[ok] - true_at_nodes[ok]) ** 2))
+    return bt.compare(estimate, true_at_nodes)["rmse"]
 ```
 
 </details>
@@ -113,7 +112,7 @@ passes = [bt.Search(radius=30, min_samples=8, max_samples=24, octant=True, **ell
 d = kriging.with_search(passes).predict(grid, diagnostics=True)
 for p in (1, 2):
     s = d["pass"] == p
-    error = np.sqrt(np.mean((d["value"][s] - true_at_nodes[s]) ** 2))
+    error = bt.compare(d["value"][s], true_at_nodes[s])["rmse"]
     print(
         f"pass {p}: {s.mean():4.0%} of nodes, mean slope {np.mean(d['slope'][s]):.2f}, RMSE {error:.0f} ppm"
     )
@@ -169,11 +168,10 @@ cross-validation mean error +10.7 ppm without the restriction, +12.2 with
 <details><summary>Python</summary>
 
 ```python
-shape = (60, 52)
 extent = (0.5, 260.5, 0.5, 300.5)
 fig, (a, b) = plt.subplots(1, 2, figsize=(8.4, 4.4), layout="constrained")
 a.imshow(
-    d["pass"].reshape(shape),
+    grid.grid(d["pass"])[0],
     origin="lower",
     extent=extent,
     cmap=ListedColormap([ACCENT, LIGHT]),
@@ -191,7 +189,7 @@ a.legend(
     framealpha=0.9,
     frameon=True,
 )
-im = b.imshow(difference.reshape(shape), origin="lower", extent=extent, cmap="PuOr_r", vmin=-40, vmax=40)
+im = b.imshow(grid.grid(difference)[0], origin="lower", extent=extent, cmap="PuOr_r", vmin=-40, vmax=40)
 rich = v > 800
 b.scatter(*xy[~rich, :2].T, s=2, color=GRAY, linewidths=0)
 b.scatter(*xy[rich, :2].T, s=8, color=HIGHLIGHT, linewidths=0, label="V > 800 ppm")

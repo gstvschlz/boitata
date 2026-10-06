@@ -35,14 +35,8 @@ weights = bt.cell_declustering(xy, v, sizes=np.arange(2.5, 102.5, 2.5)).weights
 y = bt.NormalScore(tails=(0.0, v.max())).fit_transform(v, weights=weights)
 major = bt.experimental_variogram(xy, y, 10.0, 120.0, azimuth=170).fit("spherical")
 minor = bt.experimental_variogram(xy, y, 10.0, 120.0, azimuth=260).fit("spherical")
-(structure,) = major.structures
-ratio = min(minor.structures[0].range / structure.range, 1.0)
-gaussian = bt.Variogram(
-    [("spherical", structure.sill / major.sill, structure.range)],
-    nugget=major.nugget / major.sill,
-    rotation=(170, 0, 0),
-    ratios=(ratio, 1.0),
-)
+ratio = min(minor.structures[0].range / major.structures[0].range, 1.0)
+gaussian = major.standardized().with_anisotropy((170, 0, 0), (ratio, 1.0))
 print(gaussian)
 
 
@@ -68,7 +62,6 @@ for name, reals, seconds in (("SGS", by_sgs, sgs_seconds), ("turning bands", by_
 # both follow the same high-grade trends, with the same short-scale scatter:
 
 # %%
-shape = (60, 52)
 extent = (0.5, 260.5, 0.5, 300.5)
 norm = PowerNorm(0.5, vmin=0, vmax=1500)
 fig, axes = plt.subplots(1, 4, figsize=(15, 4.4), layout="constrained")
@@ -79,7 +72,7 @@ panels = [
     (by_tb[1], "Turning bands, realization 2"),
 ]
 for ax, (image, title) in zip(axes, panels):
-    im = ax.imshow(image.reshape(shape), origin="lower", extent=extent, norm=norm)
+    im = ax.imshow(grid.grid(image)[0], origin="lower", extent=extent, norm=norm)
     map_axes(ax, title)
 fig.colorbar(im, ax=axes, shrink=0.8, label="V (ppm)")
 save(fig, "realizations")

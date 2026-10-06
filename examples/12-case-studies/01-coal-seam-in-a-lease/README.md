@@ -261,13 +261,7 @@ pair = np.column_stack([plane, thickness])
 scores = bt.StepwiseConditional().fit(pair, weights=weights).transform(pair)[:, 1]
 directional = [bt.experimental_variogram(xy, scores, lag, max_lag, azimuth=a) for a in azimuths]
 fitted = bt.Variogram.fit_directional(directional, [(a, 0) for a in azimuths], "spherical")
-sill = fitted.sill
-gaussian = bt.Variogram(
-    [("spherical", fitted.structures[0].sill / sill, fitted.structures[0].range)],
-    nugget=fitted.nugget / sill,
-    rotation=fitted.rotation,
-    ratios=fitted.ratios,
-)
+gaussian = fitted.standardized()
 print(gaussian)
 sgs = bt.SGS(gaussian, search).fit(xy, thickness, weights=weights, trend=plane)
 summary = sgs.simulate(cells, n=100, seed=7, trend=trend.predict(cells.coords))

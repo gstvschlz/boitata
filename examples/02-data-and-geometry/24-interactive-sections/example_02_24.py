@@ -27,12 +27,12 @@ from common import INK, show
 
 # %%
 data = bt.datasets.stacked_sulphide_lenses()
-holes = bt.Drillholes(data["collars"], data["surveys"], data["assays"])
+holes = bt.Drillholes.from_tables(data)
 lenses = [data[f"lens_{i}"] for i in (1, 2, 3)]
 composites = holes.composite(2.0, ["ZN_PCT"])
 grid = bt.BlockModel.from_extents(*lenses, size=(20, 20, 10), buffer=20, rotation=(22.5, 0.0, 55.0))
 search = bt.Search(radius=60, min_samples=1, max_samples=12)
-idw = bt.InverseDistance(search, power=2).fit(composites.coords, composites["ZN_PCT"])
+idw = bt.InverseDistance(search, power=2).fit(composites, "ZN_PCT")
 grid = grid.with_column("ZN_PCT", idw.predict(grid))
 
 scene = bt.plot3d.Scene()

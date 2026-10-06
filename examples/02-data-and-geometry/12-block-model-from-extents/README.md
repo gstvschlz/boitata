@@ -15,7 +15,7 @@ import numpy as np
 from common import ACCENT, GRAY, LIGHT, map_axes, save
 
 data = bt.datasets.stacked_sulphide_lenses()
-holes = bt.Drillholes(data["collars"], data["surveys"], data["assays"])
+holes = bt.Drillholes.from_tables(data)
 lenses = [data[f"lens_{i}"] for i in (1, 2, 3)]
 size = (20, 20, 10)
 ```

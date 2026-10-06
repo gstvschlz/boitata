@@ -29,7 +29,7 @@ from common import ACCENT, GRAY, HIGHLIGHT, LIGHT, save
 
 # %%
 data = bt.datasets.stacked_sulphide_lenses()
-drillholes = bt.Drillholes(data["collars"], data["surveys"], data["assays"])
+drillholes = bt.Drillholes.from_tables(data)
 samples = drillholes.samples()
 print(f"{len(drillholes)} holes, {len(samples)} assays")
 
@@ -50,8 +50,8 @@ for name, mesh in lenses.items():
 intervals = samples.with_columns({"LENS": list(lens)}).attributes
 drillholes = bt.Drillholes(data["collars"], data["surveys"], intervals)
 composites = drillholes.composite(2.0, ["ZN_PCT", "DENSITY"], domain="LENS", residual="merge")
-composites = composites.filter(np.array(composites["LENS"], dtype=object) != "host")
-names = np.array(composites["LENS"], dtype=object)
+composites = composites.filter(composites["LENS"] != "host")
+names = composites["LENS"]
 for name in lenses:
     inside = names == name
     measured = np.isfinite(composites["DENSITY"][inside]).sum()
@@ -106,10 +106,7 @@ grades = bt.experimental_variogram(one, "ZN_PCT", 10.0, 150.0)
 variogram = grades.fit("spherical")
 scores = bt.NormalScore().fit(one["ZN_PCT"], weights=one["weight"])
 fitted = bt.experimental_variogram(one.coords, scores.transform(one["ZN_PCT"]), 10.0, 150.0).fit("spherical")
-structure = fitted.structures[0]
-gaussian = bt.Variogram(
-    [("spherical", structure.sill / fitted.sill, structure.range)], nugget=fitted.nugget / fitted.sill
-)
+gaussian = fitted.standardized()
 for label, model in (("Zn", variogram), ("normal scores", gaussian)):
     s = model.structures[0]
     print(f"{label}: nugget {model.nugget:.2f}, spherical sill {s.sill:.2f}, range {s.range:.0f} m")
@@ -132,7 +129,7 @@ count = [int(c) for c in np.ceil((high - origin) / 10)]
 blocks = bt.BlockModel.from_meshes(
     origin, (10, 10, 10), count, [(mesh, "inside", name) for name, mesh in lenses.items()], 2, column="LENS"
 )
-block_lens = np.array(blocks["LENS"], dtype=object)
+block_lens = blocks["LENS"]
 for name, mesh in lenses.items():
     volume = blocks.volumes[block_lens == name].sum()
     print(
@@ -157,7 +154,7 @@ passes = [
 ]
 zn = bt.OrdinaryKriging(variogram, passes).fit(composites, "ZN_PCT", holes="HOLE_ID", domain_column="LENS")
 kriged = zn.predict(blocks, diagnostics=True, domain_column="LENS")
-measured = composites.filter(np.isfinite(composites["DENSITY"]))
+measured = composites.drop_null("DENSITY")
 density = bt.OrdinaryKriging(variogram, passes).fit(
     measured, "DENSITY", holes="HOLE_ID", domain_column="LENS"
 )
@@ -219,26 +216,14 @@ for name in lenses:
         f"({bias['relative']:+.1%}), nearest neighbor {nn:.2f} % ({bias['estimate_mean'] / nn - 1:+.1%})"
     )
 
-in_one = block_lens == "lens_1"
+in_one = blocks.filter(block_lens == "lens_1")
 fig, axes = plt.subplots(1, 2, figsize=(9, 3.4), layout="constrained")
 for ax, (axis, label) in zip(axes, (("y", "Northing (m)"), ("z", "Elevation (m)")), strict=True):
     bt.plot.swath(
         [
             bt.swath(one, "ZN_PCT", 40.0, axis=axis),
-            bt.swath(
-                blocks.coords[in_one],
-                blocks["nn"][in_one],
-                40.0,
-                axis=axis,
-                weights=blocks.volumes[in_one],
-            ),
-            bt.swath(
-                blocks.coords[in_one],
-                blocks["zn"][in_one],
-                40.0,
-                axis=axis,
-                weights=blocks.volumes[in_one],
-            ),
+            bt.swath(in_one, "nn", 40.0, axis=axis, weights=in_one.volumes),
+            bt.swath(in_one, "zn", 40.0, axis=axis, weights=in_one.volumes),
         ],
         labels=["composites", "nearest neighbor", "kriged blocks"],
         ax=ax,
@@ -328,6 +313,6 @@ with tempfile.TemporaryDirectory() as folder:
     path = Path(folder) / "lenses.parquet"
     bt.write_parquet(path, blocks)
     stored = bt.read_parquet(path)
-print(f"{len(stored)} blocks, columns {stored.attributes.column_names}")
+print(f"{len(stored)} blocks, columns {stored.column_names}")
 same = np.array_equal(stored.extents, blocks.extents) and np.array_equal(stored["zn"], blocks["zn"])
 print(f"same sub-blocks and Zn: {same}")

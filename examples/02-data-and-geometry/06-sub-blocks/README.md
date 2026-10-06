@@ -48,7 +48,7 @@ domains = [(lens, "inside", name) for lens, name in zip(lenses, names)]
 
 
 def misplaced(model):
-    labels = np.array(model["domain"])
+    labels = model["domain"]
     total = 0.0
     for lens, name in zip(lenses, names):
         part = model.filter(labels == name)
@@ -89,11 +89,11 @@ mid-bench:
 
 ```python
 size = np.array(parents.size)
-z = subblocked.coords[:, 2]
+z = subblocked.z
 level = parents.origin[2] + size[2] * (np.round((np.median(z) - parents.origin[2]) / size[2]) + 0.5) + 0.1
 half = size[2] * (subblocked.extents[:, 5] - subblocked.extents[:, 2]) / 2
 cut = (z - half < level) & (z + half > level)
-labels = np.array(subblocked["domain"])
+labels = subblocked["domain"]
 colors = dict(zip(names, (ACCENT, "#6f9fc9", HIGHLIGHT)))
 fig, ax = plt.subplots(figsize=(6.4, 7), layout="constrained")
 for c, e, name in zip(subblocked.coords[cut], subblocked.extents[cut], labels[cut]):
@@ -139,7 +139,7 @@ domain_model = bt.BlockModel.from_meshes(
     fill="air",
 )
 print(domain_model)
-labels = np.array(domain_model["domain"])
+labels = domain_model["domain"]
 for name in [*names, "host rock", "air"]:
     print(f"{name:>9}: {domain_model.volumes[labels == name].sum():>13,.0f} m3")
 print(f"    total: {domain_model.volumes.sum():>13,.0f} m3 = grid {np.prod(size) * count.prod():,.0f} m3")
@@ -188,16 +188,15 @@ metal. `min_fraction` drops the thin edges and the metal in them.
 <details><summary>Python</summary>
 
 ```python
-holes = bt.Drillholes(data["collars"], data["surveys"], data["assays"])
+holes = bt.Drillholes.from_tables(data)
 composites = holes.composite(2.0, ["ZN_PCT"])
-xyz, zn = composites.coords, composites["ZN_PCT"]
 search = bt.Search(100, max_samples=12)
-labels = np.array(subblocked["domain"])
+labels = subblocked["domain"]
 grade = np.full(len(subblocked), np.nan)
 for lens, name in zip(lenses, names):
-    inside = lens.contains(xyz) & ~np.isnan(zn)
+    inside = composites.filter(lens.contains(composites)).drop_null("ZN_PCT")
     on = labels == name
-    grade[on] = bt.InverseDistance(search).fit(xyz[inside], zn[inside]).predict(subblocked.coords[on])
+    grade[on] = bt.InverseDistance(search).fit(inside, "ZN_PCT").predict(subblocked.coords[on])
 subblocked = subblocked.with_column("zn", grade)
 metal = (subblocked.volumes * grade).sum()
 print(f"sub-blocks: {subblocked.volumes.sum():,.0f} m3 at {metal / subblocked.volumes.sum():.2f}% Zn")
@@ -226,10 +225,10 @@ block instead and keeps all of it.
 <details><summary>Python</summary>
 
 ```python
-is_ore = np.isin(np.array(domain_model["domain"]), names)
+is_ore = np.isin(domain_model["domain"], names)
 domain_model = domain_model.with_column("ore", is_ore.astype(float))
 coarse = domain_model.regularize(bt.BlockModel(origin=origin, size=size, count=count))
-labeled = coarse.volumes[np.isin(np.array(coarse["domain"]), names)].sum()
+labeled = coarse.volumes[np.isin(coarse["domain"], names)].sum()
 proportion = (coarse.volumes * coarse["fraction"] * coarse["ore"]).sum()
 print(f"lens sub-blocks {domain_model.volumes[is_ore].sum():,.0f} m3")
 print(f"40 m blocks: labeled as a lens {labeled:,.0f} m3, lens proportion {proportion:,.0f} m3")

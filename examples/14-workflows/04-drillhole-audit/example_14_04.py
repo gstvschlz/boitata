@@ -72,7 +72,7 @@ def check(t):
 
 
 def hit(flags, t, table, name):
-    return sorted(set(np.asarray(t[table]["HOLE_ID"])[np.asarray(flags[table][name])]))
+    return sorted(set(t[table]["HOLE_ID"][flags[table][name]]))
 
 
 flags, summary, details = check(raw)
@@ -108,7 +108,7 @@ c, s, a, lith = raw["collar"], raw["survey"], raw["assays"], raw["lithology"]
 
 
 def rows_of(table, hole):
-    return np.asarray(table["HOLE_ID"]) == hole
+    return table["HOLE_ID"] == hole
 
 
 def deepest(hole):
@@ -126,7 +126,7 @@ for hole in ("DD0067", "DD0055"):
 xy = np.c_[c["X"], c["Y"]][rows_of(c, "DD0067")]
 print(f"DD0067 collar entries are {np.hypot(*(xy[1] - xy[0])):.0f} m apart")
 
-inverted = np.asarray(a["FROM"]) > np.asarray(a["TO"])
+inverted = a["FROM"] > a["TO"]
 print(f"DD0100 inverted assay: FROM {a['FROM'][inverted][0]} TO {a['TO'][inverted][0]}")
 dd0197 = rows_of(s, "DD0197")
 print("DD0197 azimuths at 150, 180, 210 m:", s["AZIMUTH"][dd0197][5:8])
@@ -182,7 +182,7 @@ def strip_ids(table):
 
 tables = {name: strip_ids(t) for name, t in raw.items()}
 a = tables["assays"]
-swap = np.asarray(a["FROM"]) > np.asarray(a["TO"])
+swap = a["FROM"] > a["TO"]
 tables["assays"] = replace(a, FROM=np.where(swap, a["TO"], a["FROM"]), TO=np.where(swap, a["FROM"], a["TO"]))
 c, s = tables["collar"], tables["survey"]
 dd0055 = rows_of(c, "DD0055")
@@ -226,7 +226,7 @@ for key, rows in after.items():
     assert key in accepted, key
     assert accepted[key] is None or set(holes) <= accepted[key], (key, holes)
 lith = fixed["lithology"]
-mineralized = set(np.asarray(lith["HOLE_ID"])[np.isin(lith["LITH"], ["MS", "SMS", "STR"])])
+mineralized = set(lith["HOLE_ID"][np.isin(lith["LITH"], ["MS", "SMS", "STR"])])
 unassayed = mineralized & set(hit(flags, fixed, "collar", "no_assays"))
 print("no assays but logged mineralized:", sorted(unassayed))
 

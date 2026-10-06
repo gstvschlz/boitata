@@ -32,13 +32,8 @@ y = bt.NormalScore(tails=(0.0, v.max())).fit_transform(v, weights=weights)
 azimuth, lag, max_lag = 170.0, 10.0, 120.0
 major = bt.experimental_variogram(xy, y, lag, max_lag, azimuth=azimuth).fit("spherical")
 minor = bt.experimental_variogram(xy, y, lag, max_lag, azimuth=azimuth + 90).fit("spherical")
-total, a_major = major.sill, major.structures[0].range
-gaussian = bt.Variogram(
-    [("spherical", major.structures[0].sill / total, a_major)],
-    nugget=major.nugget / total,
-    rotation=(azimuth, 0, 0),
-    ratios=(min(minor.structures[0].range / a_major, 1.0), 1.0),
-)
+ratio = min(minor.structures[0].range / major.structures[0].range, 1.0)
+gaussian = major.standardized().with_anisotropy((azimuth, 0, 0), (ratio, 1.0))
 grid = bt.BlockModel(origin=(0.5, 0.5), size=(1, 1), count=(260, 300))
 sgs = bt.SGS(gaussian, bt.Search(radius=100, max_samples=24)).fit(samples, "V", weights=weights)
 ```
@@ -62,8 +57,8 @@ for path in ["shared", "random"]:
 </details>
 
 ```text
-shared path:  0.10 s for 20 realizations of 78,000 nodes
-random path:  1.32 s for 20 realizations of 78,000 nodes
+shared path:  0.13 s for 20 realizations of 78,000 nodes
+random path:  1.89 s for 20 realizations of 78,000 nodes
 ```
 
 `batch` changes memory and speed and leaves the realizations alone: one at a time gives the same grades as all

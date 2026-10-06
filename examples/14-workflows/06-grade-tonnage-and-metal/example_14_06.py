@@ -101,9 +101,9 @@ table = bt.compare_models(blocks, columns, cutoffs, reference="true blocks", den
 
 
 def at(table, name, cutoff):
-    rows = (np.asarray(table["model"]) == labels[name]) & (np.asarray(table["cutoff"]) == cutoff)
+    rows = (table["model"] == labels[name]) & (table["cutoff"] == cutoff)
     return {
-        c: float(np.asarray(table[c])[rows][0])
+        c: float(table[c][rows][0])
         for c in ("tonnage", "mean_grade", "metal", "tonnage_diff", "grade_diff", "metal_diff")
     }
 
@@ -148,8 +148,8 @@ with plt.rc_context({"axes.prop_cycle": plt.cycler(color=[INK, ACCENT, HIGHLIGHT
     bt.plot.grade_tonnage(table, ax=a)
 a.set(xlabel="Cutoff V (ppm)", ylabel="Tonnage above cutoff (t)", title="Tonnage and grade above cutoff")
 for name, color in (("truth", INK), ("ok", ACCENT), ("id", HIGHLIGHT)):
-    rows = np.asarray(table["model"]) == label
-    b.plot(cutoffs, np.asarray(table["metal"])[rows] / 1e6, color=color, label=labels[name])
+    rows = table["model"] == labels[name]
+    b.plot(cutoffs, table["metal"][rows] / 1e6, color=color, label=labels[name])
 b.axvline(200, color="gray", lw=0.8, ls="--")
 b.set(xlabel="Cutoff V (ppm)", ylabel="Metal above cutoff (t)", title="Contained metal above cutoff")
 b.legend()
@@ -188,8 +188,8 @@ for key, unit, scale in (("tonnage", "kt", 1e3), ("mean_grade", "ppm", 1), ("met
 
 # %%
 for name, label in labels.items():
-    rows = np.asarray(table["model"]) == label
-    t, g, m = (np.asarray(table[c])[rows] for c in ("tonnage", "mean_grade", "metal"))
+    rows = table["model"] == label
+    t, g, m = (table[c][rows] for c in ("tonnage", "mean_grade", "metal"))
     above = ~np.isnan(g)
     assert np.allclose(m[above], t[above] * g[above])
     grade = blocks[name]

@@ -43,7 +43,7 @@ sand share of each domain against its image:
 <details><summary>Python</summary>
 
 ```python
-x, y = grid.coords[:, 0], grid.coords[:, 1]
+x, y = grid.x, grid.y
 domains = np.where(y > 150 - 0.2 * x, "lenses", "channels")
 snesim = bt.SNESIM({"channels": (channels, "facies"), "lenses": (lenses, "facies")})
 summary = snesim.simulate(grid, n=20, seed=1, keep=[0], domains=domains)
@@ -63,7 +63,7 @@ lenses: realizations 30.4% sand, image 30.2%
 
 ```python
 codes = ListedColormap(["white", "black"])
-boundary = (domains == "lenses").reshape(n, n).astype(float)
+boundary = grid.grid(domains == "lenses")[0]
 fig, axes = plt.subplots(1, 4, figsize=(15, 4), layout="constrained")
 panels = (
     (channels["facies"], "Image: channels", codes),
@@ -72,7 +72,7 @@ panels = (
     (summary.probabilities[:, 1], "P(sand), 20 realizations", "gray_r"),
 )
 for ax, (values, title, cmap) in zip(axes, panels):
-    im = ax.imshow(values.reshape(n, n), origin="lower", cmap=cmap, vmin=0, vmax=1, interpolation="nearest")
+    im = ax.imshow(grid.grid(values)[0], origin="lower", cmap=cmap, vmin=0, vmax=1, interpolation="nearest")
     ax.set(title=title, xticks=[], yticks=[])
     for side in ax.spines.values():
         side.set(visible=True, color=INK, lw=0.6)

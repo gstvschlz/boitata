@@ -79,11 +79,10 @@ azimuth percentiles (10, 50, 90): [ 17. 113. 172.]
 <details><summary>Python</summary>
 
 ```python
-shape = (60, 52)
 extent = (0.5, 260.5, 0.5, 300.5)
 fig, ax = plt.subplots(figsize=(6.4, 6), layout="constrained")
 ax.imshow(
-    guide.reshape(shape),
+    grid.grid(guide)[0],
     origin="lower",
     extent=extent,
     cmap="cividis",
@@ -109,10 +108,8 @@ ok = bt.OrdinaryKriging(model, search).fit(xy, v)
 global_estimate = ok.predict(grid)
 local_estimate = ok.predict(grid, anisotropy=lva)
 for name, estimate in ((f"global N{model.rotation[0]:.0f}°", global_estimate), ("local", local_estimate)):
-    error = estimate - true_at_nodes
-    print(
-        f"{name:>13}: RMSE {np.sqrt(np.mean(error**2)):.1f} ppm, correlation {np.corrcoef(estimate, true_at_nodes)[0, 1]:.3f}"
-    )
+    score = bt.compare(estimate, true_at_nodes)
+    print(f"{name:>13}: RMSE {score['rmse']:.1f} ppm, correlation {score['correlation']:.3f}")
 ```
 
 </details>
@@ -132,7 +129,7 @@ for ax, image, title in (
     (axes[1], global_estimate, "Kriging, global anisotropy"),
     (axes[2], local_estimate, "Kriging, local anisotropy"),
 ):
-    im = ax.imshow(image.reshape(shape), origin="lower", extent=extent, norm=norm)
+    im = ax.imshow(grid.grid(image)[0], origin="lower", extent=extent, norm=norm)
     map_axes(ax, title)
 fig.colorbar(im, ax=axes, shrink=0.8, label="V (ppm)")
 save(fig, "kriging")
@@ -165,7 +162,7 @@ for ax, image, title in (
     (axes[0], global_real, f"SGS, global N{model.rotation[0]:.0f}°"),
     (axes[1], local_real, "SGS, local anisotropy"),
 ):
-    im = ax.imshow(image.reshape(shape), origin="lower", extent=extent, norm=norm)
+    im = ax.imshow(grid.grid(image)[0], origin="lower", extent=extent, norm=norm)
     map_axes(ax, title)
 fig.colorbar(im, ax=axes, shrink=0.8, label="V (ppm)")
 save(fig, "simulation")

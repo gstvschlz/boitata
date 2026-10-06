@@ -42,8 +42,8 @@ def check(t, show=True):
         summary["table"], summary["check"], summary["rows"], summary["holes"]
     ):
         if rows and show:
-            ids = np.array(t[table]["HOLE_ID"])
-            hit = sorted(set(ids[np.asarray(flags[table][name])]))
+            ids = t[table]["HOLE_ID"]
+            hit = sorted(set(ids[flags[table][name]]))
             listed = ", ".join(repr(h) for h in hit) if len(hit) <= 8 else f"{hit[0]!r} ... {hit[-1]!r}"
             print(f"{table:>9} {name:<12} {rows:4.0f} rows in {holes:3.0f} holes: {listed}")
     return flags, details
@@ -140,7 +140,7 @@ a hole missing its assays looks like one of the unassayed holes, unless its lith
 
 ```python
 lith = raw["lithology"]
-mineralized = set(np.array(lith["HOLE_ID"])[np.isin(lith["LITH"], ["MS", "SMS", "STR"])])
+mineralized = set(lith["HOLE_ID"][np.isin(lith["LITH"], ["MS", "SMS", "STR"])])
 print("mineralized, no assays:", sorted(mineralized - set(raw["assays"]["HOLE_ID"])))
 ```
 

@@ -24,13 +24,13 @@ above the original ground orders the layers better than its elevation.
 
 ```python
 data = bt.datasets.tailings_reprocessing()
-holes = bt.Drillholes(data["collars"], data["surveys"], data["lithology"])
+holes = bt.Drillholes.from_tables(data, intervals="lithology")
 composites = holes.composite(1.0, [], categories=["LITH"])
-ids = np.asarray(composites["HOLE_ID"], dtype=object)
+ids = composites["HOLE_ID"]
 composites = composites.filter(np.isin(ids, sorted(set(ids))[::3]))
 ground, top = data["original_ground"], data["surface"]
 xyz = composites.coords
-height = xyz[:, 2] - ground["Z"][ground.row_at(xyz[:, :2])]
+height = composites.z - ground.sample(xyz[:, :2], "Z")
 scheme = bt.Categories(["CAP", "SAND", "SLIME", "CLAY"], colors=["#b8b8b8", "#d9b56c", "#5b7a99", "#7a4f35"])
 codes = scheme.encode(composites["LITH"]).astype(int)
 weights = bt.cell_declustering(xyz[:, :2], height, cell_size=100.0).weights
@@ -56,13 +56,13 @@ weight and one column per category.
 curve = bt.vertical_proportions(
     composites, "LITH", size=1.0, elevation=height, weights=weights, scheme=scheme
 )
-levels = np.asarray(curve["elevation"])
+levels = curve["elevation"]
 print(curve.column_names)
 
 fig, ax = plt.subplots(figsize=(4.2, 4.2))
 left = np.zeros(len(levels))
 for name, color in zip(scheme.names, scheme.colors, strict=True):
-    right = left + np.asarray(curve[name])
+    right = left + curve[name]
     ax.fill_betweenx(levels, left, right, color=color, step="mid", lw=0)
     left = right
 ax.set(xlim=(0, 1), xlabel="Proportion", ylabel="Height above original ground (m)", title="Vertical curve")
@@ -101,16 +101,13 @@ areal, _ = bt.detrend(
 )
 print(f"bandwidth {areal.bandwidth:.0f} m")
 
-nx, ny, _ = top.count
-x0, y0, _ = top.origin
-extent = (x0, x0 + nx * top.size[0], y0, y0 + ny * top.size[1])
+low, high = top.bounds
+extent = (low[0], high[0], low[1], high[1])
 plan = areal.predict(top.coords[:, :2])
 
 fig, axes = plt.subplots(1, 3, figsize=(12, 3.3), sharey=True, layout="constrained")
 for ax, name in zip(axes, ["SAND", "SLIME", "CLAY"], strict=True):
-    shown = ax.imshow(
-        np.asarray(plan[name]).reshape(ny, nx), origin="lower", extent=extent, vmin=0, vmax=1, cmap="Greys"
-    )
+    shown = ax.imshow(top.grid(plan[name])[0], origin="lower", extent=extent, vmin=0, vmax=1, cmap="Greys")
     ax.scatter(*xyz[:, :2].T, s=1, color=INK)
     map_axes(ax, name.capitalize())
 for ax in axes[1:]:
@@ -141,17 +138,16 @@ gets more sand. the same call gives the proportions at the composites.
 
 ```python
 plan20 = bt.BlockModel(origin=(4945.0, 1945.0), size=(20.0, 20.0), count=(41, 28))
-base_at = ground["Z"][ground.row_at(plan20.coords[:, :2])] - 3.0
-top_at = top["Z"][top.row_at(plan20.coords[:, :2])]
-z0 = np.floor(base_at.min())
+base_at = ground.sample(plan20.coords[:, :2], "Z") - 3.0
+top_at = top.sample(plan20.coords[:, :2], "Z")
+z0 = np.floor(np.nanmin(base_at))
 full = bt.BlockModel(
-    origin=(4945.0, 1945.0, z0), size=(20.0, 20.0, 1.0), count=(41, 28, int(np.ceil(top_at.max() - z0)))
+    origin=(4945.0, 1945.0, z0), size=(20.0, 20.0, 1.0), count=(41, 28, int(np.ceil(np.nanmax(top_at) - z0)))
 )
-column = plan20.row_at(full.coords[:, :2])
-z = full.coords[:, 2]
-model = full.filter((z > base_at[column]) & (z < top_at[column]))
+xy = full.coords[:, :2]
+model = full.filter((full.z > plan20.sample(xy, base_at)) & (full.z < plan20.sample(xy, top_at)))
 cells = model.coords
-cell_height = cells[:, 2] - ground["Z"][ground.row_at(cells[:, :2])]
+cell_height = model.z - ground.sample(cells[:, :2], "Z")
 
 at_cells = bt.combine_proportions(cells, curve, areal.predict(cells[:, :2]), elevation=cell_height)
 at_data = bt.combine_proportions(xyz, curve, areal.predict(xyz[:, :2]), elevation=height)
@@ -164,7 +160,7 @@ print(
 </details>
 
 ```text
-17654 cells, proportions 0.00 to 1.00, sums 1.000000000000
+17346 cells, proportions 0.00 to 1.00, sums 1.000000000000
 ```
 
 ## SIS with and without local proportions
@@ -198,10 +194,10 @@ at the base, where the curve puts it.
 
 ```python
 cmap, norm = bt.plot.category_colors(scheme)
-section = np.abs(cells[:, 0] - 5355.0) < 10.0
+section = np.abs(model.x - 5355.0) < 10.0
 fig, axes = plt.subplots(2, 1, figsize=(10, 4.4), sharex=True, layout="constrained")
 for ax, (title, summary) in zip(axes, runs.items(), strict=True):
-    y, z = cells[section, 1], cells[section, 2]
+    y, z = model.y[section], model.z[section]
     ax.scatter(y, z, c=summary.realizations[0][section], cmap=cmap, norm=norm, marker="s", s=14, linewidths=0)
     ax.set(title=f"{title}, realization 1", ylabel="Elevation (m)")
 axes[1].set_xlabel("Northing (m)")
@@ -248,8 +244,8 @@ save(fig, "checks")
 </details>
 
 ```text
-Global             [0.03  0.412 0.396 0.163] data [0.028 0.439 0.374 0.158]
-Local proportions  [0.044 0.392 0.387 0.177] data [0.028 0.439 0.374 0.158]
+Global             [0.031 0.41  0.389 0.169] data [0.028 0.439 0.374 0.158]
+Local proportions  [0.044 0.397 0.386 0.173] data [0.028 0.439 0.374 0.158]
 ```
 
 ![checks](checks.png)

@@ -49,9 +49,10 @@ estimates = {name: m.fit(samples, "V").predict(grid) for name, m in methods.item
 print(f"{'method':>17}  RMSE   corr   variance ratio")
 for name, e in estimates.items():
     ok = ~np.isnan(e)
-    rmse = np.sqrt(np.mean((e[ok] - true_at_nodes[ok]) ** 2))
-    corr = np.corrcoef(e[ok], true_at_nodes[ok])[0, 1]
-    print(f"{name:>17}  {rmse:5.1f}  {corr:.3f}  {e[ok].var() / true_at_nodes[ok].var():.2f}")
+    score = bt.compare(e, true_at_nodes)
+    print(
+        f"{name:>17}  {score['rmse']:5.1f}  {score['correlation']:.3f}  {e[ok].var() / true_at_nodes[ok].var():.2f}"
+    )
 
 # %% [markdown]
 # nearest neighbor keeps almost all the variance but places it poorly, as a patchwork of polygons around the samples.
@@ -60,12 +61,11 @@ for name, e in estimates.items():
 # estimate and accounts for clustered samples, which inverse distance does not.
 
 # %%
-shape = (60, 52)
 extent = (0.5, 260.5, 0.5, 300.5)
 norm = PowerNorm(0.5, vmin=0, vmax=1500)
 fig, axes = plt.subplots(1, 5, figsize=(16, 4), layout="constrained")
 for ax, (title, image) in zip(axes, [("truth", true_at_nodes), *estimates.items()]):
-    im = ax.imshow(image.reshape(shape), origin="lower", extent=extent, norm=norm)
+    im = ax.imshow(grid.grid(image)[0], origin="lower", extent=extent, norm=norm)
     map_axes(ax, title.capitalize())
     ax.set_ylabel("")
 fig.colorbar(im, ax=axes, shrink=0.8, label="V (ppm)")
@@ -81,22 +81,18 @@ save(fig, "methods")
 cutoffs = np.arange(0, 1001, 50)
 table = bt.compare_models(grid, {"truth": true_at_nodes, **estimates}, cutoffs, reference="truth")
 for cutoff in (300, 600):
-    rows = np.asarray(table["cutoff"]) == cutoff
+    rows = table["cutoff"] == cutoff
     print(f"cutoff {cutoff} ppm")
-    for name, t, g in zip(
-        np.asarray(table["model"])[rows],
-        np.asarray(table["tonnage_diff"])[rows],
-        np.asarray(table["grade_diff"])[rows],
-    ):
+    for name, t, g in zip(table["model"][rows], table["tonnage_diff"][rows], table["grade_diff"][rows]):
         print(f"  {name:>17}: tonnage {t:+.0%}, grade {g:+.0%}")
 
 colors = [INK, GRAY, ACCENT, "#8fb3d9", HIGHLIGHT]
 fig, (a, b) = plt.subplots(1, 2, figsize=(10, 4), layout="constrained")
 for name, color in zip(["truth", *estimates], colors):
-    rows = np.asarray(table["model"]) == name
-    tonnage = np.asarray(table["tonnage"])[rows]
+    rows = table["model"] == name
+    tonnage = table["tonnage"][rows]
     a.plot(cutoffs, tonnage / tonnage[0], color=color, lw=2 if name == "truth" else 1.2, label=name)
-    b.plot(cutoffs, np.asarray(table["mean_grade"])[rows], color=color, lw=2 if name == "truth" else 1.2)
+    b.plot(cutoffs, table["mean_grade"][rows], color=color, lw=2 if name == "truth" else 1.2)
 a.set(xlabel="Cutoff V (ppm)", ylabel="Fraction of the area above cutoff", ylim=(0, 1.02))
 a.set_title("Tonnage above cutoff")
 a.legend()
