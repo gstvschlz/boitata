@@ -1,22 +1,24 @@
 import * as THREE from "three";
-import { LineMaterial } from "three/examples/jsm/lines/LineMaterial.js";
 import { LineSegments2 } from "three/examples/jsm/lines/LineSegments2.js";
 import { LineSegmentsGeometry } from "three/examples/jsm/lines/LineSegmentsGeometry.js";
 import { boxOf } from "../bounds";
 import { f32, u32 } from "../buffers";
+import { filterArray, type LayerFilter, writeFilter } from "../filter";
 import { midpoints, stratifiedOrder, subsetCount } from "../motion";
 import { colorAt, kept, type Paint } from "../paint";
-import { setOpacity, shadedMaterial } from "../shaders";
+import { lineMaterial, setOpacity, shadedMaterial } from "../shaders";
 import type { Buffers, LayerSpec } from "../types";
 import type { Representation } from "./index";
 
-/** Triangles, smooth-shaded by vertex or flat by face; a triangle with a hidden vertex or face is left out. */
-export function surface(layer: LayerSpec, buffers: Buffers): Representation {
+/**
+ * Triangles, smooth-shaded by vertex or flat by face; a triangle with a hidden vertex or face is left out, and one
+ * with a vertex or face failing the filter is discarded where it rasterizes.
+ */
+export function surface(layer: LayerSpec, buffers: Buffers, filter: LayerFilter): Representation {
   const positions = f32(buffers, layer.geometry.positions);
   const triangles = u32(buffers, layer.geometry.triangles);
-  const nv = positions.length / 3;
   const nt = triangles.length / 3;
-  const material = shadedMaterial(false, layer.opacity);
+  const material = shadedMaterial(false, layer.opacity, filter.uniforms);
   const object = new THREE.Mesh(new THREE.BufferGeometry(), material);
   object.frustumCulled = false;
   object.renderOrder = 1;
@@ -25,43 +27,40 @@ export function surface(layer: LayerSpec, buffers: Buffers): Representation {
   smooth.setAttribute("position", new THREE.BufferAttribute(positions, 3));
   smooth.setIndex(new THREE.BufferAttribute(triangles, 1));
   smooth.computeVertexNormals();
-  const normals = smooth.getAttribute("normal");
+  const normals = smooth.getAttribute("normal").array as Float32Array;
 
-  const byFace = (paint: Paint) => {
+  /** One vertex per triangle corner: face colors and filters need it, flat shading by face too. */
+  const corners = (paint: Paint) => {
+    const byFace = paint.on === "face";
+    const shown = (t: number) => {
+      if (byFace) return kept(paint, t);
+      if (paint.on !== "vertex") return true;
+      return kept(paint, triangles[3 * t]) && kept(paint, triangles[3 * t + 1]) && kept(paint, triangles[3 * t + 2]);
+    };
     let count = 0;
-    for (let t = 0; t < nt; t++) if (kept(paint, t)) count++;
+    for (let t = 0; t < nt; t++) if (shown(t)) count++;
     const xyz = new Float32Array(9 * count);
+    const normal = new Float32Array(9 * count);
     const colors = new Uint8Array(9 * count);
+    const g = new THREE.BufferGeometry();
+    const f = filterArray(g, 3 * count, filter.slots, false);
     let j = 0;
     for (let t = 0; t < nt; t++) {
-      if (!kept(paint, t)) continue;
+      if (!shown(t)) continue;
       for (let c = 0; c < 3; c++) {
         const v = triangles[3 * t + c];
-        xyz.set(positions.subarray(3 * v, 3 * v + 3), 9 * j + 3 * c);
-        colorAt(paint, t, colors, 9 * j + 3 * c);
+        const at = 3 * (3 * j + c);
+        xyz.set(positions.subarray(3 * v, 3 * v + 3), at);
+        normal.set(normals.subarray(3 * v, 3 * v + 3), at);
+        colorAt(paint, byFace ? t : paint.on === "vertex" ? v : 0, colors, at);
+        if (f) writeFilter(filter.slots, f, 4 * (3 * j + c), (on) => (on === "face" ? t : v));
       }
       j++;
     }
-    const g = new THREE.BufferGeometry();
     g.setAttribute("position", new THREE.BufferAttribute(xyz, 3));
+    g.setAttribute("normal", new THREE.BufferAttribute(normal, 3));
     g.setAttribute("color", new THREE.BufferAttribute(colors, 3, true));
-    g.computeVertexNormals();
-    return g;
-  };
-
-  const byVertex = (paint: Paint) => {
-    const colors = new Uint8Array(3 * nv);
-    for (let v = 0; v < nv; v++) colorAt(paint, paint.on === "vertex" ? v : 0, colors, 3 * v);
-    const index: number[] = [];
-    for (let t = 0; t < nt; t++) {
-      const a = triangles[3 * t], b = triangles[3 * t + 1], c = triangles[3 * t + 2];
-      if (paint.on !== "vertex" || (kept(paint, a) && kept(paint, b) && kept(paint, c))) index.push(a, b, c);
-    }
-    const g = new THREE.BufferGeometry();
-    g.setAttribute("position", smooth.getAttribute("position"));
-    g.setAttribute("normal", normals);
-    g.setAttribute("color", new THREE.BufferAttribute(colors, 3, true));
-    g.setIndex(new THREE.BufferAttribute(new Uint32Array(index), 1));
+    if (byFace) g.computeVertexNormals();
     return g;
   };
 
@@ -71,8 +70,8 @@ export function surface(layer: LayerSpec, buffers: Buffers): Representation {
     instances: nt,
     paint(paint: Paint) {
       const old = object.geometry;
-      object.geometry = paint.on === "face" ? byFace(paint) : byVertex(paint);
-      if (old !== smooth) old.dispose();
+      object.geometry = corners(paint);
+      old.dispose();
     },
     setOpacity: (opacity) => setOpacity(material, opacity),
     dispose() {
@@ -87,9 +86,11 @@ const EDGE_WIDTH = 1;
 
 /**
  * Triangle edges, each drawn once, `lineWidth` pixels wide. Under a vertex column an edge blends its two vertices'
- * colors and shows when both do; under a face column it takes the color of a shown face beside it.
+ * colors and shows when both do; under a face column it takes the color of a shown face beside it. The filter keeps
+ * an edge when both its vertices pass a vertex column's condition, and when either face beside it passes a face
+ * column's.
  */
-export function meshWireframe(layer: LayerSpec, buffers: Buffers): Representation {
+export function meshWireframe(layer: LayerSpec, buffers: Buffers, filter: LayerFilter): Representation {
   const positions = f32(buffers, layer.geometry.positions);
   const triangles = u32(buffers, layer.geometry.triangles);
   const nv = positions.length / 3;
@@ -113,7 +114,7 @@ export function meshWireframe(layer: LayerSpec, buffers: Buffers): Representatio
   for (let e = 0; e < ne; e++)
     for (let k = 0; k < 2; k++) xyz.set(positions.subarray(3 * ends[2 * e + k], 3 * ends[2 * e + k] + 3), 6 * e + 3 * k);
   const order = stratifiedOrder(midpoints(xyz), ne);
-  const material = new LineMaterial({ vertexColors: true, linewidth: layer.lineWidth ?? EDGE_WIDTH });
+  const material = lineMaterial({ vertexColors: true, linewidth: layer.lineWidth ?? EDGE_WIDTH }, filter.uniforms, true);
   const group = new THREE.Group();
   let geometry: LineSegmentsGeometry | null = null;
   let drawn = 0;
@@ -130,6 +131,7 @@ export function meshWireframe(layer: LayerSpec, buffers: Buffers): Representatio
       geometry = null;
       const out: number[] = [];
       const colors: number[] = [];
+      const shown: number[] = [];
       for (const e of order) {
         const a = ends[2 * e];
         const b = ends[2 * e + 1];
@@ -148,12 +150,20 @@ export function meshWireframe(layer: LayerSpec, buffers: Buffers): Representatio
           push(colors);
         }
         for (let k = 0; k < 6; k++) out.push(xyz[6 * e + k]);
+        shown.push(e);
       }
-      drawn = out.length / 6;
+      drawn = shown.length;
       if (!drawn) return;
       geometry = new LineSegmentsGeometry();
       geometry.setPositions(out);
       geometry.setColors(colors);
+      const f = filterArray(geometry, drawn, filter.slots, true);
+      const g = filterArray(geometry, drawn, filter.slots, true, "aFilter2");
+      if (f && g)
+        shown.forEach((e, j) => {
+          writeFilter(filter.slots, f, 4 * j, (on) => (on === "face" ? faces[2 * e] : ends[2 * e]));
+          writeFilter(filter.slots, g, 4 * j, (on) => (on === "face" ? faces[2 * e + 1] : ends[2 * e + 1]));
+        });
       const line = new LineSegments2(geometry, material);
       line.frustumCulled = false;
       group.add(line);

@@ -1,8 +1,8 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { Axes } from "./axes";
-import { type Box, lerpBox, union, visibleBox } from "./bounds";
-import { f32, i32 } from "./buffers";
+import { blocksBox, type Box, lerpBox, maskedBox, triangleMask, union, visibleBox, type Vec3 } from "./bounds";
+import { f32, i32, u32 } from "./buffers";
 import { categoryColor, COLORMAPS, cssToRgb, DEFAULT_COLORMAP, lut, type RGB, rgbToHex } from "./color";
 import { colorBarSvg } from "./colorbar";
 import { Gizmo, type Snap } from "./gizmo";
@@ -18,7 +18,23 @@ import {
   Settle,
   startFraction,
 } from "./motion";
-import { columnPaint, solidPaint, type Scale } from "./paint";
+import {
+  categoryCounts,
+  type Condition,
+  count,
+  type FilterState,
+  formatBound,
+  fromState,
+  histogram,
+  LayerFilter,
+  openCondition,
+  passMask,
+  SLOTS,
+  sliderStep,
+  snap,
+  toState,
+} from "./filter";
+import { columnPaint, type Paint, solidPaint, type Scale } from "./paint";
 import { type Renderer, webgl } from "./renderer";
 import { shared } from "./shaders";
 import { CSS } from "./styles";
@@ -50,6 +66,13 @@ interface Layer {
   color: RGB | null;
   opacity: number;
   open: boolean;
+  filter: LayerFilter;
+  painted: Paint | null;
+  /** Bounds of what it shows: rows that are neither null in its color column nor filtered out. */
+  box: Box | null;
+  counts: { shown: number; total: number; nulls: number };
+  readout: HTMLElement | null;
+  picking: boolean;
 }
 
 interface Variable {
@@ -61,6 +84,10 @@ interface Variable {
 export interface MountOptions {
   /** Fill the host's height instead of the scene's `height`. */
   fill?: boolean;
+  /** Filters by layer id, overriding the layers' own; from the widget's synced state. */
+  filters?: Record<string, FilterState>;
+  /** Called after the user edits a filter, with every layer's. */
+  onFilters?: (filters: Record<string, FilterState>) => void;
 }
 
 export class Viewer {
@@ -100,7 +127,16 @@ export class Viewer {
   private lastMove = 0;
   private pixelRatio = window.devicePixelRatio || 1;
 
-  constructor(host: HTMLElement, private spec: SceneSpec, private buffers: Buffers, options: MountOptions = {}) {
+  private histograms = new Map<string, number[]>();
+  private measureTimer: ReturnType<typeof setTimeout> | undefined;
+  private dirty = new Set<Layer>();
+
+  constructor(
+    host: HTMLElement,
+    private spec: SceneSpec,
+    private buffers: Buffers,
+    private options: MountOptions = {},
+  ) {
     const shadow = host.shadowRoot ?? host.attachShadow({ mode: "open" });
     shadow.replaceChildren();
     const style = document.createElement("style");
@@ -131,18 +167,27 @@ export class Viewer {
     this.themeSpec = spec.theme;
 
     this.layers = spec.layers.map((layer) => {
-      const rep = represent(layer, buffers);
-      rep.object.visible = layer.visible;
-      this.scene.add(rep.object);
-      return {
+      const filter = new LayerFilter();
+      const l: Layer = {
         spec: { ...layer },
-        rep,
+        rep: null as unknown as Representation,
         visible: layer.visible,
         column: layer.columns.find((c) => c.name === layer.values) ?? null,
         color: layer.color ? cssToRgb(layer.color) : null,
         opacity: layer.opacity,
         open: false,
+        filter,
+        painted: null,
+        box: null,
+        counts: { shown: 0, total: 0, nulls: 0 },
+        readout: null,
+        picking: false,
       };
+      this.setSlots(l, fromState(options.filters ? options.filters[layer.id] : layer.filter, layer.columns));
+      l.rep = represent(layer, buffers, filter);
+      l.rep.object.visible = layer.visible;
+      this.scene.add(l.rep.object);
+      return l;
     });
     for (const [name, v] of Object.entries(spec.variables)) {
       this.variables.set(name, { cmap: v.cmap ?? DEFAULT_COLORMAP, clim: v.clim ?? null, label: v.label ?? null });
@@ -158,7 +203,7 @@ export class Viewer {
     this.root.append(this.panel, this.reopen);
 
     this.applyTheme(true);
-    this.box = visibleBox(this.layers.map((l) => ({ visible: l.visible, box: l.rep.box })));
+    this.box = visibleBox(this.layers);
     this.axes.setBox(this.box);
     this.setView(spec.view.azimuth, spec.view.dip);
     this.fit();
@@ -174,8 +219,12 @@ export class Viewer {
 
   dispose(): void {
     this.cleanup.forEach((f) => f());
+    clearTimeout(this.measureTimer);
     this.controls.dispose();
-    this.layers.forEach((l) => l.rep.dispose());
+    this.layers.forEach((l) => {
+      l.rep.dispose();
+      l.filter.dispose();
+    });
     this.renderer.dispose();
   }
 
@@ -349,21 +398,21 @@ export class Viewer {
 
   private paint(layer: Layer): void {
     const c = layer.column;
-    layer.rep.paint(
-      c
-        ? columnPaint(c, this.columnData(layer, c), this.scale(c.name), this.solid(layer))
-        : solidPaint(this.solid(layer)),
-    );
+    layer.painted = c
+      ? columnPaint(c, this.columnData(layer, c), this.scale(c.name), this.solid(layer))
+      : solidPaint(this.solid(layer));
+    layer.rep.paint(layer.painted);
     layer.rep.detail?.(this.fraction());
+    this.measure(layer);
   }
 
-  /** Redraws a layer in another representation, keeping its color, range, opacity and visibility. */
+  /** Redraws a layer in another representation, keeping its color, range, opacity, filter and visibility. */
   setRepresentation(layer: Layer, name: string): void {
     if (name === layer.spec.representation || !representations(layer.spec.kind).includes(name)) return;
     this.scene.remove(layer.rep.object);
     layer.rep.dispose();
     layer.spec.representation = name;
-    layer.rep = represent(layer.spec, this.buffers);
+    layer.rep = represent(layer.spec, this.buffers, layer.filter);
     layer.rep.object.visible = layer.visible;
     layer.rep.setOpacity(layer.opacity);
     this.scene.add(layer.rep.object);
@@ -373,8 +422,126 @@ export class Viewer {
     this.requestRender();
   }
 
+  // ---- filter ----
+
+  private setSlots(layer: Layer, conditions: Condition[]): void {
+    const f = layer.filter;
+    f.conditions = conditions.slice(0, SLOTS);
+    f.slots = f.conditions.map((c) => ({ on: c.column.on, data: this.columnData(layer, c.column), text: c.column.type === "text" }));
+    f.update();
+  }
+
+  /** Sets a layer's conditions: their columns go into its buffers, so it repaints. */
+  setConditions(layer: Layer, conditions: Condition[], emit = true): void {
+    this.setSlots(layer, conditions);
+    this.paint(layer);
+    this.refitBox();
+    this.renderBody();
+    this.requestRender();
+    if (emit) this.emitFilters();
+  }
+
+  /** A bound or category changed: new uniforms now, counts and bounds once the edits pause. */
+  private filterEdited(layer: Layer): void {
+    layer.filter.update();
+    this.requestRender();
+    this.dirty.add(layer);
+    clearTimeout(this.measureTimer);
+    this.measureTimer = setTimeout(() => {
+      for (const l of this.dirty) {
+        this.measure(l);
+        this.updateReadout(l);
+      }
+      this.dirty.clear();
+      this.refitBox();
+      this.requestRender();
+      this.emitFilters();
+    }, 120);
+  }
+
+  /** Every layer's filter, by layer id, as Python reads it. */
+  filters(): Record<string, FilterState> {
+    const out: Record<string, FilterState> = {};
+    for (const l of this.layers) if (l.filter.active) out[l.spec.id] = toState(l.filter.conditions);
+    return out;
+  }
+
+  /** Applies filters from Python; layers left out lose theirs. */
+  setFilters(filters: Record<string, FilterState>): void {
+    for (const layer of this.layers) {
+      const conditions = fromState(filters?.[layer.spec.id], layer.spec.columns);
+      if (JSON.stringify(toState(conditions)) !== JSON.stringify(toState(layer.filter.conditions)))
+        this.setConditions(layer, conditions, false);
+    }
+  }
+
+  private emitFilters(): void {
+    this.options.onFilters?.(this.filters());
+  }
+
+  /** Counts what a layer shows and the bounds of it: one pass over its rows, after a paint or a filter edit. */
+  private measure(layer: Layer): void {
+    const { kind, geometry } = layer.spec;
+    const f = layer.filter;
+    const paint = layer.painted;
+    const keep = (on: ColumnSpec["on"]) => (paint?.on === on ? paint.keep : null);
+    const sum = (mask: Uint8Array) => mask.reduce((s, v) => s + v, 0);
+    if (kind === "mesh") {
+      const positions = f32(this.buffers, geometry.positions);
+      const triangles = u32(this.buffers, geometry.triangles);
+      const nv = positions.length / 3;
+      const nt = triangles.length / 3;
+      const shown = triangleMask(
+        triangles,
+        passMask(f.compiled, f.slots, "face", nt, keep("face")),
+        passMask(f.compiled, f.slots, "vertex", nv, keep("vertex")),
+      );
+      const colored = triangleMask(triangles, keep("face"), keep("vertex"));
+      const vertices = new Uint8Array(nv);
+      for (let t = 0; t < nt; t++)
+        if (shown[t]) for (let k = 0; k < 3; k++) vertices[triangles[3 * t + k]] = 1;
+      layer.counts = { shown: sum(shown), total: nt, nulls: nt - sum(colored) };
+      layer.box = maskedBox(positions, vertices);
+      return;
+    }
+    let n: number;
+    let box: (mask: Uint8Array) => Box | null;
+    if (kind === "blocks") {
+      const centers = f32(this.buffers, geometry.centers);
+      const sizes = f32(this.buffers, geometry.sizes);
+      const axes = (layer.spec.axes ?? [[1, 0, 0], [0, 1, 0], [0, 0, 1]]) as Vec3[];
+      n = centers.length / 3;
+      box = (mask) => blocksBox(centers, sizes, axes, mask);
+    } else if (kind === "drillholes") {
+      const positions = f32(this.buffers, geometry.positions);
+      const rows = u32(this.buffers, geometry.rows);
+      n = rows.reduce((m, r) => Math.max(m, r + 1), 0);
+      box = (mask) => maskedBox(positions, mask, 2, rows);
+    } else {
+      const positions = f32(this.buffers, geometry.positions);
+      n = positions.length / 3;
+      box = (mask) => maskedBox(positions, mask);
+    }
+    const shown = passMask(f.compiled, f.slots, "row", n, keep("row"));
+    const kept = keep("row");
+    layer.counts = { shown: sum(shown), total: n, nulls: kept ? n - sum(kept) : 0 };
+    layer.box = layer.counts.shown === n ? layer.rep.box : box(shown);
+  }
+
+  private readoutText(layer: Layer): string {
+    const { shown, total, nulls } = layer.counts;
+    if (!layer.filter.active && !nulls) return "";
+    return `${count(shown)} of ${count(total)} shown${nulls ? ` (${count(nulls)} null)` : ""}`;
+  }
+
+  private updateReadout(layer: Layer): void {
+    if (!layer.readout) return;
+    layer.readout.textContent = this.readoutText(layer);
+    layer.readout.hidden = !layer.readout.textContent;
+  }
+
   private refitBox(): void {
-    const to = visibleBox(this.layers.map((l) => ({ visible: l.visible, box: l.rep.box })));
+    const to = visibleBox(this.layers);
     if (this.box && to) this.refit = { from: this.box, to, start: performance.now() };
     else this.axes.setBox(to);
     this.box = to;
@@ -385,6 +552,7 @@ export class Viewer {
     for (const layer of this.layers) {
       if (!names || (layer.column && names.has(layer.column.name)) || (!layer.column && names.has(""))) this.paint(layer);
     }
+    this.refitBox();
     this.renderBody();
     this.updateBars();
     this.requestRender();
@@ -589,7 +757,17 @@ export class Viewer {
     });
     more.classList.toggle("btv-on", layer.open);
     row.append(eye, name, this.key_(layer), more);
-    return layer.open ? [row, this.settings(layer)] : [row];
+    if (layer.filter.active) {
+      const mark = icon("filter");
+      mark.classList.add("btv-mark");
+      mark.setAttribute("aria-label", "Filtered");
+      name.after(mark);
+    }
+    const readout = document.createElement("div");
+    readout.className = "btv-readout";
+    layer.readout = readout;
+    this.updateReadout(layer);
+    return layer.open ? [row, readout, this.settings(layer)] : [row, readout];
   }
 
   private settings(layer: Layer): HTMLElement {
@@ -687,7 +865,251 @@ export class Viewer {
       this.requestRender();
     });
     field("Opacity", opacity);
+    box.appendChild(this.filterSection(layer));
     return box;
+  }
+
+  private filterSection(layer: Layer): HTMLElement {
+    const section = document.createElement("div");
+    section.className = "btv-filter";
+    const head = document.createElement("div");
+    head.className = "btv-filter-head";
+    const conditions = layer.filter.conditions;
+    const full = conditions.length >= SLOTS;
+    const add = iconButton("plus", full ? `At most ${SLOTS} conditions per layer` : "Add condition", () => {
+      layer.picking = !layer.picking;
+      this.renderBody();
+    });
+    add.classList.add("btv-add");
+    add.append("Add");
+    add.classList.toggle("btv-on", layer.picking);
+    head.append(label("Filter"), add);
+    section.appendChild(head);
+    if (layer.picking && full) {
+      const note = document.createElement("div");
+      note.className = "btv-note";
+      note.textContent = `A layer filters on ${SLOTS} columns at most; remove one to add another.`;
+      section.appendChild(note);
+    } else if (layer.picking) {
+      const pick = document.createElement("select");
+      pick.setAttribute("aria-label", "Column to filter");
+      pick.add(new Option("Choose a column", "", true, true));
+      pick.options[0].disabled = true;
+      for (const c of layer.spec.columns)
+        if (!conditions.some((x) => x.column === c)) pick.add(new Option(c.name, c.name));
+      pick.addEventListener("change", () => {
+        const column = layer.spec.columns.find((c) => c.name === pick.value);
+        if (!column) return;
+        layer.picking = false;
+        this.setConditions(layer, [...conditions, openCondition(column)]);
+      });
+      section.appendChild(pick);
+    }
+    for (const condition of conditions) section.appendChild(this.conditionCard(layer, condition));
+    return section;
+  }
+
+  private conditionCard(layer: Layer, condition: Condition): HTMLElement {
+    const card = document.createElement("div");
+    card.className = "btv-cond";
+    const head = document.createElement("div");
+    head.className = "btv-cond-head";
+    const name = document.createElement("span");
+    name.className = "btv-name";
+    name.textContent = name.title = condition.column.name;
+    const remove = iconButton("x", `Remove the condition on ${condition.column.name}`, () =>
+      this.setConditions(
+        layer,
+        layer.filter.conditions.filter((c) => c !== condition),
+      ),
+    );
+    head.append(icon("filter"), name, remove);
+    card.append(head, condition.column.type === "text" ? this.categoryControl(layer, condition) : this.rangeControl(layer, condition));
+    return card;
+  }
+
+  private columnHistogram(layer: Layer, column: ColumnSpec): number[] {
+    const key = `${layer.spec.id}/${column.name}`;
+    let counts = this.histograms.get(key);
+    if (!counts) {
+      const data = this.columnData(layer, column);
+      counts =
+        column.type === "text"
+          ? categoryCounts(data as Int32Array, column.categories?.length ?? 0)
+          : histogram(data, column.min ?? 0, column.max ?? 0);
+      this.histograms.set(key, counts);
+    }
+    return counts;
+  }
+
+  /** Two-handle slider over the column's histogram, with editable bounds; a handle at an end leaves it open. */
+  private rangeControl(layer: Layer, condition: Condition): HTMLElement {
+    const min = condition.column.min ?? 0;
+    const max = condition.column.max ?? 0;
+    const span = max - min;
+    const step = sliderStep(span);
+    const wrap = document.createElement("div");
+    wrap.className = "btv-slider";
+    const counts = this.columnHistogram(layer, condition.column);
+    const top = Math.sqrt(Math.max(1, ...counts));
+    const height = (c: number) => Math.max(Math.sqrt(c) / top, 0.06);
+    const bars = counts
+      .map((c, i) => (c ? `<rect x="${i + 0.08}" y="${1 - height(c)}" width="0.84" height="${height(c)}"/>` : ""))
+      .join("");
+    const clip = `btv-${this.uid}-${layer.spec.id}-${condition.column.name.replace(/[^\w-]/g, "_")}`;
+    const hist = document.createElement("div");
+    hist.className = "btv-hist";
+    hist.innerHTML =
+      `<svg viewBox="0 0 ${counts.length} 1" preserveAspectRatio="none" aria-hidden="true">` +
+      `<clipPath id="${clip}"><rect y="0" height="1" x="0" width="0"/></clipPath>` +
+      `<g class="btv-bars-all">${bars}</g><g class="btv-bars-on" clip-path="url(#${clip})">${bars}</g></svg>`;
+    const window_ = hist.querySelector("clipPath rect")!;
+    const track = document.createElement("div");
+    track.className = "btv-track";
+    const fill = document.createElement("div");
+    fill.className = "btv-fill";
+    const handles = ["lo", "hi"].map((end) => {
+      const h = document.createElement("div");
+      h.className = "btv-handle";
+      h.tabIndex = 0;
+      h.setAttribute("role", "slider");
+      h.setAttribute("aria-label", end === "lo" ? "Minimum" : "Maximum");
+      return h;
+    });
+    track.append(fill, ...handles);
+    const inputs = ["Minimum", "Maximum"].map((title) => {
+      const el = document.createElement("input");
+      el.type = "number";
+      el.step = "any";
+      el.title = title;
+      el.setAttribute("aria-label", title);
+      return el;
+    });
+    const at = (v: number) => (span > 0 ? Math.min(1, Math.max(0, (v - min) / span)) : 0);
+    const show = () => {
+      const lo = condition.lo ?? min;
+      const hi = condition.hi ?? max;
+      const [a, b] = [at(lo), at(hi)];
+      window_.setAttribute("x", String(a * counts.length));
+      window_.setAttribute("width", String(Math.max(0, b - a) * counts.length));
+      fill.style.left = `${a * 100}%`;
+      fill.style.width = `${Math.max(0, b - a) * 100}%`;
+      handles[0].style.left = `${a * 100}%`;
+      handles[1].style.left = `${b * 100}%`;
+      handles[0].setAttribute("aria-valuenow", String(lo));
+      handles[1].setAttribute("aria-valuenow", String(hi));
+      [lo, hi].forEach((v, k) => {
+        if ((this.root.getRootNode() as Document | ShadowRoot).activeElement !== inputs[k])
+          inputs[k].value = formatBound(v, span);
+      });
+    };
+    /** Sets one end from a value: snapped, kept on its side of the other, open at the column's end. */
+    const set = (end: 0 | 1, value: number, snapped = true) => {
+      let v = snapped ? snap(value, step) : value;
+      if (end === 0) {
+        v = Math.min(v, condition.hi ?? max);
+        condition.lo = v <= min ? null : v;
+      } else {
+        v = Math.max(v, condition.lo ?? min);
+        condition.hi = v >= max ? null : v;
+      }
+      show();
+      this.filterEdited(layer);
+    };
+    track.addEventListener("pointerdown", (e) => {
+      e.preventDefault();
+      const r = track.getBoundingClientRect();
+      const value = (x: number) => min + Math.min(1, Math.max(0, (x - r.left) / Math.max(r.width, 1))) * span;
+      const v = value(e.clientX);
+      const lo = condition.lo ?? min;
+      const hi = condition.hi ?? max;
+      const end: 0 | 1 = Math.abs(v - lo) <= Math.abs(v - hi) && !(lo === hi && v > hi) ? 0 : 1;
+      track.setPointerCapture(e.pointerId);
+      handles[end].focus({ preventScroll: true });
+      set(end, v);
+      const move = (m: PointerEvent) => set(end, value(m.clientX));
+      const up = () => {
+        track.removeEventListener("pointermove", move);
+        track.removeEventListener("pointerup", up);
+      };
+      track.addEventListener("pointermove", move);
+      track.addEventListener("pointerup", up);
+    });
+    handles.forEach((h, end) =>
+      h.addEventListener("keydown", (e) => {
+        const d = { ArrowLeft: -1, ArrowDown: -1, ArrowRight: 1, ArrowUp: 1 }[e.key];
+        if (!d) return;
+        e.preventDefault();
+        e.stopPropagation();
+        const current = end === 0 ? (condition.lo ?? min) : (condition.hi ?? max);
+        set(end as 0 | 1, current + d * step * (e.shiftKey ? 10 : 1));
+      }),
+    );
+    inputs.forEach((el, end) =>
+      el.addEventListener("change", () => {
+        const text = el.value.trim();
+        const v = Number(text);
+        if (!text) set(end as 0 | 1, end === 0 ? min : max);
+        else if (Number.isFinite(v)) set(end as 0 | 1, v, false);
+        show();
+        inputs[end].value = formatBound(end === 0 ? (condition.lo ?? min) : (condition.hi ?? max), span);
+      }),
+    );
+    const range = document.createElement("div");
+    range.className = "btv-range";
+    range.append(...inputs);
+    wrap.append(hist, track, range);
+    show();
+    return wrap;
+  }
+
+  /** The column's categories as checkboxes with their row counts, and all/none shortcuts. */
+  private categoryControl(layer: Layer, condition: Condition): HTMLElement {
+    const wrap = document.createElement("div");
+    wrap.className = "btv-cats";
+    const names = condition.column.categories ?? [];
+    const counts = this.columnHistogram(layer, condition.column);
+    const kept = condition.categories ?? new Set<string>();
+    const boxes: HTMLInputElement[] = [];
+    const quick = document.createElement("div");
+    quick.className = "btv-quick";
+    for (const [text, all] of [["All", true], ["None", false]] as const) {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.textContent = text;
+      b.addEventListener("click", () => {
+        kept.clear();
+        if (all) names.forEach((n) => kept.add(n));
+        boxes.forEach((x) => (x.checked = all));
+        this.filterEdited(layer);
+      });
+      quick.appendChild(b);
+    }
+    const list = document.createElement("div");
+    list.className = "btv-list";
+    names.forEach((name, i) => {
+      const row = document.createElement("label");
+      const check = document.createElement("input");
+      check.type = "checkbox";
+      check.checked = kept.has(name);
+      check.addEventListener("change", () => {
+        if (check.checked) kept.add(name);
+        else kept.delete(name);
+        this.filterEdited(layer);
+      });
+      boxes.push(check);
+      const text = document.createElement("span");
+      text.className = "btv-name";
+      text.textContent = text.title = name;
+      const n = document.createElement("span");
+      n.className = "btv-count";
+      n.textContent = count(counts[i] ?? 0);
+      row.append(check, text, n);
+      list.appendChild(row);
+    });
+    condition.categories = kept;
+    wrap.append(quick, list);
+    return wrap;
   }
 
   // ---- color bars ----

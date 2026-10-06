@@ -1,3 +1,4 @@
+import type { FilterState } from "./filter";
 import type { ThemeSpec } from "./theme";
 
 export type Kind = "drillholes" | "points" | "mesh" | "blocks";
@@ -33,6 +34,8 @@ export interface LayerSpec {
   geometry: Record<string, string>;
   axes?: number[][];
   columns: ColumnSpec[];
+  /** Initial filter: conditions on columns, combined with "and". */
+  filter?: FilterState;
 }
 
 export interface VariableSpec {

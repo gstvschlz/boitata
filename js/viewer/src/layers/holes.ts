@@ -1,12 +1,12 @@
 import * as THREE from "three";
-import { LineMaterial } from "three/examples/jsm/lines/LineMaterial.js";
 import { LineSegments2 } from "three/examples/jsm/lines/LineSegments2.js";
 import { LineSegmentsGeometry } from "three/examples/jsm/lines/LineSegmentsGeometry.js";
 import { boxOf, diagonal } from "../bounds";
 import { f32, u32 } from "../buffers";
 import { midpoints, stratifiedOrder, subsetCount } from "../motion";
 import { colorAt, kept, type Paint } from "../paint";
-import { HALO, HALO_ORDER, setOpacity, shadedMaterial, shared } from "../shaders";
+import { filterArray, type LayerFilter, writeFilter } from "../filter";
+import { HALO, HALO_ORDER, lineMaterial, setOpacity, shadedMaterial, shared } from "../shaders";
 import type { Buffers, LayerSpec } from "../types";
 import type { Representation } from "./index";
 
@@ -22,11 +22,11 @@ function segments(layer: LayerSpec, buffers: Buffers) {
 }
 
 /** Drill-hole intervals as screen-width segments in a thin halo; each segment takes its interval row's color. */
-export function lines(layer: LayerSpec, buffers: Buffers): Representation {
+export function lines(layer: LayerSpec, buffers: Buffers, filter: LayerFilter): Representation {
   const s = segments(layer, buffers);
   const width = layer.lineWidth ?? WIDTH;
-  const material = new LineMaterial({ vertexColors: true, linewidth: width });
-  const halo = new LineMaterial({ linewidth: width + 2 * HALO });
+  const material = lineMaterial({ vertexColors: true, linewidth: width }, filter.uniforms);
+  const halo = lineMaterial({ linewidth: width + 2 * HALO }, filter.uniforms);
   const group = new THREE.Group();
   let geometry: LineSegmentsGeometry | null = null;
   let drawn = 0;
@@ -46,15 +46,17 @@ export function lines(layer: LayerSpec, buffers: Buffers): Representation {
       if (!count) return;
       const xyz = new Float32Array(6 * count);
       const colors = new Float32Array(6 * count);
+      geometry = new LineSegmentsGeometry();
+      const f = filterArray(geometry, count, filter.slots, true);
       let j = 0;
       for (const i of s.order) {
         if (!kept(paint, s.rows[i])) continue;
         xyz.set(s.positions.subarray(6 * i, 6 * i + 6), 6 * j);
         colorAt(paint, s.rows[i], rgb, 0);
         for (let e = 0; e < 2; e++) for (let a = 0; a < 3; a++) colors[6 * j + 3 * e + a] = rgb[a] / 255;
+        if (f) writeFilter(filter.slots, f, 4 * j, () => s.rows[i]);
         j++;
       }
-      geometry = new LineSegmentsGeometry();
       geometry.setPositions(xyz);
       geometry.setColors(colors);
       const outline = new LineSegments2(geometry, halo);
@@ -87,10 +89,10 @@ export function lines(layer: LayerSpec, buffers: Buffers): Representation {
 }
 
 /** Drill-hole intervals as shaded cylinders, `radius` meters, one per segment between survey stations. */
-export function tubes(layer: LayerSpec, buffers: Buffers): Representation {
+export function tubes(layer: LayerSpec, buffers: Buffers, filter: LayerFilter): Representation {
   const s = segments(layer, buffers);
   const radius = layer.radius ?? Math.max(diagonal(s.box) * RADIUS_SHARE, 1e-6);
-  const material = shadedMaterial(true, layer.opacity);
+  const material = shadedMaterial(true, layer.opacity, filter.uniforms);
   const mesh = new THREE.InstancedMesh(new THREE.CylinderGeometry(1, 1, 1, SIDES), material, Math.max(s.n, 1));
   mesh.frustumCulled = false;
   mesh.count = 0;
@@ -109,6 +111,7 @@ export function tubes(layer: LayerSpec, buffers: Buffers): Representation {
       const m = mesh.instanceMatrix.array as Float32Array;
       const c = colors.array as Uint8Array;
       const p = s.positions;
+      const f = filterArray(mesh.geometry, s.n, filter.slots, true);
       let j = 0;
       for (const i of s.order) {
         if (!kept(paint, s.rows[i])) continue;
@@ -121,6 +124,7 @@ export function tubes(layer: LayerSpec, buffers: Buffers): Representation {
         for (let a = 0; a < 3; a++) m[o + 12 + a] = (p[6 * i + a] + p[6 * i + 3 + a]) / 2;
         m[o + 15] = 1;
         colorAt(paint, s.rows[i], c, 3 * j);
+        if (f) writeFilter(filter.slots, f, 4 * j, () => s.rows[i]);
         j++;
       }
       mesh.count = drawn = j;

@@ -9,14 +9,17 @@ import {
   Ellipsis,
   Eye,
   EyeOff,
+  Funnel,
   Grid3x3,
   Layers,
   Moon,
+  Plus,
   PanelRightClose,
   RotateCcw,
   Ruler,
   Scan,
   Sun,
+  X,
   type IconNode,
 } from "lucide";
 
@@ -30,14 +33,17 @@ export const ICONS = {
   ellipsis: Ellipsis,
   eye: Eye,
   eyeOff: EyeOff,
+  filter: Funnel,
   grid: Grid3x3,
   layers: Layers,
   moon: Moon,
+  plus: Plus,
   hide: PanelRightClose,
   reset: RotateCcw,
   ruler: Ruler,
   fit: Scan,
   sun: Sun,
+  x: X,
 } satisfies Record<string, IconNode>;
 
 export type IconName = keyof typeof ICONS;

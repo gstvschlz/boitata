@@ -1,9 +1,10 @@
 import * as THREE from "three";
-import type { Box, Vec3 } from "../bounds";
+import { blocksBox, type Box, type Vec3 } from "../bounds";
 import { f32 } from "../buffers";
+import { filterArray, type LayerFilter, writeFilter } from "../filter";
 import { stratifiedOrder, subsetCount } from "../motion";
 import { colorAt, kept, type Paint } from "../paint";
-import { boxEdgeMaterial, setOpacity, shadedMaterial } from "../shaders";
+import { boxEdgeMaterial, depthMaterial, setOpacity, shadedMaterial } from "../shaders";
 import type { Buffers, LayerSpec } from "../types";
 import type { Representation } from "./index";
 
@@ -23,17 +24,7 @@ function blocks(layer: LayerSpec, buffers: Buffers): Blocks {
   const sizes = f32(buffers, layer.geometry.sizes);
   const axes = (layer.axes ?? [[1, 0, 0], [0, 1, 0], [0, 0, 1]]) as [Vec3, Vec3, Vec3];
   const n = centers.length / 3;
-  const min: Vec3 = [Infinity, Infinity, Infinity];
-  const max: Vec3 = [-Infinity, -Infinity, -Infinity];
-  for (let i = 0; i < n; i++)
-    for (let a = 0; a < 3; a++) {
-      let half = 0;
-      for (let k = 0; k < 3; k++) half += Math.abs(axes[k][a]) * sizes[3 * i + k];
-      half /= 2;
-      min[a] = Math.min(min[a], centers[3 * i + a] - half);
-      max[a] = Math.max(max[a], centers[3 * i + a] + half);
-    }
-  return { centers, sizes, axes, n, box: n ? { min, max } : null, order: stratifiedOrder(centers, n) };
+  return { centers, sizes, axes, n, box: blocksBox(centers, sizes, axes, null), order: stratifiedOrder(centers, n) };
 }
 
 /** Writes block i's matrix (its axes scaled by its sizes, at its center) at instance j. */
@@ -62,9 +53,9 @@ function boxes(b: Blocks, material: THREE.Material, colored: boolean) {
 }
 
 /** Blocks as instanced boxes along the model's axes, each scaled to its own (sub-)block size. */
-export function cells(layer: LayerSpec, buffers: Buffers): Representation {
+export function cells(layer: LayerSpec, buffers: Buffers, filter: LayerFilter): Representation {
   const b = blocks(layer, buffers);
-  const material = shadedMaterial(true, layer.opacity);
+  const material = shadedMaterial(true, layer.opacity, filter.uniforms);
   const { mesh, colors } = boxes(b, material, true);
   let drawn = 0;
 
@@ -75,11 +66,13 @@ export function cells(layer: LayerSpec, buffers: Buffers): Representation {
     paint(paint: Paint) {
       const m = mesh.instanceMatrix.array as Float32Array;
       const c = colors!.array as Uint8Array;
+      const f = filterArray(mesh.geometry, b.n, filter.slots, true);
       let j = 0;
       for (const i of b.order) {
         if (!kept(paint, i)) continue;
         setMatrix(b, i, m, j);
         colorAt(paint, i, c, 3 * j);
+        if (f) writeFilter(filter.slots, f, 4 * j, () => i);
         j++;
       }
       mesh.count = drawn = j;
@@ -133,18 +126,13 @@ function edgeGeometry(n: number): THREE.InstancedBufferGeometry {
  * Block edges, `lineWidth` pixels wide in each block's color. Opaque, the blocks' faces still hide what is behind
  * them, so only the visible edges draw and a model of any size stays legible; below opacity 1 every edge shows.
  */
-export function blockWireframe(layer: LayerSpec, buffers: Buffers): Representation {
+export function blockWireframe(layer: LayerSpec, buffers: Buffers, filter: LayerFilter): Representation {
   const b = blocks(layer, buffers);
-  const material = boxEdgeMaterial(b.axes, layer.lineWidth ?? EDGE_WIDTH, layer.opacity);
+  const material = boxEdgeMaterial(b.axes, layer.lineWidth ?? EDGE_WIDTH, layer.opacity, filter.uniforms);
   const geometry = edgeGeometry(b.n);
   const edges = new THREE.Mesh(geometry, material);
   edges.frustumCulled = false;
-  const depth = new THREE.MeshBasicMaterial({
-    colorWrite: false,
-    polygonOffset: true,
-    polygonOffsetFactor: 1,
-    polygonOffsetUnits: 1,
-  });
+  const depth = depthMaterial(filter.uniforms);
   const { mesh: faces } = boxes(b, depth, false);
   faces.renderOrder = -2;
   const group = new THREE.Group();
@@ -161,6 +149,8 @@ export function blockWireframe(layer: LayerSpec, buffers: Buffers): Representati
       const size = attribute("iSize").array as Float32Array;
       const color = attribute("iColor").array as Uint8Array;
       const m = faces.instanceMatrix.array as Float32Array;
+      const f = filterArray(geometry, b.n, filter.slots, true);
+      if (f) faces.geometry.setAttribute("aFilter", geometry.getAttribute("aFilter"));
       let j = 0;
       for (const i of b.order) {
         if (!kept(paint, i)) continue;
@@ -168,6 +158,7 @@ export function blockWireframe(layer: LayerSpec, buffers: Buffers): Representati
         size.set(b.sizes.subarray(3 * i, 3 * i + 3), 3 * j);
         colorAt(paint, i, color, 3 * j);
         setMatrix(b, i, m, j);
+        if (f) writeFilter(filter.slots, f, 4 * j, () => i);
         j++;
       }
       drawn = j;
