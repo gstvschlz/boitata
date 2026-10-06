@@ -1,4 +1,6 @@
 import {
+  Axis3d,
+  Box,
   Camera,
   ChevronDown,
   ChevronRight,
@@ -7,16 +9,20 @@ import {
   Ellipsis,
   Eye,
   EyeOff,
+  Grid3x3,
   Layers,
   Moon,
   PanelRightClose,
   RotateCcw,
+  Ruler,
   Scan,
   Sun,
   type IconNode,
 } from "lucide";
 
 export const ICONS = {
+  axes: Axis3d,
+  box: Box,
   camera: Camera,
   chevronDown: ChevronDown,
   chevronRight: ChevronRight,
@@ -24,10 +30,12 @@ export const ICONS = {
   ellipsis: Ellipsis,
   eye: Eye,
   eyeOff: EyeOff,
+  grid: Grid3x3,
   layers: Layers,
   moon: Moon,
   hide: PanelRightClose,
   reset: RotateCcw,
+  ruler: Ruler,
   fit: Scan,
   sun: Sun,
 } satisfies Record<string, IconNode>;

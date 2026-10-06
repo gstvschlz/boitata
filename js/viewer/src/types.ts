@@ -23,7 +23,13 @@ export interface LayerSpec {
   opacity: number;
   visible: boolean;
   values: string | null;
-  /** Buffer keys of the geometry, by role (positions, triangles, rows, centers, sizes) plus block axes. */
+  /** Sprite diameter in CSS pixels; null for the representation's default. */
+  pointSize?: number | null;
+  /** Line width in CSS pixels; null for the representation's default. */
+  lineWidth?: number | null;
+  /** Tube or sphere radius in meters; null for a share of the layer's extent. */
+  radius?: number | null;
+  /** Buffer keys of the geometry, by role (positions, triangles, rows, midpoints, centers, sizes). */
   geometry: Record<string, string>;
   axes?: number[][];
   columns: ColumnSpec[];
@@ -41,6 +47,8 @@ export interface SceneSpec {
   theme: ThemeSpec;
   height: number;
   view: { azimuth: number; dip: number };
+  /** What draws while the camera moves: "auto", "full", or a fixed fraction of each layer's instances. */
+  motion?: "auto" | "full" | number;
   variables: Record<string, VariableSpec>;
   layers: LayerSpec[];
 }

@@ -27,6 +27,19 @@ export function formatTick(value: number, step: number): string {
   return /^-0(\.0*)?$/.test(text) ? text.slice(1) : text;
 }
 
+/** A color range as editable text to a tenth of a tick step, rounded outward so it still covers both ends. */
+export function formatRange(lo: number, hi: number): [string, string] {
+  if (!Number.isFinite(lo) || !Number.isFinite(hi)) return [String(lo), String(hi)];
+  const step = niceStep(Math.abs(hi - lo) || Math.abs(lo) || 1) / 10;
+  const decimals = Math.min(12, Math.max(0, -Math.floor(Math.log10(step) + 1e-9)));
+  const scale = 10 ** decimals;
+  const round = (v: number, f: (x: number) => number) => {
+    const text = (f(Number((v * scale).toPrecision(12))) / scale).toFixed(decimals);
+    return /^-0(\.0*)?$/.test(text) ? text.slice(1) : text;
+  };
+  return [round(lo, Math.floor), round(hi, Math.ceil)];
+}
+
 /** Labels for `ticks`, decimals from their spacing. */
 export function formatTicks(ticks: number[]): string[] {
   const step = ticks.length > 1 ? ticks[1] - ticks[0] : Math.abs(ticks[0] ?? 1) || 1;

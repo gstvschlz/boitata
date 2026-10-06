@@ -16,7 +16,7 @@ export const CSS = /* css */ `
 .btv-gizmo .btv-gizmo-axis:hover circle { stroke: var(--btv-text); stroke-width: 1.5; }
 
 .btv-panel {
-  position: absolute; top: 10px; right: 10px; width: 264px; max-height: calc(100% - 20px);
+  position: absolute; top: 10px; right: 10px; width: 288px; max-height: calc(100% - 20px);
   display: flex; flex-direction: column; background: var(--btv-panel); border: 1px solid var(--btv-border);
   border-radius: 6px; box-shadow: 0 4px 16px rgba(0, 0, 0, .10); overflow: hidden;
 }
@@ -45,7 +45,7 @@ export const CSS = /* css */ `
 .btv-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .btv-key { flex: none; width: 34px; height: 10px; border-radius: 2px; border: 1px solid var(--btv-border); }
 .btv-key.btv-swatch { width: 12px; height: 12px; border-radius: 3px; }
-.btv-settings { margin: 2px 4px 8px 32px; display: grid; grid-template-columns: 62px 1fr; gap: 6px 8px;
+.btv-settings { margin: 4px 6px 10px 14px; display: grid; grid-template-columns: 58px minmax(0, 1fr); gap: 6px 8px;
   align-items: center; }
 .btv-settings label { color: var(--btv-muted); }
 .btv-settings select, .btv-settings input[type=number] {
@@ -56,13 +56,20 @@ export const CSS = /* css */ `
 .btv-range { display: flex; align-items: center; gap: 4px; }
 .btv-range .btv-icon { width: 22px; height: 22px; }
 .btv-root input[type=range] { width: 100%; accent-color: var(--btv-accent); }
-.btv-toggle { display: flex; align-items: center; gap: 8px; padding: 4px 12px; cursor: pointer; }
-.btv-toggle input { margin: 0; accent-color: var(--btv-accent); }
 .btv-shot { display: flex; align-items: center; gap: 6px; padding: 8px 12px; border-bottom: 1px solid var(--btv-border); }
 .btv-shot[hidden] { display: none; }
 .btv-seg { display: inline-flex; border: 1px solid var(--btv-border); border-radius: 4px; overflow: hidden; }
-.btv-seg button { border: 0; padding: 3px 7px; font: inherit; background: none; color: var(--btv-muted); cursor: pointer; }
+.btv-seg button { flex: 1; border: 0; padding: 3px 6px; white-space: nowrap; font: inherit; background: none; color: var(--btv-muted); cursor: pointer; }
 .btv-seg button.btv-on { background: var(--btv-accent); color: var(--btv-bg); }
+.btv-seg button:not(.btv-on):hover { background: var(--btv-raised); color: var(--btv-text); }
+.btv-seg button + button { border-left: 1px solid var(--btv-border); }
+.btv-settings .btv-seg { display: flex; }
+.btv-root button:focus-visible { outline: 2px solid var(--btv-accent); outline-offset: 1px; }
+.btv-view { margin: 4px 12px 6px; }
+.btv-tools { display: flex; gap: 4px; }
+.btv-icon.btv-tool { width: 30px; height: 26px; border: 1px solid var(--btv-border); }
+.btv-icon.btv-tool[aria-pressed=true] { background: var(--btv-accent); border-color: var(--btv-accent); color: var(--btv-bg); }
+.btv-icon.btv-tool[aria-pressed=true]:hover { filter: brightness(1.08); }
 .btv-shot label { display: flex; align-items: center; gap: 4px; color: var(--btv-muted); flex: 1; }
 .btv-shot label input { accent-color: var(--btv-accent); margin: 0; }
 .btv-bars { position: absolute; left: 10px; bottom: 10px; display: flex; flex-direction: column-reverse; gap: 8px;

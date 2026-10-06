@@ -48,3 +48,8 @@ export function lerpBox(a: Box, b: Box, t: number): Box {
   const mix = (u: Vec3, v: Vec3): Vec3 => [0, 1, 2].map((i) => u[i] + (v[i] - u[i]) * t) as Vec3;
   return { min: mix(a.min, b.min), max: mix(a.max, b.max) };
 }
+
+/** Length of a box's diagonal, 0 without one. */
+export function diagonal(box: Box | null): number {
+  return box ? Math.hypot(box.max[0] - box.min[0], box.max[1] - box.min[1], box.max[2] - box.min[2]) : 0;
+}
