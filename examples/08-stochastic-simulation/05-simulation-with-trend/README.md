@@ -48,11 +48,7 @@ y = bt.NormalScore(tails=(0.0, v.max())).fit_transform(v, weights=weights)
 
 
 def unit_sill(values):
-    fitted = bt.experimental_variogram(xy, values, 10.0, 150.0).fit("spherical")
-    (structure,) = fitted.structures
-    return bt.Variogram(
-        [("spherical", structure.sill / fitted.sill, structure.range)], nugget=fitted.nugget / fitted.sill
-    )
+    return bt.experimental_variogram(xy, values, 10.0, 150.0).fit("spherical").standardized()
 
 
 score_variogram, plain_variogram = unit_sill(scores), unit_sill(y)
@@ -68,7 +64,7 @@ by_sgs = plain.simulate(grid, n=20, seed=5, keep=True).realizations
 </details>
 
 ```text
-Variogram(nugget=0.19038648061160174, structures=[Structure("spherical", sill=0.8096135193883982, range=22.62299198336531)], rotation=(0.0, 0.0, 0.0), ratios=(1.0, 1.0))
+Variogram(nugget=0.19038648061160174, structures=[Structure("spherical", sill=0.8096135193883983, range=22.62299198336531)], rotation=(0.0, 0.0, 0.0), ratios=(1.0, 1.0))
 Variogram(nugget=0.3405226282644493, structures=[Structure("spherical", sill=0.6594773717355508, range=51.76429044224697)], rotation=(0.0, 0.0, 0.0), ratios=(1.0, 1.0))
 ```
 
@@ -103,7 +99,6 @@ quartile 4                         450   449             451
 <details><summary>Python</summary>
 
 ```python
-shape = (60, 52)
 extent = (0.5, 260.5, 0.5, 300.5)
 norm = PowerNorm(0.5, vmin=0, vmax=1500)
 fig, axes = plt.subplots(1, 3, figsize=(11.5, 4.4), layout="constrained")
@@ -113,7 +108,7 @@ panels = [
     (by_trend[0], "SGS with the trend, realization 1"),
 ]
 for ax, (image, title) in zip(axes, panels):
-    im = ax.imshow(image.reshape(shape), origin="lower", extent=extent, norm=norm)
+    im = ax.imshow(grid.grid(image)[0], origin="lower", extent=extent, norm=norm)
     map_axes(ax, title)
 fig.colorbar(im, ax=axes, shrink=0.8, label="V (ppm)")
 save(fig, "trend")

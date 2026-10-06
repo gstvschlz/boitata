@@ -44,9 +44,12 @@ for name, e, var in (
     ("block kriging", block_estimate, block_variance),
     ("point kriging", point_estimate, point_variance),
 ):
-    rmse = np.sqrt(np.nanmean((e - true_blocks) ** 2))
-    print(f"{name}: RMSE {rmse:.1f} ppm, mean kriging variance {np.nanmean(var):.0f}")
-print(f"actual mean squared error of block kriging {np.nanmean((block_estimate - true_blocks) ** 2):.0f}")
+    print(
+        f"{name}: RMSE {bt.compare(e, true_blocks)['rmse']:.1f} ppm, mean kriging variance {np.nanmean(var):.0f}"
+    )
+print(
+    f"actual mean squared error of block kriging {bt.compare(block_estimate, true_blocks)['rmse'] ** 2:.0f}"
+)
 
 # %% [markdown]
 # the two estimates are close, and block kriging is a little more accurate against the block averages. the larger

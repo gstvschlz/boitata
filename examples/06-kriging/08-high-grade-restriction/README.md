@@ -73,7 +73,7 @@ for name, s in searches.items():
     estimate = estimates[name] = estimator.predict(grid)
     metal[name] = [estimate[estimate > c].sum() / truth[truth > c].sum() for c in cutoffs]
     print(
-        f"{name:>13}  {np.mean(estimate[halo] - truth[halo]):+10.1f} ppm  {np.sqrt(np.mean((estimate - truth) ** 2)):7.1f}"
+        f"{name:>13}  {np.mean(estimate[halo] - truth[halo]):+10.1f} ppm  {bt.compare(estimate, truth)['rmse']:7.1f}"
         f"  {metal[name][4]:14.1%}  {estimator.cross_validate().mean_error:+18.1f} ppm"
     )
 ```

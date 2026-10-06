@@ -67,7 +67,7 @@ save(fig, "histograms")
 # the ranking follows the neighborhoods: samples at the limit near high gold get the higher scores of the tie.
 
 # %%
-xyz = np.asarray(samples.coords)
+xyz = samples.coords
 fig, ax = plt.subplots(figsize=(6.5, 4.6), layout="constrained")
 ax.scatter(*xyz[~tied, :2].T, s=4, color=LIGHT)
 points = ax.scatter(*xyz[tied, :2].T, c=scores[tied], s=9, cmap="cividis")

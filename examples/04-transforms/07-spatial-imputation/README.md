@@ -18,11 +18,11 @@ from common import HIGHLIGHT, INK, LIGHT, save
 lenses = bt.datasets.stacked_sulphide_lenses()
 intervals = bt.merge_intervals(lenses["assays"], lenses["lithology"])
 samples = bt.Drillholes(lenses["collars"], lenses["surveys"], intervals).samples()
-density = np.asarray(samples["DENSITY"], float)
-sulphide = np.isin(np.asarray(samples["LITH"]), ["MS", "SMS", "STR"]) & ~np.isnan(samples["ZN_PCT"])
+density = samples["DENSITY"]
+sulphide = samples.filter(np.isin(samples["LITH"], ["MS", "SMS", "STR"])).drop_null("ZN_PCT")
 columns = ["ZN_PCT", "PB_PCT", "CU_PCT", "AG_GPT", "AU_GPT", "DENSITY"]
-data = np.column_stack([samples[c][sulphide] for c in columns])
-xyz, holes = samples.coords[sulphide], np.asarray(samples["HOLE_ID"])[sulphide]
+data = np.column_stack([sulphide[c] for c in columns])
+xyz, holes = sulphide.coords, sulphide["HOLE_ID"]
 seen = ~np.isnan(data[:, 5])
 print(f"density missing in {np.isnan(density).mean():.0%} of {len(density)} samples")
 print(f"{len(data)} sulphide samples, density measured in {seen.sum()}")
@@ -86,7 +86,7 @@ for test, hidden in tests.items():
     for name, make in imputers.items():
         d = np.array([make(seed, holed).transform(holed)[hidden, 5] for seed in range(10)])
         draws[test, name] = d
-        one, mean = (np.sqrt(np.mean((x - truth) ** 2)) for x in (d[0], d.mean(axis=0)))
+        one, mean = (bt.compare(x, truth)["rmse"] for x in (d[0], d.mean(axis=0)))
         print(f"{test:20}{name:13}{one:9.3f}{mean:7.3f}{d[0].std():6.2f}")
     print(f"{test:20}{'truth':13}{'':16}{truth.std():6.2f}")
 ```

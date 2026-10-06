@@ -16,7 +16,7 @@ from common import ACCENT, GRAY, INK, map_axes, save
 data = bt.datasets.coal_seam_thickness()
 holes, lease = data["boreholes"], data["boundary"]
 thickness = holes["THICKNESS_M"]
-x, y = holes.coords[:, 0], holes.coords[:, 1]
+x, y = holes.x, holes.y
 print(f"{len(holes)} holes, mean thickness {thickness.mean():.2f} m")
 
 fig, ax = plt.subplots(figsize=(7, 4.4), layout="constrained")

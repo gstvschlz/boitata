@@ -66,9 +66,9 @@ for k in np.flatnonzero(keep):
 
 fig, (a, b) = plt.subplots(1, 2, figsize=(10, 4.2), layout="constrained")
 extent = (0.5, 260.5, 0.5, 300.5)
-image = a.imshow(np.clip(p, 0, 1).reshape(60, 52), origin="lower", extent=extent, vmin=0, vmax=1)
+image = a.imshow(grid.grid(np.clip(p, 0, 1))[0], origin="lower", extent=extent, vmin=0, vmax=1)
 a.contour(
-    above.reshape(60, 52).astype(float),
+    grid.grid(above.astype(float))[0],
     levels=[0.5],
     origin="lower",
     extent=extent,

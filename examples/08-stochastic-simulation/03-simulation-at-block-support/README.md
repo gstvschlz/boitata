@@ -31,12 +31,7 @@ y = bt.NormalScore().fit(v, weights=weights).transform(v)
 azimuths = (170, 260)
 experimental = [bt.experimental_variogram(xy, y, 10, 120, azimuth=a) for a in azimuths]
 fitted = bt.Variogram.fit_directional(experimental, [(a, 0) for a in azimuths], rotation=[170, 0, 0])
-gaussian = bt.Variogram(
-    [(s.model, s.sill / fitted.sill, s.range) for s in fitted.structures],
-    nugget=fitted.nugget / fitted.sill,
-    rotation=fitted.rotation,
-    ratios=fitted.ratios,
-)
+gaussian = fitted.standardized()
 print(gaussian)
 ```
 
@@ -69,7 +64,7 @@ sgs = bt.SGS(gaussian, bt.Search(radius=100, max_samples=24)).fit(xy, v, weights
 summary = sgs.simulate(nodes, n=30, seed=7, blocks=blocks, grade_tonnage_cutoffs=list(cutoffs), density=1.0)
 curves = summary.grade_tonnage(probabilities=[0.1, 0.5, 0.9])
 true_block = empirical(truth.reshape(30, size, 26, size).mean(axis=(1, 3)).ravel())
-share = np.asarray(curves["tonnage"]) / curves["tonnage"][0]
+share = curves["tonnage"] / curves["tonnage"][0]
 for c in (300, 500, 800):
     k = np.searchsorted(cutoffs, c)
     p10, p90 = share[(curves["cutoff"] == cutoffs[k]) & np.isin(curves["probability"], [0.1, 0.9])]
@@ -106,7 +101,7 @@ mean.
 <details><summary>Python</summary>
 
 ```python
-periods = blocks.coords[:, 1] // 50
+periods = blocks.y // 50
 for label, volumes in (
     ("blocks", {}),
     ("periods", {"groups": periods}),
@@ -179,9 +174,8 @@ ensemble = sgs.simulate(west, n=30, seed=11, blocks=smus, keep=True)
 localized = bt.localize(smus, "kriged", panels, ensemble.realizations)["localized"]
 true_smu = truth[:, :250].reshape(30, size, 25, size).mean(axis=(1, 3))
 for label, values in (("kriged", kriged), ("localized", localized)):
-    print(
-        f"{label}: variance {values.var():.0f}, correlation with truth {np.corrcoef(values, true_smu.ravel())[0, 1]:.2f}"
-    )
+    r = bt.compare(values, true_smu.ravel())["correlation"]
+    print(f"{label}: variance {values.var():.0f}, correlation with truth {r:.2f}")
 print(f"true blocks: variance {true_smu.var():.0f}")
 true_curve, kriged_curve, sim_curve = empirical(true_smu.ravel()), empirical(kriged), empirical(localized)
 

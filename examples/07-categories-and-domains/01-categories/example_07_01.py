@@ -19,7 +19,7 @@ import matplotlib.pyplot as plt
 from common import save
 
 data = bt.datasets.tailings_reprocessing()
-logged = bt.Drillholes(data["collars"], data["surveys"], data["lithology"]).samples()
+logged = bt.Drillholes.from_tables(data, intervals="lithology").samples()
 length = logged["TO"] - logged["FROM"]
 print(
     f"{len(logged)} intervals, {length.sum():.0f} m logged, {length.min():.2f} to {length.max():.1f} m long"

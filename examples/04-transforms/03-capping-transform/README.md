@@ -25,7 +25,7 @@ data = bt.datasets.vein_gold_grade_control()
 intervals = bt.merge_intervals(data["assays"], data["lithology"])
 holes = bt.Drillholes(data["collars"], data["surveys"], intervals)
 composites = holes.composite(1.0, ["AU_GPT"], domain="LITH", categories=["VEIN"])
-quartz = composites.filter((composites["LITH"] == "QV") & ~np.isnan(composites["AU_GPT"]))
+quartz = composites.filter(composites["LITH"] == "QV").drop_null("AU_GPT")
 weights = bt.cell_declustering(quartz, "AU_GPT", cell_size=20.0).weights
 quartz = quartz.with_column("w", weights)
 veins = sorted(set(quartz["VEIN"]))

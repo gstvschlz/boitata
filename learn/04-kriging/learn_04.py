@@ -244,7 +244,7 @@ print(grid)
 for name in ("ok", "idw"):
     e = grid[name]
     print(
-        f"{name:>3}: RMSE {np.sqrt(np.nanmean((e - true_at_nodes) ** 2)):.1f} ppm, "
+        f"{name:>3}: RMSE {bt.compare(e, true_at_nodes)['rmse']:.1f} ppm, "
         f"variance of estimates {np.nanvar(e):.0f} (true {true_at_nodes.var():.0f})"
     )
 
@@ -269,14 +269,14 @@ print(
     f"correlation of kriging standard deviation with absolute error {np.corrcoef(np.sqrt(variance), error)[0, 1]:.2f}"
 )
 
-shape, extent = (60, 52), (0.5, 260.5, 0.5, 300.5)
+extent = (0.5, 260.5, 0.5, 300.5)
 fig, axes = plt.subplots(1, 3, figsize=(12, 4.6), layout="constrained")
 norm = PowerNorm(0.5, vmin=0, vmax=1500)
 for ax, image, title in ((axes[0], true_at_nodes, "True V"), (axes[1], estimate, "Ordinary kriging")):
-    im = ax.imshow(image.reshape(shape), origin="lower", extent=extent, norm=norm)
+    im = ax.imshow(grid.grid(image)[0], origin="lower", extent=extent, norm=norm)
     map_axes(ax, title)
 fig.colorbar(im, ax=axes[:2], shrink=0.8, label="V (ppm)")
-sd = axes[2].imshow(np.sqrt(variance).reshape(shape), origin="lower", extent=extent)
+sd = axes[2].imshow(grid.grid(np.sqrt(variance))[0], origin="lower", extent=extent)
 axes[2].scatter(*xy[:, :2].T, s=2, color=HIGHLIGHT, linewidths=0)
 map_axes(axes[2], "Kriging standard deviation")
 fig.colorbar(sd, ax=axes[2], shrink=0.8, label="ppm")
@@ -326,7 +326,7 @@ print(" max samples  variance of estimates  slope  RMSE")
 for m in (4, 8, 24, 48):
     s = bt.Search(radius=80, max_samples=m, min_samples=min(m, 4), rotation=model.rotation, ratios=(0.5, 1.0))
     e = kriging.with_search(s).predict(grid)
-    rmse = np.sqrt(np.mean((e - true_at_nodes) ** 2))
+    rmse = bt.compare(e, true_at_nodes)["rmse"]
     print(f"{m:12d}  {e.var():21.0f}  {slope(e):5.2f}  {rmse:5.1f}")
 
 # %% [markdown]
@@ -350,7 +350,7 @@ block = bt.BlockKriging(model, search, size=(10, 10), discretization=(5, 5, 1)).
 block_estimate, block_variance = block.predict(blocks, return_variance=True)
 point_estimate, point_variance = kriging.predict(blocks, return_variance=True)
 for name, e, var in (("point", point_estimate, point_variance), ("block", block_estimate, block_variance)):
-    rmse = np.sqrt(np.mean((e - true_blocks) ** 2))
+    rmse = bt.compare(e, true_blocks)["rmse"]
     print(f"{name} kriging of 10 m blocks: RMSE {rmse:.1f} ppm, mean kriging variance {var.mean():.0f}")
 
 # %% [markdown]

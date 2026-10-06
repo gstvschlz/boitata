@@ -44,7 +44,7 @@ the ore:
 <details><summary>Python</summary>
 
 ```python
-holes = bt.Drillholes(data["collars"], data["surveys"], data["assays"])
+holes = bt.Drillholes.from_tables(data)
 composites = holes.composite(2.0, ["ZN_PCT"])
 xyz, zn = composites.coords, composites["ZN_PCT"]
 inside = np.array([lens.contains(xyz) for lens in lenses])
@@ -139,7 +139,7 @@ b.add_collection3d(
 )
 for lens in lenses:
     b.plot_trisurf(*lens.coords.T, triangles=lens.triangles, color=LIGHT, linewidth=0, alpha=0.2)
-lo, hi = np.array(blocks.origin), np.array(blocks.origin) + np.array(size) * blocks.count
+lo, hi = map(np.array, blocks.bounds)
 b.set(xlim=(lo[0], hi[0]), ylim=(lo[1], hi[1]), zlim=(lo[2], hi[2]))
 b.set_box_aspect(hi - lo)
 b.set_title(f"{len(ore):,} blocks more than half inside (shell)")

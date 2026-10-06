@@ -28,10 +28,10 @@ ZN = {"cmap": "cividis", "clim": (0, 10), "label": "Zn (%)"}
 
 # %%
 data = bt.datasets.stacked_sulphide_lenses()
-holes = bt.Drillholes(data["collars"], data["surveys"], data["assays"])
+holes = bt.Drillholes.from_tables(data)
 lenses = [data[f"lens_{i}"] for i in (1, 2, 3)]
 composites = holes.composite(2.0, ["ZN_PCT"])
-composites = composites.filter(~np.isnan(composites["ZN_PCT"]))
+composites = composites.drop_null("ZN_PCT")
 ore = np.any([lens.contains(composites.coords) for lens in lenses], axis=0)
 print(f"{len(holes.holes)} holes, {len(composites):,} composites of 2 m, {ore.sum():,} inside a lens")
 
@@ -69,9 +69,9 @@ blocks = bt.BlockModel.from_meshes(
     fill="host",
     rotation=rotation,
 )
-blocks = blocks.filter(np.asarray(blocks["domain"], dtype=object) != "host")
+blocks = blocks.filter(blocks["domain"] != "host")
 search = bt.Search(radius=100, min_samples=1, max_samples=12)
-idw = bt.InverseDistance(search, power=2).fit(composites.coords[ore], composites["ZN_PCT"][ore])
+idw = bt.InverseDistance(search, power=2).fit(composites.filter(ore), "ZN_PCT")
 blocks = blocks.with_column("zn", idw.predict(blocks))
 solid = sum(lens.volume for lens in lenses)
 print(f"{len(blocks):,} sub-blocks, {blocks.volumes.sum() / 1e6:.2f} Mm3 for {solid / 1e6:.2f} Mm3 of lens")
@@ -89,7 +89,7 @@ show(scene, "subblocks", "Sub-blocks of the lenses, colored by Zn")
 # blocks with no composite within 100 m are null and never drawn.
 
 # %%
-everywhere = bt.InverseDistance(search, power=2).fit(composites.coords, composites["ZN_PCT"])
+everywhere = bt.InverseDistance(search, power=2).fit(composites, "ZN_PCT")
 rotated = frame.with_column("zn", everywhere.predict(frame))
 estimated = np.isfinite(rotated["zn"]).mean()
 print(f"rotated grid {frame.count}: {estimated:.0%} of {len(frame):,} blocks estimated")

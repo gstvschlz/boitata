@@ -33,7 +33,7 @@ from common import save
 
 # %%
 data = bt.datasets.stacked_sulphide_lenses()
-drillholes = bt.Drillholes(data["collars"], data["surveys"], data["lithology"])
+drillholes = bt.Drillholes.from_tables(data, intervals="lithology")
 composites = drillholes.composite(5.0, [], categories=["LITH"])
 scheme = bt.Categories(
     ["OB", "HWS", "VCL", "SUL", "FWV"],
@@ -64,11 +64,8 @@ along = np.array([np.sin(np.radians(23.0)), np.cos(np.radians(23.0)), 0.0])
 origin = center - 600.0 * across - 5.0 * along + [0.0, 0.0, -400.0]
 section = bt.BlockModel(origin, (10.0, 10.0, 10.0), (120, 1, 80), rotation=(23.0, 0.0, 0.0))
 topography = data["topography"]
-rows = topography.row_at(section.coords[:, :2])
-section = section.filter((rows >= 0) & (section.coords[:, 2] < topography["Z"][rows]))
-most_likely = cik.predict(section).most_likely
-section = section.filter(~np.isnan(most_likely))
-section = section.with_columns({"rock": most_likely[~np.isnan(most_likely)]})
+section = section.filter(section.z < topography.sample(section.coords[:, :2], "Z"))
+section = section.with_columns({"rock": cik.predict(section).most_likely}).drop_null("rock")
 print(f"{len(section)} cells of {section.volumes[0]:.0f} m³")
 
 # %% [markdown]

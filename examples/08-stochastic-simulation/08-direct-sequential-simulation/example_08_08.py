@@ -26,9 +26,9 @@ samples = bt.datasets.walker_lake()
 truth = bt.datasets.walker_lake_exhaustive()["V"].reshape(300, 260)
 xy, v = samples.coords, samples["V"]
 weights = bt.cell_declustering(xy, v, sizes=np.arange(2.5, 102.5, 2.5)).weights
-mean = np.average(v, weights=weights)
-variance = np.average((v - mean) ** 2, weights=weights)
-print(f"declustered mean {mean:.0f} ppm, variance {variance:.0f} ppm²")
+stats = bt.describe(v, weights=weights)
+variance = stats["variance"]
+print(f"declustered mean {stats['mean']:.0f} ppm, variance {variance:.0f} ppm²")
 
 
 # %% [markdown]
@@ -44,13 +44,8 @@ y = bt.NormalScore(tails=(0.0, v.max())).fit_transform(v, weights=weights)
 def unit_sill(values):
     major = bt.experimental_variogram(xy, values, lag, max_lag, azimuth=azimuth).fit("spherical")
     minor = bt.experimental_variogram(xy, values, lag, max_lag, azimuth=azimuth + 90).fit("spherical")
-    a_major = major.structures[0].range
-    return bt.Variogram(
-        [("spherical", major.structures[0].sill / major.sill, a_major)],
-        nugget=major.nugget / major.sill,
-        rotation=(azimuth, 0, 0),
-        ratios=(min(minor.structures[0].range / a_major, 1.0), 1.0),
-    )
+    ratio = min(minor.structures[0].range / major.structures[0].range, 1.0)
+    return major.standardized().with_anisotropy((azimuth, 0, 0), (ratio, 1.0))
 
 
 gaussian, raw = unit_sill(y), unit_sill(v)
@@ -102,7 +97,6 @@ print(
 # and variance exactly.
 
 # %%
-shape = (60, 52)
 extent = (0.5, 260.5, 0.5, 300.5)
 norm = PowerNorm(0.5, vmin=0, vmax=1500)
 fig, axes = plt.subplots(2, 3, figsize=(12, 8.4), layout="constrained")
@@ -116,7 +110,7 @@ for ax, image, title in (
     (axes[1, 1], corrected[0], "DSS realization 1, corrected"),
     (axes[1, 2], dss.mean, "Mean of 30 DSS realizations"),
 ):
-    im = ax.imshow(image.reshape(shape), origin="lower", extent=extent, norm=norm)
+    im = ax.imshow(grid.grid(image)[0], origin="lower", extent=extent, norm=norm)
     map_axes(ax, title)
 fig.colorbar(im, ax=axes, shrink=0.6, label="V (ppm)")
 save(fig, "maps")

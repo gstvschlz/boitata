@@ -66,7 +66,7 @@ save(fig, "plan")
 
 # %%
 plateau = bt.datasets.iron_formation_plateau()
-drillholes = bt.Drillholes(plateau["collars"], plateau["surveys"], plateau["assays"])
+drillholes = bt.Drillholes.from_tables(plateau)
 model = plateau["block_model"]
 formation = model.filter(np.isin(model["LITH"], ["IC", "HC", "HF", "IF"]))
 search = bt.Search(150.0, ratios=(1.0, 0.2))

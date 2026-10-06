@@ -32,9 +32,9 @@ from common import ACCENT, GRAY, HIGHLIGHT, save
 
 # %%
 data = bt.datasets.stacked_sulphide_lenses()
-holes = bt.Drillholes(data["collars"], data["surveys"], data["assays"])
+holes = bt.Drillholes.from_tables(data)
 composites = holes.composite(2.0, ["ZN_PCT"])
-composites = composites.filter(np.isfinite(composites["ZN_PCT"]))
+composites = composites.drop_null("ZN_PCT")
 log_zn = np.log(composites["ZN_PCT"])
 print(f"{len(composites)} composites")
 

@@ -73,7 +73,7 @@ print(samples["V"][:3])
 # %%
 u = samples["U"]
 print(f"U measured at {np.count_nonzero(~np.isnan(u))} of {len(samples)} samples")
-print(samples.to_table().to_polars().null_count().row(0, named=True))
+print(samples.to_polars().null_count().row(0, named=True))
 
 # %% [markdown]
 # `U` was measured at 275 of the 470 samples; the other 195 are null. Statistics and estimators in Boitatá skip
@@ -111,9 +111,9 @@ data = bt.datasets.stacked_sulphide_lenses()
 collars, surveys, assays, lithology = data["collars"], data["surveys"], data["assays"], data["lithology"]
 print(f"{collars.num_rows} collars, {surveys.num_rows} survey stations, {assays.num_rows} assays")
 hole = "DD0027"  # @param {type:"string"}
-row = np.flatnonzero(np.array(collars["HOLE_ID"]) == hole)[0]
+row = np.flatnonzero(collars["HOLE_ID"] == hole)[0]
 print(f"collar: X {collars['X'][row]:.1f}  Y {collars['Y'][row]:.1f}  Z {collars['Z'][row]:.1f}")
-for i in np.flatnonzero(np.array(surveys["HOLE_ID"]) == hole)[[0, 1, 2, -1]]:
+for i in np.flatnonzero(surveys["HOLE_ID"] == hole)[[0, 1, 2, -1]]:
     print(
         f"survey at {surveys['DEPTH'][i]:5.1f} m: dip {surveys['DIP'][i]:.1f}, azimuth {surveys['AZIMUTH'][i]:.1f}"
     )
@@ -133,7 +133,7 @@ print(f"{hole}: collar at {top.round(1)}, 900 m down at {bottom.round(1)}")
 print(f"offset from the collar: {(bottom - top).round(1)}")
 
 fig, (a, b) = plt.subplots(1, 2, figsize=(10, 4), layout="constrained")
-ids = np.array(paths["HOLE_ID"])
+ids = paths["HOLE_ID"]
 for ax, (i, j) in ((a, ("x", "y")), (b, ("x", "z"))):
     for h in np.unique(ids):
         keep = ids == h
@@ -209,10 +209,9 @@ assert abs(metal_composites / metal_assays - 1) < 1e-9
 print(f"{'length':>7}{'n':>7}{'mean':>8}{'variance':>10}")
 for size in (1.0, 2.0, 4.0, 8.0):
     c = holes.composite(size, ["ZN_PCT"], domain="LITH")
-    ms = np.array(c["LITH"]) == "MS"
-    zn, w = c["ZN_PCT"][ms], c["ZN_PCT_length"][ms]
-    mean = np.average(zn, weights=w)
-    print(f"{size:>6.0f}m{ms.sum():>7}{mean:>8.2f}{np.average((zn - mean) ** 2, weights=w):>10.1f}")
+    ms = c["LITH"] == "MS"
+    stats = bt.describe(c["ZN_PCT"][ms], weights=c["ZN_PCT_length"][ms])
+    print(f"{size:>6.0f}m{ms.sum():>7}{stats['mean']:>8.2f}{stats['variance']:>10.1f}")
 
 # %% [markdown]
 # The mean zinc grade stays at 8.93 % for every length. The variance falls from 29.9 %² at 1 m to 16.1 %² at 8 m.
@@ -282,9 +281,7 @@ save(fig, "support")
 # area holds:
 
 # %%
-at_samples = exhaustive["V"].reshape(300, 260)[
-    samples.coords[:, 1].astype(int) - 1, samples.coords[:, 0].astype(int) - 1
-]
+at_samples = exhaustive["V"].reshape(300, 260)[samples.y.astype(int) - 1, samples.x.astype(int) - 1]
 print(f"samples: mean V {samples['V'].mean():.0f} ppm; whole area: {exhaustive['V'].mean():.0f} ppm")
 classes = ["< 200", "200 to 500", "> 500"]
 edges = [0, 200, 500, np.inf]

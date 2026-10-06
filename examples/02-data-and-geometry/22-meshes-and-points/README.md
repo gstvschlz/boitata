@@ -23,11 +23,11 @@ only those inside a lens, drawn as spheres 12 m across and colored by zinc on a 
 
 ```python
 data = bt.datasets.stacked_sulphide_lenses()
-holes = bt.Drillholes(data["collars"], data["surveys"], data["assays"])
+holes = bt.Drillholes.from_tables(data)
 lenses = [data[f"lens_{i}"] for i in (1, 2, 3)]
 collars = bt.PointSet.from_table(data["collars"], z="Z")
 ground = bt.topography(collars, cell=20.0).mesh
-ground = ground.with_vertex_column("elevation", ground.coords[:, 2])
+ground = ground.with_vertex_column("elevation", ground.z)
 composites = holes.composite(2.0, ["ZN_PCT"])
 ore = composites.filter(np.any([lens.contains(composites.coords) for lens in lenses], axis=0))
 print(f"topography: {len(ground.coords):,} vertices, {len(ground.triangles):,} triangles")

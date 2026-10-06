@@ -22,8 +22,8 @@ import numpy as np
 from common import ACCENT, GRAY, HIGHLIGHT, LIGHT, map_axes, save
 
 assays = bt.datasets.tailings_reprocessing()["assays"]
-ok = ~np.isnan(assays["CN_WAD_PPM"])
-cn, bdl = assays["CN_WAD_PPM"][ok], assays["CN_WAD_BDL"][ok].astype(bool)
+assays = assays.drop_null("CN_WAD_PPM")
+cn, bdl = assays["CN_WAD_PPM"], assays["CN_WAD_BDL"].astype(bool)
 print(f"{len(cn)} composites; {bdl.mean():.0%} below the {cn[bdl][0]:g} ppm detection limit")
 
 fig, ax = plt.subplots(figsize=(6, 3.4), layout="constrained")
@@ -97,9 +97,8 @@ print(f"round-trips to the reported data: {np.allclose(back, cn, atol=1e-6)}")
 # %%
 soil = bt.datasets.soil_geochemistry_survey()
 samples, covariates = soil["samples"], soil["covariates"]
-rows = covariates.row_at(samples.coords[:, :2])
-samples = samples.with_column("MAG_NT", covariates["MAG_NT"][rows]).with_column(
-    "ELEVATION_M", covariates["ELEVATION_M"][rows]
+samples = samples.with_columns(
+    {c: covariates.sample(samples.coords[:, :2], c) for c in ("MAG_NT", "ELEVATION_M")}
 )
 au_bdl, as_bdl = samples["AU_BDL"].astype(bool), samples["AS_BDL"].astype(bool)
 au_ns, as_ns = bt.NormalScore(), bt.NormalScore()
@@ -121,16 +120,12 @@ grade[np.isnan(edk)] = np.nan
 inside = covariates["INSIDE"] == 1
 print(f"kriged Au inside the survey: mean {np.nanmean(np.where(inside, grade, np.nan)):.1f} ppb")
 
-nx, ny = covariates.count[0], covariates.count[1]
-ox, oy, sx, sy = covariates.origin[0], covariates.origin[1], covariates.size[0], covariates.size[1]
+(x0, y0, _), (x1, y1, _) = covariates.bounds
 fig, ax = plt.subplots(figsize=(5.5, 4.2), layout="constrained")
 im = ax.imshow(
-    grade.reshape(ny, nx),
-    origin="lower",
-    extent=(ox, ox + sx * nx, oy, oy + sy * ny),
-    vmax=np.nanpercentile(grade, 98),
+    covariates.grid(grade)[0], origin="lower", extent=(x0, x1, y0, y1), vmax=np.nanpercentile(grade, 98)
 )
-ax.scatter(samples.coords[:, 0], samples.coords[:, 1], s=2, color="white", linewidths=0)
+ax.scatter(samples.x, samples.y, s=2, color="white", linewidths=0)
 map_axes(ax, "Au (ppb), external drift on censored scores")
 fig.colorbar(im, ax=ax, shrink=0.8, label="Au (ppb)")
 save(fig, "map")

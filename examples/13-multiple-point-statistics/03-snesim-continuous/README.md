@@ -15,7 +15,7 @@ from common import GRAY, HIGHLIGHT, INK, LIGHT, save
 
 seismic = bt.datasets.f3_seismic()
 nx, ny, nz = seismic.count
-cube = seismic["amplitude"].astype(float).reshape(nz, ny, nx)[::-1]  # time down: row 0 at 1600 ms
+cube = seismic.grid("amplitude")[::-1]  # time down: row 0 at 1600 ms
 print(f"{nx} x {ny} traces of {nz} samples, amplitude {cube.min():.0f} to {cube.max():.0f}")
 ```
 
@@ -56,11 +56,12 @@ snesim = bt.SNESIM(ti, "amplitude").fit(wells, values)
 print("cutoffs:", np.round(np.quantile(image, [0.25, 0.5, 0.75])))
 summary = snesim.simulate(section, n=50, seed=11, keep=range(3))
 reals = summary.realizations.reshape(-1, nz, nx)
-etype = summary.mean.reshape(nz, nx)
+etype = section.grid(summary.mean)[0]
 print(f"hard data reproduced: {np.allclose(reals[:, at_traces], values)}")
-corr = [np.corrcoef(r.ravel(), truth.ravel())[0, 1] for r in reals]
+corr = [bt.compare(r.ravel(), truth.ravel())["correlation"] for r in reals]
 print(
-    f"correlation with the true section: realizations {np.mean(corr):.2f}, mean of 50 {np.corrcoef(etype.ravel(), truth.ravel())[0, 1]:.2f}"
+    f"correlation with the true section: realizations {np.mean(corr):.2f}, "
+    f"mean of 50 {bt.compare(etype.ravel(), truth.ravel())['correlation']:.2f}"
 )
 ```
 

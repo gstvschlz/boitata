@@ -28,10 +28,9 @@ from common import ACCENT, GRAY, HIGHLIGHT, LIGHT, save
 
 # %%
 data = bt.datasets.iron_formation_plateau()
-holes = bt.Drillholes(data["collars"], data["surveys"], data["assays"])
-composites = holes.composite(12.0, ["FE_PCT"])
-fe = np.asarray(composites["FE_PCT"])
-xyz, fe = composites.coords[~np.isnan(fe)], fe[~np.isnan(fe)]
+holes = bt.Drillholes.from_tables(data)
+composites = holes.composite(12.0, ["FE_PCT"]).drop_null("FE_PCT")
+xyz, fe = composites.coords, composites["FE_PCT"]
 code = np.where(fe >= 60, 1.0, -1.0)
 print(f"{len(xyz)} composites, {(code > 0).sum()} at or above 60 % Fe")
 
@@ -75,8 +74,8 @@ northing = 25 * round(np.median(xyz[code > 0, 1]) / 25)
 x, z = np.meshgrid(np.arange(44000, 46100, 5.0), np.arange(300, 720, 3.0))
 section = np.c_[x.ravel(), np.full(x.size, northing), z.ravel()]
 topography = data["topography"]
-row = np.isclose(topography.coords[:, 1], northing, atol=12.5)
-ground = np.interp(x[0], topography.coords[row, 0], np.asarray(topography["Z"])[row])
+row = np.isclose(topography.y, northing, atol=12.5)
+ground = np.interp(x[0], topography.x[row], topography["Z"][row])
 plane = ((0, northing, 0), 90, 90)
 fig, axes = plt.subplots(3, 1, figsize=(12, 8.5), layout="constrained", sharex=True)
 for ax, (name, model) in zip(axes, models.items(), strict=True):

@@ -61,7 +61,7 @@ columns = [30, 90, 150, 210]
 drilled = np.zeros((n, n), bool)
 drilled[:, columns] = True
 holes = grid.coords[drilled.ravel()]
-facies = strebelle["facies"].reshape(n, n)[drilled]
+facies = strebelle.grid("facies")[0][drilled]
 checks = {"Strebelle": bt.training_image_consistency(strebelle, "facies", holes, facies, seed=0)}
 for name, image in candidates.items():
     checks[name] = bt.training_image_consistency(image, "facies", holes, facies, seed=0)
@@ -93,9 +93,7 @@ codes = ListedColormap(["white", "black"])
 fig, axes = plt.subplots(1, 4, figsize=(15, 4), layout="constrained")
 panels = [("Strebelle", strebelle)] + list(candidates.items())
 for ax, (name, image) in zip(axes, panels):
-    ax.imshow(
-        image["facies"].reshape(n, n), origin="lower", cmap=codes, vmin=0, vmax=1, interpolation="nearest"
-    )
+    ax.imshow(image.grid("facies")[0], origin="lower", cmap=codes, vmin=0, vmax=1, interpolation="nearest")
     ax.set(title=f"{name}\np = {checks[name]['p_value']:.3f}", xticks=[], yticks=[])
     for x in columns:
         ax.axvline(x + 0.5, color=HIGHLIGHT, lw=1)

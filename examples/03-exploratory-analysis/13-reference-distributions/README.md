@@ -18,9 +18,7 @@ data = bt.datasets.vein_gold_grade_control()
 intervals = bt.merge_intervals(data["assays"], data["lithology"])
 holes = bt.Drillholes(data["collars"], data["surveys"], intervals)
 composites = holes.composite(1.0, ["AU_GPT"], domain="LITH", categories=["VEIN"])
-v4 = composites.filter(
-    (composites["LITH"] == "QV") & (composites["VEIN"] == "V4") & ~np.isnan(composites["AU_GPT"])
-)
+v4 = composites.filter((composites["LITH"] == "QV") & (composites["VEIN"] == "V4")).drop_null("AU_GPT")
 au = v4["AU_GPT"]
 weights = bt.cell_declustering(v4, "AU_GPT", cell_size=20.0).weights
 print(
@@ -190,7 +188,7 @@ its row belongs to, given its present scores. hide tennantite in every other hol
 <details><summary>Python</summary>
 
 ```python
-hole_ids = np.asarray(porphyry["DHID"])
+hole_ids = porphyry["DHID"]
 hidden = np.isin(hole_ids, np.unique(hole_ids)[::2])
 holed = pair.copy()
 holed[hidden, 1] = np.nan

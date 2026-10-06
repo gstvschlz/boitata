@@ -29,16 +29,15 @@ composites take the domain of the block they fall in.
 data = bt.datasets.iron_formation_plateau()
 model = data["block_model"]
 DOMAINS = {"HF": "hematite", "HC": "hematite", "CG": "hematite", "IF": "itabirite", "IC": "itabirite"}
-coded = np.array([DOMAINS.get(c, "") for c in np.asarray(model["LITH"], dtype=object)], dtype=object)
+coded = np.array([DOMAINS.get(c, "") for c in model["LITH"]], dtype=object)
 model = model.with_columns({"domain": coded}).filter(coded != "")
 coded = coded[coded != ""]
 
-holes = bt.Drillholes(data["collars"], data["surveys"], data["assays"])
+holes = bt.Drillholes.from_tables(data)
 composites = holes.composite(6.0, ["FE_PCT"])
-row = model.row_at(composites.coords)
-keep = (row >= 0) & ~np.isnan(composites["FE_PCT"])
-xyz, fe, domain = composites.coords[keep], composites["FE_PCT"][keep], coded[row[keep]]
-hole = np.asarray(composites["HOLE_ID"], dtype=object)[keep]
+composites = composites.filter(model.contains(composites.coords)).drop_null("FE_PCT")
+xyz, fe, hole = composites.coords, composites["FE_PCT"], composites["HOLE_ID"]
+domain = model.sample(xyz, "domain")
 for name in ("hematite", "itabirite"):
     inside = domain == name
     count = len(model.filter(model["domain"] == name))
@@ -63,7 +62,7 @@ folder = Path(tempfile.mkdtemp())
 grid = bt.BlockModel.from_extents(model, size=(5, 5, 5), snap=True)
 nx, ny, nz = grid.count
 plan = grid.coords[: nx * ny]
-kept = [k * nx * ny + np.flatnonzero(model.row_at(plan + (0, 0, 5 * k)) >= 0) for k in range(nz)]
+kept = [k * nx * ny + np.flatnonzero(model.contains(plan + (0, 0, 5 * k))) for k in range(nz)]
 blocks = bt.BlockModel(grid.origin, grid.size, grid.count, index=np.concatenate(kept).astype(np.uint64))
 bt.write_parquet(folder / "blocks.parquet", blocks)
 file = bt.BlockModelFile(folder / "blocks.parquet")
@@ -95,8 +94,7 @@ model = model.with_column("trend", at_model)
 
 
 def attributes(chunk):
-    row = model.row_at(chunk.coords)
-    return {"domain": coded[row], "trend": at_model[row]}
+    return {"domain": model.sample(chunk.coords, "domain"), "trend": model.sample(chunk.coords, "trend")}
 
 
 start = time.perf_counter()
@@ -124,9 +122,8 @@ the first, as `realization_0`.
 ```python
 scores = bt.NormalScore().fit_transform(fe - at_data)
 fitted = bt.experimental_variogram(xyz, scores, 15.0, 300.0).fit("spherical")
-sill = fitted.nugget + fitted.structures[0].sill
 reach = fitted.structures[0].range
-gaussian = bt.Variogram([("spherical", fitted.structures[0].sill / sill, reach)], nugget=fitted.nugget / sill)
+gaussian = fitted.standardized()
 print(f"residual scores: nugget {gaussian.nugget:.2f}, range {reach:.0f} m")
 bands = bt.TurningBands(gaussian, bands=100, search=bt.Search(radius=reach, max_samples=16))
 bands.fit(xyz, fe, trend=at_data, domains=domain, holes=hole)

@@ -30,16 +30,16 @@ print(f"lens 1: closed {lens.is_closed}, {lens.volume / 1e6:.2f} Mm3")
 # outside, from the intervals next to a contact and a sparse subset of the others.
 
 # %%
-holes = bt.Drillholes(data["collars"], data["surveys"], data["lithology"])
+holes = bt.Drillholes.from_tables(data, intervals="lithology")
 logged = holes.samples()
 xyz = logged.coords
 lo, hi = np.array(lens.bounds[0]) - 30, np.array(lens.bounds[1]) + 30
 order = np.lexsort((logged["FROM"], logged["HOLE_ID"]))
 order = order[np.all((xyz[order] > lo) & (xyz[order] < hi), axis=1)]
 xyz = xyz[order]
-hole = np.array(logged["HOLE_ID"], dtype=object)[order]
-lith = np.array(logged["LITH"], dtype=object)[order]
-bottom = np.asarray(logged["TO"])[order]
+hole = logged["HOLE_ID"][order]
+lith = logged["LITH"][order]
+bottom = logged["TO"][order]
 
 unit = np.isin(lith, ["MS", "SMS"]) & lens.contains(xyz)
 change = (hole[1:] == hole[:-1]) & (unit[1:] != unit[:-1])

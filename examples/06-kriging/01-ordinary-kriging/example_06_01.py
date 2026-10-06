@@ -64,7 +64,6 @@ print(
 # the kriging standard deviation depends only on the data layout and the model: low near samples, high in gaps.
 
 # %%
-shape = (60, 52)
 extent = (0.5, 260.5, 0.5, 300.5)
 norm = PowerNorm(0.5, vmin=0, vmax=1500)
 fig, axes = plt.subplots(1, 3, figsize=(12, 4.6), layout="constrained")
@@ -72,13 +71,13 @@ for ax, image, title in (
     (axes[0], true_at_nodes, "True V at grid nodes"),
     (axes[1], estimate, "Ordinary kriging"),
 ):
-    im = ax.imshow(image.reshape(shape), origin="lower", extent=extent, norm=norm)
+    im = ax.imshow(grid.grid(image)[0], origin="lower", extent=extent, norm=norm)
     map_axes(ax, title)
-axes[1].scatter(samples.coords[:, 0], samples.coords[:, 1], s=2, color=INK, linewidths=0)
+axes[1].scatter(samples.x, samples.y, s=2, color=INK, linewidths=0)
 fig.colorbar(im, ax=axes[:2], shrink=0.8, label="V (ppm)")
-sd = axes[2].imshow(np.sqrt(variance).reshape(shape), origin="lower", extent=extent, cmap="cividis")
+sd = axes[2].imshow(np.sqrt(grid.grid("variance")[0]), origin="lower", extent=extent, cmap="cividis")
 map_axes(axes[2], "Kriging standard deviation")
-axes[2].scatter(samples.coords[:, 0], samples.coords[:, 1], s=2, color=HIGHLIGHT, linewidths=0)
+axes[2].scatter(samples.x, samples.y, s=2, color=HIGHLIGHT, linewidths=0)
 fig.colorbar(sd, ax=axes[2], shrink=0.8, label="ppm")
 save(fig, "maps")
 

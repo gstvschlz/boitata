@@ -48,12 +48,7 @@ scores = bt.NormalScore().fit(v, weights=weights).transform(v)
 azimuths = (170, 260)
 directional = [bt.experimental_variogram(xy, scores, 10, 120, azimuth=a) for a in azimuths]
 fitted = bt.Variogram.fit_directional(directional, [(a, 0) for a in azimuths], rotation=[170, 0, 0])
-gaussian = bt.Variogram(
-    [(s.model, s.sill / fitted.sill, s.range) for s in fitted.structures],
-    nugget=fitted.nugget / fitted.sill,
-    rotation=fitted.rotation,
-    ratios=fitted.ratios,
-)
+gaussian = fitted.standardized()
 nodes = bt.BlockModel(origin=(1, 1), size=(2, 2), count=(130, 150))
 panels = {
     side: bt.BlockModel(origin=(1, 1), size=(side / 5,) * 2, count=(1280 // side, 1480 // side))
@@ -74,7 +69,7 @@ def inside(side):
 
 def window_mean(values, side):
     """Mean of node `values` over the window of each panel, NaN outside the area."""
-    total = np.pad(values.reshape(150, 130), ((1, 0), (1, 0))).cumsum(0).cumsum(1)
+    total = np.pad(nodes.grid(values)[0], ((1, 0), (1, 0))).cumsum(0).cumsum(1)
     k = side // 2
     i0, j0 = ((panels[side].coords[:, :2] - side / 2 - 1) / 2).round().astype(int).T
     i0, j0 = np.clip(i0, 0, 130 - k), np.clip(j0, 0, 150 - k)
@@ -99,7 +94,7 @@ print(f"data spacing: median {p50:.2f} m, P10 {p10:.1f} m, P90 {p90:.1f} m")
 
 fig, ax = plt.subplots(figsize=(4.6, 4.8), layout="constrained")
 image = ax.imshow(
-    spacing.reshape(150, 130), origin="lower", extent=(1, 261, 1, 301), cmap="magma_r", vmin=0, vmax=35
+    nodes.grid(spacing)[0], origin="lower", extent=(1, 261, 1, 301), cmap="magma_r", vmin=0, vmax=35
 )
 ax.scatter(*xy[:, :2].T, s=2, color=INK, linewidths=0)
 fig.colorbar(image, ax=ax, shrink=0.8, label="Equivalent spacing (m)")

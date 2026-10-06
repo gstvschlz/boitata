@@ -27,7 +27,7 @@ data = bt.datasets.stacked_sulphide_lenses()
 intervals = bt.merge_intervals(data["assays"], data["lithology"])
 drillholes = bt.Drillholes(data["collars"], data["surveys"], intervals)
 composites = drillholes.composite(5.0, ["ZN_PCT"], categories=["LITH"])
-known = composites.filter(~np.isnan(composites["ZN_PCT"]))
+known = composites.drop_null("ZN_PCT")
 
 layers = (23.0, 55.0, 0.0)
 variogram = bt.Variogram([("spherical", 0.8, 200.0)], nugget=0.2, rotation=layers, ratios=(0.8, 0.2))
@@ -39,10 +39,9 @@ along = np.array([np.sin(np.radians(23.0)), np.cos(np.radians(23.0)), 0.0])
 origin = center - 600.0 * across - 300.0 * along + (0.0, 0.0, -400.0)
 model = bt.BlockModel(origin, (20.0, 20.0, 20.0), (60, 30, 40), rotation=(23.0, 0.0, 0.0))
 topography = data["topography"]
-rows = topography.row_at(model.coords[:, :2])
-model = model.filter((rows >= 0) & (model.coords[:, 2] < topography["Z"][rows]))
+model = model.filter(model.z < topography.sample(model.coords[:, :2], "Z"))
 kriged = bt.OrdinaryKriging(variogram, search).fit(known, "ZN_PCT", holes="HOLE_ID").predict(model)
-model = model.filter(~np.isnan(kriged)).with_columns({"ZN_PCT": kriged[~np.isnan(kriged)]})
+model = model.with_columns({"ZN_PCT": kriged}).drop_null("ZN_PCT")
 print(f"{len(model):,} blocks of 20 m")
 ```
 

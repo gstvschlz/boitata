@@ -49,11 +49,7 @@ y = bt.NormalScore(tails=(0.0, v.max())).fit_transform(v, weights=weights)
 
 
 def unit_sill(values):
-    fitted = bt.experimental_variogram(xy, values, 10.0, 150.0).fit("spherical")
-    (structure,) = fitted.structures
-    return bt.Variogram(
-        [("spherical", structure.sill / fitted.sill, structure.range)], nugget=fitted.nugget / fitted.sill
-    )
+    return bt.experimental_variogram(xy, values, 10.0, 150.0).fit("spherical").standardized()
 
 
 score_variogram, plain_variogram = unit_sill(scores), unit_sill(y)
@@ -80,7 +76,6 @@ for k in range(4):
     print(f"{f'quartile {k + 1}':<32}{data_mean:6.0f}{plain_mean:6.0f}{trend_mean:16.0f}")
 
 # %%
-shape = (60, 52)
 extent = (0.5, 260.5, 0.5, 300.5)
 norm = PowerNorm(0.5, vmin=0, vmax=1500)
 fig, axes = plt.subplots(1, 3, figsize=(11.5, 4.4), layout="constrained")
@@ -90,7 +85,7 @@ panels = [
     (by_trend[0], "SGS with the trend, realization 1"),
 ]
 for ax, (image, title) in zip(axes, panels):
-    im = ax.imshow(image.reshape(shape), origin="lower", extent=extent, norm=norm)
+    im = ax.imshow(grid.grid(image)[0], origin="lower", extent=extent, norm=norm)
     map_axes(ax, title)
 fig.colorbar(im, ax=axes, shrink=0.8, label="V (ppm)")
 save(fig, "trend")

@@ -31,7 +31,7 @@ print(
     f"grid {t.grid.count[0]} x {t.grid.count[1]} cells of 20 m, {np.isfinite(z).mean():.0%} inside the outline"
 )
 
-true_z = truth["Z"][truth.row_at(t.grid.coords)]
+true_z = truth.sample(t.grid.coords, "Z")
 error = z - true_z
 print(
     f"against the true surface: mean {np.nanmean(error):+.2f} m, 90% within {np.nanpercentile(np.abs(error), 90):.2f} m"
@@ -70,7 +70,7 @@ other collars past 2 m each have a neighbor with a larger residual, so only the 
 <details><summary>Python</summary>
 
 ```python
-holes = np.asarray(data["collars"]["HOLE_ID"])
+holes = data["collars"]["HOLE_ID"]
 typo = collars.coords.copy()
 typo[100, 2] += 10.0
 checked = bt.topography(typo, cell=20.0, max_residual=2.0)
@@ -107,11 +107,11 @@ between each collar and the gridded surface.
 
 ```python
 table = data["collars"]
-collar = {c: np.asarray(table[c]) for c in table.column_names}
+collar = {c: table[c] for c in table.column_names}
 collar["Z"] = typo[:, 2]
 holes = bt.Drillholes(collar, data["surveys"])
 snapped, report = bt.snap_to_surface(holes, truth, column="Z")
-shift = np.asarray(report["shift"])
+shift = report["shift"]
 worst = np.argmax(np.abs(shift))
 print(
     f"{report['hole'][worst]} moved {shift[worst]:+.2f} m; the other holes within {np.sort(np.abs(shift))[-2]:.2f} m"

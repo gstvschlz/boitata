@@ -3,7 +3,7 @@
 you check a block model one section at a time: true block edges (so a sub-blocked model shows its real geometry
 instead of a resampled raster), the estimate on those blocks, the lens behind it and its drillhole composites, all
 on one plate and one color scale. `section` draws true edges whenever the cut is normal to one of the model's own
-axes; `slab` overlays the lens trace and the composites on the same plane. a `row_at` lookup and `scatter` show
+axes; `slab` overlays the lens trace and the composites on the same plane. `sample` and `scatter` show
 whether the model honors the composites.
 
 <details><summary>Python</summary>
@@ -28,13 +28,13 @@ lens = data["lens_2"]
 parents = bt.BlockModel.from_extents(lens, size=(40, 40, 20), buffer=10, snap=True)
 model = parents.subblock([(lens, "inside", "ore")], 4, fill="waste")
 
-holes = bt.Drillholes(data["collars"], data["surveys"], data["assays"])
+holes = bt.Drillholes.from_tables(data)
 composites = holes.composite(2.0, ["ZN_PCT"])
-xyz, zn = composites.coords, composites["ZN_PCT"]
-inside = lens.contains(xyz) & ~np.isnan(zn)
-ore = np.array(model["domain"]) == "ore"
+inside = composites.drop_null("ZN_PCT")
+inside = inside.filter(lens.contains(inside.coords))
+ore = model["domain"] == "ore"
 grade = np.full(len(model), np.nan)
-estimator = bt.InverseDistance(bt.Search(100, max_samples=12)).fit(xyz[inside], zn[inside])
+estimator = bt.InverseDistance(bt.Search(100, max_samples=12)).fit(inside, "ZN_PCT")
 grade[ore] = estimator.predict(model.coords[ore])
 model = model.with_column("zn", grade)
 ```
@@ -73,16 +73,15 @@ save(fig, "section")
 ## adherence
 
 adherence is a resubstitution test: it asks whether the model honors the holes it came from, which cross-validation
-leaves aside. `row_at` finds the sub-block holding each composite, and `scatter` gives the 1:1 line and the
+leaves aside. `sample` reads the sub-block holding each composite, and `scatter` gives the 1:1 line and the
 regression slope.
 
 <details><summary>Python</summary>
 
 ```python
-rows = model.row_at(xyz[inside])
-paired = rows >= 0
+paired = model.contains(inside.coords)
 fig, ax = plt.subplots(figsize=(5, 5), layout="constrained")
-bt.plot.scatter(zn[inside][paired], model["zn"][rows[paired]], ax=ax)
+bt.plot.scatter(inside["ZN_PCT"][paired], model.sample(inside.coords, "zn")[paired], ax=ax)
 ax.set(xlabel="composite Zn (%)", ylabel="block Zn (%)", title=f"Adherence, {paired.sum()} composites")
 save(fig, "adherence")
 ```

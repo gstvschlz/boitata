@@ -113,7 +113,7 @@ only_flipped = triangles.copy()
 only_flipped[flipped] = only_flipped[flipped, ::-1]
 closed_but_wrong = bt.Mesh(vertices, only_flipped)
 rng = np.random.default_rng(0)
-low, high = np.array(lens.bounds[0]), np.array(lens.bounds[1])
+low, high = np.array(lens.bounds)
 points = low + rng.random((20_000, 3)) * (high - low)
 truth = lens.contains(points)
 print(f"closed: {closed_but_wrong.is_closed}")

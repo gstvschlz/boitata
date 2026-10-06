@@ -30,11 +30,11 @@ from common import ACCENT, GRAY, HIGHLIGHT, INK, save
 
 # %%
 data = bt.datasets.nickel_laterite_profile()
-collars, horizons = data["collars"], data["horizons"]
-holes = bt.Drillholes(collars, data["surveys"])
-sap = np.asarray(horizons["HORIZON"]) == "SAP"
-ids = list(np.asarray(horizons["HOLE_ID"], dtype=object)[sap])
-top, base = np.asarray(horizons["FROM"])[sap], np.asarray(horizons["TO"])[sap]
+horizons = data["horizons"]
+holes = bt.Drillholes.from_tables(data, intervals=None)
+sap = horizons["HORIZON"] == "SAP"
+ids = list(horizons["HOLE_ID"][sap])
+top, base = horizons["FROM"][sap], horizons["TO"][sap]
 contact = holes.at(ids, base)
 
 grid = bt.BlockModel(origin=(29975, 59975, 0), size=(10, 10, 1), count=(106, 76, 1))
@@ -61,19 +61,18 @@ print(
 
 # %%
 unfold = bt.Unfold(bedrock, limonite)
-logged = bt.Drillholes(collars, data["surveys"], horizons).samples()
+logged = bt.Drillholes.from_tables(data, intervals="horizons").samples()
 inside = ~np.isnan(unfold.transform(logged)[:, 2])
-is_sap = np.asarray(logged["HORIZON"]) == "SAP"
+is_sap = logged["HORIZON"] == "SAP"
 print(
     f"in the layer: {inside[is_sap].mean():.1%} of saprolite intervals, {inside[~is_sap].mean():.1%} of others"
 )
 
-assays = bt.Drillholes(collars, data["surveys"], data["assays"]).samples()
+assays = bt.Drillholes.from_tables(data).samples()
 uvw = unfold.transform(assays)
-keep = ~np.isnan(uvw[:, 2]) & ~np.isnan(np.asarray(assays["NI_PCT"]))
-xyz, uvw = assays.coords[keep], uvw[keep]
-ni = np.asarray(assays["NI_PCT"])[keep]
-hole = np.asarray(assays["HOLE_ID"], dtype=object)[keep]
+keep = ~np.isnan(uvw[:, 2]) & ~np.isnan(assays["NI_PCT"])
+assays, uvw = assays.filter(keep), uvw[keep]
+xyz, ni, hole = assays.coords, assays["NI_PCT"], assays["HOLE_ID"]
 print(f"{keep.sum()} assays in the saprolite, Ni {ni.mean():.2f} % mean")
 along = bt.Unfold(bedrock, limonite, reference="footwall").transform(xyz)
 print(

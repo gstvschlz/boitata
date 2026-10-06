@@ -25,7 +25,7 @@ search = bt.Search(radius=80, max_samples=24, min_samples=4, rotation=model.rota
 kriging = bt.BlockKriging(model, search, size=(10, 10), discretization=(5, 5, 1)).fit(xy, v)
 d = kriging.predict(blocks, diagnostics=True)
 true_blocks = truth.reshape(30, 10, 26, 10).mean(axis=(1, 3)).ravel()
-shape, extent = (30, 26), (0.5, 260.5, 0.5, 300.5)
+extent = (0.5, 260.5, 0.5, 300.5)
 ```
 
 </details>
@@ -45,8 +45,8 @@ for ax, key, title in (
     (axes[0], "efficiency", "Kriging efficiency"),
     (axes[1], "slope", "Slope of regression"),
 ):
-    im = ax.imshow(d[key].reshape(shape), origin="lower", extent=extent, vmin=0, vmax=1)
-    ax.scatter(xy[:, 0], xy[:, 1], s=2, color=GRAY, linewidths=0)
+    im = ax.imshow(blocks.grid(d[key])[0], origin="lower", extent=extent, vmin=0, vmax=1)
+    ax.scatter(samples.x, samples.y, s=2, color=GRAY, linewidths=0)
     map_axes(ax, title)
 fig.colorbar(im, ax=axes, shrink=0.8)
 save(fig, "diagnostics")
@@ -68,9 +68,10 @@ print(f"slope of regression: predicted mean {d['slope'].mean():.2f}, observed {o
 groups = np.digitize(d["efficiency"], [0.5, 0.7])
 for g, label in enumerate(("efficiency < 0.5", "0.5 to 0.7", ">= 0.7")):
     k = groups == g
-    error = np.sqrt(np.mean((d["value"][k] - true_blocks[k]) ** 2))
-    corr = np.corrcoef(d["value"][k], true_blocks[k])[0, 1]
-    print(f"{label:>16}: {k.sum():3d} blocks, RMSE {error:5.1f} ppm, correlation with truth {corr:.2f}")
+    c = bt.compare(d["value"][k], true_blocks[k])
+    print(
+        f"{label:>16}: {k.sum():3d} blocks, RMSE {c['rmse']:5.1f} ppm, correlation with truth {c['correlation']:.2f}"
+    )
 ```
 
 </details>
@@ -102,7 +103,7 @@ for label, k in (("full search", full), ("ellipse ran out", ~full)):
 groups = np.digitize(d["negative_weight_sum"], [-0.05, -0.03])
 for g, label in enumerate(("below -0.05", "-0.05 to -0.03", "above -0.03")):
     k = groups == g
-    error = np.sqrt(np.mean((d["value"][k] - true_blocks[k]) ** 2))
+    error = bt.compare(d["value"][k], true_blocks[k])["rmse"]
     print(
         f"negative weights {label:>14}: {k.sum():3d} blocks, RMSE {error:5.1f} ppm, "
         f"mean {d['value'][k].mean():3.0f} ppm against {true_blocks[k].mean():3.0f} true"
@@ -133,8 +134,8 @@ for ax, key, title in (
     (axes[0], "mean_distance", "Mean distance to samples used (m)"),
     (axes[1], "negative_weight_sum", "Sum of negative weights"),
 ):
-    im = ax.imshow(d[key].reshape(shape), origin="lower", extent=extent)
-    ax.scatter(xy[:, 0], xy[:, 1], s=2, color=GRAY, linewidths=0)
+    im = ax.imshow(blocks.grid(d[key])[0], origin="lower", extent=extent)
+    ax.scatter(samples.x, samples.y, s=2, color=GRAY, linewidths=0)
     map_axes(ax, title)
     fig.colorbar(im, ax=ax, shrink=0.8)
 save(fig, "neighborhood")

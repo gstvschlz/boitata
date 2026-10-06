@@ -26,12 +26,12 @@ from common import GRAY, show
 
 # %%
 data = bt.datasets.stacked_sulphide_lenses()
-holes = bt.Drillholes(data["collars"], data["surveys"], data["assays"])
+holes = bt.Drillholes.from_tables(data)
 lenses = [data[f"lens_{i}"] for i in (1, 2, 3)]
 composites = holes.composite(2.0, ["ZN_PCT"])
 grid = bt.BlockModel.from_extents(*lenses, size=(10, 10, 5), buffer=20, rotation=(22.5, 0.0, 55.0))
 search = bt.Search(radius=60, min_samples=1, max_samples=12)
-idw = bt.InverseDistance(search, power=2).fit(composites.coords, composites["ZN_PCT"])
+idw = bt.InverseDistance(search, power=2).fit(composites, "ZN_PCT")
 inside = [lens.contains(grid.coords) for lens in lenses]
 grid = grid.with_columns(
     {
@@ -71,7 +71,7 @@ scene.add(grid, "ZN_PCT", name="grid", **ZN)
 scene.add(lenses[1], name="lens 2", representation="wireframe", color=GRAY, opacity=0.3)
 scene.filters = {"grid": {"lens": ["lens 2"], "ZN_PCT": (2, None)}}
 scene.view(azimuth=305, dip=30)
-middle = np.asarray(grid["lens"], dtype=object) == "lens 2"
+middle = grid["lens"] == "lens 2"
 print(f"filters: {scene.filters}")
 print(f"{(middle & (np.nan_to_num(grid['ZN_PCT']) >= 2)).sum():,} of {middle.sum():,} blocks of lens 2 shown")
 show(scene, "lens", "The blocks of lens 2 at 2 % Zn or more")

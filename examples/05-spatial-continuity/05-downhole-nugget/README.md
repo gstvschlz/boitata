@@ -8,14 +8,13 @@ nugget best. the data: Ni of a nickel laterite, sampled at 1 m down 448 vertical
 ```python
 import boitata as bt
 import matplotlib.pyplot as plt
-import numpy as np
 from common import ACCENT, GRAY, HIGHLIGHT, save
 
 tables = bt.datasets.nickel_laterite_profile()
 intervals = bt.merge_intervals(tables["assays"], tables["horizons"])
 drillholes = bt.Drillholes(tables["collars"], tables["surveys"], intervals)
 runs = drillholes.composite(None, ["NI_PCT"], domain="HORIZON")
-horizon, thickness = np.array(runs["HORIZON"]), np.array(runs["length"])
+horizon, thickness = runs["HORIZON"], runs["length"]
 for name in ["FERR", "LIM", "SAP", "BRK"]:
     print(f"{name:5} mean thickness {thickness[horizon == name].mean():5.1f} m")
 ```
@@ -41,17 +40,9 @@ horizons, lengths = ["LIM", "SAP"], [1.0, 1.5, 2.0]
 nuggets, downhole = {}, {}
 for length in lengths:
     composites = drillholes.composite(length, ["NI_PCT"], domain="HORIZON", residual="merge")
-    horizon, ni = np.array(composites["HORIZON"]), composites["NI_PCT"]
     for name in horizons:
-        keep = (horizon == name) & ~np.isnan(ni)
-        exp = bt.experimental_variogram(
-            composites.coords[keep],
-            ni[keep],
-            length,
-            6 * length,
-            standardize=True,
-            holes=np.array(composites["HOLE_ID"])[keep],
-        )
+        sub = composites.filter(composites["HORIZON"] == name).drop_null("NI_PCT")
+        exp = bt.experimental_variogram(sub, "NI_PCT", length, 6 * length, standardize=True, holes="HOLE_ID")
         nuggets[name, length], downhole[name, length] = exp.nugget(), exp
 print("nugget / variance")
 print("      " + "".join(f"{h:>7}" for h in horizons))

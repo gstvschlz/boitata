@@ -56,5 +56,5 @@ save(fig, "outlines")
 
 # %%
 programs = bt.outline(collars, method="concave", max_edge=3 * spacing, categories="TYPE")
-for label, area in zip(programs.attributes["TYPE"], programs.area(), strict=True):
+for label, area in zip(programs["TYPE"], programs.area(), strict=True):
     print(f"{label}: {area / 1e6:.2f} km²")

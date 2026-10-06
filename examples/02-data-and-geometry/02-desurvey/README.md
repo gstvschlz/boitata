@@ -23,7 +23,7 @@ the deepest hole, `DD0027`, flattens from 55° to 46° and swings from azimuth 2
 ```python
 data = bt.datasets.stacked_sulphide_lenses()
 collar, survey = data["collars"], data["surveys"]
-dh = bt.Drillholes(collar, survey)
+dh = bt.Drillholes.from_tables(data, intervals=None)
 paths = dh.paths()
 print(dh)
 last = np.flatnonzero(paths["HOLE_ID"] == "DD0027")[[0, 1, -2, -1]]

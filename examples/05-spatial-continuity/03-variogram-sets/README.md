@@ -48,7 +48,7 @@ for name, matrix in [("nugget", lmc.nugget)] + [(f"{m} {a:.2f} km", s) for m, a,
     print(f"{name:18} smallest eigenvalue {np.linalg.eigvalsh(matrix)[0]:.2g}")
 sill = lmc.nugget + sum(s for _, _, s in lmc.structures)
 model_corr = sill / np.sqrt(np.outer(np.diag(sill), np.diag(sill)))
-sample_corr = np.corrcoef([train[m] for m in metals])
+sample_corr = bt.correlation(train, columns=metals)
 upper = np.triu_indices(len(metals), 1)
 print(f"largest |model - sample| correlation: {np.abs(model_corr - sample_corr)[upper].max():.2f}")
 ```

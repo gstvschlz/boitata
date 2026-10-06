@@ -113,7 +113,7 @@ for name, model in [("intrinsic", icm), ("full LMC", lmc)]:
     ck = bt.Cokriging(model, search, means=[cd.mean(), zn.mean()])
     ck.fit(np.vstack([xy, xy]), np.r_[cd, zn], [0] * len(cd) + [1] * len(zn))
     estimate = ck.predict(test, collocated={1: test["Zn"]})
-    print(f"{name:>10}: validation RMSE {np.sqrt(np.mean((estimate - truth) ** 2)):.3f} mg/kg")
+    print(f"{name:>10}: validation RMSE {bt.compare(estimate, truth)['rmse']:.3f} mg/kg")
 ```
 
 </details>

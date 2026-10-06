@@ -23,9 +23,7 @@ lag, max_lag = 0.1, 1.5
 def unit_sill(values):
     """Spherical model of the normal scores of `values`, scaled to a unit sill."""
     scores = bt.NormalScore().fit_transform(values)
-    fitted = bt.experimental_variogram(xy, scores, lag, max_lag).fit("spherical")
-    s = fitted.structures[0]
-    return bt.Variogram([("spherical", s.sill / fitted.sill, s.range)], nugget=fitted.nugget / fitted.sill)
+    return bt.experimental_variogram(xy, scores, lag, max_lag).fit("spherical").standardized()
 
 
 print(f"{len(xy)} samples, correlation of Co and Ni {np.corrcoef(samples['Co'], samples['Ni'])[0, 1]:.2f}")
@@ -91,7 +89,7 @@ Co with Ni  correlation with Ni 0.69 to 0.84 (samples 0.75)
 <details><summary>Python</summary>
 
 ```python
-shape, extent = (103, 87), (0.575, 4.925, 0.525, 5.675)
+extent = (0.575, 4.925, 0.525, 5.675)
 fig, axes = plt.subplots(1, 3, figsize=(12, 4.6), layout="constrained")
 for ax, image, title, label in (
     (axes[0], ni.realizations[0], "Ni, realization 1", "Ni (mg/kg)"),
@@ -99,7 +97,7 @@ for ax, image, title, label in (
     (axes[2], with_ni.realizations[0], "Co with Ni, realization 1", "Co (mg/kg)"),
 ):
     top = 45 if label.startswith("Ni") else 20
-    im = ax.imshow(image.reshape(shape), origin="lower", extent=extent, vmin=0, vmax=top)
+    im = ax.imshow(nodes.grid(image)[0], origin="lower", extent=extent, vmin=0, vmax=top)
     ax.set(title=title, xlabel="X (km)", ylabel="Y (km)", aspect="equal")
     fig.colorbar(im, ax=ax, shrink=0.75, label=label)
 save(fig, "maps")
@@ -135,7 +133,7 @@ save(fig, "checks")
 
 ![checks](checks.png)
 
-[DSS](../08-direct-sequential-simulation/README.md) takes the same `secondary` and `correlation` arguments. it
+[DSS](../../08-stochastic-simulation/08-direct-sequential-simulation/README.md) takes the same `secondary` and `correlation` arguments. it
 kriges the grades of Co with their own variogram, standardizes Co and Ni by their declustered means and standard
 deviations instead of normal-scoring them, and cokriges each node in those units. the node is then drawn from the
 histogram of Co with the cokriged mean and variance. `DSS.fit` fits the correlation of the grades:

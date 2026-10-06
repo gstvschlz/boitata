@@ -89,7 +89,7 @@ logs = bt.PointSet(coords, {"chalcocite": np.log(data["calcosina"]), "tennantite
 pair = np.column_stack([logs[n] for n in names])
 weights = bt.cell_declustering(coords, pair[:, 0], cell_size=50.0).weights
 
-lo, hi = coords.min(axis=0), coords.max(axis=0)
+lo, hi = np.array(data.bounds)
 nodes = bt.BlockModel(origin=tuple(lo), size=(25, 25, 25), count=tuple(np.ceil((hi - lo) / 25).astype(int)))
 ppmt = bt.PPMT(seed=7)
 factors = ppmt.fit_transform(pair, weights=weights)

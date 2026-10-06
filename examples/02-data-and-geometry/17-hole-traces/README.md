@@ -29,12 +29,12 @@ collar, survey = data["collars"], data["surveys"]
 flags, _, _ = bt.check_drillholes(
     collar, survey, {"assays": data["assays"], "lithology": data["lithology"]}, max_depth="LENGTH"
 )
-deviated = np.asarray(flags["survey"]["deviation"], dtype=bool)
-flagged_holes = np.asarray(survey["HOLE_ID"], dtype=object)[deviated]
-flagged_depths = np.asarray(survey["DEPTH"], dtype=float)[deviated]
+deviated = flags["survey"]["deviation"]
+flagged_holes = survey["HOLE_ID"][deviated]
+flagged_depths = survey["DEPTH"][deviated]
 print(f"{deviated.sum()} flagged stations, in {sorted(set(flagged_holes))}")
 
-drillholes = bt.Drillholes(collar, survey)
+drillholes = bt.Drillholes.from_tables(data, intervals=None)
 marked = drillholes.at(list(flagged_holes), flagged_depths)
 ```
 
@@ -52,13 +52,13 @@ the holes within 40 m of `DD0197`'s collar, in plan view and on a section across
 <details><summary>Python</summary>
 
 ```python
-at_dd0197 = np.asarray(collar["HOLE_ID"]) == "DD0197"
-x0, y0, z0 = (float(np.asarray(collar[c])[at_dd0197][0]) for c in ("X", "Y", "Z"))
-near = np.hypot(np.asarray(collar["X"]) - x0, np.asarray(collar["Y"]) - y0) < 40.0
-nearby = set(np.asarray(collar["HOLE_ID"])[near])
+at_dd0197 = collar["HOLE_ID"] == "DD0197"
+x0, y0, z0 = (float(collar[c][at_dd0197][0]) for c in ("X", "Y", "Z"))
+near = np.hypot(collar["X"] - x0, collar["Y"] - y0) < 40.0
+nearby = set(collar["HOLE_ID"][near])
 
 paths = drillholes.paths()
-local = paths.filter(np.isin(np.asarray(paths["HOLE_ID"]), list(nearby)))
+local = paths.filter(np.isin(paths["HOLE_ID"], list(nearby)))
 
 fig, axes = plt.subplots(1, 2, figsize=(11, 5.2), layout="constrained")
 bt.plot.holes(local, mark=marked, ax=axes[0])

@@ -45,11 +45,8 @@ lag, max_lag = 10.0, 120.0
 major = bt.experimental_variogram(xy, y, lag, max_lag, azimuth=azimuth).fit("spherical")
 minor = bt.experimental_variogram(xy, y, lag, max_lag, azimuth=azimuth + 90).fit("spherical")
 a_major = major.structures[0].range
-gaussian = bt.Variogram(
-    [("spherical", major.structures[0].sill / major.sill, a_major)],
-    nugget=major.nugget / major.sill,
-    rotation=(azimuth, 0, 0),
-    ratios=(min(minor.structures[0].range / a_major, 1.0), 1.0),
+gaussian = major.standardized().with_anisotropy(
+    (azimuth, 0, 0), (min(minor.structures[0].range / a_major, 1.0), 1.0)
 )
 print(gaussian)
 
@@ -70,7 +67,7 @@ etype, (p10, p90), p500 = summary.mean, summary.quantile_values.T, summary.proba
 nodes = grid.coords.astype(int)
 true_at_nodes = truth[nodes[:, 1] - 1, nodes[:, 0] - 1]
 print(f"mean E-type {etype.mean():.0f} ppm, true {true_at_nodes.mean():.0f}")
-print(f"correlation with the truth {np.corrcoef(etype, true_at_nodes)[0, 1]:.2f}")
+print(f"correlation with the truth {bt.compare(etype, true_at_nodes)['correlation']:.2f}")
 print(
     f"truth inside the 80% interval at {np.mean((true_at_nodes >= p10) & (true_at_nodes <= p90)):.0%} of nodes"
 )
@@ -81,18 +78,17 @@ print(f"expected area above 500 ppm {p500.mean():.1%}, true {np.mean(true_at_nod
 # width says where the samples leave the grade uncertain.
 
 # %%
-shape = (60, 52)
 extent = (0.5, 260.5, 0.5, 300.5)
 norm = PowerNorm(0.5, vmin=0, vmax=1500)
 fig, axes = plt.subplots(1, 4, figsize=(15, 4.4), layout="constrained")
 for ax, image, title in ((axes[0], true_at_nodes, "True V"), (axes[1], etype, "E-type")):
-    im = ax.imshow(image.reshape(shape), origin="lower", extent=extent, norm=norm)
+    im = ax.imshow(grid.grid(image)[0], origin="lower", extent=extent, norm=norm)
     map_axes(ax, title)
 fig.colorbar(im, ax=axes[:2], shrink=0.8, label="V (ppm)")
-width = axes[2].imshow((p90 - p10).reshape(shape), origin="lower", extent=extent, cmap="Greys")
+width = axes[2].imshow(grid.grid(p90 - p10)[0], origin="lower", extent=extent, cmap="Greys")
 map_axes(axes[2], "P90 − P10")
 fig.colorbar(width, ax=axes[2], shrink=0.8, label="ppm")
-p = axes[3].imshow(p500.reshape(shape), origin="lower", extent=extent, vmin=0, vmax=1)
+p = axes[3].imshow(grid.grid(p500)[0], origin="lower", extent=extent, vmin=0, vmax=1)
 map_axes(axes[3], "P(V > 500 ppm)")
 axes[3].scatter(xy[:, 0], xy[:, 1], s=1, color=INK, linewidths=0)
 fig.colorbar(p, ax=axes[3], shrink=0.8, label="probability")
@@ -111,8 +107,10 @@ blocks = mg.predict(panels, cutoffs=[500.0], discretization=(4, 4, 1))
 cells = truth.reshape(15, 20, 13, 20)
 true_share = (cells > 500).mean(axis=(1, 3)).ravel()
 true_mean = cells.mean(axis=(1, 3)).ravel()
-print(f"panel means: r {np.corrcoef(blocks.mean, true_mean)[0, 1]:.2f}")
-print(f"panel shares above 500 ppm: r {np.corrcoef(blocks.probability_above[:, 0], true_share)[0, 1]:.2f}")
+print(f"panel means: r {bt.compare(blocks.mean, true_mean)['correlation']:.2f}")
+print(
+    f"panel shares above 500 ppm: r {bt.compare(blocks.probability_above[:, 0], true_share)['correlation']:.2f}"
+)
 
 fig, (a, b) = plt.subplots(1, 2, figsize=(9, 4), layout="constrained")
 bt.plot.scatter(true_at_nodes, etype, ax=a, s=4, color=ACCENT, alpha=0.4)

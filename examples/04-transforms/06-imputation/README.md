@@ -15,10 +15,10 @@ from common import ACCENT, GRAY, HIGHLIGHT, LIGHT, save
 
 lenses = bt.datasets.stacked_sulphide_lenses()
 samples = bt.merge_intervals(lenses["assays"], lenses["lithology"])
-sulphide = np.isin(np.asarray(samples["LITH"]), ["MS", "SMS", "STR"]) & ~np.isnan(samples["ZN_PCT"])
+sulphide = samples.filter(np.isin(samples["LITH"], ["MS", "SMS", "STR"])).drop_null("ZN_PCT")
 columns = ["ZN_PCT", "PB_PCT", "CU_PCT", "AG_GPT", "AU_GPT", "DENSITY"]
 labels = ["Zn", "Pb", "Cu", "Ag", "Au", "density"]
-data = np.column_stack([samples[c][sulphide] for c in columns])
+data = np.column_stack([sulphide[c] for c in columns])
 missing = np.isnan(data)
 print(
     f"{len(data)} sulphide samples, missing: "
@@ -64,7 +64,7 @@ and the mean of 50 draws with different seeds, close to the conditional mean.
 <details><summary>Python</summary>
 
 ```python
-holes = np.asarray(samples["HOLE_ID"])[sulphide]
+holes = sulphide["HOLE_ID"]
 test = ~missing[:, 5] & np.isin(holes, np.unique(holes)[::2])
 holed = data.copy()
 holed[test, 5] = np.nan
@@ -74,7 +74,7 @@ qs = [0.1, 0.5, 0.9]
 print(f"{test.sum()} densities hidden")
 for name, x in {"truth": truth, "one draw": draws[0], "mean of 50": draws.mean(axis=0)}.items():
     q = ", ".join(f"{v:.2f}" for v in np.quantile(x, qs))
-    rmse = np.sqrt(np.mean((x - truth) ** 2))
+    rmse = bt.compare(x, truth)["rmse"]
     print(f"{name:11} q10, q50, q90: {q}   sd {x.std():.2f}" + (f"   rmse {rmse:.2f}" if rmse else ""))
 
 fig, axes = plt.subplots(1, 2, figsize=(8, 3.6), layout="constrained", sharex=True, sharey=True)

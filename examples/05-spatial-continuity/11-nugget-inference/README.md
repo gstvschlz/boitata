@@ -20,7 +20,7 @@ samples = bt.Drillholes(collars, data["surveys"], intervals).samples()
 kind = dict(zip(collars["HOLE_ID"], collars["TYPE"], strict=True))
 drilling = np.array([kind[h] for h in samples["HOLE_ID"]])
 keep = (samples["LITH"] == "QV") & (samples["VEIN"] == "V1") & (drilling == "CH")
-channels = samples.filter(keep & ~np.isnan(samples["AU_GPT"]))
+channels = samples.filter(keep).drop_null("AU_GPT")
 channels = channels.with_column("LOG_AU", np.log(channels["AU_GPT"]))
 variance = channels["LOG_AU"].var()
 length = channels["TO"] - channels["FROM"]

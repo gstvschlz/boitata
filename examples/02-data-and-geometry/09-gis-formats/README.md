@@ -78,8 +78,8 @@ another ring of the same feature is a hole. open parts are lines: the samples li
 <details><summary>Python</summary>
 
 ```python
-north = np.round(samples.coords[:, 1], -2)
-rows = [samples.coords[north == y][np.argsort(samples.coords[north == y, 0]), :2] for y in np.unique(north)]
+north = np.round(samples.y, -2)
+rows = [samples.coords[north == y][np.argsort(samples.x[north == y]), :2] for y in np.unique(north)]
 survey = bt.Polylines(rows, attributes={"NORTHING": np.unique(north)})
 bt.write_shapefile(folder / "lines.shp", survey)
 lines = bt.read_shapefile(folder / "lines.shp")
@@ -184,16 +184,9 @@ the raster comes back as a regular grid: the 2407 cells outside the survey area 
 <details><summary>Python</summary>
 
 ```python
-nx, ny = raster.count[:2]
-x0, y0 = raster.origin[:2]
-dx, dy = raster.size[:2]
+(x0, y0, _), (x1, y1, _) = raster.bounds
 fig, ax = plt.subplots(figsize=(7, 5), layout="constrained")
-image = ax.imshow(
-    magnetics.reshape(ny, nx),
-    origin="lower",
-    extent=(x0, x0 + nx * dx, y0, y0 + ny * dy),
-    cmap="cividis",
-)
+image = ax.imshow(raster.grid("MAG_NT")[0], origin="lower", extent=(x0, x1, y0, y1), cmap="cividis")
 for part in outline.parts:
     ring = np.vstack([part, part[:1]])
     ax.plot(ring[:, 0], ring[:, 1], color=INK, lw=1.2)

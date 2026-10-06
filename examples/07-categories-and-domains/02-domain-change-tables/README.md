@@ -60,19 +60,16 @@ along = np.array([np.sin(np.radians(23.0)), np.cos(np.radians(23.0)), 0.0])
 origin = center - 600.0 * across - 5.0 * along + [0.0, 0.0, -400.0]
 section = bt.BlockModel(origin, (10.0, 10.0, 10.0), (120, 1, 80), rotation=(23.0, 0.0, 0.0))
 topography = data["topography"]
-rows = topography.row_at(section.coords[:, :2])
-section = section.filter((rows >= 0) & (section.coords[:, 2] < topography["Z"][rows]))
-most_likely = cik.predict(section).most_likely
-section = section.filter(~np.isnan(most_likely))
-section = section.with_columns({"rock": most_likely[~np.isnan(most_likely)]})
+section = section.filter(section.z < topography.sample(section.coords[:, :2], "Z"))
+section = section.with_columns({"rock": cik.predict(section).most_likely}).drop_null("rock")
 
 grade = bt.Variogram([("spherical", 0.8, 200.0)], nugget=0.2, rotation=layers, ratios=(0.8, 0.2))
 search = bt.Search(300.0, max_samples=24, max_per_hole=6, rotation=layers, ratios=(1.0, 0.4))
 for column in ["ZN_PCT", "DENSITY"]:
-    known = composites.filter(~np.isnan(composites[column]))
+    known = composites.drop_null(column)
     kriged = bt.OrdinaryKriging(grade, search).fit(known, column, holes="HOLE_ID").predict(section)
     section = section.with_columns({column: kriged})
-section = section.filter(~np.isnan(section["ZN_PCT"]) & ~np.isnan(section["DENSITY"]))
+section = section.drop_null("ZN_PCT", "DENSITY")
 section = section.with_columns({"clean": bt.remove_small_units(section, "rock", min_volume=5000.0)})
 print(f"{len(section)} cells; {np.sum(section['rock'] != section['clean'])} change rock")
 ```
@@ -95,7 +92,7 @@ the metal of the model: the cleanup moves tonnes and metal between rocks and cre
 ```python
 table = bt.domain_change("rock", "clean", density="DENSITY", grades="ZN_PCT", scheme=scheme, data=section)
 k = len(scheme)
-tonnes = np.asarray(table["tonnage"]).reshape(k, k)
+tonnes = table["tonnage"].reshape(k, k)
 block = section.volumes * section["DENSITY"]
 before = [block[section["rock"] == c].sum() for c in range(k)]
 after = [block[section["clean"] == c].sum() for c in range(k)]
@@ -105,8 +102,7 @@ print(f"unchanged: {np.trace(tonnes) / tonnes.sum():.1%} of {tonnes.sum() / 1e6:
 zinc = np.sum(block * section["ZN_PCT"]) / 100
 print(f"zinc in the table {np.sum(table['metal']) / 100 / 1e3:.2f} kt, in the model {zinc / 1e3:.2f} kt")
 
-start, end = np.asarray(table["from"]), np.asarray(table["to"])
-moved = table.filter((start != end) & (np.asarray(table["tonnage"]) > 0))
+moved = table.filter((table["from"] != table["to"]) & (table["tonnage"] > 0))
 for a, b, t, g in zip(moved["from"], moved["to"], moved["tonnage"], moved["mean_grade"]):
     print(f"{a:>4} to {b:4} {t / 1e3:5.1f} kt at {g:.2f} % Zn")
 ```

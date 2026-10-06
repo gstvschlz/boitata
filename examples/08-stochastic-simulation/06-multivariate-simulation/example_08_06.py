@@ -35,7 +35,7 @@ print(f"{len(pair)} composites, correlation {np.corrcoef(pair.T)[0, 1]:.2f}")
 # of a `PointSet`.
 
 # %%
-lo, hi = coords.min(axis=0), coords.max(axis=0)
+lo, hi = map(np.array, data.bounds)
 count = np.ceil((hi - lo) / (100, 100, 50)).astype(int)
 blocks = bt.BlockModel(origin=tuple(lo), size=(100, 100, 50), count=tuple(count))
 nodes = bt.BlockModel(origin=tuple(lo), size=(25, 25, 25), count=tuple(count * (4, 4, 2)))
@@ -130,7 +130,7 @@ for j, s in enumerate(by_block):
 # complete composites.
 
 # %%
-hidden = np.asarray(data["DHID"]) % 2 == 0
+hidden = data["DHID"] % 2 == 0
 holed = pair.copy()
 holed[hidden, 1] = np.nan
 f = bt.PPMT(seed=7).fit_transform(pair[~hidden], weights=weights[~hidden])
