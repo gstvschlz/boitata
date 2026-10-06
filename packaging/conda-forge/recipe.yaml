@@ -19,6 +19,14 @@ build:
   python:
     version_independent: ${{ is_abi3 }}
   script:
+    # the 3D viewer bundle is built, not tracked; npm is a batch file on Windows, which needs `call`
+    - if: win
+      then:
+        - call npm --prefix js/viewer ci --no-audit --no-fund
+        - call npm --prefix js/viewer run build
+      else:
+        - npm --prefix js/viewer ci --no-audit --no-fund
+        - npm --prefix js/viewer run build
     - cargo-bundle-licenses --format yaml --output THIRDPARTY.yml
     - ${{ PYTHON }} -m pip install . --no-deps --no-build-isolation -vv
 
@@ -32,6 +40,7 @@ requirements:
     - ${{ stdlib('c') }}
     - ${{ compiler('rust') }}
     - cargo-bundle-licenses
+    - nodejs
   host:
     - python
     - if: is_abi3

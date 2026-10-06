@@ -31,7 +31,7 @@ pip install "boitata[all]"
 ```
 
 Published on PyPI and imported as `boitata`. Wheels for Linux, macOS and Windows, Python ≥ 3.11.
-Extras: `plot` (matplotlib), `3d` (pyvista), `all` (also polars, pandas, pyarrow).
+Extras: `plot` (matplotlib), `3d` (the notebook widget of `bt.plot3d`), `export` (headless screenshots), `all` (`plot`, `3d`, polars, pandas, pyarrow).
 See the [install page](https://gstvschlz.github.io/boitata/install/) for uv, poetry, conda, pixi and offline installs.
 
 ## Examples

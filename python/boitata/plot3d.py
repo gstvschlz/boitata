@@ -1,1034 +1,1101 @@
-"""3D views on pyvista (the ``3d`` extra).
+"""3D scenes of drill holes, points, meshes and block models, drawn in the browser by a bundled three.js viewer.
 
-`to_pyvista` converts a container to a pyvista dataset with its attributes as point or cell data. A `Scene` holds
-layers that share one color map and range per variable; `plot` and `slices` add a layer to the scene of `plotter`
-when given, else to a new one, and return the scene.
+A `Scene` shows as a widget in Jupyter, Colab and VS Code (``pip install 'boitata[3d]'``), or as a self-contained
+HTML page opened in the web browser; `Scene.screenshot` renders it to a PNG in headless Chromium
+(``pip install 'boitata[export]'``). Building, saving and showing a scene needs numpy only.
 """
 
+import base64
+import html
+import json
+import math
+import subprocess
 import sys
 import tempfile
+import uuid
+import warnings
 import weakref
 import webbrowser
-from functools import cached_property, singledispatch
-from itertools import pairwise
+from collections.abc import Mapping
+from concurrent.futures import ThreadPoolExecutor
+from functools import cache
 from pathlib import Path
 
 import numpy as np
 
-from boitata._boitata import BlockModel, Drillholes, Mesh, PointSet, _outer_faces
-from boitata.plot import _angles_for_normal, _frame
+from boitata._boitata import BlockModel, Drillholes, Mesh, PointSet
 
-__all__ = ["Scene", "plot", "slices", "to_pyvista"]
+__all__ = ["Scene", "plot"]
 
-_HEX = np.array([[0, 0, 0], [1, 0, 0], [1, 1, 0], [0, 1, 0], [0, 0, 1], [1, 0, 1], [1, 1, 1], [0, 1, 1]])
-
-
-def _pyvista():
-    try:
-        import pyvista
-    except ImportError as e:
-        raise ImportError(
-            "boitata.plot3d needs pyvista: pip install 'boitata[3d]' or conda install -c conda-forge pyvista"
-        ) from e
-    return pyvista
-
-
-def _axes(rotation):
-    """Rows are the world directions of the block model's x, y and z axes."""
-    a, d, r = np.radians(rotation)
-    sa, ca, sd, cd, sr, cr = np.sin(a), np.cos(a), np.sin(d), np.cos(d), np.sin(r), np.cos(r)
-    r1 = np.array([[sa, ca, 0], [-ca, sa, 0], [0, 0, 1]])
-    r2 = np.array([[cd, 0, -sd], [0, 1, 0], [sd, 0, cd]])
-    r3 = np.array([[1, 0, 0], [0, cr, sr], [0, -sr, cr]])
-    m = r3 @ r2 @ r1
-    return np.array([-m[1], m[0], m[2]])
-
-
-def _column(values):
-    return np.where(values == None, "", values).astype(str) if values.dtype == object else values
-
-
-def _columns(table):
-    for name in table.column_names:
-        yield name, _column(table[name])
-
-
-def _blocks(pv, model):
-    origin, size, count = (np.asarray(v, dtype=float) for v in (model.origin, model.size, model.count))
-    axes = _axes(model.rotation)
-    if model.index is None:
-        return pv.ImageData(
-            dimensions=(count + 1).astype(int), spacing=size, origin=origin, direction_matrix=axes.T
-        )
-    parent = model.index.astype(np.int64)
-    nx, ny = int(count[0]), int(count[1])
-    ijk = np.c_[parent % nx, parent // nx % ny, parent // (nx * ny)]
-    extent = model.extents
-    if extent is None:
-        extent = np.tile([0.0, 0.0, 0.0, 1.0, 1.0, 1.0], (len(parent), 1))
-    fraction = np.where(_HEX[None], extent[:, None, 3:], extent[:, None, :3])
-    points = origin + ((ijk[:, None] + fraction) * size).reshape(-1, 3) @ axes
-    cells = np.arange(len(points)).reshape(-1, 8)
-    return pv.UnstructuredGrid({pv.CellType.HEXAHEDRON: cells}, points)
-
-
-class _Solid:
-    """Masked or sub-blocked model drawn as its outer faces; `cells`, its hexahedra, are built on the first cut."""
-
-    def __init__(self, model):
-        self.model = model
-        self.n_cells = len(model)
-
-    @cached_property
-    def cells(self):
-        return to_pyvista(self.model)
-
-    @property
-    def bounds(self):
-        return self.cells.bounds
-
-    def slice(self, **kwargs):
-        return self.cells.slice(**kwargs)
-
-    def faces(self, values):
-        """Faces between a block and an empty cell or the grid's edge, a null of `values` counting as empty."""
-        table = self.model.attributes
-        name = values if values is not None else next(iter(table.column_names), None)
-        field = None if name is None else _column(table[name])
-        points, quads, rows = _outer_faces(self.model, None if values is None else _valid(field))
-        out = _pyvista().PolyData.from_regular_faces(points, quads)
-        if name is not None:
-            out.cell_data[name] = field[rows]
-        return out
-
-
-def to_pyvista(data):
-    """pyvista dataset of a container, attributes attached.
-
-    Parameters
-    ----------
-    data : PointSet, Drillholes, BlockModel or Mesh
-        A `PointSet` becomes points (``PolyData``) with point data; `Drillholes` one polyline per hole through
-        its desurveyed stations, with ``depth`` as point data; a regular `BlockModel` an ``ImageData`` oriented
-        by its rotation, a masked or sub-blocked one hexahedra (``UnstructuredGrid``), one cell per row with
-        cell data; a `Mesh` triangles (``PolyData``) with vertex and face attributes.
-
-    Returns
-    -------
-    pyvista.DataSet
-    """
-    pv = _pyvista()
-    if isinstance(data, PointSet):
-        out = pv.PolyData(data.coords)
-        fields = [(out.point_data, data.attributes)]
-    elif isinstance(data, Drillholes):
-        paths = data.paths()
-        hole = np.array(paths[paths.column_names[0]])
-        starts = np.flatnonzero(np.r_[True, hole[1:] != hole[:-1], True])
-        lines = [v for a, b in pairwise(starts) if b - a > 1 for v in (b - a, *range(a, b))]
-        out = pv.PolyData(np.c_[paths["x"], paths["y"], paths["z"]], lines=lines or None)
-        out.point_data["depth"] = paths["depth"]
-        fields = []
-    elif isinstance(data, BlockModel):
-        out = _blocks(pv, data)
-        fields = [(out.cell_data, data.attributes)]
-    elif isinstance(data, Mesh):
-        out = pv.PolyData.from_regular_faces(data.vertices, data.triangles)
-        fields = [(out.point_data, data.vertex_attributes), (out.cell_data, data.face_attributes)]
-    else:
-        raise TypeError(f"cannot convert {type(data).__name__} to pyvista")
-    for target, table in fields:
-        for name, values in _columns(table):
-            target[name] = values
-    return out
-
-
-@singledispatch
-def _layer(data):
-    """pyvista dataset of `data` and its ``add_mesh`` defaults; each data type registers its own."""
-    return (data, {}) if isinstance(data, _pyvista().DataObject) else (to_pyvista(data), {})
-
-
-@_layer.register
-def _(data: BlockModel):
-    return (to_pyvista(data) if data.index is None else _Solid(data)), {}
-
-
-@_layer.register
-def _(data: PointSet):
-    return to_pyvista(data), {"render_points_as_spheres": True, "point_size": 6}
-
-
-def _traces(data):
-    if data.interval_columns is None:
-        return to_pyvista(data)
-    table = data.samples().attributes
-    hole, start, end = data.interval_columns
-    holes = list(table[hole])
-    ends = np.hstack([data.at(holes, table[start]), data.at(holes, table[end])]).reshape(-1, 3)
-    segments = np.arange(len(ends)).reshape(-1, 2)
-    lines = _pyvista().PolyData(ends, lines=np.c_[np.full(len(segments), 2), segments].ravel())
-    for name, values in _columns(table):
-        lines.cell_data[name] = values
-    return lines
-
-
-@_layer.register
-def _(data: Drillholes, *, radius=None):
-    lines = _traces(data)
-    return lines.tube(radius=lines.length / 400 if radius is None else radius), {}
-
-
-def _collars(data):
-    paths = data.paths()
-    hole = np.asarray(paths[paths.column_names[0]])
-    first = np.r_[True, hole[1:] != hole[:-1]]
-    return np.c_[paths["x"], paths["y"], paths["z"]][first], hole[first].tolist()
-
-
-def _text(field):
-    return field.dtype.kind in "OUS"
-
-
-def _on_cells(mesh, values):
-    return mesh.get_array_association(values).name == "CELL"
-
-
-def _valid(field):
-    return field != "" if _text(field) else np.isfinite(field)
-
-
-def _drop_nulls(mesh, values):
-    keep = _valid(mesh.get_array(values))
-    if keep.all():
-        return mesh
-    if _on_cells(mesh, values):
-        return mesh.extract_cells(keep)
-    return mesh.extract_points(keep, adjacent_cells=False)
-
-
-def _image(pv, cube, origin, spacing, axes, values):
-    out = pv.ImageData(dimensions=cube.shape, spacing=spacing, origin=origin, direction_matrix=axes)
-    out.point_data[values] = cube.ravel(order="F")
-    return out
-
-
-def _volume(pv, mesh, values):
-    """Block centers as points padded by one null layer, so nearest interpolation fills each block to its faces."""
-    if not isinstance(mesh, pv.ImageData) or not _on_cells(mesh, values):
-        raise ValueError("style='volume' needs a regular block model; BlockModel.to_regular makes one")
-    field = mesh.cell_data[values]
-    keep = np.isfinite(field)
-    lo, hi = float(field[keep].min()), float(field[keep].max())
-    null = lo - max(hi - lo, 1.0)
-    cube = np.where(keep, field, null).astype(np.float32).reshape(np.subtract(mesh.dimensions, 1), order="F")
-    axes = np.asarray(mesh.direction_matrix)
-    origin = mesh.origin - axes @ np.multiply(mesh.spacing, 0.5)
-    grid = _image(pv, np.pad(cube, 1, constant_values=null), origin, mesh.spacing, axes, values)
-    return grid, (null, lo, hi)
-
-
-def _memory(mapper, values):
-    """Share of the GPU memory budget a volume takes."""
-    budget = mapper.GetMaxMemoryInBytes() * mapper.GetMaxMemoryFraction()
-    return mapper.dataset.point_data[values].nbytes / budget
-
-
-def _points_only(mesh):
-    return isinstance(mesh, _pyvista().PolyData) and mesh.n_verts == mesh.n_cells
-
-
-def _cheap(pv, data, mesh, values, fraction):
-    """About `fraction` of a layer's geometry, and the ``add_mesh`` options that draw it, or None to keep it."""
-    if isinstance(data, Drillholes):
-        return _traces(data), {}
-    if isinstance(mesh, pv.ImageData) and (values is None or _on_cells(mesh, values)):
-        shape = np.subtract(mesh.dimensions, 1)
-        step = np.where(shape > 1, int(np.ceil(fraction ** (-1 / max((shape > 1).sum(), 1)))), 1)
-        out = pv.ImageData(
-            dimensions=-(-shape // step) + 1,
-            spacing=np.multiply(mesh.spacing, step),
-            origin=mesh.origin,
-            direction_matrix=mesh.direction_matrix,
-        )
-        every = tuple(slice(None, None, s) for s in step)
-        for name, field in mesh.cell_data.items():
-            out.cell_data[name] = field.reshape(shape, order="F")[every].ravel(order="F")
-        return out, {}
-    if not isinstance(mesh, pv.PolyData) or _points_only(mesh):
-        n = mesh.n_points if _points_only(mesh) else mesh.n_cells
-        keep = np.sort(np.random.default_rng(0).choice(n, max(round(fraction * n), 1), replace=False))
-        if not _points_only(mesh):
-            return mesh.extract_cells(keep), {}
-        out = pv.PolyData(mesh.points[keep])
-        for name, field in mesh.point_data.items():
-            out.point_data[name] = field[keep]
-        return out, {"render_points_as_spheres": False}
-    from vtkmodules.vtkFiltersCore import vtkQuadricClustering
-
-    alg = vtkQuadricClustering()
-    alg.SetInputData(mesh)
-    alg.CopyCellDataOn()
-    alg.UseInputPointsOn()
-    alg.SetNumberOfDivisions(*[max(int(np.sqrt(fraction * mesh.n_cells / 2)), 2)] * 3)
-    alg.Update()
-    out = pv.wrap(alg.GetOutput())
-    if out.n_cells and values in mesh.point_data and not _text(mesh.point_data[values]):
-        out = out.sample(mesh)
-    return (out, {}) if out.n_cells and (values is None or values in out.array_names) else (None, {})
-
-
-_BUDGET = 50_000
-_KINDS = {
-    "block models": "block model",
-    "drill holes": "drill holes",
-    "surfaces": "surface",
-    "points": "points",
+_BUNDLE = Path(__file__).with_name("_viewer.js")
+_COLORMAPS = ("viridis", "magma", "inferno", "plasma", "cividis", "turbo")
+_THEMES = ("auto", "light", "dark")
+_THEME_KEYS = (
+    "background",
+    "panel",
+    "raised",
+    "border",
+    "text",
+    "muted",
+    "grid",
+    "box",
+    "accent",
+    "layer",
+    "halo",
+)
+_WARN_BYTES = 200 * 2**20
+_FILTER_SLOTS = 4
+_SECTION_POINTS = 17
+_NAMES = {"drillholes": "drill holes", "points": "points", "mesh": "mesh", "blocks": "block model"}
+_REPRESENTATIONS = {
+    "drillholes": ("lines", "tubes", "points"),
+    "points": ("points", "spheres"),
+    "mesh": ("surface", "wireframe", "points"),
+    "blocks": ("cells", "wireframe", "points"),
+}
+_SIZES = {
+    "point_size": {"drillholes", "points", "mesh", "blocks"},
+    "line_width": {"drillholes", "mesh", "blocks"},
+    "radius": {"drillholes", "points"},
 }
 
 
-def _kind(data, mesh):
-    """Group of a layer in `Scene.layer_toggles`."""
-    pv = _pyvista()
-    if isinstance(data, BlockModel) or isinstance(mesh, _Solid | pv.ImageData | pv.UnstructuredGrid):
-        return "block models"
-    if isinstance(data, Drillholes) or (isinstance(mesh, pv.PolyData) and mesh.n_lines and not mesh.n_faces):
-        return "drill holes"
-    if isinstance(data, PointSet) or _points_only(mesh):
-        return "points"
-    return "surfaces"
+def _motion_quality(value):
+    if isinstance(value, str) and value in ("auto", "full"):
+        return value
+    if isinstance(value, int | float) and not isinstance(value, bool) and 0 < value <= 1:
+        return float(value)
+    raise ValueError(f"motion_quality must be 'auto', 'full' or a number in (0, 1], got {value!r}")
 
 
-def _segments(points):
-    """Vertical plane of each segment of an xy polyline: start, along-segment unit vector, length, chainage."""
-    xy = np.asarray(points, dtype=float)
-    if xy.ndim != 2 or len(xy) < 2 or xy.shape[1] not in (2, 3):
-        raise ValueError(f"points must be (n, 2) or (n, 3) with n >= 2, got shape {xy.shape}")
-    xy = xy[:, :2]
-    steps = np.diff(xy, axis=0)
-    lengths = np.hypot(*steps.T)
-    keep = lengths > 0
-    if not keep.any():
-        raise ValueError("points must not all coincide")
-    chainage = np.r_[0.0, np.cumsum(lengths[keep])[:-1]]
-    return [
-        (np.r_[start, 0.0], np.r_[step / length, 0.0], length, at)
-        for start, step, length, at in zip(xy[:-1][keep], steps[keep], lengths[keep], chainage, strict=True)
+def _bundle():
+    if not _BUNDLE.exists():
+        raise RuntimeError(
+            f"the 3D viewer bundle {_BUNDLE.name} is missing; build it with `mise run js:build`"
+        )
+    return _BUNDLE
+
+
+def _theme(theme):
+    if isinstance(theme, str):
+        if theme not in _THEMES:
+            raise ValueError(f"theme must be one of {', '.join(_THEMES)} or a dict, got {theme!r}")
+        return theme
+    if not isinstance(theme, Mapping):
+        raise TypeError(f"theme must be a str or a dict, got {type(theme).__name__}")
+    unknown = set(theme) - {"base", *_THEME_KEYS}
+    if unknown:
+        raise ValueError(f"unknown theme keys {sorted(unknown)}; valid keys: base, {', '.join(_THEME_KEYS)}")
+    if theme.get("base", "auto") not in _THEMES:
+        raise ValueError(f"theme base must be one of {', '.join(_THEMES)}, got {theme['base']!r}")
+    if not all(isinstance(v, str) for v in theme.values()):
+        raise TypeError("theme values must be CSS color strings")
+    return dict(theme)
+
+
+def _valid_text(values):
+    def valid(v):
+        return v is not None and v != "" and not (isinstance(v, float) and math.isnan(v))
+
+    return np.array([valid(v) for v in values.tolist()], dtype=bool)
+
+
+def _encode(values):
+    """Float32 values with NaN for nulls, or int32 category codes with -1 for nulls; None when all null."""
+    a = np.asarray(values)
+    if a.dtype == object or a.dtype.kind in "USb":
+        a = a.astype(object)
+        valid = _valid_text(a)
+        if not valid.any():
+            return None
+        categories, codes = np.unique(a[valid].astype(str), return_inverse=True)
+        out = np.full(len(a), -1, dtype=np.int32)
+        out[valid] = codes
+        return out, {"type": "text", "categories": categories.tolist()}
+    if a.dtype.kind not in "iuf":
+        return None
+    out = a.astype(np.float32)
+    valid = np.isfinite(out)
+    if not valid.any():
+        return None
+    out[~valid] = np.nan
+    return out, {"type": "number", "min": float(out[valid].min()), "max": float(out[valid].max())}
+
+
+def _drillholes(data):
+    """Per-interval segments split at survey stations, or per-hole traces without intervals.
+
+    Returns the geometry, the table of rows and the hole, from and to column names (from and to None for traces).
+    """
+    paths = data.paths()
+    hole_column = paths.column_names[0]
+    station_holes = np.asarray(paths[hole_column], dtype=object)
+    station_depths = np.asarray(paths["depth"], dtype=np.float64)
+    if data.interval_columns is None:
+        xyz = np.c_[paths["x"], paths["y"], paths["z"]]
+        same = station_holes[1:] == station_holes[:-1]
+        starts = np.flatnonzero(same)
+        geometry = {
+            "positions": np.c_[xyz[starts], xyz[starts + 1]].reshape(-1, 3),
+            "rows": np.arange(len(starts), dtype=np.uint32),
+            "midpoints": (xyz[starts] + xyz[starts + 1]) / 2,
+            "depths": np.c_[station_depths[starts], station_depths[starts + 1]],
+        }
+        return geometry, {hole_column: station_holes[starts]}, (hole_column, None, None)
+    table = data.samples().attributes
+    hole, start, end = data.interval_columns
+    holes = np.asarray(table[hole], dtype=object)
+    lo, hi = np.asarray(table[start], dtype=np.float64), np.asarray(table[end], dtype=np.float64)
+    names, codes = np.unique(np.r_[station_holes, holes].astype(str), return_inverse=True)
+    station_code, interval_code = codes[: len(station_holes)], codes[len(station_holes) :]
+    span = max(float(np.nanmax(np.abs(np.r_[station_depths, lo, hi]))), 1.0) * 2 + 1
+    key = station_code * span + station_depths
+    order = np.argsort(key, kind="stable")
+    key, depths = key[order], station_depths[order]
+    first = np.searchsorted(key, interval_code * span + lo, side="right")
+    last = np.searchsorted(key, interval_code * span + hi, side="left")
+    inner = np.maximum(last - first, 0)
+    count = inner + 2
+    at = np.cumsum(count) - count
+    along = np.empty(int(count.sum()))
+    along[at] = lo
+    along[at + count - 1] = hi
+    before = np.cumsum(inner) - inner
+    k = np.arange(int(inner.sum()))
+    along[np.repeat(at + 1 - before, inner) + k] = depths[np.repeat(first - before, inner) + k]
+    xyz = data.at(names[np.repeat(interval_code, count)].tolist(), along)
+    a = np.delete(np.arange(len(along)), at + count - 1)
+    geometry = {
+        "positions": np.c_[xyz[a], xyz[a + 1]].reshape(-1, 3),
+        "rows": np.repeat(np.arange(len(holes), dtype=np.uint32), count - 1),
+        "midpoints": data.at(names[interval_code].tolist(), (lo + hi) / 2),
+        "depths": np.c_[lo, hi],
+    }
+    return geometry, table, (hole, start, end)
+
+
+def _block_axes(model):
+    """Unit world directions of the model's x, y and z axes, from the corners boitata gives a one-cell model."""
+    corners = BlockModel((0.0, 0.0, 0.0), (1.0, 1.0, 1.0), (1, 1, 1), rotation=tuple(model.rotation)).corners[
+        0
     ]
+    return np.array([corners[1] - corners[0], corners[2] - corners[0], corners[4] - corners[0]])
 
 
-def _snap(start, end):
-    """`end` moved onto the nearest bearing from `start` that is a multiple of 45°, keeping its projection."""
-    step = np.subtract(end, start)
-    bearing = np.radians(np.round(np.degrees(np.arctan2(step[0], step[1])) / 45) * 45)
-    direction = np.array([np.sin(bearing), np.cos(bearing)])
-    return np.asarray(start, dtype=float) + max(step @ direction, 0.0) * direction
+def _block_sizes(model):
+    size = np.asarray(model.size, dtype=np.float64)
+    extents = model.extents
+    if extents is None:
+        return np.tile(size, (len(model), 1))
+    return (np.asarray(extents)[:, 3:] - np.asarray(extents)[:, :3]) * size
 
 
-def _colab_iframe(viewer, src, **kwargs):
-    """Embeds a trame view through Colab's proxy of the kernel's ports."""
-    from urllib.parse import urlsplit
+def _layer(data):
+    """Kind, world-coordinate geometry (name to array), attribute tables by association, and drill holes' columns."""
+    if isinstance(data, PointSet):
+        return (
+            "points",
+            {"positions": np.asarray(data.coords, dtype=np.float64)},
+            {"row": data.attributes},
+            None,
+        )
+    if isinstance(data, Drillholes):
+        geometry, table, holes = _drillholes(data)
+        return "drillholes", geometry, {"row": table}, holes
+    if isinstance(data, BlockModel):
+        geometry = {"centers": np.asarray(data.centroids, dtype=np.float64), "sizes": _block_sizes(data)}
+        return "blocks", geometry, {"row": data.attributes}, None
+    if isinstance(data, Mesh):
+        geometry = {
+            "positions": np.asarray(data.vertices, dtype=np.float64),
+            "triangles": np.asarray(data.triangles, dtype=np.uint32),
+        }
+        return "mesh", geometry, {"vertex": data.vertex_attributes, "face": data.face_attributes}, None
+    raise TypeError(f"cannot draw {type(data).__name__}; pass a PointSet, Drillholes, BlockModel or Mesh")
 
-    from google.colab import output
 
-    url = urlsplit(src)
-    height = str(kwargs.get("height", "600px"))
-    height = int(height[:-2]) if height.endswith("px") else 600
-    output.serve_kernel_port_as_iframe(url.port, path=f"{url.path}?{url.query}", height=height)
+def _real(value):
+    return isinstance(value, int | float | np.integer | np.floating) and not isinstance(
+        value, bool | np.bool_
+    )
 
 
-_SCENES = weakref.WeakKeyDictionary()
+def _filter(layer, conditions):
+    """A layer's filter as the viewer reads it, from column name to a (low, high) tuple or a list of categories."""
+    if not isinstance(conditions, Mapping):
+        raise TypeError(
+            f"filter must be a dict of column name to (low, high) or a list of categories, got {conditions!r}"
+        )
+    if len(conditions) > _FILTER_SLOTS:
+        raise ValueError(f"a layer filters on {_FILTER_SLOTS} columns at most, got {len(conditions)}")
+    columns = {c["name"]: c for c in layer["columns"]}
+    out = {}
+    for name, condition in conditions.items():
+        column = columns.get(name)
+        if column is None:
+            raise ValueError(
+                f"cannot filter {layer['name']!r} by {name!r}: not a column sent to the viewer; "
+                f"columns: {', '.join(columns) or 'none'} (columns= limits them)"
+            )
+        if column["type"] == "number":
+            if not isinstance(condition, tuple):
+                raise TypeError(
+                    f"filter on number column {name!r} must be a (low, high) tuple, got {condition!r}"
+                )
+            if len(condition) != 2 or not all(
+                b is None or (_real(b) and math.isfinite(b)) for b in condition
+            ):
+                raise ValueError(
+                    f"filter on {name!r} must be (low, high), finite numbers or None, got {condition!r}"
+                )
+            low, high = (None if b is None else float(b) for b in condition)
+            if low is not None and high is not None and low > high:
+                raise ValueError(f"filter on {name!r} must have low <= high, got {condition!r}")
+            out[name] = {"range": [low, high]}
+        else:
+            if isinstance(condition, str | tuple) or not isinstance(condition, list | set | frozenset):
+                raise TypeError(
+                    f"filter on text column {name!r} must be a list of categories, got {condition!r}"
+                )
+            unknown = sorted(str(c) for c in condition if c not in column["categories"])
+            if unknown:
+                raise ValueError(
+                    f"no categories {unknown} in {name!r}; categories: {', '.join(column['categories'])}"
+                )
+            out[name] = {"categories": [c for c in column["categories"] if c in condition]}
+    return out
+
+
+def _filter_tuples(state):
+    return {
+        name: tuple(None if b is None else float(b) for b in c["range"])
+        if "range" in c
+        else list(c["categories"])
+        for name, c in state.items()
+    }
+
+
+def _section(points, width, dip):
+    """A section's state: its distinct plan vertices, the elevation it hinges on (None for the scene's middle)."""
+    try:
+        a = np.asarray(points, dtype=np.float64)
+    except (TypeError, ValueError):
+        raise ValueError(f"points must be a sequence of (x, y) or (x, y, z), got {points!r}") from None
+    if a.ndim != 2 or a.shape[1] not in (2, 3):
+        raise ValueError(f"points must be (x, y) or (x, y, z) rows, got shape {a.shape}")
+    if not np.isfinite(a).all():
+        raise ValueError("points must be finite numbers")
+    z = float(a[:, 2].mean()) if a.shape[1] == 3 else None
+    a = a[np.r_[True, (np.diff(a[:, :2], axis=0) != 0).any(axis=1)]]
+    if len(a) < 2:
+        raise ValueError("a section needs at least 2 distinct points in plan")
+    if len(a) > _SECTION_POINTS:
+        raise ValueError(f"a section takes at most {_SECTION_POINTS} points, got {len(a)}")
+    if width is not None and not (_real(width) and 0 < width < math.inf):
+        raise ValueError(f"width must be a positive number or None, got {width!r}")
+    if not (_real(dip) and 0 < dip <= 90):
+        raise ValueError(f"dip must be in (0, 90] degrees, got {dip!r}")
+    return {
+        "points": a[:, :2].tolist(),
+        "z": z,
+        "width": None if width is None else float(width),
+        "dip": float(dip),
+        "unfolded": False,
+    }
+
+
+def _names(table):
+    return list(table) if isinstance(table, Mapping) else table.column_names
+
+
+def _bounds(points):
+    points = points[np.isfinite(points).all(axis=1)]
+    return (points.min(axis=0), points.max(axis=0)) if len(points) else None
+
+
+def _in_notebook():
+    try:
+        from IPython import get_ipython
+    except ImportError:
+        return False
+    shell = get_ipython()
+    return shell is not None and getattr(shell, "kernel", None) is not None
+
+
+@cache
+def _widget_class():
+    import anywidget
+    import traitlets
+
+    class SceneWidget(anywidget.AnyWidget):
+        _esm = _bundle()
+        spec = traitlets.Dict().tag(sync=True)
+        buffers = traitlets.Dict().tag(sync=True)
+        filters = traitlets.Dict().tag(sync=True)
+        section = traitlets.Dict().tag(sync=True)
+        picked = traitlets.Dict().tag(sync=True)
+        view = traitlets.Dict().tag(sync=True)
+        key = traitlets.Unicode().tag(sync=True)
+
+    return SceneWidget
+
+
+_PAGE = """<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{title}</title>
+<style>html, body {{ margin: 0; height: 100%; }} #scene {{ height: 100%; }}</style>
+</head>
+<body>
+<div id="scene"></div>
+<script id="scene-viewer" type="text/plain">{bundle}</script>
+<script id="scene-data" type="application/json">{data}</script>
+<script type="module">
+const text = (id) => document.getElementById(id).textContent;
+const code = Uint8Array.from(atob(text("scene-viewer")), (c) => c.charCodeAt(0));
+const viewer = await import(URL.createObjectURL(new Blob([code], {{ type: "text/javascript" }})));
+window.scene = await viewer.default.mount(document.getElementById("scene"), JSON.parse(text("scene-data")), {{ fill: true }});
+</script>
+</body>
+</html>
+"""
+
+_CHROMIUM_ARGS = ["--use-angle=swiftshader", "--enable-unsafe-swiftshader"]
+_ASPECT = 1.6
+_MAX_SCALE = 8
+_SHOOT = """async ([scale, panel, transparent]) => {
+    const blob = await window.scene.screenshot(scale, panel, transparent);
+    const bytes = new Uint8Array(await blob.arrayBuffer());
+    let text = "";
+    for (let i = 0; i < bytes.length; i += 0x8000) text += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+    return btoa(text);
+}"""
+
+
+def _capture(page, width, height, scale, panel, transparent):
+    """PNG bytes of `page` taken in headless Chromium, downloading Chromium first if Playwright has none."""
+    from playwright.sync_api import Error, sync_playwright
+
+    with sync_playwright() as p:
+        try:
+            browser = p.chromium.launch(args=_CHROMIUM_ARGS)
+        except Error as e:
+            if "Executable doesn't exist" not in str(e) and "playwright install" not in str(e):
+                raise
+            print("boitata: downloading Chromium for headless screenshots, once", flush=True)
+            subprocess.run(
+                [sys.executable, "-m", "playwright", "install", "chromium"], check=True, capture_output=True
+            )
+            browser = p.chromium.launch(args=_CHROMIUM_ARGS)
+        try:
+            tab = browser.new_page(viewport={"width": width, "height": height})
+            tab.goto(page.as_uri())
+            tab.wait_for_function("window.scene !== undefined", timeout=120_000)
+            return base64.b64decode(tab.evaluate(_SHOOT, [scale, panel, transparent]))
+        finally:
+            browser.close()
+
+
+def _headless(page_html, width, height, scale, panel, transparent):
+    try:
+        import playwright.sync_api  # noqa: F401
+    except ImportError:
+        raise ImportError(
+            "screenshots render in headless Chromium through playwright; pip install 'boitata[export]'"
+        ) from None
+    with tempfile.TemporaryDirectory() as folder:
+        page = Path(folder) / "scene.html"
+        page.write_text(page_html, encoding="utf-8")
+        # a thread of its own: Playwright's sync API refuses to run inside the event loop of a notebook
+        with ThreadPoolExecutor(1) as pool:
+            return pool.submit(_capture, page, width, height, scale, panel, transparent).result()
+
+
+_FALLBACK_MS = 4000
+_FALLBACK = """<div data-btv-fallback="{key}" hidden><template>{frame}</template></div>
+<script>(() => {{
+  const key = "{key}", start = Date.now();
+  const tick = () => {{
+    const box = document.querySelector(`[data-btv-fallback="${{key}}"]`);
+    if (!box) return;
+    if (document.querySelector(`[data-btv-key="${{key}}"]`)) return box.remove();
+    if (box.hidden && Date.now() - start > {delay}) {{
+      box.append(box.querySelector("template").content.cloneNode(true));
+      box.hidden = false;
+      const failed = box.closest(".jp-OutputArea-child")?.previousElementSibling;
+      if (failed && !failed.querySelector("[data-btv-key]") && failed.textContent.includes("anywidget"))
+        failed.hidden = true;
+    }}
+    if (Date.now() - start < 60000) setTimeout(tick, 250);
+  }};
+  tick();
+}})();</script>"""
+
+
+def _frame(page, height, hint):
+    """The page in an iframe, with a line of `hint` under it."""
+    return (
+        f'<iframe srcdoc="{html.escape(page, quote=True)}" allow="fullscreen" allowfullscreen '
+        f'style="width:100%;height:{height}px;border:0"></iframe>'
+        f'<div style="font:12px system-ui,sans-serif;opacity:.7">{html.escape(hint)}</div>'
+    )
 
 
 class Scene:
-    """Live 3D scene: layers colored by a variable share its color map and range.
+    """3D scene of drill holes, points, meshes and block models, drawn by a three.js viewer.
+
+    Layers colored by the same variable share its color map, range and color bar. Null values are never drawn:
+    a row null in the column that colors its layer is left out, and nulls never enter a color range.
 
     Parameters
     ----------
-    plotter : pyvista.Plotter, optional
-        Plotter to draw into; a new one by default.
+    theme : {"auto", "light", "dark"} or dict, default "auto"
+        Colors of the background, box, grid, labels, panel and color bars, and of layers drawn in no color of
+        their own. ``"auto"`` follows the page hosting the viewer (JupyterLab, VS Code, the documentation) or else
+        the system preference, and switches with it. A dict overrides keys of a built-in theme: ``base``
+        (``"auto"``, ``"light"`` or ``"dark"``, default ``"auto"``) and CSS colors for ``background``, ``panel``,
+        ``raised``, ``border``, ``text``, ``muted``, ``grid``, ``box``, ``accent``, ``layer`` and ``halo`` (the
+        thin outline that keeps screen-size lines and points readable on any background).
+    height : int, default 600
+        Height of the viewer in a notebook, in pixels; a saved page fills the browser window.
     motion_quality : {"auto", "full"} or float, default "auto"
-        What draws while the camera moves (dragged or zoomed): ``"full"`` every layer as it is; ``"auto"`` a cheaper
-        copy of about 50 000 cells or points of each larger layer (a volume also when it exceeds GPU memory); a
-        number in (0, 1] a cheaper copy of every layer with about that fraction of its geometry. Once the camera
-        stops, the layers draw in full again. Each copy is built the first time the camera moves and kept: a
-        regular block model takes every n-th block along each axis, points a fixed random subset drawn flat,
-        other cells and the faces of masked or sub-blocked models a fixed random subset, drill holes lines in place of tubes,
-        surfaces a decimated copy; each keeps its layer's colors and leaves nulls out. Takes effect in the native window and in trame with server
-        rendering; client rendering (vtk.js, ``show(browser=True)``) draws the full layers.
-    **kwargs
-        Passed to ``pyvista.Plotter`` when `plotter` is not given (e.g. ``window_size``, ``off_screen``).
-
-    Attributes
-    ----------
-    plotter : pyvista.Plotter
-        Attributes the scene does not have are looked up on it (``view_vector``, ``close``, ...).
-    colors : dict of str to pyvista.LookupTable
-        Color map and range of each variable, shared by every layer it colors.
-    motion_quality : {"auto", "full"} or float
-        As the parameter; setting it drops the cheaper copies built so far.
+        What draws while the camera moves; the full scene draws again about 150 ms after it stops. ``"full"``
+        draws everything. A number in (0, 1] draws about that share of each layer's instances (blocks, segments,
+        points; surfaces stay whole), an evenly spread subset that keeps each layer's shape, at a resolution
+        lowered to match. ``"auto"`` starts from what the scene's size suggests and adapts to the measured frame
+        time. The panel's Quality control switches between the three while viewing.
     """
 
-    def __init__(self, *, plotter=None, motion_quality="auto", **kwargs):
-        self.plotter = _pyvista().Plotter(**kwargs) if plotter is None else plotter
-        self.colors = {}
-        self._categories = {}
-        self._ranges = {}
-        self._pinned = set()
-        self._bars = {}
-        self._volumes = {}
+    def __init__(self, *, theme="auto", height=600, motion_quality="auto"):
+        if isinstance(height, bool) or not isinstance(height, int) or height <= 0:
+            raise ValueError(f"height must be a positive int, got {height!r}")
+        self._theme = _theme(theme)
+        self._height = height
+        self._motion = _motion_quality(motion_quality)
+        self._view = {"azimuth": 45.0, "dip": 30.0}
         self._layers = []
-        self._cuts = []
-        self._plane = None
-        self._sources = []
-        self._fast = {}
-        self._names = []
-        self._kinds = []
-        self._hidden = set()
-        self._path = None
-        self._pieces = []
-        self._width = None
-        self._unfolded = False
-        self._drawer = None
-        self.motion_quality = motion_quality
-        self.plotter.renderer.AddObserver("StartEvent", self._move)
-        _SCENES[self.plotter] = self
-
-    def __getattr__(self, name):
-        if name == "plotter":
-            raise AttributeError(name)
-        return getattr(self.plotter, name)
+        self._buffers = {}
+        self._variables = {}
+        self._origin = None
+        self._crs = None
+        self._unit = None
+        self._warned = False
+        self._section = None
+        self._live = weakref.WeakSet()
+        self._picked = None
+        self._state = None
 
     @property
     def motion_quality(self):
-        return self._quality
+        """What draws while the camera moves: ``"auto"``, ``"full"`` or a share of each layer's instances.
+
+        Setting it validates the value as `Scene` does and applies to widgets displayed and pages saved afterwards.
+
+        Returns
+        -------
+        str or float
+        """
+        return self._motion
 
     @motion_quality.setter
     def motion_quality(self, value):
-        number = isinstance(value, int | float) and not isinstance(value, bool)
-        if value not in ("auto", "full") and not (number and 0 < value <= 1):
-            raise ValueError(f"motion_quality must be 'auto', 'full' or a number in (0, 1], got {value!r}")
-        for fast in self._fast.values():
-            if fast is not None:
-                self.plotter.remove_actor(fast, render=False)
-                for props in self._volumes.values():
-                    props[:] = [v for v in props if v[0] is not fast.prop]
-        for i, (*_, actor) in enumerate(self._layers):
-            if actor is not None:
-                actor.SetVisibility(self._plane is None and i not in self._hidden)
-        self._fast = {}
-        self._quality = value
+        self._motion = _motion_quality(value)
 
-    def _move(self, renderer, _):
-        moving = self._plane is None and renderer.GetRenderWindow().GetDesiredUpdateRate() >= 1
-        for i, layer in enumerate(self._layers):
-            if moving and i not in self._fast:
-                self._fast[i] = self._degrade(self._sources[i], *layer)
-            fast = self._fast.get(i)
-            if fast is not None:
-                shown = i not in self._hidden
-                fast.SetVisibility(moving and shown)
-                if self._plane is None:
-                    layer[-1].SetVisibility(not moving and shown)
-
-    def _degrade(self, data, mesh, flat, values, style, kwargs, actor):
-        if actor is None or self.motion_quality == "full":
-            return None
-        if isinstance(mesh, _Solid):
-            faces = actor.mapper.GetInputAlgorithm().GetInputDataObject(0, 0)
-            mesh = _pyvista().wrap(faces).cast_to_unstructured_grid()
-        fraction = self.motion_quality
-        if fraction == "auto":
-            size = mesh.n_points if _points_only(mesh) else mesh.n_cells
-            share = _memory(actor.mapper, values) if style == "volume" else 0
-            fraction = min(1, _BUDGET / max(size, 1), 1 / share if share else 1)
-        if fraction >= 1:
-            return None
-        cheap, options = _cheap(_pyvista(), data, mesh, values, fraction)
-        if cheap is None:
-            return None
-        options = {**kwargs, **options, "render": False, "reset_camera": False, "show_scalar_bar": False}
-        options.pop("name", None)
-        return self._draw(cheap, values, style, options)
-
-    def add(self, data, values=None, *, name=None, style=None, radius=None, labels=False, **kwargs):
+    def add(
+        self,
+        data,
+        values=None,
+        *,
+        name=None,
+        representation=None,
+        color=None,
+        opacity=1.0,
+        cmap=None,
+        clim=None,
+        point_size=None,
+        line_width=None,
+        radius=None,
+        label=None,
+        visible=True,
+        columns=None,
+        filter=None,
+    ):
         """Adds a layer.
 
+        Each kind of data draws in one of a few representations, the first being the default, and the panel
+        switches between them while viewing, keeping the layer's colors, range, opacity and visibility:
+
+        - drill holes: ``"lines"`` of a fixed screen width, one segment per interval split at the survey stations
+          so it follows the trace; ``"tubes"``, shaded cylinders along the same segments; ``"points"`` at the
+          middle of each interval.
+        - block models: ``"cells"``, boxes along the model's rotated axes, sub-blocks at their own size;
+          ``"wireframe"``, the block edges (opaque, only the edges in sight; below opacity 1, every edge);
+          ``"points"`` at the block centers.
+        - meshes: ``"surface"``; ``"wireframe"``, the triangle edges; ``"points"`` at the vertices.
+        - point sets: ``"points"``, round points of a fixed screen size; ``"spheres"``, shaded spheres.
+
+        Lines and screen-size points carry a thin outline in the theme's ``halo`` color, so dark and light marks
+        stay readable on either background; their own colors are exact.
+
         Parameters
         ----------
-        data : PointSet, Drillholes, BlockModel, Mesh or pyvista.DataObject
-            What to draw; containers go through `to_pyvista`.
+        data : PointSet, Drillholes, BlockModel or Mesh
+            What to draw. Drill holes take their interval columns, or the hole name without intervals; a mesh
+            its vertex and face attributes.
         values : str, optional
-            Attribute that colors it. Its null rows never render: null points, cells, and the cells of null points
-            are left out. Numbers share one range over every layer the variable colors, text one category list.
+            Column that colors the layer; its null rows are not drawn. Numbers map through `cmap`, text takes one
+            color per category. Without it the layer is drawn in `color`.
         name : str, optional
-            Label of the layer in `layer_toggles`; default its kind and number, e.g. ``"surface 2"``.
-        style : {"surface", "wireframe", "points", "points_gaussian", "volume"}, optional
-            How cells are drawn; a `PointSet` draws its points as spheres. A masked or sub-blocked `BlockModel`
-            draws as surface or wireframe only the faces between its blocks and empty cells, so a translucent one
-            shows its outer shell; a section still cuts its blocks. ``"volume"`` renders a regular block
-            model colored by `values` on the GPU, each block a uniform cube; a model too large for GPU memory draws
-            on the CPU once the camera stops (see `motion_quality` for while it moves).
+            Name in the layer panel; default the kind and a number, e.g. ``"block model 1"``.
+        representation : str, optional
+            How the layer draws, one of its kind's representations above; default the first.
+        color : str, optional
+            CSS color of the layer when not colored by a column; default the theme's ``layer`` color.
+        opacity : float, default 1.0
+            From 0 (invisible) to 1 (opaque).
+        cmap : str, optional
+            Color map of `values` for every layer it colors: ``"viridis"`` (default), ``"magma"``,
+            ``"inferno"``, ``"plasma"``, ``"cividis"`` or ``"turbo"``.
+        clim : tuple of float, optional
+            ``(low, high)`` range of `values` for every layer it colors; default the range of their valid values.
+        point_size : float, optional
+            Diameter of screen-size points, in pixels; default 6.
+        line_width : float, optional
+            Width of lines and wireframe edges, in pixels; default 2.5 for drill holes, 1 for wireframes.
         radius : float, optional
-            `Drillholes` only: radius of their tubes, 1/400 of the diagonal of their bounds by default. All holes form
-            one tube mesh: a tube per interval with the interval columns as cell data, or per hole through its
-            desurveyed stations when there are no intervals.
-        labels : bool, default False
-            `Drillholes` only: writes each hole's name at its collar.
-        **kwargs
-            Passed to ``plotter.add_mesh``, or ``plotter.add_volume`` for a volume. ``cmap`` sets the variable's
-            color map and ``clim`` fixes its range for every layer; the first ``scalar_bar_args`` given for a
-            variable style its one color bar. A volume's ``opacity`` is a number or a named ramp over the range
-            (``"linear"`` by default, ``"sigmoid"``, ``"geom_r"``, ...).
+            Radius of drill-hole tubes and of spheres, in the data's length unit; default 1/400 of the diagonal of
+            the holes' bounds for tubes, 1/250 of the points' for spheres.
+        label : str, optional
+            Title of the color bar of `values`; default the column name.
+        visible : bool, default True
+            Whether the layer starts shown; the panel toggles it.
+        columns : sequence of str, optional
+            Columns sent to the viewer, which offers them to color by and shows them for a clicked row; default
+            every numeric and text column. `values` and the hole name of drill holes are always sent.
+        filter : dict, optional
+            Rows shown from the start, as conditions on columns sent to the viewer, all of which a row must meet:
+            a ``(low, high)`` tuple for a number column, inclusive, None leaving that end open; a list of the
+            categories kept for a text column. A row null in a filtered column fails its condition. At most four
+            columns; the layer's filter panel edits them while viewing, and `filters` reads them back. For example
+            ``{"p_above_5": (50, None), "LENS": ["lens_1", "lens_2"]}``.
 
         Returns
         -------
         Scene
             This scene, to chain calls.
         """
-        pv = _pyvista()
-        mesh, defaults = _layer(data, **({} if radius is None else {"radius": radius}))
-        if isinstance(mesh, pv.MultiBlock):
-            mesh = mesh.combine()
-        if style == "volume" and values is None:
-            raise ValueError("style='volume' needs values")
-        flat = isinstance(data, PointSet | Drillholes) or (
-            isinstance(mesh, pv.PolyData) and mesh.n_faces == 0
-        )
-        kwargs = {**defaults, **kwargs}
-        actor = self._draw(mesh, values, style, dict(kwargs))
-        kind = _kind(data, mesh)
-        self._layers.append((mesh, flat, values, style, kwargs, actor))
-        self._sources.append(data)
-        self._kinds.append(kind)
-        self._names.append(name or f"{_KINDS[kind]} {self._kinds.count(kind)}")
-        if labels:
-            self.plotter.add_point_labels(*_collars(data), shape=None, show_points=False, always_visible=True)
-        return self
-
-    def _draw(self, mesh, values, style, kwargs):
-        if isinstance(mesh, _Solid):
-            mesh = mesh.faces(values) if style in (None, "surface", "wireframe") else mesh.cells
-        volume = style == "volume"
-        if values is not None:
-            if not volume:
-                mesh = _drop_nulls(mesh, values)
-            if mesh.n_points == 0 or not _valid(mesh.get_array(values)).any():
-                return None
-            mesh, kwargs["cmap"] = self._color(
-                mesh, values, kwargs.pop("cmap", None), kwargs.pop("clim", None)
+        kind, geometry, tables, holes = _layer(data)
+        valid = _REPRESENTATIONS[kind]
+        if representation is not None and representation not in valid:
+            raise ValueError(
+                f"representation of {_NAMES[kind]} must be one of {', '.join(valid)}, got {representation!r}"
             )
-            ticks = {"n_labels": 0} if values in self._categories else {}
-            bar = {"title": values, **ticks, **kwargs.get("scalar_bar_args", {})}
-            kwargs["scalar_bar_args"] = dict(self._bars.setdefault(values, bar))
-        if volume:
-            return self._volume(mesh, values, **kwargs)
-        actor = self.plotter.add_mesh(mesh, scalars=values, style=style, **kwargs)
-        if values is not None:
-            actor.mapper.SetUseLookupTableScalarRange(True)
-            self._paint(values)
-        return actor
-
-    def _volume(self, mesh, values, *, opacity="linear", **kwargs):
-        pv = _pyvista()
-        grid, span = _volume(pv, mesh, values)
-        actor = self.plotter.add_volume(
-            grid, scalars=values, clim=self._ranges[values], mapper="smart", **kwargs
-        )
-        actor.prop.interpolation_type = "nearest"
-        actor.mapper.SetInterpolationModeToNearestNeighbor()
-        if _memory(actor.mapper, values) > 1:
-            actor.mapper.SetRequestedRenderMode(actor.mapper.RayCastRenderMode)
-        self._volumes.setdefault(values, []).append((actor.prop, opacity, *span))
-        self._paint(values)
-        return actor
-
-    def _paint(self, values):
-        from vtkmodules.vtkCommonDataModel import vtkPiecewiseFunction
-        from vtkmodules.vtkRenderingCore import vtkColorTransferFunction
-
-        pv = _pyvista()
-        lut = self.colors[values]
-        lut.scalar_range = lo, hi = self._ranges[values]
-        n = lut.n_values
-        ramp = np.linspace(lo, hi, 256)
-        for prop, opacity, null, low, high in self._volumes.get(values, ()):
-            color = vtkColorTransferFunction()
-            for x in lo + (np.arange(n) + 0.5) * (hi - lo) / n:
-                color.AddRGBPoint(x, *lut.map_value(x, opacity=False))
-            alpha = (
-                pv.opacity_transfer_function(opacity, 256) / 255
-                if isinstance(opacity, str)
-                else [opacity] * 256
-            )
-            shape = vtkPiecewiseFunction()
-            shape.AddPoint(null, 0.0)
-            shape.AddPoint((null + low) / 2, 0.0)
-            for x in np.linspace(low, high, 64):
-                shape.AddPoint(x, float(np.interp(x, ramp, alpha)))
-            prop.SetColor(color)
-            prop.SetScalarOpacity(shape)
-
-    def section(self, origin=None, *, points=None, azimuth=90.0, dip=90.0, width=None):
-        """Cuts every shown layer with a plane or a vertical stepped curtain, in place of the layers and of the
-        previous section.
-
-        Surfaces and solids show their intersection with the plane; points and drill holes within `width` of it
-        are clipped to that slab and projected onto it. Each piece keeps its layer's variable and style. Layers
-        hidden with `layer_toggles` are left out.
-
-        Parameters
-        ----------
-        origin : array_like or None
-            ``(x, y, z)`` point on the plane; None, without `points`, removes the section and shows the layers
-            again.
-        points : array_like, optional
-            ``(n, 2)`` or ``(n, 3)`` vertices of a polyline in plan, in place of `origin`, `azimuth` and `dip`:
-            each segment cuts on the vertical plane through it, between its two ends.
-        azimuth, dip : float
-            Bearing of the section line and dip of the plane, in degrees (90 and 90: a vertical east-west
-            section, dip 0: a plan).
-        width : float, optional
-            Full width of the slab that keeps points and drill holes; default a twentieth of the scene's diagonal.
-
-        Returns
-        -------
-        Scene
-            This scene, to chain calls.
-        """
-        segments = None if points is None else _segments(points)
-        for actor in self._cuts:
-            self.plotter.remove_actor(actor, render=False)
-        self._cuts = []
-        self._pieces = []
-        self._unfolded = False
-        self._width = width
-        self._path = None if segments is None else np.asarray(points, dtype=float)[:, :2]
-        self._plane = None if origin is None and segments is None else (origin, azimuth, dip)
-        for i, (*_, actor) in enumerate(self._layers):
-            if actor is not None:
-                actor.SetVisibility(self._plane is None and i not in self._hidden)
-        if self._plane is None:
-            return self
-        half = (self._extent()[1] / 20 if width is None else width) / 2
-        if segments is None:
-            center, _, _, n = _frame(self._plane)
-            planes = [(center, n, None, None, 0.0)]
-        else:
-            planes = [
-                (start, np.array([u[1], -u[0], 0.0]), u, length, at) for start, u, length, at in segments
-            ]
-        for i, (mesh, flat, values, style, kwargs, _) in enumerate(self._layers):
-            if i in self._hidden:
+        sizes = {"point_size": point_size, "line_width": line_width, "radius": radius}
+        for key, size in sizes.items():
+            if size is None:
                 continue
-            if style == "volume":
-                style, kwargs = None, {k: v for k, v in kwargs.items() if k != "opacity"}
-            for center, n, u, length, at in planes:
-                if flat:
-                    cut = mesh.clip(normal=n, origin=center + half * n).clip(
-                        normal=-n, origin=center - half * n
-                    )
-                    cut.points = cut.points - np.outer((cut.points - center) @ n, n)
-                else:
-                    cut = mesh.slice(normal=n, origin=center)
-                if u is not None and cut.n_points:
-                    cut = cut.clip(normal=-u, origin=center).clip(normal=u, origin=center + length * u)
-                if cut.n_points:
-                    self._pieces.append((cut, center, u, at, values, style, kwargs))
-        self._show_pieces(self._pieces)
-        return self
+            if kind not in _SIZES[key]:
+                raise ValueError(f"{key} does not apply to {_NAMES[kind]}")
+            if isinstance(size, bool) or not isinstance(size, int | float) or not 0 < size < math.inf:
+                raise ValueError(f"{key} must be a positive number, got {size!r}")
+        if not 0.0 <= float(opacity) <= 1.0:
+            raise ValueError(f"opacity must be in [0, 1], got {opacity!r}")
+        if color is not None and not isinstance(color, str):
+            raise TypeError(f"color must be a CSS color string, got {color!r}")
+        if cmap is not None and cmap not in _COLORMAPS:
+            raise ValueError(f"cmap must be one of {', '.join(_COLORMAPS)}, got {cmap!r}")
+        if clim is not None:
+            clim = tuple(float(c) for c in clim)
+            if len(clim) != 2 or not all(math.isfinite(c) for c in clim) or clim[0] >= clim[1]:
+                raise ValueError(f"clim must be two finite numbers, low < high, got {clim!r}")
+        if values is None and (cmap is not None or clim is not None or label is not None):
+            raise ValueError("cmap, clim and label describe `values`; pass values too")
+        available = [n for table in tables.values() for n in _names(table)]
+        if values is not None and values not in available:
+            raise KeyError(f"no column {values!r}; columns: {', '.join(available) or 'none'}")
+        wanted = None if columns is None else {*columns, *([values] if values else [])}
+        if wanted is not None and wanted - set(available):
+            raise KeyError(f"no columns {sorted(wanted - set(available))}; columns: {', '.join(available)}")
+        if wanted is not None and holes:
+            wanted.add(holes[0])
 
-    def _show_pieces(self, pieces):
-        for actor in self._cuts:
-            self.plotter.remove_actor(actor, render=False)
-        self._cuts = []
-        for cut, *_, values, style, kwargs in pieces:
-            actor = self._draw(cut, values, style, dict(kwargs))
-            self._cuts += [actor] if actor is not None else []
+        layer_id = f"l{len(self._layers)}"
+        points = geometry.get("positions", geometry.get("centers"))
+        if self._origin is None:
+            bounds = _bounds(points)
+            self._origin = (bounds[0] + bounds[1]) / 2 if bounds else np.zeros(3)
+        buffers = {}
+        refs = {}
+        for role, array in geometry.items():
+            if role in ("positions", "centers", "midpoints"):
+                array = (array - self._origin).astype(np.float32)
+            elif role in ("sizes", "depths"):
+                array = array.astype(np.float32)
+            buffers[f"{layer_id}/{role}"] = array
+            refs[role] = f"{layer_id}/{role}"
+        specs = []
+        for on, table in tables.items():
+            for column in _names(table):
+                if wanted is not None and column not in wanted:
+                    continue
+                encoded = _encode(table[column])
+                if encoded is None:
+                    if column == values:
+                        raise ValueError(f"column {values!r} has no valid values to color by")
+                    continue
+                array, spec = encoded
+                key = f"{layer_id}/c{len(specs)}"
+                buffers[key] = array
+                specs.append({"name": column, "buffer": key, "on": on, **spec})
 
-    def section_widget(self, *, origin=None, azimuth=90.0, dip=90.0, width=None, **kwargs):
-        """Interactive plane that calls `section` each time it is moved.
-
-        Parameters
-        ----------
-        origin : array_like, optional
-            Starting point on the plane; default the center of the layers.
-        azimuth, dip, width : float
-            As in `section`.
-        **kwargs
-            Passed to ``plotter.add_plane_widget``.
-
-        Returns
-        -------
-        Scene
-            This scene, to chain calls.
-        """
-        center, _, _, n = _frame((self._extent()[0] if origin is None else origin, azimuth, dip))
-
-        def move(normal, point):
-            a, d = _angles_for_normal(np.asarray(normal, dtype=float))
-            self.section(point, azimuth=a, dip=d, width=width)
-
-        self.plotter.add_plane_widget(move, normal=n, origin=center, **kwargs)
-        return self
-
-    def view_section(self):
-        """Orthographic view normal to the section plane, strike to the right and up dip upward. A stepped curtain
-        is first unfolded: each segment's pieces are laid along the first segment's plane at their distance along
-        the polyline, so the whole curtain reads as one true-scale section.
-
-        Returns
-        -------
-        Scene
-            This scene, to chain calls.
-        """
-        if self._plane is None:
-            raise RuntimeError("no section: call Scene.section first")
-        if self._path is None:
-            center, _, v, n = _frame(self._plane)
-        else:
-            first = _segments(self._path)[0]
-            start, u0 = first[0], first[1]
-            pieces = []
-            for cut, center, u, at, *rest in self._pieces:
-                flat = cut.copy()
-                along = at + (flat.points[:, :2] - center[:2]) @ u[:2]
-                flat.points = np.c_[start[:2] + np.outer(along, u0[:2]), flat.points[:, 2]]
-                pieces.append((flat, center, u, at, *rest))
-            self._show_pieces(pieces)
-            self._unfolded = True
-            total = sum(length for _, _, length, _ in _segments(self._path))
-            z = self._extent()[0][2]
-            center, v, n = (
-                start + total / 2 * u0 + [0, 0, z],
-                np.array([0.0, 0.0, 1.0]),
-                np.array([u0[1], -u0[0], 0]),
+        layer = {
+            "id": layer_id,
+            "name": name or f"{_NAMES[kind]} {sum(item['kind'] == kind for item in self._layers) + 1}",
+            "kind": kind,
+            "representation": representation or valid[0],
+            "pointSize": None if point_size is None else float(point_size),
+            "lineWidth": None if line_width is None else float(line_width),
+            "radius": None if radius is None else float(radius),
+            "color": color,
+            "opacity": float(opacity),
+            "visible": bool(visible),
+            "values": values,
+            "geometry": refs,
+            "columns": specs,
+        }
+        layer["filter"] = _filter(layer, {} if filter is None else filter)
+        if kind == "blocks":
+            layer["axes"] = _block_axes(data).tolist()
+        if holes:
+            layer["holes"] = dict(zip(("hole", "from", "to"), holes, strict=True))
+        if values is not None:
+            variable = self._variables.setdefault(values, {})
+            variable.update(
+                {k: v for k, v in (("cmap", cmap), ("clim", clim), ("label", label)) if v is not None}
             )
-        self.plotter.enable_parallel_projection()
-        self.plotter.camera_position = [center + n, center, v]
-        self.plotter.reset_camera()
+        self._layers.append(layer)
+        self._buffers.update({k: np.ascontiguousarray(v).tobytes() for k, v in buffers.items()})
+        self._crs = self._crs or getattr(data, "crs", None)
+        self._unit = self._unit or getattr(data, "length_unit", None)
+        size = sum(len(b) for b in self._buffers.values())
+        if size > _WARN_BYTES and not self._warned:
+            self._warned = True
+            warnings.warn(
+                f"the scene holds {size / 2**20:.0f} MB of data; pass columns= to send fewer columns",
+                stacklevel=2,
+            )
         return self
 
-    def section_drawer(self, *, width=None):
-        """Draws stepped sections with the mouse.
+    def view(self, *, azimuth=45.0, dip=30.0):
+        """Sets the direction the camera looks along; the view still frames every shown layer.
 
-        ``d`` (or the *draw* button) switches to a plan view; each left click adds a vertex, held Shift locks the
-        new segment to a multiple of 45° from north, and Enter, a double click or the button again cuts the scene
-        along the polyline with `section` and returns to the 3D view. Esc cancels, ``c`` (or *clear*) removes the
-        section and ``u`` (or *unfold*) toggles the unfolded view of `view_section`. The buttons sit at the bottom
-        left, for viewers that do not pass keys on, such as trame in a browser.
+        It replaces the camera a widget last reported, so screenshots look along it until the view is moved again.
 
         Parameters
         ----------
+        azimuth : float, default 45.0
+            Bearing of the line of sight, in degrees clockwise from north.
+        dip : float, default 30.0
+            Angle of the line of sight below horizontal, in degrees: 0 looks level, 90 straight down (a plan
+            with north up).
+
+        Returns
+        -------
+        Scene
+            This scene, to chain calls.
+        """
+        azimuth, dip = float(azimuth), float(dip)
+        if not math.isfinite(azimuth) or not -90.0 <= dip <= 90.0:
+            raise ValueError(f"azimuth must be finite and dip in [-90, 90], got {azimuth!r}, {dip!r}")
+        self._view = {"azimuth": azimuth % 360.0, "dip": dip}
+        if self._state:
+            self._state = {k: v for k, v in self._state.items() if k != "camera"}
+        return self
+
+    def section(self, points, *, width=None, dip=90.0):
+        """Cuts every layer to a slab around a section, or removes the section with ``section(None)``.
+
+        The section runs along a polyline in plan: each segment's surface passes through it and dips `dip` degrees
+        to the right of the direction the points run in (reverse them to dip the other way). Whatever lies more than
+        `width` / 2 from that surface, or beyond the polyline's ends, is not drawn, in every layer and
+        representation: blocks are cut and capped with faces of their own color, meshes are cut and outlined in
+        the theme's accent where the slab's faces cross them, and drill-hole intervals, points and spheres show
+        whole when their middle lies in the slab. Filters still apply. The section's trace and slab edges are drawn
+        in the accent along the top of the box, which shrinks to the section.
+
+        While viewing, Shift-drag across the view cuts a straight section under the swept line, its ends picked on
+        the level plane through the middle of the shown layers (or, in views within 20 degrees of level, on the
+        upright plane through it that faces the camera); ``S`` or the draw button switches to a plan view where
+        clicks add the vertices of a polyline, Shift locks a segment to a multiple of 45 degrees, Backspace removes
+        the last vertex, Enter or the button cuts and Esc cancels. The mouse wheel zooms; Shift+wheel sets the
+        width while cutting or drawing, or of the section shown. ``U`` or the unfold button lays the section out
+        flat, with the distance along it on the bottom axis and elevation up, and folds it back; ``X`` or the clear
+        button removes it. `sections` reads the result back.
+
+        Parameters
+        ----------
+        points : array_like or None
+            ``(n, 2)`` or ``(n, 3)`` vertices in real-world coordinates, ``2 <= n <= 17`` distinct in plan; None
+            removes the section. A dipping section hinges on the mean elevation of ``(x, y, z)`` vertices, or on
+            the middle of the scene for ``(x, y)`` ones.
         width : float, optional
-            As in `section`.
+            Thickness of the slab kept around the section, in the data's length unit; default 1/20 of the
+            diagonal of the shown layers' bounds, or the width last set while viewing.
+        dip : float, default 90.0
+            Dip of the section's surface in degrees, in (0, 90]; 90 is upright.
 
         Returns
         -------
         Scene
             This scene, to chain calls.
         """
-        self._drawer = {"width": width, "points": [], "on": False, "camera": None, "line": None}
-        plotter = self.plotter
-        for key, action in (
-            ("d", self._draw_toggle),
-            ("Return", self._draw_finish),
-            ("Escape", self._draw_cancel),
-        ):
-            plotter.add_key_event(key, action)
-        plotter.add_key_event("c", lambda: self._clear())
-        plotter.add_key_event("u", self._unfold_toggle)
-        if plotter.iren is not None:
-            interactor = plotter.iren.interactor
-            self._click = interactor.AddObserver("LeftButtonPressEvent", self._draw_click, 10.0)
-        buttons = (("draw", self._draw_toggle), ("unfold", self._unfold_toggle), ("clear", self._clear))
-        for k, (label, action) in enumerate(buttons):
-            self._button(label, action, (10 + 90 * k, 10))
+        self._section = None if points is None else _section(points, width, dip)
+        self._push_section()
         return self
 
-    def _button(self, label, action, position, size=20):
-        def press(_):
-            action()
-            widget.GetRepresentation().SetState(int(label == "draw" and self._drawer["on"]))
+    @property
+    def sections(self):
+        """The section, as ``{"points": [(x, y, z), ...], "width": w, "dip": d, "unfolded": bool}``, or None.
 
-        widget = self.plotter.add_checkbox_button_widget(press, value=False, position=position, size=size)
-        self.plotter.add_text(label, position=(position[0] + size + 6, position[1] + 2), font_size=9)
+        Points are real-world vertices, at the elevation the section hinges on; `width` is None for the default
+        until the viewer settles it. In a notebook it follows the cuts, edits and unfolding made in the last widget
+        shown; a saved page has no way back, so there it holds what `section` and this property set. Setting it
+        takes such a dict (``points`` required, the other keys optional, as in `section`) or None, and updates the
+        widgets shown.
 
-    def _clear(self):
-        self.section(None)
-        self.plotter.render()
+        Returns
+        -------
+        dict or None
+        """
+        state = self._section_state()
+        if not state:
+            return None
+        return {**state, "points": [tuple(p) for p in state["points"]]}
 
-    def _unfold_toggle(self):
-        if self._plane is None:
-            return
-        if self._unfolded:
-            self._show_pieces(self._pieces)
-            self._unfolded = False
+    @sections.setter
+    def sections(self, value):
+        if value is None:
+            self._section = None
         else:
-            self.view_section()
-        self.plotter.render()
+            if not isinstance(value, Mapping):
+                raise TypeError(f"sections must be a dict or None, got {type(value).__name__}")
+            unknown = set(value) - {"points", "width", "dip", "unfolded"}
+            if unknown:
+                raise ValueError(
+                    f"unknown section keys {sorted(unknown)}; valid keys: points, width, dip, unfolded"
+                )
+            if "points" not in value:
+                raise ValueError("a section needs points")
+            unfolded = value.get("unfolded", False)
+            if not isinstance(unfolded, bool | np.bool_):
+                raise TypeError(f"unfolded must be a bool, got {unfolded!r}")
+            state = _section(value["points"], value.get("width"), value.get("dip", 90.0))
+            self._section = {**state, "unfolded": bool(unfolded)}
+        self._push_section()
 
-    def _draw_toggle(self):
-        (self._draw_finish if self._drawer["on"] else self._draw_start)()
+    def _section_state(self):
+        """The section as the viewer reads it: real-world (x, y, z) vertices; empty without one."""
+        s = self._section
+        if s is None:
+            return {}
+        z = s["z"] if s["z"] is not None else float(self._origin[2]) if self._origin is not None else 0.0
+        return {
+            "points": [[x, y, z] for x, y in s["points"]],
+            "width": s["width"],
+            "dip": s["dip"],
+            "unfolded": s["unfolded"],
+        }
 
-    def _draw_start(self):
-        plotter, drawer = self.plotter, self._drawer
-        drawer.update(on=True, points=[], camera=(plotter.camera_position, plotter.parallel_projection))
-        center, diagonal = self._extent()
-        plotter.enable_parallel_projection()
-        plotter.camera_position = [center + [0, 0, diagonal], center, (0, 1, 0)]
-        plotter.reset_camera()
-        plotter.render()
+    def _push_section(self, source=None):
+        state = self._section_state()
+        for widget in list(self._live):
+            if widget is not source:
+                widget.section = state
 
-    def _draw_end(self):
-        plotter, drawer = self.plotter, self._drawer
-        if drawer["line"] is not None:
-            plotter.remove_actor(drawer["line"], render=False)
-        position, parallel = drawer["camera"]
-        plotter.camera_position = position
-        (plotter.enable_parallel_projection if parallel else plotter.disable_parallel_projection)()
-        drawer.update(on=False, line=None)
-        points, drawer["points"] = drawer["points"], []
-        return points
+    def _section_edited(self, change):
+        state = change["new"] or {}
+        if not state:
+            self._section = None
+        else:
+            points = np.asarray(state["points"], dtype=np.float64)
+            self._section = {
+                "points": points[:, :2].tolist(),
+                "z": float(points[:, 2].mean()),
+                "width": state["width"],
+                "dip": float(state["dip"]),
+                "unfolded": bool(state["unfolded"]),
+            }
+        self._push_section(source=change["owner"])
 
-    def _draw_finish(self):
-        if not self._drawer["on"]:
-            return
-        points = self._draw_end()
-        if len(points) > 1:
-            self.section(points=points, width=self._drawer["width"])
-        self.plotter.render()
+    def _spec(self):
+        origin = self._origin if self._origin is not None else np.zeros(3)
+        titles = ("Easting", "Northing", "Elevation") if self._crs else ("X", "Y", "Z")
+        return {
+            "origin": [float(v) for v in origin],
+            "axes": [f"{t} ({self._unit})" if self._unit else t for t in titles],
+            "theme": self._theme,
+            "height": self._height,
+            "view": dict(self._view),
+            "motion": self._motion,
+            "variables": {
+                k: dict(v, clim=list(v["clim"])) if "clim" in v else dict(v)
+                for k, v in self._variables.items()
+            },
+            "layers": self._layers,
+            "section": self._section_state(),
+        }
 
-    def _draw_cancel(self):
-        if self._drawer["on"]:
-            self._draw_end()
-            self.plotter.render()
-
-    def _draw_click(self, interactor, _):
-        drawer = self._drawer
-        if not drawer["on"]:
-            return
-        interactor.GetCommand(self._click).SetAbortFlag(1)
-        if interactor.GetRepeatCount():
-            self._draw_finish()
-            return
-        renderer = self.plotter.renderer
-        renderer.SetDisplayPoint(*interactor.GetEventPosition(), 0)
-        renderer.DisplayToWorld()
-        x, y, _, w = renderer.GetWorldPoint()
-        point = np.array([x, y]) / w
-        points = drawer["points"]
-        if points and interactor.GetShiftKey():
-            point = _snap(points[-1], point)
-        points.append(point)
-        if drawer["line"] is not None:
-            self.plotter.remove_actor(drawer["line"], render=False)
-        z = self._extent()[0][2] + self._extent()[1]
-        vertices = np.c_[np.array(points), np.full(len(points), z)]
-        line = _pyvista().lines_from_points(vertices) if len(points) > 1 else _pyvista().PolyData(vertices)
-        drawer["line"] = self.plotter.add_mesh(
-            line,
-            color="#c05a28",
-            line_width=3,
-            point_size=8,
-            render_points_as_spheres=True,
-            reset_camera=False,
+    def _html(self, state=None):
+        data = {
+            "spec": self._spec(),
+            "buffers": {k: base64.b64encode(v).decode("ascii") for k, v in self._buffers.items()},
+        }
+        if state:
+            data["state"] = state
+        names = ", ".join(layer["name"] for layer in self._layers) or "empty scene"
+        return _PAGE.format(
+            title=html.escape(f"Scene: {names}"),
+            bundle=base64.b64encode(_bundle().read_bytes()).decode("ascii"),
+            data=json.dumps(data, separators=(",", ":")).replace("</", "<\\/"),
         )
-        self.plotter.render()
 
-    def layer_toggles(self, *, size=18):
-        """A checkbox per layer at the top left, under the name of its kind, that shows or hides it and its cuts.
+    def save(self, path):
+        """Writes the scene to a self-contained HTML page: the viewer and the data inlined, nothing fetched.
 
-        Parameters
-        ----------
-        size : int
-            Checkbox size in pixels.
-
-        Returns
-        -------
-        Scene
-            This scene, to chain calls.
-        """
-        plotter = self.plotter
-        y = plotter.window_size[1] - 30
-        for kind in _KINDS:
-            rows = [i for i, k in enumerate(self._kinds) if k == kind]
-            if not rows:
-                continue
-            plotter.add_text(kind, position=(10, y), font_size=9)
-            y -= size + 8
-            for i in rows:
-                plotter.add_checkbox_button_widget(
-                    lambda on, i=i: self._toggle(i, on),
-                    value=i not in self._hidden,
-                    position=(10, y),
-                    size=size,
-                )
-                plotter.add_text(self._names[i], position=(16 + size, y + 2), font_size=8)
-                y -= size + 6
-            y -= 6
-        return self
-
-    def _toggle(self, i, on):
-        (self._hidden.discard if on else self._hidden.add)(i)
-        actor, fast = self._layers[i][-1], self._fast.get(i)
-        if fast is not None:
-            fast.SetVisibility(False)
-        if self._plane is None:
-            if actor is not None:
-                actor.SetVisibility(on)
-        else:
-            unfolded = self._unfolded
-            origin, azimuth, dip = self._plane
-            self.section(origin, points=self._path, azimuth=azimuth, dip=dip, width=self._width)
-            if unfolded:
-                self.view_section()
-        self.plotter.render()
-
-    def _extent(self):
-        """Center and diagonal of the bounds of every layer."""
-        bounds = np.array([mesh.bounds for mesh, *_ in self._layers]).reshape(-1, 3, 2)
-        lo, hi = bounds[..., 0].min(axis=0), bounds[..., 1].max(axis=0)
-        return (lo + hi) / 2, float(np.linalg.norm(hi - lo))
-
-    def _color(self, mesh, values, cmap, clim):
-        pv = _pyvista()
-        field = mesh.get_array(values)
-        lut = self.colors.get(values)
-        if lut is None:
-            lut = self.colors[values] = pv.LookupTable(cmap or pv.global_theme.cmap)
-        elif cmap is not None:
-            lut.cmap = cmap
-        if _text(field):
-            names = self._categories.setdefault(values, [])
-            names += sorted(set(field.tolist()) - set(names) - {""})
-            code = {name: i for i, name in enumerate(names)}
-            codes = np.array([code.get(v, np.nan) for v in field.tolist()], dtype=float)
-            mesh = mesh.copy(deep=False)
-            (mesh.cell_data if _on_cells(mesh, values) else mesh.point_data)[values] = codes
-            lut.apply_cmap(lut.cmap, len(names))
-            lut.annotations = dict(enumerate(names))
-            self._ranges[values] = (-0.5, len(names) - 0.5)
-        elif clim is not None:
-            self._pinned.add(values)
-            self._ranges[values] = tuple(clim)
-        elif values not in self._pinned:
-            lo, hi = self._ranges.get(values, (np.inf, -np.inf))
-            self._ranges[values] = (min(lo, float(np.nanmin(field))), max(hi, float(np.nanmax(field))))
-        return mesh, lut
-
-    def show(self, *, browser=False, **kwargs):
-        """Opens the scene: trame in Jupyter, a native window otherwise, or the browser.
-
-        In Google Colab the scene renders on the kernel with trame and streams through Colab's port proxy, so
-        `section_drawer`, `layer_toggles` and `motion_quality` work there too; without trame it falls back to a
-        static view that only turns and zooms.
-
-        Parameters
-        ----------
-        browser : bool, default False
-            Writes the scene to an interactive HTML page with trame and opens it in the web browser.
-        **kwargs
-            Passed to ``plotter.show``; ``auto_close`` defaults to False, so `screenshot` works after ``q``.
-
-        Returns
-        -------
-        pathlib.Path or None
-            The HTML page when `browser`, else what ``plotter.show`` returns.
-        """
-        if not browser and "google.colab" in sys.modules and "jupyter_backend" not in kwargs:
-            try:
-                return self.plotter.show(
-                    jupyter_backend="server",
-                    jupyter_kwargs={"handler": _colab_iframe},
-                    auto_close=False,
-                    **kwargs,
-                )
-            except ImportError:
-                print("the 3D tools need trame (pip install 'boitata[3d]'); showing a static view")
-                return self.plotter.show(jupyter_backend="html", auto_close=False, **kwargs)
-        if not browser:
-            return self.plotter.show(**{"auto_close": False, **kwargs})
-        path = Path(tempfile.mkdtemp()) / "scene.html"
-        try:
-            getattr(self.plotter, "trame", self.plotter).export_html(path)
-        except ImportError as e:
-            raise ImportError("Scene.show(browser=True) needs trame: pip install 'pyvista[jupyter]'") from e
-        webbrowser.open(path.as_uri())
-        return path
-
-    def screenshot(self, path, *, scale=1, transparent=False):
-        """Writes the scene's current view to an image.
-
-        Works off-screen, while a trame view is open, and after the native window of `show` is closed with ``q``;
-        its close button destroys the window, so take screenshots before.
+        The page opens on the view a notebook widget of the scene last showed (camera, layer settings, view
+        toggles), if any, and fills the browser window.
 
         Parameters
         ----------
         path : str or pathlib.Path
-            Image file; ``.png`` keeps transparency.
-        scale : int, default 1
-            Resolution multiplier on the window size.
-        transparent : bool, default False
-            Transparent background.
+            HTML file to write.
 
         Returns
         -------
         pathlib.Path
         """
         path = Path(path)
-        self.plotter.screenshot(path, transparent_background=transparent, return_img=False, scale=scale)
+        path.write_text(self._html(self._state), encoding="utf-8")
         return path
 
+    def show(self):
+        """Displays the scene in Jupyter, or else saves it to a temporary page and opens it in the web browser.
 
-def _scene(plotter):
-    if isinstance(plotter, Scene):
-        return plotter
-    return (_SCENES.get(plotter) if plotter is not None else None) or Scene(plotter=plotter)
+        Returns
+        -------
+        pathlib.Path or None
+            The page opened in the browser; None in Jupyter.
+        """
+        if _in_notebook():
+            from IPython.display import display
+
+            display(self)
+            return None
+        path = self.save(Path(tempfile.mkdtemp()) / "scene.html")
+        webbrowser.open(path.as_uri())
+        return path
+
+    @property
+    def filters(self):
+        """Filters of the layers, as conditions by column: ``{layer name: {column: (low, high) or [categories]}}``.
+
+        Layers without a filter are left out. In a notebook it follows the panel's edits in the last widget shown;
+        a saved page has no way back, so there it holds what `add` and this property set. Setting it replaces
+        every layer's filter, with conditions as `add` takes them, and updates the widgets shown.
+
+        Returns
+        -------
+        dict
+        """
+        return {layer["name"]: _filter_tuples(layer["filter"]) for layer in self._layers if layer["filter"]}
+
+    @filters.setter
+    def filters(self, value):
+        if not isinstance(value, Mapping):
+            raise TypeError(f"filters must be a dict of layer name to filter, got {type(value).__name__}")
+        names = [layer["name"] for layer in self._layers]
+        unknown = [name for name in value if name not in names]
+        if unknown:
+            raise ValueError(f"no layers {unknown}; layers: {', '.join(names) or 'none'}")
+        ambiguous = [name for name in value if names.count(name) > 1]
+        if ambiguous:
+            raise ValueError(
+                f"layer names {ambiguous} are shared by several layers; give the layers distinct names"
+            )
+        states = [_filter(layer, value.get(layer["name"], {})) for layer in self._layers]
+        for layer, state in zip(self._layers, states, strict=True):
+            layer["filter"] = state
+        self._push_filters()
+
+    def _filter_state(self):
+        return {layer["id"]: layer["filter"] for layer in self._layers if layer["filter"]}
+
+    def _push_filters(self, source=None):
+        state = self._filter_state()
+        for widget in list(self._live):
+            if widget is not source:
+                widget.filters = state
+
+    def _filters_edited(self, change):
+        state = change["new"] or {}
+        for layer in self._layers:
+            layer["filter"] = state.get(layer["id"], {})
+        self._push_filters(source=change["owner"])
+
+    def screenshot(self, path, *, scale=1, panel=False, transparent=False):
+        """Writes a PNG image of the scene, with its color bars, axis labels and orientation gizmo.
+
+        The scene renders in headless Chromium and the file is written on return, in a script as in a notebook.
+        Once a notebook widget of the scene has been shown, the image reproduces the widget as it last stood: its
+        size, camera, theme, layer settings, view toggles, filters and section (folded or unfolded), as the
+        widget reports them a moment after each change; `view` sets a new direction. Otherwise the view is the
+        scene's, `height` pixels high and 1.6 times as wide. That needs Playwright,
+        ``pip install 'boitata[export]'``, which downloads Chromium on first use.
+
+        Parameters
+        ----------
+        path : str or pathlib.Path
+            PNG file to write.
+        scale : float, default 1
+            Pixels per CSS pixel of the viewer, in (0, 8]; 2 doubles the width and height.
+        panel : bool, default False
+            Whether the layer panel shows in the image.
+        transparent : bool, default False
+            Whether the background is transparent instead of the theme's.
+
+        Returns
+        -------
+        pathlib.Path
+        """
+        path = Path(path)
+        if path.suffix.lower() != ".png":
+            raise ValueError(f"screenshots are PNG images; path must end in .png, got {str(path)!r}")
+        if not (_real(scale) and 0 < scale <= _MAX_SCALE):
+            raise ValueError(f"scale must be a number in (0, {_MAX_SCALE}], got {scale!r}")
+        for key, flag in (("panel", panel), ("transparent", transparent)):
+            if not isinstance(flag, bool | np.bool_):
+                raise TypeError(f"{key} must be a bool, got {flag!r}")
+        options = {"scale": float(scale), "panel": bool(panel), "transparent": bool(transparent)}
+        state = self._state
+        if state and "size" in state:
+            state = (
+                {**state, "theme": "dark" if state.get("dark") else "light"}
+                if state["theme"] == "auto"
+                else state
+            )
+            width, height = (max(1, round(v)) for v in state["size"])
+        else:
+            width, height = round(self._height * _ASPECT), self._height
+        path.write_bytes(_headless(self._html(state), width, height, **options))
+        return path
+
+    @property
+    def picked(self):
+        """The row last clicked in the viewer, or None.
+
+        A click on a drawn element picks it: a card beside it lists every column sent for its row, its real-world
+        coordinates, the hole and depths of a drill-hole interval and the size of a block, and the element is
+        outlined in the theme's accent. Esc, the card's close button or a click on empty space dismiss it; a drag
+        never picks, and neither does what the filter or the section hides. The pick reads
+        ``{"layer": name, "row": index, "values": {column: value}, "position": (x, y, z)}``. `row` indexes the
+        layer's rows: points, blocks, drill-hole intervals (segments between survey stations for holes without
+        intervals) or mesh triangles, whose vertex columns are read at the corner nearest the click. `values` holds
+        the columns sent to the viewer, None for nulls, numbers to the 7 significant digits the viewer keeps.
+        `position` is the point, block center, interval middle or the point clicked on a mesh.
+
+        It follows the widgets shown in a notebook; without one, before a click and once dismissed it is None.
+
+        Returns
+        -------
+        dict or None
+        """
+        if self._picked is None:
+            return None
+        return {**self._picked, "values": dict(self._picked["values"])}
+
+    def _picked_edited(self, change):
+        state = change["new"] or {}
+        self._picked = (
+            {
+                "layer": state["layer"],
+                "row": int(state["row"]),
+                "values": dict(state["values"]),
+                "position": tuple(float(v) for v in state["position"]),
+            }
+            if state
+            else None
+        )
+
+    def _view_edited(self, change):
+        self._state = dict(change["new"]) or None
+
+    def _widget(self):
+        widget = _widget_class()(
+            spec=self._spec(),
+            buffers=dict(self._buffers),
+            filters=self._filter_state(),
+            section=self._section_state(),
+            view=self._state or {},
+            key=uuid.uuid4().hex,
+        )
+        widget.observe(self._filters_edited, names="filters")
+        widget.observe(self._section_edited, names="section")
+        widget.observe(self._picked_edited, names="picked")
+        widget.observe(self._view_edited, names="view")
+        self._live.add(widget)
+        return widget
+
+    def _ipython_display_(self):
+        """The widget, followed by a standalone copy that shows only if the front end cannot render the widget."""
+        from IPython.display import HTML, display
+
+        try:
+            widget = self._widget()
+        except ImportError:
+            hint = "For the notebook widget with two-way sync: pip install 'boitata[3d]'"
+            display(HTML(_frame(self._html(self._state), self._height, hint)))
+            return
+        hint = (
+            "The notebook could not show the widget, so this is a standalone copy: "
+            "install anywidget where Jupyter runs for two-way sync."
+        )
+        frame = _frame(self._html(self._state), self._height, hint)
+        display(widget)
+        display(HTML(_FALLBACK.format(key=widget.key, frame=frame, delay=_FALLBACK_MS)))
+
+    def __repr__(self):
+        return f"Scene({len(self._layers)} layers)"
 
 
-def plot(data, values=None, *, plotter=None, **kwargs):
-    """Adds a container to a 3D scene.
+def plot(data, values=None, *, theme="auto", height=600, **kwargs):
+    """Draws one container in a new scene: ``Scene(theme=theme, height=height).add(data, values, **kwargs)``.
 
     Parameters
     ----------
-    data : PointSet, Drillholes, BlockModel, Mesh or pyvista.DataObject
-        What to draw; containers go through `to_pyvista`.
+    data : PointSet, Drillholes, BlockModel or Mesh
+        What to draw.
     values : str, optional
-        Attribute that colors it; its nulls never render.
-    plotter : Scene or pyvista.Plotter, optional
-        Scene to add to; a new one by default.
+        Column that colors it, as in `Scene.add`.
+    theme : {"auto", "light", "dark"} or dict, default "auto"
+        Colors of the scene, as in `Scene`.
+    height : int, default 600
+        Height of the viewer in a notebook, in pixels.
     **kwargs
-        Passed to `Scene.add`.
+        Other keywords of `Scene.add`: ``name``, ``representation``, ``color``, ``opacity``, ``cmap``, ``clim``,
+        ``point_size``, ``line_width``, ``radius``, ``label``, ``visible``, ``columns`` and ``filter``.
 
     Returns
     -------
     Scene
+        The new scene; it displays in a notebook as the last expression of a cell, `Scene.show` opens it anywhere.
+
+    Examples
+    --------
+    >>> import boitata as bt
+    >>> points = bt.PointSet([[0.0, 0.0, 0.0], [10.0, 5.0, 2.0]], {"zn": [1.5, 4.0]})
+    >>> bt.plot3d.plot(points, "zn", representation="spheres")
+    Scene(1 layers)
     """
-    return _scene(plotter).add(data, values, **kwargs)
-
-
-def slices(model, values=None, *, x=None, y=None, z=None, plotter=None, **kwargs):
-    """Three orthogonal slices through a block model.
-
-    Parameters
-    ----------
-    model : BlockModel
-        Block model to cut.
-    values : str, optional
-        Attribute that colors the slices; its nulls never render.
-    x, y, z : float, optional
-        World coordinates the slices pass through; the model's center by default.
-    plotter : Scene or pyvista.Plotter, optional
-        Scene to add to; a new one by default.
-    **kwargs
-        Passed to `Scene.add`.
-
-    Returns
-    -------
-    Scene
-    """
-    mesh = to_pyvista(model)
-    center = mesh.center
-    at = [center[a] if v is None else v for a, v in enumerate((x, y, z))]
-    return plot(mesh.slice_orthogonal(x=at[0], y=at[1], z=at[2]), values, plotter=plotter, **kwargs)
+    return Scene(theme=theme, height=height).add(data, values, **kwargs)

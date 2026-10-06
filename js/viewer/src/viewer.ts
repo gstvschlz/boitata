@@ -127,6 +127,22 @@ export interface PickState {
   position: [number, number, number];
 }
 
+/**
+ * What a viewer shows beyond its filters and section: its size, camera, theme, panel and view toggles, and each
+ * layer's and variable's settings. The widget sends it to Python, so headless screenshots reproduce the screen.
+ */
+export interface ViewState {
+  size: [number, number];
+  camera: { position: Vec3; target: Vec3; near: number; far: number };
+  /** The theme's base: "auto" follows the host, which `dark` says was dark. */
+  theme: "auto" | "light" | "dark";
+  dark: boolean;
+  panel: boolean;
+  show: { box: boolean; grid: boolean; ticks: boolean; gizmo: boolean };
+  layers: Record<string, { visible: boolean; representation: string; values: string | null; color: string | null; opacity: number }>;
+  variables: Record<string, { cmap: string; clim: [number, number] | null }>;
+}
+
 export interface MountOptions {
   /** Fill the host's height instead of the scene's `height`. */
   fill?: boolean;
@@ -140,6 +156,10 @@ export interface MountOptions {
   onSection?: (section: SectionState | Record<string, never>) => void;
   /** Called after a click picks an element, or dismisses the pick with an empty object. */
   onPick?: (picked: PickState | Record<string, never>) => void;
+  /** View to start from, overriding the scene's; from the widget's synced state. */
+  state?: ViewState;
+  /** Called once the view has stayed the same for a moment after any change, and first after mounting. */
+  onState?: (state: ViewState) => void;
 }
 
 export class Viewer {
@@ -203,6 +223,8 @@ export class Viewer {
     hint: null,
   };
   private emitTimer: ReturnType<typeof setTimeout> | undefined;
+  private stateTimer: ReturnType<typeof setTimeout> | undefined;
+  private lastState = "";
 
   private surfaceBias = 0;
   private clickAt: XY | null = null;
@@ -255,9 +277,23 @@ export class Viewer {
     this.axes = new Axes(spec.origin, spec.axes);
     this.scene.add(this.axes.group);
     this.gizmo = new Gizmo((snap) => this.snap(snap));
-    this.themeSpec = spec.theme;
+    const state = options.state;
+    this.themeSpec = state && state.theme !== "auto" ? withBase(spec.theme, state.theme) : spec.theme;
+    if (state) this.show = { ...state.show };
+    this.axes.show = { box: this.show.box, grid: this.show.grid, ticks: this.show.ticks };
 
-    this.layers = spec.layers.map((layer, index) => {
+    this.layers = spec.layers.map((given, index) => {
+      const s = state?.layers?.[given.id];
+      const layer: LayerSpec = s
+        ? {
+            ...given,
+            visible: s.visible,
+            opacity: s.opacity,
+            color: s.color,
+            values: s.values,
+            representation: representations(given.kind).includes(s.representation) ? s.representation : given.representation,
+          }
+        : given;
       const filter = new LayerFilter();
       filter.uniforms.uLayer.value = index;
       const l: Layer = {
@@ -285,6 +321,7 @@ export class Viewer {
     for (const [name, v] of Object.entries(spec.variables)) {
       this.variables.set(name, { cmap: v.cmap ?? DEFAULT_COLORMAP, clim: v.clim ?? null, label: v.label ?? null });
     }
+    for (const [name, v] of Object.entries(state?.variables ?? {})) Object.assign(this.variable(name), v);
 
     this.outline.renderOrder = 10;
     this.scene.add(this.outline, this.highlight);
@@ -306,6 +343,7 @@ export class Viewer {
     this.cleanup.push(() => document.removeEventListener("fullscreenchange", fullscreen));
     this.buildPanel();
     this.root.append(this.panel, this.reopen, this.help);
+    if (state && !state.panel) this.togglePanel();
     this.root.addEventListener(
       "pointerdown",
       (e) => {
@@ -327,6 +365,14 @@ export class Viewer {
       this.axes.setBox(this.box);
       if (!this.cut?.unfolded) this.fit();
     }
+    this.showGizmo();
+    if (state?.camera) {
+      const { position, target, near, far } = state.camera;
+      this.restoreCamera({ position: new THREE.Vector3(...position), target: new THREE.Vector3(...target) });
+      this.camera.near = near;
+      this.camera.far = far;
+      this.camera.updateProjectionMatrix();
+    }
 
     const resize = new ResizeObserver(() => this.resize());
     resize.observe(this.root);
@@ -346,6 +392,7 @@ export class Viewer {
     this.cleanup.forEach((f) => f());
     clearTimeout(this.measureTimer);
     clearTimeout(this.emitTimer);
+    clearTimeout(this.stateTimer);
     this.clearOutline();
     this.clearHighlight();
     for (const m of [this.outlineLines, this.outlineEdges, this.outlineDots, this.highlightLines, this.highlightRim, this.highlightOver, this.highlightRing])
@@ -401,6 +448,50 @@ export class Viewer {
     this.axes.update(this.camera, this.width, this.height);
     this.gizmo.update(this.camera);
     this.renderer.render(this.scene, this.camera);
+    this.trackState();
+  }
+
+  /** The view as Python keeps it for screenshots. */
+  view(): ViewState {
+    const layers: ViewState["layers"] = {};
+    for (const l of this.layers)
+      layers[l.spec.id] = {
+        visible: l.visible,
+        representation: l.spec.representation,
+        values: l.column?.name ?? null,
+        color: l.color ? rgbToHex(l.color) : null,
+        opacity: l.opacity,
+      };
+    const variables: ViewState["variables"] = {};
+    for (const [name, v] of this.variables) variables[name] = { cmap: v.cmap, clim: v.clim };
+    return {
+      size: [this.width, this.height],
+      camera: {
+        position: this.camera.position.toArray(),
+        target: this.controls.target.toArray(),
+        near: this.camera.near,
+        far: this.camera.far,
+      },
+      theme: themeBase(this.themeSpec),
+      dark: this.theme.dark,
+      panel: !this.panel.hidden,
+      show: { ...this.show },
+      layers,
+      variables,
+    };
+  }
+
+  /** Sends the view once it has stayed the same for a moment; every drawn frame restarts the wait. */
+  private trackState(): void {
+    if (!this.options.onState) return;
+    clearTimeout(this.stateTimer);
+    this.stateTimer = setTimeout(() => {
+      const state = this.view();
+      const text = JSON.stringify(state);
+      if (text === this.lastState) return;
+      this.lastState = text;
+      this.options.onState?.(state);
+    }, 250);
   }
 
   /** Writes this viewer's state into the uniforms its materials share with any other viewer on the page. */
@@ -811,6 +902,7 @@ export class Viewer {
   togglePanel(): void {
     this.panel.hidden = !this.panel.hidden;
     this.reopen.hidden = !this.panel.hidden;
+    this.requestRender();
   }
 
   private section(title: string, key: string, count?: number): HTMLButtonElement {

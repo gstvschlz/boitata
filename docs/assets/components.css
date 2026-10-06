@@ -80,6 +80,21 @@
   background: none; border: 0; cursor: pointer;
 }
 
+/* ---------- 3D scenes: a PNG poster that loads the live page on click ---------- */
+
+.md-typeset .bt-scene {
+  position: relative; display: block; width: 100%; aspect-ratio: 8 / 5; margin: 1em 0; padding: 0;
+  border: 1px solid var(--bt-grid); border-radius: var(--bt-radius); overflow: hidden;
+  background: var(--bt-figure-bg); cursor: pointer;
+}
+.md-typeset .bt-scene img { display: block; width: 100%; height: 100%; object-fit: contain; }
+.md-typeset .bt-scene span {
+  position: absolute; right: .6rem; bottom: .6rem; padding: .2rem .55rem; font-size: .65rem;
+  color: var(--bt-paper); background: var(--bt-ember); border-radius: var(--bt-radius);
+}
+.md-typeset .bt-scene:hover span, .md-typeset .bt-scene:focus-visible span { background: var(--bt-ink); }
+.md-typeset .bt-scene iframe { display: block; width: 100%; height: 100%; border: 0; }
+
 /* ---------- Custom admonitions ----------
    !!! learn "What you'll learn"   !!! key "Key idea"   !!! pitfall "Pitfall"   ??? math "The math"
    !!! check "Check before you move on"   !!! step "Step 1 — ..." */

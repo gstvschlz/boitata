@@ -40,7 +40,7 @@ install the dependencies from conda-forge, then boitatá with pip and `--no-deps
 alone.
 
 ```sh
-conda create -n geo -c conda-forge python numpy matplotlib pyvista polars pandas pyarrow pip
+conda create -n geo -c conda-forge python numpy matplotlib anywidget polars pandas pyarrow pip
 conda activate geo
 pip install --no-deps boitata
 ```
@@ -48,7 +48,7 @@ pip install --no-deps boitata
 ### pixi
 
 ```sh
-pixi add python numpy matplotlib pyvista polars pandas pyarrow
+pixi add python numpy matplotlib anywidget polars pandas pyarrow
 pixi add --pypi "boitata[all]"
 ```
 
@@ -61,8 +61,9 @@ missing package.
 |-----------|------|----------------------|
 | (none) | `numpy` | `numpy` |
 | `plot` | `boitata.plot` | `matplotlib` (or `matplotlib-base`) |
-| `3d` | `boitata.plot3d`; `Scene.show` uses trame in Jupyter and the browser when pyvista's `jupyter` extra is installed | `pyvista` |
-| `all` | the above, and `to_polars`, `to_pandas`, `to_pyarrow` | `matplotlib pyvista polars pandas pyarrow` |
+| `3d` | the notebook widget of `boitata.plot3d`, synced both ways with python; without it a scene shows as a standalone page | `anywidget` |
+| `export` | `Scene.screenshot`, rendered in headless chromium | `playwright` |
+| `all` | `plot`, `3d`, and `to_polars`, `to_pandas`, `to_pyarrow` | `matplotlib anywidget polars pandas pyarrow` |
 
 ## minimum versions
 
@@ -71,20 +72,25 @@ missing package.
 | python | 3.11 |
 | numpy | 1.26 (1.x and 2.x both work) |
 | matplotlib | 3.8 |
-| pyvista | 0.45 |
+| anywidget | 0.9 |
+| playwright | 1.45 |
 | polars | 1.4 |
 | pandas | 2.2 |
 | pyarrow | 16 |
 
-## headless 3D rendering
+## 3D scenes and screenshots
 
-`boitata.plot3d` renders with VTK, which needs OpenGL. on a linux server or container without a display, either
-install `mesalib` from conda-forge (or the system `libEGL`) and set `PYVISTA_OFF_SCREEN=true`, or run under a
-virtual display:
+`boitata.plot3d` draws in the browser with WebGL, so it needs no OpenGL or display on the machine running python.
+`Scene.screenshot` renders the scene in headless chromium through playwright (the `export` extra), which downloads
+chromium on first use; it runs on servers and in containers without a display. on a bare linux image, install
+chromium's system libraries once:
 
 ```sh
-xvfb-run -a python script.py              # apt install xvfb
+playwright install --with-deps chromium
 ```
+
+if jupyter runs in another environment than the kernel, install `anywidget` there too, or the notebook shows each
+scene as a standalone page without two-way sync.
 
 ## datasets
 

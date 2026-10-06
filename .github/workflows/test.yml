@@ -28,10 +28,9 @@ jobs:
           cache-dependency-path: js/viewer/package-lock.json
       - run: npm ci && npm run check && npm test && npm run build
         working-directory: js/viewer
-      - run: sudo apt-get install -y --no-install-recommends xvfb libgl1 libgl1-mesa-dri
-      - run: pip install -e ".[all]" pytest pytest-cov anywidget playwright pillow
+      - run: pip install -e ".[all,export]" pytest pytest-cov pillow
       - run: playwright install --with-deps chromium
-      - run: xvfb-run -a pytest --cov --cov-branch --cov-report=xml
+      - run: pytest --cov --cov-branch --cov-report=xml
       - uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
         with:
           token: ${{ secrets.CODECOV_TOKEN }}

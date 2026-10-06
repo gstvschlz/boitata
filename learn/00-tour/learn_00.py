@@ -14,9 +14,6 @@ from pathlib import Path
 HERE = Path(__file__).parent if "__file__" in globals() else Path.cwd()
 sys.path.insert(0, str(HERE.parents[1] / "examples"))
 
-import pyvista as pv
-
-pv.OFF_SCREEN = True
 
 # %%
 import time
@@ -24,7 +21,7 @@ import time
 import boitata as bt
 import matplotlib.pyplot as plt
 import numpy as np
-from common import ACCENT, GRAY, HIGHLIGHT, INK, LIGHT, map_axes, save
+from common import ACCENT, GRAY, HIGHLIGHT, INK, LIGHT, map_axes, save, show
 
 # %% [markdown]
 # ## Drill holes and topography
@@ -463,45 +460,43 @@ for p, row in (("P10", p10), ("P50", p50), ("P90", p90)):
 #
 # ## In 3D
 #
-# `bt.plot3d` draws containers on pyvista. The scene holds the collar topography, the drill holes, the lens
-# wireframes and every SMU, colored by its probability above 5 % Zn ([3D views](../../examples/02-data-and-geometry/11-3d-views/example_02_11.md),
+# `bt.plot3d` draws containers in a viewer that runs in the browser, as a notebook widget or a standalone page. The
+# scene holds the collar topography, the drill holes over the lenses, the lens surfaces, the kriged sub-blocks
+# (hidden at first) and every SMU, colored by its probability above 5 % Zn. A filter keeps the SMUs with a
+# probability of 1 % or more, so the shell of SMUs that only graze a lens does not hide the cores
+# ([3D views](../../examples/02-data-and-geometry/11-3d-views/example_02_11.md),
+# [filtering block models](../../examples/02-data-and-geometry/23-filtering-block-models/example_02_23.md),
 # [interactive sections](../../examples/02-data-and-geometry/24-interactive-sections/example_02_24.md)):
 #
-# - drag to turn, scroll to zoom; while the camera moves, large layers draw a lighter copy;
-# - the checkboxes at the top left show or hide each layer;
-# - `d` or the *draw* button switches to a plan view: click to add the vertices of a section line, hold Shift to lock
-#   a segment to a multiple of 45°, and press Enter or *draw* again to cut the scene along it;
-# - `u` or *unfold* lays the cut out as one section, `c` or *clear* removes it.
-#
-# In Colab the scene renders on the notebook's machine and streams to the browser.
+# - drag to turn, right-drag to pan, the wheel zooms; `R` fits the view, `P` looks down in plan;
+# - the panel at the top right shows or hides each layer, and its settings switch the representation, the colors
+#   and the filter; `H` hides the panel, `T` switches the theme, the header button goes fullscreen;
+# - Shift-drag cuts a straight section; `S` draws one in plan: click to add vertices, hold Shift to lock a segment
+#   to a multiple of 45°, Enter cuts. Shift+wheel sets the section's width, `U` unfolds it, `X` clears it;
+# - click a block, a hole or a surface to inspect its values; `?` lists every key.
 
 # %%
 low = np.min([mesh.bounds[0] for mesh in lenses.values()], axis=0) - 40
 high = np.max([mesh.bounds[1] for mesh in lenses.values()], axis=0) + 40
-traces = bt.plot3d.to_pyvista(holes).clip_box([low[0], high[0], low[1], high[1], low[2], 450], invert=False)
-scene = bt.plot3d.Scene(window_size=(1200, 800))
+xy = np.c_[data["collars"]["X"], data["collars"]["Y"]]
+over = data["collars"].filter(np.all((xy > low[:2]) & (xy < high[:2]), axis=1))
+scene = bt.plot3d.Scene()
 scene.add(ground.mesh, name="topography", color=LIGHT, opacity=0.4)
-scene.add(traces, name="drill holes", color=GRAY, line_width=1, opacity=0.6)
+scene.add(bt.Drillholes(over, data["surveys"]), name="drill holes", color=GRAY, line_width=1, opacity=0.6)
 for name, mesh in lenses.items():
     scene.add(mesh, name=name.replace("_", " "), color=LIGHT, opacity=0.2)
+scene.add(blocks, "zn", name="kriged sub-blocks", clim=(0, 10), label="Zn (%)", visible=False)
 scene.add(
     smus,
     "p_above_5",
     name="SMUs",
     cmap="magma",
     clim=(0, 100),
-    scalar_bar_args={"title": "P(SMU Zn > 5 %) (%)"},
+    label="P(SMU Zn > 5 %) (%)",
+    filter={"p_above_5": (1, None)},
 )
-scene.view_vector((1.0, -0.7, 0.3))
-scene.camera.zoom(1.4)
-scene.layer_toggles().section_drawer(width=20).show()
-
-# %% [hidden]
-image = scene.plotter.screenshot(return_img=True, window_size=(1400, 900))
-fig, ax = plt.subplots(figsize=(8, 5.2), layout="constrained")
-ax.imshow(image)
-ax.set_axis_off()
-save(fig, "scene")
+scene.view(azimuth=305, dip=25)
+show(scene, "scene", "The SMUs colored by their probability above 5 % Zn, with the holes and lenses")
 
 # %% [markdown]
 # ## Where next

@@ -25,7 +25,7 @@ Worked examples with the Python API on open datasets from [gstvschlz/datasets](h
 | 8 | [polygons](02-data-and-geometry/08-polygons/README.md) | Coal seam thickness | `point_in_polygon`, `polygon_distance`, `plot.section`, `assign_domain`, `Categories`, `plot.category_colors`, `plot.category_legend`, `Polylines`, `PolygonSelector` |
 | 9 | [shapefiles, geopackage and GeoTIFF](02-data-and-geometry/09-gis-formats/README.md) | Soil geochemistry survey | `write_shapefile`, `read_shapefile`, `Polylines`, `write_geopackage`, `read_geopackage`, `Categories`, `BlockModel`, `write_geotiff`, `read_geotiff` |
 | 10 | [models larger than memory](02-data-and-geometry/10-large-models/README.md) | Iron formation plateau | `Drillholes`, `BlockModel`, `write_parquet`, `BlockModelFile`, `detrend`, `map_blocks`, `NormalScore`, `experimental_variogram`, `Variogram`, `TurningBands`, `Search`, `plot.section` |
-| 11 | [3D views](02-data-and-geometry/11-3d-views/README.md) | Stacked sulphide lenses | `Drillholes`, `plot3d.to_pyvista`, `plot3d.plot`, `BlockModel`, `Search`, `InverseDistance` |
+| 11 | [3D views](02-data-and-geometry/11-3d-views/README.md) | Stacked sulphide lenses | `Drillholes`, `plot3d.Scene`, `BlockModel`, `Search`, `InverseDistance` |
 | 12 | [block model from extents](02-data-and-geometry/12-block-model-from-extents/README.md) | Stacked sulphide lenses | `Drillholes`, `BlockModel` |
 | 13 | [runs and strip logs](02-data-and-geometry/13-runs-and-strip-logs/README.md) | Vein gold grade control | `merge_intervals`, `Drillholes`, `Categories`, `plot.strip_log` |
 | 14 | [domain cleanup](02-data-and-geometry/14-domain-cleanup/README.md) | Stacked sulphide lenses | `Drillholes`, `Categories`, `cell_declustering`, `Variogram`, `Search`, `CategoricalIndicatorKriging`, `BlockModel`, `remove_small_units`, `plot.section`, `contact_distance`, `buffer_domains`, `plot.category_legend` |
@@ -35,9 +35,9 @@ Worked examples with the Python API on open datasets from [gstvschlz/datasets](h
 | 18 | [outlines](02-data-and-geometry/18-outlines/README.md) | Stacked sulphide lenses | `PointSet`, `data_spacing`, `outline` |
 | 19 | [topography from points](02-data-and-geometry/19-topography/README.md) | Stacked sulphide lenses | `PointSet`, `topography`, `plot.section`, `Drillholes`, `snap_to_surface` |
 | 20 | [sections with holes](02-data-and-geometry/20-sections-with-holes/README.md) | Stacked sulphide lenses | `merge_intervals`, `Drillholes`, `Variogram`, `Search`, `BlockModel`, `OrdinaryKriging`, `plot.section` |
-| 21 | [live scene](02-data-and-geometry/21-live-scene/README.md) | Stacked sulphide lenses | `Drillholes`, `BlockModel`, `Search`, `InverseDistance`, `plot3d.Scene`, `plot3d.slices` |
+| 21 | [live scene](02-data-and-geometry/21-live-scene/README.md) | Stacked sulphide lenses | `Drillholes`, `BlockModel`, `Search`, `InverseDistance`, `plot3d.Scene` |
 | 22 | [meshes and points in a scene](02-data-and-geometry/22-meshes-and-points/README.md) | Stacked sulphide lenses | `Drillholes`, `PointSet`, `topography`, `plot3d.Scene` |
-| 23 | [block model volumes](02-data-and-geometry/23-block-volumes/README.md) | Stacked sulphide lenses | `Drillholes`, `BlockModel`, `Search`, `InverseDistance`, `plot3d.Scene` |
+| 23 | [filtering block models](02-data-and-geometry/23-filtering-block-models/README.md) | Stacked sulphide lenses | `Drillholes`, `BlockModel`, `Search`, `InverseDistance`, `plot3d.Scene` |
 | 24 | [interactive sections](02-data-and-geometry/24-interactive-sections/README.md) | Stacked sulphide lenses | `Drillholes`, `BlockModel`, `Search`, `InverseDistance`, `plot3d.Scene` |
 | 25 | [units](02-data-and-geometry/25-units/README.md) | Stacked sulphide lenses | `write_csv`, `Table`, `units`, `InvalidInput`, `plot.histogram`, `Drillholes`, `BlockModel`, `OrdinaryKriging`, `Variogram`, `Search`, `grade_tonnage`, `MultipleIndicatorKriging`, `Capping`, `validate_model` |
 
