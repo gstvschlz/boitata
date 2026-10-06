@@ -31,9 +31,9 @@ dynamic = ["version"]
 
 [project.optional-dependencies]
 plot = ["matplotlib>=3.8"]
-3d = ["pyvista[jupyter]>=0.45", "anywidget>=0.9"]
+3d = ["anywidget>=0.9"]
 export = ["playwright>=1.45"]
-all = ["matplotlib>=3.8", "pandas>=2.2", "polars>=1.4", "pyarrow>=16", "pyvista[jupyter]>=0.45", "anywidget>=0.9"]
+all = ["matplotlib>=3.8", "pandas>=2.2", "polars>=1.4", "pyarrow>=16", "anywidget>=0.9"]
 
 [project.urls]
 Homepage = "https://github.com/gstvschlz/boitata"
@@ -53,7 +53,6 @@ dev = [
     "mkdocs-material>=9.7.7",
     "mkdocstrings[python]>=1.0.6",
     "mkdocs-gallery>=0.10.4",
-    "pyvista>=0.45",
     "playwright>=1.63.0",
     "anywidget>=0.11.0",
 ]

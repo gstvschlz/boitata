@@ -16,14 +16,14 @@ pyarrow = "16.*"
 polars = "1.4.*"
 pandas = "2.2.*"
 matplotlib = "3.8.*"
-pyvista = "0.45.*"
+anywidget = "0.9.*"
 
 [feature.latest.dependencies]
 pyarrow = ">=16"
 polars = ">=1.4"
 pandas = ">=2.2"
 matplotlib = ">=3.8"
-pyvista = ">=0.45"
+anywidget = ">=0.9"
 
 [feature.sdist.dependencies]
 rust = ">=1.97"

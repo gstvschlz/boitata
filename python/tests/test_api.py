@@ -29,26 +29,12 @@ POSITIONAL_DEFAULTS = {
     ("Coregionalization.fit", "model"),
     ("plot.slab", "values"),
     ("plot3d.plot", "values"),
-    ("plot3d.slices", "values"),
     ("plot3d.Scene.add", "values"),
-    ("plot3d.Scene.section", "origin"),
 }
 # `domains` without `domain_column`: none.
 DOMAINS_EXEMPT = set()
-# Not plots: color and legend helpers, the conversion to pyvista, and the methods of a scene.
-NOT_PLOTS = {
-    "plot.category_colors",
-    "plot.category_legend",
-    "plot3d.to_pyvista",
-    "plot3d.Scene.add",
-    "plot3d.Scene.show",
-    "plot3d.Scene.screenshot",
-    "plot3d.Scene.section",
-    "plot3d.Scene.section_widget",
-    "plot3d.Scene.view_section",
-    "plot3d.Scene.section_drawer",
-    "plot3d.Scene.layer_toggles",
-}
+# Not plots: color and legend helpers.
+NOT_PLOTS = {"plot.category_colors", "plot.category_legend"}
 # `fit` building a new model from experimental variograms, not fitting the object in place.
 MODEL_FITS = {"Variogram", "ExperimentalVariogram", "Coregionalization"}
 
@@ -138,11 +124,11 @@ def test_no_progress_bars():
 
 def test_plots_take_keyword_only_axes():
     plots = {
-        name: obj for name, obj in CALLABLES.items() if name.startswith("plot") and name not in NOT_PLOTS
+        name: obj for name, obj in CALLABLES.items() if name.startswith("plot.") and name not in NOT_PLOTS
     }
     for name, obj in plots.items():
         target = {"plot.scatter_matrix": "axes", "plot.variograms": "axes", "plot.fence": "axes"}.get(
-            name, "plotter" if name.startswith("plot3d.") else "ax"
+            name, "ax"
         )
         p = inspect.signature(obj).parameters.get(target)
         assert p is not None and p.kind is p.KEYWORD_ONLY, name

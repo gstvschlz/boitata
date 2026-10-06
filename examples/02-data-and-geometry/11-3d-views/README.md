@@ -1,41 +1,25 @@
 # 3D views
 
-`bt.plot3d` turns drill holes, points, meshes and block models into pyvista datasets and draws them
-(``pip install boitata[3d]``). the scenes show three stacked sulphide lenses with the holes that cut them, their
-zinc composites, a sub-blocked model of the lenses and a slice through a model rotated with them. each scene
-renders off-screen to an image.
+`bt.plot3d` draws drill holes, points, meshes and block models in a 3D scene that runs in the browser
+(``pip install boitata[3d]`` for the notebook widget). the scenes show three stacked sulphide lenses with the holes
+that cut them, their zinc composites, a sub-blocked model of the lenses and a section through a model rotated with
+them. each scene renders to an image with `screenshot`; in the documentation a click on the image loads the live
+scene.
 
 <details><summary>Python</summary>
 
 ```python
 import boitata as bt
-import matplotlib.pyplot as plt
 import numpy as np
-import pyvista as pv
-from common import GRAY, LIGHT, save
+from common import GRAY, LIGHT, show
 
-pv.OFF_SCREEN = True
-BAR = {"title": "Zn (%)", "vertical": True, "height": 0.5, "position_x": 0.85, "position_y": 0.25}
-STYLE = {"cmap": "cividis", "clim": (0, 10), "scalar_bar_args": BAR}
-
-
-def show(plotter, title, view=(0.8, -0.6, 0.6)):
-    """Renders a pyvista scene into a matplotlib figure."""
-    plotter.view_vector(view)
-    image = plotter.screenshot(return_img=True, window_size=(1400, 900))
-    plotter.close()
-    fig, ax = plt.subplots(figsize=(8, 5.2), layout="constrained")
-    ax.imshow(image)
-    ax.set_axis_off()
-    ax.set_title(title)
-    return fig
+ZN = {"cmap": "cividis", "clim": (0, 10), "label": "Zn (%)"}
 ```
 
 </details>
 
-a `Drillholes` becomes one polyline per hole through its desurveyed stations, a `PointSet` points, a `Mesh`
-triangles. the holes are clipped to the box around the lenses. zinc colors the composites inside the lenses, and
-the others stay gray.
+a `Drillholes` without intervals draws its desurveyed traces, a `PointSet` points, a `Mesh` triangles. only the
+holes collared over the lenses are drawn. zinc colors the composites inside the lenses; the others stay gray.
 
 <details><summary>Python</summary>
 
@@ -50,17 +34,19 @@ print(f"{len(holes.holes)} holes, {len(composites):,} composites of 2 m, {ore.su
 
 lo = np.min([lens.bounds[0] for lens in lenses], axis=0) - 50
 hi = np.max([lens.bounds[1] for lens in lenses], axis=0) + 50
-box = [lo[0], hi[0], lo[1], hi[1], lo[2], hi[2]]
-traces = bt.plot3d.to_pyvista(holes).clip_box(box, invert=False)
+xy = np.c_[data["collars"]["X"], data["collars"]["Y"]]
+over = data["collars"].filter(np.all((xy > lo[:2]) & (xy < hi[:2]), axis=1))
+traces = bt.Drillholes(over, data["surveys"])
 near = np.all((composites.coords > lo) & (composites.coords < hi), axis=1)
 
-plotter = pv.Plotter(window_size=(1400, 900))
-bt.plot3d.plot(traces, plotter=plotter, color=GRAY, line_width=1, opacity=0.3)
-bt.plot3d.plot(composites.filter(near & ~ore), plotter=plotter, color=LIGHT, point_size=2)
-bt.plot3d.plot(composites.filter(ore), values="ZN_PCT", plotter=plotter, point_size=5, **STYLE)
-for lens in lenses:
-    bt.plot3d.plot(lens, plotter=plotter, color=LIGHT, opacity=0.25)
-save(show(plotter, "Drill holes, Zn composites and the three lenses"), "holes")
+scene = bt.plot3d.Scene()
+scene.add(traces, name="holes", color=GRAY, line_width=1, opacity=0.5)
+scene.add(composites.filter(near & ~ore), name="host", color=LIGHT, point_size=2)
+scene.add(composites.filter(ore), "ZN_PCT", name="ore", point_size=6, **ZN)
+for i, lens in enumerate(lenses, 1):
+    scene.add(lens, name=f"lens {i}", color=GRAY, opacity=0.15)
+scene.view(azimuth=305, dip=30)
+show(scene, "holes", "Drill holes, Zn composites and the three lenses")
 ```
 
 </details>
@@ -72,8 +58,8 @@ save(show(plotter, "Drill holes, Zn composites and the three lenses"), "holes")
 ![holes](holes.png)
 
 `from_meshes` sub-blocks a grid rotated with the lenses ([block model from extents](../../02-data-and-geometry/12-block-model-from-extents/README.md)) against the solids, and inverse distance fills
-the sub-blocks with the zinc of the composites inside the lenses. a masked or sub-blocked model becomes one
-hexahedron per row, at its parent's rotation.
+the sub-blocks with the zinc of the composites inside the lenses. each row draws as a box along the model's
+rotated axes, sub-blocks at their own size.
 
 <details><summary>Python</summary>
 
@@ -97,10 +83,11 @@ blocks = blocks.with_column("zn", idw.predict(blocks))
 solid = sum(lens.volume for lens in lenses)
 print(f"{len(blocks):,} sub-blocks, {blocks.volumes.sum() / 1e6:.2f} Mm3 for {solid / 1e6:.2f} Mm3 of lens")
 
-plotter = pv.Plotter(window_size=(1400, 900))
-bt.plot3d.plot(blocks, values="zn", plotter=plotter, **STYLE)
-bt.plot3d.plot(traces, plotter=plotter, color=GRAY, line_width=1, opacity=0.4)
-save(show(plotter, "Sub-blocks of the lenses, colored by Zn"), "subblocks")
+scene = bt.plot3d.Scene()
+scene.add(blocks, "zn", name="sub-blocks", **ZN)
+scene.add(traces, name="holes", color=GRAY, line_width=1, opacity=0.4)
+scene.view(azimuth=305, dip=30)
+show(scene, "subblocks", "Sub-blocks of the lenses, colored by Zn")
 ```
 
 </details>
@@ -111,10 +98,10 @@ save(show(plotter, "Sub-blocks of the lenses, colored by Zn"), "subblocks")
 
 ![subblocks](subblocks.png)
 
-a regular model keeps its geometry implicit: `to_pyvista` returns an image grid oriented by the model's rotation.
-`slices` cuts it through its center along the world axes, and any pyvista cut works too. filled with the
-inverse-distance zinc of all composites, the rotated grid is cut here across strike, through its center: a dip
-section where the three lenses are the high-grade bands. blocks with no composite within 100 m stay empty.
+a regular model keeps its geometry implicit; the viewer builds its boxes from the centers, sizes and rotation.
+filled with the inverse-distance zinc of all composites, the rotated grid is cut here by a `section` across
+strike, through its center and one block wide: a dip section where the three lenses are the high-grade bands.
+blocks with no composite within 100 m are null and never drawn.
 
 <details><summary>Python</summary>
 
@@ -123,14 +110,16 @@ everywhere = bt.InverseDistance(search, power=2).fit(composites.coords, composit
 rotated = frame.with_column("zn", everywhere.predict(frame))
 estimated = np.isfinite(rotated["zn"]).mean()
 print(f"rotated grid {frame.count}: {estimated:.0%} of {len(frame):,} blocks estimated")
-grid = bt.plot3d.to_pyvista(rotated)
-strike = np.radians(rotation[0])
-section = grid.slice(normal=(np.sin(strike), np.cos(strike), 0), origin=grid.center)
-plotter = pv.Plotter(window_size=(1400, 900))
-bt.plot3d.plot(section, values="zn", plotter=plotter, nan_opacity=0, **STYLE)
-for lens in lenses:
-    bt.plot3d.plot(lens, plotter=plotter, color=LIGHT, opacity=0.2)
-save(show(plotter, "Dip section through a grid rotated with the lenses", view=(0.5, 1, 0.15)), "section")
+center = rotated.centroids.mean(axis=0)
+across = np.radians(rotation[0] + 90)
+reach = 400 * np.array([np.sin(across), np.cos(across), 0])
+scene = bt.plot3d.Scene()
+scene.add(rotated, "zn", name="rotated grid", **ZN)
+for i, lens in enumerate(lenses, 1):
+    scene.add(lens, name=f"lens {i}", color=LIGHT, opacity=0.2)
+scene.section([center - reach, center + reach], width=20)
+scene.view(azimuth=rotation[0] + 180, dip=10)
+show(scene, "section", "Dip section through a grid rotated with the lenses")
 ```
 
 </details>

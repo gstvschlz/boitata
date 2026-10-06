@@ -2,9 +2,8 @@
 
 The docstring and markdown cells become text: admonitions turn into quotes, `--8<--` figures into SVG attachments
 styled like the docs, math delimiters into `$`, and relative links into links to the docs site. Hidden cells are
-dropped and a setup cell installs boitata and fetches common.py; a script using `bt.plot3d` also gets pyvista with its
-standalone HTML viewer, which works in Colab. pyvista 0.49 imports `IPython.core.guarded_eval`, which Colab's IPython
-lacks, so the cell holds pyvista below 0.49.
+dropped and a setup cell installs boitata and fetches common.py; a script using `bt.plot3d` installs the `all` extra,
+whose anywidget shows its scenes as notebook widgets.
 """
 
 import ast
@@ -26,14 +25,7 @@ if importlib.util.find_spec("boitata") is None:
     %pip install -q "boitata[plot]>=0.3"
 if importlib.util.find_spec("common") is None:
     urllib.request.urlretrieve("{RAW}examples/common.py", "common.py")"""
-SETUP_3D = (
-    SETUP.replace('"boitata[plot]>=0.3"', '"boitata[all]>=0.4.1" "pyvista[jupyter]<0.49"')
-    + """
-
-import pyvista as pv
-
-pv.set_jupyter_backend("html")"""
-)
+SETUP_3D = SETUP.replace('"boitata[plot]>=0.3"', '"boitata[all]>=0.5"')
 ADMONITION = re.compile(r'^(?:!!!|\?\?\?\+?) (\w+)(?: "(.*)")?$')
 FIGURE = re.compile(
     r'<figure[^>]*>\s*--8<-- "([^"]+)"\s*<figcaption>(.*?)</figcaption>\s*</figure>', re.DOTALL

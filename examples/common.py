@@ -1,5 +1,6 @@
 """Figure style shared by the examples."""
 
+import html
 import inspect
 import sys
 from pathlib import Path
@@ -46,6 +47,37 @@ def map_axes(ax, title):
 
 
 SAVED: list[Path] = []
+
+
+class Poster:
+    """A scene's PNG in a gallery page, which a click swaps for the live scene (docs/assets/figures.js)."""
+
+    def __init__(self, stem: str, alt: str):
+        self.stem, self.alt = stem, alt
+
+    def _repr_html_(self):
+        return (
+            f'<button type="button" class="bt-scene" data-scene="../{self.stem}.html">'
+            f'<img src="../{self.stem}.png" alt="{html.escape(self.alt)}" loading="lazy">'
+            "<span>open the live scene</span></button>"
+        )
+
+
+def show(scene, name: str, alt: str = "3D scene"):
+    """A `bt.plot3d.Scene` as the page shows it: the live widget in notebooks; in the docs gallery, a PNG poster
+    that opens the scene's standalone page, both written next to the page; elsewhere `name`.png next to the calling
+    script. End a cell with it, so the notebook and the gallery display what it returns."""
+    if "mkdocs_gallery" in sys.modules:
+        out = ROOT.parent / "docs" / Path.cwd().resolve().relative_to(ROOT.parent)
+        out.mkdir(parents=True, exist_ok=True)
+        scene.save(out / f"scene_{name}.html")
+        scene.screenshot(out / f"scene_{name}.png", scale=1.5)
+        return Poster(f"scene_{name}", alt)
+    if "ipykernel" in sys.modules:
+        return scene
+    caller = inspect.currentframe().f_back.f_globals["__file__"]
+    SAVED.append(scene.screenshot(Path(caller).parent / f"{name}.png", scale=1.5))
+    return None
 
 
 def save(fig, name: str):
