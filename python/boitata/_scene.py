@@ -10,6 +10,7 @@ import json
 import math
 import tempfile
 import warnings
+import weakref
 import webbrowser
 from collections.abc import Mapping
 from functools import cache
@@ -36,6 +37,7 @@ _THEME_KEYS = (
     "halo",
 )
 _WARN_BYTES = 200 * 2**20
+_FILTER_SLOTS = 4
 _NAMES = {"drillholes": "drill holes", "points": "points", "mesh": "mesh", "blocks": "block model"}
 _REPRESENTATIONS = {
     "drillholes": ("lines", "tubes", "points"),
@@ -190,6 +192,67 @@ def _layer(data):
     raise TypeError(f"cannot draw {type(data).__name__}; pass a PointSet, Drillholes, BlockModel or Mesh")
 
 
+def _real(value):
+    return isinstance(value, int | float | np.integer | np.floating) and not isinstance(
+        value, bool | np.bool_
+    )
+
+
+def _filter(layer, conditions):
+    """A layer's filter as the viewer reads it, from column name to a (low, high) tuple or a list of categories."""
+    if not isinstance(conditions, Mapping):
+        raise TypeError(
+            f"filter must be a dict of column name to (low, high) or a list of categories, got {conditions!r}"
+        )
+    if len(conditions) > _FILTER_SLOTS:
+        raise ValueError(f"a layer filters on {_FILTER_SLOTS} columns at most, got {len(conditions)}")
+    columns = {c["name"]: c for c in layer["columns"]}
+    out = {}
+    for name, condition in conditions.items():
+        column = columns.get(name)
+        if column is None:
+            raise ValueError(
+                f"cannot filter {layer['name']!r} by {name!r}: not a column sent to the viewer; "
+                f"columns: {', '.join(columns) or 'none'} (columns= limits them)"
+            )
+        if column["type"] == "number":
+            if not isinstance(condition, tuple):
+                raise TypeError(
+                    f"filter on number column {name!r} must be a (low, high) tuple, got {condition!r}"
+                )
+            if len(condition) != 2 or not all(
+                b is None or (_real(b) and math.isfinite(b)) for b in condition
+            ):
+                raise ValueError(
+                    f"filter on {name!r} must be (low, high), finite numbers or None, got {condition!r}"
+                )
+            low, high = (None if b is None else float(b) for b in condition)
+            if low is not None and high is not None and low > high:
+                raise ValueError(f"filter on {name!r} must have low <= high, got {condition!r}")
+            out[name] = {"range": [low, high]}
+        else:
+            if isinstance(condition, str | tuple) or not isinstance(condition, list | set | frozenset):
+                raise TypeError(
+                    f"filter on text column {name!r} must be a list of categories, got {condition!r}"
+                )
+            unknown = sorted(str(c) for c in condition if c not in column["categories"])
+            if unknown:
+                raise ValueError(
+                    f"no categories {unknown} in {name!r}; categories: {', '.join(column['categories'])}"
+                )
+            out[name] = {"categories": [c for c in column["categories"] if c in condition]}
+    return out
+
+
+def _filter_tuples(state):
+    return {
+        name: tuple(None if b is None else float(b) for b in c["range"])
+        if "range" in c
+        else list(c["categories"])
+        for name, c in state.items()
+    }
+
+
 def _names(table):
     return list(table) if isinstance(table, Mapping) else table.column_names
 
@@ -217,6 +280,7 @@ def _widget_class():
         _esm = _bundle()
         spec = traitlets.Dict().tag(sync=True)
         buffers = traitlets.Dict().tag(sync=True)
+        filters = traitlets.Dict().tag(sync=True)
 
     return SceneWidget
 
@@ -283,6 +347,7 @@ class Scene:
         self._crs = None
         self._unit = None
         self._warned = False
+        self._live = weakref.WeakSet()
 
     def add(
         self,
@@ -301,6 +366,7 @@ class Scene:
         label=None,
         visible=True,
         columns=None,
+        filter=None,
     ):
         """Adds a layer.
 
@@ -354,6 +420,12 @@ class Scene:
         columns : sequence of str, optional
             Columns sent to the viewer, which offers them to color by; default every numeric and text column.
             `values` is always sent.
+        filter : dict, optional
+            Rows shown from the start, as conditions on columns sent to the viewer, all of which a row must meet:
+            a ``(low, high)`` tuple for a number column, inclusive, None leaving that end open; a list of the
+            categories kept for a text column. A row null in a filtered column fails its condition. At most four
+            columns; the layer's filter panel edits them while viewing, and `filters` reads them back. For example
+            ``{"p_above_5": (50, None), "LENS": ["lens_1", "lens_2"]}``.
 
         Returns
         -------
@@ -437,6 +509,7 @@ class Scene:
             "geometry": refs,
             "columns": specs,
         }
+        layer["filter"] = _filter(layer, {} if filter is None else filter)
         if kind == "blocks":
             layer["axes"] = _block_axes(data).tolist()
         if values is not None:
@@ -541,8 +614,58 @@ class Scene:
         webbrowser.open(path.as_uri())
         return path
 
+    @property
+    def filters(self):
+        """Filters of the layers, as conditions by column: ``{layer name: {column: (low, high) or [categories]}}``.
+
+        Layers without a filter are left out. In a notebook it follows the panel's edits in the last widget shown;
+        a saved page has no way back, so there it holds what `add` and this property set. Setting it replaces
+        every layer's filter, with conditions as `add` takes them, and updates the widgets shown.
+
+        Returns
+        -------
+        dict
+        """
+        return {layer["name"]: _filter_tuples(layer["filter"]) for layer in self._layers if layer["filter"]}
+
+    @filters.setter
+    def filters(self, value):
+        if not isinstance(value, Mapping):
+            raise TypeError(f"filters must be a dict of layer name to filter, got {type(value).__name__}")
+        names = [layer["name"] for layer in self._layers]
+        unknown = [name for name in value if name not in names]
+        if unknown:
+            raise ValueError(f"no layers {unknown}; layers: {', '.join(names) or 'none'}")
+        ambiguous = [name for name in value if names.count(name) > 1]
+        if ambiguous:
+            raise ValueError(
+                f"layer names {ambiguous} are shared by several layers; give the layers distinct names"
+            )
+        states = [_filter(layer, value.get(layer["name"], {})) for layer in self._layers]
+        for layer, state in zip(self._layers, states, strict=True):
+            layer["filter"] = state
+        self._push_filters()
+
+    def _filter_state(self):
+        return {layer["id"]: layer["filter"] for layer in self._layers if layer["filter"]}
+
+    def _push_filters(self, source=None):
+        state = self._filter_state()
+        for widget in list(self._live):
+            if widget is not source:
+                widget.filters = state
+
+    def _filters_edited(self, change):
+        state = change["new"] or {}
+        for layer in self._layers:
+            layer["filter"] = state.get(layer["id"], {})
+        self._push_filters(source=change["owner"])
+
     def _widget(self):
-        return _widget_class()(spec=self._spec(), buffers=dict(self._buffers))
+        widget = _widget_class()(spec=self._spec(), buffers=dict(self._buffers), filters=self._filter_state())
+        widget.observe(self._filters_edited, names="filters")
+        self._live.add(widget)
+        return widget
 
     def _repr_mimebundle_(self, include=None, exclude=None):
         try:

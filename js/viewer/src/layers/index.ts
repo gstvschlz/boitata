@@ -1,5 +1,6 @@
 import type * as THREE from "three";
 import type { Box } from "../bounds";
+import type { LayerFilter } from "../filter";
 import type { Paint } from "../paint";
 import type { Buffers, Kind, LayerSpec } from "../types";
 import { blockWireframe, cells } from "./cells";
@@ -15,6 +16,7 @@ export interface Representation {
   box: Box | null;
   /** Instances it draws in full, which the motion budget counts. */
   instances: number;
+  /** Fills its buffers from the paint and the filter's columns; a change of bounds or categories needs no repaint. */
   paint(paint: Paint): void;
   setOpacity(opacity: number): void;
   /** Draws a spatially even `fraction` of its instances while the camera moves; 1 draws them all. */
@@ -24,7 +26,7 @@ export interface Representation {
   dispose(): void;
 }
 
-export type Factory = (layer: LayerSpec, buffers: Buffers) => Representation;
+export type Factory = (layer: LayerSpec, buffers: Buffers, filter: LayerFilter) => Representation;
 
 export const REPRESENTATIONS: Record<string, Factory> = {
   "drillholes:lines": lines,
@@ -47,8 +49,8 @@ export function representations(kind: Kind): string[] {
     .map((key) => key.slice(kind.length + 1));
 }
 
-export function represent(layer: LayerSpec, buffers: Buffers): Representation {
+export function represent(layer: LayerSpec, buffers: Buffers, filter: LayerFilter): Representation {
   const factory = REPRESENTATIONS[`${layer.kind}:${layer.representation}`];
   if (!factory) throw new Error(`no representation ${layer.representation} for ${layer.kind}`);
-  return factory(layer, buffers);
+  return factory(layer, buffers, filter);
 }
