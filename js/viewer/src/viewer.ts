@@ -7,13 +7,23 @@ import { categoryColor, COLORMAPS, cssToRgb, DEFAULT_COLORMAP, lut, type RGB, rg
 import { colorBarSvg } from "./colorbar";
 import { Gizmo, type Snap } from "./gizmo";
 import { hostIsDark, watchHost } from "./host";
-import { icon, iconButton, setIcon } from "./icons";
-import { represent, type Representation } from "./layers/index";
+import { icon, iconButton, type IconName, setIcon } from "./icons";
+import { represent, representations, type Representation } from "./layers/index";
+import {
+  adapt,
+  FAST_FRACTION,
+  motionFraction,
+  motionPixelRatio,
+  type Quality,
+  Settle,
+  startFraction,
+} from "./motion";
 import { columnPaint, solidPaint, type Scale } from "./paint";
 import { type Renderer, webgl } from "./renderer";
 import { shared } from "./shaders";
 import { CSS } from "./styles";
 import { resolveTheme, type Theme, type ThemeSpec, themeBase, withBase } from "./theme";
+import { formatRange } from "./ticks";
 import type { Buffers, ColumnSpec, Kind, LayerSpec, SceneSpec } from "./types";
 
 const KINDS: [Kind, string][] = [
@@ -23,6 +33,14 @@ const KINDS: [Kind, string][] = [
   ["blocks", "Block models"],
 ];
 const REFIT_MS = 320;
+/** Frames further apart than this belong to different movements and are not timed. */
+const GAP_MS = 250;
+const QUALITIES: [Quality, string, string][] = [
+  ["auto", "Auto", "Draw fewer instances while moving, as many as the frame rate allows"],
+  ["fast", "Fast", "Draw a fixed share of the instances while moving"],
+  ["full", "Full", "Draw everything while moving"],
+];
+const capitalize = (s: string) => s[0].toUpperCase() + s.slice(1);
 
 interface Layer {
   spec: LayerSpec;
@@ -75,6 +93,12 @@ export class Viewer {
   private barEls = new Map<string, HTMLDivElement>();
   private uid = Math.random().toString(36).slice(2, 8);
   private cleanup: (() => void)[] = [];
+  private quality: Quality;
+  private fastFraction: number;
+  private autoFraction: number | null = null;
+  private settle = new Settle(() => this.applyDetail());
+  private lastMove = 0;
+  private pixelRatio = window.devicePixelRatio || 1;
 
   constructor(host: HTMLElement, private spec: SceneSpec, private buffers: Buffers, options: MountOptions = {}) {
     const shadow = host.shadowRoot ?? host.attachShadow({ mode: "open" });
@@ -92,7 +116,14 @@ export class Viewer {
     this.camera.up.set(0, 0, 1);
     this.controls = new OrbitControls(this.camera, this.renderer.canvas);
     this.controls.zoomToCursor = true;
-    this.controls.addEventListener("change", () => this.requestRender());
+    this.controls.addEventListener("change", () => {
+      if (this.quality !== "full") this.settle.poke();
+      this.requestRender();
+    });
+    const motion = spec.motion ?? "auto";
+    this.quality = typeof motion === "number" ? "fast" : motion;
+    this.fastFraction = typeof motion === "number" ? motion : FAST_FRACTION;
+    this.cleanup.push(() => this.settle.stop());
 
     this.axes = new Axes(spec.origin, spec.axes);
     this.scene.add(this.axes.group);
@@ -104,7 +135,7 @@ export class Viewer {
       rep.object.visible = layer.visible;
       this.scene.add(rep.object);
       return {
-        spec: layer,
+        spec: { ...layer },
         rep,
         visible: layer.visible,
         column: layer.columns.find((c) => c.name === layer.values) ?? null,
@@ -163,9 +194,21 @@ export class Viewer {
       if (t < 1) this.requestRender();
       else this.refit = null;
     }
+    if (this.settle.moving && this.quality === "auto" && this.autoFraction !== null) {
+      const now = performance.now();
+      if (this.lastMove && now - this.lastMove < GAP_MS) {
+        const next = adapt(this.autoFraction, now - this.lastMove);
+        if (Math.abs(next - this.autoFraction) > 0.01 * this.autoFraction) {
+          this.autoFraction = next;
+          this.applyDetail();
+        }
+      }
+      this.lastMove = now;
+    }
     const forward = this.camera.getWorldDirection(new THREE.Vector3());
     shared.uLight.value.copy(forward.negate().add(new THREE.Vector3(0, 0, 0.3))).normalize();
-    shared.uPixelRatio.value = window.devicePixelRatio || 1;
+    shared.uPixelRatio.value = this.pixelRatio;
+    shared.uResolution.value.set(this.width, this.height);
     for (const layer of this.layers) layer.rep.frame?.(this.width, this.height);
     this.axes.update(this.camera, this.width, this.height);
     this.gizmo.update(this.camera);
@@ -175,10 +218,43 @@ export class Viewer {
   private resize(): void {
     this.width = Math.max(1, this.root.clientWidth);
     this.height = Math.max(1, this.root.clientHeight);
-    this.renderer.setSize(this.width, this.height, window.devicePixelRatio || 1);
+    this.renderer.setSize(this.width, this.height, this.pixelRatio);
     this.camera.aspect = this.width / this.height;
     this.camera.updateProjectionMatrix();
     this.requestRender();
+  }
+
+  // ---- motion quality ----
+
+  /** Share of each layer's instances drawn now: 1 at rest, the quality's fraction while the camera moves. */
+  private fraction(): number {
+    if (!this.settle.moving) return 1;
+    if (this.quality === "auto" && this.autoFraction === null) {
+      let instances = 0;
+      for (const l of this.layers) if (l.visible) instances += l.rep.instances;
+      this.autoFraction = startFraction(instances);
+    }
+    return motionFraction(this.quality, this.fastFraction, this.autoFraction ?? 1);
+  }
+
+  /** Draws each layer at the current fraction and sets the pixel ratio to match; called when motion starts or stops. */
+  private applyDetail(): void {
+    if (!this.settle.moving) this.lastMove = 0;
+    const f = this.fraction();
+    for (const layer of this.layers) layer.rep.detail?.(f);
+    const dpr = window.devicePixelRatio || 1;
+    const ratio = this.settle.moving ? motionPixelRatio(dpr, f) : dpr;
+    if (ratio !== this.pixelRatio) {
+      this.pixelRatio = ratio;
+      this.renderer.setSize(this.width, this.height, ratio);
+    }
+    this.requestRender();
+  }
+
+  setQuality(quality: Quality): void {
+    this.quality = quality;
+    this.settle.stop();
+    this.renderBody();
   }
 
   // ---- camera ----
@@ -278,6 +354,30 @@ export class Viewer {
         ? columnPaint(c, this.columnData(layer, c), this.scale(c.name), this.solid(layer))
         : solidPaint(this.solid(layer)),
     );
+    layer.rep.detail?.(this.fraction());
+  }
+
+  /** Redraws a layer in another representation, keeping its color, range, opacity and visibility. */
+  setRepresentation(layer: Layer, name: string): void {
+    if (name === layer.spec.representation || !representations(layer.spec.kind).includes(name)) return;
+    this.scene.remove(layer.rep.object);
+    layer.rep.dispose();
+    layer.spec.representation = name;
+    layer.rep = represent(layer.spec, this.buffers);
+    layer.rep.object.visible = layer.visible;
+    layer.rep.setOpacity(layer.opacity);
+    this.scene.add(layer.rep.object);
+    this.paint(layer);
+    this.refitBox();
+    this.renderBody();
+    this.requestRender();
+  }
+
+  private refitBox(): void {
+    const to = visibleBox(this.layers.map((l) => ({ visible: l.visible, box: l.rep.box })));
+    if (this.box && to) this.refit = { from: this.box, to, start: performance.now() };
+    else this.axes.setBox(to);
+    this.box = to;
   }
 
   /** Repaints the layers colored by `names` (all when omitted) and redraws what depends on them. */
@@ -300,10 +400,7 @@ export class Viewer {
       const alone = this.layers.every((l) => l.visible === (l === layer));
       for (const l of this.layers) this.setVisible(l, alone || l === layer);
     } else this.setVisible(layer, !layer.visible);
-    const to = visibleBox(this.layers.map((l) => ({ visible: l.visible, box: l.rep.box })));
-    if (this.box && to) this.refit = { from: this.box, to, start: performance.now() };
-    else this.axes.setBox(to);
-    this.box = to;
+    this.refitBox();
     this.renderBody();
     this.updateBars();
     this.requestRender();
@@ -320,6 +417,7 @@ export class Viewer {
     for (const [k, v] of Object.entries(vars)) this.root.style.setProperty(`--btv-${k}`, v);
     this.root.style.colorScheme = t.dark ? "dark" : "light";
     this.renderer.setBackground(t.background);
+    shared.uHalo.value.set(t.halo);
     this.axes.setTheme(t);
     this.gizmo.setTheme(t);
     setIcon(this.themeButton, t.dark ? "sun" : "moon");
@@ -418,27 +516,36 @@ export class Viewer {
     }
     this.body.appendChild(this.section("View", "view"));
     if (!this.collapsed.has("view")) {
-      const labels: [keyof Viewer["show"], string][] = [
-        ["box", "Bounding box"],
-        ["grid", "Grid"],
-        ["ticks", "Tick labels"],
-        ["gizmo", "Orientation"],
+      const box = document.createElement("div");
+      box.className = "btv-settings btv-view";
+      const tools = document.createElement("div");
+      tools.className = "btv-tools";
+      const toggles: [keyof Viewer["show"], IconName, string][] = [
+        ["box", "box", "Bounding box"],
+        ["grid", "grid", "Grid"],
+        ["ticks", "ruler", "Tick labels"],
+        ["gizmo", "axes", "Orientation"],
       ];
-      for (const [key, text] of labels) {
-        const row = document.createElement("label");
-        row.className = "btv-toggle";
-        const input = document.createElement("input");
-        input.type = "checkbox";
-        input.checked = this.show[key];
-        input.addEventListener("change", () => {
-          this.show[key] = input.checked;
+      for (const [key, name, text] of toggles) {
+        const button = iconButton(name, text, () => {
+          this.show[key] = !this.show[key];
+          button.setAttribute("aria-pressed", String(this.show[key]));
           this.axes.show = { box: this.show.box, grid: this.show.grid, ticks: this.show.ticks };
           this.gizmo.el.style.display = this.show.gizmo ? "" : "none";
           this.requestRender();
         });
-        row.append(input, text);
-        this.body.appendChild(row);
+        button.classList.add("btv-tool");
+        button.setAttribute("aria-pressed", String(this.show[key]));
+        tools.appendChild(button);
       }
+      const quality = segmented(
+        QUALITIES.map(([value, text, title]) => ({ value, text, title })),
+        this.quality,
+        (value) => this.setQuality(value as Quality),
+      );
+      quality.setAttribute("aria-label", "Quality while moving");
+      box.append(label("Show"), tools, label("Quality"), quality);
+      this.body.appendChild(box);
     }
     this.body.scrollTop = scroll;
   }
@@ -488,16 +595,28 @@ export class Viewer {
   private settings(layer: Layer): HTMLElement {
     const box = document.createElement("div");
     box.className = "btv-settings";
-    const field = (text: string, control: HTMLElement) => {
-      const label = document.createElement("label");
-      label.textContent = text;
-      box.append(label, control);
-    };
+    const field = (text: string, control: HTMLElement) => box.append(label(text), control);
+
+    const names = representations(layer.spec.kind);
+    if (names.length > 1) {
+      const show = segmented(
+        names.map((name) => ({ value: name, text: capitalize(name), title: `Draw as ${name}` })),
+        layer.spec.representation,
+        (name) => this.setRepresentation(layer, name),
+      );
+      show.setAttribute("aria-label", "Representation");
+      field("Show as", show);
+    }
 
     const by = document.createElement("select");
     by.add(new Option("Solid color", ""));
-    for (const c of layer.spec.columns) by.add(new Option(c.name, c.name, false, c === layer.column));
+    for (const c of layer.spec.columns) {
+      const option = new Option(c.name, c.name, false, c === layer.column);
+      option.title = c.name;
+      by.add(option);
+    }
     by.value = layer.column?.name ?? "";
+    by.title = layer.column?.name ?? "Solid color";
     by.addEventListener("change", () => {
       const before = layer.column?.name;
       layer.column = layer.spec.columns.find((c) => c.name === by.value) ?? null;
@@ -529,15 +648,17 @@ export class Viewer {
       const s = this.scale(c.name);
       const range = document.createElement("div");
       range.className = "btv-range";
-      const input = (value: number) => {
+      const input = (text: string) => {
         const el = document.createElement("input");
         el.type = "number";
         el.step = "any";
-        el.value = String(Number(value.toPrecision(6)));
+        el.value = text;
+        el.title = text;
         return el;
       };
-      const lo = input(s.lo);
-      const hi = input(s.hi);
+      const [loText, hiText] = formatRange(s.lo, s.hi);
+      const lo = input(loText);
+      const hi = input(hiText);
       const apply = () => {
         const a = Number(lo.value);
         const b = Number(hi.value);
@@ -638,10 +759,11 @@ export class Viewer {
 
   /** The current view as a PNG blob at `scale`, with color bars, labels and gizmo, and the panel if asked. */
   async screenshot(scale: number, panel: boolean): Promise<Blob> {
+    this.settle.stop();
     this.frame();
     shared.uPixelRatio.value = scale;
     const canvas = this.renderer.snapshot(this.scene, this.camera, scale);
-    shared.uPixelRatio.value = window.devicePixelRatio || 1;
+    shared.uPixelRatio.value = this.pixelRatio;
     this.requestRender();
     const ratio = canvas.width / this.width;
     const ctx = canvas.getContext("2d")!;
@@ -701,6 +823,34 @@ export class Viewer {
     a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   }
+}
+
+function label(text: string): HTMLLabelElement {
+  const el = document.createElement("label");
+  el.textContent = text;
+  return el;
+}
+
+/** One-of-several buttons; the pressed one carries `aria-pressed`. */
+function segmented(
+  options: { value: string; text: string; title: string }[],
+  value: string,
+  onChange: (value: string) => void,
+): HTMLDivElement {
+  const seg = document.createElement("div");
+  seg.className = "btv-seg";
+  seg.setAttribute("role", "group");
+  for (const option of options) {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.textContent = option.text;
+    b.title = option.title;
+    b.classList.toggle("btv-on", option.value === value);
+    b.setAttribute("aria-pressed", String(option.value === value));
+    b.addEventListener("click", () => onChange(option.value));
+    seg.appendChild(b);
+  }
+  return seg;
 }
 
 function svgImage(svg: string): Promise<HTMLImageElement> {

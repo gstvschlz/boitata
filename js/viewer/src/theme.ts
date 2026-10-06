@@ -9,6 +9,7 @@ export interface Theme {
   box: string;
   accent: string;
   layer: string;
+  halo: string;
   dark: boolean;
 }
 
@@ -27,6 +28,7 @@ export const THEMES: Record<ThemeName, Theme> = {
     box: "#5A6B77",
     accent: "#C4411F",
     layer: "#5A6B77",
+    halo: "#3D4D58",
     dark: false,
   },
   dark: {
@@ -40,6 +42,7 @@ export const THEMES: Record<ThemeName, Theme> = {
     box: "#5E707C",
     accent: "#FF6A4D",
     layer: "#93A3AE",
+    halo: "#B8C4CC",
     dark: true,
   },
 };

@@ -22,10 +22,40 @@ from boitata._boitata import BlockModel, Drillholes, Mesh, PointSet
 _BUNDLE = Path(__file__).with_name("_viewer.js")
 _COLORMAPS = ("viridis", "magma", "inferno", "plasma", "cividis", "turbo")
 _THEMES = ("auto", "light", "dark")
-_THEME_KEYS = ("background", "panel", "raised", "border", "text", "muted", "grid", "box", "accent", "layer")
+_THEME_KEYS = (
+    "background",
+    "panel",
+    "raised",
+    "border",
+    "text",
+    "muted",
+    "grid",
+    "box",
+    "accent",
+    "layer",
+    "halo",
+)
 _WARN_BYTES = 200 * 2**20
 _NAMES = {"drillholes": "drill holes", "points": "points", "mesh": "mesh", "blocks": "block model"}
-_REPRESENTATIONS = {"drillholes": "lines", "points": "points", "mesh": "surface", "blocks": "cells"}
+_REPRESENTATIONS = {
+    "drillholes": ("lines", "tubes", "points"),
+    "points": ("points", "spheres"),
+    "mesh": ("surface", "wireframe", "points"),
+    "blocks": ("cells", "wireframe", "points"),
+}
+_SIZES = {
+    "point_size": {"drillholes", "points", "mesh", "blocks"},
+    "line_width": {"drillholes", "mesh", "blocks"},
+    "radius": {"drillholes", "points"},
+}
+
+
+def _motion_quality(value):
+    if isinstance(value, str) and value in ("auto", "full"):
+        return value
+    if isinstance(value, int | float) and not isinstance(value, bool) and 0 < value <= 1:
+        return float(value)
+    raise ValueError(f"motion_quality must be 'auto', 'full' or a number in (0, 1], got {value!r}")
 
 
 def _bundle():
@@ -94,7 +124,8 @@ def _drillholes(data):
         starts = np.flatnonzero(same)
         ends = np.c_[xyz[starts], xyz[starts + 1]].reshape(-1, 3)
         table = {hole_column: station_holes[starts]}
-        return ends, np.arange(len(starts), dtype=np.uint32), table
+        middles = (xyz[starts] + xyz[starts + 1]) / 2
+        return ends, np.arange(len(starts), dtype=np.uint32), middles, table
     table = data.samples().attributes
     hole, start, end = data.interval_columns
     holes = np.asarray(table[hole], dtype=object)
@@ -120,7 +151,8 @@ def _drillholes(data):
     a = np.delete(np.arange(len(along)), at + count - 1)
     ends = np.c_[xyz[a], xyz[a + 1]].reshape(-1, 3)
     rows = np.repeat(np.arange(len(holes), dtype=np.uint32), count - 1)
-    return ends, rows, table
+    middles = data.at(names[interval_code].tolist(), (lo + hi) / 2)
+    return ends, rows, middles, table
 
 
 def _block_axes(model):
@@ -144,8 +176,8 @@ def _layer(data):
     if isinstance(data, PointSet):
         return "points", {"positions": np.asarray(data.coords, dtype=np.float64)}, {"row": data.attributes}
     if isinstance(data, Drillholes):
-        ends, rows, table = _drillholes(data)
-        return "drillholes", {"positions": ends, "rows": rows}, {"row": table}
+        ends, rows, middles, table = _drillholes(data)
+        return "drillholes", {"positions": ends, "rows": rows, "midpoints": middles}, {"row": table}
     if isinstance(data, BlockModel):
         geometry = {"centers": np.asarray(data.centroids, dtype=np.float64), "sizes": _block_sizes(data)}
         return "blocks", geometry, {"row": data.attributes}
@@ -225,16 +257,24 @@ class Scene:
         their own. ``"auto"`` follows the page hosting the viewer (JupyterLab, VS Code, the documentation) or else
         the system preference, and switches with it. A dict overrides keys of a built-in theme: ``base``
         (``"auto"``, ``"light"`` or ``"dark"``, default ``"auto"``) and CSS colors for ``background``, ``panel``,
-        ``raised``, ``border``, ``text``, ``muted``, ``grid``, ``box``, ``accent`` and ``layer``.
+        ``raised``, ``border``, ``text``, ``muted``, ``grid``, ``box``, ``accent``, ``layer`` and ``halo`` (the
+        thin outline that keeps screen-size lines and points readable on any background).
     height : int, default 600
         Height of the viewer in a notebook, in pixels; a saved page fills the browser window.
+    motion_quality : {"auto", "full"} or float, default "auto"
+        What draws while the camera moves; the full scene draws again about 150 ms after it stops. ``"full"``
+        draws everything. A number in (0, 1] draws about that share of each layer's instances (blocks, segments,
+        points; surfaces stay whole), an evenly spread subset that keeps each layer's shape, at a resolution
+        lowered to match. ``"auto"`` starts from what the scene's size suggests and adapts to the measured frame
+        time. The panel's Quality control switches between the three while viewing.
     """
 
-    def __init__(self, *, theme="auto", height=600):
+    def __init__(self, *, theme="auto", height=600, motion_quality="auto"):
         if isinstance(height, bool) or not isinstance(height, int) or height <= 0:
             raise ValueError(f"height must be a positive int, got {height!r}")
         self._theme = _theme(theme)
         self._height = height
+        self._motion = _motion_quality(motion_quality)
         self._view = {"azimuth": 45.0, "dip": 30.0}
         self._layers = []
         self._buffers = {}
@@ -250,19 +290,34 @@ class Scene:
         values=None,
         *,
         name=None,
+        representation=None,
         color=None,
         opacity=1.0,
         cmap=None,
         clim=None,
+        point_size=None,
+        line_width=None,
+        radius=None,
         label=None,
         visible=True,
         columns=None,
     ):
         """Adds a layer.
 
-        Drill holes draw as lines, one segment per interval split at the survey stations so it follows the
-        trace; block models as boxes, sub-blocks at their own size, along the model's rotated axes; meshes as
-        surfaces; point sets as round points of a fixed screen size.
+        Each kind of data draws in one of a few representations, the first being the default, and the panel
+        switches between them while viewing, keeping the layer's colors, range, opacity and visibility:
+
+        - drill holes: ``"lines"`` of a fixed screen width, one segment per interval split at the survey stations
+          so it follows the trace; ``"tubes"``, shaded cylinders along the same segments; ``"points"`` at the
+          middle of each interval.
+        - block models: ``"cells"``, boxes along the model's rotated axes, sub-blocks at their own size;
+          ``"wireframe"``, the block edges (opaque, only the edges in sight; below opacity 1, every edge);
+          ``"points"`` at the block centers.
+        - meshes: ``"surface"``; ``"wireframe"``, the triangle edges; ``"points"`` at the vertices.
+        - point sets: ``"points"``, round points of a fixed screen size; ``"spheres"``, shaded spheres.
+
+        Lines and screen-size points carry a thin outline in the theme's ``halo`` color, so dark and light marks
+        stay readable on either background; their own colors are exact.
 
         Parameters
         ----------
@@ -274,6 +329,8 @@ class Scene:
             color per category. Without it the layer is drawn in `color`.
         name : str, optional
             Name in the layer panel; default the kind and a number, e.g. ``"block model 1"``.
+        representation : str, optional
+            How the layer draws, one of its kind's representations above; default the first.
         color : str, optional
             CSS color of the layer when not colored by a column; default the theme's ``layer`` color.
         opacity : float, default 1.0
@@ -283,6 +340,13 @@ class Scene:
             ``"inferno"``, ``"plasma"``, ``"cividis"`` or ``"turbo"``.
         clim : tuple of float, optional
             ``(low, high)`` range of `values` for every layer it colors; default the range of their valid values.
+        point_size : float, optional
+            Diameter of screen-size points, in pixels; default 6.
+        line_width : float, optional
+            Width of lines and wireframe edges, in pixels; default 2.5 for drill holes, 1 for wireframes.
+        radius : float, optional
+            Radius of drill-hole tubes and of spheres, in the data's length unit; default 1/400 of the diagonal of
+            the holes' bounds for tubes, 1/250 of the points' for spheres.
         label : str, optional
             Title of the color bar of `values`; default the column name.
         visible : bool, default True
@@ -297,6 +361,19 @@ class Scene:
             This scene, to chain calls.
         """
         kind, geometry, tables = _layer(data)
+        valid = _REPRESENTATIONS[kind]
+        if representation is not None and representation not in valid:
+            raise ValueError(
+                f"representation of {_NAMES[kind]} must be one of {', '.join(valid)}, got {representation!r}"
+            )
+        sizes = {"point_size": point_size, "line_width": line_width, "radius": radius}
+        for key, size in sizes.items():
+            if size is None:
+                continue
+            if kind not in _SIZES[key]:
+                raise ValueError(f"{key} does not apply to {_NAMES[kind]}")
+            if isinstance(size, bool) or not isinstance(size, int | float) or not 0 < size < math.inf:
+                raise ValueError(f"{key} must be a positive number, got {size!r}")
         if not 0.0 <= float(opacity) <= 1.0:
             raise ValueError(f"opacity must be in [0, 1], got {opacity!r}")
         if color is not None and not isinstance(color, str):
@@ -324,7 +401,7 @@ class Scene:
         buffers = {}
         refs = {}
         for role, array in geometry.items():
-            if role in ("positions", "centers"):
+            if role in ("positions", "centers", "midpoints"):
                 array = (array - self._origin).astype(np.float32)
             elif role == "sizes":
                 array = array.astype(np.float32)
@@ -349,7 +426,10 @@ class Scene:
             "id": layer_id,
             "name": name or f"{_NAMES[kind]} {sum(item['kind'] == kind for item in self._layers) + 1}",
             "kind": kind,
-            "representation": _REPRESENTATIONS[kind],
+            "representation": representation or valid[0],
+            "pointSize": None if point_size is None else float(point_size),
+            "lineWidth": None if line_width is None else float(line_width),
+            "radius": None if radius is None else float(radius),
             "color": color,
             "opacity": float(opacity),
             "visible": bool(visible),
@@ -408,6 +488,7 @@ class Scene:
             "theme": self._theme,
             "height": self._height,
             "view": dict(self._view),
+            "motion": self._motion,
             "variables": {
                 k: dict(v, clim=list(v["clim"])) if "clim" in v else dict(v)
                 for k, v in self._variables.items()

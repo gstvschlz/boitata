@@ -177,12 +177,81 @@ def lut_rgb(name, value, lo, hi):
     return tuple(int(table[6 * i + 2 * k : 6 * i + 2 * k + 2], 16) for k in range(3))
 
 
-def test_rendered_block_shows_its_exact_lut_color_and_a_null_paints_nothing(tmp_path):
+@pytest.mark.parametrize(
+    ("data", "valid"),
+    [
+        (bt.PointSet(np.zeros((2, 3))), "points, spheres"),
+        (bt.BlockModel((0.0, 0.0, 0.0), (1.0, 1.0, 1.0), (2, 1, 1)), "cells, wireframe, points"),
+        (bt.Mesh([[0, 0, 0], [1, 0, 0], [0, 1, 0]], [[0, 1, 2]]), "surface, wireframe, points"),
+    ],
+)
+def test_representation_is_validated_per_kind(data, valid):
+    names = valid.split(", ")
+    assert Scene().add(data)._spec()["layers"][0]["representation"] == names[0]
+    assert Scene().add(data, representation=names[-1])._spec()["layers"][0]["representation"] == names[-1]
+    with pytest.raises(ValueError, match=valid):
+        Scene().add(data, representation="tubes")
+
+
+def test_sizes_reach_the_viewer_and_apply_only_where_they_mean_something():
+    points = bt.PointSet(np.zeros((2, 3)))
+    layer = Scene().add(points, representation="spheres", radius=2, point_size=9)._spec()["layers"][0]
+    assert (layer["radius"], layer["pointSize"], layer["lineWidth"]) == (2.0, 9.0, None)
+    with pytest.raises(ValueError, match="line_width does not apply"):
+        Scene().add(points, line_width=2)
+    model = bt.BlockModel((0.0, 0.0, 0.0), (1.0, 1.0, 1.0), (2, 1, 1))
+    with pytest.raises(ValueError, match="radius does not apply"):
+        Scene().add(model, radius=1)
+    for bad in (0, -1, np.inf, True, "3"):
+        with pytest.raises(ValueError, match="positive number"):
+            Scene().add(points, point_size=bad)
+
+
+@pytest.mark.parametrize(("value", "sent"), [("auto", "auto"), ("full", "full"), (0.3, 0.3), (1, 1.0)])
+def test_motion_quality_reaches_the_viewer(value, sent):
+    assert Scene(motion_quality=value)._spec()["motion"] == sent
+
+
+@pytest.mark.parametrize("value", ["fast", 0, 1.5, -0.1, True, None])
+def test_motion_quality_is_validated(value):
+    with pytest.raises(ValueError, match="motion_quality"):
+        Scene(motion_quality=value)
+
+
+def test_theme_takes_a_halo_color():
+    assert Scene(theme={"halo": "#808080"})._spec()["theme"] == {"halo": "#808080"}
+
+
+def straight_hole(cu):
+    """Hole A runs east, level, at y = 3, off the grid lines, with three 10 m intervals; B and C, all null, frame it in y."""
+    collar = {"HOLE_ID": ["A", "B", "C"], "X": [0.0] * 3, "Y": [3.0, -17.0, 23.0], "Z": [100.0] * 3}
+    survey = {
+        "HOLE_ID": ["A", "A", "B", "B", "C", "C"],
+        "DEPTH": [0.0, 30.0] * 3,
+        "AZIMUTH": [90.0] * 6,
+        "DIP": [0.0] * 6,
+    }
+    intervals = {
+        "HOLE_ID": ["A"] * 3 + ["B", "C"],
+        "FROM": [0.0, 10.0, 20.0, 0.0, 0.0],
+        "TO": [10.0, 20.0, 30.0, 30.0, 30.0],
+        "CU": [*cu, np.nan, np.nan],
+    }
+    return bt.Drillholes(collar, survey, intervals)
+
+
+def test_drill_hole_points_sit_at_interval_midpoints():
+    holes = straight_hole([0.2, np.nan, 0.8])
+    scene = Scene().add(holes, "CU", representation="points")
+    middles = buffer(scene, "l0/midpoints", np.float32).reshape(-1, 3) + scene._spec()["origin"]
+    expected = holes.at(["A", "A", "A", "B", "C"], [5.0, 15.0, 25.0, 15.0, 15.0])
+    np.testing.assert_allclose(middles, expected, atol=1e-3)
+
+
+def rendered_pixels(scene, points, tmp_path):
+    """Colors the saved page shows at world `points`, in a headless browser."""
     sync_api = pytest.importorskip("playwright.sync_api")
     image = pytest.importorskip("PIL.Image")
-    model = bt.BlockModel((0.0, 0.0, 0.0), (10.0, 10.0, 10.0), (3, 1, 1))
-    model = model.with_column("v", [0.2, np.nan, 0.8])
-    scene = Scene(theme="light").add(model, "v", clim=(0.0, 1.0)).view(dip=90)
     page = scene.save(tmp_path / "scene.html")
     with sync_api.sync_playwright() as p:
         try:
@@ -199,11 +268,37 @@ def test_rendered_block_shows_its_exact_lut_color_and_a_null_paints_nothing(tmp_
                 const v = s.camera.position.clone().set(x - o[0], y - o[1], z - o[2]).project(s.camera);
                 return [Math.round((v.x + 1) / 2 * s.width), Math.round((1 - v.y) / 2 * s.height)];
             })""",
-            [[3.5, 6.5, 10.0], [16.5, 6.5, 10.0], [23.5, 6.5, 10.0]],
+            points,
         )
         shot = image.open(io.BytesIO(tab.screenshot())).convert("RGB")
         browser.close()
-    first, null, last = (shot.getpixel(tuple(xy)) for xy in at)
+    return [shot.getpixel(tuple(xy)) for xy in at]
+
+
+@pytest.mark.parametrize(
+    ("representation", "size"),
+    [("lines", {"line_width": 12}), ("tubes", {"radius": 1.0}), ("points", {"point_size": 24})],
+)
+def test_rendered_interval_shows_its_exact_lut_color_and_a_null_paints_nothing(
+    tmp_path, representation, size
+):
+    holes = straight_hole([0.2, np.nan, 0.8])
+    scene = Scene(theme="light").add(holes, "CU", representation=representation, clim=(0.0, 1.0), **size)
+    scene.view(azimuth=0, dip=90)
+    first, null, last = rendered_pixels(scene, [[5, 3, 100], [13, 3, 100], [25, 3, 100]], tmp_path)
+    shading = 2 if representation == "tubes" else 0
+    for got, value in ((first, 0.2), (last, 0.8)):
+        assert np.abs(np.subtract(got, lut_rgb("viridis", value, 0.0, 1.0))).max() <= shading
+    assert null == (255, 255, 255)
+
+
+def test_rendered_block_shows_its_exact_lut_color_and_a_null_paints_nothing(tmp_path):
+    model = bt.BlockModel((0.0, 0.0, 0.0), (10.0, 10.0, 10.0), (3, 1, 1))
+    model = model.with_column("v", [0.2, np.nan, 0.8])
+    scene = Scene(theme="light").add(model, "v", clim=(0.0, 1.0)).view(dip=90)
+    first, null, last = rendered_pixels(
+        scene, [[3.5, 6.5, 10.0], [16.5, 6.5, 10.0], [23.5, 6.5, 10.0]], tmp_path
+    )
     assert first == lut_rgb("viridis", 0.2, 0.0, 1.0)
     assert last == lut_rgb("viridis", 0.8, 0.0, 1.0)
     assert null == (255, 255, 255)
