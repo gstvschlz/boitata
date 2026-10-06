@@ -315,7 +315,7 @@ def rendered_pixels(scene, points, tmp_path, bare=False):
             pytest.skip(f"no chromium for playwright: {e}")
         tab = browser.new_page(viewport={"width": 900, "height": 600})
         tab.goto(page.as_uri())
-        tab.wait_for_function("window.scene !== undefined", timeout=60_000)
+        tab.wait_for_function("typeof window.scene?.screenshot === 'function'", timeout=60_000)
         tab.wait_for_timeout(300)
         if bare:
             tab.evaluate(
@@ -563,7 +563,7 @@ def test_panel_edits_reach_the_widget_model(tmp_path):
             pytest.skip(f"no chromium for playwright: {e}")
         tab = browser.new_page(viewport={"width": 900, "height": 600})
         tab.goto(page.as_uri())
-        tab.wait_for_function("window.scene !== undefined", timeout=60_000)
+        tab.wait_for_function("typeof window.scene?.screenshot === 'function'", timeout=60_000)
         tab.evaluate(WIDGET)
         widget = tab.locator("#widget")
         widget.locator(".btv-row").filter(has_text="blocks").locator("button[title=Settings]").click()
@@ -720,7 +720,7 @@ def test_shift_drag_and_keys_reach_the_widget_model(tmp_path):
             pytest.skip(f"no chromium for playwright: {e}")
         tab = browser.new_page(viewport={"width": 900, "height": 600})
         tab.goto(page.as_uri())
-        tab.wait_for_function("window.scene !== undefined", timeout=60_000)
+        tab.wait_for_function("typeof window.scene?.screenshot === 'function'", timeout=60_000)
         tab.evaluate(WIDGET)
         tab.mouse.move(250, 300)
         tab.keyboard.down("Shift")
@@ -845,7 +845,7 @@ def viewer_page(scene, tmp_path, points=(), widget=False):
         try:
             tab = browser.new_page(viewport={"width": 900, "height": 600})
             tab.goto(page.as_uri())
-            tab.wait_for_function("window.scene !== undefined", timeout=60_000)
+            tab.wait_for_function("typeof window.scene?.screenshot === 'function'", timeout=60_000)
             at = tab.evaluate(TO_SCREEN, list(points))
             if widget:
                 tab.evaluate(WIDGET)
