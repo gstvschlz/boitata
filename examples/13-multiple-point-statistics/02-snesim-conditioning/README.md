@@ -26,7 +26,7 @@ grid = bt.BlockModel((0, 0), (1, 1), (nx, ny))
 
 ```python
 rows = np.random.default_rng(0).choice(nx * ny, size=100, replace=False)
-wells = grid.centroids[rows]
+wells = grid.coords[rows]
 facies = ti["facies"][rows].astype(int)
 print(f"{facies.sum()} sand and {(facies == 0).sum()} shale data")
 ```

@@ -250,7 +250,7 @@ the simulation's search.
 
 ```python
 grid = bt.BlockModel(origin, (10, 10, 10), count)
-parents = grid.mask(np.isin(np.arange(len(grid)), blocks.index[block_lens == "lens_1"]))
+parents = grid.filter(np.isin(np.arange(len(grid)), blocks.index[block_lens == "lens_1"]))
 nodes = parents.discretize(2)
 sgs = bt.SGS(gaussian, passes[:2]).fit(one, "ZN_PCT", weights="weight", holes="HOLE_ID")
 summary = sgs.simulate(nodes, n=30, seed=1, cutoffs=[5.0], blocks=parents)
@@ -302,14 +302,14 @@ for ax, (axis, label) in zip(axes, (("y", "Northing (m)"), ("z", "Elevation (m)"
         [
             bt.swath(one, "ZN_PCT", 40.0, axis=axis),
             bt.swath(
-                blocks.centroids[in_one],
+                blocks.coords[in_one],
                 blocks["nn"][in_one],
                 40.0,
                 axis=axis,
                 weights=blocks.volumes[in_one],
             ),
             bt.swath(
-                blocks.centroids[in_one],
+                blocks.coords[in_one],
                 blocks["zn"][in_one],
                 40.0,
                 axis=axis,
@@ -378,7 +378,7 @@ dots. The plane's pole is the least spread direction of the wireframe's vertices
 
 ```python
 parents = parents.with_column("p_above_5", summary.probability_above[:, 0])
-vertices = lenses["lens_1"].vertices
+vertices = lenses["lens_1"].coords
 pole = np.linalg.eigh(np.cov(vertices.T))[1][:, 0]
 pole *= np.sign(pole[2])
 strike = (np.degrees(np.arctan2(pole[0], pole[1])) - 90) % 360

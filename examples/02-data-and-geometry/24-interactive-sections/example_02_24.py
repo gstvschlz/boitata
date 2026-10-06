@@ -40,7 +40,7 @@ scene.add(grid, "ZN_PCT", name="grid", clim=(0, 10), label="Zn (%)")
 scene.add(holes, name="holes", representation="tubes", color=INK, radius=2)
 for i, lens in enumerate(lenses, 1):
     scene.add(lens, name=f"lens {i}", color="white")
-center = grid.centroids.mean(axis=0)
+center = grid.coords.mean(axis=0)
 run = np.radians(112.5)
 reach = 400 * np.array([np.sin(run), np.cos(run), 0])
 scene.section([center - reach, center + reach], width=30, dip=80)

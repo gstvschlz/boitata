@@ -14,9 +14,9 @@ from common import ACCENT, GRAY, INK, LIGHT, save
 
 data = bt.datasets.coal_seam_thickness()
 holes, grid, lease = data["boreholes"], data["grid"], data["boundary"]
-blocks = grid.mask(np.asarray(grid["INSIDE"]) == 1)
+blocks = grid.filter(np.asarray(grid["INSIDE"]) == 1)
 xy, thickness = holes.coords, holes["THICKNESS_M"]
-print(f"{len(holes)} boreholes, {len(blocks.centroids)} blocks of 100 × 100 m inside the lease")
+print(f"{len(holes)} boreholes, {len(blocks.coords)} blocks of 100 × 100 m inside the lease")
 ```
 
 </details>
@@ -121,7 +121,7 @@ for ax, classes, title in (
     image = np.full(nx * ny, np.nan)
     image[blocks.index] = resource_classes.encode(classes)
     ax.imshow(image.reshape(ny, nx), origin="lower", extent=extent, cmap=cmap, norm=norm)
-    ax.plot(*lease.vertices[:, :2].T, color=INK, lw=0.6)
+    ax.plot(*lease.coords[:, :2].T, color=INK, lw=0.6)
     ax.scatter(xy[:, 0], xy[:, 1], s=2, color=GRAY, linewidths=0)
     ax.set(title=title, aspect="equal", xticks=[], yticks=[])
 bt.plot.category_legend(resource_classes, fig, loc="outside lower center", ncol=3)

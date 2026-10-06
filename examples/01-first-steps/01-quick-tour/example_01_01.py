@@ -123,7 +123,7 @@ save(fig, "variogram")
 grid = bt.BlockModel(origin=(3, 3), size=(5, 5), count=(52, 60))
 search = bt.Search(radius=80, max_samples=24, min_samples=4, rotation=model.rotation, ratios=(0.5, 1.0))
 kriging = bt.OrdinaryKriging(model, search).fit(samples, "V_cut")
-nodes = grid.centroids.astype(int)
+nodes = grid.coords.astype(int)
 grid = grid.with_columns(
     {"estimate": kriging.predict(grid), "truth": truth[nodes[:, 1] - 1, nodes[:, 0] - 1]}
 )

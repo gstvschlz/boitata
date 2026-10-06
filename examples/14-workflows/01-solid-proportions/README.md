@@ -125,8 +125,8 @@ To measure it, discretize those blocks into 10 × 10 × 10 points of 0.5 m and t
 
 ```python
 shared = (proportions > 0).sum(axis=0) >= 2
-points = model.mask(shared).discretize(10)
-inside = np.array([vein.contains(points.centroids) for vein in veins])
+points = model.filter(shared).discretize(10)
+inside = np.array([vein.contains(points.coords) for vein in veins])
 point_volume = points.volumes[0]
 for i in range(len(veins)):
     for j in range(i + 1, len(veins)):
@@ -152,7 +152,7 @@ are recounted from the points.
 
 ```python
 first = np.where(inside.any(axis=0), inside.argmax(axis=0), -1)
-rows = model.row_at(points.centroids)
+rows = model.row_at(points.coords)
 per_block = 10**3
 net = proportions.copy()
 for i in range(len(veins)):
@@ -215,7 +215,7 @@ window = {"xlim": (8010, 8130), "ylim": (14920, 15100)}
 fig, axes = plt.subplots(1, 2, figsize=(10, 7), sharey=True, layout="constrained")
 touched = filled > 0
 bt.plot.section(
-    model.mask(touched),
+    model.filter(touched),
     filled[touched],
     plane=plane,
     vmin=0,
@@ -228,7 +228,7 @@ scale = plt.cm.ScalarMappable(plt.Normalize(0, 1), "Greys")
 fig.colorbar(scale, ax=axes[0], shrink=0.6, label="proportion of the block inside a vein")
 scheme = bt.Categories(names, colors=[ACCENT, "#6f9fc9", HIGHLIGHT, GRAY])
 labeled = majority >= 0
-bt.plot.section(model.mask(labeled), majority[labeled], plane=plane, scheme=scheme, ax=axes[1])
+bt.plot.section(model.filter(labeled), majority[labeled], plane=plane, scheme=scheme, ax=axes[1])
 for ax, title in zip(axes, ["Proportions", "Majority label"]):
     bt.plot.slab(np.empty((0, 3)), plane=plane, thickness=1, meshes=veins, ax=ax)
     ax.set(title=f"{title}, plan at 702.5 m", xlabel="Easting (m)", **window)

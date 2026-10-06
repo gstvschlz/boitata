@@ -327,7 +327,7 @@ def test_variogram_sets_match_single_calls_and_feed_the_fit():
 
 def test_grid_variograms_match_the_pair_search():
     model = bt.BlockModel((10.0, 20.0), (2.0, 3.0), (30, 20), rotation=(25.0, 0.0, 0.0))
-    xy = model.centroids
+    xy = model.coords
     a = field(xy[:, :2], 8)
     b = a + rng.normal(size=len(a))
     for kwargs in [{}, {"azimuth": 43.0, "tolerance": 14.0, "bandwidth": 6.1}]:

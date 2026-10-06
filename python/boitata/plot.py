@@ -1275,7 +1275,7 @@ def _image(ax, model, columns, axis, index, plane, resolution):
     size = np.asarray(model.size, dtype=float)
     step = resolution or size.min() / 2
     reach = np.linalg.norm(size) / 2
-    centroids = model.centroids
+    centroids = model.coords
     near = centroids[np.abs((centroids - center) @ n) <= reach] @ np.c_[u, v]
     if not len(near):
         raise InvalidInput("the plane misses the block model")
@@ -1403,7 +1403,7 @@ def slab(
 
 
 def _trace(mesh, center, normal):
-    corners = mesh.vertices[mesh.triangles]
+    corners = mesh.coords[mesh.triangles]
     d = (corners - center) @ normal
     a, b = [0, 1, 2], [1, 2, 0]
     crossing = (d[:, a] > 0) != (d[:, b] > 0)
@@ -1593,7 +1593,7 @@ def category_swath(
     names, default, index, keep = _classes(_column(coords, categories, "categories"), scheme)
     weights = _weights(coords, weights)
     weights = None if weights is None else np.asarray(weights, dtype=float)[keep]
-    coords = np.asarray(getattr(coords, "coords", getattr(coords, "centroids", coords)), dtype=float)[keep]
+    coords = np.asarray(getattr(coords, "coords", coords), dtype=float)[keep]
     colors = colors if colors is not None else default if default is not None else _palette(len(names))
     kwargs.setdefault("edgecolor", "white")
     kwargs.setdefault("linewidth", 0.3)

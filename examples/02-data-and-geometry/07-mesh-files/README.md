@@ -56,9 +56,9 @@ for ax, (title, plane) in zip(axes, planes.items()):
     normal = np.array([0, 0, 1]) if plane[2] == 0 else np.array([0, 1, 0])
     along = [0, 1] if plane[2] == 0 else [0, 2]
     for name, mesh in veins.items():
-        near = np.abs((mesh.vertices - plane[0]) @ normal) < 5
+        near = np.abs((mesh.coords - plane[0]) @ normal) < 5
         if near.any():
-            top = mesh.vertices[near][:, along]
+            top = mesh.coords[near][:, along]
             ax.annotate(name, top[top[:, 1].argmax()], xytext=(0, 3), textcoords="offset points", ha="center")
     ax.set_title(title)
 save(fig, "veins")
@@ -89,7 +89,7 @@ with tempfile.TemporaryDirectory() as folder:
         path = Path(folder) / file
         bt.write_mesh(path, v1, **options)
         back = bt.read_mesh(path)
-        shift = np.abs(back.vertices[back.triangles] - v1.vertices[v1.triangles]).max()
+        shift = np.abs(back.coords[back.triangles] - v1.coords[v1.triangles]).max()
         print(
             f"{file:>15}: {path.stat().st_size / 1e6:5.1f} MB, {len(back.triangles)} triangles,"
             f" {back.volume:,.0f} m3, largest shift {shift * 1000:.3f} mm, columns {back.face_attributes.column_names}"
@@ -119,7 +119,7 @@ the rounding and stay below the shortest edge, or welding collapses triangles an
 
 ```python
 rng = np.random.default_rng(7)
-corners = v1.vertices[v1.triangles] + rng.normal(0, 1e-5, (len(v1.triangles), 3, 3))
+corners = v1.coords[v1.triangles] + rng.normal(0, 1e-5, (len(v1.triangles), 3, 3))
 loose = np.arange(3 * len(v1.triangles)).reshape(-1, 3)
 flip = rng.random(len(loose)) < 0.5
 loose[flip] = loose[flip, ::-1]
@@ -193,7 +193,7 @@ def edges_of(mesh, problems, kind):
     rows = problems.to_polars().filter(kind=kind)
     face, edge = rows["face"].to_numpy(), rows["edge"].to_numpy()
     t = mesh.triangles[face]
-    return mesh.vertices[np.stack([t[np.arange(len(t)), edge], t[np.arange(len(t)), (edge + 1) % 3]], axis=1)]
+    return mesh.coords[np.stack([t[np.arange(len(t)), edge], t[np.arange(len(t)), (edge + 1) % 3]], axis=1)]
 
 
 def draw(ax, mesh, title):
@@ -202,7 +202,7 @@ def draw(ax, mesh, title):
     rows = problems.to_polars().filter(kind="self_intersection")
     crossing[rows["face"].to_numpy()] = crossing[rows["other"].to_numpy()] = True
     ax.plot_trisurf(
-        *mesh.vertices.T, triangles=mesh.triangles, color=LIGHT, edgecolor=GRAY, linewidth=0.3, alpha=0.3
+        *mesh.coords.T, triangles=mesh.triangles, color=LIGHT, edgecolor=GRAY, linewidth=0.3, alpha=0.3
     )
     for kind, color, label in (
         ("boundary_edge", HIGHLIGHT, "open edge"),
@@ -211,7 +211,7 @@ def draw(ax, mesh, title):
         for i, segment in enumerate(edges_of(mesh, problems, kind)):
             ax.plot(*segment.T, color=color, linewidth=2.5, label=label if i == 0 else None)
     ax.plot_trisurf(
-        *mesh.vertices.T,
+        *mesh.coords.T,
         triangles=mesh.triangles[crossing],
         color="#d9a400",
         alpha=0.45,

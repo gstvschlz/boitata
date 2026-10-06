@@ -27,10 +27,10 @@ holes = bt.Drillholes(data["collars"], data["surveys"], data["assays"])
 lenses = [data[f"lens_{i}"] for i in (1, 2, 3)]
 collars = bt.PointSet.from_table(data["collars"], z="Z")
 ground = bt.topography(collars, cell=20.0).mesh
-ground = ground.with_vertex_column("elevation", ground.vertices[:, 2])
+ground = ground.with_vertex_column("elevation", ground.coords[:, 2])
 composites = holes.composite(2.0, ["ZN_PCT"])
 ore = composites.filter(np.any([lens.contains(composites.coords) for lens in lenses], axis=0))
-print(f"topography: {len(ground.vertices):,} vertices, {len(ground.triangles):,} triangles")
+print(f"topography: {len(ground.coords):,} vertices, {len(ground.triangles):,} triangles")
 print(f"{len(ore):,} composites inside a lens, {np.isnan(ore['ZN_PCT']).sum()} of them null")
 
 scene = bt.plot3d.Scene()

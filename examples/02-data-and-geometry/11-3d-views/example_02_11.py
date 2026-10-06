@@ -69,7 +69,7 @@ blocks = bt.BlockModel.from_meshes(
     fill="host",
     rotation=rotation,
 )
-blocks = blocks.mask(np.asarray(blocks["domain"], dtype=object) != "host")
+blocks = blocks.filter(np.asarray(blocks["domain"], dtype=object) != "host")
 search = bt.Search(radius=100, min_samples=1, max_samples=12)
 idw = bt.InverseDistance(search, power=2).fit(composites.coords[ore], composites["ZN_PCT"][ore])
 blocks = blocks.with_column("zn", idw.predict(blocks))
@@ -93,7 +93,7 @@ everywhere = bt.InverseDistance(search, power=2).fit(composites.coords, composit
 rotated = frame.with_column("zn", everywhere.predict(frame))
 estimated = np.isfinite(rotated["zn"]).mean()
 print(f"rotated grid {frame.count}: {estimated:.0%} of {len(frame):,} blocks estimated")
-center = rotated.centroids.mean(axis=0)
+center = rotated.coords.mean(axis=0)
 across = np.radians(rotation[0] + 90)
 reach = 400 * np.array([np.sin(across), np.cos(across), 0])
 scene = bt.plot3d.Scene()

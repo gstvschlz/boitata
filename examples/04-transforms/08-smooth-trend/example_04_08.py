@@ -42,7 +42,7 @@ outside = np.asarray(grid["INSIDE"]) == 0
 def image(ax, values, **kwargs):
     values = np.where(outside, np.nan, np.asarray(values, dtype=float)).reshape(ny, nx)
     shown = ax.imshow(values, origin="lower", extent=extent, **kwargs)
-    ax.plot(*lease.vertices[:, :2].T, color=INK, lw=0.6)
+    ax.plot(*lease.coords[:, :2].T, color=INK, lw=0.6)
     return shown
 
 
@@ -106,7 +106,7 @@ print(f"correlation with the trend {np.corrcoef(at_holes, residuals)[0, 1]:+.2f}
 fig, (left, right) = plt.subplots(
     1, 2, figsize=(10.5, 3.6), gridspec_kw={"width_ratios": [1.3, 1]}, layout="constrained"
 )
-left.plot(*lease.vertices[:, :2].T, color=INK, lw=0.6)
+left.plot(*lease.coords[:, :2].T, color=INK, lw=0.6)
 limit = np.abs(residuals).max()
 dots = left.scatter(*holes.coords[:, :2].T, c=residuals, s=10, cmap="RdBu_r", vmin=-limit, vmax=limit)
 map_axes(left, "Residuals at the holes")

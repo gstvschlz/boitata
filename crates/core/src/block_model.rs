@@ -418,6 +418,17 @@ impl BlockModel {
         }
     }
 
+    /// `(min, max)` world corners over every row's box, `None` without rows.
+    pub fn bounds(&self) -> Option<([f64; 3], [f64; 3])> {
+        let whole = [0.0, 0.0, 0.0, 1.0, 1.0, 1.0];
+        crate::bounds((0..self.len()).flat_map(|row| match &self.layout {
+            Layout::SubBlocked { parent, extent, .. } => {
+                corners_of(&self.geometry, parent[row], &extent[row])
+            }
+            _ => corners_of(&self.geometry, self.parent_index(row), &whole),
+        }))
+    }
+
     /// Keeps the rows where `keep` is true; a regular model becomes masked.
     pub fn mask(&self, keep: &BooleanArray) -> Result<Self> {
         check_rows(keep.len(), &self.attributes)?;
@@ -1266,6 +1277,35 @@ mod tests {
     }
 
     use proptest::prelude::*;
+
+    #[test]
+    fn bounds_hold_every_corner_of_a_rotated_model() {
+        let model = BlockModel::masked(
+            geometry([30.0, 10.0, 5.0]),
+            vec![0, 4],
+            grades(vec![0.0; 2]),
+        )
+        .unwrap();
+        let (lo, hi) = model.bounds().unwrap();
+        let corners = model.corners();
+        for c in corners.iter().flatten() {
+            assert!((0..3).all(|a| lo[a] <= c[a] + 1e-9 && c[a] <= hi[a] + 1e-9));
+        }
+        for a in 0..3 {
+            assert!(
+                corners
+                    .iter()
+                    .flatten()
+                    .any(|c| (c[a] - lo[a]).abs() < 1e-9)
+            );
+            assert!(
+                corners
+                    .iter()
+                    .flatten()
+                    .any(|c| (c[a] - hi[a]).abs() < 1e-9)
+            );
+        }
+    }
 
     #[test]
     fn corners_of_an_unrotated_cell_are_its_axis_aligned_box() {

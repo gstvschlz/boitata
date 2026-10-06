@@ -108,7 +108,7 @@ def test_scatter_reports_slope():
 
 def test_section_draws_true_edges_for_a_masked_model():
     bm = bt.BlockModel(origin=(0, 0, 0), size=(2, 2, 1), count=(4, 3, 2))
-    bm = bm.with_column("g", np.arange(24.0)).mask(np.arange(24) != 5)
+    bm = bm.with_column("g", np.arange(24.0)).filter(np.arange(24) != 5)
     _, ax = bt.plot.section(bm, "g", axis="z", index=0)
     patches = ax.collections[0]
     assert len(patches.get_paths()) == 11
@@ -121,8 +121,8 @@ def test_section_draws_true_edges_for_a_masked_model():
 
 def test_row_at_finds_rotated_and_masked_blocks():
     bm = bt.BlockModel(origin=(10, 20, 0), size=(2, 2, 1), count=(4, 3, 2), rotation=(30, 0, 0))
-    bm = bm.mask(np.arange(24) != 5)
-    rows = bm.row_at(np.vstack([bm.centroids, [[0, 0, 0]]]))
+    bm = bm.filter(np.arange(24) != 5)
+    rows = bm.row_at(np.vstack([bm.coords, [[0, 0, 0]]]))
     assert rows.dtype == np.int64 and (rows == [*range(23), -1]).all()
 
 
@@ -136,7 +136,7 @@ def test_section_falls_back_to_a_raster_off_a_model_axis():
 def test_section_honours_rotation_and_matches_slab_on_the_same_plane():
     bm = bt.BlockModel(origin=(0, 0, 0), size=(2, 2, 1), count=(4, 3, 2), rotation=(20, 0, 0))
     bm = bm.with_column("g", np.arange(24.0))
-    plane = (bm.centroids[:12].mean(axis=0), 90.0, 0.0)
+    plane = (bm.coords[:12].mean(axis=0), 90.0, 0.0)
     _, ax = bt.plot.section(bm, "g", axis="z", index=0)
     _, direct = bt.plot.section(bm, "g", plane=plane)
     patches, direct_patches = ax.collections[0], direct.collections[0]
@@ -151,7 +151,7 @@ def test_section_honours_rotation_and_matches_slab_on_the_same_plane():
 
 def test_uncertain_labels_a_plane_section():
     bm = bt.BlockModel(origin=(0, 0, 0), size=(2, 2, 1), count=(4, 3, 2))
-    bm = bm.with_column("g", np.arange(24.0)).mask(np.arange(24) != 5)
+    bm = bm.with_column("g", np.arange(24.0)).filter(np.arange(24) != 5)
     _, ax = bt.plot.uncertain("g", np.zeros(23), model=bm, plane=((4, 3, 0.5), 45, 90))
     assert ax.get_xlabel() == "Along strike (m)" and ax.get_ylabel() == "Elevation (m)"
 
@@ -210,7 +210,7 @@ def test_uncertain_fades_to_white():
 
 def test_uncertain_slices_a_masked_model():
     bm = bt.BlockModel(origin=(0, 0, 0), size=(2, 2, 1), count=(4, 3, 2))
-    bm = bm.with_column("g", np.arange(24.0)).mask(np.arange(24) != 5)
+    bm = bm.with_column("g", np.arange(24.0)).filter(np.arange(24) != 5)
     uncertainty = np.where(bm.index == 6, 1.0, 0.0)
     _, ax = bt.plot.uncertain("g", uncertainty, model=bm, axis="z", index=0)
     rgba = ax.images[0].get_array()

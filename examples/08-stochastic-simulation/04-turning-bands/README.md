@@ -70,7 +70,7 @@ for name, reals, seconds in (("SGS", by_sgs, sgs_seconds), ("turning bands", by_
 
 ```text
           SGS: 20 realizations in 0.01 s, mean 300 ppm, variance 71089 ppm²
-turning bands: 20 realizations in 0.06 s, mean 295 ppm, variance 69672 ppm²
+turning bands: 20 realizations in 0.07 s, mean 295 ppm, variance 69672 ppm²
 ```
 
 both follow the same high-grade trends, with the same short-scale scatter:
@@ -110,7 +110,7 @@ fig, axes = plt.subplots(1, 2, figsize=(10, 3.8), layout="constrained", sharey=T
 for ax, (name, reals) in zip(axes, (("SGS", by_sgs), ("Turning bands", by_tb))):
     for r in reals:
         scores = bt.NormalScore().fit_transform(r)
-        exp = bt.experimental_variogram(grid.centroids, scores, 10.0, 120.0, azimuth=170)
+        exp = bt.experimental_variogram(grid.coords, scores, 10.0, 120.0, azimuth=170)
         ax.plot(exp.lags, exp.gammas, color=LIGHT, lw=0.8)
     ax.plot(h, gaussian.gamma(h), color=HIGHLIGHT, lw=1.4, label="model")
     ax.plot([], [], color=LIGHT, label="20 realizations")

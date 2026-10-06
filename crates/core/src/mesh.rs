@@ -776,13 +776,7 @@ impl Mesh {
 
     /// `(min, max)` corners, `None` without vertices.
     pub fn bounds(&self) -> Option<([f64; 3], [f64; 3])> {
-        let first = *self.vertices.first()?;
-        Some(self.vertices.iter().fold((first, first), |(lo, hi), p| {
-            (
-                [0, 1, 2].map(|a| lo[a].min(p[a])),
-                [0, 1, 2].map(|a| hi[a].max(p[a])),
-            )
-        }))
+        crate::bounds(self.vertices.iter().copied())
     }
 }
 

@@ -235,7 +235,7 @@ def write_geopackage(
         else:
             columns.append([None if np.isnan(v) else float(v) for v in values])
             fields += f", {_quote(name)} DOUBLE"
-    vertices = data.coords if isinstance(data, PointSet) else data.vertices
+    vertices = data.coords
     bounds = (
         [float(b) for b in (*vertices[:, :2].min(0), *vertices[:, :2].max(0))]
         if len(vertices)

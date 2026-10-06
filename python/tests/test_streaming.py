@@ -18,7 +18,7 @@ def test_chunks_cover_the_model_and_stay_bounded(model, tmp_path):
     assert len(file) == 1200 and file.count == [20, 15, 4] and file.column_names == ["grade"]
     chunks = list(file.chunks(rows=250))
     assert [len(c) for c in chunks] == [250, 250, 250, 250, 200]
-    np.testing.assert_array_equal(np.concatenate([c.centroids for c in chunks]), model.centroids)
+    np.testing.assert_array_equal(np.concatenate([c.coords for c in chunks]), model.coords)
     np.testing.assert_array_equal(np.concatenate([c["grade"] for c in chunks]), model["grade"])
 
 
@@ -26,7 +26,7 @@ def test_map_blocks_kriging_matches_in_memory(model, tmp_path):
     xy = rng.uniform(0, 100, (80, 3)) * [1, 0.75, 0.2]
     v = rng.normal(size=80)
     ok = bt.OrdinaryKriging(bt.Variogram([("spherical", 1.0, 40.0)]), bt.Search(radius=60)).fit(xy, v)
-    masked = model.mask(np.arange(len(model)) % 3 != 0)
+    masked = model.filter(np.arange(len(model)) % 3 != 0)
     source, out = tmp_path / "in.parquet", tmp_path / "out.parquet"
     bt.write_parquet(source, masked)
     sizes = []
@@ -78,7 +78,7 @@ def test_turning_bands_streamed_with_domains_equals_in_memory(model, tmp_path):
     search = bt.Search(40.0, max_samples=12, soft=10.0)
     tb = bt.TurningBands(bt.Variogram([("spherical", 1.0, 30.0)]), bands=80, search=search)
     tb.fit(xyz, values, domains=zone)
-    labels = np.where(model.centroids[:, 0] < 50, "west", "east")
+    labels = np.where(model.coords[:, 0] < 50, "west", "east")
     whole = tb.simulate(model, n=4, seed=3, domains=labels)
     source, out = tmp_path / "in.parquet", tmp_path / "out.parquet"
     bt.write_parquet(source, model)
@@ -104,7 +104,7 @@ def test_turning_bands_streamed_blocks_average_their_nodes(model, tmp_path):
     values = rng.lognormal(0, 0.5, 60)
     tb = bt.TurningBands(bt.Variogram([("spherical", 1.0, 30.0)]), bands=80, classes=3)
     tb.fit(xyz, values, trend=xyz[:, 0] / 100)
-    model = model.with_column("drift", model.centroids[:, 0] / 100)
+    model = model.with_column("drift", model.coords[:, 0] / 100)
     nodes = model.discretize((2, 2, 1))
     drift = model["drift"][nodes["block"].astype(int)]
     whole = tb.simulate(nodes, n=4, seed=3, cutoffs=[1.5], blocks=model, trend=drift)

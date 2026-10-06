@@ -63,7 +63,7 @@ truth = bt.datasets.walker_lake_exhaustive()["V"].reshape(150, 2, 130, 2).mean(a
 
 def inside(side):
     """Panels whose window of `side` meters lies inside the panels."""
-    c = panels[side].centroids[:, :2] - 1
+    c = panels[side].coords[:, :2] - 1
     extent = np.array([1280 // side, 1480 // side]) * side / 5
     return ((c >= side / 2) & (c <= extent - side / 2)).all(axis=1)
 
@@ -72,7 +72,7 @@ def window_mean(values, side):
     """Mean of node `values` over the window of each panel, NaN outside the area."""
     total = np.pad(values.reshape(150, 130), ((1, 0), (1, 0))).cumsum(0).cumsum(1)
     k = side // 2
-    i0, j0 = ((panels[side].centroids[:, :2] - side / 2 - 1) / 2).round().astype(int).T
+    i0, j0 = ((panels[side].coords[:, :2] - side / 2 - 1) / 2).round().astype(int).T
     i0, j0 = np.clip(i0, 0, 130 - k), np.clip(j0, 0, 150 - k)
     s = total[j0 + k, i0 + k] - total[j0, i0 + k] - total[j0 + k, i0] + total[j0, i0]
     return np.where(inside(side), s / k**2, np.nan)

@@ -93,7 +93,7 @@ sub-blocks the edges instead.
 <details><summary>Python</summary>
 
 ```python
-ore = blocks.mask(blocks["proportion"] > 0.5)
+ore = blocks.filter(blocks["proportion"] > 0.5)
 print(f"{len(blocks):,} blocks, {len(ore):,} more than half inside: {ore.volumes.sum():,.0f} m3")
 print(f"lenses: {sum(lens.volume for lens in lenses):,.0f} m3")
 ```
@@ -112,7 +112,7 @@ their outer faces, drawn in 3D over the lens surfaces.
 <details><summary>Python</summary>
 
 ```python
-center = np.mean([lens.vertices.mean(axis=0) for lens in lenses], axis=0)
+center = np.mean([lens.coords.mean(axis=0) for lens in lenses], axis=0)
 plane = (center, 112.5, 90)
 fig = plt.figure(figsize=(12, 5.5), layout="constrained")
 a = fig.add_subplot(1, 2, 1)
@@ -135,10 +135,10 @@ fig.colorbar(a.images[0], ax=a, shrink=0.7, label="proportion of block inside")
 b = fig.add_subplot(1, 2, 2, projection="3d")
 shell = bt.block_shell(ore)
 b.add_collection3d(
-    Poly3DCollection(shell.vertices[shell.triangles], facecolor=ACCENT, edgecolor="none", alpha=0.35)
+    Poly3DCollection(shell.coords[shell.triangles], facecolor=ACCENT, edgecolor="none", alpha=0.35)
 )
 for lens in lenses:
-    b.plot_trisurf(*lens.vertices.T, triangles=lens.triangles, color=LIGHT, linewidth=0, alpha=0.2)
+    b.plot_trisurf(*lens.coords.T, triangles=lens.triangles, color=LIGHT, linewidth=0, alpha=0.2)
 lo, hi = np.array(blocks.origin), np.array(blocks.origin) + np.array(size) * blocks.count
 b.set(xlim=(lo[0], hi[0]), ylim=(lo[1], hi[1]), zlim=(lo[2], hi[2]))
 b.set_box_aspect(hi - lo)

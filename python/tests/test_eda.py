@@ -44,7 +44,7 @@ def test_swath_tonnage_and_metal_balance_grade_tonnage():
     gt = bt.grade_tonnage("v", [-np.inf], density=2.7, data=blocks)
     assert s["tonnage"].sum() == pytest.approx(gt["tonnage"][0]) == pytest.approx(300 * 125 * 2.7)
     assert s["metal"].sum() == pytest.approx(gt["metal"][0])
-    by_array = bt.swath(blocks.centroids, v, 10.0, axis="x", weights=np.full(300, 125.0), density=2.7)
+    by_array = bt.swath(blocks.coords, v, 10.0, axis="x", weights=np.full(300, 125.0), density=2.7)
     for c in s.column_names:
         np.testing.assert_allclose(s[c], by_array[c])
 
@@ -53,7 +53,7 @@ def test_validate_model_equal_to_data():
     v = rng.lognormal(0, 1, 200)
     d = np.where(np.arange(200) < 80, "ox", "fr")
     blocks = bt.BlockModel((0, 0, 0), (10, 10, 10), (200, 1, 1), attributes={"g": v, "rock": d})
-    samples = bt.PointSet(blocks.centroids, {"v": v, "w": np.ones(200), "rock": d})
+    samples = bt.PointSet(blocks.coords, {"v": v, "w": np.ones(200), "rock": d})
     t = bt.validate_model(blocks, "g", samples, "v", weights="w", domain_column="rock", reference="g")
     assert list(t["domain"])[::4] == ["fr", "ox", "all"]
     assert list(t["source"])[:4] == ["naive", "declustered", "model", "reference"]

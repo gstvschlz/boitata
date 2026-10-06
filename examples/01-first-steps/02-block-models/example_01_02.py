@@ -42,7 +42,7 @@ def draw(ax, model, color=LIGHT, edge="white", **style):
 model = bt.BlockModel(origin=(1000, 2000, 300), size=(10, 10, 5), count=(5, 4, 3))
 print(model)
 print("first corner:  ", model.corners[0, 0])
-print("first centroid:", model.centroids[0])
+print("first centroid:", model.coords[0])
 
 # %% [markdown]
 # ## cell index, (i, j, k) and centroid
@@ -57,7 +57,7 @@ n = np.arange(len(model))
 i, j, k = n % nx, n // nx % ny, n // (nx * ny)
 centroids = np.array(model.origin) + (np.column_stack([i, j, k]) + 0.5) * model.size
 print("index 27 is (i, j, k) =", (int(i[27]), int(j[27]), int(k[27])), "at", centroids[27])
-print("same centroids as the model:", np.allclose(centroids, model.centroids))
+print("same centroids as the model:", np.allclose(centroids, model.coords))
 print("back to the index:", np.array_equal(i + nx * (j + ny * k), n))
 
 # %% [markdown]
@@ -76,10 +76,10 @@ print("row_at:   ", model.row_at(points).tolist())
 # the middle level (k = 1), each cell labeled with its index and (i, j), and the first point:
 
 # %%
-level = model.mask(k == 1)
+level = model.filter(k == 1)
 fig, ax = plt.subplots(figsize=(5.2, 4.4), layout="constrained")
 draw(ax, level)
-for c, index in zip(level.centroids, level.index):
+for c, index in zip(level.coords, level.index):
     ax.text(
         *c[:2],
         f"{index}\n({index % nx}, {index // nx % ny})",
@@ -109,7 +109,7 @@ corner = rotated.corners[0]
 axes = ((corner[[1, 2, 4]] - corner[0]) / np.array(rotated.size)[:, None]).T
 print("x axis", axes[:, 0].round(3), " y axis", axes[:, 1].round(3))
 local = (np.column_stack([i, j, k]) + 0.5) * rotated.size
-print("same centroids:", np.allclose(np.array(rotated.origin) + local @ axes.T, rotated.centroids))
+print("same centroids:", np.allclose(np.array(rotated.origin) + local @ axes.T, rotated.coords))
 
 point = np.array([1032.0, 2012.0, 308.0])
 ijk = np.floor((point - rotated.origin) @ axes / rotated.size).astype(int)
@@ -127,10 +127,10 @@ print(
 # grid frame, so cell 20 stays at the origin corner whatever the rotation:
 
 # %%
-level = rotated.mask(k == 1)
+level = rotated.filter(k == 1)
 fig, ax = plt.subplots(figsize=(5.2, 5.2), layout="constrained")
 draw(ax, level)
-for c, index in zip(level.centroids, level.index):
+for c, index in zip(level.coords, level.index):
     ax.text(*c[:2], index, ha="center", va="center", fontsize=7, color=INK)
 for axis, name in zip(axes.T[:2], "xy"):
     ax.annotate(
@@ -158,7 +158,7 @@ save(fig, "rotated")
 # %%
 grid = bt.BlockModel(origin=(0, 0), size=(10, 10), count=(20, 16))
 outline = bt.Polylines([[[25, 30], [150, 12], [190, 90], [120, 150], [40, 125]]], closed=True)
-domain = grid.mask(outline.contains(grid))
+domain = grid.filter(outline.contains(grid))
 print(domain)
 print("first rows hold cells", domain.index[:5].tolist())
 
@@ -219,7 +219,7 @@ print("per parent:", merged["cu"].round(2).tolist())
 fig, ax = plt.subplots(figsize=(4.6, 3.4), layout="constrained")
 draw(ax, blocks, color=ACCENT)
 draw(ax, bt.BlockModel(origin=(0, 0), size=(10, 10), count=(3, 2)), color="none", edge=GRAY, lw=1.2)
-for c, parent, value in zip(blocks.centroids, blocks.index, cu):
+for c, parent, value in zip(blocks.coords, blocks.index, cu):
     ax.text(*c[:2], f"{parent}: {value}", ha="center", va="center", fontsize=7, color="white")
 map_axes(ax, "Sub-blocks in a 3 × 2 parent grid")
 save(fig, "subblocks")
@@ -257,7 +257,7 @@ print("origin", rebuilt.origin, "count", rebuilt.count)
 # (origin 30, 10 instead of 0, 0) and numbers its cells differently. the blocks coincide: same centroids, same values.
 
 # %%
-print("same centroids:", np.allclose(rebuilt.centroids, domain.centroids))
+print("same centroids:", np.allclose(rebuilt.coords, domain.coords))
 print("same values:   ", np.allclose(rebuilt["cu"], domain["cu"]))
 
 # %% [markdown]
@@ -270,7 +270,7 @@ print("same values:   ", np.allclose(rebuilt["cu"], domain["cu"]))
 # CRS travel in the file metadata. the rotated grid, masked to its middle level, goes out and comes back unchanged.
 
 # %%
-middle = rotated.with_column("cu", np.linspace(0.1, 3.0, len(rotated))).mask(k == 1)
+middle = rotated.with_column("cu", np.linspace(0.1, 3.0, len(rotated))).filter(k == 1)
 bt.write_parquet(folder / "middle.parquet", middle)
 back = bt.read_parquet(folder / "middle.parquet")
 print(back)

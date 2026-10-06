@@ -88,7 +88,7 @@ save(fig, "patches")
 # %%
 truth = image[:, ::-1]
 rows = np.random.default_rng(0).choice(nx * ny, size=100, replace=False)
-wells = grid.centroids[rows]
+wells = grid.coords[rows]
 facies = truth.ravel()[rows].astype(int)
 hard = bt.ImageQuilting(ti, "facies", patch_size=30).fit(wells, facies)
 with_data = hard.simulate(grid, n=20, seed=3, keep=True)

@@ -83,7 +83,7 @@ def test_sub_block_sizes_and_rotated_axes_match_corners():
 def test_masked_and_regular_models_match_corners():
     model = bt.BlockModel((0.0, 0.0, 0.0), (5.0, 5.0, 2.0), (4, 3, 2), rotation=(45.0, 0.0, 0.0))
     np.testing.assert_allclose(corners_from_payload(Scene().add(model)), model.corners, atol=1e-4)
-    masked = model.mask(np.arange(24) % 3 == 0)
+    masked = model.filter(np.arange(24) % 3 == 0)
     np.testing.assert_allclose(corners_from_payload(Scene().add(masked)), masked.corners, atol=1e-4)
 
 

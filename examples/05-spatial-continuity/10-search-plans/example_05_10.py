@@ -45,7 +45,7 @@ ore = composites.filter(np.asarray(composites["LENS"], dtype=object) != "host")
 ore_holes = np.asarray(ore["HOLE_ID"], dtype=object)
 one = np.asarray(ore["LENS"], dtype=object) == "lens_1"
 
-pole = np.linalg.eigh(np.cov(lenses["lens_1"].vertices.T))[1][:, 0]
+pole = np.linalg.eigh(np.cov(lenses["lens_1"].coords.T))[1][:, 0]
 pole *= np.sign(pole[2])
 dip_direction = np.degrees(np.arctan2(pole[0], pole[1])) % 360
 lens_dip = np.degrees(np.arccos(pole[2]))
@@ -198,9 +198,9 @@ origin = np.floor(low / 10) * 10
 grid = bt.BlockModel(origin, (10, 10, 10), [int(c) for c in np.ceil((high - origin) / 10)])
 block_lens = np.full(len(grid), "", dtype=object)
 for name, mesh in lenses.items():
-    block_lens[mesh.contains(grid.centroids)] = name
+    block_lens[mesh.contains(grid.coords)] = name
 inside = block_lens != ""
-blocks = grid.mask(inside).with_column("LENS", list(block_lens[inside]))
+blocks = grid.filter(inside).with_column("LENS", list(block_lens[inside]))
 kriging = bt.OrdinaryKriging(model, bt.Search(reach, **ellipsoid)).fit(
     ore, "ZN_PCT", holes="HOLE_ID", domain_column="LENS"
 )

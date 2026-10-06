@@ -38,8 +38,8 @@ print(f"collar minus topography: {offset.min():+.2f} to {offset.max():+.2f} m")
 fig, ax = plt.subplots(figsize=(7, 5), layout="constrained")
 bt.plot.section(topography, "Z", ax=ax, cmap="Greys_r", colorbar=False)
 ax.contour(
-    topography.centroids[:, 0].reshape(191, 241),
-    topography.centroids[:, 1].reshape(191, 241),
+    topography.coords[:, 0].reshape(191, 241),
+    topography.coords[:, 1].reshape(191, 241),
     np.asarray(topography["Z"]).reshape(191, 241),
     levels=np.arange(1080, 1240, 20),
     colors=INK,
@@ -104,7 +104,7 @@ base, at each cell center, up to the surface above it; a cell with no base eleva
 above = {"SOIL": ground, "ALU": bases["SOIL"], "OXI": bases["ALU"], "SAP": bases["OXI"]}
 fig, axes = plt.subplots(2, 2, figsize=(9, 6), sharex=True, sharey=True, layout="constrained")
 for ax, name in zip(axes.flat, LAYERS, strict=True):
-    points = np.column_stack([topography.centroids[:, :2], elevations[name]])
+    points = np.column_stack([topography.coords[:, :2], elevations[name]])
     thickness = -above[name].vertical_distance(points)
     print(f"{name:>4}: thickness {np.nanmin(thickness):5.1f} to {np.nanmax(thickness):5.1f} m")
     bt.plot.section(topography, thickness, ax=ax, colorbar=False)

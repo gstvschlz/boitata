@@ -32,7 +32,7 @@ composites = holes.composite(2.0, ["ZN_PCT"])
 grid = bt.BlockModel.from_extents(*lenses, size=(10, 10, 5), buffer=20, rotation=(22.5, 0.0, 55.0))
 search = bt.Search(radius=60, min_samples=1, max_samples=12)
 idw = bt.InverseDistance(search, power=2).fit(composites.coords, composites["ZN_PCT"])
-inside = [lens.contains(grid.centroids) for lens in lenses]
+inside = [lens.contains(grid.coords) for lens in lenses]
 grid = grid.with_columns(
     {
         "ZN_PCT": idw.predict(grid),

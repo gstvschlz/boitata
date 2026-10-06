@@ -55,7 +55,7 @@ for path in ["shared", "random"]:
     start = time.perf_counter()
     runs[path] = sgs.simulate(grid, n=20, seed=42, keep=True, path=path)
     print(
-        f"{path:6} path: {time.perf_counter() - start:5.2f} s for 20 realizations of {len(grid.centroids):,} nodes"
+        f"{path:6} path: {time.perf_counter() - start:5.2f} s for 20 realizations of {len(grid.coords):,} nodes"
     )
 
 # %% [markdown]

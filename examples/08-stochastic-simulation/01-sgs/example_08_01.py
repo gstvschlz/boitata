@@ -64,7 +64,7 @@ reals = summary.realizations
 etype = summary.mean
 p500 = summary.probability_above[:, 0]
 
-nodes = grid.centroids.astype(int)
+nodes = grid.coords.astype(int)
 true_at_nodes = truth[nodes[:, 1] - 1, nodes[:, 0] - 1]
 means = summary.realization_mean
 print(f"realization means {means.min():.0f}-{means.max():.0f}, true {true_at_nodes.mean():.0f}")
@@ -134,7 +134,7 @@ a.plot([], [], color=LIGHT, label="20 realizations")
 a.set(xlim=(0, 1600), xlabel="V (ppm)", ylabel="Cumulative probability", title="Histogram reproduction")
 a.legend(loc="lower right")
 
-xyz = grid.centroids
+xyz = grid.coords
 for r in reals:
     scores = bt.NormalScore().fit_transform(r)
     exp = bt.experimental_variogram(xyz, scores, lag, max_lag, azimuth=azimuth)

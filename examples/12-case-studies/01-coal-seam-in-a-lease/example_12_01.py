@@ -30,9 +30,9 @@ data = bt.datasets.coal_seam_thickness()
 holes, grid = data["boreholes"], data["grid"]
 lease = data["boundary"].parts[0][:, :2]
 xy, thickness = holes.coords[:, :2], holes["THICKNESS_M"]
-inside = bt.point_in_polygon(grid.centroids[:, :2], lease)
+inside = bt.point_in_polygon(grid.coords[:, :2], lease)
 print(f"{np.mean(inside == (grid['INSIDE'] == 1)):.1%} of cells agree with INSIDE")
-cells = grid.mask(inside)
+cells = grid.filter(inside)
 area = len(cells) * 100 * 100
 print(
     f"{len(cells)} cells inside, {area / 1e6:.1f} km²; {bt.point_in_polygon(xy, lease).sum()} of {len(xy)} holes"
@@ -210,7 +210,7 @@ gaussian = bt.Variogram(
 )
 print(gaussian)
 sgs = bt.SGS(gaussian, search).fit(xy, thickness, weights=weights, trend=plane)
-summary = sgs.simulate(cells, n=100, seed=7, trend=trend.predict(cells.centroids))
+summary = sgs.simulate(cells, n=100, seed=7, trend=trend.predict(cells.coords))
 tonnes = summary.realization_mean * area * density
 p10, p50, p90 = np.quantile(tonnes, [0.1, 0.5, 0.9])
 print(

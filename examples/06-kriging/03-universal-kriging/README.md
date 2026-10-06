@@ -106,7 +106,7 @@ extent = (x0, x0 + nx * grid.size[0], y0, y0 + ny * grid.size[1])
 def image(ax, values, **kwargs):
     values = np.where(inside, values, np.nan).reshape(ny, nx)
     shown = ax.imshow(values, origin="lower", extent=extent, **kwargs)
-    ax.plot(*lease.vertices[:, :2].T, color=INK, lw=0.6)
+    ax.plot(*lease.coords[:, :2].T, color=INK, lw=0.6)
     return shown
 
 

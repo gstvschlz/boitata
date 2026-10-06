@@ -495,7 +495,7 @@ def porphyry_geometallurgy(deposit: int = 1) -> PorphyryGeometallurgy:
     )
     blocks = _grid(t["block_model"], ("x", "y", "z"))
     return {
-        "block_model": blocks.mask(blocks["ton"] > 0),
+        "block_model": blocks.filter(blocks["ton"] > 0),
         "correlations": t["correlations"],
         "grindability_distribution": _tables(folder, ("grindability_distribution",), nodata=[-9])[
             "grindability_distribution"

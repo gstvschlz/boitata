@@ -26,7 +26,7 @@ samples = bt.datasets.walker_lake()
 truth = bt.datasets.walker_lake_exhaustive()["V"].reshape(300, 260)
 xy, v = samples.coords, samples["V"]
 grid = bt.BlockModel(origin=(0.5, 0.5), size=(5, 5), count=(52, 60))
-nodes = grid.centroids.astype(int)
+nodes = grid.coords.astype(int)
 true_at_nodes = truth[nodes[:, 1] - 1, nodes[:, 0] - 1]
 
 # %% [markdown]
@@ -75,7 +75,7 @@ ax.imshow(
     norm=PowerNorm(0.5, vmin=0, vmax=1200),
 )
 every = (nodes[:, 0] % 15 == 3) & (nodes[:, 1] % 15 == 3)
-bt.plot.directions(lva.at(grid.centroids[every]), ax=ax, scale=35, width=0.004, color=ACCENT)
+bt.plot.directions(lva.at(grid.coords[every]), ax=ax, scale=35, width=0.004, color=ACCENT)
 map_axes(ax, "Local major direction over the guide estimate")
 save(fig, "field")
 

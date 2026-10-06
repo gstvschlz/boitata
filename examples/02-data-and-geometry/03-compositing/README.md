@@ -35,6 +35,16 @@ print(dh)
 ```text
 16995 assays + 1726 lithology intervals -> 17848 merged
 Drillholes(289 holes, 17848 intervals)
+  HOLE_ID: Utf8
+  FROM: Float64
+  TO: Float64
+  ZN_PCT: Float64
+  PB_PCT: Float64
+  CU_PCT: Float64
+  AG_GPT: Float64
+  AU_GPT: Float64
+  DENSITY: Float64
+  LITH: Utf8
 ```
 
 compositing to 2 m by `LITH` cuts intervals at each 2 m mark and at each contact, so no composite averages across

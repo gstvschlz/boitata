@@ -85,7 +85,7 @@ print(samples.to_table().to_polars().null_count().row(0, named=True))
 # %%
 grid = bt.BlockModel(origin=(0.5, 0.5), size=(20, 20), count=(13, 15))
 print(grid)
-print(grid.centroids[:2])
+print(grid.coords[:2])
 
 # %% [markdown]
 # ## Drill holes

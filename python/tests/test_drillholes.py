@@ -522,7 +522,7 @@ def test_snap_to_surface_moves_collars_and_their_holes():
     }
     holes = bt.Drillholes(collar, survey)
     ground = bt.BlockModel((0, 0), (1, 1), (30, 30))
-    ground = ground.with_column("elevation", 100 + 0.5 * ground.centroids[:, 0])
+    ground = ground.with_column("elevation", 100 + 0.5 * ground.coords[:, 0])
     with pytest.warns(UserWarning, match="1 holes lie off the surface.*c"):
         moved, report = bt.snap_to_surface(holes, ground, column="elevation")
     assert report["hole"].tolist() == ["a", "b", "c"]
@@ -541,7 +541,7 @@ def test_snap_to_surface_moves_collars_and_their_holes():
 def test_planned_drillholes_cover_the_model_and_composite():
     model = bt.BlockModel((0, 0, -50), (10, 10, 10), (10, 10, 4))
     ground = bt.BlockModel((-50, -50), (10, 10), (30, 30))
-    ground = ground.with_column("Z", 5 + 0.1 * ground.centroids[:, 0])
+    ground = ground.with_column("Z", 5 + 0.1 * ground.coords[:, 0])
     plan = bt.planned_drillholes(model, 25.0, topography=bt.grid_surface(ground, "Z"))
     assert len(plan) == 25 and plan.holes[0] == "P0001"
     collars = plan.at(plan.holes, np.zeros(len(plan)))

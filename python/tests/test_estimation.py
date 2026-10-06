@@ -338,10 +338,10 @@ def test_hole_distance_classification():
     stretched = bt.hole_distance(grid, xyz, holes, 3, search=bt.Search(radius=1e9, ratios=(0.5, 0.5)))
     assert np.all(stretched >= d[3] - 1e-9)
 
-    east = grid.centroids[:, 0] > 50
+    east = grid.coords[:, 0] > 50
     sample_east = xyz[:, 0] > 50
     split = bt.hole_distance(grid, xyz, holes, 3, domains=(east, sample_east))
-    own = bt.hole_distance(grid.centroids[east], xyz[sample_east], holes[sample_east], 3)
+    own = bt.hole_distance(grid.coords[east], xyz[sample_east], holes[sample_east], 3)
     np.testing.assert_array_equal(split[east], own)
     assert np.all(split >= d[3])
     blocks = grid.with_column("zone", east * 1.0)
@@ -959,7 +959,7 @@ def test_multiple_indicator_localization():
         by_rank = out[mine][np.argsort(rank[mine], kind="stable")]
         assert by_rank.mean() == pytest.approx(m, abs=1e-9)
         assert (np.diff(by_rank) >= -1e-12).all()
-        point = mik.predict(panels.centroids[p : p + 1], cutoffs=list(s.quantile_values[p]))
+        point = mik.predict(panels.coords[p : p + 1], cutoffs=list(s.quantile_values[p]))
         top = np.cumsum(by_rank[::-1])[:-1] / k
         np.testing.assert_allclose(top, m + np.sqrt(f) * (point.mean_above[0] - m), atol=1e-9)
     assert np.isnan(s.mean).any() and not np.isnan(s.mean).all()
@@ -1001,7 +1001,7 @@ def test_column_names_match_arrays():
     zone = np.where(coords[:, 0] < 50, 1, 2)
     samples = bt.PointSet(coords, {"grade": values, "hole": holes, "zone": zone})
     grid = bt.BlockModel(origin=(0, 0), size=(10, 10), count=(10, 10))
-    blocks = grid.with_column("zone", np.where(grid.centroids[:, 0] < 50, 1, 2))
+    blocks = grid.with_column("zone", np.where(grid.coords[:, 0] < 50, 1, 2))
     ok = bt.OrdinaryKriging(model, search)
     arrays = ok.fit(coords, values, holes=holes, domains=zone).predict(grid, domains=blocks["zone"])
     names = ok.fit(samples, "grade", holes="hole", domain_column="zone").predict(blocks, domain_column="zone")

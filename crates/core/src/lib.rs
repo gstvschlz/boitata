@@ -20,6 +20,18 @@ pub use points::PointSet;
 pub use polylines::Polylines;
 pub use rotation::{angles_from_axes, block_frame, rotation_matrix};
 
+/// `(min, max)` corners of `points`, `None` without any.
+fn bounds(points: impl IntoIterator<Item = [f64; 3]>) -> Option<([f64; 3], [f64; 3])> {
+    let mut points = points.into_iter();
+    let first = points.next()?;
+    Some(points.fold((first, first), |(lo, hi), p| {
+        (
+            [0, 1, 2].map(|a| lo[a].min(p[a])),
+            [0, 1, 2].map(|a| hi[a].max(p[a])),
+        )
+    }))
+}
+
 fn check_rows(expected: usize, table: &RecordBatch) -> Result<()> {
     if table.num_rows() == expected {
         Ok(())
@@ -31,7 +43,8 @@ fn check_rows(expected: usize, table: &RecordBatch) -> Result<()> {
     }
 }
 
-fn set_column(
+/// `table` with the column `name` added or replaced by `column`.
+pub fn set_column(
     table: &RecordBatch,
     name: &str,
     column: arrow_array::ArrayRef,
