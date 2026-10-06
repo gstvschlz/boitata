@@ -42,10 +42,10 @@ along = np.array([np.sin(np.radians(23.0)), np.cos(np.radians(23.0)), 0.0])
 origin = center - 600.0 * across - 300.0 * along + (0.0, 0.0, -400.0)
 model = bt.BlockModel(origin, (20.0, 20.0, 20.0), (60, 30, 40), rotation=(23.0, 0.0, 0.0))
 topography = data["topography"]
-rows = topography.row_at(model.centroids[:, :2])
-model = model.mask((rows >= 0) & (model.centroids[:, 2] < topography["Z"][rows]))
+rows = topography.row_at(model.coords[:, :2])
+model = model.filter((rows >= 0) & (model.coords[:, 2] < topography["Z"][rows]))
 kriged = bt.OrdinaryKriging(variogram, search).fit(known, "ZN_PCT", holes="HOLE_ID").predict(model)
-model = model.mask(~np.isnan(kriged)).with_columns({"ZN_PCT": kriged[~np.isnan(kriged)]})
+model = model.filter(~np.isnan(kriged)).with_columns({"ZN_PCT": kriged[~np.isnan(kriged)]})
 print(f"{len(model):,} blocks of 20 m")
 
 # %% [markdown]

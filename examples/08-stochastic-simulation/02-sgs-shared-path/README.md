@@ -55,15 +55,15 @@ for path in ["shared", "random"]:
     start = time.perf_counter()
     runs[path] = sgs.simulate(grid, n=20, seed=42, keep=True, path=path)
     print(
-        f"{path:6} path: {time.perf_counter() - start:5.2f} s for 20 realizations of {len(grid.centroids):,} nodes"
+        f"{path:6} path: {time.perf_counter() - start:5.2f} s for 20 realizations of {len(grid.coords):,} nodes"
     )
 ```
 
 </details>
 
 ```text
-shared path:  0.11 s for 20 realizations of 78,000 nodes
-random path:  1.46 s for 20 realizations of 78,000 nodes
+shared path:  0.10 s for 20 realizations of 78,000 nodes
+random path:  1.32 s for 20 realizations of 78,000 nodes
 ```
 
 `batch` changes memory and speed and leaves the realizations alone: one at a time gives the same grades as all

@@ -56,7 +56,7 @@ def test_hard_data_are_reproduced():
     targets = grid()
     rng = np.random.default_rng(1)
     rows = rng.choice(3600, 80, replace=False)
-    xyz = targets.centroids[rows]
+    xyz = targets.coords[rows]
     codes = rng.integers(0, 2, 80)
     iq = bt.ImageQuilting(ti, "facies", patch_size=15).fit(xyz, codes)
     s = iq.simulate(targets, n=4, keep=True)
@@ -66,7 +66,7 @@ def test_hard_data_are_reproduced():
 
 
 def test_masked_targets_and_3d():
-    masked = grid(30, 30).mask(np.arange(900) % 3 != 0)
+    masked = grid(30, 30).filter(np.arange(900) % 3 != 0)
     s = bt.ImageQuilting(channels(), "facies", patch_size=10).simulate(masked, n=2, keep=True)
     assert s.realizations.shape == (2, 600)
     x, _, z = np.meshgrid(np.arange(16), np.arange(16), np.arange(8), indexing="ij")

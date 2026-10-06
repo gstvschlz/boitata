@@ -235,7 +235,7 @@ save(fig, "weights")
 
 # %%
 grid = bt.BlockModel(origin=(0.5, 0.5), size=(5, 5), count=(52, 60))
-nodes = grid.centroids.astype(int)
+nodes = grid.coords.astype(int)
 true_at_nodes = truth[nodes[:, 1] - 1, nodes[:, 0] - 1]
 estimate, variance = kriging.predict(grid, return_variance=True)
 inverse = bt.InverseDistance(search, power=2).fit(samples, "V").predict(grid)

@@ -30,7 +30,7 @@ data = bt.datasets.coal_seam_thickness()
 holes, grid, boundary = data["boreholes"], data["grid"], data["boundary"]
 print(boundary)
 lease = boundary.parts[0][:, :2]
-xy, centers = holes.coords[:, :2], grid.centroids[:, :2]
+xy, centers = holes.coords[:, :2], grid.coords[:, :2]
 inside = bt.point_in_polygon(centers, lease)
 print(f"{inside.sum()} of {len(grid)} cells inside, {inside.sum() * 100 * 100 / 1e6:.1f} km²")
 print(f"agreement with the INSIDE flag: {np.mean(inside == (grid['INSIDE'] == 1)):.1%}")
@@ -80,7 +80,7 @@ save(fig, "distance")
 # a confidence per target: the share of the `n` nearest holes (5 by default) that carry its label.
 
 # %%
-cells = grid.mask(inside)
+cells = grid.filter(inside)
 labels, confidence = bt.assign_domain(cells, coords=holes, domain_column="CATEGORY")
 methods = bt.Categories(["MECHANIZED", "SELECTIVE", "UNECONOMIC"], colors=[ACCENT, "#9ebad6", LIGHT])
 codes = methods.encode(labels)

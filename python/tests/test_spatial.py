@@ -55,7 +55,7 @@ def test_delaunay_topography_is_exact_at_the_points_and_on_planes():
     plane = pts.copy()
     plane[:, 2] = 50 + 0.2 * pts[:, 0] - 0.1 * pts[:, 1]
     t = bt.topography(plane, cell=10.0, clip=False)
-    c, z = t.grid.centroids, t.grid["z"]
+    c, z = t.grid.coords, t.grid["z"]
     ok = np.isfinite(z)
     assert ok.mean() > 0.8
     np.testing.assert_allclose(z[ok], 50 + 0.2 * c[ok, 0] - 0.1 * c[ok, 1], atol=1e-9)
@@ -70,7 +70,7 @@ def test_topography_flags_a_spike_but_not_its_neighbors_and_clips():
     assert t.flagged[7] and t.residuals[7] == pytest.approx(25, abs=1.0)
     near = np.linalg.norm(pts[:, :2] - pts[7, :2], axis=1) < 40
     assert t.flagged[near].sum() == 1
-    inside = t.outline.contains(np.c_[t.grid.centroids[:, :2], np.zeros(len(t.grid))])
+    inside = t.outline.contains(np.c_[t.grid.coords[:, :2], np.zeros(len(t.grid))])
     assert np.isnan(t.grid["z"][~inside]).all()
     full = bt.topography(pts, cell=10.0, clip=False, max_residual=100.0)
     assert full.outline is None and not full.flagged.any()

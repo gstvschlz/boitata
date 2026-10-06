@@ -148,8 +148,9 @@ impl Mesh {
         Ok(Self::from_core(mesh))
     }
 
+    /// ``(n, 3)`` vertices.
     #[getter]
-    fn vertices<'py>(&self, py: Python<'py>) -> Bound<'py, PyAny> {
+    fn coords<'py>(&self, py: Python<'py>) -> Bound<'py, PyAny> {
         coords_array(py, self.mesh.vertices()).into_any()
     }
 
@@ -453,16 +454,35 @@ impl Mesh {
         Ok(array1(py, p).into_any())
     }
 
+    /// The vertex column `name`, else the face column; a name in both raises.
+    fn __getitem__<'py>(&self, py: Python<'py>, name: &str) -> PyResult<Bound<'py, PyAny>> {
+        let (v, f) = (self.mesh.vertex_attributes(), self.mesh.face_attributes());
+        match (v.column_by_name(name), f.column_by_name(name)) {
+            (Some(_), Some(_)) => Err(invalid(format!(
+                "{name:?} is both a vertex and a face column; use vertex_attributes or face_attributes"
+            ))),
+            (None, Some(_)) => crate::table::column(py, f, name),
+            _ => crate::table::column(py, v, name),
+        }
+    }
+
+    /// Number of vertices.
+    fn __len__(&self) -> usize {
+        self.mesh.vertices().len()
+    }
+
     fn __repr__(&self) -> String {
         format!(
-            "Mesh({} vertices, {} triangles, {})",
+            "Mesh({} vertices, {} triangles, {}){}{}",
             self.mesh.vertices().len(),
             self.mesh.triangles().len(),
             if self.mesh.is_closed() {
                 "closed".to_string()
             } else {
                 format!("open, {} boundary edges", self.mesh.boundary_edges())
-            }
+            },
+            crate::table::describe(self.mesh.vertex_attributes()),
+            crate::table::describe(self.mesh.face_attributes())
         )
     }
 }

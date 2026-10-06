@@ -32,7 +32,7 @@ def test_sphere_isosurface_area():
     assert sphere.triangles.dtype == np.int64 and sphere.is_closed
     assert sphere.area == pytest.approx(4 * np.pi * radius**2, rel=0.02)
     assert abs(sphere.volume) == pytest.approx(4 / 3 * np.pi * radius**3, rel=0.03)
-    np.testing.assert_allclose(np.linalg.norm(sphere.vertices - center, axis=1), radius, atol=0.5)
+    np.testing.assert_allclose(np.linalg.norm(sphere.coords - center, axis=1), radius, atol=0.5)
 
     half = bt.BlockModel(origin=(0, 0, 50), size=(2, 2, 2), count=(50, 50, 25))
     assert model.isosurface(half).validate().summary["boundary_edges"] > 0
@@ -41,11 +41,11 @@ def test_sphere_isosurface_area():
     hemisphere = 2 / 3 * np.pi * radius**3
     assert 100 * 100 * 50 - capped.volume == pytest.approx(hemisphere, rel=0.02)
 
-    below = blocks.mask(blocks.centroids[:, 2] < center[2])
+    below = blocks.filter(blocks.coords[:, 2] < center[2])
     clipped = model.isosurface(below, closed=True)
     assert clipped.is_closed
     assert 100 * 100 * 50 - clipped.volume == pytest.approx(hemisphere, rel=0.02)
-    assert clipped.vertices[:, 2].max() < center[2] + 1
+    assert clipped.coords[:, 2].max() < center[2] + 1
     assert model.isosurface(below).validate().summary["boundary_edges"] > 0
     with pytest.raises(bt.InvalidInput, match="masked"):
         model.isosurface(

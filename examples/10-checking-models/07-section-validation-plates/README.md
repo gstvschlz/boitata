@@ -35,7 +35,7 @@ inside = lens.contains(xyz) & ~np.isnan(zn)
 ore = np.array(model["domain"]) == "ore"
 grade = np.full(len(model), np.nan)
 estimator = bt.InverseDistance(bt.Search(100, max_samples=12)).fit(xyz[inside], zn[inside])
-grade[ore] = estimator.predict(model.centroids[ore])
+grade[ore] = estimator.predict(model.coords[ore])
 model = model.with_column("zn", grade)
 ```
 
@@ -47,7 +47,7 @@ overlays the lens trace and the composites within 25 m of that same `plane`, on 
 <details><summary>Python</summary>
 
 ```python
-plane = (lens.vertices.mean(axis=0), 90, 90)
+plane = (lens.coords.mean(axis=0), 90, 90)
 fig, ax = plt.subplots(figsize=(9, 6), layout="constrained")
 bt.plot.section(model, "zn", plane=plane, cmap="viridis", vmin=0, vmax=8, ax=ax)
 bt.plot.slab(

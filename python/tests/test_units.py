@@ -209,7 +209,7 @@ def test_kriging_with_parameters_in_feet_matches_kriging_in_metres():
         bt.OrdinaryKriging(in_feet, bt.Search(radius=60, length_unit="m"))
     # Coordinates without a unit are taken as they are, in the unit of the parameters.
     undeclared = bt.OrdinaryKriging(in_feet, search_feet).fit(samples.coords, samples["au"])
-    assert np.isfinite(undeclared.predict(targets.centroids)).any()
+    assert np.isfinite(undeclared.predict(targets.coords)).any()
 
 
 def test_variograms_carry_length_and_value_units():
@@ -424,7 +424,7 @@ def test_every_estimator_takes_the_unit_of_its_values():
     assert mik.localize(smus, "rank", grid).units["localized"] == "g/t"
     mg = bt.MultigaussianKriging(variogram, search).fit(samples, "au").predict(grid)
     assert mg.mean.unit == "g/t"
-    assert bt.DualKriging(variogram).fit(samples, "au").predict(grid.centroids).unit == "g/t"
+    assert bt.DualKriging(variogram).fit(samples, "au").predict(grid.coords).unit == "g/t"
 
 
 def test_saved_estimators_keep_their_units(tmp_path):
@@ -475,7 +475,7 @@ def test_tables_carry_units_and_compare_in_one_unit():
     model = _model("g/t")
     swath = bt.swath(model, "au", 10.0, axis="x", density="dens")
     assert swath.units["center"] == "m" and swath.units["mean"] == "g/t" and swath.units["tonnage"] == "kt"
-    points = bt.PointSet(model.centroids, {"au": model["au"] * 1000}).with_units({"au": "ppb"})
+    points = bt.PointSet(model.coords, {"au": model["au"] * 1000}).with_units({"au": "ppb"})
     validation = bt.validate_model(model, "au", points, "au", density="dens")
     rows = validation.to_polars()
     model_mean = rows.filter(rows["source"] == "model")["mean"][0]

@@ -290,12 +290,40 @@ pub fn to_batches(data: &Bound<PyAny>) -> PyResult<(SchemaRef, Vec<RecordBatch>)
     Ok((schema, batches))
 }
 
-/// `MissingColumn` for `name`, listing the `columns` there are.
+/// `MissingColumn` for `name`, suggesting the closest of `columns` and listing them.
 pub fn missing(name: &str, columns: Vec<String>) -> PyErr {
+    let close = columns
+        .iter()
+        .map(|c| (edits(&name.to_lowercase(), &c.to_lowercase()), c))
+        .filter(|(d, c)| *d <= (c.chars().count() / 3).max(1) && *d < c.chars().count())
+        .min_by_key(|(d, _)| *d)
+        .map_or(String::new(), |(_, c)| format!(" (did you mean {c:?}?)"));
     crate::error(
         "MissingColumn",
-        format!("no column {name:?}; columns: {}", columns.join(", ")),
+        format!("no column {name:?}{close}; columns: {}", columns.join(", ")),
     )
+}
+
+fn itself(batch: &RecordBatch) -> &RecordBatch {
+    batch
+}
+
+/// Levenshtein distance between `a` and `b`.
+fn edits(a: &str, b: &str) -> usize {
+    let b: Vec<char> = b.chars().collect();
+    let mut row: Vec<usize> = (0..=b.len()).collect();
+    for (i, ca) in a.chars().enumerate() {
+        let mut diagonal = row[0];
+        row[0] = i + 1;
+        for (j, &cb) in b.iter().enumerate() {
+            let above = row[j + 1];
+            row[j + 1] = (diagonal + usize::from(ca != cb))
+                .min(row[j] + 1)
+                .min(above + 1);
+            diagonal = above;
+        }
+    }
+    row[b.len()]
 }
 
 pub fn names(batch: &RecordBatch) -> Vec<String> {
@@ -436,6 +464,26 @@ impl Table {
     #[pyo3(name = "convert_units", signature = (column, *, to))]
     fn convert_units_(&self, column: &str, to: &str) -> PyResult<Self> {
         Ok(Self(convert_units(&self.0, column, to)?))
+    }
+
+    /// New table with the column `name` added or replaced: numbers (NaN is
+    /// null) or text (None is null), in `unit` or else the unit `values` carries.
+    #[pyo3(signature = (name, values, *, unit=None))]
+    fn with_column(&self, name: &str, values: &Bound<PyAny>, unit: Option<&str>) -> PyResult<Self> {
+        let column = crate::blocks::attribute(values, self.0.num_rows())?;
+        let batch = boitata_core::set_column(&self.0, name, column).map_err(invalid)?;
+        Ok(Self(crate::units::set(&batch, name, values, unit)?))
+    }
+
+    /// New table with the columns of `data`, a dict or table, added or replaced.
+    fn with_columns(&self, data: &Bound<PyAny>) -> PyResult<Self> {
+        Ok(Self(crate::containers::with_columns(
+            self.0.clone(),
+            data,
+            boitata_core::set_column,
+            itself,
+            |_, batch| Ok(batch),
+        )?))
     }
 
     /// Rows where `mask` is true.

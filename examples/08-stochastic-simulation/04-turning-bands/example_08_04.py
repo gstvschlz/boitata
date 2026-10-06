@@ -95,7 +95,7 @@ fig, axes = plt.subplots(1, 2, figsize=(10, 3.8), layout="constrained", sharey=T
 for ax, (name, reals) in zip(axes, (("SGS", by_sgs), ("Turning bands", by_tb))):
     for r in reals:
         scores = bt.NormalScore().fit_transform(r)
-        exp = bt.experimental_variogram(grid.centroids, scores, 10.0, 120.0, azimuth=170)
+        exp = bt.experimental_variogram(grid.coords, scores, 10.0, 120.0, azimuth=170)
         ax.plot(exp.lags, exp.gammas, color=LIGHT, lw=0.8)
     ax.plot(h, gaussian.gamma(h), color=HIGHLIGHT, lw=1.4, label="model")
     ax.plot([], [], color=LIGHT, label="20 realizations")

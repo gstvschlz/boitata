@@ -231,7 +231,7 @@ class DropDuplicates(_Step):
         self.tolerance = tolerance
 
     def transform(self, data):
-        coords = data.centroids if hasattr(data, "centroids") else data
+        coords = data.coords if hasattr(data, "coords") else data
         _, group = boitata.duplicates(coords, tolerance=self.tolerance)
         first = np.unique(group, return_index=True)[1]
         keep = group == -1
@@ -335,8 +335,6 @@ def _rename(data, mapping):
 
 
 def _filter(data, keep):
-    if hasattr(data, "mask"):
-        return data.mask(keep)
     if hasattr(data, "filter"):
         return data.filter(keep)
     if isinstance(data, dict):

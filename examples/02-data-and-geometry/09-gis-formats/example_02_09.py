@@ -43,7 +43,7 @@ points, outline = bt.read_shapefile(folder / "samples.shp"), bt.read_shapefile(f
 print("same points:", np.array_equal(points.coords, samples.coords))
 print(
     "same boundary, reversed:",
-    np.array_equal(outline.vertices, boundary.vertices[::-1]),
+    np.array_equal(outline.coords, boundary.coords[::-1]),
     "| closed:",
     outline.closed,
 )
@@ -100,7 +100,7 @@ numeric = bt.BlockModel(
         "LITHOLOGY": scheme.encode(covariates["LITHOLOGY"]),
     },
 )
-inside = numeric.mask(covariates["INSIDE"] == 1)
+inside = numeric.filter(covariates["INSIDE"] == 1)
 bt.write_geotiff(folder / "covariates.tif", inside)
 raster = bt.read_geotiff(folder / "covariates.tif")
 print(raster)

@@ -24,7 +24,7 @@ lease = bt.datasets.coal_seam_thickness()
 holes, grid = lease["boreholes"], lease["grid"]
 thickness = holes["THICKNESS_M"]
 xy = holes.coords[:, :2]
-cells = grid.centroids[grid["INSIDE"] == 1]
+cells = grid.coords[grid["INSIDE"] == 1]
 print(f"{len(holes)} holes, {len(cells)} cells, naive mean {thickness.mean():.2f} m")
 ```
 

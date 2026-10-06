@@ -111,7 +111,7 @@ def test_block_support_averages_each_realization():
     blocks = bt.BlockModel(origin=(0, 0), size=(20, 20), count=(5, 5))
     nodes = sgs.simulate(grid, n=6, seed=2, keep=True).realizations
     s = sgs.simulate(grid, n=6, seed=2, cutoffs=[1.0], keep=True, blocks=blocks)
-    xy = grid.centroids[:, :2] // 20
+    xy = grid.coords[:, :2] // 20
     rows = (xy[:, 0] + 5 * xy[:, 1]).astype(int)
     expected = np.stack([np.bincount(rows, r) / np.bincount(rows) for r in nodes])
     np.testing.assert_allclose(s.realizations, expected)
@@ -143,7 +143,7 @@ def _box_mean(xy, reals, half):
 def test_windows_and_groups_summarize_each_realization(make, tmp_path):
     sim = make().fit(coords, values)
     nodes = sim.simulate(grid, n=5, seed=2, keep=True).realizations
-    xy = grid.centroids[:, :2]
+    xy = grid.coords[:, :2]
     s = sim.simulate(grid, n=5, seed=2, keep=True, quantiles=[0.5], window=(15, 10))
     expected = _box_mean(xy, nodes, np.array([7.5, 5.0]))
     np.testing.assert_allclose(s.realizations, expected, rtol=1e-9)
@@ -252,7 +252,7 @@ def test_windows_over_blocks_points_and_bad_arguments():
     blocks = bt.BlockModel(origin=(0, 0), size=(20, 20), count=(5, 5))
     on_blocks = sgs.simulate(grid, n=3, seed=1, keep=True, blocks=blocks).realizations
     s = sgs.simulate(grid, n=3, seed=1, keep=True, blocks=blocks, window=(40, 40, 0))
-    np.testing.assert_allclose(s.realizations, _box_mean(blocks.centroids[:, :2], on_blocks, 20.0), rtol=1e-9)
+    np.testing.assert_allclose(s.realizations, _box_mean(blocks.coords[:, :2], on_blocks, 20.0), rtol=1e-9)
 
     points = rng.uniform(0, 100, (50, 2))
     raw = sgs.simulate(points, n=3, seed=1, keep=True).realizations
@@ -376,7 +376,7 @@ def test_plurigaussian_fitted_variograms_recover_the_latent_ranges():
     rule = (0, [0, (1, [1, 2])])
     truth = [bt.Variogram([("spherical", 1.0, 16.0)]), bt.Variogram([("exponential", 1.0, 8.0)])]
     fine = bt.BlockModel(origin=(0, 0), size=(2, 2), count=(60, 60))
-    xy = fine.centroids[:, :2]
+    xy = fine.coords[:, :2]
     pgs = bt.Plurigaussian(truth, proportions=[0.3, 0.4, 0.3], rule=rule).fit([[60.0, 60.0]], [1])
     facies = pgs.simulate(fine, n=1, seed=5, keep=True).realizations[0]
     experimental = [bt.experimental_variogram(xy, (facies == f).astype(float), 2.0, 24.0) for f in range(3)]
@@ -400,7 +400,7 @@ def test_plurigaussian_follows_local_proportions():
     rule = (0, [0, (1, [1, 2])])
     pgs = bt.Plurigaussian([gaussian] * 2, proportions=[0.5, 0.25, 0.25], rule=rule)
     pgs.fit(xy, [1], proportions=west_to_east(xy))
-    nodes = grid.centroids[:, :2]
+    nodes = grid.coords[:, :2]
     s = pgs.simulate(grid, n=10, seed=1, proportions=west_to_east(nodes))
     west, east = nodes[:, 0] < 30, nodes[:, 0] > 70
     assert s.probabilities[west, 0].mean() > 0.6 and s.probabilities[east, 0].mean() < 0.4
@@ -429,7 +429,7 @@ def trended_samples():
 def test_simulation_with_a_trend_follows_it_and_honors_data():
     xy, z, trend = trended_samples()
     search = bt.Search(radius=30, max_samples=12)
-    node_trend = grid.centroids[:, 0] / 100
+    node_trend = grid.coords[:, 0] / 100
     white = bt.Variogram([("spherical", 1.0, 4.0)])
     for simulator in (bt.SGS(white, search, classes=5), bt.TurningBands(white, bands=100, classes=5)):
         simulator.fit(xy, z, trend=trend)
@@ -447,7 +447,7 @@ def test_simulation_with_a_trend_follows_it_and_honors_data():
     np.testing.assert_array_equal(
         sgs.simulate(model, n=3, seed=4, keep=True, path="random", trend="drift").realizations, by_array
     )
-    points = bt.PointSet(model.centroids, {"drift": node_trend})
+    points = bt.PointSet(model.coords, {"drift": node_trend})
     np.testing.assert_array_equal(
         sgs.simulate(points, n=3, seed=4, keep=True, path="random", trend="drift").realizations, by_array
     )
@@ -455,7 +455,7 @@ def test_simulation_with_a_trend_follows_it_and_honors_data():
     by_block = sgs.simulate(
         grid, n=3, seed=4, keep=True, path="random", blocks=blocks, trend=node_trend
     ).realizations
-    xy_block = grid.centroids[:, :2] // 20
+    xy_block = grid.coords[:, :2] // 20
     rows = (xy_block[:, 0] + 5 * xy_block[:, 1]).astype(int)
     np.testing.assert_allclose(by_block, [np.bincount(rows, r) / np.bincount(rows) for r in by_array])
 
@@ -470,7 +470,7 @@ def test_simulation_with_a_trend_follows_it_and_honors_data():
     with pytest.raises(bt.InvalidInput, match="needs trend at fit"):
         plain.simulate(grid, n=1, trend=node_trend)
     with pytest.raises(bt.InvalidInput, match="needs a container"):
-        sgs.simulate(grid.centroids, n=1, trend="drift")
+        sgs.simulate(grid.coords, n=1, trend="drift")
     with pytest.raises(bt.MissingColumn, match="drift"):
         sgs.simulate(grid, n=1, trend="drift")
     with pytest.raises(ValueError):
@@ -483,7 +483,7 @@ def test_simulation_with_a_trend_follows_it_and_honors_data():
 
 def test_simulators_with_a_trend_save_and_load_it(tmp_path):
     xy, z, trend = trended_samples()
-    node_trend = grid.centroids[:, 0] / 100
+    node_trend = grid.coords[:, 0] / 100
     for simulator in (
         bt.SGS(gaussian, bt.Search(radius=30, max_samples=12), classes=4),
         bt.TurningBands(gaussian, bands=50, classes=4),
@@ -515,7 +515,7 @@ def test_multivariate_simulation_reproduces_correlation_and_honors_data():
         np.testing.assert_allclose(s.mean, data[:5, v], rtol=1e-6)
 
     blocks = bt.BlockModel(origin=(0, 0), size=(20, 20), count=(5, 5))
-    xy = grid.centroids[:, :2] // 20
+    xy = grid.coords[:, :2] // 20
     rows = (xy[:, 0] + 5 * xy[:, 1]).astype(int)
     by_block = mv.simulate(grid, n=10, seed=4, keep=True, blocks=blocks)
     for s, nodes in zip(by_block, (a, b)):
@@ -918,7 +918,7 @@ def test_grades_follow_each_realization_of_simulated_domains(model):
     zone = np.where(coords[:, 0] < 50, "lean", "rich")
     grades = np.where(zone == "lean", values, 100 * values)
     model.fit(coords, grades, domains=zone)
-    nodes = grid.centroids
+    nodes = grid.coords
     fixed = np.where(nodes[:, 0] < 50, "lean", "rich")
 
     def run(domains):
@@ -1057,7 +1057,7 @@ def _cosimulation_case():
     s = secondary[0]
     scores = (s - s.mean()) / s.std()
     grade = np.exp(0.7 * scores[rows] + np.sqrt(0.51) * rng.normal(size=100))
-    points = bt.PointSet(nodes.centroids[rows], {"v": grade, "s": s[rows]})
+    points = bt.PointSet(nodes.coords[rows], {"v": grade, "s": s[rows]})
     return model, nodes, secondary, rows, points
 
 
@@ -1246,7 +1246,7 @@ def test_block_models_default_to_the_shared_path():
 
 def test_points_default_to_the_random_path_and_refuse_a_shared_one():
     sgs, blocks = _shared_case()
-    points = np.asarray(blocks.centroids)[:, :2]
+    points = np.asarray(blocks.coords)[:, :2]
     default = sgs.simulate(points, n=2, seed=1, keep=True)
     random = sgs.simulate(points, n=2, seed=1, keep=True, path="random")
     np.testing.assert_array_equal(default.realizations, random.realizations)
@@ -1402,7 +1402,7 @@ def test_spacing_study_rejects_bad_input():
         (lambda: _study(spacings=[10], truths=[1, 1]), "distinct"),
         (lambda: _study(spacings=[10], composite_length=None), "composite_length"),
         (lambda: bt.spacing_study(sgs, grid, spacings=[10]), "not fitted"),
-        (lambda: bt.spacing_study(sgs.fit(coords, values), grid.centroids, spacings=[10]), "BlockModel"),
+        (lambda: bt.spacing_study(sgs.fit(coords, values), grid.coords, spacings=[10]), "BlockModel"),
     ]:
         with pytest.raises(bt.InvalidInput, match=match):
             call()

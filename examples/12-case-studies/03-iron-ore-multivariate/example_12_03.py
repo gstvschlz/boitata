@@ -94,9 +94,9 @@ save(fig, "closure")
 model = data["block_model"]
 blastholes = data["blastholes"]
 lo, hi = blastholes.coords.min(axis=0), blastholes.coords.max(axis=0)
-c = model.centroids
+c = model.coords
 window = np.all((c > lo - (12.5, 12.5, 6)) & (c < hi + (12.5, 12.5, 6)), axis=1)
-blocks = model.mask(window)
+blocks = model.filter(window)
 domains = {"hematite": ["HF", "HC", "CG"], "friable itabirite": ["IF"], "compact itabirite": ["IC"]}
 block_lith = np.asarray(blocks["LITH"], dtype=object)
 block_domain = np.full(len(blocks), "", dtype=object)
@@ -134,7 +134,7 @@ for name, codes in domains.items():
 # %%
 n = 30
 nodes = blocks.discretize(2)
-node_block = blocks.row_at(nodes.centroids)
+node_block = blocks.row_at(nodes.coords)
 bh_block = blocks.row_at(blastholes.coords)
 at_blocks = np.full((n, len(blocks), 7), np.nan)
 at_blastholes = np.full((n, len(blastholes), 7), np.nan)
@@ -150,7 +150,7 @@ for name, codes in domains.items():
     )
     in_domain = block_domain[node_block] == name
     bh_in = block_domain[bh_block] == name
-    targets = np.vstack([nodes.centroids[in_domain], blastholes.coords[bh_in]])
+    targets = np.vstack([nodes.coords[in_domain], blastholes.coords[bh_in]])
     factors = simulation.simulate(targets, n=n, seed=1, keep=True)
     ilr = np.stack([f.realizations for f in factors], axis=-1)
     oxides = 100 * bt.ilr_inverse(ilr.reshape(-1, 6)).reshape(n, len(targets), 7)
@@ -180,7 +180,7 @@ for seed, (g, factor) in enumerate((("FE_PCT", 1.4297), ("SIO2_PCT", 1.0)), star
     alone.append(
         factor
         * bands.simulate(
-            nodes.centroids[block_domain[node_block] == "hematite"], n=n, seed=seed, keep=True
+            nodes.coords[block_domain[node_block] == "hematite"], n=n, seed=seed, keep=True
         ).realizations
     )
 hematite = at_blocks[:, block_domain == "hematite"]

@@ -94,7 +94,7 @@ save(fig, "simulated-blocks")
 # mean.
 
 # %%
-periods = blocks.centroids[:, 1] // 50
+periods = blocks.coords[:, 1] // 50
 for label, volumes in (
     ("blocks", {}),
     ("periods", {"groups": periods}),

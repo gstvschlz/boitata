@@ -29,7 +29,7 @@ section = bt.BlockModel((0, 1600), (25, 4), (nx, nz))
 traces = [4, 13, 22, 31, 40]
 at_traces = np.zeros((nz, nx), bool)
 at_traces[:, traces] = True
-wells = section.centroids[at_traces.ravel()]
+wells = section.coords[at_traces.ravel()]
 values = truth[at_traces]
 
 

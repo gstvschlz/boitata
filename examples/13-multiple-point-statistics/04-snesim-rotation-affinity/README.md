@@ -16,7 +16,7 @@ from matplotlib.colors import ListedColormap
 ti = bt.datasets.strebelle()
 n = ti.count[0]
 grid = bt.BlockModel((0, 0), (1, 1), (n, n))
-xy = grid.centroids
+xy = grid.coords
 x, y = xy[:, 0], xy[:, 1]
 ```
 
@@ -131,10 +131,10 @@ image = np.hstack([cube[:, j, :] for j in range(0, 45, 3)])
 sections = bt.BlockModel((0, 0), (1, 1), (image.shape[1], nz)).with_columns({"amplitude": image.ravel()})
 width = 150
 section = bt.BlockModel((0, 0), (1, 1), (width, nz))
-along = section.centroids[:, 0]
+along = section.coords[:, 0]
 fold = -25 * np.cos(np.pi * along / width)
 field = bt.LocalAnisotropy(
-    section.centroids, np.column_stack([fold, 0 * fold, 0 * fold]), np.ones((along.size, 2))
+    section.coords, np.column_stack([fold, 0 * fold, 0 * fold]), np.ones((along.size, 2))
 )
 continuous = bt.SNESIM(sections, "amplitude")
 flat = continuous.simulate(section, n=1, seed=2, keep=True).realizations[0]

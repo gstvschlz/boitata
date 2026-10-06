@@ -203,11 +203,11 @@ def _layer(data):
         geometry, table, holes = _drillholes(data)
         return "drillholes", geometry, {"row": table}, holes
     if isinstance(data, BlockModel):
-        geometry = {"centers": np.asarray(data.centroids, dtype=np.float64), "sizes": _block_sizes(data)}
+        geometry = {"centers": np.asarray(data.coords, dtype=np.float64), "sizes": _block_sizes(data)}
         return "blocks", geometry, {"row": data.attributes}, None
     if isinstance(data, Mesh):
         geometry = {
-            "positions": np.asarray(data.vertices, dtype=np.float64),
+            "positions": np.asarray(data.coords, dtype=np.float64),
             "triangles": np.asarray(data.triangles, dtype=np.uint32),
         }
         return "mesh", geometry, {"vertex": data.vertex_attributes, "face": data.face_attributes}, None

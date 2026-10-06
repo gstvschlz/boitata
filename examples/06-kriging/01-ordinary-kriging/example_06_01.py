@@ -50,7 +50,7 @@ print(grid)
 # compare with the true values at the grid nodes, and re-estimate every sample with itself left out:
 
 # %%
-nodes = grid.centroids.astype(int)
+nodes = grid.coords.astype(int)
 true_at_nodes = truth[nodes[:, 1] - 1, nodes[:, 0] - 1]
 cv = ok.cross_validate()
 print(f"grid: mean estimate {estimate.mean():.1f}, true {true_at_nodes.mean():.1f}")

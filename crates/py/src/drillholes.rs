@@ -715,8 +715,13 @@ impl Drillholes {
     }
 
     fn __repr__(&self) -> String {
-        let n = self.intervals.as_ref().map_or(0, |i| i.0.num_rows());
-        format!("Drillholes({} holes, {n} intervals)", self.paths.len())
+        let (n, columns) = self.intervals.as_ref().map_or((0, String::new()), |i| {
+            (i.0.num_rows(), crate::table::describe(&i.0))
+        });
+        format!(
+            "Drillholes({} holes, {n} intervals){columns}",
+            self.paths.len()
+        )
     }
 }
 

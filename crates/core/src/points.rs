@@ -93,6 +93,11 @@ impl PointSet {
         &self.coords
     }
 
+    /// `(min, max)` corners, `None` without points.
+    pub fn bounds(&self) -> Option<([f64; 3], [f64; 3])> {
+        crate::bounds(self.coords.iter().copied())
+    }
+
     pub fn attributes(&self) -> &RecordBatch {
         &self.attributes
     }

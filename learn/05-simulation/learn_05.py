@@ -55,7 +55,7 @@ samples = bt.datasets.walker_lake()
 truth = bt.datasets.walker_lake_exhaustive()["V"].reshape(300, 260)
 xy, v = samples.coords, samples["V"]
 grid = bt.BlockModel(origin=(0.5, 0.5), size=(5, 5), count=(52, 60))
-nodes = grid.centroids.astype(int)
+nodes = grid.coords.astype(int)
 true_v = truth[nodes[:, 1] - 1, nodes[:, 0] - 1]
 cutoff = 500.0
 

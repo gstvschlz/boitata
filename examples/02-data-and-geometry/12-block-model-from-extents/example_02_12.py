@@ -48,7 +48,7 @@ for hole in holes.holes:
     on = paths["HOLE_ID"] == hole
     ax.plot(paths["x"][on], paths["y"][on], color=LIGHT, lw=0.6)
 for lens in lenses:
-    ax.plot(*lens.vertices[::7, :2].T, ".", color=GRAY, ms=0.6)
+    ax.plot(*lens.coords[::7, :2].T, ".", color=GRAY, ms=0.6)
 outline(ax, drilled, ec=GRAY, lw=1.2, ls="--", label="from drill holes")
 outline(ax, around, ec=ACCENT, lw=1.6, label="from lenses + 20 m")
 ax.legend(loc="upper left")
@@ -69,8 +69,8 @@ print(f"aligned        count {aligned.count}  {len(aligned):,} blocks ({len(alig
 # to keep only the blocks whose centroid falls inside a lens, use `mask` with `Mesh.contains`:
 
 # %%
-inside = np.any([lens.contains(aligned.centroids) for lens in lenses], axis=0)
-ore = aligned.mask(inside)
+inside = np.any([lens.contains(aligned.coords) for lens in lenses], axis=0)
+ore = aligned.filter(inside)
 block_volume = np.prod(size) * len(ore)
 solid_volume = sum(lens.volume for lens in lenses)
 print(
@@ -82,10 +82,10 @@ for ax, model, title in [
     (axes[0], around, "Unrotated, lenses + 20 m"),
     (axes[1], aligned, "Rotated with the lenses"),
 ]:
-    xy = model.centroids[:, :2]
+    xy = model.coords[:, :2]
     ax.plot(*xy.T, ".", color=LIGHT, ms=1)
     map_axes(ax, f"{title}: {len(model):,} blocks")
-xy = ore.centroids[:, :2]
+xy = ore.coords[:, :2]
 axes[1].plot(*xy.T, ".", color=ACCENT, ms=1.5, label=f"inside a lens ({len(ore):,})")
 axes[1].legend(loc="upper left", markerscale=6)
 save(fig, "aligned")

@@ -204,15 +204,15 @@ print(f"host rock: {np.nanmean(host):.2f} % Zn over {np.isfinite(host).sum():,} 
 # ([block models from extents](../../examples/02-data-and-geometry/12-block-model-from-extents/example_02_12.md)).
 
 # %%
-summit = [[*lenses["lens_1"].vertices.mean(axis=0)[:2], collars.coords[:, 2].max()]]
+summit = [[*lenses["lens_1"].coords.mean(axis=0)[:2], collars.coords[:, 2].max()]]
 grid = bt.BlockModel.from_extents(*lenses.values(), summit, size=(5, 5, 5), buffer=5, snap=True)
-centers = grid.centroids
+centers = grid.coords
 below = ~(centers[:, 2] >= ground.grid["z"][ground.grid.row_at(centers[:, :2])])
-cells = grid.mask(below)
+cells = grid.filter(below)
 shares = np.array([mesh.proportion(cells) for mesh in lenses.values()])
 touched = shares.sum(axis=0) > 0
 shares = shares[:, touched]
-smus = cells.mask(touched).with_columns(
+smus = cells.filter(touched).with_columns(
     {
         "LENS": list(np.array(list(lenses))[shares.argmax(axis=0)]),
         "fraction": np.minimum(shares.sum(axis=0), 1.0),
@@ -319,7 +319,7 @@ smus = smus.with_columns(
 # the probability, in percent, that an SMU exceeds 5 % Zn.
 
 # %%
-center = np.mean([mesh.vertices.mean(axis=0) for mesh in lenses.values()], axis=0)
+center = np.mean([mesh.coords.mean(axis=0) for mesh in lenses.values()], axis=0)
 plane = (tuple(center), 111.0, 90.0)
 panels = [
     (blocks, "zn", "Kriged Zn (%), sub-blocks", {"vmin": 0, "vmax": 12}),
@@ -392,7 +392,7 @@ save(fig, "swath")
 # ([realization checks](../../examples/10-checking-models/04-realization-checks/example_10_04.md)).
 
 # %%
-cores = smus.mask(f == 1)
+cores = smus.filter(f == 1)
 points = tb.simulate(cores, n=20, seed=8, domain_column="LENS", keep=True)
 check = bt.check_realizations(
     cores,

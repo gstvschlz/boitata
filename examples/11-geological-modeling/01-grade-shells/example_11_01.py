@@ -52,7 +52,7 @@ print(f"GP ranges {[round(r) for r in models['GP'].report['lengthscales']]} m")
 
 # %%
 solid, blocks = data["high_grade"], data["block_model"]
-in_solid = solid.contains(blocks.centroids)
+in_solid = solid.contains(blocks.coords)
 on_side = np.mean(np.where(solid.contains(xyz), 1, -1) == code)
 print(f"    solid: {solid.volume / 1e6:5.1f} Mm3, {on_side:.1%} of composites on their side")
 for name, model in models.items():
@@ -75,8 +75,8 @@ northing = 25 * round(np.median(xyz[code > 0, 1]) / 25)
 x, z = np.meshgrid(np.arange(44000, 46100, 5.0), np.arange(300, 720, 3.0))
 section = np.c_[x.ravel(), np.full(x.size, northing), z.ravel()]
 topography = data["topography"]
-row = np.isclose(topography.centroids[:, 1], northing, atol=12.5)
-ground = np.interp(x[0], topography.centroids[row, 0], np.asarray(topography["Z"])[row])
+row = np.isclose(topography.coords[:, 1], northing, atol=12.5)
+ground = np.interp(x[0], topography.coords[row, 0], np.asarray(topography["Z"])[row])
 plane = ((0, northing, 0), 90, 90)
 fig, axes = plt.subplots(3, 1, figsize=(12, 8.5), layout="constrained", sharex=True)
 for ax, (name, model) in zip(axes, models.items(), strict=True):

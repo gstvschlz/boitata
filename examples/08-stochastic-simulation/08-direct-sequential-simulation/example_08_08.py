@@ -81,7 +81,7 @@ for warning in caught:
 sgs = bt.SGS(gaussian, search).fit(samples, "V", weights=weights).simulate(grid, **options)
 corrected = bt.correct_distribution(dss, v, weights=weights)
 
-nodes = grid.centroids.astype(int)
+nodes = grid.coords.astype(int)
 true_at_nodes = truth[nodes[:, 1] - 1, nodes[:, 0] - 1]
 for name, reals in (("DSS", dss.realizations), ("corrected DSS", corrected), ("SGS", sgs.realizations)):
     print(
@@ -141,7 +141,7 @@ sets = (
 for ax, name, reals, color in sets:
     for r in reals:
         axes[0, 0].plot(np.sort(r), np.linspace(0, 1, r.size), color=color, lw=0.5, alpha=0.25)
-        exp = bt.experimental_variogram(grid.centroids, r, lag, max_lag, azimuth=azimuth)
+        exp = bt.experimental_variogram(grid.coords, r, lag, max_lag, azimuth=azimuth)
         ax.plot(exp.lags, exp.gammas / 1e3, color=LIGHT, lw=0.8)
     axes[0, 0].plot([], [], color=color, label=f"30 {name} realizations")
     ax.plot([], [], color=LIGHT, label=f"30 {name} realizations")

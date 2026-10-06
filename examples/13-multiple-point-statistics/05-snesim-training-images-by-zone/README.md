@@ -43,7 +43,7 @@ sand share of each domain against its image:
 <details><summary>Python</summary>
 
 ```python
-x, y = grid.centroids[:, 0], grid.centroids[:, 1]
+x, y = grid.coords[:, 0], grid.coords[:, 1]
 domains = np.where(y > 150 - 0.2 * x, "lenses", "channels")
 snesim = bt.SNESIM({"channels": (channels, "facies"), "lenses": (lenses, "facies")})
 summary = snesim.simulate(grid, n=20, seed=1, keep=[0], domains=domains)

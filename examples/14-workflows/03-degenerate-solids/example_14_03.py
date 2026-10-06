@@ -65,7 +65,7 @@ print(f"volume {lens.volume:,.0f} m3")
 # - a triangle is added on an edge near the top, a fin sticking out, as a stray digitized point makes.
 
 # %%
-vertices, triangles = lens.vertices, lens.triangles
+vertices, triangles = lens.coords, lens.triangles
 centers = vertices[triangles].mean(axis=1)
 
 
@@ -151,7 +151,7 @@ print(problems.head(3))
 #     the five places the damage went in.
 
 # %%
-face_centers = broken.vertices[broken.triangles].mean(axis=1)
+face_centers = broken.coords[broken.triangles].mean(axis=1)
 styles = {
     "degenerate_face": ("s", INK),
     "duplicate_face": ("D", INK),
@@ -203,17 +203,17 @@ on_edge = np.flatnonzero(np.isin(tri, [a, b]).sum(axis=1) == 2)
 open_faces = problems.filter(problems["kind"] == "boundary_edge")["face"].to_numpy()
 fin = np.intersect1d(on_edge, open_faces)
 print(f"triangles on the non-manifold edge {on_edge}, fin {fin}")
-without_fin = bt.Mesh(repaired.vertices, np.delete(tri, fin, axis=0)).repair()
+without_fin = bt.Mesh(repaired.coords, np.delete(tri, fin, axis=0)).repair()
 
 rim = without_fin.validate().problems.to_polars()
 rim = rim.filter(rim["kind"] == "boundary_edge")
 tri = without_fin.triangles
 start = tri[rim["face"].to_numpy(), rim["edge"].to_numpy()]
 end = tri[rim["face"].to_numpy(), (rim["edge"].to_numpy() + 1) % 3]
-patch_center = len(without_fin.vertices)
+patch_center = len(without_fin.coords)
 cap = np.column_stack([end, start, np.full(len(start), patch_center)])
 fixed = bt.Mesh(
-    np.vstack([without_fin.vertices, without_fin.vertices[start].mean(axis=0)]), np.vstack([tri, cap])
+    np.vstack([without_fin.coords, without_fin.coords[start].mean(axis=0)]), np.vstack([tri, cap])
 )
 print(f"hole rim: {len(rim)} edges, closed with {len(cap)} triangles")
 print(fixed, fixed.validate())

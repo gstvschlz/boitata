@@ -79,7 +79,7 @@ def volumes(model):
     labels = np.array(model["domain"])
     captured = misplaced = 0.0
     for vein, name in zip(veins, names):
-        part = model.mask(labels == name)
+        part = model.filter(labels == name)
         inside = (vein.proportion(part) * part.volumes).sum()
         captured += part.volumes.sum()
         misplaced += part.volumes.sum() - inside + vein.volume - inside

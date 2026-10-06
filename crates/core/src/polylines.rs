@@ -204,6 +204,32 @@ impl Polylines {
         })
     }
 
+    /// The features where `keep` is true.
+    pub fn filter(&self, keep: &[bool]) -> Result<Self> {
+        if keep.len() != self.len() {
+            return Err(Error::Length {
+                expected: self.len(),
+                found: keep.len(),
+            });
+        }
+        let (mut vertices, mut parts, mut features) = (Vec::new(), vec![0], vec![0]);
+        let (mut closed, mut rows) = (Vec::new(), Vec::new());
+        for f in (0..self.len()).filter(|&f| keep[f]) {
+            for p in self.feature_parts(f) {
+                vertices.extend_from_slice(self.part(p));
+                parts.push(vertices.len() as u32);
+                closed.push(self.closed[p]);
+            }
+            features.push(parts.len() as u32 - 1);
+            rows.push(f as u32);
+        }
+        let attributes = take_rows(&self.attributes, rows)?;
+        let mut out = Self::new(vertices, parts, features, closed, attributes)?;
+        out.crs.clone_from(&self.crs);
+        out.length_unit.clone_from(&self.length_unit);
+        Ok(out)
+    }
+
     /// The same features with other attributes, one row per feature.
     pub fn with_attributes(&self, attributes: RecordBatch) -> Result<Self> {
         check_rows(self.len(), &attributes)?;
@@ -286,13 +312,7 @@ impl Polylines {
 
     /// `(min, max)` corners, `None` without vertices.
     pub fn bounds(&self) -> Option<([f64; 3], [f64; 3])> {
-        let first = *self.vertices.first()?;
-        Some(self.vertices.iter().fold((first, first), |(lo, hi), p| {
-            (
-                [0, 1, 2].map(|a| lo[a].min(p[a])),
-                [0, 1, 2].map(|a| hi[a].max(p[a])),
-            )
-        }))
+        crate::bounds(self.vertices.iter().copied())
     }
 
     /// Builds from one row per vertex. Rows are grouped by `feature`, then by
@@ -509,6 +529,17 @@ mod tests {
         assert!(p.feature_parts(1).is_empty());
         assert_eq!(p.part(3), &[[40., 5., 5.], [50., 5., 5.]]);
         assert_eq!(p.bounds(), Some(([0.; 3], [50., 10., 5.])));
+    }
+
+    #[test]
+    fn filter_keeps_whole_features() {
+        let p = sample().filter(&[false, true, true]).unwrap();
+        assert_eq!((p.len(), p.num_parts()), (2, 2));
+        assert!(p.feature_parts(0).is_empty());
+        assert_eq!(p.part(1), &[[40., 5., 5.], [50., 5., 5.]]);
+        assert_eq!(p.closed(), &[false, false]);
+        assert_eq!(p.attributes().num_rows(), 2);
+        assert!(sample().filter(&[true]).is_err());
     }
 
     /// Theory check: a 10 m square with a 2 m square hole has area 100 - 4,

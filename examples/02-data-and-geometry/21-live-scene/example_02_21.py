@@ -37,7 +37,7 @@ search = bt.Search(radius=60, min_samples=1, max_samples=12)
 idw = bt.InverseDistance(search, power=2).fit(composites.coords, composites["ZN_PCT"])
 grid = grid.with_column("ZN_PCT", idw.predict(grid))
 near = np.all(
-    (composites.coords > grid.centroids.min(axis=0)) & (composites.coords < grid.centroids.max(axis=0)),
+    (composites.coords > grid.coords.min(axis=0)) & (composites.coords < grid.coords.max(axis=0)),
     axis=1,
 )
 
@@ -69,7 +69,7 @@ blocks = bt.BlockModel.from_meshes(
     fill="host",
     rotation=tuple(grid.rotation),
 )
-blocks = blocks.mask(np.asarray(blocks["domain"], dtype=object) != "host")
+blocks = blocks.filter(np.asarray(blocks["domain"], dtype=object) != "host")
 blocks = blocks.with_column("lens", blocks["domain"])
 
 scene = bt.plot3d.Scene()

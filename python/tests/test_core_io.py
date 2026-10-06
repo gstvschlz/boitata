@@ -51,9 +51,9 @@ def test_blockmodel_rotation_mask_and_regular():
         attributes={"v": np.arange(6.0)},
     )
     assert model.count == [3, 2, 1] and len(model) == 6
-    np.testing.assert_allclose(model.centroids[0], [102.5, 195.0, 0.5])
+    np.testing.assert_allclose(model.coords[0], [102.5, 195.0, 0.5])
 
-    masked = model.mask(np.array([True, False, True, False, False, True]))
+    masked = model.filter(np.array([True, False, True, False, False, True]))
     np.testing.assert_array_equal(masked.index, [0, 2, 5])
     back = masked.to_regular()
     assert back.index is None
@@ -62,12 +62,12 @@ def test_blockmodel_rotation_mask_and_regular():
 
 def test_discretize_keeps_each_node_in_its_block():
     model = bt.BlockModel(origin=(100, 200, 0), size=(10, 5, 2), count=(3, 2, 2), rotation=(30, 20, 10))
-    masked = model.mask(np.arange(12) % 3 != 1)
+    masked = model.filter(np.arange(12) % 3 != 1)
     nodes = masked.discretize((2, 3, 2))
     assert len(nodes) == 12 * len(masked) and nodes.size == pytest.approx([5, 5 / 3, 1])
     block = nodes["block"].astype(int)
     np.testing.assert_allclose(np.bincount(block, nodes.volumes), masked.volumes)
-    np.testing.assert_allclose(np.bincount(block, weights=nodes.centroids[:, 0]) / 12, masked.centroids[:, 0])
+    np.testing.assert_allclose(np.bincount(block, weights=nodes.coords[:, 0]) / 12, masked.coords[:, 0])
     flat = bt.BlockModel(origin=(0, 0), size=(10, 10), count=(2, 2)).discretize(4)
     assert flat.count == [8, 8, 1]
     parent = np.array([0, 0], dtype=np.uint64)
@@ -126,7 +126,7 @@ def test_parquet_round_trips_containers(tmp_path):
     model = bt.BlockModel(
         origin=(0, 0), size=(10, 10), count=(4, 3), rotation=(30, 0, 0), attributes={"g": np.arange(12.0)}
     )
-    masked = model.mask(np.arange(12) % 5 == 0)
+    masked = model.filter(np.arange(12) % 5 == 0)
     bt.write_parquet(tmp_path / "b.parquet", masked)
     back = bt.read_parquet(tmp_path / "b.parquet")
     assert isinstance(back, bt.BlockModel) and back.rotation == [30.0, 0.0, 0.0]
@@ -151,7 +151,7 @@ def test_subblocked_model(tmp_path):
         (0, 0), (10, 10), (2, 2), parent, extents, subgrid=(2, 1, 1), attributes={"g": [1.0, 3.0, 5.0]}
     )
     np.testing.assert_allclose(model.volumes, [50, 50, 100])
-    np.testing.assert_allclose(model.centroids[1], [7.5, 5, 0.5])
+    np.testing.assert_allclose(model.coords[1], [7.5, 5, 0.5])
     regular = model.to_regular()
     np.testing.assert_allclose(regular["g"][[0, 3]], [2.0, 5.0])
     bt.write_parquet(tmp_path / "s.parquet", model)
@@ -168,13 +168,13 @@ def test_mesh_files_round_trip(tmp_path):
     for name in ("m.obj", "m.stl", "m.dxf"):
         bt.write_mesh(tmp_path / name, tetra)
         back = bt.read_mesh(tmp_path / name)
-        np.testing.assert_array_equal(back.vertices[back.triangles], tetra.vertices[tetra.triangles])
+        np.testing.assert_array_equal(back.coords[back.triangles], tetra.coords[tetra.triangles])
         assert back.is_closed and back.volume == pytest.approx(tetra.volume)
     assert list(back.face_attributes["layer"]) == ["a", "a", "b", "b"]
     bt.write_mesh(tmp_path / "a.stl", tetra, ascii=True)
     assert (tmp_path / "a.stl").read_text().startswith("solid")
     np.testing.assert_array_equal(
-        bt.read_mesh(tmp_path / "a.stl").vertices, bt.read_mesh(tmp_path / "m.stl").vertices
+        bt.read_mesh(tmp_path / "a.stl").coords, bt.read_mesh(tmp_path / "m.stl").coords
     )
     with pytest.raises(bt.InvalidInput):
         bt.write_mesh(tmp_path / "m.ply", tetra)
@@ -189,7 +189,7 @@ def test_mesh_dxf_polyface_and_obj_groups(tmp_path):
     bt.write_mesh(tmp_path / "p.dxf", layered, dxf_entity="polyface")
     assert "AcDbPolyFaceMesh" in (tmp_path / "p.dxf").read_text()
     back = bt.read_mesh(tmp_path / "p.dxf")
-    np.testing.assert_array_equal(back.vertices[back.triangles], tetra.vertices[tetra.triangles])
+    np.testing.assert_array_equal(back.coords[back.triangles], tetra.coords[tetra.triangles])
     assert list(back.face_attributes["layer"]) == ["a", "a", "b", "b"]
     with pytest.raises(ValueError):
         bt.write_mesh(tmp_path / "p.dxf", tetra, dxf_entity="mesh")
@@ -227,7 +227,7 @@ def test_polylines_parts_features_and_points():
         attributes={"name": ["pit", "s1"]},
     )
     assert len(lines) == 2 and lines.feature.tolist() == [0, 0, 1]
-    assert lines.closed.tolist() == [True, True, False] and lines.vertices.shape == (11, 3)
+    assert lines.closed.tolist() == [True, True, False] and lines.coords.shape == (11, 3)
     np.testing.assert_array_equal(lines.parts[2], section)
     points = lines.to_points()
     assert list(points["name"]) == ["pit"] * 8 + ["s1"] * 3
@@ -260,7 +260,7 @@ def test_geotiff_round_trip(tmp_path):
     )
     bt.write_geotiff(tmp_path / "turned.tif", turned)
     back = bt.read_geotiff(tmp_path / "turned.tif")
-    np.testing.assert_allclose(back.centroids, turned.centroids)
+    np.testing.assert_allclose(back.coords, turned.coords)
     np.testing.assert_array_equal(back["v"], turned["v"])
     assert np.isnan(bt.read_geotiff(tmp_path / "turned.tif", nodata=0)["v"][0])
 
@@ -288,7 +288,7 @@ def test_segy_round_trip(tmp_path):
     np.testing.assert_array_equal(back["amplitude"], cube["amplitude"])
     bt.write_segy(tmp_path / "again.sgy", back, "amplitude", nodata=-999.0)
     again = bt.read_segy(tmp_path / "again.sgy", column="vp", nodata=-999.0)
-    np.testing.assert_allclose(again.centroids, back.centroids)
+    np.testing.assert_allclose(again.coords, back.coords)
     np.testing.assert_array_equal(again["vp"], back["amplitude"])
 
     turned = bt.BlockModel(origin=(0, 0, 0), size=(1, 1, 1), count=(2, 2, 2), rotation=(30, 10, 0))
@@ -307,7 +307,7 @@ def test_polylines_shapefile_round_trip(tmp_path):
     bt.write_shapefile(tmp_path / "pit.shp", pits)
     back = bt.read_shapefile(tmp_path / "pit.shp")
     assert isinstance(back, bt.Polylines) and back.crs == pits.crs and list(back["name"]) == ["pit"]
-    np.testing.assert_array_equal(back.vertices, pits.vertices)
+    np.testing.assert_array_equal(back.coords, pits.coords)
     assert back.closed.tolist() == [True, True] and back.feature.tolist() == [0, 0]
     with pytest.raises(bt.InvalidInput):
         bt.write_shapefile(tmp_path / "mixed.shp", bt.Polylines([pit, hole[:2]], closed=[True, False]))

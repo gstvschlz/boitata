@@ -47,7 +47,7 @@ grid = bt.BlockModel(origin=(0.5, 0.5), size=(5, 5), count=(52, 60))
 dk = bt.DisjunctiveKriging(anam, gaussian, bt.Search(radius=100, max_samples=24), order=20).fit(xy, v)
 cutoff = 500.0
 p = dk.predict_tonnage(grid, cutoff)
-nodes = grid.centroids.astype(int)
+nodes = grid.coords.astype(int)
 above = truth[nodes[:, 1] - 1, nodes[:, 0] - 1] > cutoff
 edges = np.linspace(0, 1, 11)
 bins = np.clip(np.digitize(p, edges) - 1, 0, 9)

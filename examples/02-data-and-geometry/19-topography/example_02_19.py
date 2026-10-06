@@ -34,7 +34,7 @@ print(
     f"grid {t.grid.count[0]} x {t.grid.count[1]} cells of 20 m, {np.isfinite(z).mean():.0%} inside the outline"
 )
 
-true_z = truth["Z"][truth.row_at(t.grid.centroids)]
+true_z = truth["Z"][truth.row_at(t.grid.coords)]
 error = z - true_z
 print(
     f"against the true surface: mean {np.nanmean(error):+.2f} m, 90% within {np.nanpercentile(np.abs(error), 90):.2f} m"

@@ -7,7 +7,7 @@ rng = np.random.default_rng(8)
 
 def layered(azimuth=30.0, n=40):
     grid = bt.BlockModel(origin=(0, 0), size=(1, 1), count=(n, n))
-    xy = grid.centroids
+    xy = grid.coords
     t = np.radians(azimuth)
     values = np.sin(0.3 * (xy[:, 0] * np.cos(t) - xy[:, 1] * np.sin(t)))
     return grid.with_column("v", values)

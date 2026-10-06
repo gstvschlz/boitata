@@ -89,7 +89,7 @@ models = {
     "GP": bt.ImplicitModel("gp", degree=0, rotation=rotation),
 }
 cells = bt.BlockModel(origin=lo, size=(5, 5, 5), count=np.ceil((hi - lo) / 5).astype(int))
-solid = lens.contains(cells.centroids)
+solid = lens.contains(cells.coords)
 for name, model in models.items():
     model.fit(points, code, boundaries=contacts)
     right = np.mean(np.sign(model.predict(points)) == code)
@@ -120,7 +120,7 @@ solid in black:
 <details><summary>Python</summary>
 
 ```python
-center = lens.vertices.mean(axis=0)
+center = lens.coords.mean(axis=0)
 plane = (center, 112.5, 90)
 u = np.array([np.sin(np.radians(112.5)), np.cos(np.radians(112.5)), 0.0])
 normal = np.cross(u, [0, 0, 1])

@@ -67,7 +67,7 @@ mg.fit(samples, "V", weights=weights, despike=True)
 summary = mg.predict(grid, cutoffs=[500.0], quantiles=[0.1, 0.9])
 etype, (p10, p90), p500 = summary.mean, summary.quantile_values.T, summary.probability_above[:, 0]
 
-nodes = grid.centroids.astype(int)
+nodes = grid.coords.astype(int)
 true_at_nodes = truth[nodes[:, 1] - 1, nodes[:, 0] - 1]
 print(f"mean E-type {etype.mean():.0f} ppm, true {true_at_nodes.mean():.0f}")
 print(f"correlation with the truth {np.corrcoef(etype, true_at_nodes)[0, 1]:.2f}")

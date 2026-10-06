@@ -51,7 +51,7 @@ def misplaced(model):
     labels = np.array(model["domain"])
     total = 0.0
     for lens, name in zip(lenses, names):
-        part = model.mask(labels == name)
+        part = model.filter(labels == name)
         inside = lens.proportion(part, discretization=2) * part.volumes
         total += (part.volumes - inside).sum() + lens.volume - inside.sum()
     return total
@@ -89,14 +89,14 @@ mid-bench:
 
 ```python
 size = np.array(parents.size)
-z = subblocked.centroids[:, 2]
+z = subblocked.coords[:, 2]
 level = parents.origin[2] + size[2] * (np.round((np.median(z) - parents.origin[2]) / size[2]) + 0.5) + 0.1
 half = size[2] * (subblocked.extents[:, 5] - subblocked.extents[:, 2]) / 2
 cut = (z - half < level) & (z + half > level)
 labels = np.array(subblocked["domain"])
 colors = dict(zip(names, (ACCENT, "#6f9fc9", HIGHLIGHT)))
 fig, ax = plt.subplots(figsize=(6.4, 7), layout="constrained")
-for c, e, name in zip(subblocked.centroids[cut], subblocked.extents[cut], labels[cut]):
+for c, e, name in zip(subblocked.coords[cut], subblocked.extents[cut], labels[cut]):
     dx, dy = (e[3] - e[0]) * size[0], (e[4] - e[1]) * size[1]
     ax.add_patch(
         plt.Rectangle(
@@ -164,7 +164,7 @@ a vertical section across strike (the lenses strike N22.5°E) through the domain
 
 ```python
 scheme = bt.Categories(["air", "host rock", *names], colors=["#f4f7fa", LIGHT, ACCENT, "#6f9fc9", HIGHLIGHT])
-center = np.mean([lens.vertices.mean(axis=0) for lens in lenses], axis=0)
+center = np.mean([lens.coords.mean(axis=0) for lens in lenses], axis=0)
 plane = (center, 112.5, 90)
 fig, ax = plt.subplots(figsize=(9, 6.5), layout="constrained")
 bt.plot.section(domain_model, scheme.encode(domain_model["domain"]), plane=plane, scheme=scheme, ax=ax)
@@ -197,7 +197,7 @@ grade = np.full(len(subblocked), np.nan)
 for lens, name in zip(lenses, names):
     inside = lens.contains(xyz) & ~np.isnan(zn)
     on = labels == name
-    grade[on] = bt.InverseDistance(search).fit(xyz[inside], zn[inside]).predict(subblocked.centroids[on])
+    grade[on] = bt.InverseDistance(search).fit(xyz[inside], zn[inside]).predict(subblocked.coords[on])
 subblocked = subblocked.with_column("zn", grade)
 metal = (subblocked.volumes * grade).sum()
 print(f"sub-blocks: {subblocked.volumes.sum():,.0f} m3 at {metal / subblocked.volumes.sum():.2f}% Zn")

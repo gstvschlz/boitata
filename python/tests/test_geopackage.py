@@ -47,9 +47,9 @@ def test_polylines_round_trip_and_layers(tmp_path):
     assert back.feature.tolist() == [0, 0, 2] and back.closed.all() and len(back) == 3
     assert back.crs == pits.crs and list(back["name"]) == ["pit", "empty", "dump"]
     np.testing.assert_allclose(back.area(), pits.area())
-    np.testing.assert_array_equal(np.sort(back.vertices, 0), np.sort(pits.vertices, 0))
+    np.testing.assert_array_equal(np.sort(back.coords, 0), np.sort(pits.coords, 0))
     other = bt.read_geopackage(path, layer="lines")
-    np.testing.assert_array_equal(other.vertices, lines.vertices)
+    np.testing.assert_array_equal(other.coords, lines.coords)
     assert not other.closed.any() and other.crs is None
     bt.write_geopackage(path, points(), layer="lines")
     assert isinstance(bt.read_geopackage(path, layer="lines"), bt.PointSet)

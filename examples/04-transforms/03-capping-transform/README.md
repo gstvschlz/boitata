@@ -149,7 +149,7 @@ samples below the cap, which capping leaves unchanged.
 v1 = quartz.filter(quartz["VEIN"] == "V1")
 v1 = v1.with_column("AU_CAPPED", capping.transform("AU_GPT", domain_column="VEIN", data=v1))
 blocks = bt.BlockModel.from_extents(data["vein_V1"], size=(5.0, 5.0, 5.0))
-targets = blocks.centroids[data["vein_V1"].contains(blocks.centroids)]
+targets = blocks.coords[data["vein_V1"].contains(blocks.coords)]
 model = bt.experimental_variogram(v1, "AU_CAPPED", 10.0, 150.0).fit("spherical")
 search = bt.Search(80.0, max_samples=24)
 kriged = {

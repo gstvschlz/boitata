@@ -43,12 +43,7 @@ def outline(points, *, method="convex", max_edge=None, buffer=0.0, categories=No
         raise InvalidInput("method must be 'convex' or 'concave'")
     if (method == "concave") != (max_edge is not None):
         raise InvalidInput("a concave outline needs max_edge, and only it takes one")
-    if hasattr(points, "coords"):
-        coords = points.coords
-    elif hasattr(points, "centroids"):
-        coords = points.centroids
-    else:
-        coords = points
+    coords = getattr(points, "coords", points)
     coords = np.asarray(coords, dtype=float)
     if coords.ndim != 2 or coords.shape[1] not in (2, 3):
         raise InvalidInput("points must be (n, 2) or (n, 3) coordinates or a container")
@@ -146,12 +141,12 @@ def topography(points, *, cell, estimator=None, extent=None, clip=None, max_resi
         clip = None
     dx, dy = (cell, cell) if np.ndim(cell) == 0 else cell
     if extent is None:
-        corners = coords if clip is None else clip.vertices
+        corners = coords if clip is None else clip.coords
         extent = (corners[:, 0].min(), corners[:, 0].max(), corners[:, 1].min(), corners[:, 1].max())
     x0, x1, y0, y1 = extent
     count = (max(1, int(np.ceil((x1 - x0) / dx))), max(1, int(np.ceil((y1 - y0) / dy))))
     grid = _boitata.BlockModel((x0, y0), (dx, dy), count)
-    plan = np.c_[grid.centroids[:, :2], np.zeros(len(grid))]
+    plan = np.c_[grid.coords[:, :2], np.zeros(len(grid))]
     mesh = _boitata._tin(coords)
     triangles = np.asarray(mesh.triangles)
     if estimator is None:
@@ -164,8 +159,8 @@ def topography(points, *, cell, estimator=None, extent=None, clip=None, max_resi
         residuals = cv.actual - cv.estimate
     if clip is not None:
         z = np.where(clip.contains(plan), z, np.nan)
-        centers = np.asarray(mesh.vertices)[triangles].mean(axis=1)
-        mesh = _boitata.Mesh(mesh.vertices, triangles[clip.contains(centers)])
+        centers = np.asarray(mesh.coords)[triangles].mean(axis=1)
+        mesh = _boitata.Mesh(mesh.coords, triangles[clip.contains(centers)])
     if max_residual is None:
         deviation = np.nanmedian(np.abs(residuals - np.nanmedian(residuals)))
         max_residual = float(max(3 * 1.4826 * deviation, 1e-6 * (np.ptp(coords[:, 2]) or 1.0)))

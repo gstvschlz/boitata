@@ -104,7 +104,7 @@ multi = bt.check_realizations(
 )
 r = multi.correlations[:, 0, 1]
 print(
-    f"{len(nodes.centroids):,} nodes; correlation data {multi.data_correlation[0, 1]:.2f}, "
+    f"{len(nodes.coords):,} nodes; correlation data {multi.data_correlation[0, 1]:.2f}, "
     f"realizations {r.min():.2f} to {r.max():.2f}"
 )
 

@@ -17,7 +17,9 @@ a container holds a table of columns plus the geometry that places each row in s
 
 </div>
 
-`Table`, `PointSet`, `BlockModel` and `Polylines` answer the same few calls: `len(data)`, `data["V"]` for one column as a numpy array, `to_table()` for the whole table, and `with_column` to add a column. a `Mesh` keeps one table for its vertices and one for its triangles (`with_vertex_column`, `with_face_column`). `Drillholes` hands its samples over as a `PointSet` through `samples()` or `composite()`.
+every container answers the same calls: `len(data)`, `data["V"]` for one column as a numpy array, `column_names`, `filter(mask)` for the rows where `mask` is true, `with_column` and `with_columns` to add columns, and `to_table()` for the whole table. the ones with geometry also give `coords` as an `(n, 3)` array, `x`, `y` and `z` for one axis, and `bounds` for the `(min, max)` corners. `PointSet`, `BlockModel`, `Polylines` and `Drillholes` convert with `to_polars()`, `to_pandas()` and `to_pyarrow()`.
+
+a `Mesh` keeps one table for its vertices and one for its triangles (`with_vertex_column`, `with_face_column`); `mesh["V"]` looks in the vertex columns first and raises when a name is in both. `Drillholes` counts holes with `len`, but its `coords` and columns are the interval midpoints and interval columns, the same as `samples()`. a misspelled column name raises `MissingColumn` with the closest name it found.
 
 ## columns and missing values
 
@@ -127,8 +129,8 @@ containers expose the arrow C stream interface, so libraries that read arrow tak
 import polars as pl
 
 frame = pl.DataFrame(samples)                  # x, y, z, Au, ROCK, Au_log
-frame = samples.to_table().to_polars()         # the same
-frame = samples.to_table().to_pandas()         # a pandas DataFrame
+frame = samples.to_polars()                    # the same
+frame = samples.to_pandas()                    # a pandas DataFrame
 values = samples["Au"]                         # one column as a NumPy array
 ```
 
@@ -146,7 +148,7 @@ a block model is a grid of boxes. four things fix every block: the `origin` (the
 ```python
 model = bt.BlockModel(origin=(0, 0, 0), size=(10, 10, 5), count=(4, 3, 1), rotation=(30, 0, 0))
 print(model)
-print(model.centroids[:2].round(2))
+print(model.coords[:2].round(2))
 ```
 
 ```text
@@ -168,13 +170,13 @@ a model does not have to store every block. the same class, columns and calls wo
 | layout | stores | use it for | made with |
 | --- | --- | --- | --- |
 | regular | every block, no index | estimation grids | `BlockModel(...)`, `from_extents` |
-| masked | a subset of blocks, with their sorted block index | blocks inside a domain or above a cutoff | `model.mask(keep)` |
+| masked | a subset of blocks, with their sorted block index | blocks inside a domain or above a cutoff | `model.filter(keep)` |
 | sub-blocked | smaller blocks inside some parents, with parent index and extents | thin or irregular solids | `model.subblock(...)`, `BlockModel.from_meshes` |
 
 </div>
 
 ```python
-rich = model.mask(model.centroids[:, 0] > 10)
+rich = model.filter(model.x > 10)
 print(rich)
 print(rich.index)
 ```

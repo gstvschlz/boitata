@@ -57,7 +57,7 @@ def search(high_grade=None, *, radius=80, min_samples=4):
 # %%
 threshold = 600
 rich = xy[v > threshold]
-nearest = np.sqrt(((grid.centroids[:, None, :2] - rich[None]) ** 2).sum(-1)).min(axis=1)
+nearest = np.sqrt(((grid.coords[:, None, :2] - rich[None]) ** 2).sum(-1)).min(axis=1)
 halo = (nearest > 20) & (nearest < 50)
 
 searches = {

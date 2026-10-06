@@ -1,3 +1,5 @@
+import difflib
+
 import numpy as np
 
 from boitata.errors import InvalidInput, MissingColumn
@@ -16,8 +18,13 @@ def column(data, arg, what="values"):
         raise InvalidInput(f'{what} names column "{arg}"; that needs a container')
     try:
         return data[arg]
+    except MissingColumn:
+        raise
     except KeyError:
-        raise MissingColumn(f'no column "{arg}"; columns: {", ".join(names(data))}') from None
+        columns = names(data)
+        close = difflib.get_close_matches(arg, columns, n=1)
+        hint = f' (did you mean "{close[0]}"?)' if close else ""
+        raise MissingColumn(f'no column "{arg}"{hint}; columns: {", ".join(columns)}') from None
 
 
 def stack(data, labels=None, columns=None):

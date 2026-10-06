@@ -60,7 +60,7 @@ drilled at random through the image itself; the p-value is the share of those at
 columns = [30, 90, 150, 210]
 drilled = np.zeros((n, n), bool)
 drilled[:, columns] = True
-holes = grid.centroids[drilled.ravel()]
+holes = grid.coords[drilled.ravel()]
 facies = strebelle["facies"].reshape(n, n)[drilled]
 checks = {"Strebelle": bt.training_image_consistency(strebelle, "facies", holes, facies, seed=0)}
 for name, image in candidates.items():

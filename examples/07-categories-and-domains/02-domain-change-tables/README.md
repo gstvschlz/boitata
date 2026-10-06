@@ -60,10 +60,10 @@ along = np.array([np.sin(np.radians(23.0)), np.cos(np.radians(23.0)), 0.0])
 origin = center - 600.0 * across - 5.0 * along + [0.0, 0.0, -400.0]
 section = bt.BlockModel(origin, (10.0, 10.0, 10.0), (120, 1, 80), rotation=(23.0, 0.0, 0.0))
 topography = data["topography"]
-rows = topography.row_at(section.centroids[:, :2])
-section = section.mask((rows >= 0) & (section.centroids[:, 2] < topography["Z"][rows]))
+rows = topography.row_at(section.coords[:, :2])
+section = section.filter((rows >= 0) & (section.coords[:, 2] < topography["Z"][rows]))
 most_likely = cik.predict(section).most_likely
-section = section.mask(~np.isnan(most_likely))
+section = section.filter(~np.isnan(most_likely))
 section = section.with_columns({"rock": most_likely[~np.isnan(most_likely)]})
 
 grade = bt.Variogram([("spherical", 0.8, 200.0)], nugget=0.2, rotation=layers, ratios=(0.8, 0.2))
@@ -72,7 +72,7 @@ for column in ["ZN_PCT", "DENSITY"]:
     known = composites.filter(~np.isnan(composites[column]))
     kriged = bt.OrdinaryKriging(grade, search).fit(known, column, holes="HOLE_ID").predict(section)
     section = section.with_columns({column: kriged})
-section = section.mask(~np.isnan(section["ZN_PCT"]) & ~np.isnan(section["DENSITY"]))
+section = section.filter(~np.isnan(section["ZN_PCT"]) & ~np.isnan(section["DENSITY"]))
 section = section.with_columns({"clean": bt.remove_small_units(section, "rock", min_volume=5000.0)})
 print(f"{len(section)} cells; {np.sum(section['rock'] != section['clean'])} change rock")
 ```

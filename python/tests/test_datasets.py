@@ -65,8 +65,8 @@ def test_grid_infers_geometry_and_orders_x_fastest():
     grid = bt.datasets._grid(table)
     assert grid.origin[:2] == [0.0, 90.0] and grid.size[:2] == [10.0, 20.0] and grid.count == [3, 2, 1]
     assert grid.index is None
-    np.testing.assert_array_equal(grid.centroids[:, 0], [5, 15, 25, 5, 15, 25])
-    np.testing.assert_array_equal(grid["Z"], grid.centroids[:, 0] + grid.centroids[:, 1])
+    np.testing.assert_array_equal(grid.coords[:, 0], [5, 15, 25, 5, 15, 25])
+    np.testing.assert_array_equal(grid["Z"], grid.coords[:, 0] + grid.coords[:, 1])
 
 
 def test_grid_masks_missing_cells_in_3d():

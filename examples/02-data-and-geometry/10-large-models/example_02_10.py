@@ -33,7 +33,7 @@ data = bt.datasets.iron_formation_plateau()
 model = data["block_model"]
 DOMAINS = {"HF": "hematite", "HC": "hematite", "CG": "hematite", "IF": "itabirite", "IC": "itabirite"}
 coded = np.array([DOMAINS.get(c, "") for c in np.asarray(model["LITH"], dtype=object)], dtype=object)
-model = model.with_columns({"domain": coded}).mask(coded != "")
+model = model.with_columns({"domain": coded}).filter(coded != "")
 coded = coded[coded != ""]
 
 holes = bt.Drillholes(data["collars"], data["surveys"], data["assays"])
@@ -44,7 +44,7 @@ xyz, fe, domain = composites.coords[keep], composites["FE_PCT"][keep], coded[row
 hole = np.asarray(composites["HOLE_ID"], dtype=object)[keep]
 for name in ("hematite", "itabirite"):
     inside = domain == name
-    count = len(model.mask(model["domain"] == name))
+    count = len(model.filter(model["domain"] == name))
     print(f"{name:10} {count:6,} blocks of 25 m, {inside.sum():5} composites")
 
 # %% [markdown]
@@ -56,7 +56,7 @@ for name in ("hematite", "itabirite"):
 folder = Path(tempfile.mkdtemp())
 grid = bt.BlockModel.from_extents(model, size=(5, 5, 5), snap=True)
 nx, ny, nz = grid.count
-plan = grid.centroids[: nx * ny]
+plan = grid.coords[: nx * ny]
 kept = [k * nx * ny + np.flatnonzero(model.row_at(plan + (0, 0, 5 * k)) >= 0) for k in range(nz)]
 blocks = bt.BlockModel(grid.origin, grid.size, grid.count, index=np.concatenate(kept).astype(np.uint64))
 bt.write_parquet(folder / "blocks.parquet", blocks)
@@ -76,12 +76,12 @@ at_data, at_model = np.zeros(len(fe)), np.zeros(len(model))
 for name in ("hematite", "itabirite"):
     trend, _ = bt.detrend(xyz[domain == name], fe[domain == name], bandwidth=400.0, ratios=(1.0, 0.2))
     at_data[domain == name] = trend.predict(xyz[domain == name])
-    at_model[coded == name] = trend.predict(model.centroids[coded == name])
+    at_model[coded == name] = trend.predict(model.coords[coded == name])
 model = model.with_column("trend", at_model)
 
 
 def attributes(chunk):
-    row = model.row_at(chunk.centroids)
+    row = model.row_at(chunk.coords)
     return {"domain": coded[row], "trend": at_model[row]}
 
 

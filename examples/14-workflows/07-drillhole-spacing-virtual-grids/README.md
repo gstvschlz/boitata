@@ -65,14 +65,12 @@ tb = bt.TurningBands(gaussian, bands=500, search=bt.Search(radius=100, max_sampl
 
 def inside(side):
     """Panels whose window of `side` meters lies inside the panels."""
-    c = panels[side].centroids[:, :2] - 1
+    c = panels[side].coords[:, :2] - 1
     extent = np.array([1280 // side, 1480 // side]) * side / 5
     return ((c >= side / 2) & (c <= extent - side / 2)).all(axis=1)
 
 
-print(
-    f"{len(nodes.centroids)} nodes, {inside(40).sum()} quarterly and {inside(80).sum()} yearly windows inside"
-)
+print(f"{len(nodes.coords)} nodes, {inside(40).sum()} quarterly and {inside(80).sum()} yearly windows inside")
 ```
 
 </details>

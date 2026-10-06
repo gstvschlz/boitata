@@ -120,6 +120,12 @@ impl PyPointSet {
         coords_array(py, self.0.coords())
     }
 
+    /// ``(min, max)`` corners, None when empty.
+    #[getter]
+    fn bounds(&self) -> Option<([f64; 3], [f64; 3])> {
+        self.0.bounds()
+    }
+
     #[getter]
     fn attributes(&self) -> Table {
         Table(self.0.attributes().clone())
@@ -392,7 +398,7 @@ impl PyPolylines {
 
     /// ``(n, 3)`` vertices of all parts, one part after the other.
     #[getter]
-    fn vertices<'py>(&self, py: Python<'py>) -> Bound<'py, PyArray2<f64>> {
+    fn coords<'py>(&self, py: Python<'py>) -> Bound<'py, PyArray2<f64>> {
         coords_array(py, self.0.vertices())
     }
 
@@ -491,6 +497,33 @@ impl PyPolylines {
                 .with_attributes(to_batch(table)?)
                 .map_err(core_error)?,
         ))
+    }
+
+    /// ``(min, max)`` corners, None when empty.
+    #[getter]
+    fn bounds(&self) -> Option<([f64; 3], [f64; 3])> {
+        self.0.bounds()
+    }
+
+    /// Features where `mask` is true.
+    fn filter(&self, mask: PyReadonlyArray1<bool>) -> PyResult<Self> {
+        Ok(Self(
+            self.0
+                .filter(mask.as_slice().map_err(invalid)?)
+                .map_err(core_error)?,
+        ))
+    }
+
+    /// New polylines with the per-feature columns of `data`, a dict or table,
+    /// added or replaced.
+    fn with_columns(&self, data: &Bound<PyAny>) -> PyResult<Self> {
+        Ok(Self(with_columns(
+            self.0.clone(),
+            data,
+            Polylines::with_column,
+            Polylines::attributes,
+            Polylines::with_attributes,
+        )?))
     }
 
     /// One point per vertex with ``feature`` and ``part`` indices and the
@@ -864,9 +897,15 @@ impl PyBlockModel {
         Ok(Self(model))
     }
 
+    /// ``(min, max)`` corners, None without rows.
+    #[getter]
+    fn bounds(&self) -> Option<([f64; 3], [f64; 3])> {
+        self.0.bounds()
+    }
+
     /// `(n, 3)` cell centers in world coordinates.
     #[getter]
-    fn centroids<'py>(&self, py: Python<'py>) -> Bound<'py, PyArray2<f64>> {
+    fn coords<'py>(&self, py: Python<'py>) -> Bound<'py, PyArray2<f64>> {
         coords_array(py, &self.0.centroids())
     }
 
@@ -941,9 +980,9 @@ impl PyBlockModel {
         ))
     }
 
-    /// Keeps rows where `keep` is true; the result is masked.
-    fn mask(&self, keep: PyReadonlyArray1<bool>) -> PyResult<Self> {
-        let keep = BooleanArray::from(keep.as_array().to_vec());
+    /// Rows where `mask` is true; the result is masked.
+    fn filter(&self, mask: PyReadonlyArray1<bool>) -> PyResult<Self> {
+        let keep = BooleanArray::from(mask.as_array().to_vec());
         Ok(Self(self.0.mask(&keep).map_err(core_error)?))
     }
 
@@ -1235,7 +1274,7 @@ impl PyBlockModel {
     }
 }
 
-fn with_columns<T>(
+pub(crate) fn with_columns<T>(
     mut target: T,
     data: &Bound<PyAny>,
     set: fn(&T, &str, arrow_array::ArrayRef) -> boitata_core::Result<T>,

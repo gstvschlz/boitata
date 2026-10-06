@@ -209,10 +209,10 @@ centroids. in section the estimates run in bands parallel to the contacts.
 
 ```python
 blocks = bt.BlockModel(origin=(29975, 59975, 300), size=(10, 10, 1), count=(106, 76, 80))
-blocks = blocks.mask(~np.isnan(unfold.transform(blocks)[:, 2]))
+blocks = blocks.filter(~np.isnan(unfold.transform(blocks)[:, 2]))
 targets = unfold.transform(blocks)
 back = unfold.inverse(targets)
-print(f"inverse of the unfolded centers: {np.abs(back - blocks.centroids).max():.1e} m from the centroids")
+print(f"inverse of the unfolded centers: {np.abs(back - blocks.coords).max():.1e} m from the centroids")
 blocks = blocks.with_column("NI", kriging["unfolded"].predict(targets * [1, 1, depth]))
 print(blocks)
 

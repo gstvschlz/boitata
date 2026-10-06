@@ -11,7 +11,7 @@ grid = bt.BlockModel((0, 0), (1, 1), (40, 40))
 
 def test_hard_data_are_reproduced_exactly():
     rows = np.arange(0, 1600, 37)
-    coords = grid.centroids[rows]
+    coords = grid.coords[rows]
     codes = ti["facies"][rows].astype(int)
     s = bt.SNESIM(ti, "facies", template_size=20, n_levels=2).fit(coords, codes)
     r = s.simulate(grid, n=3, seed=1, keep=True).realizations
@@ -28,7 +28,7 @@ def test_unconditional_realizations_follow_the_image_and_the_targets():
 
 
 def test_masked_targets_have_one_category_per_row():
-    masked = grid.mask(grid.centroids[:, 0] < 20)
+    masked = grid.filter(grid.coords[:, 0] < 20)
     s = bt.SNESIM(ti, "facies", template_size=12, n_levels=1).simulate(masked, n=2, keep=True)
     assert s.realizations.shape == (2, 800)
 
@@ -46,7 +46,7 @@ def test_bad_inputs_are_refused():
 
 def sand_trend():
     """Probability of code 1 rising from 0.05 in the west to 0.95 in the east."""
-    east = 0.05 + 0.9 * grid.centroids[:, 0] / 40
+    east = 0.05 + 0.9 * grid.coords[:, 0] / 40
     return np.column_stack([1 - east, east])
 
 
@@ -88,10 +88,10 @@ def test_bad_soft_probabilities_are_refused():
 
 
 def field(targets, azimuth, semi=1.0, scale=1.0):
-    n = len(targets.centroids)
+    n = len(targets.coords)
     angles = np.column_stack([np.broadcast_to(azimuth, n), np.zeros(n), np.zeros(n)])
     ratios = np.column_stack([np.broadcast_to(semi, n), np.ones(n)])
-    return bt.LocalAnisotropy(targets.centroids, angles, ratios, scales=np.broadcast_to(scale, n).copy())
+    return bt.LocalAnisotropy(targets.coords, angles, ratios, scales=np.broadcast_to(scale, n).copy())
 
 
 def runs(r, axis):
@@ -104,7 +104,7 @@ def runs(r, axis):
 
 def test_channels_follow_a_rotation_field():
     targets = bt.BlockModel((0, 0), (1, 1), (64, 64))
-    azimuth = np.where(targets.centroids[:, 0] < 32, 0.0, 90.0)
+    azimuth = np.where(targets.coords[:, 0] < 32, 0.0, 90.0)
     s = bt.SNESIM(ti, "facies", template_size=24, n_levels=2)
     r = s.simulate(targets, n=6, anisotropy=field(targets, azimuth), keep=True)
     images = r.realizations.reshape(6, 64, 64)
@@ -146,7 +146,7 @@ def zoned():
 
 
 def test_each_domain_draws_from_its_training_image():
-    domains = np.where(grid.centroids[:, 0] < 20, "west", "east")
+    domains = np.where(grid.coords[:, 0] < 20, "west", "east")
     r = zoned().simulate(grid, n=12, domains=domains, keep=True).realizations
     west, east = r[:, domains == "west"], r[:, domains == "east"]
     assert set(np.unique(west)) <= {0, 1} and set(np.unique(east)) <= {0, 2}
@@ -157,9 +157,9 @@ def test_each_domain_draws_from_its_training_image():
 
 
 def test_zones_and_anisotropy_combine_and_persist(tmp_path):
-    domains = np.where(grid.centroids[:, 1] < 20, "west", "east")
-    a = field(grid, np.where(grid.centroids[:, 0] < 20, 0.0, 90.0))
-    s = zoned().fit(grid.centroids[:3], [0, 2, 1])
+    domains = np.where(grid.coords[:, 1] < 20, "west", "east")
+    a = field(grid, np.where(grid.coords[:, 0] < 20, 0.0, 90.0))
+    s = zoned().fit(grid.coords[:3], [0, 2, 1])
     first = s.simulate(grid, n=2, domains=domains, anisotropy=a, keep=True)
     assert s.n_classes == 4
     path = tmp_path / "snesim.parquet"
@@ -170,7 +170,7 @@ def test_zones_and_anisotropy_combine_and_persist(tmp_path):
 
 
 def test_bad_domains_are_refused():
-    domains = np.where(grid.centroids[:, 0] < 20, "west", "north")
+    domains = np.where(grid.coords[:, 0] < 20, "west", "north")
     with pytest.raises(bt.InvalidInput, match='domain "north" has no training image'):
         zoned().simulate(grid, n=1, domains=domains)
     with pytest.raises(bt.InvalidInput, match="give domains or domain_column"):
@@ -187,7 +187,7 @@ def test_bad_domains_are_refused():
 
 def grades():
     """A value peaking at the center of each channel of `ti`, over a background rising from 0 to 0.5 along x."""
-    x, y = ti.centroids[:, 0], ti.centroids[:, 1]
+    x, y = ti.coords[:, 0], ti.coords[:, 1]
     return ti.with_columns({"grade": np.where(ti["facies"] == 1, 1 + 2 * np.abs(np.sin(0.7 * y)), x / 160)})
 
 
@@ -197,7 +197,7 @@ def test_continuous_images_simulate_values_and_reproduce_the_data():
     values = np.linspace(0.0, 3.0, rows.size)
     s = bt.SNESIM(image, "grade", template_size=20, n_levels=2)
     assert not s.categorical
-    summary = s.fit(grid.centroids[rows], values).simulate(grid, n=4, seed=1, keep=True)
+    summary = s.fit(grid.coords[rows], values).simulate(grid, n=4, seed=1, keep=True)
     assert isinstance(summary, bt.SimulationSummary)
     np.testing.assert_allclose(summary.realizations[:, rows], np.tile(values, (4, 1)))
     free = np.delete(summary.realizations, rows, axis=1)
@@ -211,7 +211,7 @@ def test_continuous_images_simulate_values_and_reproduce_the_data():
 def test_continuous_round_trip_simulates_bit_identically(tmp_path):
     path = tmp_path / "snesim.parquet"
     s = bt.SNESIM(grades(), "grade", template_size=12, n_levels=1, cutoffs=[0.2, 1.5, 2.5])
-    s.fit(grid.centroids[:30], np.linspace(0, 3, 30))
+    s.fit(grid.coords[:30], np.linspace(0, 3, 30))
     s.to_parquet(path)
     back = bt.SNESIM.from_parquet(path)
     np.testing.assert_array_equal(
@@ -224,8 +224,8 @@ def test_continuous_zones_and_anisotropy_round_trip(tmp_path):
     low, high = grades(), grades()
     high = high.with_columns({"grade": high["grade"] + 10})
     s = bt.SNESIM({"west": (low, "grade"), "east": (high, "grade")}, template_size=12, n_levels=1)
-    domains = np.where(grid.centroids[:, 0] < 20, "west", "east")
-    field = bt.LocalAnisotropy(grid.centroids, np.tile([45.0, 0, 0], (1600, 1)), np.ones((1600, 2)))
+    domains = np.where(grid.coords[:, 0] < 20, "west", "east")
+    field = bt.LocalAnisotropy(grid.coords, np.tile([45.0, 0, 0], (1600, 1)), np.ones((1600, 2)))
     run = {"n": 2, "seed": 5, "keep": True, "domains": domains, "anisotropy": field}
     r = s.simulate(grid, **run).realizations
     np.testing.assert_array_equal(r >= 10, np.tile(domains == "east", (2, 1)))

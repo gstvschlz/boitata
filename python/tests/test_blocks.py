@@ -43,7 +43,7 @@ def test_block_proportions():
     grid = bt.BlockModel(origin=(-5, 0, 0), size=(10, 10, 10), count=(2, 1, 1))
     np.testing.assert_allclose(cube.proportion(grid), [0.5, 0.5], atol=0.13)
     np.testing.assert_allclose(cube.proportion(grid, discretization=(8, 1, 1)), [0.5, 0.5])
-    centroids = grid.centroids
+    centroids = grid.coords
     np.testing.assert_allclose(
         cube.proportion(centroids, size=(10, 10, 10), discretization=(8, 1, 1)), [0.5, 0.5]
     )
@@ -96,7 +96,7 @@ def test_remove_small_units():
 
 def test_contact_distance_and_buffers():
     grid = bt.BlockModel((0, 0, 0), (1, 1, 1), (10, 2, 1))
-    rock = np.where(grid.centroids[:, 0] < 5, "a", "b")
+    rock = np.where(grid.coords[:, 0] < 5, "a", "b")
     d = bt.contact_distance(grid, rock)
     np.testing.assert_allclose(d[:10], [5, 4, 3, 2, 1, 1, 2, 3, 4, 5])
     signed = bt.contact_distance(grid, rock, target="b")
@@ -182,20 +182,20 @@ def test_mesh_topology():
     assert [problems[c][-1] for c in ("face", "vertex", "edge")] == [0, 0, 0] and np.isnan(
         problems["other"][-1]
     )
-    doubled = bt.Mesh(np.vstack([cube.vertices, cube.vertices[:1] + 1e-9]), cube.triangles)
+    doubled = bt.Mesh(np.vstack([cube.coords, cube.coords[:1] + 1e-9]), cube.triangles)
     assert doubled.validate().summary["duplicate_vertices"] == 0
     assert doubled.validate(tolerance=1e-6).problems["other"].tolist() == [0]
     with pytest.raises(bt.errors.InvalidInput):
         cube.validate(tolerance=-1)
     assert cube.validate().summary["self_intersections"] == 0
     pair = bt.Mesh(
-        np.vstack([cube.vertices, cube.vertices + [-5, 3, 4]]),
+        np.vstack([cube.coords, cube.coords + [-5, 3, 4]]),
         np.vstack([cube.triangles, cube.triangles + 8]),
     )
     crossing = pair.validate()
     assert crossing.summary["self_intersections"] > 0 and crossing.summary["is_closed"]
     assert set(crossing.problems["kind"]) == {"self_intersection"}
-    open_cube = bt.Mesh(cube.vertices, cube.triangles[2:])
+    open_cube = bt.Mesh(cube.coords, cube.triangles[2:])
     assert open_cube.validate().summary["boundary_edges"] == 4
     assert open_cube.fill_holes().volume == pytest.approx(1000)
     for call in (
@@ -224,7 +224,7 @@ def test_convex_hull():
 def test_grid_surface_of_a_plane_with_a_hole():
     grid = bt.BlockModel(origin=(0, 0, 0), size=(10, 5, 1), count=(6, 5, 1), crs="EPSG:32722")
     plane = lambda xy: 0.3 * xy[:, 0] - 0.2 * xy[:, 1] + 100
-    z = plane(grid.centroids)
+    z = plane(grid.coords)
     surface = bt.grid_surface(grid.with_column("z", z), "z")
     assert surface.triangles.shape == (2 * 5 * 4, 3) and surface.crs == "EPSG:32722"
     assert surface.area == pytest.approx(50 * 20 * np.sqrt(1 + 0.3**2 + 0.2**2))
@@ -248,10 +248,10 @@ def test_repair_rebuilds_a_broken_cube():
     assert not broken.is_closed
     fixed = broken.repair(tolerance=1e-4)
     assert fixed.is_closed and fixed.volume == pytest.approx(1000)
-    assert fixed.vertices.shape == (8, 3) and list(fixed.face_attributes["face"]) == list(range(12))
+    assert fixed.coords.shape == (8, 3) and list(fixed.face_attributes["face"]) == list(range(12))
     again = fixed.repair(tolerance=1e-4)
     np.testing.assert_array_equal(again.triangles, fixed.triangles)
-    np.testing.assert_array_equal(again.vertices, fixed.vertices)
+    np.testing.assert_array_equal(again.coords, fixed.coords)
     with pytest.raises(ValueError):
         cube.repair(tolerance=-1)
 
@@ -306,7 +306,7 @@ def test_subblocks_from_meshes_and_regularize():
 def test_rotated_proportions():
     grid = bt.BlockModel(origin=(0, 0, 0), size=(10, 10, 10), count=(2, 2, 1), rotation=(45, 0, 0))
     nodes = grid.discretize(20)
-    expected = cube.contains(nodes.centroids).mean() * grid.volumes.sum()
+    expected = cube.contains(nodes.coords).mean() * grid.volumes.sum()
     inside = (cube.proportion(grid, discretization=20) * grid.volumes).sum()
     assert inside == pytest.approx(expected, rel=0.01) and 0 < inside < 1000
 
@@ -316,7 +316,7 @@ def test_from_extents_holds_every_object_with_the_buffer():
     points = bt.PointSet(rng.uniform((200, 300, 50), (600, 500, 150), (300, 3)))
     shifted = bt.Mesh(cube_vertices + (700, 450, 20), cube_triangles)
     model = bt.BlockModel.from_extents(points, shifted, size=(10, 10, 5), buffer=(20, 20, 5), crs="local")
-    everything = np.vstack([points.coords, shifted.vertices])
+    everything = np.vstack([points.coords, shifted.coords])
     assert (model.row_at(everything) >= 0).all()
     np.testing.assert_allclose(model.origin, everything.min(0) - (20, 20, 5))
     top = np.array(model.origin) + np.array(model.count) * model.size
@@ -361,14 +361,14 @@ def test_from_extents_covers_drill_holes_lines_and_grids():
     model = bt.BlockModel.from_extents(holes, line, size=(5, 5, 5))
     stations = holes.paths()
     ends = np.c_[stations["x"], stations["y"], stations["z"]]
-    assert (model.row_at(np.vstack([ends, line.vertices])) >= 0).all()
+    assert (model.row_at(np.vstack([ends, line.coords])) >= 0).all()
     copy = bt.BlockModel.from_extents(model, size=model.size)
     assert copy.origin == model.origin and copy.count == model.count
 
 
 def test_unfold_flat_and_folded_layers():
     grid = bt.BlockModel(origin=(0, 0, 0), size=(10, 10, 1), count=(11, 11, 1))
-    x = grid.centroids[:, 0]
+    x = grid.coords[:, 0]
     base, top = (bt.grid_surface(grid.with_column("z", 0 * x + z), "z") for z in (0, 10))
     flat = bt.Unfold(base, top)
     pts = np.random.default_rng(0).uniform([5, 5, 0], [105, 105, 10], (200, 3))
@@ -383,9 +383,9 @@ def test_unfold_flat_and_folded_layers():
     footwall = bt.grid_surface(grid.with_column("z", fold), "z")
     hangingwall = bt.grid_surface(grid.with_column("z", fold + 10), "z")
     unfold = bt.Unfold(footwall, hangingwall, reference="footwall")
-    assert (unfold.transform(footwall.vertices)[:, 2] == 0).all()
-    assert (unfold.transform(hangingwall.vertices)[:, 2] == 1).all()
-    below = np.c_[footwall.vertices[:, :2], footwall.vertices[:, 2] - 2]
+    assert (unfold.transform(footwall.coords)[:, 2] == 0).all()
+    assert (unfold.transform(hangingwall.coords)[:, 2] == 1).all()
+    below = np.c_[footwall.coords[:, :2], footwall.coords[:, 2] - 2]
     assert np.isnan(unfold.transform(below)).all()
     extra = bt.Unfold(footwall, hangingwall, mode="footwall", extrapolate=True).transform(below)
     np.testing.assert_allclose(extra[:, 2], -2, atol=1e-9)
@@ -393,7 +393,7 @@ def test_unfold_flat_and_folded_layers():
 
 def test_kriging_on_unfolded_coordinates_follows_the_layer():
     grid = bt.BlockModel(origin=(0, 0, 0), size=(5, 5, 1), count=(81, 21, 1))
-    x = grid.centroids[:, 0]
+    x = grid.coords[:, 0]
     fold = lambda x: 25 * np.sin(x / 40)
     footwall, hangingwall = (bt.grid_surface(grid.with_column("z", fold(x) + dz), "z") for dz in (0, 12))
     unfold = bt.Unfold(footwall, hangingwall, mode="footwall", reference="footwall")
@@ -423,7 +423,7 @@ def _box_volume(corners):
 def test_corners_hold_every_centroid_and_reconstruct_the_volume():
     bm = bt.BlockModel(origin=(10, 20, 0), size=(2, 3, 1), count=(2, 2, 1), rotation=(30, 0, 0))
     assert bm.corners.shape == (4, 8, 3)
-    np.testing.assert_allclose(bm.corners.mean(axis=1), bm.centroids, atol=1e-9)
+    np.testing.assert_allclose(bm.corners.mean(axis=1), bm.coords, atol=1e-9)
     np.testing.assert_allclose(_box_volume(bm.corners), bm.volumes, atol=1e-9)
 
     extents = [[0, 0, 0, 0.6, 1, 1], [0.6, 0, 0, 1, 1, 1]]

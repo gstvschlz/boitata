@@ -139,7 +139,7 @@ surfaces = {
 kriged = {}
 for name, values in surfaces.items():
     variogram = bt.Variogram.fit(bt.experimental_variogram(xy, values, 25.0, 400.0), "spherical")
-    kriged[name] = bt.OrdinaryKriging(variogram, search).fit(xy, values).predict(grid.centroids[:, :2])
+    kriged[name] = bt.OrdinaryKriging(variogram, search).fit(xy, values).predict(grid.coords[:, :2])
 lim = kriged["topography"] - kriged["FERR"].clip(0)
 sap = lim - kriged["LIM"].clip(0)
 print(f"saprolite at least {(sap - kriged['BRK']).min():.1f} m thick")
@@ -151,7 +151,7 @@ rules = [(mesh, "below", name) for mesh, name in zip(contacts.values(), ["BRK", 
 blocks = bt.BlockModel.from_meshes(
     (30000, 60000, bottom), (25, 25, 5), count, rules, (1, 1, 10), column="HORIZON"
 )
-blocks = blocks.mask(np.array(blocks["HORIZON"], dtype=object) != "BRK")
+blocks = blocks.filter(np.array(blocks["HORIZON"], dtype=object) != "BRK")
 horizon = np.array(blocks["HORIZON"], dtype=object)
 for name in names[:3]:
     print(f"{name}: {blocks.volumes[horizon == name].sum() / 1e6:.2f} Mm³")
@@ -235,7 +235,7 @@ only its blocks.
 
 ```python
 flat = np.column_stack([composites.coords[:, :2], height])
-targets = np.column_stack([blocks.centroids[:, :2], contacts["BRK"].vertical_distance(blocks)])
+targets = np.column_stack([blocks.coords[:, :2], contacts["BRK"].vertical_distance(blocks)])
 grades = {"NI_PCT": np.full(len(blocks), np.nan), "CO_PCT": np.full(len(blocks), np.nan)}
 for name in names[:3]:
     keep, into = unit == name, horizon == name

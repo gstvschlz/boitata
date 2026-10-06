@@ -50,7 +50,7 @@ for name, transform in {"PPMT": bt.PPMT(seed=7), "PCA": bt.PCA(standardize=True)
 reals = {
     name: [s.realizations for s in sim.simulate(nodes, n=20, seed=1, keep=True)] for name, sim in runs.items()
 }
-print(f"{len(nodes.centroids)} nodes, 20 realizations")
+print(f"{len(nodes.coords)} nodes, 20 realizations")
 
 
 # %% [markdown]
@@ -96,7 +96,7 @@ print(f"PPMT at 500 composites: largest departure from the data {error:.1e}")
 # reaching below the lowest assays and into the corner the data leave empty.
 
 # %%
-pick = np.random.default_rng(0).choice(len(nodes.centroids), 3000, replace=False)
+pick = np.random.default_rng(0).choice(len(nodes.coords), 3000, replace=False)
 fig, axes = plt.subplots(1, 3, figsize=(11, 3.6), layout="constrained", sharex=True, sharey=True)
 panels = [(pair[:, 0], pair[:, 1], "Data")] + [
     (a[0][pick], b[0][pick], name) for name, (a, b) in reals.items()

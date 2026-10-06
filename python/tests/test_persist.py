@@ -425,7 +425,7 @@ def test_snesim_round_trip_simulates_bit_identically(tmp_path):
         summary_arrays(unfitted.simulate(grid, n=3, seed=4)),
         summary_arrays(snesim.simulate(grid, n=3, seed=4)),
     )
-    snesim.fit(grid.centroids[:50], np.arange(50) % 2)
+    snesim.fit(grid.coords[:50], np.arange(50) % 2)
     snesim.to_parquet(path)
     summary = snesim.simulate(grid, n=3, seed=4, keep=True)
     for back in (bt.SNESIM.from_parquet(path), pickle.loads(pickle.dumps(snesim))):
@@ -472,7 +472,7 @@ def test_image_quilting_round_trip_simulates_bit_identically(categorical, tmp_pa
 def test_selector_transiogram_and_unfold_round_trip():
     outer = np.array([[0, 0, 0], [10, 0, 0], [10, 10, 0], [0, 10, 0], [0, 0, 0]], float)
     grid = bt.BlockModel(origin=(0, 0, 0), size=(10, 10, 1), count=(11, 11, 1))
-    fold = 20 * np.sin(grid.centroids[:, 0] / 40)
+    fold = 20 * np.sin(grid.coords[:, 0] / 40)
     walls = [bt.grid_surface(grid.with_column("z", fold + dz), "z") for dz in (0, 10)]
     points = np.c_[rng.uniform(-5, 110, (200, 2)), rng.uniform(-20, 30, 200)]
     cases = [

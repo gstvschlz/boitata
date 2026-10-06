@@ -52,7 +52,7 @@ def plane(pole):
 
 poles = []
 for i in (1, 2, 3):
-    vertices = data[f"lens_{i}"].vertices
+    vertices = data[f"lens_{i}"].coords
     pole = np.linalg.svd(vertices - vertices.mean(axis=0), full_matrices=False)[2][2]
     poles.append(pole if pole[2] > 0 else -pole)
     print(f"lens {i}: dips {plane(pole)[0]:.0f} degrees towards {plane(pole)[1]:03.0f}")

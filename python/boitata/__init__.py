@@ -1,6 +1,6 @@
 import copyreg as _copyreg
 
-from boitata import _boitata, datasets, plot, plot3d  # noqa: F401
+from boitata import _boitata, _containers, datasets, plot, plot3d  # noqa: F401
 from boitata._boitata import *
 from boitata._boitata import __version__  # noqa: F401
 from boitata._units import UnitArray, units  # noqa: F401

@@ -89,7 +89,7 @@ print(f"bandwidth {areal.bandwidth:.0f} m")
 nx, ny, _ = top.count
 x0, y0, _ = top.origin
 extent = (x0, x0 + nx * top.size[0], y0, y0 + ny * top.size[1])
-plan = areal.predict(top.centroids[:, :2])
+plan = areal.predict(top.coords[:, :2])
 
 fig, axes = plt.subplots(1, 3, figsize=(12, 3.3), sharey=True, layout="constrained")
 for ax, name in zip(axes, ["SAND", "SLIME", "CLAY"], strict=True):
@@ -116,16 +116,16 @@ save(fig, "areal")
 
 # %%
 plan20 = bt.BlockModel(origin=(4945.0, 1945.0), size=(20.0, 20.0), count=(41, 28))
-base_at = ground["Z"][ground.row_at(plan20.centroids[:, :2])] - 3.0
-top_at = top["Z"][top.row_at(plan20.centroids[:, :2])]
+base_at = ground["Z"][ground.row_at(plan20.coords[:, :2])] - 3.0
+top_at = top["Z"][top.row_at(plan20.coords[:, :2])]
 z0 = np.floor(base_at.min())
 full = bt.BlockModel(
     origin=(4945.0, 1945.0, z0), size=(20.0, 20.0, 1.0), count=(41, 28, int(np.ceil(top_at.max() - z0)))
 )
-column = plan20.row_at(full.centroids[:, :2])
-z = full.centroids[:, 2]
-model = full.mask((z > base_at[column]) & (z < top_at[column]))
-cells = model.centroids
+column = plan20.row_at(full.coords[:, :2])
+z = full.coords[:, 2]
+model = full.filter((z > base_at[column]) & (z < top_at[column]))
+cells = model.coords
 cell_height = cells[:, 2] - ground["Z"][ground.row_at(cells[:, :2])]
 
 at_cells = bt.combine_proportions(cells, curve, areal.predict(cells[:, :2]), elevation=cell_height)

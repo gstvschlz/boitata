@@ -89,8 +89,8 @@ along = np.array([np.sin(np.radians(23.0)), np.cos(np.radians(23.0)), 0.0])
 origin = center - 600.0 * across - 5.0 * along + [0.0, 0.0, -400.0]
 section = bt.BlockModel(origin, (10.0, 10.0, 10.0), (120, 1, 80), rotation=(23.0, 0.0, 0.0))
 topography = data["topography"]
-rows = topography.row_at(section.centroids[:, :2])
-section = section.mask((rows >= 0) & (section.centroids[:, 2] < topography["Z"][rows]))
+rows = topography.row_at(section.coords[:, :2])
+section = section.filter((rows >= 0) & (section.coords[:, 2] < topography["Z"][rows]))
 
 summary = cik.predict(section, diagnostics=True)
 p = summary.probabilities

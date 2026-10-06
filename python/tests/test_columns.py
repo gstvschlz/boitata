@@ -41,7 +41,7 @@ def test_containers_are_coordinates():
     assert np.array_equal(bt.data_spacing(points, points, None), bt.data_spacing(xyz, xyz, None))
     grade = np.arange(6.0)
     by_model = bt.swath(model, grade, 10.0, axis="x")
-    assert np.array_equal(by_model["mean"], bt.swath(model.centroids, grade, 10.0, axis="x")["mean"])
+    assert np.array_equal(by_model["mean"], bt.swath(model.coords, grade, 10.0, axis="x")["mean"])
 
 
 def test_per_row_takes_a_constant_an_array_or_a_name():
@@ -147,3 +147,52 @@ def test_defaulted_options_are_keyword_only():
     ):
         with pytest.raises(TypeError):
             call()
+
+
+def test_a_close_name_is_suggested():
+    for data in (points, {"v": [1.0], "rock": ["a"]}):
+        with pytest.raises(bt.MissingColumn, match='did you mean "rock"'):
+            column(data, "Rock")
+
+
+def _containers():
+    lines = bt.Polylines([xyz[:4], xyz[4:7]], features=[0, 1], attributes={"name": ["a", "b"]})
+    mesh = bt.Mesh(np.eye(3), [[0, 1, 2]]).with_vertex_column("h", [1.0, 2.0, 3.0])
+    collar = {"HOLE_ID": ["a"], "X": [0.0], "Y": [0.0], "Z": [10.0]}
+    survey = {"HOLE_ID": ["a", "a"], "DEPTH": [0.0, 10.0], "AZIMUTH": [0.0, 0.0], "DIP": [90.0, 90.0]}
+    assays = {"HOLE_ID": ["a", "a"], "FROM": [0.0, 5.0], "TO": [5.0, 10.0], "AU": [1.0, 2.0]}
+    holes = bt.Drillholes(collar, survey, assays)
+    return points, lines, model, mesh, holes
+
+
+def test_every_container_spells_coordinates_bounds_and_columns_the_same():
+    for data in _containers():
+        coords = data.coords
+        assert coords.shape[1] == 3
+        np.testing.assert_array_equal(np.column_stack([data.x, data.y, data.z]), coords)
+        lo, hi = data.bounds
+        assert (coords >= np.array(lo) - 1e-9).all() and (coords <= np.array(hi) + 1e-9).all()
+        assert all(np.asarray(data[c]).shape[0] > 0 for c in data.column_names)
+    _, lines, _, _, holes = _containers()
+    np.testing.assert_array_equal(holes.coords, [[0, 0, 7.5], [0, 0, 2.5]])
+    assert list(holes["AU"]) == [1.0, 2.0] and holes.column_names == ["HOLE_ID", "FROM", "TO", "AU"]
+    assert lines.filter(np.array([False, True]))["name"].tolist() == ["b"]
+    assert len(lines.with_columns({"n": [1.0, 2.0]}).column_names) == 2
+
+
+def test_mesh_columns_come_from_vertices_then_faces():
+    mesh = bt.Mesh(np.eye(3), [[0, 1, 2]]).with_vertex_column("h", [1.0, 2.0, 3.0])
+    assert len(mesh) == 3 and mesh["h"].tolist() == [1.0, 2.0, 3.0]
+    mesh = mesh.with_face_column("f", [7.0])
+    assert mesh["f"].tolist() == [7.0] and mesh.column_names == ["h", "f"]
+    with pytest.raises(bt.InvalidInput, match="both a vertex and a face"):
+        mesh.with_face_column("h", [0.0])["h"]
+
+
+def test_containers_convert_like_tables():
+    pl = pytest.importorskip("polars")
+    for data in (points, model):
+        frame = data.to_polars()
+        assert isinstance(frame, pl.DataFrame) and frame.columns[:3] == ["x", "y", "z"]
+    table = bt.Table({"a": [1.0, 2.0]}).with_column("b", ["x", None]).with_columns({"a": [3.0, 4.0]})
+    assert table.column_names == ["a", "b"] and table["a"].tolist() == [3.0, 4.0]
