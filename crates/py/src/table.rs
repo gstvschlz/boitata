@@ -425,6 +425,16 @@ impl Table {
         names(&self.0)
     }
 
+    /// Arrow type of each column, for display.
+    fn _dtypes(&self) -> Vec<String> {
+        self.0
+            .schema()
+            .fields()
+            .iter()
+            .map(|f| f.data_type().to_string())
+            .collect()
+    }
+
     fn column<'py>(&self, py: Python<'py>, name: &str) -> PyResult<Bound<'py, PyAny>> {
         column(py, &self.0, name)
     }
