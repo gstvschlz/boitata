@@ -11,7 +11,6 @@ use crate::args::{self, Point, array1, column, distinct, finite, pick, points, s
 use crate::estimation::{Search, outputs, sample_columns, samples_from, targets};
 use crate::invalid;
 use crate::persist::{self, Columns, Found, Tabular};
-use crate::progress::with_progress;
 use crate::transforms::Anamorphosis;
 use crate::variogram::{Coregionalization, Variogram};
 
@@ -148,9 +147,8 @@ impl Cokriging {
     /// values at every target, or to the column of `targets` holding them,
     /// for collocated cokriging. `anisotropy` (a LocalAnisotropy) gives each
     /// target its own search ellipsoid and the anisotropy of every structure
-    /// and cross term, taken from the nearest location. `progress` shows a
-    /// `tqdm` bar.
-    #[pyo3(signature = (targets, *, variable=0, return_variance=false, anisotropy=None, collocated=None, progress=true))]
+    /// and cross term, taken from the nearest location.
+    #[pyo3(signature = (targets, *, variable=0, return_variance=false, anisotropy=None, collocated=None))]
     #[allow(clippy::too_many_arguments)]
     fn predict<'py>(
         &self,
@@ -160,7 +158,6 @@ impl Cokriging {
         return_variance: bool,
         anisotropy: Option<PyRef<crate::lva::LocalAnisotropy>>,
         collocated: Option<HashMap<usize, Bound<'py, PyAny>>>,
-        progress: bool,
     ) -> PyResult<Bound<'py, PyAny>> {
         let (plain, co) = self
             .samples
@@ -185,36 +182,35 @@ impl Cokriging {
                 "cokriging does not clamp high grades; use mode drop",
             ));
         }
-        let total = Some(targets.len() as u64);
         if let Some(field) = anisotropy {
             let local = field.at_targets(&targets);
-            let results = with_progress(py, total, progress, |counter| {
-                estimation::lva::cokrige_many_local(
-                    &targets,
-                    variable,
-                    &local,
-                    co,
-                    &collocated,
-                    &self.search,
-                    &self.model,
-                    &self.kind,
-                    counter,
-                )
-            })?
-            .map_err(invalid)?;
+            let results = py
+                .detach(|| {
+                    estimation::lva::cokrige_many_local(
+                        &targets,
+                        variable,
+                        &local,
+                        co,
+                        &collocated,
+                        &self.search,
+                        &self.model,
+                        &self.kind,
+                    )
+                })
+                .map_err(invalid)?;
             let out = outputs(py, &results, return_variance)?;
             return crate::units::tag_estimates(out, self.unit.as_deref());
         }
         let metric = metric(self.model.anisotropy.clone());
         let tree = SearchTree::new(plain, &self.search, Some(&metric));
-        let results: Vec<Option<Estimate>> = with_progress(py, total, progress, |counter| {
+        let results: Vec<Option<Estimate>> = py.detach(|| {
             targets
                 .par_iter()
                 .enumerate()
                 .map(|(i, t)| {
                     let here: Vec<(usize, f64)> =
                         collocated.iter().map(|(k, v)| (*k, v[i])).collect();
-                    let result = nearby(t, &tree, co).and_then(|near| {
+                    nearby(t, &tree, co).and_then(|near| {
                         estimation::collocated_cokrige(
                             t,
                             variable,
@@ -224,14 +220,10 @@ impl Cokriging {
                             &self.kind,
                         )
                         .ok()
-                    });
-                    if let Some(p) = counter {
-                        p.inc();
-                    }
-                    result
+                    })
                 })
                 .collect()
-        })?;
+        });
         let out = outputs(py, &results, return_variance)?;
         crate::units::tag_estimates(out, self.unit.as_deref())
     }
@@ -258,12 +250,7 @@ pub struct Disjunctive {
 }
 
 impl Disjunctive {
-    fn factors(
-        &self,
-        py: Python,
-        targets: &Bound<PyAny>,
-        progress: bool,
-    ) -> PyResult<Vec<Option<Vec<f64>>>> {
+    fn factors(&self, py: Python, targets: &Bound<PyAny>) -> PyResult<Vec<Option<Vec<f64>>>> {
         let (plain, gauss) = self
             .samples
             .as_ref()
@@ -276,23 +263,18 @@ impl Disjunctive {
         }
         let metric = metric(self.variogram.anisotropy.clone());
         let tree = SearchTree::new(plain, &self.search, Some(&metric));
-        let total = Some(targets.len() as u64);
-        with_progress(py, total, progress, |counter| {
+        Ok(py.detach(|| {
             targets
                 .par_iter()
                 .map(|t| {
-                    let result = nearby(t, &tree, gauss).and_then(|near| {
+                    nearby(t, &tree, gauss).and_then(|near| {
                         self.engine
                             .factors(t, &near, &self.variogram, self.order)
                             .ok()
-                    });
-                    if let Some(p) = counter {
-                        p.inc();
-                    }
-                    result
+                    })
                 })
                 .collect()
-        })
+        }))
     }
 }
 
@@ -372,33 +354,25 @@ impl Disjunctive {
         Ok(slf)
     }
 
-    /// Local grade estimates. `progress` shows a `tqdm` bar.
-    #[pyo3(signature = (targets, *, progress=true))]
-    fn predict<'py>(
-        &self,
-        py: Python<'py>,
-        targets: &Bound<PyAny>,
-        progress: bool,
-    ) -> PyResult<Bound<'py, PyAny>> {
+    /// Local grade estimates.
+    fn predict<'py>(&self, py: Python<'py>, targets: &Bound<PyAny>) -> PyResult<Bound<'py, PyAny>> {
         let grades = self
-            .factors(py, targets, progress)?
+            .factors(py, targets)?
             .iter()
             .map(|f| f.as_ref().map_or(f64::NAN, |f| self.engine.grade(f)))
             .collect();
         crate::units::tag(array1(py, grades).into_any(), self.unit.as_deref())
     }
 
-    /// Local proportion above `cutoff`. `progress` shows a `tqdm` bar.
-    #[pyo3(signature = (targets, cutoff, *, progress=true))]
+    /// Local proportion above `cutoff`.
     fn predict_tonnage<'py>(
         &self,
         py: Python<'py>,
         targets: &Bound<PyAny>,
         cutoff: f64,
-        progress: bool,
     ) -> PyResult<Bound<'py, PyAny>> {
         let t = self
-            .factors(py, targets, progress)?
+            .factors(py, targets)?
             .iter()
             .map(|f| {
                 f.as_ref()

@@ -238,7 +238,6 @@ impl Multigaussian {
                 let gaussians = self.kriged(t, s, block)?;
                 Ok((conditional(&table, &gaussians, cutoffs, quantiles), near))
             },
-            None,
         )?;
         let diagnostics = diagnostics(&results, searches, |_| 0);
         let conditionals = results.into_iter().map(|r| r.map(|(_, (c, _))| c));

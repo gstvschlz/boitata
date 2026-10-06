@@ -91,7 +91,6 @@ today = {
         blocks=panels[side],
         window=(side, side),
         quantiles=[0.05, 0.95],
-        progress=False,
     )
     for side in (40, 80)
 }
@@ -101,7 +100,7 @@ column, row = ((centroids[:, :2] - 1) // 16).astype(int).T
 has_year = row < 1480 // 80
 year_index = np.where(has_year, row * (1280 // 80) + column, 0)
 year = np.where(has_year & inside(80)[year_index], today[80].relative_error()[year_index], np.inf)
-above = tb.simulate(nodes, n=100, seed=11, cutoffs=[300], progress=False).probability_above[:, 0]
+above = tb.simulate(nodes, n=100, seed=11, cutoffs=[300]).probability_above[:, 0]
 share = sliding_window_view(above.reshape(150, 130), (20, 20)).mean(axis=(2, 3))
 first = np.clip(4 * ((centroids[:, :2] - 1) // 8).astype(int) - 8, 0, np.array(share.shape)[::-1] - 1)
 ore = inside(40) & (share[first[:, 1], first[:, 0]] >= 0.5)
@@ -252,7 +251,7 @@ for name, kind in (("random search", bt.ModifiedRandomSearch), ("annealing", bt.
 
 # %%
 kriging = bt.BlockKriging(gaussian, bt.Search(radius=50, max_samples=16), (8, 8)).fit(xy, scores)
-variance = np.asarray(kriging.predict(centroids[ore], diagnostics=True, progress=False)["variance"])
+variance = np.asarray(kriging.predict(centroids[ore], diagnostics=True)["variance"])
 counts = np.bincount(classes[ore], minlength=4)
 measured_at, indicated_at = np.sort(variance)[[counts[3] - 1, counts[3] + counts[2] - 1]]
 rules = [("measured", {"variance": ("<=", measured_at)}), ("indicated", {"variance": ("<=", indicated_at)})]
@@ -376,7 +375,6 @@ study = bt.spacing_study(
     window=(40, 40),
     existing=True,
     composite_length=np.inf,
-    progress=False,
 )
 on_target = np.isin(np.asarray(study["row"], dtype=int), target)
 names, truth_of = np.asarray(study["plan"]), study["realization"]

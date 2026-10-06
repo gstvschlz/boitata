@@ -1,5 +1,5 @@
 use std::fs::File;
-use std::io::{BufReader, BufWriter, Read, Seek};
+use std::io::{BufReader, BufWriter, Seek};
 use std::path::Path;
 use std::sync::Arc;
 
@@ -10,7 +10,7 @@ use arrow_csv::reader::Format;
 use arrow_csv::{ReaderBuilder, WriterBuilder};
 use arrow_schema::{DataType, Field, Schema};
 use arrow_select::concat::concat_batches;
-use boitata_core::{Progress, units};
+use boitata_core::units;
 use regex::Regex;
 
 use crate::{Nodata, Result, default_nodata, is_nodata};
@@ -31,22 +31,12 @@ impl Default for CsvOptions {
     }
 }
 
-const CHUNK: usize = 1 << 16;
-
 /// Reads a headed CSV. Integer and all-null columns become `Float64`.
-/// `progress` is ticked per row; its total is the file's line count less the header.
-pub fn read_csv(
-    path: impl AsRef<Path>,
-    options: &CsvOptions,
-    progress: Option<&Progress>,
-) -> Result<RecordBatch> {
+pub fn read_csv(path: impl AsRef<Path>, options: &CsvOptions) -> Result<RecordBatch> {
     let format = Format::default()
         .with_header(true)
         .with_delimiter(options.delimiter)
         .with_null_regex(nodata_regex(&options.nodata)?);
-    if let Some(p) = progress {
-        p.set_total(line_count(File::open(&path)?)?.saturating_sub(1));
-    }
     let mut file = BufReader::new(File::open(path)?);
     let (inferred, _) = format.infer_schema(&mut file, None)?;
     file.rewind()?;
@@ -60,17 +50,10 @@ pub fn read_csv(
         })
         .collect();
     let schema = Arc::new(Schema::new(fields));
-    let mut batches = Vec::new();
-    for batch in ReaderBuilder::new(schema.clone())
+    let batches = ReaderBuilder::new(schema.clone())
         .with_format(format)
         .build(file)?
-    {
-        let batch = batch?;
-        if let Some(p) = progress {
-            p.inc_by(batch.num_rows() as u64);
-        }
-        batches.push(batch);
-    }
+        .collect::<std::result::Result<Vec<_>, _>>()?;
     let table = concat_batches(&schema, &batches)?;
     let columns = table
         .columns()
@@ -134,41 +117,13 @@ fn header_units(table: RecordBatch) -> Result<RecordBatch> {
     Ok(table)
 }
 
-fn line_count(mut file: File) -> Result<u64> {
-    let (mut lines, mut last, mut buf) = (0, b'\n', vec![0; 1 << 16]);
-    loop {
-        let n = file.read(&mut buf)?;
-        if n == 0 {
-            return Ok(lines + u64::from(last != b'\n'));
-        }
-        lines += buf[..n].iter().filter(|&&b| b == b'\n').count() as u64;
-        last = buf[n - 1];
-    }
-}
-
-/// Writes a headed CSV; nulls are written as empty cells. `progress` is ticked
-/// by the rows of each chunk written.
-pub fn write_csv(
-    path: impl AsRef<Path>,
-    table: &RecordBatch,
-    progress: Option<&Progress>,
-) -> Result<()> {
+/// Writes a headed CSV; nulls are written as empty cells.
+pub fn write_csv(path: impl AsRef<Path>, table: &RecordBatch) -> Result<()> {
     let mut writer = WriterBuilder::new()
         .with_header(true)
         .build(BufWriter::new(File::create(path)?));
-    let rows = table.num_rows();
-    let mut offset = 0;
-    loop {
-        let len = CHUNK.min(rows - offset);
-        writer.write(&table.slice(offset, len))?;
-        offset += len;
-        if let Some(p) = progress {
-            p.inc_by(len as u64);
-        }
-        if offset >= rows {
-            return Ok(());
-        }
-    }
+    writer.write(table)?;
+    Ok(())
 }
 
 fn nodata_regex(nodata: &[Nodata]) -> Result<Regex> {
@@ -199,7 +154,7 @@ mod tests {
             "a.csv",
             "id,x,au,rock,empty\n1,10.5,-999,ox,\n2,11,0.3,na,\n3,12,N/A,fr,\n",
         );
-        let t = read_csv(&path, &CsvOptions::default(), None).unwrap();
+        let t = read_csv(&path, &CsvOptions::default()).unwrap();
         assert_eq!(t.num_rows(), 3);
         for name in ["id", "x", "au", "empty"] {
             assert_eq!(
@@ -221,7 +176,7 @@ mod tests {
             "u.csv",
             "hole (DDH),au [g/t],cu (%),dens (t/m3),note (field)\nA,1,2,2.7,x\n",
         );
-        let t = read_csv(&path, &CsvOptions::default(), None).unwrap();
+        let t = read_csv(&path, &CsvOptions::default()).unwrap();
         let names: Vec<String> = t
             .schema()
             .fields()
@@ -234,13 +189,13 @@ mod tests {
             [("au", "g/t"), ("cu", "%"), ("dens", "t/m3")].map(|(a, b)| (a.into(), b.into()))
         );
         let path = temp("d.csv", "au [g/t],au\n1,2\n");
-        assert!(read_csv(&path, &CsvOptions::default(), None).is_err());
+        assert!(read_csv(&path, &CsvOptions::default()).is_err());
     }
 
     #[test]
     fn exponent_sentinels_are_null() {
         let path = temp("e.csv", "v\n1e21\n1E+21\n2\n");
-        let t = read_csv(&path, &CsvOptions::default(), None).unwrap();
+        let t = read_csv(&path, &CsvOptions::default()).unwrap();
         let v = t.column_by_name("v").unwrap().as_primitive::<Float64Type>();
         assert_eq!(v.iter().collect::<Vec<_>>(), [None, None, Some(2.0)]);
     }
@@ -252,7 +207,7 @@ mod tests {
             nodata: vec![Nodata::Number(-1.0)],
             ..Default::default()
         };
-        let t = read_csv(&path, &options, None).unwrap();
+        let t = read_csv(&path, &options).unwrap();
         let v = t.column(0).as_primitive::<Float64Type>();
         assert_eq!(v.iter().collect::<Vec<_>>(), [Some(-999.0), None]);
     }
@@ -265,7 +220,7 @@ mod tests {
                 nodata: vec![n],
                 ..Default::default()
             };
-            let t = read_csv(&path, &options, None).unwrap();
+            let t = read_csv(&path, &options).unwrap();
             (t.column(0).null_count(), t.column(1).null_count())
         };
         assert_eq!(read(Nodata::Number(-999.0)), (2, 1));
@@ -275,11 +230,9 @@ mod tests {
     #[test]
     fn write_then_read_round_trips() {
         let path = temp("c.csv", "a,b\n1.5,x\n,y\n");
-        let t = read_csv(&path, &CsvOptions::default(), None).unwrap();
+        let t = read_csv(&path, &CsvOptions::default()).unwrap();
         let out = std::env::temp_dir().join(format!("boitata-io-{}-c-out.csv", std::process::id()));
-        let progress = Progress::new(Some(t.num_rows() as u64));
-        write_csv(&out, &t, Some(&progress)).unwrap();
-        assert_eq!(progress.snapshot().0, t.num_rows() as u64);
-        assert_eq!(read_csv(&out, &CsvOptions::default(), None).unwrap(), t);
+        write_csv(&out, &t).unwrap();
+        assert_eq!(read_csv(&out, &CsvOptions::default()).unwrap(), t);
     }
 }

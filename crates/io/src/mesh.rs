@@ -6,7 +6,7 @@ use std::sync::Arc;
 use arrow_array::cast::AsArray;
 use arrow_array::{Array, StringArray};
 use arrow_schema::DataType;
-use boitata_core::{Mesh, Progress};
+use boitata_core::Mesh;
 use dxf::entities::{Entity, EntityType, Face3D, Vertex};
 use dxf::enums::AcadVersion;
 use dxf::tables::Layer;
@@ -41,12 +41,12 @@ impl From<DxfError> for Error {
 /// groups become the face column `group` when the file has any. DXF reads
 /// `3DFACE`, polyface `POLYLINE` and `MESH` (level-0 cage, ASCII files only)
 /// entities into triangles with a face column `layer`; `MESH` faces come last.
-pub fn read_mesh(path: impl AsRef<Path>, progress: Option<&Progress>) -> Result<Mesh> {
+pub fn read_mesh(path: impl AsRef<Path>) -> Result<Mesh> {
     let path = path.as_ref();
     match extension(path)? {
-        "obj" => parse_obj(&std::fs::read_to_string(path)?, progress),
-        "stl" => parse_stl(&std::fs::read(path)?, progress),
-        _ => parse_dxf(&std::fs::read(path)?, progress),
+        "obj" => parse_obj(&std::fs::read_to_string(path)?),
+        "stl" => parse_stl(&std::fs::read(path)?),
+        _ => parse_dxf(&std::fs::read(path)?),
     }
 }
 
@@ -58,16 +58,12 @@ pub fn write_mesh(
     mesh: &Mesh,
     ascii: bool,
     dxf_entity: DxfEntity,
-    progress: Option<&Progress>,
 ) -> Result<()> {
     let path = path.as_ref();
     match extension(path)? {
-        "obj" => Ok(std::fs::write(path, obj_string(mesh, progress)?)?),
-        "stl" => Ok(std::fs::write(path, stl_bytes(mesh, ascii, progress))?),
-        _ => Ok(std::fs::write(
-            path,
-            dxf_bytes(mesh, dxf_entity, progress)?,
-        )?),
+        "obj" => Ok(std::fs::write(path, obj_string(mesh)?)?),
+        "stl" => Ok(std::fs::write(path, stl_bytes(mesh, ascii))?),
+        _ => Ok(std::fs::write(path, dxf_bytes(mesh, dxf_entity)?)?),
     }
 }
 
@@ -116,14 +112,11 @@ fn weld(corners: &[[f64; 3]]) -> Result<Mesh> {
     Ok(Mesh::new(vertices, triangles)?)
 }
 
-fn parse_obj(text: &str, progress: Option<&Progress>) -> Result<Mesh> {
+fn parse_obj(text: &str) -> Result<Mesh> {
     let mut vertices = Vec::new();
     let mut triangles = Vec::new();
     let mut groups = Vec::new();
     let mut group: Option<String> = None;
-    if let Some(p) = progress {
-        p.set_total(text.lines().count() as u64);
-    }
     for (n, line) in text.lines().enumerate() {
         let bad = |message: &str| Error::Format {
             line: n + 1,
@@ -165,9 +158,6 @@ fn parse_obj(text: &str, progress: Option<&Progress>) -> Result<Mesh> {
             }
             _ => {}
         }
-        if let Some(p) = progress {
-            p.inc();
-        }
     }
     let mesh = Mesh::new(vertices, triangles)?;
     if group.is_none() {
@@ -179,7 +169,7 @@ fn parse_obj(text: &str, progress: Option<&Progress>) -> Result<Mesh> {
     Ok(mesh.with_face_column("group", Arc::new(StringArray::from_iter_values(groups)))?)
 }
 
-fn obj_string(mesh: &Mesh, progress: Option<&Progress>) -> Result<String> {
+fn obj_string(mesh: &Mesh) -> Result<String> {
     let groups = text_column(mesh, "group")?;
     let mut out = String::new();
     for [x, y, z] in mesh.vertices() {
@@ -195,9 +185,6 @@ fn obj_string(mesh: &Mesh, progress: Option<&Progress>) -> Result<String> {
             }
         }
         writeln!(out, "f {} {} {}", a + 1, b + 1, c + 1).expect("string");
-        if let Some(p) = progress {
-            p.inc();
-        }
     }
     Ok(out)
 }
@@ -217,7 +204,7 @@ fn normal(c: [[f64; 3]; 3]) -> [f64; 3] {
 }
 
 /// STL stores single precision; coordinates are rounded to f32 on write.
-fn stl_bytes(mesh: &Mesh, ascii: bool, progress: Option<&Progress>) -> Vec<u8> {
+fn stl_bytes(mesh: &Mesh, ascii: bool) -> Vec<u8> {
     let n = mesh.triangles().len();
     if ascii {
         let mut out = String::from("solid boitata\n");
@@ -229,9 +216,6 @@ fn stl_bytes(mesh: &Mesh, ascii: bool, progress: Option<&Progress>) -> Vec<u8> {
                 writeln!(out, "vertex {x} {y} {z}").expect("string");
             }
             out.push_str("endloop\nendfacet\n");
-            if let Some(p) = progress {
-                p.inc();
-            }
         }
         out.push_str("endsolid boitata\n");
         return out.into_bytes();
@@ -246,28 +230,19 @@ fn stl_bytes(mesh: &Mesh, ascii: bool, progress: Option<&Progress>) -> Vec<u8> {
             out.extend((x as f32).to_le_bytes());
         }
         out.extend([0, 0]);
-        if let Some(p) = progress {
-            p.inc();
-        }
     }
     out
 }
 
-fn parse_stl(bytes: &[u8], progress: Option<&Progress>) -> Result<Mesh> {
+fn parse_stl(bytes: &[u8]) -> Result<Mesh> {
     let mut corners = Vec::new();
     let count = bytes
         .get(80..84)
         .map(|b| u32::from_le_bytes(b.try_into().expect("4 bytes")) as usize);
-    if let Some(p) = progress {
-        p.set_total(count.filter(|n| bytes.len() == 84 + 50 * n).unwrap_or(1) as u64);
-    }
     if count.is_some_and(|n| bytes.len() == 84 + 50 * n) {
         for record in bytes[84..].chunks_exact(50) {
             let f = |i: usize| f32::from_le_bytes(record[i..i + 4].try_into().expect("4")) as f64;
             corners.extend((0..3).map(|v| [0, 1, 2].map(|a| f(12 + 12 * v + 4 * a))));
-            if let Some(p) = progress {
-                p.inc();
-            }
         }
     } else {
         let bad = || Error::Mesh("not a binary or ASCII STL file".into());
@@ -297,7 +272,7 @@ fn parse_stl(bytes: &[u8], progress: Option<&Progress>) -> Result<Mesh> {
 
 type DxfMesh = (String, Vec<[f64; 3]>, Vec<Vec<usize>>);
 
-fn parse_dxf(bytes: &[u8], progress: Option<&Progress>) -> Result<Mesh> {
+fn parse_dxf(bytes: &[u8]) -> Result<Mesh> {
     let drawing = Drawing::load(&mut &bytes[..])?;
     let meshes = if bytes.starts_with(b"AutoCAD Binary DXF") {
         Vec::new()
@@ -312,14 +287,6 @@ fn parse_dxf(bytes: &[u8], progress: Option<&Progress>) -> Result<Mesh> {
             layers.push(layer.to_string());
         }
     };
-    let tick = || {
-        if let Some(p) = progress {
-            p.inc();
-        }
-    };
-    if let Some(p) = progress {
-        p.set_total((drawing.entities().count() + meshes.len()) as u64);
-    }
     for entity in drawing.entities() {
         let layer = &entity.common.layer;
         match &entity.specific {
@@ -356,7 +323,6 @@ fn parse_dxf(bytes: &[u8], progress: Option<&Progress>) -> Result<Mesh> {
             }
             _ => {}
         }
-        tick();
     }
     for (layer, vertices, faces) in &meshes {
         for face in faces {
@@ -365,7 +331,6 @@ fn parse_dxf(bytes: &[u8], progress: Option<&Progress>) -> Result<Mesh> {
                 layer,
             );
         }
-        tick();
     }
     Ok(weld(&corners)?.with_face_column("layer", Arc::new(StringArray::from(layers)))?)
 }
@@ -455,14 +420,9 @@ fn mesh_entity(pairs: &[(i32, &str)]) -> Result<DxfMesh> {
     Ok((layer.to_string(), vertices, faces))
 }
 
-fn dxf_bytes(mesh: &Mesh, entity: DxfEntity, progress: Option<&Progress>) -> Result<Vec<u8>> {
+fn dxf_bytes(mesh: &Mesh, entity: DxfEntity) -> Result<Vec<u8>> {
     let layers = text_column(mesh, "layer")?;
     let layer = |t: usize| text(layers.as_ref(), t, "0");
-    let tick = || {
-        if let Some(p) = progress {
-            p.inc();
-        }
-    };
     let mut drawing = Drawing::new();
     drawing.header.version = AcadVersion::R2000;
     let mut out = Vec::new();
@@ -472,7 +432,6 @@ fn dxf_bytes(mesh: &Mesh, entity: DxfEntity, progress: Option<&Progress>) -> Res
             let mut entity = Entity::new(EntityType::Face3D(Face3D::new(a, b, c.clone(), c)));
             entity.common.layer = layer(t).to_string();
             drawing.add_entity(entity);
-            tick();
         }
         drawing.save(&mut out)?;
         return Ok(out);
@@ -516,7 +475,6 @@ fn dxf_bytes(mesh: &Mesh, entity: DxfEntity, progress: Option<&Progress>) -> Res
                     points.len()
                 })
             }));
-            tick();
         }
         polyface(&mut entities, &mut handle, name, mesh, &points, &faces);
     }
@@ -606,7 +564,7 @@ mod tests {
 
     #[test]
     fn obj_round_trip() {
-        let m = parse_obj(&obj_string(&tetra(), None).unwrap(), None).unwrap();
+        let m = parse_obj(&obj_string(&tetra()).unwrap()).unwrap();
         assert_eq!(m.vertices(), tetra().vertices());
         assert_eq!(m.triangles(), tetra().triangles());
         assert!(m.face_attributes().column_by_name("group").is_none());
@@ -615,7 +573,7 @@ mod tests {
     #[test]
     fn obj_groups_round_trip() {
         let text = "v 0 0 0\nv 1 0 0\nv 1 1 0\nv 0 1 0\nf 1 2 3\ng top\nf 1 2 3 4\ng\nf 1 3 4\n";
-        let m = parse_obj(text, None).unwrap();
+        let m = parse_obj(text).unwrap();
         let group = |m: &Mesh| {
             let column = m.face_attributes().column_by_name("group").unwrap().clone();
             let column = column.as_string::<i32>();
@@ -625,7 +583,7 @@ mod tests {
                 .collect::<Vec<_>>()
         };
         assert_eq!(group(&m), ["default", "top", "top", "default"]);
-        let back = parse_obj(&obj_string(&m, None).unwrap(), None).unwrap();
+        let back = parse_obj(&obj_string(&m).unwrap()).unwrap();
         assert_eq!(back.triangles(), m.triangles());
         assert_eq!(group(&back), group(&m));
     }
@@ -634,21 +592,21 @@ mod tests {
     fn obj_quads_and_negative_indices() {
         let text =
             "# c\nv 0 0 0\nv 1 0 0\nv 1 1 0\nv 0 1 0\nvn 0 0 1\nf 1/1 2//1 3/3/1 4\nf -4 -3 -2\n";
-        let m = parse_obj(text, None).unwrap();
+        let m = parse_obj(text).unwrap();
         assert_eq!(m.triangles(), &[[0, 1, 2], [0, 2, 3], [0, 1, 2]]);
-        assert!(parse_obj("v 0 0 0\nf 1 2 0\n", None).is_err());
+        assert!(parse_obj("v 0 0 0\nf 1 2 0\n").is_err());
     }
 
     #[test]
     fn binary_and_ascii_stl_read_the_same() {
         let m = tetra();
-        let binary = parse_stl(&stl_bytes(&m, false, None), None).unwrap();
-        let ascii = parse_stl(&stl_bytes(&m, true, None), None).unwrap();
+        let binary = parse_stl(&stl_bytes(&m, false)).unwrap();
+        let ascii = parse_stl(&stl_bytes(&m, true)).unwrap();
         assert_eq!(corners(&binary), corners(&m));
         assert_eq!(binary.vertices(), ascii.vertices());
         assert_eq!(binary.triangles(), ascii.triangles());
         assert_eq!(binary.vertices().len(), 4);
-        assert!(parse_stl(b"garbage", None).is_err());
+        assert!(parse_stl(b"garbage").is_err());
     }
 
     #[test]
@@ -656,8 +614,8 @@ mod tests {
         let layers_in = Arc::new(StringArray::from(vec!["a", "a", "b", "b"]));
         let m = tetra().with_face_column("layer", layers_in).unwrap();
         for entity in [DxfEntity::Face3D, DxfEntity::Polyface] {
-            let bytes = dxf_bytes(&m, entity, None).unwrap();
-            let read = parse_dxf(&bytes, None).unwrap();
+            let bytes = dxf_bytes(&m, entity).unwrap();
+            let read = parse_dxf(&bytes).unwrap();
             assert_eq!(corners(&read), corners(&m));
             assert_eq!(layers(&read), ["a", "a", "b", "b"]);
         }
@@ -665,7 +623,7 @@ mod tests {
 
     #[test]
     fn polyface_shares_vertices_and_splits_past_the_index_limit() {
-        let bytes = dxf_bytes(&tetra(), DxfEntity::Polyface, None).unwrap();
+        let bytes = dxf_bytes(&tetra(), DxfEntity::Polyface).unwrap();
         let text = String::from_utf8(bytes).unwrap();
         assert!(text.contains("AC1015") && text.contains("AcDbPolyFaceMesh"));
         assert_eq!(text.matches("\r\nVERTEX\r\n").count(), 4 + 4);
@@ -678,14 +636,14 @@ mod tests {
             .flat_map(|k| [[k, k + 1, k + n + 1], [k, k + n + 1, k + n]])
             .collect();
         let grid = Mesh::new(vertices, triangles).unwrap();
-        let bytes = dxf_bytes(&grid, DxfEntity::Polyface, None).unwrap();
+        let bytes = dxf_bytes(&grid, DxfEntity::Polyface).unwrap();
         assert!(
             String::from_utf8_lossy(&bytes)
                 .matches("\r\nPOLYLINE\r\n")
                 .count()
                 > 1
         );
-        let read = parse_dxf(&bytes, None).unwrap();
+        let read = parse_dxf(&bytes).unwrap();
         assert_eq!(corners(&read), corners(&grid));
         assert_eq!(read.vertices().len(), grid.vertices().len());
     }
@@ -708,33 +666,15 @@ mod tests {
 
     #[test]
     fn dxf_reads_polyface_and_mesh_entities() {
-        let m = parse_dxf(POLYFACE_AND_MESH.as_bytes(), None).unwrap();
+        let m = parse_dxf(POLYFACE_AND_MESH.as_bytes()).unwrap();
         assert_eq!(layers(&m), ["pf", "pf", "m", "m", "m"]);
         assert_eq!(m.triangles()[..2], [[0, 1, 2], [0, 2, 3]]);
         assert_eq!(m.vertices().len(), 9);
         assert_eq!(m.area(), 1.0 + 1.0 + 0.5);
         let bad = POLYFACE_AND_MESH.replace("90\n4\n90\n1\n94", "90\n4\n90\n7\n94");
-        assert!(parse_dxf(bad.as_bytes(), None).is_err());
+        assert!(parse_dxf(bad.as_bytes()).is_err());
         let bad = POLYFACE_AND_MESH.replace("74\n-4", "74\n-9");
-        assert!(parse_dxf(bad.as_bytes(), None).is_err());
-    }
-
-    #[test]
-    fn writers_tick_once_per_triangle() {
-        let m = tetra();
-        for (name, ascii, entity) in [
-            ("t.obj", false, DxfEntity::Face3D),
-            ("t.stl", false, DxfEntity::Face3D),
-            ("t.stl", true, DxfEntity::Face3D),
-            ("t.dxf", false, DxfEntity::Face3D),
-            ("p.dxf", false, DxfEntity::Polyface),
-        ] {
-            let path =
-                std::env::temp_dir().join(format!("boitata-io-{}-{name}", std::process::id()));
-            let progress = Progress::new(Some(4));
-            write_mesh(&path, &m, ascii, entity, Some(&progress)).unwrap();
-            assert_eq!(progress.snapshot().0, 4);
-        }
+        assert!(parse_dxf(bad.as_bytes()).is_err());
     }
 
     #[test]
@@ -745,7 +685,7 @@ mod tests {
         drawing.add_entity(Entity::new(EntityType::Face3D(face)));
         let mut bytes = Vec::new();
         drawing.save(&mut bytes).unwrap();
-        let m = parse_dxf(&bytes, None).unwrap();
+        let m = parse_dxf(&bytes).unwrap();
         assert_eq!(m.triangles(), &[[0, 1, 2], [0, 2, 3]]);
         assert_eq!(m.area(), 1.0);
     }

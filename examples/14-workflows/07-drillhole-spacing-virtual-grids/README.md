@@ -92,7 +92,7 @@ Variogram(nugget=0.3712292816104307, structures=[Structure("spherical", sill=0.6
 <details><summary>Python</summary>
 
 ```python
-candidates = tb.simulate(nodes, n=20, seed=101, blocks=panels[40], window=(40, 40), keep=True, progress=False)
+candidates = tb.simulate(nodes, n=20, seed=101, blocks=panels[40], window=(40, 40), keep=True)
 truths = bt.select_realizations(candidates, 3, seed=0)
 means = candidates.realizations[:, inside(40)].mean(axis=1)
 print(
@@ -129,7 +129,6 @@ study = {
         blocks=panels[side],
         window=(side, side),
         composite_length=np.inf,
-        progress=False,
     )
     for side in (40, 80)
 }
@@ -286,7 +285,6 @@ reference = bt.spacing_study(
     blocks=panels[40],
     window=(40, 40),
     composite_length=np.inf,
-    progress=False,
 )
 reference = reference.filter(inside(40)[np.asarray(reference["row"], dtype=int)])
 plan = np.asarray(reference["plan"])

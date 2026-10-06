@@ -49,8 +49,7 @@ sand = image.mean()
 plain = bt.SNESIM(ti, "facies").fit(wells, facies)
 steered = bt.SNESIM(ti, "facies", target_proportions=[1 - sand, sand], servo=0.8).fit(wells, facies)
 summaries = {
-    name: s.simulate(grid, n=50, seed=3, keep=[0], progress=False)
-    for name, s in [("plain", plain), ("servo", steered)]
+    name: s.simulate(grid, n=50, seed=3, keep=[0]) for name, s in [("plain", plain), ("servo", steered)]
 }
 for name, summary in summaries.items():
     share = summary.proportions[:, 1]

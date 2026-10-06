@@ -72,7 +72,7 @@ print(f"normal scores: {gaussian}\ngrades:        {raw}")
 # %%
 grid = bt.BlockModel(origin=(0.5, 0.5), size=(5, 5), count=(52, 60))
 search = bt.Search(radius=100, max_samples=24)
-options = {"n": 30, "seed": 42, "keep": True, "progress": False}
+options = {"n": 30, "seed": 42, "keep": True}
 with warnings.catch_warnings(record=True) as caught:
     warnings.simplefilter("always")
     dss = bt.DSS(raw, search).fit(samples, "V", weights=weights).simulate(grid, **options)

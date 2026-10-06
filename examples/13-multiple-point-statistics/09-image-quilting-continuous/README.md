@@ -41,12 +41,10 @@ def correlation(a, b):
 summaries = {
     f"quilting, patch {size}": bt.ImageQuilting(ti, "amplitude", patch_size=size)
     .fit(wells, values)
-    .simulate(section, n=50, seed=11, keep=[0], progress=False)
+    .simulate(section, n=50, seed=11, keep=[0])
     for size in (9, 25)
 }
-summaries["SNESIM"] = (
-    bt.SNESIM(ti, "amplitude").fit(wells, values).simulate(section, n=50, seed=11, keep=[0], progress=False)
-)
+summaries["SNESIM"] = bt.SNESIM(ti, "amplitude").fit(wells, values).simulate(section, n=50, seed=11, keep=[0])
 for name, summary in summaries.items():
     print(
         f"{name}: hard data reproduced {np.allclose(summary.realizations[:, at_traces.ravel()], values)}, "

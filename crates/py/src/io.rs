@@ -10,7 +10,6 @@ use pyo3::types::PyBytes;
 
 use crate::blocks::Mesh;
 use crate::containers::{PyBlockModel, PyPointSet, PyPolylines, coords_array};
-use crate::progress::with_progress;
 use crate::table::{Table, fill_units, to_batch, to_batches};
 use crate::{error, invalid};
 
@@ -53,22 +52,19 @@ fn nodata(values: Option<Vec<Bound<PyAny>>>) -> PyResult<Vec<Nodata>> {
 /// units : dict of str to str, optional
 ///     Column name to unit for columns that have none; the defaults of
 ///     `set_units` fill the rest.
-/// progress : bool, default True
-///     Show a `tqdm` progress bar.
 ///
 /// Notes
 /// -----
 /// A header such as ``au [g/t]`` or ``au (g/t)`` reads as column ``au`` with
 /// unit ``g/t`` when the bracket holds a unit.
 #[pyfunction]
-#[pyo3(signature = (path, *, nodata=None, delimiter=",", units=None, progress=true))]
+#[pyo3(signature = (path, *, nodata=None, delimiter=",", units=None))]
 fn read_csv(
     py: Python,
     path: PathBuf,
     nodata: Option<Vec<Bound<PyAny>>>,
     delimiter: &str,
     units: Option<HashMap<String, String>>,
-    progress: bool,
 ) -> PyResult<Table> {
     let &[delimiter] = delimiter.as_bytes() else {
         return Err(invalid("delimiter must be a single byte"));
@@ -77,126 +73,98 @@ fn read_csv(
         delimiter,
         nodata: self::nodata(nodata)?,
     };
-    let batch = with_progress(py, None, progress, |counter| {
-        boitata_io::read_csv(path, &options, counter)
-    })?
-    .map_err(io_error)?;
+    let batch = py
+        .detach(|| boitata_io::read_csv(path, &options))
+        .map_err(io_error)?;
     Ok(Table(fill_units(batch, units.as_ref())?))
 }
 
-/// Writes a headed CSV. `progress` shows a `tqdm` bar.
+/// Writes a headed CSV.
 #[pyfunction]
-#[pyo3(signature = (path, table, *, progress=true))]
-fn write_csv(py: Python, path: PathBuf, table: &Bound<PyAny>, progress: bool) -> PyResult<()> {
+#[pyo3(signature = (path, table))]
+fn write_csv(py: Python, path: PathBuf, table: &Bound<PyAny>) -> PyResult<()> {
     let batch = to_batch(table)?;
-    let total = Some(batch.num_rows() as u64);
-    with_progress(py, total, progress, |counter| {
-        boitata_io::write_csv(path, &batch, counter)
-    })?
-    .map_err(io_error)
+    py.detach(|| boitata_io::write_csv(path, &batch))
+        .map_err(io_error)
 }
 
 /// Reads a GSLIB file; the title is kept in the schema metadata and
 /// `nodata` values, as in `read_csv`, become null. `units` gives columns their
-/// units as in `read_csv`. `progress` shows a `tqdm` bar.
+/// units as in `read_csv`.
 #[pyfunction]
-#[pyo3(signature = (path, *, nodata=None, units=None, progress=true))]
+#[pyo3(signature = (path, *, nodata=None, units=None))]
 fn read_gslib(
     py: Python,
     path: PathBuf,
     nodata: Option<Vec<Bound<PyAny>>>,
     units: Option<HashMap<String, String>>,
-    progress: bool,
 ) -> PyResult<Table> {
     let nodata = self::nodata(nodata)?;
-    let batch = with_progress(py, None, progress, |counter| {
-        boitata_io::read_gslib(path, &nodata, counter)
-    })?
-    .map_err(io_error)?;
+    let batch = py
+        .detach(|| boitata_io::read_gslib(path, &nodata))
+        .map_err(io_error)?;
     Ok(Table(fill_units(batch, units.as_ref())?))
 }
 
-/// Writes numeric columns as GSLIB; nulls are written as `nodata`. `progress`
-/// shows a `tqdm` bar.
+/// Writes numeric columns as GSLIB; nulls are written as `nodata`.
 #[pyfunction]
-#[pyo3(signature = (path, table, *, nodata=-999.0, progress=true))]
-fn write_gslib(
-    py: Python,
-    path: PathBuf,
-    table: &Bound<PyAny>,
-    nodata: f64,
-    progress: bool,
-) -> PyResult<()> {
+#[pyo3(signature = (path, table, *, nodata=-999.0))]
+fn write_gslib(py: Python, path: PathBuf, table: &Bound<PyAny>, nodata: f64) -> PyResult<()> {
     let batch = to_batch(table)?;
-    let total = Some(batch.num_rows() as u64);
-    with_progress(py, total, progress, |counter| {
-        boitata_io::write_gslib(path, &batch, nodata, counter)
-    })?
-    .map_err(io_error)
+    py.detach(|| boitata_io::write_gslib(path, &batch, nodata))
+        .map_err(io_error)
 }
 
 /// Writes a PointSet, a BlockModel, Polylines or any table to Parquet;
 /// containers keep their geometry, layout and CRS in the file metadata.
 /// Polylines are stored one row per feature, as ``Polylines.to_table``.
-/// `progress` shows a `tqdm` bar.
 #[pyfunction]
-#[pyo3(signature = (path, data, *, progress=true))]
-fn write_parquet(py: Python, path: PathBuf, data: &Bound<PyAny>, progress: bool) -> PyResult<()> {
+#[pyo3(signature = (path, data))]
+fn write_parquet(py: Python, path: PathBuf, data: &Bound<PyAny>) -> PyResult<()> {
     if let Ok(points) = data.cast::<PyPointSet>() {
         let points = &points.get().0;
-        let total = Some(points.len() as u64);
-        return with_progress(py, total, progress, |counter| {
-            boitata_io::write_points(path, points, counter)
-        })?
-        .map_err(io_error);
+        return py
+            .detach(|| boitata_io::write_points(path, points))
+            .map_err(io_error);
     }
     if let Ok(lines) = data.cast::<PyPolylines>() {
         let lines = &lines.get().0;
-        let total = Some(lines.len() as u64);
-        return with_progress(py, total, progress, |counter| {
-            boitata_io::write_polylines(path, lines, counter)
-        })?
-        .map_err(io_error);
+        return py
+            .detach(|| boitata_io::write_polylines(path, lines))
+            .map_err(io_error);
     }
     if let Ok(model) = data.cast::<PyBlockModel>() {
         let model = &model.get().0;
-        let total = Some(model.len() as u64);
-        return with_progress(py, total, progress, |counter| {
-            boitata_io::write_block_model(path, model, counter)
-        })?
-        .map_err(io_error);
+        return py
+            .detach(|| boitata_io::write_block_model(path, model))
+            .map_err(io_error);
     }
     let (schema, batches) = to_batches(data)?;
-    let total = Some(batches.iter().map(|b| b.num_rows() as u64).sum());
-    with_progress(py, total, progress, |counter| {
-        boitata_io::write_parquet_batches(path, schema, &batches, counter)
-    })?
-    .map_err(io_error)
+    py.detach(|| boitata_io::write_parquet_batches(path, schema, &batches))
+        .map_err(io_error)
 }
 
 /// Reads Parquet as the PointSet, BlockModel or Polylines it was written
 /// from, or a Table. `units` gives columns their units as in `read_csv`;
 /// units stored in the file are kept as written, even when not understood.
 /// `length_unit` is the unit of coordinates the file does not give one, by
-/// default that of `set_units`. `progress` shows a `tqdm` bar.
+/// default that of `set_units`.
 #[pyfunction]
-#[pyo3(signature = (path, *, units=None, length_unit=None, progress=true))]
+#[pyo3(signature = (path, *, units=None, length_unit=None))]
 fn read_parquet(
     py: Python,
     path: PathBuf,
     units: Option<HashMap<String, String>>,
     length_unit: Option<String>,
-    progress: bool,
 ) -> PyResult<Py<PyAny>> {
     let fill = |batch: &RecordBatch| fill_units(batch.clone(), units.as_ref());
     let length = |stored: Option<String>| match stored {
         Some(u) => Ok(Some(u)),
         None => crate::table::length_unit(length_unit.clone()),
     };
-    let stored = with_progress(py, None, progress, |counter| {
-        boitata_io::read_parquet(path, counter)
-    })?
-    .map_err(io_error)?;
+    let stored = py
+        .detach(|| boitata_io::read_parquet(path))
+        .map_err(io_error)?;
     Ok(match stored {
         boitata_io::Stored::Polylines(l) => {
             let mut l = l.with_attributes(fill(l.attributes())?).map_err(invalid)?;
@@ -226,24 +194,16 @@ fn read_parquet(
 ///     has any. DXF reads `3DFACE`, polyface `POLYLINE` and `MESH` (level-0
 ///     cage, ASCII files only) entities as triangles with a face column
 ///     `layer`; `MESH` faces come last.
-/// progress : bool, default True
-///     Show a `tqdm` bar.
 ///
 /// Returns
 /// -------
 /// Mesh
 #[pyfunction]
-#[pyo3(signature = (path, *, length_unit=None, progress=true))]
-fn read_mesh(
-    py: Python,
-    path: PathBuf,
-    length_unit: Option<String>,
-    progress: bool,
-) -> PyResult<Mesh> {
-    let mut mesh = with_progress(py, None, progress, |counter| {
-        boitata_io::read_mesh(path, counter)
-    })?
-    .map_err(io_error)?;
+#[pyo3(signature = (path, *, length_unit=None))]
+fn read_mesh(py: Python, path: PathBuf, length_unit: Option<String>) -> PyResult<Mesh> {
+    let mut mesh = py
+        .detach(|| boitata_io::read_mesh(path))
+        .map_err(io_error)?;
     mesh.length_unit = crate::table::length_unit(length_unit)?;
     Ok(Mesh::from_core(mesh))
 }
@@ -262,17 +222,14 @@ fn read_mesh(
 /// dxf_entity : {"3dface", "polyface"}, default "3dface"
 ///     One `3DFACE` per triangle, or one polyface `POLYLINE` with shared
 ///     vertices per layer, split past 32767 vertices or faces.
-/// progress : bool, default True
-///     Show a `tqdm` bar.
 #[pyfunction]
-#[pyo3(signature = (path, mesh, *, ascii=false, dxf_entity="3dface", progress=true))]
+#[pyo3(signature = (path, mesh, *, ascii=false, dxf_entity="3dface"))]
 fn write_mesh(
     py: Python,
     path: PathBuf,
     mesh: PyRef<Mesh>,
     ascii: bool,
     dxf_entity: &str,
-    progress: bool,
 ) -> PyResult<()> {
     let dxf_entity = match dxf_entity {
         "3dface" => boitata_io::DxfEntity::Face3D,
@@ -284,11 +241,8 @@ fn write_mesh(
         }
     };
     let mesh = &mesh.mesh;
-    let total = Some(mesh.triangles().len() as u64);
-    with_progress(py, total, progress, |counter| {
-        boitata_io::write_mesh(path, mesh, ascii, dxf_entity, counter)
-    })?
-    .map_err(io_error)
+    py.detach(|| boitata_io::write_mesh(path, mesh, ascii, dxf_entity))
+        .map_err(io_error)
 }
 
 /// Reads a shapefile as a PointSet or Polylines.

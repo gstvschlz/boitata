@@ -456,15 +456,15 @@ def test_image_quilting_round_trip_simulates_bit_identically(categorical, tmp_pa
     simulator.to_parquet(path)
     unfitted = type(simulator).from_parquet(path).fit(coords[:, :2], **data)
     simulator.fit(coords[:, :2], **data)
-    summary = simulator.simulate(targets, n=3, seed=9, keep=True, progress=False, **given)
+    summary = simulator.simulate(targets, n=3, seed=9, keep=True, **given)
     same(
-        summary_arrays(unfitted.simulate(targets, n=3, seed=9, keep=True, progress=False, **given)),
+        summary_arrays(unfitted.simulate(targets, n=3, seed=9, keep=True, **given)),
         summary_arrays(summary),
     )
     simulator.to_parquet(path)
     for back in (type(simulator).from_parquet(path), pickle.loads(pickle.dumps(simulator))):
         same(
-            summary_arrays(back.simulate(targets, n=3, seed=9, keep=True, progress=False, **given)),
+            summary_arrays(back.simulate(targets, n=3, seed=9, keep=True, **given)),
             summary_arrays(summary),
         )
 
@@ -511,10 +511,10 @@ def test_multivariate_simulation_round_trip_simulates_bit_identically(impute, tm
     with pytest.raises(bt.InvalidInput, match="not fitted"):
         unfitted.simulate(nodes, n=2)
     mv.fit(coords, data, **fit)
-    expected = [summary_arrays(s) for s in mv.simulate(nodes, n=4, seed=9, keep=True, progress=False)]
+    expected = [summary_arrays(s) for s in mv.simulate(nodes, n=4, seed=9, keep=True)]
 
     def check(sim):
-        got = sim.simulate(nodes, n=4, seed=9, keep=True, progress=False)
+        got = sim.simulate(nodes, n=4, seed=9, keep=True)
         for a, b in zip(got, expected, strict=True):
             same(summary_arrays(a), b)
 

@@ -91,21 +91,6 @@ def test_gslib_round_trip(tmp_path):
     np.testing.assert_array_equal(back["cu"], table["cu"])
 
 
-def test_gslib_progress_does_not_change_output(tmp_path, capsys):
-    source = tmp_path / "grid.dat"
-    source.write_text("grid\n2\nau\ncu\n" + "1 -999\n0.25 3\n" * 500)
-    table = bt.read_gslib(source, progress=False)
-    assert capsys.readouterr().err == ""
-    bt.write_gslib(tmp_path / "on.dat", table, progress=True)
-    assert "100%" in capsys.readouterr().err
-    bt.write_gslib(tmp_path / "off.dat", table, progress=False)
-    assert (tmp_path / "on.dat").read_text() == (tmp_path / "off.dat").read_text()
-    on = bt.read_gslib(tmp_path / "on.dat", progress=True)
-    assert "1000/1000" in capsys.readouterr().err
-    off = bt.read_gslib(tmp_path / "on.dat", progress=False)
-    np.testing.assert_array_equal(on["cu"], off["cu"])
-
-
 def test_nodata_numbers_match_numerically_and_strings_as_tokens(tmp_path):
     path = tmp_path / "v.csv"
     path.write_text("v,rock\n-999.0,ox\n-999,none\n1,fr\n")
@@ -214,62 +199,6 @@ def test_mesh_dxf_polyface_and_obj_groups(tmp_path):
     bt.write_mesh(tmp_path / "g.obj", grouped)
     back = bt.read_mesh(tmp_path / "g.obj")
     assert list(back.face_attributes["group"]) == ["lid", "side", "side", "lid"]
-
-
-def test_parquet_progress_does_not_change_output(tmp_path, capsys):
-    points = bt.PointSet([[0, 0], [1, 1], [2, 2]], {"v": [1.0, 2.0, 3.0]})
-    model = bt.BlockModel(origin=(0, 0), size=(1, 1), count=(3, 3), attributes={"v": np.arange(9.0)})
-    masked = model.mask(np.arange(9) % 2 == 0)
-    for name, data in (("p", points), ("m", masked), ("t", bt.read_csv(_csv(tmp_path)))):
-        bt.write_parquet(tmp_path / f"{name}_on.parquet", data, progress=True)
-        assert "100%" in capsys.readouterr().err
-        bt.write_parquet(tmp_path / f"{name}_off.parquet", data, progress=False)
-        assert capsys.readouterr().err == ""
-        assert (tmp_path / f"{name}_on.parquet").read_bytes() == (
-            tmp_path / f"{name}_off.parquet"
-        ).read_bytes()
-        on = bt.read_parquet(tmp_path / f"{name}_on.parquet", progress=True)
-        assert "100%" in capsys.readouterr().err
-        off = bt.read_parquet(tmp_path / f"{name}_on.parquet", progress=False)
-        np.testing.assert_array_equal(
-            on["v"] if name != "t" else on["au"], off["v"] if name != "t" else off["au"]
-        )
-
-
-def _csv(tmp_path):
-    path = tmp_path / "t.csv"
-    path.write_text("au\n1\n2\n")
-    return path
-
-
-def test_csv_progress_does_not_change_output(tmp_path, capsys):
-    source = tmp_path / "in.csv"
-    source.write_text("au,rock\n" + "0.5,ox\n-999,fr\n" * 500)
-    table = bt.read_csv(source, progress=False)
-    assert capsys.readouterr().err == ""
-    bt.write_csv(tmp_path / "on.csv", table, progress=True)
-    assert "100%" in capsys.readouterr().err
-    bt.write_csv(tmp_path / "off.csv", table, progress=False)
-    assert (tmp_path / "on.csv").read_bytes() == (tmp_path / "off.csv").read_bytes()
-    on = bt.read_csv(tmp_path / "on.csv", progress=True)
-    assert "1000/1000" in capsys.readouterr().err
-    np.testing.assert_array_equal(on["au"], table["au"])
-
-
-def test_mesh_progress_does_not_change_output(tmp_path, capsys):
-    tetra = bt.Mesh(
-        [[0, 0, 0], [1, 0, 0], [0, 1, 0], [0, 0, 1]], [[0, 2, 1], [0, 1, 3], [0, 3, 2], [1, 2, 3]]
-    )
-    for name in ("m.obj", "m.stl", "m.dxf"):
-        bt.write_mesh(tmp_path / f"on_{name}", tetra, progress=True)
-        assert "100%" in capsys.readouterr().err
-        bt.write_mesh(tmp_path / f"off_{name}", tetra, progress=False)
-        assert capsys.readouterr().err == ""
-        on = bt.read_mesh(tmp_path / f"on_{name}", progress=True)
-        off = bt.read_mesh(tmp_path / f"on_{name}", progress=False)
-        np.testing.assert_array_equal(on.vertices, off.vertices)
-        if name != "m.dxf":
-            assert (tmp_path / f"on_{name}").read_bytes() == (tmp_path / f"off_{name}").read_bytes()
 
 
 def test_shapefile_round_trip(tmp_path):

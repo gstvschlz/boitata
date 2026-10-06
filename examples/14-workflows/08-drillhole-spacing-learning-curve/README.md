@@ -138,7 +138,6 @@ for side in (40, 80):
         blocks=panels[side],
         window=(side, side),
         quantiles=[0.05, 0.95],
-        progress=False,
     )
     windows[side] = (summary, window_mean(spacing, side), window_mean(truth, side))
     keep = inside(side)
@@ -204,7 +203,6 @@ study = bt.spacing_study(
     blocks=panels[40],
     window=(40, 40),
     composite_length=np.inf,
-    progress=False,
 )
 study = study.filter(inside(40)[np.asarray(study["row"], dtype=int)])
 grid = bt.uncertainty_curve("spacing", "mee", bins=[4, 6, 8.5, 11, 13.5, 17, 22, 27], data=study)

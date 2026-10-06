@@ -113,11 +113,11 @@ pub fn to_parquet<T: Tabular>(name: &str, value: &T, path: &Path) -> PyResult<()
         &RecordBatchOptions::new().with_row_count(Some(rows)),
     )
     .map_err(invalid)?;
-    boitata_io::write_model(path, &table, meta, None).map_err(io_error)
+    boitata_io::write_model(path, &table, meta).map_err(io_error)
 }
 
 pub fn from_parquet<T: Tabular>(name: &str, path: &Path) -> PyResult<T> {
-    let (table, meta) = boitata_io::read_model(path, None).map_err(io_error)?;
+    let (table, meta) = boitata_io::read_model(path).map_err(io_error)?;
     let columns = table
         .schema()
         .fields()

@@ -29,13 +29,6 @@ def test_every_public_name_has_an_api_entry():
     assert set(bt.__all__) - documented == set()
 
 
-def test_captured_progress_becomes_one_bar_and_text_stays_one_block(hooks):
-    captured = "  0%|          | 0/470 [00:00<?, ?it/s]\n100%|##########| 470/470 [00:01<00:00, 900it/s]\n\nmean 435\nCV 0.69\n"
-    out = hooks.OUTPUT.sub(hooks.progress_bars, f"{hooks.FENCE}\n{captured}```")
-    assert out.count('bt-progress"') == 1 and "470/470 · 00:01" in out and "it/s" not in out
-    assert out.count(hooks.FENCE) == 1 and "mean 435\nCV 0.69" in out
-
-
 def test_trail_marks_earlier_chapters_done_and_leaves_missing_pages_unlinked(hooks):
     chapters = [("01-a", "A", True), ("02-b", "B", True), ("03-c", "C", True), ("04-d", "D", False)]
     out = hooks.trail(chapters, "02")

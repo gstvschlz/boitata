@@ -19,7 +19,6 @@ mod modeling;
 mod multigaussian;
 mod persist;
 mod plan;
-mod progress;
 mod simulation;
 mod table;
 mod transforms;

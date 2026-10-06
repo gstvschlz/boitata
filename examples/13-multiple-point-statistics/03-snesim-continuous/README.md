@@ -54,7 +54,7 @@ give too many arrangements, and most cells fall back to the class proportions.
 ```python
 snesim = bt.SNESIM(ti, "amplitude").fit(wells, values)
 print("cutoffs:", np.round(np.quantile(image, [0.25, 0.5, 0.75])))
-summary = snesim.simulate(section, n=50, seed=11, keep=range(3), progress=False)
+summary = snesim.simulate(section, n=50, seed=11, keep=range(3))
 reals = summary.realizations.reshape(-1, nz, nx)
 etype = summary.mean.reshape(nz, nx)
 print(f"hard data reproduced: {np.allclose(reals[:, at_traces], values)}")

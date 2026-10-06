@@ -241,7 +241,6 @@ source = { virtual = "." }
 dependencies = [
     { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
     { name = "numpy", version = "2.5.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
-    { name = "tqdm" },
 ]
 
 [package.optional-dependencies]
@@ -249,7 +248,6 @@ dependencies = [
     { name = "pyvista", extra = ["jupyter"] },
 ]
 all = [
-    { name = "ipywidgets" },
     { name = "matplotlib" },
     { name = "pandas" },
     { name = "polars" },
@@ -277,7 +275,6 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "ipywidgets", marker = "extra == 'all'", specifier = ">=8" },
     { name = "matplotlib", marker = "extra == 'all'", specifier = ">=3.8" },
     { name = "matplotlib", marker = "extra == 'plot'", specifier = ">=3.8" },
     { name = "numpy", specifier = ">=1.26" },
@@ -286,7 +283,6 @@ requires-dist = [
     { name = "pyarrow", marker = "extra == 'all'", specifier = ">=16" },
     { name = "pyvista", extras = ["jupyter"], marker = "extra == '3d'", specifier = ">=0.45" },
     { name = "pyvista", extras = ["jupyter"], marker = "extra == 'all'", specifier = ">=0.45" },
-    { name = "tqdm", specifier = ">=4.66" },
 ]
 provides-extras = ["3d", "all", "plot"]
 

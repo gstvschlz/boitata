@@ -239,8 +239,8 @@ save(fig, "subblocks")
 
 # %%
 folder = Path(tempfile.mkdtemp())
-bt.write_csv(folder / "domain.csv", domain, progress=False)
-table = bt.read_csv(folder / "domain.csv", progress=False)
+bt.write_csv(folder / "domain.csv", domain)
+table = bt.read_csv(folder / "domain.csv")
 xyz = np.column_stack([table["x"], table["y"], table["z"]])
 size = (10.0, 10.0, 1.0)
 box = bt.BlockModel.from_extents(xyz, size=size, buffer=np.array(size) / 2)
@@ -271,8 +271,8 @@ print("same values:   ", np.allclose(rebuilt["cu"], domain["cu"]))
 
 # %%
 middle = rotated.with_column("cu", np.linspace(0.1, 3.0, len(rotated))).mask(k == 1)
-bt.write_parquet(folder / "middle.parquet", middle, progress=False)
-back = bt.read_parquet(folder / "middle.parquet", progress=False)
+bt.write_parquet(folder / "middle.parquet", middle)
+back = bt.read_parquet(folder / "middle.parquet")
 print(back)
 print("origin", back.origin, "rotation", back.rotation)
 print(

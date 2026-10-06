@@ -67,9 +67,7 @@ def runs_along_y(img):
 snesim = bt.SNESIM(ti, "facies")
 realizations = {}
 for title, (azimuth, semi, scale) in fields.items():
-    summary = snesim.simulate(
-        grid, n=1, seed=3, keep=True, anisotropy=anisotropy(azimuth, semi, scale), progress=False
-    )
+    summary = snesim.simulate(grid, n=1, seed=3, keep=True, anisotropy=anisotropy(azimuth, semi, scale))
     realizations[title] = summary.realizations[0].reshape(n, n)
     print(
         f"{title}: template classes {snesim.n_classes}, sand runs {runs_along_y(realizations[title]):.1f} cells along Y"
@@ -139,10 +137,8 @@ field = bt.LocalAnisotropy(
     section.centroids, np.column_stack([fold, 0 * fold, 0 * fold]), np.ones((along.size, 2))
 )
 continuous = bt.SNESIM(sections, "amplitude")
-flat = continuous.simulate(section, n=1, seed=2, keep=True, progress=False).realizations[0]
-folded = continuous.simulate(section, n=1, seed=2, keep=True, anisotropy=field, progress=False).realizations[
-    0
-]
+flat = continuous.simulate(section, n=1, seed=2, keep=True).realizations[0]
+folded = continuous.simulate(section, n=1, seed=2, keep=True, anisotropy=field).realizations[0]
 ```
 
 </details>

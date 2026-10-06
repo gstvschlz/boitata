@@ -1080,18 +1080,13 @@ pub(crate) mod tests {
             radius: f64::INFINITY,
             ..Default::default()
         };
-        crate::continuous(
-            n,
-            &Default::default(),
-            |k| {
-                let params = SgsParams {
-                    search: vec![search.clone()],
-                    seed: 100 + k as u64,
-                };
-                sgs(data_locs, data_vals, None, None, grid, vg, &params, None).map(|r| r.values)
-            },
-            None,
-        )
+        crate::continuous(n, &Default::default(), |k| {
+            let params = SgsParams {
+                search: vec![search.clone()],
+                seed: 100 + k as u64,
+            };
+            sgs(data_locs, data_vals, None, None, grid, vg, &params, None).map(|r| r.values)
+        })
         .unwrap()
     }
 

@@ -24,7 +24,7 @@ def test_categorical_realizations_keep_the_training_image_proportions():
     ti = channels()
     iq = bt.ImageQuilting(ti, "facies", patch_size=16)
     assert iq.categorical
-    s = iq.simulate(grid(), n=12, seed=3, keep=True, progress=False)
+    s = iq.simulate(grid(), n=12, seed=3, keep=True)
     assert isinstance(s, bt.CategoricalSummary)
     assert s.realizations.shape == (12, 3600)
     assert np.isin(s.realizations, [0, 1]).all()
@@ -36,7 +36,7 @@ def test_continuous_histogram_matches_the_training_image():
     ti = wave()
     iq = bt.ImageQuilting(ti, "grade", patch_size=14)
     assert not iq.categorical
-    s = iq.simulate(grid(), n=10, keep=True, progress=False)
+    s = iq.simulate(grid(), n=10, keep=True)
     assert isinstance(s, bt.SimulationSummary)
     reference = np.asarray(ti["grade"])
     span = np.ptp(reference)
@@ -47,7 +47,7 @@ def test_continuous_histogram_matches_the_training_image():
 def test_integer_codes_can_be_continuous():
     iq = bt.ImageQuilting(channels(), "facies", categorical=False, patch_size=10)
     assert not iq.categorical
-    s = iq.simulate(grid(20, 20), n=2, progress=False)
+    s = iq.simulate(grid(20, 20), n=2)
     assert isinstance(s, bt.SimulationSummary)
 
 
@@ -59,7 +59,7 @@ def test_hard_data_are_reproduced():
     xyz = targets.centroids[rows]
     codes = rng.integers(0, 2, 80)
     iq = bt.ImageQuilting(ti, "facies", patch_size=15).fit(xyz, codes)
-    s = iq.simulate(targets, n=4, keep=True, progress=False)
+    s = iq.simulate(targets, n=4, keep=True)
     np.testing.assert_array_equal(s.realizations[:, rows], np.tile(codes, (4, 1)))
     with pytest.raises(bt.InvalidInput, match="code"):
         iq.fit(xyz[:1], [3])
@@ -67,13 +67,13 @@ def test_hard_data_are_reproduced():
 
 def test_masked_targets_and_3d():
     masked = grid(30, 30).mask(np.arange(900) % 3 != 0)
-    s = bt.ImageQuilting(channels(), "facies", patch_size=10).simulate(masked, n=2, keep=True, progress=False)
+    s = bt.ImageQuilting(channels(), "facies", patch_size=10).simulate(masked, n=2, keep=True)
     assert s.realizations.shape == (2, 600)
     x, _, z = np.meshgrid(np.arange(16), np.arange(16), np.arange(8), indexing="ij")
     layers = ((x + 2 * z) // 4 % 2).astype(float)
     ti = bt.BlockModel((0, 0, 0), (1, 1, 1), (16, 16, 8), attributes={"f": layers.ravel(order="F")})
     targets = bt.BlockModel((0, 0, 0), (1, 1, 1), (12, 11, 8))
-    s = bt.ImageQuilting(ti, "f", patch_size=(6, 6, 4)).simulate(targets, n=1, keep=True, progress=False)
+    s = bt.ImageQuilting(ti, "f", patch_size=(6, 6, 4)).simulate(targets, n=1, keep=True)
     assert np.isin(s.realizations, [0, 1]).all()
 
 
@@ -110,18 +110,16 @@ def test_soft_probabilities_steer_the_realizations():
     soft = np.column_stack([1 - west, west])
     targets = bt.BlockModel((0, 0), (1, 1), (side, side), attributes={"p0": 1 - west, "p1": west})
     iq = bt.ImageQuilting(wide_channels(), "facies", patch_size=12, n_best=3)
-    free = iq.simulate(targets, n=6, keep=True, progress=False).realizations
-    steered = iq.simulate(targets, n=6, soft=soft, keep=True, progress=False).realizations
-    by_name = iq.simulate(targets, n=6, soft=["p0", "p1"], keep=True, progress=False).realizations
+    free = iq.simulate(targets, n=6, keep=True).realizations
+    steered = iq.simulate(targets, n=6, soft=soft, keep=True).realizations
+    by_name = iq.simulate(targets, n=6, soft=["p0", "p1"], keep=True).realizations
     np.testing.assert_array_equal(by_name, steered)
     is_west = west.astype(bool)
     assert steered[:, is_west].mean() > free[:, is_west].mean() + 0.1
     assert steered[:, ~is_west].mean() < free[:, ~is_west].mean() - 0.05
     # A row of nulls carries no probabilities.
     none = np.full((side * side, 2), np.nan)
-    np.testing.assert_array_equal(
-        iq.simulate(targets, n=6, soft=none, keep=True, progress=False).realizations, free
-    )
+    np.testing.assert_array_equal(iq.simulate(targets, n=6, soft=none, keep=True).realizations, free)
 
 
 def test_soft_probabilities_are_checked():
@@ -134,11 +132,9 @@ def test_soft_probabilities_are_checked():
         (np.array([[-1.0, 1.0]] * 100), "soft"),
     ]:
         with pytest.raises(ValueError, match=match):
-            iq.simulate(targets, n=1, soft=soft, progress=False)
+            iq.simulate(targets, n=1, soft=soft)
     with pytest.raises(ValueError, match="categorical"):
-        bt.ImageQuilting(wave(), "grade", patch_size=8).simulate(
-            targets, n=1, soft=np.ones((100, 2)), progress=False
-        )
+        bt.ImageQuilting(wave(), "grade", patch_size=8).simulate(targets, n=1, soft=np.ones((100, 2)))
 
 
 def test_a_secondary_variable_pulls_realizations_toward_its_pattern():
@@ -154,15 +150,15 @@ def test_a_secondary_variable_pulls_realizations_toward_its_pattern():
     def correlation(realizations):
         return np.mean([np.corrcoef(r, reference.ravel())[0, 1] for r in realizations])
 
-    free = bt.ImageQuilting(ti, "facies", patch_size=16).simulate(targets, n=4, keep=True, progress=False)
+    free = bt.ImageQuilting(ti, "facies", patch_size=16).simulate(targets, n=4, keep=True)
     steered = bt.ImageQuilting(ti, "facies", patch_size=16, secondary="s", secondary_weight=2.0).simulate(
-        targets, n=4, secondary="s", keep=True, progress=False
+        targets, n=4, secondary="s", keep=True
     )
     with_, without = correlation(steered.realizations), correlation(free.realizations)
     assert with_ > 0.5 and with_ > without + 0.4, (with_, without)
     # An array works as well as a column, and weight 0 leaves the variable out.
     iq = bt.ImageQuilting(ti, "facies", patch_size=16, secondary="s", secondary_weight=0.0)
-    same = iq.simulate(targets, n=4, secondary=smooth(reference).ravel(), keep=True, progress=False)
+    same = iq.simulate(targets, n=4, secondary=smooth(reference).ravel(), keep=True)
     np.testing.assert_array_equal(same.realizations, free.realizations)
 
 
@@ -171,7 +167,7 @@ def test_a_continuous_primary_takes_a_secondary_variable():
     grade = np.asarray(ti["grade"])
     ti = bt.BlockModel((0, 0), (1, 1), (80, 80), attributes={"grade": grade, "s": -grade})
     iq = bt.ImageQuilting(ti, "grade", patch_size=10, secondary="s")
-    s = iq.simulate(grid(20, 20), n=2, secondary=np.linspace(-1, 1, 400), progress=False)
+    s = iq.simulate(grid(20, 20), n=2, secondary=np.linspace(-1, 1, 400))
     assert isinstance(s, bt.SimulationSummary)
 
 
@@ -181,13 +177,11 @@ def test_secondary_is_given_to_both_or_neither():
     )
     targets = grid(10, 10)
     with pytest.raises(ValueError, match="neither"):
-        bt.ImageQuilting(ti, "f", patch_size=5, secondary="s").simulate(targets, n=1, progress=False)
+        bt.ImageQuilting(ti, "f", patch_size=5, secondary="s").simulate(targets, n=1)
     with pytest.raises(ValueError, match="neither"):
-        bt.ImageQuilting(ti, "f", patch_size=5).simulate(targets, n=1, secondary=np.ones(100), progress=False)
+        bt.ImageQuilting(ti, "f", patch_size=5).simulate(targets, n=1, secondary=np.ones(100))
     with pytest.raises(ValueError, match="secondary"):
-        bt.ImageQuilting(ti, "f", patch_size=5, secondary="s").simulate(
-            targets, n=1, secondary=np.ones(99), progress=False
-        )
+        bt.ImageQuilting(ti, "f", patch_size=5, secondary="s").simulate(targets, n=1, secondary=np.ones(99))
     with pytest.raises(ValueError, match="secondary_weight"):
         bt.ImageQuilting(ti, "f", secondary="s", secondary_weight=-1.0)
     with pytest.raises(ValueError, match="soft_weight"):

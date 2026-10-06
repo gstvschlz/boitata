@@ -32,8 +32,8 @@ pub mod simple_interp;
 pub mod validate;
 
 pub use batch::{
-    by_pass, estimate_many, estimate_many_ext, estimate_many_with, k_fold_at, leave_one_out_at,
-    leave_one_out_many, weight_declustering, weights_many,
+    by_pass, estimate_many, estimate_many_ext, k_fold_at, leave_one_out_at, leave_one_out_many,
+    weight_declustering, weights_many,
 };
 pub use block::{Discretization, block_covariances, block_krige, block_krige_points};
 pub use categorical::{CategoricalIndicator, CategoricalIndicatorSummary, correct_probabilities};

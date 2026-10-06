@@ -14,7 +14,6 @@ use crate::containers::PyBlockModel;
 use crate::estimation::targets;
 use crate::invalid;
 use crate::persist::{self, Columns, Found, Tabular};
-use crate::progress::with_progress;
 use crate::variogram::Variogram;
 
 enum Fitted {
@@ -394,33 +393,21 @@ impl ImplicitModel {
     }
 
     /// Field values at `targets`, with `(n, 3)` gradients when `gradient`, or
-    /// the predictive variance of ``engine="gp"`` when `variance`. `progress`
-    /// shows a `tqdm` bar over the field values.
-    #[pyo3(signature = (targets, *, gradient=false, variance=false, progress=true))]
+    /// the predictive variance of ``engine="gp"`` when `variance`.
+    #[pyo3(signature = (targets, *, gradient=false, variance=false))]
     fn predict<'py>(
         &self,
         py: Python<'py>,
         targets: &Bound<PyAny>,
         gradient: bool,
         variance: bool,
-        progress: bool,
     ) -> PyResult<Bound<'py, PyAny>> {
         let fitted = self.fitted()?;
         let pts: Vec<[f64; 3]> = self::targets(targets)?
             .into_iter()
             .map(|(x, y, z)| [x, y, z])
             .collect();
-        let values = with_progress(py, Some(pts.len() as u64), progress, |counter| {
-            pts.par_iter()
-                .map(|p| {
-                    let v = fitted.value(p);
-                    if let Some(c) = counter {
-                        c.inc();
-                    }
-                    v
-                })
-                .collect()
-        })?;
+        let values = py.detach(|| pts.par_iter().map(|p| fitted.value(p)).collect());
         if variance {
             let Fitted::Gp(gp) = fitted else {
                 return Err(invalid("only engine=\"gp\" has a variance"));
@@ -453,16 +440,14 @@ impl ImplicitModel {
     /// Mesh of the `isovalue` surface, the field sampled at the block
     /// centroids of `model`. Blocks a masked model leaves out are outside
     /// the solid. `closed` caps the solid where the field exceeds `isovalue`
-    /// on the block model's outer faces and at the edge of its mask. `progress`
-    /// shows a `tqdm` bar over the block centroids.
-    #[pyo3(signature = (model, *, isovalue=0.0, closed=false, progress=true))]
+    /// on the block model's outer faces and at the edge of its mask.
+    #[pyo3(signature = (model, *, isovalue=0.0, closed=false))]
     fn isosurface<'py>(
         &self,
         py: Python<'py>,
         model: PyRef<PyBlockModel>,
         isovalue: f64,
         closed: bool,
-        progress: bool,
     ) -> PyResult<Mesh> {
         let fitted = self.fitted()?;
         let g = *model.0.geometry();
@@ -479,22 +464,18 @@ impl ImplicitModel {
                 return Err(invalid("isosurface needs a regular or masked BlockModel"));
             }
         };
-        let cells: Vec<f64> = with_progress(py, Some(g.cells()), progress, |counter| {
+        let cells: Vec<f64> = py.detach(|| {
             (0..g.cells())
                 .into_par_iter()
                 .map(|n| {
-                    let v = if closed || active.as_ref().is_none_or(|a| a[n as usize]) {
+                    if closed || active.as_ref().is_none_or(|a| a[n as usize]) {
                         fitted.value(&g.centroid(n))
                     } else {
                         f64::NAN
-                    };
-                    if let Some(c) = counter {
-                        c.inc();
                     }
-                    v
                 })
                 .collect()
-        })?;
+        });
         let grid = ScalarGrid::blocks(g.size, g.count, &cells, active.as_deref(), isovalue, closed)
             .map_err(invalid)?;
         let mesh = py.detach(|| marching_tetrahedra(&grid, isovalue));

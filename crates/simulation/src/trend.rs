@@ -140,24 +140,19 @@ mod tests {
             keep: Keep::All,
             ..Default::default()
         };
-        continuous(
-            n,
-            &options,
-            |k| {
-                let r = sgs(
-                    locs,
-                    conditioning.scores(),
-                    Some(weights),
-                    None,
-                    nodes,
-                    &vg(),
-                    &params(k as u64),
-                    None,
-                )?;
-                conditioning.back(trend, &r.values)
-            },
-            None,
-        )
+        continuous(n, &options, |k| {
+            let r = sgs(
+                locs,
+                conditioning.scores(),
+                Some(weights),
+                None,
+                nodes,
+                &vg(),
+                &params(k as u64),
+                None,
+            )?;
+            conditioning.back(trend, &r.values)
+        })
         .unwrap()
     }
 

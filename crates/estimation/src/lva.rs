@@ -730,7 +730,6 @@ pub fn cokrige_many_local(
     search: &Search,
     model: &Coregionalization,
     kind: &CoKind,
-    progress: Option<&boitata_core::Progress>,
 ) -> Result<Vec<Option<Estimate>>> {
     if search.clamps() {
         return Err(invalid("cokriging does not clamp high grades"));
@@ -747,7 +746,7 @@ pub fn cokrige_many_local(
         .par_iter()
         .enumerate()
         .map(|(i, target)| {
-            let result = local_neighbors(&tree, local, i, target, None).and_then(|(chosen, a)| {
+            local_neighbors(&tree, local, i, target, None).and_then(|(chosen, a)| {
                 let near: Vec<CoSample> = chosen.iter().map(|&j| samples[j].clone()).collect();
                 let model = Coregionalization {
                     anisotropy: Some(a),
@@ -755,11 +754,7 @@ pub fn cokrige_many_local(
                 };
                 let here: Vec<(usize, f64)> = collocated.iter().map(|(k, v)| (*k, v[i])).collect();
                 collocated_cokrige(target, target_var, &near, &here, &model, kind).ok()
-            });
-            if let Some(p) = progress {
-                p.inc();
-            }
-            result
+            })
         })
         .collect())
 }
@@ -780,27 +775,6 @@ where
     F: Fn(&Point, &[Sample], &Variogram) -> Result<T> + Sync,
     T: Send,
 {
-    estimate_many_local_with(
-        targets, domains, local, samples, search, vg, estimator, None,
-    )
-}
-
-/// As [`estimate_many_local`], ticking `progress` for each target estimated.
-#[allow(clippy::too_many_arguments)]
-pub fn estimate_many_local_with<F, T>(
-    targets: &[Point],
-    domains: Option<&[u32]>,
-    local: &LocalAnisotropy,
-    samples: &[Sample],
-    search: &Search,
-    vg: &Variogram,
-    estimator: F,
-    progress: Option<&boitata_core::Progress>,
-) -> Result<Vec<Option<T>>>
-where
-    F: Fn(&Point, &[Sample], &Variogram) -> Result<T> + Sync,
-    T: Send,
-{
     let tree = local_tree(targets, local, samples, search)?;
     Ok(targets
         .par_iter()
@@ -812,11 +786,7 @@ where
                 anisotropy: Some(aniso),
                 ..vg.clone()
             };
-            let result = estimator(target, &selected, &vg).ok();
-            if let (Some(p), Some(_)) = (progress, &result) {
-                p.inc();
-            }
-            result
+            estimator(target, &selected, &vg).ok()
         })
         .collect())
 }
@@ -1358,7 +1328,6 @@ mod tests {
                 &cosearch(40.0, 20),
                 &lmc(30.0, 1.0, None),
                 &kind,
-                None,
             )
             .unwrap();
             let global = lmc(30.0 * scale, 1.0, Some(aniso.clone()));
@@ -1403,7 +1372,6 @@ mod tests {
             &search,
             &lmc(30.0, 1.0, None),
             &CoKind::Ordinary,
-            None,
         )
         .unwrap();
         for (i, (t, e)) in targets.iter().zip(&ours).enumerate() {
@@ -1440,7 +1408,6 @@ mod tests {
             &search,
             &lmc(30.0, 0.0, None),
             &CoKind::Ordinary,
-            None,
         )
         .unwrap();
         let primary: Vec<CoSample> = samples.iter().filter(|s| s.var == 0).cloned().collect();
@@ -1502,7 +1469,6 @@ mod tests {
             &search,
             &model,
             &kind,
-            None,
         )
         .unwrap();
         for (i, t) in targets.iter().enumerate() {
@@ -1511,8 +1477,7 @@ mod tests {
             let one = LocalAnisotropy::new(vec![*t], vec![local.angles[i]], vec![local.ratios[i]])
                 .unwrap();
             let want =
-                cokrige_many_local(&[*t], 0, &one, &appended, &[], &search, &model, &kind, None)
-                    .unwrap();
+                cokrige_many_local(&[*t], 0, &one, &appended, &[], &search, &model, &kind).unwrap();
             let (got, want) = (ours[i].as_ref().unwrap(), want[0].as_ref().unwrap());
             assert!((got.value - want.value).abs() < 1e-9);
             assert!((got.variance - want.variance).abs() < 1e-9);
@@ -1540,7 +1505,6 @@ mod tests {
                         &cosearch(30.0, 16),
                         &lmc(30.0, 1.0, None),
                         &CoKind::Ordinary,
-                        None,
                     )
                     .unwrap()
                     .iter()

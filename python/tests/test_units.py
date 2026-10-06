@@ -53,18 +53,18 @@ def test_compound_units_convert():
 def test_csv_headers_carry_units_and_unknown_stored_units_stay_opaque(tmp_path):
     path = tmp_path / "s.csv"
     path.write_text("hole (DDH),au [g/t],cu (%),dens\nA,1,2,2.7\n")
-    table = bt.read_csv(path, units={"dens": "t/m3", "cu": "ppm"}, progress=False)
+    table = bt.read_csv(path, units={"dens": "t/m3", "cu": "ppm"})
     assert table.column_names == ["hole (DDH)", "au", "cu", "dens"]
     assert table.units == {"au": "g/t", "cu": "%", "dens": "t/m3"}
     with pytest.raises(bt.InvalidInput, match="unknown unit"):
-        bt.read_csv(path, units={"dens": "tm3"}, progress=False)
+        bt.read_csv(path, units={"dens": "tm3"})
     pq = pytest.importorskip("pyarrow.parquet")
     stored = tmp_path / "opaque.parquet"
     bt.write_parquet(stored, bt.Table({"au": [1.0]}))
     raw = pq.read_table(stored)
     field = raw.schema.field("au").with_metadata({b"unit": b"dwt"})
     pq.write_table(raw.cast(raw.schema.set(0, field)), stored, compression="none")
-    opaque = bt.read_parquet(stored, progress=False)
+    opaque = bt.read_parquet(stored)
     assert opaque.units == {"au": "dwt"}
     with pytest.raises(bt.InvalidInput, match="the unit `dwt` of column `au` is not understood"):
         opaque.convert_units("au", to="g/t")
@@ -79,7 +79,7 @@ def test_project_units_fill_missing_units_only(tmp_path):
         with bt.units(columns={"au": "ppb", "cu": None}):
             assert bt.Table({"au": [1.0], "cu": [1.0]}).units == {"au": "ppb"}
         assert bt.Table({"au": [1.0], "cu": [1.0]}).units == {"au": "g/t", "cu": "%"}
-        assert bt.read_parquet(tmp_path / "p.parquet", progress=False).units == points.units
+        assert bt.read_parquet(tmp_path / "p.parquet").units == points.units
         with pytest.raises(bt.InvalidInput, match="unknown unit"):
             bt.set_units(columns={"au": "gpt"})
     finally:
@@ -123,19 +123,19 @@ def test_columns_carry_units_until_arithmetic():
 
 def test_estimates_take_the_unit_of_the_values():
     ok = bt.OrdinaryKriging(variogram, search).fit(samples, "au")
-    estimate, variance = ok.predict(grid, return_variance=True, progress=False)
+    estimate, variance = ok.predict(grid, return_variance=True)
     assert ok.unit == "g/t" and estimate.unit == "g/t" and variance.unit == "(g/t)^2"
     assert grid.with_column("au", estimate).units == {"au": "g/t"}
-    diagnostics = ok.predict(grid, diagnostics=True, progress=False)
+    diagnostics = ok.predict(grid, diagnostics=True)
     assert diagnostics.units == {"value": "g/t", "variance": "(g/t)^2"}
     cv = ok.cross_validate()
     assert (cv.actual.unit, cv.estimate.unit) == ("g/t", "g/t")
     idw = bt.InverseDistance(search).fit(samples.coords, samples["au"])
-    assert idw.predict(grid, progress=False).unit == "g/t"
+    assert idw.predict(grid).unit == "g/t"
     ik = bt.IndicatorKriging(variogram, search, threshold=1.0).fit(samples, "au")
-    assert ik.predict(grid, progress=False).unit == "ratio"
+    assert ik.predict(grid).unit == "ratio"
     unknown = bt.OrdinaryKriging(variogram, search).fit(samples.coords, np.asarray(samples["au"]))
-    assert not hasattr(unknown.predict(grid, progress=False), "unit")
+    assert not hasattr(unknown.predict(grid), "unit")
 
 
 def test_transforms_and_simulations_carry_units():
@@ -146,7 +146,7 @@ def test_transforms_and_simulations_carry_units():
     assert bt.NormalScore.from_json(ns.to_json()).inverse_transform(scores).unit == "g/t"
     assert bt.Capping(cap=2.0).fit(samples["au"]).transform(samples["au"]).unit == "g/t"
     sgs = bt.SGS(variogram, search).fit(samples, "au")
-    s = sgs.simulate(grid, n=3, seed=1, keep=True, cutoffs=[1.0], progress=False)
+    s = sgs.simulate(grid, n=3, seed=1, keep=True, cutoffs=[1.0])
     assert (s.mean.unit, s.variance.unit, s.realizations.unit, s.mean_above.unit) == (
         "g/t",
         "(g/t)^2",
@@ -176,21 +176,21 @@ def test_containers_declare_convert_and_store_length_units(tmp_path):
     assert ft.length_unit == "ft"
     np.testing.assert_allclose(ft.coords[1], [10 / FT, 0, 0])
     bt.write_parquet(tmp_path / "p.parquet", ft)
-    assert bt.read_parquet(tmp_path / "p.parquet", progress=False).length_unit == "ft"
+    assert bt.read_parquet(tmp_path / "p.parquet").length_unit == "ft"
     model = bt.BlockModel((0, 0, 0), (10, 10, 5), (2, 2, 1), length_unit="m", crs="EPSG:31982")
     with pytest.raises(bt.InvalidInput, match="give their CRS in ft"):
         model.to_length_unit("ft")
     moved = model.to_length_unit("ft", crs="local")
     np.testing.assert_allclose(moved.size, [10 / FT, 10 / FT, 5 / FT])
     bt.write_parquet(tmp_path / "b.parquet", moved)
-    assert bt.read_parquet(tmp_path / "b.parquet", progress=False).length_unit == "ft"
+    assert bt.read_parquet(tmp_path / "b.parquet").length_unit == "ft"
     with pytest.raises(bt.InvalidInput, match="declare the length unit"):
         bt.PointSet([[0.0, 0.0, 0.0]]).to_length_unit("m")
     with pytest.raises(bt.InvalidInput, match="need a length unit"):
         bt.PointSet([[0.0, 0.0, 0.0]], length_unit="g/t")
     with bt.units(length="ft"):
         assert bt.PointSet([[0.0, 0.0, 0.0]]).length_unit == "ft"
-        assert bt.read_parquet(tmp_path / "p.parquet", progress=False).length_unit == "ft"
+        assert bt.read_parquet(tmp_path / "p.parquet").length_unit == "ft"
     assert bt.PointSet([[0.0, 0.0, 0.0]]).length_unit is None
 
 
@@ -198,20 +198,18 @@ def test_kriging_with_parameters_in_feet_matches_kriging_in_metres():
     """Theory check: lengths in another unit change no estimate once converted."""
     data = bt.PointSet(samples.coords, samples.attributes, length_unit="m")
     targets = bt.BlockModel((0, 0, 0), (20, 20, 1), (5, 5, 1), length_unit="m")
-    metres = bt.OrdinaryKriging(variogram, search).fit(data, "au").predict(targets, progress=False)
+    metres = bt.OrdinaryKriging(variogram, search).fit(data, "au").predict(targets)
     in_feet = bt.Variogram([("spherical", 0.25, 40.0 / FT)], length_unit="ft")
     search_feet = bt.Search(radius=60 / FT, max_samples=12, length_unit="ft")
-    feet = bt.OrdinaryKriging(in_feet, search_feet).fit(data, "au").predict(targets, progress=False)
+    feet = bt.OrdinaryKriging(in_feet, search_feet).fit(data, "au").predict(targets)
     np.testing.assert_allclose(feet, metres, rtol=1e-10)
     with pytest.raises(bt.InvalidInput, match="samples are in m and targets in ft"):
-        bt.OrdinaryKriging(variogram, search).fit(data, "au").predict(
-            targets.to_length_unit("ft"), progress=False
-        )
+        bt.OrdinaryKriging(variogram, search).fit(data, "au").predict(targets.to_length_unit("ft"))
     with pytest.raises(bt.InvalidInput, match="give them one"):
         bt.OrdinaryKriging(in_feet, bt.Search(radius=60, length_unit="m"))
     # Coordinates without a unit are taken as they are, in the unit of the parameters.
     undeclared = bt.OrdinaryKriging(in_feet, search_feet).fit(samples.coords, samples["au"])
-    assert np.isfinite(undeclared.predict(targets.centroids, progress=False)).any()
+    assert np.isfinite(undeclared.predict(targets.centroids)).any()
 
 
 def test_variograms_carry_length_and_value_units():
@@ -232,7 +230,7 @@ def test_containers_in_different_units_do_not_meet():
     sgs = bt.SGS(variogram, search).fit(data, "au")
     feet_grid = bt.BlockModel((0, 0, 0), (20, 20, 1), (5, 5, 1), length_unit="ft")
     with pytest.raises(bt.InvalidInput, match="samples are in m and targets in ft"):
-        sgs.simulate(feet_grid, n=1, seed=1, progress=False)
+        sgs.simulate(feet_grid, n=1, seed=1)
     with pytest.raises(bt.InvalidInput, match="variogram and search lengths are in ft and samples in m"):
         bt.SGS(bt.Variogram([("spherical", 1.0, 30.0)], length_unit="ft"), search).fit(data, "au")
     fine = bt.BlockModel((0, 0, 0), (10, 10, 1), (4, 4, 1), length_unit="m").with_column("v", np.ones(16))
@@ -328,7 +326,6 @@ def test_recoveries_and_simulated_curves_carry_units():
             seed=2,
             grade_tonnage_cutoffs=[0.0, 1.0],
             density="dens",
-            progress=False,
         )
     )
     curves = summary.grade_tonnage()
@@ -343,11 +340,11 @@ def test_parameters_take_text_with_units():
     """Theory check: a parameter in another unit gives the result of its value converted."""
     data = bt.PointSet(samples.coords, samples.attributes, length_unit="m")
     targets = bt.BlockModel((0, 0, 0), (20, 20, 1), (5, 5, 1), length_unit="m")
-    metres = bt.OrdinaryKriging(variogram, search).fit(data, "au").predict(targets, progress=False)
+    metres = bt.OrdinaryKriging(variogram, search).fit(data, "au").predict(targets)
     feet_variogram = bt.Variogram([("spherical", 0.25, f"{40 / FT} ft")])
     feet_search = bt.Search(radius=f"{60 / FT} ft", max_samples=12)
     assert (feet_variogram.length_unit, feet_search.length_unit) == ("ft", "ft")
-    feet = bt.OrdinaryKriging(feet_variogram, feet_search).fit(data, "au").predict(targets, progress=False)
+    feet = bt.OrdinaryKriging(feet_variogram, feet_search).fit(data, "au").predict(targets)
     np.testing.assert_allclose(feet, metres, rtol=1e-10)
     with pytest.raises(bt.InvalidInput, match="the variogram declare no length unit"):
         bt.OrdinaryKriging(variogram, feet_search).fit(data, "au")
@@ -368,20 +365,16 @@ def test_parameters_take_text_with_units():
         bt.grade_tonnage([1.0, 2.0], ["1 g/t"])
     ik = bt.IndicatorKriging(variogram, search, threshold="1000 ppb").fit(samples, "au")
     same = bt.IndicatorKriging(variogram, search, threshold=1.0).fit(samples, "au")
-    np.testing.assert_array_equal(ik.predict(grid, progress=False), same.predict(grid, progress=False))
+    np.testing.assert_array_equal(ik.predict(grid), same.predict(grid))
     assert (
-        bt.IndicatorKriging(variogram, search, threshold="1 g/t")
-        .fit(ppb, "au")
-        .predict(grid, progress=False)
-        .unit
-        == "ratio"
+        bt.IndicatorKriging(variogram, search, threshold="1 g/t").fit(ppb, "au").predict(grid).unit == "ratio"
     )
     experimental = bt.experimental_variogram(data, "au", "10 m", f"{60 / FT} ft")
     assert experimental.lags.max() < 60
     sgs = bt.SGS(variogram, search).fit(samples, "au")
-    s = sgs.simulate(grid, n=2, seed=1, cutoffs=["1000 ppb"], progress=False)
+    s = sgs.simulate(grid, n=2, seed=1, cutoffs=["1000 ppb"])
     np.testing.assert_array_equal(
-        s.probability_above, sgs.simulate(grid, n=2, seed=1, cutoffs=[1.0], progress=False).probability_above
+        s.probability_above, sgs.simulate(grid, n=2, seed=1, cutoffs=[1.0]).probability_above
     )
 
 
@@ -414,18 +407,14 @@ def test_every_estimator_takes_the_unit_of_its_values():
         [[0.0, 0.0], [0.0, 0.0]], structures=[("spherical", 40.0, [[1.0, 0.5], [0.5, 1.0]])]
     )
     variables = samples.with_column("var", np.arange(len(samples)) % 2)
-    estimate, var = (
-        bt.Cokriging(lmc, search)
-        .fit(variables, "au", "var")
-        .predict(grid, return_variance=True, progress=False)
-    )
+    estimate, var = bt.Cokriging(lmc, search).fit(variables, "au", "var").predict(grid, return_variance=True)
     assert (estimate.unit, var.unit) == ("g/t", "(g/t)^2")
     hermite = bt.HermiteAnamorphosis(degree=10).fit(au)
     dk = bt.DisjunctiveKriging(hermite, variogram, search).fit(samples, "au")
-    assert dk.predict(grid, progress=False).unit == "g/t"
-    assert dk.predict_tonnage(grid, 1.0, progress=False).unit == "ratio"
+    assert dk.predict(grid).unit == "g/t"
+    assert dk.predict_tonnage(grid, 1.0).unit == "ratio"
     mik = bt.MultipleIndicatorKriging(variogram, search, [0.8, 1.5]).fit(samples, "au")
-    summary = mik.predict(grid, cutoffs=[1.0], quantiles=[0.5], progress=False)
+    summary = mik.predict(grid, cutoffs=[1.0], quantiles=[0.5])
     assert (summary.mean.unit, summary.variance.unit, summary.quantile_values.unit) == (
         "g/t",
         "(g/t)^2",
@@ -447,9 +436,9 @@ def test_saved_estimators_keep_their_units(tmp_path):
     feet.to_parquet(tmp_path / "ok.parquet")
     back = bt.OrdinaryKriging.from_parquet(tmp_path / "ok.parquet")
     targets = bt.BlockModel((0, 0, 0), (20, 20, 1), (5, 5, 1), length_unit="m")
-    restored = back.predict(targets, progress=False)
+    restored = back.predict(targets)
     assert restored.unit == "g/t"
-    np.testing.assert_array_equal(restored, feet.predict(targets, progress=False))
+    np.testing.assert_array_equal(restored, feet.predict(targets))
 
 
 def test_transforms_restore_units_and_conditioning_keeps_them():
@@ -478,7 +467,7 @@ def test_transforms_restore_units_and_conditioning_keeps_them():
 def test_multivariate_simulation_carries_each_variable_unit():
     table = samples.with_columns({"cu": samples["au"] * 0.1}).with_units({"cu": "%"})
     sim = bt.MultivariateSimulation(bt.PCA(), [bt.SGS(variogram, search)] * 2).fit(table, ["au", "cu"])
-    au, cu = sim.simulate(grid, n=2, seed=1, progress=False)
+    au, cu = sim.simulate(grid, n=2, seed=1)
     assert (au.mean.unit, cu.mean.unit) == ("g/t", "%")
 
 
@@ -498,7 +487,7 @@ def test_tables_carry_units_and_compare_in_one_unit():
     despiked = bt.despike(samples, "au")
     assert despiked.unit == "g/t"
     sgs = bt.SGS(variogram, search).fit(samples, "au")
-    summary = sgs.simulate(samples, n=3, seed=1, cutoffs=[1.0], quantiles=[0.05, 0.95], progress=False)
+    summary = sgs.simulate(samples, n=3, seed=1, cutoffs=[1.0], quantiles=[0.05, 0.95])
     truth = bt.Table({"t": samples["au"] * 1000}).with_units({"t": "ppb"})
     checked = summary.validate("t", data=truth, cutoff="1000 ppb", confidence=0.9)
     assert checked.units["truth"] == "g/t"
@@ -533,8 +522,8 @@ def test_remaining_parameters_take_text_with_units():
     np.testing.assert_allclose(in_metres.size[:2], [10 * FT, 10 * FT])
     mik = bt.MultipleIndicatorKriging(variogram, search, [0.8, 1.5]).fit(samples, "au")
     np.testing.assert_array_equal(
-        mik.predict(grid, cutoffs=["1000 ppb"], progress=False).probability_above,
-        mik.predict(grid, cutoffs=[1.0], progress=False).probability_above,
+        mik.predict(grid, cutoffs=["1000 ppb"]).probability_above,
+        mik.predict(grid, cutoffs=[1.0]).probability_above,
     )
     collar = {"HOLE_ID": ["A"], "X": [0.0], "Y": [0.0], "Z": [0.0]}
     survey = {"HOLE_ID": ["A"], "DEPTH": [0.0], "AZIMUTH": [0.0], "DIP": [90.0]}
@@ -561,7 +550,7 @@ def test_streamed_simulation_writes_its_units(tmp_path):
         quantiles=[0.5],
         keep=True,
     )
-    out = bt.read_parquet(tmp_path / "out.parquet", progress=False)
+    out = bt.read_parquet(tmp_path / "out.parquet")
     assert out.units == {
         "mean": "g/t",
         "variance": "(g/t)^2",

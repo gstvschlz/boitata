@@ -265,17 +265,15 @@ def read_csv(
     nodata: Sequence[float | str] | None = None,
     delimiter: str = ",",
     units: Mapping[str, str] | None = None,
-    progress: bool = True,
 ) -> Table: ...
-def write_csv(path: Path, table: TableLike, *, progress: bool = True) -> None: ...
+def write_csv(path: Path, table: TableLike) -> None: ...
 def read_gslib(
     path: Path,
     *,
     nodata: Sequence[float | str] | None = None,
     units: Mapping[str, str] | None = None,
-    progress: bool = True,
 ) -> Table: ...
-def write_gslib(path: Path, table: TableLike, *, nodata: float = -999.0, progress: bool = True) -> None: ...
+def write_gslib(path: Path, table: TableLike, *, nodata: float = -999.0) -> None: ...
 
 class NormalScore:
     def to_json(self) -> str: ...
@@ -1091,7 +1089,6 @@ class _Estimator:
         diagnostics: bool = False,
         domains: Label | Labels | None = None,
         domain_column: Column | None = None,
-        progress: bool = True,
     ) -> Any: ...
     def cross_validate(
         self, *, folds: int | None = None
@@ -1189,7 +1186,6 @@ class SGS:
         density: float | ArrayLike | Column | None = None,
         tonnage: ArrayLike | Column | None = None,
         categories: Labels | Column | None = None,
-        progress: bool = True,
     ) -> SimulationSummary: ...
 
 class DSS:
@@ -1240,7 +1236,6 @@ class DSS:
         density: float | ArrayLike | Column | None = None,
         tonnage: ArrayLike | Column | None = None,
         categories: Labels | Column | None = None,
-        progress: bool = True,
     ) -> SimulationSummary: ...
 
 class TurningBands:
@@ -1287,7 +1282,6 @@ class TurningBands:
         density: float | ArrayLike | Column | None = None,
         tonnage: ArrayLike | Column | None = None,
         categories: Labels | Column | None = None,
-        progress: bool = True,
     ) -> SimulationSummary: ...
     def simulate_to_parquet(
         self,
@@ -1304,7 +1298,6 @@ class TurningBands:
         domain_column: Column | None = None,
         trend: Column | None = None,
         discretization: tuple[int, int, int] | None = None,
-        progress: bool = True,
     ) -> dict[str, npt.NDArray[np.float64]]: ...
 
 class MultivariateSimulation:
@@ -1336,7 +1329,6 @@ class MultivariateSimulation:
         keep: bool | Sequence[int] = False,
         anisotropy: LocalAnisotropy | None = None,
         blocks: BlockModel | None = None,
-        progress: bool = True,
     ) -> list[SimulationSummary]: ...
 
 class SIS:
@@ -1361,7 +1353,6 @@ class SIS:
         keep: bool | Sequence[int] = False,
         blocks: BlockModel | None = None,
         proportions: ArrayLike | Table | None = None,
-        progress: bool = True,
     ) -> CategoricalSummary: ...
 
 class Plurigaussian:
@@ -1397,7 +1388,6 @@ class Plurigaussian:
         keep: bool | Sequence[int] = False,
         blocks: BlockModel | None = None,
         proportions: ArrayLike | Table | None = None,
-        progress: bool = True,
     ) -> CategoricalSummary: ...
 
 class SimulationSummary:
@@ -1530,7 +1520,6 @@ class Cokriging:
         return_variance: bool = False,
         anisotropy: LocalAnisotropy | None = None,
         collocated: Mapping[int, ArrayLike | Column] | None = None,
-        progress: bool = True,
     ) -> Any: ...
 
 class DisjunctiveKriging:
@@ -1543,10 +1532,8 @@ class DisjunctiveKriging:
     def fit(
         self, coords: ArrayLike | PointSet | BlockModel, values: ArrayLike | Column
     ) -> DisjunctiveKriging: ...
-    def predict(self, targets: Any, *, progress: bool = True) -> npt.NDArray[np.float64]: ...
-    def predict_tonnage(
-        self, targets: Any, cutoff: float, *, progress: bool = True
-    ) -> npt.NDArray[np.float64]: ...
+    def predict(self, targets: Any) -> npt.NDArray[np.float64]: ...
+    def predict_tonnage(self, targets: Any, cutoff: float) -> npt.NDArray[np.float64]: ...
 
 class MultipleIndicatorKriging:
     def to_parquet(self, path: Path) -> None: ...
@@ -1582,7 +1569,6 @@ class MultipleIndicatorKriging:
         anisotropy: LocalAnisotropy | None = None,
         diagnostics: bool = False,
         discretization: tuple[int, int, int] | None = None,
-        progress: bool = True,
     ) -> IndicatorSummary: ...
     def cross_validate(self, *, folds: int | None = None) -> IndicatorCrossValidation: ...
     def localize(
@@ -1690,7 +1676,6 @@ class CategoricalIndicatorKriging:
         domain_column: Column | None = None,
         anisotropy: LocalAnisotropy | None = None,
         diagnostics: bool = False,
-        progress: bool = True,
     ) -> CategoricalIndicatorSummary: ...
     def cross_validate(self, *, folds: int | None = None) -> CategoricalCrossValidation: ...
 
@@ -2021,24 +2006,17 @@ class ImplicitModel:
         planes: ArrayLike | None = None,
         lineations: ArrayLike | None = None,
     ) -> ImplicitModel: ...
-    def predict(
-        self, targets: Any, *, gradient: bool = False, variance: bool = False, progress: bool = True
-    ) -> Any: ...
-    def isosurface(
-        self, model: BlockModel, *, isovalue: float = 0.0, closed: bool = False, progress: bool = True
-    ) -> Mesh: ...
+    def predict(self, targets: Any, *, gradient: bool = False, variance: bool = False) -> Any: ...
+    def isosurface(self, model: BlockModel, *, isovalue: float = 0.0, closed: bool = False) -> Mesh: ...
     @property
     def report(self) -> dict[str, Any] | None: ...
 
-def write_parquet(
-    path: Path, data: PointSet | BlockModel | Polylines | TableLike, *, progress: bool = True
-) -> None: ...
+def write_parquet(path: Path, data: PointSet | BlockModel | Polylines | TableLike) -> None: ...
 def read_parquet(
     path: Path,
     *,
     units: Mapping[str, str] | None = None,
     length_unit: str | None = None,
-    progress: bool = True,
 ) -> PointSet | BlockModel | Polylines | Table: ...
 def set_units(*, columns: Mapping[str, str | None] | None = None, length: str | None = None) -> None: ...
 
@@ -2069,14 +2047,13 @@ def map_blocks(
     rows: int = 1_000_000,
     keep: bool = True,
 ) -> None: ...
-def read_mesh(path: Path, *, length_unit: str | None = None, progress: bool = True) -> Mesh: ...
+def read_mesh(path: Path, *, length_unit: str | None = None) -> Mesh: ...
 def write_mesh(
     path: Path,
     mesh: Mesh,
     *,
     ascii: bool = False,
     dxf_entity: Literal["3dface", "polyface"] = "3dface",
-    progress: bool = True,
 ) -> None: ...
 def read_geotiff(
     path: Path, *, nodata: float | None = None, length_unit: str | None = None
@@ -2413,7 +2390,6 @@ class SNESIM:
         anisotropy: LocalAnisotropy | None = None,
         domains: Label | Labels | None = None,
         domain_column: str | None = None,
-        progress: bool = True,
     ) -> CategoricalSummary | SimulationSummary: ...
 
 # Image quilting.
@@ -2448,5 +2424,4 @@ class ImageQuilting:
         keep: bool | Sequence[int] = False,
         soft: Sequence[Column] | ArrayLike | None = None,
         secondary: ArrayLike | Column | None = None,
-        progress: bool = True,
     ) -> CategoricalSummary | SimulationSummary: ...

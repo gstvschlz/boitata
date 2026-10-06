@@ -4,7 +4,6 @@
 
 use transforms::{Maf, Pca, Ppmt, StepwiseConditional};
 
-use boitata_core::Progress;
 use boitata_core::rng::realization_seed;
 
 use crate::error::Result;
@@ -63,33 +62,26 @@ pub fn multivariate(
     options: &ContinuousOptions,
     support: Option<&BlockSupport>,
     simulate: impl Fn(usize, usize, u64) -> Result<Vec<f64>> + Sync,
-    progress: Option<&Progress>,
 ) -> Result<Vec<ContinuousSummary>> {
-    continuous_many(
-        n,
-        factors,
-        options,
-        |k| {
-            let columns = (0..factors)
-                .map(|j| simulate(k, j, factor_seed(seed, k, j)))
-                .collect::<Result<Vec<_>>>()?;
-            let nodes = columns.first().map_or(0, Vec::len);
-            let rows: Vec<Vec<f64>> = (0..nodes)
-                .map(|i| columns.iter().map(|c| c[i]).collect())
-                .collect();
-            let back = transform.back(&rows);
-            (0..factors)
-                .map(|v| {
-                    let values: Vec<f64> = back.iter().map(|r| r[v]).collect();
-                    match support {
-                        Some(s) => s.mean(&values),
-                        None => Ok(values),
-                    }
-                })
-                .collect()
-        },
-        progress,
-    )
+    continuous_many(n, factors, options, |k| {
+        let columns = (0..factors)
+            .map(|j| simulate(k, j, factor_seed(seed, k, j)))
+            .collect::<Result<Vec<_>>>()?;
+        let nodes = columns.first().map_or(0, Vec::len);
+        let rows: Vec<Vec<f64>> = (0..nodes)
+            .map(|i| columns.iter().map(|c| c[i]).collect())
+            .collect();
+        let back = transform.back(&rows);
+        (0..factors)
+            .map(|v| {
+                let values: Vec<f64> = back.iter().map(|r| r[v]).collect();
+                match support {
+                    Some(s) => s.mean(&values),
+                    None => Ok(values),
+                }
+            })
+            .collect()
+    })
 }
 
 /// As [`multivariate`], `batch` realizations at a time: `simulate(j, ks)`
@@ -103,38 +95,30 @@ pub fn multivariate_batched(
     support: Option<&BlockSupport>,
     batch: usize,
     mut simulate: impl FnMut(usize, std::ops::Range<usize>) -> Result<Vec<Vec<f64>>>,
-    progress: Option<&Progress>,
 ) -> Result<Vec<ContinuousSummary>> {
-    continuous_many_batched(
-        n,
-        factors,
-        options,
-        batch,
-        |ks| {
-            let columns = (0..factors)
-                .map(|j| simulate(j, ks.clone()))
-                .collect::<Result<Vec<_>>>()?;
-            (0..ks.len())
-                .map(|kk| {
-                    let nodes = columns.first().map_or(0, |c| c[kk].len());
-                    let rows: Vec<Vec<f64>> = (0..nodes)
-                        .map(|i| columns.iter().map(|c| c[kk][i]).collect())
-                        .collect();
-                    let back = transform.back(&rows);
-                    (0..factors)
-                        .map(|v| {
-                            let values: Vec<f64> = back.iter().map(|r| r[v]).collect();
-                            match support {
-                                Some(s) => s.mean(&values),
-                                None => Ok(values),
-                            }
-                        })
-                        .collect()
-                })
-                .collect()
-        },
-        progress,
-    )
+    continuous_many_batched(n, factors, options, batch, |ks| {
+        let columns = (0..factors)
+            .map(|j| simulate(j, ks.clone()))
+            .collect::<Result<Vec<_>>>()?;
+        (0..ks.len())
+            .map(|kk| {
+                let nodes = columns.first().map_or(0, |c| c[kk].len());
+                let rows: Vec<Vec<f64>> = (0..nodes)
+                    .map(|i| columns.iter().map(|c| c[kk][i]).collect())
+                    .collect();
+                let back = transform.back(&rows);
+                (0..factors)
+                    .map(|v| {
+                        let values: Vec<f64> = back.iter().map(|r| r[v]).collect();
+                        match support {
+                            Some(s) => s.mean(&values),
+                            None => Ok(values),
+                        }
+                    })
+                    .collect()
+            })
+            .collect()
+    })
 }
 
 #[cfg(test)]
@@ -186,26 +170,17 @@ mod tests {
             keep: Keep::All,
             ..Default::default()
         };
-        multivariate(
-            n,
-            3,
-            2,
-            &transform,
-            &options,
-            None,
-            |_, j, seed| {
-                let column: Vec<f64> = factors.iter().map(|r| r[j]).collect();
-                let params = SgsParams {
-                    search: vec![Search {
-                        max_samples: 12,
-                        ..Default::default()
-                    }],
-                    seed,
-                };
-                Ok(sgs(locs, &column, Some(weights), None, grid, &vg, &params, None)?.values)
-            },
-            None,
-        )
+        multivariate(n, 3, 2, &transform, &options, None, |_, j, seed| {
+            let column: Vec<f64> = factors.iter().map(|r| r[j]).collect();
+            let params = SgsParams {
+                search: vec![Search {
+                    max_samples: 12,
+                    ..Default::default()
+                }],
+                seed,
+            };
+            Ok(sgs(locs, &column, Some(weights), None, grid, &vg, &params, None)?.values)
+        })
         .unwrap()
     }
 
@@ -346,58 +321,40 @@ mod tests {
         let params = TurningBandsParams::default();
         let options = ContinuousOptions::default();
         let (n, seed) = (4, 3);
-        let want = multivariate(
-            n,
-            seed,
-            2,
-            &transform,
-            &options,
-            None,
-            |_, j, seed| {
-                let params = TurningBandsParams {
-                    seed,
-                    ..params.clone()
-                };
-                Ok(turning_bands(
-                    &locs,
-                    &column(j),
-                    Some(&weights),
-                    None,
-                    &targets,
-                    &vg,
-                    &params,
-                )?
-                .values)
-            },
-            None,
-        )
+        let want = multivariate(n, seed, 2, &transform, &options, None, |_, j, seed| {
+            let params = TurningBandsParams {
+                seed,
+                ..params.clone()
+            };
+            Ok(turning_bands(
+                &locs,
+                &column(j),
+                Some(&weights),
+                None,
+                &targets,
+                &vg,
+                &params,
+            )?
+            .values)
+        })
         .unwrap();
         let (lo, hi) = bounds(&targets);
         for batch in [1, 3, n] {
-            let got = multivariate_batched(
-                n,
-                2,
-                &transform,
-                &options,
-                None,
-                batch,
-                |j, ks| {
-                    let seeds: Vec<u64> = ks.clone().map(|k| factor_seed(seed, k, j)).collect();
-                    TurningBandsEnsemble::with_realizations(
-                        &locs,
-                        &[column(j)],
-                        Some(&weights),
-                        None,
-                        lo,
-                        hi,
-                        &vg,
-                        &params,
-                        &seeds,
-                    )?
-                    .realizations(0..ks.len(), &targets, |_| None, None)
-                },
-                None,
-            )
+            let got = multivariate_batched(n, 2, &transform, &options, None, batch, |j, ks| {
+                let seeds: Vec<u64> = ks.clone().map(|k| factor_seed(seed, k, j)).collect();
+                TurningBandsEnsemble::with_realizations(
+                    &locs,
+                    &[column(j)],
+                    Some(&weights),
+                    None,
+                    lo,
+                    hi,
+                    &vg,
+                    &params,
+                    &seeds,
+                )?
+                .realizations(0..ks.len(), &targets, |_| None, None)
+            })
             .unwrap();
             for (g, w) in got.iter().zip(&want) {
                 assert_eq!(g.mean, w.mean);
