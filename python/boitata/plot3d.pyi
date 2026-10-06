@@ -19,6 +19,7 @@ class Scene:
         data: Container | Any,
         values: str | None = None,
         *,
+        name: str | None = None,
         style: Style | None = None,
         radius: float | None = None,
         labels: bool = False,
@@ -26,8 +27,9 @@ class Scene:
     ) -> Self: ...
     def section(
         self,
-        origin: tuple[float, float, float] | Any | None,
+        origin: tuple[float, float, float] | Any | None = None,
         *,
+        points: Any | None = None,
         azimuth: float = 90.0,
         dip: float = 90.0,
         width: float | None = None,
@@ -42,6 +44,8 @@ class Scene:
         **kwargs: Any,
     ) -> Self: ...
     def view_section(self) -> Self: ...
+    def section_drawer(self, *, width: float | None = None) -> Self: ...
+    def layer_toggles(self, *, size: int = 18) -> Self: ...
     def show(self, *, browser: bool = False, **kwargs: Any) -> Path | Any: ...
     def screenshot(self, path: str | Path, *, scale: int = 1, transparent: bool = False) -> Path: ...
 

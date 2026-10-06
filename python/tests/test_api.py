@@ -30,6 +30,7 @@ POSITIONAL_DEFAULTS = {
     ("plot3d.plot", "values"),
     ("plot3d.slices", "values"),
     ("plot3d.Scene.add", "values"),
+    ("plot3d.Scene.section", "origin"),
 }
 # `domains` without `domain_column`: none.
 DOMAINS_EXEMPT = set()
@@ -44,6 +45,8 @@ NOT_PLOTS = {
     "plot3d.Scene.section",
     "plot3d.Scene.section_widget",
     "plot3d.Scene.view_section",
+    "plot3d.Scene.section_drawer",
+    "plot3d.Scene.layer_toggles",
 }
 # `fit` building a new model from experimental variograms, not fitting the object in place.
 MODEL_FITS = {"Variogram", "ExperimentalVariogram", "Coregionalization"}
