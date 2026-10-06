@@ -1,0 +1,24 @@
+name: colab
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ["ci/colab-*"]
+
+jobs:
+  notebook:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL && df -h /
+      - run: docker pull -q us-docker.pkg.dev/colab-images/public/cpu-runtime
+      - name: run the tour in the colab image
+        run: |
+          docker run --rm -v "$PWD:/w" -w /w --entrypoint bash us-docker.pkg.dev/colab-images/public/cpu-runtime -c '
+            jupyter nbconvert --to notebook --execute --ExecutePreprocessor.timeout=1200 \
+              --output /w/executed.ipynb notebooks/learn_00.ipynb'
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: executed
+          path: executed.ipynb
