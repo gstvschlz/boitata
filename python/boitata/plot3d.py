@@ -292,7 +292,7 @@ def _kind(data, mesh):
     pv = _pyvista()
     if isinstance(data, BlockModel) or isinstance(mesh, _Solid | pv.ImageData | pv.UnstructuredGrid):
         return "block models"
-    if isinstance(data, Drillholes):
+    if isinstance(data, Drillholes) or (isinstance(mesh, pv.PolyData) and mesh.n_lines and not mesh.n_faces):
         return "drill holes"
     if isinstance(data, PointSet) or _points_only(mesh):
         return "points"
