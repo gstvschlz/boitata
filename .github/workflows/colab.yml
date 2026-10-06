@@ -15,10 +15,6 @@ jobs:
       - name: run the tour in the colab image
         run: |
           docker run --rm -v "$PWD:/w" -w /w --entrypoint bash us-docker.pkg.dev/colab-images/public/cpu-runtime -c '
-            python3 --version
-            pip install -q "boitata[all]>=0.4" "pyvista[jupyter]" 2>&1 | tail -3
-            python3 -c "import vtk; print(vtk.vtkVersion.GetVTKVersion())" || true
-            python3 -c "import pyvista; print(pyvista.__version__)" || true
             jupyter nbconvert --to notebook --execute --ExecutePreprocessor.timeout=1200 \
               --output /w/executed.ipynb notebooks/learn_00.ipynb'
       - if: always()
