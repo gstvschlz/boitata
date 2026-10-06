@@ -43,7 +43,7 @@ print(f"sand: channels {channels['facies'].mean():.1%}, lenses {lenses['facies']
 x, y = grid.centroids[:, 0], grid.centroids[:, 1]
 domains = np.where(y > 150 - 0.2 * x, "lenses", "channels")
 snesim = bt.SNESIM({"channels": (channels, "facies"), "lenses": (lenses, "facies")})
-summary = snesim.simulate(grid, n=20, seed=1, keep=[0], domains=domains, progress=False)
+summary = snesim.simulate(grid, n=20, seed=1, keep=[0], domains=domains)
 for name, image in (("channels", channels), ("lenses", lenses)):
     share = summary.probabilities[domains == name, 1].mean()
     print(f"{name}: realizations {share:.1%} sand, image {image['facies'].mean():.1%}")

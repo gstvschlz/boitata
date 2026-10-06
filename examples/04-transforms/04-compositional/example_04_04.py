@@ -30,16 +30,54 @@ composition = bt.closure(parts, total=100)
 
 
 # %% [markdown]
-# the isometric log-ratio (ILR) maps each composition to 7 unconstrained coordinates. the projection-pursuit
-# multivariate transform (PPMT) turns those into independent standard gaussians, ready for independent simulation. the
-# way back must return every composition.
+# the arithmetic mean of each part ignores the constraint; the center, the closed geometric mean, is the mean of the
+# compositions in log-ratio terms. the variation matrix holds the variance of the log-ratio of each pair of parts: a
+# small entry means the two parts keep a near-constant ratio. its sum over 2D, the total variance, measures the spread
+# of the whole composition.
 
 # %%
-coords = bt.ilr(composition)
-ppmt = bt.PPMT(iterations=40, seed=7)
-gauss = ppmt.fit_transform(coords)
-back = bt.ilr_inverse(ppmt.inverse_transform(gauss)) * 100
-print(f"round trip max error {np.abs(back - composition).max():.2e} %")
+center = 100 * bt.composition_center(composition)
+variation = bt.variation_matrix(composition)
+i, j = np.unravel_index(np.argmax(variation), variation.shape)
+k, m = min(((a, b) for a in range(8) for b in range(a)), key=lambda p: variation[p])
+for n, mean, c in zip(names, composition.mean(axis=0), center, strict=True):
+    print(f"{n:13} mean {mean:6.2f} %, center {c:6.2f} %")
+print(f"total variance {bt.total_variance(composition):.2f}")
+print(f"most variable ratio {names[i]}/{names[j]}, least variable {names[k]}/{names[m]}")
+
+
+# %% [markdown]
+# the isometric log-ratio (ILR) maps each composition to 7 unconstrained coordinates, the balances. a sequential binary
+# partition chooses them: the copper sulphides against the other parts, chalcocite and bornite against chalcopyrite and
+# tennantite, and so on, each row of signs splitting one group of the row before it in two. `ILR` replaces the part
+# columns with the balances; the projection-pursuit multivariate transform (PPMT) then turns those into independent
+# standard gaussians, ready for independent simulation. the way back must return every composition.
+
+# %%
+samples = bt.PointSet(data.coords, dict(zip(names, composition.T, strict=True)))
+#        clay  cc  bn  cp  tn  mo  py rest
+signs = [
+    [-1, 1, 1, 1, 1, -1, -1, -1],  # copper sulphides | the rest
+    [0, 1, 1, -1, -1, 0, 0, 0],  # chalcocite, bornite | chalcopyrite, tennantite
+    [0, 1, -1, 0, 0, 0, 0, 0],  # chalcocite | bornite
+    [0, 0, 0, 1, -1, 0, 0, 0],  # chalcopyrite | tennantite
+    [1, 0, 0, 0, 0, -1, -1, 1],  # clay, rest | molybdenite, pyrite
+    [1, 0, 0, 0, 0, 0, 0, -1],  # clay | rest
+    [0, 0, 0, 0, 0, 1, -1, 0],  # molybdenite | pyrite
+]
+balances = [f"ilr_{i + 1}" for i in range(7)]
+pipe = bt.Pipeline(
+    [
+        ("ilr", bt.ILR(parts=names, basis=signs, total=100)),
+        ("ppmt", bt.PPMT(iterations=40, seed=7), balances),
+    ]
+)
+gaussian = pipe.fit_transform(samples)
+back = pipe.inverse_transform(gaussian)
+error = max(np.abs(back[n] - samples[n]).max() for n in names)
+print(f"round trip max error {error:.2e} %")
+coords = np.column_stack([pipe.named_steps["ilr"].transform(samples)[b] for b in balances])
+gauss = np.column_stack([gaussian[b] for b in balances])
 
 
 # %% [markdown]
@@ -79,3 +117,17 @@ b.set_aspect("equal")
 b.set(xlabel="g1", ylabel="g2", title="PPMT output: standard bivariate normal")
 b.text(2.2, -3.3, "circles: 1, 2, 3 σ", color=INK, fontsize=8)
 save(fig, "scatter")
+
+
+# %% [markdown]
+# a ternary diagram shows three parts closed to 100 %, a subcomposition: here the three main sulphides. the clr biplot
+# shows all eight parts at once. ray length is the spread of a part's clr coordinate, and the distance between two tips
+# is the spread of their log-ratio, so parts whose tips nearly touch keep a near-constant ratio.
+
+# %%
+fig, (a, b) = plt.subplots(1, 2, figsize=(11, 4.8), layout="constrained")
+bt.plot.ternary(samples, parts=["chalcocite", "chalcopyrite", "pyrite"], s=3, alpha=0.3, ax=a)
+a.set_title("Sulphide subcomposition")
+bt.plot.biplot(samples, parts=names, s=2, alpha=0.3, ax=b)
+b.set_title("clr biplot")
+save(fig, "simplex")

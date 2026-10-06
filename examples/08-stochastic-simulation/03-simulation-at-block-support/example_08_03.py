@@ -46,42 +46,90 @@ print(gaussian)
 
 # %% [markdown]
 # thirty realizations on 2.5 m nodes. `blocks=` averages each over the 16 nodes of each 10 × 10 m block before
-# summarizing, so `cutoffs=` gives one block tonnage curve per realization:
+# summarizing, and `grade_tonnage_cutoffs=` accumulates each realization's block grade-tonnage curve as it runs, with
+# tonnes from `density` times block area here. `grade_tonnage` then reads the P10, P50 and P90 of the tonnage and the
+# mean grade above each cutoff, each quantity on its own.
 
 # %%
 cutoffs = np.linspace(0, 1000, 41)
 
 
 def empirical(values):
-    tonnage = np.array([(values > c).mean() for c in cutoffs])
-    grade = np.array([values[values > c].mean() if (values > c).any() else np.nan for c in cutoffs])
+    tonnage = np.array([(values >= c).mean() for c in cutoffs])
+    grade = np.array([values[values >= c].mean() if (values >= c).any() else np.nan for c in cutoffs])
     return tonnage, grade
 
 
 nodes = bt.BlockModel(origin=(0.5, 0.5), size=(2.5, 2.5), count=(104, 120))
 blocks = bt.BlockModel(origin=(0.5, 0.5), size=(size, size), count=(26, 30))
 sgs = bt.SGS(gaussian, bt.Search(radius=100, max_samples=24)).fit(xy, v, weights=weights)
-summary = sgs.simulate(nodes, n=30, seed=7, cutoffs=list(cutoffs), blocks=blocks)
-low, high = np.quantile(summary.realization_above, [0.1, 0.9], axis=0)
+summary = sgs.simulate(nodes, n=30, seed=7, blocks=blocks, grade_tonnage_cutoffs=list(cutoffs), density=1.0)
+curves = summary.grade_tonnage(probabilities=[0.1, 0.5, 0.9])
 true_block = empirical(truth.reshape(30, size, 26, size).mean(axis=(1, 3)).ravel())
+share = np.asarray(curves["tonnage"]) / curves["tonnage"][0]
 for c in (300, 500, 800):
     k = np.searchsorted(cutoffs, c)
-    print(f"above {c} ppm: P10 {low[k]:.1%}, P90 {high[k]:.1%}, true {true_block[0][k]:.1%}")
+    p10, p90 = share[(curves["cutoff"] == cutoffs[k]) & np.isin(curves["probability"], [0.1, 0.9])]
+    print(f"above {c} ppm: P10 {p10:.1%}, P90 {p90:.1%}, true {true_block[0][k]:.1%}")
 
-fig, ax = plt.subplots(figsize=(5.4, 3.6), layout="constrained")
-ax.fill_between(cutoffs, low, high, color=ACCENT, alpha=0.25, lw=0, label="30 simulations, P10–P90")
-ax.plot(cutoffs, true_block[0], color=INK, lw=1.2, label="true block averages")
+fig, ax = bt.plot.grade_tonnage(curves, relative=True)
+fig.set_size_inches(6.4, 3.8)
+ax.plot(cutoffs, true_block[0], color=INK, lw=1.2)
+fig.axes[-1].plot(cutoffs, true_block[1], color=INK, lw=1.2, ls="--")
 ax.set(
-    title=f"Proportion of {size} × {size} m blocks above cutoff",
-    xlabel="Cutoff V (ppm)",
-    ylabel="Proportion of blocks",
+    title=f"{size} × {size} m blocks: 30 simulations against the true blocks (black)", xlabel="Cutoff V (ppm)"
 )
-ax.legend()
 save(fig, "simulated-blocks")
 
 
 # %% [markdown]
 # the band holds the true curve at each cutoff; at 300 ppm the truth sits at its lower edge.
+
+
+# %% [markdown]
+# a mine plan reads uncertainty over production volumes. `groups=` labels each block with its volume, here six 50 m
+# strips of northing standing for periods, and summarizes each realization's mean per period, one row per label.
+# `window=` gives each block the mean of the 50 × 50 m box centred on it, the boxes overlapping. both stream like
+# `blocks=` and feed the same summaries, here the relative error at 90 % confidence: half the P5–P95 interval over the
+# mean.
+
+# %%
+periods = blocks.centroids[:, 1] // 50
+for label, volumes in (
+    ("blocks", {}),
+    ("periods", {"groups": periods}),
+    ("50 m windows", {"window": (50, 50)}),
+):
+    error = sgs.simulate(
+        nodes, n=30, seed=7, blocks=blocks, quantiles=[0.05, 0.95], **volumes
+    ).relative_error()
+    print(f"{label}: {len(error)} rows, median relative error {np.median(error):.1%}")
+
+
+# %% [markdown]
+# the median error falls from 59 % on single blocks to 24 % on 50 m windows and 11 % on periods of 130 blocks.
+
+
+# %% [markdown]
+# `tolerances=` adds each row's precision, the share of realizations within ±15 % of its mean; a common criterion
+# for measured resources asks that share to reach 90 %. `validate` compares the summary with the true blocks. `covered`
+# marks a block whose true grade lies within the maximum expected error (MEE) of its mean, the relative error at 90 %
+# confidence, and `cutoff=` flags blocks classified as ore while waste in truth (type 1) and the reverse (type 2).
+
+# %%
+true_blocks = truth.reshape(30, size, 26, size).mean(axis=(1, 3)).ravel()
+checked = sgs.simulate(
+    nodes, n=30, seed=7, blocks=blocks, cutoffs=[500], quantiles=[0.05, 0.95], tolerances=[0.15]
+)
+table = checked.validate(true_blocks, cutoff=500)
+print(f"precision at ±15 % reaching 90 %: {np.mean(checked.precision[:, 0] >= 0.9):.1%} of blocks")
+print(f"truth within the MEE: {np.mean(table['covered']):.1%} of blocks")
+print(f"at 500 ppm: type 1 {np.mean(table['type_1']):.1%}, type 2 {np.mean(table['type_2']):.1%} of blocks")
+
+
+# %% [markdown]
+# single 10 m blocks almost never meet ±15 % at 90 %. the truth lies within the MEE for 80 % of blocks, short of the
+# nominal 90 %, and 7 % of blocks fall on the wrong side of 500 ppm.
 
 
 # %% [markdown]

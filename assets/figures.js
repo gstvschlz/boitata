@@ -1,4 +1,23 @@
 // Starts a figure's animations when it scrolls into view, and adds a replay button to animated figures.
+// A 3D scene poster swaps itself for the live scene's page when clicked, so a page with several stays light.
+(() => {
+  const scenes = () => {
+    for (const poster of document.querySelectorAll("button.bt-scene[data-scene]")) {
+      poster.addEventListener("click", () => {
+        const frame = document.createElement("iframe");
+        frame.src = poster.dataset.scene;
+        frame.title = poster.querySelector("img")?.alt || "3D scene";
+        frame.allow = "fullscreen";
+        const box = document.createElement("div");
+        box.className = "bt-scene";
+        box.append(frame);
+        poster.replaceWith(box);
+      }, { once: true });
+    }
+  };
+  if (window.document$) window.document$.subscribe(scenes);
+  else document.addEventListener("DOMContentLoaded", scenes);
+})();
 (() => {
   const watch = () => {
     const seen = new IntersectionObserver((entries) => {

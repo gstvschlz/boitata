@@ -2,9 +2,9 @@
 # mesh files
 
 `read_mesh` and `write_mesh` handle OBJ, STL (binary or ASCII) and DXF, chosen by the file extension.
-`Mesh.validate` reports what keeps a mesh from being a solid, and `Mesh.repair` fixes what it can. you read the
-four gold veins of the grade-control dataset from their STL files, write them back in each format, then break one
-into loose triangles and repair it.
+`Mesh.validate` reports what keeps a mesh from being a solid, and `Mesh.repair` and `Mesh.fill_holes` fix what
+they can. you read the four gold veins of the grade-control dataset from their STL files, write them back in each
+format, break one into loose triangles and repair it, then take a small solid apart problem by problem.
 """
 
 # %% [hidden]
@@ -20,7 +20,7 @@ import tempfile
 import boitata as bt
 import matplotlib.pyplot as plt
 import numpy as np
-from common import save
+from common import ACCENT, GRAY, HIGHLIGHT, LIGHT, save
 
 # %% [markdown]
 # `bt.datasets.fetch` gives the local path of a dataset file. STL stores each triangle with its own three corners,
@@ -86,7 +86,8 @@ with tempfile.TemporaryDirectory() as folder:
 #
 # a solid from elsewhere can arrive as loose triangles, each with its own copy of its corners, rounded
 # differently and wound either way. such a mesh shares no edges, so it is open and has no volume. here V1 is broken
-# that way, with corners moved by about 0.01 mm. `repair` welds corners within `tolerance`, drops degenerate and
+# that way, with corners moved by about 0.01 mm, so neighbors that met along an edge now cross slightly and count as
+# self-intersections. `repair` welds corners within `tolerance`, drops degenerate and
 # repeated triangles, and winds each piece consistently, outward where it is closed. the tolerance has to exceed
 # the rounding and stay below the shortest edge, or welding collapses triangles and opens new holes:
 
@@ -105,3 +106,66 @@ for tolerance in (1e-6, 1e-4, 5e-3):
     print(f"tolerance {tolerance:g} m: {attempt}")
 repaired = broken.repair(tolerance=1e-4)
 print(f"repaired at 0.1 mm: {repaired.volume:,.0f} m3, original {v1.volume:,.0f} m3")
+
+# %% [markdown]
+# ## a broken solid, problem by problem
+#
+# two 10 m cubes: the first lost a side and has one triangle turned over, the second pokes into it. `validate` lists
+# each problem with the face, vertex or edge it sits on. `repair` turns the triangle back, `fill_holes` closes the
+# missing side with a fan, and the crossing between the cubes stays reported: no repair moves geometry.
+
+# %%
+corner = np.array([[x, y, z] for z in (0, 1) for y in (0, 1) for x in (0, 1)], float) * 10
+sides = np.array(
+    [[0, 2, 1], [1, 2, 3], [4, 5, 6], [5, 7, 6], [0, 1, 4], [1, 5, 4],
+     [2, 6, 3], [3, 6, 7], [0, 4, 2], [2, 4, 6], [1, 3, 5], [3, 7, 5]]
+)  # fmt: skip
+first = sides[2:].copy()
+first[5] = first[5, ::-1]
+broken = bt.Mesh(np.vstack([corner, corner * 0.5 + [-3, 3, 4]]), np.vstack([first, sides + 8]))
+report = broken.validate()
+print(report.summary)
+print(report.problems.to_polars().group_by("kind", maintain_order=True).len())
+fixed = broken.repair().fill_holes()
+print(fixed.validate().summary)
+
+
+# %%
+def edges_of(mesh, problems, kind):
+    rows = problems.to_polars().filter(kind=kind)
+    face, edge = rows["face"].to_numpy(), rows["edge"].to_numpy()
+    t = mesh.triangles[face]
+    return mesh.vertices[np.stack([t[np.arange(len(t)), edge], t[np.arange(len(t)), (edge + 1) % 3]], axis=1)]
+
+
+def draw(ax, mesh, title):
+    problems = mesh.validate().problems
+    crossing = np.zeros(len(mesh.triangles), bool)
+    rows = problems.to_polars().filter(kind="self_intersection")
+    crossing[rows["face"].to_numpy()] = crossing[rows["other"].to_numpy()] = True
+    ax.plot_trisurf(
+        *mesh.vertices.T, triangles=mesh.triangles, color=LIGHT, edgecolor=GRAY, linewidth=0.3, alpha=0.3
+    )
+    for kind, color, label in (
+        ("boundary_edge", HIGHLIGHT, "open edge"),
+        ("inconsistent_winding", ACCENT, "flipped"),
+    ):
+        for i, segment in enumerate(edges_of(mesh, problems, kind)):
+            ax.plot(*segment.T, color=color, linewidth=2.5, label=label if i == 0 else None)
+    ax.plot_trisurf(
+        *mesh.vertices.T,
+        triangles=mesh.triangles[crossing],
+        color="#d9a400",
+        alpha=0.45,
+        label="crossing face",
+    )
+    ax.set_title(title)
+    ax.set_box_aspect((1, 1, 1))
+    if ax.get_legend_handles_labels()[0]:
+        ax.legend(loc="upper left")
+
+
+fig = plt.figure(figsize=(9, 4.5), layout="constrained")
+for i, (mesh, title) in enumerate(((broken, "Before repair"), (fixed, "After repair and fill_holes"))):
+    draw(fig.add_subplot(1, 2, i + 1, projection="3d"), mesh, title)
+save(fig, "repair")

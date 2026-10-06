@@ -52,8 +52,8 @@ print(f"soft P(sand) from {p_soft.min():.2f} to {p_soft.max():.2f}, mean {p_soft
 # %%
 snesim = bt.SNESIM(ti, "facies")
 summaries = {
-    "patterns only": snesim.simulate(grid, n=20, seed=5, keep=[0], progress=False),
-    "with soft data": snesim.simulate(grid, n=20, seed=5, keep=[0], soft=soft, progress=False),
+    "patterns only": snesim.simulate(grid, n=20, seed=5, keep=[0]),
+    "with soft data": snesim.simulate(grid, n=20, seed=5, keep=[0], soft=soft),
 }
 for name, summary in summaries.items():
     p_sand = summary.probabilities[:, 1]

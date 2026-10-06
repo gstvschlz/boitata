@@ -118,7 +118,7 @@ def weights(estimator, coords, target):
     coords = np.asarray(coords, dtype=float)
     unit = np.eye(len(coords))
     target = np.atleast_2d(np.asarray(target, dtype=float))
-    return np.array([estimator.fit(coords, e).predict(target, progress=False)[0] for e in unit])
+    return np.array([estimator.fit(coords, e).predict(target)[0] for e in unit])
 
 
 toy = bt.Variogram([("spherical", 1.0, 60.0)])
@@ -174,12 +174,16 @@ for name, coords in layouts.items():
 # transforms' `fit`/`transform`. The cell reads all 470 weights at the point (100, 180) m of Figure 1.
 
 # %%
-search = bt.Search(radius=80, max_samples=24, min_samples=4, rotation=model.rotation, ratios=(0.5, 1.0))
+radius = 80  # @param {type:"slider", min:20, max:200, step:10}
+max_samples = 24  # @param {type:"slider", min:4, max:64, step:4}
+search = bt.Search(
+    radius=radius, max_samples=max_samples, min_samples=4, rotation=model.rotation, ratios=(0.5, 1.0)
+)
 kriging = bt.OrdinaryKriging(model, search).fit(samples, "V")
 target = (100.0, 180.0)
 w = weights(bt.OrdinaryKriging(model, search), xy, target)
 used = w != 0
-estimate, variance = kriging.predict(np.array([target]), return_variance=True, progress=False)
+estimate, variance = kriging.predict(np.array([target]), return_variance=True)
 print(
     f"{used.sum()} samples used, weights sum to {w.sum():.4f}, {np.sum(w < 0)} negative (lowest {w.min():.3f})"
 )
@@ -321,7 +325,7 @@ def slope(estimate):
 print(" max samples  variance of estimates  slope  RMSE")
 for m in (4, 8, 24, 48):
     s = bt.Search(radius=80, max_samples=m, min_samples=min(m, 4), rotation=model.rotation, ratios=(0.5, 1.0))
-    e = kriging.with_search(s).predict(grid, progress=False)
+    e = kriging.with_search(s).predict(grid)
     rmse = np.sqrt(np.mean((e - true_at_nodes) ** 2))
     print(f"{m:12d}  {e.var():21.0f}  {slope(e):5.2f}  {rmse:5.1f}")
 
@@ -343,8 +347,8 @@ for m in (4, 8, 24, 48):
 blocks = bt.BlockModel(origin=(0, 0), size=(10, 10), count=(26, 30))
 true_blocks = truth.reshape(30, 10, 26, 10).mean(axis=(1, 3)).ravel()
 block = bt.BlockKriging(model, search, size=(10, 10), discretization=(5, 5, 1)).fit(samples, "V")
-block_estimate, block_variance = block.predict(blocks, return_variance=True, progress=False)
-point_estimate, point_variance = kriging.predict(blocks, return_variance=True, progress=False)
+block_estimate, block_variance = block.predict(blocks, return_variance=True)
+point_estimate, point_variance = kriging.predict(blocks, return_variance=True)
 for name, e, var in (("point", point_estimate, point_variance), ("block", block_estimate, block_variance)):
     rmse = np.sqrt(np.mean((e - true_blocks) ** 2))
     print(f"{name} kriging of 10 m blocks: RMSE {rmse:.1f} ppm, mean kriging variance {var.mean():.0f}")
@@ -382,7 +386,7 @@ ax.set_aspect("equal")
 ax.set_title("True values against estimates")
 ax.legend(loc="upper left")
 save(fig, "slope")
-d = kriging.predict(grid, diagnostics=True, progress=False)
+d = kriging.predict(grid, diagnostics=True)
 print(
     f"slope from the estimates {fit[0]:.2f}; mean slope the model predicts per node {np.mean(d['slope']):.2f}"
 )

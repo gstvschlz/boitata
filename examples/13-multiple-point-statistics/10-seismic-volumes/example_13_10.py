@@ -109,11 +109,9 @@ def agreement(summary):
     return np.where(truth.ravel() == 1, p_sand, 1 - p_sand).mean()
 
 
-blind = bt.ImageQuilting(ti, "facies", patch_size=20).simulate(
-    section, n=20, seed=1, keep=[0], progress=False
-)
+blind = bt.ImageQuilting(ti, "facies", patch_size=20).simulate(section, n=20, seed=1, keep=[0])
 steered = bt.ImageQuilting(ti, "facies", patch_size=20, secondary="seismic").simulate(
-    section, n=20, seed=1, keep=[0], secondary=secondary, progress=False
+    section, n=20, seed=1, keep=[0], secondary=secondary
 )
 for name, summary in (("without seismic", blind), ("with seismic", steered)):
     print(

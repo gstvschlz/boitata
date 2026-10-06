@@ -2,1818 +2,1966 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
     <url>
          <loc>https://gstvschlz.github.io/boitata/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/install/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/01-first-steps/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/01-first-steps/01-quick-tour/example_01_01/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/01-first-steps/01-quick-tour/mg_execution_times/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/01-first-steps/02-block-models/example_01_02/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/01-first-steps/02-block-models/mg_execution_times/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/01-first-steps/03-saving-and-loading/example_01_03/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/01-first-steps/03-saving-and-loading/mg_execution_times/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/01-first-steps/04-parquet/example_01_04/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/01-first-steps/04-parquet/mg_execution_times/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/02-data-and-geometry/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/02-data-and-geometry/01-check-drillholes/example_02_01/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/02-data-and-geometry/01-check-drillholes/mg_execution_times/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/02-data-and-geometry/02-desurvey/example_02_02/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/02-data-and-geometry/02-desurvey/mg_execution_times/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/02-data-and-geometry/03-compositing/example_02_03/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/02-data-and-geometry/03-compositing/mg_execution_times/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/02-data-and-geometry/04-duplicates/example_02_04/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/02-data-and-geometry/04-duplicates/mg_execution_times/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/02-data-and-geometry/05-solids/example_02_05/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/02-data-and-geometry/05-solids/mg_execution_times/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/02-data-and-geometry/06-sub-blocks/example_02_06/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/02-data-and-geometry/06-sub-blocks/mg_execution_times/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/02-data-and-geometry/07-mesh-files/example_02_07/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/02-data-and-geometry/07-mesh-files/mg_execution_times/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/02-data-and-geometry/08-polygons/example_02_08/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/02-data-and-geometry/08-polygons/mg_execution_times/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/02-data-and-geometry/09-gis-formats/example_02_09/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/02-data-and-geometry/09-gis-formats/mg_execution_times/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/02-data-and-geometry/10-large-models/example_02_10/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/02-data-and-geometry/10-large-models/mg_execution_times/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/02-data-and-geometry/11-3d-views/example_02_11/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/02-data-and-geometry/11-3d-views/mg_execution_times/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/02-data-and-geometry/12-block-model-from-extents/example_02_12/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/02-data-and-geometry/12-block-model-from-extents/mg_execution_times/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/02-data-and-geometry/13-runs-and-strip-logs/example_02_13/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/02-data-and-geometry/13-runs-and-strip-logs/mg_execution_times/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/02-data-and-geometry/14-domain-cleanup/example_02_14/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/02-data-and-geometry/14-domain-cleanup/mg_execution_times/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/02-data-and-geometry/15-mesh-interval-splits/example_02_15/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/02-data-and-geometry/15-mesh-interval-splits/mg_execution_times/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/02-data-and-geometry/16-stepped-sections/example_02_16/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/02-data-and-geometry/16-stepped-sections/mg_execution_times/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/02-data-and-geometry/17-hole-traces/example_02_17/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/02-data-and-geometry/17-hole-traces/mg_execution_times/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/boitata/examples/02-data-and-geometry/18-outlines/example_02_18/</loc>
+         <lastmod>2026-10-06</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/boitata/examples/02-data-and-geometry/18-outlines/mg_execution_times/</loc>
+         <lastmod>2026-10-06</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/boitata/examples/02-data-and-geometry/19-topography/example_02_19/</loc>
+         <lastmod>2026-10-06</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/boitata/examples/02-data-and-geometry/19-topography/mg_execution_times/</loc>
+         <lastmod>2026-10-06</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/boitata/examples/02-data-and-geometry/20-sections-with-holes/example_02_20/</loc>
+         <lastmod>2026-10-06</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/boitata/examples/02-data-and-geometry/20-sections-with-holes/mg_execution_times/</loc>
+         <lastmod>2026-10-06</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/boitata/examples/02-data-and-geometry/21-live-scene/example_02_21/</loc>
+         <lastmod>2026-10-06</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/boitata/examples/02-data-and-geometry/21-live-scene/mg_execution_times/</loc>
+         <lastmod>2026-10-06</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/boitata/examples/02-data-and-geometry/22-meshes-and-points/example_02_22/</loc>
+         <lastmod>2026-10-06</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/boitata/examples/02-data-and-geometry/22-meshes-and-points/mg_execution_times/</loc>
+         <lastmod>2026-10-06</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/boitata/examples/02-data-and-geometry/23-filtering-block-models/example_02_23/</loc>
+         <lastmod>2026-10-06</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/boitata/examples/02-data-and-geometry/23-filtering-block-models/mg_execution_times/</loc>
+         <lastmod>2026-10-06</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/boitata/examples/02-data-and-geometry/24-interactive-sections/example_02_24/</loc>
+         <lastmod>2026-10-06</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/boitata/examples/02-data-and-geometry/24-interactive-sections/mg_execution_times/</loc>
+         <lastmod>2026-10-06</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/boitata/examples/02-data-and-geometry/25-units/example_02_25/</loc>
+         <lastmod>2026-10-06</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/boitata/examples/02-data-and-geometry/25-units/mg_execution_times/</loc>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/03-exploratory-analysis/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/03-exploratory-analysis/01-paired-data/example_03_01/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/03-exploratory-analysis/01-paired-data/mg_execution_times/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/03-exploratory-analysis/02-statistics-by-domain/example_03_02/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/03-exploratory-analysis/02-statistics-by-domain/mg_execution_times/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/03-exploratory-analysis/03-declustering/example_03_03/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/03-exploratory-analysis/03-declustering/mg_execution_times/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/03-exploratory-analysis/04-weight-declustering/example_03_04/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/03-exploratory-analysis/04-weight-declustering/mg_execution_times/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/03-exploratory-analysis/05-top-cuts/example_03_05/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/03-exploratory-analysis/05-top-cuts/mg_execution_times/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/03-exploratory-analysis/06-despiking/example_03_06/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/03-exploratory-analysis/06-despiking/mg_execution_times/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/03-exploratory-analysis/07-contacts/example_03_07/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/03-exploratory-analysis/07-contacts/mg_execution_times/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/03-exploratory-analysis/08-soft-boundary-statistics/example_03_08/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/03-exploratory-analysis/08-soft-boundary-statistics/mg_execution_times/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/03-exploratory-analysis/09-swaths/example_03_09/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/03-exploratory-analysis/09-swaths/mg_execution_times/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/03-exploratory-analysis/10-data-spacing/example_03_10/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/03-exploratory-analysis/10-data-spacing/mg_execution_times/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/03-exploratory-analysis/11-correlations/example_03_11/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/03-exploratory-analysis/11-correlations/mg_execution_times/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/03-exploratory-analysis/12-spatial-bootstrap/example_03_12/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/03-exploratory-analysis/12-spatial-bootstrap/mg_execution_times/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/03-exploratory-analysis/13-reference-distributions/example_03_13/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/03-exploratory-analysis/13-reference-distributions/mg_execution_times/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/boitata/examples/03-exploratory-analysis/14-cleaning-steps/example_03_14/</loc>
+         <lastmod>2026-10-06</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/boitata/examples/03-exploratory-analysis/14-cleaning-steps/mg_execution_times/</loc>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/04-transforms/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/04-transforms/01-normal-score/example_04_01/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/04-transforms/01-normal-score/mg_execution_times/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/04-transforms/02-censored-normal-score/example_04_02/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/04-transforms/02-censored-normal-score/mg_execution_times/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/04-transforms/03-capping-transform/example_04_03/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/04-transforms/03-capping-transform/mg_execution_times/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/04-transforms/04-compositional/example_04_04/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/04-transforms/04-compositional/mg_execution_times/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/04-transforms/05-multivariate-transforms/example_04_05/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/04-transforms/05-multivariate-transforms/mg_execution_times/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/04-transforms/06-imputation/example_04_06/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/04-transforms/06-imputation/mg_execution_times/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/04-transforms/07-spatial-imputation/example_04_07/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/04-transforms/07-spatial-imputation/mg_execution_times/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/04-transforms/08-smooth-trend/example_04_08/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/04-transforms/08-smooth-trend/mg_execution_times/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/04-transforms/09-unfolding/example_04_09/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/04-transforms/09-unfolding/mg_execution_times/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/04-transforms/10-target-distribution-correction/example_04_10/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/04-transforms/10-target-distribution-correction/mg_execution_times/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/boitata/examples/04-transforms/11-pipeline/example_04_11/</loc>
+         <lastmod>2026-10-06</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/boitata/examples/04-transforms/11-pipeline/mg_execution_times/</loc>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/05-spatial-continuity/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/05-spatial-continuity/01-experimental-variograms/example_05_01/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/05-spatial-continuity/01-experimental-variograms/mg_execution_times/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/05-spatial-continuity/02-variogram-fitting/example_05_02/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/05-spatial-continuity/02-variogram-fitting/mg_execution_times/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/05-spatial-continuity/03-variogram-sets/example_05_03/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/05-spatial-continuity/03-variogram-sets/mg_execution_times/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/05-spatial-continuity/04-variogram-volume/example_05_04/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/05-spatial-continuity/04-variogram-volume/mg_execution_times/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/05-spatial-continuity/05-downhole-nugget/example_05_05/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/05-spatial-continuity/05-downhole-nugget/mg_execution_times/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/05-spatial-continuity/06-madogram/example_05_06/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/05-spatial-continuity/06-madogram/mg_execution_times/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/05-spatial-continuity/07-coregionalization/example_05_07/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/05-spatial-continuity/07-coregionalization/mg_execution_times/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/05-spatial-continuity/08-intrinsic-coregionalization/example_05_08/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/05-spatial-continuity/08-intrinsic-coregionalization/mg_execution_times/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/05-spatial-continuity/09-local-variogram-parameters/example_05_09/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/05-spatial-continuity/09-local-variogram-parameters/mg_execution_times/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/05-spatial-continuity/10-search-plans/example_05_10/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/05-spatial-continuity/10-search-plans/mg_execution_times/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/05-spatial-continuity/11-nugget-inference/example_05_11/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/05-spatial-continuity/11-nugget-inference/mg_execution_times/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/06-kriging/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/06-kriging/01-ordinary-kriging/example_06_01/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/06-kriging/01-ordinary-kriging/mg_execution_times/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/06-kriging/02-simple-estimators/example_06_02/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/06-kriging/02-simple-estimators/mg_execution_times/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/06-kriging/03-universal-kriging/example_06_03/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/06-kriging/03-universal-kriging/mg_execution_times/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/06-kriging/04-external-drift-kriging/example_06_04/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/06-kriging/04-external-drift-kriging/mg_execution_times/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/06-kriging/05-block-kriging/example_06_05/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/06-kriging/05-block-kriging/mg_execution_times/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/06-kriging/06-search/example_06_06/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/06-kriging/06-search/mg_execution_times/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/06-kriging/07-search-calibration/example_06_07/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/06-kriging/07-search-calibration/mg_execution_times/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/06-kriging/08-high-grade-restriction/example_06_08/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/06-kriging/08-high-grade-restriction/mg_execution_times/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/06-kriging/09-cokriging/example_06_09/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/06-kriging/09-cokriging/mg_execution_times/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/06-kriging/10-indicator-kriging/example_06_10/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/06-kriging/10-indicator-kriging/mg_execution_times/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/06-kriging/11-multiple-indicator-kriging/example_06_11/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/06-kriging/11-multiple-indicator-kriging/mg_execution_times/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/06-kriging/12-multigaussian-kriging/example_06_12/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/06-kriging/12-multigaussian-kriging/mg_execution_times/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/06-kriging/13-soft-boundaries/example_06_13/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/06-kriging/13-soft-boundaries/mg_execution_times/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/06-kriging/14-local-anisotropy/example_06_14/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/06-kriging/14-local-anisotropy/mg_execution_times/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/07-categories-and-domains/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/07-categories-and-domains/01-categories/example_07_01/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/07-categories-and-domains/01-categories/mg_execution_times/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/07-categories-and-domains/02-domain-change-tables/example_07_02/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/07-categories-and-domains/02-domain-change-tables/mg_execution_times/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/07-categories-and-domains/03-transition-matrix-mds/example_07_03/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/07-categories-and-domains/03-transition-matrix-mds/mg_execution_times/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/07-categories-and-domains/04-local-proportions/example_07_04/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/07-categories-and-domains/04-local-proportions/mg_execution_times/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/07-categories-and-domains/05-categorical-indicator-kriging/example_07_05/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/07-categories-and-domains/05-categorical-indicator-kriging/mg_execution_times/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/07-categories-and-domains/06-sis/example_07_06/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/07-categories-and-domains/06-sis/mg_execution_times/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/07-categories-and-domains/07-plurigaussian/example_07_07/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/07-categories-and-domains/07-plurigaussian/mg_execution_times/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/07-categories-and-domains/08-grades-in-simulated-rocks/example_07_08/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/07-categories-and-domains/08-grades-in-simulated-rocks/mg_execution_times/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/08-stochastic-simulation/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/08-stochastic-simulation/01-sgs/example_08_01/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/08-stochastic-simulation/01-sgs/mg_execution_times/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/08-stochastic-simulation/02-sgs-shared-path/example_08_02/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/08-stochastic-simulation/02-sgs-shared-path/mg_execution_times/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/08-stochastic-simulation/03-simulation-at-block-support/example_08_03/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/08-stochastic-simulation/03-simulation-at-block-support/mg_execution_times/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/08-stochastic-simulation/04-turning-bands/example_08_04/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/08-stochastic-simulation/04-turning-bands/mg_execution_times/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/08-stochastic-simulation/05-simulation-with-trend/example_08_05/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/08-stochastic-simulation/05-simulation-with-trend/mg_execution_times/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/08-stochastic-simulation/06-multivariate-simulation/example_08_06/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/08-stochastic-simulation/06-multivariate-simulation/mg_execution_times/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/08-stochastic-simulation/07-collocated-cosimulation/example_08_07/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/08-stochastic-simulation/07-collocated-cosimulation/mg_execution_times/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/boitata/examples/08-stochastic-simulation/08-direct-sequential-simulation/example_08_08/</loc>
+         <lastmod>2026-10-06</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/boitata/examples/08-stochastic-simulation/08-direct-sequential-simulation/mg_execution_times/</loc>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/09-recoverable-resources/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/09-recoverable-resources/01-discrete-gaussian-model/example_09_01/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/09-recoverable-resources/01-discrete-gaussian-model/mg_execution_times/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/09-recoverable-resources/02-uniform-conditioning/example_09_02/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/09-recoverable-resources/02-uniform-conditioning/mg_execution_times/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/09-recoverable-resources/03-mik-localization/example_09_03/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/09-recoverable-resources/03-mik-localization/mg_execution_times/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/09-recoverable-resources/04-disjunctive-kriging/example_09_04/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/09-recoverable-resources/04-disjunctive-kriging/mg_execution_times/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/10-checking-models/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/10-checking-models/01-model-checks/example_10_01/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/10-checking-models/01-model-checks/mg_execution_times/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/10-checking-models/02-cross-validation/example_10_02/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/10-checking-models/02-cross-validation/mg_execution_times/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/10-checking-models/03-kriging-diagnostics/example_10_03/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/10-checking-models/03-kriging-diagnostics/mg_execution_times/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/10-checking-models/04-realization-checks/example_10_04/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/10-checking-models/04-realization-checks/mg_execution_times/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/10-checking-models/05-classification/example_10_05/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/10-checking-models/05-classification/mg_execution_times/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/10-checking-models/06-result-plots/example_10_06/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/10-checking-models/06-result-plots/mg_execution_times/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/10-checking-models/07-section-validation-plates/example_10_07/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/10-checking-models/07-section-validation-plates/mg_execution_times/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/11-geological-modeling/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/11-geological-modeling/01-grade-shells/example_11_01/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/11-geological-modeling/01-grade-shells/mg_execution_times/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/11-geological-modeling/02-contact-surfaces/example_11_02/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/11-geological-modeling/02-contact-surfaces/mg_execution_times/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/11-geological-modeling/03-structural-data/example_11_03/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/11-geological-modeling/03-structural-data/mg_execution_times/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/11-geological-modeling/04-layered-surfaces/example_11_04/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/11-geological-modeling/04-layered-surfaces/mg_execution_times/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/12-case-studies/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/12-case-studies/01-coal-seam-in-a-lease/example_12_01/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/12-case-studies/01-coal-seam-in-a-lease/mg_execution_times/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/12-case-studies/02-drillholes-to-classified-model/example_12_02/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/12-case-studies/02-drillholes-to-classified-model/mg_execution_times/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/12-case-studies/03-iron-ore-multivariate/example_12_03/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/12-case-studies/03-iron-ore-multivariate/mg_execution_times/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/12-case-studies/04-laterite-profile/example_12_04/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/12-case-studies/04-laterite-profile/mg_execution_times/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/13-multiple-point-statistics/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/13-multiple-point-statistics/01-snesim-multigrid/example_13_01/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/13-multiple-point-statistics/01-snesim-multigrid/mg_execution_times/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/13-multiple-point-statistics/02-snesim-conditioning/example_13_02/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/13-multiple-point-statistics/02-snesim-conditioning/mg_execution_times/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/13-multiple-point-statistics/03-snesim-continuous/example_13_03/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/13-multiple-point-statistics/03-snesim-continuous/mg_execution_times/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/13-multiple-point-statistics/04-snesim-rotation-affinity/example_13_04/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/13-multiple-point-statistics/04-snesim-rotation-affinity/mg_execution_times/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/13-multiple-point-statistics/05-snesim-training-images-by-zone/example_13_05/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/13-multiple-point-statistics/05-snesim-training-images-by-zone/mg_execution_times/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/13-multiple-point-statistics/06-snesim-soft-data/example_13_06/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/13-multiple-point-statistics/06-snesim-soft-data/mg_execution_times/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/13-multiple-point-statistics/07-training-images/example_13_07/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/13-multiple-point-statistics/07-training-images/mg_execution_times/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/13-multiple-point-statistics/08-image-quilting/example_13_08/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/13-multiple-point-statistics/08-image-quilting/mg_execution_times/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/13-multiple-point-statistics/09-image-quilting-continuous/example_13_09/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/13-multiple-point-statistics/09-image-quilting-continuous/mg_execution_times/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/13-multiple-point-statistics/10-seismic-volumes/example_13_10/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/13-multiple-point-statistics/10-seismic-volumes/mg_execution_times/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/14-workflows/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/14-workflows/01-solid-proportions/example_14_01/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/14-workflows/01-solid-proportions/mg_execution_times/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/14-workflows/02-sub-blocks-from-solids/example_14_02/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/14-workflows/02-sub-blocks-from-solids/mg_execution_times/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/14-workflows/03-degenerate-solids/example_14_03/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/14-workflows/03-degenerate-solids/mg_execution_times/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/14-workflows/04-drillhole-audit/example_14_04/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/14-workflows/04-drillhole-audit/mg_execution_times/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/14-workflows/05-compare-two-estimates/example_14_05/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/14-workflows/05-compare-two-estimates/mg_execution_times/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/14-workflows/06-grade-tonnage-and-metal/example_14_06/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/examples/14-workflows/06-grade-tonnage-and-metal/mg_execution_times/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/boitata/examples/14-workflows/07-drillhole-spacing-virtual-grids/example_14_07/</loc>
+         <lastmod>2026-10-06</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/boitata/examples/14-workflows/07-drillhole-spacing-virtual-grids/mg_execution_times/</loc>
+         <lastmod>2026-10-06</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/boitata/examples/14-workflows/08-drillhole-spacing-learning-curve/example_14_08/</loc>
+         <lastmod>2026-10-06</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/boitata/examples/14-workflows/08-drillhole-spacing-learning-curve/mg_execution_times/</loc>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/guide/containers/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/guide/estimators/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/guide/finder/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/guide/organization/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/guide/saving/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/learn/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/boitata/learn/00-tour/learn_00/</loc>
+         <lastmod>2026-10-06</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/boitata/learn/00-tour/mg_execution_times/</loc>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/learn/01-samples-and-support/learn_01/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/learn/01-samples-and-support/mg_execution_times/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/learn/02-describing-data/learn_02/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/learn/02-describing-data/mg_execution_times/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/learn/03-spatial-continuity/learn_03/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/learn/03-spatial-continuity/mg_execution_times/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/learn/04-kriging/learn_04/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/learn/04-kriging/mg_execution_times/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/learn/05-simulation/learn_05/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/learn/05-simulation/mg_execution_times/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/learn/06-checking-a-model/learn_06/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/learn/06-checking-a-model/mg_execution_times/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/containers/Table/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/containers/PointSet/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/containers/BlockModel/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/containers/BlockModelFile/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/containers/Mesh/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/containers/MeshReport/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/containers/Polylines/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/containers/convex_hull/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/containers/grid_surface/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/containers/read_csv/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/containers/write_csv/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/containers/read_gslib/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/containers/write_gslib/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/containers/read_parquet/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/containers/write_parquet/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/containers/read_mesh/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/containers/write_mesh/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/containers/read_segy/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/containers/write_segy/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/containers/read_shapefile/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/containers/write_shapefile/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/containers/read_geopackage/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/containers/write_geopackage/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/containers/read_geotiff/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/containers/write_geotiff/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/boitata/api/containers/set_units/</loc>
+         <lastmod>2026-10-06</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/boitata/api/containers/units/</loc>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/containers/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/datasets/datasets/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/datasets/plot/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/datasets/plot3d/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/datasets/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/drillholes/Drillholes/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/drillholes/merge_intervals/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/drillholes/check_drillholes/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/drillholes/fix_drillholes/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/drillholes/duplicates/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/drillholes/hole_distance/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/drillholes/PolygonSelector/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/drillholes/point_in_polygon/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/drillholes/polygon_distance/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/drillholes/assign_domain/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/drillholes/block_shell/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/drillholes/contact_distance/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/drillholes/buffer_domains/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/drillholes/remove_small_units/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/drillholes/smooth_classes/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/drillholes/map_blocks/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/drillholes/domain_change/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/drillholes/transition_matrix/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/drillholes/vertical_proportions/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/drillholes/combine_proportions/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/boitata/api/drillholes/planned_drillholes/</loc>
+         <lastmod>2026-10-06</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/boitata/api/drillholes/snap_to_surface/</loc>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/drillholes/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/eda/Categories/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/eda/describe/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/eda/describe_by/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/eda/correlation/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/eda/swath/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/eda/contact/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/eda/soft_boundary/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/eda/capping/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/eda/capping_report/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/eda/despike/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/eda/data_spacing/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/eda/spatial_bootstrap/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/eda/paired_bias/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/eda/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/transforms/NormalScore/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/transforms/Capping/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/transforms/HermiteAnamorphosis/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/transforms/BoxCox/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/transforms/PPMT/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/transforms/PCA/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/transforms/MAF/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/transforms/StepwiseConditional/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/transforms/GaussianImputer/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/transforms/Declustering/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/transforms/cell_declustering/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/transforms/polygon_declustering/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/transforms/weight_declustering/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/transforms/Trend/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/transforms/detrend/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/transforms/Unfold/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/transforms/correct_distribution/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/transforms/affine_correction/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/transforms/indirect_lognormal_correction/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/transforms/normal_cdf/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/transforms/normal_ppf/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/transforms/GaussianMixture/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/transforms/KernelDensity/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/transforms/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/compositional/closure/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/compositional/alr/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/compositional/alr_inverse/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/compositional/clr/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/compositional/clr_inverse/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/compositional/ilr/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/compositional/ilr_inverse/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/compositional/aitchison_distance/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/compositional/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/variography/Structure/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/variography/Variogram/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/variography/ExperimentalVariogram/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/variography/experimental_variogram/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/variography/dissemination/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/variography/VariogramSet/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/variography/experimental_variograms/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/variography/VariogramMap/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/variography/variogram_map/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/variography/h_scatter/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/variography/pairs/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/variography/Coregionalization/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/variography/Transiogram/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/variography/experimental_transiogram/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/variography/VariogramVolume/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/variography/variogram_volume/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/variography/local_variogram_parameters/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/variography/LocalAnisotropy/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/variography/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/estimation/Search/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/estimation/calibrate_search/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/estimation/neighborhood_stats/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/estimation/HighGrade/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/estimation/OrdinaryKriging/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/estimation/SimpleKriging/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/estimation/BlockKriging/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/estimation/UniversalKriging/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/estimation/ExternalDriftKriging/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/estimation/FactorialKriging/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/estimation/DualKriging/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/estimation/BayesianKriging/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/estimation/Cokriging/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/estimation/IndicatorKriging/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/estimation/MultipleIndicatorKriging/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/estimation/CategoricalIndicatorKriging/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/estimation/MultigaussianKriging/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/estimation/InverseDistance/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/estimation/NearestNeighbor/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/estimation/MovingAverage/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/estimation/MovingMedian/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/estimation/LocalLeastSquares/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/estimation/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/recoverable/UniformConditioning/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/recoverable/DisjunctiveKriging/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/recoverable/change_of_support/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/recoverable/upscale/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/recoverable/downscale/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/recoverable/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/simulation/SGS/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/boitata/api/simulation/DSS/</loc>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/simulation/TurningBands/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/simulation/MultivariateSimulation/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/simulation/SIS/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/simulation/Plurigaussian/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/simulation/SimulationSummary/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/simulation/CategoricalSummary/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/simulation/IndicatorSummary/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/simulation/CategoricalIndicatorSummary/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/simulation/check_realizations/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/simulation/RealizationCheck/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/simulation/gibbs/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/simulation/localize/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/simulation/object_training_image/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/simulation/training_image_consistency/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/simulation/SNESIM/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/simulation/ImageQuilting/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/boitata/api/simulation/select_realizations/</loc>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/simulation/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/modeling/ImplicitModel/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/modeling/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/validation/CrossValidation/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/validation/IndicatorCrossValidation/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/validation/CategoricalCrossValidation/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/validation/validate_model/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/validation/global_bias/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/validation/block_correlation/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/validation/compare_models/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/validation/grade_tonnage/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/validation/classify/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/boitata/api/validation/uncertainty_curve/</loc>
+         <lastmod>2026-10-06</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/boitata/api/validation/required_spacing/</loc>
+         <lastmod>2026-10-06</lastmod>
+    </url>
+    <url>
+         <loc>https://gstvschlz.github.io/boitata/api/validation/spacing_study/</loc>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/validation/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/errors/BoitataError/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/errors/InvalidInput/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/errors/MissingColumn/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/errors/FileError/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/api/errors/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
     <url>
          <loc>https://gstvschlz.github.io/boitata/guide/glossary/</loc>
-         <lastmod>2026-10-01</lastmod>
+         <lastmod>2026-10-06</lastmod>
     </url>
 </urlset>
