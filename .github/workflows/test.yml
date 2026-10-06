@@ -21,8 +21,16 @@ jobs:
         with:
           python-version: "3.13"
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: js/viewer/package-lock.json
+      - run: npm ci && npm run check && npm test && npm run build
+        working-directory: js/viewer
       - run: sudo apt-get install -y --no-install-recommends xvfb libgl1 libgl1-mesa-dri
-      - run: pip install -e ".[all]" pytest pytest-cov
+      - run: pip install -e ".[all]" pytest pytest-cov anywidget playwright pillow
+      - run: playwright install --with-deps chromium
       - run: xvfb-run -a pytest --cov --cov-branch --cov-report=xml
       - uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
         with:

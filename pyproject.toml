@@ -53,6 +53,8 @@ dev = [
     "mkdocstrings[python]>=1.0.6",
     "mkdocs-gallery>=0.10.4",
     "pyvista>=0.45",
+    "playwright>=1.63.0",
+    "anywidget>=0.11.0",
 ]
 
 [tool.maturin]
@@ -60,6 +62,7 @@ manifest-path = "crates/py/Cargo.toml"
 module-name = "boitata._boitata"
 python-source = "python"
 locked = true
+include = [{ path = "python/boitata/_viewer.js", format = ["sdist", "wheel"] }]
 
 [tool.uv]
 package = false
