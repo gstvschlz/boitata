@@ -259,14 +259,19 @@ dependencies = [
 
 [package.optional-dependencies]
 3d = [
+    { name = "anywidget" },
     { name = "pyvista", extra = ["jupyter"] },
 ]
 all = [
+    { name = "anywidget" },
     { name = "matplotlib" },
     { name = "pandas" },
     { name = "polars" },
     { name = "pyarrow" },
     { name = "pyvista", extra = ["jupyter"] },
+]
+export = [
+    { name = "playwright" },
 ]
 plot = [
     { name = "matplotlib" },
@@ -291,16 +296,19 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "anywidget", marker = "extra == '3d'", specifier = ">=0.9" },
+    { name = "anywidget", marker = "extra == 'all'", specifier = ">=0.9" },
     { name = "matplotlib", marker = "extra == 'all'", specifier = ">=3.8" },
     { name = "matplotlib", marker = "extra == 'plot'", specifier = ">=3.8" },
     { name = "numpy", specifier = ">=1.26" },
     { name = "pandas", marker = "extra == 'all'", specifier = ">=2.2" },
+    { name = "playwright", marker = "extra == 'export'", specifier = ">=1.45" },
     { name = "polars", marker = "extra == 'all'", specifier = ">=1.4" },
     { name = "pyarrow", marker = "extra == 'all'", specifier = ">=16" },
     { name = "pyvista", extras = ["jupyter"], marker = "extra == '3d'", specifier = ">=0.45" },
     { name = "pyvista", extras = ["jupyter"], marker = "extra == 'all'", specifier = ">=0.45" },
 ]
-provides-extras = ["3d", "all", "plot"]
+provides-extras = ["3d", "all", "export", "plot"]
 
 [package.metadata.requires-dev]
 dev = [

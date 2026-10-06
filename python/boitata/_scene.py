@@ -8,11 +8,14 @@ import base64
 import html
 import json
 import math
+import subprocess
+import sys
 import tempfile
 import warnings
 import weakref
 import webbrowser
 from collections.abc import Mapping
+from concurrent.futures import ThreadPoolExecutor
 from functools import cache
 from pathlib import Path
 
@@ -116,7 +119,10 @@ def _encode(values):
 
 
 def _drillholes(data):
-    """Per-interval segments split at survey stations, or per-hole traces without intervals."""
+    """Per-interval segments split at survey stations, or per-hole traces without intervals.
+
+    Returns the geometry, the table of rows and the hole, from and to column names (from and to None for traces).
+    """
     paths = data.paths()
     hole_column = paths.column_names[0]
     station_holes = np.asarray(paths[hole_column], dtype=object)
@@ -125,10 +131,13 @@ def _drillholes(data):
         xyz = np.c_[paths["x"], paths["y"], paths["z"]]
         same = station_holes[1:] == station_holes[:-1]
         starts = np.flatnonzero(same)
-        ends = np.c_[xyz[starts], xyz[starts + 1]].reshape(-1, 3)
-        table = {hole_column: station_holes[starts]}
-        middles = (xyz[starts] + xyz[starts + 1]) / 2
-        return ends, np.arange(len(starts), dtype=np.uint32), middles, table
+        geometry = {
+            "positions": np.c_[xyz[starts], xyz[starts + 1]].reshape(-1, 3),
+            "rows": np.arange(len(starts), dtype=np.uint32),
+            "midpoints": (xyz[starts] + xyz[starts + 1]) / 2,
+            "depths": np.c_[station_depths[starts], station_depths[starts + 1]],
+        }
+        return geometry, {hole_column: station_holes[starts]}, (hole_column, None, None)
     table = data.samples().attributes
     hole, start, end = data.interval_columns
     holes = np.asarray(table[hole], dtype=object)
@@ -152,10 +161,13 @@ def _drillholes(data):
     along[np.repeat(at + 1 - before, inner) + k] = depths[np.repeat(first - before, inner) + k]
     xyz = data.at(names[np.repeat(interval_code, count)].tolist(), along)
     a = np.delete(np.arange(len(along)), at + count - 1)
-    ends = np.c_[xyz[a], xyz[a + 1]].reshape(-1, 3)
-    rows = np.repeat(np.arange(len(holes), dtype=np.uint32), count - 1)
-    middles = data.at(names[interval_code].tolist(), (lo + hi) / 2)
-    return ends, rows, middles, table
+    geometry = {
+        "positions": np.c_[xyz[a], xyz[a + 1]].reshape(-1, 3),
+        "rows": np.repeat(np.arange(len(holes), dtype=np.uint32), count - 1),
+        "midpoints": data.at(names[interval_code].tolist(), (lo + hi) / 2),
+        "depths": np.c_[lo, hi],
+    }
+    return geometry, table, (hole, start, end)
 
 
 def _block_axes(model):
@@ -175,21 +187,26 @@ def _block_sizes(model):
 
 
 def _layer(data):
-    """Kind, world-coordinate geometry (name to array) and attribute tables by association."""
+    """Kind, world-coordinate geometry (name to array), attribute tables by association, and drill holes' columns."""
     if isinstance(data, PointSet):
-        return "points", {"positions": np.asarray(data.coords, dtype=np.float64)}, {"row": data.attributes}
+        return (
+            "points",
+            {"positions": np.asarray(data.coords, dtype=np.float64)},
+            {"row": data.attributes},
+            None,
+        )
     if isinstance(data, Drillholes):
-        ends, rows, middles, table = _drillholes(data)
-        return "drillholes", {"positions": ends, "rows": rows, "midpoints": middles}, {"row": table}
+        geometry, table, holes = _drillholes(data)
+        return "drillholes", geometry, {"row": table}, holes
     if isinstance(data, BlockModel):
         geometry = {"centers": np.asarray(data.centroids, dtype=np.float64), "sizes": _block_sizes(data)}
-        return "blocks", geometry, {"row": data.attributes}
+        return "blocks", geometry, {"row": data.attributes}, None
     if isinstance(data, Mesh):
         geometry = {
             "positions": np.asarray(data.vertices, dtype=np.float64),
             "triangles": np.asarray(data.triangles, dtype=np.uint32),
         }
-        return "mesh", geometry, {"vertex": data.vertex_attributes, "face": data.face_attributes}
+        return "mesh", geometry, {"vertex": data.vertex_attributes, "face": data.face_attributes}, None
     raise TypeError(f"cannot draw {type(data).__name__}; pass a PointSet, Drillholes, BlockModel or Mesh")
 
 
@@ -312,6 +329,7 @@ def _widget_class():
         buffers = traitlets.Dict().tag(sync=True)
         filters = traitlets.Dict().tag(sync=True)
         section = traitlets.Dict().tag(sync=True)
+        picked = traitlets.Dict().tag(sync=True)
 
     return SceneWidget
 
@@ -337,6 +355,58 @@ window.scene = await viewer.default.mount(document.getElementById("scene"), JSON
 </body>
 </html>
 """
+
+_CHROMIUM_ARGS = ["--use-angle=swiftshader", "--enable-unsafe-swiftshader"]
+_ASPECT = 1.6
+_MAX_SCALE = 8
+_SHOOT = """async ([scale, panel, transparent]) => {
+    const blob = await window.scene.screenshot(scale, panel, transparent);
+    const bytes = new Uint8Array(await blob.arrayBuffer());
+    let text = "";
+    for (let i = 0; i < bytes.length; i += 0x8000) text += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+    return btoa(text);
+}"""
+
+
+def _capture(page, width, height, scale, panel, transparent):
+    """PNG bytes of `page` taken in headless Chromium, downloading Chromium first if Playwright has none."""
+    from playwright.sync_api import Error, sync_playwright
+
+    with sync_playwright() as p:
+        try:
+            browser = p.chromium.launch(args=_CHROMIUM_ARGS)
+        except Error as e:
+            if "Executable doesn't exist" not in str(e) and "playwright install" not in str(e):
+                raise
+            print("boitata: downloading Chromium for headless screenshots, once", flush=True)
+            subprocess.run(
+                [sys.executable, "-m", "playwright", "install", "chromium"], check=True, capture_output=True
+            )
+            browser = p.chromium.launch(args=_CHROMIUM_ARGS)
+        try:
+            tab = browser.new_page(viewport={"width": width, "height": height})
+            tab.goto(page.as_uri())
+            tab.wait_for_function("window.scene !== undefined", timeout=120_000)
+            return base64.b64decode(tab.evaluate(_SHOOT, [scale, panel, transparent]))
+        finally:
+            browser.close()
+
+
+def _headless(page_html, height, scale, panel, transparent):
+    try:
+        import playwright.sync_api  # noqa: F401
+    except ImportError:
+        raise ImportError(
+            "screenshots outside a notebook widget render in headless Chromium through playwright; "
+            "pip install 'boitata[export]'"
+        ) from None
+    with tempfile.TemporaryDirectory() as folder:
+        page = Path(folder) / "scene.html"
+        page.write_text(page_html, encoding="utf-8")
+        # a thread of its own: Playwright's sync API refuses to run inside the event loop of a notebook
+        with ThreadPoolExecutor(1) as pool:
+            width = round(height * _ASPECT)
+            return pool.submit(_capture, page, width, height, scale, panel, transparent).result()
 
 
 class Scene:
@@ -380,6 +450,9 @@ class Scene:
         self._warned = False
         self._section = None
         self._live = weakref.WeakSet()
+        self._picked = None
+        self._shots = {}
+        self._shot_id = 0
 
     def add(
         self,
@@ -450,8 +523,8 @@ class Scene:
         visible : bool, default True
             Whether the layer starts shown; the panel toggles it.
         columns : sequence of str, optional
-            Columns sent to the viewer, which offers them to color by; default every numeric and text column.
-            `values` is always sent.
+            Columns sent to the viewer, which offers them to color by and shows them for a clicked row; default
+            every numeric and text column. `values` and the hole name of drill holes are always sent.
         filter : dict, optional
             Rows shown from the start, as conditions on columns sent to the viewer, all of which a row must meet:
             a ``(low, high)`` tuple for a number column, inclusive, None leaving that end open; a list of the
@@ -464,7 +537,7 @@ class Scene:
         Scene
             This scene, to chain calls.
         """
-        kind, geometry, tables = _layer(data)
+        kind, geometry, tables, holes = _layer(data)
         valid = _REPRESENTATIONS[kind]
         if representation is not None and representation not in valid:
             raise ValueError(
@@ -496,6 +569,8 @@ class Scene:
         wanted = None if columns is None else {*columns, *([values] if values else [])}
         if wanted is not None and wanted - set(available):
             raise KeyError(f"no columns {sorted(wanted - set(available))}; columns: {', '.join(available)}")
+        if wanted is not None and holes:
+            wanted.add(holes[0])
 
         layer_id = f"l{len(self._layers)}"
         points = geometry.get("positions", geometry.get("centers"))
@@ -507,7 +582,7 @@ class Scene:
         for role, array in geometry.items():
             if role in ("positions", "centers", "midpoints"):
                 array = (array - self._origin).astype(np.float32)
-            elif role == "sizes":
+            elif role in ("sizes", "depths"):
                 array = array.astype(np.float32)
             buffers[f"{layer_id}/{role}"] = array
             refs[role] = f"{layer_id}/{role}"
@@ -544,6 +619,8 @@ class Scene:
         layer["filter"] = _filter(layer, {} if filter is None else filter)
         if kind == "blocks":
             layer["axes"] = _block_axes(data).tolist()
+        if holes:
+            layer["holes"] = dict(zip(("hole", "from", "to"), holes, strict=True))
         if values is not None:
             variable = self._variables.setdefault(values, {})
             variable.update(
@@ -597,12 +674,12 @@ class Scene:
 
         While viewing, Shift-drag across the view cuts a straight section under the swept line, its ends picked on
         the level plane through the middle of the shown layers (or, in views within 20 degrees of level, on the
-        upright plane through it that faces the camera); ``d`` or the draw button switches to a plan view where
+        upright plane through it that faces the camera); ``S`` or the draw button switches to a plan view where
         clicks add the vertices of a polyline, Shift locks a segment to a multiple of 45 degrees, Backspace removes
-        the last vertex, Enter or the button cuts and Esc cancels. The mouse wheel sets the width while drawing or
-        with Shift held. ``u`` or the unfold button lays the section out flat, with the distance along it on the
-        bottom axis and elevation up, and folds it back; ``c`` or the clear button removes it. `sections` reads
-        the result back.
+        the last vertex, Enter or the button cuts and Esc cancels. The mouse wheel zooms; Shift+wheel sets the
+        width while cutting or drawing, or of the section shown. ``U`` or the unfold button lays the section out
+        flat, with the distance along it on the bottom axis and elevation up, and folds it back; ``X`` or the clear
+        button removes it. `sections` reads the result back.
 
         Parameters
         ----------
@@ -809,6 +886,102 @@ class Scene:
             layer["filter"] = state.get(layer["id"], {})
         self._push_filters(source=change["owner"])
 
+    def screenshot(self, path, *, scale=1, panel=False, transparent=False):
+        """Writes a PNG image of the scene, with its color bars, axis labels and orientation gizmo.
+
+        In a notebook where the scene is shown, the image is of the widget as it stands: its camera, its panel
+        edits, its pick. The browser answers between cells, so the file appears once the running cell finishes;
+        read it from the next cell. Elsewhere (a script, a notebook run without a browser, a scene not shown yet)
+        the saved page renders in headless Chromium, `height` pixels high and 1.6 times as wide, and the file is
+        written on return. That needs Playwright, ``pip install 'boitata[export]'``, which downloads Chromium on
+        first use.
+
+        Parameters
+        ----------
+        path : str or pathlib.Path
+            PNG file to write.
+        scale : float, default 1
+            Pixels per CSS pixel of the viewer, in (0, 8]; 2 doubles the width and height.
+        panel : bool, default False
+            Whether the layer panel shows in the image.
+        transparent : bool, default False
+            Whether the background is transparent instead of the theme's.
+
+        Returns
+        -------
+        pathlib.Path
+        """
+        path = Path(path)
+        if path.suffix.lower() != ".png":
+            raise ValueError(f"screenshots are PNG images; path must end in .png, got {str(path)!r}")
+        if not (_real(scale) and 0 < scale <= _MAX_SCALE):
+            raise ValueError(f"scale must be a number in (0, {_MAX_SCALE}], got {scale!r}")
+        for key, flag in (("panel", panel), ("transparent", transparent)):
+            if not isinstance(flag, bool | np.bool_):
+                raise TypeError(f"{key} must be a bool, got {flag!r}")
+        options = {"scale": float(scale), "panel": bool(panel), "transparent": bool(transparent)}
+        shown = [w for w in self._live if getattr(w, "_views", 0) > 0]
+        if shown:
+            self._shot_id += 1
+            self._shots[self._shot_id] = path
+            shown[-1].send({"type": "screenshot", "id": self._shot_id, **options})
+            return path
+        path.write_bytes(_headless(self._html(), self._height, **options))
+        return path
+
+    @property
+    def picked(self):
+        """The row last clicked in the viewer, or None.
+
+        A click on a drawn element picks it: a card beside it lists every column sent for its row, its real-world
+        coordinates, the hole and depths of a drill-hole interval and the size of a block, and the element is
+        outlined in the theme's accent. Esc, the card's close button or a click on empty space dismiss it; a drag
+        never picks, and neither does what the filter or the section hides. The pick reads
+        ``{"layer": name, "row": index, "values": {column: value}, "position": (x, y, z)}``. `row` indexes the
+        layer's rows: points, blocks, drill-hole intervals (segments between survey stations for holes without
+        intervals) or mesh triangles, whose vertex columns are read at the corner nearest the click. `values` holds
+        the columns sent to the viewer, None for nulls, numbers to the 7 significant digits the viewer keeps.
+        `position` is the point, block center, interval middle or the point clicked on a mesh.
+
+        It follows the widgets shown in a notebook; without one, before a click and once dismissed it is None.
+
+        Returns
+        -------
+        dict or None
+        """
+        if self._picked is None:
+            return None
+        return {**self._picked, "values": dict(self._picked["values"])}
+
+    def _picked_edited(self, change):
+        state = change["new"] or {}
+        self._picked = (
+            {
+                "layer": state["layer"],
+                "row": int(state["row"]),
+                "values": dict(state["values"]),
+                "position": tuple(float(v) for v in state["position"]),
+            }
+            if state
+            else None
+        )
+
+    def _message(self, widget, content, buffers):
+        """Custom messages of a widget: its views appearing and going, and screenshots it took."""
+        kind = content.get("type")
+        if kind == "view":
+            widget._views = max(0, getattr(widget, "_views", 0) + (1 if content.get("shown") else -1))
+        elif kind == "screenshot":
+            path = self._shots.pop(content.get("id"), None)
+            if path is None:
+                return
+            if content.get("error") or not buffers:
+                warnings.warn(
+                    f"the viewer could not take the screenshot {path}: {content.get('error')}", stacklevel=1
+                )
+                return
+            path.write_bytes(bytes(buffers[0]))
+
     def _widget(self):
         widget = _widget_class()(
             spec=self._spec(),
@@ -818,6 +991,9 @@ class Scene:
         )
         widget.observe(self._filters_edited, names="filters")
         widget.observe(self._section_edited, names="section")
+        widget.observe(self._picked_edited, names="picked")
+        widget.on_msg(self._message)
+        widget._views = 0
         self._live.add(widget)
         return widget
 
@@ -827,7 +1003,7 @@ class Scene:
         except ImportError:
             page = html.escape(self._html(), quote=True)
             frame = (
-                f'<iframe srcdoc="{page}" style="width:100%;height:{self._height}px;border:0"></iframe>'
+                f'<iframe srcdoc="{page}" allow="fullscreen" allowfullscreen style="width:100%;height:{self._height}px;border:0"></iframe>'
                 '<div style="font:12px system-ui,sans-serif;opacity:.7">'
                 "For the notebook widget: pip install 'boitata[3d]'</div>"
             )

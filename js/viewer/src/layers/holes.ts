@@ -5,6 +5,7 @@ import { boxOf, diagonal } from "../bounds";
 import { f32, u32 } from "../buffers";
 import { midpoints, stratifiedOrder, subsetCount } from "../motion";
 import { colorAt, kept, type Paint } from "../paint";
+import { pickArray } from "../pick";
 import { filterArray, type LayerFilter, writeFilter } from "../filter";
 import { HALO, HALO_ORDER, lineMaterial, setOpacity, shadedMaterial, shared } from "../shaders";
 import type { Buffers, LayerSpec } from "../types";
@@ -48,9 +49,11 @@ export function lines(layer: LayerSpec, buffers: Buffers, filter: LayerFilter): 
       const colors = new Float32Array(6 * count);
       geometry = new LineSegmentsGeometry();
       const f = filterArray(geometry, count, filter.slots, true);
+      const rows = pickArray(geometry, count, true);
       let j = 0;
       for (const i of s.order) {
         if (!kept(paint, s.rows[i])) continue;
+        rows[j] = s.rows[i];
         xyz.set(s.positions.subarray(6 * i, 6 * i + 6), 6 * j);
         colorAt(paint, s.rows[i], rgb, 0);
         for (let e = 0; e < 2; e++) for (let a = 0; a < 3; a++) colors[6 * j + 3 * e + a] = rgb[a] / 255;
@@ -63,6 +66,7 @@ export function lines(layer: LayerSpec, buffers: Buffers, filter: LayerFilter): 
       const line = new LineSegments2(geometry, material);
       outline.frustumCulled = line.frustumCulled = false;
       outline.renderOrder = HALO_ORDER;
+      outline.userData.halo = true;
       line.renderOrder = HALO_ORDER + 1;
       group.add(outline, line);
     },
@@ -112,9 +116,11 @@ export function tubes(layer: LayerSpec, buffers: Buffers, filter: LayerFilter): 
       const c = colors.array as Uint8Array;
       const p = s.positions;
       const f = filterArray(mesh.geometry, s.n, filter.slots, true);
+      const rows = pickArray(mesh.geometry, s.n, true);
       let j = 0;
       for (const i of s.order) {
         if (!kept(paint, s.rows[i])) continue;
+        rows[j] = s.rows[i];
         d.set(p[6 * i + 3] - p[6 * i], p[6 * i + 4] - p[6 * i + 1], p[6 * i + 5] - p[6 * i + 2]);
         u.set(Math.abs(d.z) < 0.9 * d.length() ? 0 : 1, 0, Math.abs(d.z) < 0.9 * d.length() ? 1 : 0);
         u.cross(d).normalize();

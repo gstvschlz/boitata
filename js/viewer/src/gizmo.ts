@@ -66,7 +66,7 @@ export class Gizmo {
       label.setAttribute("dominant-baseline", "central");
       label.textContent = item.label;
       const title = document.createElementNS(NS, "title");
-      title.textContent = { east: "View from the east", north: "View from the north", plan: "Plan view" }[item.key];
+      title.textContent = { east: "View from the east", north: "View from the north", plan: "Plan view (P)" }[item.key];
       g.append(title, line, dot, label);
       g.addEventListener("click", (e) => {
         e.stopPropagation();

@@ -158,6 +158,8 @@ export class LayerFilter {
     uFilterJoin: { value: new THREE.Vector4() },
     uFilterRows: { value: 1 },
     uFilterCats: { value: categoryTexture(1) },
+    /** The layer's index, which the id pass writes; every material of the layer shares these uniforms. */
+    uLayer: { value: 0 },
   };
 
   get active(): boolean {

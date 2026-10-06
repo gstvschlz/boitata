@@ -6,6 +6,7 @@ import { f32, u32 } from "../buffers";
 import { filterArray, type LayerFilter, writeFilter } from "../filter";
 import { midpoints, stratifiedOrder, subsetCount } from "../motion";
 import { colorAt, kept, type Paint } from "../paint";
+import { pickArray } from "../pick";
 import { lineMaterial, setOpacity, shadedMaterial } from "../shaders";
 import type { Buffers, LayerSpec } from "../types";
 import type { Representation } from "./index";
@@ -18,7 +19,7 @@ export function surface(layer: LayerSpec, buffers: Buffers, filter: LayerFilter)
   const positions = f32(buffers, layer.geometry.positions);
   const triangles = u32(buffers, layer.geometry.triangles);
   const nt = triangles.length / 3;
-  const material = shadedMaterial(false, layer.opacity, filter.uniforms, { outline: true });
+  const material = shadedMaterial(false, layer.opacity, filter.uniforms, { outline: true, bias: true });
   const object = new THREE.Mesh(new THREE.BufferGeometry(), material);
   object.frustumCulled = false;
   object.renderOrder = 1;
@@ -44,12 +45,14 @@ export function surface(layer: LayerSpec, buffers: Buffers, filter: LayerFilter)
     const colors = new Uint8Array(9 * count);
     const g = new THREE.BufferGeometry();
     const f = filterArray(g, 3 * count, filter.slots, false);
+    const rows = pickArray(g, 3 * count, false);
     let j = 0;
     for (let t = 0; t < nt; t++) {
       if (!shown(t)) continue;
       for (let c = 0; c < 3; c++) {
         const v = triangles[3 * t + c];
         const at = 3 * (3 * j + c);
+        rows[3 * j + c] = t;
         xyz.set(positions.subarray(3 * v, 3 * v + 3), at);
         normal.set(normals.subarray(3 * v, 3 * v + 3), at);
         colorAt(paint, byFace ? t : paint.on === "vertex" ? v : 0, colors, at);
@@ -157,6 +160,8 @@ export function meshWireframe(layer: LayerSpec, buffers: Buffers, filter: LayerF
       geometry = new LineSegmentsGeometry();
       geometry.setPositions(out);
       geometry.setColors(colors);
+      const rows = pickArray(geometry, drawn, true);
+      shown.forEach((e, j) => (rows[j] = faces[2 * e]));
       const f = filterArray(geometry, drawn, filter.slots, true);
       const g = filterArray(geometry, drawn, filter.slots, true, "aFilter2");
       if (f && g)

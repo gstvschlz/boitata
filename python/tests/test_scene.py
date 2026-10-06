@@ -1,6 +1,7 @@
 import io
 import re
 import sys
+from contextlib import contextmanager
 from pathlib import Path
 
 import boitata as bt
@@ -384,6 +385,16 @@ def fake_widgets(monkeypatch):
         buffers = traitlets.Dict()
         filters = traitlets.Dict()
         section = traitlets.Dict()
+        picked = traitlets.Dict()
+
+        def on_msg(self, handler):
+            self.handler = handler
+
+        def send(self, content):
+            self.sent = [*getattr(self, "sent", []), content]
+
+        def receive(self, content, buffers=()):
+            self.handler(self, content, list(buffers))
 
     monkeypatch.setattr("boitata._scene._widget_class", lambda: FakeWidget)
 
@@ -476,11 +487,15 @@ WIDGET = """async () => {
     const buffers = {};
     for (const [k, b64] of Object.entries(data.buffers))
         buffers[k] = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0)).buffer;
-    const state = { spec: data.spec, buffers, filters: {} };
+    const filters = Object.fromEntries(
+        data.spec.layers.filter((l) => Object.keys(l.filter).length).map((l) => [l.id, l.filter]));
+    const state = { spec: data.spec, buffers, filters, section: data.spec.section };
     window.model = {
         state, saved: 0,
         get: (k) => state[k], set: (k, v) => { state[k] = v; },
-        save_changes() { this.saved++; }, on() {}, off() {},
+        save_changes() { this.saved++; }, off() {}, handlers: {}, sent: [],
+        on(event, callback) { (this.handlers[event] ||= []).push(callback); },
+        send(content, callbacks, buffers) { this.sent.push([content, buffers ?? []]); },
     };
     document.getElementById("scene").remove();
     const el = document.createElement("div");
@@ -670,10 +685,276 @@ def test_shift_drag_and_keys_reach_the_widget_model(tmp_path):
         cut = tab.evaluate("window.model.state.section")
         tab.keyboard.press("u")
         unfolded = tab.evaluate("window.model.state.section.unfolded")
-        tab.keyboard.press("c")
+        tab.keyboard.press("x")
         cleared = tab.evaluate("window.model.state.section")
         browser.close()
     (x0, y0, _), (x1, y1, _) = cut["points"]
     assert x0 < x1 and abs(y0 - y1) < 1e-6 and 0 < y0 < 30
     assert cut["dip"] == 90 and cut["width"] > 0 and cut["unfolded"] is False
     assert unfolded is True and cleared == {}
+
+
+def test_picked_follows_the_live_widgets(monkeypatch):
+    fake_widgets(monkeypatch)
+    scene = Scene().add(lensy_points(), name="pts")
+    assert scene.picked is None
+    widget = scene._widget()
+    values = {"grade": None, "lens": None, "other": 2.0}
+    widget.picked = {"layer": "pts", "row": 2, "values": values, "position": [1, 2, 3]}
+    assert scene.picked == {"layer": "pts", "row": 2, "values": values, "position": (1.0, 2.0, 3.0)}
+    scene.picked["values"]["other"] = 5.0
+    assert scene.picked["values"]["other"] == 2.0
+    widget.picked = {}
+    assert scene.picked is None
+    with pytest.raises(AttributeError):
+        scene.picked = None
+
+
+@pytest.mark.parametrize(
+    ("kwargs", "error", "match"),
+    [
+        ({"path": "scene.jpg"}, ValueError, r"\.png"),
+        ({"scale": 0}, ValueError, "scale"),
+        ({"scale": 9}, ValueError, "scale"),
+        ({"scale": np.nan}, ValueError, "scale"),
+        ({"scale": True}, ValueError, "scale"),
+        ({"scale": "2"}, ValueError, "scale"),
+        ({"panel": 1}, TypeError, "panel"),
+        ({"transparent": "yes"}, TypeError, "transparent"),
+    ],
+)
+def test_screenshot_validates_its_arguments(tmp_path, kwargs, error, match):
+    path = tmp_path / kwargs.pop("path", "scene.png")
+    with pytest.raises(error, match=match):
+        Scene().add(bt.PointSet(np.zeros((1, 3)))).screenshot(path, **kwargs)
+    assert not path.exists()
+
+
+def test_screenshot_asks_the_shown_widget_and_writes_its_answer(monkeypatch, tmp_path):
+    fake_widgets(monkeypatch)
+    monkeypatch.setattr("boitata._scene._headless", lambda *a, **k: pytest.fail("rendered headless"))
+    scene = Scene().add(bt.PointSet(np.zeros((1, 3))))
+    hidden, shown = scene._widget(), scene._widget()
+    shown.receive({"type": "view", "shown": True})
+    path = scene.screenshot(tmp_path / "live.png", scale=2, transparent=True)
+    assert path == tmp_path / "live.png" and not path.exists()
+    assert shown.sent == [{"type": "screenshot", "id": 1, "scale": 2.0, "panel": False, "transparent": True}]
+    assert not hasattr(hidden, "sent")
+    shown.receive({"type": "screenshot", "id": 1}, [memoryview(b"\x89PNG")])
+    assert path.read_bytes() == b"\x89PNG"
+    shown.receive({"type": "view", "shown": False})
+    monkeypatch.setattr("boitata._scene._headless", lambda *a, **k: b"headless")
+    assert scene.screenshot(tmp_path / "gone.png").read_bytes() == b"headless"
+
+
+def test_screenshot_without_playwright_says_how_to_install_it(monkeypatch, tmp_path):
+    monkeypatch.setitem(sys.modules, "playwright.sync_api", None)
+    with pytest.raises(ImportError, match=r"pip install 'boitata\[export\]'"):
+        Scene().add(bt.PointSet(np.zeros((1, 3)))).screenshot(tmp_path / "scene.png")
+
+
+def test_headless_screenshot_has_the_scale_and_exact_colors(tmp_path):
+    pytest.importorskip("playwright.sync_api")
+    image = pytest.importorskip("PIL.Image")
+    model = bt.BlockModel((0.0, 0.0, 0.0), (10.0, 10.0, 10.0), (3, 1, 1)).with_column("v", [0.2, 0.5, 0.8])
+    scene = Scene(theme="light", height=300).add(model, "v", clim=(0.0, 1.0)).view(dip=90)
+    shot = image.open(scene.screenshot(tmp_path / "scene.png", scale=2))
+    assert shot.size == (960, 600)
+    assert shot.convert("RGB").getpixel((480, 300)) == lut_rgb("viridis", 0.5, 0.0, 1.0)
+    clear = image.open(scene.screenshot(tmp_path / "clear.png", transparent=True)).convert("RGBA")
+    assert (
+        clear.size == (480, 300) and clear.getpixel((240, 150))[3] == 255 and clear.getpixel((2, 2))[3] == 0
+    )
+
+
+TO_SCREEN = """(points) => points.map(([x, y, z]) => {
+    const s = window.scene, o = s.spec.origin;
+    const v = s.camera.position.clone().set(x - o[0], y - o[1], z - o[2]).project(s.camera);
+    return [(v.x + 1) / 2 * s.width, (1 - v.y) / 2 * s.height];
+})"""
+
+
+@contextmanager
+def viewer_page(scene, tmp_path, points=(), widget=False):
+    """A headless tab showing the saved scene, as a page or (`widget`) through the widget entry point, and where
+    world `points` fall on it."""
+    sync_api = pytest.importorskip("playwright.sync_api")
+    page = scene.save(tmp_path / "scene.html")
+    with sync_api.sync_playwright() as p:
+        try:
+            browser = p.chromium.launch(args=["--use-angle=swiftshader", "--enable-unsafe-swiftshader"])
+        except sync_api.Error as e:
+            pytest.skip(f"no chromium for playwright: {e}")
+        try:
+            tab = browser.new_page(viewport={"width": 900, "height": 600})
+            tab.goto(page.as_uri())
+            tab.wait_for_function("window.scene !== undefined", timeout=60_000)
+            at = tab.evaluate(TO_SCREEN, list(points))
+            if widget:
+                tab.evaluate(WIDGET)
+            tab.wait_for_timeout(200)
+            yield tab, at
+        finally:
+            browser.close()
+
+
+def test_widget_answers_a_screenshot_request_with_png_bytes(tmp_path):
+    scene = Scene(theme="light").add(row_of_blocks(), "v")
+    request = "{type: 'screenshot', id: 7, scale: 2, panel: false, transparent: false}"
+    with viewer_page(scene, tmp_path, widget=True) as (tab, _):
+        tab.evaluate(f"() => window.model.handlers['msg:custom'][0]({request})")
+        tab.wait_for_function("window.model.sent.length === 2", timeout=30_000)
+        sent = tab.evaluate(
+            "() => window.model.sent.map(([c, b]) => [c, b.map((x) => [...new Uint8Array(x).slice(0, 4)])])"
+        )
+    (view, _), (answer, buffers) = sent
+    assert view == {"type": "view", "shown": True} and answer == {"type": "screenshot", "id": 7}
+    assert buffers == [[0x89, 0x50, 0x4E, 0x47]]
+
+
+def test_click_picks_the_row_under_it_and_never_a_hidden_one(tmp_path):
+    """Blocks 3, 4 and 5 lie in the section; the filter hides the middle column (4), the section rows 0 to 2."""
+    model = row_of_blocks().with_column("w", [1.0, 1.0, 1.0, np.nan, 1.0, 1.0, 1.0, 1.0, 1.0])
+    model = model.with_column("zone", ["a", "b", "a"] * 3)
+    scene = (
+        Scene(theme="light").add(model, "v", name="blocks", filter={"zone": ["a"]}).view(azimuth=0, dip=90)
+    )
+    scene.section([(-5, 15), (35, 15)], width=4)
+    picked = "window.model.state.picked"
+    with viewer_page(scene, tmp_path, [[5, 15, 10], [15, 15, 10], [5, 5, 10]], widget=True) as (tab, at):
+        kept, filtered, outside = at
+        tab.mouse.click(*kept)
+        first = tab.evaluate(picked)
+        card = tab.locator("#widget .btv-card:not(.btv-help)").text_content()
+        tab.mouse.click(*filtered)
+        on_filtered = tab.evaluate(picked)
+        tab.mouse.click(*kept)
+        tab.mouse.click(*outside)
+        on_outside = tab.evaluate(picked)
+        tab.mouse.move(*filtered)
+        tab.mouse.down()
+        tab.mouse.move(kept[0], kept[1] + 3, steps=4)
+        tab.mouse.up()
+        dragged = tab.evaluate(picked)
+        tab.mouse.click(*kept)
+        tab.keyboard.press("Escape")
+        escaped = tab.evaluate(picked)
+    assert first == {
+        "layer": "blocks",
+        "row": 3,
+        "values": {"v": 0.5, "w": None, "zone": "a"},
+        "position": [5.0, 15.0, 5.0],
+    }
+    assert "—" in card and "NaN" not in card and "10 × 10 × 10" in card
+    assert on_filtered == on_outside == dragged == escaped == {}
+
+
+def test_every_representation_picks_its_rows(tmp_path):
+    model = bt.BlockModel((0.0, 0.0, 0.0), (10.0, 10.0, 10.0), (3, 1, 1)).with_column("v", [0.2, 0.5, 0.8])
+    points = bt.PointSet([[45.0, 5.0, 5.0], [55.0, 5.0, 5.0], [65.0, 5.0, 5.0]], {"v": [0.2, 0.5, 0.8]})
+    holes = bt.Drillholes(
+        {"HOLE_ID": ["A"], "X": [0.0], "Y": [-25.0], "Z": [5.0]},
+        {"HOLE_ID": ["A", "A"], "DEPTH": [0.0, 30.0], "AZIMUTH": [90.0] * 2, "DIP": [0.0] * 2},
+        {"HOLE_ID": ["A"] * 3, "FROM": [0.0, 10.0, 20.0], "TO": [10.0, 20.0, 30.0], "CU": [0.2, 0.5, 0.8]},
+    )
+    vertices = [[40, -30, 5], [50, -30, 5], [40, -20, 5], [60, -30, 5], [60, -20, 5]]
+    mesh = bt.Mesh(vertices, [[0, 1, 2], [1, 3, 4]])
+    scene = Scene(theme="light").view(azimuth=0, dip=90)
+    scene.add(model, "v", name="blocks", point_size=14)
+    scene.add(points, "v", name="points", point_size=14, radius=3)
+    scene.add(holes, "CU", name="holes", line_width=8, radius=1.5, point_size=14)
+    scene.add(mesh, name="mesh", point_size=14, line_width=6)
+    cases = [
+        (0, "cells", [15, 5, 10]),
+        (0, "wireframe", [15, 5, 10]),
+        (0, "points", [15, 5, 5]),
+        (1, "points", [55, 5, 5]),
+        (1, "spheres", [55, 5, 5]),
+        (2, "lines", [15, -25, 5]),
+        (2, "tubes", [15, -25, 5]),
+        (2, "points", [15, -25, 5]),
+        (3, "surface", [57, -27, 5]),
+        (3, "wireframe", [60, -25, 5]),
+        (3, "points", [60, -20, 5]),
+    ]
+    got = []
+    with viewer_page(scene, tmp_path) as (tab, _):
+        tab.evaluate("() => window.scene.togglePanel()")
+        for layer, representation, point in cases:
+            tab.evaluate(
+                "([i, name]) => { const s = window.scene; s.dismiss(); s.setRepresentation(s.layers[i], name); }",
+                [layer, representation],
+            )
+            tab.wait_for_timeout(50)
+            ((x, y),) = tab.evaluate(TO_SCREEN, [point])
+            tab.mouse.click(x, y)
+            pick = tab.evaluate("window.scene.pickState()")
+            got.append((representation, pick and pick["layer"], pick and pick["row"]))
+    names = ["blocks", "points", "holes", "mesh"]
+    assert got == [(representation, names[layer], 1) for layer, representation, _ in cases]
+
+
+def test_question_mark_opens_the_shortcut_card_and_esc_closes_it(tmp_path):
+    scene = Scene(theme="light").add(row_of_blocks(), "v")
+    with viewer_page(scene, tmp_path) as (tab, _):
+        tab.mouse.click(450, 40)
+        tab.keyboard.press("?")
+        help_card = tab.locator(".btv-help")
+        shown = help_card.is_visible()
+        text = help_card.text_content()
+        tab.keyboard.press("Escape")
+        closed = help_card.is_hidden()
+        tab.locator("button[title='Keyboard shortcuts (?)']").click()
+        reopened = help_card.is_visible()
+        tab.mouse.click(450, 40)
+        clicked_away = help_card.is_hidden()
+    assert shown and closed and reopened and clicked_away
+    assert "Keyboard shortcuts" in text and "Draw a section" in text and "Clear the section" in text
+
+
+def test_fullscreen_button_fills_the_screen_or_says_why_it_cannot(tmp_path):
+    scene = Scene(theme="light").add(row_of_blocks(), "v")
+    with viewer_page(scene, tmp_path) as (tab, _):
+        button = tab.locator(".btv-head button[aria-label='Fullscreen']")
+        button.click()
+        tab.wait_for_function(
+            "document.fullscreenElement !== null ||"
+            " document.querySelector('#scene').shadowRoot.querySelector('[aria-disabled=true]') !== null",
+            timeout=5_000,
+        )
+        entered = tab.evaluate("document.fullscreenElement !== null")
+        if entered:
+            title = tab.locator(".btv-head button[aria-label='Leave fullscreen (Esc)']").get_attribute(
+                "title"
+            )
+            tab.locator(".btv-head button[aria-label='Leave fullscreen (Esc)']").click()
+            tab.wait_for_function("document.fullscreenElement === null", timeout=5_000)
+            back = tab.locator(".btv-head button[aria-label='Fullscreen']").count()
+        else:
+            title = tab.locator(".btv-head button[aria-disabled=true]").get_attribute("title")
+    if entered:
+        assert title == "Leave fullscreen (Esc)" and back == 1
+    else:
+        assert "unavailable" in title
+
+
+def test_wheel_zooms_and_shift_wheel_sets_the_section_width(tmp_path):
+    scene = Scene(theme="light").add(row_of_blocks(), "v").view(azimuth=0, dip=90)
+    scene.section([(-5, 15), (35, 15)], width=4)
+    measure = (
+        "() => { const s = window.scene;"
+        " return [s.camera.position.distanceTo(s.controls.target), s.sectionState().width]; }"
+    )
+    with viewer_page(scene, tmp_path) as (tab, _):
+        tab.mouse.move(300, 300)
+        before = tab.evaluate(measure)
+        tab.mouse.wheel(0, -300)
+        tab.wait_for_timeout(100)
+        zoomed = tab.evaluate(measure)
+        tab.keyboard.down("Shift")
+        tab.mouse.wheel(0, -300)
+        tab.keyboard.up("Shift")
+        tab.wait_for_timeout(100)
+        widened = tab.evaluate(measure)
+    assert zoomed[0] < before[0] and zoomed[1] == before[1] == 4
+    assert widened[0] == pytest.approx(zoomed[0]) and widened[1] > 4

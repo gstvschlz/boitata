@@ -34,6 +34,8 @@ export interface LayerSpec {
   /** Buffer keys of the geometry, by role (positions, triangles, rows, midpoints, centers, sizes). */
   geometry: Record<string, string>;
   axes?: number[][];
+  /** Drill holes: the column naming the hole and the interval columns; the depths of each row are in `depths`. */
+  holes?: { hole: string; from: string | null; to: string | null };
   columns: ColumnSpec[];
   /** Initial filter: conditions on columns, combined with "and". */
   filter?: FilterState;

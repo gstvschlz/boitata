@@ -4,6 +4,7 @@ import { f32 } from "../buffers";
 import { filterArray, type LayerFilter, writeFilter } from "../filter";
 import { stratifiedOrder, subsetCount } from "../motion";
 import { colorAt, kept, type Paint } from "../paint";
+import { pickArray } from "../pick";
 import { boxEdgeMaterial, depthMaterial, setOpacity, shadedMaterial } from "../shaders";
 import type { Buffers, LayerSpec } from "../types";
 import type { Representation } from "./index";
@@ -67,11 +68,13 @@ export function cells(layer: LayerSpec, buffers: Buffers, filter: LayerFilter): 
       const m = mesh.instanceMatrix.array as Float32Array;
       const c = colors!.array as Uint8Array;
       const f = filterArray(mesh.geometry, b.n, filter.slots, true);
+      const rows = pickArray(mesh.geometry, b.n, true);
       let j = 0;
       for (const i of b.order) {
         if (!kept(paint, i)) continue;
         setMatrix(b, i, m, j);
         colorAt(paint, i, c, 3 * j);
+        rows[j] = i;
         if (f) writeFilter(filter.slots, f, 4 * j, () => i);
         j++;
       }
@@ -151,6 +154,8 @@ export function blockWireframe(layer: LayerSpec, buffers: Buffers, filter: Layer
       const m = faces.instanceMatrix.array as Float32Array;
       const f = filterArray(geometry, b.n, filter.slots, true);
       if (f) faces.geometry.setAttribute("aFilter", geometry.getAttribute("aFilter"));
+      const rows = pickArray(geometry, b.n, true);
+      faces.geometry.setAttribute("aPick", geometry.getAttribute("aPick"));
       let j = 0;
       for (const i of b.order) {
         if (!kept(paint, i)) continue;
@@ -158,6 +163,7 @@ export function blockWireframe(layer: LayerSpec, buffers: Buffers, filter: Layer
         size.set(b.sizes.subarray(3 * i, 3 * i + 3), 3 * j);
         colorAt(paint, i, color, 3 * j);
         setMatrix(b, i, m, j);
+        rows[j] = i;
         if (f) writeFilter(filter.slots, f, 4 * j, () => i);
         j++;
       }
