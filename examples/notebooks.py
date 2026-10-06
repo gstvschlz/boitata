@@ -2,7 +2,8 @@
 
 The docstring and markdown cells become text: admonitions turn into quotes, `--8<--` figures into SVG attachments
 styled like the docs, math delimiters into `$`, and relative links into links to the docs site. Hidden cells are
-dropped and a setup cell installs boitata and fetches common.py.
+dropped and a setup cell installs boitata and fetches common.py; a script using `bt.plot3d` also gets pyvista with its
+standalone HTML viewer, which works in Colab.
 """
 
 import ast
@@ -24,6 +25,14 @@ if importlib.util.find_spec("boitata") is None:
     %pip install -q "boitata[plot]>=0.3"
 if importlib.util.find_spec("common") is None:
     urllib.request.urlretrieve("{RAW}examples/common.py", "common.py")"""
+SETUP_3D = (
+    SETUP.replace('"boitata[plot]>=0.3"', '"boitata[all]>=0.4" "pyvista[jupyter]"')
+    + """
+
+import pyvista as pv
+
+pv.set_jupyter_backend("html")"""
+)
 ADMONITION = re.compile(r'^(?:!!!|\?\?\?\+?) (\w+)(?: "(.*)")?$')
 FIGURE = re.compile(
     r'<figure[^>]*>\s*--8<-- "([^"]+)"\s*<figcaption>(.*?)</figcaption>\s*</figure>', re.DOTALL
@@ -95,7 +104,7 @@ def notebook(script: Path) -> dict:
     page = script.parent.relative_to(ROOT).as_posix()
     source = script.read_text(encoding="utf-8")
     intro = ast.get_docstring(ast.parse(source))
-    body = [code(SETUP)]
+    body = [code(SETUP_3D if "bt.plot3d" in source else SETUP)]
     for kind, text in cells(source):
         if kind == "markdown":
             body.append(

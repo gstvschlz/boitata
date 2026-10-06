@@ -17,7 +17,7 @@
 <p align="center">
   <a href=""><img src="https://github.com/gstvschlz/boitata/actions/workflows/release.yml/badge.svg" alt="cicd status"></a>
   <a href=""><img src="https://github.com/gstvschlz/boitata/actions/workflows/test.yml/badge.svg" alt="tests"></a>
-  <a href="https://colab.research.google.com/github/gstvschlz/boitata/blob/main/notebooks/learn_01.ipynb"><img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open in Colab"></a>
+  <a href="https://colab.research.google.com/github/gstvschlz/boitata/blob/main/notebooks/learn_00.ipynb"><img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open in Colab"></a>
 </p>
 
 > boitatá is a guardian spirit of underground resources in Brazilian folklore.
