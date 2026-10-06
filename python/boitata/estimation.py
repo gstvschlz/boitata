@@ -204,6 +204,7 @@ class _Base:
 
     def __init__(self, method: str, search: Searches, variogram: Variogram | None = None, **options):
         self._engine = _Estimator(method, search, variogram, **options)
+        self._search = search
         self._variogram_unit = getattr(variogram, "length_unit", None)
         self._length_unit = _parameters_unit(search, self._variogram_unit)
         self._undeclared = _undeclared(search, variogram)
@@ -353,6 +354,7 @@ class _Base:
         """
         estimator = type(self).__new__(type(self))
         estimator._engine = self._engine.with_search(search)
+        estimator._search = search
         estimator._unit = getattr(self, "_unit", None)
         estimator._coords_unit = getattr(self, "_coords_unit", None)
         estimator._variogram_unit = getattr(self, "_variogram_unit", None)
