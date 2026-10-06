@@ -11,6 +11,53 @@ use crate::search::{Search, neighbors, take};
 use serde::{Deserialize, Serialize};
 use variogram::Variogram;
 
+/// Agreement of estimates with known values; error = estimate − truth.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct Comparison {
+    /// Pairs where both are finite.
+    pub n: usize,
+    pub mean_error: f64,
+    pub rmse: f64,
+    /// Pearson correlation; NaN when either side is constant.
+    pub correlation: f64,
+    /// Slope of the regression of truth on estimate; 1 when unbiased conditionally.
+    pub slope: f64,
+}
+
+/// Compares `estimate` with `truth`, pair by pair, skipping non-finite pairs.
+pub fn compare(estimate: &[f64], truth: &[f64]) -> Result<Comparison> {
+    if estimate.len() != truth.len() {
+        return Err(EstimError::InvalidParameters(format!(
+            "{} estimates for {} true values",
+            estimate.len(),
+            truth.len()
+        )));
+    }
+    let pairs: Vec<(f64, f64)> = estimate
+        .iter()
+        .zip(truth)
+        .filter(|(e, t)| e.is_finite() && t.is_finite())
+        .map(|(&e, &t)| (e, t))
+        .collect();
+    let n = pairs.len() as f64;
+    let mean = |f: fn(&(f64, f64)) -> f64| pairs.iter().map(f).sum::<f64>() / n;
+    let (me, mt) = (mean(|p| p.0), mean(|p| p.1));
+    let (mut see, mut stt, mut set, mut sq) = (0.0, 0.0, 0.0, 0.0);
+    for &(e, t) in &pairs {
+        see += (e - me) * (e - me);
+        stt += (t - mt) * (t - mt);
+        set += (e - me) * (t - mt);
+        sq += (e - t) * (e - t);
+    }
+    Ok(Comparison {
+        n: pairs.len(),
+        mean_error: me - mt,
+        rmse: (sq / n).sqrt(),
+        correlation: set / (see * stt).sqrt(),
+        slope: set / see,
+    })
+}
+
 /// Per-sample cross-validation record.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CvRecord {
@@ -197,6 +244,20 @@ pub fn k_fold(samples: &[Sample], vg: &Variogram, search: &Search, k: usize) -> 
 mod tests {
     use super::*;
     use variogram::model::Model;
+
+    /// Theory check: an exact estimate has no error, correlation 1 and slope 1;
+    /// a shifted one only a mean error.
+    #[test]
+    fn compare_scores_exact_and_shifted_estimates() {
+        let truth = [1.0, 2.0, 4.0, 8.0, f64::NAN];
+        let exact = compare(&truth, &truth).unwrap();
+        assert_eq!((exact.n, exact.mean_error, exact.rmse), (4, 0.0, 0.0));
+        assert!((exact.correlation - 1.0).abs() < 1e-12 && (exact.slope - 1.0).abs() < 1e-12);
+        let shifted: Vec<f64> = truth.iter().map(|t| t + 0.5).collect();
+        let c = compare(&shifted, &truth).unwrap();
+        assert!((c.mean_error - 0.5).abs() < 1e-12 && (c.rmse - 0.5).abs() < 1e-12);
+        assert!(compare(&[1.0], &truth).is_err());
+    }
 
     fn grid_samples() -> Vec<Sample> {
         // Smooth linear field on a 6×6 grid → kriging should reproduce it well.

@@ -196,3 +196,62 @@ def test_containers_convert_like_tables():
         assert isinstance(frame, pl.DataFrame) and frame.columns[:3] == ["x", "y", "z"]
     table = bt.Table({"a": [1.0, 2.0]}).with_column("b", ["x", None]).with_columns({"a": [3.0, 4.0]})
     assert table.column_names == ["a", "b"] and table["a"].tolist() == [3.0, 4.0]
+
+
+def test_sample_is_missing_outside_the_model():
+    masked = model.with_columns({"rock": list("abcdef")}).filter(np.arange(6) != 1)
+    at = np.array([[5.0, 5, 5], [15, 5, 5], [99, 99, 99], [25, 15, 5]])
+    rows = masked.row_at(at)
+    assert masked.contains(at).tolist() == [True, False, False, True]
+    got = masked.sample(at, "d")
+    np.testing.assert_array_equal(got[rows >= 0], masked["d"][rows[rows >= 0]])
+    assert np.isnan(got[rows < 0]).all()
+    assert masked.sample(at, "rock").tolist() == ["a", None, None, "f"]
+
+
+def test_grid_places_rows_by_cell_and_leaves_absent_cells_missing():
+    values = np.arange(6.0)
+    full = bt.BlockModel((0, 0, 0), (1, 1, 1), (3, 2, 1), attributes={"v": values})
+    np.testing.assert_array_equal(full.grid("v"), values.reshape(1, 2, 3))
+    masked = full.filter(values != 4)
+    grid = masked.grid("v")
+    assert np.isnan(grid[0, 1, 1]) and grid[0, 1, 2] == 5.0
+
+
+def test_drop_null_keeps_rows_with_every_value():
+    data = bt.PointSet(xyz[:3], {"a": [1.0, np.nan, 3.0], "b": ["x", "y", None]})
+    assert len(data.drop_null()) == 1 and len(data.drop_null("a")) == 2
+    assert len(bt.Table({"a": [np.nan, 1.0]}).drop_null()) == 1
+
+
+def test_drillholes_from_tables_reads_the_dataset_names():
+    tables = {
+        "collars": {"HOLE_ID": ["a"], "X": [0.0], "Y": [0.0], "Z": [10.0]},
+        "surveys": {"HOLE_ID": ["a"], "DEPTH": [0.0], "AZIMUTH": [0.0], "DIP": [90.0]},
+        "lithology": {"HOLE_ID": ["a"], "FROM": [0.0], "TO": [2.0], "ROCK": ["ox"]},
+    }
+    rocks = bt.Drillholes.from_tables(tables, intervals="lithology")
+    assert rocks["ROCK"].tolist() == ["ox"]
+    assert len(bt.Drillholes.from_tables(tables, intervals=None)) == 1
+
+
+def test_standardized_variogram_keeps_shape_and_anisotropy():
+    fitted = bt.Variogram([("spherical", 4.0, 100.0)], nugget=1.0, rotation=(30, 0, 0), ratios=(0.5, 0.25))
+    unit = fitted.standardized()
+    assert unit.sill == pytest.approx(1.0) and unit.nugget == pytest.approx(0.2)
+    assert unit.rotation == fitted.rotation and unit.ratios == fitted.ratios
+    np.testing.assert_allclose(unit.gamma([10.0, 60.0]), fitted.gamma([10.0, 60.0]) / 5.0)
+    assert fitted.standardized(sill=2.0).sill == pytest.approx(2.0)
+
+
+def test_compare_skips_missing_pairs():
+    result = bt.compare("e", "t", data={"e": [1.0, 2.0, np.nan, 4.5], "t": [1.0, 2.0, 3.0, 4.0]})
+    assert result["n"] == 3 and result["mean_error"] == pytest.approx(0.5 / 3)
+    exact = bt.compare([1.0, 2.0, 3.0], [1.0, 2.0, 3.0])
+    assert (
+        exact["rmse"] == 0.0
+        and exact["correlation"] == pytest.approx(1.0)
+        and exact["slope"] == pytest.approx(1.0)
+    )
+    with pytest.raises(bt.InvalidInput):
+        bt.compare([1.0], [1.0, 2.0])

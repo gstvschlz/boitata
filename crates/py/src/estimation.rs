@@ -1752,6 +1752,44 @@ fn neighborhood_stats(
 /// ndarray
 ///     Distances, ``inf`` where fewer than `n` holes are in reach; shape
 ///     ``(targets, len(n))`` when `n` is a sequence.
+/// How well `estimate` matches `truth`, e.g. an estimate against an
+/// exhaustive grid; pairs with a missing value on either side are skipped.
+///
+/// Parameters
+/// ----------
+/// estimate, truth : array_like or str
+///     One value per row, or column names of `data`.
+/// data : container, optional
+///     Holds the columns `estimate` and `truth` name.
+///
+/// Returns
+/// -------
+/// dict
+///     ``n`` pairs compared, ``mean_error`` and ``rmse`` of estimate − truth,
+///     ``correlation``, and ``slope`` of the regression of truth on estimate.
+#[pyfunction]
+#[pyo3(signature = (estimate, truth, *, data=None))]
+fn compare<'py>(
+    py: Python<'py>,
+    estimate: &Bound<'py, PyAny>,
+    truth: &Bound<'py, PyAny>,
+    data: Option<&Bound<'py, PyAny>>,
+) -> PyResult<Bound<'py, PyDict>> {
+    let estimate = crate::args::floats(
+        &crate::args::column(data, estimate, "estimate")?,
+        "estimate",
+    )?;
+    let truth = crate::args::floats(&crate::args::column(data, truth, "truth")?, "truth")?;
+    let c = estimation::validate::compare(&estimate, &truth).map_err(invalid)?;
+    let out = PyDict::new(py);
+    out.set_item("n", c.n)?;
+    out.set_item("mean_error", c.mean_error)?;
+    out.set_item("rmse", c.rmse)?;
+    out.set_item("correlation", c.correlation)?;
+    out.set_item("slope", c.slope)?;
+    Ok(out)
+}
+
 #[pyfunction]
 #[pyo3(signature = (targets, coords, holes, n, *, search=None, domains=None, domain_column=None))]
 #[allow(clippy::too_many_arguments)]
@@ -1833,6 +1871,7 @@ fn hole_distance<'py>(
 
 pub fn register(m: &Bound<PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(hole_distance, m)?)?;
+    m.add_function(wrap_pyfunction!(compare, m)?)?;
     m.add_class::<Search>()?;
     m.add_class::<PyHighGrade>()?;
     m.add_class::<Estimator>()?;

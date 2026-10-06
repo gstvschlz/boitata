@@ -464,6 +464,21 @@ impl Variogram {
         Ok(Self(fitted.variogram, units))
     }
 
+    /// The same shape with total sill `sill`, e.g. a fitted variogram scaled
+    /// for normal scores; models, ranges and anisotropy are kept, the unit of
+    /// the values is dropped.
+    #[pyo3(signature = (*, sill=1.0))]
+    fn standardized(&self, sill: f64) -> PyResult<Self> {
+        if !(sill > 0.0 && self.0.total_sill() > 0.0) {
+            return Err(invalid("standardizing needs positive sills"));
+        }
+        let units = Units {
+            unit: None,
+            ..self.1.clone()
+        };
+        Ok(Self(self.0.standardized(sill), units))
+    }
+
     /// Same structures with a new anisotropy.
     #[pyo3(signature = (rotation, ratios))]
     fn with_anisotropy(&self, rotation: (f64, f64, f64), ratios: (f64, f64)) -> PyResult<Self> {

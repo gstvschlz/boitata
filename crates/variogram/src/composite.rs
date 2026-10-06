@@ -37,6 +37,15 @@ impl Variogram {
         self.nugget + self.structures.iter().map(|s| s.sill).sum::<f64>()
     }
 
+    /// The same shape scaled so the total sill is `sill`, e.g. 1 for normal scores.
+    pub fn standardized(&self, sill: f64) -> Self {
+        let k = sill / self.total_sill();
+        let mut out = self.clone();
+        out.nugget *= k;
+        out.structures.iter_mut().for_each(|s| s.sill *= k);
+        out
+    }
+
     /// Whether every structure is second-order stationary (finite sill).
     pub fn is_stationary(&self) -> bool {
         self.structures.iter().all(|s| s.is_stationary())
@@ -163,6 +172,24 @@ mod tests {
         assert!((v.gamma(1e-9) - 0.2).abs() < 0.01); // jump to nugget just off origin
         assert!((v.total_sill() - 1.0).abs() < 1e-12);
         assert!((v.gamma(1000.0) - 1.0).abs() < 1e-9); // reaches total sill
+    }
+
+    /// Theory check: standardizing keeps γ(h) / total sill at every lag.
+    #[test]
+    fn standardized_keeps_the_shape() {
+        let v = Variogram {
+            nugget: 3.0,
+            structures: vec![
+                Structure::new(Model::Spherical, 5.0, 100.0),
+                Structure::new(Model::Exponential, 2.0, 400.0),
+            ],
+            anisotropy: None,
+        };
+        let s = v.standardized(1.0);
+        assert!((s.total_sill() - 1.0).abs() < 1e-12);
+        for h in [1.0, 50.0, 150.0, 1000.0] {
+            assert!((s.gamma(h) - v.gamma(h) / v.total_sill()).abs() < 1e-12);
+        }
     }
 
     #[test]
