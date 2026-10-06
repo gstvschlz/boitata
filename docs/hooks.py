@@ -63,7 +63,7 @@ modeling: modeling
     ImplicitModel
 validation: checking models
     CrossValidation IndicatorCrossValidation CategoricalCrossValidation validate_model global_bias
-    block_correlation compare_models grade_tonnage classify uncertainty_curve required_spacing
+    block_correlation compare compare_models grade_tonnage classify uncertainty_curve required_spacing
     spacing_study
 errors: errors
     BoitataError InvalidInput MissingColumn FileError
