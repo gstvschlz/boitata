@@ -375,15 +375,21 @@ def test_filters_setter_validates_and_replaces_every_layer():
         twins.filters = {"x": {}}
 
 
-def test_filters_follow_the_live_widgets_both_ways(monkeypatch):
+def fake_widgets(monkeypatch):
+    """Scene widgets that sync their traits like the real one, without a frontend."""
     traitlets = pytest.importorskip("traitlets")
 
     class FakeWidget(traitlets.HasTraits):
         spec = traitlets.Dict()
         buffers = traitlets.Dict()
         filters = traitlets.Dict()
+        section = traitlets.Dict()
 
     monkeypatch.setattr("boitata._scene._widget_class", lambda: FakeWidget)
+
+
+def test_filters_follow_the_live_widgets_both_ways(monkeypatch):
+    fake_widgets(monkeypatch)
     scene = Scene().add(lensy_points(), name="a", filter={"grade": (1, None)}).add(lensy_points(), name="b")
     first, second = scene._widget(), scene._widget()
     assert first.filters == {"l0": {"grade": {"range": [1.0, None]}}}
@@ -510,3 +516,164 @@ def test_panel_edits_reach_the_widget_model(tmp_path):
         browser.close()
     assert filters == {"l0": {"v": {"range": [0.4, None]}}}
     assert readout == "2 of 3 shown"
+
+
+def row_of_blocks():
+    """Three rows of three 10 m blocks in plan, colored by row: 0.2 south, 0.5 middle, 0.8 north."""
+    model = bt.BlockModel((0.0, 0.0, 0.0), (10.0, 10.0, 10.0), (3, 3, 1))
+    return model.with_column("v", np.repeat([0.2, 0.5, 0.8], 3))
+
+
+def test_section_reaches_the_viewer_in_real_world_coordinates():
+    xyz = rng.uniform(0, 100, (20, 3)) + [500_000.0, 7_000_000.0, 300.0]
+    scene = Scene().add(bt.PointSet(xyz))
+    origin = scene._spec()["origin"]
+    scene.section([(500_010.0, 7_000_020.0), (500_090.0, 7_000_020.0), (500_090.0, 7_000_090.0)], width=12)
+    assert scene._spec()["section"] == {
+        "points": [
+            [500_010.0, 7_000_020.0, origin[2]],
+            [500_090.0, 7_000_020.0, origin[2]],
+            [500_090.0, 7_000_090.0, origin[2]],
+        ],
+        "width": 12.0,
+        "dip": 90.0,
+        "unfolded": False,
+    }
+    scene.section([(0, 0, 100), (0, 0, 120), (10, 0, 140)], dip=60)
+    assert scene.sections == {
+        "points": [(0.0, 0.0, 120.0), (10.0, 0.0, 120.0)],
+        "width": None,
+        "dip": 60.0,
+        "unfolded": False,
+    }
+    assert scene.section(None).sections is None and scene._spec()["section"] == {}
+
+
+@pytest.mark.parametrize(
+    ("points", "kwargs", "match"),
+    [
+        ([(0, 0)], {}, "at least 2 distinct"),
+        ([(0, 0, 1), (0, 0, 5)], {}, "at least 2 distinct"),
+        ([(0, 0), (1, np.nan)], {}, "finite"),
+        ([(0, 0), (np.inf, 1)], {}, "finite"),
+        ([(0, 0, 0, 0), (1, 1, 1, 1)], {}, r"\(x, y\) or \(x, y, z\)"),
+        ([(0, 0), (1,)], {}, r"\(x, y\) or \(x, y, z\)"),
+        ([(0, 0), ("a", 1)], {}, r"\(x, y\) or \(x, y, z\)"),
+        ([(k, k % 2) for k in range(18)], {}, "at most 17"),
+        ([(0, 0), (1, 0)], {"width": 0}, "width"),
+        ([(0, 0), (1, 0)], {"width": -2}, "width"),
+        ([(0, 0), (1, 0)], {"width": np.inf}, "width"),
+        ([(0, 0), (1, 0)], {"width": True}, "width"),
+        ([(0, 0), (1, 0)], {"dip": 0}, "dip"),
+        ([(0, 0), (1, 0)], {"dip": 91}, "dip"),
+        ([(0, 0), (1, 0)], {"dip": "90"}, "dip"),
+    ],
+)
+def test_section_is_validated(points, kwargs, match):
+    scene = Scene().add(bt.PointSet(np.zeros((1, 3))))
+    with pytest.raises(ValueError, match=match):
+        scene.section(points, **kwargs)
+    assert scene.sections is None
+
+
+def test_sections_setter_validates_and_replaces_the_section():
+    scene = Scene().add(bt.PointSet(np.zeros((1, 3))))
+    scene.sections = {"points": [(0, 0, 5), (10, 10, 5)], "width": 3, "unfolded": True}
+    assert scene.sections == {
+        "points": [(0.0, 0.0, 5.0), (10.0, 10.0, 5.0)],
+        "width": 3.0,
+        "dip": 90.0,
+        "unfolded": True,
+    }
+    with pytest.raises(ValueError, match="unknown section keys"):
+        scene.sections = {"points": [(0, 0), (1, 1)], "azimuth": 3}
+    with pytest.raises(ValueError, match="needs points"):
+        scene.sections = {"width": 3}
+    with pytest.raises(TypeError, match="bool"):
+        scene.sections = {"points": [(0, 0), (1, 1)], "unfolded": 1}
+    with pytest.raises(TypeError, match="dict or None"):
+        scene.sections = [(0, 0), (1, 1)]
+    assert scene.sections["width"] == 3.0
+    scene.sections = None
+    assert scene.sections is None
+
+
+def test_sections_follow_the_live_widgets_both_ways(monkeypatch):
+    fake_widgets(monkeypatch)
+    scene = Scene().add(bt.PointSet(np.zeros((1, 3))))
+    scene.section([(0, 0), (5, 0)], width=2)
+    first, second = scene._widget(), scene._widget()
+    assert first.section == {
+        "points": [[0.0, 0.0, 0.0], [5.0, 0.0, 0.0]],
+        "width": 2.0,
+        "dip": 90.0,
+        "unfolded": False,
+    }
+    first.section = {"points": [[1, 2, 3], [4, 5, 3], [7, 2, 3]], "width": 7.5, "dip": 80, "unfolded": True}
+    assert scene.sections == {
+        "points": [(1.0, 2.0, 3.0), (4.0, 5.0, 3.0), (7.0, 2.0, 3.0)],
+        "width": 7.5,
+        "dip": 80.0,
+        "unfolded": True,
+    }
+    assert second.section == first.section
+    first.section = {}
+    assert scene.sections is None and second.section == {}
+    scene.section([(0, 0), (0, 9)], dip=45)
+    assert first.section == second.section == scene._spec()["section"]
+    assert first.section["points"] == [[0.0, 0.0, 0.0], [0.0, 9.0, 0.0]]
+
+
+def test_rendered_section_paints_only_the_blocks_in_its_slab(tmp_path):
+    scene = Scene(theme="light").add(row_of_blocks(), "v", clim=(0.0, 1.0)).view(dip=90)
+    scene.section([(-5, 15), (35, 15)], width=4)
+    probes = [
+        [5.5, 15.5, 10.0],
+        [24.5, 14.5, 10.0],
+        [15.5, 5.5, 10.0],
+        [15.5, 24.5, 10.0],
+        [15.5, 11.5, 10.0],
+    ]
+    inside, also, south, north, outside = rendered_pixels(scene, probes, tmp_path, bare=True)
+    assert inside == also == lut_rgb("viridis", 0.5, 0.0, 1.0)
+    assert south == north == outside == (255, 255, 255)
+
+
+def test_rendered_cap_shows_the_exact_lut_color(tmp_path):
+    scene = Scene(theme="light").add(row_of_blocks(), "v", clim=(0.0, 1.0)).view(azimuth=0, dip=0)
+    scene.section([(-5, 15), (35, 15)], width=4)
+    cap, edge = rendered_pixels(scene, [[15.0, 13.0, 5.0], [15.0, 13.0, 9.0]], tmp_path, bare=True)
+    assert cap == edge == lut_rgb("viridis", 0.5, 0.0, 1.0)
+
+
+def test_shift_drag_and_keys_reach_the_widget_model(tmp_path):
+    sync_api = pytest.importorskip("playwright.sync_api")
+    page = (
+        Scene(theme="light").add(row_of_blocks(), "v").view(azimuth=0, dip=90).save(tmp_path / "scene.html")
+    )
+    with sync_api.sync_playwright() as p:
+        try:
+            browser = p.chromium.launch(args=["--use-angle=swiftshader", "--enable-unsafe-swiftshader"])
+        except sync_api.Error as e:
+            pytest.skip(f"no chromium for playwright: {e}")
+        tab = browser.new_page(viewport={"width": 900, "height": 600})
+        tab.goto(page.as_uri())
+        tab.wait_for_function("window.scene !== undefined", timeout=60_000)
+        tab.evaluate(WIDGET)
+        tab.mouse.move(250, 300)
+        tab.keyboard.down("Shift")
+        tab.mouse.down()
+        tab.mouse.move(450, 300, steps=5)
+        tab.mouse.up()
+        tab.keyboard.up("Shift")
+        tab.wait_for_function("window.model.state.section?.points?.length === 2", timeout=5_000)
+        cut = tab.evaluate("window.model.state.section")
+        tab.keyboard.press("u")
+        unfolded = tab.evaluate("window.model.state.section.unfolded")
+        tab.keyboard.press("c")
+        cleared = tab.evaluate("window.model.state.section")
+        browser.close()
+    (x0, y0, _), (x1, y1, _) = cut["points"]
+    assert x0 < x1 and abs(y0 - y1) < 1e-6 and 0 < y0 < 30
+    assert cut["dip"] == 90 and cut["width"] > 0 and cut["unfolded"] is False
+    assert unfolded is True and cleared == {}

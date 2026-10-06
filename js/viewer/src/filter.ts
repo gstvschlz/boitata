@@ -212,6 +212,15 @@ export function histogram(data: ArrayLike<number>, lo: number, hi: number, bins 
   return counts;
 }
 
+/**
+ * Histogram bar heights in [0, 1] on a log scale, so a tail of a few rows stays visible beside a spike of
+ * thousands; a bin with any row is at least `floor` high.
+ */
+export function barHeights(counts: number[], floor = 0.06): number[] {
+  const top = Math.log1p(Math.max(0, ...counts));
+  return counts.map((c) => (c > 0 && top > 0 ? Math.max(Math.log1p(c) / top, floor) : 0));
+}
+
 /** Rows per category code; nulls are not counted. */
 export function categoryCounts(codes: Int32Array, n: number): number[] {
   const counts = new Array<number>(n).fill(0);

@@ -38,6 +38,7 @@ _THEME_KEYS = (
 )
 _WARN_BYTES = 200 * 2**20
 _FILTER_SLOTS = 4
+_SECTION_POINTS = 17
 _NAMES = {"drillholes": "drill holes", "points": "points", "mesh": "mesh", "blocks": "block model"}
 _REPRESENTATIONS = {
     "drillholes": ("lines", "tubes", "points"),
@@ -253,6 +254,35 @@ def _filter_tuples(state):
     }
 
 
+def _section(points, width, dip):
+    """A section's state: its distinct plan vertices, the elevation it hinges on (None for the scene's middle)."""
+    try:
+        a = np.asarray(points, dtype=np.float64)
+    except (TypeError, ValueError):
+        raise ValueError(f"points must be a sequence of (x, y) or (x, y, z), got {points!r}") from None
+    if a.ndim != 2 or a.shape[1] not in (2, 3):
+        raise ValueError(f"points must be (x, y) or (x, y, z) rows, got shape {a.shape}")
+    if not np.isfinite(a).all():
+        raise ValueError("points must be finite numbers")
+    z = float(a[:, 2].mean()) if a.shape[1] == 3 else None
+    a = a[np.r_[True, (np.diff(a[:, :2], axis=0) != 0).any(axis=1)]]
+    if len(a) < 2:
+        raise ValueError("a section needs at least 2 distinct points in plan")
+    if len(a) > _SECTION_POINTS:
+        raise ValueError(f"a section takes at most {_SECTION_POINTS} points, got {len(a)}")
+    if width is not None and not (_real(width) and 0 < width < math.inf):
+        raise ValueError(f"width must be a positive number or None, got {width!r}")
+    if not (_real(dip) and 0 < dip <= 90):
+        raise ValueError(f"dip must be in (0, 90] degrees, got {dip!r}")
+    return {
+        "points": a[:, :2].tolist(),
+        "z": z,
+        "width": None if width is None else float(width),
+        "dip": float(dip),
+        "unfolded": False,
+    }
+
+
 def _names(table):
     return list(table) if isinstance(table, Mapping) else table.column_names
 
@@ -281,6 +311,7 @@ def _widget_class():
         spec = traitlets.Dict().tag(sync=True)
         buffers = traitlets.Dict().tag(sync=True)
         filters = traitlets.Dict().tag(sync=True)
+        section = traitlets.Dict().tag(sync=True)
 
     return SceneWidget
 
@@ -347,6 +378,7 @@ class Scene:
         self._crs = None
         self._unit = None
         self._warned = False
+        self._section = None
         self._live = weakref.WeakSet()
 
     def add(
@@ -552,6 +584,121 @@ class Scene:
         self._view = {"azimuth": azimuth % 360.0, "dip": dip}
         return self
 
+    def section(self, points, *, width=None, dip=90.0):
+        """Cuts every layer to a slab around a section, or removes the section with ``section(None)``.
+
+        The section runs along a polyline in plan: each segment's surface passes through it and dips `dip` degrees
+        to the right of the direction the points run in (reverse them to dip the other way). Whatever lies more than
+        `width` / 2 from that surface, or beyond the polyline's ends, is not drawn, in every layer and
+        representation: blocks are cut and capped with faces of their own color, meshes are cut and outlined in
+        the theme's accent where the slab's faces cross them, and drill-hole intervals, points and spheres show
+        whole when their middle lies in the slab. Filters still apply. The section's trace and slab edges are drawn
+        in the accent along the top of the box, which shrinks to the section.
+
+        While viewing, Shift-drag across the view cuts a straight section under the swept line, its ends picked on
+        the level plane through the middle of the shown layers (or, in views within 20 degrees of level, on the
+        upright plane through it that faces the camera); ``d`` or the draw button switches to a plan view where
+        clicks add the vertices of a polyline, Shift locks a segment to a multiple of 45 degrees, Backspace removes
+        the last vertex, Enter or the button cuts and Esc cancels. The mouse wheel sets the width while drawing or
+        with Shift held. ``u`` or the unfold button lays the section out flat, with the distance along it on the
+        bottom axis and elevation up, and folds it back; ``c`` or the clear button removes it. `sections` reads
+        the result back.
+
+        Parameters
+        ----------
+        points : array_like or None
+            ``(n, 2)`` or ``(n, 3)`` vertices in real-world coordinates, ``2 <= n <= 17`` distinct in plan; None
+            removes the section. A dipping section hinges on the mean elevation of ``(x, y, z)`` vertices, or on
+            the middle of the scene for ``(x, y)`` ones.
+        width : float, optional
+            Thickness of the slab kept around the section, in the data's length unit; default 1/20 of the
+            diagonal of the shown layers' bounds, or the width last set while viewing.
+        dip : float, default 90.0
+            Dip of the section's surface in degrees, in (0, 90]; 90 is upright.
+
+        Returns
+        -------
+        Scene
+            This scene, to chain calls.
+        """
+        self._section = None if points is None else _section(points, width, dip)
+        self._push_section()
+        return self
+
+    @property
+    def sections(self):
+        """The section, as ``{"points": [(x, y, z), ...], "width": w, "dip": d, "unfolded": bool}``, or None.
+
+        Points are real-world vertices, at the elevation the section hinges on; `width` is None for the default
+        until the viewer settles it. In a notebook it follows the cuts, edits and unfolding made in the last widget
+        shown; a saved page has no way back, so there it holds what `section` and this property set. Setting it
+        takes such a dict (``points`` required, the other keys optional, as in `section`) or None, and updates the
+        widgets shown.
+
+        Returns
+        -------
+        dict or None
+        """
+        state = self._section_state()
+        if not state:
+            return None
+        return {**state, "points": [tuple(p) for p in state["points"]]}
+
+    @sections.setter
+    def sections(self, value):
+        if value is None:
+            self._section = None
+        else:
+            if not isinstance(value, Mapping):
+                raise TypeError(f"sections must be a dict or None, got {type(value).__name__}")
+            unknown = set(value) - {"points", "width", "dip", "unfolded"}
+            if unknown:
+                raise ValueError(
+                    f"unknown section keys {sorted(unknown)}; valid keys: points, width, dip, unfolded"
+                )
+            if "points" not in value:
+                raise ValueError("a section needs points")
+            unfolded = value.get("unfolded", False)
+            if not isinstance(unfolded, bool | np.bool_):
+                raise TypeError(f"unfolded must be a bool, got {unfolded!r}")
+            state = _section(value["points"], value.get("width"), value.get("dip", 90.0))
+            self._section = {**state, "unfolded": bool(unfolded)}
+        self._push_section()
+
+    def _section_state(self):
+        """The section as the viewer reads it: real-world (x, y, z) vertices; empty without one."""
+        s = self._section
+        if s is None:
+            return {}
+        z = s["z"] if s["z"] is not None else float(self._origin[2]) if self._origin is not None else 0.0
+        return {
+            "points": [[x, y, z] for x, y in s["points"]],
+            "width": s["width"],
+            "dip": s["dip"],
+            "unfolded": s["unfolded"],
+        }
+
+    def _push_section(self, source=None):
+        state = self._section_state()
+        for widget in list(self._live):
+            if widget is not source:
+                widget.section = state
+
+    def _section_edited(self, change):
+        state = change["new"] or {}
+        if not state:
+            self._section = None
+        else:
+            points = np.asarray(state["points"], dtype=np.float64)
+            self._section = {
+                "points": points[:, :2].tolist(),
+                "z": float(points[:, 2].mean()),
+                "width": state["width"],
+                "dip": float(state["dip"]),
+                "unfolded": bool(state["unfolded"]),
+            }
+        self._push_section(source=change["owner"])
+
     def _spec(self):
         origin = self._origin if self._origin is not None else np.zeros(3)
         titles = ("Easting", "Northing", "Elevation") if self._crs else ("X", "Y", "Z")
@@ -567,6 +714,7 @@ class Scene:
                 for k, v in self._variables.items()
             },
             "layers": self._layers,
+            "section": self._section_state(),
         }
 
     def _html(self):
@@ -662,8 +810,14 @@ class Scene:
         self._push_filters(source=change["owner"])
 
     def _widget(self):
-        widget = _widget_class()(spec=self._spec(), buffers=dict(self._buffers), filters=self._filter_state())
+        widget = _widget_class()(
+            spec=self._spec(),
+            buffers=dict(self._buffers),
+            filters=self._filter_state(),
+            section=self._section_state(),
+        )
         widget.observe(self._filters_edited, names="filters")
+        widget.observe(self._section_edited, names="section")
         self._live.add(widget)
         return widget
 

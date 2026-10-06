@@ -39,6 +39,12 @@ export class Axes {
     this.group.add(this.outline, this.grid);
   }
 
+  /** Labels ticks from another origin under other titles, as an unfolded section's own axes; call `setBox` after. */
+  setFrame(origin: Vec3, titles: [string, string, string]): void {
+    this.origin = origin;
+    this.titles = titles;
+  }
+
   setTheme(theme: Theme): void {
     (this.outline.material as THREE.LineBasicMaterial).color.set(theme.box);
     (this.grid.material as THREE.LineBasicMaterial).color.set(theme.grid);

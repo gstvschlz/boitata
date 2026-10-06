@@ -1,7 +1,10 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
+import { LineMaterial } from "three/examples/jsm/lines/LineMaterial.js";
+import { LineSegments2 } from "three/examples/jsm/lines/LineSegments2.js";
+import { LineSegmentsGeometry } from "three/examples/jsm/lines/LineSegmentsGeometry.js";
 import { Axes } from "./axes";
-import { blocksBox, type Box, lerpBox, maskedBox, triangleMask, union, visibleBox, type Vec3 } from "./bounds";
+import { blocksBox, type Box, diagonal, lerpBox, maskedBox, triangleMask, union, visibleBox, type Vec3 } from "./bounds";
 import { f32, i32, u32 } from "./buffers";
 import { categoryColor, COLORMAPS, cssToRgb, DEFAULT_COLORMAP, lut, type RGB, rgbToHex } from "./color";
 import { colorBarSvg } from "./colorbar";
@@ -19,6 +22,7 @@ import {
   startFraction,
 } from "./motion";
 import {
+  barHeights,
   categoryCounts,
   type Condition,
   count,
@@ -36,6 +40,19 @@ import {
 } from "./filter";
 import { columnPaint, type Paint, solidPaint, type Scale } from "./paint";
 import { type Renderer, webgl } from "./renderer";
+import {
+  buildSection,
+  distinct,
+  MAX_SEGMENTS,
+  pickCut,
+  type Ray,
+  type Section,
+  sectionBox,
+  type SectionState,
+  snap45,
+  traces,
+  writeSection,
+} from "./section";
 import { shared } from "./shaders";
 import { CSS } from "./styles";
 import { resolveTheme, type Theme, type ThemeSpec, themeBase, withBase } from "./theme";
@@ -57,6 +74,24 @@ const QUALITIES: [Quality, string, string][] = [
   ["full", "Full", "Draw everything while moving"],
 ];
 const capitalize = (s: string) => s[0].toUpperCase() + s.slice(1);
+/** Default section width, as a share of the diagonal of the shown layers' bounds. */
+const WIDTH_SHARE = 1 / 20;
+/** A pointer moving less than this many pixels between press and release clicks. */
+const CLICK_PX = 5;
+const WHEEL_STEP = 1.15;
+
+type XY = [number, number];
+interface CameraState {
+  position: THREE.Vector3;
+  target: THREE.Vector3;
+}
+
+/** A section in local coordinates; its width and dip are the viewer's. */
+interface Cut {
+  points: XY[];
+  z: number;
+  unfolded: boolean;
+}
 
 interface Layer {
   spec: LayerSpec;
@@ -88,6 +123,10 @@ export interface MountOptions {
   filters?: Record<string, FilterState>;
   /** Called after the user edits a filter, with every layer's. */
   onFilters?: (filters: Record<string, FilterState>) => void;
+  /** Section overriding the scene's own, empty for none; from the widget's synced state. */
+  section?: SectionState | Record<string, never>;
+  /** Called after the user cuts, edits, unfolds or clears the section; empty when cleared. */
+  onSection?: (section: SectionState | Record<string, never>) => void;
 }
 
 export class Viewer {
@@ -130,6 +169,27 @@ export class Viewer {
   private histograms = new Map<string, number[]>();
   private measureTimer: ReturnType<typeof setTimeout> | undefined;
   private dirty = new Set<Layer>();
+
+  private cut: Cut | null = null;
+  private cutSection: Section | null = null;
+  private cutWidth: number | null = null;
+  private cutDip = 90;
+  private drawing: { points: XY[]; cursor: XY | null; shift: boolean; view: CameraState } | null = null;
+  private quick: { from: XY; to: XY } | null = null;
+  private press: XY | null = null;
+  private folded: CameraState | null = null;
+  private tween: { from: CameraState; to: CameraState; start: number } | null = null;
+  private outline = new THREE.Group();
+  private outlineLines = new LineMaterial({ linewidth: 2, depthTest: false, transparent: true });
+  private outlineEdges = new LineMaterial({ linewidth: 1, depthTest: false, transparent: true, opacity: 0.75 });
+  private outlineDots = new THREE.PointsMaterial({ size: 7, sizeAttenuation: false, depthTest: false, transparent: true });
+  private sweep = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  private sectionControls: { width: HTMLInputElement[]; dip: HTMLInputElement[]; hint: HTMLElement | null } = {
+    width: [],
+    dip: [],
+    hint: null,
+  };
+  private emitTimer: ReturnType<typeof setTimeout> | undefined;
 
   constructor(
     host: HTMLElement,
@@ -193,8 +253,11 @@ export class Viewer {
       this.variables.set(name, { cmap: v.cmap ?? DEFAULT_COLORMAP, clim: v.clim ?? null, label: v.label ?? null });
     }
 
+    this.outline.renderOrder = 10;
+    this.scene.add(this.outline);
+    this.sweep.setAttribute("class", "btv-sweep");
     this.bars.className = "btv-bars";
-    this.root.append(this.axes.overlay, this.bars, this.gizmo.el);
+    this.root.append(this.axes.overlay, this.sweep, this.bars, this.gizmo.el);
     this.reopen = iconButton("layers", "Show panel (h)", () => this.togglePanel());
     this.reopen.classList.add("btv-open");
     this.reopen.hidden = true;
@@ -207,19 +270,34 @@ export class Viewer {
     this.axes.setBox(this.box);
     this.setView(spec.view.azimuth, spec.view.dip);
     this.fit();
+    const section = options.section !== undefined ? options.section : spec.section;
+    if (section && "points" in section) {
+      this.setSection(section);
+      this.refit = null;
+      this.axes.setBox(this.box);
+      if (!this.cut?.unfolded) this.fit();
+    }
 
     const resize = new ResizeObserver(() => this.resize());
     resize.observe(this.root);
     this.cleanup.push(() => resize.disconnect());
     this.cleanup.push(watchHost(() => themeBase(this.themeSpec) === "auto" && this.applyTheme()));
     this.root.addEventListener("keydown", (e) => this.key(e));
-    this.renderer.canvas.addEventListener("pointerdown", () => this.root.focus({ preventScroll: true }));
+    this.root.addEventListener("keyup", (e) => e.key === "Shift" && this.drawing && this.setShift(false));
+    const canvas = this.renderer.canvas;
+    canvas.addEventListener("pointerdown", (e) => this.pointerDown(e), { capture: true });
+    canvas.addEventListener("pointermove", (e) => this.pointerMove(e));
+    canvas.addEventListener("pointerup", (e) => this.pointerUp(e));
+    canvas.addEventListener("wheel", (e) => this.wheel(e), { capture: true, passive: false });
     this.resize();
   }
 
   dispose(): void {
     this.cleanup.forEach((f) => f());
     clearTimeout(this.measureTimer);
+    clearTimeout(this.emitTimer);
+    this.clearOutline();
+    for (const m of [this.outlineLines, this.outlineEdges, this.outlineDots]) m.dispose();
     this.controls.dispose();
     this.layers.forEach((l) => {
       l.rep.dispose();
@@ -236,6 +314,23 @@ export class Viewer {
 
   private frame(): void {
     this.pending = false;
+    if (this.tween) {
+      const t = Math.min(1, (performance.now() - this.tween.start) / REFIT_MS);
+      const eased = 1 - (1 - t) ** 3;
+      const { from, to } = this.tween;
+      this.camera.position.lerpVectors(from.position, to.position, eased);
+      this.controls.target.lerpVectors(from.target, to.target, eased);
+      this.camera.lookAt(this.controls.target);
+      if (t < 1) this.requestRender();
+      else {
+        this.tween = null;
+        this.controls.update();
+      }
+    }
+    writeSection(this.drawing ? null : this.cutSection, !!this.cut?.unfolded);
+    shared.uAccent.value.set(this.theme.accent);
+    this.outlineLines.resolution.set(this.width, this.height);
+    this.outlineEdges.resolution.set(this.width, this.height);
     if (this.refit) {
       const t = Math.min(1, (performance.now() - this.refit.start) / REFIT_MS);
       const eased = 1 - (1 - t) ** 3;
@@ -541,7 +636,7 @@ export class Viewer {
   }
 
   private refitBox(): void {
-    const to = visibleBox(this.layers);
+    const to = this.shownBox();
     if (this.box && to) this.refit = { from: this.box, to, start: performance.now() };
     else this.axes.setBox(to);
     this.box = to;
@@ -586,6 +681,8 @@ export class Viewer {
     this.root.style.colorScheme = t.dark ? "dark" : "light";
     this.renderer.setBackground(t.background);
     shared.uHalo.value.set(t.halo);
+    shared.uAccent.value.set(t.accent);
+    for (const m of [this.outlineLines, this.outlineEdges, this.outlineDots]) m.color.set(t.accent);
     this.axes.setTheme(t);
     this.gizmo.setTheme(t);
     setIcon(this.themeButton, t.dark ? "sun" : "moon");
@@ -682,6 +779,9 @@ export class Viewer {
       for (const layer of layers) group.append(...this.layerRow(layer));
       this.body.appendChild(group);
     }
+    this.sectionControls = { width: [], dip: [], hint: null };
+    this.body.appendChild(this.section("Section", "section"));
+    if (!this.collapsed.has("section")) this.body.appendChild(this.sectionPanel());
     this.body.appendChild(this.section("View", "view"));
     if (!this.collapsed.has("view")) {
       const box = document.createElement("div");
@@ -699,7 +799,7 @@ export class Viewer {
           this.show[key] = !this.show[key];
           button.setAttribute("aria-pressed", String(this.show[key]));
           this.axes.show = { box: this.show.box, grid: this.show.grid, ticks: this.show.ticks };
-          this.gizmo.el.style.display = this.show.gizmo ? "" : "none";
+          this.showGizmo();
           this.requestRender();
         });
         button.classList.add("btv-tool");
@@ -951,10 +1051,9 @@ export class Viewer {
     const wrap = document.createElement("div");
     wrap.className = "btv-slider";
     const counts = this.columnHistogram(layer, condition.column);
-    const top = Math.sqrt(Math.max(1, ...counts));
-    const height = (c: number) => Math.max(Math.sqrt(c) / top, 0.06);
-    const bars = counts
-      .map((c, i) => (c ? `<rect x="${i + 0.08}" y="${1 - height(c)}" width="0.84" height="${height(c)}"/>` : ""))
+    const heights = barHeights(counts);
+    const bars = heights
+      .map((h, i) => (h ? `<rect x="${i + 0.08}" y="${1 - h}" width="0.84" height="${h}"/>` : ""))
       .join("");
     const clip = `btv-${this.uid}-${layer.spec.id}-${condition.column.name.replace(/[^\w-]/g, "_")}`;
     const hist = document.createElement("div");
@@ -1167,12 +1266,519 @@ export class Viewer {
     });
   }
 
+  // ---- section ----
+
+  private cameraState(): CameraState {
+    return { position: this.camera.position.clone(), target: this.controls.target.clone() };
+  }
+
+  private restoreCamera(state: CameraState): void {
+    this.camera.position.copy(state.position);
+    this.controls.target.copy(state.target);
+    this.camera.lookAt(state.target);
+    this.controls.update();
+  }
+
+  /** The camera `fit` would give from `from`, without moving there. */
+  private fitted(from: CameraState): CameraState {
+    const now = this.cameraState();
+    this.restoreCamera(from);
+    this.fit();
+    const out = this.cameraState();
+    this.restoreCamera(now);
+    return out;
+  }
+
+  /** The camera `setView` and `fit` would give, without moving there. */
+  private viewState(azimuth: number, dip: number): CameraState {
+    const now = this.cameraState();
+    this.setView(azimuth, dip);
+    this.fit();
+    const out = this.cameraState();
+    this.restoreCamera(now);
+    return out;
+  }
+
+  private glide(to: CameraState): void {
+    this.tween = { from: this.cameraState(), to, start: performance.now() };
+    this.requestRender();
+  }
+
+  /** Center of the shown layers' bounds, whatever the section: quick cuts pick on it, drawn ones hinge on it. */
+  private middle(): Vec3 {
+    const box = visibleBox(this.layers);
+    return box ? ([0, 1, 2].map((a) => (box.min[a] + box.max[a]) / 2) as Vec3) : [0, 0, 0];
+  }
+
+  private widthRange(): [number, number] {
+    const d = Math.max(diagonal(visibleBox(this.layers)), 1e-3);
+    return [d / 500, d / 2];
+  }
+
+  private sectionWidth(): number {
+    return (this.cutWidth ??= Math.max(diagonal(visibleBox(this.layers)) * WIDTH_SHARE, 1e-3));
+  }
+
+  /** Box the axes frame: the shown layers', narrowed to the section in plan, or the unfolded section's own. */
+  private shownBox(): Box | null {
+    const box = visibleBox(this.layers);
+    const s = this.cutSection;
+    if (!box || !s || this.drawing) return box;
+    if (!this.cut?.unfolded) return sectionBox(s, box) ?? box;
+    const d = THREE.MathUtils.degToRad(s.dip);
+    const across = s.half / Math.sin(d) + Math.max(Math.abs(box.min[2] - s.z), Math.abs(box.max[2] - s.z)) / Math.tan(d);
+    return { min: [0, -across, box.min[2]], max: [s.length, across, box.max[2]] };
+  }
+
+  /** The section as Python reads it, in real-world coordinates; empty without one. */
+  sectionState(): SectionState | Record<string, never> {
+    const c = this.cut;
+    if (!c || !this.cutSection) return {};
+    const o = this.spec.origin;
+    return {
+      points: distinct(c.points).map((p) => [p[0] + o[0], p[1] + o[1], c.z + o[2]]),
+      width: this.sectionWidth(),
+      dip: this.cutDip,
+      unfolded: c.unfolded,
+    };
+  }
+
+  /** Applies a section from Python; empty clears it. */
+  setSection(state: SectionState | Record<string, never>): void {
+    if (JSON.stringify(state ?? {}) === JSON.stringify(this.sectionState())) return;
+    if (this.drawing) this.endDrawing();
+    if (!state || !("points" in state)) return this.setCut(null, false);
+    const o = this.spec.origin;
+    const zs = state.points.filter((p) => p.length > 2).map((p) => p[2] - o[2]);
+    if (state.width !== null && state.width > 0) this.cutWidth = state.width;
+    if (state.dip > 0 && state.dip <= 90) this.cutDip = state.dip;
+    this.setCut(
+      {
+        points: state.points.map((p) => [p[0] - o[0], p[1] - o[1]] as XY),
+        z: zs.length ? zs.reduce((a, b) => a + b, 0) / zs.length : this.middle()[2],
+        unfolded: false,
+      },
+      false,
+    );
+    if (state.unfolded) this.setUnfolded(true, false);
+  }
+
+  private emitSection(): void {
+    clearTimeout(this.emitTimer);
+    this.options.onSection?.(this.sectionState());
+  }
+
+  /** Cuts along `cut`, or removes the section with null; folds back first. */
+  private setCut(cut: Cut | null, emit = true): void {
+    if (this.cut?.unfolded && this.folded) {
+      this.tween = null;
+      this.restoreCamera(this.folded);
+    }
+    this.folded = null;
+    this.cut = cut ? { ...cut, unfolded: false } : null;
+    this.applySection();
+    this.showGizmo();
+    this.renderBody();
+    if (!emit) return;
+    this.glide(this.fitted(this.tween?.to ?? this.cameraState()));
+    this.emitSection();
+  }
+
+  /** Rebuilds the section from the cut, width and dip, with its axes, box and outline. */
+  private applySection(): void {
+    const c = this.cut;
+    this.cutSection = c ? buildSection(c.points, c.z, this.sectionWidth(), this.cutDip) : null;
+    if (!this.cutSection) this.cut = null;
+    if (this.cut?.unfolded) {
+      const unit = /\(([^)]*)\)$/.exec(this.spec.axes[0])?.[1];
+      const suffix = unit ? ` (${unit})` : "";
+      this.axes.setFrame([0, 0, this.spec.origin[2]], [`Distance${suffix}`, `Offset${suffix}`, this.spec.axes[2]]);
+    } else this.axes.setFrame(this.spec.origin, this.spec.axes);
+    this.refitBox();
+    this.drawOutline();
+    this.requestRender();
+  }
+
+  toggleUnfolded(): void {
+    if (this.cut && !this.drawing) this.setUnfolded(!this.cut.unfolded);
+  }
+
+  /** Lays the section out flat, distance along it to the right and elevation up, or folds it back. */
+  private setUnfolded(on: boolean, emit = true): void {
+    const c = this.cut;
+    if (!c || c.unfolded === on) return;
+    if (on) this.folded = this.cameraState();
+    c.unfolded = on;
+    this.applySection();
+    this.refit = null;
+    this.axes.setBox(this.box);
+    if (on) {
+      this.setView(0, 0);
+      this.fit();
+    } else if (this.folded) this.restoreCamera(this.folded);
+    this.tween = null;
+    if (!on) this.folded = null;
+    this.showGizmo();
+    this.renderBody();
+    if (emit) this.emitSection();
+  }
+
+  /** The gizmo shows unless turned off or the section is unfolded, where north and east lose their meaning. */
+  private showGizmo(): void {
+    this.gizmo.el.style.display = this.show.gizmo && !this.cut?.unfolded ? "" : "none";
+  }
+
+  clearSection(): void {
+    if (this.drawing) this.endDrawing();
+    else if (this.cut) this.setCut(null);
+  }
+
+  setWidth(width: number): void {
+    if (!(width > 0) || !Number.isFinite(width)) return this.syncControls();
+    this.cutWidth = width;
+    this.sectionEdited();
+  }
+
+  setDip(dip: number): void {
+    if (!(dip > 0 && dip <= 90)) return this.syncControls();
+    this.cutDip = dip;
+    this.sectionEdited();
+  }
+
+  /** The width or dip changed: the section and outline now, the panel's other control, Python once edits pause. */
+  private sectionEdited(): void {
+    this.applySection();
+    this.syncControls();
+    this.drawSweep();
+    if (!this.cut) return;
+    clearTimeout(this.emitTimer);
+    this.emitTimer = setTimeout(() => this.emitSection(), 150);
+  }
+
+  // drawing
+
+  toggleDrawing(): void {
+    if (this.drawing) this.finishDrawing();
+    else this.startDrawing();
+  }
+
+  /** Switches to a plan view where clicks add the vertices of a polyline. */
+  private startDrawing(): void {
+    this.endQuick();
+    if (this.cut?.unfolded) this.setUnfolded(false);
+    this.drawing = { points: [], cursor: null, shift: false, view: this.cameraState() };
+    this.controls.enableRotate = false;
+    this.controls.mouseButtons.LEFT = THREE.MOUSE.PAN;
+    this.refitBox();
+    this.glide(this.viewState(0, 90));
+    this.drawOutline();
+    this.renderBody();
+  }
+
+  /** Leaves the drawer for the view it started from; returns the vertices drawn. */
+  private endDrawing(): XY[] {
+    const d = this.drawing;
+    if (!d) return [];
+    this.drawing = null;
+    this.press = null;
+    this.controls.enableRotate = true;
+    this.controls.mouseButtons.LEFT = THREE.MOUSE.ROTATE;
+    this.glide(d.view);
+    this.refitBox();
+    this.drawOutline();
+    this.renderBody();
+    return d.points;
+  }
+
+  finishDrawing(): void {
+    const points = this.endDrawing();
+    if (distinct(points).length >= 2) this.setCut({ points, z: this.middle()[2], unfolded: false });
+  }
+
+  private drawCursor(): XY | null {
+    const d = this.drawing;
+    if (!d?.cursor) return null;
+    const last = d.points[d.points.length - 1];
+    return d.shift && last ? snap45(last, d.cursor) : d.cursor;
+  }
+
+  private addVertex(at: XY): void {
+    const d = this.drawing!;
+    if (d.points.length > MAX_SEGMENTS) return;
+    const last = d.points[d.points.length - 1];
+    const p = d.shift && last ? snap45(last, at) : at;
+    if (last && last[0] === p[0] && last[1] === p[1]) return;
+    d.points.push(p);
+    this.drawOutline();
+    this.updateHint();
+  }
+
+  private undoVertex(): void {
+    this.drawing?.points.pop();
+    this.drawOutline();
+    this.updateHint();
+  }
+
+  private setShift(on: boolean): void {
+    if (!this.drawing || this.drawing.shift === on) return;
+    this.drawing.shift = on;
+    this.drawOutline();
+  }
+
+  // outline
+
+  private clearOutline(): void {
+    for (const child of this.outline.children) (child as THREE.Mesh).geometry.dispose();
+    this.outline.clear();
+  }
+
+  private addLines(positions: number[], material: LineMaterial): void {
+    if (!positions.length) return;
+    const line = new LineSegments2(new LineSegmentsGeometry().setPositions(positions), material);
+    line.frustumCulled = false;
+    line.renderOrder = 10;
+    this.outline.add(line);
+  }
+
+  /**
+   * The section in the accent: its trace and slab edges on the top of the box, or its ends and bends once
+   * unfolded; while drawing, the polyline so far, its vertices and the slab it would cut.
+   */
+  private drawOutline(): void {
+    this.clearOutline();
+    const box = this.box ?? visibleBox(this.layers);
+    if (!box) return;
+    const top = box.max[2];
+    const pairs = (line: XY[]) => line.slice(1).flatMap((p, i) => [...line[i], top, ...p, top]);
+    const d = this.drawing;
+    let s = this.cutSection;
+    if (d) {
+      const cursor = this.drawCursor();
+      const path = cursor ? [...d.points, cursor] : d.points;
+      s = buildSection(path, this.middle()[2], this.sectionWidth(), this.cutDip);
+      const dots = new THREE.BufferGeometry();
+      dots.setAttribute("position", new THREE.Float32BufferAttribute(path.flatMap((p) => [...p, top]), 3));
+      const points = new THREE.Points(dots, this.outlineDots);
+      points.frustumCulled = false;
+      points.renderOrder = 11;
+      this.outline.add(points);
+    }
+    if (s && this.cut?.unfolded && !d) {
+      const at = [0, ...s.segments.map((g) => g.chainage + g.length)];
+      this.addLines(at.flatMap((x) => [x, 0, box.min[2], x, 0, box.max[2]]), this.outlineEdges);
+    } else if (s) {
+      const [trace, left, right] = traces(s, top);
+      this.addLines(pairs(trace), this.outlineLines);
+      this.addLines([...pairs(left), ...pairs(right)], this.outlineEdges);
+    }
+    this.requestRender();
+  }
+
+  // pointer
+
+  private screen(e: MouseEvent): XY {
+    const r = this.renderer.canvas.getBoundingClientRect();
+    return [e.clientX - r.left, e.clientY - r.top];
+  }
+
+  private ray(at: XY): Ray {
+    const caster = new THREE.Raycaster();
+    caster.setFromCamera(new THREE.Vector2((at[0] / this.width) * 2 - 1, 1 - (at[1] / this.height) * 2), this.camera);
+    return { origin: caster.ray.origin.toArray() as Vec3, direction: caster.ray.direction.toArray() as Vec3 };
+  }
+
+  /** Where the pointer meets the level plane through the top of the box, where the drawer draws. */
+  private planAt(at: XY): XY | null {
+    const { origin, direction } = this.ray(at);
+    const z = (this.box ?? visibleBox(this.layers))?.max[2] ?? 0;
+    if (Math.abs(direction[2]) < 1e-9) return null;
+    const t = (z - origin[2]) / direction[2];
+    return t > 0 ? [origin[0] + t * direction[0], origin[1] + t * direction[1]] : null;
+  }
+
+  private pointerDown(e: PointerEvent): void {
+    this.root.focus({ preventScroll: true });
+    if (e.button !== 0) return;
+    const at = this.screen(e);
+    if (this.drawing) {
+      this.press = at;
+      return;
+    }
+    if (!e.shiftKey || this.cut?.unfolded) return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    this.renderer.canvas.setPointerCapture(e.pointerId);
+    this.quick = { from: at, to: at };
+    this.drawSweep();
+  }
+
+  private pointerMove(e: PointerEvent): void {
+    if (this.quick) {
+      this.quick.to = this.screen(e);
+      this.drawSweep();
+    } else if (this.drawing) {
+      this.drawing.cursor = this.planAt(this.screen(e));
+      this.drawing.shift = e.shiftKey;
+      this.drawOutline();
+    }
+  }
+
+  private pointerUp(e: PointerEvent): void {
+    const at = this.screen(e);
+    if (this.quick) {
+      const { from } = this.quick;
+      this.endQuick();
+      if (Math.hypot(at[0] - from[0], at[1] - from[1]) >= 2 * CLICK_PX) this.quickCut(from, at);
+      return;
+    }
+    if (this.drawing && this.press && Math.hypot(at[0] - this.press[0], at[1] - this.press[1]) < CLICK_PX) {
+      const p = this.planAt(at);
+      this.drawing.shift = e.shiftKey;
+      if (p) this.addVertex(p);
+    }
+    this.press = null;
+  }
+
+  /** The width under the mouse wheel while cutting or drawing, or with Shift held; Ctrl+wheel still zooms. */
+  private wheel(e: WheelEvent): void {
+    if (e.ctrlKey || !(this.quick || this.drawing || e.shiftKey)) return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    const delta = e.deltaY || e.deltaX;
+    if (delta) this.setWidth(this.sectionWidth() * (delta < 0 ? WHEEL_STEP : 1 / WHEEL_STEP));
+  }
+
+  /** Cuts the upright section under a line swept across the screen, its ends picked as `pickCut` says. */
+  private quickCut(from: XY, to: XY): void {
+    const center = this.middle();
+    const forward = this.camera.getWorldDirection(new THREE.Vector3()).toArray() as Vec3;
+    const ends = pickCut([this.ray(from), this.ray(to)], center, forward);
+    const points = ends?.map((p) => [p[0], p[1]] as XY) ?? [];
+    if (distinct(points).length === 2) this.setCut({ points, z: center[2], unfolded: false });
+  }
+
+  private endQuick(): void {
+    this.quick = null;
+    this.drawSweep();
+  }
+
+  private drawSweep(): void {
+    const q = this.quick;
+    this.sweep.replaceChildren();
+    if (!q) return;
+    const ns = "http://www.w3.org/2000/svg";
+    const line = document.createElementNS(ns, "line");
+    for (const [k, v] of Object.entries({ x1: q.from[0], y1: q.from[1], x2: q.to[0], y2: q.to[1] }))
+      line.setAttribute(k, String(v));
+    const text = document.createElementNS(ns, "text");
+    text.setAttribute("x", String(q.to[0] + 10));
+    text.setAttribute("y", String(q.to[1] - 10));
+    text.textContent = `width ${formatLength(this.sectionWidth())}`;
+    this.sweep.append(line, text);
+  }
+
+  // panel
+
+  private sectionPanel(): HTMLElement {
+    const box = document.createElement("div");
+    box.className = "btv-settings btv-view";
+    const tools = document.createElement("div");
+    tools.className = "btv-tools";
+    const tool = (name: IconName, title: string, pressed: boolean, enabled: boolean, action: () => void) => {
+      const b = iconButton(name, title, action);
+      b.classList.add("btv-tool");
+      b.setAttribute("aria-pressed", String(pressed));
+      b.disabled = !enabled;
+      tools.appendChild(b);
+    };
+    const c = this.cut;
+    tool("draw", this.drawing ? "Cut along the polyline (Enter)" : "Draw a polyline section (d)", !!this.drawing, true, () =>
+      this.toggleDrawing(),
+    );
+    tool(c?.unfolded ? "fold" : "unfold", c?.unfolded ? "Fold back (u)" : "Unfold (u)", !!c?.unfolded, !!c && !this.drawing, () =>
+      this.toggleUnfolded(),
+    );
+    tool("clear", this.drawing ? "Cancel drawing (Esc)" : "Clear the section (c)", false, !!c || !!this.drawing, () =>
+      this.clearSection(),
+    );
+    const pair = (title: string, slider: [number, number, number], set: (slider: number | null, typed: number | null) => void) => {
+      const row = document.createElement("div");
+      row.className = "btv-range btv-pair";
+      const range = document.createElement("input");
+      range.type = "range";
+      [range.min, range.max, range.step] = slider.map(String);
+      range.setAttribute("aria-label", title);
+      const typed = document.createElement("input");
+      typed.type = "number";
+      typed.step = "any";
+      typed.title = title;
+      typed.setAttribute("aria-label", title);
+      range.addEventListener("input", () => set(Number(range.value), null));
+      typed.addEventListener("change", () => set(null, Number(typed.value)));
+      row.append(range, typed);
+      return { row, inputs: [range, typed] };
+    };
+    const width = pair("Width", [0, 1000, 1], (slider, typed) => {
+      const [lo, hi] = this.widthRange();
+      this.setWidth(slider === null ? typed! : lo * (hi / lo) ** (slider / 1000));
+    });
+    const dip = pair("Dip", [5, 90, 1], (slider, typed) => this.setDip((slider ?? typed)!));
+    const hint = document.createElement("div");
+    hint.className = "btv-note btv-hint";
+    this.sectionControls = { width: width.inputs, dip: dip.inputs, hint };
+    box.append(label("Cut"), tools, label("Width"), width.row, label("Dip"), dip.row, hint);
+    this.syncControls();
+    return box;
+  }
+
+  private syncControls(): void {
+    const active = (this.root.getRootNode() as Document | ShadowRoot).activeElement;
+    const set = (el: HTMLInputElement | undefined, value: string) => {
+      if (el && el !== active) el.value = value;
+    };
+    const [lo, hi] = this.widthRange();
+    const w = this.sectionWidth();
+    const [wRange, wTyped] = this.sectionControls.width;
+    set(wRange, String(Math.round((1000 * Math.log(Math.min(Math.max(w, lo), hi) / lo)) / Math.log(hi / lo))));
+    set(wTyped, formatLength(w));
+    const [dRange, dTyped] = this.sectionControls.dip;
+    set(dRange, String(this.cutDip));
+    set(dTyped, formatLength(this.cutDip));
+    this.updateHint();
+  }
+
+  private updateHint(): void {
+    const hint = this.sectionControls.hint;
+    if (!hint) return;
+    const d = this.drawing;
+    const s = this.cutSection;
+    if (d) {
+      const n = d.points.length;
+      hint.textContent = `${n} point${n === 1 ? "" : "s"}. Click to add, Shift locks 45°, wheel sets the width, Backspace undoes, Enter cuts, Esc cancels.`;
+    } else if (s && this.cut) {
+      const n = s.segments.length + 1;
+      hint.textContent = `${n} points, ${formatLength(s.length)} long. u ${this.cut.unfolded ? "folds back" : "unfolds"}, c clears.`;
+    } else hint.textContent = "Shift-drag across the view for a straight cut, or draw a polyline (d).";
+  }
+
   // ---- keys and screenshots ----
 
   private key(e: KeyboardEvent): void {
     const target = e.composedPath()[0] as HTMLElement;
     if (e.ctrlKey || e.metaKey || e.altKey || /^(INPUT|SELECT|TEXTAREA)$/.test(target?.tagName ?? "")) return;
-    const action = { f: () => this.fit(), h: () => this.togglePanel(), t: () => this.toggleTheme() }[e.key.toLowerCase()];
+    const drawing = this.drawing;
+    const action = {
+      f: () => this.fit(),
+      h: () => this.togglePanel(),
+      t: () => this.toggleTheme(),
+      d: () => this.toggleDrawing(),
+      u: () => this.toggleUnfolded(),
+      c: () => this.clearSection(),
+      enter: drawing ? () => this.finishDrawing() : undefined,
+      escape: drawing ? () => this.endDrawing() : this.quick ? () => this.endQuick() : undefined,
+      backspace: drawing ? () => this.undoVertex() : undefined,
+      shift: drawing ? () => this.setShift(true) : undefined,
+    }[e.key.toLowerCase()];
     if (!action) return;
     e.preventDefault();
     e.stopPropagation();
@@ -1196,7 +1802,7 @@ export class Viewer {
       return [(r.left - root.left) * ratio, (r.top - root.top) * ratio, r.width * ratio, r.height * ratio] as const;
     };
     const overlays: Element[] = [...this.barEls.values()].map((el) => el.firstElementChild!).filter(Boolean);
-    if (this.show.gizmo) overlays.push(this.gizmo.el);
+    if (this.show.gizmo && !this.cut?.unfolded) overlays.push(this.gizmo.el);
     for (const svg of overlays) {
       const image = await svgImage(new XMLSerializer().serializeToString(svg));
       ctx.drawImage(image, ...place(svg));
@@ -1273,6 +1879,11 @@ function segmented(
     seg.appendChild(b);
   }
   return seg;
+}
+
+/** A length or an angle for the panel, to three significant digits. */
+function formatLength(value: number): string {
+  return String(Number(value.toPrecision(3)));
 }
 
 function svgImage(svg: string): Promise<HTMLImageElement> {
