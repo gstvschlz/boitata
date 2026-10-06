@@ -3260,8 +3260,8 @@ fn object_set(set: &Bound<pyo3::types::PyDict>, flat: bool) -> PyResult<ObjectSe
 ///
 /// Examples
 /// --------
-/// >>> grid = cs.BlockModel((0, 0, 0), (1, 1, 1), (120, 120, 1))
-/// >>> ti = cs.object_training_image(
+/// >>> grid = bt.BlockModel((0, 0, 0), (1, 1, 1), (120, 120, 1))
+/// >>> ti = bt.object_training_image(
 /// ...     grid,
 /// ...     [
 /// ...         {"shape": "channel", "code": 1, "proportion": 0.25, "width": 8,
@@ -4544,13 +4544,13 @@ pub fn register(m: &Bound<PyModule>) -> PyResult<()> {
 ///
 /// Examples
 /// --------
-/// >>> grid = cs.BlockModel((0, 0), (1, 1), (80, 80))
-/// >>> ti = cs.object_training_image(
+/// >>> grid = bt.BlockModel((0, 0), (1, 1), (80, 80))
+/// >>> ti = bt.object_training_image(
 /// ...     grid,
 /// ...     [{"shape": "channel", "code": 1, "proportion": 0.3, "width": 6,
 /// ...       "azimuth": (80, 100), "amplitude": 6, "wavelength": 50}],
 /// ... )
-/// >>> summary = cs.SNESIM(ti, "facies", template_size=24).simulate(grid, n=4)
+/// >>> summary = bt.SNESIM(ti, "facies", template_size=24).simulate(grid, n=4)
 #[pyclass(module = "boitata", name = "SNESIM")]
 pub struct Snesim {
     core: simulation::Snesim,
@@ -5166,12 +5166,12 @@ pub fn register_snesim(m: &Bound<PyModule>) -> PyResult<()> {
 ///
 /// Examples
 /// --------
-/// >>> grid = cs.BlockModel((0, 0, 0), (1, 1, 1), (100, 100, 1))
-/// >>> ti = cs.object_training_image(
+/// >>> grid = bt.BlockModel((0, 0, 0), (1, 1, 1), (100, 100, 1))
+/// >>> ti = bt.object_training_image(
 /// ...     grid, [{"shape": "channel", "code": 1, "proportion": 0.3, "width": 6}], seed=1
 /// ... )
-/// >>> targets = cs.BlockModel((0, 0, 0), (1, 1, 1), (80, 80, 1))
-/// >>> summary = cs.ImageQuilting(ti, "facies", patch_size=20).simulate(targets, n=10)
+/// >>> targets = bt.BlockModel((0, 0, 0), (1, 1, 1), (80, 80, 1))
+/// >>> summary = bt.ImageQuilting(ti, "facies", patch_size=20).simulate(targets, n=10)
 #[derive(Serialize, Deserialize)]
 #[pyclass(module = "boitata", name = "ImageQuilting")]
 pub struct ImageQuilting {

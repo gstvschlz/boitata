@@ -77,7 +77,7 @@ use crate::invalid;
 ///
 /// Examples
 /// --------
-/// >>> check = cs.training_image_consistency(ti, "facies", holes, "facies", seed=0)
+/// >>> check = bt.training_image_consistency(ti, "facies", holes, "facies", seed=0)
 /// >>> check["p_value"]
 #[pyfunction]
 #[pyo3(signature = (ti, column, coords, values, *, grid=None, categorical=true, axis=None, pattern_length=4, n_classes=4, n_samples=200, seed=0))]
