@@ -74,11 +74,47 @@ would let the plane be dragged and turned in a window; each move calls `section`
 ```python
 scene.view_section()
 save(image(scene, "The same section, seen normal to the plane"), "section")
-scene.close()
 ```
 
 </details>
 
 ![section](section.png)
+
+`points=` cuts along a polyline in plan instead: each segment cuts on the vertical plane through it, between its
+ends, so the section steps around the lenses like a curtain. here it runs across the lenses, turns north along
+strike, then crosses them again.
+
+<details><summary>Python</summary>
+
+```python
+x, y = center[:2]
+path = [(x - 250, y - 150), (x + 100, y - 150), (x + 100, y + 150), (x - 250, y + 150)]
+scene.section(points=path, width=30)
+scene.disable_parallel_projection()
+scene.view_vector((0.4, -0.8, 0.6))
+scene.reset_camera()
+save(image(scene, "A stepped curtain along a polyline"), "curtain")
+```
+
+</details>
+
+![curtain](curtain.png)
+
+for a polyline, `view_section` unfolds the curtain: each segment's cut lies along the first segment's plane at its
+distance along the polyline, one true-scale section of all three panels. in a window, `section_drawer` draws the
+polyline with the mouse (``d`` for a plan view, clicks for vertices, Shift for 45° steps, Enter to cut) and
+`layer_toggles` adds a checkbox per layer.
+
+<details><summary>Python</summary>
+
+```python
+scene.view_section()
+save(image(scene, "The curtain unfolded into one section"), "unfolded")
+scene.close()
+```
+
+</details>
+
+![unfolded](unfolded.png)
 
 Full script: [`example_02_24.py`](example_02_24.py)
