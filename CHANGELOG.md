@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.5.0 - 2026-10-07
+
+### Features
+
+- [**breaking**] one spelling across containers
+- conveniences that remove repeated code
+- HTML representation in notebooks
+
+### Fixes
+
+- **plot3d:** wait for the viewer, not the #scene div, before screenshots
+
+### Documentation
+
+- **examples:** use the new API
 ## 0.4.3 - 2026-10-06
 
 ### Features
