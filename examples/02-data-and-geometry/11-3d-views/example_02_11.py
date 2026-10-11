@@ -86,7 +86,8 @@ show(scene, "subblocks", "Sub-blocks of the lenses, colored by Zn")
 # a regular model keeps its geometry implicit; the viewer builds its boxes from the centers, sizes and rotation.
 # filled with the inverse-distance zinc of all composites, the rotated grid is cut here by a `section` across
 # strike, through its center and one block wide: a dip section where the three lenses are the high-grade bands.
-# blocks with no composite within 100 m are null and never drawn.
+# blocks with no composite within 100 m are null and never drawn. `contour_step` draws 1% Zn isolines on the cut
+# face itself, over the block colors; they update live as the section is dragged.
 
 # %%
 everywhere = bt.InverseDistance(search, power=2).fit(composites, "ZN_PCT")
@@ -97,7 +98,7 @@ center = rotated.coords.mean(axis=0)
 across = np.radians(rotation[0] + 90)
 reach = 400 * np.array([np.sin(across), np.cos(across), 0])
 scene = bt.plot3d.Scene()
-scene.add(rotated, "zn", name="rotated grid", **ZN)
+scene.add(rotated, "zn", name="rotated grid", contour_step=1.0, **ZN)
 for i, lens in enumerate(lenses, 1):
     scene.add(lens, name=f"lens {i}", color=LIGHT, opacity=0.2)
 scene.section([center - reach, center + reach], width=20)
