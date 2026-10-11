@@ -44,7 +44,8 @@ samples = bt.datasets.walker_lake()
 xy, v = samples.coords, samples["V"]
 weights = bt.cell_declustering(xy, v, sizes=np.arange(2.5, 102.5, 2.5)).weights
 print(
-    f"{len(v)} samples: naive mean {v.mean():.1f} ppm, declustered mean {np.average(v, weights=weights):.1f} ppm"
+    f"{len(v)} samples: naive mean {v.mean():.1f} ppm, "
+    f"declustered mean {bt.describe(v, weights=weights)['mean']:.1f} ppm"
 )
 
 # %% [markdown]
@@ -110,23 +111,23 @@ for name, estimate in (("kriging", ok), ("inverse distance", idw)):
 #     diverging scale centered on zero, with the samples on top.
 
 # %%
-shape, extent = (30, 26), (0.5, 260.5, 0.5, 300.5)
+extent = (0.5, 260.5, 0.5, 300.5)
 difference = idw - ok
 fig, axes = plt.subplots(1, 3, figsize=(13, 4.8), layout="constrained")
 norm = PowerNorm(0.5, vmin=0, vmax=1200)
 for ax, image, title in ((axes[0], ok, "Ordinary kriging"), (axes[1], idw, "Inverse distance")):
-    im = ax.imshow(image.reshape(shape), origin="lower", extent=extent, norm=norm)
+    im = ax.imshow(blocks.grid(image)[0], origin="lower", extent=extent, norm=norm)
     map_axes(ax, title)
 fig.colorbar(im, ax=axes[:2], shrink=0.8, label="V (ppm)")
 limit = np.abs(difference).max()
 dm = axes[2].imshow(
-    difference.reshape(shape),
+    blocks.grid(difference)[0],
     origin="lower",
     extent=extent,
     cmap="RdBu_r",
     norm=TwoSlopeNorm(0, -limit, limit),
 )
-axes[2].scatter(xy[:, 0], xy[:, 1], s=3, color=INK, linewidths=0)
+axes[2].scatter(samples.x, samples.y, s=3, color=INK, linewidths=0)
 map_axes(axes[2], "Inverse distance − kriging")
 fig.colorbar(dm, ax=axes[2], shrink=0.8, label="ppm")
 save(fig, "maps")
@@ -236,10 +237,10 @@ truth = bt.datasets.walker_lake_exhaustive()["V"].reshape(300, 260)
 true_blocks = truth.reshape(30, 10, 26, 10).mean(axis=(1, 3)).ravel()
 print(f"true block mean {true_blocks.mean():.1f} ppm")
 for name, estimate in (("kriging", ok), ("inverse distance", idw)):
-    rmse = np.sqrt(np.mean((estimate - true_blocks) ** 2))
+    c = bt.compare(estimate, true_blocks)
     print(
         f"{name:>16}: mean {estimate.mean():.1f} ppm ({estimate.mean() / true_blocks.mean() - 1:+.1%}), "
-        f"RMSE {rmse:.1f} ppm, correlation {np.corrcoef(estimate, true_blocks)[0, 1]:.3f}"
+        f"RMSE {c['rmse']:.1f} ppm, correlation {c['correlation']:.3f}"
     )
 
 # %% [markdown]

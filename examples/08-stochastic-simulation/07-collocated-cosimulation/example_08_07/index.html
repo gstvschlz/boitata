@@ -21287,6 +21287,8 @@
       
         
       
+        
+      
     
     
     
@@ -21496,6 +21498,34 @@
     
   
     block_correlation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../api/validation/compare/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    compare
   
 
     
@@ -21950,7 +21980,7 @@ jura Co, cosimulated <abbr title="one simulated map that honors the samples and 
 <span class="n">HERE</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="vm">__file__</span><span class="p">)</span><span class="o">.</span><span class="n">parent</span> <span class="k">if</span> <span class="s2">"__file__"</span> <span class="ow">in</span> <span class="nb">globals</span><span class="p">()</span> <span class="k">else</span> <span class="n">Path</span><span class="o">.</span><span class="n">cwd</span><span class="p">()</span>
 <span class="n">sys</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="n">HERE</span><span class="o">.</span><span class="n">parents</span><span class="p">[</span><span class="mi">1</span><span class="p">]))</span>
 </code></pre></div>
-<!-- GENERATED FROM PYTHON SOURCE LINES 20-40 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 20-38 -->
 
 <div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">boitata</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">bt</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">matplotlib.pyplot</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">plt</span>
@@ -21965,9 +21995,7 @@ jura Co, cosimulated <abbr title="one simulated map that honors the samples and 
 <span class="k">def</span><span class="w"> </span><span class="nf">unit_sill</span><span class="p">(</span><span class="n">values</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">"""Spherical model of the normal scores of `values`, scaled to a unit sill."""</span>
     <span class="n">scores</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">NormalScore</span><span class="p">()</span><span class="o">.</span><span class="n">fit_transform</span><span class="p">(</span><span class="n">values</span><span class="p">)</span>
-    <span class="n">fitted</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">experimental_variogram</span><span class="p">(</span><span class="n">xy</span><span class="p">,</span> <span class="n">scores</span><span class="p">,</span> <span class="n">lag</span><span class="p">,</span> <span class="n">max_lag</span><span class="p">)</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="s2">"spherical"</span><span class="p">)</span>
-    <span class="n">s</span> <span class="o">=</span> <span class="n">fitted</span><span class="o">.</span><span class="n">structures</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
-    <span class="k">return</span> <span class="n">bt</span><span class="o">.</span><span class="n">Variogram</span><span class="p">([(</span><span class="s2">"spherical"</span><span class="p">,</span> <span class="n">s</span><span class="o">.</span><span class="n">sill</span> <span class="o">/</span> <span class="n">fitted</span><span class="o">.</span><span class="n">sill</span><span class="p">,</span> <span class="n">s</span><span class="o">.</span><span class="n">range</span><span class="p">)],</span> <span class="n">nugget</span><span class="o">=</span><span class="n">fitted</span><span class="o">.</span><span class="n">nugget</span> <span class="o">/</span> <span class="n">fitted</span><span class="o">.</span><span class="n">sill</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">bt</span><span class="o">.</span><span class="n">experimental_variogram</span><span class="p">(</span><span class="n">xy</span><span class="p">,</span> <span class="n">scores</span><span class="p">,</span> <span class="n">lag</span><span class="p">,</span> <span class="n">max_lag</span><span class="p">)</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="s2">"spherical"</span><span class="p">)</span><span class="o">.</span><span class="n">standardized</span><span class="p">()</span>
 
 
 <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">xy</span><span class="p">)</span><span class="si">}</span><span class="s2"> samples, correlation of Co and Ni </span><span class="si">{</span><span class="n">np</span><span class="o">.</span><span class="n">corrcoef</span><span class="p">(</span><span class="n">samples</span><span class="p">[</span><span class="s1">'Co'</span><span class="p">],</span><span class="w"> </span><span class="n">samples</span><span class="p">[</span><span class="s1">'Ni'</span><span class="p">])[</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">]</span><span class="si">:</span><span class="s2">.2f</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
@@ -21975,12 +22003,12 @@ jura Co, cosimulated <abbr title="one simulated map that honors the samples and 
 <p class="mkd-glr-script-out">Out:</p>
 <div class="mkd-glr-script-out-disp highlight"><pre><span></span><code><span class="m">259</span><span class="w"> </span>samples,<span class="w"> </span>correlation<span class="w"> </span>of<span class="w"> </span>Co<span class="w"> </span>and<span class="w"> </span>Ni<span class="w"> </span><span class="m">0</span>.75
 </code></pre></div>
-<!-- GENERATED FROM PYTHON SOURCE LINES 41-44 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 39-42 -->
 
 <p><abbr title="sequential gaussian simulation: it visits the nodes in random order, krigs each one, draws from the gaussian that kriging gives and adds the draw to the data.">SGS</abbr> simulates Ni first, 20 <abbr title="simulated maps, each honoring the samples and reproducing the histogram and variogram of the data.">realizations</abbr> on 50 m nodes, then Co twice with the same seeds: alone, and with row <code>k</code>
 of the Ni <abbr title="simulated maps, each honoring the samples and reproducing the histogram and variogram of the data.">realizations</abbr> as the secondary of <abbr title="one simulated map that honors the samples and reproduces the histogram and variogram of the data.">realization</abbr> <code>k</code>. <code>fit</code> normal-scores Ni at the samples and fits the
 correlation of the Co and Ni scores:</p>
-<!-- GENERATED FROM PYTHON SOURCE LINES 46-56 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 44-54 -->
 
 <div class="highlight"><pre><span></span><code><span class="n">nodes</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">BlockModel</span><span class="p">(</span><span class="n">origin</span><span class="o">=</span><span class="p">(</span><span class="mf">0.6</span><span class="p">,</span> <span class="mf">0.55</span><span class="p">),</span> <span class="n">size</span><span class="o">=</span><span class="p">(</span><span class="mf">0.05</span><span class="p">,</span> <span class="mf">0.05</span><span class="p">),</span> <span class="n">count</span><span class="o">=</span><span class="p">(</span><span class="mi">87</span><span class="p">,</span> <span class="mi">103</span><span class="p">))</span>
 <span class="n">search</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">Search</span><span class="p">(</span><span class="n">radius</span><span class="o">=</span><span class="mf">1.5</span><span class="p">,</span> <span class="n">max_samples</span><span class="o">=</span><span class="mi">24</span><span class="p">)</span>
@@ -21995,12 +22023,12 @@ correlation of the Co and Ni scores:</p>
 <p class="mkd-glr-script-out">Out:</p>
 <div class="mkd-glr-script-out-disp highlight"><pre><span></span><code>correlation<span class="w"> </span>of<span class="w"> </span>Co<span class="w"> </span>and<span class="w"> </span>Ni<span class="w"> </span>scores<span class="w"> </span>at<span class="w"> </span>the<span class="w"> </span>samples:<span class="w"> </span><span class="m">0</span>.71
 </code></pre></div>
-<!-- GENERATED FROM PYTHON SOURCE LINES 57-60 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 55-58 -->
 
 <p>simulated alone, Co keeps its histogram and variogram but forgets Ni: away from the samples the two vary
 independently, and their correlation over the nodes falls to near zero. cosimulated, each <abbr title="one simulated map that honors the samples and reproduces the histogram and variogram of the data.">realization</abbr> of Co
 follows its own Ni <abbr title="one simulated map that honors the samples and reproduces the histogram and variogram of the data.">realization</abbr> and the correlation comes back:</p>
-<!-- GENERATED FROM PYTHON SOURCE LINES 62-74 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 60-72 -->
 
 <div class="highlight"><pre><span></span><code><span class="n">checks</span> <span class="o">=</span> <span class="p">{</span>
     <span class="n">name</span><span class="p">:</span> <span class="n">bt</span><span class="o">.</span><span class="n">check_realizations</span><span class="p">(</span>
@@ -22018,9 +22046,9 @@ follows its own Ni <abbr title="one simulated map that honors the samples and re
 <div class="mkd-glr-script-out-disp highlight"><pre><span></span><code>Co<span class="w"> </span>alone<span class="w">    </span>correlation<span class="w"> </span>with<span class="w"> </span>Ni<span class="w"> </span>-0.14<span class="w"> </span>to<span class="w"> </span><span class="m">0</span>.20<span class="w"> </span><span class="o">(</span>samples<span class="w"> </span><span class="m">0</span>.75<span class="o">)</span>
 Co<span class="w"> </span>with<span class="w"> </span>Ni<span class="w">  </span>correlation<span class="w"> </span>with<span class="w"> </span>Ni<span class="w"> </span><span class="m">0</span>.69<span class="w"> </span>to<span class="w"> </span><span class="m">0</span>.84<span class="w"> </span><span class="o">(</span>samples<span class="w"> </span><span class="m">0</span>.75<span class="o">)</span>
 </code></pre></div>
-<!-- GENERATED FROM PYTHON SOURCE LINES 75-88 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 73-86 -->
 
-<div class="highlight"><pre><span></span><code><span class="n">shape</span><span class="p">,</span> <span class="n">extent</span> <span class="o">=</span> <span class="p">(</span><span class="mi">103</span><span class="p">,</span> <span class="mi">87</span><span class="p">),</span> <span class="p">(</span><span class="mf">0.575</span><span class="p">,</span> <span class="mf">4.925</span><span class="p">,</span> <span class="mf">0.525</span><span class="p">,</span> <span class="mf">5.675</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><span class="n">extent</span> <span class="o">=</span> <span class="p">(</span><span class="mf">0.575</span><span class="p">,</span> <span class="mf">4.925</span><span class="p">,</span> <span class="mf">0.525</span><span class="p">,</span> <span class="mf">5.675</span><span class="p">)</span>
 <span class="n">fig</span><span class="p">,</span> <span class="n">axes</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">12</span><span class="p">,</span> <span class="mf">4.6</span><span class="p">),</span> <span class="n">layout</span><span class="o">=</span><span class="s2">"constrained"</span><span class="p">)</span>
 <span class="k">for</span> <span class="n">ax</span><span class="p">,</span> <span class="n">image</span><span class="p">,</span> <span class="n">title</span><span class="p">,</span> <span class="n">label</span> <span class="ow">in</span> <span class="p">(</span>
     <span class="p">(</span><span class="n">axes</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">ni</span><span class="o">.</span><span class="n">realizations</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="s2">"Ni, realization 1"</span><span class="p">,</span> <span class="s2">"Ni (mg/kg)"</span><span class="p">),</span>
@@ -22028,17 +22056,17 @@ Co<span class="w"> </span>with<span class="w"> </span>Ni<span class="w">  </span
     <span class="p">(</span><span class="n">axes</span><span class="p">[</span><span class="mi">2</span><span class="p">],</span> <span class="n">with_ni</span><span class="o">.</span><span class="n">realizations</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="s2">"Co with Ni, realization 1"</span><span class="p">,</span> <span class="s2">"Co (mg/kg)"</span><span class="p">),</span>
 <span class="p">):</span>
     <span class="n">top</span> <span class="o">=</span> <span class="mi">45</span> <span class="k">if</span> <span class="n">label</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s2">"Ni"</span><span class="p">)</span> <span class="k">else</span> <span class="mi">20</span>
-    <span class="n">im</span> <span class="o">=</span> <span class="n">ax</span><span class="o">.</span><span class="n">imshow</span><span class="p">(</span><span class="n">image</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">shape</span><span class="p">),</span> <span class="n">origin</span><span class="o">=</span><span class="s2">"lower"</span><span class="p">,</span> <span class="n">extent</span><span class="o">=</span><span class="n">extent</span><span class="p">,</span> <span class="n">vmin</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">vmax</span><span class="o">=</span><span class="n">top</span><span class="p">)</span>
+    <span class="n">im</span> <span class="o">=</span> <span class="n">ax</span><span class="o">.</span><span class="n">imshow</span><span class="p">(</span><span class="n">nodes</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span><span class="n">image</span><span class="p">)[</span><span class="mi">0</span><span class="p">],</span> <span class="n">origin</span><span class="o">=</span><span class="s2">"lower"</span><span class="p">,</span> <span class="n">extent</span><span class="o">=</span><span class="n">extent</span><span class="p">,</span> <span class="n">vmin</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">vmax</span><span class="o">=</span><span class="n">top</span><span class="p">)</span>
     <span class="n">ax</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="n">title</span><span class="o">=</span><span class="n">title</span><span class="p">,</span> <span class="n">xlabel</span><span class="o">=</span><span class="s2">"X (km)"</span><span class="p">,</span> <span class="n">ylabel</span><span class="o">=</span><span class="s2">"Y (km)"</span><span class="p">,</span> <span class="n">aspect</span><span class="o">=</span><span class="s2">"equal"</span><span class="p">)</span>
     <span class="n">fig</span><span class="o">.</span><span class="n">colorbar</span><span class="p">(</span><span class="n">im</span><span class="p">,</span> <span class="n">ax</span><span class="o">=</span><span class="n">ax</span><span class="p">,</span> <span class="n">shrink</span><span class="o">=</span><span class="mf">0.75</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="n">label</span><span class="p">)</span>
 <span class="n">save</span><span class="p">(</span><span class="n">fig</span><span class="p">,</span> <span class="s2">"maps"</span><span class="p">)</span>
 </code></pre></div>
 <p><img alt="Ni, realization 1, Co alone, realization 1, Co with Ni, realization 1" class="mkd-glr-single-img" src="../images/mkd_glr_example_08_07_001.png" srcset="../images/mkd_glr_example_08_07_001.png" /></p>
-<!-- GENERATED FROM PYTHON SOURCE LINES 89-91 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 87-89 -->
 
 <p>the cosimulated Co still reproduces its own histogram and variogram (the <a href="../../../10-checking-models/04-realization-checks/example_10_04/"><abbr title="one simulated map that honors the samples and reproduces the histogram and variogram of the data.">realization</abbr> checks</a>), and its correlation
 with Ni, 0.69 to 0.84 across <abbr title="simulated maps, each honoring the samples and reproducing the histogram and variogram of the data.">realizations</abbr>, brackets the samples' 0.75. simulated alone, Co keeps little of it.</p>
-<!-- GENERATED FROM PYTHON SOURCE LINES 93-108 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 91-106 -->
 
 <div class="highlight"><pre><span></span><code><span class="n">fig</span><span class="p">,</span> <span class="n">axes</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">13</span><span class="p">,</span> <span class="mf">3.8</span><span class="p">),</span> <span class="n">layout</span><span class="o">=</span><span class="s2">"constrained"</span><span class="p">)</span>
 <span class="n">check</span> <span class="o">=</span> <span class="n">checks</span><span class="p">[</span><span class="s2">"with Ni"</span><span class="p">]</span>
@@ -22056,13 +22084,13 @@ with Ni, 0.69 to 0.84 across <abbr title="simulated maps, each honoring the samp
 <span class="n">save</span><span class="p">(</span><span class="n">fig</span><span class="p">,</span> <span class="s2">"checks"</span><span class="p">)</span>
 </code></pre></div>
 <p><img alt="Histogram of Co with Ni, Variogram of Co scores with Ni, Correlation, one point per realization" class="mkd-glr-single-img" src="../images/mkd_glr_example_08_07_002.png" srcset="../images/mkd_glr_example_08_07_002.png" /></p>
-<!-- GENERATED FROM PYTHON SOURCE LINES 109-113 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 107-111 -->
 
-<p><a href="../08-direct-sequential-simulation/README.md">DSS</a> takes the same <code>secondary</code> and <code>correlation</code> arguments. it
+<p><a href="../../08-direct-sequential-simulation/example_08_08/">DSS</a> takes the same <code>secondary</code> and <code>correlation</code> arguments. it
 kriges the grades of Co with their own variogram, standardizes Co and Ni by their declustered means and standard
 deviations instead of normal-scoring them, and cokriges each node in those units. the node is then drawn from the
 histogram of Co with the cokriged mean and variance. <code>DSS.fit</code> fits the correlation of the grades:</p>
-<!-- GENERATED FROM PYTHON SOURCE LINES 115-129 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 113-127 -->
 
 <div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">warnings</span>
 
@@ -22082,12 +22110,12 @@ histogram of Co with the cokriged mean and variance. <code>DSS.fit</code> fits t
 <div class="mkd-glr-script-out-disp highlight"><pre><span></span><code>correlation<span class="w"> </span>of<span class="w"> </span>Co<span class="w"> </span>and<span class="w"> </span>Ni<span class="w"> </span>grades<span class="w"> </span>at<span class="w"> </span>the<span class="w"> </span>samples:<span class="w"> </span><span class="m">0</span>.75
 co-DSS:<span class="w"> </span>correlation<span class="w"> </span>of<span class="w"> </span>Co<span class="w"> </span>and<span class="w"> </span>Ni<span class="w"> </span>over<span class="w"> </span>the<span class="w"> </span>nodes<span class="w"> </span><span class="m">0</span>.70<span class="w"> </span>to<span class="w"> </span><span class="m">0</span>.85
 </code></pre></div>
-<!-- GENERATED FROM PYTHON SOURCE LINES 130-133 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 128-131 -->
 
 <p>the co-DSS <abbr title="simulated maps, each honoring the samples and reproducing the histogram and variogram of the data.">realizations</abbr> follow their Ni <abbr title="simulated maps, each honoring the samples and reproducing the histogram and variogram of the data.">realizations</abbr> as closely as the cosimulated <abbr title="sequential gaussian simulation: it visits the nodes in random order, krigs each one, draws from the gaussian that kriging gives and adds the draw to the data.">SGS</abbr> ones: their correlation with
 Ni brackets the samples' 0.75. the block above silences the warning on nodes DSS draws from the nearest reachable
 mean and variance.</p>
-<p><strong>Total running time of the script:</strong> ( 0 minutes  1.053 seconds)</p>
+<p><strong>Total running time of the script:</strong> ( 0 minutes  1.238 seconds)</p>
 <div id="download_links"></div>
 
 <p><a class="md-button center" href="../example_08_07.py"><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M256 32c0-17.7-14.3-32-32-32s-32 14.3-32 32v210.7l-41.4-41.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3l96 96c12.5 12.5 32.8 12.5 45.3 0l96-96c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L256 242.7zM64 320c-35.3 0-64 28.7-64 64v32c0 35.3 28.7 64 64 64h320c35.3 0 64-28.7 64-64v-32c0-35.3-28.7-64-64-64h-46.9l-56.6 56.6c-31.2 31.2-81.9 31.2-113.1 0L110.9 320zm304 56a24 24 0 1 1 0 48 24 24 0 1 1 0-48"/></svg></span> Download Python source code: example_08_07.py</a></p>

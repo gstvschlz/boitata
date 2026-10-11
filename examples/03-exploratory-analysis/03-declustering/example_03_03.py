@@ -23,12 +23,12 @@ from common import ACCENT, GRAY, INK, map_axes, save
 data = bt.datasets.coal_seam_thickness()
 holes, lease = data["boreholes"], data["boundary"]
 thickness = holes["THICKNESS_M"]
-x, y = holes.coords[:, 0], holes.coords[:, 1]
+x, y = holes.x, holes.y
 print(f"{len(holes)} holes, mean thickness {thickness.mean():.2f} m")
 
 fig, ax = plt.subplots(figsize=(7, 4.4), layout="constrained")
 drawn = ax.scatter(x, y, c=thickness, s=14, edgecolors=INK, linewidths=0.3)
-ax.plot(*lease.vertices[:, :2].T, color=GRAY, lw=0.8)
+ax.plot(*lease.coords[:, :2].T, color=GRAY, lw=0.8)
 fig.colorbar(drawn, ax=ax, shrink=0.8, label="Thickness (m)")
 map_axes(ax, "Boreholes: infill where the seam is thick")
 save(fig, "holes")
@@ -73,7 +73,7 @@ fig, axes = plt.subplots(1, 2, figsize=(10, 3.6), layout="constrained", sharey=T
 for ax, result, name in zip(axes, [cell, polygon], ["Cell", "Polygonal"], strict=True):
     w = result.weights
     drawn = ax.scatter(x, y, c=w, s=14, cmap="cividis", vmin=0, vmax=np.percentile(w, 98))
-    ax.plot(*lease.vertices[:, :2].T, color=GRAY, lw=0.8)
+    ax.plot(*lease.coords[:, :2].T, color=GRAY, lw=0.8)
     map_axes(ax, f"{name} weights")
     fig.colorbar(drawn, ax=ax, shrink=0.8)
 axes[1].set_ylabel("")

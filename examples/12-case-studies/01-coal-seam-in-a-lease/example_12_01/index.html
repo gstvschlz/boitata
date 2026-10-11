@@ -21401,6 +21401,8 @@
       
         
       
+        
+      
     
     
     
@@ -21610,6 +21612,34 @@
     
   
     block_correlation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../api/validation/compare/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    compare
   
 
     
@@ -22151,7 +22181,7 @@ by resource class on a 100 m grid.</p>
 <div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">boitata</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">bt</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">matplotlib.pyplot</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">plt</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">common</span><span class="w"> </span><span class="kn">import</span> <span class="n">ACCENT</span><span class="p">,</span> <span class="n">GRAY</span><span class="p">,</span> <span class="n">HIGHLIGHT</span><span class="p">,</span> <span class="n">INK</span><span class="p">,</span> <span class="n">LIGHT</span><span class="p">,</span> <span class="n">map_axes</span><span class="p">,</span> <span class="n">save</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">common</span><span class="w"> </span><span class="kn">import</span> <span class="n">ACCENT</span><span class="p">,</span> <span class="n">GRAY</span><span class="p">,</span> <span class="n">HIGHLIGHT</span><span class="p">,</span> <span class="n">INK</span><span class="p">,</span> <span class="n">LIGHT</span><span class="p">,</span> <span class="n">map_axes</span><span class="p">,</span> <span class="n">save</span><span class="p">,</span> <span class="n">show</span>
 </code></pre></div>
 <!-- GENERATED FROM PYTHON SOURCE LINES 23-27 -->
 
@@ -22164,9 +22194,9 @@ with testing each cell center against the polygon, so the lease is the masked gr
 <span class="n">holes</span><span class="p">,</span> <span class="n">grid</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="s2">"boreholes"</span><span class="p">],</span> <span class="n">data</span><span class="p">[</span><span class="s2">"grid"</span><span class="p">]</span>
 <span class="n">lease</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="s2">"boundary"</span><span class="p">]</span><span class="o">.</span><span class="n">parts</span><span class="p">[</span><span class="mi">0</span><span class="p">][:,</span> <span class="p">:</span><span class="mi">2</span><span class="p">]</span>
 <span class="n">xy</span><span class="p">,</span> <span class="n">thickness</span> <span class="o">=</span> <span class="n">holes</span><span class="o">.</span><span class="n">coords</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">2</span><span class="p">],</span> <span class="n">holes</span><span class="p">[</span><span class="s2">"THICKNESS_M"</span><span class="p">]</span>
-<span class="n">inside</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">point_in_polygon</span><span class="p">(</span><span class="n">grid</span><span class="o">.</span><span class="n">centroids</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">2</span><span class="p">],</span> <span class="n">lease</span><span class="p">)</span>
+<span class="n">inside</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">point_in_polygon</span><span class="p">(</span><span class="n">grid</span><span class="o">.</span><span class="n">coords</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">2</span><span class="p">],</span> <span class="n">lease</span><span class="p">)</span>
 <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">inside</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="p">(</span><span class="n">grid</span><span class="p">[</span><span class="s1">'INSIDE'</span><span class="p">]</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">1</span><span class="p">))</span><span class="si">:</span><span class="s2">.1%</span><span class="si">}</span><span class="s2"> of cells agree with INSIDE"</span><span class="p">)</span>
-<span class="n">cells</span> <span class="o">=</span> <span class="n">grid</span><span class="o">.</span><span class="n">mask</span><span class="p">(</span><span class="n">inside</span><span class="p">)</span>
+<span class="n">cells</span> <span class="o">=</span> <span class="n">grid</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">inside</span><span class="p">)</span>
 <span class="n">area</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">cells</span><span class="p">)</span> <span class="o">*</span> <span class="mi">100</span> <span class="o">*</span> <span class="mi">100</span>
 <span class="nb">print</span><span class="p">(</span>
     <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">cells</span><span class="p">)</span><span class="si">}</span><span class="s2"> cells inside, </span><span class="si">{</span><span class="n">area</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="mf">1e6</span><span class="si">:</span><span class="s2">.1f</span><span class="si">}</span><span class="s2"> km²; </span><span class="si">{</span><span class="n">bt</span><span class="o">.</span><span class="n">point_in_polygon</span><span class="p">(</span><span class="n">xy</span><span class="p">,</span><span class="w"> </span><span class="n">lease</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span><span class="si">}</span><span class="s2"> of </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">xy</span><span class="p">)</span><span class="si">}</span><span class="s2"> holes"</span>
@@ -22356,23 +22386,17 @@ each is a possible tonnage. The eastward plane steers it as it steered universal
 normal-scored, with the <abbr title="weighting samples by the area or volume each represents, to correct statistics for clustered sampling.">declustering</abbr> weights, within ten classes of the plane, and every node is back-transformed
 within the class of the plane at that node. The variogram of those scores is fitted as before and rescaled to a
 unit <abbr title="the plateau of the variogram, reached when samples lie too far apart to be related.">sill</abbr>.</p>
-<!-- GENERATED FROM PYTHON SOURCE LINES 199-229 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 199-223 -->
 
 <div class="highlight"><pre><span></span><code><span class="n">plane</span> <span class="o">=</span> <span class="n">trend</span><span class="o">.</span><span class="n">predict</span><span class="p">(</span><span class="n">xy</span><span class="p">)</span>
 <span class="n">pair</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">column_stack</span><span class="p">([</span><span class="n">plane</span><span class="p">,</span> <span class="n">thickness</span><span class="p">])</span>
 <span class="n">scores</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">StepwiseConditional</span><span class="p">()</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">pair</span><span class="p">,</span> <span class="n">weights</span><span class="o">=</span><span class="n">weights</span><span class="p">)</span><span class="o">.</span><span class="n">transform</span><span class="p">(</span><span class="n">pair</span><span class="p">)[:,</span> <span class="mi">1</span><span class="p">]</span>
 <span class="n">directional</span> <span class="o">=</span> <span class="p">[</span><span class="n">bt</span><span class="o">.</span><span class="n">experimental_variogram</span><span class="p">(</span><span class="n">xy</span><span class="p">,</span> <span class="n">scores</span><span class="p">,</span> <span class="n">lag</span><span class="p">,</span> <span class="n">max_lag</span><span class="p">,</span> <span class="n">azimuth</span><span class="o">=</span><span class="n">a</span><span class="p">)</span> <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">azimuths</span><span class="p">]</span>
 <span class="n">fitted</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">Variogram</span><span class="o">.</span><span class="n">fit_directional</span><span class="p">(</span><span class="n">directional</span><span class="p">,</span> <span class="p">[(</span><span class="n">a</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span> <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">azimuths</span><span class="p">],</span> <span class="s2">"spherical"</span><span class="p">)</span>
-<span class="n">sill</span> <span class="o">=</span> <span class="n">fitted</span><span class="o">.</span><span class="n">sill</span>
-<span class="n">gaussian</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">Variogram</span><span class="p">(</span>
-    <span class="p">[(</span><span class="s2">"spherical"</span><span class="p">,</span> <span class="n">fitted</span><span class="o">.</span><span class="n">structures</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">sill</span> <span class="o">/</span> <span class="n">sill</span><span class="p">,</span> <span class="n">fitted</span><span class="o">.</span><span class="n">structures</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">range</span><span class="p">)],</span>
-    <span class="n">nugget</span><span class="o">=</span><span class="n">fitted</span><span class="o">.</span><span class="n">nugget</span> <span class="o">/</span> <span class="n">sill</span><span class="p">,</span>
-    <span class="n">rotation</span><span class="o">=</span><span class="n">fitted</span><span class="o">.</span><span class="n">rotation</span><span class="p">,</span>
-    <span class="n">ratios</span><span class="o">=</span><span class="n">fitted</span><span class="o">.</span><span class="n">ratios</span><span class="p">,</span>
-<span class="p">)</span>
+<span class="n">gaussian</span> <span class="o">=</span> <span class="n">fitted</span><span class="o">.</span><span class="n">standardized</span><span class="p">()</span>
 <span class="nb">print</span><span class="p">(</span><span class="n">gaussian</span><span class="p">)</span>
 <span class="n">sgs</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">SGS</span><span class="p">(</span><span class="n">gaussian</span><span class="p">,</span> <span class="n">search</span><span class="p">)</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">xy</span><span class="p">,</span> <span class="n">thickness</span><span class="p">,</span> <span class="n">weights</span><span class="o">=</span><span class="n">weights</span><span class="p">,</span> <span class="n">trend</span><span class="o">=</span><span class="n">plane</span><span class="p">)</span>
-<span class="n">summary</span> <span class="o">=</span> <span class="n">sgs</span><span class="o">.</span><span class="n">simulate</span><span class="p">(</span><span class="n">cells</span><span class="p">,</span> <span class="n">n</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span> <span class="n">seed</span><span class="o">=</span><span class="mi">7</span><span class="p">,</span> <span class="n">trend</span><span class="o">=</span><span class="n">trend</span><span class="o">.</span><span class="n">predict</span><span class="p">(</span><span class="n">cells</span><span class="o">.</span><span class="n">centroids</span><span class="p">))</span>
+<span class="n">summary</span> <span class="o">=</span> <span class="n">sgs</span><span class="o">.</span><span class="n">simulate</span><span class="p">(</span><span class="n">cells</span><span class="p">,</span> <span class="n">n</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span> <span class="n">seed</span><span class="o">=</span><span class="mi">7</span><span class="p">,</span> <span class="n">trend</span><span class="o">=</span><span class="n">trend</span><span class="o">.</span><span class="n">predict</span><span class="p">(</span><span class="n">cells</span><span class="o">.</span><span class="n">coords</span><span class="p">))</span>
 <span class="n">tonnes</span> <span class="o">=</span> <span class="n">summary</span><span class="o">.</span><span class="n">realization_mean</span> <span class="o">*</span> <span class="n">area</span> <span class="o">*</span> <span class="n">density</span>
 <span class="n">p10</span><span class="p">,</span> <span class="n">p50</span><span class="p">,</span> <span class="n">p90</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">quantile</span><span class="p">(</span><span class="n">tonnes</span><span class="p">,</span> <span class="p">[</span><span class="mf">0.1</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">,</span> <span class="mf">0.9</span><span class="p">])</span>
 <span class="nb">print</span><span class="p">(</span>
@@ -22394,18 +22418,18 @@ unit <abbr title="the plateau of the variogram, reached when samples lie too far
 total:<span class="w"> </span>P10<span class="w"> </span><span class="m">185</span>.4<span class="w"> </span>Mt,<span class="w"> </span>P50<span class="w"> </span><span class="m">189</span>.4<span class="w"> </span>Mt,<span class="w"> </span>P90<span class="w"> </span><span class="m">192</span>.6<span class="w"> </span>Mt<span class="p">;</span><span class="w"> </span>kriged<span class="w"> </span><span class="m">189</span>.4<span class="w"> </span>Mt
 P10-P90<span class="w"> </span>spread<span class="w"> </span>±1.9%<span class="w"> </span>of<span class="w"> </span>P50
 </code></pre></div>
-<!-- GENERATED FROM PYTHON SOURCE LINES 230-233 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 224-227 -->
 
 <p>From P10 to P90 the simulated totals span 185.4 to 192.6 Mt, ±1.9 % around 189.4 Mt, and the kriged 189.4 Mt
 lies within. With a hole every 700 m or closer, errors in single cells cancel over the 7162 cells of the lease.
 The assumed density weighs more: 0.1 t/m³ either way moves the total more than the whole P10–P90 <abbr title="the lag at which the variogram reaches its sill; beyond it, samples are uncorrelated.">range</abbr>.</p>
-<!-- GENERATED FROM PYTHON SOURCE LINES 235-240 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 229-234 -->
 
 <h2 id="classification-by-data-spacing">Classification by data spacing<a class="headerlink" href="#classification-by-data-spacing" title="Permanent link">&para;</a></h2>
 <p>The equivalent spacing of a cell is the spacing of a square grid of holes that would put as much drilling around
 it; on a square grid of spacing s it reads about s. Cells at 450 m or less, the infill, are measured; at 700 m or
 less, the regional grid, indicated; the rest inferred. A 3 × 3 majority filter removes isolated cells.</p>
-<!-- GENERATED FROM PYTHON SOURCE LINES 242-263 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 236-257 -->
 
 <div class="highlight"><pre><span></span><code><span class="n">spacing</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">data_spacing</span><span class="p">(</span><span class="n">cells</span><span class="p">,</span> <span class="n">xy</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
 <span class="n">rules</span> <span class="o">=</span> <span class="p">[(</span><span class="s2">"measured"</span><span class="p">,</span> <span class="p">{</span><span class="s2">"spacing"</span><span class="p">:</span> <span class="p">(</span><span class="s2">"&lt;="</span><span class="p">,</span> <span class="mi">450</span><span class="p">)}),</span> <span class="p">(</span><span class="s2">"indicated"</span><span class="p">,</span> <span class="p">{</span><span class="s2">"spacing"</span><span class="p">:</span> <span class="p">(</span><span class="s2">"&lt;="</span><span class="p">,</span> <span class="mi">700</span><span class="p">)})]</span>
@@ -22434,13 +22458,27 @@ less, the regional grid, indicated; the rest inferred. A 3 × 3 majority filter 
 indicated:<span class="w"> </span><span class="m">68</span>.9%<span class="w"> </span>of<span class="w"> </span>the<span class="w"> </span>lease,<span class="w"> </span><span class="m">118</span>.9<span class="w"> </span>Mt,<span class="w"> </span>mean<span class="w"> </span><span class="m">1</span>.72<span class="w"> </span>m
 <span class="w"> </span>inferred:<span class="w">  </span><span class="m">9</span>.2%<span class="w"> </span>of<span class="w"> </span>the<span class="w"> </span>lease,<span class="w">  </span><span class="m">13</span>.0<span class="w"> </span>Mt,<span class="w"> </span>mean<span class="w"> </span><span class="m">1</span>.41<span class="w"> </span>m
 </code></pre></div>
-<!-- GENERATED FROM PYTHON SOURCE LINES 264-268 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 258-265 -->
 
 <p>Measured cells, a fifth of the lease, sit on the infill where the seam is thickest, 2.62 m on average, and hold
 57.4 Mt. Indicated cells cover the regional grid, 118.9 Mt; inferred ones, 13.0 Mt, lie at the edges of the lease
 beyond the last holes, and where the regional grid has gaps. Spacing ignores the variogram; <a href="../../../10-checking-models/05-classification/example_10_05/">classification</a> classifies
 from the kriging itself.</p>
-<p><strong>Total running time of the script:</strong> ( 0 minutes  1.486 seconds)</p>
+<p><code>Scene.add</code> encodes a text <code>values</code> column itself, so the 3D layer takes the class labels directly rather than
+the already-encoded <code>"class"</code> column; its <code>scheme=scheme</code> keeps the same order and colors as the figure above.</p>
+<!-- GENERATED FROM PYTHON SOURCE LINES 267-272 -->
+
+<div class="highlight"><pre><span></span><code><span class="n">cells</span> <span class="o">=</span> <span class="n">cells</span><span class="o">.</span><span class="n">with_column</span><span class="p">(</span><span class="s2">"class_label"</span><span class="p">,</span> <span class="n">classes</span><span class="p">)</span>
+<span class="n">scene</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">plot3d</span><span class="o">.</span><span class="n">Scene</span><span class="p">()</span>
+<span class="n">scene</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">cells</span><span class="p">,</span> <span class="s2">"class_label"</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s2">"classes"</span><span class="p">,</span> <span class="n">scheme</span><span class="o">=</span><span class="n">scheme</span><span class="p">)</span>
+<span class="n">scene</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="n">azimuth</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">dip</span><span class="o">=</span><span class="mi">90</span><span class="p">)</span>
+<span class="n">show</span><span class="p">(</span><span class="n">scene</span><span class="p">,</span> <span class="s2">"classes_3d"</span><span class="p">,</span> <span class="s2">"Resource classes by drill spacing, in 3D"</span><span class="p">)</span>
+</code></pre></div>
+<div class="output_subarea output_html rendered_html output_result">
+    <button type="button" class="bt-scene" data-scene="../scene_classes_3d.html"><img src="../scene_classes_3d.png" alt="Resource classes by drill spacing, in 3D" loading="lazy"><span>open the live scene</span></button>
+</div>
+
+<p><strong>Total running time of the script:</strong> ( 0 minutes  5.295 seconds)</p>
 <div id="download_links"></div>
 
 <p><a class="md-button center" href="../example_12_01.py"><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M256 32c0-17.7-14.3-32-32-32s-32 14.3-32 32v210.7l-41.4-41.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3l96 96c12.5 12.5 32.8 12.5 45.3 0l96-96c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L256 242.7zM64 320c-35.3 0-64 28.7-64 64v32c0 35.3 28.7 64 64 64h320c35.3 0 64-28.7 64-64v-32c0-35.3-28.7-64-64-64h-46.9l-56.6 56.6c-31.2 31.2-81.9 31.2-113.1 0L110.9 320zm304 56a24 24 0 1 1 0 48 24 24 0 1 1 0-48"/></svg></span> Download Python source code: example_12_01.py</a></p>

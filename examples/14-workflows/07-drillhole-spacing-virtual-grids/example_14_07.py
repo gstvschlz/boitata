@@ -50,12 +50,7 @@ scores = bt.NormalScore().fit(v, weights=weights).transform(v)
 azimuths = (170, 260)
 directional = [bt.experimental_variogram(xy, scores, 10, 120, azimuth=a) for a in azimuths]
 fitted = bt.Variogram.fit_directional(directional, [(a, 0) for a in azimuths], rotation=[170, 0, 0])
-gaussian = bt.Variogram(
-    [(s.model, s.sill / fitted.sill, s.range) for s in fitted.structures],
-    nugget=fitted.nugget / fitted.sill,
-    rotation=fitted.rotation,
-    ratios=fitted.ratios,
-)
+gaussian = fitted.standardized()
 print(gaussian)
 
 nodes = bt.BlockModel(origin=(1, 1), size=(2, 2), count=(130, 150))
@@ -70,14 +65,12 @@ tb = bt.TurningBands(gaussian, bands=500, search=bt.Search(radius=100, max_sampl
 
 def inside(side):
     """Panels whose window of `side` meters lies inside the panels."""
-    c = panels[side].centroids[:, :2] - 1
+    c = panels[side].coords[:, :2] - 1
     extent = np.array([1280 // side, 1480 // side]) * side / 5
     return ((c >= side / 2) & (c <= extent - side / 2)).all(axis=1)
 
 
-print(
-    f"{len(nodes.centroids)} nodes, {inside(40).sum()} quarterly and {inside(80).sum()} yearly windows inside"
-)
+print(f"{len(nodes.coords)} nodes, {inside(40).sum()} quarterly and {inside(80).sum()} yearly windows inside")
 
 # %% [markdown]
 # !!! step "Step 1: Pick the truths"
@@ -239,7 +232,7 @@ reference = bt.spacing_study(
     composite_length=np.inf,
 )
 reference = reference.filter(inside(40)[np.asarray(reference["row"], dtype=int)])
-plan = np.asarray(reference["plan"])
+plan = reference["plan"]
 for name in plans:
     meets = reference["mee"][plan == name] <= 0.15
     truth_of = reference["realization"][plan == name]

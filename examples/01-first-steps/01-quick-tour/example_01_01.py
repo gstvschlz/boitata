@@ -123,16 +123,16 @@ save(fig, "variogram")
 grid = bt.BlockModel(origin=(3, 3), size=(5, 5), count=(52, 60))
 search = bt.Search(radius=80, max_samples=24, min_samples=4, rotation=model.rotation, ratios=(0.5, 1.0))
 kriging = bt.OrdinaryKriging(model, search).fit(samples, "V_cut")
-nodes = grid.centroids.astype(int)
+nodes = grid.coords.astype(int)
 grid = grid.with_columns(
     {"estimate": kriging.predict(grid), "truth": truth[nodes[:, 1] - 1, nodes[:, 0] - 1]}
 )
 print(grid)
 
-shape, extent = (60, 52), (0.5, 260.5, 0.5, 300.5)
+extent = (0.5, 260.5, 0.5, 300.5)
 fig, axes = plt.subplots(1, 2, figsize=(9, 4.6), layout="constrained")
 for ax, name, title in ((axes[0], "estimate", "Ordinary kriging"), (axes[1], "truth", "True V at the nodes")):
-    image = ax.imshow(grid[name].reshape(shape), origin="lower", extent=extent, vmin=0, vmax=1500)
+    image = ax.imshow(grid.grid(name)[0], origin="lower", extent=extent, vmin=0, vmax=1500)
     map_axes(ax, title)
 axes[0].scatter(*samples.coords[:, :2].T, s=2, color=INK, linewidths=0)
 fig.colorbar(image, ax=axes, shrink=0.8, label="V (ppm)")
@@ -151,11 +151,8 @@ save(fig, "estimate")
 # %%
 cv = kriging.cross_validate()
 print(f"cross-validation: RMSE {cv.rmse:.0f} ppm, correlation {cv.correlation:.2f}, slope {cv.slope:.2f}")
-error = grid["estimate"] - grid["truth"]
-print(
-    f"against the truth: RMSE {np.sqrt(np.mean(error**2)):.0f} ppm, "
-    f"correlation {np.corrcoef(grid['estimate'], grid['truth'])[0, 1]:.2f}"
-)
+check = bt.compare("estimate", "truth", data=grid)
+print(f"against the truth: RMSE {check['rmse']:.0f} ppm, correlation {check['correlation']:.2f}")
 print(
     f"mean: estimate {grid['estimate'].mean():.0f}, declustered samples {declustered['mean']:.0f}, "
     f"truth {grid['truth'].mean():.0f} ppm"

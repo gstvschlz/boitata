@@ -124,7 +124,9 @@ save(fig, "declustering")
 
 # %% [hidden]
 fixed = bt.cell_declustering(samples, "V", cell_size=5.0).weights
-print(f"try-it: 5 m cells give {np.average(v, weights=fixed):.0f} ppm, median weight {np.median(fixed):.2f}")
+print(
+    f"try-it: 5 m cells give {bt.describe(v, weights=fixed)['mean']:.0f} ppm, median weight {np.median(fixed):.2f}"
+)
 distance = np.linalg.norm(samples.coords[:, None] - samples.coords[None], axis=2)
 np.fill_diagonal(distance, np.inf)
 print(
@@ -171,7 +173,7 @@ gold_holes = bt.Drillholes(
     gold["collars"], gold["surveys"], bt.merge_intervals(gold["assays"], gold["lithology"])
 )
 composites = gold_holes.composite(1.0, ["AU_GPT"], domain="LITH")
-quartz = composites.filter((np.array(composites["LITH"]) == "QV") & ~np.isnan(composites["AU_GPT"]))
+quartz = composites.filter(composites["LITH"] == "QV").drop_null("AU_GPT")
 au = quartz["AU_GPT"]
 cell_size = 20.0  # @param {type:"slider", min:5, max:100, step:5}
 au_weights = bt.cell_declustering(quartz, "AU_GPT", cell_size=cell_size).weights
@@ -270,7 +272,7 @@ pearson = np.corrcoef(v[both], u[both])[0, 1]
 ranks = [np.argsort(np.argsort(x)) for x in (v[both], u[both])]
 spearman = np.corrcoef(*ranks)[0, 1]
 print(f"{both.sum()} samples with both V and U: Pearson {pearson:.2f}, Spearman {spearman:.2f}")
-ms = np.array(zinc["LITH"]) == "MS"
+ms = zinc["LITH"] == "MS"
 print(f"Zn and Pb in MS: Pearson {np.corrcoef(zinc['ZN_PCT'][ms], zinc['PB_PCT'][ms])[0, 1]:.2f}")
 
 fig, (a, b) = plt.subplots(1, 2, figsize=(9, 3.8), layout="constrained")
@@ -309,10 +311,10 @@ print(f"U above 3000 ppm: {(u[both] > 3000).sum()} samples")
 # %%
 transform = bt.NormalScore()
 scores = transform.fit_transform(v, weights=weights)
-mean = np.average(scores, weights=weights)
-sd = np.sqrt(np.average((scores - mean) ** 2, weights=weights))
+s = bt.describe(scores, weights=weights)
 print(
-    f"normal scores: weighted mean {mean:.3f}, standard deviation {sd:.3f}, skewness {skewness(scores, weights):.2f}"
+    f"normal scores: weighted mean {s['mean']:.3f}, standard deviation {s['std']:.3f}, "
+    f"skewness {skewness(scores, weights):.2f}"
 )
 
 fig, (a, b) = plt.subplots(1, 2, figsize=(9, 3.4), layout="constrained")

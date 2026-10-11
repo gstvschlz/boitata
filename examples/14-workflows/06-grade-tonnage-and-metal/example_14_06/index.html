@@ -21346,6 +21346,8 @@
       
         
       
+        
+      
     
     
     
@@ -21555,6 +21557,34 @@
     
   
     block_correlation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../api/validation/compare/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    compare
   
 
     
@@ -22027,7 +22057,7 @@ to download the full example code</p>
 <h1 id="gradetonnage-curves-and-the-change-in-contained-metal">Grade–tonnage curves and the change in <abbr title="tonnes × mean grade above a cutoff: the amount of metal the resource holds.">contained metal</abbr><a class="headerlink" href="#gradetonnage-curves-and-the-change-in-contained-metal" title="Permanent link">&para;</a></h1>
 <p><a href="../../05-compare-two-estimates/example_14_05/">Compare two estimates</a> chose the <abbr title="kriging with an unknown mean that is constant near the target; its weights sum to one.">ordinary kriging</abbr> over the <abbr title="an estimator that weights each sample by a power of the inverse of its distance to the target.">inverse distance</abbr>
 model of Walker Lake. Management asks the next question: how much metal does that decision remove from the
-resource? You build grade–tonnage curves for both models and for the true blocks, report tonnes, grade and metal
+resource? You build grade-tonnage curves for both models and for the true blocks, report tonnes, grade and metal
 at a set of cutoffs, state the change in <abbr title="tonnes × mean grade above a cutoff: the amount of metal the resource holds.">contained metal</abbr> at the reporting <abbr title="the grade below which a block does not pay to mine; you report resources above it.">cutoff</abbr>, and check that the metal adds
 up.</p>
 <!-- GENERATED FROM PYTHON SOURCE LINES 12-18 -->
@@ -22050,7 +22080,7 @@ up.</p>
 <div class="admonition learn">
 <p class="admonition-title">What you'll learn</p>
 <ul>
-<li>What a <abbr title="tonnes and mean grade above each cutoff, read as a curve over the cutoffs.">grade–tonnage curve</abbr> reports: tonnes, mean grade and metal above each <abbr title="the grade below which a block does not pay to mine; you report resources above it.">cutoff</abbr>.</li>
+<li>What a <abbr title="tonnes and mean grade above each cutoff, read as a curve over the cutoffs.">grade-tonnage curve</abbr> reports: tonnes, mean grade and metal above each <abbr title="the grade below which a block does not pay to mine; you report resources above it.">cutoff</abbr>.</li>
 <li>Why a smooth estimate reports more tonnes at a lower grade above a low <abbr title="the grade below which a block does not pay to mine; you report resources above it.">cutoff</abbr>.</li>
 <li>How to state a change in <abbr title="tonnes × mean grade above a cutoff: the amount of metal the resource holds.">contained metal</abbr> in absolute and relative terms, and check that it balances.</li>
 </ul>
@@ -22058,9 +22088,9 @@ up.</p>
 <a href="../../../10-checking-models/06-result-plots/example_10_06/">Result plots</a> documents <code>bt.plot.grade_tonnage</code>.</p>
 </div>
 <h2 id="the-data">The data<a class="headerlink" href="#the-data" title="Permanent link">&para;</a></h2>
-<p>The blocks are those of the previous tutorial: 26 × 30 blocks of 10 × 10 m. A grade–tonnage report needs tonnes,
+<p>The blocks are those of the previous tutorial: 26 × 30 blocks of 10 × 10 m. A grade-tonnage report needs tonnes,
 which Walker Lake does not have, so two assumptions give them: a 10 m bench centered on the sample plane, and a
-density of 2.7 t/m³. Each block is then 10 × 10 × 10 m = 1,000 m³ and weighs 2,700 t. Walker Lake's <code>V</code> is read
+density of 2.7 t/m³. Each block is then 10 × 10 × 10 m = 1 000 m³ and weighs 2 700 t. Walker Lake's <code>V</code> is read
 as a grade in ppm (g/t), so tonnes × ppm gives grams of metal; the tables below divide by 10⁶ to report tonnes of
 metal.</p>
 <!-- GENERATED FROM PYTHON SOURCE LINES 42-67 -->
@@ -22102,7 +22132,7 @@ metal.</p>
 <p>The true blocks are the averages of the exhaustive grid over each block. A real deposit has no such column; here
 it shows which model reports the right tonnes.</p>
 <div class="admonition step">
-<p class="admonition-title">Step 1: One <abbr title="tonnes and mean grade above each cutoff, read as a curve over the cutoffs.">grade–tonnage curve</abbr></p>
+<p class="admonition-title">Step 1: One <abbr title="tonnes and mean grade above each cutoff, read as a curve over the cutoffs.">grade-tonnage curve</abbr></p>
 <p>For a <abbr title="the grade below which a block does not pay to mine; you report resources above it.">cutoff</abbr> <span class="arithmatex">\(c\)</span>, the tonnage is the sum of the tonnes of the blocks with grade ≥ <span class="arithmatex">\(c\)</span>, the mean grade is
 their tonne-weighted average, and the metal is tonnage × mean grade. <code>grade_tonnage</code> computes this for a list
 of cutoffs. <code>data=blocks</code> lets it read the column by name and use each block's volume as its weight;
@@ -22146,9 +22176,9 @@ is closer.</p>
 
 
 <span class="k">def</span><span class="w"> </span><span class="nf">at</span><span class="p">(</span><span class="n">table</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">cutoff</span><span class="p">):</span>
-    <span class="n">rows</span> <span class="o">=</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">table</span><span class="p">[</span><span class="s2">"model"</span><span class="p">])</span> <span class="o">==</span> <span class="n">labels</span><span class="p">[</span><span class="n">name</span><span class="p">])</span> <span class="o">&amp;</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">table</span><span class="p">[</span><span class="s2">"cutoff"</span><span class="p">])</span> <span class="o">==</span> <span class="n">cutoff</span><span class="p">)</span>
+    <span class="n">rows</span> <span class="o">=</span> <span class="p">(</span><span class="n">table</span><span class="p">[</span><span class="s2">"model"</span><span class="p">]</span> <span class="o">==</span> <span class="n">labels</span><span class="p">[</span><span class="n">name</span><span class="p">])</span> <span class="o">&amp;</span> <span class="p">(</span><span class="n">table</span><span class="p">[</span><span class="s2">"cutoff"</span><span class="p">]</span> <span class="o">==</span> <span class="n">cutoff</span><span class="p">)</span>
     <span class="k">return</span> <span class="p">{</span>
-        <span class="n">c</span><span class="p">:</span> <span class="nb">float</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">table</span><span class="p">[</span><span class="n">c</span><span class="p">])[</span><span class="n">rows</span><span class="p">][</span><span class="mi">0</span><span class="p">])</span>
+        <span class="n">c</span><span class="p">:</span> <span class="nb">float</span><span class="p">(</span><span class="n">table</span><span class="p">[</span><span class="n">c</span><span class="p">][</span><span class="n">rows</span><span class="p">][</span><span class="mi">0</span><span class="p">])</span>
         <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">"tonnage"</span><span class="p">,</span> <span class="s2">"mean_grade"</span><span class="p">,</span> <span class="s2">"metal"</span><span class="p">,</span> <span class="s2">"tonnage_diff"</span><span class="p">,</span> <span class="s2">"grade_diff"</span><span class="p">,</span> <span class="s2">"metal_diff"</span><span class="p">)</span>
     <span class="p">}</span>
 
@@ -22238,8 +22268,8 @@ dashed on the right, one color per model. Metal above <abbr title="the grade bel
     <span class="n">bt</span><span class="o">.</span><span class="n">plot</span><span class="o">.</span><span class="n">grade_tonnage</span><span class="p">(</span><span class="n">table</span><span class="p">,</span> <span class="n">ax</span><span class="o">=</span><span class="n">a</span><span class="p">)</span>
 <span class="n">a</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="n">xlabel</span><span class="o">=</span><span class="s2">"Cutoff V (ppm)"</span><span class="p">,</span> <span class="n">ylabel</span><span class="o">=</span><span class="s2">"Tonnage above cutoff (t)"</span><span class="p">,</span> <span class="n">title</span><span class="o">=</span><span class="s2">"Tonnage and grade above cutoff"</span><span class="p">)</span>
 <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">color</span> <span class="ow">in</span> <span class="p">((</span><span class="s2">"truth"</span><span class="p">,</span> <span class="n">INK</span><span class="p">),</span> <span class="p">(</span><span class="s2">"ok"</span><span class="p">,</span> <span class="n">ACCENT</span><span class="p">),</span> <span class="p">(</span><span class="s2">"id"</span><span class="p">,</span> <span class="n">HIGHLIGHT</span><span class="p">)):</span>
-    <span class="n">rows</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">table</span><span class="p">[</span><span class="s2">"model"</span><span class="p">])</span> <span class="o">==</span> <span class="n">label</span>
-    <span class="n">b</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">cutoffs</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">table</span><span class="p">[</span><span class="s2">"metal"</span><span class="p">])[</span><span class="n">rows</span><span class="p">]</span> <span class="o">/</span> <span class="mf">1e6</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="n">color</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="n">labels</span><span class="p">[</span><span class="n">name</span><span class="p">])</span>
+    <span class="n">rows</span> <span class="o">=</span> <span class="n">table</span><span class="p">[</span><span class="s2">"model"</span><span class="p">]</span> <span class="o">==</span> <span class="n">labels</span><span class="p">[</span><span class="n">name</span><span class="p">]</span>
+    <span class="n">b</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">cutoffs</span><span class="p">,</span> <span class="n">table</span><span class="p">[</span><span class="s2">"metal"</span><span class="p">][</span><span class="n">rows</span><span class="p">]</span> <span class="o">/</span> <span class="mf">1e6</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="n">color</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="n">labels</span><span class="p">[</span><span class="n">name</span><span class="p">])</span>
 <span class="n">b</span><span class="o">.</span><span class="n">axvline</span><span class="p">(</span><span class="mi">200</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s2">"gray"</span><span class="p">,</span> <span class="n">lw</span><span class="o">=</span><span class="mf">0.8</span><span class="p">,</span> <span class="n">ls</span><span class="o">=</span><span class="s2">"--"</span><span class="p">)</span>
 <span class="n">b</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="n">xlabel</span><span class="o">=</span><span class="s2">"Cutoff V (ppm)"</span><span class="p">,</span> <span class="n">ylabel</span><span class="o">=</span><span class="s2">"Metal above cutoff (t)"</span><span class="p">,</span> <span class="n">title</span><span class="o">=</span><span class="s2">"Contained metal above cutoff"</span><span class="p">)</span>
 <span class="n">b</span><span class="o">.</span><span class="n">legend</span><span class="p">()</span>
@@ -22290,8 +22320,8 @@ the blocks at or above the <abbr title="the grade below which a block does not p
 <!-- GENERATED FROM PYTHON SOURCE LINES 190-204 -->
 
 <div class="highlight"><pre><span></span><code><span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">label</span> <span class="ow">in</span> <span class="n">labels</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
-    <span class="n">rows</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">table</span><span class="p">[</span><span class="s2">"model"</span><span class="p">])</span> <span class="o">==</span> <span class="n">label</span>
-    <span class="n">t</span><span class="p">,</span> <span class="n">g</span><span class="p">,</span> <span class="n">m</span> <span class="o">=</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">table</span><span class="p">[</span><span class="n">c</span><span class="p">])[</span><span class="n">rows</span><span class="p">]</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">"tonnage"</span><span class="p">,</span> <span class="s2">"mean_grade"</span><span class="p">,</span> <span class="s2">"metal"</span><span class="p">))</span>
+    <span class="n">rows</span> <span class="o">=</span> <span class="n">table</span><span class="p">[</span><span class="s2">"model"</span><span class="p">]</span> <span class="o">==</span> <span class="n">label</span>
+    <span class="n">t</span><span class="p">,</span> <span class="n">g</span><span class="p">,</span> <span class="n">m</span> <span class="o">=</span> <span class="p">(</span><span class="n">table</span><span class="p">[</span><span class="n">c</span><span class="p">][</span><span class="n">rows</span><span class="p">]</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">"tonnage"</span><span class="p">,</span> <span class="s2">"mean_grade"</span><span class="p">,</span> <span class="s2">"metal"</span><span class="p">))</span>
     <span class="n">above</span> <span class="o">=</span> <span class="o">~</span><span class="n">np</span><span class="o">.</span><span class="n">isnan</span><span class="p">(</span><span class="n">g</span><span class="p">)</span>
     <span class="k">assert</span> <span class="n">np</span><span class="o">.</span><span class="n">allclose</span><span class="p">(</span><span class="n">m</span><span class="p">[</span><span class="n">above</span><span class="p">],</span> <span class="n">t</span><span class="p">[</span><span class="n">above</span><span class="p">]</span> <span class="o">*</span> <span class="n">g</span><span class="p">[</span><span class="n">above</span><span class="p">])</span>
     <span class="n">grade</span> <span class="o">=</span> <span class="n">blocks</span><span class="p">[</span><span class="n">name</span><span class="p">]</span>
@@ -22314,13 +22344,13 @@ inverse<span class="w"> </span>distance:<span class="w"> </span>metal<span class
 200 ppm. A metal figure that does not balance usually means blocks without a grade (null) were counted in the
 tonnes, or the density was applied twice.</p>
 <h2 id="the-decision">The decision<a class="headerlink" href="#the-decision" title="Permanent link">&para;</a></h2>
-<p>Report the kriging: 1,352.7 kt at 388.3 ppm, 525.2 t of metal above 200 ppm. The change from the scoping
+<p>Report the kriging: 1 352.7 kt at 388.3 ppm, 525.2 t of metal above 200 ppm. The change from the scoping
 model is −108.2 t of metal (−17.1 %), which the clustering bias found in <a href="../../05-compare-two-estimates/example_14_05/">compare two estimates</a>
 explains. The remaining <abbr title="the loss of variance in an estimate, which averages neighboring samples and so varies less than the true grades.">smoothing</abbr> (too many tonnes at too low a grade at this <abbr title="the grade below which a block does not pay to mine; you report resources above it.">cutoff</abbr>) is a change-of-<abbr title="the volume a value represents: a point, a length of core or a block.">support</abbr>
 problem: the <a href="../../../09-recoverable-resources/01-discrete-gaussian-model/example_09_01/">discrete Gaussian model</a> and
 <a href="../../../09-recoverable-resources/02-uniform-conditioning/example_09_02/">uniform conditioning</a> estimate the tonnage a
 selective mining unit would recover.</p>
-<p><strong>Total running time of the script:</strong> ( 0 minutes  0.412 seconds)</p>
+<p><strong>Total running time of the script:</strong> ( 0 minutes  0.354 seconds)</p>
 <div id="download_links"></div>
 
 <p><a class="md-button center" href="../example_14_06.py"><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M256 32c0-17.7-14.3-32-32-32s-32 14.3-32 32v210.7l-41.4-41.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3l96 96c12.5 12.5 32.8 12.5 45.3 0l96-96c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L256 242.7zM64 320c-35.3 0-64 28.7-64 64v32c0 35.3 28.7 64 64 64h320c35.3 0 64-28.7 64-64v-32c0-35.3-28.7-64-64-64h-46.9l-56.6 56.6c-31.2 31.2-81.9 31.2-113.1 0L110.9 320zm304 56a24 24 0 1 1 0 48 24 24 0 1 1 0-48"/></svg></span> Download Python source code: example_14_06.py</a></p>

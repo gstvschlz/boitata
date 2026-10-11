@@ -28,10 +28,10 @@ ZN = {"cmap": "cividis", "clim": (0, 10), "label": "Zn (%)"}
 
 # %%
 data = bt.datasets.stacked_sulphide_lenses()
-holes = bt.Drillholes(data["collars"], data["surveys"], data["assays"])
+holes = bt.Drillholes.from_tables(data)
 lenses = [data[f"lens_{i}"] for i in (1, 2, 3)]
 composites = holes.composite(2.0, ["ZN_PCT"])
-composites = composites.filter(~np.isnan(composites["ZN_PCT"]))
+composites = composites.drop_null("ZN_PCT")
 ore = np.any([lens.contains(composites.coords) for lens in lenses], axis=0)
 print(f"{len(holes.holes)} holes, {len(composites):,} composites of 2 m, {ore.sum():,} inside a lens")
 
@@ -69,9 +69,9 @@ blocks = bt.BlockModel.from_meshes(
     fill="host",
     rotation=rotation,
 )
-blocks = blocks.mask(np.asarray(blocks["domain"], dtype=object) != "host")
+blocks = blocks.filter(blocks["domain"] != "host")
 search = bt.Search(radius=100, min_samples=1, max_samples=12)
-idw = bt.InverseDistance(search, power=2).fit(composites.coords[ore], composites["ZN_PCT"][ore])
+idw = bt.InverseDistance(search, power=2).fit(composites.filter(ore), "ZN_PCT")
 blocks = blocks.with_column("zn", idw.predict(blocks))
 solid = sum(lens.volume for lens in lenses)
 print(f"{len(blocks):,} sub-blocks, {blocks.volumes.sum() / 1e6:.2f} Mm3 for {solid / 1e6:.2f} Mm3 of lens")
@@ -86,18 +86,19 @@ show(scene, "subblocks", "Sub-blocks of the lenses, colored by Zn")
 # a regular model keeps its geometry implicit; the viewer builds its boxes from the centers, sizes and rotation.
 # filled with the inverse-distance zinc of all composites, the rotated grid is cut here by a `section` across
 # strike, through its center and one block wide: a dip section where the three lenses are the high-grade bands.
-# blocks with no composite within 100 m are null and never drawn.
+# blocks with no composite within 100 m are null and never drawn. `contour_step` draws 1% Zn isolines on the cut
+# face itself, over the block colors; they update live as the section is dragged.
 
 # %%
-everywhere = bt.InverseDistance(search, power=2).fit(composites.coords, composites["ZN_PCT"])
+everywhere = bt.InverseDistance(search, power=2).fit(composites, "ZN_PCT")
 rotated = frame.with_column("zn", everywhere.predict(frame))
 estimated = np.isfinite(rotated["zn"]).mean()
 print(f"rotated grid {frame.count}: {estimated:.0%} of {len(frame):,} blocks estimated")
-center = rotated.centroids.mean(axis=0)
+center = rotated.coords.mean(axis=0)
 across = np.radians(rotation[0] + 90)
 reach = 400 * np.array([np.sin(across), np.cos(across), 0])
 scene = bt.plot3d.Scene()
-scene.add(rotated, "zn", name="rotated grid", **ZN)
+scene.add(rotated, "zn", name="rotated grid", contour_step=1.0, **ZN)
 for i, lens in enumerate(lenses, 1):
     scene.add(lens, name=f"lens {i}", color=LIGHT, opacity=0.2)
 scene.section([center - reach, center + reach], width=20)

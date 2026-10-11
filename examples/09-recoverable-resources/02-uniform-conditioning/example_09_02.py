@@ -44,13 +44,7 @@ r, _ = bt.change_of_support(anam, gaussian, size=(size, size), discretization=(5
 
 grades = [bt.experimental_variogram(xy, v, 10, 120, azimuth=a) for a in azimuths]
 fitted = bt.Variogram.fit_directional(grades, directions, ["spherical", "spherical"], rotation=[170, 0, 0])
-scale = anam.variance_ / fitted.sill
-raw = bt.Variogram(
-    [(s.model, s.sill * scale, s.range) for s in fitted.structures],
-    nugget=fitted.nugget * scale,
-    rotation=fitted.rotation,
-    ratios=fitted.ratios,
-)
+raw = fitted.standardized(sill=anam.variance_)
 print(f"r = {r:.3f}")
 print(raw)
 
@@ -122,9 +116,8 @@ save(fig, "uniform-conditioning")
 smus = smus.with_column("kriged", direct)
 localized = uc.localize(smus, "kriged", panels, "V", estimate_variance="estimate_variance")["localized"]
 for label, values in (("kriged", direct), ("localized", localized)):
-    print(
-        f"{label}: variance {values.var():.0f}, correlation with truth {np.corrcoef(values, true_smu.ravel())[0, 1]:.2f}"
-    )
+    r = bt.compare(values, true_smu.ravel())["correlation"]
+    print(f"{label}: variance {values.var():.0f}, correlation with truth {r:.2f}")
 print(f"true blocks: variance {true_smu.var():.0f}")
 
 fig, axes = plt.subplots(1, 3, figsize=(10, 4.4), layout="constrained", sharey=True)

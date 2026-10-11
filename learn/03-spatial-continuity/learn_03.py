@@ -211,10 +211,10 @@ print(
 )
 
 # %% [markdown]
-# The map puts the major axis at N170° with an 80 m range, against 24 m in the shortest direction. Boitatá measures
-# angles one way throughout (Figure 5): **azimuth** clockwise from north, **dip** positive downward, z up. The ranges
-# along the three axes form the **anisotropy ellipse** (an ellipsoid in 3D); a `Variogram` stores the rotation of its
-# axes and the ratios of the shorter ranges to the major one.
+# The map puts the major axis at N170° with an 80 m range, against 24 m in the shortest direction. Angles follow one
+# convention throughout boitatá (Figure 5): **azimuth** clockwise from north, **dip** positive downward, z up.
+# The ranges along the three axes form the **anisotropy ellipse** (an ellipsoid in 3D); a `Variogram` stores the
+# rotation of its axes and the ratios of the shorter ranges to the major one.
 #
 # <figure class="bt-figure">
 # --8<-- "svg/l03-anisotropy.svg"
@@ -312,7 +312,7 @@ for name, covariance in (("straight line to the sill", straight), ("spherical", 
 
 # %% [markdown]
 # The straight line gives −0.303: a weighted sum of these points would have a variance of −0.303 times the sill,
-# which cannot exist. The spherical model gives +0.119. Boitatá builds models only from valid shapes, and nested
+# which cannot exist. The spherical model gives +0.119. Every model boitatá builds comes from valid shapes, and nested
 # sums of valid structures stay valid, so any `Variogram` you create or fit is safe to krige with.
 #
 # !!! pitfall "Pitfall: a model that fits the points but not the physics"

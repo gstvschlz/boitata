@@ -56,7 +56,7 @@ by_ck = ck.predict(test, collocated={1: test["Zn"]})
 
 
 def rmse(e):
-    return float(np.sqrt(np.mean((e - truth) ** 2)))
+    return bt.compare(e, truth)["rmse"]
 
 
 print(f"validation RMSE: ordinary kriging {rmse(by_ok):.3f}, collocated cokriging {rmse(by_ck):.3f} mg/kg")

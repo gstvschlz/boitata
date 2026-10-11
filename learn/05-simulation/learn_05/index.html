@@ -21376,6 +21376,8 @@
       
         
       
+        
+      
     
     
     
@@ -21585,6 +21587,34 @@
     
   
     block_correlation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../api/validation/compare/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    compare
   
 
     
@@ -22190,7 +22220,7 @@ exceeds it (shaded).</figcaption>
 </figure>
 
 <p>The exhaustive Walker Lake data set gives the true value of <code>V</code> at every node, so you can measure this. Load the 470
-samples and the truth on a 5 m grid of 3,120 nodes, then krige with the variogram from
+samples and the truth on a 5 m grid of 3 120 nodes, then krige with the variogram from
 <a href="../../04-kriging/learn_04/">chapter 4</a>:</p>
 <!-- GENERATED FROM PYTHON SOURCE LINES 41-47 -->
 
@@ -22212,7 +22242,7 @@ samples and the truth on a 5 m grid of 3,120 nodes, then krige with the variogra
 <span class="n">truth</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">datasets</span><span class="o">.</span><span class="n">walker_lake_exhaustive</span><span class="p">()[</span><span class="s2">"V"</span><span class="p">]</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="mi">300</span><span class="p">,</span> <span class="mi">260</span><span class="p">)</span>
 <span class="n">xy</span><span class="p">,</span> <span class="n">v</span> <span class="o">=</span> <span class="n">samples</span><span class="o">.</span><span class="n">coords</span><span class="p">,</span> <span class="n">samples</span><span class="p">[</span><span class="s2">"V"</span><span class="p">]</span>
 <span class="n">grid</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">BlockModel</span><span class="p">(</span><span class="n">origin</span><span class="o">=</span><span class="p">(</span><span class="mf">0.5</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">),</span> <span class="n">size</span><span class="o">=</span><span class="p">(</span><span class="mi">5</span><span class="p">,</span> <span class="mi">5</span><span class="p">),</span> <span class="n">count</span><span class="o">=</span><span class="p">(</span><span class="mi">52</span><span class="p">,</span> <span class="mi">60</span><span class="p">))</span>
-<span class="n">nodes</span> <span class="o">=</span> <span class="n">grid</span><span class="o">.</span><span class="n">centroids</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">int</span><span class="p">)</span>
+<span class="n">nodes</span> <span class="o">=</span> <span class="n">grid</span><span class="o">.</span><span class="n">coords</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">int</span><span class="p">)</span>
 <span class="n">true_v</span> <span class="o">=</span> <span class="n">truth</span><span class="p">[</span><span class="n">nodes</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">]</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="n">nodes</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]</span>
 <span class="n">cutoff</span> <span class="o">=</span> <span class="mf">500.0</span>
 
@@ -22237,7 +22267,7 @@ area<span class="w"> </span>above<span class="w"> </span><span class="m">500</sp
 <!-- GENERATED FROM PYTHON SOURCE LINES 76-80 -->
 
 <p>The kriged map has a standard deviation of 196 ppm against 250 ppm for the truth, and its highest node reaches
-1,316 ppm where the truth reaches 1,610 ppm. Above a 500 ppm <abbr title="the grade below which a block does not pay to mine; you report resources above it.">cutoff</abbr>, kriging reports 13.1 % of the area and the truth
+1 316 ppm where the truth reaches 1 610 ppm. Above a 500 ppm <abbr title="the grade below which a block does not pay to mine; you report resources above it.">cutoff</abbr>, kriging reports 13.1 % of the area and the truth
 holds 18.9 %. A mine plan built on the kriged map would miss almost a third of the ground above <abbr title="the grade below which a block does not pay to mine; you report resources above it.">cutoff</abbr>. The
 cumulative distributions show the squeeze: kriging has fewer low and fewer high values than the truth.</p>
 <!-- GENERATED FROM PYTHON SOURCE LINES 82-92 -->
@@ -22516,7 +22546,7 @@ truth. The maps share the texture of the truth: the high-grade trend runs north-
 that kriging erases. They differ from each other where samples are sparse.</p>
 <!-- GENERATED FROM PYTHON SOURCE LINES 239-253 -->
 
-<div class="highlight"><pre><span></span><code><span class="n">shape</span><span class="p">,</span> <span class="n">extent</span> <span class="o">=</span> <span class="p">(</span><span class="mi">60</span><span class="p">,</span> <span class="mi">52</span><span class="p">),</span> <span class="p">(</span><span class="mf">0.5</span><span class="p">,</span> <span class="mf">260.5</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">,</span> <span class="mf">300.5</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><span class="n">extent</span> <span class="o">=</span> <span class="p">(</span><span class="mf">0.5</span><span class="p">,</span> <span class="mf">260.5</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">,</span> <span class="mf">300.5</span><span class="p">)</span>
 <span class="n">norm</span> <span class="o">=</span> <span class="n">PowerNorm</span><span class="p">(</span><span class="mf">0.5</span><span class="p">,</span> <span class="n">vmin</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">vmax</span><span class="o">=</span><span class="mi">1500</span><span class="p">)</span>
 <span class="n">fig</span><span class="p">,</span> <span class="n">axes</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">14</span><span class="p">,</span> <span class="mf">4.2</span><span class="p">),</span> <span class="n">layout</span><span class="o">=</span><span class="s2">"constrained"</span><span class="p">)</span>
 <span class="k">for</span> <span class="n">ax</span><span class="p">,</span> <span class="n">image</span><span class="p">,</span> <span class="n">title</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span>
@@ -22525,7 +22555,7 @@ that kriging erases. They differ from each other where samples are sparse.</p>
     <span class="p">(</span><span class="s2">"Truth"</span><span class="p">,</span> <span class="s2">"Kriging"</span><span class="p">,</span> <span class="s2">"Realization 1"</span><span class="p">,</span> <span class="s2">"Realization 2"</span><span class="p">),</span>
     <span class="n">strict</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
 <span class="p">):</span>
-    <span class="n">im</span> <span class="o">=</span> <span class="n">ax</span><span class="o">.</span><span class="n">imshow</span><span class="p">(</span><span class="n">image</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">shape</span><span class="p">),</span> <span class="n">origin</span><span class="o">=</span><span class="s2">"lower"</span><span class="p">,</span> <span class="n">extent</span><span class="o">=</span><span class="n">extent</span><span class="p">,</span> <span class="n">norm</span><span class="o">=</span><span class="n">norm</span><span class="p">)</span>
+    <span class="n">im</span> <span class="o">=</span> <span class="n">ax</span><span class="o">.</span><span class="n">imshow</span><span class="p">(</span><span class="n">grid</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span><span class="n">image</span><span class="p">)[</span><span class="mi">0</span><span class="p">],</span> <span class="n">origin</span><span class="o">=</span><span class="s2">"lower"</span><span class="p">,</span> <span class="n">extent</span><span class="o">=</span><span class="n">extent</span><span class="p">,</span> <span class="n">norm</span><span class="o">=</span><span class="n">norm</span><span class="p">)</span>
     <span class="n">map_axes</span><span class="p">(</span><span class="n">ax</span><span class="p">,</span> <span class="n">title</span><span class="p">)</span>
 <span class="n">fig</span><span class="o">.</span><span class="n">colorbar</span><span class="p">(</span><span class="n">im</span><span class="p">,</span> <span class="n">ax</span><span class="o">=</span><span class="n">axes</span><span class="p">,</span> <span class="n">shrink</span><span class="o">=</span><span class="mf">0.8</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s2">"V (ppm)"</span><span class="p">)</span>
 <span class="n">save</span><span class="p">(</span><span class="n">fig</span><span class="p">,</span> <span class="s2">"realizations"</span><span class="p">)</span>
@@ -22534,10 +22564,10 @@ that kriging erases. They differ from each other where samples are sparse.</p>
 <!-- GENERATED FROM PYTHON SOURCE LINES 254-260 -->
 
 <h2 id="seeds-and-reproducibility">Seeds and reproducibility<a class="headerlink" href="#seeds-and-reproducibility" title="Permanent link">&para;</a></h2>
-<p>The random draws come from a random-number generator started from a <abbr title="the number that starts the random-number generator, so the same seed gives the same realizations.">seed</abbr>. Boitatá derives one <abbr title="the number that starts the random-number generator, so the same seed gives the same realizations.">seed</abbr> per <abbr title="one simulated map that honors the samples and reproduces the histogram and variogram of the data.">realization</abbr>
-from the <abbr title="the number that starts the random-number generator, so the same seed gives the same realizations.">seed</abbr> you pass and runs <abbr title="simulated maps, each honoring the samples and reproducing the histogram and variogram of the data.">realizations</abbr> in parallel. Realization 7 depends only on the user <abbr title="the number that starts the random-number generator, so the same seed gives the same realizations.">seed</abbr> and its own
-number, never on which thread ran it or how many threads exist. The same call twice gives the same maps, and a new
-<abbr title="the number that starts the random-number generator, so the same seed gives the same realizations.">seed</abbr> gives new ones:</p>
+<p>The random draws come from a random-number generator started from a <abbr title="the number that starts the random-number generator, so the same seed gives the same realizations.">seed</abbr>. From the <abbr title="the number that starts the random-number generator, so the same seed gives the same realizations.">seed</abbr> you pass, boitatá derives
+one <abbr title="the number that starts the random-number generator, so the same seed gives the same realizations.">seed</abbr> per <abbr title="one simulated map that honors the samples and reproduces the histogram and variogram of the data.">realization</abbr> and runs the <abbr title="simulated maps, each honoring the samples and reproducing the histogram and variogram of the data.">realizations</abbr> in parallel. Realization 7 depends only on the user <abbr title="the number that starts the random-number generator, so the same seed gives the same realizations.">seed</abbr> and
+its own number, never on which thread ran it or how many threads exist. The same call twice gives the same maps,
+and a new <abbr title="the number that starts the random-number generator, so the same seed gives the same realizations.">seed</abbr> gives new ones:</p>
 <!-- GENERATED FROM PYTHON SOURCE LINES 262-267 -->
 
 <div class="highlight"><pre><span></span><code><span class="n">again</span> <span class="o">=</span> <span class="n">sgs</span><span class="o">.</span><span class="n">simulate</span><span class="p">(</span><span class="n">grid</span><span class="p">,</span> <span class="n">n</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">seed</span><span class="o">=</span><span class="n">seed</span><span class="p">,</span> <span class="n">keep</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span><span class="o">.</span><span class="n">realizations</span>
@@ -22637,7 +22667,7 @@ exceed the cutoff, so the probability above the cutoff is 0.3.</figcaption>
 <p><code>SimulationSummary</code> accumulates these while <abbr title="sequential gaussian simulation: it visits the nodes in random order, krigs each one, draws from the gaussian that kriging gives and adds the draw to the data.">SGS</abbr> runs, so they cover all 50 <abbr title="simulated maps, each honoring the samples and reproducing the histogram and variogram of the data.">realizations</abbr>, including the 30 it did not
 keep. It holds <code>mean</code> (<abbr title="the mean of the realizations at each node, a smooth estimate comparable to kriging.">E-type</abbr>), <code>std</code>, <code>probability_above</code> for each <abbr title="the grade below which a block does not pay to mine; you report resources above it.">cutoff</abbr> passed to <code>simulate</code> and, per
 <abbr title="one simulated map that honors the samples and reproduces the histogram and variogram of the data.">realization</abbr>, <code>realization_above</code>, the share of nodes above each <abbr title="the grade below which a block does not pay to mine; you report resources above it.">cutoff</abbr>.</p>
-<!-- GENERATED FROM PYTHON SOURCE LINES 326-335 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 326-337 -->
 
 <div class="highlight"><pre><span></span><code><span class="n">etype</span><span class="p">,</span> <span class="n">spread</span><span class="p">,</span> <span class="n">p_above</span> <span class="o">=</span> <span class="n">summary</span><span class="o">.</span><span class="n">mean</span><span class="p">,</span> <span class="n">summary</span><span class="o">.</span><span class="n">std</span><span class="p">,</span> <span class="n">summary</span><span class="o">.</span><span class="n">probability_above</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">]</span>
 <span class="n">low</span><span class="p">,</span> <span class="n">high</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">quantile</span><span class="p">(</span><span class="n">summary</span><span class="o">.</span><span class="n">realization_above</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">],</span> <span class="p">[</span><span class="mf">0.1</span><span class="p">,</span> <span class="mf">0.9</span><span class="p">])</span>
@@ -22646,7 +22676,9 @@ keep. It holds <code>mean</code> (<abbr title="the mean of the realizations at e
     <span class="sa">f</span><span class="s2">"truth </span><span class="si">{</span><span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">true_v</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="n">cutoff</span><span class="p">)</span><span class="si">:</span><span class="s2">.1%</span><span class="si">}</span><span class="s2">, kriging </span><span class="si">{</span><span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">kriged</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="n">cutoff</span><span class="p">)</span><span class="si">:</span><span class="s2">.1%</span><span class="si">}</span><span class="s2">, E-type </span><span class="si">{</span><span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">etype</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="n">cutoff</span><span class="p">)</span><span class="si">:</span><span class="s2">.1%</span><span class="si">}</span><span class="s2">"</span>
 <span class="p">)</span>
 <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"standard deviation of the E-type map: </span><span class="si">{</span><span class="n">etype</span><span class="o">.</span><span class="n">std</span><span class="p">()</span><span class="si">:</span><span class="s2">.0f</span><span class="si">}</span><span class="s2"> ppm"</span><span class="p">)</span>
-<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"mean: declustered samples </span><span class="si">{</span><span class="n">np</span><span class="o">.</span><span class="n">average</span><span class="p">(</span><span class="n">v</span><span class="p">,</span><span class="w"> </span><span class="n">weights</span><span class="o">=</span><span class="n">weights</span><span class="p">)</span><span class="si">:</span><span class="s2">.0f</span><span class="si">}</span><span class="s2"> ppm, truth </span><span class="si">{</span><span class="n">true_v</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span><span class="si">:</span><span class="s2">.0f</span><span class="si">}</span><span class="s2"> ppm"</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span>
+    <span class="sa">f</span><span class="s2">"mean: declustered samples </span><span class="si">{</span><span class="n">bt</span><span class="o">.</span><span class="n">describe</span><span class="p">(</span><span class="n">v</span><span class="p">,</span><span class="w"> </span><span class="n">weights</span><span class="o">=</span><span class="n">weights</span><span class="p">)[</span><span class="s1">'mean'</span><span class="p">]</span><span class="si">:</span><span class="s2">.0f</span><span class="si">}</span><span class="s2"> ppm, truth </span><span class="si">{</span><span class="n">true_v</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span><span class="si">:</span><span class="s2">.0f</span><span class="si">}</span><span class="s2"> ppm"</span>
+<span class="p">)</span>
 </code></pre></div>
 <p class="mkd-glr-script-out">Out:</p>
 <div class="mkd-glr-script-out-disp highlight"><pre><span></span><code>area<span class="w"> </span>above<span class="w"> </span><span class="m">500</span><span class="w"> </span>ppm:<span class="w"> </span>realizations<span class="w"> </span>P10<span class="w"> </span><span class="m">20</span>.7%,<span class="w"> </span>P90<span class="w"> </span><span class="m">24</span>.5%
@@ -22654,7 +22686,7 @@ truth<span class="w"> </span><span class="m">18</span>.9%,<span class="w"> </spa
 standard<span class="w"> </span>deviation<span class="w"> </span>of<span class="w"> </span>the<span class="w"> </span>E-type<span class="w"> </span>map:<span class="w"> </span><span class="m">186</span><span class="w"> </span>ppm
 mean:<span class="w"> </span>declustered<span class="w"> </span>samples<span class="w"> </span><span class="m">291</span><span class="w"> </span>ppm,<span class="w"> </span>truth<span class="w"> </span><span class="m">276</span><span class="w"> </span>ppm
 </code></pre></div>
-<!-- GENERATED FROM PYTHON SOURCE LINES 336-345 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 338-347 -->
 
 <p>The <abbr title="the mean of the realizations at each node, a smooth estimate comparable to kriging.">E-type</abbr> map is smooth, with a standard deviation of 186 ppm, and the <abbr title="the grade below which a block does not pay to mine; you report resources above it.">cutoff</abbr> applied to it gives 13.1 % of the
 area, the same as kriging. The <abbr title="simulated maps, each honoring the samples and reproducing the histogram and variogram of the data.">realizations</abbr> give a <abbr title="the lag at which the variogram reaches its sill; beyond it, samples are uncorrelated.">range</abbr>: between 20.7 % (P10) and 24.5 % (P90) of the area lies
@@ -22664,18 +22696,18 @@ uncertainty given the data and the model, and it cannot correct a biased histogr
 <p>The probability map is the practical output. Its bright areas are high grade in almost every <abbr title="one simulated map that honors the samples and reproduces the histogram and variogram of the data.">realization</abbr>, and the
 outlined true areas above 500 ppm sit mostly inside them. The spread map is highest in the high-grade zone and
 lowest in the low-grade trough to its east, since skewed grades vary most where they are high.</p>
-<!-- GENERATED FROM PYTHON SOURCE LINES 347-367 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 349-369 -->
 
 <div class="highlight"><pre><span></span><code><span class="n">fig</span><span class="p">,</span> <span class="n">axes</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">12</span><span class="p">,</span> <span class="mf">4.2</span><span class="p">),</span> <span class="n">layout</span><span class="o">=</span><span class="s2">"constrained"</span><span class="p">)</span>
-<span class="n">im</span> <span class="o">=</span> <span class="n">axes</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">imshow</span><span class="p">(</span><span class="n">etype</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">shape</span><span class="p">),</span> <span class="n">origin</span><span class="o">=</span><span class="s2">"lower"</span><span class="p">,</span> <span class="n">extent</span><span class="o">=</span><span class="n">extent</span><span class="p">,</span> <span class="n">norm</span><span class="o">=</span><span class="n">norm</span><span class="p">)</span>
+<span class="n">im</span> <span class="o">=</span> <span class="n">axes</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">imshow</span><span class="p">(</span><span class="n">grid</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span><span class="n">etype</span><span class="p">)[</span><span class="mi">0</span><span class="p">],</span> <span class="n">origin</span><span class="o">=</span><span class="s2">"lower"</span><span class="p">,</span> <span class="n">extent</span><span class="o">=</span><span class="n">extent</span><span class="p">,</span> <span class="n">norm</span><span class="o">=</span><span class="n">norm</span><span class="p">)</span>
 <span class="n">map_axes</span><span class="p">(</span><span class="n">axes</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="s2">"E-type mean of 50"</span><span class="p">)</span>
 <span class="n">fig</span><span class="o">.</span><span class="n">colorbar</span><span class="p">(</span><span class="n">im</span><span class="p">,</span> <span class="n">ax</span><span class="o">=</span><span class="n">axes</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">shrink</span><span class="o">=</span><span class="mf">0.8</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s2">"V (ppm)"</span><span class="p">)</span>
-<span class="n">sd</span> <span class="o">=</span> <span class="n">axes</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">imshow</span><span class="p">(</span><span class="n">spread</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">shape</span><span class="p">),</span> <span class="n">origin</span><span class="o">=</span><span class="s2">"lower"</span><span class="p">,</span> <span class="n">extent</span><span class="o">=</span><span class="n">extent</span><span class="p">)</span>
+<span class="n">sd</span> <span class="o">=</span> <span class="n">axes</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">imshow</span><span class="p">(</span><span class="n">grid</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span><span class="n">spread</span><span class="p">)[</span><span class="mi">0</span><span class="p">],</span> <span class="n">origin</span><span class="o">=</span><span class="s2">"lower"</span><span class="p">,</span> <span class="n">extent</span><span class="o">=</span><span class="n">extent</span><span class="p">)</span>
 <span class="n">map_axes</span><span class="p">(</span><span class="n">axes</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="s2">"Spread"</span><span class="p">)</span>
 <span class="n">fig</span><span class="o">.</span><span class="n">colorbar</span><span class="p">(</span><span class="n">sd</span><span class="p">,</span> <span class="n">ax</span><span class="o">=</span><span class="n">axes</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">shrink</span><span class="o">=</span><span class="mf">0.8</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s2">"standard deviation (ppm)"</span><span class="p">)</span>
-<span class="n">pr</span> <span class="o">=</span> <span class="n">axes</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="o">.</span><span class="n">imshow</span><span class="p">(</span><span class="n">p_above</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">shape</span><span class="p">),</span> <span class="n">origin</span><span class="o">=</span><span class="s2">"lower"</span><span class="p">,</span> <span class="n">extent</span><span class="o">=</span><span class="n">extent</span><span class="p">,</span> <span class="n">vmin</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">vmax</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+<span class="n">pr</span> <span class="o">=</span> <span class="n">axes</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="o">.</span><span class="n">imshow</span><span class="p">(</span><span class="n">grid</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span><span class="n">p_above</span><span class="p">)[</span><span class="mi">0</span><span class="p">],</span> <span class="n">origin</span><span class="o">=</span><span class="s2">"lower"</span><span class="p">,</span> <span class="n">extent</span><span class="o">=</span><span class="n">extent</span><span class="p">,</span> <span class="n">vmin</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">vmax</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
 <span class="n">axes</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="o">.</span><span class="n">contour</span><span class="p">(</span>
-    <span class="p">(</span><span class="n">true_v</span> <span class="o">&gt;</span> <span class="n">cutoff</span><span class="p">)</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">shape</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">float</span><span class="p">),</span>
+    <span class="n">grid</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span><span class="n">true_v</span> <span class="o">&gt;</span> <span class="n">cutoff</span><span class="p">)[</span><span class="mi">0</span><span class="p">],</span>
     <span class="n">levels</span><span class="o">=</span><span class="p">[</span><span class="mf">0.5</span><span class="p">],</span>
     <span class="n">origin</span><span class="o">=</span><span class="s2">"lower"</span><span class="p">,</span>
     <span class="n">extent</span><span class="o">=</span><span class="n">extent</span><span class="p">,</span>
@@ -22687,7 +22719,7 @@ lowest in the low-grade trough to its east, since skewed grades vary most where 
 <span class="n">save</span><span class="p">(</span><span class="n">fig</span><span class="p">,</span> <span class="s2">"summaries"</span><span class="p">)</span>
 </code></pre></div>
 <p><img alt="E-type mean of 50, Spread, Probability above 500 ppm" class="mkd-glr-single-img" src="../images/mkd_glr_learn_05_005.png" srcset="../images/mkd_glr_learn_05_005.png" /></p>
-<!-- GENERATED FROM PYTHON SOURCE LINES 368-388 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 370-390 -->
 
 <div class="admonition pitfall">
 <p class="admonition-title">Pitfall</p>
@@ -22716,7 +22748,7 @@ lowest in the low-grade trough to its east, since skewed grades vary most where 
 </div>
 <p><strong>Next:</strong> <a href="../../06-checking-a-model/learn_06/">Checking a model</a> tests an estimate against the data before
 anyone relies on it.</p>
-<p><strong>Total running time of the script:</strong> ( 0 minutes  1.224 seconds)</p>
+<p><strong>Total running time of the script:</strong> ( 0 minutes  1.368 seconds)</p>
 <div id="download_links"></div>
 
 <p><a class="md-button center" href="../learn_05.py"><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M256 32c0-17.7-14.3-32-32-32s-32 14.3-32 32v210.7l-41.4-41.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3l96 96c12.5 12.5 32.8 12.5 45.3 0l96-96c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L256 242.7zM64 320c-35.3 0-64 28.7-64 64v32c0 35.3 28.7 64 64 64h320c35.3 0 64-28.7 64-64v-32c0-35.3-28.7-64-64-64h-46.9l-56.6 56.6c-31.2 31.2-81.9 31.2-113.1 0L110.9 320zm304 56a24 24 0 1 1 0 48 24 24 0 1 1 0-48"/></svg></span> Download Python source code: learn_05.py</a></p>

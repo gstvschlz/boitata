@@ -22,7 +22,7 @@ from matplotlib.colors import ListedColormap
 
 ti = bt.datasets.strebelle()
 nx, ny = ti.count[:2]
-image = ti["facies"].reshape(ny, nx)
+image = ti.grid("facies")[0]
 grid = bt.BlockModel((0, 0), (1, 1), (nx, ny))
 
 
@@ -76,8 +76,8 @@ fig, axes = plt.subplots(1, 4, figsize=(15, 4), layout="constrained")
 panels = (
     (image, "Truth", codes),
     (p_soft, "Soft P(sand)", "gray_r"),
-    (summaries["with soft data"].realizations[0].reshape(ny, nx), "Realization 1 with soft data", codes),
-    (summaries["with soft data"].probabilities[:, 1].reshape(ny, nx), "P(sand), 20 realizations", "gray_r"),
+    (grid.grid(summaries["with soft data"].realizations[0])[0], "Realization 1 with soft data", codes),
+    (grid.grid(summaries["with soft data"].probabilities[:, 1])[0], "P(sand), 20 realizations", "gray_r"),
 )
 for ax, (img, title, cmap) in zip(axes, panels):
     im = ax.imshow(img, origin="lower", cmap=cmap, vmin=0, vmax=1, interpolation="nearest")

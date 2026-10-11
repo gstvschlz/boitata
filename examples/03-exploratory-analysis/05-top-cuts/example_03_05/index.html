@@ -21346,6 +21346,8 @@
       
         
       
+        
+      
     
     
     
@@ -21555,6 +21557,34 @@
     
   
     block_correlation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../api/validation/compare/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    compare
   
 
     
@@ -22047,7 +22077,7 @@ limits their influence. you need to decide where to cut and how much metal the c
 <span class="n">intervals</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">merge_intervals</span><span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="s2">"assays"</span><span class="p">],</span> <span class="n">data</span><span class="p">[</span><span class="s2">"lithology"</span><span class="p">])</span>
 <span class="n">holes</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">Drillholes</span><span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="s2">"collars"</span><span class="p">],</span> <span class="n">data</span><span class="p">[</span><span class="s2">"surveys"</span><span class="p">],</span> <span class="n">intervals</span><span class="p">)</span>
 <span class="n">composites</span> <span class="o">=</span> <span class="n">holes</span><span class="o">.</span><span class="n">composite</span><span class="p">(</span><span class="mf">1.0</span><span class="p">,</span> <span class="p">[</span><span class="s2">"AU_GPT"</span><span class="p">],</span> <span class="n">domain</span><span class="o">=</span><span class="s2">"LITH"</span><span class="p">,</span> <span class="n">categories</span><span class="o">=</span><span class="p">[</span><span class="s2">"VEIN"</span><span class="p">])</span>
-<span class="n">quartz</span> <span class="o">=</span> <span class="n">composites</span><span class="o">.</span><span class="n">filter</span><span class="p">((</span><span class="n">composites</span><span class="p">[</span><span class="s2">"LITH"</span><span class="p">]</span> <span class="o">==</span> <span class="s2">"QV"</span><span class="p">)</span> <span class="o">&amp;</span> <span class="o">~</span><span class="n">np</span><span class="o">.</span><span class="n">isnan</span><span class="p">(</span><span class="n">composites</span><span class="p">[</span><span class="s2">"AU_GPT"</span><span class="p">]))</span>
+<span class="n">quartz</span> <span class="o">=</span> <span class="n">composites</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">composites</span><span class="p">[</span><span class="s2">"LITH"</span><span class="p">]</span> <span class="o">==</span> <span class="s2">"QV"</span><span class="p">)</span><span class="o">.</span><span class="n">drop_null</span><span class="p">(</span><span class="s2">"AU_GPT"</span><span class="p">)</span>
 <span class="n">au</span> <span class="o">=</span> <span class="n">quartz</span><span class="p">[</span><span class="s2">"AU_GPT"</span><span class="p">]</span>
 <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">quartz</span><span class="p">)</span><span class="si">}</span><span class="s2"> composites of 1 m in quartz vein, mean Au </span><span class="si">{</span><span class="n">au</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span><span class="si">:</span><span class="s2">.2f</span><span class="si">}</span><span class="s2"> g/t, max </span><span class="si">{</span><span class="n">au</span><span class="o">.</span><span class="n">max</span><span class="p">()</span><span class="si">:</span><span class="s2">.0f</span><span class="si">}</span><span class="s2"> g/t"</span><span class="p">)</span>
 </code></pre></div>
@@ -22147,7 +22177,7 @@ all<span class="w">           </span><span class="m">5826</span><span class="w">
 <p>the caps cut 47 <abbr title="drill-hole intervals of fixed length whose grades are the sampled-length-weighted means of the assays they cover.">composites</abbr> in V1 and 23 in V2, and remove 10.8 % and 15.4 % of their metal. pooled, the veins lose
 11.1 % of the metal and the CV falls from 3.22 to 1.78. V3 and V4 hold about a hundred <abbr title="drill-hole intervals of fixed length whose grades are the sampled-length-weighted means of the assays they cover.">composites</abbr> each, too few for a
 P99 to mean much: in V3 it is the maximum and cuts nothing. cap a small <abbr title="a volume of rock whose values you treat as one population, such as one lithology or one vein.">domain</abbr> with the cap of a similar, larger one.</p>
-<p><strong>Total running time of the script:</strong> ( 0 minutes  0.358 seconds)</p>
+<p><strong>Total running time of the script:</strong> ( 0 minutes  0.615 seconds)</p>
 <div id="download_links"></div>
 
 <p><a class="md-button center" href="../example_03_05.py"><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M256 32c0-17.7-14.3-32-32-32s-32 14.3-32 32v210.7l-41.4-41.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3l96 96c12.5 12.5 32.8 12.5 45.3 0l96-96c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L256 242.7zM64 320c-35.3 0-64 28.7-64 64v32c0 35.3 28.7 64 64 64h320c35.3 0 64-28.7 64-64v-32c0-35.3-28.7-64-64-64h-46.9l-56.6 56.6c-31.2 31.2-81.9 31.2-113.1 0L110.9 320zm304 56a24 24 0 1 1 0 48 24 24 0 1 1 0-48"/></svg></span> Download Python source code: example_03_05.py</a></p>

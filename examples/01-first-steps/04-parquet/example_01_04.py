@@ -37,7 +37,7 @@ grid = bt.BlockModel(origin=(0.5, 0.5), size=(1, 1), count=(260, 300), crs="loca
 kriging = bt.OrdinaryKriging(model, bt.Search(radius=100, max_samples=24, min_samples=4)).fit(samples, "V")
 estimate, variance = kriging.predict(grid, return_variance=True)
 grid = grid.with_column("estimate", estimate).with_column("variance", variance)
-rich = grid.mask(grid["estimate"] > 500)
+rich = grid.filter(grid["estimate"] > 500)
 print(grid)
 print(rich)
 

@@ -33,7 +33,7 @@ grades = ["FE_PCT", "SIO2_PCT", "AL2O3_PCT", "P_PCT", "MN_PCT", "LOI_PCT"]
 intervals = bt.merge_intervals(data["assays"], data["lithology"])
 holes = bt.Drillholes(data["collars"], data["surveys"], intervals)
 composites = holes.composite(6.0, grades, domain="LITH", residual="merge")
-lith = np.asarray(composites["LITH"], dtype=object)
+lith = composites["LITH"]
 values = np.column_stack([composites[g] for g in grades])
 print(f"{len(composites)} composites; mean grade (%) by lithology")
 print(f"{'':5}{'n':>6}" + "".join(f"{g.removesuffix('_PCT'):>8}" for g in grades))
@@ -93,12 +93,12 @@ save(fig, "closure")
 # %%
 model = data["block_model"]
 blastholes = data["blastholes"]
-lo, hi = blastholes.coords.min(axis=0), blastholes.coords.max(axis=0)
-c = model.centroids
+lo, hi = np.array(blastholes.bounds)
+c = model.coords
 window = np.all((c > lo - (12.5, 12.5, 6)) & (c < hi + (12.5, 12.5, 6)), axis=1)
-blocks = model.mask(window)
+blocks = model.filter(window)
 domains = {"hematite": ["HF", "HC", "CG"], "friable itabirite": ["IF"], "compact itabirite": ["IC"]}
-block_lith = np.asarray(blocks["LITH"], dtype=object)
+block_lith = blocks["LITH"]
 block_domain = np.full(len(blocks), "", dtype=object)
 for name, codes in domains.items():
     block_domain[np.isin(block_lith, codes)] = name
@@ -112,8 +112,7 @@ print(f"{len(blocks)} blocks: " + ", ".join(f"{n} {np.sum(block_domain == n)}" f
 # ore of the same code is leaner.
 
 # %%
-row = model.row_at(composites.coords)
-model_lith = np.where(row >= 0, np.asarray(model["LITH"], dtype=object)[np.maximum(row, 0)], "")
+model_lith = model.sample(composites.coords, "LITH")
 buffer = (100, 100, 30)
 near = np.all((composites.coords > lo - buffer) & (composites.coords < hi + buffer), axis=1)
 for name, codes in domains.items():
@@ -134,7 +133,7 @@ for name, codes in domains.items():
 # %%
 n = 30
 nodes = blocks.discretize(2)
-node_block = blocks.row_at(nodes.centroids)
+node_block = blocks.row_at(nodes.coords)
 bh_block = blocks.row_at(blastholes.coords)
 at_blocks = np.full((n, len(blocks), 7), np.nan)
 at_blastholes = np.full((n, len(blastholes), 7), np.nan)
@@ -150,7 +149,7 @@ for name, codes in domains.items():
     )
     in_domain = block_domain[node_block] == name
     bh_in = block_domain[bh_block] == name
-    targets = np.vstack([nodes.centroids[in_domain], blastholes.coords[bh_in]])
+    targets = np.vstack([nodes.coords[in_domain], blastholes.coords[bh_in]])
     factors = simulation.simulate(targets, n=n, seed=1, keep=True)
     ilr = np.stack([f.realizations for f in factors], axis=-1)
     oxides = 100 * bt.ilr_inverse(ilr.reshape(-1, 6)).reshape(n, len(targets), 7)
@@ -180,7 +179,7 @@ for seed, (g, factor) in enumerate((("FE_PCT", 1.4297), ("SIO2_PCT", 1.0)), star
     alone.append(
         factor
         * bands.simulate(
-            nodes.centroids[block_domain[node_block] == "hematite"], n=n, seed=seed, keep=True
+            nodes.coords[block_domain[node_block] == "hematite"], n=n, seed=seed, keep=True
         ).realizations
     )
 hematite = at_blocks[:, block_domain == "hematite"]
@@ -212,31 +211,30 @@ drilled = count > 0
 bh_mean_fe = np.bincount(bh_block, bh_fe, len(blocks))[drilled] / count[drilled]
 bh_mean_si = np.bincount(bh_block, bh_si, len(blocks))[drilled] / count[drilled]
 print(f"{drilled.sum()} blocks hold blastholes, {np.median(count[drilled]):.0f} per block (median)")
-in_window = blocks.row_at(composites.coords)
+in_window = blocks.contains(composites.coords)
+window_domain = blocks.sample(composites.coords, block_domain)
 print(
     f"{'':18}{'Fe blast':>9}{'Fe sim':>8}{'Fe drill':>9}{'SiO2 blast':>11}{'SiO2 sim':>9}{'SiO2 drill':>11}"
 )
 for name in domains:
     k = block_domain[bh_block] == name
     b = block_domain[drilled] == name
-    j = (in_window >= 0) & (block_domain[in_window] == name)
+    j = window_domain == name
     print(
         f"{name:18}{bh_fe[k].mean():9.2f}{fe[:, drilled][:, b].mean():8.2f}{composites['FE_PCT'][j].mean():9.2f}"
         f"{bh_si[k].mean():11.2f}{silica[:, drilled][:, b].mean():9.2f}{composites['SIO2_PCT'][j].mean():11.2f}"
     )
-print(
-    f"{np.sum(in_window >= 0)} composites from {len(set(composites['HOLE_ID'][in_window >= 0]))} holes in the window"
-)
+print(f"{in_window.sum()} composites from {len(set(composites['HOLE_ID'][in_window]))} holes in the window")
 point = at_blastholes[..., 0] / 1.4297
 print(
     f"Fe variance: blastholes {bh_fe.var():.0f}, simulated at the blastholes {point.var(axis=1).mean():.0f}, "
     f"blasthole means per block {bh_mean_fe.var():.0f}, simulated blocks {fe[:, drilled].var(axis=1).mean():.0f}"
 )
 e_type = fe[:, drilled].mean(axis=0)
-slope = np.polyfit(e_type, bh_mean_fe, 1)[0]
+agreement = bt.compare(e_type, bh_mean_fe)
 print(
-    f"blasthole means per block against the mean of the simulations: r {np.corrcoef(e_type, bh_mean_fe)[0, 1]:.2f},"
-    f" slope {slope:.2f}"
+    f"blasthole means per block against the mean of the simulations: r {agreement['correlation']:.2f}, "
+    f"slope {agreement['slope']:.2f}"
 )
 
 fig, (a, b) = plt.subplots(1, 2, figsize=(10, 4.2), layout="constrained")
@@ -287,7 +285,7 @@ save(fig, "reconciliation")
 # %%
 bench = int((678 - model.origin[2]) // model.size[2])
 blocks = blocks.with_column("fe", fe.mean(axis=0))
-on_bench = np.isclose(blastholes.coords[:, 2], 678)
+on_bench = np.isclose(blastholes.z, 678)
 norm = plt.Normalize(30, 68)
 fig, ax = bt.plot.section(blocks, "fe", axis="z", index=bench, norm=norm, colorbar=False)
 points = ax.scatter(

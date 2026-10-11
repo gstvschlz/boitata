@@ -21442,6 +21442,8 @@
       
         
       
+        
+      
     
     
     
@@ -21651,6 +21653,34 @@
     
   
     block_correlation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../api/validation/compare/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    compare
   
 
     
@@ -22282,7 +22312,7 @@ and flags any <abbr title="the point where a drill hole starts at the surface, w
 <!-- GENERATED FROM PYTHON SOURCE LINES 35-48 -->
 
 <div class="highlight"><pre><span></span><code><span class="n">data</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">datasets</span><span class="o">.</span><span class="n">stacked_sulphide_lenses</span><span class="p">()</span>
-<span class="n">holes</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">Drillholes</span><span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="s2">"collars"</span><span class="p">],</span> <span class="n">data</span><span class="p">[</span><span class="s2">"surveys"</span><span class="p">],</span> <span class="n">data</span><span class="p">[</span><span class="s2">"assays"</span><span class="p">])</span>
+<span class="n">holes</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">Drillholes</span><span class="o">.</span><span class="n">from_tables</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
 <span class="n">collars</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">PointSet</span><span class="o">.</span><span class="n">from_table</span><span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="s2">"collars"</span><span class="p">],</span> <span class="n">z</span><span class="o">=</span><span class="s2">"Z"</span><span class="p">)</span>
 <span class="n">ground</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">topography</span><span class="p">(</span><span class="n">collars</span><span class="p">,</span> <span class="n">cell</span><span class="o">=</span><span class="mf">20.0</span><span class="p">)</span>
 <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">holes</span><span class="p">)</span><span class="si">}</span><span class="s2"> holes, </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="s1">'assays'</span><span class="p">])</span><span class="si">:</span><span class="s2">,</span><span class="si">}</span><span class="s2"> assays, </span><span class="si">{</span><span class="n">ground</span><span class="o">.</span><span class="n">flagged</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span><span class="si">}</span><span class="s2"> collars flagged"</span><span class="p">)</span>
@@ -22313,9 +22343,9 @@ same <abbr title="the volume a value represents: a point, a length of core or a 
     <span class="n">lens</span><span class="p">[</span><span class="n">mesh</span><span class="o">.</span><span class="n">contains</span><span class="p">(</span><span class="n">samples</span><span class="o">.</span><span class="n">coords</span><span class="p">)]</span> <span class="o">=</span> <span class="n">name</span>
 <span class="n">holes</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">Drillholes</span><span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="s2">"collars"</span><span class="p">],</span> <span class="n">data</span><span class="p">[</span><span class="s2">"surveys"</span><span class="p">],</span> <span class="n">samples</span><span class="o">.</span><span class="n">with_column</span><span class="p">(</span><span class="s2">"LENS"</span><span class="p">,</span> <span class="nb">list</span><span class="p">(</span><span class="n">lens</span><span class="p">))</span><span class="o">.</span><span class="n">attributes</span><span class="p">)</span>
 <span class="n">composites</span> <span class="o">=</span> <span class="n">holes</span><span class="o">.</span><span class="n">composite</span><span class="p">(</span><span class="mf">2.0</span><span class="p">,</span> <span class="p">[</span><span class="s2">"ZN_PCT"</span><span class="p">,</span> <span class="s2">"DENSITY"</span><span class="p">],</span> <span class="n">domain</span><span class="o">=</span><span class="s2">"LENS"</span><span class="p">,</span> <span class="n">residual</span><span class="o">=</span><span class="s2">"merge"</span><span class="p">)</span>
-<span class="n">names</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">composites</span><span class="p">[</span><span class="s2">"LENS"</span><span class="p">],</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">object</span><span class="p">)</span>
+<span class="n">names</span> <span class="o">=</span> <span class="n">composites</span><span class="p">[</span><span class="s2">"LENS"</span><span class="p">]</span>
 <span class="n">ore</span> <span class="o">=</span> <span class="n">composites</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">names</span> <span class="o">!=</span> <span class="s2">"host"</span><span class="p">)</span>
-<span class="n">ore_names</span> <span class="o">=</span> <span class="n">names</span><span class="p">[</span><span class="n">names</span> <span class="o">!=</span> <span class="s2">"host"</span><span class="p">]</span>
+<span class="n">ore_names</span> <span class="o">=</span> <span class="n">ore</span><span class="p">[</span><span class="s2">"LENS"</span><span class="p">]</span>
 <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">composites</span><span class="p">)</span><span class="si">:</span><span class="s2">,</span><span class="si">}</span><span class="s2"> composites of 2 m, </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">ore</span><span class="p">)</span><span class="si">:</span><span class="s2">,</span><span class="si">}</span><span class="s2"> inside a lens"</span><span class="p">)</span>
 </code></pre></div>
 <p class="mkd-glr-script-out">Out:</p>
@@ -22341,7 +22371,7 @@ volume matches the wireframes'
     <span class="n">rotation</span><span class="o">=</span><span class="n">rotation</span><span class="p">,</span>
     <span class="n">column</span><span class="o">=</span><span class="s2">"LENS"</span><span class="p">,</span>
 <span class="p">)</span>
-<span class="n">block_lens</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">blocks</span><span class="p">[</span><span class="s2">"LENS"</span><span class="p">],</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">object</span><span class="p">)</span>
+<span class="n">block_lens</span> <span class="o">=</span> <span class="n">blocks</span><span class="p">[</span><span class="s2">"LENS"</span><span class="p">]</span>
 <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">mesh</span> <span class="ow">in</span> <span class="n">lenses</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
     <span class="n">inside</span> <span class="o">=</span> <span class="n">block_lens</span> <span class="o">==</span> <span class="n">name</span>
     <span class="nb">print</span><span class="p">(</span>
@@ -22359,17 +22389,16 @@ lens_3:<span class="w"> </span><span class="m">7</span>,951<span class="w"> </sp
 <h2 id="exploratory-analysis">Exploratory analysis<a class="headerlink" href="#exploratory-analysis" title="Permanent link">&para;</a></h2>
 <p>The holes cluster where the lenses are rich, so the plain mean overstates zinc. Cell <abbr title="weighting samples by the area or volume each represents, to correct statistics for clustered sampling.">declustering</abbr> weights each
 lens's <abbr title="drill-hole intervals of fixed length whose grades are the sampled-length-weighted means of the assays they cover.">composites</abbr> on their own (<a href="../../02-describing-data/learn_02/"><abbr title="weighting samples by the area or volume each represents, to correct statistics for clustered sampling.">declustering</abbr></a>).</p>
-<!-- GENERATED FROM PYTHON SOURCE LINES 103-123 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 103-122 -->
 
 <div class="highlight"><pre><span></span><code><span class="n">weights</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">ore</span><span class="p">))</span>
 <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">lenses</span><span class="p">:</span>
     <span class="n">inside</span> <span class="o">=</span> <span class="n">ore_names</span> <span class="o">==</span> <span class="n">name</span>
-    <span class="n">declustering</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">cell_declustering</span><span class="p">(</span>
-        <span class="n">ore</span><span class="o">.</span><span class="n">coords</span><span class="p">[</span><span class="n">inside</span><span class="p">],</span> <span class="n">ore</span><span class="p">[</span><span class="s2">"ZN_PCT"</span><span class="p">][</span><span class="n">inside</span><span class="p">],</span> <span class="n">sizes</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span> <span class="mi">105</span><span class="p">,</span> <span class="mi">5</span><span class="p">)</span>
-    <span class="p">)</span>
+    <span class="n">part</span> <span class="o">=</span> <span class="n">ore</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">inside</span><span class="p">)</span>
+    <span class="n">declustering</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">cell_declustering</span><span class="p">(</span><span class="n">part</span><span class="p">,</span> <span class="s2">"ZN_PCT"</span><span class="p">,</span> <span class="n">sizes</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span> <span class="mi">105</span><span class="p">,</span> <span class="mi">5</span><span class="p">))</span>
     <span class="n">weights</span><span class="p">[</span><span class="n">inside</span><span class="p">]</span> <span class="o">=</span> <span class="n">declustering</span><span class="o">.</span><span class="n">weights</span> <span class="o">/</span> <span class="n">declustering</span><span class="o">.</span><span class="n">weights</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span>
     <span class="nb">print</span><span class="p">(</span>
-        <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">inside</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span><span class="si">}</span><span class="s2"> composites, mean </span><span class="si">{</span><span class="n">ore</span><span class="p">[</span><span class="s1">'ZN_PCT'</span><span class="p">][</span><span class="n">inside</span><span class="p">]</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span><span class="si">:</span><span class="s2">.2f</span><span class="si">}</span><span class="s2"> % Zn, "</span>
+        <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">inside</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span><span class="si">}</span><span class="s2"> composites, mean </span><span class="si">{</span><span class="n">part</span><span class="p">[</span><span class="s1">'ZN_PCT'</span><span class="p">]</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span><span class="si">:</span><span class="s2">.2f</span><span class="si">}</span><span class="s2"> % Zn, "</span>
         <span class="sa">f</span><span class="s2">"declustered </span><span class="si">{</span><span class="n">declustering</span><span class="o">.</span><span class="n">mean</span><span class="si">:</span><span class="s2">.2f</span><span class="si">}</span><span class="s2"> %"</span>
     <span class="p">)</span>
 <span class="n">ore</span> <span class="o">=</span> <span class="n">ore</span><span class="o">.</span><span class="n">with_column</span><span class="p">(</span><span class="s2">"weight"</span><span class="p">,</span> <span class="n">weights</span><span class="p">)</span>
@@ -22387,7 +22416,7 @@ lens's <abbr title="drill-hole intervals of fixed length whose grades are the sa
 lens_2:<span class="w"> </span><span class="m">279</span><span class="w"> </span>composites,<span class="w"> </span>mean<span class="w"> </span><span class="m">6</span>.17<span class="w"> </span>%<span class="w"> </span>Zn,<span class="w"> </span>declustered<span class="w"> </span><span class="m">5</span>.24<span class="w"> </span>%
 lens_3:<span class="w"> </span><span class="m">263</span><span class="w"> </span>composites,<span class="w"> </span>mean<span class="w"> </span><span class="m">5</span>.99<span class="w"> </span>%<span class="w"> </span>Zn,<span class="w"> </span>declustered<span class="w"> </span><span class="m">5</span>.17<span class="w"> </span>%
 </code></pre></div>
-<!-- GENERATED FROM PYTHON SOURCE LINES 124-132 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 123-131 -->
 
 <p>Declustering lowers each lens mean by 0.8 to 1.0 % Zn, to about 5.2 %. The three lenses share one distribution,
 and the probability plot shows no break in the upper tail that would call for capping.</p>
@@ -22395,7 +22424,7 @@ and the probability plot shows no break in the upper tail that would call for ca
 <p>Lens 1 holds half the <abbr title="drill-hole intervals of fixed length whose grades are the sampled-length-weighted means of the assays they cover.">composites</abbr>, so its variogram stands for all three. Kriging uses the variogram of the
 grades; turning bands simulates <abbr title="values replaced by the standard gaussian values with the same cumulative probability.">normal scores</abbr> and needs theirs, rescaled to a unit <abbr title="the plateau of the variogram, reached when samples lie too far apart to be related.">sill</abbr>
 (<a href="../../03-spatial-continuity/learn_03/">spatial continuity</a>).</p>
-<!-- GENERATED FROM PYTHON SOURCE LINES 134-163 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 133-160 -->
 
 <div class="highlight"><pre><span></span><code><span class="n">one</span> <span class="o">=</span> <span class="n">ore</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">ore_names</span> <span class="o">==</span> <span class="s2">"lens_1"</span><span class="p">)</span>
 <span class="n">grades</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">experimental_variogram</span><span class="p">(</span><span class="n">one</span><span class="p">,</span> <span class="s2">"ZN_PCT"</span><span class="p">,</span> <span class="mf">10.0</span><span class="p">,</span> <span class="mf">150.0</span><span class="p">)</span>
@@ -22406,9 +22435,7 @@ grades; turning bands simulates <abbr title="values replaced by the standard gau
     <span class="n">inside</span> <span class="o">=</span> <span class="n">ore_names</span> <span class="o">==</span> <span class="n">name</span>
     <span class="n">scores</span><span class="p">[</span><span class="n">inside</span><span class="p">]</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">NormalScore</span><span class="p">()</span><span class="o">.</span><span class="n">fit_transform</span><span class="p">(</span><span class="n">ore</span><span class="p">[</span><span class="s2">"ZN_PCT"</span><span class="p">][</span><span class="n">inside</span><span class="p">],</span> <span class="n">weights</span><span class="o">=</span><span class="n">weights</span><span class="p">[</span><span class="n">inside</span><span class="p">])</span>
 <span class="n">fitted</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">experimental_variogram</span><span class="p">(</span><span class="n">one</span><span class="p">,</span> <span class="n">scores</span><span class="p">[</span><span class="n">ore_names</span> <span class="o">==</span> <span class="s2">"lens_1"</span><span class="p">],</span> <span class="mf">10.0</span><span class="p">,</span> <span class="mf">150.0</span><span class="p">)</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="s2">"spherical"</span><span class="p">)</span>
-<span class="n">gaussian</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">Variogram</span><span class="p">(</span>
-    <span class="p">[(</span><span class="n">s</span><span class="o">.</span><span class="n">model</span><span class="p">,</span> <span class="n">s</span><span class="o">.</span><span class="n">sill</span> <span class="o">/</span> <span class="n">fitted</span><span class="o">.</span><span class="n">sill</span><span class="p">,</span> <span class="n">s</span><span class="o">.</span><span class="n">range</span><span class="p">)</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">fitted</span><span class="o">.</span><span class="n">structures</span><span class="p">],</span> <span class="n">nugget</span><span class="o">=</span><span class="n">fitted</span><span class="o">.</span><span class="n">nugget</span> <span class="o">/</span> <span class="n">fitted</span><span class="o">.</span><span class="n">sill</span>
-<span class="p">)</span>
+<span class="n">gaussian</span> <span class="o">=</span> <span class="n">fitted</span><span class="o">.</span><span class="n">standardized</span><span class="p">()</span>
 <span class="k">for</span> <span class="n">label</span><span class="p">,</span> <span class="n">model</span> <span class="ow">in</span> <span class="p">((</span><span class="s2">"Zn"</span><span class="p">,</span> <span class="n">variogram</span><span class="p">),</span> <span class="p">(</span><span class="s2">"normal scores"</span><span class="p">,</span> <span class="n">gaussian</span><span class="p">)):</span>
     <span class="n">s</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">structures</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
     <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">label</span><span class="si">}</span><span class="s2">: nugget </span><span class="si">{</span><span class="n">model</span><span class="o">.</span><span class="n">nugget</span><span class="si">:</span><span class="s2">.2f</span><span class="si">}</span><span class="s2">, spherical sill </span><span class="si">{</span><span class="n">s</span><span class="o">.</span><span class="n">sill</span><span class="si">:</span><span class="s2">.2f</span><span class="si">}</span><span class="s2">, range </span><span class="si">{</span><span class="n">s</span><span class="o">.</span><span class="n">range</span><span class="si">:</span><span class="s2">.0f</span><span class="si">}</span><span class="s2"> m"</span><span class="p">)</span>
@@ -22431,7 +22458,7 @@ grades; turning bands simulates <abbr title="values replaced by the standard gau
 <div class="mkd-glr-script-out-disp highlight"><pre><span></span><code>Zn:<span class="w"> </span>nugget<span class="w"> </span><span class="m">9</span>.90,<span class="w"> </span>spherical<span class="w"> </span>sill<span class="w"> </span><span class="m">13</span>.27,<span class="w"> </span>range<span class="w"> </span><span class="m">38</span><span class="w"> </span>m
 normal<span class="w"> </span>scores:<span class="w"> </span>nugget<span class="w"> </span><span class="m">0</span>.49,<span class="w"> </span>spherical<span class="w"> </span>sill<span class="w"> </span><span class="m">0</span>.51,<span class="w"> </span>range<span class="w"> </span><span class="m">43</span><span class="w"> </span>m
 </code></pre></div>
-<!-- GENERATED FROM PYTHON SOURCE LINES 164-172 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 161-169 -->
 
 <p>Half the variance is <abbr title="variogram value just above zero lag: variability at scales shorter than the closest samples, plus measurement error.">nugget</abbr>, and zinc loses its correlation beyond about 40 m. The <abbr title="values replaced by the standard gaussian values with the same cumulative probability.">normal scores</abbr> of lenses 2 and
 3 scatter around the same model.</p>
@@ -22439,7 +22466,7 @@ normal<span class="w"> </span>scores:<span class="w"> </span>nugget<span class="
 <p>Kriging each lens from its own <abbr title="drill-hole intervals of fixed length whose grades are the sampled-length-weighted means of the assays they cover.">composites</abbr> assumes the grade drops sharply at the lens contact. <code>contact</code> checks
 that assumption: it averages zinc by distance to the contact, down every hole that crosses one
 (<a href="../../../examples/03-exploratory-analysis/07-contacts/example_03_07/">contact analysis</a>).</p>
-<!-- GENERATED FROM PYTHON SOURCE LINES 174-193 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 171-190 -->
 
 <div class="highlight"><pre><span></span><code><span class="n">fig</span><span class="p">,</span> <span class="n">axes</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">12</span><span class="p">,</span> <span class="mf">3.4</span><span class="p">),</span> <span class="n">layout</span><span class="o">=</span><span class="s2">"constrained"</span><span class="p">,</span> <span class="n">sharey</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 <span class="k">for</span> <span class="n">ax</span><span class="p">,</span> <span class="n">name</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">axes</span><span class="p">,</span> <span class="n">lenses</span><span class="p">,</span> <span class="n">strict</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
@@ -22464,7 +22491,7 @@ that assumption: it averages zinc by distance to the contact, down every hole th
 <p class="mkd-glr-script-out">Out:</p>
 <div class="mkd-glr-script-out-disp highlight"><pre><span></span><code>host<span class="w"> </span>rock:<span class="w"> </span><span class="m">0</span>.07<span class="w"> </span>%<span class="w"> </span>Zn<span class="w"> </span>over<span class="w"> </span><span class="m">12</span>,108<span class="w"> </span>composites
 </code></pre></div>
-<!-- GENERATED FROM PYTHON SOURCE LINES 194-205 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 191-202 -->
 
 <p>Zinc reaches 8 to 10 % inside each lens and drops toward the contact; across it, the host averages 0.07 %. The
 contacts are hard, so host <abbr title="drill-hole intervals of fixed length whose grades are the sampled-length-weighted means of the assays they cover.">composites</abbr> must not inform the lenses, and each lens gets its own estimate.</p>
@@ -22475,17 +22502,16 @@ the <abbr title="the point where a drill hole starts at the surface, with its co
 each lens. The collars give no surface outside the drilled outline, so cells there stay. The masked model stores
 the kept rows alone
 (<a href="../../../examples/02-data-and-geometry/12-block-model-from-extents/example_02_12/">block models from extents</a>).</p>
-<!-- GENERATED FROM PYTHON SOURCE LINES 207-229 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 204-225 -->
 
-<div class="highlight"><pre><span></span><code><span class="n">summit</span> <span class="o">=</span> <span class="p">[[</span><span class="o">*</span><span class="n">lenses</span><span class="p">[</span><span class="s2">"lens_1"</span><span class="p">]</span><span class="o">.</span><span class="n">vertices</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)[:</span><span class="mi">2</span><span class="p">],</span> <span class="n">collars</span><span class="o">.</span><span class="n">coords</span><span class="p">[:,</span> <span class="mi">2</span><span class="p">]</span><span class="o">.</span><span class="n">max</span><span class="p">()]]</span>
+<div class="highlight"><pre><span></span><code><span class="n">summit</span> <span class="o">=</span> <span class="p">[[</span><span class="o">*</span><span class="n">lenses</span><span class="p">[</span><span class="s2">"lens_1"</span><span class="p">]</span><span class="o">.</span><span class="n">coords</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)[:</span><span class="mi">2</span><span class="p">],</span> <span class="n">collars</span><span class="o">.</span><span class="n">z</span><span class="o">.</span><span class="n">max</span><span class="p">()]]</span>
 <span class="n">grid</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">BlockModel</span><span class="o">.</span><span class="n">from_extents</span><span class="p">(</span><span class="o">*</span><span class="n">lenses</span><span class="o">.</span><span class="n">values</span><span class="p">(),</span> <span class="n">summit</span><span class="p">,</span> <span class="n">size</span><span class="o">=</span><span class="p">(</span><span class="mi">5</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">5</span><span class="p">),</span> <span class="n">buffer</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">snap</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-<span class="n">centers</span> <span class="o">=</span> <span class="n">grid</span><span class="o">.</span><span class="n">centroids</span>
-<span class="n">below</span> <span class="o">=</span> <span class="o">~</span><span class="p">(</span><span class="n">centers</span><span class="p">[:,</span> <span class="mi">2</span><span class="p">]</span> <span class="o">&gt;=</span> <span class="n">ground</span><span class="o">.</span><span class="n">grid</span><span class="p">[</span><span class="s2">"z"</span><span class="p">][</span><span class="n">ground</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">row_at</span><span class="p">(</span><span class="n">centers</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">2</span><span class="p">])])</span>
-<span class="n">cells</span> <span class="o">=</span> <span class="n">grid</span><span class="o">.</span><span class="n">mask</span><span class="p">(</span><span class="n">below</span><span class="p">)</span>
+<span class="n">below</span> <span class="o">=</span> <span class="o">~</span><span class="p">(</span><span class="n">grid</span><span class="o">.</span><span class="n">z</span> <span class="o">&gt;=</span> <span class="n">ground</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">sample</span><span class="p">(</span><span class="n">grid</span><span class="o">.</span><span class="n">coords</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">2</span><span class="p">],</span> <span class="s2">"z"</span><span class="p">))</span>
+<span class="n">cells</span> <span class="o">=</span> <span class="n">grid</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">below</span><span class="p">)</span>
 <span class="n">shares</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">mesh</span><span class="o">.</span><span class="n">proportion</span><span class="p">(</span><span class="n">cells</span><span class="p">)</span> <span class="k">for</span> <span class="n">mesh</span> <span class="ow">in</span> <span class="n">lenses</span><span class="o">.</span><span class="n">values</span><span class="p">()])</span>
 <span class="n">touched</span> <span class="o">=</span> <span class="n">shares</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span>
 <span class="n">shares</span> <span class="o">=</span> <span class="n">shares</span><span class="p">[:,</span> <span class="n">touched</span><span class="p">]</span>
-<span class="n">smus</span> <span class="o">=</span> <span class="n">cells</span><span class="o">.</span><span class="n">mask</span><span class="p">(</span><span class="n">touched</span><span class="p">)</span><span class="o">.</span><span class="n">with_columns</span><span class="p">(</span>
+<span class="n">smus</span> <span class="o">=</span> <span class="n">cells</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">touched</span><span class="p">)</span><span class="o">.</span><span class="n">with_columns</span><span class="p">(</span>
     <span class="p">{</span>
         <span class="s2">"LENS"</span><span class="p">:</span> <span class="nb">list</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="n">lenses</span><span class="p">))[</span><span class="n">shares</span><span class="o">.</span><span class="n">argmax</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)]),</span>
         <span class="s2">"fraction"</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">minimum</span><span class="p">(</span><span class="n">shares</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">),</span> <span class="mf">1.0</span><span class="p">),</span>
@@ -22503,7 +22529,7 @@ the kept rows alone
 <div class="mkd-glr-script-out-disp highlight"><pre><span></span><code><span class="m">2</span>,556,450<span class="w"> </span>cells<span class="w"> </span><span class="k">in</span><span class="w"> </span>the<span class="w"> </span>grid,<span class="w"> </span><span class="m">2</span>,413,188<span class="w"> </span>below<span class="w"> </span>ground,<span class="w"> </span><span class="m">80</span>,102<span class="w"> </span>touch<span class="w"> </span>a<span class="w"> </span>lens
 <span class="m">31</span>%<span class="w"> </span>of<span class="w"> </span>them<span class="w"> </span>lie<span class="w"> </span>wholly<span class="w"> </span>inside<span class="p">;</span><span class="w"> </span>lens<span class="w"> </span>volume<span class="w"> </span><span class="m">6</span>.34<span class="w"> </span>Mm³<span class="w"> </span>of<span class="w"> </span><span class="m">6</span>.34
 </code></pre></div>
-<!-- GENERATED FROM PYTHON SOURCE LINES 230-239 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 226-235 -->
 
 <p>Two thirds of the SMUs only graze a lens and carry their share; together they hold the lens volume to within 1 %.</p>
 <h2 id="kriging">Kriging<a class="headerlink" href="#kriging" title="Permanent link">&para;</a></h2>
@@ -22512,7 +22538,7 @@ within the variogram <abbr title="the lag at which the variogram reaches its sil
 largest distance from any block to the nearest <abbr title="a drill-hole interval of fixed length whose grade is the sampled-length-weighted mean of the assays it covers.">composite</abbr> of its lens. <code>domain_column="LENS"</code> keeps each lens to its
 own <abbr title="drill-hole intervals of fixed length whose grades are the sampled-length-weighted means of the assays they cover.">composites</abbr>. Density, measured on fewer samples, is kriged the same way, so tonnes follow the rock
 (<a href="../../04-kriging/learn_04/">kriging</a>).</p>
-<!-- GENERATED FROM PYTHON SOURCE LINES 241-271 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 237-267 -->
 
 <div class="highlight"><pre><span></span><code><span class="n">reach</span> <span class="o">=</span> <span class="n">variogram</span><span class="o">.</span><span class="n">structures</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">range</span>
 <span class="n">closest</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">OrdinaryKriging</span><span class="p">(</span><span class="n">variogram</span><span class="p">,</span> <span class="n">bt</span><span class="o">.</span><span class="n">Search</span><span class="p">(</span><span class="mi">1000</span><span class="p">,</span> <span class="n">max_samples</span><span class="o">=</span><span class="mi">1</span><span class="p">))</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span>
@@ -22528,7 +22554,7 @@ own <abbr title="drill-hole intervals of fixed length whose grades are the sampl
 <span class="p">]</span>
 <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"pass 2 radius </span><span class="si">{</span><span class="n">passes</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">radius</span><span class="si">:</span><span class="s2">.0f</span><span class="si">}</span><span class="s2"> m"</span><span class="p">)</span>
 <span class="n">zn</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">OrdinaryKriging</span><span class="p">(</span><span class="n">variogram</span><span class="p">,</span> <span class="n">passes</span><span class="p">)</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">ore</span><span class="p">,</span> <span class="s2">"ZN_PCT"</span><span class="p">,</span> <span class="n">holes</span><span class="o">=</span><span class="s2">"HOLE_ID"</span><span class="p">,</span> <span class="n">domain_column</span><span class="o">=</span><span class="s2">"LENS"</span><span class="p">)</span>
-<span class="n">measured</span> <span class="o">=</span> <span class="n">ore</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">isfinite</span><span class="p">(</span><span class="n">ore</span><span class="p">[</span><span class="s2">"DENSITY"</span><span class="p">]))</span>
+<span class="n">measured</span> <span class="o">=</span> <span class="n">ore</span><span class="o">.</span><span class="n">drop_null</span><span class="p">(</span><span class="s2">"DENSITY"</span><span class="p">)</span>
 <span class="n">density</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">OrdinaryKriging</span><span class="p">(</span><span class="n">variogram</span><span class="p">,</span> <span class="n">passes</span><span class="p">)</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span>
     <span class="n">measured</span><span class="p">,</span> <span class="s2">"DENSITY"</span><span class="p">,</span> <span class="n">holes</span><span class="o">=</span><span class="s2">"HOLE_ID"</span><span class="p">,</span> <span class="n">domain_column</span><span class="o">=</span><span class="s2">"LENS"</span>
 <span class="p">)</span>
@@ -22549,12 +22575,12 @@ own <abbr title="drill-hole intervals of fixed length whose grades are the sampl
 pass<span class="w"> </span><span class="m">1</span>:<span class="w"> </span><span class="m">8</span>%<span class="w"> </span>of<span class="w"> </span>sub-blocks
 pass<span class="w"> </span><span class="m">2</span>:<span class="w"> </span><span class="m">92</span>%<span class="w"> </span>of<span class="w"> </span>sub-blocks
 </code></pre></div>
-<!-- GENERATED FROM PYTHON SOURCE LINES 272-276 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 268-272 -->
 
 <p>Every <abbr title="a smaller cell a parent block is split into where a contact crosses it.">sub-block</abbr> and every SMU gets a grade and a density.</p>
 <p>A mine digs a whole SMU, host rock included, so each SMU's grade is diluted: the lens grade on its lens share, the
 host <abbr title="drill-hole intervals of fixed length whose grades are the sampled-length-weighted means of the assays they cover.">composites</abbr>' mean grade and density on the rest.</p>
-<!-- GENERATED FROM PYTHON SOURCE LINES 278-289 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 274-285 -->
 
 <div class="highlight"><pre><span></span><code><span class="n">host</span> <span class="o">=</span> <span class="n">composites</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">names</span> <span class="o">==</span> <span class="s2">"host"</span><span class="p">)</span>
 <span class="n">host_zn</span><span class="p">,</span> <span class="n">host_density</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">nanmean</span><span class="p">(</span><span class="n">host</span><span class="p">[</span><span class="s2">"ZN_PCT"</span><span class="p">]),</span> <span class="n">np</span><span class="o">.</span><span class="n">nanmean</span><span class="p">(</span><span class="n">host</span><span class="p">[</span><span class="s2">"DENSITY"</span><span class="p">])</span>
@@ -22570,7 +22596,7 @@ host <abbr title="drill-hole intervals of fixed length whose grades are the samp
 <p class="mkd-glr-script-out">Out:</p>
 <div class="mkd-glr-script-out-disp highlight"><pre><span></span><code>host:<span class="w"> </span><span class="m">0</span>.07<span class="w"> </span>%<span class="w"> </span>Zn,<span class="w"> </span><span class="m">2</span>.95<span class="w"> </span>t/m³
 </code></pre></div>
-<!-- GENERATED FROM PYTHON SOURCE LINES 290-297 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 286-293 -->
 
 <h2 id="turning-bands">Turning bands<a class="headerlink" href="#turning-bands" title="Permanent link">&para;</a></h2>
 <p>A kriged SMU is too smooth to say how much ore lies above a <abbr title="the grade below which a block does not pay to mine; you report resources above it.">cutoff</abbr>. Turning bands draws 50 <abbr title="simulated maps, each honoring the samples and reproducing the histogram and variogram of the data.">realizations</abbr> of zinc,
@@ -22578,11 +22604,11 @@ each lens from its own data, on eight nodes per SMU, and <code>blocks=</code> av
 <abbr title="one simulated map that honors the samples and reproduces the histogram and variogram of the data.">realization</abbr> is then diluted like the kriged grades, and the probability that an SMU exceeds 5 % Zn counts the
 <abbr title="simulated maps, each honoring the samples and reproducing the histogram and variogram of the data.">realizations</abbr> above it (<a href="../../../examples/08-stochastic-simulation/04-turning-bands/example_08_04/">turning bands</a>,
 <a href="../../05-simulation/learn_05/">simulation</a>).</p>
-<!-- GENERATED FROM PYTHON SOURCE LINES 299-317 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 295-313 -->
 
 <div class="highlight"><pre><span></span><code><span class="n">nodes</span> <span class="o">=</span> <span class="n">smus</span><span class="o">.</span><span class="n">discretize</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
 <span class="n">parent</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">nodes</span><span class="p">[</span><span class="s2">"block"</span><span class="p">],</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">int64</span><span class="p">)</span>
-<span class="n">nodes</span> <span class="o">=</span> <span class="n">nodes</span><span class="o">.</span><span class="n">with_column</span><span class="p">(</span><span class="s2">"LENS"</span><span class="p">,</span> <span class="nb">list</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">smus</span><span class="p">[</span><span class="s2">"LENS"</span><span class="p">],</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">object</span><span class="p">)[</span><span class="n">parent</span><span class="p">]))</span>
+<span class="n">nodes</span> <span class="o">=</span> <span class="n">nodes</span><span class="o">.</span><span class="n">with_column</span><span class="p">(</span><span class="s2">"LENS"</span><span class="p">,</span> <span class="nb">list</span><span class="p">(</span><span class="n">smus</span><span class="p">[</span><span class="s2">"LENS"</span><span class="p">][</span><span class="n">parent</span><span class="p">]))</span>
 <span class="n">tb</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">TurningBands</span><span class="p">(</span><span class="n">gaussian</span><span class="p">,</span> <span class="n">search</span><span class="o">=</span><span class="n">passes</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span>
     <span class="n">ore</span><span class="p">,</span> <span class="s2">"ZN_PCT"</span><span class="p">,</span> <span class="n">weights</span><span class="o">=</span><span class="s2">"weight"</span><span class="p">,</span> <span class="n">holes</span><span class="o">=</span><span class="s2">"HOLE_ID"</span><span class="p">,</span> <span class="n">domain_column</span><span class="o">=</span><span class="s2">"LENS"</span>
 <span class="p">)</span>
@@ -22599,15 +22625,15 @@ each lens from its own data, on eight nodes per SMU, and <code>blocks=</code> av
 <span class="p">)</span>
 </code></pre></div>
 <p class="mkd-glr-script-out">Out:</p>
-<div class="mkd-glr-script-out-disp highlight"><pre><span></span><code><span class="m">50</span><span class="w"> </span>realizations<span class="w"> </span>on<span class="w"> </span><span class="m">640</span>,816<span class="w"> </span>nodes<span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="m">3</span><span class="w"> </span>s
+<div class="mkd-glr-script-out-disp highlight"><pre><span></span><code><span class="m">50</span><span class="w"> </span>realizations<span class="w"> </span>on<span class="w"> </span><span class="m">640</span>,816<span class="w"> </span>nodes<span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="m">6</span><span class="w"> </span>s
 </code></pre></div>
-<!-- GENERATED FROM PYTHON SOURCE LINES 318-320 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 314-316 -->
 
 <p>A <abbr title="the angle in degrees below the horizontal; positive points down.">dip</abbr> section across the three lenses compares the kriged <abbr title="smaller cells a parent block is split into where a contact crosses it.">sub-blocks</abbr> with one diluted <abbr title="one simulated map that honors the samples and reproduces the histogram and variogram of the data.">realization</abbr> on the SMUs and
 the probability, in percent, that an SMU exceeds 5 % Zn.</p>
-<!-- GENERATED FROM PYTHON SOURCE LINES 322-338 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 318-334 -->
 
-<div class="highlight"><pre><span></span><code><span class="n">center</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">([</span><span class="n">mesh</span><span class="o">.</span><span class="n">vertices</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span> <span class="k">for</span> <span class="n">mesh</span> <span class="ow">in</span> <span class="n">lenses</span><span class="o">.</span><span class="n">values</span><span class="p">()],</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><span class="n">center</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">([</span><span class="n">mesh</span><span class="o">.</span><span class="n">coords</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span> <span class="k">for</span> <span class="n">mesh</span> <span class="ow">in</span> <span class="n">lenses</span><span class="o">.</span><span class="n">values</span><span class="p">()],</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
 <span class="n">plane</span> <span class="o">=</span> <span class="p">(</span><span class="nb">tuple</span><span class="p">(</span><span class="n">center</span><span class="p">),</span> <span class="mf">111.0</span><span class="p">,</span> <span class="mf">90.0</span><span class="p">)</span>
 <span class="n">panels</span> <span class="o">=</span> <span class="p">[</span>
     <span class="p">(</span><span class="n">blocks</span><span class="p">,</span> <span class="s2">"zn"</span><span class="p">,</span> <span class="s2">"Kriged Zn (%), sub-blocks"</span><span class="p">,</span> <span class="p">{</span><span class="s2">"vmin"</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span> <span class="s2">"vmax"</span><span class="p">:</span> <span class="mi">12</span><span class="p">}),</span>
@@ -22624,20 +22650,20 @@ the probability, in percent, that an SMU exceeds 5 % Zn.</p>
 <span class="n">save</span><span class="p">(</span><span class="n">fig</span><span class="p">,</span> <span class="s2">"sections"</span><span class="p">)</span>
 </code></pre></div>
 <p><img alt="Kriged Zn (%), sub-blocks, Diluted Zn (%), one realization, SMUs, P(SMU Zn &gt; 5 %) (%)" class="mkd-glr-single-img" src="../images/mkd_glr_learn_00_005.png" srcset="../images/mkd_glr_learn_00_005.png" /></p>
-<!-- GENERATED FROM PYTHON SOURCE LINES 339-345 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 335-341 -->
 
 <h2 id="validation">Validation<a class="headerlink" href="#validation" title="Permanent link">&para;</a></h2>
 <p>An estimate should keep the declustered mean of its data. Nearest neighbor, which copies the closest <abbr title="a drill-hole interval of fixed length whose grade is the sampled-length-weighted mean of the assays it covers.">composite</abbr>
 into each block, is a second unbiased reference, and the <abbr title="the mean of the realizations at each node, a smooth estimate comparable to kriging.">E-type</abbr>, the mean of the undiluted <abbr title="simulated maps, each honoring the samples and reproducing the histogram and variogram of the data.">realizations</abbr> weighted
 by each SMU's lens volume, a third. A <abbr title="mean grade of blocks and samples in parallel slices along one direction, to find local bias.">swath plot</abbr> follows all four along strike
 (<a href="../../06-checking-a-model/learn_06/">checking a model</a>).</p>
-<!-- GENERATED FROM PYTHON SOURCE LINES 347-385 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 343-381 -->
 
 <div class="highlight"><pre><span></span><code><span class="n">nearest</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">NearestNeighbor</span><span class="p">(</span><span class="n">bt</span><span class="o">.</span><span class="n">Search</span><span class="p">(</span><span class="n">passes</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">radius</span><span class="p">,</span> <span class="n">max_samples</span><span class="o">=</span><span class="mi">1</span><span class="p">))</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span>
     <span class="n">ore</span><span class="p">,</span> <span class="s2">"ZN_PCT"</span><span class="p">,</span> <span class="n">domain_column</span><span class="o">=</span><span class="s2">"LENS"</span>
 <span class="p">)</span>
 <span class="n">blocks</span> <span class="o">=</span> <span class="n">blocks</span><span class="o">.</span><span class="n">with_column</span><span class="p">(</span><span class="s2">"nn"</span><span class="p">,</span> <span class="n">nearest</span><span class="o">.</span><span class="n">predict</span><span class="p">(</span><span class="n">blocks</span><span class="p">,</span> <span class="n">domain_column</span><span class="o">=</span><span class="s2">"LENS"</span><span class="p">))</span>
-<span class="n">smu_names</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">smus</span><span class="p">[</span><span class="s2">"LENS"</span><span class="p">],</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">object</span><span class="p">)</span>
+<span class="n">smu_names</span> <span class="o">=</span> <span class="n">smus</span><span class="p">[</span><span class="s2">"LENS"</span><span class="p">]</span>
 <span class="n">lens_volume</span> <span class="o">=</span> <span class="n">f</span> <span class="o">*</span> <span class="n">smus</span><span class="o">.</span><span class="n">volumes</span>
 <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">lenses</span><span class="p">:</span>
     <span class="n">inside</span> <span class="o">=</span> <span class="n">block_lens</span> <span class="o">==</span> <span class="n">name</span>
@@ -22677,7 +22703,7 @@ by each SMU's lens volume, a third. A <abbr title="mean grade of blocks and samp
 lens_2:<span class="w"> </span>declustered<span class="w"> </span><span class="m">5</span>.24,<span class="w"> </span>kriged<span class="w"> </span><span class="m">5</span>.39,<span class="w"> </span>nearest<span class="w"> </span>neighbor<span class="w"> </span><span class="m">4</span>.85,<span class="w"> </span>E-type<span class="w"> </span><span class="m">5</span>.41<span class="w"> </span>%<span class="w"> </span>Zn
 lens_3:<span class="w"> </span>declustered<span class="w"> </span><span class="m">5</span>.17,<span class="w"> </span>kriged<span class="w"> </span><span class="m">5</span>.31,<span class="w"> </span>nearest<span class="w"> </span>neighbor<span class="w"> </span><span class="m">4</span>.47,<span class="w"> </span>E-type<span class="w"> </span><span class="m">5</span>.32<span class="w"> </span>%<span class="w"> </span>Zn
 </code></pre></div>
-<!-- GENERATED FROM PYTHON SOURCE LINES 386-393 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 382-389 -->
 
 <p>Kriging and the <abbr title="the mean of the realizations at each node, a smooth estimate comparable to kriging.">E-type</abbr> sit within 0.25 % Zn of the declustered <abbr title="drill-hole intervals of fixed length whose grades are the sampled-length-weighted means of the assays they cover.">composites</abbr> in every lens. Nearest neighbor runs
 0.4 to 0.7 % lower in lenses 2 and 3, the two with the fewest <abbr title="drill-hole intervals of fixed length whose grades are the sampled-length-weighted means of the assays they cover.">composites</abbr>.</p>
@@ -22685,9 +22711,9 @@ lens_3:<span class="w"> </span>declustered<span class="w"> </span><span class="m
 20 more <abbr title="simulated maps, each honoring the samples and reproducing the histogram and variogram of the data.">realizations</abbr>, drawn at the centers of the SMUs wholly inside a lens so that their <abbr title="the volume a value represents: a point, a length of core or a block.">support</abbr> matches the
 <abbr title="drill-hole intervals of fixed length whose grades are the sampled-length-weighted means of the assays they cover.">composites</abbr>', with the declustered data along strike and down <abbr title="the angle in degrees below the horizontal; positive points down.">dip</abbr>
 (<a href="../../../examples/10-checking-models/04-realization-checks/example_10_04/"><abbr title="one simulated map that honors the samples and reproduces the histogram and variogram of the data.">realization</abbr> checks</a>).</p>
-<!-- GENERATED FROM PYTHON SOURCE LINES 395-415 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 391-411 -->
 
-<div class="highlight"><pre><span></span><code><span class="n">cores</span> <span class="o">=</span> <span class="n">smus</span><span class="o">.</span><span class="n">mask</span><span class="p">(</span><span class="n">f</span> <span class="o">==</span> <span class="mi">1</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><span class="n">cores</span> <span class="o">=</span> <span class="n">smus</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">f</span> <span class="o">==</span> <span class="mi">1</span><span class="p">)</span>
 <span class="n">points</span> <span class="o">=</span> <span class="n">tb</span><span class="o">.</span><span class="n">simulate</span><span class="p">(</span><span class="n">cores</span><span class="p">,</span> <span class="n">n</span><span class="o">=</span><span class="mi">20</span><span class="p">,</span> <span class="n">seed</span><span class="o">=</span><span class="mi">8</span><span class="p">,</span> <span class="n">domain_column</span><span class="o">=</span><span class="s2">"LENS"</span><span class="p">,</span> <span class="n">keep</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 <span class="n">check</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">check_realizations</span><span class="p">(</span>
     <span class="n">cores</span><span class="p">,</span>
@@ -22708,7 +22734,7 @@ lens_3:<span class="w"> </span>declustered<span class="w"> </span><span class="m
 <span class="n">save</span><span class="p">(</span><span class="n">fig</span><span class="p">,</span> <span class="s2">"reproduction"</span><span class="p">)</span>
 </code></pre></div>
 <p><img alt="Histogram, 20 realizations, Variogram along strike and down dip" class="mkd-glr-single-img" src="../images/mkd_glr_learn_00_007.png" srcset="../images/mkd_glr_learn_00_007.png" /></p>
-<!-- GENERATED FROM PYTHON SOURCE LINES 416-423 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 412-419 -->
 
 <h2 id="grade-and-tonnage">Grade and tonnage<a class="headerlink" href="#grade-and-tonnage" title="Permanent link">&para;</a></h2>
 <p>Tonnes are volume times density. The in-situ curve comes from the kriged <abbr title="smaller cells a parent block is split into where a contact crosses it.">sub-blocks</abbr>; the two SMU curves add
@@ -22716,7 +22742,7 @@ dilution and the 5 m selectivity. Kriged SMUs vary less than real ones, so krigi
 cutoffs and fewer at high cutoffs than the mine can deliver. The simulated curve carries its own uncertainty, the
 band between the 10th and 90th percentile <abbr title="simulated maps, each honoring the samples and reproducing the histogram and variogram of the data.">realizations</abbr>
 (<a href="../../../examples/09-recoverable-resources/">recoverable resources</a>).</p>
-<!-- GENERATED FROM PYTHON SOURCE LINES 425-456 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 421-452 -->
 
 <div class="highlight"><pre><span></span><code><span class="n">cutoffs</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">12.5</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">)</span>
 <span class="n">tonnes</span> <span class="o">=</span> <span class="n">smus</span><span class="o">.</span><span class="n">volumes</span> <span class="o">*</span> <span class="n">smus</span><span class="p">[</span><span class="s2">"density_diluted"</span><span class="p">]</span>
@@ -22735,7 +22761,7 @@ band between the 10th and 90th percentile <abbr title="simulated maps, each hono
 <span class="n">p10</span><span class="p">,</span> <span class="n">p50</span><span class="p">,</span> <span class="n">p90</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">quantile</span><span class="p">(</span><span class="n">per_realization</span><span class="p">,</span> <span class="p">[</span><span class="mf">0.1</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">,</span> <span class="mf">0.9</span><span class="p">],</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
 <span class="n">fig</span><span class="p">,</span> <span class="n">ax</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mf">7.5</span><span class="p">,</span> <span class="mf">4.2</span><span class="p">),</span> <span class="n">layout</span><span class="o">=</span><span class="s2">"constrained"</span><span class="p">)</span>
 <span class="k">for</span> <span class="p">(</span><span class="n">label</span><span class="p">,</span> <span class="n">table</span><span class="p">),</span> <span class="n">color</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">curves</span><span class="o">.</span><span class="n">items</span><span class="p">(),</span> <span class="p">(</span><span class="n">GRAY</span><span class="p">,</span> <span class="n">ACCENT</span><span class="p">),</span> <span class="n">strict</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
-    <span class="n">ax</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">table</span><span class="p">[</span><span class="s2">"cutoff"</span><span class="p">],</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">table</span><span class="p">[</span><span class="s2">"tonnage"</span><span class="p">])</span> <span class="o">/</span> <span class="mf">1e6</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="n">color</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="n">label</span><span class="p">)</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">table</span><span class="p">[</span><span class="s2">"cutoff"</span><span class="p">],</span> <span class="n">table</span><span class="p">[</span><span class="s2">"tonnage"</span><span class="p">]</span> <span class="o">/</span> <span class="mf">1e6</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="n">color</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="n">label</span><span class="p">)</span>
 <span class="n">n</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">cutoffs</span><span class="p">)</span>
 <span class="n">ax</span><span class="o">.</span><span class="n">fill_between</span><span class="p">(</span><span class="n">cutoffs</span><span class="p">,</span> <span class="n">p10</span><span class="p">[:</span><span class="n">n</span><span class="p">]</span> <span class="o">/</span> <span class="mf">1e6</span><span class="p">,</span> <span class="n">p90</span><span class="p">[:</span><span class="n">n</span><span class="p">]</span> <span class="o">/</span> <span class="mf">1e6</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="n">HIGHLIGHT</span><span class="p">,</span> <span class="n">alpha</span><span class="o">=</span><span class="mf">0.25</span><span class="p">,</span> <span class="n">lw</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
 <span class="n">ax</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">cutoffs</span><span class="p">,</span> <span class="n">p50</span><span class="p">[:</span><span class="n">n</span><span class="p">]</span> <span class="o">/</span> <span class="mf">1e6</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="n">HIGHLIGHT</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s2">"turning bands SMUs, diluted (P10–P90)"</span><span class="p">)</span>
@@ -22757,7 +22783,7 @@ simulated<span class="w"> </span>P10,<span class="w"> </span>above<span class="w
 simulated<span class="w"> </span>P50,<span class="w"> </span>above<span class="w"> </span><span class="m">5</span><span class="w"> </span>%<span class="w"> </span>Zn:<span class="w"> </span><span class="m">8</span>.4<span class="w"> </span>Mt<span class="w"> </span>at<span class="w"> </span><span class="m">7</span>.61<span class="w"> </span>%<span class="w"> </span>Zn
 simulated<span class="w"> </span>P90,<span class="w"> </span>above<span class="w"> </span><span class="m">5</span><span class="w"> </span>%<span class="w"> </span>Zn:<span class="w"> </span><span class="m">8</span>.7<span class="w"> </span>Mt<span class="w"> </span>at<span class="w"> </span><span class="m">7</span>.71<span class="w"> </span>%<span class="w"> </span>Zn
 </code></pre></div>
-<!-- GENERATED FROM PYTHON SOURCE LINES 457-477 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 453-473 -->
 
 <p>Above 5 % Zn the <abbr title="smaller cells a parent block is split into where a contact crosses it.">sub-blocks</abbr> hold 11.2 Mt at 6.83 % in situ. Mined as whole SMUs, kriging reports 8.8 Mt at
 6.83 % and the <abbr title="simulated maps, each honoring the samples and reproducing the histogram and variogram of the data.">realizations</abbr> 8.1 to 8.7 Mt at 7.5 to 7.7 %: dilution costs about a fifth of the ore, and the
@@ -22778,7 +22804,7 @@ probability of 1 % or more, so the shell of SMUs that only graze a lens does not
   to a multiple of 45°, Enter cuts. Shift+wheel sets the section's width, <code>U</code> unfolds it, <code>X</code> clears it;</li>
 <li>click a block, a hole or a surface to inspect its values; <code>?</code> lists every key.</li>
 </ul>
-<!-- GENERATED FROM PYTHON SOURCE LINES 479-501 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 475-497 -->
 
 <div class="highlight"><pre><span></span><code><span class="n">low</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">min</span><span class="p">([</span><span class="n">mesh</span><span class="o">.</span><span class="n">bounds</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">for</span> <span class="n">mesh</span> <span class="ow">in</span> <span class="n">lenses</span><span class="o">.</span><span class="n">values</span><span class="p">()],</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span> <span class="o">-</span> <span class="mi">40</span>
 <span class="n">high</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">([</span><span class="n">mesh</span><span class="o">.</span><span class="n">bounds</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="k">for</span> <span class="n">mesh</span> <span class="ow">in</span> <span class="n">lenses</span><span class="o">.</span><span class="n">values</span><span class="p">()],</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span> <span class="o">+</span> <span class="mi">40</span>
@@ -22806,13 +22832,13 @@ probability of 1 % or more, so the shell of SMUs that only graze a lens does not
     <button type="button" class="bt-scene" data-scene="../scene_scene.html"><img src="../scene_scene.png" alt="The SMUs colored by their probability above 5 % Zn, with the holes and lenses" loading="lazy"><span>open the live scene</span></button>
 </div>
 
-<!-- GENERATED FROM PYTHON SOURCE LINES 502-507 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 498-503 -->
 
 <h2 id="where-next">Where next<a class="headerlink" href="#where-next" title="Permanent link">&para;</a></h2>
 <p>The <a href="../../">learn chapters</a> explain each step from first principles, and the
 <a href="../../../examples/12-case-studies/02-drillholes-to-classified-model/example_12_02/">case study</a> on the same lenses goes
 on to classify the resource.</p>
-<p><strong>Total running time of the script:</strong> ( 0 minutes  28.988 seconds)</p>
+<p><strong>Total running time of the script:</strong> ( 0 minutes  41.819 seconds)</p>
 <div id="download_links"></div>
 
 <p><a class="md-button center" href="../learn_00.py"><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M256 32c0-17.7-14.3-32-32-32s-32 14.3-32 32v210.7l-41.4-41.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3l96 96c12.5 12.5 32.8 12.5 45.3 0l96-96c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L256 242.7zM64 320c-35.3 0-64 28.7-64 64v32c0 35.3 28.7 64 64 64h320c35.3 0 64-28.7 64-64v-32c0-35.3-28.7-64-64-64h-46.9l-56.6 56.6c-31.2 31.2-81.9 31.2-113.1 0L110.9 320zm304 56a24 24 0 1 1 0 48 24 24 0 1 1 0-48"/></svg></span> Download Python source code: learn_00.py</a></p>

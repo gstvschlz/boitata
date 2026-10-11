@@ -47,7 +47,7 @@ grid = bt.BlockModel(origin=(0.5, 0.5), size=(5, 5), count=(52, 60))
 dk = bt.DisjunctiveKriging(anam, gaussian, bt.Search(radius=100, max_samples=24), order=20).fit(xy, v)
 cutoff = 500.0
 p = dk.predict_tonnage(grid, cutoff)
-nodes = grid.centroids.astype(int)
+nodes = grid.coords.astype(int)
 above = truth[nodes[:, 1] - 1, nodes[:, 0] - 1] > cutoff
 edges = np.linspace(0, 1, 11)
 bins = np.clip(np.digitize(p, edges) - 1, 0, 9)
@@ -63,9 +63,9 @@ for k in np.flatnonzero(keep):
 
 fig, (a, b) = plt.subplots(1, 2, figsize=(10, 4.2), layout="constrained")
 extent = (0.5, 260.5, 0.5, 300.5)
-image = a.imshow(np.clip(p, 0, 1).reshape(60, 52), origin="lower", extent=extent, vmin=0, vmax=1)
+image = a.imshow(grid.grid(np.clip(p, 0, 1))[0], origin="lower", extent=extent, vmin=0, vmax=1)
 a.contour(
-    above.reshape(60, 52).astype(float),
+    grid.grid(above.astype(float))[0],
     levels=[0.5],
     origin="lower",
     extent=extent,

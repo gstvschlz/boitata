@@ -26,9 +26,8 @@ samples = samples.with_column("w", w)
 
 ns = bt.NormalScore()
 y = ns.fit_transform("V", weights="w", data=samples)
-mean = np.average(y, weights=w)
-sd = np.sqrt(np.average((y - mean) ** 2, weights=w))
-print(f"scores: weighted mean {mean:.3f}, sd {sd:.3f}")
+stats = bt.describe(y, weights=w)
+print(f"scores: weighted mean {stats['mean']:.3f}, sd {stats['std']:.3f}")
 print(f"back-transform max error {np.abs(ns.inverse_transform(y) - v).max():.1e}")
 
 

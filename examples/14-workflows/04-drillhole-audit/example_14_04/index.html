@@ -21346,6 +21346,8 @@
       
         
       
+        
+      
     
     
     
@@ -21555,6 +21557,34 @@
     
   
     block_correlation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../api/validation/compare/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    compare
   
 
     
@@ -22153,7 +22183,7 @@ column holding the hole length.</p>
 
 
 <span class="k">def</span><span class="w"> </span><span class="nf">hit</span><span class="p">(</span><span class="n">flags</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">table</span><span class="p">,</span> <span class="n">name</span><span class="p">):</span>
-    <span class="k">return</span> <span class="nb">sorted</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">t</span><span class="p">[</span><span class="n">table</span><span class="p">][</span><span class="s2">"HOLE_ID"</span><span class="p">])[</span><span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">flags</span><span class="p">[</span><span class="n">table</span><span class="p">][</span><span class="n">name</span><span class="p">])]))</span>
+    <span class="k">return</span> <span class="nb">sorted</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">t</span><span class="p">[</span><span class="n">table</span><span class="p">][</span><span class="s2">"HOLE_ID"</span><span class="p">][</span><span class="n">flags</span><span class="p">[</span><span class="n">table</span><span class="p">][</span><span class="n">name</span><span class="p">]]))</span>
 
 
 <span class="n">flags</span><span class="p">,</span> <span class="n">summary</span><span class="p">,</span> <span class="n">details</span> <span class="o">=</span> <span class="n">check</span><span class="p">(</span><span class="n">raw</span><span class="p">)</span>
@@ -22261,7 +22291,7 @@ samples below its recorded length; one <code>DD0100</code> assay is inverted; <c
 
 
 <span class="k">def</span><span class="w"> </span><span class="nf">rows_of</span><span class="p">(</span><span class="n">table</span><span class="p">,</span> <span class="n">hole</span><span class="p">):</span>
-    <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">table</span><span class="p">[</span><span class="s2">"HOLE_ID"</span><span class="p">])</span> <span class="o">==</span> <span class="n">hole</span>
+    <span class="k">return</span> <span class="n">table</span><span class="p">[</span><span class="s2">"HOLE_ID"</span><span class="p">]</span> <span class="o">==</span> <span class="n">hole</span>
 
 
 <span class="k">def</span><span class="w"> </span><span class="nf">deepest</span><span class="p">(</span><span class="n">hole</span><span class="p">):</span>
@@ -22279,7 +22309,7 @@ samples below its recorded length; one <code>DD0100</code> assay is inverted; <c
 <span class="n">xy</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">c_</span><span class="p">[</span><span class="n">c</span><span class="p">[</span><span class="s2">"X"</span><span class="p">],</span> <span class="n">c</span><span class="p">[</span><span class="s2">"Y"</span><span class="p">]][</span><span class="n">rows_of</span><span class="p">(</span><span class="n">c</span><span class="p">,</span> <span class="s2">"DD0067"</span><span class="p">)]</span>
 <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"DD0067 collar entries are </span><span class="si">{</span><span class="n">np</span><span class="o">.</span><span class="n">hypot</span><span class="p">(</span><span class="o">*</span><span class="p">(</span><span class="n">xy</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">xy</span><span class="p">[</span><span class="mi">0</span><span class="p">]))</span><span class="si">:</span><span class="s2">.0f</span><span class="si">}</span><span class="s2"> m apart"</span><span class="p">)</span>
 
-<span class="n">inverted</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">a</span><span class="p">[</span><span class="s2">"FROM"</span><span class="p">])</span> <span class="o">&gt;</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">a</span><span class="p">[</span><span class="s2">"TO"</span><span class="p">])</span>
+<span class="n">inverted</span> <span class="o">=</span> <span class="n">a</span><span class="p">[</span><span class="s2">"FROM"</span><span class="p">]</span> <span class="o">&gt;</span> <span class="n">a</span><span class="p">[</span><span class="s2">"TO"</span><span class="p">]</span>
 <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"DD0100 inverted assay: FROM </span><span class="si">{</span><span class="n">a</span><span class="p">[</span><span class="s1">'FROM'</span><span class="p">][</span><span class="n">inverted</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span><span class="si">}</span><span class="s2"> TO </span><span class="si">{</span><span class="n">a</span><span class="p">[</span><span class="s1">'TO'</span><span class="p">][</span><span class="n">inverted</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
 <span class="n">dd0197</span> <span class="o">=</span> <span class="n">rows_of</span><span class="p">(</span><span class="n">s</span><span class="p">,</span> <span class="s2">"DD0197"</span><span class="p">)</span>
 <span class="nb">print</span><span class="p">(</span><span class="s2">"DD0197 azimuths at 150, 180, 210 m:"</span><span class="p">,</span> <span class="n">s</span><span class="p">[</span><span class="s2">"AZIMUTH"</span><span class="p">][</span><span class="n">dd0197</span><span class="p">][</span><span class="mi">5</span><span class="p">:</span><span class="mi">8</span><span class="p">])</span>
@@ -22330,7 +22360,7 @@ dip<span class="w"> </span>at<span class="w"> </span>the<span class="w"> </span>
 <!-- GENERATED FROM PYTHON SOURCE LINES 162-172 -->
 
 <p>One <abbr title="a placeholder number such as -999 that a file uses to mark a missing value.">sentinel</abbr> turns a 3.07 % zinc intercept into −139.9 %. A negative grade is easy to spot; a <code>-99</code> in a column of
-values near 100 is not. Boitatá's readers map sentinels to null by default (<code>nodata=</code>); this page reads the raw
+values near 100 is not. The readers in boitatá map sentinels to null by default (<code>nodata=</code>); this page reads the raw
 tables with <code>nodata=[]</code> to keep the problem visible.</p>
 <div class="admonition step">
 <p class="admonition-title">Step 3: Fix by hand what needs evidence</p>
@@ -22352,7 +22382,7 @@ project starts at a <abbr title="the angle in degrees below the horizontal; posi
 
 <span class="n">tables</span> <span class="o">=</span> <span class="p">{</span><span class="n">name</span><span class="p">:</span> <span class="n">strip_ids</span><span class="p">(</span><span class="n">t</span><span class="p">)</span> <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">raw</span><span class="o">.</span><span class="n">items</span><span class="p">()}</span>
 <span class="n">a</span> <span class="o">=</span> <span class="n">tables</span><span class="p">[</span><span class="s2">"assays"</span><span class="p">]</span>
-<span class="n">swap</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">a</span><span class="p">[</span><span class="s2">"FROM"</span><span class="p">])</span> <span class="o">&gt;</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">a</span><span class="p">[</span><span class="s2">"TO"</span><span class="p">])</span>
+<span class="n">swap</span> <span class="o">=</span> <span class="n">a</span><span class="p">[</span><span class="s2">"FROM"</span><span class="p">]</span> <span class="o">&gt;</span> <span class="n">a</span><span class="p">[</span><span class="s2">"TO"</span><span class="p">]</span>
 <span class="n">tables</span><span class="p">[</span><span class="s2">"assays"</span><span class="p">]</span> <span class="o">=</span> <span class="n">replace</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">FROM</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">swap</span><span class="p">,</span> <span class="n">a</span><span class="p">[</span><span class="s2">"TO"</span><span class="p">],</span> <span class="n">a</span><span class="p">[</span><span class="s2">"FROM"</span><span class="p">]),</span> <span class="n">TO</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">swap</span><span class="p">,</span> <span class="n">a</span><span class="p">[</span><span class="s2">"FROM"</span><span class="p">],</span> <span class="n">a</span><span class="p">[</span><span class="s2">"TO"</span><span class="p">]))</span>
 <span class="n">c</span><span class="p">,</span> <span class="n">s</span> <span class="o">=</span> <span class="n">tables</span><span class="p">[</span><span class="s2">"collar"</span><span class="p">],</span> <span class="n">tables</span><span class="p">[</span><span class="s2">"survey"</span><span class="p">]</span>
 <span class="n">dd0055</span> <span class="o">=</span> <span class="n">rows_of</span><span class="p">(</span><span class="n">c</span><span class="p">,</span> <span class="s2">"DD0055"</span><span class="p">)</span>
@@ -22414,7 +22444,7 @@ assertion fails if anything else is flagged.</p>
     <span class="k">assert</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">accepted</span><span class="p">,</span> <span class="n">key</span>
     <span class="k">assert</span> <span class="n">accepted</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="nb">set</span><span class="p">(</span><span class="n">holes</span><span class="p">)</span> <span class="o">&lt;=</span> <span class="n">accepted</span><span class="p">[</span><span class="n">key</span><span class="p">],</span> <span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">holes</span><span class="p">)</span>
 <span class="n">lith</span> <span class="o">=</span> <span class="n">fixed</span><span class="p">[</span><span class="s2">"lithology"</span><span class="p">]</span>
-<span class="n">mineralized</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">lith</span><span class="p">[</span><span class="s2">"HOLE_ID"</span><span class="p">])[</span><span class="n">np</span><span class="o">.</span><span class="n">isin</span><span class="p">(</span><span class="n">lith</span><span class="p">[</span><span class="s2">"LITH"</span><span class="p">],</span> <span class="p">[</span><span class="s2">"MS"</span><span class="p">,</span> <span class="s2">"SMS"</span><span class="p">,</span> <span class="s2">"STR"</span><span class="p">])])</span>
+<span class="n">mineralized</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">lith</span><span class="p">[</span><span class="s2">"HOLE_ID"</span><span class="p">][</span><span class="n">np</span><span class="o">.</span><span class="n">isin</span><span class="p">(</span><span class="n">lith</span><span class="p">[</span><span class="s2">"LITH"</span><span class="p">],</span> <span class="p">[</span><span class="s2">"MS"</span><span class="p">,</span> <span class="s2">"SMS"</span><span class="p">,</span> <span class="s2">"STR"</span><span class="p">])])</span>
 <span class="n">unassayed</span> <span class="o">=</span> <span class="n">mineralized</span> <span class="o">&amp;</span> <span class="nb">set</span><span class="p">(</span><span class="n">hit</span><span class="p">(</span><span class="n">flags</span><span class="p">,</span> <span class="n">fixed</span><span class="p">,</span> <span class="s2">"collar"</span><span class="p">,</span> <span class="s2">"no_assays"</span><span class="p">))</span>
 <span class="nb">print</span><span class="p">(</span><span class="s2">"no assays but logged mineralized:"</span><span class="p">,</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">unassayed</span><span class="p">))</span>
 </code></pre></div>
@@ -22505,7 +22535,7 @@ answered, the affected data stay as the table says:</p>
 shows only what is new. <a href="../../../02-data-and-geometry/17-hole-traces/example_02_17/">Hole traces</a> plots the flagged
 survey stations in plan and section, and <a href="../../../02-data-and-geometry/02-desurvey/example_02_02/">desurvey</a> is the next
 step.</p>
-<p><strong>Total running time of the script:</strong> ( 0 minutes  0.233 seconds)</p>
+<p><strong>Total running time of the script:</strong> ( 0 minutes  0.266 seconds)</p>
 <div id="download_links"></div>
 
 <p><a class="md-button center" href="../example_14_04.py"><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M256 32c0-17.7-14.3-32-32-32s-32 14.3-32 32v210.7l-41.4-41.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3l96 96c12.5 12.5 32.8 12.5 45.3 0l96-96c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L256 242.7zM64 320c-35.3 0-64 28.7-64 64v32c0 35.3 28.7 64 64 64h320c35.3 0 64-28.7 64-64v-32c0-35.3-28.7-64-64-64h-46.9l-56.6 56.6c-31.2 31.2-81.9 31.2-113.1 0L110.9 320zm304 56a24 24 0 1 1 0 48 24 24 0 1 1 0-48"/></svg></span> Download Python source code: example_14_04.py</a></p>

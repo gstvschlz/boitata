@@ -21379,6 +21379,8 @@
       
         
       
+        
+      
     
     
     
@@ -21588,6 +21590,34 @@
     
   
     block_correlation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../api/validation/compare/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    compare
   
 
     
@@ -22120,11 +22150,11 @@ surfaces never cross. <code>grid_surface</code> turns each grid into a mesh.</p>
 <!-- GENERATED FROM PYTHON SOURCE LINES 32-52 -->
 
 <div class="highlight"><pre><span></span><code><span class="n">data</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">datasets</span><span class="o">.</span><span class="n">nickel_laterite_profile</span><span class="p">()</span>
-<span class="n">collars</span><span class="p">,</span> <span class="n">horizons</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="s2">"collars"</span><span class="p">],</span> <span class="n">data</span><span class="p">[</span><span class="s2">"horizons"</span><span class="p">]</span>
-<span class="n">holes</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">Drillholes</span><span class="p">(</span><span class="n">collars</span><span class="p">,</span> <span class="n">data</span><span class="p">[</span><span class="s2">"surveys"</span><span class="p">])</span>
-<span class="n">sap</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">horizons</span><span class="p">[</span><span class="s2">"HORIZON"</span><span class="p">])</span> <span class="o">==</span> <span class="s2">"SAP"</span>
-<span class="n">ids</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">horizons</span><span class="p">[</span><span class="s2">"HOLE_ID"</span><span class="p">],</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">object</span><span class="p">)[</span><span class="n">sap</span><span class="p">])</span>
-<span class="n">top</span><span class="p">,</span> <span class="n">base</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">horizons</span><span class="p">[</span><span class="s2">"FROM"</span><span class="p">])[</span><span class="n">sap</span><span class="p">],</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">horizons</span><span class="p">[</span><span class="s2">"TO"</span><span class="p">])[</span><span class="n">sap</span><span class="p">]</span>
+<span class="n">horizons</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="s2">"horizons"</span><span class="p">]</span>
+<span class="n">holes</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">Drillholes</span><span class="o">.</span><span class="n">from_tables</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">intervals</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
+<span class="n">sap</span> <span class="o">=</span> <span class="n">horizons</span><span class="p">[</span><span class="s2">"HORIZON"</span><span class="p">]</span> <span class="o">==</span> <span class="s2">"SAP"</span>
+<span class="n">ids</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">horizons</span><span class="p">[</span><span class="s2">"HOLE_ID"</span><span class="p">][</span><span class="n">sap</span><span class="p">])</span>
+<span class="n">top</span><span class="p">,</span> <span class="n">base</span> <span class="o">=</span> <span class="n">horizons</span><span class="p">[</span><span class="s2">"FROM"</span><span class="p">][</span><span class="n">sap</span><span class="p">],</span> <span class="n">horizons</span><span class="p">[</span><span class="s2">"TO"</span><span class="p">][</span><span class="n">sap</span><span class="p">]</span>
 <span class="n">contact</span> <span class="o">=</span> <span class="n">holes</span><span class="o">.</span><span class="n">at</span><span class="p">(</span><span class="n">ids</span><span class="p">,</span> <span class="n">base</span><span class="p">)</span>
 
 <span class="n">grid</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">BlockModel</span><span class="p">(</span><span class="n">origin</span><span class="o">=</span><span class="p">(</span><span class="mi">29975</span><span class="p">,</span> <span class="mi">59975</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="n">size</span><span class="o">=</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span> <span class="mi">10</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="n">count</span><span class="o">=</span><span class="p">(</span><span class="mi">106</span><span class="p">,</span> <span class="mi">76</span><span class="p">,</span> <span class="mi">1</span><span class="p">))</span>
@@ -22152,22 +22182,21 @@ bedrock<span class="w"> </span><span class="m">293</span><span class="w"> </span
 bedrock is gentle and the arc lengths add a few percent over a kilometer. points outside the layer get NaN, unless
 <code>extrapolate=True</code>. the logged horizons check the surfaces: the midpoints of the saprolite intervals fall in the
 layer, and all but 1% of the others fall outside.</p>
-<!-- GENERATED FROM PYTHON SOURCE LINES 63-84 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 63-83 -->
 
 <div class="highlight"><pre><span></span><code><span class="n">unfold</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">Unfold</span><span class="p">(</span><span class="n">bedrock</span><span class="p">,</span> <span class="n">limonite</span><span class="p">)</span>
-<span class="n">logged</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">Drillholes</span><span class="p">(</span><span class="n">collars</span><span class="p">,</span> <span class="n">data</span><span class="p">[</span><span class="s2">"surveys"</span><span class="p">],</span> <span class="n">horizons</span><span class="p">)</span><span class="o">.</span><span class="n">samples</span><span class="p">()</span>
+<span class="n">logged</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">Drillholes</span><span class="o">.</span><span class="n">from_tables</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">intervals</span><span class="o">=</span><span class="s2">"horizons"</span><span class="p">)</span><span class="o">.</span><span class="n">samples</span><span class="p">()</span>
 <span class="n">inside</span> <span class="o">=</span> <span class="o">~</span><span class="n">np</span><span class="o">.</span><span class="n">isnan</span><span class="p">(</span><span class="n">unfold</span><span class="o">.</span><span class="n">transform</span><span class="p">(</span><span class="n">logged</span><span class="p">)[:,</span> <span class="mi">2</span><span class="p">])</span>
-<span class="n">is_sap</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">logged</span><span class="p">[</span><span class="s2">"HORIZON"</span><span class="p">])</span> <span class="o">==</span> <span class="s2">"SAP"</span>
+<span class="n">is_sap</span> <span class="o">=</span> <span class="n">logged</span><span class="p">[</span><span class="s2">"HORIZON"</span><span class="p">]</span> <span class="o">==</span> <span class="s2">"SAP"</span>
 <span class="nb">print</span><span class="p">(</span>
     <span class="sa">f</span><span class="s2">"in the layer: </span><span class="si">{</span><span class="n">inside</span><span class="p">[</span><span class="n">is_sap</span><span class="p">]</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span><span class="si">:</span><span class="s2">.1%</span><span class="si">}</span><span class="s2"> of saprolite intervals, </span><span class="si">{</span><span class="n">inside</span><span class="p">[</span><span class="o">~</span><span class="n">is_sap</span><span class="p">]</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span><span class="si">:</span><span class="s2">.1%</span><span class="si">}</span><span class="s2"> of others"</span>
 <span class="p">)</span>
 
-<span class="n">assays</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">Drillholes</span><span class="p">(</span><span class="n">collars</span><span class="p">,</span> <span class="n">data</span><span class="p">[</span><span class="s2">"surveys"</span><span class="p">],</span> <span class="n">data</span><span class="p">[</span><span class="s2">"assays"</span><span class="p">])</span><span class="o">.</span><span class="n">samples</span><span class="p">()</span>
+<span class="n">assays</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">Drillholes</span><span class="o">.</span><span class="n">from_tables</span><span class="p">(</span><span class="n">data</span><span class="p">)</span><span class="o">.</span><span class="n">samples</span><span class="p">()</span>
 <span class="n">uvw</span> <span class="o">=</span> <span class="n">unfold</span><span class="o">.</span><span class="n">transform</span><span class="p">(</span><span class="n">assays</span><span class="p">)</span>
-<span class="n">keep</span> <span class="o">=</span> <span class="o">~</span><span class="n">np</span><span class="o">.</span><span class="n">isnan</span><span class="p">(</span><span class="n">uvw</span><span class="p">[:,</span> <span class="mi">2</span><span class="p">])</span> <span class="o">&amp;</span> <span class="o">~</span><span class="n">np</span><span class="o">.</span><span class="n">isnan</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">assays</span><span class="p">[</span><span class="s2">"NI_PCT"</span><span class="p">]))</span>
-<span class="n">xyz</span><span class="p">,</span> <span class="n">uvw</span> <span class="o">=</span> <span class="n">assays</span><span class="o">.</span><span class="n">coords</span><span class="p">[</span><span class="n">keep</span><span class="p">],</span> <span class="n">uvw</span><span class="p">[</span><span class="n">keep</span><span class="p">]</span>
-<span class="n">ni</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">assays</span><span class="p">[</span><span class="s2">"NI_PCT"</span><span class="p">])[</span><span class="n">keep</span><span class="p">]</span>
-<span class="n">hole</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">assays</span><span class="p">[</span><span class="s2">"HOLE_ID"</span><span class="p">],</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">object</span><span class="p">)[</span><span class="n">keep</span><span class="p">]</span>
+<span class="n">keep</span> <span class="o">=</span> <span class="o">~</span><span class="n">np</span><span class="o">.</span><span class="n">isnan</span><span class="p">(</span><span class="n">uvw</span><span class="p">[:,</span> <span class="mi">2</span><span class="p">])</span> <span class="o">&amp;</span> <span class="o">~</span><span class="n">np</span><span class="o">.</span><span class="n">isnan</span><span class="p">(</span><span class="n">assays</span><span class="p">[</span><span class="s2">"NI_PCT"</span><span class="p">])</span>
+<span class="n">assays</span><span class="p">,</span> <span class="n">uvw</span> <span class="o">=</span> <span class="n">assays</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">keep</span><span class="p">),</span> <span class="n">uvw</span><span class="p">[</span><span class="n">keep</span><span class="p">]</span>
+<span class="n">xyz</span><span class="p">,</span> <span class="n">ni</span><span class="p">,</span> <span class="n">hole</span> <span class="o">=</span> <span class="n">assays</span><span class="o">.</span><span class="n">coords</span><span class="p">,</span> <span class="n">assays</span><span class="p">[</span><span class="s2">"NI_PCT"</span><span class="p">],</span> <span class="n">assays</span><span class="p">[</span><span class="s2">"HOLE_ID"</span><span class="p">]</span>
 <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">keep</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span><span class="si">}</span><span class="s2"> assays in the saprolite, Ni </span><span class="si">{</span><span class="n">ni</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span><span class="si">:</span><span class="s2">.2f</span><span class="si">}</span><span class="s2"> % mean"</span><span class="p">)</span>
 <span class="n">along</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">Unfold</span><span class="p">(</span><span class="n">bedrock</span><span class="p">,</span> <span class="n">limonite</span><span class="p">,</span> <span class="n">reference</span><span class="o">=</span><span class="s2">"footwall"</span><span class="p">)</span><span class="o">.</span><span class="n">transform</span><span class="p">(</span><span class="n">xyz</span><span class="p">)</span>
 <span class="nb">print</span><span class="p">(</span>
@@ -22180,12 +22209,12 @@ layer, and all but 1% of the others fall outside.</p>
 <span class="m">4894</span><span class="w"> </span>assays<span class="w"> </span><span class="k">in</span><span class="w"> </span>the<span class="w"> </span>saprolite,<span class="w"> </span>Ni<span class="w"> </span><span class="m">1</span>.77<span class="w"> </span>%<span class="w"> </span>mean
 arc<span class="w"> </span>length<span class="w"> </span>along<span class="w"> </span>the<span class="w"> </span>bedrock<span class="w"> </span>minus<span class="w"> </span>plan<span class="w"> </span>distance:<span class="w"> </span>up<span class="w"> </span>to<span class="w"> </span><span class="m">45</span>.6<span class="w"> </span>m<span class="w"> </span><span class="k">in</span><span class="w"> </span>u,<span class="w"> </span><span class="m">34</span>.0<span class="w"> </span>m<span class="w"> </span><span class="k">in</span><span class="w"> </span>v
 </code></pre></div>
-<!-- GENERATED FROM PYTHON SOURCE LINES 85-88 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 84-87 -->
 
 <p>nickel is richer in the lower half of the saprolite. the bedrock moves up and down by tens of meters, so the profile
 blurs against elevation. against <code>w</code> the decile means explain five times as much of the variance, though most of it
 stays local.</p>
-<!-- GENERATED FROM PYTHON SOURCE LINES 91-107 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 90-106 -->
 
 <div class="highlight"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">binned</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">n</span><span class="o">=</span><span class="mi">10</span><span class="p">):</span>
     <span class="n">edges</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">quantile</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">n</span> <span class="o">+</span> <span class="mi">1</span><span class="p">))</span>
@@ -22208,7 +22237,7 @@ stays local.</p>
 <div class="mkd-glr-script-out-disp highlight"><pre><span></span><code>Elevation:<span class="w"> </span>decile<span class="w"> </span>means<span class="w"> </span>explain<span class="w"> </span><span class="m">1</span>.5%<span class="w"> </span>of<span class="w"> </span>the<span class="w"> </span>Ni<span class="w"> </span>variance
 <span class="w">        </span>w:<span class="w"> </span>decile<span class="w"> </span>means<span class="w"> </span>explain<span class="w"> </span><span class="m">7</span>.9%<span class="w"> </span>of<span class="w"> </span>the<span class="w"> </span>Ni<span class="w"> </span>variance
 </code></pre></div>
-<!-- GENERATED FROM PYTHON SOURCE LINES 108-118 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 107-117 -->
 
 <h2 id="variograms">variograms<a class="headerlink" href="#variograms" title="Permanent link">&para;</a></h2>
 <p>for variography, scale the unfolded <code>w</code> by the mean thickness so that distances across the layer stay in meters. along
@@ -22218,7 +22247,7 @@ are vertical.</p>
 only the scaling of <code>w</code> changes the distances. along the layer the real variogram starts lower, 0.52 against 0.67 at
 12 m: in this deposit nearby samples at one elevation are more alike than nearby samples at one position in the
 profile.</p>
-<!-- GENERATED FROM PYTHON SOURCE LINES 120-139 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 119-138 -->
 
 <div class="highlight"><pre><span></span><code><span class="n">depth</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">nanmean</span><span class="p">(</span><span class="n">thickness</span><span class="p">)</span>
 <span class="n">unfolded</span> <span class="o">=</span> <span class="n">uvw</span> <span class="o">*</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">depth</span><span class="p">]</span>
@@ -22244,7 +22273,7 @@ profile.</p>
 <div class="mkd-glr-script-out-disp highlight"><pre><span></span><code><span class="w">    </span>real:<span class="w"> </span>gamma<span class="w"> </span>along<span class="w"> </span><span class="m">0</span>.52<span class="w"> </span>at<span class="w"> </span><span class="m">12</span><span class="w"> </span>m,<span class="w"> </span>across<span class="w"> </span><span class="m">0</span>.37<span class="w"> </span>at<span class="w"> </span><span class="m">0</span>.5<span class="w"> </span>m
 unfolded:<span class="w"> </span>gamma<span class="w"> </span>along<span class="w"> </span><span class="m">0</span>.67<span class="w"> </span>at<span class="w"> </span><span class="m">12</span><span class="w"> </span>m,<span class="w"> </span>across<span class="w"> </span><span class="m">0</span>.37<span class="w"> </span>at<span class="w"> </span><span class="m">0</span>.5<span class="w"> </span>m
 </code></pre></div>
-<!-- GENERATED FROM PYTHON SOURCE LINES 140-148 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 139-147 -->
 
 <h2 id="kriging">kriging<a class="headerlink" href="#kriging" title="Permanent link">&para;</a></h2>
 <p>the same <abbr title="kriging with an unknown mean that is constant near the target; its weights sum to one.">ordinary kriging</abbr> runs on both coordinate sets, cross-validated by leaving out one of ten groups of whole
@@ -22252,7 +22281,7 @@ holes at a time.</p>
 <p>the variograms predicted it: the real coordinates estimate slightly better, RMSE 0.816 % against 0.865 %. unfolding
 pays off where grade follows the layer, as in a folded bed or a profile whose base moves more than the grade changes
 across it. <abbr title="re-estimating each sample from the other samples and comparing the estimates with the actual values.">cross-validation</abbr> on both coordinate sets tells you which case your deposit is.</p>
-<!-- GENERATED FROM PYTHON SOURCE LINES 150-157 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 149-156 -->
 
 <div class="highlight"><pre><span></span><code><span class="n">model</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">Variogram</span><span class="p">([(</span><span class="s2">"spherical"</span><span class="p">,</span> <span class="mf">0.6</span> <span class="o">*</span> <span class="n">ni</span><span class="o">.</span><span class="n">var</span><span class="p">(),</span> <span class="mf">150.0</span><span class="p">)],</span> <span class="n">nugget</span><span class="o">=</span><span class="mf">0.25</span> <span class="o">*</span> <span class="n">ni</span><span class="o">.</span><span class="n">var</span><span class="p">(),</span> <span class="n">ratios</span><span class="o">=</span><span class="p">(</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">0.05</span><span class="p">))</span>
 <span class="n">search</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">Search</span><span class="p">(</span><span class="mf">200.0</span><span class="p">,</span> <span class="n">max_samples</span><span class="o">=</span><span class="mi">24</span><span class="p">,</span> <span class="n">ratios</span><span class="o">=</span><span class="p">(</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">0.05</span><span class="p">),</span> <span class="n">max_per_hole</span><span class="o">=</span><span class="mi">6</span><span class="p">)</span>
@@ -22265,19 +22294,19 @@ across it. <abbr title="re-estimating each sample from the other samples and com
 <div class="mkd-glr-script-out-disp highlight"><pre><span></span><code><span class="w">    </span>real:<span class="w"> </span>RMSE<span class="w"> </span><span class="m">0</span>.816<span class="w"> </span>%,<span class="w"> </span>correlation<span class="w"> </span><span class="m">0</span>.470
 unfolded:<span class="w"> </span>RMSE<span class="w"> </span><span class="m">0</span>.865<span class="w"> </span>%,<span class="w"> </span>correlation<span class="w"> </span><span class="m">0</span>.367
 </code></pre></div>
-<!-- GENERATED FROM PYTHON SOURCE LINES 158-163 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 157-162 -->
 
 <h2 id="back-to-the-blocks">back to the blocks<a class="headerlink" href="#back-to-the-blocks" title="Permanent link">&para;</a></h2>
 <p>the saprolite blocks are those whose centers unfold to a finite <code>w</code>. their unfolded centers are the kriging targets,
 and the estimates, one per row, become a column of the real blocks; <code>inverse</code> maps the unfolded centers back onto the
 centroids. in section the estimates run in bands parallel to the contacts.</p>
-<!-- GENERATED FROM PYTHON SOURCE LINES 165-181 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 164-180 -->
 
 <div class="highlight"><pre><span></span><code><span class="n">blocks</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">BlockModel</span><span class="p">(</span><span class="n">origin</span><span class="o">=</span><span class="p">(</span><span class="mi">29975</span><span class="p">,</span> <span class="mi">59975</span><span class="p">,</span> <span class="mi">300</span><span class="p">),</span> <span class="n">size</span><span class="o">=</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span> <span class="mi">10</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="n">count</span><span class="o">=</span><span class="p">(</span><span class="mi">106</span><span class="p">,</span> <span class="mi">76</span><span class="p">,</span> <span class="mi">80</span><span class="p">))</span>
-<span class="n">blocks</span> <span class="o">=</span> <span class="n">blocks</span><span class="o">.</span><span class="n">mask</span><span class="p">(</span><span class="o">~</span><span class="n">np</span><span class="o">.</span><span class="n">isnan</span><span class="p">(</span><span class="n">unfold</span><span class="o">.</span><span class="n">transform</span><span class="p">(</span><span class="n">blocks</span><span class="p">)[:,</span> <span class="mi">2</span><span class="p">]))</span>
+<span class="n">blocks</span> <span class="o">=</span> <span class="n">blocks</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="o">~</span><span class="n">np</span><span class="o">.</span><span class="n">isnan</span><span class="p">(</span><span class="n">unfold</span><span class="o">.</span><span class="n">transform</span><span class="p">(</span><span class="n">blocks</span><span class="p">)[:,</span> <span class="mi">2</span><span class="p">]))</span>
 <span class="n">targets</span> <span class="o">=</span> <span class="n">unfold</span><span class="o">.</span><span class="n">transform</span><span class="p">(</span><span class="n">blocks</span><span class="p">)</span>
 <span class="n">back</span> <span class="o">=</span> <span class="n">unfold</span><span class="o">.</span><span class="n">inverse</span><span class="p">(</span><span class="n">targets</span><span class="p">)</span>
-<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"inverse of the unfolded centers: </span><span class="si">{</span><span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">back</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">blocks</span><span class="o">.</span><span class="n">centroids</span><span class="p">)</span><span class="o">.</span><span class="n">max</span><span class="p">()</span><span class="si">:</span><span class="s2">.1e</span><span class="si">}</span><span class="s2"> m from the centroids"</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"inverse of the unfolded centers: </span><span class="si">{</span><span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">back</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">blocks</span><span class="o">.</span><span class="n">coords</span><span class="p">)</span><span class="o">.</span><span class="n">max</span><span class="p">()</span><span class="si">:</span><span class="s2">.1e</span><span class="si">}</span><span class="s2"> m from the centroids"</span><span class="p">)</span>
 <span class="n">blocks</span> <span class="o">=</span> <span class="n">blocks</span><span class="o">.</span><span class="n">with_column</span><span class="p">(</span><span class="s2">"NI"</span><span class="p">,</span> <span class="n">kriging</span><span class="p">[</span><span class="s2">"unfolded"</span><span class="p">]</span><span class="o">.</span><span class="n">predict</span><span class="p">(</span><span class="n">targets</span> <span class="o">*</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">depth</span><span class="p">]))</span>
 <span class="nb">print</span><span class="p">(</span><span class="n">blocks</span><span class="p">)</span>
 
@@ -22296,7 +22325,7 @@ centroids. in section the estimates run in bands parallel to the contacts.</p>
 BlockModel<span class="o">(</span>masked,<span class="w"> </span><span class="m">87068</span><span class="w"> </span>of<span class="w"> </span><span class="m">644480</span><span class="w"> </span>cells,<span class="w"> </span>count<span class="w"> </span><span class="o">[</span><span class="m">106</span>,<span class="w"> </span><span class="m">76</span>,<span class="w"> </span><span class="m">80</span><span class="o">]</span>,<span class="w"> </span>size<span class="w"> </span><span class="o">[</span><span class="m">10</span>.0,<span class="w"> </span><span class="m">10</span>.0,<span class="w"> </span><span class="m">1</span>.0<span class="o">]</span>,<span class="w"> </span>rotation<span class="w"> </span><span class="o">[</span><span class="m">0</span>.0,<span class="w"> </span><span class="m">0</span>.0,<span class="w"> </span><span class="m">0</span>.0<span class="o">])</span>
 <span class="w">  </span>NI:<span class="w"> </span>Float64
 </code></pre></div>
-<p><strong>Total running time of the script:</strong> ( 0 minutes  0.523 seconds)</p>
+<p><strong>Total running time of the script:</strong> ( 0 minutes  0.704 seconds)</p>
 <div id="download_links"></div>
 
 <p><a class="md-button center" href="../example_04_09.py"><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M256 32c0-17.7-14.3-32-32-32s-32 14.3-32 32v210.7l-41.4-41.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3l96 96c12.5 12.5 32.8 12.5 45.3 0l96-96c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L256 242.7zM64 320c-35.3 0-64 28.7-64 64v32c0 35.3 28.7 64 64 64h320c35.3 0 64-28.7 64-64v-32c0-35.3-28.7-64-64-64h-46.9l-56.6 56.6c-31.2 31.2-81.9 31.2-113.1 0L110.9 320zm304 56a24 24 0 1 1 0 48 24 24 0 1 1 0-48"/></svg></span> Download Python source code: example_04_09.py</a></p>

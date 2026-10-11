@@ -21275,6 +21275,8 @@
       
         
       
+        
+      
     
     
     
@@ -21484,6 +21486,34 @@
     
   
     block_correlation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/validation/compare/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    compare
   
 
     
@@ -22044,6 +22074,17 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#cleaning-steps" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        cleaning steps
+      
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -22314,87 +22355,7 @@
 
 <!-- docs_examples_03-exploratory-analysis_13-reference-distributions -->
 
-<h1 id="cleaning-steps">cleaning steps<a class="headerlink" href="#cleaning-steps" title="Permanent link">&para;</a></h1>
-<p>assay tables arrive with upper-case names, sentinels such as -99 and "NS" (not sampled), detection-limit text such as
-"&lt;0.01" and grades stored as text. each cleaning step fixes one of these and returns a new container, and a <code>Pipeline</code>
-chains them so the same cleaning runs on the next batch of assays. here the raw assays of the stacked sulphide lenses
-go from text to numeric grades ready for statistics.</p>
-<details><summary>Python</summary>
-
-<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">boitata</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">bt</span>
-<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">common</span><span class="w"> </span><span class="kn">import</span> <span class="n">ACCENT</span><span class="p">,</span> <span class="n">save</span>
-
-<span class="n">raw</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">datasets</span><span class="o">.</span><span class="n">stacked_sulphide_lenses</span><span class="p">(</span><span class="n">raw</span><span class="o">=</span><span class="kc">True</span><span class="p">)[</span><span class="s2">"assays"</span><span class="p">]</span>
-<span class="nb">print</span><span class="p">(</span><span class="n">raw</span><span class="o">.</span><span class="n">column_names</span><span class="p">)</span>
-<span class="nb">print</span><span class="p">({</span><span class="n">c</span><span class="p">:</span> <span class="nb">sorted</span><span class="p">({</span><span class="n">s</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">raw</span><span class="p">[</span><span class="n">c</span><span class="p">]</span> <span class="k">if</span> <span class="n">s</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">s</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">isdigit</span><span class="p">()})</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">raw</span><span class="o">.</span><span class="n">column_names</span><span class="p">[</span><span class="mi">3</span><span class="p">:</span><span class="mi">8</span><span class="p">]})</span>
-</code></pre></div>
-
-</details>
-
-<div class="highlight"><pre><span></span><code>['HOLE_ID', 'FROM', 'TO', 'ZN_PCT', 'PB_PCT', 'CU_PCT', 'AG_GPT', 'AU_GPT', 'DENSITY']
-{'ZN_PCT': ['-999', 'NS'], 'PB_PCT': ['-99', 'NS'], 'CU_PCT': ['-999', '&lt;0.01', 'NS'], 'AG_GPT': ['-99', 'NS'], 'AU_GPT': ['-999', '&lt;0.01', 'NS']}
-</code></pre></div>
-<p><code>RenameColumns</code> snake-cases the names. <code>ToNull</code> turns the sentinels into nulls; the grades are text, so the text forms
-of -99 and -999 count too. <code>Replace</code> sets grades below detection to half the 0.01 limit, then <code>ToNumber</code> parses the
-grade columns and raises if any text is left. <code>DropNull</code> keeps the intervals with a zinc assay.</p>
-<details><summary>Python</summary>
-
-<div class="highlight"><pre><span></span><code><span class="n">grades</span> <span class="o">=</span> <span class="p">[</span><span class="s2">"zn_pct"</span><span class="p">,</span> <span class="s2">"pb_pct"</span><span class="p">,</span> <span class="s2">"cu_pct"</span><span class="p">,</span> <span class="s2">"ag_gpt"</span><span class="p">,</span> <span class="s2">"au_gpt"</span><span class="p">]</span>
-<span class="n">clean</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">Pipeline</span><span class="p">(</span>
-    <span class="p">[</span>
-        <span class="p">(</span><span class="s2">"names"</span><span class="p">,</span> <span class="n">bt</span><span class="o">.</span><span class="n">RenameColumns</span><span class="p">(</span><span class="n">case</span><span class="o">=</span><span class="s2">"snake"</span><span class="p">)),</span>
-        <span class="p">(</span><span class="s2">"sentinels"</span><span class="p">,</span> <span class="n">bt</span><span class="o">.</span><span class="n">ToNull</span><span class="p">([</span><span class="s2">"NS"</span><span class="p">,</span> <span class="s2">"-99"</span><span class="p">,</span> <span class="s2">"-999"</span><span class="p">,</span> <span class="o">-</span><span class="mi">99</span><span class="p">,</span> <span class="o">-</span><span class="mi">999</span><span class="p">])),</span>
-        <span class="p">(</span><span class="s2">"detection"</span><span class="p">,</span> <span class="n">bt</span><span class="o">.</span><span class="n">Replace</span><span class="p">({</span><span class="s2">"&lt;0.01"</span><span class="p">:</span> <span class="s2">"0.005"</span><span class="p">},</span> <span class="n">columns</span><span class="o">=</span><span class="n">grades</span><span class="p">)),</span>
-        <span class="p">(</span><span class="s2">"numbers"</span><span class="p">,</span> <span class="n">bt</span><span class="o">.</span><span class="n">ToNumber</span><span class="p">(</span><span class="n">grades</span><span class="p">)),</span>
-        <span class="p">(</span><span class="s2">"zinc"</span><span class="p">,</span> <span class="n">bt</span><span class="o">.</span><span class="n">DropNull</span><span class="p">(</span><span class="n">columns</span><span class="o">=</span><span class="s2">"zn_pct"</span><span class="p">)),</span>
-    <span class="p">]</span>
-<span class="p">)</span>
-<span class="n">assays</span> <span class="o">=</span> <span class="n">clean</span><span class="o">.</span><span class="n">fit_transform</span><span class="p">(</span><span class="n">raw</span><span class="p">)</span>
-<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">raw</span><span class="p">)</span><span class="si">}</span><span class="s2"> intervals in, </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">assays</span><span class="p">)</span><span class="si">}</span><span class="s2"> with zinc"</span><span class="p">)</span>
-<span class="k">for</span> <span class="n">g</span> <span class="ow">in</span> <span class="n">grades</span><span class="p">:</span>
-    <span class="n">v</span> <span class="o">=</span> <span class="n">assays</span><span class="p">[</span><span class="n">g</span><span class="p">]</span>
-    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">g</span><span class="si">:</span><span class="s2">7</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="n">np</span><span class="o">.</span><span class="n">isnan</span><span class="p">(</span><span class="n">v</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span><span class="si">:</span><span class="s2">5</span><span class="si">}</span><span class="s2"> null, mean </span><span class="si">{</span><span class="n">np</span><span class="o">.</span><span class="n">nanmean</span><span class="p">(</span><span class="n">v</span><span class="p">)</span><span class="si">:</span><span class="s2">.3f</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
-</code></pre></div>
-
-</details>
-
-<div class="highlight"><pre><span></span><code>16907 intervals in, 16905 with zinc
-zn_pct      0 null, mean 0.902
-pb_pct      1 null, mean 0.343
-cu_pct      1 null, mean 0.152
-ag_gpt      1 null, mean 8.184
-au_gpt   4386 null, mean 0.221
-</code></pre></div>
-<p>units live in the column metadata and survive <abbr title="an open, compressed file format for tables that most data tools read.">Parquet</abbr>. <code>convert_units</code> rescales a column and relabels its unit; here
-gold goes from g/t to ppb. plots label their axes with the unit.</p>
-<details><summary>Python</summary>
-
-<div class="highlight"><pre><span></span><code><span class="n">assays</span> <span class="o">=</span> <span class="n">assays</span><span class="o">.</span><span class="n">with_units</span><span class="p">({</span><span class="s2">"zn_pct"</span><span class="p">:</span> <span class="s2">"%"</span><span class="p">,</span> <span class="s2">"pb_pct"</span><span class="p">:</span> <span class="s2">"%"</span><span class="p">,</span> <span class="s2">"cu_pct"</span><span class="p">:</span> <span class="s2">"%"</span><span class="p">,</span> <span class="s2">"ag_gpt"</span><span class="p">:</span> <span class="s2">"g/t"</span><span class="p">,</span> <span class="s2">"au_gpt"</span><span class="p">:</span> <span class="s2">"g/t"</span><span class="p">})</span>
-<span class="n">assays</span> <span class="o">=</span> <span class="n">assays</span><span class="o">.</span><span class="n">convert_units</span><span class="p">(</span><span class="s2">"au_gpt"</span><span class="p">,</span> <span class="n">to</span><span class="o">=</span><span class="s2">"ppb"</span><span class="p">)</span>
-<span class="nb">print</span><span class="p">(</span><span class="n">assays</span><span class="o">.</span><span class="n">units</span><span class="p">)</span>
-<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"mean gold </span><span class="si">{</span><span class="n">np</span><span class="o">.</span><span class="n">nanmean</span><span class="p">(</span><span class="n">assays</span><span class="p">[</span><span class="s1">'au_gpt'</span><span class="p">])</span><span class="si">:</span><span class="s2">.0f</span><span class="si">}</span><span class="s2"> ppb"</span><span class="p">)</span>
-</code></pre></div>
-
-</details>
-
-<div class="highlight"><pre><span></span><code>{'zn_pct': '%', 'pb_pct': '%', 'cu_pct': '%', 'ag_gpt': 'g/t', 'au_gpt': 'ppb'}
-mean gold 221 ppb
-</code></pre></div>
-<p>the zinc grades span three orders of magnitude; on a log axis their two populations separate.</p>
-<details><summary>Python</summary>
-
-<div class="highlight"><pre><span></span><code><span class="n">fig</span><span class="p">,</span> <span class="n">ax</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">plot</span><span class="o">.</span><span class="n">histogram</span><span class="p">(</span><span class="s2">"zn_pct"</span><span class="p">,</span> <span class="n">data</span><span class="o">=</span><span class="n">assays</span><span class="p">,</span> <span class="n">log</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">bins</span><span class="o">=</span><span class="mi">60</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="n">ACCENT</span><span class="p">)</span>
-<span class="n">ax</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="s2">"Cleaned zinc assays"</span><span class="p">)</span>
-<span class="n">save</span><span class="p">(</span><span class="n">fig</span><span class="p">,</span> <span class="s2">"zinc"</span><span class="p">)</span>
-</code></pre></div>
-
-</details>
-
-<p><img alt="zinc" src="zinc.png" /></p>
-<p><code>clean.to_json()</code> saves the chain; <code>bt.Pipeline.from_json</code> reloads it for the next batch, and a batch missing a column
-a step reads raises <code>MissingColumn</code> naming that step.</p>
-<p>Full script: <a href="example_03_14.py"><code>example_03_14.py</code></a></p>
+<h2 id="cleaning-steps">cleaning steps<a class="headerlink" href="#cleaning-steps" title="Permanent link">&para;</a></h2>
 <div class="mkd-glr-thumbcontainer" tooltip="assay tables arrive with upper-case names, sentinels such as -99 and &quot;NS&quot; (not sampled), detect...">
     <!--div class="figure align-default" id="id1"-->
         <img alt="cleaning steps" src="14-cleaning-steps\images\thumb\mkd_glr_example_03_14_thumb.png" />

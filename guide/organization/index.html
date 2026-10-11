@@ -21342,6 +21342,8 @@
       
         
       
+        
+      
     
     
     
@@ -21551,6 +21553,34 @@
     
   
     block_correlation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/validation/compare/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    compare
   
 
     
@@ -22162,9 +22192,10 @@ BlockModel(regular, 3120 of 3120 cells, count [52, 60, 1], size [5.0, 5.0, 1.0],
 <h2 id="five-kinds-of-object">five kinds of object<a class="headerlink" href="#five-kinds-of-object" title="Permanent link">&para;</a></h2>
 <p><strong>containers hold data.</strong> <code>Table</code>, <code>PointSet</code>, <code>Drillholes</code>, <code>BlockModel</code>, <code>Mesh</code> and <code>Polylines</code> store columns plus the geometry that places each row: coordinates for points, origin and block size for a grid, vertices and triangles for a mesh. <a href="../containers/">containers and <abbr title="a standard in-memory column format that polars, pandas and pyarrow read directly.">arrow</abbr></a> covers them.</p>
 <p><strong>value objects describe a model.</strong> a <code>Variogram</code>, a <code>Structure</code>, a <code>Search</code>, a <code>Categories</code> scheme or a <code>HighGrade</code> restriction holds parameters and no data. you build one, read its properties, pass it to an estimator and save it as JSON. a <abbr title="an object that holds model parameters and no data, such as a variogram or a search; it never changes after you build it.">value object</abbr> never changes after you build it.</p>
-<p><strong>estimators and transforms learn from data.</strong> <code>NormalScore</code>, <code>Capping</code>, <code>OrdinaryKriging</code>, <code>SGS</code> and their relatives share one lifecycle: build with options, <code>fit</code> to samples, then <code>transform</code> or <code>predict</code>. <a href="../estimators/">fit, transform, predict</a> walks through it.</p>
+<p><strong>transforms learn a mapping.</strong> <code>NormalScore</code>, <code>Capping</code>, <code>PPMT</code> and their relatives fit to samples, then send values through <code>transform</code> and back through <code>inverse_transform</code>.</p>
+<p><strong>estimators learn from samples and answer at targets.</strong> <code>OrdinaryKriging</code>, <code>BlockKriging</code>, <code>SGS</code> and the rest fit to samples, then answer <code>predict</code> or <code>simulate</code> wherever you point them. transforms and estimators share one lifecycle: build with options, <code>fit</code>, then ask for results. <a href="../estimators/">fit, transform, predict</a> walks through it.</p>
 <p><strong>functions compute a result in one call.</strong> exploratory statistics (<code>describe</code>, <code>describe_by</code>, <code>swath</code>, <code>contact</code>, <code>grade_tonnage</code>) and experimental variograms (<code>experimental_variogram</code>, <code>variogram_map</code>) take data and return numbers, a <code>Table</code> or an <code>ExperimentalVariogram</code>. they fit and remember nothing.</p>
-<p><strong>modules draw and fetch.</strong> <code>bt.plot</code> draws on matplotlib and returns <code>fig, ax</code>; every plot accepts <code>ax=</code> to draw into your own axes. <code>bt.datasets</code> downloads the teaching datasets once and caches them.</p>
+<p>beyond those five, two modules draw and fetch: <code>bt.plot</code> draws on matplotlib and returns <code>fig, ax</code>, and every plot accepts <code>ax=</code> to draw into your own axes; <code>bt.datasets</code> downloads the teaching datasets once and caches them.</p>
 <div class="bt-compare">
 <table>
 <thead>
@@ -22211,7 +22242,7 @@ BlockModel(regular, 3120 of 3120 cells, count [52, 60, 1], size [5.0, 5.0, 1.0],
 </div>
 <div class="admonition key">
 <p class="admonition-title">key idea</p>
-<p>ask what kind of object you hold. a container answers <code>with_column</code>, a <abbr title="an object that holds model parameters and no data, such as a variogram or a search; it never changes after you build it.">value object</abbr> answers <code>to_json</code>, an estimator answers <code>fit</code> and <code>predict</code>, and a function answers once and keeps nothing.</p>
+<p>ask what kind of object you hold. a container answers <code>with_column</code>, a <abbr title="an object that holds model parameters and no data, such as a variogram or a search; it never changes after you build it.">value object</abbr> answers <code>to_json</code>, a transform and an estimator answer <code>fit</code> and then <code>transform</code> or <code>predict</code>, and a function answers once and keeps nothing.</p>
 </div>
 <h2 id="guessing-a-call">guessing a call<a class="headerlink" href="#guessing-a-call" title="Permanent link">&para;</a></h2>
 <p>the names follow a few rules, so you can often write a call you have not seen before.</p>

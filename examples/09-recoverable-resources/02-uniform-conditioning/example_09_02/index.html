@@ -21287,6 +21287,8 @@
       
         
       
+        
+      
     
     
     
@@ -21496,6 +21498,34 @@
     
   
     block_correlation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../api/validation/compare/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    compare
   
 
     
@@ -21937,7 +21967,7 @@ to download the full example code</p>
 </div>
 <h1 id="uniform-conditioning">uniform conditioning<a class="headerlink" href="#uniform-conditioning" title="Permanent link">&para;</a></h1>
 <p>kriged panels are too large to mine selectively, and kriged selective blocks are too smooth. uniform conditioning
-takes the kriged grade of each panel and returns the <abbr title="tonnage and mean grade above each cutoff.">grade-tonnage curve</abbr> of the selective blocks inside it;
+takes the kriged grade of each panel and returns the <abbr title="tonnes and mean grade above each cutoff, read as a curve over the cutoffs.">grade-tonnage curve</abbr> of the selective blocks inside it;
 localization then places those blocks. the exhaustive walker lake grid gives the true 10 m blocks to check against.</p>
 <!-- GENERATED FROM PYTHON SOURCE LINES 10-16 -->
 
@@ -21968,7 +21998,7 @@ localization then places those blocks. the exhaustive walker lake grid gives the
 of a hermite anamorphosis sets the change-of-<abbr title="the volume a value represents: a point, a length of core or a block.">support</abbr> coefficient r of 10 m blocks
 (<a href="../../01-discrete-gaussian-model/example_09_01/">discrete gaussian model</a>). the variogram of the
 grades, rescaled to the anamorphosis variance, kriges the panels.</p>
-<!-- GENERATED FROM PYTHON SOURCE LINES 38-58 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 38-52 -->
 
 <div class="highlight"><pre><span></span><code><span class="n">anam</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">HermiteAnamorphosis</span><span class="p">(</span><span class="n">degree</span><span class="o">=</span><span class="mi">40</span><span class="p">)</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="n">weights</span><span class="o">=</span><span class="n">weights</span><span class="p">)</span>
 <span class="n">azimuths</span> <span class="o">=</span> <span class="p">(</span><span class="mi">170</span><span class="p">,</span> <span class="mi">260</span><span class="p">)</span>
@@ -21979,13 +22009,7 @@ grades, rescaled to the anamorphosis variance, kriges the panels.</p>
 
 <span class="n">grades</span> <span class="o">=</span> <span class="p">[</span><span class="n">bt</span><span class="o">.</span><span class="n">experimental_variogram</span><span class="p">(</span><span class="n">xy</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="mi">10</span><span class="p">,</span> <span class="mi">120</span><span class="p">,</span> <span class="n">azimuth</span><span class="o">=</span><span class="n">a</span><span class="p">)</span> <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">azimuths</span><span class="p">]</span>
 <span class="n">fitted</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">Variogram</span><span class="o">.</span><span class="n">fit_directional</span><span class="p">(</span><span class="n">grades</span><span class="p">,</span> <span class="n">directions</span><span class="p">,</span> <span class="p">[</span><span class="s2">"spherical"</span><span class="p">,</span> <span class="s2">"spherical"</span><span class="p">],</span> <span class="n">rotation</span><span class="o">=</span><span class="p">[</span><span class="mi">170</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">])</span>
-<span class="n">scale</span> <span class="o">=</span> <span class="n">anam</span><span class="o">.</span><span class="n">variance_</span> <span class="o">/</span> <span class="n">fitted</span><span class="o">.</span><span class="n">sill</span>
-<span class="n">raw</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">Variogram</span><span class="p">(</span>
-    <span class="p">[(</span><span class="n">s</span><span class="o">.</span><span class="n">model</span><span class="p">,</span> <span class="n">s</span><span class="o">.</span><span class="n">sill</span> <span class="o">*</span> <span class="n">scale</span><span class="p">,</span> <span class="n">s</span><span class="o">.</span><span class="n">range</span><span class="p">)</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">fitted</span><span class="o">.</span><span class="n">structures</span><span class="p">],</span>
-    <span class="n">nugget</span><span class="o">=</span><span class="n">fitted</span><span class="o">.</span><span class="n">nugget</span> <span class="o">*</span> <span class="n">scale</span><span class="p">,</span>
-    <span class="n">rotation</span><span class="o">=</span><span class="n">fitted</span><span class="o">.</span><span class="n">rotation</span><span class="p">,</span>
-    <span class="n">ratios</span><span class="o">=</span><span class="n">fitted</span><span class="o">.</span><span class="n">ratios</span><span class="p">,</span>
-<span class="p">)</span>
+<span class="n">raw</span> <span class="o">=</span> <span class="n">fitted</span><span class="o">.</span><span class="n">standardized</span><span class="p">(</span><span class="n">sill</span><span class="o">=</span><span class="n">anam</span><span class="o">.</span><span class="n">variance_</span><span class="p">)</span>
 <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"r = </span><span class="si">{</span><span class="n">r</span><span class="si">:</span><span class="s2">.3f</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
 <span class="nb">print</span><span class="p">(</span><span class="n">raw</span><span class="p">)</span>
 </code></pre></div>
@@ -21993,12 +22017,12 @@ grades, rescaled to the anamorphosis variance, kriges the panels.</p>
 <div class="mkd-glr-script-out-disp highlight"><pre><span></span><code><span class="nv">r</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="m">0</span>.725
 Variogram<span class="o">(</span><span class="nv">nugget</span><span class="o">=</span><span class="m">16180</span>.280562737755,<span class="w"> </span><span class="nv">structures</span><span class="o">=[</span>Structure<span class="o">(</span><span class="s2">"spherical"</span>,<span class="w"> </span><span class="nv">sill</span><span class="o">=</span><span class="m">14864</span>.277854678605,<span class="w"> </span><span class="nv">range</span><span class="o">=</span><span class="m">35</span>.64043704679606<span class="o">)</span>,<span class="w"> </span>Structure<span class="o">(</span><span class="s2">"spherical"</span>,<span class="w"> </span><span class="nv">sill</span><span class="o">=</span><span class="m">33929</span>.057964930726,<span class="w"> </span><span class="nv">range</span><span class="o">=</span><span class="m">79</span>.33065065479494<span class="o">)]</span>,<span class="w"> </span><span class="nv">rotation</span><span class="o">=(</span><span class="m">170</span>.0,<span class="w"> </span><span class="m">0</span>.0,<span class="w"> </span><span class="m">0</span>.0<span class="o">)</span>,<span class="w"> </span><span class="nv">ratios</span><span class="o">=(</span><span class="m">0</span>.343967906520505,<span class="w"> </span><span class="m">1</span>.0<span class="o">))</span>
 </code></pre></div>
-<!-- GENERATED FROM PYTHON SOURCE LINES 59-62 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 53-56 -->
 
 <p>ordinary <abbr title="kriging of the average value over a block instead of the value at a point.">block kriging</abbr> of 50 × 50 m panels over the western 250 m. its diagnostics give each panel the variance of its
 estimate, which sets the change-of-<abbr title="the volume a value represents: a point, a length of core or a block.">support</abbr> coefficient of that panel: kriging smooths a panel estimated from few or
 distant samples more, so its selective blocks spread wider.</p>
-<!-- GENERATED FROM PYTHON SOURCE LINES 64-109 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 58-103 -->
 
 <div class="highlight"><pre><span></span><code><span class="n">search</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">Search</span><span class="p">(</span><span class="n">radius</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span> <span class="n">max_samples</span><span class="o">=</span><span class="mi">24</span><span class="p">,</span> <span class="n">min_samples</span><span class="o">=</span><span class="mi">4</span><span class="p">)</span>
 <span class="n">panels</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">BlockModel</span><span class="p">(</span><span class="n">origin</span><span class="o">=</span><span class="p">(</span><span class="mf">0.5</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">),</span> <span class="n">size</span><span class="o">=</span><span class="p">(</span><span class="mi">50</span><span class="p">,</span> <span class="mi">50</span><span class="p">),</span> <span class="n">count</span><span class="o">=</span><span class="p">(</span><span class="mi">5</span><span class="p">,</span> <span class="mi">6</span><span class="p">))</span>
@@ -22050,25 +22074,24 @@ distant samples more, so its selective blocks spread wider.</p>
 above<span class="w"> </span><span class="m">500</span><span class="w"> </span>ppm:<span class="w"> </span>uniform<span class="w"> </span>conditioning<span class="w"> </span><span class="m">15</span>.6%,<span class="w"> </span>kriged<span class="w"> </span>blocks<span class="w"> </span><span class="m">13</span>.6%,<span class="w"> </span><span class="nb">true</span><span class="w"> </span><span class="m">16</span>.8%
 above<span class="w"> </span><span class="m">800</span><span class="w"> </span>ppm:<span class="w"> </span>uniform<span class="w"> </span>conditioning<span class="w"> </span><span class="m">1</span>.1%,<span class="w"> </span>kriged<span class="w"> </span>blocks<span class="w"> </span><span class="m">2</span>.3%,<span class="w"> </span><span class="nb">true</span><span class="w"> </span><span class="m">2</span>.1%
 </code></pre></div>
-<!-- GENERATED FROM PYTHON SOURCE LINES 110-113 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 104-107 -->
 
 <p>at 500 ppm uniform conditioning keeps 15.6% of the blocks against a true 16.8%; the smoothed kriged blocks keep 13.6%.
 at 300 ppm it overstates the tonnage by a few percent, as kriging does. at 800 ppm, where few blocks remain, it thins
 the rich tail to 1.1% against a true 2.1%.</p>
-<!-- GENERATED FROM PYTHON SOURCE LINES 116-120 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 110-114 -->
 
 <p>uniform conditioning says how much of each panel is ore, but not where. localization places it: inside each panel, the
 25 blocks of <code>panels.discretize(5)</code> are ranked by their direct kriging, and the block ranked i receives the mean of
 the i-th of 25 equal-probability bands of the block distribution of the panel. each panel keeps its grade, and its
-blocks reproduce its <abbr title="tonnage and mean grade above each cutoff.">grade-tonnage curve</abbr>:</p>
-<!-- GENERATED FROM PYTHON SOURCE LINES 122-147 -->
+blocks reproduce its <abbr title="tonnes and mean grade above each cutoff, read as a curve over the cutoffs.">grade-tonnage curve</abbr>:</p>
+<!-- GENERATED FROM PYTHON SOURCE LINES 116-140 -->
 
 <div class="highlight"><pre><span></span><code><span class="n">smus</span> <span class="o">=</span> <span class="n">smus</span><span class="o">.</span><span class="n">with_column</span><span class="p">(</span><span class="s2">"kriged"</span><span class="p">,</span> <span class="n">direct</span><span class="p">)</span>
 <span class="n">localized</span> <span class="o">=</span> <span class="n">uc</span><span class="o">.</span><span class="n">localize</span><span class="p">(</span><span class="n">smus</span><span class="p">,</span> <span class="s2">"kriged"</span><span class="p">,</span> <span class="n">panels</span><span class="p">,</span> <span class="s2">"V"</span><span class="p">,</span> <span class="n">estimate_variance</span><span class="o">=</span><span class="s2">"estimate_variance"</span><span class="p">)[</span><span class="s2">"localized"</span><span class="p">]</span>
 <span class="k">for</span> <span class="n">label</span><span class="p">,</span> <span class="n">values</span> <span class="ow">in</span> <span class="p">((</span><span class="s2">"kriged"</span><span class="p">,</span> <span class="n">direct</span><span class="p">),</span> <span class="p">(</span><span class="s2">"localized"</span><span class="p">,</span> <span class="n">localized</span><span class="p">)):</span>
-    <span class="nb">print</span><span class="p">(</span>
-        <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">label</span><span class="si">}</span><span class="s2">: variance </span><span class="si">{</span><span class="n">values</span><span class="o">.</span><span class="n">var</span><span class="p">()</span><span class="si">:</span><span class="s2">.0f</span><span class="si">}</span><span class="s2">, correlation with truth </span><span class="si">{</span><span class="n">np</span><span class="o">.</span><span class="n">corrcoef</span><span class="p">(</span><span class="n">values</span><span class="p">,</span><span class="w"> </span><span class="n">true_smu</span><span class="o">.</span><span class="n">ravel</span><span class="p">())[</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">]</span><span class="si">:</span><span class="s2">.2f</span><span class="si">}</span><span class="s2">"</span>
-    <span class="p">)</span>
+    <span class="n">r</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">compare</span><span class="p">(</span><span class="n">values</span><span class="p">,</span> <span class="n">true_smu</span><span class="o">.</span><span class="n">ravel</span><span class="p">())[</span><span class="s2">"correlation"</span><span class="p">]</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">label</span><span class="si">}</span><span class="s2">: variance </span><span class="si">{</span><span class="n">values</span><span class="o">.</span><span class="n">var</span><span class="p">()</span><span class="si">:</span><span class="s2">.0f</span><span class="si">}</span><span class="s2">, correlation with truth </span><span class="si">{</span><span class="n">r</span><span class="si">:</span><span class="s2">.2f</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
 <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"true blocks: variance </span><span class="si">{</span><span class="n">true_smu</span><span class="o">.</span><span class="n">var</span><span class="p">()</span><span class="si">:</span><span class="s2">.0f</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
 
 <span class="n">fig</span><span class="p">,</span> <span class="n">axes</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span> <span class="mf">4.4</span><span class="p">),</span> <span class="n">layout</span><span class="o">=</span><span class="s2">"constrained"</span><span class="p">,</span> <span class="n">sharey</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
@@ -22093,13 +22116,13 @@ blocks reproduce its <abbr title="tonnage and mean grade above each cutoff.">gra
 localized:<span class="w"> </span>variance<span class="w"> </span><span class="m">35465</span>,<span class="w"> </span>correlation<span class="w"> </span>with<span class="w"> </span>truth<span class="w"> </span><span class="m">0</span>.80
 <span class="nb">true</span><span class="w"> </span>blocks:<span class="w"> </span>variance<span class="w"> </span><span class="m">47350</span>
 </code></pre></div>
-<!-- GENERATED FROM PYTHON SOURCE LINES 148-152 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 141-145 -->
 
 <p>the localized blocks spread as the model says blocks should, and the model says too little here: variance 35 465
 against the true 47 350. block by block they match the truth less well than kriging (correlation 0.80 against 0.89),
 since the ranking inside a panel is only as good as the kriging that sets it. localization keeps the grade of each
 panel and its tonnage above every <abbr title="the grade below which a block does not pay to mine; you report resources above it.">cutoff</abbr>.</p>
-<p><strong>Total running time of the script:</strong> ( 0 minutes  0.534 seconds)</p>
+<p><strong>Total running time of the script:</strong> ( 0 minutes  0.467 seconds)</p>
 <div id="download_links"></div>
 
 <p><a class="md-button center" href="../example_09_02.py"><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M256 32c0-17.7-14.3-32-32-32s-32 14.3-32 32v210.7l-41.4-41.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3l96 96c12.5 12.5 32.8 12.5 45.3 0l96-96c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L256 242.7zM64 320c-35.3 0-64 28.7-64 64v32c0 35.3 28.7 64 64 64h320c35.3 0 64-28.7 64-64v-32c0-35.3-28.7-64-64-64h-46.9l-56.6 56.6c-31.2 31.2-81.9 31.2-113.1 0L110.9 320zm304 56a24 24 0 1 1 0 48 24 24 0 1 1 0-48"/></svg></span> Download Python source code: example_09_02.py</a></p>

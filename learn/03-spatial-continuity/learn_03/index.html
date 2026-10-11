@@ -21365,6 +21365,8 @@
       
         
       
+        
+      
     
     
     
@@ -21574,6 +21576,34 @@
     
   
     block_correlation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../api/validation/compare/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    compare
   
 
     
@@ -22444,10 +22474,10 @@ distances; across them they change fast. A variogram that depends on direction i
 </code></pre></div>
 <!-- GENERATED FROM PYTHON SOURCE LINES 214-227 -->
 
-<p>The map puts the major axis at N170° with an 80 m <abbr title="the lag at which the variogram reaches its sill; beyond it, samples are uncorrelated.">range</abbr>, against 24 m in the shortest direction. Boitatá measures
-angles one way throughout (Figure 5): <strong><abbr title="a horizontal direction in degrees, measured clockwise from north.">azimuth</abbr></strong> clockwise from north, <strong><abbr title="the angle in degrees below the horizontal; positive points down.">dip</abbr></strong> positive downward, z up. The ranges
-along the three axes form the <strong><abbr title="the ellipse, or ellipsoid in 3D, whose axes are the variogram ranges in the principal directions.">anisotropy ellipse</abbr></strong> (an ellipsoid in 3D); a <code>Variogram</code> stores the rotation of its
-axes and the ratios of the shorter ranges to the major one.</p>
+<p>The map puts the major axis at N170° with an 80 m <abbr title="the lag at which the variogram reaches its sill; beyond it, samples are uncorrelated.">range</abbr>, against 24 m in the shortest direction. Angles follow one
+convention throughout boitatá (Figure 5): <strong><abbr title="a horizontal direction in degrees, measured clockwise from north.">azimuth</abbr></strong> clockwise from north, <strong><abbr title="the angle in degrees below the horizontal; positive points down.">dip</abbr></strong> positive downward, z up.
+The ranges along the three axes form the <strong><abbr title="the ellipse, or ellipsoid in 3D, whose axes are the variogram ranges in the principal directions.">anisotropy ellipse</abbr></strong> (an ellipsoid in 3D); a <code>Variogram</code> stores the
+rotation of its axes and the ratios of the shorter ranges to the major one.</p>
 <figure class="bt-figure">
 <svg class="bt-svg" viewBox="0 0 640 340" role="img" aria-labelledby="l03-ani-t">
 <title id="l03-ani-t">The anisotropy ellipse of the Walker Lake model, azimuth measured clockwise from north, and dip measured downward from horizontal</title>
@@ -22579,7 +22609,7 @@ variance.</p>
 <!-- GENERATED FROM PYTHON SOURCE LINES 314-339 -->
 
 <p>The straight line gives −0.303: a weighted sum of these points would have a variance of −0.303 times the <abbr title="the plateau of the variogram, reached when samples lie too far apart to be related.">sill</abbr>,
-which cannot exist. The spherical model gives +0.119. Boitatá builds models only from valid shapes, and nested
+which cannot exist. The spherical model gives +0.119. Every model boitatá builds comes from valid shapes, and nested
 sums of valid structures stay valid, so any <code>Variogram</code> you create or fit is safe to krige with.</p>
 <div class="admonition pitfall">
 <p class="admonition-title">Pitfall: a model that fits the points but not the physics</p>
@@ -22609,7 +22639,7 @@ models give negative kriging variances and unstable weights, and the damage show
 </div>
 <p><strong>Next:</strong> <a href="../../04-kriging/learn_04/">Kriging</a> turns the variogram into weights for estimating unsampled
 locations.</p>
-<p><strong>Total running time of the script:</strong> ( 0 minutes  0.600 seconds)</p>
+<p><strong>Total running time of the script:</strong> ( 0 minutes  0.618 seconds)</p>
 <div id="download_links"></div>
 
 <p><a class="md-button center" href="../learn_03.py"><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M256 32c0-17.7-14.3-32-32-32s-32 14.3-32 32v210.7l-41.4-41.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3l96 96c12.5 12.5 32.8 12.5 45.3 0l96-96c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L256 242.7zM64 320c-35.3 0-64 28.7-64 64v32c0 35.3 28.7 64 64 64h320c35.3 0 64-28.7 64-64v-32c0-35.3-28.7-64-64-64h-46.9l-56.6 56.6c-31.2 31.2-81.9 31.2-113.1 0L110.9 320zm304 56a24 24 0 1 1 0 48 24 24 0 1 1 0-48"/></svg></span> Download Python source code: learn_03.py</a></p>

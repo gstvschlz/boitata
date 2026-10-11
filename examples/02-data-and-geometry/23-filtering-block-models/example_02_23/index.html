@@ -21287,6 +21287,8 @@
       
         
       
+        
+      
     
     
     
@@ -21496,6 +21498,34 @@
     
   
     block_correlation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../api/validation/compare/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    compare
   
 
     
@@ -21962,13 +21992,13 @@ histogram sliders and category checkboxes, and <code>Scene.filters</code> reads 
 <!-- GENERATED FROM PYTHON SOURCE LINES 28-50 -->
 
 <div class="highlight"><pre><span></span><code><span class="n">data</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">datasets</span><span class="o">.</span><span class="n">stacked_sulphide_lenses</span><span class="p">()</span>
-<span class="n">holes</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">Drillholes</span><span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="s2">"collars"</span><span class="p">],</span> <span class="n">data</span><span class="p">[</span><span class="s2">"surveys"</span><span class="p">],</span> <span class="n">data</span><span class="p">[</span><span class="s2">"assays"</span><span class="p">])</span>
+<span class="n">holes</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">Drillholes</span><span class="o">.</span><span class="n">from_tables</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
 <span class="n">lenses</span> <span class="o">=</span> <span class="p">[</span><span class="n">data</span><span class="p">[</span><span class="sa">f</span><span class="s2">"lens_</span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2">"</span><span class="p">]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">)]</span>
 <span class="n">composites</span> <span class="o">=</span> <span class="n">holes</span><span class="o">.</span><span class="n">composite</span><span class="p">(</span><span class="mf">2.0</span><span class="p">,</span> <span class="p">[</span><span class="s2">"ZN_PCT"</span><span class="p">])</span>
 <span class="n">grid</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">BlockModel</span><span class="o">.</span><span class="n">from_extents</span><span class="p">(</span><span class="o">*</span><span class="n">lenses</span><span class="p">,</span> <span class="n">size</span><span class="o">=</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span> <span class="mi">10</span><span class="p">,</span> <span class="mi">5</span><span class="p">),</span> <span class="n">buffer</span><span class="o">=</span><span class="mi">20</span><span class="p">,</span> <span class="n">rotation</span><span class="o">=</span><span class="p">(</span><span class="mf">22.5</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">55.0</span><span class="p">))</span>
 <span class="n">search</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">Search</span><span class="p">(</span><span class="n">radius</span><span class="o">=</span><span class="mi">60</span><span class="p">,</span> <span class="n">min_samples</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">max_samples</span><span class="o">=</span><span class="mi">12</span><span class="p">)</span>
-<span class="n">idw</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">InverseDistance</span><span class="p">(</span><span class="n">search</span><span class="p">,</span> <span class="n">power</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">composites</span><span class="o">.</span><span class="n">coords</span><span class="p">,</span> <span class="n">composites</span><span class="p">[</span><span class="s2">"ZN_PCT"</span><span class="p">])</span>
-<span class="n">inside</span> <span class="o">=</span> <span class="p">[</span><span class="n">lens</span><span class="o">.</span><span class="n">contains</span><span class="p">(</span><span class="n">grid</span><span class="o">.</span><span class="n">centroids</span><span class="p">)</span> <span class="k">for</span> <span class="n">lens</span> <span class="ow">in</span> <span class="n">lenses</span><span class="p">]</span>
+<span class="n">idw</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">InverseDistance</span><span class="p">(</span><span class="n">search</span><span class="p">,</span> <span class="n">power</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">composites</span><span class="p">,</span> <span class="s2">"ZN_PCT"</span><span class="p">)</span>
+<span class="n">inside</span> <span class="o">=</span> <span class="p">[</span><span class="n">lens</span><span class="o">.</span><span class="n">contains</span><span class="p">(</span><span class="n">grid</span><span class="o">.</span><span class="n">coords</span><span class="p">)</span> <span class="k">for</span> <span class="n">lens</span> <span class="ow">in</span> <span class="n">lenses</span><span class="p">]</span>
 <span class="n">grid</span> <span class="o">=</span> <span class="n">grid</span><span class="o">.</span><span class="n">with_columns</span><span class="p">(</span>
     <span class="p">{</span>
         <span class="s2">"ZN_PCT"</span><span class="p">:</span> <span class="n">idw</span><span class="o">.</span><span class="n">predict</span><span class="p">(</span><span class="n">grid</span><span class="p">),</span>
@@ -22023,7 +22053,7 @@ filter is set after the layers through <code>filters</code>, by layer name, as t
 <span class="n">scene</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">lenses</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">name</span><span class="o">=</span><span class="s2">"lens 2"</span><span class="p">,</span> <span class="n">representation</span><span class="o">=</span><span class="s2">"wireframe"</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="n">GRAY</span><span class="p">,</span> <span class="n">opacity</span><span class="o">=</span><span class="mf">0.3</span><span class="p">)</span>
 <span class="n">scene</span><span class="o">.</span><span class="n">filters</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"grid"</span><span class="p">:</span> <span class="p">{</span><span class="s2">"lens"</span><span class="p">:</span> <span class="p">[</span><span class="s2">"lens 2"</span><span class="p">],</span> <span class="s2">"ZN_PCT"</span><span class="p">:</span> <span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="kc">None</span><span class="p">)}}</span>
 <span class="n">scene</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="n">azimuth</span><span class="o">=</span><span class="mi">305</span><span class="p">,</span> <span class="n">dip</span><span class="o">=</span><span class="mi">30</span><span class="p">)</span>
-<span class="n">middle</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">grid</span><span class="p">[</span><span class="s2">"lens"</span><span class="p">],</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">object</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"lens 2"</span>
+<span class="n">middle</span> <span class="o">=</span> <span class="n">grid</span><span class="p">[</span><span class="s2">"lens"</span><span class="p">]</span> <span class="o">==</span> <span class="s2">"lens 2"</span>
 <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"filters: </span><span class="si">{</span><span class="n">scene</span><span class="o">.</span><span class="n">filters</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
 <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="p">(</span><span class="n">middle</span><span class="w"> </span><span class="o">&amp;</span><span class="w"> </span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">nan_to_num</span><span class="p">(</span><span class="n">grid</span><span class="p">[</span><span class="s1">'ZN_PCT'</span><span class="p">])</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="mi">2</span><span class="p">))</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span><span class="si">:</span><span class="s2">,</span><span class="si">}</span><span class="s2"> of </span><span class="si">{</span><span class="n">middle</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span><span class="si">:</span><span class="s2">,</span><span class="si">}</span><span class="s2"> blocks of lens 2 shown"</span><span class="p">)</span>
 <span class="n">show</span><span class="p">(</span><span class="n">scene</span><span class="p">,</span> <span class="s2">"lens"</span><span class="p">,</span> <span class="s2">"The blocks of lens 2 at 2 % Zn or more"</span><span class="p">)</span>
@@ -22036,7 +22066,7 @@ filter is set after the layers through <code>filters</code>, by layer name, as t
     <button type="button" class="bt-scene" data-scene="../scene_lens.html"><img src="../scene_lens.png" alt="The blocks of lens 2 at 2 % Zn or more" loading="lazy"><span>open the live scene</span></button>
 </div>
 
-<p><strong>Total running time of the script:</strong> ( 0 minutes  40.160 seconds)</p>
+<p><strong>Total running time of the script:</strong> ( 1 minutes  0.599 seconds)</p>
 <div id="download_links"></div>
 
 <p><a class="md-button center" href="../example_02_23.py"><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M256 32c0-17.7-14.3-32-32-32s-32 14.3-32 32v210.7l-41.4-41.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3l96 96c12.5 12.5 32.8 12.5 45.3 0l96-96c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L256 242.7zM64 320c-35.3 0-64 28.7-64 64v32c0 35.3 28.7 64 64 64h320c35.3 0 64-28.7 64-64v-32c0-35.3-28.7-64-64-64h-46.9l-56.6 56.6c-31.2 31.2-81.9 31.2-113.1 0L110.9 320zm304 56a24 24 0 1 1 0 48 24 24 0 1 1 0-48"/></svg></span> Download Python source code: example_02_23.py</a></p>

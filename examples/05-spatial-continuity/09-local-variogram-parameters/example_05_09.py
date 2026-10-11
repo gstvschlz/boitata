@@ -26,7 +26,7 @@ samples = bt.datasets.walker_lake()
 truth = bt.datasets.walker_lake_exhaustive()["V"].reshape(300, 260)
 xy, v = samples.coords, samples["V"]
 grid = bt.BlockModel(origin=(0.5, 0.5), size=(5, 5), count=(52, 60))
-nodes = grid.centroids.astype(int)
+nodes = grid.coords.astype(int)
 true_at_nodes = truth[nodes[:, 1] - 1, nodes[:, 0] - 1]
 
 # %% [markdown]
@@ -113,7 +113,7 @@ for ax, name, title, cmap in (
     (axes[0], "scale", "Range scale", "cividis"),
     (axes[1], "ratio", "Semi-major / major ratio", "Greys"),
 ):
-    im = ax.imshow(coarse[name].reshape(15, 13), origin="lower", extent=(0, 260, 0, 300), cmap=cmap)
+    im = ax.imshow(coarse.grid(name)[0], origin="lower", extent=(0, 260, 0, 300), cmap=cmap)
     ax.plot(xy[:, 0], xy[:, 1], ".", ms=1.5, color=HIGHLIGHT)
     map_axes(ax, title)
     fig.colorbar(im, ax=ax, shrink=0.8)
@@ -138,11 +138,8 @@ estimates = {
     "+ scales and ratios": ok.predict(grid, anisotropy=fitted),
 }
 for name, estimate in estimates.items():
-    error = estimate - true_at_nodes
-    print(
-        f"{name:>20}: RMSE {np.sqrt(np.mean(error**2)):.1f} ppm, "
-        f"correlation {np.corrcoef(estimate, true_at_nodes)[0, 1]:.3f}"
-    )
+    score = bt.compare(estimate, true_at_nodes)
+    print(f"{name:>20}: RMSE {score['rmse']:.1f} ppm, correlation {score['correlation']:.3f}")
 
 # %%
 norm = PowerNorm(0.5, vmin=0, vmax=1500)

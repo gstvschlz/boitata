@@ -21276,6 +21276,8 @@
       
         
       
+        
+      
     
     
     
@@ -21488,6 +21490,34 @@
     
   
     block_correlation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../validation/compare/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    compare
   
 
     
@@ -21942,165 +21972,6 @@
 </code></pre></div>
 
     <div class="doc doc-contents first">
-
-        <p>Mean distance from each target to its <code>n</code> nearest drill holes, each hole
-at its nearest sample, for classification by drill spacing.</p>
-
-
-<p><span class="doc-section-title">Parameters:</span></p>
-    <table>
-      <thead>
-        <tr>
-          <th>Name</th>
-          <th>Type</th>
-          <th>Description</th>
-          <th>Default</th>
-        </tr>
-      </thead>
-      <tbody>
-          <tr class="doc-section-item">
-            <td>
-                <code>targets</code>
-            </td>
-            <td>
-                  <code>(<span title="array_like">array_like</span>, <a class="autorefs autorefs-internal" title="PointSet (boitata.PointSet)" href="../../containers/PointSet/#boitata.PointSet">PointSet</a> or <a class="autorefs autorefs-internal" title="BlockModel (boitata.BlockModel)" href="../../containers/BlockModel/#boitata.BlockModel">BlockModel</a>)</code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>Locations to measure from.</p>
-              </div>
-            </td>
-            <td>
-                <em>required</em>
-            </td>
-          </tr>
-          <tr class="doc-section-item">
-            <td>
-                <code>coords</code>
-            </td>
-            <td>
-                  <code><span title="array_like">array_like</span></code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>Sample coordinates, (n, 2) or (n, 3).</p>
-              </div>
-            </td>
-            <td>
-                <em>required</em>
-            </td>
-          </tr>
-          <tr class="doc-section-item">
-            <td>
-                <code>holes</code>
-            </td>
-            <td>
-                  <code><span title="array_like">array_like</span> or <span title="str">str</span></code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>Hole id of each sample, or the column of <code>coords</code> holding them;
-samples of one hole count once.</p>
-              </div>
-            </td>
-            <td>
-                <em>required</em>
-            </td>
-          </tr>
-          <tr class="doc-section-item">
-            <td>
-                <code>n</code>
-            </td>
-            <td>
-                  <code>int or sequence of int</code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>Number of holes averaged; one per class.</p>
-              </div>
-            </td>
-            <td>
-                <em>required</em>
-            </td>
-          </tr>
-          <tr class="doc-section-item">
-            <td>
-                <code>search</code>
-            </td>
-            <td>
-                  <code><a class="autorefs autorefs-internal" title="Search (boitata.Search)" href="../../estimation/Search/#boitata.Search">Search</a></code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>Its ellipsoid sets the distance (meters along the major axis), and
-samples beyond its radius are ignored. Isotropic and unbounded if
-omitted.</p>
-              </div>
-            </td>
-            <td>
-                  <code>None</code>
-            </td>
-          </tr>
-          <tr class="doc-section-item">
-            <td>
-                <code>domains</code>
-            </td>
-            <td>
-                  <code>tuple of array_like</code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p><code>(target_domains, sample_domains)</code>: each target only sees samples of
-its own <abbr title="a volume of rock whose values you treat as one population, such as one lithology or one vein.">domain</abbr>.</p>
-              </div>
-            </td>
-            <td>
-                  <code>None</code>
-            </td>
-          </tr>
-          <tr class="doc-section-item">
-            <td>
-                <code>domain_column</code>
-            </td>
-            <td>
-                  <code>str or tuple of str</code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>The column of <code>targets</code> and <code>coords</code> holding their domains, or one
-name for each; instead of <code>domains</code>.</p>
-              </div>
-            </td>
-            <td>
-                  <code>None</code>
-            </td>
-          </tr>
-      </tbody>
-    </table>
-
-
-    <p><span class="doc-section-title">Returns:</span></p>
-    <table>
-      <thead>
-        <tr>
-          <th>Type</th>
-          <th>Description</th>
-        </tr>
-      </thead>
-      <tbody>
-          <tr class="doc-section-item">
-            <td>
-                  <code><span title="ndarray">ndarray</span></code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>Distances, <code>inf</code> where fewer than <code>n</code> holes are in reach; shape
-<code>(targets, len(n))</code> when <code>n</code> is a sequence.</p>
-              </div>
-            </td>
-          </tr>
-      </tbody>
-    </table>
 
 
     </div>

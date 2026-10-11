@@ -15754,10 +15754,43 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#boitata.Table.drop_null" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        drop_null
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#boitata.Table.filter" class="md-nav__link">
     <span class="md-ellipsis">
       
         filter
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#boitata.Table.with_column" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        with_column
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#boitata.Table.with_columns" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        with_columns
       
     </span>
   </a>
@@ -21357,6 +21390,8 @@
       
         
       
+        
+      
     
     
     
@@ -21569,6 +21604,34 @@
     
   
     block_correlation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../validation/compare/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    compare
   
 
     
@@ -22012,10 +22075,43 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#boitata.Table.drop_null" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        drop_null
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#boitata.Table.filter" class="md-nav__link">
     <span class="md-ellipsis">
       
         filter
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#boitata.Table.with_column" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        with_column
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#boitata.Table.with_columns" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        with_columns
       
     </span>
   </a>
@@ -22143,6 +22239,26 @@ to ore mass, nor one currency to another. The column must have a unit.</p>
 <div class="doc doc-object doc-function">
 
 
+<h2 id="boitata.Table.drop_null" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">drop_null</span>
+
+
+<a href="#boitata.Table.drop_null" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">drop_null</span><span class="p">(</span><span class="o">*</span><span class="n">columns</span><span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Rows with a value in every one of <code>columns</code>, all columns by default.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
 <h2 id="boitata.Table.filter" class="doc doc-heading">
             <span class="doc doc-object-name doc-function-name">filter</span>
 
@@ -22158,6 +22274,55 @@ to ore mass, nor one currency to another. The column must have a unit.</p>
     <div class="doc doc-contents ">
 
         <p>Rows where <code>mask</code> is true.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="boitata.Table.with_column" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">with_column</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-method descriptor"><code>method descriptor</code></small>
+  </span>
+
+<a href="#boitata.Table.with_column" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">with_column</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">values</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">unit</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>New table with the column <code>name</code> added or replaced: numbers (NaN is
+null) or text (None is null), in <code>unit</code> or else the unit <code>values</code> carries.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="boitata.Table.with_columns" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">with_columns</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-method descriptor"><code>method descriptor</code></small>
+  </span>
+
+<a href="#boitata.Table.with_columns" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">with_columns</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>New table with the columns of <code>data</code>, a dict or table, added or replaced.</p>
 
 
     </div>

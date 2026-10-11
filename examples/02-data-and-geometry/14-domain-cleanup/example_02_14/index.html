@@ -21368,6 +21368,8 @@
       
         
       
+        
+      
     
     
     
@@ -21577,6 +21579,34 @@
     
   
     block_correlation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../api/validation/compare/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    compare
   
 
     
@@ -22098,10 +22128,10 @@ where a soft boundary (<a href="../../../06-kriging/13-soft-boundaries/example_0
 lenses on a vertical section across strike, cells of 10 m, one cell thick. cells the search left unestimated are
 dropped. choosing the most likely rock cell by cell leaves specks, such as the sulphide cells inside the footwall
 volcanics on the left.</p>
-<!-- GENERATED FROM PYTHON SOURCE LINES 35-74 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 35-71 -->
 
 <div class="highlight"><pre><span></span><code><span class="n">data</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">datasets</span><span class="o">.</span><span class="n">stacked_sulphide_lenses</span><span class="p">()</span>
-<span class="n">drillholes</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">Drillholes</span><span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="s2">"collars"</span><span class="p">],</span> <span class="n">data</span><span class="p">[</span><span class="s2">"surveys"</span><span class="p">],</span> <span class="n">data</span><span class="p">[</span><span class="s2">"lithology"</span><span class="p">])</span>
+<span class="n">drillholes</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">Drillholes</span><span class="o">.</span><span class="n">from_tables</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">intervals</span><span class="o">=</span><span class="s2">"lithology"</span><span class="p">)</span>
 <span class="n">composites</span> <span class="o">=</span> <span class="n">drillholes</span><span class="o">.</span><span class="n">composite</span><span class="p">(</span><span class="mf">5.0</span><span class="p">,</span> <span class="p">[],</span> <span class="n">categories</span><span class="o">=</span><span class="p">[</span><span class="s2">"LITH"</span><span class="p">])</span>
 <span class="n">scheme</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">Categories</span><span class="p">(</span>
     <span class="p">[</span><span class="s2">"OB"</span><span class="p">,</span> <span class="s2">"HWS"</span><span class="p">,</span> <span class="s2">"VCL"</span><span class="p">,</span> <span class="s2">"SUL"</span><span class="p">,</span> <span class="s2">"FWV"</span><span class="p">],</span>
@@ -22132,17 +22162,14 @@ volcanics on the left.</p>
 <span class="n">origin</span> <span class="o">=</span> <span class="n">center</span> <span class="o">-</span> <span class="mf">600.0</span> <span class="o">*</span> <span class="n">across</span> <span class="o">-</span> <span class="mf">5.0</span> <span class="o">*</span> <span class="n">along</span> <span class="o">+</span> <span class="p">[</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="o">-</span><span class="mf">400.0</span><span class="p">]</span>
 <span class="n">section</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">BlockModel</span><span class="p">(</span><span class="n">origin</span><span class="p">,</span> <span class="p">(</span><span class="mf">10.0</span><span class="p">,</span> <span class="mf">10.0</span><span class="p">,</span> <span class="mf">10.0</span><span class="p">),</span> <span class="p">(</span><span class="mi">120</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">80</span><span class="p">),</span> <span class="n">rotation</span><span class="o">=</span><span class="p">(</span><span class="mf">23.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">))</span>
 <span class="n">topography</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="s2">"topography"</span><span class="p">]</span>
-<span class="n">rows</span> <span class="o">=</span> <span class="n">topography</span><span class="o">.</span><span class="n">row_at</span><span class="p">(</span><span class="n">section</span><span class="o">.</span><span class="n">centroids</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">2</span><span class="p">])</span>
-<span class="n">section</span> <span class="o">=</span> <span class="n">section</span><span class="o">.</span><span class="n">mask</span><span class="p">((</span><span class="n">rows</span> <span class="o">&gt;=</span> <span class="mi">0</span><span class="p">)</span> <span class="o">&amp;</span> <span class="p">(</span><span class="n">section</span><span class="o">.</span><span class="n">centroids</span><span class="p">[:,</span> <span class="mi">2</span><span class="p">]</span> <span class="o">&lt;</span> <span class="n">topography</span><span class="p">[</span><span class="s2">"Z"</span><span class="p">][</span><span class="n">rows</span><span class="p">]))</span>
-<span class="n">most_likely</span> <span class="o">=</span> <span class="n">cik</span><span class="o">.</span><span class="n">predict</span><span class="p">(</span><span class="n">section</span><span class="p">)</span><span class="o">.</span><span class="n">most_likely</span>
-<span class="n">section</span> <span class="o">=</span> <span class="n">section</span><span class="o">.</span><span class="n">mask</span><span class="p">(</span><span class="o">~</span><span class="n">np</span><span class="o">.</span><span class="n">isnan</span><span class="p">(</span><span class="n">most_likely</span><span class="p">))</span>
-<span class="n">section</span> <span class="o">=</span> <span class="n">section</span><span class="o">.</span><span class="n">with_columns</span><span class="p">({</span><span class="s2">"rock"</span><span class="p">:</span> <span class="n">most_likely</span><span class="p">[</span><span class="o">~</span><span class="n">np</span><span class="o">.</span><span class="n">isnan</span><span class="p">(</span><span class="n">most_likely</span><span class="p">)]})</span>
+<span class="n">section</span> <span class="o">=</span> <span class="n">section</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">section</span><span class="o">.</span><span class="n">z</span> <span class="o">&lt;</span> <span class="n">topography</span><span class="o">.</span><span class="n">sample</span><span class="p">(</span><span class="n">section</span><span class="o">.</span><span class="n">coords</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">2</span><span class="p">],</span> <span class="s2">"Z"</span><span class="p">))</span>
+<span class="n">section</span> <span class="o">=</span> <span class="n">section</span><span class="o">.</span><span class="n">with_columns</span><span class="p">({</span><span class="s2">"rock"</span><span class="p">:</span> <span class="n">cik</span><span class="o">.</span><span class="n">predict</span><span class="p">(</span><span class="n">section</span><span class="p">)</span><span class="o">.</span><span class="n">most_likely</span><span class="p">})</span><span class="o">.</span><span class="n">drop_null</span><span class="p">(</span><span class="s2">"rock"</span><span class="p">)</span>
 <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">section</span><span class="p">)</span><span class="si">}</span><span class="s2"> cells of </span><span class="si">{</span><span class="n">section</span><span class="o">.</span><span class="n">volumes</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="si">:</span><span class="s2">.0f</span><span class="si">}</span><span class="s2"> m³"</span><span class="p">)</span>
 </code></pre></div>
 <p class="mkd-glr-script-out">Out:</p>
 <div class="mkd-glr-script-out-disp highlight"><pre><span></span><code><span class="m">7645</span><span class="w"> </span>cells<span class="w"> </span>of<span class="w"> </span><span class="m">1000</span><span class="w"> </span>m³
 </code></pre></div>
-<!-- GENERATED FROM PYTHON SOURCE LINES 75-83 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 72-80 -->
 
 <h2 id="removing-the-specks">removing the specks<a class="headerlink" href="#removing-the-specks" title="Permanent link">&para;</a></h2>
 <p>a unit is a set of blocks of one rock joined through shared faces (<code>connectivity=6</code>, here the four neighbors in
@@ -22151,7 +22178,7 @@ rock with the most volume among the blocks touching it and merges with the units
 the minimum only when it has no neighbor to join, walled in by absent cells or, with <code>domains=</code>, by other domains;
 here there are none. the minimum is five cells, 5000 m³. the total volume stays the same and only its split
 changes.</p>
-<!-- GENERATED FROM PYTHON SOURCE LINES 85-95 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 82-92 -->
 
 <div class="highlight"><pre><span></span><code><span class="n">section</span> <span class="o">=</span> <span class="n">section</span><span class="o">.</span><span class="n">with_columns</span><span class="p">({</span><span class="s2">"clean"</span><span class="p">:</span> <span class="n">bt</span><span class="o">.</span><span class="n">remove_small_units</span><span class="p">(</span><span class="n">section</span><span class="p">,</span> <span class="s2">"rock"</span><span class="p">,</span> <span class="n">min_volume</span><span class="o">=</span><span class="mf">5000.0</span><span class="p">)})</span>
 <span class="n">volume</span> <span class="o">=</span> <span class="n">section</span><span class="o">.</span><span class="n">volumes</span>
@@ -22174,7 +22201,7 @@ FWV<span class="w">        </span><span class="m">2901000</span><span class="w">
 DYK<span class="w">          </span><span class="m">11000</span><span class="w">       </span><span class="m">11000</span>
 total<span class="w"> </span>volume<span class="w"> </span>kept:<span class="w"> </span>True
 </code></pre></div>
-<!-- GENERATED FROM PYTHON SOURCE LINES 96-105 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 93-102 -->
 
 <div class="highlight"><pre><span></span><code><span class="n">fig</span><span class="p">,</span> <span class="n">axes</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">13</span><span class="p">,</span> <span class="mf">4.8</span><span class="p">),</span> <span class="n">layout</span><span class="o">=</span><span class="s2">"constrained"</span><span class="p">,</span> <span class="n">sharey</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 <span class="k">for</span> <span class="n">ax</span><span class="p">,</span> <span class="n">column</span><span class="p">,</span> <span class="n">title</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">axes</span><span class="p">,</span> <span class="p">[</span><span class="s2">"rock"</span><span class="p">,</span> <span class="s2">"clean"</span><span class="p">],</span> <span class="p">[</span><span class="s2">"Most likely rock"</span><span class="p">,</span> <span class="s2">"Units under 5000 m³ removed"</span><span class="p">]):</span>
@@ -22186,14 +22213,14 @@ total<span class="w"> </span>volume<span class="w"> </span>kept:<span class="w">
 <span class="n">save</span><span class="p">(</span><span class="n">fig</span><span class="p">,</span> <span class="s2">"cleanup"</span><span class="p">)</span>
 </code></pre></div>
 <p><img alt="Most likely rock, Units under 5000 m³ removed" class="mkd-glr-single-img" src="../images/mkd_glr_example_02_14_001.png" srcset="../images/mkd_glr_example_02_14_001.png" /></p>
-<!-- GENERATED FROM PYTHON SOURCE LINES 106-112 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 103-109 -->
 
 <h2 id="distance-to-the-contacts">distance to the contacts<a class="headerlink" href="#distance-to-the-contacts" title="Permanent link">&para;</a></h2>
 <p><code>contact_distance</code> gives each block the distance from its centroid to the nearest block centroid of another rock,
 or with <code>target=</code>, of that rock. blocks of the target get the distance to the nearest block outside it, negative
 by default, so the field is signed across the target's contact. distances are exact in any layout and rotation,
 and the two blocks either side of a contact get the same distance.</p>
-<!-- GENERATED FROM PYTHON SOURCE LINES 114-127 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 111-124 -->
 
 <div class="highlight"><pre><span></span><code><span class="n">to_sulphide</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">contact_distance</span><span class="p">(</span><span class="n">section</span><span class="p">,</span> <span class="s2">"clean"</span><span class="p">,</span> <span class="n">target</span><span class="o">=</span><span class="n">scheme</span><span class="o">.</span><span class="n">names</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="s2">"SUL"</span><span class="p">))</span>
 <span class="n">to_any</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">contact_distance</span><span class="p">(</span><span class="n">section</span><span class="p">,</span> <span class="s2">"clean"</span><span class="p">)</span>
@@ -22209,7 +22236,7 @@ and the two blocks either side of a contact get the same distance.</p>
 <span class="n">save</span><span class="p">(</span><span class="n">fig</span><span class="p">,</span> <span class="s2">"distances"</span><span class="p">)</span>
 </code></pre></div>
 <p><img alt="Distance to any contact (m), Signed distance to the sulphides (m)" class="mkd-glr-single-img" src="../images/mkd_glr_example_02_14_002.png" srcset="../images/mkd_glr_example_02_14_002.png" /></p>
-<!-- GENERATED FROM PYTHON SOURCE LINES 128-136 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 125-133 -->
 
 <h2 id="contact-buffers">contact buffers<a class="headerlink" href="#contact-buffers" title="Permanent link">&para;</a></h2>
 <p><code>buffer_domains</code> relabels each block within <code>distance</code> of a contact as <code>label</code>, here the blocks within 15 m of
@@ -22218,7 +22245,7 @@ same distance, so the buffer takes one ring of blocks inside the sulphides and o
 longer one, as it wraps the lenses, and the thinnest lenses fall inside the buffer whole. you can treat the buffer
 as a <abbr title="a volume of rock whose values you treat as one population, such as one lithology or one vein.">domain</abbr> of its own for statistics, or as the zone in which a soft boundary shares samples between the
 sulphides and their host.</p>
-<!-- GENERATED FROM PYTHON SOURCE LINES 138-152 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 135-149 -->
 
 <div class="highlight"><pre><span></span><code><span class="n">sulphide</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">section</span><span class="p">[</span><span class="s2">"clean"</span><span class="p">]</span> <span class="o">==</span> <span class="n">scheme</span><span class="o">.</span><span class="n">names</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="s2">"SUL"</span><span class="p">),</span> <span class="s2">"SUL"</span><span class="p">,</span> <span class="s2">"host"</span><span class="p">)</span>
 <span class="n">zone</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">buffer_domains</span><span class="p">(</span><span class="n">section</span><span class="p">,</span> <span class="n">sulphide</span><span class="p">,</span> <span class="n">distance</span><span class="o">=</span><span class="mf">15.0</span><span class="p">,</span> <span class="n">target</span><span class="o">=</span><span class="s2">"SUL"</span><span class="p">)</span>
@@ -22240,7 +22267,7 @@ sulphides and their host.</p>
 <div class="mkd-glr-script-out-disp highlight"><pre><span></span><code>SUL<span class="w"> </span>cells<span class="w"> </span><span class="k">in</span><span class="w"> </span>the<span class="w"> </span>buffer:<span class="w"> </span><span class="m">150</span>
 host<span class="w"> </span>cells<span class="w"> </span><span class="k">in</span><span class="w"> </span>the<span class="w"> </span>buffer:<span class="w"> </span><span class="m">199</span>
 </code></pre></div>
-<p><strong>Total running time of the script:</strong> ( 0 minutes  2.016 seconds)</p>
+<p><strong>Total running time of the script:</strong> ( 0 minutes  1.967 seconds)</p>
 <div id="download_links"></div>
 
 <p><a class="md-button center" href="../example_02_14.py"><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M256 32c0-17.7-14.3-32-32-32s-32 14.3-32 32v210.7l-41.4-41.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3l96 96c12.5 12.5 32.8 12.5 45.3 0l96-96c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L256 242.7zM64 320c-35.3 0-64 28.7-64 64v32c0 35.3 28.7 64 64 64h320c35.3 0 64-28.7 64-64v-32c0-35.3-28.7-64-64-64h-46.9l-56.6 56.6c-31.2 31.2-81.9 31.2-113.1 0L110.9 320zm304 56a24 24 0 1 1 0 48 24 24 0 1 1 0-48"/></svg></span> Download Python source code: example_02_14.py</a></p>

@@ -26,7 +26,7 @@ from common import ACCENT, GRAY, LIGHT, map_axes, save
 # %%
 data = bt.datasets.stacked_sulphide_lenses()
 collar, survey = data["collars"], data["surveys"]
-dh = bt.Drillholes(collar, survey)
+dh = bt.Drillholes.from_tables(data, intervals=None)
 paths = dh.paths()
 print(dh)
 last = np.flatnonzero(paths["HOLE_ID"] == "DD0027")[[0, 1, -2, -1]]

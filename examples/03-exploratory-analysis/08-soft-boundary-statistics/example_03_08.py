@@ -24,7 +24,7 @@ from common import ACCENT, GRAY, save
 data = bt.datasets.nickel_laterite_profile()
 intervals = bt.merge_intervals(data["assays"], data["horizons"])
 samples = bt.Drillholes(data["collars"], data["surveys"], intervals).samples()
-samples = samples.filter(np.isin(np.asarray(samples["HORIZON"]), ["LIM", "SAP"]))
+samples = samples.filter(np.isin(samples["HORIZON"], ["LIM", "SAP"]))
 
 # %% [markdown]
 # `contact` put Ni at 1.10 % just outside the LIM/SAP contact and 1.32 % just inside, still climbing several meters into

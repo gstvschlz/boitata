@@ -23,7 +23,7 @@ from matplotlib.colors import ListedColormap
 
 ti = bt.datasets.strebelle()
 nx, ny = ti.count[:2]
-image = ti["facies"].reshape(ny, nx)
+image = ti.grid("facies")[0]
 print(f"{nx} x {ny} cells, sand (code 1) in {image.mean():.1%} of them")
 
 

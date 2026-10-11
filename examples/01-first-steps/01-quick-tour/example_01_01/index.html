@@ -21379,6 +21379,8 @@
       
         
       
+        
+      
     
     
     
@@ -21588,6 +21590,34 @@
     
   
     block_correlation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../api/validation/compare/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    compare
   
 
     
@@ -22231,16 +22261,16 @@ the true value at each node joins the model as a second column.</p>
 <div class="highlight"><pre><span></span><code><span class="n">grid</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">BlockModel</span><span class="p">(</span><span class="n">origin</span><span class="o">=</span><span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="mi">3</span><span class="p">),</span> <span class="n">size</span><span class="o">=</span><span class="p">(</span><span class="mi">5</span><span class="p">,</span> <span class="mi">5</span><span class="p">),</span> <span class="n">count</span><span class="o">=</span><span class="p">(</span><span class="mi">52</span><span class="p">,</span> <span class="mi">60</span><span class="p">))</span>
 <span class="n">search</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">Search</span><span class="p">(</span><span class="n">radius</span><span class="o">=</span><span class="mi">80</span><span class="p">,</span> <span class="n">max_samples</span><span class="o">=</span><span class="mi">24</span><span class="p">,</span> <span class="n">min_samples</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span> <span class="n">rotation</span><span class="o">=</span><span class="n">model</span><span class="o">.</span><span class="n">rotation</span><span class="p">,</span> <span class="n">ratios</span><span class="o">=</span><span class="p">(</span><span class="mf">0.5</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">))</span>
 <span class="n">kriging</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">OrdinaryKriging</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">search</span><span class="p">)</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">samples</span><span class="p">,</span> <span class="s2">"V_cut"</span><span class="p">)</span>
-<span class="n">nodes</span> <span class="o">=</span> <span class="n">grid</span><span class="o">.</span><span class="n">centroids</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">int</span><span class="p">)</span>
+<span class="n">nodes</span> <span class="o">=</span> <span class="n">grid</span><span class="o">.</span><span class="n">coords</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">int</span><span class="p">)</span>
 <span class="n">grid</span> <span class="o">=</span> <span class="n">grid</span><span class="o">.</span><span class="n">with_columns</span><span class="p">(</span>
     <span class="p">{</span><span class="s2">"estimate"</span><span class="p">:</span> <span class="n">kriging</span><span class="o">.</span><span class="n">predict</span><span class="p">(</span><span class="n">grid</span><span class="p">),</span> <span class="s2">"truth"</span><span class="p">:</span> <span class="n">truth</span><span class="p">[</span><span class="n">nodes</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">]</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="n">nodes</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]}</span>
 <span class="p">)</span>
 <span class="nb">print</span><span class="p">(</span><span class="n">grid</span><span class="p">)</span>
 
-<span class="n">shape</span><span class="p">,</span> <span class="n">extent</span> <span class="o">=</span> <span class="p">(</span><span class="mi">60</span><span class="p">,</span> <span class="mi">52</span><span class="p">),</span> <span class="p">(</span><span class="mf">0.5</span><span class="p">,</span> <span class="mf">260.5</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">,</span> <span class="mf">300.5</span><span class="p">)</span>
+<span class="n">extent</span> <span class="o">=</span> <span class="p">(</span><span class="mf">0.5</span><span class="p">,</span> <span class="mf">260.5</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">,</span> <span class="mf">300.5</span><span class="p">)</span>
 <span class="n">fig</span><span class="p">,</span> <span class="n">axes</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">9</span><span class="p">,</span> <span class="mf">4.6</span><span class="p">),</span> <span class="n">layout</span><span class="o">=</span><span class="s2">"constrained"</span><span class="p">)</span>
 <span class="k">for</span> <span class="n">ax</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">title</span> <span class="ow">in</span> <span class="p">((</span><span class="n">axes</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="s2">"estimate"</span><span class="p">,</span> <span class="s2">"Ordinary kriging"</span><span class="p">),</span> <span class="p">(</span><span class="n">axes</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="s2">"truth"</span><span class="p">,</span> <span class="s2">"True V at the nodes"</span><span class="p">)):</span>
-    <span class="n">image</span> <span class="o">=</span> <span class="n">ax</span><span class="o">.</span><span class="n">imshow</span><span class="p">(</span><span class="n">grid</span><span class="p">[</span><span class="n">name</span><span class="p">]</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">shape</span><span class="p">),</span> <span class="n">origin</span><span class="o">=</span><span class="s2">"lower"</span><span class="p">,</span> <span class="n">extent</span><span class="o">=</span><span class="n">extent</span><span class="p">,</span> <span class="n">vmin</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">vmax</span><span class="o">=</span><span class="mi">1500</span><span class="p">)</span>
+    <span class="n">image</span> <span class="o">=</span> <span class="n">ax</span><span class="o">.</span><span class="n">imshow</span><span class="p">(</span><span class="n">grid</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span><span class="n">name</span><span class="p">)[</span><span class="mi">0</span><span class="p">],</span> <span class="n">origin</span><span class="o">=</span><span class="s2">"lower"</span><span class="p">,</span> <span class="n">extent</span><span class="o">=</span><span class="n">extent</span><span class="p">,</span> <span class="n">vmin</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">vmax</span><span class="o">=</span><span class="mi">1500</span><span class="p">)</span>
     <span class="n">map_axes</span><span class="p">(</span><span class="n">ax</span><span class="p">,</span> <span class="n">title</span><span class="p">)</span>
 <span class="n">axes</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">scatter</span><span class="p">(</span><span class="o">*</span><span class="n">samples</span><span class="o">.</span><span class="n">coords</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">2</span><span class="p">]</span><span class="o">.</span><span class="n">T</span><span class="p">,</span> <span class="n">s</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="n">INK</span><span class="p">,</span> <span class="n">linewidths</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
 <span class="n">fig</span><span class="o">.</span><span class="n">colorbar</span><span class="p">(</span><span class="n">image</span><span class="p">,</span> <span class="n">ax</span><span class="o">=</span><span class="n">axes</span><span class="p">,</span> <span class="n">shrink</span><span class="o">=</span><span class="mf">0.8</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s2">"V (ppm)"</span><span class="p">)</span>
@@ -22260,15 +22290,12 @@ short-scale highs and lows.</p>
 <p>leave-one-out <abbr title="re-estimating each sample from the other samples and comparing the estimates with the actual values.">cross-validation</abbr> re-estimates each sample from the others (<a href="../../../10-checking-models/02-cross-validation/example_10_02/"><abbr title="re-estimating each sample from the other samples and comparing the estimates with the actual values.">cross-validation</abbr></a>). a swath compares
 mean grades slice by slice for the declustered samples, the estimate and the truth (<a href="../../../10-checking-models/01-model-checks/example_10_01/">model checks</a>,
 <a href="../../../03-exploratory-analysis/09-swaths/example_03_09/">swaths</a>).</p>
-<!-- GENERATED FROM PYTHON SOURCE LINES 152-179 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 152-176 -->
 
 <div class="highlight"><pre><span></span><code><span class="n">cv</span> <span class="o">=</span> <span class="n">kriging</span><span class="o">.</span><span class="n">cross_validate</span><span class="p">()</span>
 <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"cross-validation: RMSE </span><span class="si">{</span><span class="n">cv</span><span class="o">.</span><span class="n">rmse</span><span class="si">:</span><span class="s2">.0f</span><span class="si">}</span><span class="s2"> ppm, correlation </span><span class="si">{</span><span class="n">cv</span><span class="o">.</span><span class="n">correlation</span><span class="si">:</span><span class="s2">.2f</span><span class="si">}</span><span class="s2">, slope </span><span class="si">{</span><span class="n">cv</span><span class="o">.</span><span class="n">slope</span><span class="si">:</span><span class="s2">.2f</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
-<span class="n">error</span> <span class="o">=</span> <span class="n">grid</span><span class="p">[</span><span class="s2">"estimate"</span><span class="p">]</span> <span class="o">-</span> <span class="n">grid</span><span class="p">[</span><span class="s2">"truth"</span><span class="p">]</span>
-<span class="nb">print</span><span class="p">(</span>
-    <span class="sa">f</span><span class="s2">"against the truth: RMSE </span><span class="si">{</span><span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">error</span><span class="o">**</span><span class="mi">2</span><span class="p">))</span><span class="si">:</span><span class="s2">.0f</span><span class="si">}</span><span class="s2"> ppm, "</span>
-    <span class="sa">f</span><span class="s2">"correlation </span><span class="si">{</span><span class="n">np</span><span class="o">.</span><span class="n">corrcoef</span><span class="p">(</span><span class="n">grid</span><span class="p">[</span><span class="s1">'estimate'</span><span class="p">],</span><span class="w"> </span><span class="n">grid</span><span class="p">[</span><span class="s1">'truth'</span><span class="p">])[</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">]</span><span class="si">:</span><span class="s2">.2f</span><span class="si">}</span><span class="s2">"</span>
-<span class="p">)</span>
+<span class="n">check</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">compare</span><span class="p">(</span><span class="s2">"estimate"</span><span class="p">,</span> <span class="s2">"truth"</span><span class="p">,</span> <span class="n">data</span><span class="o">=</span><span class="n">grid</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"against the truth: RMSE </span><span class="si">{</span><span class="n">check</span><span class="p">[</span><span class="s1">'rmse'</span><span class="p">]</span><span class="si">:</span><span class="s2">.0f</span><span class="si">}</span><span class="s2"> ppm, correlation </span><span class="si">{</span><span class="n">check</span><span class="p">[</span><span class="s1">'correlation'</span><span class="p">]</span><span class="si">:</span><span class="s2">.2f</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
 <span class="nb">print</span><span class="p">(</span>
     <span class="sa">f</span><span class="s2">"mean: estimate </span><span class="si">{</span><span class="n">grid</span><span class="p">[</span><span class="s1">'estimate'</span><span class="p">]</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span><span class="si">:</span><span class="s2">.0f</span><span class="si">}</span><span class="s2">, declustered samples </span><span class="si">{</span><span class="n">declustered</span><span class="p">[</span><span class="s1">'mean'</span><span class="p">]</span><span class="si">:</span><span class="s2">.0f</span><span class="si">}</span><span class="s2">, "</span>
     <span class="sa">f</span><span class="s2">"truth </span><span class="si">{</span><span class="n">grid</span><span class="p">[</span><span class="s1">'truth'</span><span class="p">]</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span><span class="si">:</span><span class="s2">.0f</span><span class="si">}</span><span class="s2"> ppm"</span>
@@ -22295,13 +22322,13 @@ mean grades slice by slice for the declustered samples, the estimate and the tru
 against<span class="w"> </span>the<span class="w"> </span>truth:<span class="w"> </span>RMSE<span class="w"> </span><span class="m">154</span><span class="w"> </span>ppm,<span class="w"> </span>correlation<span class="w"> </span><span class="m">0</span>.79
 mean:<span class="w"> </span>estimate<span class="w"> </span><span class="m">288</span>,<span class="w"> </span>declustered<span class="w"> </span>samples<span class="w"> </span><span class="m">291</span>,<span class="w"> </span>truth<span class="w"> </span><span class="m">277</span><span class="w"> </span>ppm
 </code></pre></div>
-<!-- GENERATED FROM PYTHON SOURCE LINES 180-184 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 177-181 -->
 
 <p>the slope of 1.04 shows no <abbr title="a systematic error that depends on the estimate itself, with high estimates too high and low ones too low.">conditional bias</abbr>. <abbr title="re-estimating each sample from the other samples and comparing the estimates with the actual values.">cross-validation</abbr> (RMSE 179 ppm) and the truth (RMSE 154 ppm) give
 errors of the same size. the estimate follows the swath of the truth and flattens its peaks. its mean matches the
 declustered samples and sits 4 % above the truth, a bias that no check against the samples can detect.
 <a href="../../04-parquet/example_01_04/">storing containers in <abbr title="an open, compressed file format for tables that most data tools read.">parquet</abbr></a> saves a grid like this one to a file.</p>
-<p><strong>Total running time of the script:</strong> ( 0 minutes  0.882 seconds)</p>
+<p><strong>Total running time of the script:</strong> ( 0 minutes  0.798 seconds)</p>
 <div id="download_links"></div>
 
 <p><a class="md-button center" href="../example_01_01.py"><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M256 32c0-17.7-14.3-32-32-32s-32 14.3-32 32v210.7l-41.4-41.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3l96 96c12.5 12.5 32.8 12.5 45.3 0l96-96c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L256 242.7zM64 320c-35.3 0-64 28.7-64 64v32c0 35.3 28.7 64 64 64h320c35.3 0 64-28.7 64-64v-32c0-35.3-28.7-64-64-64h-46.9l-56.6 56.6c-31.2 31.2-81.9 31.2-113.1 0L110.9 320zm304 56a24 24 0 1 1 0 48 24 24 0 1 1 0-48"/></svg></span> Download Python source code: example_01_01.py</a></p>

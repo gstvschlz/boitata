@@ -21368,6 +21368,8 @@
       
         
       
+        
+      
     
     
     
@@ -21577,6 +21579,34 @@
     
   
     block_correlation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../api/validation/compare/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    compare
   
 
     
@@ -22176,7 +22206,7 @@ volume<span class="w"> </span><span class="m">1</span>,901,081<span class="w"> <
 </ul>
 <!-- GENERATED FROM PYTHON SOURCE LINES 68-95 -->
 
-<div class="highlight"><pre><span></span><code><span class="n">vertices</span><span class="p">,</span> <span class="n">triangles</span> <span class="o">=</span> <span class="n">lens</span><span class="o">.</span><span class="n">vertices</span><span class="p">,</span> <span class="n">lens</span><span class="o">.</span><span class="n">triangles</span>
+<div class="highlight"><pre><span></span><code><span class="n">vertices</span><span class="p">,</span> <span class="n">triangles</span> <span class="o">=</span> <span class="n">lens</span><span class="o">.</span><span class="n">coords</span><span class="p">,</span> <span class="n">lens</span><span class="o">.</span><span class="n">triangles</span>
 <span class="n">centers</span> <span class="o">=</span> <span class="n">vertices</span><span class="p">[</span><span class="n">triangles</span><span class="p">]</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
 
 
@@ -22233,7 +22263,7 @@ test near the patch. Twenty thousand random points in the lens's bounding box sh
 <span class="n">only_flipped</span><span class="p">[</span><span class="n">flipped</span><span class="p">]</span> <span class="o">=</span> <span class="n">only_flipped</span><span class="p">[</span><span class="n">flipped</span><span class="p">,</span> <span class="p">::</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
 <span class="n">closed_but_wrong</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">Mesh</span><span class="p">(</span><span class="n">vertices</span><span class="p">,</span> <span class="n">only_flipped</span><span class="p">)</span>
 <span class="n">rng</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">default_rng</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
-<span class="n">low</span><span class="p">,</span> <span class="n">high</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">lens</span><span class="o">.</span><span class="n">bounds</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">lens</span><span class="o">.</span><span class="n">bounds</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+<span class="n">low</span><span class="p">,</span> <span class="n">high</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">lens</span><span class="o">.</span><span class="n">bounds</span><span class="p">)</span>
 <span class="n">points</span> <span class="o">=</span> <span class="n">low</span> <span class="o">+</span> <span class="n">rng</span><span class="o">.</span><span class="n">random</span><span class="p">((</span><span class="mi">20_000</span><span class="p">,</span> <span class="mi">3</span><span class="p">))</span> <span class="o">*</span> <span class="p">(</span><span class="n">high</span> <span class="o">-</span> <span class="n">low</span><span class="p">)</span>
 <span class="n">truth</span> <span class="o">=</span> <span class="n">lens</span><span class="o">.</span><span class="n">contains</span><span class="p">(</span><span class="n">points</span><span class="p">)</span>
 <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"closed: </span><span class="si">{</span><span class="n">closed_but_wrong</span><span class="o">.</span><span class="n">is_closed</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
@@ -22307,7 +22337,7 @@ the five places the damage went in.</p>
 </div>
 <!-- GENERATED FROM PYTHON SOURCE LINES 154-176 -->
 
-<div class="highlight"><pre><span></span><code><span class="n">face_centers</span> <span class="o">=</span> <span class="n">broken</span><span class="o">.</span><span class="n">vertices</span><span class="p">[</span><span class="n">broken</span><span class="o">.</span><span class="n">triangles</span><span class="p">]</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><span class="n">face_centers</span> <span class="o">=</span> <span class="n">broken</span><span class="o">.</span><span class="n">coords</span><span class="p">[</span><span class="n">broken</span><span class="o">.</span><span class="n">triangles</span><span class="p">]</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
 <span class="n">styles</span> <span class="o">=</span> <span class="p">{</span>
     <span class="s2">"degenerate_face"</span><span class="p">:</span> <span class="p">(</span><span class="s2">"s"</span><span class="p">,</span> <span class="n">INK</span><span class="p">),</span>
     <span class="s2">"duplicate_face"</span><span class="p">:</span> <span class="p">(</span><span class="s2">"D"</span><span class="p">,</span> <span class="n">INK</span><span class="p">),</span>
@@ -22370,17 +22400,17 @@ it, so the <abbr title="the order of a triangle's corners; counter-clockwise see
 <span class="n">open_faces</span> <span class="o">=</span> <span class="n">problems</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">problems</span><span class="p">[</span><span class="s2">"kind"</span><span class="p">]</span> <span class="o">==</span> <span class="s2">"boundary_edge"</span><span class="p">)[</span><span class="s2">"face"</span><span class="p">]</span><span class="o">.</span><span class="n">to_numpy</span><span class="p">()</span>
 <span class="n">fin</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">intersect1d</span><span class="p">(</span><span class="n">on_edge</span><span class="p">,</span> <span class="n">open_faces</span><span class="p">)</span>
 <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"triangles on the non-manifold edge </span><span class="si">{</span><span class="n">on_edge</span><span class="si">}</span><span class="s2">, fin </span><span class="si">{</span><span class="n">fin</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
-<span class="n">without_fin</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">Mesh</span><span class="p">(</span><span class="n">repaired</span><span class="o">.</span><span class="n">vertices</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">delete</span><span class="p">(</span><span class="n">tri</span><span class="p">,</span> <span class="n">fin</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">))</span><span class="o">.</span><span class="n">repair</span><span class="p">()</span>
+<span class="n">without_fin</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">Mesh</span><span class="p">(</span><span class="n">repaired</span><span class="o">.</span><span class="n">coords</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">delete</span><span class="p">(</span><span class="n">tri</span><span class="p">,</span> <span class="n">fin</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">))</span><span class="o">.</span><span class="n">repair</span><span class="p">()</span>
 
 <span class="n">rim</span> <span class="o">=</span> <span class="n">without_fin</span><span class="o">.</span><span class="n">validate</span><span class="p">()</span><span class="o">.</span><span class="n">problems</span><span class="o">.</span><span class="n">to_polars</span><span class="p">()</span>
 <span class="n">rim</span> <span class="o">=</span> <span class="n">rim</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">rim</span><span class="p">[</span><span class="s2">"kind"</span><span class="p">]</span> <span class="o">==</span> <span class="s2">"boundary_edge"</span><span class="p">)</span>
 <span class="n">tri</span> <span class="o">=</span> <span class="n">without_fin</span><span class="o">.</span><span class="n">triangles</span>
 <span class="n">start</span> <span class="o">=</span> <span class="n">tri</span><span class="p">[</span><span class="n">rim</span><span class="p">[</span><span class="s2">"face"</span><span class="p">]</span><span class="o">.</span><span class="n">to_numpy</span><span class="p">(),</span> <span class="n">rim</span><span class="p">[</span><span class="s2">"edge"</span><span class="p">]</span><span class="o">.</span><span class="n">to_numpy</span><span class="p">()]</span>
 <span class="n">end</span> <span class="o">=</span> <span class="n">tri</span><span class="p">[</span><span class="n">rim</span><span class="p">[</span><span class="s2">"face"</span><span class="p">]</span><span class="o">.</span><span class="n">to_numpy</span><span class="p">(),</span> <span class="p">(</span><span class="n">rim</span><span class="p">[</span><span class="s2">"edge"</span><span class="p">]</span><span class="o">.</span><span class="n">to_numpy</span><span class="p">()</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span> <span class="o">%</span> <span class="mi">3</span><span class="p">]</span>
-<span class="n">patch_center</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">without_fin</span><span class="o">.</span><span class="n">vertices</span><span class="p">)</span>
+<span class="n">patch_center</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">without_fin</span><span class="o">.</span><span class="n">coords</span><span class="p">)</span>
 <span class="n">cap</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">column_stack</span><span class="p">([</span><span class="n">end</span><span class="p">,</span> <span class="n">start</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">full</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">start</span><span class="p">),</span> <span class="n">patch_center</span><span class="p">)])</span>
 <span class="n">fixed</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">Mesh</span><span class="p">(</span>
-    <span class="n">np</span><span class="o">.</span><span class="n">vstack</span><span class="p">([</span><span class="n">without_fin</span><span class="o">.</span><span class="n">vertices</span><span class="p">,</span> <span class="n">without_fin</span><span class="o">.</span><span class="n">vertices</span><span class="p">[</span><span class="n">start</span><span class="p">]</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)]),</span> <span class="n">np</span><span class="o">.</span><span class="n">vstack</span><span class="p">([</span><span class="n">tri</span><span class="p">,</span> <span class="n">cap</span><span class="p">])</span>
+    <span class="n">np</span><span class="o">.</span><span class="n">vstack</span><span class="p">([</span><span class="n">without_fin</span><span class="o">.</span><span class="n">coords</span><span class="p">,</span> <span class="n">without_fin</span><span class="o">.</span><span class="n">coords</span><span class="p">[</span><span class="n">start</span><span class="p">]</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)]),</span> <span class="n">np</span><span class="o">.</span><span class="n">vstack</span><span class="p">([</span><span class="n">tri</span><span class="p">,</span> <span class="n">cap</span><span class="p">])</span>
 <span class="p">)</span>
 <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"hole rim: </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">rim</span><span class="p">)</span><span class="si">}</span><span class="s2"> edges, closed with </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">cap</span><span class="p">)</span><span class="si">}</span><span class="s2"> triangles"</span><span class="p">)</span>
 <span class="nb">print</span><span class="p">(</span><span class="n">fixed</span><span class="p">,</span> <span class="n">fixed</span><span class="o">.</span><span class="n">validate</span><span class="p">())</span>
@@ -22426,7 +22456,7 @@ built the <abbr title="a closed triangle mesh that bounds a volume, such as an o
 <li><a href="../../01-solid-proportions/example_14_01/">Flag <abbr title="a closed triangle mesh that bounds a volume, such as an ore body or a vein.">solid</abbr> proportions in a block model</a>: what a valid <abbr title="a closed triangle mesh that bounds a volume, such as an ore body or a vein.">solid</abbr> is for.</li>
 </ul>
 </div>
-<p><strong>Total running time of the script:</strong> ( 0 minutes  1.748 seconds)</p>
+<p><strong>Total running time of the script:</strong> ( 0 minutes  2.097 seconds)</p>
 <div id="download_links"></div>
 
 <p><a class="md-button center" href="../example_14_03.py"><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M256 32c0-17.7-14.3-32-32-32s-32 14.3-32 32v210.7l-41.4-41.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3l96 96c12.5 12.5 32.8 12.5 45.3 0l96-96c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L256 242.7zM64 320c-35.3 0-64 28.7-64 64v32c0 35.3 28.7 64 64 64h320c35.3 0 64-28.7 64-64v-32c0-35.3-28.7-64-64-64h-46.9l-56.6 56.6c-31.2 31.2-81.9 31.2-113.1 0L110.9 320zm304 56a24 24 0 1 1 0 48 24 24 0 1 1 0-48"/></svg></span> Download Python source code: example_14_03.py</a></p>

@@ -21287,6 +21287,8 @@
       
         
       
+        
+      
     
     
     
@@ -21496,6 +21498,34 @@
     
   
     block_correlation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../api/validation/compare/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    compare
   
 
     
@@ -21991,7 +22021,7 @@ the candidates differ only in <code>max_samples</code>.</p>
 <span class="n">true_scores</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"slope"</span><span class="p">:</span> <span class="p">[],</span> <span class="s2">"variance"</span><span class="p">:</span> <span class="p">[],</span> <span class="s2">"tonnage"</span><span class="p">:</span> <span class="p">[]}</span>
 <span class="k">for</span> <span class="n">candidate</span> <span class="ow">in</span> <span class="n">candidates</span><span class="p">:</span>
     <span class="n">estimate</span> <span class="o">=</span> <span class="n">kriging</span><span class="o">.</span><span class="n">with_search</span><span class="p">(</span><span class="n">candidate</span><span class="p">)</span><span class="o">.</span><span class="n">predict</span><span class="p">(</span><span class="n">blocks</span><span class="p">)</span>
-    <span class="n">true_scores</span><span class="p">[</span><span class="s2">"slope"</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">polyfit</span><span class="p">(</span><span class="n">estimate</span><span class="p">,</span> <span class="n">true_blocks</span><span class="p">,</span> <span class="mi">1</span><span class="p">)[</span><span class="mi">0</span><span class="p">])</span>
+    <span class="n">true_scores</span><span class="p">[</span><span class="s2">"slope"</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">bt</span><span class="o">.</span><span class="n">compare</span><span class="p">(</span><span class="n">estimate</span><span class="p">,</span> <span class="n">true_blocks</span><span class="p">)[</span><span class="s2">"slope"</span><span class="p">])</span>
     <span class="n">true_scores</span><span class="p">[</span><span class="s2">"variance"</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">estimate</span><span class="o">.</span><span class="n">var</span><span class="p">()</span> <span class="o">/</span> <span class="n">true_blocks</span><span class="o">.</span><span class="n">var</span><span class="p">())</span>
     <span class="n">true_scores</span><span class="p">[</span><span class="s2">"tonnage"</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">estimate</span> <span class="o">&gt;=</span> <span class="mi">500</span><span class="p">)</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">true_blocks</span> <span class="o">&gt;=</span> <span class="mi">500</span><span class="p">))</span>
 <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="s1">''</span><span class="si">:</span><span class="s2">7</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="s1">'slope of regression'</span><span class="si">:</span><span class="s2">^20</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="s1">'variance ratio'</span><span class="si">:</span><span class="s2">^13</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="s1">'tonnage &gt;= 500'</span><span class="si">:</span><span class="s2">^13</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="s1">'negative'</span><span class="si">:</span><span class="s2">&gt;8</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
@@ -22074,7 +22104,7 @@ few samples and stay sharp, and sparse ones gather more.</p>
     <span class="n">estimate</span> <span class="o">=</span> <span class="n">d</span><span class="p">[</span><span class="s2">"value"</span><span class="p">]</span>
     <span class="nb">print</span><span class="p">(</span>
         <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">target</span><span class="si">:</span><span class="s2">7.2f</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="n">d</span><span class="p">[</span><span class="s1">'n_samples'</span><span class="p">]</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span><span class="si">:</span><span class="s2">8.1f</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">d</span><span class="p">[</span><span class="s1">'target_met'</span><span class="p">]</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">1</span><span class="p">)</span><span class="si">:</span><span class="s2">6.0%</span><span class="si">}</span><span class="s2">"</span>
-        <span class="sa">f</span><span class="s2">" </span><span class="si">{</span><span class="n">np</span><span class="o">.</span><span class="n">polyfit</span><span class="p">(</span><span class="n">estimate</span><span class="p">,</span><span class="w"> </span><span class="n">true_blocks</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span><span class="si">:</span><span class="s2">11.2f</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="n">estimate</span><span class="o">.</span><span class="n">var</span><span class="p">()</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="n">true_blocks</span><span class="o">.</span><span class="n">var</span><span class="p">()</span><span class="si">:</span><span class="s2">15.2f</span><span class="si">}</span><span class="s2">"</span>
+        <span class="sa">f</span><span class="s2">" </span><span class="si">{</span><span class="n">bt</span><span class="o">.</span><span class="n">compare</span><span class="p">(</span><span class="n">estimate</span><span class="p">,</span><span class="w"> </span><span class="n">true_blocks</span><span class="p">)[</span><span class="s1">'slope'</span><span class="p">]</span><span class="si">:</span><span class="s2">11.2f</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="n">estimate</span><span class="o">.</span><span class="n">var</span><span class="p">()</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="n">true_blocks</span><span class="o">.</span><span class="n">var</span><span class="p">()</span><span class="si">:</span><span class="s2">15.2f</span><span class="si">}</span><span class="s2">"</span>
     <span class="p">)</span>
 </code></pre></div>
 <p class="mkd-glr-script-out">Out:</p>
@@ -22094,7 +22124,7 @@ few edge blocks fall short even at <code>max_samples</code>.</p>
 <div class="highlight"><pre><span></span><code><span class="n">fig</span><span class="p">,</span> <span class="n">axes</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">11</span><span class="p">,</span> <span class="mi">4</span><span class="p">),</span> <span class="n">layout</span><span class="o">=</span><span class="s2">"constrained"</span><span class="p">)</span>
 <span class="k">for</span> <span class="n">ax</span><span class="p">,</span> <span class="p">(</span><span class="n">target</span><span class="p">,</span> <span class="n">n</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">axes</span><span class="p">,</span> <span class="n">local</span><span class="o">.</span><span class="n">items</span><span class="p">(),</span> <span class="n">strict</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
     <span class="n">image</span> <span class="o">=</span> <span class="n">ax</span><span class="o">.</span><span class="n">imshow</span><span class="p">(</span>
-        <span class="n">n</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="mi">30</span><span class="p">,</span> <span class="mi">26</span><span class="p">),</span> <span class="n">origin</span><span class="o">=</span><span class="s2">"lower"</span><span class="p">,</span> <span class="n">extent</span><span class="o">=</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">260</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">300</span><span class="p">),</span> <span class="n">vmin</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span> <span class="n">vmax</span><span class="o">=</span><span class="mi">48</span><span class="p">,</span> <span class="n">cmap</span><span class="o">=</span><span class="s2">"viridis"</span>
+        <span class="n">blocks</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span><span class="n">n</span><span class="p">)[</span><span class="mi">0</span><span class="p">],</span> <span class="n">origin</span><span class="o">=</span><span class="s2">"lower"</span><span class="p">,</span> <span class="n">extent</span><span class="o">=</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">260</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">300</span><span class="p">),</span> <span class="n">vmin</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span> <span class="n">vmax</span><span class="o">=</span><span class="mi">48</span><span class="p">,</span> <span class="n">cmap</span><span class="o">=</span><span class="s2">"viridis"</span>
     <span class="p">)</span>
     <span class="n">ax</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">xy</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">],</span> <span class="n">xy</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">],</span> <span class="s2">"."</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s2">"white"</span><span class="p">,</span> <span class="n">ms</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
     <span class="n">ax</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="n">title</span><span class="o">=</span><span class="sa">f</span><span class="s2">"target_slope=</span><span class="si">{</span><span class="n">target</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span> <span class="n">aspect</span><span class="o">=</span><span class="s2">"equal"</span><span class="p">)</span>
@@ -22102,7 +22132,7 @@ few edge blocks fall short even at <code>max_samples</code>.</p>
 <span class="n">save</span><span class="p">(</span><span class="n">fig</span><span class="p">,</span> <span class="s2">"local"</span><span class="p">)</span>
 </code></pre></div>
 <p><img alt="target_slope=0.85, target_slope=0.9, target_slope=0.95" class="mkd-glr-single-img" src="../images/mkd_glr_example_06_07_002.png" srcset="../images/mkd_glr_example_06_07_002.png" /></p>
-<p><strong>Total running time of the script:</strong> ( 0 minutes  0.639 seconds)</p>
+<p><strong>Total running time of the script:</strong> ( 0 minutes  0.819 seconds)</p>
 <div id="download_links"></div>
 
 <p><a class="md-button center" href="../example_06_07.py"><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M256 32c0-17.7-14.3-32-32-32s-32 14.3-32 32v210.7l-41.4-41.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3l96 96c12.5 12.5 32.8 12.5 45.3 0l96-96c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L256 242.7zM64 320c-35.3 0-64 28.7-64 64v32c0 35.3 28.7 64 64 64h320c35.3 0 64-28.7 64-64v-32c0-35.3-28.7-64-64-64h-46.9l-56.6 56.6c-31.2 31.2-81.9 31.2-113.1 0L110.9 320zm304 56a24 24 0 1 1 0 48 24 24 0 1 1 0-48"/></svg></span> Download Python source code: example_06_07.py</a></p>

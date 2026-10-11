@@ -21287,6 +21287,8 @@
       
         
       
+        
+      
     
     
     
@@ -21496,6 +21498,34 @@
     
   
     block_correlation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../api/validation/compare/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    compare
   
 
     
@@ -21957,7 +21987,7 @@ training image instead of copying them.</p>
 
 <span class="n">ti</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">datasets</span><span class="o">.</span><span class="n">strebelle</span><span class="p">()</span>
 <span class="n">nx</span><span class="p">,</span> <span class="n">ny</span> <span class="o">=</span> <span class="n">ti</span><span class="o">.</span><span class="n">count</span><span class="p">[:</span><span class="mi">2</span><span class="p">]</span>
-<span class="n">image</span> <span class="o">=</span> <span class="n">ti</span><span class="p">[</span><span class="s2">"facies"</span><span class="p">]</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">ny</span><span class="p">,</span> <span class="n">nx</span><span class="p">)</span>
+<span class="n">image</span> <span class="o">=</span> <span class="n">ti</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span><span class="s2">"facies"</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
 <span class="n">grid</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">BlockModel</span><span class="p">((</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="p">(</span><span class="n">nx</span><span class="p">,</span> <span class="n">ny</span><span class="p">))</span>
 </code></pre></div>
 <!-- GENERATED FROM PYTHON SOURCE LINES 30-32 -->
@@ -22017,8 +22047,8 @@ map it came from: the patterns turn a smooth 0.5 into either a channel or none.<
 <span class="n">panels</span> <span class="o">=</span> <span class="p">(</span>
     <span class="p">(</span><span class="n">image</span><span class="p">,</span> <span class="s2">"Truth"</span><span class="p">,</span> <span class="n">codes</span><span class="p">),</span>
     <span class="p">(</span><span class="n">p_soft</span><span class="p">,</span> <span class="s2">"Soft P(sand)"</span><span class="p">,</span> <span class="s2">"gray_r"</span><span class="p">),</span>
-    <span class="p">(</span><span class="n">summaries</span><span class="p">[</span><span class="s2">"with soft data"</span><span class="p">]</span><span class="o">.</span><span class="n">realizations</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">ny</span><span class="p">,</span> <span class="n">nx</span><span class="p">),</span> <span class="s2">"Realization 1 with soft data"</span><span class="p">,</span> <span class="n">codes</span><span class="p">),</span>
-    <span class="p">(</span><span class="n">summaries</span><span class="p">[</span><span class="s2">"with soft data"</span><span class="p">]</span><span class="o">.</span><span class="n">probabilities</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">ny</span><span class="p">,</span> <span class="n">nx</span><span class="p">),</span> <span class="s2">"P(sand), 20 realizations"</span><span class="p">,</span> <span class="s2">"gray_r"</span><span class="p">),</span>
+    <span class="p">(</span><span class="n">grid</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span><span class="n">summaries</span><span class="p">[</span><span class="s2">"with soft data"</span><span class="p">]</span><span class="o">.</span><span class="n">realizations</span><span class="p">[</span><span class="mi">0</span><span class="p">])[</span><span class="mi">0</span><span class="p">],</span> <span class="s2">"Realization 1 with soft data"</span><span class="p">,</span> <span class="n">codes</span><span class="p">),</span>
+    <span class="p">(</span><span class="n">grid</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span><span class="n">summaries</span><span class="p">[</span><span class="s2">"with soft data"</span><span class="p">]</span><span class="o">.</span><span class="n">probabilities</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">])[</span><span class="mi">0</span><span class="p">],</span> <span class="s2">"P(sand), 20 realizations"</span><span class="p">,</span> <span class="s2">"gray_r"</span><span class="p">),</span>
 <span class="p">)</span>
 <span class="k">for</span> <span class="n">ax</span><span class="p">,</span> <span class="p">(</span><span class="n">img</span><span class="p">,</span> <span class="n">title</span><span class="p">,</span> <span class="n">cmap</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">axes</span><span class="p">,</span> <span class="n">panels</span><span class="p">):</span>
     <span class="n">im</span> <span class="o">=</span> <span class="n">ax</span><span class="o">.</span><span class="n">imshow</span><span class="p">(</span><span class="n">img</span><span class="p">,</span> <span class="n">origin</span><span class="o">=</span><span class="s2">"lower"</span><span class="p">,</span> <span class="n">cmap</span><span class="o">=</span><span class="n">cmap</span><span class="p">,</span> <span class="n">vmin</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">vmax</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">interpolation</span><span class="o">=</span><span class="s2">"nearest"</span><span class="p">)</span>
@@ -22034,7 +22064,7 @@ map it came from: the patterns turn a smooth 0.5 into either a channel or none.<
 <p>hard data override the soft probabilities at their cells, and both combine with <code>anisotropy</code>, domains and the
 servosystem. <a href="../../08-image-quilting/example_13_08/">image quilting</a> takes soft data too,
 as a cost instead of a probability.</p>
-<p><strong>Total running time of the script:</strong> ( 0 minutes  2.044 seconds)</p>
+<p><strong>Total running time of the script:</strong> ( 0 minutes  3.531 seconds)</p>
 <div id="download_links"></div>
 
 <p><a class="md-button center" href="../example_13_06.py"><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M256 32c0-17.7-14.3-32-32-32s-32 14.3-32 32v210.7l-41.4-41.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3l96 96c12.5 12.5 32.8 12.5 45.3 0l96-96c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L256 242.7zM64 320c-35.3 0-64 28.7-64 64v32c0 35.3 28.7 64 64 64h320c35.3 0 64-28.7 64-64v-32c0-35.3-28.7-64-64-64h-46.9l-56.6 56.6c-31.2 31.2-81.9 31.2-113.1 0L110.9 320zm304 56a24 24 0 1 1 0 48 24 24 0 1 1 0-48"/></svg></span> Download Python source code: example_13_06.py</a></p>

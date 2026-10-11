@@ -21365,6 +21365,8 @@
       
         
       
+        
+      
     
     
     
@@ -21574,6 +21576,34 @@
     
   
     block_correlation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../api/validation/compare/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    compare
   
 
     
@@ -22311,10 +22341,12 @@ naive<span class="w">          </span><span class="m">435</span><span class="w">
 declustered<span class="w">    </span><span class="m">291</span><span class="w">     </span><span class="m">65006</span><span class="w">  </span><span class="m">0</span>.88<span class="w">  </span><span class="m">0</span>.95
 exhaustive<span class="w">     </span><span class="m">278</span><span class="w">     </span><span class="m">62422</span><span class="w">  </span><span class="m">0</span>.90<span class="w">  </span><span class="m">1</span>.02
 </code></pre></div>
-<!-- GENERATED FROM PYTHON SOURCE LINES 126-134 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 126-136 -->
 
 <div class="highlight"><pre><span></span><code><span class="n">fixed</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">cell_declustering</span><span class="p">(</span><span class="n">samples</span><span class="p">,</span> <span class="s2">"V"</span><span class="p">,</span> <span class="n">cell_size</span><span class="o">=</span><span class="mf">5.0</span><span class="p">)</span><span class="o">.</span><span class="n">weights</span>
-<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"try-it: 5 m cells give </span><span class="si">{</span><span class="n">np</span><span class="o">.</span><span class="n">average</span><span class="p">(</span><span class="n">v</span><span class="p">,</span><span class="w"> </span><span class="n">weights</span><span class="o">=</span><span class="n">fixed</span><span class="p">)</span><span class="si">:</span><span class="s2">.0f</span><span class="si">}</span><span class="s2"> ppm, median weight </span><span class="si">{</span><span class="n">np</span><span class="o">.</span><span class="n">median</span><span class="p">(</span><span class="n">fixed</span><span class="p">)</span><span class="si">:</span><span class="s2">.2f</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span>
+    <span class="sa">f</span><span class="s2">"try-it: 5 m cells give </span><span class="si">{</span><span class="n">bt</span><span class="o">.</span><span class="n">describe</span><span class="p">(</span><span class="n">v</span><span class="p">,</span><span class="w"> </span><span class="n">weights</span><span class="o">=</span><span class="n">fixed</span><span class="p">)[</span><span class="s1">'mean'</span><span class="p">]</span><span class="si">:</span><span class="s2">.0f</span><span class="si">}</span><span class="s2"> ppm, median weight </span><span class="si">{</span><span class="n">np</span><span class="o">.</span><span class="n">median</span><span class="p">(</span><span class="n">fixed</span><span class="p">)</span><span class="si">:</span><span class="s2">.2f</span><span class="si">}</span><span class="s2">"</span>
+<span class="p">)</span>
 <span class="n">distance</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="n">samples</span><span class="o">.</span><span class="n">coords</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">]</span> <span class="o">-</span> <span class="n">samples</span><span class="o">.</span><span class="n">coords</span><span class="p">[</span><span class="kc">None</span><span class="p">],</span> <span class="n">axis</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
 <span class="n">np</span><span class="o">.</span><span class="n">fill_diagonal</span><span class="p">(</span><span class="n">distance</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">inf</span><span class="p">)</span>
 <span class="nb">print</span><span class="p">(</span>
@@ -22325,7 +22357,7 @@ exhaustive<span class="w">     </span><span class="m">278</span><span class="w">
 <div class="mkd-glr-script-out-disp highlight"><pre><span></span><code>try-it:<span class="w"> </span><span class="m">5</span><span class="w"> </span>m<span class="w"> </span>cells<span class="w"> </span>give<span class="w"> </span><span class="m">425</span><span class="w"> </span>ppm,<span class="w"> </span>median<span class="w"> </span>weight<span class="w"> </span><span class="m">1</span>.04
 clustered<span class="w"> </span>samples,<span class="w"> </span>median<span class="w"> </span>nearest-neighbor<span class="w"> </span>distance<span class="w"> </span><span class="m">4</span>.2<span class="w"> </span>m
 </code></pre></div>
-<!-- GENERATED FROM PYTHON SOURCE LINES 135-167 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 137-169 -->
 
 <p>The mean falls from 435 ppm to a minimum of 291 ppm at 22.5 m cells, then climbs as the cells grow. At
 22.5 m, the weights run from 0.29 in the dense clusters to 3.00 on the sparse grid.</p>
@@ -22394,14 +22426,14 @@ the metal removed, here 21 % of the total from 3 of 24 values.</figcaption>
 
 <p>The vein gold dataset holds four quartz veins drilled by holes and sampled by underground channels. Take the 1 m
 <abbr title="drill-hole intervals of fixed length whose grades are the sampled-length-weighted means of the assays they cover.">composites</abbr> inside the veins and decluster them in 20 m cells, because channels crowd the developed levels:</p>
-<!-- GENERATED FROM PYTHON SOURCE LINES 169-182 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 171-184 -->
 
 <div class="highlight"><pre><span></span><code><span class="n">gold</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">datasets</span><span class="o">.</span><span class="n">vein_gold_grade_control</span><span class="p">()</span>
 <span class="n">gold_holes</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">Drillholes</span><span class="p">(</span>
     <span class="n">gold</span><span class="p">[</span><span class="s2">"collars"</span><span class="p">],</span> <span class="n">gold</span><span class="p">[</span><span class="s2">"surveys"</span><span class="p">],</span> <span class="n">bt</span><span class="o">.</span><span class="n">merge_intervals</span><span class="p">(</span><span class="n">gold</span><span class="p">[</span><span class="s2">"assays"</span><span class="p">],</span> <span class="n">gold</span><span class="p">[</span><span class="s2">"lithology"</span><span class="p">])</span>
 <span class="p">)</span>
 <span class="n">composites</span> <span class="o">=</span> <span class="n">gold_holes</span><span class="o">.</span><span class="n">composite</span><span class="p">(</span><span class="mf">1.0</span><span class="p">,</span> <span class="p">[</span><span class="s2">"AU_GPT"</span><span class="p">],</span> <span class="n">domain</span><span class="o">=</span><span class="s2">"LITH"</span><span class="p">)</span>
-<span class="n">quartz</span> <span class="o">=</span> <span class="n">composites</span><span class="o">.</span><span class="n">filter</span><span class="p">((</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">composites</span><span class="p">[</span><span class="s2">"LITH"</span><span class="p">])</span> <span class="o">==</span> <span class="s2">"QV"</span><span class="p">)</span> <span class="o">&amp;</span> <span class="o">~</span><span class="n">np</span><span class="o">.</span><span class="n">isnan</span><span class="p">(</span><span class="n">composites</span><span class="p">[</span><span class="s2">"AU_GPT"</span><span class="p">]))</span>
+<span class="n">quartz</span> <span class="o">=</span> <span class="n">composites</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">composites</span><span class="p">[</span><span class="s2">"LITH"</span><span class="p">]</span> <span class="o">==</span> <span class="s2">"QV"</span><span class="p">)</span><span class="o">.</span><span class="n">drop_null</span><span class="p">(</span><span class="s2">"AU_GPT"</span><span class="p">)</span>
 <span class="n">au</span> <span class="o">=</span> <span class="n">quartz</span><span class="p">[</span><span class="s2">"AU_GPT"</span><span class="p">]</span>
 <span class="n">cell_size</span> <span class="o">=</span> <span class="mf">20.0</span>  <span class="c1"># @param {type:"slider", min:5, max:100, step:5}</span>
 <span class="n">au_weights</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">cell_declustering</span><span class="p">(</span><span class="n">quartz</span><span class="p">,</span> <span class="s2">"AU_GPT"</span><span class="p">,</span> <span class="n">cell_size</span><span class="o">=</span><span class="n">cell_size</span><span class="p">)</span><span class="o">.</span><span class="n">weights</span>
@@ -22413,12 +22445,12 @@ the metal removed, here 21 % of the total from 3 of 24 values.</figcaption>
 <div class="mkd-glr-script-out-disp highlight"><pre><span></span><code><span class="m">5826</span><span class="w"> </span>composites<span class="p">;</span><span class="w"> </span>declustered<span class="w"> </span>mean<span class="w"> </span><span class="m">8</span>.33<span class="w"> </span>g/t,<span class="w"> </span>CV<span class="w"> </span><span class="m">3</span>.22
 largest<span class="w"> </span>five:<span class="w"> </span><span class="o">[</span><span class="m">1192</span>.<span class="w">  </span><span class="m">521</span>.<span class="w">  </span><span class="m">487</span>.<span class="w">  </span><span class="m">408</span>.<span class="w">  </span><span class="m">368</span>.<span class="o">]</span>
 </code></pre></div>
-<!-- GENERATED FROM PYTHON SOURCE LINES 183-186 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 185-188 -->
 
 <p>The CV of 3.22 is high for a grade; the largest <abbr title="a drill-hole interval of fixed length whose grade is the sampled-length-weighted mean of the assays it covers.">composite</abbr>, 1192 g/t, is more than twice the next. <code>bt.capping</code>
 tries a cap at each of several high quantiles and reports the share of weight above it, the share of metal it
 removes, and the capped mean and CV:</p>
-<!-- GENERATED FROM PYTHON SOURCE LINES 188-205 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 190-207 -->
 
 <div class="highlight"><pre><span></span><code><span class="n">caps</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">capping</span><span class="p">(</span><span class="s2">"AU_GPT"</span><span class="p">,</span> <span class="n">weights</span><span class="o">=</span><span class="n">au_weights</span><span class="p">,</span> <span class="n">data</span><span class="o">=</span><span class="n">quartz</span><span class="p">)</span>
 <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="s1">'cap'</span><span class="si">:</span><span class="s2">&gt;7</span><span class="si">}{</span><span class="s1">'above (%)'</span><span class="si">:</span><span class="s2">&gt;11</span><span class="si">}{</span><span class="s1">'metal (%)'</span><span class="si">:</span><span class="s2">&gt;11</span><span class="si">}{</span><span class="s1">'mean'</span><span class="si">:</span><span class="s2">&gt;7</span><span class="si">}{</span><span class="s1">'CV'</span><span class="si">:</span><span class="s2">&gt;6</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
@@ -22448,7 +22480,7 @@ removes, and the capped mean and CV:</p>
 <span class="w">  </span><span class="m">297</span>.7<span class="w">        </span><span class="m">0</span>.1<span class="w">        </span><span class="m">3</span>.4<span class="w">   </span><span class="m">8</span>.05<span class="w">  </span><span class="m">2</span>.34
 cap<span class="w"> </span><span class="m">81</span>.4<span class="w"> </span>g/t:<span class="w"> </span><span class="m">67</span><span class="w"> </span>composites<span class="w"> </span>cut,<span class="w"> </span><span class="m">11</span>.5%<span class="w"> </span>of<span class="w"> </span>the<span class="w"> </span>metal<span class="w"> </span>removed
 </code></pre></div>
-<!-- GENERATED FROM PYTHON SOURCE LINES 206-232 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 208-234 -->
 
 <p>A cap at the declustered 99th percentile, 81.4 g/t, cuts 67 <abbr title="drill-hole intervals of fixed length whose grades are the sampled-length-weighted means of the assays they cover.">composites</abbr> and removes 11.5 % of the metal: the mean
 falls from 8.33 to 7.38 g/t and the CV from 3.22 to 1.74. <code>Capping</code> follows the
@@ -22527,7 +22559,7 @@ show that the pooled data come from two populations.</figcaption>
 
 <p><code>bt.describe_by</code> computes the same statistics per category. Apply it to the stacked sulphide lenses,
 composited to 2 m within each lithology as in chapter 1:</p>
-<!-- GENERATED FROM PYTHON SOURCE LINES 234-249 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 236-251 -->
 
 <div class="highlight"><pre><span></span><code><span class="n">lenses</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">datasets</span><span class="o">.</span><span class="n">stacked_sulphide_lenses</span><span class="p">()</span>
 <span class="n">lens_holes</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">Drillholes</span><span class="p">(</span>
@@ -22556,7 +22588,7 @@ STR<span class="w">       </span><span class="m">583</span><span class="w">    <
 VCL<span class="w">      </span><span class="m">8619</span><span class="w">    </span><span class="m">0</span>.05<span class="w">  </span><span class="m">0</span>.67
 all<span class="w">     </span><span class="m">13602</span><span class="w">    </span><span class="m">0</span>.64<span class="w">  </span><span class="m">3</span>.57
 </code></pre></div>
-<!-- GENERATED FROM PYTHON SOURCE LINES 250-265 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 252-267 -->
 
 <p>Zinc averages 8.94 % in massive sulphide (<code>MS</code>), 3.44 % in semi-massive sulphide (<code>SMS</code>), 0.38 % in the stringer
 zone (<code>STR</code>) and 0.05 to 0.06 % in the host rocks. Within each lithology the CV lies between 0.55 and 0.68;
@@ -22570,7 +22602,7 @@ coefficient summarizes them in one number between -1 and 1. The Pearson coeffici
 line fits the pairs. It is sensitive to extreme values. The Spearman coefficient is the Pearson coefficient of the
 ranks, so it measures whether one variable rises when the other does, whatever the shape, and extreme values
 carry no extra weight.</p>
-<!-- GENERATED FROM PYTHON SOURCE LINES 267-283 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 269-285 -->
 
 <div class="highlight"><pre><span></span><code><span class="n">u</span> <span class="o">=</span> <span class="n">samples</span><span class="p">[</span><span class="s2">"U"</span><span class="p">]</span>
 <span class="n">both</span> <span class="o">=</span> <span class="o">~</span><span class="n">np</span><span class="o">.</span><span class="n">isnan</span><span class="p">(</span><span class="n">u</span><span class="p">)</span>
@@ -22578,7 +22610,7 @@ carry no extra weight.</p>
 <span class="n">ranks</span> <span class="o">=</span> <span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">argsort</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">argsort</span><span class="p">(</span><span class="n">x</span><span class="p">))</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="p">(</span><span class="n">v</span><span class="p">[</span><span class="n">both</span><span class="p">],</span> <span class="n">u</span><span class="p">[</span><span class="n">both</span><span class="p">])]</span>
 <span class="n">spearman</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">corrcoef</span><span class="p">(</span><span class="o">*</span><span class="n">ranks</span><span class="p">)[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span>
 <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">both</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span><span class="si">}</span><span class="s2"> samples with both V and U: Pearson </span><span class="si">{</span><span class="n">pearson</span><span class="si">:</span><span class="s2">.2f</span><span class="si">}</span><span class="s2">, Spearman </span><span class="si">{</span><span class="n">spearman</span><span class="si">:</span><span class="s2">.2f</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
-<span class="n">ms</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">zinc</span><span class="p">[</span><span class="s2">"LITH"</span><span class="p">])</span> <span class="o">==</span> <span class="s2">"MS"</span>
+<span class="n">ms</span> <span class="o">=</span> <span class="n">zinc</span><span class="p">[</span><span class="s2">"LITH"</span><span class="p">]</span> <span class="o">==</span> <span class="s2">"MS"</span>
 <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Zn and Pb in MS: Pearson </span><span class="si">{</span><span class="n">np</span><span class="o">.</span><span class="n">corrcoef</span><span class="p">(</span><span class="n">zinc</span><span class="p">[</span><span class="s1">'ZN_PCT'</span><span class="p">][</span><span class="n">ms</span><span class="p">],</span><span class="w"> </span><span class="n">zinc</span><span class="p">[</span><span class="s1">'PB_PCT'</span><span class="p">][</span><span class="n">ms</span><span class="p">])[</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">]</span><span class="si">:</span><span class="s2">.2f</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
 
 <span class="n">fig</span><span class="p">,</span> <span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">)</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">9</span><span class="p">,</span> <span class="mf">3.8</span><span class="p">),</span> <span class="n">layout</span><span class="o">=</span><span class="s2">"constrained"</span><span class="p">)</span>
@@ -22593,7 +22625,7 @@ carry no extra weight.</p>
 <div class="mkd-glr-script-out-disp highlight"><pre><span></span><code><span class="m">275</span><span class="w"> </span>samples<span class="w"> </span>with<span class="w"> </span>both<span class="w"> </span>V<span class="w"> </span>and<span class="w"> </span>U:<span class="w"> </span>Pearson<span class="w"> </span><span class="m">0</span>.55,<span class="w"> </span>Spearman<span class="w"> </span><span class="m">0</span>.76
 Zn<span class="w"> </span>and<span class="w"> </span>Pb<span class="w"> </span><span class="k">in</span><span class="w"> </span>MS:<span class="w"> </span>Pearson<span class="w"> </span><span class="m">0</span>.81
 </code></pre></div>
-<!-- GENERATED FROM PYTHON SOURCE LINES 284-287 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 286-289 -->
 
 <div class="highlight"><pre><span></span><code><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"try-it: Pearson of log1p </span><span class="si">{</span><span class="n">np</span><span class="o">.</span><span class="n">corrcoef</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">log1p</span><span class="p">(</span><span class="n">v</span><span class="p">[</span><span class="n">both</span><span class="p">]),</span><span class="w"> </span><span class="n">np</span><span class="o">.</span><span class="n">log1p</span><span class="p">(</span><span class="n">u</span><span class="p">[</span><span class="n">both</span><span class="p">]))[</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">]</span><span class="si">:</span><span class="s2">.2f</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
 <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"U above 3000 ppm: </span><span class="si">{</span><span class="p">(</span><span class="n">u</span><span class="p">[</span><span class="n">both</span><span class="p">]</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">3000</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span><span class="si">}</span><span class="s2"> samples"</span><span class="p">)</span>
@@ -22602,7 +22634,7 @@ Zn<span class="w"> </span>and<span class="w"> </span>Pb<span class="w"> </span><
 <div class="mkd-glr-script-out-disp highlight"><pre><span></span><code>try-it:<span class="w"> </span>Pearson<span class="w"> </span>of<span class="w"> </span>log1p<span class="w"> </span><span class="m">0</span>.78
 U<span class="w"> </span>above<span class="w"> </span><span class="m">3000</span><span class="w"> </span>ppm:<span class="w"> </span><span class="m">6</span><span class="w"> </span>samples
 </code></pre></div>
-<!-- GENERATED FROM PYTHON SOURCE LINES 288-308 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 290-310 -->
 
 <p><code>U</code> was measured on 275 samples; the other 195 are nulls and drop out of the pairs. On those 275, the Pearson
 coefficient is 0.55 and the Spearman coefficient 0.76. The gap comes from the tail of <code>U</code>: six samples above
@@ -22644,14 +22676,14 @@ curve, then the score with the same probability on the standard normal curve on 
 
 <p><code>NormalScore</code> is a transform with <code>fit</code>, <code>transform</code> and <code>inverse_transform</code>. Fit it with the <abbr title="weighting samples by the area or volume each represents, to correct statistics for clustered sampling.">declustering</abbr>
 weights, so that the scores describe the area rather than the clusters:</p>
-<!-- GENERATED FROM PYTHON SOURCE LINES 310-326 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 312-328 -->
 
 <div class="highlight"><pre><span></span><code><span class="n">transform</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">NormalScore</span><span class="p">()</span>
 <span class="n">scores</span> <span class="o">=</span> <span class="n">transform</span><span class="o">.</span><span class="n">fit_transform</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="n">weights</span><span class="o">=</span><span class="n">weights</span><span class="p">)</span>
-<span class="n">mean</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">average</span><span class="p">(</span><span class="n">scores</span><span class="p">,</span> <span class="n">weights</span><span class="o">=</span><span class="n">weights</span><span class="p">)</span>
-<span class="n">sd</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">average</span><span class="p">((</span><span class="n">scores</span> <span class="o">-</span> <span class="n">mean</span><span class="p">)</span> <span class="o">**</span> <span class="mi">2</span><span class="p">,</span> <span class="n">weights</span><span class="o">=</span><span class="n">weights</span><span class="p">))</span>
+<span class="n">s</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">describe</span><span class="p">(</span><span class="n">scores</span><span class="p">,</span> <span class="n">weights</span><span class="o">=</span><span class="n">weights</span><span class="p">)</span>
 <span class="nb">print</span><span class="p">(</span>
-    <span class="sa">f</span><span class="s2">"normal scores: weighted mean </span><span class="si">{</span><span class="n">mean</span><span class="si">:</span><span class="s2">.3f</span><span class="si">}</span><span class="s2">, standard deviation </span><span class="si">{</span><span class="n">sd</span><span class="si">:</span><span class="s2">.3f</span><span class="si">}</span><span class="s2">, skewness </span><span class="si">{</span><span class="n">skewness</span><span class="p">(</span><span class="n">scores</span><span class="p">,</span><span class="w"> </span><span class="n">weights</span><span class="p">)</span><span class="si">:</span><span class="s2">.2f</span><span class="si">}</span><span class="s2">"</span>
+    <span class="sa">f</span><span class="s2">"normal scores: weighted mean </span><span class="si">{</span><span class="n">s</span><span class="p">[</span><span class="s1">'mean'</span><span class="p">]</span><span class="si">:</span><span class="s2">.3f</span><span class="si">}</span><span class="s2">, standard deviation </span><span class="si">{</span><span class="n">s</span><span class="p">[</span><span class="s1">'std'</span><span class="p">]</span><span class="si">:</span><span class="s2">.3f</span><span class="si">}</span><span class="s2">, "</span>
+    <span class="sa">f</span><span class="s2">"skewness </span><span class="si">{</span><span class="n">skewness</span><span class="p">(</span><span class="n">scores</span><span class="p">,</span><span class="w"> </span><span class="n">weights</span><span class="p">)</span><span class="si">:</span><span class="s2">.2f</span><span class="si">}</span><span class="s2">"</span>
 <span class="p">)</span>
 
 <span class="n">fig</span><span class="p">,</span> <span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">)</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">9</span><span class="p">,</span> <span class="mf">3.4</span><span class="p">),</span> <span class="n">layout</span><span class="o">=</span><span class="s2">"constrained"</span><span class="p">)</span>
@@ -22667,7 +22699,7 @@ weights, so that the scores describe the area rather than the clusters:</p>
 <div class="mkd-glr-script-out-disp highlight"><pre><span></span><code>normal<span class="w"> </span>scores:<span class="w"> </span>weighted<span class="w"> </span>mean<span class="w"> </span><span class="m">0</span>.001,<span class="w"> </span>standard<span class="w"> </span>deviation<span class="w"> </span><span class="m">0</span>.998,<span class="w"> </span>skewness<span class="w"> </span><span class="m">0</span>.01
 back-transform:<span class="w"> </span>largest<span class="w"> </span>error<span class="w"> </span><span class="m">0</span>.0e+00<span class="w"> </span>ppm
 </code></pre></div>
-<!-- GENERATED FROM PYTHON SOURCE LINES 327-353 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 329-355 -->
 
 <p>The weighted scores have mean 0.001, standard deviation 0.998 and <abbr title="a measure of the asymmetry of a distribution; positive when a long tail runs to high values.">skewness</abbr> 0.01: a standard normal variable.
 The <abbr title="the inverse of a transform, returning simulated scores to the original units.">back-transform</abbr> returns every original grade with an error of 0 ppm, so a simulation can work in scores and
@@ -22700,7 +22732,7 @@ report in ppm. <a href="../../05-simulation/learn_05/">Chapter 5</a> uses the tr
 </div>
 <p><strong>Next:</strong> <a href="../../03-spatial-continuity/learn_03/">Spatial continuity</a>: how values relate to their neighbors, and
 the variogram that measures it.</p>
-<p><strong>Total running time of the script:</strong> ( 0 minutes  1.362 seconds)</p>
+<p><strong>Total running time of the script:</strong> ( 0 minutes  5.005 seconds)</p>
 <div id="download_links"></div>
 
 <p><a class="md-button center" href="../learn_02.py"><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M256 32c0-17.7-14.3-32-32-32s-32 14.3-32 32v210.7l-41.4-41.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3l96 96c12.5 12.5 32.8 12.5 45.3 0l96-96c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L256 242.7zM64 320c-35.3 0-64 28.7-64 64v32c0 35.3 28.7 64 64 64h320c35.3 0 64-28.7 64-64v-32c0-35.3-28.7-64-64-64h-46.9l-56.6 56.6c-31.2 31.2-81.9 31.2-113.1 0L110.9 320zm304 56a24 24 0 1 1 0 48 24 24 0 1 1 0-48"/></svg></span> Download Python source code: learn_02.py</a></p>

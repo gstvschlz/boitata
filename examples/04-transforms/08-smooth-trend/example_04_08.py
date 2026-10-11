@@ -32,17 +32,15 @@ print(
     f"{len(holes)} holes, mean {thickness.mean():.2f} m, declustered {np.average(thickness, weights=weights):.2f} m"
 )
 
-nx, ny, _ = grid.count
-dx, dy, _ = grid.size
-x0, y0, _ = grid.origin
-extent = (x0, x0 + nx * dx, y0, y0 + ny * dy)
-outside = np.asarray(grid["INSIDE"]) == 0
+(x0, y0, _), (x1, y1, _) = grid.bounds
+extent = (x0, x1, y0, y1)
+outside = grid["INSIDE"] == 0
 
 
 def image(ax, values, **kwargs):
-    values = np.where(outside, np.nan, np.asarray(values, dtype=float)).reshape(ny, nx)
+    values = grid.grid(np.where(outside, np.nan, values))[0]
     shown = ax.imshow(values, origin="lower", extent=extent, **kwargs)
-    ax.plot(*lease.vertices[:, :2].T, color=INK, lw=0.6)
+    ax.plot(*lease.coords[:, :2].T, color=INK, lw=0.6)
     return shown
 
 
@@ -106,7 +104,7 @@ print(f"correlation with the trend {np.corrcoef(at_holes, residuals)[0, 1]:+.2f}
 fig, (left, right) = plt.subplots(
     1, 2, figsize=(10.5, 3.6), gridspec_kw={"width_ratios": [1.3, 1]}, layout="constrained"
 )
-left.plot(*lease.vertices[:, :2].T, color=INK, lw=0.6)
+left.plot(*lease.coords[:, :2].T, color=INK, lw=0.6)
 limit = np.abs(residuals).max()
 dots = left.scatter(*holes.coords[:, :2].T, c=residuals, s=10, cmap="RdBu_r", vmin=-limit, vmax=limit)
 map_axes(left, "Residuals at the holes")
@@ -132,7 +130,7 @@ save(fig, "residuals")
 # %%
 categories, _ = bt.detrend(holes, "CATEGORY", bandwidth=candidates, weights=weights, categorical=True)
 proportions = categories.predict(grid)
-total = sum(np.asarray(proportions[name]) for name in categories.categories)
+total = sum(proportions[name] for name in categories.categories)
 print(
     f"bandwidth {categories.bandwidth:.0f} m; proportions sum to 1: {np.allclose(total[~np.isnan(total)], 1.0)}"
 )

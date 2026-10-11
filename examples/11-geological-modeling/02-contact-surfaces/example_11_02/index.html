@@ -21287,6 +21287,8 @@
       
         
       
+        
+      
     
     
     
@@ -21496,6 +21498,34 @@
     
   
     block_correlation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../api/validation/compare/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    compare
   
 
     
@@ -21970,16 +22000,16 @@ desurveyed path. the codes pin the field to 0 at the contacts, +1 at the middle 
 outside, from the intervals next to a contact and a sparse subset of the others.</p>
 <!-- GENERATED FROM PYTHON SOURCE LINES 33-55 -->
 
-<div class="highlight"><pre><span></span><code><span class="n">holes</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">Drillholes</span><span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="s2">"collars"</span><span class="p">],</span> <span class="n">data</span><span class="p">[</span><span class="s2">"surveys"</span><span class="p">],</span> <span class="n">data</span><span class="p">[</span><span class="s2">"lithology"</span><span class="p">])</span>
+<div class="highlight"><pre><span></span><code><span class="n">holes</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">Drillholes</span><span class="o">.</span><span class="n">from_tables</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">intervals</span><span class="o">=</span><span class="s2">"lithology"</span><span class="p">)</span>
 <span class="n">logged</span> <span class="o">=</span> <span class="n">holes</span><span class="o">.</span><span class="n">samples</span><span class="p">()</span>
 <span class="n">xyz</span> <span class="o">=</span> <span class="n">logged</span><span class="o">.</span><span class="n">coords</span>
 <span class="n">lo</span><span class="p">,</span> <span class="n">hi</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">lens</span><span class="o">.</span><span class="n">bounds</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span> <span class="o">-</span> <span class="mi">30</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">lens</span><span class="o">.</span><span class="n">bounds</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span> <span class="o">+</span> <span class="mi">30</span>
 <span class="n">order</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">lexsort</span><span class="p">((</span><span class="n">logged</span><span class="p">[</span><span class="s2">"FROM"</span><span class="p">],</span> <span class="n">logged</span><span class="p">[</span><span class="s2">"HOLE_ID"</span><span class="p">]))</span>
 <span class="n">order</span> <span class="o">=</span> <span class="n">order</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">all</span><span class="p">((</span><span class="n">xyz</span><span class="p">[</span><span class="n">order</span><span class="p">]</span> <span class="o">&gt;</span> <span class="n">lo</span><span class="p">)</span> <span class="o">&amp;</span> <span class="p">(</span><span class="n">xyz</span><span class="p">[</span><span class="n">order</span><span class="p">]</span> <span class="o">&lt;</span> <span class="n">hi</span><span class="p">),</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)]</span>
 <span class="n">xyz</span> <span class="o">=</span> <span class="n">xyz</span><span class="p">[</span><span class="n">order</span><span class="p">]</span>
-<span class="n">hole</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">logged</span><span class="p">[</span><span class="s2">"HOLE_ID"</span><span class="p">],</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">object</span><span class="p">)[</span><span class="n">order</span><span class="p">]</span>
-<span class="n">lith</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">logged</span><span class="p">[</span><span class="s2">"LITH"</span><span class="p">],</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">object</span><span class="p">)[</span><span class="n">order</span><span class="p">]</span>
-<span class="n">bottom</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">logged</span><span class="p">[</span><span class="s2">"TO"</span><span class="p">])[</span><span class="n">order</span><span class="p">]</span>
+<span class="n">hole</span> <span class="o">=</span> <span class="n">logged</span><span class="p">[</span><span class="s2">"HOLE_ID"</span><span class="p">][</span><span class="n">order</span><span class="p">]</span>
+<span class="n">lith</span> <span class="o">=</span> <span class="n">logged</span><span class="p">[</span><span class="s2">"LITH"</span><span class="p">][</span><span class="n">order</span><span class="p">]</span>
+<span class="n">bottom</span> <span class="o">=</span> <span class="n">logged</span><span class="p">[</span><span class="s2">"TO"</span><span class="p">][</span><span class="n">order</span><span class="p">]</span>
 
 <span class="n">unit</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">isin</span><span class="p">(</span><span class="n">lith</span><span class="p">,</span> <span class="p">[</span><span class="s2">"MS"</span><span class="p">,</span> <span class="s2">"SMS"</span><span class="p">])</span> <span class="o">&amp;</span> <span class="n">lens</span><span class="o">.</span><span class="n">contains</span><span class="p">(</span><span class="n">xyz</span><span class="p">)</span>
 <span class="n">change</span> <span class="o">=</span> <span class="p">(</span><span class="n">hole</span><span class="p">[</span><span class="mi">1</span><span class="p">:]</span> <span class="o">==</span> <span class="n">hole</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span> <span class="o">&amp;</span> <span class="p">(</span><span class="n">unit</span><span class="p">[</span><span class="mi">1</span><span class="p">:]</span> <span class="o">!=</span> <span class="n">unit</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span>
@@ -22019,7 +22049,7 @@ model's lens meets the <abbr title="a closed triangle mesh that bounds a volume,
     <span class="s2">"GP"</span><span class="p">:</span> <span class="n">bt</span><span class="o">.</span><span class="n">ImplicitModel</span><span class="p">(</span><span class="s2">"gp"</span><span class="p">,</span> <span class="n">degree</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">rotation</span><span class="o">=</span><span class="n">rotation</span><span class="p">),</span>
 <span class="p">}</span>
 <span class="n">cells</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">BlockModel</span><span class="p">(</span><span class="n">origin</span><span class="o">=</span><span class="n">lo</span><span class="p">,</span> <span class="n">size</span><span class="o">=</span><span class="p">(</span><span class="mi">5</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">5</span><span class="p">),</span> <span class="n">count</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">ceil</span><span class="p">((</span><span class="n">hi</span> <span class="o">-</span> <span class="n">lo</span><span class="p">)</span> <span class="o">/</span> <span class="mi">5</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">int</span><span class="p">))</span>
-<span class="n">solid</span> <span class="o">=</span> <span class="n">lens</span><span class="o">.</span><span class="n">contains</span><span class="p">(</span><span class="n">cells</span><span class="o">.</span><span class="n">centroids</span><span class="p">)</span>
+<span class="n">solid</span> <span class="o">=</span> <span class="n">lens</span><span class="o">.</span><span class="n">contains</span><span class="p">(</span><span class="n">cells</span><span class="o">.</span><span class="n">coords</span><span class="p">)</span>
 <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">model</span> <span class="ow">in</span> <span class="n">models</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
     <span class="n">model</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">points</span><span class="p">,</span> <span class="n">code</span><span class="p">,</span> <span class="n">boundaries</span><span class="o">=</span><span class="n">contacts</span><span class="p">)</span>
     <span class="n">right</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">sign</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">predict</span><span class="p">(</span><span class="n">points</span><span class="p">))</span> <span class="o">==</span> <span class="n">code</span><span class="p">)</span>
@@ -22046,7 +22076,7 @@ so its lens is a slab that leaves the <abbr title="a closed triangle mesh that b
 <abbr title="a closed triangle mesh that bounds a volume, such as an ore body or a vein.">solid</abbr> in black:</p>
 <!-- GENERATED FROM PYTHON SOURCE LINES 97-119 -->
 
-<div class="highlight"><pre><span></span><code><span class="n">center</span> <span class="o">=</span> <span class="n">lens</span><span class="o">.</span><span class="n">vertices</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><span class="n">center</span> <span class="o">=</span> <span class="n">lens</span><span class="o">.</span><span class="n">coords</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
 <span class="n">plane</span> <span class="o">=</span> <span class="p">(</span><span class="n">center</span><span class="p">,</span> <span class="mf">112.5</span><span class="p">,</span> <span class="mi">90</span><span class="p">)</span>
 <span class="n">u</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">np</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">radians</span><span class="p">(</span><span class="mf">112.5</span><span class="p">)),</span> <span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">radians</span><span class="p">(</span><span class="mf">112.5</span><span class="p">)),</span> <span class="mf">0.0</span><span class="p">])</span>
 <span class="n">normal</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">cross</span><span class="p">(</span><span class="n">u</span><span class="p">,</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">])</span>
@@ -22073,7 +22103,7 @@ so its lens is a slab that leaves the <abbr title="a closed triangle mesh that b
 
 <p><code>isosurface(cells, closed=True)</code> turns a field into a <abbr title="a closed triangle mesh that bounds a volume, such as an ore body or a vein.">solid</abbr> mesh, which <code>BlockModel.from_meshes</code> and <code>subblock</code>
 turn into a <abbr title="a volume of rock whose values you treat as one population, such as one lithology or one vein.">domain</abbr> model (see <a href="../../../02-data-and-geometry/06-sub-blocks/example_02_06/"><abbr title="smaller cells a parent block is split into where a contact crosses it.">sub-blocks</abbr></a>). <a href="../../03-structural-data/example_11_03/">structural data</a> adds plane and lineation readings.</p>
-<p><strong>Total running time of the script:</strong> ( 0 minutes  1.968 seconds)</p>
+<p><strong>Total running time of the script:</strong> ( 0 minutes  2.595 seconds)</p>
 <div id="download_links"></div>
 
 <p><a class="md-button center" href="../example_11_02.py"><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M256 32c0-17.7-14.3-32-32-32s-32 14.3-32 32v210.7l-41.4-41.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3l96 96c12.5 12.5 32.8 12.5 45.3 0l96-96c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L256 242.7zM64 320c-35.3 0-64 28.7-64 64v32c0 35.3 28.7 64 64 64h320c35.3 0 64-28.7 64-64v-32c0-35.3-28.7-64-64-64h-46.9l-56.6 56.6c-31.2 31.2-81.9 31.2-113.1 0L110.9 320zm304 56a24 24 0 1 1 0 48 24 24 0 1 1 0-48"/></svg></span> Download Python source code: example_11_02.py</a></p>

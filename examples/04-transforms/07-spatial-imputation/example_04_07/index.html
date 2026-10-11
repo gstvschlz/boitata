@@ -21287,6 +21287,8 @@
       
         
       
+        
+      
     
     
     
@@ -21496,6 +21498,34 @@
     
   
     block_correlation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../api/validation/compare/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    compare
   
 
     
@@ -21960,11 +21990,11 @@ sulphide lenses, missing in 91% of all samples and in about half of the sulphide
 <span class="n">lenses</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">datasets</span><span class="o">.</span><span class="n">stacked_sulphide_lenses</span><span class="p">()</span>
 <span class="n">intervals</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">merge_intervals</span><span class="p">(</span><span class="n">lenses</span><span class="p">[</span><span class="s2">"assays"</span><span class="p">],</span> <span class="n">lenses</span><span class="p">[</span><span class="s2">"lithology"</span><span class="p">])</span>
 <span class="n">samples</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">Drillholes</span><span class="p">(</span><span class="n">lenses</span><span class="p">[</span><span class="s2">"collars"</span><span class="p">],</span> <span class="n">lenses</span><span class="p">[</span><span class="s2">"surveys"</span><span class="p">],</span> <span class="n">intervals</span><span class="p">)</span><span class="o">.</span><span class="n">samples</span><span class="p">()</span>
-<span class="n">density</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">samples</span><span class="p">[</span><span class="s2">"DENSITY"</span><span class="p">],</span> <span class="nb">float</span><span class="p">)</span>
-<span class="n">sulphide</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">isin</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">samples</span><span class="p">[</span><span class="s2">"LITH"</span><span class="p">]),</span> <span class="p">[</span><span class="s2">"MS"</span><span class="p">,</span> <span class="s2">"SMS"</span><span class="p">,</span> <span class="s2">"STR"</span><span class="p">])</span> <span class="o">&amp;</span> <span class="o">~</span><span class="n">np</span><span class="o">.</span><span class="n">isnan</span><span class="p">(</span><span class="n">samples</span><span class="p">[</span><span class="s2">"ZN_PCT"</span><span class="p">])</span>
+<span class="n">density</span> <span class="o">=</span> <span class="n">samples</span><span class="p">[</span><span class="s2">"DENSITY"</span><span class="p">]</span>
+<span class="n">sulphide</span> <span class="o">=</span> <span class="n">samples</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">isin</span><span class="p">(</span><span class="n">samples</span><span class="p">[</span><span class="s2">"LITH"</span><span class="p">],</span> <span class="p">[</span><span class="s2">"MS"</span><span class="p">,</span> <span class="s2">"SMS"</span><span class="p">,</span> <span class="s2">"STR"</span><span class="p">]))</span><span class="o">.</span><span class="n">drop_null</span><span class="p">(</span><span class="s2">"ZN_PCT"</span><span class="p">)</span>
 <span class="n">columns</span> <span class="o">=</span> <span class="p">[</span><span class="s2">"ZN_PCT"</span><span class="p">,</span> <span class="s2">"PB_PCT"</span><span class="p">,</span> <span class="s2">"CU_PCT"</span><span class="p">,</span> <span class="s2">"AG_GPT"</span><span class="p">,</span> <span class="s2">"AU_GPT"</span><span class="p">,</span> <span class="s2">"DENSITY"</span><span class="p">]</span>
-<span class="n">data</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">column_stack</span><span class="p">([</span><span class="n">samples</span><span class="p">[</span><span class="n">c</span><span class="p">][</span><span class="n">sulphide</span><span class="p">]</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">columns</span><span class="p">])</span>
-<span class="n">xyz</span><span class="p">,</span> <span class="n">holes</span> <span class="o">=</span> <span class="n">samples</span><span class="o">.</span><span class="n">coords</span><span class="p">[</span><span class="n">sulphide</span><span class="p">],</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">samples</span><span class="p">[</span><span class="s2">"HOLE_ID"</span><span class="p">])[</span><span class="n">sulphide</span><span class="p">]</span>
+<span class="n">data</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">column_stack</span><span class="p">([</span><span class="n">sulphide</span><span class="p">[</span><span class="n">c</span><span class="p">]</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">columns</span><span class="p">])</span>
+<span class="n">xyz</span><span class="p">,</span> <span class="n">holes</span> <span class="o">=</span> <span class="n">sulphide</span><span class="o">.</span><span class="n">coords</span><span class="p">,</span> <span class="n">sulphide</span><span class="p">[</span><span class="s2">"HOLE_ID"</span><span class="p">]</span>
 <span class="n">seen</span> <span class="o">=</span> <span class="o">~</span><span class="n">np</span><span class="o">.</span><span class="n">isnan</span><span class="p">(</span><span class="n">data</span><span class="p">[:,</span> <span class="mi">5</span><span class="p">])</span>
 <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"density missing in </span><span class="si">{</span><span class="n">np</span><span class="o">.</span><span class="n">isnan</span><span class="p">(</span><span class="n">density</span><span class="p">)</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span><span class="si">:</span><span class="s2">.0%</span><span class="si">}</span><span class="s2"> of </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">density</span><span class="p">)</span><span class="si">}</span><span class="s2"> samples"</span><span class="p">)</span>
 <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">data</span><span class="p">)</span><span class="si">}</span><span class="s2"> sulphide samples, density measured in </span><span class="si">{</span><span class="n">seen</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
@@ -22019,7 +22049,7 @@ are root-mean-square.</p>
     <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">make</span> <span class="ow">in</span> <span class="n">imputers</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
         <span class="n">d</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">make</span><span class="p">(</span><span class="n">seed</span><span class="p">,</span> <span class="n">holed</span><span class="p">)</span><span class="o">.</span><span class="n">transform</span><span class="p">(</span><span class="n">holed</span><span class="p">)[</span><span class="n">hidden</span><span class="p">,</span> <span class="mi">5</span><span class="p">]</span> <span class="k">for</span> <span class="n">seed</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">10</span><span class="p">)])</span>
         <span class="n">draws</span><span class="p">[</span><span class="n">test</span><span class="p">,</span> <span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">d</span>
-        <span class="n">one</span><span class="p">,</span> <span class="n">mean</span> <span class="o">=</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">((</span><span class="n">x</span> <span class="o">-</span> <span class="n">truth</span><span class="p">)</span> <span class="o">**</span> <span class="mi">2</span><span class="p">))</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="p">(</span><span class="n">d</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">d</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)))</span>
+        <span class="n">one</span><span class="p">,</span> <span class="n">mean</span> <span class="o">=</span> <span class="p">(</span><span class="n">bt</span><span class="o">.</span><span class="n">compare</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">truth</span><span class="p">)[</span><span class="s2">"rmse"</span><span class="p">]</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="p">(</span><span class="n">d</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">d</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)))</span>
         <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">test</span><span class="si">:</span><span class="s2">20</span><span class="si">}{</span><span class="n">name</span><span class="si">:</span><span class="s2">13</span><span class="si">}{</span><span class="n">one</span><span class="si">:</span><span class="s2">9.3f</span><span class="si">}{</span><span class="n">mean</span><span class="si">:</span><span class="s2">7.3f</span><span class="si">}{</span><span class="n">d</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">std</span><span class="p">()</span><span class="si">:</span><span class="s2">6.2f</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
     <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">test</span><span class="si">:</span><span class="s2">20</span><span class="si">}{</span><span class="s1">'truth'</span><span class="si">:</span><span class="s2">13</span><span class="si">}{</span><span class="s1">''</span><span class="si">:</span><span class="s2">16</span><span class="si">}{</span><span class="n">truth</span><span class="o">.</span><span class="n">std</span><span class="p">()</span><span class="si">:</span><span class="s2">6.2f</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
 </code></pre></div>
@@ -22096,7 +22126,7 @@ impute=bt.GaussianImputer(spatial=model))</code> redraws the gaps this way in ev
 (<a href="../../../08-stochastic-simulation/06-multivariate-simulation/example_08_06/">multivariate simulation</a>).</p>
 <p>the intrinsic model is the simplest spatial model with the fitted correlations: one correlogram for all variables.
 here it comes from density, the variable being imputed, and grades with a different continuity borrow it too.</p>
-<p><strong>Total running time of the script:</strong> ( 0 minutes  5.026 seconds)</p>
+<p><strong>Total running time of the script:</strong> ( 0 minutes  6.773 seconds)</p>
 <div id="download_links"></div>
 
 <p><a class="md-button center" href="../example_04_07.py"><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M256 32c0-17.7-14.3-32-32-32s-32 14.3-32 32v210.7l-41.4-41.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3l96 96c12.5 12.5 32.8 12.5 45.3 0l96-96c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L256 242.7zM64 320c-35.3 0-64 28.7-64 64v32c0 35.3 28.7 64 64 64h320c35.3 0 64-28.7 64-64v-32c0-35.3-28.7-64-64-64h-46.9l-56.6 56.6c-31.2 31.2-81.9 31.2-113.1 0L110.9 320zm304 56a24 24 0 1 1 0 48 24 24 0 1 1 0-48"/></svg></span> Download Python source code: example_04_07.py</a></p>

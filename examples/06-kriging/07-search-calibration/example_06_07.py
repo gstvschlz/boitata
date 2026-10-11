@@ -56,7 +56,7 @@ scores = bt.calibrate_search(
 true_scores = {"slope": [], "variance": [], "tonnage": []}
 for candidate in candidates:
     estimate = kriging.with_search(candidate).predict(blocks)
-    true_scores["slope"].append(np.polyfit(estimate, true_blocks, 1)[0])
+    true_scores["slope"].append(bt.compare(estimate, true_blocks)["slope"])
     true_scores["variance"].append(estimate.var() / true_blocks.var())
     true_scores["tonnage"].append(np.mean(estimate >= 500) / np.mean(true_blocks >= 500))
 print(f"{'':7} {'slope of regression':^20} {'variance ratio':^13} {'tonnage >= 500':^13} {'negative':>8}")
@@ -125,7 +125,7 @@ for target in (0.85, 0.9, 0.95):
     estimate = d["value"]
     print(
         f"{target:7.2f} {d['n_samples'].mean():8.1f} {np.mean(d['target_met'] == 1):6.0%}"
-        f" {np.polyfit(estimate, true_blocks, 1)[0]:11.2f} {estimate.var() / true_blocks.var():15.2f}"
+        f" {bt.compare(estimate, true_blocks)['slope']:11.2f} {estimate.var() / true_blocks.var():15.2f}"
     )
 
 # %% [markdown]
@@ -138,7 +138,7 @@ for target in (0.85, 0.9, 0.95):
 fig, axes = plt.subplots(1, 3, figsize=(11, 4), layout="constrained")
 for ax, (target, n) in zip(axes, local.items(), strict=True):
     image = ax.imshow(
-        n.reshape(30, 26), origin="lower", extent=(0, 260, 0, 300), vmin=4, vmax=48, cmap="viridis"
+        blocks.grid(n)[0], origin="lower", extent=(0, 260, 0, 300), vmin=4, vmax=48, cmap="viridis"
     )
     ax.plot(xy[:, 0], xy[:, 1], ".", color="white", ms=1)
     ax.set(title=f"target_slope={target}", aspect="equal")

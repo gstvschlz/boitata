@@ -21335,6 +21335,8 @@
       
         
       
+        
+      
     
     
     
@@ -21544,6 +21546,34 @@
     
   
     block_correlation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../api/validation/compare/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    compare
   
 
     
@@ -22035,7 +22065,7 @@ averages are known, so you can check block and point estimates against them for 
 <p><code>BlockKriging</code> averages the variogram between the samples and a grid of points inside each block, <code>discretization</code> of
 them along x, y and z. its targets are block centers. the truth is the mean of the 100 exhaustive values in each 10 ×
 10 m block.</p>
-<!-- GENERATED FROM PYTHON SOURCE LINES 37-51 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 37-54 -->
 
 <div class="highlight"><pre><span></span><code><span class="n">blocks</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">BlockModel</span><span class="p">(</span><span class="n">origin</span><span class="o">=</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="n">size</span><span class="o">=</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span> <span class="mi">10</span><span class="p">),</span> <span class="n">count</span><span class="o">=</span><span class="p">(</span><span class="mi">26</span><span class="p">,</span> <span class="mi">30</span><span class="p">))</span>
 <span class="n">block</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">BlockKriging</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">search</span><span class="p">,</span> <span class="n">size</span><span class="o">=</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span> <span class="mi">10</span><span class="p">),</span> <span class="n">discretization</span><span class="o">=</span><span class="p">(</span><span class="mi">5</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">1</span><span class="p">))</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">samples</span><span class="p">,</span> <span class="s2">"V"</span><span class="p">)</span>
@@ -22047,23 +22077,26 @@ them along x, y and z. its targets are block centers. the truth is the mean of t
     <span class="p">(</span><span class="s2">"block kriging"</span><span class="p">,</span> <span class="n">block_estimate</span><span class="p">,</span> <span class="n">block_variance</span><span class="p">),</span>
     <span class="p">(</span><span class="s2">"point kriging"</span><span class="p">,</span> <span class="n">point_estimate</span><span class="p">,</span> <span class="n">point_variance</span><span class="p">),</span>
 <span class="p">):</span>
-    <span class="n">rmse</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">nanmean</span><span class="p">((</span><span class="n">e</span> <span class="o">-</span> <span class="n">true_blocks</span><span class="p">)</span> <span class="o">**</span> <span class="mi">2</span><span class="p">))</span>
-    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">: RMSE </span><span class="si">{</span><span class="n">rmse</span><span class="si">:</span><span class="s2">.1f</span><span class="si">}</span><span class="s2"> ppm, mean kriging variance </span><span class="si">{</span><span class="n">np</span><span class="o">.</span><span class="n">nanmean</span><span class="p">(</span><span class="n">var</span><span class="p">)</span><span class="si">:</span><span class="s2">.0f</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
-<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"actual mean squared error of block kriging </span><span class="si">{</span><span class="n">np</span><span class="o">.</span><span class="n">nanmean</span><span class="p">((</span><span class="n">block_estimate</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">true_blocks</span><span class="p">)</span><span class="w"> </span><span class="o">**</span><span class="w"> </span><span class="mi">2</span><span class="p">)</span><span class="si">:</span><span class="s2">.0f</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span>
+        <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">: RMSE </span><span class="si">{</span><span class="n">bt</span><span class="o">.</span><span class="n">compare</span><span class="p">(</span><span class="n">e</span><span class="p">,</span><span class="w"> </span><span class="n">true_blocks</span><span class="p">)[</span><span class="s1">'rmse'</span><span class="p">]</span><span class="si">:</span><span class="s2">.1f</span><span class="si">}</span><span class="s2"> ppm, mean kriging variance </span><span class="si">{</span><span class="n">np</span><span class="o">.</span><span class="n">nanmean</span><span class="p">(</span><span class="n">var</span><span class="p">)</span><span class="si">:</span><span class="s2">.0f</span><span class="si">}</span><span class="s2">"</span>
+    <span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span>
+    <span class="sa">f</span><span class="s2">"actual mean squared error of block kriging </span><span class="si">{</span><span class="n">bt</span><span class="o">.</span><span class="n">compare</span><span class="p">(</span><span class="n">block_estimate</span><span class="p">,</span><span class="w"> </span><span class="n">true_blocks</span><span class="p">)[</span><span class="s1">'rmse'</span><span class="p">]</span><span class="w"> </span><span class="o">**</span><span class="w"> </span><span class="mi">2</span><span class="si">:</span><span class="s2">.0f</span><span class="si">}</span><span class="s2">"</span>
+<span class="p">)</span>
 </code></pre></div>
 <p class="mkd-glr-script-out">Out:</p>
 <div class="mkd-glr-script-out-disp highlight"><pre><span></span><code>block<span class="w"> </span>kriging:<span class="w"> </span>RMSE<span class="w"> </span><span class="m">101</span>.5<span class="w"> </span>ppm,<span class="w"> </span>mean<span class="w"> </span>kriging<span class="w"> </span>variance<span class="w"> </span><span class="m">19404</span>
 point<span class="w"> </span>kriging:<span class="w"> </span>RMSE<span class="w"> </span><span class="m">105</span>.8<span class="w"> </span>ppm,<span class="w"> </span>mean<span class="w"> </span>kriging<span class="w"> </span>variance<span class="w"> </span><span class="m">54073</span>
 actual<span class="w"> </span>mean<span class="w"> </span>squared<span class="w"> </span>error<span class="w"> </span>of<span class="w"> </span>block<span class="w"> </span>kriging<span class="w"> </span><span class="m">10303</span>
 </code></pre></div>
-<!-- GENERATED FROM PYTHON SOURCE LINES 52-57 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 55-60 -->
 
 <p>the two estimates are close, and <abbr title="kriging of the average value over a block instead of the value at a point.">block kriging</abbr> is a little more accurate against the block averages. the larger
 difference is in the variance: point kriging reports the error of predicting one point, <abbr title="variogram value just above zero lag: variability at scales shorter than the closest samples, plus measurement error.">nugget</abbr> included, while block
 kriging reports the error of predicting the block mean, a third of it here. the actual mean squared error of the block
 estimates, 10 303, is below even that, as the model's variance was pessimistic in
 <a href="../../01-ordinary-kriging/example_06_01/"><abbr title="kriging with an unknown mean that is constant near the target; its weights sum to one.">ordinary kriging</abbr></a> too.</p>
-<!-- GENERATED FROM PYTHON SOURCE LINES 59-71 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 62-74 -->
 
 <div class="highlight"><pre><span></span><code><span class="n">fig</span><span class="p">,</span> <span class="n">ax</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mf">4.8</span><span class="p">,</span> <span class="mf">4.6</span><span class="p">),</span> <span class="n">layout</span><span class="o">=</span><span class="s2">"constrained"</span><span class="p">)</span>
 <span class="n">ax</span><span class="o">.</span><span class="n">scatter</span><span class="p">(</span>
@@ -22078,13 +22111,13 @@ estimates, 10 303, is below even that, as the model's variance was pessimistic i
 <span class="n">save</span><span class="p">(</span><span class="n">fig</span><span class="p">,</span> <span class="s2">"blocks"</span><span class="p">)</span>
 </code></pre></div>
 <p><img alt="Estimates against true block averages" class="mkd-glr-single-img" src="../images/mkd_glr_example_06_05_001.png" srcset="../images/mkd_glr_example_06_05_001.png" /></p>
-<!-- GENERATED FROM PYTHON SOURCE LINES 72-77 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 75-80 -->
 
 <h2 id="block-size">block size<a class="headerlink" href="#block-size" title="Permanent link">&para;</a></h2>
 <p>larger blocks average more of the short-scale variation away. <code>diagnostics</code> reports <code>support_variance</code>, the variance
 of true block values the model predicts (<abbr title="the plateau of the variogram, reached when samples lie too far apart to be related.">sill</abbr> minus the mean variogram within the block, <abbr title="variogram value just above zero lag: variability at scales shorter than the closest samples, plus measurement error.">nugget</abbr> excluded), and
 <code>estimate_variance</code>, the variance of the estimates it predicts.</p>
-<!-- GENERATED FROM PYTHON SOURCE LINES 79-110 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 82-113 -->
 
 <div class="highlight"><pre><span></span><code><span class="n">sizes</span> <span class="o">=</span> <span class="p">(</span><span class="mi">5</span><span class="p">,</span> <span class="mi">10</span><span class="p">,</span> <span class="mi">20</span><span class="p">)</span>
 <span class="n">rows</span> <span class="o">=</span> <span class="p">[]</span>
@@ -22123,13 +22156,13 @@ of true block values the model predicts (<abbr title="the plateau of the variogr
 <span class="m">10</span><span class="w"> </span>m<span class="w"> </span>blocks:<span class="w"> </span>variance<span class="w"> </span>of<span class="w"> </span>estimates<span class="w">  </span><span class="m">35207</span><span class="w"> </span><span class="o">(</span>model<span class="w">  </span><span class="m">40355</span><span class="o">)</span>,<span class="w"> </span>of<span class="w"> </span><span class="nb">true</span><span class="w"> </span>blocks<span class="w">  </span><span class="m">46694</span><span class="w"> </span><span class="o">(</span>model<span class="w">  </span><span class="m">57129</span><span class="o">)</span>
 <span class="m">20</span><span class="w"> </span>m<span class="w"> </span>blocks:<span class="w"> </span>variance<span class="w"> </span>of<span class="w"> </span>estimates<span class="w">  </span><span class="m">30203</span><span class="w"> </span><span class="o">(</span>model<span class="w">  </span><span class="m">34703</span><span class="o">)</span>,<span class="w"> </span>of<span class="w"> </span><span class="nb">true</span><span class="w"> </span>blocks<span class="w">  </span><span class="m">37617</span><span class="w"> </span><span class="o">(</span>model<span class="w">  </span><span class="m">41648</span><span class="o">)</span>
 </code></pre></div>
-<!-- GENERATED FROM PYTHON SOURCE LINES 111-115 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 114-118 -->
 
 <p>the variance of true block values falls with block size, from 52 287 for 5 m blocks to 37 617 for 20 m blocks, and the
 estimates stay below it at every size. kriging smooths, so selecting blocks on the estimates misclassifies some of
 them. the gap narrows as the blocks grow, one reason not to estimate blocks much smaller than the data spacing. the
 model overstates both variances, the true one most for small blocks, but gets their order and trend right.</p>
-<p><strong>Total running time of the script:</strong> ( 0 minutes  0.247 seconds)</p>
+<p><strong>Total running time of the script:</strong> ( 0 minutes  0.340 seconds)</p>
 <div id="download_links"></div>
 
 <p><a class="md-button center" href="../example_06_05.py"><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M256 32c0-17.7-14.3-32-32-32s-32 14.3-32 32v210.7l-41.4-41.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3l96 96c12.5 12.5 32.8 12.5 45.3 0l96-96c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L256 242.7zM64 320c-35.3 0-64 28.7-64 64v32c0 35.3 28.7 64 64 64h320c35.3 0 64-28.7 64-64v-32c0-35.3-28.7-64-64-64h-46.9l-56.6 56.6c-31.2 31.2-81.9 31.2-113.1 0L110.9 320zm304 56a24 24 0 1 1 0 48 24 24 0 1 1 0-48"/></svg></span> Download Python source code: example_06_05.py</a></p>

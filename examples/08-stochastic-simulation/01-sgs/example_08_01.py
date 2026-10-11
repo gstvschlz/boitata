@@ -36,15 +36,8 @@ y = bt.NormalScore(tails=(0.0, v.max())).fit_transform(v, weights=weights)
 lag, max_lag = 10.0, 120.0
 major = bt.experimental_variogram(xy, y, lag, max_lag, azimuth=azimuth).fit("spherical")
 minor = bt.experimental_variogram(xy, y, lag, max_lag, azimuth=azimuth + 90).fit("spherical")
-total = major.sill
-a_major = major.structures[0].range
-ratio = min(minor.structures[0].range / a_major, 1.0)
-gaussian = bt.Variogram(
-    [("spherical", major.structures[0].sill / total, a_major)],
-    nugget=major.nugget / total,
-    rotation=(azimuth, 0, 0),
-    ratios=(ratio, 1.0),
-)
+ratio = min(minor.structures[0].range / major.structures[0].range, 1.0)
+gaussian = major.standardized().with_anisotropy((azimuth, 0, 0), (ratio, 1.0))
 print(gaussian)
 
 
@@ -64,7 +57,7 @@ reals = summary.realizations
 etype = summary.mean
 p500 = summary.probability_above[:, 0]
 
-nodes = grid.centroids.astype(int)
+nodes = grid.coords.astype(int)
 true_at_nodes = truth[nodes[:, 1] - 1, nodes[:, 0] - 1]
 means = summary.realization_mean
 print(f"realization means {means.min():.0f}-{means.max():.0f}, true {true_at_nodes.mean():.0f}")
@@ -81,7 +74,6 @@ print(
 # each realization looks like the truth; their mean is smooth like kriging, and their spread measures uncertainty.
 
 # %%
-shape = (60, 52)
 extent = (0.5, 260.5, 0.5, 300.5)
 norm = PowerNorm(0.5, vmin=0, vmax=1500)
 fig, axes = plt.subplots(2, 3, figsize=(12, 8.4), layout="constrained")
@@ -91,17 +83,17 @@ for ax, image, title in (
     (axes[0, 2], reals[1], "Realization 2"),
     (axes[1, 0], etype, "Mean of 50 realizations"),
 ):
-    im = ax.imshow(image.reshape(shape), origin="lower", extent=extent, norm=norm)
+    im = ax.imshow(grid.grid(image)[0], origin="lower", extent=extent, norm=norm)
     map_axes(ax, title)
 fig.colorbar(im, ax=axes[0, :], shrink=0.8, label="V (ppm)")
 fig.colorbar(im, ax=axes[1, 0], shrink=0.8, label="V (ppm)")
-spread = axes[1, 1].imshow(summary.std.reshape(shape), origin="lower", extent=extent, cmap="cividis")
+spread = axes[1, 1].imshow(grid.grid(summary.std)[0], origin="lower", extent=extent, cmap="cividis")
 map_axes(axes[1, 1], "Spread across realizations")
 fig.colorbar(spread, ax=axes[1, 1], shrink=0.8, label="standard deviation (ppm)")
-prob = axes[1, 2].imshow(p500.reshape(shape), origin="lower", extent=extent, vmin=0, vmax=1)
+prob = axes[1, 2].imshow(grid.grid(p500)[0], origin="lower", extent=extent, vmin=0, vmax=1)
 map_axes(axes[1, 2], "Probability V > 500 ppm")
 axes[1, 2].contour(
-    (true_at_nodes > 500).reshape(shape).astype(float),
+    grid.grid((true_at_nodes > 500).astype(float))[0],
     levels=[0.5],
     origin="lower",
     extent=extent,
@@ -134,7 +126,7 @@ a.plot([], [], color=LIGHT, label="20 realizations")
 a.set(xlim=(0, 1600), xlabel="V (ppm)", ylabel="Cumulative probability", title="Histogram reproduction")
 a.legend(loc="lower right")
 
-xyz = grid.centroids
+xyz = grid.coords
 for r in reals:
     scores = bt.NormalScore().fit_transform(r)
     exp = bt.experimental_variogram(xyz, scores, lag, max_lag, azimuth=azimuth)

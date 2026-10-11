@@ -19178,6 +19178,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#boitata.Variogram.standardized" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        standardized
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#boitata.Variogram.to_json" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -21423,6 +21434,8 @@
       
         
       
+        
+      
     
     
     
@@ -21635,6 +21648,34 @@
     
   
     block_correlation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../validation/compare/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    compare
   
 
     
@@ -22137,6 +22178,17 @@
     <span class="md-ellipsis">
       
         gamma_between
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#boitata.Variogram.standardized" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        standardized
       
     </span>
   </a>
@@ -22768,6 +22820,32 @@ or a newer format.</p>
 <div class="doc doc-object doc-function">
 
 
+<h2 id="boitata.Variogram.standardized" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">standardized</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-method descriptor"><code>method descriptor</code></small>
+  </span>
+
+<a href="#boitata.Variogram.standardized" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">standardized</span><span class="p">(</span><span class="o">*</span><span class="p">,</span> <span class="n">sill</span><span class="o">=</span><span class="mf">1.0</span><span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>The same shape with total <abbr title="the plateau of the variogram, reached when samples lie too far apart to be related.">sill</abbr> <code>sill</code>, e.g. a fitted variogram scaled
+for <abbr title="values replaced by the standard gaussian values with the same cumulative probability.">normal scores</abbr>; models, ranges and <abbr title="continuity that depends on direction, with a longer range along some directions than others.">anisotropy</abbr> are kept, the unit of
+the values is dropped.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
 <h2 id="boitata.Variogram.to_json" class="doc doc-heading">
             <span class="doc doc-object-name doc-function-name">to_json</span>
 
@@ -22821,7 +22899,6 @@ or a newer format.</p>
 
 </div><p><strong>used in</strong></p>
 <ul class="bt-used-in">
-<li><a href="../../../learn/00-tour/learn_00/">From drill holes to a 3D model</a></li>
 <li><a href="../../../learn/03-spatial-continuity/learn_03/">Spatial continuity</a></li>
 <li><a href="../../../learn/04-kriging/learn_04/">Kriging</a></li>
 <li><a href="../../../learn/05-simulation/learn_05/">Simulation</a></li>
@@ -22829,6 +22906,7 @@ or a newer format.</p>
 <li><a href="../../../examples/14-workflows/05-compare-two-estimates/example_14_05/">Compare two estimates of one deposit</a></li>
 <li><a href="../../../examples/14-workflows/06-grade-tonnage-and-metal/example_14_06/">Grade–tonnage curves and the change in <abbr title="tonnes × mean grade above a cutoff: the amount of metal the resource holds.">contained metal</abbr></a></li>
 <li><a href="../../../examples/14-workflows/07-drillhole-spacing-virtual-grids/example_14_07/">Drill-hole spacing from virtual grids</a></li>
+<li><a href="../../../examples/14-workflows/08-drillhole-spacing-learning-curve/example_14_08/">Drill-hole spacing from a learning curve</a></li>
 </ul>
 
 

@@ -32,19 +32,18 @@ from common import HIGHLIGHT, save
 data = bt.datasets.iron_formation_plateau()
 model = data["block_model"]
 DOMAINS = {"HF": "hematite", "HC": "hematite", "CG": "hematite", "IF": "itabirite", "IC": "itabirite"}
-coded = np.array([DOMAINS.get(c, "") for c in np.asarray(model["LITH"], dtype=object)], dtype=object)
-model = model.with_columns({"domain": coded}).mask(coded != "")
+coded = np.array([DOMAINS.get(c, "") for c in model["LITH"]], dtype=object)
+model = model.with_columns({"domain": coded}).filter(coded != "")
 coded = coded[coded != ""]
 
-holes = bt.Drillholes(data["collars"], data["surveys"], data["assays"])
+holes = bt.Drillholes.from_tables(data)
 composites = holes.composite(6.0, ["FE_PCT"])
-row = model.row_at(composites.coords)
-keep = (row >= 0) & ~np.isnan(composites["FE_PCT"])
-xyz, fe, domain = composites.coords[keep], composites["FE_PCT"][keep], coded[row[keep]]
-hole = np.asarray(composites["HOLE_ID"], dtype=object)[keep]
+composites = composites.filter(model.contains(composites.coords)).drop_null("FE_PCT")
+xyz, fe, hole = composites.coords, composites["FE_PCT"], composites["HOLE_ID"]
+domain = model.sample(xyz, "domain")
 for name in ("hematite", "itabirite"):
     inside = domain == name
-    count = len(model.mask(model["domain"] == name))
+    count = len(model.filter(model["domain"] == name))
     print(f"{name:10} {count:6,} blocks of 25 m, {inside.sum():5} composites")
 
 # %% [markdown]
@@ -56,8 +55,8 @@ for name in ("hematite", "itabirite"):
 folder = Path(tempfile.mkdtemp())
 grid = bt.BlockModel.from_extents(model, size=(5, 5, 5), snap=True)
 nx, ny, nz = grid.count
-plan = grid.centroids[: nx * ny]
-kept = [k * nx * ny + np.flatnonzero(model.row_at(plan + (0, 0, 5 * k)) >= 0) for k in range(nz)]
+plan = grid.coords[: nx * ny]
+kept = [k * nx * ny + np.flatnonzero(model.contains(plan + (0, 0, 5 * k))) for k in range(nz)]
 blocks = bt.BlockModel(grid.origin, grid.size, grid.count, index=np.concatenate(kept).astype(np.uint64))
 bt.write_parquet(folder / "blocks.parquet", blocks)
 file = bt.BlockModelFile(folder / "blocks.parquet")
@@ -76,13 +75,12 @@ at_data, at_model = np.zeros(len(fe)), np.zeros(len(model))
 for name in ("hematite", "itabirite"):
     trend, _ = bt.detrend(xyz[domain == name], fe[domain == name], bandwidth=400.0, ratios=(1.0, 0.2))
     at_data[domain == name] = trend.predict(xyz[domain == name])
-    at_model[coded == name] = trend.predict(model.centroids[coded == name])
+    at_model[coded == name] = trend.predict(model.coords[coded == name])
 model = model.with_column("trend", at_model)
 
 
 def attributes(chunk):
-    row = model.row_at(chunk.centroids)
-    return {"domain": coded[row], "trend": at_model[row]}
+    return {"domain": model.sample(chunk.coords, "domain"), "trend": model.sample(chunk.coords, "trend")}
 
 
 start = time.perf_counter()
@@ -101,9 +99,8 @@ print(f"trend at the composites: variance {at_data.var():.0f} of {fe.var():.0f} 
 # %%
 scores = bt.NormalScore().fit_transform(fe - at_data)
 fitted = bt.experimental_variogram(xyz, scores, 15.0, 300.0).fit("spherical")
-sill = fitted.nugget + fitted.structures[0].sill
 reach = fitted.structures[0].range
-gaussian = bt.Variogram([("spherical", fitted.structures[0].sill / sill, reach)], nugget=fitted.nugget / sill)
+gaussian = fitted.standardized()
 print(f"residual scores: nugget {gaussian.nugget:.2f}, range {reach:.0f} m")
 bands = bt.TurningBands(gaussian, bands=100, search=bt.Search(radius=reach, max_samples=16))
 bands.fit(xyz, fe, trend=at_data, domains=domain, holes=hole)

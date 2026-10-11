@@ -30,9 +30,7 @@ data = bt.datasets.vein_gold_grade_control()
 intervals = bt.merge_intervals(data["assays"], data["lithology"])
 holes = bt.Drillholes(data["collars"], data["surveys"], intervals)
 composites = holes.composite(1.0, ["AU_GPT"], domain="LITH", categories=["VEIN"])
-vein = composites.filter(
-    (composites["LITH"] == "QV") & (composites["VEIN"] == "V1") & ~np.isnan(composites["AU_GPT"])
-)
+vein = composites.filter((composites["LITH"] == "QV") & (composites["VEIN"] == "V1")).drop_null("AU_GPT")
 au = vein["AU_GPT"]
 print(
     f"{len(au)} composites, mean {au.mean():.2f} g/t, CV {au.std() / au.mean():.2f}, max {au.max():.0f} g/t"

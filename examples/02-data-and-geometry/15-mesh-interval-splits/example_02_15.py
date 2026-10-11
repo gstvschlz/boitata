@@ -24,7 +24,7 @@ from common import ACCENT, GRAY, save
 data = bt.datasets.stacked_sulphide_lenses()
 lens = data["lens_1"]
 collar, survey, assay, lithology = data["collars"], data["surveys"], data["assays"], data["lithology"]
-holes = bt.Drillholes(collar, survey, assay)
+holes = bt.Drillholes.from_tables(data)
 crossings = holes.mesh_intervals(lens, step=0.5, tolerance=0.01)
 print(f"{crossings.num_rows} runs down {len(holes)} holes, {int(np.sum(crossings['INSIDE']))} inside lens 1")
 
@@ -34,7 +34,7 @@ print(f"{crossings.num_rows} runs down {len(holes)} holes, {int(np.sum(crossings
 # splits the assays at those depths with no renaming.
 
 # %%
-domain = np.where(np.asarray(crossings["INSIDE"]), "lens", "other")
+domain = np.where(crossings["INSIDE"], "lens", "other")
 boundary = {
     "HOLE_ID": crossings["HOLE_ID"],
     "FROM": crossings["FROM"],
@@ -50,7 +50,7 @@ mesh_comps = bt.Drillholes(collar, survey, mesh_split).composite(None, ["ZN_PCT"
 
 # %%
 lith_split = bt.merge_intervals(assay, lithology)
-lith_domain = np.where(np.isin(np.asarray(lith_split["LITH"], dtype=object), ["MS", "SMS"]), "lens", "other")
+lith_domain = np.where(np.isin(lith_split["LITH"], ["MS", "SMS"]), "lens", "other")
 lith_table = {**{c: lith_split[c] for c in lith_split.column_names}, "DOMAIN": lith_domain}
 lith_comps = bt.Drillholes(collar, survey, lith_table).composite(None, ["ZN_PCT"], domain="DOMAIN")
 

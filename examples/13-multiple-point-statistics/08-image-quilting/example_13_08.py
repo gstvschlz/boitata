@@ -23,7 +23,7 @@ from matplotlib.colors import ListedColormap
 
 ti = bt.datasets.strebelle()
 nx, ny = ti.count[:2]
-image = ti["facies"].reshape(ny, nx)
+image = ti.grid("facies")[0]
 grid = bt.BlockModel((0, 0), (1, 1), (nx, ny))
 
 
@@ -88,7 +88,7 @@ save(fig, "patches")
 # %%
 truth = image[:, ::-1]
 rows = np.random.default_rng(0).choice(nx * ny, size=100, replace=False)
-wells = grid.centroids[rows]
+wells = grid.coords[rows]
 facies = truth.ravel()[rows].astype(int)
 hard = bt.ImageQuilting(ti, "facies", patch_size=30).fit(wells, facies)
 with_data = hard.simulate(grid, n=20, seed=3, keep=True)
@@ -120,7 +120,7 @@ panels = (
     (with_soft.probabilities[:, 1], "P(sand), soft data", "gray_r"),
 )
 for ax, (values, title, cmap) in zip(axes, panels):
-    im = ax.imshow(values.reshape(ny, nx), origin="lower", cmap=cmap, vmin=0, vmax=1, interpolation="nearest")
+    im = ax.imshow(grid.grid(values)[0], origin="lower", cmap=cmap, vmin=0, vmax=1, interpolation="nearest")
     frame(ax, title)
 for ax in axes[:2]:
     ax.scatter(

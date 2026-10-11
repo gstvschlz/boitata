@@ -33,19 +33,19 @@ from matplotlib.colors import ListedColormap
 # %%
 data = bt.datasets.stacked_sulphide_lenses()
 lenses = {name: data[name] for name in ("lens_1", "lens_2", "lens_3")}
-samples = bt.Drillholes(data["collars"], data["surveys"], data["assays"]).samples()
+samples = bt.Drillholes.from_tables(data).samples()
 lens = np.full(len(samples), "host", dtype=object)
 for name, mesh in lenses.items():
     lens[mesh.contains(samples.coords)] = name
 intervals = samples.with_columns({"LENS": list(lens)}).attributes
 drillholes = bt.Drillholes(data["collars"], data["surveys"], intervals)
 composites = drillholes.composite(2.0, ["ZN_PCT"], domain="LENS", residual="merge")
-composites = composites.filter(np.isfinite(composites["ZN_PCT"]))
-ore = composites.filter(np.asarray(composites["LENS"], dtype=object) != "host")
-ore_holes = np.asarray(ore["HOLE_ID"], dtype=object)
-one = np.asarray(ore["LENS"], dtype=object) == "lens_1"
+composites = composites.drop_null("ZN_PCT")
+ore = composites.filter(composites["LENS"] != "host")
+ore_holes = ore["HOLE_ID"]
+one = ore["LENS"] == "lens_1"
 
-pole = np.linalg.eigh(np.cov(lenses["lens_1"].vertices.T))[1][:, 0]
+pole = np.linalg.eigh(np.cov(lenses["lens_1"].coords.T))[1][:, 0]
 pole *= np.sign(pole[2])
 dip_direction = np.degrees(np.arctan2(pole[0], pole[1])) % 360
 lens_dip = np.degrees(np.arccos(pole[2]))
@@ -198,9 +198,9 @@ origin = np.floor(low / 10) * 10
 grid = bt.BlockModel(origin, (10, 10, 10), [int(c) for c in np.ceil((high - origin) / 10)])
 block_lens = np.full(len(grid), "", dtype=object)
 for name, mesh in lenses.items():
-    block_lens[mesh.contains(grid.centroids)] = name
+    block_lens[mesh.contains(grid.coords)] = name
 inside = block_lens != ""
-blocks = grid.mask(inside).with_column("LENS", list(block_lens[inside]))
+blocks = grid.filter(inside).with_column("LENS", list(block_lens[inside]))
 kriging = bt.OrdinaryKriging(model, bt.Search(reach, **ellipsoid)).fit(
     ore, "ZN_PCT", holes="HOLE_ID", domain_column="LENS"
 )
@@ -253,7 +253,7 @@ for p in (1, 2):
     )
 print(f"unestimated: {np.sum(number == 0)} blocks")
 for name in lenses:
-    s = np.asarray(blocks["LENS"], dtype=object) == name
+    s = blocks["LENS"] == name
     print(f"{name}: {np.mean(number[s] == 1):.0%} of {s.sum()} blocks in pass 1")
 
 # %%
@@ -290,6 +290,6 @@ save(fig, "passes")
 # lens 1, face on, with its holes as dots. pass 1 covers the blocks inside groups of holes; pass 2 takes the edges and
 # the gaps, from samples 59 m away on average against 35 m, with a slope of regression of 0.46 against 0.56. lenses 2
 # and 3 have sparser drilling and get a fifth to a third of their blocks in pass 1. pass-2 blocks use more samples than
-# pass-1 blocks, because a larger ellipsoid finds 16 samples more easily, so the sample count alone would rank the
+# pass-1 blocks, because a larger ellipsoid fills its 16 samples from farther out, so the sample count alone ranks the
 # blocks the wrong way round. the pass and the distance describe how well a block is informed, and
 # [classification](../../10-checking-models/05-classification/README.md) can build on them.

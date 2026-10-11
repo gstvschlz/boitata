@@ -21381,6 +21381,8 @@
       
         
       
+        
+      
     
     
     
@@ -21590,6 +21592,34 @@
     
   
     block_correlation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/validation/compare/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    compare
   
 
     
@@ -22175,7 +22205,8 @@
 </tbody>
 </table>
 </div>
-<p><code>Table</code>, <code>PointSet</code>, <code>BlockModel</code> and <code>Polylines</code> answer the same few calls: <code>len(data)</code>, <code>data["V"]</code> for one column as a numpy array, <code>to_table()</code> for the whole table, and <code>with_column</code> to add a column. a <code>Mesh</code> keeps one table for its vertices and one for its triangles (<code>with_vertex_column</code>, <code>with_face_column</code>). <code>Drillholes</code> hands its samples over as a <code>PointSet</code> through <code>samples()</code> or <code>composite()</code>.</p>
+<p>every container answers the same calls: <code>len(data)</code>, <code>data["V"]</code> for one column as a numpy array, <code>column_names</code>, <code>filter(mask)</code> for the rows where <code>mask</code> is true, <code>with_column</code> and <code>with_columns</code> to add columns, and <code>to_table()</code> for the whole table. the ones with geometry also give <code>coords</code> as an <code>(n, 3)</code> array, <code>x</code>, <code>y</code> and <code>z</code> for one axis, and <code>bounds</code> for the <code>(min, max)</code> corners. <code>PointSet</code>, <code>BlockModel</code>, <code>Polylines</code> and <code>Drillholes</code> convert with <code>to_polars()</code>, <code>to_pandas()</code> and <code>to_pyarrow()</code>.</p>
+<p>a <code>Mesh</code> keeps one table for its vertices and one for its triangles (<code>with_vertex_column</code>, <code>with_face_column</code>); <code>mesh["V"]</code> looks in the vertex columns first and raises when a name is in both. <code>Drillholes</code> counts holes with <code>len</code>, but its <code>coords</code> and columns are the interval midpoints and interval columns, the same as <code>samples()</code>. a misspelled column name raises <code>MissingColumn</code> with the closest name it found.</p>
 <h2 id="columns-and-missing-values">columns and missing values<a class="headerlink" href="#columns-and-missing-values" title="Permanent link">&para;</a></h2>
 <p>a column is numeric (stored as 64-bit floats), text or boolean. a missing value is an <abbr title="a standard in-memory column format that polars, pandas and pyarrow read directly.">arrow</abbr> null, whatever the file used to mark it. readers map the usual sentinels to null: <code>-99</code>, <code>-999</code>, <code>1e21</code>, text such as <code>NA</code> or <code>NULL</code>, and empty cells. take a small CSV with one missing assay and one missing rock code:</p>
 <div class="highlight"><pre><span></span><code>X,Y,Au,ROCK
@@ -22248,8 +22279,8 @@ shape: (3, 4)
 <div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">polars</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pl</span>
 
 <span class="n">frame</span> <span class="o">=</span> <span class="n">pl</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">(</span><span class="n">samples</span><span class="p">)</span>                  <span class="c1"># x, y, z, Au, ROCK, Au_log</span>
-<span class="n">frame</span> <span class="o">=</span> <span class="n">samples</span><span class="o">.</span><span class="n">to_table</span><span class="p">()</span><span class="o">.</span><span class="n">to_polars</span><span class="p">()</span>         <span class="c1"># the same</span>
-<span class="n">frame</span> <span class="o">=</span> <span class="n">samples</span><span class="o">.</span><span class="n">to_table</span><span class="p">()</span><span class="o">.</span><span class="n">to_pandas</span><span class="p">()</span>         <span class="c1"># a pandas DataFrame</span>
+<span class="n">frame</span> <span class="o">=</span> <span class="n">samples</span><span class="o">.</span><span class="n">to_polars</span><span class="p">()</span>                    <span class="c1"># the same</span>
+<span class="n">frame</span> <span class="o">=</span> <span class="n">samples</span><span class="o">.</span><span class="n">to_pandas</span><span class="p">()</span>                    <span class="c1"># a pandas DataFrame</span>
 <span class="n">values</span> <span class="o">=</span> <span class="n">samples</span><span class="p">[</span><span class="s2">"Au"</span><span class="p">]</span>                         <span class="c1"># one column as a NumPy array</span>
 </code></pre></div>
 <p>grouping, joining and pivoting belong to polars or pandas; boitatá keeps to the spatial work.</p>
@@ -22306,7 +22337,7 @@ shape: (3, 4)
 
 <div class="highlight"><pre><span></span><code><span class="n">model</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">BlockModel</span><span class="p">(</span><span class="n">origin</span><span class="o">=</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="n">size</span><span class="o">=</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span> <span class="mi">10</span><span class="p">,</span> <span class="mi">5</span><span class="p">),</span> <span class="n">count</span><span class="o">=</span><span class="p">(</span><span class="mi">4</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="n">rotation</span><span class="o">=</span><span class="p">(</span><span class="mi">30</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">))</span>
 <span class="nb">print</span><span class="p">(</span><span class="n">model</span><span class="p">)</span>
-<span class="nb">print</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">centroids</span><span class="p">[:</span><span class="mi">2</span><span class="p">]</span><span class="o">.</span><span class="n">round</span><span class="p">(</span><span class="mi">2</span><span class="p">))</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">coords</span><span class="p">[:</span><span class="mi">2</span><span class="p">]</span><span class="o">.</span><span class="n">round</span><span class="p">(</span><span class="mi">2</span><span class="p">))</span>
 </code></pre></div>
 <div class="highlight"><pre><span></span><code>BlockModel(regular, 12 of 12 cells, count [4, 3, 1], size [10.0, 10.0, 5.0], rotation [30.0, 0.0, 0.0])
 [[ 6.83  1.83  2.5 ]
@@ -22337,7 +22368,7 @@ shape: (3, 4)
 <td>masked</td>
 <td>a subset of blocks, with their sorted block index</td>
 <td>blocks inside a <abbr title="a volume of rock whose values you treat as one population, such as one lithology or one vein.">domain</abbr> or above a <abbr title="the grade below which a block does not pay to mine; you report resources above it.">cutoff</abbr></td>
-<td><code>model.mask(keep)</code></td>
+<td><code>model.filter(keep)</code></td>
 </tr>
 <tr>
 <td>sub-blocked</td>
@@ -22348,7 +22379,7 @@ shape: (3, 4)
 </tbody>
 </table>
 </div>
-<div class="highlight"><pre><span></span><code><span class="n">rich</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">mask</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">centroids</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">&gt;</span> <span class="mi">10</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><span class="n">rich</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">x</span> <span class="o">&gt;</span> <span class="mi">10</span><span class="p">)</span>
 <span class="nb">print</span><span class="p">(</span><span class="n">rich</span><span class="p">)</span>
 <span class="nb">print</span><span class="p">(</span><span class="n">rich</span><span class="o">.</span><span class="n">index</span><span class="p">)</span>
 </code></pre></div>

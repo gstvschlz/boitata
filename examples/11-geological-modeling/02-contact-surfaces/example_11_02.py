@@ -30,16 +30,16 @@ print(f"lens 1: closed {lens.is_closed}, {lens.volume / 1e6:.2f} Mm3")
 # outside, from the intervals next to a contact and a sparse subset of the others.
 
 # %%
-holes = bt.Drillholes(data["collars"], data["surveys"], data["lithology"])
+holes = bt.Drillholes.from_tables(data, intervals="lithology")
 logged = holes.samples()
 xyz = logged.coords
 lo, hi = np.array(lens.bounds[0]) - 30, np.array(lens.bounds[1]) + 30
 order = np.lexsort((logged["FROM"], logged["HOLE_ID"]))
 order = order[np.all((xyz[order] > lo) & (xyz[order] < hi), axis=1)]
 xyz = xyz[order]
-hole = np.array(logged["HOLE_ID"], dtype=object)[order]
-lith = np.array(logged["LITH"], dtype=object)[order]
-bottom = np.asarray(logged["TO"])[order]
+hole = logged["HOLE_ID"][order]
+lith = logged["LITH"][order]
+bottom = logged["TO"][order]
 
 unit = np.isin(lith, ["MS", "SMS"]) & lens.contains(xyz)
 change = (hole[1:] == hole[:-1]) & (unit[1:] != unit[:-1])
@@ -75,7 +75,7 @@ models = {
     "GP": bt.ImplicitModel("gp", degree=0, rotation=rotation),
 }
 cells = bt.BlockModel(origin=lo, size=(5, 5, 5), count=np.ceil((hi - lo) / 5).astype(int))
-solid = lens.contains(cells.centroids)
+solid = lens.contains(cells.coords)
 for name, model in models.items():
     model.fit(points, code, boundaries=contacts)
     right = np.mean(np.sign(model.predict(points)) == code)
@@ -94,7 +94,7 @@ print(f"GP ranges {[round(r) for r in models['GP'].report['lengthscales']]} m")
 # solid in black:
 
 # %%
-center = lens.vertices.mean(axis=0)
+center = lens.coords.mean(axis=0)
 plane = (center, 112.5, 90)
 u = np.array([np.sin(np.radians(112.5)), np.cos(np.radians(112.5)), 0.0])
 normal = np.cross(u, [0, 0, 1])

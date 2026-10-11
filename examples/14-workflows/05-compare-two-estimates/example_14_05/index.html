@@ -21346,6 +21346,8 @@
       
         
       
+        
+      
     
     
     
@@ -21555,6 +21557,34 @@
     
   
     block_correlation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../api/validation/compare/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    compare
   
 
     
@@ -22064,19 +22094,20 @@ validates a single model; this page puts two side by side.</p>
 <p>The 470 Walker Lake samples of <code>V</code> (ppm) are clustered: the later drilling concentrated on the high-grade areas.
 Cell <abbr title="weighting samples by the area or volume each represents, to correct statistics for clustered sampling.">declustering</abbr> gives each sample a weight that corrects for this, so the declustered mean is the best estimate
 of the deposit mean the samples alone can give.</p>
-<!-- GENERATED FROM PYTHON SOURCE LINES 43-50 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 43-51 -->
 
 <div class="highlight"><pre><span></span><code><span class="n">samples</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">datasets</span><span class="o">.</span><span class="n">walker_lake</span><span class="p">()</span>
 <span class="n">xy</span><span class="p">,</span> <span class="n">v</span> <span class="o">=</span> <span class="n">samples</span><span class="o">.</span><span class="n">coords</span><span class="p">,</span> <span class="n">samples</span><span class="p">[</span><span class="s2">"V"</span><span class="p">]</span>
 <span class="n">weights</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">cell_declustering</span><span class="p">(</span><span class="n">xy</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="n">sizes</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mf">2.5</span><span class="p">,</span> <span class="mf">102.5</span><span class="p">,</span> <span class="mf">2.5</span><span class="p">))</span><span class="o">.</span><span class="n">weights</span>
 <span class="nb">print</span><span class="p">(</span>
-    <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">v</span><span class="p">)</span><span class="si">}</span><span class="s2"> samples: naive mean </span><span class="si">{</span><span class="n">v</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span><span class="si">:</span><span class="s2">.1f</span><span class="si">}</span><span class="s2"> ppm, declustered mean </span><span class="si">{</span><span class="n">np</span><span class="o">.</span><span class="n">average</span><span class="p">(</span><span class="n">v</span><span class="p">,</span><span class="w"> </span><span class="n">weights</span><span class="o">=</span><span class="n">weights</span><span class="p">)</span><span class="si">:</span><span class="s2">.1f</span><span class="si">}</span><span class="s2"> ppm"</span>
+    <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">v</span><span class="p">)</span><span class="si">}</span><span class="s2"> samples: naive mean </span><span class="si">{</span><span class="n">v</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span><span class="si">:</span><span class="s2">.1f</span><span class="si">}</span><span class="s2"> ppm, "</span>
+    <span class="sa">f</span><span class="s2">"declustered mean </span><span class="si">{</span><span class="n">bt</span><span class="o">.</span><span class="n">describe</span><span class="p">(</span><span class="n">v</span><span class="p">,</span><span class="w"> </span><span class="n">weights</span><span class="o">=</span><span class="n">weights</span><span class="p">)[</span><span class="s1">'mean'</span><span class="p">]</span><span class="si">:</span><span class="s2">.1f</span><span class="si">}</span><span class="s2"> ppm"</span>
 <span class="p">)</span>
 </code></pre></div>
 <p class="mkd-glr-script-out">Out:</p>
 <div class="mkd-glr-script-out-disp highlight"><pre><span></span><code><span class="m">470</span><span class="w"> </span>samples:<span class="w"> </span>naive<span class="w"> </span>mean<span class="w"> </span><span class="m">435</span>.3<span class="w"> </span>ppm,<span class="w"> </span>declustered<span class="w"> </span>mean<span class="w"> </span><span class="m">290</span>.7<span class="w"> </span>ppm
 </code></pre></div>
-<!-- GENERATED FROM PYTHON SOURCE LINES 51-56 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 52-57 -->
 
 <div class="admonition step">
 <p class="admonition-title">Step 1: Rebuild both estimates on the same blocks</p>
@@ -22085,7 +22116,7 @@ blocks, one search (up to 24 samples in an ellipse along the direction of greate
 samples. The kriging uses the variogram fitted in <a href="../../../06-kriging/01-ordinary-kriging/example_06_01/"><abbr title="kriging with an unknown mean that is constant near the target; its weights sum to one.">ordinary kriging</abbr></a>
 and estimates block averages; <abbr title="an estimator that weights each sample by a power of the inverse of its distance to the target.">inverse distance</abbr> weights each sample by 1/d².</p>
 </div>
-<!-- GENERATED FROM PYTHON SOURCE LINES 58-73 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 59-74 -->
 
 <div class="highlight"><pre><span></span><code><span class="n">azimuths</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">180</span><span class="p">,</span> <span class="mf">22.5</span><span class="p">)</span>
 <span class="n">directional</span> <span class="o">=</span> <span class="p">[</span><span class="n">bt</span><span class="o">.</span><span class="n">experimental_variogram</span><span class="p">(</span><span class="n">xy</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="mf">10.0</span><span class="p">,</span> <span class="mf">120.0</span><span class="p">,</span> <span class="n">azimuth</span><span class="o">=</span><span class="n">a</span><span class="p">)</span> <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">azimuths</span><span class="p">]</span>
@@ -22108,14 +22139,14 @@ and estimates block averages; <abbr title="an estimator that weights each sample
 <span class="w">  </span>id:<span class="w"> </span>Float64
 unestimated<span class="w"> </span>blocks:<span class="w"> </span>kriging<span class="w"> </span><span class="m">0</span>,<span class="w"> </span>inverse<span class="w"> </span>distance<span class="w"> </span><span class="m">0</span>
 </code></pre></div>
-<!-- GENERATED FROM PYTHON SOURCE LINES 74-77 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 75-78 -->
 
 <div class="admonition step">
 <p class="admonition-title">Step 2: Global means against the declustered samples</p>
 <p>An unbiased model reproduces the declustered mean. <code>global_bias</code> compares the block mean with the weighted
 sample mean.</p>
 </div>
-<!-- GENERATED FROM PYTHON SOURCE LINES 79-86 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 80-87 -->
 
 <div class="highlight"><pre><span></span><code><span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">estimate</span> <span class="ow">in</span> <span class="p">((</span><span class="s2">"kriging"</span><span class="p">,</span> <span class="n">ok</span><span class="p">),</span> <span class="p">(</span><span class="s2">"inverse distance"</span><span class="p">,</span> <span class="n">idw</span><span class="p">)):</span>
     <span class="n">bias</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">global_bias</span><span class="p">(</span><span class="n">estimate</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="n">data_weights</span><span class="o">=</span><span class="n">weights</span><span class="p">)</span>
@@ -22128,7 +22159,7 @@ sample mean.</p>
 <div class="mkd-glr-script-out-disp highlight"><pre><span></span><code><span class="w">         </span>kriging:<span class="w"> </span>blocks<span class="w"> </span><span class="m">291</span>.7<span class="w"> </span>ppm,<span class="w"> </span>declustered<span class="w"> </span>samples<span class="w"> </span><span class="m">290</span>.7<span class="w"> </span>ppm,<span class="w"> </span>bias<span class="w"> </span>+0.3%
 inverse<span class="w"> </span>distance:<span class="w"> </span>blocks<span class="w"> </span><span class="m">332</span>.9<span class="w"> </span>ppm,<span class="w"> </span>declustered<span class="w"> </span>samples<span class="w"> </span><span class="m">290</span>.7<span class="w"> </span>ppm,<span class="w"> </span>bias<span class="w"> </span>+14.5%
 </code></pre></div>
-<!-- GENERATED FROM PYTHON SOURCE LINES 87-111 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 88-112 -->
 
 <p>Kriging is within 0.3 % of the declustered mean; <abbr title="an estimator that weights each sample by a power of the inverse of its distance to the target.">inverse distance</abbr> is 14.5 % above it. That gap needs an
 explanation before anything else.</p>
@@ -22190,25 +22221,25 @@ clusters sit on high grades, inverse distance pulls the estimates up.</figcaptio
 <p>A difference map (<abbr title="an estimator that weights each sample by a power of the inverse of its distance to the target.">inverse distance</abbr> minus kriging, per block) shows where the models disagree. Plot it on a
 diverging scale centered on zero, with the samples on top.</p>
 </div>
-<!-- GENERATED FROM PYTHON SOURCE LINES 113-139 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 114-140 -->
 
-<div class="highlight"><pre><span></span><code><span class="n">shape</span><span class="p">,</span> <span class="n">extent</span> <span class="o">=</span> <span class="p">(</span><span class="mi">30</span><span class="p">,</span> <span class="mi">26</span><span class="p">),</span> <span class="p">(</span><span class="mf">0.5</span><span class="p">,</span> <span class="mf">260.5</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">,</span> <span class="mf">300.5</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><span class="n">extent</span> <span class="o">=</span> <span class="p">(</span><span class="mf">0.5</span><span class="p">,</span> <span class="mf">260.5</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">,</span> <span class="mf">300.5</span><span class="p">)</span>
 <span class="n">difference</span> <span class="o">=</span> <span class="n">idw</span> <span class="o">-</span> <span class="n">ok</span>
 <span class="n">fig</span><span class="p">,</span> <span class="n">axes</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">13</span><span class="p">,</span> <span class="mf">4.8</span><span class="p">),</span> <span class="n">layout</span><span class="o">=</span><span class="s2">"constrained"</span><span class="p">)</span>
 <span class="n">norm</span> <span class="o">=</span> <span class="n">PowerNorm</span><span class="p">(</span><span class="mf">0.5</span><span class="p">,</span> <span class="n">vmin</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">vmax</span><span class="o">=</span><span class="mi">1200</span><span class="p">)</span>
 <span class="k">for</span> <span class="n">ax</span><span class="p">,</span> <span class="n">image</span><span class="p">,</span> <span class="n">title</span> <span class="ow">in</span> <span class="p">((</span><span class="n">axes</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">ok</span><span class="p">,</span> <span class="s2">"Ordinary kriging"</span><span class="p">),</span> <span class="p">(</span><span class="n">axes</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">idw</span><span class="p">,</span> <span class="s2">"Inverse distance"</span><span class="p">)):</span>
-    <span class="n">im</span> <span class="o">=</span> <span class="n">ax</span><span class="o">.</span><span class="n">imshow</span><span class="p">(</span><span class="n">image</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">shape</span><span class="p">),</span> <span class="n">origin</span><span class="o">=</span><span class="s2">"lower"</span><span class="p">,</span> <span class="n">extent</span><span class="o">=</span><span class="n">extent</span><span class="p">,</span> <span class="n">norm</span><span class="o">=</span><span class="n">norm</span><span class="p">)</span>
+    <span class="n">im</span> <span class="o">=</span> <span class="n">ax</span><span class="o">.</span><span class="n">imshow</span><span class="p">(</span><span class="n">blocks</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span><span class="n">image</span><span class="p">)[</span><span class="mi">0</span><span class="p">],</span> <span class="n">origin</span><span class="o">=</span><span class="s2">"lower"</span><span class="p">,</span> <span class="n">extent</span><span class="o">=</span><span class="n">extent</span><span class="p">,</span> <span class="n">norm</span><span class="o">=</span><span class="n">norm</span><span class="p">)</span>
     <span class="n">map_axes</span><span class="p">(</span><span class="n">ax</span><span class="p">,</span> <span class="n">title</span><span class="p">)</span>
 <span class="n">fig</span><span class="o">.</span><span class="n">colorbar</span><span class="p">(</span><span class="n">im</span><span class="p">,</span> <span class="n">ax</span><span class="o">=</span><span class="n">axes</span><span class="p">[:</span><span class="mi">2</span><span class="p">],</span> <span class="n">shrink</span><span class="o">=</span><span class="mf">0.8</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s2">"V (ppm)"</span><span class="p">)</span>
 <span class="n">limit</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">difference</span><span class="p">)</span><span class="o">.</span><span class="n">max</span><span class="p">()</span>
 <span class="n">dm</span> <span class="o">=</span> <span class="n">axes</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="o">.</span><span class="n">imshow</span><span class="p">(</span>
-    <span class="n">difference</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">shape</span><span class="p">),</span>
+    <span class="n">blocks</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span><span class="n">difference</span><span class="p">)[</span><span class="mi">0</span><span class="p">],</span>
     <span class="n">origin</span><span class="o">=</span><span class="s2">"lower"</span><span class="p">,</span>
     <span class="n">extent</span><span class="o">=</span><span class="n">extent</span><span class="p">,</span>
     <span class="n">cmap</span><span class="o">=</span><span class="s2">"RdBu_r"</span><span class="p">,</span>
     <span class="n">norm</span><span class="o">=</span><span class="n">TwoSlopeNorm</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="o">-</span><span class="n">limit</span><span class="p">,</span> <span class="n">limit</span><span class="p">),</span>
 <span class="p">)</span>
-<span class="n">axes</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="o">.</span><span class="n">scatter</span><span class="p">(</span><span class="n">xy</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">],</span> <span class="n">xy</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">],</span> <span class="n">s</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="n">INK</span><span class="p">,</span> <span class="n">linewidths</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+<span class="n">axes</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="o">.</span><span class="n">scatter</span><span class="p">(</span><span class="n">samples</span><span class="o">.</span><span class="n">x</span><span class="p">,</span> <span class="n">samples</span><span class="o">.</span><span class="n">y</span><span class="p">,</span> <span class="n">s</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="n">INK</span><span class="p">,</span> <span class="n">linewidths</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
 <span class="n">map_axes</span><span class="p">(</span><span class="n">axes</span><span class="p">[</span><span class="mi">2</span><span class="p">],</span> <span class="s2">"Inverse distance − kriging"</span><span class="p">)</span>
 <span class="n">fig</span><span class="o">.</span><span class="n">colorbar</span><span class="p">(</span><span class="n">dm</span><span class="p">,</span> <span class="n">ax</span><span class="o">=</span><span class="n">axes</span><span class="p">[</span><span class="mi">2</span><span class="p">],</span> <span class="n">shrink</span><span class="o">=</span><span class="mf">0.8</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s2">"ppm"</span><span class="p">)</span>
 <span class="n">save</span><span class="p">(</span><span class="n">fig</span><span class="p">,</span> <span class="s2">"maps"</span><span class="p">)</span>
@@ -22222,7 +22253,7 @@ diverging scale centered on zero, with the samples on top.</p>
 <p class="mkd-glr-script-out">Out:</p>
 <div class="mkd-glr-script-out-disp highlight"><pre><span></span><code>inverse<span class="w"> </span>distance<span class="w"> </span>is<span class="w"> </span>higher<span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="m">77</span>%<span class="w"> </span>of<span class="w"> </span>the<span class="w"> </span>blocks<span class="p">;</span><span class="w"> </span>mean<span class="w"> </span>difference<span class="w"> </span>+41.2<span class="w"> </span>ppm
 </code></pre></div>
-<!-- GENERATED FROM PYTHON SOURCE LINES 140-147 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 141-148 -->
 
 <p>Inverse distance is higher in 77 % of the blocks, by 41.2 ppm on average. The largest differences lie at the
 edges of the dense clusters, where a block's search reaches a few isolated samples and many clustered ones, the
@@ -22232,7 +22263,7 @@ case Figure 1 draws.</p>
 <p>A scatter of one model against the other, block by block, separates a shift (points off the 1:1 line on
 one side) from scatter (points spread around it).</p>
 </div>
-<!-- GENERATED FROM PYTHON SOURCE LINES 149-165 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 150-166 -->
 
 <div class="highlight"><pre><span></span><code><span class="n">fig</span><span class="p">,</span> <span class="n">ax</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mf">4.8</span><span class="p">,</span> <span class="mf">4.6</span><span class="p">),</span> <span class="n">layout</span><span class="o">=</span><span class="s2">"constrained"</span><span class="p">)</span>
 <span class="n">ax</span><span class="o">.</span><span class="n">scatter</span><span class="p">(</span><span class="n">ok</span><span class="p">,</span> <span class="n">idw</span><span class="p">,</span> <span class="n">s</span><span class="o">=</span><span class="mi">6</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="n">ACCENT</span><span class="p">,</span> <span class="n">alpha</span><span class="o">=</span><span class="mf">0.5</span><span class="p">,</span> <span class="n">linewidths</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
@@ -22257,7 +22288,7 @@ kriging<span class="w"> </span><span class="m">0</span>-400<span class="w"> </sp
 kriging<span class="w"> </span><span class="m">400</span>-800<span class="w"> </span>ppm:<span class="w"> </span><span class="m">155</span><span class="w"> </span>blocks,<span class="w"> </span>inverse<span class="w"> </span>distance<span class="w"> </span>higher<span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="m">61</span>%,<span class="w"> </span>mean<span class="w"> </span>difference<span class="w"> </span>+17.2<span class="w"> </span>ppm
 kriging<span class="w"> </span><span class="m">800</span>-1300<span class="w"> </span>ppm:<span class="w">  </span><span class="m">17</span><span class="w"> </span>blocks,<span class="w"> </span>inverse<span class="w"> </span>distance<span class="w"> </span>higher<span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="m">29</span>%,<span class="w"> </span>mean<span class="w"> </span>difference<span class="w"> </span>-42.8<span class="w"> </span>ppm
 </code></pre></div>
-<!-- GENERATED FROM PYTHON SOURCE LINES 166-174 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 167-175 -->
 
 <p>The two models rank the blocks alike (correlation 0.951), yet the cloud sits off the 1:1 line. Of the 608
 blocks kriged below 400 ppm, <abbr title="an estimator that weights each sample by a power of the inverse of its distance to the target.">inverse distance</abbr> puts 82 % higher, by 49.7 ppm on average; of the 17 above 800 ppm,
@@ -22268,7 +22299,7 @@ cluster.</p>
 <p>A <abbr title="mean grade of blocks and samples in parallel slices along one direction, to find local bias.">swath plot</abbr> averages the blocks and the samples in slices (here 20 m) along one axis. It shows where along
 the deposit each model departs from the data.</p>
 </div>
-<!-- GENERATED FROM PYTHON SOURCE LINES 176-190 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 177-191 -->
 
 <div class="highlight"><pre><span></span><code><span class="n">fig</span><span class="p">,</span> <span class="n">axes</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span> <span class="mf">3.8</span><span class="p">),</span> <span class="n">layout</span><span class="o">=</span><span class="s2">"constrained"</span><span class="p">)</span>
 <span class="k">for</span> <span class="n">ax</span><span class="p">,</span> <span class="n">axis</span><span class="p">,</span> <span class="n">label</span> <span class="ow">in</span> <span class="p">((</span><span class="n">axes</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="s2">"x"</span><span class="p">,</span> <span class="s2">"Easting (m)"</span><span class="p">),</span> <span class="p">(</span><span class="n">axes</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="s2">"y"</span><span class="p">,</span> <span class="s2">"Northing (m)"</span><span class="p">)):</span>
@@ -22285,7 +22316,7 @@ the deposit each model departs from the data.</p>
 <span class="n">save</span><span class="p">(</span><span class="n">fig</span><span class="p">,</span> <span class="s2">"swaths"</span><span class="p">)</span>
 </code></pre></div>
 <p><img alt="example 14 05" class="mkd-glr-single-img" src="../images/mkd_glr_example_14_05_003.png" srcset="../images/mkd_glr_example_14_05_003.png" /></p>
-<!-- GENERATED FROM PYTHON SOURCE LINES 191-198 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 192-199 -->
 
 <p>Kriging follows the declustered samples slice by slice. Inverse distance runs above both over most of the
 deposit, so its bias is not a local artifact.</p>
@@ -22295,7 +22326,7 @@ deposit, so its bias is not a local artifact.</p>
 <abbr title="the grade below which a block does not pay to mine; you report resources above it.">cutoff</abbr> and model the tonnage, mean grade and metal above it, plus each one's difference from a <code>reference</code>
 model. Without a density each block weighs its volume (here its area, 100 m²).</p>
 </div>
-<!-- GENERATED FROM PYTHON SOURCE LINES 200-210 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 201-211 -->
 
 <div class="highlight"><pre><span></span><code><span class="n">table</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">compare_models</span><span class="p">(</span><span class="n">blocks</span><span class="p">,</span> <span class="p">[</span><span class="s2">"ok"</span><span class="p">,</span> <span class="s2">"id"</span><span class="p">],</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">200</span><span class="p">,</span> <span class="mi">400</span><span class="p">,</span> <span class="mi">600</span><span class="p">],</span> <span class="n">reference</span><span class="o">=</span><span class="s2">"ok"</span><span class="p">)</span>
 <span class="nb">print</span><span class="p">(</span>
@@ -22318,7 +22349,7 @@ model. Without a density each block weighs its volume (here its area, 100 m²).<
 <span class="w">   </span><span class="m">600</span><span class="w">    </span>ok<span class="w">            </span><span class="m">5</span>,100<span class="w">   </span><span class="m">762</span>.3<span class="w">      </span>+0.0%<span class="w">       </span>+0.0%
 <span class="w">   </span><span class="m">600</span><span class="w">    </span>id<span class="w">            </span><span class="m">6</span>,000<span class="w">   </span><span class="m">728</span>.8<span class="w">     </span>+17.6%<span class="w">       </span>-4.4%
 </code></pre></div>
-<!-- GENERATED FROM PYTHON SOURCE LINES 211-217 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 212-218 -->
 
 <p>The shift carries into selection: at 200 ppm <abbr title="an estimator that weights each sample by a power of the inverse of its distance to the target.">inverse distance</abbr> reports 16.2 % more area above <abbr title="the grade below which a block does not pay to mine; you report resources above it.">cutoff</abbr> than
 kriging, at a 3.8 % higher grade. The next tutorial turns this into tonnes and metal.</p>
@@ -22327,7 +22358,7 @@ kriging, at a 3.8 % higher grade. The next tutorial turns this into tonnes and m
 <p>Leave-one-out <abbr title="re-estimating each sample from the other samples and comparing the estimates with the actual values.">cross-validation</abbr> re-estimates each sample from its neighbors with itself left out. A small mean
 error, a low RMSE and a slope of actual on estimate near 1 mark the better estimator.</p>
 </div>
-<!-- GENERATED FROM PYTHON SOURCE LINES 219-225 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 220-226 -->
 
 <div class="highlight"><pre><span></span><code><span class="n">point_kriging</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">OrdinaryKriging</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">search</span><span class="p">)</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">xy</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span>
 <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="s1">''</span><span class="si">:</span><span class="s2">&gt;16</span><span class="si">}</span><span class="s2">  mean error   RMSE   corr  slope"</span><span class="p">)</span>
@@ -22340,7 +22371,7 @@ error, a low RMSE and a slope of actual on estimate near 1 mark the better estim
 <span class="w">         </span>kriging<span class="w">        </span><span class="m">11</span>.6<span class="w">  </span><span class="m">185</span>.4<span class="w">  </span><span class="m">0</span>.787<span class="w">   </span><span class="m">1</span>.03
 inverse<span class="w"> </span>distance<span class="w">        </span><span class="m">56</span>.8<span class="w">  </span><span class="m">213</span>.0<span class="w">  </span><span class="m">0</span>.738<span class="w">   </span><span class="m">1</span>.19
 </code></pre></div>
-<!-- GENERATED FROM PYTHON SOURCE LINES 226-233 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 227-234 -->
 
 <p>Kriging wins on every statistic: mean error 11.6 against 56.8 ppm, RMSE 185.4 against 213.0, and a slope of 1.03
 against 1.19. A slope above 1 means the actual grades vary more than the estimates predict: <abbr title="an estimator that weights each sample by a power of the inverse of its distance to the target.">inverse distance</abbr> is
@@ -22350,16 +22381,16 @@ conditionally biased. (Cross-validation uses point kriging, since the samples ar
 <p>Walker Lake has an exhaustive grid, so the true block averages are known here. They are never known on a real
 deposit; they serve only to test the decision made from the samples.</p>
 </div>
-<!-- GENERATED FROM PYTHON SOURCE LINES 235-245 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 236-246 -->
 
 <div class="highlight"><pre><span></span><code><span class="n">truth</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">datasets</span><span class="o">.</span><span class="n">walker_lake_exhaustive</span><span class="p">()[</span><span class="s2">"V"</span><span class="p">]</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="mi">300</span><span class="p">,</span> <span class="mi">260</span><span class="p">)</span>
 <span class="n">true_blocks</span> <span class="o">=</span> <span class="n">truth</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="mi">30</span><span class="p">,</span> <span class="mi">10</span><span class="p">,</span> <span class="mi">26</span><span class="p">,</span> <span class="mi">10</span><span class="p">)</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">))</span><span class="o">.</span><span class="n">ravel</span><span class="p">()</span>
 <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"true block mean </span><span class="si">{</span><span class="n">true_blocks</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span><span class="si">:</span><span class="s2">.1f</span><span class="si">}</span><span class="s2"> ppm"</span><span class="p">)</span>
 <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">estimate</span> <span class="ow">in</span> <span class="p">((</span><span class="s2">"kriging"</span><span class="p">,</span> <span class="n">ok</span><span class="p">),</span> <span class="p">(</span><span class="s2">"inverse distance"</span><span class="p">,</span> <span class="n">idw</span><span class="p">)):</span>
-    <span class="n">rmse</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">((</span><span class="n">estimate</span> <span class="o">-</span> <span class="n">true_blocks</span><span class="p">)</span> <span class="o">**</span> <span class="mi">2</span><span class="p">))</span>
+    <span class="n">c</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">compare</span><span class="p">(</span><span class="n">estimate</span><span class="p">,</span> <span class="n">true_blocks</span><span class="p">)</span>
     <span class="nb">print</span><span class="p">(</span>
         <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">name</span><span class="si">:</span><span class="s2">&gt;16</span><span class="si">}</span><span class="s2">: mean </span><span class="si">{</span><span class="n">estimate</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span><span class="si">:</span><span class="s2">.1f</span><span class="si">}</span><span class="s2"> ppm (</span><span class="si">{</span><span class="n">estimate</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="n">true_blocks</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="si">:</span><span class="s2">+.1%</span><span class="si">}</span><span class="s2">), "</span>
-        <span class="sa">f</span><span class="s2">"RMSE </span><span class="si">{</span><span class="n">rmse</span><span class="si">:</span><span class="s2">.1f</span><span class="si">}</span><span class="s2"> ppm, correlation </span><span class="si">{</span><span class="n">np</span><span class="o">.</span><span class="n">corrcoef</span><span class="p">(</span><span class="n">estimate</span><span class="p">,</span><span class="w"> </span><span class="n">true_blocks</span><span class="p">)[</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">]</span><span class="si">:</span><span class="s2">.3f</span><span class="si">}</span><span class="s2">"</span>
+        <span class="sa">f</span><span class="s2">"RMSE </span><span class="si">{</span><span class="n">c</span><span class="p">[</span><span class="s1">'rmse'</span><span class="p">]</span><span class="si">:</span><span class="s2">.1f</span><span class="si">}</span><span class="s2"> ppm, correlation </span><span class="si">{</span><span class="n">c</span><span class="p">[</span><span class="s1">'correlation'</span><span class="p">]</span><span class="si">:</span><span class="s2">.3f</span><span class="si">}</span><span class="s2">"</span>
     <span class="p">)</span>
 </code></pre></div>
 <p class="mkd-glr-script-out">Out:</p>
@@ -22367,7 +22398,7 @@ deposit; they serve only to test the decision made from the samples.</p>
 <span class="w">         </span>kriging:<span class="w"> </span>mean<span class="w"> </span><span class="m">291</span>.7<span class="w"> </span>ppm<span class="w"> </span><span class="o">(</span>+4.9%<span class="o">)</span>,<span class="w"> </span>RMSE<span class="w"> </span><span class="m">100</span>.2<span class="w"> </span>ppm,<span class="w"> </span>correlation<span class="w"> </span><span class="m">0</span>.888
 inverse<span class="w"> </span>distance:<span class="w"> </span>mean<span class="w"> </span><span class="m">332</span>.9<span class="w"> </span>ppm<span class="w"> </span><span class="o">(</span>+19.8%<span class="o">)</span>,<span class="w"> </span>RMSE<span class="w"> </span><span class="m">121</span>.3<span class="w"> </span>ppm,<span class="w"> </span>correlation<span class="w"> </span><span class="m">0</span>.866
 </code></pre></div>
-<!-- GENERATED FROM PYTHON SOURCE LINES 246-269 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 247-270 -->
 
 <p>The truth agrees with the samples: kriging overstates the mean by 4.9 %, <abbr title="an estimator that weights each sample by a power of the inverse of its distance to the target.">inverse distance</abbr> by 19.8 %, and the
 kriged blocks are closer to the true ones (RMSE 100.2 against 121.3 ppm). Most of kriging's 4.9 % comes from the
@@ -22411,7 +22442,7 @@ that.</p>
 <p>Inverse distance ignores sample clustering, so the scoping model is biased high wherever
 a block's neighborhood includes a dense cluster of high-grade drilling. <a href="../../06-grade-tonnage-and-metal/example_14_06/">Grade–tonnage curves and the change in <abbr title="tonnes × mean grade above a cutoff: the amount of metal the resource holds.">contained metal</abbr></a>
 turns this difference into tonnes, grade and metal at a <abbr title="the grade below which a block does not pay to mine; you report resources above it.">cutoff</abbr>.</p>
-<p><strong>Total running time of the script:</strong> ( 0 minutes  0.829 seconds)</p>
+<p><strong>Total running time of the script:</strong> ( 0 minutes  0.722 seconds)</p>
 <div id="download_links"></div>
 
 <p><a class="md-button center" href="../example_14_05.py"><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M256 32c0-17.7-14.3-32-32-32s-32 14.3-32 32v210.7l-41.4-41.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3l96 96c12.5 12.5 32.8 12.5 45.3 0l96-96c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L256 242.7zM64 320c-35.3 0-64 28.7-64 64v32c0 35.3 28.7 64 64 64h320c35.3 0 64-28.7 64-64v-32c0-35.3-28.7-64-64-64h-46.9l-56.6 56.6c-31.2 31.2-81.9 31.2-113.1 0L110.9 320zm304 56a24 24 0 1 1 0 48 24 24 0 1 1 0-48"/></svg></span> Download Python source code: example_14_05.py</a></p>

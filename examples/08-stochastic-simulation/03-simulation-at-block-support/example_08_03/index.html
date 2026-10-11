@@ -21287,6 +21287,8 @@
       
         
       
+        
+      
     
     
     
@@ -21496,6 +21498,34 @@
     
   
     block_correlation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../api/validation/compare/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    compare
   
 
     
@@ -21964,30 +21994,25 @@ inside panels, localized block grades. the exhaustive walker lake grid gives the
 
 <p><abbr title="sequential gaussian simulation: it visits the nodes in random order, krigs each one, draws from the gaussian that kriging gives and adds the draw to the data.">SGS</abbr> needs the variogram of <abbr title="values replaced by the standard gaussian values with the same cumulative probability.">normal scores</abbr> with a unit <abbr title="the plateau of the variogram, reached when samples lie too far apart to be related.">sill</abbr>: fitted along and across N170° (<a href="../../../05-spatial-continuity/02-variogram-fitting/example_05_02/">variogram fitting</a>), then divided
 by its <abbr title="the plateau of the variogram, reached when samples lie too far apart to be related.">sill</abbr>.</p>
-<!-- GENERATED FROM PYTHON SOURCE LINES 34-47 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 34-42 -->
 
 <div class="highlight"><pre><span></span><code><span class="n">y</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">NormalScore</span><span class="p">()</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="n">weights</span><span class="o">=</span><span class="n">weights</span><span class="p">)</span><span class="o">.</span><span class="n">transform</span><span class="p">(</span><span class="n">v</span><span class="p">)</span>
 <span class="n">azimuths</span> <span class="o">=</span> <span class="p">(</span><span class="mi">170</span><span class="p">,</span> <span class="mi">260</span><span class="p">)</span>
 <span class="n">experimental</span> <span class="o">=</span> <span class="p">[</span><span class="n">bt</span><span class="o">.</span><span class="n">experimental_variogram</span><span class="p">(</span><span class="n">xy</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="mi">10</span><span class="p">,</span> <span class="mi">120</span><span class="p">,</span> <span class="n">azimuth</span><span class="o">=</span><span class="n">a</span><span class="p">)</span> <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">azimuths</span><span class="p">]</span>
 <span class="n">fitted</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">Variogram</span><span class="o">.</span><span class="n">fit_directional</span><span class="p">(</span><span class="n">experimental</span><span class="p">,</span> <span class="p">[(</span><span class="n">a</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span> <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">azimuths</span><span class="p">],</span> <span class="n">rotation</span><span class="o">=</span><span class="p">[</span><span class="mi">170</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">])</span>
-<span class="n">gaussian</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">Variogram</span><span class="p">(</span>
-    <span class="p">[(</span><span class="n">s</span><span class="o">.</span><span class="n">model</span><span class="p">,</span> <span class="n">s</span><span class="o">.</span><span class="n">sill</span> <span class="o">/</span> <span class="n">fitted</span><span class="o">.</span><span class="n">sill</span><span class="p">,</span> <span class="n">s</span><span class="o">.</span><span class="n">range</span><span class="p">)</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">fitted</span><span class="o">.</span><span class="n">structures</span><span class="p">],</span>
-    <span class="n">nugget</span><span class="o">=</span><span class="n">fitted</span><span class="o">.</span><span class="n">nugget</span> <span class="o">/</span> <span class="n">fitted</span><span class="o">.</span><span class="n">sill</span><span class="p">,</span>
-    <span class="n">rotation</span><span class="o">=</span><span class="n">fitted</span><span class="o">.</span><span class="n">rotation</span><span class="p">,</span>
-    <span class="n">ratios</span><span class="o">=</span><span class="n">fitted</span><span class="o">.</span><span class="n">ratios</span><span class="p">,</span>
-<span class="p">)</span>
+<span class="n">gaussian</span> <span class="o">=</span> <span class="n">fitted</span><span class="o">.</span><span class="n">standardized</span><span class="p">()</span>
 <span class="nb">print</span><span class="p">(</span><span class="n">gaussian</span><span class="p">)</span>
 </code></pre></div>
 <p class="mkd-glr-script-out">Out:</p>
 <div class="mkd-glr-script-out-disp highlight"><pre><span></span><code>Variogram<span class="o">(</span><span class="nv">nugget</span><span class="o">=</span><span class="m">0</span>.3712292816104307,<span class="w"> </span><span class="nv">structures</span><span class="o">=[</span>Structure<span class="o">(</span><span class="s2">"spherical"</span>,<span class="w"> </span><span class="nv">sill</span><span class="o">=</span><span class="m">0</span>.6287707183895693,<span class="w"> </span><span class="nv">range</span><span class="o">=</span><span class="m">102</span>.93174851181992<span class="o">)]</span>,<span class="w"> </span><span class="nv">rotation</span><span class="o">=(</span><span class="m">170</span>.0,<span class="w"> </span><span class="m">0</span>.0,<span class="w"> </span><span class="m">0</span>.0<span class="o">)</span>,<span class="w"> </span><span class="nv">ratios</span><span class="o">=(</span><span class="m">0</span>.34469006793164536,<span class="w"> </span><span class="m">1</span>.0<span class="o">))</span>
 </code></pre></div>
-<!-- GENERATED FROM PYTHON SOURCE LINES 48-52 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 43-47 -->
 
 <p>thirty <abbr title="simulated maps, each honoring the samples and reproducing the histogram and variogram of the data.">realizations</abbr> on 2.5 m nodes. <code>blocks=</code> averages each over the 16 nodes of each 10 × 10 m block before
-summarizing, and <code>grade_tonnage_cutoffs=</code> accumulates each <abbr title="one simulated map that honors the samples and reproduces the histogram and variogram of the data.">realization</abbr>'s block <abbr title="tonnage and mean grade above each cutoff.">grade-tonnage curve</abbr> as it runs, with
+summarizing, and <code>grade_tonnage_cutoffs=</code> accumulates each <abbr title="one simulated map that honors the samples and reproduces the histogram and variogram of the data.">realization</abbr>'s block <abbr title="tonnes and mean grade above each cutoff, read as a curve over the cutoffs.">grade-tonnage curve</abbr> as it runs, with
 tonnes from <code>density</code> times block area here. <code>grade_tonnage</code> then reads the P10, P50 and P90 of the tonnage and the
 mean grade above each <abbr title="the grade below which a block does not pay to mine; you report resources above it.">cutoff</abbr>, each quantity on its own.</p>
-<!-- GENERATED FROM PYTHON SOURCE LINES 54-85 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 49-80 -->
 
 <div class="highlight"><pre><span></span><code><span class="n">cutoffs</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1000</span><span class="p">,</span> <span class="mi">41</span><span class="p">)</span>
 
@@ -22004,7 +22029,7 @@ mean grade above each <abbr title="the grade below which a block does not pay to
 <span class="n">summary</span> <span class="o">=</span> <span class="n">sgs</span><span class="o">.</span><span class="n">simulate</span><span class="p">(</span><span class="n">nodes</span><span class="p">,</span> <span class="n">n</span><span class="o">=</span><span class="mi">30</span><span class="p">,</span> <span class="n">seed</span><span class="o">=</span><span class="mi">7</span><span class="p">,</span> <span class="n">blocks</span><span class="o">=</span><span class="n">blocks</span><span class="p">,</span> <span class="n">grade_tonnage_cutoffs</span><span class="o">=</span><span class="nb">list</span><span class="p">(</span><span class="n">cutoffs</span><span class="p">),</span> <span class="n">density</span><span class="o">=</span><span class="mf">1.0</span><span class="p">)</span>
 <span class="n">curves</span> <span class="o">=</span> <span class="n">summary</span><span class="o">.</span><span class="n">grade_tonnage</span><span class="p">(</span><span class="n">probabilities</span><span class="o">=</span><span class="p">[</span><span class="mf">0.1</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">,</span> <span class="mf">0.9</span><span class="p">])</span>
 <span class="n">true_block</span> <span class="o">=</span> <span class="n">empirical</span><span class="p">(</span><span class="n">truth</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="mi">30</span><span class="p">,</span> <span class="n">size</span><span class="p">,</span> <span class="mi">26</span><span class="p">,</span> <span class="n">size</span><span class="p">)</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">))</span><span class="o">.</span><span class="n">ravel</span><span class="p">())</span>
-<span class="n">share</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">curves</span><span class="p">[</span><span class="s2">"tonnage"</span><span class="p">])</span> <span class="o">/</span> <span class="n">curves</span><span class="p">[</span><span class="s2">"tonnage"</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>
+<span class="n">share</span> <span class="o">=</span> <span class="n">curves</span><span class="p">[</span><span class="s2">"tonnage"</span><span class="p">]</span> <span class="o">/</span> <span class="n">curves</span><span class="p">[</span><span class="s2">"tonnage"</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>
 <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="p">(</span><span class="mi">300</span><span class="p">,</span> <span class="mi">500</span><span class="p">,</span> <span class="mi">800</span><span class="p">):</span>
     <span class="n">k</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">searchsorted</span><span class="p">(</span><span class="n">cutoffs</span><span class="p">,</span> <span class="n">c</span><span class="p">)</span>
     <span class="n">p10</span><span class="p">,</span> <span class="n">p90</span> <span class="o">=</span> <span class="n">share</span><span class="p">[(</span><span class="n">curves</span><span class="p">[</span><span class="s2">"cutoff"</span><span class="p">]</span> <span class="o">==</span> <span class="n">cutoffs</span><span class="p">[</span><span class="n">k</span><span class="p">])</span> <span class="o">&amp;</span> <span class="n">np</span><span class="o">.</span><span class="n">isin</span><span class="p">(</span><span class="n">curves</span><span class="p">[</span><span class="s2">"probability"</span><span class="p">],</span> <span class="p">[</span><span class="mf">0.1</span><span class="p">,</span> <span class="mf">0.9</span><span class="p">])]</span>
@@ -22025,19 +22050,19 @@ mean grade above each <abbr title="the grade below which a block does not pay to
 above<span class="w"> </span><span class="m">500</span><span class="w"> </span>ppm:<span class="w"> </span>P10<span class="w"> </span><span class="m">14</span>.1%,<span class="w"> </span>P90<span class="w"> </span><span class="m">17</span>.7%,<span class="w"> </span><span class="nb">true</span><span class="w"> </span><span class="m">16</span>.2%
 above<span class="w"> </span><span class="m">800</span><span class="w"> </span>ppm:<span class="w"> </span>P10<span class="w"> </span><span class="m">1</span>.8%,<span class="w"> </span>P90<span class="w"> </span><span class="m">2</span>.6%,<span class="w"> </span><span class="nb">true</span><span class="w"> </span><span class="m">2</span>.1%
 </code></pre></div>
-<!-- GENERATED FROM PYTHON SOURCE LINES 86-87 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 81-82 -->
 
 <p>the band holds the true curve at each <abbr title="the grade below which a block does not pay to mine; you report resources above it.">cutoff</abbr>; at 300 ppm the truth sits at its lower edge.</p>
-<!-- GENERATED FROM PYTHON SOURCE LINES 90-95 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 85-90 -->
 
 <p>a mine plan reads uncertainty over production volumes. <code>groups=</code> labels each block with its volume, here six 50 m
 strips of northing standing for periods, and summarizes each <abbr title="one simulated map that honors the samples and reproduces the histogram and variogram of the data.">realization</abbr>'s mean per period, one row per label.
 <code>window=</code> gives each block the mean of the 50 × 50 m box centred on it, the boxes overlapping. both stream like
 <code>blocks=</code> and feed the same summaries, here the relative error at 90 % confidence: half the P5–P95 interval over the
 mean.</p>
-<!-- GENERATED FROM PYTHON SOURCE LINES 97-109 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 92-104 -->
 
-<div class="highlight"><pre><span></span><code><span class="n">periods</span> <span class="o">=</span> <span class="n">blocks</span><span class="o">.</span><span class="n">centroids</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">]</span> <span class="o">//</span> <span class="mi">50</span>
+<div class="highlight"><pre><span></span><code><span class="n">periods</span> <span class="o">=</span> <span class="n">blocks</span><span class="o">.</span><span class="n">y</span> <span class="o">//</span> <span class="mi">50</span>
 <span class="k">for</span> <span class="n">label</span><span class="p">,</span> <span class="n">volumes</span> <span class="ow">in</span> <span class="p">(</span>
     <span class="p">(</span><span class="s2">"blocks"</span><span class="p">,</span> <span class="p">{}),</span>
     <span class="p">(</span><span class="s2">"periods"</span><span class="p">,</span> <span class="p">{</span><span class="s2">"groups"</span><span class="p">:</span> <span class="n">periods</span><span class="p">}),</span>
@@ -22053,16 +22078,16 @@ mean.</p>
 periods:<span class="w"> </span><span class="m">6</span><span class="w"> </span>rows,<span class="w"> </span>median<span class="w"> </span>relative<span class="w"> </span>error<span class="w"> </span><span class="m">11</span>.0%
 <span class="m">50</span><span class="w"> </span>m<span class="w"> </span>windows:<span class="w"> </span><span class="m">780</span><span class="w"> </span>rows,<span class="w"> </span>median<span class="w"> </span>relative<span class="w"> </span>error<span class="w"> </span><span class="m">24</span>.1%
 </code></pre></div>
-<!-- GENERATED FROM PYTHON SOURCE LINES 110-111 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 105-106 -->
 
 <p>the median error falls from 59 % on single blocks to 24 % on 50 m windows and 11 % on periods of 130 blocks.</p>
-<!-- GENERATED FROM PYTHON SOURCE LINES 114-118 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 109-113 -->
 
 <p><code>tolerances=</code> adds each row's precision, the share of <abbr title="simulated maps, each honoring the samples and reproducing the histogram and variogram of the data.">realizations</abbr> within ±15 % of its mean; a common criterion
 for measured resources asks that share to reach 90 %. <code>validate</code> compares the summary with the true blocks. <code>covered</code>
 marks a block whose true grade lies within the maximum expected error (MEE) of its mean, the relative error at 90 %
 confidence, and <code>cutoff=</code> flags blocks classified as ore while waste in truth (type 1) and the reverse (type 2).</p>
-<!-- GENERATED FROM PYTHON SOURCE LINES 120-130 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 115-125 -->
 
 <div class="highlight"><pre><span></span><code><span class="n">true_blocks</span> <span class="o">=</span> <span class="n">truth</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="mi">30</span><span class="p">,</span> <span class="n">size</span><span class="p">,</span> <span class="mi">26</span><span class="p">,</span> <span class="n">size</span><span class="p">)</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">))</span><span class="o">.</span><span class="n">ravel</span><span class="p">()</span>
 <span class="n">checked</span> <span class="o">=</span> <span class="n">sgs</span><span class="o">.</span><span class="n">simulate</span><span class="p">(</span>
@@ -22078,16 +22103,16 @@ confidence, and <code>cutoff=</code> flags blocks classified as ore while waste 
 truth<span class="w"> </span>within<span class="w"> </span>the<span class="w"> </span>MEE:<span class="w"> </span><span class="m">80</span>.5%<span class="w"> </span>of<span class="w"> </span>blocks
 at<span class="w"> </span><span class="m">500</span><span class="w"> </span>ppm:<span class="w"> </span><span class="nb">type</span><span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="m">2</span>.1%,<span class="w"> </span><span class="nb">type</span><span class="w"> </span><span class="m">2</span><span class="w"> </span><span class="m">5</span>.3%<span class="w"> </span>of<span class="w"> </span>blocks
 </code></pre></div>
-<!-- GENERATED FROM PYTHON SOURCE LINES 131-133 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 126-128 -->
 
 <p>single 10 m blocks almost never meet ±15 % at 90 %. the truth lies within the MEE for 80 % of blocks, short of the
 nominal 90 %, and 7 % of blocks fall on the wrong side of 500 ppm.</p>
-<!-- GENERATED FROM PYTHON SOURCE LINES 136-139 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 131-134 -->
 
 <p>localization pools the <abbr title="simulated maps, each honoring the samples and reproducing the histogram and variogram of the data.">realizations</abbr> panel by panel. over the western 250 m, each 50 × 50 m panel holds 25 blocks.
 25 blocks × 30 <abbr title="simulated maps, each honoring the samples and reproducing the histogram and variogram of the data.">realizations</abbr> give 750 values, sorted and cut into 25 chunks of 30, and the block ranked i by
 ordinary <abbr title="kriging of the average value over a block instead of the value at a point.">block kriging</abbr> receives the mean of chunk i. the kriging uses the grade variogram, fitted like the one above.</p>
-<!-- GENERATED FROM PYTHON SOURCE LINES 141-185 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 136-179 -->
 
 <div class="highlight"><pre><span></span><code><span class="n">grades</span> <span class="o">=</span> <span class="p">[</span><span class="n">bt</span><span class="o">.</span><span class="n">experimental_variogram</span><span class="p">(</span><span class="n">xy</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="mi">10</span><span class="p">,</span> <span class="mi">120</span><span class="p">,</span> <span class="n">azimuth</span><span class="o">=</span><span class="n">a</span><span class="p">)</span> <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">azimuths</span><span class="p">]</span>
 <span class="n">grade</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">Variogram</span><span class="o">.</span><span class="n">fit_directional</span><span class="p">(</span>
@@ -22104,9 +22129,8 @@ ordinary <abbr title="kriging of the average value over a block instead of the v
 <span class="n">localized</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">localize</span><span class="p">(</span><span class="n">smus</span><span class="p">,</span> <span class="s2">"kriged"</span><span class="p">,</span> <span class="n">panels</span><span class="p">,</span> <span class="n">ensemble</span><span class="o">.</span><span class="n">realizations</span><span class="p">)[</span><span class="s2">"localized"</span><span class="p">]</span>
 <span class="n">true_smu</span> <span class="o">=</span> <span class="n">truth</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">250</span><span class="p">]</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="mi">30</span><span class="p">,</span> <span class="n">size</span><span class="p">,</span> <span class="mi">25</span><span class="p">,</span> <span class="n">size</span><span class="p">)</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">))</span>
 <span class="k">for</span> <span class="n">label</span><span class="p">,</span> <span class="n">values</span> <span class="ow">in</span> <span class="p">((</span><span class="s2">"kriged"</span><span class="p">,</span> <span class="n">kriged</span><span class="p">),</span> <span class="p">(</span><span class="s2">"localized"</span><span class="p">,</span> <span class="n">localized</span><span class="p">)):</span>
-    <span class="nb">print</span><span class="p">(</span>
-        <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">label</span><span class="si">}</span><span class="s2">: variance </span><span class="si">{</span><span class="n">values</span><span class="o">.</span><span class="n">var</span><span class="p">()</span><span class="si">:</span><span class="s2">.0f</span><span class="si">}</span><span class="s2">, correlation with truth </span><span class="si">{</span><span class="n">np</span><span class="o">.</span><span class="n">corrcoef</span><span class="p">(</span><span class="n">values</span><span class="p">,</span><span class="w"> </span><span class="n">true_smu</span><span class="o">.</span><span class="n">ravel</span><span class="p">())[</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">]</span><span class="si">:</span><span class="s2">.2f</span><span class="si">}</span><span class="s2">"</span>
-    <span class="p">)</span>
+    <span class="n">r</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">compare</span><span class="p">(</span><span class="n">values</span><span class="p">,</span> <span class="n">true_smu</span><span class="o">.</span><span class="n">ravel</span><span class="p">())[</span><span class="s2">"correlation"</span><span class="p">]</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">label</span><span class="si">}</span><span class="s2">: variance </span><span class="si">{</span><span class="n">values</span><span class="o">.</span><span class="n">var</span><span class="p">()</span><span class="si">:</span><span class="s2">.0f</span><span class="si">}</span><span class="s2">, correlation with truth </span><span class="si">{</span><span class="n">r</span><span class="si">:</span><span class="s2">.2f</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
 <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"true blocks: variance </span><span class="si">{</span><span class="n">true_smu</span><span class="o">.</span><span class="n">var</span><span class="p">()</span><span class="si">:</span><span class="s2">.0f</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
 <span class="n">true_curve</span><span class="p">,</span> <span class="n">kriged_curve</span><span class="p">,</span> <span class="n">sim_curve</span> <span class="o">=</span> <span class="n">empirical</span><span class="p">(</span><span class="n">true_smu</span><span class="o">.</span><span class="n">ravel</span><span class="p">()),</span> <span class="n">empirical</span><span class="p">(</span><span class="n">kriged</span><span class="p">),</span> <span class="n">empirical</span><span class="p">(</span><span class="n">localized</span><span class="p">)</span>
 
@@ -22138,13 +22162,13 @@ ordinary <abbr title="kriging of the average value over a block instead of the v
 localized:<span class="w"> </span>variance<span class="w"> </span><span class="m">41003</span>,<span class="w"> </span>correlation<span class="w"> </span>with<span class="w"> </span>truth<span class="w"> </span><span class="m">0</span>.85
 <span class="nb">true</span><span class="w"> </span>blocks:<span class="w"> </span>variance<span class="w"> </span><span class="m">47350</span>
 </code></pre></div>
-<!-- GENERATED FROM PYTHON SOURCE LINES 186-190 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 180-184 -->
 
 <p>each panel keeps the mean of its <abbr title="simulated maps, each honoring the samples and reproducing the histogram and variogram of the data.">realizations</abbr>, and its blocks the spread the simulation gives them: variance 41 411,
 between kriging's 35 064 and the true 47 350, with a correlation to the truth of 0.86 against kriging's 0.89. the
 pooling uses no change-of-<abbr title="the volume a value represents: a point, a length of core or a block.">support</abbr> model, so its result depends on the <abbr title="simulated maps, each honoring the samples and reproducing the histogram and variogram of the data.">realizations</abbr> alone. <a href="../../../09-recoverable-resources/02-uniform-conditioning/example_09_02/">uniform conditioning</a> and <a href="../../../09-recoverable-resources/03-mik-localization/example_09_03/">MIK localization</a>
 localize the same panels from a change-of-<abbr title="the volume a value represents: a point, a length of core or a block.">support</abbr> model.</p>
-<p><strong>Total running time of the script:</strong> ( 0 minutes  0.558 seconds)</p>
+<p><strong>Total running time of the script:</strong> ( 0 minutes  0.582 seconds)</p>
 <div id="download_links"></div>
 
 <p><a class="md-button center" href="../example_08_03.py"><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M256 32c0-17.7-14.3-32-32-32s-32 14.3-32 32v210.7l-41.4-41.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3l96 96c12.5 12.5 32.8 12.5 45.3 0l96-96c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L256 242.7zM64 320c-35.3 0-64 28.7-64 64v32c0 35.3 28.7 64 64 64h320c35.3 0 64-28.7 64-64v-32c0-35.3-28.7-64-64-64h-46.9l-56.6 56.6c-31.2 31.2-81.9 31.2-113.1 0L110.9 320zm304 56a24 24 0 1 1 0 48 24 24 0 1 1 0-48"/></svg></span> Download Python source code: example_08_03.py</a></p>

@@ -21275,6 +21275,8 @@
       
         
       
+        
+      
     
     
     
@@ -21484,6 +21486,34 @@
     
   
     block_correlation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/validation/compare/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    compare
   
 
     
@@ -22011,6 +22041,17 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#pipeline" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        pipeline
+      
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -22224,77 +22265,7 @@
 
 <!-- docs_examples_04-transforms_10-target-distribution-correction -->
 
-<h1 id="pipeline">pipeline<a class="headerlink" href="#pipeline" title="Permanent link">&para;</a></h1>
-<p>a gaussian cosimulation of two grades takes several transforms in a fixed order: cap, normal-score each grade, then
-PPMT. the <abbr title="the inverse of a transform, returning simulated scores to the original units.">back-transform</abbr> runs the same chain in reverse with the same fitted parameters. <code>Pipeline</code> holds that chain:
-each step names a transform and the columns it replaces, <code>fit</code> fits the steps in turn on a container,
-<code>inverse_transform</code> undoes them, and <code>to_json</code> saves the fitted chain for new data.</p>
-<details><summary>Python</summary>
-
-<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">boitata</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">bt</span>
-<span class="kn">import</span><span class="w"> </span><span class="nn">matplotlib.pyplot</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">plt</span>
-<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">common</span><span class="w"> </span><span class="kn">import</span> <span class="n">ACCENT</span><span class="p">,</span> <span class="n">save</span>
-
-<span class="n">samples</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">datasets</span><span class="o">.</span><span class="n">walker_lake</span><span class="p">()</span>
-<span class="n">samples</span> <span class="o">=</span> <span class="n">samples</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="o">~</span><span class="n">np</span><span class="o">.</span><span class="n">isnan</span><span class="p">(</span><span class="n">samples</span><span class="p">[</span><span class="s2">"U"</span><span class="p">]))</span>
-<span class="n">w</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">cell_declustering</span><span class="p">(</span><span class="n">samples</span><span class="p">,</span> <span class="s2">"V"</span><span class="p">,</span> <span class="n">sizes</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mf">2.5</span><span class="p">,</span> <span class="mf">102.5</span><span class="p">,</span> <span class="mf">2.5</span><span class="p">))</span><span class="o">.</span><span class="n">weights</span>
-<span class="n">samples</span> <span class="o">=</span> <span class="n">samples</span><span class="o">.</span><span class="n">with_column</span><span class="p">(</span><span class="s2">"w"</span><span class="p">,</span> <span class="n">w</span><span class="p">)</span>
-
-<span class="n">pipe</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">Pipeline</span><span class="p">(</span>
-    <span class="p">[</span>
-        <span class="p">(</span><span class="s2">"cap"</span><span class="p">,</span> <span class="n">bt</span><span class="o">.</span><span class="n">Capping</span><span class="p">(</span><span class="n">quantile</span><span class="o">=</span><span class="mf">0.99</span><span class="p">),</span> <span class="s2">"V"</span><span class="p">),</span>
-        <span class="p">(</span><span class="s2">"ns_u"</span><span class="p">,</span> <span class="n">bt</span><span class="o">.</span><span class="n">NormalScore</span><span class="p">(),</span> <span class="s2">"U"</span><span class="p">),</span>
-        <span class="p">(</span><span class="s2">"ns_v"</span><span class="p">,</span> <span class="n">bt</span><span class="o">.</span><span class="n">NormalScore</span><span class="p">(),</span> <span class="s2">"V"</span><span class="p">),</span>
-        <span class="p">(</span><span class="s2">"ppmt"</span><span class="p">,</span> <span class="n">bt</span><span class="o">.</span><span class="n">PPMT</span><span class="p">(</span><span class="n">seed</span><span class="o">=</span><span class="mi">7</span><span class="p">),</span> <span class="p">[</span><span class="s2">"U"</span><span class="p">,</span> <span class="s2">"V"</span><span class="p">]),</span>
-    <span class="p">]</span>
-<span class="p">)</span>
-<span class="n">factors</span> <span class="o">=</span> <span class="n">pipe</span><span class="o">.</span><span class="n">fit_transform</span><span class="p">(</span><span class="n">samples</span><span class="p">,</span> <span class="n">weights</span><span class="o">=</span><span class="s2">"w"</span><span class="p">)</span>
-<span class="nb">print</span><span class="p">(</span><span class="n">pipe</span><span class="p">)</span>
-<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"factor correlation </span><span class="si">{</span><span class="n">np</span><span class="o">.</span><span class="n">corrcoef</span><span class="p">(</span><span class="n">factors</span><span class="p">[</span><span class="s1">'U'</span><span class="p">],</span><span class="w"> </span><span class="n">factors</span><span class="p">[</span><span class="s1">'V'</span><span class="p">])[</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">]</span><span class="si">:</span><span class="s2">.3f</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
-</code></pre></div>
-
-</details>
-
-<div class="highlight"><pre><span></span><code>Pipeline([('cap', 'Capping', 'V'), ('ns_u', 'NormalScore', 'U'), ('ns_v', 'NormalScore', 'V'), ('ppmt', 'PPMT', ['U', 'V'])])
-factor correlation -0.001
-</code></pre></div>
-<p>the steps replace <code>U</code> and <code>V</code> in place, so the output keeps the columns of the input and the next step reads the
-previous one's result. the weights reach the steps whose <code>fit</code> takes them: capping, the <abbr title="values replaced by the standard gaussian values with the same cumulative probability.">normal scores</abbr> and PPMT.</p>
-<details><summary>Python</summary>
-
-<div class="highlight"><pre><span></span><code><span class="n">fig</span><span class="p">,</span> <span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">)</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">9</span><span class="p">,</span> <span class="mi">4</span><span class="p">),</span> <span class="n">layout</span><span class="o">=</span><span class="s2">"constrained"</span><span class="p">)</span>
-<span class="n">a</span><span class="o">.</span><span class="n">scatter</span><span class="p">(</span><span class="n">samples</span><span class="p">[</span><span class="s2">"U"</span><span class="p">],</span> <span class="n">samples</span><span class="p">[</span><span class="s2">"V"</span><span class="p">],</span> <span class="n">s</span><span class="o">=</span><span class="mi">6</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="n">ACCENT</span><span class="p">)</span>
-<span class="n">a</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="n">title</span><span class="o">=</span><span class="s2">"Raw U and V"</span><span class="p">,</span> <span class="n">xlabel</span><span class="o">=</span><span class="s2">"U (ppm)"</span><span class="p">,</span> <span class="n">ylabel</span><span class="o">=</span><span class="s2">"V (ppm)"</span><span class="p">)</span>
-<span class="n">b</span><span class="o">.</span><span class="n">scatter</span><span class="p">(</span><span class="n">factors</span><span class="p">[</span><span class="s2">"U"</span><span class="p">],</span> <span class="n">factors</span><span class="p">[</span><span class="s2">"V"</span><span class="p">],</span> <span class="n">s</span><span class="o">=</span><span class="mi">6</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="n">ACCENT</span><span class="p">)</span>
-<span class="n">b</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="n">title</span><span class="o">=</span><span class="s2">"PPMT factors"</span><span class="p">,</span> <span class="n">xlabel</span><span class="o">=</span><span class="s2">"Factor 1"</span><span class="p">,</span> <span class="n">ylabel</span><span class="o">=</span><span class="s2">"Factor 2"</span><span class="p">,</span> <span class="n">aspect</span><span class="o">=</span><span class="s2">"equal"</span><span class="p">)</span>
-<span class="n">save</span><span class="p">(</span><span class="n">fig</span><span class="p">,</span> <span class="s2">"factors"</span><span class="p">)</span>
-</code></pre></div>
-
-</details>
-
-<p><img alt="factors" src="factors.png" /></p>
-<p>a saved pipeline reloads with <code>from_json</code> and back-transforms factors, here independent gaussian draws standing in
-for simulated values. capping has no inverse, so <code>inverse_transform</code> skips it and the back-transformed <code>V</code> stays
-below the cap. <code>transform</code> and <code>inverse_transform</code> raise <code>MissingColumn</code> when the data lack a fitted column.</p>
-<details><summary>Python</summary>
-
-<div class="highlight"><pre><span></span><code><span class="n">saved</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">Pipeline</span><span class="o">.</span><span class="n">from_json</span><span class="p">(</span><span class="n">pipe</span><span class="o">.</span><span class="n">to_json</span><span class="p">())</span>
-<span class="n">draws</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">default_rng</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">standard_normal</span><span class="p">((</span><span class="mi">2000</span><span class="p">,</span> <span class="mi">2</span><span class="p">))</span>
-<span class="n">grades</span> <span class="o">=</span> <span class="n">saved</span><span class="o">.</span><span class="n">inverse_transform</span><span class="p">({</span><span class="s2">"U"</span><span class="p">:</span> <span class="n">draws</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">],</span> <span class="s2">"V"</span><span class="p">:</span> <span class="n">draws</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">]})</span>
-<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"V cap </span><span class="si">{</span><span class="n">pipe</span><span class="o">.</span><span class="n">named_steps</span><span class="p">[</span><span class="s1">'cap'</span><span class="p">]</span><span class="o">.</span><span class="n">caps_</span><span class="si">:</span><span class="s2">.0f</span><span class="si">}</span><span class="s2"> ppm, back-transformed V max </span><span class="si">{</span><span class="n">grades</span><span class="p">[</span><span class="s1">'V'</span><span class="p">]</span><span class="o">.</span><span class="n">max</span><span class="p">()</span><span class="si">:</span><span class="s2">.0f</span><span class="si">}</span><span class="s2"> ppm"</span><span class="p">)</span>
-<span class="nb">print</span><span class="p">(</span>
-    <span class="sa">f</span><span class="s2">"U-V correlation: data </span><span class="si">{</span><span class="n">np</span><span class="o">.</span><span class="n">corrcoef</span><span class="p">(</span><span class="n">samples</span><span class="p">[</span><span class="s1">'U'</span><span class="p">],</span><span class="w"> </span><span class="n">samples</span><span class="p">[</span><span class="s1">'V'</span><span class="p">])[</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">]</span><span class="si">:</span><span class="s2">.2f</span><span class="si">}</span><span class="s2">, "</span>
-    <span class="sa">f</span><span class="s2">"back-transformed </span><span class="si">{</span><span class="n">np</span><span class="o">.</span><span class="n">corrcoef</span><span class="p">(</span><span class="n">grades</span><span class="p">[</span><span class="s1">'U'</span><span class="p">],</span><span class="w"> </span><span class="n">grades</span><span class="p">[</span><span class="s1">'V'</span><span class="p">])[</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">]</span><span class="si">:</span><span class="s2">.2f</span><span class="si">}</span><span class="s2">"</span>
-<span class="p">)</span>
-</code></pre></div>
-
-</details>
-
-<div class="highlight"><pre><span></span><code>V cap 1111 ppm, back-transformed V max 1111 ppm
-U-V correlation: data 0.55, back-transformed 0.53
-</code></pre></div>
-<p>Full script: <a href="example_04_11.py"><code>example_04_11.py</code></a></p>
+<h2 id="pipeline">pipeline<a class="headerlink" href="#pipeline" title="Permanent link">&para;</a></h2>
 <div class="mkd-glr-thumbcontainer" tooltip="a gaussian cosimulation of two grades takes several transforms in a fixed order: cap, normal-sc...">
     <!--div class="figure align-default" id="id1"-->
         <img alt="pipeline" src="11-pipeline\images\thumb\mkd_glr_example_04_11_thumb.png" />

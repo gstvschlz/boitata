@@ -27,8 +27,8 @@ holes, grid = data["boreholes"], data["grid"]
 thickness = holes["THICKNESS_M"]
 xy = holes.coords[:, :2]
 weights = bt.cell_declustering(holes, "THICKNESS_M", sizes=np.arange(100.0, 3100.0, 100.0)).weights
-mean = np.average(thickness, weights=weights)
-sd = np.sqrt(np.average((thickness - mean) ** 2, weights=weights))
+stats = bt.describe(thickness, weights=weights)
+mean, sd = stats["mean"], stats["std"]
 print(f"{len(holes)} holes, declustered mean {mean:.2f} m, standard deviation {sd:.2f} m")
 
 # %% [markdown]
@@ -40,9 +40,7 @@ untied = bt.despike(holes, "THICKNESS_M", seed=0)
 scores = bt.NormalScore().fit_transform(untied, weights=weights)
 fitted = bt.Variogram.fit(bt.experimental_variogram(xy, scores, 250.0, 6000.0), "spherical")
 structure = fitted.structures[0]
-variogram = bt.Variogram(
-    [("spherical", structure.sill / fitted.sill, structure.range)], nugget=fitted.nugget / fitted.sill
-)
+variogram = fitted.standardized()
 print(variogram)
 
 nugget = bt.Variogram([], nugget=1.0)
@@ -115,7 +113,7 @@ area = np.sum(grid["INSIDE"] == 1) * 100.0 * 100.0
 density = 1.4
 for name, v in (("independent", nugget), ("spatial", variogram)):
     table = bt.spatial_bootstrap(holes, "THICKNESS_M", v, weights=weights, n=1000, cutoffs=[2.0])
-    tonnes = np.asarray(table["mean"]) * area * density / 1e6
+    tonnes = table["mean"] * area * density / 1e6
     p10, p50, p90 = np.quantile(tonnes, [0.1, 0.5, 0.9])
     above = np.quantile(table["above 2"], [0.1, 0.9])
     print(

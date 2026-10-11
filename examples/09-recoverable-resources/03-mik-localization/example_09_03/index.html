@@ -21287,6 +21287,8 @@
       
         
       
+        
+      
     
     
     
@@ -21496,6 +21498,34 @@
     
   
     block_correlation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../api/validation/compare/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    compare
   
 
     
@@ -21988,7 +22018,7 @@ variogram at each decile:</p>
 <code>localize</code> kriges the indicators at each panel centroid and shrinks the distribution about its mean by the variance
 factor f: the variance of 10 m blocks within a panel over that of points within it, computed here from the grade
 variogram. the block ranked i receives the mean of the i-th of 25 equal-probability bands.</p>
-<!-- GENERATED FROM PYTHON SOURCE LINES 55-70 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 55-69 -->
 
 <div class="highlight"><pre><span></span><code><span class="n">search</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">Search</span><span class="p">(</span><span class="n">radius</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span> <span class="n">max_samples</span><span class="o">=</span><span class="mi">24</span><span class="p">,</span> <span class="n">min_samples</span><span class="o">=</span><span class="mi">4</span><span class="p">)</span>
 <span class="n">panels</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">BlockModel</span><span class="p">(</span><span class="n">origin</span><span class="o">=</span><span class="p">(</span><span class="mf">0.5</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">),</span> <span class="n">size</span><span class="o">=</span><span class="p">(</span><span class="mi">50</span><span class="p">,</span> <span class="mi">50</span><span class="p">),</span> <span class="n">count</span><span class="o">=</span><span class="p">(</span><span class="mi">5</span><span class="p">,</span> <span class="mi">6</span><span class="p">))</span>
@@ -21999,9 +22029,8 @@ variogram. the block ranked i receives the mean of the i-th of 25 equal-probabil
 <span class="n">mik</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">xy</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="n">weights</span><span class="o">=</span><span class="n">weights</span><span class="p">)</span>
 <span class="n">localized</span> <span class="o">=</span> <span class="n">mik</span><span class="o">.</span><span class="n">localize</span><span class="p">(</span><span class="n">smus</span><span class="p">,</span> <span class="s2">"kriged"</span><span class="p">,</span> <span class="n">panels</span><span class="p">,</span> <span class="n">variance_factor</span><span class="o">=</span><span class="n">grade</span><span class="p">)[</span><span class="s2">"localized"</span><span class="p">]</span>
 <span class="k">for</span> <span class="n">label</span><span class="p">,</span> <span class="n">values</span> <span class="ow">in</span> <span class="p">((</span><span class="s2">"kriged"</span><span class="p">,</span> <span class="n">kriged</span><span class="p">),</span> <span class="p">(</span><span class="s2">"localized"</span><span class="p">,</span> <span class="n">localized</span><span class="p">)):</span>
-    <span class="nb">print</span><span class="p">(</span>
-        <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">label</span><span class="si">}</span><span class="s2">: variance </span><span class="si">{</span><span class="n">values</span><span class="o">.</span><span class="n">var</span><span class="p">()</span><span class="si">:</span><span class="s2">.0f</span><span class="si">}</span><span class="s2">, correlation with truth </span><span class="si">{</span><span class="n">np</span><span class="o">.</span><span class="n">corrcoef</span><span class="p">(</span><span class="n">values</span><span class="p">,</span><span class="w"> </span><span class="n">true_smu</span><span class="o">.</span><span class="n">ravel</span><span class="p">())[</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">]</span><span class="si">:</span><span class="s2">.2f</span><span class="si">}</span><span class="s2">"</span>
-    <span class="p">)</span>
+    <span class="n">r</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">compare</span><span class="p">(</span><span class="n">values</span><span class="p">,</span> <span class="n">true_smu</span><span class="o">.</span><span class="n">ravel</span><span class="p">())[</span><span class="s2">"correlation"</span><span class="p">]</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">label</span><span class="si">}</span><span class="s2">: variance </span><span class="si">{</span><span class="n">values</span><span class="o">.</span><span class="n">var</span><span class="p">()</span><span class="si">:</span><span class="s2">.0f</span><span class="si">}</span><span class="s2">, correlation with truth </span><span class="si">{</span><span class="n">r</span><span class="si">:</span><span class="s2">.2f</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
 <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"true blocks: variance </span><span class="si">{</span><span class="n">true_smu</span><span class="o">.</span><span class="n">var</span><span class="p">()</span><span class="si">:</span><span class="s2">.0f</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
 </code></pre></div>
 <p class="mkd-glr-script-out">Out:</p>
@@ -22009,10 +22038,10 @@ variogram. the block ranked i receives the mean of the i-th of 25 equal-probabil
 localized:<span class="w"> </span>variance<span class="w"> </span><span class="m">54348</span>,<span class="w"> </span>correlation<span class="w"> </span>with<span class="w"> </span>truth<span class="w"> </span><span class="m">0</span>.82
 <span class="nb">true</span><span class="w"> </span>blocks:<span class="w"> </span>variance<span class="w"> </span><span class="m">47350</span>
 </code></pre></div>
-<!-- GENERATED FROM PYTHON SOURCE LINES 71-72 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 70-71 -->
 
 <p>grade-tonnage of the three sets of blocks:</p>
-<!-- GENERATED FROM PYTHON SOURCE LINES 74-113 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 73-112 -->
 
 <div class="highlight"><pre><span></span><code><span class="n">cutoffs</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1000</span><span class="p">,</span> <span class="mi">41</span><span class="p">)</span>
 
@@ -22058,7 +22087,7 @@ localized:<span class="w"> </span>variance<span class="w"> </span><span class="m
 above<span class="w"> </span><span class="m">500</span><span class="w"> </span>ppm:<span class="w"> </span>localized<span class="w"> </span><span class="m">23</span>.3%,<span class="w"> </span>kriged<span class="w"> </span><span class="m">13</span>.6%,<span class="w"> </span><span class="nb">true</span><span class="w"> </span><span class="m">16</span>.8%
 above<span class="w"> </span><span class="m">800</span><span class="w"> </span>ppm:<span class="w"> </span>localized<span class="w"> </span><span class="m">3</span>.2%,<span class="w"> </span>kriged<span class="w"> </span><span class="m">2</span>.3%,<span class="w"> </span><span class="nb">true</span><span class="w"> </span><span class="m">2</span>.1%
 </code></pre></div>
-<!-- GENERATED FROM PYTHON SOURCE LINES 114-120 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 113-119 -->
 
 <p>the localized blocks spread wider than the true ones (variance 54 348 against 47 350), while kriging smooths them to
 35 064. block by block they follow the truth a little less well than kriging (correlation 0.82 against 0.89). the
@@ -22066,7 +22095,7 @@ affine correction keeps the shape of each point distribution, so its long upper 
 ppm the localized blocks put 23.3% above <abbr title="the grade below which a block does not pay to mine; you report resources above it.">cutoff</abbr> against a true 16.8%, overshooting by as much as kriging falls short.
 <a href="../../02-uniform-conditioning/example_09_02/">uniform conditioning</a> localizes the same panels
 from a gaussian model.</p>
-<p><strong>Total running time of the script:</strong> ( 0 minutes  0.284 seconds)</p>
+<p><strong>Total running time of the script:</strong> ( 0 minutes  0.302 seconds)</p>
 <div id="download_links"></div>
 
 <p><a class="md-button center" href="../example_09_03.py"><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M256 32c0-17.7-14.3-32-32-32s-32 14.3-32 32v210.7l-41.4-41.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3l96 96c12.5 12.5 32.8 12.5 45.3 0l96-96c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L256 242.7zM64 320c-35.3 0-64 28.7-64 64v32c0 35.3 28.7 64 64 64h320c35.3 0 64-28.7 64-64v-32c0-35.3-28.7-64-64-64h-46.9l-56.6 56.6c-31.2 31.2-81.9 31.2-113.1 0L110.9 320zm304 56a24 24 0 1 1 0 48 24 24 0 1 1 0-48"/></svg></span> Download Python source code: example_09_03.py</a></p>

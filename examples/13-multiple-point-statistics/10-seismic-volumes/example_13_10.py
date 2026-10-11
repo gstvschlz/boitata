@@ -37,7 +37,7 @@ print(f"first sample at {-(cube.origin[2] + (nz - 0.5) * cube.size[2]):.0f} ms, 
 # two-way time, so a time slice is a z layer, and the first sample is the top cell.
 
 # %%
-amplitude = cube["amplitude"].reshape(nz, ny, nx)[::-1]  # row 0 at the first sample
+amplitude = cube.grid("amplitude")[::-1]  # row 0 at the first sample
 times = (1598, 1598 + 4 * nz)
 style = {"cmap": "gray", "vmin": -8000, "vmax": 8000, "interpolation": "nearest"}
 fig, axes = plt.subplots(1, 3, figsize=(15, 4), layout="constrained", width_ratios=[1, 1, 0.9])
@@ -78,7 +78,7 @@ def synthetic_seismic(facies):
 
 ti = bt.object_training_image(section, [lens], seed=1)
 ti = ti.with_columns({"seismic": synthetic_seismic(ti["facies"]).ravel()})
-truth = bt.object_training_image(section, [lens], seed=2)["facies"].reshape(depth, width)
+truth = bt.object_training_image(section, [lens], seed=2).grid("facies")[0]
 
 
 # %% [markdown]
@@ -93,7 +93,7 @@ with tempfile.TemporaryDirectory() as folder:
     bt.write_segy(path, survey, "seismic")
     back = bt.read_segy(path, column="seismic")
 print(f"read back {back.count}, largest difference {np.abs(back['seismic'] - survey['seismic']).max():.1e}")
-secondary = back["seismic"].reshape(depth, width)[::-1].ravel()
+secondary = back.grid("seismic")[::-1].ravel()
 
 
 # %% [markdown]

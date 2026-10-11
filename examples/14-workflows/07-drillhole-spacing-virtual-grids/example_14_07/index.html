@@ -21346,6 +21346,8 @@
       
         
       
+        
+      
     
     
     
@@ -21555,6 +21557,34 @@
     
   
     block_correlation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../api/validation/compare/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    compare
   
 
     
@@ -22067,7 +22097,7 @@ simulate on 2 m nodes. The production volumes are moving windows. For a quarter,
 8 m panels and <code>window=(40, 40)</code> gives each panel the mean of the 5 × 5 panels around it, a 40 × 40 m window;
 for a year, 16 m panels and <code>window=(80, 80)</code>. A window spans an odd number of panels, so the panel side is a
 fifth of the window. The study counts only windows that lie wholly inside the area.</p>
-<!-- GENERATED FROM PYTHON SOURCE LINES 46-82 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 46-75 -->
 
 <div class="highlight"><pre><span></span><code><span class="n">samples</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">datasets</span><span class="o">.</span><span class="n">walker_lake</span><span class="p">()</span>
 <span class="n">xy</span><span class="p">,</span> <span class="n">v</span> <span class="o">=</span> <span class="n">samples</span><span class="o">.</span><span class="n">coords</span><span class="p">,</span> <span class="n">samples</span><span class="p">[</span><span class="s2">"V"</span><span class="p">]</span>
@@ -22076,12 +22106,7 @@ fifth of the window. The study counts only windows that lie wholly inside the ar
 <span class="n">azimuths</span> <span class="o">=</span> <span class="p">(</span><span class="mi">170</span><span class="p">,</span> <span class="mi">260</span><span class="p">)</span>
 <span class="n">directional</span> <span class="o">=</span> <span class="p">[</span><span class="n">bt</span><span class="o">.</span><span class="n">experimental_variogram</span><span class="p">(</span><span class="n">xy</span><span class="p">,</span> <span class="n">scores</span><span class="p">,</span> <span class="mi">10</span><span class="p">,</span> <span class="mi">120</span><span class="p">,</span> <span class="n">azimuth</span><span class="o">=</span><span class="n">a</span><span class="p">)</span> <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">azimuths</span><span class="p">]</span>
 <span class="n">fitted</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">Variogram</span><span class="o">.</span><span class="n">fit_directional</span><span class="p">(</span><span class="n">directional</span><span class="p">,</span> <span class="p">[(</span><span class="n">a</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span> <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">azimuths</span><span class="p">],</span> <span class="n">rotation</span><span class="o">=</span><span class="p">[</span><span class="mi">170</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">])</span>
-<span class="n">gaussian</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">Variogram</span><span class="p">(</span>
-    <span class="p">[(</span><span class="n">s</span><span class="o">.</span><span class="n">model</span><span class="p">,</span> <span class="n">s</span><span class="o">.</span><span class="n">sill</span> <span class="o">/</span> <span class="n">fitted</span><span class="o">.</span><span class="n">sill</span><span class="p">,</span> <span class="n">s</span><span class="o">.</span><span class="n">range</span><span class="p">)</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">fitted</span><span class="o">.</span><span class="n">structures</span><span class="p">],</span>
-    <span class="n">nugget</span><span class="o">=</span><span class="n">fitted</span><span class="o">.</span><span class="n">nugget</span> <span class="o">/</span> <span class="n">fitted</span><span class="o">.</span><span class="n">sill</span><span class="p">,</span>
-    <span class="n">rotation</span><span class="o">=</span><span class="n">fitted</span><span class="o">.</span><span class="n">rotation</span><span class="p">,</span>
-    <span class="n">ratios</span><span class="o">=</span><span class="n">fitted</span><span class="o">.</span><span class="n">ratios</span><span class="p">,</span>
-<span class="p">)</span>
+<span class="n">gaussian</span> <span class="o">=</span> <span class="n">fitted</span><span class="o">.</span><span class="n">standardized</span><span class="p">()</span>
 <span class="nb">print</span><span class="p">(</span><span class="n">gaussian</span><span class="p">)</span>
 
 <span class="n">nodes</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">BlockModel</span><span class="p">(</span><span class="n">origin</span><span class="o">=</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="n">size</span><span class="o">=</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">),</span> <span class="n">count</span><span class="o">=</span><span class="p">(</span><span class="mi">130</span><span class="p">,</span> <span class="mi">150</span><span class="p">))</span>
@@ -22096,20 +22121,18 @@ fifth of the window. The study counts only windows that lie wholly inside the ar
 
 <span class="k">def</span><span class="w"> </span><span class="nf">inside</span><span class="p">(</span><span class="n">side</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">"""Panels whose window of `side` meters lies inside the panels."""</span>
-    <span class="n">c</span> <span class="o">=</span> <span class="n">panels</span><span class="p">[</span><span class="n">side</span><span class="p">]</span><span class="o">.</span><span class="n">centroids</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">2</span><span class="p">]</span> <span class="o">-</span> <span class="mi">1</span>
+    <span class="n">c</span> <span class="o">=</span> <span class="n">panels</span><span class="p">[</span><span class="n">side</span><span class="p">]</span><span class="o">.</span><span class="n">coords</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">2</span><span class="p">]</span> <span class="o">-</span> <span class="mi">1</span>
     <span class="n">extent</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mi">1280</span> <span class="o">//</span> <span class="n">side</span><span class="p">,</span> <span class="mi">1480</span> <span class="o">//</span> <span class="n">side</span><span class="p">])</span> <span class="o">*</span> <span class="n">side</span> <span class="o">/</span> <span class="mi">5</span>
     <span class="k">return</span> <span class="p">((</span><span class="n">c</span> <span class="o">&gt;=</span> <span class="n">side</span> <span class="o">/</span> <span class="mi">2</span><span class="p">)</span> <span class="o">&amp;</span> <span class="p">(</span><span class="n">c</span> <span class="o">&lt;=</span> <span class="n">extent</span> <span class="o">-</span> <span class="n">side</span> <span class="o">/</span> <span class="mi">2</span><span class="p">))</span><span class="o">.</span><span class="n">all</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
 
 
-<span class="nb">print</span><span class="p">(</span>
-    <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">nodes</span><span class="o">.</span><span class="n">centroids</span><span class="p">)</span><span class="si">}</span><span class="s2"> nodes, </span><span class="si">{</span><span class="n">inside</span><span class="p">(</span><span class="mi">40</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span><span class="si">}</span><span class="s2"> quarterly and </span><span class="si">{</span><span class="n">inside</span><span class="p">(</span><span class="mi">80</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span><span class="si">}</span><span class="s2"> yearly windows inside"</span>
-<span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">nodes</span><span class="o">.</span><span class="n">coords</span><span class="p">)</span><span class="si">}</span><span class="s2"> nodes, </span><span class="si">{</span><span class="n">inside</span><span class="p">(</span><span class="mi">40</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span><span class="si">}</span><span class="s2"> quarterly and </span><span class="si">{</span><span class="n">inside</span><span class="p">(</span><span class="mi">80</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span><span class="si">}</span><span class="s2"> yearly windows inside"</span><span class="p">)</span>
 </code></pre></div>
 <p class="mkd-glr-script-out">Out:</p>
 <div class="mkd-glr-script-out-disp highlight"><pre><span></span><code>Variogram<span class="o">(</span><span class="nv">nugget</span><span class="o">=</span><span class="m">0</span>.3712292816104307,<span class="w"> </span><span class="nv">structures</span><span class="o">=[</span>Structure<span class="o">(</span><span class="s2">"spherical"</span>,<span class="w"> </span><span class="nv">sill</span><span class="o">=</span><span class="m">0</span>.6287707183895693,<span class="w"> </span><span class="nv">range</span><span class="o">=</span><span class="m">102</span>.93174851181992<span class="o">)]</span>,<span class="w"> </span><span class="nv">rotation</span><span class="o">=(</span><span class="m">170</span>.0,<span class="w"> </span><span class="m">0</span>.0,<span class="w"> </span><span class="m">0</span>.0<span class="o">)</span>,<span class="w"> </span><span class="nv">ratios</span><span class="o">=(</span><span class="m">0</span>.34469006793164536,<span class="w"> </span><span class="m">1</span>.0<span class="o">))</span>
 <span class="m">19500</span><span class="w"> </span>nodes,<span class="w"> </span><span class="m">924</span><span class="w"> </span>quarterly<span class="w"> </span>and<span class="w"> </span><span class="m">168</span><span class="w"> </span>yearly<span class="w"> </span>windows<span class="w"> </span>inside
 </code></pre></div>
-<!-- GENERATED FROM PYTHON SOURCE LINES 83-89 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 76-82 -->
 
 <div class="admonition step">
 <p class="admonition-title">Step 1: Pick the truths</p>
@@ -22119,7 +22142,7 @@ where nothing is known. Twenty candidates are simulated and averaged to the quar
 grades. A truth index is the <abbr title="one simulated map that honors the samples and reproduces the histogram and variogram of the data.">realization</abbr>'s number in <code>simulate(seed=101)</code>, which <code>spacing_study</code> simulates
 again.</p>
 </div>
-<!-- GENERATED FROM PYTHON SOURCE LINES 91-100 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 84-93 -->
 
 <div class="highlight"><pre><span></span><code><span class="n">candidates</span> <span class="o">=</span> <span class="n">tb</span><span class="o">.</span><span class="n">simulate</span><span class="p">(</span><span class="n">nodes</span><span class="p">,</span> <span class="n">n</span><span class="o">=</span><span class="mi">20</span><span class="p">,</span> <span class="n">seed</span><span class="o">=</span><span class="mi">101</span><span class="p">,</span> <span class="n">blocks</span><span class="o">=</span><span class="n">panels</span><span class="p">[</span><span class="mi">40</span><span class="p">],</span> <span class="n">window</span><span class="o">=</span><span class="p">(</span><span class="mi">40</span><span class="p">,</span> <span class="mi">40</span><span class="p">),</span> <span class="n">keep</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 <span class="n">truths</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">select_realizations</span><span class="p">(</span><span class="n">candidates</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="n">seed</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
@@ -22133,7 +22156,7 @@ again.</p>
 <p class="mkd-glr-script-out">Out:</p>
 <div class="mkd-glr-script-out-disp highlight"><pre><span></span><code>candidate<span class="w"> </span>means<span class="w"> </span><span class="m">302</span><span class="w"> </span>to<span class="w"> </span><span class="m">335</span><span class="w"> </span>ppm<span class="p">;</span><span class="w"> </span>truths<span class="w"> </span><span class="o">[</span><span class="m">9</span>,<span class="w"> </span><span class="m">19</span>,<span class="w"> </span><span class="m">5</span><span class="o">]</span>:<span class="w"> </span><span class="m">318</span>,<span class="w"> </span><span class="m">307</span>,<span class="w"> </span><span class="m">334</span><span class="w"> </span>ppm
 </code></pre></div>
-<!-- GENERATED FROM PYTHON SOURCE LINES 101-106 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 94-99 -->
 
 <div class="admonition step">
 <p class="admonition-title">Step 2: Drill each truth on virtual grids</p>
@@ -22142,7 +22165,7 @@ the holes, refits a copy of the simulator on those samples alone and simulates 5
 windows. The model is 2D, so <code>composite_length=np.inf</code> gives one sample per hole. Each table row is one
 window of one truth at one spacing.</p>
 </div>
-<!-- GENERATED FROM PYTHON SOURCE LINES 108-128 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 101-121 -->
 
 <div class="highlight"><pre><span></span><code><span class="n">spacings</span> <span class="o">=</span> <span class="p">[</span><span class="mi">5</span><span class="p">,</span> <span class="mf">7.5</span><span class="p">,</span> <span class="mi">10</span><span class="p">,</span> <span class="mf">12.5</span><span class="p">,</span> <span class="mi">15</span><span class="p">,</span> <span class="mi">20</span><span class="p">]</span>
 <span class="n">study</span> <span class="o">=</span> <span class="p">{</span>
@@ -22168,7 +22191,7 @@ window of one truth at one spacing.</p>
 <div class="mkd-glr-script-out-disp highlight"><pre><span></span><code><span class="m">40</span><span class="w"> </span>m<span class="w"> </span>windows:<span class="w"> </span><span class="m">16632</span><span class="w"> </span>rows,<span class="w"> </span>columns<span class="w"> </span>plan,<span class="w"> </span>spacing,<span class="w"> </span>realization,<span class="w"> </span>row,<span class="w"> </span>truth,<span class="w"> </span>mean,<span class="w"> </span>mee,<span class="w"> </span>cv,<span class="w"> </span>precision_0.15,<span class="w"> </span>error,<span class="w"> </span>covered
 <span class="m">80</span><span class="w"> </span>m<span class="w"> </span>windows:<span class="w"> </span><span class="m">3024</span><span class="w"> </span>rows,<span class="w"> </span>columns<span class="w"> </span>plan,<span class="w"> </span>spacing,<span class="w"> </span>realization,<span class="w"> </span>row,<span class="w"> </span>truth,<span class="w"> </span>mean,<span class="w"> </span>mee,<span class="w"> </span>cv,<span class="w"> </span>precision_0.15,<span class="w"> </span>error,<span class="w"> </span>covered
 </code></pre></div>
-<!-- GENERATED FROM PYTHON SOURCE LINES 129-138 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 122-131 -->
 
 <details class="math">
 <summary>The math</summary>
@@ -22182,7 +22205,7 @@ A window with MEE ≤ 0.15 has 90 % of its <abbr title="simulated maps, each hon
 <p>The box plot shows the spread of MEE over the quarterly windows of the three truths; the right panel counts
 the windows that meet ±15 % at 90 % for both volumes.</p>
 </div>
-<!-- GENERATED FROM PYTHON SOURCE LINES 140-181 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 133-174 -->
 
 <div class="highlight"><pre><span></span><code><span class="n">spacing_of</span> <span class="o">=</span> <span class="p">{</span><span class="n">side</span><span class="p">:</span> <span class="n">table</span><span class="p">[</span><span class="s2">"spacing"</span><span class="p">]</span> <span class="k">for</span> <span class="n">side</span><span class="p">,</span> <span class="n">table</span> <span class="ow">in</span> <span class="n">study</span><span class="o">.</span><span class="n">items</span><span class="p">()}</span>
 <span class="n">share</span> <span class="o">=</span> <span class="p">{</span>
@@ -22235,7 +22258,7 @@ the windows that meet ±15 % at 90 % for both volumes.</p>
 <span class="w">     </span><span class="m">15</span><span class="w">          </span><span class="m">26</span>.5%<span class="w">               </span><span class="m">3</span>.8%<span class="w">  </span><span class="m">48</span>.0%
 <span class="w">     </span><span class="m">20</span><span class="w">          </span><span class="m">32</span>.1%<span class="w">               </span><span class="m">0</span>.0%<span class="w">  </span><span class="m">14</span>.3%
 </code></pre></div>
-<!-- GENERATED FROM PYTHON SOURCE LINES 182-190 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 175-183 -->
 
 <p>The median quarterly MEE grows from 10.2 % at 5 m to 32.1 % at 20 m. At 5 m, 89.1 % of the quarterly windows
 meet the criterion; at 7.5 m, 53.1 %; at 10 m, 22.4 %. A yearly window covers four times the area, and 94.2 %
@@ -22246,7 +22269,7 @@ of them still meet it at 10 m.</p>
 <code>required_spacing</code> interpolates where a quantile crosses 15 %. The P90 crossing is the spacing at which 90 %
 of the windows meet ±15 %; the P50 crossing, at which the median window does.</p>
 </div>
-<!-- GENERATED FROM PYTHON SOURCE LINES 192-210 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 185-203 -->
 
 <div class="highlight"><pre><span></span><code><span class="n">edges</span> <span class="o">=</span> <span class="p">[</span><span class="mi">4</span><span class="p">,</span> <span class="mi">6</span><span class="p">,</span> <span class="mf">8.5</span><span class="p">,</span> <span class="mi">11</span><span class="p">,</span> <span class="mf">13.5</span><span class="p">,</span> <span class="mi">17</span><span class="p">,</span> <span class="mi">22</span><span class="p">]</span>
 <span class="n">curves</span> <span class="o">=</span> <span class="p">{</span><span class="n">side</span><span class="p">:</span> <span class="n">bt</span><span class="o">.</span><span class="n">uncertainty_curve</span><span class="p">(</span><span class="s2">"spacing"</span><span class="p">,</span> <span class="s2">"mee"</span><span class="p">,</span> <span class="n">bins</span><span class="o">=</span><span class="n">edges</span><span class="p">,</span> <span class="n">data</span><span class="o">=</span><span class="n">t</span><span class="p">)</span> <span class="k">for</span> <span class="n">side</span><span class="p">,</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">study</span><span class="o">.</span><span class="n">items</span><span class="p">()}</span>
@@ -22271,7 +22294,7 @@ of the windows meet ±15 %; the P50 crossing, at which the median window does.</
 <div class="mkd-glr-script-out-disp highlight"><pre><span></span><code><span class="m">40</span><span class="w"> </span>m<span class="w"> </span>windows:<span class="w"> </span>P90<span class="w"> </span>MEE<span class="w"> </span>at<span class="w"> </span><span class="m">5</span><span class="w"> </span>m<span class="w"> </span><span class="m">15</span>.3%<span class="p">;</span><span class="w"> </span>required<span class="w"> </span>spacing<span class="w"> </span><span class="k">for</span><span class="w"> </span>the<span class="w"> </span>median<span class="w"> </span>window<span class="w"> </span><span class="m">7</span>.7<span class="w"> </span>m,<span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="m">90</span><span class="w"> </span>%<span class="w"> </span>of<span class="w"> </span>windows<span class="w"> </span>nan<span class="w"> </span>m
 <span class="m">80</span><span class="w"> </span>m<span class="w"> </span>windows:<span class="w"> </span>P90<span class="w"> </span>MEE<span class="w"> </span>at<span class="w"> </span><span class="m">5</span><span class="w"> </span>m<span class="w"> </span><span class="m">7</span>.1%<span class="p">;</span><span class="w"> </span>required<span class="w"> </span>spacing<span class="w"> </span><span class="k">for</span><span class="w"> </span>the<span class="w"> </span>median<span class="w"> </span>window<span class="w"> </span><span class="m">14</span>.8<span class="w"> </span>m,<span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="m">90</span><span class="w"> </span>%<span class="w"> </span>of<span class="w"> </span>windows<span class="w"> </span><span class="m">11</span>.4<span class="w"> </span>m
 </code></pre></div>
-<!-- GENERATED FROM PYTHON SOURCE LINES 211-225 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 204-218 -->
 
 <p>The yearly volume needs holes every 11.4 m for 90 % of its windows, and its median window meets ±15 % up to
 14.8 m. The quarterly volume misses the 90 % mark on every grid tried: its P90 MEE is 15.3 % at 5 m, so
@@ -22289,7 +22312,7 @@ nodes, three truths, 50 <abbr title="simulated maps, each honoring the samples a
 10 m. Its holes sat half a spacing in from the edge, between the nodes. <code>planned_drillholes</code> with that
 <code>offset</code> builds the same grids, and <code>spacing_study(plans=)</code> drills them on ten truths.</p>
 </div>
-<!-- GENERATED FROM PYTHON SOURCE LINES 227-252 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 220-245 -->
 
 <div class="highlight"><pre><span></span><code><span class="k">for</span> <span class="n">side</span><span class="p">,</span> <span class="n">table</span> <span class="ow">in</span> <span class="n">study</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
     <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">side</span><span class="si">}</span><span class="s2"> m windows covered: </span><span class="si">{</span><span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">table</span><span class="p">[</span><span class="s1">'covered'</span><span class="p">])</span><span class="si">:</span><span class="s2">.1%</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
@@ -22306,7 +22329,7 @@ nodes, three truths, 50 <abbr title="simulated maps, each honoring the samples a
     <span class="n">composite_length</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">inf</span><span class="p">,</span>
 <span class="p">)</span>
 <span class="n">reference</span> <span class="o">=</span> <span class="n">reference</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">inside</span><span class="p">(</span><span class="mi">40</span><span class="p">)[</span><span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">reference</span><span class="p">[</span><span class="s2">"row"</span><span class="p">],</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">int</span><span class="p">)])</span>
-<span class="n">plan</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">reference</span><span class="p">[</span><span class="s2">"plan"</span><span class="p">])</span>
+<span class="n">plan</span> <span class="o">=</span> <span class="n">reference</span><span class="p">[</span><span class="s2">"plan"</span><span class="p">]</span>
 <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">plans</span><span class="p">:</span>
     <span class="n">meets</span> <span class="o">=</span> <span class="n">reference</span><span class="p">[</span><span class="s2">"mee"</span><span class="p">][</span><span class="n">plan</span> <span class="o">==</span> <span class="n">name</span><span class="p">]</span> <span class="o">&lt;=</span> <span class="mf">0.15</span>
     <span class="n">truth_of</span> <span class="o">=</span> <span class="n">reference</span><span class="p">[</span><span class="s2">"realization"</span><span class="p">][</span><span class="n">plan</span> <span class="o">==</span> <span class="n">name</span><span class="p">]</span>
@@ -22322,7 +22345,7 @@ nodes, three truths, 50 <abbr title="simulated maps, each honoring the samples a
 holes<span class="w"> </span>between<span class="w"> </span>nodes,<span class="w"> </span><span class="m">5</span><span class="w"> </span>m:<span class="w"> </span><span class="m">84</span>.5%<span class="w"> </span>of<span class="w"> </span>quarterly<span class="w"> </span>windows<span class="p">;</span><span class="w"> </span>per<span class="w"> </span>truth<span class="w"> </span><span class="m">78</span>.4%<span class="w"> </span>to<span class="w"> </span><span class="m">90</span>.6%,<span class="w"> </span>standard<span class="w"> </span>deviation<span class="w"> </span><span class="m">4</span>.1%
 holes<span class="w"> </span>between<span class="w"> </span>nodes,<span class="w"> </span><span class="m">10</span><span class="w"> </span>m:<span class="w"> </span><span class="m">21</span>.8%<span class="w"> </span>of<span class="w"> </span>quarterly<span class="w"> </span>windows<span class="p">;</span><span class="w"> </span>per<span class="w"> </span>truth<span class="w"> </span><span class="m">13</span>.3%<span class="w"> </span>to<span class="w"> </span><span class="m">26</span>.0%,<span class="w"> </span>standard<span class="w"> </span>deviation<span class="w"> </span><span class="m">3</span>.7%
 </code></pre></div>
-<!-- GENERATED FROM PYTHON SOURCE LINES 253-267 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 246-260 -->
 
 <p>The MEE covers the truth in 86.8 % of the quarterly windows and 86.0 % of the yearly ones, a little short of
 90 %. With the holes between nodes, 84.5 % of the quarterly windows meet ±15 % at 5 m and 21.8 % at 10 m,
@@ -22336,7 +22359,7 @@ a node that holds a sample keeps its value in every <abbr title="one simulated m
 A quarter needs holes closer than 5 m, which no resource drilling pays for; plan quarters from grade control.
 <a href="../../08-drillhole-spacing-learning-curve/example_14_08/">The learning curve</a> reads the same
 relation from one simulation of the current data.</p>
-<p><strong>Total running time of the script:</strong> ( 0 minutes  16.245 seconds)</p>
+<p><strong>Total running time of the script:</strong> ( 0 minutes  24.398 seconds)</p>
 <div id="download_links"></div>
 
 <p><a class="md-button center" href="../example_14_07.py"><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M256 32c0-17.7-14.3-32-32-32s-32 14.3-32 32v210.7l-41.4-41.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3l96 96c12.5 12.5 32.8 12.5 45.3 0l96-96c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L256 242.7zM64 320c-35.3 0-64 28.7-64 64v32c0 35.3 28.7 64 64 64h320c35.3 0 64-28.7 64-64v-32c0-35.3-28.7-64-64-64h-46.9l-56.6 56.6c-31.2 31.2-81.9 31.2-113.1 0L110.9 320zm304 56a24 24 0 1 1 0 48 24 24 0 1 1 0-48"/></svg></span> Download Python source code: example_14_07.py</a></p>

@@ -43,7 +43,7 @@ points, outline = bt.read_shapefile(folder / "samples.shp"), bt.read_shapefile(f
 print("same points:", np.array_equal(points.coords, samples.coords))
 print(
     "same boundary, reversed:",
-    np.array_equal(outline.vertices, boundary.vertices[::-1]),
+    np.array_equal(outline.coords, boundary.coords[::-1]),
     "| closed:",
     outline.closed,
 )
@@ -54,8 +54,8 @@ print(
 # 200 m apart, and each line, joined sample to sample, goes to a line shapefile.
 
 # %%
-north = np.round(samples.coords[:, 1], -2)
-rows = [samples.coords[north == y][np.argsort(samples.coords[north == y, 0]), :2] for y in np.unique(north)]
+north = np.round(samples.y, -2)
+rows = [samples.coords[north == y][np.argsort(samples.x[north == y]), :2] for y in np.unique(north)]
 survey = bt.Polylines(rows, attributes={"NORTHING": np.unique(north)})
 bt.write_shapefile(folder / "lines.shp", survey)
 lines = bt.read_shapefile(folder / "lines.shp")
@@ -100,7 +100,7 @@ numeric = bt.BlockModel(
         "LITHOLOGY": scheme.encode(covariates["LITHOLOGY"]),
     },
 )
-inside = numeric.mask(covariates["INSIDE"] == 1)
+inside = numeric.filter(covariates["INSIDE"] == 1)
 bt.write_geotiff(folder / "covariates.tif", inside)
 raster = bt.read_geotiff(folder / "covariates.tif")
 print(raster)
@@ -117,16 +117,9 @@ for name, n in zip(scheme.names, np.bincount(raster["LITHOLOGY"][present].astype
 # the raster comes back as a regular grid: the 2407 cells outside the survey area are null in every band.
 
 # %%
-nx, ny = raster.count[:2]
-x0, y0 = raster.origin[:2]
-dx, dy = raster.size[:2]
+(x0, y0, _), (x1, y1, _) = raster.bounds
 fig, ax = plt.subplots(figsize=(7, 5), layout="constrained")
-image = ax.imshow(
-    magnetics.reshape(ny, nx),
-    origin="lower",
-    extent=(x0, x0 + nx * dx, y0, y0 + ny * dy),
-    cmap="cividis",
-)
+image = ax.imshow(raster.grid("MAG_NT")[0], origin="lower", extent=(x0, x1, y0, y1), cmap="cividis")
 for part in outline.parts:
     ring = np.vstack([part, part[:1]])
     ax.plot(ring[:, 0], ring[:, 1], color=INK, lw=1.2)

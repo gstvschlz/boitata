@@ -21357,6 +21357,8 @@
       
         
       
+        
+      
     
     
     
@@ -21566,6 +21568,34 @@
     
   
     block_correlation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../api/validation/compare/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    compare
   
 
     
@@ -22071,15 +22101,13 @@ drops below 1 when a few large differences carry γ, the signature of high grade
 
 <p>the 1 m quartz-vein <abbr title="drill-hole intervals of fixed length whose grades are the sampled-length-weighted means of the assays they cover.">composites</abbr> of <a href="../../../03-exploratory-analysis/05-top-cuts/example_03_05/">top cuts</a>, gold in g/t, in
 vein V1:</p>
-<!-- GENERATED FROM PYTHON SOURCE LINES 29-41 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 29-39 -->
 
 <div class="highlight"><pre><span></span><code><span class="n">data</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">datasets</span><span class="o">.</span><span class="n">vein_gold_grade_control</span><span class="p">()</span>
 <span class="n">intervals</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">merge_intervals</span><span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="s2">"assays"</span><span class="p">],</span> <span class="n">data</span><span class="p">[</span><span class="s2">"lithology"</span><span class="p">])</span>
 <span class="n">holes</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">Drillholes</span><span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="s2">"collars"</span><span class="p">],</span> <span class="n">data</span><span class="p">[</span><span class="s2">"surveys"</span><span class="p">],</span> <span class="n">intervals</span><span class="p">)</span>
 <span class="n">composites</span> <span class="o">=</span> <span class="n">holes</span><span class="o">.</span><span class="n">composite</span><span class="p">(</span><span class="mf">1.0</span><span class="p">,</span> <span class="p">[</span><span class="s2">"AU_GPT"</span><span class="p">],</span> <span class="n">domain</span><span class="o">=</span><span class="s2">"LITH"</span><span class="p">,</span> <span class="n">categories</span><span class="o">=</span><span class="p">[</span><span class="s2">"VEIN"</span><span class="p">])</span>
-<span class="n">vein</span> <span class="o">=</span> <span class="n">composites</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span>
-    <span class="p">(</span><span class="n">composites</span><span class="p">[</span><span class="s2">"LITH"</span><span class="p">]</span> <span class="o">==</span> <span class="s2">"QV"</span><span class="p">)</span> <span class="o">&amp;</span> <span class="p">(</span><span class="n">composites</span><span class="p">[</span><span class="s2">"VEIN"</span><span class="p">]</span> <span class="o">==</span> <span class="s2">"V1"</span><span class="p">)</span> <span class="o">&amp;</span> <span class="o">~</span><span class="n">np</span><span class="o">.</span><span class="n">isnan</span><span class="p">(</span><span class="n">composites</span><span class="p">[</span><span class="s2">"AU_GPT"</span><span class="p">])</span>
-<span class="p">)</span>
+<span class="n">vein</span> <span class="o">=</span> <span class="n">composites</span><span class="o">.</span><span class="n">filter</span><span class="p">((</span><span class="n">composites</span><span class="p">[</span><span class="s2">"LITH"</span><span class="p">]</span> <span class="o">==</span> <span class="s2">"QV"</span><span class="p">)</span> <span class="o">&amp;</span> <span class="p">(</span><span class="n">composites</span><span class="p">[</span><span class="s2">"VEIN"</span><span class="p">]</span> <span class="o">==</span> <span class="s2">"V1"</span><span class="p">))</span><span class="o">.</span><span class="n">drop_null</span><span class="p">(</span><span class="s2">"AU_GPT"</span><span class="p">)</span>
 <span class="n">au</span> <span class="o">=</span> <span class="n">vein</span><span class="p">[</span><span class="s2">"AU_GPT"</span><span class="p">]</span>
 <span class="nb">print</span><span class="p">(</span>
     <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">au</span><span class="p">)</span><span class="si">}</span><span class="s2"> composites, mean </span><span class="si">{</span><span class="n">au</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span><span class="si">:</span><span class="s2">.2f</span><span class="si">}</span><span class="s2"> g/t, CV </span><span class="si">{</span><span class="n">au</span><span class="o">.</span><span class="n">std</span><span class="p">()</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="n">au</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span><span class="si">:</span><span class="s2">.2f</span><span class="si">}</span><span class="s2">, max </span><span class="si">{</span><span class="n">au</span><span class="o">.</span><span class="n">max</span><span class="p">()</span><span class="si">:</span><span class="s2">.0f</span><span class="si">}</span><span class="s2"> g/t"</span>
@@ -22088,7 +22116,7 @@ vein V1:</p>
 <p class="mkd-glr-script-out">Out:</p>
 <div class="mkd-glr-script-out-disp highlight"><pre><span></span><code><span class="m">3659</span><span class="w"> </span>composites,<span class="w"> </span>mean<span class="w"> </span><span class="m">9</span>.43<span class="w"> </span>g/t,<span class="w"> </span>CV<span class="w"> </span><span class="m">2</span>.72,<span class="w"> </span>max<span class="w"> </span><span class="m">521</span><span class="w"> </span>g/t
 </code></pre></div>
-<!-- GENERATED FROM PYTHON SOURCE LINES 42-49 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 40-47 -->
 
 <h2 id="three-estimators">three estimators<a class="headerlink" href="#three-estimators" title="Permanent link">&para;</a></h2>
 <p>the plot draws the classical variogram, the madogram and the robust <code>"cressie-hawkins"</code> estimator, all omnidirectional
@@ -22096,7 +22124,7 @@ with 5 m lags. their units differ, so each is divided by its mean beyond 40 m, i
 25 m. beyond, the classical variogram zigzags with the few pairs that hold the highest grades, while the madogram
 stays flat. the madogram starts higher because it scales like the square root of γ: for gaussian increments, a
 madogram at 0.73 of its plateau matches a variogram at 0.73² = 0.53 of its <abbr title="the plateau of the variogram, reached when samples lie too far apart to be related.">sill</abbr>.</p>
-<!-- GENERATED FROM PYTHON SOURCE LINES 51-62 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 49-60 -->
 
 <div class="highlight"><pre><span></span><code><span class="n">lag</span><span class="p">,</span> <span class="n">max_lag</span> <span class="o">=</span> <span class="mf">5.0</span><span class="p">,</span> <span class="mf">80.0</span>
 <span class="n">estimators</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"matheron"</span><span class="p">:</span> <span class="n">INK</span><span class="p">,</span> <span class="s2">"cressie-hawkins"</span><span class="p">:</span> <span class="n">GRAY</span><span class="p">,</span> <span class="s2">"madogram"</span><span class="p">:</span> <span class="n">ACCENT</span><span class="p">}</span>
@@ -22110,12 +22138,12 @@ madogram at 0.73 of its plateau matches a variogram at 0.73² = 0.53 of its <abb
 <span class="n">save</span><span class="p">(</span><span class="n">fig</span><span class="p">,</span> <span class="s2">"estimators"</span><span class="p">)</span>
 </code></pre></div>
 <p><img alt="example 05 06" class="mkd-glr-single-img" src="../images/mkd_glr_example_05_06_001.png" srcset="../images/mkd_glr_example_05_06_001.png" /></p>
-<!-- GENERATED FROM PYTHON SOURCE LINES 63-67 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 61-65 -->
 
 <h2 id="outliers">outliers<a class="headerlink" href="#outliers" title="Permanent link">&para;</a></h2>
 <p>drop the five highest <abbr title="drill-hole intervals of fixed length whose grades are the sampled-length-weighted means of the assays they cover.">composites</abbr>, 0.14 % of the data, and recompute. the variogram loses 40 % at every <abbr title="the separation vector between two samples, a distance and a direction.">lag</abbr>, the
 madogram 10 %:</p>
-<!-- GENERATED FROM PYTHON SOURCE LINES 69-80 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 67-78 -->
 
 <div class="highlight"><pre><span></span><code><span class="n">keep</span> <span class="o">=</span> <span class="n">au</span> <span class="o">&lt;</span> <span class="n">np</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="n">au</span><span class="p">)[</span><span class="o">-</span><span class="mi">5</span><span class="p">]</span>
 <span class="n">trimmed</span> <span class="o">=</span> <span class="n">vein</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">keep</span><span class="p">)</span>
@@ -22132,12 +22160,12 @@ madogram 10 %:</p>
 <div class="mkd-glr-script-out-disp highlight"><pre><span></span><code><span class="w"> </span>matheron:<span class="w"> </span>change<span class="w"> </span>without<span class="w"> </span>the<span class="w"> </span>top<span class="w"> </span>five,<span class="w"> </span>median<span class="w"> </span>-40<span class="w"> </span>%,<span class="w"> </span>range<span class="w"> </span>-43<span class="w"> </span>to<span class="w"> </span>-37<span class="w"> </span>%
 <span class="w"> </span>madogram:<span class="w"> </span>change<span class="w"> </span>without<span class="w"> </span>the<span class="w"> </span>top<span class="w"> </span>five,<span class="w"> </span>median<span class="w"> </span>-10<span class="w"> </span>%,<span class="w"> </span>range<span class="w"> </span>-11<span class="w"> </span>to<span class="w"> </span>-9<span class="w"> </span>%
 </code></pre></div>
-<!-- GENERATED FROM PYTHON SOURCE LINES 81-85 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 79-83 -->
 
 <h2 id="dissemination">dissemination<a class="headerlink" href="#dissemination" title="Permanent link">&para;</a></h2>
 <p><code>dissemination</code> takes a madogram and a classical variogram computed with the same arguments. on the gold it sits well
 below 1 at every <abbr title="the separation vector between two samples, a distance and a direction.">lag</abbr>. the logarithm of the grades, closer to gaussian, brings it near 1:</p>
-<!-- GENERATED FROM PYTHON SOURCE LINES 87-97 -->
+<!-- GENERATED FROM PYTHON SOURCE LINES 85-95 -->
 
 <div class="highlight"><pre><span></span><code><span class="n">fig</span><span class="p">,</span> <span class="n">ax</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">6</span><span class="p">,</span> <span class="mf">3.4</span><span class="p">),</span> <span class="n">layout</span><span class="o">=</span><span class="s2">"constrained"</span><span class="p">)</span>
 <span class="n">both</span> <span class="o">=</span> <span class="n">vein</span><span class="o">.</span><span class="n">with_column</span><span class="p">(</span><span class="s2">"log_au"</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">au</span><span class="p">))</span>
@@ -22151,7 +22179,7 @@ below 1 at every <abbr title="the separation vector between two samples, a dista
 <span class="n">save</span><span class="p">(</span><span class="n">fig</span><span class="p">,</span> <span class="s2">"dissemination"</span><span class="p">)</span>
 </code></pre></div>
 <p><img alt="example 05 06" class="mkd-glr-single-img" src="../images/mkd_glr_example_05_06_002.png" srcset="../images/mkd_glr_example_05_06_002.png" /></p>
-<p><strong>Total running time of the script:</strong> ( 0 minutes  0.316 seconds)</p>
+<p><strong>Total running time of the script:</strong> ( 0 minutes  0.365 seconds)</p>
 <div id="download_links"></div>
 
 <p><a class="md-button center" href="../example_05_06.py"><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M256 32c0-17.7-14.3-32-32-32s-32 14.3-32 32v210.7l-41.4-41.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3l96 96c12.5 12.5 32.8 12.5 45.3 0l96-96c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L256 242.7zM64 320c-35.3 0-64 28.7-64 64v32c0 35.3 28.7 64 64 64h320c35.3 0 64-28.7 64-64v-32c0-35.3-28.7-64-64-64h-46.9l-56.6 56.6c-31.2 31.2-81.9 31.2-113.1 0L110.9 320zm304 56a24 24 0 1 1 0 48 24 24 0 1 1 0-48"/></svg></span> Download Python source code: example_05_06.py</a></p>

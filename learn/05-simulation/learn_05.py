@@ -34,7 +34,7 @@ consistent with the samples, and you read the uncertainty from their differences
 # </figure>
 #
 # The exhaustive Walker Lake data set gives the true value of `V` at every node, so you can measure this. Load the 470
-# samples and the truth on a 5 m grid of 3,120 nodes, then krige with the variogram from
+# samples and the truth on a 5 m grid of 3 120 nodes, then krige with the variogram from
 # [chapter 4](../04-kriging/learn_04.md):
 
 # %% [hidden]
@@ -55,7 +55,7 @@ samples = bt.datasets.walker_lake()
 truth = bt.datasets.walker_lake_exhaustive()["V"].reshape(300, 260)
 xy, v = samples.coords, samples["V"]
 grid = bt.BlockModel(origin=(0.5, 0.5), size=(5, 5), count=(52, 60))
-nodes = grid.centroids.astype(int)
+nodes = grid.coords.astype(int)
 true_v = truth[nodes[:, 1] - 1, nodes[:, 0] - 1]
 cutoff = 500.0
 
@@ -74,7 +74,7 @@ print(
 
 # %% [markdown]
 # The kriged map has a standard deviation of 196 ppm against 250 ppm for the truth, and its highest node reaches
-# 1,316 ppm where the truth reaches 1,610 ppm. Above a 500 ppm cutoff, kriging reports 13.1 % of the area and the truth
+# 1 316 ppm where the truth reaches 1 610 ppm. Above a 500 ppm cutoff, kriging reports 13.1 % of the area and the truth
 # holds 18.9 %. A mine plan built on the kriged map would miss almost a third of the ground above cutoff. The
 # cumulative distributions show the squeeze: kriging has fewer low and fewer high values than the truth.
 
@@ -236,7 +236,7 @@ print(
 # that kriging erases. They differ from each other where samples are sparse.
 
 # %%
-shape, extent = (60, 52), (0.5, 260.5, 0.5, 300.5)
+extent = (0.5, 260.5, 0.5, 300.5)
 norm = PowerNorm(0.5, vmin=0, vmax=1500)
 fig, axes = plt.subplots(1, 4, figsize=(14, 4.2), layout="constrained")
 for ax, image, title in zip(
@@ -245,7 +245,7 @@ for ax, image, title in zip(
     ("Truth", "Kriging", "Realization 1", "Realization 2"),
     strict=True,
 ):
-    im = ax.imshow(image.reshape(shape), origin="lower", extent=extent, norm=norm)
+    im = ax.imshow(grid.grid(image)[0], origin="lower", extent=extent, norm=norm)
     map_axes(ax, title)
 fig.colorbar(im, ax=axes, shrink=0.8, label="V (ppm)")
 save(fig, "realizations")
@@ -253,10 +253,10 @@ save(fig, "realizations")
 # %% [markdown]
 # ## Seeds and reproducibility
 #
-# The random draws come from a random-number generator started from a seed. Boitatá derives one seed per realization
-# from the seed you pass and runs realizations in parallel. Realization 7 depends only on the user seed and its own
-# number, never on which thread ran it or how many threads exist. The same call twice gives the same maps, and a new
-# seed gives new ones:
+# The random draws come from a random-number generator started from a seed. From the seed you pass, boitatá derives
+# one seed per realization and runs the realizations in parallel. Realization 7 depends only on the user seed and
+# its own number, never on which thread ran it or how many threads exist. The same call twice gives the same maps,
+# and a new seed gives new ones:
 
 # %%
 again = sgs.simulate(grid, n=3, seed=seed, keep=True).realizations
@@ -330,7 +330,9 @@ print(
     f"truth {np.mean(true_v > cutoff):.1%}, kriging {np.mean(kriged > cutoff):.1%}, E-type {np.mean(etype > cutoff):.1%}"
 )
 print(f"standard deviation of the E-type map: {etype.std():.0f} ppm")
-print(f"mean: declustered samples {np.average(v, weights=weights):.0f} ppm, truth {true_v.mean():.0f} ppm")
+print(
+    f"mean: declustered samples {bt.describe(v, weights=weights)['mean']:.0f} ppm, truth {true_v.mean():.0f} ppm"
+)
 
 # %% [markdown]
 # The E-type map is smooth, with a standard deviation of 186 ppm, and the cutoff applied to it gives 13.1 % of the
@@ -345,15 +347,15 @@ print(f"mean: declustered samples {np.average(v, weights=weights):.0f} ppm, trut
 
 # %%
 fig, axes = plt.subplots(1, 3, figsize=(12, 4.2), layout="constrained")
-im = axes[0].imshow(etype.reshape(shape), origin="lower", extent=extent, norm=norm)
+im = axes[0].imshow(grid.grid(etype)[0], origin="lower", extent=extent, norm=norm)
 map_axes(axes[0], "E-type mean of 50")
 fig.colorbar(im, ax=axes[0], shrink=0.8, label="V (ppm)")
-sd = axes[1].imshow(spread.reshape(shape), origin="lower", extent=extent)
+sd = axes[1].imshow(grid.grid(spread)[0], origin="lower", extent=extent)
 map_axes(axes[1], "Spread")
 fig.colorbar(sd, ax=axes[1], shrink=0.8, label="standard deviation (ppm)")
-pr = axes[2].imshow(p_above.reshape(shape), origin="lower", extent=extent, vmin=0, vmax=1)
+pr = axes[2].imshow(grid.grid(p_above)[0], origin="lower", extent=extent, vmin=0, vmax=1)
 axes[2].contour(
-    (true_v > cutoff).reshape(shape).astype(float),
+    grid.grid(true_v > cutoff)[0],
     levels=[0.5],
     origin="lower",
     extent=extent,

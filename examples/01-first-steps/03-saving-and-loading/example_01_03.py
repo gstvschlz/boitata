@@ -100,7 +100,7 @@ print(f"declustered mean from the saved weights: {np.average(capped, weights=wei
 
 fig, ax = plt.subplots(figsize=(5, 5.2), layout="constrained")
 image = ax.imshow(
-    again.reshape(60, 52), origin="lower", extent=(0, 260, 0, 300), vmin=0, vmax=np.quantile(again, 0.99)
+    grid.grid(again)[0], origin="lower", extent=(0, 260, 0, 300), vmin=0, vmax=np.quantile(again, 0.99)
 )
 fig.colorbar(image, ax=ax, shrink=0.8, label="V (ppm)")
 map_axes(ax, "Estimate rebuilt from the saved pieces")

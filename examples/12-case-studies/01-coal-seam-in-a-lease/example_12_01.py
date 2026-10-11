@@ -17,7 +17,7 @@ sys.path.insert(0, str(HERE.parents[1]))
 import boitata as bt
 import matplotlib.pyplot as plt
 import numpy as np
-from common import ACCENT, GRAY, HIGHLIGHT, INK, LIGHT, map_axes, save
+from common import ACCENT, GRAY, HIGHLIGHT, INK, LIGHT, map_axes, save, show
 
 # %% [markdown]
 # ## The lease and its grid
@@ -30,9 +30,9 @@ data = bt.datasets.coal_seam_thickness()
 holes, grid = data["boreholes"], data["grid"]
 lease = data["boundary"].parts[0][:, :2]
 xy, thickness = holes.coords[:, :2], holes["THICKNESS_M"]
-inside = bt.point_in_polygon(grid.centroids[:, :2], lease)
+inside = bt.point_in_polygon(grid.coords[:, :2], lease)
 print(f"{np.mean(inside == (grid['INSIDE'] == 1)):.1%} of cells agree with INSIDE")
-cells = grid.mask(inside)
+cells = grid.filter(inside)
 area = len(cells) * 100 * 100
 print(
     f"{len(cells)} cells inside, {area / 1e6:.1f} km²; {bt.point_in_polygon(xy, lease).sum()} of {len(xy)} holes"
@@ -201,16 +201,10 @@ pair = np.column_stack([plane, thickness])
 scores = bt.StepwiseConditional().fit(pair, weights=weights).transform(pair)[:, 1]
 directional = [bt.experimental_variogram(xy, scores, lag, max_lag, azimuth=a) for a in azimuths]
 fitted = bt.Variogram.fit_directional(directional, [(a, 0) for a in azimuths], "spherical")
-sill = fitted.sill
-gaussian = bt.Variogram(
-    [("spherical", fitted.structures[0].sill / sill, fitted.structures[0].range)],
-    nugget=fitted.nugget / sill,
-    rotation=fitted.rotation,
-    ratios=fitted.ratios,
-)
+gaussian = fitted.standardized()
 print(gaussian)
 sgs = bt.SGS(gaussian, search).fit(xy, thickness, weights=weights, trend=plane)
-summary = sgs.simulate(cells, n=100, seed=7, trend=trend.predict(cells.centroids))
+summary = sgs.simulate(cells, n=100, seed=7, trend=trend.predict(cells.coords))
 tonnes = summary.realization_mean * area * density
 p10, p50, p90 = np.quantile(tonnes, [0.1, 0.5, 0.9])
 print(
@@ -265,3 +259,13 @@ save(fig, "classes")
 # 57.4 Mt. Indicated cells cover the regional grid, 118.9 Mt; inferred ones, 13.0 Mt, lie at the edges of the lease
 # beyond the last holes, and where the regional grid has gaps. Spacing ignores the variogram; [classification](../../10-checking-models/05-classification/README.md) classifies
 # from the kriging itself.
+#
+# `Scene.add` encodes a text `values` column itself, so the 3D layer takes the class labels directly rather than
+# the already-encoded `"class"` column; its `scheme=scheme` keeps the same order and colors as the figure above.
+
+# %%
+cells = cells.with_column("class_label", classes)
+scene = bt.plot3d.Scene()
+scene.add(cells, "class_label", name="classes", scheme=scheme)
+scene.view(azimuth=0, dip=90)
+show(scene, "classes_3d", "Resource classes by drill spacing, in 3D")

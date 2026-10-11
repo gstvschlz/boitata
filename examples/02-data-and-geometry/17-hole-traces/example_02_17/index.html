@@ -21346,6 +21346,8 @@
       
         
       
+        
+      
     
     
     
@@ -21555,6 +21557,34 @@
     
   
     block_correlation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../api/validation/compare/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    compare
   
 
     
@@ -22056,12 +22086,12 @@ about deviation; it takes the points to mark.</p>
 <span class="n">flags</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">check_drillholes</span><span class="p">(</span>
     <span class="n">collar</span><span class="p">,</span> <span class="n">survey</span><span class="p">,</span> <span class="p">{</span><span class="s2">"assays"</span><span class="p">:</span> <span class="n">data</span><span class="p">[</span><span class="s2">"assays"</span><span class="p">],</span> <span class="s2">"lithology"</span><span class="p">:</span> <span class="n">data</span><span class="p">[</span><span class="s2">"lithology"</span><span class="p">]},</span> <span class="n">max_depth</span><span class="o">=</span><span class="s2">"LENGTH"</span>
 <span class="p">)</span>
-<span class="n">deviated</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">flags</span><span class="p">[</span><span class="s2">"survey"</span><span class="p">][</span><span class="s2">"deviation"</span><span class="p">],</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">bool</span><span class="p">)</span>
-<span class="n">flagged_holes</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">survey</span><span class="p">[</span><span class="s2">"HOLE_ID"</span><span class="p">],</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">object</span><span class="p">)[</span><span class="n">deviated</span><span class="p">]</span>
-<span class="n">flagged_depths</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">survey</span><span class="p">[</span><span class="s2">"DEPTH"</span><span class="p">],</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)[</span><span class="n">deviated</span><span class="p">]</span>
+<span class="n">deviated</span> <span class="o">=</span> <span class="n">flags</span><span class="p">[</span><span class="s2">"survey"</span><span class="p">][</span><span class="s2">"deviation"</span><span class="p">]</span>
+<span class="n">flagged_holes</span> <span class="o">=</span> <span class="n">survey</span><span class="p">[</span><span class="s2">"HOLE_ID"</span><span class="p">][</span><span class="n">deviated</span><span class="p">]</span>
+<span class="n">flagged_depths</span> <span class="o">=</span> <span class="n">survey</span><span class="p">[</span><span class="s2">"DEPTH"</span><span class="p">][</span><span class="n">deviated</span><span class="p">]</span>
 <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">deviated</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span><span class="si">}</span><span class="s2"> flagged stations, in </span><span class="si">{</span><span class="nb">sorted</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">flagged_holes</span><span class="p">))</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
 
-<span class="n">drillholes</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">Drillholes</span><span class="p">(</span><span class="n">collar</span><span class="p">,</span> <span class="n">survey</span><span class="p">)</span>
+<span class="n">drillholes</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">Drillholes</span><span class="o">.</span><span class="n">from_tables</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">intervals</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
 <span class="n">marked</span> <span class="o">=</span> <span class="n">drillholes</span><span class="o">.</span><span class="n">at</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="n">flagged_holes</span><span class="p">),</span> <span class="n">flagged_depths</span><span class="p">)</span>
 </code></pre></div>
 <p class="mkd-glr-script-out">Out:</p>
@@ -22074,13 +22104,13 @@ about deviation; it takes the points to mark.</p>
 <a href="../../14-domain-cleanup/example_02_14/"><abbr title="a volume of rock whose values you treat as one population, such as one lithology or one vein.">domain</abbr> cleanup</a> and <a href="../../../07-categories-and-domains/02-domain-change-tables/example_07_02/"><abbr title="a volume of rock whose values you treat as one population, such as one lithology or one vein.">domain</abbr> change tables</a>) through it. each view takes one call instead of one <code>ax.plot</code> per hole.</p>
 <!-- GENERATED FROM PYTHON SOURCE LINES 50-64 -->
 
-<div class="highlight"><pre><span></span><code><span class="n">at_dd0197</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">collar</span><span class="p">[</span><span class="s2">"HOLE_ID"</span><span class="p">])</span> <span class="o">==</span> <span class="s2">"DD0197"</span>
-<span class="n">x0</span><span class="p">,</span> <span class="n">y0</span><span class="p">,</span> <span class="n">z0</span> <span class="o">=</span> <span class="p">(</span><span class="nb">float</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">collar</span><span class="p">[</span><span class="n">c</span><span class="p">])[</span><span class="n">at_dd0197</span><span class="p">][</span><span class="mi">0</span><span class="p">])</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">"X"</span><span class="p">,</span> <span class="s2">"Y"</span><span class="p">,</span> <span class="s2">"Z"</span><span class="p">))</span>
-<span class="n">near</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">hypot</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">collar</span><span class="p">[</span><span class="s2">"X"</span><span class="p">])</span> <span class="o">-</span> <span class="n">x0</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">collar</span><span class="p">[</span><span class="s2">"Y"</span><span class="p">])</span> <span class="o">-</span> <span class="n">y0</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mf">40.0</span>
-<span class="n">nearby</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">collar</span><span class="p">[</span><span class="s2">"HOLE_ID"</span><span class="p">])[</span><span class="n">near</span><span class="p">])</span>
+<div class="highlight"><pre><span></span><code><span class="n">at_dd0197</span> <span class="o">=</span> <span class="n">collar</span><span class="p">[</span><span class="s2">"HOLE_ID"</span><span class="p">]</span> <span class="o">==</span> <span class="s2">"DD0197"</span>
+<span class="n">x0</span><span class="p">,</span> <span class="n">y0</span><span class="p">,</span> <span class="n">z0</span> <span class="o">=</span> <span class="p">(</span><span class="nb">float</span><span class="p">(</span><span class="n">collar</span><span class="p">[</span><span class="n">c</span><span class="p">][</span><span class="n">at_dd0197</span><span class="p">][</span><span class="mi">0</span><span class="p">])</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">"X"</span><span class="p">,</span> <span class="s2">"Y"</span><span class="p">,</span> <span class="s2">"Z"</span><span class="p">))</span>
+<span class="n">near</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">hypot</span><span class="p">(</span><span class="n">collar</span><span class="p">[</span><span class="s2">"X"</span><span class="p">]</span> <span class="o">-</span> <span class="n">x0</span><span class="p">,</span> <span class="n">collar</span><span class="p">[</span><span class="s2">"Y"</span><span class="p">]</span> <span class="o">-</span> <span class="n">y0</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mf">40.0</span>
+<span class="n">nearby</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">collar</span><span class="p">[</span><span class="s2">"HOLE_ID"</span><span class="p">][</span><span class="n">near</span><span class="p">])</span>
 
 <span class="n">paths</span> <span class="o">=</span> <span class="n">drillholes</span><span class="o">.</span><span class="n">paths</span><span class="p">()</span>
-<span class="n">local</span> <span class="o">=</span> <span class="n">paths</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">isin</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">paths</span><span class="p">[</span><span class="s2">"HOLE_ID"</span><span class="p">]),</span> <span class="nb">list</span><span class="p">(</span><span class="n">nearby</span><span class="p">)))</span>
+<span class="n">local</span> <span class="o">=</span> <span class="n">paths</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">isin</span><span class="p">(</span><span class="n">paths</span><span class="p">[</span><span class="s2">"HOLE_ID"</span><span class="p">],</span> <span class="nb">list</span><span class="p">(</span><span class="n">nearby</span><span class="p">)))</span>
 
 <span class="n">fig</span><span class="p">,</span> <span class="n">axes</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">11</span><span class="p">,</span> <span class="mf">5.2</span><span class="p">),</span> <span class="n">layout</span><span class="o">=</span><span class="s2">"constrained"</span><span class="p">)</span>
 <span class="n">bt</span><span class="o">.</span><span class="n">plot</span><span class="o">.</span><span class="n">holes</span><span class="p">(</span><span class="n">local</span><span class="p">,</span> <span class="n">mark</span><span class="o">=</span><span class="n">marked</span><span class="p">,</span> <span class="n">ax</span><span class="o">=</span><span class="n">axes</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
@@ -22090,7 +22120,7 @@ about deviation; it takes the points to mark.</p>
 <span class="n">save</span><span class="p">(</span><span class="n">fig</span><span class="p">,</span> <span class="s2">"traces"</span><span class="p">)</span>
 </code></pre></div>
 <p><img alt="Plan, Section across strike" class="mkd-glr-single-img" src="../images/mkd_glr_example_02_17_001.png" srcset="../images/mkd_glr_example_02_17_001.png" /></p>
-<p><strong>Total running time of the script:</strong> ( 0 minutes  0.153 seconds)</p>
+<p><strong>Total running time of the script:</strong> ( 0 minutes  0.179 seconds)</p>
 <div id="download_links"></div>
 
 <p><a class="md-button center" href="../example_02_17.py"><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M256 32c0-17.7-14.3-32-32-32s-32 14.3-32 32v210.7l-41.4-41.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3l96 96c12.5 12.5 32.8 12.5 45.3 0l96-96c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L256 242.7zM64 320c-35.3 0-64 28.7-64 64v32c0 35.3 28.7 64 64 64h320c35.3 0 64-28.7 64-64v-32c0-35.3-28.7-64-64-64h-46.9l-56.6 56.6c-31.2 31.2-81.9 31.2-113.1 0L110.9 320zm304 56a24 24 0 1 1 0 48 24 24 0 1 1 0-48"/></svg></span> Download Python source code: example_02_17.py</a></p>
