@@ -2,17 +2,29 @@ import * as THREE from "three";
 import type { Theme } from "./theme";
 
 const NS = "http://www.w3.org/2000/svg";
-const SIZE = 104;
-const R = 36;
-const AXES = [
-  { key: "east", label: "E", dir: new THREE.Vector3(1, 0, 0), color: "#D1495B" },
-  { key: "north", label: "N", dir: new THREE.Vector3(0, 1, 0), color: "#2E9E6A" },
-  { key: "plan", label: "Up", dir: new THREE.Vector3(0, 0, 1), color: "#3B7DD8" },
+const SIZE = 128;
+const C = SIZE / 2;
+const R = 22;
+
+const FACES = [
+  { key: "up", label: "Up", normal: new THREE.Vector3(0, 0, 1), a: new THREE.Vector3(1, 0, 0), b: new THREE.Vector3(0, 1, 0), hint: "Plan view" },
+  { key: "down", label: "Down", normal: new THREE.Vector3(0, 0, -1), a: new THREE.Vector3(1, 0, 0), b: new THREE.Vector3(0, 1, 0), hint: "View from below" },
+  { key: "north", label: "North", normal: new THREE.Vector3(0, 1, 0), a: new THREE.Vector3(1, 0, 0), b: new THREE.Vector3(0, 0, 1), hint: "View from the north" },
+  { key: "south", label: "South", normal: new THREE.Vector3(0, -1, 0), a: new THREE.Vector3(1, 0, 0), b: new THREE.Vector3(0, 0, 1), hint: "View from the south" },
+  { key: "west", label: "West", normal: new THREE.Vector3(-1, 0, 0), a: new THREE.Vector3(0, 1, 0), b: new THREE.Vector3(0, 0, 1), hint: "View from the west" },
+  { key: "east", label: "East", normal: new THREE.Vector3(1, 0, 0), a: new THREE.Vector3(0, 1, 0), b: new THREE.Vector3(0, 0, 1), hint: "View from the east" },
 ] as const;
 
-export type Snap = (typeof AXES)[number]["key"];
+export type Snap = (typeof FACES)[number]["key"];
 
-/** Orientation gizmo: east, north and up as seen from the camera; clicking an axis looks back along it. */
+const CORNERS = [
+  [1, 1],
+  [1, -1],
+  [-1, -1],
+  [-1, 1],
+] as const;
+
+/** Orientation gizmo: a cube face-labeled Top/Bottom/Front/Back/Left/Right; clicking a face snaps the camera to it. */
 export class Gizmo {
   readonly el = document.createElementNS(NS, "svg");
   private theme: Theme | null = null;
@@ -32,45 +44,43 @@ export class Gizmo {
     const right = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
     const up = new THREE.Vector3(0, 1, 0).applyQuaternion(camera.quaternion);
     const back = new THREE.Vector3(0, 0, 1).applyQuaternion(camera.quaternion);
-    const c = SIZE / 2;
-    const items = AXES.map((axis) => ({
-      ...axis,
-      x: c + R * axis.dir.dot(right),
-      y: c - R * axis.dir.dot(up),
-      depth: axis.dir.dot(back),
-    })).sort((a, b) => a.depth - b.depth);
-    const text = this.theme?.dark ? "#0B151C" : "#FFFFFF";
+    const project = (v: THREE.Vector3) => ({ x: C + v.dot(right), y: C - v.dot(up) });
+    const visible = FACES.map((face) => ({ face, depth: face.normal.dot(back) }))
+      .filter((f) => f.depth > 0.02)
+      .sort((a, b) => a.depth - b.depth);
+    const fill = this.theme?.raised ?? "#F4F6F8";
+    const stroke = this.theme?.border ?? "#D5DDE3";
+    const text = this.theme?.text ?? "#17303F";
     this.el.replaceChildren();
-    for (const item of items) {
+    for (const { face } of visible) {
+      const corners = CORNERS.map(([s, t]) =>
+        project(face.normal.clone().multiplyScalar(R).addScaledVector(face.a, R * s).addScaledVector(face.b, R * t)),
+      );
+      const center = project(face.normal.clone().multiplyScalar(R));
       const g = document.createElementNS(NS, "g");
-      g.setAttribute("class", "btv-gizmo-axis");
-      g.setAttribute("data-snap", item.key);
-      const line = document.createElementNS(NS, "line");
-      for (const [k, v] of Object.entries({ x1: c, y1: c, x2: item.x, y2: item.y })) line.setAttribute(k, String(v));
-      line.setAttribute("stroke", item.color);
-      line.setAttribute("stroke-width", "2");
-      const dot = document.createElementNS(NS, "circle");
-      dot.setAttribute("cx", String(item.x));
-      dot.setAttribute("cy", String(item.y));
-      dot.setAttribute("r", item.label === "Up" ? "11" : "9");
-      dot.setAttribute("fill", item.color);
-      dot.setAttribute("opacity", item.depth < -0.5 ? "0.6" : "1");
+      g.setAttribute("class", "btv-gizmo-face");
+      g.setAttribute("data-snap", face.key);
+      const quad = document.createElementNS(NS, "path");
+      quad.setAttribute("class", "btv-face");
+      quad.setAttribute("d", `M${corners.map((p) => `${p.x},${p.y}`).join("L")}Z`);
+      quad.setAttribute("fill", fill);
+      quad.setAttribute("stroke", stroke);
       const label = document.createElementNS(NS, "text");
-      label.setAttribute("x", String(item.x));
-      label.setAttribute("y", String(item.y));
+      label.setAttribute("x", String(center.x));
+      label.setAttribute("y", String(center.y));
       label.setAttribute("fill", text);
-      label.setAttribute("font-size", "9");
-      label.setAttribute("font-weight", "700");
+      label.setAttribute("font-size", "9.5");
+      label.setAttribute("font-weight", "600");
       label.setAttribute("font-family", "system-ui, -apple-system, 'Segoe UI', sans-serif");
       label.setAttribute("text-anchor", "middle");
       label.setAttribute("dominant-baseline", "central");
-      label.textContent = item.label;
+      label.textContent = face.label;
       const title = document.createElementNS(NS, "title");
-      title.textContent = { east: "View from the east", north: "View from the north", plan: "Plan view (P)" }[item.key];
-      g.append(title, line, dot, label);
+      title.textContent = face.hint;
+      g.append(title, quad, label);
       g.addEventListener("click", (e) => {
         e.stopPropagation();
-        this.onSnap(item.key);
+        this.onSnap(face.key);
       });
       this.el.appendChild(g);
     }

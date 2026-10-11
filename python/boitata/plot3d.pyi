@@ -2,7 +2,7 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any, Literal, Self, TypeAlias
 
-from boitata._boitata import BlockModel, Drillholes, Mesh, PointSet
+from boitata._boitata import BlockModel, Categories, Drillholes, Mesh, PointSet
 
 __all__ = ["Scene", "plot"]
 
@@ -39,6 +39,8 @@ class Scene:
         visible: bool = True,
         columns: Sequence[str] | None = None,
         filter: Mapping[str, Condition] | None = None,
+        contour_step: float | None = None,
+        scheme: Categories | None = None,
     ) -> Self: ...
     def view(self, *, azimuth: float = 45.0, dip: float = 30.0) -> Self: ...
     def section(self, points: Any | None, *, width: float | None = None, dip: float = 90.0) -> Self: ...

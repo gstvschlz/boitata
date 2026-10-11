@@ -11,6 +11,18 @@ import { lineMaterial, setOpacity, shadedMaterial } from "../shaders";
 import type { Buffers, LayerSpec } from "../types";
 import type { Representation } from "./index";
 
+/** Centroids of triangles, for ordering them the way every other layer orders its instances. */
+function centroids(positions: Float32Array, triangles: Uint32Array): Float32Array {
+  const nt = triangles.length / 3;
+  const out = new Float32Array(3 * nt);
+  for (let t = 0; t < nt; t++)
+    for (let k = 0; k < 3; k++) {
+      const v = triangles[3 * t + k];
+      for (let a = 0; a < 3; a++) out[3 * t + a] += positions[3 * v + a] / 3;
+    }
+  return out;
+}
+
 /**
  * Triangles, smooth-shaded by vertex or flat by face; a triangle with a hidden vertex or face is left out, and one
  * with a vertex or face failing the filter is discarded where it rasterizes.
@@ -19,6 +31,7 @@ export function surface(layer: LayerSpec, buffers: Buffers, filter: LayerFilter)
   const positions = f32(buffers, layer.geometry.positions);
   const triangles = u32(buffers, layer.geometry.triangles);
   const nt = triangles.length / 3;
+  const order = stratifiedOrder(centroids(positions, triangles), nt);
   const material = shadedMaterial(false, layer.opacity, filter.uniforms, { outline: true, bias: true });
   const object = new THREE.Mesh(new THREE.BufferGeometry(), material);
   object.frustumCulled = false;
@@ -29,6 +42,7 @@ export function surface(layer: LayerSpec, buffers: Buffers, filter: LayerFilter)
   smooth.setIndex(new THREE.BufferAttribute(triangles, 1));
   smooth.computeVertexNormals();
   const normals = smooth.getAttribute("normal").array as Float32Array;
+  let drawn = 0;
 
   /** One vertex per triangle corner: face colors and filters need it, flat shading by face too. */
   const corners = (paint: Paint) => {
@@ -39,7 +53,7 @@ export function surface(layer: LayerSpec, buffers: Buffers, filter: LayerFilter)
       return kept(paint, triangles[3 * t]) && kept(paint, triangles[3 * t + 1]) && kept(paint, triangles[3 * t + 2]);
     };
     let count = 0;
-    for (let t = 0; t < nt; t++) if (shown(t)) count++;
+    for (const t of order) if (shown(t)) count++;
     const xyz = new Float32Array(9 * count);
     const normal = new Float32Array(9 * count);
     const colors = new Uint8Array(9 * count);
@@ -47,7 +61,7 @@ export function surface(layer: LayerSpec, buffers: Buffers, filter: LayerFilter)
     const f = filterArray(g, 3 * count, filter.slots, false);
     const rows = pickArray(g, 3 * count, false);
     let j = 0;
-    for (let t = 0; t < nt; t++) {
+    for (const t of order) {
       if (!shown(t)) continue;
       for (let c = 0; c < 3; c++) {
         const v = triangles[3 * t + c];
@@ -60,6 +74,7 @@ export function surface(layer: LayerSpec, buffers: Buffers, filter: LayerFilter)
       }
       j++;
     }
+    drawn = count;
     g.setAttribute("position", new THREE.BufferAttribute(xyz, 3));
     g.setAttribute("normal", new THREE.BufferAttribute(normal, 3));
     g.setAttribute("color", new THREE.BufferAttribute(colors, 3, true));
@@ -67,7 +82,7 @@ export function surface(layer: LayerSpec, buffers: Buffers, filter: LayerFilter)
     return g;
   };
 
-  return {
+  const api: Representation = {
     object,
     box: boxOf(positions),
     instances: nt,
@@ -75,14 +90,19 @@ export function surface(layer: LayerSpec, buffers: Buffers, filter: LayerFilter)
       const old = object.geometry;
       object.geometry = corners(paint);
       old.dispose();
+      api.detail!(1);
     },
     setOpacity: (opacity) => setOpacity(material, opacity),
+    detail(fraction) {
+      object.geometry.setDrawRange(0, 3 * subsetCount(drawn, fraction));
+    },
     dispose() {
       object.geometry.dispose();
       smooth.dispose();
       material.dispose();
     },
   };
+  return api;
 }
 
 const EDGE_WIDTH = 1;

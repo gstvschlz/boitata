@@ -12,8 +12,8 @@ export const CSS = /* css */ `
 .btv-label { position: absolute; left: 0; top: 0; white-space: nowrap; color: var(--btv-muted); font-size: 11px;
   font-variant-numeric: tabular-nums; }
 .btv-label.btv-title { color: var(--btv-text); font-weight: 600; }
-.btv-gizmo { position: absolute; right: 8px; bottom: 8px; cursor: pointer; }
-.btv-gizmo .btv-gizmo-axis:hover circle { stroke: var(--btv-text); stroke-width: 1.5; }
+.btv-gizmo { position: absolute; right: 8px; bottom: 8px; cursor: pointer; overflow: visible; }
+.btv-gizmo .btv-gizmo-face:hover .btv-face { fill: var(--btv-accent); fill-opacity: .18; stroke: var(--btv-accent); }
 
 .btv-panel {
   position: absolute; top: 10px; right: 10px; width: 288px; max-height: calc(100% - 20px);

@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { blocksBox, type Box, type Vec3 } from "../bounds";
 import { f32 } from "../buffers";
+import { buildVolumeTexture } from "../contour";
 import { filterArray, type LayerFilter, writeFilter } from "../filter";
 import { stratifiedOrder, subsetCount } from "../motion";
 import { colorAt, kept, type Paint } from "../paint";
@@ -56,7 +57,23 @@ function boxes(b: Blocks, material: THREE.Material, colored: boolean) {
 /** Blocks as instanced boxes along the model's axes, each scaled to its own (sub-)block size. */
 export function cells(layer: LayerSpec, buffers: Buffers, filter: LayerFilter): Representation {
   const b = blocks(layer, buffers);
-  const material = shadedMaterial(true, layer.opacity, filter.uniforms, { caps: true });
+  const contour = layer.contour;
+  const material = shadedMaterial(true, layer.opacity, filter.uniforms, { caps: true, contour: !!contour });
+  if (contour) {
+    const [ax, ay, az] = (layer.axes ?? [[1, 0, 0], [0, 1, 0], [0, 0, 1]]) as [Vec3, Vec3, Vec3];
+    const texture = buildVolumeTexture(f32(buffers, contour.buffer), contour.count);
+    const u = material.uniforms;
+    u.uContourOn.value = 1;
+    u.uContourStep.value = contour.step;
+    u.uContourTexture.value = texture;
+    u.uContourOrigin.value.fromArray(contour.origin);
+    u.uContourExtent.value.set(
+      contour.size[0] * contour.count[0],
+      contour.size[1] * contour.count[1],
+      contour.size[2] * contour.count[2],
+    );
+    u.uContourAxes.value.set(ax[0], ay[0], az[0], ax[1], ay[1], az[1], ax[2], ay[2], az[2]);
+  }
   const { mesh, colors } = boxes(b, material, true);
   let drawn = 0;
 
@@ -90,6 +107,7 @@ export function cells(layer: LayerSpec, buffers: Buffers, filter: LayerFilter): 
       mesh.geometry.dispose();
       material.dispose();
       mesh.dispose();
+      if (contour) (material.uniforms.uContourTexture.value as THREE.Data3DTexture).dispose();
     },
   };
 }

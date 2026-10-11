@@ -9,6 +9,8 @@ export interface BarSpec {
   hi: number;
   /** Categories, for a text variable. */
   categories: string[] | null;
+  /** Category colors, index-matched to `categories`; null to use the built-in palette. */
+  colors: string[] | null;
 }
 
 const FONT = "system-ui, -apple-system, 'Segoe UI', sans-serif";
@@ -29,7 +31,8 @@ export function colorBarSvg(bar: BarSpec, theme: Theme, id: string): string {
     body = shown
       .map((c, i) => {
         const y = 28 + i * 17;
-        return `<rect x="10" y="${y}" width="11" height="11" rx="2" fill="${rgbToHex(categoryColor(i))}"/>` + text(27, y + 9.5, c);
+        const fill = bar.colors?.[i] ?? rgbToHex(categoryColor(i));
+        return `<rect x="10" y="${y}" width="11" height="11" rx="2" fill="${fill}"/>` + text(27, y + 9.5, c);
       })
       .join("");
     const more = bar.categories.length - shown.length;

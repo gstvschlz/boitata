@@ -35,6 +35,8 @@ export interface Cut {
   outline?: boolean;
   /** Draw `shared.uSurfaceBias` meters nearer the camera, along each vertex's line of sight. */
   bias?: boolean;
+  /** Blend antialiased isolines of a sampled 3D texture into the section's cap face, in the theme accent. */
+  contour?: boolean;
 }
 
 /**
@@ -54,14 +56,26 @@ export function shadedMaterial(instanced: boolean, opacity: number, filter: Filt
       uPicking: shared.uPicking,
       uSurfaceBias: shared.uSurfaceBias,
       uOpacity: { value: opacity },
+      ...(cut.contour
+        ? {
+            uContourOn: { value: 0 },
+            uContourStep: { value: 1 },
+            uContourTexture: { value: null as THREE.Data3DTexture | null },
+            uContourOrigin: { value: new THREE.Vector3() },
+            uContourExtent: { value: new THREE.Vector3(1, 1, 1) },
+            uContourAxes: { value: new THREE.Matrix3() },
+          }
+        : {}),
     },
     vertexColors: !instanced,
     side: THREE.DoubleSide,
+    glslVersion: cut.contour ? THREE.GLSL3 : undefined,
     defines: {
       ...(cut.whole ? { SECTION_WHOLE: "" } : {}),
       ...(cut.caps ? { SECTION_CAPS: "" } : {}),
       ...(cut.outline ? { SECTION_OUTLINE: "" } : {}),
       ...(cut.bias ? { SURFACE_BIAS: "" } : {}),
+      ...(cut.contour ? { SECTION_CONTOUR: "" } : {}),
     },
     vertexShader: /* glsl */ `
       ${FILTER_GLSL}
@@ -118,6 +132,18 @@ export function shadedMaterial(instanced: boolean, opacity: number, filter: Filt
       uniform vec3 uLight;
       uniform vec3 uAccent;
       uniform float uOpacity;
+      #ifdef SECTION_CONTOUR
+      uniform highp sampler3D uContourTexture;
+      uniform float uContourOn;
+      uniform float uContourStep;
+      uniform vec3 uContourOrigin;
+      uniform vec3 uContourExtent;
+      uniform mat3 uContourAxes;
+      // GLSL3 shaders declare their own fragment output; mirror three.js's own gl_FragColor shim so the rest of
+      // this file's shared fragment shader body (written against the pre-300 gl_FragColor convention) keeps working.
+      layout(location = 0) out highp vec4 pc_fragColor;
+      #define gl_FragColor pc_fragColor
+      #endif
       varying vec3 vColor;
       varying vec3 vNormal;
       varying float vPass;
@@ -161,9 +187,26 @@ export function shadedMaterial(instanced: boolean, opacity: number, filter: Filt
               t = min(t, span.x);
             }
             if (t > 1.0) discard;
-            vec4 clip = projectionMatrix * viewMatrix * vec4(sectionPlace(eye + t * dir, vRef), 1.0);
+            vec3 cutPoint = eye + t * dir;
+            vec4 clip = projectionMatrix * viewMatrix * vec4(sectionPlace(cutPoint, vRef), 1.0);
             gl_FragDepth = 0.5 * clip.z / clip.w + 0.5;
-            gl_FragColor = uPicking > 0.5 ? pickColor() : vec4(vColor, uOpacity);
+            vec3 shaded = vColor;
+            #ifdef SECTION_CONTOUR
+              if (uContourOn > 0.5) {
+                // uContourAxes' columns are the grid's own unit axes; local * M is transpose(M) * local,
+                // i.e. the world-to-grid rotation, the inverse of the local-to-world one boxEdgeMaterial uses.
+                vec3 local = cutPoint - uContourOrigin;
+                vec3 uvw = (local * uContourAxes) / uContourExtent;
+                float value = texture(uContourTexture, uvw).r;
+                if (!isnan(value)) {
+                  float k = value / uContourStep;
+                  float d = abs(k - floor(k + 0.5));
+                  float aa = max(fwidth(k), 1e-6) * 1.5;
+                  shaded = mix(shaded, uAccent, 1.0 - smoothstep(0.0, aa, d));
+                }
+              }
+            #endif
+            gl_FragColor = uPicking > 0.5 ? pickColor() : vec4(shaded, uOpacity);
             return;
           }
           gl_FragDepth = gl_FragCoord.z;

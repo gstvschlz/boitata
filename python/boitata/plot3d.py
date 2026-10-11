@@ -23,7 +23,7 @@ from pathlib import Path
 
 import numpy as np
 
-from boitata._boitata import BlockModel, Drillholes, Mesh, PointSet
+from boitata._boitata import BlockModel, Categories, Drillholes, Mesh, PointSet
 
 __all__ = ["Scene", "plot"]
 
@@ -120,6 +120,20 @@ def _encode(values):
         return None
     out[~valid] = np.nan
     return out, {"type": "number", "min": float(out[valid].min()), "max": float(out[valid].max())}
+
+
+def _encode_scheme(values, scheme):
+    """Like `_encode`, but categories and codes come from `scheme` instead of `np.unique`."""
+    codes = scheme.encode(values)
+    valid = np.isfinite(codes)
+    if not valid.any():
+        return None
+    out = np.full(len(codes), -1, dtype=np.int32)
+    out[valid] = codes[valid].astype(int)
+    spec = {"type": "text", "categories": scheme.names}
+    if scheme.colors is not None:
+        spec["colors"] = list(scheme.colors)
+    return out, spec
 
 
 def _drillholes(data):
@@ -521,6 +535,8 @@ class Scene:
         visible=True,
         columns=None,
         filter=None,
+        contour_step=None,
+        scheme=None,
     ):
         """Adds a layer.
 
@@ -580,6 +596,16 @@ class Scene:
             categories kept for a text column. A row null in a filtered column fails its condition. At most four
             columns; the layer's filter panel edits them while viewing, and `filters` reads them back. For example
             ``{"p_above_5": (50, None), "LENS": ["lens_1", "lens_2"]}``.
+        contour_step : float, optional
+            Draws isolines of `values` on the face a section cuts through this block model, spaced
+            `contour_step` apart in the column's own units. Needs `values` to be numeric and the model to be
+            regular (one size for every block; call `to_regular()` first otherwise). The lines are fixed to
+            this column: they do not follow a later change of which column colors the layer in the viewer
+            panel. No effect without an active section.
+        scheme : Categories, optional
+            Order and colors of a text `values`: the legend and the layer's colors follow `scheme.names` and
+            `scheme.colors` instead of the column's own sorted categories and the built-in palette. Values not
+            in the scheme are not drawn, unless it has an `other` bucket. Describes `values`; pass values too.
 
         Returns
         -------
@@ -610,8 +636,21 @@ class Scene:
             clim = tuple(float(c) for c in clim)
             if len(clim) != 2 or not all(math.isfinite(c) for c in clim) or clim[0] >= clim[1]:
                 raise ValueError(f"clim must be two finite numbers, low < high, got {clim!r}")
-        if values is None and (cmap is not None or clim is not None or label is not None):
-            raise ValueError("cmap, clim and label describe `values`; pass values too")
+        if contour_step is not None:
+            if not _real(contour_step) or contour_step <= 0:
+                raise ValueError(f"contour_step must be a positive number, got {contour_step!r}")
+            if kind != "blocks":
+                raise ValueError("contour_step applies to block models only")
+        if values is None and (
+            cmap is not None
+            or clim is not None
+            or label is not None
+            or contour_step is not None
+            or scheme is not None
+        ):
+            raise ValueError("cmap, clim, label, contour_step and scheme describe `values`; pass values too")
+        if scheme is not None and not isinstance(scheme, Categories):
+            raise TypeError(f"scheme must be a Categories, got {type(scheme).__name__}")
         available = [n for table in tables.values() for n in _names(table)]
         if values is not None and values not in available:
             raise KeyError(f"no column {values!r}; columns: {', '.join(available) or 'none'}")
@@ -640,7 +679,11 @@ class Scene:
             for column in _names(table):
                 if wanted is not None and column not in wanted:
                     continue
-                encoded = _encode(table[column])
+                encoded = (
+                    _encode_scheme(table[column], scheme)
+                    if scheme is not None and column == values
+                    else _encode(table[column])
+                )
                 if encoded is None:
                     if column == values:
                         raise ValueError(f"column {values!r} has no valid values to color by")
@@ -668,6 +711,24 @@ class Scene:
         layer["filter"] = _filter(layer, {} if filter is None else filter)
         if kind == "blocks":
             layer["axes"] = _block_axes(data).tolist()
+        if contour_step is not None:
+            if data.extents is not None:
+                raise ValueError(
+                    "contour_step needs a regular block model (extents is None); call to_regular() first"
+                )
+            grid_values = data.grid(values)
+            if not isinstance(grid_values, np.ndarray) or grid_values.dtype.kind != "f":
+                raise ValueError(f"contour_step needs a numeric column, {values!r} is categorical")
+            nz, ny, nx = grid_values.shape
+            key = f"{layer_id}/contour"
+            buffers[key] = grid_values.astype(np.float32)
+            layer["contour"] = {
+                "step": float(contour_step),
+                "buffer": key,
+                "origin": (np.asarray(data.origin, dtype=np.float64) - self._origin).tolist(),
+                "size": [float(s) for s in data.size],
+                "count": [nx, ny, nz],
+            }
         if holes:
             layer["holes"] = dict(zip(("hole", "from", "to"), holes, strict=True))
         if values is not None:

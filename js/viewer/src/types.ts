@@ -14,6 +14,8 @@ export interface ColumnSpec {
   min?: number;
   max?: number;
   categories?: string[];
+  /** Category colors, index-matched to `categories`; from a scheme, absent for the built-in palette. */
+  colors?: string[];
 }
 
 export interface LayerSpec {
@@ -37,6 +39,8 @@ export interface LayerSpec {
   /** Drill holes: the column naming the hole and the interval columns; the depths of each row are in `depths`. */
   holes?: { hole: string; from: string | null; to: string | null };
   columns: ColumnSpec[];
+  /** A dense attribute grid for live contour lines where a section cuts this (block-model) layer. */
+  contour?: { step: number; buffer: string; origin: [number, number, number]; size: [number, number, number]; count: [number, number, number] } | null;
   /** Initial filter: conditions on columns, combined with "and". */
   filter?: FilterState;
 }

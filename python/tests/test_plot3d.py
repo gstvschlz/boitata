@@ -1048,3 +1048,47 @@ def test_wheel_zooms_and_shift_wheel_sets_the_section_width(tmp_path):
         widened = tab.evaluate(measure)
     assert zoomed[0] < before[0] and zoomed[1] == before[1] == 4
     assert widened[0] == pytest.approx(zoomed[0]) and widened[1] > 4
+
+
+def test_contour_step_ships_a_dense_grid_and_validates_input():
+    model = bt.BlockModel((0.0, 0.0, 0.0), (10.0, 10.0, 10.0), (4, 3, 2))
+    values = model.with_column("v", np.arange(24.0))
+
+    scene = Scene().add(values, "v", contour_step=5.0)
+    spec = scene._spec()["layers"][0]["contour"]
+    assert spec["step"] == 5.0
+    assert spec["count"] == [4, 3, 2]
+    grid = buffer(scene, spec["buffer"], np.float32).reshape(
+        spec["count"][2], spec["count"][1], spec["count"][0]
+    )
+    np.testing.assert_allclose(grid, values.grid("v"))
+
+    with pytest.raises(ValueError, match="positive number"):
+        Scene().add(values, "v", contour_step=0)
+    with pytest.raises(ValueError, match="pass values"):
+        Scene().add(values, contour_step=5.0)
+    rock = model.with_column("rock", ["a"] * 24)
+    with pytest.raises(ValueError, match="categorical"):
+        Scene().add(rock, "rock", contour_step=5.0)
+
+
+def test_scheme_overrides_category_order_and_colors():
+    scheme = bt.Categories(["measured", "indicated", "inferred"], colors=["#ff0000", "#00ff00", "#0000ff"])
+    labels = ["inferred", "measured", "indicated", "measured", "inferred", "indicated"]
+    points = bt.PointSet(rng.uniform(0, 1, (6, 3)), {"class": labels})
+
+    scene = Scene().add(points, "class", scheme=scheme)
+    spec, codes = column(scene, 0, "class")
+    assert spec["categories"] == ["measured", "indicated", "inferred"]
+    assert spec["colors"] == ["#ff0000", "#00ff00", "#0000ff"]
+    assert scheme.decode(codes.tolist()) == labels
+
+    with pytest.raises(ValueError, match="pass values"):
+        Scene().add(points, scheme=scheme)
+
+
+def test_without_scheme_categories_stay_sorted_and_colorless():
+    points = bt.PointSet(rng.uniform(0, 1, (3, 3)), {"class": ["b", "a", "a"]})
+    spec, _ = column(Scene().add(points, "class"), 0, "class")
+    assert spec["categories"] == ["a", "b"]
+    assert "colors" not in spec

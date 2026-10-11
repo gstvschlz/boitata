@@ -17,7 +17,7 @@ sys.path.insert(0, str(HERE.parents[1]))
 import boitata as bt
 import matplotlib.pyplot as plt
 import numpy as np
-from common import ACCENT, GRAY, HIGHLIGHT, INK, LIGHT, map_axes, save
+from common import ACCENT, GRAY, HIGHLIGHT, INK, LIGHT, map_axes, save, show
 
 # %% [markdown]
 # ## The lease and its grid
@@ -259,3 +259,13 @@ save(fig, "classes")
 # 57.4 Mt. Indicated cells cover the regional grid, 118.9 Mt; inferred ones, 13.0 Mt, lie at the edges of the lease
 # beyond the last holes, and where the regional grid has gaps. Spacing ignores the variogram; [classification](../../10-checking-models/05-classification/README.md) classifies
 # from the kriging itself.
+#
+# `Scene.add` encodes a text `values` column itself, so the 3D layer takes the class labels directly rather than
+# the already-encoded `"class"` column; its `scheme=scheme` keeps the same order and colors as the figure above.
+
+# %%
+cells = cells.with_column("class_label", classes)
+scene = bt.plot3d.Scene()
+scene.add(cells, "class_label", name="classes", scheme=scheme)
+scene.view(azimuth=0, dip=90)
+show(scene, "classes_3d", "Resource classes by drill spacing, in 3D")
