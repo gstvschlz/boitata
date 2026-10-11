@@ -1070,3 +1070,25 @@ def test_contour_step_ships_a_dense_grid_and_validates_input():
     rock = model.with_column("rock", ["a"] * 24)
     with pytest.raises(ValueError, match="categorical"):
         Scene().add(rock, "rock", contour_step=5.0)
+
+
+def test_scheme_overrides_category_order_and_colors():
+    scheme = bt.Categories(["measured", "indicated", "inferred"], colors=["#ff0000", "#00ff00", "#0000ff"])
+    labels = ["inferred", "measured", "indicated", "measured", "inferred", "indicated"]
+    points = bt.PointSet(rng.uniform(0, 1, (6, 3)), {"class": labels})
+
+    scene = Scene().add(points, "class", scheme=scheme)
+    spec, codes = column(scene, 0, "class")
+    assert spec["categories"] == ["measured", "indicated", "inferred"]
+    assert spec["colors"] == ["#ff0000", "#00ff00", "#0000ff"]
+    assert scheme.decode(codes.tolist()) == labels
+
+    with pytest.raises(ValueError, match="pass values"):
+        Scene().add(points, scheme=scheme)
+
+
+def test_without_scheme_categories_stay_sorted_and_colorless():
+    points = bt.PointSet(rng.uniform(0, 1, (3, 3)), {"class": ["b", "a", "a"]})
+    spec, _ = column(Scene().add(points, "class"), 0, "class")
+    assert spec["categories"] == ["a", "b"]
+    assert "colors" not in spec
