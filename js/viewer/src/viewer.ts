@@ -609,7 +609,14 @@ export class Viewer {
   }
 
   private snap(snap: Snap): void {
-    const [azimuth, dip] = { plan: [0, 90], east: [270, 0], north: [180, 0] }[snap];
+    const [azimuth, dip] = {
+      up: [0, 90],
+      down: [0, -90],
+      north: [180, 0],
+      south: [0, 0],
+      west: [90, 0],
+      east: [270, 0],
+    }[snap];
     this.setView(azimuth, dip);
   }
 
