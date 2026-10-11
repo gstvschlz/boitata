@@ -15,6 +15,8 @@ export interface Scale {
   hi: number;
   /** Category list shared by every layer the variable colors. */
   categories: string[];
+  /** Category colors, index-matched to `categories`; null to use the built-in palette. */
+  colors: string[] | null;
 }
 
 export function solidPaint(rgb: RGB): Paint {

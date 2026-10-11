@@ -14,6 +14,8 @@ export interface ColumnSpec {
   min?: number;
   max?: number;
   categories?: string[];
+  /** Category colors, index-matched to `categories`; from a scheme, absent for the built-in palette. */
+  colors?: string[];
 }
 
 export interface LayerSpec {

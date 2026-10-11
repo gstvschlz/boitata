@@ -162,6 +162,22 @@ export interface MountOptions {
   onState?: (state: ViewState) => void;
 }
 
+/** Categories and colors of a variable's text columns: one shared scheme's order/colors when every column that has one agrees, else the union of names in the order first seen, with no colors. */
+export function reconcileCategories(columns: ColumnSpec[]): { categories: string[]; colors: string[] | null } {
+  const categories = new Set<string>();
+  const colorSets = new Set<string>();
+  for (const c of columns) {
+    c.categories?.forEach((x) => categories.add(x));
+    if (c.colors) colorSets.add(JSON.stringify({ categories: c.categories, colors: c.colors }));
+  }
+  if (colorSets.size === 1) {
+    const scheme = JSON.parse([...colorSets][0]) as { categories: string[]; colors: string[] };
+    return { categories: scheme.categories, colors: scheme.colors };
+  }
+  if (colorSets.size > 1) console.warn("layers coloring the same variable disagree on a category scheme; using the built-in palette");
+  return { categories: [...categories], colors: null };
+}
+
 export class Viewer {
   readonly root = document.createElement("div");
   private renderer: Renderer;
@@ -618,13 +634,10 @@ export class Viewer {
     return v;
   }
 
-  /** Map, range and categories of a variable, shared by every layer it colors. */
   private scale(name: string): Scale {
     const v = this.variable(name);
     const colored = this.layers.map((l) => l.column).filter((c): c is ColumnSpec => c?.name === name);
-    const categories = new Set<string>();
-    for (const layer of this.layers)
-      for (const c of layer.spec.columns) if (c.name === name && c.type === "text") c.categories?.forEach((x) => categories.add(x));
+    const textColumns = this.layers.flatMap((layer) => layer.spec.columns.filter((c) => c.name === name && c.type === "text"));
     let lo = Infinity;
     let hi = -Infinity;
     for (const c of colored)
@@ -633,7 +646,8 @@ export class Viewer {
         hi = Math.max(hi, c.max);
       }
     if (v.clim) [lo, hi] = v.clim;
-    return { cmap: v.cmap, lo, hi, categories: [...categories].sort() };
+    const { categories, colors } = reconcileCategories(textColumns);
+    return { cmap: v.cmap, lo, hi, categories, colors };
   }
 
   private solid(layer: Layer): RGB {

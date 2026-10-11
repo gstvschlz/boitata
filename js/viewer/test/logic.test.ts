@@ -54,11 +54,11 @@ describe("colormaps", () => {
   it("never color nulls", () => {
     const values = new Float32Array([0, Number.NaN, 1]);
     const column = { name: "v", type: "number" as const, buffer: "", on: "row" as const, min: 0, max: 1 };
-    const paint = columnPaint(column, values, { cmap: "viridis", lo: 0, hi: 1, categories: [] }, [9, 9, 9]);
+    const paint = columnPaint(column, values, { cmap: "viridis", lo: 0, hi: 1, categories: [], colors: null }, [9, 9, 9]);
     expect(Array.from(paint.keep!)).toEqual([1, 0, 1]);
     const codes = new Int32Array([1, -1, 0]);
     const text = { name: "t", type: "text" as const, buffer: "", on: "row" as const, categories: ["b", "c"] };
-    const painted = columnPaint(text, codes, { cmap: "viridis", lo: 0, hi: 1, categories: ["a", "b", "c"] }, [9, 9, 9]);
+    const painted = columnPaint(text, codes, { cmap: "viridis", lo: 0, hi: 1, categories: ["a", "b", "c"], colors: null }, [9, 9, 9]);
     expect(Array.from(painted.keep!)).toEqual([1, 0, 1]);
     expect(Array.from(painted.colors!.slice(0, 3))).toEqual(hexToRgb(CATEGORICAL[2]));
     expect(Array.from(painted.colors!.slice(6, 9))).toEqual(hexToRgb(CATEGORICAL[1]));
