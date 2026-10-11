@@ -521,6 +521,7 @@ class Scene:
         visible=True,
         columns=None,
         filter=None,
+        contour_step=None,
     ):
         """Adds a layer.
 
@@ -580,6 +581,12 @@ class Scene:
             categories kept for a text column. A row null in a filtered column fails its condition. At most four
             columns; the layer's filter panel edits them while viewing, and `filters` reads them back. For example
             ``{"p_above_5": (50, None), "LENS": ["lens_1", "lens_2"]}``.
+        contour_step : float, optional
+            Draws isolines of `values` on the face a section cuts through this block model, spaced
+            `contour_step` apart in the column's own units. Needs `values` to be numeric and the model to be
+            regular (one size for every block; call `to_regular()` first otherwise). The lines are fixed to
+            this column: they do not follow a later change of which column colors the layer in the viewer
+            panel. No effect without an active section.
 
         Returns
         -------
@@ -610,8 +617,15 @@ class Scene:
             clim = tuple(float(c) for c in clim)
             if len(clim) != 2 or not all(math.isfinite(c) for c in clim) or clim[0] >= clim[1]:
                 raise ValueError(f"clim must be two finite numbers, low < high, got {clim!r}")
-        if values is None and (cmap is not None or clim is not None or label is not None):
-            raise ValueError("cmap, clim and label describe `values`; pass values too")
+        if contour_step is not None:
+            if not _real(contour_step) or contour_step <= 0:
+                raise ValueError(f"contour_step must be a positive number, got {contour_step!r}")
+            if kind != "blocks":
+                raise ValueError("contour_step applies to block models only")
+        if values is None and (
+            cmap is not None or clim is not None or label is not None or contour_step is not None
+        ):
+            raise ValueError("cmap, clim, label and contour_step describe `values`; pass values too")
         available = [n for table in tables.values() for n in _names(table)]
         if values is not None and values not in available:
             raise KeyError(f"no column {values!r}; columns: {', '.join(available) or 'none'}")
@@ -668,6 +682,24 @@ class Scene:
         layer["filter"] = _filter(layer, {} if filter is None else filter)
         if kind == "blocks":
             layer["axes"] = _block_axes(data).tolist()
+        if contour_step is not None:
+            if data.extents is not None:
+                raise ValueError(
+                    "contour_step needs a regular block model (extents is None); call to_regular() first"
+                )
+            grid_values = data.grid(values)
+            if not isinstance(grid_values, np.ndarray) or grid_values.dtype.kind != "f":
+                raise ValueError(f"contour_step needs a numeric column, {values!r} is categorical")
+            nz, ny, nx = grid_values.shape
+            key = f"{layer_id}/contour"
+            buffers[key] = grid_values.astype(np.float32)
+            layer["contour"] = {
+                "step": float(contour_step),
+                "buffer": key,
+                "origin": (np.asarray(data.origin, dtype=np.float64) - self._origin).tolist(),
+                "size": [float(s) for s in data.size],
+                "count": [nx, ny, nz],
+            }
         if holes:
             layer["holes"] = dict(zip(("hole", "from", "to"), holes, strict=True))
         if values is not None:

@@ -1048,3 +1048,25 @@ def test_wheel_zooms_and_shift_wheel_sets_the_section_width(tmp_path):
         widened = tab.evaluate(measure)
     assert zoomed[0] < before[0] and zoomed[1] == before[1] == 4
     assert widened[0] == pytest.approx(zoomed[0]) and widened[1] > 4
+
+
+def test_contour_step_ships_a_dense_grid_and_validates_input():
+    model = bt.BlockModel((0.0, 0.0, 0.0), (10.0, 10.0, 10.0), (4, 3, 2))
+    values = model.with_column("v", np.arange(24.0))
+
+    scene = Scene().add(values, "v", contour_step=5.0)
+    spec = scene._spec()["layers"][0]["contour"]
+    assert spec["step"] == 5.0
+    assert spec["count"] == [4, 3, 2]
+    grid = buffer(scene, spec["buffer"], np.float32).reshape(
+        spec["count"][2], spec["count"][1], spec["count"][0]
+    )
+    np.testing.assert_allclose(grid, values.grid("v"))
+
+    with pytest.raises(ValueError, match="positive number"):
+        Scene().add(values, "v", contour_step=0)
+    with pytest.raises(ValueError, match="pass values"):
+        Scene().add(values, contour_step=5.0)
+    rock = model.with_column("rock", ["a"] * 24)
+    with pytest.raises(ValueError, match="categorical"):
+        Scene().add(rock, "rock", contour_step=5.0)
