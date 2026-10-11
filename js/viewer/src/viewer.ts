@@ -1403,7 +1403,14 @@ export class Viewer {
       const s = this.scale(name);
       const text = this.layers.some((l) => l.column?.name === name && l.column.type === "text");
       el.innerHTML = colorBarSvg(
-        { title: this.variable(name).label ?? name, cmap: s.cmap, lo: s.lo, hi: s.hi, categories: text ? s.categories : null },
+        {
+          title: this.variable(name).label ?? name,
+          cmap: s.cmap,
+          lo: s.lo,
+          hi: s.hi,
+          categories: text ? s.categories : null,
+          colors: text ? s.colors : null,
+        },
         this.theme,
         `btv-${this.uid}-${i}`,
       );
