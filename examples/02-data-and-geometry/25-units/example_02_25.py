@@ -110,8 +110,8 @@ print(grid.units)
 # ## lengths
 #
 # containers carry the length unit of their coordinates, and so do a `Search` and a `Variogram`. an estimator fitted
-# with parameters in feet on data in metres converts the coordinates, so the estimate is the one the same lengths in
-# metres give. containers in different units refuse to meet; `to_length_unit` converts one.
+# with parameters in feet on data in meters converts the coordinates, so the estimate is the one the same lengths in
+# meters give. containers in different units refuse to meet; `to_length_unit` converts one.
 
 # %%
 feet = bt.OrdinaryKriging(
@@ -119,7 +119,7 @@ feet = bt.OrdinaryKriging(
     bt.Search(radius=60.0 / 0.3048, max_samples=12, length_unit="ft"),
 )
 in_feet = feet.fit(composites, "ZN_PCT").predict(grid)
-print(f"largest difference from the estimate in metres: {np.nanmax(np.abs(in_feet - estimate)):.1e} %")
+print(f"largest difference from the estimate in meters: {np.nanmax(np.abs(in_feet - estimate)):.1e} %")
 try:
     kriging.predict(grid.to_length_unit("ft"))
 except bt.InvalidInput as error:
@@ -128,7 +128,7 @@ except bt.InvalidInput as error:
 # %% [markdown]
 # ## tonnage and metal
 #
-# with the block size in metres and a density in `t/m3`, `grade_tonnage` knows that tonnage is a mass: it reads in
+# with the block size in meters and a density in `t/m3`, `grade_tonnage` knows that tonnage is a mass: it reads in
 # t, kt or Mt and metal in the units of the grade's metal, whichever reads best. metal never converts to ore tonnes.
 
 # %%

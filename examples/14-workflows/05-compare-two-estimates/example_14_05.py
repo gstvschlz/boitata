@@ -265,5 +265,5 @@ for name, estimate in (("kriging", ok), ("inverse distance", idw)):
 # </div>
 #
 # Inverse distance ignores sample clustering, so the scoping model is biased high wherever
-# a block's neighborhood includes a dense cluster of high-grade drilling. [Grade–tonnage curves and the change in contained metal](../../14-workflows/06-grade-tonnage-and-metal/README.md)
+# a block's neighborhood includes a dense cluster of high-grade drilling. [Grade-tonnage curves and the change in contained metal](../../14-workflows/06-grade-tonnage-and-metal/README.md)
 # turns this difference into tonnes, grade and metal at a cutoff.

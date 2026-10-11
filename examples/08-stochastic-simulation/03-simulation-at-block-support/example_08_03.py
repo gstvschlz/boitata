@@ -84,7 +84,7 @@ save(fig, "simulated-blocks")
 # %% [markdown]
 # a mine plan reads uncertainty over production volumes. `groups=` labels each block with its volume, here six 50 m
 # strips of northing standing for periods, and summarizes each realization's mean per period, one row per label.
-# `window=` gives each block the mean of the 50 × 50 m box centred on it, the boxes overlapping. both stream like
+# `window=` gives each block the mean of the 50 × 50 m box centered on it, the boxes overlapping. both stream like
 # `blocks=` and feed the same summaries, here the relative error at 90 % confidence: half the P5–P95 interval over the
 # mean.
 

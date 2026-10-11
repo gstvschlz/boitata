@@ -1,5 +1,5 @@
 """
-# Grade–tonnage curves and the change in contained metal
+# Grade-tonnage curves and the change in contained metal
 
 [Compare two estimates](../../14-workflows/05-compare-two-estimates/README.md) chose the ordinary kriging over the inverse distance
 model of Walker Lake. Management asks the next question: how much metal does that decision remove from the

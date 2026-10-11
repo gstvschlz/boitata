@@ -3,7 +3,7 @@
 
 `bt.plot.section` cuts a block model on a plane given by `origin`, `azimuth` and `dip`, draws the blocks at true
 scale, and with `holes` projects the drill-hole traces within `width` of the plane on top: the usual check that a
-model honours the holes it came from.
+model honors the holes it came from.
 """
 
 # %% [hidden]
@@ -51,7 +51,7 @@ print(f"{len(model):,} blocks of 20 m")
 # ## one section, two widths
 #
 # a vertical section across strike (113°) through the middle of the deposit. a 20 m slab keeps only the holes
-# drilled on that line; 50 m also brings in the neighbouring lines, projected onto the plane. blocks without an
+# drilled on that line; 50 m also brings in the neighboring lines, projected onto the plane. blocks without an
 # estimate stay blank.
 
 # %%

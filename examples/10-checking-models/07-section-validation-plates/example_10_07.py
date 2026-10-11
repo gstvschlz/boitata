@@ -2,7 +2,7 @@
 # section validation plates
 
 you check a block model one section at a time: true block edges (so a sub-blocked model shows its real geometry
-instead of a resampled raster), the estimate on those blocks, the lens behind it and its drillhole composites, all
+instead of a resampled raster), the estimate on those blocks, the lens behind it and its drill-hole composites, all
 on one plate and one color scale. `section` draws true edges whenever the cut is normal to one of the model's own
 axes; `slab` overlays the lens trace and the composites on the same plane. `sample` and `scatter` show
 whether the model honors the composites.

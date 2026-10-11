@@ -15408,7 +15408,7 @@
   <span class="md-ellipsis">
     
   
-    Grade–tonnage curves and the change in contained metal
+    Grade-tonnage curves and the change in contained metal
   
 
     
@@ -22304,8 +22304,8 @@ the assays, an estimator fitted on a column estimates in its unit, and the <abbr
 
 <h2 id="lengths">lengths<a class="headerlink" href="#lengths" title="Permanent link">&para;</a></h2>
 <p>containers carry the length unit of their coordinates, and so do a <code>Search</code> and a <code>Variogram</code>. an estimator fitted
-with parameters in feet on data in metres converts the coordinates, so the estimate is the one the same lengths in
-metres give. containers in different units refuse to meet; <code>to_length_unit</code> converts one.</p>
+with parameters in feet on data in meters converts the coordinates, so the estimate is the one the same lengths in
+meters give. containers in different units refuse to meet; <code>to_length_unit</code> converts one.</p>
 <!-- GENERATED FROM PYTHON SOURCE LINES 117-128 -->
 
 <div class="highlight"><pre><span></span><code><span class="n">feet</span> <span class="o">=</span> <span class="n">bt</span><span class="o">.</span><span class="n">OrdinaryKriging</span><span class="p">(</span>
@@ -22313,20 +22313,20 @@ metres give. containers in different units refuse to meet; <code>to_length_unit<
     <span class="n">bt</span><span class="o">.</span><span class="n">Search</span><span class="p">(</span><span class="n">radius</span><span class="o">=</span><span class="mf">60.0</span> <span class="o">/</span> <span class="mf">0.3048</span><span class="p">,</span> <span class="n">max_samples</span><span class="o">=</span><span class="mi">12</span><span class="p">,</span> <span class="n">length_unit</span><span class="o">=</span><span class="s2">"ft"</span><span class="p">),</span>
 <span class="p">)</span>
 <span class="n">in_feet</span> <span class="o">=</span> <span class="n">feet</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">composites</span><span class="p">,</span> <span class="s2">"ZN_PCT"</span><span class="p">)</span><span class="o">.</span><span class="n">predict</span><span class="p">(</span><span class="n">grid</span><span class="p">)</span>
-<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"largest difference from the estimate in metres: </span><span class="si">{</span><span class="n">np</span><span class="o">.</span><span class="n">nanmax</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">in_feet</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">estimate</span><span class="p">))</span><span class="si">:</span><span class="s2">.1e</span><span class="si">}</span><span class="s2"> %"</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"largest difference from the estimate in meters: </span><span class="si">{</span><span class="n">np</span><span class="o">.</span><span class="n">nanmax</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">in_feet</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">estimate</span><span class="p">))</span><span class="si">:</span><span class="s2">.1e</span><span class="si">}</span><span class="s2"> %"</span><span class="p">)</span>
 <span class="k">try</span><span class="p">:</span>
     <span class="n">kriging</span><span class="o">.</span><span class="n">predict</span><span class="p">(</span><span class="n">grid</span><span class="o">.</span><span class="n">to_length_unit</span><span class="p">(</span><span class="s2">"ft"</span><span class="p">))</span>
 <span class="k">except</span> <span class="n">bt</span><span class="o">.</span><span class="n">InvalidInput</span> <span class="k">as</span> <span class="n">error</span><span class="p">:</span>
     <span class="nb">print</span><span class="p">(</span><span class="n">error</span><span class="p">)</span>
 </code></pre></div>
 <p class="mkd-glr-script-out">Out:</p>
-<div class="mkd-glr-script-out-disp highlight"><pre><span></span><code>largest<span class="w"> </span>difference<span class="w"> </span>from<span class="w"> </span>the<span class="w"> </span>estimate<span class="w"> </span><span class="k">in</span><span class="w"> </span>metres:<span class="w"> </span><span class="m">1</span>.6e-11<span class="w"> </span>%
+<div class="mkd-glr-script-out-disp highlight"><pre><span></span><code>largest<span class="w"> </span>difference<span class="w"> </span>from<span class="w"> </span>the<span class="w"> </span>estimate<span class="w"> </span><span class="k">in</span><span class="w"> </span>meters:<span class="w"> </span><span class="m">1</span>.6e-11<span class="w"> </span>%
 samples<span class="w"> </span>are<span class="w"> </span><span class="k">in</span><span class="w"> </span>m<span class="w"> </span>and<span class="w"> </span>targets<span class="w"> </span><span class="k">in</span><span class="w"> </span>ft<span class="p">;</span><span class="w"> </span>convert<span class="w"> </span>one<span class="w"> </span>with<span class="w"> </span>to_length_unit<span class="o">(</span><span class="s1">'m'</span><span class="o">)</span>
 </code></pre></div>
 <!-- GENERATED FROM PYTHON SOURCE LINES 129-133 -->
 
 <h2 id="tonnage-and-metal">tonnage and metal<a class="headerlink" href="#tonnage-and-metal" title="Permanent link">&para;</a></h2>
-<p>with the block size in metres and a density in <code>t/m3</code>, <code>grade_tonnage</code> knows that tonnage is a mass: it reads in
+<p>with the block size in meters and a density in <code>t/m3</code>, <code>grade_tonnage</code> knows that tonnage is a mass: it reads in
 t, kt or Mt and metal in the units of the grade's metal, whichever reads best. metal never converts to ore tonnes.</p>
 <!-- GENERATED FROM PYTHON SOURCE LINES 135-140 -->
 
@@ -22407,7 +22407,7 @@ shape:<span class="w"> </span><span class="o">(</span><span class="m">2</span>,<
 │<span class="w"> </span>model<span class="w">  </span>┆<span class="w"> </span><span class="m">50040</span><span class="w"> </span>┆<span class="w"> </span><span class="m">1</span>.106608<span class="w"> </span>┆<span class="w"> </span><span class="m">0</span>.869851<span class="w">  </span>│
 └────────┴───────┴──────────┴───────────┘
 </code></pre></div>
-<p><strong>Total running time of the script:</strong> ( 0 minutes  0.501 seconds)</p>
+<p><strong>Total running time of the script:</strong> ( 0 minutes  0.654 seconds)</p>
 <div id="download_links"></div>
 
 <p><a class="md-button center" href="../example_02_25.py"><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M256 32c0-17.7-14.3-32-32-32s-32 14.3-32 32v210.7l-41.4-41.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3l96 96c12.5 12.5 32.8 12.5 45.3 0l96-96c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L256 242.7zM64 320c-35.3 0-64 28.7-64 64v32c0 35.3 28.7 64 64 64h320c35.3 0 64-28.7 64-64v-32c0-35.3-28.7-64-64-64h-46.9l-56.6 56.6c-31.2 31.2-81.9 31.2-113.1 0L110.9 320zm304 56a24 24 0 1 1 0 48 24 24 0 1 1 0-48"/></svg></span> Download Python source code: example_02_25.py</a></p>

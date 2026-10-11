@@ -248,7 +248,7 @@ for name in plans:
 # against the reference's 83.6 % and 24.2 %. The share changes from truth to truth: at 10 m one truth scores
 # 13.3 %, another 26.0 %, a standard deviation of 3.7 points. The reference averaged three truths, so its share
 # carries a standard error of about 2 points, and gaps of 0.9 and 2.4 points lie within Monte-Carlo noise.
-# The grids of Step 2 put holes on node centres, and they score 89.1 % at 5 m:
+# The grids of Step 2 put holes on node centers, and they score 89.1 % at 5 m:
 # a node that holds a sample keeps its value in every realization, which narrows its window.
 #
 # ## The decision

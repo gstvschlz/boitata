@@ -2,7 +2,7 @@
 # from variogram to search plan
 
 a variogram tells how far, and in which directions, a sample still informs a block. a 3D model of Zn in three stacked
-sulfide lenses becomes a search plan here: an ellipsoid with the model's rotation and ranges, a first pass out to one
+sulphide lenses becomes a search plan here: an ellipsoid with the model's rotation and ranges, a first pass out to one
 range, a second out to two, and a cap per hole so that each neighborhood spans several holes. the kriging diagnostics
 then show which pass estimated each block and from how many samples. [search](../../06-kriging/06-search/README.md)
 covers each option on its own, and [search calibration](../../06-kriging/07-search-calibration/README.md) scores

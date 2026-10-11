@@ -5,7 +5,7 @@ a variogram map shows γ on one plane; in 3D the plane of best continuity is its
 every pair by its lag vector into a cube of cells, the 3D variogram map, and reads the principal axes of continuity from
 a few hundred directions spread over the sphere. in each direction it finds the lag where γ reaches half the sill. under
 geometric anisotropy these lags trace an ellipsoid with the axes and ratios of the range ellipsoid, and its rotation and
-ratios go straight into `Variogram`. the axes here come from Zn composites across three stacked sulfide lenses, compared
+ratios go straight into `Variogram`. the axes here come from Zn composites across three stacked sulphide lenses, compared
 with the orientation of the lens solids.
 """
 
