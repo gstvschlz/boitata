@@ -1,4 +1,4 @@
-import { categoryColor, lut, lutIndex, type RGB } from "./color";
+import { categoryColor, hexToRgb, lut, lutIndex, type RGB } from "./color";
 import type { ColumnSpec } from "./types";
 
 /** Colors of a layer's elements: per row, vertex or face, or one solid color. `keep[i] = 0` hides element i. */
@@ -30,7 +30,10 @@ export function columnPaint(column: ColumnSpec, data: Float32Array | Int32Array,
   const keep = new Uint8Array(n);
   if (column.type === "text") {
     const index = new Map(scale.categories.map((c, i) => [c, i]));
-    const palette = (column.categories ?? []).map((c) => categoryColor(index.get(c) ?? 0));
+    const palette = (column.categories ?? []).map((c) => {
+      const i = index.get(c) ?? 0;
+      return scale.colors ? hexToRgb(scale.colors[i] ?? "#808080") : categoryColor(i);
+    });
     for (let i = 0; i < n; i++) {
       const code = data[i];
       if (code < 0 || code >= palette.length) continue;
