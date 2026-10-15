@@ -280,6 +280,21 @@ impl PerAxis {
 }
 
 #[derive(FromPyObject)]
+enum Buffer {
+    One(crate::units::Quantity),
+    Each(Vec<crate::units::Quantity>),
+}
+
+impl Buffer {
+    fn items(&self) -> Vec<&crate::units::Quantity> {
+        match self {
+            Self::One(q) => vec![q; 3],
+            Self::Each(v) => v.iter().collect(),
+        }
+    }
+}
+
+#[derive(FromPyObject)]
 enum Snap {
     Flag(bool),
     Step(PerAxis),
@@ -1151,8 +1166,9 @@ impl PyBlockModel {
     /// size : sequence of float
     ///     ``(dx, dy, dz)`` block size. With ``(dx, dy)`` or ``dz=None`` the
     ///     grid is 2D: one layer spanning the buffered z range.
-    /// buffer : float or sequence of float, default 0.0
-    ///     Margin added on each side, one value or one per grid axis.
+    /// buffer : float, str or sequence of float or str, default 0.0
+    ///     Margin added on each side, one value or one per grid axis; text
+    ///     such as ``"50 m"`` is converted to the model's length unit.
     /// rotation : tuple of float, optional
     ///     Azimuth, dip and rake in degrees; the extents are measured along
     ///     the rotated grid axes.
@@ -1168,21 +1184,24 @@ impl PyBlockModel {
     ///     A regular model without attributes, with the fewest blocks along
     ///     each axis that hold every point.
     #[staticmethod]
-    #[pyo3(signature = (*objects, size, buffer=PerAxis::One(0.0), rotation=None, snap=Snap::Flag(false), crs=None, length_unit=None))]
+    #[pyo3(signature = (*objects, size, buffer=Buffer::One(crate::units::Quantity::Number(0.0)), rotation=None, snap=Snap::Flag(false), crs=None, length_unit=None))]
     fn from_extents(
         objects: &Bound<PyTuple>,
         size: Vec<Option<crate::units::Quantity>>,
-        buffer: PerAxis,
+        buffer: Buffer,
         rotation: Option<(f64, f64, f64)>,
         snap: Snap,
         crs: Option<String>,
         length_unit: Option<String>,
     ) -> PyResult<Self> {
+        let buffer = buffer.items();
         let split = size
             .iter()
-            .map(|s| s.as_ref().map(|q| q.split("size")).transpose())
+            .flatten()
+            .map(|q| q.split("size"))
+            .chain(buffer.iter().map(|q| q.split("buffer")))
             .collect::<PyResult<Vec<_>>>()?;
-        let text = split.iter().flatten().find_map(|(_, u)| u.clone());
+        let text = split.into_iter().find_map(|(_, u)| u);
         let length_unit = crate::table::length_unit(length_unit.or(text))?;
         let size = size
             .iter()
@@ -1201,14 +1220,18 @@ impl PyBlockModel {
             Snap::Flag(on) => [xy[0], xy[1], dz.unwrap_or(0.0)].map(|s| if on { s } else { 0.0 }),
             Snap::Step(step) => step.values("snap")?,
         };
+        let buffer = buffer
+            .iter()
+            .map(|q| q.to(length_unit.as_deref(), "buffer"))
+            .collect::<PyResult<Vec<_>>>()?;
+        let buffer = triple(buffer, 0.0, "buffer")?;
         let mut points = Vec::new();
         for object in objects.iter() {
             points.extend(extent_points(&object)?);
         }
         let rotation = rotation.map_or([0.0; 3], |r| [r.0, r.1, r.2]);
         let geometry =
-            Geometry::from_extents(&points, xy, dz, buffer.values("buffer")?, rotation, snap)
-                .map_err(core_error)?;
+            Geometry::from_extents(&points, xy, dz, buffer, rotation, snap).map_err(core_error)?;
         let mut model =
             BlockModel::regular(geometry, empty(geometry.cells() as usize)).map_err(core_error)?;
         model.crs = crs;

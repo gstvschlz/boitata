@@ -272,7 +272,7 @@ class BlockModel:
     def from_extents(
         *objects: PointSet | Drillholes | Mesh | Polylines | BlockModel | ArrayLike,
         size: Sequence[float | str | None],
-        buffer: float | Sequence[float] = 0.0,
+        buffer: float | str | Sequence[float | str] = 0.0,
         rotation: tuple[float, float, float] | None = None,
         snap: bool | float | Sequence[float] = False,
         crs: str | None = None,
