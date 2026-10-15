@@ -183,13 +183,24 @@ impl PyHighGrade {
 /// Neighborhood: `radius` is in meters along the major axis of the
 /// search ellipsoid (`rotation` azimuth, dip, rake and `ratios` semi/major,
 /// minor/major), or of the variogram's anisotropy when no ellipsoid is given.
+/// `ranges` `(major, semi, minor)` give the ellipsoid in meters instead of
+/// `radius` and `ratios`.
 /// `octant` takes at most `max_samples / 8` samples from each octant around
 /// the target, split along the ellipsoid's axes; with 2D data (one elevation)
 /// the sectors are the ellipse's four quadrants, `max_samples / 4` each.
 /// `sectors` instead splits the plane of the ellipsoid's major and
 /// semi-major axes into that many equal angles, the first starting at the
-/// major axis, and takes at most `max_per_sector` samples from each
-/// (`max_samples / sectors` rounded up by default).
+/// major axis. Either takes at most `max_per_sector` samples from each
+/// (`max_samples` over the number of sectors, rounded up, by default).
+/// `min_sectors` leaves a target unestimated by this pass unless that many
+/// octants or sectors hold a sample, and `max_empty_sectors` when more than
+/// that many in a row are empty: plane sectors in turn around the circle,
+/// octants around the ellipsoid's minor axis, the four above its major /
+/// semi-major plane apart from the four below (with 2D data the four
+/// quadrants, so `min_sectors` is at most 4). `min_holes` leaves it
+/// unestimated unless its samples come from that many drill holes (`holes`
+/// at fit; a sample without one counts as its own hole). Such targets go
+/// to the next pass, as those with fewer than `min_samples` do.
 /// `high_grade`, a HighGrade or `(threshold, radius)`, restricts samples
 /// above `threshold` to targets within `radius`, measured in the same
 /// ellipsoid unless the HighGrade has its own, in estimation and
@@ -205,7 +216,8 @@ impl PyHighGrade {
 /// estimators per target: each takes the fewest samples from `min_samples`
 /// whose slope of regression or kriging efficiency reaches it, and
 /// `max_samples` where none does. With `octant` the fewer samples are taken
-/// from the sectors in turn.
+/// from the sectors in turn. The sector and hole rules check the samples
+/// before calibration takes the fewer.
 #[derive(Serialize, Deserialize)]
 #[pyclass(module = "boitata", name = "Search", frozen, from_py_object)]
 #[derive(Clone)]
@@ -264,6 +276,47 @@ pub fn labels(obj: &Bound<PyAny>, n: Option<usize>) -> PyResult<Vec<Label>> {
 }
 
 impl Search {
+    fn checked(self) -> PyResult<Self> {
+        self.core.check().map_err(|e| invalid(e.to_string()))?;
+        Ok(self)
+    }
+
+    /// A copy with the radius scaled by `factor`, the sample counts given
+    /// and `min_holes`; plane sectors left at their default cap follow
+    /// `max_samples`.
+    fn varied(
+        &self,
+        factor: f64,
+        min_samples: Option<usize>,
+        max_samples: Option<usize>,
+        min_holes: Option<usize>,
+    ) -> PyResult<Self> {
+        if !(factor.is_finite() && factor > 0.0) {
+            return Err(invalid("factors must be finite and > 0"));
+        }
+        let core = &self.core;
+        let max = max_samples.unwrap_or(core.max_samples);
+        let sectors = core.sectors.map(|p| PlaneSectors {
+            max_per_sector: match p.max_per_sector == core.max_samples.div_ceil(p.count) {
+                true => max.div_ceil(p.count),
+                false => p.max_per_sector,
+            },
+            ..p
+        });
+        Self {
+            core: CoreSearch {
+                radius: core.radius * factor,
+                min_samples: min_samples.unwrap_or(core.min_samples),
+                max_samples: max,
+                sectors,
+                min_holes,
+                ..core.clone()
+            },
+            ..self.clone()
+        }
+        .checked()
+    }
+
     /// The parameters of a search that has no soft boundaries, for `what`.
     pub fn plain(self, what: &str) -> PyResult<CoreSearch> {
         self.uncalibrated(what)?;
@@ -370,10 +423,10 @@ impl Search {
     }
 
     #[new]
-    #[pyo3(signature = (radius, *, max_samples=16, min_samples=1, octant=false, sectors=None, max_per_sector=None, max_per_hole=None, rotation=None, ratios=None, high_grade=None, soft=None, target_slope=None, target_efficiency=None, length_unit=None))]
+    #[pyo3(signature = (radius=None, *, max_samples=16, min_samples=1, octant=false, sectors=None, max_per_sector=None, max_per_hole=None, rotation=None, ratios=None, ranges=None, min_sectors=None, max_empty_sectors=None, min_holes=None, high_grade=None, soft=None, target_slope=None, target_efficiency=None, length_unit=None))]
     #[allow(clippy::too_many_arguments)]
     fn new(
-        radius: &Bound<PyAny>,
+        radius: Option<&Bound<PyAny>>,
         max_samples: usize,
         min_samples: usize,
         octant: bool,
@@ -382,13 +435,33 @@ impl Search {
         max_per_hole: Option<usize>,
         rotation: Option<(f64, f64, f64)>,
         ratios: Option<(f64, f64)>,
+        ranges: Option<(f64, f64, f64)>,
+        min_sectors: Option<usize>,
+        max_empty_sectors: Option<usize>,
+        min_holes: Option<usize>,
         high_grade: Option<&Bound<PyAny>>,
         soft: Option<&Bound<PyAny>>,
         target_slope: Option<f64>,
         target_efficiency: Option<f64>,
         length_unit: Option<String>,
     ) -> PyResult<Self> {
-        let (radius, unit) = crate::units::given(radius, "radius")?;
+        let (radius, unit, ratios) = match (radius, ranges) {
+            (Some(_), Some(_)) => return Err(invalid("give radius or ranges, not both")),
+            (None, None) => return Err(invalid("give radius or ranges")),
+            (Some(r), None) => {
+                let (r, unit) = crate::units::given(r, "radius")?;
+                (r, unit, ratios)
+            }
+            (None, Some(_)) if ratios.is_some() => {
+                return Err(invalid("give ratios with radius, not with ranges"));
+            }
+            (None, Some((major, semi, minor))) => {
+                if !(major > 0.0 && semi > 0.0 && minor > 0.0) {
+                    return Err(invalid("ranges must be > 0"));
+                }
+                (major, None, Some((semi / major, minor / major)))
+            }
+        };
         let length_unit = crate::units::common_length([length_unit, unit])?;
         if let Some(u) = &length_unit {
             boitata_core::units::check_length(u).map_err(invalid)?;
@@ -410,14 +483,10 @@ impl Search {
             (None, None) => None,
         };
         let high_grade = high_grade.map(PyHighGrade::of).transpose()?;
-        if radius.is_nan() || radius <= 0.0 || max_samples == 0 || min_samples > max_samples {
-            return Err(invalid(
-                "need radius > 0 and 1 <= min_samples <= max_samples",
-            ));
+        if max_per_sector.is_some() && sectors.is_none() && !octant {
+            return Err(invalid("max_per_sector needs octant or sectors"));
         }
-        if max_per_sector.is_some() && sectors.is_none() {
-            return Err(invalid("max_per_sector needs sectors"));
-        }
+        let max_per_octant = max_per_sector.filter(|_| octant && sectors.is_none());
         let sectors = sectors.map(|count| PlaneSectors {
             count,
             max_per_sector: max_per_sector.unwrap_or(max_samples.div_ceil(count.max(1))),
@@ -442,13 +511,67 @@ impl Search {
                 high_grade,
                 soft: None,
                 calibration,
+                max_per_octant,
+                min_sectors,
+                max_empty_sectors,
+                min_holes,
             },
         };
-        search
-            .core
-            .check_sectors()
-            .map_err(|e| invalid(e.to_string()))?;
-        Ok(search)
+        search.checked()
+    }
+
+    /// Passes of one search with its ellipsoid widened pass by pass.
+    ///
+    /// Parameters
+    /// ----------
+    /// base : Search
+    ///     The first pass at factor 1; every pass keeps its other settings.
+    /// factors : sequence of float
+    ///     Multiplier of the radius (all three ranges) of each pass.
+    /// min_samples, max_samples : sequence of int, optional
+    ///     One per pass, in place of the base's.
+    ///
+    /// Returns
+    /// -------
+    /// list of Search
+    ///     The passes, for any estimator's `search`. Plane sectors left at their default
+    ///     `max_per_sector` follow each pass's `max_samples`; the high-grade and soft
+    ///     distances stay as they are.
+    ///
+    /// Examples
+    /// --------
+    /// >>> Search.passes(Search(ranges=(80, 40, 10)), (1, 2), max_samples=(16, 24))
+    #[staticmethod]
+    #[pyo3(signature = (base, factors=vec![1.0, 2.0, 3.0], *, min_samples=None, max_samples=None))]
+    fn passes(
+        base: &Search,
+        factors: Vec<f64>,
+        min_samples: Option<Vec<usize>>,
+        max_samples: Option<Vec<usize>>,
+    ) -> PyResult<Vec<Search>> {
+        if factors.is_empty() {
+            return Err(invalid("passes need at least one factor"));
+        }
+        for (given, what) in [(&min_samples, "min_samples"), (&max_samples, "max_samples")] {
+            if let Some(v) = given {
+                same_length(factors.len(), v.len(), what)?;
+            }
+        }
+        factors
+            .iter()
+            .enumerate()
+            .map(|(i, &f)| {
+                let max = max_samples.as_ref().map(|m| m[i]);
+                let min = min_samples.as_ref().map(|m| m[i]);
+                base.varied(f, min, max, base.core.min_holes)
+            })
+            .collect()
+    }
+
+    /// A copy with the ellipsoid scaled by `factor`, `max_samples` and
+    /// `min_holes` in place of its own; for calibrate_search.
+    fn _vary(&self, factor: f64, max_samples: usize, min_holes: Option<usize>) -> PyResult<Search> {
+        self.varied(factor, None, Some(max_samples), min_holes)
     }
 
     #[getter]
@@ -484,9 +607,37 @@ impl Search {
         self.core.sectors.map(|s| s.count)
     }
 
+    /// Cap per sector, or per octant when given with `octant`.
     #[getter]
     fn max_per_sector(&self) -> Option<usize> {
-        self.core.sectors.map(|s| s.max_per_sector)
+        self.core
+            .sectors
+            .map(|s| s.max_per_sector)
+            .or(self.core.max_per_octant)
+    }
+
+    #[getter]
+    fn min_sectors(&self) -> Option<usize> {
+        self.core.min_sectors
+    }
+
+    #[getter]
+    fn max_empty_sectors(&self) -> Option<usize> {
+        self.core.max_empty_sectors
+    }
+
+    #[getter]
+    fn min_holes(&self) -> Option<usize> {
+        self.core.min_holes
+    }
+
+    /// Ranges `(major, semi, minor)` of the search ellipsoid; None as for
+    /// `rotation`.
+    #[getter]
+    fn ranges(&self) -> Option<(f64, f64, f64)> {
+        let a = &self.core.anisotropy.as_ref()?.angles;
+        let r = self.core.radius;
+        Some((r, r * a.semi, r * a.minor))
     }
 
     #[getter]

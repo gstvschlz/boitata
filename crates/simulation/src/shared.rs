@@ -428,6 +428,9 @@ pub fn shared_unsupported(
     if search.iter().any(|s| s.soft.is_some()) {
         return Some("soft boundaries");
     }
+    if search.iter().any(|s| s.min_holes.is_some()) {
+        return Some("min_holes");
+    }
     None
 }
 
@@ -668,11 +671,19 @@ mod tests {
         );
         let soft = Search {
             soft: Some(estimation::Soft::All(3.0)),
-            ..plain
+            ..plain.clone()
         };
         assert_eq!(
             shared_unsupported(&[soft], false, false),
             Some("soft boundaries")
+        );
+        let holes = Search {
+            min_holes: Some(2),
+            ..plain
+        };
+        assert_eq!(
+            shared_unsupported(&[holes], false, false),
+            Some("min_holes")
         );
     }
 

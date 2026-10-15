@@ -250,6 +250,7 @@ mod tests {
                 high_grade: None,
                 soft: None,
                 calibration: None,
+                ..Default::default()
             },
             seed: 1,
         };
@@ -275,6 +276,7 @@ mod tests {
                 high_grade: None,
                 soft: None,
                 calibration: None,
+                ..Default::default()
             },
             seed: 5,
         };

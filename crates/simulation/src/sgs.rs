@@ -886,6 +886,7 @@ pub(crate) mod tests {
                 high_grade: None,
                 soft: None,
                 calibration: None,
+                ..Default::default()
             }],
             seed: 42,
         };
@@ -919,6 +920,7 @@ pub(crate) mod tests {
                 high_grade: None,
                 soft: None,
                 calibration: None,
+                ..Default::default()
             }],
             seed: 7,
         };
@@ -951,6 +953,7 @@ pub(crate) mod tests {
                 high_grade: None,
                 soft: None,
                 calibration: None,
+                ..Default::default()
             }],
             seed,
         };
@@ -1057,6 +1060,7 @@ pub(crate) mod tests {
                 high_grade: None,
                 soft: None,
                 calibration: None,
+                ..Default::default()
             }],
             seed: 4,
         };

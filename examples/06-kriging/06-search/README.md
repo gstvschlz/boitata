@@ -1,8 +1,9 @@
 # search
 
 the search decides which samples inform each node. it has an ellipse along the continuity, octants against clustering,
-passes that relax the search where the first finds too few samples, and a high-grade restriction on rich samples. the
-example kriges walker lake `V` by ordinary kriging and checks it against the exhaustive values.
+passes that relax the search where the first finds too few samples, sector rules against one-sided neighborhoods, and a
+high-grade restriction on rich samples. the example kriges walker lake `V` by ordinary kriging and checks it against
+the exhaustive values.
 
 <details><summary>Python</summary>
 
@@ -37,13 +38,14 @@ def rmse(estimate):
 
 ## ellipse and octants
 
-`radius` is the major semi-axis; `rotation` orients the ellipse like a variogram, and `ratios` shrink the other axes.
-`octant=True` takes at most `max_samples / 8` samples from each octant around the node, split along the axes of the
-ellipse, so a dense cluster on one side cannot fill the neighborhood. with 2D data the sectors are the ellipse's four
-quadrants, drawn below, with `max_samples / 4` each. `sectors=n` splits the plane of the major and semi-major axes
-into `n` equal angles instead, the first starting at the major axis, with `max_per_sector` samples each; it suits
-thin tabular bodies, where the octants above and below the plane stay empty. `with_search` keeps the fitted samples
-and the variogram and swaps the search.
+`radius` is the major semi-axis; `rotation` orients the ellipse like a variogram, and `ratios` shrink the other axes
+(`ranges=(major, semi, minor)` gives the three semi-axes in meters instead). `octant=True` takes at most
+`max_samples / 8` samples from each octant around the node, split along the axes of the ellipse, so a dense cluster on
+one side cannot fill the neighborhood. with 2D data the sectors are the ellipse's four quadrants, drawn below, with
+`max_samples / 4` each. `sectors=n` splits the plane of the major and semi-major axes into `n` equal angles instead,
+the first starting at the major axis, with `max_per_sector` samples each; it suits thin tabular bodies, where the
+octants above and below the plane stay empty. `with_search` keeps the fitted samples and the variogram and swaps the
+search.
 
 <details><summary>Python</summary>
 
@@ -129,6 +131,48 @@ RMSE of all nodes 155.1 ppm
 
 pass-1 nodes have the higher slope of regression and also the larger errors. the walker lake drilling is densest where
 `V` is high and variable, so the best-informed nodes are also the hardest ones.
+
+## sector rules
+
+octants cap each side of a node but still krige a node with samples on one side only. `min_sectors=3` leaves a node
+to the next pass unless three of its quadrants hold a sample, and `max_empty_sectors` unless at most that many
+sectors in a row are empty. plane sectors follow each other around the circle; octants go round the minor axis, the
+four above the major / semi-major plane apart from the four below. `max_per_sector` also caps each octant.
+
+<details><summary>Python</summary>
+
+```python
+rules = {
+    "3 of 4 quadrants": bt.Search(
+        radius=80, max_samples=24, min_samples=4, octant=True, min_sectors=3, **ellipse
+    ),
+    "8 sectors, 3 empty in a row": bt.Search(
+        radius=80, max_samples=24, min_samples=4, sectors=8, max_empty_sectors=3, **ellipse
+    ),
+}
+for name, first in rules.items():
+    r = kriging.with_search([first, search]).predict(grid, diagnostics=True)
+    for p in (1, 2):
+        s = r["pass"] == p
+        error = np.mean(r["value"][s] - true_at_nodes[s])
+        print(
+            f"{name:>27}, pass {p}: {s.mean():5.1%} of nodes, mean error {error:+4.0f} ppm,"
+            f" mean slope {np.mean(r['slope'][s]):.2f}"
+        )
+```
+
+</details>
+
+```text
+           3 of 4 quadrants, pass 1: 98.1% of nodes, mean error  +13 ppm, mean slope 0.96
+           3 of 4 quadrants, pass 2:  1.9% of nodes, mean error  +71 ppm, mean slope 0.79
+8 sectors, 3 empty in a row, pass 1: 97.8% of nodes, mean error  +11 ppm, mean slope 0.96
+8 sectors, 3 empty in a row, pass 2:  2.2% of nodes, mean error  +74 ppm, mean slope 0.79
+```
+
+both rules send about 2 % of the nodes, those with samples on one side, to the second pass. their estimates run over
+70 ppm high on average, against 11 to 13 ppm for the rest, with a lower slope of regression. the second pass still
+estimates them; without it they stay unestimated.
 
 ## high-grade restriction
 

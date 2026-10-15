@@ -284,6 +284,7 @@ mod tests {
             high_grade: None,
             soft: None,
             calibration: None,
+            ..Default::default()
         };
         let targets: Vec<_> = (0..400)
             .map(|i| ((i % 20) as f64 * 5.0, (i / 20) as f64 * 5.0, 0.0))
@@ -326,6 +327,7 @@ mod tests {
             high_grade: None,
             soft: None,
             calibration: None,
+            ..Default::default()
         };
         let ours = leave_one_out_many(&samples, &search, Some(&vg), |t, s| {
             krige(Kind::Ordinary, t, s, &vg)
@@ -436,6 +438,7 @@ mod tests {
             high_grade: None,
             soft: None,
             calibration: None,
+            ..Default::default()
         };
         let targets: Vec<_> = samples.iter().map(|s| s.loc).collect();
         let out = estimate_many(&targets, None, &samples, &search, Some(&vg), |t, s| {
