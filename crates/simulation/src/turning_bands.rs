@@ -964,7 +964,7 @@ pub fn turning_bands_in(
 /// kept): `mean`, `variance`, `p_above_<c>` and `mean_above_<c>` per cutoff,
 /// `q<p>` per quantile, and `realization_<k>` for each realization kept by
 /// `options.keep`. Memory is bounded by `rows` blocks plus the bands.
-/// Returns the global mean and share above each cutoff of every realization.
+/// Returns the global mean and share at or above each cutoff of every realization.
 /// `domains` are the codes of the data and of every block, in file order;
 /// `trend` is the trend at the data, its number of classes and the input
 /// column holding it at the blocks. Each block is simulated at
@@ -1173,7 +1173,7 @@ fn float_column(chunk: &boitata_core::BlockModel, name: &str) -> Result<Vec<f64>
 pub struct GlobalSummary {
     /// Mean of each realization over all blocks.
     pub realization_mean: Vec<f64>,
-    /// Share of blocks above each cutoff, `[cutoff][realization]`.
+    /// Share of blocks at or above each cutoff, `[cutoff][realization]`.
     pub realization_above: Vec<Vec<f64>>,
 }
 
