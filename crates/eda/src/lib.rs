@@ -8,6 +8,9 @@ use rayon::prelude::*;
 use thiserror::Error;
 pub use variogram::Direction;
 
+mod domains;
+pub use domains::{Clustering, Domains, domains, spatial_entropy, wcss};
+
 #[derive(Error, Debug)]
 pub enum EdaError {
     #[error("invalid input: {0}")]

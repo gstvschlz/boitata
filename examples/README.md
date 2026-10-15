@@ -127,6 +127,7 @@ Worked examples with the Python API on open datasets from [gstvschlz/datasets](h
 | 6 | [sequential indicator simulation](07-categories-and-domains/06-sis/README.md) | Jura | `Categories`, `experimental_variogram`, `Variogram`, `SIS`, `Search`, `plot.category_colors`, `plot.category_legend` |
 | 7 | [plurigaussian simulation](07-categories-and-domains/07-plurigaussian/README.md) | Jura | `Categories`, `Variogram`, `Plurigaussian`, `plot.category_colors`, `plot.category_legend`, `experimental_variogram` |
 | 8 | [grades in simulated rock types](07-categories-and-domains/08-grades-in-simulated-rocks/README.md) | Jura | `Categories`, `experimental_variogram`, `Variogram`, `SIS`, `Search`, `NormalScore`, `SGS` |
+| 9 | [ensemble domains](07-categories-and-domains/09-ensemble-domains/README.md) | Stacked sulphide lenses | `merge_intervals`, `Drillholes`, `Categories`, `domains`, `plot.slab` |
 
 ## stochastic simulation
 

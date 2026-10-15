@@ -2294,6 +2294,29 @@ def transition_matrix(
     scheme: Categories | None = None,
     data: Data | None = None,
 ) -> Table: ...
+
+class Domains:
+    @property
+    def labels(self) -> npt.NDArray[np.float64]: ...
+    @property
+    def scheme(self) -> Categories: ...
+    @property
+    def agreement(self) -> npt.NDArray[np.float64] | None: ...
+    @property
+    def wcss(self) -> float: ...
+    @property
+    def spatial_entropy(self) -> float: ...
+
+def domains(
+    data: PointSet | Drillholes,
+    columns: Sequence[Column],
+    k: int,
+    *,
+    method: Literal["consensus", "autocorrelation", "dual"] = "consensus",
+    neighbors: int = 16,
+    realizations: int = 100,
+    seed: int = 0,
+) -> Domains: ...
 def compare_models(
     model: BlockModel,
     columns: Sequence[Column] | Mapping[str, ArrayLike | Column],

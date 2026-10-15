@@ -116,6 +116,7 @@ find your question and follow the link. **learn** pages explain an idea from scr
 | question | read |
 | --- | --- |
 | how do i name and color rock codes? | [categories](../examples/07-categories-and-domains/01-categories/example_07_01.md) |
+| can the grades suggest domains on their own? | [ensemble domains](../examples/07-categories-and-domains/09-ensemble-domains/example_07_09.md) |
 | how much did my domains change between two models? | [domain change tables](../examples/07-categories-and-domains/02-domain-change-tables/example_07_02.md) |
 | what proportion of each rock type is in each block? | [local proportions](../examples/07-categories-and-domains/04-local-proportions/example_07_04.md), [categorical indicator kriging](../examples/07-categories-and-domains/05-categorical-indicator-kriging/example_07_05.md) |
 | i need possible layouts of the rock types. | [sequential indicator simulation](../examples/07-categories-and-domains/06-sis/example_07_06.md), [plurigaussian simulation](../examples/07-categories-and-domains/07-plurigaussian/example_07_07.md), [grades in simulated rock types](../examples/07-categories-and-domains/08-grades-in-simulated-rocks/example_07_08.md) |

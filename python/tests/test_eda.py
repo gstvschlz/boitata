@@ -467,3 +467,62 @@ def test_required_spacing_interpolates_a_linear_curve():
         assert bt.required_spacing(curve, threshold=0.3) == 30.0
     with pytest.raises(bt.InvalidInput):
         bt.required_spacing(curve, column="P50")
+
+
+def planted_domains():
+    r = np.random.default_rng(3)
+    x, y = np.meshgrid(np.arange(1.0, 120.0, 2.0), np.arange(1.0, 80.0, 2.0))
+    x, y = x.ravel(), y.ravel()
+    truth = (x + 10 * np.sin(y / 15) > 60).astype(float)
+    columns = {"a": 1.5 * truth + r.normal(size=x.size), "b": -1.5 * truth + r.normal(size=x.size)}
+    return bt.PointSet(np.c_[x, y], {**columns, "c": r.normal(size=x.size)}), truth
+
+
+@pytest.mark.parametrize("method", ["consensus", "autocorrelation", "dual"])
+def test_domains_recover_planted_regions(method):
+    points, truth = planted_domains()
+    d = bt.domains(points, ["a", "b", "c"], 2, method=method, realizations=40, seed=1)
+    assert np.mean(d.labels == truth) >= 0.95
+    assert d.scheme.names == ["D1", "D2"] and 0 <= d.spatial_entropy < 0.3 and 0 < d.wcss < 3
+    assert (d.agreement is None) == (method == "autocorrelation")
+    again = bt.domains(points, ["a", "b", "c"], 2, method=method, realizations=40, seed=1)
+    np.testing.assert_array_equal(again.labels, d.labels)
+    by = bt.describe_by("a", d.scheme.decode(d.labels), data=points)
+    assert list(by["category"]) == ["D1", "D2", "all"] and by["mean"][0] < by["mean"][1]
+    names = d.scheme.decode(d.labels)
+    report = bt.capping_report("a", {"D1": 3.0, "D2": 4.0}, domains=names, data=points)
+    assert list(report["domain"])[:2] == ["D1", "D2"]
+
+
+def test_domains_skip_nan_and_take_drillholes():
+    points, truth = planted_domains()
+    a = points["a"].copy()
+    a[7] = np.nan
+    d = bt.domains(points.with_column("a", a), ["a", "b"], 2, realizations=10)
+    assert np.isnan(d.labels[7]) and np.isnan(d.agreement[7]) and np.isfinite(np.delete(d.labels, 7)).all()
+    assert d.scheme.decode(d.labels)[7] is None
+
+    x, y = points.x[::37], points.y[::37]
+    ids = np.arange(x.size, dtype=float)
+    collars = {"HOLE_ID": ids, "X": x, "Y": y, "Z": np.zeros_like(x)}
+    surveys = {"HOLE_ID": ids, "DEPTH": 0 * x, "AZIMUTH": 0 * x, "DIP": 90 + 0 * x}
+    depth = np.tile(np.arange(20.0), x.size)
+    shift = np.repeat(truth[::37], 20)
+    rows = np.random.default_rng(4).normal(size=(2, depth.size))
+    intervals = {
+        "HOLE_ID": np.repeat(ids, 20),
+        "FROM": depth,
+        "TO": depth + 1,
+        "a": 1.5 * shift + rows[0],
+        "b": -1.5 * shift + rows[1],
+    }
+    holes = bt.Drillholes(collars, surveys, intervals)
+    on_holes = bt.domains(holes, ["a", "b"], 2, realizations=20)
+    assert np.mean(on_holes.labels == shift) >= 0.95
+
+    with pytest.raises(bt.InvalidInput):
+        bt.domains(points, ["a"], 2, method="ward")
+    with pytest.raises(bt.InvalidInput):
+        bt.domains(points, ["a"], 0)
+    with pytest.raises(bt.MissingColumn):
+        bt.domains(points, ["nope"], 2)
