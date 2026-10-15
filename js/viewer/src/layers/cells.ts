@@ -5,7 +5,8 @@ import { buildVolumeTexture } from "../contour";
 import { ALL_SIDES, cellCount, exposedSides, type Grid, HIDDEN, MAX_CELLS, SOLID, WHOLE } from "../faces";
 import { filterArray, type LayerFilter, passMask, writeFilter } from "../filter";
 import { stratifiedOrder, subsetCount } from "../motion";
-import { colorAt, kept, type Paint } from "../paint";
+import { colorAt, kept, mergeCounts, mergedColor, type Paint } from "../paint";
+import { cameraPixels, LOD_MIN, lodItems, octree, viewKey } from "../lod";
 import { pickArray } from "../pick";
 import { boxInSlab, type Section } from "../section";
 import { boxEdgeMaterial, depthMaterial, setOpacity, shadedMaterial } from "../shaders";
@@ -132,6 +133,39 @@ function setMatrix(b: Blocks, i: number, m: Float32Array, j: number): void {
   m[o + 15] = 1;
 }
 
+/**
+ * Writes at instance j the box along the model's axes around the kept blocks of `order[from:to]`; returns the
+ * first of them, which a click on the box picks.
+ */
+function mergedMatrix(b: Blocks, order: Uint32Array, from: number, to: number, use: Uint8Array, m: Float32Array, j: number): number {
+  const lo = [Infinity, Infinity, Infinity];
+  const hi = [-Infinity, -Infinity, -Infinity];
+  let first = -1;
+  for (let p = to - 1; p >= from; p--) {
+    const i = order[p];
+    if (!use[i]) continue;
+    first = i;
+    for (let k = 0; k < 3; k++) {
+      const ax = b.axes[k];
+      const along = ax[0] * b.centers[3 * i] + ax[1] * b.centers[3 * i + 1] + ax[2] * b.centers[3 * i + 2];
+      const half = b.sizes[3 * i + k] / 2;
+      lo[k] = Math.min(lo[k], along - half);
+      hi[k] = Math.max(hi[k], along + half);
+    }
+  }
+  const o = 16 * j;
+  m.fill(0, o, o + 16);
+  for (let k = 0; k < 3; k++) {
+    const mid = (lo[k] + hi[k]) / 2;
+    for (let a = 0; a < 3; a++) {
+      m[o + 4 * k + a] = b.axes[k][a] * (hi[k] - lo[k]);
+      m[o + 12 + a] += b.axes[k][a] * mid;
+    }
+  }
+  m[o + 15] = 1;
+  return first;
+}
+
 /** A unit box whose vertices name their side, in `ALL_SIDES` bit order, with room for each instance's sides. */
 function boxGeometry(n: number): THREE.BoxGeometry {
   const g = new THREE.BoxGeometry(1, 1, 1);
@@ -183,39 +217,70 @@ export function cells(layer: LayerSpec, buffers: Buffers, filter: LayerFilter): 
   let drawn = 0;
   let fraction = 1;
   let painted: Paint | null = null;
+  let sides: Uint8Array = new Uint8Array(0);
+  let counts: Int32Array = new Int32Array(0);
+  const tree = b.n >= LOD_MIN ? octree(b.centers, b.n) : null;
+  let view: { camera: THREE.PerspectiveCamera; height: number } | null = null;
+  let seen = "";
   shell.setWhole(layer.opacity < 1);
 
-  const fill = (paint: Paint) => {
-    const sides = shell.sides(paint);
+  /**
+   * Writes the blocks that draw. Far from the camera, the drawn blocks of an octree cell too small on screen draw
+   * as one box around them, with all its sides, in the color of their mean value or most frequent category.
+   */
+  const emit = () => {
+    const paint = painted!;
     const m = mesh.instanceMatrix.array as Float32Array;
     const c = colors!.array as Uint8Array;
     const f = filterArray(mesh.geometry, b.n, filter.slots, true);
     const rows = pickArray(mesh.geometry, b.n, true);
     const shown = sidesArray(mesh.geometry);
     let j = 0;
-    for (const i of b.order) {
-      if (!sides[i]) continue;
-      setMatrix(b, i, m, j);
-      colorAt(paint, i, c, 3 * j);
+    const put = (i: number, s: number) => {
       rows[j] = i;
-      shown[j] = sides[i];
+      shown[j] = s;
       if (f) writeFilter(filter.slots, f, 4 * j, () => i);
       j++;
-    }
+    };
+    if (tree && view) {
+      const items = lodItems(tree, sides, cameraPixels(view.camera, view.height));
+      for (let k = 0; k < items.count; k++) {
+        const [s, e] = [items.from[items.ranks[k]], items.to[items.ranks[k]]];
+        if (e - s === 1) {
+          const i = tree.order[s];
+          setMatrix(b, i, m, j);
+          colorAt(paint, i, c, 3 * j);
+          put(i, sides[i]);
+          continue;
+        }
+        mergedColor(paint, tree.order, s, e, sides, c, 3 * j, counts);
+        put(mergedMatrix(b, tree.order, s, e, sides, m, j), ALL_SIDES);
+      }
+      seen = viewKey(view.camera, view.height);
+    } else
+      for (const i of b.order) {
+        if (!sides[i]) continue;
+        setMatrix(b, i, m, j);
+        colorAt(paint, i, c, 3 * j);
+        put(i, sides[i]);
+      }
     drawn = j;
     mesh.count = subsetCount(drawn, fraction);
     mesh.instanceMatrix.needsUpdate = true;
     colors!.needsUpdate = true;
+  };
+  const fill = (paint: Paint) => {
+    painted = paint;
+    sides = shell.sides(paint);
+    counts = mergeCounts(paint);
+    emit();
   };
 
   return {
     object: mesh,
     box: b.box,
     instances: b.n,
-    paint(paint: Paint) {
-      painted = paint;
-      fill(paint);
-    },
+    paint: fill,
     setOpacity(opacity) {
       setOpacity(material, opacity);
       shell.setWhole(opacity < 1);
@@ -226,8 +291,11 @@ export function cells(layer: LayerSpec, buffers: Buffers, filter: LayerFilter): 
     },
     section: (s, unfolded) => shell.section(s, unfolded),
     filtered: () => shell.filtered(),
-    frame() {
-      if (shell.dirty && painted) fill(painted);
+    frame(_w, height, camera, moving) {
+      if (!painted) return;
+      if (tree) view = { camera, height };
+      if (shell.dirty) fill(painted);
+      else if (tree && !moving && seen !== viewKey(camera, height)) emit();
     },
     dispose() {
       mesh.geometry.dispose();
