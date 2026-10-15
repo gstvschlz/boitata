@@ -520,6 +520,15 @@ def test_remaining_parameters_take_text_with_units():
     assert model.length_unit == "ft"
     in_metres = bt.BlockModel.from_extents(data, size=(f"{10 * FT} m", 10 * FT), length_unit="m")
     np.testing.assert_allclose(in_metres.size[:2], [10 * FT, 10 * FT])
+    plain = bt.BlockModel.from_extents(data, size=(5, 5, 5), buffer=(50, 50, 10 * FT), length_unit="m")
+    buffered = bt.BlockModel.from_extents(data, size=(5, 5, 5), buffer=["50 m", "50 m", "10 ft"])
+    assert buffered.length_unit == "m"
+    np.testing.assert_allclose(buffered.origin, plain.origin)
+    np.testing.assert_array_equal(buffered.count, plain.count)
+    assert bt.BlockModel.from_extents(data, size=(5, 5), buffer="10 ft").length_unit == "ft"
+    for bad in ("50 kg", "50 parsecs-ish"):
+        with pytest.raises(bt.InvalidInput, match="buffer"):
+            bt.BlockModel.from_extents(data, size=(5, 5), buffer=bad, length_unit="m")
     mik = bt.MultipleIndicatorKriging(variogram, search, [0.8, 1.5]).fit(samples, "au")
     np.testing.assert_array_equal(
         mik.predict(grid, cutoffs=["1000 ppb"]).probability_above,

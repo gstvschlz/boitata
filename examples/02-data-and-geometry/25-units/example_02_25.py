@@ -91,7 +91,7 @@ holes = bt.Drillholes(
 )
 composites = holes.composite(2.0, ["ZN_PCT"])
 grid = bt.BlockModel.from_extents(
-    data["lens_1"], size=(10, 10, 5), buffer=20, rotation=(22.5, 0.0, 55.0), length_unit="m"
+    data["lens_1"], size=(10, 10, 5), buffer="20 m", rotation=(22.5, 0.0, 55.0), length_unit="m"
 )
 kriging = bt.OrdinaryKriging(bt.Variogram([("spherical", 1.0, 60.0)]), bt.Search(radius=60, max_samples=12))
 estimate, variance = kriging.fit(composites, "ZN_PCT").predict(grid, return_variance=True)
