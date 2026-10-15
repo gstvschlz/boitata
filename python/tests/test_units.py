@@ -284,6 +284,11 @@ def test_containers_in_different_crs_do_not_meet():
     with pytest.raises(bt.InvalidInput, match="another object"):
         bt.BlockModel.from_extents(data, square, size=(10, 10, 1))
     assert bt.BlockModel.from_extents(data, grid, size=(10, 10, 1)).crs == "EPSG:31982"
+    collar = {"HOLE_ID": ["A"], "X": [10.0], "Y": [10.0], "Z": [5.0]}
+    survey = {"HOLE_ID": ["A"], "DEPTH": [0.0], "AZIMUTH": [0.0], "DIP": [90.0]}
+    holes = bt.LocalGrid(crs="EPSG:31982").apply(bt.Drillholes(collar, survey))
+    with pytest.raises(bt.InvalidInput, match="drill holes are in CRS EPSG:31982 and the surface"):
+        bt.snap_to_surface(holes, square)
 
 
 def test_drillholes_carry_their_length_unit():

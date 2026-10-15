@@ -107,12 +107,20 @@ impl LocalGrid {
     /// [`LocalGrid::apply`] or foreign ones to [`LocalGrid::inverse`].
     pub fn check(&self, crs: Option<&str>, forward: bool) -> Result<()> {
         match (crs, self.crs.as_deref()) {
-            (Some(c), Some(own)) if forward && c == own => Err(Error::Geometry(format!(
-                "the coordinates are already in {own}"
-            ))),
-            (Some(c), Some(own)) if !forward && c != own => Err(Error::Geometry(format!(
-                "the coordinates are in {c}, not {own}"
-            ))),
+            (Some(c), Some(own))
+                if forward && crate::crs::crs_key(c) == crate::crs::crs_key(own) =>
+            {
+                Err(Error::Geometry(format!(
+                    "the coordinates are already in {own}"
+                )))
+            }
+            (Some(c), Some(own))
+                if !forward && crate::crs::crs_key(c) != crate::crs::crs_key(own) =>
+            {
+                Err(Error::Geometry(format!(
+                    "the coordinates are in {c}, not {own}"
+                )))
+            }
             _ => Ok(()),
         }
     }
