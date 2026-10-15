@@ -1,3 +1,4 @@
+import itertools
 import math
 import sys
 
@@ -193,11 +194,20 @@ def test_mesh_files_round_trip(tmp_path):
     graded = tetra.with_vertex_column("grade", [1.5, np.nan, 3.0, 4.0]).with_face_column(
         "domain", [1, 2, 2, 3]
     )
-    for ascii in (False, True):
-        bt.write_mesh(tmp_path / "g.ply", graded, ascii=ascii)
-        back = bt.read_mesh(tmp_path / "g.ply")
+    for name, ascii in itertools.product(("g.ply", "g.msh"), (False, True)):
+        bt.write_mesh(tmp_path / name, graded, ascii=ascii)
+        back = bt.read_mesh(tmp_path / name)
+        np.testing.assert_array_equal(back.coords[back.triangles], tetra.coords[tetra.triangles])
         np.testing.assert_array_equal(back.vertex_attributes["grade"], [1.5, np.nan, 3.0, 4.0])
         np.testing.assert_array_equal(back.face_attributes["domain"], [1, 2, 2, 3])
+    grouped = tetra.with_face_column("physical", ["lid", "side", "side", "lid"])
+    bt.write_mesh(tmp_path / "p.msh", grouped)
+    assert list(bt.read_mesh(tmp_path / "p.msh").face_attributes["physical"]) == [
+        "lid",
+        "side",
+        "side",
+        "lid",
+    ]
     with pytest.raises(bt.InvalidInput):
         bt.write_mesh(tmp_path / "m.vtk", tetra)
     with pytest.raises(bt.FileError):

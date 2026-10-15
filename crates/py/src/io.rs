@@ -185,14 +185,18 @@ fn read_parquet(
     })
 }
 
-/// Reads a `.obj`, `.stl`, `.dxf`, `.ply` or `.off` mesh.
+/// Reads a `.obj`, `.stl`, `.dxf`, `.ply`, `.off` or `.msh` mesh.
 ///
 /// Parameters
 /// ----------
 /// path : str or Path
 ///     The file. OBJ `g` groups become a face column `group` when the file
 ///     has any. PLY (ASCII or binary) vertex and face properties other than
-///     positions and vertex indices become float columns, NaN as null. DXF reads `3DFACE`, polyface `POLYLINE` and `MESH` (level-0
+///     positions and vertex indices become float columns, NaN as null. Gmsh
+///     MSH (4.1 ASCII or binary, 2.2 ASCII) reads triangles and quadrangles,
+///     physical groups as a face column `physical` and node and element data
+///     as float columns, one per component, null where the data has no
+///     value. DXF reads `3DFACE`, polyface `POLYLINE` and `MESH` (level-0
 ///     cage, ASCII files only) entities as triangles with a face column
 ///     `layer`; `MESH` faces come last.
 ///
@@ -209,7 +213,8 @@ fn read_mesh(py: Python, path: PathBuf, length_unit: Option<String>) -> PyResult
     Ok(Mesh::from_core(mesh))
 }
 
-/// Writes a `.obj`, `.stl`, `.ply`, `.off` or ASCII R2000 `.dxf` mesh.
+/// Writes a `.obj`, `.stl`, `.ply`, `.off`, Gmsh 4.1 `.msh` or ASCII R2000
+/// `.dxf` mesh.
 ///
 /// Parameters
 /// ----------
@@ -217,10 +222,12 @@ fn read_mesh(py: Python, path: PathBuf, length_unit: Option<String>) -> PyResult
 ///     The file; its extension picks the format.
 /// mesh : Mesh
 ///     The mesh. OBJ writes the face column `group` as `g` lines; PLY writes
-///     numeric vertex and face columns as properties, nulls as NaN; DXF puts
-///     faces on the layer named by the face column `layer`, else `0`.
+///     numeric vertex and face columns as properties, nulls as NaN; MSH
+///     writes them as node and element data, nulls left out, and the face
+///     column `physical` as physical groups; DXF puts faces on the layer
+///     named by the face column `layer`, else `0`.
 /// ascii : bool, default False
-///     Write ASCII instead of binary STL or PLY.
+///     Write ASCII instead of binary STL, PLY or MSH.
 /// dxf_entity : {"3dface", "polyface"}, default "3dface"
 ///     One `3DFACE` per triangle, or one polyface `POLYLINE` with shared
 ///     vertices per layer, split past 32767 vertices or faces.
