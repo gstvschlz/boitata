@@ -36,6 +36,8 @@ export interface LayerSpec {
   /** Buffer keys of the geometry, by role (positions, triangles, rows, midpoints, centers, sizes). */
   geometry: Record<string, string>;
   axes?: number[][];
+  /** Blocks of a regular grid: cells per axis; the `cells` geometry buffer holds each row's cell. */
+  grid?: [number, number, number] | null;
   /** Drill holes: the column naming the hole and the interval columns; the depths of each row are in `depths`. */
   holes?: { hole: string; from: string | null; to: string | null };
   columns: ColumnSpec[];

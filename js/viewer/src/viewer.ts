@@ -512,7 +512,8 @@ export class Viewer {
 
   /** Writes this viewer's state into the uniforms its materials share with any other viewer on the page. */
   private shareUniforms(): void {
-    writeSection(this.drawing ? null : this.cutSection, !!this.cut?.unfolded);
+    const section = this.drawing ? null : this.cutSection;
+    writeSection(section, !!this.cut?.unfolded);
     shared.uAccent.value.set(this.theme.accent);
     for (const m of [this.outlineLines, this.outlineEdges, this.highlightLines, this.highlightRim, this.highlightOver])
       m.resolution.set(this.width, this.height);
@@ -521,7 +522,11 @@ export class Viewer {
     shared.uPixelRatio.value = this.pixelRatio;
     shared.uResolution.value.set(this.width, this.height);
     shared.uSurfaceBias.value = this.surfaceBias;
-    for (const layer of this.layers) layer.rep.frame?.(this.width, this.height);
+    this.camera.updateMatrixWorld();
+    for (const layer of this.layers) {
+      layer.rep.section?.(section, !!this.cut?.unfolded);
+      layer.rep.frame?.(this.width, this.height, this.camera, this.settle.moving);
+    }
   }
 
   private resize(): void {
@@ -712,6 +717,7 @@ export class Viewer {
   private filterEdited(layer: Layer): void {
     this.dismiss();
     layer.filter.update();
+    layer.rep.filtered?.();
     this.requestRender();
     this.dirty.add(layer);
     clearTimeout(this.measureTimer);

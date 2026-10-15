@@ -87,6 +87,22 @@ def test_masked_and_regular_models_match_corners():
     np.testing.assert_allclose(corners_from_payload(Scene().add(masked)), masked.corners, atol=1e-4)
 
 
+def test_regular_and_masked_models_ship_their_grid_cells_and_sub_blocks_do_not():
+    model = bt.BlockModel((0.0, 0.0, 0.0), (5.0, 5.0, 2.0), (4, 3, 2), rotation=(45.0, 0.0, 0.0))
+    masked = model.filter(np.arange(24) % 3 == 0)
+    for data in (model, masked):
+        scene = Scene().add(data)
+        layer = scene._spec()["layers"][0]
+        assert layer["grid"] == [4, 3, 2]
+        cells = buffer(scene, layer["geometry"]["cells"], np.uint32)
+        np.testing.assert_array_equal(cells, data.row_at(data.coords) if data is model else data.index)
+        np.testing.assert_array_equal(model.row_at(data.coords), cells)
+    sub = bt.BlockModel.subblocked(
+        (0.0, 0.0, 0.0), (1.0, 1.0, 1.0), (2, 1, 1), np.array([0], dtype=np.uint64), [[0, 0, 0, 0.5, 1, 1]]
+    )
+    assert "grid" not in Scene().add(sub)._spec()["layers"][0]
+
+
 def test_drill_hole_intervals_follow_the_trace_through_survey_stations():
     collar = {"HOLE_ID": ["A"], "X": [0.0], "Y": [0.0], "Z": [100.0]}
     survey = {

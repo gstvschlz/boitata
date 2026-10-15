@@ -37,7 +37,22 @@ export interface Cut {
   bias?: boolean;
   /** Blend antialiased isolines of a sampled 3D texture into the section's cap face, in the theme accent. */
   contour?: boolean;
+  /** Draw only the box sides set in each instance's `aSides` bits, `aSide` naming each vertex's side. */
+  sides?: boolean;
 }
+
+/** Vertex-shader declarations and the test that collapses a box side its instance does not draw. */
+const SIDES_VERTEX = /* glsl */ `
+#ifdef BOX_SIDES
+attribute float aSide;
+attribute float aSides;
+#endif
+`;
+const SIDES_TEST = /* glsl */ `
+#ifdef BOX_SIDES
+if (((int(aSides + 0.5) >> int(aSide + 0.5)) & 1) == 0) ${COLLAPSE}
+#endif
+`;
 
 /**
  * Headlight shading: a face square to the light keeps its exact color, so a block seen in plan shows its LUT entry.
@@ -76,6 +91,7 @@ export function shadedMaterial(instanced: boolean, opacity: number, filter: Filt
       ...(cut.outline ? { SECTION_OUTLINE: "" } : {}),
       ...(cut.bias ? { SURFACE_BIAS: "" } : {}),
       ...(cut.contour ? { SECTION_CONTOUR: "" } : {}),
+      ...(cut.sides ? { BOX_SIDES: "" } : {}),
     },
     vertexShader: /* glsl */ `
       ${FILTER_GLSL}
@@ -83,6 +99,7 @@ export function shadedMaterial(instanced: boolean, opacity: number, filter: Filt
       ${PICK_VERTEX}
       uniform float uSurfaceBias;
       attribute vec4 aFilter;
+      ${SIDES_VERTEX}
       varying vec3 vColor;
       varying vec3 vNormal;
       varying float vPass;
@@ -124,6 +141,7 @@ export function shadedMaterial(instanced: boolean, opacity: number, filter: Filt
         #ifdef SECTION_WHOLE
           if (!sectionKeep(vRef)) ${COLLAPSE}
         #endif
+        ${SIDES_TEST}
       }`,
     fragmentShader: /* glsl */ `
       ${SECTION_GLSL}
@@ -357,9 +375,10 @@ export function boxEdgeMaterial(axes: number[][], width: number, opacity: number
  * Instanced boxes that only write depth, so an opaque wireframe hides the edges behind it; filtered like the edges.
  * The id pass lets them write color, so a click on a face picks its block.
  */
-export function depthMaterial(filter: FilterUniforms): THREE.ShaderMaterial {
+export function depthMaterial(filter: FilterUniforms, sides = false): THREE.ShaderMaterial {
   const material = new THREE.ShaderMaterial({
     uniforms: { ...filter, ...sectionUniforms, uPicking: shared.uPicking },
+    defines: sides ? { BOX_SIDES: "" } : {},
     colorWrite: false,
     polygonOffset: true,
     polygonOffsetFactor: 1,
@@ -369,6 +388,7 @@ export function depthMaterial(filter: FilterUniforms): THREE.ShaderMaterial {
       ${SECTION_GLSL}
       ${PICK_VERTEX}
       attribute vec4 aFilter;
+      ${SIDES_VERTEX}
       varying vec3 vWorld;
       void main() {
         ${PICK_PASS}
@@ -376,6 +396,7 @@ export function depthMaterial(filter: FilterUniforms): THREE.ShaderMaterial {
         vWorld = (m * vec4(position, 1.0)).xyz;
         gl_Position = projectionMatrix * viewMatrix * vec4(sectionPlace(vWorld, m[3].xyz), 1.0);
         if (!filterPass(aFilter)) ${COLLAPSE}
+        ${SIDES_TEST}
       }`,
     fragmentShader: /* glsl */ `
       ${SECTION_GLSL}

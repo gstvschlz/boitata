@@ -711,6 +711,13 @@ class Scene:
         layer["filter"] = _filter(layer, {} if filter is None else filter)
         if kind == "blocks":
             layer["axes"] = _block_axes(data).tolist()
+            if data.extents is None and math.prod(data.count) < 2**32:
+                index = data.index
+                key = f"{layer_id}/cells"
+                buffers[key] = np.arange(len(data)) if index is None else index
+                buffers[key] = buffers[key].astype(np.uint32)
+                refs["cells"] = key
+                layer["grid"] = [int(n) for n in data.count]
         if contour_step is not None:
             if data.extents is not None:
                 raise ValueError(

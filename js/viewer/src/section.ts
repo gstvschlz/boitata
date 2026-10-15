@@ -94,6 +94,30 @@ export function inSlab(s: Section, p: Vec3): boolean {
   return s.segments.some((g) => side(g.start, p) >= 0 && side(g.end, p) >= 0 && Math.abs(side(g.slab, p)) <= s.half);
 }
 
+/**
+ * Where a box (`size` along each of the unit `axes` around `center`) lies against the slab: 0 wholly outside
+ * every segment's stretch, 2 wholly inside one, 1 across a face. Conservative: a box called outside is outside.
+ */
+export function boxInSlab(s: Section, center: Vec3, axes: Vec3[], size: Vec3): 0 | 1 | 2 {
+  let out: 0 | 1 | 2 = 0;
+  for (const g of s.segments) {
+    const [a, b, c, d] = g.slab;
+    const planes: Plane[] = [g.start, g.end, [-a, -b, -c, s.half - d], [a, b, c, d + s.half]];
+    let inside = true;
+    let outside = false;
+    for (const q of planes) {
+      const at = side(q, center);
+      let r = 0;
+      for (let k = 0; k < 3; k++) r += (Math.abs(q[0] * axes[k][0] + q[1] * axes[k][1] + q[2] * axes[k][2]) * size[k]) / 2;
+      if (at + r < 0) outside = true;
+      if (at - r < 0) inside = false;
+    }
+    if (inside) return 2;
+    if (!outside) out = 1;
+  }
+  return out;
+}
+
 /** Index of the segment whose stretch holds a point: the first one whose end it has not passed. */
 export function segmentOf(s: Section, p: Vec3): number {
   const last = s.segments.length - 1;
