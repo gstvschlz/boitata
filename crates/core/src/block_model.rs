@@ -230,6 +230,13 @@ impl BlockModel {
         Ok(out)
     }
 
+    pub(crate) fn with_geometry(&self, geometry: Geometry) -> Result<Self> {
+        geometry.validate()?;
+        let mut out = self.clone();
+        out.geometry = geometry;
+        Ok(out)
+    }
+
     pub fn regular(geometry: Geometry, attributes: RecordBatch) -> Result<Self> {
         geometry.validate()?;
         check_rows(rows(geometry.cells())?, &attributes)?;

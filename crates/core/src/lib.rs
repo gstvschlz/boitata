@@ -3,6 +3,7 @@
 mod block_model;
 mod categories;
 mod error;
+mod local_grid;
 mod mesh;
 pub mod nonfinite;
 mod points;
@@ -15,6 +16,7 @@ pub use arrow_array::RecordBatch;
 pub use block_model::{BlockModel, Geometry, Layout};
 pub use categories::Categories;
 pub use error::{Error, Result};
+pub use local_grid::LocalGrid;
 pub use mesh::{Mesh, MeshProblem, MeshProblemKind, MeshReport, MeshSummary, signed_solid_angle};
 pub use points::PointSet;
 pub use polylines::Polylines;

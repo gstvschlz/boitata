@@ -515,6 +515,12 @@ impl Mesh {
         Ok(out)
     }
 
+    pub(crate) fn map_coords(&self, f: impl Fn([f64; 3]) -> [f64; 3]) -> Self {
+        let mut out = self.clone();
+        out.vertices.iter_mut().for_each(|q| *q = f(*q));
+        out
+    }
+
     /// Checks that vertices are finite and triangles index them.
     pub fn new(vertices: Vec<[f64; 3]>, triangles: Vec<[u32; 3]>) -> Result<Self> {
         if vertices.iter().flatten().any(|v| !v.is_finite()) {

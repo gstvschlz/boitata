@@ -31,6 +31,12 @@ impl PointSet {
         Ok(out)
     }
 
+    pub(crate) fn map_coords(&self, f: impl Fn([f64; 3]) -> [f64; 3]) -> Self {
+        let mut out = self.clone();
+        out.coords.iter_mut().for_each(|q| *q = f(*q));
+        out
+    }
+
     pub fn new(coords: Vec<[f64; 3]>, attributes: RecordBatch) -> Result<Self> {
         check_rows(coords.len(), &attributes)?;
         Ok(Self {

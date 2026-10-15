@@ -121,6 +121,12 @@ impl Polylines {
         Ok(out)
     }
 
+    pub(crate) fn map_coords(&self, f: impl Fn([f64; 3]) -> [f64; 3]) -> Self {
+        let mut out = self.clone();
+        out.vertices.iter_mut().for_each(|q| *q = f(*q));
+        out
+    }
+
     /// `parts` offsets into `vertices` (one more than the parts), `features`
     /// offsets into the parts (one more than the features), `closed` one flag
     /// per part and `attributes` one row per feature.

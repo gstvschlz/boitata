@@ -14,6 +14,7 @@ mod eda;
 mod estimation;
 mod indicator;
 mod io;
+mod local_grid;
 mod lva;
 mod modeling;
 mod multigaussian;
@@ -58,6 +59,7 @@ fn _boitata(m: &Bound<PyModule>) -> PyResult<()> {
     drillholes::register(m)?;
     coda::register(m)?;
     blocks::register(m)?;
+    m.add_class::<local_grid::LocalGrid>()?;
     lva::register(m)?;
     modeling::register(m)?;
     simulation::register(m)?;
