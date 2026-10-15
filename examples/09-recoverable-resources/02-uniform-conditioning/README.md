@@ -71,8 +71,8 @@ uc_tonnage, uc_grade = curves["tonnage"] / panels.volumes.sum(), curves["mean_gr
 
 
 def empirical(values):
-    tonnage = np.array([(values > c).mean() for c in cutoffs])
-    grade = np.array([values[values > c].mean() if (values > c).any() else np.nan for c in cutoffs])
+    tonnage = np.array([(values >= c).mean() for c in cutoffs])
+    grade = np.array([values[values >= c].mean() if (values >= c).any() else np.nan for c in cutoffs])
     return tonnage, grade
 
 

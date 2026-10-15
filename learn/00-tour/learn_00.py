@@ -306,7 +306,7 @@ smus = smus.with_columns(
     {
         "etype": summary.mean,
         "realization": realizations[0],
-        "p_above_5": 100 * np.mean(realizations > 5.0, axis=0),
+        "p_above_5": 100 * np.mean(realizations >= 5.0, axis=0),
     }
 )
 
@@ -320,7 +320,7 @@ plane = (tuple(center), 111.0, 90.0)
 panels = [
     (blocks, "zn", "Kriged Zn (%), sub-blocks", {"vmin": 0, "vmax": 12}),
     (smus, "realization", "Diluted Zn (%), one realization, SMUs", {"vmin": 0, "vmax": 12}),
-    (smus, "p_above_5", "P(SMU Zn > 5 %) (%)", {"vmin": 0, "vmax": 100, "cmap": "magma"}),
+    (smus, "p_above_5", "P(SMU Zn ≥ 5 %) (%)", {"vmin": 0, "vmax": 100, "cmap": "magma"}),
 ]
 fig, axes = plt.subplots(1, 3, figsize=(13, 5), layout="constrained", sharey=True)
 for ax, (model, column, title, style) in zip(axes, panels, strict=True):
@@ -488,7 +488,7 @@ scene.add(
     name="SMUs",
     cmap="magma",
     clim=(0, 100),
-    label="P(SMU Zn > 5 %) (%)",
+    label="P(SMU Zn ≥ 5 %) (%)",
     filter={"p_above_5": (1, None)},
 )
 scene.view(azimuth=305, dip=25)

@@ -25,7 +25,7 @@ pub struct Bootstrap {
     pub mean: Vec<f64>,
     /// Per realization, the quantile at each requested probability.
     pub quantiles: Vec<Vec<f64>>,
-    /// Per realization, the fraction of values above each cutoff.
+    /// Per realization, the fraction of values at or above each cutoff.
     pub above: Vec<Vec<f64>>,
 }
 
@@ -100,7 +100,7 @@ pub fn spatial_bootstrap(
             let q = quantiles.iter().map(|&p| quantile(&x, p)).collect();
             let above = cutoffs
                 .iter()
-                .map(|&c| (m - x.partition_point(|&v| v <= c)) as f64 / m as f64)
+                .map(|&c| (m - x.partition_point(|&v| v < c)) as f64 / m as f64)
                 .collect();
             (mean, q, above)
         })
@@ -235,6 +235,15 @@ mod tests {
         let wm = values.iter().zip(&w).map(|(v, w)| v * w).sum::<f64>() / w.iter().sum::<f64>();
         assert!((mean - wm).abs() < 0.1);
         assert!(above > 0.7 && b.quantiles[0][0] > 5.0);
+    }
+
+    #[test]
+    fn values_at_a_cutoff_count_as_above_it() {
+        let coords: Vec<_> = (0..6).map(|i| (i as f64 * 10.0, 0.0, 0.0)).collect();
+        let values = [0.0, 0.0, 0.0, 1.0, 1.0, 2.0];
+        let b =
+            spatial_bootstrap(&coords, &values, None, &nugget(), 200, 3, &[], &[0.0, 2.5]).unwrap();
+        assert!(b.above.iter().all(|a| a == &[1.0, 0.0]));
     }
 
     #[test]
