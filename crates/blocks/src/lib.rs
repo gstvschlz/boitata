@@ -3,6 +3,7 @@
 //! Domain assignment with multiple strategies,
 //! and point-in-solid testing using generalized winding number for robust mesh handling.
 
+mod boolean;
 mod classes;
 mod distance;
 mod error;
@@ -16,6 +17,7 @@ mod solid;
 mod subblock;
 mod tin;
 mod unfold;
+pub use boolean::{Boolean, boolean, cut};
 pub use classes::{MinSize, contact_distance, remove_small_units, smooth_classes};
 pub use distance::{
     Surface, TriangleTree, distance_to, point_in_polygon, polygon_distance,

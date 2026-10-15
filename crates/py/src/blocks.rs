@@ -95,6 +95,13 @@ impl Mesh {
         Ok(blocks::Domain { region, label })
     }
 
+    fn boolean(&self, py: Python, other: &Mesh, op: blocks::Boolean) -> PyResult<Self> {
+        let mesh = py
+            .detach(|| blocks::boolean(&self.mesh, &other.mesh, op))
+            .map_err(err)?;
+        Ok(Self::from_core(mesh))
+    }
+
     fn with(&self, mesh: boitata_core::Result<CoreMesh>) -> PyResult<Self> {
         Ok(Self {
             mesh: mesh.map_err(core_error)?,
@@ -435,6 +442,120 @@ impl Mesh {
     ///     can come out folded, so validate the result.
     fn fill_holes(&self, py: Python) -> PyResult<Self> {
         let mesh = py.detach(|| self.mesh.fill_holes()).map_err(core_error)?;
+        Ok(Self::from_core(mesh))
+    }
+
+    /// The solid inside this mesh or `other`.
+    ///
+    /// Parameters
+    /// ----------
+    /// other : Mesh
+    ///     A closed mesh in the same CRS and length unit, when both declare
+    ///     one.
+    ///
+    /// Returns
+    /// -------
+    /// Mesh
+    ///     A closed mesh wound outward. Faces keep the columns of the face
+    ///     they came from, the union of both meshes' face columns with nulls
+    ///     where a mesh lacks one; vertex columns carry over the same way,
+    ///     null on vertices made where the surfaces cross. Where faces of
+    ///     both meshes lie in one plane facing the same way, the first
+    ///     mesh's face is kept. Empty when nothing is kept.
+    ///
+    /// Raises
+    /// ------
+    /// InvalidInput
+    ///     When a mesh is open, the CRSs or length units differ, a column
+    ///     has different types in the two meshes, or the result would not
+    ///     be a closed solid, such as two solids meeting only along an
+    ///     edge.
+    ///
+    /// Notes
+    /// -----
+    /// The surfaces are corefined: triangles that cross are split along
+    /// their intersection, found with exact orientation predicates, and
+    /// each piece is kept by whether it lies inside the other mesh. Points
+    /// closer than 1e-9 of the size of both meshes weld together, or 1e-6
+    /// where faces lying within rounding of each other need it to close.
+    fn merge(&self, py: Python, other: PyRef<Mesh>) -> PyResult<Self> {
+        self.boolean(py, &other, blocks::Boolean::Merge)
+    }
+
+    /// The solid inside both this mesh and `other`.
+    ///
+    /// Parameters
+    /// ----------
+    /// other : Mesh
+    ///     A closed mesh in the same CRS and length unit, when both declare
+    ///     one.
+    ///
+    /// Returns
+    /// -------
+    /// Mesh
+    ///     A closed mesh, with columns carried over as in ``merge``. Empty
+    ///     when the solids do not overlap.
+    ///
+    /// Raises
+    /// ------
+    /// InvalidInput
+    ///     As ``merge``.
+    fn overlap(&self, py: Python, other: PyRef<Mesh>) -> PyResult<Self> {
+        self.boolean(py, &other, blocks::Boolean::Overlap)
+    }
+
+    /// The solid inside this mesh and outside `other`.
+    ///
+    /// Parameters
+    /// ----------
+    /// other : Mesh
+    ///     A closed mesh in the same CRS and length unit, when both declare
+    ///     one.
+    ///
+    /// Returns
+    /// -------
+    /// Mesh
+    ///     A closed mesh, with columns carried over as in ``merge``. Faces
+    ///     from `other` are turned over to face out of the result; a solid
+    ///     inside `other` leaves a cavity wound inward.
+    ///
+    /// Raises
+    /// ------
+    /// InvalidInput
+    ///     As ``merge``.
+    fn subtract(&self, py: Python, other: PyRef<Mesh>) -> PyResult<Self> {
+        self.boolean(py, &other, blocks::Boolean::Subtract)
+    }
+
+    /// The part of the mesh behind a plane.
+    ///
+    /// Parameters
+    /// ----------
+    /// origin : sequence of float
+    ///     A point on the plane, ``(x, y, z)``.
+    /// normal : sequence of float
+    ///     Points away from the part kept, so it is the outward normal of
+    ///     the cut face; any non-zero length.
+    ///
+    /// Returns
+    /// -------
+    /// Mesh
+    ///     The part where ``(p - origin) · normal < 0``; a vertex on the
+    ///     plane counts as cut away, as in ``section``. A closed mesh gets a
+    ///     cap over the cut, holes left open where the plane passes through
+    ///     cavities, so it stays closed; an open surface is just trimmed.
+    ///     Kept faces and vertices keep their columns; cap faces and the
+    ///     vertices made on the plane get nulls.
+    ///
+    /// Raises
+    /// ------
+    /// InvalidInput
+    ///     With a zero or non-finite normal, or when the capped mesh would
+    ///     not close, as when the mesh crosses itself.
+    fn cut(&self, py: Python, origin: [f64; 3], normal: [f64; 3]) -> PyResult<Self> {
+        let mesh = py
+            .detach(|| blocks::cut(&self.mesh, origin, normal))
+            .map_err(err)?;
         Ok(Self::from_core(mesh))
     }
 

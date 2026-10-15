@@ -288,6 +288,33 @@ def test_section_gives_loops_per_offset_with_face_columns():
         m.section((0, 0, 0), (0, 0, 0))
 
 
+def test_booleans_and_cuts_of_solids():
+    a = cube.with_face_column("rock", ["a"] * 12)
+    b = bt.Mesh(cube_vertices + 5, cube_triangles).with_face_column("grade", np.ones(12))
+    merged, both, rest = a.merge(b), a.overlap(b), a.subtract(b)
+    for m in (merged, both, rest):
+        assert m.is_closed and not m.validate().problems.num_rows
+    assert merged.volume == pytest.approx(2000 - 125) and both.volume == pytest.approx(125)
+    assert rest.volume == pytest.approx(875)
+    assert set(merged.face_attributes.column_names) == {"rock", "grade"}
+    rock = merged.face_attributes["rock"].tolist()
+    assert set(rock) == {"a", None} and rock.count(None) == np.isfinite(merged["grade"]).sum()
+    assert a.merge(a).volume == pytest.approx(1000) and len(a.subtract(a).triangles) == 0
+    half = cube.cut((0, 0, 2.5), (0, 0, 1))
+    assert half.is_closed and half.volume == pytest.approx(250)
+    square = bt.Mesh([[0, 0, 0], [1, 0, 0], [1, 1, 0], [0, 1, 0]], [[0, 1, 2], [0, 2, 3]])
+    with pytest.raises(bt.errors.InvalidInput):
+        cube.merge(square)
+    metres = bt.Mesh(cube_vertices, cube_triangles, crs="EPSG:31982", length_unit="m")
+    assert metres.merge(cube).crs == "EPSG:31982"
+    for other in (
+        bt.Mesh(cube_vertices + 5, cube_triangles, length_unit="ft"),
+        bt.Mesh(cube_vertices + 5, cube_triangles, crs="EPSG:4326"),
+    ):
+        with pytest.raises(bt.errors.InvalidInput):
+            metres.overlap(other)
+
+
 def test_subblocks_from_meshes_and_regularize():
     topo = bt.Mesh([[-10, -10, 7], [30, -10, 7], [30, 30, 7], [-10, 30, 7]], [[0, 1, 2], [0, 2, 3]])
     meshes = [(cube, "inside", "ore"), (topo, "below", "rock")]
