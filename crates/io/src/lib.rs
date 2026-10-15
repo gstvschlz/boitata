@@ -9,6 +9,7 @@ mod geotiff;
 mod gslib;
 mod jpeg;
 mod mesh;
+mod msh;
 mod parquet;
 mod ply;
 mod segy;

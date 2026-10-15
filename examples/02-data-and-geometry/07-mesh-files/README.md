@@ -1,6 +1,7 @@
 # mesh files
 
-`read_mesh` and `write_mesh` handle OBJ, STL and PLY (binary or ASCII), OFF and DXF, chosen by the file extension.
+`read_mesh` and `write_mesh` handle OBJ, STL, PLY and Gmsh MSH (binary or ASCII), OFF and DXF, chosen by the file
+extension.
 `Mesh.validate` reports what keeps a mesh from being a solid, and `Mesh.repair` and `Mesh.fill_holes` fix what
 they can. you read the four gold veins of the grade-control dataset from their STL files, write them back in each
 format, break one into loose triangles and repair it, then take a small solid apart problem by problem.
@@ -72,18 +73,22 @@ each format round-trips the vein. binary STL stores single precision, so vertice
 millimeter at mine coordinates. these files were written in single precision and come back unchanged. DXF
 writes one 3D face per triangle, or with `dxf_entity="polyface"` polyface meshes that share vertices. both read
 back with a `layer` column per triangle. PLY keeps numeric vertex and face columns, here the elevation of each
-vertex; OFF keeps only the geometry.
+vertex; OFF keeps only the geometry. Gmsh MSH keeps numeric columns as node and element data and the face column
+`physical` as physical groups.
 
 <details><summary>Python</summary>
 
 ```python
 v1 = veins["V1"].with_vertex_column("elevation", veins["V1"].coords[:, 2])
+v1 = v1.with_face_column("physical", ["V1"] * len(v1.triangles))
 files = {
     "v1.stl": {},
     "v1_ascii.stl": {"ascii": True},
     "v1.ply": {},
     "v1_ascii.ply": {"ascii": True},
     "v1.off": {},
+    "v1.msh": {},
+    "v1_ascii.msh": {"ascii": True},
     "v1.obj": {},
     "v1.dxf": {},
     "v1_polyface.dxf": {"dxf_entity": "polyface"},
@@ -109,6 +114,8 @@ with tempfile.TemporaryDirectory() as folder:
          v1.ply:   1.6 MB, 53894 triangles, 658,570 m3, largest shift 0.000 mm, columns ['elevation']
    v1_ascii.ply:   2.8 MB, 53894 triangles, 658,570 m3, largest shift 0.000 mm, columns ['elevation']
          v1.off:   2.3 MB, 53894 triangles, 658,570 m3, largest shift 0.000 mm, columns []
+         v1.msh:   2.9 MB, 53894 triangles, 658,570 m3, largest shift 0.000 mm, columns ['elevation', 'physical']
+   v1_ascii.msh:   3.3 MB, 53894 triangles, 658,570 m3, largest shift 0.000 mm, columns ['elevation', 'physical']
          v1.obj:   2.4 MB, 53894 triangles, 658,570 m3, largest shift 0.000 mm, columns []
          v1.dxf:  18.5 MB, 53894 triangles, 658,570 m3, largest shift 0.000 mm, columns ['layer']
 v1_polyface.dxf:  12.1 MB, 53894 triangles, 658,570 m3, largest shift 0.000 mm, columns ['layer']
