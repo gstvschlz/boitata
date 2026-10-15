@@ -30,6 +30,8 @@ POSITIONAL_DEFAULTS = {
     ("plot.slab", "values"),
     ("plot3d.plot", "values"),
     ("plot3d.Scene.add", "values"),
+    ("Search", "radius"),
+    ("Search.passes", "factors"),
 }
 # `domains` without `domain_column`: none.
 DOMAINS_EXEMPT = set()

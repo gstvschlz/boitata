@@ -1039,7 +1039,7 @@ class Search:
     def from_json(text: str) -> Search: ...
     def __init__(
         self,
-        radius: float | str,
+        radius: float | str | None = None,
         *,
         max_samples: int = 16,
         min_samples: int = 1,
@@ -1049,6 +1049,10 @@ class Search:
         max_per_hole: int | None = None,
         rotation: tuple[float, float, float] | None = None,
         ratios: tuple[float, float] | None = None,
+        ranges: tuple[float, float, float] | None = None,
+        min_sectors: int | None = None,
+        max_empty_sectors: int | None = None,
+        min_holes: int | None = None,
         high_grade: HighGrade | tuple[float, float] | None = None,
         soft: float | Mapping[tuple[Label, Label], float] | None = None,
         target_slope: float | None = None,
@@ -1072,11 +1076,28 @@ class Search:
     @property
     def max_per_hole(self) -> int | None: ...
     @property
+    def min_sectors(self) -> int | None: ...
+    @property
+    def max_empty_sectors(self) -> int | None: ...
+    @property
+    def min_holes(self) -> int | None: ...
+    @property
     def high_grade(self) -> HighGrade | None: ...
     @property
     def rotation(self) -> tuple[float, float, float] | None: ...
     @property
     def ratios(self) -> tuple[float, float] | None: ...
+    @property
+    def ranges(self) -> tuple[float, float, float] | None: ...
+    @staticmethod
+    def passes(
+        base: Search,
+        factors: Sequence[float] = (1.0, 2.0, 3.0),
+        *,
+        min_samples: Sequence[int] | None = None,
+        max_samples: Sequence[int] | None = None,
+    ) -> list[Search]: ...
+    def _vary(self, factor: float, max_samples: int, min_holes: int | None) -> Search: ...
     @property
     def soft(self) -> float | dict[tuple[Label, Label], float] | None: ...
     @property

@@ -2,7 +2,9 @@
 //!
 //! Selects the samples used to estimate a target location, honoring an
 //! anisotropic search ellipsoid, min/max sample counts, a per-hole cap, and
-//! optional balancing over octants or angular sectors. [`SearchTree`] answers the same query as
+//! optional balancing over octants or angular sectors. A target whose
+//! selection breaks a sector or hole rule fails as one with too few samples
+//! does, and goes to the next pass. [`SearchTree`] answers the same query as
 //! [`neighbors`] from a grid of cells visited nearest first.
 
 use std::collections::HashMap;
@@ -54,6 +56,25 @@ pub struct Search {
     /// kriging meets the calibration, `max_samples` when none does.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub calibration: Option<Calibration>,
+    /// With `octant`, the most samples from each octant (quadrant with 2D
+    /// data); without it `max_samples` over their count, rounded up.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_per_octant: Option<usize>,
+    /// Fewest octants or sectors holding a selected sample; a target with
+    /// fewer fails.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub min_sectors: Option<usize>,
+    /// Most consecutive empty octants or sectors; a target with a longer run
+    /// fails. Plane sectors follow each other around the circle; octants
+    /// around the ellipsoid's minor axis, the four above the major /
+    /// semi-major plane apart from the four below, and with 2D data the four
+    /// quadrants.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_empty_sectors: Option<usize>,
+    /// Fewest distinct drill holes among the selected samples, a sample
+    /// without a hole counting as one of its own; a target with fewer fails.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub min_holes: Option<usize>,
 }
 
 /// Angular sectors in the plane of the search ellipsoid's major and
@@ -171,6 +192,10 @@ impl Default for Search {
             high_grade: None,
             soft: None,
             calibration: None,
+            max_per_octant: None,
+            min_sectors: None,
+            max_empty_sectors: None,
+            min_holes: None,
         }
     }
 }
@@ -181,20 +206,58 @@ impl Search {
         self.octant || self.sectors.is_some()
     }
 
-    /// An error unless the sector settings are consistent.
-    pub fn check_sectors(&self) -> Result<()> {
-        match self.sectors {
-            Some(_) if self.octant => Err(EstimError::InvalidParameters(
-                "give octant or sectors, not both".into(),
-            )),
+    /// An error unless the sample counts and the sector and hole rules are
+    /// consistent.
+    pub fn check(&self) -> Result<()> {
+        let invalid = |m: &str| Err(EstimError::InvalidParameters(m.into()));
+        if self.radius.is_nan()
+            || self.radius <= 0.0
+            || self.max_samples == 0
+            || self.min_samples > self.max_samples
+        {
+            return invalid("need radius > 0 and 1 <= min_samples <= max_samples");
+        }
+        let (count, ring) = match self.sectors {
+            Some(_) if self.octant => return invalid("give octant or sectors, not both"),
             Some(PlaneSectors {
                 count,
                 max_per_sector,
-            }) if count < 2 || max_per_sector == 0 => Err(EstimError::InvalidParameters(
-                "sectors need count >= 2 and max_per_sector >= 1".into(),
-            )),
-            _ => Ok(()),
+            }) if count < 2 || max_per_sector == 0 => {
+                return invalid("sectors need count >= 2 and max_per_sector >= 1");
+            }
+            Some(p) => (p.count, p.count),
+            None if self.octant => (8, 4),
+            None => (0, 0),
+        };
+        match self.max_per_octant {
+            Some(_) if !self.octant => return invalid("max_per_octant needs octant"),
+            Some(0) => return invalid("max_per_sector must be >= 1"),
+            _ => {}
         }
+        let rules = self.min_sectors.is_some() || self.max_empty_sectors.is_some();
+        if rules && !self.balances() {
+            return invalid("min_sectors and max_empty_sectors need octant or sectors");
+        }
+        if let Some(n) = self.min_sectors
+            && (n == 0 || n > count || n > self.max_samples)
+        {
+            return invalid(
+                "min_sectors must be at least 1 and at most the number of sectors (8 octants) \
+                 and max_samples",
+            );
+        }
+        if self.max_empty_sectors.is_some_and(|n| n >= ring) {
+            return invalid(
+                "max_empty_sectors must be below the number of sectors (4 octants per half)",
+            );
+        }
+        if self
+            .min_holes
+            .is_some_and(|n| n == 0 || n > self.max_samples)
+        {
+            return invalid("min_holes must be at least 1 and at most max_samples");
+        }
+        Ok(())
     }
 
     /// Whether a sample of `value` and `domain` at `loc`, `distance` from a
@@ -299,6 +362,10 @@ pub fn same_neighborhood(
         && a.max_per_hole == b.max_per_hole
         && a.octant == b.octant
         && a.sectors == b.sectors
+        && a.max_per_octant == b.max_per_octant
+        && a.min_sectors == b.min_sectors
+        && a.max_empty_sectors == b.max_empty_sectors
+        && a.min_holes == b.min_holes
         && a.soft == b.soft
         && metric(a, va).map(|m| &m.angles) == metric(b, vb).map(|m| &m.angles)
 }
@@ -369,6 +436,31 @@ impl Sectors {
             (bx << 2) | (by << 1) | bz
         }
     }
+
+    /// Longest run of consecutive sectors that `counts` leaves empty, as
+    /// [`Search::max_empty_sectors`] follows them.
+    fn longest_empty(&self, counts: &[usize]) -> usize {
+        let rings: Vec<Vec<usize>> = match self.plane {
+            Some(n) => vec![(0..n).collect()],
+            None if self.planar => vec![vec![3, 1, 0, 2]],
+            None => vec![vec![7, 3, 1, 5], vec![6, 2, 0, 4]],
+        };
+        rings
+            .iter()
+            .map(|ring| {
+                if ring.iter().all(|&s| counts[s] == 0) {
+                    return ring.len();
+                }
+                let (mut run, mut longest) = (0, 0);
+                for &s in ring.iter().chain(ring) {
+                    run = if counts[s] == 0 { run + 1 } else { 0 };
+                    longest = longest.max(run);
+                }
+                longest
+            })
+            .max()
+            .unwrap_or(0)
+    }
 }
 
 /// Whether every point shares one elevation.
@@ -384,6 +476,7 @@ struct Selector<'a> {
     sectors: &'a Sectors,
     chosen: Vec<usize>,
     per_hole: Vec<(u32, usize)>,
+    untagged: usize,
     per_sector: Vec<usize>,
     sector_cap: usize,
 }
@@ -396,6 +489,7 @@ impl<'a> Selector<'a> {
             sectors,
             chosen: Vec::with_capacity(params.max_samples),
             per_hole: vec![],
+            untagged: 0,
             per_sector: vec![
                 0;
                 if params.balances() {
@@ -406,7 +500,9 @@ impl<'a> Selector<'a> {
             ],
             sector_cap: match (params.sectors, params.octant) {
                 (Some(p), _) => p.max_per_sector,
-                (None, true) => params.max_samples.div_ceil(sectors.count()),
+                (None, true) => params
+                    .max_per_octant
+                    .unwrap_or(params.max_samples.div_ceil(sectors.count())),
                 (None, false) => usize::MAX,
             },
         }
@@ -437,10 +533,43 @@ impl<'a> Selector<'a> {
         match (hole, seen) {
             (Some(_), Some(k)) => self.per_hole[k].1 += 1,
             (Some(h), None) => self.per_hole.push((h, 1)),
-            _ => {}
+            (None, _) => self.untagged += 1,
         }
         self.chosen.push(idx);
         self.full()
+    }
+
+    /// The selection, or why it breaks the sample-count, sector or hole
+    /// rules.
+    fn finish(self) -> Result<Vec<usize>> {
+        let p = self.params;
+        let fail = |m: String| Err(EstimError::SearchFailed(m));
+        if self.chosen.len() < p.min_samples {
+            return fail(format!(
+                "found {} samples, need at least {}",
+                self.chosen.len(),
+                p.min_samples
+            ));
+        }
+        if let Some(n) = p.min_sectors {
+            let held = self.per_sector.iter().filter(|&&c| c > 0).count();
+            if held < n {
+                return fail(format!("samples in {held} sectors, need at least {n}"));
+            }
+        }
+        if let Some(n) = p.max_empty_sectors {
+            let run = self.sectors.longest_empty(&self.per_sector);
+            if run > n {
+                return fail(format!("{run} consecutive empty sectors, at most {n}"));
+            }
+        }
+        if let Some(n) = p.min_holes {
+            let holes = self.per_hole.len() + self.untagged;
+            if holes < n {
+                return fail(format!("samples from {holes} holes, need at least {n}"));
+            }
+        }
+        Ok(self.chosen)
     }
 }
 
@@ -452,14 +581,14 @@ fn select(
     hole: impl Fn(usize) -> Option<u32>,
     params: &Search,
     sectors: &Sectors,
-) -> Vec<usize> {
+) -> Result<Vec<usize>> {
     let mut selector = Selector::new(target, params, sectors);
     for idx in ordered {
         if selector.offer(idx, &loc(idx), hole(idx)) {
             break;
         }
     }
-    selector.chosen
+    selector.finish()
 }
 
 /// Ordered candidates with samples of different domains at one location
@@ -502,17 +631,6 @@ fn one_per_location(
         }
     }
     out
-}
-
-fn enough(chosen: Vec<usize>, params: &Search) -> Result<Vec<usize>> {
-    if chosen.len() < params.min_samples {
-        return Err(EstimError::SearchFailed(format!(
-            "found {} samples, need at least {}",
-            chosen.len(),
-            params.min_samples
-        )));
-    }
-    Ok(chosen)
 }
 
 /// Select neighbor sample indices for a target location by scanning every
@@ -561,15 +679,14 @@ pub fn neighbors_in(
         params.octant && planar(samples.iter().map(|s| &s.loc)),
         params,
     );
-    let chosen = select(
+    select(
         target,
         ordered,
         |i| samples[i].loc,
         |i| samples[i].hole,
         params,
         &sectors,
-    );
-    enough(chosen, params)
+    )
 }
 
 /// Samples indexed for repeated neighborhood queries. Points are stored in
@@ -728,15 +845,14 @@ impl SearchTree {
         found.sort_by(|a, b| a.0.total_cmp(&b.0).then(a.1.cmp(&b.1)));
         let ordered = self.one_per_location(found.into_iter().map(|f| f.1), domain, None);
         let sectors = Sectors::new(Some(local), self.sectors.planar, params);
-        let chosen = select(
+        select(
             target,
             ordered,
             |i| self.locs[i],
             |i| self.holes[i],
             params,
             &sectors,
-        );
-        enough(chosen, params)
+        )
     }
 
     fn admits(&self, target: &Point, domain: Option<u32>, i: usize, distance: f64) -> bool {
@@ -841,11 +957,11 @@ impl SearchTree {
         kept: Option<usize>,
     ) -> Result<Vec<usize>> {
         let params = &self.params;
+        let mut selector = Selector::new(target, params, &self.sectors);
         if self.is_empty() || params.max_samples == 0 {
-            return enough(vec![], params);
+            return selector.finish();
         }
         let query = self.project(target);
-        let mut selector = Selector::new(target, params, &self.sectors);
         let mut group: Vec<usize> = vec![];
         let mut at = f64::NAN;
         let mut full = false;
@@ -864,7 +980,7 @@ impl SearchTree {
         if !full {
             self.offer(&mut group, at, target, domain, kept, &mut selector);
         }
-        enough(selector.chosen, params)
+        selector.finish()
     }
 
     /// Offers the samples of `group`, all at squared distance `d2`, that the
@@ -1110,6 +1226,15 @@ mod tests {
                 octant: true,
                 high_grade: Some(HighGrade::new(7.0, 40.0)),
                 ..params(1, 24, 200.0)
+            },
+            Search {
+                octant: true,
+                max_per_octant: Some(2),
+                min_sectors: Some(6),
+                max_empty_sectors: Some(1),
+                max_per_hole: Some(2),
+                min_holes: Some(6),
+                ..params(1, 24, 60.0)
             },
         ];
         for p in &cases {
@@ -1425,14 +1550,14 @@ mod tests {
 
     #[test]
     fn plane_sectors_exclude_octants_and_need_two() {
-        assert!(sectored(4, 2).check_sectors().is_ok());
-        assert!(sectored(1, 2).check_sectors().is_err());
-        assert!(sectored(4, 0).check_sectors().is_err());
+        assert!(sectored(4, 2).check().is_ok());
+        assert!(sectored(1, 2).check().is_err());
+        assert!(sectored(4, 0).check().is_err());
         let both = Search {
             octant: true,
             ..sectored(4, 2)
         };
-        assert!(both.check_sectors().is_err());
+        assert!(both.check().is_err());
     }
 
     #[test]
@@ -1461,6 +1586,215 @@ mod tests {
                 assert_eq!(tree.neighbors(&t).ok(), scan);
                 assert!(scan.is_some_and(|c| c.len() <= count * cap));
             }
+        }
+    }
+
+    #[test]
+    fn empty_runs_wrap_around_the_sectors() {
+        let plane = Sectors::new(None, false, &sectored(6, 1));
+        assert_eq!(plane.longest_empty(&[0, 1, 1, 1, 0, 0]), 3);
+        assert_eq!(plane.longest_empty(&[1, 0, 1, 0, 1, 0]), 1);
+        assert_eq!(plane.longest_empty(&[0; 6]), 6);
+        assert_eq!(plane.longest_empty(&[1; 6]), 0);
+        let octants = Sectors::new(None, false, &Search::default());
+        let mut counts = [1; 8];
+        // the upper half turns 7, 3, 1, 5; 5 and 7 are neighbors
+        counts[5] = 0;
+        counts[7] = 0;
+        assert_eq!(octants.longest_empty(&counts), 2);
+        // 1 and 0 lie on the same side, but in different halves
+        counts = [1; 8];
+        counts[1] = 0;
+        counts[0] = 0;
+        assert_eq!(octants.longest_empty(&counts), 1);
+        let quadrants = Sectors::new(None, true, &Search::default());
+        assert_eq!(quadrants.longest_empty(&[0, 1, 0, 1]), 2);
+        assert_eq!(quadrants.longest_empty(&[0, 0, 1, 1]), 2);
+        assert_eq!(quadrants.longest_empty(&[0, 1, 1, 0]), 1);
+    }
+
+    /// Samples on a 2D grid east of x = 0, from holes of four samples each.
+    fn east() -> Vec<Sample> {
+        (0..100)
+            .map(|i| {
+                let (x, y) = (1.0 + (i % 10) as f64, (i / 10) as f64 - 4.5);
+                s(x, y, 0.0, x + y, Some(i / 4))
+            })
+            .collect()
+    }
+
+    #[test]
+    fn sector_rules_reject_a_target_with_the_data_on_one_side() {
+        let samples = east();
+        let rules = |octant, min_sectors, max_empty_sectors| Search {
+            octant,
+            min_sectors,
+            max_empty_sectors,
+            ..params(1, 16, 100.0)
+        };
+        let outside = (-5.0, 0.0, 0.0);
+        let inside = (5.2, 0.1, 0.0);
+        for (p, at_outside, at_inside) in [
+            (rules(true, None, None), true, true),
+            (rules(true, Some(2), None), true, true),
+            (rules(true, Some(3), None), false, true),
+            (rules(true, None, Some(1)), false, true),
+            (rules(true, None, Some(2)), true, true),
+            (
+                Search {
+                    min_sectors: Some(4),
+                    ..sectored(6, 4)
+                },
+                false,
+                true,
+            ),
+        ] {
+            p.check().unwrap();
+            let tree = SearchTree::new(&samples, &p, None);
+            for (t, ok) in [(outside, at_outside), (inside, at_inside)] {
+                let scan = neighbors(&t, &samples, &p, None);
+                assert_eq!(scan.is_ok(), ok, "{t:?} {p:?}");
+                assert_eq!(tree.neighbors(&t).ok(), scan.ok());
+            }
+        }
+        let failed = neighbors(&outside, &samples, &rules(true, Some(3), None), None);
+        assert!(matches!(failed, Err(EstimError::SearchFailed(m)) if m.contains("sectors")));
+    }
+
+    #[test]
+    fn kriging_with_sector_and_hole_rules_keeps_ordinary_weights_summing_to_one() {
+        let samples = east();
+        let vg = Variogram::single(variogram::Model::Spherical, 1.0, 20.0);
+        let p = Search {
+            octant: true,
+            max_per_octant: Some(3),
+            min_sectors: Some(3),
+            max_empty_sectors: Some(1),
+            min_holes: Some(4),
+            ..params(4, 12, 100.0)
+        };
+        p.check().unwrap();
+        let tree = SearchTree::new(&samples, &p, None);
+        let mut estimated = 0;
+        for i in 0..40 {
+            let t = ((i % 8) as f64 * 1.7 - 2.0, (i / 8) as f64 * 2.0 - 4.0, 0.0);
+            let Ok(chosen) = tree.neighbors(&t) else {
+                continue;
+            };
+            assert!(chosen.len() <= 12);
+            let near = tree.take(&t, None, &chosen, &samples);
+            let est = crate::krige(crate::Kind::Ordinary, &t, &near, &vg).unwrap();
+            let sum: f64 = est.weights.iter().sum();
+            assert!((sum - 1.0).abs() < 1e-9, "weights sum {sum}");
+            estimated += 1;
+        }
+        assert!(estimated > 0);
+    }
+
+    #[test]
+    fn max_per_sector_caps_octants() {
+        let samples = east();
+        let p = Search {
+            octant: true,
+            max_per_octant: Some(2),
+            ..params(1, 16, 100.0)
+        };
+        let t = (5.2, 0.1, 0.0);
+        let got = neighbors(&t, &samples, &p, None).unwrap();
+        assert_eq!(got.len(), 8);
+        assert_eq!(
+            SearchTree::new(&samples, &p, None).neighbors(&t).unwrap(),
+            got
+        );
+    }
+
+    #[test]
+    fn min_holes_rejects_a_target_informed_by_too_few_holes() {
+        let samples = east();
+        let t = (1.0, -4.5, 0.0);
+        let p = |min_holes, max_per_hole| Search {
+            min_holes,
+            max_per_hole,
+            ..params(1, 4, 100.0)
+        };
+        assert!(neighbors(&t, &samples, &p(Some(2), None), None).is_ok());
+        let failed = neighbors(&t, &samples, &p(Some(3), None), None);
+        assert!(matches!(failed, Err(EstimError::SearchFailed(m)) if m.contains("holes")));
+        assert!(neighbors(&t, &samples, &p(Some(3), Some(1)), None).is_ok());
+        let tree = SearchTree::new(&samples, &p(Some(3), None), None);
+        assert!(tree.neighbors(&t).is_err());
+        let untagged: Vec<Sample> = samples
+            .iter()
+            .map(|x| Sample {
+                hole: None,
+                ..x.clone()
+            })
+            .collect();
+        assert!(neighbors(&t, &untagged, &p(Some(4), None), None).is_ok());
+    }
+
+    #[test]
+    fn rules_are_checked() {
+        let ok = |p: Search| p.check().is_ok();
+        let octant = Search {
+            octant: true,
+            ..params(1, 16, 100.0)
+        };
+        assert!(ok(Search {
+            min_sectors: Some(8),
+            max_empty_sectors: Some(3),
+            max_per_octant: Some(2),
+            min_holes: Some(16),
+            ..octant.clone()
+        }));
+        for bad in [
+            Search {
+                min_sectors: Some(2),
+                ..params(1, 16, 100.0)
+            },
+            Search {
+                max_empty_sectors: Some(1),
+                ..params(1, 16, 100.0)
+            },
+            Search {
+                max_per_octant: Some(2),
+                ..params(1, 16, 100.0)
+            },
+            Search {
+                min_sectors: Some(9),
+                ..octant.clone()
+            },
+            Search {
+                min_sectors: Some(0),
+                ..octant.clone()
+            },
+            Search {
+                max_empty_sectors: Some(4),
+                ..octant.clone()
+            },
+            Search {
+                min_sectors: Some(7),
+                ..sectored(6, 2)
+            },
+            Search {
+                max_empty_sectors: Some(6),
+                ..sectored(6, 2)
+            },
+            Search {
+                min_holes: Some(17),
+                ..octant.clone()
+            },
+            Search {
+                min_holes: Some(0),
+                ..octant.clone()
+            },
+            Search {
+                max_samples: 4,
+                min_samples: 5,
+                ..octant
+            },
+        ] {
+            assert!(!ok(bad.clone()), "{bad:?}");
         }
     }
 

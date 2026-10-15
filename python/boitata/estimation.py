@@ -1,5 +1,6 @@
 """Estimators: `fit` on samples, `predict` at targets (arrays, PointSet or BlockModel)."""
 
+import itertools
 from collections.abc import Sequence
 from dataclasses import dataclass
 
@@ -570,12 +571,14 @@ def calibrate_search(
     domains=None,
     domain_column=None,
     data=None,
-) -> Table:
+    suggest=None,
+    target_slope: float = 0.9,
+) -> Table | tuple[Search | list[Search] | None, Table]:
     """Scores candidate searches for a fitted estimator, one row per scenario, to compare side by side.
 
     Each scenario re-estimates `targets` through `estimator.with_search`, so method, variogram and samples stay
-    fixed. Scenarios run one after the other, each in parallel over the targets. No scenario is picked: the
-    scores trade smoothing against conditional bias, and the choice is the user's.
+    fixed. Scenarios run one after the other, each in parallel over the targets. No scenario is picked unless
+    `suggest` asks for one: the scores trade smoothing against conditional bias, and the choice is the user's.
 
     Parameters
     ----------
@@ -606,6 +609,12 @@ def calibrate_search(
         The column of `targets` holding their domains; instead of `domains`.
     data : PointSet or Table, optional
         The fitted samples, when `weights` is a column name.
+    suggest : dict, optional
+        A grid to vary the one scenario of `searches` over: ``max_samples`` (sequence of int), ``factors``
+        (sequence of float, multipliers of its radius, as in `Search.passes`) and ``min_holes`` (sequence of int
+        or None); a key left out keeps the scenario's own value. Every cell sets each pass of the scenario.
+    target_slope : float
+        With `suggest`, the ``slope_mean`` the suggested search must reach.
 
     Returns
     -------
@@ -621,6 +630,13 @@ def calibrate_search(
         mean, minus 1); with `cutoffs`, ``tonnage_ratio_<cutoff>`` and ``metal_ratio_<cutoff>`` (estimated over
         reference proportion above the cutoff, and metal above it).
 
+        With `suggest`, a tuple of the suggested scenario and the table: the cheapest cell (fewest ``max_samples``,
+        then smallest ``factor``, then fewest ``min_holes``) that estimates as many targets as the cell that
+        estimates the most and whose ``slope_mean`` reaches `target_slope`; None when none does. Cells are scored on
+        the targets they estimate, so a cell that leaves targets out does not qualify. The table holds every cell in
+        that order, with ``max_samples``, ``factor`` and ``min_holes`` (NaN for None) columns; a cell that estimates
+        no target gets ``estimated`` 0 and NaN scores.
+
     Raises
     ------
     InvalidInput
@@ -629,6 +645,12 @@ def calibrate_search(
     """
     if isinstance(searches, Search) or not len(searches):
         raise InvalidInput("searches must be a non-empty sequence of scenarios, each a Search or passes")
+    grid = None
+    if suggest is not None:
+        if len(searches) != 1:
+            raise InvalidInput("suggest varies one scenario; give searches=[base]")
+        grid = _grid(searches[0], suggest)
+        searches = [scenario for *_, scenario in grid]
     if cutoffs is not None and anamorphosis is None:
         raise InvalidInput("cutoffs need a fitted HermiteAnamorphosis")
     if domain_column is not None:
@@ -652,21 +674,55 @@ def calibrate_search(
         keep = np.array([label in wanted for label in engine._sample_domains], dtype=bool)
     kept_weights = None if weights is None else weights[keep]
     cutoffs = [] if cutoffs is None else [float(c) for c in cutoffs]
-    columns: dict[str, list[float]] = {}
+    rows = []
     for i, scenario in enumerate(searches):
         candidate = engine.with_search(scenario)
         d = candidate.predict(targets, diagnostics=True, domains=domains)
-        with np.errstate(divide="ignore", invalid="ignore"):
-            row = {"scenario": i, **_scores(d, values[keep], kept_weights)}
-        if cutoffs:
-            estimate = d["value"][np.isfinite(d["value"])]
-            row |= _recoveries(estimate, row["block_variance"], engine.variogram, anamorphosis, cutoffs)
+        row = {"scenario": i}
+        if grid is not None:
+            m, f, h, _ = grid[i]
+            row |= {"max_samples": m, "factor": f, "min_holes": np.nan if h is None else h}
+        if grid is not None and not np.isfinite(d["value"]).any():
+            row["estimated"] = 0.0
+        else:
+            with np.errstate(divide="ignore", invalid="ignore"):
+                row |= _scores(d, values[keep], kept_weights)
+            if cutoffs:
+                estimate = d["value"][np.isfinite(d["value"])]
+                row |= _recoveries(estimate, row["block_variance"], engine.variogram, anamorphosis, cutoffs)
         if cross_validation:
             estimate, _ = candidate._point_support().cross_validate(folds=folds)
             row |= _cross_validation(values[keep], estimate[keep], kept_weights)
-        for key, value in row.items():
-            columns.setdefault(key, []).append(value)
-    return Table({key: np.asarray(column, dtype=float) for key, column in columns.items()})
+        rows.append(row)
+    keys = list(dict.fromkeys(key for row in rows for key in row))
+    table = Table({key: np.asarray([row.get(key, np.nan) for row in rows], dtype=float) for key in keys})
+    if grid is None:
+        return table
+    widest = max(row["estimated"] for row in rows)
+    reached = (
+        s
+        for row, s in zip(rows, searches, strict=True)
+        if row["estimated"] == widest and row.get("slope_mean", np.nan) >= target_slope
+    )
+    return next(reached, None), table
+
+
+def _grid(base, suggest):
+    """``(max_samples, factor, min_holes, scenario)`` for each cell of `suggest` around `base`, cheapest first."""
+    unknown = set(suggest) - {"max_samples", "factors", "min_holes"}
+    if unknown:
+        raise InvalidInput(
+            f"suggest takes max_samples, factors and min_holes, not {', '.join(sorted(unknown))}"
+        )
+    passes = [base] if isinstance(base, Search) else list(base)
+    sizes = sorted(suggest.get("max_samples", [passes[0].max_samples]))
+    factors = sorted(suggest.get("factors", [1.0]))
+    holes = sorted(suggest.get("min_holes", [passes[0].min_holes]), key=lambda h: -1 if h is None else h)
+    cells = []
+    for m, f, h in itertools.product(sizes, factors, holes):
+        varied = [p._vary(f, m, h) for p in passes]
+        cells.append((m, f, h, varied[0] if isinstance(base, Search) else varied))
+    return cells
 
 
 def _scores(d, values, weights) -> dict[str, float]:

@@ -2,7 +2,7 @@
 # search calibration
 
 `calibrate_search` scores candidate searches for block kriging of walker lake `V` on 10 × 10 m blocks, keeping the
-variogram and samples. it picks no winner, and the exhaustive grid checks every score.
+variogram and samples. it picks no winner unless asked, and the exhaustive grid checks every score.
 """
 
 # %% [hidden]
@@ -103,6 +103,35 @@ for ax, (title, lines, key) in zip(axes, panels, strict=True):
 save(fig, "calibration")
 
 # %% [markdown]
+# `suggest` turns the scores into a choice. it varies one search over a grid of `max_samples`, `factors` of its radius
+# and `min_holes`, and returns the cheapest cell whose mean slope of regression reaches `target_slope` (0.9 by
+# default), with the table of every cell: the fewest samples first, then the smallest radius, then the fewest holes. a
+# cell that leaves blocks unestimated does not count, since its scores cover only the blocks it reaches. walker lake has
+# no drill holes, so the grid leaves `min_holes` out.
+
+# %%
+grid = {"max_samples": [8, 12, 16, 24, 32], "factors": [0.25, 0.5, 1.0]}
+for target in (0.9, 0.95):
+    best, table = bt.calibrate_search(
+        kriging, [search], blocks, cross_validation=False, suggest=grid, target_slope=target
+    )
+    estimate = kriging.with_search(best).predict(blocks)
+    print(
+        f"target {target}: max_samples={best.max_samples}, radius {best.radius:.0f} m;"
+        f" true slope {bt.compare(estimate, true_blocks)['slope']:.2f}"
+    )
+print(f"{'samples':>7} {'factor':>6} {'estimated':>9} {'slope':>6}")
+for i in range(table.num_rows):
+    print(
+        f"{table['max_samples'][i]:7.0f} {table['factor'][i]:6.2f} {table['estimated'][i]:9.0%}"
+        f" {table['slope_mean'][i]:6.2f}"
+    )
+
+# %% [markdown]
+# a quarter of the radius reaches a third of the blocks and half reaches 95 %, so their slopes do not count. at the
+# full radius 8 samples reach a mean slope of 0.9 and 16 reach 0.95. the true slopes sit near 1, as in the first table,
+# where the predicted slope runs low.
+#
 # `calibrate_search` picks one search for every block. a search with `target_slope` (or `target_efficiency`) calibrates
 # block by block instead: each block takes the fewest samples, from `min_samples` up, whose slope of regression reaches
 # the target, and `max_samples` where none does. the diagnostics' `target_met` flags which. well-informed blocks keep

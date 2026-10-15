@@ -798,6 +798,106 @@ def test_plane_sectors():
     assert np.all(np.asarray(d["n_samples"]) <= 12)
 
 
+def test_sector_and_hole_rules_are_checked_and_kept():
+    s = bt.Search(radius=50, octant=True, max_per_sector=2, min_sectors=3, max_empty_sectors=1, min_holes=2)
+    assert (s.max_per_sector, s.min_sectors, s.max_empty_sectors, s.min_holes) == (2, 3, 1, 2)
+    back = bt.Search.from_json(s.to_json())
+    assert (back.max_per_sector, back.min_sectors, back.max_empty_sectors, back.min_holes) == (2, 3, 1, 2)
+    plain = bt.Search.from_json(bt.Search(radius=50, octant=True).to_json())
+    assert plain.max_per_sector is plain.min_sectors is plain.max_empty_sectors is plain.min_holes is None
+    for bad in (
+        {"min_sectors": 2},
+        {"max_empty_sectors": 1},
+        {"octant": True, "min_sectors": 9},
+        {"octant": True, "min_sectors": 0},
+        {"octant": True, "max_empty_sectors": 4},
+        {"sectors": 6, "min_sectors": 7},
+        {"sectors": 6, "max_empty_sectors": 6},
+        {"octant": True, "max_per_sector": 0},
+        {"min_holes": 0},
+        {"min_holes": 17},
+    ):
+        with pytest.raises(bt.InvalidInput):
+            bt.Search(radius=50, **bad)
+
+
+def test_min_sectors_leaves_a_one_sided_target_to_the_next_pass():
+    g = np.random.default_rng(5)
+    east = np.column_stack([g.uniform(10, 60, 200), g.uniform(-25, 25, 200)])
+    holes = np.arange(200) // 5
+    flat = np.full(200, 3.0)
+    outside, inside = np.array([[-10.0, 0.0]]), np.array([[35.0, 0.0]])
+    one_sided = bt.Search(radius=100, octant=True, min_sectors=3)
+    fallback = bt.Search(radius=100)
+    for search in (one_sided, bt.Search(radius=100, octant=True, max_empty_sectors=1)):
+        ok = bt.OrdinaryKriging(model, [search, fallback]).fit(east, flat, holes=holes)
+        assert ok.predict(outside, diagnostics=True)["pass"][0] == 2.0
+        assert ok.predict(inside, diagnostics=True)["pass"][0] == 1.0
+    assert np.isnan(bt.OrdinaryKriging(model, one_sided).fit(east, flat).predict(outside)[0])
+    rules = bt.Search(
+        radius=100, octant=True, max_per_sector=3, min_sectors=4, max_empty_sectors=1, min_holes=4
+    )
+    targets = g.uniform(15, 55, (40, 2))
+    d = bt.OrdinaryKriging(model, rules).fit(east, flat, holes=holes).predict(targets, diagnostics=True)
+    done = np.isfinite(d["value"])
+    assert done.any()
+    np.testing.assert_allclose(d["value"][done], 3.0, atol=1e-10)
+    assert (d["n_holes"][done] >= 4).all() and (d["n_samples"][done] <= 12).all()
+
+
+def test_min_holes_needs_that_many_holes():
+    holes = np.arange(150) // 50
+    at = rng.uniform(0, 100, (60, 2))
+    for need, estimated in ((3, True), (4, False)):
+        s = bt.Search(radius=500, max_samples=150, min_holes=need)
+        d = bt.OrdinaryKriging(model, s).fit(coords, values, holes=holes).predict(at, diagnostics=True)
+        assert np.isfinite(d["value"]).all() == estimated
+    few = bt.Search(radius=500, max_samples=4, max_per_hole=1, min_holes=3)
+    d = bt.OrdinaryKriging(model, few).fit(coords, values, holes=holes).predict(at, diagnostics=True)
+    assert np.isfinite(d["value"]).all() and (d["n_holes"] >= 3).all()
+
+
+def test_ranges_select_the_same_neighbors_as_radius_and_ratios():
+    xyz = rng.uniform(0, 100, (300, 3))
+    z = rng.normal(size=300)
+    at = rng.uniform(10, 90, (80, 3))
+    by_ratios = bt.Search(radius=60, rotation=(30, 10, 0), ratios=(0.5, 0.25), max_samples=12, octant=True)
+    by_ranges = bt.Search(ranges=(60, 30, 15), rotation=(30, 10, 0), max_samples=12, octant=True)
+    assert (by_ranges.radius, by_ranges.ratios, by_ranges.ranges) == (60, (0.5, 0.25), (60, 30, 15))
+    assert by_ratios.ranges == (60, 30, 15) and bt.Search(radius=60).ranges is None
+    a, b = (
+        bt.OrdinaryKriging(model, s).fit(xyz, z).predict(at, diagnostics=True) for s in (by_ratios, by_ranges)
+    )
+    for key in ("value", "n_samples", "mean_distance"):
+        np.testing.assert_array_equal(a[key], b[key])
+    assert bt.Search.from_json(by_ranges.to_json()).ranges == (60, 30, 15)
+    for bad in ({"radius": 60, "ranges": (60, 30, 15)}, {"ranges": (60, 30, 15), "ratios": (0.5, 0.5)}, {}):
+        with pytest.raises(bt.InvalidInput):
+            bt.Search(**bad)
+    with pytest.raises(bt.InvalidInput):
+        bt.Search(ranges=(60, 0, 15))
+
+
+def test_passes_scale_the_ellipsoid():
+    base = bt.Search(ranges=(40, 20, 10), rotation=(45, 0, 0), max_samples=12, sectors=4, min_holes=2)
+    passes = bt.Search.passes(base)
+    assert [p.ranges for p in passes] == [(40, 20, 10), (80, 40, 20), (120, 60, 30)]
+    assert all((p.rotation, p.sectors, p.min_holes, p.max_samples) == ((45, 0, 0), 4, 2, 12) for p in passes)
+    custom = bt.Search.passes(base, (1, 1.5), min_samples=(4, 2), max_samples=(12, 24))
+    assert [(p.radius, p.min_samples, p.max_samples, p.max_per_sector) for p in custom] == [
+        (40, 4, 12, 3),
+        (60, 2, 24, 6),
+    ]
+    kept = bt.Search.passes(bt.Search(radius=40, sectors=4, max_per_sector=2), (1, 2), max_samples=(16, 32))
+    assert [p.max_per_sector for p in kept] == [2, 2]
+    for bad in ({"factors": ()}, {"factors": (1, -2)}, {"max_samples": (8,)}, {"min_samples": (20, 20, 20)}):
+        with pytest.raises(bt.InvalidInput):
+            bt.Search.passes(base, **bad)
+    grid = rng.uniform(-50, 150, (200, 2))
+    ok = bt.OrdinaryKriging(model, bt.Search.passes(bt.Search(radius=10, min_samples=3))).fit(coords, values)
+    assert {1.0, 2.0} <= set(ok.predict(grid, diagnostics=True)["pass"])
+
+
 def test_with_search_keeps_samples_and_domains():
     passes = [search, bt.Search(radius=200, max_samples=4)]
     ok = bt.OrdinaryKriging(model, passes).fit(coords, values)
@@ -890,6 +990,53 @@ def test_calibration_scores_are_deterministic():
     assert {"tonnage_ratio_1", "metal_ratio_2", "cv_rmse", "global_bias"} <= set(first.column_names)
     assert first["first_pass"][1] < 1.0 and first["estimated"][1] == 1.0
     assert all(np.isfinite(first[name]).all() for name in first.column_names)
+
+
+def test_calibration_suggests_the_cheapest_search_reaching_the_slope():
+    field, at, z = gaussian_field()
+    holes = np.arange(len(z)) // 3
+    kriging = bt.BlockKriging(field, search, size=(10, 10), discretization=(3, 3, 1)).fit(at, z, holes=holes)
+    base = bt.Search(radius=30, max_samples=8)
+    grid = {"max_samples": [16, 4, 8], "factors": [2, 1], "min_holes": [None, 3]}
+    best, table = bt.calibrate_search(
+        kriging, [base], blocks, cross_validation=False, suggest=grid, target_slope=0.8
+    )
+    np.testing.assert_array_equal(table["max_samples"], np.repeat([4, 8, 16], 4))
+    np.testing.assert_array_equal(table["factor"], np.tile(np.repeat([1, 2], 2), 3))
+    np.testing.assert_array_equal(table["min_holes"], np.tile([np.nan, 3], 6))
+    qualifies = (table["slope_mean"] >= 0.8) & (table["estimated"] == table["estimated"].max())
+    reached = np.flatnonzero(qualifies)
+    assert len(reached) and best is not None
+    first = reached[0]
+    assert (best.max_samples, best.radius) == (table["max_samples"][first], 30 * table["factor"][first])
+    assert not qualifies[:first].any()
+    plain = bt.calibrate_search(kriging, [best], blocks, cross_validation=False)
+    assert plain["slope_mean"][0] == table["slope_mean"][first]
+    none, _ = bt.calibrate_search(
+        kriging, [base], blocks, cross_validation=False, suggest={"max_samples": [4]}, target_slope=1.5
+    )
+    assert none is None
+    passes, _ = bt.calibrate_search(
+        kriging,
+        [[base, bt.Search(radius=1e4)]],
+        blocks,
+        cross_validation=False,
+        suggest={"factors": [1]},
+        target_slope=0,
+    )
+    assert [p.max_samples for p in passes] == [8, 8]
+    empty, table = bt.calibrate_search(
+        kriging,
+        [bt.Search(radius=1, min_samples=4)],
+        blocks,
+        cross_validation=False,
+        suggest={"min_holes": [1]},
+    )
+    assert empty is None and table["estimated"][0] == 0.0
+    with pytest.raises(bt.InvalidInput, match="one scenario"):
+        bt.calibrate_search(kriging, [base, base], blocks, suggest={})
+    with pytest.raises(bt.InvalidInput, match="suggest takes"):
+        bt.calibrate_search(kriging, [base], blocks, suggest={"radius": [10]})
 
 
 def test_calibration_cross_validates_block_kriging_at_points():

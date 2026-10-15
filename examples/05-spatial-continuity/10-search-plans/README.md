@@ -219,8 +219,9 @@ ellipse about fifteen.
 
 a hole leaves several composites in a lens, so 16 samples can come from two holes: grades along two lines and nothing
 between them. `max_per_hole` caps what one hole gives. with `min_samples=8`, a cap of three per hole needs at least
-three holes. the block model has 10 m blocks inside the lenses, and each lens is kriged from its own composites
-(`domain_column`). the first pass runs three ways: without a cap, with the cap, and with the cap and octants.
+three holes; `min_holes` asks for the holes directly. the block model has 10 m blocks inside the lenses, and each lens
+is kriged from its own composites (`domain_column`). the first pass runs five ways: without a cap, with the cap, with
+the cap and octants, with three holes and no cap, and with the cap and four holes.
 
 <details><summary>Python</summary>
 
@@ -248,6 +249,10 @@ options = {
     "3 per hole, octants": bt.Search(
         reach, min_samples=8, max_samples=16, max_per_hole=3, octant=True, **ellipsoid
     ),
+    "3 holes": bt.Search(reach, min_samples=8, max_samples=16, min_holes=3, **ellipsoid),
+    "3 per hole, 4 holes": bt.Search(
+        reach, min_samples=8, max_samples=16, max_per_hole=3, min_holes=4, **ellipsoid
+    ),
 }
 print(f"{'first pass':>20} {'blocks':>7} {'samples':>8} {'holes':>6} {'slope':>6}")
 for name, search in options.items():
@@ -267,25 +272,31 @@ for name, search in options.items():
               no cap     81%     14.1    2.3   0.52
           3 per hole     39%     10.3    3.5   0.56
  3 per hole, octants     20%      9.2    3.7   0.60
+             3 holes     25%     14.8    3.1   0.55
+ 3 per hole, 4 holes     13%     13.1    4.6   0.63
 ```
 
 without a cap the first pass fills 81 % of the blocks, from 2.3 holes on average. the cap brings it down to 39 %,
 close to the share of blocks with three holes inside one range, and those blocks use 3.5 holes. octants also ask for
-holes on several sides of the block; they halve the first pass again for a small gain in slope of regression. the plan
-keeps the cap, which spreads the neighborhood over several holes, and leaves the octants out.
+holes on several sides of the block; they halve the first pass again for a small gain in slope of regression.
+`min_holes=3` alone fills only 25 %: it checks the 16 nearest samples, which often come from two holes, and rejects
+the block rather than reaching further. with the cap it sets the number of holes apart from `min_samples`, and four
+holes leave 13 % of the blocks to the first pass at a slope of 0.63. the plan keeps the cap, which spreads the
+neighborhood over several holes, and leaves the octants out.
 
 ## the plan
 
-the second pass doubles the radius and relaxes `min_samples` to 4, two holes under the same cap. blocks that both
-passes miss stay unestimated.
+`Search.passes` builds the passes from one search, given here by the model's `ranges` and `rotation`. the second
+pass doubles the ellipsoid and relaxes `min_samples` to 4, two holes under the same cap. blocks that both passes miss
+stay unestimated.
 
 <details><summary>Python</summary>
 
 ```python
-passes = [
-    bt.Search(reach, min_samples=8, max_samples=16, max_per_hole=3, **ellipsoid),
-    bt.Search(2 * reach, min_samples=4, max_samples=16, max_per_hole=3, **ellipsoid),
-]
+base = bt.Search(ranges=tuple(ranges), rotation=model.rotation, max_samples=16, max_per_hole=3)
+passes = bt.Search.passes(base, (1, 2), min_samples=(8, 4))
+for p, search in enumerate(passes, 1):
+    print(f"pass {p}: ranges {np.round(search.ranges).astype(int)} m, min_samples {search.min_samples}")
 d = kriging.with_search(passes).predict(blocks, diagnostics=True, domain_column="LENS")
 number = np.nan_to_num(d["pass"]).astype(int)
 assert (d["n_holes"][number == 1] >= 3).all(), "pass 1 needs three holes"
@@ -305,6 +316,8 @@ for name in lenses:
 </details>
 
 ```text
+pass 1: ranges [62 40 29] m, min_samples 8
+pass 2: ranges [124  80  58] m, min_samples 4
 pass  blocks  share  samples  holes  distance  slope
    1    2479    39%     10.3    3.5      35 m   0.56
    2    3883    61%     15.4    5.8      59 m   0.46
