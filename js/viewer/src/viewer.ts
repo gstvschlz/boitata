@@ -324,7 +324,7 @@ export class Viewer {
     this.gizmo = new Gizmo((snap) => this.snap(snap));
     const state = options.state;
     this.themeSpec = state && state.theme !== "auto" ? withBase(spec.theme, state.theme) : spec.theme;
-    this.show.edl = spec.edl ?? (spec.layers.length > 0 && spec.layers.every((l) => l.kind === "points"));
+    this.show.edl = spec.edl ?? (spec.layers.length > 0 && spec.layers.every((l) => l.kind === "points" && l.representation === "points"));
     if (state) this.show = { ...this.show, ...state.show };
     this.axes.show = { box: this.show.box, grid: this.show.grid, ticks: this.show.ticks };
     this.renderer.edl = this.show.edl;

@@ -482,8 +482,8 @@ class Scene:
         time. The panel's Quality control switches between the three while viewing.
     eye_dome : bool, optional
         Eye-dome lighting: darkens each pixel by how far it lies behind its neighbours on screen, so the shape of
-        a point cloud reads without any normals. Default on when every layer is a point set, off otherwise; the
-        View panel and the E key toggle it.
+        a point cloud reads without any normals. Default on when every layer is a point set drawn as points, off
+        otherwise; the View panel and the E key toggle it.
     """
 
     def __init__(self, *, theme="auto", height=600, motion_quality="auto", eye_dome=None):
