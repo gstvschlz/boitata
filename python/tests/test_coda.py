@@ -75,6 +75,22 @@ def test_replacement_keeps_row_totals_and_detected_ratios():
         bt.replace_below_detection([[0.0, 0.001]], detection_limit=1.0)
 
 
+def test_replacement_converts_text_limits_to_each_part_unit():
+    x = np.array([[0.0, 2.0, 5.0], [1.0, 0.0, 4.0]])
+    table = bt.Table({"au": x[:, 0], "cu": x[:, 1], "zn": x[:, 2]}).with_units(
+        {"au": "g/t", "cu": "%", "zn": "%"}
+    )
+    mixed = bt.replace_below_detection(table, detection_limit=["0.01 g/t", "100 ppm", "0.01 %"])
+    np.testing.assert_allclose(mixed, bt.replace_below_detection(x, detection_limit=[0.01, 0.01, 0.01]))
+    assert not isinstance(mixed, bt.UnitArray)
+    ppb = bt.replace_below_detection(bt.UnitArray(1000 * x, "ppb"), detection_limit="0.01 g/t")
+    assert ppb.unit == "ppb" and ppb[0, 0] == pytest.approx(6.5)
+    with pytest.raises(bt.InvalidInput, match="detection_limit"):
+        bt.replace_below_detection(bt.UnitArray(x, "g/t"), detection_limit="0.01 m")
+    with pytest.raises(bt.InvalidInput, match="no unit to convert"):
+        bt.replace_below_detection(x, detection_limit="0.01 g/t")
+
+
 def test_clr_maps_simplex_operations_to_vector_operations():
     a, b = parts[:20], parts[20:]
     np.testing.assert_allclose(bt.clr(bt.perturbation(a, b)), bt.clr(a) + bt.clr(b), atol=1e-12)
