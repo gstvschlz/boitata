@@ -42,6 +42,7 @@ Worked examples with the Python API on open datasets from [gstvschlz/datasets](h
 | 25 | [units](02-data-and-geometry/25-units/README.md) | Stacked sulphide lenses | `write_csv`, `Table`, `units`, `InvalidInput`, `plot.histogram`, `Drillholes`, `BlockModel`, `OrdinaryKriging`, `Variogram`, `Search`, `grade_tonnage`, `MultipleIndicatorKriging`, `Capping`, `validate_model` |
 | 26 | [local mine grid](02-data-and-geometry/26-local-grid/README.md) | Synthetic | `LocalGrid`, `BlockModel`, `Drillholes` |
 | 27 | [coordinate reference systems](02-data-and-geometry/27-coordinate-systems/README.md) | Synthetic | `Polylines`, `PointSet`, `BlockModel`, `InvalidInput` |
+| 28 | [GeoJSON](02-data-and-geometry/28-geojson/README.md) | Synthetic | `PointSet`, `Polylines`, `write_geojson`, `read_geojson` |
 
 ## exploratory analysis
 

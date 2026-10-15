@@ -238,6 +238,26 @@ def test_shapefile_round_trip(tmp_path):
         bt.write_shapefile(tmp_path / "long.shp", points.with_column("a_long_column", [1, 2]))
 
 
+def test_geojson_round_trip_in_longitude_latitude(tmp_path):
+    points = bt.PointSet(
+        [[500000.5, 7000000.25, 350.0], [500010.0, 7000020.0, -12.5]],
+        {"rock": ["óxido", None], "au": [0.3, float("nan")]},
+        crs="EPSG:31982",
+    )
+    bt.write_geojson(tmp_path / "collars.geojson", points)
+    back = bt.read_geojson(tmp_path / "collars.geojson")
+    assert back.crs == "EPSG:4326" and back.column_names == ["rock", "au"]
+    np.testing.assert_allclose(back.to_crs("EPSG:31982").coords, points.coords, atol=1e-6)
+    assert np.isnan(back["au"][1]) and list(back["rock"]) == ["óxido", None]
+    pit = [[-51.0, -20.0], [-50.9, -20.0], [-50.9, -19.9], [-51.0, -19.9]]
+    hole = [[-50.96, -19.96], [-50.94, -19.96], [-50.94, -19.94], [-50.96, -19.94]]
+    lines = bt.Polylines([pit, hole, pit[:2]], closed=[True, True, False], features=[0, 0, 1])
+    bt.write_geojson(tmp_path / "pit.geojson", lines)
+    back = bt.read_geojson(tmp_path / "pit.geojson")
+    assert len(back) == 2 and list(back.closed) == [True, True, False]
+    np.testing.assert_allclose(back.area(), lines.area(), equal_nan=True)
+
+
 def test_polylines_parts_features_and_points():
     pit = [[0, 0], [10, 0], [10, 10], [0, 10]]
     hole = [[4, 4], [6, 4], [6, 6], [4, 6]]

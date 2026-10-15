@@ -18,6 +18,8 @@ pub enum Error {
     Mesh(String),
     #[error("GeoPackage: {0}")]
     GeoPackage(String),
+    #[error("GeoJSON: {0}")]
+    GeoJson(String),
     #[error("GeoTIFF: {0}")]
     GeoTiff(String),
     #[error("SEG-Y: {0}")]
