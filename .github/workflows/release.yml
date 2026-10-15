@@ -4,13 +4,6 @@ on:
   push:
     tags: ["v*"]
   workflow_dispatch:
-  pull_request:
-    paths:
-      - pyproject.toml
-      - Cargo.*
-      - crates/**
-      - python/boitata/**
-      - .github/**
 
 permissions:
   contents: read
