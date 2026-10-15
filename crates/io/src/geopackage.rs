@@ -155,10 +155,8 @@ pub fn encode_point(p: [f64; 3], srs_id: i32) -> Vec<u8> {
     b
 }
 
-/// A MultiLineStringZ blob of open `parts`, or a MultiPolygonZ one of rings.
-/// Rings nest by containment: those inside an even number of others are
-/// exteriors, wound counter-clockwise, and each other ring is a clockwise hole
-/// of the innermost exterior holding it.
+/// A MultiLineStringZ blob of open `parts`, or a MultiPolygonZ one of rings
+/// grouped as [`polygons`] does.
 pub fn encode_parts(parts: &[&[[f64; 3]]], polygon: bool, srs_id: i32) -> Vec<u8> {
     let vertices: Vec<[f64; 3]> = parts.concat();
     let mut b = header(srs_id, &vertices);
@@ -174,33 +172,48 @@ pub fn encode_parts(parts: &[&[[f64; 3]]], polygon: bool, srs_id: i32) -> Vec<u8
         }
         return b;
     }
-    let holders =
-        |i: usize| (0..parts.len()).filter(move |&j| j != i && inside(parts[j], parts[i][0]));
-    let depth: Vec<usize> = (0..parts.len()).map(|i| holders(i).count()).collect();
-    let exteriors: Vec<usize> = (0..parts.len())
-        .filter(|&i| depth[i].is_multiple_of(2))
-        .collect();
+    let polygons = polygons(parts);
     b.extend(1006u32.to_le_bytes());
-    b.extend((exteriors.len() as u32).to_le_bytes());
-    for &e in &exteriors {
-        let holes = (0..parts.len()).filter(|&i| {
-            depth[i] % 2 == 1 && holders(i).any(|j| j == e && depth[j] + 1 == depth[i])
-        });
-        let rings: Vec<usize> = [e].into_iter().chain(holes).collect();
+    b.extend((polygons.len() as u32).to_le_bytes());
+    for rings in polygons {
         b.push(1);
         b.extend(1003u32.to_le_bytes());
         b.extend((rings.len() as u32).to_le_bytes());
-        for r in rings {
-            let mut ring = parts[r].to_vec();
-            if (area2(&ring) > 0.0) != (r == e) {
-                ring.reverse();
-            }
-            ring.push(ring[0]);
+        for ring in rings {
             b.extend((ring.len() as u32).to_le_bytes());
             push_points(&mut b, &ring);
         }
     }
     b
+}
+
+/// Rings grouped into polygons by containment, each ring repeating its first
+/// vertex: those inside an even number of others are exteriors, wound
+/// counter-clockwise, and each other ring is a clockwise hole of the innermost
+/// exterior holding it.
+pub(crate) fn polygons(parts: &[&[[f64; 3]]]) -> Vec<Vec<Vec<[f64; 3]>>> {
+    let holders =
+        |i: usize| (0..parts.len()).filter(move |&j| j != i && inside(parts[j], parts[i][0]));
+    let depth: Vec<usize> = (0..parts.len()).map(|i| holders(i).count()).collect();
+    (0..parts.len())
+        .filter(|&e| depth[e].is_multiple_of(2))
+        .map(|e| {
+            let holes = (0..parts.len()).filter(|&i| {
+                depth[i] % 2 == 1 && holders(i).any(|j| j == e && depth[j] + 1 == depth[i])
+            });
+            [e].into_iter()
+                .chain(holes)
+                .map(|r| {
+                    let mut ring = parts[r].to_vec();
+                    if (area2(&ring) > 0.0) != (r == e) {
+                        ring.reverse();
+                    }
+                    ring.push(ring[0]);
+                    ring
+                })
+                .collect()
+        })
+        .collect()
 }
 
 #[cfg(test)]

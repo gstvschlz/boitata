@@ -3,6 +3,7 @@
 
 mod csv;
 mod error;
+mod geojson;
 mod geopackage;
 mod geotiff;
 mod gslib;
@@ -14,6 +15,7 @@ mod shapefile;
 
 pub use csv::{CsvOptions, read_csv, write_csv};
 pub use error::{Error, Result};
+pub use geojson::{read_geojson, write_geojson, write_polylines_geojson};
 pub use geopackage::{Geometry, decode_geometry, encode_parts, encode_point};
 pub use geotiff::{read_geotiff, write_geotiff};
 pub use gslib::{read_gslib, write_gslib};

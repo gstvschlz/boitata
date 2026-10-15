@@ -274,19 +274,82 @@ fn read_shapefile(
     nodata: Option<Vec<Bound<PyAny>>>,
     length_unit: Option<String>,
 ) -> PyResult<Py<PyAny>> {
+    let shapes = boitata_io::read_shapefile(path, &self::nodata(nodata)?).map_err(io_error)?;
+    shapes_to_py(py, shapes, length_unit)
+}
+
+fn shapes_to_py(py: Python, shapes: Shapes, length_unit: Option<String>) -> PyResult<Py<PyAny>> {
     let length_unit = crate::table::length_unit(length_unit)?;
-    Ok(
-        match boitata_io::read_shapefile(path, &self::nodata(nodata)?).map_err(io_error)? {
-            Shapes::Points(mut p) => {
-                p.length_unit = length_unit;
-                Py::new(py, PyPointSet(p))?.into_any()
-            }
-            Shapes::Polylines(mut l) => {
-                l.length_unit = length_unit;
-                Py::new(py, PyPolylines(l))?.into_any()
-            }
-        },
-    )
+    Ok(match shapes {
+        Shapes::Points(mut p) => {
+            p.length_unit = length_unit;
+            Py::new(py, PyPointSet(p))?.into_any()
+        }
+        Shapes::Polylines(mut l) => {
+            l.length_unit = length_unit;
+            Py::new(py, PyPolylines(l))?.into_any()
+        }
+    })
+}
+
+/// Reads a GeoJSON file as a PointSet or Polylines.
+///
+/// Parameters
+/// ----------
+/// path : str or Path
+///     A feature collection, a feature or a geometry.
+/// nodata : sequence of float or str, optional
+///     Property values read as null, as in `read_csv`; JSON null is always
+///     null.
+/// length_unit : str, optional
+///     The unit of the coordinates, for files in a projected CRS.
+///
+/// Returns
+/// -------
+/// PointSet or Polylines
+///     Points and multipoints give a PointSet, a multipoint repeating its
+///     properties per point. Lines and polygons give Polylines, polygon rings
+///     as closed parts without the repeated closing vertex and a null geometry
+///     as a feature without parts. Positions without z get z = 0. Properties
+///     become columns in file order: numbers float64, booleans bool, the rest
+///     text. The CRS is the one a ``crs`` member names, else ``EPSG:4326``
+///     as RFC 7946 says.
+#[pyfunction]
+#[pyo3(signature = (path, *, nodata=None, length_unit=None))]
+fn read_geojson(
+    py: Python,
+    path: PathBuf,
+    nodata: Option<Vec<Bound<PyAny>>>,
+    length_unit: Option<String>,
+) -> PyResult<Py<PyAny>> {
+    let shapes = boitata_io::read_geojson(path, &self::nodata(nodata)?).map_err(io_error)?;
+    shapes_to_py(py, shapes, length_unit)
+}
+
+/// Writes a PointSet or Polylines as a GeoJSON feature collection.
+///
+/// Parameters
+/// ----------
+/// path : str or Path
+///     The file to write.
+/// data : PointSet or Polylines
+///     Points are written as 3D Point features. Polylines features of open
+///     parts are written as LineString or MultiLineString, of closed parts as
+///     Polygon or MultiPolygon, exteriors counter-clockwise and holes
+///     clockwise; a feature without parts has a null geometry and one mixing
+///     open and closed parts is rejected. Attributes are properties: numbers
+///     (NaN as null), booleans, and other columns as text. Coordinates with a
+///     CRS are converted to longitude and latitude on WGS 84 with `to_crs`, as
+///     RFC 7946 requires; without a CRS they are written as they are.
+#[pyfunction]
+fn write_geojson(path: PathBuf, data: &Bound<PyAny>) -> PyResult<()> {
+    if let Ok(lines) = data.cast::<PyPolylines>() {
+        return boitata_io::write_polylines_geojson(path, &lines.get().0).map_err(io_error);
+    }
+    let points = data
+        .cast::<PyPointSet>()
+        .map_err(|_| invalid("data must be a PointSet or Polylines"))?;
+    boitata_io::write_geojson(path, &points.get().0).map_err(io_error)
 }
 
 /// Writes a PointSet or Polylines as a 3D shapefile.
@@ -681,6 +744,8 @@ pub fn register(m: &Bound<PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(write_mesh, m)?)?;
     m.add_function(wrap_pyfunction!(read_shapefile, m)?)?;
     m.add_function(wrap_pyfunction!(write_shapefile, m)?)?;
+    m.add_function(wrap_pyfunction!(read_geojson, m)?)?;
+    m.add_function(wrap_pyfunction!(write_geojson, m)?)?;
     m.add_function(wrap_pyfunction!(_decode_geometries, m)?)?;
     m.add_function(wrap_pyfunction!(_encode_geometries, m)?)?;
     m.add_function(wrap_pyfunction!(read_geotiff, m)?)?;
