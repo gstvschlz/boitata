@@ -382,6 +382,25 @@ def test_rendered_block_shows_its_exact_lut_color_and_a_null_paints_nothing(tmp_
     assert null == (255, 255, 255)
 
 
+def test_eye_dome_defaults_to_point_only_scenes_and_is_validated():
+    assert Scene()._spec()["edl"] is None
+    assert Scene(eye_dome=True)._spec()["edl"] is True
+    with pytest.raises(TypeError, match="eye_dome"):
+        Scene(eye_dome="on")
+
+
+def test_rendered_eye_dome_darkens_a_step_and_keeps_flat_faces_exact(tmp_path):
+    model = bt.BlockModel((0.0, 0.0, 0.0), (10.0, 10.0, 10.0), (2, 1, 2)).filter(np.array([1, 0, 0, 1], bool))
+    model = model.with_column("v", [0.2, 0.8])
+    colors = {}
+    for on in (False, True):
+        scene = Scene(theme="light", eye_dome=on).add(model, "v", clim=(0.0, 1.0)).view(dip=90)
+        colors[on] = rendered_pixels(scene, [[3.0, 5.0, 10.0], [9.97, 5.0, 10.0]], tmp_path, bare=True)
+    flat, step = colors[True]
+    assert flat == colors[False][0] == lut_rgb("viridis", 0.2, 0.0, 1.0)
+    assert sum(step) < sum(colors[False][1]) - 30
+
+
 def framed(scene, z=0.0):
     """Adds two dots far out in plan, so filtering never changes the extent the camera frames."""
     return scene.add(bt.PointSet([[-15.0, -15.0, z], [45.0, 30.0, z]]), point_size=2)

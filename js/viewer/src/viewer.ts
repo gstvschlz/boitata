@@ -138,7 +138,7 @@ export interface ViewState {
   theme: "auto" | "light" | "dark";
   dark: boolean;
   panel: boolean;
-  show: { box: boolean; grid: boolean; ticks: boolean; gizmo: boolean };
+  show: { box: boolean; grid: boolean; ticks: boolean; gizmo: boolean; edl: boolean };
   layers: Record<string, { visible: boolean; representation: string; values: string | null; color: string | null; opacity: number }>;
   variables: Record<string, { cmap: string; clim: [number, number] | null }>;
 }
@@ -196,7 +196,7 @@ export class Viewer {
   private pending = false;
   private box: Box | null = null;
   private refit: { from: Box; to: Box; start: number } | null = null;
-  private show = { box: true, grid: true, ticks: true, gizmo: true };
+  private show = { box: true, grid: true, ticks: true, gizmo: true, edl: false };
   private collapsed = new Set<string>();
   private shot = { scale: 2, panel: false };
   private panel = document.createElement("div");
@@ -295,8 +295,10 @@ export class Viewer {
     this.gizmo = new Gizmo((snap) => this.snap(snap));
     const state = options.state;
     this.themeSpec = state && state.theme !== "auto" ? withBase(spec.theme, state.theme) : spec.theme;
-    if (state) this.show = { ...state.show };
+    this.show.edl = spec.edl ?? (spec.layers.length > 0 && spec.layers.every((l) => l.kind === "points"));
+    if (state) this.show = { ...this.show, ...state.show };
     this.axes.show = { box: this.show.box, grid: this.show.grid, ticks: this.show.ticks };
+    this.renderer.edl = this.show.edl;
 
     this.layers = spec.layers.map((given, index) => {
       const s = state?.layers?.[given.id];
@@ -977,14 +979,12 @@ export class Viewer {
         ["grid", "grid", "Grid"],
         ["ticks", "ruler", "Tick labels"],
         ["gizmo", "axes", "Orientation"],
+        ["edl", "contrast", "Eye-dome lighting (E)"],
       ];
       for (const [key, name, text] of toggles) {
         const button = iconButton(name, text, () => {
-          this.show[key] = !this.show[key];
+          this.toggleShow(key);
           button.setAttribute("aria-pressed", String(this.show[key]));
-          this.axes.show = { box: this.show.box, grid: this.show.grid, ticks: this.show.ticks };
-          this.showGizmo();
-          this.requestRender();
         });
         button.classList.add("btv-tool");
         button.setAttribute("aria-pressed", String(this.show[key]));
@@ -1000,6 +1000,15 @@ export class Viewer {
       this.body.appendChild(box);
     }
     this.body.scrollTop = scroll;
+  }
+
+  /** Turns one of the view's overlays or its eye-dome lighting on or off. */
+  toggleShow(key: keyof Viewer["show"]): void {
+    this.show[key] = !this.show[key];
+    this.axes.show = { box: this.show.box, grid: this.show.grid, ticks: this.show.ticks };
+    this.renderer.edl = this.show.edl;
+    this.showGizmo();
+    this.requestRender();
   }
 
   private key_(layer: Layer): HTMLElement {
@@ -2202,6 +2211,10 @@ export class Viewer {
       panel: () => this.togglePanel(),
       theme: () => this.toggleTheme(),
       help: () => this.toggleHelp(),
+      edl: () => {
+        this.toggleShow("edl");
+        this.renderBody();
+      },
       cancel: () => {
         if (this.drawing) this.endDrawing();
         else if (this.quick) this.endQuick();

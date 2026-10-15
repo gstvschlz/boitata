@@ -19,7 +19,12 @@ class Scene:
     @property
     def picked(self) -> dict[str, Any] | None: ...
     def __init__(
-        self, *, theme: Theme = "auto", height: int = 600, motion_quality: MotionQuality = "auto"
+        self,
+        *,
+        theme: Theme = "auto",
+        height: int = 600,
+        motion_quality: MotionQuality = "auto",
+        eye_dome: bool | None = None,
     ) -> None: ...
     def add(
         self,

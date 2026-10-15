@@ -61,6 +61,8 @@ export interface SceneSpec {
   view: { azimuth: number; dip: number };
   /** What draws while the camera moves: "auto", "full", or a fixed fraction of each layer's instances. */
   motion?: "auto" | "full" | number;
+  /** Eye-dome lighting at the start; null or absent turns it on when every layer is a point set. */
+  edl?: boolean | null;
   variables: Record<string, VariableSpec>;
   layers: LayerSpec[];
   /** Section to start with, in real-world coordinates; empty for none. */

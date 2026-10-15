@@ -480,11 +480,18 @@ class Scene:
         points; surfaces stay whole), an evenly spread subset that keeps each layer's shape, at a resolution
         lowered to match. ``"auto"`` starts from what the scene's size suggests and adapts to the measured frame
         time. The panel's Quality control switches between the three while viewing.
+    eye_dome : bool, optional
+        Eye-dome lighting: darkens each pixel by how far it lies behind its neighbours on screen, so the shape of
+        a point cloud reads without any normals. Default on when every layer is a point set, off otherwise; the
+        View panel and the E key toggle it.
     """
 
-    def __init__(self, *, theme="auto", height=600, motion_quality="auto"):
+    def __init__(self, *, theme="auto", height=600, motion_quality="auto", eye_dome=None):
         if isinstance(height, bool) or not isinstance(height, int) or height <= 0:
             raise ValueError(f"height must be a positive int, got {height!r}")
+        if eye_dome is not None and not isinstance(eye_dome, bool):
+            raise TypeError(f"eye_dome must be a bool or None, got {eye_dome!r}")
+        self._eye_dome = eye_dome
         self._theme = _theme(theme)
         self._height = height
         self._motion = _motion_quality(motion_quality)
@@ -907,6 +914,7 @@ class Scene:
             "height": self._height,
             "view": dict(self._view),
             "motion": self._motion,
+            "edl": self._eye_dome,
             "variables": {
                 k: dict(v, clim=list(v["clim"])) if "clim" in v else dict(v)
                 for k, v in self._variables.items()
