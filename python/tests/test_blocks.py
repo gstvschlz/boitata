@@ -270,6 +270,24 @@ def test_repair_keeps_a_cavity_wound_inward():
     np.testing.assert_allclose(fixed.proportion(blocks, size=(10, 10, 10)), [1, 0])
 
 
+def test_section_gives_loops_per_offset_with_face_columns():
+    m = bt.Mesh(cube_vertices, cube_triangles, crs="EPSG:32722", length_unit="m")
+    lines = m.with_face_column("rock", ["ore"] * 12).section((0, 0, 0), (0, 0, 1), offsets=[2.5, 5, 20])
+    assert len(lines) == 2 and lines.closed.all() and lines.crs == "EPSG:32722" and lines.length_unit == "m"
+    assert list(lines["offset"]) == [2.5, 5.0] and list(lines["rock"]) == ["ore", "ore"]
+    np.testing.assert_allclose(lines.length(), [40, 40])
+    np.testing.assert_allclose(lines.area(), [100, 100])
+    tilted = m.section(np.array([5.0, 5.0, 5.0]), (1, 1, 0))
+    assert len(tilted) == 1 and tilted.length()[0] == pytest.approx(2 * 10 * np.sqrt(2) + 20)
+    sides = m.with_face_column("side", np.repeat(np.arange(6.0), 2)).section((0, 0, 5), (0, 0, 1))
+    assert len(sides) == 4 and not sides.closed.any() and sorted(sides["side"]) == [2, 3, 4, 5]
+    square = bt.Mesh([[0, 0, 0], [1, 0, 0], [1, 1, 0], [0, 1, 0]], [[0, 1, 2], [0, 2, 3]])
+    line = square.section((0.5, 0, 0), (1, 0, 0))
+    assert not line.closed[0] and line.length()[0] == pytest.approx(1)
+    with pytest.raises(bt.errors.InvalidInput):
+        m.section((0, 0, 0), (0, 0, 0))
+
+
 def test_subblocks_from_meshes_and_regularize():
     topo = bt.Mesh([[-10, -10, 7], [30, -10, 7], [30, 30, 7], [-10, 30, 7]], [[0, 1, 2], [0, 2, 3]])
     meshes = [(cube, "inside", "ore"), (topo, "below", "rock")]
