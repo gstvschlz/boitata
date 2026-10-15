@@ -4,8 +4,9 @@
 //! Three engines produce the field, and a surface picks one:
 //!
 //! - [`Engine::Rbf`] — a radial basis function solved from scratch
-//!   ([`crate::rbf`]). No variogram needed; the kernel and the drift degree are
-//!   the whole parameter surface.
+//!   ([`crate::rbf`]), or past a few thousand rows a partition of unity of local
+//!   ones ([`crate::partition`]). No variogram needed; the kernel and the drift
+//!   degree are the whole parameter surface.
 //! - [`Engine::DualKriging`] — the dual form of kriging ([`crate::hermite`]),
 //!   driven by a fitted variogram. Same global-solve shape as the RBF (one
 //!   factorization, then a cheap evaluation per node), which is what makes it
@@ -16,9 +17,10 @@
 //!   the data, so the cost is `O(nm²)` and no decimation is needed. It is the
 //!   only engine that returns a posterior *variance* alongside the field.
 //!
-//! The first two are *global* solves: cost is cubic in the constraint count, so
-//! [`decimate`] caps what reaches the solver and the caller reports the cap.
-//! The third exists because that cap is a ceiling on the answer's quality.
+//! Dual kriging and the dense RBF are *global* solves: cost is cubic in the
+//! constraint count, so [`decimate`] caps what reaches the solver and the
+//! caller reports the cap. The partition-of-unity RBF and the GP exist because
+//! that cap is a ceiling on the answer's quality.
 //!
 //! All three take more than values: a boundary pick lands on the contact and a
 //! structural reading constrains the gradient. [`build_surface_constrained`] is
@@ -31,7 +33,8 @@ use crate::constraint::ConstraintSet;
 use crate::error::{ModelError, Result};
 use crate::grid::{ScalarGrid, TriMesh};
 use crate::hermite::{HermiteKriging, HermiteSpec};
-use crate::rbf::{Rbf, RbfSpec};
+use crate::partition::RbfField;
+use crate::rbf::RbfSpec;
 use crate::svgp::{FitReport, Svgp, SvgpSpec};
 
 /// What the modeled field means, and so what its isosurface is.
@@ -227,7 +230,7 @@ pub fn build_surface_constrained(
     set.validate()?;
     let (field, variance, fit) = match engine {
         Engine::Rbf(spec) => {
-            let rbf = Rbf::fit_constraints(set, spec)?;
+            let rbf = RbfField::fit(set, spec)?;
             (evaluate(grid, |p| rbf.value(p))?, None, None)
         }
         Engine::DualKriging { variogram, spec } => {

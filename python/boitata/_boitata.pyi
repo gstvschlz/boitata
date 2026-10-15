@@ -2102,6 +2102,7 @@ class ImplicitModel:
         smoothing: float = 0.0,
         rotation: tuple[float, float, float] | None = None,
         ratios: tuple[float, float] | None = None,
+        patch: int | None = None,
     ) -> None: ...
     def to_parquet(self, path: Path) -> None: ...
     @staticmethod

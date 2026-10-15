@@ -362,16 +362,20 @@ def implicit_models():
             {"coords": coords[:50], "values": shell[:50]},
         ),
         (bt.ImplicitModel(engine="gp", rotation=(10.0, 0.0, 0.0)), {"coords": coords, "values": shell}),
+        (bt.ImplicitModel(patch=60), {"coords": coords, "values": shell}),
     ]
 
 
 def field(implicit):
-    if implicit.report is not None:
-        return (*implicit.predict(targets, variance=True), *implicit.report.values())
-    return implicit.predict(targets, gradient=True)
+    report = implicit.report or {}
+    if "elbo" in report:
+        return (*implicit.predict(targets, variance=True), *report.values())
+    return (*implicit.predict(targets, gradient=True), *report.values())
 
 
-@pytest.mark.parametrize("implicit, inputs", implicit_models(), ids=["rbf", "structure", "kriging", "gp"])
+@pytest.mark.parametrize(
+    "implicit, inputs", implicit_models(), ids=["rbf", "structure", "kriging", "gp", "patches"]
+)
 def test_implicit_model_round_trip_evaluates_bit_identically(implicit, inputs, tmp_path):
     path = tmp_path / "implicit.parquet"
     implicit.to_parquet(path)

@@ -199,6 +199,12 @@ pub struct RbfSpec {
     /// dips a few centimeters apart that disagree.
     pub gradient_nugget: f64,
     pub anisotropy: Option<Angles>,
+    /// Which solver [`crate::RbfField::fit`] runs: `None` picks the dense solve
+    /// up to [`crate::partition::DENSE_ROWS`] constraint rows and a partition
+    /// of unity above, `Some(0)` always solves densely, and `Some(n)` asks for
+    /// patches of about `n` rows. [`Rbf::fit_constraints`] is always dense and
+    /// ignores it.
+    pub patch: Option<usize>,
 }
 
 impl Default for RbfSpec {
@@ -210,6 +216,7 @@ impl Default for RbfSpec {
             boundary_tolerance: 0.0,
             gradient_nugget: 0.0,
             anisotropy: None,
+            patch: None,
         }
     }
 }
@@ -259,7 +266,7 @@ fn dbasis(m: &[f64; 3], degree: usize) -> Vec<f64> {
     }
 }
 
-fn basis_len(degree: usize) -> usize {
+pub(crate) fn basis_len(degree: usize) -> usize {
     if degree == 0 { 1 } else { 4 }
 }
 
@@ -566,7 +573,7 @@ impl Rbf {
 /// Centroid and half-extent of every constrained location. A degenerate set
 /// (all coincident, or a single point) gets scale 1 so normalization is a no-op
 /// rather than a division by zero.
-fn normalization(values: &[[f64; 3]], derivatives: &[[f64; 3]]) -> ([f64; 3], f64) {
+pub(crate) fn normalization(values: &[[f64; 3]], derivatives: &[[f64; 3]]) -> ([f64; 3], f64) {
     let n = (values.len() + derivatives.len()) as f64;
     let mut origin = [0.0; 3];
     for p in values.iter().chain(derivatives) {
@@ -584,7 +591,7 @@ fn normalization(values: &[[f64; 3]], derivatives: &[[f64; 3]]) -> ([f64; 3], f6
     (origin, scale)
 }
 
-fn normalize(p: &[f64; 3], origin: &[f64; 3], scale: f64) -> [f64; 3] {
+pub(crate) fn normalize(p: &[f64; 3], origin: &[f64; 3], scale: f64) -> [f64; 3] {
     [
         (p[0] - origin[0]) / scale,
         (p[1] - origin[1]) / scale,
@@ -594,7 +601,7 @@ fn normalize(p: &[f64; 3], origin: &[f64; 3], scale: f64) -> [f64; 3] {
 
 /// Spread of the values, used to put the tolerances on a unit-free scale. Falls
 /// back to 1 for a constant field.
-fn value_scale(values: &[f64]) -> f64 {
+pub(crate) fn value_scale(values: &[f64]) -> f64 {
     if values.is_empty() {
         return 1.0;
     }

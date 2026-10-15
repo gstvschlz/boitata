@@ -1,6 +1,6 @@
 use modeling::{
     ConstraintSet, Driver, HermiteKriging, HermiteSpec, Kernel, Lineation, Plane, PlaneEncoding,
-    Rbf, RbfSpec, ScalarGrid, Svgp, SvgpSpec, marching_tetrahedra,
+    RbfField, RbfSpec, ScalarGrid, Svgp, SvgpSpec, marching_tetrahedra,
 };
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
@@ -17,7 +17,7 @@ use crate::persist::{self, Columns, Found, Tabular};
 use crate::variogram::Variogram;
 
 enum Fitted {
-    Rbf(Rbf),
+    Rbf(RbfField),
     Kriging(HermiteKriging),
     Gp(Svgp),
 }
@@ -54,6 +54,13 @@ impl Fitted {
 ///     anisotropy from the variogram.
 /// ratios : tuple of float, optional
 ///     Semi-major/major and minor/major range ratios for ``engine="rbf"``.
+/// patch : int, optional
+///     Solver for ``engine="rbf"``. ``None`` solves one dense system up to
+///     2000 constraint rows and above that a partition of unity: overlapping
+///     local systems of about 400 rows, blended by smooth weights into one
+///     field that still honors every value. ``0`` always solves densely; a
+///     positive value, at least 10, sets the rows per local system. Each
+///     plane counts two rows, each lineation one.
 #[derive(Serialize, Deserialize)]
 #[pyclass(module = "boitata", name = "ImplicitModel")]
 pub struct ImplicitModel {
@@ -64,6 +71,8 @@ pub struct ImplicitModel {
     smoothing: f64,
     rotation: Option<(f64, f64, f64)>,
     ratios: Option<(f64, f64)>,
+    #[serde(default)]
+    patch: Option<usize>,
     #[serde(skip)]
     fitted: Option<Fitted>,
     #[serde(skip)]
@@ -126,7 +135,19 @@ impl ImplicitModel {
                     "engine=\"gp\" learns its ranges; give rotation only",
                 ));
             }
+            "kriging" | "gp" if self.patch.is_some() => {
+                return Err(invalid("patch applies to engine=\"rbf\" only"));
+            }
             _ => {}
+        }
+        if self
+            .patch
+            .is_some_and(|n| n > 0 && n < modeling::partition::MIN_PATCH)
+        {
+            return Err(invalid(format!(
+                "patch must be 0 (dense) or at least {}",
+                modeling::partition::MIN_PATCH
+            )));
         }
         if self
             .ratios
@@ -172,10 +193,10 @@ impl ImplicitModel {
                     drift_degree: degree,
                     smoothing: self.smoothing,
                     anisotropy,
+                    patch: self.patch,
                     ..RbfSpec::default()
                 };
-                py.detach(|| Rbf::fit_constraints(&set, &spec))
-                    .map(Fitted::Rbf)
+                py.detach(|| RbfField::fit(&set, &spec)).map(Fitted::Rbf)
             }
             "kriging" => {
                 let vg = self.variogram.as_ref().expect("checked").0.clone();
@@ -284,7 +305,8 @@ fn readings(obj: Option<&Bound<PyAny>>, what: &str) -> PyResult<Vec<[f64; 5]>> {
 #[pymethods]
 impl ImplicitModel {
     #[new]
-    #[pyo3(signature = (engine="rbf", *, kernel="biharmonic", variogram=None, degree=1, smoothing=0.0, rotation=None, ratios=None))]
+    #[pyo3(signature = (engine="rbf", *, kernel="biharmonic", variogram=None, degree=1, smoothing=0.0, rotation=None, ratios=None, patch=None))]
+    #[allow(clippy::too_many_arguments)]
     fn new(
         engine: &str,
         kernel: &str,
@@ -293,6 +315,7 @@ impl ImplicitModel {
         smoothing: f64,
         rotation: Option<(f64, f64, f64)>,
         ratios: Option<(f64, f64)>,
+        patch: Option<usize>,
     ) -> PyResult<Self> {
         let model = Self {
             engine: engine.to_string(),
@@ -302,6 +325,7 @@ impl ImplicitModel {
             smoothing,
             rotation,
             ratios,
+            patch,
             fitted: None,
             inputs: Vec::new(),
         };
@@ -493,14 +517,26 @@ impl ImplicitModel {
         Ok(Mesh::from_core(mesh))
     }
 
-    /// Fit diagnostics of `engine="gp"`, else `None`.
+    /// Fit diagnostics: for `engine="rbf"` the solver that ran (``"dense"``
+    /// or ``"partition of unity"``) and its number of patches, for
+    /// `engine="gp"` the optimizer's; `None` for kriging or before `fit`.
     #[getter]
     fn report<'py>(&self, py: Python<'py>) -> PyResult<Option<Bound<'py, PyDict>>> {
-        let Some(Fitted::Gp(gp)) = &self.fitted else {
-            return Ok(None);
+        let d = PyDict::new(py);
+        let gp = match &self.fitted {
+            Some(Fitted::Gp(gp)) => gp,
+            Some(Fitted::Rbf(field)) => {
+                let solver = match field {
+                    RbfField::Dense(_) => "dense",
+                    RbfField::Partition(_) => "partition of unity",
+                };
+                d.set_item("solver", solver)?;
+                d.set_item("patches", field.patch_count())?;
+                return Ok(Some(d));
+            }
+            _ => return Ok(None),
         };
         let r = gp.report();
-        let d = PyDict::new(py);
         d.set_item("status", r.status.as_str())?;
         d.set_item("iterations", r.iterations)?;
         d.set_item("elbo", r.elbo)?;

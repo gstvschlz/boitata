@@ -7,6 +7,8 @@
 //! Modules:
 //! - [`rbf`]        — radial basis function interpolation (biharmonic,
 //!   triharmonic, thin-plate) with polynomial drift and optional smoothing
+//! - [`partition`]  — the same RBF as overlapping local solves blended by a
+//!   partition of unity, for models past a few thousand constraints
 //! - [`implicit`]   — the three engines (RBF, dual kriging, sparse variational
 //!   GP), the data drivers, grid sizing, and the fit → sample → extract
 //!   pipeline
@@ -33,6 +35,7 @@ pub mod hermite;
 pub mod implicit;
 pub mod isosurface;
 pub mod orientation;
+pub mod partition;
 pub mod rbf;
 pub mod svgp;
 
@@ -48,6 +51,7 @@ pub use implicit::{
 };
 pub use isosurface::marching_tetrahedra;
 pub use orientation::{Lineation, Plane};
+pub use partition::{PartitionRbf, RbfField};
 pub use rbf::{Kernel, Rbf, RbfSpec};
 pub use svgp::{Convergence, FitReport, Svgp, SvgpSpec};
 pub use variogram::Model;
