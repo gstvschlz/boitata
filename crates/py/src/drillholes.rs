@@ -684,6 +684,11 @@ impl Drillholes {
         step: f64,
         tolerance: f64,
     ) -> PyResult<Table> {
+        boitata_core::crs::same_crs(
+            ("drill holes", self.crs.as_deref()),
+            ("the mesh", mesh.mesh.crs.as_deref()),
+        )
+        .map_err(invalid)?;
         let solid = mesh.solid()?;
         let runs: Vec<(&String, Vec<(f64, f64, bool)>)> = py.detach(|| {
             self.paths
@@ -1745,6 +1750,11 @@ fn snap_to_surface(
     surface: &Bound<PyAny>,
     column: Option<&str>,
 ) -> PyResult<(Drillholes, Table)> {
+    crate::units::check_crs(
+        drillholes.crs_ref(),
+        surface,
+        ("drill holes", "the surface"),
+    )?;
     let mesh = if let Ok(m) = surface.cast::<Mesh>() {
         m.get().mesh.clone()
     } else if let Ok(model) = surface.cast::<crate::containers::PyBlockModel>() {

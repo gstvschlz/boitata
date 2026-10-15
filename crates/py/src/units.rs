@@ -47,10 +47,29 @@ pub fn common_length(units: impl IntoIterator<Item = Option<String>>) -> PyResul
     Ok(found)
 }
 
+/// The CRS of `obj`, if a container declares one.
+pub fn crs_of(obj: &Bound<PyAny>) -> PyResult<Option<String>> {
+    Ok(obj
+        .getattr_opt("crs")?
+        .and_then(|u| u.extract::<String>().ok()))
+}
+
 /// Errors when `other`, a container, declares another length unit than
-/// `own`; `names` say what each holds.
-pub fn check_against(own: Option<&str>, other: &Bound<PyAny>, names: (&str, &str)) -> PyResult<()> {
+/// `own` or another CRS than `own_crs`; `names` say what each holds.
+pub fn check_against(
+    own: Option<&str>,
+    own_crs: Option<&str>,
+    other: &Bound<PyAny>,
+    names: (&str, &str),
+) -> PyResult<()> {
     boitata_core::units::same_length_unit((names.0, own), (names.1, length_of(other)?.as_deref()))
+        .map_err(invalid)?;
+    check_crs(own_crs, other, names)
+}
+
+/// Errors when `other`, a container, declares another CRS than `own`.
+pub fn check_crs(own: Option<&str>, other: &Bound<PyAny>, names: (&str, &str)) -> PyResult<()> {
+    boitata_core::crs::same_crs((names.0, own), (names.1, crs_of(other)?.as_deref()))
         .map_err(invalid)
 }
 

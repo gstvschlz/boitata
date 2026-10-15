@@ -13,6 +13,7 @@ from boitata._boitata import (
     _conversion,
     _Estimator,
     _quantity,
+    _same_crs,
 )
 from boitata._columns import column
 from boitata._units import squared, tag, unit_of
@@ -60,6 +61,12 @@ def _undeclared(search, variogram):
     searches = search if isinstance(search, list | tuple) else [search]
     out = ["a search"] if any(s.length_unit is None for s in searches) else []
     return out + (["the variogram"] if variogram is not None and variogram.length_unit is None else [])
+
+
+def _crs(obj):
+    """The CRS a container declares, or None."""
+    crs = getattr(obj, "crs", None)
+    return crs if isinstance(crs, str) else None
 
 
 def _moved(coords, unit, data_unit):
@@ -243,6 +250,7 @@ class _Base:
         """
         self._unit = unit_of(values, coords)
         self._coords_unit = getattr(coords, "length_unit", None)
+        self._coords_crs = _crs(coords)
         length = getattr(self, "_length_unit", None)
         moving = length and self._coords_unit and length != self._coords_unit
         if moving and getattr(self, "_undeclared", None):
@@ -309,6 +317,7 @@ class _Base:
             raise InvalidInput(
                 f"samples are in {data_unit} and targets in {target_unit}; convert one with to_length_unit('{data_unit}')"
             )
+        _same_crs(("samples", getattr(self, "_coords_crs", None)), ("targets", _crs(targets)))
         out = self._engine.predict(
             _moved(targets, getattr(self, "_length_unit", None), target_unit or data_unit),
             return_variance=return_variance,
@@ -357,6 +366,7 @@ class _Base:
         estimator._search = search
         estimator._unit = getattr(self, "_unit", None)
         estimator._coords_unit = getattr(self, "_coords_unit", None)
+        estimator._coords_crs = getattr(self, "_coords_crs", None)
         estimator._variogram_unit = getattr(self, "_variogram_unit", None)
         estimator._length_unit = _parameters_unit(search, estimator._variogram_unit)
         if estimator._length_unit != getattr(self, "_length_unit", None):

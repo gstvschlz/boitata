@@ -154,9 +154,15 @@ fn _quantity(text: &str) -> PyResult<(f64, String)> {
     boitata_core::units::quantity(text).map_err(invalid)
 }
 
+#[pyfunction]
+fn _same_crs(a: (String, Option<String>), b: (String, Option<String>)) -> PyResult<()> {
+    boitata_core::crs::same_crs((&a.0, a.1.as_deref()), (&b.0, b.1.as_deref())).map_err(invalid)
+}
+
 pub fn register(m: &Bound<PyModule>) -> PyResult<()> {
     m.add_class::<Table>()?;
     m.add_function(wrap_pyfunction!(_conversion, m)?)?;
+    m.add_function(wrap_pyfunction!(_same_crs, m)?)?;
     m.add_function(wrap_pyfunction!(_quantity, m)?)?;
     m.add_function(wrap_pyfunction!(set_units, m)?)?;
     m.add_function(wrap_pyfunction!(_unit_defaults, m)?)?;

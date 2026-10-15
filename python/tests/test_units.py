@@ -258,6 +258,39 @@ def test_containers_in_different_units_do_not_meet():
         cube.contains(data)
 
 
+WKT = 'PROJCRS["SIRGAS 2000 / UTM zone 22S", BASEGEOGCRS["SIRGAS 2000", ID["EPSG",4674]], ID["EPSG",31982]]'
+
+
+def test_containers_in_different_crs_do_not_meet():
+    data = bt.PointSet(samples.coords, samples.attributes, crs="EPSG:31982")
+    grid = bt.BlockModel((0, 0, 0), (20, 20, 1), (5, 5, 1), crs=WKT)
+    other = bt.BlockModel((0, 0, 0), (20, 20, 1), (5, 5, 1), crs="EPSG:32722")
+    kriging = bt.OrdinaryKriging(variogram, search).fit(data, "au")
+    assert np.isfinite(kriging.predict(grid)).any()
+    assert np.isfinite(kriging.predict(grid.coords)).any()
+    with pytest.raises(bt.InvalidInput, match="samples are in CRS EPSG:31982 and targets in EPSG:32722"):
+        kriging.predict(other)
+    with pytest.raises(bt.InvalidInput, match="samples are in CRS"):
+        bt.SGS(variogram, search).fit(data, "au").simulate(other, n=1, seed=1)
+    fine = bt.BlockModel((0, 0, 0), (10, 10, 1), (4, 4, 1), crs="EPSG:31982").with_column("v", np.ones(16))
+    assert fine.regularize(grid) is not None
+    with pytest.raises(bt.InvalidInput, match="source blocks are in CRS"):
+        fine.regularize(other)
+    square = bt.Mesh(
+        [[0, 0, 0], [99, 0, 0], [99, 99, 0], [0, 99, 0]], [[0, 1, 2], [0, 2, 3]], crs="EPSG:32722"
+    )
+    with pytest.raises(bt.InvalidInput, match="mesh vertices are in CRS"):
+        square.vertical_distance(data)
+    with pytest.raises(bt.InvalidInput, match="another object"):
+        bt.BlockModel.from_extents(data, square, size=(10, 10, 1))
+    assert bt.BlockModel.from_extents(data, grid, size=(10, 10, 1)).crs == "EPSG:31982"
+    collar = {"HOLE_ID": ["A"], "X": [10.0], "Y": [10.0], "Z": [5.0]}
+    survey = {"HOLE_ID": ["A"], "DEPTH": [0.0], "AZIMUTH": [0.0], "DIP": [90.0]}
+    holes = bt.LocalGrid(crs="EPSG:31982").apply(bt.Drillholes(collar, survey))
+    with pytest.raises(bt.InvalidInput, match="drill holes are in CRS EPSG:31982 and the surface"):
+        bt.snap_to_surface(holes, square)
+
+
 def test_drillholes_carry_their_length_unit():
     collar = {"HOLE_ID": ["A"], "X": [0.0], "Y": [0.0], "Z": [0.0]}
     survey = {"HOLE_ID": ["A"], "DEPTH": [0.0], "AZIMUTH": [0.0], "DIP": [90.0]}
