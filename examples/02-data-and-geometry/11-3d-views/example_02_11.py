@@ -104,3 +104,39 @@ for i, lens in enumerate(lenses, 1):
 scene.section([center - reach, center + reach], width=20)
 scene.view(azimuth=rotation[0] + 180, dip=10)
 show(scene, "section", "Dip section through a grid rotated with the lenses")
+
+# %% [markdown]
+# zinc runs over two orders of magnitude, which a linear scale crushes into its bottom colors. `log=True` spreads
+# it by decades, the color bar ticked to match. the assays of the holes over the lenses draw as `"tubes"`, shaded
+# near the camera and plain lines further off, each swollen with its zinc by `radius_by`; `eye_dome` darkens each
+# pixel by how far it lies behind its neighbours on screen, so overlapping holes read in depth.
+
+# %%
+assays = bt.Drillholes(over, data["surveys"], data["assays"])
+scene = bt.plot3d.Scene(eye_dome=True)
+scene.add(
+    assays,
+    "ZN_PCT",
+    name="assays",
+    representation="tubes",
+    radius=4,
+    radius_by="ZN_PCT",
+    log=True,
+    cmap="cividis",
+    label="Zn",
+)
+scene.view(azimuth=305, dip=30)
+show(scene, "log", "Composites as tubes on a log Zn scale, with eye-dome lighting")
+
+# %% [markdown]
+# `bins` steps the colors at cutoffs instead, each class in the colormap's color at its middle, with a legend of
+# classes: here the composites inside the lenses below 1, 3 and 6% Zn and above. a scene of points alone starts
+# with eye-dome lighting on.
+
+# %%
+scene = bt.plot3d.Scene()
+scene.add(
+    composites.filter(ore), "ZN_PCT", name="ore", point_size=6, bins=[1, 3, 6], cmap="cividis", label="Zn"
+)
+scene.view(azimuth=305, dip=30)
+show(scene, "bins", "Zn composites inside the lenses in four classes")

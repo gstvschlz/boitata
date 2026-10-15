@@ -1,12 +1,10 @@
-import { categoryColor, lut, rgbToHex } from "./color";
+import { categoryColor, logRange, lut, type Mapping, mapPosition, rgbToHex } from "./color";
 import type { Theme } from "./theme";
-import { formatTicks, niceTicks } from "./ticks";
+import { formatLogTick, formatTicks, logTicks, niceTicks } from "./ticks";
 
-export interface BarSpec {
+export interface BarSpec extends Mapping {
   title: string;
   cmap: string;
-  lo: number;
-  hi: number;
   /** Categories, for a text variable. */
   categories: string[] | null;
   /** Category colors, index-matched to `categories`; null to use the built-in palette. */
@@ -40,25 +38,37 @@ export function colorBarSvg(bar: BarSpec, theme: Theme, id: string): string {
     if (more > 0) body += text(10, height - 8, `+${more} more`);
   } else {
     const table = lut(bar.cmap);
-    const stops = Array.from({ length: 33 }, (_, k) => {
-      const i = Math.min(255, k * 8);
-      const hex = rgbToHex([table[3 * i], table[3 * i + 1], table[3 * i + 2]]);
-      return `<stop offset="${(k / 32).toFixed(4)}" stop-color="${hex}"/>`;
-    }).join("");
+    const hex = (t: number) => {
+      const i = Math.min(255, Math.floor(t * 256));
+      return rgbToHex([table[3 * i], table[3 * i + 1], table[3 * i + 2]]);
+    };
     const x0 = 10;
     const x1 = W - 10;
-    const ticks = niceTicks(bar.lo, bar.hi, 4).filter((t) => t >= bar.lo && t <= bar.hi);
-    const labels = formatTicks(ticks);
-    const span = bar.hi - bar.lo || 1;
-    body =
-      `<defs><linearGradient id="${id}">${stops}</linearGradient></defs>` +
-      `<rect x="${x0}" y="28" width="${x1 - x0}" height="12" fill="url(#${id})"/>` +
-      ticks
-        .map((t, i) => {
-          const x = x0 + ((t - bar.lo) / span) * (x1 - x0);
-          return `<line x1="${x}" x2="${x}" y1="40" y2="44" stroke="${theme.muted}"/>` + text(x, 56, labels[i], 'text-anchor="middle"');
-        })
-        .join("");
+    const along = (t: number) => x0 + t * (x1 - x0);
+    const tick = (x: number, label: string) =>
+      `<line x1="${x}" x2="${x}" y1="40" y2="44" stroke="${theme.muted}"/>` + text(x, 56, label, 'text-anchor="middle"');
+    const cuts = bar.bins ?? [];
+    if (cuts.length) {
+      const k = cuts.length + 1;
+      body =
+        Array.from({ length: k }, (_, c) => {
+          const fill = hex(mapPosition(c === 0 ? -Infinity : cuts[c - 1], bar));
+          return `<rect x="${along(c / k)}" y="28" width="${(x1 - x0) / k}" height="12" fill="${fill}"/>`;
+        }).join("") + cuts.map((c, i) => tick(along((i + 1) / k), formatLogTick(c))).join("");
+    } else {
+      const stops = Array.from({ length: 33 }, (_, k) => {
+        const t = k / 32;
+        return `<stop offset="${t.toFixed(4)}" stop-color="${hex(bar.reverse ? 1 - t : t)}"/>`;
+      }).join("");
+      const [lo, hi] = bar.log ? logRange(bar.lo, bar.hi) : [bar.lo, bar.hi];
+      const ticks = bar.log ? logTicks(lo, hi) : niceTicks(lo, hi, 4).filter((t) => t >= lo && t <= hi);
+      const labels = bar.log ? ticks.map(formatLogTick) : formatTicks(ticks);
+      const plain = { lo, hi, log: bar.log };
+      body =
+        `<defs><linearGradient id="${id}">${stops}</linearGradient></defs>` +
+        `<rect x="${x0}" y="28" width="${x1 - x0}" height="12" fill="url(#${id})"/>` +
+        ticks.map((t, i) => tick(along(mapPosition(t, plain)), labels[i])).join("");
+    }
     height = 64;
   }
   const bg = `<rect x="0.5" y="0.5" width="${W - 1}" height="${height - 1}" rx="5" fill="${theme.panel}" fill-opacity="0.88" stroke="${theme.border}"/>`;

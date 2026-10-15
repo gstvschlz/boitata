@@ -14,6 +14,8 @@ export interface ColumnSpec {
   min?: number;
   max?: number;
   categories?: string[];
+  /** Unit of the values, from the data's column units. */
+  unit?: string | null;
   /** Category colors, index-matched to `categories`; from a scheme, absent for the built-in palette. */
   colors?: string[];
 }
@@ -32,10 +34,14 @@ export interface LayerSpec {
   /** Line width in CSS pixels; null for the representation's default. */
   lineWidth?: number | null;
   /** Tube or sphere radius in meters; null for a share of the layer's extent. */
+  /** Drill holes: a numeric column scaling each interval's tube radius. */
+  radiusBy?: string | null;
   radius?: number | null;
   /** Buffer keys of the geometry, by role (positions, triangles, rows, midpoints, centers, sizes). */
   geometry: Record<string, string>;
   axes?: number[][];
+  /** Blocks of a regular grid: cells per axis; the `cells` geometry buffer holds each row's cell. */
+  grid?: [number, number, number] | null;
   /** Drill holes: the column naming the hole and the interval columns; the depths of each row are in `depths`. */
   holes?: { hole: string; from: string | null; to: string | null };
   columns: ColumnSpec[];
@@ -49,6 +55,12 @@ export interface VariableSpec {
   cmap?: string | null;
   clim?: [number, number] | null;
   label?: string | null;
+  /** Log scale: values at or below 0 fall below the range. */
+  log?: boolean | null;
+  /** Cutoffs, ascending, that step the colors into classes. */
+  bins?: number[] | null;
+  /** Run the colormap from its high end down. */
+  reverse?: boolean | null;
 }
 
 export interface SceneSpec {
@@ -59,6 +71,8 @@ export interface SceneSpec {
   view: { azimuth: number; dip: number };
   /** What draws while the camera moves: "auto", "full", or a fixed fraction of each layer's instances. */
   motion?: "auto" | "full" | number;
+  /** Eye-dome lighting at the start; null or absent turns it on when every layer is a point set drawn as points. */
+  edl?: boolean | null;
   variables: Record<string, VariableSpec>;
   layers: LayerSpec[];
   /** Section to start with, in real-world coordinates; empty for none. */

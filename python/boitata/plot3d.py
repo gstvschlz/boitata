@@ -480,11 +480,18 @@ class Scene:
         points; surfaces stay whole), an evenly spread subset that keeps each layer's shape, at a resolution
         lowered to match. ``"auto"`` starts from what the scene's size suggests and adapts to the measured frame
         time. The panel's Quality control switches between the three while viewing.
+    eye_dome : bool, optional
+        Eye-dome lighting: darkens each pixel by how far it lies behind its neighbours on screen, so the shape of
+        a point cloud reads without any normals. Default on when every layer is a point set drawn as points, off
+        otherwise; the View panel and the E key toggle it.
     """
 
-    def __init__(self, *, theme="auto", height=600, motion_quality="auto"):
+    def __init__(self, *, theme="auto", height=600, motion_quality="auto", eye_dome=None):
         if isinstance(height, bool) or not isinstance(height, int) or height <= 0:
             raise ValueError(f"height must be a positive int, got {height!r}")
+        if eye_dome is not None and not isinstance(eye_dome, bool):
+            raise TypeError(f"eye_dome must be a bool or None, got {eye_dome!r}")
+        self._eye_dome = eye_dome
         self._theme = _theme(theme)
         self._height = height
         self._motion = _motion_quality(motion_quality)
@@ -537,6 +544,10 @@ class Scene:
         filter=None,
         contour_step=None,
         scheme=None,
+        radius_by=None,
+        log=None,
+        bins=None,
+        reverse=None,
     ):
         """Adds a layer.
 
@@ -582,7 +593,8 @@ class Scene:
             Width of lines and wireframe edges, in pixels; default 2.5 for drill holes, 1 for wireframes.
         radius : float, optional
             Radius of drill-hole tubes and of spheres, in the data's length unit; default 1/400 of the diagonal of
-            the holes' bounds for tubes, 1/250 of the points' for spheres.
+            the holes' bounds for tubes, 1/250 of the points' for spheres. Tubes draw near the camera; an
+            interval whose tube would be under 3 pixels wide on screen draws as a line instead.
         label : str, optional
             Title of the color bar of `values`; default the column name.
         visible : bool, default True
@@ -606,6 +618,18 @@ class Scene:
             Order and colors of a text `values`: the legend and the layer's colors follow `scheme.names` and
             `scheme.colors` instead of the column's own sorted categories and the built-in palette. Values not
             in the scheme are not drawn, unless it has an `other` bucket. Describes `values`; pass values too.
+        log : bool, optional
+            Log color scale of `values` for every layer it colors: values at or below 0 fall below the range and
+            take its low end's color, and the color bar ticks at decades. Default linear.
+        bins : sequence of float, optional
+            Cutoffs of `values` that step its colors into classes (below the first, between two, from the last
+            up), each the colormap's color at the middle of its class, with a binned legend; for every layer it
+            colors. For example ``[0.3, 0.5, 1.0]``.
+        reverse : bool, optional
+            Runs the colormap of `values` from its high end down, for every layer it colors.
+        radius_by : str, optional
+            Numeric column of drill holes that scales each interval's tube: its range maps from a third of
+            `radius` to all of it, nulls the thinnest. The column is sent to the viewer.
 
         Returns
         -------
@@ -647,8 +671,20 @@ class Scene:
             or label is not None
             or contour_step is not None
             or scheme is not None
+            or log is not None
+            or bins is not None
+            or reverse is not None
         ):
-            raise ValueError("cmap, clim, label, contour_step and scheme describe `values`; pass values too")
+            raise ValueError(
+                "cmap, clim, label, contour_step, scheme, log, bins and reverse describe `values`; pass values too"
+            )
+        for key, flag in (("log", log), ("reverse", reverse)):
+            if flag is not None and not isinstance(flag, bool):
+                raise TypeError(f"{key} must be a bool, got {flag!r}")
+        if bins is not None:
+            bins = sorted({float(b) for b in bins})
+            if not bins or not all(math.isfinite(b) for b in bins):
+                raise ValueError("bins must be one or more finite cutoffs")
         if scheme is not None and not isinstance(scheme, Categories):
             raise TypeError(f"scheme must be a Categories, got {type(scheme).__name__}")
         available = [n for table in tables.values() for n in _names(table)]
@@ -659,6 +695,13 @@ class Scene:
             raise KeyError(f"no columns {sorted(wanted - set(available))}; columns: {', '.join(available)}")
         if wanted is not None and holes:
             wanted.add(holes[0])
+        if radius_by is not None:
+            if kind != "drillholes":
+                raise ValueError("radius_by applies to drill holes only")
+            if radius_by not in available:
+                raise KeyError(f"no column {radius_by!r}; columns: {', '.join(available) or 'none'}")
+            if wanted is not None:
+                wanted.add(radius_by)
 
         layer_id = f"l{len(self._layers)}"
         points = geometry.get("positions", geometry.get("centers"))
@@ -676,6 +719,7 @@ class Scene:
             refs[role] = f"{layer_id}/{role}"
         specs = []
         for on, table in tables.items():
+            units = {**(getattr(data, "units", None) or {}), **(getattr(table, "units", None) or {})}
             for column in _names(table):
                 if wanted is not None and column not in wanted:
                     continue
@@ -692,6 +736,8 @@ class Scene:
                 key = f"{layer_id}/c{len(specs)}"
                 buffers[key] = array
                 specs.append({"name": column, "buffer": key, "on": on, **spec})
+                if units.get(column):
+                    specs[-1]["unit"] = units[column]
 
         layer = {
             "id": layer_id,
@@ -701,6 +747,7 @@ class Scene:
             "pointSize": None if point_size is None else float(point_size),
             "lineWidth": None if line_width is None else float(line_width),
             "radius": None if radius is None else float(radius),
+            "radiusBy": radius_by,
             "color": color,
             "opacity": float(opacity),
             "visible": bool(visible),
@@ -711,6 +758,13 @@ class Scene:
         layer["filter"] = _filter(layer, {} if filter is None else filter)
         if kind == "blocks":
             layer["axes"] = _block_axes(data).tolist()
+            if data.extents is None and math.prod(data.count) < 2**32:
+                index = data.index
+                key = f"{layer_id}/cells"
+                buffers[key] = np.arange(len(data)) if index is None else index
+                buffers[key] = buffers[key].astype(np.uint32)
+                refs["cells"] = key
+                layer["grid"] = [int(n) for n in data.count]
         if contour_step is not None:
             if data.extents is not None:
                 raise ValueError(
@@ -734,7 +788,18 @@ class Scene:
         if values is not None:
             variable = self._variables.setdefault(values, {})
             variable.update(
-                {k: v for k, v in (("cmap", cmap), ("clim", clim), ("label", label)) if v is not None}
+                {
+                    k: v
+                    for k, v in (
+                        ("cmap", cmap),
+                        ("clim", clim),
+                        ("label", label),
+                        ("log", log),
+                        ("bins", bins),
+                        ("reverse", reverse),
+                    )
+                    if v is not None
+                }
             )
         self._layers.append(layer)
         self._buffers.update({k: np.ascontiguousarray(v).tobytes() for k, v in buffers.items()})
@@ -900,6 +965,7 @@ class Scene:
             "height": self._height,
             "view": dict(self._view),
             "motion": self._motion,
+            "edl": self._eye_dome,
             "variables": {
                 k: dict(v, clim=list(v["clim"])) if "clim" in v else dict(v)
                 for k, v in self._variables.items()

@@ -87,6 +87,22 @@ def test_masked_and_regular_models_match_corners():
     np.testing.assert_allclose(corners_from_payload(Scene().add(masked)), masked.corners, atol=1e-4)
 
 
+def test_regular_and_masked_models_ship_their_grid_cells_and_sub_blocks_do_not():
+    model = bt.BlockModel((0.0, 0.0, 0.0), (5.0, 5.0, 2.0), (4, 3, 2), rotation=(45.0, 0.0, 0.0))
+    masked = model.filter(np.arange(24) % 3 == 0)
+    for data in (model, masked):
+        scene = Scene().add(data)
+        layer = scene._spec()["layers"][0]
+        assert layer["grid"] == [4, 3, 2]
+        cells = buffer(scene, layer["geometry"]["cells"], np.uint32)
+        np.testing.assert_array_equal(cells, data.row_at(data.coords) if data is model else data.index)
+        np.testing.assert_array_equal(model.row_at(data.coords), cells)
+    sub = bt.BlockModel.subblocked(
+        (0.0, 0.0, 0.0), (1.0, 1.0, 1.0), (2, 1, 1), np.array([0], dtype=np.uint64), [[0, 0, 0, 0.5, 1, 1]]
+    )
+    assert "grid" not in Scene().add(sub)._spec()["layers"][0]
+
+
 def test_drill_hole_intervals_follow_the_trace_through_survey_stations():
     collar = {"HOLE_ID": ["A"], "X": [0.0], "Y": [0.0], "Z": [100.0]}
     survey = {
@@ -231,6 +247,48 @@ def test_representation_is_validated_per_kind(data, valid):
         Scene().add(data, representation="tubes")
 
 
+def test_column_units_reach_the_viewer():
+    points = bt.PointSet(rng.uniform(0, 1, (3, 3)), {"cu": [0.1, 1.0, 2.0], "rock": ["a", "b", "a"]})
+    columns = Scene().add(points.with_units({"cu": "%"}), "cu")._spec()["layers"][0]["columns"]
+    assert {c["name"]: c.get("unit") for c in columns} == {"cu": "%", "rock": None}
+
+
+def test_log_bins_and_reverse_describe_the_variable():
+    points = bt.PointSet(rng.uniform(0, 1, (4, 3)), {"cu": [0.1, 1.0, 10.0, 100.0]})
+    scene = Scene().add(points, "cu", log=True, bins=[1.0, 0.3, 0.5, 1.0], reverse=True, cmap="magma")
+    assert scene._spec()["variables"]["cu"] == {
+        "cmap": "magma",
+        "log": True,
+        "bins": [0.3, 0.5, 1.0],
+        "reverse": True,
+    }
+    with pytest.raises(ValueError, match="pass values too"):
+        Scene().add(points, log=True)
+    with pytest.raises(TypeError, match="log must be a bool"):
+        Scene().add(points, "cu", log="yes")
+    with pytest.raises(ValueError, match="finite cutoffs"):
+        Scene().add(points, "cu", bins=[np.nan])
+
+
+def test_radius_by_names_a_drill_hole_column_and_sends_it():
+    collar = {"HOLE_ID": ["A"], "X": [0.0], "Y": [0.0], "Z": [100.0]}
+    survey = {"HOLE_ID": ["A"], "DEPTH": [0.0], "AZIMUTH": [0.0], "DIP": [90.0]}
+    intervals = {
+        "HOLE_ID": ["A", "A"],
+        "FROM": [0.0, 5.0],
+        "TO": [5.0, 9.0],
+        "CU": [1.0, 2.0],
+        "AU": [0.1, 0.2],
+    }
+    holes = bt.Drillholes(collar, survey, intervals)
+    layer = Scene().add(holes, "AU", representation="tubes", radius_by="CU", columns=[])._spec()["layers"][0]
+    assert layer["radiusBy"] == "CU" and "CU" in [c["name"] for c in layer["columns"]]
+    with pytest.raises(KeyError, match="nope"):
+        Scene().add(holes, radius_by="nope")
+    with pytest.raises(ValueError, match="drill holes only"):
+        Scene().add(bt.PointSet(np.zeros((2, 3))), radius_by="CU")
+
+
 def test_sizes_reach_the_viewer_and_apply_only_where_they_mean_something():
     points = bt.PointSet(np.zeros((2, 3)))
     layer = Scene().add(points, representation="spheres", radius=2, point_size=9)._spec()["layers"][0]
@@ -364,6 +422,25 @@ def test_rendered_block_shows_its_exact_lut_color_and_a_null_paints_nothing(tmp_
     assert first == lut_rgb("viridis", 0.2, 0.0, 1.0)
     assert last == lut_rgb("viridis", 0.8, 0.0, 1.0)
     assert null == (255, 255, 255)
+
+
+def test_eye_dome_defaults_to_point_only_scenes_and_is_validated():
+    assert Scene()._spec()["edl"] is None
+    assert Scene(eye_dome=True)._spec()["edl"] is True
+    with pytest.raises(TypeError, match="eye_dome"):
+        Scene(eye_dome="on")
+
+
+def test_rendered_eye_dome_darkens_a_step_and_keeps_flat_faces_exact(tmp_path):
+    model = bt.BlockModel((0.0, 0.0, 0.0), (10.0, 10.0, 10.0), (2, 1, 2)).filter(np.array([1, 0, 0, 1], bool))
+    model = model.with_column("v", [0.2, 0.8])
+    colors = {}
+    for on in (False, True):
+        scene = Scene(theme="light", eye_dome=on).add(model, "v", clim=(0.0, 1.0)).view(dip=90)
+        colors[on] = rendered_pixels(scene, [[3.0, 5.0, 10.0], [9.97, 5.0, 10.0]], tmp_path, bare=True)
+    flat, step = colors[True]
+    assert flat == colors[False][0] == lut_rgb("viridis", 0.2, 0.0, 1.0)
+    assert sum(step) < sum(colors[False][1]) - 30
 
 
 def framed(scene, z=0.0):

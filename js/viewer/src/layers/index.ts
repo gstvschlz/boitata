@@ -2,6 +2,7 @@ import type * as THREE from "three";
 import type { Box } from "../bounds";
 import type { LayerFilter } from "../filter";
 import type { Paint } from "../paint";
+import type { Section } from "../section";
 import type { Buffers, Kind, LayerSpec } from "../types";
 import { blockWireframe, cells } from "./cells";
 import { lines, tubes } from "./holes";
@@ -21,8 +22,12 @@ export interface Representation {
   setOpacity(opacity: number): void;
   /** Draws a spatially even `fraction` of its instances while the camera moves; 1 draws them all. */
   detail?(fraction: number): void;
-  /** Called before each frame with the canvas size in CSS pixels. */
-  frame?(width: number, height: number): void;
+  /** Called before each frame with the canvas size in CSS pixels, the camera and whether it is moving. */
+  frame?(width: number, height: number, camera: THREE.PerspectiveCamera, moving: boolean): void;
+  /** The section changed (null for none); called before each frame, with the same object while it stands. */
+  section?(section: Section | null, unfolded: boolean): void;
+  /** A filter bound or category changed: only the uniforms did, so what is judged on the CPU is stale. */
+  filtered?(): void;
   dispose(): void;
 }
 

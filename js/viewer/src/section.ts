@@ -94,6 +94,30 @@ export function inSlab(s: Section, p: Vec3): boolean {
   return s.segments.some((g) => side(g.start, p) >= 0 && side(g.end, p) >= 0 && Math.abs(side(g.slab, p)) <= s.half);
 }
 
+/**
+ * Where a box (`size` along each of the unit `axes` around `center`) lies against the slab: 0 wholly outside
+ * every segment's stretch, 2 wholly inside one, 1 across a face. Conservative: a box called outside is outside.
+ */
+export function boxInSlab(s: Section, center: Vec3, axes: Vec3[], size: Vec3): 0 | 1 | 2 {
+  let out: 0 | 1 | 2 = 0;
+  for (const g of s.segments) {
+    const [a, b, c, d] = g.slab;
+    const planes: Plane[] = [g.start, g.end, [-a, -b, -c, s.half - d], [a, b, c, d + s.half]];
+    let inside = true;
+    let outside = false;
+    for (const q of planes) {
+      const at = side(q, center);
+      let r = 0;
+      for (let k = 0; k < 3; k++) r += (Math.abs(q[0] * axes[k][0] + q[1] * axes[k][1] + q[2] * axes[k][2]) * size[k]) / 2;
+      if (at + r < 0) outside = true;
+      if (at - r < 0) inside = false;
+    }
+    if (inside) return 2;
+    if (!outside) out = 1;
+  }
+  return out;
+}
+
 /** Index of the segment whose stretch holds a point: the first one whose end it has not passed. */
 export function segmentOf(s: Section, p: Vec3): number {
   const last = s.segments.length - 1;
@@ -106,6 +130,51 @@ export function unfold(s: Section, p: Vec3, ref: Vec3 = p): Vec3 {
   const [c, sn, tx, ty] = s.segments[segmentOf(s, ref)].move;
   return [c * p[0] + sn * p[1] + tx, -sn * p[0] + c * p[1] + ty, p[2]];
 }
+
+/** Unit plan direction of a bearing in degrees clockwise from north. */
+const bearing = (azimuth: number): XY => {
+  const a = THREE.MathUtils.degToRad(azimuth);
+  return [Math.sin(a), Math.cos(a)];
+};
+
+/** Bearing from a cut's first point to its last, in degrees clockwise from north, in [0, 360). */
+export function cutAzimuth(points: XY[]): number {
+  const p = distinct(points);
+  const [a, b] = [p[0], p[p.length - 1]];
+  return (THREE.MathUtils.radToDeg(Math.atan2(b[0] - a[0], b[1] - a[1])) + 360) % 360;
+}
+
+/** Ends of a straight cut `length` long through `center`, drawn along `azimuth`. */
+export function presetCut(center: XY, azimuth: number, length: number): [XY, XY] {
+  const u = bearing(azimuth);
+  return [
+    [center[0] - (u[0] * length) / 2, center[1] - (u[1] * length) / 2],
+    [center[0] + (u[0] * length) / 2, center[1] + (u[1] * length) / 2],
+  ];
+}
+
+/** A cut moved `distance` square to its first segment, toward the right of the direction it is drawn in. */
+export function stepCut(points: XY[], distance: number): XY[] {
+  const p = distinct(points);
+  const step: XY = [p[1][0] - p[0][0], p[1][1] - p[0][1]];
+  const n = Math.hypot(...step) || 1;
+  const right: XY = [step[1] / n, -step[0] / n];
+  return points.map((q) => [q[0] + right[0] * distance, q[1] + right[1] * distance]);
+}
+
+/**
+ * A straight cut `length` long through the middle of a cut's ends: along its bearing for a long section, square to
+ * it for a cross section.
+ */
+export function orthogonalCut(points: XY[], kind: "long" | "cross", length: number): [XY, XY] {
+  const p = distinct(points);
+  const [a, b] = [p[0], p[p.length - 1]];
+  const azimuth = cutAzimuth(points) + (kind === "cross" ? 90 : 0);
+  return presetCut([(a[0] + b[0]) / 2, (a[1] + b[1]) / 2], azimuth, length);
+}
+
+/** Bearing a camera looks along to see a cut at `azimuth` face on, its start on the left. */
+export const faceOn = (azimuth: number) => (azimuth + 270) % 360;
 
 /** `point` moved onto the nearest bearing from `from` that is a multiple of 45 degrees, keeping its projection. */
 export function snap45(from: XY, point: XY): XY {
@@ -140,8 +209,9 @@ export function pickCut(rays: [Ray, Ray], center: Vec3, forward: Vec3): [Vec3, V
   return hits[0] && hits[1] ? [hits[0], hits[1]] : null;
 }
 
-/** Plan trace of the section's surface at elevation `z`, with its two slab edges, as polylines. */
+/** Plan trace of the section's surface at elevation `z`, with its two slab edges, as polylines; a level slab (dip 0) has its polyline alone. */
 export function traces(s: Section, z: number): [XY[], XY[], XY[]] {
+  if (s.dip === 0) return [[s.segments[0].a, ...s.segments.map((g): XY => [g.a[0] + g.u[0] * g.length, g.a[1] + g.u[1] * g.length])], [], []];
   const d = THREE.MathUtils.degToRad(s.dip);
   const shift = (z - s.z) / Math.tan(d);
   const edge = s.half / Math.sin(d);
@@ -166,8 +236,15 @@ export function traces(s: Section, z: number): [XY[], XY[], XY[]] {
   return [along(-shift), along(-shift - edge), along(-shift + edge)];
 }
 
-/** The section's plan bounds at the elevations of `box`, widened by the slab; null when it misses the box. */
+/**
+ * The section's plan bounds at the elevations of `box`, widened by the slab, or a level slab's elevations; null when it
+ * misses the box.
+ */
 export function sectionBox(s: Section, box: Box): Box | null {
+  if (s.dip === 0) {
+    const [lo, hi] = [Math.max(box.min[2], s.z - s.half), Math.min(box.max[2], s.z + s.half)];
+    return lo <= hi ? { min: [box.min[0], box.min[1], lo], max: [box.max[0], box.max[1], hi] } : null;
+  }
   const xy = [box.min[2], box.max[2]].flatMap((z) => traces(s, z).flat());
   const min: Vec3 = [Math.max(box.min[0], Math.min(...xy.map((p) => p[0]))), Math.max(box.min[1], Math.min(...xy.map((p) => p[1]))), box.min[2]];
   const max: Vec3 = [Math.min(box.max[0], Math.max(...xy.map((p) => p[0]))), Math.min(box.max[1], Math.max(...xy.map((p) => p[1]))), box.max[2]];

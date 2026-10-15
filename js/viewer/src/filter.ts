@@ -277,3 +277,15 @@ export function fromState(state: FilterState | undefined, columns: ColumnSpec[])
 export function openCondition(column: ColumnSpec): Condition {
   return { column, lo: null, hi: null, categories: column.type === "text" ? new Set(column.categories ?? []) : null };
 }
+
+/** The `p` and `q` percentiles of the finite values, interpolated between ranks; null with none. */
+export function percentileRange(data: ArrayLike<number>, p = 2, q = 98): [number, number] | null {
+  const v = Float64Array.from(Array.prototype.filter.call(data, Number.isFinite) as number[]).sort();
+  if (!v.length) return null;
+  const at = (r: number) => {
+    const x = (r / 100) * (v.length - 1);
+    const i = Math.floor(x);
+    return i + 1 < v.length ? v[i] + (x - i) * (v[i + 1] - v[i]) : v[i];
+  };
+  return [at(p), at(q)];
+}

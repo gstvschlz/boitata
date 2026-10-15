@@ -13,7 +13,7 @@ const drawing = { drawing: true, cancellable: true };
 
 describe("key map", () => {
   it("maps each key to its action, either case", () => {
-    const expected = { r: "fit", p: "plan", s: "draw", u: "unfold", x: "clear", h: "panel", t: "theme", "?": "help" };
+    const expected = { r: "fit", p: "plan", s: "draw", u: "unfold", x: "clear", h: "panel", t: "theme", e: "edl", "?": "help" };
     for (const [key, action] of Object.entries(expected)) {
       expect(keyAction(press(key), false, idle)).toBe(action);
       expect(keyAction(press(key.toUpperCase()), false, idle)).toBe(action);
@@ -45,7 +45,7 @@ describe("key map", () => {
 
   it("lists every key it maps on the help card", () => {
     const listed = SHORTCUTS.map(([key]) => key);
-    for (const key of ["R", "P", "S", "U", "X", "H", "T", "?", "Enter", "Backspace", "Esc", "Shift-drag", "Shift+wheel"])
+    for (const key of ["R", "P", "S", "U", "X", "H", "T", "E", "?", "Enter", "Backspace", "Esc", "Shift-drag", "Shift+wheel"])
       expect(listed).toContain(key);
   });
 });

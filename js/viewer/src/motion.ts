@@ -44,13 +44,22 @@ export function stratifiedOrder(xyz: ArrayLike<number>, n: number): Uint32Array 
     keys[i] = code * size + i;
   }
   keys.sort();
-  let j = 0;
-  for (let k = 0; k < size; k++) {
-    let r = 0;
-    for (let b = 0, x = k; b < indexBits; b++, x >>= 1) r = (r << 1) | (x & 1);
-    if (r < n) order[j++] = keys[r] % size;
-  }
+  const ranks = bitReversed(n);
+  for (let j = 0; j < n; j++) order[j] = keys[ranks[j]] % size;
   return order;
+}
+
+/** 0 to n - 1 in bit-reversed order, so every prefix of a list read in it is spread evenly along the list. */
+export function bitReversed(n: number): Uint32Array {
+  const out = new Uint32Array(n);
+  const bits = Math.ceil(Math.log2(Math.max(n, 1)));
+  let j = 0;
+  for (let k = 0; k < 2 ** bits; k++) {
+    let r = 0;
+    for (let b = 0, x = k; b < bits; b++, x >>= 1) r = (r << 1) | (x & 1);
+    if (r < n) out[j++] = r;
+  }
+  return out;
 }
 
 /** Centers of segments given as flat pairs of xyz ends. */
