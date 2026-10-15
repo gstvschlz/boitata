@@ -521,6 +521,20 @@ impl Mesh {
         out
     }
 
+    /// The mesh in `target`, an EPSG CRS (see [`crate::crs`]).
+    pub fn to_crs(&self, target: &str) -> Result<Self> {
+        let mut out = self.clone();
+        let (crs, unit) = crate::crs::reproject(
+            self.crs.as_deref(),
+            self.length_unit.as_deref(),
+            target,
+            &mut out.vertices,
+        )?;
+        out.crs = Some(crs);
+        out.length_unit = unit;
+        Ok(out)
+    }
+
     /// Checks that vertices are finite and triangles index them.
     pub fn new(vertices: Vec<[f64; 3]>, triangles: Vec<[u32; 3]>) -> Result<Self> {
         if vertices.iter().flatten().any(|v| !v.is_finite()) {

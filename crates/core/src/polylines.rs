@@ -130,6 +130,20 @@ impl Polylines {
     /// `parts` offsets into `vertices` (one more than the parts), `features`
     /// offsets into the parts (one more than the features), `closed` one flag
     /// per part and `attributes` one row per feature.
+    /// The lines in `target`, an EPSG CRS (see [`crate::crs`]).
+    pub fn to_crs(&self, target: &str) -> Result<Self> {
+        let mut out = self.clone();
+        let (crs, unit) = crate::crs::reproject(
+            self.crs.as_deref(),
+            self.length_unit.as_deref(),
+            target,
+            &mut out.vertices,
+        )?;
+        out.crs = Some(crs);
+        out.length_unit = unit;
+        Ok(out)
+    }
+
     pub fn new(
         vertices: Vec<[f64; 3]>,
         parts: Vec<u32>,

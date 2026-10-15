@@ -186,6 +186,32 @@ impl Mesh {
         self.mesh.length_unit.clone()
     }
 
+    /// A copy in the CRS `target`, an EPSG code such as ``EPSG:4326``.
+    ///
+    /// Geographic and UTM CRSs on WGS 84, SIRGAS 2000, SAD69, NAD83, ETRS89 and
+    /// GDA2020 are supported, with datum changes by the published EPSG
+    /// 7-parameter Helmert transformations. Geographic coordinates are
+    /// longitude and latitude in degrees, projected ones are in metres; heights
+    /// are kept.
+    ///
+    /// Parameters
+    /// ----------
+    /// target : str
+    ///     The CRS to convert to, ``EPSG:n``.
+    ///
+    /// Returns
+    /// -------
+    /// Mesh
+    ///     The mesh in `target`.
+    ///
+    /// Raises
+    /// ------
+    /// InvalidInput
+    ///     Without a CRS, or with a CRS outside the supported set.
+    fn to_crs(&self, target: &str) -> PyResult<Self> {
+        Ok(Self::from_core(self.mesh.to_crs(target).map_err(invalid)?))
+    }
+
     /// A copy with the coordinates converted to `unit`, the new length unit.
     ///
     /// Parameters

@@ -60,6 +60,20 @@ def test_blockmodel_rotation_mask_and_regular():
     np.testing.assert_array_equal(np.isnan(back["v"]), [False, True, False, True, True, False])
 
 
+def test_to_crs_round_trips_and_keeps_regular_models():
+    points = bt.PointSet(np.array([[-51.3, -23.4, 600.0]]), {"au": [1.0]}, crs="EPSG:4618")
+    utm = points.to_crs("EPSG:31982")
+    assert utm.crs == "EPSG:31982" and utm.length_unit == "m"
+    np.testing.assert_allclose(utm.coords, [[469296.7753, 7412114.7039, 600.0]], atol=1e-3)
+    np.testing.assert_allclose(utm.to_crs("EPSG:4618").coords, points.coords, atol=1e-9)
+    model = bt.BlockModel((0, 0, 0), (10, 10, 10), (2, 2, 1), crs="EPSG:31982", length_unit="m")
+    assert isinstance(model.to_crs("EPSG:32722"), bt.BlockModel)
+    centroids = model.to_crs("EPSG:4326")
+    assert isinstance(centroids, bt.PointSet) and len(centroids) == 4
+    with pytest.raises(bt.InvalidInput, match="SIRGAS 2000"):
+        points.to_crs("EPSG:27700")
+
+
 def test_discretize_keeps_each_node_in_its_block():
     model = bt.BlockModel(origin=(100, 200, 0), size=(10, 5, 2), count=(3, 2, 2), rotation=(30, 20, 10))
     masked = model.filter(np.arange(12) % 3 != 1)

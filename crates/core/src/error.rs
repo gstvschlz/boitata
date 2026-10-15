@@ -14,6 +14,8 @@ pub enum Error {
     UnknownLabels(String),
     #[error("{0}")]
     Units(String),
+    #[error("{0}")]
+    Crs(String),
     #[error(transparent)]
     Arrow(#[from] arrow_schema::ArrowError),
 }
