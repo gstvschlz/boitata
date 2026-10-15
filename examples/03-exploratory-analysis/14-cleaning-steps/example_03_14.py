@@ -1,9 +1,9 @@
 """
-# cleaning steps
+# Cleaning steps
 
-assay tables arrive with upper-case names, sentinels such as -99 and "NS" (not sampled), detection-limit text such as
-"<0.01" and grades stored as text. each cleaning step fixes one of these and returns a new container, and a `Pipeline`
-chains them so the same cleaning runs on the next batch of assays. here the raw assays of the stacked sulphide lenses
+Assay tables arrive with upper-case names, sentinels such as -99 and "NS" (not sampled), detection-limit text such as
+"<0.01" and grades stored as text. Each cleaning step fixes one of these and returns a new container, and a `Pipeline`
+chains them so the same cleaning runs on the next batch of assays. Here the raw assays of the stacked sulfide lenses
 go from text to numeric grades ready for statistics.
 """
 
@@ -46,8 +46,8 @@ for g in grades:
     print(f"{g:7} {np.isnan(v).sum():5} null, mean {np.nanmean(v):.3f}")
 
 # %% [markdown]
-# units live in the column metadata and survive Parquet. `convert_units` rescales a column and relabels its unit; here
-# gold goes from g/t to ppb. plots label their axes with the unit.
+# Units live in the column metadata and survive Parquet. `convert_units` rescales a column and relabels its unit; here
+# gold goes from g/t to ppb. Plots label their axes with the unit.
 
 # %%
 assays = assays.with_units({"zn_pct": "%", "pb_pct": "%", "cu_pct": "%", "ag_gpt": "g/t", "au_gpt": "g/t"})
@@ -56,7 +56,7 @@ print(assays.units)
 print(f"mean gold {np.nanmean(assays['au_gpt']):.0f} ppb")
 
 # %% [markdown]
-# the zinc grades span three orders of magnitude; on a log axis their two populations separate.
+# The zinc grades span three orders of magnitude; on a log axis their two populations separate.
 
 # %%
 fig, ax = bt.plot.histogram("zn_pct", data=assays, log=True, bins=60, color=ACCENT)

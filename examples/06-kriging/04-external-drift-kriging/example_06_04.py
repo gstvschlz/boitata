@@ -1,10 +1,10 @@
 """
-# external drift kriging
+# External drift kriging
 
-copper grades from the soil geochemistry survey (the dataset of
+Copper grades from the soil geochemistry survey (the dataset of
 [despiking](../../03-exploratory-analysis/06-despiking/README.md)) correlate weakly with the magnetics and elevation of
 the covariates grid. `ExternalDriftKriging` drapes those covariates onto the samples and kriges copper with them as an
-extra drift, in one system with the usual constant term. ordinary kriging on the same grid is the comparison.
+extra drift, in one system with the usual constant term. Ordinary kriging on the same grid is the comparison.
 """
 
 # %% [hidden]
@@ -37,7 +37,7 @@ print(
 )
 
 # %% [markdown]
-# a single spherical structure fitted to the omnidirectional experimental variogram of copper.
+# A single spherical structure fitted to the omnidirectional experimental variogram of copper.
 
 # %%
 xy, cu = samples.coords, samples["CU_PPM"]
@@ -62,8 +62,8 @@ print(f"mean: ordinary {np.nanmean(ok):.1f}, external drift {np.nanmean(edk):.1f
 print(f"correlation between the two maps: {np.corrcoef(ok[inside], edk[inside])[0, 1]:.3f}")
 
 # %% [markdown]
-# the two maps agree where covariates are flat and pull apart where magnetics or elevation depart from the neighborhood
-# mean. the drift nudges the estimate up in high-magnetics, high-elevation ground even far from any sample, which
+# The two maps agree where covariates are flat and pull apart where magnetics or elevation depart from the neighborhood
+# mean. The drift nudges the estimate up in high-magnetics, high-elevation ground even far from any sample, which
 # ordinary kriging's constant mean cannot do.
 
 # %%

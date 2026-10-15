@@ -1,9 +1,9 @@
 """
-# filtering block models
+# Filtering block models
 
-a block model drawn whole shows its outer shell and hides the grades inside. a layer's `filter` peels it: a
+A block model drawn whole shows its outer shell and hides the grades inside. A layer's `filter` peels it: a
 `(low, high)` range on a number column, a list of kept categories on a text column, up to four columns that a block
-must all pass. the viewer evaluates the filter on the GPU, so the layer's filter panel edits it while viewing with
+must all pass. The viewer evaluates the filter on the GPU, so the layer's filter panel edits it while viewing with
 histogram sliders and category checkboxes, and `Scene.filters` reads it back or sets it.
 """
 
@@ -20,9 +20,9 @@ import numpy as np
 from common import GRAY, show
 
 # %% [markdown]
-# zinc composites of the stacked sulphide lenses inform a rotated grid by inverse distance within 60 m; blocks with no
-# composite in reach stay null and never draw. each block also takes the name of the lens holding its center, or
-# `host`. drawn whole, the grid is a brick of low grades.
+# Zinc composites of the stacked sulfide lenses inform a rotated grid by inverse distance within 60 m; blocks with no
+# composite in reach stay null and never draw. Each block also takes the name of the lens holding its center, or
+# `host`. Drawn whole, the grid is a brick of low grades.
 
 # %%
 data = bt.datasets.stacked_sulphide_lenses()
@@ -48,8 +48,8 @@ scene.view(azimuth=305, dip=30)
 show(scene, "whole", "The whole grid: only its outer shell shows")
 
 # %% [markdown]
-# a range on `ZN_PCT` keeps the blocks above 4 % and peels the low grades away; the lenses' high-grade cores show
-# through. an open end is None.
+# A range on `ZN_PCT` keeps the blocks above 4 % and peels the low grades away; the lenses' high-grade cores show
+# through. An open end is None.
 
 # %%
 scene = bt.plot3d.Scene()
@@ -62,7 +62,7 @@ print(f"{kept.sum():,} of {len(grid):,} blocks at 4 % Zn or more")
 show(scene, "grade", "Blocks at 4 % Zn or more")
 
 # %% [markdown]
-# a list of categories keeps the blocks of the middle lens; with the grade range too, a block must pass both. here the
+# A list of categories keeps the blocks of the middle lens; with the grade range too, a block must pass both. Here the
 # filter is set after the layers through `filters`, by layer name, as the panel would.
 
 # %%

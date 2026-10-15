@@ -1,8 +1,8 @@
-# simulation at block support
+# Simulation at block support
 
-simulation reaches block support by averaging each realization on fine nodes over the nodes of each selective block,
-with no change-of-support model. the realizations give block grade-tonnage curves with their uncertainty and, pooled
-inside panels, localized block grades. the exhaustive walker lake grid gives the true 10 m blocks.
+Simulation reaches block support by averaging each realization on fine nodes over the nodes of each selective block,
+with no change-of-support model. The realizations give block grade-tonnage curves with their uncertainty and, pooled
+inside panels, localized block grades. The exhaustive Walker Lake grid gives the true 10 m blocks.
 
 <details><summary>Python</summary>
 
@@ -41,7 +41,7 @@ print(gaussian)
 Variogram(nugget=0.3712292816104307, structures=[Structure("spherical", sill=0.6287707183895693, range=102.93174851181992)], rotation=(170.0, 0.0, 0.0), ratios=(0.34469006793164536, 1.0))
 ```
 
-thirty realizations on 2.5 m nodes. `blocks=` averages each over the 16 nodes of each 10 × 10 m block before
+Thirty realizations on 2.5 m nodes. `blocks=` averages each over the 16 nodes of each 10 × 10 m block before
 summarizing, and `grade_tonnage_cutoffs=` accumulates each realization's block grade-tonnage curve as it runs, with
 tonnes from `density` times block area here. `grade_tonnage` then reads the P10, P50 and P90 of the tonnage and the
 mean grade above each cutoff, each quantity on its own.
@@ -90,12 +90,12 @@ above 800 ppm: P10 1.8%, P90 2.6%, true 2.1%
 
 ![simulated-blocks](simulated-blocks.png)
 
-the band holds the true curve at each cutoff; at 300 ppm the truth sits at its lower edge.
+The band holds the true curve at each cutoff; at 300 ppm the truth sits at its lower edge.
 
-a mine plan reads uncertainty over production volumes. `groups=` labels each block with its volume, here six 50 m
+A mine plan reads uncertainty over production volumes. `groups=` labels each block with its volume, here six 50 m
 strips of northing standing for periods, and summarizes each realization's mean per period, one row per label.
-`window=` gives each block the mean of the 50 × 50 m box centred on it, the boxes overlapping. both stream like
-`blocks=` and feed the same summaries, here the relative error at 90 % confidence: half the P5–P95 interval over the
+`window=` gives each block the mean of the 50 × 50 m box centered on it, the boxes overlapping. Both stream like
+`blocks=` and feed the same summaries, here the relative error at 90 % confidence: half the P5 to P95 interval over the
 mean.
 
 <details><summary>Python</summary>
@@ -121,7 +121,7 @@ periods: 6 rows, median relative error 11.0%
 50 m windows: 780 rows, median relative error 24.1%
 ```
 
-the median error falls from 59 % on single blocks to 24 % on 50 m windows and 11 % on periods of 130 blocks.
+The median error falls from 59 % on single blocks to 24 % on 50 m windows and 11 % on periods of 130 blocks.
 
 `tolerances=` adds each row's precision, the share of realizations within ±15 % of its mean; a common criterion
 for measured resources asks that share to reach 90 %. `validate` compares the summary with the true blocks. `covered`
@@ -149,12 +149,12 @@ truth within the MEE: 80.5% of blocks
 at 500 ppm: type 1 2.1%, type 2 5.3% of blocks
 ```
 
-single 10 m blocks almost never meet ±15 % at 90 %. the truth lies within the MEE for 80 % of blocks, short of the
+Single 10 m blocks almost never meet ±15 % at 90 %. The truth lies within the MEE for 80 % of blocks, short of the
 nominal 90 %, and 7 % of blocks fall on the wrong side of 500 ppm.
 
-localization pools the realizations panel by panel. over the western 250 m, each 50 × 50 m panel holds 25 blocks.
+Localization pools the realizations panel by panel. Over the western 250 m, each 50 × 50 m panel holds 25 blocks.
 25 blocks × 30 realizations give 750 values, sorted and cut into 25 chunks of 30, and the block ranked i by
-ordinary block kriging receives the mean of chunk i. the kriging uses the grade variogram, fitted like the one above.
+ordinary block kriging receives the mean of chunk i. The kriging uses the grade variogram, fitted like the one above.
 
 <details><summary>Python</summary>
 
@@ -188,9 +188,9 @@ a.set_aspect("equal")
 a.set(title="Localized simulation", xlabel="Easting (m)", ylabel="Northing (m)")
 fig.colorbar(image, ax=a, shrink=0.8, label="V (ppm); white lines bound the 50 m panels")
 for (tonnage, _), color, style, label in (
-    (true_curve, INK, {"lw": 3, "alpha": 0.35}, "true blocks"),
-    (sim_curve, ACCENT, {"lw": 1.4, "ls": "--"}, "localized simulation"),
-    (kriged_curve, GRAY, {"lw": 1.2, "ls": ":"}, "kriged blocks"),
+    (true_curve, INK, {"lw": 3, "alpha": 0.35}, "True blocks"),
+    (sim_curve, ACCENT, {"lw": 1.4, "ls": "--"}, "Localized simulation"),
+    (kriged_curve, GRAY, {"lw": 1.2, "ls": ":"}, "Kriged blocks"),
 ):
     b.plot(cutoffs, tonnage, color=color, label=label, **style)
 b.set(
@@ -212,9 +212,9 @@ true blocks: variance 47350
 
 ![localized-simulation](localized-simulation.png)
 
-each panel keeps the mean of its realizations, and its blocks the spread the simulation gives them: variance 41 411,
-between kriging's 35 064 and the true 47 350, with a correlation to the truth of 0.86 against kriging's 0.89. the
-pooling uses no change-of-support model, so its result depends on the realizations alone. [uniform conditioning](../../09-recoverable-resources/02-uniform-conditioning/README.md) and [MIK localization](../../09-recoverable-resources/03-mik-localization/README.md)
+Each panel keeps the mean of its realizations, and its blocks the spread the simulation gives them: variance 41 411,
+between kriging's 35 064 and the true 47 350, with a correlation to the truth of 0.86 against kriging's 0.89. The
+pooling uses no change-of-support model, so its result depends on the realizations alone. [Uniform conditioning](../../09-recoverable-resources/02-uniform-conditioning/README.md) and [MIK localization](../../09-recoverable-resources/03-mik-localization/README.md)
 localize the same panels from a change-of-support model.
 
 Full script: [`example_08_03.py`](example_08_03.py)

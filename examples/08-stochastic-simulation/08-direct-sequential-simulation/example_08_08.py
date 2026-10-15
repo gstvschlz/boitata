@@ -1,9 +1,9 @@
 """
-# direct sequential simulation
+# Direct sequential simulation
 
 SGS simulates normal scores and back-transforms them, so it reproduces the variogram of the scores. DSS kriges the
 grades themselves with their own variogram and draws each node from the declustered histogram, so it needs no
-gaussian model of the field. this page runs both on walker lake and compares what each reproduces.
+Gaussian model of the field. This page runs both on Walker Lake and compares what each reproduces.
 """
 
 # %% [hidden]
@@ -32,8 +32,8 @@ print(f"declustered mean {stats['mean']:.0f} ppm, variance {variance:.0f} ppm²"
 
 
 # %% [markdown]
-# each method takes the variogram of the variable it kriges: SGS the variogram of the normal scores, DSS the variogram
-# of V. both are fitted along N170°, the direction of greatest continuity, and across it, and scaled to a unit sill.
+# Each method takes the variogram of the variable it kriges: SGS the variogram of the normal scores, DSS the variogram
+# of V. Both are fitted along N170°, the direction of greatest continuity, and across it, and scaled to a unit sill.
 # DSS rescales its nugget and sill to the declustered variance of each domain, so a unit sill is enough.
 
 # %%
@@ -54,13 +54,13 @@ print(f"normal scores: {gaussian}\ngrades:        {raw}")
 
 # %% [markdown]
 # DSS simple kriges each node with the declustered mean and draws it from the declustered histogram, as the
-# back-transform of a gaussian whose transformed mean and variance equal the kriged ones. near the tails, or where
+# back-transform of a Gaussian whose transformed mean and variance equal the kriged ones. Near the tails, or where
 # kriging extrapolates beyond the data, no such draw exists; DSS takes the nearest reachable pair and warns with the
-# share of nodes it moved. both simulators run 30 realizations from the same seed.
+# share of nodes it moved. Both simulators run 30 realizations from the same seed.
 #
-# each DSS draw matches its kriged mean and variance, but the histogram of a realization need not match the data. V is
+# Each DSS draw matches its kriged mean and variance, but the histogram of a realization need not match the data. V is
 # skewed, with 9% of the declustered samples at 0 ppm, and its variogram has a 35% nugget, so the kriging variance
-# stays large where the kriged mean is low. the only draws with a low mean and a large variance put most of their
+# stays large where the kriged mean is low. The only draws with a low mean and a large variance put most of their
 # weight at 0 ppm and the rest at high grades. `correct_distribution` maps each realization, rank by rank, onto the
 # declustered histogram.
 
@@ -90,10 +90,10 @@ print(
 
 
 # %% [markdown]
-# DSS puts 19% of the nodes at 0 ppm, twice the declustered share, in wide patches across the low-grade areas. after
-# the correction, realization 1 keeps the same pattern of high and low grades with 9% at 0 ppm. the DSS and SGS
-# realizations average about 300 ppm with a variance near 72,000 ppm², above the declustered 291 ppm and 65,006 ppm²:
-# the grid nodes near the clustered high-grade samples copy them. the corrected realizations take the declustered mean
+# DSS puts 19% of the nodes at 0 ppm, twice the declustered share, in wide patches across the low-grade areas. After
+# the correction, realization 1 keeps the same pattern of high and low grades with 9% at 0 ppm. The DSS and SGS
+# realizations average about 300 ppm with a variance near 72 000 ppm², above the declustered 291 ppm and 65 006 ppm²:
+# the grid nodes near the clustered high-grade samples copy them. The corrected realizations take the declustered mean
 # and variance exactly.
 
 # %%
@@ -117,10 +117,10 @@ save(fig, "maps")
 
 
 # %% [markdown]
-# the corrected DSS and the SGS realizations follow the declustered histogram. the variograms of the corrected DSS
+# The corrected DSS and the SGS realizations follow the declustered histogram. The variograms of the corrected DSS
 # realizations level off at the declustered variance (dashed) and run slightly below the model of V at short lags.
-# before the correction they level off about 10% above that sill, as their variance does, and the SGS realizations do
-# the same. the samples sit above every curve since they cluster in the high grades.
+# Before the correction they level off about 10% above that sill, as their variance does, and the SGS realizations do
+# the same. The samples sit above every curve since they cluster in the high grades.
 
 # %%
 fig, axes = plt.subplots(2, 2, figsize=(11, 8), layout="constrained")
@@ -139,11 +139,11 @@ for ax, name, reals, color in sets:
         ax.plot(exp.lags, exp.gammas / 1e3, color=LIGHT, lw=0.8)
     axes[0, 0].plot([], [], color=color, label=f"30 {name} realizations")
     ax.plot([], [], color=LIGHT, label=f"30 {name} realizations")
-    ax.plot(data_exp.lags, data_exp.gammas / 1e3, "o", color=INK, ms=4, label="samples")
-    ax.plot(h, variance * raw.gamma(h) / 1e3, color=color, lw=1.4, label="model of V")
+    ax.plot(data_exp.lags, data_exp.gammas / 1e3, "o", color=INK, ms=4, label="Samples")
+    ax.plot(h, variance * raw.gamma(h) / 1e3, color=color, lw=1.4, label="Model of V")
     ax.axhline(variance / 1e3, color=GRAY, lw=0.8, ls="--")
     ax.set(xlim=(0, max_lag), ylim=(0, 1.6 * variance / 1e3), xlabel="Lag distance (m)")
-    ax.set(ylabel="γ(h) of V (10³ ppm²)", title=f"{name} variogram of V, N{azimuth:.0f}°")
+    ax.set(ylabel="γ(h) of V (10³ ppm²)", title=f"Variogram of V, {name}, N{azimuth:.0f}°")
     ax.legend(loc="lower right")
 axes[0, 0].step(
     v[order],
@@ -151,7 +151,7 @@ axes[0, 0].step(
     color=INK,
     lw=1.4,
     where="post",
-    label="declustered samples",
+    label="Declustered samples",
 )
 axes[0, 0].set(
     xlim=(0, 1600), xlabel="V (ppm)", ylabel="Cumulative probability", title="Histogram reproduction"
@@ -160,6 +160,6 @@ axes[0, 0].legend(loc="lower right")
 save(fig, "reproduction")
 
 # %% [markdown]
-# [sequential gaussian simulation](../../08-stochastic-simulation/01-sgs/README.md) covers the summary that `simulate`
+# [Sequential Gaussian simulation](../../08-stochastic-simulation/01-sgs/README.md) covers the summary that `simulate`
 # returns, and [simulation at block support](../../08-stochastic-simulation/03-simulation-at-block-support/README.md)
 # averages realizations to blocks.

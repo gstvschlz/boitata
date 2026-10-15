@@ -225,7 +225,7 @@ bt.plot.section(
     ax=axes[0],
 )
 scale = plt.cm.ScalarMappable(plt.Normalize(0, 1), "Greys")
-fig.colorbar(scale, ax=axes[0], shrink=0.6, label="proportion of the block inside a vein")
+fig.colorbar(scale, ax=axes[0], shrink=0.6, label="Proportion of the block inside a vein")
 scheme = bt.Categories(names, colors=[ACCENT, "#6f9fc9", HIGHLIGHT, GRAY])
 labeled = majority >= 0
 bt.plot.section(model.filter(labeled), majority[labeled], plane=plane, scheme=scheme, ax=axes[1])

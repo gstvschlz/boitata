@@ -1,1 +1,1 @@
-## compositing
+## Compositing

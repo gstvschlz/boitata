@@ -1,9 +1,9 @@
 # 3D views
 
 `bt.plot3d` draws drill holes, points, meshes and block models in a 3D scene that runs in the browser
-(``pip install boitata[3d]`` for the notebook widget). the scenes show three stacked sulphide lenses with the holes
+(``pip install boitata[3d]`` for the notebook widget). The scenes show three stacked sulfide lenses with the holes
 that cut them, their zinc composites, a sub-blocked model of the lenses and a section through a model rotated with
-them. each scene renders to an image with `screenshot`; in the documentation a click on the image loads the live
+them. Each scene renders to an image with `screenshot`; in the documentation a click on the image loads the live
 scene.
 
 <details><summary>Python</summary>
@@ -18,8 +18,8 @@ ZN = {"cmap": "cividis", "clim": (0, 10), "label": "Zn (%)"}
 
 </details>
 
-a `Drillholes` without intervals draws its desurveyed traces, a `PointSet` points, a `Mesh` triangles. only the
-holes collared over the lenses are drawn. zinc colors the composites inside the lenses; the others stay gray.
+A `Drillholes` without intervals draws its desurveyed traces, a `PointSet` points, a `Mesh` triangles. Only the
+holes collared over the lenses are drawn. Zinc colors the composites inside the lenses; the others stay gray.
 
 <details><summary>Python</summary>
 
@@ -58,7 +58,7 @@ show(scene, "holes", "Drill holes, Zn composites and the three lenses")
 ![holes](holes.png)
 
 `from_meshes` sub-blocks a grid rotated with the lenses ([block model from extents](../../02-data-and-geometry/12-block-model-from-extents/README.md)) against the solids, and inverse distance fills
-the sub-blocks with the zinc of the composites inside the lenses. each row draws as a box along the model's
+the sub-blocks with the zinc of the composites inside the lenses. Each row draws as a box along the model's
 rotated axes, sub-blocks at their own size.
 
 <details><summary>Python</summary>
@@ -98,10 +98,10 @@ show(scene, "subblocks", "Sub-blocks of the lenses, colored by Zn")
 
 ![subblocks](subblocks.png)
 
-a regular model keeps its geometry implicit; the viewer builds its boxes from the centers, sizes and rotation.
-filled with the inverse-distance zinc of all composites, the rotated grid is cut here by a `section` across
+A regular model keeps its geometry implicit; the viewer builds its boxes from the centers, sizes and rotation.
+Filled with the inverse-distance zinc of all composites, the rotated grid is cut here by a `section` across
 strike, through its center and one block wide: a dip section where the three lenses are the high-grade bands.
-blocks with no composite within 100 m are null and never drawn. `contour_step` draws 1% Zn isolines on the cut
+Blocks with no composite within 100 m are null and never drawn. `contour_step` draws 1% Zn isolines on the cut
 face itself, over the block colors; they update live as the section is dragged.
 
 <details><summary>Python</summary>
@@ -131,10 +131,10 @@ rotated grid [38, 47, 14]: 94% of 25,004 blocks estimated
 
 ![section](section.png)
 
-zinc runs over two orders of magnitude, which a linear scale crushes into its bottom colors. `log=True` spreads
-it by decades, the color bar ticked to match. the assays of the holes over the lenses draw as `"tubes"`, shaded
+Zinc runs over two orders of magnitude, which a linear scale crushes into its bottom colors. `log=True` spreads
+it by decades, the color bar ticked to match. The assays of the holes over the lenses draw as `"tubes"`, shaded
 near the camera and plain lines further off, each swollen with its zinc by `radius_by`; `eye_dome` darkens each
-pixel by how far it lies behind its neighbours on screen, so overlapping holes read in depth.
+pixel by how far it lies behind its neighbors on screen, so overlapping holes read in depth.
 
 <details><summary>Python</summary>
 
@@ -161,7 +161,7 @@ show(scene, "log", "Composites as tubes on a log Zn scale, with eye-dome lightin
 ![log](log.png)
 
 `bins` steps the colors at cutoffs instead, each class in the colormap's color at its middle, with a legend of
-classes: here the composites inside the lenses below 1, 3 and 6% Zn and above. a scene of points alone starts
+classes: here the composites inside the lenses below 1, 3 and 6% Zn and above. A scene of points alone starts
 with eye-dome lighting on.
 
 <details><summary>Python</summary>

@@ -1,8 +1,8 @@
-# local mine grid
+# Local mine grid
 
-many mines survey in a local grid: a convenient origin, grid north along the orebody and round numbers. `LocalGrid`
+Many mines survey in a local grid: a convenient origin, grid north along the orebody and round numbers. `LocalGrid`
 is the similarity transform from that grid to a projected CRS (a scale, a rotation, a shift and an elevation offset),
-fitted by least squares to control points known in both systems. it moves points, drill holes, polylines, meshes
+fitted by least squares to control points known in both systems. It moves points, drill holes, polylines, meshes
 and block models either way.
 
 <details><summary>Python</summary>
@@ -16,10 +16,10 @@ from common import ACCENT, GRAY, HIGHLIGHT, INK, map_axes, save
 
 </details>
 
-## control points
+## Control points
 
-six survey monuments carry local coordinates and UTM coordinates from GNSS, with a few centimeters of survey error.
-the true grid here turns grid north 128° clockwise from UTM north and has a scale factor of 0.9996.
+Six survey monuments carry local coordinates and UTM coordinates from GNSS, with a few centimeters of survey error.
+The true grid here turns grid north 128° clockwise from UTM north and has a scale factor of 0.9996.
 
 <details><summary>Python</summary>
 
@@ -59,13 +59,13 @@ residuals (m):
 horizontal rms: 0.028 m
 ```
 
-the fit recovers the rotation within a few thousandths of a degree. the residuals are what the survey error leaves
-after the best similarity. a monument with a residual far above the others is a misidentified or disturbed one.
+The fit recovers the rotation within a few thousandths of a degree. The residuals are what the survey error leaves
+after the best similarity. A monument with a residual far above the others is a misidentified or disturbed one.
 
-## moving a block model
+## Moving a block model
 
-a block model built in the local grid moves with its origin. its azimuth turns by the grid rotation and its block
-sizes scale by the grid scale, so every block lands where its local centroid maps. the result carries the grid's
+A block model built in the local grid moves with its origin. Its azimuth turns by the grid rotation and its block
+sizes scale by the grid scale, so every block lands where its local centroid maps. The result carries the grid's
 CRS, and `inverse` brings it back exactly.
 
 <details><summary>Python</summary>
@@ -127,7 +127,7 @@ round trip: 5.1e-11 m, crs None
 
 ![grids](grids.png)
 
-a plain `(n, 3)` array moves too, here the footprint of the block model. the footprint, the hole traces and the
+A plain `(n, 3)` array moves too, here the footprint of the block model. The footprint, the hole traces and the
 monuments keep their shapes; only their frame changes.
 
 Full script: [`example_02_26.py`](example_02_26.py)

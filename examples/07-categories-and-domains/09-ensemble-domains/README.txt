@@ -1,1 +1,1 @@
-## ensemble domains
+## Ensemble domains

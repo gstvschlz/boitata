@@ -1,9 +1,9 @@
 """
-# storing containers in parquet
+# Storing containers in parquet
 
 `write_parquet` saves a `PointSet`, `BlockModel` or `Polylines` with its geometry, layout and CRS in the file
-metadata, and `read_parquet` returns the same container. the file is ordinary parquet, so polars, pandas or duckdb
-read it as a table. fitted estimators and categorical estimates save the same way.
+metadata, and `read_parquet` returns the same container. The file is ordinary parquet, so polars, pandas or duckdb
+read it as a table. Fitted estimators and categorical estimates save the same way.
 """
 
 # %% [hidden]
@@ -23,7 +23,7 @@ import polars as pl
 from common import ACCENT, HIGHLIGHT, LIGHT, map_axes, save
 
 # %% [markdown]
-# walker lake `V` is kriged on a 1 m grid with a variogram fitted in eight directions ([variogram fitting](../../05-spatial-continuity/02-variogram-fitting/README.md) explains the fit), and
+# Walker Lake `V` is kriged on a 1 m grid with a variogram fitted in eight directions ([variogram fitting](../../05-spatial-continuity/02-variogram-fitting/README.md) explains the fit), and
 # a masked model keeps the cells above 500 ppm.
 
 # %%
@@ -42,7 +42,7 @@ print(grid)
 print(rich)
 
 # %% [markdown]
-# the masked model keeps 10273 of the 78000 cells and stores its cell index with the attributes.
+# The masked model keeps 10273 of the 78000 cells and stores its cell index with the attributes.
 
 # %%
 folder = Path(tempfile.mkdtemp())
@@ -57,8 +57,8 @@ print(back)
 print("same cells:", np.array_equal(back.index, rich.index), "| crs:", back.crs)
 
 # %% [markdown]
-# the full grid takes 1.47 MB in parquet against 4.04 MB as CSV. polars reads the same file and handles grouping and
-# summaries. a regular model stores no coordinates: its geometry is implicit and the row number is the cell index,
+# The full grid takes 1.47 MB in parquet against 4.04 MB as CSV. Polars reads the same file and handles grouping and
+# summaries. A regular model stores no coordinates: its geometry is implicit and the row number is the cell index,
 # x fastest, so a 1 m row of 260 cells is one northing.
 
 # %%
@@ -75,8 +75,8 @@ bands = (
 print(bands)
 
 # %% [markdown]
-# a fitted estimator saves the same way. its samples become columns, and its variogram, search and options go as
-# JSON in the file metadata. the estimator read back predicts the same values. `ImplicitModel` and
+# A fitted estimator saves the same way. Its samples become columns, and its variogram, search and options go as
+# JSON in the file metadata. The estimator read back predicts the same values. `ImplicitModel` and
 # `LocalAnisotropy` save the same way.
 
 # %%
@@ -86,8 +86,8 @@ again = bt.OrdinaryKriging.from_parquet(folder / "kriging.parquet")
 print("same estimates:", np.array_equal(again.predict(grid), estimate, equal_nan=True))
 
 # %% [markdown]
-# a categorical estimate keeps its `Categories` scheme, the names and colors of the codes. walker lake's type `T`
-# (1 and 2) is kriged as indicators on a 5 m grid ([categorical indicator kriging](../../07-categories-and-domains/05-categorical-indicator-kriging/README.md)). the file stores the probabilities as columns and
+# A categorical estimate keeps its `Categories` scheme, the names and colors of the codes. Walker Lake's type `T`
+# (1 and 2) is kriged as indicators on a 5 m grid ([categorical indicator kriging](../../07-categories-and-domains/05-categorical-indicator-kriging/README.md)). The file stores the probabilities as columns and
 # the scheme as JSON in the metadata.
 
 # %%
@@ -107,8 +107,8 @@ print(
 )
 
 # %% [markdown]
-# lines and polygons are `Polylines`: one attribute row per feature, each feature made of parts. a closed part is a
-# ring whose last vertex joins the first, and a ring inside another ring of the same feature is a hole. in parquet a
+# Lines and polygons are `Polylines`: one attribute row per feature, each feature made of parts. A closed part is a
+# ring whose last vertex joins the first, and a ring inside another ring of the same feature is a hole. In parquet a
 # feature is one row whose `geometry` lists its parts, each a list of vertices. `Polylines.from_table` builds features
 # from a long table with one row per vertex.
 

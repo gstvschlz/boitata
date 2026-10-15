@@ -1,1 +1,1 @@
-## normal-score transform
+## Normal-score transform

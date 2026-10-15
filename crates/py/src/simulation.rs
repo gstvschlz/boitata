@@ -1389,8 +1389,8 @@ impl Sgs {
     /// nodes outside every block are ignored and a block holding no node is
     /// an error. `window`, ``(dx, dy)`` or ``(dx, dy, dz)`` (dz 0 when
     /// left out), gives each row (the blocks when given, else the targets)
-    /// the average of the rows whose centre lies in the box of that size
-    /// centred on it, along the model axes of a BlockModel or the world axes
+    /// the average of the rows whose center lies in the box of that size
+    /// centered on it, along the model axes of a BlockModel or the world axes
     /// of points; boxes overlap, stop at the edge of the rows, weigh rows
     /// by volume and leave out NaN. Regular and masked models use
     /// summed-area tables, so the cost does not grow with the box. `groups`,
@@ -1938,9 +1938,9 @@ impl Dss {
     ///     volume, and summarized at; nodes outside every block are
     ///     ignored and a block holding no node is an error.
     /// window : tuple of float, optional
-    ///     ``(dx, dy, dz)`` box centred on each row (the blocks when given,
+    ///     ``(dx, dy, dz)`` box centered on each row (the blocks when given,
     ///     else the targets), summarized at the average of the rows whose
-    ///     centre it holds, as in SGS.simulate.
+    ///     center it holds, as in SGS.simulate.
     /// groups : array_like or str, optional
     ///     Label of each row, or a column name: one summary row per
     ///     distinct label, in ``numpy.unique`` order, as in SGS.simulate.

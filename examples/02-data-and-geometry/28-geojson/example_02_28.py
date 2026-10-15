@@ -43,10 +43,10 @@ outlines = bt.Polylines(
 )
 
 # %% [markdown]
-# ## writing
+# ## Writing
 #
-# each point and each feature becomes a GeoJSON feature. the pit with its pond is a polygon with a hole, the road a
-# line string. coordinates come out in degrees, heights in metres as they were; the null depth is JSON `null`.
+# Each point and each feature becomes a GeoJSON feature. The pit with its pond is a polygon with a hole, the road a
+# line string. Coordinates come out in degrees, heights in meters as they were; the null depth is JSON `null`.
 
 # %%
 folder = Path(tempfile.mkdtemp())
@@ -57,9 +57,9 @@ print(json.dumps(first))
 print([f["geometry"]["type"] for f in json.loads((folder / "outlines.geojson").read_text())["features"]])
 
 # %% [markdown]
-# ## reading
+# ## Reading
 #
-# a file without a `crs` member is in EPSG:4326. `to_crs` takes it back to UTM, within a fraction of a millimetre.
+# A file without a `crs` member is in EPSG:4326. `to_crs` takes it back to UTM, within a fraction of a millimeter.
 
 # %%
 points = bt.read_geojson(folder / "collars.geojson")
@@ -79,6 +79,6 @@ ax.set_aspect(1 / np.cos(np.radians(points.y.mean())))
 ax.locator_params(axis="x", nbins=4)
 ax.set_xlabel("Longitude (°)")
 ax.set_ylabel("Latitude (°)")
-ax.set_title("collars, pit and haul road read back from GeoJSON")
+ax.set_title("Collars, pit and haul road read back from GeoJSON")
 save(fig, "geojson")
 plt.show()

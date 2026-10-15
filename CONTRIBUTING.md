@@ -1,11 +1,11 @@
-# Contributing to Boitatá
+# Contributing to boitatá
 
 Bug reports, fixes, examples and new features are welcome. Open an issue first for anything
 bigger than a small fix, so we can agree on the design before you write the code.
 
 ## Set up
 
-Boitatá uses [mise](https://mise.jdx.dev) to pin Python, uv, pixi and micromamba; Rust comes
+boitatá uses [mise](https://mise.jdx.dev) to pin Python, uv, pixi and micromamba; Rust comes
 from `rust-toolchain.toml`. From a clone:
 
 ```sh
@@ -19,7 +19,7 @@ mise run test
   (the Rust tests, then builds the Python module and runs pytest). It must pass.
 - `mise run examples` reruns the scripts in `examples/` and rewrites their figures.
   Run it when you change an example.
-- `mise run compat` installs Boitatá with pip, uv, pixi and conda. Run it when you change
+- `mise run compat` installs boitatá with pip, uv, pixi and conda. Run it when you change
   packaging or dependencies.
 
 Every feature ships in Rust and Python together: the binding, the `.pyi` stub, a NumPy

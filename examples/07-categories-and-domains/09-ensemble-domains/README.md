@@ -1,10 +1,10 @@
-# ensemble domains
+# Ensemble domains
 
-a domain is a volume where a grade can be treated as stationary. `domains` proposes domains from the samples alone,
+A domain is a volume where a grade can be treated as stationary. `domains` proposes domains from the samples alone,
 after Martin and Boisvert (2018): it standardizes the columns and clusters them with k-means on features taken from
-each sample's spatial neighbors, so the clusters follow the grades and stay together in space. the consensus repeats
+each sample's spatial neighbors, so the clusters follow the grades and stay together in space. The consensus repeats
 two spatial clusterings over random neighborhood sizes and column subsets, then clusters how often each pair of
-samples ends up in the same cluster. the result holds one code per sample, ready for a column or `domains=`, and two
+samples ends up in the same cluster. The result holds one code per sample, ready for a column or `domains=`, and two
 scores: the spread of the columns within the domains (`wcss`) and the entropy of the domains around each sample
 (`spatial_entropy`).
 
@@ -19,10 +19,10 @@ from common import save
 
 </details>
 
-## four metals
+## Four metals
 
-5 m composites of the stacked sulphide lenses with zinc, lead, copper and silver, and the logged rock for
-comparison. the grades are skewed over three orders of magnitude, so the clustering takes their logarithms: on the
+5 m composites of the stacked sulfide lenses with zinc, lead, copper and silver, and the logged rock for
+comparison. The grades are skewed over three orders of magnitude, so the clustering takes their logarithms: on the
 raw grades the richest composites would dominate the squared distances of k-means.
 
 <details><summary>Python</summary>
@@ -51,11 +51,11 @@ print(f"{len(composites):,} composites in {len(drillholes)} holes")
 5,453 composites in 289 holes
 ```
 
-## three domains
+## Three domains
 
-the consensus of 100 realizations, half autocorrelation clusterings (each column and its mean over the nearest
+The consensus of 100 realizations, half autocorrelation clusterings (each column and its mean over the nearest
 composites) and half dual-space searches (the mean over the nearest composites in space that are also nearest in
-the metals). codes run by increasing mean of the first column, zinc, and `scheme` names them `D1` to `D3`.
+the metals). Codes run by increasing mean of the first column, zinc, and `scheme` names them `D1` to `D3`.
 
 <details><summary>Python</summary>
 
@@ -81,9 +81,9 @@ D2    2153   0.06   0.02   0.03     1.2
 D3     751   3.90   1.48   0.62    33.4
 ```
 
-the domains were drawn from the metals only, yet they line up with the logged rock: `D3` holds the sulphides and
+The domains were drawn from the metals only, yet they line up with the logged rock: `D3` holds the sulfides and
 their volcaniclastic margin, while the barren rock splits in two, the hanging wall sediments with the
-volcaniclastics above the lenses in `D1` and the footwall volcanics with those below in `D2`. each row below is a
+volcaniclastics above the lenses in `D1` and the footwall volcanics with those below in `D2`. Each row below is a
 rock's composites shared among the domains.
 
 <details><summary>Python</summary>
@@ -108,9 +108,9 @@ FWV      1%   97%    2%    693
 DYK     28%   62%   10%     29
 ```
 
-## on a section
+## On a section
 
-the composites within 25 m of a vertical section across strike, with the outlines of the three lenses. the
+The composites within 25 m of a vertical section across strike, with the outlines of the three lenses. The
 agreement is a composite's mean share of realizations in which it falls with the other composites of its domain:
 near 1 inside a domain, lower along the contacts where the realizations disagree.
 
@@ -136,11 +136,11 @@ save(fig, "section")
 
 ![section](section.png)
 
-## the three methods
+## The three methods
 
-a lower `wcss` means domains more uniform in the metals, a lower `spatial_entropy` domains less mixed among
-neighbors. here the consensus gives the most uniform domains and a single autocorrelation clustering the least
-mixed ones. the two scores pull against each other, so they compare candidate domainings (methods, columns, `k`)
+A lower `wcss` means domains more uniform in the metals, a lower `spatial_entropy` domains less mixed among
+neighbors. Here the consensus gives the most uniform domains and a single autocorrelation clustering the least
+mixed ones. The two scores pull against each other, so they compare candidate domainings (methods, columns, `k`)
 rather than pick one alone.
 
 <details><summary>Python</summary>

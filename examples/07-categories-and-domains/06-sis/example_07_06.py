@@ -1,10 +1,10 @@
 """
-# sequential indicator simulation
+# Sequential indicator simulation
 
-sequential indicator simulation (SIS) draws categories. it visits the nodes along a random path, krigs the indicator
+Sequential indicator simulation (SIS) draws categories. It visits the nodes along a random path, krigs the indicator
 of each category with its own variogram from the samples and the nodes already drawn, and draws a category from
-those probabilities. each realization is one possible rock-type map; over many realizations, the frequency of each
-category at a node is its probability. [categorical indicator kriging](../../07-categories-and-domains/05-categorical-indicator-kriging/README.md) estimates such probabilities without
+those probabilities. Each realization is one possible rock-type map; over many realizations, the frequency of each
+category at a node is its probability. [Categorical indicator kriging](../../07-categories-and-domains/05-categorical-indicator-kriging/README.md) estimates such probabilities without
 simulating.
 """
 
@@ -22,10 +22,10 @@ import numpy as np
 from common import ACCENT, GRAY, save
 
 # %% [markdown]
-# ## rock types
+# ## Rock types
 #
-# jura's rock types are known at each node of the prediction grid, so you can compare simulated maps with the real
-# geology. a `Categories` scheme names the five types and gives each a color: `encode` turns labels into the codes 0
+# Jura's rock types are known at each node of the prediction grid, so you can compare simulated maps with the real
+# geology. A `Categories` scheme names the five types and gives each a color: `encode` turns labels into the codes 0
 # to 4 that SIS takes, and `shares` gives their proportions.
 
 # %%
@@ -41,9 +41,9 @@ for k, name in enumerate(names):
     print(f"{name:<13}{np.sum(rock == k):8d}{np.mean(rock == k):7.2f}{np.mean(true_rock == k):11.2f}")
 
 # %% [markdown]
-# ## indicator variograms
+# ## Indicator variograms
 #
-# each rock type gets the variogram of its indicator, 1 inside the type and 0 outside. portlandian has too few
+# Each rock type gets the variogram of its indicator, 1 inside the type and 0 outside. Portlandian has too few
 # samples for an experimental variogram, so it gets a short spherical model with the indicator's variance as sill.
 
 # %%
@@ -65,15 +65,15 @@ h = np.linspace(0, 1.5, 61)
 fig, axes = plt.subplots(1, 5, figsize=(14, 3.2), layout="constrained", sharey=True)
 for ax, name, e, v in zip(axes, names, experimental, variograms):
     if e is not None:
-        ax.plot(e.lags, e.gammas, "o", color=GRAY, ms=4, label="experimental")
-    ax.plot(h, v.gamma(h), color=ACCENT, label="model")
-    ax.set(title=name, xlabel="lag (km)")
-axes[0].set_ylabel("indicator semivariance")
+        ax.plot(e.lags, e.gammas, "o", color=GRAY, ms=4, label="Experimental")
+    ax.plot(h, v.gamma(h), color=ACCENT, label="Model")
+    ax.set(title=name, xlabel="Lag (km)")
+axes[0].set_ylabel("Indicator semivariance")
 axes[0].legend(loc="lower right")
 save(fig, "variograms")
 
 # %% [markdown]
-# ## realizations
+# ## Realizations
 #
 # `simulate` returns a summary over `n` realizations: `probabilities` holds each type's frequency, one row per node,
 # `most_likely` the most frequent type, and `entropy`, scaled to [0, 1], how evenly the realizations disagree.
@@ -108,8 +108,8 @@ for ax, (cats, title) in zip(axes[0], categorical):
 axes[1, 0].scatter(*xy, c=summary.most_likely, cmap=cmap, norm=norm, s=7, marker="s", linewidths=0)
 axes[1, 0].set_title("Most likely over 20 realizations")
 for ax, values, title, label, color in (
-    (axes[1, 1], summary.probabilities[:, 0], "P(Argovian)", "probability", "cividis"),
-    (axes[1, 2], summary.entropy, "Entropy", "entropy", "Greys"),
+    (axes[1, 1], summary.probabilities[:, 0], "P(Argovian)", "Probability", "cividis"),
+    (axes[1, 2], summary.entropy, "Entropy", "Entropy", "Greys"),
 ):
     im = ax.scatter(*xy, c=values, s=7, marker="s", linewidths=0, vmin=0, vmax=1, cmap=color)
     ax.set_title(title)
@@ -121,9 +121,9 @@ bt.plot.category_legend(rock_types, fig, loc="outside lower center", ncol=5)
 save(fig, "realizations")
 
 # %% [markdown]
-# each realization matches the true rock type at 53 % to 60 % of the nodes, and two realizations differ wherever the
-# samples leave room. the proportions drift from the samples: kimmeridgian, whose indicator has the longest range,
-# grows to 0.44 on average against 0.33 in the samples, while argovian and portlandian shrink. no realization
-# recovers portlandian's 5 % of the area from 3 of 259 samples. the most likely type matches at 64 %, more than any
-# realization, though it is a smooth estimate and no possible map looks like it. entropy peaks at the contacts and
+# Each realization matches the true rock type at 53 % to 60 % of the nodes, and two realizations differ wherever the
+# samples leave room. The proportions drift from the samples: Kimmeridgian, whose indicator has the longest range,
+# grows to 0.44 on average against 0.33 in the samples, while Argovian and Portlandian shrink. No realization
+# recovers Portlandian's 5 % of the area from 3 of 259 samples. The most likely type matches at 64 %, more than any
+# realization, though it is a smooth estimate and no possible map looks like it. Entropy peaks at the contacts and
 # far from the samples.

@@ -1,7 +1,7 @@
 <svg class="bt-svg" viewBox="0 0 640 280" role="img" aria-labelledby="l01-clustering-t">
 <title id="l01-clustering-t">Preferential sampling: a regular grid plus infill holes clustered in the rich zone</title>
 <ellipse class="f-flame-soft" cx="400" cy="120" rx="95" ry="55" transform="rotate(-20 400 120)"/>
-<text x="440" y="202" class="small">rich zone</text>
+<text x="440" y="202" class="small">Rich zone</text>
 <rect class="none s-muted" x="40" y="30" width="560" height="180" stroke-width="1"/>
 <circle class="f-night" cx="80" cy="60" r="4.5"/>
 <circle class="f-night" cx="80" cy="110" r="4.5"/>
@@ -46,8 +46,8 @@
 <circle class="f-ember a-pop" style="--d:1.26s" cx="345.6" cy="173.8" r="4.5"/>
 <circle class="f-ember a-pop" style="--d:1.32s" cx="345.6" cy="126.7" r="4.5"/>
 <circle class="f-night" cx="50" cy="236" r="4.5"/>
-<text x="60" y="241" class="small">first campaign: regular grid</text>
+<text x="60" y="241" class="small">First campaign: regular grid</text>
 <circle class="f-ember" cx="250" cy="236" r="4.5"/>
-<text x="260" y="241" class="small">infill: only in the rich zone</text>
+<text x="260" y="241" class="small">Infill: only in the rich zone</text>
 <text class="a-fade" style="--d:1.6s" x="40" y="268">The rich zone covers 16% of the area and holds 23 of 42 samples (55%).</text>
 </svg>

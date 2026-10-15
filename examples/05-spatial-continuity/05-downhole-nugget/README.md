@@ -1,7 +1,7 @@
-# downhole nugget
+# Downhole nugget
 
-along a hole, samples sit one sample length apart, far closer than any two holes, so the downhole variogram shows the
-nugget best. the data: Ni of a nickel laterite, sampled at 1 m down 448 vertical holes, horizon by horizon.
+Along a hole, samples sit one sample length apart, far closer than any two holes, so the downhole variogram shows the
+nugget best. The data: Ni of a nickel laterite, sampled at 1 m down 448 vertical holes, horizon by horizon.
 
 <details><summary>Python</summary>
 
@@ -28,9 +28,9 @@ SAP   mean thickness  10.9 m
 BRK   mean thickness   3.5 m
 ```
 
-a downhole variogram needs several lags inside one horizon, and only the limonite `LIM` and the saprolite `SAP` are
+A downhole variogram needs several lags inside one horizon, and only the limonite `LIM` and the saprolite `SAP` are
 thick enough. `holes=` keeps only pairs down the same hole; lag `k` gathers pairs about `k` composite lengths apart.
-`nugget()` extrapolates a line through the first three lags to zero. composites never cross a horizon, and each
+`nugget()` extrapolates a line through the first three lags to zero. Composites never cross a horizon, and each
 horizon gets its own variogram, standardized by its variance, at three composite lengths.
 
 <details><summary>Python</summary>
@@ -60,9 +60,9 @@ nugget / variance
 2.0 m    0.35   0.20
 ```
 
-at 1 m the limonite carries a fifth of its Ni variance in the nugget, the saprolite about a seventh; 1.5 m composites
-give nearly the same. at 2 m the first three lags span 6 m, most of the limonite's 7.4 m. the line then reaches zero
-across the bend of the variogram, and the nugget comes out larger in both horizons. carry the nugget of the shortest
+At 1 m the limonite carries a fifth of its Ni variance in the nugget, the saprolite about a seventh; 1.5 m composites
+give nearly the same. At 2 m the first three lags span 6 m, most of the limonite's 7.4 m. The line then reaches zero
+across the bend of the variogram, and the nugget comes out larger in both horizons. Carry the nugget of the shortest
 composites into the fits between holes, whose closest spacing is 25 m.
 
 <details><summary>Python</summary>
@@ -74,12 +74,12 @@ for name, color in (("LIM", ACCENT), ("SAP", GRAY)):
     a.plot(exp.lags, exp.gammas, "o-", color=color, ms=3, label=name)
     a.plot([0, exp.lags[0]], [exp.nugget(), exp.gammas[0]], ":", color=color)
     a.plot(0, exp.nugget(), "s", color=HIGHLIGHT, ms=5, clip_on=False)
-a.set(xlim=(0, 6), ylim=(0, None), xlabel="Downhole lag (m)", ylabel="standardized γ(h)")
+a.set(xlim=(0, 6), ylim=(0, None), xlabel="Downhole lag (m)", ylabel="Standardized γ(h)")
 a.set_title("Downhole Ni variograms, 1 m composites")
 a.legend(loc="lower right")
 for name, color in zip(horizons, (ACCENT, GRAY)):
     b.plot(lengths, [nuggets[name, length] for length in lengths], "o-", color=color, ms=4, label=name)
-b.set(xticks=lengths, ylim=(0, None), xlabel="Composite length (m)", ylabel="nugget / variance")
+b.set(xticks=lengths, ylim=(0, None), xlabel="Composite length (m)", ylabel="Nugget / variance")
 b.set_title("Extrapolated nugget by horizon")
 b.legend(loc="lower right", ncol=2)
 save(fig, "downhole")

@@ -1,8 +1,8 @@
 """
-# outlines
+# Outlines
 
-a drilling program needs an outline: to clip a surface, to report what lies within the drilled area, or to limit an
-estimate to it. `outline` draws one around points. the convex hull bridges every gap; a concave outline follows the
+A drilling program needs an outline: to clip a surface, to report what lies within the drilled area, or to limit an
+estimate to it. `outline` draws one around points. The convex hull bridges every gap; a concave outline follows the
 edge of the drilling, and a buffer pads it by a fixed distance.
 """
 
@@ -25,9 +25,9 @@ spacing = np.nanmedian(bt.data_spacing(collars, collars, None))
 print(f"{len(collars)} collars, median spacing {spacing:.0f} m")
 
 # %% [markdown]
-# a concave outline erodes the convex hull from its longest boundary edge inward. `max_edge` stops it: boundary edges
-# up to that length stay. at 3 times the median spacing the outline follows the dense west side and cuts into the
-# sparser east, where holes lie further apart. every collar stays inside or on the outline.
+# A concave outline erodes the convex hull from its longest boundary edge inward. `max_edge` stops it: boundary edges
+# up to that length stay. At 3 times the median spacing the outline follows the dense west side and cuts into the
+# sparser east, where holes lie further apart. Every collar stays inside or on the outline.
 
 # %%
 convex = bt.outline(collars)
@@ -40,9 +40,9 @@ assert (concave.contains(collars) | (concave.distance(collars) < 1e-6)).all()
 fig, ax = plt.subplots(figsize=(6.5, 6), layout="constrained")
 ax.scatter(*collars.coords[:, :2].T, s=6, color=GRAY, zorder=3)
 for lines, color, style, label in (
-    (convex, GRAY, "--", "convex"),
-    (concave, ACCENT, "-", "concave"),
-    (padded, HIGHLIGHT, "-", f"concave + {spacing:.0f} m"),
+    (convex, GRAY, "--", "Convex"),
+    (concave, ACCENT, "-", "Concave"),
+    (padded, HIGHLIGHT, "-", f"Concave + {spacing:.0f} m"),
 ):
     ring = lines.parts[0]
     ax.plot(*np.vstack([ring, ring[:1]])[:, :2].T, color=color, ls=style, lw=1.2, label=label)
@@ -51,7 +51,7 @@ ax.legend(loc="lower right")
 save(fig, "outlines")
 
 # %% [markdown]
-# `categories` draws one outline per label: here the diamond and reverse-circulation programs. the result is one
+# `categories` draws one outline per label: here the diamond and reverse-circulation programs. The result is one
 # feature per label, ready for `contains` or `locate`.
 
 # %%

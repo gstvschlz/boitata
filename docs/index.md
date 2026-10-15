@@ -8,126 +8,126 @@ hide: [navigation, toc]
 <div markdown>
 <h1>boitatá</h1>
 
-my python tooling for day-to-day geostatistics.
+My Python tooling for day-to-day geostatistics.
 
-boitatá holds the tools i use for resource work, from drill hole checks and statistics to variograms, kriging, simulation and model checks.
+boitatá holds the tools I use for resource work: drill hole checks, statistics, transforms, variograms, kriging, simulation and model checks.
 
-[get started](#start-here){ .md-button .md-button--primary }
-[examples](examples/01-first-steps/index.md){ .md-button }
-[api reference](api/containers/index.md){ .md-button }
+[Get started](#start-here){ .md-button .md-button--primary }
+[Examples](examples/01-first-steps/index.md){ .md-button }
+[API reference](api/containers/index.md){ .md-button }
 </div>
 </div>
 
-## start here
+## Start here
 
 <ol class="bt-path" markdown>
-<li markdown="block">**[install](install.md)**
+<li markdown="block">**[Install](install.md)**
 
-one command: `pip install "boitata[all]"`.
+One command: `pip install "boitata[all]"`.
 </li>
-<li markdown="block">**[learning track](learn/01-samples-and-support/learn_01.md)**
+<li markdown="block">**[Learning track](learn/01-samples-and-support/learn_01.md)**
 
-what a sample stands for, before any code.
+What a sample stands for, before any code.
 </li>
-<li markdown="block">**[quick tour](examples/01-first-steps/01-quick-tour/example_01_01.md)**
+<li markdown="block">**[Quick tour](examples/01-first-steps/01-quick-tour/example_01_01.md)**
 
-from samples to a checked estimate in one page of code.
+From samples to a checked estimate in one page of code.
 </li>
-<li markdown="block">**[workflows](examples/14-workflows/index.md)**
+<li markdown="block">**[Workflows](examples/14-workflows/index.md)**
 
-whole problems, from the question to the decision.
+Whole problems, from the question to the decision.
 </li>
 </ol>
 
-## modules
+## Modules
 
 <div class="grid cards" markdown>
 
--   :material-school-outline: **[learn](learn/index.md)**
+-   :material-school-outline: **[Learn](learn/index.md)**
 
     ---
 
-    six chapters of geostatistics from the ground up, each with diagrams and runnable code.
+    Six chapters of geostatistics from the ground up, each with diagrams and runnable code.
 
--   :material-sitemap-outline: **[guide](guide/organization.md)**
-
-    ---
-
-    how the library is organized, so you can guess your way around it, and [which page answers your question](guide/finder.md).
-
--   :material-rocket-launch-outline: **[first steps](examples/01-first-steps/index.md)**
+-   :material-sitemap-outline: **[Guide](guide/organization.md)**
 
     ---
 
-    a quick tour from samples to a checked estimate, plus short pages such as saving to parquet.
+    How the library is organized, so you can guess your way around it, and [which page answers your question](guide/finder.md).
 
--   :material-database-outline: **[data and geometry](examples/02-data-and-geometry/index.md)**
-
-    ---
-
-    drill holes, composites, block models, solids, meshes and GIS files.
-
--   :material-chart-bell-curve: **[exploratory analysis](examples/03-exploratory-analysis/index.md)**
+-   :material-rocket-launch-outline: **[First steps](examples/01-first-steps/index.md)**
 
     ---
 
-    declustering, top cuts, contacts, swaths and data spacing before any model.
+    A quick tour from samples to a checked estimate, plus short pages such as saving to Parquet.
 
--   :material-swap-horizontal: **[transforms](examples/04-transforms/index.md)**
-
-    ---
-
-    normal scores, log-ratios, multivariate factors and imputation.
-
--   :material-vector-curve: **[spatial continuity](examples/05-spatial-continuity/index.md)**
+-   :material-database-outline: **[Data and geometry](examples/02-data-and-geometry/index.md)**
 
     ---
 
-    experimental variograms, model fitting and coregionalization.
+    Drill holes, composites, block models, solids, meshes and GIS files.
 
--   :material-grid: **[kriging](examples/06-kriging/index.md)**
-
-    ---
-
-    point and block kriging, cokriging, indicators and search tuning.
-
--   :material-shape-outline: **[categories and domains](examples/07-categories-and-domains/index.md)**
+-   :material-chart-bell-curve: **[Exploratory analysis](examples/03-exploratory-analysis/index.md)**
 
     ---
 
-    rock types as proportions, probabilities and simulated layouts.
+    Declustering, top cuts, contacts, swaths and data spacing before any model.
 
--   :material-dice-multiple-outline: **[stochastic simulation](examples/08-stochastic-simulation/index.md)**
+-   :material-swap-horizontal: **[Transforms](examples/04-transforms/index.md)**
+
+    ---
+
+    Normal scores, log-ratios, multivariate factors and imputation.
+
+-   :material-vector-curve: **[Spatial continuity](examples/05-spatial-continuity/index.md)**
+
+    ---
+
+    Experimental variograms, model fitting and coregionalization.
+
+-   :material-grid: **[Kriging](examples/06-kriging/index.md)**
+
+    ---
+
+    Point and block kriging, cokriging, indicators and search tuning.
+
+-   :material-shape-outline: **[Categories and domains](examples/07-categories-and-domains/index.md)**
+
+    ---
+
+    Rock types as proportions, probabilities and simulated layouts.
+
+-   :material-dice-multiple-outline: **[Stochastic simulation](examples/08-stochastic-simulation/index.md)**
 
     ---
 
     SGS, turning bands and cosimulation, reproducible from one seed.
 
--   :material-pickaxe: **[recoverable resources](examples/09-recoverable-resources/index.md)**
+-   :material-pickaxe: **[Recoverable resources](examples/09-recoverable-resources/index.md)**
 
     ---
 
-    tonnes and grade above cutoff at the size of a mining block.
+    Tonnes and grade above cutoff at the size of a mining block.
 
--   :material-check-decagram-outline: **[checking models](examples/10-checking-models/index.md)**
-
-    ---
-
-    cross-validation, swaths, realization checks and classification.
-
--   :material-layers-triple-outline: **[geological modeling](examples/11-geological-modeling/index.md)**
+-   :material-check-decagram-outline: **[Checking models](examples/10-checking-models/index.md)**
 
     ---
 
-    grade shells, contact surfaces and layered horizons.
+    Cross-validation, swaths, realization checks and classification.
 
--   :material-book-open-page-variant-outline: **[case studies](examples/12-case-studies/index.md)**
+-   :material-layers-triple-outline: **[Geological modeling](examples/11-geological-modeling/index.md)**
 
     ---
 
-    four deposits, each from raw tables to a result.
+    Grade shells, contact surfaces and layered horizons.
 
--   :material-texture-box: **[multiple-point statistics](examples/13-multiple-point-statistics/index.md)**
+-   :material-book-open-page-variant-outline: **[Case studies](examples/12-case-studies/index.md)**
+
+    ---
+
+    Four deposits, each from raw tables to a result.
+
+-   :material-texture-box: **[Multiple-point statistics](examples/13-multiple-point-statistics/index.md)**
 
     ---
 

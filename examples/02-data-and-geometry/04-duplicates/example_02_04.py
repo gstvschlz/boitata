@@ -1,9 +1,9 @@
 """
-# duplicates
+# Duplicates
 
-collars entered twice, holes collared next to each other and samples assayed twice put several records at one place,
+Collars entered twice, holes collared next to each other and samples assayed twice put several records at one place,
 and kriging cannot weight two samples at the same location. `duplicates` groups the samples closer than a tolerance
-and merges each group. the raw tables of the stacked sulphide lenses carry such errors on purpose.
+and merges each group. The raw tables of the stacked sulfide lenses carry such errors on purpose.
 """
 
 # %% [hidden]
@@ -25,9 +25,9 @@ names, counts = np.unique(collars["HOLE_ID"], return_counts=True)
 print(f"{len(collars)} collars, {len(names)} hole ids, repeated: {', '.join(names[counts > 1])}")
 
 # %% [markdown]
-# ## collars
+# ## Collars
 #
-# a repeated id can sit at two locations. `duplicates` on the collar coordinates groups the collars within 5 m of
+# A repeated id can sit at two locations. `duplicates` on the collar coordinates groups the collars within 5 m of
 # one another, transitively, and gives each group's first collar and its spread.
 
 # %%
@@ -42,12 +42,12 @@ for name in names[counts > 1]:
 # %% [markdown]
 # DD0058 is one row entered twice: drop one. DD0067 names two collars 290 m apart, an id clash that `check_drillholes`
 # flags ([checking drill holes](../../02-data-and-geometry/01-check-drillholes/README.md)). DD0187 and RC0043 are two holes collared 2.7 m apart at
-# different dips. nearby holes of two drilling types are [paired data](../../03-exploratory-analysis/01-paired-data/README.md).
+# different dips. Nearby holes of two drilling types are [paired data](../../03-exploratory-analysis/01-paired-data/README.md).
 #
-# ## samples
+# ## Samples
 #
-# the grades of the raw assays are text, with `NS`, `<0.01` and `-999` among the numbers. here anything other than a
-# plain number reads as missing. the default rules of [checking drill holes](../../02-data-and-geometry/01-check-drillholes/README.md) fix the other planted errors, except
+# The grades of the raw assays are text, with `NS`, `<0.01` and `-999` among the numbers. Here anything other than a
+# plain number reads as missing. The default rules of [checking drill holes](../../02-data-and-geometry/01-check-drillholes/README.md) fix the other planted errors, except
 # overlaps, which stay so that the samples entered twice survive.
 
 # %%
@@ -66,7 +66,7 @@ samples = bt.Drillholes(fixed["collar"], fixed["survey"], fixed["assays"]).sampl
 print(f"{len(samples)} samples at their midpoints")
 
 # %% [markdown]
-# with a tolerance of 0, only samples at the same location are grouped: three intervals of DD0162 were entered twice,
+# With a tolerance of 0, only samples at the same location are grouped: three intervals of DD0162 were entered twice,
 # with grades within 10 % of each other.
 
 # %%
@@ -79,8 +79,8 @@ for k in report["group"]:
     print(f"{hole[rows[0]]} at {depth[rows[0]]:.1f} m: Zn {values} %")
 
 fig, (a, b) = plt.subplots(1, 2, figsize=(10, 4), layout="constrained", width_ratios=[1.3, 1])
-a.scatter(xyz[:, 0], xyz[:, 1], s=5, color=GRAY, label="collars")
-a.scatter(close["x"], close["y"], s=90, facecolors="none", edgecolors=HIGHLIGHT, label="collars within 5 m")
+a.scatter(xyz[:, 0], xyz[:, 1], s=5, color=GRAY, label="Collars")
+a.scatter(close["x"], close["y"], s=90, facecolors="none", edgecolors=HIGHLIGHT, label="Collars within 5 m")
 for k, x, y in zip(close["group"], close["x"], close["y"], strict=True):
     a.annotate(
         " / ".join(dict.fromkeys(collars["HOLE_ID"][group_collars == k])),
@@ -94,13 +94,13 @@ a.legend(loc="upper left")
 rows = np.flatnonzero((hole == "DD0162") & (depth > 595) & (depth < 630))
 b.plot(depth[rows], zn[rows], "o", ms=3, color=ACCENT)
 twice = rows[group[rows] >= 0]
-b.plot(depth[twice], zn[twice], "o", ms=8, mfc="none", color=HIGHLIGHT, label="entered twice")
+b.plot(depth[twice], zn[twice], "o", ms=8, mfc="none", color=HIGHLIGHT, label="Entered twice")
 b.set(title="DD0162, 595 to 630 m", xlabel="Depth (m)", ylabel="Zn (%)")
 b.legend(loc="upper right")
 save(fig, "duplicates")
 
 # %% [markdown]
-# a tolerance of a meter or two would also group neighbors along a hole, such as short intervals on both sides of a
+# A tolerance of a meter or two would also group neighbors along a hole, such as short intervals on both sides of a
 # contact. `merge="mean"` replaces each group by one sample at its first location with the mean grade, and the `n`
 # column counts the samples behind each row. `"first"` keeps the first entry instead, and `"max"` the largest value.
 

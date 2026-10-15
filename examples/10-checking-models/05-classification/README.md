@@ -1,6 +1,6 @@
-# classification
+# Classification
 
-resource classes for the blocks of a coal lease, first from the spacing of the boreholes alone, then from the kriging
+Resource classes for the blocks of a coal lease, first from the spacing of the boreholes alone, then from the kriging
 diagnostics of seam thickness together with the spacing. `classify` applies rules in order, and `smooth_classes`
 absorbs isolated blocks into their surroundings.
 
@@ -25,11 +25,11 @@ print(f"{len(holes)} boreholes, {len(blocks.coords)} blocks of 100 × 100 m insi
 295 boreholes, 7162 blocks of 100 × 100 m inside the lease
 ```
 
-## by data spacing
+## By data spacing
 
 `data_spacing` gives each block the equivalent spacing of the boreholes around it, in plan
 ([data spacing](../../03-exploratory-analysis/10-data-spacing/README.md)): on a square mesh of spacing `s` it reads
-about `s`. rules apply in order and the first that holds wins; blocks where none holds get the default.
+about `s`. Rules apply in order and the first that holds wins; blocks where none holds get the default.
 
 <details><summary>Python</summary>
 
@@ -46,10 +46,10 @@ print(f"spacing: median {np.median(spacing):.0f} m, 90th percentile {np.percenti
 spacing: median 550 m, 90th percentile 695 m
 ```
 
-## by kriging diagnostics
+## By kriging diagnostics
 
-block kriging with `diagnostics=True` gives each block its slope of regression and kriging efficiency ([kriging diagnostics](../../10-checking-models/03-kriging-diagnostics/README.md)).
-the rules add the spacing, so a block needs a well-conditioned estimate and nearby holes.
+Block kriging with `diagnostics=True` gives each block its slope of regression and kriging efficiency ([kriging diagnostics](../../10-checking-models/03-kriging-diagnostics/README.md)).
+The rules add the spacing, so a block needs a well-conditioned estimate and nearby holes.
 
 <details><summary>Python</summary>
 
@@ -73,9 +73,9 @@ by_kriging = bt.classify(criteria, rules, default="inferred")
 
 </details>
 
-## smoothing
+## Smoothing
 
-a 3 × 3 majority filter absorbs isolated blocks into their surroundings; cells outside the lease do not vote.
+A 3 × 3 majority filter absorbs isolated blocks into their surroundings; cells outside the lease do not vote.
 
 <details><summary>Python</summary>
 
@@ -99,9 +99,9 @@ indicated    68.5%    64.5%    65.0%
 1.7% of blocks change class in smoothing
 ```
 
-spacing alone puts the infill, 22 % of the blocks, in measured, and the lease edge beyond the last holes in
-inferred. the kriging diagnostics also see how the holes surround a block: measured grows to 27 % and joins the
-infill patches, while blocks along the edge, with holes on one side only, stay inferred (8.1 % of the lease). the
+Spacing alone puts the infill, 22 % of the blocks, in measured, and the lease edge beyond the last holes in
+inferred. The kriging diagnostics also see how the holes surround a block: measured grows to 27 % and joins the
+infill patches, while blocks along the edge, with holes on one side only, stay inferred (8.1 % of the lease). The
 filter changes 1.7 % of the blocks, most of them single blocks and thin fringes.
 
 <details><summary>Python</summary>

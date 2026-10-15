@@ -1,7 +1,7 @@
-# stepped sections
+# Stepped sections
 
 `bt.plot.fence` slices a block model on several parallel planes stepped along a corridor, all sharing one color
-scale. it draws a fence of cross sections through the stacked sulphide lenses in one call, where the maps in
+scale. It draws a fence of cross sections through the stacked sulfide lenses in one call, where the maps in
 [target distribution correction](../../04-transforms/10-target-distribution-correction/README.md) used a hand-rolled `plt.subplots` loop.
 
 <details><summary>Python</summary>
@@ -15,9 +15,9 @@ from common import save
 
 </details>
 
-## a grade model across the lenses
+## A grade model across the lenses
 
-zinc kriged from the 5 m composites (as in [domain change tables](../../07-categories-and-domains/02-domain-change-tables/README.md)) onto a block model spanning the deposit, cells of 20 m,
+Zinc kriged from the 5 m composites (as in [domain change tables](../../07-categories-and-domains/02-domain-change-tables/README.md)) onto a block model spanning the deposit, cells of 20 m,
 masked to the topography.
 
 <details><summary>Python</summary>
@@ -51,11 +51,11 @@ print(f"{len(model):,} blocks of 20 m")
 51,013 blocks of 20 m
 ```
 
-## the old way: a manual loop
+## The old way: a manual loop
 
-[target distribution correction](../../04-transforms/10-target-distribution-correction/README.md) drew its two maps by hand: `plt.subplots(1, n, sharey=True)`, one `bt.plot.section(..., colorbar=False,
+[Target distribution correction](../../04-transforms/10-target-distribution-correction/README.md) drew its two maps by hand: `plt.subplots(1, n, sharey=True)`, one `bt.plot.section(..., colorbar=False,
 ax=ax)` per panel, `vmin`/`vmax` matched by hand across them, and one `fig.colorbar` at the end reading the last
-panel's image. the same recipe, repeated for five sections stepped 125 m apart along strike:
+panel's image. The same recipe, repeated for five sections stepped 125 m apart along strike:
 
 <details><summary>Python</summary>
 
@@ -76,7 +76,7 @@ save(fig, "manual")
 
 ## `bt.plot.fence`
 
-the same five sections in one call. all panels share `azimuth` and `dip`, and `fence` finds `vmin`/`vmax` across
+The same five sections in one call. All panels share `azimuth` and `dip`, and `fence` finds `vmin`/`vmax` across
 them unless you give them, as `section` takes them.
 
 <details><summary>Python</summary>

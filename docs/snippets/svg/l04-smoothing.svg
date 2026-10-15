@@ -24,10 +24,10 @@
 <line class="s-night" x1="534.2" y1="250" x2="534.2" y2="258" stroke-width="2"/>
 <text class="small" x="58" y="36">V (ppm), along northing 100 m · true variance 75447, kriged 27073</text>
 <line class="s-muted" x1="50" y1="280" x2="74" y2="280" stroke-width="1.1"/>
-<text class="small" x="80" y="284">true</text>
+<text class="small" x="80" y="284">True</text>
 <line class="s-ember" x1="120" y1="280" x2="144" y2="280" stroke-width="2.6"/>
-<text class="small" x="150" y="284">kriged</text>
+<text class="small" x="150" y="284">Kriged</text>
 <line class="s-night" x1="206" y1="276" x2="206" y2="284" stroke-width="2"/>
-<text class="small" x="214" y="284">sample within 3 m of the line</text>
-<text class="small" x="540" y="284">easting (m)</text>
+<text class="small" x="214" y="284">Sample within 3 m of the line</text>
+<text class="small" x="540" y="284">Easting (m)</text>
 </svg>

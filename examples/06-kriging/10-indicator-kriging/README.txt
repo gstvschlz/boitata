@@ -1,1 +1,1 @@
-## indicator kriging
+## Indicator kriging

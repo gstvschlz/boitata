@@ -33,7 +33,7 @@ from common import ACCENT, GRAY, HIGHLIGHT, INK, LIGHT, save
 # ## The problem
 #
 # A solid is a closed surface: every edge is shared by exactly two triangles, and every triangle is wound the
-# same way, counter-clockwise seen from outside. Inside tests and volumes rely on both.
+# same way, counterclockwise seen from outside. Inside tests and volumes rely on both.
 #
 # <figure class="bt-figure">
 # --8<-- "svg/w1-mesh-defects.svg"
@@ -44,7 +44,7 @@ from common import ACCENT, GRAY, HIGHLIGHT, INK, LIGHT, save
 #
 # ## The data
 #
-# Lens 2 of the stacked sulphide lenses is a clean solid. `validate` returns a `MeshReport`: its `summary` counts
+# Lens 2 of the stacked sulfide lenses is a clean solid. `validate` returns a `MeshReport`: its `summary` counts
 # each kind of problem.
 
 # %%
@@ -57,12 +57,12 @@ print(f"volume {lens.volume:,.0f} m3")
 # %% [markdown]
 # Five defects go in at five places, each a common way a solid gets broken:
 #
-# - a patch of triangles within 80 m of one point is wound the other way, as when a surface is joined back in
-#   reversed;
-# - the triangles within 12 m of the lowest point are deleted, a hole;
-# - three triangles are repeated, as when two exports of the same surface are merged;
-# - one triangle gets a repeated corner, a sliver with no area;
-# - a triangle is added on an edge near the top, a fin sticking out, as a stray digitized point makes.
+# - A patch of triangles within 80 m of one point is wound the other way, as when a surface is joined back in
+#   reversed.
+# - The triangles within 12 m of the lowest point are deleted, a hole.
+# - Three triangles are repeated, as when two exports of the same surface are merged.
+# - One triangle gets a repeated corner, a sliver with no area.
+# - A triangle is added on an edge near the top, a fin sticking out, as a stray digitized point makes.
 
 # %%
 vertices, triangles = lens.coords, lens.triangles

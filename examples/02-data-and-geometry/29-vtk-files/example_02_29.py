@@ -3,7 +3,7 @@
 
 `write_vtk` writes a `PointSet`, `Polylines`, `Mesh` or `BlockModel` as a VTK XML file, which 3D viewers and
 VTK-based tools open with their columns. `read_vtk` reads it back to the same container, whether the file is ASCII,
-binary or appended, compressed or not. you write a vein of the grade-control dataset with a column per vertex and
+binary or appended, compressed or not. You write a vein of the grade-control dataset with a column per vertex and
 per triangle, points around it with their distance to the vein, and the blocks near it.
 """
 
@@ -37,8 +37,8 @@ coords = rng.uniform([x0, y0, z0], [x1, y1, z1], size=(300, 3))
 points = bt.PointSet(coords, attributes={"distance": vein.distance(coords)})
 
 # %% [markdown]
-# point and cell data become columns. VTK has no nulls, so a column with nulls is written with NaN in their place
-# and a `<name>_valid` array of ones and zeros, which `read_vtk` turns back into nulls. binary files append the
+# Point and cell data become columns. VTK has no nulls, so a column with nulls is written with NaN in their place
+# and a `<name>_valid` array of ones and zeros, which `read_vtk` turns back into nulls. Binary files append the
 # arrays raw after the XML; `ascii=True` writes them as text.
 
 # %%
@@ -60,22 +60,22 @@ print("nulls in elevation:", np.isnan(back["elevation"]).sum())
 fig, ax = plt.subplots(figsize=(7, 5), layout="constrained")
 image = ax.tripcolor(back.x, back.y, back.triangles, facecolors=back["dip"], cmap="cividis")
 near = points["distance"] < 10
-ax.scatter(points.x[near], points.y[near], s=8, color=INK, label="points within 10 m")
-fig.colorbar(image, ax=ax, shrink=0.8, label="triangle dip, degrees (cell data)")
+ax.scatter(points.x[near], points.y[near], s=8, color=INK, label="Points within 10 m")
+fig.colorbar(image, ax=ax, shrink=0.8, label="Triangle dip, degrees (cell data)")
 ax.legend(loc="upper right")
 map_axes(ax, "Vein V1 read back from vein.vtp")
 save(fig, "vtk")
 
 # %% [markdown]
-# ## grids
+# ## Grids
 #
-# a `BlockModel` goes to `.vti` (image data): the origin, cell sizes and counts, and the rotation as the grid's
-# `Direction`. a masked model writes every cell and hides the absent ones with `vtkGhostType`, which viewers skip
+# A `BlockModel` goes to `.vti` (image data): the origin, cell sizes and counts, and the rotation as the grid's
+# `Direction`. A masked model writes every cell and hides the absent ones with `vtkGhostType`, which viewers skip
 # and `read_vtk` drops again. `.vtu` holds one hexahedron per block and takes sub-blocks too; `read_vtk` rebuilds
 # the grid when the hexahedra are equal boxes on one lattice. `read_vtk` also reads `.vtr` and `.vts` grids,
 # to a `BlockModel` when their spacing is regular and to the cell centers otherwise.
 #
-# grid values stored on the nodes (point data) are not cell values: a file with point data only comes back as the
+# Grid values stored on the nodes (point data) are not cell values: a file with point data only comes back as the
 # nodes, and `point_data=True` returns them from any file.
 
 # %%
@@ -98,6 +98,6 @@ back = bt.read_vtk(folder / "shell.vti")
 level = np.isclose(back.z, np.median(back.z))
 fig, ax = plt.subplots(figsize=(7, 5), layout="constrained")
 image = ax.scatter(back.x[level], back.y[level], c=back["distance"][level], s=12, marker="s", cmap="cividis")
-fig.colorbar(image, ax=ax, shrink=0.8, label="distance to the vein (m)")
+fig.colorbar(image, ax=ax, shrink=0.8, label="Distance to the vein (m)")
 map_axes(ax, "Blocks within 15 m of the vein, read back from shell.vti")
 save(fig, "grid")

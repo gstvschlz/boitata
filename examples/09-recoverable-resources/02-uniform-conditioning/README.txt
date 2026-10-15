@@ -1,1 +1,1 @@
-## uniform conditioning
+## Uniform conditioning

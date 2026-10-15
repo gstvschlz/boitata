@@ -1,8 +1,8 @@
 """
-# indicator kriging
+# Indicator kriging
 
-jura: 259 soil samples of heavy metals (mg/kg, coordinates in km) and 100 validation samples withheld from estimation.
-indicator kriging maps the probability that Cd exceeds 0.8 mg/kg, the swiss guide value.
+Jura: 259 soil samples of heavy metals (mg/kg, coordinates in km) and 100 validation samples withheld from estimation.
+Indicator kriging maps the probability that Cd exceeds 0.8 mg/kg, the Swiss guide value.
 """
 
 # %% [hidden]
@@ -27,7 +27,7 @@ print(f"share of samples above {limit} mg/kg: {np.mean(cd > limit):.0%}")
 
 
 # %% [markdown]
-# the indicator is 1 where Cd is above the threshold and 0 below, and you fit its variogram like any other. IK estimates
+# The indicator is 1 where Cd is above the threshold and 0 below, and you fit its variogram like any other. IK estimates
 # P(Cd ≤ threshold), so the exceedance is its complement.
 
 # %%
@@ -44,7 +44,7 @@ print(
 
 
 # %% [markdown]
-# most of the area exceeds 0.8 mg/kg, and the map picks out the clean zones:
+# Most of the area exceeds 0.8 mg/kg, and the map picks out the clean zones:
 
 # %%
 fig, ax = plt.subplots(figsize=(6.2, 5), layout="constrained")
@@ -55,11 +55,11 @@ ax.scatter(
     facecolors="none",
     edgecolors=HIGHLIGHT,
     linewidths=0.9,
-    label=f"validation point with Cd > {limit}",
+    label=f"Validation point with Cd > {limit}",
 )
-ax.scatter(*test.coords[~exceeds, :2].T, s=6, color=GRAY, label="validation point below")
+ax.scatter(*test.coords[~exceeds, :2].T, s=6, color=GRAY, label="Validation point below")
 ax.set_aspect("equal")
 ax.set(title=f"Indicator kriging: P(Cd > {limit} mg/kg)", xlabel="X (km)", ylabel="Y (km)")
 ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.12), ncol=2, fontsize=8)
-fig.colorbar(image, ax=ax, shrink=0.8, label="probability")
+fig.colorbar(image, ax=ax, shrink=0.8, label="Probability")
 save(fig, "probability")

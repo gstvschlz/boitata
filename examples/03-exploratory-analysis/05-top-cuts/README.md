@@ -1,8 +1,8 @@
-# top cuts
+# Top cuts
 
-gold in four quartz veins, V1 to V4, sampled by diamond holes and underground channels. a handful of extreme assays
-carry much of the metal, and one of them next to a block would lend it its grade. capping the grades at a top cut
-limits their influence. you need to decide where to cut and how much metal the cut costs.
+Gold in four quartz veins, V1 to V4, sampled by diamond holes and underground channels. A handful of extreme assays
+carry much of the metal, and one of them next to a block would lend it its grade. Capping the grades at a top cut
+limits their influence. You need to decide where to cut and how much metal the cut costs.
 
 <details><summary>Python</summary>
 
@@ -27,7 +27,7 @@ print(f"{len(quartz)} composites of 1 m in quartz vein, mean Au {au.mean():.2f} 
 5826 composites of 1 m in quartz vein, mean Au 9.10 g/t, max 1192 g/t
 ```
 
-channels crowd the developed levels, so the composites are first declustered in 20 m cells
+Channels crowd the developed levels, so the composites are first declustered in 20 m cells
 ([declustering](../../03-exploratory-analysis/03-declustering/README.md)).
 
 <details><summary>Python</summary>
@@ -43,7 +43,7 @@ print(f"declustered mean Au {np.average(au, weights=weights):.2f} g/t")
 declustered mean Au 8.33 g/t
 ```
 
-## how much metal sits in the tail
+## How much metal sits in the tail
 
 `capping` tries caps at high quantiles and reports, for each, the share of weight above it, the metal removed, and the
 capped mean and CV.
@@ -69,10 +69,10 @@ for cap, above, metal, mean, cv in zip(*(caps[c] for c in caps.column_names), st
   297.7       0.10        3.4   8.05  2.34
 ```
 
-the top 1 % of the weight holds 11.5 % of the metal, and the top 10 % holds 36.5 %. the CV climbs from 1.07 at the
+The top 1 % of the weight holds 11.5 % of the metal, and the top 10 % holds 36.5 %. The CV climbs from 1.07 at the
 lowest cap to 2.34 at the highest: the tail makes gold grades erratic.
 
-the log-probability plot shows where the tail breaks away from the body of the distribution. the dotted tukey fences
+The log-probability plot shows where the tail breaks away from the body of the distribution. The dotted Tukey fences
 sit 1.5 interquartile ranges beyond the quartiles of log Au, and the dashed line is a cap at the declustered P99 of
 the vein.
 
@@ -98,10 +98,10 @@ save(fig, "probability")
 
 ![probability](probability.png)
 
-both veins plot near a straight line (a lognormal body) up to about P99. above it the points thin out, with the 1192
-g/t channel alone at the top of V2. the upper fences, near 110 g/t, agree with a cap around P99.
+Both veins plot near a straight line (a lognormal body) up to about P99. Above it the points thin out, with the 1192
+g/t channel alone at the top of V2. The upper fences, near 110 g/t, agree with a cap around P99.
 
-## one cap per vein
+## One cap per vein
 
 `capping_report` applies one cap per domain and compares the declustered statistics before and after, with the metal
 removed; the last row pools the veins.
@@ -133,8 +133,8 @@ V4     183.5   105    1  15.06   14.96  2.04    2.01        0.7
 all           5826   71   8.33    7.41  3.22    1.78       11.1
 ```
 
-the caps cut 47 composites in V1 and 23 in V2, and remove 10.8 % and 15.4 % of their metal. pooled, the veins lose
+The caps cut 47 composites in V1 and 23 in V2, and remove 10.8 % and 15.4 % of their metal. Pooled, the veins lose
 11.1 % of the metal and the CV falls from 3.22 to 1.78. V3 and V4 hold about a hundred composites each, too few for a
-P99 to mean much: in V3 it is the maximum and cuts nothing. cap a small domain with the cap of a similar, larger one.
+P99 to mean much: in V3 it is the maximum and cuts nothing. Cap a small domain with the cap of a similar, larger one.
 
 Full script: [`example_03_05.py`](example_03_05.py)

@@ -27,7 +27,7 @@ from common import ACCENT, GRAY, save
 
 ## The data
 
-The stacked sulphide lenses are three dipping polymetallic lenses cut by diamond (`DD`) and reverse circulation
+The stacked sulfide lenses are three dipping polymetallic lenses cut by diamond (`DD`) and reverse circulation
 (`RC`) holes. `raw=True` returns the tables as logged, with typical data-entry errors in them.
 
 <details><summary>Python</summary>
@@ -53,7 +53,7 @@ for name, table in raw.items():
 lithology:   1726 rows, columns HOLE_ID, FROM, TO, LITH
 ```
 
-Interval tables (assays, lithology) describe a hole as a stack of `FROM`–`TO` pieces measured along the hole from
+Interval tables (assays, lithology) describe a hole as a stack of `FROM`-`TO` pieces measured along the hole from
 the collar. Most of their errors break that stack:
 
 <figure class="bt-figure">
@@ -216,7 +216,7 @@ DD0110, 40.20-47.07 m, 7 assays: Zn values [   2.979 -999.       4.227    1.945 
 ```
 
 One sentinel turns a 3.07 % zinc intercept into −139.9 %. A negative grade is easy to spot; a `-99` in a column of
-values near 100 is not. Boitatá's readers map sentinels to null by default (`nodata=`); this page reads the raw
+values near 100 is not. The readers in boitatá map sentinels to null by default (`nodata=`); this page reads the raw
 tables with `nodata=[]` to keep the problem visible.
 
 !!! step "Step 3: Fix by hand what needs evidence"
@@ -224,7 +224,7 @@ tables with `nodata=[]` to keep the problem visible.
     so the next person can rerun and review the audit. Trailing spaces are stripped from all
     ids here: the collar `'DD0104 '` is the odd one, and a rename rule would copy its space into three tables.
     `DD0151` is dropped: without a survey it would be desurveyed as vertical, while every surveyed hole on the
-    project starts at a dip of 55–75°.
+    project starts at a dip of 55 to 75°.
 
 <details><summary>Python</summary>
 
@@ -339,8 +339,8 @@ for name in names:
 checks = sorted(before, key=lambda k: before[k])
 fig, ax = plt.subplots(figsize=(7, 6), layout="constrained")
 y = np.arange(len(checks))
-ax.barh(y + 0.2, [before[k] for k in checks], height=0.4, color=GRAY, label="raw tables")
-ax.barh(y - 0.2, [after.get(k, 0) for k in checks], height=0.4, color=ACCENT, label="after the audit")
+ax.barh(y + 0.2, [before[k] for k in checks], height=0.4, color=GRAY, label="Raw tables")
+ax.barh(y - 0.2, [after.get(k, 0) for k in checks], height=0.4, color=ACCENT, label="After the audit")
 ax.set_yticks(y, [f"{t}: {n}" for t, n in checks])
 ax.set_xscale("symlog", linthresh=1)
 ax.set(xlabel="Flagged rows", title="Flags before and after the audit")

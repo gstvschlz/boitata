@@ -1,8 +1,8 @@
-# multivariate simulation
+# Multivariate simulation
 
-`MultivariateSimulation` cosimulates correlated grades through independent factors. it fits a multivariate
+`MultivariateSimulation` cosimulates correlated grades through independent factors. It fits a multivariate
 transform ([multivariate transforms](../../04-transforms/05-multivariate-transforms/README.md)), simulates each factor with its own variogram and seed, and back-transforms each
-realization at the nodes, before any averaging to blocks. the grades here are log chalcocite and log tennantite of
+realization at the nodes, before any averaging to blocks. The grades here are log chalcocite and log tennantite of
 porphyry 1, through PPMT and, for contrast, PCA.
 
 <details><summary>Python</summary>
@@ -16,7 +16,7 @@ from common import ACCENT, save
 data = bt.datasets.porphyry_geometallurgy(deposit=1)["synthetic_drillholes"]
 coords = data.coords
 pair = np.log(np.column_stack([data["calcosina"], data["tenantita"]]))
-names = ["log chalcocite (%)", "log tennantite (%)"]
+names = ["Log chalcocite (%)", "Log tennantite (%)"]
 logs = bt.PointSet(coords, {"chalcocite": pair[:, 0], "tennantite": pair[:, 1]})
 weights = bt.cell_declustering(coords, pair[:, 0], cell_size=50.0).weights
 print(f"{len(pair)} composites, correlation {np.corrcoef(pair.T)[0, 1]:.2f}")
@@ -28,7 +28,7 @@ print(f"{len(pair)} composites, correlation {np.corrcoef(pair.T)[0, 1]:.2f}")
 6817 composites, correlation 0.19
 ```
 
-each factor gets the omnidirectional variogram of its scores; turning bands simulate 20 realizations on 25 m nodes.
+Each factor gets the omnidirectional variogram of its scores; turning bands simulate 20 realizations on 25 m nodes.
 50 m cells decluster the statistics of the data. `fit` takes the variables as an array or, as here, as column names
 of a `PointSet`.
 
@@ -59,8 +59,8 @@ print(f"{len(nodes.coords)} nodes, 20 realizations")
 36608 nodes, 20 realizations
 ```
 
-both keep the correlation, the only dependence a linear rotation carries. PPMT also keeps the declustered
-histograms and honors the composites. PCA factors depart from gaussian, so simulating them as gaussian shortens
+Both keep the correlation, the only dependence a linear rotation carries. PPMT also keeps the declustered
+histograms and honors the composites. PCA factors depart from Gaussian, so simulating them as Gaussian shortens
 the upper tail of chalcocite and puts high chalcocite with high tennantite twice as often.
 
 <details><summary>Python</summary>
@@ -104,10 +104,10 @@ print(f"PPMT at 500 composites: largest departure from the data {error:.1e}")
 data    0.25        -7.61, -5.69, -2.38        -7.62, -6.10, -3.81       0.038
 PPMT    0.27        -7.62, -5.70, -2.28        -7.62, -6.15, -3.87       0.034
 PCA     0.28        -7.78, -5.49, -2.90        -7.67, -5.90, -3.88       0.074
-PPMT at 500 composites: largest departure from the data 2.1e-12
+PPMT at 500 composites: largest departure from the data 2.4e-12
 ```
 
-one realization of each: PPMT rebuilds the L-shaped cloud of the data; PCA spreads a rotated square over it,
+One realization of each: PPMT rebuilds the L-shaped cloud of the data; PCA spreads a rotated square over it,
 reaching below the lowest assays and into the corner the data leave empty.
 
 <details><summary>Python</summary>
@@ -129,8 +129,8 @@ save(fig, "simulated")
 
 ![simulated](simulated.png)
 
-at block support, `blocks=` averages each realization after the back-transform. the transform is nonlinear, so
-averaging the factors would give other values. the blocks here are 100 × 100 × 50 m.
+At block support, `blocks=` averages each realization after the back-transform. The transform is nonlinear, so
+averaging the factors would give other values. The blocks here are 100 × 100 × 50 m.
 
 <details><summary>Python</summary>
 
@@ -146,15 +146,15 @@ for j, s in enumerate(by_block):
 </details>
 
 ```text
-log chalcocite (%): variance 3.88 at nodes, 1.46 in 1144 blocks
-log tennantite (%): variance 2.06 at nodes, 0.86 in 1144 blocks
+Log chalcocite (%): variance 3.88 at nodes, 1.46 in 1144 blocks
+Log tennantite (%): variance 2.06 at nodes, 0.86 in 1144 blocks
 ```
 
-## missing variables
+## Missing variables
 
-if a variable is missing in some composites, `fit(..., impute=True)` fills them with a fresh draw of
+If a variable is missing in some composites, `fit(..., impute=True)` fills them with a fresh draw of
 `GaussianImputer` ([imputation](../../04-transforms/06-imputation/README.md)) in each realization, so the uncertainty of the missing values reaches the
-realizations. here every other hole hides its tennantite; the transform and the factor variograms come from the
+realizations. Here every other hole hides its tennantite; the transform and the factor variograms come from the
 complete composites.
 
 <details><summary>Python</summary>

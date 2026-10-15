@@ -1,1 +1,1 @@
-## external drift kriging
+## External drift kriging

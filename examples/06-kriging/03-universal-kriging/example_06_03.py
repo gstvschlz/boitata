@@ -1,8 +1,8 @@
 """
-# universal kriging
+# Universal kriging
 
-the coal seam thins to the east. `detrend` fits that drift as a `Trend`. universal kriging estimates the thickness with
-the drift re-fitted in every neighborhood, using the variogram of the residuals. inside the drilled lease it agrees with
+The coal seam thins to the east. `detrend` fits that drift as a `Trend`. Universal kriging estimates the thickness with
+the drift re-fitted in every neighborhood, using the variogram of the residuals. Inside the drilled lease it agrees with
 ordinary kriging; beyond the last holes it keeps following the drift.
 """
 
@@ -24,9 +24,9 @@ holes, grid, lease = data["boreholes"], data["grid"], data["boundary"]
 inside = grid["INSIDE"] == 1
 
 # %% [markdown]
-# ## trend
+# ## Trend
 #
-# a plane fitted by least squares: `coefficients` are the constant, then the x, y and z slopes.
+# A plane fitted by least squares: `coefficients` are the constant, then the x, y and z slopes.
 
 # %%
 trend, residuals = bt.detrend(holes, "THICKNESS_M", degree=1)
@@ -35,7 +35,7 @@ print(f"thickness = {constant:.2f} {per_x * 1000:+.3f} m/km east {per_y * 1000:+
 print(f"variance {holes['THICKNESS_M'].var():.2f} m², of the residuals {residuals.var():.2f} m²")
 
 # %% [markdown]
-# the drift inflates the variogram of the thickness at long lags, and the residuals level off lower. universal kriging
+# The drift inflates the variogram of the thickness at long lags, and the residuals level off lower. Universal kriging
 # takes the residual variogram, since the weights estimate the drift.
 
 # %%
@@ -46,17 +46,17 @@ residual_model = detrended.fit("spherical")
 print(model, residual_model, sep="\n")
 
 fig, ax = plt.subplots(figsize=(5.5, 3.6), layout="constrained")
-bt.plot.variogram(raw, variogram=model, ax=ax, color=GRAY, label="thickness")
-bt.plot.variogram(detrended, variogram=residual_model, ax=ax, color=ACCENT, label="residuals")
+bt.plot.variogram(raw, variogram=model, ax=ax, color=GRAY, label="Thickness")
+bt.plot.variogram(detrended, variogram=residual_model, ax=ax, color=ACCENT, label="Residuals")
 ax.set_title("Variograms with and without the drift")
 ax.set_xlabel("Lag (m)")
 ax.legend()
 save(fig, "variograms")
 
 # %% [markdown]
-# ## estimates
+# ## Estimates
 #
-# universal kriging with a linear drift against ordinary kriging, same search:
+# Universal kriging with a linear drift against ordinary kriging, same search:
 
 # %%
 search = bt.Search(radius=6000, max_samples=32, min_samples=12)
@@ -99,13 +99,13 @@ for ax in axes[1:]:
 save(fig, "maps")
 
 # %% [markdown]
-# where holes surround a cell, the local drift and the local mean give nearly the same estimate, and the two
-# cross-validations are equally good. the differences sit at the edges of the lease, where the neighbors lie on one
+# Where holes surround a cell, the local drift and the local mean give nearly the same estimate, and the two
+# cross-validations are equally good. The differences sit at the edges of the lease, where the neighbors lie on one
 # side: universal kriging is thicker in the thick west corner and thinner in the thin northeast.
 #
-# ## beyond the data
+# ## Beyond the data
 #
-# along an east-west line through the middle of the lease, extended past the last holes:
+# Along an east-west line through the middle of the lease, extended past the last holes:
 
 # %%
 x = np.arange(20000.0, 36001.0, 100.0)
@@ -122,10 +122,10 @@ for at in (32000, 34000, 36000):
     print(f"x = {at}: " + ", ".join(f"{k} {v[i]:.2f} m" for k, v in profile.items()))
 
 fig, ax = plt.subplots(figsize=(8, 3.4), layout="constrained")
-ax.scatter(holes.x[near], holes["THICKNESS_M"][near], s=8, color=GRAY, label="holes within 500 m")
-ax.plot(x, profile["trend"], color=INK, ls="--", lw=1, label="trend")
-ax.plot(x, profile["ordinary"], color=ACCENT, label="ordinary kriging")
-ax.plot(x, profile["universal"], color=HIGHLIGHT, label="universal kriging")
+ax.scatter(holes.x[near], holes["THICKNESS_M"][near], s=8, color=GRAY, label="Holes within 500 m")
+ax.plot(x, profile["trend"], color=INK, ls="--", lw=1, label="Trend")
+ax.plot(x, profile["ordinary"], color=ACCENT, label="Ordinary kriging")
+ax.plot(x, profile["universal"], color=HIGHLIGHT, label="Universal kriging")
 ax.axvline(holes.x.max(), color=GRAY, lw=0.8, ls=":")
 ax.set(xlabel="Easting (m)", ylabel="Thickness (m)")
 ax.set_title("Profile at northing 54 000 m")
@@ -133,7 +133,7 @@ ax.legend(ncols=2)
 save(fig, "profile")
 
 # %% [markdown]
-# past the last hole ordinary kriging levels off at the mean of its neighbors, about 1.4 m, while universal kriging
-# carries the thinning on, down to 0.66 m at 36 km against 0.56 m for the trend. whether that is right is a geological
-# call. universal kriging fits the local drift from the neighbors, so it needs a wider search than ordinary kriging:
+# Past the last hole ordinary kriging levels off at the mean of its neighbors, about 1.4 m, while universal kriging
+# carries the thinning on, down to 0.66 m at 36 km against 0.56 m for the trend. Whether that is right is a geological
+# call. Universal kriging fits the local drift from the neighbors, so it needs a wider search than ordinary kriging:
 # with a few one-sided samples the drift is poorly determined and its extrapolation erratic.

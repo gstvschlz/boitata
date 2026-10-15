@@ -1,1 +1,1 @@
-## disjunctive kriging
+## Disjunctive kriging

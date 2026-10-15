@@ -1,1 +1,1 @@
-## universal kriging
+## Universal kriging

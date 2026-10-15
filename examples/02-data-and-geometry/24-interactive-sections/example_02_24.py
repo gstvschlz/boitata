@@ -1,11 +1,11 @@
 """
-# interactive sections
+# Interactive sections
 
 `Scene.section` cuts every layer of a scene to a slab around a section: blocks are cut and capped in their own
 colors, lens surfaces are cut and outlined where the slab's faces cross them, and drill-hole intervals show whole
-when their middle lies in the slab. the section runs along a polyline in plan and may dip; `U` in the viewer, or
-`unfolded` in `sections`, lays it out flat as one true-scale section. while viewing, Shift-drag cuts a straight
-section and `S` draws a polyline. here each view renders to an image.
+when their middle lies in the slab. The section runs along a polyline in plan and may dip; `U` in the viewer, or
+`unfolded` in `sections`, lays it out flat as one true-scale section. While viewing, Shift-drag cuts a straight
+section and `S` draws a polyline. Here each view renders to an image.
 """
 
 # %% [hidden]
@@ -21,9 +21,9 @@ import numpy as np
 from common import INK, show
 
 # %% [markdown]
-# zinc composites of the stacked sulphide lenses inform a grid rotated with them. the scene holds the grid, the drill
+# Zinc composites of the stacked sulfide lenses inform a grid rotated with them. The scene holds the grid, the drill
 # holes and the three lens surfaces; one section across the lenses, running at azimuth 112.5 and dipping 80 to its
-# right, cuts them all. whatever lies more than 15 m from it drops out.
+# right, cuts them all. Whatever lies more than 15 m from it drops out.
 
 # %%
 data = bt.datasets.stacked_sulphide_lenses()
@@ -49,7 +49,7 @@ print(f"section through {np.round(center).tolist()}: {scene.sections['dip']:.0f}
 show(scene, "cut", "One section cuts the grid, the lenses and the holes near it")
 
 # %% [markdown]
-# unfolded, the section lies flat in front of the camera: the distance along it runs on the bottom axis and the
+# Unfolded, the section lies flat in front of the camera: the distance along it runs on the bottom axis and the
 # elevation up, at true scale.
 
 # %%
@@ -57,8 +57,8 @@ scene.sections = {**scene.sections, "unfolded": True}
 show(scene, "section", "The same section, unfolded")
 
 # %% [markdown]
-# a polyline in plan cuts a section along each segment, between its ends, so the section steps around the lenses
-# like a curtain. here it runs across the lenses, turns north along strike, then crosses them again. in the viewer
+# A polyline in plan cuts a section along each segment, between its ends, so the section steps around the lenses
+# like a curtain. Here it runs across the lenses, turns north along strike, then crosses them again. In the viewer
 # `S` (or the draw button) switches to a plan view where clicks add the vertices, Shift locks a segment to a multiple
 # of 45 degrees, Backspace removes the last vertex and Enter cuts; Shift+wheel sets the width and `X` clears the
 # section.
@@ -71,7 +71,7 @@ scene.view(azimuth=330, dip=40)
 show(scene, "curtain", "A stepped curtain along a polyline")
 
 # %% [markdown]
-# unfolding the curtain lays its three panels end to end, one true-scale section along the polyline.
+# Unfolding the curtain lays its three panels end to end, one true-scale section along the polyline.
 
 # %%
 scene.sections = {**scene.sections, "unfolded": True}

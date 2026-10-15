@@ -16,10 +16,10 @@ sys.path.insert(0, str(HERE.parents[1] / "examples"))
 # %% [markdown]
 # !!! learn "What you'll learn"
 #     - What a sample is: a value, a location and a volume.
-#     - How Boitatá holds samples, drill holes and grids, and how it marks missing values.
+#     - How boitatá holds samples, drill holes and grids, and how it marks missing values.
 #     - How a drill hole goes from collar and survey to coordinates, and why assays are composited.
 #     - The volume-variance effect: larger supports keep the mean and lose variance.
-#     - Why clustered sampling biases the plain mean.
+#     - Why preferential sampling biases the plain mean.
 #
 #     **Prerequisites:** basic Python and NumPy. No geostatistics.
 #
@@ -44,7 +44,7 @@ sys.path.insert(0, str(HERE.parents[1] / "examples"))
 #
 # ## Coordinates and containers
 #
-# Boitatá keeps samples in its own containers: `PointSet` for scattered samples, `Drillholes` for holes with
+# Samples live in boitatá's own containers: `PointSet` for scattered samples, `Drillholes` for holes with
 # intervals, and `BlockModel` for grids of blocks. Each container stores the geometry once (coordinates, a grid
 # definition, a rotation) and the variables as named columns. The columns are Apache Arrow arrays, so a container
 # hands them to NumPy, polars or pandas without copying. Algorithms read the geometry from the container, so you
@@ -64,7 +64,7 @@ print(samples.coords[:3])
 print(samples["V"][:3])
 
 # %% [markdown]
-# `coords` is an (n, 3) array. Walker Lake is a map, so Boitatá pads the missing elevation with z = 0: every
+# `coords` is an (n, 3) array. Walker Lake is a map, so boitatá pads the missing elevation with z = 0: every
 # algorithm works in 3D, and a 2D dataset is a flat 3D one. Indexing by name returns a column as a NumPy array.
 #
 # Not every sample has every variable. A missing value is an Arrow null, never a sentinel number such as -999 that
@@ -76,7 +76,7 @@ print(f"U measured at {np.count_nonzero(~np.isnan(u))} of {len(samples)} samples
 print(samples.to_polars().null_count().row(0, named=True))
 
 # %% [markdown]
-# `U` was measured at 275 of the 470 samples; the other 195 are null. Statistics and estimators in Boitatá skip
+# `U` was measured at 275 of the 470 samples; the other 195 are null. Statistics and estimators in boitatá skip
 # nulls, and the file readers turn the usual sentinels (-999, -99, 1e21) into nulls on the way in.
 #
 # A `BlockModel` describes a grid by its corner, its block size and its block count, and computes the block
@@ -104,7 +104,7 @@ print(grid.coords[:2])
 # </figure>
 #
 # A drill hole bends. Desurveying reconstructs its path from the collar through each survey station, so any depth
-# down the hole has coordinates. The stacked sulphide lenses dataset has 289 holes:
+# down the hole has coordinates. The stacked sulfide lenses dataset has 289 holes:
 
 # %%
 data = bt.datasets.stacked_sulphide_lenses()
@@ -202,7 +202,7 @@ assert abs(metal_composites / metal_assays - 1) < 1e-9
 # the variance and the share of values above 500 ppm both fall as the blocks grow.</figcaption>
 # </figure>
 #
-# Start down the holes. Composite the massive sulphide (`MS`) zone at 1, 2, 4 and 8 m and compare the
+# Start down the holes. Composite the massive sulfide (`MS`) zone at 1, 2, 4 and 8 m and compare the
 # zinc grades, weighting each composite by its sampled length:
 
 # %%
@@ -314,7 +314,7 @@ save(fig, "clustering")
 #     - A grade of 2 % in a 1 m assay and a grade of 2 % in a 20 m block describe different volumes. Which of the
 #       two histograms do you expect to be wider?
 #     - Why must a composite not cross a lithology contact?
-#     - What does Boitatá store for an assay that was never taken, and why not -999?
+#     - What does boitatá store for an assay that was never taken, and why not -999?
 #     - After compositing, which quantity must match the assays exactly?
 #     - 43.0 % of the Walker Lake samples sit on ground above 500 ppm. Why does that not mean 43 % of the area is
 #       ore?

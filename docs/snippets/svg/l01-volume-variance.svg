@@ -17,8 +17,8 @@
 <line class="s-muted dash" x1="83.3" y1="60" x2="83.3" y2="200" stroke-width="1"/>
 <text x="20" y="26">1 × 1 m</text>
 <text x="87.3" y="70" class="small">19% above 500</text>
-<text x="20" y="218" class="small">variance 62,422</text>
-<text x="59.2" y="48" class="small">mean 278</text>
+<text x="20" y="218" class="small">Variance 62,422</text>
+<text x="59.2" y="48" class="small">Mean 278</text>
 <line class="s-grid" x1="230" y1="200" x2="420" y2="200" stroke-width="1.5"/>
 <rect class="f-night-soft s-night a-grow" style="--d:0.40s" stroke-width=".8" x="230" y="88.9" width="15.8" height="111.1"/>
 <rect class="f-night-soft s-night a-grow" style="--d:0.43s" stroke-width=".8" x="245.8" y="123.1" width="15.8" height="76.9"/>
@@ -36,8 +36,8 @@
 <line class="s-muted dash" x1="293.3" y1="60" x2="293.3" y2="200" stroke-width="1"/>
 <text x="230" y="26">5 × 5 m</text>
 <text x="297.3" y="70" class="small">17% above 500</text>
-<text x="230" y="218" class="small">variance 52,287</text>
-<text x="269.2" y="48" class="small">mean 278</text>
+<text x="230" y="218" class="small">Variance 52,287</text>
+<text x="269.2" y="48" class="small">Mean 278</text>
 <line class="s-grid" x1="440" y1="200" x2="630" y2="200" stroke-width="1.5"/>
 <rect class="f-night-soft s-night a-grow" style="--d:0.80s" stroke-width=".8" x="440" y="113.9" width="15.8" height="86.1"/>
 <rect class="f-night-soft s-night a-grow" style="--d:0.83s" stroke-width=".8" x="455.8" y="108.4" width="15.8" height="91.6"/>
@@ -51,7 +51,7 @@
 <line class="s-muted dash" x1="503.3" y1="60" x2="503.3" y2="200" stroke-width="1"/>
 <text x="440" y="26">20 × 20 m</text>
 <text x="507.3" y="70" class="small">11% above 500</text>
-<text x="440" y="218" class="small">variance 37,617</text>
-<text x="479.2" y="48" class="small">mean 278</text>
+<text x="440" y="218" class="small">Variance 37,617</text>
+<text x="479.2" y="48" class="small">Mean 278</text>
 <text x="20" y="246" class="small">Walker Lake V (ppm), 0 to 1500, same axes in each panel</text>
 </svg>

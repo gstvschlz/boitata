@@ -20,53 +20,53 @@ COLAB = (
 )
 
 API = """
-containers: containers and I/O
+containers: Containers and I/O
     Table PointSet BlockModel BlockModelFile Mesh MeshReport Polylines LocalGrid convex_hull grid_surface
     read_csv write_csv read_gslib write_gslib read_parquet write_parquet read_mesh write_mesh
     read_segy write_segy read_shapefile write_shapefile read_geojson write_geojson read_geopackage write_geopackage
     read_geotiff write_geotiff read_jpeg write_jpeg read_vtk write_vtk set_units units
-datasets: datasets and plots
+datasets: Datasets and plots
     datasets plot plot3d
-drillholes: drill holes and domains
+drillholes: Drill holes and domains
     Drillholes merge_intervals check_drillholes fix_drillholes duplicates hole_distance
     PolygonSelector point_in_polygon polygon_distance assign_domain block_shell contact_distance
     buffer_domains remove_small_units smooth_classes map_blocks domain_change transition_matrix
     domains Domains
     vertical_proportions combine_proportions planned_drillholes snap_to_surface
-eda: exploratory analysis
+eda: Exploratory analysis
     Categories describe describe_by correlation swath contact soft_boundary capping capping_report
     despike data_spacing spatial_bootstrap paired_bias
-transforms: transforms
+transforms: Transforms
     NormalScore Capping HermiteAnamorphosis BoxCox PPMT PCA MAF StepwiseConditional GaussianImputer
     Declustering cell_declustering polygon_declustering weight_declustering Trend detrend Unfold
     correct_distribution affine_correction indirect_lognormal_correction normal_cdf normal_ppf
     GaussianMixture KernelDensity
-compositional: compositional data
+compositional: Compositional data
     closure alr alr_inverse clr clr_inverse ilr ilr_inverse aitchison_distance
-variography: variography
+variography: Variography
     Structure Variogram ExperimentalVariogram experimental_variogram dissemination
     VariogramSet experimental_variograms VariogramMap variogram_map h_scatter pairs
     Coregionalization Transiogram experimental_transiogram VariogramVolume variogram_volume
     local_variogram_parameters LocalAnisotropy
-estimation: estimation
+estimation: Estimation
     Search calibrate_search neighborhood_stats HighGrade OrdinaryKriging SimpleKriging BlockKriging
     UniversalKriging ExternalDriftKriging FactorialKriging DualKriging BayesianKriging Cokriging
     IndicatorKriging MultipleIndicatorKriging CategoricalIndicatorKriging MultigaussianKriging
     InverseDistance NearestNeighbor MovingAverage MovingMedian LocalLeastSquares
-recoverable: recoverable resources
+recoverable: Recoverable resources
     UniformConditioning DisjunctiveKriging change_of_support upscale downscale
-simulation: simulation
+simulation: Simulation
     SGS DSS TurningBands MultivariateSimulation SIS Plurigaussian SimulationSummary CategoricalSummary
     IndicatorSummary CategoricalIndicatorSummary check_realizations RealizationCheck
     gibbs localize object_training_image training_image_consistency SNESIM ImageQuilting
     select_realizations
-modeling: modeling
+modeling: Modeling
     ImplicitModel
-validation: checking models
+validation: Checking models
     CrossValidation IndicatorCrossValidation CategoricalCrossValidation validate_model global_bias
     block_correlation compare compare_models grade_tonnage classify uncertainty_curve required_spacing
     spacing_study
-errors: errors
+errors: Errors
     BoitataError InvalidInput MissingColumn FileError
 """
 
@@ -82,7 +82,7 @@ def sections():
 def on_config(config, **kwargs):
     """Builds the API nav: an overview page and one page per object in each section."""
     nav = [
-        {title: [{"overview": f"api/{slug}/index.md"}] + [{name: f"api/{slug}/{name}.md"} for name in names]}
+        {title: [{"Overview": f"api/{slug}/index.md"}] + [{name: f"api/{slug}/{name}.md"} for name in names]}
         for slug, title, names in sections()
     ]
     config["nav"] = [
@@ -98,7 +98,7 @@ def on_files(files, config, **kwargs):
 
     uses = used_in([name for _, _, names in sections() for name in names], script_pages(ROOT))
     for slug, title, names in sections():
-        rows = ["| name | summary | used in |", "| --- | --- | --- |"]
+        rows = ["| Name | Summary | Used in |", "| --- | --- | --- |"]
         for name in names:
             doc = inspect.getdoc(getattr(boitata, name)) or ""
             summary = SENTENCE.split(" ".join(doc.split()), 1)[0].replace("|", "\\|")
@@ -117,7 +117,7 @@ def on_files(files, config, **kwargs):
 
 
 def on_page_markdown(markdown, page, **kwargs):
-    """Points links between example pages at their gallery pages, adds the Learn trail and tunes search."""
+    """Points links between example pages at their gallery pages, adds the Learn trail and capitalized glossary terms, and tunes search."""
     uri = page.file.src_uri
     if uri.endswith("mg_execution_times.md"):
         page.meta["search"] = {"exclude": True}
@@ -125,10 +125,23 @@ def on_page_markdown(markdown, page, **kwargs):
         page.meta["search"] = {"boost": 2}
     if match := LEARN_PAGE.match(uri):
         markdown = HEADING.sub(
-            lambda h: f"{h[0]}\n\n{COLAB.format(match[1])}\n\n{trail(chapters(ROOT), match[1])}", markdown, count=1
+            lambda h: f"{h[0]}\n\n{COLAB.format(match[1])}\n\n{trail(chapters(ROOT), match[1])}",
+            markdown,
+            count=1,
         )
     markdown = CHAPTER.sub(r"](\1/example_\2_\3.md)", markdown)
-    return SOURCE.sub("](https://github.com/gstvschlz/boitata/blob/main/examples/common.py)", markdown)
+    markdown = SOURCE.sub("](https://github.com/gstvschlz/boitata/blob/main/examples/common.py)", markdown)
+    return markdown + capitalized_terms(ROOT)
+
+
+def capitalized_terms(root):
+    """Abbreviations matching are case-sensitive, so a term opening a sentence needs its own capitalized entry."""
+    lines = []
+    for path in sorted((root / "docs/snippets/glossary").glob("*.md")):
+        for term, text in TERM.findall(path.read_text("utf-8")):
+            if term[0].islower():
+                lines.append(f"*[{term[0].upper()}{term[1:]}]: {text}")
+    return "\n\n" + "\n".join(lines) + "\n" if lines else ""
 
 
 def chapters(root):
@@ -187,7 +200,7 @@ def used_in_chips(links, cap=8):
     chips = "\n".join(
         f'<li markdown="span">[{html.escape(title)}](../../{uri})</li>' for uri, title in links[:cap]
     )
-    return f'\n**used in**\n\n<ul class="bt-used-in" markdown="1">\n{chips}\n</ul>\n'
+    return f'\n**Used in**\n\n<ul class="bt-used-in" markdown="1">\n{chips}\n</ul>\n'
 
 
 def glossary(terms):
@@ -198,5 +211,5 @@ def glossary(terms):
         f"<dd>{CODE.sub(CODE_HTML, html.escape(text))}</dd>\n"
         for key, (term, text) in sorted(unique.items())
     )
-    intro = "short definitions of the terms these pages use. elsewhere, hover a dotted term to see its definition."
-    return f"# glossary\n\n{intro}\n\n<dl>\n{rows}</dl>\n"
+    intro = "Short definitions of the terms these pages use. Elsewhere, hover a dotted term to see its definition."
+    return f"# Glossary\n\n{intro}\n\n<dl>\n{rows}</dl>\n"

@@ -1,8 +1,8 @@
-# variogram sets
+# Variogram sets
 
-`experimental_variograms` computes every direct and cross variogram of several variables in one call. the set it returns
+`experimental_variograms` computes every direct and cross variogram of several variables in one call. The set it returns
 is indexed by variable pair; `Coregionalization.fit` takes it as it is, and `bt.plot.variograms` draws it as a matrix of
-panels. on a regular grid the call finds pairs by shifting cell indices instead of comparing every two samples, so
+panels. On a regular grid the call finds pairs by shifting cell indices instead of comparing every two samples, so
 variograms of exhaustive grids and simulated realizations are cheap.
 
 <details><summary>Python</summary>
@@ -18,7 +18,7 @@ metals = ["Cd", "Co", "Cr", "Cu", "Ni", "Pb", "Zn"]
 
 </details>
 
-jura has seven metals at 259 soil samples, in km. one call gives the 7 direct and 21 cross variograms. `vs[i, j]` and
+Jura has seven metals at 259 soil samples, in km. One call gives the 7 direct and 21 cross variograms. `vs[i, j]` and
 `vs[j, i]` are the same cross variogram, and you can name variables by column.
 
 <details><summary>Python</summary>
@@ -36,8 +36,8 @@ VariogramSet(7 variables, omnidirectional)
 Cd × Zn: 15 lags, 11,376 pairs
 ```
 
-the linear model of coregionalization fits all 28 at once. each structure has a 7 × 7 sill matrix, kept positive
-semi-definite, so the model is valid for cokriging any subset of the metals. its total sill matrix gives correlations
+The linear model of coregionalization fits all 28 at once. Each structure has a 7 × 7 sill matrix, kept positive
+semi-definite, so the model is valid for cokriging any subset of the metals. Its total sill matrix gives correlations
 between the metals close to those of the samples:
 
 <details><summary>Python</summary>
@@ -62,7 +62,7 @@ spherical 1.36 km  smallest eigenvalue -6.5e-14
 largest |model - sample| correlation: 0.10
 ```
 
-the diagonal holds the direct variograms and the panels above it the cross variograms, each with the fitted model. Co
+The diagonal holds the direct variograms and the panels above it the cross variograms, each with the fitted model. Co
 and Ni gain most of their sill over the long structure, Cu and Pb over the short one, and each cross variogram mixes
 the two in its own proportions.
 
@@ -82,9 +82,9 @@ save(fig, "jura")
 
 ![jura](jura.png)
 
-the walker lake exhaustive grid holds V and U at all 78 000 cells of a 260 × 300 m grid. given a `BlockModel`, all
+The Walker Lake exhaustive grid holds V and U at all 78 000 cells of a 260 × 300 m grid. Given a `BlockModel`, all
 pairs one cell offset apart share a separation, so the call bins each offset once and gathers its pairs by index
-shifts. with a half-degree tolerance only the offsets along the rows and columns remain: 30 lags per direction, each
+shifts. With a half-degree tolerance only the offsets along the rows and columns remain: 30 lags per direction, each
 one pass over the cells.
 
 <details><summary>Python</summary>
@@ -105,7 +105,7 @@ print(f"V along x: {int(east.counts.sum()):,} pairs; along y: {int(north.counts.
 V along x: 4,131,000 pairs; along y: 4,204,200 pairs
 ```
 
-on a 60 × 60 m corner, small enough for the search over cell centers, the index shifts find the same pairs and the
+On a 60 × 60 m corner, small enough for the search over cell centers, the index shifts find the same pairs and the
 same estimates up to round-off:
 
 <details><summary>Python</summary>
@@ -127,7 +127,7 @@ same pair counts: True
 largest relative difference in γ: 1.1e-15
 ```
 
-V is more continuous north to south than east to west, and U follows it. the same call on a simulated realization
+V is more continuous north to south than east to west, and U follows it. The same call on a simulated realization
 checks it against the variogram model it was drawn from.
 
 <details><summary>Python</summary>

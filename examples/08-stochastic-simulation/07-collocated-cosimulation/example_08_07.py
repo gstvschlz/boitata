@@ -1,12 +1,12 @@
 """
-# collocated cosimulation
+# Collocated cosimulation
 
 SGS can condition a grade on a second variable known at each node: an exhaustive covariate, or a realization of
-another grade simulated first. it draws each node from the collocated simple cokriging of its normal score from its
-neighbors and the secondary score at the node itself. the cross-covariance is the correlation of the scores times
+another grade simulated first. It draws each node from the collocated simple cokriging of its normal score from its
+neighbors and the secondary score at the node itself. The cross-covariance is the correlation of the scores times
 the primary covariance, so you need no cross-variogram. `SGS.fit` takes the secondary at the data and fits that
-correlation; `simulate` takes the secondary at the nodes, one row per realization for simulated secondaries. here
-jura Co, cosimulated realization by realization with simulated Ni, against Co simulated alone.
+correlation; `simulate` takes the secondary at the nodes, one row per realization for simulated secondaries. Here
+Jura Co, cosimulated realization by realization with simulated Ni, against Co simulated alone.
 """
 
 # %% [hidden]
@@ -52,8 +52,8 @@ with_ni = cosgs.simulate(nodes, n=20, seed=100, secondary=ni.realizations, keep=
 print(f"correlation of Co and Ni scores at the samples: {cosgs.correlation:.2f}")
 
 # %% [markdown]
-# simulated alone, Co keeps its histogram and variogram but forgets Ni: away from the samples the two vary
-# independently, and their correlation over the nodes falls to near zero. cosimulated, each realization of Co
+# Simulated alone, Co keeps its histogram and variogram but forgets Ni: away from the samples the two vary
+# independently, and their correlation over the nodes falls to near zero. Cosimulated, each realization of Co
 # follows its own Ni realization and the correlation comes back:
 
 # %%
@@ -84,8 +84,8 @@ for ax, image, title, label in (
 save(fig, "maps")
 
 # %% [markdown]
-# the cosimulated Co still reproduces its own histogram and variogram (the [realization checks](../../10-checking-models/04-realization-checks/README.md)), and its correlation
-# with Ni, 0.69 to 0.84 across realizations, brackets the samples' 0.75. simulated alone, Co keeps little of it.
+# The cosimulated Co still reproduces its own histogram and variogram (the [realization checks](../../10-checking-models/04-realization-checks/README.md)), and its correlation
+# with Ni, 0.69 to 0.84 across realizations, brackets the samples' 0.75. Simulated alone, Co keeps little of it.
 
 # %%
 fig, axes = plt.subplots(1, 3, figsize=(13, 3.8), layout="constrained")
@@ -97,16 +97,16 @@ axes[1].set(xlabel="Lag distance (km)", title="Variogram of Co scores with Ni")
 for x, (name, c) in enumerate(checks.items()):
     r = c.correlations[:, 0, 1]
     axes[2].plot(np.full(r.size, x), r, "o", ms=5, alpha=0.6, color=GRAY if x == 0 else ACCENT)
-axes[2].axhline(check.data_correlation[0, 1], color=HIGHLIGHT, lw=1.2, label="samples")
+axes[2].axhline(check.data_correlation[0, 1], color=HIGHLIGHT, lw=1.2, label="Samples")
 axes[2].set(xlim=(-0.6, 1.6), xticks=[0, 1], xticklabels=["Co alone", "Co with Ni"], ylim=(-0.4, 1))
 axes[2].set(ylabel="Correlation of Co and Ni", title="Correlation, one point per realization")
 axes[2].legend(loc="lower right")
 save(fig, "checks")
 
 # %% [markdown]
-# [DSS](../../08-stochastic-simulation/08-direct-sequential-simulation/README.md) takes the same `secondary` and `correlation` arguments. it
+# [DSS](../../08-stochastic-simulation/08-direct-sequential-simulation/README.md) takes the same `secondary` and `correlation` arguments. It
 # kriges the grades of Co with their own variogram, standardizes Co and Ni by their declustered means and standard
-# deviations instead of normal-scoring them, and cokriges each node in those units. the node is then drawn from the
+# deviations instead of normal-scoring them, and cokriges each node in those units. The node is then drawn from the
 # histogram of Co with the cokriged mean and variance. `DSS.fit` fits the correlation of the grades:
 
 # %%
@@ -125,6 +125,6 @@ print(f"correlation of Co and Ni grades at the samples: {codss.correlation:.2f}"
 print(f"co-DSS: correlation of Co and Ni over the nodes {min(r):.2f} to {max(r):.2f}")
 
 # %% [markdown]
-# the co-DSS realizations follow their Ni realizations as closely as the cosimulated SGS ones: their correlation with
-# Ni brackets the samples' 0.75. the block above silences the warning on nodes DSS draws from the nearest reachable
+# The co-DSS realizations follow their Ni realizations as closely as the cosimulated SGS ones: their correlation with
+# Ni brackets the samples' 0.75. The block above silences the warning on nodes DSS draws from the nearest reachable
 # mean and variance.

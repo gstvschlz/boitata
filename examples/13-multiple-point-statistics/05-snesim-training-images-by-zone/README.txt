@@ -1,1 +1,1 @@
-## several training images
+## Several training images

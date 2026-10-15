@@ -1,7 +1,7 @@
-# pipeline
+# Pipeline
 
-a gaussian cosimulation of two grades takes several transforms in a fixed order: cap, normal-score each grade, then
-PPMT. the back-transform runs the same chain in reverse with the same fitted parameters. `Pipeline` holds that chain:
+A Gaussian cosimulation of two grades takes several transforms in a fixed order: cap, normal-score each grade, then
+PPMT. The back-transform runs the same chain in reverse with the same fitted parameters. `Pipeline` holds that chain:
 each step names a transform and the columns it replaces, `fit` fits the steps in turn on a container,
 `inverse_transform` undoes them, and `to_json` saves the fitted chain for new data.
 
@@ -38,8 +38,8 @@ Pipeline([('cap', 'Capping', 'V'), ('ns_u', 'NormalScore', 'U'), ('ns_v', 'Norma
 factor correlation -0.001
 ```
 
-the steps replace `U` and `V` in place, so the output keeps the columns of the input and the next step reads the
-previous one's result. the weights reach the steps whose `fit` takes them: capping, the normal scores and PPMT.
+The steps replace `U` and `V` in place, so the output keeps the columns of the input and the next step reads the
+previous one's result. The weights reach the steps whose `fit` takes them: capping, the normal scores and PPMT.
 
 <details><summary>Python</summary>
 
@@ -56,8 +56,8 @@ save(fig, "factors")
 
 ![factors](factors.png)
 
-a saved pipeline reloads with `from_json` and back-transforms factors, here independent gaussian draws standing in
-for simulated values. capping has no inverse, so `inverse_transform` skips it and the back-transformed `V` stays
+A saved pipeline reloads with `from_json` and back-transforms factors, here independent Gaussian draws standing in
+for simulated values. Capping has no inverse, so `inverse_transform` skips it and the back-transformed `V` stays
 below the cap. `transform` and `inverse_transform` raise `MissingColumn` when the data lack a fitted column.
 
 <details><summary>Python</summary>

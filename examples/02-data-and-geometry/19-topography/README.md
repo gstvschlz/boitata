@@ -1,6 +1,6 @@
-# topography from points
+# Topography from points
 
-collar elevations sample the ground surface. `topography` triangulates them into a surface and a grid, clipped to the
+Collar elevations sample the ground surface. `topography` triangulates them into a surface and a grid, clipped to the
 drilled area, and checks each collar against the surface through the others: a collar far off that surface was likely
 surveyed or typed wrong.
 
@@ -19,7 +19,7 @@ truth = data["topography"]
 
 </details>
 
-the delaunay surface is linear within each triangle and passes through every collar. by default the grid is clipped
+The Delaunay surface is linear within each triangle and passes through every collar. By default the grid is clipped
 to a concave outline of the collars, buffered by their spacing; cells outside it stay null.
 
 <details><summary>Python</summary>
@@ -45,9 +45,9 @@ grid 63 x 70 cells of 20 m, 50% inside the outline
 against the true surface: mean -0.18 m, 90% within 0.50 m
 ```
 
-each collar's residual is its elevation minus the surface through the other collars. the default threshold, 3 robust
+Each collar's residual is its elevation minus the surface through the other collars. The default threshold, 3 robust
 standard deviations of the residuals, adapts to the data: on these clean collars it sits a quarter of a meter out and
-catches only the bends of the terrain between holes. a collar is flagged only where its residual also beats those of
+catches only the bends of the terrain between holes. A collar is flagged only where its residual also beats those of
 its neighbors, since one bad collar pulls its neighbors' residuals up too.
 
 <details><summary>Python</summary>
@@ -64,7 +64,7 @@ default threshold 0.24 m: 12 of 289 flagged
 largest residual 3.82 m
 ```
 
-a typed elevation 10 m too high on one collar stands out against a threshold set from the survey's accuracy. the
+A typed elevation 10 m too high on one collar stands out against a threshold set from the survey's accuracy. The
 other collars past 2 m each have a neighbor with a larger residual, so only the mistyped one is flagged.
 
 <details><summary>Python</summary>
@@ -97,10 +97,10 @@ other residuals above 2 m: 5
 
 ![topography](topography.png)
 
-## snapping collars to the surface
+## Snapping collars to the surface
 
 `snap_to_surface` moves each collar onto a surface, here the surveyed topography grid, and every hole moves with its
-collar. the report gives each hole's shift: the mistyped collar comes down 10 m, and the others move by the small gap
+collar. The report gives each hole's shift: the mistyped collar comes down 10 m, and the others move by the small gap
 between each collar and the gridded surface.
 
 <details><summary>Python</summary>

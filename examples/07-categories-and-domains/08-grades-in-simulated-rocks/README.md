@@ -1,6 +1,6 @@
-# grades in simulated rock types
+# Grades in simulated rock types
 
-a grade simulated within a fixed rock-type model ignores the uncertainty of the contacts. given one rock-type
+A grade simulated within a fixed rock-type model ignores the uncertainty of the contacts. Given one rock-type
 realization per grade realization, SGS simulates realization k of the grade within realization k of the rock types,
 so the grade maps carry that uncertainty too.
 
@@ -15,10 +15,10 @@ from common import save
 
 </details>
 
-## rock types
+## Rock types
 
-jura's rock types are known at each node of the prediction grid. SIS ([sequential indicator simulation](../../07-categories-and-domains/06-sis/README.md)) draws 10 rock-type realizations from
-indicator variograms fitted to the samples; portlandian, with 3 samples, gets a guessed one.
+Jura's rock types are known at each node of the prediction grid. SIS ([sequential indicator simulation](../../07-categories-and-domains/06-sis/README.md)) draws 10 rock-type realizations from
+indicator variograms fitted to the samples; Portlandian, with 3 samples, gets a guessed one.
 
 <details><summary>Python</summary>
 
@@ -58,11 +58,11 @@ Portlandian          3   9.37
 Quaternary          55   9.60
 ```
 
-## grades within the rock types
+## Grades within the rock types
 
-fitted with `domains`, SGS normal-scores Co within each rock type, so the lean argovian keeps its own distribution.
-the variogram here fits scores computed per rock type the same way. at `simulate`, `domains` takes one of two forms.
-one row of labels (here the true rock types) holds the domains fixed; an array of shape `(n, targets)` (here the SIS
+Fitted with `domains`, SGS normal-scores Co within each rock type, so the lean Argovian keeps its own distribution.
+The variogram here fits scores computed per rock type the same way. At `simulate`, `domains` takes one of two forms.
+One row of labels (here the true rock types) holds the domains fixed; an array of shape `(n, targets)` (here the SIS
 realizations) gives each Co realization its own rock-type map.
 
 <details><summary>Python</summary>
@@ -109,7 +109,7 @@ fig, axes = plt.subplots(1, 3, figsize=(13, 4.6), layout="constrained")
 panels = [
     (within_true[0], "Co within true rock types", "Co (ppm)", 18),
     (within_sis[0], "Co within SIS realization 1", "Co (ppm)", 18),
-    (within_sis.std(axis=0), "Co across SIS realizations", "standard deviation (ppm)", 5),
+    (within_sis.std(axis=0), "Co across SIS realizations", "Standard deviation (ppm)", 5),
 ]
 for ax, (image, title, label, top) in zip(axes, panels):
     im = ax.scatter(*grid.coords[:, :2].T, c=image, s=7, marker="s", linewidths=0, vmin=0, vmax=top)
@@ -123,9 +123,9 @@ save(fig, "grades-in-rock-types")
 
 ![grades-in-rock-types](grades-in-rock-types.png)
 
-within the true rock types, Co drops at each argovian contact and averages 5.45 ppm on argovian. within the SIS rock
-types the contacts move from one realization to the next, so the lean argovian Co spreads over its uncertain margin:
-the true argovian averages 7.20 ppm. where SIS is unsure of argovian (a third of the nodes), the spread of Co across
+Within the true rock types, Co drops at each Argovian contact and averages 5.45 ppm on Argovian. Within the SIS rock
+types the contacts move from one realization to the next, so the lean Argovian Co spreads over its uncertain margin:
+the true Argovian averages 7.20 ppm. Where SIS is unsure of Argovian (a third of the nodes), the spread of Co across
 realizations is 2.87 ppm against 2.07 ppm with the domains fixed.
 
 Full script: [`example_07_08.py`](example_07_08.py)

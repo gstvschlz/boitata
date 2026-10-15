@@ -1,20 +1,20 @@
-# saving models
+# Saving models
 
-boitatá saves in two open formats: JSON for objects that hold parameters, parquet for objects that hold columns. both read back to the same object, and a rerun from the saved files reproduces the numbers bit for bit.
+boitatá saves in two open formats: JSON for objects that hold parameters, Parquet for objects that hold columns. Both read back to the same object, and a rerun from the saved files reproduces the numbers bit for bit.
 
-## which object saves how
+## Which object saves how
 
-the kind of object sets the format. parameters fit in a short JSON string; columns go to parquet.
+The kind of object sets the format. Parameters fit in a short JSON string; columns go to Parquet.
 
 <div class="bt-compare" markdown>
 
-| object | format | write | read |
+| Object | Format | Write | Read |
 | --- | --- | --- | --- |
-| value objects: `Variogram`, `Structure`, `Coregionalization`, `Search`, `HighGrade`, `Categories` | JSON | `obj.to_json()` | `Variogram.from_json(text)` |
-| fitted transforms: `NormalScore`, `Capping`, `PPMT`, `PCA`, `MAF`, … and `Declustering`, `Trend` | JSON | `obj.to_json()` | `NormalScore.from_json(text)` |
-| containers: `PointSet`, `BlockModel`, `Polylines`, `Table` | parquet | `bt.write_parquet(path, data)` | `bt.read_parquet(path)` |
-| fitted estimators and simulators: `OrdinaryKriging`, `SGS`, …, `ImplicitModel`, `LocalAnisotropy` | parquet | `obj.to_parquet(path)` | `OrdinaryKriging.from_parquet(path)` |
-| results: `SimulationSummary`, `CategoricalIndicatorSummary`, … | parquet | `obj.to_parquet(path)` | `SimulationSummary.from_parquet(path)` |
+| Value objects: `Variogram`, `Structure`, `Coregionalization`, `Search`, `HighGrade`, `Categories` | JSON | `obj.to_json()` | `Variogram.from_json(text)` |
+| Fitted transforms: `NormalScore`, `Capping`, `PPMT`, `PCA`, `MAF`, … and `Declustering`, `Trend` | JSON | `obj.to_json()` | `NormalScore.from_json(text)` |
+| Containers: `PointSet`, `BlockModel`, `Polylines`, `Table` | Parquet | `bt.write_parquet(path, data)` | `bt.read_parquet(path)` |
+| Fitted estimators and simulators: `OrdinaryKriging`, `SGS`, …, `ImplicitModel`, `LocalAnisotropy` | Parquet | `obj.to_parquet(path)` | `OrdinaryKriging.from_parquet(path)` |
+| Results: `SimulationSummary`, `CategoricalIndicatorSummary`, … | Parquet | `obj.to_parquet(path)` | `SimulationSummary.from_parquet(path)` |
 | `Mesh` | OBJ, STL, PLY, OFF, MSH, DXF | `bt.write_mesh(path, mesh)` | `bt.read_mesh(path)` |
 | `PointSet`, `Polylines`, `Mesh`, `BlockModel` | VTK XML (`.vtp`, `.vtu`, `.vti`; reads `.vtr`, `.vts`) | `bt.write_vtk(path, data)` | `bt.read_vtk(path)` |
 
@@ -24,7 +24,7 @@ the kind of object sets the format. parameters fit in a short JSON string; colum
 
 ## JSON for parameters
 
-`to_json` returns a string you can write wherever you like. the class's `from_json` builds the object back:
+`to_json` returns a string you can write wherever you like. The class's `from_json` builds the object back:
 
 ```python
 from pathlib import Path
@@ -45,7 +45,7 @@ print(same.to_json() == variogram.to_json())
 True
 ```
 
-the file is plain text with a `type` and a `format` number. read it as the wrong class and `from_json` raises an error and builds nothing:
+The file is plain text with a `type` and a `format` number. Read it as the wrong class and `from_json` raises an error and builds nothing:
 
 ```python
 bt.Search.from_json(variogram.to_json())
@@ -55,11 +55,11 @@ bt.Search.from_json(variogram.to_json())
 InvalidInput: expected a Search, found "Variogram"
 ```
 
-a fitted transform keeps what it learned, so a reloaded `NormalScore` gives the same scores as the original. these objects also pickle through the same JSON, so they pass between processes.
+A fitted transform keeps what it learned, so a reloaded `NormalScore` gives the same scores as the original. These objects also pickle through the same JSON, so they pass between processes.
 
-## parquet for columns
+## Parquet for columns
 
-`write_parquet` saves a container's columns as an ordinary parquet file, with its geometry, layout and CRS as JSON in the file's metadata. `read_parquet` returns the same kind of container:
+`write_parquet` saves a container's columns as an ordinary Parquet file, with its geometry, layout and CRS as JSON in the file's metadata. `read_parquet` returns the same kind of container:
 
 ```python
 grid = bt.BlockModel(origin=(2.5, 2.5), size=(5, 5), count=(52, 60), crs="EPSG:32611")
@@ -77,15 +77,15 @@ BlockModel(regular, 3120 of 3120 cells, count [52, 60, 1], size [5.0, 5.0, 1.0],
 EPSG:32611 [5.0, 5.0, 1.0] [52, 60, 1]
 ```
 
-any parquet reader opens the file as a table. the geometry sits under the `boitata` metadata key:
+Any Parquet reader opens the file as a table. The geometry sits under the `boitata` metadata key:
 
 ```text
 {"count":[52,60,1],"crs":"EPSG:32611","kind":"block_model","layout":"regular","origin":[2.5,2.5,0.0],"rotation":[0.0,0.0,0.0],"size":[5.0,5.0,1.0]}
 ```
 
-a regular model stores no coordinates: the row number is the block number. a masked model adds its block index as a column, and a sub-blocked model adds the parent index and extents.
+A regular model stores no coordinates: the row number is the block number. A masked model adds its block index as a column, and a sub-blocked model adds the parent index and extents.
 
-a fitted estimator saves the same way. its samples become columns; its variogram, search and options go into the metadata as JSON:
+A fitted estimator saves the same way. Its samples become columns; its variogram, search and options go into the metadata as JSON:
 
 ```python
 samples = bt.datasets.walker_lake()
@@ -99,10 +99,10 @@ print(np.array_equal(again.predict(grid), kriging.predict(grid), equal_nan=True)
 True
 ```
 
-!!! key "key idea"
-    parameters go to JSON with `to_json`; anything with columns goes to parquet. both formats are open, so other tools read your files without boitatá.
+!!! key "Key idea"
+    Parameters go to JSON with `to_json`; anything with columns goes to Parquet. Both formats are open, so other tools read your files without boitatá.
 
-!!! pitfall "pitfall"
-    `write_csv` keeps the block centers and the columns and drops block size, rotation, CRS and layout. use CSV to hand data to someone else, and parquet to keep your own work.
+!!! pitfall "Pitfall"
+    `write_csv` keeps the block centers and the columns and drops block size, rotation, CRS and layout. Use CSV to hand data to someone else, and Parquet to keep your own work.
 
-the first-steps examples rerun [a saved five-piece workflow](../examples/01-first-steps/03-saving-and-loading/example_01_03.md) to the same estimate and [store masked models, fitted estimators, categorical results and polylines in parquet](../examples/01-first-steps/04-parquet/example_01_04.md). [models larger than memory](../examples/02-data-and-geometry/10-large-models/example_02_10.md) processes a parquet block model chunk by chunk, and [mesh files](../examples/02-data-and-geometry/07-mesh-files/example_02_07.md) covers OBJ, STL, PLY, OFF, MSH and DXF.
+The first-steps examples rerun [a saved five-piece workflow](../examples/01-first-steps/03-saving-and-loading/example_01_03.md) to the same estimate and [store masked models, fitted estimators, categorical results and polylines in Parquet](../examples/01-first-steps/04-parquet/example_01_04.md). [Models larger than memory](../examples/02-data-and-geometry/10-large-models/example_02_10.md) processes a Parquet block model chunk by chunk, and [mesh files](../examples/02-data-and-geometry/07-mesh-files/example_02_07.md) covers OBJ, STL, PLY, OFF, MSH and DXF.

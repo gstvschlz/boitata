@@ -2,7 +2,7 @@
 
 Files are cached under ``$BOITATA_DATA``, else the user cache directory
 (``%LOCALAPPDATA%/boitata`` on Windows, ``$XDG_CACHE_HOME/boitata`` or
-``~/.cache/boitata`` elsewhere). Coordinates are local metres (Jura: km) with no CRS, except F3 (EPSG:23031).
+``~/.cache/boitata`` elsewhere). Coordinates are local meters (Jura: km) with no CRS, except F3 (EPSG:23031).
 Synthetic datasets are CC BY 4.0; classic ones keep their original terms.
 """
 
@@ -261,7 +261,7 @@ def _polygon(table: Table) -> Polylines:
 
 
 def _grid(table: Table, axes: tuple[str, ...] = ("X", "Y")) -> BlockModel:
-    """Regular grid of the cell centres in `axes`, masked if some cells are missing."""
+    """Regular grid of the cell centers in `axes`, masked if some cells are missing."""
     xyz = np.column_stack([table[a] for a in axes])
     size = np.array([np.diff(np.unique(c)).min() for c in xyz.T])
     ijk = np.rint((xyz - xyz.min(0)) / size).astype(np.int64)

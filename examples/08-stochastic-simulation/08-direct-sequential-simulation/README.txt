@@ -1,1 +1,1 @@
-## direct sequential simulation
+## Direct sequential simulation

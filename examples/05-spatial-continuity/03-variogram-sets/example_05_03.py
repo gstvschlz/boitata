@@ -1,9 +1,9 @@
 """
-# variogram sets
+# Variogram sets
 
-`experimental_variograms` computes every direct and cross variogram of several variables in one call. the set it returns
+`experimental_variograms` computes every direct and cross variogram of several variables in one call. The set it returns
 is indexed by variable pair; `Coregionalization.fit` takes it as it is, and `bt.plot.variograms` draws it as a matrix of
-panels. on a regular grid the call finds pairs by shifting cell indices instead of comparing every two samples, so
+panels. On a regular grid the call finds pairs by shifting cell indices instead of comparing every two samples, so
 variograms of exhaustive grids and simulated realizations are cheap.
 """
 
@@ -23,7 +23,7 @@ train = bt.datasets.jura()["prediction"]
 metals = ["Cd", "Co", "Cr", "Cu", "Ni", "Pb", "Zn"]
 
 # %% [markdown]
-# jura has seven metals at 259 soil samples, in km. one call gives the 7 direct and 21 cross variograms. `vs[i, j]` and
+# Jura has seven metals at 259 soil samples, in km. One call gives the 7 direct and 21 cross variograms. `vs[i, j]` and
 # `vs[j, i]` are the same cross variogram, and you can name variables by column.
 
 # %%
@@ -32,8 +32,8 @@ print(vs)
 print(f"Cd × Zn: {len(vs['Cd', 'Zn'].lags)} lags, {int(vs['Cd', 'Zn'].counts.sum()):,} pairs")
 
 # %% [markdown]
-# the linear model of coregionalization fits all 28 at once. each structure has a 7 × 7 sill matrix, kept positive
-# semi-definite, so the model is valid for cokriging any subset of the metals. its total sill matrix gives correlations
+# The linear model of coregionalization fits all 28 at once. Each structure has a 7 × 7 sill matrix, kept positive
+# semi-definite, so the model is valid for cokriging any subset of the metals. Its total sill matrix gives correlations
 # between the metals close to those of the samples:
 
 # %%
@@ -47,7 +47,7 @@ upper = np.triu_indices(len(metals), 1)
 print(f"largest |model - sample| correlation: {np.abs(model_corr - sample_corr)[upper].max():.2f}")
 
 # %% [markdown]
-# the diagonal holds the direct variograms and the panels above it the cross variograms, each with the fitted model. Co
+# The diagonal holds the direct variograms and the panels above it the cross variograms, each with the fitted model. Co
 # and Ni gain most of their sill over the long structure, Cu and Pb over the short one, and each cross variogram mixes
 # the two in its own proportions.
 
@@ -61,9 +61,9 @@ for ax in axes.flat:
 save(fig, "jura")
 
 # %% [markdown]
-# the walker lake exhaustive grid holds V and U at all 78 000 cells of a 260 × 300 m grid. given a `BlockModel`, all
+# The Walker Lake exhaustive grid holds V and U at all 78 000 cells of a 260 × 300 m grid. Given a `BlockModel`, all
 # pairs one cell offset apart share a separation, so the call bins each offset once and gathers its pairs by index
-# shifts. with a half-degree tolerance only the offsets along the rows and columns remain: 30 lags per direction, each
+# shifts. With a half-degree tolerance only the offsets along the rows and columns remain: 30 lags per direction, each
 # one pass over the cells.
 
 # %%
@@ -76,7 +76,7 @@ east, north = axes_set["V", "V"]
 print(f"V along x: {int(east.counts.sum()):,} pairs; along y: {int(north.counts.sum()):,} pairs")
 
 # %% [markdown]
-# on a 60 × 60 m corner, small enough for the search over cell centers, the index shifts find the same pairs and the
+# On a 60 × 60 m corner, small enough for the search over cell centers, the index shifts find the same pairs and the
 # same estimates up to round-off:
 
 # %%
@@ -89,7 +89,7 @@ print(f"same pair counts: {np.array_equal(by_shift.counts, by_search.counts)}")
 print(f"largest relative difference in γ: {np.max(np.abs(by_shift.gammas / by_search.gammas - 1)):.1e}")
 
 # %% [markdown]
-# V is more continuous north to south than east to west, and U follows it. the same call on a simulated realization
+# V is more continuous north to south than east to west, and U follows it. The same call on a simulated realization
 # checks it against the variogram model it was drawn from.
 
 # %%

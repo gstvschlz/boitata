@@ -1,1 +1,1 @@
-## interactive sections
+## Interactive sections

@@ -229,7 +229,7 @@ save(fig, "probability")
 # show that the pooled data come from two populations.</figcaption>
 # </figure>
 #
-# `bt.describe_by` computes the same statistics per category. Apply it to the stacked sulphide lenses,
+# `bt.describe_by` computes the same statistics per category. Apply it to the stacked sulfide lenses,
 # composited to 2 m within each lithology as in chapter 1:
 
 # %%
@@ -249,7 +249,7 @@ ax.set(title="Zn by lithology, 2 m composites", ylabel="Zn (%)")
 save(fig, "domains")
 
 # %% [markdown]
-# Zinc averages 8.94 % in massive sulphide (`MS`), 3.44 % in semi-massive sulphide (`SMS`), 0.38 % in the stringer
+# Zinc averages 8.94 % in massive sulfide (`MS`), 3.44 % in semi-massive sulfide (`SMS`), 0.38 % in the stringer
 # zone (`STR`) and 0.05 to 0.06 % in the host rocks. Within each lithology the CV lies between 0.55 and 0.68;
 # pooled, it is 3.57. Mixing the populations creates the pooled spread.
 #
@@ -279,7 +279,7 @@ fig, (a, b) = plt.subplots(1, 2, figsize=(9, 3.8), layout="constrained")
 a.scatter(v[both], u[both], s=6, color=ACCENT, alpha=0.6, linewidths=0)
 a.set(title="U against V, Walker Lake", xlabel="V (ppm)", ylabel="U (ppm)")
 b.scatter(zinc["ZN_PCT"][ms], zinc["PB_PCT"][ms], s=4, color=ACCENT, alpha=0.4, linewidths=0)
-b.set(title="Pb against Zn, massive sulphide", xlabel="Zn (%)", ylabel="Pb (%)")
+b.set(title="Pb against Zn, massive sulfide", xlabel="Zn (%)", ylabel="Pb (%)")
 save(fig, "scatter")
 
 # %% [hidden]
@@ -289,7 +289,7 @@ print(f"U above 3000 ppm: {(u[both] > 3000).sum()} samples")
 # %% [markdown]
 # `U` was measured on 275 samples; the other 195 are nulls and drop out of the pairs. On those 275, the Pearson
 # coefficient is 0.55 and the Spearman coefficient 0.76. The gap comes from the tail of `U`: six samples above
-# 3000 ppm sit far from any straight line, and Pearson pays for them. In the massive sulphide, zinc and lead reach a
+# 3000 ppm sit far from any straight line, and Pearson pays for them. In the massive sulfide, zinc and lead reach a
 # Pearson coefficient of 0.81: the two metals rise together.
 #
 # ## A first look at the normal-score transform

@@ -1,9 +1,9 @@
-# live scene
+# Live scene
 
-`bt.plot3d.Scene` stacks layers in one 3D view. layers colored by the same variable share its color map, range and
+`bt.plot3d.Scene` stacks layers in one 3D view. Layers colored by the same variable share its color map, range and
 color bar, so a composite and the blocks around it show one grade in one color, and null values never draw, in any
-representation. in Jupyter, Colab or VS Code the scene is a widget whose panel, filters, sections and clicks sync
-back to python; from a script `show()` opens it as a self-contained page in the web browser and `save` writes that
+representation. In Jupyter, Colab or VS Code the scene is a widget whose panel, filters, sections and clicks sync
+back to Python; from a script `show()` opens it as a self-contained page in the web browser and `save` writes that
 page. `screenshot` renders the scene to a PNG in headless Chromium, as the widget last showed it.
 
 <details><summary>Python</summary>
@@ -16,9 +16,9 @@ from common import GRAY, LIGHT, show
 
 </details>
 
-zinc composites of the stacked sulphide lenses inform a grid rotated with them, by inverse distance within 60 m.
-both layers carry `ZN_PCT`, so they share one color bar. without `clim` its range would run from the lowest to the
-highest value of any layer; here the first layer fixes it at 0 to 10 % and the later ones follow. the blocks with
+Zinc composites of the stacked sulfide lenses inform a grid rotated with them, by inverse distance within 60 m.
+Both layers carry `ZN_PCT`, so they share one color bar. Without `clim` its range would run from the lowest to the
+highest value of any layer; here the first layer fixes it at 0 to 10 % and the later ones follow. The blocks with
 no composite in reach are null and never draw; a `filter` keeps the blocks above 2 % from the start, and the
 layer's filter panel edits it while viewing.
 
@@ -56,7 +56,7 @@ filters: {'grid': {'ZN_PCT': (2.0, None)}}
 
 ![grade](grade.png)
 
-text columns share a category list the same way. each composite inside a lens takes its name, the others stay null
+Text columns share a category list the same way. Each composite inside a lens takes its name, the others stay null
 and do not draw; the sub-blocks of the lenses carry the same names in `domain`, here renamed `lens` so both layers
 color by one variable and every lens keeps its color across them.
 
@@ -94,9 +94,9 @@ show(scene, "lenses", "Lens of each composite and sub-block, one color per lens"
 
 ![lenses](lenses.png)
 
-drill holes with intervals draw one segment per interval, split at the survey stations so it follows the trace;
-unassayed ground has no interval and leaves a gap, as would a null `ZN_PCT`. holes without intervals draw their
-traces instead. `"tubes"` turns the segments into shaded cylinders, `radius` meters wide. here the holes collared
+Drill holes with intervals draw one segment per interval, split at the survey stations so it follows the trace;
+unassayed ground has no interval and leaves a gap, as would a null `ZN_PCT`. Holes without intervals draw their
+traces instead. `"tubes"` turns the segments into shaded cylinders, `radius` meters wide. Here the holes collared
 within 30 m of a north-south line through the middle: thin gray traces, thick assays on top.
 
 <details><summary>Python</summary>
@@ -123,13 +123,13 @@ show(scene, "holes", "Zn assays down a fence of holes, as tubes")
 
 ![holes](holes.png)
 
-## inspecting and reading back
+## Inspecting and reading back
 
-a click on a block, point, interval or triangle opens a card with every column sent for its row, its coordinates,
-and for a block its size, and outlines it; Esc or a click on empty space closes it. in a notebook `picked` reads
+A click on a block, point, interval or triangle opens a card with every column sent for its row, its coordinates,
+and for a block its size, and outlines it; Esc or a click on empty space closes it. In a notebook `picked` reads
 the last click back, while `filters` and `sections` follow the panel's edits and the cuts drawn in the view, both
 ways: setting them updates the widgets shown. `columns=` limits what a layer sends, and so what the card lists.
-from a script nothing is clicked, so `picked` is None.
+From a script nothing is clicked, so `picked` is None.
 
 <details><summary>Python</summary>
 

@@ -70,14 +70,14 @@
 <circle class="f-night a-pop" style="--d:2.65s" cx="527.5" cy="284.7" r="4.5"/>
 <circle class="f-ember a-pop" style="--d:2.75s" cx="527.5" cy="284.6" r="4.5"/>
 <path class="s-night none a-draw" style="--d:2.8s" pathLength="1" stroke-width="2" d="M72.5 278.9 L137.5 242.4 L202.5 240.9 L267.5 278.1 L332.5 280.8 L397.5 258 L462.5 270.7 L527.5 284.7"/>
-<text class="small" x="568" y="34">plan view</text>
-<text class="small" x="568" y="50">slices along</text>
+<text class="small" x="568" y="34">Plan view</text>
+<text class="small" x="568" y="50">Slices along</text>
 <text class="small" x="568" y="64">easting</text>
-<text class="small" x="568" y="214">mean per slice</text>
-<text class="a-fade" style="--d:3s" x="568" y="240">model</text>
+<text class="small" x="568" y="214">Mean per slice</text>
+<text class="a-fade" style="--d:3s" x="568" y="240">Model</text>
 <circle class="f-night" cx="630" cy="236" r="4.5"/>
-<text class="a-fade" style="--d:3s" x="568" y="262">samples</text>
+<text class="a-fade" style="--d:3s" x="568" y="262">Samples</text>
 <circle class="f-ember" cx="630" cy="258" r="4.5"/>
-<text class="small" x="40" y="328">easting</text>
-<text class="small" x="46" y="204">mean grade</text>
+<text class="small" x="40" y="328">Easting</text>
+<text class="small" x="46" y="204">Mean grade</text>
 </svg>

@@ -1,9 +1,9 @@
 """
-# multigaussian kriging
+# Multigaussian kriging
 
-multigaussian kriging estimates a full distribution at every target from a single variogram. the samples take a
-normal-score transform, and the scores are simple-kriged about 0. if the scores are multivariate gaussian, the unknown
-score at a target is gaussian with the kriged mean and the kriging variance. back-transformed into data units, that
+Multigaussian kriging estimates a full distribution at every target from a single variogram. The samples take a
+normal-score transform, and the scores are simple-kriged about 0. If the scores are multivariate Gaussian, the unknown
+score at a target is Gaussian with the kriged mean and the kriging variance. Back-transformed into data units, that
 distribution gives the E-type mean, its variance, quantiles and the probability above any cutoff.
 """
 
@@ -27,14 +27,14 @@ xy, v = samples.coords, samples["V"]
 azimuth = 170.0
 
 # %% [markdown]
-# ## scores and their variogram
+# ## Scores and their variogram
 #
-# the declustering weights set the transform, so the E-type follows the declustered histogram instead of the clustered
-# high-grade samples. some samples tie at 0 ppm; `despike=True` in `fit` breaks the ties as
-# [`despike`](../../03-exploratory-analysis/06-despiking/README.md) does, so they get distinct scores. the scores'
+# The declustering weights set the transform, so the E-type follows the declustered histogram instead of the clustered
+# high-grade samples. Some samples tie at 0 ppm; `despike=True` in `fit` breaks the ties as
+# [`despike`](../../03-exploratory-analysis/06-despiking/README.md) does, so they get distinct scores. The scores'
 # variogram, along N170° (the major axis found in
 # [variogram fitting](../../05-spatial-continuity/02-variogram-fitting/README.md)) and N260°, is scaled to a unit sill,
-# which makes the kriging variance the variance of the conditional gaussian.
+# which makes the kriging variance the variance of the conditional Gaussian.
 
 # %%
 weights = bt.cell_declustering(xy, v, sizes=np.arange(2.5, 102.5, 2.5)).weights
@@ -51,10 +51,10 @@ gaussian = major.standardized().with_anisotropy(
 print(gaussian)
 
 # %% [markdown]
-# ## distributions at points
+# ## Distributions at points
 #
 # `predict` returns an `IndicatorSummary`, the same summary multiple indicator kriging gives: here the E-type mean, the
-# 10th and 90th percentiles and the probability above 500 ppm on a 5 m grid. the tails bound the back-transform to 0 and
+# 10th and 90th percentiles and the probability above 500 ppm on a 5 m grid. The tails bound the back-transform to 0 and
 # the largest sample.
 
 # %%
@@ -74,7 +74,7 @@ print(
 print(f"expected area above 500 ppm {p500.mean():.1%}, true {np.mean(true_at_nodes > 500):.1%}")
 
 # %% [markdown]
-# the E-type is smooth like kriging. the probability map says where grade above 500 ppm is likely, and the interval
+# The E-type is smooth like kriging. The probability map says where grade above 500 ppm is likely, and the interval
 # width says where the samples leave the grade uncertain.
 
 # %%
@@ -91,14 +91,14 @@ fig.colorbar(width, ax=axes[2], shrink=0.8, label="ppm")
 p = axes[3].imshow(grid.grid(p500)[0], origin="lower", extent=extent, vmin=0, vmax=1)
 map_axes(axes[3], "P(V > 500 ppm)")
 axes[3].scatter(xy[:, 0], xy[:, 1], s=1, color=INK, linewidths=0)
-fig.colorbar(p, ax=axes[3], shrink=0.8, label="probability")
+fig.colorbar(p, ax=axes[3], shrink=0.8, label="Probability")
 save(fig, "maps")
 
 # %% [markdown]
-# ## panels
+# ## Panels
 #
-# with `discretization`, each 20 m panel takes the average of the distributions at 4 × 4 points within it: the
-# distribution of the point grades inside the panel. its probability above 500 ppm is then the expected share of the
+# With `discretization`, each 20 m panel takes the average of the distributions at 4 × 4 points within it: the
+# distribution of the point grades inside the panel. Its probability above 500 ppm is then the expected share of the
 # panel above the cutoff, compared here with the share of the 400 exhaustive values in each panel.
 
 # %%
@@ -123,9 +123,9 @@ for ax in (a, b):
 save(fig, "checks")
 
 # %% [markdown]
-# ## checks
+# ## Checks
 #
-# over the whole area the E-type averages to about the declustered mean. cross-validation re-estimates every sample's
+# Over the whole area the E-type averages to about the declustered mean. Cross-validation re-estimates every sample's
 # distribution from the others: `accuracy(p)` is the share of samples inside their central `p` interval, close to `p`
 # when the distributions have the right spread.
 
@@ -137,11 +137,11 @@ for p, a in zip([0.5, 0.8, 0.9], cv.accuracy([0.5, 0.8, 0.9])):
     print(f"inside the central {p:.0%} interval: {a:.0%}")
 
 # %% [markdown]
-# ## compared with multiple indicator kriging
+# ## Compared with multiple indicator kriging
 #
-# [multiple indicator kriging](../../06-kriging/11-multiple-indicator-kriging/README.md) builds the distribution from
+# [Multiple indicator kriging](../../06-kriging/11-multiple-indicator-kriging/README.md) builds the distribution from
 # indicators kriged at a set of thresholds, one variogram each, then corrects order relations and fills in between the
-# thresholds and in the tails. it lets each grade range have its own continuity, such as high grades less continuous
-# than low ones. multigaussian kriging needs one variogram and no order-relation correction and gives smooth
-# distributions at any cutoff. it assumes the gaussian model, though: high and low scores are equally continuous, and
-# extremes are disconnected. where the data show connected high grades, indicators follow them better.
+# thresholds and in the tails. It lets each grade range have its own continuity, such as high grades less continuous
+# than low ones. Multigaussian kriging needs one variogram and no order-relation correction and gives smooth
+# distributions at any cutoff. It assumes the Gaussian model, though: high and low scores are equally continuous, and
+# extremes are disconnected. Where the data show connected high grades, indicators follow them better.

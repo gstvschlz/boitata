@@ -1,9 +1,9 @@
-# despiking
+# Despiking
 
-soil gold assays below the detection limit are all reported at 2 ppb, so four in ten samples share one value. a
+Soil gold assays below the detection limit are all reported at 2 ppb, so four in ten samples share one value. A
 [normal-score transform](../../04-transforms/01-normal-score/README.md) cannot split that spike, since the tied
 samples all get the same score. `bt.despike` breaks the ties by ranking each tied sample on the average rank of its
-neighbors within growing radii, with a seeded random draw as the last resort. values move by tiny offsets, so every
+neighbors within growing radii, with a seeded random draw as the last resort. Values move by tiny offsets, so every
 untied sample keeps its rank.
 
 <details><summary>Python</summary>
@@ -37,7 +37,7 @@ distinct values: 174 before, 1227 after
 largest change: 6.5e-05 ppb
 ```
 
-without despiking, every sample at the limit takes the mean score of the tie. after despiking, the tied samples spread
+Without despiking, every sample at the limit takes the mean score of the tie. After despiking, the tied samples spread
 over the lower tail in the order of their neighborhoods:
 
 <details><summary>Python</summary>
@@ -56,7 +56,7 @@ for ax, y, title in ((axes[0], spiked, "Tied: one spike"), (axes[1], scores, "De
         weights=np.full(tied.sum(), 1 / len(y) / np.diff(bins)[0]),
         color=HIGHLIGHT,
         alpha=0.6,
-        label="at the detection limit",
+        label="At the detection limit",
     )
     ax.plot(z, density, color=ACCENT, lw=1.6, label="N(0, 1)")
     ax.set(title=title, xlabel="Normal score of Au")
@@ -69,7 +69,7 @@ save(fig, "histograms")
 
 ![histograms](histograms.png)
 
-the ranking follows the neighborhoods: samples at the limit near high gold get the higher scores of the tie.
+The ranking follows the neighborhoods: samples at the limit near high gold get the higher scores of the tie.
 
 <details><summary>Python</summary>
 

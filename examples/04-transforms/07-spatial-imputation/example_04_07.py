@@ -1,12 +1,12 @@
 """
-# spatial imputation
+# Spatial imputation
 
 `GaussianImputer` ([imputation](../../04-transforms/06-imputation/README.md)) draws a missing value from the other
-variables of the same sample. with `spatial=`, it also draws from nearby samples. the normal scores follow an
+variables of the same sample. With `spatial=`, it also draws from nearby samples. The normal scores follow an
 intrinsic model, in which every variable and every pair of variables share one correlogram scaled by the score
-covariance. the imputer visits the samples along a random path and draws each missing score by simple cokriging from
-its own row and from the nearest samples, those already imputed included. the variable here is density in the stacked
-sulphide lenses, missing in 91% of all samples and in about half of the sulphide ones.
+covariance. The imputer visits the samples along a random path and draws each missing score by simple cokriging from
+its own row and from the nearest samples, those already imputed included. The variable here is density in the stacked
+sulfide lenses, missing in 91% of all samples and in about half of the sulfide ones.
 """
 
 # %% [hidden]
@@ -36,9 +36,9 @@ print(f"{len(data)} sulphide samples, density measured in {seen.sum()}")
 
 
 # %% [markdown]
-# the spatial model is the variogram of the density normal scores, on 2 m lags: a small nugget and a range of about 16
+# The spatial model is the variogram of the density normal scores, on 2 m lags: a small nugget and a range of about 16
 # m, shorter than the spacing between holes, so most of the information comes from the samples above and below in the
-# same hole. the imputer rescales its sill to one.
+# same hole. The imputer rescales its sill to one.
 
 # %%
 scores = bt.NormalScore().fit_transform(data[seen, 5])
@@ -52,9 +52,9 @@ save(fig, "variogram")
 
 
 # %% [markdown]
-# two checks hide measured densities and score the imputed ones against the truth: every other hole, as in
+# Two checks hide measured densities and score the imputed ones against the truth: every other hole, as in
 # [imputation](../../04-transforms/06-imputation/README.md), and every other measured sample, which leaves the neighbors
-# in the same hole. each imputer runs with 10 seeds, and both the error of one draw and that of the mean of the draws
+# in the same hole. Each imputer runs with 10 seeds, and both the error of one draw and that of the mean of the draws
 # are root-mean-square.
 
 # %%
@@ -82,9 +82,9 @@ for test, hidden in tests.items():
 
 
 # %% [markdown]
-# across holes the neighbors add almost nothing, since the hidden holes lie beyond the range of the variogram. within
+# Across holes the neighbors add almost nothing, since the hidden holes lie beyond the range of the variogram. Within
 # holes, one spatial draw errs by 0.16 t/m³ against 0.22 from the same sample alone, and both keep the spread of the
-# truth. along one hole, the spatial draws follow the level of the measured densities around them.
+# truth. Along one hole, the spatial draws follow the level of the measured densities around them.
 
 # %%
 hidden = tests["every other sample"]
@@ -97,11 +97,11 @@ for ax, name in zip(axes, imputers):
     d = draws["every other sample", name]
     pick = np.isin(at, rows)
     kept = rows[~hidden[rows] & seen[rows]]
-    ax.scatter(data[kept, 5], xyz[kept, 2], s=10, color=LIGHT, label="measured, kept")
-    ax.scatter(data[at[pick], 5], xyz[at[pick], 2], s=10, color=INK, label="measured, hidden")
+    ax.scatter(data[kept, 5], xyz[kept, 2], s=10, color=LIGHT, label="Measured, kept")
+    ax.scatter(data[at[pick], 5], xyz[at[pick], 2], s=10, color=INK, label="Measured, hidden")
     for k in range(3):
         ax.scatter(
-            d[k, pick], xyz[at[pick], 2], s=6, color=HIGHLIGHT, alpha=0.6, label="draws" if k == 0 else None
+            d[k, pick], xyz[at[pick], 2], s=6, color=HIGHLIGHT, alpha=0.6, label="Draws" if k == 0 else None
         )
     ax.set(xlabel="Density (t/m³)", title=f"{name.capitalize()}, hole {hole}")
 axes[0].set_ylabel("Elevation (m)")
@@ -110,7 +110,7 @@ save(fig, "downhole")
 
 
 # %% [markdown]
-# the draws also keep the correlations. the normal-score correlation of density with Zn, Pb and Ag over the hidden
+# The draws also keep the correlations. The normal-score correlation of density with Zn, Pb and Ag over the hidden
 # samples, averaged over the draws, against the correlation fitted to the data:
 
 # %%
@@ -131,11 +131,11 @@ print(f"{'fitted':12}" + "".join(f"{target[j]:7.2f}" for j in (0, 1, 3)))
 
 
 # %% [markdown]
-# both stay within 0.03 of the fitted correlations. only the missing entries change, and the imputer returns measured
-# values as they are. `transform` takes `coords=` for new samples and otherwise reuses those given to `fit`. a
+# Both stay within 0.03 of the fitted correlations. Only the missing entries change, and the imputer returns measured
+# values as they are. `transform` takes `coords=` for new samples and otherwise reuses those given to `fit`. A
 # pure-nugget variogram gives the same draws as the non-spatial imputer, and `MultivariateSimulation.fit(...,
 # impute=bt.GaussianImputer(spatial=model))` redraws the gaps this way in every realization
 # ([multivariate simulation](../../08-stochastic-simulation/06-multivariate-simulation/README.md)).
 #
-# the intrinsic model is the simplest spatial model with the fitted correlations: one correlogram for all variables.
-# here it comes from density, the variable being imputed, and grades with a different continuity borrow it too.
+# The intrinsic model is the simplest spatial model with the fitted correlations: one correlogram for all variables.
+# Here it comes from density, the variable being imputed, and grades with a different continuity borrow it too.

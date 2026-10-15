@@ -1,7 +1,7 @@
-# search calibration
+# Search calibration
 
-`calibrate_search` scores candidate searches for block kriging of walker lake `V` on 10 × 10 m blocks, keeping the
-variogram and samples. it picks no winner unless asked, and the exhaustive grid checks every score.
+`calibrate_search` scores candidate searches for block kriging of Walker Lake `V` on 10 × 10 m blocks, keeping the
+variogram and samples. It picks no winner unless asked, and the exhaustive grid checks every score.
 
 <details><summary>Python</summary>
 
@@ -29,12 +29,12 @@ true_blocks = truth.reshape(30, 10, 26, 10).mean(axis=(1, 3)).ravel()
 
 </details>
 
-each candidate re-estimates the blocks and gets scores for the variance of the estimates against the block variance
+Each candidate re-estimates the blocks and gets scores for the variance of the estimates against the block variance
 (sill minus the mean variogram within a block, nugget excluded), slope and efficiency (mean and 10th percentile),
 negative weights, the share of blocks each pass fills, declustered cross-validation at the samples
-([cross-validation](../../10-checking-models/02-cross-validation/README.md)), and the global bias. with cutoffs and a
-hermite anamorphosis it adds tonnage and metal above each cutoff, against those of the discrete gaussian model's block
-distribution ([discrete gaussian model](../../09-recoverable-resources/01-discrete-gaussian-model/README.md)). here
+([cross-validation](../../10-checking-models/02-cross-validation/README.md)), and the global bias. With cutoffs and a
+Hermite anamorphosis it adds tonnage and metal above each cutoff, against those of the discrete Gaussian model's block
+distribution ([discrete Gaussian model](../../09-recoverable-resources/01-discrete-gaussian-model/README.md)). Here
 the candidates differ only in `max_samples`.
 
 <details><summary>Python</summary>
@@ -82,10 +82,10 @@ samples   mean     CV   true scores   true scores   true  weights
      48   0.97   1.01   1.02   0.62   0.75   0.85   0.79   -0.037
 ```
 
-every score moves with the truth. more samples raise the slope, and the cross-validation slope follows the true one;
-the mean predicted slope sits lower. estimates grow smoother, so the variance ratio falls and fewer blocks clear 500
-ppm. the true variance ratio sits higher because the blocks of this 260 × 300 m area vary less than the sill implies,
-and the discrete gaussian reference puts about 7 % fewer blocks above 500 ppm than the truth. past 16 to 24 samples
+Every score moves with the truth. More samples raise the slope, and the cross-validation slope follows the true one;
+the mean predicted slope sits lower. Estimates grow smoother, so the variance ratio falls and fewer blocks clear 500
+ppm. The true variance ratio sits higher because the blocks of this 260 × 300 m area vary less than the sill implies,
+and the discrete Gaussian reference puts about 7 % fewer blocks above 500 ppm than the truth. Past 16 to 24 samples
 the slope rises little while the negative weights keep growing; you settle that trade-off.
 
 <details><summary>Python</summary>
@@ -95,7 +95,7 @@ fig, axes = plt.subplots(1, 3, figsize=(11, 3.4), layout="constrained")
 panels = (
     (
         "Slope of regression",
-        [(scores["slope_mean"], "mean predicted"), (scores["cv_slope"], "cross-validation")],
+        [(scores["slope_mean"], "Mean predicted"), (scores["cv_slope"], "Cross-validation")],
         "slope",
     ),
     (
@@ -103,12 +103,12 @@ panels = (
         [(scores["variance_ratio"], "calibrate_search")],
         "variance",
     ),
-    ("Tonnage above 500 ppm / reference", [(scores["tonnage_ratio_500"], "discrete Gaussian")], "tonnage"),
+    ("Tonnage above 500 ppm / reference", [(scores["tonnage_ratio_500"], "Discrete Gaussian")], "tonnage"),
 )
 for ax, (title, lines, key) in zip(axes, panels, strict=True):
     for (series, label), color in zip(lines, (ACCENT, GRAY), strict=False):
         ax.plot(counts, series, "o-", color=color, label=label, ms=3)
-    ax.plot(counts, true_scores[key], "o-", color="black", label="truth", ms=3)
+    ax.plot(counts, true_scores[key], "o-", color="black", label="Truth", ms=3)
     ax.set(title=title, xlabel="max_samples", xscale="log", xticks=counts, xticklabels=counts)
     ax.minorticks_off()
     ax.legend()
@@ -119,10 +119,10 @@ save(fig, "calibration")
 
 ![calibration](calibration.png)
 
-`suggest` turns the scores into a choice. it varies one search over a grid of `max_samples`, `factors` of its radius
+`suggest` turns the scores into a choice. It varies one search over a grid of `max_samples`, `factors` of its radius
 and `min_holes`, and returns the cheapest cell whose mean slope of regression reaches `target_slope` (0.9 by
-default), with the table of every cell: the fewest samples first, then the smallest radius, then the fewest holes. a
-cell that leaves blocks unestimated does not count, since its scores cover only the blocks it reaches. walker lake has
+default), with the table of every cell: the fewest samples first, then the smallest radius, then the fewest holes. A
+cell that leaves blocks unestimated does not count, since its scores cover only the blocks it reaches. Walker Lake has
 no drill holes, so the grid leaves `min_holes` out.
 
 <details><summary>Python</summary>
@@ -169,13 +169,13 @@ samples factor estimated  slope
      32   1.00      100%   0.96
 ```
 
-a quarter of the radius reaches a third of the blocks and half reaches 95 %, so their slopes do not count. at the
-full radius 8 samples reach a mean slope of 0.9 and 16 reach 0.95. the true slopes sit near 1, as in the first table,
+A quarter of the radius reaches a third of the blocks and half reaches 95 %, so their slopes do not count. At the
+full radius 8 samples reach a mean slope of 0.9 and 16 reach 0.95. The true slopes sit near 1, as in the first table,
 where the predicted slope runs low.
 
-`calibrate_search` picks one search for every block. a search with `target_slope` (or `target_efficiency`) calibrates
+`calibrate_search` picks one search for every block. A search with `target_slope` (or `target_efficiency`) calibrates
 block by block instead: each block takes the fewest samples, from `min_samples` up, whose slope of regression reaches
-the target, and `max_samples` where none does. the diagnostics' `target_met` flags which. well-informed blocks keep
+the target, and `max_samples` where none does. The diagnostics' `target_met` flags which. Well-informed blocks keep
 few samples and stay sharp, and sparse ones gather more.
 
 <details><summary>Python</summary>
@@ -210,8 +210,8 @@ for target in (0.85, 0.9, 0.95):
    0.95     14.4    82%        1.00            0.78
 ```
 
-a higher target takes more samples, raises the true slope and smooths more, as a larger fixed search does. at about
-the same mean count as a fixed search, the calibrated one smooths a little less for a slightly lower slope. it sends
+A higher target takes more samples, raises the true slope and smooths more, as a larger fixed search does. At about
+the same mean count as a fixed search, the calibrated one smooths a little less for a slightly lower slope. It sends
 the samples where the drilling is sparse: the dense clusters keep the minimum, the edges and gaps take the most, and a
 few edge blocks fall short even at `max_samples`.
 
@@ -225,7 +225,7 @@ for ax, (target, n) in zip(axes, local.items(), strict=True):
     )
     ax.plot(xy[:, 0], xy[:, 1], ".", color="white", ms=1)
     ax.set(title=f"target_slope={target}", aspect="equal")
-fig.colorbar(image, ax=axes, shrink=0.8, label="samples per block")
+fig.colorbar(image, ax=axes, shrink=0.8, label="Samples per block")
 save(fig, "local")
 ```
 

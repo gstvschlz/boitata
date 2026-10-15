@@ -1,1 +1,1 @@
-## local proportions
+## Local proportions

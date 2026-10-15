@@ -1,9 +1,9 @@
 """
-# solids
+# Solids
 
-a closed triangle mesh bounds a domain. `Mesh.contains` flags the samples inside it, `Mesh.proportion` measures
+A closed triangle mesh bounds a domain. `Mesh.contains` flags the samples inside it, `Mesh.proportion` measures
 how much of each block it fills, `BlockModel.mask` keeps the blocks that count as inside and `block_shell` draws
-them. here the three stacked sulphide lenses are the solids.
+them. Here the three stacked sulfide lenses are the solids.
 """
 
 # %% [hidden]
@@ -21,8 +21,8 @@ from common import ACCENT, GRAY, HIGHLIGHT, LIGHT, save
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 
 # %% [markdown]
-# a solid needs a closed mesh: no boundary edges, each edge shared by two triangles. run `Mesh.validate` before you
-# rely on an inside. [mesh files](../../02-data-and-geometry/07-mesh-files/README.md) repairs meshes that fail it.
+# A solid needs a closed mesh: no boundary edges, each edge shared by two triangles. Run `Mesh.validate` before you
+# rely on an inside. [Mesh files](../../02-data-and-geometry/07-mesh-files/README.md) repairs meshes that fail it.
 
 # %%
 data = bt.datasets.stacked_sulphide_lenses()
@@ -33,7 +33,7 @@ for i, lens in enumerate(lenses, 1):
     )
 
 # %% [markdown]
-# `contains` tests points by generalized winding number. of the 2 m zinc composites, those inside a lens carry
+# `contains` tests points by generalized winding number. Of the 2 m zinc composites, those inside a lens carry
 # the ore:
 
 # %%
@@ -49,7 +49,7 @@ print(f"outside: {outside.sum()} composites, mean Zn {np.nanmean(zn[outside]):.2
 # %% [markdown]
 # `BlockModel.from_extents` builds a 20 × 20 × 10 m model around the lenses ([block model from extents](../../02-data-and-geometry/12-block-model-from-extents/README.md)). `proportion` settles
 # blocks that no triangle passes through with one centroid test and samples `discretization`³ points in the others,
-# here 8. summed over the blocks, the proportions give back each lens's volume to within 1 %.
+# here 8. Summed over the blocks, the proportions give back each lens's volume to within 1 %.
 
 # %%
 size = (20, 20, 10)
@@ -60,8 +60,8 @@ for i, (lens, p) in enumerate(zip(lenses, proportions), 1):
 blocks = blocks.with_column("proportion", np.sum(proportions, axis=0))
 
 # %% [markdown]
-# `mask` keeps the blocks more than half inside a lens. the lenses are thin next to the blocks, so many blocks
-# they cross are less than half filled, and the kept blocks hold under two thirds of the lens volume. [sub-blocks](../../02-data-and-geometry/06-sub-blocks/README.md)
+# `mask` keeps the blocks more than half inside a lens. The lenses are thin next to the blocks, so many blocks
+# they cross are less than half filled, and the kept blocks hold under two thirds of the lens volume. [Sub-blocks](../../02-data-and-geometry/06-sub-blocks/README.md)
 # sub-blocks the edges instead.
 
 # %%
@@ -70,7 +70,7 @@ print(f"{len(blocks):,} blocks, {len(ore):,} more than half inside: {ore.volumes
 print(f"lenses: {sum(lens.volume for lens in lenses):,.0f} m3")
 
 # %% [markdown]
-# a vertical section across strike (the lenses strike N22.5°E) shows the block proportions with the lens
+# A vertical section across strike (the lenses strike N22.5°E) shows the block proportions with the lens
 # outlines and the composites within 10 m of the section. `block_shell` turns the masked blocks into the mesh of
 # their outer faces, drawn in 3D over the lens surfaces.
 
@@ -80,7 +80,7 @@ plane = (center, 112.5, 90)
 fig = plt.figure(figsize=(12, 5.5), layout="constrained")
 a = fig.add_subplot(1, 2, 1)
 bt.plot.section(blocks, "proportion", plane=plane, colorbar=False, vmin=0, vmax=1, cmap="Greys", ax=a)
-bt.plot.slab(xyz[outside], plane=plane, thickness=20, s=4, color=GRAY, label="composite outside", ax=a)
+bt.plot.slab(xyz[outside], plane=plane, thickness=20, s=4, color=GRAY, label="Composite outside", ax=a)
 bt.plot.slab(
     xyz[~outside],
     plane=plane,
@@ -88,12 +88,12 @@ bt.plot.slab(
     meshes=lenses,
     s=6,
     color=HIGHLIGHT,
-    label="composite inside",
+    label="Composite inside",
     ax=a,
 )
 a.set(title="Block proportion inside a lens, section across strike", xlabel="Across strike (m)")
 a.legend(loc="lower left", frameon=True, framealpha=0.9)
-fig.colorbar(a.images[0], ax=a, shrink=0.7, label="proportion of block inside")
+fig.colorbar(a.images[0], ax=a, shrink=0.7, label="Proportion of block inside")
 
 b = fig.add_subplot(1, 2, 2, projection="3d")
 shell = bt.block_shell(ore)

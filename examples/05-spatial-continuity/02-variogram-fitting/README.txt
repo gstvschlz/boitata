@@ -1,1 +1,1 @@
-## variogram fitting
+## Variogram fitting

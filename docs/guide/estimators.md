@@ -1,21 +1,21 @@
-# fit, transform, predict
+# Fit, transform, predict
 
-transforms, estimators and simulators share one lifecycle. you build the object with its options, `fit` it to samples, and then ask it for results. the same calls work for a normal-score transform, for kriging and for simulation.
+Transforms, estimators and simulators share one lifecycle. You build the object with its options, `fit` it to samples, and then ask it for results. The same calls work for a normal-score transform, for kriging and for simulation.
 
-## three states
+## Three states
 
 <figure class="bt-figure">
 --8<-- "svg/g-lifecycle.svg"
-<figcaption><b>figure 1.</b> both kinds start configured, with options and no data. <code>fit</code> stores what the object needs from the samples. an estimator then predicts at targets; a transform maps values to scores and, with <code>inverse_transform</code>, scores back to values.</figcaption>
+<figcaption><b>Figure 1.</b> An estimator and a transform both start configured, with options and no data. <code>fit</code> stores what the object needs from the samples. The estimator then predicts at targets; the transform maps values to scores and, with <code>inverse_transform</code>, scores back to values. A simulator follows the estimator's lane.</figcaption>
 </figure>
 
-1. **configured.** the constructor takes options only: a variogram, a search, a number of classes. it computes nothing yet.
-2. **fitted.** `fit` takes the samples and returns the same object, now holding what it learned. since it returns the object, you can chain: `bt.OrdinaryKriging(variogram, search).fit(samples, "V")`.
-3. **results.** a transform answers `transform` and `inverse_transform`; an estimator answers `predict`; a simulator answers `simulate`. you can ask as often as you like, at as many targets as you like, without fitting again.
+1. **Configured.** The constructor takes options only: a variogram, a search, a number of classes. It computes nothing yet.
+2. **Fitted.** `fit` takes the samples and returns the same object, now holding what it learned. Since it returns the object, you can chain: `bt.OrdinaryKriging(variogram, search).fit(samples, "V")`.
+3. **Results.** A transform answers `transform` and `inverse_transform`; an estimator answers `predict`; a simulator answers `simulate`. You can ask as often as you like, at as many targets as you like, without fitting again.
 
-## transforms
+## Transforms
 
-a transform learns a mapping from the data and applies it to any values. `NormalScore` learns the table that turns the grades into scores with a standard normal distribution:
+A transform learns a mapping from the data and applies it to any values. `NormalScore` learns the table that turns the grades into scores with a standard normal distribution:
 
 ```python
 import boitata as bt
@@ -33,13 +33,13 @@ print(f"std {scores.std():.2f}, back to V: {np.allclose(back, samples['V'])}")
 std 1.00, back to V: True
 ```
 
-`fit_transform` does both steps at once, with one difference: it gives tied values, such as walker lake's 22 zeros, distinct scores by breaking ties at random from `seed`, while `transform` sends equal values to one score.
+`fit_transform` does both steps at once, with one difference: it gives tied values, such as Walker Lake's 22 zeros, distinct scores by breaking ties at random from `seed`, while `transform` sends equal values to one score.
 
 `Capping`, `BoxCox`, `HermiteAnamorphosis`, `PPMT`, `PCA`, `MAF` and the other transforms follow the same pattern; the [transforms API](../api/transforms/index.md) lists them.
 
-## estimators
+## Estimators
 
-an estimator takes a variogram and a search, fits to samples and predicts at targets. the targets can be an `(n, 3)` array, a `PointSet` or a `BlockModel`:
+An estimator takes a variogram and a search, fits to samples and predicts at targets. The targets can be an `(n, 3)` array, a `PointSet` or a `BlockModel`:
 
 ```python
 variogram = bt.experimental_variogram(samples, "V", 10.0, 120.0).fit("spherical")
@@ -58,11 +58,11 @@ BlockModel(regular, 3120 of 3120 cells, count [52, 60, 1], size [5.0, 5.0, 1.0],
   V_variance: Float64
 ```
 
-### where results go
+### Where results go
 
-`predict` returns plain numpy arrays, one value per target in the order of the targets. for a block model that order is the row order, so you can put the array on the model with `with_column`. a target the search could not fill comes back as `NaN`, and the container stores it as null.
+`predict` returns plain NumPy arrays, one value per target in the order of the targets. For a block model that order is the row order, so you can put the array on the model with `with_column`. A target the search could not fill comes back as `NaN`, and the container stores it as null.
 
-ask for `diagnostics=True` and `predict` returns a `Table` with one row per target instead:
+Ask for `diagnostics=True` and `predict` returns a `Table` with one row per target instead:
 
 ```python
 report = kriging.predict(grid, diagnostics=True)
@@ -74,9 +74,9 @@ grid = grid.with_columns({"slope": report["slope"], "n_samples": report["n_sampl
 ['value', 'variance', 'efficiency', 'slope', 'n_samples', 'pass', 'n_holes', 'n_other_domain', 'mean_distance', 'negative_weight_sum', 'lagrange', 'support_variance', 'estimate_variance', 'max_samples_reached', 'target_met']
 ```
 
-the slope of regression and the kriging efficiency tell you how far to trust each estimate; [kriging diagnostics](../examples/10-checking-models/03-kriging-diagnostics/example_10_03.md) reads them.
+The slope of regression and the kriging efficiency tell you how far to trust each estimate; [kriging diagnostics](../examples/10-checking-models/03-kriging-diagnostics/example_10_03.md) reads them.
 
-a fitted estimator also checks itself. `cross_validate` re-estimates every sample from the others with the same variogram and search:
+A fitted estimator also checks itself. `cross_validate` re-estimates every sample from the others with the same variogram and search:
 
 ```python
 check = kriging.cross_validate()
@@ -89,9 +89,9 @@ mean error 6.8, RMSE 182.8, slope 1.11
 
 `OrdinaryKriging`, `SimpleKriging`, `UniversalKriging`, `BlockKriging`, `IndicatorKriging`, `InverseDistance` and the rest share `fit`, `predict`, `cross_validate` and `with_search`; the [estimation API](../api/estimation/index.md) lists them.
 
-## simulators and seeds
+## Simulators and seeds
 
-a simulator draws many equally likely maps, called realizations, in place of one smooth estimate. `SGS` fits like an estimator, on normal scores, and `simulate` returns a `SimulationSummary`: the mean, variance and probabilities over the realizations, plus the realizations themselves when you pass `keep=True`.
+A simulator draws many equally likely maps, called realizations, in place of one smooth estimate. `SGS` fits like an estimator, on normal scores, and `simulate` returns a `SimulationSummary`: the mean, variance and probabilities over the realizations, plus the realizations themselves when you pass `keep=True`.
 
 ```python
 sgs = bt.SGS(bt.Variogram([("spherical", 1.0, 40.0)]), search).fit(samples, scores)
@@ -104,12 +104,12 @@ print(first.realizations.shape, np.array_equal(first.realizations, again.realiza
 (10, 3120) True
 ```
 
-realization `k` draws from a seed built from your `seed` and `k`, and boitatá splits the work across threads so the thread count never changes the numbers. the same seed gives the same realizations with one thread or many; change the seed to get a new set.
+Realization `k` draws from a seed built from your `seed` and `k`, and boitatá splits the work across threads so the thread count never changes the numbers. The same seed gives the same realizations with one thread or many; change the seed to get a new set.
 
-!!! key "key idea"
-    options go to the constructor, data to `fit`, targets to `predict`, `transform` or `simulate`. results come back as arrays in target order, ready for `with_column`.
+!!! key "Key idea"
+    Options go to the constructor, data to `fit`, targets to `predict`, `transform` or `simulate`. Results come back as arrays in target order, ready for `with_column`.
 
-!!! pitfall "pitfall"
-    the method names match scikit-learn's, yet these objects take one column of values plus coordinates in place of a 2D feature matrix, and they have no `get_params`. they do not drop into a scikit-learn `Pipeline` unchanged, so chain them by hand, as above.
+!!! pitfall "Pitfall"
+    The method names match scikit-learn's, yet these objects take one column of values plus coordinates in place of a 2D feature matrix, and they have no `get_params`. They do not drop into a scikit-learn `Pipeline` unchanged, so chain them by hand, as above.
 
-the examples apply this lifecycle in the [normal-score transform](../examples/04-transforms/01-normal-score/example_04_01.md), [ordinary kriging](../examples/06-kriging/01-ordinary-kriging/example_06_01.md), [cross-validation](../examples/10-checking-models/02-cross-validation/example_10_02.md) and [sequential gaussian simulation](../examples/08-stochastic-simulation/01-sgs/example_08_01.md). [saving models](saving.md) shows how a fitted transform saves as JSON and a fitted estimator as parquet.
+The examples apply this lifecycle in the [normal-score transform](../examples/04-transforms/01-normal-score/example_04_01.md), [ordinary kriging](../examples/06-kriging/01-ordinary-kriging/example_06_01.md), [cross-validation](../examples/10-checking-models/02-cross-validation/example_10_02.md) and [sequential Gaussian simulation](../examples/08-stochastic-simulation/01-sgs/example_08_01.md). [Saving models](saving.md) shows how a fitted transform saves as JSON and a fitted estimator as Parquet.

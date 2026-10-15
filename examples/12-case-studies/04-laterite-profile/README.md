@@ -222,13 +222,13 @@ BRK    1609   0.29  0.48  0.016  0.82
 Each horizon has its own grades. Ni rises down the profile, from 0.36 % in the ferricrete to 1.08 % in the
 limonite and 1.81 % in the saprolite, then falls to 0.29 % in fresh rock. Co peaks in the limonite, at 0.117 %,
 three times the saprolite's. Against the height above bedrock, Ni is richest in the first meters above fresh rock
-and fades upwards: the grades follow position in the profile more than elevation.
+and fades upward: the grades follow position in the profile more than elevation.
 
 ## Grades into the blocks
 
 Krige each horizon in flattened coordinates: easting, northing and height above the bedrock surface, for
 composites and blocks alike (`vertical_distance` gives the blocks' heights). Every horizon and element gets its
-own variogram, fitted along the east–west drill rows and down the holes at once; composites of one horizon inform
+own variogram, fitted along the east-west drill rows and down the holes at once; composites of one horizon inform
 only its blocks.
 
 <details><summary>Python</summary>

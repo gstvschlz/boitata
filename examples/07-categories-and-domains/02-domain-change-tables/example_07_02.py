@@ -1,10 +1,10 @@
 """
-# domain change tables
+# Domain change tables
 
-two categorical models of the same blocks differ block by block: an old and a new domain model, the most likely
+Two categorical models of the same blocks differ block by block: an old and a new domain model, the most likely
 category and a realization, or a model before and after cleanup. `domain_change` cross-tabulates them: the tonnage
 moving from each class of the first model to each class of the second and, given a grade, the metal and mean grade of
-every cell. rows sum to the first model's classes, columns to the second's, the diagonal holds what stays, and the
+every cell. Rows sum to the first model's classes, columns to the second's, the diagonal holds what stays, and the
 metal adds up to the model's. `bt.plot.domain_change` draws the table as a matrix.
 """
 
@@ -24,11 +24,11 @@ import numpy as np
 from common import save
 
 # %% [markdown]
-# ## two rock models
+# ## Two rock models
 #
-# the section of [domain cleanup](../../02-data-and-geometry/14-domain-cleanup/README.md) across the stacked sulphide lenses: the most likely rock from categorical indicator kriging
+# The section of [domain cleanup](../../02-data-and-geometry/14-domain-cleanup/README.md) across the stacked sulfide lenses: the most likely rock from categorical indicator kriging
 # of the logged rock types on 10 m cells, and the same model after `remove_small_units` gives units under 5000 m³ to
-# the rock around them. ordinary kriging estimates zinc and density on the same cells from the 5 m composites,
+# the rock around them. Ordinary kriging estimates zinc and density on the same cells from the 5 m composites,
 # ignoring the rock types.
 
 # %%
@@ -79,11 +79,11 @@ section = section.with_columns({"clean": bt.remove_small_units(section, "rock", 
 print(f"{len(section)} cells; {np.sum(section['rock'] != section['clean'])} change rock")
 
 # %% [markdown]
-# ## the table
+# ## The table
 #
-# with the block volumes as weights and the kriged density, `tonnage` is in tonnes; with the zinc grades each cell
-# also holds its `metal` (tonnes × %) and `mean_grade`. the table has one row per pair of rocks, in the order of the
-# scheme. the rows of a rock sum to its tonnage before the cleanup, its column to its tonnage after, and the metal to
+# With the block volumes as weights and the kriged density, `tonnage` is in tonnes; with the zinc grades each cell
+# also holds its `metal` (tonnes × %) and `mean_grade`. The table has one row per pair of rocks, in the order of the
+# scheme. The rows of a rock sum to its tonnage before the cleanup, its column to its tonnage after, and the metal to
 # the metal of the model: the cleanup moves tonnes and metal between rocks and creates or loses none.
 
 # %%
@@ -104,9 +104,9 @@ for a, b, t, g in zip(moved["from"], moved["to"], moved["tonnage"], moved["mean_
     print(f"{a:>4} to {b:4} {t / 1e3:5.1f} kt at {g:.2f} % Zn")
 
 # %% [markdown]
-# under 1 % of the tonnage changes rock, at grades far from random: the volcanic cells taken into the sulphides run
-# near 1.8 % Zn, while the sulphide specks given to the footwall hold 0.3 %. the matrices show each row as shares of
-# the rock it starts from, tonnage on the left and zinc on the right. the plot outlines the diagonal and leaves it
+# Under 1 % of the tonnage changes rock, at grades far from random: the volcanic cells taken into the sulfides run
+# near 1.8 % Zn, while the sulfide specks given to the footwall hold 0.3 %. The matrices show each row as shares of
+# the rock it starts from, tonnage on the left and zinc on the right. The plot outlines the diagonal and leaves it
 # blank, so the grays show only what moves.
 
 # %%

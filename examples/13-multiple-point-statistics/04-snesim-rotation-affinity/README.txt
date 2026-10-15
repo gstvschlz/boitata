@@ -1,1 +1,1 @@
-## rotation and affinity
+## Rotation and affinity

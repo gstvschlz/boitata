@@ -1,7 +1,7 @@
 """
-# simple estimators
+# Simple estimators
 
-nearest neighbor, inverse distance and moving average estimate walker lake `V` without a variogram. they use the same
+Nearest neighbor, inverse distance and moving average estimate Walker Lake `V` without a variogram. They use the same
 470 samples and neighborhood as ordinary kriging and are checked against the exhaustive values; `compare_models` sets
 their grade-tonnage curves against the truth.
 """
@@ -33,8 +33,8 @@ model = bt.Variogram.fit_directional(
 )
 
 # %% [markdown]
-# all four share one search: up to 24 samples in an ellipse along the direction of greatest continuity. nearest neighbor
-# takes the closest sample, inverse distance weights by 1/d², and moving average weights all neighbors equally. kriging,
+# All four share one search: up to 24 samples in an ellipse along the direction of greatest continuity. Nearest neighbor
+# takes the closest sample, inverse distance weights by 1/d², and moving average weights all neighbors equally. Kriging,
 # the reference, uses the variogram above.
 
 # %%
@@ -55,9 +55,9 @@ for name, e in estimates.items():
     )
 
 # %% [markdown]
-# nearest neighbor keeps almost all the variance but places it poorly, as a patchwork of polygons around the samples.
-# moving average smooths the most and is the least accurate, since distant samples weigh as much as close ones. inverse
-# distance sits between them and comes close to kriging, the most accurate here. kriging also gives a variance per
+# Nearest neighbor keeps almost all the variance but places it poorly, as a patchwork of polygons around the samples.
+# Moving average smooths the most and is the least accurate, since distant samples weigh as much as close ones. Inverse
+# distance sits between them and comes close to kriging, the most accurate here. Kriging also gives a variance per
 # estimate and accounts for clustered samples, which inverse distance does not.
 
 # %%
@@ -72,9 +72,9 @@ fig.colorbar(im, ax=axes, shrink=0.8, label="V (ppm)")
 save(fig, "methods")
 
 # %% [markdown]
-# ## grade-tonnage
+# ## Grade-tonnage
 #
-# smoothing shows in selection. for each cutoff, `compare_models` computes the tonnage, mean grade and metal above it
+# Smoothing shows in selection. For each cutoff, `compare_models` computes the tonnage, mean grade and metal above it
 # for every model of the same blocks, and their differences from a reference, here the truth at the nodes.
 
 # %%
@@ -91,7 +91,9 @@ fig, (a, b) = plt.subplots(1, 2, figsize=(10, 4), layout="constrained")
 for name, color in zip(["truth", *estimates], colors):
     rows = table["model"] == name
     tonnage = table["tonnage"][rows]
-    a.plot(cutoffs, tonnage / tonnage[0], color=color, lw=2 if name == "truth" else 1.2, label=name)
+    a.plot(
+        cutoffs, tonnage / tonnage[0], color=color, lw=2 if name == "truth" else 1.2, label=name.capitalize()
+    )
     b.plot(cutoffs, table["mean_grade"][rows], color=color, lw=2 if name == "truth" else 1.2)
 a.set(xlabel="Cutoff V (ppm)", ylabel="Fraction of the area above cutoff", ylim=(0, 1.02))
 a.set_title("Tonnage above cutoff")
@@ -101,9 +103,9 @@ b.set_title("Grade above cutoff")
 save(fig, "grade_tonnage")
 
 # %% [markdown]
-# smooth estimates put too much of the area above a low cutoff and too little above a high one: at 300 ppm moving
-# average nearly doubles the true tonnage, and at 600 ppm it misses 45 % of it. nearest neighbor follows the true
-# tonnage because it keeps the variance of the data, yet its local estimates are wrong. a reliable grade-tonnage of
+# Smooth estimates put too much of the area above a low cutoff and too little above a high one: at 300 ppm moving
+# average nearly doubles the true tonnage, and at 600 ppm it misses 45 % of it. Nearest neighbor follows the true
+# tonnage because it keeps the variance of the data, yet its local estimates are wrong. A reliable grade-tonnage of
 # selected blocks needs a change of support (the
-# [discrete gaussian model](../../09-recoverable-resources/01-discrete-gaussian-model/README.md) and the pages after
+# [discrete Gaussian model](../../09-recoverable-resources/01-discrete-gaussian-model/README.md) and the pages after
 # it).

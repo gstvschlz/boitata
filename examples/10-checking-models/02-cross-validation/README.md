@@ -1,6 +1,6 @@
-# cross-validation
+# Cross-validation
 
-ordinary kriging of walker lake `V` re-estimates each sample from the others, with the same variogram and search:
+Ordinary kriging of Walker Lake `V` re-estimates each sample from the others, with the same variogram and search:
 leave-one-out, then k-fold with fewer and fewer folds.
 
 <details><summary>Python</summary>
@@ -24,9 +24,9 @@ kriging = bt.OrdinaryKriging(model, search).fit(xy, v)
 
 </details>
 
-leave-one-out removes one sample at a time. k-fold removes a whole fold, sample `i` going to fold `i % k`, so each
-estimate sees data a fraction `1/k` sparser. the slope comes from the regression of actual on estimated values and
-is 1 without conditional bias. the standardized squared error is the mean of error² over kriging variance, 1 when
+Leave-one-out removes one sample at a time. K-fold removes a whole fold, sample `i` going to fold `i % k`, so each
+estimate sees data a fraction `1/k` sparser. The slope comes from the regression of actual on estimated values and
+is 1 without conditional bias. The standardized squared error is the mean of error² over kriging variance, 1 when
 the kriging variance is calibrated.
 
 <details><summary>Python</summary>
@@ -51,8 +51,8 @@ leave-one-out: RMSE 185.4 ppm, correlation 0.79, slope 1.03, standardized square
        2-fold: RMSE 204.1 ppm, correlation 0.73, slope 1.06, standardized squared error 0.73
 ```
 
-errors grow as folds get fewer. leave-one-out judges the model at the sample spacing, which in the clustered areas
-is finer than most blocks see. a slope above 1 and a standardized squared error below 1 hold at each k: high
+Errors grow as folds get fewer. Leave-one-out judges the model at the sample spacing, which in the clustered areas
+is finer than most blocks see. A slope above 1 and a standardized squared error below 1 hold at each k: high
 estimates understate the samples a little, and the kriging variance is too large. `bt.plot.cross_validation`
 ([result plots](../../10-checking-models/06-result-plots/README.md)) draws a result as actual against estimate, with the regression line and these statistics:
 

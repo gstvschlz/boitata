@@ -1,8 +1,8 @@
-# coordinate reference systems
+# Coordinate reference systems
 
-`to_crs` converts a `PointSet`, `Polylines`, `Mesh` or `BlockModel` to another CRS named by its EPSG code. it knows
+`to_crs` converts a `PointSet`, `Polylines`, `Mesh` or `BlockModel` to another CRS named by its EPSG code. It knows
 geographic coordinates and UTM zones on WGS 84, SIRGAS 2000, SAD69, NAD83, ETRS89 and GDA2020, and changes datum
-with the 7-parameter Helmert transformations EPSG publishes. heights are kept: there are no vertical datums.
+with the 7-parameter Helmert transformations EPSG publishes. Heights are kept: there are no vertical datums.
 
 <details><summary>Python</summary>
 
@@ -15,10 +15,10 @@ from common import ACCENT, GRAY, HIGHLIGHT, map_axes, save
 
 </details>
 
-## geographic to UTM
+## Geographic to UTM
 
-a graticule every degree, in longitude and latitude on SIRGAS 2000 (`EPSG:4674`), goes to UTM zone 22S
-(`EPSG:31982`). meridians converge towards the pole and bend away from the central meridian at 51° W.
+A graticule every degree, in longitude and latitude on SIRGAS 2000 (`EPSG:4674`), goes to UTM zone 22S
+(`EPSG:31982`). Meridians converge towards the pole and bend away from the central meridian at 51° W.
 
 <details><summary>Python</summary>
 
@@ -39,11 +39,11 @@ EPSG:31982 m
 [  76269. 7118181.] [ 923731. 8009814.]
 ```
 
-## a change of datum
+## A change of datum
 
 SAD69 is the older Brazilian datum. EPSG:15485 takes it to SIRGAS 2000 by a geocentric shift of
 (-67.35, 3.88, -38.22) m, so the same easting and northing in SAD69 / UTM zone 22S (`EPSG:29192`) lands some 66 m
-away in SIRGAS 2000 / UTM zone 22S. the round trip comes back within a fraction of a millimetre.
+away in SIRGAS 2000 / UTM zone 22S. The round trip comes back within a fraction of a millimeter.
 
 <details><summary>Python</summary>
 
@@ -66,10 +66,10 @@ shift 65.8 to 66.5 m
 round trip 0.0784 mm
 ```
 
-## block models
+## Block models
 
-SIRGAS 2000 and WGS 84 are the same frame within a metre, a null transformation in EPSG, so a model in SIRGAS 2000 /
-UTM zone 22S relabelled as WGS 84 / UTM zone 22S stays a block model. any change that moves the blocks off their grid
+SIRGAS 2000 and WGS 84 are the same frame within a meter, a null transformation in EPSG, so a model in SIRGAS 2000 /
+UTM zone 22S relabeled as WGS 84 / UTM zone 22S stays a block model. Any change that moves the blocks off their grid
 returns the centroids as a `PointSet`, attributes included.
 
 <details><summary>Python</summary>
@@ -95,7 +95,7 @@ BlockModel EPSG:32722
 PointSet ['AU'] [-50.999878 -23.510082   5.      ]
 ```
 
-other CRSs raise `InvalidInput` with the supported set.
+Other CRSs raise `InvalidInput` with the supported set.
 
 <details><summary>Python</summary>
 
@@ -122,7 +122,7 @@ central = bt.Polylines([np.column_stack([np.full_like(t, -51.0), -26.0 + 8.0 * t
 part = central.to_crs("EPSG:31982").parts[0] / 1e3
 left.plot(part[:, 0], part[:, 1], color=HIGHLIGHT, lw=1.6)
 left.annotate("51° W", part[-1, :2], xytext=(0, 4), textcoords="offset points", ha="center", color=HIGHLIGHT)
-map_axes(left, "a 1° graticule in SIRGAS 2000 / UTM zone 22S")
+map_axes(left, "A 1° graticule in SIRGAS 2000 / UTM zone 22S")
 right.quiver(old.x / 1e3, old.y / 1e3, shift[:, 0], shift[:, 1], color=ACCENT, angles="xy")
 map_axes(right, f"SAD69 to SIRGAS 2000 in UTM 22S: {np.hypot(*shift[:, :2].T).mean():.0f} m shifts")
 for ax in (left, right):

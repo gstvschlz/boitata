@@ -1,8 +1,8 @@
 """
-# contacts
+# Contacts
 
-a nickel laterite logged down each hole as ferricrete (FERR), limonite (LIM), saprolite (SAP) and bedrock (BRK).
-should you estimate the horizons apart? grade against distance to a contact separates a hard boundary, where grade
+A nickel laterite logged down each hole as ferricrete (FERR), limonite (LIM), saprolite (SAP) and bedrock (BRK).
+Should you estimate the horizons apart? Grade against distance to a contact separates a hard boundary, where grade
 jumps, from a soft one, where grade changes gradually and samples on one side inform the other.
 """
 
@@ -25,7 +25,7 @@ print(f"{len(points)} assays of 1 m in {len(data['collars'])} holes")
 
 # %% [markdown]
 # `contact` measures, down each hole, the distance from every sample of the two horizons to the nearest sample of the
-# other (negative inside) and bins them. `plot.contact` draws the mean per bin with the counts as light bars. the same
+# other (negative inside) and bins them. `plot.contact` draws the mean per bin with the counts as light bars. The same
 # call runs on composites or on any points with hole ids and a domain column.
 
 # %%
@@ -59,7 +59,7 @@ save(fig, "contacts")
 
 # %% [markdown]
 # Ni is soft at the LIM/SAP contact: it rises from 1.10 to 1.32 % across it, then keeps climbing for several meters into
-# the saprolite, so Ni in either horizon near the contact can borrow samples from the other. at the base of the
+# the saprolite, so Ni in either horizon near the contact can borrow samples from the other. At the base of the
 # saprolite it falls from 2.21 to 0.29 % within a meter, a hard boundary: keep bedrock samples out of the saprolite
 # estimate. Co shows the other pattern, stepping from 0.12 to 0.04 % at the LIM/SAP contact and staying flat on each
-# side. the same horizons can be a hard boundary for one grade and a soft one for another.
+# side. The same horizons can be a hard boundary for one grade and a soft one for another.

@@ -1,1 +1,1 @@
-## weight declustering
+## Weight declustering

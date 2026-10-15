@@ -1,7 +1,7 @@
 <svg class="bt-svg" viewBox="0 0 640 300" role="img" aria-labelledby="l04-screen-t">
 <title id="l04-screen-t">Weights of a screened sample, directly behind another, by the two methods</title>
 <line class="s-grid" x1="320" y1="20" x2="320" y2="280" stroke-width="1"/>
-<text x="90" y="30">inverse distance</text>
+<text x="90" y="30">Inverse distance</text>
 <circle class="f-night-soft s-night a-pop" style="--d:0.30s" cx="200.0" cy="160.0" r="15.8" stroke-width="1.5"/>
 <circle class="f-night" cx="200.0" cy="160.0" r="2.5"/>
 <text class="small a-fade" style="--d:0.30s" x="184.0" y="138.2">+0.52</text>
@@ -16,7 +16,7 @@
 <text class="small a-fade" style="--d:0.90s" x="34.8" y="214.0">+0.17</text>
 <line class="s-ember" x1="144" y1="154" x2="156" y2="166" stroke-width="2.5"/>
 <line class="s-ember" x1="144" y1="166" x2="156" y2="154" stroke-width="2.5"/>
-<text x="410" y="30">ordinary kriging</text>
+<text x="410" y="30">Ordinary kriging</text>
 <circle class="f-night-soft s-night a-pop" style="--d:1.20s" cx="520.0" cy="160.0" r="16.2" stroke-width="1.5"/>
 <circle class="f-night" cx="520.0" cy="160.0" r="2.5"/>
 <text class="small a-fade" style="--d:1.20s" x="504.0" y="137.8">+0.54</text>

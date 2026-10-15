@@ -1,9 +1,9 @@
-# external drift kriging
+# External drift kriging
 
-copper grades from the soil geochemistry survey (the dataset of
+Copper grades from the soil geochemistry survey (the dataset of
 [despiking](../../03-exploratory-analysis/06-despiking/README.md)) correlate weakly with the magnetics and elevation of
 the covariates grid. `ExternalDriftKriging` drapes those covariates onto the samples and kriges copper with them as an
-extra drift, in one system with the usual constant term. ordinary kriging on the same grid is the comparison.
+extra drift, in one system with the usual constant term. Ordinary kriging on the same grid is the comparison.
 
 <details><summary>Python</summary>
 
@@ -40,7 +40,7 @@ print(
 correlation with Cu: magnetics 0.23, elevation 0.33
 ```
 
-a single spherical structure fitted to the omnidirectional experimental variogram of copper.
+A single spherical structure fitted to the omnidirectional experimental variogram of copper.
 
 <details><summary>Python</summary>
 
@@ -82,8 +82,8 @@ mean: ordinary 54.8, external drift 54.3 ppm
 correlation between the two maps: 0.970
 ```
 
-the two maps agree where covariates are flat and pull apart where magnetics or elevation depart from the neighborhood
-mean. the drift nudges the estimate up in high-magnetics, high-elevation ground even far from any sample, which
+The two maps agree where covariates are flat and pull apart where magnetics or elevation depart from the neighborhood
+mean. The drift nudges the estimate up in high-magnetics, high-elevation ground even far from any sample, which
 ordinary kriging's constant mean cannot do.
 
 <details><summary>Python</summary>

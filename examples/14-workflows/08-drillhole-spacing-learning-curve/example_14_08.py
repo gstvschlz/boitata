@@ -179,7 +179,7 @@ for (side, curve), color in zip(curves.items(), (ACCENT, HIGHLIGHT), strict=True
     )
     ax.plot(curve["spacing"], 100 * curve["P50"], "-", color=color, lw=2, label=f"{side} × {side} m, median")
     ax.plot(curve["spacing"], 100 * curve["P90"], "--", color=color, lw=1.2, label=f"{side} × {side} m, P90")
-ax.plot(grid["spacing"], 100 * grid["P50"], "s:", color=INK, label="virtual grids, 40 × 40 m, median")
+ax.plot(grid["spacing"], 100 * grid["P50"], "s:", color=INK, label="Virtual grids, 40 × 40 m, median")
 ax.axhline(15, color=GRAY, ls="--", lw=1)
 ax.set(xlabel="Data spacing of the window (m)", ylabel="MEE of the window (%)", xlim=(4, 30), ylim=(0, 70))
 ax.set_title("Learning curve and virtual grids")

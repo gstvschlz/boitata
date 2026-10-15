@@ -1,8 +1,8 @@
-# result plots
+# Result plots
 
-three plots read the tables other functions return. `grade_tonnage` draws tonnage and mean grade above cutoff for
+Three plots read the tables other functions return. `grade_tonnage` draws tonnage and mean grade above cutoff for
 any grade-tonnage table, `cross_validation` draws the leave-one-out kriging results for an estimate, and `contact`
-draws grade against distance to a geological contact. the page krigs and cross-validates walker lake `V`; the nickel
+draws grade against distance to a geological contact. The page krigs and cross-validates Walker Lake `V`; the nickel
 laterite horizons give the contacts.
 
 <details><summary>Python</summary>
@@ -27,14 +27,14 @@ cv = kriging.cross_validate()
 
 </details>
 
-## cross-validation
+## Cross-validation
 
-kriging estimates each sample from its neighbors with itself left out. `kind="scatter"` sets the actual values
-against these estimates. the regression of actual on estimate has a slope below 1 when high estimates are too high
-and low ones too low (conditional bias). the box lists the mean error, RMSE, correlation and the mean of error² over
+Kriging estimates each sample from its neighbors with itself left out. `kind="scatter"` sets the actual values
+against these estimates. The regression of actual on estimate has a slope below 1 when high estimates are too high
+and low ones too low (conditional bias). The box lists the mean error, RMSE, correlation and the mean of error² over
 kriging variance, 1 when the variance is calibrated. `kind="accuracy"` tests whether the kriging variance gives
 intervals of the right width: for each probability p, the fraction of samples inside their symmetric p interval
-(gaussian, from estimate and variance). on the diagonal the intervals are right, above it too wide, below it too
+(Gaussian, from estimate and variance). On the diagonal the intervals are right, above it too wide, below it too
 narrow; the goodness statistic is 1 on the diagonal and penalizes narrow intervals twice as much as wide ones.
 `kind="errors"` maps estimate minus actual at the samples, red over- and blue underestimates.
 
@@ -56,12 +56,12 @@ save(fig, "cross_validation")
 
 ![cross_validation](cross_validation.png)
 
-the slope is close to 1 and the mean error small against an RMSE of about 185. the accuracy curve runs above the
+The slope is close to 1 and the mean error small against an RMSE of about 185. The accuracy curve runs above the
 diagonal and error²/variance is 0.7: the kriging variance is too large for these errors, so its intervals are too
-wide. it also depends on the data layout alone and ignores the local grade, and the gaussian interval ignores the
-skew of `V`. indicator kriging builds each sample's distribution from indicators at several thresholds instead. its
+wide. It also depends on the data layout alone and ignores the local grade, and the Gaussian interval ignores the
+skew of `V`. Indicator kriging builds each sample's distribution from indicators at several thresholds instead. Its
 cross-validation gives the probability of each actual value in its own distribution, and the same plot reads it:
-the curve follows the diagonal. without `coords`, `kind="errors"` is a histogram.
+the curve follows the diagonal. Without `coords`, `kind="errors"` is a histogram.
 
 <details><summary>Python</summary>
 
@@ -82,15 +82,15 @@ save(fig, "indicator_accuracy")
 
 ![indicator_accuracy](indicator_accuracy.png)
 
-## grade-tonnage curves
+## Grade-tonnage curves
 
 `grade_tonnage` takes the table of `boitata.grade_tonnage`, of an anamorphosis, of uniform conditioning or of
 `compare_models`; a dict of tables, or a table with `model` or `category` columns, gives one color per curve.
-tonnage is solid on the left axis, mean grade dashed on the right. with `relative=True` each curve's tonnage is a
-fraction of its tonnage at the lowest cutoff, so declustered samples and 10 × 10 m blocks share one axis. kriged
+Tonnage is solid on the left axis, mean grade dashed on the right. With `relative=True` each curve's tonnage is a
+fraction of its tonnage at the lowest cutoff, so declustered samples and 10 × 10 m blocks share one axis. Kriged
 blocks against true blocks (block averages of the exhaustive grid) and against the samples show the smoothing:
 kriging puts too much tonnage above low cutoffs and too little above high ones, at a lower grade than the true
-blocks up to 300 ppm. the true blocks sit between the samples and the kriged blocks: averaging over 10 × 10 m
+blocks up to 300 ppm. The true blocks sit between the samples and the kriged blocks: averaging over 10 × 10 m
 narrows the distribution, and kriging narrows it further.
 
 <details><summary>Python</summary>
@@ -105,8 +105,8 @@ blocks = blocks.with_columns(
 cutoffs = np.arange(0, 1000, 25.0)
 weights = bt.cell_declustering(xy, v, cell_size=20.0).weights
 curves = {
-    "samples": bt.grade_tonnage(v, cutoffs, weights=weights),
-    "blocks": bt.compare_models(blocks, ["kriged", "true"], cutoffs, reference="true"),
+    "Samples": bt.grade_tonnage(v, cutoffs, weights=weights),
+    "Blocks": bt.compare_models(blocks, ["kriged", "true"], cutoffs, reference="true"),
 }
 fig, ax = bt.plot.grade_tonnage(curves, relative=True)
 ax.set_title("Walker Lake V, declustered samples and 10 × 10 m blocks")
@@ -117,13 +117,13 @@ save(fig, "grade_tonnage")
 
 ![grade_tonnage](grade_tonnage.png)
 
-## contact analysis
+## Contact analysis
 
 `boitata.contact` bins samples by distance along each hole to a contact between two domains, negative inside;
-`plot.contact` draws the mean grade per bin on each side, with the sample counts as light bars. a jump at zero marks
-a hard contact: estimate each domain from its own samples. a gradual change marks a soft one: share samples across
-it. the 1 m nickel assays take the horizon logged over them. from limonite (LIM) into saprolite (SAP), Ni steps up
-a little at the contact and keeps climbing for several meters: a soft contact. from saprolite into bedrock (BRK) it
+`plot.contact` draws the mean grade per bin on each side, with the sample counts as light bars. A jump at zero marks
+a hard contact: estimate each domain from its own samples. A gradual change marks a soft one: share samples across
+it. The 1 m nickel assays take the horizon logged over them. From limonite (LIM) into saprolite (SAP), Ni steps up
+a little at the contact and keeps climbing for several meters: a soft contact. From saprolite into bedrock (BRK) it
 falls from 2.2 to 0.3 % at once: a hard one.
 
 <details><summary>Python</summary>

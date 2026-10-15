@@ -1,8 +1,8 @@
-# sections with holes
+# Sections with holes
 
 `bt.plot.section` cuts a block model on a plane given by `origin`, `azimuth` and `dip`, draws the blocks at true
 scale, and with `holes` projects the drill-hole traces within `width` of the plane on top: the usual check that a
-model honours the holes it came from.
+model honors the holes it came from.
 
 <details><summary>Python</summary>
 
@@ -15,9 +15,9 @@ from common import save
 
 </details>
 
-## a grade model across the lenses
+## A grade model across the lenses
 
-zinc kriged from the 5 m composites onto 20 m blocks, masked to the topography, as in
+Zinc kriged from the 5 m composites onto 20 m blocks, masked to the topography, as in
 [stepped sections](../../02-data-and-geometry/16-stepped-sections/README.md).
 
 <details><summary>Python</summary>
@@ -51,10 +51,10 @@ print(f"{len(model):,} blocks of 20 m")
 51,013 blocks of 20 m
 ```
 
-## one section, two widths
+## One section, two widths
 
-a vertical section across strike (113°) through the middle of the deposit. a 20 m slab keeps only the holes
-drilled on that line; 50 m also brings in the neighbouring lines, projected onto the plane. blocks without an
+A vertical section across strike (113°) through the middle of the deposit. A 20 m slab keeps only the holes
+drilled on that line; 50 m also brings in the neighboring lines, projected onto the plane. Blocks without an
 estimate stay blank.
 
 <details><summary>Python</summary>
@@ -75,7 +75,7 @@ for ax, width in zip(axes, (20.0, 50.0), strict=True):
         colorbar=ax is axes[-1],
         ax=ax,
     )
-    ax.set_title(f"holes within {width:.0f} m")
+    ax.set_title(f"Holes within {width:.0f} m")
 axes[1].set_ylabel("")
 save(fig, "section")
 ```

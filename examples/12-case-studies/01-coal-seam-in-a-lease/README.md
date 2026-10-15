@@ -109,7 +109,7 @@ print(model)
 
 fig, ax = plt.subplots(figsize=(6, 3.4), layout="constrained")
 raw = bt.experimental_variogram(xy, thickness, lag, max_lag, azimuth=90)
-ax.plot(raw.lags, raw.gammas, "--", color=GRAY, lw=1.2, label="thickness, N90°")
+ax.plot(raw.lags, raw.gammas, "--", color=GRAY, lw=1.2, label="Thickness, N90°")
 for a, color in ((azimuth, ACCENT), (azimuth + 90, HIGHLIGHT)):
     experimental = bt.experimental_variogram(xy, residuals, lag, max_lag, azimuth=a)
     bt.plot.variogram(
@@ -118,7 +118,7 @@ for a, color in ((azimuth, ACCENT), (azimuth + 90, HIGHLIGHT)):
         direction=(a, 0),
         ax=ax,
         color=color,
-        label=f"residuals, N{a % 180:.0f}°",
+        label=f"Residuals, N{a % 180:.0f}°",
     )
 ax.set(xlabel="Lag distance (m)", ylabel="γ(h) (m²)", title="Thickness and residual variograms")
 ax.set_ylim(bottom=0)
@@ -135,7 +135,7 @@ Variogram(nugget=0.36028891520809164, structures=[Structure("spherical", sill=0.
 
 ![variogram](variogram.png)
 
-Half the residual variance is nugget. The rest is continuous over 4 km towards N63° and a quarter of that across,
+Half the residual variance is nugget. The rest is continuous over 4 km toward N63° and a quarter of that across,
 where the residuals rise above the sill and fall back below it: bands of thick and thin coal elongated N63°.
 
 ## Ordinary or universal kriging
@@ -187,7 +187,7 @@ universal - ordinary: -0.63 to +0.44 m
 ![kriging](kriging.png)
 
 Inside the drilling the two agree, and cross-validate alike: every neighborhood surrounds its cell. They part at
-the edges of the lease, where the neighborhood lies on one side of the cell; there ordinary kriging pulls towards
+the edges of the lease, where the neighborhood lies on one side of the cell; there ordinary kriging pulls toward
 the local mean, universal kriging carries the plane on. A swath by easting follows both against the declustered
 holes.
 
@@ -200,7 +200,7 @@ swaths = [
     bt.swath(cells, "ordinary", 1000.0, axis="x"),
     bt.swath(cells, "universal", 1000.0, axis="x"),
 ]
-labels = ["declustered holes", "ordinary kriging", "universal kriging"]
+labels = ["Declustered holes", "Ordinary kriging", "Universal kriging"]
 print(
     "easternmost km: " + ", ".join(f"{n} {s['mean'][-1]:.2f} m" for n, s in zip(labels, swaths, strict=True))
 )
@@ -213,7 +213,7 @@ save(fig, "swath")
 </details>
 
 ```text
-easternmost km: declustered holes 1.16 m, ordinary kriging 1.47 m, universal kriging 1.39 m
+easternmost km: Declustered holes 1.16 m, Ordinary kriging 1.47 m, Universal kriging 1.39 m
 ```
 
 ![swath](swath.png)
@@ -274,7 +274,7 @@ print(f"P10-P90 spread ±{(p90 - p10) / 2 / p50:.1%} of P50")
 
 fig, ax = plt.subplots(figsize=(6, 3.4), layout="constrained")
 ax.hist(tonnes / 1e6, bins=20, color=LIGHT, edgecolor=GRAY)
-for value, label, color in ((p10, "P10", GRAY), (p90, "P90", GRAY), (kriged, "kriged", HIGHLIGHT)):
+for value, label, color in ((p10, "P10", GRAY), (p90, "P90", GRAY), (kriged, "Kriged", HIGHLIGHT)):
     ax.axvline(value / 1e6, color=color, lw=1.2)
     ax.text(value / 1e6, ax.get_ylim()[1], f" {label}", color=color, va="top", fontsize=8)
 ax.set(xlabel="Coal in the lease (Mt)", ylabel="Realizations", title="Total tonnes over 100 simulations")
@@ -293,7 +293,7 @@ P10-P90 spread ±1.9% of P50
 
 From P10 to P90 the simulated totals span 185.4 to 192.6 Mt, ±1.9 % around 189.4 Mt, and the kriged 189.4 Mt
 lies within. With a hole every 700 m or closer, errors in single cells cancel over the 7162 cells of the lease.
-The assumed density weighs more: 0.1 t/m³ either way moves the total more than the whole P10–P90 range.
+The assumed density weighs more: 0.1 t/m³ either way moves the total more than the whole range from P10 to P90.
 
 ## Classification by data spacing
 

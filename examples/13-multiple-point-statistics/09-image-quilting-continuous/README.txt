@@ -1,1 +1,1 @@
-## continuous image quilting
+## Continuous image quilting

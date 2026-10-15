@@ -1,15 +1,15 @@
 <svg class="bt-svg" viewBox="0 0 690 206" role="img" aria-labelledby="w1-mesh-defects-t">
 <title id="w1-mesh-defects-t">Five mesh defects: boundary edge, non-manifold edge, inconsistent winding, degenerate face, duplicate face</title>
-<text x="14" y="176">boundary edge</text>
-<text class="small" x="14" y="194">a hole</text>
-<text x="150" y="176">non-manifold edge</text>
-<text class="small" x="150" y="194">a fin</text>
-<text x="286" y="176">inconsistent winding</text>
-<text class="small" x="286" y="194">a flipped face</text>
-<text x="422" y="176">degenerate face</text>
-<text class="small" x="422" y="194">no area</text>
-<text x="558" y="176">duplicate face</text>
-<text class="small" x="558" y="194">same corners twice</text>
+<text x="14" y="176">Boundary edge</text>
+<text class="small" x="14" y="194">A hole</text>
+<text x="150" y="176">Non-manifold edge</text>
+<text class="small" x="150" y="194">A fin</text>
+<text x="286" y="176">Inconsistent winding</text>
+<text class="small" x="286" y="194">A flipped face</text>
+<text x="422" y="176">Degenerate face</text>
+<text class="small" x="422" y="194">No area</text>
+<text x="558" y="176">Duplicate face</text>
+<text class="small" x="558" y="194">Same corners twice</text>
 <polygon class="f-night-soft s-night" points="72,90 122,90 97,133.3" stroke-width="1"/>
 <polygon class="f-night-soft s-night" points="72,90 47,133.3 22,90" stroke-width="1"/>
 <polygon class="f-night-soft s-night" points="72,90 22,90 47,46.7" stroke-width="1"/>

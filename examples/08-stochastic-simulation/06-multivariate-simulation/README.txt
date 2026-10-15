@@ -1,1 +1,1 @@
-## multivariate simulation
+## Multivariate simulation

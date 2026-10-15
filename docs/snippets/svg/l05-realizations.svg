@@ -14,5 +14,5 @@
 <circle cx="487.1" cy="131.9" r="5"/>
 <circle cx="576.5" cy="106.4" r="5"/>
 </g>
-<text class="small" x="40" y="240">thin: three realizations; thick: the average of 300</text>
+<text class="small" x="40" y="240">Thin: three realizations; thick: the average of 300</text>
 </svg>

@@ -1,10 +1,10 @@
 """
 # SGS along a shared path
 
-on a block model, SGS runs all realizations along one multigrid path: coarse cells first, then finer ones. a node's
+On a block model, SGS runs all realizations along one multigrid path: coarse cells first, then finer ones. A node's
 neighbors and kriging weights then depend on the path alone, so SGS finds them once per batch of realizations and
 reuses them; only the noise differs. `path="random"` draws a new path per realization instead, as points and
-sub-blocked models need. both reproduce the histogram and the variogram, and the shared path gains speed as
+sub-blocked models need. Both reproduce the histogram and the variogram, and the shared path gains speed as
 realizations and nodes grow. `batch`, the number simulated together, leaves the realizations unchanged and by
 default fills 70 % of the free memory.
 """
@@ -24,7 +24,7 @@ import numpy as np
 from common import save
 
 # %% [markdown]
-# walker lake V, simulated as in [realization checks](../../10-checking-models/04-realization-checks/README.md) on a 1 m grid of 260 × 300 cells: declustered normal scores and their
+# Walker Lake V, simulated as in [realization checks](../../10-checking-models/04-realization-checks/README.md) on a 1 m grid of 260 × 300 cells: declustered normal scores and their
 # variogram along N170° and across it.
 
 # %%
@@ -42,7 +42,7 @@ grid = bt.BlockModel(origin=(0.5, 0.5), size=(1, 1), count=(260, 300))
 sgs = bt.SGS(gaussian, bt.Search(radius=100, max_samples=24)).fit(samples, "V", weights=weights)
 
 # %% [markdown]
-# twenty realizations along each kind of path, timed:
+# Twenty realizations along each kind of path, timed:
 
 # %%
 runs = {}
@@ -63,7 +63,7 @@ together = sgs.simulate(grid, n=4, seed=42, keep=True, path="shared", batch=4)
 print("batch=1 equals batch=4:", np.array_equal(one.realizations, together.realizations))
 
 # %% [markdown]
-# both paths reproduce the declustered histogram and the variogram model along N170°; the bands overlap.
+# Both paths reproduce the declustered histogram and the variogram model along N170°; the bands overlap.
 
 # %%
 fig, axes = plt.subplots(2, 2, figsize=(10, 6.4), layout="constrained")

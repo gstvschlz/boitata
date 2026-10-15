@@ -1,1 +1,1 @@
-## multivariate transforms
+## Multivariate transforms

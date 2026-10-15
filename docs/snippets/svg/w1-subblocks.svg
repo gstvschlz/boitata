@@ -28,10 +28,10 @@
 <rect class="none s-ink" x="190" y="40" width="160" height="160" stroke-width="2"/>
 <rect class="f-paper s-ink" x="350" y="40" width="160" height="160" stroke-width="2"/>
 <line class="s-ember a-draw" pathLength="1" x1="289.2" y1="30" x2="234.8" y2="210" stroke-width="3"/>
-<text x="38" y="228">whole: inside</text>
-<text x="198" y="228">split 4 × 4, rows merged</text>
-<text x="358" y="228">whole: outside</text>
-<text class="small" x="297.2" y="26">contact</text>
+<text x="38" y="228">Whole: inside</text>
+<text x="198" y="228">Split 4 × 4, rows merged</text>
+<text x="358" y="228">Whole: outside</text>
+<text class="small" x="297.2" y="26">Contact</text>
 <text class="small" x="524" y="60">Each sub-cell takes</text>
 <text class="small" x="524" y="78">the domain at its</text>
 <text class="small" x="524" y="96">center (dot).</text>

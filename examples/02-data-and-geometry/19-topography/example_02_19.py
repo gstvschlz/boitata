@@ -1,7 +1,7 @@
 """
-# topography from points
+# Topography from points
 
-collar elevations sample the ground surface. `topography` triangulates them into a surface and a grid, clipped to the
+Collar elevations sample the ground surface. `topography` triangulates them into a surface and a grid, clipped to the
 drilled area, and checks each collar against the surface through the others: a collar far off that surface was likely
 surveyed or typed wrong.
 """
@@ -24,7 +24,7 @@ collars = bt.PointSet.from_table(data["collars"], z="Z")
 truth = data["topography"]
 
 # %% [markdown]
-# the delaunay surface is linear within each triangle and passes through every collar. by default the grid is clipped
+# The Delaunay surface is linear within each triangle and passes through every collar. By default the grid is clipped
 # to a concave outline of the collars, buffered by their spacing; cells outside it stay null.
 
 # %%
@@ -41,9 +41,9 @@ print(
 )
 
 # %% [markdown]
-# each collar's residual is its elevation minus the surface through the other collars. the default threshold, 3 robust
+# Each collar's residual is its elevation minus the surface through the other collars. The default threshold, 3 robust
 # standard deviations of the residuals, adapts to the data: on these clean collars it sits a quarter of a meter out and
-# catches only the bends of the terrain between holes. a collar is flagged only where its residual also beats those of
+# catches only the bends of the terrain between holes. A collar is flagged only where its residual also beats those of
 # its neighbors, since one bad collar pulls its neighbors' residuals up too.
 
 # %%
@@ -51,7 +51,7 @@ print(f"default threshold {t.max_residual:.2f} m: {t.flagged.sum()} of {len(coll
 print(f"largest residual {np.abs(t.residuals).max():.2f} m")
 
 # %% [markdown]
-# a typed elevation 10 m too high on one collar stands out against a threshold set from the survey's accuracy. the
+# A typed elevation 10 m too high on one collar stands out against a threshold set from the survey's accuracy. The
 # other collars past 2 m each have a neighbor with a larger residual, so only the mistyped one is flagged.
 
 # %%
@@ -73,10 +73,10 @@ map_axes(ax, "Topography from collars, the mistyped collar circled")
 save(fig, "topography")
 
 # %% [markdown]
-# ## snapping collars to the surface
+# ## Snapping collars to the surface
 #
 # `snap_to_surface` moves each collar onto a surface, here the surveyed topography grid, and every hole moves with its
-# collar. the report gives each hole's shift: the mistyped collar comes down 10 m, and the others move by the small gap
+# collar. The report gives each hole's shift: the mistyped collar comes down 10 m, and the others move by the small gap
 # between each collar and the gridded surface.
 
 # %%

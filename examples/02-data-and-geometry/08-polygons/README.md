@@ -1,7 +1,7 @@
-# polygons
+# Polygons
 
-a coal lease: 295 boreholes, each tagged with the mining method its seam suits, a 48-vertex lease boundary and a
-100 m grid. polygons select what lies in the lease and measure how far each point is from its edge, and domains
+A coal lease: 295 boreholes, each tagged with the mining method its seam suits, a 48-vertex lease boundary and a
+100 m grid. Polygons select what lies in the lease and measure how far each point is from its edge, and domains
 spread from the holes to the grid.
 
 <details><summary>Python</summary>
@@ -15,9 +15,9 @@ from common import ACCENT, GRAY, HIGHLIGHT, INK, LIGHT, map_axes, save
 
 </details>
 
-## inside the lease
+## Inside the lease
 
-the boundary is a closed `Polylines`. its single part is the `(n, 2)` ring that `point_in_polygon` tests points
+The boundary is a closed `Polylines`. Its single part is the `(n, 2)` ring that `point_in_polygon` tests points
 against, with the even-odd rule.
 
 <details><summary>Python</summary>
@@ -47,9 +47,9 @@ agreement with the INSIDE flag: 100.0%
 295 of 295 holes inside
 ```
 
-## distance to the boundary
+## Distance to the boundary
 
-`polygon_distance` is the plan distance to the nearest edge; with `signed=True` points inside are negative. a
+`polygon_distance` is the plan distance to the nearest edge; with `signed=True` points inside are negative. A
 200 m standoff along the boundary, where no mining is allowed, is the cells within 200 m inside it.
 
 <details><summary>Python</summary>
@@ -89,10 +89,10 @@ holes from the boundary: 0.1 to 3775 m, 23 within 200 m
 
 ![distance](distance.png)
 
-## domains from the holes
+## Domains from the holes
 
 `assign_domain` gives each target the domain of its nearest sample, read from the `domain_column` of the holes.
-here the targets are the cells in the lease and the domain is the mining method. labels come back as a list, with
+Here the targets are the cells in the lease and the domain is the mining method. Labels come back as a list, with
 a confidence per target: the share of the `n` nearest holes (5 by default) that carry its label.
 
 <details><summary>Python</summary>
@@ -129,12 +129,12 @@ UNECONOMIC:   3.4% of the lease,   2.0% of the holes
 ![domains](domains.png)
 
 `MECHANIZED` holes are 81.0 % of the holes, but their domain covers 69.7 % of the lease, because the infill went
-where the seam is thick. counting cells instead of holes declusters the shares.
+where the seam is thick. Counting cells instead of holes declusters the shares.
 
-## majority vote
+## Majority vote
 
 `method="majority"` takes the most frequent label among the `n` nearest holes instead, and a tie goes to the label
-of the nearest hole. a lone hole among holes of another method no longer claims its own patch.
+of the nearest hole. A lone hole among holes of another method no longer claims its own patch.
 
 <details><summary>Python</summary>
 
@@ -170,13 +170,13 @@ UNECONOMIC:   0.7% of the lease
 
 ![majority](majority.png)
 
-the changed cells sit around isolated `SELECTIVE` holes, now outvoted by their `MECHANIZED` neighbors, and
-`MECHANIZED` grows from 69.7 % to 80.4 % of the lease. majority smooths the map but gives back the declustering:
+The changed cells sit around isolated `SELECTIVE` holes, now outvoted by their `MECHANIZED` neighbors, and
+`MECHANIZED` grows from 69.7 % to 80.4 % of the lease. Majority smooths the map but gives back the declustering:
 where the drilling is dense, one method wins most votes.
 
-## a polygon with a hole
+## A polygon with a hole
 
-a lease often excludes an area inside it, here a 1.5 km circle around a point in the middle. the exclusion is a
+A lease often excludes an area inside it, here a 1.5 km circle around a point in the middle. The exclusion is a
 second closed part of the lease feature. `Polylines` decide inside by even-odd counting over a feature's closed
 parts, so a ring inside another is a hole. `contains` leaves the exclusion out, `area` subtracts it and
 `distance` measures to the nearest ring, negative inside, so the 200 m standoff now runs along both rings.
