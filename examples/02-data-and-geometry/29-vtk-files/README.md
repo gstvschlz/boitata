@@ -86,4 +86,4 @@ save(fig, "vtk")
 
 ![vtk](vtk.png)
 
-Full script: [`example_02_26.py`](example_02_26.py)
+Full script: [`example_02_29.py`](example_02_29.py)
