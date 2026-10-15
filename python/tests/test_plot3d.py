@@ -1019,6 +1019,7 @@ def test_fullscreen_button_fills_the_screen_or_says_why_it_cannot(tmp_path):
             )
             tab.locator(".btv-head button[aria-label='Leave fullscreen (Esc)']").click()
             tab.wait_for_function("document.fullscreenElement === null", timeout=5_000)
+            tab.locator(".btv-head button[aria-label='Fullscreen']").wait_for(timeout=5_000)
             back = tab.locator(".btv-head button[aria-label='Fullscreen']").count()
         else:
             title = tab.locator(".btv-head button[aria-disabled=true]").get_attribute("title")
