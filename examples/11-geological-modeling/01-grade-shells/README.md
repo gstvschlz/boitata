@@ -16,10 +16,11 @@ from common import ACCENT, GRAY, HIGHLIGHT, LIGHT, save
 </details>
 
 with `cutoff=60` each composite gets the code +1 at or above the cutoff and −1 below, so the shell is the zero level
-of the field. a radial basis function (RBF) interpolates the codes exactly by solving one dense system, whose cost
-grows with the cube of the sample count, so 12 m composites keep it to a few thousand samples. the plateau's
-layers are flat, so a second RBF shrinks distances across them (`ratios`: vertical ranges a fifth of the
-horizontal). a sparse gaussian process (GP) smooths through the codes and learns its own ranges.
+of the field. a radial basis function (RBF) interpolates the codes exactly; past 2000 samples, as with these 12 m
+composites, it blends overlapping local systems rather than solving one dense one
+([large implicit models](../../11-geological-modeling/05-large-implicit-models/README.md)). the plateau's layers are flat, so a second RBF
+shrinks distances across them (`ratios`: vertical ranges a fifth of the horizontal). a sparse gaussian process
+(GP) smooths through the codes and learns its own ranges.
 
 <details><summary>Python</summary>
 
@@ -76,7 +77,7 @@ for name, model in models.items():
 
 ```text
     solid:  75.5 Mm3, 91.4% of composites on their side
-      RBF:  57.0 Mm3, covers 56% of the solid, 29% outside it
+      RBF:  58.5 Mm3, covers 56% of the solid, 31% outside it
 RBF, flat:  67.4 Mm3, covers 65% of the solid, 29% outside it
        GP:  47.7 Mm3, covers 50% of the solid, 23% outside it
 ```
@@ -137,7 +138,7 @@ print(
 </details>
 
 ```text
-flat RBF shell: 74,788 triangles, closed True, 64.6 Mm3; blocks inside 67.4 Mm3
+flat RBF shell: 74,916 triangles, closed True, 64.6 Mm3; blocks inside 67.4 Mm3
 ```
 
 Full script: [`example_11_01.py`](example_11_01.py)

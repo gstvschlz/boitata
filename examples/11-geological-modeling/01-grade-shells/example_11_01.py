@@ -21,10 +21,11 @@ from common import ACCENT, GRAY, HIGHLIGHT, LIGHT, save
 
 # %% [markdown]
 # with `cutoff=60` each composite gets the code +1 at or above the cutoff and −1 below, so the shell is the zero level
-# of the field. a radial basis function (RBF) interpolates the codes exactly by solving one dense system, whose cost
-# grows with the cube of the sample count, so 12 m composites keep it to a few thousand samples. the plateau's
-# layers are flat, so a second RBF shrinks distances across them (`ratios`: vertical ranges a fifth of the
-# horizontal). a sparse gaussian process (GP) smooths through the codes and learns its own ranges.
+# of the field. a radial basis function (RBF) interpolates the codes exactly; past 2000 samples, as with these 12 m
+# composites, it blends overlapping local systems rather than solving one dense one
+# ([large implicit models](../../11-geological-modeling/05-large-implicit-models/README.md)). the plateau's layers are flat, so a second RBF
+# shrinks distances across them (`ratios`: vertical ranges a fifth of the horizontal). a sparse gaussian process
+# (GP) smooths through the codes and learns its own ranges.
 
 # %%
 data = bt.datasets.iron_formation_plateau()

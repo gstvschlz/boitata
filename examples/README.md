@@ -173,6 +173,7 @@ Worked examples with the Python API on open datasets from [gstvschlz/datasets](h
 | 2 | [contact surfaces](11-geological-modeling/02-contact-surfaces/README.md) | Stacked sulphide lenses | `Drillholes`, `Variogram`, `ImplicitModel`, `BlockModel`, `plot.slab` |
 | 3 | [structural data](11-geological-modeling/03-structural-data/README.md) | Synthetic | `BlockModel`, `ImplicitModel`, `plot.scatter` |
 | 4 | [layered surfaces](11-geological-modeling/04-layered-surfaces/README.md) | Phosphate weathering profile | `grid_surface`, `plot.section`, `Drillholes`, `InverseDistance`, `Search`, `BlockModel`, `Categories`, `plot.slab`, `plot.category_legend` |
+| 5 | [large implicit models](11-geological-modeling/05-large-implicit-models/README.md) | Iron formation plateau | `Drillholes`, `ImplicitModel`, `plot.slab` |
 
 ## Case studies
 
