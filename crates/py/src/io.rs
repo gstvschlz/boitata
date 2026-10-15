@@ -3,7 +3,7 @@ use std::path::PathBuf;
 
 use arrow_array::RecordBatch;
 
-use boitata_io::{CsvOptions, Nodata, Shapes};
+use boitata_io::{CsvOptions, Nodata, Shapes, Vtk};
 use numpy::PyArray2;
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
@@ -377,6 +377,86 @@ fn write_shapefile(path: PathBuf, data: &Bound<PyAny>) -> PyResult<()> {
     boitata_io::write_shapefile(path, &points.get().0).map_err(io_error)
 }
 
+/// Reads a VTK XML `.vtp` or `.vtu` file.
+///
+/// Parameters
+/// ----------
+/// path : str or Path
+///     The file, in ASCII, binary or appended encoding, zlib-compressed or not.
+/// length_unit : str, optional
+///     Unit of the coordinates.
+///
+/// Returns
+/// -------
+/// PointSet, Polylines or Mesh
+///     Surface cells (triangles, strips, quads, polygons) give a Mesh with
+///     point data as vertex columns and cell data as face columns. Otherwise
+///     line cells give Polylines, one part per cell, closed when it ends where
+///     it starts; cells sharing a ``feature`` value form one feature and cell
+///     data become feature columns. Otherwise the points and their point data
+///     give a PointSet. Arrays with several components become ``name_0``,
+///     ``name_1``, ...; float32 arrays stay float32, the rest become float64.
+///     NaN reads as null, and so does every value whose ``<name>_valid``
+///     array is 0.
+#[pyfunction]
+#[pyo3(signature = (path, *, length_unit=None))]
+fn read_vtk(py: Python, path: PathBuf, length_unit: Option<String>) -> PyResult<Py<PyAny>> {
+    let length_unit = crate::table::length_unit(length_unit)?;
+    Ok(
+        match py.detach(|| boitata_io::read_vtk(path)).map_err(io_error)? {
+            Vtk::Points(mut p) => {
+                p.length_unit = length_unit;
+                Py::new(py, PyPointSet(p))?.into_any()
+            }
+            Vtk::Polylines(mut l) => {
+                l.length_unit = length_unit;
+                Py::new(py, PyPolylines(l))?.into_any()
+            }
+            Vtk::Mesh(mut m) => {
+                m.length_unit = length_unit;
+                Py::new(py, Mesh::from_core(m))?.into_any()
+            }
+        },
+    )
+}
+
+/// Writes a PointSet, Polylines or Mesh as a VTK XML `.vtp` or `.vtu` file.
+///
+/// Parameters
+/// ----------
+/// path : str or Path
+///     The file; its extension picks the format.
+/// data : PointSet, Polylines or Mesh
+///     Points become vertex cells with their columns as point data. Each
+///     polyline part becomes a polyline cell, closed parts repeating their
+///     first point, with the feature columns and a ``feature`` index as cell
+///     data. A mesh writes its triangles with vertex columns as point data and
+///     face columns as cell data. Numeric and bool columns are written,
+///     float32 as Float32 and the rest as Float64; a column with nulls writes
+///     them as NaN plus a UInt8 ``<name>_valid`` array.
+/// ascii : bool, default False
+///     Write ASCII arrays instead of appended raw binary.
+///
+/// Raises
+/// ------
+/// InvalidInput
+///     For text columns.
+#[pyfunction]
+#[pyo3(signature = (path, data, *, ascii=false))]
+fn write_vtk(py: Python, path: PathBuf, data: &Bound<PyAny>, ascii: bool) -> PyResult<()> {
+    let data = if let Ok(p) = data.cast::<PyPointSet>() {
+        Vtk::Points(p.get().0.clone())
+    } else if let Ok(l) = data.cast::<PyPolylines>() {
+        Vtk::Polylines(l.get().0.clone())
+    } else if let Ok(m) = data.cast::<Mesh>() {
+        Vtk::Mesh(m.get().mesh.clone())
+    } else {
+        return Err(invalid("data must be a PointSet, Polylines or Mesh"));
+    };
+    py.detach(|| boitata_io::write_vtk(path, &data, ascii))
+        .map_err(io_error)
+}
+
 /// Decodes GeoPackage geometry blobs (None for null) into the WKB kind of each
 /// row (0 for null), the vertices, part offsets, and the row and closed flag
 /// of each part.
@@ -746,6 +826,8 @@ pub fn register(m: &Bound<PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(write_shapefile, m)?)?;
     m.add_function(wrap_pyfunction!(read_geojson, m)?)?;
     m.add_function(wrap_pyfunction!(write_geojson, m)?)?;
+    m.add_function(wrap_pyfunction!(read_vtk, m)?)?;
+    m.add_function(wrap_pyfunction!(write_vtk, m)?)?;
     m.add_function(wrap_pyfunction!(_decode_geometries, m)?)?;
     m.add_function(wrap_pyfunction!(_encode_geometries, m)?)?;
     m.add_function(wrap_pyfunction!(read_geotiff, m)?)?;

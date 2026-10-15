@@ -311,6 +311,7 @@ dependencies = [
  "boitata-core",
  "criterion",
  "dxf",
+ "flate2",
  "parquet",
  "rayon",
  "regex",

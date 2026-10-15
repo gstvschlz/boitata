@@ -16,6 +16,7 @@ the kind of object sets the format. parameters fit in a short JSON string; colum
 | fitted estimators and simulators: `OrdinaryKriging`, `SGS`, …, `ImplicitModel`, `LocalAnisotropy` | parquet | `obj.to_parquet(path)` | `OrdinaryKriging.from_parquet(path)` |
 | results: `SimulationSummary`, `CategoricalIndicatorSummary`, … | parquet | `obj.to_parquet(path)` | `SimulationSummary.from_parquet(path)` |
 | `Mesh` | OBJ, STL, PLY, OFF, DXF | `bt.write_mesh(path, mesh)` | `bt.read_mesh(path)` |
+| `PointSet`, `Polylines`, `Mesh` | VTK XML (`.vtp`, `.vtu`) | `bt.write_vtk(path, data)` | `bt.read_vtk(path)` |
 
 </div>
 

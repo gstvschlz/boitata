@@ -12,6 +12,7 @@ mod parquet;
 mod ply;
 mod segy;
 mod shapefile;
+mod vtk;
 
 pub use csv::{CsvOptions, read_csv, write_csv};
 pub use error::{Error, Result};
@@ -27,6 +28,7 @@ pub use parquet::{
 };
 pub use segy::{SegyOptions, read_segy, write_segy};
 pub use shapefile::{Shapes, read_shapefile, write_polylines_shapefile, write_shapefile};
+pub use vtk::{Vtk, read_vtk, write_vtk};
 
 /// A value read as null. A number matches every token that parses to it, so
 /// `-999` matches `-999.0`; text matches the token case-insensitively.
