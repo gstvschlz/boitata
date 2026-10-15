@@ -1,0 +1,1 @@
+## local mine grid

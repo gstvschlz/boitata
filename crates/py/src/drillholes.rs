@@ -58,6 +58,7 @@ pub struct Drillholes {
     hole: String,
     intervals: Option<(RecordBatch, String, String, String)>,
     length_unit: Option<String>,
+    crs: Option<String>,
 }
 
 #[pymethods]
@@ -191,6 +192,7 @@ impl Drillholes {
             hole: hole.to_string(),
             intervals,
             length_unit: crate::table::length_unit(length_unit)?,
+            crs: None,
         })
     }
 
@@ -199,6 +201,11 @@ impl Drillholes {
     #[getter]
     fn length_unit(&self) -> Option<String> {
         self.length_unit.clone()
+    }
+
+    #[getter]
+    fn crs(&self) -> Option<String> {
+        self.crs.clone()
     }
 
     #[getter]
@@ -281,6 +288,7 @@ impl Drillholes {
         let attributes = arrow_select::take::take_record_batch(batch, &keep).map_err(invalid)?;
         let mut points = PointSet::new(coords, attributes).map_err(invalid)?;
         points.length_unit.clone_from(&self.length_unit);
+        points.crs.clone_from(&self.crs);
         Ok(PyPointSet(points))
     }
 
@@ -500,6 +508,7 @@ impl Drillholes {
         let attributes = crate::units::label(attributes, &grade_units)?;
         let mut points = PointSet::new(coords, attributes).map_err(invalid)?;
         points.length_unit.clone_from(&self.length_unit);
+        points.crs.clone_from(&self.crs);
         Ok(PyPointSet(points))
     }
 
@@ -726,6 +735,40 @@ impl Drillholes {
 }
 
 impl Drillholes {
+    /// The holes with every path point moved by `f`, in CRS `crs`.
+    pub fn map_coords(&self, f: impl Fn([f64; 3]) -> [f64; 3], crs: Option<String>) -> Self {
+        let paths = self
+            .paths
+            .iter()
+            .map(|(id, path)| {
+                let path = path
+                    .iter()
+                    .map(|w| {
+                        let [east, north, elev] = f([w.east, w.north, w.elev]);
+                        WellborePoint {
+                            east,
+                            north,
+                            elev,
+                            ..*w
+                        }
+                    })
+                    .collect();
+                (id.clone(), path)
+            })
+            .collect();
+        Self {
+            paths,
+            hole: self.hole.clone(),
+            intervals: self.intervals.clone(),
+            length_unit: self.length_unit.clone(),
+            crs,
+        }
+    }
+
+    pub fn crs_ref(&self) -> Option<&str> {
+        self.crs.as_deref()
+    }
+
     pub fn stations(&self) -> Vec<[f64; 3]> {
         self.paths
             .values()
@@ -1756,6 +1799,7 @@ fn snap_to_surface(
         hole: drillholes.hole.clone(),
         intervals: drillholes.intervals.clone(),
         length_unit: drillholes.length_unit.clone(),
+        crs: drillholes.crs.clone(),
     };
     Ok((moved, Table(report)))
 }
@@ -1878,6 +1922,7 @@ fn planned_drillholes(
         hole: "HOLE_ID".into(),
         intervals: Some((intervals, "HOLE_ID".into(), "FROM".into(), "TO".into())),
         length_unit: crate::table::length_unit(None)?,
+        crs: None,
     })
 }
 

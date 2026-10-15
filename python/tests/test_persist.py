@@ -69,6 +69,10 @@ def fitted():
         ),
         (bt.cell_declustering(coords, values), lambda o: (o.weights, o.sizes, o.means, o.mean)),
         (
+            bt.LocalGrid(scale=0.9996, rotation=123.4, shift=(5e5, 7.4e6), z_shift=2.0, crs="EPSG:31982"),
+            lambda o: (o.apply(coords),),
+        ),
+        (
             bt.Variogram(
                 [("spherical", 0.7, 50.0)], nugget=0.1, rotation=(30.0, 10.0, 0.0), ratios=(0.5, 0.2)
             ),

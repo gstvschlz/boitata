@@ -36,7 +36,7 @@ DOMAINS_EXEMPT = set()
 # Not plots: color and legend helpers.
 NOT_PLOTS = {"plot.category_colors", "plot.category_legend"}
 # `fit` building a new model from experimental variograms, not fitting the object in place.
-MODEL_FITS = {"Variogram", "ExperimentalVariogram", "Coregionalization"}
+MODEL_FITS = {"Variogram", "ExperimentalVariogram", "Coregionalization", "LocalGrid"}
 
 
 def public_callables():
