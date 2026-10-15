@@ -1,5 +1,5 @@
 /** What a key does in the viewer. */
-export type Action = "fit" | "plan" | "draw" | "finish" | "undo" | "lock" | "unfold" | "clear" | "panel" | "theme" | "cancel" | "help" | "edl" | "measure";
+export type Action = "fit" | "plan" | "draw" | "finish" | "undo" | "lock" | "unfold" | "clear" | "panel" | "theme" | "cancel" | "help" | "edl" | "measure" | "forward" | "back";
 
 /** The state a key's meaning depends on. */
 export interface KeyState {
@@ -19,6 +19,8 @@ const ALWAYS: Record<string, Action> = {
   t: "theme",
   e: "edl",
   m: "measure",
+  "]": "forward",
+  "[": "back",
   "?": "help",
 };
 
@@ -50,6 +52,7 @@ export const SHORTCUTS: [string, string][] = [
   ["Backspace", "Undo the last vertex"],
   ["U", "Unfold or fold back"],
   ["X", "Clear the section"],
+  ["[ ]", "Step the section back or forward"],
   ["H", "Hide or show the panel"],
   ["T", "Light or dark"],
   ["E", "Eye-dome lighting"],

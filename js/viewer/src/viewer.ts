@@ -45,7 +45,12 @@ import { formatValue, type Hit, isClick, nearestHit, PICK_RADIUS, round7 } from 
 import { type Renderer, webgl } from "./renderer";
 import {
   buildSection,
+  cutAzimuth,
   distinct,
+  faceOn,
+  orthogonalCut,
+  presetCut,
+  stepCut,
   MAX_SEGMENTS,
   pickCut,
   type Ray,
@@ -237,6 +242,11 @@ export class Viewer {
   private cutSection: Section | null = null;
   private cutWidth: number | null = null;
   private cutDip = 90;
+  /** Width of a level (plan) slab, kept apart from the upright section's, and the step between cuts. */
+  private planWidth: number | null = null;
+  private uprightWidth: number | null = null;
+  private stepWidth: number | null = null;
+  private planZ: number | null = null;
   private drawing: { points: XY[]; cursor: XY | null; shift: boolean; view: CameraState } | null = null;
   private quick: { from: XY; to: XY } | null = null;
   private press: XY | null = null;
@@ -1700,7 +1710,7 @@ export class Viewer {
     const o = this.spec.origin;
     const zs = state.points.filter((p) => p.length > 2).map((p) => p[2] - o[2]);
     if (state.width !== null && state.width > 0) this.cutWidth = state.width;
-    if (state.dip > 0 && state.dip <= 90) this.cutDip = state.dip;
+    if (state.dip >= 0 && state.dip <= 90) this.cutDip = state.dip;
     this.setCut(
       {
         points: state.points.map((p) => [p[0] - o[0], p[1] - o[1]] as XY),
@@ -1750,7 +1760,111 @@ export class Viewer {
   }
 
   toggleUnfolded(): void {
-    if (this.cut && !this.drawing) this.setUnfolded(!this.cut.unfolded);
+    if (this.cut && !this.drawing && this.cutDip > 0) this.setUnfolded(!this.cut.unfolded);
+  }
+
+  // presets
+
+  private get plan(): boolean {
+    return this.cutDip === 0;
+  }
+
+  /** Leaves a level slab for an upright one, giving the section its own width back. */
+  private leavePlan(): void {
+    if (!this.plan) return;
+    this.planWidth = this.cutWidth;
+    this.cutWidth = this.uprightWidth;
+    this.cutDip = 90;
+  }
+
+  /** Length that spans the shown layers in plan from their middle, whatever the bearing. */
+  private span(): number {
+    return 1.2 * Math.max(diagonal(visibleBox(this.layers)), 1e-3);
+  }
+
+  /** Cuts upright along `azimuth` through `center` (the middle of the shown layers by default) and faces it. */
+  cutAlong(azimuth: number, center?: XY): void {
+    const m = this.middle();
+    this.leavePlan();
+    this.setCut({ points: presetCut(center ?? [m[0], m[1]], azimuth, this.span()), z: m[2], unfolded: false });
+    this.glide(this.viewState(faceOn(azimuth), 0));
+  }
+
+  /** A cross or long section of the current cut, or of the first block model's axes without one, faced on. */
+  orthogonal(kind: "cross" | "long"): void {
+    if (this.cut && !this.plan) {
+      const [a, b] = orthogonalCut(this.cut.points, kind, this.span());
+      this.cutAlong(cutAzimuth([a, b]), [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2]);
+    } else this.cutAlong(this.modelAzimuth() + (kind === "cross" ? 90 : 0));
+  }
+
+  /** Bearing of the first block model's x axis; north without one. */
+  private modelAzimuth(): number {
+    const axes = this.layers.find((l) => l.spec.kind === "blocks")?.spec.axes;
+    return axes ? (THREE.MathUtils.radToDeg(Math.atan2(axes[0][0], axes[0][1])) + 360) % 360 : 0;
+  }
+
+  /** A level slab at elevation `z` (local), its own width, seen from above. */
+  planAtZ(z = this.planZ ?? this.middle()[2]): void {
+    const box = visibleBox(this.layers);
+    if (!box) return;
+    this.planZ = z;
+    if (!this.plan) {
+      this.uprightWidth = this.sectionWidth();
+      this.cutWidth = this.planWidth ?? this.uprightWidth;
+    }
+    this.cutDip = 0;
+    const pad = 0.1 * (box.max[0] - box.min[0] + 1);
+    const y = (box.min[1] + box.max[1]) / 2;
+    this.setCut({ points: [[box.min[0] - pad, y], [box.max[0] + pad, y]], z, unfolded: false });
+    this.glide(this.viewState(0, 90));
+  }
+
+  private step(): number {
+    return (this.stepWidth ??= this.sectionWidth());
+  }
+
+  /** Moves the cut one step to the right of its direction (`sign` 1) or back (-1); a plan slab steps up or down. */
+  stepSection(sign: 1 | -1): void {
+    const c = this.cut;
+    if (!c || this.drawing) return;
+    if (this.plan) return this.planAtZ(c.z + sign * this.step());
+    const unfolded = c.unfolded;
+    this.setCut({ points: stepCut(c.points, sign * this.step()), z: c.z, unfolded: false }, false);
+    if (unfolded) this.setUnfolded(true, false);
+    this.emitSection();
+  }
+
+  /** The unfolded section as a PNG at report resolution, with its title, chainage and elevation, legend and scale. */
+  async exportSection(): Promise<void> {
+    const c = this.cut;
+    const s = this.cutSection;
+    if (!c || !s) return;
+    const camera = this.cameraState();
+    const ticks = this.show.ticks;
+    const folded = !c.unfolded && !this.plan;
+    if (folded) this.setUnfolded(true, false);
+    else if (this.plan) {
+      this.setView(0, 90);
+      this.fit();
+    }
+    this.show.ticks = true;
+    this.axes.show = { ...this.axes.show, ticks: true };
+    const o = this.spec.origin;
+    const title = this.plan
+      ? `Plan at ${formatLength(c.z + o[2])} ${this.lengthUnit()}, ${this.length(s.half * 2)} thick`.trim()
+      : `Section ${formatLength(cutAzimuth(c.points))}°, ${this.length(s.length)} long, ${this.length(s.half * 2)} wide`;
+    const blob = await this.screenshot(3, false, false, title);
+    this.show.ticks = ticks;
+    this.axes.show = { ...this.axes.show, ticks };
+    if (folded) this.setUnfolded(false, false);
+    this.restoreCamera(camera);
+    this.requestRender();
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "section.png";
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   }
 
   /** Lays the section out flat, distance along it to the right and elevation up, or folds it back. */
@@ -1780,7 +1894,10 @@ export class Viewer {
 
   clearSection(): void {
     if (this.drawing) this.endDrawing();
-    else if (this.cut) this.setCut(null);
+    else if (this.cut) {
+      this.leavePlan();
+      this.setCut(null);
+    }
   }
 
   setWidth(width: number): void {
@@ -1815,6 +1932,7 @@ export class Viewer {
   /** Switches to a plan view where clicks add the vertices of a polyline. */
   private startDrawing(): void {
     this.endQuick();
+    this.leavePlan();
     if (this.cut?.unfolded) this.setUnfolded(false);
     this.drawing = { points: [], cursor: null, shift: false, view: this.cameraState() };
     this.controls.enableRotate = false;
@@ -2011,7 +2129,9 @@ export class Viewer {
     const forward = this.camera.getWorldDirection(new THREE.Vector3()).toArray() as Vec3;
     const ends = pickCut([this.ray(from), this.ray(to)], center, forward);
     const points = ends?.map((p) => [p[0], p[1]] as XY) ?? [];
-    if (distinct(points).length === 2) this.setCut({ points, z: center[2], unfolded: false });
+    if (distinct(points).length !== 2) return;
+    this.leavePlan();
+    this.setCut({ points, z: center[2], unfolded: false });
   }
 
   private endQuick(): void {
@@ -2083,7 +2203,88 @@ export class Viewer {
     const hint = document.createElement("div");
     hint.className = "btv-note btv-hint";
     this.sectionControls = { width: width.inputs, dip: dip.inputs, hint };
-    box.append(label("Cut"), tools, label("Width"), width.row, label("Dip"), dip.row, hint);
+    tool("exportImage", "Export the section as a PNG", false, !!c && !this.drawing, () => void this.exportSection());
+    const chip = (text: string, title: string, action: () => void) => {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = "btv-chip";
+      b.textContent = text;
+      b.title = title;
+      b.addEventListener("click", action);
+      return b;
+    };
+    const presets = document.createElement("div");
+    presets.className = "btv-chips";
+    presets.append(
+      chip("N–S", "Upright section north to south through the middle", () => this.cutAlong(0)),
+      chip("E–W", "Upright section east to west through the middle", () => this.cutAlong(90)),
+      chip("Model", "Along the block model's x axis", () => this.cutAlong(this.modelAzimuth())),
+      chip("Long", "Along the current section, or the model's x axis", () => this.orthogonal("long")),
+      chip("Cross", "Square to the current section, or along the model's y axis", () => this.orthogonal("cross")),
+      chip("Plan", "Level slab at the elevation below, seen from above", () => this.planAtZ(this.planZ ?? undefined)),
+    );
+    const o = this.spec.origin;
+    const m = this.middle();
+    const typed = (title: string, value: number) => {
+      const el = document.createElement("input");
+      el.type = "number";
+      el.step = "any";
+      el.title = title;
+      el.setAttribute("aria-label", title);
+      el.value = formatLength(value);
+      return el;
+    };
+    const at = c && !this.plan ? distinct(c.points) : null;
+    const center = at ? [(at[0][0] + at[at.length - 1][0]) / 2, (at[0][1] + at[at.length - 1][1]) / 2] : [m[0], m[1]];
+    const east = typed("Origin easting", center[0] + o[0]);
+    const north = typed("Origin northing", center[1] + o[1]);
+    const azimuth = typed("Azimuth, degrees from north", at ? cutAzimuth(at) : 0);
+    const origin = document.createElement("div");
+    origin.className = "btv-range";
+    origin.append(
+      east,
+      north,
+      azimuth,
+      chip("Cut", "Cut through this origin along this azimuth", () => {
+        const v = [east, north, azimuth].map((el) => Number(el.value));
+        if (v.every(Number.isFinite)) this.cutAlong(v[2], [v[0] - o[0], v[1] - o[1]]);
+      }),
+    );
+    const stepRow = document.createElement("div");
+    stepRow.className = "btv-range";
+    const spacing = typed("Step between cuts", this.step());
+    spacing.addEventListener("change", () => {
+      const v = Number(spacing.value);
+      if (v > 0) this.stepWidth = v;
+    });
+    const stepButton = (sign: 1 | -1) => {
+      const b = iconButton(sign > 0 ? "stepForward" : "stepBack", sign > 0 ? "Step forward (])" : "Step back ([)", () => this.stepSection(sign));
+      b.disabled = !c || !!this.drawing;
+      return b;
+    };
+    stepRow.append(stepButton(-1), spacing, stepButton(1));
+    const rl = typed("Elevation of the plan slab", (this.planZ ?? m[2]) + o[2]);
+    rl.addEventListener("change", () => {
+      const v = Number(rl.value);
+      if (Number.isFinite(v)) this.planAtZ(v - o[2]);
+    });
+    box.append(
+      label("Cut"),
+      tools,
+      label("Preset"),
+      presets,
+      label("Origin"),
+      origin,
+      label("Step"),
+      stepRow,
+      label("Plan RL"),
+      rl,
+      label("Width"),
+      width.row,
+      label("Dip"),
+      dip.row,
+      hint,
+    );
     this.syncControls();
     return box;
   }
@@ -2374,6 +2575,8 @@ export class Viewer {
         else this.dismiss();
       },
       measure: () => this.toggleMeasure(),
+      forward: () => this.stepSection(1),
+      back: () => this.stepSection(-1),
     })[action]();
   }
 
@@ -2497,10 +2700,11 @@ export class Viewer {
   }
 
   /**
-   * The current view as a PNG blob at `scale`, in full detail, with color bars, labels and gizmo, the panel if
-   * asked, on a transparent background if asked. The screenshot button and Python both take it.
+   * The current view as a PNG blob at `scale`, in full detail, with color bars, labels, scale bar and gizmo, the
+   * panel if asked, on a transparent background if asked, and `title` at its top left. The screenshot button and
+   * Python both take it.
    */
-  async screenshot(scale: number, panel: boolean, transparent = false): Promise<Blob> {
+  async screenshot(scale: number, panel: boolean, transparent = false, title = ""): Promise<Blob> {
     this.settle.stop();
     await this.idle();
     this.frame();
@@ -2522,6 +2726,13 @@ export class Viewer {
     for (const svg of overlays) {
       const image = await svgImage(new XMLSerializer().serializeToString(svg));
       ctx.drawImage(image, ...place(svg));
+    }
+    if (title) {
+      ctx.font = `600 ${15 * ratio}px system-ui, sans-serif`;
+      ctx.fillStyle = this.theme.panel;
+      ctx.fillRect(8 * ratio, 8 * ratio, ctx.measureText(title).width + 16 * ratio, 26 * ratio);
+      ctx.fillStyle = this.theme.text;
+      ctx.fillText(title, 16 * ratio, 26 * ratio);
     }
     if (panel && !this.panel.hidden) {
       try {

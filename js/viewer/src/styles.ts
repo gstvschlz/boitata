@@ -119,6 +119,8 @@ export const CSS = /* css */ `
 .btv-bar-edit input { width: 0; flex: 1; }
 .btv-chip { font: inherit; font-size: 11px; padding: 0 6px; border-radius: 4px; border: 1px solid var(--btv-border);
   background: var(--btv-raised); color: var(--btv-text); cursor: pointer; white-space: nowrap; }
+.btv-chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.btv-chips .btv-chip { padding: 2px 8px; }
 .btv-check { display: flex; align-items: center; gap: 4px; white-space: nowrap; }
 .btv-icon:disabled { opacity: .35; cursor: default; pointer-events: none; }
 .btv-pair input[type=range] { flex: 1; min-width: 0; }
