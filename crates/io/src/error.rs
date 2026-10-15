@@ -24,6 +24,8 @@ pub enum Error {
     GeoTiff(String),
     #[error("SEG-Y: {0}")]
     Segy(String),
+    #[error("VTK: {0}")]
+    Vtk(String),
     #[error("shapefile: {0}")]
     Shapefile(String),
     #[error("line {line}: {message}")]

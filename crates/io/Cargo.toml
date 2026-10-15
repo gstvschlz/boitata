@@ -15,6 +15,7 @@ arrow-schema.workspace = true
 arrow-select.workspace = true
 boitata-core.workspace = true
 dxf.workspace = true
+flate2.workspace = true
 parquet.workspace = true
 rayon.workspace = true
 regex.workspace = true

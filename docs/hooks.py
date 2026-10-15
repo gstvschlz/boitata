@@ -24,7 +24,7 @@ containers: containers and I/O
     Table PointSet BlockModel BlockModelFile Mesh MeshReport Polylines LocalGrid convex_hull grid_surface
     read_csv write_csv read_gslib write_gslib read_parquet write_parquet read_mesh write_mesh
     read_segy write_segy read_shapefile write_shapefile read_geojson write_geojson read_geopackage write_geopackage
-    read_geotiff write_geotiff set_units units
+    read_geotiff write_geotiff read_vtk write_vtk set_units units
 datasets: datasets and plots
     datasets plot plot3d
 drillholes: drill holes and domains
