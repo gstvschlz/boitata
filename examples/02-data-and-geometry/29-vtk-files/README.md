@@ -1,9 +1,9 @@
 # VTK files
 
-`write_vtk` writes a `PointSet`, `Polylines` or `Mesh` as a VTK XML `.vtp` (polydata) or `.vtu` (unstructured grid)
-file, which 3D viewers and VTK-based tools open with their columns. `read_vtk` reads either back to the same
-container, whether the file is ASCII, binary or appended, compressed or not. you write a vein of the grade-control
-dataset with a column per vertex and per triangle, and points around it with their distance to the vein.
+`write_vtk` writes a `PointSet`, `Polylines`, `Mesh` or `BlockModel` as a VTK XML file, which 3D viewers and
+VTK-based tools open with their columns. `read_vtk` reads it back to the same container, whether the file is ASCII,
+binary or appended, compressed or not. you write a vein of the grade-control dataset with a column per vertex and
+per triangle, points around it with their distance to the vein, and the blocks near it.
 
 <details><summary>Python</summary>
 
@@ -85,5 +85,60 @@ save(fig, "vtk")
 </details>
 
 ![vtk](vtk.png)
+
+## grids
+
+a `BlockModel` goes to `.vti` (image data): the origin, cell sizes and counts, and the rotation as the grid's
+`Direction`. a masked model writes every cell and hides the absent ones with `vtkGhostType`, which viewers skip
+and `read_vtk` drops again. `.vtu` holds one hexahedron per block and takes sub-blocks too; `read_vtk` rebuilds
+the grid when the hexahedra are equal boxes on one lattice. `read_vtk` also reads `.vtr` and `.vts` grids,
+to a `BlockModel` when their spacing is regular and to the cell centers otherwise.
+
+grid values stored on the nodes (point data) are not cell values: a file with point data only comes back as the
+nodes, and `point_data=True` returns them from any file.
+
+<details><summary>Python</summary>
+
+```python
+grid = bt.BlockModel.from_extents(vein, size=(10, 10, 10), buffer=20, rotation=(-15, 0, 0))
+grid = grid.with_column("distance", vein.distance(grid.coords))
+shell = grid.filter(grid["distance"] < 15)
+print(shell)
+for file in ("shell.vti", "shell.vtu"):
+    bt.write_vtk(folder / file, shell)
+    back = bt.read_vtk(folder / file)
+    print(
+        f"{file:>9}: {(folder / file).stat().st_size / 1e3:6.0f} kB, {len(back)} blocks, same: "
+        f"{np.allclose(back.coords, shell.coords) and np.array_equal(back['distance'], shell['distance'])}"
+    )
+nodes = bt.read_vtk(folder / "shell.vti", point_data=True)
+print(f"nodes of the grid: {len(nodes)}")
+```
+
+</details>
+
+```text
+BlockModel(masked, 11376 of 88000 cells, count [20, 88, 50], size [10.0, 10.0, 10.0], rotation [-15.0, 0.0, 0.0])
+  distance: Float64
+shell.vti:    881 kB, 11376 blocks, same: True
+shell.vtu:   3107 kB, 11376 blocks, same: True
+nodes of the grid: 95319
+```
+
+<details><summary>Python</summary>
+
+```python
+back = bt.read_vtk(folder / "shell.vti")
+level = np.isclose(back.z, np.median(back.z))
+fig, ax = plt.subplots(figsize=(7, 5), layout="constrained")
+image = ax.scatter(back.x[level], back.y[level], c=back["distance"][level], s=12, marker="s", cmap="cividis")
+fig.colorbar(image, ax=ax, shrink=0.8, label="distance to the vein (m)")
+map_axes(ax, "Blocks within 15 m of the vein, read back from shell.vti")
+save(fig, "grid")
+```
+
+</details>
+
+![grid](grid.png)
 
 Full script: [`example_02_29.py`](example_02_29.py)

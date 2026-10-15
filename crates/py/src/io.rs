@@ -384,33 +384,66 @@ fn write_shapefile(path: PathBuf, data: &Bound<PyAny>) -> PyResult<()> {
     boitata_io::write_shapefile(path, &points.get().0).map_err(io_error)
 }
 
-/// Reads a VTK XML `.vtp` or `.vtu` file.
+/// Reads a VTK XML `.vtp`, `.vtu`, `.vti`, `.vtr` or `.vts` file.
 ///
 /// Parameters
 /// ----------
 /// path : str or Path
 ///     The file, in ASCII, binary or appended encoding, zlib-compressed or not.
+/// point_data : bool, default False
+///     Return the points (grid nodes) with the point data as a PointSet,
+///     whatever the cells.
+/// nodata : sequence of float, optional
+///     Values read as null, default -99, -999 and 1e21. NaN is always null.
 /// length_unit : str, optional
 ///     Unit of the coordinates.
 ///
 /// Returns
 /// -------
-/// PointSet, Polylines or Mesh
-///     Surface cells (triangles, strips, quads, polygons) give a Mesh with
-///     point data as vertex columns and cell data as face columns. Otherwise
-///     line cells give Polylines, one part per cell, closed when it ends where
-///     it starts; cells sharing a ``feature`` value form one feature and cell
-///     data become feature columns. Otherwise the points and their point data
-///     give a PointSet. Arrays with several components become ``name_0``,
-///     ``name_1``, ...; float32 arrays stay float32, the rest become float64.
-///     NaN reads as null, and so does every value whose ``<name>_valid``
-///     array is 0.
+/// PointSet, Polylines, Mesh or BlockModel
+///     In `.vtp` and `.vtu` files, surface cells (triangles, strips, quads,
+///     polygons) give a Mesh with point data as vertex columns and cell data
+///     as face columns. Otherwise line cells give Polylines, one part per
+///     cell, closed when it ends where it starts; cells sharing a ``feature``
+///     value form one feature and cell data become feature columns. Otherwise
+///     cells that are all hexahedra or voxels are read as blocks, and anything
+///     else gives the points with their point data.
+///
+///     Grid files and hexahedra give a BlockModel of the cell data when the
+///     cells are equal boxes on a lattice, rotated by the grid axes (the
+///     ``Direction`` of a `.vti`). The model is masked when cells are missing
+///     or hidden by ``vtkGhostType``. Other grids give a PointSet of the cell
+///     centers. A grid file with point data and no cell data gives the
+///     PointSet of its nodes: point values are never taken as cell values. A
+///     flat axis (one node layer) makes cells one spacing thick (1 in `.vtr`
+///     and `.vts`) centered on the nodes.
+///
+///     Arrays with several components become ``name_0``, ``name_1``, ...;
+///     float32 arrays stay float32, the rest become float64. Values whose
+///     ``<name>_valid`` array is 0 are null.
 #[pyfunction]
-#[pyo3(signature = (path, *, length_unit=None))]
-fn read_vtk(py: Python, path: PathBuf, length_unit: Option<String>) -> PyResult<Py<PyAny>> {
+#[pyo3(signature = (path, *, point_data=false, nodata=None, length_unit=None))]
+fn read_vtk(
+    py: Python,
+    path: PathBuf,
+    point_data: bool,
+    nodata: Option<Vec<f64>>,
+    length_unit: Option<String>,
+) -> PyResult<Py<PyAny>> {
     let length_unit = crate::table::length_unit(length_unit)?;
+    let nodata = match nodata {
+        Some(v) => v.into_iter().map(Nodata::Number).collect(),
+        None => boitata_io::default_nodata(),
+    };
     Ok(
-        match py.detach(|| boitata_io::read_vtk(path)).map_err(io_error)? {
+        match py
+            .detach(|| boitata_io::read_vtk(path, point_data, &nodata))
+            .map_err(io_error)?
+        {
+            Vtk::Blocks(mut b) => {
+                b.length_unit = length_unit;
+                Py::new(py, PyBlockModel(b))?.into_any()
+            }
             Vtk::Points(mut p) => {
                 p.length_unit = length_unit;
                 Py::new(py, PyPointSet(p))?.into_any()
@@ -427,27 +460,31 @@ fn read_vtk(py: Python, path: PathBuf, length_unit: Option<String>) -> PyResult<
     )
 }
 
-/// Writes a PointSet, Polylines or Mesh as a VTK XML `.vtp` or `.vtu` file.
+/// Writes a PointSet, Polylines, Mesh or BlockModel as a VTK XML file.
 ///
 /// Parameters
 /// ----------
 /// path : str or Path
-///     The file; its extension picks the format.
-/// data : PointSet, Polylines or Mesh
+///     The `.vtp`, `.vtu` or `.vti` file; its extension picks the format.
+/// data : PointSet, Polylines, Mesh or BlockModel
 ///     Points become vertex cells with their columns as point data. Each
 ///     polyline part becomes a polyline cell, closed parts repeating their
 ///     first point, with the feature columns and a ``feature`` index as cell
 ///     data. A mesh writes its triangles with vertex columns as point data and
-///     face columns as cell data. Numeric and bool columns are written,
-///     float32 as Float32 and the rest as Float64; a column with nulls writes
-///     them as NaN plus a UInt8 ``<name>_valid`` array.
+///     face columns as cell data. A BlockModel goes to `.vti` as image data
+///     (regular or masked, its rotation as ``Direction``, absent cells hidden
+///     by ``vtkGhostType``) or to `.vtu` as one hexahedron per row (any
+///     layout), its columns as cell data. Numeric and bool columns are
+///     written, float32 as Float32 and the rest as Float64; a column with
+///     nulls writes them as NaN plus a UInt8 ``<name>_valid`` array.
 /// ascii : bool, default False
 ///     Write ASCII arrays instead of appended raw binary.
 ///
 /// Raises
 /// ------
 /// InvalidInput
-///     For text columns.
+///     For text columns, a BlockModel in a `.vtp`, any other container or a
+///     sub-blocked model in a `.vti`, and `.vtr` or `.vts` files.
 #[pyfunction]
 #[pyo3(signature = (path, data, *, ascii=false))]
 fn write_vtk(py: Python, path: PathBuf, data: &Bound<PyAny>, ascii: bool) -> PyResult<()> {
@@ -457,8 +494,12 @@ fn write_vtk(py: Python, path: PathBuf, data: &Bound<PyAny>, ascii: bool) -> PyR
         Vtk::Polylines(l.get().0.clone())
     } else if let Ok(m) = data.cast::<Mesh>() {
         Vtk::Mesh(m.get().mesh.clone())
+    } else if let Ok(b) = data.cast::<PyBlockModel>() {
+        Vtk::Blocks(b.get().0.clone())
     } else {
-        return Err(invalid("data must be a PointSet, Polylines or Mesh"));
+        return Err(invalid(
+            "data must be a PointSet, Polylines, Mesh or BlockModel",
+        ));
     };
     py.detach(|| boitata_io::write_vtk(path, &data, ascii))
         .map_err(io_error)
