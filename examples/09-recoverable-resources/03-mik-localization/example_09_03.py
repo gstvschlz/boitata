@@ -74,8 +74,8 @@ cutoffs = np.linspace(0, 1000, 41)
 
 
 def empirical(values):
-    tonnage = np.array([(values > c).mean() for c in cutoffs])
-    grade = np.array([values[values > c].mean() if (values > c).any() else np.nan for c in cutoffs])
+    tonnage = np.array([(values >= c).mean() for c in cutoffs])
+    grade = np.array([values[values >= c].mean() if (values >= c).any() else np.nan for c in cutoffs])
     return tonnage, grade
 
 

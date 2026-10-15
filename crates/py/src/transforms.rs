@@ -2337,7 +2337,7 @@ fn despike<'py>(
 ///     Probabilities of quantile columns ``P10``, ``P50``, ...
 /// cutoffs : sequence of float, optional
 ///     Cutoffs of proportion columns ``above 1.5``, ...: the fraction of
-///     values above each cutoff.
+///     values at or above each cutoff.
 ///
 /// Returns
 /// -------

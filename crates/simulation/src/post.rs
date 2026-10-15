@@ -191,9 +191,10 @@ pub struct ContinuousSummary {
     /// Population variance across realizations.
     pub variance: Vec<f64>,
     pub cutoffs: Vec<f64>,
-    /// Fraction of realizations above each cutoff.
+    /// Fraction of realizations at or above each cutoff (`v >= cutoff`, the
+    /// rule of the grade–tonnage curves).
     pub probability_above: Vec<Vec<f64>>,
-    /// Mean of the values above each cutoff; NaN where none is.
+    /// Mean of the values at or above each cutoff; NaN where none is.
     pub mean_above: Vec<Vec<f64>>,
     pub quantiles: Vec<f64>,
     pub quantile_values: Vec<Vec<f64>>,
@@ -204,7 +205,7 @@ pub struct ContinuousSummary {
     pub precision: Vec<Vec<f64>>,
     /// Mean of each realization over all targets.
     pub realization_mean: Vec<f64>,
-    /// Fraction of targets above each cutoff in each realization.
+    /// Fraction of targets at or above each cutoff in each realization.
     pub realization_above: Vec<Vec<f64>>,
     /// Indices of the kept realizations, ascending.
     pub kept: Vec<usize>,
@@ -279,7 +280,7 @@ impl ContinuousSummary {
 
     /// Checks the summary against `truth`, one value per row. `cutoff`,
     /// `(cutoff, probability)`, classifies a row as ore where the fraction of
-    /// realizations above the cutoff, which must be one of `cutoffs`, is at
+    /// realizations at or above the cutoff, which must be one of `cutoffs`, is at
     /// least `probability`.
     pub fn validate(
         &self,
@@ -328,8 +329,8 @@ impl ContinuousSummary {
                 .iter()
                 .map(|&p| p >= probability)
                 .collect();
-            type_1 = Some((0..t.len()).map(|i| ore[i] && t[i] <= cut).collect());
-            type_2 = Some((0..t.len()).map(|i| !ore[i] && t[i] > cut).collect());
+            type_1 = Some((0..t.len()).map(|i| ore[i] && t[i] < cut).collect());
+            type_2 = Some((0..t.len()).map(|i| !ore[i] && t[i] >= cut).collect());
         }
         Ok(Validation {
             truth: truth.to_vec(),
@@ -352,9 +353,9 @@ pub struct Validation {
     pub error: Vec<f64>,
     /// `|truth − mean| / |mean|` within the relative error at the confidence.
     pub covered: Vec<bool>,
-    /// Classified ore while the truth is at or below the cutoff.
+    /// Classified ore while the truth is below the cutoff.
     pub type_1: Option<Vec<bool>>,
-    /// Classified waste while the truth is above the cutoff.
+    /// Classified waste while the truth is at or above the cutoff.
     pub type_2: Option<Vec<bool>>,
 }
 
@@ -615,7 +616,7 @@ impl<'a> Accumulator<'a> {
         for (c, &cut) in self.options.cutoffs.iter().enumerate() {
             let mut count = 0usize;
             for (i, &v) in values.iter().enumerate() {
-                if v > cut {
+                if v >= cut {
                     self.above[c][i] += 1;
                     self.sum_above[c][i] += v;
                     count += 1;
@@ -1357,7 +1358,7 @@ mod tests {
             let var = col.iter().map(|v| (v - mean).powi(2)).sum::<f64>() / 23.0;
             assert!((s.mean[i] - mean).abs() < 1e-12);
             assert!((s.variance[i] - var).abs() < 1e-9);
-            let high: Vec<f64> = col.iter().copied().filter(|&v| v > 4.5).collect();
+            let high: Vec<f64> = col.iter().copied().filter(|&v| v >= 4.5).collect();
             assert_eq!(s.probability_above[0][i], high.len() as f64 / 23.0);
             let mean_high = high.iter().sum::<f64>() / high.len() as f64;
             assert!((s.mean_above[0][i] - mean_high).abs() < 1e-12);
@@ -1453,6 +1454,42 @@ mod tests {
             ..Default::default()
         };
         assert!(continuous(1, &bad, |k| Ok(grades(k))).is_err());
+    }
+
+    #[test]
+    fn probability_and_tonnage_count_values_at_the_cutoff() {
+        // Realization k has zero grade at nodes 0..=k, grade 1 after them.
+        let grades = |k: usize| {
+            (0..4)
+                .map(|i| if i > k { 1.0 } else { 0.0 })
+                .collect::<Vec<_>>()
+        };
+        let options = ContinuousOptions {
+            cutoffs: vec![0.0, 1.0],
+            quantiles: vec![0.05, 0.95],
+            tonnage: Some(TonnageOptions {
+                cutoffs: vec![0.0, 1.0],
+                tonnes: vec![1.0; 4],
+                categories: None,
+                names: vec![],
+            }),
+            ..Default::default()
+        };
+        let s = continuous(4, &options, |k| Ok(grades(k))).unwrap();
+        let t = s.grade_tonnage.as_ref().unwrap();
+        assert_eq!(s.probability_above[0], vec![1.0; 4]);
+        assert_eq!(s.realization_above[0], vec![1.0; 4]);
+        assert_eq!(t.tonnage[0][0], vec![4.0; 4]);
+        assert_eq!(s.probability_above[1], vec![0.0, 0.25, 0.5, 0.75]);
+        for (c, row) in t.tonnage[0].iter().enumerate() {
+            let share: Vec<f64> = row.iter().map(|w| w / 4.0).collect();
+            assert_eq!(share, s.realization_above[c]);
+        }
+        let v = s
+            .validate(&[1.0, 0.0, 1.0, 0.0], 0.9, Some((1.0, 0.5)))
+            .unwrap();
+        assert_eq!(v.type_1, Some(vec![false, false, false, true]));
+        assert_eq!(v.type_2, Some(vec![true, false, false, false]));
     }
 
     #[test]
@@ -1866,7 +1903,7 @@ mod tests {
                 let mean = col.iter().sum::<f64>() / 21.0;
                 let var = col.iter().map(|v| (v - mean).powi(2)).sum::<f64>() / 21.0;
                 assert!((s.mean[i] - mean).abs() < 1e-9 && (s.variance[i] - var).abs() < 1e-9);
-                let above = col.iter().filter(|&&v| v > 8.0).count() as f64 / 21.0;
+                let above = col.iter().filter(|&&v| v >= 8.0).count() as f64 / 21.0;
                 assert_eq!(s.probability_above[0][i], above);
                 col.sort_by(f64::total_cmp);
                 assert_eq!(s.quantile_values[2][i], quantile_sorted(&col, 0.9));

@@ -380,11 +380,11 @@ impl SimulationSummary {
     ///     `relative_error` at this confidence; needs the matching
     ///     quantiles, 0.05 and 0.95 for 0.9.
     /// cutoff : float, optional
-    ///     Classifies each row as ore where the probability above `cutoff`,
+    ///     Classifies each row as ore where the probability at or above `cutoff`,
     ///     which `simulate(cutoffs=)` must have requested, is at least
     ///     `probability`.
     /// probability : float, default 0.5
-    ///     Probability above `cutoff` from which a row is ore.
+    ///     Probability at or above `cutoff` from which a row is ore.
     ///
     /// Returns
     /// -------
@@ -393,9 +393,9 @@ impl SimulationSummary {
     ///     positive where the mean overestimates, NaN where the truth is
     ///     0), ``covered`` (``|truth - mean| / |mean|`` within the MEE, false
     ///     where the truth or the MEE is NaN), and
-    ///     with `cutoff`, ``type_1`` (classified ore while the truth is at or
-    ///     below the cutoff) and ``type_2`` (classified waste while the truth
-    ///     is above it). One row per summary row.
+    ///     with `cutoff`, ``type_1`` (classified ore while the truth is below
+    ///     the cutoff) and ``type_2`` (classified waste while the truth is at
+    ///     or above it). One row per summary row.
     ///
     /// Raises
     /// ------
@@ -450,14 +450,15 @@ impl SimulationSummary {
         self.0.cutoffs.clone()
     }
 
-    /// `(targets, cutoffs)` fraction of realizations above each cutoff.
+    /// `(targets, cutoffs)` fraction of realizations at or above each cutoff,
+    /// the rule of `grade_tonnage`.
     #[getter]
     fn probability_above<'py>(&self, py: Python<'py>) -> Bound<'py, PyArray2<f64>> {
         by_target(py, &self.0.probability_above, self.0.mean.len())
     }
 
-    /// `(targets, cutoffs)` mean of the values above each cutoff; NaN where
-    /// no realization is above it.
+    /// `(targets, cutoffs)` mean of the values at or above each cutoff; NaN
+    /// where no realization is.
     #[getter]
     fn mean_above<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         crate::units::tag(
@@ -489,7 +490,7 @@ impl SimulationSummary {
         )
     }
 
-    /// `(n, cutoffs)` fraction of targets above each cutoff in each realization.
+    /// `(n, cutoffs)` fraction of targets at or above each cutoff in each realization.
     #[getter]
     fn realization_above<'py>(&self, py: Python<'py>) -> Bound<'py, PyArray2<f64>> {
         by_target(py, &self.0.realization_above, self.0.n)
@@ -1380,7 +1381,7 @@ impl Sgs {
 
     /// Summary of `n` realizations at `targets`, each seeded from `seed` and
     /// its index,
-    /// with the probability and mean above each of `cutoffs` and the values at
+    /// with the probability and mean at or above each of `cutoffs` and the values at
     /// `quantiles`; the ``(n, targets)`` realizations only when `keep`.
     /// `anisotropy` (a LocalAnisotropy) orients each node's variogram and search.
     /// With `blocks` (a coarser BlockModel), each realization is averaged to
@@ -1920,7 +1921,7 @@ impl Dss {
     /// n : int, default 100
     /// seed : int, default 0
     /// cutoffs : sequence of float or str, optional
-    ///     Grades for the probability and mean above, in the unit of the
+    ///     Grades for the probability and mean at or above, in the unit of the
     ///     values or as text such as ``"0.5 g/t"``.
     /// quantiles : sequence of float, optional
     ///     Probabilities for the values at quantiles.
