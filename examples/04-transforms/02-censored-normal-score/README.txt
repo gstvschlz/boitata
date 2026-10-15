@@ -1,1 +1,1 @@
-## censored normal-score transform
+## Censored normal-score transform

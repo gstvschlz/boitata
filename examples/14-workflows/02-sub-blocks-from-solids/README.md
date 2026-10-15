@@ -135,7 +135,7 @@ is mostly such slivers.
     the solid outlines.
 
 !!! step "Step 3: Look at a section"
-    A vertical east–west section across V1 and V4 at northing 15 000.3 m, with the vein outlines. The northing
+    A vertical east-west section across V1 and V4 at northing 15 000.3 m, with the vein outlines. The northing
     falls between sub-cell faces, so the section cuts each cell once.
 
 <details><summary>Python</summary>

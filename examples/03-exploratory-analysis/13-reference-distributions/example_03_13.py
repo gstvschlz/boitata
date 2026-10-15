@@ -1,10 +1,10 @@
 """
-# reference distributions
+# Reference distributions
 
-a normal-score transform built on the data alone knows nothing beyond the highest and lowest sample: with few or
-clustered samples, the tails follow a straight line toward chosen bounds. a reference distribution fitted to the data
-fills them smoothly. `KernelDensity` spreads a weighted gaussian kernel over each sample, bounded by reflection or in
-log space. `GaussianMixture` fits a few gaussians by expectation-maximization, for one variable or several. pass
+A normal-score transform built on the data alone knows nothing beyond the highest and lowest sample: with few or
+clustered samples, the tails follow a straight line toward chosen bounds. A reference distribution fitted to the data
+fills them smoothly. `KernelDensity` spreads a weighted Gaussian kernel over each sample, bounded by reflection or in
+log space. `GaussianMixture` fits a few Gaussians by expectation-maximization, for one variable or several. Pass
 either one as `NormalScore(reference=...)` to replace the empirical CDF of the data.
 """
 
@@ -34,12 +34,12 @@ print(
 print(f"highest {np.sort(au)[-3:].round(1)} g/t")
 
 # %% [markdown]
-# ## a smooth tail for one variable
+# ## A smooth tail for one variable
 #
-# vein V4 of [top cuts](../../03-exploratory-analysis/05-top-cuts/README.md) has about a hundred composites. the
+# Vein V4 of [top cuts](../../03-exploratory-analysis/05-top-cuts/README.md) has about a hundred composites. The
 # empirical table stops at the highest one, and above it scores map linearly in probability to the upper tail bound,
-# here that same maximum. three kernel densities, all fitted with the declustering weights and kept above zero: one
-# reflects its kernels at 0 g/t, and two put them on log Au. silverman's rule sets the width from the spread of the
+# here that same maximum. Three kernel densities, all fitted with the declustering weights and kept above zero: one
+# reflects its kernels at 0 g/t, and two put them on log Au. Silverman's rule sets the width from the spread of the
 # weighted data and its effective number of samples; the last density takes a narrower width of 0.3 log units.
 
 # %%
@@ -56,7 +56,7 @@ for name, kde in references.items():
     )
 
 # %% [markdown]
-# back-transforming a large standard-normal sample reads the distribution of each reference: its mean, its upper
+# Back-transforming a large standard-normal sample reads the distribution of each reference: its mean, its upper
 # quantiles, and how often it goes past the highest composite.
 
 # %%
@@ -69,47 +69,47 @@ for name, t in transforms.items():
 
 fig, axes = plt.subplots(1, 2, figsize=(9.5, 3.6), layout="constrained")
 bins = np.logspace(np.log10(au.min()), np.log10(au.max()), 25)
-axes[0].hist(au, bins=bins, weights=weights / weights.sum(), color=LIGHT, label="declustered data")
+axes[0].hist(au, bins=bins, weights=weights / weights.sum(), color=LIGHT, label="Declustered data")
 grid = np.logspace(-2.5, 3, 400)
 width = np.log10(bins[1] / bins[0])
 styles = {"empirical": (GRAY, "-"), "reflected at 0": (ACCENT, ":"), "log space": (ACCENT, "-")}
 styles["log, width 0.3"] = (HIGHLIGHT, "-")
 for name, kde in references.items():
     color, ls = styles[name]
-    axes[0].plot(grid, kde.pdf(grid) * grid * np.log(10) * width, color=color, ls=ls, label=name)
+    axes[0].plot(grid, kde.pdf(grid) * grid * np.log(10) * width, color=color, ls=ls, label=name.capitalize())
 axes[0].set(xscale="log", xlabel="Au (g/t)", ylabel="Proportion per bin", title="Densities")
 axes[0].legend(loc="upper left")
 scores = np.linspace(-4, 4, 400)
 for name, t in transforms.items():
     color, ls = styles[name]
-    axes[1].plot(scores, t.inverse_transform(scores), color=color, ls=ls, label=name)
+    axes[1].plot(scores, t.inverse_transform(scores), color=color, ls=ls, label=name.capitalize())
 axes[1].axhline(au.max(), color=GRAY, lw=0.6, ls=":")
 axes[1].set(yscale="log", xlabel="Normal score", ylabel="Au (g/t)", title="Back-transform")
 axes[1].legend()
 save(fig, "tails")
 
 # %% [markdown]
-# the empirical table never goes past 215 g/t, and the reflected kernels pass it by only a few g/t (P99.9 220 g/t).
-# sized on the body at 4.1 g/t wide, they leave each high composite a spike of its own. kernels on log Au widen with the
-# grade and carry the tail well past the highest composite, with P99.9 at 594 g/t for the silverman width. a wide log
-# kernel inflates the mean by about exp(h²/2), 1.25 for h = 0.67, which lifts 15.95 g/t to 20.0. the width of 0.3 keeps
-# the mean within 5 % (16.7 g/t) and still sets P99.9 at 323 g/t. compare the mean of a reference with the declustered
+# The empirical table never goes past 215 g/t, and the reflected kernels pass it by only a few g/t (P99.9 220 g/t).
+# Sized on the body at 4.1 g/t wide, they leave each high composite a spike of its own. Kernels on log Au widen with the
+# grade and carry the tail well past the highest composite, with P99.9 at 594 g/t for the Silverman width. A wide log
+# kernel inflates the mean by about exp(h²/2), 1.25 for h = 0.67, which lifts 15.95 g/t to 20.0. The width of 0.3 keeps
+# the mean within 5 % (16.7 g/t) and still sets P99.9 at 323 g/t. Compare the mean of a reference with the declustered
 # mean before you simulate with it.
 
 # %% [markdown]
-# ## a mixture for two mineral associations
+# ## A mixture for two mineral associations
 #
-# log chalcocite and log tennantite of porphyry 1 form the L-shaped cloud of
+# Log chalcocite and log tennantite of porphyry 1 form the L-shaped cloud of
 # [multivariate transforms](../../04-transforms/05-multivariate-transforms/README.md) and
 # [multivariate simulation](../../08-stochastic-simulation/06-multivariate-simulation/README.md): samples rich in one
-# mineral are poor in the other. one gaussian draws an ellipse over the empty corner, and a mixture of a few follows the
-# arms. with `components` left out, the fit keeps the count from 1 to 6 with the lowest bayesian information criterion
+# mineral are poor in the other. One Gaussian draws an ellipse over the empty corner, and a mixture of a few follows the
+# arms. With `components` left out, the fit keeps the count from 1 to 6 with the lowest Bayesian information criterion
 # (BIC).
 
 # %%
 porphyry = bt.datasets.porphyry_geometallurgy(deposit=1)["synthetic_drillholes"]
 pair = np.log(np.column_stack([porphyry["calcosina"], porphyry["tenantita"]]))
-names = ["log chalcocite (%)", "log tennantite (%)"]
+names = ["Log chalcocite (%)", "Log tennantite (%)"]
 mixture = bt.GaussianMixture(seed=0).fit(pair)
 print(f"{len(pair)} composites; BIC by number of components:")
 print("  " + ", ".join(f"{k}: {b:.0f}" for k, b in mixture.bic_.items()))
@@ -135,15 +135,15 @@ axes[0].set_ylabel(names[1])
 save(fig, "mixture")
 
 # %% [markdown]
-# with 6817 samples, BIC keeps falling up to six components, because the stripes at the detection limits reward more.
-# narrow components follow the stripes along the arms of the L and wide ones the scattered samples. a sample of the
-# mixture leaves the corner nearly empty, where the single gaussian fills it. that sample is a smooth reference for both
+# With 6817 samples, BIC keeps falling up to six components, because the stripes at the detection limits reward more.
+# Narrow components follow the stripes along the arms of the L and wide ones the scattered samples. A sample of the
+# mixture leaves the corner nearly empty, where the single Gaussian fills it. That sample is a smooth reference for both
 # variables at once, as large as you need.
 #
-# ## imputation with a mixture
+# ## Imputation with a mixture
 #
 # `GaussianImputer(components=...)` fits the mixture to the normal scores and draws a missing score from the component
-# its row belongs to, given its present scores. hide tennantite in every other hole and impute it back:
+# its row belongs to, given its present scores. Hide tennantite in every other hole and impute it back:
 
 # %%
 hole_ids = porphyry["DHID"]
@@ -170,8 +170,8 @@ axes[0].set_ylabel(names[1])
 save(fig, "imputed")
 
 # %% [markdown]
-# of the hidden samples, 3.5 % have both minerals above their P80. one gaussian imputes 5.6 %: it draws tennantite from
-# the correlation of the scores alone, and that correlation is weak, so high chalcocite gets typical tennantite. the
-# mixture imputes 3.6 %, because it first picks the arm of the L that the chalcocite of the sample points to. the
-# one-gaussian imputer of [imputation](../../04-transforms/06-imputation/README.md) stays the default; `components=None`
+# Of the hidden samples, 3.5 % have both minerals above their P80. One Gaussian imputes 5.6 %: it draws tennantite from
+# the correlation of the scores alone, and that correlation is weak, so high chalcocite gets typical tennantite. The
+# mixture imputes 3.6 %, because it first picks the arm of the L that the chalcocite of the sample points to. The
+# one-Gaussian imputer of [imputation](../../04-transforms/06-imputation/README.md) stays the default; `components=None`
 # lets BIC decide.

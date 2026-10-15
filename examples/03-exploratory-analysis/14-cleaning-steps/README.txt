@@ -1,1 +1,1 @@
-## cleaning steps
+## Cleaning steps

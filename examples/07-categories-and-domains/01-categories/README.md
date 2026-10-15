@@ -1,7 +1,7 @@
-# categories
+# Categories
 
 107 sonic holes drill a tailings storage facility and log it as cover (CAP), sand (SAND), slimes (SLIME) and the clay
-of the original ground (CLAY). a `Categories` scheme fixes the order, names and colors of the codes once, so shares,
+of the original ground (CLAY). A `Categories` scheme fixes the order, names and colors of the codes once, so shares,
 plots and later models agree on them.
 
 <details><summary>Python</summary>
@@ -26,7 +26,7 @@ print(
 ```
 
 `encode` turns the logged names into integer codes in the order of the scheme, NaN for an unknown name. `shares`
-gives the proportion of each code, by count or weighted. interval lengths differ a hundredfold, so the shares by
+gives the proportion of each code, by count or weighted. Interval lengths differ a hundredfold, so the shares by
 length describe the facility.
 
 <details><summary>Python</summary>
@@ -50,7 +50,7 @@ SLIME  47.7% of intervals  38.6% of length
 CLAY    2.9% of intervals  11.0% of length
 ```
 
-SLIME appears as often as SAND in thinner intervals, and the few CLAY intervals are long. by length, SLIME falls
+SLIME appears as often as SAND in thinner intervals, and the few CLAY intervals are long. By length, SLIME falls
 from 47.7 % to 38.6 % and CLAY rises from 2.9 % to 11.0 %. `plot.proportions` draws the weighted shares as bars and
 the unweighted ones as ticks; `plot.category_swath` stacks the shares per slice, as `swath` does for a grade.
 
@@ -73,10 +73,10 @@ save(fig, "categories")
 
 ![categories](categories.png)
 
-sand dominates the north and slimes the south, where the fines settled; clay sits at the base and cover on top. a
+Sand dominates the north and slimes the south, where the fines settled; clay sits at the base and cover on top. A
 reprocessing plan that treats sand and slimes apart would model them as separate domains.
 
-you can also read a scheme off the data. `Categories.from_values` keeps the names above `min_share` of the weight,
+You can also read a scheme off the data. `Categories.from_values` keeps the names above `min_share` of the weight,
 sorted, and lumps the rest into `other`, last: here CAP, under 5 % of the length.
 
 <details><summary>Python</summary>

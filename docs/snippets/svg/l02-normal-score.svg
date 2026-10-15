@@ -11,13 +11,13 @@
 <line class="s-ember a-draw" style="--d:2.0s" pathLength="1" x1="503.1" y1="92.5" x2="503.1" y2="220" stroke-width="1.8"/>
 <circle class="f-ember a-pop" style="--d:2.4s" cx="503.1" cy="220" r="5"/>
 <circle class="f-ember a-pop" style="--d:1.0s" cx="111.5" cy="220" r="5"/>
-<text x="190" y="84.5" class="small">cumulative probability 0.75</text>
-<text x="40" y="240" class="small">grade</text>
-<text x="350" y="240" class="small">normal score</text>
+<text x="190" y="84.5" class="small">Cumulative probability 0.75</text>
+<text x="40" y="240" class="small">Grade</text>
+<text x="350" y="240" class="small">Normal score</text>
 <text x="475" y="240" class="small" text-anchor="middle">0</text>
 <text x="509.1" y="214" class="small">0.67</text>
-<text x="40" y="30">skewed grades</text>
-<text x="350" y="30">standard normal</text>
+<text x="40" y="30">Skewed grades</text>
+<text x="350" y="30">Standard normal</text>
 <text x="10" y="54" class="small">1</text>
 <text x="10" y="224" class="small">0</text>
 </svg>

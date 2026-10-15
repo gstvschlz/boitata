@@ -1,7 +1,7 @@
-# model checks
+# Model checks
 
-block kriging of walker lake `V` on 10 × 10 m blocks, checked against the declustered samples: the global bias,
-distributions side by side with `validate_model`, and swaths of grade and metal along easting and northing. the
+Block kriging of Walker Lake `V` on 10 × 10 m blocks, checked against the declustered samples: the global bias,
+distributions side by side with `validate_model`, and swaths of grade and metal along easting and northing. The
 exhaustive grid gives the true blocks as a reference.
 
 <details><summary>Python</summary>
@@ -31,9 +31,9 @@ kriged = blocks.with_columns({"value": kriging.predict(blocks), "truth": true_bl
 
 </details>
 
-## global bias
+## Global bias
 
-the mean of the blocks against the declustered mean of the samples. blocks of equal size weigh the same; for
+The mean of the blocks against the declustered mean of the samples. Blocks of equal size weigh the same; for
 volumes or tonnages, pass them as `weights`.
 
 <details><summary>Python</summary>
@@ -52,10 +52,10 @@ print(
 blocks 291.7 ppm, declustered samples 290.7 ppm, bias +0.3%; true blocks 278.0 ppm
 ```
 
-## distributions
+## Distributions
 
 `validate_model` sets the blocks against the samples, naive and declustered, with the true blocks as a reference.
-differences are relative to the declustered samples.
+Differences are relative to the declustered samples.
 
 <details><summary>Python</summary>
 
@@ -81,12 +81,12 @@ model          780    292  0.64    85   265    539      +0.3%       0.54
 reference      780    278  0.78    26   239    576      -4.4%       0.72
 ```
 
-the blocks reproduce the declustered mean within 0.3 %. both sit about 5 % above the truth, a bias no check against
-the samples can see. the blocks are 10 × 10 m averages smoothed by kriging, so their variance is much smaller. the
-true blocks sit in between, since averaging over a block removes part of the sample variance. the cumulative
+The blocks reproduce the declustered mean within 0.3 %. Both sit about 5 % above the truth, a bias no check against
+the samples can see. The blocks are 10 × 10 m averages smoothed by kriging, so their variance is much smaller. The
+true blocks sit in between, since averaging over a block removes part of the sample variance. The cumulative
 distributions show the same smoothing: the blocks have fewer low and high grades than the true blocks, the
 declustered samples more. `bt.plot.grade_tonnage` draws the same comparison as tonnage and grade above cutoff
-([result plots](../../10-checking-models/06-result-plots/README.md)). swaths of metal, grade × area per 20 m slice of easting, show where the estimate puts the metal;
+([result plots](../../10-checking-models/06-result-plots/README.md)). Swaths of metal, grade × area per 20 m slice of easting, show where the estimate puts the metal;
 they add up to the metal of the whole model.
 
 <details><summary>Python</summary>
@@ -95,11 +95,11 @@ they add up to the metal of the whole model.
 fig, axes = plt.subplots(1, 2, figsize=(10, 3.6), layout="constrained")
 bt.plot.cdf([v, kriged["value"], true_blocks], weights=[weights, None, None], ax=axes[0])
 metal = [bt.swath(kriged, g, 20.0, axis="x") for g in ("value", "truth")]
-bt.plot.swath(metal, labels=["blocks", "truth"], y="metal", ax=axes[1])
+bt.plot.swath(metal, labels=["Blocks", "Truth"], y="metal", ax=axes[1])
 for ax, colors in ((axes[0], (GRAY, ACCENT, "black")), (axes[1], (ACCENT, "black"))):
     for line, color in zip(ax.lines, colors, strict=True):
         line.set_color(color)
-axes[0].legend(axes[0].lines, ["declustered samples", "blocks", "truth"])
+axes[0].legend(axes[0].lines, ["Declustered samples", "Blocks", "Truth"])
 axes[1].legend()
 axes[0].set(xlabel="V (ppm)", title="Cumulative distributions")
 axes[1].set(xlabel="Easting (m)", ylabel="Metal (ppm × m²)", title="Metal per 20 m slice")
@@ -110,10 +110,10 @@ save(fig, "distributions")
 
 ![distributions](distributions.png)
 
-## swaths
+## Swaths
 
-swaths reveal local bias: mean grade in 20 m slices along easting and northing, for the blocks, the declustered
-samples and the truth. the blocks track the truth slice by slice and are smoother than the samples, whose slice
+Swaths reveal local bias: mean grade in 20 m slices along easting and northing, for the blocks, the declustered
+samples and the truth. The blocks track the truth slice by slice and are smoother than the samples, whose slice
 means scatter where few samples fall.
 
 <details><summary>Python</summary>
@@ -126,7 +126,7 @@ for ax, axis, name in ((axes[0], "x", "Easting (m)"), (axes[1], "y", "Northing (
         bt.swath(kriged, "value", 20.0, axis=axis),
         bt.swath(kriged, "truth", 20.0, axis=axis),
     ]
-    bt.plot.swath(series, labels=["declustered samples", "blocks", "truth"], ax=ax)
+    bt.plot.swath(series, labels=["Declustered samples", "Blocks", "Truth"], ax=ax)
     for line, color in zip(ax.lines, (GRAY, ACCENT, "black"), strict=True):
         line.set_color(color)
     ax.legend()

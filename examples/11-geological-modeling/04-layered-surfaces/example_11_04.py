@@ -1,9 +1,9 @@
 """
-# layered surfaces
+# Layered surfaces
 
-a phosphate deposit weathered in place: 251 vertical holes log five horizons from the top, soil (`SOIL`), aluminous
+A phosphate deposit weathered in place: 251 vertical holes log five horizons from the top, soil (`SOIL`), aluminous
 laterite (`ALU`), oxidized ore (`OXI`), saprolite (`SAP`) and fresh rock (`ROCK`), under topography gridded at 10 m.
-each horizon base becomes a surface, the surfaces stack into a layered block model, and vertical distances to them
+Each horizon base becomes a surface, the surfaces stack into a layered block model, and vertical distances to them
 place any sample in its layer.
 """
 
@@ -21,9 +21,9 @@ import numpy as np
 from common import ACCENT, GRAY, HIGHLIGHT, INK, LIGHT, map_axes, save
 
 # %% [markdown]
-# ## topography as a surface
+# ## Topography as a surface
 #
-# gridded elevations are a 2D `BlockModel` with a `Z` column; `grid_surface` triangulates them through the block
+# Gridded elevations are a 2D `BlockModel` with a `Z` column; `grid_surface` triangulates them through the block
 # centers. `Mesh.vertical_distance` is a point's elevation minus the surface's at the same easting and northing:
 # the collars sit on the topography.
 
@@ -48,17 +48,17 @@ ax.contour(
     colors=INK,
     linewidths=0.4,
 )
-ax.scatter(xyz[:, 0], xyz[:, 1], s=6, color=HIGHLIGHT, label="collar")
+ax.scatter(xyz[:, 0], xyz[:, 1], s=6, color=HIGHLIGHT, label="Collar")
 map_axes(ax, "Topography, 20 m contours, and 251 collars")
 ax.legend(loc="upper right")
 save(fig, "topography")
 
 # %% [markdown]
-# ## horizon bases
+# ## Horizon bases
 #
-# each horizon's base lies at its `TO` depth along the hole. the contact elevations follow the topography, so the
+# Each horizon's base lies at its `TO` depth along the hole. The contact elevations follow the topography, so the
 # page interpolates the depth below ground instead, by inverse distance on the 10 m grid, and subtracts it from the
-# topography. each hole logs all five horizons, so the four depths get the same weights in each cell: their order
+# topography. Each hole logs all five horizons, so the four depths get the same weights in each cell: their order
 # holds and the surfaces never cross.
 
 # %%
@@ -76,7 +76,7 @@ for name in LAYERS:
     print(f"base of {name}: depth {np.median(depth):5.1f} m median, {bases[name]}")
 
 # %% [markdown]
-# the surfaces leave out cells beyond 400 m of a hole. the thickness of a horizon is the vertical distance from its
+# The surfaces leave out cells beyond 400 m of a hole. The thickness of a horizon is the vertical distance from its
 # base, at each cell center, up to the surface above it; a cell with no base elevation gets NaN.
 
 # %%
@@ -94,9 +94,9 @@ for ax in axes.flat[1::2]:
 save(fig, "thickness")
 
 # %% [markdown]
-# ## samples by layer
+# ## Samples by layer
 #
-# a sample belongs to the first layer, from the top, whose base lies below it. at the assay midpoints, the layers
+# A sample belongs to the first layer, from the top, whose base lies below it. At the assay midpoints, the layers
 # from the surfaces match the logged horizons and show where the phosphate is: the oxidized horizon.
 
 # %%
@@ -121,18 +121,18 @@ height = bases["OXI"].vertical_distance(assays.coords)
 fig, ax = plt.subplots(figsize=(5, 5), layout="constrained")
 ax.scatter(p2o5, height, s=3, color=GRAY, linewidths=0)
 ax.axhline(0, color=HIGHLIGHT, lw=1)
-ax.text(ax.get_xlim()[1], 0, "base of OXI", color=HIGHLIGHT, ha="right", va="bottom")
+ax.text(ax.get_xlim()[1], 0, "Base of OXI", color=HIGHLIGHT, ha="right", va="bottom")
 ax.set(xlabel="P2O5 (%)", ylabel="Height above the base of OXI (m)", title="Phosphate against height")
 save(fig, "profile")
 
 # %% [markdown]
-# ## a layered block model
+# ## A layered block model
 #
 # `BlockModel.from_meshes` labels sub-cells with the first `(mesh, rule, label)` domain that holds their center.
-# listed from the bottom, each horizon lies `"below"` its base's upper neighbor: fresh rock below the base of `SAP`,
+# Listed from the bottom, each horizon lies `"below"` its base's upper neighbor: fresh rock below the base of `SAP`,
 # saprolite below the base of `OXI`, and so on up to soil below the ground; air falls in no domain and drops out.
-# listed from the top with `"above"`, each horizon lies above its own base, with fresh rock as the `fill`; the air,
-# above the ground, comes first. over the drilled area and down to 950 m, on 25 m blocks split into 1 m sub-cells in
+# Listed from the top with `"above"`, each horizon lies above its own base, with fresh rock as the `fill`; the air,
+# above the ground, comes first. Over the drilled area and down to 950 m, on 25 m blocks split into 1 m sub-cells in
 # elevation, both give the same volumes.
 
 # %%
@@ -149,7 +149,7 @@ for name in [*LAYERS, "ROCK"]:
     print(f"{name:>4}: {bottom / 1e6:7.2f} Mm3 from the bottom, {top / 1e6:7.2f} Mm3 from the top")
 
 # %% [markdown]
-# a true-scale east-west section shows the sub-cells following the surfaces:
+# A true-scale east-west section shows the sub-cells following the surfaces:
 
 # %%
 scheme = bt.Categories([*LAYERS, "ROCK"], colors=["#e0c080", LIGHT, HIGHLIGHT, "#9ebad6", ACCENT])

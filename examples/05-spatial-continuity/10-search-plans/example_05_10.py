@@ -1,10 +1,10 @@
 """
-# from variogram to search plan
+# From variogram to search plan
 
-a variogram tells how far, and in which directions, a sample still informs a block. a 3D model of Zn in three stacked
+A variogram tells how far, and in which directions, a sample still informs a block. A 3D model of Zn in three stacked
 sulfide lenses becomes a search plan here: an ellipsoid with the model's rotation and ranges, a first pass out to one
-range, a second out to two, and a cap per hole so that each neighborhood spans several holes. the kriging diagnostics
-then show which pass estimated each block and from how many samples. [search](../../06-kriging/06-search/README.md)
+range, a second out to two, and a cap per hole so that each neighborhood spans several holes. The kriging diagnostics
+then show which pass estimated each block and from how many samples. [Search](../../06-kriging/06-search/README.md)
 covers each option on its own, and [search calibration](../../06-kriging/07-search-calibration/README.md) scores
 `max_samples`.
 """
@@ -24,10 +24,10 @@ from common import ACCENT, GRAY, HIGHLIGHT, INK, LIGHT, save
 from matplotlib.colors import ListedColormap
 
 # %% [markdown]
-# ## composites in the lenses
+# ## Composites in the lenses
 #
-# each assay takes the name of the lens around it, and 2 m composites stay inside one lens, as in the
-# [case study](../../12-case-studies/02-drillholes-to-classified-model/README.md). lens 1 has the most holes. a hole
+# Each assay takes the name of the lens around it, and 2 m composites stay inside one lens, as in the
+# [case study](../../12-case-studies/02-drillholes-to-classified-model/README.md). Lens 1 has the most holes. A hole
 # crosses a lens in one intercept; its length and the angle between the hole and the lens give the true thickness.
 
 # %%
@@ -63,13 +63,13 @@ print(
 )
 
 # %% [markdown]
-# ## the variogram
+# ## The variogram
 #
-# the search takes three things from the variogram: the directions of its axes, the range along each, and the nugget.
-# [variogram volume](../../05-spatial-continuity/04-variogram-volume/README.md) finds the axes from log Zn over all
+# The search takes three things from the variogram: the directions of its axes, the range along each, and the nugget.
+# [Variogram volume](../../05-spatial-continuity/04-variogram-volume/README.md) finds the axes from log Zn over all
 # composites, lens and host rock alike, since the lenses are the continuous bodies and their shape sets the orientation.
-# within the lenses Zn is fitted along the major and semi-major axes with that rotation held. across a lens the pairs
-# are too few to fit, so the minor/major ratio keeps the value from the volume. the 2 m lags of the downhole variogram
+# Within the lenses Zn is fitted along the major and semi-major axes with that rotation held. Across a lens the pairs
+# are too few to fit, so the minor/major ratio keeps the value from the volume. The 2 m lags of the downhole variogram
 # sit closest to the origin and fix the nugget
 # ([downhole nugget](../../05-spatial-continuity/05-downhole-nugget/README.md)).
 
@@ -99,12 +99,12 @@ for name, (az, dip) in zip(("major", "semi-major", "minor"), volume.axes, strict
 # %%
 fig, ax = plt.subplots(figsize=(6.4, 3.6), layout="constrained")
 for exp, direction, color, name, reach in zip(
-    experimentals[:2], volume.axes[:2], (ACCENT, GRAY), ("major", "semi-major"), ranges[:2], strict=True
+    experimentals[:2], volume.axes[:2], (ACCENT, GRAY), ("Major", "Semi-major"), ranges[:2], strict=True
 ):
     bt.plot.variogram(exp, variogram=model, direction=direction, ax=ax, color=color, label=name)
     for k, ls in ((1, "-"), (2, "--")):
         ax.axvline(k * reach, color=color, lw=0.8, ls=ls)
-ax.plot(downhole.lags, downhole.gammas, "o", color=HIGHLIGHT, ms=3, label="down the holes")
+ax.plot(downhole.lags, downhole.gammas, "o", color=HIGHLIGHT, ms=3, label="Down the holes")
 ax.set(
     xlabel="Lag distance (m)", ylabel="γ(h), Zn (%²)", title="Ranges (solid) and twice the ranges (dashed)"
 )
@@ -114,21 +114,21 @@ ax.legend(loc="lower right")
 save(fig, "variogram")
 
 # %% [markdown]
-# along the major axis, which plunges 13° toward 201°, γ reaches the sill at 62 m; down the dip, at 40 m. a fifth of the
-# sill is nugget, so even the nearest composite leaves a block uncertain. down the holes γ climbs to four fifths of the
-# sill within 12 m: the holes cross the lens at a steep angle, and Zn changes fast across it. the minor axis of the
-# search does not need that range. its 29 m radius spans the 12 m lens, and the domain boundary stops it at the lens
+# Along the major axis, which plunges 13° toward 201°, γ reaches the sill at 62 m; down the dip, at 40 m. A fifth of the
+# sill is nugget, so even the nearest composite leaves a block uncertain. Down the holes γ climbs to four fifths of the
+# sill within 12 m: the holes cross the lens at a steep angle, and Zn changes fast across it. The minor axis of the
+# search does not need that range. Its 29 m radius spans the 12 m lens, and the domain boundary stops it at the lens
 # walls.
 #
-# ## from ranges to an ellipsoid
+# ## From ranges to an ellipsoid
 #
 # `Search` takes the major range as `radius` and the model's `rotation` and `ratios` unchanged, so the search ellipsoid
-# is the range ellipsoid. samples inside it are correlated with the block. beyond it a sample has no covariance with the
+# is the range ellipsoid. Samples inside it are correlated with the block. Beyond it a sample has no covariance with the
 # block, and ordinary kriging weights it only through the other samples and the constraint that the weights sum to one.
-# the first pass therefore reaches one range and estimates from correlated samples. the second reaches twice the range
+# The first pass therefore reaches one range and estimates from correlated samples. The second reaches twice the range
 # and fills the blocks between groups of holes, where the estimate leans toward the local mean.
 #
-# the three views center the ellipsoids on a hole in lens 1: a plan, a vertical section down the dip, and the lens plane
+# The three views center the ellipsoids on a hole in lens 1: a plan, a vertical section down the dip, and the lens plane
 # seen face on, each with the composites within 20 m of the view (lens 1 darker).
 
 # %%
@@ -172,7 +172,7 @@ for ax, (title, (azimuth, dip, xlabel)) in zip(axes, views.items(), strict=True)
     bt.plot.slab(ore.filter(one), plane=plane, thickness=40, s=3, color=GRAY, ax=ax)
     for k, color in ((1, ACCENT), (2, HIGHLIGHT)):
         ax.plot(
-            *outline(center, k * ranges, azimuth, dip).T, color=color, lw=1.4, label=f"pass {k}: {k} × range"
+            *outline(center, k * ranges, azimuth, dip).T, color=color, lw=1.4, label=f"Pass {k}: {k} × range"
         )
     c = frame(azimuth, dip) @ center
     ax.set(title=title, xlabel=xlabel, xlim=(c[0] - 180, c[0] + 180), ylim=(c[1] - 150, c[1] + 150))
@@ -180,16 +180,16 @@ axes[0].legend(loc="upper left", framealpha=0.9, frameon=True)
 save(fig, "ellipsoids")
 
 # %% [markdown]
-# in plan the ellipsoid lies along the strike of the lenses. in the section it tilts with the dip and pokes out of lens
-# 1 on both sides, where the domain boundary cuts it. face on, the pass-1 ellipse holds about four holes and the pass-2
+# In plan the ellipsoid lies along the strike of the lenses. In the section it tilts with the dip and pokes out of lens
+# 1 on both sides, where the domain boundary cuts it. Face on, the pass-1 ellipse holds about four holes and the pass-2
 # ellipse about fifteen.
 #
-# ## samples per hole
+# ## Samples per hole
 #
-# a hole leaves several composites in a lens, so 16 samples can come from two holes: grades along two lines and nothing
-# between them. `max_per_hole` caps what one hole gives. with `min_samples=8`, a cap of three per hole needs at least
-# three holes; `min_holes` asks for the holes directly. the block model has 10 m blocks inside the lenses, and each lens
-# is kriged from its own composites (`domain_column`). the first pass runs five ways: without a cap, with the cap, with
+# A hole leaves several composites in a lens, so 16 samples can come from two holes: grades along two lines and nothing
+# between them. `max_per_hole` caps what one hole gives. With `min_samples=8`, a cap of three per hole needs at least
+# three holes; `min_holes` asks for the holes directly. The block model has 10 m blocks inside the lenses, and each lens
+# is kriged from its own composites (`domain_column`). The first pass runs five ways: without a cap, with the cap, with
 # the cap and octants, with three holes and no cap, and with the cap and four holes.
 
 # %%
@@ -231,18 +231,18 @@ for name, search in options.items():
     )
 
 # %% [markdown]
-# without a cap the first pass fills 81 % of the blocks, from 2.3 holes on average. the cap brings it down to 39 %,
-# close to the share of blocks with three holes inside one range, and those blocks use 3.5 holes. octants also ask for
+# Without a cap the first pass fills 81 % of the blocks, from 2.3 holes on average. The cap brings it down to 39 %,
+# close to the share of blocks with three holes inside one range, and those blocks use 3.5 holes. Octants also ask for
 # holes on several sides of the block; they halve the first pass again for a small gain in slope of regression.
 # `min_holes=3` alone fills only 25 %: it checks the 16 nearest samples, which often come from two holes, and rejects
-# the block rather than reaching further. with the cap it sets the number of holes apart from `min_samples`, and four
-# holes leave 13 % of the blocks to the first pass at a slope of 0.63. the plan keeps the cap, which spreads the
+# the block rather than reaching further. With the cap it sets the number of holes apart from `min_samples`, and four
+# holes leave 13 % of the blocks to the first pass at a slope of 0.63. The plan keeps the cap, which spreads the
 # neighborhood over several holes, and leaves the octants out.
 #
-# ## the plan
+# ## The plan
 #
-# `Search.passes` builds the passes from one search, given here by the model's `ranges` and `rotation`. the second
-# pass doubles the ellipsoid and relaxes `min_samples` to 4, two holes under the same cap. blocks that both passes miss
+# `Search.passes` builds the passes from one search, given here by the model's `ranges` and `rotation`. The second
+# pass doubles the ellipsoid and relaxes `min_samples` to 4, two holes under the same cap. Blocks that both passes miss
 # stay unestimated.
 
 # %%
@@ -281,7 +281,7 @@ bt.plot.section(
 )
 a.legend(
     handles=[
-        plt.Line2D([], [], marker="s", ls="", color=c, label=f"pass {p}")
+        plt.Line2D([], [], marker="s", ls="", color=c, label=f"Pass {p}")
         for p, c in ((1, ACCENT), (2, LIGHT))
     ],
     loc="upper right",
@@ -296,9 +296,9 @@ for ax, title in ((a, "Pass that estimated each block"), (b, "Samples per block"
 save(fig, "passes")
 
 # %% [markdown]
-# lens 1, face on, with its holes as dots. pass 1 covers the blocks inside groups of holes; pass 2 takes the edges and
-# the gaps, from samples 59 m away on average against 35 m, with a slope of regression of 0.46 against 0.56. lenses 2
-# and 3 have sparser drilling and get a fifth to a third of their blocks in pass 1. pass-2 blocks use more samples than
-# pass-1 blocks, because a larger ellipsoid finds 16 samples more easily, so the sample count alone would rank the
-# blocks the wrong way round. the pass and the distance describe how well a block is informed, and
+# Lens 1, face on, with its holes as dots. Pass 1 covers the blocks inside groups of holes; pass 2 takes the edges and
+# the gaps, from samples 59 m away on average against 35 m, with a slope of regression of 0.46 against 0.56. Lenses 2
+# and 3 have sparser drilling and get a fifth to a third of their blocks in pass 1. Pass-2 blocks use more samples than
+# pass-1 blocks, because a larger ellipsoid fills its 16 samples from farther out, so the sample count alone ranks the
+# blocks the wrong way round. The pass and the distance describe how well a block is informed, and
 # [classification](../../10-checking-models/05-classification/README.md) can build on them.

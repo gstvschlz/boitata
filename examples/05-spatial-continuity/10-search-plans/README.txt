@@ -1,1 +1,1 @@
-## from variogram to search plan
+## From variogram to search plan

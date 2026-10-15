@@ -1,8 +1,8 @@
-# mesh sections
+# Mesh sections
 
 `Mesh.section` cuts a mesh with a plane and returns the cut as `Polylines`: closed loops round a solid, open lines
 across an open surface. `offsets` moves the plane along its normal, so one call gives a set of parallel sections,
-each line tagged with its `offset`. here the three stacked sulphide lenses are cut into level plans and into
+each line tagged with its `offset`. Here the three stacked sulfide lenses are cut into level plans and into
 sections across strike.
 
 <details><summary>Python</summary>
@@ -18,7 +18,7 @@ from common import map_axes, save
 
 </details>
 
-face columns carry over: each line takes the columns of the faces it crosses, here the lens name. a line through
+Face columns carry over: each line takes the columns of the faces it crosses, here the lens name. A line through
 faces with different values splits into open lines where the value changes, so a closed loop stays closed only
 when its faces agree.
 
@@ -52,9 +52,9 @@ lens 3: Polylines(6 features, 6 parts, crs: none)
   offset: Float64
 ```
 
-## level plans
+## Level plans
 
-horizontal sections every 50 m, one outline per lens and level. a loop round a solid wound outward runs
+Horizontal sections every 50 m, one outline per lens and level. A loop round a solid wound outward runs
 counter-clockwise seen from the side the normal points to, here from above; a loop round a cavity runs the other
 way.
 
@@ -69,7 +69,7 @@ for name, lines in plans.items():
         color = cmap((lines["offset"][f] - levels[0]) / np.ptp(levels))
         ax.plot(*np.r_[ring, ring[:1]][:, :2].T, color=color, linewidth=1.2)
 image = plt.cm.ScalarMappable(cmap=cmap, norm=plt.Normalize(levels[0], levels[-1]))
-fig.colorbar(image, ax=ax, shrink=0.8, label="level (m)")
+fig.colorbar(image, ax=ax, shrink=0.8, label="Level (m)")
 map_axes(ax, "Lens outlines every 50 m")
 save(fig, "plans")
 ```
@@ -78,8 +78,8 @@ save(fig, "plans")
 
 ![plans](plans.png)
 
-parallel sections sum back to the volume (Cavalieri): `Polylines.area` gives each level's plan area, times the
-spacing. with levels every 5 m the sum lands within a fraction of a percent of the volume the mesh encloses.
+Parallel sections sum back to the volume (Cavalieri): `Polylines.area` gives each level's plan area, times the
+spacing. With levels every 5 m the sum lands within a fraction of a percent of the volume the mesh encloses.
 
 <details><summary>Python</summary>
 
@@ -99,7 +99,7 @@ lens 2: sections 1,900,857 m3, mesh 1,901,081 m3
 lens 3: sections 1,652,911 m3, mesh 1,652,929 m3
 ```
 
-the sections are ordinary `Polylines`, so they go to GIS files as they are, with their elevation in z and the
+The sections are ordinary `Polylines`, so they go to GIS files as they are, with their elevation in z and the
 `lens` and `offset` columns as properties ([GeoJSON](../../02-data-and-geometry/28-geojson/README.md)):
 
 <details><summary>Python</summary>
@@ -118,10 +118,10 @@ with tempfile.TemporaryDirectory() as folder:
 lens_1_levels.geojson: 8 outlines, columns ['lens', 'offset']
 ```
 
-## sections across strike
+## Sections across strike
 
-the lenses strike 23°, so a section across strike looks along 23°: its normal. sections every 100 m along strike
-either side of the centre of the deposit, drawn in their own frame, distance across strike against elevation.
+The lenses strike 23°, so a section across strike looks along 23°: its normal. Sections every 100 m along strike
+either side of the center of the deposit, drawn in their own frame, distance across strike against elevation.
 
 <details><summary>Python</summary>
 
@@ -141,10 +141,10 @@ for name, lens in lenses.items():
         u, z = ring @ across, ring[:, 2] + center[2]
         ax.fill(u, z, facecolor=colors[lines["lens"][f]], alpha=0.6, label=lines["lens"][f])
 for ax, offset in zip(axes, offsets, strict=True):
-    ax.set_title(f"{offset:+.0f} m" if offset else "centre")
+    ax.set_title(f"{offset:+.0f} m" if offset else "Center")
     ax.set_aspect("equal")
-    ax.set_xlabel("across strike (m)")
-axes[0].set_ylabel("elevation (m)")
+    ax.set_xlabel("Across strike (m)")
+axes[0].set_ylabel("Elevation (m)")
 handles, labels = axes[2].get_legend_handles_labels()
 unique = dict(zip(labels, handles, strict=True))
 fig.legend(unique.values(), unique.keys(), loc="outside lower center", ncols=3)

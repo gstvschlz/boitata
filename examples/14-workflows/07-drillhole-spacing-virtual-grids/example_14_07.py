@@ -157,7 +157,7 @@ a.set(
     ylabel="MEE of the window (%)",
     xticks=spacings,
     xticklabels=[f"{s:g}" for s in spacings],
-    title="40 × 40 m windows: MEE (P10–P90)",
+    title="40 × 40 m windows: MEE (P10 to P90)",
 )
 for side, color in ((40, ACCENT), (80, HIGHLIGHT)):
     b.plot(spacings, 100 * np.array(share[side]), "o-", color=color, label=f"{side} × {side} m")
@@ -247,8 +247,8 @@ for name in plans:
 # 90 %. With the holes between nodes, 84.5 % of the quarterly windows meet ±15 % at 5 m and 21.8 % at 10 m,
 # against the reference's 83.6 % and 24.2 %. The share changes from truth to truth: at 10 m one truth scores
 # 13.3 %, another 26.0 %, a standard deviation of 3.7 points. The reference averaged three truths, so its share
-# carries a standard error of about 2 points, and gaps of 0.9 and 2.4 points lie within Monte-Carlo noise.
-# The grids of Step 2 put holes on node centres, and they score 89.1 % at 5 m:
+# carries a standard error of about 2 points, and gaps of 0.9 and 2.4 points lie within Monte Carlo noise.
+# The grids of Step 2 put holes on node centers, and they score 89.1 % at 5 m:
 # a node that holds a sample keeps its value in every realization, which narrows its window.
 #
 # ## The decision

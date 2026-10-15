@@ -20,14 +20,14 @@
 <circle class="f-ember" cx="258.7" cy="53.5" r="5"/>
 <circle class="f-ember" cx="206.6" cy="222.7" r="5"/>
 <circle class="f-ember" cx="89.1" cy="228" r="5"/>
-<text class="small" x="157.1" y="234.6">hidden, then estimated</text>
-<text class="small" x="20" y="302">map: one sample left out, kriged from its neighbors</text>
+<text class="small" x="157.1" y="234.6">Hidden, then estimated</text>
+<text class="small" x="20" y="302">Map: one sample left out, kriged from its neighbors</text>
 <line class="s-grid" x1="380" y1="260" x2="620" y2="260" stroke-width="1.5"/>
 <line class="s-grid" x1="380" y1="260" x2="380" y2="30" stroke-width="1.5"/>
 <line class="s-muted dash" x1="380" y1="260" x2="620" y2="30" stroke-width="1"/>
 <text class="small" x="590" y="44">1:1</text>
-<text x="500.0" y="282" text-anchor="middle">estimate</text>
-<text x="368" y="145.0" transform="rotate(-90 368 145.0)" text-anchor="middle">actual</text>
+<text x="500.0" y="282" text-anchor="middle">Estimate</text>
+<text x="368" y="145.0" transform="rotate(-90 368 145.0)" text-anchor="middle">Actual</text>
 <circle class="f-night a-pop" style="--d:1.00s" cx="479.3" cy="199.7" r="4.5"/>
 <circle class="f-night a-pop" style="--d:1.15s" cx="477.8" cy="182.3" r="4.5"/>
 <circle class="f-night a-pop" style="--d:1.30s" cx="601.7" cy="82.9" r="4.5"/>
@@ -42,5 +42,5 @@
 <circle class="f-night a-pop" style="--d:2.65s" cx="582.4" cy="51.6" r="4.5"/>
 <circle class="f-night a-pop" style="--d:2.80s" cx="493.2" cy="165.8" r="4.5"/>
 <circle class="f-night a-pop" style="--d:2.95s" cx="573.1" cy="54.7" r="4.5"/>
-<text class="small" x="380" y="302">repeat for every sample, then compare</text>
+<text class="small" x="380" y="302">Repeat for every sample, then compare</text>
 </svg>

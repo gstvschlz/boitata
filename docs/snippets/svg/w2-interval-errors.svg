@@ -17,12 +17,12 @@
 <rect class="a-fade" style="--d:1.5s" x="540" y="110" width="80" height="36"/>
 </g>
 <rect class="none s-muted dash a-fade" style="--d:.4s" x="200" y="110" width="40" height="36" stroke-width="1"/>
-<text class="a-fade" style="--d:.4s" x="200" y="100">gap</text>
-<text class="a-fade" style="--d:.9s" x="300" y="88">overlap</text>
-<text class="a-fade" style="--d:1.3s" x="455" y="100">inverted</text>
+<text class="a-fade" style="--d:.4s" x="200" y="100">Gap</text>
+<text class="a-fade" style="--d:.9s" x="300" y="88">Overlap</text>
+<text class="a-fade" style="--d:1.3s" x="455" y="100">Inverted</text>
 <text class="small a-fade" style="--d:1.3s" x="436" y="164">FROM 25, TO 21</text>
-<text x="546" y="54">collar LENGTH</text>
-<text class="a-fade" style="--d:1.6s" x="546" y="100">past depth</text>
+<text x="546" y="54">Collar LENGTH</text>
+<text class="a-fade" style="--d:1.6s" x="546" y="100">Past depth</text>
 <g class="s-muted" stroke-width="1">
 <line x1="40" y1="170" x2="40" y2="176"/>
 <line x1="120" y1="170" x2="120" y2="176"/>
@@ -43,6 +43,6 @@
 <text class="small" x="514" y="192">24</text>
 <text class="small" x="594" y="192">28</text>
 <text class="small" x="674" y="192">32</text>
-<text class="small" x="40" y="222">depth along the hole, from the collar (m)</text>
-<text class="small" x="40" y="250">each box is one sample, drawn from its FROM to its TO</text>
+<text class="small" x="40" y="222">Depth along the hole, from the collar (m)</text>
+<text class="small" x="40" y="250">Each box is one sample, drawn from its FROM to its TO</text>
 </svg>

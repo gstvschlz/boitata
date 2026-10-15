@@ -1,1 +1,1 @@
-## soft-boundary statistics
+## Soft-boundary statistics

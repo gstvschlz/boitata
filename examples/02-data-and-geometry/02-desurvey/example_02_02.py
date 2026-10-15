@@ -1,8 +1,8 @@
 """
-# desurveying drill holes
+# Desurveying drill holes
 
-the stacked sulphide lenses: 244 diamond holes up to 958 m long, which flatten and swing clockwise as they deepen,
-and 45 short RC holes. desurveying turns each collar and its survey stations (depth, dip positive down, azimuth
+The stacked sulfide lenses: 244 diamond holes up to 958 m long, which flatten and swing clockwise as they deepen,
+and 45 short RC holes. Desurveying turns each collar and its survey stations (depth, dip positive down, azimuth
 clockwise from north) into a path, so any depth down a hole has coordinates.
 """
 
@@ -21,7 +21,7 @@ from common import ACCENT, GRAY, LIGHT, map_axes, save
 
 # %% [markdown]
 # `Drillholes` desurveys each hole from its collar and survey. `paths` gives the position of each survey station.
-# the deepest hole, `DD0027`, flattens from 55° to 46° and swings from azimuth 290° to 296° on its way down:
+# The deepest hole, `DD0027`, flattens from 55° to 46° and swings from azimuth 290° to 296° on its way down:
 
 # %%
 data = bt.datasets.stacked_sulphide_lenses()
@@ -38,9 +38,9 @@ for i, j in zip(last, station):
     )
 
 # %% [markdown]
-# between stations the path depends on the method. minimum curvature, the default, bends along a circular arc.
-# tangential holds each station's direction down to the next, and balanced tangential gives half of each segment to
-# each end. `at` places any depth on the path, here the end of each hole. the plot adds a hole drilled straight from
+# Between stations the path depends on the method. Minimum curvature, the default, bends along a circular arc.
+# Tangential holds each station's direction down to the next, and balanced tangential gives half of each segment to
+# each end. `at` places any depth on the path, here the end of each hole. The plot adds a hole drilled straight from
 # its collar direction, as if never surveyed:
 
 # %%
@@ -67,8 +67,8 @@ for name, other in alternatives.items():
     )
 
 # %% [markdown]
-# with stations every 30 m, tangential ends at most 4.2 m from minimum curvature and balanced tangential within
-# about 1 cm. ignoring the survey puts a hole's end up to 130 m away. both gaps grow with depth:
+# With stations every 30 m, tangential ends at most 4.2 m from minimum curvature and balanced tangential within
+# about 1 cm. Ignoring the survey puts a hole's end up to 130 m away. Both gaps grow with depth:
 
 # %%
 long = collar["TYPE"] == "DD"
@@ -79,11 +79,11 @@ for ax, name in zip(axes, ("tangential", "collar direction only")):
         at = [h] * len(depth)
         shift = np.linalg.norm(alternatives[name].at(at, depth) - dh.at(at, depth), axis=1)
         ax.plot(depth, shift, color=ACCENT, lw=0.5, alpha=0.4)
-    ax.set(title=f"{name} vs minimum curvature", xlabel="Depth (m)", ylabel="Distance (m)")
+    ax.set(title=f"{name.capitalize()} vs minimum curvature", xlabel="Depth (m)", ylabel="Distance (m)")
 save(fig, "divergence")
 
 # %% [markdown]
-# `at` also places logged contacts. the top of the first sulphide (`MS`, `SMS` or `STR`) down each hole traces the
+# `at` also places logged contacts. The top of the first sulfide (`MS`, `SMS` or `STR`) down each hole traces the
 # hanging wall of the upper lens, which deepens to the east-southeast:
 
 # %%
@@ -97,9 +97,9 @@ print(
 )
 
 fig, ax = plt.subplots(figsize=(6, 5), layout="constrained")
-ax.scatter(collar["X"], collar["Y"], s=4, color=LIGHT, label="collars")
+ax.scatter(collar["X"], collar["Y"], s=4, color=LIGHT, label="Collars")
 points = ax.scatter(top[:, 0], top[:, 1], c=top[:, 2], s=14, cmap="cividis", edgecolor=GRAY, lw=0.3)
-fig.colorbar(points, ax=ax, shrink=0.8, label="Elevation of first sulphide (m)")
-map_axes(ax, "First sulphide down each hole")
+fig.colorbar(points, ax=ax, shrink=0.8, label="Elevation of first sulfide (m)")
+map_axes(ax, "First sulfide down each hole")
 ax.legend(loc="upper left")
 save(fig, "contacts")

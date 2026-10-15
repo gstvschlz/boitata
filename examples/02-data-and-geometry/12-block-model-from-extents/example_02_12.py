@@ -1,10 +1,10 @@
 """
-# block model from extents
+# Block model from extents
 
 `BlockModel.from_extents` sizes a grid from what it must cover: drill holes, meshes, points, lines or
-another grid. it measures the bounding box along the grid axes (rotated, if you give a rotation), adds a
+another grid. It measures the bounding box along the grid axes (rotated, if you give a rotation), adds a
 buffer, and can snap the origin to a multiple of the block size so that grids built from different data line
-up. here three stacked sulphide lenses get a model from the drill holes, a tighter one from the lens solids,
+up. Here three stacked sulfide lenses get a model from the drill holes, a tighter one from the lens solids,
 a rotated one that follows the lenses, and one with only the blocks inside them.
 """
 
@@ -27,7 +27,7 @@ lenses = [data[f"lens_{i}"] for i in (1, 2, 3)]
 size = (20, 20, 10)
 
 # %% [markdown]
-# a model around all holes covers the whole drilled volume. one around the lens solids plus a 20 m buffer is a
+# A model around all holes covers the whole drilled volume. One around the lens solids plus a 20 m buffer is a
 # quarter of it. `snap=True` puts both origins on multiples of the block size, so their blocks coincide.
 
 # %%
@@ -49,15 +49,15 @@ for hole in holes.holes:
     ax.plot(paths["x"][on], paths["y"][on], color=LIGHT, lw=0.6)
 for lens in lenses:
     ax.plot(*lens.coords[::7, :2].T, ".", color=GRAY, ms=0.6)
-outline(ax, drilled, ec=GRAY, lw=1.2, ls="--", label="from drill holes")
-outline(ax, around, ec=ACCENT, lw=1.6, label="from lenses + 20 m")
+outline(ax, drilled, ec=GRAY, lw=1.2, ls="--", label="From drill holes")
+outline(ax, around, ec=ACCENT, lw=1.6, label="From lenses + 20 m")
 ax.legend(loc="upper left")
 ax.autoscale_view()
 map_axes(ax, "Plan: drill holes (light), lenses (gray) and the two models")
 save(fig, "extents")
 
 # %% [markdown]
-# the lenses strike about N22.5E and dip about 55 degrees. a grid rotated with them (y along strike, z
+# The lenses strike about N22.5E and dip about 55 degrees. A grid rotated with them (y along strike, z
 # across the lenses) needs far fewer blocks for the same buffer, because the extents are measured along its axes.
 
 # %%
@@ -66,7 +66,7 @@ aligned = bt.BlockModel.from_extents(*lenses, size=size, buffer=20, rotation=rot
 print(f"aligned        count {aligned.count}  {len(aligned):,} blocks ({len(aligned) / len(around):.0%})")
 
 # %% [markdown]
-# to keep only the blocks whose centroid falls inside a lens, use `mask` with `Mesh.contains`:
+# To keep only the blocks whose centroid falls inside a lens, use `mask` with `Mesh.contains`:
 
 # %%
 inside = np.any([lens.contains(aligned.coords) for lens in lenses], axis=0)
@@ -86,6 +86,6 @@ for ax, model, title in [
     ax.plot(*xy.T, ".", color=LIGHT, ms=1)
     map_axes(ax, f"{title}: {len(model):,} blocks")
 xy = ore.coords[:, :2]
-axes[1].plot(*xy.T, ".", color=ACCENT, ms=1.5, label=f"inside a lens ({len(ore):,})")
+axes[1].plot(*xy.T, ".", color=ACCENT, ms=1.5, label=f"Inside a lens ({len(ore):,})")
 axes[1].legend(loc="upper left", markerscale=6)
 save(fig, "aligned")

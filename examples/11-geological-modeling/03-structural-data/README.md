@@ -1,7 +1,7 @@
-# structural data
+# Structural data
 
-drill holes give contacts at a few places; mapping and oriented core give the orientation of the surface at many
-more. a synthetic fold shows what plane and lineation readings add to an implicit model, and how the field's
+Drill holes give contacts at a few places; mapping and oriented core give the orientation of the surface at many
+more. A synthetic fold shows what plane and lineation readings add to an implicit model, and how the field's
 gradient returns the dip.
 
 <details><summary>Python</summary>
@@ -15,9 +15,9 @@ from common import ACCENT, GRAY, HIGHLIGHT, INK, LIGHT, save
 
 </details>
 
-the fold, `z = 100 + 30 sin(2πx / 400)` with its axis north-south, is known without error. five holes pierce it,
+The fold, `z = 100 + 30 sin(2πx / 400)` with its axis north-south, is known without error. Five holes pierce it,
 twelve outcrops along it give its dip and dip direction, and six other places give fold-axis lineations (plunge 0,
-trend 0). planes and lineations need the triharmonic kernel; one point above the surface sets which side is
+trend 0). Planes and lineations need the triharmonic kernel; one point above the surface sets which side is
 positive. `isosurface` extracts each modeled surface as a mesh, and `Mesh.vertical_distance` gives how far above it
 400 points on the true surface lie: the elevation error over the whole fold.
 
@@ -80,19 +80,19 @@ for name, readings in fits.items():
 5 holes, 4 planes, 6 lineations: surface within  5.3 m (median), 42.1 m (max); dip within 4.6°
 ```
 
-twelve planes bring the surface from 14 m to 2 m of the truth (median) and the dip from 7° to under 2°. with four
+Twelve planes bring the surface from 14 m to 2 m of the truth (median) and the dip from 7° to under 2°. With four
 planes, the lineations add the direction of the fold axis and improve both.
 
 <details><summary>Python</summary>
 
 ```python
 fig, ax = plt.subplots(figsize=(10, 3.6), layout="constrained")
-ax.plot(x, surface(x), color=INK, lw=2.2, label="true surface")
+ax.plot(x, surface(x), color=INK, lw=2.2, label="True surface")
 for (name, depth), color, style in zip(
     depths.items(), (GRAY, ACCENT, HIGHLIGHT, HIGHLIGHT), ("--", "-", ":", "-"), strict=True
 ):
     ax.plot(x, depth, color=color, ls=style, lw=1.2, label=name)
-ax.scatter(picks[:, 0], picks[:, 2], color=INK, zorder=3, s=18, label="hole pierce points (all northings)")
+ax.scatter(picks[:, 0], picks[:, 2], color=INK, zorder=3, s=18, label="Hole pierce points (all northings)")
 ax.set(xlabel="Easting (m)", ylabel="Elevation (m)", title="Fold at northing 150 m", xlim=(0, 600))
 ax.legend(ncol=2, loc="lower left", fontsize=8)
 save(fig, "fold")
@@ -102,7 +102,7 @@ save(fig, "fold")
 
 ![fold](fold.png)
 
-the gradient of the field is normal to the surface, so `predict(..., gradient=True)` returns the modeled dip and
+The gradient of the field is normal to the surface, so `predict(..., gradient=True)` returns the modeled dip and
 dip direction at any point, here against the truth at the 400 probe points of the twelve-plane model:
 
 <details><summary>Python</summary>

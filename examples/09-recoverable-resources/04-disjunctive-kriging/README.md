@@ -1,7 +1,7 @@
-# disjunctive kriging
+# Disjunctive kriging
 
-disjunctive kriging estimates, at each node, any function of the grade from kriged hermite factors of a gaussian
-anamorphosis; here, the probability that V exceeds a cutoff. the exhaustive walker lake grid shows where the grade
+Disjunctive kriging estimates, at each node, any function of the grade from kriged Hermite factors of a Gaussian
+anamorphosis; here, the probability that V exceeds a cutoff. The exhaustive Walker Lake grid shows where the grade
 exceeds it.
 
 <details><summary>Python</summary>
@@ -20,7 +20,7 @@ weights = bt.cell_declustering(samples, "V", sizes=np.arange(2.5, 102.5, 2.5)).w
 
 </details>
 
-a hermite anamorphosis of the declustered samples, and the variogram of its gaussian scores fitted along and across
+A Hermite anamorphosis of the declustered samples, and the variogram of its Gaussian scores fitted along and across
 N170°, the major axis found in [variogram fitting](../../05-spatial-continuity/02-variogram-fitting/README.md):
 
 <details><summary>Python</summary>
@@ -40,7 +40,7 @@ print(gaussian)
 Variogram(nugget=0.3880895785084983, structures=[Structure("spherical", sill=0.6541303654567798, range=95.35466468171232)], rotation=(170.0, 0.0, 0.0), ratios=(0.3490856295281619, 1.0))
 ```
 
-`predict_tonnage` gives P(V > cutoff) on a 5 m grid. binned against the truth, a calibrated estimate would sit on the
+`predict_tonnage` gives P(V > cutoff) on a 5 m grid. Binned against the truth, a calibrated estimate would sit on the
 diagonal:
 
 <details><summary>Python</summary>
@@ -77,7 +77,7 @@ a.contour(
 )
 a.set_aspect("equal")
 a.set(title=f"P(V > {cutoff:.0f} ppm)", xlabel="Easting (m)", ylabel="Northing (m)")
-fig.colorbar(image, ax=a, shrink=0.8, label=f"probability; true V > {cutoff:.0f} outlined")
+fig.colorbar(image, ax=a, shrink=0.8, label=f"Probability; true V > {cutoff:.0f} outlined")
 b.plot([0, 1], [0, 1], color=GRAY, ls="--", lw=1)
 b.scatter(predicted[keep], observed[keep], s=np.sqrt(counts[keep]) * 4, color=ACCENT)
 b.set(
@@ -88,7 +88,7 @@ b.set(
     title="Calibration",
 )
 b.set_aspect("equal")
-b.text(0.03, 0.92, "marker area ∝ nodes per bin", color=INK, fontsize=8)
+b.text(0.03, 0.92, "Marker area ∝ nodes per bin", color=INK, fontsize=8)
 save(fig, "disjunctive")
 ```
 
@@ -110,8 +110,8 @@ bin 0.9–1.0: 75 nodes, predicted 0.98, observed 0.96
 
 ![disjunctive](disjunctive.png)
 
-on average the estimate says 23.1% of the nodes exceed 500 ppm; 18.9% do. the error sits in the low bins, which hold
-most nodes: where it predicts 0.1 to 0.4, you observe half to two thirds of that. from 0.5 to 0.9 the error reverses,
+On average the estimate says 23.1% of the nodes exceed 500 ppm; 18.9% do. The error sits in the low bins, which hold
+most nodes: where it predicts 0.1 to 0.4, you observe half to two thirds of that. From 0.5 to 0.9 the error reverses,
 and more nodes exceed the cutoff than it predicts.
 
 Full script: [`example_09_04.py`](example_09_04.py)

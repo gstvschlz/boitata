@@ -1,1 +1,1 @@
-## conditioning SNESIM
+## Conditioning SNESIM

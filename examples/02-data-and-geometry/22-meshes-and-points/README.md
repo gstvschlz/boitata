@@ -1,9 +1,9 @@
-# meshes and points in a scene
+# Meshes and points in a scene
 
-a `Mesh` adds to a `bt.plot3d.Scene` as a surface, a wireframe or its vertices, and a `PointSet` as points of a fixed
-screen size or as shaded spheres. a mesh is colored by a vertex attribute, interpolated across each triangle, or by
-a face attribute, one color per triangle; either way its null rows never draw. here a topography surface colored by
-elevation sits above three stacked sulphide lenses and the zinc composites that cut them.
+A `Mesh` adds to a `bt.plot3d.Scene` as a surface, a wireframe or its vertices, and a `PointSet` as points of a fixed
+screen size or as shaded spheres. A mesh is colored by a vertex attribute, interpolated across each triangle, or by
+a face attribute, one color per triangle; either way its null rows never draw. Here a topography surface colored by
+elevation sits above three stacked sulfide lenses and the zinc composites that cut them.
 
 <details><summary>Python</summary>
 
@@ -16,7 +16,7 @@ from common import INK, show
 </details>
 
 `topography` triangulates the collar elevations ([topography](../../02-data-and-geometry/19-topography/README.md)) into a mesh; its
-elevation goes in as a vertex column. the lenses are closed solids, drawn half transparent. the composites keep
+elevation goes in as a vertex column. The lenses are closed solids, drawn half transparent. The composites keep
 only those inside a lens, drawn as spheres 12 m across and colored by zinc on a second color bar.
 
 <details><summary>Python</summary>

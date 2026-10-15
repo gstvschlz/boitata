@@ -103,7 +103,7 @@ print(f"true blocks {true_blocks.mean():.1f} ppm")
 # (left); repeating this for every sample gives a cloud of actual against estimated values (right).</figcaption>
 # </figure>
 #
-# Each point estimator in Boitatá has `cross_validate`, which returns the actual values, the estimates and the
+# Each point estimator in boitatá has `cross_validate`, which returns the actual values, the estimates and the
 # kriging variances with the summary statistics:
 
 # %%
@@ -379,4 +379,4 @@ for name in ("measured", "indicated", "inferred"):
 #     - API: [`swath`](../../api/eda/swath.md), [`grade_tonnage`](../../api/validation/grade_tonnage.md).
 #
 # **Next:** the [Workflows](../../examples/14-workflows/index.md) chapter runs these steps end to end on real
-# problems, and the [Guide](../../guide/organization.md) explains how Boitatá is organized.
+# problems, and the [Guide](../../guide/organization.md) explains how boitatá is organized.

@@ -2,7 +2,7 @@
 <title id="l05-summary-t">Ten simulated values at one node summarized by their mean and the fraction above a cutoff</title>
 <line class="s-grid" x1="60" y1="120" x2="620" y2="120" stroke-width="1.5"/>
 <line class="s-flame dash" x1="340" y1="50" x2="340" y2="136" stroke-width="1.5"/>
-<text class="small" x="346" y="60">cutoff 500</text>
+<text class="small" x="346" y="60">Cutoff 500</text>
 <circle class="f-night a-pop" style="--d:0.00s" cx="256" cy="106" r="7"/>
 <circle class="f-night a-pop" style="--d:0.12s" cx="177.6" cy="106" r="7"/>
 <circle class="f-flame a-pop" style="--d:0.24s" cx="496.8" cy="106" r="7"/>
@@ -21,5 +21,5 @@
 <text class="small" x="340" y="180" text-anchor="middle">500</text>
 <text class="small" x="480" y="180" text-anchor="middle">750</text>
 <text class="small" x="620" y="180" text-anchor="middle">1000</text>
-<text class="small" x="60" y="50">one node, ten realizations (ppm)</text>
+<text class="small" x="60" y="50">One node, ten realizations (ppm)</text>
 </svg>

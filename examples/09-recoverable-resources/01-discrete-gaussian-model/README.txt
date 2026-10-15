@@ -1,1 +1,1 @@
-## discrete gaussian model
+## Discrete Gaussian model

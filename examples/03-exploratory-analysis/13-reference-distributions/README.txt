@@ -1,1 +1,1 @@
-## reference distributions
+## Reference distributions

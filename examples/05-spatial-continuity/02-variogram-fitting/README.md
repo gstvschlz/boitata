@@ -1,6 +1,6 @@
-# variogram fitting
+# Variogram fitting
 
-you fit an anisotropic nested spherical model of `V` to directional experimental variograms along and across the
+You fit an anisotropic nested spherical model of `V` to directional experimental variograms along and across the
 direction of greatest continuity
 ([experimental variograms](../../05-spatial-continuity/01-experimental-variograms/README.md) builds them), then to all
 directions at once with `fit_directional`.
@@ -20,7 +20,7 @@ lag, max_lag = 10.0, 120.0
 
 </details>
 
-the variogram map picks the major axis, the direction with the longest fitted range.
+The variogram map picks the major axis, the direction with the longest fitted range.
 
 <details><summary>Python</summary>
 
@@ -32,7 +32,7 @@ azimuth = (90 - np.degrees(angle)) % 180
 
 </details>
 
-fit along and across the major axis. weighting each lag by N(h)/γ(h)² lets the few short-lag pairs steer the fit near
+Fit along and across the major axis. Weighting each lag by N(h)/γ(h)² lets the few short-lag pairs steer the fit near
 the origin, where the nugget and the short ranges are decided.
 
 <details><summary>Python</summary>
@@ -54,12 +54,12 @@ Variogram(nugget=14993.35122178715, structures=[Structure("spherical", sill=2526
 Variogram(nugget=23378.007796960097, structures=[Structure("spherical", sill=0, range=2.5), Structure("spherical", sill=68505.76265942639, range=23.87806723833898)], rotation=(0.0, 0.0, 0.0), ratios=(1.0, 1.0))
 ```
 
-along the major axis γ climbs to two thirds of the sill within 25 m, then rises slowly to about 80 m: two scales of
-continuity. one structure (dashed below) splits the difference, overshoots the first lags and puts a third of the sill
-in the nugget. two nested spherical structures follow both scales and halve the nugget. across the axis the short
+Along the major axis γ climbs to two thirds of the sill within 25 m, then rises slowly to about 80 m: two scales of
+continuity. One structure (dashed below) splits the difference, overshoots the first lags and puts a third of the sill
+in the nugget. Two nested spherical structures follow both scales and halve the nugget. Across the axis the short
 structure takes no sill: γ reaches the sill by 25 m, and the data support one structure.
 
-the structures share one anisotropy. fitting the minor direction with the nugget and sills fixed at their major-axis
+The structures share one anisotropy. Fitting the minor direction with the nugget and sills fixed at their major-axis
 values moves only its ranges; the long structure, with two thirds of the sill, sets the minor/major ratio. `rotation`
 is azimuth, dip, rake in degrees; `ratios` are semi-major/major and minor/major ranges.
 
@@ -82,7 +82,7 @@ Variogram(nugget=14993.35122178715, structures=[Structure("spherical", sill=2526
 Variogram(nugget=14993.35122178715, structures=[Structure("spherical", sill=25261.581155025888, range=19.578360959734756), Structure("spherical", sill=53364.6905008533, range=80.65434681410247)], rotation=(170.0, 0.0, 0.0), ratios=(0.33066526059466755, 1.0))
 ```
 
-the ellipse on the map is the model range in each direction:
+The ellipse on the map is the model range in each direction:
 
 <details><summary>Python</summary>
 
@@ -115,15 +115,15 @@ for exp, color, az, rng in ((major, ACCENT, azimuth, a_major), (minor, GRAY, azi
     )
     b.axvline(rng, color=color, lw=0.8, ls=":")
 h = np.linspace(0, max_lag, 200)
-b.plot(h, single.gamma(h), color=HIGHLIGHT, lw=1, ls="--", label="one structure, major axis")
+b.plot(h, single.gamma(h), color=HIGHLIGHT, lw=1, ls="--", label="One structure, major axis")
 b.axhline(variance, color=INK, lw=0.8, ls="--")
-b.text(max_lag, variance, "sample variance", va="top", ha="right", color=INK, fontsize=8)
+b.text(max_lag, variance, "Sample variance", va="top", ha="right", color=INK, fontsize=8)
 b.set_xlim(0, max_lag)
 b.set_ylim(bottom=0)
 b.set_title("Directional variograms and fitted model")
 b.set_xlabel("Lag distance (m)")
 b.set_ylabel("γ(h) (ppm²)")
-b.legend(loc="lower right", title="marker area ∝ pairs", title_fontsize=8)
+b.legend(loc="lower right", title="Marker area ∝ pairs", title_fontsize=8)
 save(fig, "variogram")
 ```
 
@@ -132,7 +132,7 @@ save(fig, "variogram")
 ![variogram](variogram.png)
 
 `Variogram.fit_directional` fits one anisotropic model to experimental variograms in many directions at once: azimuth,
-range ratio, ranges, sills and nugget together, with the ranges along the major axis. the directions here are
+range ratio, ranges, sills and nugget together, with the ranges along the major axis. The directions here are
 horizontal, every 22.5°, so the fit is 2D: dip, rake and the minor/major ratio stay 0, 0 and 1.
 
 <details><summary>Python</summary>
@@ -152,8 +152,8 @@ print(joint)
 Variogram(nugget=16458.263904055566, structures=[Structure("spherical", sill=39532.539054973735, range=36.61762520915539), Structure("spherical", sill=39110.929672733, range=115)], rotation=(161.46015029654865, 0.0, 0.0), ratios=(0.33583545063941, 1.0))
 ```
 
-the joint fit puts the major axis at N161°, nine degrees off the map's pick, with the same one-third ratio. its long
-range stops at 115 m, the largest lag, where free ranges are capped unless `ranges` bounds them. spread over all eight
+The joint fit puts the major axis at N161°, nine degrees off the map's pick, with the same one-third ratio. Its long
+range stops at 115 m, the largest lag, where free ranges are capped unless `ranges` bounds them. Spread over all eight
 directions, it fits the major and minor axes worse than the fits made along them: the dashed curves fall below the
 short lags on both.
 
@@ -172,7 +172,7 @@ for exp, color, az in ((major, ACCENT, azimuth), (minor, GRAY, azimuth + 90)):
         label=f"N{az % 360:.0f}° (solid: major/minor fit)",
     )
     unit = np.array([np.sin(np.radians(az)), np.cos(np.radians(az)), 0])
-    ax.plot(h, joint.gamma_between(origin, h[:, None] * unit), color=color, lw=1, ls="--", label="joint fit")
+    ax.plot(h, joint.gamma_between(origin, h[:, None] * unit), color=color, lw=1, ls="--", label="Joint fit")
 ax.set_xlim(0, max_lag)
 ax.set_title("Major/minor fit against the joint fit")
 ax.set_xlabel("Lag distance (m)")

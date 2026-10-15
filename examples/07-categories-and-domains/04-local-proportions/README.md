@@ -1,7 +1,7 @@
-# local proportions
+# Local proportions
 
-category proportions can vary in space: a vertical proportion curve, areal proportion maps, and their product as 3D
-proportions that sum to 1 in every cell. passed to `SIS` as `proportions=`, they keep each lithology where the data
+Category proportions can vary in space: a vertical proportion curve, areal proportion maps, and their product as 3D
+proportions that sum to 1 in every cell. Passed to `SIS` as `proportions=`, they keep each lithology where the data
 put it; `check_realizations` then compares realizations with and without them.
 
 <details><summary>Python</summary>
@@ -15,9 +15,9 @@ from common import INK, map_axes, save
 
 </details>
 
-the tailings of [categories](../../07-categories-and-domains/01-categories/README.md), as a first campaign would see them: every third of the 107 sonic holes, composited to
-1 m, each composite taking the lithology that covers most of it. clay forms the foundation under the tailings, sand
-settled in the north and slimes in the south. the facility sits on rolling ground, so the height of a composite
+The tailings of [categories](../../07-categories-and-domains/01-categories/README.md), as a first campaign would see them: every third of the 107 sonic holes, composited to
+1 m, each composite taking the lithology that covers most of it. Clay forms the foundation under the tailings, sand
+settled in the north and slimes in the south. The facility sits on rolling ground, so the height of a composite
 above the original ground orders the layers better than its elevation.
 
 <details><summary>Python</summary>
@@ -43,11 +43,11 @@ print(f"{len(composites)} composites, {height.min():.1f} to {height.max():.1f} m
 583 composites, -2.2 to 24.4 m above the original ground
 ```
 
-## vertical proportion curve
+## Vertical proportion curve
 
 `vertical_proportions` takes the weighted share of each category in slices of height, here 1 m slices of the
-height above the original ground, passed as `elevation`. the declustering weights keep densely drilled parts from
-dominating, and `scheme` fixes the order and names. the result is a `Table` with one row per slice: its center, its
+height above the original ground, passed as `elevation`. The declustering weights keep densely drilled parts from
+dominating, and `scheme` fixes the order and names. The result is a `Table` with one row per slice: its center, its
 weight and one column per category.
 
 <details><summary>Python</summary>
@@ -78,14 +78,14 @@ save(fig, "vertical")
 
 ![vertical](vertical.png)
 
-clay fills the meters under the original ground; sand and slimes share the tailings, and the cap appears at the
-heights the facility's top reaches. the cap is a cover tied to the surface, so a depth below the surface would suit
+Clay fills the meters under the original ground; sand and slimes share the tailings, and the cap appears at the
+heights the facility's top reaches. The cap is a cover tied to the surface, so a depth below the surface would suit
 it better than a height above the base.
 
-## areal proportion maps
+## Areal proportion maps
 
 `detrend` with `categorical=True` in plan gives the areal proportions: the declustered average of each category's
-indicator under a gaussian kernel, with the bandwidth chosen by leave-one-out error. with `scheme`, its columns
+indicator under a Gaussian kernel, with the bandwidth chosen by leave-one-out error. With `scheme`, its columns
 follow the curve's.
 
 <details><summary>Python</summary>
@@ -124,15 +124,15 @@ bandwidth 90 m
 
 ![areal](areal.png)
 
-sand dominates the north and slimes the south; clay, under the whole facility, is even.
+Sand dominates the north and slimes the south; clay, under the whole facility, is even.
 
-## proportions in 3D
+## Proportions in 3D
 
-the model is a `BlockModel` of 20 × 20 × 1 m cells from 3 m under the original ground to the tailings surface.
-in each cell, `combine_proportions` multiplies the curve at the cell's height by the areal proportions at its
-position, divides by the global proportions (the curve's weighted mean) and rescales to sum 1. where the areal map
+The model is a `BlockModel` of 20 × 20 × 1 m cells from 3 m under the original ground to the tailings surface.
+In each cell, `combine_proportions` multiplies the curve at the cell's height by the areal proportions at its
+position, divides by the global proportions (the curve's weighted mean) and rescales to sum 1. Where the areal map
 equals the global proportions, the curve comes back unchanged; where it has more sand, each height above the clay
-gets more sand. the same call gives the proportions at the composites.
+gets more sand. The same call gives the proportions at the composites.
 
 <details><summary>Python</summary>
 
@@ -165,10 +165,10 @@ print(
 
 ## SIS with and without local proportions
 
-each category gets one spherical indicator variogram with a sill of p(1 − p), 150 m across and 4 m vertical. plain
-`SIS` krigs each indicator by ordinary kriging from its neighbors. given `proportions=` at `fit` and `simulate`, as
+Each category gets one spherical indicator variogram with a sill of p(1 − p), 150 m across and 4 m vertical. Plain
+`SIS` krigs each indicator by ordinary kriging from its neighbors. Given `proportions=` at `fit` and `simulate`, as
 a `Table` or an (n, k) array, it krigs the indicator minus its local proportion by simple kriging instead, which
-pulls each node towards the proportions of its own cell.
+pulls each node toward the proportions of its own cell.
 
 <details><summary>Python</summary>
 
@@ -186,7 +186,7 @@ runs = {
 
 </details>
 
-a north-south section through the middle of the facility shows the difference. far from the holes, plain SIS
+A north-south section through the middle of the facility shows the difference. Far from the holes, plain SIS
 falls back on the global proportions and scatters clay through the tailings; with local proportions the clay stays
 at the base, where the curve puts it.
 
@@ -209,11 +209,11 @@ save(fig, "sections")
 
 ![sections](sections.png)
 
-## checks
+## Checks
 
 `check_realizations` ([realization checks](../../10-checking-models/04-realization-checks/README.md)) compares the category proportions of each realization with the declustered
-data's. both runs come within five points of them, the local one with more cap, which the curve spreads over each
-height the facility's top reaches. the global shares hide where each category went. the share of clay in each meter
+data's. Both runs come within five points of them, the local one with more cap, which the curve spreads over each
+height the facility's top reaches. The global shares hide where each category went. The share of clay in each meter
 of height shows it, and only the run with local proportions follows the curve.
 
 <details><summary>Python</summary>

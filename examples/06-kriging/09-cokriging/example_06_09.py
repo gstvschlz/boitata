@@ -1,7 +1,7 @@
 """
-# cokriging
+# Cokriging
 
-jura: 259 soil samples of heavy metals (mg/kg, coordinates in km) and 100 validation samples withheld from estimation.
+Jura: 259 soil samples of heavy metals (mg/kg, coordinates in km) and 100 validation samples withheld from estimation.
 Cd correlates with Zn, and Zn is also known at the validation points, which suits collocated cokriging.
 """
 
@@ -26,7 +26,7 @@ lag, max_lag = 0.1, 1.5
 
 
 # %% [markdown]
-# a linear model of coregionalization with two spherical structures, fitted to the Cd and Zn variograms and their
+# A linear model of coregionalization with two spherical structures, fitted to the Cd and Zn variograms and their
 # cross-variogram ([coregionalization](../../05-spatial-continuity/07-coregionalization/README.md) shows the fit), and
 # an ordinary kriging of Cd alone for comparison:
 
@@ -44,7 +44,7 @@ ok = bt.OrdinaryKriging(experimentals[0][0].fit("spherical"), search).fit(train,
 
 
 # %% [markdown]
-# cokriging takes the samples of both variables with a variable index each. collocated cokriging also uses the secondary
+# Cokriging takes the samples of both variables with a variable index each. Collocated cokriging also uses the secondary
 # value at the target itself, here Zn at each validation point:
 
 # %%
@@ -66,7 +66,7 @@ print(
 
 
 # %% [markdown]
-# using Zn at the target lowers the error and removes the smoothing that flattens ordinary kriging:
+# Using Zn at the target lowers the error and removes the smoothing that flattens ordinary kriging:
 
 # %%
 fig, axes = plt.subplots(1, 2, figsize=(9, 4.2), layout="constrained", sharey=True)
@@ -84,11 +84,11 @@ save(fig, "validation")
 
 
 # %% [markdown]
-# ## locally varying anisotropy
+# ## Locally varying anisotropy
 #
 # `anisotropy=` takes a [LocalAnisotropy](../../06-kriging/14-local-anisotropy/README.md) as ordinary kriging does: each
 # target searches its own ellipse, shared by Cd and Zn, and every structure and cross term of the model turns with it.
-# here the directions follow the gradient of the ordinary kriging map of Cd, with semi-major ranges half the major.
+# Here the directions follow the gradient of the ordinary kriging map of Cd, with semi-major ranges half the major.
 # `collocated` also takes a column of the targets by name:
 
 # %%

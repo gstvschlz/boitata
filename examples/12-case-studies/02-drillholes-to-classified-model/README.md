@@ -1,6 +1,6 @@
 # From drill holes to a classified model
 
-A resource estimate of three stacked sulphide lenses, end to end: drill-hole tables to composites inside each
+A resource estimate of three stacked sulfide lenses, end to end: drill-hole tables to composites inside each
 lens wireframe, declustered statistics and a capping check, the Zn variogram, a sub-blocked model built from the
 wireframes, Zn and density kriged in search passes, block-support simulation for risk, validation, classification,
 and tonnes and metal per lens saved to Parquet.
@@ -124,8 +124,8 @@ cap  31.3 % Zn:  0.1% of composites cut,  0.0% of the metal removed
 
 ![statistics](statistics.png)
 
-Declustering lowers every lens mean, most in lens 1. The top 1 % of composites, above 18.9 % Zn, holds 0.9 % of
-the metal, and the probability plot shows no break in the upper tail: leave the grades uncapped.
+Declustering lowers every lens mean, most in lens 1. Capping the top 1 % of composites at 18.9 % Zn removes 0.9 %
+of the metal, and the probability plot shows no break in the upper tail: leave the grades uncapped.
 
 ## Zn variogram of lens 1
 
@@ -301,7 +301,7 @@ for ax, (axis, label) in zip(axes, (("y", "Northing (m)"), ("z", "Elevation (m)"
             bt.swath(in_one, "nn", 40.0, axis=axis, weights=in_one.volumes),
             bt.swath(in_one, "zn", 40.0, axis=axis, weights=in_one.volumes),
         ],
-        labels=["composites", "nearest neighbor", "kriged blocks"],
+        labels=["Composites", "Nearest neighbor", "Kriged blocks"],
         ax=ax,
     )
     ax.set(xlabel=label, ylabel="Zn (%)")

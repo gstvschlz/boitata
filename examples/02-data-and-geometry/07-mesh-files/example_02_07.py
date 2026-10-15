@@ -1,10 +1,10 @@
 """
-# mesh files
+# Mesh files
 
 `read_mesh` and `write_mesh` handle OBJ, STL, PLY and Gmsh MSH (binary or ASCII), OFF and DXF, chosen by the file
 extension.
 `Mesh.validate` reports what keeps a mesh from being a solid, and `Mesh.repair` and `Mesh.fill_holes` fix what
-they can. you read the four gold veins of the grade-control dataset from their STL files, write them back in each
+they can. You read the four gold veins of the grade-control dataset from their STL files, write them back in each
 format, break one into loose triangles and repair it, then take a small solid apart problem by problem.
 """
 
@@ -25,7 +25,7 @@ from common import ACCENT, GRAY, HIGHLIGHT, LIGHT, save
 
 # %% [markdown]
 # `bt.datasets.fetch` gives the local path of a dataset file. STL stores each triangle with its own three corners,
-# so reading welds the repeated corners. the veins come back closed, with a volume and an area.
+# so reading welds the repeated corners. The veins come back closed, with a volume and an area.
 
 # %%
 veins = {}
@@ -36,7 +36,7 @@ for name in ("V1", "V2", "V3", "V4"):
     print(f"{name}: {path.stat().st_size / 1e6:.1f} MB, {mesh}, {mesh.volume:,.0f} m3, {mesh.area:,.0f} m2")
 
 # %% [markdown]
-# the veins in plan at 700 m and on an east-west section at northing 15 000 m:
+# The veins in plan at 700 m and on an east-west section at northing 15 000 m:
 
 # %%
 planes = {
@@ -57,9 +57,9 @@ for ax, (title, plane) in zip(axes, planes.items()):
 save(fig, "veins")
 
 # %% [markdown]
-# each format round-trips the vein. binary STL stores single precision, so vertices can move by a fraction of a
-# millimeter at mine coordinates. these files were written in single precision and come back unchanged. DXF
-# writes one 3D face per triangle, or with `dxf_entity="polyface"` polyface meshes that share vertices. both read
+# Each format round-trips the vein. Binary STL stores single precision, so vertices can move by a fraction of a
+# millimeter at mine coordinates. These files were written in single precision and come back unchanged. DXF
+# writes one 3D face per triangle, or with `dxf_entity="polyface"` polyface meshes that share vertices. Both read
 # back with a `layer` column per triangle. PLY keeps numeric vertex and face columns, here the elevation of each
 # vertex; OFF keeps only the geometry. Gmsh MSH keeps numeric columns as node and element data and the face column
 # `physical` as physical groups.
@@ -92,13 +92,13 @@ with tempfile.TemporaryDirectory() as folder:
         )
 
 # %% [markdown]
-# ## repair
+# ## Repair
 #
-# a solid from elsewhere can arrive as loose triangles, each with its own copy of its corners, rounded
-# differently and wound either way. such a mesh shares no edges, so it is open and has no volume. here V1 is broken
+# A solid from elsewhere can arrive as loose triangles, each with its own copy of its corners, rounded
+# differently and wound either way. Such a mesh shares no edges, so it is open and has no volume. Here V1 is broken
 # that way, with corners moved by about 0.01 mm, so neighbors that met along an edge now cross slightly and count as
 # self-intersections. `repair` welds corners within `tolerance`, drops degenerate and
-# repeated triangles, and winds each piece consistently, outward where it is closed. the tolerance has to exceed
+# repeated triangles, and winds each piece consistently, outward where it is closed. The tolerance has to exceed
 # the rounding and stay below the shortest edge, or welding collapses triangles and opens new holes:
 
 # %%
@@ -118,9 +118,9 @@ repaired = broken.repair(tolerance=1e-4)
 print(f"repaired at 0.1 mm: {repaired.volume:,.0f} m3, original {v1.volume:,.0f} m3")
 
 # %% [markdown]
-# ## a broken solid, problem by problem
+# ## A broken solid, problem by problem
 #
-# two 10 m cubes: the first lost a side and has one triangle turned over, the second pokes into it. `validate` lists
+# Two 10 m cubes: the first lost a side and has one triangle turned over, the second pokes into it. `validate` lists
 # each problem with the face, vertex or edge it sits on. `repair` turns the triangle back, `fill_holes` closes the
 # missing side with a fan, and the crossing between the cubes stays reported: no repair moves geometry.
 
@@ -157,8 +157,8 @@ def draw(ax, mesh, title):
         *mesh.coords.T, triangles=mesh.triangles, color=LIGHT, edgecolor=GRAY, linewidth=0.3, alpha=0.3
     )
     for kind, color, label in (
-        ("boundary_edge", HIGHLIGHT, "open edge"),
-        ("inconsistent_winding", ACCENT, "flipped"),
+        ("boundary_edge", HIGHLIGHT, "Open edge"),
+        ("inconsistent_winding", ACCENT, "Flipped"),
     ):
         for i, segment in enumerate(edges_of(mesh, problems, kind)):
             ax.plot(*segment.T, color=color, linewidth=2.5, label=label if i == 0 else None)
@@ -167,7 +167,7 @@ def draw(ax, mesh, title):
         triangles=mesh.triangles[crossing],
         color="#d9a400",
         alpha=0.45,
-        label="crossing face",
+        label="Crossing face",
     )
     ax.set_title(title)
     ax.set_box_aspect((1, 1, 1))

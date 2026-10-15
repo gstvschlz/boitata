@@ -10,7 +10,7 @@
 <text class="a-fade" style="--d:1.3s" x="175.9" y="152.9">5 m apart: 414 and 379</text>
 <path class="s-ember none a-fade" style="--d:1.7s" stroke-width="1.5" d="M245.9 194.9 V232.0 H377.9 V248.2"/>
 <text class="a-fade" style="--d:1.8s" x="389.9" y="224.0">60 m apart: 414 and 13</text>
-<text class="small" x="300" y="262">easting (m)</text>
+<text class="small" x="300" y="262">Easting (m)</text>
 <text class="small" x="44" y="262">0</text>
 <text class="small" x="608" y="262">260</text>
 <text class="small" x="58" y="36">V (ppm), along northing 150 m</text>

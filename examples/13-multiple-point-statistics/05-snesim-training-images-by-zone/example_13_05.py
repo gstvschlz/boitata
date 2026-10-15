@@ -1,8 +1,8 @@
 """
-# several training images
+# Several training images
 
-if the geology changes across a model, one image cannot hold all its patterns. SNESIM takes a training image per
-domain, `{domain: (model, column)}`, and `simulate` picks each cell's image from its domain. the images share one set
+If the geology changes across a model, one image cannot hold all its patterns. SNESIM takes a training image per
+domain, `{domain: (model, column)}`, and `simulate` picks each cell's image from its domain. The images share one set
 of codes, so a code means the same in each domain.
 """
 
@@ -26,8 +26,8 @@ grid = bt.BlockModel((0, 0), (1, 1), (n, n))
 
 
 # %% [markdown]
-# objects build the second image: sand lenses about 36 by 10 cells, lying east-west, over 30 % of a grid the size of
-# strebelle.
+# Objects build the second image: sand lenses about 36 by 10 cells, lying east-west, over 30 % of a grid the size of
+# Strebelle.
 
 # %%
 lens = {"shape": "ellipsoid", "code": 1, "proportion": 0.3, "radii": (18, 5), "azimuth": (80, 100)}
@@ -36,7 +36,7 @@ print(f"sand: channels {channels['facies'].mean():.1%}, lenses {lenses['facies']
 
 
 # %% [markdown]
-# a line dipping east splits two domains: channels in the south, lenses in the north. twenty realizations, with the
+# A line dipping east splits two domains: channels in the south, lenses in the north. Twenty realizations, with the
 # sand share of each domain against its image:
 
 # %%
@@ -65,11 +65,11 @@ for ax, (values, title, cmap) in zip(axes, panels):
         side.set(visible=True, color=INK, lw=0.6)
 for ax in axes[2:]:
     ax.contour(boundary, levels=[0.5], colors=HIGHLIGHT, linewidths=1.2)
-fig.colorbar(im, ax=axes[3], shrink=0.8, label="probability")
+fig.colorbar(im, ax=axes[3], shrink=0.8, label="Probability")
 save(fig, "zones")
 
 # %% [markdown]
-# the boundary stays visible as a line. a cell next to it reads neighbors from both sides, which joins a channel to a
-# lens where they meet, but the change of pattern is abrupt. the images may differ in size and must share a kind: a
-# dict of continuous images works the same way, each domain drawing its values from its own image. hard data,
+# The boundary stays visible as a line. A cell next to it reads neighbors from both sides, which joins a channel to a
+# lens where they meet, but the change of pattern is abrupt. The images may differ in size and must share a kind: a
+# dict of continuous images works the same way, each domain drawing its values from its own image. Hard data,
 # `anisotropy` and `target_proportions` combine with domains as without them.

@@ -1,1 +1,1 @@
-## spatial imputation
+## Spatial imputation

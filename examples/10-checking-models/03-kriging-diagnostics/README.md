@@ -1,7 +1,7 @@
-# kriging diagnostics
+# Kriging diagnostics
 
-block kriging of walker lake `V` on 10 × 10 m blocks with `diagnostics=True`: kriging efficiency and slope of
-regression per block, then the neighborhood behind each estimate. the exhaustive grid checks what they predict.
+Block kriging of Walker Lake `V` on 10 × 10 m blocks with `diagnostics=True`: kriging efficiency and slope of
+regression per block, then the neighborhood behind each estimate. The exhaustive grid checks what they predict.
 
 <details><summary>Python</summary>
 
@@ -30,11 +30,11 @@ extent = (0.5, 260.5, 0.5, 300.5)
 
 </details>
 
-## efficiency and slope
+## Efficiency and slope
 
-kriging efficiency compares the block variance with the kriging variance: 1 for a block known without error, 0 or
-less for one no better known than the global mean. the slope of regression of true on estimated grades is 1 when
-estimates are conditionally unbiased; below 1, high estimates overstate and low ones understate the truth. both
+Kriging efficiency compares the block variance with the kriging variance: 1 for a block known without error, 0 or
+less for one no better known than the global mean. The slope of regression of true on estimated grades is 1 when
+estimates are conditionally unbiased; below 1, high estimates overstate and low ones understate the truth. Both
 fall away from the samples:
 
 <details><summary>Python</summary>
@@ -56,8 +56,8 @@ save(fig, "diagnostics")
 
 ![diagnostics](diagnostics.png)
 
-the truth checks both. over all blocks, the regression of true on estimated block grades has a slope close to the
-mean predicted slope. blocks with efficiency of 0.7 or more sit closer to the truth; below 0.7, efficiency separates
+The truth checks both. Over all blocks, the regression of true on estimated block grades has a slope close to the
+mean predicted slope. Blocks with efficiency of 0.7 or more sit closer to the truth; below 0.7, efficiency separates
 them poorly, one reason classification also uses sample spacing ([classification](../../10-checking-models/05-classification/README.md)).
 
 <details><summary>Python</summary>
@@ -83,13 +83,13 @@ efficiency < 0.5:  98 blocks, RMSE  95.7 ppm, correlation with truth 0.77
           >= 0.7: 259 blocks, RMSE  84.0 ppm, correlation with truth 0.93
 ```
 
-## neighborhood
+## Neighborhood
 
-the other diagnostics explain why a block is weak. `mean_distance` is the mean distance to the samples used, and
+The other diagnostics explain why a block is weak. `mean_distance` is the mean distance to the samples used, and
 `max_samples_reached` flags searches that stopped at 24 samples before the ellipse ran out: those blocks sit in
 denser data and have the higher slope. `negative_weight_sum` adds the weights below zero, which samples screened
-by closer ones receive. `lagrange` (the lagrange multiplier) and `n_holes` (distinct drill holes used; each walker
-lake sample is its own) complete the set.
+by closer ones receive. `lagrange` (the Lagrange multiplier) and `n_holes` (distinct drill holes used; each Walker
+Lake sample is its own) complete the set.
 
 <details><summary>Python</summary>
 
@@ -122,8 +122,8 @@ negative weights    above -0.03: 542 blocks, RMSE 102.0 ppm, mean 233 ppm agains
 0 negative estimates
 ```
 
-negative weights are strongest in and around the dense clusters of the west, where close samples screen the
-others. those blocks lie in high grades and overstate the truth by about four times as much as the rest, with
+Negative weights are strongest in and around the dense clusters of the west, where close samples screen the
+others. Those blocks lie in high grades and overstate the truth by about four times as much as the rest, with
 errors no larger; no estimate goes below zero.
 
 <details><summary>Python</summary>

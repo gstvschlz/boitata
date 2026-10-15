@@ -1,8 +1,8 @@
-# continuous SNESIM
+# Continuous SNESIM
 
-SNESIM counts patterns of categories, so it first cuts a continuous variable into a few classes. it simulates the
+SNESIM counts patterns of categories, so it first cuts a continuous variable into a few classes. It simulates the
 classes, then each cell takes a value from a cell of the training image in its class: of 32 drawn at random, the
-one whose neighbors best match the values already simulated around it. here SNESIM fills a seismic section between
+one whose neighbors best match the values already simulated around it. Here SNESIM fills a seismic section between
 five traces, with other sections of the same survey as the training image.
 
 <details><summary>Python</summary>
@@ -25,9 +25,9 @@ print(f"{nx} x {ny} traces of {nz} samples, amplitude {cube.min():.0f} to {cube.
 45 x 45 traces of 51 samples, amplitude -17711 to 10591
 ```
 
-a section is 45 traces by 51 samples. one section holds few patterns, so the training image lays ten sections side
-by side, every third one from the first. the section to simulate lies 13 sections past the last of them, and five
-of its traces, 225 m apart, are the hard data. cells are 25 m by 4 ms; SNESIM reads patterns cell by cell, so the
+A section is 45 traces by 51 samples. One section holds few patterns, so the training image lays ten sections side
+by side, every third one from the first. The section to simulate lies 13 sections past the last of them, and five
+of its traces, 225 m apart, are the hard data. Cells are 25 m by 4 ms; SNESIM reads patterns cell by cell, so the
 image and the section share that size.
 
 <details><summary>Python</summary>
@@ -46,7 +46,7 @@ values = truth[at_traces]
 
 </details>
 
-the default cutoffs are the image's quartiles: four classes keep the patterns frequent enough to count. ten classes
+The default cutoffs are the image's quartiles: four classes keep the patterns frequent enough to count. Ten classes
 give too many arrangements, and most cells fall back to the class proportions.
 
 <details><summary>Python</summary>
@@ -73,8 +73,8 @@ hard data reproduced: True
 correlation with the true section: realizations 0.70, mean of 50 0.89
 ```
 
-each realization carries the main reflectors from trace to trace, but it is rougher than the seismic: the patterns
-come from four classes, and within a class a value matches only its 8 nearest neighbors. the mean of 50 keeps what
+Each realization carries the main reflectors from trace to trace, but it is rougher than the seismic: the patterns
+come from four classes, and within a class a value matches only its 8 nearest neighbors. The mean of 50 keeps what
 the traces fix and smooths the rest.
 
 <details><summary>Python</summary>
@@ -98,12 +98,12 @@ panels = [
 ]
 for ax, (img, title) in zip(axes, panels):
     im = ax.imshow(img, **style)
-    ax.set(title=title, xlabel="distance (m)")
+    ax.set(title=title, xlabel="Distance (m)")
 for ax in axes[1:]:
     for t in traces:
         ax.axvline((t + 0.5) * 25, color=HIGHLIGHT, lw=0.8)
-axes[0].set_ylabel("two-way time (ms)")
-fig.colorbar(im, ax=axes, shrink=0.8, label="amplitude")
+axes[0].set_ylabel("Two-way time (ms)")
+fig.colorbar(im, ax=axes, shrink=0.8, label="Amplitude")
 save(fig, "sections")
 ```
 
@@ -111,7 +111,7 @@ save(fig, "sections")
 
 ![sections](sections.png)
 
-each value comes from the image, yet the realizations follow the true section's histogram closer than the image's:
+Each value comes from the image, yet the realizations follow the true section's histogram closer than the image's:
 the five traces, a tenth of the section, carry its proportions of each class into the patterns around them.
 
 <details><summary>Python</summary>
@@ -121,13 +121,13 @@ fig, ax = plt.subplots(figsize=(6, 3.8), layout="constrained")
 for r in summary.realizations:
     ax.plot(np.sort(r), np.linspace(0, 1, r.size), color=LIGHT, lw=0.8)
 ax.plot([], [], color=LIGHT, label="3 realizations")
-ax.plot(np.sort(image.ravel()), np.linspace(0, 1, image.size), color=INK, lw=1.4, label="training image")
+ax.plot(np.sort(image.ravel()), np.linspace(0, 1, image.size), color=INK, lw=1.4, label="Training image")
 ax.plot(
-    np.sort(truth.ravel()), np.linspace(0, 1, truth.size), color=GRAY, lw=1.4, ls="--", label="true section"
+    np.sort(truth.ravel()), np.linspace(0, 1, truth.size), color=GRAY, lw=1.4, ls="--", label="True section"
 )
 for q in np.quantile(image, [0.25, 0.5, 0.75]):
     ax.axvline(q, color=INK, lw=0.6, ls=":")
-ax.set(xlabel="amplitude", ylabel="cumulative probability", title="Histograms; dotted: class cutoffs")
+ax.set(xlabel="Amplitude", ylabel="Cumulative probability", title="Histograms; dotted: class cutoffs")
 ax.legend(loc="lower right")
 save(fig, "histograms")
 ```
@@ -136,7 +136,7 @@ save(fig, "histograms")
 
 ![histograms](histograms.png)
 
-categories are the usual case: see [the multigrid](../../13-multiple-point-statistics/01-snesim-multigrid/README.md) and
+Categories are the usual case: see [the multigrid](../../13-multiple-point-statistics/01-snesim-multigrid/README.md) and
 [conditioning](../../13-multiple-point-statistics/02-snesim-conditioning/README.md).
 
 Full script: [`example_13_03.py`](example_13_03.py)

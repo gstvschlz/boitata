@@ -1,1 +1,1 @@
-## multiple indicator kriging
+## Multiple indicator kriging

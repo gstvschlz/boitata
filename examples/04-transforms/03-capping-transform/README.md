@@ -1,7 +1,7 @@
-# capping transform
+# Capping transform
 
 `Capping` makes the top cut a pipeline step: `fit` chooses a cap per domain from the data, `transform` clips values to
-it, and the fitted caps travel with the object to new data, to JSON and to pickle. you either give the cap or let a
+it, and the fitted caps travel with the object to new data, to JSON and to pickle. You either give the cap or let a
 rule choose it: a weighted quantile, a target fraction of metal removed, or a target coefficient of variation.
 
 <details><summary>Python</summary>
@@ -15,7 +15,7 @@ from common import ACCENT, GRAY, HIGHLIGHT, save
 
 </details>
 
-the quartz-vein composites of [top cuts](../../03-exploratory-analysis/05-top-cuts/README.md): gold in four veins, V1
+The quartz-vein composites of [top cuts](../../03-exploratory-analysis/05-top-cuts/README.md): gold in four veins, V1
 to V4, sampled by diamond holes and underground channels, composited to 1 m and declustered in 20 m cells.
 
 <details><summary>Python</summary>
@@ -38,9 +38,9 @@ print(f"{len(quartz)} composites in {len(veins)} veins")
 5826 composites in 4 veins
 ```
 
-## one cap per vein
+## One cap per vein
 
-each rule fits per vein on the declustered composites. the quantile rule caps at the declustered P99, the metal rule
+Each rule fits per vein on the declustered composites. The quantile rule caps at the declustered P99, the metal rule
 finds the cap that removes 5 % of the metal of each vein, and the CV rule finds the largest cap whose capped
 coefficient of variation is 1.5. `caps_` and `metal_removed_` are dicts by vein.
 
@@ -70,15 +70,15 @@ V3           67.5       0.00       50.5       5.00       54.0       3.97
 V4          183.5       0.71      111.6       5.00       52.0      30.36
 ```
 
-the rules disagree most where the tail is longest. V1 and V2 lose 11 and 15 % of their metal at the P99; holding the
-loss to 5 % lifts their caps to 161 and 592 g/t, the latter just under the extreme channels of V2. in the small veins
-the P99 barely cuts: it is the maximum of V3. a CV of 1.5 caps V1 and V2 near 50 g/t and costs them 17 to 19 % of
+The rules disagree most where the tail is longest. V1 and V2 lose 11 and 15 % of their metal at the P99; holding the
+loss to 5 % lifts their caps to 161 and 592 g/t, the latter just under the extreme channels of V2. In the small veins
+the P99 barely cuts: it is the maximum of V3. A CV of 1.5 caps V1 and V2 near 50 g/t and costs them 17 to 19 % of
 their metal.
 
-## the same numbers as [top cuts](../../03-exploratory-analysis/05-top-cuts/README.md)
+## The same numbers as [top cuts](../../03-exploratory-analysis/05-top-cuts/README.md)
 
-[top cuts](../../03-exploratory-analysis/05-top-cuts/README.md) read the declustered P99 of each vein off
-`describe_by` and passed it to `capping_report`. the quantile rule fits the same caps, and its `metal_removed_` is the
+[Top cuts](../../03-exploratory-analysis/05-top-cuts/README.md) read the declustered P99 of each vein off
+`describe_by` and passed it to `capping_report`. The quantile rule fits the same caps, and its `metal_removed_` is the
 `1 - mean_capped / mean` of the report.
 
 <details><summary>Python</summary>
@@ -107,7 +107,7 @@ V3      67.53       67.53        0.00        0.00
 V4     183.55      183.55        0.71        0.71
 ```
 
-on a log-probability plot the dashed caps cut the last percent of the tail of each vein.
+On a log-probability plot the dashed caps cut the last percent of the tail of each vein.
 
 <details><summary>Python</summary>
 
@@ -135,12 +135,12 @@ save(fig, "probability")
 
 ![probability](probability.png)
 
-## capped kriging
+## Capped kriging
 
-the capped grades feed the estimate as any other column. ordinary kriging estimates 5 m blocks inside the V1 solid
-from the raw and from the capped composites of V1, with one variogram and search. the extreme channels no longer
+The capped grades feed the estimate as any other column. Ordinary kriging estimates 5 m blocks inside the V1 solid
+from the raw and from the capped composites of V1, with one variogram and search. The extreme channels no longer
 spread their grade over their neighborhood: the richest blocks drop below the diagonal and the low-grade ones stay on
-it. the blocks lose 5 % of their mean grade, against 11 % for the declustered composites, because most blocks draw on
+it. The blocks lose 5 % of their mean grade, against 11 % for the declustered composites, because most blocks draw on
 samples below the cap, which capping leaves unchanged.
 
 <details><summary>Python</summary>
@@ -177,7 +177,7 @@ composites: 8.52 and 7.60 g/t
 fig, ax = plt.subplots(figsize=(4.5, 4))
 ax.scatter(kriged["AU_GPT"], kriged["AU_CAPPED"], s=2, color=ACCENT)
 ax.axline((0, 0), slope=1, color=GRAY, lw=0.8)
-ax.axhline(capping.caps_["V1"], color=HIGHLIGHT, ls="--", lw=0.8, label="cap")
+ax.axhline(capping.caps_["V1"], color=HIGHLIGHT, ls="--", lw=0.8, label="Cap")
 ax.set(xscale="log", yscale="log", xlabel="Kriged from raw Au (g/t)", ylabel="Kriged from capped Au (g/t)")
 ax.set_title("V1 blocks")
 ax.legend(loc="lower right")
@@ -188,11 +188,11 @@ save(fig, "kriged")
 
 ![kriged](kriged.png)
 
-## in a pipeline
+## In a pipeline
 
 `Capping` has `fit`, `transform` and `fit_transform` like `NormalScore`, so the two chain: cap, then score, the usual
-preparation for a gaussian simulation. fitted once, both apply to new samples: a 500 g/t sample is capped to 81 g/t
-before scoring, so its score is that of the cap. the fitted caps round-trip through JSON and pickle.
+preparation for a Gaussian simulation. Fitted once, both apply to new samples: a 500 g/t sample is capped to 81 g/t
+before scoring, so its score is that of the cap. The fitted caps round-trip through JSON and pickle.
 
 <details><summary>Python</summary>
 

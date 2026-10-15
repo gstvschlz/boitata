@@ -1,9 +1,9 @@
-# realization checks
+# Realization checks
 
-realizations should reproduce the declustered histogram of the data, the variogram model behind them and, with
+Realizations should reproduce the declustered histogram of the data, the variogram model behind them and, with
 several variables, the correlations between them. `check_realizations` measures all three for each realization, and
 `bt.plot.histogram_reproduction`, `variogram_reproduction` and `correlation_reproduction` draw each as a band across
-realizations against its target. on a grid, realization variograms pair cells by index shifts, in parallel over
+realizations against its target. On a grid, realization variograms pair cells by index shifts, in parallel over
 realizations.
 
 <details><summary>Python</summary>
@@ -17,7 +17,7 @@ from common import save
 
 </details>
 
-walker lake V, simulated as in [sequential gaussian simulation](../../08-stochastic-simulation/01-sgs/README.md): declustered normal scores, their variogram along N170° and across it,
+Walker Lake V, simulated as in [sequential Gaussian simulation](../../08-stochastic-simulation/01-sgs/README.md): declustered normal scores, their variogram along N170° and across it,
 and 50 SGS realizations on a 5 m grid.
 
 <details><summary>Python</summary>
@@ -45,7 +45,7 @@ summary = sgs.simulate(grid, n=50, seed=42, keep=True)
 
 </details>
 
-one call checks them all. given the model, the variograms run along its azimuth and across it, in the normal scores
+One call checks them all. Given the model, the variograms run along its azimuth and across it, in the normal scores
 of the declustered data (the units of the model). `statistics` holds what `describe` gives for the declustered
 data (realization 0) and for each realization:
 
@@ -70,9 +70,9 @@ P50   data    235   realizations    192 to    284
 P90   data    636   realizations    616 to    702
 ```
 
-the realizations' distributions straddle the declustered data's in grades and in normal scores, except for the step
-at the lowest scores, where all realization values of 0 ppm share one score. their variograms follow the model
-along and across N170° up to its ranges. beyond them the realizations wander around the sill, as single
+The realizations' distributions straddle the declustered data's in grades and in normal scores, except for the step
+at the lowest scores, where all realization values of 0 ppm share one score. Their variograms follow the model
+along and across N170° up to its ranges. Beyond them the realizations wander around the sill, as single
 260 × 300 m fields must, and the band shows how far.
 
 <details><summary>Python</summary>
@@ -92,9 +92,9 @@ save(fig, "walker_lake")
 
 ![walker_lake](walker_lake.png)
 
-## several variables
+## Several variables
 
-log chalcocite and log tennantite of porphyry 1, cosimulated through PPMT by turning bands as in [multivariate simulation](../../08-stochastic-simulation/06-multivariate-simulation/README.md). given a
+Log chalcocite and log tennantite of porphyry 1, cosimulated through PPMT by turning bands as in [multivariate simulation](../../08-stochastic-simulation/06-multivariate-simulation/README.md). Given a
 list of summaries, one per variable, the check adds each realization's correlation matrix.
 
 <details><summary>Python</summary>
@@ -133,9 +133,9 @@ print(
 32,130 nodes; correlation data 0.25, realizations 0.22 to 0.30
 ```
 
-the realizations reproduce both declustered histograms and the correlation, and miss the variograms. the factors
+The realizations reproduce both declustered histograms and the correlation, and miss the variograms. The factors
 came from omnidirectional models, so the realizations are nearly isotropic and smoother than the data, which are
-more continuous down the holes than across them. the next step would be directional factor variograms.
+more continuous down the holes than across them. The next step would be directional factor variograms.
 
 <details><summary>Python</summary>
 
@@ -143,7 +143,7 @@ more continuous down the holes than across them. the next step would be directio
 fig, axes = plt.subplots(1, 4, figsize=(15, 3.6), layout="constrained")
 for ax, name in zip(axes, names):
     bt.plot.histogram_reproduction(multi, variable=name, ax=ax)
-    ax.set(xlabel=f"log {name} (%)", title=name.capitalize())
+    ax.set(xlabel=f"Log {name} (%)", title=name.capitalize())
 bt.plot.variogram_reproduction(multi, variable="chalcocite", ax=axes[2])
 axes[2].set(xlabel="Lag distance (m)", title="Chalcocite normal scores")
 bt.plot.correlation_reproduction(multi, ax=axes[3])

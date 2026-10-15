@@ -1,7 +1,7 @@
 """
-# shapefiles, geopackage, GeoTIFF and JPEG
+# Shapefiles, GeoPackage, GeoTIFF and JPEG
 
-GIS software exchanges points, lines and polygons as shapefiles or geopackages, and rasters as GeoTIFF or
+GIS software exchanges points, lines and polygons as shapefiles or GeoPackages, and rasters as GeoTIFF or
 georeferenced JPEG.
 `write_shapefile`, `write_geopackage` and `write_geotiff` write a `PointSet`, `Polylines` or 2D `BlockModel` with
 its CRS. `read_shapefile`, `read_geopackage` and `read_geotiff` return the same container.
@@ -29,10 +29,10 @@ print(boundary)
 print(covariates)
 
 # %% [markdown]
-# ## shapefiles
+# ## Shapefiles
 #
 # `write_shapefile` stores the coordinates, the attributes (names of at most 10 characters) and, when the container
-# has one, the CRS in a `.prj`. points and polylines go to separate files. the format wants outer rings clockwise, so
+# has one, the CRS in a `.prj`. Points and polylines go to separate files. The format wants outer rings clockwise, so
 # the counter-clockwise boundary comes back with its vertices in reverse order.
 
 # %%
@@ -50,8 +50,8 @@ print(
 )
 
 # %% [markdown]
-# a `Polylines` feature is made of parts. a closed part is a ring whose last vertex joins the first, and a ring inside
-# another ring of the same feature is a hole. open parts are lines: the samples lie on east-west survey lines about
+# A `Polylines` feature is made of parts. A closed part is a ring whose last vertex joins the first, and a ring inside
+# another ring of the same feature is a hole. Open parts are lines: the samples lie on east-west survey lines about
 # 200 m apart, and each line, joined sample to sample, goes to a line shapefile.
 
 # %%
@@ -63,11 +63,11 @@ lines = bt.read_shapefile(folder / "lines.shp")
 print(lines)
 
 # %% [markdown]
-# ## geopackage
+# ## GeoPackage
 #
-# a geopackage is a single SQLite file holding many layers, with attribute names of any length and the CRS as an EPSG
+# A GeoPackage is a single SQLite file holding many layers, with attribute names of any length and the CRS as an EPSG
 # code or WKT. `write_geopackage` adds a layer, or replaces the one of the same name. `read_geopackage` needs `layer=`
-# when the file holds more than one. python's own `sqlite3` reads and writes the tables.
+# when the file holds more than one. Python's own `sqlite3` reads and writes the tables.
 
 # %%
 package = folder / "survey.gpkg"
@@ -85,8 +85,8 @@ print(
 # ## GeoTIFF
 #
 # `write_geotiff` writes each column of a 2D grid as a band, nulls as the `nodata` value and the CRS in the
-# geokeys, so GIS software opens it as a georeferenced raster. it handles rotated grids, and writes a masked model
-# with nodata in its absent cells: here only the cells inside the survey area remain. bands hold numbers, so the
+# geokeys, so GIS software opens it as a georeferenced raster. It handles rotated grids, and writes a masked model
+# with nodata in its absent cells: here only the cells inside the survey area remain. Bands hold numbers, so the
 # lithology names go in as the codes of a `Categories` scheme.
 
 # %%
@@ -115,7 +115,7 @@ for name, n in zip(scheme.names, np.bincount(raster["LITHOLOGY"][present].astype
     print(f"{name:>16}: {n} cells")
 
 # %% [markdown]
-# the raster comes back as a regular grid: the 2407 cells outside the survey area are null in every band.
+# The raster comes back as a regular grid: the 2407 cells outside the survey area are null in every band.
 
 # %%
 (x0, y0, _), (x1, y1, _) = raster.bounds
@@ -133,7 +133,7 @@ save(fig, "gis")
 # %% [markdown]
 # ## JPEG
 #
-# a georeferenced JPEG is an 8-bit image with a `.jgw` world file (pixel size, rotation and the center of the
+# A georeferenced JPEG is an 8-bit image with a `.jgw` world file (pixel size, rotation and the center of the
 # top-left pixel) and an `.aux.xml` sidecar holding the CRS. `write_jpeg` takes one column (gray) or three (red,
 # green, blue) of whole numbers from 0 to 255 with no nulls, so the magnetics are scaled to that range first. JPEG is
 # lossy: even at `quality=100` some levels change. `read_jpeg` names the bands `band_1`, `band_2`, ...
@@ -159,10 +159,10 @@ print(
 # %%
 fig, (left, right) = plt.subplots(1, 2, figsize=(10, 4.2), layout="constrained")
 image = left.imshow(photo.grid("band_1")[0], origin="lower", extent=(x0, x1, y0, y1), cmap="gray")
-fig.colorbar(image, ax=left, shrink=0.8, label="level")
+fig.colorbar(image, ax=left, shrink=0.8, label="Level")
 map_axes(left, "JPEG magnetics")
 change = np.abs(photo.grid("band_1")[0] - gray.grid("MAG")[0])
 image = right.imshow(change, origin="lower", extent=(x0, x1, y0, y1), cmap="cividis")
-fig.colorbar(image, ax=right, shrink=0.8, label="levels")
-map_axes(right, "change after the JPEG round trip")
+fig.colorbar(image, ax=right, shrink=0.8, label="Levels")
+map_axes(right, "Change after the JPEG round trip")
 save(fig, "jpeg")

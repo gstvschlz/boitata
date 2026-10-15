@@ -244,7 +244,7 @@ def _truth_indices(truths):
 
 
 def _composites(name, holes, length, targets):
-    """Centres of `holes`' composites inside `targets`, their hole names and the target holding each."""
+    """Centers of `holes`' composites inside `targets`, their hole names and the target holding each."""
     points = holes.composite(length, [])
     where = targets.row_at(points.coords)
     inside = where >= 0

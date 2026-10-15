@@ -10,13 +10,13 @@
 <line class="s-muted" x1="50.0" y1="300.0" x2="50.0" y2="180.0" stroke-width="1"/>
 <text class="small" x="46.0" y="174.0">N</text>
 <path class="s-ink none" stroke-width="1" d="M50.0 245.0 A55 55 0 0 1 101.7 281.2"/>
-<text x="68.0" y="238.0">azimuth</text>
+<text x="68.0" y="238.0">Azimuth</text>
 <path class="s-ember none" stroke-width="1.5" d="M138.5 218.9 A120 120 0 0 1 162.8 259.0"/>
 <line class="s-muted" x1="152.6" y1="237.7" x2="150" y2="168" stroke-width="1"/>
-<text x="100" y="162">angular tolerance 22.5°</text>
+<text x="100" y="162">Angular tolerance 22.5°</text>
 <line class="s-ember" x1="531.1" y1="124.9" x2="549.9" y2="176.6" stroke-width="2"/>
-<text x="489.9" y="202.6">bandwidth</text>
-<text x="276.9" y="306.5">one lag bin</text>
+<text x="489.9" y="202.6">Bandwidth</text>
+<text x="276.9" y="306.5">One lag bin</text>
 <circle class="f-ember a-pop" style="--d:1.20s" cx="260.5" cy="235.1" r="5"/>
 <circle class="f-ember a-pop" style="--d:1.35s" cx="273.6" cy="198.1" r="5"/>
 <circle class="f-ember a-pop" style="--d:1.50s" cx="309.4" cy="223.2" r="5"/>
@@ -28,5 +28,5 @@
 <circle class="f-muted" cx="228.5" cy="147.2" r="4"/>
 <circle class="f-muted" cx="439.0" cy="170.1" r="4"/>
 <circle class="f-night" cx="50.0" cy="300.0" r="6"/>
-<text class="small" x="30.0" y="322.0">tail sample</text>
+<text class="small" x="30.0" y="322.0">Tail sample</text>
 </svg>

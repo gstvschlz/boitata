@@ -1,1 +1,1 @@
-## stepped sections
+## Stepped sections

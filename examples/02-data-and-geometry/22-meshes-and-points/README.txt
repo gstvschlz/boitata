@@ -1,1 +1,1 @@
-## meshes and points in a scene
+## Meshes and points in a scene

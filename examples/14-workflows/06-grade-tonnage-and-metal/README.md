@@ -1,8 +1,8 @@
-# Grade–tonnage curves and the change in contained metal
+# Grade-tonnage curves and the change in contained metal
 
 [Compare two estimates](../../14-workflows/05-compare-two-estimates/README.md) chose the ordinary kriging over the inverse distance
 model of Walker Lake. Management asks the next question: how much metal does that decision remove from the
-resource? You build grade–tonnage curves for both models and for the true blocks, report tonnes, grade and metal
+resource? You build grade-tonnage curves for both models and for the true blocks, report tonnes, grade and metal
 at a set of cutoffs, state the change in contained metal at the reporting cutoff, and check that the metal adds
 up.
 
@@ -18,7 +18,7 @@ from common import ACCENT, HIGHLIGHT, INK, save
 </details>
 
 !!! learn "What you'll learn"
-    - What a grade–tonnage curve reports: tonnes, mean grade and metal above each cutoff.
+    - What a grade-tonnage curve reports: tonnes, mean grade and metal above each cutoff.
     - Why a smooth estimate reports more tonnes at a lower grade above a low cutoff.
     - How to state a change in contained metal in absolute and relative terms, and check that it balances.
 
@@ -27,9 +27,9 @@ from common import ACCENT, HIGHLIGHT, INK, save
 
 ## The data
 
-The blocks are those of the previous tutorial: 26 × 30 blocks of 10 × 10 m. A grade–tonnage report needs tonnes,
+The blocks are those of the previous tutorial: 26 × 30 blocks of 10 × 10 m. A grade-tonnage report needs tonnes,
 which Walker Lake does not have, so two assumptions give them: a 10 m bench centered on the sample plane, and a
-density of 2.7 t/m³. Each block is then 10 × 10 × 10 m = 1,000 m³ and weighs 2,700 t. Walker Lake's `V` is read
+density of 2.7 t/m³. Each block is then 10 × 10 × 10 m = 1 000 m³ and weighs 2 700 t. Walker Lake's `V` is read
 as a grade in ppm (g/t), so tonnes × ppm gives grams of metal; the tables below divide by 10⁶ to report tonnes of
 metal.
 
@@ -75,7 +75,7 @@ BlockModel(regular, 780 of 780 cells, count [26, 30, 1], size [10.0, 10.0, 10.0]
 The true blocks are the averages of the exhaustive grid over each block. A real deposit has no such column; here
 it shows which model reports the right tonnes.
 
-!!! step "Step 1: One grade–tonnage curve"
+!!! step "Step 1: One grade-tonnage curve"
     For a cutoff \(c\), the tonnage is the sum of the tonnes of the blocks with grade ≥ \(c\), the mean grade is
     their tonne-weighted average, and the metal is tonnage × mean grade. `grade_tonnage` computes this for a list
     of cutoffs. `data=blocks` lets it read the column by name and use each block's volume as its weight;
@@ -115,9 +115,9 @@ cutoff 400 ppm: 0.464 Mt at 568.8 ppm = 264.1 t of metal
 <details><summary>Python</summary>
 
 ```python
-labels = {"truth": "true blocks", "ok": "kriging", "id": "inverse distance"}
+labels = {"truth": "True blocks", "ok": "Kriging", "id": "Inverse distance"}
 columns = {label: name for name, label in labels.items()}
-table = bt.compare_models(blocks, columns, cutoffs, reference="true blocks", density=density)
+table = bt.compare_models(blocks, columns, cutoffs, reference="True blocks", density=density)
 
 
 def at(table, name, cutoff):
@@ -144,24 +144,24 @@ for cutoff in (0, 100, 200, 300, 400, 600):
 
 ```text
 cutoff            model      kt  V ppm  metal t   vs truth:      t  grade  metal
-     0      true blocks  2106.0  278.0    585.4              +0.0%  +0.0%  +0.0%
-     0          kriging  2106.0  291.7    614.2              +0.0%  +4.9%  +4.9%
-     0 inverse distance  2106.0  332.8    700.8              +0.0% +19.7% +19.7%
-   100      true blocks  1598.4  353.3    564.7              +0.0%  +0.0%  +0.0%
-   100          kriging  1833.3  326.1    597.9             +14.7%  -7.7%  +5.9%
-   100 inverse distance  1930.5  356.9    688.9             +20.8%  +1.0% +22.0%
-   200      true blocks  1196.1  421.3    504.0              +0.0%  +0.0%  +0.0%
-   200          kriging  1352.7  388.3    525.2             +13.1%  -7.8%  +4.2%
-   200 inverse distance  1571.4  403.1    633.4             +31.4%  -4.3% +25.7%
-   300      true blocks   845.1  493.6    417.1              +0.0%  +0.0%  +0.0%
-   300          kriging   882.9  462.0    407.9              +4.5%  -6.4%  -2.2%
-   300 inverse distance  1150.2  458.6    527.4             +36.1%  -7.1% +26.4%
-   400      true blocks   540.0  575.8    310.9              +0.0%  +0.0%  +0.0%
-   400          kriging   464.4  568.8    264.1             -14.0%  -1.2% -15.0%
-   400 inverse distance   683.1  533.9    364.7             +26.5%  -7.3% +17.3%
-   600      true blocks   183.6  743.5    136.5              +0.0%  +0.0%  +0.0%
-   600          kriging   137.7  762.4    105.0             -25.0%  +2.5% -23.1%
-   600 inverse distance   162.0  729.0    118.1             -11.8%  -2.0% -13.5%
+     0      True blocks  2106.0  278.0    585.4              +0.0%  +0.0%  +0.0%
+     0          Kriging  2106.0  291.7    614.2              +0.0%  +4.9%  +4.9%
+     0 Inverse distance  2106.0  332.8    700.8              +0.0% +19.7% +19.7%
+   100      True blocks  1598.4  353.3    564.7              +0.0%  +0.0%  +0.0%
+   100          Kriging  1833.3  326.1    597.9             +14.7%  -7.7%  +5.9%
+   100 Inverse distance  1930.5  356.9    688.9             +20.8%  +1.0% +22.0%
+   200      True blocks  1196.1  421.3    504.0              +0.0%  +0.0%  +0.0%
+   200          Kriging  1352.7  388.3    525.2             +13.1%  -7.8%  +4.2%
+   200 Inverse distance  1571.4  403.1    633.4             +31.4%  -4.3% +25.7%
+   300      True blocks   845.1  493.6    417.1              +0.0%  +0.0%  +0.0%
+   300          Kriging   882.9  462.0    407.9              +4.5%  -6.4%  -2.2%
+   300 Inverse distance  1150.2  458.6    527.4             +36.1%  -7.1% +26.4%
+   400      True blocks   540.0  575.8    310.9              +0.0%  +0.0%  +0.0%
+   400          Kriging   464.4  568.8    264.1             -14.0%  -1.2% -15.0%
+   400 Inverse distance   683.1  533.9    364.7             +26.5%  -7.3% +17.3%
+   600      True blocks   183.6  743.5    136.5              +0.0%  +0.0%  +0.0%
+   600          Kriging   137.7  762.4    105.0             -25.0%  +2.5% -23.1%
+   600 Inverse distance   162.0  729.0    118.1             -11.8%  -2.0% -13.5%
 ```
 
 Read the kriging rows against the truth. At 100 and 200 ppm kriging reports 14.7 % and 13.1 % too many tonnes at a
@@ -267,9 +267,9 @@ for name, label in labels.items():
 </details>
 
 ```text
-     true blocks: metal at cutoff 0 585.4 t = sum over blocks 585.4 t; above 200 ppm 504.0 t in 443 blocks
-         kriging: metal at cutoff 0 614.2 t = sum over blocks 614.2 t; above 200 ppm 525.2 t in 501 blocks
-inverse distance: metal at cutoff 0 700.8 t = sum over blocks 700.8 t; above 200 ppm 633.4 t in 582 blocks
+     True blocks: metal at cutoff 0 585.4 t = sum over blocks 585.4 t; above 200 ppm 504.0 t in 443 blocks
+         Kriging: metal at cutoff 0 614.2 t = sum over blocks 614.2 t; above 200 ppm 525.2 t in 501 blocks
+Inverse distance: metal at cutoff 0 700.8 t = sum over blocks 700.8 t; above 200 ppm 633.4 t in 582 blocks
 ```
 
 All three models balance: for kriging, 614.2 t in the whole model, 525.2 t of it in the 501 blocks above
@@ -278,7 +278,7 @@ tonnes, or the density was applied twice.
 
 ## The decision
 
-Report the kriging: 1,352.7 kt at 388.3 ppm, 525.2 t of metal above 200 ppm. The change from the scoping
+Report the kriging: 1 352.7 kt at 388.3 ppm, 525.2 t of metal above 200 ppm. The change from the scoping
 model is −108.2 t of metal (−17.1 %), which the clustering bias found in [compare two estimates](../../14-workflows/05-compare-two-estimates/README.md)
 explains. The remaining smoothing (too many tonnes at too low a grade at this cutoff) is a change-of-support
 problem: the [discrete Gaussian model](../../09-recoverable-resources/01-discrete-gaussian-model/README.md) and

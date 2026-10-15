@@ -1,7 +1,7 @@
-# units
+# Units
 
-a column can carry a unit, kept in its arrow metadata and through parquet. units combine lengths, masses, grades,
-ratios, angles and currencies, so `t/m3`, `USD/m` and `(g/t)^2` are units too. grades are a kind of their own: a
+A column can carry a unit, kept in its arrow metadata and through parquet. Units combine lengths, masses, grades,
+ratios, angles and currencies, so `t/m3`, `USD/m` and `(g/t)^2` are units too. Grades are a kind of their own: a
 grade never converts to a plain ratio, and ore mass times a grade is metal (`kg metal`), never ore.
 
 <details><summary>Python</summary>
@@ -22,9 +22,9 @@ bt.write_csv(
 
 </details>
 
-## units from the file
+## Units from the file
 
-`read_csv` splits a header such as `ZN (%)` or `AG [g/t]` into the column name and its unit. a column whose header
+`read_csv` splits a header such as `ZN (%)` or `AG [g/t]` into the column name and its unit. A column whose header
 says nothing takes its unit from `units=`.
 
 <details><summary>Python</summary>
@@ -42,7 +42,7 @@ print(table.units)
 {'ZN': '%', 'AG': 'g/t', 'DENSITY': 't/m3'}
 ```
 
-a project that always names its columns the same way declares the units once with `set_units`; readers and
+A project that always names its columns the same way declares the units once with `set_units`; readers and
 constructors then give those columns their unit whenever the file leaves it out. `with bt.units(...)` does the same
 for one block.
 
@@ -59,7 +59,7 @@ with bt.units(columns={"DENSITY": "t/m3"}):
 {'ZN': '%', 'AG': 'g/t', 'DENSITY': 't/m3'}
 ```
 
-## converting
+## Converting
 
 `convert_units` rescales a column to another unit of the same kind. `oz/t` is troy ounces per short ton, as North
 American reports write it.
@@ -80,7 +80,7 @@ print(f"mean density {np.nanmean(table['DENSITY']):.2f} t/m3 = {np.nanmean(densi
 mean density 3.26 t/m3 = 3264 kg/m3
 ```
 
-a conversion across kinds raises `InvalidInput`: a zinc grade in percent is not a ratio in percent.
+A conversion across kinds raises `InvalidInput`: a zinc grade in percent is not a ratio in percent.
 
 <details><summary>Python</summary>
 
@@ -97,13 +97,13 @@ except bt.InvalidInput as error:
 cannot convert grade (%) to ratio (ratio%)
 ```
 
-plots label their axes with the unit of the column.
+Plots label their axes with the unit of the column.
 
 <details><summary>Python</summary>
 
 ```python
 fig, ax = bt.plot.histogram("AG", data=silver)
-ax.set_title("silver grades, converted to oz/t")
+ax.set_title("Silver grades, converted to oz/t")
 save(fig, "histogram")
 plt.show()
 ```
@@ -112,9 +112,9 @@ plt.show()
 
 ![histogram](histogram.png)
 
-## units through a workflow
+## Units through a workflow
 
-a column read from a container is a `UnitArray`: a numpy array that remembers its unit. composites keep the unit of
+A column read from a container is a `UnitArray`: a numpy array that remembers its unit. Composites keep the unit of
 the assays, an estimator fitted on a column estimates in its unit, and the kriging variance comes out in its square.
 `with_column` stores the unit with the new column.
 
@@ -127,7 +127,7 @@ holes = bt.Drillholes(
 )
 composites = holes.composite(2.0, ["ZN_PCT"])
 grid = bt.BlockModel.from_extents(
-    data["lens_1"], size=(10, 10, 5), buffer=20, rotation=(22.5, 0.0, 55.0), length_unit="m"
+    data["lens_1"], size=(10, 10, 5), buffer="20 m", rotation=(22.5, 0.0, 55.0), length_unit="m"
 )
 kriging = bt.OrdinaryKriging(bt.Variogram([("spherical", 1.0, 60.0)]), bt.Search(radius=60, max_samples=12))
 estimate, variance = kriging.fit(composites, "ZN_PCT").predict(grid, return_variance=True)
@@ -143,7 +143,7 @@ estimate in %, variance in (%)^2
 {'ZN': '%'}
 ```
 
-arithmetic drops the unit, since the result may be in another one. give it back with `unit=`.
+Arithmetic drops the unit, since the result may be in another one. Give it back with `unit=`.
 
 <details><summary>Python</summary>
 
@@ -158,11 +158,11 @@ print(grid.units)
 {'ZN': '%', 'ZN_PPM': 'ppm'}
 ```
 
-## lengths
+## Lengths
 
-containers carry the length unit of their coordinates, and so do a `Search` and a `Variogram`. an estimator fitted
-with parameters in feet on data in metres converts the coordinates, so the estimate is the one the same lengths in
-metres give. containers in different units refuse to meet; `to_length_unit` converts one.
+Containers carry the length unit of their coordinates, and so do a `Search` and a `Variogram`. An estimator fitted
+with parameters in feet on data in meters converts the coordinates, so the estimate is the one the same lengths in
+meters give. Containers in different units refuse to meet; `to_length_unit` converts one.
 
 <details><summary>Python</summary>
 
@@ -172,7 +172,7 @@ feet = bt.OrdinaryKriging(
     bt.Search(radius=60.0 / 0.3048, max_samples=12, length_unit="ft"),
 )
 in_feet = feet.fit(composites, "ZN_PCT").predict(grid)
-print(f"largest difference from the estimate in metres: {np.nanmax(np.abs(in_feet - estimate)):.1e} %")
+print(f"largest difference from the estimate in meters: {np.nanmax(np.abs(in_feet - estimate)):.1e} %")
 try:
     kriging.predict(grid.to_length_unit("ft"))
 except bt.InvalidInput as error:
@@ -182,11 +182,11 @@ except bt.InvalidInput as error:
 </details>
 
 ```text
-largest difference from the estimate in metres: 1.6e-11 %
+largest difference from the estimate in meters: 1.6e-11 %
 samples are in m and targets in ft; convert one with to_length_unit('m')
 ```
 
-containers may declare a CRS too, as a code such as `EPSG:31982` or as WKT, and the same rule holds: two declared
+Containers may declare a CRS too, as a code such as `EPSG:31982` or as WKT, and the same rule holds: two declared
 CRSs that differ refuse to meet, and a container without one meets any. WKT whose top-level ID names the code
 matches the code.
 
@@ -212,10 +212,10 @@ for crs in (wkt, "EPSG:32722"):
 samples are in CRS EPSG:31982 and targets in EPSG:32722; give them one CRS
 ```
 
-## tonnage and metal
+## Tonnage and metal
 
-with the block size in metres and a density in `t/m3`, `grade_tonnage` knows that tonnage is a mass: it reads in
-t, kt or Mt and metal in the units of the grade's metal, whichever reads best. metal never converts to ore tonnes.
+With the block size in meters and a density in `t/m3`, `grade_tonnage` knows that tonnage is a mass: it reads in
+t, kt or Mt and metal in the units of the grade's metal, whichever reads best. Metal never converts to ore tonnes.
 
 <details><summary>Python</summary>
 
@@ -242,9 +242,9 @@ shape: (3, 4)
 └────────┴──────────┴────────────┴────────────┘
 ```
 
-## parameters with units
+## Parameters with units
 
-a parameter takes a number in the unit of the data, or text with its own unit. a cutoff in ppm on grades in percent
+A parameter takes a number in the unit of the data, or text with its own unit. A cutoff in ppm on grades in percent
 and a search radius in feet both convert.
 
 <details><summary>Python</summary>
@@ -264,10 +264,10 @@ print(search.radius, search.length_unit)
 200.0 ft
 ```
 
-## other estimators and checks
+## Other estimators and checks
 
-multiple-indicator kriging, like the other estimators, keeps the unit of the values: its means and quantiles are in
-percent, and a cutoff can be given in ppm. a cap can be given in another unit too.
+Multiple-indicator kriging, like the other estimators, keeps the unit of the values: its means and quantiles are in
+percent, and a cutoff can be given in ppm. A cap can be given in another unit too.
 
 <details><summary>Python</summary>
 
@@ -288,7 +288,7 @@ mean in %, median in %
 largest capped grade: 15.0 %
 ```
 
-a validation compares blocks and samples in one unit. composites in ppm against a model in percent are converted
+A validation compares blocks and samples in one unit. Composites in ppm against a model in percent are converted
 first, so both means read in percent rather than one in ppm.
 
 <details><summary>Python</summary>

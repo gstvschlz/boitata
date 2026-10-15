@@ -1,7 +1,7 @@
-# checking drill holes
+# Checking drill holes
 
-the stacked sulphide lenses as logged: collar, survey (dip positive down, azimuth clockwise from north), assay and
-lithology tables, with typical data-entry errors planted in them and listed in the dataset's `raw/README.md`. you
+The stacked sulfide lenses as logged: collar, survey (dip positive down, azimuth clockwise from north), assay and
+lithology tables, with typical data-entry errors planted in them and listed in the dataset's `raw/README.md`. You
 check the tables, repair them and check them again before desurveying anything.
 
 <details><summary>Python</summary>
@@ -18,7 +18,7 @@ from common import ACCENT, GRAY, HIGHLIGHT, save
 `check_drillholes` flags each record of the collar, survey and interval tables: duplicate ids, missing or sentinel
 values, text in numeric columns, from ≥ to, gaps, overlaps, angles out of range, depths past the collar `LENGTH`,
 ids that match a collar only once trimmed and case-folded, holes missing from a table, abrupt survey deviation and
-holes dipping against the rest. the report lists each flagged check with the holes it hit.
+holes dipping against the rest. The report lists each flagged check with the holes it hit.
 
 <details><summary>Python</summary>
 
@@ -81,11 +81,11 @@ lithology id_mismatch    10 rows in   2 holes: 'DD0104', 'DD0132 '
 lithology no_collar       7 rows in   1 holes: 'DD0111'
 ```
 
-each flag points at a planted error, or follows from one:
+Each flag points at a planted error, or follows from one:
 
 - `duplicate` collars: `DD0067` entered twice with different coordinates, `DD0058` the same row twice.
 - `id_mismatch`: `'dd0062'` in the assays and `'DD0132 '` in the lithology are ids in the wrong case or with a
-  trailing space. the collar `'DD0104 '` has the trailing space, so its survey, assays and lithology miss it.
+  trailing space. The collar `'DD0104 '` has the trailing space, so its survey, assays and lithology miss it.
 - `no_collar`: `DD0111` has surveys, assays and lithology but no collar.
 - `no_survey`: `DD0151` has no survey.
 - `deviation`: two stations of `DD0197`, where the azimuth flips at one station and back at the next.
@@ -93,14 +93,14 @@ each flag points at a planted error, or follows from one:
 - `past_depth`: `DD0055` has surveys, assays and lithology below its collar `LENGTH`.
 - `inverted`: an assay of `DD0100` with `FROM` > `TO`.
 - `overlap`: two assays of `DD0200` start before the previous one ends, and three of `DD0162` are entered twice.
-- `gap`: two missing samples in `DD0080`. the rows above leave the gaps in `DD0062`, `DD0100`, `DD0132` and
-  `DD0200`. the gaps in the RC holes are unsampled core and real.
+- `gap`: two missing samples in `DD0080`. The rows above leave the gaps in `DD0062`, `DD0100`, `DD0132` and
+  `DD0200`. The gaps in the RC holes are unsampled core and real.
 - `text_values` and `sentinel`: the reader took the grades as text, because some cells are not numbers. `DD0110`
   holds `-99` and `-999`.
-- `no_assays`: 112 collars. only mineralized zones are assayed, so a hole that never logs `MS`, `SMS` or `STR`
-  has no assays by design. one more hides among them.
+- `no_assays`: 112 collars. Only mineralized zones are assayed, so a hole that never logs `MS`, `SMS` or `STR`
+  has no assays by design. One more hides among them.
 
-the details name the value behind each id, dip and text flag, and what it should become:
+The details name the value behind each id, dip and text flag, and what it should become:
 
 <details><summary>Python</summary>
 
@@ -134,7 +134,7 @@ lithology id_mismatch  'DD0104'  HOLE_ID 'DD0104' -> 'DD0104 '
 lithology id_mismatch  'DD0132 ' HOLE_ID 'DD0132 ' -> 'DD0132'
 ```
 
-a hole missing its assays looks like one of the unassayed holes, unless its lithology says it is mineralized:
+A hole missing its assays looks like one of the unassayed holes, unless its lithology says it is mineralized:
 
 <details><summary>Python</summary>
 
@@ -150,11 +150,11 @@ print("mineralized, no assays:", sorted(mineralized - set(raw["assays"]["HOLE_ID
 mineralized, no assays: ['DD0043']
 ```
 
-two repairs need a person. you swap the ends of the inverted interval and take `DD0055`'s `LENGTH` from its
-deepest survey station, since the survey, assays and lithology agree the hole is longer. after a second check,
-`fix_drillholes` resolves the rest with one named rule per check. two rules are asked for by name:
+Two repairs need a person. You swap the ends of the inverted interval and take `DD0055`'s `LENGTH` from its
+deepest survey station, since the survey, assays and lithology agree the hole is longer. After a second check,
+`fix_drillholes` resolves the rest with one named rule per check. Two rules are asked for by name:
 `dip_sign="negate"` turns `DD0116` down, and `text_values="half"` reads `<0.01` as half the detection limit
-(by default it becomes null, as `NS` does). the log says what each rule changed: ids are renamed to their collar,
+(by default it becomes null, as `NS` does). The log says what each rule changed: ids are renamed to their collar,
 the later duplicate collar goes (for `DD0067`, the second, wrong entry), overlapping assays keep the one that
 starts first (dropping the twinned re-entries), the two `DD0197` stations turned by the flip go, sentinels become
 null, and the rows of a hole without collar go.
@@ -205,7 +205,7 @@ keep_first   5 assays rows flagged overlap
    assays gap             8 rows in   6 holes: 'DD0080', 'DD0200', 'RC0008', 'RC0014', 'RC0016', 'RC0031'
 ```
 
-the rest needs the field records, since no rule can fix it. `DD0151` has no survey and would be desurveyed as
+The rest needs the field records, since no rule can fix it. `DD0151` has no survey and would be desurveyed as
 vertical, `DD0043` needs its assays found, and the gaps are the two lost `DD0080` samples, the two `DD0200`
 intervals dropped as overlaps and the unsampled RC core. `'DD0104 '` keeps its trailing space, now in every table.
 `DD0116` shows why the dips matter: desurveyed as entered, it climbs out of the ground.
@@ -219,10 +219,10 @@ def dd0116(table):
 
 collar = dd0116(fixed["collar"])
 fig, ax = plt.subplots(figsize=(4, 5.5), layout="constrained")
-for name, survey, color in (("as entered", raw["survey"], HIGHLIGHT), ("fixed", fixed["survey"], ACCENT)):
+for name, survey, color in (("As entered", raw["survey"], HIGHLIGHT), ("Fixed", fixed["survey"], ACCENT)):
     path = bt.Drillholes(collar, dd0116(survey)).paths()
     ax.plot(path["x"], path["z"], color=color, lw=1.6, label=name)
-ax.axhline(collar["Z"][0], color=GRAY, lw=0.6, ls="--", label="collar elevation")
+ax.axhline(collar["Z"][0], color=GRAY, lw=0.6, ls="--", label="Collar elevation")
 ax.set_aspect("equal")
 ax.set(title="DD0116, east-west section", xlabel="Easting (m)", ylabel="Elevation (m)")
 ax.legend()

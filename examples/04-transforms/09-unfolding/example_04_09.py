@@ -1,9 +1,9 @@
 """
-# unfolding
+# Unfolding
 
-`Unfold` flattens a layer that undulates between two surfaces. it gives each point coordinates in the frame of the
-layer: `w` from 0 on the footwall to 1 on the hanging wall, and `(u, v)` along it. variograms and kriging then run on
-the unfolded coordinates, and the estimates go back to the real blocks row by row. the layer here is the saprolite of
+`Unfold` flattens a layer that undulates between two surfaces. It gives each point coordinates in the frame of the
+layer: `w` from 0 on the footwall to 1 on the hanging wall, and `(u, v)` along it. Variograms and kriging then run on
+the unfolded coordinates, and the estimates go back to the real blocks row by row. The layer here is the saprolite of
 a nickel laterite, between the bedrock and the limonite above it.
 """
 
@@ -21,10 +21,10 @@ import numpy as np
 from common import ACCENT, GRAY, HIGHLIGHT, INK, save
 
 # %% [markdown]
-# ## the bounding surfaces
+# ## The bounding surfaces
 #
 # 448 vertical holes log four horizons from the top: ferricrete (`FERR`), limonite (`LIM`), saprolite (`SAP`) and
-# bedrock (`BRK`). the base of the saprolite is the bedrock contact, and its top the limonite contact. both are gridded
+# bedrock (`BRK`). The base of the saprolite is the bedrock contact, and its top the limonite contact. Both are gridded
 # on 10 m cells: the bedrock elevation and the saprolite thickness by inverse distance, the top as their sum, so the
 # surfaces never cross. `grid_surface` turns each grid into a mesh.
 
@@ -50,13 +50,13 @@ print(
 )
 
 # %% [markdown]
-# ## unfolded coordinates
+# ## Unfolded coordinates
 #
-# `Unfold(footwall, hangingwall)` maps points to `(u, v, w)`. by default `u` and `v` are the easting and northing and
+# `Unfold(footwall, hangingwall)` maps points to `(u, v, w)`. By default `u` and `v` are the easting and northing and
 # `w` the relative position in the layer. `mode="footwall"` makes `w` the height above the footwall instead, and
-# `reference="footwall"` makes `u` and `v` arc lengths along it, which matters where the layer is steep. here the
-# bedrock is gentle and the arc lengths add a few percent over a kilometer. points outside the layer get NaN, unless
-# `extrapolate=True`. the logged horizons check the surfaces: the midpoints of the saprolite intervals fall in the
+# `reference="footwall"` makes `u` and `v` arc lengths along it, which matters where the layer is steep. Here the
+# bedrock is gentle and the arc lengths add a few percent over a kilometer. Points outside the layer get NaN, unless
+# `extrapolate=True`. The logged horizons check the surfaces: the midpoints of the saprolite intervals fall in the
 # layer, and all but 1% of the others fall outside.
 
 # %%
@@ -81,8 +81,8 @@ print(
 )
 
 # %% [markdown]
-# nickel is richer in the lower half of the saprolite. the bedrock moves up and down by tens of meters, so the profile
-# blurs against elevation. against `w` the decile means explain five times as much of the variance, though most of it
+# Nickel is richer in the lower half of the saprolite. The bedrock moves up and down by tens of meters, so the profile
+# blurs against elevation. Against `w` the decile means explain five times as much of the variance, though most of it
 # stays local.
 
 
@@ -104,14 +104,14 @@ for ax, x, label in zip(axes, [xyz[:, 2], uvw[:, 2]], ["Elevation (m)", "w"], st
 save(fig, "profile")
 
 # %% [markdown]
-# ## variograms
+# ## Variograms
 #
-# for variography, scale the unfolded `w` by the mean thickness so that distances across the layer stay in meters. along
+# For variography, scale the unfolded `w` by the mean thickness so that distances across the layer stay in meters. Along
 # the layer the pairs are horizontal in the real space and parallel to the surfaces in the unfolded one; across it, they
 # are vertical.
 #
-# across the layer the two agree at the first lag, and the unfolded variogram rises faster: the holes are vertical, so
-# only the scaling of `w` changes the distances. along the layer the real variogram starts lower, 0.52 against 0.67 at
+# Across the layer the two agree at the first lag, and the unfolded variogram rises faster: the holes are vertical, so
+# only the scaling of `w` changes the distances. Along the layer the real variogram starts lower, 0.52 against 0.67 at
 # 12 m: in this deposit nearby samples at one elevation are more alike than nearby samples at one position in the
 # profile.
 
@@ -124,7 +124,7 @@ for (name, coords), color in zip(spaces.items(), [GRAY, ACCENT], strict=True):
     along = bt.experimental_variogram(coords, ni, 25.0, 300.0, azimuth=0, tolerance=90, bandwidth=1.0)
     across = bt.experimental_variogram(coords, ni, 1.0, 10.0, azimuth=0, dip=90, tolerance=10, bandwidth=2.0)
     for ax, e in zip(axes, [along, across], strict=True):
-        ax.plot(e.lags, e.gammas, "o-", color=color, ms=3, label=name)
+        ax.plot(e.lags, e.gammas, "o-", color=color, ms=3, label=name.capitalize())
     print(
         f"{name:>8}: gamma along {along.gammas[0]:.2f} at {along.lags[0]:.0f} m, "
         f"across {across.gammas[0]:.2f} at {across.lags[0]:.1f} m"
@@ -136,14 +136,14 @@ axes[0].legend(loc="lower right")
 save(fig, "variograms")
 
 # %% [markdown]
-# ## kriging
+# ## Kriging
 #
-# the same ordinary kriging runs on both coordinate sets, cross-validated by leaving out one of ten groups of whole
+# The same ordinary kriging runs on both coordinate sets, cross-validated by leaving out one of ten groups of whole
 # holes at a time.
 #
-# the variograms predicted it: the real coordinates estimate slightly better, RMSE 0.816 % against 0.865 %. unfolding
+# The variograms predicted it: the real coordinates estimate slightly better, RMSE 0.816 % against 0.865 %. Unfolding
 # pays off where grade follows the layer, as in a folded bed or a profile whose base moves more than the grade changes
-# across it. cross-validation on both coordinate sets tells you which case your deposit is.
+# across it. Cross-validation on both coordinate sets tells you which case your deposit is.
 
 # %%
 model = bt.Variogram([("spherical", 0.6 * ni.var(), 150.0)], nugget=0.25 * ni.var(), ratios=(1.0, 0.05))
@@ -154,11 +154,11 @@ for name, k in kriging.items():
     print(f"{name:>8}: RMSE {cv.rmse:.3f} %, correlation {cv.correlation:.3f}")
 
 # %% [markdown]
-# ## back to the blocks
+# ## Back to the blocks
 #
-# the saprolite blocks are those whose centers unfold to a finite `w`. their unfolded centers are the kriging targets,
+# The saprolite blocks are those whose centers unfold to a finite `w`. Their unfolded centers are the kriging targets,
 # and the estimates, one per row, become a column of the real blocks; `inverse` maps the unfolded centers back onto the
-# centroids. in section the estimates run in bands parallel to the contacts.
+# centroids. In section the estimates run in bands parallel to the contacts.
 
 # %%
 blocks = bt.BlockModel(origin=(29975, 59975, 300), size=(10, 10, 1), count=(106, 76, 80))

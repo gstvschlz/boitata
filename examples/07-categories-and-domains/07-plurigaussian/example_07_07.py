@@ -1,7 +1,7 @@
 """
-# plurigaussian simulation
+# Plurigaussian simulation
 
-plurigaussian simulation (PGS) draws categories by truncating gaussian fields: thresholds set by the proportions cut
+Plurigaussian simulation (PGS) draws categories by truncating Gaussian fields: thresholds set by the proportions cut
 each field into categories, and a rule says which categories may touch. SIS ([sequential indicator simulation](../../07-categories-and-domains/06-sis/README.md)) gives each category
 its own indicator variogram; PGS controls the contacts between categories.
 """
@@ -20,16 +20,16 @@ import numpy as np
 from common import ACCENT, GRAY, save
 
 # %% [markdown]
-# ## rules
+# ## Rules
 #
-# jura's rock types are known at each node of the prediction grid, so you can compare simulated maps with the real
-# geology. a `Categories` scheme names the rock types and gives each a color: `encode` turns labels into the codes 0
+# Jura's rock types are known at each node of the prediction grid, so you can compare simulated maps with the real
+# geology. A `Categories` scheme names the rock types and gives each a color: `encode` turns labels into the codes 0
 # to 4 that the simulations take, and `shares` gives their proportions.
 #
-# with one gaussian field, the thresholds order the types, so each type touches only its neighbors in the order. a
-# hierarchical `rule` truncates several fields in turn: here the first sets quaternary cover apart from the jurassic,
-# and the second orders the jurassic stages from argovian to portlandian. the cover may then touch any stage, and each
-# stage touches only the next. both use a guessed latent variogram of 0.8 km.
+# With one Gaussian field, the thresholds order the types, so each type touches only its neighbors in the order. A
+# hierarchical `rule` truncates several fields in turn: here the first sets Quaternary cover apart from the Jurassic,
+# and the second orders the Jurassic stages from Argovian to Portlandian. The cover may then touch any stage, and each
+# stage touches only the next. Both use a guessed latent variogram of 0.8 km.
 
 # %%
 jura = bt.datasets.jura()
@@ -68,17 +68,17 @@ bt.plot.category_legend(rock_types, fig, loc="outside lower center", ncol=5)
 save(fig, "categories")
 
 # %% [markdown]
-# the single field keeps close to the sample proportions but allows contacts only between neighbors in the order, so
-# portlandian appears as specks along each sequanian-quaternary contact. the hierarchical rule puts portlandian next
-# to kimmeridgian and under the cover, as in the true map, and matches 51 % of the nodes against 37 %. neither
-# recovers portlandian's 5 % of the area from 3 of 259 samples.
+# The single field keeps close to the sample proportions but allows contacts only between neighbors in the order, so
+# Portlandian appears as specks along each Sequanian-Quaternary contact. The hierarchical rule puts Portlandian next
+# to Kimmeridgian and under the cover, as in the true map, and matches 51 % of the nodes against 37 %. Neither
+# recovers Portlandian's 5 % of the area from 3 of 259 samples.
 
 # %% [markdown]
-# ## local proportions
+# ## Local proportions
 #
-# given local proportions at the samples at `fit` and at the nodes at `simulate`, the rule's thresholds follow them,
-# so each rock type is likelier where its samples cluster. here the local proportions average the rock types of the
-# samples with gaussian weights of 300 m and shrink towards the global proportions where samples are sparse. the
+# Given local proportions at the samples at `fit` and at the nodes at `simulate`, the rule's thresholds follow them,
+# so each rock type is likelier where its samples cluster. Here the local proportions average the rock types of the
+# samples with Gaussian weights of 300 m and shrink toward the global proportions where samples are sparse. The
 # probabilities from [categorical indicator kriging](../../07-categories-and-domains/05-categorical-indicator-kriging/README.md) could serve as well.
 
 # %%
@@ -99,7 +99,7 @@ print(f"rule, local proportions: {np.mean(by_local == true_rock):.0%} of nodes m
 # %%
 fig, axes = plt.subplots(1, 2, figsize=(9, 5.2), layout="constrained")
 im = axes[0].scatter(*xy, c=at_nodes[:, names.index("Argovian")], s=7, marker="s", linewidths=0)
-fig.colorbar(im, ax=axes[0], shrink=0.8, orientation="horizontal", label="local Argovian proportion")
+fig.colorbar(im, ax=axes[0], shrink=0.8, orientation="horizontal", label="Local Argovian proportion")
 axes[1].scatter(*xy, c=by_local, cmap=cmap, norm=norm, s=7, marker="s", linewidths=0)
 for ax, title in zip(axes, ("Local proportion of Argovian", "Hierarchical rule, local proportions")):
     ax.set_aspect("equal")
@@ -108,15 +108,15 @@ bt.plot.category_legend(rock_types, fig, loc="outside lower center", ncol=5)
 save(fig, "local-proportions")
 
 # %% [markdown]
-# with local proportions, argovian keeps to the north-west and the south, near its samples, and the realization
+# With local proportions, Argovian keeps to the north-west and the south, near its samples, and the realization
 # matches the true rock type at 57 % of the nodes, against 51 % with global proportions.
 
 # %% [markdown]
-# ## latent variograms
+# ## Latent variograms
 #
-# the latent variograms so far were guesses. the rule and the latent variograms imply each rock type's indicator
+# The latent variograms so far were guesses. The rule and the latent variograms imply each rock type's indicator
 # variogram, so `fit_variograms` rescales the latent ranges until the implied variograms match the experimental ones.
-# the fit leaves out portlandian, with 3 samples.
+# The fit leaves out Portlandian, with 3 samples.
 
 # %%
 experimental = [
@@ -139,15 +139,15 @@ print(
 h = np.linspace(0, 1.5, 61)
 fig, axes = plt.subplots(1, 4, figsize=(13, 3.4), layout="constrained", sharey=True)
 for ax, k in zip(axes, [k for k in range(5) if experimental[k] is not None]):
-    ax.plot(experimental[k].lags, experimental[k].gammas, "o", color=GRAY, ms=4, label="experimental")
-    ax.plot(h, guessed.indicator_variograms(h)[k], "--", color=GRAY, label="guessed ranges")
-    ax.plot(h, fitted.indicator_variograms(h)[k], color=ACCENT, label="fitted ranges")
-    ax.set(title=names[k], xlabel="lag (km)")
-axes[0].set_ylabel("indicator semivariance")
+    ax.plot(experimental[k].lags, experimental[k].gammas, "o", color=GRAY, ms=4, label="Experimental")
+    ax.plot(h, guessed.indicator_variograms(h)[k], "--", color=GRAY, label="Guessed ranges")
+    ax.plot(h, fitted.indicator_variograms(h)[k], color=ACCENT, label="Fitted ranges")
+    ax.set(title=names[k], xlabel="Lag (km)")
+axes[0].set_ylabel("Indicator semivariance")
 axes[0].legend(loc="lower right")
 save(fig, "latent-variograms")
 
 # %% [markdown]
-# the fitted cover field is short (0.49 km) and the stages field long (1.87 km), so the stages form broad bands that
-# the cover patches over; with 0.8 km on both, the stages varied too fast. the fitted variograms follow the
+# The fitted cover field is short (0.49 km) and the stages field long (1.87 km), so the stages form broad bands that
+# the cover patches over; with 0.8 km on both, the stages varied too fast. The fitted variograms follow the
 # experimental points of each rock type and bring the match to 59 %.

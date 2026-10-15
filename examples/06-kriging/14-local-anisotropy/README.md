@@ -1,8 +1,8 @@
-# locally varying anisotropy
+# Locally varying anisotropy
 
-walker lake's high-`V` bodies bend, so one global direction (N170° in
+Walker Lake's high-`V` bodies bend, so one global direction (N170° in
 [variogram fitting](../../05-spatial-continuity/02-variogram-fitting/README.md)) fits some of them and crosses others.
-locally varying anisotropy (LVA) gives every location its own orientation for both the variogram and the search. the
+Locally varying anisotropy (LVA) gives every location its own orientation for both the variogram and the search. The
 orientation field can come from a gridded attribute (`from_grid`, used here), a point cloud (`from_points`) or a
 wireframe (`from_mesh`).
 
@@ -25,7 +25,7 @@ true_at_nodes = truth[nodes[:, 1] - 1, nodes[:, 0] - 1]
 
 </details>
 
-the global model, fitted along N170° and across it as in
+The global model, fitted along N170° and across it as in
 [variogram fitting](../../05-spatial-continuity/02-variogram-fitting/README.md): two nested structures, with the long
 one setting the minor/major ratio.
 
@@ -54,8 +54,8 @@ print(model)
 Variogram(nugget=14993.35122178715, structures=[Structure("spherical", sill=25261.581155025888, range=19.578360959734756), Structure("spherical", sill=53364.6905008533, range=80.65434681410247)], rotation=(170.0, 0.0, 0.0), ratios=(0.33066526059466755, 1.0))
 ```
 
-a quick isotropic estimate outlines the bodies, and the gradient of that map gives the orientation of least change.
-the structure tensor sums gradients over 3 cells each side, and smoothing averages orientations within 25 m.
+A quick isotropic estimate outlines the bodies, and the gradient of that map gives the orientation of least change.
+The structure tensor sums gradients over 3 cells each side, and smoothing averages orientations within 25 m.
 
 <details><summary>Python</summary>
 
@@ -98,7 +98,7 @@ save(fig, "field")
 
 ![field](field.png)
 
-same model, same search; only the orientation changes. errors are against the exhaustive values at the nodes.
+Same model, same search; only the orientation changes. Errors are against the exhaustive values at the nodes.
 
 <details><summary>Python</summary>
 
@@ -139,11 +139,11 @@ save(fig, "kriging")
 
 ![kriging](kriging.png)
 
-local orientations lower the error and keep the north-eastern bodies elongated east-west, where the global direction
+Local orientations lower the error and keep the north-eastern bodies elongated east-west, where the global direction
 crosses them.
 
-simulation takes the same field: each node's variogram and search follow the local direction, so continuity bends with
-the bodies instead of crossing them. the normal-score variogram is fitted along the major axis; the field supplies the
+Simulation takes the same field: each node's variogram and search follow the local direction, so continuity bends with
+the bodies instead of crossing them. The normal-score variogram is fitted along the major axis; the field supplies the
 orientation and the ratios.
 
 <details><summary>Python</summary>

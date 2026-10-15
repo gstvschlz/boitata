@@ -77,13 +77,13 @@
 </g>
 <path class="s-flame none a-draw" pathLength="1" stroke-width="3" d="M80 271.9 L400 54.8"/>
 <text class="small" x="366" y="34">1:1</text>
-<text class="small a-fade" style="--d:1s" x="406" y="58.8">regression</text>
-<text x="240.0" y="324" text-anchor="middle">estimate</text>
-<text x="66" y="160.0" transform="rotate(-90 66 160.0)" text-anchor="middle">true value</text>
+<text class="small a-fade" style="--d:1s" x="406" y="58.8">Regression</text>
+<text x="240.0" y="324" text-anchor="middle">Estimate</text>
+<text x="66" y="160.0" transform="rotate(-90 66 160.0)" text-anchor="middle">True value</text>
 <text class="a-fade" style="--d:1.3s" x="430" y="100">High estimates:</text>
 <text class="small a-fade" style="--d:1.3s" x="430" y="118">the truth is lower on average</text>
 <text class="a-fade" style="--d:1.6s" x="430" y="235">Low estimates:</text>
 <text class="small a-fade" style="--d:1.6s" x="430" y="253">the truth is higher on average</text>
-<text class="a-fade" style="--d:1.9s" x="430" y="165">slope 0.78 &lt; 1</text>
+<text class="a-fade" style="--d:1.9s" x="430" y="165">Slope 0.78 &lt; 1</text>
 <text class="small a-fade" style="--d:1.9s" x="430" y="183">conditional bias</text>
 </svg>

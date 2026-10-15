@@ -1,9 +1,9 @@
-# censored normal-score transform
+# Censored normal-score transform
 
-in the tailings reprocessing dataset, 46 % of the cyanide (WAD) samples are below the detection limit: those cells
-hold the limit itself, flagged by `CN_WAD_BDL`. a plain normal-score transform sorts the data by value, so the ties at
+In the tailings reprocessing dataset, 46 % of the cyanide (WAD) samples are below the detection limit: those cells
+hold the limit itself, flagged by `CN_WAD_BDL`. A plain normal-score transform sorts the data by value, so the ties at
 the limit break in the order of the assay sheet. `fit(..., censored=...)` shuffles each such tie with a seed instead.
-the below-detection scores then carry no order, and every other value, including ties at a different limit, keeps its
+The below-detection scores then carry no order, and every other value, including ties at a different limit, keeps its
 exact rank.
 
 <details><summary>Python</summary>
@@ -21,8 +21,8 @@ print(f"{len(cn)} composites; {bdl.mean():.0%} below the {cn[bdl][0]:g} ppm dete
 
 fig, ax = plt.subplots(figsize=(6, 3.4), layout="constrained")
 bins = np.linspace(0, np.percentile(cn, 99), 60)
-ax.hist(cn, bins=bins, color=LIGHT, edgecolor=GRAY, lw=0.4, label="all composites")
-ax.hist(cn[bdl], bins=bins, color=HIGHLIGHT, label="below detection")
+ax.hist(cn, bins=bins, color=LIGHT, edgecolor=GRAY, lw=0.4, label="All composites")
+ax.hist(cn[bdl], bins=bins, color=HIGHLIGHT, label="Below detection")
 ax.set(xlabel="CN WAD (ppm)", ylabel="Composites", title="A spike no transform can spread on its own")
 ax.legend()
 save(fig, "histogram")
@@ -36,10 +36,10 @@ save(fig, "histogram")
 
 ![histogram](histogram.png)
 
-## a tie broken by row order is still a tie
+## A tie broken by row order is still a tie
 
-`NormalScore().fit(cn)` ignores the flag and sorts the below-detection composites by value. they are all equal, so the
-stable sort leaves them in the order of the assay table. compare the score of each composite below detection with the
+`NormalScore().fit(cn)` ignores the flag and sorts the below-detection composites by value. They are all equal, so the
+stable sort leaves them in the order of the assay table. Compare the score of each composite below detection with the
 one before it in that table to see the artifact.
 
 <details><summary>Python</summary>
@@ -62,7 +62,7 @@ print(f"naive: {rising_fraction(naive):.0%} of consecutive below-detection rows 
 naive: 100% of consecutive below-detection rows have a rising score
 ```
 
-almost every consecutive pair rises: the transform asserts that cyanide increases down the assay sheet within the
+Almost every consecutive pair rises: the transform asserts that cyanide increases down the assay sheet within the
 censored group, and the data say nothing about that. `censored=` shuffles the tie with a seed instead.
 
 <details><summary>Python</summary>
@@ -71,7 +71,7 @@ censored group, and the data say nothing about that. `censored=` shuffles the ti
 ns = bt.NormalScore()
 aware = ns.fit_transform(cn, censored=bdl, seed=0)
 print(
-    f"censored=: {rising_fraction(aware):.0%} rising — a coin flip, as it should be for indistinguishable values"
+    f"censored=: {rising_fraction(aware):.0%} rising, a coin flip, as it should be for indistinguishable values"
 )
 
 fig, axes = plt.subplots(1, 2, figsize=(9, 3.2), sharey=True, layout="constrained")
@@ -86,16 +86,16 @@ save(fig, "ties")
 </details>
 
 ```text
-censored=: 51% rising — a coin flip, as it should be for indistinguishable values
+censored=: 51% rising, a coin flip, as it should be for indistinguishable values
 ```
 
 ![ties](ties.png)
 
-## order is otherwise untouched
+## Order is otherwise untouched
 
-values above and below the limit, and ties at any other value, keep the ranks that `NormalScore` gives them without
-`censored`. the scores of a censored fit back-transform to the reported data, limit values included, since the
-transform invents nothing below the limit. inventing values there needs a `reference` distribution, which you cannot
+Values above and below the limit, and ties at any other value, keep the ranks that `NormalScore` gives them without
+`censored`. The scores of a censored fit back-transform to the reported data, limit values included, since the
+transform invents nothing below the limit. Inventing values there needs a `reference` distribution, which you cannot
 combine with `censored`.
 
 <details><summary>Python</summary>
@@ -116,11 +116,11 @@ lowest score above the limit exceeds every below-detection score: True
 round-trips to the reported data: True
 ```
 
-## composing with external drift kriging
+## Composing with external drift kriging
 
-the soil geochemistry survey ([external drift kriging](../../06-kriging/04-external-drift-kriging/README.md)) censors
-gold and arsenic too. normal-score `AU_PPB` and `AS_PPM` with their own `_BDL` flags, then krige the gold score with
-magnetics and elevation as external drift. the map below never reads an order into the samples at a detection limit.
+The soil geochemistry survey ([external drift kriging](../../06-kriging/04-external-drift-kriging/README.md)) censors
+gold and arsenic too. Normal-score `AU_PPB` and `AS_PPM` with their own `_BDL` flags, then krige the gold score with
+magnetics and elevation as external drift. The map below never reads an order into the samples at a detection limit.
 
 <details><summary>Python</summary>
 

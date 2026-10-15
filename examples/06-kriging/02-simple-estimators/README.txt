@@ -1,1 +1,1 @@
-## simple estimators
+## Simple estimators

@@ -1,8 +1,8 @@
-# cleaning steps
+# Cleaning steps
 
-assay tables arrive with upper-case names, sentinels such as -99 and "NS" (not sampled), detection-limit text such as
-"<0.01" and grades stored as text. each cleaning step fixes one of these and returns a new container, and a `Pipeline`
-chains them so the same cleaning runs on the next batch of assays. here the raw assays of the stacked sulphide lenses
+Assay tables arrive with upper-case names, sentinels such as -99 and "NS" (not sampled), detection-limit text such as
+"<0.01" and grades stored as text. Each cleaning step fixes one of these and returns a new container, and a `Pipeline`
+chains them so the same cleaning runs on the next batch of assays. Here the raw assays of the stacked sulfide lenses
 go from text to numeric grades ready for statistics.
 
 <details><summary>Python</summary>
@@ -59,8 +59,8 @@ ag_gpt      1 null, mean 8.184
 au_gpt   4386 null, mean 0.221
 ```
 
-units live in the column metadata and survive Parquet. `convert_units` rescales a column and relabels its unit; here
-gold goes from g/t to ppb. plots label their axes with the unit.
+Units live in the column metadata and survive Parquet. `convert_units` rescales a column and relabels its unit; here
+gold goes from g/t to ppb. Plots label their axes with the unit.
 
 <details><summary>Python</summary>
 
@@ -78,7 +78,7 @@ print(f"mean gold {np.nanmean(assays['au_gpt']):.0f} ppb")
 mean gold 221 ppb
 ```
 
-the zinc grades span three orders of magnitude; on a log axis their two populations separate.
+The zinc grades span three orders of magnitude; on a log axis their two populations separate.
 
 <details><summary>Python</summary>
 

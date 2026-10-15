@@ -34,7 +34,7 @@ consistent with the samples, and you read the uncertainty from their differences
 # </figure>
 #
 # The exhaustive Walker Lake data set gives the true value of `V` at every node, so you can measure this. Load the 470
-# samples and the truth on a 5 m grid of 3,120 nodes, then krige with the variogram from
+# samples and the truth on a 5 m grid of 3 120 nodes, then krige with the variogram from
 # [chapter 4](../04-kriging/learn_04.md):
 
 # %% [hidden]
@@ -74,7 +74,7 @@ print(
 
 # %% [markdown]
 # The kriged map has a standard deviation of 196 ppm against 250 ppm for the truth, and its highest node reaches
-# 1,316 ppm where the truth reaches 1,610 ppm. Above a 500 ppm cutoff, kriging reports 13.1 % of the area and the truth
+# 1 316 ppm where the truth reaches 1 610 ppm. Above a 500 ppm cutoff, kriging reports 13.1 % of the area and the truth
 # holds 18.9 %. A mine plan built on the kriged map would miss almost a third of the ground above cutoff. The
 # cumulative distributions show the squeeze: kriging has fewer low and fewer high values than the truth.
 
@@ -253,10 +253,10 @@ save(fig, "realizations")
 # %% [markdown]
 # ## Seeds and reproducibility
 #
-# The random draws come from a random-number generator started from a seed. Boitatá derives one seed per realization
-# from the seed you pass and runs realizations in parallel. Realization 7 depends only on the user seed and its own
-# number, never on which thread ran it or how many threads exist. The same call twice gives the same maps, and a new
-# seed gives new ones:
+# The random draws come from a random-number generator started from a seed. From the seed you pass, boitatá derives
+# one seed per realization and runs the realizations in parallel. Realization 7 depends only on the user seed and
+# its own number, never on which thread ran it or how many threads exist. The same call twice gives the same maps,
+# and a new seed gives new ones:
 
 # %%
 again = sgs.simulate(grid, n=3, seed=seed, keep=True).realizations

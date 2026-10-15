@@ -1,9 +1,9 @@
 """
-# Grade–tonnage curves and the change in contained metal
+# Grade-tonnage curves and the change in contained metal
 
 [Compare two estimates](../../14-workflows/05-compare-two-estimates/README.md) chose the ordinary kriging over the inverse distance
 model of Walker Lake. Management asks the next question: how much metal does that decision remove from the
-resource? You build grade–tonnage curves for both models and for the true blocks, report tonnes, grade and metal
+resource? You build grade-tonnage curves for both models and for the true blocks, report tonnes, grade and metal
 at a set of cutoffs, state the change in contained metal at the reporting cutoff, and check that the metal adds
 up.
 """
@@ -23,7 +23,7 @@ from common import ACCENT, HIGHLIGHT, INK, save
 
 # %% [markdown]
 # !!! learn "What you'll learn"
-#     - What a grade–tonnage curve reports: tonnes, mean grade and metal above each cutoff.
+#     - What a grade-tonnage curve reports: tonnes, mean grade and metal above each cutoff.
 #     - Why a smooth estimate reports more tonnes at a lower grade above a low cutoff.
 #     - How to state a change in contained metal in absolute and relative terms, and check that it balances.
 #
@@ -32,9 +32,9 @@ from common import ACCENT, HIGHLIGHT, INK, save
 #
 # ## The data
 #
-# The blocks are those of the previous tutorial: 26 × 30 blocks of 10 × 10 m. A grade–tonnage report needs tonnes,
+# The blocks are those of the previous tutorial: 26 × 30 blocks of 10 × 10 m. A grade-tonnage report needs tonnes,
 # which Walker Lake does not have, so two assumptions give them: a 10 m bench centered on the sample plane, and a
-# density of 2.7 t/m³. Each block is then 10 × 10 × 10 m = 1,000 m³ and weighs 2,700 t. Walker Lake's `V` is read
+# density of 2.7 t/m³. Each block is then 10 × 10 × 10 m = 1 000 m³ and weighs 2 700 t. Walker Lake's `V` is read
 # as a grade in ppm (g/t), so tonnes × ppm gives grams of metal; the tables below divide by 10⁶ to report tonnes of
 # metal.
 
@@ -68,7 +68,7 @@ print(f"{blocks['ok'].size} blocks × {tonnes:,.0f} t = {blocks['ok'].size * ton
 # The true blocks are the averages of the exhaustive grid over each block. A real deposit has no such column; here
 # it shows which model reports the right tonnes.
 #
-# !!! step "Step 1: One grade–tonnage curve"
+# !!! step "Step 1: One grade-tonnage curve"
 #     For a cutoff \(c\), the tonnage is the sum of the tonnes of the blocks with grade ≥ \(c\), the mean grade is
 #     their tonne-weighted average, and the metal is tonnage × mean grade. `grade_tonnage` computes this for a list
 #     of cutoffs. `data=blocks` lets it read the column by name and use each block's volume as its weight;
@@ -95,9 +95,9 @@ for row in zip(*(curve[c] for c in ("cutoff", "tonnage", "mean_grade", "metal"))
 #     is closer.
 
 # %%
-labels = {"truth": "true blocks", "ok": "kriging", "id": "inverse distance"}
+labels = {"truth": "True blocks", "ok": "Kriging", "id": "Inverse distance"}
 columns = {label: name for name, label in labels.items()}
-table = bt.compare_models(blocks, columns, cutoffs, reference="true blocks", density=density)
+table = bt.compare_models(blocks, columns, cutoffs, reference="True blocks", density=density)
 
 
 def at(table, name, cutoff):
@@ -208,7 +208,7 @@ for name, label in labels.items():
 #
 # ## The decision
 #
-# Report the kriging: 1,352.7 kt at 388.3 ppm, 525.2 t of metal above 200 ppm. The change from the scoping
+# Report the kriging: 1 352.7 kt at 388.3 ppm, 525.2 t of metal above 200 ppm. The change from the scoping
 # model is −108.2 t of metal (−17.1 %), which the clustering bias found in [compare two estimates](../../14-workflows/05-compare-two-estimates/README.md)
 # explains. The remaining smoothing (too many tonnes at too low a grade at this cutoff) is a change-of-support
 # problem: the [discrete Gaussian model](../../09-recoverable-resources/01-discrete-gaussian-model/README.md) and

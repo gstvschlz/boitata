@@ -17,9 +17,9 @@
 <circle class="a-pop" style="--d:1.4s" cx="455" cy="69" r="4.5"/>
 </g>
 <line class="s-flame a-fade" style="--d:1.4s" x1="60" y1="210" x2="60" y2="175" stroke-width="6"/>
-<text class="a-fade" style="--d:1.5s" x="68" y="198">nugget</text>
-<text class="a-fade" style="--d:1.6s" x="440" y="60">sill</text>
-<text class="a-fade" style="--d:1.7s" x="306" y="228">range</text>
-<text class="small" x="440" y="232">lag h (m)</text>
+<text class="a-fade" style="--d:1.5s" x="68" y="198">Nugget</text>
+<text class="a-fade" style="--d:1.6s" x="440" y="60">Sill</text>
+<text class="a-fade" style="--d:1.7s" x="306" y="228">Range</text>
+<text class="small" x="440" y="232">Lag h (m)</text>
 <text class="math" x="22" y="40">γ(h)</text>
 </svg>

@@ -1,9 +1,9 @@
 """
-# categorical indicator kriging
+# Categorical indicator kriging
 
-logged rock types are categories. categorical indicator kriging estimates the probability of each category at each
+Logged rock types are categories. Categorical indicator kriging estimates the probability of each category at each
 target: it krigs each category's indicator (1 inside it, 0 outside) with its own variogram, then clips the
-probabilities to [0, 1] and rescales them to sum 1. the most likely category is a rock-type model, and the entropy of
+probabilities to [0, 1] and rescales them to sum 1. The most likely category is a rock-type model, and the entropy of
 the probabilities marks where that model is uncertain.
 """
 
@@ -23,13 +23,13 @@ import numpy as np
 from common import save
 
 # %% [markdown]
-# ## rock types
+# ## Rock types
 #
-# the holes into the stacked sulphide lenses point west-northwest, across a stratigraphy that strikes 023° and dips
+# The holes into the stacked sulfide lenses point west-northwest, across a stratigraphy that strikes 023° and dips
 # about 55° to the east-southeast: footwall volcanics (`FWV`), volcaniclastics (`VCL`) and hanging-wall sediments
-# (`HWS`) under overburden (`OB`). the scheme lumps the three sulphide codes into `SUL` and keeps dykes apart. a
+# (`HWS`) under overburden (`OB`). The scheme lumps the three sulfide codes into `SUL` and keeps dikes apart. A
 # `Categories` scheme holds the names, the lumping and the colors; it encodes the logged codes for the estimator and
-# colors each plot. the logged intervals become 5 m composites, each taking the rock covering most of it.
+# colors each plot. The logged intervals become 5 m composites, each taking the rock covering most of it.
 
 # %%
 data = bt.datasets.stacked_sulphide_lenses()
@@ -50,14 +50,14 @@ for name, a, b in zip(scheme.names, naive, declustered):
     print(f"{name:<5}{a:7.3f}{b:13.3f}")
 
 # %% [markdown]
-# ## variograms and the estimate
+# ## Variograms and the estimate
 #
-# each category gets an indicator variogram chosen from the geology ([variogram fitting](../../05-spatial-continuity/02-variogram-fitting/README.md) fits them instead):
-# the layers are continuous along strike and down dip and short across, the sulphides form smaller lenses, the
-# overburden is a flat blanket and the dykes are short in all directions. each indicator is kriged on its own, so
-# only the shape of each variogram matters. the search follows the layering in two passes. ordinary kriging takes
+# Each category gets an indicator variogram chosen from the geology ([variogram fitting](../../05-spatial-continuity/02-variogram-fitting/README.md) fits them instead):
+# the layers are continuous along strike and down dip and short across, the sulfides form smaller lenses, the
+# overburden is a flat blanket and the dikes are short in all directions. Each indicator is kriged on its own, so
+# only the shape of each variogram matters. The search follows the layering in two passes. Ordinary kriging takes
 # each indicator's mean from the samples found, so away from the holes the probabilities follow the nearest layers;
-# `simple=True` would pull them towards the declustered proportions, which the weights set.
+# `simple=True` would pull them toward the declustered proportions, which the weights set.
 
 # %%
 layers = (23.0, 55.0, 0.0)
@@ -77,7 +77,7 @@ cik = bt.CategoricalIndicatorKriging(variograms, passes, scheme=scheme)
 cik.fit(composites, "LITH", weights=weights, holes="HOLE_ID")
 
 # %% [markdown]
-# the targets are the cells of a vertical section across strike, one cell thick, through the middle of the drilling,
+# The targets are the cells of a vertical section across strike, one cell thick, through the middle of the drilling,
 # without the cells above the topography. `predict` returns a summary: `probabilities` has one row per target and one
 # column per category, `most_likely` holds category codes (NaN where the search found too few samples), and
 # `diagnostics` is a `Table` of the search and of the correction.
@@ -105,9 +105,9 @@ columns = {f"p_{name}": p[:, c] for c, name in enumerate(scheme.names)}
 section = section.with_columns({**columns, "most_likely": summary.most_likely, "entropy": summary.entropy})
 
 # %% [markdown]
-# ## probability maps
+# ## Probability maps
 #
-# each category's probability is high near its samples and fades across its contacts. the sulphides, rare and
+# Each category's probability is high near its samples and fades across its contacts. The sulfides, rare and
 # short-ranged, stand out only near the holes that cut them.
 
 # %%
@@ -117,15 +117,15 @@ for ax, name in zip(axes.flat, ["HWS", "VCL", "SUL", "FWV"]):
     ax.set_title(f"P({name})")
     ax.set_xlabel("Along the section (m)" if ax in axes[1] else "")
     ax.set_ylabel("Elevation (m)")
-fig.colorbar(ax.collections[0], ax=axes, shrink=0.6, label="probability")
+fig.colorbar(ax.collections[0], ax=axes, shrink=0.6, label="Probability")
 save(fig, "probabilities")
 
 # %% [markdown]
-# ## most likely rock and its uncertainty
+# ## Most likely rock and its uncertainty
 #
-# the most likely category takes the scheme's colors. entropy, scaled to [0, 1], is 0 where one category is certain
-# and 1 where all are equally likely; it peaks along the contacts and far from the holes. the last panel draws both:
-# the most likely rock fades towards white as its entropy rises.
+# The most likely category takes the scheme's colors. Entropy, scaled to [0, 1], is 0 where one category is certain
+# and 1 where all are equally likely; it peaks along the contacts and far from the holes. The last panel draws both:
+# the most likely rock fades toward white as its entropy rises.
 
 # %%
 fig, axes = plt.subplots(1, 3, figsize=(17, 4.8), layout="constrained", sharey=True)
@@ -141,12 +141,12 @@ for ax, y in zip(axes, ["Elevation (m)", "", ""]):
 save(fig, "most-likely")
 
 # %% [markdown]
-# ## checks
+# ## Checks
 #
-# split the holes into 5 folds and re-estimate each fold's composites from the others, then score the probabilities
+# Split the holes into 5 folds and re-estimate each fold's composites from the others, then score the probabilities
 # with the brier score: the mean squared difference between a category's probability and its indicator. 0 is perfect,
-# and forecasting the declustered proportion `p` everywhere scores `p (1 − p)`. the layers beat that baseline by far,
-# the thin sulphides barely beat it, and the dykes, which cut across all the layers, fail to.
+# and forecasting the declustered proportion `p` everywhere scores `p (1 − p)`. The layers beat that baseline by far,
+# the thin sulfides barely beat it, and the dikes, which cut across all the layers, fail to.
 
 # %%
 cv = cik.cross_validate(folds=5)

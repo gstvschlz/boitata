@@ -25,20 +25,20 @@
 </g>
 <g class="a-fade" style="--d:1.6s">
 <path class="s-ember none" stroke-width="1.5" d="M0 8 V16 M0 12 H50 M50 8 V16"/>
-<text class="small" x="25" y="30" text-anchor="middle">size x</text>
-<text class="small" x="140" y="30" text-anchor="middle">count x = 4</text>
+<text class="small" x="25" y="30" text-anchor="middle">Size x</text>
+<text class="small" x="140" y="30" text-anchor="middle">Count x = 4</text>
 <path class="s-ember none" stroke-width="1.5" d="M-8 0 H-16 M-12 0 V-50 M-8 -50 H-16"/>
-<text class="small" x="-22" y="-25" text-anchor="middle" transform="rotate(-90 -22 -25)">size y</text>
-<text class="small" x="-22" y="-105" text-anchor="middle" transform="rotate(-90 -22 -105)">count y = 3</text>
+<text class="small" x="-22" y="-25" text-anchor="middle" transform="rotate(-90 -22 -25)">Size y</text>
+<text class="small" x="-22" y="-105" text-anchor="middle" transform="rotate(-90 -22 -105)">Count y = 3</text>
 <text class="math" x="212" y="5">x</text>
 <text class="math" x="-4" y="-160">y</text>
 </g>
 </g>
 <path class="s-ember none a-draw" style="--d:2s" pathLength="1" stroke-width="2" d="M150 170 A60 60 0 0 1 180 178.04"/>
-<text class="small a-fade" style="--d:2.3s" x="143" y="160" text-anchor="end">rotation 30°</text>
+<text class="small a-fade" style="--d:2.3s" x="143" y="160" text-anchor="end">Rotation 30°</text>
 <circle class="f-ember a-pop" style="--d:.8s" cx="150" cy="230" r="5"/>
-<text class="a-fade" style="--d:.9s" x="138" y="250" text-anchor="end">origin</text>
-<text class="small a-fade" style="--d:.9s" x="138" y="266" text-anchor="end">corner of block 0</text>
-<text class="small a-fade" style="--d:1.4s" x="410" y="286">row order: x fastest,</text>
+<text class="a-fade" style="--d:.9s" x="138" y="250" text-anchor="end">Origin</text>
+<text class="small a-fade" style="--d:.9s" x="138" y="266" text-anchor="end">Corner of block 0</text>
+<text class="small a-fade" style="--d:1.4s" x="410" y="286">Row order: x fastest,</text>
 <text class="small a-fade" style="--d:1.4s" x="410" y="302">then y, then z</text>
 </svg>

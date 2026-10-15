@@ -2,7 +2,7 @@
 <title id="l05-smoothing-t">A jagged true profile, samples on it, and the smoother kriged profile that rarely reaches the cutoff</title>
 <line class="s-grid" x1="40" y1="220" x2="620" y2="220" stroke-width="1.5"/>
 <line class="s-muted dash" x1="40" y1="95.8" x2="620" y2="95.8" stroke-width="1"/>
-<text class="small" x="580" y="89.8">cutoff</text>
+<text class="small" x="580" y="89.8">Cutoff</text>
 <path class="f-flame-soft a-fade" style="--d:1.2s" d="M44.8 95.8 L44.8 91.1 L44.8 95.8 Z"/>
 <path class="f-flame-soft a-fade" style="--d:1.2s" d="M78.7 95.8 L78.7 95.6 L78.7 95.8 Z"/>
 <path class="f-flame-soft a-fade" style="--d:1.2s" d="M218.8 95.8 L218.8 88 L221.2 66.9 L223.7 91.5 L226.1 82.2 L228.5 78.9 L230.9 83.2 L230.9 95.8 Z"/>
@@ -32,8 +32,8 @@
 <circle class="a-pop" style="--d:0.50s" cx="487.1" cy="131.9" r="5"/>
 <circle class="a-pop" style="--d:0.58s" cx="576.5" cy="106.4" r="5"/>
 </g>
-<text class="a-fade" style="--d:1.4s" x="115.7" y="202.7">truth</text>
-<text class="a-fade" style="--d:1.4s" x="426.7" y="167.9">kriging</text>
-<text class="small a-fade" style="--d:1.6s" x="40" y="240">distance along a line</text>
-<text class="small a-fade" style="--d:1.6s" x="370" y="240">shaded: where the truth exceeds the cutoff</text>
+<text class="a-fade" style="--d:1.4s" x="115.7" y="202.7">Truth</text>
+<text class="a-fade" style="--d:1.4s" x="426.7" y="167.9">Kriging</text>
+<text class="small a-fade" style="--d:1.6s" x="40" y="240">Distance along a line</text>
+<text class="small a-fade" style="--d:1.6s" x="370" y="240">Shaded: where the truth exceeds the cutoff</text>
 </svg>

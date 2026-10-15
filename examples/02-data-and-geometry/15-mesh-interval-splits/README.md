@@ -1,8 +1,8 @@
-# mesh-crossing interval splits
+# Mesh-crossing interval splits
 
-an assay interval rarely starts or ends at a geological contact, since a logger picks the nearest sample boundary
+An assay interval rarely starts or ends at a geological contact, since a logger picks the nearest sample boundary
 instead of the true crossing. `Drillholes.mesh_intervals` walks each hole's desurveyed path against a closed
-`Mesh` and returns the exact depths where it crosses the surface. you `merge_intervals` them with the assays, so
+`Mesh` and returns the exact depths where it crosses the surface. You `merge_intervals` them with the assays, so
 a composite takes its hard domain from the mesh instead of a logged pick.
 
 <details><summary>Python</summary>
@@ -34,7 +34,7 @@ print(f"{crossings.num_rows} runs down {len(holes)} holes, {int(np.sum(crossings
 ```
 
 `mesh_intervals` samples each hole's path every `step` and bisects to `tolerance` wherever it crosses the mesh, so
-each depth down each hole falls in one run of `INSIDE`. its columns match the defaults of `merge_intervals`, so it
+each depth down each hole falls in one run of `INSIDE`. Its columns match the defaults of `merge_intervals`, so it
 splits the assays at those depths with no renaming.
 
 <details><summary>Python</summary>
@@ -53,8 +53,8 @@ mesh_comps = bt.Drillholes(collar, survey, mesh_split).composite(None, ["ZN_PCT"
 
 </details>
 
-[contact surfaces](../../11-geological-modeling/02-contact-surfaces/README.md) domains the same holes from the logged lithology instead: `MS` and `SMS` intervals stand for a sulphide
-lens. that pick is only as good as where the logger set the contact, and it cannot tell the three lenses apart.
+[Contact surfaces](../../11-geological-modeling/02-contact-surfaces/README.md) domains the same holes from the logged lithology instead: `MS` and `SMS` intervals stand for a sulfide
+lens. That pick is only as good as where the logger set the contact, and it cannot tell the three lenses apart.
 
 <details><summary>Python</summary>
 
@@ -83,8 +83,8 @@ print(f"logged lithology: lens mean Zn {lith_mean['lens']:.2f}%, n={lith_n['lens
 logged lithology: lens mean Zn 5.52%, n=180
 ```
 
-the lithology domain takes in sulphide picked in the other two lenses. nothing corrects it to the solid, so some
-contacts sit a sample or two off the true one. both effects pull its lens grade away from the mesh's.
+The lithology domain takes in sulfide picked in the other two lenses. Nothing corrects it to the solid, so some
+contacts sit a sample or two off the true one. Both effects pull its lens grade away from the mesh's.
 
 <details><summary>Python</summary>
 
@@ -94,10 +94,10 @@ x = np.arange(len(labels))
 width = 0.35
 fig, ax = plt.subplots(figsize=(4.5, 3.4), layout="constrained")
 for i, (name, mean, color) in enumerate(
-    [("mesh contact", mesh_mean, ACCENT), ("logged lithology", lith_mean, GRAY)]
+    [("Mesh contact", mesh_mean, ACCENT), ("Logged lithology", lith_mean, GRAY)]
 ):
     ax.bar(x + (i - 0.5) * width, [mean[k] for k in labels], width, color=color, label=name)
-ax.set(xticks=x, xticklabels=labels, ylabel="Mean Zn (%)", title="Domain grade by contact")
+ax.set(xticks=x, xticklabels=["Lens", "Other"], ylabel="Mean Zn (%)", title="Domain grade by contact")
 ax.legend()
 save(fig, "grade")
 ```

@@ -1,6 +1,6 @@
-# rotation and affinity
+# Rotation and affinity
 
-a training image has one direction and one scale; a deposit rarely keeps either. `anisotropy` turns and stretches the
+A training image has one direction and one scale; a deposit rarely keeps either. `anisotropy` turns and stretches the
 patterns cell by cell and leaves the image as it is: each cell reads its neighbors through its own angles and
 affinity, so one image can serve a whole field of orientations.
 
@@ -22,8 +22,8 @@ x, y = grid.x, grid.y
 
 </details>
 
-at each cell, `bt.LocalAnisotropy` holds the azimuth that turns the image's north, the ratios that shrink its X
-(semi-major) and Z (minor) axes against its Y axis, and a scale that grows all three. at azimuth 0 and scale 1 the
+At each cell, `bt.LocalAnisotropy` holds the azimuth that turns the image's north, the ratios that shrink its X
+(semi-major) and Z (minor) axes against its Y axis, and a scale that grows all three. At azimuth 0 and scale 1 the
 cells read the image as it is.
 
 <details><summary>Python</summary>
@@ -51,8 +51,8 @@ fields = {
 
 </details>
 
-"twice as long" doubles the scale and halves the X ratio, so the channels double in length and keep their width.
-two lines dipping east split three zones: the south enlarged 1.5 times, the middle turned 60°, the north turned
+"Twice as long" doubles the scale and halves the X ratio, so the channels double in length and keep their width.
+Two lines dipping east split three zones: the south enlarged 1.5 times, the middle turned 60°, the north turned
 -30° with channels half as wide. SNESIM rounds angles to `angle_step` (10° by default), and each distinct rounded
 transform gets search trees of its own.
 
@@ -102,7 +102,7 @@ for ax in axes.flat:
     ax.set(xticks=[], yticks=[])
     for side in ax.spines.values():
         side.set(visible=True, color=INK, lw=0.6)
-fig.colorbar(im, ax=axes[0], shrink=0.8, label="azimuth (°)", ticks=[-90, -45, 0, 45, 90])
+fig.colorbar(im, ax=axes[0], shrink=0.8, label="Azimuth (°)", ticks=[-90, -45, 0, 45, 90])
 save(fig, "rotation")
 ```
 
@@ -110,16 +110,16 @@ save(fig, "rotation")
 
 ![rotation](rotation.png)
 
-turned 45°, a channel crosses the Y runs on the diagonal, so they shorten. twice as long lengthens the runs from 18
+Turned 45°, a channel crosses the Y runs on the diagonal, so they shorten. "Twice as long" lengthens the runs from 18
 to 22 cells instead of doubling them: a doubled channel reaches past the grid template, and the coarse levels, which
 keep their spacing, see only half as far into the stretched image.
 
-the channels cross the zone boundaries without a seam: a cell near a boundary sees neighbors simulated under the
+The channels cross the zone boundaries without a seam: a cell near a boundary sees neighbors simulated under the
 other zone's transform and continues them.
 
-continuous images turn the same way. the F3 sections of [continuous SNESIM](../../13-multiple-point-statistics/03-snesim-continuous/README.md)
+Continuous images turn the same way. The F3 sections of [continuous SNESIM](../../13-multiple-point-statistics/03-snesim-continuous/README.md)
 have nearly flat reflectors; an azimuth rising from -25° in the west to 25° in the east and back bends them into a
-fold. here the cells are one trace by one sample, so angles follow those units.
+fold. Here the cells are one trace by one sample, so angles follow those units.
 
 <details><summary>Python</summary>
 
@@ -154,8 +154,8 @@ for ax, img, title in (
     (axes[2], section.grid(folded)[0], "Realization with the fold field"),
 ):
     ax.imshow(img, **style)
-    ax.set(title=title, ylabel="sample")
-axes[2].set_xlabel("trace")
+    ax.set(title=title, ylabel="Sample")
+axes[2].set_xlabel("Trace")
 save(fig, "fold")
 ```
 
@@ -163,7 +163,7 @@ save(fig, "fold")
 
 ![fold](fold.png)
 
-[several training images](../../13-multiple-point-statistics/05-snesim-training-images-by-zone/README.md) change the patterns themselves from zone
+[Several training images](../../13-multiple-point-statistics/05-snesim-training-images-by-zone/README.md) change the patterns themselves from zone
 to zone.
 
 Full script: [`example_13_04.py`](example_13_04.py)

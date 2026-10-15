@@ -24,7 +24,7 @@
 <circle class="f-ember-soft s-ember a-pulse" cx="300" cy="170" r="14" stroke-width="2"/>
 <text x="295" y="175">?</text>
 <text class="math" x="430" y="60">z* = λ₁z₁ + λ₂z₂ + … + λₙzₙ</text>
-<text class="small" x="430" y="84">each weight λ says how much</text>
+<text class="small" x="430" y="84">Each weight λ says how much</text>
 <text class="small" x="430" y="100">one sample counts</text>
 <line class="s-ink" x1="40" y1="300" x2="130" y2="300" stroke-width="2"/>
 <text class="small" x="40" y="318">10 m</text>

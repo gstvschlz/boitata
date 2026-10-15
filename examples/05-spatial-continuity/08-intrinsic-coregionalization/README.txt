@@ -1,1 +1,1 @@
-## intrinsic coregionalization
+## Intrinsic coregionalization

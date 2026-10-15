@@ -43,7 +43,7 @@ for code in ["CG", "HF", "HC", "IF", "IC", "LAT", "MAF"]:
 
 # %% [markdown]
 # Friable (`HF`) and compact (`HC`) hematite hold 66 % Fe; friable (`IF`) and compact (`IC`) itabirite are banded
-# hematite and quartz; canga (`CG`), laterite (`LAT`) and the mafic dykes (`MAF`) are waste or cover.
+# hematite and quartz; canga (`CG`), laterite (`LAT`) and the mafic dikes (`MAF`) are waste or cover.
 #
 # ## One closure
 #
@@ -78,14 +78,14 @@ b.set_title("Correlation of the ore composites")
 save(fig, "closure")
 
 # %% [markdown]
-# In ore the oxides total 98.8 to 99.7 % at the median; only the mafic dykes, with unassayed oxides, fall well short.
+# In ore the oxides total 98.8 to 99.7 % at the median; only the mafic dikes, with unassayed oxides, fall well short.
 # Iron and silica sit on the closure line, one the mirror of the other (r −1.00); LOI goes with Al2O3, the clays of
 # weathering. Kriging or simulating each grade on its own would honor neither that line nor the total: nothing stops
 # a block from summing past 100 %.
 #
 # ## Ore domains of the model
 #
-# The blastholes cover three benches, 660 to 696 m, in the south-west of the plateau. The blocks of those benches
+# The blastholes cover three benches, 660 to 696 m, in the southwest of the plateau. The blocks of those benches
 # over the blasthole area are simulated, in three ore domains of the block model: hematite (`HF`, `HC` and the few
 # `CG` blocks), friable itabirite `IF` and compact itabirite `IC`. Simulating all 129 278 blocks would take far longer
 # than a gallery page should; nothing below depends on the window.
@@ -249,9 +249,9 @@ a.set(
     aspect="equal",
 )
 bins = np.arange(10, 71, 2.5)
-b.hist(bh_fe, bins=bins, density=True, color=LIGHT, label="blastholes")
+b.hist(bh_fe, bins=bins, density=True, color=LIGHT, label="Blastholes")
 b.hist(
-    point.ravel(), bins=bins, density=True, histtype="step", color=ACCENT, label="simulated at the blastholes"
+    point.ravel(), bins=bins, density=True, histtype="step", color=ACCENT, label="Simulated at the blastholes"
 )
 b.hist(
     fe[:, drilled].ravel(),
@@ -259,9 +259,9 @@ b.hist(
     density=True,
     histtype="step",
     color=HIGHLIGHT,
-    label="simulated blocks",
+    label="Simulated blocks",
 )
-b.set(xlabel="Fe (%)", ylabel="density", title="Three supports")
+b.set(xlabel="Fe (%)", ylabel="Density", title="Three supports")
 b.legend(loc="upper left")
 save(fig, "reconciliation")
 
@@ -280,7 +280,7 @@ save(fig, "reconciliation")
 # ## A bench in plan
 #
 # The middle bench, 672 to 684 m: the mean of the simulated block Fe, with the blastholes on the same color scale.
-# The low-grade itabirite band the blastholes trace to the north-east is in the model, wider and less sharp.
+# The low-grade itabirite band the blastholes trace to the northeast is in the model, wider and less sharp.
 
 # %%
 bench = int((678 - model.origin[2]) // model.size[2])
@@ -304,6 +304,6 @@ ax.set(
     aspect="equal",
     xlabel="Easting (m)",
     ylabel="Northing (m)",
-    title="Bench 672-684 m: simulated block Fe and blastholes",
+    title="Bench 672 to 684 m: simulated block Fe and blastholes",
 )
 save(fig, "bench")

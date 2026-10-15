@@ -1,1 +1,1 @@
-## grades in simulated rock types
+## Grades in simulated rock types

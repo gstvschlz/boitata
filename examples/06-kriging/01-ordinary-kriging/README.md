@@ -1,6 +1,6 @@
-# ordinary kriging
+# Ordinary kriging
 
-ordinary kriging of walker lake `V` on a 5 m grid, with its kriging variance, checked against the exhaustive values and
+Ordinary kriging of Walker Lake `V` on a 5 m grid, with its kriging variance, checked against the exhaustive values and
 by leave-one-out cross-validation.
 
 <details><summary>Python</summary>
@@ -18,7 +18,7 @@ truth = bt.datasets.walker_lake_exhaustive()["V"].reshape(300, 260)
 
 </details>
 
-two nested spherical structures fitted to experimental variograms in eight directions
+Two nested spherical structures fitted to experimental variograms in eight directions
 ([variogram fitting](../../05-spatial-continuity/02-variogram-fitting/README.md) explains the fit):
 
 <details><summary>Python</summary>
@@ -38,7 +38,7 @@ print(model)
 Variogram(nugget=16458.263904055566, structures=[Structure("spherical", sill=39532.539054973735, range=36.61762520915539), Structure("spherical", sill=39110.929672733, range=115)], rotation=(161.46015029654865, 0.0, 0.0), ratios=(0.33583545063941, 1.0))
 ```
 
-the search takes up to 24 samples within 100 m. `predict` accepts a `BlockModel`, a `PointSet` or an array of
+The search takes up to 24 samples within 100 m. `predict` accepts a `BlockModel`, a `PointSet` or an array of
 coordinates; `with_column` stores the results on the model.
 
 <details><summary>Python</summary>
@@ -60,7 +60,7 @@ BlockModel(regular, 3120 of 3120 cells, count [52, 60, 1], size [5.0, 5.0, 1.0],
   variance: Float64
 ```
 
-compare with the true values at the grid nodes, and re-estimate every sample with itself left out:
+Compare with the true values at the grid nodes, and re-estimate every sample with itself left out:
 
 <details><summary>Python</summary>
 
@@ -84,7 +84,7 @@ variance of estimates 38466 vs true 62312
 cross-validation: ME 12.1  RMSE 185.6  r 0.79  slope 1.03  error²/variance 0.71
 ```
 
-the kriging standard deviation depends only on the data layout and the model: low near samples, high in gaps.
+The kriging standard deviation depends only on the data layout and the model: low near samples, high in gaps.
 
 <details><summary>Python</summary>
 
@@ -111,8 +111,8 @@ save(fig, "maps")
 
 ![maps](maps.png)
 
-kriging smooths: the estimates vary less than the truth, a variance of 38 000 against 62 000 at the nodes.
-cross-validation shows no conditional bias (the slope of actual on estimate is near 1). a mean error² / variance of
+Kriging smooths: the estimates vary less than the truth, a variance of 38 000 against 62 000 at the nodes.
+Cross-validation shows no conditional bias (the slope of actual on estimate is near 1). A mean error² / variance of
 0.71 means the model's variance runs high here.
 
 <details><summary>Python</summary>
@@ -135,9 +135,9 @@ save(fig, "validation")
 
 ![validation](validation.png)
 
-the neighborhood search is a k-d tree and nodes are kriged in parallel, so large grids stay fast: every 1 m node of
+The neighborhood search is a k-d tree and nodes are kriged in parallel, so large grids stay fast: every 1 m node of
 the area, 78 000 targets, takes about half a second.
-[simple estimators](../../06-kriging/02-simple-estimators/README.md) compares cheaper methods, and
+[Simple estimators](../../06-kriging/02-simple-estimators/README.md) compares cheaper methods, and
 [search](../../06-kriging/06-search/README.md) refines the search.
 
 Full script: [`example_06_01.py`](example_06_01.py)

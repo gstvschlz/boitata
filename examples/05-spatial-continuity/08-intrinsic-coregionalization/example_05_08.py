@@ -1,11 +1,11 @@
 """
-# intrinsic coregionalization
+# Intrinsic coregionalization
 
-an intrinsic coregionalization is the simplest multivariate variogram model: every direct and cross variogram has the
-same normalized shape (one set of structures, ranges and anisotropy) scaled by one entry of a covariance matrix. the
+An intrinsic coregionalization is the simplest multivariate variogram model: every direct and cross variogram has the
+same normalized shape (one set of structures, ranges and anisotropy) scaled by one entry of a covariance matrix. The
 correlation between two variables is then the same at every lag. `Coregionalization.fit(..., intrinsic=True)` fits the
 shape to the pooled direct variograms, each divided by its sill, then fits the positive semi-definite covariance matrix.
-`Coregionalization.intrinsic` builds one from a variogram and a matrix. either way the result is an ordinary
+`Coregionalization.intrinsic` builds one from a variogram and a matrix. Either way the result is an ordinary
 `Coregionalization`, so cokriging and cosimulation take it unchanged.
 """
 
@@ -32,10 +32,10 @@ print(f"{len(cd)} samples, corr(Cd, Zn) {np.corrcoef(cd, zn)[0, 1]:.2f}")
 # %% [markdown]
 # ## Cd and Zn
 #
-# the data are the jura soil samples of [coregionalization](../../05-spatial-continuity/07-coregionalization/README.md)
+# The data are the Jura soil samples of [coregionalization](../../05-spatial-continuity/07-coregionalization/README.md)
 # (mg/kg, coordinates in km). `experimental_variograms` computes both variograms and the cross-variogram as a
-# `VariogramSet`, which the fit takes as it is. the intrinsic model has one shape (a nugget and two spherical
-# structures) and one 2 x 2 sill matrix.
+# `VariogramSet`, which the fit takes as it is. The intrinsic model has one shape (a nugget and two spherical
+# structures) and one 2 × 2 sill matrix.
 
 # %%
 experimentals = bt.experimental_variograms(train, ["Cd", "Zn"], lag, max_lag)
@@ -59,11 +59,11 @@ for name, model in [("intrinsic", icm), ("full LMC", lmc)]:
     print(f"  share of the Cd / Zn sill: {parts}")
 
 # %% [markdown]
-# the full linear model of coregionalization of
+# The full linear model of coregionalization of
 # [coregionalization](../../05-spatial-continuity/07-coregionalization/README.md) gives each variable its own mix of the
-# shared structures: Cd puts 83 % of its sill in the short structure, Zn 53 %. the intrinsic model gives both the same
-# 68 %, a compromise, and one correlation, 0.64, at every lag. the total sills and the correlation differ little between
-# the two models, so the curves meet at large lags. at short lags the intrinsic model is too smooth for Cd and too rough
+# shared structures: Cd puts 83 % of its sill in the short structure, Zn 53 %. The intrinsic model gives both the same
+# 68 %, a compromise, and one correlation, 0.64, at every lag. The total sills and the correlation differ little between
+# the two models, so the curves meet at large lags. At short lags the intrinsic model is too smooth for Cd and too rough
 # for Zn:
 
 # %%
@@ -74,7 +74,7 @@ panels = ((0, 0, "Cd"), (1, 1, "Zn"), (0, 1, "Cd × Zn"))
 fig, axes = plt.subplots(1, 3, figsize=(10, 3.2), layout="constrained")
 for ax, (i, j, name) in zip(axes, panels):
     bt.plot.variogram(experimentals[i, j], ax=ax, color=GRAY)
-    for model, color, label in [(icm, ACCENT, "intrinsic"), (lmc, INK, "full LMC")]:
+    for model, color, label in [(icm, ACCENT, "Intrinsic"), (lmc, INK, "Full LMC")]:
         gamma = model.cross_covariance(i, j, origin, origin) - model.cross_covariance(i, j, origin, away)
         ax.plot(h, gamma, color=color, lw=1, label=label)
     ax.set(title=name, xlabel="Lag (km)", ylabel="γ(h)" if i == j else "γ₁₂(h)")
@@ -82,10 +82,10 @@ axes[0].legend()
 save(fig, "variograms")
 
 # %% [markdown]
-# ## cokriging with either model
+# ## Cokriging with either model
 #
-# both models go to `Cokriging` the same way. the test kriges Cd at the 100 validation samples by collocated cokriging,
-# with Zn known there, as in [cokriging](../../06-kriging/09-cokriging/README.md). with correlations this close, the
+# Both models go to `Cokriging` the same way. The test kriges Cd at the 100 validation samples by collocated cokriging,
+# with Zn known there, as in [cokriging](../../06-kriging/09-cokriging/README.md). With correlations this close, the
 # simpler model predicts as well:
 
 # %%
@@ -98,10 +98,10 @@ for name, model in [("intrinsic", icm), ("full LMC", lmc)]:
     print(f"{name:>10}: validation RMSE {bt.compare(estimate, truth)['rmse']:.3f} mg/kg")
 
 # %% [markdown]
-# ## seven metals
+# ## Seven metals
 #
-# the intrinsic model grows with the number of variables only through its covariance matrix: seven metals need one shape
-# and 28 matrix entries, fitted in one pass. its correlations hold at every lag:
+# The intrinsic model grows with the number of variables only through its covariance matrix: seven metals need one shape
+# and 28 matrix entries, fitted in one pass. Its correlations hold at every lag:
 
 # %%
 metals = ["Cd", "Co", "Cr", "Cu", "Ni", "Pb", "Zn"]

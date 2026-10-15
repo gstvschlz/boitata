@@ -26,12 +26,12 @@
 <rect class="f-night-soft s-night a-grow" style="--d:0.66s" stroke-width=".8" x="555" y="217.8" width="22.5" height="2.2"/>
 <rect class="f-night-soft s-night a-grow" style="--d:0.69s" stroke-width=".8" x="577.5" y="218.1" width="22.5" height="1.9"/>
 <line class="s-night a-fade" style="--d:1.0s" x1="150" y1="38" x2="150" y2="220" stroke-width="2"/>
-<text class="a-fade" style="--d:1.0s" x="145" y="32" text-anchor="end">median</text>
+<text class="a-fade" style="--d:1.0s" x="145" y="32" text-anchor="end">Median</text>
 <line class="s-ember a-fade" style="--d:1.3s" x1="183.9" y1="38" x2="183.9" y2="220" stroke-width="2"/>
-<text class="a-fade" style="--d:1.3s" x="188.9" y="32" text-anchor="start">mean</text>
+<text class="a-fade" style="--d:1.3s" x="188.9" y="32" text-anchor="start">Mean</text>
 <path class="s-muted none a-draw" style="--d:1.6s" pathLength="1" stroke-width="1.5" d="M380 150 C 420 155, 450 175, 490 200"/>
-<text class="a-fade" style="--d:1.9s" x="340" y="120">long tail of high values</text>
-<text class="small a-fade" style="--d:1.9s" x="340" y="138">pulls the mean above the median: positive skew</text>
-<text x="60" y="240" class="small">low</text>
-<text x="600" y="240" class="small" text-anchor="end">high grade</text>
+<text class="a-fade" style="--d:1.9s" x="340" y="120">Long tail of high values</text>
+<text class="small a-fade" style="--d:1.9s" x="340" y="138">Pulls the mean above the median: positive skew</text>
+<text x="60" y="240" class="small">Low</text>
+<text x="600" y="240" class="small" text-anchor="end">High grade</text>
 </svg>

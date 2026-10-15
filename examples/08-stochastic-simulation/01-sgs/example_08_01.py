@@ -1,7 +1,7 @@
 """
-# sequential gaussian simulation
+# Sequential Gaussian simulation
 
-kriging gives one smooth map. simulation draws many maps, each honoring the samples, the declustered histogram and
+Kriging gives one smooth map. Simulation draws many maps, each honoring the samples, the declustered histogram and
 the variogram; together they measure uncertainty.
 """
 
@@ -26,7 +26,7 @@ azimuth = 170.0
 
 
 # %% [markdown]
-# normal scores with declustering weights, tails bounded to 0 and the largest sample, and their variogram along
+# Normal scores with declustering weights, tails bounded to 0 and the largest sample, and their variogram along
 # N170°, the direction of greatest continuity ([variogram fitting](../../05-spatial-continuity/02-variogram-fitting/README.md)), and across it, scaled to a unit sill:
 
 # %%
@@ -42,11 +42,11 @@ print(gaussian)
 
 
 # %% [markdown]
-# SGS normal-scores the data, simulates along a random path and back-transforms. the 50 realizations come out the
+# SGS normal-scores the data, simulates along a random path and back-transforms. The 50 realizations come out the
 # same on any number of threads. `simulate` returns a summary accumulated while it runs: the mean, variance and
 # quantiles at each node, the probability and mean above each cutoff, and each realization's global mean and share
 # above the cutoffs. `cv` and `relative_error` derive from these: the spread over the mean, and half the central 90 %
-# interval over the mean, read from the 0.05 and 0.95 quantiles. it keeps realizations only on request: here the first
+# interval over the mean, read from the 0.05 and 0.95 quantiles. It keeps realizations only on request: here the first
 # 20, to check them.
 
 # %%
@@ -71,7 +71,7 @@ print(
 
 
 # %% [markdown]
-# each realization looks like the truth; their mean is smooth like kriging, and their spread measures uncertainty.
+# Each realization looks like the truth; their mean is smooth like kriging, and their spread measures uncertainty.
 
 # %%
 extent = (0.5, 260.5, 0.5, 300.5)
@@ -89,7 +89,7 @@ fig.colorbar(im, ax=axes[0, :], shrink=0.8, label="V (ppm)")
 fig.colorbar(im, ax=axes[1, 0], shrink=0.8, label="V (ppm)")
 spread = axes[1, 1].imshow(grid.grid(summary.std)[0], origin="lower", extent=extent, cmap="cividis")
 map_axes(axes[1, 1], "Spread across realizations")
-fig.colorbar(spread, ax=axes[1, 1], shrink=0.8, label="standard deviation (ppm)")
+fig.colorbar(spread, ax=axes[1, 1], shrink=0.8, label="Standard deviation (ppm)")
 prob = axes[1, 2].imshow(grid.grid(p500)[0], origin="lower", extent=extent, vmin=0, vmax=1)
 map_axes(axes[1, 2], "Probability V > 500 ppm")
 axes[1, 2].contour(
@@ -100,19 +100,19 @@ axes[1, 2].contour(
     colors=HIGHLIGHT,
     linewidths=0.8,
 )
-fig.colorbar(prob, ax=axes[1, 2], shrink=0.8, label="probability; true V > 500 outlined")
+fig.colorbar(prob, ax=axes[1, 2], shrink=0.8, label="Probability; true V > 500 outlined")
 save(fig, "maps")
 
 
 # %% [markdown]
-# each realization reproduces the declustered histogram and the model variogram:
+# Each realization reproduces the declustered histogram and the model variogram:
 
 # %%
 fig, (a, b) = plt.subplots(1, 2, figsize=(10, 3.8), layout="constrained")
 grid_v = np.sort(true_at_nodes)
 for r in reals:
     a.plot(np.sort(r), np.linspace(0, 1, r.size), color=LIGHT, lw=0.8)
-a.plot(grid_v, np.linspace(0, 1, grid_v.size), color=INK, lw=1.4, label="truth")
+a.plot(grid_v, np.linspace(0, 1, grid_v.size), color=INK, lw=1.4, label="Truth")
 order = np.argsort(v)
 a.step(
     v[order],
@@ -120,7 +120,7 @@ a.step(
     color=ACCENT,
     lw=1.4,
     where="post",
-    label="declustered samples",
+    label="Declustered samples",
 )
 a.plot([], [], color=LIGHT, label="20 realizations")
 a.set(xlim=(0, 1600), xlabel="V (ppm)", ylabel="Cumulative probability", title="Histogram reproduction")
@@ -132,9 +132,9 @@ for r in reals:
     exp = bt.experimental_variogram(xyz, scores, lag, max_lag, azimuth=azimuth)
     b.plot(exp.lags, exp.gammas, color=LIGHT, lw=0.8)
 data_exp = bt.experimental_variogram(xy, y, lag, max_lag, azimuth=azimuth)
-b.plot(data_exp.lags, data_exp.gammas, "o", color=ACCENT, ms=4, label="normal scores of samples")
+b.plot(data_exp.lags, data_exp.gammas, "o", color=ACCENT, ms=4, label="Normal scores of samples")
 h = np.linspace(0, max_lag, 200)
-b.plot(h, gaussian.gamma(h), color=HIGHLIGHT, lw=1.4, label="model")
+b.plot(h, gaussian.gamma(h), color=HIGHLIGHT, lw=1.4, label="Model")
 b.plot([], [], color=LIGHT, label="20 realizations")
 b.axhline(1.0, color=GRAY, lw=0.8, ls="--")
 b.set(xlim=(0, max_lag), ylim=(0, 1.4), xlabel="Lag distance (m)", ylabel="γ(h) of normal scores")
@@ -143,5 +143,5 @@ b.legend(loc="lower right")
 save(fig, "reproduction")
 
 # %% [markdown]
-# [simulation at block support](../../08-stochastic-simulation/03-simulation-at-block-support/README.md) targets blocks, [turning bands](../../08-stochastic-simulation/04-turning-bands/README.md) draws realizations another way, and [simulation with a trend](../../08-stochastic-simulation/05-simulation-with-trend/README.md) steers them with a
+# [Simulation at block support](../../08-stochastic-simulation/03-simulation-at-block-support/README.md) targets blocks, [turning bands](../../08-stochastic-simulation/04-turning-bands/README.md) draws realizations another way, and [simulation with a trend](../../08-stochastic-simulation/05-simulation-with-trend/README.md) steers them with a
 # trend.

@@ -1,8 +1,8 @@
 """
-# section validation plates
+# Section validation plates
 
-you check a block model one section at a time: true block edges (so a sub-blocked model shows its real geometry
-instead of a resampled raster), the estimate on those blocks, the lens behind it and its drillhole composites, all
+You check a block model one section at a time: true block edges (so a sub-blocked model shows its real geometry
+instead of a resampled raster), the estimate on those blocks, the lens behind it and its drill-hole composites, all
 on one plate and one color scale. `section` draws true edges whenever the cut is normal to one of the model's own
 axes; `slab` overlays the lens trace and the composites on the same plane. `sample` and `scatter` show
 whether the model honors the composites.
@@ -22,7 +22,7 @@ import numpy as np
 from common import save
 
 # %% [markdown]
-# sub-block the parent grid to one lens ([sub-blocks](../../02-data-and-geometry/06-sub-blocks/README.md)), then estimate Zn on the sub-blocks from the composites inside
+# Sub-block the parent grid to one lens ([sub-blocks](../../02-data-and-geometry/06-sub-blocks/README.md)), then estimate Zn on the sub-blocks from the composites inside
 # the lens.
 
 # %%
@@ -42,7 +42,7 @@ grade[ore] = estimator.predict(model.coords[ore])
 model = model.with_column("zn", grade)
 
 # %% [markdown]
-# here the cut is an east-west plane, normal to one of the model's axes, so `section` draws true block edges. `slab`
+# Here the cut is an east-west plane, normal to one of the model's axes, so `section` draws true block edges. `slab`
 # overlays the lens trace and the composites within 25 m of that same `plane`, on the same color scale.
 
 # %%
@@ -65,9 +65,9 @@ ax.set(title="East-west section: sub-block edges, lens trace, composites")
 save(fig, "section")
 
 # %% [markdown]
-# ## adherence
+# ## Adherence
 #
-# adherence is a resubstitution test: it asks whether the model honors the holes it came from, which cross-validation
+# Adherence is a resubstitution test: it asks whether the model honors the holes it came from, which cross-validation
 # leaves aside. `sample` reads the sub-block holding each composite, and `scatter` gives the 1:1 line and the
 # regression slope.
 
@@ -75,5 +75,5 @@ save(fig, "section")
 paired = model.contains(inside.coords)
 fig, ax = plt.subplots(figsize=(5, 5), layout="constrained")
 bt.plot.scatter(inside["ZN_PCT"][paired], model.sample(inside.coords, "zn")[paired], ax=ax)
-ax.set(xlabel="composite Zn (%)", ylabel="block Zn (%)", title=f"Adherence, {paired.sum()} composites")
+ax.set(xlabel="Composite Zn (%)", ylabel="Block Zn (%)", title=f"Adherence, {paired.sum()} composites")
 save(fig, "adherence")

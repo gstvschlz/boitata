@@ -1,7 +1,7 @@
 """
-# soft data in SNESIM
+# Soft data in SNESIM
 
-hard data are rare; a probability of each category at each cell, from seismic or a geological interpretation, is
+Hard data are rare; a probability of each category at each cell, from seismic or a geological interpretation, is
 common. `soft` gives SNESIM one probability per category and cell, and SNESIM weighs them against the patterns of the
 training image instead of copying them.
 """
@@ -27,7 +27,7 @@ grid = bt.BlockModel((0, 0), (1, 1), (nx, ny))
 
 
 # %% [markdown]
-# the image stands in for the truth again. its sand indicator averaged over 11 by 11 cells plays the part of a
+# The image stands in for the truth again. Its sand indicator averaged over 11 by 11 cells plays the part of a
 # seismic probability of sand: it knows where the channels lie and misses their edges.
 
 
@@ -44,9 +44,9 @@ print(f"soft P(sand) from {p_soft.min():.2f} to {p_soft.max():.2f}, mean {p_soft
 
 
 # %% [markdown]
-# twenty realizations without and with the soft probabilities. at each cell the probability read from the patterns,
+# Twenty realizations without and with the soft probabilities. At each cell the probability read from the patterns,
 # `P_ti`, and the soft one combine by permanence of ratios, `P(c) ∝ P_ti(c) * P_soft(c) / P0(c)` with `P0` the
-# image's proportions. a soft probability equal to the image's share of sand changes nothing, and one near 0 or 1
+# image's proportions. A soft probability equal to the image's share of sand changes nothing, and one near 0 or 1
 # overrules the patterns.
 
 # %%
@@ -65,9 +65,9 @@ for name, summary in summaries.items():
 
 
 # %% [markdown]
-# without soft data a realization matches the truth no better than chance; with it, in four cells of five. the
+# Without soft data a realization matches the truth no better than chance; with it, in four cells of five. The
 # channels sit where the soft probability is high and keep the image's width, but break where the patterns and the
-# soft map disagree, most often where two channels cross. the probability of 20 realizations is sharper than the soft
+# soft map disagree, most often where two channels cross. The probability of 20 realizations is sharper than the soft
 # map it came from: the patterns turn a smooth 0.5 into either a channel or none.
 
 # %%
@@ -84,10 +84,10 @@ for ax, (img, title, cmap) in zip(axes, panels):
     ax.set(title=title, xticks=[], yticks=[])
     for side in ax.spines.values():
         side.set(visible=True, color=INK, lw=0.6)
-fig.colorbar(im, ax=axes[3], shrink=0.8, label="probability")
+fig.colorbar(im, ax=axes[3], shrink=0.8, label="Probability")
 save(fig, "soft")
 
 # %% [markdown]
-# hard data override the soft probabilities at their cells, and both combine with `anisotropy`, domains and the
-# servosystem. [image quilting](../../13-multiple-point-statistics/08-image-quilting/README.md) takes soft data too,
+# Hard data override the soft probabilities at their cells, and both combine with `anisotropy`, domains and the
+# servosystem. [Image quilting](../../13-multiple-point-statistics/08-image-quilting/README.md) takes soft data too,
 # as a cost instead of a probability.

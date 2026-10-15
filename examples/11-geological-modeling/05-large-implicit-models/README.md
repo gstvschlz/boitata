@@ -1,7 +1,7 @@
-# large implicit models
+# Large implicit models
 
-one dense RBF system costs the cube of its sample count, which stops it at a few thousand samples. a partition of
-unity splits the fit into overlapping local systems and blends them back into one field. here it takes the
+One dense RBF system costs the cube of its sample count, which stops it at a few thousand samples. A partition of
+unity splits the fit into overlapping local systems and blends them back into one field. Here it takes the
 Fe ≥ 60 % shell of [grade shells](../../11-geological-modeling/01-grade-shells/README.md) from the 12 m composites of the iron formation
 plateau to all of its 2 m composites.
 
@@ -38,9 +38,9 @@ for length, c in composites.items():
 
 `patch` picks the solver. `patch=0` solves one dense system; the default does so up to 2000 samples, and above
 that an octree cuts the samples into cells, each with a ball around it of about 400 samples that overlaps its
-neighbors' balls. each ball gets its own dense fit, and smooth weights that sum to 1 blend the fits into one field.
-a fit honors every sample in its ball and its weight is zero outside it, so the field still honors every code.
-the flat RBF of grade shells runs on the 12 m composites with both solvers, then on the 2 m composites, and each
+neighbors' balls. Each ball gets its own dense fit, and smooth weights that sum to 1 blend the fits into one field.
+A fit honors every sample in its ball and its weight is zero outside it, so the field still honors every code.
+The flat RBF of grade shells runs on the 12 m composites with both solvers, then on the 2 m composites, and each
 field goes onto the block model and against the `high_grade.stl` solid.
 
 <details><summary>Python</summary>
@@ -48,9 +48,9 @@ field goes onto the block model and against the `high_grade.stl` solid.
 ```python
 flat = {"degree": 0, "rotation": (0, 0, 0), "ratios": (1, 0.2)}
 runs = {
-    "dense, 12 m": (bt.ImplicitModel("rbf", patch=0, **flat), composites[12.0]),
-    "patches, 12 m": (bt.ImplicitModel("rbf", **flat), composites[12.0]),
-    "patches, 2 m": (bt.ImplicitModel("rbf", **flat), composites[2.0]),
+    "Dense, 12 m": (bt.ImplicitModel("rbf", patch=0, **flat), composites[12.0]),
+    "Patches, 12 m": (bt.ImplicitModel("rbf", **flat), composites[12.0]),
+    "Patches, 2 m": (bt.ImplicitModel("rbf", **flat), composites[2.0]),
 }
 solid, blocks = data["high_grade"], data["block_model"]
 in_solid = solid.contains(blocks.coords)
@@ -71,22 +71,22 @@ for name, (model, c) in runs.items():
         f"covers {blocks.volumes[inside[name] & in_solid].sum() / blocks.volumes[in_solid].sum():.0%} of the solid, "
         f"{(inside[name] & ~in_solid).sum() / inside[name].sum():.0%} outside it"
     )
-same = inside["dense, 12 m"] == inside["patches, 12 m"]
+same = inside["Dense, 12 m"] == inside["Patches, 12 m"]
 print(f"dense and patches put {same.mean():.2%} of the blocks on the same side")
 ```
 
 </details>
 
 ```text
-  dense, 12 m:         dense, 13.12 s, 100.0% of composites on their side, 67.4 Mm3, covers 65% of the solid, 29% outside it
-patches, 12 m:   204 patches,  0.04 s, 100.0% of composites on their side, 67.4 Mm3, covers 65% of the solid, 29% outside it
- patches, 2 m: 1,198 patches,  0.23 s, 100.0% of composites on their side, 80.3 Mm3, covers 72% of the solid, 34% outside it
+  Dense, 12 m:         dense,  6.14 s, 100.0% of composites on their side, 67.4 Mm3, covers 65% of the solid, 29% outside it
+Patches, 12 m:   204 patches,  0.03 s, 100.0% of composites on their side, 67.4 Mm3, covers 65% of the solid, 29% outside it
+ Patches, 2 m: 1,198 patches,  0.20 s, 100.0% of composites on their side, 80.3 Mm3, covers 72% of the solid, 34% outside it
 dense and patches put 99.90% of the blocks on the same side
 ```
 
-on the 12 m composites the two solvers give the same volume and put all but one block in a thousand on the same
-side, the dense one in seconds and the patches in hundredths of a second. both honor every code. six times as many
-composites cost the patches a fraction of a second more, and the shell grows by a fifth. on the section of grade
+On the 12 m composites the two solvers give the same volume and put all but one block in a thousand on the same
+side, the dense one in seconds and the patches in hundredths of a second. Both honor every code. Six times as many
+composites cost the patches a fraction of a second more, and the shell grows by a fifth. On the section of grade
 shells, at true scale, with the trace of the solid in black and topography as a thin line:
 
 <details><summary>Python</summary>
@@ -114,7 +114,7 @@ for ax, (name, (model, c)) in zip(axes, runs.items(), strict=True):
     ax.set(title=f"{name}, northing {northing:.0f} m", xlim=(x[0, 0], x[0, -1]), ylim=(z[0, 0], z[-1, 0]))
     if ax is not axes[-1]:
         ax.set_xlabel("")
-axes[0].legend(loc="lower right", title="composites within 25 m", ncol=2)
+axes[0].legend(loc="lower right", title="Composites within 25 m", ncol=2)
 save(fig, "section")
 ```
 
@@ -122,10 +122,10 @@ save(fig, "section")
 
 ![section](section.png)
 
-the two 12 m fields draw the same contours. the 2 m composites keep the short high-grade runs down the holes that
+The two 12 m fields draw the same contours. The 2 m composites keep the short high-grade runs down the holes that
 12 m composites average below the cutoff, so the shell gains thin pods at depth. `patch` sets the samples per local
 system: larger patches see more of the data around them and cost the cube of their size, smaller ones are cheaper
-and lean more on the blend. on the 2 m composites:
+and lean more on the blend. On the 2 m composites:
 
 <details><summary>Python</summary>
 
@@ -147,13 +147,13 @@ for patch in (1600, 400, 100):
 </details>
 
 ```text
-patch=1600:   232 patches, 10.38 s, 100.00% of the blocks on the side patch=1600 puts them
-patch=400 : 1,198 patches,  0.25 s, 99.51% of the blocks on the side patch=1600 puts them
-patch=100 : 4,173 patches,  0.07 s, 99.00% of the blocks on the side patch=1600 puts them
+patch=1600:   232 patches,  6.76 s, 100.00% of the blocks on the side patch=1600 puts them
+patch=400 : 1,198 patches,  0.20 s, 99.51% of the blocks on the side patch=1600 puts them
+patch=100 : 4,173 patches,  0.06 s, 99.00% of the blocks on the side patch=1600 puts them
 ```
 
-the default of 400 stays within half a percent of the blocks of `patch=1600` at a small fraction of its time.
-`report` says which solver ran and with how many patches. the 2000-sample switch counts constraint rows: each
+The default of 400 stays within half a percent of the blocks of `patch=1600` at a small fraction of its time.
+`report` says which solver ran and with how many patches. The 2000-sample switch counts constraint rows: each
 sample and boundary pick is one, each plane two and each lineation one, so structural readings
 ([structural data](../../11-geological-modeling/03-structural-data/README.md)) go through patches too.
 

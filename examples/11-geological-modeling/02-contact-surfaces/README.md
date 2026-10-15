@@ -1,7 +1,7 @@
-# contact surfaces
+# Contact surfaces
 
-you can model a geological unit from where the drill holes cross its contacts. here three engines model lens 1 of
-the stacked sulphide lenses from its logged contacts, and the supplied `lens_1.stl` solid scores each model.
+You can model a geological unit from where the drill holes cross its contacts. Here three engines model lens 1 of
+the stacked sulfide lenses from its logged contacts, and the supplied `lens_1.stl` solid scores each model.
 
 <details><summary>Python</summary>
 
@@ -28,9 +28,9 @@ print(f"lens 1: closed {lens.is_closed}, {lens.volume / 1e6:.2f} Mm3")
 lens 1: closed True, 2.79 Mm3
 ```
 
-the logs say `MS` or `SMS` for all three lenses; the intervals of lens 1 are those whose middle lies in its solid.
-each change between lens 1 and other rock down a hole is a contact, and `Drillholes.at` places it in space from the
-desurveyed path. the codes pin the field to 0 at the contacts, +1 at the middle of each lens interval and −1
+The logs say `MS` or `SMS` for all three lenses; the intervals of lens 1 are those whose middle lies in its solid.
+Each change between lens 1 and other rock down a hole is a contact, and `Drillholes.at` places it in space from the
+desurveyed path. The codes pin the field to 0 at the contacts, +1 at the middle of each lens interval and −1
 outside, from the intervals next to a contact and a sparse subset of the others.
 
 <details><summary>Python</summary>
@@ -65,10 +65,10 @@ print(
 137 holes, 158 lens intervals, 151 contacts, 364 coded points
 ```
 
-the lens strikes N22.5°E and dips 60° to the east-southeast, so the anisotropy axes run along strike, down dip and
-across the lens (`rotation` azimuth 22.5, dip 0, rake 60). the `kriging` engine is a potential field: dual kriging
-with a covariance, here of 200 m along strike, 100 m down dip and 20 m across (`ratios` 0.5 and 0.1). the RBF takes
-the same anisotropy; the gaussian process (GP) learns its own ranges along the `rotation` axes. on 5 m cells, each
+The lens strikes N22.5°E and dips 60° to the east-southeast, so the anisotropy axes run along strike, down dip and
+across the lens (`rotation` azimuth 22.5, dip 0, rake 60). The `kriging` engine is a potential field: dual kriging
+with a covariance, here of 200 m along strike, 100 m down dip and 20 m across (`ratios` 0.5 and 0.1). The RBF takes
+the same anisotropy; the Gaussian process (GP) learns its own ranges along the `rotation` axes. On 5 m cells, each
 model's lens meets the solid: the share of the solid it covers, and the share of its own volume outside the solid.
 
 <details><summary>Python</summary>
@@ -83,8 +83,8 @@ def potential(covariance):
 
 
 models = {
-    "kriging, cubic": potential("cubic"),
-    "kriging": potential("spherical"),
+    "Kriging, cubic": potential("cubic"),
+    "Kriging": potential("spherical"),
     "RBF": bt.ImplicitModel("rbf", degree=0, rotation=rotation, ratios=ratios),
     "GP": bt.ImplicitModel("gp", degree=0, rotation=rotation),
 }
@@ -104,17 +104,17 @@ print(f"GP ranges {[round(r) for r in models['GP'].report['lengthscales']]} m")
 </details>
 
 ```text
-kriging, cubic: 100.0% of coded points on their side, 3.83 Mm3, covers 87% of the solid, 37% outside it
-       kriging: 100.0% of coded points on their side, 3.11 Mm3, covers 94% of the solid, 16% outside it
+Kriging, cubic: 100.0% of coded points on their side, 3.83 Mm3, covers 87% of the solid, 37% outside it
+       Kriging: 100.0% of coded points on their side, 3.11 Mm3, covers 94% of the solid, 16% outside it
            RBF: 100.0% of coded points on their side, 3.17 Mm3, covers 95% of the solid, 17% outside it
             GP:  83.0% of coded points on their side, 8.47 Mm3, covers 97% of the solid, 68% outside it
 GP ranges [102243, 206436, 84] m
 ```
 
-kriging with a spherical covariance and the RBF honor each contact and agree with the solid except for a thin rind.
-the cubic covariance, smooth at the origin, overshoots between codes a few meters apart and swells the lens. the GP
+Kriging with a spherical covariance and the RBF honor each contact and agree with the solid except for a thin rind.
+The cubic covariance, smooth at the origin, overshoots between codes a few meters apart and swells the lens. The GP
 explains a sixth of the codes as noise and stretches its ranges along strike and down dip far beyond the window,
-so its lens is a slab that leaves the solid at both ends. on a vertical section down the dip, with the trace of the
+so its lens is a slab that leaves the solid at both ends. On a vertical section down the dip, with the trace of the
 solid in black:
 
 <details><summary>Python</summary>
@@ -133,9 +133,9 @@ for ax, (name, model) in zip(axes, models.items(), strict=True):
     ax.contourf(along, elevation, field, levels=[0, np.inf], colors=[LIGHT])
     ax.contour(along, elevation, field, levels=[0], colors=ACCENT, linewidths=1.2)
     style = {"plane": plane, "thickness": 20, "ax": ax}
-    bt.plot.slab(points[code < 0], s=4, color=GRAY, label="other rock", meshes=lens, **style)
-    bt.plot.slab(points[code > 0], s=6, color=HIGHLIGHT, label="lens 1", **style)
-    bt.plot.slab(contacts, s=14, marker="x", color=INK, linewidths=0.8, label="contact", **style)
+    bt.plot.slab(points[code < 0], s=4, color=GRAY, label="Other rock", meshes=lens, **style)
+    bt.plot.slab(points[code > 0], s=6, color=HIGHLIGHT, label="Lens 1", **style)
+    bt.plot.slab(contacts, s=14, marker="x", color=INK, linewidths=0.8, label="Contact", **style)
     ax.set(title=name, xlabel="Toward 112.5° (m)", xlim=(along.min(), along.max()), ylim=(lo[2], hi[2]))
 for ax in axes[1:]:
     ax.set_ylabel("")
@@ -148,6 +148,6 @@ save(fig, "section")
 ![section](section.png)
 
 `isosurface(cells, closed=True)` turns a field into a solid mesh, which `BlockModel.from_meshes` and `subblock`
-turn into a domain model (see [sub-blocks](../../02-data-and-geometry/06-sub-blocks/README.md)). [structural data](../../11-geological-modeling/03-structural-data/README.md) adds plane and lineation readings.
+turn into a domain model (see [sub-blocks](../../02-data-and-geometry/06-sub-blocks/README.md)). [Structural data](../../11-geological-modeling/03-structural-data/README.md) adds plane and lineation readings.
 
 Full script: [`example_11_02.py`](example_11_02.py)

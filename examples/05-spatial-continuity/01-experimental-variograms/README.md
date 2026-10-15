@@ -1,7 +1,7 @@
-# experimental variograms
+# Experimental variograms
 
-the experimental variogram γ(h) is half the mean squared difference of `V` between samples a lag h apart. the variogram
-map computes it in every horizontal direction and finds the direction of greatest continuity. directional variograms
+The experimental variogram γ(h) is half the mean squared difference of `V` between samples a lag h apart. The variogram
+map computes it in every horizontal direction and finds the direction of greatest continuity. Directional variograms
 along and across that direction follow, then other estimators.
 
 <details><summary>Python</summary>
@@ -19,7 +19,7 @@ lag, max_lag = 10.0, 120.0
 
 </details>
 
-the variogram map bins pairs by lag and direction, 36 sectors over 180°, and fits a range in each. the direction with
+The variogram map bins pairs by lag and direction, 36 sectors over 180°, and fits a range in each. The direction with
 the longest range is the major axis.
 
 <details><summary>Python</summary>
@@ -39,7 +39,7 @@ print(
 major axis N170°, range 80 m; shortest 24 m
 ```
 
-directional variograms keep pairs within `tolerance` (22.5° by default) of an azimuth. each lag reports its mean
+Directional variograms keep pairs within `tolerance` (22.5° by default) of an azimuth. Each lag reports its mean
 distance, γ and pair count.
 
 <details><summary>Python</summary>
@@ -70,8 +70,8 @@ print(f"sample variance {variance:.0f}")
 sample variance 89738
 ```
 
-across the major axis γ passes the sample variance by 25 m. along it γ is seven tenths of the variance at 25 m and
-reaches the variance at 65 m. the omnidirectional variogram averages the two and hides the anisotropy. the first lag
+Across the major axis γ passes the sample variance by 25 m. Along it γ is seven tenths of the variance at 25 m and
+reaches the variance at 65 m. The omnidirectional variogram averages the two and hides the anisotropy. The first lag
 holds few pairs, and any fit near the origin leans on it.
 
 <details><summary>Python</summary>
@@ -95,15 +95,15 @@ fig.colorbar(mesh, ax=a, shrink=0.7, label="γ / sample variance")
 b = fig.add_subplot(1, 2, 2)
 for exp, color, name in ((major, ACCENT, f"N{azimuth:.0f}°"), (minor, GRAY, f"N{(azimuth + 90) % 180:.0f}°")):
     bt.plot.variogram(exp, ax=b, color=color, label=name)
-b.plot(omni.lags, omni.gammas, ":", color=INK, lw=1, label="omnidirectional")
+b.plot(omni.lags, omni.gammas, ":", color=INK, lw=1, label="Omnidirectional")
 b.axhline(variance, color=INK, lw=0.8, ls="--")
-b.text(2, variance, "sample variance", va="bottom", color=INK, fontsize=8)
+b.text(2, variance, "Sample variance", va="bottom", color=INK, fontsize=8)
 b.set_xlim(0, max_lag)
 b.set_ylim(0, 1.25 * variance)
 b.set_title("Directional variograms")
 b.set_xlabel("Lag distance (m)")
 b.set_ylabel("γ(h) (ppm²)")
-b.legend(loc="lower right", title="marker area ∝ pairs", title_fontsize=8)
+b.legend(loc="lower right", title="Marker area ∝ pairs", title_fontsize=8)
 save(fig, "variogram")
 ```
 
@@ -111,9 +111,9 @@ save(fig, "variogram")
 
 ![variogram](variogram.png)
 
-other estimators along the major axis. `standardize=True` divides the classical and covariance estimates by the sample
-variance, the correlogram's scale. covariance and correlogram use each lag's own head and tail means and level off
-below 1 here. the pairwise-relative variogram scales each squared difference by the pair mean, so it ignores the grade
+Other estimators along the major axis. `standardize=True` divides the classical and covariance estimates by the sample
+variance, the correlogram's scale. Covariance and correlogram use each lag's own head and tail means and level off
+below 1 here. The pairwise-relative variogram scales each squared difference by the pair mean, so it ignores the grade
 level and keeps its own scale.
 
 <details><summary>Python</summary>
@@ -123,13 +123,13 @@ fig, ax = plt.subplots(figsize=(6, 3.4), layout="constrained")
 styles = {"matheron": "-", "covariance": "--", "correlogram": "-.", "pairwise-relative": ":"}
 for name, style in styles.items():
     exp = bt.experimental_variogram(xy, v, lag, max_lag, azimuth=azimuth, estimator=name, standardize=True)
-    ax.plot(exp.lags, exp.gammas, style, color=ACCENT if name == "matheron" else INK, label=name)
+    ax.plot(exp.lags, exp.gammas, style, color=ACCENT if name == "matheron" else INK, label=name.capitalize())
 ax.axhline(1, color=GRAY, lw=0.8)
 ax.set_xlim(0, max_lag)
 ax.set_ylim(bottom=0)
 ax.set_title("Standardized estimators, major axis")
 ax.set_xlabel("Lag distance (m)")
-ax.set_ylabel("standardized γ(h)")
+ax.set_ylabel("Standardized γ(h)")
 ax.legend(loc="lower right")
 save(fig, "estimators")
 ```

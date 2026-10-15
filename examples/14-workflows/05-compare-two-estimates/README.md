@@ -229,7 +229,7 @@ for ax, axis, label in ((axes[0], "x", "Easting (m)"), (axes[1], "y", "Northing 
         bt.swath(blocks, "ok", 20.0, axis=axis),
         bt.swath(blocks, "id", 20.0, axis=axis),
     ]
-    bt.plot.swath(series, labels=["declustered samples", "kriging", "inverse distance"], ax=ax)
+    bt.plot.swath(series, labels=["Declustered samples", "Kriging", "Inverse distance"], ax=ax)
     for line, color in zip(ax.lines, (GRAY, ACCENT, HIGHLIGHT), strict=True):
         line.set_color(color)
     ax.legend()
@@ -347,13 +347,13 @@ Keep the kriging. Every check made from the samples alone pointed the same way:
 |---|---|---|
 | Mean against declustered samples | +0.3 % | +14.5 % |
 | Blocks above the other model | 23 % | 77 % |
-| Swaths | follow the samples | above them over most slices |
+| Swaths | Follow the samples | Above them over most slices |
 | Cross-validation RMSE, slope | 185.4 ppm, 1.03 | 213.0 ppm, 1.19 |
 
 </div>
 
 Inverse distance ignores sample clustering, so the scoping model is biased high wherever
-a block's neighborhood includes a dense cluster of high-grade drilling. [Grade–tonnage curves and the change in contained metal](../../14-workflows/06-grade-tonnage-and-metal/README.md)
+a block's neighborhood includes a dense cluster of high-grade drilling. [Grade-tonnage curves and the change in contained metal](../../14-workflows/06-grade-tonnage-and-metal/README.md)
 turns this difference into tonnes, grade and metal at a cutoff.
 
 Full script: [`example_14_05.py`](example_14_05.py)

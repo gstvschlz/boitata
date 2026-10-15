@@ -26,7 +26,7 @@ from common import ACCENT, GRAY, HIGHLIGHT, INK, LIGHT, map_axes, save, show
 # %% [markdown]
 # ## Drill holes and topography
 #
-# The stacked sulphide lenses ship with collar, survey and assay tables, a wireframe per lens, and nothing else.
+# The stacked sulfide lenses ship with collar, survey and assay tables, a wireframe per lens, and nothing else.
 # `Drillholes` desurveys the holes. The collars sample the ground, so `topography` triangulates them into a surface
 # and flags any collar that sits off the surface through its neighbors
 # ([topography](../../examples/02-data-and-geometry/19-topography/example_02_19.md)).
@@ -438,7 +438,7 @@ for (label, table), color in zip(curves.items(), (GRAY, ACCENT), strict=True):
     ax.plot(table["cutoff"], table["tonnage"] / 1e6, color=color, label=label)
 n = len(cutoffs)
 ax.fill_between(cutoffs, p10[:n] / 1e6, p90[:n] / 1e6, color=HIGHLIGHT, alpha=0.25, lw=0)
-ax.plot(cutoffs, p50[:n] / 1e6, color=HIGHLIGHT, label="turning bands SMUs, diluted (P10–P90)")
+ax.plot(cutoffs, p50[:n] / 1e6, color=HIGHLIGHT, label="turning bands SMUs, diluted (P10 to P90)")
 ax.set(xlabel="Zn cutoff (%)", ylabel="Mt above cutoff", title="Tonnage above cutoff")
 ax.legend()
 save(fig, "grade_tonnage")

@@ -1,8 +1,8 @@
-# mesh booleans and cuts
+# Mesh booleans and cuts
 
 `Mesh.merge`, `Mesh.overlap` and `Mesh.subtract` combine two closed meshes into the solid inside either, inside
 both, or inside the first and outside the second. `Mesh.cut` keeps the part of a mesh behind a plane and caps it,
-so a solid stays a solid. here the first of the stacked sulphide lenses is split by a mining block and by a fault.
+so a solid stays a solid. Here the first of the stacked sulfide lenses is split by a mining block and by a fault.
 
 <details><summary>Python</summary>
 
@@ -15,7 +15,7 @@ from common import ACCENT, HIGHLIGHT, LIGHT, save
 
 </details>
 
-the block is a box 200 m along strike, 400 m across and 120 m high, turned to the 23° strike of the lenses. each
+The block is a box 200 m along strike, 400 m across and 120 m high, turned to the 23° strike of the lenses. Each
 mesh gets a face column naming it, which the results carry.
 
 <details><summary>Python</summary>
@@ -49,10 +49,10 @@ Mesh(15766 vertices, 31528 triangles, closed)
 block 9,600,000 m3, wound outward: True
 ```
 
-## inside and outside the block
+## Inside and outside the block
 
-the triangles of both meshes that cross are split along the curve where the surfaces meet, and each piece is
-kept by whether it lies inside the other mesh. the ore inside the block and the ore left outside it add back to
+The triangles of both meshes that cross are split along the curve where the surfaces meet, and each piece is
+kept by whether it lies inside the other mesh. The ore inside the block and the ore left outside it add back to
 the lens, and the union with the block holds what neither leaves out.
 
 <details><summary>Python</summary>
@@ -77,7 +77,7 @@ inside + outside - lens:        +0.000 m3
 lens + block - overlap - union: +0.000 m3
 ```
 
-a section across strike through the block shows where each part of the outline came from: the `source` column
+A section across strike through the block shows where each part of the outline came from: the `source` column
 follows the faces, so the lines split where the lens surface meets a wall of the block.
 
 <details><summary>Python</summary>
@@ -100,11 +100,11 @@ for ax, (title, part) in zip(axes, parts.items(), strict=True):
         ax.plot(line @ across, line[:, 2] + center[2], color=colors[source], linewidth=1.6, label=source)
     ax.set_title(f"lens.{title}(block)")
     ax.set_aspect("equal")
-    ax.set_xlabel("across strike (m)")
-axes[0].set_ylabel("elevation (m)")
+    ax.set_xlabel("Across strike (m)")
+axes[0].set_ylabel("Elevation (m)")
 handles, labels = axes[2].get_legend_handles_labels()
 unique = dict(zip(labels, handles, strict=True))
-fig.legend(unique.values(), [f"from the {name}" for name in unique], loc="outside lower center", ncols=2)
+fig.legend(unique.values(), [f"From the {name}" for name in unique], loc="outside lower center", ncols=2)
 save(fig, "booleans")
 ```
 
@@ -112,11 +112,11 @@ save(fig, "booleans")
 
 ![booleans](booleans.png)
 
-## a fault through the lens
+## A fault through the lens
 
-`cut` keeps the side of the plane its normal points away from, so the normal is the outward normal of the cap. a
-vertex on the plane counts as cut away, as in `section`. a fault striking 113° and dipping 60° towards 23°
-splits the lens into two closed blocks whose volumes add back to the lens. the cap faces have no `source`.
+`cut` keeps the side of the plane its normal points away from, so the normal is the outward normal of the cap. A
+vertex on the plane counts as cut away, as in `section`. A fault striking 113° and dipping 60° towards 23°
+splits the lens into two closed blocks whose volumes add back to the lens. The cap faces have no `source`.
 
 <details><summary>Python</summary>
 

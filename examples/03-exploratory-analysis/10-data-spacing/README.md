@@ -1,8 +1,8 @@
-# data spacing
+# Data spacing
 
-the equivalent data spacing (cabral pinto and deutsch, 2017) is the spacing of a square grid of holes that would put
-as much data around a location as the real drilling does. it reads in meters whatever the layout: a cell inside a
-square grid of 700 m scores about 700 m, and a cell among irregular holes scores the square grid they are worth. it is
+The equivalent data spacing (Cabral Pinto and Deutsch, 2017) is the spacing of a square grid of holes that would put
+as much data around a location as the real drilling does. It reads in meters whatever the layout: a cell inside a
+square grid of 700 m scores about 700 m, and a cell among irregular holes scores the square grid they are worth. It is
 the usual basis for resource classification ([classification](../../10-checking-models/05-classification/README.md)).
 
 <details><summary>Python</summary>
@@ -24,12 +24,12 @@ print(f"{len(holes)} holes, {grid['INSIDE'].sum():.0f} cells of 100 m inside the
 295 holes, 7162 cells of 100 m inside the lease
 ```
 
-## in plan
+## In plan
 
-a coal seam drilled on a regular mesh, then infilled where the seam is thick. with `search=None`, `data_spacing`
-takes the plan distances `d` from a target to its nearest holes. for each `n` it averages the `n`-th and
+A coal seam drilled on a regular mesh, then infilled where the seam is thick. With `search=None`, `data_spacing`
+takes the plan distances `d` from a target to its nearest holes. For each `n` it averages the `n`-th and
 `n + 1`-th, `r = (d_n + d_n+1) / 2`, and turns the circle of radius `r`, which holds `n` holes, into the area per
-hole: `sqrt(pi r² / n)`. the result is the mean over `n` from 4 to 10. `hull=True` leaves cells outside the convex
+hole: `sqrt(pi r² / n)`. The result is the mean over `n` from 4 to 10. `hull=True` leaves cells outside the convex
 hull of the holes blank, where any spacing would be an extrapolation.
 
 <details><summary>Python</summary>
@@ -61,17 +61,17 @@ spacing in the lease: median 535 m, P10 391 m, P90 655 m
 
 ![plan](plan.png)
 
-the infill clusters read 200 to 400 m and the regional mesh 550 to 700 m. the measure
+The infill clusters read 200 to 400 m and the regional mesh 550 to 700 m. The measure
 averages over the 4 to 11 nearest holes, so it changes smoothly across the edge of the infill rather than jumping
 at it.
 
-## in 3D
+## In 3D
 
-an iron formation cut by 187 diamond holes, about 100 m apart. with a `search`, the spacing comes from the samples
+An iron formation cut by 187 diamond holes, about 100 m apart. With a `search`, the spacing comes from the samples
 inside its ellipsoid: `sqrt(V / (c n))`, with `V` the volume of the ellipsoid, `n` the samples inside it around the
 block and `c` their length. `n c` is the length of hole inside `V`, so `V / (n c)` is the plan area per hole for
-vertical holes. a `Drillholes` stands for its interval midpoints, and `c` defaults to the median interval length;
-for composites in a `PointSet`, pass `composite_length=`. the ellipsoid here reaches 150 m in plan and 30 m
+vertical holes. A `Drillholes` stands for its interval midpoints, and `c` defaults to the median interval length;
+for composites in a `PointSet`, pass `composite_length=`. The ellipsoid here reaches 150 m in plan and 30 m
 vertically, so it follows the flat formation.
 
 <details><summary>Python</summary>
@@ -98,10 +98,10 @@ for name, values in (("3D", volume), ("plan", plan)):
 plan: median 101 m, P10 90 m, P90 112 m, blank 0.7%
 ```
 
-the plan form also works on drill holes: `holes=` counts each hole once, at its nearest sample, so a hole with a
-hundred samples down its length is one hole, and every block in a column gets the same value. the 3D form sees
-depth. both agree near 100 m where the holes cross the formation, but blocks below the ends of the holes have fewer
-samples around them and read wider, up to blank where no sample is in reach. when most blocks have fewer than 4
+The plan form also works on drill holes: `holes=` counts each hole once, at its nearest sample, so a hole with a
+hundred samples down its length is one hole, and every block in a column gets the same value. The 3D form sees
+depth. Both agree near 100 m where the holes cross the formation, but blocks below the ends of the holes have fewer
+samples around them and read wider, up to blank where no sample is in reach. When most blocks have fewer than 4
 samples inside the ellipsoid, `data_spacing` warns: counts that small are unstable, and the ellipsoid should grow.
 
 <details><summary>Python</summary>

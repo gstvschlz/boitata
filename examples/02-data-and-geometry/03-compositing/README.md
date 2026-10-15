@@ -1,7 +1,7 @@
-# compositing
+# Compositing
 
-the stacked sulphide lenses: 16 995 assays, mostly 1 m or 2 m, taken only in and around the mineralized zones, and 1726
-lithology intervals. compositing brings the assays to one support. it must not average across a contact, read
+The stacked sulfide lenses: 16 995 assays, mostly 1 m or 2 m, taken only in and around the mineralized zones, and 1726
+lithology intervals. Compositing brings the assays to one support. It must not average across a contact, read
 unsampled core as zero, or create or lose metal.
 
 <details><summary>Python</summary>
@@ -15,8 +15,8 @@ from common import ACCENT, GRAY, LIGHT, save
 
 </details>
 
-assays and lithology come in separate interval tables. `merge_intervals` splits both at each boundary so each piece
-carries its grades and its lithology. pieces outside the assayed zones have no grades.
+Assays and lithology come in separate interval tables. `merge_intervals` splits both at each boundary so each piece
+carries its grades and its lithology. Pieces outside the assayed zones have no grades.
 
 <details><summary>Python</summary>
 
@@ -47,11 +47,11 @@ Drillholes(289 holes, 17848 intervals)
   LITH: Utf8
 ```
 
-compositing to 2 m by `LITH` cuts intervals at each 2 m mark and at each contact, so no composite averages across
-one. a grade is the mean over the length that carries a value, which keeps unsampled core from counting as zero.
-each grade returns that length as `<grade>_length`, next to `length`, which also counts unsampled ground.
-composites without assays are dropped. here the assayed zones start and end at lithology contacts, so inside a
-lithology Zn is sampled everywhere. the RC holes have no Au assays.
+Compositing to 2 m by `LITH` cuts intervals at each 2 m mark and at each contact, so no composite averages across
+one. A grade is the mean over the length that carries a value, which keeps unsampled core from counting as zero.
+Each grade returns that length as `<grade>_length`, next to `length`, which also counts unsampled ground.
+Composites without assays are dropped. Here the assayed zones start and end at lithology contacts, so inside a
+lithology Zn is sampled everywhere. The RC holes have no Au assays.
 
 <details><summary>Python</summary>
 
@@ -70,7 +70,7 @@ print(
 13602 composites; 0 partly unsampled for Zn; 2247 without Au (RC holes)
 ```
 
-the assays are mostly 1 m or 2 m and the composites 2 m, with shorter tails where a run of one lithology ends.
+The assays are mostly 1 m or 2 m and the composites 2 m, with shorter tails where a run of one lithology ends.
 
 <details><summary>Python</summary>
 
@@ -78,8 +78,8 @@ the assays are mostly 1 m or 2 m and the composites 2 m, with shorter tails wher
 raw_len = assay["TO"] - assay["FROM"]
 fig, ax = plt.subplots(figsize=(6, 3.4), layout="constrained")
 bins = np.arange(0, 3.0, 0.125)
-ax.hist(raw_len, bins, color=LIGHT, edgecolor=GRAY, lw=0.5, label="assays")
-ax.hist(composites["length"], bins, histtype="step", color=ACCENT, lw=1.6, label="composites")
+ax.hist(raw_len, bins, color=LIGHT, edgecolor=GRAY, lw=0.5, label="Assays")
+ax.hist(composites["length"], bins, histtype="step", color=ACCENT, lw=1.6, label="Composites")
 ax.set(title="Interval lengths", xlabel="Length (m)", ylabel="Count")
 ax.legend(loc="upper left")
 save(fig, "compositing")
@@ -89,10 +89,10 @@ save(fig, "compositing")
 
 ![compositing](compositing.png)
 
-other supports. `length=None` gives one composite per run of a lithology. `intervals=` composites to given
+Other supports. `length=None` gives one composite per run of a lithology. `intervals=` composites to given
 intervals instead, here 10 m benches: the depths where each desurveyed path crosses a bench elevation. `residual=`
 decides what happens to a run's tail shorter than `min_fraction` of the length: kept, merged into the previous
-composite or dropped. without `domain`, composites cross contacts and `categories=` gives the lithology covering
+composite or dropped. Without `domain`, composites cross contacts and `categories=` gives the lithology covering
 most of each.
 
 <details><summary>Python</summary>
@@ -136,8 +136,8 @@ for name, c in modes.items():
 2 m, majority LITH:  13390 composites, median length 2.0 m
 ```
 
-metal balance: Σ grade × `<grade>_length` over the composites reproduces Σ grade × interval length over the assays,
-for each grade and each mode except `drop`, which leaves its short tails out. weighting by `length` instead
+Metal balance: Σ grade × `<grade>_length` over the composites reproduces Σ grade × interval length over the assays,
+for each grade and each mode except `drop`, which leaves its short tails out. Weighting by `length` instead
 counts unsampled ground at the composite grade and inflates metal, here where majority-`LITH` composites cross a
 contact into unassayed rock.
 

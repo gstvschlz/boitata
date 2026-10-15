@@ -1,8 +1,8 @@
 """
-# grade shells
+# Grade shells
 
-an implicit model fits a scalar field to the data and takes a surface as one of its level sets, so you skip
-digitizing outlines section by section. here the drill-hole composites of the iron formation plateau give a
+An implicit model fits a scalar field to the data and takes a surface as one of its level sets, so you skip
+digitizing outlines section by section. Here the drill-hole composites of the iron formation plateau give a
 Fe ≥ 60 % shell, compared with the supplied `high_grade.stl` solid.
 """
 
@@ -20,11 +20,11 @@ import numpy as np
 from common import ACCENT, GRAY, HIGHLIGHT, LIGHT, save
 
 # %% [markdown]
-# with `cutoff=60` each composite gets the code +1 at or above the cutoff and −1 below, so the shell is the zero level
-# of the field. a radial basis function (RBF) interpolates the codes exactly; past 2000 samples, as with these 12 m
+# With `cutoff=60` each composite gets the code +1 at or above the cutoff and −1 below, so the shell is the zero level
+# of the field. A radial basis function (RBF) interpolates the codes exactly; past 2000 samples, as with these 12 m
 # composites, it blends overlapping local systems rather than solving one dense one
-# ([large implicit models](../../11-geological-modeling/05-large-implicit-models/README.md)). the plateau's layers are flat, so a second RBF
-# shrinks distances across them (`ratios`: vertical ranges a fifth of the horizontal). a sparse gaussian process
+# ([large implicit models](../../11-geological-modeling/05-large-implicit-models/README.md)). The plateau's layers are flat, so a second RBF
+# shrinks distances across them (`ratios`: vertical ranges a fifth of the horizontal). A sparse Gaussian process
 # (GP) smooths through the codes and learns its own ranges.
 
 # %%
@@ -46,8 +46,8 @@ for name, model in models.items():
 print(f"GP ranges {[round(r) for r in models['GP'].report['lengthscales']]} m")
 
 # %% [markdown]
-# each field goes onto the supplied block model, 25 × 25 × 12 m blocks below topography, and against the solid: the
-# volume of the shell, the share of the solid it covers and the share of its own volume outside the solid. the
+# Each field goes onto the supplied block model, 25 × 25 × 12 m blocks below topography, and against the solid: the
+# volume of the shell, the share of the solid it covers and the share of its own volume outside the solid. The
 # composites score the solid too.
 
 # %%
@@ -64,10 +64,10 @@ for name, model in models.items():
     )
 
 # %% [markdown]
-# both RBFs honor each code, yet they cover only 56 % and 65 % of the solid, and the solid leaves 8.6 % of the
+# Both RBFs honor each code, yet they cover only 56 % and 65 % of the solid, and the solid leaves 8.6 % of the
 # composites on the wrong side: a cutoff on Fe and a solid interpreted around the shallow friable hematite are two
-# different surfaces. flattening the RBF adds a tenth of the solid at no cost in spill. the GP explains an eighth of
-# the codes as noise and returns a smooth sheet. on an east-west section through the high-grade composites, at true
+# different surfaces. Flattening the RBF adds a tenth of the solid at no cost in spill. The GP explains an eighth of
+# the codes as noise and returns a smooth sheet. On an east-west section through the high-grade composites, at true
 # scale, with the trace of the solid in black and topography as a thin line:
 
 # %%
@@ -90,13 +90,13 @@ for ax, (name, model) in zip(axes, models.items(), strict=True):
     ax.set(title=f"{name}, northing {northing:.0f} m", xlim=(x[0, 0], x[0, -1]), ylim=(z[0, 0], z[-1, 0]))
     if ax is not axes[-1]:
         ax.set_xlabel("")
-axes[0].legend(loc="lower right", title="composites within 25 m", ncol=2)
+axes[0].legend(loc="lower right", title="Composites within 25 m", ncol=2)
 save(fig, "section")
 
 # %% [markdown]
-# the isotropic RBF grows a round body around one deep high-grade composite; the flat one keeps it a thin pod, as
+# The isotropic RBF grows a round body around one deep high-grade composite; the flat one keeps it a thin pod, as
 # the solid does. `isosurface` triangulates the zero level at the centroids of the block model and treats blocks
-# outside its mask, here those above topography, as outside the shell. with `closed=True` it caps the shell where it
+# outside its mask, here those above topography, as outside the shell. With `closed=True` it caps the shell where it
 # leaves the blocks, at the grid's faces and under topography, so the shell bounds a volume close to that of the
 # blocks inside.
 

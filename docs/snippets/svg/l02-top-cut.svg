@@ -29,8 +29,8 @@
 <rect class="f-night-soft s-night" stroke-width=".8" x="466" y="177.6" width="14" height="52.4"/>
 <rect class="f-ember-soft s-ember dash a-fade" style="--d:1.2s" stroke-width="1" x="466" y="50" width="14" height="127.6"/>
 <line class="s-ember a-draw" style="--d:.4s" pathLength="1" x1="40" y1="177.6" x2="492" y2="177.6" stroke-width="2"/>
-<text x="50" y="169.6">cap</text>
-<text class="a-fade" style="--d:1.4s" x="498" y="60">metal above the cap:</text>
+<text x="50" y="169.6">Cap</text>
+<text class="a-fade" style="--d:1.4s" x="498" y="60">Metal above the cap:</text>
 <text class="a-fade" style="--d:1.4s" x="498" y="78">21% of the total</text>
 <text class="small a-fade" style="--d:1.4s" x="498" y="100">from 3 of 24 values</text>
 <text x="50" y="250" class="small">24 values, sorted</text>

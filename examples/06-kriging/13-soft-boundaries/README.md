@@ -1,9 +1,9 @@
-# soft boundaries
+# Soft boundaries
 
-a laterite grades from limonite (`LIM`) down into saprolite (`SAP`), and nickel shows no sharp step at the logged
-contact. fitted with `domains=` or `domain_column=`, an estimator informs each target from samples of its own domain
+A laterite grades from limonite (`LIM`) down into saprolite (`SAP`), and nickel shows no sharp step at the logged
+contact. Fitted with `domains=` or `domain_column=`, an estimator informs each target from samples of its own domain
 only: a hard boundary. `Search(..., soft=...)` opens it, so samples of another domain within the soft distance inform a
-target too, both ways or, with a dict, one way only. kriging and SGS take the same search.
+target too, both ways or, with a dict, one way only. Kriging and SGS take the same search.
 
 <details><summary>Python</summary>
 
@@ -44,7 +44,7 @@ LIM: 3334 samples of 1 m, mean 1.08 % Ni
 SAP: 4901 samples of 1 m, mean 1.81 % Ni
 ```
 
-down each hole, the mean grade against the distance to the `LIM`/`SAP` contact:
+Down each hole, the mean grade against the distance to the `LIM`/`SAP` contact:
 
 <details><summary>Python</summary>
 
@@ -75,8 +75,8 @@ mean Ni:  [1.86 1.78 1.73 1.63 1.48 1.43 1.32 1.1  1.09 1.07 1.08 1.08 1.1  1.07
 `LIM` is flat up to the contact. `SAP` loses grade toward it, from 1.86 % Ni 6 to 7 m below to 1.32 % in the last
 meter, and the step at the contact itself is small: the boundary is gradational on the saprolite side.
 
-one normal-score variogram serves both horizons: each is scored on its own, then the scores are pooled. the nugget and
-vertical range come from pairs down the holes, the horizontal range from pairs across them. kriging weights do not
+One normal-score variogram serves both horizons: each is scored on its own, then the scores are pooled. The nugget and
+vertical range come from pairs down the holes, the horizontal range from pairs across them. Kriging weights do not
 depend on the sill, so the same model serves kriging and SGS.
 
 <details><summary>Python</summary>
@@ -99,9 +99,9 @@ print(model)
 Variogram(nugget=0.32861112557336725, structures=[Structure("spherical", sill=0.6938819610021464, range=54.74522060744121)], rotation=(0.0, 0.0, 0.0), ratios=(1.0, 0.13561192309647335))
 ```
 
-the holes on the 50 m mesh do the estimating; the 25 m infill holes are held out to check it. three rules share one
-search, flattened ten to one, near the seven to one of the variogram. the soft distance is measured in that ellipsoid,
-so 50 reaches 50 m across and 5 m up or down, most of the transition. the one-way rule lets `SAP` draw on `LIM` but
+The holes on the 50 m mesh do the estimating; the 25 m infill holes are held out to check it. Three rules share one
+search, flattened ten to one, near the seven to one of the variogram. The soft distance is measured in that ellipsoid,
+so 50 reaches 50 m across and 5 m up or down, most of the transition. The one-way rule lets `SAP` draw on `LIM` but
 not the other way round.
 
 <details><summary>Python</summary>
@@ -144,7 +144,7 @@ for name, search in searches.items():
 soft, SAP from LIM: RMSE LIM 0.410, SAP 0.770; other horizon used by 0% of LIM, 42% of SAP targets
 ```
 
-most targets lie far from the contact, so the errors change little. the mean estimate by distance to the contact shows
+Most targets lie far from the contact, so the errors change little. The mean estimate by distance to the contact shows
 where the rules differ:
 
 <details><summary>Python</summary>
@@ -171,8 +171,8 @@ for name, values in kriged.items():
 soft, SAP from LIM: [1.88 1.81 1.71 1.59 1.48 1.39 1.34 1.03 1.04 1.05 1.05 1.06 1.06 1.08]
 ```
 
-SGS takes the same searches and the same domains. each horizon keeps its own normal-score table; a `LIM` sample
-informing a `SAP` node enters by its grade, scored through the `SAP` table. the mean of 20 realizations at the
+SGS takes the same searches and the same domains. Each horizon keeps its own normal-score table; a `LIM` sample
+informing a `SAP` node enters by its grade, scored through the `SAP` table. The mean of 20 realizations at the
 held-out samples:
 
 <details><summary>Python</summary>
@@ -206,11 +206,17 @@ for ax, estimates, title in ((axes[0], kriged, "Ordinary kriging"), (axes[1], si
             "o",
             color=INK,
             ms=4,
-            label=None if i else "held-out samples",
+            label=None if i else "Held-out samples",
         )
         for name, values in estimates.items():
             color, style = styles[name]
-            ax.plot(distance[side], means(values)[side], ls=style, color=color, label=None if i else name)
+            ax.plot(
+                distance[side],
+                means(values)[side],
+                ls=style,
+                color=color,
+                label=None if i else name[0].upper() + name[1:],
+            )
     ax.axvline(0, color=GRAY, lw=0.8)
     ax.set(title=title, xlabel="Distance to the contact (m), SAP < 0 < LIM")
 axes[0].set_ylabel("Mean Ni (%)")
@@ -222,10 +228,10 @@ save(fig, "profiles")
 
 ![profiles](profiles.png)
 
-in the last meter of `SAP` the hard boundary kriges 1.55 % Ni against 1.28 % held out: it sees only saprolite, richer
-deeper down. letting `SAP` draw on `LIM` brings it to 1.34 % and follows the gradient. opened both ways, the boundary
+In the last meter of `SAP` the hard boundary kriges 1.55 % Ni against 1.28 % held out: it sees only saprolite, richer
+deeper down. Letting `SAP` draw on `LIM` brings it to 1.34 % and follows the gradient. Opened both ways, the boundary
 also lifts the first meter of `LIM` from 1.03 % to 1.21 %, where the held-out samples stay at 1.06 %. SGS agrees: 1.60
-% hard and 1.24 % one way in the last meter of `SAP`, and 1.25 % in the first meter of `LIM` when soft both ways. the
+% hard and 1.24 % one way in the last meter of `SAP`, and 1.25 % in the first meter of `LIM` when soft both ways. The
 contact profile says which way to open a boundary; here only the saprolite side is gradational.
 
 Full script: [`example_06_13.py`](example_06_13.py)

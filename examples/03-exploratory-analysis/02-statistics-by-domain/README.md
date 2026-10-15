@@ -1,7 +1,7 @@
-# statistics by domain
+# Statistics by domain
 
-three stacked sulphide lenses, logged as massive (MS), semi-massive (SMS) and stringer (STR) sulphides in volcanic and
-sedimentary host rocks. do the lithologies differ enough to estimate them apart? statistics, box plots, cumulative
+Three stacked sulfide lenses, logged as massive (MS), semi-massive (SMS) and stringer (STR) sulfides in volcanic and
+sedimentary host rocks. Do the lithologies differ enough to estimate them apart? Statistics, box plots, cumulative
 distributions and Q-Q plots per lithology on 2 m composites.
 
 <details><summary>Python</summary>
@@ -26,7 +26,7 @@ print(f"{len(composites)} composites")
 ```
 
 `describe_by` gives the count, moments and quantiles of a column per category, then over all values on the last row.
-it skips missing grades, and `weights=` takes declustering weights
+It skips missing grades, and `weights=` takes declustering weights
 ([declustering](../../03-exploratory-analysis/03-declustering/README.md)).
 
 <details><summary>Python</summary>
@@ -52,11 +52,11 @@ VCL      8619    0.05  0.67    0.02    0.04    0.09    0.35
 all     13602    0.64  3.57    0.02    0.05    0.56   37.06
 ```
 
-mean Zn falls from 8.94 % in MS to 3.44 % in SMS and 0.38 % in STR; the host rocks and the dyke hold 0.05 to 0.06 %.
-each lithology has a CV between 0.55 and 0.68, and all of them pooled reach 3.57: mixing populations makes that
+Mean Zn falls from 8.94 % in MS to 3.44 % in SMS and 0.38 % in STR; the host rocks and the dike hold 0.05 to 0.06 %.
+Each lithology has a CV between 0.55 and 0.68, and all of them pooled reach 3.57: mixing populations makes that
 spread.
 
-box plots show the same quantiles side by side, sorted by median. the box spans P25 to P75, the whiskers P10 to P90,
+Box plots show the same quantiles side by side, sorted by median. The box spans P25 to P75, the whiskers P10 to P90,
 and the dot marks the mean. Cu differs from Zn: it is richest in the stringer zone below the lenses.
 
 <details><summary>Python</summary>
@@ -75,8 +75,8 @@ save(fig, "boxplot")
 
 ![boxplot](boxplot.png)
 
-cumulative distributions compare whole distributions; `stats=True` lists the count, mean, CV and deciles of each curve
-in the corner. the Q-Q plot pairs the quantiles of two lithologies, and points along the 1:1 line would mean the same
+Cumulative distributions compare whole distributions; `stats=True` lists the count, mean, CV and deciles of each curve
+in the corner. The Q-Q plot pairs the quantiles of two lithologies, and points along the 1:1 line would mean the same
 distribution. MS against SMS falls on a line parallel to it on log axes, a constant ratio: MS is SMS scaled up about
 2.7 times, the same shape at a different grade.
 

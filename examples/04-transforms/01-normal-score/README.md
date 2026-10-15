@@ -1,6 +1,6 @@
-# normal-score transform
+# Normal-score transform
 
-gaussian methods need a standard normal variable. the normal-score transform maps each value to the gaussian score
+Gaussian methods need a standard normal variable. The normal-score transform maps each value to the Gaussian score
 with the same cumulative probability, weighting samples by cell-declustering weights
 ([declustering](../../03-exploratory-analysis/03-declustering/README.md)).
 
@@ -31,7 +31,7 @@ scores: weighted mean 0.001, sd 0.998
 back-transform max error 0.0e+00
 ```
 
-each value takes the score with the same cumulative probability:
+Each value takes the score with the same cumulative probability:
 
 <details><summary>Python</summary>
 
@@ -55,7 +55,7 @@ for ax, x in ((a, vp), (b, yp)):
     ax.vlines(x, 0, p, color=HIGHLIGHT, lw=0.9, ls="--")
     ax.plot(x, p, "o", color=HIGHLIGHT, ms=5)
 a.annotate(f"V = {vp:.0f} ppm", (vp, 0.02), xytext=(4, 0), textcoords="offset points", color=HIGHLIGHT)
-b.annotate(f"score = {yp:.2f}", (yp, 0.02), xytext=(4, 0), textcoords="offset points", color=HIGHLIGHT)
+b.annotate(f"Score = {yp:.2f}", (yp, 0.02), xytext=(4, 0), textcoords="offset points", color=HIGHLIGHT)
 fig.suptitle(
     f"Each value maps to the normal score with the same cumulative probability ({p:.2f} shown)",
     x=0.01,
@@ -70,7 +70,7 @@ save(fig, "quantile-mapping")
 
 ![quantile-mapping](quantile-mapping.png)
 
-the skewed histogram of `V` becomes a standard gaussian:
+The skewed histogram of `V` becomes a standard Gaussian:
 
 <details><summary>Python</summary>
 
@@ -88,7 +88,7 @@ b.hist(
     color=LIGHT,
     edgecolor=GRAY,
     lw=0.5,
-    label="normal scores",
+    label="Normal scores",
 )
 b.plot(z, np.exp(-(z**2) / 2) / np.sqrt(2 * np.pi), color=ACCENT, lw=1.6, label="N(0, 1)")
 b.set_title("Normal scores: standard Gaussian")
@@ -102,8 +102,8 @@ save(fig, "histograms")
 
 ![histograms](histograms.png)
 
-on a probability scale a gaussian plots as a straight line. `bt.plot.probability` shows that V is not lognormal
-either, while its scores are gaussian by construction:
+On a probability scale a Gaussian plots as a straight line. `bt.plot.probability` shows that V is not lognormal
+either, while its scores are Gaussian by construction:
 
 <details><summary>Python</summary>
 
@@ -120,9 +120,9 @@ save(fig, "probability")
 
 ![probability](probability.png)
 
-the weighted scores have mean 0 and standard deviation 1, and the back-transform returns every sample exactly.
+The weighted scores have mean 0 and standard deviation 1, and the back-transform returns every sample exactly.
 
-only the samples at 0 ppm tie. `fit_transform` scores each sample by its rank, so tied samples spread in file order;
+Only the samples at 0 ppm tie. `fit_transform` scores each sample by its rank, so tied samples spread in file order;
 `transform` maps the tied value to one score:
 
 <details><summary>Python</summary>
@@ -142,7 +142,7 @@ fit_transform: scores -2.73 to -1.34
 transform: -1.76 for all
 ```
 
-neither order means anything. for a large spike, such as assays at a detection limit,
+Neither order means anything. For a large spike, such as assays at a detection limit,
 [despiking](../../03-exploratory-analysis/06-despiking/README.md) breaks the ties by the neighborhood of each sample
 before the transform.
 
