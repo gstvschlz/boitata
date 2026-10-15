@@ -11,6 +11,7 @@ mod points;
 mod polylines;
 pub mod rng;
 mod rotation;
+mod section;
 pub mod units;
 
 pub use arrow_array::RecordBatch;

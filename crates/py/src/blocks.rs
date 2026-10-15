@@ -438,6 +438,50 @@ impl Mesh {
         Ok(Self::from_core(mesh))
     }
 
+    /// Lines where one or more parallel planes cut the mesh.
+    ///
+    /// Parameters
+    /// ----------
+    /// origin : sequence of float
+    ///     A point on the plane, ``(x, y, z)``.
+    /// normal : sequence of float
+    ///     The plane's normal, any non-zero length.
+    /// offsets : sequence of float, optional
+    ///     Distances along the unit normal to move the plane by, one section
+    ///     each; defaults to ``[0.0]``, the plane through `origin`.
+    ///
+    /// Returns
+    /// -------
+    /// Polylines
+    ///     One feature per line, with an ``offset`` column naming its plane
+    ///     and the face columns of the faces it crosses. A closed mesh gives
+    ///     closed loops and an open surface open lines where the cut leaves
+    ///     it; a line through faces whose columns differ splits into open
+    ///     lines where they change. Loops of a solid wound outward run
+    ///     counter-clockwise around its inside seen from the side `normal`
+    ///     points to, so loops round cavities run clockwise. A vertex on a
+    ///     plane counts as on the side `normal` points to, so a face lying
+    ///     in the plane adds nothing. The CRS and length unit carry over.
+    ///
+    /// Raises
+    /// ------
+    /// InvalidInput
+    ///     With a zero or non-finite normal, non-finite offsets, or a face
+    ///     column named ``offset``.
+    #[pyo3(signature = (origin, normal, *, offsets=None))]
+    fn section(
+        &self,
+        py: Python,
+        origin: [f64; 3],
+        normal: [f64; 3],
+        offsets: Option<Vec<f64>>,
+    ) -> PyResult<PyPolylines> {
+        let offsets = offsets.unwrap_or_else(|| vec![0.0]);
+        py.detach(|| self.mesh.section(origin, normal, &offsets))
+            .map(PyPolylines)
+            .map_err(core_error)
+    }
+
     /// Proportion of each block inside, from a grid of points per block
     /// where the surface may cut it: `discretization` per axis, or one count
     /// for all three. `targets` is a BlockModel, whose rotation and sub-block
