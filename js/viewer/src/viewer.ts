@@ -57,6 +57,7 @@ import {
   unfold,
   writeSection,
 } from "./section";
+import { measure, metersPerPixel, scaleBar, scaleBarSvg } from "./measure";
 import { HALO_ORDER, shared } from "./shaders";
 import { CSS } from "./styles";
 import { resolveTheme, type Theme, type ThemeSpec, themeBase, withBase } from "./theme";
@@ -263,6 +264,11 @@ export class Viewer {
   private fullButton: HTMLButtonElement;
   private helpButton = iconButton("keyboard", "Keyboard shortcuts (?)", () => this.toggleHelp());
   private highlight = new THREE.Group();
+  private scaleEl = document.createElement("div");
+  private scaleText = "";
+  private measuring = false;
+  private marks: Vec3[] = [];
+  private marksGroup = new THREE.Group();
   private highlightLines = new LineMaterial({
     linewidth: 2.5,
     polygonOffset: true,
@@ -362,7 +368,9 @@ export class Viewer {
     this.card.hidden = true;
     this.help.className = "btv-card btv-help";
     this.help.hidden = true;
-    this.root.append(this.axes.overlay, this.sweep, this.bars, this.gizmo.el, this.card);
+    this.scaleEl.className = "btv-scale";
+    this.scene.add(this.marksGroup);
+    this.root.append(this.axes.overlay, this.sweep, this.bars, this.scaleEl, this.gizmo.el, this.card);
     this.reopen = iconButton("layers", "Show panel (H)", () => this.togglePanel());
     this.reopen.classList.add("btv-open");
     this.reopen.hidden = true;
@@ -478,6 +486,7 @@ export class Viewer {
     this.shareUniforms();
     this.axes.update(this.camera, this.width, this.height);
     this.gizmo.update(this.camera);
+    this.drawScaleBar();
     this.renderer.render(this.scene, this.camera);
     this.trackState();
   }
@@ -552,6 +561,39 @@ export class Viewer {
     this.camera.aspect = this.width / this.height;
     this.camera.updateProjectionMatrix();
     this.requestRender();
+  }
+
+  /** The scene's length unit, from its axis titles; empty without one. */
+  private lengthUnit(): string {
+    return /\(([^)]*)\)$/.exec(this.spec.axes[0])?.[1] ?? "";
+  }
+
+  /** A length for the screen, to three significant digits, in the scene's unit. */
+  private length(value: number): string {
+    const unit = this.lengthUnit();
+    return `${formatLength(value)}${unit ? ` ${unit}` : ""}`;
+  }
+
+  /** A variable's unit, from the first column of that name that has one. */
+  private unitOf(name: string): string {
+    for (const l of this.layers) for (const c of l.spec.columns) if (c.name === name && c.unit) return c.unit;
+    return "";
+  }
+
+  private titled(name: string, title = name): string {
+    const unit = this.unitOf(name);
+    return unit ? `${title} (${unit})` : title;
+  }
+
+  /** A round length at the depth the camera orbits, shown with the tick labels; true in a face-on view at that depth. */
+  private drawScaleBar(): void {
+    this.scaleEl.hidden = !this.axes.show.ticks;
+    const perPixel = metersPerPixel(this.camera.position.distanceTo(this.controls.target), this.camera.fov, this.height);
+    const bar = scaleBar(perPixel);
+    const text = `${bar.pixels.toFixed(1)}|${this.length(bar.length)}|${this.theme.text}|${this.theme.panel}`;
+    if (text === this.scaleText) return;
+    this.scaleText = text;
+    this.scaleEl.innerHTML = scaleBarSvg(bar.pixels, this.length(bar.length), this.theme);
   }
 
   // ---- motion quality ----
@@ -995,6 +1037,9 @@ export class Viewer {
         ["gizmo", "axes", "Orientation"],
         ["edl", "contrast", "Eye-dome lighting (E)"],
       ];
+      const ruler = iconButton("measure", "Measure: click two points (M)", () => this.toggleMeasure());
+      ruler.classList.add("btv-tool");
+      ruler.setAttribute("aria-pressed", String(this.measuring));
       for (const [key, name, text] of toggles) {
         const button = iconButton(name, text, () => {
           this.toggleShow(key);
@@ -1009,6 +1054,7 @@ export class Viewer {
         this.quality,
         (value) => this.setQuality(value as Quality),
       );
+      tools.appendChild(ruler);
       quality.setAttribute("aria-label", "Quality while moving");
       box.append(label("Show"), tools, label("Quality"), quality);
       this.body.appendChild(box);
@@ -1043,7 +1089,7 @@ export class Viewer {
       const stops = [0, 64, 128, 192, 255].map((i) => rgbToHex([table[3 * i], table[3 * i + 1], table[3 * i + 2]]));
       key.style.background = `linear-gradient(to right, ${stops.join(", ")})`;
     }
-    key.title = c ? c.name : "Solid color";
+    key.title = c ? this.titled(c.name) : "Solid color";
     return key;
   }
 
@@ -1499,7 +1545,7 @@ export class Viewer {
       const text = this.layers.some((l) => l.column?.name === name && l.column.type === "text");
       el.innerHTML = colorBarSvg(
         {
-          title: this.variable(name).label ?? name,
+          title: this.titled(name, this.variable(name).label ?? name),
           cmap: s.cmap,
           lo: s.lo,
           hi: s.hi,
@@ -1934,6 +1980,7 @@ export class Viewer {
     const at = this.screen(e);
     const click = isClick(this.clickAt, at, CLICK_PX);
     this.clickAt = null;
+    if (click && this.measuring && !this.drawing && !this.quick) return this.addMark(at);
     if (click && !this.drawing && !this.quick) return this.pick(at);
     if (this.quick) {
       const { from } = this.quick;
@@ -1983,7 +2030,7 @@ export class Viewer {
     const text = document.createElementNS(ns, "text");
     text.setAttribute("x", String(q.to[0] + 10));
     text.setAttribute("y", String(q.to[1] - 10));
-    text.textContent = `width ${formatLength(this.sectionWidth())}`;
+    text.textContent = `width ${this.length(this.sectionWidth())}`;
     this.sweep.append(line, text);
   }
 
@@ -2067,7 +2114,7 @@ export class Viewer {
       hint.textContent = `${n} point${n === 1 ? "" : "s"}. Click to add, Shift locks 45°, Shift+wheel sets the width, Backspace undoes, Enter cuts, Esc cancels.`;
     } else if (s && this.cut) {
       const n = s.segments.length + 1;
-      hint.textContent = `${n} points, ${formatLength(s.length)} long. Shift+wheel sets the width, U ${this.cut.unfolded ? "folds back" : "unfolds"}, X clears.`;
+      hint.textContent = `${n} points, ${this.length(s.length)} long. Shift+wheel sets the width, U ${this.cut.unfolded ? "folds back" : "unfolds"}, X clears.`;
     } else hint.textContent = "Shift-drag across the view for a straight cut (Shift+wheel sets its width), or draw a polyline (S).";
   }
 
@@ -2083,7 +2130,7 @@ export class Viewer {
       o.visible = false;
       hidden.push(o);
     };
-    [this.axes.group, this.outline, this.highlight].forEach(hide);
+    [this.axes.group, this.outline, this.highlight, this.marksGroup].forEach(hide);
     const saved: [THREE.Material, THREE.Blending, boolean][] = [];
     this.scene.traverse((o) => {
       if (o.userData.halo) hide(o);
@@ -2212,7 +2259,8 @@ export class Viewer {
       ]);
     }
     const columns = layer.spec.columns.filter((c) => !own.has(c.name));
-    if (columns.length) out.card.push(columns.map((c) => [c.name, formatValue(values[c.name])]));
+    const unit = (c: ColumnSpec) => (c.unit && typeof values[c.name] === "number" ? ` ${c.unit}` : "");
+    if (columns.length) out.card.push(columns.map((c) => [c.name, formatValue(values[c.name]) + unit(c)]));
     out.card.push([...this.spec.axes.map((title, k): [string, string] => [title, world[k].toFixed(2)]), ...extra]);
     return out;
   }
@@ -2293,7 +2341,7 @@ export class Viewer {
   private key(e: KeyboardEvent): void {
     const target = e.composedPath()[0] as HTMLElement;
     const inField = /^(INPUT|SELECT|TEXTAREA)$/.test(target?.tagName ?? "");
-    const cancellable = !!(this.drawing || this.quick || this.picked || !this.help.hidden);
+    const cancellable = !!(this.drawing || this.quick || this.picked || this.measuring || !this.help.hidden);
     const action = keyAction(e, inField, { drawing: !!this.drawing, cancellable });
     if (!action) return;
     e.preventDefault();
@@ -2322,9 +2370,77 @@ export class Viewer {
         if (this.drawing) this.endDrawing();
         else if (this.quick) this.endQuick();
         else if (!this.help.hidden) this.toggleHelp(false);
+        else if (this.measuring) this.toggleMeasure(false);
         else this.dismiss();
       },
+      measure: () => this.toggleMeasure(),
     })[action]();
+  }
+
+  // ---- measuring ----
+
+  /** Starts or stops the measure tool: clicks then mark points instead of picking, and Esc clears them. */
+  toggleMeasure(on = !this.measuring): void {
+    this.measuring = on;
+    this.marks = [];
+    this.dismiss();
+    this.card.hidden = true;
+    this.drawMarks();
+    this.renderBody();
+  }
+
+  /** The point under CSS pixel `at`: that of the element there, else on the level plane through the top of the box. */
+  private pointAt(at: XY): Vec3 | null {
+    const hit = this.hitAt(at);
+    const layer = hit ? this.layers[hit.layer] : undefined;
+    if (hit && layer) {
+      const o = this.spec.origin;
+      const p = this.inspect(layer, hit.row, at).state.position;
+      return [p[0] - o[0], p[1] - o[1], p[2] - o[2]];
+    }
+    const plan = this.planAt(at);
+    return plan ? [plan[0], plan[1], (this.box ?? visibleBox(this.layers))?.max[2] ?? 0] : null;
+  }
+
+  /** Marks a point; the second shows the distance, azimuth and dip from the first, a third starts over. */
+  private addMark(at: XY): void {
+    const p = this.pointAt(at);
+    if (!p) return;
+    if (this.marks.length === 2) this.marks = [];
+    this.marks.push(p);
+    this.drawMarks();
+    if (this.marks.length < 2) {
+      this.card.hidden = true;
+      return;
+    }
+    const m = measure(this.marks[0], this.marks[1]);
+    this.showCard("Measure", [[
+      ["Distance", this.length(m.distance)],
+      ["Horizontal", this.length(m.horizontal)],
+      ["Vertical", this.length(this.marks[1][2] - this.marks[0][2])],
+      ["Azimuth", `${m.azimuth.toFixed(1)}°`],
+      ["Dip", `${m.dip.toFixed(1)}°`],
+    ]], at);
+  }
+
+  private drawMarks(): void {
+    for (const child of this.marksGroup.children) (child as THREE.Mesh).geometry.dispose();
+    this.marksGroup.clear();
+    if (this.marks.length) {
+      const dots = new THREE.BufferGeometry();
+      dots.setAttribute("position", new THREE.Float32BufferAttribute(this.marks.flatMap((p) => this.place(p)), 3));
+      const points = new THREE.Points(dots, this.outlineDots);
+      points.frustumCulled = false;
+      points.renderOrder = 11;
+      this.marksGroup.add(points);
+    }
+    if (this.marks.length === 2) {
+      const line = new LineSegments2(new LineSegmentsGeometry().setPositions(this.marks.flatMap((p) => this.place(p))), this.outlineLines);
+      line.frustumCulled = false;
+      line.renderOrder = 10;
+      this.marksGroup.add(line);
+    }
+    this.requestRender();
   }
 
   /** Shows or hides the card listing the keyboard shortcuts. */
@@ -2402,6 +2518,7 @@ export class Viewer {
     };
     const overlays: Element[] = [...this.barEls.values()].map((el) => el.firstElementChild!).filter(Boolean);
     if (this.show.gizmo && !this.cut?.unfolded) overlays.push(this.gizmo.el);
+    if (!this.scaleEl.hidden && this.scaleEl.firstElementChild) overlays.push(this.scaleEl.firstElementChild);
     for (const svg of overlays) {
       const image = await svgImage(new XMLSerializer().serializeToString(svg));
       ctx.drawImage(image, ...place(svg));

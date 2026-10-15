@@ -112,6 +112,8 @@ export const CSS = /* css */ `
 .btv-bar { pointer-events: auto; cursor: grab; touch-action: none; }
 .btv-bar.btv-moved { position: absolute; }
 .btv-bar svg { display: block; }
+.btv-scale { position: absolute; right: 120px; bottom: 10px; pointer-events: none; }
+.btv-scale svg { display: block; }
 .btv-bar-edit { display: none; gap: 4px; margin-top: 2px; }
 .btv-bar:hover .btv-bar-edit, .btv-bar:focus-within .btv-bar-edit { display: flex; }
 .btv-bar-edit input { width: 0; flex: 1; }

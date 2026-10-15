@@ -719,6 +719,7 @@ class Scene:
             refs[role] = f"{layer_id}/{role}"
         specs = []
         for on, table in tables.items():
+            units = {**(getattr(data, "units", None) or {}), **(getattr(table, "units", None) or {})}
             for column in _names(table):
                 if wanted is not None and column not in wanted:
                     continue
@@ -735,6 +736,8 @@ class Scene:
                 key = f"{layer_id}/c{len(specs)}"
                 buffers[key] = array
                 specs.append({"name": column, "buffer": key, "on": on, **spec})
+                if units.get(column):
+                    specs[-1]["unit"] = units[column]
 
         layer = {
             "id": layer_id,

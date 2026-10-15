@@ -247,6 +247,12 @@ def test_representation_is_validated_per_kind(data, valid):
         Scene().add(data, representation="tubes")
 
 
+def test_column_units_reach_the_viewer():
+    points = bt.PointSet(rng.uniform(0, 1, (3, 3)), {"cu": [0.1, 1.0, 2.0], "rock": ["a", "b", "a"]})
+    columns = Scene().add(points.with_units({"cu": "%"}), "cu")._spec()["layers"][0]["columns"]
+    assert {c["name"]: c.get("unit") for c in columns} == {"cu": "%", "rock": None}
+
+
 def test_log_bins_and_reverse_describe_the_variable():
     points = bt.PointSet(rng.uniform(0, 1, (4, 3)), {"cu": [0.1, 1.0, 10.0, 100.0]})
     scene = Scene().add(points, "cu", log=True, bins=[1.0, 0.3, 0.5, 1.0], reverse=True, cmap="magma")

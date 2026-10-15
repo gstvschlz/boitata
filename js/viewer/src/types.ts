@@ -14,6 +14,8 @@ export interface ColumnSpec {
   min?: number;
   max?: number;
   categories?: string[];
+  /** Unit of the values, from the data's column units. */
+  unit?: string | null;
   /** Category colors, index-matched to `categories`; from a scheme, absent for the built-in palette. */
   colors?: string[];
 }

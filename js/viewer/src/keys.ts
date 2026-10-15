@@ -1,5 +1,5 @@
 /** What a key does in the viewer. */
-export type Action = "fit" | "plan" | "draw" | "finish" | "undo" | "lock" | "unfold" | "clear" | "panel" | "theme" | "cancel" | "help" | "edl";
+export type Action = "fit" | "plan" | "draw" | "finish" | "undo" | "lock" | "unfold" | "clear" | "panel" | "theme" | "cancel" | "help" | "edl" | "measure";
 
 /** The state a key's meaning depends on. */
 export interface KeyState {
@@ -18,6 +18,7 @@ const ALWAYS: Record<string, Action> = {
   h: "panel",
   t: "theme",
   e: "edl",
+  m: "measure",
   "?": "help",
 };
 
@@ -52,6 +53,7 @@ export const SHORTCUTS: [string, string][] = [
   ["H", "Hide or show the panel"],
   ["T", "Light or dark"],
   ["E", "Eye-dome lighting"],
+  ["M", "Measure between two clicks"],
   ["Esc", "Cancel, or close a card"],
   ["?", "These shortcuts"],
 ];
